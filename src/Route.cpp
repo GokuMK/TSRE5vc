@@ -11,6 +11,7 @@
 #include <QDebug>
 #include <QFile>
 #include <QDir>
+#include <QStringRef>
 #include "Route.h"
 #include "TSectionDAT.h"
 #include "GLUU.h"

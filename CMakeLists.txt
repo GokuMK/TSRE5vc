@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Network Core Core5Compat Widgets OpenGL OpenGLWidgets WebSockets )
+find_package(OpenAL REQUIRED)
 
 qt_standard_project_setup()
 
@@ -444,7 +445,6 @@ qt_add_executable(TSRE5vc
     ./src/TS.cpp
     ./src/TSection.cpp
     ./src/TSectionDAT.cpp
-    ./src/tsre5_plugin_import.cpp
     ./src/Undo.cpp
     ./src/UnsavedDialog.cpp
     ./src/UriImageDrawThread.cpp
@@ -458,7 +458,7 @@ qt_add_executable(TSRE5vc
 
 
 target_link_libraries(TSRE5vc PRIVATE Qt6::Core5Compat Qt6::Network Qt6::Widgets Qt6::OpenGL Qt6::OpenGLWidgets Qt6::WebSockets )
-
+target_link_libraries(TSRE5vc PUBLIC OpenAL::OpenAL )
 
 install(TARGETS TSRE5vc
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}

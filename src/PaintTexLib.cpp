@@ -87,7 +87,7 @@ void PaintTexLib::run() {
         p.setBrush(abrush);
         p.setPen(apen); 
         QFontMetrics fm(font);
-        int pwide = fm.width(val);
+        int pwide = fm.horizontalAdvance(val);
         int phigh = fm.ascent();
         QPainterPath myPath;
         myPath.addText(w/2-pwide/2,phigh-2, font, val);

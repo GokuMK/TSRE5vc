@@ -23,6 +23,10 @@ AceLib::AceLib(){
     
 }
 
+AceLib::AceLib(const AceLib& orig){
+    
+}
+
 AceLib::~AceLib(){
     
 }

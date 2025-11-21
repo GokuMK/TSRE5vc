@@ -7,7 +7,7 @@
  *
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
-
+#include <QScreen>
 #include "PropertiesSignal.h"
 #include "SignalWindow.h"
 #include "SignalObj.h"
@@ -235,7 +235,7 @@ void PropertiesSignal::showObj(GameObj* obj){
 
     signalWindow->showObj(sobj);
     
-    QRect rec = QApplication::desktop()->screenGeometry();
+    QRect rec = QApplication::primaryScreen()->geometry();
     signalWindow->move(rec.width()/2-signalWindow->width()/2 ,rec.height()/2-signalWindow->height()/2);
     
     this->flags.setText(ParserX::MakeFlagsString(sobj->staticFlags));

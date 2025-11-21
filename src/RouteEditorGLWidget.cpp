@@ -1363,9 +1363,9 @@ void RouteEditorGLWidget::mousePressEvent(QMouseEvent *event) {
 }
 
 void RouteEditorGLWidget::wheelEvent(QWheelEvent *event) {
-    float numDegrees = 0.01 * event->delta();
+    float numDegrees = 0.01 * event->angleDelta().y();
 
-    if (event->orientation() == Qt::Vertical) {
+    if (event->angleDelta().y() > 0) {
         if (toolEnabled == "selectTool" || toolEnabled == "placeTool") {
             if (selectedObj != NULL) {
                 if (selectedObj->typeObj == GameObj::worldobj) {

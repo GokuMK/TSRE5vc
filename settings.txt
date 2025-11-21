@@ -1,0 +1,55 @@
+consoleOutput = false
+
+# main directory of your game data
+gameRoot = F:/train simulator
+
+# route directory name to load on startup by default
+routeName = asdasasdasd1233
+
+# optional start tile
+#startTileX = -5306
+#startTileY = 14961
+
+# route edit
+#createNewIfNotExist = true
+writeEnabled = true
+writeTDB = true
+#deleteTrWatermarks = true
+#deleteViewDbSpheres = true
+
+# geo data
+geoPath = F:/hgst
+
+# misc
+#systemTheme = true
+#colorConView = #FF0000
+#colorShapeView = #00FF00
+#toolsHidden = true
+usenNumPad = true
+tileLod = 2
+objectLod = 4000
+maxObjLag = 10
+allowObjLag = 1000
+#cameraFov = 20.0
+leaveTrackShapeAfterDelete = false
+#renderTrItems = true
+#useImperial = false
+#ortsEngEnable = false
+#oglDefaultLineWidth = 2
+shadowsEnabled = 1
+#shadowMapSize = 8192
+#textureQuality = 4
+ignoreMissingGlobalShapes = true
+snapableOnlyRot = false
+imageMapsUrl = 
+#AASamples = 16
+#mapImageResolution = 2048
+#cameraStickToTerrain = true
+#mouseSpeed = 0.1
+#mainWindowLayout = W
+#ceindowLayout = CU1
+#useQuadTree = false
+#fogColor = #D0D0FF
+#fogDensity = 0.5
+#defaultElevationBox = 0
+#defaultMoveStep = 0.25

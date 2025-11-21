@@ -88,6 +88,8 @@ CMakeLists.txt.user*
 /files/
 /pic/
 /platforms/
+/tsre_appdata/
+/tsre_assets/
 trainUpdates.dat
 trains.dat
 users.txt

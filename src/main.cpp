@@ -34,7 +34,7 @@ void myMessageOutput(QtMsgType type, const QMessageLogContext &context, const QS
     const char symbols[] = { 'I', 'E', '!', 'X' };
     QString output = QString("[%1] %2").arg( symbols[type] ).arg( msg );
     if(Game::consoleOutput)
-        std::cout << output.toStdString() << std::endl;
+        std::cout << output.toStdString() << "\n";
     logFileOut << output << "\n";
     logFileOut.flush();
     logFile.flush(); 
@@ -209,6 +209,10 @@ int main(int argc, char *argv[]){
     if(!Game::UseWorkingDir){
         QDir::setCurrent(QCoreApplication::applicationDirPath());
     }
+    
+    workingDir = QDir::currentPath();
+    workingDir.replace("/build", "");
+    QDir::setCurrent(workingDir);
     
     Game::load();
         

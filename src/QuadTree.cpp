@@ -506,7 +506,7 @@ void QuadTree::saveTD(int x, int y) {
     y = y * 512;
     int id = x * 100000 + y;
     saveTD(x, y, &out);
-    out.unsetDevice();
+    out.setDevice(nullptr);
     file->close();
     td[id]->modified = false;
 }

@@ -482,7 +482,7 @@ void RouteEditorClient::updateTerrainHeightmap(Terrain *t) {
         out << (qint32) t->mojex;
         out << (qint32) t->mojez;
         t->saveRAWfileToStreamFloat(out);
-        out.unsetDevice();
+        out.setDevice(nullptr);
         m_webSocket->sendBinaryMessage(outd);
     }
 }
@@ -501,7 +501,7 @@ void RouteEditorClient::updateTerrainTFile(Terrain *t) {
         out << (qint32) t->mojex;
         out << (qint32) t->mojez;
         t->saveTfileToStream(out);
-        out.unsetDevice();
+        out.setDevice(nullptr);
         m_webSocket->sendBinaryMessage(outd);
     }
 }

@@ -55,7 +55,7 @@ RouteEditorServer::RouteEditorServer() {
         addr.setAddress(IP);
     
     if (m_pWebSocketServer->listen(addr, Port)) {
-        S_OUT << "Route Editor Server listening on ip " << addr.toString() << " port " << Port << endl;
+        S_OUT << "Route Editor Server listening on ip " << addr.toString() << " port " << Port << "\n";
         connect(m_pWebSocketServer, &QWebSocketServer::newConnection,
             this, &RouteEditorServer::onNewConnection);
         connect(m_pWebSocketServer, &QWebSocketServer::closed, this, &RouteEditorServer::closed);
@@ -82,14 +82,14 @@ void RouteEditorServer::loadUsersFromFile(){
     QString path = "users.txt";
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly)){
-        S_OUT << "Error: users.txt file failed to open!" << endl;
+        S_OUT << "Error: users.txt file failed to open!" << "\n";
         return;
     }
     
-    S_OUT << "Loading users.txt file: " << path << endl;
+    S_OUT << "Loading users.txt file: " << path << "\n";
 
     QTextStream in(&file);
-    in.setCodec("UTF-8");
+    in.setEncoding(QStringConverter::Utf8);
     QString line;
     QStringList args;
     QString val;
@@ -108,11 +108,11 @@ void RouteEditorServer::loadUsersFromFile(){
 }
 
 void RouteEditorServer::listUsers(){
-    S_OUT << "Users: " << clients.size() << endl;
+    S_OUT << "Users: " << clients.size() << "\n";
     foreach (ClientInfo *value, clients) {
         if(value == NULL)
             continue;
-        S_OUT << value->username << " " << value->X << "_" << value->Z << " " << value->lastAction << endl;
+        S_OUT << value->username << " " << value->X << "_" << value->Z << " " << value->lastAction << "\n";
     }
 }
 
@@ -211,7 +211,7 @@ RouteEditorServer::~RouteEditorServer() {
 
 void RouteEditorServer::onNewConnection(){
     QWebSocket *pSocket = m_pWebSocketServer->nextPendingConnection();
-    S_OUT << QDateTime::currentDateTime().toString("HH:mm:ss") << " New User Connected " << pSocket->peerAddress().toString() << " " << pSocket->peerName() << endl;
+    S_OUT << QDateTime::currentDateTime().toString("HH:mm:ss") << " New User Connected " << pSocket->peerAddress().toString() << " " << pSocket->peerName() << "\n";
     connect(pSocket, &QWebSocket::textMessageReceived, this, &RouteEditorServer::processTextMessage);
     connect(pSocket, &QWebSocket::binaryMessageReceived, this, &RouteEditorServer::processBinaryMessage);
     connect(pSocket, &QWebSocket::disconnected, this, &RouteEditorServer::socketDisconnected);
@@ -235,7 +235,7 @@ void RouteEditorServer::readUtf16Message(QWebSocket *client, QByteArray &message
     data->skipBOM();
     QString sh;
     if(clients[client] == NULL){
-        S_OUT << "Fatal error client null!" << endl;
+        S_OUT << "Fatal error client null!" << "\n";
         return;
     }
     bool msg = false;
@@ -369,7 +369,7 @@ void RouteEditorServer::readUtf16Message(QWebSocket *client, QByteArray &message
                     out2 << (qint32)i.value()->y;
                     S_OUT << " Sending QT ";
                     qt->saveTD(i.value()->x, i.value()->y, &out2);
-                    out2.unsetDevice();
+                    out2.setDevice(nullptr);
                     client->sendBinaryMessage(outd2);
                 }
             }
@@ -391,7 +391,7 @@ void RouteEditorServer::readUtf16Message(QWebSocket *client, QByteArray &message
                     out2 << (qint32)i.value()->y;
                     S_OUT << " Sending QTL";
                     qt->saveTD(i.value()->x, i.value()->y, &out2);
-                    out2.unsetDevice();
+                    out2.setDevice(nullptr);
                     client->sendBinaryMessage(outd2);
                 }
             }
@@ -417,7 +417,7 @@ void RouteEditorServer::readUtf16Message(QWebSocket *client, QByteArray &message
                 out << (qint32)x;
                 out << (qint32)z;
                 t->saveTfileToStream(out);
-                out.unsetDevice();
+                out.setDevice(nullptr);
                 client->sendBinaryMessage(outd);
             }
             ParserX::SkipToken(data);
@@ -442,7 +442,7 @@ void RouteEditorServer::readUtf16Message(QWebSocket *client, QByteArray &message
                 out << (qint32)x;
                 out << (qint32)z;
                 t->saveRAWfileToStreamFloat(out);
-                out.unsetDevice();
+                out.setDevice(nullptr);
                 client->sendBinaryMessage(outd);
             }
             ParserX::SkipToken(data);
@@ -467,7 +467,7 @@ void RouteEditorServer::readUtf16Message(QWebSocket *client, QByteArray &message
                 out << (qint32)x;
                 out << (qint32)z;
                 //t->saveFfileToStream(out);
-                out.unsetDevice();
+                out.setDevice(nullptr);
                 client->sendBinaryMessage(outd);
             }
             ParserX::SkipToken(data);
@@ -617,7 +617,7 @@ void RouteEditorServer::readUtf16Message(QWebSocket *client, QByteArray &message
         continue;
     }
     if(msg)
-        S_OUT << " User: " << clients[client]->username << " Time: " << QDateTime::currentMSecsSinceEpoch() - timeNow << " ms." << endl;
+        S_OUT << " User: " << clients[client]->username << " Time: " << QDateTime::currentMSecsSinceEpoch() - timeNow << " ms." << "\n";
 }
 
 void RouteEditorServer::sendMessageToClients(QWebSocket *client, QByteArray &message){
@@ -699,7 +699,7 @@ void RouteEditorServer::readBinaryMessage(QWebSocket *client, QByteArray &messag
             S_OUT << " Undefined token " << token;
             break;
     }
-    S_OUT << " User: " << clients[client]->username << " Time: " << QDateTime::currentMSecsSinceEpoch() - timeNow << " ms." << endl;
+    S_OUT << " User: " << clients[client]->username << " Time: " << QDateTime::currentMSecsSinceEpoch() - timeNow << " ms." << "\n";
 }
 
 void RouteEditorServer::processBinaryMessage(QByteArray message){
@@ -726,7 +726,7 @@ void RouteEditorServer::socketDisconnected(){
         //clients[pClient] = NULL;
         pClient->deleteLater();
     }
-    S_OUT << " " << endl;
+    S_OUT << " " << "\n";
 }
 
 void RouteEditorServer::sendUtf16Message(QWebSocket *client, QString msg) {

@@ -73,7 +73,8 @@ void ShapeViewerNavigatorWidget::listHierarchy(QVector<ContentHierarchyInfo*> in
         list.append(info[i]->name);
         QTreeWidgetItem *item = new QTreeWidgetItem((QTreeWidget*)0, list, count );
         if(info[i]->distanceLevelId < 0)
-            item->setTextColor(0, QColor(Game::StyleMainLabel));
+            //item->setTextColor(0, QColor(Game::StyleMainLabel));
+            item->setForeground(0, QBrush(QColor(Game::StyleMainLabel)));
         treeItems.append(item);
     }
     for(int i = 0; i < treeItems.count(); i++){

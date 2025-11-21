@@ -20,7 +20,7 @@
 
     void SFileC::odczytajshaders(FileBuffer* bufor, SFile* pliks) {
         int temp;
-
+        
         bufor->off += 1;
         pliks->ishaders = bufor->getInt();
 
@@ -32,8 +32,8 @@
             //pliks->image[i] = new SFile::imgs();
             pliks->shader[i].name = "";
             for (int j = 0; j < (temp - 3) / 2; j++) {
-                pliks->shader[i].name += bufor->get();
-                bufor->get();
+                pliks->shader[i].name += bufor->getShort();
+                //bufor->get();
             }
             pliks->shader[i].name = pliks->shader[i].name.toLower();
             if(pliks->shader[i].name == "texdiff") 
@@ -164,8 +164,8 @@
             //pliks->image[i] = new SFile::imgs();
             pliks->image[i].name = "";
             for (int j = 0; j < (temp - 3) / 2; j++) {
-                pliks->image[i].name += bufor->get();
-                bufor->get();
+                pliks->image[i].name += bufor->getShort();
+                //bufor->get();
             }
             pliks->image[i].tex = -1;
         }
