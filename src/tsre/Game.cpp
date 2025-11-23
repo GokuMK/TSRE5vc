@@ -194,13 +194,13 @@ QHash<QString, int> Game::TextureFlags {
 void Game::InitAssets() {
     QString path;
     bool newInstallation = false;
-    path = "./tsre_assets/";
+    path = "./assets/";
     QFile appFile3(path);
     if (!appFile3.exists()){
         QDir().mkdir(path);
     }
     
-    path = "./tsre_appdata/";
+    path = "./appdata/";
     
     QFile appFile1(path);
     if (!appFile1.exists()){
@@ -886,7 +886,7 @@ void Game::DownloadAppData(QString path){
     QByteArray data = r->readAll();
     FileBuffer *fileData = new FileBuffer((unsigned char*)data.data(), data.length());
     TarFile tarFile(fileData);
-    tarFile.extractTo("./tsre_appdata/");
+    tarFile.extractTo("./appdata/");
     
     // Create bat file for Consist Editor.
     QString conBatFile = QFileInfo(QCoreApplication::applicationFilePath()).fileName()+" --conedit";

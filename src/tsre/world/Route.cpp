@@ -2342,7 +2342,7 @@ void Route::createNew() {
     //Terrain::saveEmpty(x, z);
 
     QString templateDir = "templateroute_0.6/";
-    QString res = QString("tsre_assets/templateroute_0.6/");//+templateDir;
+    QString res = QString("assets/templateroute_0.6/");//+templateDir;
     path += "/";
 
     QFile::copy(res + "sigcfg.dat", path + "sigcfg.dat");

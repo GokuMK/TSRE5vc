@@ -15,7 +15,7 @@
 
 GuiGlCompass::GuiGlCompass() {
     
-    static QString texString = QString("tsre_appdata/")+Game::AppDataVersion+"/compass.png";
+    static QString texString = QString("appdata/")+Game::AppDataVersion+"/compass.png";
     
     GLUU* gluu = GLUU::get();
     float *punkty = new float[54];

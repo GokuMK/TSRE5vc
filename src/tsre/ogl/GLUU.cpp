@@ -48,9 +48,9 @@ GLUU::~GLUU() {
 
 const char* GLUU::getShader(QString shaderScript, QString type) {
 #ifdef __APPLE__
-    QFile* shaderData = new QFile(QString("tsre_appdata/")+Game::AppDataVersion+"/shaders330/"+shaderScript+"."+type);
+    QFile* shaderData = new QFile(QString("appdata/")+Game::AppDataVersion+"/shaders330/"+shaderScript+"."+type);
 #else
-    QFile* shaderData = new QFile(QString("tsre_appdata/")+Game::AppDataVersion+"/shaders/"+shaderScript+"."+type);
+    QFile* shaderData = new QFile(QString("appdata/")+Game::AppDataVersion+"/shaders/"+shaderScript+"."+type);
 #endif
     if (!shaderData->open(QIODevice::ReadOnly)){
         qDebug() << "Shader file not found " << shaderData->fileName();

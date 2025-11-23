@@ -36,7 +36,7 @@ ObjFile* ProceduralShape::GetObjFile(QString name) {
     
     QString pathRoute = Game::root + "/routes/" + Game::route + "/procedural/" + name;
     pathRoute.replace("//", "/");
-    QString pathApp = QString("tsre_appdata/") + Game::AppDataVersion + "/procedural/" + name;
+    QString pathApp = QString("appdata/") + Game::AppDataVersion + "/procedural/" + name;
     pathApp.replace("//", "/");
     QString path = pathApp;
     QFile file(pathRoute);
@@ -51,7 +51,7 @@ ObjFile* ProceduralShape::GetObjFile(QString name) {
 QString ProceduralShape::GetTexturePath(QString textureName){
     QString pathRoute = Game::root + "/routes/" + Game::route + "/procedural/" + textureName;
     pathRoute.replace("//", "/");
-    QString pathApp = QString("tsre_appdata/") + Game::AppDataVersion + "/procedural/" + textureName;
+    QString pathApp = QString("appdata/") + Game::AppDataVersion + "/procedural/" + textureName;
     pathApp.replace("//", "/");
     QString path = pathApp;
     QFile file(pathRoute);

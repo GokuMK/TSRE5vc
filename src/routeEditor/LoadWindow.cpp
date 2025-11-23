@@ -25,7 +25,7 @@ LoadWindow::LoadWindow() {
     setWindowTitle(Game::AppName+" "+Game::AppVersion+" Route Editor");
     this->setFixedSize(600, 700);
     QImage* myImage = new QImage();
-    myImage->load(QString("tsre_appdata/")+Game::AppDataVersion+"/load.png");
+    myImage->load(QString("appdata/")+Game::AppDataVersion+"/load.png");
 
     QLabel* myLabel = new QLabel("");
     myLabel->setContentsMargins(0,0,0,0);
@@ -227,7 +227,7 @@ void LoadWindow::setNewRoute(){
     //this->load->setText("New");
     
     //Check if template route available.
-    QString path = "./tsre_assets/templateRoute_0.6";
+    QString path = "./assets/templateRoute_0.6";
     QFile appFile(path);
     if (!appFile.exists()){
         downloadTemplateRoute(path);
@@ -282,7 +282,7 @@ void LoadWindow::downloadTemplateRoute(QString path){
     QByteArray data = r->readAll();
     FileBuffer *fileData = new FileBuffer((unsigned char*)data.data(), data.length());
     TarFile tarFile(fileData);
-    tarFile.extractTo("./tsre_assets/");
+    tarFile.extractTo("./assets/");
 
 }
 

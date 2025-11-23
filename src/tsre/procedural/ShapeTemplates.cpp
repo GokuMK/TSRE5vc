@@ -18,10 +18,10 @@
 
 ShapeTemplates::ShapeTemplates() {
     
-    QString resPath = QString("tsre_appdata/")+Game::AppDataVersion+"/procedural/";
-    //QString path2 = QString("tsre_appdata/")+Game::AppDataVersion+"/tracks/uic60.obj";
-    //QString path3 = QString("tsre_appdata/")+Game::AppDataVersion+"/tracks/ballast1.obj";
-    //QString path3 = QString("tsre_appdata/")+Game::AppDataVersion+"/tracks/ballast2.obj";
+    QString resPath = QString("appdata/")+Game::AppDataVersion+"/procedural/";
+    //QString path2 = QString("appdata/")+Game::AppDataVersion+"/tracks/uic60.obj";
+    //QString path3 = QString("appdata/")+Game::AppDataVersion+"/tracks/ballast1.obj";
+    //QString path3 = QString("appdata/")+Game::AppDataVersion+"/tracks/ballast2.obj";
     /*if(Files[path1] == NULL)
         Files[path1] = new ObjFile(path1);
     if(Files[path2] == NULL)
