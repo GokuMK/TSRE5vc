@@ -17,15 +17,15 @@
 #include <QColor>
 #include <QStringList>
 #include <iostream>
-#include "Game.h"
-#include "RouteEditorWindow.h"
-#include "LoadWindow.h"
-#include "CELoadWindow.h"
-#include "ShapeViewerWindow.h"
-#include "MapWindow.h"
-#include "RouteEditorServer.h"
-#include "RouteEditorClient.h"
-#include "Undo.h"
+#include <tsre/Game.h>
+#include <routeEditor/RouteEditorWindow.h>
+#include <routeEditor/LoadWindow.h>
+#include <conEditor/CELoadWindow.h>
+#include <shapeViewer/ShapeViewerWindow.h>
+#include <tsre/geo/MapWindow.h>
+#include <routeEditor/RouteEditorServer.h>
+#include <routeEditor/RouteEditorClient.h>
+#include <tsre/Undo.h>
 
 QFile logFile;
 QTextStream logFileOut;
