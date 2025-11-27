@@ -50,6 +50,7 @@ LoadWindow::LoadWindow() {
     
     nowaTrasa = new QLineEdit();
     QRegularExpression rx("^[a-zA-Z0-9\\_\\-\\ ]*$");
+    qDebug() << "QRegularExpression" << rx.isValid();
     //QRegExp rx("[\\/<>|\":?*].");
     QRegularExpressionValidator* v = new QRegularExpressionValidator(rx);
     nowaTrasa->setValidator(v);

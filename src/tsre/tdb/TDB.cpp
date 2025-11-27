@@ -3422,7 +3422,10 @@ void TDB::saveEmpty(bool road) {
     path.replace("//", "/");
     qDebug() << path;
     QFile file(path);
-    file.open(QIODevice::WriteOnly | QIODevice::Text);
+    if(!file.open(QIODevice::WriteOnly | QIODevice::Text)){
+        qDebug() << "Error creating empty TDB file!";
+        return;
+    }
     QTextStream out(&file);
     out.setRealNumberPrecision(8);
     out.setEncoding(QStringConverter::Utf16);
@@ -3467,7 +3470,10 @@ void TDB::save() {
     qDebug() << path;
     QFile file(path);
 
-    file.open(QIODevice::WriteOnly | QIODevice::Text);
+    if(!file.open(QIODevice::WriteOnly | QIODevice::Text)){
+        qDebug() << "Error saving TDB file!";
+        return;
+    }
     QTextStream out(&file);
     out.setRealNumberPrecision(8);
     //out.setRealNumberNotation(QTextStream::FixedNotation);
@@ -3695,7 +3701,10 @@ void TDB::saveTit() {
     qDebug() << path;
     QFile file(path);
 
-    file.open(QIODevice::WriteOnly | QIODevice::Text);
+    if(!file.open(QIODevice::WriteOnly | QIODevice::Text)){
+        qDebug() << "Error saving TIT file!";
+        return;
+    }
     QTextStream out(&file);
     out.setRealNumberPrecision(8);
     //out.setRealNumberNotation(QTextStream::FixedNotation);

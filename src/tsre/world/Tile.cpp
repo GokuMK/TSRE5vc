@@ -632,7 +632,10 @@ void Tile::saveEmpty(int nx, int nz) {
     QFile file(path);
     if(file.exists()) return;
     
-    file.open(QIODevice::WriteOnly | QIODevice::Text);
+    if(!file.open(QIODevice::WriteOnly | QIODevice::Text)){
+        qDebug() << "Error creating empty W file " << path;
+        return;
+    }
     QTextStream out(&file);
     out.setEncoding(QStringConverter::Utf16);
     out.setGenerateByteOrderMark(true);
@@ -664,7 +667,10 @@ void Tile::save() {
     qDebug() << path;
     QFile file(path);
     
-    file.open(QIODevice::WriteOnly | QIODevice::Text);
+    if(!file.open(QIODevice::WriteOnly | QIODevice::Text)){
+        qDebug() << "Error saving W file " << path;
+        return;
+    }
     QTextStream out(&file);
     out.setEncoding(QStringConverter::Utf16);
     out.setGenerateByteOrderMark(true);
@@ -738,7 +744,10 @@ void Tile::saveWS() {
         return;
     }
     
-    file.open(QIODevice::WriteOnly | QIODevice::Text);
+    if(!file.open(QIODevice::WriteOnly | QIODevice::Text)){
+        qDebug() << "Error saving WS file " << path;
+        return;
+    }   
     QTextStream out(&file);
     out.setEncoding(QStringConverter::Utf16);
     out.setGenerateByteOrderMark(true);

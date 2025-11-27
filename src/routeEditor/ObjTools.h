@@ -30,6 +30,7 @@ public slots:
     void refOtherSelected(const QString & text);
     void refSearchSelected(const QString & text);
     void refListSelected(QListWidgetItem * item);
+    void refListSelected(QListWidgetItem * item, QListWidgetItem * previous);
     void lastItemsListSelected(QListWidgetItem * item);
     void selectToolEnabled(bool val);
     void placeToolEnabled(bool val);

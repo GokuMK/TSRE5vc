@@ -43,7 +43,7 @@ TerrainLib *Game::terrainLib = NULL;
 
 bool Game::UseWorkingDir = false;
 QString Game::AppName = "TSRE5";
-QString Game::AppVersion = "v0.7.600";
+QString Game::AppVersion = "v0.7.602";
 QString Game::AppDataVersion = "0.697";
 bool Game::caseInsensitiveFS = true;
 QString Game::root = "C:/tsdata/Train Simulator/";
@@ -768,8 +768,14 @@ void Game::CreateNewSettingsFile(){
     filepath = "./settings.txt";
     file.setFileName(filepath);
     //qDebug() << filepath;
-    file.open(QIODevice::WriteOnly | QIODevice::Text);
-    out.setDevice(&file);
+    if(file.open(QIODevice::WriteOnly | QIODevice::Text)){
+        out.setDevice(&file);
+    }
+    else {
+        qDebug() << "Failed to create settings file";
+        return;
+    }
+    
     out << "consoleOutput = false\n";
     out << "\n";
     out << "# main directory of your game data\n";
@@ -862,9 +868,12 @@ void Game::CheckForOpenAl(){
     qDebug() << "Network Reply Loop End";
     QByteArray data = r->readAll();
 
-    file.open(QIODevice::WriteOnly);
-    file.write(data);
-    file.close();
+    if(file.open(QIODevice::WriteOnly)){
+        file.write(data);
+        file.close();
+    } else {
+        qDebug() << "Failed to create OpenAL file";
+    }
 }
 
 void Game::DownloadAppData(QString path){
@@ -888,23 +897,29 @@ void Game::DownloadAppData(QString path){
     FileBuffer *fileData = new FileBuffer((unsigned char*)data.data(), data.length());
     TarFile tarFile(fileData);
     tarFile.extractTo("./appdata/");
-    
+
+    QTextStream out;
     // Create bat file for Consist Editor.
     QString conBatFile = QFileInfo(QCoreApplication::applicationFilePath()).fileName()+" --conedit";
     QFile file1("./ConsistEditor.bat");
-    file1.open(QIODevice::WriteOnly | QIODevice::Text);
-    QTextStream out;
-    out.setDevice(&file1);
-    out << conBatFile;
-    out.flush();
-    file1.close();
+    if(file1.open(QIODevice::WriteOnly | QIODevice::Text)){
+        out.setDevice(&file1);
+        out << conBatFile;
+        out.flush();
+        file1.close();
+    } else {
+        qDebug() << "Failed to create ConsistEditor.bat";
+    }
     
     // Create bat file for Shape Viewer.
     conBatFile = QFileInfo(QCoreApplication::applicationFilePath()).fileName()+" --shapeview";
     QFile file2("./ShapeViewer.bat");
-    file2.open(QIODevice::WriteOnly | QIODevice::Text);
-    out.setDevice(&file2);
-    out << conBatFile;
-    out.flush();
-    file2.close();
+    if(file2.open(QIODevice::WriteOnly | QIODevice::Text)){
+        out.setDevice(&file2);
+        out << conBatFile;
+        out.flush();
+        file2.close();
+    } else {
+        qDebug() << "Failed to create ShapeViewer.bat";
+    }
 }

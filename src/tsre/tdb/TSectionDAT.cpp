@@ -248,7 +248,10 @@ bool TSectionDAT::saveRoute() {
     path.replace("//", "/");
     qDebug() << path;
     QFile file(path);
-    file.open(QIODevice::WriteOnly | QIODevice::Text);
+    if(!file.open(QIODevice::WriteOnly | QIODevice::Text)){
+        qDebug() << "Cannot create tsection.dat file!";
+        return false;
+    }
     QTextStream out(&file);
     out.setRealNumberPrecision(6);
     out.setEncoding(QStringConverter::Utf16);

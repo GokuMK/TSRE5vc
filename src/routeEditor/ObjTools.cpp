@@ -194,8 +194,10 @@ ObjTools::ObjTools(QString name)
     QObject::connect(&searchBox, SIGNAL(textEdited(QString)),
                       this, SLOT(refSearchSelected(QString)));
     
-    QObject::connect(&refList, SIGNAL(itemClicked(QListWidgetItem*)),
-                      this, SLOT(refListSelected(QListWidgetItem*)));
+    //QObject::connect(&refList, SIGNAL(itemClicked(QListWidgetItem*)),
+    //                  this, SLOT(refListSelected(QListWidgetItem*)));
+    QObject::connect(&refList, SIGNAL(currentItemChanged(QListWidgetItem*, QListWidgetItem*)),
+                      this, SLOT(refListSelected(QListWidgetItem*, QListWidgetItem*)));
     
     QObject::connect(&lastItems, SIGNAL(itemClicked(QListWidgetItem*)),
                       this, SLOT(lastItemsListSelected(QListWidgetItem*)));
@@ -471,8 +473,15 @@ void ObjTools::refOtherSelected(const QString & text){
 }
 
 void ObjTools::refListSelected(QListWidgetItem * item){
+    refListSelected(item, nullptr);
+}
+
+void ObjTools::refListSelected(QListWidgetItem * item, QListWidgetItem * previous){
+    if(item == nullptr)
+        return;
     try {
         route->ref->selected = currentItemList[item->type()];//&route->ref->refItems[refClass.currentText().toStdString()][refList.currentRow()];
+        qDebug() << "Selected item: " << route->ref->selected->description;
         emit sendMsg("engItemSelected");
         itemSelected((Ref::RefItem*)route->ref->selected);
     } catch(const std::out_of_range& oor){

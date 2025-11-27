@@ -488,7 +488,10 @@ void Path::CreatePaths(TDB * tdb){
             filepath = path+"/"+QString::number(i,10)+".pat";
             file.setFileName(filepath);
             //qDebug() << filepath;
-            file.open(QIODevice::WriteOnly | QIODevice::Text);
+            if(!file.open(QIODevice::WriteOnly | QIODevice::Text)){
+                qDebug() << "Cannot create path file: " << filepath;
+                continue;
+            }
             out.setDevice(&file);
             out.setRealNumberPrecision(8);
             out.setEncoding(QStringConverter::Utf16);

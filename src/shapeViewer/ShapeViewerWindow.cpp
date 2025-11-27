@@ -157,8 +157,10 @@ void ShapeViewerWindow::saveImgShapeView(){
         qDebug() << path;
         if(path.length() < 1) return;
         QFile file(path);
-        file.open(QIODevice::WriteOnly);
-        img.save(&file);
+        if(file.open(QIODevice::WriteOnly))
+            img.save(&file);
+        else
+            qDebug() << "Cannot save image to file!";
     }
 }
 

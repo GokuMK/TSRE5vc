@@ -117,7 +117,10 @@ void Traffic::save(){
     qDebug() << tpath;
     QFile file(tpath);
 
-    file.open(QIODevice::WriteOnly | QIODevice::Text);
+    if(!file.open(QIODevice::WriteOnly | QIODevice::Text)){
+        qDebug() << "Cannot save traffic file!";
+        return;
+    }
     QTextStream out(&file);
     out.setEncoding(QStringConverter::Utf16);
     out.setGenerateByteOrderMark(true);

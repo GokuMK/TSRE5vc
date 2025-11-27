@@ -340,7 +340,10 @@ void Terrain::SaveEmpty(QString name, int samples, int sampleSize, int patches, 
     }
     QFile file(path);
     if (!file.exists()){
-        file.open(QIODevice::WriteOnly);
+        if(!file.open(QIODevice::WriteOnly)){
+            qDebug() << "Error creating raw file!";
+            return;
+        }
         QDataStream write(&file);
         write.setByteOrder(QDataStream::BigEndian);
         unsigned short value = 128;

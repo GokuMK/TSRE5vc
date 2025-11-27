@@ -5,8 +5,14 @@ project(TSRE5vc LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Network Core Core5Compat Widgets OpenGL OpenGLWidgets WebSockets )
-find_package(OpenAL REQUIRED)
+find_package(Qt6 REQUIRED COMPONENTS Network Core Widgets OpenGL OpenGLWidgets WebSockets )
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    find_package(OpenGL REQUIRED)
+endif()
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    find_package(OpenAL REQUIRED)       
+endif()
 
 qt_standard_project_setup()
 
@@ -67,9 +73,16 @@ file(GLOB TSRE5vc_SRC CONFIGURE_DEPENDS
 
 qt_add_executable(TSRE5vc ${TSRE5vc_SRC})
 
+if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    target_include_directories(TSRE5vc PUBLIC C:/programy/openal-soft-1.18.2-bin/include)
+    target_link_libraries(TSRE5vc PUBLIC C:/programy/openal-soft-1.18.2-bin/libs/Win64/libOpenAL32.dll.a)
+    target_link_libraries(TSRE5vc PRIVATE OpenGL::GL )
+endif()
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_link_libraries(TSRE5vc PUBLIC OpenAL::OpenAL )
+endif()
 
-target_link_libraries(TSRE5vc PRIVATE Qt6::Core5Compat Qt6::Network Qt6::Widgets Qt6::OpenGL Qt6::OpenGLWidgets Qt6::WebSockets )
-target_link_libraries(TSRE5vc PUBLIC OpenAL::OpenAL )
+target_link_libraries(TSRE5vc PRIVATE Qt6::Network Qt6::Widgets Qt6::OpenGL Qt6::OpenGLWidgets Qt6::WebSockets )
 
 install(TARGETS TSRE5vc
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}

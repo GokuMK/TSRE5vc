@@ -10,9 +10,9 @@
 
 #include <conEditor/CELoadWindow.h>
 #include <QtWidgets>
+#include <QRegularExpression>
 #include <tsre/Game.h>
 #include <QDebug>
-#include <QRegExp>
 #include <conEditor/ConEditorWindow.h>
 
 CELoadWindow::CELoadWindow() {
@@ -42,6 +42,7 @@ CELoadWindow::CELoadWindow() {
     
     nowaTrasa = new QLineEdit();
     QRegularExpression rx("^[a-zA-Z0-9\\_\\-\\ ]*$");
+    qDebug() << "QRegularExpression" << rx.isValid();
     //QRegExp rx("[\\/<>|\":?*].");
     QRegularExpressionValidator* v = new QRegularExpressionValidator(rx);
     nowaTrasa->setValidator(v);

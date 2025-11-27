@@ -318,7 +318,10 @@ void Trk::save() {
     filepath = Game::root + "/routes/" + Game::route + "/" + Game::trkName + ".trk";
     file.setFileName(filepath);
     //qDebug() << filepath;
-    file.open(QIODevice::WriteOnly | QIODevice::Text);
+    if(!file.open(QIODevice::WriteOnly | QIODevice::Text)){
+        qDebug() << "Cannot save TRK file: " << filepath;
+        return;
+    }
     out.setDevice(&file);
     out.setRealNumberPrecision(8);
     out.setEncoding(QStringConverter::Utf16);

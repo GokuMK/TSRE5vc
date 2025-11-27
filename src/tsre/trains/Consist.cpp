@@ -837,9 +837,7 @@ void Consist::save(){
     qDebug() << spath;
     QFile file(spath);
     
-    
-    file.open(QIODevice::WriteOnly | QIODevice::Text);
-    if(!file.isOpen()) {
+    if(!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
         qDebug() << "con file write error. file not open " << spath;
         return;
     }

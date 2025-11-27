@@ -11,7 +11,6 @@
 #include <QDebug>
 #include <QFile>
 #include <QDir>
-#include <QStringRef>
 #include <tsre/world/Route.h>
 #include <tsre/tdb/TSectionDAT.h>
 #include <tsre/ogl/GLUU.h>
@@ -911,8 +910,8 @@ void Route::preloadWFiles(bool gui){
         if(wfile.length() != 17){
             qDebug() << "# W File undefined name " << wfile;
         }
-        QStringRef wxString(&wfile, 1, 7);
-        QStringRef wzString(&wfile, 8, 7);
+        QString wxString = wfile.sliced(1, 7);
+        QString wzString = wfile.sliced(8, 7);
         WX = wxString.toInt();
         WZ = -wzString.toInt();
         tTile = tile[(WX)*10000 + WZ];

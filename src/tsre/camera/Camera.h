@@ -57,7 +57,7 @@ public:
     virtual void setCameraObject(GameObj* o);
     virtual PreciseTileCoordinate* getCurrentPos();
     float * pozT = NULL;
-    int starex, starey;
+    float starex, starey;
     float fov;
 protected:
     float pos[3];

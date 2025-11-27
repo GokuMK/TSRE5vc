@@ -217,8 +217,12 @@ int main(int argc, char *argv[]){
     Game::load();
         
     logFile.setFileName("log.txt");
-    logFile.open(QIODevice::WriteOnly);
-    logFileOut.setDevice(&logFile);
+    if(logFile.open(QIODevice::WriteOnly)){
+        logFileOut.setDevice(&logFile);
+    } else {
+        qDebug() << "Cannot open log file for writing!";
+    }
+    
     qInstallMessageHandler( myMessageOutput );
     
     qDebug() << "workingDir" << workingDir;

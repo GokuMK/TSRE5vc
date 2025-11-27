@@ -418,7 +418,10 @@ void QuadTree::save() {
         path = Game::root + "/routes/" + Game::route + "/td/lo_td_idx.dat";
     path.replace("//", "/");
     QFile file(path);
-    file.open(QIODevice::WriteOnly | QIODevice::Text);
+    if(!file.open(QIODevice::WriteOnly | QIODevice::Text)){
+        qDebug() << "Error saving quad tree file!";
+        return;
+    }
     QTextStream out(&file);
     out.setEncoding(QStringConverter::Utf16);
     out.setGenerateByteOrderMark(true);
