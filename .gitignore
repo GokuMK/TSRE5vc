@@ -90,9 +90,13 @@ CMakeLists.txt.user*
 /platforms/
 /appdata/
 /assets/
+/plugins/
 trainUpdates.dat
 trains.dat
 users.txt
 moc_*.cpp
 log.txt
 *.7z
+cerecent.txt
+ConsistEditor.bat
+ShapeViewer.bat

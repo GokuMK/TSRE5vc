@@ -1,10 +1,11 @@
-consoleOutput = false
+consoleOutput = true
 
 # main directory of your game data
 gameRoot = F:/train simulator
+gameRoot = C:/trainsim
 
 # route directory name to load on startup by default
-routeName = asdasasdasd1233
+routeName = aaa
 
 # optional start tile
 #startTileX = -5306
