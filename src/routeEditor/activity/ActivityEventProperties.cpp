@@ -90,7 +90,7 @@ ActivityEventProperties::ActivityEventProperties(QWidget* parent) : QWidget(pare
     vlist->addWidget(label, row, 0);
     cActionType.setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     vlist->addWidget(&cActionType, row++, 1);
-    QObject::connect(&cActionType, SIGNAL(activated(QString)),
+    QObject::connect(&cActionType, SIGNAL(textActivated(QString)),
                       this, SLOT(cActionTypeSelected(QString)));
     //vlist->addWidget(new QLabel("Info:"), row, 0);
     //vlist->addWidget(&eActionInfo, row++, 1);
@@ -109,7 +109,7 @@ ActivityEventProperties::ActivityEventProperties(QWidget* parent) : QWidget(pare
     cStationStopAction.setMaxVisibleItems(30);
     cStationStopAction.view()->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     vlist->addWidget(&cStationStopAction, row++, 1);
-    QObject::connect(&cStationStopAction, SIGNAL(activated(QString)),
+    QObject::connect(&cStationStopAction, SIGNAL(textActivated(QString)),
                       this, SLOT(cStationStopActionSelected(QString)));
     actionWidgetStation.setLayout(vlist);
     
@@ -313,7 +313,7 @@ ActivityEventProperties::ActivityEventProperties(QWidget* parent) : QWidget(pare
     
     vlist->addWidget(new QLabel("Action:"), row, 0);
     vlist->addWidget(&cOutcome, row++, 1);
-    QObject::connect(&cOutcome, SIGNAL(activated(QString)),
+    QObject::connect(&cOutcome, SIGNAL(textActivated(QString)),
                       this, SLOT(outcomeActoionListSelected(QString)));
     vbox->addItem(vlist);
 
@@ -328,7 +328,7 @@ ActivityEventProperties::ActivityEventProperties(QWidget* parent) : QWidget(pare
     vlist->addWidget(label, row, 0);
     cOutcomeEvent.setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
     vlist->addWidget(&cOutcomeEvent, row++, 1);
-    QObject::connect(&cOutcomeEvent, SIGNAL(activated(QString)),
+    QObject::connect(&cOutcomeEvent, SIGNAL(textActivated(QString)),
                       this, SLOT(cOutcomeEventSelected(QString)));
     outcomeProperties[(int)ActivityEvent::Outcome::CategoryEvent] = new QWidget(this);
     outcomeProperties[(int)ActivityEvent::Outcome::CategoryEvent]->setLayout(vlist);
@@ -362,7 +362,7 @@ ActivityEventProperties::ActivityEventProperties(QWidget* parent) : QWidget(pare
     QObject::connect(&eSoundFileName, SIGNAL(textEdited(QString)), this, SLOT(eSoundFileNameEdited(QString)));
     vlist->addWidget(new QLabel("Sound Type:"), row, 0);
     vlist->addWidget(&cSoundType, row++, 1);
-    QObject::connect(&cSoundType, SIGNAL(activated(QString)), this, SLOT(cSoundTypeSelected(QString)));
+    QObject::connect(&cSoundType, SIGNAL(textActivated(QString)), this, SLOT(cSoundTypeSelected(QString)));
     outcomeProperties[(int)ActivityEvent::Outcome::CategorySoundFile] = new QWidget(this);
     outcomeProperties[(int)ActivityEvent::Outcome::CategorySoundFile]->setLayout(vlist);
     vbox->addWidget(outcomeProperties[(int)ActivityEvent::Outcome::CategorySoundFile]);
@@ -381,7 +381,7 @@ ActivityEventProperties::ActivityEventProperties(QWidget* parent) : QWidget(pare
     cWeatherChange.setMaxVisibleItems(30);
     cWeatherChange.view()->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     vlist->addWidget(&cWeatherChange, row++, 1);
-    QObject::connect(&cWeatherChange, SIGNAL(activated(QString)), this, SLOT(cWeatherChangeSelected(QString)));
+    QObject::connect(&cWeatherChange, SIGNAL(textActivated(QString)), this, SLOT(cWeatherChangeSelected(QString)));
     outcomeProperties[(int)ActivityEvent::Outcome::CategoryWeatherChange] = new QWidget(this);
     outcomeProperties[(int)ActivityEvent::Outcome::CategoryWeatherChange]->setLayout(vlist);
     vbox->addWidget(outcomeProperties[(int)ActivityEvent::Outcome::CategoryWeatherChange]);

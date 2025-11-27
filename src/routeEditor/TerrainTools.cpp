@@ -38,7 +38,7 @@ TerrainTools::TerrainTools(QString name)
     }
     texPreviewSignals.setMapping(texPreviewLabel, 7);
     connect(texPreviewLabel, SIGNAL(clicked()), &texPreviewSignals, SLOT(map()));
-    connect(&texPreviewSignals, SIGNAL(mapped(int)), this, SLOT(texPreviewEnabled(int)));
+    connect(&texPreviewSignals, SIGNAL(mappedInt(int)), this, SLOT(texPreviewEnabled(int)));
 
     paintBrush = new Brush();
 

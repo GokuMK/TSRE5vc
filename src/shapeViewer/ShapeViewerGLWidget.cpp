@@ -8,7 +8,7 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
-#include <shapeViewer/ShapeViewerGLWidget.h>
+#include "ShapeViewerGLWidget.h"
 #include <QMouseEvent>
 #include <QOpenGLShaderProgram>
 #include <QCoreApplication>
@@ -364,19 +364,19 @@ void ShapeViewerGLWidget::mouseReleaseEvent(QMouseEvent* event) {
 }
 
 void ShapeViewerGLWidget::mouseMoveEvent(QMouseEvent *event) {
-    mousex = event->x()*Game::PixelRatio;
-    mousey = event->y()*Game::PixelRatio;
+    mousex = event->position().x()*Game::PixelRatio;
+    mousey = event->position().y()*Game::PixelRatio;
     
     if(mode == "rot"){
         if (mousePressed) {
             if(mouseRPressed)
-                rotZ += (float) (m_lastPos.y() - event->y()) / 60*(camera->fov/45.0);
+                rotZ += (float) (m_lastPos.y() - event->position().y()) / 333 * (camera->fov/45.0);
             if(mouseLPressed)
-                rotY += (float) (m_lastPos.x() - event->x()) / 60*(camera->fov/45.0);
+                rotY += (float) (m_lastPos.x() - event->position().x()) / 333 * (camera->fov/45.0);
             if (rotZ > 1.57)
                 rotZ = (float) 1.57;
-            if (rotZ < -1.57)
-                rotZ = (float) - 1.57;
+            if (rotY < -1.57)
+                rotY = (float) - 1.57;
         }
     } else {
         camera->MouseMove(event);

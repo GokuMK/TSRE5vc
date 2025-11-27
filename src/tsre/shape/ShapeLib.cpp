@@ -53,6 +53,8 @@ int ShapeLib::addShape(QString path){
 
 int ShapeLib::addShape(QString path, QString texPath) {
     QString pathid = path;//(path + "/" + name).toLower();
+    if(Game::caseInsensitiveFS)
+        pathid = pathid.toLower(); 
     pathid.replace("\\", "/");
     pathid.replace("//", "/");
     //console.log(pathid);

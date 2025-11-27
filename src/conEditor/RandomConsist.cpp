@@ -41,7 +41,7 @@ RandomConsist::RandomConsist(QWidget* parent) : QWidget(parent){
     vlist->addWidget(&items, 1, 0, 1, 3, Qt::AlignCenter);
     vlist->addWidget(new QLabel("Or load List from disk:"), 2, 0, Qt::AlignLeft);
     vlist->addWidget(&list, 2, 1, 1, 2, Qt::AlignCenter);
-    QObject::connect(&list, SIGNAL(activated(QString)),
+    QObject::connect(&list, SIGNAL(textActivated(QString)),
                       this, SLOT(listSelected(QString)));
     vlist->addWidget(new QLabel("Save current List as:"), 3, 0, Qt::AlignLeft);
     vlist->addWidget(&name, 3, 1, Qt::AlignCenter);

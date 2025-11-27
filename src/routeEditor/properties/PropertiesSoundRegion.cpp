@@ -62,7 +62,7 @@ PropertiesSoundRegion::PropertiesSoundRegion() {
     vbox->addWidget(label);
     vbox->addWidget(&this->sources);
     this->sources.setStyleSheet("combobox-popup: 0;");
-    QObject::connect(&this->sources, SIGNAL(activated(QString)),
+    QObject::connect(&this->sources, SIGNAL(textActivated(QString)),
         this, SLOT(sourcesListSelected(QString)));
     
     label = new QLabel("Track Items:");

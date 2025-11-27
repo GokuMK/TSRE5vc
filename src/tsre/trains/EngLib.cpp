@@ -16,6 +16,7 @@
 #include <QDateTime>
 #include <QProgressDialog>
 #include <QCoreApplication>
+#include <tsre/Game.h>
 
 //int EngLib::jesteng = 0;
 //std::unordered_map<int, Eng*> EngLib::eng;
@@ -35,7 +36,9 @@ int EngLib::getEngByPointer(Eng* pointer){
 }
 
 int EngLib::addEng(QString path, QString name) {
-    QString pathid = (path + "/" + name).toLower();
+    QString pathid = (path + "/" + name);//.toLower();
+    if(Game::caseInsensitiveFS)
+        pathid = pathid.toLower();
     pathid.replace("\\", "/");
     pathid.replace("//", "/");
     //qDebug() << pathid;

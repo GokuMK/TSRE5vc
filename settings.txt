@@ -1,4 +1,4 @@
-consoleOutput = false
+consoleOutput = true
 
 # main directory of your game data
 gameRoot = F:/train simulator

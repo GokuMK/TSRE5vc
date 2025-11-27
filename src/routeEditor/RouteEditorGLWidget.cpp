@@ -1412,8 +1412,8 @@ void RouteEditorGLWidget::mouseMoveEvent(QMouseEvent *event) {
     } else if (event->buttons() & Qt::RightButton) {
 
     }*/
-    mousex = event->x() * Game::PixelRatio;
-    mousey = event->y() * Game::PixelRatio;
+    mousex = event->position().x() * Game::PixelRatio;
+    mousey = event->position().y() * Game::PixelRatio;
 
     if ((event->buttons() & 2) == Qt::RightButton) {
         camera->MouseMove(event);

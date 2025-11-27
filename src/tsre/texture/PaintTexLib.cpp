@@ -35,10 +35,12 @@ void PaintTexLib::run() {
     
     for(int i = 1; i < data.length()-1; i++){
         if(data[i].split(":").first() == "color"){
-            color.setNamedColor(data[i].split(":").last());
+            //color.setNamedColor(data[i].split(":").last());
+            color.fromString(data[i].split(":").last());
         }
         if(data[i].split(":").first() == "ocolor"){
-            colorOutline.setNamedColor(data[i].split(":").last());
+            //colorOutline.setNamedColor(data[i].split(":").last());
+            colorOutline.fromString(data[i].split(":").last());
             isOutline = true;
         }
         if(data[i].split(":").first() == "size"){

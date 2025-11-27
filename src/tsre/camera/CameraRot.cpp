@@ -214,23 +214,23 @@ void CameraRot::MouseWheel(QWheelEvent* e){
 
 void CameraRot::MouseMove(QMouseEvent* e) {
     if (lpm != 0) {
-        patrzX((float) (float) (starex - e->x()) / 30*(fov/45.0));
-        patrzY((float) (float) (starey - e->y()) / 30*(fov/45.0));
+        patrzX((float) (float) (starex - e->position().x()) / 30*(fov/45.0));
+        patrzY((float) (float) (starey - e->position().y()) / 30*(fov/45.0));
     }
-    starex = e->x();
-    starey = e->y();
+    starex = e->position().x();
+    starey = e->position().y();
 }
 
 void CameraRot::MouseDown(QMouseEvent* e) {
     lpm = 1;
-    starex = e->x();
-    starey = e->y();
+    starex = e->position().x();
+    starey = e->position().y();
 }
 
 void CameraRot::MouseUp(QMouseEvent* e) {
     lpm = 0;
-    starex = e->x();
-    starey = e->y();
+    starex = e->position().x();
+    starey = e->position().y();
 }
 
 void CameraRot::keyUp(QKeyEvent * e) {
