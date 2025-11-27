@@ -114,9 +114,9 @@ NaviWindow::NaviWindow(QWidget* parent) : QWidget(parent) {
     QObject::connect(jumpButton, SIGNAL(released()),
                       this, SLOT(jumpTileSelected()));
     
-    QObject::connect(&markerFiles, SIGNAL(activated(QString)),
+    QObject::connect(&markerFiles, SIGNAL(textActivated(QString)),
                       this, SLOT(mkrFilesSelected(QString)));
-    QObject::connect(&markerList, SIGNAL(activated(QString)),
+    QObject::connect(&markerList, SIGNAL(textActivated(QString)),
                       this, SLOT(mkrListSelected(QString)));
     
 

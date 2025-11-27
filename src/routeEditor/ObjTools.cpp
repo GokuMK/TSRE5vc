@@ -90,14 +90,14 @@ ObjTools::ObjTools(QString name)
     row = 0;
     vlist3->addWidget(new QLabel("Rotation Type:"),row,0,1,1);
     vlist3->addWidget(&autoPlacementRotType,row++,1,1,6);
-    QObject::connect(&autoPlacementRotType, SIGNAL(activated(QString)),
+    QObject::connect(&autoPlacementRotType, SIGNAL(textActivated(QString)),
                       this, SLOT(autoPlacementRotTypeSelected(QString)));
     autoPlacementRotType.setStyleSheet("combobox-popup: 0;");
     autoPlacementRotType.addItem("Two Point Rotation");
     autoPlacementRotType.addItem("One Point Rotation");
     vlist3->addWidget(new QLabel("Target:"),row,0,1,1);
     vlist3->addWidget(&autoPlacementTarget,row++,1,1,6);
-    QObject::connect(&autoPlacementTarget, SIGNAL(activated(QString)),
+    QObject::connect(&autoPlacementTarget, SIGNAL(textActivated(QString)),
                       this, SLOT(autoPlacementTargetSelected(QString)));
     autoPlacementTarget.setStyleSheet("combobox-popup: 0;");
     autoPlacementTarget.addItem("Tracks");
@@ -179,16 +179,16 @@ ObjTools::ObjTools(QString name)
     //vbox->addStretch(1);
     this->setLayout(vbox);
     
-    QObject::connect(&refClass, SIGNAL(activated(QString)),
+    QObject::connect(&refClass, SIGNAL(textActivated(QString)),
                       this, SLOT(refClassSelected(QString)));
     
-    QObject::connect(&refTrack, SIGNAL(activated(QString)),
+    QObject::connect(&refTrack, SIGNAL(textActivated(QString)),
                       this, SLOT(refTrackSelected(QString)));
     
-    QObject::connect(&refRoad, SIGNAL(activated(QString)),
+    QObject::connect(&refRoad, SIGNAL(textActivated(QString)),
                       this, SLOT(refTrackSelected(QString)));
     
-    QObject::connect(&refOther, SIGNAL(activated(QString)),
+    QObject::connect(&refOther, SIGNAL(textActivated(QString)),
                       this, SLOT(refOtherSelected(QString)));
     
     QObject::connect(&searchBox, SIGNAL(textEdited(QString)),

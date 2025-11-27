@@ -72,7 +72,7 @@ PropertiesCarspawner::PropertiesCarspawner() {
                       this, SLOT(carSpeedEnabled(QString)));
     //QObject::connect(&useCustomList, SIGNAL(stateChanged(int)),
     //                  this, SLOT(useCustomListEnabled(int)));
-    QObject::connect(&carspawnList, SIGNAL(activated(QString)),
+    QObject::connect(&carspawnList, SIGNAL(textActivated(QString)),
                       this, SLOT(carspawnListSelected(QString)));
 }
 

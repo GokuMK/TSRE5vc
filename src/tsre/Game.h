@@ -51,6 +51,7 @@ public:
     static QString AppVersion;
     static QString AppDataVersion;
     static QString AppName;
+    static bool caseInsensitiveFS;
     static QString root;
     static QString route;
     static QString routeName;

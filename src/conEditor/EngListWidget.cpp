@@ -59,9 +59,9 @@ EngListWidget::EngListWidget() : QWidget(){
     this->setMinimumWidth(250);
     couplingType.setStyleSheet("combobox-popup: 0;");
     
-    QObject::connect(&engType, SIGNAL(activated(QString)),
+    QObject::connect(&engType, SIGNAL(textActivated(QString)),
                       this, SLOT(fs(QString)));
-    QObject::connect(&couplingType, SIGNAL(activated(QString)),
+    QObject::connect(&couplingType, SIGNAL(textActivated(QString)),
                       this, SLOT(fs(QString)));
     QObject::connect(&searchBox, SIGNAL(textEdited(QString)),
                       this, SLOT(fs(QString)));

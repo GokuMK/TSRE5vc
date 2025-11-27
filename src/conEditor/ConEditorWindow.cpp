@@ -363,7 +363,7 @@ ConEditorWindow::ConEditorWindow() : QMainWindow() {
     QObject::connect(&cDurability, SIGNAL(editingFinished()),
                       this, SLOT(cDurabilitySelected())); 
 
-    QObject::connect(&engSetsList, SIGNAL(activated(QString)),
+    QObject::connect(&engSetsList, SIGNAL(textActivated(QString)),
                       this, SLOT(engSetShowSet(QString)));
     
     QObject::connect(engSetShowButton, SIGNAL(released()),
@@ -450,12 +450,14 @@ void ConEditorWindow::eOpenInExternalEditor(){
 
 void ConEditorWindow::copyImgShapeView(){
     if(glShapeWidget->screenShot != NULL)
-        QApplication::clipboard()->setImage((glShapeWidget->screenShot->mirrored(false, true)), QClipboard::Clipboard);
+        //QApplication::clipboard()->setImage((glShapeWidget->screenShot->mirrored(false, true)), QClipboard::Clipboard);
+        QApplication::clipboard()->setImage((glShapeWidget->screenShot->flipped(Qt::Vertical)), QClipboard::Clipboard);
 }
 
 void ConEditorWindow::saveImgShapeView(){
     if(glShapeWidget->screenShot != NULL){
-        QImage img = glShapeWidget->screenShot->mirrored(false, true);
+        //QImage img = glShapeWidget->screenShot->mirrored(false, true);
+        QImage img = glShapeWidget->screenShot->flipped(Qt::Vertical);
         QString path = QFileDialog::getSaveFileName(this, "Save File", "./", "Images (*.png *.jpg)");
         qDebug() << path;
         if(path.length() < 1) return;

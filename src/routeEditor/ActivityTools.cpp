@@ -347,13 +347,13 @@ ActivityTools::ActivityTools(QString name)
     
     //QObject::connect(&consists, SIGNAL(itemClicked(QListWidgetItem*)),
     //                  this, SLOT(itemsSelected(QListWidgetItem*)));
-    QObject::connect(&actShow, SIGNAL(activated(QString)),
+    QObject::connect(&actShow, SIGNAL(textActivated(QString)),
                       this, SLOT(activitySelected(QString)));
-    QObject::connect(&conFilesShow, SIGNAL(activated(QString)),
+    QObject::connect(&conFilesShow, SIGNAL(textActivated(QString)),
                       this, SLOT(conFilesShowEnabled(QString)));
-    QObject::connect(&cService, SIGNAL(activated(QString)),
+    QObject::connect(&cService, SIGNAL(textActivated(QString)),
                       this, SLOT(cServiceEnabled(QString)));
-    QObject::connect(&cTraffic, SIGNAL(activated(QString)),
+    QObject::connect(&cTraffic, SIGNAL(textActivated(QString)),
                       this, SLOT(cTrafficEnabled(QString)));
     //QObject::connect(loadActFilesButton, SIGNAL(released()),
     //                  this, SLOT(loadActFiles()));

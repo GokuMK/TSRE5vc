@@ -45,6 +45,7 @@ bool Game::UseWorkingDir = false;
 QString Game::AppName = "TSRE5";
 QString Game::AppVersion = "v0.7.600";
 QString Game::AppDataVersion = "0.697";
+bool Game::caseInsensitiveFS = true;
 QString Game::root = "C:/tsdata/Train Simulator/";
 QString Game::route = "bbb1";
 QString Game::routeName = "bbb";

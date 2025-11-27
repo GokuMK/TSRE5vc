@@ -172,7 +172,7 @@ PropertiesDyntrack::PropertiesDyntrack() {
         connect(&chSect[i], SIGNAL(clicked()), &dyntrackChSect, SLOT(map()));
     }
     
-    QObject::connect(&dyntrackChSect, SIGNAL(mapped(int)),
+    QObject::connect(&dyntrackChSect, SIGNAL(mappedInt(int)),
             this, SLOT(chSectEnabled(int)));
     
     for(int i = 0; i < 5; i++){
@@ -182,7 +182,7 @@ PropertiesDyntrack::PropertiesDyntrack() {
         connect(&sSectA[i], SIGNAL(valueChanged(double)), &dyntrackSect, SLOT(map()));
     }
     
-    QObject::connect(&dyntrackSect, SIGNAL(mapped(int)),
+    QObject::connect(&dyntrackSect, SIGNAL(mappedInt(int)),
             this, SLOT(sSectEnabled(int)));
     
     QObject::connect(buttonTools["FlexTool"], SIGNAL(released()),

@@ -91,7 +91,7 @@ MapWindow::MapWindow() : QDialog() {
     QObject::connect(saveButton, SIGNAL(released()),
                       this, SLOT(saveToDisk()));
         
-    QObject::connect(colorCombo, SIGNAL(activated(QString)),
+    QObject::connect(colorCombo, SIGNAL(textActivated(QString)),
                       this, SLOT(colorComboActivated(QString)));
     
     QObject::connect(&alphaBox, SIGNAL(valueChanged(int)),

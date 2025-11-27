@@ -37,7 +37,9 @@ ActLib::~ActLib() {
 }
 
 int ActLib::GetAct(QString path, QString name){
-    QString pathid = (path + "/" + name).toLower();
+    QString pathid = (path + "/" + name);
+    if(Game::caseInsensitiveFS)
+        pathid = pathid.toLower();
     pathid.replace("\\", "/");
     pathid.replace("//", "/");
     //qDebug() << pathid;

@@ -27,7 +27,7 @@ PlayActivitySelectWindow::PlayActivitySelectWindow() : QDialog(){
     actList.setStyleSheet("combobox-popup: 0;");
     actList.setMaxVisibleItems(35);
     actList.view()->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-    QObject::connect(&actList, SIGNAL(activated(QString)), this, SLOT(activitySelected(QString)));
+    QObject::connect(&actList, SIGNAL(textActivated(QString)), this, SLOT(activitySelected(QString)));
     vlist->addWidget(&eDescription);
     vlist->addWidget(ok);
     QObject::connect(ok, SIGNAL(released()), this, SLOT(okButtonEnabled()));

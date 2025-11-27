@@ -15,6 +15,7 @@
 #include <QDir>
 #include <QProgressDialog>
 #include <QCoreApplication>
+#include <tsre/Game.h>
 
 int ConLib::jestcon = 0;
 std::unordered_map<int, Consist*> ConLib::con;
@@ -27,7 +28,9 @@ ConLib::~ConLib() {
 }
 
 int ConLib::addCon(QString path, QString name) {
-    QString pathid = (path + "/" + name).toLower();
+    QString pathid = (path + "/" + name);//.toLower();
+    if(Game::caseInsensitiveFS)
+        pathid = pathid.toLower();
     pathid.replace("\\", "/");
     pathid.replace("//", "/");
     //qDebug() << pathid;

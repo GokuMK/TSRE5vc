@@ -16,6 +16,7 @@
 #include <tsre/texture/Texture.h>
 #include <QDebug>
 #include <QFile>
+#include <tsre/Game.h>
 
 int TexLib::jesttextur = 0;
 std::unordered_map<int, Texture*> TexLib::mtex;
@@ -64,7 +65,9 @@ void TexLib::addRef(int texx) {
 }
 
 int TexLib::addTex(QString path, QString name, bool reload) {
-    QString pathid = (path+"/"+name).toLower();
+    QString pathid = (path+"/"+name);
+    if(Game::caseInsensitiveFS)
+    pathid = pathid.toLower();
     pathid.replace("\\", "/");
     pathid.replace("//", "/");
     return addTex(pathid, reload);

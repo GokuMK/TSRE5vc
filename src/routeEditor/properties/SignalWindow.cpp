@@ -48,8 +48,8 @@ SignalWindow::SignalWindow(QWidget *parent) : QWidget(parent) {
 
     }
 
-    connect(&signalsChSect, SIGNAL(mapped(int)), this, SLOT(chSubEnabled(int)));
-    connect(&signalsLinkButton, SIGNAL(mapped(int)), this, SLOT(bLinkEnabled(int)));
+    connect(&signalsChSect, SIGNAL(mappedInt(int)), this, SLOT(chSubEnabled(int)));
+    connect(&signalsLinkButton, SIGNAL(mappedInt(int)), this, SLOT(bLinkEnabled(int)));
     QPushButton* closeButton = new QPushButton("Close");
     connect(closeButton, SIGNAL(released()), this, SLOT(close()));
     //vbox->setAlignment(setLinkButton, Qt::AlignBottom);

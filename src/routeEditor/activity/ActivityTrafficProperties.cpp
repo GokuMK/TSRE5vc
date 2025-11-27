@@ -79,7 +79,7 @@ ActivityTrafficProperties::ActivityTrafficProperties(QWidget* parent) : QWidget(
     cServiceList.setMaxVisibleItems(30);
     cServiceList.view()->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     vlist->addWidget(&cServiceList, row++, 1);
-    QObject::connect(&cServiceList, SIGNAL(activated(QString)),
+    QObject::connect(&cServiceList, SIGNAL(textActivated(QString)),
                       this, SLOT(serviceActoionListSelected(QString)));
     vlist->addWidget(new QLabel("Start Time:"), row, 0);
     eTime.setDisplayFormat("HH:mm:ss");

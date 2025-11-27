@@ -62,7 +62,7 @@ TrkWindow::TrkWindow() : QDialog(){
     settings->addWidget(new QLabel("Terrain Error Scale: "), row++, 0);
     settings->addWidget(GuiFunct::newTQLabel("Environment"), row++, 0);
     settings->addWidget(&envName, row++, 0);
-    QObject::connect(&envName, SIGNAL(activated(QString)), this, SLOT(envNameEnabled(QString)));
+    QObject::connect(&envName, SIGNAL(textActivated(QString)), this, SLOT(envNameEnabled(QString)));
     envName.setStyleSheet("combobox-popup: 0;");
     settings->addWidget(GuiFunct::newTQLabel("Description"), row++, 0);
     row = 0;

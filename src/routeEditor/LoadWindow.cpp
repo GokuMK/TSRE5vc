@@ -63,7 +63,7 @@ LoadWindow::LoadWindow() {
     cRecent.setMaxVisibleItems(10);
     cRecent.view()->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     cRecent.setStyleSheet("combobox-popup: 0;");
-    QObject::connect(&cRecent, SIGNAL(activated(QString)),
+    QObject::connect(&cRecent, SIGNAL(textActivated(QString)),
                       this, SLOT(cRecentEnabled(QString)));
     recentLayout->addRow("Recent: ", &cRecent);
     mainLayout->addItem(recentLayout);
