@@ -23,14 +23,6 @@ AceLib::AceLib(){
     
 }
 
-AceLib::AceLib(const AceLib& orig){
-
-}
-
-AceLib::~AceLib(){
-    
-}
-
 /*===============================================================
 ===== Wczytywanie tekstury w formacie ACE [RGB,cRGB, DXT, cDXT]
 ==============================================================*/

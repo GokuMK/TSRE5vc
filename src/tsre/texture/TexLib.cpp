@@ -10,6 +10,7 @@
 
 #include <tsre/texture/TexLib.h>
 #include <tsre/texture/AceLib.h>
+#include <tsre/texture/DdsLib.h>
 #include <tsre/texture/ImageLib.h>
 #include <tsre/texture/PaintTexLib.h>
 #include <tsre/texture/MapLib.h>
@@ -137,7 +138,14 @@ int TexLib::addTex(QString pathid, bool reload) {
             t->start();
         else
             t->run();
-    } else if(tType == "png"||tType == "bmp"||tType == "jpg"||tType == "dds"||tType == "tga"){
+    } else if(tType == "dds"){
+        DdsLib* t = new DdsLib();
+        t->texture = newFile;
+        if(DdsLib::IsThread && !reload)
+            t->start();
+        else
+            t->run();
+    } else if(tType == "png"||tType == "bmp"||tType == "jpg"/*||tType == "dds"*/||tType == "tga"){
         ImageLib* t = new ImageLib();
         t->texture = newFile;
         if(ImageLib::IsThread && !reload)

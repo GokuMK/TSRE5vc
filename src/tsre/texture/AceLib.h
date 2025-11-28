@@ -21,8 +21,6 @@ class AceLib : public QThread
 public:
     static bool IsThread;
     AceLib();
-    AceLib(const AceLib& orig);
-    virtual ~AceLib();
     //static bool LoadACE(Texture* texture);
     Texture* texture;
     static void save(QString path, Texture* t);

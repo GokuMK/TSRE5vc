@@ -186,10 +186,10 @@ int main(int argc, char *argv[]){
     QLocale::setDefault(lepsze);
         
     QSurfaceFormat format;
-#ifdef __APPLE__
-    format.setVersion(3, 3);
-    format.setProfile(QSurfaceFormat::CoreProfile);
-#endif
+//#ifdef __APPLE__
+//    format.setVersion(3, 3);
+//    format.setProfile(QSurfaceFormat::CoreProfile);
+//#endif
     //format.setDepthBufferSize(32);
     //format.setStencilBufferSize(8);
     format.setSamples(Game::AASamples);
@@ -348,6 +348,8 @@ int main(int argc, char *argv[]){
         RunRouteEditorServer();
         return app.exec();
     }
+
+    //LoadConEditor();
     
     // Run route editor
     LoadRouteEditor();

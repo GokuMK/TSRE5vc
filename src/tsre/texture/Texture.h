@@ -24,7 +24,7 @@ public:
     Texture(int x, int y, int bpp, Brush* brush = NULL);
     virtual ~Texture();
 
-    unsigned char* imageData;
+    unsigned char* imageData = nullptr;
     int bpp;
     int imageSize;
     int bytesPerPixel;
