@@ -2126,6 +2126,7 @@ void RouteEditorGLWidget::msg(QString text) {
         emit sendMsg("showShape", route->ref->selected->getShapePath());
     }
     if (text == "autoPlacementDeleteLast") {
+        this->setSelectedObj(NULL);
         route->autoPlacementDeleteLast();
     }
     if (text == "editDetailedTerrain") {

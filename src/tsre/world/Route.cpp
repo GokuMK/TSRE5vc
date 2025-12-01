@@ -1669,7 +1669,7 @@ WorldObj* Route::autoPlaceObject(int x, int z, float* p, int mode) {
     if(ref->selected == NULL) return NULL;
     Game::check_coords(x, z, p);
     
-    autoPlacementLastPlaced.clear();
+    autoPlacementLastPlaced = new GroupObj();
     
     TDB * tdb = NULL;
     if(placementAutoTargetType == 0)
@@ -1787,11 +1787,10 @@ WorldObj* Route::autoPlaceObject(int x, int z, float* p, int mode) {
         xyz[1] = drawPosition1[1] + offset[1];
         xyz[2] = -drawPosition1[2] + offset[2];      
         
-        autoPlacementLastPlaced.push_back(placeObject(x, z, (float*) xyz, quat, 0, ref->selected));
+        autoPlacementLastPlaced->addObject(placeObject(x, z, (float*) xyz, quat, 0, ref->selected));
     }
 
-    return NULL;
-    
+    return autoPlacementLastPlaced;
 }
 
 void Route::fillWorldObjectsByTrackItemIds(QHash<int,QVector<WorldObj*>> &objects, int tdbId){
@@ -1832,12 +1831,14 @@ void Route::findSimilar(WorldObj* obj, GroupObj* group, float *playerT, int tile
 }
 
 void Route::autoPlacementDeleteLast(){
-    for(int i = 0; i < autoPlacementLastPlaced.length(); i++){
-        deleteObj(autoPlacementLastPlaced[i]);
+    if(autoPlacementLastPlaced == NULL)
+        return;
+    for(int i = 0; i < autoPlacementLastPlaced->objects.length(); i++){
+        deleteObj(autoPlacementLastPlaced->objects[i]);
     }
-    autoPlacementLastPlaced.clear();
+    //delete autoPlacementLastPlaced;
+    autoPlacementLastPlaced = NULL;
 }
-
 
 void Route::replaceWorldObjPointer(WorldObj* o, WorldObj* n){
     if(o->typeObj != WorldObj::worldobj)

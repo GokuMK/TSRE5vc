@@ -168,7 +168,7 @@ protected:
     TDB *roadDB = NULL; 
     QMap<QString, Coords*> mkrList;
     Coords * mkr = NULL;
-    QVector<WorldObj*> autoPlacementLastPlaced;
+    GroupObj *autoPlacementLastPlaced = NULL;
     Activity* currentActivity = NULL;
     int loadingProgress = 0;
 };
