@@ -326,10 +326,11 @@ void RouteEditorGLWidget::setMoveStep(float val){
 }
 
 void RouteEditorGLWidget::paintGL(){
-    paintGL2();
-    return;
+    // Call old renderer and return
+    //paintGL2();
+    //return;
     
-    // Here is not finishes, future version of TSRE renderer.
+    // Here is not finished, future version of TSRE renderer.
     // Unlike old TSRE renderer, here collect all render items first
     // And then use renderer to render them
     

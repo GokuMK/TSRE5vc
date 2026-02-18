@@ -92,7 +92,7 @@ void OpenGL3Renderer::renderFrame(){
             delete items[i];
     }
     items.clear();
-    
+
     GLUU *gluu = GLUU::get();
     gluu->enableTextures();
     f = QOpenGLContext::currentContext()->functions();
