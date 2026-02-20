@@ -15,7 +15,68 @@
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <QOpenGLFunctions>
+#include <QOpenGLContext>
 #include <tsre/ogl/GLUU.h>
+#include <tsre/Game.h>
+#ifndef __APPLE__
+#include <GL/gl.h>
+#else
+#include <OpenGL/gl.h>
+#endif
+
+namespace {
+
+void cleanupMatrixList(QVector<float*> &matrixList){
+    for(int i = 0; i < matrixList.size(); i++){
+        delete[] matrixList[i];
+    }
+    matrixList.clear();
+}
+
+void cleanupRenderItems(QVector<RenderItem*> &items){
+    for(int i = 0; i < items.size(); i++){
+        if(items[i] == NULL)
+            continue;
+        if(!items[i]->shared)
+            delete items[i];
+    }
+    items.clear();
+}
+
+void applyItemState(GLUU *gluu, QOpenGLFunctions *f, RenderItem *item){
+    if(item == NULL)
+        return;
+
+    if(item->normalsEnabled)
+        gluu->enableNormals();
+    else
+        gluu->disableNormals();
+
+    gluu->setBrightness(item->brightness);
+
+    if(item->texturesEnabled){
+        gluu->enableTextures();
+        gluu->bindTexture(f, item->texAddr);
+    } else {
+        gluu->disableTextures(item->colorX, item->colorY, item->colorZ, item->colorA);
+    }
+}
+
+unsigned int getItemDrawType(const RenderItem *item){
+    if(item == NULL)
+        return GL_TRIANGLES;
+    if(item->itemType == 0)
+        return GL_TRIANGLES;
+    return item->itemType;
+}
+
+bool requiresWireframe(const RenderItem *item){
+    if(item == NULL)
+        return false;
+    return item->polygonMode != 0;
+}
+
+}
 
 OpenGL3Renderer::OpenGL3Renderer() {
     mvMatrix = new float[16];
@@ -43,9 +104,27 @@ OpenGL3Renderer::~OpenGL3Renderer() {
 }
 
 void OpenGL3Renderer::pushItem(RenderItem* r, float* mvmatrix){
-    //r->mvMatrixId = 
-    //r->mvMatrix = mvmatrix;
-    //items.push_back(r);
+    if(r == NULL)
+        return;
+
+    RenderItem *queuedItem = r;
+    if(r->shared){
+        queuedItem = new RenderItem();
+        *queuedItem = *r;
+        queuedItem->shared = false;
+    }
+
+    if(mvmatrix == NULL)
+        mvmatrix = mvMatrix;
+
+    if(mvmatrix != NULL){
+        queuedItem->mvMatrix = Mat4::clone(mvmatrix);
+        mvMatrixs.push_back(queuedItem->mvMatrix);
+    } else {
+        queuedItem->mvMatrix = NULL;
+    }
+
+    items.push_back(queuedItem);
 }
 
 void OpenGL3Renderer::pushItemsVNTA(QVector<RenderItem*>& r, float* mvmatrix){
@@ -84,63 +163,109 @@ void OpenGL3Renderer::pushItemVNTA(RenderItem* r, float* mvmatrix){
 }
 
 void OpenGL3Renderer::renderFrame(){
-    //return;
-    for (int i = 0; i < items.size(); ++i) {
-        if(items[i] == NULL)
-            continue;
-        if(!items[i]->shared)
-            delete items[i];
-    }
-    items.clear();
-
     GLUU *gluu = GLUU::get();
-    gluu->enableTextures();
     f = QOpenGLContext::currentContext()->functions();
-    
+
+    if(gluu == NULL || f == NULL){
+        cleanupRenderItems(items);
+        itemsVNTA.clear();
+        cleanupMatrixList(mvMatrixs);
+        cleanupMatrixList(mvMatrixDelete);
+        return;
+    }
+
+    // Generic frame-owned queue.
+    for(int i = 0; i < items.size(); i++){
+        RenderItem *item = items[i];
+        if(item == NULL)
+            continue;
+        if(item->VAO == NULL)
+            continue;
+
+        applyItemState(gluu, f, item);
+
+        if(item->msMatrix != NULL){
+            gluu->currentShader->setUniformValue(gluu->currentShader->msMatrixUniform, *reinterpret_cast<float(*)[4][4]>(item->msMatrix));
+        }
+        if(item->mvMatrix != NULL){
+            gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]>(item->mvMatrix));
+        }
+
+        bool customLineWidth = item->lineWidth > 0 && item->lineWidth != Game::oglDefaultLineWidth;
+        if(customLineWidth)
+            f->glLineWidth(item->lineWidth);
+
+        bool wireframe = requiresWireframe(item);
+        if(wireframe)
+            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+
+        QOpenGLVertexArrayObject::Binder vaoBinder(item->VAO);
+        f->glDrawArrays(getItemDrawType(item), item->vertOffset, item->vertCount);
+
+        if(wireframe)
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
+        if(customLineWidth)
+            f->glLineWidth(Game::oglDefaultLineWidth);
+    }
+
+    // Keep defaults predictable for the grouped VNTA pass.
+    gluu->setBrightness(1.0f);
+    gluu->enableTextures();
+    gluu->enableNormals();
+
     QHashIterator<unsigned int, QHash<unsigned long long int, RenderItem*>> it(itemsVNTA);
-    //QHashIterator<unsigned int, QVector<RenderItem*>> it(itemsVNTA);
     while (it.hasNext()) {
         it.next();
-        f->glBindTexture(GL_TEXTURE_2D, it.key());
-        
+        gluu->bindTexture(f, it.key());
+
         QHashIterator<unsigned long long int, RenderItem*> it2(itemsVNTA[it.key()]);
-        //for (int i = 0; i < it.value().size(); ++i) {
         while (it2.hasNext()) {
             it2.next();
-            if(it2.value() == NULL)
+            RenderItem *item = it2.value();
+            if(item == NULL)
                 continue;
-            QOpenGLVertexArrayObject::Binder vaoBinder(it2.value()->VAO);
-            //itemsVNTA[i]->VBO->bind();
-            //f->glBindTexture(GL_TEXTURE_2D, it2.value()->texAddr);
-            gluu->currentShader->setUniformValue(gluu->currentShader->msMatrixUniform, *reinterpret_cast<float(*)[4][4]>(it2.value()->msMatrix));
-            //gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]>(it2.value()->mvMatrix));
+            if(item->VAO == NULL)
+                continue;
 
-            for(int i = 0; i < it2.value()->mvMatrixList.size(); i++){
-                gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]>(it2.value()->mvMatrixList[i]));
-                f->glDrawArrays(GL_TRIANGLES, it2.value()->vertOffset, it2.value()->vertCount);
+            applyItemState(gluu, f, item);
+            QOpenGLVertexArrayObject::Binder vaoBinder(item->VAO);
+
+            if(item->msMatrix != NULL){
+                gluu->currentShader->setUniformValue(gluu->currentShader->msMatrixUniform, *reinterpret_cast<float(*)[4][4]>(item->msMatrix));
             }
-            //if(!itemsVNTA[it.key()]->shared)
-            //    delete itemsVNTA[it.key()];
+
+            bool customLineWidth = item->lineWidth > 0 && item->lineWidth != Game::oglDefaultLineWidth;
+            if(customLineWidth)
+                f->glLineWidth(item->lineWidth);
+
+            bool wireframe = requiresWireframe(item);
+            if(wireframe)
+                glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+
+            for(int i = 0; i < item->mvMatrixList.size(); i++){
+                if(item->mvMatrixList[i] != NULL){
+                    gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]>(item->mvMatrixList[i]));
+                }
+                f->glDrawArrays(getItemDrawType(item), item->vertOffset, item->vertCount);
+            }
+
+            if(wireframe)
+                glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
+            if(customLineWidth)
+                f->glLineWidth(Game::oglDefaultLineWidth);
         }
-        /*for (int i = 0; i < it.value().size(); ++i) {
-            QOpenGLVertexArrayObject::Binder vaoBinder(it.value()[i]->VAO);
-            gluu->currentShader->setUniformValue(gluu->currentShader->msMatrixUniform, *reinterpret_cast<float(*)[4][4]>(it.value()[i]->msMatrix));
-            gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]>(it.value()[i]->mvMatrix));
-            f->glDrawArrays(GL_TRIANGLES, it.value()[i]->vertOffset, it.value()[i]->vertCount);
-            if(!itemsVNTA[it.key()][i]->shared)
-                delete itemsVNTA[it.key()][i];
-        }*/
         itemsVNTA[it.key()].clear();
     }
-    
+
     itemsVNTA.clear();
-    mvMatrixs.clear();
-    
-    for(int i=0; i<mvMatrixDelete.size(); i++){
-        delete[] mvMatrixDelete[i];
-    }
-    mvMatrixDelete.clear();
+    cleanupRenderItems(items);
+    cleanupMatrixList(mvMatrixs);
+    cleanupMatrixList(mvMatrixDelete);
+
+    gluu->setBrightness(1.0f);
+    gluu->enableTextures();
+    gluu->enableNormals();
 }
-
-
 

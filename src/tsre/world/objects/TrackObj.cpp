@@ -361,7 +361,7 @@ void TrackObj::pushRenderItems(float lod, float posx, float posz, float* playerW
             proceduralShapeInit = true;
         } else {
             for(int i = 0; i < procShape.size(); i++){
-                procShape[i]->pushRenderItem(selectionColor, lod);
+                procShape[i]->pushRenderItem(selectionColor, 0);
             }
         }
     }
@@ -444,7 +444,7 @@ void TrackObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos,
             proceduralShapeInit = true;
         } else {
             for(int i = 0; i < procShape.size(); i++){
-                procShape[i]->render(selectionColor, lod);
+                procShape[i]->render(selectionColor, 0);
             }
         }
     }

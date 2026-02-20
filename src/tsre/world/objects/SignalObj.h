@@ -65,6 +65,7 @@ public:
     void checkFlags(QStringList &list);
     void fixFlags();
     bool isSimilar(WorldObj* obj);
+    void pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor);
     void render(GLUU* gluu, float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor, int renderMode);
     int subObjSelected = 0;
 private:
@@ -76,7 +77,7 @@ private:
     TrackItemObj* spointer3dSelected = NULL;
     float** drawPositions = NULL;
     int selectionValue = 0;
-    void renderTritems(GLUU* gluu, int selectionColor);
+    void renderTritems(GLUU* gluu, int selectionColor, bool pushToQueue = false);
     bool getSimpleBorder(float* border);
     bool getBoxPoints(QVector<float> &points);
     SignalShape* signalShape = NULL;

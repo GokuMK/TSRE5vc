@@ -17,6 +17,7 @@
 #include <QDebug>
 #include <QFile>
 #include <tsre/Game.h>
+#include <tsre/renderer/Renderer.h>
 #include <tsre/ogl/GLUU.h>
 #include <tsre/ogl/OglObj.h>
 #include <tsre/math3d/GLMatrix.h>
@@ -561,6 +562,51 @@ void Eng::drawBorder3d(){
     borderObj3d->render();
 };
 
+void Eng::pushDrawBorder3d() {
+    if (borderObj3d == NULL) {
+        borderObj3d = new OglObj();
+
+        float width = this->getFullWidth() / 2;
+
+        float* punkty = new float[96];
+        float* ptr = punkty;
+
+        float sizexx = sizex / 2.0;
+        for (int j = 0; j <= 1; j++)
+            for (int i = -1; i <= 1; i += 2) {
+                *ptr++ = sizexx*i;
+                *ptr++ = sizey*j;
+                *ptr++ = -width;
+                *ptr++ = sizexx*i;
+                *ptr++ = sizey*j;
+                *ptr++ = width;
+            }
+        for (int j = 0; j <= 1; j++)
+            for (int i = -1; i <= 1; i += 2) {
+                *ptr++ = sizexx;
+                *ptr++ = sizey*j;
+                *ptr++ = width*i;
+                *ptr++ = -sizexx;
+                *ptr++ = sizey*j;
+                *ptr++ = width*i;
+            }
+        for (int j = -1; j <= 1; j += 2)
+            for (int i = -1; i <= 1; i += 2) {
+                *ptr++ = sizexx*j;
+                *ptr++ = 0;
+                *ptr++ = width*i;
+                *ptr++ = sizexx*j;
+                *ptr++ = sizey;
+                *ptr++ = width*i;
+            }
+        borderObj3d->setMaterial(1.0, 0.0, 0.0);
+        borderObj3d->init(punkty, ptr - punkty, RenderItem::V, GL_LINES);
+        delete[] punkty;
+    }
+
+    borderObj3d->pushRenderItem();
+}
+
 void Eng::updateSim(float deltaTime){
     static float acceleration = 0;
     static float lastSpeed = 0;
@@ -906,6 +952,66 @@ void Eng::renderOnTrack(GLUU* gluu, float* playerT, int selectionColor) {
     }
     gluu->mvPopMatrix();
     
+}
+
+void Eng::pushRenderItemOnTrack(float* playerT, int selectionColor) {
+    if (loaded != 1) return;
+
+    long long int shapeLibId = reinterpret_cast<long long int>(Game::currentShapeLib);
+    if (!shape.id.keys().contains(shapeLibId)) {
+        if (shape.name.length() > 1)
+            shape.id[shapeLibId] = Game::currentShapeLib->addShape(path + "/" + shape.name, path);
+        else
+            shape.id[shapeLibId] = -1;
+    }
+
+    for (int i = 0; i < freightanimShape.size(); i++) {
+        if (!freightanimShape[i].id.keys().contains(shapeLibId)) {
+            if (freightanimShape[i].name.length() > 1)
+                freightanimShape[i].id[shapeLibId] = Game::currentShapeLib->addShape(path + "/" + freightanimShape[i].name, path);
+            else
+                freightanimShape[i].id[shapeLibId] = -1;
+        }
+    }
+
+    float selev1, selev2;
+    float *drawPosition1 = ruch1->getCurrentPosition(&selev1);
+    float *drawPosition2 = ruch2->getCurrentPosition(&selev2);
+    selev1 = (selev1 + selev2) / 2.0;
+
+    float pos[5];
+    pos[3] = drawPosition1[5];
+    pos[4] = drawPosition1[6];
+    drawPosition2[0] += 2048*(drawPosition2[5] - drawPosition1[5]);
+    drawPosition2[2] += 2048*(drawPosition2[6] - drawPosition1[6]);
+    Vec3::add(pos, drawPosition1, drawPosition2);
+    Vec3::scale(pos, pos, 0.5);
+    float dlugosc = Vec3::distance(drawPosition1, drawPosition2);
+
+    int someval = (((drawPosition1[2] - drawPosition2[2]) + 0.00001f) / fabs((drawPosition1[2] - drawPosition2[2]) + 0.00001f));
+    float rotY = ((float)someval + 1.0)*(M_PI / 2.0)+(float)(atan((drawPosition1[0] - drawPosition2[0]) / (drawPosition1[2] - drawPosition2[2])));
+    float rotX = -(float)(asin((drawPosition1[1] - drawPosition2[1]) / (dlugosc)));
+
+    Game::currentRenderer->mvPushMatrix();
+
+    Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, pos[0] + 2048 * (pos[3] - playerT[0]), pos[1] + 0.28, -pos[2] + 2048 * (-pos[4] - playerT[1]));
+    Mat4::rotateY(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, -rotY);
+    Mat4::rotateX(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, rotX);
+    Mat4::rotate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, -selev1, 0, 0, 1);
+    Mat4::rotateY(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, flip*M_PI);
+
+    if (shape.id[shapeLibId] >= 0)
+        Game::currentShapeLib->shape[shape.id[shapeLibId]]->pushRenderItem(selectionColor, 0);
+
+    for (int i = 0; i < freightanimShape.size(); i++) {
+        if (freightanimShape[i].id[shapeLibId] >= 0) {
+            Game::currentRenderer->mvPushMatrix();
+            Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, freightanimShape[i].x, freightanimShape[i].y, -freightanimShape[i].z);
+            Game::currentShapeLib->shape[freightanimShape[i].id[shapeLibId]]->pushRenderItem(selectionColor, 0);
+            Game::currentRenderer->mvPopMatrix();
+        }
+    }
+    Game::currentRenderer->mvPopMatrix();
 }
 
 void Eng::move(float m){

@@ -62,6 +62,7 @@ public:
     void deleteSelectedTrItem();
     void translate(float px, float py, float pz);
     void render(GLUU* gluu, float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor, int renderMode);
+    void pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor);
 private:
     int selectionValue = 0;
     int levelCrParameters[2];
@@ -76,7 +77,7 @@ private:
     QVector<float*> drawPositions;
     float* drawPosition = NULL;
     QString ORTSSoundFileName;
-    void renderTritems(GLUU* gluu, int selectionColor);
+    void renderTritems(GLUU* gluu, int selectionColor, bool pushToQueue = false);
     bool getSimpleBorder(float* border);
     bool getBoxPoints(QVector<float> &points);
 };

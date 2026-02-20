@@ -15,6 +15,7 @@
 #include <QFile>
 #include <QDir>
 #include <tsre/Game.h>
+#include <tsre/renderer/Renderer.h>
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <tsre/fileFunctions/ReadFile.h>
 #include <tsre/tdb/Ruch.h>
@@ -450,6 +451,34 @@ void Path::render(GLUU* gluu, float * playerT, int selectionColor){
         gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
         lines[i]->render();
         gluu->mvPopMatrix();
+    }
+}
+
+void Path::pushRenderItems(float *playerT, int selectionColor) {
+    if (pointer3d == NULL) {
+        pointer3d = new TrackItemObj(1);
+        pointer3d->setMaterial(0.0, 1.0, 0.0);
+    }
+
+    if (!isinit2) {
+        init3dShapes();
+    }
+
+    if (!Game::viewInteractives)
+        return;
+
+    for (int i = 0; i < node.size(); i++) {
+        Game::currentRenderer->mvPushMatrix();
+        Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, node[i].pos[0] + 2048 * (node[i].tilex - playerT[0]), node[i].pos[1] + 2.2, node[i].pos[2] + 2048 * (node[i].tilez - playerT[1]));
+        pointer3d->pushRenderItem();
+        Game::currentRenderer->mvPopMatrix();
+    }
+
+    for (int i = 0; i < lines.size(); i++) {
+        Game::currentRenderer->mvPushMatrix();
+        Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, 2048 * (linesX[i] - playerT[0]), 2.2, 2048 * (linesZ[i] - playerT[1]));
+        lines[i]->pushRenderItem();
+        Game::currentRenderer->mvPopMatrix();
     }
 }
 

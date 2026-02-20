@@ -26,6 +26,7 @@
 #include <tsre/tdb/TSection.h>
 #include <tsre/tdb/TDB.h>
 #include <tsre/tdb/TSectionDAT.h>
+#include <tsre/renderer/Renderer.h>
 #include <math.h>
 
 #ifndef M_PI
@@ -405,6 +406,59 @@ void DynTrackObj::render(GLUU* gluu, float lod, float posx, float posz, float* p
         drawBox();
     }   
 };
+
+void DynTrackObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor) {
+    if (!loaded)
+        return;
+    if (Game::currentRenderer == NULL)
+        return;
+
+    Mat4::multiply(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, matrix);
+
+    if(Game::showWorldObjPivotPoints){
+        if(pointer3d == NULL){
+            pointer3d = new TrackItemObj(1);
+            pointer3d->setMaterial(0.9,0.9,0.7);
+        }
+        pointer3d->pushRenderItem(selectionColor);
+    }
+
+    if (!init) {
+        QVector<TSection> tsections;
+        for(int i = 0; i < 5; i++){
+            if(sections[i].sectIdx > 100000000)
+                continue;
+            tsections.push_back(TSection(0, sections[i].type, sections[i].a, sections[i].r));
+        }
+        if (Game::proceduralTracks) {
+            TrackShape *tsh = Game::trackDB->tsection->shape[sectionIdx];
+            QMap<int, float> angles;
+            if(Game::useSuperelevation){
+                Game::trackDB->fillTrackAngles(x, -y, UiD, angles);
+                bool positiveAngles = false;
+                for(int i = 0; i < tsections.size(); i++){
+                    if(tsections[i].angle > 0)
+                        positiveAngles = true;
+                }
+                if(positiveAngles){
+                    QList<int> keys = angles.keys();
+                    for(int j = 0; j < keys.size(); j++){
+                        angles[keys[j]] = -angles[keys[j]];
+                    }
+                }
+            }
+            ProceduralShape::GetShape(templateName, shape, tsh, angles);
+        } else {
+            ProceduralMstsDyntrack::GenShape(shape, tsections);
+        }
+        init = true;
+        return;
+    }
+
+    for(int i = 0; i < shape.size(); i++){
+        shape[i]->pushRenderItem(selectionColor, 0);
+    }
+}
 
 bool DynTrackObj::getSimpleBorder(float* border){
     if(shape.size() > 0){

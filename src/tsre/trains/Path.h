@@ -72,6 +72,7 @@ public:
     void init3dShapes(bool initShapes = true);
     bool isModified();
     void render(GLUU* gluu, float * playerT, int selectionColor);
+    void pushRenderItems(float * playerT, int selectionColor);
 private:
     bool modified = false;
     bool isinit1 = false;

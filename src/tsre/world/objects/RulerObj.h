@@ -45,6 +45,7 @@ public:
     void createRoadPaths();
     void removeRoadPaths();
     void enableShape();
+    void pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor);
     void render(GLUU* gluu, float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor, int renderMode);
 
 private:

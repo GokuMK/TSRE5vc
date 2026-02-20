@@ -184,6 +184,7 @@ public:
     bool setSidingFromSelected();
     void setParentActivity(Activity* a);
     void render(GLUU* gluu, float * playerT, float playerRot, int renderMode);
+    void pushRenderItem(float *playerT, float playerRot, int renderMode);
     
 protected:
     Activity *parentActivity = NULL;

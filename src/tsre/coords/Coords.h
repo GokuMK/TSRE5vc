@@ -59,6 +59,7 @@ public:
     Coords(QString path);
     virtual ~Coords();
     virtual void render(GLUU* gluu, float * playerT, float* playerW, float playerRot);
+    virtual void pushRenderItems(float *playerT, float* playerW, float playerRot);
     virtual void getTileList(QMap<int, QPair<int, int>*> &tileList, int radius = 0, int step = 1);
 protected:
     OglObj* simpleMarkerObjP = NULL;

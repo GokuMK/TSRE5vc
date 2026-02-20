@@ -1544,14 +1544,14 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
         Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, 2048 * (mojex-tileX) , 0, 2048 * (mojez-tileY) );
     }
     Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, -1024, 0, 1024-sampleSize*samples);
-    /*if(Game::viewWorldGrid && selectionColor == 0)
+    if(Game::viewWorldGrid && selectionColor == 0)
         lines.pushRenderItem();
     if(Game::viewTileGrid && selectionColor == 0){
         slines.pushRenderItem();
         ulines.pushRenderItem();
         lockedlines.pushRenderItem();
         selectedlines.pushRenderItem();
-    }*/
+    }
     
     float lod = 0;
     float size = 512;
@@ -1593,7 +1593,7 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
                     int wColor = (int)(tselectionColor/65536);
                     int sColor = (int)(tselectionColor - wColor*65536)/256;
                     int bColor = (int)(tselectionColor - wColor*65536 - sColor*256);
-                    //r->disableTextures((float)wColor/255.0f, (float)sColor/255.0f, (float)bColor/255.0f, 1);
+                    r->disableTextures((float)wColor/255.0f, (float)sColor/255.0f, (float)bColor/255.0f, 1);
                 } else {
                     if (texid[yy * patches + uu] == -2) {
                     } else {
@@ -1641,14 +1641,14 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
                 r->itemType = GL_TRIANGLES;
                 r->vertOffset = (uu * patches + yy) * patchRes * patchRes * 6;
                 r->vertCount = patchRes * patchRes * 6;
-                //r->mvMatrix = Mat4::clone(Game::currentRenderer->mvMatrix);
+                r->VBO = VBO;
+                r->VAO = VAO;
                 r->msMatrix = Game::currentRenderer->objStrMatrix;
                 r->setVertexAttributes(r->VNT);
                 Game::currentRenderer->pushItem(r, Game::currentRenderer->mvMatrix);
             }
         }
     }
-    /*    
     if(Game::viewTerrainGrid || !Game::viewTerrainShape){
         Game::currentRenderer->mvPushMatrix();
         Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, 0, 0.05, 0);
@@ -1667,11 +1667,12 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
                 r->itemType = GL_TRIANGLES;
                 r->vertOffset = (uu * patches + yy) * patchRes * patchRes * 6;
                 r->vertCount = patchRes * patchRes * 6;
+                r->VBO = VBO;
+                r->VAO = VAO;
                 r->setVertexAttributes(r->VNT);
                 r->polygonMode = 1;
-                r->mvMatrix = Mat4::clone(Game::currentRenderer->mvMatrix);
                 r->msMatrix = Game::currentRenderer->objStrMatrix;
-                Game::currentRenderer->pushItem(r);
+                Game::currentRenderer->pushItem(r, Game::currentRenderer->mvMatrix);
             }
         }
         Game::currentRenderer->mvPopMatrix();
@@ -1686,7 +1687,7 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
             terrainBlob.pushRenderItem();
             Game::currentRenderer->mvPopMatrix();
         }
-    }*/
+    }
 }
 
 void Terrain::pushRenderItemWater(float lodx, float lodz, float tileX, float tileY, float* playerW, float* target, float fov, int layer, int selectionColor){

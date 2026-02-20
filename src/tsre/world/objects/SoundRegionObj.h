@@ -46,6 +46,7 @@ public:
     void deleteSelectedTrItem();
     int getDefaultDetailLevel();
     int getSoundregionTrackType();
+    void pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor);
     void render(GLUU* gluu, float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor, int renderMode);
 private:
     float soundregionRoty;
@@ -57,7 +58,7 @@ private:
     
     float* drawPosition = NULL;
     OglObj* drawLine = NULL;
-    void renderTritems(GLUU* gluu, int selectionColor);
+    void renderTritems(GLUU* gluu, int selectionColor, bool pushToQueue = false);
     QVector<float*> drawPositions;
     int selectionValue = 0;
     float angle;

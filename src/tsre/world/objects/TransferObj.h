@@ -47,9 +47,10 @@ public:
     void rotate(float x, float y, float z);
     void resize(float x, float y, float z);
     int getDefaultDetailLevel();
+    void pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor);
     void render(GLUU* gluu, float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor, int renderMode);
 private:
-    void drawShape(int selectionColor = 0);
+    void drawShape(bool pushToQueue = false, int selectionColor = 0);
     int tex;
     bool init;
     float bound[6];

@@ -13,9 +13,14 @@
 #include <tsre/math3d/Vector4f.h>
 
 RenderItem::RenderItem() {
+    colorX = 1.0f;
+    colorY = 1.0f;
+    colorZ = 1.0f;
+    colorA = 1.0f;
 }
 
 RenderItem::RenderItem(const RenderItem& orig) {
+    *this = orig;
 }
 
 RenderItem::~RenderItem() {
@@ -55,6 +60,7 @@ void RenderItem::disableTextures(Vector3f* color){
     colorX = color->x;
     colorY = color->y;
     colorZ = color->z;
+    colorA = 1.0f;
 }
 
 void RenderItem::disableTextures(float x, float y, float z, float a){
@@ -66,5 +72,6 @@ void RenderItem::disableTextures(float x, float y, float z, float a){
 }
 
 void RenderItem::enableTextures(unsigned int addr){
+    texturesEnabled = 1;
     texAddr = addr;
 }

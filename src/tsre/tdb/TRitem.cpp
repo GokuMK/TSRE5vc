@@ -15,6 +15,7 @@
 #include <tsre/tdb/TDB.h>
 #include <tsre/math3d/Vector3f.h>
 #include <tsre/Game.h>
+#include <tsre/renderer/Renderer.h>
 #include <tsre/tdb/SigCfg.h>
 #include <math.h>
 #include <tsre/tdb/SignalShape.h>
@@ -897,6 +898,52 @@ void TRitem::render(TDB *tdb, GLUU *gluu, float* playerT, float playerRot, int s
         selectionColor |= trItemId;
     pointer3d->render(selectionColor);
     gluu->mvPopMatrix();
+}
+
+void TRitem::pushRenderItem(TDB *tdb, float* playerT, float playerRot, int selectionColor) {
+    if (this->type == "emptyitem") {
+        return;
+    }
+    if (this->type == "") {
+        return;
+    }
+    int offy = 0;
+    if (tdb->isRoad()) offy++;
+
+    if (drawPosition == NULL) {
+        drawPosition = new float[7];
+        int id = tdb->findTrItemNodeId(this->trItemId);
+        if (id < 0) {
+            return;
+        }
+        tdb->getDrawPositionOnTrNode(drawPosition, id, this->trItemSData1);
+    }
+
+    if (fabs(drawPosition[5] - playerT[0]) + fabs(-drawPosition[6] - playerT[1]) > 2) {
+        return;
+    }
+
+    Game::currentRenderer->mvPushMatrix();
+    Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPosition[0] + 2048 * (drawPosition[5] - playerT[0]), drawPosition[1] + 2 + offy, -drawPosition[2] + 2048 * (-drawPosition[6] - playerT[1]));
+    Mat4::rotateY(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPosition[3]);
+    if (pointer3d == NULL) {
+        pointer3d = new TrackItemObj(1);
+    }
+
+    if (tdb->isRoad())
+        if (!selected)
+            pointer3d->setMaterial(0.5, 0.5, 0.5);
+        else
+            pointer3d->setMaterial(0.7, 0.7, 0.7);
+    else
+        if (!selected)
+            pointer3d->setMaterial(0.0, 0.0, 0.0);
+        else
+            pointer3d->setMaterial(0.2, 0.2, 0.2);
+    if (selectionColor != 0)
+        selectionColor |= trItemId;
+    pointer3d->pushRenderItem(selectionColor);
+    Game::currentRenderer->mvPopMatrix();
 }
 
 void TRitem::save(QTextStream* out) {

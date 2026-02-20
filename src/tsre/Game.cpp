@@ -30,6 +30,8 @@
 #include <QColor>
 #include <tsre/fileFunctions/TarFile.h>
 #include <tsre/renderer/Renderer.h>
+#include <tsre/texture/AceLib.h>
+#include <tsre/texture/DdsLib.h>
 
 bool Game::ServerMode = false;
 QString Game::serverLogin = "";
@@ -109,6 +111,11 @@ bool Game::ortsEngEnable = true;
 bool Game::sortTileObjects = true;
 int Game::oglDefaultLineWidth = 1;
 bool Game::showWorldObjPivotPoints = false;
+Game::RendererPipeline Game::requestedRendererPipeline = Game::RENDER_PIPELINE_LEGACY;
+Game::RendererPipeline Game::activeRendererPipeline = Game::RENDER_PIPELINE_LEGACY;
+bool Game::rendererPipelineHotSwap = true;
+bool Game::gatherLegacyOverlays = false;
+bool Game::textureLoaderThreaded = true;
 int Game::shadowMapSize = 2048;
 int Game::shadowLowMapSize = 1024;
 int Game::shadowsEnabled = 1;
@@ -121,6 +128,7 @@ bool Game::proceduralTracks = false;
 bool Game::fullscreen = false;
 bool Game::hudEnabled = false;
 float Game::hudScale = 1.0;
+bool Game::editorFpsHudEnabled = false;
 bool Game::markerLines = false;
 
 bool Game::loadAllWFiles = false;
@@ -192,6 +200,29 @@ QHash<QString, int> Game::TextureFlags {
         {"Underground", 0x40000000}
     };
 
+Game::RendererPipeline Game::ParseRendererPipeline(QString value, RendererPipeline fallback){
+    QString mode = value.trimmed().toLower();
+    if(mode == "legacy")
+        return RENDER_PIPELINE_LEGACY;
+    if(mode == "gather")
+        return RENDER_PIPELINE_GATHER;
+    if(mode == "validation")
+        return RENDER_PIPELINE_VALIDATION;
+    return fallback;
+}
+
+QString Game::RendererPipelineName(RendererPipeline value){
+    switch(value){
+        case RENDER_PIPELINE_GATHER:
+            return "gather";
+        case RENDER_PIPELINE_VALIDATION:
+            return "validation";
+        case RENDER_PIPELINE_LEGACY:
+        default:
+            return "legacy";
+    }
+}
+
 void Game::InitAssets() {
     QString path;
     bool newInstallation = false;
@@ -232,6 +263,8 @@ void Game::load() {
     
     QString sh;
     QString path;
+    AceLib::IsThread = textureLoaderThreaded;
+    DdsLib::IsThread = textureLoaderThreaded;
     
     path = "settings.txt";
     QFile file(path);
@@ -368,6 +401,34 @@ void Game::load() {
                 renderTrItems = true;
             else
                 renderTrItems = false;
+        }
+        if(val == "rendererPipeline"){
+            RendererPipeline parsedMode = ParseRendererPipeline(args[1], RENDER_PIPELINE_LEGACY);
+            if(parsedMode == RENDER_PIPELINE_LEGACY && args[1].trimmed().toLower() != "legacy"){
+                qDebug() << "Unknown rendererPipeline value:" << args[1].trimmed() << "falling back to legacy";
+            }
+            requestedRendererPipeline = parsedMode;
+            activeRendererPipeline = parsedMode;
+        }
+        if(val == "rendererPipelineHotSwap"){
+            if(args[1].trimmed().toLower() == "true")
+                rendererPipelineHotSwap = true;
+            else
+                rendererPipelineHotSwap = false;
+        }
+        if(val == "gatherLegacyOverlays"){
+            if(args[1].trimmed().toLower() == "true")
+                gatherLegacyOverlays = true;
+            else
+                gatherLegacyOverlays = false;
+        }
+        if(val == "textureLoaderThreaded"){
+            if(args[1].trimmed().toLower() == "true")
+                textureLoaderThreaded = true;
+            else
+                textureLoaderThreaded = false;
+            AceLib::IsThread = textureLoaderThreaded;
+            DdsLib::IsThread = textureLoaderThreaded;
         }
         if(val == "geoPath")
             geoPath = args[1].trimmed();
@@ -528,6 +589,12 @@ void Game::load() {
         }
         if(val == "hudScale"){
             hudScale = args[1].trimmed().toFloat();
+        }
+        if(val == "editorFpsHudEnabled"){
+            if(args[1].trimmed().toLower() == "true")
+                editorFpsHudEnabled = true;
+            else
+                editorFpsHudEnabled = false;
         }
         if(val == "useTdbEmptyItems"){
             if(args[1].trimmed().toLower() == "true")
@@ -811,6 +878,10 @@ void Game::CreateNewSettingsFile(){
     out << "#cameraFov = 20.0\n";
     out << "leaveTrackShapeAfterDelete = false\n";
     out << "#renderTrItems = true\n";
+    out << "rendererPipeline = legacy\n";
+    out << "#rendererPipelineHotSwap = false\n";
+    out << "#gatherLegacyOverlays = false\n";
+    out << "#textureLoaderThreaded = false\n";
     out << "#useImperial = false\n";
     out << "#ortsEngEnable = false\n";
     out << "#oglDefaultLineWidth = 2\n";
@@ -829,6 +900,7 @@ void Game::CreateNewSettingsFile(){
     out << "#useQuadTree = false\n";
     out << "#fogColor = #D0D0FF\n";
     out << "#fogDensity = 0.5\n";
+    out << "#editorFpsHudEnabled = false\n";
     out << "#defaultElevationBox = 0\n";
     out << "#defaultMoveStep = 0.25\n";
     out.flush();

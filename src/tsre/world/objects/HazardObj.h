@@ -38,13 +38,14 @@ public:
     void save(QTextStream* out);
     int getDefaultDetailLevel();
     void render(GLUU* gluu, float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor, int renderMode);
+    void pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor);
 
 private:
     int trItemIdCount = 0;
     int *trItemId = NULL;
     TrackItemObj* pointer3d = NULL;
     float* drawPosition = NULL;
-    void renderTritems(GLUU* gluu, int selectionColor);
+    void renderTritems(GLUU* gluu, int selectionColor, bool pushToQueue = false);
     bool getSimpleBorder(float* border);
     bool getBoxPoints(QVector<float> &points);
 };

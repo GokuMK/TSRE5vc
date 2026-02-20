@@ -64,6 +64,7 @@ public:
     void pushContextMenuActions(QMenu *menu);
     QString getParentName();
     void render(GLUU* gluu, float * playerT, int renderMode, int index);
+    void pushRenderItems(float *playerT, int renderMode, int index);
     
 public slots:
     void menuToggleDirection();
@@ -84,6 +85,7 @@ private:
         int failedSignal = -1;
         bool getWorldPosition(float *posTW);
         void render(GLUU* gluu, float * playerT, int selectionColor, bool selected = false);
+        void pushRenderItems(float * playerT, int selectionColor, bool selected = false);
     };
     
     struct SpeedZone {
@@ -100,6 +102,7 @@ private:
         float trid[6];
         bool getWorldPosition(float *posTW);
         void render(GLUU* gluu, float * playerT, int selectionColor, bool selected = false);
+        void pushRenderItems(float * playerT, int selectionColor, bool selected = false);
         void makelineShape();
     };
     

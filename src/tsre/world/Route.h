@@ -150,8 +150,11 @@ public:
     void setAsCurrentGameRoute();
     void selectObjectsByXYRange(int mojex, int mojez, int minx, int maxx, int minz, int maxz);
     void pushRenderItems(float* playerT, float* playerW, float* target, float playerRot, float fov, int renderMode);
+    void pushRenderOverlays(float* playerT, float* playerW, float playerRot, int renderMode);
+    void renderOverlays(GLUU *gluu, float* playerT, float* playerW, float playerRot, int renderMode);
     void render(GLUU *gluu, float* playerT, float* playerW, float* target, float playerRot, float fov, int renderMode);
     void renderShadowMap(GLUU *gluu, float* playerT, float* playerW, float* target, float playerRot, float fov, bool selection);
+    void rebuildWorldMatrices();
 
 signals:
     void objectSelected(GameObj* obj);

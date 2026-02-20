@@ -227,6 +227,14 @@ void Service::render(GLUU* gluu, float* playerT, int selectionColor){
     conPointer->renderOnTrack(gluu, playerT, selectionColor);
 }
 
+void Service::pushRenderItems(float* playerT, int selectionColor) {
+    initToPlay();
+    if (pathPointer != NULL)
+        pathPointer->pushRenderItems(playerT, selectionColor);
+    if (conPointer != NULL)
+        conPointer->pushRenderItemsOnTrack(playerT, selectionColor);
+}
+
 void Service::initToPlay(){
     if(pathPointer == NULL){
         QDir dir(Game::root + "/routes/" + Game::route + "/paths");

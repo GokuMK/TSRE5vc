@@ -61,6 +61,7 @@ public:
     Consist *getConsistPointer();
     void updateSim(float *playerT, float deltaTime);
     void render(GLUU* gluu, float* playerT, int selectionColor);
+    void pushRenderItems(float* playerT, int selectionColor);
     void initToPlay();
 private:
     bool modified = false;

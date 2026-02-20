@@ -23,6 +23,7 @@
 #include <tsre/Game.h>
 #include <tsre/fileFunctions/TS.h>
 #include <tsre/world/Ref.h>
+#include <tsre/renderer/Renderer.h>
 
 TransferObj::TransferObj() {
     this->width = 10;
@@ -240,13 +241,23 @@ void TransferObj::render(GLUU* gluu, float lod, float posx, float posz, float* p
 
     gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
        
-    drawShape(selectionColor);
+    drawShape(false, selectionColor);
     if(selected){
         drawBox();
     }
 };
 
-void TransferObj::drawShape(int selectionColor){
+void TransferObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor){
+    if (!loaded)
+        return;
+    if (Game::currentRenderer == NULL)
+        return;
+
+    Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, position[0], 0, position[2]);
+    drawShape(true, selectionColor);
+}
+
+void TransferObj::drawShape(bool pushToQueue, int selectionColor){
 
     if (!init) {
         if(!Game::ignoreLoadLimits){
@@ -363,7 +374,11 @@ void TransferObj::drawShape(int selectionColor){
         init = true;
     }
     
-    shape.render(selectionColor);
+    if(pushToQueue){
+        shape.pushRenderItem(selectionColor);
+    } else {
+        shape.render(selectionColor);
+    }
 }
 
 bool TransferObj::getBoxPoints(QVector<float>& points){

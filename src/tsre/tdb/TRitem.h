@@ -123,6 +123,7 @@ public:
     void setTrackPosition(float val);
     void trackPositionAdd(float val);
     void render(TDB *tdb, GLUU *gluu, float* playerT, float playerRot, int selectionColor);
+    void pushRenderItem(TDB *tdb, float* playerT, float playerRot, int selectionColor);
     void addPositionOffset(float offsetXYZ[]);
     void addTrackNodeItemOffset(unsigned int trackNodeOffset, unsigned int trackItemOffset);
 

@@ -34,6 +34,12 @@ class RouteEditorClient;
 
 class Game {
 public:
+    enum RendererPipeline {
+        RENDER_PIPELINE_LEGACY = 0,
+        RENDER_PIPELINE_GATHER = 1,
+        RENDER_PIPELINE_VALIDATION = 2
+    };
+    
     static bool ServerMode;
     static QString serverLogin;
     static QString serverAuth;
@@ -130,6 +136,11 @@ public:
     static bool sortTileObjects;
     static int oglDefaultLineWidth;
     static bool showWorldObjPivotPoints;
+    static RendererPipeline requestedRendererPipeline;
+    static RendererPipeline activeRendererPipeline;
+    static bool rendererPipelineHotSwap;
+    static bool gatherLegacyOverlays;
+    static bool textureLoaderThreaded;
     static int shadowMapSize;
     static int shadowLowMapSize;
     static int shadowsEnabled;
@@ -171,6 +182,7 @@ public:
     
     static bool hudEnabled;
     static float hudScale;
+    static bool editorFpsHudEnabled;
     
     static bool markerLines;
     static bool seasonalEditing;
@@ -186,6 +198,8 @@ public:
     
     static QString routeMergeString;
     static QStringList objectsToRemove;
+    static RendererPipeline ParseRendererPipeline(QString value, RendererPipeline fallback = RENDER_PIPELINE_LEGACY);
+    static QString RendererPipelineName(RendererPipeline value);
     
 private:
     //static RouteEditorWindow* window;

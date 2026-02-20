@@ -995,35 +995,93 @@ void Route::pushRenderItems(float * playerT, float* playerW, float* target, floa
             }
         }
     }
-    
-    /*if (renderMode == gluu->RENDER_DEFAULT) {
-        if(Game::viewTrackDbLines)
+
+    Game::ignoreLoadLimits = false;
+}
+
+void Route::pushRenderOverlays(float* playerT, float* playerW, float playerRot, int renderMode) {
+    if (renderMode == Game::currentRenderer->RENDER_DEFAULT) {
+        if (Game::viewTrackDbLines && trackDB != NULL)
+            trackDB->pushRenderAll(playerT, playerRot);
+        if (Game::viewTsectionLines && trackDB != NULL)
+            trackDB->pushRenderLines(playerT, playerRot);
+        if (Game::viewTrackDbLines && roadDB != NULL)
+            roadDB->pushRenderAll(playerT, playerRot);
+        if (Game::viewTsectionLines && roadDB != NULL)
+            roadDB->pushRenderLines(playerT, playerRot);
+        if (Game::viewMarkers)
+            if (this->mkr != NULL)
+                this->mkr->pushRenderItems(playerT, playerW, playerRot);
+    }
+
+    if (Game::renderTrItems) {
+        if (trackDB != NULL)
+            trackDB->pushRenderItems(playerT, playerRot, renderMode);
+        if (roadDB != NULL)
+            roadDB->pushRenderItems(playerT, playerRot, renderMode);
+    }
+
+    if (currentActivity != NULL) {
+        currentActivity->pushRenderItems(playerT, playerRot, renderMode);
+    }
+
+    for (int i = 0; i < path.size(); i++) {
+        if (path[i]->isSelected())
+            path[i]->pushRenderItems(playerT, renderMode);
+    }
+}
+
+void Route::rebuildWorldMatrices(){
+    foreach (Tile* tTile, tile){
+        if(tTile == NULL)
+            continue;
+        if(tTile->loaded != 1)
+            continue;
+
+        for (auto it = tTile->obiekty.begin(); it != tTile->obiekty.end(); ++it) {
+            WorldObj* obj = it->second;
+            if(obj == NULL)
+                continue;
+            if(!obj->loaded)
+                continue;
+            obj->setMartix();
+        }
+    }
+}
+
+void Route::renderOverlays(GLUU *gluu, float* playerT, float* playerW, float playerRot, int renderMode) {
+    if(gluu == NULL)
+        return;
+
+    if (renderMode == gluu->RENDER_DEFAULT) {
+        if(Game::viewTrackDbLines && trackDB != NULL)
             trackDB->renderAll(gluu, playerT, playerRot);
-        if(Game::viewTsectionLines)
+        if(Game::viewTsectionLines && trackDB != NULL)
             trackDB->renderLines(gluu, playerT, playerRot);
-        if(Game::viewTrackDbLines)
+        if(Game::viewTrackDbLines && roadDB != NULL)
             roadDB->renderAll(gluu, playerT, playerRot);
-        if(Game::viewTsectionLines)
+        if(Game::viewTsectionLines && roadDB != NULL)
             roadDB->renderLines(gluu, playerT, playerRot);
         if(Game::viewMarkers)
             if(this->mkr != NULL)
                 this->mkr->render(gluu, playerT, playerW, playerRot);
     }
+
     if(Game::renderTrItems){
-        trackDB->renderItems(gluu, playerT, playerRot, renderMode);
-        roadDB->renderItems(gluu, playerT, playerRot, renderMode);
+        if(trackDB != NULL)
+            trackDB->renderItems(gluu, playerT, playerRot, renderMode);
+        if(roadDB != NULL)
+            roadDB->renderItems(gluu, playerT, playerRot, renderMode);
     }
-    
+
     if(currentActivity != NULL){
         currentActivity->render(gluu, playerT, playerRot, renderMode);
     }
-    
+
     for(int i = 0; i < path.size(); i++){
         if(path[i]->isSelected())
             path[i]->render(gluu, playerT, renderMode);
-    }*/
-
-    Game::ignoreLoadLimits = false;
+    }
 }
 
 void Route::render(GLUU *gluu, float * playerT, float* playerW, float* target, float playerRot, float fov, int renderMode) {
@@ -1058,33 +1116,8 @@ void Route::render(GLUU *gluu, float * playerT, float* playerW, float* target, f
             }
         }
     }
-    if (renderMode == gluu->RENDER_DEFAULT) {
-        if(Game::viewTrackDbLines && trackDB != NULL)
-            trackDB->renderAll(gluu, playerT, playerRot);
-        if(Game::viewTsectionLines && trackDB != NULL)
-            trackDB->renderLines(gluu, playerT, playerRot);
-        if(Game::viewTrackDbLines && roadDB != NULL)
-            roadDB->renderAll(gluu, playerT, playerRot);
-        if(Game::viewTsectionLines && roadDB != NULL)
-            roadDB->renderLines(gluu, playerT, playerRot);
-        if(Game::viewMarkers)
-            if(this->mkr != NULL)
-                this->mkr->render(gluu, playerT, playerW, playerRot);
-    }
-    if(Game::renderTrItems){
-        trackDB->renderItems(gluu, playerT, playerRot, renderMode);
-        roadDB->renderItems(gluu, playerT, playerRot, renderMode);
-    }
-    
-    if(currentActivity != NULL){
-        currentActivity->render(gluu, playerT, playerRot, renderMode);
-    }
-    
-    for(int i = 0; i < path.size(); i++){
-        if(path[i]->isSelected())
-            path[i]->render(gluu, playerT, renderMode);
-    }
-    //trackDB->renderItems(gluu, playerT, playerRot);
+    renderOverlays(gluu, playerT, playerW, playerRot, renderMode);
+
     /*
     for (var key in this.tile){
        if(this.tile[key] === undefined) continue;

@@ -24,6 +24,7 @@
 #include <tsre/world/Route.h>
 #include <tsre/geo/GeoCoordinates.h>
 #include <tsre/procedural/ProceduralShape.h>
+#include <tsre/renderer/Renderer.h>
 
 bool RulerObj::TwoPointRuler = false;
 bool RulerObj::DrawPoints = false;
@@ -345,6 +346,121 @@ void RulerObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos,
         gluu->mvPopMatrix();
     }
 };
+
+void RulerObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor) {
+    if (!loaded)
+        return;
+    if (jestPQ < 2)
+        return;
+    if (Game::currentRenderer == NULL)
+        return;
+
+    if(Game::showWorldObjPivotPoints){
+        if(pointer3d == NULL){
+            pointer3d = new TrackItemObj(1);
+            pointer3d->setMaterial(0.9,0.9,0.7);
+        }
+        pointer3d->pushRenderItem(selectionColor);
+    }
+
+    int useSC = (float)selectionColor/(float)(selectionColor+0.000001);
+
+    if(shapeEnabled){
+        if(proceduralShapeInit){
+            for(int j = 0; j < points.size() - 1; j++){
+                Game::currentRenderer->mvPushMatrix();
+                Mat4::multiply(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, points[j].matrix);
+                for(int i = 0; i < points[j].procShape.size(); i++){
+                    points[j].procShape[i]->pushRenderItem(selectionColor | (i&0xF)*useSC);
+                }
+                Game::currentRenderer->mvPopMatrix();
+            }
+        } else {
+            for(int i = 0; i < points.size() - 1; i++){
+                float tlength = Vec3::distance(points[i].position, points[i+1].position);
+                int someval = (((points[i+1].position[2]-points[i].position[2])+0.00001f)/fabs((points[i+1].position[2]-points[i].position[2])+0.00001f));
+                float rotY = ((float)someval+1.0)*(M_PI/2)+(float)(atan((points[i].position[0]-points[i+1].position[0])/(points[i].position[2]-points[i+1].position[2])));
+                float rotX = (float)(asin((points[i].position[1]-points[i+1].position[1])/(tlength)));
+
+                Quat::fill(points[i].quat);
+                Quat::rotateY(points[i].quat, points[i].quat, rotY + M_PI);
+                Quat::rotateX(points[i].quat, points[i].quat, rotX);
+                Mat4::fromRotationTranslation(points[i].matrix, points[i].quat, points[i].position);
+                QVector<TSection> sections;
+                sections.push_back(TSection());
+                sections.back().size = floor((tlength * 10 ) + 0.5) / 10;
+                ProceduralShape::GetShape(templateName, points[i].procShape, sections, i);
+            }
+            proceduralShapeInit = true;
+        }
+    }
+
+    if(!Game::viewInteractives)
+        return;
+
+    if(point3d == NULL){
+        point3d = new OglObj();
+        point3d->setMaterial(1,1,1);
+        point3d->setLineWidth(8);
+        float *punkty = new float[6];
+        int ptr = 0;
+        punkty[ptr++] = 0;
+        punkty[ptr++] = 0;
+        punkty[ptr++] = 0;
+        punkty[ptr++] = 0;
+        punkty[ptr++] = 10;
+        punkty[ptr++] = 0;
+        point3d->init(punkty, ptr, RenderItem::V, GL_LINES);
+
+        point3dSelected = new OglObj();
+        point3dSelected->setLineWidth(8);
+        point3dSelected->setMaterial(0.5,0.5,0.5);
+        ptr = 0;
+        punkty[ptr++] = 0;
+        punkty[ptr++] = 0;
+        punkty[ptr++] = 0;
+        punkty[ptr++] = 0;
+        punkty[ptr++] = 10;
+        punkty[ptr++] = 0;
+        point3dSelected->init(punkty, ptr, RenderItem::V, GL_LINES);
+        delete[] punkty;
+    }
+    if(line3d == NULL){
+        line3d = new OglObj();
+        line3d->setLineWidth(2);
+        line3d->setMaterial(1,1,1);
+    }
+    if(!line3d->loaded){
+        float *punkty = new float[points.size()*6*2];
+        int ptr = 0;
+
+        for(int i = 0; i < points.size() - 1; i++){
+            punkty[ptr++] = points[i].position[0];
+            punkty[ptr++] = points[i].position[1]+1;
+            punkty[ptr++] = points[i].position[2];
+            punkty[ptr++] = points[i+1].position[0];
+            punkty[ptr++] = points[i+1].position[1]+1;
+            punkty[ptr++] = points[i+1].position[2];
+        }
+        line3d->init(punkty, ptr, RenderItem::V, GL_LINES);
+        delete[] punkty;
+        refreshLength();
+    }
+
+    line3d->pushRenderItem(selectionColor);
+
+    for(int i = 0; i < points.size(); i++){
+        Game::currentRenderer->mvPushMatrix();
+        Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, points[i].position[0], points[i].position[1], points[i].position[2]);
+        if(i == 0 || i == points.size() - 1 || DrawPoints){
+            if(this->selected && this->selectionValue == i)
+                point3dSelected->pushRenderItem(selectionColor | (i&0xF)*useSC);
+            else
+                point3d->pushRenderItem(selectionColor | (i&0xF)*useSC);
+        }
+        Game::currentRenderer->mvPopMatrix();
+    }
+}
 
 bool RulerObj::hasLinePoints(){
     return true;

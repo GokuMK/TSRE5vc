@@ -11,6 +11,7 @@
 #include <tsre/trains/ActivityObject.h>
 #include <tsre/trains/Consist.h>
 #include <tsre/Game.h>
+#include <tsre/renderer/Renderer.h>
 #include <tsre/ogl/GLUU.h>
 #include <QDebug>
 #include <QMenu>
@@ -282,6 +283,32 @@ void ActivityObject::render(GLUU* gluu, float* playerT, int renderMode, int inde
     }
 }
 
+void ActivityObject::pushRenderItems(float* playerT, int renderMode, int index) {
+    int selectionColor = 0;
+    if (renderMode == Game::currentRenderer->RENDER_SELECTION) {
+        selectionColor = 11 << 20;
+        selectionColor |= index << 8;
+    }
+
+    if (objectTypeId == ActivityObject::WAGONLIST) {
+        if (con != NULL) {
+            if (!con->isOnTrack)
+                con->initOnTrack(tile, direction);
+            con->pushRenderItemsOnTrack(playerT, selectionColor);
+        }
+    }
+
+    if (objectTypeId == ActivityObject::RESTRICTEDSPEEDZONE) {
+        if (speedZoneData != NULL)
+            speedZoneData->pushRenderItems(playerT, selectionColor, selected);
+    }
+
+    if (objectTypeId == ActivityObject::FAILEDSIGNAL) {
+        if (failedSignalData != NULL)
+            failedSignalData->pushRenderItems(playerT, selectionColor, selected);
+    }
+}
+
 void ActivityObject::SpeedZone::render(GLUU* gluu, float* playerT, int selectionColor, bool selected){
     if(init < 0)
         return;
@@ -387,6 +414,96 @@ void ActivityObject::SpeedZone::render(GLUU* gluu, float* playerT, int selection
     lineShape->render();
     gluu->mvPopMatrix();
 };
+
+void ActivityObject::SpeedZone::pushRenderItems(float* playerT, int selectionColor, bool selected) {
+    if (init < 0)
+        return;
+    float posT[2], pos[3];
+    if (drawPositionB == NULL) {
+        TDB* tdb = Game::trackDB;
+        Vec2::set(posT, start[0], -start[1]);
+        float h = Game::terrainLib->getHeight(start[0], -start[1], start[2], start[3]);
+        Vec3::set(pos, start[2], h, -start[3]);
+        int ok = Game::trackDB->findNearestPositionOnTDB(posT, pos, NULL, trid);
+        if (ok < 0) {
+            init = -1;
+            return;
+        }
+        if (trid[0] < 1) {
+            init = -1;
+            return;
+        }
+        drawPositionB = new float[7];
+        bool ok1 = tdb->getDrawPositionOnTrNode(drawPositionB, trid[0], trid[1]);
+        if (!ok1) {
+            init = -1;
+            return;
+        }
+        drawPositionB[0] += 2048 * (drawPositionB[5] - start[0]);
+        drawPositionB[2] -= 2048 * (-drawPositionB[6] - -start[1]);
+    }
+    if (drawPositionE == NULL) {
+        TDB* tdb = Game::trackDB;
+        Vec2::set(posT, end[0], -end[1]);
+        float h = Game::terrainLib->getHeight(end[0], -end[1], end[2], end[3]);
+        Vec3::set(pos, end[2], h, -end[3]);
+
+        int ok = Game::trackDB->findNearestPositionOnTDB(posT, pos, NULL, trid + 3);
+        if (ok < 0) {
+            init = -1;
+            return;
+        }
+        if (trid[3] < 1) {
+            init = -1;
+            return;
+        }
+        drawPositionE = new float[7];
+        bool ok1 = tdb->getDrawPositionOnTrNode(drawPositionE, trid[3], trid[4]);
+        if (!ok1) {
+            init = -1;
+            return;
+        }
+        drawPositionE[0] += 2048 * (drawPositionE[5] - start[0]);
+        drawPositionE[2] -= 2048 * (-drawPositionE[6] - -start[1]);
+    }
+
+    if (pointer3d == NULL) pointer3d = new TrackItemObj();
+    if (pointer3dSelected == NULL) pointer3dSelected = new TrackItemObj();
+
+    if (lineShape == NULL) {
+        makelineShape();
+        lineShape->setMaterial(1.0, 0.0, 0.4);
+        pointer3d->setMaterial(1.0, 0.0, 0.4);
+        pointer3dSelected->setMaterial(1.0, 0.3, 0.7);
+    }
+    int useSC;
+
+    Game::currentRenderer->mvPushMatrix();
+    Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPositionB[0] + 2048 * (start[0] - playerT[0]), drawPositionB[1] + 1, -drawPositionB[2] + 2048 * (-start[1] - playerT[1]));
+    Mat4::rotateY(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPositionB[3] + rotB*M_PI);
+
+    useSC = (float)selectionColor / (float)(selectionColor + 0.000001);
+    if (selected && selectionValue == 1)
+        pointer3dSelected->pushRenderItem(selectionColor | 1 * useSC);
+    else
+        pointer3d->pushRenderItem(selectionColor | 1 * useSC);
+    Game::currentRenderer->mvPopMatrix();
+
+    Game::currentRenderer->mvPushMatrix();
+    Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPositionE[0] + 2048 * (start[0] - playerT[0]), drawPositionE[1] + 1, -drawPositionE[2] + 2048 * (-start[1] - playerT[1]));
+    Mat4::rotateY(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPositionE[3] + rotE*M_PI);
+    useSC = (float)selectionColor / (float)(selectionColor + 0.000001);
+    if (selected && selectionValue == 3)
+        pointer3dSelected->pushRenderItem(selectionColor | 3 * useSC);
+    else
+        pointer3d->pushRenderItem(selectionColor | 3 * useSC);
+    Game::currentRenderer->mvPopMatrix();
+
+    Game::currentRenderer->mvPushMatrix();
+    Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, 2048 * (start[0] - playerT[0]), 0, 2048 * (-start[1] - playerT[1]));
+    lineShape->pushRenderItem();
+    Game::currentRenderer->mvPopMatrix();
+}
 
 void ActivityObject::SpeedZone::makelineShape(){
         lineShape = new OglObj();
@@ -534,6 +651,45 @@ void ActivityObject::FailedSignalData::render(GLUU* gluu, float* playerT, int se
     else
         pointer3d->render(selectionColor);
     gluu->mvPopMatrix();
+}
+
+void ActivityObject::FailedSignalData::pushRenderItems(float* playerT, int selectionColor, bool selected) {
+    if (init < 0)
+        return;
+    if (init == 0) {
+        TDB* tdb = Game::trackDB;
+        if (drawPosition == NULL) {
+            int id = tdb->findTrItemNodeId(failedSignal);
+            if (id < 0) {
+                return;
+            }
+
+            drawPosition = new float[7];
+            bool ok = tdb->getDrawPositionOnTrNode(drawPosition, id, tdb->trackItems[failedSignal]->getTrackPosition());
+            if (!ok) {
+                init = -1;
+                return;
+            }
+            if (pointer3d == NULL) {
+                pointer3d = new TrackItemObj(1);
+                pointer3d->setMaterial(0.8, 0.2, 0.8);
+            }
+            if (pointer3dSelected == NULL) {
+                pointer3dSelected = new TrackItemObj(1);
+                pointer3dSelected->setMaterial(0.9, 0.5, 0.9);
+            }
+        }
+        init = 1;
+    }
+
+    Game::currentRenderer->mvPushMatrix();
+    Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPosition[0] + 2048 * (drawPosition[5] - playerT[0]), drawPosition[1] + 1, -drawPosition[2] + 2048 * (-drawPosition[6] - playerT[1]));
+    Mat4::rotateY(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPosition[3]);
+    if (selected)
+        pointer3dSelected->pushRenderItem(selectionColor);
+    else
+        pointer3d->pushRenderItem(selectionColor);
+    Game::currentRenderer->mvPopMatrix();
 }
 
 void ActivityObject::pushContextMenuActions(QMenu *menu){

@@ -37,6 +37,7 @@
 #include <routeEditor/RouteEditorClient.h>
 #include <tsre/world/Route.h>
 #include <tsre/world/Trk.h>
+#include <tsre/renderer/Renderer.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -587,7 +588,42 @@ bool WorldObj::isSimilar(WorldObj* obj){
 }
 
 void WorldObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor){
-    
+    if (!loaded) return;
+    if (jestPQ < 2) return;
+    if (Game::currentRenderer == NULL) return;
+
+    SFile* shapeToRender = shapePointer;
+    if (shapeToRender == NULL) {
+        if (shape < 0) return;
+        if (Game::currentShapeLib == NULL) return;
+        shapeToRender = Game::currentShapeLib->shape[shape];
+    }
+    if (shapeToRender == NULL) return;
+
+    if (size > 0) {
+        if ((lod > size + 150)) {
+            float v1[2];
+            v1[0] = playerW[0] - target[0];
+            v1[1] = playerW[2] - target[2];
+            float v2[2];
+            v2[0] = posx;
+            v2[1] = posz;
+            float iloczyn = v1[0] * v2[0] + v1[1] * v2[1];
+            float d1 = sqrt(v1[0] * v1[0] + v1[1] * v1[1]);
+            float d2 = sqrt(v2[0] * v2[0] + v2[1] * v2[1]);
+            float zz = iloczyn / (d1 * d2);
+            if (zz > 0) return;
+
+            float ccos = cos(fov) + zz;
+            float xxx = sqrt(2 * d2 * d2 * (1 - ccos));
+            if ((ccos > 0) && (xxx > size) && (skipLevel == 1)) return;
+        }
+    } else if (shapeToRender->loaded) {
+        size = shapeToRender->size;
+    }
+
+    Mat4::multiply(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, matrix);
+    shapeToRender->pushRenderItem(selectionColor, shapeState);
 }
 
 void WorldObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos, float* target, float fov, int selectionColor, int renderMode) {

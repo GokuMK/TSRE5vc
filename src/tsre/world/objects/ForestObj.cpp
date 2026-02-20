@@ -26,6 +26,7 @@
 #include <tsre/fileFunctions/ReadFile.h>
 #include <tsre/tdb/TDB.h>
 #include <tsre/math3d/Vector4f.h>
+#include <tsre/renderer/Renderer.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -322,10 +323,30 @@ void ForestObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos
         shape.setMaterial(texturePath);
     }
     
-    drawShape();
+    drawShape(false, selectionColor);
 };
 
-void ForestObj::drawShape(){
+void ForestObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor){
+    if (!loaded)
+        return;
+    if (Game::currentRenderer == NULL)
+        return;
+
+    Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, position[0], 0, position[2]);
+
+    if(selectionColor != 0){
+        int wColor = (int)(selectionColor/65536);
+        int sColor = (int)(selectionColor - wColor*65536)/256;
+        int bColor = (int)(selectionColor - wColor*65536 - sColor*256);
+        shape.setMaterial((float)wColor/255.0f, (float)sColor/255.0f, (float)bColor/255.0f);
+    } else {
+        shape.setMaterial(texturePath);
+    }
+
+    drawShape(true, selectionColor);
+}
+
+void ForestObj::drawShape(bool pushToQueue, int selectionColor){
     QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
     /*if (tex == -2) {
         f->glDisable(GL_TEXTURE_2D);
@@ -484,8 +505,12 @@ void ForestObj::drawShape(){
         delete[] punkty;
         init = true;
     }
-    shape.render();
-    if(selected){
+    if(pushToQueue){
+        shape.pushRenderItem(selectionColor);
+    } else {
+        shape.render();
+    }
+    if(selected && !pushToQueue){
         drawBox();
     }
 }

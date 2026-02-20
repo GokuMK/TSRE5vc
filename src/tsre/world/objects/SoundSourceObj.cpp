@@ -19,6 +19,7 @@
 #include <tsre/sound/SoundSource.h>
 #include <tsre/sound/SoundManager.h>
 #include <tsre/sound/MstsSoundDefinition.h>
+#include <tsre/renderer/Renderer.h>
 
 SoundSourceObj::SoundSourceObj() {
 }
@@ -138,6 +139,28 @@ void SoundSourceObj::render(GLUU* gluu, float lod, float posx, float posz, float
     else
         pointer3d->render(selectionColor);
 };
+
+void SoundSourceObj::pushRenderItems(float lod, float posx, float posz, float* pos, float* target, float fov, int selectionColor){
+    if (!loaded) return;
+    if(!Game::viewInteractives)
+        return;
+    if(Game::currentRenderer == NULL)
+        return;
+
+    Mat4::multiply(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, matrix);
+
+    if(pointer3d == NULL)
+        pointer3d = new PoleObj();
+    if(pointer3dSelected == NULL){
+        pointer3dSelected = new PoleObj();
+        pointer3dSelected->setMaterial(1.0,1.0,0.5);
+    }
+
+    if(this->selected)
+        pointer3dSelected->pushRenderItem(selectionColor);
+    else
+        pointer3d->pushRenderItem(selectionColor);
+}
 
 int SoundSourceObj::getDefaultDetailLevel(){
     return -4;

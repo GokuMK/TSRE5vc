@@ -105,6 +105,7 @@ public:
     void renderHud();
     void getCameraPosition(float *out);
     void renderOnTrack(GLUU* gluu, float * playerT, int selectionColor);
+    void pushRenderItemsOnTrack(float *playerT, int selectionColor);
     void render(int selectionColor = 0, bool renderText = false);
     void render(int aktwx, int aktwz, int selectionColor, bool renderText);
     void initPos();

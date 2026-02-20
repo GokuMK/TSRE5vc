@@ -25,6 +25,7 @@
 #include <tsre/math3d/Vector4f.h>
 #include <tsre/ErrorMessage.h>
 #include <tsre/ErrorMessagesLib.h>
+#include <tsre/renderer/Renderer.h>
 
 float SoundRegionObj::MaxPlacingDistance = 30;
 
@@ -357,10 +358,21 @@ void SoundRegionObj::render(GLUU* gluu, float lod, float posx, float posz, float
     if (!loaded) return;
 
     if(Game::viewInteractives && renderMode != gluu->RENDER_SHADOWMAP) 
-        this->renderTritems(gluu, selectionColor);
+        this->renderTritems(gluu, selectionColor, false);
 };
 
-void SoundRegionObj::renderTritems(GLUU* gluu, int selectionColor){
+void SoundRegionObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor){
+    if (!loaded)
+        return;
+    if(!Game::viewInteractives)
+        return;
+    if(Game::currentRenderer == NULL)
+        return;
+
+    this->renderTritems(NULL, selectionColor, true);
+}
+
+void SoundRegionObj::renderTritems(GLUU* gluu, int selectionColor, bool pushToQueue){
     
     ///////////////////////////////
     TDB* tdb = Game::trackDB;
@@ -436,23 +448,41 @@ void SoundRegionObj::renderTritems(GLUU* gluu, int selectionColor){
         }
     }
 
-    gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-    if(selectionColor == 0)
-        drawLine->render();
     int useSC;
+    if(pushToQueue){
+        if(selectionColor == 0)
+            drawLine->pushRenderItem();
 
-    for(int i = 0; i < drawPositions.size(); i++){
-        drawPosition = drawPositions[i];
-        gluu->mvPushMatrix();
-        Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, drawPosition[0] + 0 * (drawPosition[4] - this->x), drawPosition[1] + 1, -drawPosition[2] + 0 * (-drawPosition[5] - this->y));
-        Mat4::rotateY(gluu->mvMatrix, gluu->mvMatrix, -drawPosition[7]+M_PI);
+        for(int i = 0; i < drawPositions.size(); i++){
+            drawPosition = drawPositions[i];
+            Game::currentRenderer->mvPushMatrix();
+            Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPosition[0] + 0 * (drawPosition[4] - this->x), drawPosition[1] + 1, -drawPosition[2] + 0 * (-drawPosition[5] - this->y));
+            Mat4::rotateY(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, -drawPosition[7]+M_PI);
+            useSC = (float)selectionColor/(float)(selectionColor+0.000001);
+            if(this->selected && this->selectionValue == i+1)
+                pointer3dSelected->pushRenderItem(selectionColor | (i+1)*useSC);
+            else
+                pointer3d->pushRenderItem(selectionColor | (i+1)*useSC);
+            Game::currentRenderer->mvPopMatrix();
+        }
+    } else {
         gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-        useSC = (float)selectionColor/(float)(selectionColor+0.000001);
-        if(this->selected && this->selectionValue == i+1) 
-            pointer3dSelected->render(selectionColor | (i+1)*useSC);
-        else
-            pointer3d->render(selectionColor | (i+1)*useSC);
-        gluu->mvPopMatrix();
+        if(selectionColor == 0)
+            drawLine->render();
+
+        for(int i = 0; i < drawPositions.size(); i++){
+            drawPosition = drawPositions[i];
+            gluu->mvPushMatrix();
+            Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, drawPosition[0] + 0 * (drawPosition[4] - this->x), drawPosition[1] + 1, -drawPosition[2] + 0 * (-drawPosition[5] - this->y));
+            Mat4::rotateY(gluu->mvMatrix, gluu->mvMatrix, -drawPosition[7]+M_PI);
+            gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
+            useSC = (float)selectionColor/(float)(selectionColor+0.000001);
+            if(this->selected && this->selectionValue == i+1)
+                pointer3dSelected->render(selectionColor | (i+1)*useSC);
+            else
+                pointer3d->render(selectionColor | (i+1)*useSC);
+            gluu->mvPopMatrix();
+        }
     }
 
 };

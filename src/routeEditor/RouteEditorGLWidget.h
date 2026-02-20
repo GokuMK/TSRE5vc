@@ -159,6 +159,15 @@ protected:
     void drawPointer();
     void pushRenderPointer();
 private:
+    bool paintGLGather(bool drawToScreen);
+    bool paintGLValidation();
+    bool canRenderFrame() const;
+    void restoreDefaultGlState();
+    void fallbackToLegacyRendererPipeline(const QString& reason);
+    void handleRendererPipelineSwitch(int oldPipeline, int newPipeline);
+    void announceRendererPipeline();
+    void cycleRendererPipelineMode();
+    void drawEditorFpsHud();
     void setupVertexAttribs();
     void setSelectedObj(GameObj* o);
     QBasicTimer timer;
@@ -169,6 +178,10 @@ private:
     int m_yRot;
     int m_zRot;
     int fps;
+    int fpsDisplay = 0;
+    double fpsDisplayAccumMs = 0.0;
+    int fpsDisplayAccumFrames = 0;
+    unsigned long long int fpsDisplayLastUpdate = 0;
     QPoint m_lastPos;
     SFile* sFile;
     Eng* eng;
@@ -237,6 +250,8 @@ private:
     
     GuiGlCompass * compass = NULL;
     OglObj * compassPointer = NULL;
+    bool rendererPipelineInitialized = false;
+    int lastRenderedPipeline = -1;
     
     
     

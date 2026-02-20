@@ -1,4 +1,4 @@
-﻿# Renderer Task Roadmap
+# Renderer Task Roadmap
 
 This folder contains ordered tasks for migrating the TSRE renderer from legacy immediate drawing to gather-then-render.
 
@@ -11,11 +11,12 @@ This folder contains ordered tasks for migrating the TSRE renderer from legacy i
 6. `06-world-objects-shape-based.md`
 7. `07-world-objects-procedural-and-helpers.md`
 8. `08-overlays-tdb-activity-markers.md`
-9. `09-shadows-hud-compass-pointer.md`
-10. `10-parity-automation-and-performance-gate.md`
+9. `09-hud-compass-pointer.md`
+10. `10-shadows-gather-pass.md`
+11. `11-parity-automation-and-performance-gate.md`
 
 ## Ground Rules For All Tasks
-- Keep a runtime fallback to legacy pipeline until Task 10 sign-off.
+- Keep a runtime fallback to legacy pipeline until Task 11 sign-off.
 - Do not remove legacy code path early.
 - Prefer incremental, reversible changes.
 - Preserve editor selection behavior.

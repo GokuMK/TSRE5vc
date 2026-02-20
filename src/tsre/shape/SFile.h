@@ -210,6 +210,7 @@ public:
     void render(int selectionColor, unsigned int stateId);
     void pushRenderItem();
     void pushRenderItem(int selectionColor, unsigned int stateId);
+    void invalidateRenderState(bool invalidateMatrixCache = true);
     void getSize();
     bool getBoxPoints(QVector<float> &points);
     void getFloorBorderLinePoints(float *&punkty);
@@ -240,10 +241,12 @@ private:
     float* getPmatrix(int currentDlevel, float* pmatrix, int matrix);
     float* getPmatrixAnimated(int currentDlevel, float* pmatrix, int matrix, float frame);
     void buildFrameIds();
+    unsigned long long getTextureStateHash() const;
     bool snapable = false;
     //float *mvMatrix = NULL;
     bool requiresUpdate = false;
     QHash<unsigned int, QVector<RenderItem *>> renderItems;
+    QHash<unsigned int, unsigned long long> renderItemsTextureHash;
 };
 
 #endif	/* SFILE_H */

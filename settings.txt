@@ -5,7 +5,7 @@ gameRoot = F:/train simulator
 gameRoot = C:/trainsim
 
 # route directory name to load on startup by default
-routeName = aaa2
+routeName = cmk
 
 # optional start tile
 #startTileX = -5306
@@ -54,3 +54,4 @@ mouseSpeed = 0.5
 #fogDensity = 0.5
 #defaultElevationBox = 0
 #defaultMoveStep = 0.25
+editorFpsHudEnabled = true

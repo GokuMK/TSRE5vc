@@ -15,6 +15,7 @@
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <tsre/fileFunctions/ReadFile.h>
 #include <tsre/Game.h>
+#include <tsre/renderer/Renderer.h>
 #include <QDebug>
 #include <QFile>
 #include <tsre/ogl/GLUU.h>
@@ -614,6 +615,16 @@ void ActivityServiceDefinition::render(GLUU* gluu, float* playerT, int renderMod
 
 }
 
+void ActivityServiceDefinition::pushRenderItems(float* playerT, int renderMode) {
+    int selectionColor = 0;
+    if (renderMode == Game::currentRenderer->RENDER_SELECTION) {
+        selectionColor = 13 << 20;
+    }
+    if (servicePointer == NULL)
+        return;
+    servicePointer->pushRenderItems(playerT, selectionColor);
+}
+
 void ActivityServiceDefinition::updateSim(float *playerT, float deltaTime){
     if(servicePointer == NULL)
         return;
@@ -906,6 +917,28 @@ void Activity::render(GLUU* gluu, float * playerT, float playerRot, int renderMo
     
     if(playerServiceDefinition != NULL ){
         playerServiceDefinition->render(gluu, playerT, renderMode);
+    }
+}
+
+void Activity::pushRenderItems(float *playerT, float playerRot, int renderMode) {
+    for (int i = 0; i < activityObjects.size(); i++) {
+        activityObjects[i]->pushRenderItems(playerT, renderMode, i);
+    }
+
+    for (int i = 0; i < activityFailedSignal.size(); i++) {
+        activityFailedSignal[i]->pushRenderItems(playerT, renderMode, i + 3500);
+    }
+
+    for (int i = 0; i < restrictedSpeedZone.size(); i++) {
+        restrictedSpeedZone[i]->pushRenderItems(playerT, renderMode, i + 3000);
+    }
+
+    for (int i = 0; i < event.size(); i++) {
+        event[i].pushRenderItem(playerT, playerRot, renderMode);
+    }
+
+    if (playerServiceDefinition != NULL) {
+        playerServiceDefinition->pushRenderItems(playerT, renderMode);
     }
 }
 /*

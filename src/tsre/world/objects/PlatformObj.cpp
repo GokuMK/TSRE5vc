@@ -16,6 +16,7 @@
 #include <tsre/fileFunctions/ParserX.h>
 #include <QDebug>
 #include <tsre/Game.h>
+#include <tsre/renderer/Renderer.h>
 #include <tsre/tdb/TDB.h>
 #include <tsre/tdb/TRitem.h>
 #include <tsre/ogl/TrackItemObj.h>
@@ -570,7 +571,32 @@ void PlatformObj::render(GLUU* gluu, float lod, float posx, float posz, float* p
         this->renderTritems(gluu, selectionColor);
 };
 
-void PlatformObj::renderTritems(GLUU* gluu, int selectionColor){
+void PlatformObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor){
+    if(!this->loaded)
+        return;
+    if(Game::currentRenderer == NULL)
+        return;
+
+    Game::currentRenderer->mvPushMatrix();
+    WorldObj::pushRenderItems(lod, posx, posz, playerW, target, fov, selectionColor);
+    Game::currentRenderer->mvPopMatrix();
+
+    if(Game::showWorldObjPivotPoints){
+        Game::currentRenderer->mvPushMatrix();
+        Mat4::multiply(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, matrix);
+        if(pointer3d == NULL){
+            pointer3d = new TrackItemObj(1);
+            pointer3d->setMaterial(0.9,0.9,0.7);
+        }
+        pointer3d->pushRenderItem(selectionColor);
+        Game::currentRenderer->mvPopMatrix();
+    }
+
+    if(Game::viewInteractives)
+        this->renderTritems(NULL, selectionColor, true);
+}
+
+void PlatformObj::renderTritems(GLUU* gluu, int selectionColor, bool pushToQueue){
     
     if (drawPositionB == NULL) {
         TDB* tdb = Game::trackDB;
@@ -646,39 +672,59 @@ void PlatformObj::renderTritems(GLUU* gluu, int selectionColor){
     
     //(-(float)(atan((drawPositionB[1]-drawPositionE[1])/(dlugosc))
     int useSC;
-    gluu->mvPushMatrix();
-    Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, drawPositionB[0] + 0 * (drawPositionB[5] - this->x), drawPositionB[1] + 1, -drawPositionB[2] + 0 * (-drawPositionB[6] - this->y));
-    Mat4::rotateY(gluu->mvMatrix, gluu->mvMatrix, drawPositionB[3] + rotB*M_PI);
-    //Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, this->trItemRData[0] + 2048*(this->trItemRData[3] - playerT[0] ), this->trItemRData[1]+2, -this->trItemRData[2] + 2048*(-this->trItemRData[4] - playerT[1]));
-    //Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, this->trItemRData[0] + 0, this->trItemRData[1]+0, -this->trItemRData[2] + 0);
-    gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-    
-    useSC = (float)selectionColor/(float)(selectionColor+0.000001);
-    if(this->selected && this->selectionValue == 1) 
-        spointer3dSelected->render(selectionColor | 1*useSC);
-    else
-        spointer3d->render(selectionColor | 1*useSC);
-    gluu->mvPopMatrix();
-    
-    gluu->mvPushMatrix();
-    Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, drawPositionE[0] + 0 * (drawPositionE[5] - this->x), drawPositionE[1] + 1, -drawPositionE[2] + 0 * (-drawPositionE[6] - this->y));
-    Mat4::rotateY(gluu->mvMatrix, gluu->mvMatrix, drawPositionE[3] + rotE*M_PI);
-    //Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, this->trItemRData[0] + 2048*(this->trItemRData[3] - playerT[0] ), this->trItemRData[1]+2, -this->trItemRData[2] + 2048*(-this->trItemRData[4] - playerT[1]));
-    //Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, this->trItemRData[0] + 0, this->trItemRData[1]+0, -this->trItemRData[2] + 0);
-    gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-    useSC = (float)selectionColor/(float)(selectionColor+0.000001);
-    if(this->selected && this->selectionValue == 3) 
-        spointer3dSelected->render(selectionColor | 3*useSC);
-    else
-        spointer3d->render(selectionColor | 3*useSC);
-    gluu->mvPopMatrix();
-    
-    gluu->mvPushMatrix();
-    //Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, drawPositionB[0] + 0 * (drawPositionB[4] - this->x), drawPositionB[1] + 1, -drawPositionB[2] + 0 * (-drawPositionB[5] - this->y));
-    gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-    if(selectionColor == 0)
-        line->render();
-    gluu->mvPopMatrix();
+    if(pushToQueue){
+        Game::currentRenderer->mvPushMatrix();
+        Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPositionB[0] + 0 * (drawPositionB[5] - this->x), drawPositionB[1] + 1, -drawPositionB[2] + 0 * (-drawPositionB[6] - this->y));
+        Mat4::rotateY(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPositionB[3] + rotB*M_PI);
+        useSC = (float)selectionColor/(float)(selectionColor+0.000001);
+        if(this->selected && this->selectionValue == 1)
+            spointer3dSelected->pushRenderItem(selectionColor | 1*useSC);
+        else
+            spointer3d->pushRenderItem(selectionColor | 1*useSC);
+        Game::currentRenderer->mvPopMatrix();
+
+        Game::currentRenderer->mvPushMatrix();
+        Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPositionE[0] + 0 * (drawPositionE[5] - this->x), drawPositionE[1] + 1, -drawPositionE[2] + 0 * (-drawPositionE[6] - this->y));
+        Mat4::rotateY(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPositionE[3] + rotE*M_PI);
+        useSC = (float)selectionColor/(float)(selectionColor+0.000001);
+        if(this->selected && this->selectionValue == 3)
+            spointer3dSelected->pushRenderItem(selectionColor | 3*useSC);
+        else
+            spointer3d->pushRenderItem(selectionColor | 3*useSC);
+        Game::currentRenderer->mvPopMatrix();
+
+        if(selectionColor == 0)
+            line->pushRenderItem();
+    } else {
+        gluu->mvPushMatrix();
+        Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, drawPositionB[0] + 0 * (drawPositionB[5] - this->x), drawPositionB[1] + 1, -drawPositionB[2] + 0 * (-drawPositionB[6] - this->y));
+        Mat4::rotateY(gluu->mvMatrix, gluu->mvMatrix, drawPositionB[3] + rotB*M_PI);
+        gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
+
+        useSC = (float)selectionColor/(float)(selectionColor+0.000001);
+        if(this->selected && this->selectionValue == 1)
+            spointer3dSelected->render(selectionColor | 1*useSC);
+        else
+            spointer3d->render(selectionColor | 1*useSC);
+        gluu->mvPopMatrix();
+
+        gluu->mvPushMatrix();
+        Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, drawPositionE[0] + 0 * (drawPositionE[5] - this->x), drawPositionE[1] + 1, -drawPositionE[2] + 0 * (-drawPositionE[6] - this->y));
+        Mat4::rotateY(gluu->mvMatrix, gluu->mvMatrix, drawPositionE[3] + rotE*M_PI);
+        gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
+        useSC = (float)selectionColor/(float)(selectionColor+0.000001);
+        if(this->selected && this->selectionValue == 3)
+            spointer3dSelected->render(selectionColor | 3*useSC);
+        else
+            spointer3d->render(selectionColor | 3*useSC);
+        gluu->mvPopMatrix();
+
+        gluu->mvPushMatrix();
+        gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
+        if(selectionColor == 0)
+            line->render();
+        gluu->mvPopMatrix();
+    }
 };
 
 void PlatformObj::makelineShape(){

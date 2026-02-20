@@ -13,6 +13,7 @@
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <tsre/fileFunctions/ReadFile.h>
 #include <tsre/Game.h>
+#include <tsre/renderer/Renderer.h>
 #include <QDebug>
 #include <tsre/ogl/GLUU.h>
 #include <tsre/tdb/TDB.h>
@@ -327,7 +328,7 @@ void ActivityEvent::Outcome::setModified(bool val){
 }
 
 void ActivityEvent::render(GLUU* gluu, float * playerT, float playerRot, int renderMode){
-    if(category == EventTypeLocation){
+    if(category == CategoryLocation){
         if(!Game::viewInteractives)
             return;
         gluu->setMatrixUniforms();
@@ -368,6 +369,44 @@ void ActivityEvent::render(GLUU* gluu, float * playerT, float playerRot, int ren
         gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
         txtMarkerObj->render(playerRot);
         gluu->mvPopMatrix();
+    }
+}
+
+void ActivityEvent::pushRenderItem(float *playerT, float playerRot, int renderMode) {
+    if (category == CategoryLocation) {
+        if (!Game::viewInteractives)
+            return;
+
+        if (simpleMarkerObj == NULL) {
+            simpleMarkerObj = new OglObj();
+            float *punkty = new float[3 * 2];
+            int ptr = 0;
+
+            punkty[ptr++] = 0;
+            punkty[ptr++] = 0;
+            punkty[ptr++] = 0;
+            punkty[ptr++] = 0;
+            punkty[ptr++] = 30;
+            punkty[ptr++] = 0;
+
+            simpleMarkerObj->setMaterial(1.0, 0.0, 0.0);
+            simpleMarkerObj->setLineWidth(4);
+            simpleMarkerObj->init(punkty, ptr, RenderItem::V, GL_LINES);
+            delete[] punkty;
+        }
+
+        if (txtMarkerObj == NULL) {
+            txtMarkerObj = new TextObj(name, 16, 2.0);
+            txtMarkerObj->setColor(0, 0, 0);
+        }
+
+        Game::currentRenderer->mvPushMatrix();
+        float h = Game::terrainLib->getHeight(location[0], -location[1], location[2], -location[3]);
+        Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, location[2] + 2048 * (location[0] - playerT[0]), h, -location[3] + 2048 * (-location[1] - playerT[1]));
+        simpleMarkerObj->pushRenderItem();
+        Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, 0, 30, 0);
+        txtMarkerObj->pushRenderItem(playerRot);
+        Game::currentRenderer->mvPopMatrix();
     }
 }
 

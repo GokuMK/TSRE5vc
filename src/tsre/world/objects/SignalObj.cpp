@@ -21,6 +21,7 @@
 #include <tsre/tdb/SigCfg.h>
 #include <tsre/tdb/SignalShape.h>
 #include <tsre/Game.h>
+#include <tsre/renderer/Renderer.h>
 #include <tsre/fileFunctions/TS.h>
 #include <tsre/tdb/TRnode.h>
 #include <tsre/ErrorMessagesLib.h>
@@ -673,6 +674,32 @@ bool SignalObj::isSimilar(WorldObj* obj){
     return false;
 }
 
+void SignalObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor){
+    if (!loaded) return;
+    if (shape < 0) return;
+    if (jestPQ < 2) return;
+    if (Game::currentRenderer == NULL) return;
+
+    Game::currentRenderer->mvPushMatrix();
+    WorldObj::pushRenderItems(lod, posx, posz, playerW, target, fov, selectionColor);
+    Game::currentRenderer->mvPopMatrix();
+
+    if(Game::showWorldObjPivotPoints){
+        Game::currentRenderer->mvPushMatrix();
+        Mat4::multiply(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, matrix);
+        if(pointer3d == NULL){
+            pointer3d = new TrackItemObj(1);
+            pointer3d->setMaterial(0.9,0.9,0.7);
+        }
+        pointer3d->pushRenderItem(selectionColor);
+        Game::currentRenderer->mvPopMatrix();
+    }
+
+    if(trLoaded >= 0)
+        if(Game::viewInteractives)
+            this->renderTritems(NULL, selectionColor, true);
+}
+
 void SignalObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos, float* target, float fov, int selectionColor, int renderMode) {
     if (!loaded) return;
     if (shape < 0) return;
@@ -739,7 +766,7 @@ void SignalObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos
             this->renderTritems(gluu, selectionColor);
 };
 
-void SignalObj::renderTritems(GLUU* gluu, int selectionColor){
+void SignalObj::renderTritems(GLUU* gluu, int selectionColor, bool pushToQueue){
 
     ///////////////////////////////
     if (drawPositions == NULL) {
@@ -783,31 +810,35 @@ void SignalObj::renderTritems(GLUU* gluu, int selectionColor){
         }
     }
 
-    //if(pos == NULL) return;
-    //gluu->setMatrixUniforms();
     int useSC;
-    int w = 1;
-    //w = this->signalUnits;
-
-    // find head item 
     int i = getBaseSignalItemId();
-    if(drawPositions[i] == NULL) return;
-    //for(int i = 0; i < w; i++){
-        //if(drawPositions[i] == NULL) continue;
+    if(i < 0)
+        return;
+    if(drawPositions[i] == NULL)
+        return;
+
+    if(pushToQueue){
+        Game::currentRenderer->mvPushMatrix();
+        Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPositions[i][0] + 0 * (drawPositions[i][4] - this->x), drawPositions[i][1] + 1, -drawPositions[i][2] + 0 * (-drawPositions[i][5] - this->y));
+        Mat4::rotateY(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, -drawPositions[i][7]+M_PI);
+        useSC = (float)selectionColor/(float)(selectionColor+0.000001);
+        if(this->selected && this->selectionValue > 0)
+            spointer3dSelected->pushRenderItem(selectionColor | (i+1)*useSC);
+        else
+            spointer3d->pushRenderItem(selectionColor | (i+1)*useSC);
+        Game::currentRenderer->mvPopMatrix();
+    } else {
         gluu->mvPushMatrix();
-        Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, drawPositions[i][0] + 0 * (drawPositions[i][4] - this->x), drawPositions[i][1] + /*i +*/ 1, -drawPositions[i][2] + 0 * (-drawPositions[i][5] - this->y));
-        //Mat4::rotateY(gluu->mvMatrix, gluu->mvMatrix, drawPositions[i][3] + drawPositions[i][7]*M_PI);
+        Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, drawPositions[i][0] + 0 * (drawPositions[i][4] - this->x), drawPositions[i][1] + 1, -drawPositions[i][2] + 0 * (-drawPositions[i][5] - this->y));
         Mat4::rotateY(gluu->mvMatrix, gluu->mvMatrix, -drawPositions[i][7]+M_PI);
-        //Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, this->trItemRData[0] + 2048*(this->trItemRData[3] - playerT[0] ), this->trItemRData[1]+2, -this->trItemRData[2] + 2048*(-this->trItemRData[4] - playerT[1]));
-        //Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, this->trItemRData[0] + 0, this->trItemRData[1]+0, -this->trItemRData[2] + 0);
         gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
         useSC = (float)selectionColor/(float)(selectionColor+0.000001);
-        if(this->selected && this->selectionValue > 0) 
+        if(this->selected && this->selectionValue > 0)
             spointer3dSelected->render(selectionColor | (i+1)*useSC);
         else
             spointer3d->render(selectionColor | (i+1)*useSC);
         gluu->mvPopMatrix();
-    //}
+    }
 };
 
 int SignalObj::getTrItemId(){

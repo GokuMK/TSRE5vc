@@ -17,6 +17,7 @@
 #include <tsre/shape/ShapeLib.h>
 #include <tsre/shape/SFile.h>
 #include <tsre/Game.h>
+#include <tsre/renderer/Renderer.h>
 #include <tsre/ogl/GLUU.h>
 #include <QDebug>
 #include <QFile>
@@ -786,6 +787,22 @@ void Consist::renderOnTrack(GLUU* gluu, float* playerT, int selectionColor) {
         if(selectedIdx == i)
             engItems[i].engPointer->drawBorder3d();
         gluu->mvPopMatrix();
+    }
+}
+
+void Consist::pushRenderItemsOnTrack(float* playerT, int selectionColor) {
+    if (loaded != 1) return;
+
+    int scolor = 0;
+    for (int i = 0; i < engItems.size(); i++) {
+        Game::currentRenderer->mvPushMatrix();
+        if (selectionColor != 0) {
+            scolor = selectionColor | i;
+        }
+        engItems[i].engPointer->pushRenderItemOnTrack(playerT, scolor);
+        if (selectedIdx == i)
+            engItems[i].engPointer->pushDrawBorder3d();
+        Game::currentRenderer->mvPopMatrix();
     }
 }
 

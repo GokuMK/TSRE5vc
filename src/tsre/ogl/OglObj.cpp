@@ -137,6 +137,8 @@ void OglObj::pushRenderItem(int selectionColor, float lod){
         return;
     if(lod > maxDistance || lod < minDistance)
         return;
+    if(Game::currentRenderer == NULL)
+        return;
     if(vAttribures == RenderItem::NO_ATTR)
         return;
     if (texId == -2)
@@ -156,9 +158,13 @@ void OglObj::pushRenderItem(int selectionColor, float lod){
         if (TexLib::mtex[texId]->loaded) {
             if (!TexLib::mtex[texId]->glLoaded)
                 TexLib::mtex[texId]->GLTextures();
-            r->enableTextures(TexLib::mtex[texId]->tex[0]);
+            if(TexLib::mtex[texId]->glLoaded){
+                r->enableTextures(TexLib::mtex[texId]->tex[0]);
+            } else {
+                r->disableTextures(1.0f, 0.0f, 1.0f, 1.0f);
+            }
         } else {
-            r->enableTextures(0);
+            r->disableTextures(1.0f, 0.0f, 1.0f, 1.0f);
         }
 
     } else if(materialType == COLOR){
@@ -166,13 +172,19 @@ void OglObj::pushRenderItem(int selectionColor, float lod){
     }  
 
     r->lineWidth = lineWidth;
-    r->msMatrix = Game::currentRenderer->objStrMatrix;
-    //r->mvMatrix = Mat4::clone(Game::currentRenderer->mvMatrix);
+    r->VBO = &VBO;
+    r->VAO = &VAO;
+    if(Game::currentRenderer->objStrMatrix != NULL){
+        r->msMatrix = Mat4::clone(Game::currentRenderer->objStrMatrix);
+        Game::currentRenderer->mvMatrixDelete.push_back(r->msMatrix);
+    } else {
+        r->msMatrix = NULL;
+    }
     r->itemType = shapeType;
     r->vertOffset = 0;
     r->vertCount = length;
     
-    //Game::currentRenderer->pushItem(r, Game::currentRenderer->mvMatrix);
+    Game::currentRenderer->pushItem(r, Game::currentRenderer->mvMatrix);
 }
 
 void OglObj::render(int selectionColor, float lod) {
