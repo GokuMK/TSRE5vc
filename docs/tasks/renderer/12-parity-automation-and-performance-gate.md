@@ -1,4 +1,4 @@
-# Task 11 - Parity Automation And Performance Gate
+# Task 12 - Parity Automation And Performance Gate
 
 ## Objective
 Create repeatable validation to decide when legacy pipeline can be retired.

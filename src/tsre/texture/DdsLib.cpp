@@ -16,6 +16,16 @@
 #include <QOpenGLFunctions>
 #include <cstdint>
 
+#ifndef GL_COMPRESSED_RGBA_S3TC_DXT1_EXT
+#define GL_COMPRESSED_RGBA_S3TC_DXT1_EXT 0x83F1
+#endif
+#ifndef GL_COMPRESSED_RGBA_S3TC_DXT3_EXT
+#define GL_COMPRESSED_RGBA_S3TC_DXT3_EXT 0x83F2
+#endif
+#ifndef GL_COMPRESSED_RGBA_S3TC_DXT5_EXT
+#define GL_COMPRESSED_RGBA_S3TC_DXT5_EXT 0x83F3
+#endif
+
 bool DdsLib::IsThread = true;
 
 DdsLib::DdsLib() {
@@ -344,176 +354,63 @@ void DdsLib::run()
         const int blocksWide  = (width  + 3) / 4;
         const int blocksHigh  = (height + 3) / 4;
 
-        bool hasAlphaDXT1 = false;
-        bool hasAlpha = false;
-
-        // We'll decompress to RGBA8, then optionally drop alpha for pure-RGB DXT1.
-        const int outBpp = 4;
-        const size_t outSize = size_t(width) * size_t(height) * outBpp;
-        if(texture->imageData != nullptr)
+        if(texture->imageData != nullptr) {
             delete[] texture->imageData;
-        texture->imageData = new unsigned char[outSize];
+            texture->imageData = nullptr;
+        }
+        texture->compressedData.clear();
+        texture->compressedGLFormat = 0;
 
-        unsigned char *dst = texture->imageData;
-
+        int blockBytes = 0;
         if (fourCC == FOURCC_DXT1) {
-            // 8 bytes per block
-            const int blockSize = 8;
-            const uint8_t *blockPtr = src;
-
-            for (int by = 0; by < blocksHigh; ++by) {
-                for (int bx = 0; bx < blocksWide; ++bx) {
-                    uint8_t tile[4 * 4 * 4]; // 4x4 RGBA
-                    bool tileHasAlpha = false;
-                    decodeDXT1Block(blockPtr, tile, 4 * 4, tileHasAlpha);
-                    if (tileHasAlpha) hasAlphaDXT1 = true;
-
-                    const int x0 = bx * 4;
-                    const int y0 = by * 4;
-                    for (int j = 0; j < 4; ++j) {
-                        const int y = y0 + j;
-                        if (y >= int(height)) break;
-
-                        for (int i = 0; i < 4; ++i) {
-                            const int x = x0 + i;
-                            if (x >= int(width)) break;
-
-                            const uint8_t *srcPixel = &tile[(j * 4 + i) * 4];
-                            uint8_t *dstPixel = dst + (y * width + x) * 4;
-
-                            dstPixel[0] = srcPixel[0];
-                            dstPixel[1] = srcPixel[1];
-                            dstPixel[2] = srcPixel[2];
-                            dstPixel[3] = srcPixel[3];
-                        }
-                    }
-
-                    blockPtr += blockSize;
-                }
-            }
-
-            hasAlpha = hasAlphaDXT1 || (pf.dwFlags & DDPF_ALPHAPIXELS);
-
-            // If no alpha, convert RGBA -> RGB tightly packed
-            if (!hasAlpha) {
-                unsigned char *rgbData = new unsigned char[size_t(width) * size_t(height) * 3];
-                for (quint32 y = 0; y < height; ++y) {
-                    for (quint32 x = 0; x < width; ++x) {
-                        const unsigned char *srcPixel = dst + (y * width + x) * 4;
-                        unsigned char *rgbPixel = rgbData + (y * width + x) * 3;
-                        rgbPixel[0] = srcPixel[0];
-                        rgbPixel[1] = srcPixel[1];
-                        rgbPixel[2] = srcPixel[2];
-                    }
-                }
-                delete[] texture->imageData;
-                texture->imageData = rgbData;
-                texture->bytesPerPixel = 3;
-                texture->type = GL_RGB;
-            } else {
-                texture->bytesPerPixel = 4;
-                texture->type = GL_RGBA;
-            }
-
+            blockBytes = 8;
+            texture->compressedGLFormat = GL_COMPRESSED_RGBA_S3TC_DXT1_EXT;
         } else if (fourCC == FOURCC_DXT3) {
-            // ---- NEW DXT3 BRANCH ----
-            const int blockSize = 16;
-            const uint8_t *blockPtr = src;
-
-            for (int by = 0; by < blocksHigh; ++by) {
-                for (int bx = 0; bx < blocksWide; ++bx) {
-                    uint8_t tile[4 * 4 * 4]; // 4x4 RGBA
-                    decodeDXT3Block(blockPtr, tile, 4 * 4);
-
-                    const int x0 = bx * 4;
-                    const int y0 = by * 4;
-                    for (int j = 0; j < 4; ++j) {
-                        const int y = y0 + j;
-                        if (y >= int(height)) break;
-
-                        for (int i = 0; i < 4; ++i) {
-                            const int x = x0 + i;
-                            if (x >= int(width)) break;
-
-                            const uint8_t *srcPixel = &tile[(j * 4 + i) * 4];
-                            uint8_t *dstPixel = dst + (y * width + x) * 4;
-
-                            dstPixel[0] = srcPixel[0];
-                            dstPixel[1] = srcPixel[1];
-                            dstPixel[2] = srcPixel[2];
-                            dstPixel[3] = srcPixel[3];
-                        }
-                    }
-
-                    blockPtr += blockSize;
-                }
-            }
-
-            // DXT3 always has 4-bit alpha, so keep RGBA
-            texture->bytesPerPixel = 4;
-            texture->type = GL_RGBA;
-
+            blockBytes = 16;
+            texture->compressedGLFormat = GL_COMPRESSED_RGBA_S3TC_DXT3_EXT;
         } else if (fourCC == FOURCC_DXT5) {
-            // 16 bytes per block
-            const int blockSize = 16;
-            const uint8_t *blockPtr = src;
-
-            for (int by = 0; by < blocksHigh; ++by) {
-                for (int bx = 0; bx < blocksWide; ++bx) {
-                    uint8_t tile[4 * 4 * 4]; // 4x4 RGBA
-                    decodeDXT5Block(blockPtr, tile, 4 * 4);
-
-                    const int x0 = bx * 4;
-                    const int y0 = by * 4;
-                    for (int j = 0; j < 4; ++j) {
-                        const int y = y0 + j;
-                        if (y >= int(height)) break;
-
-                        for (int i = 0; i < 4; ++i) {
-                            const int x = x0 + i;
-                            if (x >= int(width)) break;
-
-                            const uint8_t *srcPixel = &tile[(j * 4 + i) * 4];
-                            uint8_t *dstPixel = dst + (y * width + x) * 4;
-
-                            dstPixel[0] = srcPixel[0];
-                            dstPixel[1] = srcPixel[1];
-                            dstPixel[2] = srcPixel[2];
-                            dstPixel[3] = srcPixel[3];
-                        }
-                    }
-
-                    blockPtr += blockSize;
-                }
-            }
-
-            hasAlpha = true; // DXT5 always has alpha
-            texture->bytesPerPixel = 4;
-            texture->type = GL_RGBA;
+            blockBytes = 16;
+            texture->compressedGLFormat = GL_COMPRESSED_RGBA_S3TC_DXT5_EXT;
         } else {
             if (!IsThread) {
                 qDebug() << "DDS: unsupported FOURCC"
                          << QString::number(fourCC, 16)
                          << "in" << texture->pathid;
             }
-            delete[] texture->imageData;
-            texture->imageData = nullptr;
             texture->missing = true;
             return;
         }
 
+        const int expectedSize = blocksWide * blocksHigh * blockBytes;
+        if (expectedSize <= 0 || expectedSize > data.size()) {
+            if (!IsThread) {
+                qDebug() << "DDS: invalid compressed data size"
+                         << "expected:" << expectedSize
+                         << "have:" << data.size()
+                         << "in" << texture->pathid;
+            }
+            texture->missing = true;
+            texture->compressedData.clear();
+            texture->compressedGLFormat = 0;
+            return;
+        }
+
+        texture->compressedData = QByteArray(reinterpret_cast<const char*>(src), expectedSize);
         texture->width  = int(width);
         texture->height = int(height);
+        texture->bytesPerPixel = 4;
+        texture->type = GL_RGBA;
 
         if (!IsThread) {
             qDebug() << "DDS tex (compressed):" << texture->pathid
                      << "w:" << texture->width
                      << "h:" << texture->height
-                     << "bpp:" << texture->bytesPerPixel;
+                     << "bpp:" << texture->bytesPerPixel
+                     << "dxt:" << (fourCC == FOURCC_DXT1 ? "DXT1" : (fourCC == FOURCC_DXT3 ? "DXT3" : "DXT5"));
         }
 
         texture->loaded = true;
-        texture->editable = true;
+        texture->editable = false;
         return;
 
     } else if (pf.dwFlags & DDPF_RGB) {

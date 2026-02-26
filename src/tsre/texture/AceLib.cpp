@@ -16,6 +16,14 @@
 #include <QOpenGLShaderProgram>
 #include <QString>
 #include <tsre/Game.h>
+#include <memory>
+
+#ifndef GL_COMPRESSED_RGB_S3TC_DXT1_EXT
+#define GL_COMPRESSED_RGB_S3TC_DXT1_EXT 0x83F0
+#endif
+#ifndef GL_COMPRESSED_RGBA_S3TC_DXT1_EXT
+#define GL_COMPRESSED_RGBA_S3TC_DXT1_EXT 0x83F1
+#endif
 
 bool AceLib::IsThread = true;
 
@@ -39,7 +47,7 @@ void AceLib::run() {
     }
     //if(!IsThread)
     //    qDebug() << "ACE: "<<texture->pathid;
-    FileBuffer* data = ReadFile::read(&file);
+    std::unique_ptr<FileBuffer> data(ReadFile::read(&file));
     //qDebug() << "Date:" << data->length;
     unsigned char* bufor = data->data;
     int offset = 0;//-16;
@@ -66,7 +74,7 @@ void AceLib::run() {
     }
     
     if(!IsThread)
-        qDebug() << "--"<<texture->width<<":"<<texture->height<<" "<<texture->bpp;
+        qDebug() << "--"<<texture->width<<":"<<texture->height<<" "<<texture->bpp<<" "<<texture->compressed<<" "<<texture->pathid;
 
     if ((texture->width <= 1) || (texture->height <= 1) || ((texture->bpp != 24) && (texture->bpp != 32))) {
         texture->error = true;
@@ -101,15 +109,22 @@ void AceLib::run() {
 
     texture->bytesPerPixel = (texture->bpp / 8);
     texture->imageSize = (texture->bytesPerPixel * texture->width * texture->height);
-    texture->imageData = new unsigned char[texture->imageSize];
     if (texture->bpp == 24) {
         texture->type = GL_RGB;
     } else {
         texture->type = GL_RGBA;
     }
+
+    if(texture->imageData != nullptr){
+        delete[] texture->imageData;
+        texture->imageData = nullptr;
+    }
+    texture->compressedData.clear();
+    texture->compressedGLFormat = 0;
         
     int ptr = 0;
     if (texture->compressed != 18) {
+        texture->imageData = new unsigned char[texture->imageSize];
         int iw = 0, ite;
         if (typ == 0) ptr = 216 + offset;
         if (typ == 1) ptr = 248 + offset;
@@ -190,76 +205,93 @@ void AceLib::run() {
             tempp = tempp / 2;
         }
 
-        unsigned short c[5] = {0,0,0,0,0};
-        unsigned char r[4] = {0,0,0,0};
-        unsigned char g[4] = {0,0,0,0};
-        unsigned char b[4] = {0,0,0,0};
-        unsigned char a[5] = {255, 255, 255, 255, 255};
-        unsigned char bits[4];
+        const int blocksWide = (texture->width + 3) / 4;
+        const int blocksHigh = (texture->height + 3) / 4;
+        const int dxtSize = blocksWide * blocksHigh * 8;
 
-        //for(var u = 0, ppp = ptr; u<100; u++, ptr = ppp)
-        for (int ih = 0; ih<texture->height; ih += 4) {
-            for (int iw = 0; iw<texture->width; iw += 4) {
+        if(ptr + dxtSize > data->length){
+            texture->error = true;
+            if(!IsThread)
+                qDebug() << "ACE: invalid DXT1 data size:" << texture->pathid;
+            return;
+        }
 
-                //May be undefined
-                c[0] = bufor[ptr] + bufor[ptr+1]*256;
-                ptr+=2;
-                c[1] = bufor[ptr] + bufor[ptr+1]*256;
-                ptr+=2;
-                bits[0] = bufor[ptr++];
-                bits[1] = bufor[ptr++];
-                bits[2] = bufor[ptr++];
-                bits[3] = bufor[ptr++];
+        if(Game::textureQuality > 1){
+            texture->imageData = new unsigned char[texture->imageSize];
 
-                c[4] = c[0] & 0xf800;
-                r[0] = ((c[4] >> 11) << 3) + (c[4] >> 13);
-                c[4] = c[0] & 0x07e0;
-                g[0] = ((c[4] >> 5) << 2) + (c[4] >> 9);
-                c[4] = c[0] & 0x1f;
-                b[0] = ((c[4] >> 0) << 3) + (c[4] >> 2);
+            unsigned short c[5] = {0,0,0,0,0};
+            unsigned char r[4] = {0,0,0,0};
+            unsigned char g[4] = {0,0,0,0};
+            unsigned char b[4] = {0,0,0,0};
+            unsigned char a[5] = {255, 255, 255, 255, 255};
+            unsigned char bits[4];
 
-                c[4] = c[1] & 0xf800;
-                r[1] = ((c[4] >> 11) << 3) + (c[4] >> 13);
-                c[4] = c[1] & 0x07e0;
-                g[1] = ((c[4] >> 5) << 2) + (c[4] >> 9);
-                c[4] = c[1] & 0x1f;
-                b[1] = ((c[4] >> 0) << 3) + (c[4] >> 2);
+            int pptr = ptr;
+            for (int ih = 0; ih<texture->height; ih += 4) {
+                for (int iw = 0; iw<texture->width; iw += 4) {
 
-                if (c[0] <= c[1]) {
-                    r[2] = (r[0] + r[1]) / 2;
-                    r[3] = 0;
-                    g[2] = (g[0] + g[1]) / 2;
-                    g[3] = 0;
-                    b[2] = (b[0] + b[1]) / 2;
-                    b[3] = 0;
-                    a[3] = 0;
-                } else {
-                    r[2] = ((2 * r[0] + r[1]) / 3);
-                    r[3] = ((r[0] + 2 * r[1]) / 3);
-                    g[2] = ((2 * g[0] + g[1]) / 3);
-                    g[3] = ((g[0] + 2 * g[1]) / 3);
-                    b[2] = ((2 * b[0] + b[1]) / 3);
-                    b[3] = ((b[0] + 2 * b[1]) / 3);
-                    a[3] = 255;
-                }
+                    c[0] = bufor[pptr] + bufor[pptr+1]*256;
+                    pptr+=2;
+                    c[1] = bufor[pptr] + bufor[pptr+1]*256;
+                    pptr+=2;
+                    bits[0] = bufor[pptr++];
+                    bits[1] = bufor[pptr++];
+                    bits[2] = bufor[pptr++];
+                    bits[3] = bufor[pptr++];
 
-                for (int ii = 0; ii < 4; ii++) {
-                    for (int jj = 0; jj < 4; jj++) {
-                        int o = (bits[ii] >> (jj * 2)) & 0x3;
-                        int p = texture->bytesPerPixel * texture->width * (ih + ii) + (iw + jj) * texture->bytesPerPixel + 0;
-                        texture->imageData[p] = r[o];
-                        texture->imageData[p + 1] = g[o];
-                        texture->imageData[p + 2] = b[o];
-                        if (texture->bpp == 32)
-                            texture->imageData[p + 3] = a[o];
+                    c[4] = c[0] & 0xf800;
+                    r[0] = ((c[4] >> 11) << 3) + (c[4] >> 13);
+                    c[4] = c[0] & 0x07e0;
+                    g[0] = ((c[4] >> 5) << 2) + (c[4] >> 9);
+                    c[4] = c[0] & 0x1f;
+                    b[0] = ((c[4] >> 0) << 3) + (c[4] >> 2);
+
+                    c[4] = c[1] & 0xf800;
+                    r[1] = ((c[4] >> 11) << 3) + (c[4] >> 13);
+                    c[4] = c[1] & 0x07e0;
+                    g[1] = ((c[4] >> 5) << 2) + (c[4] >> 9);
+                    c[4] = c[1] & 0x1f;
+                    b[1] = ((c[4] >> 0) << 3) + (c[4] >> 2);
+
+                    if (c[0] <= c[1]) {
+                        r[2] = (r[0] + r[1]) / 2;
+                        r[3] = 0;
+                        g[2] = (g[0] + g[1]) / 2;
+                        g[3] = 0;
+                        b[2] = (b[0] + b[1]) / 2;
+                        b[3] = 0;
+                        a[3] = 0;
+                    } else {
+                        r[2] = ((2 * r[0] + r[1]) / 3);
+                        r[3] = ((r[0] + 2 * r[1]) / 3);
+                        g[2] = ((2 * g[0] + g[1]) / 3);
+                        g[3] = ((g[0] + 2 * g[1]) / 3);
+                        b[2] = ((2 * b[0] + b[1]) / 3);
+                        b[3] = ((b[0] + 2 * b[1]) / 3);
+                        a[3] = 255;
+                    }
+
+                    for (int ii = 0; ii < 4; ii++) {
+                        for (int jj = 0; jj < 4; jj++) {
+                            int o = (bits[ii] >> (jj * 2)) & 0x3;
+                            int p = texture->bytesPerPixel * texture->width * (ih + ii) + (iw + jj) * texture->bytesPerPixel + 0;
+                            texture->imageData[p] = r[o];
+                            texture->imageData[p + 1] = g[o];
+                            texture->imageData[p + 2] = b[o];
+                            if (texture->bpp == 32)
+                                texture->imageData[p + 3] = a[o];
+                        }
                     }
                 }
             }
+        } else {
+            texture->compressedData = QByteArray(reinterpret_cast<const char*>(bufor + ptr), dxtSize);
+            texture->compressedGLFormat = (texture->type == GL_RGBA) ? GL_COMPRESSED_RGBA_S3TC_DXT1_EXT : GL_COMPRESSED_RGB_S3TC_DXT1_EXT;
         }
         //texture->loaded = true;
         //texture->editable = true;
     }
-    if(Game::textureQuality > 1){
+    if(texture->imageData != nullptr && Game::textureQuality > 1){
         int nw = texture->width/Game::textureQuality;
         int nh = texture->height/Game::textureQuality;
         float scalew = (float)texture->width/nw;
@@ -285,9 +317,8 @@ void AceLib::run() {
         texture->height = nh;
     }
     texture->loaded = true;
-    texture->editable = true;        
+    texture->editable = (texture->imageData != nullptr);
     //qDebug() << "--";
-    delete data;
     //qDebug() << "2";
     return;
 }

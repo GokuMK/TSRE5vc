@@ -87,6 +87,98 @@ int TexLib::getTex(QString pathid) {
     return -1;
 }
 
+int TexLib::addTex(Texture* texture, bool reload) {
+    if (texture == nullptr) {
+        return -1;
+    }
+    if (texture->hashid.isEmpty() && !texture->pathid.isEmpty()) {
+        texture->hashid.push_back(texture->pathid);
+    }
+
+    for ( auto it = mtex.begin(); it != mtex.end(); ++it ){
+        Texture* existing = it->second;
+        if(existing == nullptr) continue;
+
+        for(int i = 0; i < existing->hashid.size(); i++){
+            for(int j = 0; j < texture->hashid.size(); j++){
+                if(existing->hashid[i].length() != texture->hashid[j].length())
+                    continue;
+                if(existing->hashid[i] != texture->hashid[j])
+                    continue;
+
+                if(!reload){
+                    existing->ref++;
+                    if(texture->imageData != nullptr){
+                        delete[] texture->imageData;
+                        texture->imageData = nullptr;
+                    }
+                    if(texture->tex != nullptr){
+                        delete[] texture->tex;
+                        texture->tex = nullptr;
+                    }
+                    delete texture;
+                    return (int)it->first;
+                }
+
+                existing->delVBO();
+                if(existing->imageData != nullptr){
+                    delete[] existing->imageData;
+                    existing->imageData = nullptr;
+                }
+                existing->compressedData.clear();
+                existing->compressedGLFormat = 0;
+
+                existing->bpp = texture->bpp;
+                existing->imageSize = texture->imageSize;
+                existing->bytesPerPixel = texture->bytesPerPixel;
+                existing->compressed = texture->compressed;
+                existing->width = texture->width;
+                existing->height = texture->height;
+                existing->type = texture->type;
+                existing->typk = texture->typk;
+
+                existing->compressedData = texture->compressedData;
+                existing->compressedGLFormat = texture->compressedGLFormat;
+
+                existing->imageData = texture->imageData;
+                texture->imageData = nullptr;
+
+                existing->loaded = texture->loaded;
+                existing->editable = texture->editable;
+                existing->missing = texture->missing;
+                existing->error = texture->error;
+
+                // Merge identities (keep existing stable ids, add new ones).
+                for(int k = 0; k < texture->hashid.size(); k++){
+                    bool found = false;
+                    for(int u = 0; u < existing->hashid.size(); u++){
+                        if(existing->hashid[u].length() == texture->hashid[k].length())
+                            if(existing->hashid[u] == texture->hashid[k]){
+                                found = true;
+                                break;
+                            }
+                    }
+                    if(!found)
+                        existing->hashid.push_back(texture->hashid[k]);
+                }
+
+                if(texture->tex != nullptr){
+                    delete[] texture->tex;
+                    texture->tex = nullptr;
+                }
+                delete texture;
+
+                existing->ref++;
+                return (int)it->first;
+            }
+        }
+    }
+
+    texture->ref++;
+    mtex[jesttextur] = texture;
+    return jesttextur++;
+}
+
 int TexLib::addTex(QString pathid, bool reload) {
     
     Texture* newFile = NULL;

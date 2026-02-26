@@ -31,6 +31,7 @@ public:
     static void addRef(int texx);
     static int addTex(QString path, QString name, bool reload = false);
     static int addTex(QString pathid, bool reload = false);
+    static int addTex(Texture* texture, bool reload = false);
     static int getTex(QString pathid);
     static int cloneTex(int id);
     static void save(QString type, QString path, int id);

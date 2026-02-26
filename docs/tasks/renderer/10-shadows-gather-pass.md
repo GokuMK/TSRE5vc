@@ -25,4 +25,5 @@ Add shadow map generation/use to gather mode without mixing unstable legacy post
 
 ## Out Of Scope
 - HUD/compass/pointer (Task 09).
-- Parity automation and performance gate (Task 11).
+- Shader pass buckets/custom shader split (Task 11).
+- Parity automation and performance gate (Task 12).

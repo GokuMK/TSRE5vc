@@ -12,11 +12,359 @@
 #include <tsre/texture/Brush.h>
 #include <tsre/Undo.h>
 #include <QOpenGLShaderProgram>
+#include <QOpenGLContext>
+#include <QOpenGLFunctions>
 #include <QString>
 #include <QDebug>
 #include <QColor>
 #include <tsre/ogl/GLUU.h>
 #include <tsre/Game.h>
+#include <cstddef>
+#include <cstdint>
+
+#ifndef GL_COMPRESSED_RGB_S3TC_DXT1_EXT
+#define GL_COMPRESSED_RGB_S3TC_DXT1_EXT 0x83F0
+#endif
+#ifndef GL_COMPRESSED_RGBA_S3TC_DXT1_EXT
+#define GL_COMPRESSED_RGBA_S3TC_DXT1_EXT 0x83F1
+#endif
+#ifndef GL_COMPRESSED_RGBA_S3TC_DXT3_EXT
+#define GL_COMPRESSED_RGBA_S3TC_DXT3_EXT 0x83F2
+#endif
+#ifndef GL_COMPRESSED_RGBA_S3TC_DXT5_EXT
+#define GL_COMPRESSED_RGBA_S3TC_DXT5_EXT 0x83F3
+#endif
+
+namespace {
+
+bool supportsDXT1() {
+    static int cachedSupport = -1;
+    if (cachedSupport != -1) {
+        return cachedSupport == 1;
+    }
+
+    QOpenGLContext *ctx = QOpenGLContext::currentContext();
+    if (ctx == nullptr) {
+        cachedSupport = 0;
+        return false;
+    }
+
+    const bool ok =
+            ctx->hasExtension(QByteArrayLiteral("GL_EXT_texture_compression_s3tc")) ||
+            ctx->hasExtension(QByteArrayLiteral("GL_EXT_texture_compression_dxt1")) ||
+            ctx->hasExtension(QByteArrayLiteral("GL_NV_texture_compression_s3tc")) ||
+            ctx->hasExtension(QByteArrayLiteral("GL_S3_s3tc"));
+    cachedSupport = ok ? 1 : 0;
+    return ok;
+}
+
+bool supportsS3TCFull() {
+    static int cachedSupport = -1;
+    if (cachedSupport != -1) {
+        return cachedSupport == 1;
+    }
+
+    QOpenGLContext *ctx = QOpenGLContext::currentContext();
+    if (ctx == nullptr) {
+        cachedSupport = 0;
+        return false;
+    }
+
+    const bool ok =
+            ctx->hasExtension(QByteArrayLiteral("GL_EXT_texture_compression_s3tc")) ||
+            ctx->hasExtension(QByteArrayLiteral("GL_NV_texture_compression_s3tc")) ||
+            ctx->hasExtension(QByteArrayLiteral("GL_S3_s3tc"));
+    cachedSupport = ok ? 1 : 0;
+    return ok;
+}
+
+bool supportsCompressedFormat(int glFormat) {
+    if (glFormat == 0) {
+        return false;
+    }
+    if (glFormat == GL_COMPRESSED_RGB_S3TC_DXT1_EXT ||
+        glFormat == GL_COMPRESSED_RGBA_S3TC_DXT1_EXT) {
+        return supportsDXT1();
+    }
+    if (glFormat == GL_COMPRESSED_RGBA_S3TC_DXT3_EXT ||
+        glFormat == GL_COMPRESSED_RGBA_S3TC_DXT5_EXT) {
+        return supportsS3TCFull();
+    }
+    return false;
+}
+
+int dxtBlockBytes(int glFormat) {
+    if (glFormat == GL_COMPRESSED_RGB_S3TC_DXT1_EXT ||
+        glFormat == GL_COMPRESSED_RGBA_S3TC_DXT1_EXT) {
+        return 8;
+    }
+    if (glFormat == GL_COMPRESSED_RGBA_S3TC_DXT3_EXT ||
+        glFormat == GL_COMPRESSED_RGBA_S3TC_DXT5_EXT) {
+        return 16;
+    }
+    return 0;
+}
+
+static inline void decodeRGB565(uint16_t c, uint8_t &r, uint8_t &g, uint8_t &b) {
+    r = static_cast<uint8_t>(((c >> 11) & 0x1F) * 255 / 31);
+    g = static_cast<uint8_t>(((c >> 5) & 0x3F) * 255 / 63);
+    b = static_cast<uint8_t>((c & 0x1F) * 255 / 31);
+}
+
+static void decodeDXT1Block(const uint8_t *block, uint8_t *rgba, int stride /* bytes per row */) {
+    const uint16_t c0 = uint16_t(block[0]) | (uint16_t(block[1]) << 8);
+    const uint16_t c1 = uint16_t(block[2]) | (uint16_t(block[3]) << 8);
+
+    uint8_t r0, g0, b0;
+    uint8_t r1, g1, b1;
+    decodeRGB565(c0, r0, g0, b0);
+    decodeRGB565(c1, r1, g1, b1);
+
+    uint8_t colors[4][4];
+    colors[0][0] = r0; colors[0][1] = g0; colors[0][2] = b0; colors[0][3] = 255;
+    colors[1][0] = r1; colors[1][1] = g1; colors[1][2] = b1; colors[1][3] = 255;
+
+    if (c0 > c1) {
+        colors[2][0] = (2 * r0 + r1) / 3;
+        colors[2][1] = (2 * g0 + g1) / 3;
+        colors[2][2] = (2 * b0 + b1) / 3;
+        colors[2][3] = 255;
+
+        colors[3][0] = (r0 + 2 * r1) / 3;
+        colors[3][1] = (g0 + 2 * g1) / 3;
+        colors[3][2] = (b0 + 2 * b1) / 3;
+        colors[3][3] = 255;
+    } else {
+        colors[2][0] = (r0 + r1) / 2;
+        colors[2][1] = (g0 + g1) / 2;
+        colors[2][2] = (b0 + b1) / 2;
+        colors[2][3] = 255;
+
+        colors[3][0] = 0;
+        colors[3][1] = 0;
+        colors[3][2] = 0;
+        colors[3][3] = 0;
+    }
+
+    const uint32_t code = uint32_t(block[4]) |
+                          (uint32_t(block[5]) << 8) |
+                          (uint32_t(block[6]) << 16) |
+                          (uint32_t(block[7]) << 24);
+
+    for (int j = 0; j < 4; ++j) {
+        for (int i = 0; i < 4; ++i) {
+            const int idx = (code >> (2 * (4 * j + i))) & 0x03;
+            uint8_t *dst = rgba + j * stride + i * 4;
+            dst[0] = colors[idx][0];
+            dst[1] = colors[idx][1];
+            dst[2] = colors[idx][2];
+            dst[3] = colors[idx][3];
+        }
+    }
+}
+
+static void decodeDXT3Block(const uint8_t *block, uint8_t *rgba, int stride /* bytes per row */) {
+    // First 8 bytes: 4-bit alpha for 16 pixels (64 bits)
+    uint64_t alphaBits = 0;
+    for (int i = 0; i < 8; ++i) {
+        alphaBits |= (uint64_t(block[i]) << (8 * i));
+    }
+
+    const uint8_t *colorBlock = block + 8;
+
+    const uint16_t c0 = uint16_t(colorBlock[0]) | (uint16_t(colorBlock[1]) << 8);
+    const uint16_t c1 = uint16_t(colorBlock[2]) | (uint16_t(colorBlock[3]) << 8);
+
+    uint8_t r0, g0, b0;
+    uint8_t r1, g1, b1;
+    decodeRGB565(c0, r0, g0, b0);
+    decodeRGB565(c1, r1, g1, b1);
+
+    uint8_t colors[4][3]; // RGB
+    colors[0][0] = r0; colors[0][1] = g0; colors[0][2] = b0;
+    colors[1][0] = r1; colors[1][1] = g1; colors[1][2] = b1;
+
+    // DXT3 always treats this as a 4-color block (no transparent color)
+    colors[2][0] = (2 * r0 + r1) / 3;
+    colors[2][1] = (2 * g0 + g1) / 3;
+    colors[2][2] = (2 * b0 + b1) / 3;
+
+    colors[3][0] = (r0 + 2 * r1) / 3;
+    colors[3][1] = (g0 + 2 * g1) / 3;
+    colors[3][2] = (b0 + 2 * b1) / 3;
+
+    const uint32_t code = uint32_t(colorBlock[4]) |
+                          (uint32_t(colorBlock[5]) << 8) |
+                          (uint32_t(colorBlock[6]) << 16) |
+                          (uint32_t(colorBlock[7]) << 24);
+
+    for (int j = 0; j < 4; ++j) {
+        for (int i = 0; i < 4; ++i) {
+            const int pixelIndex = 4 * j + i;
+            const uint8_t alpha4 = (alphaBits >> (4 * pixelIndex)) & 0x0F;
+            const uint8_t a = alpha4 * 17; // 0..15 -> 0..255
+
+            const int colorIndex = (code >> (2 * pixelIndex)) & 0x03;
+
+            uint8_t *dst = rgba + j * stride + i * 4;
+            dst[0] = colors[colorIndex][0];
+            dst[1] = colors[colorIndex][1];
+            dst[2] = colors[colorIndex][2];
+            dst[3] = a;
+        }
+    }
+}
+
+static void decodeDXT5Block(const uint8_t *block, uint8_t *rgba, int stride /* bytes per row */) {
+    // Alpha
+    const uint8_t alpha0 = block[0];
+    const uint8_t alpha1 = block[1];
+
+    uint8_t alphaTable[8];
+    alphaTable[0] = alpha0;
+    alphaTable[1] = alpha1;
+    if (alpha0 > alpha1) {
+        alphaTable[2] = (6 * alpha0 + 1 * alpha1) / 7;
+        alphaTable[3] = (5 * alpha0 + 2 * alpha1) / 7;
+        alphaTable[4] = (4 * alpha0 + 3 * alpha1) / 7;
+        alphaTable[5] = (3 * alpha0 + 4 * alpha1) / 7;
+        alphaTable[6] = (2 * alpha0 + 5 * alpha1) / 7;
+        alphaTable[7] = (1 * alpha0 + 6 * alpha1) / 7;
+    } else {
+        alphaTable[2] = (4 * alpha0 + 1 * alpha1) / 5;
+        alphaTable[3] = (3 * alpha0 + 2 * alpha1) / 5;
+        alphaTable[4] = (2 * alpha0 + 3 * alpha1) / 5;
+        alphaTable[5] = (1 * alpha0 + 4 * alpha1) / 5;
+        alphaTable[6] = 0;
+        alphaTable[7] = 255;
+    }
+
+    // 48 bits of alpha indices
+    uint64_t alphaBits = 0;
+    for (int i = 0; i < 6; ++i) {
+        alphaBits |= (uint64_t(block[2 + i]) << (8 * i));
+    }
+
+    // Color data (DXT1-like) in block[8..15], always 4-color mode for DXT5.
+    const uint8_t *colorBlock = block + 8;
+
+    const uint16_t c0 = uint16_t(colorBlock[0]) | (uint16_t(colorBlock[1]) << 8);
+    const uint16_t c1 = uint16_t(colorBlock[2]) | (uint16_t(colorBlock[3]) << 8);
+
+    uint8_t r0, g0, b0;
+    uint8_t r1, g1, b1;
+    decodeRGB565(c0, r0, g0, b0);
+    decodeRGB565(c1, r1, g1, b1);
+
+    uint8_t colors[4][3];
+    colors[0][0] = r0; colors[0][1] = g0; colors[0][2] = b0;
+    colors[1][0] = r1; colors[1][1] = g1; colors[1][2] = b1;
+    colors[2][0] = (2 * r0 + r1) / 3;
+    colors[2][1] = (2 * g0 + g1) / 3;
+    colors[2][2] = (2 * b0 + b1) / 3;
+    colors[3][0] = (r0 + 2 * r1) / 3;
+    colors[3][1] = (g0 + 2 * g1) / 3;
+    colors[3][2] = (b0 + 2 * b1) / 3;
+
+    const uint32_t code = uint32_t(colorBlock[4]) |
+                          (uint32_t(colorBlock[5]) << 8) |
+                          (uint32_t(colorBlock[6]) << 16) |
+                          (uint32_t(colorBlock[7]) << 24);
+
+    for (int j = 0; j < 4; ++j) {
+        for (int i = 0; i < 4; ++i) {
+            const int pixelIndex = 4 * j + i;
+            const int colorIndex = (code >> (2 * pixelIndex)) & 0x03;
+            const int alphaIndex = (alphaBits >> (3 * pixelIndex)) & 0x07;
+
+            uint8_t *dst = rgba + j * stride + i * 4;
+            dst[0] = colors[colorIndex][0];
+            dst[1] = colors[colorIndex][1];
+            dst[2] = colors[colorIndex][2];
+            dst[3] = alphaTable[alphaIndex];
+        }
+    }
+}
+
+static bool decodeCompressedToImageData(Texture *texture) {
+    if (texture == nullptr) {
+        return false;
+    }
+    if (texture->compressedData.isEmpty()) {
+        return false;
+    }
+
+    const int width = texture->width;
+    const int height = texture->height;
+    if (width <= 0 || height <= 0) {
+        return false;
+    }
+
+    const int blocksWide = (width + 3) / 4;
+    const int blocksHigh = (height + 3) / 4;
+    const int blockBytes = dxtBlockBytes(texture->compressedGLFormat);
+    if (blockBytes == 0) {
+        return false;
+    }
+    const int expectedSize = blocksWide * blocksHigh * blockBytes;
+    if (texture->compressedData.size() < expectedSize) {
+        return false;
+    }
+
+    const int outBpp = (texture->type == GL_RGBA) ? 4 : 3;
+    texture->bytesPerPixel = outBpp;
+    texture->imageSize = outBpp * width * height;
+
+    if (texture->imageData != nullptr) {
+        delete[] texture->imageData;
+        texture->imageData = nullptr;
+    }
+    texture->imageData = new unsigned char[size_t(width) * size_t(height) * size_t(outBpp)];
+
+    const uint8_t *blockPtr = reinterpret_cast<const uint8_t*>(texture->compressedData.constData());
+    for (int by = 0; by < blocksHigh; ++by) {
+        for (int bx = 0; bx < blocksWide; ++bx) {
+            uint8_t tile[4 * 4 * 4];
+
+            if (texture->compressedGLFormat == GL_COMPRESSED_RGBA_S3TC_DXT3_EXT) {
+                decodeDXT3Block(blockPtr, tile, 4 * 4);
+            } else if (texture->compressedGLFormat == GL_COMPRESSED_RGBA_S3TC_DXT5_EXT) {
+                decodeDXT5Block(blockPtr, tile, 4 * 4);
+            } else {
+                decodeDXT1Block(blockPtr, tile, 4 * 4);
+            }
+
+            const int x0 = bx * 4;
+            const int y0 = by * 4;
+            for (int j = 0; j < 4; ++j) {
+                const int y = y0 + j;
+                if (y >= height) {
+                    break;
+                }
+                for (int i = 0; i < 4; ++i) {
+                    const int x = x0 + i;
+                    if (x >= width) {
+                        break;
+                    }
+
+                    const uint8_t *srcPixel = &tile[(j * 4 + i) * 4];
+                    unsigned char *dstPixel = texture->imageData + (y * width + x) * outBpp;
+                    dstPixel[0] = srcPixel[0];
+                    dstPixel[1] = srcPixel[1];
+                    dstPixel[2] = srcPixel[2];
+                    if (outBpp == 4) {
+                        dstPixel[3] = srcPixel[3];
+                    }
+                }
+            }
+
+            blockPtr += blockBytes;
+        }
+    }
+    return true;
+}
+
+} // namespace
 
 Texture::Texture() {
 }
@@ -96,6 +444,19 @@ Texture::Texture(const Texture* orig) {
 }
 
 void Texture::setEditable(){
+    if(editable)
+        return;
+    if(!loaded)
+        return;
+    if(imageData != nullptr){
+        this->editable = true;
+        return;
+    }
+    if(!glLoaded){
+        if(!GLTextures())
+            return;
+    }
+
     imageData = new unsigned char[bytesPerPixel*width*height];
 
     //QOpenGLFunctions_3_2_Core *f = QOpenGLContext::currentContext()-> functions();
@@ -350,25 +711,52 @@ Texture::~Texture() {
 
 bool Texture::GLTextures(bool mipmaps) {
     if(!loaded) return false;
-    
-    if(Game::AASamples > 0 && Game::AARemoveBorder)
-        if(type == GL_RGBA){
-            for (int i = 0; i < height; i++)
-                imageData[i*width*bytesPerPixel + (width-1)*bytesPerPixel + 3] = 0;
-            for (int i = 0; i < height; i++)
-                imageData[i*width*bytesPerPixel + 3] = 0;
-            for (int i = 0; i < width; i++)
-                imageData[(height-1)*width*bytesPerPixel + i*bytesPerPixel + 3] = 0;
-            for (int i = 0; i < width; i++)
-                imageData[i*bytesPerPixel + 3] = 0;
-        }
 
     tex = new unsigned int[1];
     QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
     
     glGenTextures(1, tex);
     glBindTexture(GL_TEXTURE_2D, tex[0]);
-    glTexImage2D(GL_TEXTURE_2D, 0, type, width, height, 0, type, GL_UNSIGNED_BYTE, imageData);
+
+    bool uploadedCompressed = false;
+    if (!compressedData.isEmpty() && compressedGLFormat != 0) {
+        const int blocksWide = (width + 3) / 4;
+        const int blocksHigh = (height + 3) / 4;
+        const int expectedSize = blocksWide * blocksHigh * dxtBlockBytes(compressedGLFormat);
+
+        if (expectedSize > 0 &&
+                (width % 4 == 0) && (height % 4 == 0) &&
+                (compressedData.size() >= expectedSize) &&
+                supportsCompressedFormat(compressedGLFormat)) {
+            f->glCompressedTexImage2D(GL_TEXTURE_2D, 0, compressedGLFormat, width, height, 0,
+                                      expectedSize, compressedData.constData());
+            uploadedCompressed = true;
+        } else if (imageData == nullptr) {
+            if (!decodeCompressedToImageData(this)) {
+                return false;
+            }
+        }
+    }
+
+    if (!uploadedCompressed) {
+        if (imageData == nullptr) {
+            return false;
+        }
+
+        if(Game::AASamples > 0 && Game::AARemoveBorder)
+            if(type == GL_RGBA){
+                for (int i = 0; i < height; i++)
+                    imageData[i*width*bytesPerPixel + (width-1)*bytesPerPixel + 3] = 0;
+                for (int i = 0; i < height; i++)
+                    imageData[i*width*bytesPerPixel + 3] = 0;
+                for (int i = 0; i < width; i++)
+                    imageData[(height-1)*width*bytesPerPixel + i*bytesPerPixel + 3] = 0;
+                for (int i = 0; i < width; i++)
+                    imageData[i*bytesPerPixel + 3] = 0;
+            }
+
+        glTexImage2D(GL_TEXTURE_2D, 0, type, width, height, 0, type, GL_UNSIGNED_BYTE, imageData);
+    }
     
     //f->glTexStorage2D(GL_TEXTURE_2D, 4, GL_RGBA8, width, height);
     //f->glTexSubImage2D(GL_TEXTURE_2D, 0​, 0, 0, width​, height​, GL_BGRA, GL_UNSIGNED_BYTE, pixels);
@@ -384,6 +772,8 @@ bool Texture::GLTextures(bool mipmaps) {
     delete[] imageData;
     imageData = NULL;
     this->editable = false;
+    compressedData.clear();
+    compressedGLFormat = 0;
     glLoaded = true;
     return true;
 }

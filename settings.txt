@@ -55,3 +55,4 @@ mouseSpeed = 0.5
 #defaultElevationBox = 0
 #defaultMoveStep = 0.25
 editorFpsHudEnabled = true
+textureLoaderThreaded = false

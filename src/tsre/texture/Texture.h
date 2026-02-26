@@ -12,6 +12,7 @@
 #define	TEXTURE_H
 
 #include <QString>
+#include <QByteArray>
 #include <QVector>
 
 class Brush;
@@ -34,7 +35,9 @@ public:
     int texID;
     int type;
     int typk;
-    unsigned int* tex;
+    QByteArray compressedData;
+    int compressedGLFormat = 0;
+    unsigned int* tex = nullptr;
     QString pathid;
     QVector<QString> hashid;
     bool loaded = false;
