@@ -14,6 +14,7 @@
 #include <QString>
 #include <QByteArray>
 #include <QVector>
+#include <QtGlobal>
 
 class Brush;
 
@@ -37,6 +38,7 @@ public:
     int typk;
     QByteArray compressedData;
     int compressedGLFormat = 0;
+    int gpuInternalFormat = 0;
     unsigned int* tex = nullptr;
     QString pathid;
     QVector<QString> hashid;
@@ -49,6 +51,9 @@ public:
 
     void setEditable();
     bool GLTextures(bool mipmaps = false);
+    qint64 estimatedCpuBytes() const;
+    qint64 estimatedVramBytes() const;
+    bool gpuIsCompressed() const;
     void update();
     void advancedCrop(float *texCoords, int w = 0, int h = 0);
     void crop(float x1, float y1, float x2, float y2);

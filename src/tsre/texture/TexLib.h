@@ -25,6 +25,7 @@ public:
     static std::unordered_map<int, Texture*> mtex;
     static QHash<int, int> disabledTextures;
     static void reset();
+    static void dumpStats(QString label = "");
     static void enableTexture(int id);
     static void disableTexture(int id);
     static void delRef(int texx);

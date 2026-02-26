@@ -718,6 +718,7 @@ bool Texture::GLTextures(bool mipmaps) {
     glGenTextures(1, tex);
     glBindTexture(GL_TEXTURE_2D, tex[0]);
 
+    gpuInternalFormat = 0;
     bool uploadedCompressed = false;
     if (!compressedData.isEmpty() && compressedGLFormat != 0) {
         const int blocksWide = (width + 3) / 4;
@@ -731,6 +732,7 @@ bool Texture::GLTextures(bool mipmaps) {
             f->glCompressedTexImage2D(GL_TEXTURE_2D, 0, compressedGLFormat, width, height, 0,
                                       expectedSize, compressedData.constData());
             uploadedCompressed = true;
+            gpuInternalFormat = compressedGLFormat;
         } else if (imageData == nullptr) {
             if (!decodeCompressedToImageData(this)) {
                 return false;
@@ -756,6 +758,7 @@ bool Texture::GLTextures(bool mipmaps) {
             }
 
         glTexImage2D(GL_TEXTURE_2D, 0, type, width, height, 0, type, GL_UNSIGNED_BYTE, imageData);
+        gpuInternalFormat = type;
     }
     
     //f->glTexStorage2D(GL_TEXTURE_2D, 4, GL_RGBA8, width, height);
@@ -778,6 +781,60 @@ bool Texture::GLTextures(bool mipmaps) {
     return true;
 }
 
+qint64 Texture::estimatedCpuBytes() const {
+    qint64 bytes = 0;
+    if (imageData != nullptr) {
+        if (imageSize > 0) {
+            bytes += imageSize;
+        } else if (width > 0 && height > 0 && bytesPerPixel > 0) {
+            bytes += qint64(width) * qint64(height) * qint64(bytesPerPixel);
+        }
+    }
+    bytes += compressedData.size();
+    return bytes;
+}
+
+qint64 Texture::estimatedVramBytes() const {
+    if (width <= 0 || height <= 0) {
+        return 0;
+    }
+
+    const int format =
+            (glLoaded && gpuInternalFormat != 0) ? gpuInternalFormat :
+            (!compressedData.isEmpty() && compressedGLFormat != 0) ? compressedGLFormat :
+            0;
+
+    const int blockBytes = dxtBlockBytes(format);
+    if (blockBytes > 0) {
+        const int blocksWide = (width + 3) / 4;
+        const int blocksHigh = (height + 3) / 4;
+        return qint64(blocksWide) * qint64(blocksHigh) * qint64(blockBytes);
+    }
+
+    int bppBytes = bytesPerPixel;
+    if (bppBytes <= 0) {
+        if (type == GL_RGBA) {
+            bppBytes = 4;
+        } else if (type == GL_RGB) {
+            bppBytes = 3;
+        } else if (bpp > 0) {
+            bppBytes = bpp / 8;
+        }
+    }
+    if (bppBytes <= 0) {
+        return 0;
+    }
+
+    return qint64(width) * qint64(height) * qint64(bppBytes);
+}
+
+bool Texture::gpuIsCompressed() const {
+    if (!glLoaded || gpuInternalFormat == 0) {
+        return false;
+    }
+    return dxtBlockBytes(gpuInternalFormat) > 0;
+}
+
 
 void Texture::delVBO() {
     //System.out.println("==== usuwam texture!");
@@ -786,6 +843,7 @@ void Texture::delVBO() {
     editable = false;
     missing = false;
     error = false;
+    gpuInternalFormat = 0;
     //gl.glDeleteTextures(1, tex, 0);
 }
 

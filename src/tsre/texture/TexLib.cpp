@@ -28,6 +28,80 @@ void TexLib::reset() {
     mtex.clear();
 }
 
+void TexLib::dumpStats(QString label) {
+    qint64 cpuPixelsBytes = 0;
+    qint64 cpuEncodedBytes = 0;
+    qint64 estimatedVramBytes = 0;
+    int totalTextures = 0;
+    int loadedTextures = 0;
+    int glLoadedTextures = 0;
+    int glCompressedTextures = 0;
+    int editableTextures = 0;
+    int missingTextures = 0;
+    int errorTextures = 0;
+
+    for (auto it = mtex.begin(); it != mtex.end(); ++it) {
+        Texture* t = it->second;
+        if (t == nullptr) {
+            continue;
+        }
+
+        totalTextures++;
+        if (t->loaded) loadedTextures++;
+        if (t->glLoaded) glLoadedTextures++;
+        if (t->editable) editableTextures++;
+        if (t->missing) missingTextures++;
+        if (t->error) errorTextures++;
+
+        if (t->imageData != nullptr) {
+            if (t->imageSize > 0) {
+                cpuPixelsBytes += t->imageSize;
+            } else if (t->width > 0 && t->height > 0 && t->bytesPerPixel > 0) {
+                cpuPixelsBytes += qint64(t->width) * qint64(t->height) * qint64(t->bytesPerPixel);
+            }
+        }
+
+        cpuEncodedBytes += t->compressedData.size();
+
+        if (t->glLoaded) {
+            estimatedVramBytes += t->estimatedVramBytes();
+            if (t->gpuIsCompressed()) {
+                glCompressedTextures++;
+            }
+        }
+    }
+
+    const double cpuPixelsMB = double(cpuPixelsBytes) / (1024.0 * 1024.0);
+    const double cpuEncodedMB = double(cpuEncodedBytes) / (1024.0 * 1024.0);
+    const double vramMB = double(estimatedVramBytes) / (1024.0 * 1024.0);
+
+    if (!label.isEmpty()) {
+        qDebug() << "TexLib stats (" << label << "):"
+                 << "total:" << totalTextures
+                 << "loaded:" << loadedTextures
+                 << "gl:" << glLoadedTextures
+                 << "glCompressed:" << glCompressedTextures
+                 << "editable:" << editableTextures
+                 << "missing:" << missingTextures
+                 << "error:" << errorTextures
+                 << "cpuPixelsMB:" << cpuPixelsMB
+                 << "cpuEncodedMB:" << cpuEncodedMB
+                 << "vramMB(est):" << vramMB;
+    } else {
+        qDebug() << "TexLib stats:"
+                 << "total:" << totalTextures
+                 << "loaded:" << loadedTextures
+                 << "gl:" << glLoadedTextures
+                 << "glCompressed:" << glCompressedTextures
+                 << "editable:" << editableTextures
+                 << "missing:" << missingTextures
+                 << "error:" << errorTextures
+                 << "cpuPixelsMB:" << cpuPixelsMB
+                 << "cpuEncodedMB:" << cpuEncodedMB
+                 << "vramMB(est):" << vramMB;
+    }
+}
+
 void TexLib::enableTexture(int id){
     Texture* tex = mtex[id];
     if(tex != NULL)

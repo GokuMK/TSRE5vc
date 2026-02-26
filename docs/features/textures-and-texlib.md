@@ -115,3 +115,14 @@ See `docs/tasks/textures/01-texture-format-and-upload-refactor.md` for the propo
 - then calls `AceLib::save(...)` to write an `.ace` file.
 
 This is used by terrain/map-texture workflows; saving other formats is not implemented today.
+
+---
+
+## 7. Debugging / Memory Stats
+TSRE can dump a quick texture summary to the console/debug output:
+- hotkey: `Ctrl+Shift+F10` (Route Editor and Shape Viewer)
+- output: total texture count + CPU pixel bytes, CPU encoded bytes, and estimated GPU bytes
+
+Notes:
+- GPU bytes are estimated from the uploaded internal format recorded at upload time (`Texture::gpuInternalFormat`).
+- The dump is intended for quick comparisons (e.g. before/after refactors), not as a precise GPU profiler.

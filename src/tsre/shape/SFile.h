@@ -19,6 +19,7 @@
 #include <QMatrix4x4>
 #include <QString>
 #include <QVector>
+#include <tsre/shape/ComplexShape.h>
 
 class FileBuffer;
 class ShapeTextureInfo;
@@ -26,7 +27,7 @@ class ShapeHierarchyInfo;
 class ContentHierarchyInfo;
 class RenderItem;
 
-class SFile {
+class SFile : public ComplexShape {
 public:
 
     struct SObjHeader {
@@ -197,6 +198,8 @@ public:
     fshader* shader;
     float size;
     float bound[6];
+
+    const QString& getPathId() const override { return pathid; }
     
     SFile();
     SFile(QString pathid, QString name, QString texp );

@@ -33,6 +33,7 @@
 #include <tsre/trains/EngLib.h>
 #include <tsre/trains/ActLib.h>
 #include <tsre/trains/Activity.h>
+#include <tsre/texture/TexLib.h>
 #include <shapeViewer/ShapeTextureInfo.h>
 
 ShapeViewerGLWidget::ShapeViewerGLWidget(QWidget *parent)
@@ -303,6 +304,12 @@ void ShapeViewerGLWidget::resizeGL(int w, int h) {
 }
 
 void ShapeViewerGLWidget::keyPressEvent(QKeyEvent * event) {
+    if (event->key() == Qt::Key_F10
+            && (event->modifiers() & Qt::ControlModifier)
+            && (event->modifiers() & Qt::ShiftModifier)) {
+        TexLib::dumpStats("ShapeViewerGLWidget");
+        return;
+    }
     camera->keyDown(event);
     Game::currentShapeLib = currentShapeLib;
     //Game::currentEngLib = currentEngLib;

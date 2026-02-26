@@ -29,6 +29,7 @@
 
 #include <tsre/world/TerrainLib.h>
 #include <tsre/texture/Brush.h>
+#include <tsre/texture/TexLib.h>
 #include <tsre/geo/GeoCoordinates.h>
 #include <tsre/geo/MapWindow.h>
 #include "TerrainTreeWindow.h"
@@ -1120,6 +1121,13 @@ void RouteEditorGLWidget::keyPressEvent(QKeyEvent * event) {
             && (event->modifiers() & Qt::ShiftModifier)) {
         cycleRendererPipelineMode();
         update();
+        return;
+    }
+
+    if (event->key() == Qt::Key_F10
+            && (event->modifiers() & Qt::ControlModifier)
+            && (event->modifiers() & Qt::ShiftModifier)) {
+        TexLib::dumpStats("RouteEditorGLWidget");
         return;
     }
     
