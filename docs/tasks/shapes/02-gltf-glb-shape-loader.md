@@ -13,6 +13,9 @@ Add glTF 2.0 (`.gltf`) and GLB (`.glb`) as supported "complex shape" assets, loa
   - If legacy rendering is still the default, glTF should implement both `render(...)` and `pushRenderItem(...)`.
   - If gather pipeline is the target path, ensure glTF submits valid `RenderItem` packets compatible with current shaders.
 
+## Constraints
+- No external tools are allowed to install/use for this task (no requirement for third-party command-line converters, importers, texture packers, etc.). Implement using TSRE code + Qt only.
+
 ## Scope
 - Implement a new complex-shape type for glTF/GLB (e.g. `GltfShape`) that conforms to the Task 01 abstraction.
 - Extend `ShapeLib::addShape(...)` to instantiate the correct loader based on file extension:
@@ -85,6 +88,17 @@ Two reasonable approaches that fit the existing `TexLib` design:
    - Store embedded image bytes in a registry keyed by hash; `GltfTexLib` looks up bytes by hash and decodes into `Texture`.
    - Benefits: keeps the "TexLib chooses loader by type" pattern; can integrate with existing threaded loaders.
    - Cost: requires a blob registry and clear lifetime rules (who owns bytes; when they can be freed).
+
+### Embedded Texture Decode Reuse (Preferred)
+Avoid duplicating PNG/DDS decode logic in the glTF loader. Instead, centralize "decode these bytes into a `Texture`" in `TexLib`, and reuse existing loaders:
+
+- Add a helper like `TexLib::decodeFromBytes(Texture* texture, const QByteArray& encodedBytes)` that:
+  - detects the encoded format (via magic bytes and/or MIME type passed by the caller if desired),
+  - routes to the appropriate decoder (initially: reuse Qt image decoding for PNG/JPG, and reuse `DdsLib` logic for DDS if/when we support `MSFT_texture_dds`),
+  - fills `texture->imageData` or `texture->compressedData` + `texture->compressedGLFormat`,
+  - returns a success flag or an "unsupported format" result for actionable logging.
+
+This keeps embedded GLB image support aligned with file-backed `TexLib` decoding (same color/alpha conventions, same compressed upload path when supported), and makes later KTX2 support an isolated texture task rather than glTF-specific complexity.
 
 ### Alpha/Transparency Notes (TSRE Shader Convention)
 TSRE's current shader uses a per-vertex `alpha` attribute with sign semantics:
