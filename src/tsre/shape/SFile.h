@@ -200,35 +200,40 @@ public:
     float bound[6];
 
     const QString& getPathId() const override { return pathid; }
+    const QString& getTexPath() const override { return texPath; }
+    int getEsdDetailLevel() const override { return esdDetailLevel; }
+    bool isLoaded() const override { return loaded == 1; }
+    float getSize() const override { return size; }
+    const float* getBound() const override { return bound; }
     
     SFile();
     SFile(QString pathid, QString name, QString texp );
     SFile(const SFile& orig);
     virtual ~SFile();
-    void load();
-    void enablePart(unsigned int uid, unsigned int stateId = 0);
-    void disablePart(unsigned int uid, unsigned int stateId = 0);
-    void updateSim(float deltaTime, unsigned int stateId = 0);
-    void render();
-    void render(int selectionColor, unsigned int stateId);
-    void pushRenderItem();
-    void pushRenderItem(int selectionColor, unsigned int stateId);
-    void invalidateRenderState(bool invalidateMatrixCache = true);
+    void load() override;
+    void enablePart(unsigned int uid, unsigned int stateId = 0) override;
+    void disablePart(unsigned int uid, unsigned int stateId = 0) override;
+    void updateSim(float deltaTime, unsigned int stateId = 0) override;
+    void render() override;
+    void render(int selectionColor, unsigned int stateId) override;
+    void pushRenderItem() override;
+    void pushRenderItem(int selectionColor, unsigned int stateId) override;
+    void invalidateRenderState(bool invalidateMatrixCache = true) override;
     void getSize();
-    bool getBoxPoints(QVector<float> &points);
-    void getFloorBorderLinePoints(float *&punkty);
-    bool isSnapable();
-    void addSnapablePoints(QVector<float> &out);
-    void reload();
-    unsigned int newState();
-    void setAnimated(unsigned int stateId, bool animated);
-    void setEnabledSubObjs(unsigned int stateId, unsigned int enabledSubObjs);
-    void setCurrentDistanceLevel(unsigned int stateId, int level);
-    void enableSubObjByName(unsigned int stateId, QString name, bool val);
-    void enableSubObjByNameQueue(unsigned int stateId, QString name, bool val);
-    void fillShapeTextureInfo(QHash<int, ShapeTextureInfo*> &list, unsigned int stateId = 0);
-    void fillShapeHierarchyInfo(ShapeHierarchyInfo* info, unsigned int stateId = 0);
-    void fillContentHierarchyInfo(QVector<ContentHierarchyInfo*> &list, int parent);
+    bool getBoxPoints(QVector<float> &points) override;
+    void getFloorBorderLinePoints(float *&punkty) override;
+    bool isSnapable() const override;
+    void addSnapablePoints(QVector<float> &out) override;
+    void reload() override;
+    unsigned int newState() override;
+    void setAnimated(unsigned int stateId, bool animated) override;
+    void setEnabledSubObjs(unsigned int stateId, unsigned int enabledSubObjs) override;
+    void setCurrentDistanceLevel(unsigned int stateId, int level) override;
+    void enableSubObjByName(unsigned int stateId, const QString& name, bool val) override;
+    void enableSubObjByNameQueue(unsigned int stateId, const QString& name, bool val) override;
+    void fillShapeTextureInfo(QHash<int, ShapeTextureInfo*> &list, unsigned int stateId = 0) override;
+    void fillShapeHierarchyInfo(ShapeHierarchyInfo* info, unsigned int stateId = 0) override;
+    void fillContentHierarchyInfo(QVector<ContentHierarchyInfo*> &list, int parent) override;
 private:
     struct State {
         bool animated = false; 

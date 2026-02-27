@@ -10,7 +10,7 @@
 
 #include <tsre/world/Skydome.h>
 #include <tsre/ogl/GLUU.h>
-#include <tsre/shape/SFile.h>
+#include <tsre/shape/ComplexShape.h>
 #include <tsre/shape/ShapeLib.h>
 
 Skydome::Skydome() {

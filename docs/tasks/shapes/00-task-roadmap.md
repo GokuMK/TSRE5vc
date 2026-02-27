@@ -5,6 +5,7 @@ This folder contains ordered tasks for generalizing TSRE "complex shapes" (curre
 ## Execution Order
 1. `01-complex-shape-abstraction.md`
 2. `02-gltf-glb-shape-loader.md`
+3. `03-complex-shape-metadata-sidecar.md`
 
 ## Ground Rules For All Tasks
 - Keep MSTS `.s` + `.sd` support working throughout.

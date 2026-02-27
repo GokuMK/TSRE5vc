@@ -1075,11 +1075,15 @@ void Eng::fillContentHierarchyInfo(QVector<ContentHierarchyInfo*>& list, int par
 
     long long int shapeLibId = reinterpret_cast<long long int>(Game::currentShapeLib);
     if(shape.id[shapeLibId] >= 0) 
-        Game::currentShapeLib->shape[shape.id[shapeLibId]]->fillContentHierarchyInfo(list, list.size()-1);
+        if(Game::currentShapeLib->shape[shape.id[shapeLibId]] != NULL){
+            Game::currentShapeLib->shape[shape.id[shapeLibId]]->fillContentHierarchyInfo(list, list.size()-1);
+        }
 
     for(int i = 0; i < freightanimShape.size(); i++){
         if(freightanimShape[i].id[shapeLibId] >= 0) {
-            Game::currentShapeLib->shape[freightanimShape[i].id[shapeLibId]]->fillContentHierarchyInfo(list, parent);
+            if(Game::currentShapeLib->shape[freightanimShape[i].id[shapeLibId]] != NULL){
+                Game::currentShapeLib->shape[freightanimShape[i].id[shapeLibId]]->fillContentHierarchyInfo(list, parent);
+            }
         }
     }
 }

@@ -23,13 +23,13 @@ class Camera;
 class Consist;
 class EngLib;
 class Eng;
-class SFile;
 class AboutWindow;
 class ShapeViewerNavigatorWidget;
 class EngInfoWidget;
 class ConInfoWidget;
 class ShapeInfoWidget;
 class ContentHierarchyInfo;
+class ComplexShape;
 
 class ShapeViewerWindow : public QMainWindow {
     Q_OBJECT
@@ -94,7 +94,7 @@ private:
     
     Consist *currentCon = NULL;
     Eng *currentEng = NULL;
-    SFile *currentShape = NULL;
+    ComplexShape *currentShape = NULL;
     QVector<ContentHierarchyInfo*> currentContent;
     
     void updateTextureInfo(bool refreshContentList);

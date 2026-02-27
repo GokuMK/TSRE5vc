@@ -11,7 +11,7 @@
 #include <shapeViewer/ShapeHierarchyWindow.h>
 #include <tsre/Game.h>
 #include <shapeViewer/ShapeHierarchyInfo.h>
-#include <tsre/shape/SFile.h>
+#include <tsre/shape/ComplexShape.h>
 
 ShapeHierarchyWindow::ShapeHierarchyWindow(QWidget* parent) : QWidget(parent) {
     setWindowFlags(Qt::WindowType::Tool);

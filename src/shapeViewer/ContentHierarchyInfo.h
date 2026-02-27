@@ -16,7 +16,7 @@
 
 class Consist;
 class Eng;
-class SFile;
+class ComplexShape;
 
 class ContentHierarchyInfo {
 public:
@@ -26,7 +26,7 @@ public:
     QString type;
     Consist* con = NULL;
     Eng* eng = NULL;
-    SFile* sfile = NULL;
+    ComplexShape* shape = NULL;
     
     ContentHierarchyInfo();
     ContentHierarchyInfo(const ContentHierarchyInfo& orig);

@@ -11,6 +11,7 @@
 #include <tsre/shape/ShapeLib.h>
 #include <tsre/Game.h>
 #include <QDebug>
+#include <tsre/shape/ComplexShape.h>
 #include <tsre/shape/SFile.h>
 
 //int ShapeLib::jestshape;
@@ -60,16 +61,22 @@ int ShapeLib::addShape(QString path, QString texPath) {
     //console.log(pathid);
     for ( auto it = shape.begin(); it != shape.end(); ++it ){
         if(it->second == NULL) continue;
-        if (((SFile*) it->second)->pathid.length() == pathid.length())
-            if (((SFile*) it->second)->pathid == pathid) {
-                ((SFile*) it->second)->ref++;
+        const QString& existingPath = it->second->getPathId();
+        if (existingPath.length() == pathid.length())
+            if (existingPath == pathid)
                 return (int)it->first;
-            }
     }
     qDebug() << "Nowy " << jestshape << " shape: " << pathid;
 
+    QString ext = pathid.toLower().split(".").last();
+    if(ext == "gltf" || ext == "glb"){
+        qDebug() << "ShapeLib: glTF/GLB not implemented yet:" << pathid;
+        return -1;
+    }
+    if(ext != "s"){
+        qDebug() << "ShapeLib: unknown extension, treating as MSTS shape:" << ext << "path:" << pathid;
+    }
     shape[jestshape] = new SFile(pathid, path.split("/").last(), texPath);
-    shape[jestshape]->pathid = pathid;
 
     return jestshape++;
 }

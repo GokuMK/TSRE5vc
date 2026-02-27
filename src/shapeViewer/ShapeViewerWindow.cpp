@@ -32,7 +32,7 @@
 #include <shapeViewer/ShapeTextureInfo.h>
 #include <shapeViewer/ShapeHierarchyInfo.h>
 #include <shapeViewer/ContentHierarchyInfo.h>
-#include <tsre/shape/SFile.h>
+#include <tsre/shape/ComplexShape.h>
 
 ShapeViewerWindow::ShapeViewerWindow() : QMainWindow() {
     Game::shadowsEnabled = 0;
@@ -318,7 +318,7 @@ void ShapeViewerWindow::contentHierarchySelected(int id){
     currentItemType = currentContent[id]->type;
     if(currentItemType == "shape"){
         currentItemType = "shape";
-        currentShape = currentContent[id]->sfile;
+        currentShape = currentContent[id]->shape;
         currentShape->setCurrentDistanceLevel(0, currentContent[id]->distanceLevelId);
         glShapeWidget->showShape(currentShape);
     }

@@ -19,7 +19,7 @@
 #include <QBasicTimer>
 #include <math.h>
 
-class SFile;
+class ComplexShape;
 class Eng;
 class Consist;
 class GLUU;
@@ -63,8 +63,8 @@ public slots:
     void showConSimple(Consist *currentCon);
     void showConSimple(int id);
     void showCon(int aid, int id);
-    void showShape(QString path, QString texPath, SFile **currentSFile = NULL);
-    void showShape(SFile *currentSFile = NULL);
+    void showShape(QString path, QString texPath, ComplexShape **currentShape = NULL);
+    void showShape(ComplexShape *currentShape = NULL);
     void cleanup();
     void flipConSelected();
     void leftConSelected();
@@ -106,7 +106,7 @@ private:
     bool mousePressed = false;
     bool mouseRPressed = false;
     bool mouseLPressed = false;
-    SFile* sFile = NULL;
+    ComplexShape* complexShape = NULL;
     Eng* eng = NULL;
     Consist* con = NULL;
     Camera* camera = NULL;

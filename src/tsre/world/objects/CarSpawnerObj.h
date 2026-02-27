@@ -17,7 +17,7 @@
 
 class TrackItemObj;
 class OglObj;
-class SFile;
+class ComplexShape;
 
 class CarSpawnerObj : public WorldObj  {
 public:
@@ -34,7 +34,7 @@ public:
         int y;
         QString carName;
         int shapeId = -1;
-        SFile* shapePointer;
+        ComplexShape* shapePointer = NULL;
         unsigned int shapeState;
         bool ignoreXRot = false;
         int trNodeId;

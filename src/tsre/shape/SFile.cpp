@@ -799,7 +799,7 @@ void SFile::getFloorBorderLinePoints(float *&punkty){
     }
 }
 
-bool SFile::isSnapable(){
+bool SFile::isSnapable() const{
     return snapable;
 }
 
@@ -898,13 +898,13 @@ void SFile::invalidateRenderState(bool invalidateMatrixCache){
     }
 }
 
-void SFile::enableSubObjByNameQueue(unsigned int stateId, QString name, bool val){
+void SFile::enableSubObjByNameQueue(unsigned int stateId, const QString& name, bool val){
     if(stateId > state.size() - 1) 
         return;
     state[stateId].enableSubObjQueue[name] = val;
 }
 
-void SFile::enableSubObjByName(unsigned int stateId, QString name, bool val){
+void SFile::enableSubObjByName(unsigned int stateId, const QString& name, bool val){
     // Find matrix id
     int matrixId = -1;
     for(int i = 0; i < iloscm; i++) {
@@ -1398,7 +1398,7 @@ void SFile::fillContentHierarchyInfo(QVector<ContentHierarchyInfo*>& list, int p
     info->parent = parent;
     info->name = nazwa;
     info->distanceLevelId = -1; // Default
-    info->sfile = this;
+    info->shape = this;
     info->type = "shape";
     list.push_back(info);
     parent = list.size()-1;
@@ -1408,7 +1408,7 @@ void SFile::fillContentHierarchyInfo(QVector<ContentHierarchyInfo*>& list, int p
         info->parent = parent;
         info->name = "Distance Level: " + QString::number(distancelevel[i].levelSelection) + " m";
         info->distanceLevelId = i;
-        info->sfile = this;
+        info->shape = this;
         info->type = "shape";
         list.push_back(info);
     }

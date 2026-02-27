@@ -18,7 +18,7 @@
 #include <QMenu>
 #include <math.h>
 #include <tsre/ogl/GLUU.h>
-#include <tsre/shape/SFile.h>
+#include <tsre/shape/ComplexShape.h>
 #include <tsre/trains/Eng.h>
 #include <tsre/trains/EngLib.h>
 #include <tsre/Game.h>
@@ -155,22 +155,22 @@ void ShapeViewerGLWidget::setBackgroundGlColor(float r, float g, float b){
 
 void ShapeViewerGLWidget::fillCurrentShapeHierarchyInfo(ShapeHierarchyInfo* info){
     Game::currentShapeLib = currentShapeLib;
-    if(renderItem == 4 && sFile != NULL){
-        sFile->fillShapeHierarchyInfo(info);
+    if(renderItem == 4 && complexShape != NULL){
+        complexShape->fillShapeHierarchyInfo(info);
     }
 }
 
 void ShapeViewerGLWidget::fillCurrentShapeTextureInfo(QHash<int, ShapeTextureInfo*>& list){
     Game::currentShapeLib = currentShapeLib;
-    if(renderItem == 4 && sFile != NULL){
-        sFile->fillShapeTextureInfo(list);
+    if(renderItem == 4 && complexShape != NULL){
+        complexShape->fillShapeTextureInfo(list);
     }
 }
 
 void ShapeViewerGLWidget::fillCurrentContentHierarchyInfo(QVector<ContentHierarchyInfo*>& list){
     Game::currentShapeLib = currentShapeLib;
-    if(renderItem == 4 && sFile != NULL){
-        sFile->fillContentHierarchyInfo(list, -1);
+    if(renderItem == 4 && complexShape != NULL){
+        complexShape->fillContentHierarchyInfo(list, -1);
     }
     if(renderItem == 2 && eng != NULL){
         eng->fillContentHierarchyInfo(list, -1);
@@ -226,23 +226,24 @@ void ShapeViewerGLWidget::paintGL() {
         Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 0, 0, -con->conLength/2);
         con->render((int)selection*65536);
     }
-    if(renderItem == 4 && sFile != NULL){
+    if(renderItem == 4 && complexShape != NULL){
         GLUU *gluu = GLUU::get();
         gluu->enableTextures();
-        sFile->render();
-        if(cameraInit){
+        complexShape->render();
+        if(cameraInit && complexShape->isLoaded()){
             cameraInit = false;
             float max = 0;
-            if(fabs(sFile->bound[0]-sFile->bound[1]) > max)
-                max = fabs(sFile->bound[0]-sFile->bound[1]);
-            if(fabs(sFile->bound[2]-sFile->bound[3]) > max)
-                max = fabs(sFile->bound[2]-sFile->bound[3]);
-            if(fabs(sFile->bound[4]-sFile->bound[5]) > max)
-                max = fabs(sFile->bound[4]-sFile->bound[5]);
-            qDebug() << fabs(sFile->bound[0]-sFile->bound[1]);
-            qDebug() << fabs(sFile->bound[2]-sFile->bound[3]);
-            qDebug() << fabs(sFile->bound[4]-sFile->bound[5]);
-            camera->setPos(-max*1.2,fabs(sFile->bound[2]-sFile->bound[3])/2.0,0.0);
+            const float* bound = complexShape->getBound();
+            if(fabs(bound[0]-bound[1]) > max)
+                max = fabs(bound[0]-bound[1]);
+            if(fabs(bound[2]-bound[3]) > max)
+                max = fabs(bound[2]-bound[3]);
+            if(fabs(bound[4]-bound[5]) > max)
+                max = fabs(bound[4]-bound[5]);
+            qDebug() << fabs(bound[0]-bound[1]);
+            qDebug() << fabs(bound[2]-bound[3]);
+            qDebug() << fabs(bound[4]-bound[5]);
+            camera->setPos(-max*1.2,fabs(bound[2]-bound[3])/2.0,0.0);
         }
     }
 
@@ -510,7 +511,7 @@ void ShapeViewerGLWidget::showCon(int id){
     if(id < 0){
         con = NULL;
         eng = NULL;
-        sFile = NULL;
+        complexShape = NULL;
         renderItem = 3;
         return;
     }
@@ -525,7 +526,7 @@ void ShapeViewerGLWidget::showConSimple(Consist *currentCon){
     if(currentCon == NULL){
         con = NULL;
         eng = NULL;
-        sFile = NULL;
+        complexShape = NULL;
         renderItem = 5;
         return;
     }
@@ -539,7 +540,7 @@ void ShapeViewerGLWidget::showConSimple(int id){
     if(id < 0){
         con = NULL;
         eng = NULL;
-        sFile = NULL;
+        complexShape = NULL;
         renderItem = 5;
         return;
     }
@@ -554,32 +555,34 @@ void ShapeViewerGLWidget::showCon(int aid, int id){
     qDebug() << "con aid "<< aid<< " con id "<< id;
     con = ActLib::Act[aid]->activityObjects[id]->con;
     con->setTextColor(backgroundGlColor);
+    complexShape = NULL;
     renderItem = 3;
 }
 
-void ShapeViewerGLWidget::showShape(QString path, QString texPath, SFile **currentSFile){
+void ShapeViewerGLWidget::showShape(QString path, QString texPath, ComplexShape **currentShape){
     int shapeId;
     if(texPath.length() > 0)
         shapeId = currentShapeLib->addShape(path, texPath);
     else
         shapeId = currentShapeLib->addShape(path);
-    if(shapeId < 0){
-        sFile = NULL;
-    } else {
-        sFile = currentShapeLib->shape[shapeId];
-        if(currentSFile != NULL)
-            *currentSFile = sFile;
+    complexShape = NULL;
+    if(shapeId >= 0){
+        complexShape = currentShapeLib->shape[shapeId];
+        if(currentShape != NULL)
+            *currentShape = complexShape;
         cameraInit = true;
+    } else if(currentShape != NULL){
+        *currentShape = NULL;
     }
     renderItem = 4;
     con = NULL;
     eng = NULL;
 }
 
-void ShapeViewerGLWidget::showShape(SFile *currentSFile){
-    if(currentSFile == NULL)
+void ShapeViewerGLWidget::showShape(ComplexShape *currentShape){
+    if(currentShape == NULL)
         return;
-    sFile = currentSFile;
+    complexShape = currentShape;
     cameraInit = true;
     renderItem = 4;
     con = NULL;

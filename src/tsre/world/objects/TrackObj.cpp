@@ -277,7 +277,7 @@ void TrackObj::set(QString sh, FileBuffer* data) {
 QString TrackObj::getShapePath(){
     if (!loaded) return "";
     if (shapePointer == 0) return "";
-    return shapePointer->pathid+"|"+shapePointer->texPath;
+    return shapePointer->getShapePreviewPath();
 }
 
 bool TrackObj::isSimilar(WorldObj* obj){
@@ -320,8 +320,11 @@ void TrackObj::pushRenderItems(float lod, float posx, float posz, float* playerW
         }
     } else {
         //if (!Game::proceduralTracks)
-            if (Game::currentShapeLib->shape[shape]->loaded)
-                size = Game::currentShapeLib->shape[shape]->size;
+            {
+                ComplexShape* shapeAsset = Game::currentShapeLib->shape[shape];
+                if (shapeAsset != NULL && shapeAsset->isLoaded())
+                    size = shapeAsset->getSize();
+            }
     }
     
     //if(Game::viewSnapable)
@@ -407,8 +410,11 @@ void TrackObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos,
         }
     } else {
         //if (!Game::proceduralTracks)
-            if (Game::currentShapeLib->shape[shape]->loaded)
-                size = Game::currentShapeLib->shape[shape]->size;
+            {
+                ComplexShape* shapeAsset = Game::currentShapeLib->shape[shape];
+                if (shapeAsset != NULL && shapeAsset->isLoaded())
+                    size = shapeAsset->getSize();
+            }
     }
 
     Mat4::multiply(gluu->mvMatrix, gluu->mvMatrix, matrix);
@@ -461,9 +467,9 @@ void TrackObj::fillJNodePosn(){
 
 bool TrackObj::getSimpleBorder(float* border){
     if (shapePointer == 0) return false;
-    if (!shapePointer->loaded)
+    if (!shapePointer->isLoaded())
         return false;
-    float* bound = shapePointer->bound;
+    const float* bound = shapePointer->getBound();
     border[0] = bound[0];
     border[1] = bound[1];
     border[2] = bound[2];
@@ -475,7 +481,7 @@ bool TrackObj::getSimpleBorder(float* border){
 
 bool TrackObj::getBoxPoints(QVector<float>& points){
     if (shapePointer == 0) return false;
-    if (!shapePointer->loaded)
+    if (!shapePointer->isLoaded())
         return false;
     return shapePointer->getBoxPoints(points);
     /*
@@ -524,7 +530,7 @@ Ref::RefItem* TrackObj::getRefInfo(){
 int TrackObj::getDefaultDetailLevel(){
     if (!loaded) return -2;
     if (shapePointer == 0) return -2;
-    int esdDLevel = shapePointer->esdDetailLevel;
+    int esdDLevel = shapePointer->getEsdDetailLevel();
     if(esdDLevel >= 0) return esdDLevel;
     return -2;
 }

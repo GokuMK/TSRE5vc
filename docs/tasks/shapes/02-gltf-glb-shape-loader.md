@@ -7,6 +7,8 @@ Add glTF 2.0 (`.gltf`) and GLB (`.glb`) as supported "complex shape" assets, loa
 - Task 01 must be complete (format-agnostic complex shape abstraction).
 - Texture pipeline refactor is recommended before implementing embedded textures and future compressed formats:
   - `docs/tasks/textures/01-texture-format-and-upload-refactor.md`
+- TSRE metadata for editor-only features (snapables, overrides, etc.) is tracked separately:
+  - `docs/tasks/shapes/03-complex-shape-metadata-sidecar.md`
 - Renderer pipeline work may affect delivery strategy:
   - If legacy rendering is still the default, glTF should implement both `render(...)` and `pushRenderItem(...)`.
   - If gather pipeline is the target path, ensure glTF submits valid `RenderItem` packets compatible with current shaders.
@@ -17,12 +19,19 @@ Add glTF 2.0 (`.gltf`) and GLB (`.glb`) as supported "complex shape" assets, loa
   - `.s` => MSTS (`SFile`)
   - `.gltf`/`.glb` => new glTF loader
 - Ensure selection rendering works (flat selection color when `selectionColor != 0`).
+- Shape Viewer support (for fast iteration/testing):
+  - allow browsing/selecting `.gltf`/`.glb` in the Shape Viewer file list
+  - treat `.gltf`/`.glb` as "shape" items in the viewer (similar to `.s`)
+  - viewer panels may be partially empty in v1 (hierarchy/texture info are optional capabilities), but 3D rendering + bounds-based camera framing must work
 
 ## Suggested Touch Points
 - `src/tsre/shape/ShapeLib.cpp` (factory/extension dispatch)
 - new files under `src/tsre/shape/` for glTF (loader + runtime asset)
 - `src/tsre/renderer/RenderItem.h` and renderer pipeline docs (only if packet contract must be extended)
 - `src/tsre/texture/TexLib.*` (embedded images, content-hash de-dup, optional background decode)
+- Shape Viewer:
+  - `src/shapeViewer/ShapeViewerWindow.cpp` (detect `.gltf/.glb` as shapes)
+  - `src/shapeViewer/ShapeViewerNavigatorWidget.cpp` (include `.gltf/.glb` in directory filtering)
 
 ## Format/Feature Support (Initial Target)
 Aim for a "useful minimum" first:
@@ -57,6 +66,7 @@ Aim for a "useful minimum" first:
 - Must compute `size` and `bound` equivalents for LOD culling and selection boxes.
 - Must support `reload()` for developer iteration (at minimum: drop GPU buffers and re-parse).
 - Must not break existing `.s` loading and performance characteristics.
+- Keep a clean hook point for future TSRE metadata sidecar (Task 03). v1 can ignore it, but avoid locking the loader into "pure glTF only" assumptions (snapables, bounds overrides, detail level hints may come from TSRE metadata, not glTF itself).
 - Must keep logs actionable on failure:
   - file not found
   - unsupported feature encountered (e.g., skinning, Draco compression)
@@ -98,10 +108,13 @@ TSRE uses `texPath` as a "texture root" for complex shapes (MSTS-style). For glT
   - Route/world objects can keep the MSTS behavior: default `texPath` is `routes/<route>/textures`.
 - If `texPath` is empty, resolve glTF texture URIs relative to the glTF file directory (tool/preview behavior).
 
+Important: avoid passing **relative** paths into `TexLib` directly. Qt resolves relative `QFile` paths against the process working directory, so the glTF loader must always resolve to an absolute `pathid` (or provide a non-empty base `texPath`) before calling `TexLib::addTex(...)`.
+
 This keeps route objects compatible with existing "route textures folder" assumptions, while allowing tools (shape viewer) to preview a standalone glTF with its adjacent textures.
 
 ## Acceptance Criteria
 - A `.gltf` or `.glb` placed as a route `Static` renders in the editor.
+- A `.gltf` or `.glb` can be opened in Shape Viewer and renders correctly (used as the primary dev/test tool for Task 02).
 - Selection/picking mode renders a solid color for the model (no texture).
 - Materials with alpha cutout (MASK) correctly discard pixels using `alphaCutoff`.
 - A model with multiple primitives/materials renders all submeshes.

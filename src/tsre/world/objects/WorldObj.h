@@ -19,7 +19,7 @@
 #include <tsre/world/Ref.h>
 #include <QHash>
 
-class SFile;
+class ComplexShape;
 class TrackItemObj;
 class ErrorMessage;
 
@@ -81,7 +81,7 @@ public:
     int x;
     int y;
     int shape = -1;
-    SFile* shapePointer = NULL;
+    ComplexShape* shapePointer = NULL;
     unsigned int shapeState = 0;
     bool loaded = false;
     float size;

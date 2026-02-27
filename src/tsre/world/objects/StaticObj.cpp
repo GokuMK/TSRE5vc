@@ -173,8 +173,9 @@ void StaticObj::pushRenderItems(float lod, float posx, float posz, float* player
             if ((ccos > 0) && (xxx > size) && (skipLevel == 1)) return;
         }
     } else {
-        if (Game::currentShapeLib->shape[shape]->loaded){
-            size = Game::currentShapeLib->shape[shape]->size;
+        ComplexShape* shapeAsset = Game::currentShapeLib->shape[shape];
+        if (shapeAsset != NULL && shapeAsset->isLoaded()) {
+            size = shapeAsset->getSize();
             loadSnapablePoints();
         }
     }
@@ -239,8 +240,9 @@ void StaticObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos
             if ((ccos > 0) && (xxx > size) && (skipLevel == 1)) return;
         }
     } else {
-        if (Game::currentShapeLib->shape[shape]->loaded){
-            size = Game::currentShapeLib->shape[shape]->size;
+        ComplexShape* shapeAsset = Game::currentShapeLib->shape[shape];
+        if (shapeAsset != NULL && shapeAsset->isLoaded()) {
+            size = shapeAsset->getSize();
             loadSnapablePoints();
         }
     }
@@ -312,10 +314,12 @@ void StaticObj::getLinePoints(float *&punkty){
 void StaticObj::loadSnapablePoints() {
     if(snapable == true)
         return;
-    snapable = this->shapePointer->isSnapable();
+    if(shapePointer == NULL)
+        return;
+
+    snapable = shapePointer->isSnapable();
     if(snapable)
-        if(shapePointer != NULL)
-            this->shapePointer->addSnapablePoints(this->snapablePoints);
+        shapePointer->addSnapablePoints(this->snapablePoints);
 }
 
 void StaticObj::renderSnapableEndpoints(GLUU* gluu) {
@@ -371,9 +375,9 @@ void StaticObj::insertSnapablePoints(QVector<float>& points){
 
 bool StaticObj::getSimpleBorder(float* border){
     if (shapePointer == 0) return false;
-    if (!shapePointer->loaded)
+    if (!shapePointer->isLoaded())
         return false;
-    float* bound = shapePointer->bound;
+    const float* bound = shapePointer->getBound();
     border[0] = bound[0];
     border[1] = bound[1];
     border[2] = bound[2];
@@ -385,7 +389,7 @@ bool StaticObj::getSimpleBorder(float* border){
 
 bool StaticObj::getBoxPoints(QVector<float>& points){
     if (shapePointer == 0) return false;
-    if (!shapePointer->loaded)
+    if (!shapePointer->isLoaded())
         return false;
     return shapePointer->getBoxPoints(points);
 }
@@ -393,13 +397,13 @@ bool StaticObj::getBoxPoints(QVector<float>& points){
 QString StaticObj::getShapePath(){
     if (!loaded) return "";
     if (shapePointer == 0) return "";
-    return shapePointer->pathid+"|"+shapePointer->texPath;
+    return shapePointer->getShapePreviewPath();
 }
 
 int StaticObj::getDefaultDetailLevel(){
     if (!loaded) return 0;
     if (shapePointer == 0) return 0;
-    int esdDLevel = shapePointer->esdDetailLevel;
+    int esdDLevel = shapePointer->getEsdDetailLevel();
     if(esdDLevel >= 0) return esdDLevel;
     return 0;
 }

@@ -15,12 +15,12 @@
 #include <QtWidgets>
 
 class ShapeHierarchyInfo;
-class SFile;
+class ComplexShape;
 
 class ShapeHierarchyWindow : public QWidget {
     Q_OBJECT
 public:
-    SFile *currentShape = NULL;
+    ComplexShape *currentShape = NULL;
     ShapeHierarchyWindow(QWidget* parent);
     virtual ~ShapeHierarchyWindow();
     void clearLists();

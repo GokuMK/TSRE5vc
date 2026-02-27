@@ -9,7 +9,7 @@
  */
 
 #include <tsre/world/objects/WorldObj.h>
-#include <tsre/shape/SFile.h>
+#include <tsre/shape/ComplexShape.h>
 #include <tsre/shape/ShapeLib.h>
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/math3d/GLMatrix.h>
@@ -592,7 +592,7 @@ void WorldObj::pushRenderItems(float lod, float posx, float posz, float* playerW
     if (jestPQ < 2) return;
     if (Game::currentRenderer == NULL) return;
 
-    SFile* shapeToRender = shapePointer;
+    ComplexShape* shapeToRender = shapePointer;
     if (shapeToRender == NULL) {
         if (shape < 0) return;
         if (Game::currentShapeLib == NULL) return;
@@ -618,8 +618,8 @@ void WorldObj::pushRenderItems(float lod, float posx, float posz, float* playerW
             float xxx = sqrt(2 * d2 * d2 * (1 - ccos));
             if ((ccos > 0) && (xxx > size) && (skipLevel == 1)) return;
         }
-    } else if (shapeToRender->loaded) {
-        size = shapeToRender->size;
+    } else if (shapeToRender->isLoaded()) {
+        size = shapeToRender->getSize();
     }
 
     Mat4::multiply(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, matrix);

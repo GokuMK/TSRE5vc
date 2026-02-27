@@ -300,8 +300,9 @@ void PickupObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos
             if ((ccos > 0) && (xxx > size) && (skipLevel == 1)) return;
         }
     } else {
-        if (Game::currentShapeLib->shape[shape]->loaded)
-            size = Game::currentShapeLib->shape[shape]->size;
+        ComplexShape* shapeAsset = Game::currentShapeLib->shape[shape];
+        if (shapeAsset != NULL && shapeAsset->isLoaded())
+            size = shapeAsset->getSize();
     }
     
     gluu->mvPushMatrix();
@@ -395,9 +396,12 @@ void PickupObj::renderTritems(GLUU* gluu, int selectionColor, bool pushToQueue){
 
 bool PickupObj::getSimpleBorder(float* border){
     if (shape < 0) return false;
-    if (!Game::currentShapeLib->shape[shape]->loaded)
+    ComplexShape* shapeAsset = Game::currentShapeLib->shape[shape];
+    if (shapeAsset == NULL)
         return false;
-    float* bound = Game::currentShapeLib->shape[shape]->bound;
+    if (!shapeAsset->isLoaded())
+        return false;
+    const float* bound = shapeAsset->getBound();
     border[0] = bound[0];
     border[1] = bound[1];
     border[2] = bound[2];

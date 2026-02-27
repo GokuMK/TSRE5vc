@@ -11,7 +11,7 @@
 #include <shapeViewer/ContentHierarchyInfo.h>
 #include <tsre/trains/Consist.h>
 #include <tsre/trains/Eng.h>
-#include <tsre/shape/SFile.h>
+#include <tsre/shape/ComplexShape.h>
 
 ContentHierarchyInfo::ContentHierarchyInfo() {
 }
@@ -23,7 +23,7 @@ ContentHierarchyInfo::ContentHierarchyInfo(const ContentHierarchyInfo& orig) {
     type = orig.type;
     con = orig.con;
     eng = orig.eng;
-    sfile = orig.sfile;
+    shape = orig.shape;
 }
 
 ContentHierarchyInfo::~ContentHierarchyInfo() {

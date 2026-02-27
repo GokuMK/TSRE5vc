@@ -6,11 +6,12 @@
 - Non-goal: implement new formats (see `docs/tasks/shapes/`).
 
 ## Terminology (used in this doc)
-- **Complex shape (asset/model):** file-backed, multi-part, can have LOD and per-instance state (today: `SFile`, MSTS `.s` + optional `.sd`).
+- **Complex shape (asset/model):** file-backed, multi-part, can have LOD and per-instance state (today: `ComplexShape` interface implemented by `SFile`, MSTS `.s` + optional `.sd`).
 - **Simple shape (render primitive):** a single VAO/VBO draw call with a very small material model (today: `OglObj`), typically procedural/editor helpers.
 
 ## Evidence Base (Code Anchors)
 - Shape cache and lifetime: `src/tsre/shape/ShapeLib.h:12`, `src/tsre/shape/ShapeLib.cpp:54`
+- Complex shape abstraction: `src/tsre/shape/ComplexShape.h:17`
 - MSTS shape implementation: `src/tsre/shape/SFile.h:29`, `src/tsre/shape/SFile.cpp:52`
 - MSTS `.sd` metadata handling: `src/tsre/shape/SFile.cpp:504`
 - Per-instance state for shared shapes: `src/tsre/shape/SFile.cpp:843`
@@ -19,12 +20,14 @@
 - Typical world object load path: `src/tsre/world/objects/StaticObj.cpp:81`, `src/tsre/world/objects/TrackObj.cpp:85`
 - Simple render primitive contract: `src/tsre/ogl/OglObj.h:18`, `src/tsre/ogl/OglObj.cpp:135`
 - Procedural shapes using OBJ templates: `src/tsre/procedural/ProceduralShape.h:39`, `src/tsre/shape/ObjFile.cpp:19`
-- Shape viewer depends on `ShapeLib`/`SFile`: `src/shapeViewer/ShapeViewerGLWidget.cpp:553`
+- Shape viewer depends on `ShapeLib` and renders via `ComplexShape`: `src/shapeViewer/ShapeViewerGLWidget.cpp:229`
 - Procedural/in-memory textures via `TexLib`: `src/tsre/ogl/TextObj.cpp:64`, `src/tsre/texture/TexLib.cpp:90`, `src/tsre/texture/PaintTexLib.cpp:20`
 
 ---
 
-## 1. Complex Shapes: `SFile` (MSTS `.s`)
+## 1. Complex Shapes: `ComplexShape` + `SFile` (MSTS `.s`)
+
+TSRE uses the format-agnostic `ComplexShape` contract for world objects and tools. Today the only implementation is `SFile` (MSTS `.s` + optional `.sd`), but this boundary is what future formats (glTF/GLB) will implement.
 
 ### 1.1 What `SFile` Represents
 `SFile` is both:
@@ -77,13 +80,15 @@ The gather path builds `RenderItem` packets, and caches them per `stateId` when 
 ## 2. Shape Cache / Manager: `ShapeLib`
 
 `ShapeLib` is the central cache of complex shapes used by both the editor and runtime:
-- primary store: `std::unordered_map<int, SFile*> shape` (`src/tsre/shape/ShapeLib.h:12`)
+- primary store: `std::unordered_map<int, ComplexShape*> shape` (`src/tsre/shape/ShapeLib.h:12`)
 - id allocation: monotonic `jestshape` counter
-- de-duplication: `addShape(path, texPath)` normalizes `pathid` and linearly scans existing shapes to match `SFile::pathid` (`src/tsre/shape/ShapeLib.cpp:54`)
+- de-duplication: `addShape(path, texPath)` normalizes `pathid` and linearly scans existing shapes to match `ComplexShape::getPathId()` (`src/tsre/shape/ShapeLib.cpp:64`)
+  - note: `texPath` does **not** participate in de-duplication today; if the same `pathid` is requested with different texture roots, the first cached shape wins. If we ever need per-instance texture roots, consider keying by `(pathid, texRoot)` or moving `texRoot` into instance state.
+- format dispatch: `addShape(...)` currently rejects `.gltf/.glb` (planned under `docs/tasks/shapes/02-gltf-glb-shape-loader.md`); other extensions default to the MSTS `SFile` loader (with a warning for unknown extensions).
 
 Notable characteristics:
 - **The cache is keyed by pathid string**, but stored by int id.
-- **Refcount exists** (`SFile::ref`) and is incremented on re-use in `addShape`, but `ShapeLib::delRef/addRef` are currently stubs (shape lifetime is effectively "process lifetime" today).
+- `ShapeLib::delRef/addRef` are currently stubs (shape lifetime is effectively "process lifetime" today).
 - `invalidateRendererCaches()` is a bulk hook to tell all shapes to rebuild cached packets/matrices.
 
 ---
@@ -93,13 +98,13 @@ Notable characteristics:
 ### 3.1 Data Stored on `WorldObj`
 Each placed world object typically stores:
 - `int shape` (ShapeLib id)
-- `SFile* shapePointer` (direct pointer; may be set in `load`)
-- `unsigned int shapeState` (per-instance `SFile` state id)
+- `ComplexShape* shapePointer` (direct pointer; may be set in `load`)
+- `unsigned int shapeState` (per-instance shape state id)
 
 See `src/tsre/world/objects/WorldObj.h:82`.
 
 ### 3.2 Common Render Submission Path
-The base implementation `WorldObj::pushRenderItems(...)` assumes the "complex shape" is an `SFile`:
+The base implementation `WorldObj::pushRenderItems(...)` targets the `ComplexShape` contract:
 1) resolve `shapePointer` or lookup `Game::currentShapeLib->shape[shape]`
 2) compute size/LOD cull
 3) multiply instance transform into `Game::currentRenderer->mvMatrix`
@@ -140,9 +145,10 @@ This is conceptually a *different abstraction layer* than `SFile`:
 
 ## 5. Shape Viewer Dependency
 
-`ShapeViewerGLWidget::showShape(...)` uses `ShapeLib::addShape(...)` and stores the result as an `SFile*` (`src/shapeViewer/ShapeViewerGLWidget.cpp:553`).
+`ShapeViewerGLWidget::showShape(...)` uses `ShapeLib::addShape(...)` and stores the result as a `ComplexShape*` for rendering.
+Hierarchy/texture/content panels call the `ComplexShape::fillShape*Info(...)` methods, so the viewer can work with any complex-shape format that implements the contract.
 
-Any attempt to generalize `ShapeLib` away from `SFile*` will need a deliberate compatibility plan for:
+Any attempt to add **non-MSTS** complex shapes to the shape viewer UI will need a deliberate compatibility plan for:
 - the shape viewer UI (hierarchy/texture inspection),
 - any other tools that assume MSTS-only shapes.
 

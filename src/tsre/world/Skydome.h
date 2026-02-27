@@ -14,7 +14,7 @@
 #include <tsre/GameObj.h>
 
 class GLUU;
-class SFile;
+class ComplexShape;
 
 class Skydome : public GameObj {
 public:
@@ -26,7 +26,7 @@ public:
 
 private:
     bool loaded = false;
-    SFile* shapePointer = NULL;
+    ComplexShape* shapePointer = NULL;
 };
 
 #endif	/* SKYDOME_H */

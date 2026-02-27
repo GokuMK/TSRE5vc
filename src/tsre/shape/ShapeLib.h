@@ -4,12 +4,12 @@
 #include <unordered_map>
 #include <QString>
 
-class SFile;
+class ComplexShape;
 
 class ShapeLib {
 public:
     int jestshape = 0;
-    std::unordered_map<int, SFile*> shape;
+    std::unordered_map<int, ComplexShape*> shape;
     ShapeLib();
     ShapeLib(const ShapeLib& orig);
     virtual ~ShapeLib();
