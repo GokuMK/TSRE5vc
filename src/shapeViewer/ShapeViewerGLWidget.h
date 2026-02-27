@@ -100,9 +100,9 @@ private:
     int m_yRot;
     int m_zRot;
     int fps;
-    QPoint m_lastPos;
+    QPointF m_lastPos;
     GLUU* gluu;
-    int mousex, mousey;
+    float mousex, mousey;
     bool mousePressed = false;
     bool mouseRPressed = false;
     bool mouseLPressed = false;

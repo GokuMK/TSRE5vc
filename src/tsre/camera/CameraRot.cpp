@@ -40,9 +40,9 @@ CameraRot::CameraRot(float* pt) {
     relativePos[2] = 0;
     
     moveF = moveR = moveB = moveL = false;
-    przesx = 1; 
-    przesy = 1; 
-    przesz = 1;
+    przesx = Game::cameraSpeedStd;
+    przesy = 1;
+    przesz = Game::cameraSpeedStd;
     fov = 61;
 }
 
@@ -242,7 +242,10 @@ void CameraRot::keyUp(QKeyEvent * e) {
             break;
         case Qt::Key_E: // E
         case Qt::Key_Shift:
-            przesx = przesz = 3;
+            przesx = przesz = Game::cameraSpeedStd;
+            break;
+        case Qt::Key_Control:
+            przesx = przesz = Game::cameraSpeedStd;
             break;
         case Qt::Key_Left:    
             if(!Game::usenNumPad) break;
@@ -301,7 +304,10 @@ void CameraRot::keyDown(QKeyEvent * e) {
             break;
         //case Qt::Key_E: // E
         case Qt::Key_Shift:
-            przesx = przesz = 40;
+            przesx = przesz = Game::cameraSpeedMax;
+            break;
+        case Qt::Key_Control:
+            przesx = przesz = Game::cameraSpeedMin;
             break;
         default:
             break;

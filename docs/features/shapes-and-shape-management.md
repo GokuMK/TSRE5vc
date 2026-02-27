@@ -6,13 +6,14 @@
 - Non-goal: implement new formats (see `docs/tasks/shapes/`).
 
 ## Terminology (used in this doc)
-- **Complex shape (asset/model):** file-backed, multi-part, can have LOD and per-instance state (today: `ComplexShape` interface implemented by `SFile`, MSTS `.s` + optional `.sd`).
+- **Complex shape (asset/model):** file-backed, multi-part, can have per-instance state (today: `ComplexShape` interface implemented by `SFile` for MSTS `.s` + optional `.sd`, and `GltfShape` for `.gltf`/`.glb`).
 - **Simple shape (render primitive):** a single VAO/VBO draw call with a very small material model (today: `OglObj`), typically procedural/editor helpers.
 
 ## Evidence Base (Code Anchors)
 - Shape cache and lifetime: `src/tsre/shape/ShapeLib.h:12`, `src/tsre/shape/ShapeLib.cpp:54`
 - Complex shape abstraction: `src/tsre/shape/ComplexShape.h:17`
 - MSTS shape implementation: `src/tsre/shape/SFile.h:29`, `src/tsre/shape/SFile.cpp:52`
+- glTF/GLB shape implementation: `src/tsre/shape/GltfShape.h:27`, `src/tsre/shape/GltfShape.cpp:1191`
 - MSTS `.sd` metadata handling: `src/tsre/shape/SFile.cpp:504`
 - Per-instance state for shared shapes: `src/tsre/shape/SFile.cpp:843`
 - Gather queue submission for shapes: `src/tsre/shape/SFile.cpp:970`
@@ -27,7 +28,9 @@
 
 ## 1. Complex Shapes: `ComplexShape` + `SFile` (MSTS `.s`)
 
-TSRE uses the format-agnostic `ComplexShape` contract for world objects and tools. Today the only implementation is `SFile` (MSTS `.s` + optional `.sd`), but this boundary is what future formats (glTF/GLB) will implement.
+TSRE uses the format-agnostic `ComplexShape` contract for world objects and tools. Implementations currently include:
+- `SFile` (MSTS `.s` + optional `.sd`)
+- `GltfShape` (glTF 2.0 `.gltf` and GLB `.glb`)
 
 ### 1.1 What `SFile` Represents
 `SFile` is both:
@@ -154,18 +157,16 @@ Any attempt to add **non-MSTS** complex shapes to the shape viewer UI will need 
 
 ---
 
-## 6. Implications for Adding glTF/GLB (Design Constraints)
+## 6. glTF/GLB Notes (Current Implementation + Constraints)
 
-This repo currently has no "format-agnostic model asset" type. New model formats (glTF/GLB, OBJ-as-asset, etc.) will require at least one of:
-- a new base class/interface for complex shapes (preferred), or
-- a wrapper/composition object that makes different loaders look like the existing `SFile` contract.
+glTF/GLB is implemented as a `ComplexShape` (`GltfShape`) and is loadable through `ShapeLib` like MSTS shapes.
 
 Major constraints to plan for:
 - **Shared asset + per-instance state must remain** (world objects already rely on `shapeState`).
-- **Renderer packet contract today is VAO/VBO + glDrawArrays-style offsets** (`RenderItem` has no index buffer). This is already how MSTS shapes are handled: parsing expands indexed geometry into non-indexed vertex arrays (see `SFileC`/`SFileX`). glTF/GLB can follow the same approach initially.
+- **Renderer packet contract today is VAO/VBO + glDrawArrays-style offsets** (`RenderItem` has no index buffer). Both MSTS shapes and glTF/GLB expand indexed geometry into non-indexed vertex arrays.
 - **Texture system is pathid + hashid based** (`Texture::hashid` is used for de-duplication in `TexLib`). While most textures are file-backed, TSRE already supports procedural/in-memory textures (e.g. `TextObj` uses `.:paintTex` handled by `PaintTexLib`). This means GLB embedded images can be supported by registering them in `TexLib` under a content hash (and optionally decoding in a worker, similar to other texture loaders).
 - **Material/alpha model is simple and shader-driven**. The current shader uses the `alpha` vertex attribute with sign semantics:
   - positive value (e.g. `1.0`) forces opaque output alpha
   - negative value encodes an alpha cutoff (`discard` when `texAlpha < -vAlpha`)
-  This maps naturally to glTF `OPAQUE` and `MASK`. glTF `BLEND` needs correct draw ordering (renderer modernization work), but can be represented without cutout by using a non-negative alpha attribute (e.g. `0.0`) so discard never triggers.
+  This maps naturally to glTF `OPAQUE` and `MASK`. glTF `BLEND` is supported with known limitations (ordering/sorting is renderer work); current best-effort behavior is closer to "alpha test + blend" than a fully sorted transparency pass.
 - **Full PBR is out of scope** unless the renderer pipeline is extended (metal/rough, normal maps, IBL, etc.).

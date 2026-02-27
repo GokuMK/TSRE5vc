@@ -350,7 +350,8 @@ int main(int argc, char *argv[]){
     }
 
     //LoadConEditor();
-    
+    //LoadShapeViewer(consoleArgs["FILENAME"]);
+    //return app.exec();
     // Run route editor
     LoadRouteEditor();
 

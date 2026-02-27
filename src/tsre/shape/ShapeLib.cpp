@@ -12,6 +12,7 @@
 #include <tsre/Game.h>
 #include <QDebug>
 #include <tsre/shape/ComplexShape.h>
+#include <tsre/shape/GltfShape.h>
 #include <tsre/shape/SFile.h>
 
 //int ShapeLib::jestshape;
@@ -70,8 +71,8 @@ int ShapeLib::addShape(QString path, QString texPath) {
 
     QString ext = pathid.toLower().split(".").last();
     if(ext == "gltf" || ext == "glb"){
-        qDebug() << "ShapeLib: glTF/GLB not implemented yet:" << pathid;
-        return -1;
+        shape[jestshape] = new GltfShape(pathid, path.split("/").last(), texPath);
+        return jestshape++;
     }
     if(ext != "s"){
         qDebug() << "ShapeLib: unknown extension, treating as MSTS shape:" << ext << "path:" << pathid;

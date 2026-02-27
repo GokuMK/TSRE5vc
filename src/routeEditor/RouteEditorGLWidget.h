@@ -182,7 +182,7 @@ private:
     double fpsDisplayAccumMs = 0.0;
     int fpsDisplayAccumFrames = 0;
     unsigned long long int fpsDisplayLastUpdate = 0;
-    QPoint m_lastPos;
+    QPointF m_lastPos;
     SFile* sFile;
     Eng* eng;
     Tile* tile;
@@ -195,7 +195,7 @@ private:
     CameraFree* cameraFree = NULL;
     CameraConsist* cameraObj = NULL;
     bool selection = false;
-    int mousex, mousey;
+    float mousex, mousey;
     GameObj* selectedObj = NULL;
     GameObj* lastSelectedObj = NULL;
     WorldObj* copyPasteObj = NULL;

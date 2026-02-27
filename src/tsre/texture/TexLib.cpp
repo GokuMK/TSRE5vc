@@ -17,7 +17,10 @@
 #include <tsre/texture/Texture.h>
 #include <QDebug>
 #include <QFile>
+#include <QImage>
+#include <QOpenGLShaderProgram>
 #include <tsre/Game.h>
+#include <cstring>
 
 int TexLib::jesttextur = 0;
 std::unordered_map<int, Texture*> TexLib::mtex;
@@ -251,6 +254,77 @@ int TexLib::addTex(Texture* texture, bool reload) {
     texture->ref++;
     mtex[jesttextur] = texture;
     return jesttextur++;
+}
+
+bool TexLib::decodeFromBytes(Texture* texture, const QByteArray& encodedBytes, QString* outError) {
+    if (texture == nullptr) {
+        if (outError) *outError = "Texture is null";
+        return false;
+    }
+    if (encodedBytes.isEmpty()) {
+        if (outError) *outError = "Encoded bytes are empty";
+        texture->error = true;
+        return false;
+    }
+
+    const QByteArray head = encodedBytes.left(16);
+    if (head.size() >= 4 && std::memcmp(head.constData(), "DDS ", 4) == 0) {
+        if (outError) *outError = "DDS from bytes is not supported yet";
+        texture->error = true;
+        return false;
+    }
+    static const unsigned char ktx2Magic[12] = {0xAB, 'K', 'T', 'X', ' ', '2', '0', 0xBB, 0x0D, 0x0A, 0x1A, 0x0A};
+    if (head.size() >= 12 && std::memcmp(head.constData(), ktx2Magic, 12) == 0) {
+        if (outError) *outError = "KTX2 from bytes is not supported yet";
+        texture->error = true;
+        return false;
+    }
+
+    QImage img;
+    if (!img.loadFromData(encodedBytes)) {
+        if (outError) *outError = "Unsupported image format (Qt decoder)";
+        texture->error = true;
+        return false;
+    }
+
+    if (texture->imageData != nullptr) {
+        delete[] texture->imageData;
+        texture->imageData = nullptr;
+    }
+    texture->compressedData.clear();
+    texture->compressedGLFormat = 0;
+
+    if (img.hasAlphaChannel()) {
+        texture->bytesPerPixel = 4;
+        texture->type = GL_RGBA;
+        img = img.convertToFormat(QImage::Format_RGBA8888);
+    } else {
+        texture->bytesPerPixel = 3;
+        texture->type = GL_RGB;
+        img = img.convertToFormat(QImage::Format_RGB888);
+    }
+
+    texture->width = img.width();
+    texture->height = img.height();
+    texture->imageSize = texture->width * texture->height * texture->bytesPerPixel;
+    texture->bpp = texture->bytesPerPixel * 8;
+
+    texture->imageData = new unsigned char[texture->imageSize];
+    const int lineWidth = texture->width * texture->bytesPerPixel;
+    if ((lineWidth % 4) == 0) {
+        std::memcpy(texture->imageData, img.bits(), texture->imageSize);
+    } else {
+        int srcLineWidth = lineWidth + 4 - (lineWidth % 4);
+        for (int y = 0; y < texture->height; y++) {
+            std::memcpy(texture->imageData + y * lineWidth, img.bits() + y * srcLineWidth, lineWidth);
+        }
+    }
+
+    texture->loaded = true;
+    texture->editable = true;
+    texture->missing = false;
+    texture->error = false;
+    return true;
 }
 
 int TexLib::addTex(QString pathid, bool reload) {

@@ -38,8 +38,8 @@ ShapeViewerNavigatorWidget::ShapeViewerNavigatorWidget(QWidget* parent) : QWidge
     dirFiles.setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     fileItems.setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     
-    QObject::connect(&dirFiles, SIGNAL(itemClicked(QListWidgetItem*)),
-                      this, SLOT(dirFilesSelected(QListWidgetItem*)));
+    QObject::connect(&dirFiles, SIGNAL(currentItemChanged(QListWidgetItem*, QListWidgetItem*)),
+                      this, SLOT(dirFilesCurrentItemChanged(QListWidgetItem*, QListWidgetItem*)));
     
     QObject::connect(&fileItems, SIGNAL(itemClicked(QTreeWidgetItem*, int)),
                       this, SLOT(fileItemsSelected(QTreeWidgetItem*, int)));
@@ -50,6 +50,13 @@ ShapeViewerNavigatorWidget::~ShapeViewerNavigatorWidget() {
 
 void ShapeViewerNavigatorWidget::dirFilesSelected(QListWidgetItem* item){
     emit dirFilesSelected(item->data(9999).toString());
+}
+
+void ShapeViewerNavigatorWidget::dirFilesCurrentItemChanged(QListWidgetItem* current, QListWidgetItem* previous){
+    Q_UNUSED(previous);
+    if(current == NULL)
+        return;
+    emit dirFilesSelected(current->data(9999).toString());
 }
 
 void ShapeViewerNavigatorWidget::fileItemsSelected(QTreeWidgetItem* item, int column){
@@ -109,10 +116,12 @@ void ShapeViewerNavigatorWidget::listDirectoryFiles(QString filepath){
     foreach(QString pfile, dir.entryList()){
         if(pfile == "." || pfile == "..")   
             continue;
-        if(!pfile.endsWith(".s", Qt::CaseInsensitive) 
-                && !pfile.endsWith(".con", Qt::CaseInsensitive) 
+        if(!pfile.endsWith(".s", Qt::CaseInsensitive)
+                && !pfile.endsWith(".gltf", Qt::CaseInsensitive)
+                && !pfile.endsWith(".glb", Qt::CaseInsensitive)
+                && !pfile.endsWith(".con", Qt::CaseInsensitive)
                 && !pfile.endsWith(".eng", Qt::CaseInsensitive)
-                && !pfile.endsWith(".s", Qt::CaseInsensitive))
+                && !pfile.endsWith(".wag", Qt::CaseInsensitive))
             continue;
         filenames.push_back(pfile);
     }

@@ -1438,7 +1438,7 @@ void RouteEditorGLWidget::mousePressEvent(QMouseEvent *event) {
     Game::currentShapeLib = currentShapeLib;
     bolckContextMenu = false;
     if (!route->loaded) return;
-    m_lastPos = event->pos();
+    m_lastPos = event->position();
     m_lastPos *= Game::PixelRatio;
     mouseClick = true;
     if ((event->button()) == Qt::RightButton) {
@@ -1613,18 +1613,14 @@ void RouteEditorGLWidget::mousePressEvent(QMouseEvent *event) {
 void RouteEditorGLWidget::wheelEvent(QWheelEvent *event) {
     float numDegrees = 0.01 * event->angleDelta().y();
 
-    if (event->angleDelta().y() > 0) {
-        if (toolEnabled == "selectTool" || toolEnabled == "placeTool") {
-            if (selectedObj != NULL) {
-                if (selectedObj->typeObj == GameObj::worldobj) {
-                    Undo::StateBeginIfNotExist();
-                    Undo::PushGameObjData(selectedObj);
-                    ((WorldObj*) selectedObj)->translate(0, numDegrees*moveStep, 0);
-                }
+    if (toolEnabled == "selectTool" || toolEnabled == "placeTool") {
+        if (selectedObj != NULL) {
+            if (selectedObj->typeObj == GameObj::worldobj) {
+                Undo::StateBeginIfNotExist();
+                Undo::PushGameObjData(selectedObj);
+                ((WorldObj*) selectedObj)->translate(0, numDegrees*moveStep, 0);
             }
         }
-    } else {
-
     }
     event->accept();
 }
@@ -1739,7 +1735,7 @@ void RouteEditorGLWidget::mouseMoveEvent(QMouseEvent *event) {
             camera->MouseMove(event);
         }
     }
-    m_lastPos = event->pos();
+    m_lastPos = event->position();
     m_lastPos *= Game::PixelRatio;
 }
 

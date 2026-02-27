@@ -260,6 +260,10 @@ void ShapeViewerWindow::loadFile(QString path){
         currentItemType = "shape";
         glShapeWidget->showShape(path, dir, &currentShape);
     }
+    if(filename.endsWith(".gltf", Qt::CaseInsensitive) || filename.endsWith(".glb", Qt::CaseInsensitive)){
+        currentItemType = "shape";
+        glShapeWidget->showShape(path, dir, &currentShape);
+    }
     if(filename.endsWith(".eng", Qt::CaseInsensitive) || filename.endsWith(".wag", Qt::CaseInsensitive)){
         int idx = Game::currentEngLib->addEng(dir, filename);
         qDebug() << "eng id "<< idx;

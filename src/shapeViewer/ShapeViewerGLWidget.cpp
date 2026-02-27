@@ -232,18 +232,23 @@ void ShapeViewerGLWidget::paintGL() {
         complexShape->render();
         if(cameraInit && complexShape->isLoaded()){
             cameraInit = false;
-            float max = 0;
             const float* bound = complexShape->getBound();
-            if(fabs(bound[0]-bound[1]) > max)
-                max = fabs(bound[0]-bound[1]);
-            if(fabs(bound[2]-bound[3]) > max)
-                max = fabs(bound[2]-bound[3]);
-            if(fabs(bound[4]-bound[5]) > max)
-                max = fabs(bound[4]-bound[5]);
-            qDebug() << fabs(bound[0]-bound[1]);
-            qDebug() << fabs(bound[2]-bound[3]);
-            qDebug() << fabs(bound[4]-bound[5]);
-            camera->setPos(-max*1.2,fabs(bound[2]-bound[3])/2.0,0.0);
+            const float dx = fabs(bound[0]-bound[1]);
+            const float dy = fabs(bound[2]-bound[3]);
+            const float dz = fabs(bound[4]-bound[5]);
+            float max = dx;
+            if(dy > max) max = dy;
+            if(dz > max) max = dz;
+            qDebug() << dx;
+            qDebug() << dy;
+            qDebug() << dz;
+            const float cx = (bound[0] + bound[1]) / 2.0f;
+            const float cy = (bound[2] + bound[3]) / 2.0f;
+            const float cz = (bound[4] + bound[5]) / 2.0f;
+            float dist = max*1.2f;
+            if(dist < 1.0f)
+                dist = 1.0f;
+            camera->setPos(cx - dist, cy, cz);
         }
     }
 
@@ -348,7 +353,7 @@ void ShapeViewerGLWidget::keyReleaseEvent(QKeyEvent * event) {
 }
 
 void ShapeViewerGLWidget::mousePressEvent(QMouseEvent *event) {
-    m_lastPos = event->pos();
+    m_lastPos = event->position();
     m_lastPos *= Game::PixelRatio;
     mousePressed = true;
     selection = true;
@@ -377,20 +382,25 @@ void ShapeViewerGLWidget::mouseMoveEvent(QMouseEvent *event) {
     
     if(mode == "rot"){
         if (mousePressed) {
-            if(mouseRPressed)
-                rotZ += (float) (m_lastPos.y() - event->position().y()) / 333 * (camera->fov/45.0);
-            if(mouseLPressed)
-                rotY += (float) (m_lastPos.x() - event->position().x()) / 333 * (camera->fov/45.0);
+            if(mouseRPressed){
+                rotZ += (float) (m_lastPos.y() - mousey) / 30 * (camera->fov/45.0);
+            }
+            if(mouseLPressed){
+                float fff = (float) (m_lastPos.x() - mousex) / 30 * (camera->fov/45.0);
+                //qDebug() << fff;
+                rotY += fff;
+            }
             if (rotZ > 1.57)
                 rotZ = (float) 1.57;
-            if (rotY < -1.57)
-                rotY = (float) - 1.57;
+            if (rotZ < -1.57)
+                rotZ = (float) - 1.57;
         }
     } else {
         camera->MouseMove(event);
     }
-    m_lastPos = event->pos();
-    m_lastPos *= Game::PixelRatio;
+    m_lastPos.setX(mousex);
+    m_lastPos.setY(mousey);
+    //m_lastPos *= Game::PixelRatio;
 }
 
 void ShapeViewerGLWidget::showContextMenu(const QPoint & point) {
