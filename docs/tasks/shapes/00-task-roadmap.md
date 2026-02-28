@@ -3,9 +3,9 @@
 This folder contains ordered tasks for generalizing TSRE "complex shapes" (currently MSTS `SFile`) and adding new model formats (starting with glTF/GLB).
 
 ## Execution Order
-1. `01-complex-shape-abstraction.md`
-2. `02-gltf-glb-shape-loader.md`
-3. `03-complex-shape-metadata-sidecar.md`
+- [x] `01-complex-shape-abstraction.md`
+- [x] `02-gltf-glb-shape-loader.md`
+- [ ] `03-complex-shape-metadata-sidecar.md`
 
 ## Ground Rules For All Tasks
 - Keep MSTS `.s` + `.sd` support working throughout.

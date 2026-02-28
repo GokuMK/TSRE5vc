@@ -3,18 +3,18 @@
 This folder contains ordered tasks for migrating the TSRE renderer from legacy immediate drawing to gather-then-render.
 
 ## Execution Order
-1. `01-runtime-pipeline-switch.md`
-2. `02-renderer-core-generic-queue.md`
-3. `03-selection-and-picking-parity.md`
-4. `04-terrain-highres-gather.md`
-5. `05-terrain-distant-water-sky.md`
-6. `06-world-objects-shape-based.md`
-7. `07-world-objects-procedural-and-helpers.md`
-8. `08-overlays-tdb-activity-markers.md`
-9. `09-hud-compass-pointer.md`
-10. `10-shadows-gather-pass.md`
-11. `11-shader-pass-buckets-and-custom-shaders.md`
-12. `12-parity-automation-and-performance-gate.md`
+- [x] `01-runtime-pipeline-switch.md`
+- [x] `02-renderer-core-generic-queue.md`
+- [x] `03-selection-and-picking-parity.md`
+- [x] `04-terrain-highres-gather.md`
+- [x] `05-terrain-distant-water-sky.md`
+- [x] `06-world-objects-shape-based.md`
+- [x] `07-world-objects-procedural-and-helpers.md`
+- [x] `08-overlays-tdb-activity-markers.md`
+- [x] `09-hud-compass-pointer.md`
+- [x] `10-shadows-gather-pass.md`
+- [ ] `11-shader-pass-buckets-and-custom-shaders.md`
+- [ ] `12-parity-automation-and-performance-gate.md`
 
 ## Ground Rules For All Tasks
 - Keep a runtime fallback to legacy pipeline until Task 12 sign-off.

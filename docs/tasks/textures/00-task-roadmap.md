@@ -3,8 +3,8 @@
 This folder contains ordered tasks for refactoring texture decoding/upload and adding content-hash based de-duplication for non-file-backed textures (GLB embedded images, procedural sources, etc.).
 
 ## Execution Order
-1. `01-texture-format-and-upload-refactor.md`
-2. `02-texture-memory-stats-and-debug-dump.md`
+- [x] `01-texture-format-and-upload-refactor.md`
+- [x] `02-texture-memory-stats-and-debug-dump.md`
 
 ## Ground Rules For All Tasks
 - Keep existing formats (`.ace`, `.dds`, common image files, `.:paintTex`) working throughout.
