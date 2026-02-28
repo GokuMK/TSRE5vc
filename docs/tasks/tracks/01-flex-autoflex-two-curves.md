@@ -22,7 +22,10 @@ Debug visualization exists already (Flex's small window) and should be kept/exte
 
 Call path (editor):
 - `PropertiesDyntrack::flexData(...)` -> `Flex::AutoFlex(...)` -> `DynTrackObj::set("dyntrackdata", ...)` (`sections[]` updated).
-- When procedural tracks are enabled, `DynTrackObj::render(...)` / `DynTrackObj::pushRenderItems(...)` builds a `QVector<TSection>` and calls `ProceduralMstsDyntrack::GenShape(...)` to generate mesh data. `src/tsre/world/objects/DynTrackObj.cpp:370`, `src/tsre/procedural/ProceduralMstsDyntrack.cpp:18`
+- `DynTrackObj::render(...)` / `DynTrackObj::pushRenderItems(...)` builds a `QVector<TSection>` from `sections[]`. Then:
+  - if `Game::proceduralTracks` is enabled, it calls `ProceduralShape::GetShape(...)` (complex shape generator).
+  - if `Game::proceduralTracks` is disabled, it calls `ProceduralMstsDyntrack::GenShape(...)` (legacy fixed-buffer generator).
+  `src/tsre/world/objects/DynTrackObj.cpp:370`, `src/tsre/procedural/ProceduralMstsDyntrack.cpp:18`
 
 ## Requirements
 ### Functional
@@ -137,6 +140,15 @@ Because this is an editor tool, a small discrete search is acceptable:
 - `alpha` scan:
   - scan `alpha` in small steps (e.g. 0.5-1.0 deg) to locate sign changes for the root function, then refine by bisection
 
+### Note: "Magic" Analytic Solutions (Dubins Paths)
+There is a well-known closed-form family for connecting two **directed** poses in a plane with a **minimum turning radius**: Dubins paths (candidate types like `LSL`, `RSR`, `LSR`, `RSL`, plus `LRL`/`RLR` for the `CCC` case).
+
+Why we still keep a small search in this task:
+- our objective is not "shortest path for a fixed min radius"; we prefer larger radii, avoid self-intersection, and enforce engine limits (buffer budget / `2048m` trimming).
+- we also allow the two curves to use different radii (`R1 != R2`), which moves the solver away from a single neat closed form.
+
+However, Dubins `CSC` formulas are still useful as a fast candidate generator when we test `R1=R2=R` for a small set of `R` values starting at `preferredMinCurveRadius`.
+
 ### Limits / Constraints (practical)
 Reject or heavily penalize candidates that violate:
 - `radius < R_min` (UI min is 15; rails likely want higher defaults)
@@ -182,7 +194,7 @@ Approximate the candidate path into a polyline and reject if it intersects itsel
 This enforces the "practical roads/tracks" constraint without complex analytic edge cases.
 
 ## Engine Constraints: Procedural DynTrack Buffer Limits
-`ProceduralMstsDyntrack::GenShape(...)` writes into two fixed-size float buffers:
+When `Game::proceduralTracks` is disabled, `ProceduralMstsDyntrack::GenShape(...)` writes into two fixed-size float buffers:
 - `pd = new float[55000]` and `sk = new float[55000]` with **no bounds checks**. `src/tsre/procedural/ProceduralMstsDyntrack.cpp:19`
 
 Empirical code-structure counts (each vertex is 9 floats, VNTA):
@@ -215,6 +227,12 @@ Even with AutoFlex constraints, bad `dyntrackdata` can be produced by other code
 Until this hardening is implemented, **AutoFlex must enforce the current 55k-float limit** to avoid crashing the procedural generator.
 
 This is in-scope as a safety fix for AutoFlex work (procedural dyntrack is the direct consumer).
+
+Performance note:
+- `ProceduralMstsDyntrack::GenShape(...)` can run during normal gameplay (not only in-editor). Keep hardening lightweight:
+  - avoid heavy logging
+  - avoid unbounded loops: compute `step` with a small bounded loop or a tiny lookup table (e.g. try a few step values until it fits)
+  - pre-allocate once (no repeated push-backs causing reallocations in hot loops)
 
 ## Note: ProceduralShape Generator (Out of Scope)
 The advanced generator `ProceduralShape::GenShape(...)` builds meshes from OBJ/template definitions and uses large fixed buffers internally (e.g. `new float[2000000]` / `new float[4000000]`). It is harder to predict required output size up-front, so it needs its own safety strategy (separate task).
@@ -256,6 +274,7 @@ This makes it possible to validate tricky cases quickly while tuning heuristics.
 - `preferredMinCurveRadius` is an `AutoFlex(...)` parameter; default **200m**.
 - First version: if total path length exceeds ~`2048m`, trim output to the first `2048m`.
 - Add runtime safety checks (or dynamic buffers) in `ProceduralMstsDyntrack::GenShape(...)` to prevent buffer overflow/memory corruption.
+- For `GenShape` hardening, prefer downsampling curves first; trimming is a last resort, and changes should be lightweight to avoid runtime stutters.
 
 ## Remaining Open Questions
-1. For `ProceduralMstsDyntrack::GenShape(...)` downsampling, what is an acceptable maximum `step` (quality floor) before we prefer trimming instead?
+- None for this task (design locked); implementation details can be refined while coding.
