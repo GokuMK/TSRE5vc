@@ -1903,8 +1903,8 @@ WorldObj* Route::makeFlexTrack(int x, int z, float* p) {
     qe[2] = 0;
     qe[3] = 1;
     this->trackDB->findNearestNode(x, z, p,(float*) &qe);
-    float* dyntrackData[10];
-    bool success = Flex::NewFlex(x, z, p, (float*)qe, (float*)dyntrackData);
+    float dyntrackData[10];
+    bool success = Flex::NewFlexDeprecatedStaged(x, z, p, (float*)qe, (float*)dyntrackData);
     if(!success) return NULL;
     
     Ref::RefItem r;

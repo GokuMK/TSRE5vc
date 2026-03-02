@@ -18,6 +18,11 @@
 #include <tsre/math3d/Intersections.h>
 #include <tsre/math3d/GLMatrix.h>
 
+#include <algorithm>
+#include <cmath>
+#include <limits>
+#include <vector>
+
 int Flex::FlexStage = 0;
 float Flex::FlexP0[3];
 float Flex::FlexQ0[4];
@@ -31,28 +36,377 @@ QPainter* Flex::painter;
 QImage* Flex::img;
 QLabel* Flex::myLabel;
 
-bool Flex::AutoFlex(int x1, int z1, float* p1, int x2, int z2, float* p2, float* dyntrackSections, float &elev){
-    float qe[4];
-    qe[0] = 0;
-    qe[1] = 0;
-    qe[2] = 0;
-    qe[3] = 1;
+namespace {
+
+struct FlexVec2 {
+    float x = 0.0f;
+    float y = 0.0f;
+};
+
+inline FlexVec2 add(FlexVec2 a, FlexVec2 b) {
+    return {a.x + b.x, a.y + b.y};
+}
+
+inline FlexVec2 sub(FlexVec2 a, FlexVec2 b) {
+    return {a.x - b.x, a.y - b.y};
+}
+
+inline FlexVec2 scale(FlexVec2 a, float s) {
+    return {a.x * s, a.y * s};
+}
+
+inline float dot(FlexVec2 a, FlexVec2 b) {
+    return a.x * b.x + a.y * b.y;
+}
+
+inline float length(FlexVec2 a) {
+    return std::sqrt(dot(a, a));
+}
+
+inline float wrapPi(float a) {
+    a = std::fmod(a + (float)M_PI, 2.0f * (float)M_PI);
+    if (a < 0.0f)
+        a += 2.0f * (float)M_PI;
+    return a - (float)M_PI;
+}
+
+inline int signf(float v) {
+    if (v > 0.0f) return 1;
+    if (v < 0.0f) return -1;
+    return 0;
+}
+
+inline FlexVec2 forward(float theta) {
+    return {-std::sin(theta), std::cos(theta)};
+}
+
+inline FlexVec2 right(float theta) {
+    return {std::cos(theta), std::sin(theta)};
+}
+
+inline FlexVec2 curveDisp(float angle, float radius) {
+    float a = std::fabs(angle);
+    if (a < 1e-6f || radius <= 0.0f)
+        return {0.0f, 0.0f};
+    int s = (angle >= 0.0f) ? 1 : -1;
+    float dx = -((float)s) * radius * (1.0f - std::cos(a));
+    float dy = radius * std::sin(a);
+    return {dx, dy};
+}
+
+struct FlexPose2 {
+    FlexVec2 pos;
+    float heading = 0.0f; // dyntrack convention: + = left
+};
+
+inline void applyStraight(FlexPose2 &pose, float length) {
+    if (length <= 0.0f)
+        return;
+    pose.pos = add(pose.pos, scale(forward(pose.heading), length));
+}
+
+inline void applyCurve(FlexPose2 &pose, float angle, float radius) {
+    if (std::fabs(angle) < 1e-6f || radius <= 0.0f)
+        return;
+    FlexVec2 local = curveDisp(angle, radius);
+    pose.pos = add(pose.pos, add(scale(right(pose.heading), local.x), scale(forward(pose.heading), local.y)));
+    pose.heading = wrapPi(pose.heading + angle);
+}
+
+inline float sectionLength(int index, const float *sections10) {
+    float a = sections10[index * 2 + 0];
+    float r = sections10[index * 2 + 1];
+    if ((index % 2) == 0)
+        return std::max(0.0f, a);
+    return (r > 0.0f) ? (std::fabs(a) * r) : 0.0f;
+}
+
+inline float totalCenterlineLength(const float *sections10) {
+    float sum = 0.0f;
+    for (int i = 0; i < 5; i++)
+        sum += sectionLength(i, sections10);
+    return sum;
+}
+
+inline void zeroFromSection(int startIndex, float *sections10) {
+    for (int i = startIndex; i < 5; i++) {
+        sections10[i * 2 + 0] = 0.0f;
+        sections10[i * 2 + 1] = 0.0f;
+    }
+}
+
+inline void trimToLength(float maxLen, float *sections10) {
+    if (maxLen <= 0.0f) {
+        for (int i = 0; i < 10; i++)
+            sections10[i] = 0.0f;
+        return;
+    }
+    float remaining = maxLen;
+    for (int i = 0; i < 5; i++) {
+        float a = sections10[i * 2 + 0];
+        float r = sections10[i * 2 + 1];
+        float len = 0.0f;
+        if ((i % 2) == 0) {
+            len = std::max(0.0f, a);
+            if (len <= remaining + 1e-4f) {
+                remaining -= len;
+                continue;
+            }
+            sections10[i * 2 + 0] = std::max(0.0f, remaining);
+            sections10[i * 2 + 1] = 0.0f;
+            zeroFromSection(i + 1, sections10);
+            return;
+        }
+
+        if (r <= 0.0f || std::fabs(a) < 1e-6f) {
+            sections10[i * 2 + 0] = 0.0f;
+            sections10[i * 2 + 1] = 0.0f;
+            continue;
+        }
+        len = std::fabs(a) * r;
+        if (len <= remaining + 1e-4f) {
+            remaining -= len;
+            continue;
+        }
+        float newAngle = (remaining <= 0.0f) ? 0.0f : ((a >= 0.0f ? 1.0f : -1.0f) * (remaining / r));
+        sections10[i * 2 + 0] = newAngle;
+        sections10[i * 2 + 1] = r;
+        zeroFromSection(i + 1, sections10);
+        return;
+    }
+}
+
+inline int enabledSectionCount(const float *sections10) {
+    int count = 0;
+    for (int i = 0; i < 5; i++) {
+        float a = sections10[i * 2 + 0];
+        float r = sections10[i * 2 + 1];
+        if ((i % 2) == 0) {
+            if (a > 0.01f)
+                count++;
+            continue;
+        }
+        if (std::fabs(a) > 0.01f && r > 0.1f)
+            count++;
+    }
+    return count;
+}
+
+inline void canonicalize(float *sections10) {
+    auto disableCurve = [&](int idx) {
+        sections10[idx * 2 + 0] = 0.0f;
+        sections10[idx * 2 + 1] = 0.0f;
+    };
+
+    if (std::fabs(sections10[2]) < 1e-4f || sections10[3] <= 0.1f)
+        disableCurve(1);
+    if (std::fabs(sections10[6]) < 1e-4f || sections10[7] <= 0.1f)
+        disableCurve(3);
+
+    if (sections10[0] < 0.0f) sections10[0] = 0.0f;
+    if (sections10[4] < 0.0f) sections10[4] = 0.0f;
+    if (sections10[8] < 0.0f) sections10[8] = 0.0f;
+
+    // Merge straights if an intermediate curve is disabled.
+    bool curve1Disabled = (std::fabs(sections10[2]) < 1e-6f || sections10[3] <= 0.1f);
+    bool curve2Disabled = (std::fabs(sections10[6]) < 1e-6f || sections10[7] <= 0.1f);
+
+    if (curve1Disabled) {
+        sections10[0] += sections10[4];
+        sections10[4] = 0.0f;
+    }
+    if (curve2Disabled) {
+        sections10[4] += sections10[8];
+        sections10[8] = 0.0f;
+    }
+    if (curve1Disabled && curve2Disabled) {
+        sections10[0] += sections10[4];
+        sections10[4] = 0.0f;
+    }
+
+    if (sections10[0] < 0.01f) sections10[0] = 0.0f;
+    if (sections10[4] < 0.01f) sections10[4] = 0.0f;
+    if (sections10[8] < 0.01f) sections10[8] = 0.0f;
+
+    if (std::fabs(sections10[2]) < 0.01f) disableCurve(1);
+    if (std::fabs(sections10[6]) < 0.01f) disableCurve(3);
+}
+
+inline FlexPose2 simulate(const float *sections10) {
+    FlexPose2 pose;
+    pose.pos = {0.0f, 0.0f};
+    pose.heading = 0.0f;
+    applyStraight(pose, sections10[0]);
+    applyCurve(pose, sections10[2], sections10[3]);
+    applyStraight(pose, sections10[4]);
+    applyCurve(pose, sections10[6], sections10[7]);
+    applyStraight(pose, sections10[8]);
+    return pose;
+}
+
+inline void samplePath(const float *sections10, std::vector<FlexVec2> &outPoints) {
+    outPoints.clear();
+    FlexPose2 pose;
+    pose.pos = {0.0f, 0.0f};
+    pose.heading = 0.0f;
+    outPoints.push_back(pose.pos);
+
+    auto pushIfFar = [&](FlexVec2 p) {
+        if (outPoints.empty()) {
+            outPoints.push_back(p);
+            return;
+        }
+        FlexVec2 last = outPoints.back();
+        if (std::fabs(p.x - last.x) > 1e-4f || std::fabs(p.y - last.y) > 1e-4f)
+            outPoints.push_back(p);
+    };
+
+    auto sampleStraight = [&](float len) {
+        if (len <= 0.0f)
+            return;
+        applyStraight(pose, len);
+        pushIfFar(pose.pos);
+    };
+
+    auto sampleCurve = [&](float angle, float radius) {
+        float a = std::fabs(angle);
+        if (a < 1e-6f || radius <= 0.0f)
+            return;
+        float maxStep = 0.05f; // rad
+        int steps = std::max(1, (int)std::ceil(a / maxStep));
+        float da = angle / (float)steps;
+        for (int i = 0; i < steps; i++) {
+            applyCurve(pose, da, radius);
+            pushIfFar(pose.pos);
+        }
+    };
+
+    sampleStraight(sections10[0]);
+    sampleCurve(sections10[2], sections10[3]);
+    sampleStraight(sections10[4]);
+    sampleCurve(sections10[6], sections10[7]);
+    sampleStraight(sections10[8]);
+}
+
+inline bool hasSelfIntersection(const float *sections10) {
+    std::vector<FlexVec2> pts;
+    samplePath(sections10, pts);
+    if (pts.size() < 4)
+        return false;
+    for (size_t i = 0; i + 1 < pts.size(); i++) {
+        float x0 = pts[i].x;
+        float y0 = pts[i].y;
+        float x1 = pts[i + 1].x;
+        float y1 = pts[i + 1].y;
+        for (size_t j = i + 2; j + 1 < pts.size(); j++) {
+            if (j == i + 1)
+                continue;
+            float x2 = pts[j].x;
+            float y2 = pts[j].y;
+            float x3 = pts[j + 1].x;
+            float y3 = pts[j + 1].y;
+            float ix = 0.0f;
+            float iy = 0.0f;
+            if (Intersections::segmentIntersection(x0, y0, x1, y1, x2, y2, x3, y3, ix, iy))
+                return true;
+        }
+    }
+    return false;
+}
+
+struct FlexCandidate {
+    float sections[10] = {0};
+    float minRadius = 0.0f;
+    float trimmedLen = 0.0f;
+    float rawLen = 0.0f;
+    int enabledCount = 0;
+    float endStraightSum = 0.0f;
+    bool selfIntersect = false;
+    bool initialWrongWay = false;
+    bool meetsPreferredMin = false;
+};
+
+inline float firstEnabledCurveAngle(const float *sections10) {
+    if (std::fabs(sections10[2]) > 1e-6f && sections10[3] > 0.1f)
+        return sections10[2];
+    if (std::fabs(sections10[6]) > 1e-6f && sections10[7] > 0.1f)
+        return sections10[6];
+    return 0.0f;
+}
+
+inline float candidateMinRadius(const float *sections10) {
+    float r1 = (std::fabs(sections10[2]) > 0.01f) ? sections10[3] : std::numeric_limits<float>::infinity();
+    float r2 = (std::fabs(sections10[6]) > 0.01f) ? sections10[7] : std::numeric_limits<float>::infinity();
+    float r = std::min(r1, r2);
+    if (!std::isfinite(r))
+        return std::numeric_limits<float>::infinity();
+    return r;
+}
+
+inline bool betterCandidate(const FlexCandidate &a, const FlexCandidate &b) {
+    if (!b.rawLen && !b.trimmedLen && b.enabledCount == 0)
+        return true;
+    if (a.selfIntersect != b.selfIntersect)
+        return b.selfIntersect; // prefer non-intersecting
+    if (a.initialWrongWay != b.initialWrongWay)
+        return b.initialWrongWay; // prefer starting by turning toward target
+    if (a.meetsPreferredMin != b.meetsPreferredMin)
+        return a.meetsPreferredMin;
+
+    // If both satisfy the preferred minimum radius, prioritize practicality:
+    // pick the shorter (and simpler) solution instead of chasing arbitrarily huge radii.
+    if (a.meetsPreferredMin && b.meetsPreferredMin) {
+        if (std::fabs(a.trimmedLen - b.trimmedLen) > 0.05f)
+            return a.trimmedLen < b.trimmedLen;
+        if (a.enabledCount != b.enabledCount)
+            return a.enabledCount < b.enabledCount;
+        if (std::fabs(a.endStraightSum - b.endStraightSum) > 0.05f)
+            return a.endStraightSum < b.endStraightSum;
+        if (std::fabs(a.minRadius - b.minRadius) > 1e-3f)
+            return a.minRadius > b.minRadius;
+        return false;
+    }
+
+    // Otherwise (we are below the preferred minimum), prefer the largest achievable radius.
+    if (std::fabs(a.minRadius - b.minRadius) > 1e-3f)
+        return a.minRadius > b.minRadius;
+    if (std::fabs(a.trimmedLen - b.trimmedLen) > 0.05f)
+        return a.trimmedLen < b.trimmedLen;
+    if (a.enabledCount != b.enabledCount)
+        return a.enabledCount < b.enabledCount;
+    if (std::fabs(a.endStraightSum - b.endStraightSum) > 0.05f)
+        return a.endStraightSum < b.endStraightSum;
+    return false;
+}
+
+inline bool validatePose(const float *sections10, FlexVec2 targetPos, float targetHeading) {
+    FlexPose2 end = simulate(sections10);
+    float posErr = length(sub(end.pos, targetPos));
+    float angErr = std::fabs(wrapPi(end.heading - targetHeading));
+    return posErr < 0.2f && angErr < 0.02f;
+}
+
+} // namespace
+
+bool Flex::AutoFlex(int x1, int z1, float* p1, int x2, int z2, float* p2, float* dyntrackSections, float &elev, float preferredMinCurveRadius){
     TDB* tdb = Game::trackDB;
-    bool success;
     qDebug() <<"flex "<< x1 << " " << z1 << " " << p1[0] << " " << p1[1] << " " << p1[2];
     qDebug() <<"flex "<< x2 << " " << z2 << " " << p2[0] << " " << p2[1] << " " << p2[2];
-    
-    tdb->findNearestNode(x1, z1, p1,(float*) &qe);
+
+    float q1[4] = {0,0,0,1};
+    float q2[4] = {0,0,0,1};
+
+    tdb->findNearestNode(x1, z1, p1,(float*) &q1);
+    //q1[1] = wrapPi(q1[1] + (float)M_PI);
     float *p11 = Vec3::clone(p1);
-    success = Flex::NewFlex(x1, z1, p1, (float*)qe, dyntrackSections);
-    qe[0] = 0;
-    qe[1] = 0;
-    qe[2] = 0;
-    qe[3] = 1;
-    tdb->findNearestNode(x2, z2, p2,(float*) &qe);
+    tdb->findNearestNode(x2, z2, p2,(float*) &q2);
+    q2[1] = wrapPi(q2[1] + (float)M_PI);
+    //q2[1] = wrapPi(M_PI - q2[1]); // convert to dyntrack convention (heading is direction toward which we turn left)
+
     float *p22 = Vec3::clone(p2);
-    success = Flex::NewFlex(x2, z2, p2, (float*)qe, dyntrackSections);
-        
+
+    bool success = Flex::NewFlex(x1, z1, p1, (float*)q1, x2, z2, p2, (float*)q2, dyntrackSections, preferredMinCurveRadius);
+
     p22[0] +=  2048*(x2 - x1);
     p22[2] +=  2048*(z2 - z1);
     float dist1 = Vec3::dist(p11, p22);
@@ -60,13 +414,19 @@ bool Flex::AutoFlex(int x1, int z1, float* p1, int x2, int z2, float* p2, float*
     //p22[1] = 0;
     //float dist2 = Vec3::dist(p11, p22);
     
-    elev = (p22[1] - p11[1])*(1000.0/dist1);
+    if (dist1 > 0.001f)
+        elev = (p22[1] - p11[1])*(1000.0/dist1);
+    else
+        elev = 0.0f;
     qDebug() << "elev" << dist1 << p2[1] << p1[1];
-    
+
+    delete[] p11;
+    delete[] p22;
+
     return success;
 }
 
-bool Flex::NewFlex(int x, int z, float* p, float* q, float * dyntrackSections){
+bool Flex::NewFlexDeprecatedStaged(int x, int z, float* p, float* q, float * dyntrackSections){
     
     if(FlexStage == 0){
         FlexP0[0] = p[0];
@@ -267,6 +627,304 @@ bool Flex::NewFlex(int x, int z, float* p, float* q, float * dyntrackSections){
     q[1] = FlexQ0[1];
     q[2] = FlexQ0[2];
     q[3] = FlexQ0[3];
+    return true;
+}
+
+bool Flex::NewFlex(int x1, int z1, float *p1, float *q1, int x2, int z2, float *p2, float *q2, float * dyntrackSections, float preferredMinCurveRadius){
+    for (int i = 0; i < 10; i++)
+        dyntrackSections[i] = 0.0f;
+
+    if (windowInit == 0) {
+        window = new QWidget();
+        windowInit = 1;
+        window->setFixedSize(800, 800);
+        window->show();
+        img = new QImage(800, 800, QImage::Format_RGBA8888);
+        painter = new QPainter();
+        myLabel = new QLabel("");
+        myLabel->setPixmap(QPixmap::fromImage(*img));
+        QVBoxLayout *mainLayout = new QVBoxLayout;
+        mainLayout->addWidget(myLabel);
+        window->setLayout(mainLayout);
+        window->show();
+    }
+    img->fill(0);
+    QPen niebieski(QColor(50,50,255));
+    QPen czerwony(QColor(255,50,50));
+
+    // Build world-space 2D positions in Flex's legacy convention (XZ -> XY with Z flipped).
+    // This matches how the old (working) Flex solver visualized nodes and is consistent with TDB yaw.
+    FlexVec2 P0 = {p1[0], -p1[2]};
+    FlexVec2 P1 = {p2[0] + 2048.0f * (x2 - x1), -p2[2] - 2048.0f * (z2 - z1)};
+
+    float yaw0 = q1[1];
+    float yaw1 = q2[1];
+
+    // Visualize the raw tangent directions (from TDB) first.
+    FlexVec2 v0Draw = {std::sin(yaw0), std::cos(yaw0)};
+    FlexVec2 v1Draw = {std::sin(yaw1), std::cos(yaw1)};
+
+    // Empirical fix: dyntrack local frame appears to be 180° rotated at the start.
+    // Flip the *start* direction for calculations only (the end direction stays as provided).
+    float yaw0Calc = yaw0;//wrapPi(yaw0 + (float)M_PI);
+    float yaw1Calc = yaw1;
+
+    FlexVec2 v0 = {std::sin(yaw0Calc), std::cos(yaw0Calc)};
+    FlexVec2 v1 = {std::sin(yaw1Calc), std::cos(yaw1Calc)};
+
+    offx = (int)((P0.x + P1.x) * 0.5f);
+    offy = (int)((P0.y + P1.y) * 0.5f);
+
+    drawLine(niebieski, (int)P0.x, (int)P0.y, (int)(P0.x + v0Draw.x * 1000.0f), (int)(P0.y + v0Draw.y * 1000.0f));
+    drawLine(niebieski, (int)P1.x, (int)P1.y, (int)(P1.x + v1Draw.x * 1000.0f), (int)(P1.y + v1Draw.y * 1000.0f));
+
+    // Transform into start-local frame (start at origin, start heading = +Y).
+    FlexVec2 deltaW = sub(P1, P0);
+    FlexVec2 f0 = v0;
+    FlexVec2 r0 = {std::cos(yaw0), -std::sin(yaw0)};
+    FlexVec2 targetPos = {dot(deltaW, r0), dot(deltaW, f0)};
+
+    float yawRel = wrapPi(yaw1Calc - yaw0Calc);   // + = right
+    float phi = wrapPi(-yawRel);                  // + = left (dyntrack angle convention)
+
+    // Fast path: perfectly straight if end is on the start ray and headings match.
+    if (std::fabs(phi) < 1e-4f && std::fabs(targetPos.x) < 0.05f && targetPos.y > 0.0f) {
+        dyntrackSections[0] = targetPos.y;
+        canonicalize(dyntrackSections);
+        trimToLength(2048.0f, dyntrackSections);
+        canonicalize(dyntrackSections);
+        myLabel->setPixmap(QPixmap::fromImage(*img));
+        return true;
+    }
+
+    // Candidate radii (meters), descending preference.
+    std::vector<float> radii = {10000.0f, 8000.0f, 5000.0f, 2000.0f, 1200.0f, 800.0f, 500.0f, 300.0f, 200.0f, 150.0f, 100.0f, 75.0f, 50.0f, 30.0f, 20.0f, 15.0f, 10.0f};
+    float minAllowedRadius = 5.0f;
+    if (preferredMinCurveRadius < 0.0f)
+        preferredMinCurveRadius = 0.0f;
+
+    // 1) Prefer a single-curve solution if it meets preferredMinCurveRadius.
+    if (preferredMinCurveRadius > 0.0f && std::fabs(std::sin(phi)) > 1e-4f) {
+        for (float R : radii) {
+            if (R + 1e-3f < preferredMinCurveRadius)
+                continue;
+            if (R < minAllowedRadius)
+                continue;
+            FlexVec2 cd = curveDisp(phi, R);
+            float denom = -std::sin(phi);
+            float L2 = (targetPos.x - cd.x) / denom;
+            float L0 = targetPos.y - cd.y - std::cos(phi) * L2;
+            if (L0 < -0.05f || L2 < -0.05f)
+                continue;
+            if (L0 < 0.0f) L0 = 0.0f;
+            if (L2 < 0.0f) L2 = 0.0f;
+
+            float candidate[10] = {0};
+            candidate[0] = L0;
+            candidate[1] = 0.0f;
+            candidate[2] = phi;
+            candidate[3] = R;
+            candidate[4] = L2;
+            candidate[5] = 0.0f;
+            candidate[6] = 0.0f;
+            candidate[7] = 0.0f;
+            candidate[8] = 0.0f;
+            candidate[9] = 0.0f;
+
+            canonicalize(candidate);
+            if (!validatePose(candidate, targetPos, phi))
+                continue;
+            trimToLength(2048.0f, candidate);
+            canonicalize(candidate);
+            std::copy(candidate, candidate + 10, dyntrackSections);
+
+            std::vector<FlexVec2> ptsLocal;
+            samplePath(dyntrackSections, ptsLocal);
+            for (size_t i = 0; i + 1 < ptsLocal.size(); i++) {
+                FlexVec2 a = add(P0, add(scale(r0, ptsLocal[i].x), scale(f0, ptsLocal[i].y)));
+                FlexVec2 b = add(P0, add(scale(r0, ptsLocal[i + 1].x), scale(f0, ptsLocal[i + 1].y)));
+                drawLine(czerwony, (int)a.x, (int)a.y, (int)b.x, (int)b.y);
+            }
+            myLabel->setPixmap(QPixmap::fromImage(*img));
+            return true;
+        }
+    }
+
+    // 2) General two-curve (with optional end straights) solver with bounded search.
+    FlexCandidate best;
+    bool found = false;
+
+    std::vector<float> endStraightOptions = {0.0f, 1.0f, 2.0f, 5.0f, 10.0f, 20.0f, 50.0f, 100.0f, 200.0f};
+
+    auto tryCandidate = [&](const float *rawSections10) {
+        float tmp[10];
+        std::copy(rawSections10, rawSections10 + 10, tmp);
+        canonicalize(tmp);
+        if (!validatePose(tmp, targetPos, phi))
+            return;
+
+        float trimmed[10];
+        std::copy(tmp, tmp + 10, trimmed);
+        trimToLength(2048.0f, trimmed);
+        canonicalize(trimmed);
+
+        FlexCandidate cand;
+        std::copy(trimmed, trimmed + 10, cand.sections);
+        cand.rawLen = totalCenterlineLength(tmp);
+        cand.trimmedLen = totalCenterlineLength(trimmed);
+        cand.minRadius = candidateMinRadius(trimmed);
+        cand.enabledCount = enabledSectionCount(trimmed);
+        cand.endStraightSum = trimmed[0] + trimmed[8];
+        cand.selfIntersect = hasSelfIntersection(trimmed);
+        float firstCurveAngle = firstEnabledCurveAngle(trimmed);
+        cand.initialWrongWay = (targetPos.y > 0.0f && std::fabs(targetPos.x) > 0.2f && (firstCurveAngle * targetPos.x) > 0.0f);
+        cand.meetsPreferredMin = (preferredMinCurveRadius <= 0.0f) ? true : (cand.minRadius >= preferredMinCurveRadius - 1e-3f);
+
+        if (!found || betterCandidate(cand, best)) {
+            best = cand;
+            found = true;
+        }
+    };
+
+    auto solveCLC = [&](FlexVec2 target, float R1, float R2, float startStraight, float endStraight) {
+        float angleMax = (float)M_PI;
+        float alphaStep = (float)(0.5 * M_PI / 180.0); // 0.5 deg
+
+        auto f = [&](float alpha) -> float {
+            float beta = phi - alpha;
+            if (std::fabs(beta) > angleMax + 1e-5f)
+                return std::numeric_limits<float>::quiet_NaN();
+            FlexVec2 pos1 = curveDisp(alpha, R1);
+
+            FlexVec2 d2local = curveDisp(beta, R2);
+            FlexVec2 d2 = add(scale(right(alpha), d2local.x), scale(forward(alpha), d2local.y));
+
+            FlexVec2 start2 = sub(target, d2);
+            FlexVec2 v = sub(start2, pos1);
+            return dot(v, right(alpha)); // lateral mismatch
+        };
+
+        float prevAlpha = -angleMax;
+        float prevF = f(prevAlpha);
+        bool prevValid = std::isfinite(prevF);
+        for (float alpha = -angleMax + alphaStep; alpha <= angleMax + 1e-6f; alpha += alphaStep) {
+            float curF = f(alpha);
+            bool curValid = std::isfinite(curF);
+
+            auto testRoot = [&](float rootAlpha) {
+                float beta = phi - rootAlpha;
+                if (std::fabs(beta) > angleMax + 1e-5f)
+                    return;
+                FlexVec2 pos1 = curveDisp(rootAlpha, R1);
+                FlexVec2 d2local = curveDisp(beta, R2);
+                FlexVec2 d2 = add(scale(right(rootAlpha), d2local.x), scale(forward(rootAlpha), d2local.y));
+                FlexVec2 start2 = sub(target, d2);
+                FlexVec2 v = sub(start2, pos1);
+                float d = dot(v, forward(rootAlpha));
+                if (d < -0.05f)
+                    return;
+                if (d < 0.0f) d = 0.0f;
+
+                float raw[10] = {0};
+                raw[0] = startStraight;
+                raw[2] = rootAlpha;
+                raw[3] = R1;
+                raw[4] = d;
+                raw[6] = beta;
+                raw[7] = R2;
+                raw[8] = endStraight;
+                tryCandidate(raw);
+            };
+
+            if (curValid && std::fabs(curF) < 0.05f) {
+                testRoot(alpha);
+            }
+
+            if (prevValid && curValid && (prevF * curF) < 0.0f) {
+                float lo = prevAlpha;
+                float hi = alpha;
+                float flo = prevF;
+                for (int it = 0; it < 25; it++) {
+                    float mid = (lo + hi) * 0.5f;
+                    float fmid = f(mid);
+                    if (!std::isfinite(fmid))
+                        break;
+                    if ((flo * fmid) <= 0.0f) {
+                        hi = mid;
+                        curF = fmid;
+                    } else {
+                        lo = mid;
+                        flo = fmid;
+                    }
+                }
+                testRoot((lo + hi) * 0.5f);
+            }
+
+            prevAlpha = alpha;
+            prevF = curF;
+            prevValid = curValid;
+        }
+    };
+
+    // First: try without end straights, equal radii.
+    for (float R : radii) {
+        if (R < minAllowedRadius)
+            continue;
+        solveCLC(targetPos, R, R, 0.0f, 0.0f);
+    }
+
+    // Then: full grid, still without end straights.
+    for (float R1 : radii) {
+        if (R1 < minAllowedRadius)
+            continue;
+        for (float R2 : radii) {
+            if (R2 < minAllowedRadius)
+                continue;
+            solveCLC(targetPos, R1, R2, 0.0f, 0.0f);
+        }
+    }
+
+    // Fallback: allow end straights (small discrete set), cost-penalized via scoring.
+    // Also try this if the best "no-end-straights" solution self-intersects.
+    if (!found || best.selfIntersect) {
+        for (float L0 : endStraightOptions) {
+            for (float L2 : endStraightOptions) {
+                if (L0 == 0.0f && L2 == 0.0f)
+                    continue;
+                FlexVec2 targetShift = targetPos;
+                targetShift.y -= L0;
+                targetShift = sub(targetShift, scale(forward(phi), L2));
+
+                for (float R1 : radii) {
+                    if (R1 < minAllowedRadius)
+                        continue;
+                    for (float R2 : radii) {
+                        if (R2 < minAllowedRadius)
+                            continue;
+                        solveCLC(targetShift, R1, R2, L0, L2);
+                    }
+                }
+            }
+        }
+    }
+
+    if (!found) {
+        myLabel->setPixmap(QPixmap::fromImage(*img));
+        return false;
+    }
+
+    std::copy(best.sections, best.sections + 10, dyntrackSections);
+
+    // Draw final trimmed polyline in world space.
+    std::vector<FlexVec2> ptsLocal;
+    samplePath(dyntrackSections, ptsLocal);
+    for (size_t i = 0; i + 1 < ptsLocal.size(); i++) {
+        FlexVec2 a = add(P0, add(scale(r0, ptsLocal[i].x), scale(f0, ptsLocal[i].y)));
+        FlexVec2 b = add(P0, add(scale(r0, ptsLocal[i + 1].x), scale(f0, ptsLocal[i + 1].y)));
+        drawLine(czerwony, (int)a.x, (int)a.y, (int)b.x, (int)b.y);
+    }
+
+    myLabel->setPixmap(QPixmap::fromImage(*img));
     return true;
 }
 

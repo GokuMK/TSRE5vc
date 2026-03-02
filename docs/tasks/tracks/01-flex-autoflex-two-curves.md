@@ -259,7 +259,7 @@ This makes it possible to validate tricky cases quickly while tuning heuristics.
 4. Audit call sites:
    - `Route::makeFlexTrack(...)` is currently not used by the editor flow; keep it calling the deprecated staged API for now (or optionally update it later to collect two points before calling the new solver). `src/tsre/world/Route.cpp:1899`
 
-## Acceptance Criteria / Manual Test Cases
+## Acce ptance Criteria / Manual Test Cases
 - Straight gap between colinear ends: solver produces `L` only (or near-zero curves), no artifacts.
 - Intersecting tangents where a single-curve is valid: solver may choose `L+C+L`, or `L+C+L+C+L` with one curve disabled.
 - Parallel tangents, same direction, lateral offset: solver produces a clean S-curve (two curves; optional middle tangent).
