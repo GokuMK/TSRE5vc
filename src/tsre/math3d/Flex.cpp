@@ -386,6 +386,14 @@ inline bool validatePose(const float *sections10, FlexVec2 targetPos, float targ
     return posErr < 0.2f && angErr < 0.02f;
 }
 
+inline void flipCurveAngleSignsForDyntrack(float *sections10) {
+    // TEMP: `Flex::NewFlex(...)` solves with +angle = left (mathematical convention),
+    // but TSRE's dyntrack rendering uses +angle = right.
+    // This matches the user-reported workaround: flipping curve angle signs makes the generated shape correct.
+    sections10[2] = -sections10[2];
+    sections10[6] = -sections10[6];
+}
+
 } // namespace
 
 bool Flex::AutoFlex(int x1, int z1, float* p1, int x2, int z2, float* p2, float* dyntrackSections, float &elev, float preferredMinCurveRadius){
@@ -694,6 +702,7 @@ bool Flex::NewFlex(int x1, int z1, float *p1, float *q1, int x2, int z2, float *
         trimToLength(2048.0f, dyntrackSections);
         canonicalize(dyntrackSections);
         myLabel->setPixmap(QPixmap::fromImage(*img));
+        flipCurveAngleSignsForDyntrack(dyntrackSections);
         return true;
     }
 
@@ -746,6 +755,7 @@ bool Flex::NewFlex(int x1, int z1, float *p1, float *q1, int x2, int z2, float *
                 drawLine(czerwony, (int)a.x, (int)a.y, (int)b.x, (int)b.y);
             }
             myLabel->setPixmap(QPixmap::fromImage(*img));
+            flipCurveAngleSignsForDyntrack(dyntrackSections);
             return true;
         }
     }
@@ -925,6 +935,7 @@ bool Flex::NewFlex(int x1, int z1, float *p1, float *q1, int x2, int z2, float *
     }
 
     myLabel->setPixmap(QPixmap::fromImage(*img));
+    flipCurveAngleSignsForDyntrack(dyntrackSections);
     return true;
 }
 
