@@ -26,13 +26,23 @@
 #include <routeEditor/RouteEditorServer.h>
 #include <routeEditor/RouteEditorClient.h>
 #include <tsre/Undo.h>
+#include <tsre/tests/TestRunner.h>
 
 QFile logFile;
 QTextStream logFileOut;
 
 void myMessageOutput(QtMsgType type, const QMessageLogContext &context, const QString &msg){
-    const char symbols[] = { 'I', 'E', '!', 'X' };
-    QString output = QString("[%1] %2").arg( symbols[type] ).arg( msg );
+    Q_UNUSED(context);
+    char symbol = '?';
+    switch (type) {
+        case QtDebugMsg: symbol = 'I'; break;
+        case QtInfoMsg: symbol = 'I'; break;
+        case QtWarningMsg: symbol = 'E'; break;
+        case QtCriticalMsg: symbol = '!'; break;
+        case QtFatalMsg: symbol = 'X'; break;
+        default: symbol = '?'; break;
+    }
+    QString output = QString("[%1] %2").arg(symbol).arg(msg);
     if(Game::consoleOutput)
         std::cout << output.toStdString() << "\n";
     logFileOut << output << "\n";
@@ -127,6 +137,26 @@ CommandLineParseResult parseCommandLineArgs(QCommandLineParser &parser){
     parser.addOption(PlayOption);
     const QCommandLineOption ServerOption("server", "Run Editor Server.");
     parser.addOption(ServerOption);
+
+    // Tests (headless)
+    const QCommandLineOption TestOption("test", "Run TSRE test runner and exit.");
+    parser.addOption(TestOption);
+    const QCommandLineOption TestListOption("test-list", "List available test suites and exit.");
+    parser.addOption(TestListOption);
+    const QCommandLineOption TestSuiteOption("test-suite", "Test suite to run (e.g. flex).", "name");
+    parser.addOption(TestSuiteOption);
+    const QCommandLineOption TestCasesOption("test-cases", "Path to test cases JSONL file.", "file");
+    parser.addOption(TestCasesOption);
+    const QCommandLineOption TestVerboseOption("test-verbose", "Verbose test output.");
+    parser.addOption(TestVerboseOption);
+
+    // Flex capture logging (JSONL)
+    const QCommandLineOption FlexLogOption("flex-log", "Capture Flex inputs/outputs to a JSONL file.");
+    parser.addOption(FlexLogOption);
+    const QCommandLineOption FlexLogFileOption("flex-log-file", "Flex JSONL output file path.", "file");
+    parser.addOption(FlexLogFileOption);
+    const QCommandLineOption FlexLogCandidatesOption("flex-log-candidates", "Also log all valid Flex candidates (can be large).");
+    parser.addOption(FlexLogCandidatesOption);
     
     if (!parser.parse(QCoreApplication::arguments())) {
         return CommandLineError;
@@ -170,6 +200,32 @@ CommandLineParseResult parseCommandLineArgs(QCommandLineParser &parser){
     }
     if (parser.isSet(ServerOption)) {
         consoleArgs["SERVER"] = "TRUE";
+    }
+
+    if (parser.isSet(TestOption)) {
+        consoleArgs["TEST"] = "TRUE";
+    }
+    if (parser.isSet(TestListOption)) {
+        consoleArgs["TEST_LIST"] = "TRUE";
+    }
+    if (parser.isSet(TestSuiteOption)) {
+        consoleArgs["TEST_SUITE"] = parser.value(TestSuiteOption);
+    }
+    if (parser.isSet(TestCasesOption)) {
+        consoleArgs["TEST_CASES"] = parser.value(TestCasesOption);
+    }
+    if (parser.isSet(TestVerboseOption)) {
+        consoleArgs["TEST_VERBOSE"] = "TRUE";
+    }
+
+    if (parser.isSet(FlexLogOption)) {
+        consoleArgs["FLEX_LOG"] = "TRUE";
+    }
+    if (parser.isSet(FlexLogFileOption)) {
+        consoleArgs["FLEX_LOG_FILE"] = parser.value(FlexLogFileOption);
+    }
+    if (parser.isSet(FlexLogCandidatesOption)) {
+        consoleArgs["FLEX_LOG_CANDS"] = "TRUE";
     }
     
     return CommandLineOk;
@@ -240,6 +296,37 @@ int main(int argc, char *argv[]){
         case CommandLineHelpRequested:
             parser.showHelp();
             Q_UNREACHABLE();
+    }
+
+    // Apply runtime-only CLI toggles.
+    if (consoleArgs["FLEX_LOG"] == "TRUE" || consoleArgs["FLEX_LOG_CANDS"] == "TRUE" || consoleArgs["FLEX_LOG_FILE"].length() > 0) {
+        Game::flexLogEnabled = true;
+    }
+    if (consoleArgs["FLEX_LOG_CANDS"] == "TRUE") {
+        Game::flexLogCandidates = true;
+    }
+    if (consoleArgs["FLEX_LOG_FILE"].length() > 0) {
+        Game::flexLogFile = consoleArgs["FLEX_LOG_FILE"];
+    }
+
+    // Test runner (headless) - runs and exits without starting the GUI.
+    if (consoleArgs["TEST_LIST"] == "TRUE") {
+        Game::gui = false;
+        Game::consoleOutput = true;
+        const QStringList suites = TsreTests::listSuites();
+        std::cout << "Available test suites:\n";
+        for (const QString &s : suites)
+            std::cout << "  " << s.toStdString() << "\n";
+        return 0;
+    }
+    if (consoleArgs["TEST"] == "TRUE") {
+        Game::gui = false;
+        Game::consoleOutput = true;
+        TsreTests::TestRunOptions opts;
+        opts.suite = consoleArgs["TEST_SUITE"];
+        opts.casesFile = consoleArgs["TEST_CASES"];
+        opts.verbose = (consoleArgs["TEST_VERBOSE"] == "TRUE");
+        return TsreTests::run(opts);
     }
 
     //app.set

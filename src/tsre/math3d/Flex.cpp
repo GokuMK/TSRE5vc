@@ -19,9 +19,19 @@
 #include <tsre/math3d/GLMatrix.h>
 
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <limits>
 #include <vector>
+
+#include <QDateTime>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QTextStream>
 
 int Flex::FlexStage = 0;
 float Flex::FlexP0[3];
@@ -394,6 +404,89 @@ inline void flipCurveAngleSignsForDyntrack(float *sections10) {
     sections10[6] = -sections10[6];
 }
 
+inline QJsonValue jsonNumberOrNull(double v) {
+    if (std::isfinite(v))
+        return v;
+    return QJsonValue();
+}
+
+inline QJsonArray jsonFloatArray(const float *v, int count) {
+    QJsonArray arr;
+    for (int i = 0; i < count; i++)
+        arr.append(jsonNumberOrNull(v[i]));
+    return arr;
+}
+
+inline QJsonArray jsonVec2(FlexVec2 v) {
+    QJsonArray arr;
+    arr.append(jsonNumberOrNull(v.x));
+    arr.append(jsonNumberOrNull(v.y));
+    return arr;
+}
+
+class FlexJsonlLogger {
+public:
+    static FlexJsonlLogger &instance() {
+        static FlexJsonlLogger inst;
+        return inst;
+    }
+
+    bool enabled() const {
+        return Game::flexLogEnabled;
+    }
+
+    bool includeCandidates() const {
+        return Game::flexLogEnabled && Game::flexLogCandidates;
+    }
+
+    int nextCaseId() {
+        return ++caseId_;
+    }
+
+    void logObject(const QJsonObject &obj) {
+        if (!enabled())
+            return;
+        if (!ensureOpen())
+            return;
+        const QByteArray line = QJsonDocument(obj).toJson(QJsonDocument::Compact);
+        out_ << line << "\n";
+        out_.flush();
+        file_.flush();
+    }
+
+private:
+    bool ensureOpen() {
+        if (file_.isOpen())
+            return true;
+
+        QString path = Game::flexLogFile;
+        if (path.isEmpty()) {
+            const QString dir = "features/tests/captures";
+            QDir().mkpath(dir);
+            const QString stamp = QDateTime::currentDateTime().toString("yyyyMMdd-HHmmss");
+            path = dir + QString("/flex-capture-%1.jsonl").arg(stamp);
+            Game::flexLogFile = path;
+            qDebug() << "Flex JSONL capture:" << path;
+        } else {
+            const QFileInfo fi(path);
+            fi.absoluteDir().mkpath(".");
+        }
+
+        file_.setFileName(path);
+        if (!file_.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+            qWarning() << "Flex JSONL capture: failed to open" << path;
+            Game::flexLogEnabled = false;
+            return false;
+        }
+        out_.setDevice(&file_);
+        return true;
+    }
+
+    std::atomic<int> caseId_{0};
+    QFile file_;
+    QTextStream out_;
+};
+
 } // namespace
 
 bool Flex::AutoFlex(int x1, int z1, float* p1, int x2, int z2, float* p2, float* dyntrackSections, float &elev, float preferredMinCurveRadius){
@@ -450,26 +543,30 @@ bool Flex::NewFlexDeprecatedStaged(int x, int z, float* p, float* q, float * dyn
         return false;
     }
 
-    if(windowInit == 0){
-        window = new QWidget();
-        windowInit = 1;
-        window->setFixedSize(800, 800);
-        window->show();
-        img = new QImage(800, 800, QImage::Format_RGBA8888);
-        painter = new QPainter();
-        
-        //QImage* myImage = new QImage();
-        //myImage->load("resources/load.png");
-        myLabel = new QLabel("");
-        //myLabel->setContentsMargins(0,0,0,0);
-        myLabel->setPixmap(QPixmap::fromImage(*img));
-        QVBoxLayout *mainLayout = new QVBoxLayout;
-        mainLayout->addWidget(myLabel);
-        window->setLayout(mainLayout);
-        window->show();
-        //drawLine(0, 0, 200,200);
+    if (Game::gui) {
+        if (windowInit == 0) {
+            window = new QWidget();
+            windowInit = 1;
+            window->setFixedSize(800, 800);
+            window->show();
+            img = new QImage(800, 800, QImage::Format_RGBA8888);
+            painter = new QPainter();
+
+            //QImage* myImage = new QImage();
+            //myImage->load("resources/load.png");
+            myLabel = new QLabel("");
+            //myLabel->setContentsMargins(0,0,0,0);
+            if (myLabel != nullptr && img != nullptr)
+                myLabel->setPixmap(QPixmap::fromImage(*img));
+            QVBoxLayout *mainLayout = new QVBoxLayout;
+            mainLayout->addWidget(myLabel);
+            window->setLayout(mainLayout);
+            window->show();
+            //drawLine(0, 0, 200,200);
+        }
+        if (img != nullptr)
+            img->fill(0);
     }
-    img->fill(0);
     QPen niebieski(QColor(50,50,255));
     QPen czerwony(QColor(255,50,50));
     
@@ -625,7 +722,8 @@ bool Flex::NewFlexDeprecatedStaged(int x, int z, float* p, float* q, float * dyn
     }
     dyntrackSections[6] = 0;
     dyntrackSections[8] = 0;
-    myLabel->setPixmap(QPixmap::fromImage(*img));
+    if (Game::gui && myLabel != nullptr && img != nullptr)
+        myLabel->setPixmap(QPixmap::fromImage(*img));
     FlexStage = 0;
     
     p[0] = FlexP0[0];
@@ -642,21 +740,32 @@ bool Flex::NewFlex(int x1, int z1, float *p1, float *q1, int x2, int z2, float *
     for (int i = 0; i < 10; i++)
         dyntrackSections[i] = 0.0f;
 
-    if (windowInit == 0) {
-        window = new QWidget();
-        windowInit = 1;
-        window->setFixedSize(800, 800);
-        window->show();
-        img = new QImage(800, 800, QImage::Format_RGBA8888);
-        painter = new QPainter();
-        myLabel = new QLabel("");
-        myLabel->setPixmap(QPixmap::fromImage(*img));
-        QVBoxLayout *mainLayout = new QVBoxLayout;
-        mainLayout->addWidget(myLabel);
-        window->setLayout(mainLayout);
-        window->show();
+    const bool logEnabled = FlexJsonlLogger::instance().enabled();
+    const bool logCandidates = FlexJsonlLogger::instance().includeCandidates();
+    const int flexCaseId = (logEnabled || logCandidates) ? FlexJsonlLogger::instance().nextCaseId() : -1;
+
+    if (preferredMinCurveRadius < 0.0f)
+        preferredMinCurveRadius = 0.0f;
+
+    if (Game::gui) {
+        if (windowInit == 0) {
+            window = new QWidget();
+            windowInit = 1;
+            window->setFixedSize(800, 800);
+            window->show();
+            img = new QImage(800, 800, QImage::Format_RGBA8888);
+            painter = new QPainter();
+            myLabel = new QLabel("");
+            myLabel->setPixmap(QPixmap::fromImage(*img));
+            QVBoxLayout *mainLayout = new QVBoxLayout;
+            mainLayout->addWidget(myLabel);
+            window->setLayout(mainLayout);
+            window->show();
+        }
+        if (img != nullptr)
+            img->fill(0);
     }
-    img->fill(0);
+
     QPen niebieski(QColor(50,50,255));
     QPen czerwony(QColor(255,50,50));
 
@@ -695,22 +804,89 @@ bool Flex::NewFlex(int x1, int z1, float *p1, float *q1, int x2, int z2, float *
     float yawRel = wrapPi(yaw1Calc - yaw0Calc);   // + = right
     float phi = wrapPi(-yawRel);                  // + = left (dyntrack angle convention)
 
+    auto logFlexCase = [&](bool success) {
+        if (!logEnabled)
+            return;
+        QJsonObject obj;
+        obj["type"] = "flex_case";
+        obj["id"] = flexCaseId;
+        obj["x1"] = x1;
+        obj["z1"] = z1;
+        obj["p1"] = jsonFloatArray(p1, 3);
+        obj["q1"] = jsonFloatArray(q1, 4);
+        obj["x2"] = x2;
+        obj["z2"] = z2;
+        obj["p2"] = jsonFloatArray(p2, 3);
+        obj["q2"] = jsonFloatArray(q2, 4);
+        obj["preferredMinCurveRadius"] = jsonNumberOrNull(preferredMinCurveRadius);
+        obj["P0"] = jsonVec2(P0);
+        obj["P1"] = jsonVec2(P1);
+        obj["yaw0"] = jsonNumberOrNull(yaw0);
+        obj["yaw1"] = jsonNumberOrNull(yaw1);
+        obj["targetPos"] = jsonVec2(targetPos);
+        obj["phi"] = jsonNumberOrNull(phi);
+        obj["success"] = success;
+        if (success)
+            obj["sections"] = jsonFloatArray(dyntrackSections, 10);
+        FlexJsonlLogger::instance().logObject(obj);
+    };
+
+    auto logFlexCandidate = [&](const QString &kind, const float *sectionsSolver10, const FlexCandidate &cand, bool bestSoFar) {
+        if (!logCandidates)
+            return;
+        float sectionsDyntrack10[10];
+        std::copy(sectionsSolver10, sectionsSolver10 + 10, sectionsDyntrack10);
+        flipCurveAngleSignsForDyntrack(sectionsDyntrack10);
+
+        QJsonObject obj;
+        obj["type"] = "flex_candidate";
+        obj["caseId"] = flexCaseId;
+        obj["kind"] = kind;
+        obj["sectionsSolver"] = jsonFloatArray(sectionsSolver10, 10);
+        obj["sectionsDyntrack"] = jsonFloatArray(sectionsDyntrack10, 10);
+        obj["rawLen"] = jsonNumberOrNull(cand.rawLen);
+        obj["trimmedLen"] = jsonNumberOrNull(cand.trimmedLen);
+        obj["minRadius"] = jsonNumberOrNull(cand.minRadius);
+        obj["enabledCount"] = cand.enabledCount;
+        obj["endStraightSum"] = jsonNumberOrNull(cand.endStraightSum);
+        obj["selfIntersect"] = cand.selfIntersect;
+        obj["initialWrongWay"] = cand.initialWrongWay;
+        obj["meetsPreferredMin"] = cand.meetsPreferredMin;
+        obj["bestSoFar"] = bestSoFar;
+        FlexJsonlLogger::instance().logObject(obj);
+    };
+
     // Fast path: perfectly straight if end is on the start ray and headings match.
     if (std::fabs(phi) < 1e-4f && std::fabs(targetPos.x) < 0.05f && targetPos.y > 0.0f) {
         dyntrackSections[0] = targetPos.y;
         canonicalize(dyntrackSections);
         trimToLength(2048.0f, dyntrackSections);
         canonicalize(dyntrackSections);
-        myLabel->setPixmap(QPixmap::fromImage(*img));
+        if (Game::gui && myLabel != nullptr && img != nullptr)
+            myLabel->setPixmap(QPixmap::fromImage(*img));
+
+        if (logCandidates) {
+            FlexCandidate cand;
+            std::copy(dyntrackSections, dyntrackSections + 10, cand.sections);
+            cand.rawLen = totalCenterlineLength(dyntrackSections);
+            cand.trimmedLen = cand.rawLen;
+            cand.minRadius = candidateMinRadius(dyntrackSections);
+            cand.enabledCount = enabledSectionCount(dyntrackSections);
+            cand.endStraightSum = dyntrackSections[0] + dyntrackSections[8];
+            cand.selfIntersect = false;
+            cand.initialWrongWay = false;
+            cand.meetsPreferredMin = true;
+            logFlexCandidate(QStringLiteral("straight"), dyntrackSections, cand, true);
+        }
+
         flipCurveAngleSignsForDyntrack(dyntrackSections);
+        logFlexCase(true);
         return true;
     }
 
     // Candidate radii (meters), descending preference.
     std::vector<float> radii = {10000.0f, 8000.0f, 5000.0f, 2000.0f, 1200.0f, 800.0f, 500.0f, 300.0f, 200.0f, 150.0f, 100.0f, 75.0f, 50.0f, 30.0f, 20.0f, 15.0f, 10.0f};
     float minAllowedRadius = 5.0f;
-    if (preferredMinCurveRadius < 0.0f)
-        preferredMinCurveRadius = 0.0f;
 
     // 1) Prefer a single-curve solution if it meets preferredMinCurveRadius.
     if (preferredMinCurveRadius > 0.0f && std::fabs(std::sin(phi)) > 1e-4f) {
@@ -754,8 +930,26 @@ bool Flex::NewFlex(int x1, int z1, float *p1, float *q1, int x2, int z2, float *
                 FlexVec2 b = add(P0, add(scale(r0, ptsLocal[i + 1].x), scale(f0, ptsLocal[i + 1].y)));
                 drawLine(czerwony, (int)a.x, (int)a.y, (int)b.x, (int)b.y);
             }
-            myLabel->setPixmap(QPixmap::fromImage(*img));
+            if (Game::gui && myLabel != nullptr && img != nullptr)
+                myLabel->setPixmap(QPixmap::fromImage(*img));
+
+            if (logCandidates) {
+                FlexCandidate cand;
+                std::copy(candidate, candidate + 10, cand.sections);
+                cand.rawLen = totalCenterlineLength(candidate);
+                cand.trimmedLen = cand.rawLen;
+                cand.minRadius = candidateMinRadius(candidate);
+                cand.enabledCount = enabledSectionCount(candidate);
+                cand.endStraightSum = candidate[0] + candidate[8];
+                cand.selfIntersect = hasSelfIntersection(candidate);
+                float firstCurveAngle = firstEnabledCurveAngle(candidate);
+                cand.initialWrongWay = (targetPos.y > 0.0f && std::fabs(targetPos.x) > 0.2f && (firstCurveAngle * targetPos.x) > 0.0f);
+                cand.meetsPreferredMin = true;
+                logFlexCandidate(QStringLiteral("single_curve"), candidate, cand, true);
+            }
+
             flipCurveAngleSignsForDyntrack(dyntrackSections);
+            logFlexCase(true);
             return true;
         }
     }
@@ -790,7 +984,10 @@ bool Flex::NewFlex(int x1, int z1, float *p1, float *q1, int x2, int z2, float *
         cand.initialWrongWay = (targetPos.y > 0.0f && std::fabs(targetPos.x) > 0.2f && (firstCurveAngle * targetPos.x) > 0.0f);
         cand.meetsPreferredMin = (preferredMinCurveRadius <= 0.0f) ? true : (cand.minRadius >= preferredMinCurveRadius - 1e-3f);
 
-        if (!found || betterCandidate(cand, best)) {
+        bool bestSoFar = (!found || betterCandidate(cand, best));
+        logFlexCandidate(QStringLiteral("clc"), trimmed, cand, bestSoFar);
+
+        if (bestSoFar) {
             best = cand;
             found = true;
         }
@@ -919,7 +1116,9 @@ bool Flex::NewFlex(int x1, int z1, float *p1, float *q1, int x2, int z2, float *
     }
 
     if (!found) {
-        myLabel->setPixmap(QPixmap::fromImage(*img));
+        if (Game::gui && myLabel != nullptr && img != nullptr)
+            myLabel->setPixmap(QPixmap::fromImage(*img));
+        logFlexCase(false);
         return false;
     }
 
@@ -934,12 +1133,16 @@ bool Flex::NewFlex(int x1, int z1, float *p1, float *q1, int x2, int z2, float *
         drawLine(czerwony, (int)a.x, (int)a.y, (int)b.x, (int)b.y);
     }
 
-    myLabel->setPixmap(QPixmap::fromImage(*img));
+    if (Game::gui && myLabel != nullptr && img != nullptr)
+        myLabel->setPixmap(QPixmap::fromImage(*img));
     flipCurveAngleSignsForDyntrack(dyntrackSections);
+    logFlexCase(true);
     return true;
 }
 
 void Flex::drawLine(QPen niebieski, int x1, int y1, int x2, int y2){
+        if (!Game::gui || painter == nullptr || img == nullptr)
+            return;
         int off = 400;
         int start = 800;
         //x1 /= 4;

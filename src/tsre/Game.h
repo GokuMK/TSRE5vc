@@ -131,6 +131,11 @@ public:
     static QColor *colorConView;
     static QColor *colorShapeView;
     static bool consoleOutput;
+
+    // Runtime-only debugging / testing toggles (not persisted in settings.txt).
+    static bool flexLogEnabled;
+    static bool flexLogCandidates;
+    static QString flexLogFile;
     static int fpsLimit;
     static bool ortsEngEnable;
     static bool sortTileObjects;

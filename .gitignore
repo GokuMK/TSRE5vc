@@ -92,6 +92,7 @@ CMakeLists.txt.user*
 /appdata/
 /assets/
 /plugins/
+/features/tests/captures/
 trainUpdates.dat
 trains.dat
 users.txt
