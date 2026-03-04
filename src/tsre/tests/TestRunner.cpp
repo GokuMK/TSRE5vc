@@ -128,7 +128,7 @@ struct FlexCase {
     int z2 = 0;
     float p2[3] = {0};
     float q2[4] = {0};
-    float preferredMinCurveRadius = 200.0f;
+    float preferredMinCurveRadius = 0.0f;
     bool expectedSuccess = false;
     bool hasExpectedSections = false;
     float expectedSections[10] = {0};
@@ -179,7 +179,7 @@ static bool parseFlexCase(const QJsonObject &obj, FlexCase &out, QString &err) {
     if (!parseFloatArrayFixed(obj.value("q2"), 4, out.q2, err))
         return false;
 
-    out.preferredMinCurveRadius = (float)obj.value("preferredMinCurveRadius").toDouble(200.0);
+    out.preferredMinCurveRadius = (float)obj.value("preferredMinCurveRadius").toDouble(0.0);
     out.expectedSuccess = obj.value("success").toBool(false);
 
     const QJsonValue sectionsV = obj.value("sections");

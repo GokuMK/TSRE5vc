@@ -330,9 +330,11 @@ struct FlexCandidate {
     float trimmedLen = 0.0f;
     float rawLen = 0.0f;
     int enabledCount = 0;
+    int curveCount = 0;
     float endStraightSum = 0.0f;
     bool selfIntersect = false;
     bool initialWrongWay = false;
+    bool wasTrimmed = false;
     bool meetsPreferredMin = false;
 };
 
@@ -353,37 +355,53 @@ inline float candidateMinRadius(const float *sections10) {
     return r;
 }
 
+inline int enabledCurveCount(const float *sections10) {
+    int count = 0;
+    if (std::fabs(sections10[2]) > 0.01f && sections10[3] > 0.1f)
+        count++;
+    if (std::fabs(sections10[6]) > 0.01f && sections10[7] > 0.1f)
+        count++;
+    return count;
+}
+
 inline bool betterCandidate(const FlexCandidate &a, const FlexCandidate &b) {
     if (!b.rawLen && !b.trimmedLen && b.enabledCount == 0)
         return true;
     if (a.selfIntersect != b.selfIntersect)
         return b.selfIntersect; // prefer non-intersecting
-    if (a.initialWrongWay != b.initialWrongWay)
-        return b.initialWrongWay; // prefer starting by turning toward target
+    if (a.wasTrimmed != b.wasTrimmed)
+        return b.wasTrimmed; // prefer solutions that don't exceed the 2048m limit
+
     if (a.meetsPreferredMin != b.meetsPreferredMin)
         return a.meetsPreferredMin;
 
-    // If both satisfy the preferred minimum radius, prioritize practicality:
-    // pick the shorter (and simpler) solution instead of chasing arbitrarily huge radii.
-    if (a.meetsPreferredMin && b.meetsPreferredMin) {
-        if (std::fabs(a.trimmedLen - b.trimmedLen) > 0.05f)
-            return a.trimmedLen < b.trimmedLen;
-        if (a.enabledCount != b.enabledCount)
-            return a.enabledCount < b.enabledCount;
-        if (std::fabs(a.endStraightSum - b.endStraightSum) > 0.05f)
-            return a.endStraightSum < b.endStraightSum;
-        if (std::fabs(a.minRadius - b.minRadius) > 1e-3f)
-            return a.minRadius > b.minRadius;
-        return false;
-    }
+    // Default objective: maximize the minimum curve radius.
+    auto radiusValue = [](float r) -> float {
+        if (std::isfinite(r))
+            return r;
+        if (r > 0.0f)
+            return 1e30f; // treat +inf as "very large"
+        return -1e30f;    // treat NaN/-inf as "very small"
+    };
+    float ra = radiusValue(a.minRadius);
+    float rb = radiusValue(b.minRadius);
+    float rmax = std::max(ra, rb);
+    float rTol = std::max(0.5f, 0.02f * rmax); // tie-break window: 0.5m or 2%
+    if (std::fabs(ra - rb) > rTol)
+        return ra > rb;
 
-    // Otherwise (we are below the preferred minimum), prefer the largest achievable radius.
-    if (std::fabs(a.minRadius - b.minRadius) > 1e-3f)
-        return a.minRadius > b.minRadius;
-    if (std::fabs(a.trimmedLen - b.trimmedLen) > 0.05f)
-        return a.trimmedLen < b.trimmedLen;
+    // If radii are similar, prefer solutions that start by turning toward the target.
+    if (a.initialWrongWay != b.initialWrongWay)
+        return b.initialWrongWay;
+
+    // Prefer simpler geometry if still tied.
+    if (a.curveCount != b.curveCount)
+        return a.curveCount < b.curveCount;
     if (a.enabledCount != b.enabledCount)
         return a.enabledCount < b.enabledCount;
+
+    if (std::fabs(a.trimmedLen - b.trimmedLen) > 0.05f)
+        return a.trimmedLen < b.trimmedLen;
     if (std::fabs(a.endStraightSum - b.endStraightSum) > 0.05f)
         return a.endStraightSum < b.endStraightSum;
     return false;
@@ -848,9 +866,11 @@ bool Flex::NewFlex(int x1, int z1, float *p1, float *q1, int x2, int z2, float *
         obj["trimmedLen"] = jsonNumberOrNull(cand.trimmedLen);
         obj["minRadius"] = jsonNumberOrNull(cand.minRadius);
         obj["enabledCount"] = cand.enabledCount;
+        obj["curveCount"] = cand.curveCount;
         obj["endStraightSum"] = jsonNumberOrNull(cand.endStraightSum);
         obj["selfIntersect"] = cand.selfIntersect;
         obj["initialWrongWay"] = cand.initialWrongWay;
+        obj["wasTrimmed"] = cand.wasTrimmed;
         obj["meetsPreferredMin"] = cand.meetsPreferredMin;
         obj["bestSoFar"] = bestSoFar;
         FlexJsonlLogger::instance().logObject(obj);
@@ -872,10 +892,12 @@ bool Flex::NewFlex(int x1, int z1, float *p1, float *q1, int x2, int z2, float *
             cand.trimmedLen = cand.rawLen;
             cand.minRadius = candidateMinRadius(dyntrackSections);
             cand.enabledCount = enabledSectionCount(dyntrackSections);
+            cand.curveCount = enabledCurveCount(dyntrackSections);
             cand.endStraightSum = dyntrackSections[0] + dyntrackSections[8];
             cand.selfIntersect = false;
             cand.initialWrongWay = false;
-            cand.meetsPreferredMin = true;
+            cand.wasTrimmed = false;
+            cand.meetsPreferredMin = (preferredMinCurveRadius > 0.0f) ? (cand.minRadius >= preferredMinCurveRadius - 1e-3f) : false;
             logFlexCandidate(QStringLiteral("straight"), dyntrackSections, cand, true);
         }
 
@@ -888,79 +910,13 @@ bool Flex::NewFlex(int x1, int z1, float *p1, float *q1, int x2, int z2, float *
     std::vector<float> radii = {10000.0f, 8000.0f, 5000.0f, 2000.0f, 1200.0f, 800.0f, 500.0f, 300.0f, 200.0f, 150.0f, 100.0f, 75.0f, 50.0f, 30.0f, 20.0f, 15.0f, 10.0f};
     float minAllowedRadius = 5.0f;
 
-    // 1) Prefer a single-curve solution if it meets preferredMinCurveRadius.
-    if (preferredMinCurveRadius > 0.0f && std::fabs(std::sin(phi)) > 1e-4f) {
-        for (float R : radii) {
-            if (R + 1e-3f < preferredMinCurveRadius)
-                continue;
-            if (R < minAllowedRadius)
-                continue;
-            FlexVec2 cd = curveDisp(phi, R);
-            float denom = -std::sin(phi);
-            float L2 = (targetPos.x - cd.x) / denom;
-            float L0 = targetPos.y - cd.y - std::cos(phi) * L2;
-            if (L0 < -0.05f || L2 < -0.05f)
-                continue;
-            if (L0 < 0.0f) L0 = 0.0f;
-            if (L2 < 0.0f) L2 = 0.0f;
-
-            float candidate[10] = {0};
-            candidate[0] = L0;
-            candidate[1] = 0.0f;
-            candidate[2] = phi;
-            candidate[3] = R;
-            candidate[4] = L2;
-            candidate[5] = 0.0f;
-            candidate[6] = 0.0f;
-            candidate[7] = 0.0f;
-            candidate[8] = 0.0f;
-            candidate[9] = 0.0f;
-
-            canonicalize(candidate);
-            if (!validatePose(candidate, targetPos, phi))
-                continue;
-            trimToLength(2048.0f, candidate);
-            canonicalize(candidate);
-            std::copy(candidate, candidate + 10, dyntrackSections);
-
-            std::vector<FlexVec2> ptsLocal;
-            samplePath(dyntrackSections, ptsLocal);
-            for (size_t i = 0; i + 1 < ptsLocal.size(); i++) {
-                FlexVec2 a = add(P0, add(scale(r0, ptsLocal[i].x), scale(f0, ptsLocal[i].y)));
-                FlexVec2 b = add(P0, add(scale(r0, ptsLocal[i + 1].x), scale(f0, ptsLocal[i + 1].y)));
-                drawLine(czerwony, (int)a.x, (int)a.y, (int)b.x, (int)b.y);
-            }
-            if (Game::gui && myLabel != nullptr && img != nullptr)
-                myLabel->setPixmap(QPixmap::fromImage(*img));
-
-            if (logCandidates) {
-                FlexCandidate cand;
-                std::copy(candidate, candidate + 10, cand.sections);
-                cand.rawLen = totalCenterlineLength(candidate);
-                cand.trimmedLen = cand.rawLen;
-                cand.minRadius = candidateMinRadius(candidate);
-                cand.enabledCount = enabledSectionCount(candidate);
-                cand.endStraightSum = candidate[0] + candidate[8];
-                cand.selfIntersect = hasSelfIntersection(candidate);
-                float firstCurveAngle = firstEnabledCurveAngle(candidate);
-                cand.initialWrongWay = (targetPos.y > 0.0f && std::fabs(targetPos.x) > 0.2f && (firstCurveAngle * targetPos.x) > 0.0f);
-                cand.meetsPreferredMin = true;
-                logFlexCandidate(QStringLiteral("single_curve"), candidate, cand, true);
-            }
-
-            flipCurveAngleSignsForDyntrack(dyntrackSections);
-            logFlexCase(true);
-            return true;
-        }
-    }
-
-    // 2) General two-curve (with optional end straights) solver with bounded search.
+    // Best candidate across all search phases.
     FlexCandidate best;
     bool found = false;
 
     std::vector<float> endStraightOptions = {0.0f, 1.0f, 2.0f, 5.0f, 10.0f, 20.0f, 50.0f, 100.0f, 200.0f};
 
-    auto tryCandidate = [&](const float *rawSections10) {
+    auto tryCandidate = [&](const float *rawSections10, const QString &kind) {
         float tmp[10];
         std::copy(rawSections10, rawSections10 + 10, tmp);
         canonicalize(tmp);
@@ -978,20 +934,49 @@ bool Flex::NewFlex(int x1, int z1, float *p1, float *q1, int x2, int z2, float *
         cand.trimmedLen = totalCenterlineLength(trimmed);
         cand.minRadius = candidateMinRadius(trimmed);
         cand.enabledCount = enabledSectionCount(trimmed);
+        cand.curveCount = enabledCurveCount(trimmed);
         cand.endStraightSum = trimmed[0] + trimmed[8];
         cand.selfIntersect = hasSelfIntersection(trimmed);
         float firstCurveAngle = firstEnabledCurveAngle(trimmed);
         cand.initialWrongWay = (targetPos.y > 0.0f && std::fabs(targetPos.x) > 0.2f && (firstCurveAngle * targetPos.x) > 0.0f);
-        cand.meetsPreferredMin = (preferredMinCurveRadius <= 0.0f) ? true : (cand.minRadius >= preferredMinCurveRadius - 1e-3f);
+        cand.wasTrimmed = (cand.rawLen > cand.trimmedLen + 0.05f);
+        cand.meetsPreferredMin = (preferredMinCurveRadius > 0.0f) ? (cand.minRadius >= preferredMinCurveRadius - 1e-3f) : false;
 
         bool bestSoFar = (!found || betterCandidate(cand, best));
-        logFlexCandidate(QStringLiteral("clc"), trimmed, cand, bestSoFar);
+        logFlexCandidate(kind, trimmed, cand, bestSoFar);
 
         if (bestSoFar) {
             best = cand;
             found = true;
         }
     };
+
+    // 1) Single curve (L + C + L) candidates over our discrete radius set.
+    if (std::fabs(std::sin(phi)) > 1e-4f) {
+        for (float R : radii) {
+            if (R < minAllowedRadius)
+                continue;
+
+            FlexVec2 cd = curveDisp(phi, R);
+            float denom = -std::sin(phi);
+            if (std::fabs(denom) < 1e-6f)
+                continue;
+
+            float L2 = (targetPos.x - cd.x) / denom;
+            float L0 = targetPos.y - cd.y - std::cos(phi) * L2;
+            if (L0 < -0.05f || L2 < -0.05f)
+                continue;
+            if (L0 < 0.0f) L0 = 0.0f;
+            if (L2 < 0.0f) L2 = 0.0f;
+
+            float raw[10] = {0};
+            raw[0] = L0;
+            raw[2] = phi;
+            raw[3] = R;
+            raw[4] = L2;
+            tryCandidate(raw, QStringLiteral("single_curve"));
+        }
+    }
 
     auto solveCLC = [&](FlexVec2 target, float R1, float R2, float startStraight, float endStraight) {
         float angleMax = (float)M_PI;
@@ -1040,7 +1025,7 @@ bool Flex::NewFlex(int x1, int z1, float *p1, float *q1, int x2, int z2, float *
                 raw[6] = beta;
                 raw[7] = R2;
                 raw[8] = endStraight;
-                tryCandidate(raw);
+                tryCandidate(raw, QStringLiteral("clc"));
             };
 
             if (curValid && std::fabs(curF) < 0.05f) {
