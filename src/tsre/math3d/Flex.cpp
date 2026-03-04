@@ -39,7 +39,7 @@ float Flex::FlexQ0[4];
 int Flex::FlexX;
 int Flex::FlexZ;
 QWidget* Flex::window;
-int Flex::windowInit = 0;
+int Flex::windowInit = -1;
 int Flex::offx = 0;
 int Flex::offy = 0;
 QPainter* Flex::painter;
@@ -415,9 +415,10 @@ inline bool validatePose(const float *sections10, FlexVec2 targetPos, float targ
 }
 
 inline void flipCurveAngleSignsForDyntrack(float *sections10) {
-    // TEMP: `Flex::NewFlex(...)` solves with +angle = left (mathematical convention),
-    // but TSRE's dyntrack rendering uses +angle = right.
-    // This matches the user-reported workaround: flipping curve angle signs makes the generated shape correct.
+    // Convention boundary:
+    // `Flex::NewFlex(...)` solves in Flex's legacy 2D mapping (XZ -> XY with Z flipped) to stay consistent with TDB yaw.
+    // Dyntrack sections are later consumed in the engine's OpenGL/XZ frame, where the Z-mirror reverses turn direction.
+    // Convert by negating curve angles (lengths/radii stay the same).
     sections10[2] = -sections10[2];
     sections10[6] = -sections10[6];
 }
