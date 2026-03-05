@@ -464,15 +464,17 @@ void Route::loadAddons(){
     if(!aDir.exists()){
         qDebug() << dirFile;
         qDebug() << "# No Addons";
-        return;
+    } else {
+        aDir.setFilter(QDir::Files);
+        aDir.setNameFilters(QStringList()<<"*.ref");
+        foreach(QString file, aDir.entryList()){
+            //qDebug()<< dirFile + "/" + file;
+            this->ref->loadFile(dirFile + "/" + file);
+        }
     }
-        
-    aDir.setFilter(QDir::Files);
-    aDir.setNameFilters(QStringList()<<"*.ref");
-    foreach(QString file, aDir.entryList()){
-        //qDebug()<< dirFile + "/" + file;
-        this->ref->loadFile(dirFile + "/" + file);
-    }
+
+    if(this->ref != NULL)
+        this->ref->expandTemplates();
 
 }
 

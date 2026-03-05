@@ -17,7 +17,7 @@ Relevant code paths:
   - `RouteEditorGLWidget::reloadRefFile()` calls `route->loadAddons()` and then refreshes the palette UI. `src/routeEditor/RouteEditorGLWidget.cpp:340`
 - Ref storage is aggregated and lossy:
   - `Ref::refItems` is keyed only by class (`QMap<QString, QVector<RefItem>>`) and does not track which file contributed each item. `src/tsre/world/Ref.h:57`
-  - `Ref::saveToStream()` serializes only a subset of fields and skips editor pseudo-classes. `src/tsre/world/Ref.cpp:175`
+  - `Ref::saveToStream()` serializes only a subset of fields and skips editor pseudo-classes. `src/tsre/world/Ref.cpp:291`
 - Multiplayer uses the same serialization:
   - server responds to `request_addons` with `route->ref->saveToStream()` output. `src/routeEditor/RouteEditorServer.cpp:304`
 
@@ -28,7 +28,7 @@ Key constraint from current multiplayer behavior:
 
 ## Why Per-File Refresh/Save Is Hard Today
 The current model merges everything into one structure:
-`refItems[item.clas.trimmed()].push_back(item);` `src/tsre/world/Ref.cpp:167`
+`refItems[item.clas.trimmed()].push_back(item);` `src/tsre/world/Ref.cpp:164`
 
 Consequences:
 - No provenance: you cannot tell which `.ref` file created which items, so you cannot refresh/remove items from "just that file".
@@ -99,4 +99,3 @@ Consider two serialization outputs:
 - Implementing per-file save to disk.
 
 These remain future work; manual reload via `RouteEditorGLWidget::reloadRefFile()` is sufficient for current usage.
-

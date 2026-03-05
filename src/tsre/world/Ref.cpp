@@ -10,6 +10,8 @@
 
 #include <tsre/world/Ref.h>
 #include <QDebug>
+#include <QDir>
+#include <QSet>
 #include <tsre/Game.h>
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/fileFunctions/ReadFile.h>
@@ -69,6 +71,11 @@ void Ref::loadUtf16Data(FileBuffer* data, QString path){
             //qDebug() << "-" << sh;
             if (sh == ("template")) {
                 item.isTemplate = true;
+                ParserX::SkipToken(data);
+                continue;
+            }
+            if (sh == ("unique")) {
+                item.unique = true;
                 ParserX::SkipToken(data);
                 continue;
             }
@@ -151,25 +158,134 @@ void Ref::loadUtf16Data(FileBuffer* data, QString path){
             ParserX::SkipToken(data);
         }
         if (item.clas != "") {
-            //  template item
             if(item.isTemplate){
-                // do some work to create ref items based on themplate
-                // suggestions
-                // treat filename as regexp and create items for each file matching it in the defined directory
-                // default directory field is empty but it can be also defined in template field directory
-                // engine loads shapes from Game::route + /shapes/ directory, so created ref item filename must 
-                // be relative to that shapes directory, so if template field directory is defined as "trees" and filename is "tree_*.s", created ref item filename should be "trees/tree_1.s" etc.
-                // it would be nice to move this work to another place, so that it is run after all ref files are loaded
-                // then templates are processed and we could add a new possible attrinute unique ( ) so that files already present
-                // in a classic ref item, are skipped in template processing
-            } // normal item
-            else {
+                templateItems.push_back(item);
+            } else {
                 refItems[item.clas.trimmed()].push_back(item);
             }
         }
         ParserX::SkipToken(data);
     }
 
+}
+
+static QString NormalizeRefRelativePath(QString path){
+    path = path.trimmed();
+    if(path.isEmpty())
+        return "";
+    path.replace("\\", "/");
+    while(path.contains("//"))
+        path.replace("//", "/");
+    if(path.startsWith("./"))
+        path = path.mid(2);
+    if(path.startsWith("/"))
+        path = path.mid(1);
+    return path;
+}
+
+static QString NormalizeRefRelativeDir(QString dir){
+    dir = NormalizeRefRelativePath(dir);
+    while(dir.endsWith("/"))
+        dir.chop(1);
+    return dir;
+}
+
+void Ref::expandTemplates(){
+    if(templateItems.size() == 0)
+        return;
+
+    QString shapesRoot = Game::root + "/routes/" + Game::route + "/shapes";
+    shapesRoot.replace("\\", "/");
+    while(shapesRoot.contains("//"))
+        shapesRoot.replace("//", "/");
+    while(shapesRoot.endsWith("/"))
+        shapesRoot.chop(1);
+
+    bool anyUniqueTemplates = false;
+    for(const RefItem &templ : templateItems){
+        if(templ.unique){
+            anyUniqueTemplates = true;
+            break;
+        }
+    }
+
+    QSet<QString> existingFilenames;
+    if(anyUniqueTemplates){
+        for(auto it = refItems.begin(); it != refItems.end(); ++it){
+            for(const RefItem &item : it.value()){
+                for(const QString &filename : item.filename){
+                    QString normalized = NormalizeRefRelativePath(filename);
+                    if(!normalized.isEmpty())
+                        existingFilenames.insert(normalized.toLower());
+                }
+            }
+        }
+    }
+
+    for(const RefItem &templ : templateItems){
+        QString classKey = templ.clas.trimmed();
+        if(classKey.isEmpty())
+            continue;
+
+        QStringList filters;
+        for(const QString &pattern : templ.filename){
+            QString p = pattern.trimmed();
+            if(!p.isEmpty())
+                filters.push_back(p);
+        }
+        filters.removeDuplicates();
+        if(filters.size() == 0)
+            continue;
+
+        QString relDir = NormalizeRefRelativeDir(templ.directory);
+        QString scanPath = shapesRoot;
+        if(!relDir.isEmpty())
+            scanPath += "/" + relDir;
+        while(scanPath.contains("//"))
+            scanPath.replace("//", "/");
+
+        QDir scanDir(scanPath);
+        if(!scanDir.exists())
+            continue;
+
+        scanDir.setFilter(QDir::Files);
+        scanDir.setNameFilters(filters);
+        QStringList matches = scanDir.entryList();
+        matches.sort(Qt::CaseInsensitive);
+
+        QVector<RefItem> &items = refItems[classKey];
+        for(const QString &match : matches){
+            QString relPath = relDir.isEmpty() ? match : (relDir + "/" + match);
+            relPath = NormalizeRefRelativePath(relPath);
+
+            QString key = relPath.toLower();
+            if(templ.unique && existingFilenames.contains(key))
+                continue;
+
+            RefItem generated = templ;
+            generated.isTemplate = false;
+            generated.unique = false;
+            generated.clas = classKey;
+            generated.filename.clear();
+            generated.filename.push_back(relPath);
+            generated.currentFilename = "%";
+
+            if(templ.description.trimmed().isEmpty()){
+                generated.description = match;
+            } else {
+                generated.description = templ.description.trimmed();
+                if(!generated.description.endsWith(" "))
+                    generated.description += " ";
+                generated.description += match;
+            }
+
+            items.push_back(generated);
+            if(anyUniqueTemplates)
+                existingFilenames.insert(key);
+        }
+    }
+
+    templateItems.clear();
 }
 
 void Ref::saveToStream(QTextStream* out){

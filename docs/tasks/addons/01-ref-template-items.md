@@ -15,9 +15,9 @@ Out of scope:
 Relevant code paths:
 - Addon load: `Route::loadAddons()` loads `routes/<route>/<RouteName>.ref` + `routes/<route>/addons/*.ref`. `src/tsre/world/Route.cpp:459`
 - Manual reload button/command: `RouteEditorGLWidget::reloadRefFile()` calls `route->loadAddons()` and refreshes UI lists. `src/routeEditor/RouteEditorGLWidget.cpp:340`
-- Parser & store: `Ref::loadUtf16Data()` parses items and appends to `Ref::refItems[class]`. `src/tsre/world/Ref.cpp:38`, `src/tsre/world/Ref.h:57`
-- Templates: `Template ( )` sets `RefItem::isTemplate` but is currently ignored, with an in-code comment describing intended behavior. `src/tsre/world/Ref.cpp:155`
-- Multiplayer: server answers `request_addons` by serializing `route->ref` via `Ref::saveToStream()`. Client expects a normal expanded item list. `src/routeEditor/RouteEditorServer.cpp:304`, `src/tsre/world/Ref.cpp:175`
+- Parser & store: `Ref::loadUtf16Data()` parses items and collects template definitions. `src/tsre/world/Ref.cpp:40`, `src/tsre/world/Ref.h:57`
+- Expansion: `Ref::expandTemplates()` expands `Template ( )` definitions into normal ref items after all `.ref` files are loaded. `src/tsre/world/Ref.cpp:193`
+- Multiplayer: server answers `request_addons` by serializing `route->ref` via `Ref::saveToStream()` (includes expanded items). Client expects a normal expanded item list. `src/routeEditor/RouteEditorServer.cpp:304`, `src/tsre/world/Ref.cpp:291`
 - Placement uses `RefItem::filename` as a route-shapes-relative path via `WorldObj::getResPath(...)`. `src/tsre/world/objects/WorldObj.cpp:265`
 
 ---
@@ -31,15 +31,16 @@ Relevant code paths:
   - `Class ( ... )`: the target class to populate - same as normal items.
   - `Directory ( ... )`: optional subdirectory under the route shapes root.
   - `Filename ( ... )`: one or more wildcard patterns describing which files to expand (example: `tree_*.s`).
+  - `Unique ( )`: optional; enables global de-dup of generated items by normalized filename.
   - Optional metadata to copy into generated items: `Align`, `SelectionMethod`, `Random*`, `Value`, `StaticFlags`.
 - Expansion rule:
   - For each matching file under `routes/<route>/shapes/<Directory>`, create a **normal** ref item with:
     - `type` and `class` copied from the template
     - `filename = "<Directory>/<file>"` (or just `<file>` when directory is empty)
     - `description` default derived from the file (see below)
-- Templates must not generate duplicates:
-  - do not generate an item whose normalized `filename` already exists as an explicit item
-  - do not generate duplicates across templates
+- Duplicates / uniqueness:
+  - By default, templates generate one item per matching file (duplicates vs other classes/items are allowed).
+  - If `Unique ( )` is present in the template, skip any match whose normalized `filename` already exists in the palette (explicit items or earlier template outputs).
 - Deterministic ordering:
   - within a class, generated items must appear in a stable order across runs (sort matches case-insensitive).
 - Multiplayer parity:
@@ -54,19 +55,21 @@ Relevant code paths:
 ## Design
 
 ### 1) Parse then expand (batch at end of addon load)
-The in-code comment suggests running template processing after all `.ref` files are loaded. `src/tsre/world/Ref.cpp:155`
+Templates are collected during parsing and expanded after all `.ref` files are loaded. `src/tsre/world/Ref.cpp:193`
 
 Proposed flow:
 1) During parsing, collect template definitions into a list (do not append them to `refItems`).
 2) After all `.ref` files are loaded (end of `Route::loadAddons()` batch), expand templates:
-   - Build a set of `existingFilenames` from explicit items already stored in `refItems`.
+   - If any template uses `Unique ( )`, build a set of `existingFilenames` from items already stored in `refItems`.
    - For each template:
      - resolve base dir under route shapes root (`routes/<route>/shapes/` + `Directory`)
      - for each `Filename` pattern, get matches via `QDir::entryList(nameFilters)`
      - for each match:
        - build `relativePath = Directory + "/" + match` (or `match` if no directory)
        - normalize separators to `/`
-       - if `relativePath` is not in `existingFilenames`, emit a normal `RefItem` and append to `refItems[class]`
+       - if the template has `Unique ( )` and `relativePath` is already in `existingFilenames`, skip it
+       - otherwise emit a normal `RefItem` and append to `refItems[class]`
+       - when `existingFilenames` is active, insert each emitted `relativePath` (so later `Unique` templates skip it)
    - Optionally sort each affected class list by `description`/`filename` for stability.
 
 This design keeps multiplayer behavior unchanged: `Ref::saveToStream()` will serialize the expanded normal items.
@@ -107,8 +110,9 @@ Because `Ref` currently merges data from multiple files into one structure, it c
 
 ---
 
-## Open Questions (need confirmation)
-- Description default: basename (`tree_01.s`) vs relative path (`trees/tree_01.s`)?
-- Should templates scan recursively or only one directory level (recommend non-recursive first)?
-- Should multiple `Filename ( ... )` patterns be supported per template (recommend yes: union)?
-
+## Decisions (confirmed)
+- Description default: basename (example: `tree_01.s`).
+- Scan behavior: only one directory level (non-recursive). Different directory = different template.
+- Multiple `Filename ( ... )` patterns per template are supported (union of matches).
+- Template `Description ( ... )` is treated as a prefix for generated items: `"<prefix> <basename>"`.
+- Global de-dup is opt-in via `Unique ( )` on the template.

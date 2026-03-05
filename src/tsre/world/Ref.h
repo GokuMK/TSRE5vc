@@ -30,6 +30,7 @@ public:
     };
     struct RefItem {
         bool isTemplate = false;
+        bool unique = false;
         QString type;
         QString clas;
         QString directory;
@@ -61,11 +62,13 @@ public:
     virtual ~Ref();
     void loadFile(QString path);
     void loadUtf16Data(FileBuffer *data, QString path);
+    void expandTemplates();
     void saveToStream(QTextStream *out);
     bool loaded;
     RefItem *selected = NULL;
     
 private:
+    QVector<RefItem> templateItems;
     
 };
 
