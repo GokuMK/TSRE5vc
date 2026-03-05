@@ -29,8 +29,10 @@ public:
         float tbZ = 0, teZ = 0;
     };
     struct RefItem {
+        bool isTemplate = false;
         QString type;
         QString clas;
+        QString directory;
         QVector<QString> filename;
         QString currentFilename = "%";
         QString align;

@@ -67,6 +67,16 @@ void Ref::loadUtf16Data(FileBuffer* data, QString path){
         item.type = sh;
         while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
             //qDebug() << "-" << sh;
+            if (sh == ("template")) {
+                item.isTemplate = true;
+                ParserX::SkipToken(data);
+                continue;
+            }
+            if (sh == ("directory")) {
+                item.directory = ParserX::GetStringInside(data);
+                ParserX::SkipToken(data);
+                continue;
+            }
             if (sh == ("class")) {
                 item.clas = ParserX::GetStringInside(data);
                 ParserX::SkipToken(data);
@@ -141,7 +151,21 @@ void Ref::loadUtf16Data(FileBuffer* data, QString path){
             ParserX::SkipToken(data);
         }
         if (item.clas != "") {
-            refItems[item.clas.trimmed()].push_back(item);
+            //  template item
+            if(item.isTemplate){
+                // do some work to create ref items based on themplate
+                // suggestions
+                // treat filename as regexp and create items for each file matching it in the defined directory
+                // default directory field is empty but it can be also defined in template field directory
+                // engine loads shapes from Game::route + /shapes/ directory, so created ref item filename must 
+                // be relative to that shapes directory, so if template field directory is defined as "trees" and filename is "tree_*.s", created ref item filename should be "trees/tree_1.s" etc.
+                // it would be nice to move this work to another place, so that it is run after all ref files are loaded
+                // then templates are processed and we could add a new possible attrinute unique ( ) so that files already present
+                // in a classic ref item, are skipped in template processing
+            } // normal item
+            else {
+                refItems[item.clas.trimmed()].push_back(item);
+            }
         }
         ParserX::SkipToken(data);
     }
