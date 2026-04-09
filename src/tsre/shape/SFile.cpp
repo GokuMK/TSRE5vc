@@ -806,14 +806,24 @@ bool SFile::isSnapable() const{
 void SFile::addSnapablePoints(QVector<float> &out){
     //if(!this->loadedSd)
     //    loadSd();
-    if(esdBoundingBox.size() == 0) return;
-    float avgZ = (esdBoundingBox[0].shape[2] + esdBoundingBox[0].shape[5])/2.0;
-    out.push_back(esdBoundingBox[0].shape[0]);
-    out.push_back(0);
-    out.push_back(avgZ);
-    out.push_back(esdBoundingBox[0].shape[3]);
-    out.push_back(0);
-    out.push_back(avgZ);
+    if(esdBoundingBox.size() > 0){
+        float avgZ = (esdBoundingBox[0].shape[2] + esdBoundingBox[0].shape[5])/2.0;
+        out.push_back(esdBoundingBox[0].shape[0]);
+        out.push_back(0);
+        out.push_back(avgZ);
+        out.push_back(esdBoundingBox[0].shape[3]);
+        out.push_back(0);
+        out.push_back(avgZ);
+    } else {
+        /*snapable points from autocalculated box*/
+        float avgZ = (bound[4] + bound[5])/2.0;
+        out.push_back(bound[0]);
+        out.push_back(0);
+        out.push_back(-avgZ);
+        out.push_back(bound[1]);
+        out.push_back(0);
+        out.push_back(-avgZ);
+    } 
 }
 
 void SFile::reload() {

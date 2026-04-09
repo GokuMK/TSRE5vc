@@ -105,6 +105,48 @@ void TDB::loadTdb(){
     }
     //save();
     loaded = true;
+    if(!this->road)
+        printVectorParamStats();
+}
+
+void TDB::printVectorParamStats(){
+    int vectorNodeCount = 0;
+    int vectorSectionCount = 0;
+    int param13NonZeroCount = 0;
+    int param15NonZeroCount = 0;
+    int anyNonZeroCount = 0;
+
+    for (int i = 1; i <= iTRnodes; i++) {
+        TRnode *node = trackNodes[i];
+        if (node == NULL || node->typ != 1 || node->trVectorSection == NULL) {
+            continue;
+        }
+
+        vectorNodeCount++;
+        for (int j = 0; j < node->iTrv; j++) {
+            const float param13 = node->trVectorSection[j].param[13];
+            const float param15 = node->trVectorSection[j].param[15];
+
+            vectorSectionCount++;
+            if (param13 != 0.0f) {
+                param13NonZeroCount++;
+            }
+            if (param15 != 0.0f) {
+                param15NonZeroCount++;
+            }
+            if (param13 != 0.0f || param15 != 0.0f) {
+                anyNonZeroCount++;
+            }
+        }
+    }
+
+    qDebug() << (road ? "RDB" : "TDB")
+             << "vector param stats:"
+             << "vectorNodes =" << vectorNodeCount
+             << "vectorSections =" << vectorSectionCount
+             << "param[13] != 0:" << param13NonZeroCount
+             << "param[15] != 0:" << param15NonZeroCount
+             << "param[13] || param[15] != 0:" << anyNonZeroCount;
 }
 
 void TDB::loadUtf16Data(FileBuffer *data){

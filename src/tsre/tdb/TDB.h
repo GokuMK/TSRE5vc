@@ -80,6 +80,7 @@ public:
     void mergeTDB(TDB *secondTDB, float offsetXYZ[3], unsigned int &trackNodeOffset, unsigned int &trackItemOffset, QHash<unsigned int,unsigned int>& fixedSectionIds, QHash<unsigned int,unsigned int>& fixedShapeIds);
     void checkTrSignalRDirs();
     void checkDatabase();
+    void printVectorParamStats();
     virtual int getNewTRitemId();
     static void saveEmpty(bool road);
     void fillTrackAngles(int x, int z, int UiD, QMap<int, float>& angles);
