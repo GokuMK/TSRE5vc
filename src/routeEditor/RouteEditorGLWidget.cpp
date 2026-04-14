@@ -1780,10 +1780,11 @@ void RouteEditorGLWidget::jumpTo(int X, int Z, float x, float y, float z) {
 void RouteEditorGLWidget::objectSelected(GameObj* obj){
     if (selectedObj != NULL) {
         selectedObj->unselect();
-        setSelectedObj(NULL);
     }
-    if(obj == NULL)
+    if(obj == NULL){
+        setSelectedObj(NULL);
         return;
+    }
     obj->select();
     setSelectedObj(obj);
 }
@@ -1791,15 +1792,17 @@ void RouteEditorGLWidget::objectSelected(GameObj* obj){
 void RouteEditorGLWidget::objectSelected(QVector<GameObj*> obj){
     if (selectedObj != NULL) {
         selectedObj->unselect();
-        setSelectedObj(NULL);
     }
-    if(obj.size() == 0)
+    if(obj.size() == 0){
+        setSelectedObj(NULL);
         return;
+    }
+    groupObj->clear();
     for(int i = 0; i < obj.size(); i++){
         groupObj->addObject((WorldObj*)obj[i]);
-        groupObj->select();
-        setSelectedObj(groupObj);
     }
+    groupObj->select();
+    setSelectedObj(groupObj);
 }
 
 void RouteEditorGLWidget::setPaintBrush(Brush* brush) {
@@ -1823,7 +1826,7 @@ void RouteEditorGLWidget::editCopy() {
                 WorldObj *selectedWorldObj = (WorldObj*) selectedObj;
                 if (selectedWorldObj->typeID == WorldObj::groupobject) {
                     delete copyPasteGroupObj;
-                    copyPasteGroupObj = new GroupObj(*groupObj);
+                    copyPasteGroupObj = new GroupObj(*(GroupObj*)selectedWorldObj);
                     copyPasteObj = copyPasteGroupObj;
                 } else {
                     copyPasteObj = selectedWorldObj;

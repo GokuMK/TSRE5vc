@@ -1,9 +1,9 @@
 /*  This file is part of TSRE5.
  *
- *  TSRE5 - train sim game engine and MSTS/OR Editors. 
+ *  TSRE5 - train sim game engine and MSTS/OR Editors.
  *  Copyright (C) 2016 Piotr Gadecki <pgadecki@gmail.com>
  *
- *  Licensed under GNU General Public License 3.0 or later. 
+ *  Licensed under GNU General Public License 3.0 or later.
  *
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
@@ -15,6 +15,8 @@
 #include "RandomTransformWorldObjDialog.h"
 
 PropertiesGroup::PropertiesGroup() {
+    customSelectionGroup = new GroupObj();
+
     QVBoxLayout *vbox = new QVBoxLayout;
     vbox->setSpacing(2);
     vbox->setContentsMargins(0,1,1,1);
@@ -22,7 +24,7 @@ PropertiesGroup::PropertiesGroup() {
     infoLabel->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     infoLabel->setContentsMargins(3,0,0,0);
     vbox->addWidget(infoLabel);
-    
+
     QLabel *label = new QLabel("Position & Rotation:");
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
@@ -30,7 +32,7 @@ PropertiesGroup::PropertiesGroup() {
     QFormLayout *vlist = new QFormLayout;
     vlist->setSpacing(2);
     vlist->setContentsMargins(3,0,3,0);
-    QDoubleValidator* doubleValidator = new QDoubleValidator(-1500, 1500, 6, this); 
+    QDoubleValidator* doubleValidator = new QDoubleValidator(-1500, 1500, 6, this);
     doubleValidator->setNotation(QDoubleValidator::StandardNotation);
     vlist->addRow("Y:",&this->posY);
     this->posY.setValidator(doubleValidator);
@@ -39,10 +41,10 @@ PropertiesGroup::PropertiesGroup() {
     this->quat.setAlignment(Qt::AlignCenter);
     vlist->addRow("Rot:",&this->quat);
     vbox->addItem(vlist);
-    
+
     QGridLayout *posRotList = new QGridLayout;
     posRotList->setSpacing(2);
-    posRotList->setContentsMargins(0,0,0,0);    
+    posRotList->setContentsMargins(0,0,0,0);
 
     QPushButton *copyPos = new QPushButton("Copy Pos", this);
     QObject::connect(copyPos, SIGNAL(released()),
@@ -65,7 +67,7 @@ PropertiesGroup::PropertiesGroup() {
     QPushButton *resetQrot = new QPushButton("Reset Rot", this);
     QObject::connect(resetQrot, SIGNAL(released()),
                       this, SLOT(resetRotEnabled()));
-    QPushButton *qRot90 = new QPushButton("Rot Y 90°", this);
+    QPushButton *qRot90 = new QPushButton("Rot Y 90Â°", this);
     QObject::connect(qRot90, SIGNAL(released()),
                       this, SLOT(rotYEnabled()));
     QPushButton *transform = new QPushButton("Transform ...", this);
@@ -77,7 +79,7 @@ PropertiesGroup::PropertiesGroup() {
     chSeparateRotation.setText("Separate Rotation");
     QObject::connect(&chSeparateRotation, SIGNAL(stateChanged(int)),
                       this, SLOT(chIndividualRotationEdited(int)));
-    
+
     posRotList->addWidget(copyPos, 0, 0);
     posRotList->addWidget(pastePos, 0, 1);
     posRotList->addWidget(copyQrot, 1, 0);
@@ -90,7 +92,7 @@ PropertiesGroup::PropertiesGroup() {
     posRotList->addWidget(rtransform, 5, 0, 1, 2);
     posRotList->addWidget(&chSeparateRotation, 6, 0, 1, 2);
     vbox->addItem(posRotList);
-    
+
     label = new QLabel("Detail Level:");
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
@@ -109,13 +111,13 @@ PropertiesGroup::PropertiesGroup() {
                       this, SLOT(customDetailLevelEdited(QString)));
     QGridLayout *detailLevelView = new QGridLayout;
     detailLevelView->setSpacing(2);
-    detailLevelView->setContentsMargins(0,0,0,0);    
+    detailLevelView->setContentsMargins(0,0,0,0);
     detailLevelView->addWidget(defaultDetailLevelLabel, 0, 0);
     detailLevelView->addWidget(&defaultDetailLevel, 0, 1);
     detailLevelView->addWidget(&enableCustomDetailLevel, 1, 0);
     detailLevelView->addWidget(&customDetailLevel, 1, 1);
     vbox->addItem(detailLevelView);
-    
+
     label = new QLabel("Flags:");
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
@@ -125,7 +127,7 @@ PropertiesGroup::PropertiesGroup() {
     vbox->addWidget(&this->flags);
     QGridLayout *flagslView = new QGridLayout;
     flagslView->setSpacing(2);
-    flagslView->setContentsMargins(0,0,0,0);    
+    flagslView->setContentsMargins(0,0,0,0);
     QPushButton *copyFlags = new QPushButton("Copy Flags", this);
     QObject::connect(copyFlags, SIGNAL(released()),
                       this, SLOT(copyFEnabled()));
@@ -153,22 +155,64 @@ PropertiesGroup::PropertiesGroup() {
     QObject::connect(&cShadowType, SIGNAL(activated(int)),
                       this, SLOT(cShadowTypeEdited(int)));
 
+    label = new QLabel("Child Objects:");
+    label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
+    label->setContentsMargins(3,0,0,0);
+    vbox->addWidget(label);
+
+    childListLabel.setContentsMargins(3,0,0,0);
+    childListLabel.setWordWrap(true);
+    vbox->addWidget(&childListLabel);
+
+    childList.setSelectionMode(QAbstractItemView::SingleSelection);
+    childList.setMinimumHeight(120);
+    QObject::connect(&childList, SIGNAL(itemSelectionChanged()),
+                      this, SLOT(childSelectionChanged()));
+    vbox->addWidget(&childList);
+
+    selectChildButton.setText("Select");
+    selectChildButton.setEnabled(false);
+    QObject::connect(&selectChildButton, SIGNAL(released()),
+                      this, SLOT(selectChildEnabled()));
+    vbox->addWidget(&selectChildButton);
+
+    selectSimilarChildButton.setText("Select Similar");
+    selectSimilarChildButton.setEnabled(false);
+    QObject::connect(&selectSimilarChildButton, SIGNAL(released()),
+                      this, SLOT(selectSimilarChildEnabled()));
+    vbox->addWidget(&selectSimilarChildButton);
+
+    pinnedLabel.setWordWrap(true);
+    pinnedLabel.hide();
+    vbox->addWidget(&pinnedLabel);
+
+    reselectGroupButton.setText("Reselect This Group Object");
+    reselectGroupButton.hide();
+    QObject::connect(&reselectGroupButton, SIGNAL(released()),
+                      this, SLOT(reselectGroupEnabled()));
+    vbox->addWidget(&reselectGroupButton);
+
     vbox->addStretch(1);
     this->setLayout(vbox);
-    
 }
 
 PropertiesGroup::~PropertiesGroup() {
+    delete customSelectionGroup;
 }
 
 void PropertiesGroup::showObj(GameObj* obj){
     if(obj == NULL){
         infoLabel->setText("NULL");
+        worldObj = NULL;
+        childList.clear();
+        childListLabel.setText("0 objects");
+        childSelectionChanged();
         return;
     }
     worldObj = (WorldObj*)obj;
     GroupObj *gobj = (GroupObj*)worldObj;
-    
+    infoLabel->setText("Group: " + QString::number(gobj->count()) + " objects");
+
     float *qDirection = gobj->getQuatRotation();
     float *position = gobj->getPosition();
     this->posX.setText(QString::number(position[0], 'G', 6));
@@ -180,7 +224,7 @@ void PropertiesGroup::showObj(GameObj* obj){
         QString::number(-qDirection[2], 'G', 4) + " " +
         QString::number(qDirection[3], 'G', 4)
         );
-    
+
     defaultDetailLevel.setText(QString::number(gobj->getDefaultDetailLevel()));
     enableCustomDetailLevel.blockSignals(true);
     if(gobj->customDetailLevelEnabled()){
@@ -193,7 +237,7 @@ void PropertiesGroup::showObj(GameObj* obj){
         customDetailLevel.setEnabled(false);
     }
     enableCustomDetailLevel.blockSignals(false);
-    
+
     this->flags.setText(ParserX::MakeFlagsString(gobj->staticFlags));
     this->checkboxAnim.blockSignals(true);
     this->checkboxTerrain.blockSignals(true);
@@ -207,6 +251,7 @@ void PropertiesGroup::showObj(GameObj* obj){
     this->checkboxTerrain.blockSignals(false);
     this->cShadowType.blockSignals(false);
     this->chSeparateRotation.blockSignals(false);
+    refreshChildList(gobj);
 }
 
 void PropertiesGroup::updateObj(GameObj* obj){
@@ -214,6 +259,7 @@ void PropertiesGroup::updateObj(GameObj* obj){
         return;
     }
     GroupObj *gobj = (GroupObj*)obj;
+    infoLabel->setText("Group: " + QString::number(gobj->count()) + " objects");
     if(!posX.hasFocus() && !posY.hasFocus() && !posZ.hasFocus() && !quat.hasFocus()){
         float *qDirection = gobj->getQuatRotation();
         float *position = gobj->getPosition();
@@ -227,6 +273,7 @@ void PropertiesGroup::updateObj(GameObj* obj){
             QString::number(qDirection[3], 'G', 4)
             );
     }
+    refreshChildList(gobj);
 }
 
 bool PropertiesGroup::support(GameObj* obj){
@@ -260,7 +307,6 @@ void PropertiesGroup::customDetailLevelEdited(QString val){
     GroupObj* staticObj = (GroupObj*) worldObj;
     bool ok = false;
     int level = val.toInt(&ok);
-    //qDebug() << "aaaaaaaaaa";
     if(ok){
         staticObj->setCustomDetailLevel(level);
     }
@@ -314,4 +360,126 @@ void PropertiesGroup::editPositionYEnabled(QString val){
     float value = this->posY.text().toFloat(&ok);
     if(!ok) return;
     gobj->setPositionYValue(value);
+}
+
+void PropertiesGroup::setPinnedSelectionState(GameObj* pinnedObj, GameObj* selectedObj){
+    pinnedGroupObj = pinnedObj;
+    pinnedSelectionObj = selectedObj;
+
+    bool pinned = pinnedGroupObj != NULL;
+    pinnedLabel.setVisible(pinned);
+    reselectGroupButton.setVisible(pinned);
+    if(pinned){
+        QString selectedName = "selection";
+        if(selectedObj != NULL){
+            selectedName = selectedObj->getName();
+            if(selectedObj->typeObj == GameObj::worldobj){
+                WorldObj *wobj = (WorldObj*)selectedObj;
+                if(!wobj->fileName.isEmpty())
+                    selectedName = wobj->fileName;
+            }
+        }
+        pinnedLabel.setText("Pinned to this group while current selection is " + selectedName + ".");
+    } else {
+        pinnedLabel.clear();
+    }
+}
+
+void PropertiesGroup::childSelectionChanged(){
+    WorldObj *childObj = getSelectedChild();
+    bool enabled = childObj != NULL;
+    selectChildButton.setEnabled(enabled);
+    selectSimilarChildButton.setEnabled(enabled);
+}
+
+void PropertiesGroup::selectChildEnabled(){
+    if(worldObj == NULL)
+        return;
+    WorldObj *childObj = getSelectedChild();
+    if(childObj == NULL)
+        return;
+    emit customSelectionRequested(worldObj, childObj);
+}
+
+void PropertiesGroup::selectSimilarChildEnabled(){
+    if(worldObj == NULL)
+        return;
+    GroupObj *gobj = (GroupObj*)worldObj;
+    WorldObj *childObj = getSelectedChild();
+    if(childObj == NULL)
+        return;
+
+    customSelectionGroup->clear();
+    for(int i = 0; i < gobj->objects.size(); i++){
+        WorldObj *candidate = gobj->objects[i];
+        if(candidate == NULL)
+            continue;
+        if(candidate->isSimilar(childObj))
+            customSelectionGroup->addObject(candidate);
+    }
+    if(customSelectionGroup->count() == 0)
+        return;
+
+    emit customSelectionRequested(worldObj, customSelectionGroup);
+}
+
+void PropertiesGroup::reselectGroupEnabled(){
+    if(pinnedGroupObj == NULL)
+        return;
+    emit reselectGroupRequested(pinnedGroupObj);
+}
+
+void PropertiesGroup::refreshChildList(GroupObj* gobj){
+    if(gobj == NULL)
+        return;
+
+    WorldObj *selectedChild = getSelectedChild();
+    childList.blockSignals(true);
+    childList.clear();
+
+    for(int i = 0; i < gobj->objects.size(); i++){
+        WorldObj *childObj = gobj->objects[i];
+        if(childObj == NULL)
+            continue;
+        QListWidgetItem *item = new QListWidgetItem(getChildLabel(childObj));
+        item->setData(Qt::UserRole, QVariant::fromValue((qulonglong)childObj));
+        if(!childObj->loaded)
+            item->setForeground(Qt::darkGray);
+        childList.addItem(item);
+    }
+
+    childListLabel.setText(QString::number(childList.count()) + " objects");
+    for(int i = 0; i < childList.count(); i++){
+        QListWidgetItem *item = childList.item(i);
+        if((WorldObj*)item->data(Qt::UserRole).toULongLong() == selectedChild){
+            childList.setCurrentItem(item);
+            break;
+        }
+    }
+    childList.blockSignals(false);
+    childSelectionChanged();
+}
+
+WorldObj* PropertiesGroup::getSelectedChild() const{
+    QListWidgetItem *item = childList.currentItem();
+    if(item == NULL && childList.selectedItems().size() > 0)
+        item = childList.selectedItems().first();
+    if(item == NULL)
+        return NULL;
+    return (WorldObj*)item->data(Qt::UserRole).toULongLong();
+}
+
+QString PropertiesGroup::getChildLabel(WorldObj* obj) const{
+    if(obj == NULL)
+        return "";
+
+    QString text = obj->getName();
+    if(!obj->fileName.isEmpty()){
+        if(!text.isEmpty())
+            text += " | ";
+        text += obj->fileName;
+    }
+    if(!obj->loaded)
+        text += " [hidden]";
+    return text;
 }

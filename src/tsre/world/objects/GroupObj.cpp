@@ -109,7 +109,7 @@ void GroupObj::fromNewObjects(GroupObj* objList, Route* route, int x, int z, flo
 }
 
 void GroupObj::addObject(WorldObj* obj){
-    if(obj == NULL) 
+    if(obj == NULL)
         return;
     if(obj->typeObj != WorldObj::worldobj)
         return;
@@ -136,6 +136,22 @@ void GroupObj::addObject(WorldObj* obj){
     }
     this->objects.push_back(obj);
     obj->select();
+}
+
+void GroupObj::clear(){
+    this->unselect();
+    this->objects.clear();
+    this->selected = false;
+    this->pivot.set = -1;
+    this->pivot.x = 0;
+    this->pivot.z = 0;
+    this->pivot.position[0] = 0;
+    this->pivot.position[1] = 0;
+    this->pivot.position[2] = 0;
+    this->pivot.qDirection[0] = 0;
+    this->pivot.qDirection[1] = 0;
+    this->pivot.qDirection[2] = 0;
+    this->pivot.qDirection[3] = 1;
 }
 
 bool GroupObj::select(){

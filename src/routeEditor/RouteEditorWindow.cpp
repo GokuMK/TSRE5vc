@@ -92,6 +92,7 @@ RouteEditorWindow::RouteEditorWindow() {
     objProperties["SoundSource"] = new PropertiesSoundSource;
     objProperties["TrackObj"] = new PropertiesTrackObj;
     objProperties["Group"] = new PropertiesGroup;
+    groupProperties = (PropertiesGroup*)objProperties["Group"];
     objProperties["Ruler"] = new PropertiesRuler;
     objProperties["SoundRegion"] = new PropertiesSoundRegion;
     objProperties["LevelCr"] = new PropertiesLevelCr;
@@ -471,6 +472,12 @@ RouteEditorWindow::RouteEditorWindow() {
     
     QObject::connect(objProperties["Dyntrack"], SIGNAL(setMoveStep(float)),
                       glWidget, SLOT(setMoveStep(float)));
+
+    QObject::connect(groupProperties, SIGNAL(customSelectionRequested(GameObj*,GameObj*)),
+                      this, SLOT(groupCustomSelectionRequested(GameObj*,GameObj*)));
+
+    QObject::connect(groupProperties, SIGNAL(reselectGroupRequested(GameObj*)),
+                      this, SLOT(groupReselectRequested(GameObj*)));
     
     QObject::connect(terrainTools, SIGNAL(setPaintBrush(Brush*)),
                       glWidget, SLOT(setPaintBrush(Brush*)));   
@@ -762,7 +769,21 @@ void RouteEditorWindow::hideAllTools(){
     box->setFixedWidth(250);
 }
 
+void RouteEditorWindow::clearPinnedPropertiesSelection(){
+    pinnedPropertiesObj = NULL;
+    pinnedSelectionObj = NULL;
+    if(groupProperties != NULL)
+        groupProperties->setPinnedSelectionState(NULL, NULL);
+}
+
 void RouteEditorWindow::showProperties(GameObj* obj){
+    if(pinnedPropertiesObj != NULL){
+        if(obj == pinnedSelectionObj){
+            obj = pinnedPropertiesObj;
+        } else {
+            clearPinnedPropertiesSelection();
+        }
+    }
     // hide all
     //for (std::vector<PropertiesAbstract*>::iterator it = objProperties.begin(); it != objProperties.end(); ++it) {
     foreach (PropertiesAbstract *it, objProperties){
@@ -784,6 +805,13 @@ void RouteEditorWindow::showProperties(GameObj* obj){
 }
 
 void RouteEditorWindow::updateProperties(GameObj* obj){
+    if(pinnedPropertiesObj != NULL){
+        if(obj == pinnedSelectionObj){
+            obj = pinnedPropertiesObj;
+        } else {
+            clearPinnedPropertiesSelection();
+        }
+    }
     if(obj == NULL) return;
     // show 
 
@@ -795,6 +823,22 @@ void RouteEditorWindow::updateProperties(GameObj* obj){
             return;
         }
     }
+}
+
+void RouteEditorWindow::groupCustomSelectionRequested(GameObj* pinnedObj, GameObj* selectedObj){
+    if(pinnedObj == NULL || selectedObj == NULL)
+        return;
+
+    pinnedPropertiesObj = pinnedObj;
+    pinnedSelectionObj = selectedObj;
+    if(groupProperties != NULL)
+        groupProperties->setPinnedSelectionState(pinnedPropertiesObj, pinnedSelectionObj);
+    glWidget->objectSelected(selectedObj);
+}
+
+void RouteEditorWindow::groupReselectRequested(GameObj* obj){
+    clearPinnedPropertiesSelection();
+    glWidget->objectSelected(obj);
 }
 
 void RouteEditorWindow::hideShowPropertiesWidget(bool show){

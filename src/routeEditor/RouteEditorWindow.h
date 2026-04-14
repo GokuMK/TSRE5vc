@@ -26,6 +26,7 @@ class AboutWindow;
 class NaviWindow;
 class ShapeViewWindow;
 class PropertiesAbstract;
+class PropertiesGroup;
 class GameObj;
 class PreciseTileCoordinate;
 class ActivityEventWindow;
@@ -88,6 +89,8 @@ public slots:
     void showActivityServiceEditor();
     void showActivityTrafficEditor();
     void showActivityTimetableEditor();
+    void groupCustomSelectionRequested(GameObj* pinnedObj, GameObj* selectedObj);
+    void groupReselectRequested(GameObj* obj);
 
 signals:
     void exitNow();
@@ -98,6 +101,7 @@ protected:
     void keyPressEvent(QKeyEvent *event);
     virtual void closeEvent(QCloseEvent * event );
     void hideAllTools();
+    void clearPinnedPropertiesSelection();
 
 private:
     QWidget* box;
@@ -165,6 +169,9 @@ private:
     ActivityTrafficWindow* activityTrafficWindow;
     ActivityTimetableWindow* activityTimetableWindow;
     ShapeViewWindow* shapeViewWindow;
+    PropertiesGroup* groupProperties = NULL;
+    GameObj* pinnedPropertiesObj = NULL;
+    GameObj* pinnedSelectionObj = NULL;
 };
 //! [0]
 

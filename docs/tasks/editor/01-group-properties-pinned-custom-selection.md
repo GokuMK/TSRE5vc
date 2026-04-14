@@ -9,8 +9,8 @@ This task note captures the current behavior, the agreed design direction, and t
 - When a `GroupObj` is selected, show a list of child objects in the properties panel.
 - Allow actions on a selected child:
   - `Select`
-  - `Select by Name`
-- `Select by Name` must follow the same rule as current `Select Similar`.
+  - `Select Similar`
+- `Select Similar` must follow the same rule as current `Select Similar`.
 - During custom subgroup selection, keep the properties panel on the original main group.
 - Add `Reselect This Group Object` while the panel is pinned.
 - For now, any unrelated selection or delete may destroy/unpin the pinned group state and close or switch the properties panel normally.
@@ -34,7 +34,7 @@ Relevant code:
 - `src/tsre/world/objects/WorldObj.cpp:586`
 
 Implementation consequence:
-- `Select by Name` inside the current group should reuse `isSimilar(...)` on the chosen child for consistency.
+- `Select Similar` inside the current group should reuse `isSimilar(...)` on the chosen child for consistency.
 
 ## Current Selection / Properties Flow
 Selection and properties are currently tightly coupled.
@@ -143,7 +143,7 @@ Relevant code:
 - `PropertiesGroup`
   - add child list UI
   - add `Select`
-  - add `Select by Name`
+   - add `Select Similar`
   - add `Reselect This Group Object`
   - emit signals or messages needed for custom selection/pin flow
   - `src/routeEditor/properties/PropertiesGroup.cpp`
@@ -195,7 +195,7 @@ Relevant code:
 ## Acceptance Criteria
 - `PropertiesGroup` shows child objects for the selected main group.
 - `Select` selects the chosen child object normally.
-- `Select by Name` creates a subgroup using the same similarity rule as current `Select Similar`.
+- `Select Similar` creates a subgroup using the same similarity rule as current `Select Similar`.
 - While custom subgroup mode is active, the properties panel stays on the original main group.
 - `Reselect This Group Object` restores normal selection of the pinned group.
 - Unrelated selection or delete clears the pin and returns to normal property behavior.

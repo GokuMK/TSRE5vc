@@ -57,6 +57,7 @@ public:
     void adjustPositionToTerrain();
     void adjustRotationToTerrain();
     void addObject(WorldObj* obj);
+    void clear();
     bool select();
     bool select(int val);
     bool unselect();
