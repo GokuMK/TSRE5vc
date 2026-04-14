@@ -877,6 +877,10 @@ void GltfShape::render(int selectionColor, unsigned int stateId) {
         if (msMatrix != nullptr) {
             gluu->currentShader->setUniformValue(gluu->currentShader->msMatrixUniform,
                                                  *reinterpret_cast<float(*)[4][4]>(msMatrix));
+            // Keep legacy SFile matrix upload cache in sync with direct uniform writes.
+            // Without this, the next shape can skip uploading its own matrix and inherit
+            // the last glTF node transform.
+            gluu->currentMsMatrinxHash = 0;
         }
 
         if (selectionColor == 0) {

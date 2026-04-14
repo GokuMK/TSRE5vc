@@ -20,6 +20,7 @@
 #include <QOpenGLShaderProgram>
 #include <tsre/ogl/GLUU.h>
 #include <tsre/math3d/GLMatrix.h>
+#include <cmath>
 #include <QString>
 #include <tsre/Game.h>
 #include <tsre/fileFunctions/TS.h>
@@ -807,23 +808,47 @@ void SFile::addSnapablePoints(QVector<float> &out){
     //if(!this->loadedSd)
     //    loadSd();
     if(esdBoundingBox.size() > 0){
-        float avgZ = (esdBoundingBox[0].shape[2] + esdBoundingBox[0].shape[5])/2.0;
-        out.push_back(esdBoundingBox[0].shape[0]);
-        out.push_back(0);
-        out.push_back(avgZ);
-        out.push_back(esdBoundingBox[0].shape[3]);
-        out.push_back(0);
-        out.push_back(avgZ);
+        const float sizeX = std::fabs(esdBoundingBox[0].shape[3] - esdBoundingBox[0].shape[0]);
+        const float sizeZ = std::fabs(esdBoundingBox[0].shape[5] - esdBoundingBox[0].shape[2]);
+        if(sizeZ > sizeX * 4.0f){
+            const float avgX = (esdBoundingBox[0].shape[0] + esdBoundingBox[0].shape[3]) / 2.0f;
+            out.push_back(avgX);
+            out.push_back(0);
+            out.push_back(esdBoundingBox[0].shape[2]);
+            out.push_back(avgX);
+            out.push_back(0);
+            out.push_back(esdBoundingBox[0].shape[5]);
+        } else {
+            const float avgZ = (esdBoundingBox[0].shape[2] + esdBoundingBox[0].shape[5]) / 2.0f;
+            out.push_back(esdBoundingBox[0].shape[0]);
+            out.push_back(0);
+            out.push_back(avgZ);
+            out.push_back(esdBoundingBox[0].shape[3]);
+            out.push_back(0);
+            out.push_back(avgZ);
+        }
     } else {
         /*snapable points from autocalculated box*/
-        float avgZ = (bound[4] + bound[5])/2.0;
-        out.push_back(bound[0]);
-        out.push_back(0);
-        out.push_back(-avgZ);
-        out.push_back(bound[1]);
-        out.push_back(0);
-        out.push_back(-avgZ);
-    } 
+        const float sizeX = std::fabs(bound[1] - bound[0]);
+        const float sizeZ = std::fabs(bound[5] - bound[4]);
+        if(sizeZ > sizeX * 4.0f){
+            const float avgX = (bound[0] + bound[1]) / 2.0f;
+            out.push_back(avgX);
+            out.push_back(0);
+            out.push_back(-bound[4]);
+            out.push_back(avgX);
+            out.push_back(0);
+            out.push_back(-bound[5]);
+        } else {
+            const float avgZ = (bound[4] + bound[5]) / 2.0f;
+            out.push_back(bound[0]);
+            out.push_back(0);
+            out.push_back(-avgZ);
+            out.push_back(bound[1]);
+            out.push_back(0);
+            out.push_back(-avgZ);
+        }
+    }
 }
 
 void SFile::reload() {
