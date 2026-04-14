@@ -5,6 +5,32 @@ Add child-object browsing to `PropertiesGroup`, support custom subgroup selectio
 
 This task note captures the current behavior, the agreed design direction, and the places where existing `groupObj` assumptions may require updates.
 
+## Status
+### Done
+- `PropertiesGroup` now shows a child-object list.
+- `PropertiesGroup` now provides `Select`.
+- `PropertiesGroup` now provides `Select Similar`.
+- `PropertiesGroup` now provides `Reselect This Group Object`.
+- Properties-side pinning is implemented in `RouteEditorWindow::showProperties(...)`.
+- Properties-side pinning is implemented in `RouteEditorWindow::updateProperties(...)`.
+- Custom subgroup selection is passed as a direct `GroupObj` through `objectSelected(GameObj* obj)`.
+- `RouteEditorGLWidget::objectSelected(GameObj* obj)` now clears selection only in the `obj == NULL` case.
+- `RouteEditorGLWidget::objectSelected(QVector<GameObj*> obj)` now clears selection only in the empty-vector case.
+- `RouteEditorGLWidget::objectSelected(QVector<GameObj*> obj)` now builds the group first and calls `setSelectedObj(...)` once.
+- `RouteEditorGLWidget::editCopy()` now copies the actually selected `GroupObj`, not always the shared helper.
+- `GroupObj::clear()` was added to support safe reuse of temporary group selections.
+- Manual check from the current review: feature behavior appears to work fine.
+
+### Intentionally Not Done
+- Preserve pinned custom-group state through undo.
+- Reconstruct pinned groups after undo replaces object pointers.
+- Redesign `editFind(...)` away from the widget's shared `groupObj`.
+- Redesign `editPaste()` to preserve custom subgroup identity instead of pasting into the shared working `groupObj`.
+
+### Still Worth Watching
+- Ctrl-click additive selection still rebuilds the shared `groupObj` in `handleSelection()`.
+- Unrelated selection or delete is still allowed to clear the pin, by design for this task.
+
 ## Requested UX
 - When a `GroupObj` is selected, show a list of child objects in the properties panel.
 - Allow actions on a selected child:
@@ -123,29 +149,34 @@ Relevant code:
 - `RouteEditorGLWidget::objectSelected(GameObj* obj)`
   - move transient clear into `if(obj == NULL)`
   - allow direct selection of custom `GroupObj`
+  - status: done
   - `src/routeEditor/RouteEditorGLWidget.cpp:1780`
 
 - `RouteEditorGLWidget::objectSelected(QVector<GameObj*> obj)`
   - move transient clear into `if(obj.size() == 0)`
   - build group first, then call `setSelectedObj(...)` once
+  - status: done
   - `src/routeEditor/RouteEditorGLWidget.cpp:1791`
 
 - `RouteEditorWindow::showProperties(...)`
   - support `PinnedObject`
   - ignore self-originating custom subgroup selection while pinned
   - clear pin on unrelated selection
+  - status: done
   - `src/routeEditor/RouteEditorWindow.cpp:765`
 
 - `RouteEditorWindow::updateProperties(...)`
   - same pin logic as `showProperties(...)`
+  - status: done
   - `src/routeEditor/RouteEditorWindow.cpp:786`
 
 - `PropertiesGroup`
   - add child list UI
   - add `Select`
-   - add `Select Similar`
+  - add `Select Similar`
   - add `Reselect This Group Object`
   - emit signals or messages needed for custom selection/pin flow
+  - status: done
   - `src/routeEditor/properties/PropertiesGroup.cpp`
   - `src/routeEditor/properties/PropertiesGroup.h`
 
@@ -153,6 +184,7 @@ Relevant code:
   - current group copy path uses `groupObj` directly instead of the actual selected group object
   - this is wrong if a custom `GroupObj` is selected
   - should copy from `selectedObj` cast to `GroupObj*`, not from the shared helper
+  - status: done
   - `src/routeEditor/RouteEditorGLWidget.cpp:1824`
 
 ### Intentionally keep as-is for now
@@ -160,12 +192,14 @@ Relevant code:
   - current behavior is intended
   - it collects objects into the widget's main shared `groupObj`
   - no change required for this task unless later UX requires different behavior
+  - status: unchanged by design
   - `src/routeEditor/RouteEditorGLWidget.cpp:1976`
 
 - `RouteEditorGLWidget::editPaste()`
   - current behavior pastes copied groups into the shared working `groupObj`
   - may remain acceptable for now
   - review later only if custom-group copy/paste semantics need to preserve custom group identity
+  - status: unchanged by design
   - `src/routeEditor/RouteEditorGLWidget.cpp:1852`
 
 ### Worth sanity-checking during implementation
@@ -173,6 +207,7 @@ Relevant code:
   - this path explicitly pushes selection into shared `groupObj`
   - if a custom subgroup is currently selected, ctrl-add may implicitly discard that custom group and start using the shared helper
   - likely acceptable if pin/custom mode is meant to end on unrelated selection, but should be tested
+  - status: not changed in this task
   - `src/routeEditor/RouteEditorGLWidget.cpp:896`
 
 ## Suggested Implementation Steps
