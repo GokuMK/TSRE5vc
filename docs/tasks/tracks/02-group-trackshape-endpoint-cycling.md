@@ -131,10 +131,8 @@ Rules:
 - ignore non-track children for endpoint discovery
 - non-track children may still move with the group as usual
 - if no valid grouped `TrackShape` can be built, grouped `X` cycling does nothing
-
-Recommended conservative limit for v1:
-- require the track subset of the group to form one connected layout
-- if multiple disconnected track islands exist, do not enable grouped endpoint cycling
+- disconnected track islands are allowed in v1
+- multiple independent route families should be represented as multiple synthetic paths, similar to ordinary multi-path shapes such as double track
 
 ## Proposed Architecture
 ### 1. Add `TrackShape*` Overload
@@ -195,6 +193,10 @@ When selected object is a `GroupObj`:
    - edges are child path traversals with ordered `sect[]`
 9. Enumerate valid routes between external connectors through that graph.
 10. Convert each route into one synthetic `TrackShape::SectionIdx`.
+
+Important:
+- the graph may contain multiple disconnected components
+- that is acceptable as long as each valid external-to-external route becomes a synthetic path
 
 ## Reuse Boundary
 ### Reuse Existing Code / Concepts
@@ -300,7 +302,9 @@ Layouts with cycles may produce many possible routes.
 V1 should keep route enumeration conservative.
 
 ### Disconnected Layouts
-Groups with several unconnected track islands should probably be rejected in v1.
+Disconnected track islands are allowed in v1.
+This should behave similarly to ordinary shapes with multiple independent paths.
+The main requirement is still deterministic path generation and stable ordering.
 
 ### Tolerance Matching
 Connector matching needs numeric tolerance to avoid tiny transform drift causing missed joins.
