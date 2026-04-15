@@ -18,11 +18,12 @@ class FileBuffer;
 
 class TrackShape {
 public:
+    static const int MaxSectionIdxCount = 256;
     struct SectionIdx{
         int n = 0;
         float pos[3];
         float rotDeg = 0;
-        unsigned int sect[12];
+        unsigned int sect[MaxSectionIdxCount];
     };
     
     QString filename;

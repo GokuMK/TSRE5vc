@@ -11,6 +11,8 @@
 #include <QDebug>
 #include <QFile>
 #include <QDir>
+#include <QSet>
+#include <algorithm>
 #include <tsre/world/Route.h>
 #include <tsre/tdb/TSectionDAT.h>
 #include <tsre/ogl/GLUU.h>
@@ -63,6 +65,20 @@
 #include <tsre/tdb/SpeedPostDAT.h>
 #include <tsre/tdb/SigCfg.h>
 #include <tsre/tdb/TDBClient.h>
+
+namespace {
+static TrackObj* getGroupTrackAnchor(GroupObj* group) {
+    if(group == NULL)
+        return NULL;
+    for(int i = 0; i < group->objects.size(); i++){
+        if(group->objects[i] == NULL)
+            continue;
+        if(group->objects[i]->typeID == WorldObj::trackobj)
+            return (TrackObj*)group->objects[i];
+    }
+    return NULL;
+}
+}
 
 Route::Route() {
 
@@ -1521,9 +1537,15 @@ void Route::dragWorldObject(WorldObj* obj, int x, int z, float* pos){
                 }
             }
     }
-    
-    
-    if(obj->isTrackItem() || obj->typeID == obj->groupobject || obj->typeID == obj->ruler ){
+
+
+    if(obj->typeID == obj->groupobject){
+        obj->setPosition(x, z, tpos);
+        obj->setMartix();
+        return;
+    }
+
+    if(obj->isTrackItem() || obj->typeID == obj->ruler ){
         obj->setPosition(x, z, tpos);
         obj->setMartix();
         return;
@@ -2310,9 +2332,25 @@ void Route::flipObject(WorldObj *obj){
         return;
     if(obj->typeObj != WorldObj::worldobj)
         return;
+    if(obj->typeID == obj->groupobject){
+        GroupObj* group = (GroupObj*)obj;
+        TrackObj* anchor = getGroupTrackAnchor(group);
+        if(anchor != NULL){
+            int oldAnchorX = anchor->x;
+            int oldAnchorZ = anchor->y;
+            float oldAnchorPosition[3];
+            float oldAnchorQ[4];
+            Vec3::copy(oldAnchorPosition, anchor->position);
+            Quat::copy(oldAnchorQ, anchor->qDirection);
+            nextDefaultEnd();
+            newPositionTDB(anchor);
+            group->applyAnchorTransform(this, anchor, oldAnchorX, oldAnchorZ, oldAnchorPosition, oldAnchorQ);
+            return;
+        }
+    }
     if(obj->typeID == obj->trackobj || obj->typeID == obj->dyntrack ){
         nextDefaultEnd();
-        newPositionTDB(obj);                
+        newPositionTDB(obj);
     } else {
         obj->flip();
     }

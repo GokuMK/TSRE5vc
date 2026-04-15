@@ -10,13 +10,22 @@ Primary goal:
 This task note captures the current behavior, the preferred design, the intended implementation boundaries, and the v1 scope limits.
 
 ## Status
-### Current State
-- Design reviewed only.
-- No runtime code changed yet.
-- Preferred implementation direction agreed:
-  - build a synthetic in-memory `TrackShape`
-  - refactor `TDB::findPosition(...)` to accept `TrackShape*`
-  - reuse existing TDB snapping logic for group endpoint cycling
+### Done
+- `TDB::findPosition(...)` now has a `TrackShape*` overload, while the old `sectionIdx` overload remains as a wrapper.
+- `TrackShape::SectionIdx` section capacity was raised so grouped synthetic routes are not limited to 12 sections.
+- Step 1 is implemented and works:
+  - grouped `X` now uses one real `TrackObj` as anchor
+  - the anchor is repositioned by the normal single-track path: `nextDefaultEnd()` plus `newPositionTDB()`
+  - the rest of the group follows by one rigid transform
+- The rigid follow transform was moved into `GroupObj`, because that is group behavior, not route/TDB behavior.
+
+### Not Done
+- `dyntrack` endpoint extraction
+- mixed rail/road grouped snapping
+- temporary-`TDB`-based grouped shape building
+- persistence of synthetic grouped shapes outside editor-time cache
+- synthetic grouped `TrackShape` generation for grouped `X`
+- grouped drag snapping based on a synthetic grouped `TrackShape`
 
 ### Intentionally Out Of Scope For V1
 - `dyntrack` endpoint extraction
@@ -24,6 +33,14 @@ This task note captures the current behavior, the preferred design, the intended
 - preserving support for arbitrary disconnected track islands inside one group
 - extracting topology by building a temporary `TDB`
 - full persistent editor/runtime storage of synthetic grouped shapes
+
+### Removed During Review
+- The first synthetic grouped `TrackShape` prototype and grouped snap cache were removed from runtime code.
+- That prototype made endpoint/path generation and transform application too complicated too early.
+- Current code is again based on a clean working runtime path:
+  - one real anchor `TrackObj`
+  - existing `findPosition(...)`
+  - existing grouped rigid-transform rules
 
 ## Current Behavior
 Pressing `X` in the editor goes through:
@@ -73,6 +90,15 @@ This is preferred over hand-written group transform math because:
 - `findPosition(...)` already encodes the current anchor behavior
 - `findPosition(...)` already handles path-end selection consistently with normal track objects
 - it avoids inventing a second snapping rule just for groups
+
+Important refinement after implementation review:
+- the grouped feature should be built in two steps
+- step 1 must stay simple and known-good
+- only step 2 should introduce grouped synthetic `TrackShape` generation
+
+Current step split:
+- Step 1: use one existing child `TrackObj` as anchor and make grouped `X` reliable
+- Step 2: replace the anchor shape input with a synthetic grouped `TrackShape`
 
 ## Why Not Build A Temporary `TDB`
 A temporary `TDB` was considered, but is not the preferred v1 path.
@@ -310,14 +336,19 @@ The main requirement is still deterministic path generation and stable ordering.
 Connector matching needs numeric tolerance to avoid tiny transform drift causing missed joins.
 
 ## Suggested Implementation Steps
-1. Add `TDB::findPosition(..., TrackShape* shp)` and wrap the old overload around it.
-2. Add a small helper that computes start/end connector poses for one existing child `TrackShape::path`.
-3. Build grouped connector matching and detect internal vs external connector sites.
-4. Build a route graph for grouped `trackobj` children.
-5. Enumerate valid external-to-external routes and emit a synthetic grouped `TrackShape`.
-6. Add grouped branch in `Route::flipObject(...)` using the synthetic shape.
-7. Decide whether grouped drag snapping should be updated in the same task or left for a follow-up.
-8. Test with:
+1. Keep the current Step 1 behavior as the stable base:
+   - one real anchor `TrackObj`
+   - `nextDefaultEnd()` + `newPositionTDB()`
+   - rigid group follow transform in `GroupObj`
+2. Keep `TDB::findPosition(..., TrackShape* shp)`; it is still the right extension point for Step 2.
+3. Add a small helper that computes start/end connector poses for one existing child `TrackShape::path`.
+4. Build grouped connector matching and detect internal vs external connector sites.
+5. Build a route graph for grouped `trackobj` children.
+6. Enumerate valid external-to-external routes and emit a synthetic grouped `TrackShape`.
+7. Put that builder in a dedicated helper/class, not in `Route.cpp`.
+8. Replace the Step 1 anchor shape input with the synthetic grouped shape, while keeping the same high-level grouped `X` flow.
+9. Decide whether grouped drag snapping should be updated in the same task or left for a follow-up.
+10. Test with:
    - straight chain
    - turnout / 3-way style layout
    - crossover-like layout
@@ -335,3 +366,12 @@ Connector matching needs numeric tolerance to avoid tiny transform drift causing
 - `path[0]` is used as a reference point in current snapping logic rather than a guaranteed endpoint at shape origin.
 - Existing `TrackShape` examples with multiple `SectionIdx(...)` entries confirm that path definitions are route-based, not endpoint-based.
 - The section list is the most important payload, but valid grouped `pos` and `rotDeg` still need to be synthesized correctly.
+- `firstPosition` should remain the placement reference for `X`; it should not be rewritten by endpoint cycling.
+- `placedAtPosition` serves a different purpose and is used by other incremental transforms such as track rotation/elevation.
+- The working grouped runtime behavior came from reusing existing logic, not from replacing it.
+- The non-anchor child transform must follow the engine's existing tile/local convention exactly; mathematically equivalent rewrites were easy to get subtly wrong.
+- For the next step, the removed prototype does not need to be restored. The clean base is:
+  - real anchor-track `X` flow already working
+  - `TrackShape*` overload in `TDB::findPosition(...)` still available
+  - `TrackShape::SectionIdx` capacity already increased
+  - grouped rigid follow transform already working

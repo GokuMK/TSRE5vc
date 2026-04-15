@@ -32,6 +32,7 @@ class Ref;
 class GLUU;
 class FileBuffer;
 class SpeedPostDAT;
+class TrackShape;
 
 class TDB {
 public:
@@ -118,6 +119,7 @@ public:
     bool placeTrack(int x, int z, float* p, float* q, int sectionIdx, int uid, QVector<std::array<float, 5>> *jNodePosn = NULL);
     bool fillJNodePosn(int x, int z, int uid, QVector<std::array<float, 5>> *jNodePosn);
     bool findPosition(int &x, int &z, float* p, float* q, float* endp, int sectionIdx);
+    bool findPosition(int &x, int &z, float* p, float* q, float* endp, TrackShape* shape);
     void getLines(float * &lineBuffer, int &length, float* playerT);
     void renderAll(GLUU *gluu, float * playerT, float playerRot);
     void pushRenderAll(float * playerT, float playerRot);

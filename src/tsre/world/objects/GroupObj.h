@@ -33,6 +33,8 @@ public:
     WorldObj* clone();
     float *getPosition();
     float *getQuatRotation();
+    int getPositionX() const;
+    int getPositionZ() const;
     void translate(float px, float py, float pz);
     void rotate(float x, float y, float z);
     void resize(float x, float y, float z);
@@ -58,6 +60,7 @@ public:
     void adjustRotationToTerrain();
     void addObject(WorldObj* obj);
     void clear();
+    void applyAnchorTransform(Route* route, WorldObj* anchor, int oldAnchorX, int oldAnchorZ, float* oldAnchorPosition, float* oldAnchorQ);
     bool select();
     bool select(int val);
     bool unselect();

@@ -11,6 +11,7 @@
 #include <tsre/world/objects/GroupObj.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/world/Route.h>
+#include <cmath>
 
 GroupObj::GroupObj() {
     this->typeID = WorldObj::groupobject;
@@ -186,6 +187,42 @@ unsigned int GroupObj::count(){
     return objects.size();
 }
 
+void GroupObj::applyAnchorTransform(Route* route, WorldObj* anchor, int oldAnchorX, int oldAnchorZ, float* oldAnchorPosition, float* oldAnchorQ){
+    if(route == NULL || anchor == NULL)
+        return;
+
+    float tp[3];
+    float tQrot[4];
+    float newAnchorQ[4];
+    Vec3::copy(tp, oldAnchorPosition);
+    Quat::copy(newAnchorQ, anchor->qDirection);
+    Quat::invert(newAnchorQ, newAnchorQ);
+    Quat::multiply(tQrot, oldAnchorQ, newAnchorQ);
+    Quat::invert(tQrot, tQrot);
+
+    for(int i = 0; i < this->objects.size(); i++){
+        WorldObj* obj = this->objects[i];
+        if(obj == NULL || obj == anchor)
+            continue;
+
+        float tpos[3];
+        float newQ[4];
+        Vec3::sub(tpos, tp, obj->position);
+        Vec3::transformQuat(tpos, tpos, tQrot);
+        Vec3::sub(tpos, anchor->position, tpos);
+        tpos[0] -= (oldAnchorX - obj->x)*2048;
+        tpos[2] -= (oldAnchorZ - obj->y)*2048;
+        Quat::copy(newQ, obj->qDirection);
+        Quat::multiply(newQ, newQ, tQrot);
+
+        obj->setPosition(anchor->x, anchor->y, tpos);
+        obj->setQdirection(newQ);
+        route->moveWorldObjToTile(anchor->x, anchor->y, obj);
+        obj->setMartix();
+        obj->setModified();
+    }
+}
+
 float *GroupObj::getPosition(){
     if(pivot.set < 0)
         return (float*)pivot.position;
@@ -199,6 +236,22 @@ float *GroupObj::getQuatRotation(){
     }else {
         return (float*)objects[pivot.set]->qDirection;
     }
+}
+
+int GroupObj::getPositionX() const{
+    if(pivot.set < 0)
+        return pivot.x;
+    if(pivot.set >= objects.size())
+        return 0;
+    return objects[pivot.set]->x;
+}
+
+int GroupObj::getPositionZ() const{
+    if(pivot.set < 0)
+        return pivot.z;
+    if(pivot.set >= objects.size())
+        return 0;
+    return objects[pivot.set]->y;
 }
 
 void GroupObj::translate(float px, float py, float pz){

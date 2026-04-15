@@ -1588,6 +1588,13 @@ void TDB::nextDefaultEnd(){
 }
 
 bool TDB::findPosition(int &x, int &z, float* p, float* q, float* endp, int sectionIdx){
+    if(sectionIdx < 0) {
+        return findPosition(x, z, p, q, endp, (TrackShape*)NULL);
+    }
+    return findPosition(x, z, p, q, endp, this->tsection->shape[sectionIdx]);
+}
+
+bool TDB::findPosition(int &x, int &z, float* p, float* q, float* endp, TrackShape* shp){
     float qe[3];
     qe[0] = 0;
     qe[1] = 0;
@@ -1598,13 +1605,12 @@ bool TDB::findPosition(int &x, int &z, float* p, float* q, float* endp, int sect
     
     bool b;
     
-    if(sectionIdx < 0){
+    if(shp == NULL){
         Quat::fill(q);
         Quat::rotateY(q, q, -qe[1]);
         return true;
     }
-    
-    TrackShape* shp = this->tsection->shape[sectionIdx];
+
     qDebug() << shp->filename;
     float startPos[3];
      
