@@ -11,6 +11,7 @@
 #include <tsre/world/objects/GroupObj.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/world/Route.h>
+#include <tsre/tdb/TrackShape.h>
 #include <cmath>
 
 GroupObj::GroupObj() {
@@ -35,9 +36,11 @@ WorldObj* GroupObj::clone(){
 }
 
 GroupObj::~GroupObj() {
+    clearTrackShapeCache();
 }
 
 void GroupObj::fromNewObjects(GroupObj* objList, Route* route, int x, int z, float *p){
+    clearTrackShapeCache();
     this->unselect();
     objects.clear();
     float *q;
@@ -110,6 +113,7 @@ void GroupObj::fromNewObjects(GroupObj* objList, Route* route, int x, int z, flo
 }
 
 void GroupObj::addObject(WorldObj* obj){
+    clearTrackShapeCache();
     if(obj == NULL)
         return;
     if(obj->typeObj != WorldObj::worldobj)
@@ -140,6 +144,7 @@ void GroupObj::addObject(WorldObj* obj){
 }
 
 void GroupObj::clear(){
+    clearTrackShapeCache();
     this->unselect();
     this->objects.clear();
     this->selected = false;
@@ -153,6 +158,27 @@ void GroupObj::clear(){
     this->pivot.qDirection[1] = 0;
     this->pivot.qDirection[2] = 0;
     this->pivot.qDirection[3] = 1;
+}
+
+void GroupObj::clearTrackShapeCache(){
+    if(cachedTrackShape != NULL){
+        delete[] cachedTrackShape->path;
+        delete cachedTrackShape;
+        cachedTrackShape = NULL;
+    }
+}
+
+bool GroupObj::hasCachedTrackShape() const{
+    return cachedTrackShape != NULL && cachedTrackShape->path != NULL && cachedTrackShape->numpaths > 0;
+}
+
+TrackShape* GroupObj::getCachedTrackShape() const{
+    return cachedTrackShape;
+}
+
+void GroupObj::setCachedTrackShape(TrackShape* shape){
+    clearTrackShapeCache();
+    cachedTrackShape = shape;
 }
 
 bool GroupObj::select(){

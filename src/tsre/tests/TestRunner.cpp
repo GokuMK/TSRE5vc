@@ -22,6 +22,7 @@
 
 #include <tsre/Game.h>
 #include <tsre/math3d/Flex.h>
+#include <tsre/tests/RouteLoadTestSuite.h>
 
 namespace {
 
@@ -381,7 +382,7 @@ static int runFlexSuite(QString casesFile, bool verbose) {
 } // namespace
 
 QStringList TsreTests::listSuites() {
-    return {"flex"};
+    return {"flex", "route-load"};
 }
 
 int TsreTests::run(const TestRunOptions &opts) {
@@ -392,9 +393,13 @@ int TsreTests::run(const TestRunOptions &opts) {
     if (suite.isEmpty() || suite == "flex")
         return runFlexSuite(opts.casesFile, opts.verbose);
 
+    if (suite == "route-load")
+        return runRouteLoadSuite(opts);
+
     if (suite == "all") {
         int rc = 0;
         rc = std::max(rc, runFlexSuite(opts.casesFile, opts.verbose));
+        rc = std::max(rc, runRouteLoadSuite(opts));
         return rc;
     }
 

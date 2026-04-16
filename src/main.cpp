@@ -309,6 +309,10 @@ int main(int argc, char *argv[]){
         Game::flexLogFile = consoleArgs["FLEX_LOG_FILE"];
     }
 
+    if(consoleArgs["ROUTE"].length() > 0){
+        Game::route = consoleArgs["ROUTE"];
+    }
+
     // Test runner (headless) - runs and exits without starting the GUI.
     if (consoleArgs["TEST_LIST"] == "TRUE") {
         Game::gui = false;
@@ -393,9 +397,6 @@ int main(int argc, char *argv[]){
     }
     //////////////////////////////////////////
     //qDebug() << "arg1 " << args[1];    
-    if(consoleArgs["ROUTE"].length() > 0){
-        Game::route = consoleArgs["ROUTE"];
-    }
     if(consoleArgs["IP"].length() > 0){
         RouteEditorServer::IP = consoleArgs["IP"];
     }

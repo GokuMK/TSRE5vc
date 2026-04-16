@@ -16,6 +16,7 @@
 #include <QVector>
 
 class Route;
+class TrackShape;
 
 class GroupObj : public WorldObj {
 public:
@@ -60,6 +61,10 @@ public:
     void adjustRotationToTerrain();
     void addObject(WorldObj* obj);
     void clear();
+    void clearTrackShapeCache();
+    bool hasCachedTrackShape() const;
+    TrackShape* getCachedTrackShape() const;
+    void setCachedTrackShape(TrackShape* shape);
     void applyAnchorTransform(Route* route, WorldObj* anchor, int oldAnchorX, int oldAnchorZ, float* oldAnchorPosition, float* oldAnchorQ);
     bool select();
     bool select(int val);
@@ -74,6 +79,7 @@ public:
 private:
     Pivot pivot;
     bool individualRotation = false;
+    TrackShape* cachedTrackShape = NULL;
 };
 
 #endif	/* GROUPOBJ_H */

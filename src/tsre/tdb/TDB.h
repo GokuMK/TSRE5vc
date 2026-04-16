@@ -105,6 +105,7 @@ public:
     void fillDynTrack(DynTrackObj* track);
     int fillJunction(int id);
     void setDefaultEnd(int val);
+    int getDefaultEnd() const;
     void nextDefaultEnd();
     float getVectorSectionLength(int id);
     float getVectorSectionLengthToIdx(int id, int idx);
@@ -117,6 +118,7 @@ public:
     int newTrack(int x, int z, float* p, float* q, int* ends, int r, int sect, int uid);
     int newTrack(int x, int z, float* p, float* q, int* ends, int r, int sect, int uid, int* start);
     bool placeTrack(int x, int z, float* p, float* q, int sectionIdx, int uid, QVector<std::array<float, 5>> *jNodePosn = NULL);
+    bool placeTrack(int x, int z, float* p, float* q, TrackShape* shape, int uid, int shapeIdForTdb = -1, QVector<std::array<float, 5>> *jNodePosn = NULL);
     bool fillJNodePosn(int x, int z, int uid, QVector<std::array<float, 5>> *jNodePosn);
     bool findPosition(int &x, int &z, float* p, float* q, float* endp, int sectionIdx);
     bool findPosition(int &x, int &z, float* p, float* q, float* endp, TrackShape* shape);

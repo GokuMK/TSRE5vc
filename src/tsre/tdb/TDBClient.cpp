@@ -38,6 +38,12 @@ void TDBClient::updateTrackSection(int id){
 }
 
 void TDBClient::updateTrackShape(int id){
+    if(id < 0)
+        return;
+    if(this->tsection == NULL)
+        return;
+    if(this->tsection->shape[id] == NULL)
+        return;
     Game::serverClient->updateTrackShapeData(this->tsection->shape[id]);
 }
 int TDBClient::getNextItrNode(){

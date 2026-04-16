@@ -389,6 +389,8 @@ void RouteEditorClient::updateTrackSectionData(TSection *s){
 }
 
 void RouteEditorClient::updateTrackShapeData(TrackShape *s){
+    if(s == NULL)
+        return;
     qDebug() << "send track shape";
     QByteArray outd;
     QTextStream out(&outd);

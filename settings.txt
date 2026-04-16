@@ -5,7 +5,7 @@ gameRoot = F:/train simulator
 gameRoot = C:/trainsim
 
 # route directory name to load on startup by default
-routeName = bbb
+routeName = bbb22
 
 # optional start tile
 #startTileX = -5306

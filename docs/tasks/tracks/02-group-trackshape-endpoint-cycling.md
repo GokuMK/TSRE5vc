@@ -12,20 +12,26 @@ This task note captures the current behavior, the preferred design, the intended
 ## Status
 ### Done
 - `TDB::findPosition(...)` now has a `TrackShape*` overload, while the old `sectionIdx` overload remains as a wrapper.
+- `TDB::placeTrack(...)` now also has a `TrackShape*` overload for temporary/synthetic shape insertion into TDB.
 - `TrackShape::SectionIdx` section capacity was raised so grouped synthetic routes are not limited to 12 sections.
 - Step 1 is implemented and works:
   - grouped `X` now uses one real `TrackObj` as anchor
   - the anchor is repositioned by the normal single-track path: `nextDefaultEnd()` plus `newPositionTDB()`
   - the rest of the group follows by one rigid transform
 - The rigid follow transform was moved into `GroupObj`, because that is group behavior, not route/TDB behavior.
+- A temporary debug path for `Z` is implemented:
+  - for grouped track layouts, `toggleToTDB` can now try inserting one synthetic grouped `TrackShape` into TDB
+  - if that synthetic insertion fails, it falls back to the old child-by-child group insertion path
+  - the fallback block is intentionally kept directly in `Route::toggleToTDB(...)` so it is easy to switch/comment during debugging
 
 ### Not Done
 - `dyntrack` endpoint extraction
 - mixed rail/road grouped snapping
 - temporary-`TDB`-based grouped shape building
 - persistence of synthetic grouped shapes outside editor-time cache
-- synthetic grouped `TrackShape` generation for grouped `X`
+- reliable synthetic grouped `TrackShape` generation for grouped `X`
 - grouped drag snapping based on a synthetic grouped `TrackShape`
+- automated regression tests for grouped synthetic `TrackShape` generation / TDB insertion
 
 ### Intentionally Out Of Scope For V1
 - `dyntrack` endpoint extraction
@@ -33,6 +39,20 @@ This task note captures the current behavior, the preferred design, the intended
 - preserving support for arbitrary disconnected track islands inside one group
 - extracting topology by building a temporary `TDB`
 - full persistent editor/runtime storage of synthetic grouped shapes
+
+### Current Failures (April 2026)
+- The synthetic grouped `TrackShape` builder is still not trustworthy enough for grouped `X`.
+- The generated synthetic shape can still depend on current group placement and/or heading, which is wrong. A valid grouped `TrackShape` should be intrinsic to the layout, not to where it currently sits in the world.
+- Route counts improved from the earlier 4..7-path instability, but the builder is still not consistently reliable.
+- Internal connector matching costs are still far too high in many cases (`~0.4 .. 0.9` instead of near `0`), which means connectors that should meet exactly are still being reconstructed in slightly wrong positions or directions.
+- Visual symptom:
+  - some endpoints snap acceptably on axis-aligned targets
+  - angled targets are still worse
+  - this suggests coordinate-space conversion is still wrong, not only route enumeration
+- The current builder has therefore been paused as a production `X` solution.
+- Instead, the task is split into smaller debug/testable steps:
+  - Task 03: use grouped synthetic `TrackShape` through `Z` / `toggleToTDB` for visual TDB inspection
+  - Task 04: add automated TDB comparison tests for grouped synthetic shape generation
 
 ### Removed During Review
 - The first synthetic grouped `TrackShape` prototype and grouped snap cache were removed from runtime code.
@@ -354,6 +374,16 @@ Connector matching needs numeric tolerance to avoid tiny transform drift causing
    - crossover-like layout
    - group with no valid external route
    - group containing ignored non-track children
+
+## Revised Next Steps
+1. Keep the current Step 1 grouped `X` path as the only trusted runtime behavior.
+2. Do not continue iterating on synthetic grouped `TrackShape` through `X` until the shape itself can be inspected and tested in isolation.
+3. Use grouped `Z` insertion to inspect the synthetic `TrackShape` directly inside TDB without the extra `findPosition(...)` / endpoint-cycling layer.
+4. Add automated comparison tests that insert:
+   - the same grouped layout as separate objects
+   - the same grouped layout as one synthetic `TrackShape`
+   - then compare resulting TDB vectors / endpoints / topology
+5. Only return to grouped `X` once the synthetic `TrackShape` is shown to be stable by both visual and automated tests.
 
 ## Acceptance Criteria
 - Selecting a supported grouped track layout and pressing `X` cycles only valid external grouped routes.

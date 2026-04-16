@@ -13,6 +13,7 @@
 #include <QDir>
 #include <QSet>
 #include <algorithm>
+#include <cmath>
 #include <tsre/world/Route.h>
 #include <tsre/tdb/TSectionDAT.h>
 #include <tsre/ogl/GLUU.h>
@@ -65,8 +66,24 @@
 #include <tsre/tdb/SpeedPostDAT.h>
 #include <tsre/tdb/SigCfg.h>
 #include <tsre/tdb/TDBClient.h>
+#include <tsre/tdb/GroupTrackShapeBuilder.h>
 
 namespace {
+static float absoluteX(int tileX, float localX) {
+    return tileX * 2048.0f + localX;
+}
+
+static float absoluteZFromWorld(int tileZ, float localZ) {
+    return tileZ * 2048.0f + localZ;
+}
+
+static void absoluteToTileLocal(float absoluteXValue, float absoluteZValue, int& tileX, int& tileZ, float& localX, float& localZ) {
+    tileX = (int)floor((absoluteXValue + 1024.0f) / 2048.0f);
+    tileZ = (int)floor((absoluteZValue + 1024.0f) / 2048.0f);
+    localX = absoluteXValue - tileX * 2048.0f;
+    localZ = absoluteZValue - tileZ * 2048.0f;
+}
+
 static TrackObj* getGroupTrackAnchor(GroupObj* group) {
     if(group == NULL)
         return NULL;
@@ -77,6 +94,80 @@ static TrackObj* getGroupTrackAnchor(GroupObj* group) {
             return (TrackObj*)group->objects[i];
     }
     return NULL;
+}
+
+static bool groupHasAnyTrackInTDB(Route* route, GroupObj* group) {
+    if(route == NULL || group == NULL)
+        return false;
+    for(int i = 0; i < group->objects.size(); i++) {
+        WorldObj* child = group->objects[i];
+        if(child == NULL)
+            continue;
+        if(child->type != "trackobj" && child->type != "dyntrack")
+            continue;
+        if(Game::roadDB->ifTrackExist(child->x, child->y, child->UiD) || Game::trackDB->ifTrackExist(child->x, child->y, child->UiD))
+            return true;
+    }
+    return false;
+}
+
+static bool addGroupToTDBUsingSyntheticShape(Route* route, GroupObj* group) {
+    if(route == NULL || group == NULL)
+        return false;
+
+    TrackObj* anchor = getGroupTrackAnchor(group);
+    if(anchor == NULL)
+        return false;
+    if(route->tsection->isRoadShape(anchor->sectionIdx))
+        return false;
+
+    GroupTrackShapeBuilder::Result groupedShape;
+    if(!GroupTrackShapeBuilder::build(groupedShape, group, anchor, route->tsection) || !groupedShape.isValid()) {
+        qDebug() << "GroupTrackShapeBuilder: synthetic TDB add failed to build grouped shape";
+        return false;
+    }
+
+    int x = anchor->x;
+    int z = anchor->y;
+    float p[3] = {anchor->position[0], anchor->position[1], anchor->position[2]};
+    float q[4] = {anchor->qDirection[0], anchor->qDirection[1], anchor->qDirection[2], anchor->qDirection[3]};
+    if(!Game::trackDB->placeTrack(x, z, (float*)&p, (float*)&q, groupedShape.shape, anchor->UiD, -1)) {
+        qDebug() << "GroupTrackShapeBuilder: synthetic TDB add failed during placeTrack";
+        return false;
+    }
+    qDebug() << "GroupTrackShapeBuilder: synthetic TDB add inserted" << groupedShape.shape->numpaths << "paths";
+    return true;
+}
+
+static bool positionGroupAnchorWithShape(Route* route, TDB* trackDB, TrackObj* anchor, TrackShape* shape) {
+    if(route == NULL || trackDB == NULL || anchor == NULL || shape == NULL || shape->numpaths <= 0)
+        return false;
+
+    int x = anchor->x;
+    int z = anchor->y;
+    float p[3];
+    p[0] = anchor->firstPosition[0];
+    p[1] = anchor->firstPosition[1];
+    p[2] = anchor->firstPosition[2];
+    Game::check_coords(x, z, (float*) &p);
+
+    float q[4];
+    q[0] = 0;
+    q[1] = 0;
+    q[2] = 0;
+    q[3] = 1;
+
+    // Synthetic grouped shapes should not overwrite the anchor child's own endpoint data.
+    float syntheticEndp[5] = {0, 0, 0, 1, 0};
+    if(!trackDB->findPosition(x, z, p, q, syntheticEndp, shape))
+        return false;
+
+    anchor->setPosition(p);
+    anchor->setQdirection(q);
+    anchor->setMartix();
+    anchor->setModified();
+    route->moveWorldObjToTile(x, z, anchor);
+    return true;
 }
 }
 
@@ -2021,6 +2112,19 @@ void Route::toggleToTDB(WorldObj* obj) {
         return;
     if(obj->typeID == obj->groupobject) {
         GroupObj *gobj = (GroupObj*)obj;
+        if(groupHasAnyTrackInTDB(this, gobj)) {
+            for(int i = 0; i < gobj->objects.size(); i++ ){
+                toggleToTDB(gobj->objects[i]);
+            }
+            return;
+        }
+
+        const bool useSyntheticGroupToggle = true;
+        if(useSyntheticGroupToggle && addGroupToTDBUsingSyntheticShape(this, gobj))
+            return;
+
+        // Fallback / old behavior:
+        // add every child object to TDB independently.
         for(int i = 0; i < gobj->objects.size(); i++ ){
             toggleToTDB(gobj->objects[i]);
         }
@@ -2343,7 +2447,24 @@ void Route::flipObject(WorldObj *obj){
             Vec3::copy(oldAnchorPosition, anchor->position);
             Quat::copy(oldAnchorQ, anchor->qDirection);
             nextDefaultEnd();
-            newPositionTDB(anchor);
+            if(!group->hasCachedTrackShape()){
+                GroupTrackShapeBuilder::Result groupedShape;
+                if(GroupTrackShapeBuilder::build(groupedShape, group, anchor, this->tsection)){
+                    qDebug() << "GroupTrackShapeBuilder: built synthetic shape with" << groupedShape.shape->numpaths << "paths";
+                    group->setCachedTrackShape(groupedShape.releaseShape());
+                } else {
+                    qDebug() << "GroupTrackShapeBuilder: build failed, fallback to anchor shape";
+                }
+            }
+            if(group->hasCachedTrackShape()){
+                if(!positionGroupAnchorWithShape(this, this->trackDB, anchor, group->getCachedTrackShape())){
+                    qDebug() << "GroupTrackShapeBuilder: synthetic placement failed, fallback to anchor shape";
+                    group->clearTrackShapeCache();
+                    newPositionTDB(anchor);
+                }
+            } else {
+                newPositionTDB(anchor);
+            }
             group->applyAnchorTransform(this, anchor, oldAnchorX, oldAnchorZ, oldAnchorPosition, oldAnchorQ);
             return;
         }

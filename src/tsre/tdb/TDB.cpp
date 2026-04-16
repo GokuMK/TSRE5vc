@@ -1583,6 +1583,10 @@ void TDB::setDefaultEnd(int val){
     this->defaultEnd = val;
 }
 
+int TDB::getDefaultEnd() const{
+    return this->defaultEnd;
+}
+
 void TDB::nextDefaultEnd(){
     this->defaultEnd++;
 }
@@ -1728,6 +1732,12 @@ bool TDB::fillJNodePosn(int x, int z, int uid, QVector<std::array<float, 5>> *jN
 }
 
 bool TDB::placeTrack(int x, int z, float* p, float* q, int sectionIdx, int uid, QVector<std::array<float, 5>> *jNodePosn) {
+    if(sectionIdx < 0)
+        return placeTrack(x, z, p, q, (TrackShape*)NULL, uid, sectionIdx, jNodePosn);
+    return placeTrack(x, z, p, q, this->tsection->shape[sectionIdx], uid, sectionIdx, jNodePosn);
+}
+
+bool TDB::placeTrack(int x, int z, float* p, float* q, TrackShape* shp, int uid, int shapeIdForTdb, QVector<std::array<float, 5>> *jNodePosn) {
     float qe[4];
     float vect[3];
     vect[0] = 0; vect[1] = 0; vect [2] = 10;
@@ -1758,7 +1768,8 @@ bool TDB::placeTrack(int x, int z, float* p, float* q, int sectionIdx, int uid, 
     qe[1] = pitch;
     qe[2] = 0;
     
-    TrackShape* shp = this->tsection->shape[sectionIdx];
+    if(shp == NULL)
+        return false;
     qDebug() << shp->filename;
     float pp[3];
     float qee[3];
@@ -1825,14 +1836,14 @@ bool TDB::placeTrack(int x, int z, float* p, float* q, int sectionIdx, int uid, 
                 jNodePosn->back()[3] = pp[1];
                 jNodePosn->back()[4] = -pp[2];
             }
-            junctionId[ends[0]] = newJunction(x, z, pp, qee, sectionIdx, uid, ends[0]);
+            junctionId[ends[0]] = newJunction(x, z, pp, qee, shapeIdForTdb, uid, ends[0]);
         }
 
-        endp = newTrack(x, z, pp, qee, (int*)ends, sectionIdx, shp->path[i].sect[0], uid, &start);
+        endp = newTrack(x, z, pp, qee, (int*)ends, shapeIdForTdb, shp->path[i].sect[0], uid, &start);
 
         for (int j = 1; j < shp->path[i].n; j++) {
             if (endp > 0) {
-                endp = appendTrack(endp, (int*)ends, sectionIdx, shp->path[i].sect[j], uid);
+                endp = appendTrack(endp, (int*)ends, shapeIdForTdb, shp->path[i].sect[j], uid);
             }
         }
         
@@ -1867,7 +1878,7 @@ bool TDB::placeTrack(int x, int z, float* p, float* q, int sectionIdx, int uid, 
                 continue;
             //qDebug() << cPoints.size();
             qDebug() << cPoints[0].idx << cPoints[0].m << cPoints[1].idx << cPoints[1].m;
-            this->newCrossOverObject(cPoints[0].idx, cPoints[0].m, cPoints[1].idx, cPoints[1].m, sectionIdx);
+            this->newCrossOverObject(cPoints[0].idx, cPoints[0].m, cPoints[1].idx, cPoints[1].m, shapeIdForTdb);
         }
     }
 
@@ -2562,9 +2573,9 @@ bool TDB::getDrawPositionOnTrNode(float* out, int id, float metry, float *sElev)
             } else {
                 *sElev = 0;
             }
-            
-        return true;
-    }
+
+    return true;
+}
     return false;
 }
 
