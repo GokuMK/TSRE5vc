@@ -26,6 +26,8 @@ Implemented; GUI acceptance testing pending.
 Each accepted segment is immediately represented in TDB. As with the existing
 DynTrack `Z` implementation, creating its dynamic TSection data clears undo
 history because TSection changes are not captured by the current undo model.
+The deferred fix is tracked in
+`docs/tasks/editor/02-undo-dyntrack-tdb-tsection.md`.
 
 ## Coordinate-Space Boundary
 
