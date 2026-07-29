@@ -1,5 +1,7 @@
 # Task 03 - Group Synthetic `TrackShape` Debug Through `Z`
 
+Category: Group objects
+
 ## Objective
 Use the existing `Z` / `toggleToTDB` flow to inspect a grouped synthetic `TrackShape` directly in TDB, without involving grouped `X` endpoint cycling.
 

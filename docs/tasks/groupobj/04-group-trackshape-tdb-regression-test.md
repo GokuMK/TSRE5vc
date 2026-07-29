@@ -1,5 +1,7 @@
 # Task 04 - Automated TDB Comparison Test For Group Synthetic `TrackShape`
 
+Category: Group objects
+
 ## Objective
 Add an automated test that compares:
 - TDB insertion of a grouped track layout as separate child objects

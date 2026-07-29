@@ -1,5 +1,7 @@
 # Task 02 - Group Track Layout Endpoint Cycling With Synthetic `TrackShape`
 
+Category: Group objects
+
 ## Objective
 Add `X` endpoint cycling for selected `GroupObj` track layouts by building a temporary in-memory `TrackShape` that represents the whole grouped layout.
 
