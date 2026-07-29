@@ -164,7 +164,7 @@ private:
     void updateLiveFlex(int pointerTileX, int pointerTileZ, const float *pointerPosition);
     void finishLiveFlex(bool accept);
     bool placeContinuousFlexTrack(int tileX, int tileZ, float *position, float *quaternion);
-    DynTrackObj* placeFlexCompanion(int tileX, int tileZ, float *position, float *quaternion);
+    DynTrackObj* placeRawDynTrack(int tileX, int tileZ, float *position, float *quaternion);
     bool createLiveFlexCompanions();
     void discardLiveFlexCompanions();
     bool updateLiveFlexCompanions(const float *mainSections);
