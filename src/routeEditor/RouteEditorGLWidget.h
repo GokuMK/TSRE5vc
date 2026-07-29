@@ -164,6 +164,10 @@ private:
     void updateLiveFlex(int pointerTileX, int pointerTileZ, const float *pointerPosition);
     void finishLiveFlex(bool accept);
     bool placeContinuousFlexTrack(int tileX, int tileZ, float *position, float *quaternion);
+    DynTrackObj* placeRawDynTrack(int tileX, int tileZ, float *position, float *quaternion);
+    bool createLiveFlexCompanions();
+    void discardLiveFlexCompanions();
+    bool updateLiveFlexCompanions(const float *mainSections);
     static void quantizeLiveFlexPoint(int &tileX, int &tileZ, float *position, float step);
     bool paintGLGather(bool drawToScreen);
     bool paintGLValidation();
@@ -237,6 +241,12 @@ private:
     int liveFlexLastEndpointId = -2;
     float liveFlexLastTargetPosition[3] = {0, 0, 0};
     unsigned long long liveFlexLastUpdateTime = 0;
+    QVector<DynTrackObj*> liveFlexCompanions;
+    QVector<float> liveFlexCompanionOffsets;
+    bool liveFlexCompanionsValid = true;
+    bool continuousFlexLeftEnabled = false;
+    bool continuousFlexRightEnabled = false;
+    float continuousFlexSeparation = 4.0f;
     bool stickPointerToTerrain = true;
     bool autoAddToTDB = true;
     float lastNewObjPos[3];

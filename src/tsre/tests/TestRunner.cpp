@@ -566,8 +566,88 @@ static int runFlexPointSuite(bool verbose) {
         }
     }
 
+    struct OffsetPoseCase {
+        const char *name;
+        int sourceTileX;
+        int sourceTileZ;
+        float sourcePosition[3];
+        float objectYaw;
+        float rightOffset;
+        int expectedTileX;
+        int expectedTileZ;
+        float expectedPosition[3];
+    };
+    const OffsetPoseCase offsetCases[] = {
+        {"offset-identity", 5, -2, {10, 3, -20}, 0, 4,
+            5, -2, {14, 3, -20}},
+        {"offset-rotated", 0, 0, {0, 7, 0}, (float)M_PI / 2.0f, 4,
+            0, 0, {0, 7, -4}},
+        {"offset-positive-tile-crossing", 0, 0, {1023, 0, 0}, 0, 4,
+            1, 0, {-1021, 0, 0}},
+        {"offset-negative-tile-crossing", 0, 0, {-1023, 0, 0}, 0, -4,
+            -1, 0, {1021, 0, 0}},
+    };
+    for(const OffsetPoseCase &c : offsetCases) {
+        float sourceQ[4] = {
+            0.0f,
+            std::sin(c.objectYaw * 0.5f),
+            0.0f,
+            std::cos(c.objectYaw * 0.5f)
+        };
+        int targetTileX = 0;
+        int targetTileZ = 0;
+        float targetPosition[3] = {0, 0, 0};
+        float targetQ[4] = {0, 0, 0, 1};
+        const bool ok = Flex::OffsetWorldPose(
+                c.sourceTileX,
+                c.sourceTileZ,
+                c.sourcePosition,
+                sourceQ,
+                c.rightOffset,
+                targetTileX,
+                targetTileZ,
+                targetPosition,
+                targetQ);
+        bool caseOk = ok
+                && targetTileX == c.expectedTileX
+                && targetTileZ == c.expectedTileZ;
+        for(int i = 0; i < 3; i++)
+            caseOk = caseOk
+                    && nearlyEqual(targetPosition[i], c.expectedPosition[i], 1e-4f);
+        for(int i = 0; i < 4; i++)
+            caseOk = caseOk && nearlyEqual(targetQ[i], sourceQ[i], 1e-6f);
+        if(caseOk) {
+            passed++;
+        } else {
+            failed++;
+            qWarning() << "[tests:flex-point] failed:" << c.name
+                    << "tile=" << targetTileX << targetTileZ
+                    << "position=" << targetPosition[0]
+                    << targetPosition[1] << targetPosition[2];
+        }
+    }
+    {
+        guardCaseCount++;
+        float p[3] = {0, 0, 0};
+        float q[4] = {0, 0, 0, 1};
+        int targetTileX = 0;
+        int targetTileZ = 0;
+        float targetPosition[3] = {0, 0, 0};
+        float targetQ[4] = {0, 0, 0, 1};
+        if(!Flex::OffsetWorldPose(
+                0, 0, p, q,
+                std::numeric_limits<float>::quiet_NaN(),
+                targetTileX, targetTileZ, targetPosition, targetQ))
+            passed++;
+        else {
+            failed++;
+            qWarning() << "[tests:flex-point] failed: non-finite offset guard";
+        }
+    }
+
     const int caseCount = (int)(sizeof(cases) / sizeof(cases[0]))
             + (int)(sizeof(yawCases) / sizeof(yawCases[0]))
+            + (int)(sizeof(offsetCases) / sizeof(offsetCases[0]))
             + guardCaseCount;
     qInfo() << "[tests:flex-point] cases=" << caseCount
             << "passed=" << passed << "failed=" << failed;

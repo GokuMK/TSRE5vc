@@ -592,6 +592,44 @@ bool Flex::DyntrackEndpoint(
     return true;
 }
 
+bool Flex::OffsetWorldPose(
+        int sourceTileX,
+        int sourceTileZ,
+        const float *sourcePosition,
+        const float *sourceQuaternion,
+        float rightOffset,
+        int &targetTileX,
+        int &targetTileZ,
+        float *targetPosition,
+        float *targetQuaternion) {
+    if(sourcePosition == nullptr || sourceQuaternion == nullptr
+            || targetPosition == nullptr || targetQuaternion == nullptr
+            || !std::isfinite(rightOffset))
+        return false;
+    for(int i = 0; i < 3; i++)
+        if(!std::isfinite(sourcePosition[i]))
+            return false;
+    for(int i = 0; i < 4; i++)
+        if(!std::isfinite(sourceQuaternion[i]))
+            return false;
+
+    float offset[3] = {rightOffset, 0.0f, 0.0f};
+    Vec3::transformQuat(offset, offset, const_cast<float*>(sourceQuaternion));
+    const float absoluteX = sourceTileX * 2048.0f + sourcePosition[0] + offset[0];
+    const float absoluteZ = sourceTileZ * 2048.0f + sourcePosition[2] + offset[2];
+    targetTileX = (int)std::floor((absoluteX + 1024.0f) / 2048.0f);
+    targetTileZ = (int)std::floor((absoluteZ + 1024.0f) / 2048.0f);
+    targetPosition[0] = absoluteX - targetTileX * 2048.0f;
+    targetPosition[1] = sourcePosition[1] + offset[1];
+    targetPosition[2] = absoluteZ - targetTileZ * 2048.0f;
+    Quat::copy(targetQuaternion, const_cast<float*>(sourceQuaternion));
+
+    for(int i = 0; i < 3; i++)
+        if(!std::isfinite(targetPosition[i]))
+            return false;
+    return true;
+}
+
 bool Flex::NewFlexToPoint(
         int x1,
         int z1,

@@ -41,6 +41,10 @@ ObjTools::ObjTools(QString name)
     advancedPlacenentButton->setCheckable(true);
     QObject::connect(advancedPlacenentButton, SIGNAL(toggled(bool)), this, SLOT(advancedPlacementButtonEnabled(bool)));
     QPushButton *resetRotationButton = new QPushButton("Reset Place Rot", this);
+    QPushButton *continuousFlexOptionsButton = new QPushButton("...", this);
+    continuousFlexOptionsButton->setCheckable(true);
+    QObject::connect(continuousFlexOptionsButton, SIGNAL(toggled(bool)),
+            this, SLOT(continuousFlexOptionsButtonEnabled(bool)));
     QPushButton *autoPlacementDeleteLast = new QPushButton("Delete last placed objects", this);
     QObject::connect(autoPlacementDeleteLast, SIGNAL(released()), this, SLOT(autoPlacementDeleteLastEnabled()));
     
@@ -70,7 +74,8 @@ ObjTools::ObjTools(QString name)
     int row = 0;
     vlist3->addWidget(buttonTools["selectTool"],row,0);
     vlist3->addWidget(buttonTools["placeTool"],row++,1,1,3);
-    vlist3->addWidget(buttonTools["continuousFlexTool"],row++,0,1,4);
+    vlist3->addWidget(buttonTools["continuousFlexTool"],row,0,1,3);
+    vlist3->addWidget(continuousFlexOptionsButton,row++,3);
     vlist3->addWidget(&stickToTDB,row,0);
     vlist3->addWidget(resetRotationButton,row++,1,1,3);
     vlist3->addWidget(buttonTools["autoPlaceSimpleTool"],row,0);
@@ -85,6 +90,32 @@ ObjTools::ObjTools(QString name)
     vlist3->addWidget(new QLabel("m"),row,2);
     vlist3->addWidget(advancedPlacenentButton,row++,3);
     vbox->addItem(vlist3);
+
+    QGridLayout *continuousFlexOptionsLayout = new QGridLayout;
+    continuousFlexOptionsLayout->setSpacing(2);
+    continuousFlexOptionsLayout->setContentsMargins(3,0,3,0);
+    continuousFlexLeft.setText("Track on left");
+    continuousFlexRight.setText("Track on right");
+    continuousFlexOptionsLayout->addWidget(&continuousFlexLeft, 0, 0);
+    continuousFlexOptionsLayout->addWidget(&continuousFlexRight, 0, 1);
+    continuousFlexOptionsLayout->addWidget(new QLabel("Track separation:"), 1, 0);
+    continuousFlexSeparation.setDecimals(2);
+    continuousFlexSeparation.setRange(1.0, 20.0);
+    continuousFlexSeparation.setSingleStep(0.25);
+    continuousFlexSeparation.setSuffix(" m");
+    continuousFlexSeparation.setValue(4.0);
+    continuousFlexSeparation.setEnabled(false);
+    continuousFlexOptionsLayout->addWidget(&continuousFlexSeparation, 1, 1);
+    continuousFlexOptionsWidget.setLayout(continuousFlexOptionsLayout);
+    continuousFlexOptionsWidget.hide();
+    vbox->addWidget(&continuousFlexOptionsWidget);
+
+    QObject::connect(&continuousFlexLeft, SIGNAL(toggled(bool)),
+            this, SLOT(continuousFlexOptionsChanged()));
+    QObject::connect(&continuousFlexRight, SIGNAL(toggled(bool)),
+            this, SLOT(continuousFlexOptionsChanged()));
+    QObject::connect(&continuousFlexSeparation, SIGNAL(valueChanged(double)),
+            this, SLOT(continuousFlexOptionsChanged()));
     
     vlist3 = new QGridLayout;
     vlist3->setSpacing(2);
@@ -528,7 +559,20 @@ void ObjTools::continuousFlexToolEnabled(bool val){
     itemRef.value = -1;
     itemRef.description = "Dynamic Track";
     route->ref->selected = &itemRef;
+    continuousFlexOptionsChanged();
     emit enableTool("continuousFlexTool");
+}
+
+void ObjTools::continuousFlexOptionsButtonEnabled(bool val){
+    continuousFlexOptionsWidget.setVisible(val);
+}
+
+void ObjTools::continuousFlexOptionsChanged(){
+    continuousFlexSeparation.setEnabled(
+            continuousFlexLeft.isChecked() || continuousFlexRight.isChecked());
+    emit sendMsg("continuousFlexLeft", continuousFlexLeft.isChecked());
+    emit sendMsg("continuousFlexRight", continuousFlexRight.isChecked());
+    emit sendMsg("continuousFlexSeparation", (float)continuousFlexSeparation.value());
 }
 
 void ObjTools::autoPlacementButtonEnabled(bool val){

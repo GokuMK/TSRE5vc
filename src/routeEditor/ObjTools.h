@@ -35,6 +35,8 @@ public slots:
     void selectToolEnabled(bool val);
     void placeToolEnabled(bool val);
     void continuousFlexToolEnabled(bool val);
+    void continuousFlexOptionsButtonEnabled(bool val);
+    void continuousFlexOptionsChanged();
     void autoPlacementButtonEnabled(bool val);
     void itemSelected(Ref::RefItem* item);
     void stickToTDBEnabled(int state);
@@ -89,6 +91,10 @@ private:
     QMap<QString, QPushButton*> buttonTools;
     
     QWidget advancedPlacementWidget;
+    QWidget continuousFlexOptionsWidget;
+    QCheckBox continuousFlexLeft;
+    QCheckBox continuousFlexRight;
+    QDoubleSpinBox continuousFlexSeparation;
     QLineEdit autoPlacementPosX;
     QLineEdit autoPlacementPosY;
     QLineEdit autoPlacementPosZ;

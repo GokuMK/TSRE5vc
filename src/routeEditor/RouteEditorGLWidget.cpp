@@ -1907,6 +1907,11 @@ bool RouteEditorGLWidget::startLiveFlex(bool reuseUndoState, bool deleteOnCancel
     liveFlexLastEndpointId = -2;
     liveFlexLastUpdateTime = 0;
     liveFlexDeleteOnCancel = deleteOnCancel;
+    liveFlexCompanionsValid = true;
+
+    if(continuousFlexMode && !createLiveFlexCompanions())
+        return false;
+
     liveFlexActive = true;
 
     if(!reuseUndoState) {
@@ -1949,6 +1954,201 @@ bool RouteEditorGLWidget::placeContinuousFlexTrack(
     route->undoPlaceObj(dynTrack->x, dynTrack->y, dynTrack->UiD);
     setSelectedObj(NULL);
     return false;
+}
+
+DynTrackObj* RouteEditorGLWidget::placeRawDynTrack(
+        int tileX,
+        int tileZ,
+        float *position,
+        float *quaternion) {
+    if(route == NULL || position == NULL || quaternion == NULL)
+        return NULL;
+    Tile *tile = route->requestTile(tileX, tileZ);
+    if(tile == NULL || tile->loaded != 1)
+        return NULL;
+
+    Ref::RefItem dynTrackRef;
+    dynTrackRef.type = "dyntrack";
+    dynTrackRef.value = -1;
+    dynTrackRef.description = "Dynamic Track";
+    DynTrackObj *track = (DynTrackObj*)tile->placeObject(
+            position, quaternion, &dynTrackRef, NULL);
+    if(track != NULL)
+        Undo::PushWorldObjPlaced(track);
+    return track;
+}
+
+bool RouteEditorGLWidget::createLiveFlexCompanions() {
+    liveFlexCompanions.clear();
+    liveFlexCompanionOffsets.clear();
+    if(!continuousFlexMode)
+        return true;
+
+    QVector<float> offsets;
+    if(continuousFlexLeftEnabled)
+        offsets.push_back(-continuousFlexSeparation);
+    if(continuousFlexRightEnabled)
+        offsets.push_back(continuousFlexSeparation);
+
+    for(float offset : offsets) {
+        int tileX = 0;
+        int tileZ = 0;
+        float position[3] = {0, 0, 0};
+        float quaternion[4] = {0, 0, 0, 1};
+        if(!Flex::OffsetWorldPose(
+                liveFlexStartTileX,
+                liveFlexStartTileZ,
+                liveFlexStartPosition,
+                liveFlexStartQ,
+                offset,
+                tileX,
+                tileZ,
+                position,
+                quaternion)) {
+            discardLiveFlexCompanions();
+            return false;
+        }
+
+        DynTrackObj *track = placeRawDynTrack(
+                tileX, tileZ, position, quaternion);
+        if(track == NULL) {
+            discardLiveFlexCompanions();
+            return false;
+        }
+        liveFlexCompanions.push_back(track);
+        liveFlexCompanionOffsets.push_back(offset);
+    }
+    return true;
+}
+
+void RouteEditorGLWidget::discardLiveFlexCompanions() {
+    if(route != NULL) {
+        for(DynTrackObj *track : liveFlexCompanions)
+            if(track != NULL && track->UiD >= 0)
+                route->undoPlaceObj(track->x, track->y, track->UiD);
+    }
+    liveFlexCompanions.clear();
+    liveFlexCompanionOffsets.clear();
+    liveFlexCompanionsValid = true;
+}
+
+bool RouteEditorGLWidget::updateLiveFlexCompanions(const float *mainSections) {
+    if(mainSections == NULL || liveFlexCompanions.isEmpty()) {
+        liveFlexCompanionsValid = true;
+        return true;
+    }
+
+    float mainLength = 0.0f;
+    for(int i = 0; i < 5; i++) {
+        if((i % 2) == 0)
+            mainLength += std::max(0.0f, mainSections[i * 2]);
+        else
+            mainLength += std::fabs(mainSections[i * 2])
+                    * std::max(0.0f, mainSections[i * 2 + 1]);
+    }
+    if(!std::isfinite(mainLength))
+        return liveFlexCompanionsValid = false;
+
+    int mainEndTileX = 0;
+    int mainEndTileZ = 0;
+    float mainEndPosition[3] = {0, 0, 0};
+    float mainEndQ[4] = {0, 0, 0, 1};
+    if(!Flex::DyntrackEndpoint(
+            liveFlexObj->x,
+            liveFlexObj->y,
+            liveFlexObj->position,
+            liveFlexObj->qDirection,
+            mainSections,
+            mainEndTileX,
+            mainEndTileZ,
+            mainEndPosition,
+            mainEndQ))
+        return liveFlexCompanionsValid = false;
+
+    struct CompanionPreview {
+        float sections[10] = {0};
+        float elevation = 0.0f;
+    };
+    QVector<CompanionPreview> previews;
+    previews.reserve(liveFlexCompanions.size());
+
+    for(int i = 0; i < liveFlexCompanions.size(); i++) {
+        DynTrackObj *track = liveFlexCompanions[i];
+        if(track == NULL)
+            return liveFlexCompanionsValid = false;
+
+        CompanionPreview preview;
+        if(mainLength < 0.1f) {
+            previews.push_back(preview);
+            continue;
+        }
+
+        int endTileX = 0;
+        int endTileZ = 0;
+        float endPosition[3] = {0, 0, 0};
+        float endQ[4] = {0, 0, 0, 1};
+        if(!Flex::OffsetWorldPose(
+                mainEndTileX,
+                mainEndTileZ,
+                mainEndPosition,
+                mainEndQ,
+                liveFlexCompanionOffsets[i],
+                endTileX,
+                endTileZ,
+                endPosition,
+                endQ))
+            return liveFlexCompanionsValid = false;
+
+        float q1[4] = {
+            0,
+            Flex::TdbYawFromTrackQuaternion(track->qDirection),
+            0,
+            1
+        };
+        float q2[4] = {
+            0,
+            Flex::TdbYawFromTrackQuaternion(endQ),
+            0,
+            1
+        };
+        if(!Flex::NewFlex(
+                track->x,
+                track->y,
+                track->position,
+                q1,
+                endTileX,
+                endTileZ,
+                endPosition,
+                q2,
+                preview.sections,
+                15.0f))
+            return liveFlexCompanionsValid = false;
+
+        const float dx = (endTileX - track->x) * 2048.0f
+                + endPosition[0] - track->position[0];
+        const float dz = (endTileZ - track->y) * 2048.0f
+                + endPosition[2] - track->position[2];
+        const float horizontalDistance = std::sqrt(dx * dx + dz * dz);
+        if(!std::isfinite(horizontalDistance))
+            return liveFlexCompanionsValid = false;
+        preview.elevation = horizontalDistance > 0.001f
+                ? (endPosition[1] - track->position[1])
+                    * 1000.0f / horizontalDistance
+                : 0.0f;
+        if(!std::isfinite(preview.elevation))
+            return liveFlexCompanionsValid = false;
+        previews.push_back(preview);
+    }
+
+    // Keep all old companion meshes until every new companion solution is
+    // ready, so a failed solve cannot leave a mixed left/right preview.
+    for(int i = 0; i < liveFlexCompanions.size(); i++) {
+        liveFlexCompanions[i]->set("dyntrackdata", previews[i].sections);
+        liveFlexCompanions[i]->setElevation(previews[i].elevation);
+    }
+
+    liveFlexCompanionsValid = true;
+    return true;
 }
 
 void RouteEditorGLWidget::quantizeLiveFlexPoint(int &tileX, int &tileZ, float *position, float step) {
@@ -2097,6 +2297,7 @@ void RouteEditorGLWidget::updateLiveFlex(int pointerTileX, int pointerTileZ, con
 
     liveFlexObj->set("dyntrackdata", dyntrackData);
     liveFlexObj->setElevation(elevation);
+    updateLiveFlexCompanions(dyntrackData);
 }
 
 void RouteEditorGLWidget::finishLiveFlex(bool accept) {
@@ -2105,6 +2306,10 @@ void RouteEditorGLWidget::finishLiveFlex(bool accept) {
 
     DynTrackObj *dynTrack = liveFlexObj;
     const bool continuePlacement = accept && continuousFlexMode;
+    if(continuePlacement && !liveFlexCompanionsValid) {
+        qWarning() << "Continuous Flex: companion track geometry is invalid";
+        return;
+    }
     if(continuePlacement && dynTrack != NULL) {
         float centerlineLength = 0.0f;
         for(int i = 0; i < 5; i++) {
@@ -2122,6 +2327,7 @@ void RouteEditorGLWidget::finishLiveFlex(bool accept) {
         }
     }
     const bool deleteOnCancel = liveFlexDeleteOnCancel;
+    const QVector<DynTrackObj*> acceptedCompanions = liveFlexCompanions;
     liveFlexActive = false;
     liveFlexObj = NULL;
     liveFlexDeleteOnCancel = false;
@@ -2132,6 +2338,7 @@ void RouteEditorGLWidget::finishLiveFlex(bool accept) {
     if(accept) {
         Undo::StateEnd();
     } else {
+        discardLiveFlexCompanions();
         if(deleteOnCancel && dynTrack != NULL) {
             route->undoPlaceObj(dynTrack->x, dynTrack->y, dynTrack->UiD);
             setSelectedObj(NULL);
@@ -2154,6 +2361,12 @@ void RouteEditorGLWidget::finishLiveFlex(bool accept) {
         // Match the existing DynTrack Z operation before deriving the next
         // start. TDB placement may normalize the accepted object's pose.
         route->addToTDB(dynTrack);
+        for(DynTrackObj *track : acceptedCompanions)
+            if(track != NULL)
+                route->addToTDB(track);
+        liveFlexCompanions.clear();
+        liveFlexCompanionOffsets.clear();
+        liveFlexCompanionsValid = true;
 
         float currentSections[10];
         for(int i = 0; i < 5; i++) {
@@ -2752,6 +2965,14 @@ void RouteEditorGLWidget::msg(QString text) {
 
 void RouteEditorGLWidget::msg(QString text, bool val) {
     qDebug() << text;
+    if (text == "continuousFlexLeft") {
+        continuousFlexLeftEnabled = val;
+        return;
+    }
+    if (text == "continuousFlexRight") {
+        continuousFlexRightEnabled = val;
+        return;
+    }
     if (text == "stickToTDB") {
         this->route->placementStickToTarget = val;
         return;
@@ -2763,6 +2984,11 @@ void RouteEditorGLWidget::msg(QString text, int val) {
 
 void RouteEditorGLWidget::msg(QString text, float val) {
     qDebug() << text;
+    if (text == "continuousFlexSeparation") {
+        if(std::isfinite(val))
+            continuousFlexSeparation = std::clamp(val, 1.0f, 20.0f);
+        return;
+    }
     if (text == "autoPlacementLength") {
         this->route->placementAutoLength = val;
         return;
