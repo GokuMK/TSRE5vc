@@ -806,6 +806,43 @@ static int runFlexPointSuite(bool verbose) {
             }
         }
     }
+
+    int exactRadiusCaseCount = 0;
+    {
+        exactRadiusCaseCount++;
+        const float expectedRadius = 333.0f;
+        const float turn = 0.6f;
+        float p1[3] = {0, 0, 0};
+        float p2[3] = {
+            expectedRadius * (1.0f - std::cos(turn)),
+            0,
+            -expectedRadius * std::sin(turn)
+        };
+        float q1[4] = {0, 0, 0, 1};
+        float q2[4] = {0, turn, 0, 1};
+        float sections[10] = {0};
+        const bool solved = Flex::NewFlex(
+                0, 0, p1, q1,
+                0, 0, p2, q2,
+                sections, 0.0f, false);
+        const bool caseOk = solved
+                && std::fabs(sections[0]) < 0.01f
+                && std::fabs(sections[4]) < 0.01f
+                && std::fabs(sections[8]) < 0.01f
+                && nearlyEqual(sections[2], turn, 1e-4f)
+                && nearlyEqual(sections[3], expectedRadius, 0.01f)
+                && std::fabs(sections[6]) < 0.01f;
+        if(caseOk) {
+            passed++;
+        } else {
+            failed++;
+            qWarning() << "[tests:flex-point] failed: exact snapped radius"
+                    << "solved=" << solved
+                    << "sections=" << sections[0] << sections[2]
+                    << sections[3] << sections[4]
+                    << sections[6] << sections[7] << sections[8];
+        }
+    }
     {
         guardCaseCount++;
         float p[3] = {0, 0, 0};
@@ -829,6 +866,7 @@ static int runFlexPointSuite(bool verbose) {
             + (int)(sizeof(offsetCases) / sizeof(offsetCases[0]))
             + endpointOrientationCaseCount
             + parallelCaseCount
+            + exactRadiusCaseCount
             + guardCaseCount;
     qInfo() << "[tests:flex-point] cases=" << caseCount
             << "passed=" << passed << "failed=" << failed;

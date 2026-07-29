@@ -2244,7 +2244,9 @@ void RouteEditorGLWidget::updateLiveFlex(int pointerTileX, int pointerTileZ, con
                 targetTileZ,
                 targetPosition,
                 endpointQ,
-                dyntrackData);
+                dyntrackData,
+                0.0f,
+                false);
     } else {
         success = Flex::NewFlexToPoint(
                 liveFlexStartTileX,

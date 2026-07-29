@@ -21,7 +21,7 @@ class Flex {
 public:
 
     static bool NewFlexDeprecatedStaged(int x, int z, float *p, float *q, float * dyntrackSections);
-    static bool NewFlex(int x1, int z1, float *p1, float *q1, int x2, int z2, float *p2, float *q2, float * dyntrackSections, float preferredMinCurveRadius = 0.0f);
+    static bool NewFlex(int x1, int z1, float *p1, float *q1, int x2, int z2, float *p2, float *q2, float * dyntrackSections, float preferredMinCurveRadius = 0.0f, bool preferNiceRadii = true);
     static bool NewFlexToPoint(int x1, int z1, float *p1, float startTdbYaw, int x2, int z2, float *p2, float *dyntrackSections, float minimumCurveRadius = 15.0f);
     static bool DyntrackEndpoint(int startTileX, int startTileZ, const float *startPosition, const float *startQuaternion, const float *dyntrackSections, int &endTileX, int &endTileZ, float *endPosition, float *endQuaternion);
     static bool OffsetWorldPose(int sourceTileX, int sourceTileZ, const float *sourcePosition, const float *sourceQuaternion, float rightOffset, int &targetTileX, int &targetTileZ, float *targetPosition, float *targetQuaternion);

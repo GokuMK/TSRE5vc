@@ -1021,7 +1021,7 @@ bool Flex::NewFlexDeprecatedStaged(int x, int z, float* p, float* q, float * dyn
     return true;
 }
 
-bool Flex::NewFlex(int x1, int z1, float *p1, float *q1, int x2, int z2, float *p2, float *q2, float * dyntrackSections, float preferredMinCurveRadius){
+bool Flex::NewFlex(int x1, int z1, float *p1, float *q1, int x2, int z2, float *p2, float *q2, float * dyntrackSections, float preferredMinCurveRadius, bool preferNiceRadii){
     for (int i = 0; i < 10; i++)
         dyntrackSections[i] = 0.0f;
 
@@ -1175,6 +1175,16 @@ bool Flex::NewFlex(int x1, int z1, float *p1, float *q1, int x2, int z2, float *
 
     // Candidate radii (meters), descending preference.
     std::vector<float> radii = {10000.0f, 8000.0f, 5000.0f, 2000.0f, 1200.0f, 800.0f, 500.0f, 300.0f, 200.0f, 150.0f, 100.0f, 75.0f, 50.0f, 30.0f, 20.0f, 15.0f, 10.0f};
+    if(!preferNiceRadii) {
+        const float absPhi = std::fabs(phi);
+        const float chord = length(targetPos);
+        const float halfAngleSin = std::sin(absPhi * 0.5f);
+        if(absPhi > 1e-5f && halfAngleSin > 1e-6f && chord > 0.01f) {
+            const float exactRadius = chord / (2.0f * halfAngleSin);
+            if(std::isfinite(exactRadius) && exactRadius > 0.1f)
+                radii.push_back(exactRadius);
+        }
+    }
     float minAllowedRadius = 5.0f;
 
     // Best candidate across all search phases.
