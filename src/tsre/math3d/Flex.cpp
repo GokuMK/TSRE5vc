@@ -630,6 +630,41 @@ bool Flex::OffsetWorldPose(
     return true;
 }
 
+bool Flex::ParallelDyntrackSections(
+        const float *sourceSections,
+        float rightOffset,
+        float *targetSections) {
+    if(sourceSections == nullptr || targetSections == nullptr
+            || !std::isfinite(rightOffset))
+        return false;
+    for(int i = 0; i < 10; i++) {
+        if(!std::isfinite(sourceSections[i]))
+            return false;
+        targetSections[i] = sourceSections[i];
+    }
+
+    for(int section = 1; section < 5; section += 2) {
+        const int angleIndex = section * 2;
+        const int radiusIndex = angleIndex + 1;
+        const float angle = sourceSections[angleIndex];
+        if(std::fabs(angle) < 1e-6f)
+            continue;
+        if(sourceSections[radiusIndex] <= 0.1f)
+            return false;
+
+        // DynTrack positive curve angles turn right. A track offset to the
+        // right is therefore inside a positive turn and outside a negative
+        // turn. Angles and straight lengths remain identical.
+        const float turnSign = angle > 0.0f ? 1.0f : -1.0f;
+        const float radius = sourceSections[radiusIndex]
+                - turnSign * rightOffset;
+        if(!std::isfinite(radius) || radius <= 0.1f)
+            return false;
+        targetSections[radiusIndex] = radius;
+    }
+    return totalCenterlineLength(targetSections) <= 2048.0f + 0.01f;
+}
+
 bool Flex::NewFlexToPoint(
         int x1,
         int z1,
