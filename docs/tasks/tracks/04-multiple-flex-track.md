@@ -32,15 +32,14 @@ quaternions. The resulting continuous world positions are normalized back into
 TSRE's tile/local-position representation.
 
 `Flex::OffsetWorldPose(...)` owns this world/object coordinate conversion. It
-is intentionally separate from Flex's mirrored internal 2D solver space.
-`Flex::ParallelDyntrackSections(...)` then preserves every straight length and
-curve angle while changing each curve radius by the signed separation. This
-produces the exact parallel path instead of asking the general pose-to-pose
-solver to approximate it from its discrete candidate radii.
+is intentionally separate from Flex's mirrored internal 2D solver space. After
+the two offset world poses are known, the existing pose-to-pose
+`Flex::NewFlex(...)` solver generates the companion DynTrack sections.
 
-This preserves the separation and tangent throughout the shape. Inner and
-outer companion curves have different radii and arc lengths from the main
-centerline.
+`Flex::DyntrackEndpoint(...)` returns its orientation in canonical
+yaw-then-pitch order. This is important on elevated curves: appending yaw after
+pitch rotates about a tilted axis and produces a slightly wrong TDB end
+heading.
 
 ## Placement Flow
 

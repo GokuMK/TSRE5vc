@@ -23,6 +23,7 @@
 
 #include <tsre/Game.h>
 #include <tsre/math3d/Flex.h>
+#include <tsre/math3d/GLMatrix.h>
 #include <tsre/tests/RouteLoadTestSuite.h>
 
 namespace {
@@ -627,14 +628,20 @@ static int runFlexPointSuite(bool verbose) {
         }
     }
 
-    int parallelCaseCount = 0;
+    int endpointOrientationCaseCount = 0;
     {
+        endpointOrientationCaseCount++;
         float startPosition[3] = {1000, 5, -1000};
         const float pitch = 5.0f * (float)M_PI / 180.0f;
+        const float objectYaw = 35.0f * (float)M_PI / 180.0f;
+        const float sx = std::sin(pitch * 0.5f);
+        const float cx = std::cos(pitch * 0.5f);
+        const float sy = std::sin(objectYaw * 0.5f);
+        const float cy = std::cos(objectYaw * 0.5f);
         float startQ[4] = {
-            std::sin(pitch * 0.5f), 0, 0, std::cos(pitch * 0.5f)
+            cy * sx, sy * cx, -sy * sx, cy * cx
         };
-        float mainSections[10] = {
+        float sections[10] = {
             10, 0,
             (float)M_PI / 2.0f, 20,
             5, 0,
@@ -645,71 +652,31 @@ static int runFlexPointSuite(bool verbose) {
         int mainEndTileZ = 0;
         float mainEndPosition[3] = {0, 0, 0};
         float mainEndQ[4] = {0, 0, 0, 1};
-        const bool mainOk = Flex::DyntrackEndpoint(
-                0, 0, startPosition, startQ, mainSections,
+        bool caseOk = Flex::DyntrackEndpoint(
+                0, 0, startPosition, startQ, sections,
                 mainEndTileX, mainEndTileZ, mainEndPosition, mainEndQ);
-
-        const float offsets[] = {-4.0f, 4.0f};
-        for(float offset : offsets) {
-            parallelCaseCount++;
-            int sideStartTileX = 0;
-            int sideStartTileZ = 0;
-            float sideStartPosition[3] = {0, 0, 0};
-            float sideStartQ[4] = {0, 0, 0, 1};
-            int targetEndTileX = 0;
-            int targetEndTileZ = 0;
-            float targetEndPosition[3] = {0, 0, 0};
-            float targetEndQ[4] = {0, 0, 0, 1};
-            float sideSections[10] = {0};
-
-            bool caseOk = mainOk
-                    && Flex::OffsetWorldPose(
-                        0, 0, startPosition, startQ, offset,
-                        sideStartTileX, sideStartTileZ,
-                        sideStartPosition, sideStartQ)
-                    && Flex::OffsetWorldPose(
-                        mainEndTileX, mainEndTileZ,
-                        mainEndPosition, mainEndQ, offset,
-                        targetEndTileX, targetEndTileZ,
-                        targetEndPosition, targetEndQ)
-                    && Flex::ParallelDyntrackSections(
-                        mainSections, offset, sideSections);
-
-            int sideEndTileX = 0;
-            int sideEndTileZ = 0;
-            float sideEndPosition[3] = {0, 0, 0};
-            float sideEndQ[4] = {0, 0, 0, 1};
-            float endpointError = std::numeric_limits<float>::infinity();
-            float yawError = std::numeric_limits<float>::infinity();
-            caseOk = caseOk && Flex::DyntrackEndpoint(
-                    sideStartTileX, sideStartTileZ,
-                    sideStartPosition, sideStartQ, sideSections,
-                    sideEndTileX, sideEndTileZ,
-                    sideEndPosition, sideEndQ);
-            if(caseOk) {
-                const float dx = (sideEndTileX - targetEndTileX) * 2048.0f
-                        + sideEndPosition[0] - targetEndPosition[0];
-                const float dy = sideEndPosition[1] - targetEndPosition[1];
-                const float dz = (sideEndTileZ - targetEndTileZ) * 2048.0f
-                        + sideEndPosition[2] - targetEndPosition[2];
-                endpointError = std::sqrt(dx * dx + dy * dy + dz * dz);
-                yawError = std::fabs(wrapPi(
-                        Flex::TdbYawFromTrackQuaternion(sideEndQ)
-                        - Flex::TdbYawFromTrackQuaternion(targetEndQ)));
-                caseOk = endpointError < 0.001f
-                        && yawError < 1e-5f;
-            }
-
-            if(caseOk) {
-                passed++;
-            } else {
-                failed++;
-                qWarning() << "[tests:flex-point] failed: parallel sections"
-                        << "offset=" << offset
-                        << "endpointError=" << endpointError
-                        << "yawError=" << yawError
-                        << "radii=" << sideSections[3] << sideSections[7];
-            }
+        const float expectedEndTdbYaw = wrapPi(
+                -objectYaw + sections[2] + sections[6]);
+        const float actualEndTdbYaw =
+                Flex::TdbYawFromTrackQuaternion(mainEndQ);
+        float endForward[3] = {0, 0, 1};
+        Vec3::transformQuat(endForward, endForward, mainEndQ);
+        const float actualPitch = std::atan2(
+                -endForward[1],
+                std::sqrt(endForward[0] * endForward[0]
+                    + endForward[2] * endForward[2]));
+        caseOk = caseOk
+                && std::fabs(wrapPi(actualEndTdbYaw - expectedEndTdbYaw)) < 1e-5f
+                && std::fabs(actualPitch - pitch) < 1e-5f;
+        if(caseOk) {
+            passed++;
+        } else {
+            failed++;
+            qWarning() << "[tests:flex-point] failed: pitched endpoint orientation"
+                    << "expectedYaw=" << expectedEndTdbYaw
+                    << "actualYaw=" << actualEndTdbYaw
+                    << "expectedPitch=" << pitch
+                    << "actualPitch=" << actualPitch;
         }
     }
     {
@@ -730,25 +697,10 @@ static int runFlexPointSuite(bool verbose) {
             qWarning() << "[tests:flex-point] failed: non-finite offset guard";
         }
     }
-    {
-        guardCaseCount++;
-        float sourceSections[10] = {
-            0, 0, (float)M_PI / 2.0f, 20, 0, 0, 0, 0, 0, 0
-        };
-        float targetSections[10] = {0};
-        if(!Flex::ParallelDyntrackSections(
-                sourceSections, 20.0f, targetSections))
-            passed++;
-        else {
-            failed++;
-            qWarning() << "[tests:flex-point] failed: collapsed parallel radius guard";
-        }
-    }
-
     const int caseCount = (int)(sizeof(cases) / sizeof(cases[0]))
             + (int)(sizeof(yawCases) / sizeof(yawCases[0]))
             + (int)(sizeof(offsetCases) / sizeof(offsetCases[0]))
-            + parallelCaseCount
+            + endpointOrientationCaseCount
             + guardCaseCount;
     qInfo() << "[tests:flex-point] cases=" << caseCount
             << "passed=" << passed << "failed=" << failed;

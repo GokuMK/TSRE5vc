@@ -2099,10 +2099,29 @@ bool RouteEditorGLWidget::updateLiveFlexCompanions(const float *mainSections) {
                 endQ))
             return liveFlexCompanionsValid = false;
 
-        if(!Flex::ParallelDyntrackSections(
-                mainSections,
-                liveFlexCompanionOffsets[i],
-                preview.sections))
+        float q1[4] = {
+            0,
+            Flex::TdbYawFromTrackQuaternion(liveFlexStartQ),
+            0,
+            1
+        };
+        float q2[4] = {
+            0,
+            Flex::TdbYawFromTrackQuaternion(endQ),
+            0,
+            1
+        };
+        if(!Flex::NewFlex(
+                track->x,
+                track->y,
+                track->position,
+                q1,
+                endTileX,
+                endTileZ,
+                endPosition,
+                q2,
+                preview.sections,
+                15.0f))
             return liveFlexCompanionsValid = false;
 
         const float dx = (endTileX - track->x) * 2048.0f

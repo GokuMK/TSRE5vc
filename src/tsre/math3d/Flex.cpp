@@ -581,8 +581,22 @@ bool Flex::DyntrackEndpoint(
     endPosition[1] = startPosition[1] + localOffset[1];
     endPosition[2] = absoluteZ - endTileZ * 2048.0f;
 
-    Quat::copy(endQuaternion, const_cast<float*>(startQuaternion));
-    Quat::rotateY(endQuaternion, endQuaternion, endpoint.heading);
+    // Rebuild the orientation in the same canonical order used by track
+    // objects: world yaw followed by local pitch. Appending the turn directly
+    // to a pitched quaternion (start * turn) rotates around a tilted axis and
+    // makes TDB yaw extraction drift at curved endpoints.
+    float startForward[3] = {0.0f, 0.0f, 1.0f};
+    Vec3::transformQuat(
+            startForward, startForward, const_cast<float*>(startQuaternion));
+    const float horizontalForward = std::sqrt(
+            startForward[0] * startForward[0]
+            + startForward[2] * startForward[2]);
+    const float pitch = std::atan2(-startForward[1], horizontalForward);
+    const float startTdbYaw = TdbYawFromTrackQuaternion(startQuaternion);
+    const float endTdbYaw = wrapPi(startTdbYaw - endpoint.heading);
+    Quat::fill(endQuaternion);
+    Quat::rotateY(endQuaternion, endQuaternion, -endTdbYaw);
+    Quat::rotateX(endQuaternion, endQuaternion, pitch);
     for(int i = 0; i < 3; i++)
         if(!std::isfinite(endPosition[i]))
             return false;
@@ -628,41 +642,6 @@ bool Flex::OffsetWorldPose(
         if(!std::isfinite(targetPosition[i]))
             return false;
     return true;
-}
-
-bool Flex::ParallelDyntrackSections(
-        const float *sourceSections,
-        float rightOffset,
-        float *targetSections) {
-    if(sourceSections == nullptr || targetSections == nullptr
-            || !std::isfinite(rightOffset))
-        return false;
-    for(int i = 0; i < 10; i++) {
-        if(!std::isfinite(sourceSections[i]))
-            return false;
-        targetSections[i] = sourceSections[i];
-    }
-
-    for(int section = 1; section < 5; section += 2) {
-        const int angleIndex = section * 2;
-        const int radiusIndex = angleIndex + 1;
-        const float angle = sourceSections[angleIndex];
-        if(std::fabs(angle) < 1e-6f)
-            continue;
-        if(sourceSections[radiusIndex] <= 0.1f)
-            return false;
-
-        // DynTrack positive curve angles turn right. A track offset to the
-        // right is therefore inside a positive turn and outside a negative
-        // turn. Angles and straight lengths remain identical.
-        const float turnSign = angle > 0.0f ? 1.0f : -1.0f;
-        const float radius = sourceSections[radiusIndex]
-                - turnSign * rightOffset;
-        if(!std::isfinite(radius) || radius <= 0.1f)
-            return false;
-        targetSections[radiusIndex] = radius;
-    }
-    return totalCenterlineLength(targetSections) <= 2048.0f + 0.01f;
 }
 
 bool Flex::NewFlexToPoint(
