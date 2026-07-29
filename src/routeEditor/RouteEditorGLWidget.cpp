@@ -1083,7 +1083,7 @@ void RouteEditorGLWidget::drawPointer() {
             gluu->pMatrix,
             viewport,
             aktPointerPos);
-    if(liveFlexActive)
+    if(liveFlexActive && !mouseRPressed)
         updateLiveFlex((int)camera->pozT[0], (int)camera->pozT[1], aktPointerPos);
     //qDebug()<<aktPointerPos[0]<< aktPointerPos[1]<< aktPointerPos[2];
     if (Game::viewPointer3d) {
@@ -1695,6 +1695,8 @@ void RouteEditorGLWidget::mouseMoveEvent(QMouseEvent *event) {
     mousey = event->position().y() * Game::PixelRatio;
 
     if(liveFlexActive) {
+        if((event->buttons() & Qt::RightButton) == Qt::RightButton)
+            camera->MouseMove(event);
         m_lastPos = event->position();
         m_lastPos *= Game::PixelRatio;
         return;
@@ -1979,6 +1981,11 @@ void RouteEditorGLWidget::updateLiveFlex(int pointerTileX, int pointerTileZ, con
         return;
     liveFlexLastUpdateTime = now;
 
+    const int rawTargetTileX = pointerTileX;
+    const int rawTargetTileZ = pointerTileZ;
+    float rawTargetPosition[3] = {
+        pointerPosition[0], pointerPosition[1], pointerPosition[2]
+    };
     int targetTileX = pointerTileX;
     int targetTileZ = pointerTileZ;
     float targetPosition[3] = {pointerPosition[0], pointerPosition[1], pointerPosition[2]};
@@ -1993,6 +2000,23 @@ void RouteEditorGLWidget::updateLiveFlex(int pointerTileX, int pointerTileZ, con
                 endpointQ,
                 kLiveFlexSnapRadius,
                 true);
+    }
+
+    if(endpointId >= 0) {
+        const float startDx = (targetTileX - liveFlexStartTileX) * 2048.0f
+                + targetPosition[0] - liveFlexStartPosition[0];
+        const float startDy = targetPosition[1] - liveFlexStartPosition[1];
+        const float startDz = (targetTileZ - liveFlexStartTileZ) * 2048.0f
+                + targetPosition[2] - liveFlexStartPosition[2];
+        if(startDx * startDx + startDy * startDy + startDz * startDz < 0.01f) {
+            // Do not pose-to-pose solve against the endpoint on which this
+            // segment starts. Besides snapping the pointer backwards, that
+            // degenerate solve can be substantially more expensive.
+            endpointId = -1;
+            targetTileX = rawTargetTileX;
+            targetTileZ = rawTargetTileZ;
+            Vec3::copy(targetPosition, rawTargetPosition);
+        }
     }
 
     if(endpointId < 0)
@@ -2071,28 +2095,6 @@ void RouteEditorGLWidget::finishLiveFlex(bool accept) {
 
     DynTrackObj *dynTrack = liveFlexObj;
     const bool continuePlacement = accept && continuousFlexMode;
-    int nextTileX = 0;
-    int nextTileZ = 0;
-    float nextPosition[3] = {0, 0, 0};
-    float nextQuaternion[4] = {0, 0, 0, 1};
-    bool hasNextPose = false;
-    if(continuePlacement && dynTrack != NULL) {
-        float currentSections[10];
-        for(int i = 0; i < 5; i++) {
-            currentSections[i * 2] = dynTrack->sections[i].a;
-            currentSections[i * 2 + 1] = dynTrack->sections[i].r;
-        }
-        hasNextPose = Flex::DyntrackEndpoint(
-                dynTrack->x,
-                dynTrack->y,
-                dynTrack->position,
-                dynTrack->qDirection,
-                currentSections,
-                nextTileX,
-                nextTileZ,
-                nextPosition,
-                nextQuaternion);
-    }
     const bool deleteOnCancel = liveFlexDeleteOnCancel;
     liveFlexActive = false;
     liveFlexObj = NULL;
@@ -2115,6 +2117,33 @@ void RouteEditorGLWidget::finishLiveFlex(bool accept) {
             dynTrack->setModified();
         }
         Undo::StateCancel();
+    }
+
+    int nextTileX = 0;
+    int nextTileZ = 0;
+    float nextPosition[3] = {0, 0, 0};
+    float nextQuaternion[4] = {0, 0, 0, 1};
+    bool hasNextPose = false;
+    if(continuePlacement && dynTrack != NULL) {
+        // Match the existing DynTrack Z operation before deriving the next
+        // start. TDB placement may normalize the accepted object's pose.
+        route->addToTDB(dynTrack);
+
+        float currentSections[10];
+        for(int i = 0; i < 5; i++) {
+            currentSections[i * 2] = dynTrack->sections[i].a;
+            currentSections[i * 2 + 1] = dynTrack->sections[i].r;
+        }
+        hasNextPose = Flex::DyntrackEndpoint(
+                dynTrack->x,
+                dynTrack->y,
+                dynTrack->position,
+                dynTrack->qDirection,
+                currentSections,
+                nextTileX,
+                nextTileZ,
+                nextPosition,
+                nextQuaternion);
     }
 
     if(continuePlacement && hasNextPose) {

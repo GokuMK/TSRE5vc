@@ -16,16 +16,16 @@ Implemented; GUI acceptance testing pending.
 3. The first left click places a new Dynamic Track and immediately starts its
    live Flex preview.
 4. Moving the pointer updates the preview using Task 02 behavior.
-5. A left click accepts the segment.
-6. The next Dynamic Track is created at the accepted segment's calculated end
+5. A left click accepts the segment and adds it to TDB, matching `Z`.
+6. The next Dynamic Track is created at the committed segment's calculated end
    pose and immediately starts its own live preview.
 7. Repeat steps 4-6 for continuous construction.
 8. Escape, changing tools, or toggling **FLEX TRACK** off removes the unfinished
    segment and exits continuous placement.
 
-Each accepted segment is one undoable object placement. Continuous placement
-does not insert segments into TDB automatically; database insertion remains an
-explicit operation after construction.
+Each accepted segment is immediately represented in TDB. As with the existing
+DynTrack `Z` implementation, creating its dynamic TSection data clears undo
+history because TSection changes are not captured by the current undo model.
 
 ## Coordinate-Space Boundary
 
@@ -41,8 +41,10 @@ next pose from the mouse target.
 - Activating it makes Dynamic Track the current placement REF.
 - The first click immediately enters live Flex.
 - Accepting a segment immediately appends and previews the next segment.
+- Every accepted segment is added to TDB before the next segment is created.
 - Curved, elevated, and tile-crossing chains have no visible gaps or heading
   discontinuities.
 - Escape removes only the unfinished segment and leaves accepted segments.
-- Undo removes accepted segments one at a time.
+- Right-drag rotates the camera without rebuilding the live shape during the
+  drag.
 - Normal Select, Place New, `Y`, `Q`, and `Z` behavior remains unchanged.
