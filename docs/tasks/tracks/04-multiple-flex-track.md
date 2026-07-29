@@ -26,14 +26,16 @@ or right checkbox once, then placing Flex segments normally.
 
 ## Geometry And Coordinate-Space Boundary
 
-For each companion, its start and end poses are derived by transforming a
-signed local-X separation vector through the main track's start and end object
-quaternions. The resulting continuous world positions are normalized back into
-TSRE's tile/local-position representation.
+For each companion, its start and end headings cross the existing
+WorldObj-to-TDB boundary exactly once. A signed separation is then applied in
+editor-world XZ using the TDB heading's explicit right vector
+`(cos(yaw), sin(yaw))`. The resulting continuous world positions are normalized
+back into TSRE's tile/local-position representation.
 
 `Flex::OffsetWorldPose(...)` owns this world/object coordinate conversion. It
-is intentionally separate from Flex's mirrored internal 2D solver space. After
-the two offset world poses are known, the existing pose-to-pose
+does not rotate a local offset through a WorldObj quaternion, because doing so
+mixes the WorldObj and mirrored Flex/TDB Z conventions. After the two offset
+world poses are known, the existing pose-to-pose
 `Flex::NewFlex(...)` solver generates the companion DynTrack sections.
 
 `Flex::DyntrackEndpoint(...)` returns its orientation in canonical

@@ -572,7 +572,7 @@ static int runFlexPointSuite(bool verbose) {
         int sourceTileX;
         int sourceTileZ;
         float sourcePosition[3];
-        float objectYaw;
+        float tdbYaw;
         float rightOffset;
         int expectedTileX;
         int expectedTileZ;
@@ -581,19 +581,32 @@ static int runFlexPointSuite(bool verbose) {
     const OffsetPoseCase offsetCases[] = {
         {"offset-identity", 5, -2, {10, 3, -20}, 0, 4,
             5, -2, {14, 3, -20}},
-        {"offset-rotated", 0, 0, {0, 7, 0}, (float)M_PI / 2.0f, 4,
+        {"offset-heading-positive-x", 0, 0, {0, 7, 0},
+            (float)M_PI / 2.0f, 4,
+            0, 0, {0, 7, 4}},
+        {"offset-heading-negative-x", 0, 0, {0, 7, 0},
+            -(float)M_PI / 2.0f, 4,
             0, 0, {0, 7, -4}},
+        {"offset-heading-positive-z", 0, 0, {0, 7, 0},
+            (float)M_PI, 4,
+            0, 0, {-4, 7, 0}},
         {"offset-positive-tile-crossing", 0, 0, {1023, 0, 0}, 0, 4,
             1, 0, {-1021, 0, 0}},
         {"offset-negative-tile-crossing", 0, 0, {-1023, 0, 0}, 0, -4,
             -1, 0, {1021, 0, 0}},
     };
     for(const OffsetPoseCase &c : offsetCases) {
+        const float objectYaw = -c.tdbYaw;
+        const float pitch = 7.0f * (float)M_PI / 180.0f;
+        const float sx = std::sin(pitch * 0.5f);
+        const float cx = std::cos(pitch * 0.5f);
+        const float sy = std::sin(objectYaw * 0.5f);
+        const float cy = std::cos(objectYaw * 0.5f);
         float sourceQ[4] = {
-            0.0f,
-            std::sin(c.objectYaw * 0.5f),
-            0.0f,
-            std::cos(c.objectYaw * 0.5f)
+            cy * sx,
+            sy * cx,
+            -sy * sx,
+            cy * cx
         };
         int targetTileX = 0;
         int targetTileZ = 0;

@@ -627,14 +627,26 @@ bool Flex::OffsetWorldPose(
         if(!std::isfinite(sourceQuaternion[i]))
             return false;
 
-    float offset[3] = {rightOffset, 0.0f, 0.0f};
-    Vec3::transformQuat(offset, offset, const_cast<float*>(sourceQuaternion));
-    const float absoluteX = sourceTileX * 2048.0f + sourcePosition[0] + offset[0];
-    const float absoluteZ = sourceTileZ * 2048.0f + sourcePosition[2] + offset[2];
+    // Do not rotate the offset quaternion-side here. Flex/TDB heading and
+    // WorldObj quaternion space use opposite Z/yaw conventions, and track
+    // quaternions may also contain pitch in different multiplication orders.
+    // Convert once through the tested TDB yaw boundary, then build the right
+    // vector directly in editor-world XZ:
+    //   forward = (sin(yaw), -cos(yaw))
+    //   right   = (cos(yaw),  sin(yaw))
+    const float tdbYaw = TdbYawFromTrackQuaternion(sourceQuaternion);
+    if(!std::isfinite(tdbYaw))
+        return false;
+    const float offsetX = rightOffset * std::cos(tdbYaw);
+    const float offsetZ = rightOffset * std::sin(tdbYaw);
+    const float absoluteX = sourceTileX * 2048.0f
+            + sourcePosition[0] + offsetX;
+    const float absoluteZ = sourceTileZ * 2048.0f
+            + sourcePosition[2] + offsetZ;
     targetTileX = (int)std::floor((absoluteX + 1024.0f) / 2048.0f);
     targetTileZ = (int)std::floor((absoluteZ + 1024.0f) / 2048.0f);
     targetPosition[0] = absoluteX - targetTileX * 2048.0f;
-    targetPosition[1] = sourcePosition[1] + offset[1];
+    targetPosition[1] = sourcePosition[1];
     targetPosition[2] = absoluteZ - targetTileZ * 2048.0f;
     Quat::copy(targetQuaternion, const_cast<float*>(sourceQuaternion));
 
