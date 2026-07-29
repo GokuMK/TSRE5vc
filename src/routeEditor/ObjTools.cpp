@@ -76,6 +76,7 @@ ObjTools::ObjTools(QString name)
     vlist3->addWidget(buttonTools["placeTool"],row++,1,1,3);
     vlist3->addWidget(buttonTools["continuousFlexTool"],row,0,1,3);
     vlist3->addWidget(continuousFlexOptionsButton,row++,3);
+    row++;
     vlist3->addWidget(&stickToTDB,row,0);
     vlist3->addWidget(resetRotationButton,row++,1,1,3);
     vlist3->addWidget(buttonTools["autoPlaceSimpleTool"],row,0);
@@ -108,7 +109,7 @@ ObjTools::ObjTools(QString name)
     continuousFlexOptionsLayout->addWidget(&continuousFlexSeparation, 1, 1);
     continuousFlexOptionsWidget.setLayout(continuousFlexOptionsLayout);
     continuousFlexOptionsWidget.hide();
-    vbox->addWidget(&continuousFlexOptionsWidget);
+    vlist3->addWidget(&continuousFlexOptionsWidget,2,0,1,4);
 
     QObject::connect(&continuousFlexLeft, SIGNAL(toggled(bool)),
             this, SLOT(continuousFlexOptionsChanged()));

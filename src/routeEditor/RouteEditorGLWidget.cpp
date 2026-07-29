@@ -2009,37 +2009,12 @@ bool RouteEditorGLWidget::createLiveFlexCompanions() {
             return false;
         }
 
-        qDebug().noquote() << QString(
-                "Continuous Flex offset request d=%1 "
-                "main=(%2,%3;%4,%5,%6) requested=(%7,%8;%9,%10,%11) yaw=%12")
-                .arg(offset, 0, 'f', 6)
-                .arg(liveFlexStartTileX)
-                .arg(liveFlexStartTileZ)
-                .arg(liveFlexStartPosition[0], 0, 'f', 6)
-                .arg(liveFlexStartPosition[1], 0, 'f', 6)
-                .arg(liveFlexStartPosition[2], 0, 'f', 6)
-                .arg(tileX)
-                .arg(tileZ)
-                .arg(position[0], 0, 'f', 6)
-                .arg(position[1], 0, 'f', 6)
-                .arg(position[2], 0, 'f', 6)
-                .arg(Flex::TdbYawFromTrackQuaternion(liveFlexStartQ),
-                     0, 'f', 9);
         DynTrackObj *track = placeRawDynTrack(
                 tileX, tileZ, position, quaternion);
         if(track == NULL) {
             discardLiveFlexCompanions();
             return false;
         }
-        qDebug().noquote() << QString(
-                "Continuous Flex placed companion d=%1 "
-                "actual=(%2,%3;%4,%5,%6)")
-                .arg(offset, 0, 'f', 6)
-                .arg(track->x)
-                .arg(track->y)
-                .arg(track->position[0], 0, 'f', 6)
-                .arg(track->position[1], 0, 'f', 6)
-                .arg(track->position[2], 0, 'f', 6);
         liveFlexCompanions.push_back(track);
         liveFlexCompanionOffsets.push_back(offset);
     }
