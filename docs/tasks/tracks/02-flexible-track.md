@@ -43,6 +43,8 @@ Implementation summary:
   WorldObj/OpenGL-to-TDB heading conversion boundary.
 - `RouteEditorGLWidget` owns the live preview lifecycle, world-space grid
   quantization, endpoint-mode selection, and one-state undo transaction.
+- Live Flex uses its own `1m` endpoint snap radius and limits geometry rebuilds
+  to `20Hz`; neither setting changes the editor's global snapping/render rate.
 - `Undo::StateCancel()` discards a cancelled gesture after the object snapshot
   has been restored.
 - The `flex-point` headless suite covers geometry, tile transitions, rejection

@@ -1885,6 +1885,7 @@ bool RouteEditorGLWidget::startLiveFlex() {
     }
     liveFlexHasLastTarget = false;
     liveFlexLastEndpointId = -2;
+    liveFlexLastUpdateTime = 0;
     liveFlexActive = true;
 
     Undo::StateBegin();
@@ -1913,6 +1914,16 @@ void RouteEditorGLWidget::updateLiveFlex(int pointerTileX, int pointerTileZ, con
     if(!liveFlexActive || liveFlexObj == NULL || pointerPosition == NULL)
         return;
 
+    // Rendering remains independent; only endpoint search, solving, and mesh
+    // invalidation are limited to 20 Hz.
+    constexpr unsigned long long kLiveFlexUpdateIntervalMs = 50;
+    constexpr float kLiveFlexSnapRadius = 1.0f;
+    const unsigned long long now = QDateTime::currentMSecsSinceEpoch();
+    if(liveFlexLastUpdateTime != 0
+            && now - liveFlexLastUpdateTime < kLiveFlexUpdateIntervalMs)
+        return;
+    liveFlexLastUpdateTime = now;
+
     int targetTileX = pointerTileX;
     int targetTileZ = pointerTileZ;
     float targetPosition[3] = {pointerPosition[0], pointerPosition[1], pointerPosition[2]};
@@ -1925,7 +1936,7 @@ void RouteEditorGLWidget::updateLiveFlex(int pointerTileX, int pointerTileZ, con
                 targetTileZ,
                 targetPosition,
                 endpointQ,
-                Game::snapableRadius,
+                kLiveFlexSnapRadius,
                 true);
     }
 
@@ -2008,6 +2019,7 @@ void RouteEditorGLWidget::finishLiveFlex(bool accept) {
     liveFlexObj = NULL;
     liveFlexHasLastTarget = false;
     liveFlexLastEndpointId = -2;
+    liveFlexLastUpdateTime = 0;
 
     if(accept) {
         Undo::StateEnd();

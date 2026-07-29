@@ -233,6 +233,7 @@ private:
     int liveFlexLastTargetTileZ = 0;
     int liveFlexLastEndpointId = -2;
     float liveFlexLastTargetPosition[3] = {0, 0, 0};
+    unsigned long long liveFlexLastUpdateTime = 0;
     bool stickPointerToTerrain = true;
     bool autoAddToTDB = true;
     float lastNewObjPos[3];

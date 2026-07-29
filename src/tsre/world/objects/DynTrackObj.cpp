@@ -92,7 +92,6 @@ void DynTrackObj::rotate(float x, float y, float z){
     this->tRotation[1] += y;
     if(matrix3x3 != NULL) matrix3x3 = NULL;
 
-    qDebug() << "rot" << x << y << z;
     float vect2[3];
     float vect[3];
     float quat[4];
@@ -111,9 +110,6 @@ void DynTrackObj::rotate(float x, float y, float z){
     Vec3::transformQuat(reinterpret_cast<float*>(&vect), this->endp, this->qDirection);
     Vec3::transformQuat(reinterpret_cast<float*>(&vect2), this->endp, quat);
 
-    qDebug() << this->endp[0] << " "<< vect[0] << " " << vect2[0];
-    qDebug() << this->endp[2] << " "<< vect[2] << " " << vect2[2];
-    
     vect[0] = (vect2[0] - vect[0]);
     vect[2] = (vect2[2] - vect[2]);
     
@@ -396,10 +392,11 @@ void DynTrackObj::render(GLUU* gluu, float lod, float posx, float posz, float* p
             ProceduralMstsDyntrack::GenShape(shape, tsections);
         }
         init = true;
-    } else {
-        for(int i = 0; i < shape.size(); i++){
-            shape[i]->render(selectionColor);
-        }
+    }
+    // A generated shape is ready immediately. Draw it in this pass instead
+    // of leaving the DynTrack absent for one complete frame.
+    for(int i = 0; i < shape.size(); i++){
+        shape[i]->render(selectionColor);
     }
     
     if(selected){
@@ -452,7 +449,6 @@ void DynTrackObj::pushRenderItems(float lod, float posx, float posz, float* play
             ProceduralMstsDyntrack::GenShape(shape, tsections);
         }
         init = true;
-        return;
     }
 
     for(int i = 0; i < shape.size(); i++){
