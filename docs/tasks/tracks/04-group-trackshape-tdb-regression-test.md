@@ -7,6 +7,19 @@ Add an automated test that compares:
 
 This test should tell us whether the synthetic grouped shape produces the same TDB topology as the trusted per-object path.
 
+## Main Branch Status (July 2026)
+
+The diagnostic suite successfully proved that normal child-by-child insertion
+matches the prepared baseline and that the attempted synthetic builder does
+not. The failing builder and full diagnostic suite are preserved on:
+
+- branch `experiments/group-trackshape-v1`
+- tag `group-trackshape-failed-v1`
+
+They are not registered in the `main` test runner, so normal test runs remain
+usable for unrelated development. The generic multi-suite runner and
+`route-load` smoke test remain on `main`.
+
 ## Why This Is Needed
 Manual visual testing is useful but not sufficient.
 

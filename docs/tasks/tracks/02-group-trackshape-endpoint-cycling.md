@@ -10,6 +10,19 @@ Primary goal:
 This task note captures the current behavior, the preferred design, the intended implementation boundaries, and the v1 scope limits.
 
 ## Status
+
+### Main Branch Status (July 2026)
+- The working Step 1 behavior remains enabled:
+  - one real child `TrackObj` is used as the group anchor
+  - `X` reuses normal `nextDefaultEnd()` / `newPositionTDB()` positioning
+  - the rest of the group follows through one rigid transform
+- Synthetic grouped-`TrackShape` generation is no longer used by runtime `X` on `main`.
+- The failed builder, synthetic cache, diagnostics, and later experiments are preserved on:
+  - branch `experiments/group-trackshape-v1`
+  - tag `group-trackshape-failed-v1`
+- The reusable `TDB::findPosition(..., TrackShape*)` and
+  `TDB::placeTrack(..., TrackShape*)` overloads remain on `main`.
+
 ### Done
 - `TDB::findPosition(...)` now has a `TrackShape*` overload, while the old `sectionIdx` overload remains as a wrapper.
 - `TDB::placeTrack(...)` now also has a `TrackShape*` overload for temporary/synthetic shape insertion into TDB.

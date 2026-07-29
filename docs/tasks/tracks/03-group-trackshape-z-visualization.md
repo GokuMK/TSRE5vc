@@ -25,9 +25,20 @@ If the synthetic grouped `TrackShape` itself is wrong, debugging grouped `X` is 
 without the extra placement-rotation logic that `X` uses.
 
 ## Current Implementation Status
-Implemented.
+Archived experimental implementation.
 
-Current grouped `Z` behavior in `Route::toggleToTDB(...)`:
+The synthetic grouped-`Z` path was useful for diagnosis, but it produced
+incorrect TDB topology and is disabled on `main`. Grouped `Z` again toggles
+each real child track through the original trusted path.
+
+The complete implementation is preserved on:
+- branch `experiments/group-trackshape-v1`
+- tag `group-trackshape-failed-v1`
+
+The `TrackShape*` overload of `TDB::placeTrack(...)` remains available on
+`main` as reusable infrastructure.
+
+Experimental grouped `Z` behavior preserved on that branch:
 - if any child track already exists in TDB:
   - use the old per-object removal behavior
 - otherwise:
