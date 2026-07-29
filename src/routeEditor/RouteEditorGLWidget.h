@@ -40,6 +40,7 @@ class EngLib;
 class QOpenGLFunctions_3_3_Core;
 class QAction;
 class GuiGlCompass;
+class DynTrackObj;
 
 QT_FORWARD_DECLARE_CLASS(QOpenGLShaderProgram)
 
@@ -159,6 +160,10 @@ protected:
     void drawPointer();
     void pushRenderPointer();
 private:
+    bool startLiveFlex();
+    void updateLiveFlex(int pointerTileX, int pointerTileZ, const float *pointerPosition);
+    void finishLiveFlex(bool accept);
+    static void quantizeLiveFlexPoint(int &tileX, int &tileZ, float *position, float step);
     bool paintGLGather(bool drawToScreen);
     bool paintGLValidation();
     bool canRenderFrame() const;
@@ -216,6 +221,18 @@ private:
     bool resizeTool = false;
     bool rotateTool = false;
     bool translateTool = false;
+    bool liveFlexActive = false;
+    DynTrackObj *liveFlexObj = NULL;
+    int liveFlexStartTileX = 0;
+    int liveFlexStartTileZ = 0;
+    float liveFlexStartPosition[3] = {0, 0, 0};
+    float liveFlexStartQ[4] = {0, 0, 0, 1};
+    float liveFlexOriginalSections[10] = {0};
+    bool liveFlexHasLastTarget = false;
+    int liveFlexLastTargetTileX = 0;
+    int liveFlexLastTargetTileZ = 0;
+    int liveFlexLastEndpointId = -2;
+    float liveFlexLastTargetPosition[3] = {0, 0, 0};
     bool stickPointerToTerrain = true;
     bool autoAddToTDB = true;
     float lastNewObjPos[3];

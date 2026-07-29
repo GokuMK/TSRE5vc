@@ -26,6 +26,8 @@
 #include <tsre/Game.h>
 #include <tsre/ogl/GLH.h>
 #include <tsre/math3d/Vector2f.h>
+#include <tsre/math3d/Flex.h>
+#include <tsre/world/objects/DynTrackObj.h>
 
 #include <tsre/world/TerrainLib.h>
 #include <tsre/texture/Brush.h>
@@ -49,6 +51,8 @@
 #include <tsre/world/Skydome.h>
 #include <tsre/renderer/OpenGL3Renderer.h>
 #include <QDebug>
+#include <algorithm>
+#include <cmath>
 #include <routeEditor/RouteEditorClient.h>
 #include <tsre/world/RouteClient.h>
 #include <tsre/ClientInfo.h>
@@ -121,7 +125,8 @@ void RouteEditorGLWidget::timerEvent(QTimerEvent * event) {
         //qDebug() << "new second" << timeNow;
         if (selectedObj != NULL)
             emit updateProperties(selectedObj);
-        Undo::StateEndIfLongTime();
+        if(!liveFlexActive)
+            Undo::StateEndIfLongTime();
     }
     
     if (timeNow % 100 < lastTime % 100) {
@@ -1078,6 +1083,8 @@ void RouteEditorGLWidget::drawPointer() {
             gluu->pMatrix,
             viewport,
             aktPointerPos);
+    if(liveFlexActive)
+        updateLiveFlex((int)camera->pozT[0], (int)camera->pozT[1], aktPointerPos);
     //qDebug()<<aktPointerPos[0]<< aktPointerPos[1]<< aktPointerPos[2];
     if (Game::viewPointer3d) {
         gluu->mvPushMatrix();
@@ -1131,6 +1138,12 @@ void RouteEditorGLWidget::keyPressEvent(QKeyEvent * event) {
         return;
     }
     
+    if (liveFlexActive && event->key() == Qt::Key_Escape) {
+        finishLiveFlex(false);
+        event->accept();
+        return;
+    }
+
     if (route == NULL) return;
     if (!route->loaded) return;
     camera->keyDown(event);
@@ -1196,6 +1209,8 @@ void RouteEditorGLWidget::keyPressEvent(QKeyEvent * event) {
             translateTool = true;
             break;
         case Qt::Key_Y:
+            if(startLiveFlex())
+                return;
             enableTool("selectTool");
             resizeTool = true;
             break;
@@ -1446,6 +1461,13 @@ void RouteEditorGLWidget::mousePressEvent(QMouseEvent *event) {
         camera->MouseDown(event);
     }
     if ((event->button()) == Qt::LeftButton) {
+        if(liveFlexActive) {
+            finishLiveFlex(true);
+            mouseLPressed = false;
+            mouseClick = false;
+            setFocus();
+            return;
+        }
         Undo::StateBegin();
         mouseLPressed = true;
         lastMousePressTime = QDateTime::currentMSecsSinceEpoch();
@@ -1658,6 +1680,12 @@ void RouteEditorGLWidget::mouseMoveEvent(QMouseEvent *event) {
     mousex = event->position().x() * Game::PixelRatio;
     mousey = event->position().y() * Game::PixelRatio;
 
+    if(liveFlexActive) {
+        m_lastPos = event->position();
+        m_lastPos *= Game::PixelRatio;
+        return;
+    }
+
     if ((event->buttons() & 2) == Qt::RightButton) {
         camera->MouseMove(event);
     }
@@ -1740,6 +1768,8 @@ void RouteEditorGLWidget::mouseMoveEvent(QMouseEvent *event) {
 }
 
 void RouteEditorGLWidget::enableTool(QString name) {
+    if(liveFlexActive && name != "liveFlexTool")
+        finishLiveFlex(false);
     qDebug() << name;
     toolEnabled = name;
     //if(toolEnabled == "placeTool" || toolEnabled == "selectTool" || toolEnabled == "autoPlaceSimpleTool"){
@@ -1811,12 +1841,188 @@ void RouteEditorGLWidget::setPaintBrush(Brush* brush) {
 }
 
 void RouteEditorGLWidget::setSelectedObj(GameObj* o) {
+    if(liveFlexActive && o != liveFlexObj)
+        finishLiveFlex(false);
     selectedObj = o;
     Game::currentSelectedGameObj = selectedObj;
     emit showProperties(selectedObj);
     if (o != NULL)
         if (o->typeObj == o->worldobj)
            emit sendMsg("showShape", ((WorldObj*) o)->getShapePath());
+}
+
+bool RouteEditorGLWidget::startLiveFlex() {
+    if(liveFlexActive)
+        return true;
+    if(route == NULL || selectedObj == NULL)
+        return false;
+    if(selectedObj->typeObj != GameObj::worldobj)
+        return false;
+
+    WorldObj *worldObj = (WorldObj*)selectedObj;
+    if(worldObj->typeID != WorldObj::dyntrack)
+        return false;
+
+    if((Game::trackDB != NULL && Game::trackDB->ifTrackExist(worldObj->x, worldObj->y, worldObj->UiD))
+            || (Game::roadDB != NULL && Game::roadDB->ifTrackExist(worldObj->x, worldObj->y, worldObj->UiD))) {
+        qWarning() << "Live Flex: DynTrack already exists in TDB";
+        return false;
+    }
+
+    DynTrackObj *dynTrack = (DynTrackObj*)worldObj;
+    if(dynTrack->sections == NULL)
+        return false;
+
+    enableTool("liveFlexTool");
+    liveFlexObj = dynTrack;
+    liveFlexStartTileX = dynTrack->x;
+    liveFlexStartTileZ = dynTrack->y;
+    Vec3::copy(liveFlexStartPosition, dynTrack->position);
+    Quat::copy(liveFlexStartQ, dynTrack->qDirection);
+    for(int i = 0; i < 5; i++) {
+        liveFlexOriginalSections[i * 2] = dynTrack->sections[i].a;
+        liveFlexOriginalSections[i * 2 + 1] = dynTrack->sections[i].r;
+    }
+    liveFlexHasLastTarget = false;
+    liveFlexLastEndpointId = -2;
+    liveFlexActive = true;
+
+    Undo::StateBegin();
+    Undo::PushGameObjData(dynTrack);
+    updateLiveFlex((int)camera->pozT[0], (int)camera->pozT[1], aktPointerPos);
+    return true;
+}
+
+void RouteEditorGLWidget::quantizeLiveFlexPoint(int &tileX, int &tileZ, float *position, float step) {
+    if(position == NULL)
+        return;
+    step = std::max(0.01f, std::fabs(step));
+
+    float absoluteX = tileX * 2048.0f + position[0];
+    float absoluteZ = tileZ * 2048.0f + position[2];
+    absoluteX = std::round(absoluteX / step) * step;
+    absoluteZ = std::round(absoluteZ / step) * step;
+
+    tileX = (int)std::floor((absoluteX + 1024.0f) / 2048.0f);
+    tileZ = (int)std::floor((absoluteZ + 1024.0f) / 2048.0f);
+    position[0] = absoluteX - tileX * 2048.0f;
+    position[2] = absoluteZ - tileZ * 2048.0f;
+}
+
+void RouteEditorGLWidget::updateLiveFlex(int pointerTileX, int pointerTileZ, const float *pointerPosition) {
+    if(!liveFlexActive || liveFlexObj == NULL || pointerPosition == NULL)
+        return;
+
+    int targetTileX = pointerTileX;
+    int targetTileZ = pointerTileZ;
+    float targetPosition[3] = {pointerPosition[0], pointerPosition[1], pointerPosition[2]};
+    float endpointQ[4] = {0, 0, 0, 1};
+    int endpointId = -1;
+
+    if(Game::trackDB != NULL) {
+        endpointId = Game::trackDB->findNearestNode(
+                targetTileX,
+                targetTileZ,
+                targetPosition,
+                endpointQ,
+                Game::snapableRadius,
+                true);
+    }
+
+    if(endpointId < 0)
+        quantizeLiveFlexPoint(targetTileX, targetTileZ, targetPosition, Game::DefaultMoveStep);
+
+    const bool sameHorizontalTarget = liveFlexHasLastTarget
+            && endpointId == liveFlexLastEndpointId
+            && targetTileX == liveFlexLastTargetTileX
+            && targetTileZ == liveFlexLastTargetTileZ
+            && std::fabs(targetPosition[0] - liveFlexLastTargetPosition[0]) < 0.001f
+            && std::fabs(targetPosition[2] - liveFlexLastTargetPosition[2]) < 0.001f;
+    // A free pointer's XZ cell is the preview identity. Ignore small raw
+    // terrain-height differences until the pointer enters another grid cell.
+    const bool sameTarget = sameHorizontalTarget
+            && (endpointId < 0
+                || std::fabs(targetPosition[1] - liveFlexLastTargetPosition[1]) < 0.001f);
+    if(sameTarget)
+        return;
+
+    liveFlexHasLastTarget = true;
+    liveFlexLastEndpointId = endpointId;
+    liveFlexLastTargetTileX = targetTileX;
+    liveFlexLastTargetTileZ = targetTileZ;
+    Vec3::copy(liveFlexLastTargetPosition, targetPosition);
+
+    float dyntrackData[10] = {0};
+    const float startYaw = Flex::TdbYawFromTrackQuaternion(liveFlexStartQ);
+    bool success = false;
+
+    if(endpointId >= 0) {
+        float startQ[4] = {0, startYaw, 0, 1};
+        endpointQ[1] = std::fmod(endpointQ[1] + (float)M_PI, 2.0f * (float)M_PI);
+        if(endpointQ[1] > (float)M_PI)
+            endpointQ[1] -= 2.0f * (float)M_PI;
+        success = Flex::NewFlex(
+                liveFlexStartTileX,
+                liveFlexStartTileZ,
+                liveFlexStartPosition,
+                startQ,
+                targetTileX,
+                targetTileZ,
+                targetPosition,
+                endpointQ,
+                dyntrackData);
+    } else {
+        success = Flex::NewFlexToPoint(
+                liveFlexStartTileX,
+                liveFlexStartTileZ,
+                liveFlexStartPosition,
+                startYaw,
+                targetTileX,
+                targetTileZ,
+                targetPosition,
+                dyntrackData);
+    }
+
+    if(!success)
+        return;
+
+    const float dx = (targetTileX - liveFlexStartTileX) * 2048.0f
+            + targetPosition[0] - liveFlexStartPosition[0];
+    const float dz = (targetTileZ - liveFlexStartTileZ) * 2048.0f
+            + targetPosition[2] - liveFlexStartPosition[2];
+    const float horizontalDistance = std::sqrt(dx * dx + dz * dz);
+    const float elevation = horizontalDistance > 0.001f
+            ? (targetPosition[1] - liveFlexStartPosition[1]) * 1000.0f / horizontalDistance
+            : 0.0f;
+
+    liveFlexObj->set("dyntrackdata", dyntrackData);
+    liveFlexObj->setElevation(elevation);
+}
+
+void RouteEditorGLWidget::finishLiveFlex(bool accept) {
+    if(!liveFlexActive)
+        return;
+
+    DynTrackObj *dynTrack = liveFlexObj;
+    liveFlexActive = false;
+    liveFlexObj = NULL;
+    liveFlexHasLastTarget = false;
+    liveFlexLastEndpointId = -2;
+
+    if(accept) {
+        Undo::StateEnd();
+    } else {
+        if(dynTrack != NULL) {
+            dynTrack->set("dyntrackdata", liveFlexOriginalSections);
+            dynTrack->setPosition(liveFlexStartPosition);
+            dynTrack->setQdirection(liveFlexStartQ);
+            dynTrack->setMartix();
+            dynTrack->setModified();
+        }
+        Undo::StateCancel();
+    }
+
+    enableTool("selectTool");
 }
 
 void RouteEditorGLWidget::editCopy() {

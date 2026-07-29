@@ -414,6 +414,11 @@ inline bool validatePose(const float *sections10, FlexVec2 targetPos, float targ
     return posErr < 0.2f && angErr < 0.02f;
 }
 
+inline bool validatePoint(const float *sections10, FlexVec2 targetPos) {
+    FlexPose2 end = simulate(sections10);
+    return length(sub(end.pos, targetPos)) < 0.05f;
+}
+
 inline void flipCurveAngleSignsForDyntrack(float *sections10) {
     // Convention boundary:
     // `Flex::NewFlex(...)` solves in Flex's legacy 2D mapping (XZ -> XY with Z flipped) to stay consistent with TDB yaw.
@@ -507,6 +512,105 @@ private:
 };
 
 } // namespace
+
+float Flex::TdbYawFromTrackQuaternion(const float *q) {
+    if (q == nullptr)
+        return 0.0f;
+
+    // This deliberately mirrors TDB::placeTrack's quaternion -> track-angle
+    // conversion. It is the boundary between WorldObj/OpenGL quaternion space
+    // and the yaw convention consumed by Flex and TDB.
+    float vect[3] = {0.0f, 0.0f, 10.0f};
+    Vec3::transformQuat(vect, vect, const_cast<float*>(q));
+
+    float sinv = 2.0f * (q[0] * q[2] - q[1] * q[3]);
+    sinv = std::max(-1.0f, std::min(1.0f, sinv));
+    float pitch = std::asin(sinv);
+
+    if (vect[2] < 0.0f)
+        pitch = (float)M_PI - pitch;
+    if (std::fabs(vect[2]) < 1e-6f && vect[0] < 0.0f)
+        pitch = (float)M_PI / 2.0f;
+    if (std::fabs(vect[2]) < 1e-6f && vect[0] > 0.0f)
+        pitch = -(float)M_PI / 2.0f;
+
+    return wrapPi(pitch);
+}
+
+bool Flex::NewFlexToPoint(
+        int x1,
+        int z1,
+        float *p1,
+        float startTdbYaw,
+        int x2,
+        int z2,
+        float *p2,
+        float *dyntrackSections,
+        float minimumCurveRadius) {
+    if (p1 == nullptr || p2 == nullptr || dyntrackSections == nullptr)
+        return false;
+
+    for (int i = 0; i < 10; i++)
+        dyntrackSections[i] = 0.0f;
+
+    minimumCurveRadius = std::max(0.0f, minimumCurveRadius);
+
+    // Keep the same coordinate boundary as NewFlex: world XZ becomes Flex XY
+    // with Z mirrored once and only once.
+    FlexVec2 P0 = {p1[0], -p1[2]};
+    FlexVec2 P1 = {
+        p2[0] + 2048.0f * (x2 - x1),
+        -p2[2] - 2048.0f * (z2 - z1)
+    };
+    FlexVec2 deltaW = sub(P1, P0);
+    FlexVec2 startForward = {std::sin(startTdbYaw), std::cos(startTdbYaw)};
+    FlexVec2 startRight = {std::cos(startTdbYaw), -std::sin(startTdbYaw)};
+    FlexVec2 targetPos = {dot(deltaW, startRight), dot(deltaW, startForward)};
+
+    const float targetDistance = length(targetPos);
+    if (targetDistance < 0.01f)
+        return true;
+
+    const float straightTolerance = 0.05f;
+    if (std::fabs(targetPos.x) <= straightTolerance) {
+        if (targetPos.y < -straightTolerance)
+            return false;
+        dyntrackSections[0] = std::min(2048.0f, std::max(0.0f, targetPos.y));
+        return true;
+    }
+
+    // An arc of at most pi radians always ends on or ahead of the start's
+    // lateral axis. A point behind it would require the complementary loop.
+    if (targetPos.y < -straightTolerance)
+        return false;
+
+    const float absX = std::fabs(targetPos.x);
+    const float radius = (targetPos.x * targetPos.x + targetPos.y * targetPos.y) / (2.0f * absX);
+    if (!std::isfinite(radius) || radius < minimumCurveRadius)
+        return false;
+
+    float cosAngle = 1.0f - absX / radius;
+    float sinAngle = targetPos.y / radius;
+    cosAngle = std::max(-1.0f, std::min(1.0f, cosAngle));
+    sinAngle = std::max(0.0f, std::min(1.0f, sinAngle));
+    const float angleMagnitude = std::atan2(sinAngle, cosAngle);
+    if (!std::isfinite(angleMagnitude) || angleMagnitude < 1e-6f || angleMagnitude > (float)M_PI + 1e-4f)
+        return false;
+
+    // Flex solver convention: positive angle turns toward local negative X.
+    const float solverAngle = (targetPos.x > 0.0f) ? -angleMagnitude : angleMagnitude;
+    float solverSections[10] = {0.0f};
+    solverSections[2] = solverAngle;
+    solverSections[3] = radius;
+
+    if (!validatePoint(solverSections, targetPos))
+        return false;
+
+    trimToLength(2048.0f, solverSections);
+    std::copy(solverSections, solverSections + 10, dyntrackSections);
+    flipCurveAngleSignsForDyntrack(dyntrackSections);
+    return true;
+}
 
 bool Flex::AutoFlex(int x1, int z1, float* p1, int x2, int z2, float* p2, float* dyntrackSections, float &elev, float preferredMinCurveRadius){
     TDB* tdb = Game::trackDB;

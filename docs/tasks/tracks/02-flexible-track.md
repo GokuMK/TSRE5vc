@@ -30,9 +30,23 @@ Expected behavior:
 
 ## Status
 
-Proposed and ready for implementation.
+Implemented. Automated pose-to-point and coordinate-boundary tests pass.
 
-The backend design is defined below. UI presentation can be refined later.
+The live editor workflow still requires the manual acceptance pass listed
+below, particularly endpoint snapping, cancellation/undo, and interaction
+with existing `Z` workflows.
+
+Implementation summary:
+
+- `Flex::NewFlexToPoint(...)` provides analytic straight/single-arc geometry.
+- `Flex::TdbYawFromTrackQuaternion(...)` contains and tests the explicit
+  WorldObj/OpenGL-to-TDB heading conversion boundary.
+- `RouteEditorGLWidget` owns the live preview lifecycle, world-space grid
+  quantization, endpoint-mode selection, and one-state undo transaction.
+- `Undo::StateCancel()` discards a cancelled gesture after the object snapshot
+  has been restored.
+- The `flex-point` headless suite covers geometry, tile transitions, rejection
+  cases, length limiting, and heading-space conversion.
 
 ## Current Editor Behavior
 

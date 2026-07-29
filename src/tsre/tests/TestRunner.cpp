@@ -379,10 +379,126 @@ static int runFlexSuite(QString casesFile, bool verbose) {
     return (failed == 0) ? 0 : 1;
 }
 
+static int runFlexPointSuite(bool verbose) {
+    struct PointCase {
+        const char *name;
+        int x1;
+        int z1;
+        float p1[3];
+        float yaw;
+        int x2;
+        int z2;
+        float p2[3];
+        bool expectedSuccess;
+        int expectedKind; // 0 = empty, 1 = straight, 2 = curve
+        bool trimmed;
+    };
+
+    const PointCase cases[] = {
+        {"zero", 0, 0, {0, 0, 0}, 0, 0, 0, {0, 0, 0}, true, 0, false},
+        {"straight", 0, 0, {0, 0, 0}, 0, 0, 0, {0, 0, -100}, true, 1, false},
+        {"right-quarter", 0, 0, {0, 0, 0}, 0, 0, 0, {20, 0, -20}, true, 2, false},
+        {"left-quarter", 0, 0, {0, 0, 0}, 0, 0, 0, {-20, 0, -20}, true, 2, false},
+        {"semicircle", 0, 0, {0, 0, 0}, 0, 0, 0, {40, 0, 0}, true, 2, false},
+        {"behind", 0, 0, {0, 0, 0}, 0, 0, 0, {0, 0, 20}, false, 0, false},
+        {"too-tight", 0, 0, {0, 0, 0}, 0, 0, 0, {10, 0, 0}, false, 0, false},
+        {"rotated-straight", 0, 0, {0, 0, 0}, (float)M_PI / 2.0f, 0, 0, {100, 0, 0}, true, 1, false},
+        {"tile-boundary", 0, 0, {1000, 0, 0}, (float)M_PI / 2.0f, 1, 0, {-1000, 0, 0}, true, 1, false},
+        {"trimmed-straight", 0, 0, {0, 0, 0}, 0, 0, -1, {0, 0, -952}, true, 1, true},
+    };
+
+    int failed = 0;
+    int passed = 0;
+    for (const PointCase &c : cases) {
+        float got[10] = {0};
+        float p1[3] = {c.p1[0], c.p1[1], c.p1[2]};
+        float p2[3] = {c.p2[0], c.p2[1], c.p2[2]};
+        const bool ok = Flex::NewFlexToPoint(c.x1, c.z1, p1, c.yaw, c.x2, c.z2, p2, got);
+        bool caseOk = (ok == c.expectedSuccess);
+
+        if (caseOk && ok) {
+            const bool hasStraight = got[0] > 0.01f || got[4] > 0.01f || got[8] > 0.01f;
+            const bool hasCurve = (std::fabs(got[2]) > 0.01f && got[3] > 0.1f)
+                    || (std::fabs(got[6]) > 0.01f && got[7] > 0.1f);
+            if (c.expectedKind == 0)
+                caseOk = !hasStraight && !hasCurve;
+            else if (c.expectedKind == 1)
+                caseOk = hasStraight && !hasCurve;
+            else if (c.expectedKind == 2)
+                caseOk = hasCurve && !hasStraight;
+
+            if (caseOk && !c.trimmed) {
+                FlexCase poseCase;
+                poseCase.x1 = c.x1;
+                poseCase.z1 = c.z1;
+                poseCase.x2 = c.x2;
+                poseCase.z2 = c.z2;
+                std::copy(c.p1, c.p1 + 3, poseCase.p1);
+                std::copy(c.p2, c.p2 + 3, poseCase.p2);
+                poseCase.q1[1] = c.yaw;
+                const FlexEndCheck check = checkFlexEndPose(poseCase, got);
+                caseOk = check.posErr < 0.1f;
+                if (verbose)
+                    qInfo() << "[tests:flex-point]" << c.name << "posErr=" << check.posErr;
+            }
+
+            if (caseOk && c.trimmed)
+                caseOk = nearlyEqual(centerlineLength(got), 2048.0f, 0.1f);
+
+            if (caseOk && hasCurve)
+                caseOk = std::fabs(got[2]) <= (float)M_PI + 1e-4f
+                        && std::fabs(got[6]) <= (float)M_PI + 1e-4f;
+        }
+
+        if (caseOk) {
+            passed++;
+        } else {
+            failed++;
+            qWarning() << "[tests:flex-point] failed:" << c.name
+                       << "expectedSuccess=" << c.expectedSuccess
+                       << "actualSuccess=" << ok;
+        }
+    }
+
+    struct YawCase {
+        const char *name;
+        float objectYaw;
+    };
+    const YawCase yawCases[] = {
+        {"yaw-zero", 0.0f},
+        {"yaw-right", (float)M_PI / 2.0f},
+        {"yaw-left", -(float)M_PI / 2.0f},
+        {"yaw-reverse", (float)M_PI},
+    };
+    for (const YawCase &c : yawCases) {
+        float q[4] = {
+            0.0f,
+            std::sin(c.objectYaw * 0.5f),
+            0.0f,
+            std::cos(c.objectYaw * 0.5f)
+        };
+        const float gotYaw = Flex::TdbYawFromTrackQuaternion(q);
+        const bool caseOk = std::fabs(wrapPi(gotYaw + c.objectYaw)) < 1e-4f;
+        if (caseOk) {
+            passed++;
+        } else {
+            failed++;
+            qWarning() << "[tests:flex-point] failed:" << c.name
+                       << "objectYaw=" << c.objectYaw << "tdbYaw=" << gotYaw;
+        }
+    }
+
+    const int caseCount = (int)(sizeof(cases) / sizeof(cases[0]))
+            + (int)(sizeof(yawCases) / sizeof(yawCases[0]));
+    qInfo() << "[tests:flex-point] cases=" << caseCount
+            << "passed=" << passed << "failed=" << failed;
+    return failed == 0 ? 0 : 1;
+}
+
 } // namespace
 
 QStringList TsreTests::listSuites() {
-    return {"flex", "route-load"};
+    return {"flex", "flex-point", "route-load"};
 }
 
 int TsreTests::run(const TestRunOptions &opts) {
@@ -393,12 +509,16 @@ int TsreTests::run(const TestRunOptions &opts) {
     if (suite.isEmpty() || suite == "flex")
         return runFlexSuite(opts.casesFile, opts.verbose);
 
+    if (suite == "flex-point")
+        return runFlexPointSuite(opts.verbose);
+
     if (suite == "route-load")
         return runRouteLoadSuite(opts);
 
     if (suite == "all") {
         int rc = 0;
         rc = std::max(rc, runFlexSuite(opts.casesFile, opts.verbose));
+        rc = std::max(rc, runFlexPointSuite(opts.verbose));
         rc = std::max(rc, runRouteLoadSuite(opts));
         return rc;
     }

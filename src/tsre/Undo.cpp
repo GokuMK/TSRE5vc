@@ -195,6 +195,13 @@ void Undo::StateEnd(){
     //qDebug() << "undo end";
 }
 
+void Undo::StateCancel(){
+    if(currentState == NULL)
+        return;
+    delete currentState;
+    currentState = NULL;
+}
+
 void Undo::PushTerrainHeightMap(int x, int z, float** data, int samples){
     if(currentState == NULL)
         return;

@@ -49,6 +49,7 @@ public:
     static void StateBegin();
     static void StateBeginIfNotExist();
     static void StateEnd();
+    static void StateCancel();
     static void StateEndIfLongTime();
     static void PushTerrainHeightMap(int x, int z, float **data, int samples);
     static void PushTextureData(int id, unsigned char *data, unsigned int size);
