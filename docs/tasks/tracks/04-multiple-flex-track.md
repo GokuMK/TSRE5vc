@@ -36,7 +36,10 @@ back into TSRE's tile/local-position representation.
 does not rotate a local offset through a WorldObj quaternion, because doing so
 mixes the WorldObj and mirrored Flex/TDB Z conventions. After the two offset
 world poses are known, the existing pose-to-pose
-`Flex::NewFlex(...)` solver generates the companion DynTrack sections.
+`Flex::ParallelDyntrackSections(...)` helper copies the main straight lengths
+and curve angles and adjusts only the signed curve radii. The general
+pose-to-pose solver is not used here because it may introduce extra start/end
+straight sections, shifting companion section boundaries along Z.
 
 `Flex::DyntrackEndpoint(...)` returns its orientation in canonical
 yaw-then-pitch order. This is important on elevated curves: appending yaw after

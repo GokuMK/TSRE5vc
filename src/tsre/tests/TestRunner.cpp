@@ -692,6 +692,87 @@ static int runFlexPointSuite(bool verbose) {
                     << "actualPitch=" << actualPitch;
         }
     }
+
+    int parallelCaseCount = 0;
+    {
+        float mainSections[10] = {
+            0, 0, (float)M_PI / 2.0f, 20, 0, 0, 0, 0, 0, 0
+        };
+        const float startYaws[] = {0.0f, (float)M_PI / 2.0f};
+        const float offsets[] = {-4.0f, 4.0f};
+        for(float startYaw : startYaws) {
+            const float objectYaw = -startYaw;
+            float startQ[4] = {
+                0,
+                std::sin(objectYaw * 0.5f),
+                0,
+                std::cos(objectYaw * 0.5f)
+            };
+            float mainStartPosition[3] = {100, 5, -200};
+            int mainEndTileX = 0;
+            int mainEndTileZ = 0;
+            float mainEndPosition[3] = {0, 0, 0};
+            float mainEndQ[4] = {0, 0, 0, 1};
+            const bool mainOk = Flex::DyntrackEndpoint(
+                    0, 0, mainStartPosition, startQ, mainSections,
+                    mainEndTileX, mainEndTileZ,
+                    mainEndPosition, mainEndQ);
+
+            for(float offset : offsets) {
+                parallelCaseCount++;
+                int sideStartTileX = 0;
+                int sideStartTileZ = 0;
+                float sideStartPosition[3] = {0, 0, 0};
+                float sideStartQ[4] = {0, 0, 0, 1};
+                int targetEndTileX = 0;
+                int targetEndTileZ = 0;
+                float targetEndPosition[3] = {0, 0, 0};
+                float targetEndQ[4] = {0, 0, 0, 1};
+                float sideSections[10] = {0};
+                bool caseOk = mainOk
+                        && Flex::OffsetWorldPose(
+                            0, 0, mainStartPosition, startQ, offset,
+                            sideStartTileX, sideStartTileZ,
+                            sideStartPosition, sideStartQ)
+                        && Flex::OffsetWorldPose(
+                            mainEndTileX, mainEndTileZ,
+                            mainEndPosition, mainEndQ, offset,
+                            targetEndTileX, targetEndTileZ,
+                            targetEndPosition, targetEndQ)
+                        && Flex::ParallelDyntrackSections(
+                            mainSections, offset, sideSections);
+
+                int sideEndTileX = 0;
+                int sideEndTileZ = 0;
+                float sideEndPosition[3] = {0, 0, 0};
+                float sideEndQ[4] = {0, 0, 0, 1};
+                caseOk = caseOk && Flex::DyntrackEndpoint(
+                        sideStartTileX, sideStartTileZ,
+                        sideStartPosition, sideStartQ, sideSections,
+                        sideEndTileX, sideEndTileZ,
+                        sideEndPosition, sideEndQ);
+                if(caseOk) {
+                    const float dx = (sideEndTileX - targetEndTileX) * 2048.0f
+                            + sideEndPosition[0] - targetEndPosition[0];
+                    const float dz = (sideEndTileZ - targetEndTileZ) * 2048.0f
+                            + sideEndPosition[2] - targetEndPosition[2];
+                    caseOk = std::sqrt(dx * dx + dz * dz) < 0.001f
+                            && nearlyEqual(
+                                sideStartPosition[2] - mainStartPosition[2],
+                                offset * std::sin(startYaw),
+                                1e-4f);
+                }
+                if(caseOk) {
+                    passed++;
+                } else {
+                    failed++;
+                    qWarning() << "[tests:flex-point] failed: parallel axis case"
+                            << "startYaw=" << startYaw
+                            << "offset=" << offset;
+                }
+            }
+        }
+    }
     {
         guardCaseCount++;
         float p[3] = {0, 0, 0};
@@ -714,6 +795,7 @@ static int runFlexPointSuite(bool verbose) {
             + (int)(sizeof(yawCases) / sizeof(yawCases[0]))
             + (int)(sizeof(offsetCases) / sizeof(offsetCases[0]))
             + endpointOrientationCaseCount
+            + parallelCaseCount
             + guardCaseCount;
     qInfo() << "[tests:flex-point] cases=" << caseCount
             << "passed=" << passed << "failed=" << failed;
