@@ -1970,6 +1970,9 @@ void RouteEditorGLWidget::quantizeLiveFlexPoint(int &tileX, int &tileZ, float *p
 void RouteEditorGLWidget::updateLiveFlex(int pointerTileX, int pointerTileZ, const float *pointerPosition) {
     if(!liveFlexActive || liveFlexObj == NULL || pointerPosition == NULL)
         return;
+    for(int i = 0; i < 3; i++)
+        if(!std::isfinite(pointerPosition[i]))
+            return;
 
     // Rendering remains independent; only endpoint search, solving, and mesh
     // invalidation are limited to 20 Hz.
@@ -2075,15 +2078,22 @@ void RouteEditorGLWidget::updateLiveFlex(int pointerTileX, int pointerTileZ, con
 
     if(!success)
         return;
+    for(int i = 0; i < 10; i++)
+        if(!std::isfinite(dyntrackData[i]))
+            return;
 
     const float dx = (targetTileX - liveFlexStartTileX) * 2048.0f
             + targetPosition[0] - liveFlexStartPosition[0];
     const float dz = (targetTileZ - liveFlexStartTileZ) * 2048.0f
             + targetPosition[2] - liveFlexStartPosition[2];
     const float horizontalDistance = std::sqrt(dx * dx + dz * dz);
+    if(!std::isfinite(horizontalDistance))
+        return;
     const float elevation = horizontalDistance > 0.001f
             ? (targetPosition[1] - liveFlexStartPosition[1]) * 1000.0f / horizontalDistance
             : 0.0f;
+    if(!std::isfinite(elevation))
+        return;
 
     liveFlexObj->set("dyntrackdata", dyntrackData);
     liveFlexObj->setElevation(elevation);
@@ -2095,6 +2105,22 @@ void RouteEditorGLWidget::finishLiveFlex(bool accept) {
 
     DynTrackObj *dynTrack = liveFlexObj;
     const bool continuePlacement = accept && continuousFlexMode;
+    if(continuePlacement && dynTrack != NULL) {
+        float centerlineLength = 0.0f;
+        for(int i = 0; i < 5; i++) {
+            if(dynTrack->sections[i].sectIdx > 1000000)
+                continue;
+            if((i % 2) == 0)
+                centerlineLength += std::max(0.0f, dynTrack->sections[i].a);
+            else
+                centerlineLength += std::fabs(dynTrack->sections[i].a)
+                        * std::max(0.0f, dynTrack->sections[i].r);
+        }
+        if(!std::isfinite(centerlineLength) || centerlineLength < 0.1f) {
+            qWarning() << "Continuous Flex: segment is too short or invalid";
+            return;
+        }
+    }
     const bool deleteOnCancel = liveFlexDeleteOnCancel;
     liveFlexActive = false;
     liveFlexObj = NULL;

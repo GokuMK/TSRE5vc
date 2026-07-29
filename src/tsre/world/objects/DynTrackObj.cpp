@@ -27,6 +27,8 @@
 #include <tsre/tdb/TDB.h>
 #include <tsre/tdb/TSectionDAT.h>
 #include <tsre/renderer/Renderer.h>
+#include <algorithm>
+#include <cmath>
 #include <math.h>
 
 #ifndef M_PI
@@ -76,15 +78,24 @@ float DynTrackObj::getElevation(){
     float vect[3];
     vect[0] = 0; vect[1] = 0; vect [2] = 1000;
     Vec3::transformQuat(vect, vect, qDirection);
-    return this->endp[3]*asin(-vect[1]/1000.0);
+    const float value = std::clamp(-vect[1] / 1000.0f, -1.0f, 1.0f);
+    return this->endp[3] * std::asin(value);
 }
 
 void DynTrackObj::setElevation(float prom){
+    if(!std::isfinite(prom))
+        return;
     float * q = qDirection;
     float vect[3];
     vect[0] = 0; vect[1] = 0; vect [2] = 1000;
     Vec3::transformQuat(vect, vect, q);
-    rotate(asin((vect[1]*this->endp[3]+prom)/1000.0),0,0);
+    if(!std::isfinite(vect[1]))
+        return;
+    const float value = std::clamp(
+            (vect[1] * this->endp[3] + prom) / 1000.0f,
+            -1.0f,
+            1.0f);
+    rotate(std::asin(value), 0, 0);
 }
 
 void DynTrackObj::rotate(float x, float y, float z){

@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 #include <tsre/Game.h>
 #include <tsre/math3d/Flex.h>
@@ -525,8 +526,49 @@ static int runFlexPointSuite(bool verbose) {
         }
     }
 
+    int guardCaseCount = 0;
+    {
+        guardCaseCount++;
+        float p1[3] = {0, 0, 0};
+        float p2[3] = {0, 0, -10};
+        p2[0] = std::numeric_limits<float>::quiet_NaN();
+        float sections[10];
+        std::fill(sections, sections + 10, 123.0f);
+        const bool rejected = !Flex::NewFlexToPoint(
+                0, 0, p1, 0, 0, 0, p2, sections);
+        bool cleared = true;
+        for(float value : sections)
+            cleared = cleared && value == 0.0f;
+        if(rejected && cleared)
+            passed++;
+        else {
+            failed++;
+            qWarning() << "[tests:flex-point] failed: non-finite point guard";
+        }
+    }
+    {
+        guardCaseCount++;
+        float p[3] = {0, 0, 0};
+        float q[4] = {0, 0, 0, 1};
+        float sections[10] = {0};
+        sections[0] = std::numeric_limits<float>::quiet_NaN();
+        int endTileX = 0;
+        int endTileZ = 0;
+        float endPosition[3] = {0, 0, 0};
+        float endQ[4] = {0, 0, 0, 1};
+        if(!Flex::DyntrackEndpoint(
+                0, 0, p, q, sections,
+                endTileX, endTileZ, endPosition, endQ))
+            passed++;
+        else {
+            failed++;
+            qWarning() << "[tests:flex-point] failed: non-finite endpoint guard";
+        }
+    }
+
     const int caseCount = (int)(sizeof(cases) / sizeof(cases[0]))
-            + (int)(sizeof(yawCases) / sizeof(yawCases[0]));
+            + (int)(sizeof(yawCases) / sizeof(yawCases[0]))
+            + guardCaseCount;
     qInfo() << "[tests:flex-point] cases=" << caseCount
             << "passed=" << passed << "failed=" << failed;
     return failed == 0 ? 0 : 1;

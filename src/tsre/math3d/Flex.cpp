@@ -551,6 +551,15 @@ bool Flex::DyntrackEndpoint(
             || dyntrackSections == nullptr || endPosition == nullptr
             || endQuaternion == nullptr)
         return false;
+    for(int i = 0; i < 3; i++)
+        if(!std::isfinite(startPosition[i]))
+            return false;
+    for(int i = 0; i < 4; i++)
+        if(!std::isfinite(startQuaternion[i]))
+            return false;
+    for(int i = 0; i < 10; i++)
+        if(!std::isfinite(dyntrackSections[i]))
+            return false;
 
     // DynTrack curve signs are opposite to the solver's kinematic convention.
     float solverSections[10];
@@ -574,6 +583,12 @@ bool Flex::DyntrackEndpoint(
 
     Quat::copy(endQuaternion, const_cast<float*>(startQuaternion));
     Quat::rotateY(endQuaternion, endQuaternion, endpoint.heading);
+    for(int i = 0; i < 3; i++)
+        if(!std::isfinite(endPosition[i]))
+            return false;
+    for(int i = 0; i < 4; i++)
+        if(!std::isfinite(endQuaternion[i]))
+            return false;
     return true;
 }
 
@@ -592,6 +607,11 @@ bool Flex::NewFlexToPoint(
 
     for (int i = 0; i < 10; i++)
         dyntrackSections[i] = 0.0f;
+    for(int i = 0; i < 3; i++)
+        if(!std::isfinite(p1[i]) || !std::isfinite(p2[i]))
+            return false;
+    if(!std::isfinite(startTdbYaw) || !std::isfinite(minimumCurveRadius))
+        return false;
 
     minimumCurveRadius = std::max(0.0f, minimumCurveRadius);
 

@@ -49,4 +49,6 @@ next pose from the mouse target.
 - Escape removes only the unfinished segment and leaves accepted segments.
 - Right-drag rotates the camera without rebuilding the live shape during the
   drag.
+- Non-finite preview data is rejected, elevation trigonometry is clamped, and
+  segments shorter than `0.1m` cannot be accepted into TDB.
 - Normal Select, Place New, `Y`, `Q`, and `Z` behavior remains unchanged.
