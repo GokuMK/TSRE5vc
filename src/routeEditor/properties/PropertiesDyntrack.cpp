@@ -232,21 +232,7 @@ void PropertiesDyntrack::showObj(GameObj* obj){
     else
         this->eSectionIdx.setText(QString::number(dobj->sectionIdx, 10));
     
-    for (int i = 0; i < 5; i++) {
-        if(dobj->sections[i].sectIdx > 1000000){
-            this->chSect[i].setChecked(false);
-            this->wSect[i].hide();
-            continue;
-        }
-        this->wSect[i].show();
-        this->chSect[i].setChecked(true);
-        this->sSectA[i].blockSignals(true);
-        this->sSectR[i].blockSignals(true);
-        this->sSectA[i].setValue(dobj->sections[i].a);
-        this->sSectR[i].setValue(dobj->sections[i].r);
-        this->sSectA[i].blockSignals(false);
-        this->sSectR[i].blockSignals(false);
-    }
+    updateSectionValues();
     
     ///////////
     elevType.setCurrentText(ElevTypeName);
@@ -297,6 +283,36 @@ void PropertiesDyntrack::updateObj(GameObj* obj){
         this->elev1inXm.setText(QString::number(oneInXm));
     }
 
+    updateSectionValues();
+}
+
+void PropertiesDyntrack::updateSectionValues(){
+    if(dobj == NULL || dobj->sections == NULL)
+        return;
+
+    for(int i = 0; i < 5; i++){
+        const bool enabled = dobj->sections[i].sectIdx <= 1000000;
+        const QSignalBlocker checkBlocker(&chSect[i]);
+        chSect[i].setChecked(enabled);
+        wSect[i].setVisible(enabled);
+        if(!enabled)
+            continue;
+
+        const QSignalBlocker angleBlocker(&sSectA[i]);
+        const QSignalBlocker radiusBlocker(&sSectR[i]);
+
+        // Live Flex can validly exceed the panel's normal manual-edit ranges.
+        // Expand only as needed so the displayed value is never clamped.
+        if(dobj->sections[i].a > sSectA[i].maximum())
+            sSectA[i].setMaximum(dobj->sections[i].a);
+        if(dobj->sections[i].r > sSectR[i].maximum())
+            sSectR[i].setMaximum(dobj->sections[i].r);
+
+        if(!sSectA[i].hasFocus())
+            sSectA[i].setValue(dobj->sections[i].a);
+        if(!sSectR[i].hasFocus())
+            sSectR[i].setValue(dobj->sections[i].r);
+    }
 }
 
 void PropertiesDyntrack::chSectEnabled(int idx){

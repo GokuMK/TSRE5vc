@@ -68,6 +68,7 @@ private:
     void showElevBox(QString val);
     void setStepValue(float step);
     float getStepValue(float step);
+    void updateSectionValues();
 };
 
 #endif	/* PROPERTIESDYNTRACK_H */
