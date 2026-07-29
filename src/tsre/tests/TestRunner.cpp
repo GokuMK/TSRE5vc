@@ -844,6 +844,44 @@ static int runFlexPointSuite(bool verbose) {
         }
     }
     {
+        exactRadiusCaseCount++;
+        const float expectedRadius = 333.0f;
+        const float turn = 0.6f;
+        const float endStraight = 3.0f;
+        float p1[3] = {0, 0, 0};
+        float p2[3] = {
+            expectedRadius * (1.0f - std::cos(turn))
+                    + endStraight * std::sin(turn),
+            0,
+            -(expectedRadius * std::sin(turn)
+                    + endStraight * std::cos(turn))
+        };
+        float q1[4] = {0, 0, 0, 1};
+        float q2[4] = {0, turn, 0, 1};
+        float sections[10] = {0};
+        const bool solved = Flex::NewFlex(
+                0, 0, p1, q1,
+                0, 0, p2, q2,
+                sections, 0.0f, false);
+        const bool caseOk = solved
+                && std::fabs(sections[0]) < 0.01f
+                && nearlyEqual(sections[2], turn, 0.001f)
+                && nearlyEqual(sections[3], expectedRadius, 0.05f)
+                && nearlyEqual(sections[4], endStraight, 0.3f)
+                && std::fabs(sections[6]) < 0.01f
+                && std::fabs(sections[8]) < 0.01f;
+        if(caseOk) {
+            passed++;
+        } else {
+            failed++;
+            qWarning() << "[tests:flex-point] failed: exact snapped L+C+L boundary radius"
+                    << "solved=" << solved
+                    << "sections=" << sections[0] << sections[2]
+                    << sections[3] << sections[4]
+                    << sections[6] << sections[7] << sections[8];
+        }
+    }
+    {
         guardCaseCount++;
         float p[3] = {0, 0, 0};
         float q[4] = {0, 0, 0, 1};

@@ -1175,14 +1175,42 @@ bool Flex::NewFlex(int x1, int z1, float *p1, float *q1, int x2, int z2, float *
 
     // Candidate radii (meters), descending preference.
     std::vector<float> radii = {10000.0f, 8000.0f, 5000.0f, 2000.0f, 1200.0f, 800.0f, 500.0f, 300.0f, 200.0f, 150.0f, 100.0f, 75.0f, 50.0f, 30.0f, 20.0f, 15.0f, 10.0f};
+    std::vector<float> singleCurveRadii = radii;
     if(!preferNiceRadii) {
+        auto addExactRadius = [&](float radius) {
+            if(std::isfinite(radius) && radius > 0.1f)
+                singleCurveRadii.push_back(radius);
+        };
+
         const float absPhi = std::fabs(phi);
         const float chord = length(targetPos);
         const float halfAngleSin = std::sin(absPhi * 0.5f);
-        if(absPhi > 1e-5f && halfAngleSin > 1e-6f && chord > 0.01f) {
-            const float exactRadius = chord / (2.0f * halfAngleSin);
-            if(std::isfinite(exactRadius) && exactRadius > 0.1f)
-                radii.push_back(exactRadius);
+        if(absPhi > 1e-5f && halfAngleSin > 1e-6f && chord > 0.01f)
+            addExactRadius(chord / (2.0f * halfAngleSin));
+
+        // For L+C+L, both straight lengths are linear functions of radius.
+        // The largest feasible radius occurs where either L0 or L2 becomes
+        // zero. Include those exact boundaries instead of falling back to the
+        // next lower rounded radius.
+        const float denom = -std::sin(phi);
+        if(std::fabs(denom) > 1e-5f) {
+            auto straightLengths = [&](float radius, float &l0, float &l2) {
+                const FlexVec2 cd = curveDisp(phi, radius);
+                l2 = (targetPos.x - cd.x) / denom;
+                l0 = targetPos.y - cd.y - std::cos(phi) * l2;
+            };
+            float l0AtZero = 0.0f;
+            float l2AtZero = 0.0f;
+            float l0AtOne = 0.0f;
+            float l2AtOne = 0.0f;
+            straightLengths(0.0f, l0AtZero, l2AtZero);
+            straightLengths(1.0f, l0AtOne, l2AtOne);
+            const float l0Slope = l0AtOne - l0AtZero;
+            const float l2Slope = l2AtOne - l2AtZero;
+            if(std::fabs(l0Slope) > 1e-6f)
+                addExactRadius(-l0AtZero / l0Slope);
+            if(std::fabs(l2Slope) > 1e-6f)
+                addExactRadius(-l2AtZero / l2Slope);
         }
     }
     float minAllowedRadius = 5.0f;
@@ -1230,7 +1258,7 @@ bool Flex::NewFlex(int x1, int z1, float *p1, float *q1, int x2, int z2, float *
 
     // 1) Single curve (L + C + L) candidates over our discrete radius set.
     if (std::fabs(std::sin(phi)) > 1e-4f) {
-        for (float R : radii) {
+        for (float R : singleCurveRadii) {
             if (R < minAllowedRadius)
                 continue;
 

@@ -400,9 +400,9 @@ and simulation validation are mandatory.
 - Endpoint snapping uses `Game::snapableRadius` and exact TDB endpoint poses.
 - Pointer grid initially uses `Game::DefaultMoveStep`.
 - Existing pose-to-pose Flex is reused for endpoint connections.
-- Snapped live Flex disables the solver's rounded-radius preference. An exact
-  single-curve radius is considered and the largest feasible radius wins,
-  matching the free-end live Flex style.
+- Snapped live Flex disables the solver's rounded-radius preference. Exact
+  pure-curve and `L+C+L` feasibility-boundary radii are considered, so the
+  largest feasible radius wins even when a short straight is required.
 - Already committed/TDB DynTracks cannot be live-flexed in v1.
 - One live-flex gesture creates one undo operation.
 
