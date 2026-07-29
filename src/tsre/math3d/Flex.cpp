@@ -573,13 +573,15 @@ bool Flex::DyntrackEndpoint(
     float localOffset[3] = {endpoint.pos.x, 0.0f, -endpoint.pos.y};
     Vec3::transformQuat(localOffset, localOffset, const_cast<float*>(startQuaternion));
 
-    float absoluteX = startTileX * 2048.0f + startPosition[0] + localOffset[0];
-    float absoluteZ = startTileZ * 2048.0f + startPosition[2] + localOffset[2];
-    endTileX = (int)std::floor((absoluteX + 1024.0f) / 2048.0f);
-    endTileZ = (int)std::floor((absoluteZ + 1024.0f) / 2048.0f);
-    endPosition[0] = absoluteX - endTileX * 2048.0f;
+    const double absoluteX = startTileX * 2048.0
+            + (double)startPosition[0] + (double)localOffset[0];
+    const double absoluteZ = startTileZ * 2048.0
+            + (double)startPosition[2] + (double)localOffset[2];
+    endTileX = (int)std::floor((absoluteX + 1024.0) / 2048.0);
+    endTileZ = (int)std::floor((absoluteZ + 1024.0) / 2048.0);
+    endPosition[0] = (float)(absoluteX - endTileX * 2048.0);
     endPosition[1] = startPosition[1] + localOffset[1];
-    endPosition[2] = absoluteZ - endTileZ * 2048.0f;
+    endPosition[2] = (float)(absoluteZ - endTileZ * 2048.0);
 
     // Rebuild the orientation in the same canonical order used by track
     // objects: world yaw followed by local pitch. Appending the turn directly
@@ -637,17 +639,17 @@ bool Flex::OffsetWorldPose(
     const float tdbYaw = TdbYawFromTrackQuaternion(sourceQuaternion);
     if(!std::isfinite(tdbYaw))
         return false;
-    const float offsetX = rightOffset * std::cos(tdbYaw);
-    const float offsetZ = rightOffset * std::sin(tdbYaw);
-    const float absoluteX = sourceTileX * 2048.0f
-            + sourcePosition[0] + offsetX;
-    const float absoluteZ = sourceTileZ * 2048.0f
-            + sourcePosition[2] + offsetZ;
-    targetTileX = (int)std::floor((absoluteX + 1024.0f) / 2048.0f);
-    targetTileZ = (int)std::floor((absoluteZ + 1024.0f) / 2048.0f);
-    targetPosition[0] = absoluteX - targetTileX * 2048.0f;
+    const double offsetX = (double)rightOffset * std::cos((double)tdbYaw);
+    const double offsetZ = (double)rightOffset * std::sin((double)tdbYaw);
+    const double absoluteX = sourceTileX * 2048.0
+            + (double)sourcePosition[0] + offsetX;
+    const double absoluteZ = sourceTileZ * 2048.0
+            + (double)sourcePosition[2] + offsetZ;
+    targetTileX = (int)std::floor((absoluteX + 1024.0) / 2048.0);
+    targetTileZ = (int)std::floor((absoluteZ + 1024.0) / 2048.0);
+    targetPosition[0] = (float)(absoluteX - targetTileX * 2048.0);
     targetPosition[1] = sourcePosition[1];
-    targetPosition[2] = absoluteZ - targetTileZ * 2048.0f;
+    targetPosition[2] = (float)(absoluteZ - targetTileZ * 2048.0);
     Quat::copy(targetQuaternion, const_cast<float*>(sourceQuaternion));
 
     for(int i = 0; i < 3; i++)

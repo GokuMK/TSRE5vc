@@ -46,6 +46,12 @@ yaw-then-pitch order. This is important on elevated curves: appending yaw after
 pitch rotates about a tilted axis and produces a slightly wrong TDB end
 heading.
 
+Tile/local composition uses double precision. Route tile indices can put a
+temporary continuous coordinate more than ten million metres from zero, where
+a 32-bit float loses sub-metre precision and silently rounds companion origins
+to the mouse grid. Values are converted back to float only after the target
+tile has been removed.
+
 ## Placement Flow
 
 1. The main Dynamic Track is placed and remains selected.

@@ -594,6 +594,10 @@ static int runFlexPointSuite(bool verbose) {
             1, 0, {-1021, 0, 0}},
         {"offset-negative-tile-crossing", 0, 0, {-1023, 0, 0}, 0, -4,
             -1, 0, {1021, 0, 0}},
+        {"offset-large-negative-tiles", -5306, -14961,
+            {-313.659821f, 0.983149f, -91.258560f}, 0, -4,
+            -5306, -14961,
+            {-317.659821f, 0.983149f, -91.258560f}},
     };
     for(const OffsetPoseCase &c : offsetCases) {
         const float objectYaw = -c.tdbYaw;
@@ -690,6 +694,35 @@ static int runFlexPointSuite(bool verbose) {
                     << "actualYaw=" << actualEndTdbYaw
                     << "expectedPitch=" << pitch
                     << "actualPitch=" << actualPitch;
+        }
+    }
+    {
+        endpointOrientationCaseCount++;
+        float startPosition[3] = {
+            -313.659821f, 0.983149f, -91.258560f
+        };
+        float startQ[4] = {0, 0, 0, 1};
+        float sections[10] = {10, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+        int endTileX = 0;
+        int endTileZ = 0;
+        float endPosition[3] = {0, 0, 0};
+        float endQ[4] = {0, 0, 0, 1};
+        const bool caseOk = Flex::DyntrackEndpoint(
+                -5306, -14961,
+                startPosition, startQ, sections,
+                endTileX, endTileZ, endPosition, endQ)
+                && endTileX == -5306
+                && endTileZ == -14961
+                && nearlyEqual(endPosition[0], startPosition[0], 1e-4f)
+                && nearlyEqual(
+                    endPosition[2], startPosition[2] - 10.0f, 1e-4f);
+        if(caseOk) {
+            passed++;
+        } else {
+            failed++;
+            qWarning() << "[tests:flex-point] failed: large-tile endpoint precision"
+                    << "tile=" << endTileX << endTileZ
+                    << "position=" << endPosition[0] << endPosition[2];
         }
     }
 

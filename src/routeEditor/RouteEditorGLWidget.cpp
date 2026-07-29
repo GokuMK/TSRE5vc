@@ -2162,15 +2162,15 @@ void RouteEditorGLWidget::quantizeLiveFlexPoint(int &tileX, int &tileZ, float *p
         return;
     step = std::max(0.01f, std::fabs(step));
 
-    float absoluteX = tileX * 2048.0f + position[0];
-    float absoluteZ = tileZ * 2048.0f + position[2];
-    absoluteX = std::round(absoluteX / step) * step;
-    absoluteZ = std::round(absoluteZ / step) * step;
+    double absoluteX = tileX * 2048.0 + (double)position[0];
+    double absoluteZ = tileZ * 2048.0 + (double)position[2];
+    absoluteX = std::round(absoluteX / (double)step) * (double)step;
+    absoluteZ = std::round(absoluteZ / (double)step) * (double)step;
 
-    tileX = (int)std::floor((absoluteX + 1024.0f) / 2048.0f);
-    tileZ = (int)std::floor((absoluteZ + 1024.0f) / 2048.0f);
-    position[0] = absoluteX - tileX * 2048.0f;
-    position[2] = absoluteZ - tileZ * 2048.0f;
+    tileX = (int)std::floor((absoluteX + 1024.0) / 2048.0);
+    tileZ = (int)std::floor((absoluteZ + 1024.0) / 2048.0);
+    position[0] = (float)(absoluteX - tileX * 2048.0);
+    position[2] = (float)(absoluteZ - tileZ * 2048.0);
 }
 
 void RouteEditorGLWidget::updateLiveFlex(int pointerTileX, int pointerTileZ, const float *pointerPosition) {
