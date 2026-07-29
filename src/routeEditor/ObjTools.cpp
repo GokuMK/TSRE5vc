@@ -29,6 +29,7 @@ ObjTools::ObjTools(QString name)
     setFixedWidth(250);
     buttonTools["selectTool"] = new QPushButton("Select", this);
     buttonTools["placeTool"] = new QPushButton("Place New", this);
+    buttonTools["continuousFlexTool"] = new QPushButton("FLEX TRACK", this);
     buttonTools["autoPlaceSimpleTool"] = new QPushButton("Auto Placement", this);
     QMapIterator<QString, QPushButton*> i(buttonTools);
     while (i.hasNext()) {
@@ -69,6 +70,7 @@ ObjTools::ObjTools(QString name)
     int row = 0;
     vlist3->addWidget(buttonTools["selectTool"],row,0);
     vlist3->addWidget(buttonTools["placeTool"],row++,1,1,3);
+    vlist3->addWidget(buttonTools["continuousFlexTool"],row++,0,1,4);
     vlist3->addWidget(&stickToTDB,row,0);
     vlist3->addWidget(resetRotationButton,row++,1,1,3);
     vlist3->addWidget(buttonTools["autoPlaceSimpleTool"],row,0);
@@ -210,6 +212,9 @@ ObjTools::ObjTools(QString name)
     
     QObject::connect(buttonTools["placeTool"], SIGNAL(toggled(bool)),
                       this, SLOT(placeToolEnabled(bool)));
+
+    QObject::connect(buttonTools["continuousFlexTool"], SIGNAL(toggled(bool)),
+                      this, SLOT(continuousFlexToolEnabled(bool)));
     
     QObject::connect(buttonTools["autoPlaceSimpleTool"], SIGNAL(toggled(bool)),
                       this, SLOT(autoPlacementButtonEnabled(bool)));
@@ -508,6 +513,22 @@ void ObjTools::placeToolEnabled(bool val){
         emit enableTool("placeTool");
     else
         emit enableTool("");
+}
+
+void ObjTools::continuousFlexToolEnabled(bool val){
+    if(!val){
+        emit enableTool("");
+        return;
+    }
+    if(route == NULL || route->ref == NULL)
+        return;
+
+    itemRef = Ref::RefItem();
+    itemRef.type = "dyntrack";
+    itemRef.value = -1;
+    itemRef.description = "Dynamic Track";
+    route->ref->selected = &itemRef;
+    emit enableTool("continuousFlexTool");
 }
 
 void ObjTools::autoPlacementButtonEnabled(bool val){

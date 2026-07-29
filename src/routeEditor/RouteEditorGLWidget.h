@@ -160,9 +160,10 @@ protected:
     void drawPointer();
     void pushRenderPointer();
 private:
-    bool startLiveFlex();
+    bool startLiveFlex(bool reuseUndoState = false, bool deleteOnCancel = false);
     void updateLiveFlex(int pointerTileX, int pointerTileZ, const float *pointerPosition);
     void finishLiveFlex(bool accept);
+    bool placeContinuousFlexTrack(int tileX, int tileZ, float *position, float *quaternion);
     static void quantizeLiveFlexPoint(int &tileX, int &tileZ, float *position, float step);
     bool paintGLGather(bool drawToScreen);
     bool paintGLValidation();
@@ -222,6 +223,8 @@ private:
     bool rotateTool = false;
     bool translateTool = false;
     bool liveFlexActive = false;
+    bool continuousFlexMode = false;
+    bool liveFlexDeleteOnCancel = false;
     DynTrackObj *liveFlexObj = NULL;
     int liveFlexStartTileX = 0;
     int liveFlexStartTileZ = 0;

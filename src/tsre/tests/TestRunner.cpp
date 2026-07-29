@@ -440,6 +440,43 @@ static int runFlexPointSuite(bool verbose) {
                 caseOk = check.posErr < 0.1f;
                 if (verbose)
                     qInfo() << "[tests:flex-point]" << c.name << "posErr=" << check.posErr;
+
+                float startQ[4] = {
+                    0.0f,
+                    std::sin(-c.yaw * 0.5f),
+                    0.0f,
+                    std::cos(-c.yaw * 0.5f)
+                };
+                int endTileX = 0;
+                int endTileZ = 0;
+                float endPosition[3] = {0, 0, 0};
+                float endQ[4] = {0, 0, 0, 1};
+                caseOk = Flex::DyntrackEndpoint(
+                        c.x1,
+                        c.z1,
+                        c.p1,
+                        startQ,
+                        got,
+                        endTileX,
+                        endTileZ,
+                        endPosition,
+                        endQ);
+                if(caseOk) {
+                    const float dx = endTileX * 2048.0f + endPosition[0]
+                            - (c.x2 * 2048.0f + c.p2[0]);
+                    const float dz = endTileZ * 2048.0f + endPosition[2]
+                            - (c.z2 * 2048.0f + c.p2[2]);
+                    const float endpointError = std::sqrt(dx * dx + dz * dz);
+                    const float expectedEndYaw = wrapPi(c.yaw + got[2] + got[6]);
+                    const float endpointYaw = Flex::TdbYawFromTrackQuaternion(endQ);
+                    caseOk = endpointError < 0.1f
+                            && std::fabs(wrapPi(endpointYaw - expectedEndYaw)) < 1e-4f;
+                    if(verbose)
+                        qInfo() << "[tests:flex-point]" << c.name
+                                << "chainPosErr=" << endpointError
+                                << "chainYawErr="
+                                << std::fabs(wrapPi(endpointYaw - expectedEndYaw));
+                }
             }
 
             if (caseOk && c.trimmed)

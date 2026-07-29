@@ -1471,6 +1471,20 @@ void RouteEditorGLWidget::mousePressEvent(QMouseEvent *event) {
         Undo::StateBegin();
         mouseLPressed = true;
         lastMousePressTime = QDateTime::currentMSecsSinceEpoch();
+        if(toolEnabled == "continuousFlexTool") {
+            float q[4];
+            Quat::copy(q, placeRot);
+            if(!placeContinuousFlexTrack(
+                    (int)camera->pozT[0],
+                    (int)camera->pozT[1],
+                    aktPointerPos,
+                    q))
+                Undo::StateCancel();
+            mouseLPressed = false;
+            mouseClick = false;
+            setFocus();
+            return;
+        }
         if (toolEnabled == "placeTool") {
             if (selectedObj != NULL) {
                 selectedObj->unselect();
@@ -1768,8 +1782,12 @@ void RouteEditorGLWidget::mouseMoveEvent(QMouseEvent *event) {
 }
 
 void RouteEditorGLWidget::enableTool(QString name) {
-    if(liveFlexActive && name != "liveFlexTool")
+    if(liveFlexActive && name != "liveFlexTool" && name != "continuousFlexTool")
         finishLiveFlex(false);
+    if(name == "continuousFlexTool")
+        continuousFlexMode = true;
+    else if(name != "liveFlexTool")
+        continuousFlexMode = false;
     qDebug() << name;
     toolEnabled = name;
     //if(toolEnabled == "placeTool" || toolEnabled == "selectTool" || toolEnabled == "autoPlaceSimpleTool"){
@@ -1851,7 +1869,7 @@ void RouteEditorGLWidget::setSelectedObj(GameObj* o) {
            emit sendMsg("showShape", ((WorldObj*) o)->getShapePath());
 }
 
-bool RouteEditorGLWidget::startLiveFlex() {
+bool RouteEditorGLWidget::startLiveFlex(bool reuseUndoState, bool deleteOnCancel) {
     if(liveFlexActive)
         return true;
     if(route == NULL || selectedObj == NULL)
@@ -1873,7 +1891,7 @@ bool RouteEditorGLWidget::startLiveFlex() {
     if(dynTrack->sections == NULL)
         return false;
 
-    enableTool("liveFlexTool");
+    enableTool(continuousFlexMode ? "continuousFlexTool" : "liveFlexTool");
     liveFlexObj = dynTrack;
     liveFlexStartTileX = dynTrack->x;
     liveFlexStartTileZ = dynTrack->y;
@@ -1886,12 +1904,49 @@ bool RouteEditorGLWidget::startLiveFlex() {
     liveFlexHasLastTarget = false;
     liveFlexLastEndpointId = -2;
     liveFlexLastUpdateTime = 0;
+    liveFlexDeleteOnCancel = deleteOnCancel;
     liveFlexActive = true;
 
-    Undo::StateBegin();
-    Undo::PushGameObjData(dynTrack);
+    if(!reuseUndoState) {
+        Undo::StateBegin();
+        Undo::PushGameObjData(dynTrack);
+    }
     updateLiveFlex((int)camera->pozT[0], (int)camera->pozT[1], aktPointerPos);
     return true;
+}
+
+bool RouteEditorGLWidget::placeContinuousFlexTrack(
+        int tileX,
+        int tileZ,
+        float *position,
+        float *quaternion) {
+    if(route == NULL || position == NULL || quaternion == NULL)
+        return false;
+
+    Ref::RefItem dynTrackRef;
+    dynTrackRef.type = "dyntrack";
+    dynTrackRef.value = -1;
+    dynTrackRef.description = "Dynamic Track";
+
+    float p[3];
+    float q[4];
+    Vec3::copy(p, position);
+    Quat::copy(q, quaternion);
+    DynTrackObj *dynTrack = (DynTrackObj*)route->placeObject(
+            tileX, tileZ, p, q, 0, &dynTrackRef);
+    if(dynTrack == NULL)
+        return false;
+
+    if(selectedObj != NULL)
+        selectedObj->unselect();
+    setSelectedObj(dynTrack);
+    dynTrack->select();
+    if(startLiveFlex(true, true))
+        return true;
+
+    route->undoPlaceObj(dynTrack->x, dynTrack->y, dynTrack->UiD);
+    setSelectedObj(NULL);
+    return false;
 }
 
 void RouteEditorGLWidget::quantizeLiveFlexPoint(int &tileX, int &tileZ, float *position, float step) {
@@ -2015,8 +2070,33 @@ void RouteEditorGLWidget::finishLiveFlex(bool accept) {
         return;
 
     DynTrackObj *dynTrack = liveFlexObj;
+    const bool continuePlacement = accept && continuousFlexMode;
+    int nextTileX = 0;
+    int nextTileZ = 0;
+    float nextPosition[3] = {0, 0, 0};
+    float nextQuaternion[4] = {0, 0, 0, 1};
+    bool hasNextPose = false;
+    if(continuePlacement && dynTrack != NULL) {
+        float currentSections[10];
+        for(int i = 0; i < 5; i++) {
+            currentSections[i * 2] = dynTrack->sections[i].a;
+            currentSections[i * 2 + 1] = dynTrack->sections[i].r;
+        }
+        hasNextPose = Flex::DyntrackEndpoint(
+                dynTrack->x,
+                dynTrack->y,
+                dynTrack->position,
+                dynTrack->qDirection,
+                currentSections,
+                nextTileX,
+                nextTileZ,
+                nextPosition,
+                nextQuaternion);
+    }
+    const bool deleteOnCancel = liveFlexDeleteOnCancel;
     liveFlexActive = false;
     liveFlexObj = NULL;
+    liveFlexDeleteOnCancel = false;
     liveFlexHasLastTarget = false;
     liveFlexLastEndpointId = -2;
     liveFlexLastUpdateTime = 0;
@@ -2024,7 +2104,10 @@ void RouteEditorGLWidget::finishLiveFlex(bool accept) {
     if(accept) {
         Undo::StateEnd();
     } else {
-        if(dynTrack != NULL) {
+        if(deleteOnCancel && dynTrack != NULL) {
+            route->undoPlaceObj(dynTrack->x, dynTrack->y, dynTrack->UiD);
+            setSelectedObj(NULL);
+        } else if(dynTrack != NULL) {
             dynTrack->set("dyntrackdata", liveFlexOriginalSections);
             dynTrack->setPosition(liveFlexStartPosition);
             dynTrack->setQdirection(liveFlexStartQ);
@@ -2034,6 +2117,18 @@ void RouteEditorGLWidget::finishLiveFlex(bool accept) {
         Undo::StateCancel();
     }
 
+    if(continuePlacement && hasNextPose) {
+        if(dynTrack != NULL)
+            dynTrack->unselect();
+        Undo::StateBegin();
+        if(placeContinuousFlexTrack(
+                nextTileX,
+                nextTileZ,
+                nextPosition,
+                nextQuaternion))
+            return;
+        Undo::StateCancel();
+    }
     enableTool("selectTool");
 }
 

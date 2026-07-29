@@ -34,6 +34,7 @@ public slots:
     void lastItemsListSelected(QListWidgetItem * item);
     void selectToolEnabled(bool val);
     void placeToolEnabled(bool val);
+    void continuousFlexToolEnabled(bool val);
     void autoPlacementButtonEnabled(bool val);
     void itemSelected(Ref::RefItem* item);
     void stickToTDBEnabled(int state);

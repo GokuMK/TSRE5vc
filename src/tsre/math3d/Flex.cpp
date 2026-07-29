@@ -537,6 +537,46 @@ float Flex::TdbYawFromTrackQuaternion(const float *q) {
     return wrapPi(pitch);
 }
 
+bool Flex::DyntrackEndpoint(
+        int startTileX,
+        int startTileZ,
+        const float *startPosition,
+        const float *startQuaternion,
+        const float *dyntrackSections,
+        int &endTileX,
+        int &endTileZ,
+        float *endPosition,
+        float *endQuaternion) {
+    if(startPosition == nullptr || startQuaternion == nullptr
+            || dyntrackSections == nullptr || endPosition == nullptr
+            || endQuaternion == nullptr)
+        return false;
+
+    // DynTrack curve signs are opposite to the solver's kinematic convention.
+    float solverSections[10];
+    std::copy(dyntrackSections, dyntrackSections + 10, solverSections);
+    flipCurveAngleSignsForDyntrack(solverSections);
+    const FlexPose2 endpoint = simulate(solverSections);
+
+    // The solver's local right/forward plane maps to WorldObj local X/-Z.
+    // Transform it once through the object quaternion so pitch and the
+    // editor/TDB yaw boundary remain consistent.
+    float localOffset[3] = {endpoint.pos.x, 0.0f, -endpoint.pos.y};
+    Vec3::transformQuat(localOffset, localOffset, const_cast<float*>(startQuaternion));
+
+    float absoluteX = startTileX * 2048.0f + startPosition[0] + localOffset[0];
+    float absoluteZ = startTileZ * 2048.0f + startPosition[2] + localOffset[2];
+    endTileX = (int)std::floor((absoluteX + 1024.0f) / 2048.0f);
+    endTileZ = (int)std::floor((absoluteZ + 1024.0f) / 2048.0f);
+    endPosition[0] = absoluteX - endTileX * 2048.0f;
+    endPosition[1] = startPosition[1] + localOffset[1];
+    endPosition[2] = absoluteZ - endTileZ * 2048.0f;
+
+    Quat::copy(endQuaternion, const_cast<float*>(startQuaternion));
+    Quat::rotateY(endQuaternion, endQuaternion, endpoint.heading);
+    return true;
+}
+
 bool Flex::NewFlexToPoint(
         int x1,
         int z1,
