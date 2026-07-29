@@ -49,8 +49,10 @@ heading.
 ## Placement Flow
 
 1. The main Dynamic Track is placed and remains selected.
-2. Unselected companion Dynamic Track objects are created at the offset start
-   poses and retained by the live Flex tool.
+2. Unselected companion Dynamic Track objects are created through the same
+   `Route::placeObject(...)` path as the main track, with snapping disabled,
+   then fixed to the calculated offset start poses and retained by the live
+   Flex tool.
 3. Every accepted mouse update rebuilds the main preview, derives its end pose,
    and rebuilds each companion to its matching offset end pose.
 4. A click accepts the complete way. The main track and all companions are

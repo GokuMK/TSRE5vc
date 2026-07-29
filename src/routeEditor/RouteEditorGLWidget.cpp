@@ -1956,25 +1956,47 @@ bool RouteEditorGLWidget::placeContinuousFlexTrack(
     return false;
 }
 
-DynTrackObj* RouteEditorGLWidget::placeRawDynTrack(
+DynTrackObj* RouteEditorGLWidget::placeFlexCompanion(
         int tileX,
         int tileZ,
         float *position,
         float *quaternion) {
     if(route == NULL || position == NULL || quaternion == NULL)
         return NULL;
-    Tile *tile = route->requestTile(tileX, tileZ);
-    if(tile == NULL || tile->loaded != 1)
-        return NULL;
-
     Ref::RefItem dynTrackRef;
     dynTrackRef.type = "dyntrack";
     dynTrackRef.value = -1;
     dynTrackRef.description = "Dynamic Track";
-    DynTrackObj *track = (DynTrackObj*)tile->placeObject(
-            position, quaternion, &dynTrackRef, NULL);
-    if(track != NULL)
-        Undo::PushWorldObjPlaced(track);
+
+    float p[3];
+    float q[4];
+    Vec3::copy(p, position);
+    Quat::copy(q, quaternion);
+    const bool previousStickToTarget = route->placementStickToTarget;
+    route->placementStickToTarget = false;
+    DynTrackObj *track = (DynTrackObj*)route->placeObject(
+            tileX, tileZ, p, q, 0, &dynTrackRef);
+    route->placementStickToTarget = previousStickToTarget;
+    if(track == NULL)
+        return NULL;
+
+    // Route placement may derive a DynTrack orientation from nearby TDB data.
+    // Companions must use the already calculated parallel pose exactly.
+    if(track->x != tileX || track->y != tileZ) {
+        route->undoPlaceObj(track->x, track->y, track->UiD);
+        return NULL;
+    }
+    track->setPosition(position);
+    track->setQdirection(quaternion);
+    track->setMartix();
+
+    if(std::fabs(track->position[0] - position[0]) > 0.001f
+            || std::fabs(track->position[1] - position[1]) > 0.001f
+            || std::fabs(track->position[2] - position[2]) > 0.001f) {
+        qWarning() << "Continuous Flex: companion placement pose drifted";
+        route->undoPlaceObj(track->x, track->y, track->UiD);
+        return NULL;
+    }
     return track;
 }
 
@@ -2009,12 +2031,24 @@ bool RouteEditorGLWidget::createLiveFlexCompanions() {
             return false;
         }
 
-        DynTrackObj *track = placeRawDynTrack(
+        DynTrackObj *track = placeFlexCompanion(
                 tileX, tileZ, position, quaternion);
         if(track == NULL) {
             discardLiveFlexCompanions();
             return false;
         }
+        qDebug() << "Continuous Flex companion start"
+                << "offset" << offset
+                << "main" << liveFlexStartTileX << liveFlexStartTileZ
+                << liveFlexStartPosition[0]
+                << liveFlexStartPosition[1]
+                << liveFlexStartPosition[2]
+                << "side" << track->x << track->y
+                << track->position[0]
+                << track->position[1]
+                << track->position[2]
+                << "tdbYaw"
+                << Flex::TdbYawFromTrackQuaternion(liveFlexStartQ);
         liveFlexCompanions.push_back(track);
         liveFlexCompanionOffsets.push_back(offset);
     }
