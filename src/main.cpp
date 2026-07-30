@@ -143,9 +143,9 @@ CommandLineParseResult parseCommandLineArgs(QCommandLineParser &parser){
     parser.addOption(TestOption);
     const QCommandLineOption TestListOption("test-list", "List available test suites and exit.");
     parser.addOption(TestListOption);
-    const QCommandLineOption TestSuiteOption("test-suite", "Test suite to run (e.g. flex).", "name");
+    const QCommandLineOption TestSuiteOption("test-suite", "Test suite to run (default: flex-point).", "name");
     parser.addOption(TestSuiteOption);
-    const QCommandLineOption TestCasesOption("test-cases", "Path to test cases JSONL file.", "file");
+    const QCommandLineOption TestCasesOption("test-cases", "Path to a captured Flex replay JSONL file.", "file");
     parser.addOption(TestCasesOption);
     const QCommandLineOption TestVerboseOption("test-verbose", "Verbose test output.");
     parser.addOption(TestVerboseOption);

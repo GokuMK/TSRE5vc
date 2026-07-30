@@ -266,8 +266,14 @@ static FlexEndCheck checkFlexEndPose(const FlexCase &c, const float *sectionsDyn
 }
 
 static int runFlexSuite(QString casesFile, bool verbose) {
-    if (casesFile.trimmed().isEmpty())
+    const bool explicitCasesFile = !casesFile.trimmed().isEmpty();
+    if (!explicitCasesFile)
         casesFile = "features/tests/cases/flex.jsonl";
+
+    if (!explicitCasesFile && !QFile::exists(casesFile)) {
+        qInfo() << "[tests:flex] SKIP: no captured baseline:" << casesFile;
+        return 0;
+    }
 
     QFile f(casesFile);
     if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) {
@@ -922,11 +928,11 @@ int TsreTests::run(const TestRunOptions &opts) {
 
     Game::gui = false;
 
-    if (suite.isEmpty() || suite == "flex")
-        return runFlexSuite(opts.casesFile, opts.verbose);
-
-    if (suite == "flex-point")
+    if (suite.isEmpty() || suite == "flex-point")
         return runFlexPointSuite(opts.verbose);
+
+    if (suite == "flex")
+        return runFlexSuite(opts.casesFile, opts.verbose);
 
     if (suite == "route-load")
         return runRouteLoadSuite(opts);
