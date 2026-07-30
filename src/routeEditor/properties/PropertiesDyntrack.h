@@ -72,6 +72,7 @@ private:
     float getStepValue(float step);
     void updateSectionValues();
     void updateTemplateValue();
+    void refreshTemplateList();
 };
 
 #endif	/* PROPERTIESDYNTRACK_H */

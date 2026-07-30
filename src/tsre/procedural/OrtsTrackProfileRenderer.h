@@ -9,14 +9,23 @@
 
 #include <QString>
 #include <QStringList>
+#include <QMap>
 #include <QVector>
 #include <tsre/tdb/TSection.h>
 
 class OglObj;
+class TrackShape;
 struct OrtsTrackProfile;
 
 struct OrtsGeneratedProfileMesh {
+    enum class MaterialPass {
+        Opaque,
+        AlphaTest,
+        Blended
+    };
+
     QString textureName;
+    MaterialPass materialPass = MaterialPass::Opaque;
     float minimumDistance = -1;
     float maximumDistance = 999999;
     QVector<float> vertices;
@@ -31,6 +40,12 @@ public:
             QStringList *diagnostics = nullptr);
     static bool generate(const OrtsTrackProfile &profile,
             const QVector<TSection> &sections,
+            QVector<OglObj*> &shape,
+            const QString &routePath,
+            QStringList *diagnostics = nullptr);
+    static bool generate(const OrtsTrackProfile &profile,
+            const TrackShape &trackShape,
+            const QMap<int, float> &angles,
             QVector<OglObj*> &shape,
             const QString &routePath,
             QStringList *diagnostics = nullptr);

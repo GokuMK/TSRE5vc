@@ -65,6 +65,8 @@ private:
     void showElevBox(QString val);
     void setStepValue(float step);
     float getStepValue(float step);
+    void updateTemplateValue();
+    void refreshTemplateList();
 };
 
 #endif	/* PROPERTIESTRACKOBJ_H */

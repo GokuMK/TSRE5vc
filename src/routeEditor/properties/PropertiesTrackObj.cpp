@@ -20,6 +20,8 @@
 #include <tsre/world/Route.h>
 #include <tsre/procedural/ProceduralShape.h>
 #include <tsre/procedural/ShapeTemplates.h>
+#include <tsre/procedural/OrtsTrackProfile.h>
+#include <QSignalBlocker>
 
 PropertiesTrackObj::PropertiesTrackObj(){
     QLabel *label;
@@ -69,17 +71,7 @@ PropertiesTrackObj::PropertiesTrackObj(){
     eTemplate.addItem("DISABLED");
     eTemplate.setToolTip("NOT SET uses the static shape in Enabled mode; "
                          "DEFAULT explicitly requests the default procedural template.");
-    
-    ProceduralShape::Load();
-    if(ProceduralShape::ShapeTemplateFile != NULL){
-        QMapIterator<QString, ShapeTemplate*> i(ProceduralShape::ShapeTemplateFile->templates);
-        while (i.hasNext()) {
-            i.next();
-            if(i.value() == NULL)
-                continue;
-            eTemplate.addItem(i.value()->name);
-        }
-    }
+    refreshTemplateList();
     QObject::connect(&eTemplate, SIGNAL(currentTextChanged(QString)),
                       this, SLOT(eTemplateEdited(QString)));
     
@@ -403,6 +395,7 @@ void PropertiesTrackObj::showObj(GameObj* obj){
     }
     worldObj = (WorldObj*)obj;
     trackObj = (TrackObj*) obj;
+    refreshTemplateList();
     
     this->infoLabel->setText("Object: "+trackObj->type);
     this->fileName.setText(trackObj->fileName);
@@ -476,12 +469,59 @@ void PropertiesTrackObj::showObj(GameObj* obj){
     this->cCollisionType.setCurrentIndex(collisionType);
     this->cCollisionType.blockSignals(false);
     
-    const QSignalBlocker templateBlocker(&eTemplate);
-    QString templateName = worldObj->getTemplate();
-    if(templateName.length() == 0)
-        eTemplate.setCurrentText("NOT SET");
-    else
-        eTemplate.setCurrentText(templateName);
+    updateTemplateValue();
+}
+
+void PropertiesTrackObj::refreshTemplateList(){
+    const QSignalBlocker blocker(&eTemplate);
+    const QString previousValue = eTemplate.currentText();
+
+    eTemplate.clear();
+    eTemplate.addItem("NOT SET");
+    eTemplate.addItem("DEFAULT");
+    eTemplate.addItem("DISABLED");
+
+    ProceduralShape::Load();
+    OrtsTrackProfileCatalog::load(Game::root + "/routes/" + Game::route);
+
+    // Route-local ORTS profiles override application-level TSRE templates and
+    // are shown first so the most relevant choices are easiest to find.
+    for(const QString &profileId : OrtsTrackProfileCatalog::profileIds())
+        if(eTemplate.findText(profileId, Qt::MatchFixedString) < 0)
+            eTemplate.addItem(profileId);
+
+    if(ProceduralShape::ShapeTemplateFile != NULL){
+        QMapIterator<QString, ShapeTemplate*> iterator(
+                ProceduralShape::ShapeTemplateFile->templates);
+        while(iterator.hasNext()){
+            iterator.next();
+            if(iterator.value() == NULL)
+                continue;
+            const QString name = iterator.value()->name;
+            if(OrtsTrackProfileCatalog::find(name) != nullptr)
+                continue;
+            if(eTemplate.findText(name, Qt::MatchFixedString) < 0)
+                eTemplate.addItem(name);
+        }
+    }
+
+    if(!previousValue.isEmpty()
+            && eTemplate.findText(previousValue, Qt::MatchFixedString) < 0)
+        eTemplate.addItem(previousValue);
+    if(!previousValue.isEmpty())
+        eTemplate.setCurrentText(previousValue);
+}
+
+void PropertiesTrackObj::updateTemplateValue(){
+    if(trackObj == NULL)
+        return;
+    QString name = trackObj->getTemplate();
+    if(name.isEmpty())
+        name = "NOT SET";
+    const QSignalBlocker blocker(&eTemplate);
+    if(eTemplate.findText(name, Qt::MatchFixedString) < 0)
+        eTemplate.addItem(name);
+    eTemplate.setCurrentText(name);
 }
 
 void PropertiesTrackObj::setStepValue(float step){
@@ -544,8 +584,9 @@ void PropertiesTrackObj::updateObj(GameObj* obj){
         this->elevProg.setText(QString::number(prog));
         this->elevProp.setText(QString::number(prop));
         this->elev1inXm.setText(QString::number(oneInXm));
-     }
+    }
     eCollisionFlags.setText(QString::number(worldObj->getCollisionFlags()));
+    updateTemplateValue();
 }
 
 void PropertiesTrackObj::elevPromEnabled(QString val){

@@ -1091,6 +1091,7 @@ static int runOrtsProfileSuite(bool verbose) {
                       *xmlProfile, straight, straightMeshes, &renderDiagnostics)
               && straightMeshes.size() == 1
               && straightMeshes[0].vertices.size() == 54
+              && std::abs(straightMeshes[0].vertices[8] - 1.0f) < 0.001f
               && std::abs(straightMeshes[0].bounds[0] - 1.0f) < 0.001f
               && std::abs(straightMeshes[0].bounds[1] + 1.0f) < 0.001f
               && std::abs(straightMeshes[0].bounds[4] - 10.0f) < 0.001f,
@@ -1098,6 +1099,29 @@ static int runOrtsProfileSuite(bool verbose) {
         check(renderDiagnostics.join(' ').contains("PositionControl")
               && renderDiagnostics.join(' ').contains("LightModelName"),
               "compatibility-diagnostics");
+
+        OrtsTrackProfile blendedProfile = *xmlProfile;
+        blendedProfile.lods[0].items[0].shaderName = "BlendATexDiff";
+        QVector<OrtsGeneratedProfileMesh> blendedMeshes;
+        check(OrtsTrackProfileRenderer::buildMeshes(
+                      blendedProfile, straight, blendedMeshes)
+              && blendedMeshes.size() == 1
+              && blendedMeshes[0].materialPass
+                    == OrtsGeneratedProfileMesh::MaterialPass::Blended
+              && std::abs(blendedMeshes[0].vertices[8] + 1.0f / 255.0f)
+                    < 0.001f,
+              "blendatex-transparent-cutoff");
+
+        OrtsTrackProfile alphaTestProfile = blendedProfile;
+        alphaTestProfile.lods[0].items[0].alphaTestMode = 1;
+        QVector<OrtsGeneratedProfileMesh> alphaTestMeshes;
+        check(OrtsTrackProfileRenderer::buildMeshes(
+                      alphaTestProfile, straight, alphaTestMeshes)
+              && alphaTestMeshes.size() == 1
+              && alphaTestMeshes[0].materialPass
+                    == OrtsGeneratedProfileMesh::MaterialPass::AlphaTest
+              && std::abs(alphaTestMeshes[0].vertices[8] + 0.51f) < 0.001f,
+              "alpha-test-cutoff");
 
         OrtsTrackProfile replacementProfile = *xmlProfile;
         replacementProfile.lodMethod =
@@ -1138,10 +1162,65 @@ static int runOrtsProfileSuite(bool verbose) {
             }
         }
         check(endpointFound, "curve-endpoint");
+
+        // ComplexLine reports its TSection yaw using TSRE's object-transform
+        // convention. A swept cross-section must keep each X-side at a
+        // constant radius instead of twisting from the outside of the curve
+        // to the inside.
+        bool constantCurveSides = false;
+        if(finite){
+            const QVector<float> &vertices = curveMeshes[0].vertices;
+            bool outerEndpointFound = false;
+            bool innerEndpointFound = false;
+            for(int i = 0; i < vertices.size(); i += 9){
+                const float x = vertices[i];
+                const float z = vertices[i + 2];
+                const float textureU = vertices[i + 6];
+                outerEndpointFound = outerEndpointFound
+                        || (std::abs(x + 100.0f) < 0.01f
+                            && std::abs(z - 101.0f) < 0.01f
+                            && std::abs(textureU - 1.0f) < 0.01f);
+                innerEndpointFound = innerEndpointFound
+                        || (std::abs(x + 100.0f) < 0.01f
+                            && std::abs(z - 99.0f) < 0.01f
+                            && std::abs(textureU) < 0.01f);
+            }
+            constantCurveSides = outerEndpointFound && innerEndpointFound;
+        }
+        check(constantCurveSides, "curve-cross-section-handedness");
+
+        QVector<TSection> reverseCurves;
+        reverseCurves.append(TSection(0, 1, -(float)M_PI / 2.0f, 100.0f));
+        QVector<OrtsGeneratedProfileMesh> reverseCurveMeshes;
+        bool reverseCurveSides = OrtsTrackProfileRenderer::buildMeshes(
+                *xmlProfile, reverseCurves, reverseCurveMeshes)
+                && !reverseCurveMeshes.isEmpty();
+        bool reverseInnerEndpointFound = false;
+        bool reverseOuterEndpointFound = false;
+        if(reverseCurveSides){
+            const QVector<float> &vertices = reverseCurveMeshes[0].vertices;
+            for(int i = 0; i < vertices.size(); i += 9){
+                const float x = vertices[i];
+                const float z = vertices[i + 2];
+                const float textureU = vertices[i + 6];
+                reverseInnerEndpointFound = reverseInnerEndpointFound
+                        || (std::abs(x - 100.0f) < 0.01f
+                            && std::abs(z - 99.0f) < 0.01f
+                            && std::abs(textureU - 1.0f) < 0.01f);
+                reverseOuterEndpointFound = reverseOuterEndpointFound
+                        || (std::abs(x - 100.0f) < 0.01f
+                            && std::abs(z - 101.0f) < 0.01f
+                            && std::abs(textureU) < 0.01f);
+            }
+        }
+        check(reverseCurveSides && reverseInnerEndpointFound
+              && reverseOuterEndpointFound,
+              "reverse-curve-cross-section-handedness");
     }
 
     QTemporaryDir temporaryDirectory;
     bool precedenceOk = temporaryDirectory.isValid();
+    bool routeOverrideOk = false;
     if(precedenceOk){
         QDir().mkpath(temporaryDirectory.path() + "/TrackProfiles");
         QFile stfFile(temporaryDirectory.path()
@@ -1164,8 +1243,34 @@ static int runOrtsProfileSuite(bool verbose) {
         precedenceOk = precedenceOk && selected != nullptr
                 && selected->name == "XML wins"
                 && alias != nullptr && alias->id == "TrProfileDual";
+
+        QStringList availableNames = OrtsTrackProfileCatalog::selectionNames();
+        const QStringList globalNames = {
+            "TrProfileDual", "XML wins", "GlobalOnly"
+        };
+        for(const QString &globalName : globalNames){
+            if(OrtsTrackProfileCatalog::find(globalName) == nullptr)
+                availableNames.append(globalName);
+        }
+        const ProceduralTrackResolution idCollision =
+                ProceduralTrackPolicy::resolve(
+                    ProceduralTracksMode::Forced,
+                    "TrProfileDual", availableNames);
+        const ProceduralTrackResolution aliasCollision =
+                ProceduralTrackPolicy::resolve(
+                    ProceduralTracksMode::Forced,
+                    "XML wins", availableNames);
+        routeOverrideOk = availableNames.indexOf("TrProfileDual")
+                        < availableNames.indexOf("GlobalOnly")
+                && availableNames.count("TrProfileDual") == 1
+                && availableNames.count("XML wins") == 1
+                && OrtsTrackProfileCatalog::find(idCollision.templateName)
+                        != nullptr
+                && OrtsTrackProfileCatalog::find(aliasCollision.templateName)
+                        != nullptr;
     }
     check(precedenceOk, "xml-precedence-and-alias");
+    check(routeOverrideOk, "route-profile-overrides-global-template");
 
     qInfo() << "[tests:orts-profile] cases=" << (passed + failed)
             << "passed=" << passed << "failed=" << failed;

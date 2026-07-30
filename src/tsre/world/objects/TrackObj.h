@@ -53,9 +53,11 @@ private:
     //unsigned int collideFunction;
     bool getSimpleBorder(float* border);
     bool getBoxPoints(QVector<float> &points);
+    void clearProceduralShape();
     bool useProceduralShape();
     bool proceduralShapeInit = false;
     QVector<OglObj*> procShape;
+    bool procShapeOwned = false;
     bool roadShape = false;
     bool proceduralFallback = false;
 };

@@ -23,9 +23,12 @@
 #include <tsre/procedural/ProceduralShape.h>
 #include <tsre/procedural/ProceduralTrackPolicy.h>
 #include <tsre/procedural/ShapeTemplates.h>
+#include <tsre/procedural/OrtsTrackProfile.h>
+#include <tsre/procedural/OrtsTrackProfileRenderer.h>
 #include <tsre/ErrorMessagesLib.h>
 #include <tsre/ErrorMessage.h>
 #include <tsre/renderer/Renderer.h>
+#include <QSet>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -61,6 +64,7 @@ WorldObj* TrackObj::clone(){
 }
 
 TrackObj::~TrackObj() {
+    clearProceduralShape();
 }
 
 int TrackObj::updateTrackSectionInfo(QHash<unsigned int,unsigned int> shapes, QHash<unsigned int,unsigned int> sect){
@@ -132,9 +136,17 @@ void TrackObj::setTemplate(QString name){
 void TrackObj::reload(){
     proceduralShapeInit = false;
     proceduralFallback = false;
-    procShape.clear();
+    clearProceduralShape();
     if(shapePointer != NULL)
         shapePointer->reload();
+}
+
+void TrackObj::clearProceduralShape(){
+    if(procShapeOwned)
+        for(OglObj *object : procShape)
+            delete object;
+    procShape.clear();
+    procShapeOwned = false;
 }
 
 bool TrackObj::useProceduralShape(){
@@ -143,12 +155,19 @@ bool TrackObj::useProceduralShape(){
 
     proceduralShapeInit = true;
     proceduralFallback = true;
-    procShape.clear();
+    clearProceduralShape();
 
     ProceduralShape::Load();
-    QStringList availableTemplates;
-    if(ProceduralShape::ShapeTemplateFile != NULL)
-        availableTemplates = ProceduralShape::ShapeTemplateFile->templates.keys();
+    const QString routePath = Game::root + "/routes/" + Game::route;
+    OrtsTrackProfileCatalog::load(routePath);
+    QStringList availableTemplates = OrtsTrackProfileCatalog::selectionNames();
+    if(ProceduralShape::ShapeTemplateFile != NULL){
+        for(const QString &globalName
+                : ProceduralShape::ShapeTemplateFile->templates.keys()){
+            if(OrtsTrackProfileCatalog::find(globalName) == nullptr)
+                availableTemplates.append(globalName);
+        }
+    }
 
     const ProceduralTrackResolution resolution = ProceduralTrackPolicy::resolve(
             Game::proceduralTracks, templateName, availableTemplates);
@@ -165,7 +184,28 @@ bool TrackObj::useProceduralShape(){
     QMap<int, float> angles;
     if(Game::useSuperelevation)
         Game::trackDB->fillTrackAngles(x, -y, UiD, angles);
-    ProceduralShape::GetShape(resolution.templateName, procShape, tsh, angles);
+
+    const QSharedPointer<const OrtsTrackProfile> routeProfile =
+            OrtsTrackProfileCatalog::find(resolution.templateName);
+    if(routeProfile != nullptr){
+        QStringList diagnostics;
+        if(OrtsTrackProfileRenderer::generate(
+                *routeProfile, *tsh, angles, procShape, routePath, &diagnostics)){
+            procShapeOwned = true;
+            static QSet<QString> warnedDiagnostics;
+            for(const QString &diagnostic : diagnostics){
+                const QString key = routeProfile->id.toLower() + ":" + diagnostic;
+                if(!warnedDiagnostics.contains(key)){
+                    warnedDiagnostics.insert(key);
+                    qWarning() << "ORTS static track profile" << routeProfile->id
+                               << diagnostic;
+                }
+            }
+        }
+    } else {
+        ProceduralShape::GetShape(
+                resolution.templateName, procShape, tsh, angles);
+    }
     if(procShape.isEmpty()){
         ProceduralTrackPolicy::warnGenerationFailureOnce(resolution.templateName);
         return false;

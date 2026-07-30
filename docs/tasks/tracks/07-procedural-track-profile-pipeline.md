@@ -26,7 +26,8 @@ Milestone 1 implementation:
   `DynTrackObj`;
 - `DISABLED`, unknown templates, missing defaults, and empty generated geometry
   all remain visible through static/hardcoded fallback;
-- DynTrack properties expose the existing TSRE template catalog;
+- TrackObj and DynTrack properties expose route ORTS profiles before the
+  existing TSRE template catalog;
 - TrackObj and DynTrack properties distinguish `NOT SET` (an absent
   `ShapeTemplate` token) from explicit, persisted `DEFAULT`;
 - DynTrack saves and reloads non-default `ShapeTemplate` values;
@@ -41,11 +42,17 @@ with real route profiles:
   `TrProfile.stf`, `TrProfile*.xml`, and `TrProfile*.stf` precedence;
 - STF and XML load into a neutral profile/LOD/material/polyline/vertex model;
 - file stems are canonical IDs and unique internal names are aliases;
-- DynTrack resolves TSRE templates first, then ORTS profiles;
+- TrackObj and DynTrack resolve route ORTS profiles before global TSRE
+  templates, so the route-local definition overrides a same-name global one;
 - the ORTS backend sweeps profiles entirely in DynTrack-local `TSection`
   space, applies chord-span/chord-length/chord-displacement subdivision, keeps
   UV distance continuous, transforms normals, and applies additive or
   replacement LOD ranges;
+- static TrackObj ORTS generation sweeps each TrackShape path, applies the
+  established TSRE path offset/yaw transform, and interpolates its TDB
+  start/end superelevation angles;
+- named ORTS profiles on ordinary static TrackObjs were visually accepted in
+  both TSRE and Open Rails on route `bbb`;
 - route textures are preferred with global-texture fallback;
 - unsupported material details and profile-specific `PositionControl`
   superelevation deformation produce diagnostics rather than silent parity
@@ -265,8 +272,8 @@ TSRE: AsphaltRoad
 ORTS: TrProfileRoad
 ```
 
-If a TSRE template and ORTS profile share the same unqualified name, TSRE wins
-to preserve the lookup order. The stored value remains the ordinary name; do
+If a global TSRE template and a route ORTS profile share the same unqualified
+name, the route profile wins. The stored value remains the ordinary name; do
 not invent source-qualified or ORTS-specific `ShapeTemplate` syntax.
 
 ## Proposed Architecture

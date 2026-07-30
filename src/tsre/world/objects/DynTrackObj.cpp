@@ -171,42 +171,46 @@ void DynTrackObj::generateShape(){
     }
 
     ProceduralShape::Load();
-    QStringList availableTemplates;
-    if(ProceduralShape::ShapeTemplateFile != NULL)
-        availableTemplates = ProceduralShape::ShapeTemplateFile->templates.keys();
     const QString routePath = Game::root + "/routes/" + Game::route;
     OrtsTrackProfileCatalog::load(routePath);
-    availableTemplates.append(OrtsTrackProfileCatalog::selectionNames());
+    QStringList availableTemplates = OrtsTrackProfileCatalog::selectionNames();
+    if(ProceduralShape::ShapeTemplateFile != NULL){
+        for(const QString &globalName
+                : ProceduralShape::ShapeTemplateFile->templates.keys()){
+            // Route profiles are more specific and win both direct ID and
+            // unique declared-name alias collisions.
+            if(OrtsTrackProfileCatalog::find(globalName) == nullptr)
+                availableTemplates.append(globalName);
+        }
+    }
     const ProceduralTrackResolution resolution = ProceduralTrackPolicy::resolve(
             Game::proceduralTracks, templateName, availableTemplates);
     ProceduralTrackPolicy::warnOnce(resolution);
 
-    const bool tsreTemplate = ProceduralShape::ShapeTemplateFile != NULL
-            && ProceduralShape::ShapeTemplateFile->templates.contains(
-                    resolution.templateName);
-    if(resolution.backend == ProceduralTrackBackend::Procedural && !tsreTemplate){
-        const QSharedPointer<const OrtsTrackProfile> profile =
-                OrtsTrackProfileCatalog::find(resolution.templateName);
-        if(profile != nullptr){
-            QStringList diagnostics;
-            if(OrtsTrackProfileRenderer::generate(
-                    *profile, tsections, shape, routePath, &diagnostics)){
-                shapeOwned = true;
-                init = true;
-                static QSet<QString> warnedDiagnostics;
-                for(const QString &diagnostic : diagnostics){
-                    const QString key = profile->id.toLower() + ":" + diagnostic;
-                    if(!warnedDiagnostics.contains(key)){
-                        warnedDiagnostics.insert(key);
-                        qWarning() << "ORTS track profile" << profile->id << diagnostic;
-                    }
+    const QSharedPointer<const OrtsTrackProfile> routeProfile =
+            OrtsTrackProfileCatalog::find(resolution.templateName);
+    if(resolution.backend == ProceduralTrackBackend::Procedural
+            && routeProfile != nullptr){
+        QStringList diagnostics;
+        if(OrtsTrackProfileRenderer::generate(
+                *routeProfile, tsections, shape, routePath, &diagnostics)){
+            shapeOwned = true;
+            init = true;
+            static QSet<QString> warnedDiagnostics;
+            for(const QString &diagnostic : diagnostics){
+                const QString key = routeProfile->id.toLower() + ":" + diagnostic;
+                if(!warnedDiagnostics.contains(key)){
+                    warnedDiagnostics.insert(key);
+                    qWarning() << "ORTS track profile" << routeProfile->id
+                               << diagnostic;
                 }
-                return;
             }
-            for(const QString &diagnostic : diagnostics)
-                qWarning() << "ORTS track profile" << profile->id << diagnostic;
-            ProceduralTrackPolicy::warnGenerationFailureOnce(resolution.templateName);
+            return;
         }
+        for(const QString &diagnostic : diagnostics)
+            qWarning() << "ORTS track profile" << routeProfile->id
+                       << diagnostic;
+        ProceduralTrackPolicy::warnGenerationFailureOnce(resolution.templateName);
     } else if(resolution.backend == ProceduralTrackBackend::Procedural
             && Game::trackDB != NULL && Game::trackDB->tsection != NULL
             && Game::trackDB->tsection->shape.find(sectionIdx)

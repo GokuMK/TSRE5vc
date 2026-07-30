@@ -17,6 +17,7 @@
 #include <tsre/procedural/ProceduralShape.h>
 #include <tsre/procedural/ShapeTemplates.h>
 #include <tsre/procedural/OrtsTrackProfile.h>
+#include <QSignalBlocker>
 
 PropertiesDyntrack::PropertiesDyntrack() {
     buttonTools["FlexTool"] = new QPushButton("Flex", this);
@@ -58,18 +59,7 @@ PropertiesDyntrack::PropertiesDyntrack() {
     eTemplate.addItem("DISABLED");
     eTemplate.setToolTip("NOT SET uses the hardcoded shape in Enabled mode; "
                          "DEFAULT explicitly requests the default procedural template.");
-    ProceduralShape::Load();
-    if(ProceduralShape::ShapeTemplateFile != NULL){
-        QMapIterator<QString, ShapeTemplate*> iterator(ProceduralShape::ShapeTemplateFile->templates);
-        while(iterator.hasNext()){
-            iterator.next();
-            if(iterator.value() != NULL)
-                eTemplate.addItem(iterator.value()->name);
-        }
-    }
-    OrtsTrackProfileCatalog::load(Game::root + "/routes/" + Game::route);
-    for(const QString &profileId : OrtsTrackProfileCatalog::profileIds())
-        eTemplate.addItem(profileId);
+    refreshTemplateList();
     QObject::connect(&eTemplate, SIGNAL(currentTextChanged(QString)),
                      this, SLOT(eTemplateEdited(QString)));
     
@@ -252,11 +242,7 @@ void PropertiesDyntrack::showObj(GameObj* obj){
     }
     worldObj = (WorldObj*)obj;
     dobj = (DynTrackObj*)obj;
-    OrtsTrackProfileCatalog::load(Game::root + "/routes/" + Game::route);
-    for(const QString &profileId : OrtsTrackProfileCatalog::profileIds()){
-        if(eTemplate.findText(profileId, Qt::MatchFixedString) < 0)
-            eTemplate.addItem(profileId);
-    }
+    refreshTemplateList();
     this->infoLabel->setText("Object: "+dobj->type);
     
     this->uid.setText(QString::number(dobj->UiD, 10));
@@ -321,6 +307,49 @@ void PropertiesDyntrack::updateObj(GameObj* obj){
 
     updateSectionValues();
     updateTemplateValue();
+}
+
+void PropertiesDyntrack::refreshTemplateList(){
+    const QSignalBlocker blocker(&eTemplate);
+    const QString previousValue = eTemplate.currentText();
+
+    eTemplate.clear();
+    eTemplate.addItem("NOT SET");
+    eTemplate.addItem("DEFAULT");
+    eTemplate.addItem("DISABLED");
+
+    ProceduralShape::Load();
+    OrtsTrackProfileCatalog::load(Game::root + "/routes/" + Game::route);
+
+    // Route-local ORTS profiles are the most specific definitions, so show
+    // them before application-level TSRE templates.
+    for(const QString &profileId : OrtsTrackProfileCatalog::profileIds())
+        if(eTemplate.findText(profileId, Qt::MatchFixedString) < 0)
+            eTemplate.addItem(profileId);
+
+    if(ProceduralShape::ShapeTemplateFile != NULL){
+        QMapIterator<QString, ShapeTemplate*> iterator(
+                ProceduralShape::ShapeTemplateFile->templates);
+        while(iterator.hasNext()){
+            iterator.next();
+            if(iterator.value() == NULL)
+                continue;
+            const QString name = iterator.value()->name;
+            // A route profile may match either by file ID or by its unique
+            // declared-name alias. In both cases it overrides the global
+            // template and only the route definition remains selectable.
+            if(OrtsTrackProfileCatalog::find(name) != nullptr)
+                continue;
+            if(eTemplate.findText(name, Qt::MatchFixedString) < 0)
+                eTemplate.addItem(name);
+        }
+    }
+
+    if(!previousValue.isEmpty()
+            && eTemplate.findText(previousValue, Qt::MatchFixedString) < 0)
+        eTemplate.addItem(previousValue);
+    if(!previousValue.isEmpty())
+        eTemplate.setCurrentText(previousValue);
 }
 
 void PropertiesDyntrack::updateTemplateValue(){

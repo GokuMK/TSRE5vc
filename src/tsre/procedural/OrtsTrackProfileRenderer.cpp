@@ -7,9 +7,14 @@
 #include <tsre/procedural/OrtsTrackProfileRenderer.h>
 
 #include <tsre/ogl/OglObj.h>
+#include <tsre/Game.h>
+#include <tsre/math3d/GLMatrix.h>
 #include <tsre/procedural/ComplexLine.h>
 #include <tsre/procedural/OrtsTrackProfile.h>
 #include <tsre/renderer/RenderItem.h>
+#include <tsre/tdb/TrackShape.h>
+#include <tsre/tdb/TSectionDAT.h>
+#include <tsre/world/Route.h>
 
 #include <QDir>
 #include <QFileInfo>
@@ -23,7 +28,31 @@ namespace {
 
 constexpr float MaximumPathLength = 2048.0f;
 constexpr int MaximumFrames = 4096;
-constexpr float Alpha = -0.3f;
+constexpr float OpaqueAlpha = 1.0f;
+constexpr float BlendedTransparentCutoff = -1.0f / 255.0f;
+constexpr float AlphaTestCutoff = -0.51f;
+
+OrtsGeneratedProfileMesh::MaterialPass materialPass(
+        const OrtsProfileLodItem &item) {
+    if(item.alphaTestMode == 1)
+        return OrtsGeneratedProfileMesh::MaterialPass::AlphaTest;
+    if(item.shaderName.compare("BlendATexDiff", Qt::CaseInsensitive) == 0)
+        return OrtsGeneratedProfileMesh::MaterialPass::Blended;
+    return OrtsGeneratedProfileMesh::MaterialPass::Opaque;
+}
+
+float materialAlpha(const OrtsProfileLodItem &item) {
+    // TSRE's VNTA alpha attribute encodes material behavior: positive one
+    // forces an opaque fragment, while a negative value preserves texture
+    // alpha and discards fragments below its absolute threshold. Blended
+    // materials use the smallest meaningful cutoff so invisible fragments
+    // cannot write depth before the opaque profile layers are rendered.
+    if(item.alphaTestMode == 1)
+        return AlphaTestCutoff;
+    if(item.shaderName.compare("BlendATexDiff", Qt::CaseInsensitive) == 0)
+        return BlendedTransparentCutoff;
+    return OpaqueAlpha;
+}
 
 int curveSegments(const OrtsTrackProfile &profile, const TSection &section) {
     const float absoluteAngle = std::abs(section.angle);
@@ -103,25 +132,45 @@ struct GeneratedVertex {
 };
 
 GeneratedVertex transformVertex(const OrtsProfileVertex &source,
-        const OrtsProfilePolyline &polyline, ComplexLine &line, float distance) {
+        const OrtsProfilePolyline &polyline, ComplexLine &line, float distance,
+        float alpha, float startRoll = 0, float endRoll = 0) {
     float frame[6] = {0, 0, 0, 0, 0, 0};
     line.getDrawPosition(frame, distance);
     const float yaw = frame[4];
     const float cosine = std::cos(yaw);
     const float sine = std::sin(yaw);
+    const float fraction = line.length > 0 ? distance / line.length : 0;
+    const float roll = startRoll * (1.0f - fraction) + endRoll * fraction;
+    const float rollCosine = std::cos(roll);
+    const float rollSine = std::sin(roll);
+    const float rolledX = source.position[0] * rollCosine
+            - source.position[1] * rollSine;
+    const float rolledY = source.position[0] * rollSine
+            + source.position[1] * rollCosine;
+    const float rolledNormalX = source.normal[0] * rollCosine
+            - source.normal[1] * rollSine;
+    const float rolledNormalY = source.normal[0] * rollSine
+            + source.normal[1] * rollCosine;
 
     GeneratedVertex result;
-    result.values[0] = frame[0] + source.position[0] * cosine
-            - source.position[2] * sine;
-    result.values[1] = frame[1] + source.position[1];
-    result.values[2] = frame[2] + source.position[0] * sine
+    // ComplexLine exposes the TSRE object yaw: its sign is opposite to the
+    // mathematical Y rotation used below. This boundary is easy to miss
+    // because ORTS/MSTS profiles are generated in the DirectX -Z-forward
+    // space while TSRE sweeps them along its OpenGL +Z-forward path. Applying
+    // yaw directly twists a cross-section on curves, moving an outside X
+    // vertex progressively to the inside. Rotate by the inverse yaw so each
+    // profile side keeps a constant curve radius.
+    result.values[0] = frame[0] + rolledX * cosine
+            + source.position[2] * sine;
+    result.values[1] = frame[1] + rolledY;
+    result.values[2] = frame[2] - rolledX * sine
             + source.position[2] * cosine;
-    result.values[3] = source.normal[0] * cosine - source.normal[2] * sine;
-    result.values[4] = source.normal[1];
-    result.values[5] = source.normal[0] * sine + source.normal[2] * cosine;
+    result.values[3] = rolledNormalX * cosine + source.normal[2] * sine;
+    result.values[4] = rolledNormalY;
+    result.values[5] = -rolledNormalX * sine + source.normal[2] * cosine;
     result.values[6] = source.texCoord[0] + polyline.deltaTexCoord[0] * distance;
     result.values[7] = source.texCoord[1] + polyline.deltaTexCoord[1] * distance;
-    result.values[8] = Alpha;
+    result.values[8] = alpha;
     return result;
 }
 
@@ -146,6 +195,32 @@ void updateBounds(OrtsGeneratedProfileMesh &mesh) {
     }
 }
 
+void transformStaticPath(OrtsGeneratedProfileMesh &mesh,
+        const TrackShape::SectionIdx &path) {
+    float rotation[4];
+    Quat::fill(rotation);
+    Quat::rotateY(rotation, rotation, qDegreesToRadians(-path.rotDeg));
+    const float translation[3] = {-path.pos[0], path.pos[1], path.pos[2]};
+
+    for(int i = 0; i < mesh.vertices.size(); i += 9){
+        float position[3] = {
+            mesh.vertices[i], mesh.vertices[i + 1], mesh.vertices[i + 2]
+        };
+        float normal[3] = {
+            mesh.vertices[i + 3], mesh.vertices[i + 4], mesh.vertices[i + 5]
+        };
+        Vec3::transformQuat(position, position, rotation);
+        Vec3::transformQuat(normal, normal, rotation);
+        mesh.vertices[i] = position[0] + translation[0];
+        mesh.vertices[i + 1] = position[1] + translation[1];
+        mesh.vertices[i + 2] = position[2] + translation[2];
+        mesh.vertices[i + 3] = normal[0];
+        mesh.vertices[i + 4] = normal[1];
+        mesh.vertices[i + 5] = normal[2];
+    }
+    updateBounds(mesh);
+}
+
 QString texturePath(const QString &routePath, const QString &textureName) {
     QString normalizedName = textureName;
     normalizedName.replace('\\', '/');
@@ -162,10 +237,10 @@ QString texturePath(const QString &routePath, const QString &textureName) {
 
 }
 
-bool OrtsTrackProfileRenderer::buildMeshes(const OrtsTrackProfile &profile,
+static bool buildMeshesForPath(const OrtsTrackProfile &profile,
         const QVector<TSection> &sections,
         QVector<OrtsGeneratedProfileMesh> &meshes,
-        QStringList *diagnostics) {
+        float startRoll, float endRoll, QStringList *diagnostics) {
     meshes.clear();
     if(!profile.valid || sections.isEmpty()){
         if(diagnostics != nullptr)
@@ -192,7 +267,7 @@ bool OrtsTrackProfileRenderer::buildMeshes(const OrtsTrackProfile &profile,
             if(!item.lightModelName.isEmpty())
                 materialDiagnostics.insert("LightModelName " + item.lightModelName
                                            + " mapped to TSRE default lighting");
-            if(item.alphaTestMode != 0)
+            if(item.alphaTestMode != 0 && item.alphaTestMode != 1)
                 materialDiagnostics.insert("AlphaTestMode is not supported; "
                                            "using texture alpha");
             if(!item.textureAddressMode.isEmpty()
@@ -206,6 +281,8 @@ bool OrtsTrackProfileRenderer::buildMeshes(const OrtsTrackProfile &profile,
                 materialDiagnostics.insert("MipMapLevelOfDetailBias is not supported");
             OrtsGeneratedProfileMesh mesh;
             mesh.textureName = item.textureName;
+            mesh.materialPass = materialPass(item);
+            const float alpha = materialAlpha(item);
             if(profile.lodMethod == OrtsTrackProfile::LodMethod::CompleteReplacement)
                 mesh.minimumDistance = previousCutoff;
             mesh.maximumDistance = lod.cutoffRadius;
@@ -221,7 +298,9 @@ bool OrtsTrackProfileRenderer::buildMeshes(const OrtsTrackProfile &profile,
                     for(const OrtsProfileVertex &vertex : polyline.vertices){
                         if(vertex.positionControl != OrtsProfileVertex::PositionControl::None)
                             hasPositionControl = true;
-                        vertices.append(transformVertex(vertex, polyline, line, distance));
+                        vertices.append(transformVertex(
+                                vertex, polyline, line, distance, alpha,
+                                startRoll, endRoll));
                     }
                     frames.append(vertices);
                 }
@@ -260,6 +339,14 @@ bool OrtsTrackProfileRenderer::buildMeshes(const OrtsTrackProfile &profile,
     return !meshes.isEmpty();
 }
 
+bool OrtsTrackProfileRenderer::buildMeshes(const OrtsTrackProfile &profile,
+        const QVector<TSection> &sections,
+        QVector<OrtsGeneratedProfileMesh> &meshes,
+        QStringList *diagnostics) {
+    return buildMeshesForPath(
+            profile, sections, meshes, 0, 0, diagnostics);
+}
+
 bool OrtsTrackProfileRenderer::generate(const OrtsTrackProfile &profile,
         const QVector<TSection> &sections, QVector<OglObj*> &shape,
         const QString &routePath, QStringList *diagnostics) {
@@ -268,17 +355,88 @@ bool OrtsTrackProfileRenderer::generate(const OrtsTrackProfile &profile,
         return false;
 
     QVector<OglObj*> generated;
-    for(const OrtsGeneratedProfileMesh &mesh : meshes){
-        float *vertexData = new float[mesh.vertices.size()];
-        std::copy(mesh.vertices.cbegin(), mesh.vertices.cend(), vertexData);
-        OglObj *object = new OglObj();
-        QString *materialPath = new QString(texturePath(routePath, mesh.textureName));
-        object->setMaterial(materialPath);
-        object->setDistanceRange(mesh.minimumDistance, mesh.maximumDistance);
-        object->init(vertexData, mesh.vertices.size(), RenderItem::VNTA, GL_TRIANGLES);
-        object->setBound(const_cast<float*>(mesh.bounds));
-        generated.append(object);
-        delete[] vertexData;
+    const OrtsGeneratedProfileMesh::MaterialPass passes[] = {
+        OrtsGeneratedProfileMesh::MaterialPass::Opaque,
+        OrtsGeneratedProfileMesh::MaterialPass::AlphaTest,
+        OrtsGeneratedProfileMesh::MaterialPass::Blended
+    };
+    for(OrtsGeneratedProfileMesh::MaterialPass pass : passes){
+        for(const OrtsGeneratedProfileMesh &mesh : meshes){
+            if(mesh.materialPass != pass)
+                continue;
+            float *vertexData = new float[mesh.vertices.size()];
+            std::copy(mesh.vertices.cbegin(), mesh.vertices.cend(), vertexData);
+            OglObj *object = new OglObj();
+            QString *materialPath =
+                    new QString(texturePath(routePath, mesh.textureName));
+            object->setMaterial(materialPath);
+            object->setDistanceRange(mesh.minimumDistance, mesh.maximumDistance);
+            object->init(
+                    vertexData, mesh.vertices.size(), RenderItem::VNTA, GL_TRIANGLES);
+            object->setBound(const_cast<float*>(mesh.bounds));
+            generated.append(object);
+            delete[] vertexData;
+        }
+    }
+    shape.append(generated);
+    return !generated.isEmpty();
+}
+
+bool OrtsTrackProfileRenderer::generate(const OrtsTrackProfile &profile,
+        const TrackShape &trackShape, const QMap<int, float> &angles,
+        QVector<OglObj*> &shape, const QString &routePath,
+        QStringList *diagnostics) {
+    if(Game::currentRoute == nullptr || Game::currentRoute->tsection == nullptr)
+        return false;
+
+    QVector<OrtsGeneratedProfileMesh> meshes;
+    for(int pathIndex = 0; pathIndex < trackShape.numpaths; pathIndex++){
+        const TrackShape::SectionIdx &path = trackShape.path[pathIndex];
+        QVector<TSection> sections;
+        for(int sectionIndex = 0; sectionIndex < path.n; sectionIndex++){
+            const auto found = Game::currentRoute->tsection->sekcja.find(
+                    (int)path.sect[sectionIndex]);
+            if(found != Game::currentRoute->tsection->sekcja.end()
+                    && found->second != nullptr)
+                sections.append(*found->second);
+        }
+        if(sections.isEmpty())
+            continue;
+
+        QVector<OrtsGeneratedProfileMesh> pathMeshes;
+        if(!buildMeshesForPath(profile, sections, pathMeshes,
+                angles.value(pathIndex * 2, 0),
+                angles.value(pathIndex * 2 + 1, 0), diagnostics))
+            continue;
+        for(OrtsGeneratedProfileMesh &mesh : pathMeshes){
+            transformStaticPath(mesh, path);
+            meshes.append(mesh);
+        }
+    }
+
+    QVector<OglObj*> generated;
+    const OrtsGeneratedProfileMesh::MaterialPass passes[] = {
+        OrtsGeneratedProfileMesh::MaterialPass::Opaque,
+        OrtsGeneratedProfileMesh::MaterialPass::AlphaTest,
+        OrtsGeneratedProfileMesh::MaterialPass::Blended
+    };
+    for(OrtsGeneratedProfileMesh::MaterialPass pass : passes){
+        for(const OrtsGeneratedProfileMesh &mesh : meshes){
+            if(mesh.materialPass != pass)
+                continue;
+            float *vertexData = new float[mesh.vertices.size()];
+            std::copy(mesh.vertices.cbegin(), mesh.vertices.cend(), vertexData);
+            OglObj *object = new OglObj();
+            QString *materialPath =
+                    new QString(texturePath(routePath, mesh.textureName));
+            object->setMaterial(materialPath);
+            object->setDistanceRange(mesh.minimumDistance, mesh.maximumDistance);
+            object->init(
+                    vertexData, mesh.vertices.size(), RenderItem::VNTA, GL_TRIANGLES);
+            object->setBound(const_cast<float*>(mesh.bounds));
+            generated.append(object);
+            delete[] vertexData;
+        }
     }
     shape.append(generated);
     return !generated.isEmpty();
