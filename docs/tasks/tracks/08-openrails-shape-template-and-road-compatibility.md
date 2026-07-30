@@ -98,9 +98,10 @@ Extend the parsed Open Rails DynTrack object with the optional
 Selection behavior:
 
 1. if `ShapeTemplate` is present and matches an ORTS track profile, use it;
-2. if it is absent, retain the existing DynTrack profile-index-0 behavior;
-3. if it is present but cannot be resolved, warn once and retain the existing
-   behavior.
+2. if it is absent or equals `DISABLED`, retain the existing DynTrack
+   profile-index-0 behavior;
+3. if another value is present but cannot be resolved, warn once and retain
+   the existing behavior.
 
 Do not add special prefixes, source-qualified names, or a mandatory road
 profile filename. The saved `ShapeTemplate` value is the profile name to
@@ -122,6 +123,8 @@ Milestone A acceptance:
 - TSRE-selected ORTS profiles display correctly on multiple DynTracks in one
   Open Rails route;
 - legacy routes without `ShapeTemplate` render exactly as before;
+- `ShapeTemplate DISABLED` selects the original Open Rails behavior without a
+  missing-profile warning;
 - an invalid name stays visible through the original fallback and produces one
   useful warning.
 

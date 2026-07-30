@@ -183,6 +183,7 @@ Replace the boolean with three modes while preserving old configuration:
 ```text
 Forced  (legacy true)
     Always generate procedurally.
+    DISABLED -> explicit per-object static/hardcoded override.
     Empty/DEFAULT -> default procedural template/profile.
     Valid custom name -> selected procedural template/profile.
     Missing custom name -> warn and use the default procedural result.
@@ -298,8 +299,8 @@ modes above:
 1. `ShapeTemplate DEFAULT` selects the default procedural template/profile.
 2. A custom `ShapeTemplate` name first matches a TSRE procedural template,
    then an Open Rails profile.
-3. An empty value or `DISABLED` selects the static/hardcoded path in
-   `Enabled` mode.
+3. `DISABLED` selects the static/hardcoded path in both `Forced` and `Enabled`
+   modes; an empty value does so only in `Enabled` mode.
 4. A missing custom name falls back to procedural default in `Forced` mode,
    and to static/hardcoded rendering in `Enabled` mode.
 5. `Disabled` mode ignores template selection and uses static/hardcoded

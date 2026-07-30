@@ -77,30 +77,42 @@ Current weaknesses:
 - DynTrack does not serialize its template choice;
 - DynTrack has no template UI;
 - global `Game::proceduralTracks` decides between all procedural templates and
-  the hardcoded rail generator.
+  the hardcoded/static renderer;
+- road `TrackObj` is forced to its static shape even when a procedural
+  template is explicitly selected.
 
-### Ruler procedural preview
+### TrackObj template implementation
 
-Ruler already demonstrates another useful part of the intended policy:
+`TrackObj` is the primary existing implementation to reuse:
 
-- setting a template explicitly enables procedural shape rendering;
-- `ShapeTemplate` is saved with the TSRE Ruler object;
-- each straight Ruler span is passed to `ProceduralShape` independently;
-- the generated preview is separate from its optional RDB path.
+- `PropertiesTrackObj` provides `DEFAULT`, `DISABLED`, and named template
+  selection;
+- `TrackObj::setTemplate(...)` invalidates the current render result;
+- `TrackObj::save(...)` persists non-default `ShapeTemplate`;
+- `TrackObj` switches between its static shape and `ProceduralShape`;
+- explicit `DISABLED` eventually falls back to the static shape.
 
-This is useful reference code for template selection and per-span transforms,
-but not a road DynTrack renderer. Ruler currently:
+It is not yet a clean policy implementation:
 
-- generates only straight preview spans;
-- uses the same template list regardless of rail/road type;
-- exposes `DEFAULT` and `DISABLED` even though unresolved names can yield no
-  mesh;
-- does not bind its visual profile to the RDB vectors it creates;
-- uses manual orientation math which should not be copied into the new sweep
-  backend.
+- the global setting is still boolean;
+- `roadShape` bypasses procedural rendering unconditionally;
+- `DISABLED` is detected inside the render path, returns before drawing that
+  frame, and only uses the static shape on subsequent frames;
+- unknown names can still produce and cache an empty procedural result;
+- the UI catalog contains only TSRE templates.
 
-The profile catalog should eventually serve Ruler as well, but DynTrack
-profile work must not be coupled to a Ruler refactor.
+Refactor this behavior into the centralized resolver instead of duplicating
+its render-time `templateDisabled` state machine. `DISABLED` must select the
+static/hardcoded fallback before rendering begins, so it never creates a blank
+frame.
+
+DynTrack then adopts the same UI, persistence, and resolution contract, using
+`ProceduralMstsDyntrack` where TrackObj would use a static shape.
+
+Ruler is only a supplementary example: it saves `ShapeTemplate` and generates
+procedural previews from straight `TSection` vectors. Its manual transforms,
+separate RDB path, and straight-only preview are not the model for this task.
+A future shared catalog may serve Ruler, but no Ruler refactor is required.
 
 ## Open Rails Profile Model
 
@@ -157,6 +169,8 @@ This preserves current `proceduralTracks == true` behavior:
 
 - all applicable track objects use procedural generation, even when a static
   shape exists and `ShapeTemplate` is empty;
+- explicit `DISABLED` overrides the forced global mode and uses the object's
+  static shape or DynTrack hardcoded mesh;
 - empty or `DEFAULT` selects the default procedural template/profile;
 - a valid custom name selects that template/profile;
 - a missing custom name warns once and uses the default procedural result.
@@ -313,7 +327,10 @@ Open Rails through Task 08 milestone A.
 ## Error Handling
 
 - Missing default profile: use bundled network default.
-- Invalid explicit profile: warn once and use network default.
+- Invalid explicit profile: warn once; use procedural default in `Forced` and
+  static/hardcoded fallback in `Enabled`.
+- `DISABLED`: select static/hardcoded fallback immediately in both `Forced`
+  and `Enabled` modes.
 - Profile parses but has no renderable LOD: reject it.
 - Missing texture: use the normal missing-texture diagnostic material.
 - Excessive geometry: cap subdivision and report truncation.
@@ -337,6 +354,7 @@ Open Rails through Task 08 milestone A.
 - otherwise explicit ORTS file stem resolves;
 - unique internal ORTS name resolves as an alias;
 - Forced plus unknown explicit name falls back to procedural default;
+- Forced plus `DISABLED` uses static/hardcoded rendering;
 - Enabled plus unknown explicit name falls back to static/hardcoded rendering;
 - Enabled plus empty/`DISABLED` uses static/hardcoded rendering;
 - empty/`DEFAULT` under Forced and `DEFAULT` under Enabled resolve to the
