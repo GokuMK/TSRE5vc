@@ -30,6 +30,7 @@ public slots:
     void chSectEnabled(int idx);
     void sSectEnabled(int idx);
     void msg(QString name, QString val);
+    void eTemplateEdited(QString val);
     
     void elevPromEnabled(QString val);
     void elevProgEnabled(QString val);
@@ -52,6 +53,7 @@ private:
     QSignalMapper dyntrackChSect;
     QSignalMapper dyntrackSect;
     QLineEdit eSectionIdx;
+    QComboBox eTemplate;
     
     QComboBox elevType;
     QLineEdit elevStep;
@@ -69,6 +71,7 @@ private:
     void setStepValue(float step);
     float getStepValue(float step);
     void updateSectionValues();
+    void updateTemplateValue();
 };
 
 #endif	/* PROPERTIESDYNTRACK_H */

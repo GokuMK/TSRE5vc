@@ -21,6 +21,8 @@
 #include <tsre/ogl/TrackItemObj.h>
 #include <tsre/tdb/TSectionDAT.h>
 #include <tsre/procedural/ProceduralShape.h>
+#include <tsre/procedural/ProceduralTrackPolicy.h>
+#include <tsre/procedural/ShapeTemplates.h>
 #include <tsre/ErrorMessagesLib.h>
 #include <tsre/ErrorMessage.h>
 #include <tsre/renderer/Renderer.h>
@@ -121,18 +123,54 @@ bool TrackObj::allowNew(){
 
 void TrackObj::setTemplate(QString name){
     templateName = name;
-    templateDisabled = false;
     setModified();
     reload();
 }
 
 void TrackObj::reload(){
-    if(!Game::proceduralTracks || roadShape ) {
-        Game::currentShapeLib->shape[shape]->reload();
-    } else {
-        proceduralShapeInit = false;
-        procShape.clear();
+    proceduralShapeInit = false;
+    proceduralFallback = false;
+    procShape.clear();
+    if(shapePointer != NULL)
+        shapePointer->reload();
+}
+
+bool TrackObj::useProceduralShape(){
+    if(proceduralShapeInit)
+        return !proceduralFallback;
+
+    proceduralShapeInit = true;
+    proceduralFallback = true;
+    procShape.clear();
+
+    ProceduralShape::Load();
+    QStringList availableTemplates;
+    if(ProceduralShape::ShapeTemplateFile != NULL)
+        availableTemplates = ProceduralShape::ShapeTemplateFile->templates.keys();
+
+    const ProceduralTrackResolution resolution = ProceduralTrackPolicy::resolve(
+            Game::proceduralTracks, templateName, availableTemplates);
+    ProceduralTrackPolicy::warnOnce(resolution);
+    if(resolution.backend == ProceduralTrackBackend::Fallback)
+        return false;
+    if(Game::trackDB == NULL || Game::trackDB->tsection == NULL
+            || Game::trackDB->tsection->shape.find(sectionIdx)
+                    == Game::trackDB->tsection->shape.end()
+            || Game::trackDB->tsection->shape[sectionIdx] == NULL)
+        return false;
+
+    TrackShape *tsh = Game::trackDB->tsection->shape[sectionIdx];
+    QMap<int, float> angles;
+    if(Game::useSuperelevation)
+        Game::trackDB->fillTrackAngles(x, -y, UiD, angles);
+    ProceduralShape::GetShape(resolution.templateName, procShape, tsh, angles);
+    if(procShape.isEmpty()){
+        ProceduralTrackPolicy::warnGenerationFailureOnce(resolution.templateName);
+        return false;
     }
+
+    proceduralFallback = false;
+    return true;
 }
 
 float TrackObj::getElevation(){
@@ -346,26 +384,13 @@ void TrackObj::pushRenderItems(float lod, float posx, float posz, float* playerW
     } else {
         gluu->enableTextures();
     }*/
-    if(!Game::proceduralTracks || roadShape || templateDisabled ) {
+    if(!useProceduralShape()) {
         if(shapePointer != NULL){
             shapePointer->pushRenderItem(selectionColor, 0);
         }
     } else {
-        if (!proceduralShapeInit) {
-            if(templateName == "DISABLED"){
-                templateDisabled = true;
-                return;
-            }
-            TrackShape *tsh = Game::trackDB->tsection->shape[sectionIdx];
-            QMap<int, float> angles;
-            if(Game::useSuperelevation)
-                Game::trackDB->fillTrackAngles(x, -y, UiD, angles);
-            ProceduralShape::GetShape(templateName, procShape, tsh, angles);
-            proceduralShapeInit = true;
-        } else {
-            for(int i = 0; i < procShape.size(); i++){
-                procShape[i]->pushRenderItem(selectionColor, 0);
-            }
+        for(int i = 0; i < procShape.size(); i++){
+            procShape[i]->pushRenderItem(selectionColor, 0);
         }
     }
 
@@ -434,24 +459,12 @@ void TrackObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos,
         gluu->enableTextures();
     }
     
-    if(!Game::proceduralTracks || roadShape || templateDisabled ) {
-        Game::currentShapeLib->shape[shape]->render(selectionColor, 0);
+    if(!useProceduralShape()) {
+        if(shapePointer != NULL)
+            shapePointer->render(selectionColor, 0);
     } else {
-        if (!proceduralShapeInit) {
-            if(templateName == "DISABLED"){
-                templateDisabled = true;
-                return;
-            }
-            TrackShape *tsh = Game::trackDB->tsection->shape[sectionIdx];
-            QMap<int, float> angles;
-            if(Game::useSuperelevation)
-                Game::trackDB->fillTrackAngles(x, -y, UiD, angles);
-            ProceduralShape::GetShape(templateName, procShape, tsh, angles);
-            proceduralShapeInit = true;
-        } else {
-            for(int i = 0; i < procShape.size(); i++){
-                procShape[i]->render(selectionColor, 0);
-            }
+        for(int i = 0; i < procShape.size(); i++){
+            procShape[i]->render(selectionColor, 0);
         }
     }
     

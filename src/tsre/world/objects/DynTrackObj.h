@@ -43,6 +43,7 @@ public:
     void resize(float x, float y, float z);
     void removedFromTDB();
     void deleteVBO();
+    void setTemplate(QString name);
     int getDefaultDetailLevel();
     int updateTrackSectionInfo(QHash<unsigned int, unsigned int> shapes, QHash<unsigned int, unsigned int> sect);
     void pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor);
@@ -51,11 +52,13 @@ private:
     int tex1;
     int tex2;
     bool init;
+    bool shapeOwned = false;
     float elevation;
     float* jNodePosn = NULL;
     int sidxSelected = 0;
     bool getSimpleBorder(float* border);
     bool getBoxPoints(QVector<float> &points);
+    void generateShape();
 };
 
 #endif	/* DYNTRACKOBJ_H */

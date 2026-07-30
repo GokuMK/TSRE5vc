@@ -24,6 +24,7 @@
 #include <tsre/Game.h>
 #include <tsre/math3d/Flex.h>
 #include <tsre/math3d/GLMatrix.h>
+#include <tsre/procedural/ProceduralTrackPolicy.h>
 #include <tsre/tests/RouteLoadTestSuite.h>
 
 namespace {
@@ -917,10 +918,85 @@ static int runFlexPointSuite(bool verbose) {
     return failed == 0 ? 0 : 1;
 }
 
+static int runProceduralPolicySuite(bool verbose) {
+    int passed = 0;
+    int failed = 0;
+    const QStringList templates = {"DefaultTrack", "AsphaltRoad"};
+
+    auto expect = [&](const char *name, ProceduralTracksMode mode, const QString &request,
+            ProceduralTrackBackend backend, const QString &resolved,
+            bool missingRequested = false) {
+        const ProceduralTrackResolution actual =
+                ProceduralTrackPolicy::resolve(mode, request, templates);
+        const bool ok = actual.backend == backend
+                && actual.templateName == resolved
+                && actual.missingRequested == missingRequested;
+        if(ok){
+            passed++;
+            if(verbose)
+                qInfo() << "[tests:procedural-policy] PASS" << name;
+        } else {
+            failed++;
+            qWarning() << "[tests:procedural-policy] FAIL" << name
+                       << "backend=" << (int)actual.backend
+                       << "template=" << actual.templateName
+                       << "missingRequested=" << actual.missingRequested;
+        }
+    };
+
+    expect("disabled-default", ProceduralTracksMode::Disabled, "DEFAULT",
+           ProceduralTrackBackend::Fallback, "");
+    expect("forced-empty", ProceduralTracksMode::Forced, "",
+           ProceduralTrackBackend::Procedural, "DefaultTrack");
+    expect("forced-disabled", ProceduralTracksMode::Forced, "DISABLED",
+           ProceduralTrackBackend::Fallback, "");
+    expect("forced-custom", ProceduralTracksMode::Forced, "asphaltroad",
+           ProceduralTrackBackend::Procedural, "AsphaltRoad");
+    expect("forced-missing", ProceduralTracksMode::Forced, "Missing",
+           ProceduralTrackBackend::Procedural, "DefaultTrack", true);
+    expect("enabled-empty", ProceduralTracksMode::Enabled, "",
+           ProceduralTrackBackend::Fallback, "");
+    expect("enabled-default", ProceduralTracksMode::Enabled, "DEFAULT",
+           ProceduralTrackBackend::Procedural, "DefaultTrack");
+    expect("enabled-disabled", ProceduralTracksMode::Enabled, "disabled",
+           ProceduralTrackBackend::Fallback, "");
+    expect("enabled-custom", ProceduralTracksMode::Enabled, "AsphaltRoad",
+           ProceduralTrackBackend::Procedural, "AsphaltRoad");
+    expect("enabled-missing", ProceduralTracksMode::Enabled, "Missing",
+           ProceduralTrackBackend::Fallback, "", true);
+
+    const ProceduralTrackResolution noDefault = ProceduralTrackPolicy::resolve(
+            ProceduralTracksMode::Forced, "Missing", {"AsphaltRoad"});
+    if(noDefault.backend == ProceduralTrackBackend::Fallback
+            && noDefault.missingRequested && noDefault.missingDefault){
+        passed++;
+    } else {
+        failed++;
+        qWarning() << "[tests:procedural-policy] FAIL missing-default";
+    }
+
+    const bool modesOk =
+            ProceduralTrackPolicy::modeFromSetting("true") == ProceduralTracksMode::Forced
+            && ProceduralTrackPolicy::modeFromSetting("FORCED") == ProceduralTracksMode::Forced
+            && ProceduralTrackPolicy::modeFromSetting("enabled") == ProceduralTracksMode::Enabled
+            && ProceduralTrackPolicy::modeFromSetting("false") == ProceduralTracksMode::Disabled
+            && ProceduralTrackPolicy::modeFromSetting("disabled") == ProceduralTracksMode::Disabled;
+    if(modesOk)
+        passed++;
+    else {
+        failed++;
+        qWarning() << "[tests:procedural-policy] FAIL setting-mapping";
+    }
+
+    qInfo() << "[tests:procedural-policy] cases=" << (passed + failed)
+            << "passed=" << passed << "failed=" << failed;
+    return failed == 0 ? 0 : 1;
+}
+
 } // namespace
 
 QStringList TsreTests::listSuites() {
-    return {"flex", "flex-point", "route-load"};
+    return {"flex", "flex-point", "procedural-policy", "route-load"};
 }
 
 int TsreTests::run(const TestRunOptions &opts) {
@@ -937,10 +1013,14 @@ int TsreTests::run(const TestRunOptions &opts) {
     if (suite == "route-load")
         return runRouteLoadSuite(opts);
 
+    if (suite == "procedural-policy")
+        return runProceduralPolicySuite(opts.verbose);
+
     if (suite == "all") {
         int rc = 0;
         rc = std::max(rc, runFlexSuite(opts.casesFile, opts.verbose));
         rc = std::max(rc, runFlexPointSuite(opts.verbose));
+        rc = std::max(rc, runProceduralPolicySuite(opts.verbose));
         rc = std::max(rc, runRouteLoadSuite(opts));
         return rc;
     }

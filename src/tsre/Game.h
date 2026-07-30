@@ -13,6 +13,7 @@
 
 #include <QString>
 #include <QHash>
+#include <tsre/procedural/ProceduralTrackPolicy.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -154,7 +155,7 @@ public:
     static float snapableRadius;
     static bool snapableOnlyRot;
     static float trackElevationMaxPm;    
-    static bool proceduralTracks;
+    static ProceduralTracksMode proceduralTracks;
     static QString StyleMainLabel;
     static QString StyleGreenButton;
     static QString StyleRedButton;

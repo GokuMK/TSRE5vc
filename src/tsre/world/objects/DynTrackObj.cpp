@@ -23,6 +23,8 @@
 #include <tsre/Game.h>
 #include <tsre/procedural/ProceduralMstsDyntrack.h>
 #include <tsre/procedural/ProceduralShape.h>
+#include <tsre/procedural/ProceduralTrackPolicy.h>
+#include <tsre/procedural/ShapeTemplates.h>
 #include <tsre/tdb/TSection.h>
 #include <tsre/tdb/TDB.h>
 #include <tsre/tdb/TSectionDAT.h>
@@ -133,13 +135,76 @@ void DynTrackObj::rotate(float x, float y, float z){
 }
 
 void DynTrackObj::deleteVBO(){
-    //this->shape.deleteVBO();
     this->init = false;
-    for(int i = 0; i < shape.size(); i++){
-        shape[i]->deleteVBO();
-        delete shape[i];
+    if(shapeOwned){
+        for(int i = 0; i < shape.size(); i++){
+            shape[i]->deleteVBO();
+            delete shape[i];
+        }
     }
     shape.clear();
+    shapeOwned = false;
+}
+
+void DynTrackObj::setTemplate(QString name){
+    if(templateName == name)
+        return;
+    templateName = name;
+    setModified();
+    deleteVBO();
+}
+
+void DynTrackObj::generateShape(){
+    if(init)
+        return;
+
+    QVector<TSection> tsections;
+    for(int i = 0; i < 5; i++){
+        if(sections[i].sectIdx > 100000000)
+            continue;
+        tsections.push_back(TSection(0, sections[i].type, sections[i].a, sections[i].r));
+    }
+
+    ProceduralShape::Load();
+    QStringList availableTemplates;
+    if(ProceduralShape::ShapeTemplateFile != NULL)
+        availableTemplates = ProceduralShape::ShapeTemplateFile->templates.keys();
+    const ProceduralTrackResolution resolution = ProceduralTrackPolicy::resolve(
+            Game::proceduralTracks, templateName, availableTemplates);
+    ProceduralTrackPolicy::warnOnce(resolution);
+
+    if(resolution.backend == ProceduralTrackBackend::Procedural
+            && Game::trackDB != NULL && Game::trackDB->tsection != NULL
+            && Game::trackDB->tsection->shape.find(sectionIdx)
+                    != Game::trackDB->tsection->shape.end()
+            && Game::trackDB->tsection->shape[sectionIdx] != NULL){
+        TrackShape *tsh = Game::trackDB->tsection->shape[sectionIdx];
+        QMap<int, float> angles;
+        if(Game::useSuperelevation){
+            Game::trackDB->fillTrackAngles(x, -y, UiD, angles);
+            bool positiveAngles = false;
+            for(int i = 0; i < tsections.size(); i++){
+                if(tsections[i].angle > 0)
+                    positiveAngles = true;
+            }
+            if(positiveAngles){
+                const QList<int> keys = angles.keys();
+                for(int key : keys)
+                    angles[key] = -angles[key];
+            }
+        }
+        ProceduralShape::GetShape(resolution.templateName, shape, tsh, angles);
+        if(!shape.isEmpty()){
+            shapeOwned = false;
+            init = true;
+            return;
+        }
+        ProceduralTrackPolicy::warnGenerationFailureOnce(resolution.templateName);
+    }
+
+    ProceduralMstsDyntrack::GenShape(shape, tsections);
+    shapeOwned = true;
+    init = true;
 }
 
 void DynTrackObj::removedFromTDB(){
@@ -374,36 +439,7 @@ void DynTrackObj::render(GLUU* gluu, float lod, float posx, float posz, float* p
         pointer3d->render(selectionColor);
     }
 
-    if (!init) {
-        QVector<TSection> tsections;
-        for(int i = 0; i < 5; i++){
-            if(sections[i].sectIdx > 100000000)
-                continue;
-            tsections.push_back(TSection(0, sections[i].type, sections[i].a, sections[i].r));
-        }
-        if (Game::proceduralTracks) {
-            TrackShape *tsh = Game::trackDB->tsection->shape[sectionIdx];
-            QMap<int, float> angles;
-            if(Game::useSuperelevation){
-                Game::trackDB->fillTrackAngles(x, -y, UiD, angles);
-                bool positiveAngles = false;
-                for(int i = 0; i < tsections.size(); i++){
-                    if(tsections[i].angle > 0)
-                        positiveAngles = true;
-                }
-                if(positiveAngles){
-                    QList<int> keys = angles.keys();
-                    for(int j = 0; j < keys.size(); j++){
-                        angles[keys[j]] = -angles[keys[j]];
-                    }
-                }
-            }
-            ProceduralShape::GetShape(templateName, shape, tsh, angles);
-        } else {
-            ProceduralMstsDyntrack::GenShape(shape, tsections);
-        }
-        init = true;
-    }
+    generateShape();
     // A generated shape is ready immediately. Draw it in this pass instead
     // of leaving the DynTrack absent for one complete frame.
     for(int i = 0; i < shape.size(); i++){
@@ -431,36 +467,7 @@ void DynTrackObj::pushRenderItems(float lod, float posx, float posz, float* play
         pointer3d->pushRenderItem(selectionColor);
     }
 
-    if (!init) {
-        QVector<TSection> tsections;
-        for(int i = 0; i < 5; i++){
-            if(sections[i].sectIdx > 100000000)
-                continue;
-            tsections.push_back(TSection(0, sections[i].type, sections[i].a, sections[i].r));
-        }
-        if (Game::proceduralTracks) {
-            TrackShape *tsh = Game::trackDB->tsection->shape[sectionIdx];
-            QMap<int, float> angles;
-            if(Game::useSuperelevation){
-                Game::trackDB->fillTrackAngles(x, -y, UiD, angles);
-                bool positiveAngles = false;
-                for(int i = 0; i < tsections.size(); i++){
-                    if(tsections[i].angle > 0)
-                        positiveAngles = true;
-                }
-                if(positiveAngles){
-                    QList<int> keys = angles.keys();
-                    for(int j = 0; j < keys.size(); j++){
-                        angles[keys[j]] = -angles[keys[j]];
-                    }
-                }
-            }
-            ProceduralShape::GetShape(templateName, shape, tsh, angles);
-        } else {
-            ProceduralMstsDyntrack::GenShape(shape, tsections);
-        }
-        init = true;
-    }
+    generateShape();
 
     for(int i = 0; i < shape.size(); i++){
         shape[i]->pushRenderItem(selectionColor, 0);
@@ -529,6 +536,8 @@ for(int i = 0; i < 5; i++){
 *(out) << "		)\n";
 *(out) << "		SectionIdx ( "<<this->sectionIdx<<" )\n";
 *(out) << "		Elevation ( "<<this->elevation<<" )\n";
+if(this->templateName.length() > 0 && this->templateName != "DEFAULT")
+*(out) << "		ShapeTemplate ( "<<ParserX::AddComIfReq(this->templateName)<<" )\n";
 if(this->jNodePosn!=NULL)
 *(out) << "		JNodePosn ( "<<this->jNodePosn[0]<<" "<<this->jNodePosn[1]<<" "<<this->jNodePosn[2]<<" "<<this->jNodePosn[3]<<" "<<this->jNodePosn[4]<<" )\n";
 *(out) << "		CollideFlags ( "<<this->collideFlags<<" )\n";

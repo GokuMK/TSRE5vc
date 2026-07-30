@@ -127,7 +127,7 @@ int Game::textureQuality = 1;
 float Game::snapableRadius = 20;
 bool Game::snapableOnlyRot = false;
 float Game::trackElevationMaxPm = 700.0;
-bool Game::proceduralTracks = false;
+ProceduralTracksMode Game::proceduralTracks = ProceduralTracksMode::Disabled;
 bool Game::fullscreen = false;
 bool Game::hudEnabled = false;
 float Game::hudScale = 1.0;
@@ -506,10 +506,7 @@ void Game::load() {
                 cameraStickToTerrain = false; 
         }
         if(val == "proceduralTracks"){
-            if(args[1].trimmed().toLower() == "true")
-                proceduralTracks = true;
-            else
-                proceduralTracks = false; 
+            proceduralTracks = ProceduralTrackPolicy::modeFromSetting(args[1]);
         }
         if(val == "fullscreen"){
             if(args[1].trimmed().toLower() == "true")

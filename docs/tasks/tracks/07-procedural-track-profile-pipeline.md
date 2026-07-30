@@ -14,9 +14,26 @@ After visual and performance parity is demonstrated, replace the hardcoded
 
 ## Status
 
-Research and design complete. This is the first implementation task. Its
-initial TSRE profile-selection and rendering milestone does not depend on road
-database identity from Task 06.
+Research and design complete. Milestone 1 was implemented on 2026-07-30 and
+is ready for editor-side visual testing. Its TSRE profile-selection and
+rendering work does not depend on road database identity from Task 06.
+
+Milestone 1 implementation:
+
+- `proceduralTracks` now accepts `Forced`, `Enabled`, and `Disabled`;
+- legacy `true` and `false` remain compatible as `Forced` and `Disabled`;
+- one resolver applies the rendering/fallback rules to `TrackObj` and
+  `DynTrackObj`;
+- `DISABLED`, unknown templates, missing defaults, and empty generated geometry
+  all remain visible through static/hardcoded fallback;
+- DynTrack properties expose the existing TSRE template catalog;
+- DynTrack saves and reloads non-default `ShapeTemplate` values;
+- procedural DynTrack cache entries are no longer deleted as object-owned
+  meshes during invalidation;
+- the `procedural-policy` test suite covers the mode-resolution matrix.
+
+Milestone 2 (ORTS discovery, parsing, neutral profiles, and rendering) has not
+started.
 
 Implement it incrementally:
 

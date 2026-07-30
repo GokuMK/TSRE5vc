@@ -13,6 +13,9 @@
 #include <tsre/math3d/Flex.h>
 #include <tsre/Game.h>
 #include <tsre/math3d/GLMatrix.h>
+#include <tsre/Undo.h>
+#include <tsre/procedural/ProceduralShape.h>
+#include <tsre/procedural/ShapeTemplates.h>
 
 PropertiesDyntrack::PropertiesDyntrack() {
     buttonTools["FlexTool"] = new QPushButton("Flex", this);
@@ -42,6 +45,26 @@ PropertiesDyntrack::PropertiesDyntrack() {
     vlist->addRow("Tile Z:",&this->tY);
     vlist->addRow("TrackShape:",&this->eSectionIdx);
     vbox->addItem(vlist);
+
+    QLabel *templateLabel = new QLabel("Shape Template:");
+    templateLabel->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
+    templateLabel->setContentsMargins(3,0,0,0);
+    vbox->addWidget(templateLabel);
+    vbox->addWidget(&eTemplate);
+    eTemplate.setStyleSheet("combobox-popup: 0;");
+    eTemplate.addItem("DEFAULT");
+    eTemplate.addItem("DISABLED");
+    ProceduralShape::Load();
+    if(ProceduralShape::ShapeTemplateFile != NULL){
+        QMapIterator<QString, ShapeTemplate*> iterator(ProceduralShape::ShapeTemplateFile->templates);
+        while(iterator.hasNext()){
+            iterator.next();
+            if(iterator.value() != NULL)
+                eTemplate.addItem(iterator.value()->name);
+        }
+    }
+    QObject::connect(&eTemplate, SIGNAL(currentTextChanged(QString)),
+                     this, SLOT(eTemplateEdited(QString)));
     
     QLabel * label2 = new QLabel("Sections:");
     label2->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
@@ -233,6 +256,7 @@ void PropertiesDyntrack::showObj(GameObj* obj){
         this->eSectionIdx.setText(QString::number(dobj->sectionIdx, 10));
     
     updateSectionValues();
+    updateTemplateValue();
     
     ///////////
     elevType.setCurrentText(ElevTypeName);
@@ -284,6 +308,27 @@ void PropertiesDyntrack::updateObj(GameObj* obj){
     }
 
     updateSectionValues();
+    updateTemplateValue();
+}
+
+void PropertiesDyntrack::updateTemplateValue(){
+    if(dobj == NULL)
+        return;
+    QString name = dobj->getTemplate();
+    if(name.isEmpty())
+        name = "DEFAULT";
+    const QSignalBlocker blocker(&eTemplate);
+    if(eTemplate.findText(name, Qt::MatchFixedString) < 0)
+        eTemplate.addItem(name);
+    eTemplate.setCurrentText(name);
+}
+
+void PropertiesDyntrack::eTemplateEdited(QString val){
+    if(dobj == NULL)
+        return;
+    Undo::SinglePushWorldObjData(worldObj);
+    dobj->setTemplate(val);
+    Undo::StateEnd();
 }
 
 void PropertiesDyntrack::updateSectionValues(){

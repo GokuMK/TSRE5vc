@@ -53,10 +53,11 @@ private:
     //unsigned int collideFunction;
     bool getSimpleBorder(float* border);
     bool getBoxPoints(QVector<float> &points);
+    bool useProceduralShape();
     bool proceduralShapeInit = false;
     QVector<OglObj*> procShape;
     bool roadShape = false;
-    bool templateDisabled = false;
+    bool proceduralFallback = false;
 };
 
 #endif	/* TRACKOBJ_H */
