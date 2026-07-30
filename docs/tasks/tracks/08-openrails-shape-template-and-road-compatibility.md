@@ -180,8 +180,8 @@ Run:
 
 ## Compatibility Questions To Answer
 
-- Which explicit TSRE database marker does Task 06 write, and does Open Rails
-  read it reliably?
+- Does Open Rails resolve `DynTrackObj.StaticFlags & 0x00000100` as road
+  reliably while treating legacy `00100000` as rail?
 - Does Open Rails log a TDB/RDB/world-object mismatch?
 - Does a road DynTrack render once, disappear, or render as rail?
 - Can same-`UiD` rail/RDB objects cross-match in the superelevation dictionary?
@@ -198,8 +198,8 @@ selection.
 
 Minimal compatible approach:
 
-1. Read the explicit rail/road marker established by Task 06; also decode a
-   native `StaticFlags` rule later if reliable evidence is found.
+1. For DynTrack only, decode `StaticFlags & 0x00000100`: set means road/RDB,
+   clear means legacy rail/TDB.
 2. Add `TrackNetworkKind` or equivalent to the parsed DynTrack object.
 3. Keep rail DynTrack on profile index `0` for compatibility.
 4. Apply milestone A's explicit `ShapeTemplate` selection before any default.
@@ -241,14 +241,14 @@ Report:
 3. milestone A parsing, selection, fallback, and runtime results;
 4. relevant OpenRailsLog warnings/exceptions;
 5. screenshots or a concise multi-profile visual comparison;
-6. later road-fixture results and any supported `StaticFlags` interpretation;
+6. later road-fixture results for the DynTrack `0x00000100` road marker;
 7. whether each change belongs upstream or should remain a local TSRE
    compatibility patch;
 8. automated tests that can be added to Open Rails.
 
-Milestone A does not depend on a native road flag and may be implemented
-before the road fixture. Do not guess a road `StaticFlags` value in milestone
-B.
+Milestone A does not depend on the road marker and may be implemented before
+the road fixture. Milestone B uses the TSRE DynTrack-specific `0x00000100`
+convention without changing general Open Rails `StaticFlag` semantics.
 
 ## Acceptance Criteria
 

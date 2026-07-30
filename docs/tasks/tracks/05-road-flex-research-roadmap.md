@@ -28,20 +28,23 @@ The intended end state is:
 Research complete enough to split implementation into Tasks 06-08. No runtime
 code has been changed by this task.
 
-The supplied CMK `TrackObj` records establish the relevant static convention:
+The supplied CMK `TrackObj` records confirm the familiar static values:
 normal rail records use `00200180`, while normal road records use
-`00200100`. The differentiating `0x80` bit is therefore the TrackObj
-rail/TDB-versus-road/RDB candidate; the shared `0x100` bit is not the
-separator.
+`00200100`. Existing files are not reliable enough to audit ownership from
+flags alone because TSRE and third-party tools may not preserve the convention.
+Changing static `TrackObj` routing is not required for road Flex.
 
-Native MSTS never provided a usable road DynTrack workflow from which to
-derive the corresponding DynTrack encoding. The 1,346 sampled DynTrack
-records all use `00100000`, so the static convention cannot simply be copied
-onto DynTrack without defining legacy behavior.
+Road DynTrack has no legacy-content ambiguity because it does not exist in
+normal MSTS routes. Define a TSRE extension within `StaticFlags`:
 
-This uncertainty does not block the first profile-rendering milestones.
-Task 06 must preserve the raw flags and use an explicit TSRE runtime database
-choice until a road encoding is established by a controlled TSRE/ORTS fixture.
+```text
+Rail DynTrack: 00100000
+Road DynTrack: 00100100
+Road marker:   00000100
+```
+
+Legacy DynTrack remains rail. Only newly created road DynTrack receives the
+road marker.
 
 ## Current TSRE Findings
 
@@ -61,9 +64,8 @@ Relevant paths:
 - `Route::setTerrainToTrackObj(...)`
 - `TrackShape::roadshape`
 
-This usually appears to work because a static `TrackObj` has a `SectionIdx`
-whose `TrackShape` can carry `RoadShape`, but shape appearance and database
-ownership are not equivalent.
+This works for the normal content workflow because a static `TrackObj` has a
+`SectionIdx` whose `TrackShape` can carry `RoadShape`.
 
 For strictly named CMK world tiles, correlating `TrackObj.SectionIdx` with the
 global `RoadShape` marker found:
@@ -75,16 +77,19 @@ road shape + 00200100:  6,513
 road shape + 00200180:    791
 ```
 
-The minority combinations are important: they allow a rail-looking shape to
-belong to RDB or a road-looking shape to belong to TDB. Current TSRE instead
-routes them by `RoadShape`, which explains why the route can contain
-shape/flag/database disagreements.
+The minority combinations cannot be attributed to one editor: TSRE and
+several third-party editing tools may create or preserve different flag
+combinations. They are useful compatibility evidence, but not a reason to
+migrate existing static objects.
 
 Open Rails documents only the general `StaticFlag` members for shadows,
 terrain, animation, and `Global`. It does not name `0x80` or `0x100`, treats
 every `TrackObj` as global scenery regardless of the `Global` bit, and uses
-`TrackShape.RoadShape` for wire/superelevation filtering. It therefore does
-not currently implement the TrackObj database bit either.
+`TrackShape.RoadShape` for wire/superelevation filtering.
+
+Keep current static `TrackObj` behavior for this project. A later compatibility
+task may use flags more accurately, but road Flex depends only on the new
+DynTrack road marker.
 
 ### `DynTrackObj`
 

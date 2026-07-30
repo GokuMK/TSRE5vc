@@ -17,7 +17,7 @@ profile-selection milestones in Tasks 07 and 08 are complete.
 Native MSTS road DynTrack was not available as a complete editor feature, so
 the task is not blocked on reproducing one in the native Route Editor.
 
-## StaticFlags Evidence And Remaining DynTrack Question
+## StaticFlags Convention
 
 Review `TrackObj`, not DynTrack, to establish the existing rail/road
 convention. The normal values are:
@@ -25,8 +25,6 @@ convention. The normal values are:
 ```text
 Rail/TDB TrackObj: StaticFlags ( 00200180 )
 Road/RDB TrackObj: StaticFlags ( 00200100 )
-Candidate database bit: 0x00000080
-Shared low bit:         0x00000100
 ```
 
 This was checked against the supplied:
@@ -44,13 +42,11 @@ road shape + 00200100:  6,513
 road shape + 00200180:    791
 ```
 
-The minority combinations show why TSRE must not infer database ownership from
-`TrackShape.RoadShape`: shape type and intended database can differ. A direct
-comparison with the current CMK databases found the same pattern strongly but
-not perfectly correlated (`TDB`: 9,300 with `180`, 242 with `100`; `RDB`: 275
-with `100`, 43 with `180`). Those disagreements are expected in a route edited
-by code which currently chooses the database from `RoadShape`; they must be
-reported by an audit tool rather than silently rewritten.
+The minority combinations do not establish which editor produced them. TSRE
+and third-party tools may not preserve flags consistently. Current static
+`TrackObj` routing through `RoadShape` can remain unchanged for this task;
+using the flags more accurately is optional future work, not a road Flex
+acceptance requirement.
 
 Open Rails' `StaticFlag` enum documents:
 
@@ -62,33 +58,37 @@ Terrain, Animate, Global
 It does not name `0x80`, `0x100`, or DynTrack's `0x00100000`. Its scenery
 loader treats `TrackObj` as global independently of `StaticFlags`, while wire
 and superelevation code use `TrackShape.RoadShape`. Open Rails therefore also
-does not currently apply the candidate database bit.
+does not currently use these low bits to select a database.
 
 Reference:
 
 - [Open Rails `StaticFlag` enumeration documentation](https://james-ross.co.uk/projects/or/documentation/Orts.Formats.Msts~Orts.Formats.Msts.StaticFlag.html)
 
-DynTrack remains the format gap. All 1,346 sampled CMK DynTrack records use:
+All 1,346 sampled CMK DynTrack records use:
 
 ```text
 StaticFlags ( 00100000 )
 ```
 
-There is no native road DynTrack sample. Because legacy rail DynTrack does not
-carry the static TrackObj `0x80` bit, absence of `0x80` cannot be reinterpreted
-as road without breaking every existing route.
+Road DynTrack does not exist in legacy content, so TSRE can introduce the first
+road DynTrack convention without reinterpreting any existing object:
 
-Initial implementation must therefore:
+```text
+Rail DynTrack: StaticFlags ( 00100000 )
+Road DynTrack: StaticFlags ( 00100100 )
+Road marker:   0x00000100
+```
 
-- preserve all existing `StaticFlags` values;
-- keep `00100000` as the normal rail default;
-- carry an explicit runtime `Rail`/`Road` database identity for new TSRE
-  DynTracks;
-- serialize that DynTrack identity in an explicit TSRE extension token, for
-  example `TrackDatabase ( 0|1 )`, rather than overloading an unverified flag;
-- make Open Rails milestone B read the same token;
-- retain raw `StaticFlags` for compatibility and decode a native DynTrack rule
-  later if reliable evidence appears.
+The road marker is interpreted only for `DynTrackObj`. Do not generalize this
+single-bit test to every world-object class.
+
+Initial implementation must:
+
+- preserve `00100000` for every normal and legacy rail DynTrack;
+- add `0x00000100` only when creating/saving a road DynTrack;
+- resolve a DynTrack with that bit set to RDB and one without it to TDB;
+- copy the full flag value through placement, companions, clone, and undo;
+- make Open Rails milestone B use the same DynTrack-specific test.
 
 The generated fixture can be tested in TSRE and Open Rails. Native MSTS testing
 is optional historical compatibility evidence, not an implementation gate.
@@ -121,26 +121,6 @@ That resolver may map IDs 0 and 1 to `Game::trackDB` and `Game::roadDB`.
 Avoid scattering new boolean branches, but do not introduce descriptors,
 custom persistence, or registry lifecycle work yet.
 
-## Static TrackObj Ownership
-
-Correct the current `RoadShape`-only routing as part of this task, but protect
-existing routes from silent migration:
-
-1. New `TrackObj` placement derives TDB/RDB from the `0x80` StaticFlags
-   convention.
-2. A loaded object already referenced by exactly one database keeps that
-   actual owner for mutation/removal.
-3. If actual ownership disagrees with `StaticFlags`, report the world tile,
-   `UiD`, flag value, shape type, and database; do not move it automatically.
-4. If no database owns the object, use `StaticFlags`; use `RoadShape` only as a
-   legacy fallback when the relevant flag information is absent or invalid.
-5. Provide an explicit repair/reinsert action later instead of changing
-   ownership merely by opening and saving a route.
-
-Rendering may continue to use `RoadShape` where it describes visual or
-rail-specific geometry behavior. It must not be treated as the authoritative
-database owner.
-
 ## DynTrack Ownership
 
 Every `DynTrackObj` needs a resolved database identity available immediately
@@ -148,10 +128,9 @@ after construction, before it is in any database.
 
 Resolution order:
 
-1. explicit TSRE database marker, when present;
+1. DynTrack road bit in `StaticFlags`, when loading;
 2. selected Flex tool network for a newly created object;
-3. a future confirmed `StaticFlags` rail/road rule;
-4. conservative rail fallback for legacy objects.
+3. rail fallback for every legacy object without the road bit.
 
 The database ID must be copied by:
 
@@ -162,9 +141,8 @@ The database ID must be copied by:
 - undo snapshots;
 - network-aware REF placement.
 
-The identity must survive TSRE save/load for IDs 0 and 1. Prefer a compatible
-world-object token or confirmed flag encoding; do not introduce a route-wide
-sidecar or IDs above 1 in this task.
+The identity survives TSRE save/load through `StaticFlags`. Do not add a
+second world-object token, route sidecar, or IDs above 1 in this task.
 
 ## Required Routing Changes
 
@@ -263,8 +241,6 @@ or persistence until a real custom-database task exists.
 ## Failure Handling
 
 - Missing selected database: refuse placement with a clear message.
-- Ambiguous legacy DynTrack: use rail only as a documented compatibility
-  fallback and warn once per object.
 - Object recorded in the wrong database: report both expected and actual
   database IDs.
 - Same object found in multiple databases: block mutation until repaired.
@@ -274,13 +250,10 @@ or persistence until a real custom-database task exists.
 
 ### Pure/Headless
 
-- `TrackObj` `00200180` resolves to TDB when it has no existing owner.
-- `TrackObj` `00200100` resolves to RDB when it has no existing owner.
-- Existing database membership wins safely over a conflicting flag and emits
-  an audit diagnostic.
-- `RoadShape` is used only as the documented legacy fallback.
 - Existing `00100000` DynTracks resolve to rail.
-- Explicit new road identity resolves to RDB after save/reload.
+- New `00100100` DynTracks resolve to road.
+- Toggling only the DynTrack road bit changes the resolved database.
+- Road identity resolves to RDB after save/reload without an extra token.
 - DynTrack clone and undo snapshot preserve database ID.
 - Database lookup supports IDs 0 and 1 and rejects unsupported IDs.
 - Rail and road may reuse identical dynamic TSection geometry.
@@ -302,14 +275,14 @@ or persistence until a real custom-database task exists.
 
 - Open Rails loads it without an exception.
 - Rail operation and road traffic paths remain valid.
-- If native MSTS becomes available, confirm it ignores TSRE extension tokens
-  and record whether it retains the experimental road DynTrack.
+- If native MSTS becomes available, record whether it retains the experimental
+  road DynTrack; this is not an implementation gate.
 
 ## Acceptance Criteria
 
 - `DynTrackObj` has one authoritative database identity.
-- New static `TrackObj` placement honors the `0x80` database convention.
-- Existing flag/database disagreements are reported and never silently moved.
+- Rail DynTrack remains `00100000`; road DynTrack is `00100100`.
+- Static `TrackObj` routing is not changed by this task.
 - No Flex/DynTrack placement or rendering path hardcodes `Game::trackDB`.
 - Standard IDs 0/1 round-trip through TSRE save/load.
 - Continuous rail and road Flex can coexist in one route.
