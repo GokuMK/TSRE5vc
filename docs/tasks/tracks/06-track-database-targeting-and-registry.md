@@ -135,6 +135,34 @@ Deletion may continue to probe all databases as a recovery mechanism, but
 normal operations should use the resolved owner first and warn if the object
 is found elsewhere.
 
+## Existing Ruler Proof Of Concept
+
+`RulerObj::createRoadPaths()` already invokes:
+
+```text
+roadDB->fillDynTrack(...)
+roadDB->placeTrack(...)
+```
+
+for straight `TSection` geometry. Treat this as evidence that the core TDB
+writer is database-agnostic enough for an initial road Flex implementation.
+Reuse the backend calls, not the Ruler's surrounding design.
+
+Road Flex must improve on Ruler by:
+
+- saving a real DynTrack world object for every accepted segment;
+- giving each object explicit database identity;
+- using tested Flex endpoint/quaternion conversion;
+- supporting curves and multi-section shapes;
+- normalizing tile/local coordinates;
+- providing undo/error handling;
+- preventing duplicate insertion.
+
+After Task 06 is stable, Ruler may call a common low-level
+`placeSections(databaseId, owner, pose, sections)` service. Do not make
+DynTrack depend on `RulerObj`, and do not make Ruler the general database
+identity model.
+
 ## Dynamic TSection Requirements
 
 Change dynamic-shape lookup so geometry is not the sole identity.
@@ -220,6 +248,8 @@ messages, undo, and TDB client synchronization.
 
 - Rail continuous Flex behavior is unchanged.
 - Road continuous Flex inserts main and companions into RDB only.
+- A road Flex straight produces equivalent RDB section data to a matching
+  Ruler road span, while retaining its own DynTrack world owner.
 - `Z` toggles the selected owner database.
 - Removing road DynTrack does not touch an unrelated rail object with the same
   `UiD`.
@@ -243,4 +273,3 @@ messages, undo, and TDB client synchronization.
 - Registry APIs accept custom internal database IDs without changing MSTS
   export semantics.
 - All compatibility decisions are backed by the controlled fixture.
-

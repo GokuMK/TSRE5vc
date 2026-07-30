@@ -90,6 +90,41 @@ The dynamic-shape cache identity must therefore include database/network kind,
 and road dynamic shapes must be marked as road shapes where that remains part
 of the compatibility model.
 
+### Existing Ruler Road Paths
+
+`RulerObj::createRoadPaths()` is an important existing proof of concept. For
+each straight line between adjacent Ruler points it:
+
+- creates a temporary `DynTrackObj` as a section-data container;
+- calculates a straight length and orientation;
+- calls `Game::roadDB->fillDynTrack(...)`;
+- calls `Game::roadDB->placeTrack(...)`;
+- records the Ruler tile and `UiD` as the owner of every generated vector.
+
+`RulerObj::removeRoadPaths()` removes those vectors from RDB using the same
+Ruler identity.
+
+This proves that the shared dynamic TSection and `TDB::placeTrack` backend
+already works with RDB. Task 06 does not need a second road-specific placement
+algorithm.
+
+It does not, however, solve road DynTrack:
+
+- every Ruler span is one straight section rather than Flex geometry;
+- one temporary `DynTrackObj` is reused and leaked;
+- no `Dyntrack` world object is saved for any RDB span;
+- the TSRE-only Ruler remains the database owner;
+- there is no undo transaction or duplicate-creation guard;
+- heading uses manual sign/`atan` math instead of the tested Flex coordinate
+  boundary;
+- all spans use the Ruler's origin tile/`UiD`;
+- optional visible geometry is generated separately by `ProceduralShape` and
+  is not the RDB object.
+
+Open Rails may consume the resulting RDB for road traffic, but it cannot render
+these spans as DynTrack because the corresponding DynTrack world objects do
+not exist.
+
 ### Current Procedural Rendering
 
 DynTrack rendering has one global switch:
@@ -225,6 +260,9 @@ not be selected accidentally as a fallback.
 - Road curves may need a smaller configurable minimum radius than rail.
 - Road profile geometry is normally wider and may require different terrain
   painting and clearance defaults.
+- Ruler road paths need eventual migration to the same database-targeted path
+  builder, or at least guards preventing duplicate insertion and unsafe
+  geometry, but that cleanup is not a prerequisite for road Flex.
 - Rail-only wire and superelevation processing must not run for roads.
 - Texture lookup differs: TSRE procedural assets currently use
   `route/procedural`, while Open Rails profiles normally reference route

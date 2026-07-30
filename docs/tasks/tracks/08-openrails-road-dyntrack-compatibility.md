@@ -109,6 +109,12 @@ Create a small route containing:
   superelevation matching;
 - optional `TrProfile.stf` and `TrProfileRoad.stf`.
 
+The existing Ruler **Create Road Paths** command may be used to bootstrap a
+reference RDB straight. It is not the test object for this task: Ruler writes
+RDB vectors owned by a TSRE-only Ruler and does not write corresponding
+`Dyntrack` world records. The fixture must additionally contain real DynTrack
+world objects whose vectors are in RDB.
+
 Retain:
 
 - `.w` records;
@@ -137,6 +143,9 @@ Run:
 - Does CarSpawner traverse the new road vector normally?
 - Does Open Rails ignore a TSRE `ShapeTemplate` token safely?
 - Does native MSTS ignore that token safely?
+- Does the Ruler-generated RDB reference load cleanly despite having no
+  corresponding DynTrack world object, and how does that differ in logs from
+  the real road DynTrack?
 
 ## Proposed Open Rails Design
 

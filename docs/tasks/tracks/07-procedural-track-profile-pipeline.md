@@ -57,6 +57,29 @@ Current weaknesses:
 - global `Game::proceduralTracks` decides between all procedural templates and
   the hardcoded rail generator.
 
+### Ruler procedural preview
+
+Ruler already demonstrates another useful part of the intended policy:
+
+- setting a template explicitly enables procedural shape rendering;
+- `ShapeTemplate` is saved with the TSRE Ruler object;
+- each straight Ruler span is passed to `ProceduralShape` independently;
+- the generated preview is separate from its optional RDB path.
+
+This is useful reference code for template selection and per-span transforms,
+but not a road DynTrack renderer. Ruler currently:
+
+- generates only straight preview spans;
+- uses the same template list regardless of rail/road type;
+- exposes `DEFAULT` and `DISABLED` even though unresolved names can yield no
+  mesh;
+- does not bind its visual profile to the RDB vectors it creates;
+- uses manual orientation math which should not be copied into the new sweep
+  backend.
+
+The profile catalog should eventually serve Ruler as well, but DynTrack
+profile work must not be coupled to a Ruler refactor.
+
 ## Open Rails Profile Model
 
 Open Rails loads profiles from:
@@ -326,4 +349,3 @@ That requires Task 08 or an Open Rails-side mapping.
 - The hardcoded rail generator is removed only after parity tests pass.
 - Profile parsing, resolution, generation, and object/database selection are
   separate components.
-
