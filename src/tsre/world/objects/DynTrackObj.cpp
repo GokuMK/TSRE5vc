@@ -38,6 +38,8 @@
 #endif
 
 DynTrackObj::DynTrackObj() {
+    // An absent ShapeTemplate is distinct from explicit DEFAULT in Enabled mode.
+    templateName.clear();
     sectionIdx = -1;
     sections = NULL;
     collideFlags = 39;    
@@ -536,7 +538,7 @@ for(int i = 0; i < 5; i++){
 *(out) << "		)\n";
 *(out) << "		SectionIdx ( "<<this->sectionIdx<<" )\n";
 *(out) << "		Elevation ( "<<this->elevation<<" )\n";
-if(this->templateName.length() > 0 && this->templateName != "DEFAULT")
+if(this->templateName.length() > 0)
 *(out) << "		ShapeTemplate ( "<<ParserX::AddComIfReq(this->templateName)<<" )\n";
 if(this->jNodePosn!=NULL)
 *(out) << "		JNodePosn ( "<<this->jNodePosn[0]<<" "<<this->jNodePosn[1]<<" "<<this->jNodePosn[2]<<" "<<this->jNodePosn[3]<<" "<<this->jNodePosn[4]<<" )\n";

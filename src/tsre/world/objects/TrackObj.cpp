@@ -32,6 +32,8 @@
 #endif
 
 TrackObj::TrackObj() {
+    // An absent ShapeTemplate is distinct from explicit DEFAULT in Enabled mode.
+    this->templateName.clear();
     this->shape = -1;
     this->loaded = false;
     this->sectionIdx = 0;
@@ -577,7 +579,7 @@ if(this->jNodePosn.size() != 0)
 *(out) << "		CollideFlags ( "<<this->collideFlags<<" )\n";
 if(this->collideFunction > 0 )
 *(out) << "		CollideFunction ( "<<this->collideFunction<<" )\n";
-if(this->templateName != "" && this->templateName != "DEFAULT")
+if(this->templateName != "")
 *(out) << "		ShapeTemplate ( "<<ParserX::AddComIfReq(this->templateName)<<" )\n";
 *(out) << "		FileName ( "<<ParserX::AddComIfReq(this->fileName)<<" )\n";
 *(out) << "		StaticFlags ( "<<ParserX::MakeFlagsString(this->staticFlags)<<" )\n";

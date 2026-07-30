@@ -27,6 +27,8 @@ Milestone 1 implementation:
 - `DISABLED`, unknown templates, missing defaults, and empty generated geometry
   all remain visible through static/hardcoded fallback;
 - DynTrack properties expose the existing TSRE template catalog;
+- TrackObj and DynTrack properties distinguish `NOT SET` (an absent
+  `ShapeTemplate` token) from explicit, persisted `DEFAULT`;
 - DynTrack saves and reloads non-default `ShapeTemplate` values;
 - procedural DynTrack cache entries are no longer deleted as object-owned
   meshes during invalidation;

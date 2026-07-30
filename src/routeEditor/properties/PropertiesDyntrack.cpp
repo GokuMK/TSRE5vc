@@ -52,8 +52,11 @@ PropertiesDyntrack::PropertiesDyntrack() {
     vbox->addWidget(templateLabel);
     vbox->addWidget(&eTemplate);
     eTemplate.setStyleSheet("combobox-popup: 0;");
+    eTemplate.addItem("NOT SET");
     eTemplate.addItem("DEFAULT");
     eTemplate.addItem("DISABLED");
+    eTemplate.setToolTip("NOT SET uses the hardcoded shape in Enabled mode; "
+                         "DEFAULT explicitly requests the default procedural template.");
     ProceduralShape::Load();
     if(ProceduralShape::ShapeTemplateFile != NULL){
         QMapIterator<QString, ShapeTemplate*> iterator(ProceduralShape::ShapeTemplateFile->templates);
@@ -316,7 +319,7 @@ void PropertiesDyntrack::updateTemplateValue(){
         return;
     QString name = dobj->getTemplate();
     if(name.isEmpty())
-        name = "DEFAULT";
+        name = "NOT SET";
     const QSignalBlocker blocker(&eTemplate);
     if(eTemplate.findText(name, Qt::MatchFixedString) < 0)
         eTemplate.addItem(name);
@@ -326,6 +329,8 @@ void PropertiesDyntrack::updateTemplateValue(){
 void PropertiesDyntrack::eTemplateEdited(QString val){
     if(dobj == NULL)
         return;
+    if(val == "NOT SET")
+        val.clear();
     Undo::SinglePushWorldObjData(worldObj);
     dobj->setTemplate(val);
     Undo::StateEnd();

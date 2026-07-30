@@ -64,8 +64,11 @@ PropertiesTrackObj::PropertiesTrackObj(){
     vbox->addWidget(label);
     vbox->addWidget(&eTemplate);
     eTemplate.setStyleSheet("combobox-popup: 0;");
+    eTemplate.addItem("NOT SET");
     eTemplate.addItem("DEFAULT");
     eTemplate.addItem("DISABLED");
+    eTemplate.setToolTip("NOT SET uses the static shape in Enabled mode; "
+                         "DEFAULT explicitly requests the default procedural template.");
     
     ProceduralShape::Load();
     if(ProceduralShape::ShapeTemplateFile != NULL){
@@ -271,6 +274,8 @@ void PropertiesTrackObj::eTemplateEdited(QString val){
     if(trackObj == NULL){
         return;
     }
+    if(val == "NOT SET")
+        val.clear();
     Undo::SinglePushWorldObjData(worldObj);
     trackObj->setTemplate(val);
     Undo::StateEnd();
@@ -471,9 +476,10 @@ void PropertiesTrackObj::showObj(GameObj* obj){
     this->cCollisionType.setCurrentIndex(collisionType);
     this->cCollisionType.blockSignals(false);
     
+    const QSignalBlocker templateBlocker(&eTemplate);
     QString templateName = worldObj->getTemplate();
     if(templateName.length() == 0)
-        eTemplate.setCurrentText("DEFAULT");
+        eTemplate.setCurrentText("NOT SET");
     else
         eTemplate.setCurrentText(templateName);
 }
