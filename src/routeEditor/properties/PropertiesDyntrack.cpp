@@ -16,6 +16,7 @@
 #include <tsre/Undo.h>
 #include <tsre/procedural/ProceduralShape.h>
 #include <tsre/procedural/ShapeTemplates.h>
+#include <tsre/procedural/OrtsTrackProfile.h>
 
 PropertiesDyntrack::PropertiesDyntrack() {
     buttonTools["FlexTool"] = new QPushButton("Flex", this);
@@ -66,6 +67,9 @@ PropertiesDyntrack::PropertiesDyntrack() {
                 eTemplate.addItem(iterator.value()->name);
         }
     }
+    OrtsTrackProfileCatalog::load(Game::root + "/routes/" + Game::route);
+    for(const QString &profileId : OrtsTrackProfileCatalog::profileIds())
+        eTemplate.addItem(profileId);
     QObject::connect(&eTemplate, SIGNAL(currentTextChanged(QString)),
                      this, SLOT(eTemplateEdited(QString)));
     
@@ -248,6 +252,11 @@ void PropertiesDyntrack::showObj(GameObj* obj){
     }
     worldObj = (WorldObj*)obj;
     dobj = (DynTrackObj*)obj;
+    OrtsTrackProfileCatalog::load(Game::root + "/routes/" + Game::route);
+    for(const QString &profileId : OrtsTrackProfileCatalog::profileIds()){
+        if(eTemplate.findText(profileId, Qt::MatchFixedString) < 0)
+            eTemplate.addItem(profileId);
+    }
     this->infoLabel->setText("Object: "+dobj->type);
     
     this->uid.setText(QString::number(dobj->UiD, 10));

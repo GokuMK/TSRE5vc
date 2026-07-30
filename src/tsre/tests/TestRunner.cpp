@@ -11,11 +11,13 @@
 #include <tsre/tests/TestRunner.h>
 
 #include <QDebug>
+#include <QDir>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QTextStream>
+#include <QTemporaryDir>
 
 #include <algorithm>
 #include <cmath>
@@ -25,6 +27,8 @@
 #include <tsre/math3d/Flex.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/procedural/ProceduralTrackPolicy.h>
+#include <tsre/procedural/OrtsTrackProfile.h>
+#include <tsre/procedural/OrtsTrackProfileRenderer.h>
 #include <tsre/tests/RouteLoadTestSuite.h>
 
 namespace {
@@ -993,10 +997,185 @@ static int runProceduralPolicySuite(bool verbose) {
     return failed == 0 ? 0 : 1;
 }
 
+static int runOrtsProfileSuite(bool verbose) {
+    const QString stf =
+            "SIMISA@@@@@@@@@@JINX0p0t______\n"
+            "TrProfile (\n"
+            " Name ( \"Test profile\" )\n"
+            " LODMethod ( ComponentAdditive )\n"
+            " ChordSpan ( 1 )\n"
+            " PitchControl ( ChordLength )\n"
+            " PitchControlScalar ( 10m )\n"
+            " TrackGauge ( 1.435m )\n"
+            " SuperElevationMethod ( Outside )\n"
+            " LOD (\n"
+            "  CutoffRadius ( 1200m )\n"
+            "  LODItem (\n"
+            "   Name ( Surface ) TexName ( test.ace ) ShaderName ( TexDiff )\n"
+            "   LightModelName ( OptSpecular0 ) AlphaTestMode ( 0 )\n"
+            "   TexAddrModeName ( Wrap ) ESD_Alternative_Texture ( 0 )\n"
+            "   MipMapLevelOfDetailBias ( 0 )\n"
+            "   Polyline ( Name ( top ) DeltaTexCoord ( 0 0.2 )\n"
+            "    Vertex ( Position ( -1 0.2 ) Normal ( 0 1 0 ) "
+            "TexCoord ( 0 0 ) PositionControl ( All ) )\n"
+            "    Vertex ( Position ( 1 0.2 ) Normal ( 0 1 0 ) "
+            "TexCoord ( 1 0 ) PositionControl ( All ) )\n"
+            "   )\n"
+            "  )\n"
+            " )\n"
+            ")\n";
+    const QString xml =
+            "<TrProfile Name=\"Test profile\" LODMethod=\"ComponentAdditive\" "
+            "ChordSpan=\"1\" PitchControl=\"ChordLength\" "
+            "PitchControlScalar=\"10\" TrackGauge=\"1.435\" "
+            "SuperElevationMethod=\"Outside\">"
+            "<LOD CutoffRadius=\"1200\"><LODItem Name=\"Surface\" "
+            "TexName=\"test.ace\" ShaderName=\"TexDiff\" "
+            "LightModelName=\"OptSpecular0\" AlphaTestMode=\"0\" "
+            "TexAddrModeName=\"Wrap\" ESD_Alternative_Texture=\"0\" "
+            "MipMapLevelOfDetailBias=\"0\">"
+            "<Polyline Name=\"top\" DeltaTexCoord=\"0 0.2\">"
+            "<Vertex Position=\"-1 0.2 0\" Normal=\"0 1 0\" "
+            "TexCoord=\"0 0\" PositionControl=\"All\"/>"
+            "<Vertex Position=\"1 0.2 0\" Normal=\"0 1 0\" "
+            "TexCoord=\"1 0\" PositionControl=\"All\"/>"
+            "</Polyline></LODItem></LOD></TrProfile>";
+
+    int passed = 0;
+    int failed = 0;
+    auto check = [&](bool condition, const char *name) {
+        if(condition){
+            passed++;
+            if(verbose)
+                qInfo() << "[tests:orts-profile] PASS" << name;
+        } else {
+            failed++;
+            qWarning() << "[tests:orts-profile] FAIL" << name;
+        }
+    };
+
+    QStringList stfDiagnostics;
+    QStringList xmlDiagnostics;
+    const QSharedPointer<OrtsTrackProfile> stfProfile =
+            OrtsTrackProfileParser::parseStf(stf, "TrProfileStf", &stfDiagnostics);
+    const QSharedPointer<OrtsTrackProfile> xmlProfile =
+            OrtsTrackProfileParser::parseXml(xml, "TrProfileXml", &xmlDiagnostics);
+    check(stfProfile != nullptr && stfProfile->valid, "parse-stf");
+    check(xmlProfile != nullptr && xmlProfile->valid, "parse-xml");
+    check(stfProfile != nullptr && xmlProfile != nullptr
+          && stfProfile->name == xmlProfile->name
+          && stfProfile->lods.size() == xmlProfile->lods.size()
+          && stfProfile->lods[0].items[0].polylines[0].vertices.size()
+             == xmlProfile->lods[0].items[0].polylines[0].vertices.size(),
+          "stf-xml-equivalence");
+
+    const QSharedPointer<OrtsTrackProfile> badSignature =
+            OrtsTrackProfileParser::parseStf("TrProfile ( )", "Bad");
+    const QSharedPointer<OrtsTrackProfile> missingLod =
+            OrtsTrackProfileParser::parseXml("<TrProfile Name=\"Bad\"/>", "Bad");
+    QString invalidVertexXml = xml;
+    invalidVertexXml.replace("Normal=\"0 1 0\"", "Normal=\"0 0 0\"");
+    const QSharedPointer<OrtsTrackProfile> invalidVertex =
+            OrtsTrackProfileParser::parseXml(invalidVertexXml, "BadVertex");
+    check(badSignature == nullptr, "reject-stf-signature");
+    check(missingLod != nullptr && !missingLod->valid, "reject-missing-lod");
+    check(invalidVertex != nullptr && !invalidVertex->valid,
+          "reject-invalid-vertex");
+
+    if(xmlProfile != nullptr){
+        QVector<TSection> straight;
+        straight.append(TSection(0, 0, 10.0f, 0));
+        QVector<OrtsGeneratedProfileMesh> straightMeshes;
+        QStringList renderDiagnostics;
+        check(OrtsTrackProfileRenderer::buildMeshes(
+                      *xmlProfile, straight, straightMeshes, &renderDiagnostics)
+              && straightMeshes.size() == 1
+              && straightMeshes[0].vertices.size() == 54
+              && std::abs(straightMeshes[0].bounds[0] - 1.0f) < 0.001f
+              && std::abs(straightMeshes[0].bounds[1] + 1.0f) < 0.001f
+              && std::abs(straightMeshes[0].bounds[4] - 10.0f) < 0.001f,
+              "straight-geometry");
+        check(renderDiagnostics.join(' ').contains("PositionControl")
+              && renderDiagnostics.join(' ').contains("LightModelName"),
+              "compatibility-diagnostics");
+
+        OrtsTrackProfile replacementProfile = *xmlProfile;
+        replacementProfile.lodMethod =
+                OrtsTrackProfile::LodMethod::CompleteReplacement;
+        OrtsProfileLod secondLod = replacementProfile.lods.first();
+        secondLod.cutoffRadius = 2400;
+        replacementProfile.lods.append(secondLod);
+        QVector<OrtsGeneratedProfileMesh> replacementMeshes;
+        check(OrtsTrackProfileRenderer::buildMeshes(
+                      replacementProfile, straight, replacementMeshes)
+              && replacementMeshes.size() == 2
+              && replacementMeshes[0].minimumDistance < 0
+              && std::abs(replacementMeshes[0].maximumDistance - 1200) < 0.001f
+              && std::abs(replacementMeshes[1].minimumDistance - 1200) < 0.001f
+              && std::abs(replacementMeshes[1].maximumDistance - 2400) < 0.001f,
+              "replacement-lod-ranges");
+
+        QVector<TSection> curves;
+        curves.append(TSection(0, 1, (float)M_PI / 2.0f, 100.0f));
+        QVector<OrtsGeneratedProfileMesh> curveMeshes;
+        bool finite = OrtsTrackProfileRenderer::buildMeshes(
+                *xmlProfile, curves, curveMeshes) && !curveMeshes.isEmpty();
+        if(finite){
+            for(float value : curveMeshes[0].vertices)
+                finite = finite && std::isfinite(value);
+        }
+        check(finite && curveMeshes[0].vertices.size() > 54,
+              "curve-subdivision");
+        bool endpointFound = false;
+        if(finite){
+            const QVector<float> &vertices = curveMeshes[0].vertices;
+            for(int i = 0; i < vertices.size(); i += 9){
+                if(std::abs(vertices[i] + 100.0f) < 0.01f
+                        && std::abs(vertices[i + 2] - 100.0f) < 1.01f){
+                    endpointFound = true;
+                    break;
+                }
+            }
+        }
+        check(endpointFound, "curve-endpoint");
+    }
+
+    QTemporaryDir temporaryDirectory;
+    bool precedenceOk = temporaryDirectory.isValid();
+    if(precedenceOk){
+        QDir().mkpath(temporaryDirectory.path() + "/TrackProfiles");
+        QFile stfFile(temporaryDirectory.path()
+                      + "/TrackProfiles/TrProfileDual.stf");
+        QFile xmlFile(temporaryDirectory.path()
+                      + "/TrackProfiles/TrProfileDual.xml");
+        precedenceOk = stfFile.open(QIODevice::WriteOnly)
+                && stfFile.write(stf.toUtf8()) > 0;
+        stfFile.close();
+        QString precedenceXml = xml;
+        precedenceXml.replace("Test profile", "XML wins");
+        precedenceOk = precedenceOk && xmlFile.open(QIODevice::WriteOnly)
+                && xmlFile.write(precedenceXml.toUtf8()) > 0;
+        xmlFile.close();
+        OrtsTrackProfileCatalog::load(temporaryDirectory.path(), true);
+        const QSharedPointer<const OrtsTrackProfile> selected =
+                OrtsTrackProfileCatalog::find("TrProfileDual");
+        const QSharedPointer<const OrtsTrackProfile> alias =
+                OrtsTrackProfileCatalog::find("XML wins");
+        precedenceOk = precedenceOk && selected != nullptr
+                && selected->name == "XML wins"
+                && alias != nullptr && alias->id == "TrProfileDual";
+    }
+    check(precedenceOk, "xml-precedence-and-alias");
+
+    qInfo() << "[tests:orts-profile] cases=" << (passed + failed)
+            << "passed=" << passed << "failed=" << failed;
+    return failed == 0 ? 0 : 1;
+}
+
 } // namespace
 
 QStringList TsreTests::listSuites() {
-    return {"flex", "flex-point", "procedural-policy", "route-load"};
+    return {"flex", "flex-point", "orts-profile", "procedural-policy", "route-load"};
 }
 
 int TsreTests::run(const TestRunOptions &opts) {
@@ -1016,11 +1195,15 @@ int TsreTests::run(const TestRunOptions &opts) {
     if (suite == "procedural-policy")
         return runProceduralPolicySuite(opts.verbose);
 
+    if (suite == "orts-profile")
+        return runOrtsProfileSuite(opts.verbose);
+
     if (suite == "all") {
         int rc = 0;
         rc = std::max(rc, runFlexSuite(opts.casesFile, opts.verbose));
         rc = std::max(rc, runFlexPointSuite(opts.verbose));
         rc = std::max(rc, runProceduralPolicySuite(opts.verbose));
+        rc = std::max(rc, runOrtsProfileSuite(opts.verbose));
         rc = std::max(rc, runRouteLoadSuite(opts));
         return rc;
     }

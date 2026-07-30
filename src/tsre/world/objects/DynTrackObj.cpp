@@ -11,6 +11,7 @@
 #include <tsre/world/objects/DynTrackObj.h>
 #include <tsre/fileFunctions/ParserX.h>
 #include <QDebug>
+#include <QSet>
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/texture/TexLib.h>
 #include <tsre/math3d/Vector2f.h>
@@ -22,6 +23,8 @@
 #include <tsre/ogl/TrackItemObj.h>
 #include <tsre/Game.h>
 #include <tsre/procedural/ProceduralMstsDyntrack.h>
+#include <tsre/procedural/OrtsTrackProfile.h>
+#include <tsre/procedural/OrtsTrackProfileRenderer.h>
 #include <tsre/procedural/ProceduralShape.h>
 #include <tsre/procedural/ProceduralTrackPolicy.h>
 #include <tsre/procedural/ShapeTemplates.h>
@@ -171,11 +174,40 @@ void DynTrackObj::generateShape(){
     QStringList availableTemplates;
     if(ProceduralShape::ShapeTemplateFile != NULL)
         availableTemplates = ProceduralShape::ShapeTemplateFile->templates.keys();
+    const QString routePath = Game::root + "/routes/" + Game::route;
+    OrtsTrackProfileCatalog::load(routePath);
+    availableTemplates.append(OrtsTrackProfileCatalog::selectionNames());
     const ProceduralTrackResolution resolution = ProceduralTrackPolicy::resolve(
             Game::proceduralTracks, templateName, availableTemplates);
     ProceduralTrackPolicy::warnOnce(resolution);
 
-    if(resolution.backend == ProceduralTrackBackend::Procedural
+    const bool tsreTemplate = ProceduralShape::ShapeTemplateFile != NULL
+            && ProceduralShape::ShapeTemplateFile->templates.contains(
+                    resolution.templateName);
+    if(resolution.backend == ProceduralTrackBackend::Procedural && !tsreTemplate){
+        const QSharedPointer<const OrtsTrackProfile> profile =
+                OrtsTrackProfileCatalog::find(resolution.templateName);
+        if(profile != nullptr){
+            QStringList diagnostics;
+            if(OrtsTrackProfileRenderer::generate(
+                    *profile, tsections, shape, routePath, &diagnostics)){
+                shapeOwned = true;
+                init = true;
+                static QSet<QString> warnedDiagnostics;
+                for(const QString &diagnostic : diagnostics){
+                    const QString key = profile->id.toLower() + ":" + diagnostic;
+                    if(!warnedDiagnostics.contains(key)){
+                        warnedDiagnostics.insert(key);
+                        qWarning() << "ORTS track profile" << profile->id << diagnostic;
+                    }
+                }
+                return;
+            }
+            for(const QString &diagnostic : diagnostics)
+                qWarning() << "ORTS track profile" << profile->id << diagnostic;
+            ProceduralTrackPolicy::warnGenerationFailureOnce(resolution.templateName);
+        }
+    } else if(resolution.backend == ProceduralTrackBackend::Procedural
             && Game::trackDB != NULL && Game::trackDB->tsection != NULL
             && Game::trackDB->tsection->shape.find(sectionIdx)
                     != Game::trackDB->tsection->shape.end()
@@ -445,7 +477,7 @@ void DynTrackObj::render(GLUU* gluu, float lod, float posx, float posz, float* p
     // A generated shape is ready immediately. Draw it in this pass instead
     // of leaving the DynTrack absent for one complete frame.
     for(int i = 0; i < shape.size(); i++){
-        shape[i]->render(selectionColor);
+        shape[i]->render(selectionColor, lod);
     }
     
     if(selected){
@@ -472,7 +504,7 @@ void DynTrackObj::pushRenderItems(float lod, float posx, float posz, float* play
     generateShape();
 
     for(int i = 0; i < shape.size(); i++){
-        shape[i]->pushRenderItem(selectionColor, 0);
+        shape[i]->pushRenderItem(selectionColor, lod);
     }
 }
 

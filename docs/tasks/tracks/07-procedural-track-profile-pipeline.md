@@ -34,8 +34,43 @@ Milestone 1 implementation:
   meshes during invalidation;
 - the `procedural-policy` test suite covers the mode-resolution matrix.
 
-Milestone 2 (ORTS discovery, parsing, neutral profiles, and rendering) has not
-started.
+Milestone 2 was implemented on 2026-07-30 and is ready for visual validation
+with real route profiles:
+
+- route `TrackProfiles` discovery follows ORTS `TrProfile.xml`,
+  `TrProfile.stf`, `TrProfile*.xml`, and `TrProfile*.stf` precedence;
+- STF and XML load into a neutral profile/LOD/material/polyline/vertex model;
+- file stems are canonical IDs and unique internal names are aliases;
+- DynTrack resolves TSRE templates first, then ORTS profiles;
+- the ORTS backend sweeps profiles entirely in DynTrack-local `TSection`
+  space, applies chord-span/chord-length/chord-displacement subdivision, keeps
+  UV distance continuous, transforms normals, and applies additive or
+  replacement LOD ranges;
+- route textures are preferred with global-texture fallback;
+- unsupported material details and profile-specific `PositionControl`
+  superelevation deformation produce diagnostics rather than silent parity
+  claims;
+- parser, invalid-input, XML precedence, alias, straight geometry, curve
+  subdivision, and curve endpoint tests are available in the `orts-profile`
+  suite.
+
+Real-world STF/XML visual comparison against Open Rails remains required before
+Milestone 2 is accepted. Full `PositionControl` superelevation deformation and
+more exact ORTS material mapping remain follow-up compatibility work.
+
+Current Milestone 2 material mapping:
+
+| ORTS field | TSRE behavior |
+| --- | --- |
+| `TexName` | Route `textures` first, then global `textures` |
+| `TexDiff`, `BlendATexDiff` | Standard TSRE textured material |
+| Other `ShaderName` values | Textured fallback with diagnostic |
+| `LightModelName` | TSRE default lighting with diagnostic |
+| `AlphaTestMode` | Texture alpha; non-zero modes report a diagnostic |
+| `TexAddrModeName=Wrap` | TSRE default texture addressing |
+| Other address modes | TSRE default with diagnostic |
+| `ESD_Alternative_Texture` | Partial route/global lookup with diagnostic |
+| `MipMapLevelOfDetailBias` | Not applied; non-zero values report a diagnostic |
 
 Implement it incrementally:
 
