@@ -14,8 +14,30 @@ After visual and performance parity is demonstrated, replace the hardcoded
 
 ## Status
 
-Research and design complete. Implementation should begin only after Task 06
-provides reliable network/database identity.
+Research and design complete. This is the first implementation task. Its
+initial TSRE profile-selection and rendering milestone does not depend on road
+database identity from Task 06.
+
+Implement it incrementally:
+
+1. rendering modes, DynTrack template UI, and `ShapeTemplate` persistence;
+2. ORTS profile discovery, parsing, and rendering in TSRE;
+3. bundled road/default refinements and optional hardcoded-generator
+   replacement only after the first two milestones work.
+
+Milestone 1 acceptance:
+
+- existing TSRE templates can be selected on DynTrack and survive save/reload;
+- `Forced`, `Enabled`, and `Disabled` produce the documented result for empty,
+  `DEFAULT`, `DISABLED`, valid, and missing template names;
+- static and hardcoded fallback rendering remains unchanged and visible.
+
+Milestone 2 acceptance:
+
+- TSRE discovers the same representative STF/XML profiles as Open Rails;
+- the editor can select them through the same `ShapeTemplate` field;
+- representative straight and curved DynTracks render materially like Open
+  Rails without changing the established TSRE advanced-template generator.
 
 ## Existing TSRE Template System
 
@@ -122,40 +144,41 @@ openrails/Source/RunActivity/Viewer3D/DynamicTrack.cs
 
 ## Rendering Policy
 
-Replace the binary global switch with a per-object resolution policy.
+Replace the binary global switch with a three-state editor policy. The current
+boolean configuration remains readable:
 
-### Explicit profile
+- legacy `true` maps to `Forced`;
+- legacy `false` maps to `Disabled`;
+- `Enabled` is a new value.
 
-When `ShapeTemplate` contains a real name:
+### Forced
 
-1. search TSRE templates;
-2. search Open Rails profiles;
-3. warn once if unresolved;
-4. use the default profile for the object's network.
+This preserves current `proceduralTracks == true` behavior:
 
-An explicit valid name forces procedural generation even when the default
-editor policy prefers legacy/static rendering.
+- all applicable track objects use procedural generation, even when a static
+  shape exists and `ShapeTemplate` is empty;
+- empty or `DEFAULT` selects the default procedural template/profile;
+- a valid custom name selects that template/profile;
+- a missing custom name warns once and uses the default procedural result.
 
-### Default profile
+### Enabled
 
-When the value is empty or `DEFAULT`:
+This enables procedural rendering per object:
 
-- rail uses the configured default rail profile;
-- road uses the configured default road profile.
+- empty or `DISABLED` uses the object's static shape;
+- for DynTrack, which has no static shape, that path means the existing
+  hardcoded `ProceduralMstsDyntrack` mesh;
+- `DEFAULT` selects the default procedural template/profile;
+- a valid custom name selects that template/profile;
+- a missing custom name warns once and returns to the static/hardcoded path.
 
-During migration, rail default may still delegate to
-`ProceduralMstsDyntrack`. Once a bundled profile matches it closely enough,
-the profile becomes authoritative.
+### Disabled
 
-### Legacy and disabled states
+Ignore procedural template selection and use static shapes or the existing
+DynTrack hardcoded mesh. This preserves current
+`proceduralTracks == false` behavior.
 
-Use explicit semantics:
-
-- `LEGACY`: invoke the old hardcoded generator during migration;
-- `DISABLED`: diagnostic no-mesh mode only, if retained at all.
-
-Do not expose `DISABLED` in normal DynTrack placement because DynTrack has no
-static shape to fall back to.
+No rendering mode or lookup failure may leave a normal object invisible.
 
 ## Profile Identity
 
@@ -166,7 +189,7 @@ Open Rails profiles use:
 1. file stem as canonical ID, for example `TrProfileRoad`;
 2. internal `Name` as a case-insensitive alias only if unique.
 
-The UI should show source to resolve collisions:
+The UI may show the source to explain collisions:
 
 ```text
 Default road
@@ -175,8 +198,8 @@ ORTS: TrProfileRoad
 ```
 
 If a TSRE template and ORTS profile share the same unqualified name, TSRE wins
-to preserve the agreed lookup order. Source-qualified names should also be
-accepted for deterministic selection.
+to preserve the lookup order. The stored value remains the ordinary name; do
+not invent source-qualified or ORTS-specific `ShapeTemplate` syntax.
 
 ## Proposed Architecture
 
@@ -199,7 +222,7 @@ Parse ORTS files into a neutral TSRE model:
 
 ```text
 ProceduralTrackProfile
-    id, name, source, network kind, gauge
+    id, name, source, gauge
     LOD policy
     subdivision policy
     materials[]
@@ -279,17 +302,13 @@ Before removing the hardcoded rail generator, compare:
 
 `DynTrackObj::save(...)` currently omits `ShapeTemplate`.
 
-Before adding it to the MSTS world object:
+Add it directly to the DynTrack world object when the value is meaningful.
+MSTS ignores undefined tokens, and current Open Rails skips unknown world
+tokens. No TSRE sidecar is needed for profile choice.
 
-- verify native MSTS tolerates the extra token;
-- verify current Open Rails skips it safely;
-- if MSTS does not tolerate it, store profile selection in a TSRE route
-  sidecar keyed by tile and `UiD`;
-- keep native `StaticFlags` responsible only for database compatibility, not
-  arbitrary TSRE profile names.
-
-An ORTS profile name stored by TSRE does not make Open Rails select it today.
-That requires Task 08 or an Open Rails-side mapping.
+The value is one ordinary template/profile name. It does not encode source or
+database identity. An ORTS profile name stored by TSRE will become active in
+Open Rails through Task 08 milestone A.
 
 ## Error Handling
 
@@ -317,10 +336,13 @@ That requires Task 08 or an Open Rails-side mapping.
 - explicit TSRE name wins;
 - otherwise explicit ORTS file stem resolves;
 - unique internal ORTS name resolves as an alias;
-- unknown explicit name falls back by network;
-- empty/`DEFAULT` resolves to rail or road default;
-- profile type mismatch warns and falls back;
-- cache key distinguishes source, profile, network, geometry, and elevation.
+- Forced plus unknown explicit name falls back to procedural default;
+- Enabled plus unknown explicit name falls back to static/hardcoded rendering;
+- Enabled plus empty/`DISABLED` uses static/hardcoded rendering;
+- empty/`DEFAULT` under Forced and `DEFAULT` under Enabled resolve to the
+  configured default;
+- Disabled always uses static/hardcoded rendering;
+- cache key distinguishes source, profile, geometry, and elevation.
 
 ### Geometry
 
@@ -341,11 +363,14 @@ That requires Task 08 or an Open Rails-side mapping.
 
 ## Acceptance Criteria
 
-- Rail and road DynTracks always have a visible deterministic default.
-- Explicit TSRE and ORTS names force the selected procedural backend.
+- `Forced`, `Enabled`, and `Disabled` preserve the rendering rules above.
+- The DynTrack properties UI can select and save `ShapeTemplate`.
+- TSRE can select and correctly render multiple TSRE and ORTS profiles.
+- Explicit TSRE and ORTS names select the appropriate procedural backend.
 - Missing names cannot make a DynTrack disappear.
 - STF and XML profile discovery follows documented Open Rails precedence.
-- Road and rail defaults coexist in one route.
+- The ORTS backend behaves like ORTS for supported profile features; existing
+  TSRE templates retain their own rendering conventions.
 - The hardcoded rail generator is removed only after parity tests pass.
 - Profile parsing, resolution, generation, and object/database selection are
   separate components.

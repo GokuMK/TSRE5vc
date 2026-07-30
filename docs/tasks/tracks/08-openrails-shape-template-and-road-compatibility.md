@@ -1,25 +1,30 @@
-# Task 08 - Open Rails Road DynTrack Compatibility
+# Task 08 - Open Rails ShapeTemplate And Road DynTrack Compatibility
 
 ## Objective
 
-Verify how Open Rails handles a DynTrack world object whose vector data belongs
-to RDB, then define the smallest compatible change needed to render it with a
-road profile.
+First, make Open Rails honor the `ShapeTemplate` name saved by TSRE on
+DynTrack world objects and select the matching Open Rails track profile.
+
+After that small interoperable milestone, verify how Open Rails handles a
+DynTrack world object whose vector data belongs to RDB and define the smallest
+road-aware change.
 
 This task is suitable for an Open Rails-focused agent, but the initial
 cross-source review has already been completed and is recorded here.
 
 ## Status
 
-Static source review complete. Runtime fixture and any Open Rails change remain
-pending.
+Static source review complete. Milestone A (`ShapeTemplate` profile selection)
+is ready after Task 07 can write and preview ORTS profiles. The road-database
+fixture and road-aware behavior are a later milestone.
 
 No Open Rails source has been modified.
 
 The tracked source baseline reviewed was commit
-`91414172dea8f16c08e587f2792264110aaabab1`. The Open Rails working tree already
-contained unrelated local changes; these were not modified during this
-research.
+`91414172dea8f16c08e587f2792264110aaabab1`. The Open Rails working tree is an
+intentional local variant adapted to compile under VS Code rather than the
+official Visual Studio setup. Preserve these local changes. They cannot be
+pushed upstream and were not modified during this research.
 
 ## Source Review Result
 
@@ -34,9 +39,8 @@ research.
 - position/orientation;
 - five dynamic track sections.
 
-Unknown tokens are skipped. This suggests a TSRE extension token is unlikely
-to crash the Open Rails parser, but native MSTS tolerance must be tested
-separately.
+Unknown tokens are skipped. MSTS also ignores undefined tokens, so TSRE can
+store `ShapeTemplate` directly without a sidecar.
 
 ### Database selection
 
@@ -44,9 +48,14 @@ Open Rails loads rail TDB and road RDB as separate structures, but the
 DynTrack world object has no resolved database owner.
 
 `StaticFlags` is used for general scenery properties such as shadows,
-animation, terrain, and global shape lookup. Bit `0x00100000`, used by TSRE's
-default DynTrack, is not named in the Open Rails `StaticFlag` enum and is not
-used to select RDB.
+animation, terrain, and global shape lookup. The Open Rails `StaticFlag` enum
+documents shadow flags, `Terrain`, `Animate`, and `Global`, but does not name
+the TrackObj `0x80`/`0x100` bits or DynTrack's `0x00100000`.
+
+Open Rails treats every `TrackObj` as global scenery regardless of the
+`Global` bit. Wire and superelevation code classify static track through
+`TrackShape.RoadShape`, not the candidate `StaticFlags` database bit. DynTrack
+likewise has no resolved TDB/RDB owner.
 
 ### Rendering
 
@@ -80,6 +89,41 @@ Therefore a road DynTrack currently receives:
 Additional profiles such as `TrProfileRoad.stf` cannot be selected by a
 DynTrack with current code, even though they can participate in matching
 replacement profiles for static track shapes.
+
+## Milestone A - Honor ShapeTemplate
+
+Extend the parsed Open Rails DynTrack object with the optional
+`ShapeTemplate` string already used by TSRE.
+
+Selection behavior:
+
+1. if `ShapeTemplate` is present and matches an ORTS track profile, use it;
+2. if it is absent, retain the existing DynTrack profile-index-0 behavior;
+3. if it is present but cannot be resolved, warn once and retain the existing
+   behavior.
+
+Do not add special prefixes, source-qualified names, or a mandatory road
+profile filename. The saved `ShapeTemplate` value is the profile name to
+resolve. File stem and declared profile name may both be accepted
+case-insensitively when unambiguous.
+
+Initial fixture:
+
+- place several rail DynTracks in TSRE;
+- assign different ORTS profiles through `ShapeTemplate`;
+- save and reload in TSRE;
+- load the route in the local Open Rails build;
+- verify each DynTrack uses the selected profile;
+- remove `ShapeTemplate` from one object and verify original Open Rails
+  guessing/profile-0 behavior remains unchanged.
+
+Milestone A acceptance:
+
+- TSRE-selected ORTS profiles display correctly on multiple DynTracks in one
+  Open Rails route;
+- legacy routes without `ShapeTemplate` render exactly as before;
+- an invalid name stays visible through the original fallback and produces one
+  useful warning.
 
 ## Expected Current Behavior
 
@@ -122,57 +166,50 @@ Retain:
 - `.tdb`, `.rdb`, `.tit`, and `.rit`;
 - TSRE log;
 - OpenRailsLog;
-- screenshots in TSRE, MSTS, and Open Rails.
+- screenshots in TSRE and Open Rails, plus MSTS only if a usable installation
+  later becomes available.
 
 Run:
 
 1. TSRE save/reload.
-2. Native MSTS route load.
-3. Native MSTS TDB/RDB rebuild where safe.
-4. Open Rails route load with no custom profiles.
-5. Open Rails with both rail and road profiles.
-6. A road vehicle pass over the generated RDB section.
+2. Open Rails route load with no custom profiles.
+3. Open Rails with both rail and road profiles.
+4. A road vehicle pass over the generated RDB section.
+5. Optionally load/rebuild in native MSTS if a usable editor installation
+   becomes available; this is not an acceptance gate.
 
 ## Compatibility Questions To Answer
 
-- Which native `StaticFlags` bit identifies rail versus road DynTrack?
-- Does MSTS accept road DynTrack at all, and does rebuild retain it?
+- Which explicit TSRE database marker does Task 06 write, and does Open Rails
+  read it reliably?
 - Does Open Rails log a TDB/RDB/world-object mismatch?
 - Does a road DynTrack render once, disappear, or render as rail?
 - Can same-`UiD` rail/RDB objects cross-match in the superelevation dictionary?
 - Does CarSpawner traverse the new road vector normally?
-- Does Open Rails ignore a TSRE `ShapeTemplate` token safely?
-- Does native MSTS ignore that token safely?
+- Does Open Rails resolve a TSRE `ShapeTemplate` token as designed?
 - Does the Ruler-generated RDB reference load cleanly despite having no
   corresponding DynTrack world object, and how does that differ in logs from
   the real road DynTrack?
 
-## Proposed Open Rails Design
+## Milestone B - Road DynTrack Design
 
 Open Rails needs a database/network resolver for DynTrack before profile
 selection.
 
 Minimal compatible approach:
 
-1. Decode the confirmed native MSTS rail/road flag from `StaticFlags`.
+1. Read the explicit rail/road marker established by Task 06; also decode a
+   native `StaticFlags` rule later if reliable evidence is found.
 2. Add `TrackNetworkKind` or equivalent to the parsed DynTrack object.
 3. Keep rail DynTrack on profile index `0` for compatibility.
-4. For road DynTrack, select a named/default road profile:
-   - preferably `TrProfileRoad`;
-   - otherwise a profile explicitly marked for roads;
-   - otherwise a built-in simple road profile;
-   - finally fall back to profile `0` with a warning.
-5. Skip wire and rail superelevation lookup for road DynTrack.
-
-If TSRE writes a compatible `ShapeTemplate` extension and Open Rails accepts
-it, an enhanced resolver may use:
-
-1. explicit profile file stem/name;
-2. network default;
-3. legacy profile `0`.
+4. Apply milestone A's explicit `ShapeTemplate` selection before any default.
+5. For road DynTrack without an explicit template, select a configured or
+   built-in road default, finally falling back visibly to profile `0` with a
+   warning.
+6. Skip wire and rail superelevation lookup for road DynTrack.
 
 Do not make Open Rails understand TSRE's full advanced template format. It
-only needs a stable mapping to its own track profiles.
+only resolves the `ShapeTemplate` name against its own track profiles.
 
 ## Alternative Without Open Rails Changes
 
@@ -200,19 +237,26 @@ change or accepted extension is required for full compatibility.
 Report:
 
 1. exact Open Rails commit reviewed;
-2. runtime results for every fixture variant;
-3. relevant OpenRailsLog warnings/exceptions;
-4. screenshots or a concise visual comparison;
-5. confirmed `StaticFlags` interpretation;
-6. proposed parsed data field and profile-selection API;
-7. whether the change belongs upstream or should remain a TSRE compatibility
-   patch;
+2. the preserved local VS Code build modifications;
+3. milestone A parsing, selection, fallback, and runtime results;
+4. relevant OpenRailsLog warnings/exceptions;
+5. screenshots or a concise multi-profile visual comparison;
+6. later road-fixture results and any supported `StaticFlags` interpretation;
+7. whether each change belongs upstream or should remain a local TSRE
+   compatibility patch;
 8. automated tests that can be added to Open Rails.
 
-Do not start implementation until the fixture confirms the native flag rule.
+Milestone A does not depend on a native road flag and may be implemented
+before the road fixture. Do not guess a road `StaticFlags` value in milestone
+B.
 
 ## Acceptance Criteria
 
+- Open Rails reads TSRE's DynTrack `ShapeTemplate` token.
+- A valid name selects the matching ORTS profile without special naming
+  syntax.
+- Missing or invalid values retain original Open Rails profile-selection
+  behavior.
 - Current Open Rails behavior is verified at runtime, not inferred only from
   source.
 - A road DynTrack cannot accidentally use rail wire/superelevation logic.

@@ -20,30 +20,35 @@ The intended end state is:
   the database default;
 - unresolved template names fall back safely instead of producing an invisible
   object;
-- the internal database API can represent more than the two MSTS databases,
-  while MSTS serialization continues to use its standard rail and road files.
+- the new database-selection boundary does not make a future third database
+  unnecessarily difficult, while this work implements only MSTS TDB and RDB.
 
 ## Status
 
 Research complete enough to split implementation into Tasks 06-08. No runtime
 code has been changed by this task.
 
-One format detail remains deliberately unconfirmed: the project assumes that
-MSTS uses a DynTrack `StaticFlags` bit to distinguish rail from road, but the
-exact bit-level road/rail contract has not been verified against native MSTS.
-TSRE currently initializes DynTrack with `0x00100000`; all DynTracks sampled
-from the locally available routes use the same value. Open Rails parses this
-value but does not assign a meaning to bit `0x00100000`.
+The supplied CMK `TrackObj` records establish the relevant static convention:
+normal rail records use `00200180`, while normal road records use
+`00200100`. The differentiating `0x80` bit is therefore the TrackObj
+rail/TDB-versus-road/RDB candidate; the shared `0x100` bit is not the
+separator.
 
-Do not encode a road flag rule until the controlled MSTS fixture in Task 06 has
-been completed.
+Native MSTS never provided a usable road DynTrack workflow from which to
+derive the corresponding DynTrack encoding. The 1,346 sampled DynTrack
+records all use `00100000`, so the static convention cannot simply be copied
+onto DynTrack without defining legacy behavior.
+
+This uncertainty does not block the first profile-rendering milestones.
+Task 06 must preserve the raw flags and use an explicit TSRE runtime database
+choice until a road encoding is established by a controlled TSRE/ORTS fixture.
 
 ## Current TSRE Findings
 
 ### Static `TrackObj`
 
-Static track and road objects already share `TrackObj`. Database selection does
-not use `StaticFlags`; it uses:
+Static track and road objects already share `TrackObj`. Current TSRE database
+selection ignores their `StaticFlags` convention and uses:
 
 ```text
 TSectionDAT::isRoadShape(track->sectionIdx)
@@ -56,8 +61,30 @@ Relevant paths:
 - `Route::setTerrainToTrackObj(...)`
 - `TrackShape::roadshape`
 
-This works because a static `TrackObj` has a `SectionIdx` whose `TrackShape`
-can carry `RoadShape`.
+This usually appears to work because a static `TrackObj` has a `SectionIdx`
+whose `TrackShape` can carry `RoadShape`, but shape appearance and database
+ownership are not equivalent.
+
+For strictly named CMK world tiles, correlating `TrackObj.SectionIdx` with the
+global `RoadShape` marker found:
+
+```text
+rail shape + 00200180: 22,309
+rail shape + 00200100:    469
+road shape + 00200100:  6,513
+road shape + 00200180:    791
+```
+
+The minority combinations are important: they allow a rail-looking shape to
+belong to RDB or a road-looking shape to belong to TDB. Current TSRE instead
+routes them by `RoadShape`, which explains why the route can contain
+shape/flag/database disagreements.
+
+Open Rails documents only the general `StaticFlag` members for shadows,
+terrain, animation, and `Global`. It does not name `0x80` or `0x100`, treats
+every `TrackObj` as global scenery regardless of the `Global` bit, and uses
+`TrackShape.RoadShape` for wire/superelevation filtering. It therefore does
+not currently implement the TrackObj database bit either.
 
 ### `DynTrackObj`
 
@@ -77,18 +104,17 @@ flags to select its database.
 ### Dynamic TSection Shapes
 
 `TDB::fillDynTrack(...)` creates or reuses route-specific TSection entries and
-a dynamic `TrackShape`. Its current lookup compares only geometry.
+a dynamic `TrackShape`. Its lookup compares geometry.
 
-For road support this has two consequences:
+Sharing these definitions between rail and road is valid: local TSection
+records describe geometry, not database ownership. The existing Ruler road
+path implementation already calls `roadDB->fillDynTrack(...)` successfully
+without road-specific TSection copies. TDB versus RDB ownership belongs to the
+placed vector/object relationship, not to the shared section definition.
 
-- a rail and road DynTrack with identical geometry can accidentally share one
-  dynamic `TrackShape`;
-- newly created dynamic shapes set `dyntrack = true` but do not set
-  `roadshape = true`.
-
-The dynamic-shape cache identity must therefore include database/network kind,
-and road dynamic shapes must be marked as road shapes where that remains part
-of the compatibility model.
+Do not add network kind to the dynamic-shape cache or duplicate identical
+TSections merely because one consumer is road. A road marker is needed only
+where a specific static `TrackShape` or compatibility format requires one.
 
 ### Existing Ruler Road Paths
 
@@ -147,6 +173,30 @@ Problems:
 - `shapetemplates.dat` is loaded only from application data, while referenced
   OBJ and texture assets can be overridden by a route.
 
+Replace the boolean with three modes while preserving old configuration:
+
+```text
+Forced  (legacy true)
+    Always generate procedurally.
+    Empty/DEFAULT -> default procedural template/profile.
+    Valid custom name -> selected procedural template/profile.
+    Missing custom name -> warn and use the default procedural result.
+
+Enabled
+    Empty/DISABLED -> static shape, or DynTrack hardcoded mesh.
+    DEFAULT -> default procedural template/profile.
+    Valid custom name -> selected procedural template/profile.
+    Missing custom name -> warn and use the static/hardcoded result.
+
+Disabled (legacy false)
+    Always use static shapes, or the DynTrack hardcoded mesh.
+```
+
+This resolves the missing-name ambiguity without allowing an object to become
+invisible. Existing `true` maps to `Forced`; existing `false` maps to
+`Disabled`. `Enabled` is the new opt-in per-object mode.
+
+
 ## Current Open Rails Findings
 
 The local Open Rails source is at:
@@ -156,9 +206,11 @@ C:\Users\pgade\Documents\NetbeansProjects\openrails
 ```
 
 The tracked source baseline reviewed was commit
-`91414172dea8f16c08e587f2792264110aaabab1`. The working tree contains unrelated
-local changes, so a future agent should record its own baseline before
-repeating or extending the review.
+`91414172dea8f16c08e587f2792264110aaabab1`. Its working tree is intentionally
+modified so Open Rails can compile under VS Code instead of the official
+Visual Studio setup. These local build adaptations must be preserved and must
+not be proposed for upstream commit. A future agent should record both the
+tracked baseline and local diff before extending the review.
 
 Open Rails:
 
@@ -235,25 +287,25 @@ long-term design.
 
 ## Profile Resolution Contract
 
-Use one centralized, case-insensitive resolver:
+Use one centralized, case-insensitive resolver governed by the three rendering
+modes above:
 
-1. If an explicit template/profile name is present:
-   1. match a TSRE procedural template;
-   2. otherwise match an Open Rails profile identifier;
-   3. otherwise emit one warning and use the network default.
-2. If no explicit name or `DEFAULT` is present:
-   1. use the default rail profile for rail;
-   2. use the default road profile for road.
-3. During migration only, a named `LEGACY` mode may invoke the existing
-   hardcoded rail generator.
+1. `ShapeTemplate DEFAULT` selects the default procedural template/profile.
+2. A custom `ShapeTemplate` name first matches a TSRE procedural template,
+   then an Open Rails profile.
+3. An empty value or `DISABLED` selects the static/hardcoded path in
+   `Enabled` mode.
+4. A missing custom name falls back to procedural default in `Forced` mode,
+   and to static/hardcoded rendering in `Enabled` mode.
+5. `Disabled` mode ignores template selection and uses static/hardcoded
+   rendering.
 
-For Open Rails profiles, the canonical identifier should be the file stem
-(`TrProfile`, `TrProfileRoad`, and so on). The profile's internal `Name` may be
-accepted as an alias only when unique.
-
-`DISABLED` should not silently mean “invisible DynTrack.” Either remove it from
-the DynTrack UI or reserve it as an explicit diagnostic no-mesh mode. It must
-not be selected accidentally as a fallback.
+Do not invent source-qualified names or special ORTS-only metadata. TSRE stores
+the ordinary selected name in `ShapeTemplate`. The TSRE resolver may use an
+ORTS profile file stem and its declared name as lookup aliases, with TSRE
+templates winning an ambiguous name. Open Rails should read the same
+`ShapeTemplate` value and resolve it directly against its own profile catalog;
+when the token is absent it retains its original profile-guessing behavior.
 
 ## Additional Challenges
 
@@ -267,8 +319,14 @@ not be selected accidentally as a fallback.
 - Texture lookup differs: TSRE procedural assets currently use
   `route/procedural`, while Open Rails profiles normally reference route
   textures and alternative texture rules.
-- Profile caches must include profile identity, network kind, geometry,
-  superelevation state, and any LOD-affecting settings.
+- The TSRE advanced-template generator may retain its existing material,
+  texture, and geometry conventions. The separate ORTS profile backend in
+  TSRE must follow ORTS profile behavior closely enough that the same profile
+  renders equivalently in both programs.
+
+- Profile caches must include resolved profile identity, geometry,
+  superelevation state, and any LOD-affecting settings. Database kind alone
+  need not split otherwise identical generated geometry.
 - Generated geometry must retain the last complete mesh during rebuilds, as
   established by the live Flex work.
 - Invalid profiles need warnings and deterministic fallback, not crashes or
@@ -276,39 +334,49 @@ not be selected accidentally as a fallback.
 - A mixed route can contain identical world-object `UiD` values in separate
   databases; membership checks must include database identity.
 - Undo still does not transactionally capture dynamic TSection creation.
-- MSTS and Open Rails may ignore TSRE-only `ShapeTemplate` metadata. If native
-  MSTS rejects an extension token, TSRE profile choice needs a route sidecar
-  rather than an extra DynTrack world-file token.
-- More-than-two databases are a TSRE extension unless a separate serialization
-  format is defined. Standard MSTS export remains limited to TDB and RDB.
+- Save `ShapeTemplate` directly in the world object. MSTS ignores unknown
+  tokens, so a sidecar is not required for this value. Task 08 adds explicit
+  Open Rails parsing and selection behavior for the token.
+- More-than-two databases are not an implementation goal for this work.
+  Standard MSTS export remains limited to TDB and RDB. New APIs should avoid
+  unnecessary two-database assumptions where practical, but no registry-wide
+  rewrite or custom database persistence is required now.
 
 ## Task Breakdown
 
-1. **Task 06 - Track Database Targeting And Registry**
-   - establish the MSTS StaticFlags contract;
-   - give DynTrack explicit database identity;
-   - route all Flex/TDB operations through that identity;
-   - introduce a registry API which does not hardcode only IDs 0 and 1.
-2. **Task 07 - Procedural Track Profile Pipeline**
-   - formalize default/forced/fallback behavior;
-   - add Open Rails STF/XML profile parsing and generic cross-section sweep;
-   - provide bundled default rail and road profiles;
-   - retire the hardcoded DynTrack mesh after parity is demonstrated.
-3. **Task 08 - Open Rails Road DynTrack Compatibility**
-   - build a controlled mixed route;
-   - verify current behavior in MSTS and Open Rails;
-   - define or implement the smallest Open Rails change needed for road profile
-     selection.
+1. **Task 07 - Procedural Track Profile Pipeline**
+   - implement `Forced`, `Enabled`, and `Disabled` rendering rules;
+   - add missing DynTrack template selection UI and persistence;
+   - add faithful Open Rails STF/XML profile rendering in TSRE;
+   - retain the hardcoded DynTrack mesh as fallback.
+2. **Task 08 - Open Rails ShapeTemplate And Road Compatibility**
+   - first make Open Rails read `ShapeTemplate` and select the named ORTS
+     profile, retaining its current guessing behavior when absent;
+   - later build the controlled mixed rail/road fixture and add road-aware
+     database/profile behavior.
+3. **Task 06 - Track Database Targeting**
+   - give DynTrack explicit TDB/RDB identity;
+   - route Flex placement and snapping through that identity;
+   - keep future extensibility in mind without implementing a general database
+     registry now.
 
 ## Recommended Order
 
-1. Complete the MSTS/ORTS compatibility fixture from Task 08 far enough to
-   confirm the StaticFlags rule.
-2. Implement Task 06 without changing rendering.
-3. Verify rail Flex remains unchanged and road paths enter RDB.
-4. Implement Task 07 behind an experimental profile backend.
-5. Verify mixed rail/road routes in TSRE, MSTS, and Open Rails.
-6. Only then remove the hardcoded default rail generator.
+1. Implement Task 07's three rendering modes, missing DynTrack template UI,
+   `ShapeTemplate` persistence, and ORTS profile backend in TSRE.
+   Acceptance: TSRE can select several TSRE/ORTS profiles and render each
+   correctly while static/hardcoded fallback remains available.
+2. Implement Task 08 milestone A in Open Rails: read `ShapeTemplate`, select
+   the named ORTS profile, and retain the original guessing code when the token
+   is absent or unusable.
+   Acceptance: Open Rails displays multiple profiles selected by TSRE in one
+   route.
+3. Implement Task 06's minimal explicit Rail/Road database identity and road
+   Flex placement, without a general registry rewrite.
+4. Complete Task 08's mixed TDB/RDB runtime fixture and the smallest road-aware
+   Open Rails change.
+5. Retire the hardcoded rail generator only as a later optional cleanup after
+   profile parity and compatibility are demonstrated.
 
 ## Research Exit Criteria
 
@@ -317,5 +385,5 @@ not be selected accidentally as a fallback.
 - Standard MSTS export and TSRE extension limits are explicit.
 - Open Rails behavior is described from source, not assumed.
 - Track profile documentation and source entry points are identified.
-- Implementation is split so database correctness can be tested before the
-  rendering backend changes.
+- Implementation is split into small, independently demonstrable rendering,
+  Open Rails selection, database-targeting, and road-compatibility milestones.
