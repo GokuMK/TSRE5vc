@@ -16,6 +16,7 @@ class QPainter;
 class QImage;
 class QLabel;
 class QPen;
+class TDB;
 
 class Flex {
 public:
@@ -27,7 +28,9 @@ public:
     static bool OffsetWorldPose(int sourceTileX, int sourceTileZ, const float *sourcePosition, const float *sourceQuaternion, float rightOffset, int &targetTileX, int &targetTileZ, float *targetPosition, float *targetQuaternion);
     static bool ParallelDyntrackSections(const float *sourceSections, float rightOffset, float *targetSections);
     static float TdbYawFromTrackQuaternion(const float *q);
-    static bool AutoFlex(int x1, int z1, float* p1, int x2, int z2, float* p2, float* dyntrackSections, float &elev, float preferredMinCurveRadius = 0.0f);
+    static bool AutoFlex(TDB *tdb, int x1, int z1, float* p1,
+            int x2, int z2, float* p2, float* dyntrackSections,
+            float &elev, float preferredMinCurveRadius = 0.0f);
 private:
     static int FlexStage;
     static float FlexP0[3];

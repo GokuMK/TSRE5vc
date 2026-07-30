@@ -35,6 +35,7 @@ public slots:
     void selectToolEnabled(bool val);
     void placeToolEnabled(bool val);
     void continuousFlexToolEnabled(bool val);
+    void continuousFlexRoadToolEnabled(bool val);
     void continuousFlexOptionsButtonEnabled(bool val);
     void continuousFlexOptionsChanged();
     void autoPlacementButtonEnabled(bool val);
@@ -95,6 +96,8 @@ private:
     QCheckBox continuousFlexLeft;
     QCheckBox continuousFlexRight;
     QDoubleSpinBox continuousFlexSeparation;
+    bool continuousFlexRoadOptions = false;
+    double continuousFlexTrackSeparation = 4.0;
     QLineEdit autoPlacementPosX;
     QLineEdit autoPlacementPosY;
     QLineEdit autoPlacementPosZ;
@@ -104,7 +107,9 @@ private:
     QLineEdit autoSnapableRadius;
     QComboBox autoPlacementRotType;
     QComboBox autoPlacementTarget;
-    
+
+    void enableContinuousFlexTool(bool road, bool enabled);
+
 };
 
 #endif	/* TOOLBOX_H */

@@ -774,8 +774,11 @@ bool Flex::NewFlexToPoint(
     return true;
 }
 
-bool Flex::AutoFlex(int x1, int z1, float* p1, int x2, int z2, float* p2, float* dyntrackSections, float &elev, float preferredMinCurveRadius){
-    TDB* tdb = Game::trackDB;
+bool Flex::AutoFlex(TDB *tdb, int x1, int z1, float* p1,
+        int x2, int z2, float* p2, float* dyntrackSections,
+        float &elev, float preferredMinCurveRadius){
+    if(tdb == NULL)
+        return false;
     qDebug() <<"flex "<< x1 << " " << z1 << " " << p1[0] << " " << p1[1] << " " << p1[2];
     qDebug() <<"flex "<< x2 << " " << z2 << " " << p2[0] << " " << p2[1] << " " << p2[2];
 

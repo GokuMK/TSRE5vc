@@ -14,6 +14,29 @@ general multi-database registry as part of this task.
 Design adjusted after review. Deferred until the first TSRE and Open Rails
 profile-selection milestones in Tasks 07 and 08 are complete.
 
+Implementation started with an isolated ordinary-placement milestone:
+
+- route and addon REF files remain authoritative for existing Dyntrack entries;
+- existing unmarked Dyntrack REF entries are treated as rail;
+- TSRE supplies missing rail and road Dyntrack list entries after REF merging;
+- the road entry carries `StaticFlags ( 00100100 )` in memory;
+- the Dyntrack properties panel reports its resolved TDB/RDB owner;
+- ordinary placement and `Z` insertion resolve road Dyntrack to RDB;
+- the selected-object Flex button resolves its endpoint lookup from the
+  Dyntrack owner, so road objects use RDB without changing Continuous Flex;
+- newly placed road Dyntrack explicitly requests
+  `ShapeTemplate ( default_road_single )`;
+
+Continuous Flex now exposes adjacent `FLEX TRACK` and `FLEX ROAD` buttons.
+Road mode marks the main and companion Dyntracks as road, snaps preview only
+to RDB endpoints, inserts accepted segments into RDB, and continues with the
+same owner. Road mode requests the route-local `default_road` profile. The
+continuous main profile is a crowned three-metre lane using `road.ace`,
+raised above its datum to clear terrain and with no road superelevation.
+Profile discovery accepts the established `TrProfile*` convention plus
+reserved `default_*` profile IDs, allowing a future `default_track` without
+renaming the file.
+
 Native MSTS road DynTrack was not available as a complete editor feature, so
 the task is not blocked on reproducing one in the native Route Editor.
 
@@ -224,6 +247,110 @@ For v1:
 
 The geometry solvers remain database-independent. Pass endpoint poses into
 them; do not give `Flex::NewFlex(...)` global database access.
+
+## Multilane Road Profile Families
+
+The initial route test family is now implemented as:
+
+```text
+default_road          main three-metre Flex Road lane
+default_road_single   standalone four-metre road
+default_road_left     left role of a three-metre lane group
+default_road_middle   internal role of a three-metre lane group
+default_road_right    right role of a three-metre lane group
+```
+
+The three-metre main profile preserves both outside portions of `road.ace`
+instead of scaling or cropping its outside edges. It uses two polylines that
+meet at the road centre: one samples U `0..0.375`, the other `0.625..1`.
+The unused middle U range is therefore removed without overlapping geometry
+or stretching either 1.5 m half. This retains both road sides at the same
+visual scale as the left and right lane roles.
+
+The grouped left, middle, and right profiles sample U ranges `0..0.75`,
+`0.125..0.875`, and `0.25..1`, respectively. U is written in reverse
+profile-X order to account for TSRE's profile-to-shape X orientation;
+otherwise both side strips appear at internal lane seams. Longitudinal V
+advances by `1/6` per metre, giving a six-metre texture repeat.
+
+Every three-metre role uses the same cross-section: 4 cm above the Dyntrack
+datum at both edges and a shallow 6 cm centre crown. This keeps longitudinal
+connections compatible as a segment changes between main, left, middle, or
+right roles. Adjacent lanes meet at equal-height shared edges and have no
+overlapping surface area.
+
+An optional `default_road_marked` family uses `road2lane.ace`. Its
+three-metre main profile uses the same split construction as `default_road`:
+U `0..0.26` and `0.76..1` preserve both solid outside markings while
+discarding the dashed centre marking. These asymmetric retained widths match
+the U-per-metre scales of the marked left (`0..0.52` over 3 m) and right
+(`0.52..1` over 3 m) roles, keeping both solid edge lines the same apparent
+thickness. `default_road_marked_single` preserves the original full-width,
+two-lane texture.
+
+The grouped marked left and middle roles end at U `0.52`; the right role
+begins there, so the lane immediately left of each internal seam owns the
+dashed divider. The middle role starts at U `0.08` to omit the outside solid
+edge while retaining approximately one lane's texture scale.
+
+This sampling overlap exists only in UV space; the meshes still meet at one
+exact edge and cannot z-fight. The marked family is currently available for
+manual `ShapeTemplate` testing; FLEX ROAD continues to resolve the unmarked
+family until a family selector is implemented.
+
+Commit-ready example files for both families are stored in
+`docs/examples/track-profiles/`. Copy the desired files into the route's
+`TrackProfiles` directory; route-local files remain the runtime authority.
+
+FLEX ROAD resolves these roles automatically and locks companion separation
+to the family's three-metre lane width. Ordinary standalone road placement
+uses `default_road_single`.
+
+Future profile-family UI should select the family, not four unrelated raw profiles.
+Each generated Dyntrack must nevertheless persist the resolved role profile
+in its own `ShapeTemplate`, so save/reload does not depend on reconstructing
+the original placement session.
+
+Role assignment for the current main-plus-companions tool is deterministic:
+
+```text
+main only:             main = default/main
+main + right:          main = left,   right = right
+left + main:           left = left,   main = right
+left + main + right:   left = left,   main = middle, right = right
+```
+
+Additional lanes can reuse `_middle`. Numeric lane counts per side and
+persisted corridor/group ownership are later work.
+
+All profiles in one family must share:
+
+- lane width and centerline separation;
+- surface height;
+- `ChordSpan`, pitch control, and subdivision settings;
+- longitudinal texture scale;
+- compatible start/end treatment.
+
+The top surface of one lane should end exactly where the next begins. Do not
+add overlapping coplanar asphalt strips to hide seams: they will flicker.
+Only `_left` and `_right` should add their outward shoulder, verge, kerb, or
+side wall; `_middle` must not add outer-edge geometry.
+
+For the first version, bake lane markings into each role texture. Separate
+marking meshes need an explicit decal/depth-bias render path before use;
+arbitrary vertical offsets are not a stable general solution.
+
+Seamless multilane placement should lock separation to the profile family's
+lane width. Arbitrary separation remains useful for independent parallel
+roads, but then gaps or overlaps are intentional and the tool must not call
+the result a seamless multilane corridor.
+
+Parallel curves can share a seam when all roles use the same angular
+subdivision and companion radii are derived from the same centerline.
+Placement must reject an inner offset that makes its radius invalid. Merges,
+lane-count transitions, intersections, and junction surface infill require
+dedicated transition objects or generators and are outside this profile
+suffix convention.
 
 ## Future Database Extensibility
 

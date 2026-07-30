@@ -53,6 +53,7 @@ private:
     QSignalMapper dyntrackChSect;
     QSignalMapper dyntrackSect;
     QLineEdit eSectionIdx;
+    QLineEdit eDatabase;
     QComboBox eTemplate;
     
     QComboBox elevType;

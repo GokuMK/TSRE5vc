@@ -30,6 +30,8 @@
 #include <tsre/procedural/OrtsTrackProfile.h>
 #include <tsre/procedural/OrtsTrackProfileRenderer.h>
 #include <tsre/tests/RouteLoadTestSuite.h>
+#include <tsre/world/Ref.h>
+#include <tsre/world/objects/DynTrackObj.h>
 
 namespace {
 
@@ -997,6 +999,79 @@ static int runProceduralPolicySuite(bool verbose) {
     return failed == 0 ? 0 : 1;
 }
 
+static int runDynTrackRoadSuite(bool verbose) {
+    int passed = 0;
+    int failed = 0;
+
+    auto check = [&](bool condition, const char *name) {
+        if(condition){
+            passed++;
+            if(verbose)
+                qInfo() << "[tests:dyntrack-road] PASS" << name;
+        } else {
+            failed++;
+            qWarning() << "[tests:dyntrack-road] FAIL" << name;
+        }
+    };
+
+    check(!DynTrackObj::isRoadStaticFlags(
+                  DynTrackObj::DefaultStaticFlags),
+          "rail-static-flags");
+    check(DynTrackObj::isRoadStaticFlags(
+                  DynTrackObj::RoadStaticFlags),
+          "road-static-flags");
+
+    Ref generated;
+    generated.ensureDynTrackItems();
+    generated.ensureDynTrackItems();
+    int generatedRail = 0;
+    int generatedRoad = 0;
+    for(auto it = generated.refItems.begin();
+            it != generated.refItems.end(); ++it){
+        for(const Ref::RefItem &item : it.value()){
+            if(item.type != "dyntrack")
+                continue;
+            if(DynTrackObj::isRoadStaticFlags(item.staticFlags))
+                generatedRoad++;
+            else
+                generatedRail++;
+        }
+    }
+    check(generatedRail == 1 && generatedRoad == 1,
+          "generate-missing-items-once");
+
+    QString serialized;
+    QTextStream generatedStream(&serialized);
+    generated.saveToStream(&generatedStream);
+    generatedStream.flush();
+    check(serialized.trimmed().isEmpty(),
+          "generated-items-are-transient");
+
+    Ref legacy;
+    Ref::RefItem legacyRail;
+    legacyRail.type = "dyntrack";
+    legacyRail.clas = "Dynamic track";
+    legacyRail.filename.push_back("DYNTRACK");
+    legacy.refItems[legacyRail.clas].push_back(legacyRail);
+    legacy.ensureDynTrackItems();
+
+    int legacyRailCount = 0;
+    int legacyRoadCount = 0;
+    for(const Ref::RefItem &item : legacy.refItems["Dynamic track"]){
+        if(DynTrackObj::isRoadStaticFlags(item.staticFlags))
+            legacyRoadCount++;
+        else
+            legacyRailCount++;
+        check(item.value == -1, "dyntrack-ref-has-no-trackshape");
+    }
+    check(legacyRailCount == 1 && legacyRoadCount == 1,
+          "legacy-rail-kept-road-added");
+
+    qInfo() << "[tests:dyntrack-road] cases=" << (passed + failed)
+            << "passed=" << passed << "failed=" << failed;
+    return failed == 0 ? 0 : 1;
+}
+
 static int runOrtsProfileSuite(bool verbose) {
     const QString stf =
             "SIMISA@@@@@@@@@@JINX0p0t______\n"
@@ -1227,6 +1302,8 @@ static int runOrtsProfileSuite(bool verbose) {
                       + "/TrackProfiles/TrProfileDual.stf");
         QFile xmlFile(temporaryDirectory.path()
                       + "/TrackProfiles/TrProfileDual.xml");
+        QFile defaultFile(temporaryDirectory.path()
+                          + "/TrackProfiles/default_road.stf");
         precedenceOk = stfFile.open(QIODevice::WriteOnly)
                 && stfFile.write(stf.toUtf8()) > 0;
         stfFile.close();
@@ -1235,6 +1312,11 @@ static int runOrtsProfileSuite(bool verbose) {
         precedenceOk = precedenceOk && xmlFile.open(QIODevice::WriteOnly)
                 && xmlFile.write(precedenceXml.toUtf8()) > 0;
         xmlFile.close();
+        QString defaultRoadStf = stf;
+        defaultRoadStf.replace("Test profile", "Default Road");
+        precedenceOk = precedenceOk && defaultFile.open(QIODevice::WriteOnly)
+                && defaultFile.write(defaultRoadStf.toUtf8()) > 0;
+        defaultFile.close();
         OrtsTrackProfileCatalog::load(temporaryDirectory.path(), true);
         const QSharedPointer<const OrtsTrackProfile> selected =
                 OrtsTrackProfileCatalog::find("TrProfileDual");
@@ -1243,6 +1325,11 @@ static int runOrtsProfileSuite(bool verbose) {
         precedenceOk = precedenceOk && selected != nullptr
                 && selected->name == "XML wins"
                 && alias != nullptr && alias->id == "TrProfileDual";
+        const QSharedPointer<const OrtsTrackProfile> defaultRoad =
+                OrtsTrackProfileCatalog::find("default_road");
+        check(defaultRoad != nullptr
+              && defaultRoad->name == "Default Road",
+              "default-profile-filename");
 
         QStringList availableNames = OrtsTrackProfileCatalog::selectionNames();
         const QStringList globalNames = {
@@ -1280,7 +1367,14 @@ static int runOrtsProfileSuite(bool verbose) {
 } // namespace
 
 QStringList TsreTests::listSuites() {
-    return {"flex", "flex-point", "orts-profile", "procedural-policy", "route-load"};
+    return {
+        "dyntrack-road",
+        "flex",
+        "flex-point",
+        "orts-profile",
+        "procedural-policy",
+        "route-load"
+    };
 }
 
 int TsreTests::run(const TestRunOptions &opts) {
@@ -1300,6 +1394,9 @@ int TsreTests::run(const TestRunOptions &opts) {
     if (suite == "procedural-policy")
         return runProceduralPolicySuite(opts.verbose);
 
+    if (suite == "dyntrack-road")
+        return runDynTrackRoadSuite(opts.verbose);
+
     if (suite == "orts-profile")
         return runOrtsProfileSuite(opts.verbose);
 
@@ -1308,6 +1405,7 @@ int TsreTests::run(const TestRunOptions &opts) {
         rc = std::max(rc, runFlexSuite(opts.casesFile, opts.verbose));
         rc = std::max(rc, runFlexPointSuite(opts.verbose));
         rc = std::max(rc, runProceduralPolicySuite(opts.verbose));
+        rc = std::max(rc, runDynTrackRoadSuite(opts.verbose));
         rc = std::max(rc, runOrtsProfileSuite(opts.verbose));
         rc = std::max(rc, runRouteLoadSuite(opts));
         return rc;

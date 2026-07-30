@@ -57,6 +57,7 @@ DynTrack may contain both the legacy DynTrack bit and the road bit.
 
 ```text
 TrackProfiles/TrProfileRoad.stf -> TrProfileRoad
+TrackProfiles/default_road.stf -> default_road
 ```
 
 Resolve an explicit `ShapeTemplate` case-insensitively in this order:
@@ -81,17 +82,19 @@ explicit DynTrack name.
 | Invalid explicit name | Profile 0 and one useful warning |
 | `ShapeTemplate DEFAULT` | Profile 0 |
 | `ShapeTemplate DISABLED` | Profile 0 |
-| Road, no `ShapeTemplate` | `TrProfileRoad`, when present |
-| Road, missing `TrProfileRoad` | Profile 0 and one useful warning |
+| Road, no `ShapeTemplate` | `default_road`, then legacy `TrProfileRoad` |
+| Road, missing both road defaults | Profile 0 and one useful warning |
 
 An invalid explicit road name also falls back to profile 0. It must not
-silently select `TrProfileRoad`, because an explicit but invalid choice should
-have one deterministic compatibility fallback.
+silently select either implicit road default, because an explicit but invalid
+choice should have one deterministic compatibility fallback.
 
 The initial patch should not add a canned road cross-section to Open Rails.
 Falling back to profile 0 keeps the object visible and retains existing
-behavior. Routes that need the road default provide
-`TrackProfiles/TrProfileRoad.stf` or `.xml`.
+behavior. The profile loader accepts traditional `TrProfile*` files plus
+TSRE's reserved `default_*` IDs. Routes that need an implicit road default
+provide `TrackProfiles/default_road.stf`; `TrProfileRoad.stf` or `.xml`
+remains a compatibility fallback.
 
 ## Rendering Integration
 
@@ -158,7 +161,8 @@ Prepare one small pull request with three reviewable commits:
 
 2. **Add road DynTrack rendering behavior**
    - classify DynTrack road identity with `0x00000100`;
-   - use `TrProfileRoad` as the implicit road profile;
+   - load TSRE `default_*` profile IDs alongside traditional `TrProfile*`;
+   - use `default_road`, then `TrProfileRoad`, as the implicit road profile;
    - suppress rail superelevation lookup and overhead wire for roads;
    - retain a visible profile-0 fallback.
 
@@ -188,8 +192,8 @@ rail-only visual processing.
 | Selection by unique declared `TrProfile.Name` | Implemented, not visually tested | Requires a profile whose declared name differs from its filename |
 | Missing explicit name | Implemented, not visually tested | Falls back to profile 0 and warns once per name |
 | Ambiguous declared name | Implemented, not visually tested | Falls back to profile 0 and warns once per name |
-| Road DynTrack with `TrProfileRoad` | Implemented, pending assets and visual test | Requires an accepted road profile |
-| Road DynTrack without `TrProfileRoad` | Implemented, not visually tested | Remains visible with profile-0 fallback and warning |
+| Road DynTrack with explicit `default_road*` | Built, pending visual acceptance | Route `bbb` contains straight/curved plain and marked road objects |
+| Road DynTrack without an explicit template | Implemented, not visually tested | Uses `default_road`, then `TrProfileRoad`, then visible profile-0 fallback |
 | Mixed rail and road DynTracks | Pending visual test | Requires road test objects and profile |
 | Road DynTrack on an electrified route | Pending visual test | Must confirm no dynamic wire is generated |
 | Road and rail records sharing a `UiD` | Pending visual test | Must confirm the road skips TDB superelevation lookup |
@@ -207,7 +211,8 @@ wire, no road superelevation, and deterministic fallback behavior.
 
 ## Implementation Status
 
-Implemented and rail-tested in the local Open Rails worktree on 2026-07-30:
+Implemented and incrementally rebuilt in the local Open Rails worktree through
+2026-07-31:
 
 - `ShapeTemplate` is appended to `TokenID` and parsed by `DyntrackObj`;
 - subsection copies retain the template name;
@@ -235,9 +240,11 @@ visually accepted in Open Rails on route `bbb`.
 Explicit named-profile replacement of ordinary static rail TrackObjs was also
 visually accepted in both TSRE and Open Rails on route `bbb`.
 
-Road profile rendering remains pending visual acceptance until a suitable
-`TrProfileRoad` is available. The code currently uses the documented visible
-profile-0 fallback when it is absent.
+Road profile rendering is built and ready for visual acceptance. Route `bbb`
+contains `default_road*` profiles and road DynTracks with `StaticFlags (
+00100100 )` selecting plain, marked, and role templates. The compatibility
+loader now discovers those TSRE profile IDs directly. Missing road defaults
+still use the documented visible profile-0 fallback.
 
 ## Shareable Patch Scope
 
@@ -249,7 +256,7 @@ The functional patch is isolated to these five Open Rails runtime files:
 - `Source/RunActivity/Viewer3D/SuperElevation.cs`;
 - `Source/RunActivity/Viewer3D/Scenery.cs`.
 
-At the current local revision, this is 183 inserted lines and 39 deleted lines.
+At the current local revision, this is 190 inserted lines and 42 deleted lines.
 VS Code support files, project-file conversions, generated output, and other
 local worktree changes are not part of the feature patch.
 

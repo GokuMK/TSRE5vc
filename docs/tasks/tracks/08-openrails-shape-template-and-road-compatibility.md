@@ -14,17 +14,26 @@ cross-source review has already been completed and is recorded here.
 
 ## Status
 
-Static source review complete. Milestone A (`ShapeTemplate` profile selection)
-is ready after Task 07 can write and preview ORTS profiles. The road-database
-fixture and road-aware behavior are a later milestone.
+Milestones A and B are implemented in the local Open Rails worktree.
+Rail DynTrack and static TrackObj profile selection have been visually
+accepted. Road DynTrack rendering is built and ready for visual acceptance
+against route `bbb`.
 
-No Open Rails source has been modified.
+The road implementation:
+
+- parses `ShapeTemplate` and the DynTrack road bit;
+- loads traditional `TrProfile*` files and TSRE's reserved `default_*`
+  profile IDs;
+- resolves an explicit template by filename stem, then unique declared name;
+- uses `default_road`, then `TrProfileRoad`, for an unlabelled road DynTrack;
+- skips rail superelevation lookup and dynamic overhead wire for roads;
+- retains a visible profile-0 fallback with a warning.
 
 The tracked source baseline reviewed was commit
 `91414172dea8f16c08e587f2792264110aaabab1`. The Open Rails working tree is an
 intentional local variant adapted to compile under VS Code rather than the
-official Visual Studio setup. Preserve these local changes. They cannot be
-pushed upstream and were not modified during this research.
+official Visual Studio setup. Preserve those project/build changes separately
+from the five-file runtime feature patch.
 
 ## Source Review Result
 
@@ -128,7 +137,7 @@ Milestone A acceptance:
 - an invalid name stays visible through the original fallback and produces one
   useful warning.
 
-## Expected Current Behavior
+## Pre-implementation Behavior
 
 For a valid road DynTrack world object with matching RDB vectors:
 
@@ -140,7 +149,7 @@ For a valid road DynTrack world object with matching RDB vectors:
   accidentally matches the same tile and `UiD`;
 - road traffic behavior depends on the RDB path, not the visual profile.
 
-This is a source-based expectation, not yet a runtime result.
+This was the source-based expectation before Milestones A and B.
 
 ## Required Controlled Fixture
 

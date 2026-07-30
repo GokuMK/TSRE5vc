@@ -7,7 +7,7 @@ index feeaa93b3..baf6be91f 100644
          public uint CollideFlags;
          public JNodePosn JNodePosn;
 +        public string ShapeTemplate;
- 
+
          public TrackObj(SBR block, int detailLevel)
          {
 @@ -527,6 +528,7 @@ public override void AddOrModifyObj(SBR subBlock)
@@ -19,7 +19,7 @@ index feeaa93b3..baf6be91f 100644
                  case TokenID.Position: Position = new STFPositionItem(subBlock); break;
                  case TokenID.QDirection: QDirection = new STFQDirectionItem(subBlock); break;
 @@ -540,10 +542,14 @@ public override void AddOrModifyObj(SBR subBlock)
- 
+
      public class DyntrackObj : WorldObject
      {
 +        const uint RoadStaticFlag = 0x00000100;
@@ -30,7 +30,7 @@ index feeaa93b3..baf6be91f 100644
          public readonly TrackSections trackSections;
 +        public readonly string ShapeTemplate;
 +        public bool IsRoad { get { return (StaticFlags & RoadStaticFlag) != 0; } }
- 
+
          public DyntrackObj(SBR block, int detailLevel)
          {
 @@ -559,6 +565,7 @@ public DyntrackObj(SBR block, int detailLevel)
@@ -55,19 +55,19 @@ index e7415cc25..c12c24a6b 100644
 +++ b/Source/Orts.Parsers.Msts/TokenID.cs
 @@ -1720,7 +1720,8 @@ public enum TokenID : uint
          Flipped,
- 
+
          // TSRE specific
 -        Ruler
 +        Ruler,
 +        ShapeTemplate
      }
- 
+
  }
 diff --git a/Source/RunActivity/Viewer3D/DynamicTrack.cs b/Source/RunActivity/Viewer3D/DynamicTrack.cs
-index d6a402db9..c3fbcf69e 100644
+index d6a402db9..4171c0a19 100644
 --- a/Source/RunActivity/Viewer3D/DynamicTrack.cs
 +++ b/Source/RunActivity/Viewer3D/DynamicTrack.cs
-@@ -334,8 +334,112 @@ public static int GetBestTrackProfile(Viewer viewer, SharedShape shape)
+@@ -334,8 +334,113 @@ public static int GetBestTrackProfile(Viewer viewer, SharedShape shape)
      public class TRPFile
      {
          public TrProfile TrackProfile; // Represents the track profile
@@ -75,7 +75,7 @@ index d6a402db9..c3fbcf69e 100644
 +        static readonly HashSet<string> ProfileWarnings =
 +            new HashSet<string>(StringComparer.OrdinalIgnoreCase);
          //public RenderProcess RenderProcess; // TODO: Pass this along in function calls
- 
+
 +        static TRPFile FindNamedProfile(List<TRPFile> profiles, string name)
 +        {
 +            TRPFile fileMatch = profiles.FirstOrDefault(profile =>
@@ -115,13 +115,14 @@ index d6a402db9..c3fbcf69e 100644
 +                if (!isRoad)
 +                    return defaultProfile;
 +
-+                TRPFile roadProfile = FindNamedProfile(profiles, "TrProfileRoad");
++                TRPFile roadProfile = FindNamedProfile(profiles, "default_road")
++                    ?? FindNamedProfile(profiles, "TrProfileRoad");
 +                if (roadProfile != null)
 +                    return roadProfile.TrackProfile;
 +
 +                WarnProfileOnce("missing-road-profile",
-+                    "Road DynTrack profile TrProfileRoad was not found; " +
-+                    "using the default track profile.");
++                    "Road DynTrack profile default_road or TrProfileRoad was " +
++                    "not found; using the default track profile.");
 +                return defaultProfile;
 +            }
 +
@@ -180,7 +181,23 @@ index d6a402db9..c3fbcf69e 100644
          /// <summary>
          /// Creates a List<TRPFile></TRPFile> instance from a set of track profile file(s)
          /// (XML or STF) or canned. (Precedence is XML [.XML], STF [.STF], default [canned]).
-@@ -416,6 +520,8 @@ public static bool CreateTrackProfile(Viewer viewer, string routePath, out List<
+@@ -369,9 +474,12 @@ public static bool CreateTrackProfile(Viewer viewer, string routePath, out List<
+                 else // Add the canned (Kuju) track profile if no default is given
+                     trpFiles.Add(new TRPFile(viewer, ""));
+
+-                // Get all .xml/.stf files that start with "TrProfile"
+-                string[] xmlProfiles = Directory.GetFiles(path, "TrProfile*.xml");
+-                string[] stfProfiles = Directory.GetFiles(path, "TrProfile*.stf");
++                // ORTS profiles traditionally start with "TrProfile".
++                // TSRE reserves "default_*" for portable built-in profile IDs.
++                string[] xmlProfiles = Directory.GetFiles(path, "TrProfile*.xml")
++                    .Concat(Directory.GetFiles(path, "default_*.xml")).ToArray();
++                string[] stfProfiles = Directory.GetFiles(path, "TrProfile*.stf")
++                    .Concat(Directory.GetFiles(path, "default_*.stf")).ToArray();
+
+                 foreach (string xmlProfile in xmlProfiles)
+                 {
+@@ -416,6 +524,8 @@ public static bool CreateTrackProfile(Viewer viewer, string routePath, out List<
          /// <param name="filespec">Complete filepath string to track profile file.</param>
          public TRPFile(Viewer viewer, string filespec)
          {
@@ -224,7 +241,7 @@ index f9432a94b..ffc289122 100644
 -                        SuperElevationManager.DecomposeDynamicSuperElevation(viewer, dTrackList, (DyntrackObj)worldObject, worldMatrix);
 +                        SuperElevationManager.DecomposeDynamicSuperElevation(
 +                            viewer, dTrackList, dyntrackObj, worldMatrix);
- 
+
                      }
                      // Objects other than tracks
 diff --git a/Source/RunActivity/Viewer3D/SuperElevation.cs b/Source/RunActivity/Viewer3D/SuperElevation.cs
@@ -232,7 +249,7 @@ index 8e7041f3c..22499140b 100644
 --- a/Source/RunActivity/Viewer3D/SuperElevation.cs
 +++ b/Source/RunActivity/Viewer3D/SuperElevation.cs
 @@ -61,6 +61,11 @@ public static bool DecomposeStaticSuperElevation(Viewer viewer, TrackObj trackOb
- 
+
              bool dontRender = false; // Should this shape be left as a static object?
              bool removePhys = false; // Should superelevation physics be removed from this object?
 +            string requestedTemplate = trackObj.ShapeTemplate == null
@@ -241,12 +258,12 @@ index 8e7041f3c..22499140b 100644
 +                StringComparison.OrdinalIgnoreCase);
 +            bool explicitProcedural = false;
              SectionIdx[] SectionIdxs;
- 
+
              // Using the track object, determine the track sections
 @@ -90,37 +95,46 @@ public static bool DecomposeStaticSuperElevation(Viewer viewer, TrackObj trackOb
              // 0 = centered, positive = rotation axis moves to inside of curve, negative = moves to outside of curve
              float rollOffsetM = 0.0f;
- 
+
 -            // Determine the track profile to use for this section based on the shape file
 -            int trpIndex = DynamicTrackViewer.GetBestTrackProfile(viewer, shapeFilePath);
 -
@@ -312,18 +329,18 @@ index 8e7041f3c..22499140b 100644
              }
 -            else // No track profile suitable, don't render with superelevation
 -                dontRender = true;
- 
+
              // Right now it's not confirmed if superelevation viewers are actually needed, so they are added to a temporary list
              List<DynamicTrackViewer> tempViewers = new List<DynamicTrackViewer>();
 @@ -165,13 +179,15 @@ public static bool DecomposeStaticSuperElevation(Viewer viewer, TrackObj trackOb
                      {
                          superElevationSections.Add(tmp);
- 
+
 -                        if (!dontRender)
 +                        if (!dontRender && trProfile.ElevationType != TrProfile.SuperElevationMethod.None)
                          {
                              tmp.ElevOffsetM = rollOffsetM;
- 
+
                              // Processing done, prepare to generate section with superelevation
                              tempViewers.Add(new SuperElevationViewer(viewer, root, nextRoot, radius, length, trProfile, tmp.VisElevTable, tmp.ElevOffsetM, reversed));
                          }
@@ -339,33 +356,33 @@ index 8e7041f3c..22499140b 100644
 -            else if (superElevationSections.Count > 0 && tempViewers.Count > 0)
 +            else if ((superElevationSections.Count > 0 || explicitProcedural) && tempViewers.Count > 0)
                  dTrackList.AddRange(tempViewers);
- 
+
 -            // If no sections with superelevation were found, WorldFile should render with static shapes
 -            return superElevationSections.Count > 0;
 +            // Explicit templates also replace static shapes which have no superelevated sections.
 +            return superElevationSections.Count > 0 || explicitProcedural;
          }
- 
+
          /// <summary>
 @@ -519,6 +535,8 @@ public static void DecomposeDynamicSuperElevation(Viewer viewer, List<DynamicTra
- 
+
              // Right now it's not confirmed if superelevation viewers are actually needed, so they are added to a temporary list
              List<DynamicTrackViewer> tempViewers = new List<DynamicTrackViewer>();
 +            TrProfile trProfile = TRPFile.ResolveDynamicTrackProfile(
 +                viewer.TRPs, dTrackObj.ShapeTemplate, dTrackObj.IsRoad);
- 
+
              // Iterate through all subsections
              foreach (DyntrackObj.TrackSection dSection in dTrackObj.trackSections)
 @@ -554,13 +572,13 @@ public static void DecomposeDynamicSuperElevation(Viewer viewer, List<DynamicTra
                  localV = localProjectedV; // Move position to next subsection
- 
+
                  // To determine if this section needs superelevation, search for it in the global superelevation dictionary
 -                TrVectorSection tmp = FindSuperElevationSection(viewer, section, dTrackObj.UID, root, nextRoot, out bool reversed);
 +                bool reversed = false;
 +                TrVectorSection tmp = dTrackObj.IsRoad ? null :
 +                    FindSuperElevationSection(viewer, section, dTrackObj.UID,
 +                        root, nextRoot, out reversed);
- 
+
                  if (tmp != null) // Section does have superelevation
                  {
 -                    // FUTURE: Allow dynamic track to use track profiles other than the 0th one
@@ -382,5 +399,5 @@ index 8e7041f3c..22499140b 100644
 +                    tempViewers.Add(new SuperElevationViewer(
 +                        viewer, root, nextRoot, radius, length, trProfile));
              }
- 
+
              // Add all the generated sections to the main list

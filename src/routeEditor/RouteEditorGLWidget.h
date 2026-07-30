@@ -228,6 +228,7 @@ private:
     bool translateTool = false;
     bool liveFlexActive = false;
     bool continuousFlexMode = false;
+    bool continuousFlexRoadMode = false;
     bool liveFlexDeleteOnCancel = false;
     DynTrackObj *liveFlexObj = NULL;
     int liveFlexStartTileX = 0;

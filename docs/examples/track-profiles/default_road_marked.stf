@@ -1,0 +1,58 @@
+SIMISA@@@@@@@@@@JINX0p0t______
+
+TrProfile (
+    Name ( "Default Marked Road - Main Lane" )
+    LODMethod ( CompleteReplacement )
+    ChordSpan ( 1 )
+    PitchControl ( ChordLength )
+    PitchControlScalar ( 10 )
+    TrackGauge ( 3 )
+    SuperElevationMethod ( None )
+
+    LOD (
+        CutoffRadius ( 2000 )
+        LODItem (
+            Name ( "Marked main road lane" )
+            TexName ( "road2lane.ace" )
+            ShaderName ( TexDiff )
+            LightModelName ( OptSpecular0 )
+            AlphaTestMode ( 0 )
+            TexAddrModeName ( Wrap )
+            ESD_Alternative_Texture ( 0 )
+            MipMapLevelOfDetailBias ( 0 )
+
+            Polyline (
+                Name ( "road_marked_main_right_half" )
+                DeltaTexCoord ( 0 0.1666667 )
+                Vertex (
+                    Position ( -1.5 0.04 )
+                    Normal ( 0 1 0 )
+                    TexCoord ( 1 0 )
+                    PositionControl ( All )
+                )
+                Vertex (
+                    Position ( 0 0.06 )
+                    Normal ( 0 1 0 )
+                    TexCoord ( 0.76 0 )
+                    PositionControl ( All )
+                )
+            )
+            Polyline (
+                Name ( "road_marked_main_left_half" )
+                DeltaTexCoord ( 0 0.1666667 )
+                Vertex (
+                    Position ( 0 0.06 )
+                    Normal ( 0 1 0 )
+                    TexCoord ( 0.26 0 )
+                    PositionControl ( All )
+                )
+                Vertex (
+                    Position ( 1.5 0.04 )
+                    Normal ( 0 1 0 )
+                    TexCoord ( 0 0 )
+                    PositionControl ( All )
+                )
+            )
+        )
+    )
+)

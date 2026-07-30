@@ -15,6 +15,7 @@
 #include <tsre/tdb/SigCfg.h>
 #include <tsre/tdb/SignalShape.h>
 #include <tsre/world/objects/ForestObj.h>
+#include <tsre/world/objects/DynTrackObj.h>
 #include <tsre/tdb/SpeedPost.h>
 #include <tsre/tdb/SpeedPostDAT.h>
 #include <tsre/world/SoundList.h>
@@ -30,6 +31,7 @@ ObjTools::ObjTools(QString name)
     buttonTools["selectTool"] = new QPushButton("Select", this);
     buttonTools["placeTool"] = new QPushButton("Place New", this);
     buttonTools["continuousFlexTool"] = new QPushButton("FLEX TRACK", this);
+    buttonTools["continuousFlexRoadTool"] = new QPushButton("FLEX ROAD", this);
     buttonTools["autoPlaceSimpleTool"] = new QPushButton("Auto Placement", this);
     QMapIterator<QString, QPushButton*> i(buttonTools);
     while (i.hasNext()) {
@@ -74,7 +76,8 @@ ObjTools::ObjTools(QString name)
     int row = 0;
     vlist3->addWidget(buttonTools["selectTool"],row,0);
     vlist3->addWidget(buttonTools["placeTool"],row++,1,1,3);
-    vlist3->addWidget(buttonTools["continuousFlexTool"],row,0,1,3);
+    vlist3->addWidget(buttonTools["continuousFlexTool"],row,0);
+    vlist3->addWidget(buttonTools["continuousFlexRoadTool"],row,1,1,2);
     vlist3->addWidget(continuousFlexOptionsButton,row++,3);
     row++;
     vlist3->addWidget(&stickToTDB,row,0);
@@ -99,7 +102,7 @@ ObjTools::ObjTools(QString name)
     continuousFlexRight.setText("Track on right");
     continuousFlexOptionsLayout->addWidget(&continuousFlexLeft, 0, 0);
     continuousFlexOptionsLayout->addWidget(&continuousFlexRight, 0, 1);
-    continuousFlexOptionsLayout->addWidget(new QLabel("Track separation:"), 1, 0);
+    continuousFlexOptionsLayout->addWidget(new QLabel("Separation:"), 1, 0);
     continuousFlexSeparation.setDecimals(2);
     continuousFlexSeparation.setRange(1.0, 20.0);
     continuousFlexSeparation.setSingleStep(0.25);
@@ -247,6 +250,8 @@ ObjTools::ObjTools(QString name)
 
     QObject::connect(buttonTools["continuousFlexTool"], SIGNAL(toggled(bool)),
                       this, SLOT(continuousFlexToolEnabled(bool)));
+    QObject::connect(buttonTools["continuousFlexRoadTool"], SIGNAL(toggled(bool)),
+                      this, SLOT(continuousFlexRoadToolEnabled(bool)));
     
     QObject::connect(buttonTools["autoPlaceSimpleTool"], SIGNAL(toggled(bool)),
                       this, SLOT(autoPlacementButtonEnabled(bool)));
@@ -548,20 +553,41 @@ void ObjTools::placeToolEnabled(bool val){
 }
 
 void ObjTools::continuousFlexToolEnabled(bool val){
-    if(!val){
+    enableContinuousFlexTool(false, val);
+}
+
+void ObjTools::continuousFlexRoadToolEnabled(bool val){
+    enableContinuousFlexTool(true, val);
+}
+
+void ObjTools::enableContinuousFlexTool(bool road, bool enabled){
+    if(!enabled){
         emit enableTool("");
         return;
     }
     if(route == NULL || route->ref == NULL)
         return;
 
+    if(road != continuousFlexRoadOptions) {
+        QSignalBlocker blocker(&continuousFlexSeparation);
+        if(road)
+            continuousFlexTrackSeparation = continuousFlexSeparation.value();
+        continuousFlexRoadOptions = road;
+        continuousFlexSeparation.setValue(
+                road ? 3.0 : continuousFlexTrackSeparation);
+    }
+    continuousFlexLeft.setText(road ? "Lane on left" : "Track on left");
+    continuousFlexRight.setText(road ? "Lane on right" : "Track on right");
     itemRef = Ref::RefItem();
     itemRef.type = "dyntrack";
     itemRef.value = -1;
-    itemRef.description = "Dynamic Track";
+    itemRef.staticFlags = road
+            ? DynTrackObj::RoadStaticFlags
+            : DynTrackObj::DefaultStaticFlags;
+    itemRef.description = road ? "Road Dynamic Track" : "Dynamic Track";
     route->ref->selected = &itemRef;
     continuousFlexOptionsChanged();
-    emit enableTool("continuousFlexTool");
+    emit enableTool(road ? "continuousFlexRoadTool" : "continuousFlexTool");
 }
 
 void ObjTools::continuousFlexOptionsButtonEnabled(bool val){
@@ -569,8 +595,14 @@ void ObjTools::continuousFlexOptionsButtonEnabled(bool val){
 }
 
 void ObjTools::continuousFlexOptionsChanged(){
-    continuousFlexSeparation.setEnabled(
-            continuousFlexLeft.isChecked() || continuousFlexRight.isChecked());
+    const bool companions =
+            continuousFlexLeft.isChecked() || continuousFlexRight.isChecked();
+    continuousFlexSeparation.setEnabled(companions && !continuousFlexRoadOptions);
+    continuousFlexSeparation.setToolTip(continuousFlexRoadOptions
+            ? "Fixed to the 3 m width of the default road lane profiles."
+            : "");
+    if(!continuousFlexRoadOptions)
+        continuousFlexTrackSeparation = continuousFlexSeparation.value();
     emit sendMsg("continuousFlexLeft", continuousFlexLeft.isChecked());
     emit sendMsg("continuousFlexRight", continuousFlexRight.isChecked());
     emit sendMsg("continuousFlexSeparation", (float)continuousFlexSeparation.value());

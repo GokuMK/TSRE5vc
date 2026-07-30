@@ -16,6 +16,7 @@
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/fileFunctions/ReadFile.h>
 #include <tsre/world/objects/WorldObj.h>
+#include <tsre/world/objects/DynTrackObj.h>
 
 Ref::Ref(QString path) {
     loaded = false;
@@ -288,6 +289,47 @@ void Ref::expandTemplates(){
     templateItems.clear();
 }
 
+void Ref::ensureDynTrackItems(){
+    bool hasRail = false;
+    bool hasRoad = false;
+    QString dynTrackClass = "Dynamic track";
+
+    for(auto it = refItems.begin(); it != refItems.end(); ++it){
+        for(RefItem &item : it.value()){
+            if(item.type.compare("dyntrack", Qt::CaseInsensitive) != 0)
+                continue;
+
+            dynTrackClass = it.key();
+            // DynTrack has no TrackShape in the REF file. Keep its placement
+            // lookup explicitly shape-less instead of consulting shape 0.
+            item.value = -1;
+            if(DynTrackObj::isRoadStaticFlags(item.staticFlags))
+                hasRoad = true;
+            else
+                hasRail = true;
+        }
+    }
+
+    auto appendDynTrack = [this, &dynTrackClass](
+            const QString &description, unsigned int staticFlags) {
+        RefItem item;
+        item.type = "dyntrack";
+        item.clas = dynTrackClass;
+        item.filename.push_back("DYNTRACK");
+        item.align = "None";
+        item.description = description;
+        item.value = -1;
+        item.staticFlags = staticFlags;
+        item.editorGenerated = true;
+        refItems[dynTrackClass].push_back(item);
+    };
+
+    if(!hasRail)
+        appendDynTrack("Dynamic Track", DynTrackObj::DefaultStaticFlags);
+    if(!hasRoad)
+        appendDynTrack("Road Dynamic Track", DynTrackObj::RoadStaticFlags);
+}
+
 void Ref::saveToStream(QTextStream* out){
     
     foreach (QVector<RefItem> items, refItems){
@@ -296,6 +338,8 @@ void Ref::saveToStream(QTextStream* out){
         if(items[0].clas.startsWith("#"))
             continue;
         for(int i = 0; i < items.size(); i++){
+            if(items[i].editorGenerated)
+                continue;
             //qDebug() << items[i].type;
             *out << items[i].type << " (\n";
             *out << "class ( " << ParserX::AddComIfReq(items[i].clas) << " )\n";

@@ -293,6 +293,7 @@ void RouteEditorClient::readUtf16Message(QWebSocket *client, FileBuffer* data) {
         if (sh == ("requested_addon")) {
             Game::currentRoute->ref = new Ref("");
             Game::currentRoute->ref->loadUtf16Data(data, "");
+            Game::currentRoute->ref->ensureDynTrackItems();
             emit refreshObjLists();
             ParserX::SkipToken(data);
             continue;

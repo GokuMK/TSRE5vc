@@ -18,6 +18,11 @@ class OglObj;
 
 class DynTrackObj : public WorldObj {
 public:
+    static constexpr unsigned int DefaultStaticFlags = 0x00100000U;
+    static constexpr unsigned int RoadStaticFlag = 0x00000100U;
+    static constexpr unsigned int RoadStaticFlags =
+            DefaultStaticFlags | RoadStaticFlag;
+
     struct Section{
         int type;
         unsigned int sectIdx;
@@ -32,6 +37,8 @@ public:
     WorldObj* clone();
     virtual ~DynTrackObj();
     bool allowNew();
+    static bool isRoadStaticFlags(unsigned int flags);
+    bool isRoad() const;
     void load(int x, int y);
     float getElevation();
     void setElevation(float prom);

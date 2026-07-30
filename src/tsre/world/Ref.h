@@ -41,6 +41,7 @@ public:
         QString selectionMethod;
         long long int value = 0;
         unsigned int staticFlags = 0;
+        bool editorGenerated = false;
         
         RandomTransformation* randomTransformation = NULL;
         
@@ -63,6 +64,7 @@ public:
     void loadFile(QString path);
     void loadUtf16Data(FileBuffer *data, QString path);
     void expandTemplates();
+    void ensureDynTrackItems();
     void saveToStream(QTextStream *out);
     bool loaded;
     RefItem *selected = NULL;

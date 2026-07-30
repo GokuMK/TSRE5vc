@@ -491,6 +491,7 @@ void Route::loadAddons(){
 
     if(this->ref != NULL)
         this->ref->expandTemplates();
+    this->ref->ensureDynTrackItems();
 
 }
 
@@ -1415,10 +1416,14 @@ WorldObj* Route::placeObject(int x, int z, float* p, float* q, float elev, Ref::
         int oldx = x;
         int oldz = z;
         Vec3::copy(firstPos, p);
-        if(this->tsection->isRoadShape(r->value))
-            this->roadDB->findPosition(x, z, p, q, endp, r->value);
+        TDB *placementDB = NULL;
+        if(r->type == "dyntrack")
+            placementDB = DynTrackObj::isRoadStaticFlags(r->staticFlags)
+                    ? this->roadDB : this->trackDB;
         else
-            this->trackDB->findPosition(x, z, p, q, endp, r->value);
+            placementDB = this->tsection->isRoadShape(r->value)
+                    ? this->roadDB : this->trackDB;
+        placementDB->findPosition(x, z, p, q, endp, r->value);
         Game::check_coords(x, z, p);
         firstPos[0] -= (x-oldx)*2048;
         firstPos[2] -= (z-oldz)*2048;
@@ -1990,10 +1995,13 @@ void Route::addToTDB(WorldObj* obj) {
     } else if(obj->type == "dyntrack"){
         Undo::Clear();
         DynTrackObj* dynTrack = (DynTrackObj*) obj;
+        TDB *database = dynTrack->isRoad() ? this->roadDB : this->trackDB;
         if(dynTrack->sectionIdx == -1){
-            this->trackDB->fillDynTrack(dynTrack);
+            database->fillDynTrack(dynTrack);
         }
-        this->trackDB->placeTrack(x, z, (float*) &p, (float*) &q, dynTrack->sectionIdx, obj->UiD);
+        database->placeTrack(
+                x, z, (float*) &p, (float*) &q,
+                dynTrack->sectionIdx, obj->UiD);
         obj->setPosition(p);
         obj->setQdirection(q);
         obj->setModified();

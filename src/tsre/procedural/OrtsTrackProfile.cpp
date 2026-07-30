@@ -528,7 +528,8 @@ void OrtsTrackProfileCatalog::load(const QString &routePath, bool forceReload) {
     for(const QFileInfo &entry : entries){
         const QString suffix = entry.suffix().toLower();
         const QString stem = entry.completeBaseName();
-        if(!stem.startsWith("TrProfile", Qt::CaseInsensitive)
+        if((!stem.startsWith("TrProfile", Qt::CaseInsensitive)
+                && !stem.startsWith("default_", Qt::CaseInsensitive))
                 || (suffix != "stf" && suffix != "xml"))
             continue;
         const QString key = stem.toLower();

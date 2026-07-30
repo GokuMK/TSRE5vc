@@ -46,7 +46,7 @@ DynTrackObj::DynTrackObj() {
     sectionIdx = -1;
     sections = NULL;
     collideFlags = 39;    
-    staticFlags = 0x100000;
+    staticFlags = DefaultStaticFlags;
 }
 
 DynTrackObj::DynTrackObj(const DynTrackObj& o) : WorldObj(o) {
@@ -79,6 +79,14 @@ DynTrackObj::~DynTrackObj() {
 
 bool DynTrackObj::allowNew(){
     return true;
+}
+
+bool DynTrackObj::isRoadStaticFlags(unsigned int flags){
+    return (flags & RoadStaticFlag) != 0;
+}
+
+bool DynTrackObj::isRoad() const{
+    return isRoadStaticFlags(staticFlags);
 }
 
 float DynTrackObj::getElevation(){

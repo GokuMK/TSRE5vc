@@ -1471,7 +1471,8 @@ void RouteEditorGLWidget::mousePressEvent(QMouseEvent *event) {
         Undo::StateBegin();
         mouseLPressed = true;
         lastMousePressTime = QDateTime::currentMSecsSinceEpoch();
-        if(toolEnabled == "continuousFlexTool") {
+        if(toolEnabled == "continuousFlexTool"
+                || toolEnabled == "continuousFlexRoadTool") {
             float q[4];
             Quat::copy(q, placeRot);
             if(!placeContinuousFlexTrack(
@@ -1784,12 +1785,20 @@ void RouteEditorGLWidget::mouseMoveEvent(QMouseEvent *event) {
 }
 
 void RouteEditorGLWidget::enableTool(QString name) {
-    if(liveFlexActive && name != "liveFlexTool" && name != "continuousFlexTool")
+    if(liveFlexActive
+            && name != "liveFlexTool"
+            && name != toolEnabled)
         finishLiveFlex(false);
-    if(name == "continuousFlexTool")
+    if(name == "continuousFlexTool") {
         continuousFlexMode = true;
-    else if(name != "liveFlexTool")
+        continuousFlexRoadMode = false;
+    } else if(name == "continuousFlexRoadTool") {
+        continuousFlexMode = true;
+        continuousFlexRoadMode = true;
+    } else if(name != "liveFlexTool") {
         continuousFlexMode = false;
+        continuousFlexRoadMode = false;
+    }
     qDebug() << name;
     toolEnabled = name;
     //if(toolEnabled == "placeTool" || toolEnabled == "selectTool" || toolEnabled == "autoPlaceSimpleTool"){
@@ -1893,7 +1902,11 @@ bool RouteEditorGLWidget::startLiveFlex(bool reuseUndoState, bool deleteOnCancel
     if(dynTrack->sections == NULL)
         return false;
 
-    enableTool(continuousFlexMode ? "continuousFlexTool" : "liveFlexTool");
+    enableTool(continuousFlexMode
+            ? (dynTrack->isRoad()
+                ? "continuousFlexRoadTool"
+                : "continuousFlexTool")
+            : "liveFlexTool");
     liveFlexObj = dynTrack;
     liveFlexStartTileX = dynTrack->x;
     liveFlexStartTileZ = dynTrack->y;
@@ -1908,6 +1921,17 @@ bool RouteEditorGLWidget::startLiveFlex(bool reuseUndoState, bool deleteOnCancel
     liveFlexLastUpdateTime = 0;
     liveFlexDeleteOnCancel = deleteOnCancel;
     liveFlexCompanionsValid = true;
+
+    if(continuousFlexMode && dynTrack->isRoad()) {
+        QString profile = "default_road";
+        if(continuousFlexLeftEnabled && continuousFlexRightEnabled)
+            profile = "default_road_middle";
+        else if(continuousFlexLeftEnabled)
+            profile = "default_road_right";
+        else if(continuousFlexRightEnabled)
+            profile = "default_road_left";
+        dynTrack->setTemplate(profile);
+    }
 
     if(continuousFlexMode && !createLiveFlexCompanions())
         return false;
@@ -1933,7 +1957,12 @@ bool RouteEditorGLWidget::placeContinuousFlexTrack(
     Ref::RefItem dynTrackRef;
     dynTrackRef.type = "dyntrack";
     dynTrackRef.value = -1;
-    dynTrackRef.description = "Dynamic Track";
+    dynTrackRef.staticFlags = continuousFlexRoadMode
+            ? DynTrackObj::RoadStaticFlags
+            : DynTrackObj::DefaultStaticFlags;
+    dynTrackRef.description = continuousFlexRoadMode
+            ? "Road Dynamic Track"
+            : "Dynamic Track";
 
     float p[3];
     float q[4];
@@ -1970,7 +1999,11 @@ DynTrackObj* RouteEditorGLWidget::placeRawDynTrack(
     Ref::RefItem dynTrackRef;
     dynTrackRef.type = "dyntrack";
     dynTrackRef.value = -1;
-    dynTrackRef.description = "Dynamic Track";
+    const bool road = liveFlexObj != NULL && liveFlexObj->isRoad();
+    dynTrackRef.staticFlags = road
+            ? DynTrackObj::RoadStaticFlags
+            : DynTrackObj::DefaultStaticFlags;
+    dynTrackRef.description = road ? "Road Dynamic Track" : "Dynamic Track";
     DynTrackObj *track = (DynTrackObj*)tile->placeObject(
             position, quaternion, &dynTrackRef, NULL);
     if(track != NULL)
@@ -2015,6 +2048,10 @@ bool RouteEditorGLWidget::createLiveFlexCompanions() {
             discardLiveFlexCompanions();
             return false;
         }
+        if(track->isRoad())
+            track->setTemplate(offset < 0
+                    ? "default_road_left"
+                    : "default_road_right");
         liveFlexCompanions.push_back(track);
         liveFlexCompanionOffsets.push_back(offset);
     }
@@ -2176,8 +2213,10 @@ void RouteEditorGLWidget::updateLiveFlex(int pointerTileX, int pointerTileZ, con
     float endpointQ[4] = {0, 0, 0, 1};
     int endpointId = -1;
 
-    if(Game::trackDB != NULL) {
-        endpointId = Game::trackDB->findNearestNode(
+    TDB *database = liveFlexObj->isRoad()
+            ? Game::roadDB : Game::trackDB;
+    if(database != NULL) {
+        endpointId = database->findNearestNode(
                 targetTileX,
                 targetTileZ,
                 targetPosition,

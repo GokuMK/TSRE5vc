@@ -588,6 +588,9 @@ WorldObj* Tile::placeObject(float* p, float* q, Ref::RefItem* itemData, float* t
     nowy->set("ref_value", itemData->value);
     if(itemData->staticFlags != 0)
         nowy->set("staticflags", itemData->staticFlags);
+    if(itemData->type == "dyntrack"
+            && DynTrackObj::isRoadStaticFlags(itemData->staticFlags))
+        nowy->setTemplate("default_road_single");
 
     //Quat::rotateY(q, q, M_PI/2);
     nowy->set("x", x);

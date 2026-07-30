@@ -42,10 +42,12 @@ PropertiesDyntrack::PropertiesDyntrack() {
     this->tX.setDisabled(true);
     this->tY.setDisabled(true);
     this->eSectionIdx.setDisabled(true);
+    this->eDatabase.setReadOnly(true);
     vlist->addRow("UiD:",&this->uid);
     vlist->addRow("Tile X:",&this->tX);
     vlist->addRow("Tile Z:",&this->tY);
     vlist->addRow("TrackShape:",&this->eSectionIdx);
+    vlist->addRow("Database:",&this->eDatabase);
     vbox->addItem(vlist);
 
     QLabel *templateLabel = new QLabel("Shape Template:");
@@ -252,6 +254,8 @@ void PropertiesDyntrack::showObj(GameObj* obj){
         this->eSectionIdx.setText("");
     else
         this->eSectionIdx.setText(QString::number(dobj->sectionIdx, 10));
+    this->eDatabase.setText(
+            dobj->isRoad() ? "Road (RDB)" : "Rail (TDB)");
     
     updateSectionValues();
     updateTemplateValue();
@@ -287,6 +291,8 @@ void PropertiesDyntrack::updateObj(GameObj* obj){
         return;
     }
     dobj = (DynTrackObj*)obj;
+    this->eDatabase.setText(
+            dobj->isRoad() ? "Road (RDB)" : "Rail (TDB)");
     float * q = dobj->qDirection;
     float vect[3];
     vect[0] = 0; vect[1] = 0; vect [2] = 1000.0;
@@ -483,11 +489,21 @@ void PropertiesDyntrack::flexData(int x, int z, float* p){
     p2[1] = p[1];
     p2[2] = p[2];
     
-    float dyntrackData[10];
+    float dyntrackData[10] = {0};
     float elev = 0;
-    
-    bool success = Flex::AutoFlex(dobj->x, dobj->y, (float*)p1, x, z, (float*)p2, (float*)dyntrackData, elev);
+
+    TDB *database = dobj->isRoad() ? Game::roadDB : Game::trackDB;
+    bool success = Flex::AutoFlex(
+            database, dobj->x, dobj->y, (float*)p1,
+            x, z, (float*)p2, (float*)dyntrackData, elev);
     qDebug() << "flex2" << elev;
+    if(!success){
+        this->showObj(dobj);
+        emit enableTool("selectTool");
+        return;
+    }
+
+    Undo::SinglePushWorldObjData(worldObj);
     dobj->set("dyntrackdata", (float*)dyntrackData);
     dobj->setElevation(elev);
     this->showObj(dobj);
