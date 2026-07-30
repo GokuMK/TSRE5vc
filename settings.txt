@@ -56,3 +56,4 @@ mouseSpeed = 0.5
 #defaultMoveStep = 0.25
 editorFpsHudEnabled = true
 #textureLoaderThreaded = false
+proceduralTracks = Enabled
