@@ -26,6 +26,7 @@
 #include <tsre/Game.h>
 #include <tsre/math3d/Flex.h>
 #include <tsre/math3d/GLMatrix.h>
+#include <tsre/math3d/Vector2f.h>
 #include <tsre/procedural/ProceduralTrackPolicy.h>
 #include <tsre/procedural/OrtsTrackProfile.h>
 #include <tsre/procedural/OrtsTrackProfileRenderer.h>
@@ -412,6 +413,12 @@ static int runFlexPointSuite(bool verbose) {
     const PointCase cases[] = {
         {"zero", 0, 0, {0, 0, 0}, 0, 0, 0, {0, 0, 0}, true, 0, false},
         {"straight", 0, 0, {0, 0, 0}, 0, 0, 0, {0, 0, -100}, true, 1, false},
+        {"near-axis-straight", 0, 0, {0, 0, 0}, 0, 0, 0, {0.04f, 0, -100}, true, 1, false},
+        {"outside-straight-tolerance", 0, 0, {0, 0, 0}, 0, 0, 0, {0.06f, 0, -100}, true, 2, false},
+        {"shallow-right", 0, 0, {0, 0, 0}, 0, 0, 0,
+            {10000.0f * (1.0f - std::cos(0.005f)), 0, -10000.0f * std::sin(0.005f)}, true, 2, false},
+        {"shallow-left", 0, 0, {0, 0, 0}, 0, 0, 0,
+            {-10000.0f * (1.0f - std::cos(0.005f)), 0, -10000.0f * std::sin(0.005f)}, true, 2, false},
         {"right-quarter", 0, 0, {0, 0, 0}, 0, 0, 0, {20, 0, -20}, true, 2, false},
         {"left-quarter", 0, 0, {0, 0, 0}, 0, 0, 0, {-20, 0, -20}, true, 2, false},
         {"semicircle", 0, 0, {0, 0, 0}, 0, 0, 0, {40, 0, 0}, true, 2, false},
@@ -433,8 +440,8 @@ static int runFlexPointSuite(bool verbose) {
 
         if (caseOk && ok) {
             const bool hasStraight = got[0] > 0.01f || got[4] > 0.01f || got[8] > 0.01f;
-            const bool hasCurve = (std::fabs(got[2]) > 0.01f && got[3] > 0.1f)
-                    || (std::fabs(got[6]) > 0.01f && got[7] > 0.1f);
+            const bool hasCurve = (std::fabs(got[2]) > 1e-6f && got[3] > 0.1f)
+                    || (std::fabs(got[6]) > 1e-6f && got[7] > 0.1f);
             if (c.expectedKind == 0)
                 caseOk = !hasStraight && !hasCurve;
             else if (c.expectedKind == 1)
@@ -823,6 +830,37 @@ static int runFlexPointSuite(bool verbose) {
     int exactRadiusCaseCount = 0;
     {
         exactRadiusCaseCount++;
+        const float expectedRadius = 10000.0f;
+        const float turn = 0.005f;
+        float p1[3] = {0, 0, 0};
+        float p2[3] = {
+            expectedRadius * (1.0f - std::cos(turn)),
+            0,
+            -expectedRadius * std::sin(turn)
+        };
+        float q1[4] = {0, 0, 0, 1};
+        float q2[4] = {0, turn, 0, 1};
+        float sections[10] = {0};
+        const bool solved = Flex::NewFlex(
+                0, 0, p1, q1,
+                0, 0, p2, q2,
+                sections, 0.0f, false);
+        const bool caseOk = solved
+                && nearlyEqual(sections[2], turn, 1e-5f)
+                && nearlyEqual(sections[3], expectedRadius, 0.5f);
+        if(caseOk) {
+            passed++;
+        } else {
+            failed++;
+            qWarning() << "[tests:flex-point] failed: shallow snapped radius"
+                    << "solved=" << solved
+                    << "sections=" << sections[0] << sections[2]
+                    << sections[3] << sections[4]
+                    << sections[6] << sections[7] << sections[8];
+        }
+    }
+    {
+        exactRadiusCaseCount++;
         const float expectedRadius = 333.0f;
         const float turn = 0.6f;
         float p1[3] = {0, 0, 0};
@@ -892,6 +930,57 @@ static int runFlexPointSuite(bool verbose) {
                     << "sections=" << sections[0] << sections[2]
                     << sections[3] << sections[4]
                     << sections[6] << sections[7] << sections[8];
+        }
+    }
+    {
+        guardCaseCount++;
+        float p1[3] = {0, 0, 0};
+        float p2[3] = {0.17f, 0, -100.0f};
+        float sections[10] = {0};
+        const float gridTolerance = 0.25f / std::sqrt(2.0f);
+        const bool solved = Flex::NewFlexToPoint(
+                0, 0, p1, 0.0f,
+                0, 0, p2, sections,
+                15.0f, gridTolerance);
+        const bool caseOk = solved
+                && sections[0] > 99.9f
+                && std::fabs(sections[2]) < 1e-6f
+                && std::fabs(sections[6]) < 1e-6f;
+        if(caseOk)
+            passed++;
+        else {
+            failed++;
+            qWarning() << "[tests:flex-point] failed: grid-aware straight tolerance";
+        }
+    }
+    {
+        guardCaseCount++;
+        Vector2f inner(0.7175f, 0.0f);
+        Vector2f outer(0.8675f, 0.0f);
+        inner.rotate(0.001f, 200000000.0f);
+        outer.rotate(0.001f, 200000000.0f);
+        const float dx = outer.x - inner.x;
+        const float dy = outer.y - inner.y;
+        const float separation = std::sqrt(dx * dx + dy * dy);
+        if(nearlyEqual(separation, 0.15f, 1e-4f))
+            passed++;
+        else {
+            failed++;
+            qWarning() << "[tests:flex-point] failed: large-radius rail separation"
+                    << "separation=" << separation;
+        }
+    }
+    {
+        guardCaseCount++;
+        DynTrackObj dyntrack;
+        dyntrack.load(0, 0);
+        float sections[10] = {0, 0, 0.005f, 10000.0f, 0, 0, 0, 0, 0, 0};
+        dyntrack.set(QStringLiteral("dyntrackdata"), sections);
+        if(dyntrack.sections[1].sectIdx == 0)
+            passed++;
+        else {
+            failed++;
+            qWarning() << "[tests:flex-point] failed: shallow curve storage guard";
         }
     }
     {

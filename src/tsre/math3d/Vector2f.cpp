@@ -63,20 +63,30 @@ void Vector2f::div(float d) {
 }
 
 void Vector2f::rotate(float a, float r) { //angle, radius
-    this->x -= r;
-    float ny = (float) (y * cos(-a) - x * sin(-a));
-    float nx = (float) (y * sin(-a) + x * cos(-a));
-    this->x = nx + r;
-    this->y = ny;
+    const double angle = (double)a;
+    const double center = (double)r;
+    const double px = (double)x;
+    const double py = (double)y;
+    const double sine = sin(angle);
+    const double cosine = cos(angle);
+    const double halfSine = sin(angle * 0.5);
+    const double centerDisplacement = 2.0 * center * halfSine * halfSine;
+    this->x = (float)(px * cosine - py * sine + centerDisplacement);
+    this->y = (float)(py * cosine + px * sine - center * sine);
     //x = nx-r;
 }
 
 Vector2f::Vector2f(float x, float y, float a, float r) { //x, y, angle, radius
-    x -= r;
-    float ny = (float) (y * cos(-a) - x * sin(-a));
-    float nx = (float) (y * sin(-a) + x * cos(-a));
-    this->x = nx + r;
-    this->y = ny;
+    const double angle = (double)a;
+    const double center = (double)r;
+    const double px = (double)x;
+    const double py = (double)y;
+    const double sine = sin(angle);
+    const double cosine = cos(angle);
+    const double halfSine = sin(angle * 0.5);
+    const double centerDisplacement = 2.0 * center * halfSine * halfSine;
+    this->x = (float)(px * cosine - py * sine + centerDisplacement);
+    this->y = (float)(py * cosine + px * sine - center * sine);
 }
 
 float Vector2f::getDlugosc() {

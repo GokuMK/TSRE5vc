@@ -40,6 +40,10 @@
 #define M_PI 3.14159265358979323846
 #endif
 
+namespace {
+constexpr float kCurveAngleEpsilon = 1e-6f;
+}
+
 DynTrackObj::DynTrackObj() {
     // An absent ShapeTemplate is distinct from explicit DEFAULT in Enabled mode.
     templateName.clear();
@@ -455,7 +459,7 @@ void DynTrackObj::set(QString sh, float* val) {
                     sections[iii].sectIdx = 4294967295;
             } else {
                 sections[iii].sectIdx = 0;
-                if(sections[iii].a < 0.01 && sections[iii].a > -0.01)
+                if(std::fabs(sections[iii].a) < kCurveAngleEpsilon)
                     sections[iii].sectIdx = 4294967295;
                 if(sections[iii].r < 0.1)
                     sections[iii].sectIdx = 4294967295;

@@ -48,6 +48,13 @@ QLabel* Flex::myLabel;
 
 namespace {
 
+// Curve angles below the old 0.01-radian manual editing step are still valid
+// solver results. Only discard angles that are effectively numerical zero.
+constexpr float kCurveAngleEpsilon = 1e-6f;
+// Maximum endpoint displacement accepted when simplifying a free-point flex
+// to a straight. Radius alone is not a useful simplification criterion.
+constexpr float kStraightEndpointTolerance = 0.05f;
+
 struct FlexVec2 {
     float x = 0.0f;
     float y = 0.0f;
@@ -96,7 +103,7 @@ inline FlexVec2 right(float theta) {
 
 inline FlexVec2 curveDisp(float angle, float radius) {
     float a = std::fabs(angle);
-    if (a < 1e-6f || radius <= 0.0f)
+    if (a < kCurveAngleEpsilon || radius <= 0.0f)
         return {0.0f, 0.0f};
     int s = (angle >= 0.0f) ? 1 : -1;
     float dx = -((float)s) * radius * (1.0f - std::cos(a));
@@ -116,7 +123,7 @@ inline void applyStraight(FlexPose2 &pose, float length) {
 }
 
 inline void applyCurve(FlexPose2 &pose, float angle, float radius) {
-    if (std::fabs(angle) < 1e-6f || radius <= 0.0f)
+    if (std::fabs(angle) < kCurveAngleEpsilon || radius <= 0.0f)
         return;
     FlexVec2 local = curveDisp(angle, radius);
     pose.pos = add(pose.pos, add(scale(right(pose.heading), local.x), scale(forward(pose.heading), local.y)));
@@ -168,7 +175,7 @@ inline void trimToLength(float maxLen, float *sections10) {
             return;
         }
 
-        if (r <= 0.0f || std::fabs(a) < 1e-6f) {
+        if (r <= 0.0f || std::fabs(a) < kCurveAngleEpsilon) {
             sections10[i * 2 + 0] = 0.0f;
             sections10[i * 2 + 1] = 0.0f;
             continue;
@@ -196,7 +203,7 @@ inline int enabledSectionCount(const float *sections10) {
                 count++;
             continue;
         }
-        if (std::fabs(a) > 0.01f && r > 0.1f)
+        if (std::fabs(a) > kCurveAngleEpsilon && r > 0.1f)
             count++;
     }
     return count;
@@ -208,9 +215,9 @@ inline void canonicalize(float *sections10) {
         sections10[idx * 2 + 1] = 0.0f;
     };
 
-    if (std::fabs(sections10[2]) < 1e-4f || sections10[3] <= 0.1f)
+    if (std::fabs(sections10[2]) < kCurveAngleEpsilon || sections10[3] <= 0.1f)
         disableCurve(1);
-    if (std::fabs(sections10[6]) < 1e-4f || sections10[7] <= 0.1f)
+    if (std::fabs(sections10[6]) < kCurveAngleEpsilon || sections10[7] <= 0.1f)
         disableCurve(3);
 
     if (sections10[0] < 0.0f) sections10[0] = 0.0f;
@@ -218,8 +225,8 @@ inline void canonicalize(float *sections10) {
     if (sections10[8] < 0.0f) sections10[8] = 0.0f;
 
     // Merge straights if an intermediate curve is disabled.
-    bool curve1Disabled = (std::fabs(sections10[2]) < 1e-6f || sections10[3] <= 0.1f);
-    bool curve2Disabled = (std::fabs(sections10[6]) < 1e-6f || sections10[7] <= 0.1f);
+    bool curve1Disabled = (std::fabs(sections10[2]) < kCurveAngleEpsilon || sections10[3] <= 0.1f);
+    bool curve2Disabled = (std::fabs(sections10[6]) < kCurveAngleEpsilon || sections10[7] <= 0.1f);
 
     if (curve1Disabled) {
         sections10[0] += sections10[4];
@@ -238,8 +245,8 @@ inline void canonicalize(float *sections10) {
     if (sections10[4] < 0.01f) sections10[4] = 0.0f;
     if (sections10[8] < 0.01f) sections10[8] = 0.0f;
 
-    if (std::fabs(sections10[2]) < 0.01f) disableCurve(1);
-    if (std::fabs(sections10[6]) < 0.01f) disableCurve(3);
+    if (std::fabs(sections10[2]) < kCurveAngleEpsilon) disableCurve(1);
+    if (std::fabs(sections10[6]) < kCurveAngleEpsilon) disableCurve(3);
 }
 
 inline FlexPose2 simulate(const float *sections10) {
@@ -339,16 +346,16 @@ struct FlexCandidate {
 };
 
 inline float firstEnabledCurveAngle(const float *sections10) {
-    if (std::fabs(sections10[2]) > 1e-6f && sections10[3] > 0.1f)
+    if (std::fabs(sections10[2]) > kCurveAngleEpsilon && sections10[3] > 0.1f)
         return sections10[2];
-    if (std::fabs(sections10[6]) > 1e-6f && sections10[7] > 0.1f)
+    if (std::fabs(sections10[6]) > kCurveAngleEpsilon && sections10[7] > 0.1f)
         return sections10[6];
     return 0.0f;
 }
 
 inline float candidateMinRadius(const float *sections10) {
-    float r1 = (std::fabs(sections10[2]) > 0.01f) ? sections10[3] : std::numeric_limits<float>::infinity();
-    float r2 = (std::fabs(sections10[6]) > 0.01f) ? sections10[7] : std::numeric_limits<float>::infinity();
+    float r1 = (std::fabs(sections10[2]) > kCurveAngleEpsilon) ? sections10[3] : std::numeric_limits<float>::infinity();
+    float r2 = (std::fabs(sections10[6]) > kCurveAngleEpsilon) ? sections10[7] : std::numeric_limits<float>::infinity();
     float r = std::min(r1, r2);
     if (!std::isfinite(r))
         return std::numeric_limits<float>::infinity();
@@ -357,9 +364,9 @@ inline float candidateMinRadius(const float *sections10) {
 
 inline int enabledCurveCount(const float *sections10) {
     int count = 0;
-    if (std::fabs(sections10[2]) > 0.01f && sections10[3] > 0.1f)
+    if (std::fabs(sections10[2]) > kCurveAngleEpsilon && sections10[3] > 0.1f)
         count++;
-    if (std::fabs(sections10[6]) > 0.01f && sections10[7] > 0.1f)
+    if (std::fabs(sections10[6]) > kCurveAngleEpsilon && sections10[7] > 0.1f)
         count++;
     return count;
 }
@@ -703,7 +710,8 @@ bool Flex::NewFlexToPoint(
         int z2,
         float *p2,
         float *dyntrackSections,
-        float minimumCurveRadius) {
+        float minimumCurveRadius,
+        float straightEndpointTolerance) {
     if (p1 == nullptr || p2 == nullptr || dyntrackSections == nullptr)
         return false;
 
@@ -716,6 +724,9 @@ bool Flex::NewFlexToPoint(
         return false;
 
     minimumCurveRadius = std::max(0.0f, minimumCurveRadius);
+    if(!std::isfinite(straightEndpointTolerance)
+            || straightEndpointTolerance < 0.0f)
+        straightEndpointTolerance = kStraightEndpointTolerance;
 
     // Keep the same coordinate boundary as NewFlex: world XZ becomes Flex XY
     // with Z mirrored once and only once.
@@ -733,9 +744,8 @@ bool Flex::NewFlexToPoint(
     if (targetDistance < 0.01f)
         return true;
 
-    const float straightTolerance = 0.05f;
-    if (std::fabs(targetPos.x) <= straightTolerance) {
-        if (targetPos.y < -straightTolerance)
+    if (std::fabs(targetPos.x) <= straightEndpointTolerance) {
+        if (targetPos.y < -straightEndpointTolerance)
             return false;
         dyntrackSections[0] = std::min(2048.0f, std::max(0.0f, targetPos.y));
         return true;
@@ -743,7 +753,7 @@ bool Flex::NewFlexToPoint(
 
     // An arc of at most pi radians always ends on or ahead of the start's
     // lateral axis. A point behind it would require the complementary loop.
-    if (targetPos.y < -straightTolerance)
+    if (targetPos.y < -straightEndpointTolerance)
         return false;
 
     const float absX = std::fabs(targetPos.x);
@@ -1147,7 +1157,9 @@ bool Flex::NewFlex(int x1, int z1, float *p1, float *q1, int x2, int z2, float *
     };
 
     // Fast path: perfectly straight if end is on the start ray and headings match.
-    if (std::fabs(phi) < 1e-4f && std::fabs(targetPos.x) < 0.05f && targetPos.y > 0.0f) {
+    if (std::fabs(phi) < kCurveAngleEpsilon
+            && std::fabs(targetPos.x) <= kStraightEndpointTolerance
+            && targetPos.y > 0.0f) {
         dyntrackSections[0] = targetPos.y;
         canonicalize(dyntrackSections);
         trimToLength(2048.0f, dyntrackSections);
@@ -1188,7 +1200,7 @@ bool Flex::NewFlex(int x1, int z1, float *p1, float *q1, int x2, int z2, float *
         const float absPhi = std::fabs(phi);
         const float chord = length(targetPos);
         const float halfAngleSin = std::sin(absPhi * 0.5f);
-        if(absPhi > 1e-5f && halfAngleSin > 1e-6f && chord > 0.01f)
+        if(absPhi > kCurveAngleEpsilon && halfAngleSin > kCurveAngleEpsilon * 0.5f && chord > 0.01f)
             addExactRadius(chord / (2.0f * halfAngleSin));
 
         // For L+C+L, both straight lengths are linear functions of radius.
@@ -1196,7 +1208,7 @@ bool Flex::NewFlex(int x1, int z1, float *p1, float *q1, int x2, int z2, float *
         // zero. Include those exact boundaries instead of falling back to the
         // next lower rounded radius.
         const float denom = -std::sin(phi);
-        if(std::fabs(denom) > 1e-5f) {
+        if(std::fabs(denom) > kCurveAngleEpsilon) {
             auto straightLengths = [&](float radius, float &l0, float &l2) {
                 const FlexVec2 cd = curveDisp(phi, radius);
                 l2 = (targetPos.x - cd.x) / denom;
@@ -1260,14 +1272,14 @@ bool Flex::NewFlex(int x1, int z1, float *p1, float *q1, int x2, int z2, float *
     };
 
     // 1) Single curve (L + C + L) candidates over our discrete radius set.
-    if (std::fabs(std::sin(phi)) > 1e-4f) {
+    if (std::fabs(std::sin(phi)) > kCurveAngleEpsilon) {
         for (float R : singleCurveRadii) {
             if (R < minAllowedRadius)
                 continue;
 
             FlexVec2 cd = curveDisp(phi, R);
             float denom = -std::sin(phi);
-            if (std::fabs(denom) < 1e-6f)
+            if (std::fabs(denom) < kCurveAngleEpsilon)
                 continue;
 
             float L2 = (targetPos.x - cd.x) / denom;

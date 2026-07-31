@@ -2287,6 +2287,13 @@ void RouteEditorGLWidget::updateLiveFlex(int pointerTileX, int pointerTileZ, con
                 0.0f,
                 false);
     } else {
+        // World X/Z quantization can miss an arbitrarily rotated track axis
+        // by up to half a square grid cell's diagonal. Treat that displacement
+        // as straight so the mouse can reach the zero-angle state.
+        constexpr float kHalfGridDiagonalFactor = 0.70710678118f;
+        const float straightEndpointTolerance = std::max(
+                0.05f,
+                std::fabs(Game::DefaultMoveStep) * kHalfGridDiagonalFactor);
         success = Flex::NewFlexToPoint(
                 liveFlexStartTileX,
                 liveFlexStartTileZ,
@@ -2295,7 +2302,9 @@ void RouteEditorGLWidget::updateLiveFlex(int pointerTileX, int pointerTileZ, con
                 targetTileX,
                 targetTileZ,
                 targetPosition,
-                dyntrackData);
+                dyntrackData,
+                15.0f,
+                straightEndpointTolerance);
     }
 
     if(!success)
