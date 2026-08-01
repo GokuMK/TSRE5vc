@@ -160,10 +160,12 @@ protected:
     void drawPointer();
     void pushRenderPointer();
 private:
-    bool startLiveFlex(bool reuseUndoState = false, bool deleteOnCancel = false);
+    bool startLiveFlex(bool reuseUndoState = false, bool deleteOnCancel = false,
+            bool initialDirectionFromMouse = false);
     void updateLiveFlex(int pointerTileX, int pointerTileZ, const float *pointerPosition);
     void finishLiveFlex(bool accept);
-    bool placeContinuousFlexTrack(int tileX, int tileZ, float *position, float *quaternion);
+    bool placeContinuousFlexTrack(int tileX, int tileZ, float *position,
+            float *quaternion, bool initialMousePlacement = false);
     DynTrackObj* placeRawDynTrack(int tileX, int tileZ, float *position, float *quaternion);
     bool createLiveFlexCompanions();
     void discardLiveFlexCompanions();
@@ -230,6 +232,7 @@ private:
     bool continuousFlexMode = false;
     bool continuousFlexRoadMode = false;
     bool liveFlexDeleteOnCancel = false;
+    bool liveFlexInitialDirectionFromMouse = false;
     DynTrackObj *liveFlexObj = NULL;
     int liveFlexStartTileX = 0;
     int liveFlexStartTileZ = 0;

@@ -1479,7 +1479,8 @@ void RouteEditorGLWidget::mousePressEvent(QMouseEvent *event) {
                     (int)camera->pozT[0],
                     (int)camera->pozT[1],
                     aktPointerPos,
-                    q))
+                    q,
+                    true))
                 Undo::StateCancel();
             mouseLPressed = false;
             mouseClick = false;
@@ -1880,7 +1881,8 @@ void RouteEditorGLWidget::setSelectedObj(GameObj* o) {
            emit sendMsg("showShape", ((WorldObj*) o)->getShapePath());
 }
 
-bool RouteEditorGLWidget::startLiveFlex(bool reuseUndoState, bool deleteOnCancel) {
+bool RouteEditorGLWidget::startLiveFlex(bool reuseUndoState, bool deleteOnCancel,
+        bool initialDirectionFromMouse) {
     if(liveFlexActive)
         return true;
     if(route == NULL || selectedObj == NULL)
@@ -1920,6 +1922,7 @@ bool RouteEditorGLWidget::startLiveFlex(bool reuseUndoState, bool deleteOnCancel
     liveFlexLastEndpointId = -2;
     liveFlexLastUpdateTime = 0;
     liveFlexDeleteOnCancel = deleteOnCancel;
+    liveFlexInitialDirectionFromMouse = initialDirectionFromMouse;
     liveFlexCompanionsValid = true;
 
     if(continuousFlexMode && dynTrack->isRoad()) {
@@ -1950,7 +1953,8 @@ bool RouteEditorGLWidget::placeContinuousFlexTrack(
         int tileX,
         int tileZ,
         float *position,
-        float *quaternion) {
+        float *quaternion,
+        bool initialMousePlacement) {
     if(route == NULL || position == NULL || quaternion == NULL)
         return false;
 
@@ -1973,11 +1977,34 @@ bool RouteEditorGLWidget::placeContinuousFlexTrack(
     if(dynTrack == NULL)
         return false;
 
+    bool startsAtTrackEndpoint = false;
+    if(initialMousePlacement) {
+        TDB *database = continuousFlexRoadMode ? Game::roadDB : Game::trackDB;
+        if(database != NULL) {
+            int probeTileX = dynTrack->x;
+            int probeTileZ = dynTrack->y;
+            float probePosition[3];
+            float probeQ[4];
+            Vec3::copy(probePosition, dynTrack->position);
+            Quat::copy(probeQ, dynTrack->qDirection);
+            // Inspect the final placed pose so every placement snapping path
+            // (including global stick-to-target) is classified consistently.
+            startsAtTrackEndpoint = database->findNearestNode(
+                    probeTileX,
+                    probeTileZ,
+                    probePosition,
+                    probeQ,
+                    0.1f,
+                    false) >= 0;
+        }
+    }
+
     if(selectedObj != NULL)
         selectedObj->unselect();
     setSelectedObj(dynTrack);
     dynTrack->select();
-    if(startLiveFlex(true, true))
+    if(startLiveFlex(true, true,
+            initialMousePlacement && !startsAtTrackEndpoint))
         return true;
 
     route->undoPlaceObj(dynTrack->x, dynTrack->y, dynTrack->UiD);
@@ -2266,6 +2293,72 @@ void RouteEditorGLWidget::updateLiveFlex(int pointerTileX, int pointerTileZ, con
     Vec3::copy(liveFlexLastTargetPosition, targetPosition);
 
     float dyntrackData[10] = {0};
+    if(liveFlexInitialDirectionFromMouse) {
+        const double dx = (targetTileX - liveFlexStartTileX) * 2048.0
+                + (double)targetPosition[0]
+                - (double)liveFlexStartPosition[0];
+        const double dz = (targetTileZ - liveFlexStartTileZ) * 2048.0
+                + (double)targetPosition[2]
+                - (double)liveFlexStartPosition[2];
+        const double horizontalDistance = std::hypot(dx, dz);
+        if(!std::isfinite(horizontalDistance))
+            return;
+
+        if(horizontalDistance < 0.1) {
+            liveFlexObj->set("dyntrackdata", dyntrackData);
+            updateLiveFlexCompanions(dyntrackData);
+            return;
+        }
+
+        const float startYaw = (float)std::atan2(dx, -dz);
+        float startQ[4];
+        Quat::fill(startQ);
+        Quat::rotateY(startQ, startQ, -startYaw);
+        liveFlexObj->setQdirection(startQ);
+        liveFlexObj->setMartix();
+
+        dyntrackData[0] = (float)std::min(2048.0, horizontalDistance);
+        const float elevation = (float)(
+                ((double)targetPosition[1]
+                    - (double)liveFlexStartPosition[1])
+                * 1000.0 / horizontalDistance);
+        if(!std::isfinite(elevation))
+            return;
+        liveFlexObj->set("dyntrackdata", dyntrackData);
+        liveFlexObj->setElevation(elevation);
+
+        // Companion starts were provisionally created on the first click,
+        // before the second point established this segment's direction.
+        for(int i = 0; i < liveFlexCompanions.size(); i++) {
+            DynTrackObj *track = liveFlexCompanions[i];
+            if(track == NULL)
+                continue;
+            int companionTileX = 0;
+            int companionTileZ = 0;
+            float companionPosition[3] = {0, 0, 0};
+            float companionQ[4] = {0, 0, 0, 1};
+            if(!Flex::OffsetWorldPose(
+                    liveFlexStartTileX,
+                    liveFlexStartTileZ,
+                    liveFlexStartPosition,
+                    liveFlexObj->qDirection,
+                    liveFlexCompanionOffsets[i],
+                    companionTileX,
+                    companionTileZ,
+                    companionPosition,
+                    companionQ)) {
+                liveFlexCompanionsValid = false;
+                return;
+            }
+            track->setPosition(
+                    companionTileX, companionTileZ, companionPosition);
+            track->setQdirection(companionQ);
+            track->setMartix();
+        }
+        updateLiveFlexCompanions(dyntrackData);
+        return;
+    }
+
     const float startYaw = Flex::TdbYawFromTrackQuaternion(liveFlexStartQ);
     bool success = false;
 
@@ -2362,6 +2455,7 @@ void RouteEditorGLWidget::finishLiveFlex(bool accept) {
     liveFlexActive = false;
     liveFlexObj = NULL;
     liveFlexDeleteOnCancel = false;
+    liveFlexInitialDirectionFromMouse = false;
     liveFlexHasLastTarget = false;
     liveFlexLastEndpointId = -2;
     liveFlexLastUpdateTime = 0;
