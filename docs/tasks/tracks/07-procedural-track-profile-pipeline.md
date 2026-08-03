@@ -35,8 +35,8 @@ Milestone 1 implementation:
   meshes during invalidation;
 - the `procedural-policy` test suite covers the mode-resolution matrix.
 
-Milestone 2 was implemented on 2026-07-30 and is ready for visual validation
-with real route profiles:
+Milestone 2 was implemented on 2026-07-30 and subsequently visually accepted
+with representative route profiles:
 
 - route `TrackProfiles` discovery follows ORTS `TrProfile.xml`,
   `TrProfile.stf`, `TrProfile*.xml`, and `TrProfile*.stf` precedence;
@@ -61,9 +61,17 @@ with real route profiles:
   subdivision, and curve endpoint tests are available in the `orts-profile`
   suite.
 
-Real-world STF/XML visual comparison against Open Rails remains required before
-Milestone 2 is accepted. Full `PositionControl` superelevation deformation and
-more exact ORTS material mapping remain follow-up compatibility work.
+Milestone 2 is visually accepted for the tested rail, road, and Ruler profiles
+in route `bbb`. Full `PositionControl` superelevation deformation, detailed
+road-banking review, and more exact ORTS material mapping remain follow-up
+compatibility work.
+
+The Ruler properties now use the same current profile catalog conventions as
+TrackObj and DynTrack: route profiles precede global templates, route names
+override collisions, and `NOT SET`, `DEFAULT`, and `DISABLED` remain distinct.
+Rulers can render both TSRE procedural templates and ORTS track profiles. The
+two generator backends still have separate entry paths; Task 09 records the
+future backend-independent consolidation.
 
 Current Milestone 2 material mapping:
 
@@ -170,10 +178,12 @@ frame.
 DynTrack then adopts the same UI, persistence, and resolution contract, using
 `ProceduralMstsDyntrack` where TrackObj would use a static shape.
 
-Ruler is only a supplementary example: it saves `ShapeTemplate` and generates
-procedural previews from straight `TSection` vectors. Its manual transforms,
-separate RDB path, and straight-only preview are not the model for this task.
-A future shared catalog may serve Ruler, but no Ruler refactor is required.
+Ruler remains a supplementary straight-segment consumer rather than a track
+database object. It now shares the current profile catalog and selection UI,
+supports both TSRE and ORTS profile generation, and invalidates its generated
+mesh when points or template selection change. Its RDB path creation remains
+independent. Further consolidation of the TSRE and ORTS generator entry paths
+belongs to Task 09.
 
 ## Open Rails Profile Model
 

@@ -23,8 +23,11 @@
 #include <tsre/tdb/TSectionDAT.h>
 #include <tsre/world/Route.h>
 #include <tsre/geo/GeoCoordinates.h>
+#include <tsre/procedural/OrtsTrackProfile.h>
+#include <tsre/procedural/OrtsTrackProfileRenderer.h>
 #include <tsre/procedural/ProceduralShape.h>
 #include <tsre/renderer/Renderer.h>
+#include <QSet>
 
 bool RulerObj::TwoPointRuler = false;
 bool RulerObj::DrawPoints = false;
@@ -52,6 +55,8 @@ RulerObj::RulerObj(const RulerObj& o) : WorldObj(o){
     selectionValue = o.selectionValue;
     length = o.length;
     internalLodControl = o.internalLodControl;
+    shapeEnabled = o.shapeEnabled;
+    proceduralShapeInit = false;
 }
 
 WorldObj* RulerObj::clone(){
@@ -59,6 +64,7 @@ WorldObj* RulerObj::clone(){
 }
 
 RulerObj::~RulerObj() {
+    clearProceduralShape();
 }
 
 void RulerObj::load(int x, int y) {
@@ -120,15 +126,88 @@ void RulerObj::set(QString sh, FileBuffer* data) {
 }
 
 void RulerObj::reload(){
-    proceduralShapeInit = false;
-    for(int j = 0; j < points.size() - 1; j++){
-        points[j].procShape.clear();
+    clearProceduralShape();
+}
+
+void RulerObj::clearProceduralShape(){
+    for(Point &point : points){
+        if(point.procShapeOwned){
+            for(OglObj *object : point.procShape){
+                object->deleteVBO();
+                delete object;
+            }
+        }
+        point.procShape.clear();
+        point.procShapeOwned = false;
     }
+    proceduralShapeInit = false;
+}
+
+void RulerObj::ensureProceduralShape(){
+    if(proceduralShapeInit || !shapeEnabled || points.size() < 2)
+        return;
+
+    clearProceduralShape();
+    ProceduralShape::Load();
+    const QString routePath = Game::root + "/routes/" + Game::route;
+    OrtsTrackProfileCatalog::load(routePath);
+    const QSharedPointer<const OrtsTrackProfile> routeProfile =
+            OrtsTrackProfileCatalog::find(templateName);
+
+    for(int i = 0; i < points.size() - 1; i++){
+        const float tlength = Vec3::distance(
+                points[i].position, points[i + 1].position);
+        const int someval = (((points[i + 1].position[2]
+                - points[i].position[2]) + 0.00001f)
+                / fabs((points[i + 1].position[2]
+                - points[i].position[2]) + 0.00001f));
+        const float rotY = ((float)someval + 1.0f) * (M_PI / 2)
+                + (float)atan((points[i].position[0]
+                - points[i + 1].position[0])
+                / (points[i].position[2] - points[i + 1].position[2]));
+        const float rotX = (float)asin((points[i].position[1]
+                - points[i + 1].position[1]) / tlength);
+
+        Quat::fill(points[i].quat);
+        Quat::rotateY(points[i].quat, points[i].quat, rotY + M_PI);
+        Quat::rotateX(points[i].quat, points[i].quat, rotX);
+        Mat4::fromRotationTranslation(
+                points[i].matrix, points[i].quat, points[i].position);
+
+        QVector<TSection> sections;
+        sections.push_back(TSection());
+        sections.back().size = floor((tlength * 10) + 0.5) / 10;
+
+        if(routeProfile != nullptr){
+            QStringList diagnostics;
+            OrtsTrackProfileRenderer::generate(
+                    *routeProfile, sections, points[i].procShape,
+                    routePath, &diagnostics);
+            points[i].procShapeOwned = !points[i].procShape.isEmpty();
+
+            static QSet<QString> warnedDiagnostics;
+            for(const QString &diagnostic : diagnostics){
+                const QString key = routeProfile->id.toLower()
+                        + ":ruler:" + diagnostic;
+                if(!warnedDiagnostics.contains(key)){
+                    warnedDiagnostics.insert(key);
+                    qWarning() << "ORTS Ruler profile" << routeProfile->id
+                               << diagnostic;
+                }
+            }
+        } else {
+            ProceduralShape::GetShape(
+                    templateName, points[i].procShape, sections, i);
+        }
+    }
+    proceduralShapeInit = true;
 }
 
 void RulerObj::setTemplate(QString name){
+    if(templateName == name && shapeEnabled == !name.isEmpty())
+        return;
     templateName = name;
-    shapeEnabled = true;
+    shapeEnabled = !name.isEmpty();
     setModified();
     reload();
 }
@@ -149,6 +228,8 @@ void RulerObj::setPosition(int x, int z, float* p){
     setModified();
     if(line3d != NULL)
         line3d->deleteVBO();
+    if(shapeEnabled)
+        reload();
 }
 
 void RulerObj::refreshLength(){
@@ -240,39 +321,19 @@ void RulerObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos,
         }
         pointer3d->render(selectionColor);
     }
-    
-    int useSC = (float)selectionColor/(float)(selectionColor+0.000001);
-    
-    if(shapeEnabled){
-        if(proceduralShapeInit){
-            for(int j = 0; j < points.size() - 1; j++){
-                gluu->mvPushMatrix();
-                Mat4::multiply(gluu->mvMatrix, gluu->mvMatrix, points[j].matrix);
-                gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-                for(int i = 0; i < points[j].procShape.size(); i++){
-                    points[j].procShape[i]->render(selectionColor | (i&0xF)*useSC);
-                }
-                gluu->mvPopMatrix();
-            }
-        } else {
-            //templateName = "Siec1";
-            qDebug() << templateName;
-            for(int i = 0; i < points.size() - 1; i++){
-                float tlength = Vec3::distance(points[i].position, points[i+1].position);
-                int someval = (((points[i+1].position[2]-points[i].position[2])+0.00001f)/fabs((points[i+1].position[2]-points[i].position[2])+0.00001f));
-                float rotY = ((float)someval+1.0)*(M_PI/2)+(float)(atan((points[i].position[0]-points[i+1].position[0])/(points[i].position[2]-points[i+1].position[2]))); 
-                float rotX = (float)(asin((points[i].position[1]-points[i+1].position[1])/(tlength))); 
 
-                Quat::fill(points[i].quat);
-                Quat::rotateY(points[i].quat, points[i].quat, rotY + M_PI);
-                Quat::rotateX(points[i].quat, points[i].quat, rotX);
-                Mat4::fromRotationTranslation(points[i].matrix, points[i].quat, points[i].position);
-                QVector<TSection> sections;
-                sections.push_back(TSection());
-                sections.back().size = floor((tlength * 10 ) + 0.5) / 10;
-                ProceduralShape::GetShape(templateName, points[i].procShape, sections, i);
+    int useSC = (float)selectionColor/(float)(selectionColor+0.000001);
+
+    if(shapeEnabled){
+        ensureProceduralShape();
+        for(int j = 0; j < points.size() - 1; j++){
+            gluu->mvPushMatrix();
+            Mat4::multiply(gluu->mvMatrix, gluu->mvMatrix, points[j].matrix);
+            gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
+            for(int i = 0; i < points[j].procShape.size(); i++){
+                points[j].procShape[i]->render(selectionColor | (i&0xF)*useSC);
             }
-            proceduralShapeInit = true;
+            gluu->mvPopMatrix();
         }
     }
     
@@ -366,32 +427,14 @@ void RulerObj::pushRenderItems(float lod, float posx, float posz, float* playerW
     int useSC = (float)selectionColor/(float)(selectionColor+0.000001);
 
     if(shapeEnabled){
-        if(proceduralShapeInit){
-            for(int j = 0; j < points.size() - 1; j++){
-                Game::currentRenderer->mvPushMatrix();
-                Mat4::multiply(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, points[j].matrix);
-                for(int i = 0; i < points[j].procShape.size(); i++){
-                    points[j].procShape[i]->pushRenderItem(selectionColor | (i&0xF)*useSC);
-                }
-                Game::currentRenderer->mvPopMatrix();
+        ensureProceduralShape();
+        for(int j = 0; j < points.size() - 1; j++){
+            Game::currentRenderer->mvPushMatrix();
+            Mat4::multiply(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, points[j].matrix);
+            for(int i = 0; i < points[j].procShape.size(); i++){
+                points[j].procShape[i]->pushRenderItem(selectionColor | (i&0xF)*useSC);
             }
-        } else {
-            for(int i = 0; i < points.size() - 1; i++){
-                float tlength = Vec3::distance(points[i].position, points[i+1].position);
-                int someval = (((points[i+1].position[2]-points[i].position[2])+0.00001f)/fabs((points[i+1].position[2]-points[i].position[2])+0.00001f));
-                float rotY = ((float)someval+1.0)*(M_PI/2)+(float)(atan((points[i].position[0]-points[i+1].position[0])/(points[i].position[2]-points[i+1].position[2])));
-                float rotX = (float)(asin((points[i].position[1]-points[i+1].position[1])/(tlength)));
-
-                Quat::fill(points[i].quat);
-                Quat::rotateY(points[i].quat, points[i].quat, rotY + M_PI);
-                Quat::rotateX(points[i].quat, points[i].quat, rotX);
-                Mat4::fromRotationTranslation(points[i].matrix, points[i].quat, points[i].position);
-                QVector<TSection> sections;
-                sections.push_back(TSection());
-                sections.back().size = floor((tlength * 10 ) + 0.5) / 10;
-                ProceduralShape::GetShape(templateName, points[i].procShape, sections, i);
-            }
-            proceduralShapeInit = true;
+            Game::currentRenderer->mvPopMatrix();
         }
     }
 

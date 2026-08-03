@@ -3,10 +3,9 @@
 ## Purpose
 
 This document describes and records a minimal Open Rails implementation for
-DynTracks and static TrackObjs written by TSRE. It covers explicit Open Rails
+DynTracks, static TrackObjs, and TSRE Rulers. It covers explicit Open Rails
 track-profile selection, opt-in procedural replacement of ordinary static rail
-shapes, and the rail-specific rendering behavior that must be disabled for road
-DynTracks.
+shapes, road-aware DynTrack rendering, and profile-driven Ruler previews.
 
 The original design review compared:
 
@@ -18,7 +17,7 @@ The original design review compared:
 The relevant parsing, profile-loading, wire, and superelevation paths were
 materially unchanged between those revisions. The implementation and visual
 acceptance described below were made against the local commit. Before an
-upstream submission, the five runtime-file changes should be rebased onto the
+upstream submission, the six runtime-file changes should be rebased onto the
 current Open Rails branch and rebuilt there.
 
 ## Required Behavior
@@ -148,9 +147,34 @@ crossovers, moving tables, and objects whose section data cannot be resolved
 must continue to use their existing static rendering path. This milestone does
 not add procedural static-road rendering.
 
+### TSRE Ruler integration
+
+Parse TSRE's `Ruler` world object instead of ignoring it. The object uses the
+existing MSTS `Points`/`Point` tokens plus the optional `ShapeTemplate` token.
+Its stored points are tile-relative world positions; `Position` normally
+duplicates the first point and must not be added to every point again.
+
+Render one independent, locally generated straight profile segment between
+each adjacent point pair. Convert MSTS point Z to Open Rails/XNA Z exactly
+once, then place the local mesh with a world matrix. This keeps profile
+geometry local and compatible with the existing instanced rendering model.
+
+Ruler profile selection is intentionally explicit:
+
+| Ruler state | Behavior |
+| --- | --- |
+| Valid explicit name | Render with the named profile |
+| `ShapeTemplate DEFAULT` | Render with profile 0 |
+| No value or `ShapeTemplate DISABLED` | Do not generate a Ruler shape |
+| Missing or ambiguous name | Warn and do not generate a Ruler shape |
+
+Rulers are visual guides, not track database objects. They do not query TDB or
+RDB, do not generate overhead wire, and do not receive superelevation. Their
+profile shapes remain available when global superelevation is disabled.
+
 ## Recommended Upstream Patch Organization
 
-Prepare one small pull request with three reviewable commits:
+Prepare one small pull request with four reviewable commits:
 
 1. **Honor DynTrack ShapeTemplate**
    - add the text token and parsed property;
@@ -173,6 +197,12 @@ Prepare one small pull request with three reviewable commits:
    - preserve every existing static superelevation exclusion and legacy
      behavior when the value is absent.
 
+4. **Render ShapeTemplate Rulers**
+   - parse the TSRE Ruler and its point list;
+   - resolve its explicit profile through the shared profile catalog;
+   - generate local straight segments between adjacent stored points;
+   - keep Rulers independent of TDB/RDB, wire, and superelevation.
+
 A general TDB/RDB resolver is not required for this first rendering patch.
 Open Rails road traffic follows RDB independently. The DynTrack road
 classification is needed here for profile selection and for avoiding
@@ -192,12 +222,12 @@ rail-only visual processing.
 | Selection by unique declared `TrProfile.Name` | Implemented, not visually tested | Requires a profile whose declared name differs from its filename |
 | Missing explicit name | Implemented, not visually tested | Falls back to profile 0 and warns once per name |
 | Ambiguous declared name | Implemented, not visually tested | Falls back to profile 0 and warns once per name |
-| Road DynTrack with explicit `default_road*` | Built, pending visual acceptance | Route `bbb` contains straight/curved plain and marked road objects |
+| Road DynTrack with explicit `default_road*` | Visually accepted | Route `bbb` contains straight/curved plain and marked road objects |
 | Road DynTrack without an explicit template | Implemented, not visually tested | Uses `default_road`, then `TrProfileRoad`, then visible profile-0 fallback |
-| Mixed rail and road DynTracks | Pending visual test | Requires road test objects and profile |
+| Mixed rail and road DynTracks | Visually accepted | Rail and road profiles render together in route `bbb` |
 | Road DynTrack on an electrified route | Pending visual test | Must confirm no dynamic wire is generated |
 | Road and rail records sharing a `UiD` | Pending visual test | Must confirm the road skips TDB superelevation lookup |
-| Straight and curved road subsections | Pending visual test | Requires road profile and test objects |
+| Straight and curved road subsections | Visually accepted, detailed banking review deferred | Basic geometry is correct; road banking deserves a later focused check |
 | Road CarSpawner/RDB traversal | Out of rendering-patch scope; pending | Uses the existing independent RDB traffic path |
 | Static rail TrackObj without `ShapeTemplate` | Implemented, pending regression test | Retains the existing Open Rails superelevation path |
 | Static rail TrackObj with valid explicit name | Visually accepted | Named ORTS profiles render on ordinary TrackObjs in route `bbb` |
@@ -205,6 +235,9 @@ rail-only visual processing.
 | Static rail TrackObj with `DISABLED` | Implemented, pending visual test | Retains the original static shape |
 | Static rail TrackObj with missing name | Implemented, pending visual test | Retains the original shape and warns once |
 | Excluded static shapes | Preserved by implementation, pending regression test | Roads, tunnels, junctions, crossovers, moving tables, and unresolved sections remain static |
+| Ruler with named profile | Visually accepted | Profile-driven Ruler geometry renders in route `bbb` |
+| Ruler while superelevation is disabled | Implemented | Ruler generation is independent of the superelevation option |
+| Multi-point Ruler | Implemented, basic visual acceptance | Each adjacent point pair creates an independent straight profile segment |
 
 Final road acceptance requires a visible and correct road profile, no road
 wire, no road superelevation, and deterministic fallback behavior.
@@ -212,7 +245,7 @@ wire, no road superelevation, and deterministic fallback behavior.
 ## Implementation Status
 
 Implemented and incrementally rebuilt in the local Open Rails worktree through
-2026-07-31:
+2026-08-03:
 
 - `ShapeTemplate` is appended to `TokenID` and parsed by `DyntrackObj`;
 - subsection copies retain the template name;
@@ -229,7 +262,11 @@ Implemented and incrementally rebuilt in the local Open Rails worktree through
   including shapes with no actually superelevated subsection;
 - absent static templates preserve the existing Open Rails behavior, while
   `DISABLED` and unresolved names retain the original static shape;
-- all existing static-track safety exclusions remain in force.
+- all existing static-track safety exclusions remain in force;
+- TSRE Ruler objects, their existing `Points`/`Point` data, and
+  `ShapeTemplate` are parsed;
+- Rulers render named/default profiles as local straight segments without
+  TDB/RDB lookup, overhead wire, or superelevation.
 
 The incremental `RunActivity` build succeeds. Route `bbb` contains rail
 DynTracks selecting `TrProfileExampleClean`, `TrProfileExampleClean02`,
@@ -240,30 +277,35 @@ visually accepted in Open Rails on route `bbb`.
 Explicit named-profile replacement of ordinary static rail TrackObjs was also
 visually accepted in both TSRE and Open Rails on route `bbb`.
 
-Road profile rendering is built and ready for visual acceptance. Route `bbb`
+Road profile rendering received basic visual acceptance. Route `bbb`
 contains `default_road*` profiles and road DynTracks with `StaticFlags (
 00100100 )` selecting plain, marked, and role templates. The compatibility
 loader now discovers those TSRE profile IDs directly. Missing road defaults
-still use the documented visible profile-0 fallback.
+still use the documented visible profile-0 fallback. A closer examination of
+road banking and a dedicated overhead-wire check remain deferred.
+
+Named profile rendering on TSRE Rulers was also visually accepted. This path
+remains active independently of the Open Rails superelevation setting.
 
 ## Shareable Patch Scope
 
-The functional patch is isolated to these five Open Rails runtime files:
+The functional patch is isolated to these six Open Rails runtime files:
 
 - `Source/Orts.Parsers.Msts/TokenID.cs`;
 - `Source/Orts.Formats.Msts/WorldFile.cs`;
 - `Source/RunActivity/Viewer3D/DynamicTrack.cs`;
+- `Source/RunActivity/Viewer3D/Ruler.cs`;
 - `Source/RunActivity/Viewer3D/SuperElevation.cs`;
 - `Source/RunActivity/Viewer3D/Scenery.cs`.
 
-At the current local revision, this is 190 inserted lines and 42 deleted lines.
+At the current local revision, this is 346 inserted lines and 43 deleted lines.
 VS Code support files, project-file conversions, generated output, and other
 local worktree changes are not part of the feature patch.
 
 Useful proof for reviewers consists of:
 
 1. this design and implementation record;
-2. the clean five-file Git patch;
+2. the clean six-file Git patch;
 3. the zero-error incremental `RunActivity` build result;
 4. a short before/after video or screenshots from route `bbb`;
 5. the corresponding `ShapeTemplate` entries in the two tested world tiles.

@@ -14,6 +14,8 @@
 #include <tsre/Game.h>
 #include <tsre/procedural/ProceduralShape.h>
 #include <tsre/procedural/ShapeTemplates.h>
+#include <tsre/procedural/OrtsTrackProfile.h>
+#include <QSignalBlocker>
 
 PropertiesRuler::PropertiesRuler() {
     QVBoxLayout *vbox = new QVBoxLayout;
@@ -128,19 +130,12 @@ PropertiesRuler::PropertiesRuler() {
     vbox->addWidget(label);
     vbox->addWidget(&eTemplate);
     eTemplate.setStyleSheet("combobox-popup: 0;");
+    eTemplate.addItem("NOT SET");
     eTemplate.addItem("DEFAULT");
     eTemplate.addItem("DISABLED");
-    
-    ProceduralShape::Load();
-    if(ProceduralShape::ShapeTemplateFile != NULL){
-        QMapIterator<QString, ShapeTemplate*> i(ProceduralShape::ShapeTemplateFile->templates);
-        while (i.hasNext()) {
-            i.next();
-            if(i.value() == NULL)
-                continue;
-            eTemplate.addItem(i.value()->name);
-        }
-    }
+    eTemplate.setToolTip("NOT SET disables the procedural Ruler shape; "
+                         "DEFAULT explicitly requests the default procedural template.");
+    refreshTemplateList();
     QObject::connect(&eTemplate, SIGNAL(currentTextChanged(QString)),
                       this, SLOT(eTemplateEdited(QString)));
     button = new QPushButton("Add Shape");
@@ -164,9 +159,63 @@ void PropertiesRuler::eTemplateEdited(QString val){
     if(worldObj == NULL){
         return;
     }
+    if(val == "NOT SET")
+        val.clear();
     Undo::SinglePushWorldObjData(worldObj);
     worldObj->setTemplate(val);
     Undo::StateEnd();
+}
+
+void PropertiesRuler::refreshTemplateList(){
+    const QSignalBlocker blocker(&eTemplate);
+    const QString previousValue = eTemplate.currentText();
+
+    eTemplate.clear();
+    eTemplate.addItem("NOT SET");
+    eTemplate.addItem("DEFAULT");
+    eTemplate.addItem("DISABLED");
+
+    ProceduralShape::Load();
+    OrtsTrackProfileCatalog::load(Game::root + "/routes/" + Game::route);
+
+    // Route-local ORTS profiles are the most specific definitions, so show
+    // them before application-level TSRE templates.
+    for(const QString &profileId : OrtsTrackProfileCatalog::profileIds())
+        if(eTemplate.findText(profileId, Qt::MatchFixedString) < 0)
+            eTemplate.addItem(profileId);
+
+    if(ProceduralShape::ShapeTemplateFile != NULL){
+        QMapIterator<QString, ShapeTemplate*> iterator(
+                ProceduralShape::ShapeTemplateFile->templates);
+        while(iterator.hasNext()){
+            iterator.next();
+            if(iterator.value() == NULL)
+                continue;
+            const QString name = iterator.value()->name;
+            if(OrtsTrackProfileCatalog::find(name) != nullptr)
+                continue;
+            if(eTemplate.findText(name, Qt::MatchFixedString) < 0)
+                eTemplate.addItem(name);
+        }
+    }
+
+    if(!previousValue.isEmpty()
+            && eTemplate.findText(previousValue, Qt::MatchFixedString) < 0)
+        eTemplate.addItem(previousValue);
+    if(!previousValue.isEmpty())
+        eTemplate.setCurrentText(previousValue);
+}
+
+void PropertiesRuler::updateTemplateValue(){
+    if(worldObj == NULL)
+        return;
+    QString name = worldObj->getTemplate();
+    if(name.isEmpty())
+        name = "NOT SET";
+    const QSignalBlocker blocker(&eTemplate);
+    if(eTemplate.findText(name, Qt::MatchFixedString) < 0)
+        eTemplate.addItem(name);
+    eTemplate.setCurrentText(name);
 }
 
 void PropertiesRuler::showObj(GameObj* obj){
@@ -176,17 +225,14 @@ void PropertiesRuler::showObj(GameObj* obj){
     }
     worldObj = (WorldObj*)obj;
     RulerObj* robj = (RulerObj*)obj;
+    refreshTemplateList();
     this->uid.setText(QString::number(robj->UiD, 10));
     this->tX.setText(QString::number(robj->x, 10));
     this->tY.setText(QString::number(-robj->y, 10));
     lengthM.setText(QString::number(robj->getLength(), 'G', 4));
     lengthGM.setText(QString::number(robj->getGeoLength(), 'G', 4));
     
-    QString templateName = worldObj->getTemplate();
-    if(templateName.length() == 0)
-        eTemplate.setCurrentText("DEFAULT");
-    else
-        eTemplate.setCurrentText(templateName);
+    updateTemplateValue();
     
     elevType.setCurrentText(ElevTypeName);
     float elev = sin(robj->getElevation())*1000;
@@ -211,6 +257,7 @@ void PropertiesRuler::updateObj(GameObj* obj){
         lengthM.setText(QString::number(robj->getLength(), 'G', 4));
     if(!lengthGM.hasFocus())
         lengthGM.setText(QString::number(robj->getGeoLength(), 'G', 4));
+    updateTemplateValue();
     
     float elev = sin(robj->getElevation())*1000;
     float oneInXm = 0.0;

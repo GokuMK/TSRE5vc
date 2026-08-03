@@ -54,6 +54,7 @@ private:
         int shapeType = 0;
         float position[3];
         QVector<OglObj*> procShape;
+        bool procShapeOwned = false;
         float quat[4];
         float matrix[16];
     };
@@ -65,8 +66,10 @@ private:
     int selectionValue = 0;
     float length = 0;
     float geoLength = 0;
-    
+
     void refreshLength();
+    void ensureProceduralShape();
+    void clearProceduralShape();
     bool shapeEnabled = false;
     bool proceduralShapeInit = false;
 

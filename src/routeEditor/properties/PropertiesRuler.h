@@ -36,6 +36,8 @@ public slots:
 signals:
     
 private:
+    void refreshTemplateList();
+    void updateTemplateValue();
     QLineEdit lengthM;
     QLineEdit lengthGM;
     QCheckBox checkboxTwoPoint;

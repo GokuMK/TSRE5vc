@@ -14,10 +14,10 @@ cross-source review has already been completed and is recorded here.
 
 ## Status
 
-Milestones A and B are implemented in the local Open Rails worktree.
+Milestones A, B, and the Ruler extension are implemented in the local Open Rails worktree.
 Rail DynTrack and static TrackObj profile selection have been visually
-accepted. Road DynTrack rendering is built and ready for visual acceptance
-against route `bbb`.
+accepted. Road DynTrack rendering received basic visual acceptance against
+route `bbb`; detailed road-banking and overhead-wire checks remain deferred.
 
 The road implementation:
 
@@ -33,7 +33,11 @@ The tracked source baseline reviewed was commit
 `91414172dea8f16c08e587f2792264110aaabab1`. The Open Rails working tree is an
 intentional local variant adapted to compile under VS Code rather than the
 official Visual Studio setup. Preserve those project/build changes separately
-from the five-file runtime feature patch.
+from the six-file runtime feature patch.
+
+The Ruler extension parses TSRE Ruler point data and `ShapeTemplate`, then
+renders a local straight profile segment for every adjacent point pair. It is
+independent of TDB/RDB, overhead wire, and the global superelevation setting.
 
 ## Source Review Result
 
@@ -166,10 +170,11 @@ Create a small route containing:
 - optional `TrProfile.stf` and `TrProfileRoad.stf`.
 
 The existing Ruler **Create Road Paths** command may be used to bootstrap a
-reference RDB straight. It is not the test object for this task: Ruler writes
-RDB vectors owned by a TSRE-only Ruler and does not write corresponding
-`Dyntrack` world records. The fixture must additionally contain real DynTrack
-world objects whose vectors are in RDB.
+reference RDB straight. Ruler is now understood by this Open Rails patch for
+profile-driven visual rendering, but it still does not write a corresponding
+`Dyntrack` world record and is not a substitute for the road DynTrack fixture.
+The fixture must additionally contain real DynTrack world objects whose
+vectors are in RDB.
 
 Retain:
 
@@ -222,6 +227,19 @@ Minimal compatible approach:
 
 Do not make Open Rails understand TSRE's full advanced template format. It
 only resolves the `ShapeTemplate` name against its own track profiles.
+
+## Ruler ShapeTemplate Extension
+
+Open Rails now parses TSRE Ruler objects using the existing `Points`, `Point`,
+and new `ShapeTemplate` token support. Stored Ruler points are tile-relative
+positions; `Position` is not an additional origin offset. Each adjacent point
+pair is rendered as an independent local straight profile segment.
+
+An explicit profile name selects that profile, `DEFAULT` selects profile 0,
+and absent, `DISABLED`, or unresolved selections remain invisible. Rulers do
+not participate in TDB/RDB traversal and never receive wire or superelevation.
+This rendering remains enabled even when the global superelevation option is
+off.
 
 ## Alternative Without Open Rails Changes
 
@@ -277,3 +295,5 @@ convention without changing general Open Rails `StaticFlag` semantics.
 - Missing road profiles fall back visibly and log one useful warning.
 - The profile selection rule can be shared with TSRE without requiring both
   projects to share generator code.
+- A TSRE Ruler with an explicit valid profile renders without requiring a
+  database record or the global superelevation option.
