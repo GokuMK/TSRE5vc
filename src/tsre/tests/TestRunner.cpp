@@ -140,6 +140,8 @@ struct FlexCase {
     float p2[3] = {0};
     float q2[4] = {0};
     float preferredMinCurveRadius = 0.0f;
+    bool preferNiceRadii = true;
+    float minimumCurveRadius = 5.0f;
     bool expectedSuccess = false;
     bool hasExpectedSections = false;
     float expectedSections[10] = {0};
@@ -191,6 +193,8 @@ static bool parseFlexCase(const QJsonObject &obj, FlexCase &out, QString &err) {
         return false;
 
     out.preferredMinCurveRadius = (float)obj.value("preferredMinCurveRadius").toDouble(0.0);
+    out.preferNiceRadii = obj.value("preferNiceRadii").toBool(true);
+    out.minimumCurveRadius = (float)obj.value("minimumCurveRadius").toDouble(5.0);
     out.expectedSuccess = obj.value("success").toBool(false);
 
     const QJsonValue sectionsV = obj.value("sections");
@@ -329,7 +333,13 @@ static int runFlexSuite(QString casesFile, bool verbose) {
         casesFound++;
 
         float got[10] = {0};
-        const bool ok = Flex::NewFlex(c.x1, c.z1, c.p1, c.q1, c.x2, c.z2, c.p2, c.q2, got, c.preferredMinCurveRadius);
+        const bool ok = Flex::NewFlex(
+                c.x1, c.z1, c.p1, c.q1,
+                c.x2, c.z2, c.p2, c.q2,
+                got,
+                c.preferredMinCurveRadius,
+                c.preferNiceRadii,
+                c.minimumCurveRadius);
         bool caseOk = (ok == c.expectedSuccess);
 
         // If we succeeded, verify that the produced section path actually ends at p2 (and matches q2 heading).
@@ -930,6 +940,80 @@ static int runFlexPointSuite(bool verbose) {
                     << "sections=" << sections[0] << sections[2]
                     << sections[3] << sections[4]
                     << sections[6] << sections[7] << sections[8];
+        }
+    }
+    {
+        guardCaseCount++;
+        const float roadRadius = 6.0f;
+        float p1[3] = {0, 0, 0};
+        float p2[3] = {roadRadius, 0, -roadRadius};
+        float defaultSections[10] = {0};
+        float roadSections[10] = {0};
+        const bool defaultRejected = !Flex::NewFlexToPoint(
+                0, 0, p1, 0.0f,
+                0, 0, p2, defaultSections,
+                15.0f);
+        const bool roadSolved = Flex::NewFlexToPoint(
+                0, 0, p1, 0.0f,
+                0, 0, p2, roadSections,
+                roadRadius);
+        const bool caseOk = defaultRejected
+                && roadSolved
+                && nearlyEqual(roadSections[3], roadRadius, 0.001f);
+        if(caseOk)
+            passed++;
+        else {
+            failed++;
+            qWarning() << "[tests:flex-point] failed: road free-point minimum radius"
+                    << "defaultRejected=" << defaultRejected
+                    << "roadSolved=" << roadSolved
+                    << "radius=" << roadSections[3];
+        }
+    }
+    {
+        guardCaseCount++;
+        const float roadRadius = 6.0f;
+        const float turn = 0.6f;
+        float p1[3] = {0, 0, 0};
+        float p2[3] = {
+            roadRadius * (1.0f - std::cos(turn)),
+            0,
+            -roadRadius * std::sin(turn)
+        };
+        float q1[4] = {0, 0, 0, 1};
+        float q2[4] = {0, turn, 0, 1};
+        float roadSections[10] = {0};
+        float strictSections[10] = {0};
+        const bool roadSolved = Flex::NewFlex(
+                0, 0, p1, q1,
+                0, 0, p2, q2,
+                roadSections, 0.0f, false, roadRadius);
+        const bool strictSolved = Flex::NewFlex(
+                0, 0, p1, q1,
+                0, 0, p2, q2,
+                strictSections, 0.0f, false, 7.0f);
+        bool strictFloorRespected = true;
+        if(strictSolved) {
+            for(int section = 1; section < 5; section += 2) {
+                const int angleIndex = section * 2;
+                const int radiusIndex = angleIndex + 1;
+                if(std::fabs(strictSections[angleIndex]) > 1e-6f
+                        && strictSections[radiusIndex] < 7.0f - 0.001f)
+                    strictFloorRespected = false;
+            }
+        }
+        const bool caseOk = roadSolved
+                && nearlyEqual(roadSections[3], roadRadius, 0.01f)
+                && strictFloorRespected;
+        if(caseOk)
+            passed++;
+        else {
+            failed++;
+            qWarning() << "[tests:flex-point] failed: snapped hard minimum radius"
+                    << "roadSolved=" << roadSolved
+                    << "roadRadius=" << roadSections[3]
+                    << "strictSolved=" << strictSolved
+                    << "strictFloorRespected=" << strictFloorRespected;
         }
     }
     {

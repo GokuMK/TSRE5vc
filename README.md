@@ -21,3 +21,18 @@ http://www.onrails.eu/
 Homepage, User Manual and build downloads:
 http://koniec.org/tsre5/
 
+## Creating a release
+
+Release builds use tags such as `v0.7.6-build.1`. After committing and pushing
+the changes on `main`, run:
+
+```powershell
+.\scripts\release.cmd
+```
+
+The script increments the build number and pushes an annotated tag. GitHub
+Actions then builds the Windows application, prepares the ignored `dist/`
+directory, creates a ZIP with the required runtime DLLs, and publishes a GitHub
+prerelease. To preview the next version without creating a tag, use
+`.\scripts\release.cmd -DryRun`.
+

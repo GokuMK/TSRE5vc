@@ -2,6 +2,14 @@ cmake_minimum_required(VERSION 3.16)
 
 project(TSRE5vc LANGUAGES CXX)
 
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" TSRE5_BASE_VERSION LIMIT_COUNT 1)
+set(TSRE5_VERSION "${TSRE5_BASE_VERSION}-dev" CACHE STRING "Version shown by TSRE5vc")
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/TSRE5Version.h.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/TSRE5Version.h"
+    @ONLY
+)
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -9,10 +17,17 @@ find_package(Qt6 REQUIRED COMPONENTS Network Core Widgets OpenGL OpenGLWidgets W
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     find_package(OpenGL REQUIRED)
+
+    # Keep the existing local OpenAL SDK working while allowing CI and other
+    # machines to provide OpenAL through a normal CMake package.
+    set(TSRE5_LOCAL_OPENAL_ROOT "C:/programy/openal-soft-1.18.2-bin")
+    if(EXISTS "${TSRE5_LOCAL_OPENAL_ROOT}/include/AL/al.h")
+        set(OPENAL_INCLUDE_DIR "${TSRE5_LOCAL_OPENAL_ROOT}/include")
+        set(OPENAL_LIBRARY "${TSRE5_LOCAL_OPENAL_ROOT}/libs/Win64/libOpenAL32.dll.a")
+    endif()
 endif()
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    find_package(OpenAL REQUIRED)       
-endif()
+
+find_package(OpenAL REQUIRED)
 
 qt_standard_project_setup()
 
@@ -74,17 +89,13 @@ file(GLOB TSRE5vc_SRC CONFIGURE_DEPENDS
 )
 
 qt_add_executable(TSRE5vc ${TSRE5vc_SRC})
+target_include_directories(TSRE5vc PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
-    target_include_directories(TSRE5vc PUBLIC C:/programy/openal-soft-1.18.2-bin/include)
-    target_link_libraries(TSRE5vc PUBLIC C:/programy/openal-soft-1.18.2-bin/libs/Win64/libOpenAL32.dll.a)
     target_link_libraries(TSRE5vc PRIVATE OpenGL::GL )
 endif()
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    target_link_libraries(TSRE5vc PUBLIC OpenAL::OpenAL )
-endif()
 
-target_link_libraries(TSRE5vc PRIVATE Qt6::Network Qt6::Widgets Qt6::OpenGL Qt6::OpenGLWidgets Qt6::WebSockets )
+target_link_libraries(TSRE5vc PRIVATE OpenAL::OpenAL Qt6::Network Qt6::Widgets Qt6::OpenGL Qt6::OpenGLWidgets Qt6::WebSockets )
 
 install(TARGETS TSRE5vc
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}

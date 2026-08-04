@@ -1139,7 +1139,9 @@ void RouteEditorGLWidget::keyPressEvent(QKeyEvent * event) {
     }
     
     if (liveFlexActive && event->key() == Qt::Key_Escape) {
-        finishLiveFlex(false);
+        // Escape cancels only the unfinished continuous segment. Keep the
+        // Flex tool armed so the next click can begin a separate line.
+        finishLiveFlex(false, continuousFlexMode);
         event->accept();
         return;
     }
@@ -1462,7 +1464,29 @@ void RouteEditorGLWidget::mousePressEvent(QMouseEvent *event) {
     }
     if ((event->button()) == Qt::LeftButton) {
         if(liveFlexActive) {
-            finishLiveFlex(true);
+            const bool solutionValid = updateLiveFlex(
+                    (int)camera->pozT[0],
+                    (int)camera->pozT[1],
+                    aktPointerPos,
+                    true);
+            if(solutionValid) {
+                finishLiveFlex(true);
+            } else if(continuousFlexMode) {
+                // A failed solve ends the current chain without accepting a
+                // stale preview. Reuse this click as the first point of a new
+                // line, while keeping all earlier TDB/RDB segments intact.
+                finishLiveFlex(false, true);
+                Undo::StateBegin();
+                float q[4];
+                Quat::copy(q, placeRot);
+                if(!placeContinuousFlexTrack(
+                        (int)camera->pozT[0],
+                        (int)camera->pozT[1],
+                        aktPointerPos,
+                        q,
+                        true))
+                    Undo::StateCancel();
+            }
             mouseLPressed = false;
             mouseClick = false;
             setFocus();
@@ -1923,6 +1947,7 @@ bool RouteEditorGLWidget::startLiveFlex(bool reuseUndoState, bool deleteOnCancel
     liveFlexLastUpdateTime = 0;
     liveFlexDeleteOnCancel = deleteOnCancel;
     liveFlexInitialDirectionFromMouse = initialDirectionFromMouse;
+    liveFlexSolutionValid = false;
     liveFlexCompanionsValid = true;
 
     if(continuousFlexMode && dynTrack->isRoad()) {
@@ -2212,21 +2237,39 @@ void RouteEditorGLWidget::quantizeLiveFlexPoint(int &tileX, int &tileZ, float *p
     position[2] = (float)(absoluteZ - tileZ * 2048.0);
 }
 
-void RouteEditorGLWidget::updateLiveFlex(int pointerTileX, int pointerTileZ, const float *pointerPosition) {
+float RouteEditorGLWidget::effectiveContinuousFlexMinimumRadius() const {
+    float radius = std::max(5.0f, continuousFlexMinimumRadius);
+    if(continuousFlexMode
+            && (continuousFlexLeftEnabled || continuousFlexRightEnabled)) {
+        // An inside companion has its separation subtracted from the main
+        // radius. Retain a margin above the generator's 0.1 m validity floor.
+        radius = std::max(radius,
+                std::fabs(continuousFlexSeparation) + 0.25f);
+    }
+    return radius;
+}
+
+bool RouteEditorGLWidget::updateLiveFlex(
+        int pointerTileX,
+        int pointerTileZ,
+        const float *pointerPosition,
+        bool force) {
     if(!liveFlexActive || liveFlexObj == NULL || pointerPosition == NULL)
-        return;
+        return false;
     for(int i = 0; i < 3; i++)
-        if(!std::isfinite(pointerPosition[i]))
-            return;
+        if(!std::isfinite(pointerPosition[i])) {
+            liveFlexSolutionValid = false;
+            return false;
+        }
 
     // Rendering remains independent; only endpoint search, solving, and mesh
     // invalidation are limited to 20 Hz.
     constexpr unsigned long long kLiveFlexUpdateIntervalMs = 50;
     constexpr float kLiveFlexSnapRadius = 1.0f;
     const unsigned long long now = QDateTime::currentMSecsSinceEpoch();
-    if(liveFlexLastUpdateTime != 0
+    if(!force && liveFlexLastUpdateTime != 0
             && now - liveFlexLastUpdateTime < kLiveFlexUpdateIntervalMs)
-        return;
+        return liveFlexSolutionValid;
     liveFlexLastUpdateTime = now;
 
     const int rawTargetTileX = pointerTileX;
@@ -2284,13 +2327,14 @@ void RouteEditorGLWidget::updateLiveFlex(int pointerTileX, int pointerTileZ, con
             && (endpointId < 0
                 || std::fabs(targetPosition[1] - liveFlexLastTargetPosition[1]) < 0.001f);
     if(sameTarget)
-        return;
+        return liveFlexSolutionValid;
 
     liveFlexHasLastTarget = true;
     liveFlexLastEndpointId = endpointId;
     liveFlexLastTargetTileX = targetTileX;
     liveFlexLastTargetTileZ = targetTileZ;
     Vec3::copy(liveFlexLastTargetPosition, targetPosition);
+    liveFlexSolutionValid = false;
 
     float dyntrackData[10] = {0};
     if(liveFlexInitialDirectionFromMouse) {
@@ -2302,12 +2346,12 @@ void RouteEditorGLWidget::updateLiveFlex(int pointerTileX, int pointerTileZ, con
                 - (double)liveFlexStartPosition[2];
         const double horizontalDistance = std::hypot(dx, dz);
         if(!std::isfinite(horizontalDistance))
-            return;
+            return false;
 
         if(horizontalDistance < 0.1) {
             liveFlexObj->set("dyntrackdata", dyntrackData);
             updateLiveFlexCompanions(dyntrackData);
-            return;
+            return false;
         }
 
         const float startYaw = (float)std::atan2(dx, -dz);
@@ -2323,7 +2367,7 @@ void RouteEditorGLWidget::updateLiveFlex(int pointerTileX, int pointerTileZ, con
                     - (double)liveFlexStartPosition[1])
                 * 1000.0 / horizontalDistance);
         if(!std::isfinite(elevation))
-            return;
+            return false;
         liveFlexObj->set("dyntrackdata", dyntrackData);
         liveFlexObj->setElevation(elevation);
 
@@ -2348,18 +2392,19 @@ void RouteEditorGLWidget::updateLiveFlex(int pointerTileX, int pointerTileZ, con
                     companionPosition,
                     companionQ)) {
                 liveFlexCompanionsValid = false;
-                return;
+                return false;
             }
             track->setPosition(
                     companionTileX, companionTileZ, companionPosition);
             track->setQdirection(companionQ);
             track->setMartix();
         }
-        updateLiveFlexCompanions(dyntrackData);
-        return;
+        liveFlexSolutionValid = updateLiveFlexCompanions(dyntrackData);
+        return liveFlexSolutionValid;
     }
 
     const float startYaw = Flex::TdbYawFromTrackQuaternion(liveFlexStartQ);
+    const float minimumCurveRadius = effectiveContinuousFlexMinimumRadius();
     bool success = false;
 
     if(endpointId >= 0) {
@@ -2378,7 +2423,8 @@ void RouteEditorGLWidget::updateLiveFlex(int pointerTileX, int pointerTileZ, con
                 endpointQ,
                 dyntrackData,
                 0.0f,
-                false);
+                false,
+                minimumCurveRadius);
     } else {
         // World X/Z quantization can miss an arbitrarily rotated track axis
         // by up to half a square grid cell's diagonal. Treat that displacement
@@ -2396,15 +2442,26 @@ void RouteEditorGLWidget::updateLiveFlex(int pointerTileX, int pointerTileZ, con
                 targetTileZ,
                 targetPosition,
                 dyntrackData,
-                15.0f,
+                minimumCurveRadius,
                 straightEndpointTolerance);
     }
 
     if(!success)
-        return;
+        return false;
     for(int i = 0; i < 10; i++)
         if(!std::isfinite(dyntrackData[i]))
-            return;
+            return false;
+
+    float centerlineLength = 0.0f;
+    for(int i = 0; i < 5; i++) {
+        if((i % 2) == 0)
+            centerlineLength += std::max(0.0f, dyntrackData[i * 2]);
+        else
+            centerlineLength += std::fabs(dyntrackData[i * 2])
+                    * std::max(0.0f, dyntrackData[i * 2 + 1]);
+    }
+    if(!std::isfinite(centerlineLength) || centerlineLength < 0.1f)
+        return false;
 
     const float dx = (targetTileX - liveFlexStartTileX) * 2048.0f
             + targetPosition[0] - liveFlexStartPosition[0];
@@ -2412,19 +2469,20 @@ void RouteEditorGLWidget::updateLiveFlex(int pointerTileX, int pointerTileZ, con
             + targetPosition[2] - liveFlexStartPosition[2];
     const float horizontalDistance = std::sqrt(dx * dx + dz * dz);
     if(!std::isfinite(horizontalDistance))
-        return;
+        return false;
     const float elevation = horizontalDistance > 0.001f
             ? (targetPosition[1] - liveFlexStartPosition[1]) * 1000.0f / horizontalDistance
             : 0.0f;
     if(!std::isfinite(elevation))
-        return;
+        return false;
 
     liveFlexObj->set("dyntrackdata", dyntrackData);
     liveFlexObj->setElevation(elevation);
-    updateLiveFlexCompanions(dyntrackData);
+    liveFlexSolutionValid = updateLiveFlexCompanions(dyntrackData);
+    return liveFlexSolutionValid;
 }
 
-void RouteEditorGLWidget::finishLiveFlex(bool accept) {
+void RouteEditorGLWidget::finishLiveFlex(bool accept, bool keepContinuousTool) {
     if(!liveFlexActive)
         return;
 
@@ -2456,6 +2514,7 @@ void RouteEditorGLWidget::finishLiveFlex(bool accept) {
     liveFlexObj = NULL;
     liveFlexDeleteOnCancel = false;
     liveFlexInitialDirectionFromMouse = false;
+    liveFlexSolutionValid = false;
     liveFlexHasLastTarget = false;
     liveFlexLastEndpointId = -2;
     liveFlexLastUpdateTime = 0;
@@ -2521,6 +2580,12 @@ void RouteEditorGLWidget::finishLiveFlex(bool accept) {
                 nextQuaternion))
             return;
         Undo::StateCancel();
+    }
+    if(!accept && keepContinuousTool && continuousFlexMode) {
+        enableTool(continuousFlexRoadMode
+                ? "continuousFlexRoadTool"
+                : "continuousFlexTool");
+        return;
     }
     enableTool("selectTool");
 }
@@ -3112,6 +3177,11 @@ void RouteEditorGLWidget::msg(QString text, float val) {
     if (text == "continuousFlexSeparation") {
         if(std::isfinite(val))
             continuousFlexSeparation = std::clamp(val, 1.0f, 20.0f);
+        return;
+    }
+    if (text == "continuousFlexMinimumRadius") {
+        if(std::isfinite(val))
+            continuousFlexMinimumRadius = std::clamp(val, 5.0f, 10000.0f);
         return;
     }
     if (text == "autoPlacementLength") {

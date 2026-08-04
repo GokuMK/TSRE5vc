@@ -80,8 +80,8 @@ ObjTools::ObjTools(QString name)
     vlist3->addWidget(buttonTools["continuousFlexRoadTool"],row,1,1,2);
     vlist3->addWidget(continuousFlexOptionsButton,row++,3);
     row++;
-    vlist3->addWidget(&stickToTDB,row,0);
-    vlist3->addWidget(resetRotationButton,row++,1,1,3);
+    vlist3->addWidget(&stickToTDB,row,0,1,2);
+    vlist3->addWidget(resetRotationButton,row++,2,1,2);
     vlist3->addWidget(buttonTools["autoPlaceSimpleTool"],row,0);
     vlist3->addWidget(&autoPlacementLength,row,1);
     autoPlacementLength.setText("50");
@@ -110,6 +110,15 @@ ObjTools::ObjTools(QString name)
     continuousFlexSeparation.setValue(4.0);
     continuousFlexSeparation.setEnabled(false);
     continuousFlexOptionsLayout->addWidget(&continuousFlexSeparation, 1, 1);
+    continuousFlexOptionsLayout->addWidget(new QLabel("Minimum radius:"), 2, 0);
+    continuousFlexMinimumRadius.setDecimals(2);
+    continuousFlexMinimumRadius.setRange(5.0, 10000.0);
+    continuousFlexMinimumRadius.setSingleStep(0.5);
+    continuousFlexMinimumRadius.setSuffix(" m");
+    continuousFlexMinimumRadius.setValue(continuousFlexTrackMinimumRadius);
+    continuousFlexMinimumRadius.setToolTip(
+            "Raised when necessary to keep inner companion tracks or lanes valid.");
+    continuousFlexOptionsLayout->addWidget(&continuousFlexMinimumRadius, 2, 1);
     continuousFlexOptionsWidget.setLayout(continuousFlexOptionsLayout);
     continuousFlexOptionsWidget.hide();
     vlist3->addWidget(&continuousFlexOptionsWidget,2,0,1,4);
@@ -119,6 +128,8 @@ ObjTools::ObjTools(QString name)
     QObject::connect(&continuousFlexRight, SIGNAL(toggled(bool)),
             this, SLOT(continuousFlexOptionsChanged()));
     QObject::connect(&continuousFlexSeparation, SIGNAL(valueChanged(double)),
+            this, SLOT(continuousFlexOptionsChanged()));
+    QObject::connect(&continuousFlexMinimumRadius, SIGNAL(valueChanged(double)),
             this, SLOT(continuousFlexOptionsChanged()));
     
     vlist3 = new QGridLayout;
@@ -569,12 +580,20 @@ void ObjTools::enableContinuousFlexTool(bool road, bool enabled){
         return;
 
     if(road != continuousFlexRoadOptions) {
-        QSignalBlocker blocker(&continuousFlexSeparation);
+        QSignalBlocker separationBlocker(&continuousFlexSeparation);
+        QSignalBlocker radiusBlocker(&continuousFlexMinimumRadius);
+        if(continuousFlexRoadOptions)
+            continuousFlexRoadMinimumRadius = continuousFlexMinimumRadius.value();
+        else
+            continuousFlexTrackMinimumRadius = continuousFlexMinimumRadius.value();
         if(road)
             continuousFlexTrackSeparation = continuousFlexSeparation.value();
         continuousFlexRoadOptions = road;
         continuousFlexSeparation.setValue(
                 road ? 3.0 : continuousFlexTrackSeparation);
+        continuousFlexMinimumRadius.setValue(road
+                ? continuousFlexRoadMinimumRadius
+                : continuousFlexTrackMinimumRadius);
     }
     continuousFlexLeft.setText(road ? "Lane on left" : "Track on left");
     continuousFlexRight.setText(road ? "Lane on right" : "Track on right");
@@ -603,9 +622,14 @@ void ObjTools::continuousFlexOptionsChanged(){
             : "");
     if(!continuousFlexRoadOptions)
         continuousFlexTrackSeparation = continuousFlexSeparation.value();
+    if(continuousFlexRoadOptions)
+        continuousFlexRoadMinimumRadius = continuousFlexMinimumRadius.value();
+    else
+        continuousFlexTrackMinimumRadius = continuousFlexMinimumRadius.value();
     emit sendMsg("continuousFlexLeft", continuousFlexLeft.isChecked());
     emit sendMsg("continuousFlexRight", continuousFlexRight.isChecked());
     emit sendMsg("continuousFlexSeparation", (float)continuousFlexSeparation.value());
+    emit sendMsg("continuousFlexMinimumRadius", (float)continuousFlexMinimumRadius.value());
 }
 
 void ObjTools::autoPlacementButtonEnabled(bool val){

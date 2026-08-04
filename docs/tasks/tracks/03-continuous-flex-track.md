@@ -20,14 +20,27 @@ Implemented; GUI acceptance testing pending.
 6. The next Dynamic Track is created at the committed segment's calculated end
    pose and immediately starts its own live preview.
 7. Repeat steps 4-6 for continuous construction.
-8. Escape, changing tools, or toggling **FLEX TRACK** off removes the unfinished
-   segment and exits continuous placement.
+8. Escape removes the unfinished segment and its companions, but keeps the
+   current Flex tool armed so the next click starts a separate line.
+9. If the user clicks a target for which the Flex solver cannot produce valid
+   geometry, the unfinished segment is discarded and that click becomes the
+   starting point of a new line.
+10. `E`, changing tools, or toggling **FLEX TRACK** off removes the unfinished
+    segment and exits continuous placement.
 
 Each accepted segment is immediately represented in TDB. As with the existing
 DynTrack `Z` implementation, creating its dynamic TSection data clears undo
 history because TSection changes are not captured by the current undo model.
 The deferred fix is tracked in
 `docs/tasks/editor/02-undo-dyntrack-tdb-tsection.md`.
+
+The expanded Flex options expose a minimum curve radius remembered separately
+for track and road modes. Defaults are `15 m` for rail and `6 m` for road, with
+a selectable lower bound of `5 m`. Both
+free-point and snapped-endpoint solving honor the same hard floor. When
+companion tracks or lanes are enabled, the effective floor is raised above the
+separation distance so an inner companion radius cannot collapse or reverse;
+the user's saved/displayed value is not changed.
 
 ## Coordinate-Space Boundary
 
@@ -47,8 +60,13 @@ next pose from the mouse target.
 - Curved, elevated, and tile-crossing chains have no visible gaps or heading
   discontinuities.
 - Escape removes only the unfinished segment and leaves accepted segments.
+- Escape keeps the current Flex tool active and waits for a new starting click.
+- Clicking an unsolvable target cannot accept an older valid preview; it
+  discards the draft and starts a new line at the clicked point.
 - Right-drag rotates the camera without rebuilding the live shape during the
   drag.
 - Non-finite preview data is rejected, elevation trigonometry is clamped, and
   segments shorter than `0.1m` cannot be accepted into TDB.
+- Rail and road minimum radii are remembered independently and are applied to
+  both free and snapped Flex solutions.
 - Normal Select, Place New, `Y`, `Q`, and `Z` behavior remains unchanged.

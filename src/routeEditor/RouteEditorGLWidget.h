@@ -162,14 +162,16 @@ protected:
 private:
     bool startLiveFlex(bool reuseUndoState = false, bool deleteOnCancel = false,
             bool initialDirectionFromMouse = false);
-    void updateLiveFlex(int pointerTileX, int pointerTileZ, const float *pointerPosition);
-    void finishLiveFlex(bool accept);
+    bool updateLiveFlex(int pointerTileX, int pointerTileZ,
+            const float *pointerPosition, bool force = false);
+    void finishLiveFlex(bool accept, bool keepContinuousTool = false);
     bool placeContinuousFlexTrack(int tileX, int tileZ, float *position,
             float *quaternion, bool initialMousePlacement = false);
     DynTrackObj* placeRawDynTrack(int tileX, int tileZ, float *position, float *quaternion);
     bool createLiveFlexCompanions();
     void discardLiveFlexCompanions();
     bool updateLiveFlexCompanions(const float *mainSections);
+    float effectiveContinuousFlexMinimumRadius() const;
     static void quantizeLiveFlexPoint(int &tileX, int &tileZ, float *position, float step);
     bool paintGLGather(bool drawToScreen);
     bool paintGLValidation();
@@ -233,6 +235,7 @@ private:
     bool continuousFlexRoadMode = false;
     bool liveFlexDeleteOnCancel = false;
     bool liveFlexInitialDirectionFromMouse = false;
+    bool liveFlexSolutionValid = false;
     DynTrackObj *liveFlexObj = NULL;
     int liveFlexStartTileX = 0;
     int liveFlexStartTileZ = 0;
@@ -251,6 +254,7 @@ private:
     bool continuousFlexLeftEnabled = false;
     bool continuousFlexRightEnabled = false;
     float continuousFlexSeparation = 4.0f;
+    float continuousFlexMinimumRadius = 15.0f;
     bool stickPointerToTerrain = true;
     bool autoAddToTDB = true;
     float lastNewObjPos[3];

@@ -1,0 +1,6 @@
+#ifndef TSRE5VERSION_H
+#define TSRE5VERSION_H
+
+#define TSRE5_VERSION "@TSRE5_VERSION@"
+
+#endif

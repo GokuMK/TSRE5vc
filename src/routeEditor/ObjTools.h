@@ -96,8 +96,11 @@ private:
     QCheckBox continuousFlexLeft;
     QCheckBox continuousFlexRight;
     QDoubleSpinBox continuousFlexSeparation;
+    QDoubleSpinBox continuousFlexMinimumRadius;
     bool continuousFlexRoadOptions = false;
     double continuousFlexTrackSeparation = 4.0;
+    double continuousFlexTrackMinimumRadius = 15.0;
+    double continuousFlexRoadMinimumRadius = 6.0;
     QLineEdit autoPlacementPosX;
     QLineEdit autoPlacementPosY;
     QLineEdit autoPlacementPosZ;

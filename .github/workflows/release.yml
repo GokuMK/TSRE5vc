@@ -1,0 +1,72 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*-build.*"
+
+permissions:
+  contents: write
+
+jobs:
+  windows-release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@v4
+
+      - name: Install the MinGW build environment
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-openal
+            mingw-w64-x86_64-qt6-base
+            mingw-w64-x86_64-qt6-websockets
+
+      - name: Configure and build
+        shell: msys2 {0}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          cmake -S . -B build-release -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DTSRE5_VERSION="$version"
+          cmake --build build-release --parallel
+
+      - name: Prepare distribution ZIP
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF_NAME.Substring(1)
+          $packageDir = Join-Path $PWD "dist/package"
+          $archive = Join-Path $PWD "dist/TSRE5vc-$version-windows-x64.zip"
+
+          New-Item -ItemType Directory -Force -Path $packageDir | Out-Null
+          Copy-Item "build-release/TSRE5vc.exe" $packageDir
+
+          & "C:\msys64\mingw64\bin\windeployqt.exe" `
+            --release `
+            --no-translations `
+            --compiler-runtime `
+            --dir $packageDir `
+            (Join-Path $packageDir "TSRE5vc.exe")
+          if ($LASTEXITCODE -ne 0) { throw "windeployqt failed" }
+
+          Copy-Item "C:\msys64\mingw64\bin\libopenal-1.dll" $packageDir
+          Compress-Archive -Path "$packageDir\*" -DestinationPath $archive
+
+      - name: Publish GitHub prerelease
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $archive = Get-ChildItem "dist/*.zip" | Select-Object -First 1
+          gh release create $env:GITHUB_REF_NAME $archive.FullName `
+            --verify-tag `
+            --prerelease `
+            --generate-notes `
+            --title "TSRE5vc $env:GITHUB_REF_NAME"

@@ -315,7 +315,9 @@ when the token is absent it retains its original profile-guessing behavior.
 
 ## Additional Challenges
 
-- Road curves may need a smaller configurable minimum radius than rail.
+- Road Flex now has a separately remembered configurable minimum radius. Its
+  `6 m` default is lower than rail's `15 m`, and companion lanes raise the
+  effective floor above their separation when necessary.
 - Road profile geometry is normally wider and may require different terrain
   painting and clearance defaults.
 - Ruler road paths need eventual migration to the same database-targeted path

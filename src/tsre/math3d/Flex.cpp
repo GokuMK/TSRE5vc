@@ -1034,7 +1034,12 @@ bool Flex::NewFlexDeprecatedStaged(int x, int z, float* p, float* q, float * dyn
     return true;
 }
 
-bool Flex::NewFlex(int x1, int z1, float *p1, float *q1, int x2, int z2, float *p2, float *q2, float * dyntrackSections, float preferredMinCurveRadius, bool preferNiceRadii){
+bool Flex::NewFlex(int x1, int z1, float *p1, float *q1,
+        int x2, int z2, float *p2, float *q2,
+        float *dyntrackSections,
+        float preferredMinCurveRadius,
+        bool preferNiceRadii,
+        float minimumCurveRadius){
     for (int i = 0; i < 10; i++)
         dyntrackSections[i] = 0.0f;
 
@@ -1044,6 +1049,9 @@ bool Flex::NewFlex(int x1, int z1, float *p1, float *q1, int x2, int z2, float *
 
     if (preferredMinCurveRadius < 0.0f)
         preferredMinCurveRadius = 0.0f;
+    if(!std::isfinite(minimumCurveRadius))
+        return false;
+    const float minAllowedRadius = std::max(0.1f, minimumCurveRadius);
 
     if (Game::gui) {
         if (windowInit == 0) {
@@ -1117,6 +1125,8 @@ bool Flex::NewFlex(int x1, int z1, float *p1, float *q1, int x2, int z2, float *
         obj["p2"] = jsonFloatArray(p2, 3);
         obj["q2"] = jsonFloatArray(q2, 4);
         obj["preferredMinCurveRadius"] = jsonNumberOrNull(preferredMinCurveRadius);
+        obj["preferNiceRadii"] = preferNiceRadii;
+        obj["minimumCurveRadius"] = jsonNumberOrNull(minAllowedRadius);
         obj["P0"] = jsonVec2(P0);
         obj["P1"] = jsonVec2(P1);
         obj["yaw0"] = jsonNumberOrNull(yaw0);
@@ -1189,11 +1199,13 @@ bool Flex::NewFlex(int x1, int z1, float *p1, float *q1, int x2, int z2, float *
     }
 
     // Candidate radii (meters), descending preference.
-    std::vector<float> radii = {10000.0f, 8000.0f, 5000.0f, 2000.0f, 1200.0f, 800.0f, 500.0f, 300.0f, 200.0f, 150.0f, 100.0f, 75.0f, 50.0f, 30.0f, 20.0f, 15.0f, 10.0f};
+    std::vector<float> radii = {10000.0f, 8000.0f, 5000.0f, 2000.0f,
+        1200.0f, 800.0f, 500.0f, 300.0f, 200.0f, 150.0f, 100.0f,
+        75.0f, 50.0f, 30.0f, 20.0f, 15.0f, 10.0f, 7.5f, 6.0f, 5.0f};
     std::vector<float> singleCurveRadii = radii;
     if(!preferNiceRadii) {
         auto addExactRadius = [&](float radius) {
-            if(std::isfinite(radius) && radius > 0.1f)
+            if(std::isfinite(radius) && radius >= minAllowedRadius)
                 singleCurveRadii.push_back(radius);
         };
 
@@ -1228,8 +1240,6 @@ bool Flex::NewFlex(int x1, int z1, float *p1, float *q1, int x2, int z2, float *
                 addExactRadius(-l2AtZero / l2Slope);
         }
     }
-    float minAllowedRadius = 5.0f;
-
     // Best candidate across all search phases.
     FlexCandidate best;
     bool found = false;
@@ -1253,6 +1263,9 @@ bool Flex::NewFlex(int x1, int z1, float *p1, float *q1, int x2, int z2, float *
         cand.rawLen = totalCenterlineLength(tmp);
         cand.trimmedLen = totalCenterlineLength(trimmed);
         cand.minRadius = candidateMinRadius(trimmed);
+        if(std::isfinite(cand.minRadius)
+                && cand.minRadius < minAllowedRadius - 1e-3f)
+            return;
         cand.enabledCount = enabledSectionCount(trimmed);
         cand.curveCount = enabledCurveCount(trimmed);
         cand.endStraightSum = trimmed[0] + trimmed[8];
