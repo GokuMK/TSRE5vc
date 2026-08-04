@@ -23,6 +23,9 @@ $baseVersion = (Get-Content (Join-Path $repositoryRoot "VERSION") -Raw).Trim()
 if ($baseVersion -notmatch '^\d+\.\d+\.\d+$') {
     throw "VERSION must contain a semantic version such as 0.7.6."
 }
+# Preserve continuity with the historical 0.7.6xx versions. New base-version
+# series start at build 1 unless another one-time migration is needed.
+$minimumBuildNumber = if ($baseVersion -eq "0.7.6") { 5 } else { 1 }
 
 $tagPattern = "v$baseVersion-build.*"
 $buildNumbers = Invoke-Git tag --list $tagPattern |
@@ -32,11 +35,12 @@ $buildNumbers = Invoke-Git tag --list $tagPattern |
         }
     }
 
-$nextBuild = if ($buildNumbers) {
-    ([int]($buildNumbers | Measure-Object -Maximum).Maximum) + 1
+$highestBuildNumber = if ($buildNumbers) {
+    [int]($buildNumbers | Measure-Object -Maximum).Maximum
 } else {
-    1
+    0
 }
+$nextBuild = [Math]::Max($minimumBuildNumber, $highestBuildNumber + 1)
 
 $tag = "v$baseVersion-build.$nextBuild"
 Write-Host "Next release: $tag"
