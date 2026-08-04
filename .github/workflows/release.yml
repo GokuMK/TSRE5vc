@@ -17,6 +17,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install the MinGW build environment
+        id: msys2
         uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64
@@ -40,15 +41,20 @@ jobs:
 
       - name: Prepare distribution ZIP
         shell: pwsh
+        env:
+          MSYS2_LOCATION: ${{ steps.msys2.outputs.msys2-location }}
         run: |
           $version = $env:GITHUB_REF_NAME.Substring(1)
           $packageDir = Join-Path $PWD "dist/package"
           $archive = Join-Path $PWD "dist/TSRE5vc-$version-windows-x64.zip"
+          $mingwBin = Join-Path $env:MSYS2_LOCATION "mingw64/bin"
+          $windeployqt = Join-Path $mingwBin "windeployqt.exe"
+          $openal = Join-Path $mingwBin "libopenal-1.dll"
 
           New-Item -ItemType Directory -Force -Path $packageDir | Out-Null
           Copy-Item "build-release/TSRE5vc.exe" $packageDir
 
-          & "C:\msys64\mingw64\bin\windeployqt.exe" `
+          & $windeployqt `
             --release `
             --no-translations `
             --compiler-runtime `
@@ -56,7 +62,7 @@ jobs:
             (Join-Path $packageDir "TSRE5vc.exe")
           if ($LASTEXITCODE -ne 0) { throw "windeployqt failed" }
 
-          Copy-Item "C:\msys64\mingw64\bin\libopenal-1.dll" $packageDir
+          Copy-Item $openal $packageDir
           Compress-Archive -Path "$packageDir\*" -DestinationPath $archive
 
       - name: Publish GitHub prerelease
