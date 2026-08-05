@@ -16,40 +16,65 @@ jobs:
       - name: Check out tagged source
         uses: actions/checkout@v4
 
-      - name: Install the MinGW build environment
-        id: msys2
-        uses: msys2/setup-msys2@v2
+      - name: Install Qt and its matching MinGW toolchain
+        uses: jurplel/install-qt-action@v4
         with:
-          msystem: MINGW64
-          update: true
-          install: >-
-            mingw-w64-x86_64-cmake
-            mingw-w64-x86_64-gcc
-            mingw-w64-x86_64-ninja
-            mingw-w64-x86_64-openal
-            mingw-w64-x86_64-qt6-base
-            mingw-w64-x86_64-qt6-websockets
+          version: "6.10.1"
+          host: windows
+          target: desktop
+          arch: win64_mingw
+          modules: qtwebsockets
+          tools: tools_mingw1310,qt.tools.win64_mingw1310
+          cache: true
+
+      - name: Install OpenAL Soft
+        shell: pwsh
+        run: |
+          $archive = Join-Path $PWD "build-openal/openal-soft.zip"
+          $extractDir = Join-Path $PWD "build-openal/package"
+          New-Item -ItemType Directory -Force -Path (Split-Path $archive) | Out-Null
+          Invoke-WebRequest `
+            -Uri "https://github.com/kcat/openal-soft/releases/download/1.25.2/openal-soft-1.25.2-bin.zip" `
+            -OutFile $archive
+
+          $expectedHash = "67A0C4B800BD860C93C04F38CAF8CBE4875F9C84700AC430EFC451F70E265434"
+          $actualHash = (Get-FileHash $archive -Algorithm SHA256).Hash
+          if ($actualHash -ne $expectedHash) { throw "OpenAL archive checksum mismatch" }
+
+          Expand-Archive -LiteralPath $archive -DestinationPath $extractDir
+          $openalRoot = Get-ChildItem $extractDir -Directory | Select-Object -First 1
+          if (-not $openalRoot) { throw "OpenAL archive has an unexpected layout" }
+          $openalRoot = $openalRoot.FullName
+          "OPENAL_ROOT=$openalRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Configure and build
-        shell: msys2 {0}
+        shell: pwsh
         run: |
-          version="${GITHUB_REF_NAME#v}"
-          cmake -S . -B build-release -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DTSRE5_VERSION="$version"
+          $version = $env:GITHUB_REF_NAME.Substring(1)
+          $gxx = (Get-Command g++.exe -ErrorAction Stop).Source
+          $openalLibrary = Join-Path $env:OPENAL_ROOT "libs/Win64/libOpenAL32.dll.a"
+          if (-not (Test-Path $openalLibrary)) { throw "OpenAL import library was not installed" }
+
+          cmake -S . -B build-release -G Ninja `
+            -DCMAKE_BUILD_TYPE=Release `
+            "-DCMAKE_CXX_COMPILER=$gxx" `
+            "-DTSRE5_VERSION=$version" `
+            "-DOPENAL_INCLUDE_DIR=$env:OPENAL_ROOT/include" `
+            "-DOPENAL_LIBRARY=$openalLibrary"
+          if ($LASTEXITCODE -ne 0) { throw "TSRE5vc configuration failed" }
+
           cmake --build build-release --parallel
+          if ($LASTEXITCODE -ne 0) { throw "TSRE5vc build failed" }
 
       - name: Prepare distribution ZIP
         shell: pwsh
-        env:
-          MSYS2_LOCATION: ${{ steps.msys2.outputs.msys2-location }}
         run: |
           $version = $env:GITHUB_REF_NAME.Substring(1)
           $packageDir = Join-Path $PWD "dist/package"
           $archive = Join-Path $PWD "dist/TSRE5vc-$version-windows-x64.zip"
-          $mingwBin = Join-Path $env:MSYS2_LOCATION "mingw64/bin"
-          $windeployqt = Join-Path $mingwBin "windeployqt.exe"
-          $openal = Join-Path $mingwBin "libopenal-1.dll"
+          $windeployqt = (Get-Command windeployqt.exe -ErrorAction Stop).Source
+          $openal = Join-Path $env:OPENAL_ROOT "bin/Win64/soft_oal.dll"
+          if (-not (Test-Path $openal)) { throw "OpenAL DLL was not installed" }
 
           New-Item -ItemType Directory -Force -Path $packageDir | Out-Null
           Copy-Item "build-release/TSRE5vc.exe" $packageDir
@@ -62,7 +87,22 @@ jobs:
             (Join-Path $packageDir "TSRE5vc.exe")
           if ($LASTEXITCODE -ne 0) { throw "windeployqt failed" }
 
-          Copy-Item $openal $packageDir
+          Copy-Item $openal (Join-Path $packageDir "OpenAL32.dll")
+
+          # Verify the package without allowing Qt or MinGW DLLs from the build PATH.
+          $buildPath = $env:PATH
+          try {
+            $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
+            & (Join-Path $packageDir "TSRE5vc.exe") --version
+            if ($LASTEXITCODE -ne 0) { throw "Packaged TSRE5vc failed its launch check" }
+          }
+          finally {
+            $env:PATH = $buildPath
+          }
+
+          $generatedFiles = @("log.txt", "settings.txt") | ForEach-Object { Join-Path $packageDir $_ }
+          Remove-Item $generatedFiles -Force -ErrorAction SilentlyContinue
+
           Compress-Archive -Path "$packageDir\*" -DestinationPath $archive
 
       - name: Publish GitHub prerelease
