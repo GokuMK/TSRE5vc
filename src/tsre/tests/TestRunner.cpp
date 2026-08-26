@@ -31,6 +31,7 @@
 #include <tsre/procedural/OrtsTrackProfile.h>
 #include <tsre/procedural/OrtsTrackProfileRenderer.h>
 #include <tsre/tests/RouteLoadTestSuite.h>
+#include <tsre/tests/SettingsTestSuite.h>
 #include <tsre/world/Ref.h>
 #include <tsre/world/objects/DynTrackObj.h>
 
@@ -1546,7 +1547,8 @@ QStringList TsreTests::listSuites() {
         "flex-point",
         "orts-profile",
         "procedural-policy",
-        "route-load"
+        "route-load",
+        "settings"
     };
 }
 
@@ -1573,6 +1575,9 @@ int TsreTests::run(const TestRunOptions &opts) {
     if (suite == "orts-profile")
         return runOrtsProfileSuite(opts.verbose);
 
+    if (suite == "settings")
+        return runSettingsSuite(opts.verbose);
+
     if (suite == "all") {
         int rc = 0;
         rc = std::max(rc, runFlexSuite(opts.casesFile, opts.verbose));
@@ -1581,6 +1586,7 @@ int TsreTests::run(const TestRunOptions &opts) {
         rc = std::max(rc, runDynTrackRoadSuite(opts.verbose));
         rc = std::max(rc, runOrtsProfileSuite(opts.verbose));
         rc = std::max(rc, runRouteLoadSuite(opts));
+        rc = std::max(rc, runSettingsSuite(opts.verbose));
         return rc;
     }
 

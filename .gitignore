@@ -99,6 +99,7 @@ trains.dat
 users.txt
 moc_*.cpp
 log.txt
+startup-args.txt
 *.7z
 /*.zip
 cerecent.txt

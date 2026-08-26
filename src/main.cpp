@@ -27,6 +27,9 @@
 #include <routeEditor/RouteEditorClient.h>
 #include <tsre/Undo.h>
 #include <tsre/tests/TestRunner.h>
+#include <settings/DraftSettingsCatalog.h>
+#include <settings/SettingsManager.h>
+#include <settings/SettingsProfile.h>
 
 QFile logFile;
 QTextStream logFileOut;
@@ -114,8 +117,10 @@ enum CommandLineParseResult {
 };
 
 QHash<QString, QString> consoleArgs;
+QHash<QString, QString> settingsLaunchOverrides;
 
-CommandLineParseResult parseCommandLineArgs(QCommandLineParser &parser){
+CommandLineParseResult parseCommandLineArgs(QCommandLineParser &parser,
+                                            const QStringList &startupArguments){
     parser.setSingleDashWordOptionMode(QCommandLineParser::ParseAsLongOptions);
     const QCommandLineOption helpOption = parser.addHelpOption();
     const QCommandLineOption versionOption = parser.addVersionOption();
@@ -129,6 +134,13 @@ CommandLineParseResult parseCommandLineArgs(QCommandLineParser &parser){
     parser.addOption(ShapeViewOption);
     const QCommandLineOption RouteOption("route", "Route to run.", "file");
     parser.addOption(RouteOption);
+    const QCommandLineOption GameRootOption("game-root", "Train Simulator content root for this launch.", "directory");
+    parser.addOption(GameRootOption);
+    const QCommandLineOption GeoPathOption("geo-path", "Geographic source-data directory for this launch.", "directory");
+    parser.addOption(GeoPathOption);
+    const QCommandLineOption RouteMergeOption(
+                "route-merge", "One-shot route merge command: route:offsetX:offsetY:offsetZ.", "command");
+    parser.addOption(RouteMergeOption);
     const QCommandLineOption AceConvOption("aceconv", "Run Ace Converter.");
     parser.addOption(AceConvOption);
     const QCommandLineOption ConEditOption("conedit", "Run Consist Editor.");
@@ -137,6 +149,20 @@ CommandLineParseResult parseCommandLineArgs(QCommandLineParser &parser){
     parser.addOption(PlayOption);
     const QCommandLineOption ServerOption("server", "Run Editor Server.");
     parser.addOption(ServerOption);
+    const QCommandLineOption ProfileOption("profile", "Settings profile name.", "name");
+    parser.addOption(ProfileOption);
+    const QCommandLineOption SettingsFileOption("settings", "Exact self-describing settings JSON file.", "file");
+    parser.addOption(SettingsFileOption);
+    const QCommandLineOption AppDataProfileOption("appdata-profile", "Use the TSRE profile stored in user application data.");
+    parser.addOption(AppDataProfileOption);
+    const QCommandLineOption SettingsOverrideOption(
+                "set", "Override one profile value for this launch (key=value).",
+                "key=value");
+    parser.addOption(SettingsOverrideOption);
+    const QCommandLineOption GatherLegacyOverlaysOption(
+                "gather-legacy-overlays",
+                "Disabled renderer diagnostic retained for launch compatibility; has no effect.");
+    parser.addOption(GatherLegacyOverlaysOption);
 
     // Tests (headless)
     const QCommandLineOption TestOption("test", "Run TSRE test runner and exit.");
@@ -158,7 +184,13 @@ CommandLineParseResult parseCommandLineArgs(QCommandLineParser &parser){
     const QCommandLineOption FlexLogCandidatesOption("flex-log-candidates", "Also log all valid Flex candidates (can be large).");
     parser.addOption(FlexLogCandidatesOption);
     
-    if (!parser.parse(QCoreApplication::arguments())) {
+    QStringList commandLineArguments = QCoreApplication::arguments();
+    QStringList combinedArguments;
+    if (!commandLineArguments.isEmpty())
+        combinedArguments.append(commandLineArguments.takeFirst());
+    combinedArguments.append(startupArguments);
+    combinedArguments.append(commandLineArguments);
+    if (!parser.parse(combinedArguments)) {
         return CommandLineError;
     }
     
@@ -200,6 +232,57 @@ CommandLineParseResult parseCommandLineArgs(QCommandLineParser &parser){
     }
     if (parser.isSet(ServerOption)) {
         consoleArgs["SERVER"] = "TRUE";
+    }
+    if (parser.isSet(GameRootOption)) {
+        consoleArgs["GAME_ROOT"] = parser.value(GameRootOption);
+    }
+    if (parser.isSet(GeoPathOption)) {
+        consoleArgs["GEO_PATH"] = parser.value(GeoPathOption);
+    }
+    if (parser.isSet(RouteMergeOption)) {
+        consoleArgs["ROUTE_MERGE"] = parser.value(RouteMergeOption);
+    }
+    for (int i = 1; i < combinedArguments.size(); ++i) {
+        const QString argument = combinedArguments.at(i);
+        auto optionValue = [&](const QString &name) -> QString {
+            const QString equalsForm = name + '=';
+            if (argument.startsWith(equalsForm))
+                return argument.mid(equalsForm.size());
+            if (argument == name && i + 1 < combinedArguments.size())
+                return combinedArguments.at(++i);
+            return QString();
+        };
+        const QString profile = optionValue("--profile");
+        if (!profile.isNull()) {
+            consoleArgs["SETTINGS_PROFILE"] = profile;
+            consoleArgs.remove("SETTINGS_FILE");
+            consoleArgs.remove("SETTINGS_APPDATA");
+            continue;
+        }
+        const QString settingsFile = optionValue("--settings");
+        if (!settingsFile.isNull()) {
+            consoleArgs["SETTINGS_FILE"] = settingsFile;
+            consoleArgs.remove("SETTINGS_PROFILE");
+            consoleArgs.remove("SETTINGS_APPDATA");
+            continue;
+        }
+        if (argument == "--appdata-profile") {
+            consoleArgs["SETTINGS_APPDATA"] = "TRUE";
+            consoleArgs.remove("SETTINGS_PROFILE");
+            consoleArgs.remove("SETTINGS_FILE");
+        }
+    }
+    for (const QString &assignment : parser.values(SettingsOverrideOption)) {
+        const int equals = assignment.indexOf('=');
+        if (equals > 0) {
+            settingsLaunchOverrides.insert(assignment.left(equals).trimmed(),
+                                           assignment.mid(equals + 1).trimmed());
+        } else {
+            qWarning() << "Invalid settings override; expected key=value:" << assignment;
+        }
+    }
+    if (parser.isSet(GatherLegacyOverlaysOption)) {
+        consoleArgs["GATHER_LEGACY_OVERLAYS"] = "TRUE";
     }
 
     if (parser.isSet(TestOption)) {
@@ -283,8 +366,20 @@ int main(int argc, char *argv[]){
     
     qDebug() << "workingDir" << workingDir;
     
+    // This is a working-directory-level alternative to terminal arguments, not
+    // part of any settings profile.
+    const QString startupArgsFile = QDir(QDir::currentPath()).filePath("startup-args.txt");
+    QString startupArgsError;
+    if (!SettingsProfile::ensureStartupArgsFile(startupArgsFile, &startupArgsError))
+        qWarning() << startupArgsError;
+    QStringList startupArgsWarnings;
+    const QStringList startupArguments = SettingsProfile::readStartupArguments(
+                startupArgsFile, &startupArgsWarnings);
+    for (const QString &warning : startupArgsWarnings)
+        qWarning() << warning;
+
     QCommandLineParser parser;
-    switch (parseCommandLineArgs(parser)) {
+    switch (parseCommandLineArgs(parser, startupArguments)) {
         case CommandLineOk:
             break;
         case CommandLineError:
@@ -308,10 +403,20 @@ int main(int argc, char *argv[]){
     if (consoleArgs["FLEX_LOG_FILE"].length() > 0) {
         Game::flexLogFile = consoleArgs["FLEX_LOG_FILE"];
     }
+    if (consoleArgs["GATHER_LEGACY_OVERLAYS"] == "TRUE") {
+        qWarning() << "--gather-legacy-overlays is a disabled renderer-test command "
+                      "and currently has no effect.";
+    }
 
     if(consoleArgs["ROUTE"].length() > 0){
         Game::route = consoleArgs["ROUTE"];
     }
+    if (!consoleArgs["GAME_ROOT"].isEmpty())
+        Game::root = consoleArgs["GAME_ROOT"];
+    if (!consoleArgs["GEO_PATH"].isEmpty())
+        Game::geoPath = consoleArgs["GEO_PATH"];
+    if (!consoleArgs["ROUTE_MERGE"].isEmpty())
+        Game::routeMergeString = consoleArgs["ROUTE_MERGE"];
 
     // Test runner (headless) - runs and exits without starting the GUI.
     if (consoleArgs["TEST_LIST"] == "TRUE") {
@@ -332,6 +437,20 @@ int main(int argc, char *argv[]){
         opts.verbose = (consoleArgs["TEST_VERBOSE"] == "TRUE");
         return TsreTests::run(opts);
     }
+
+    SettingsManager &settings = SettingsManager::instance();
+    DraftSettingsCatalog::registerDefinitions(settings.registry());
+    SettingsProfileSelection settingsSelection;
+    if (!consoleArgs["SETTINGS_PROFILE"].isEmpty())
+        settingsSelection.profileName = consoleArgs["SETTINGS_PROFILE"];
+    if (!consoleArgs["SETTINGS_FILE"].isEmpty())
+        settingsSelection.settingsFile = consoleArgs["SETTINGS_FILE"];
+    if (consoleArgs["SETTINGS_APPDATA"] == "TRUE")
+        settingsSelection.useAppDataProfile = true;
+    settingsSelection.overrides = settingsLaunchOverrides;
+    QString settingsError;
+    if (!settings.initialize(settingsSelection, &settingsError))
+        qWarning() << "New settings profile could not be loaded:" << settingsError;
 
     //app.set
     Game::PixelRatio = app.devicePixelRatio();

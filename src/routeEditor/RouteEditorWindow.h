@@ -35,6 +35,7 @@ class ActivityTrafficWindow;
 class ActivityTimetableWindow;
 class ErrorMessagesWindow;
 class ClientUsersWindow;
+class SettingsDialog;
 
 class RouteEditorWindow : public QMainWindow
 {
@@ -52,6 +53,7 @@ public slots:
     void about();
     void terrainCamera(bool val);
     void mstsShadows(bool val);
+    void showSettingsEditor();
     void detailedTerrainEnabled();
     void distantTerrainEnabled();
     void setToolbox(QString name);
@@ -134,6 +136,7 @@ private:
     QAction *aboutAction;
     QAction *terrainCameraAction;
     QAction *mstsShadowsAction;
+    QAction *settingsEditorAction;
     QAction *propertiesAction;
     QAction *naviAction;
     QAction *shapeViewAction;
@@ -164,6 +167,7 @@ private:
     NaviWindow* naviWindow;
     ErrorMessagesWindow* errorMessagesWindow;
     ClientUsersWindow* clientUsersWindow;
+    SettingsDialog* settingsDialog = nullptr;
     ActivityEventWindow* activityEventWindow;
     ActivityServiceWindow* activityServiceWindow;
     ActivityTrafficWindow* activityTrafficWindow;

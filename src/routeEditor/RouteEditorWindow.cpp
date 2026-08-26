@@ -60,6 +60,8 @@
 #include <routeEditor/activity/ActivityTimetableWindow.h>
 #include <routeEditor/activity/ActivityTimetableProperties.h>
 #include <routeEditor/RouteEditorClient.h>
+#include <settings/SettingsManager.h>
+#include <settings/ui/SettingsDialog.h>
 
 RouteEditorWindow::RouteEditorWindow() {
 
@@ -331,6 +333,11 @@ RouteEditorWindow::RouteEditorWindow() {
     terrainMenu->addAction(detailTerrainAction);
     terrainMenu->addAction(distantTerrainAction);
     settingsMenu = menuBar()->addMenu(tr("&Settings"));
+    settingsEditorAction = new QAction(tr("Settings &Editor..."), this);
+    settingsEditorAction->setShortcut(QKeySequence("F12"));
+    QObject::connect(settingsEditorAction, SIGNAL(triggered()), this, SLOT(showSettingsEditor()));
+    settingsMenu->addAction(settingsEditorAction);
+    settingsMenu->addSeparator();
     settingsMenu->addAction(terrainCameraAction);
     settingsMenu->addAction(mstsShadowsAction);
     settingsMenu->addMenu(terrainMenu);
@@ -767,6 +774,14 @@ void RouteEditorWindow::hideAllTools(){
     activityAction->setChecked(false);
     objectsAndTerrainAction->setChecked(false);
     box->setFixedWidth(250);
+}
+
+void RouteEditorWindow::showSettingsEditor() {
+    if (settingsDialog == nullptr)
+        settingsDialog = new SettingsDialog(&SettingsManager::instance(), this);
+    settingsDialog->show();
+    settingsDialog->raise();
+    settingsDialog->activateWindow();
 }
 
 void RouteEditorWindow::clearPinnedPropertiesSelection(){
