@@ -360,8 +360,8 @@ void ForestObj::drawShape(bool pushToQueue, int selectionColor){
 
     if (!init) {
         if(!Game::ignoreLoadLimits){
-            if(Game::allowObjLag < 1)  return;
-            Game::allowObjLag-=2;
+            if(Game::objectLoadingTokens < 1)  return;
+            Game::objectLoadingTokens-=2;
         }
         
         //qint64 timeNow = QDateTime::currentMSecsSinceEpoch();
@@ -570,7 +570,7 @@ int ForestObj::getDefaultDetailLevel(){
 
 void ForestObj::save(QTextStream* out){
     if (!loaded) return;
-    if(Game::useOnlyPositiveQuaternions)
+    if(WorldObj::positiveQuaternionSerialization())
         Quat::makePositive(this->qDirection);
     
 *(out) << "	Forest (\n";

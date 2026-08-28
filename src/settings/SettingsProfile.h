@@ -9,7 +9,8 @@ struct SettingsProfileSelection {
     QString settingsFile;
     QString profileName = "default";
     bool useAppDataProfile = false;
-    QHash<QString, QString> overrides;
+    QHash<QString, QString> startupOverrides;
+    QHash<QString, QString> commandLineOverrides;
 };
 
 class SettingsProfile {

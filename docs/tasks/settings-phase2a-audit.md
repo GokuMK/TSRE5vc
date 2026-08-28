@@ -2,14 +2,14 @@
 
 Master roadmap: [settings-system-plan.md](settings-system-plan.md).
 
-Status: approved for the first implementation; Phase 2B runtime integration has
-not started.
+Status: approved and used by the active Phase 2B runtime integration.
 
 ## Method
 
 All 76 branches in `Game::load()` were matched to their default, every active
 `Game::` call site, and the code that changes the value after startup. The
-executable candidate catalogue is `src/settings/DraftSettingsCatalog.cpp`.
+approved executable catalogue is registered by
+`src/settings/SettingsRegistration.cpp`.
 Descriptions, types, ranges, owners, application timing, and the one-level UI
 subgroups now reflect those call sites rather than the legacy variable names.
 
@@ -33,10 +33,11 @@ limits discovered in the old parser.
 |---|---|---|---|---|
 | `consoleOutput` | `core.system.consoleOutput` | Logging | Mirrors Qt messages to the process console; startup | Logging bootstrap; Move |
 | `useWorkingDir` | `core.system.useWorkingDirectory` | Legacy or inactive | Parsed after cwd selection and therefore ineffective | Startup bootstrap; Remove after separate cwd decision |
-| `systemTheme` | `core.system.systemTheme` | Startup | Chooses system palette instead of TSRE dark palette; startup | Application UI bootstrap; Move |
+| `systemTheme` | `core.system.systemTheme` | Appearance | Chooses the system palette instead of TSRE's built-in dark theme and enables the configurable system-theme accent; startup | Application UI bootstrap; Move |
+| — | `core.interface.accentColor` | Appearance | Used only with the system theme; controls headings and selections with contrast adjusted from the actual light or dark system palette. The built-in TSRE dark theme retains its coordinated fixed accent | Application theme; native setting, application restart |
 | `fullscreen` | `core.interface.routeEditor.startMaximized` | Route Editor | Maximizes Route Editor; it is not full-screen | RouteEditorWindow; Move |
 | `warningBox` | `core.system.warningBox` | Legacy or inactive | Only consumer is commented-out Consist Editor code | Consist Editor; Remove |
-| `fpsLimit` | `core.system.fpsLimit` | Startup | Uses `1000/value` ms; zero selects the built-in 15 ms interval (about 67 Hz) | RouteEditorGLWidget; Move at widget construction |
+| `fpsLimit` | `core.system.fpsLimit` | Performance | Uses `1000/value` ms; zero selects the built-in 15 ms interval (about 67 Hz) | RouteEditorGLWidget; Move at widget construction |
 | `soundEnabled` | `core.system.soundEnabled` | Audio | Controls sound construction and periodic updates | SoundManager/route session; Keep cached, apply on route reload |
 
 ### Content paths and Route Editor startup
@@ -44,7 +45,7 @@ limits discovered in the old parser.
 | Legacy key | Candidate key | Subgroup | Actual meaning / timing | Owner and Phase 2B direction |
 |---|---|---|---|---|
 | `gameRoot` | `core.paths.gameRoot` | Content locations | Optional GLOBAL/ROUTES/TRAINS root, replaceable by load windows; generated default is empty | Content session; split profile default from selected session root; development value may use `--game-root` |
-| `geoPath` | `core.paths.geoData` | Content locations | Optional directory used by HGT and TIFF tools; generated default is empty | GeoTools; Move/direct lookup; development value may use `--geo-path` |
+| `geoPath` | `core.paths.geoData` | Geodata | Optional directory used by HGT and TIFF tools; generated default is empty | GeoTools; Move/direct lookup; development value may use `--geo-path` |
 | `routeName` | `core.startup.route` | Route Editor startup | Optional default route, later replaced by route selection/network load; generated default is empty | Route session; split profile default from selected route; development value may use `--route` |
 | — | `core.startup.useTilePosition` | Route Editor startup | Explicitly selects whether startup tile X/Z are active | Route Editor startup; native boolean replaces legacy presence counting |
 | `startTileX` | `core.startup.tileX` | Route Editor startup | Initial camera tile X when both coordinates are supplied | Route Editor startup; Move |
@@ -55,17 +56,17 @@ limits discovered in the old parser.
 
 | Legacy key | Candidate key | Subgroup | Actual meaning / timing | Owner and Phase 2B direction |
 |---|---|---|---|---|
-| `createNewIfNotExist` | `core.editing.createMissingRoute` | Startup operations | Creates a route when the configured startup route is absent | Route startup; Move, possibly replace with explicit UI action |
-| `writeEnabled` | `core.editing.writeEnabled` | Saving | Master gate on route/terrain/world writes; generated default is true | Route save policy; Keep hot cache |
-| `writeTDB` | `core.editing.writeTrackDatabase` | Saving | Recommended true; false is a special recovery/inspection mode that can let other route files diverge from unsaved TrackDB/RoadDB data | TDB save policy; keep configured permission separate from session safety latch |
-| `deleteTrWatermarks` | `core.editing.deleteTrackWatermarks` | Validation and cleanup | Omits TrWatermarkObj records during serialization | TrWatermarkObj/save policy; Move at save time |
-| `deleteViewDbSpheres` | `core.editing.deleteViewDbSpheres` | Validation and cleanup | Omits ViewDB sphere records during Tile serialization | Tile save policy; Move at save time |
+| `createNewIfNotExist` | `core.startup.createMissingRoute` | Route startup | Creates a route when the configured startup route is absent | Route startup; Move, possibly replace with explicit UI action |
+| `writeEnabled` | `core.route.saving.enabled` | Route safety and recovery | Master gate on route/terrain/world writes; generated default is true | Route save policy; Keep hot cache; Advanced because disabling it is a special recovery mode |
+| `writeTDB` | `core.route.saving.trackDatabase` | Route safety and recovery | Recommended true; false is a special recovery/inspection mode that can let other route files diverge from unsaved TrackDB/RoadDB data | TDB save policy; keep configured permission separate from session safety latch; Advanced |
+| `deleteTrWatermarks` | `core.editing.deleteTrackWatermarks` | Route safety and recovery | Omits TrWatermarkObj records during serialization | TrWatermarkObj/save policy; Move at save time; Advanced diagnostic/recovery control |
+| `deleteViewDbSpheres` | `core.editing.deleteViewDbSpheres` | Route safety and recovery | Omits ViewDB sphere records during Tile serialization | Tile save policy; Move at save time; Advanced diagnostic/recovery control |
 | `leaveTrackShapeAfterDelete` | `core.editing.leaveTrackShapeAfterDelete` | Object editing | Keeps world geometry after deleting its TrackDB entry | RouteEditorGLWidget action; Move/action-time lookup |
-| `autoFix` | `core.editing.autoFix` | Validation and cleanup | Allows Tile/TDB load validation to repair supported errors | Validation policy; Move at route load |
-| `numRecentItems` | `core.editing.recentItemLimit` | Object editing | Size and count of recent placement items in ObjTools | ObjTools; Move at UI construction |
-| `sortTileObjects` | `core.editing.sortTileObjects` | Saving | Writes objects grouped by detail level instead of current order | Tile serializer; Move at save time |
+| `autoFix` | `core.route.validation.autoFix` | Saving and recovery | Allows Tile/TDB load validation to repair supported errors | Validation policy; Move at route load |
+| `numRecentItems` | `core.interface.routeEditor.recentItemLimit` | Route Editor | Size and count of recent placement items in ObjTools | ObjTools; Move at UI construction |
+| `sortTileObjects` | `core.editing.sortTileObjects` | Route safety and recovery | Writes objects grouped by detail level instead of current order; disabling is useful only for old-route diagnostics | Tile serializer; Move at save time; Advanced diagnostic control |
 | `routeMergeString` | — | Startup operations | Immediately runs `route:offsetX:offsetY:offsetZ` merge after load | Removed from profiles; retained as `--route-merge` command-line/`startup-args.txt` operation |
-| `objectsToRemove` | `core.editing.objectsToRemove` | Validation and cleanup | Legacy object-type list consumed by Tile error checking | Validation policy; Move at route load |
+| `objectsToRemove` | `core.editing.objectsToRemove` | Route safety and recovery | Legacy object-type list consumed destructively by Tile error checking | Validation policy; Move at route load; Advanced |
 
 ### Camera
 
@@ -123,24 +124,25 @@ limits discovered in the old parser.
 | `defaultElevationBox` | `core.track.defaultGradeFormat` | Track editing | Named enum: permille, percent, one-in-X, or angle; legacy integer is migration input only | Track property panels; Move at UI construction |
 | `defaultMoveStep` | `core.editing.defaultMoveStep` | Track editing | Initial movement increment and live-track quantization grid | Route Editor/track panels; Keep session cache |
 | `trackElevationMaxPm` | `core.track.maximumElevationPermille` | Track editing | Maximum absolute grade accepted by track property panels | Track property panels; Keep action cache |
-| `snapableOnlyRot` | `core.track.snapRotationOnly` | Track editing | Snapping aligns rotation without moving to snap point | Route session; Keep route cache |
-| `proceduralTracks` | `core.track.proceduralMode` | Track editing | Three modes exist: Disabled, Enabled, and Forced | ProceduralTrackPolicy; Keep render/object cache |
+| `snapableOnlyRot` | `core.track.snapRotationOnly` | Object editing | Startup default for Auto Placement's rotation-only snapping; panel changes remain session-only | Route/ObjTools; Keep route cache |
+| — | `core.track.snapRadius` | Object editing | Startup default for Auto Placement's maximum snapping distance; panel changes remain session-only | Route/ObjTools; native setting, keep route cache |
+| `proceduralTracks` | `core.track.proceduralMode` | Track editing | Three modes exist: Disabled, Enabled, and Forced; the modern default is Enabled | ProceduralTrackPolicy; Keep render/object cache |
 | `seasonalEditing` | `core.terrain.seasonalEditing` | Terrain | Reads/writes seasonal terrain paths when a season is selected | Terrain; Keep route cache |
-| `loadAllWFiles` | `core.terrain.loadAllWorldFiles` | Terrain | Preloads every world tile; server mode forces true | Route loader; Move at route load |
-| `useOnlyPositiveQuaternions` | `core.geometry.positiveQuaternionsOnly` | Geometry serialization | Normalizes equivalent quaternion signs while saving objects | WorldObj serializer; Move at save time |
+| `loadAllWFiles` | `core.route.loading.preloadAllWorldFiles` | Loading | Preloads every world tile; server mode forces true | Route loader; Move at route load |
+| `useOnlyPositiveQuaternions` | `core.geometry.positiveQuaternionsOnly` | Saving and recovery | Canonicalizes equivalent quaternion signs to a non-negative W component; affected objects are marked modified during loading | WorldObj loading fixes and serializer; Move at route load and save time |
 
-### Maps, Consist Editor, network, and advanced storage
+### Maps, shared content loading, network, and advanced storage
 
 | Legacy key | Candidate key | Subgroup | Actual meaning / timing | Owner and Phase 2B direction |
 |---|---|---|---|---|
 | `imageMapsUrl` | `core.maps.imageryUrl` | Online imagery | HTTP template with `{lat}`, `{lon}`, `{zoom}`, `{res}`, and `{apikey}` | MapDataUrlImage; resolve `{apikey}` from the separate secret at request time |
 | — | `core.maps.imageryApiKey` | Online imagery | Native secret reference; its secret value replaces `{apikey}` | MapDataUrlImage; direct request-time lookup, no legacy plaintext field |
 | `mapImageResolution` | `core.maps.imageResolution` | Online imagery | Width/height of assembled map output, not each provider request | MapWindow; Move at generation time |
-| `ortsEngEnable` | `core.consist.preferOpenRailsEng` | Rolling stock | Tries ENG/include files in each trainset OpenRails subdirectory | Eng loader; Move at rolling-stock load |
+| `ortsEngEnable` | `core.content.loading.preferOpenRailsEng` | Loading | Tries ENG/include files in each trainset OpenRails subdirectory | Shared Eng loader; Move at rolling-stock load |
 | `serverLogin` | `core.network.clientLogin` | Route Editor client | Visible `username[:password]@host[:port]` template with protected parts referenced as `{secret:ID}` | Client bootstrap; resolve secrets only at connection time; later split structured fields if useful |
 | `serverAuth` | `core.network.serverAuthenticationMode` | Route Editor server | Authentication mode: empty means none, `file` means users.txt | RouteEditorServer; enum, not a secret |
-| `playerMode` | `core.network.playerMode` | Route Editor client | Hides editing tools/pointer and skips the interactive TrackSection repair prompt | RouteEditor/Route validation; Keep session cache |
-| `useNetworkEng` | `core.network.useNetworkEngine` | External simulation | Uses TrainNetworkEng for speed and publishes locomotive telemetry | Eng simulation; Keep simulation cache |
+| `playerMode` | `core.network.playerMode` | Experimental simulation | Hides editing tools/pointer and skips the interactive TrackSection repair prompt | RouteEditor/Route validation; Keep session cache; Advanced experimental feature |
+| `useNetworkEng` | `core.network.useNetworkEngine` | Experimental simulation | Uses TrainNetworkEng for speed and publishes locomotive telemetry | Eng simulation; Keep simulation cache; Advanced experimental feature |
 | `useQuadTree` | `core.advanced.useQuadTree` | Route storage | Selects TerrainLibQt versus TerrainLibSimple; client mode forces true | Route construction; Move at route load |
 | `useTdbEmptyItems` | `core.advanced.useEmptyTrackItems` | Route storage | Reuses `emptyitem` TrackDB slots when allocating an ID | TDB allocator; Keep allocator cache |
 | `ignoreMissingGlobalShapes` | `core.advanced.ignoreMissingGlobalShapes` | Compatibility | Filters absent GLOBAL track shapes from placement lists | ObjTools; Move at route-tools load |
@@ -215,7 +217,6 @@ secret data. Route Editor client login therefore remains visible as a connection
 template while only its password fragment needs to be secret. A later structured
 endpoint/user/password split remains possible.
 
-No consumer in `Game` or another runtime class is changed by this audit. Existing
-Part 1 profiles also retain their profile-owned draft objects; after approval, a
-small provisional-catalogue migration or clean regeneration is required before
-Phase 2B so renamed keys do not appear beside their Part 1 draft aliases.
+Part 1 GUI-test profiles require no migration and may be deleted. Fresh profiles
+are generated from the approved 76-setting registry; renamed draft aliases and
+removed operations are not seeded.

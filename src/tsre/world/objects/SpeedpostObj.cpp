@@ -69,7 +69,7 @@ SpeedpostObj::~SpeedpostObj() {
 }
 
 void SpeedpostObj::loadingFixes(){
-    if(Game::useOnlyPositiveQuaternions){
+    if(WorldObj::positiveQuaternionSerialization()){
         if(qDirection[3] < 0){
             Quat::makePositive(qDirection);
             ErrorMessage *e = new ErrorMessage(
@@ -953,7 +953,7 @@ int SpeedpostObj::getDefaultDetailLevel(){
 
 void SpeedpostObj::save(QTextStream* out){
     if (!loaded) return;
-    if(Game::useOnlyPositiveQuaternions)
+    if(WorldObj::positiveQuaternionSerialization())
         Quat::makePositive(this->qDirection);
     
 *(out) << "	Speedpost (\n";

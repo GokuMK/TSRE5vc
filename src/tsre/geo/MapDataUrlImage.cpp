@@ -30,6 +30,26 @@
 #include <tsre/Game.h>
 #include <tsre/geo/MapWindow.h>
 #include <tsre/geo/UriImageDrawThread.h>
+#include <settings/SettingsAccess.h>
+
+namespace {
+QString resolvedMapUrl(QString *error) {
+    SettingsManager &manager = SettingsManager::instance();
+    QString url = Settings::string("core.maps.imageryUrl");
+    const QString apiReference = Settings::string(
+                "core.maps.imageryApiKey", SettingType::Secret);
+    if (url.contains("{apikey}")) {
+        const QString apiKey = manager.secretValue(apiReference);
+        if (apiKey.isEmpty()) {
+            if (error) *error = QString("Missing imagery API-key secret: %1")
+                    .arg(apiReference);
+            return QString();
+        }
+        url.replace("{apikey}", apiKey);
+    }
+    return manager.resolveSecretPlaceholders(url, error);
+}
+}
 
 double MapDataUrlImage::Resolution = 640;
 
@@ -106,10 +126,12 @@ bool MapDataUrlImage::draw(QImage* myImage) {
 }
 
 void MapDataUrlImage::load() {
-    
-    if(Game::imageMapsUrl.length() < 2){
+    QString urlError;
+    if (resolvedMapUrl(&urlError).length() < 2) {
         QMessageBox msgBox;
-        msgBox.setText("Enter imageMapsUrl (for example google static maps url) in settings.txt!");
+        msgBox.setText(urlError.isEmpty()
+                ? "Configure an imagery URL in the active settings profile."
+                : urlError);
         msgBox.exec();
         return;
     }
@@ -181,13 +203,18 @@ void MapDataUrlImage::autoTimerGet(){
     for(int i = 0; i < requests.size(); i++){
         if(requests[i].complete == true)
             continue;
-        QString imageMapsUrl = Game::imageMapsUrl;
+        QString urlError;
+        QString imageMapsUrl = resolvedMapUrl(&urlError);
+        if (imageMapsUrl.isEmpty()) {
+            emit statusInfo(urlError);
+            getTimer->stop();
+            return;
+        }
         imageMapsUrl.replace("{lat}", QString::number(requests[i].lat));
         imageMapsUrl.replace("{lon}", QString::number(requests[i].lon));
         imageMapsUrl.replace("{zoom}", QString::number(requests[i].zoom));
         imageMapsUrl.replace("{res}", QString::number(Resolution));
         QNetworkRequest req(QUrl(QString("")+imageMapsUrl));
-        qDebug() << req.url();
 
         QNetworkReply* r = mgr->get(req);
         //r->setProperty("centerLat", QVariant(center->Latitude));
@@ -262,13 +289,17 @@ void MapDataUrlImage::get(LatitudeLongitudeCoordinate* center, double tzoom) {
     // the HTTP request
     qDebug() << "wait";
     
-    QString imageMapsUrl = Game::imageMapsUrl;
+    QString urlError;
+    QString imageMapsUrl = resolvedMapUrl(&urlError);
+    if (imageMapsUrl.isEmpty()) {
+        emit statusInfo(urlError);
+        return;
+    }
     imageMapsUrl.replace("{lat}", QString::number(center->Latitude));
     imageMapsUrl.replace("{lon}", QString::number(center->Longitude));
     imageMapsUrl.replace("{zoom}", QString::number(tzoom));
     imageMapsUrl.replace("{res}", QString::number(Resolution));
     QNetworkRequest req(QUrl(QString("")+imageMapsUrl));
-    qDebug() << req.url();
 
     QNetworkReply* r = mgr->get(req);
     r->setProperty("centerLat", QVariant(center->Latitude));

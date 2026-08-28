@@ -61,6 +61,7 @@
 #include <routeEditor/activity/ActivityTimetableProperties.h>
 #include <routeEditor/RouteEditorClient.h>
 #include <settings/SettingsManager.h>
+#include <settings/SettingsAccess.h>
 #include <settings/ui/SettingsDialog.h>
 
 RouteEditorWindow::RouteEditorWindow() {
@@ -158,7 +159,7 @@ RouteEditorWindow::RouteEditorWindow() {
     mainLayout->setContentsMargins(3,3,3,3);
     mainLayout->setSpacing(3);
     
-    QString mainWindowLayout = Game::mainWindowLayout;
+    QString mainWindowLayout = Settings::string("core.interface.mainWindowLayout");
     if(!mainWindowLayout.contains('W')){
         mainWindowLayout += 'W';
     }
@@ -351,7 +352,7 @@ RouteEditorWindow::RouteEditorWindow() {
     objTools->show();
     
     
-    if(Game::toolsHidden){
+    if(Settings::boolean("core.interface.hideTools")){
         box->hide();
         box2->hide();
         menuBar()->hide();

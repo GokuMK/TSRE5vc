@@ -108,6 +108,7 @@ private:
     QLineEdit autoPlacementRotY;
     QLineEdit autoPlacementRotZ;
     QLineEdit autoSnapableRadius;
+    QCheckBox autoSnapableOnlyRotation;
     QComboBox autoPlacementRotType;
     QComboBox autoPlacementTarget;
 

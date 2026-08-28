@@ -75,9 +75,10 @@ public:
     static float distantLod;
     static int tileLod;
     static int allowObjLag;
+    static int objectLoadingTokens;
     static int maxObjLag;
     static bool ignoreLoadLimits;
-    static void load();
+    static void applyRuntimeSettings(const QStringList &changedKeys = QStringList());
     static void InitAssets();
     //static bool loadRouteEditor();
     //static bool loadConEditor();
@@ -98,6 +99,7 @@ public:
     static bool createNewRoutes;
     static bool writeEnabled;
     static bool writeTDB;
+    static bool writeTDBSessionAllowed;
     static bool systemTheme;
     static bool toolsHidden;
     static bool usenNumPad;
@@ -211,6 +213,7 @@ private:
     //static RouteEditorWindow* window;
     //static LoadWindow* loadWindow;
     static void CreateNewSettingsFile();
+    static void loadLegacySettings();
     static void DownloadAppData(QString path);
     static void CheckForOpenAl();
 };

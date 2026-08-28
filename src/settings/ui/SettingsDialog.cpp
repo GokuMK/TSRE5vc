@@ -57,10 +57,49 @@ QJsonObject parseObject(const QString &text, QString *error) {
     }
     return parsed.object();
 }
+
+QString jsonValueText(const QJsonValue &value) {
+    QByteArray text = QJsonDocument(QJsonArray{value}).toJson(QJsonDocument::Compact);
+    if (text.size() >= 2) {
+        text.remove(0, 1);
+        text.chop(1);
+    }
+    return QString::fromUtf8(text);
+}
+
+bool parseKeyValueText(const QString &text, QString *key, QJsonValue *value,
+                       QString *error) {
+    const QString separator = QStringLiteral(" : ");
+    const int separatorPosition = text.indexOf(separator);
+    if (separatorPosition <= 0) {
+        if (error) *error = "Expected: setting.key : JSON value";
+        return false;
+    }
+    const QString parsedKey = text.left(separatorPosition).trimmed();
+    const QString valueText = text.mid(separatorPosition + separator.size()).trimmed();
+    if (parsedKey.isEmpty() || valueText.isEmpty()) {
+        if (error) *error = "Setting key and value must not be empty.";
+        return false;
+    }
+
+    QJsonParseError parseError;
+    const QJsonDocument parsed = QJsonDocument::fromJson(
+                QStringLiteral("[%1]").arg(valueText).toUtf8(), &parseError);
+    if (parseError.error != QJsonParseError::NoError
+            || !parsed.isArray() || parsed.array().size() != 1) {
+        if (error) *error = parseError.error == QJsonParseError::NoError
+                ? QString("Value must be one JSON value.") : parseError.errorString();
+        return false;
+    }
+    if (key) *key = parsedKey;
+    if (value) *value = parsed.array().first();
+    return true;
+}
 }
 
 SettingsDialog::SettingsDialog(SettingsManager *manager, QWidget *parent)
     : QDialog(parent), m_manager(new SettingsManager(this)),
+      m_runtimeManager(manager),
       m_usedProfileFile(QDir::cleanPath(
           QFileInfo(manager->settingsFilePath()).absoluteFilePath())) {
     m_manager->registry() = manager->registry();
@@ -95,6 +134,9 @@ SettingsDialog::SettingsDialog(SettingsManager *manager, QWidget *parent)
 
     auto *editMenu = menuBar->addMenu(tr("&Edit"));
     QAction *addAction = editMenu->addAction(tr("Add &Custom Setting..."));
+    QAction *pasteKeyValueAction = editMenu->addAction(tr("Paste Key and &Value"));
+    pasteKeyValueAction->setObjectName("paste-setting-key-value");
+    editMenu->addSeparator();
     QAction *rawAction = editMenu->addAction(tr("Edit Raw Profile &JSON..."));
 
     auto *viewMenu = menuBar->addMenu(tr("&View"));
@@ -131,10 +173,12 @@ SettingsDialog::SettingsDialog(SettingsManager *manager, QWidget *parent)
     auto *bottom = new QHBoxLayout;
     m_statusLabel = new QLabel;
     bottom->addWidget(m_statusLabel, 1);
-    auto *save = new QPushButton(tr("Save"));
+    auto *save = new QPushButton(tr("Save Profile"));
+    m_applyRuntime = new QPushButton(tr("Apply to Running TSRE"));
     auto *close = new QPushButton(tr("Close"));
     save->setDefault(true);
     bottom->addWidget(save);
+    bottom->addWidget(m_applyRuntime);
     bottom->addWidget(close);
     layout->addLayout(bottom);
 
@@ -149,6 +193,8 @@ SettingsDialog::SettingsDialog(SettingsManager *manager, QWidget *parent)
             this, &SettingsDialog::duplicateProfile);
     connect(folderAction, &QAction::triggered, this, &SettingsDialog::openProfileFolder);
     connect(addAction, &QAction::triggered, this, &SettingsDialog::addCustomSetting);
+    connect(pasteKeyValueAction, &QAction::triggered,
+            this, &SettingsDialog::pasteSettingKeyValue);
     connect(rawAction, &QAction::triggered, this, &SettingsDialog::showRawDocument);
     connect(reloadAction, &QAction::triggered, this, &SettingsDialog::reloadProfile);
     connect(saveAction, &QAction::triggered, this, &SettingsDialog::saveProfile);
@@ -156,6 +202,8 @@ SettingsDialog::SettingsDialog(SettingsManager *manager, QWidget *parent)
     connect(m_profileName, &QComboBox::activated,
             this, &SettingsDialog::switchProfile);
     connect(save, &QPushButton::clicked, this, &SettingsDialog::saveProfile);
+    connect(m_applyRuntime, &QPushButton::clicked,
+            this, &SettingsDialog::applyToRuntime);
     connect(close, &QPushButton::clicked, this, &SettingsDialog::close);
     rebuild();
 }
@@ -319,11 +367,12 @@ QWidget *SettingsDialog::createEditor(const QJsonObject &setting, Editor *record
             }
         });
         if (nullable) {
-            auto *useDefault = new QToolButton;
-            useDefault->setText(tr("Default"));
-            useDefault->setToolTip(tr("Remove the colour override"));
-            row->addWidget(useDefault);
-            connect(useDefault, &QToolButton::clicked, this, [widget, updateSwatch] {
+            auto *clearOverride = new QToolButton;
+            clearOverride->setText(tr("Clear"));
+            clearOverride->setFixedSize(42, 24);
+            clearOverride->setToolTip(tr("Clear the override and use the default colour"));
+            row->addWidget(clearOverride);
+            connect(clearOverride, &QToolButton::clicked, this, [widget, updateSwatch] {
                 widget->setProperty("nullValue", true);
                 widget->clear();
                 updateSwatch(QString());
@@ -396,6 +445,10 @@ void SettingsDialog::rebuild() {
                 SettingsProfile::isPortableProfileFile(viewedFile));
     m_profilePath->setText(m_manager->settingsFilePath());
     m_profilePath->setToolTip(m_manager->settingsFilePath());
+    m_applyRuntime->setEnabled(isViewingUsedProfile());
+    m_applyRuntime->setToolTip(isViewingUsedProfile()
+            ? tr("Apply the editor values to this running TSRE session without saving them.")
+            : tr("Only the profile used to start this TSRE session can be applied."));
 
     QHash<QString, QVBoxLayout *> groupLayouts;
     QHash<QString, QVBoxLayout *> sectionLayouts;
@@ -567,9 +620,17 @@ void SettingsDialog::rebuild() {
         rowLayout->setContentsMargins(4, 3, 4, 3);
         rowLayout->setHorizontalSpacing(10);
         auto *supported = new QCheckBox;
+        supported->setObjectName(QStringLiteral("setting-support:") + record.key);
         supported->setEnabled(false);
         supported->setFixedWidth(48);
-        const SettingsManager::SupportState state = m_manager->supportState(record.key);
+        SettingType implementedType;
+        SettingType storedType;
+        SettingsManager::SupportState state = SettingsManager::Unsupported;
+        if (m_runtimeManager->registry().supportedType(record.key, &implementedType)) {
+            state = settingTypeFromName(setting.value("type").toString(), &storedType)
+                    && storedType == implementedType
+                    ? SettingsManager::Supported : SettingsManager::TypeMismatch;
+        }
         supported->setChecked(state == SettingsManager::Supported);
         supported->setToolTip(state == SettingsManager::Supported ? tr("Supported by this build")
                               : state == SettingsManager::TypeMismatch ? tr("Known key, incompatible type")
@@ -595,10 +656,19 @@ void SettingsDialog::rebuild() {
         auto *metadata = new QToolButton;
         metadata->setText("...");
         metadata->setFixedWidth(44);
-        metadata->setToolTip(tr("Edit complete setting object"));
-        rowLayout->addWidget(metadata, 0, 4, Qt::AlignCenter);
-        connect(metadata, &QToolButton::clicked, this,
+        metadata->setToolTip(tr("Setting actions"));
+        auto *settingMenu = new QMenu(metadata);
+        QAction *viewJson = settingMenu->addAction(tr("View JSON..."));
+        viewJson->setObjectName(QStringLiteral("view-setting-json:") + record.key);
+        QAction *copyKeyValue = settingMenu->addAction(tr("Copy Key and Value"));
+        copyKeyValue->setObjectName(QStringLiteral("copy-setting-key-value:") + record.key);
+        connect(viewJson, &QAction::triggered, this,
                 [this, key = record.key] { editSettingMetadata(key); });
+        connect(copyKeyValue, &QAction::triggered, this,
+                [this, key = record.key] { copySettingKeyValue(key); });
+        metadata->setMenu(settingMenu);
+        metadata->setPopupMode(QToolButton::InstantPopup);
+        rowLayout->addWidget(metadata, 0, 4, Qt::AlignCenter);
 
         row->setProperty("searchText", QString("%1 %2 %3")
                          .arg(settingTitle(setting), record.key,
@@ -762,6 +832,11 @@ bool SettingsDialog::hasEditorChanges() const {
     return false;
 }
 
+bool SettingsDialog::isViewingUsedProfile() const {
+    return QDir::cleanPath(QFileInfo(m_manager->settingsFilePath()).absoluteFilePath())
+            .compare(m_usedProfileFile, Qt::CaseInsensitive) == 0;
+}
+
 void SettingsDialog::saveProfile() {
     QString error;
     if (!applyEditors(&error)) { showError(tr("Cannot apply settings"), error); return; }
@@ -775,6 +850,41 @@ void SettingsDialog::saveProfile() {
         return;
     }
     rebuild();
+}
+
+void SettingsDialog::applyToRuntime() {
+    if (!isViewingUsedProfile()) {
+        showError(tr("Cannot apply profile"),
+                  tr("Only the profile used to start this TSRE session can be applied."));
+        return;
+    }
+    QString error;
+    if (!applyEditors(&error)) {
+        showError(tr("Cannot apply settings"), error);
+        return;
+    }
+    QStringList changed;
+    if (!m_runtimeManager->applyProfileToRuntime(m_manager->document(),
+                                                  &changed, &error)) {
+        showError(tr("Cannot apply settings"), error);
+        return;
+    }
+    int dynamic = 0;
+    QSet<QString> pending;
+    for (const QString &key : changed) {
+        const SettingsDefinition *definition =
+                m_runtimeManager->registry().definition(key);
+        if (!definition || definition->apply == "dynamic")
+            ++dynamic;
+        else
+            pending.insert(definition->apply);
+    }
+    QStringList result;
+    result.append(tr("%1 runtime setting(s) applied").arg(dynamic));
+    if (pending.contains("routeReload")) result.append(tr("route reload required"));
+    if (pending.contains("rendererRestart")) result.append(tr("renderer restart required"));
+    if (pending.contains("applicationRestart")) result.append(tr("application restart required"));
+    m_statusLabel->setText(result.join(tr(" | ")));
 }
 
 void SettingsDialog::reloadProfile() {
@@ -886,7 +996,7 @@ bool SettingsDialog::exchangeJson(
     auto *buttons = new QDialogButtonBox;
     auto *copy = buttons->addButton(tr("Copy JSON"), QDialogButtonBox::ActionRole);
     auto *paste = buttons->addButton(tr("Paste JSON"), QDialogButtonBox::ActionRole);
-    auto *applyChanges = buttons->addButton(tr("Apply Changes"), QDialogButtonBox::ApplyRole);
+    auto *applyChanges = buttons->addButton(tr("Replace Editor JSON"), QDialogButtonBox::ApplyRole);
     auto *close = buttons->addButton(QDialogButtonBox::Close);
     applyChanges->setEnabled(false);
     layout->addWidget(buttons);
@@ -916,6 +1026,60 @@ void SettingsDialog::editSettingMetadata(const QString &key) {
         rebuild();
 }
 
+void SettingsDialog::copySettingKeyValue(const QString &key) {
+    const QJsonObject setting = m_manager->settingObject(key);
+    if (setting.isEmpty()) {
+        showError(tr("Cannot copy setting"), tr("Unknown setting key: %1").arg(key));
+        return;
+    }
+
+    QJsonValue value = setting.value("value");
+    for (const Editor &editor : m_editors) {
+        if (editor.key != key || !editor.value || editor.secret)
+            continue;
+        value = settingJsonFromVariant(editor.value(), editor.type);
+        break;
+    }
+
+    QApplication::clipboard()->setText(
+                QStringLiteral("%1 : %2").arg(key, jsonValueText(value)));
+    m_statusLabel->setText(tr("Copied key and value: %1").arg(key));
+}
+
+void SettingsDialog::pasteSettingKeyValue() {
+    QString error;
+    QString key;
+    QJsonValue value;
+    if (!parseKeyValueText(QApplication::clipboard()->text(), &key, &value, &error)) {
+        showError(tr("Cannot paste key and value"), error);
+        return;
+    }
+
+    const QJsonObject setting = m_manager->settingObject(key);
+    SettingType type;
+    if (setting.isEmpty()) {
+        showError(tr("Cannot paste key and value"),
+                  tr("This profile does not contain setting: %1").arg(key));
+        return;
+    }
+    if (!settingTypeFromName(setting.value("type").toString(), &type)
+            || !settingTypeAcceptsJson(type, value)
+            || (value.isNull() && !setting.value("nullable").toBool())) {
+        showError(tr("Cannot paste key and value"),
+                  tr("Clipboard value is incompatible with setting: %1").arg(key));
+        return;
+    }
+
+    // Preserve edits already made in other rows before rebuilding the table.
+    if (!applyEditors(&error)
+            || !m_manager->setValue(key, settingVariantFromJson(value, type), &error)) {
+        showError(tr("Cannot paste key and value"), error);
+        return;
+    }
+    rebuild();
+    m_statusLabel->setText(tr("Pasted value for: %1").arg(key));
+}
+
 void SettingsDialog::addCustomSetting() {
     QJsonObject object{{"key", "custom.setting"}, {"name", "Custom setting"},
         {"type", "string"}, {"value", ""}, {"default", ""},
@@ -943,15 +1107,27 @@ bool SettingsDialog::confirmDiscardChanges() {
 }
 
 void SettingsDialog::closeEvent(QCloseEvent *event) {
-    if ((!m_manager->isModified() && !hasEditorChanges()) || confirmDiscardChanges()) {
-        if (m_manager->isModified()) {
-            QString ignored;
-            m_manager->reload(&ignored);
-        }
+    if (!m_manager->isModified() && !hasEditorChanges()) {
         event->accept();
-    } else {
-        event->ignore();
+        return;
     }
+    if (!confirmDiscardChanges()) {
+        event->ignore();
+        return;
+    }
+
+    // This dialog is hidden and reused by RouteEditorWindow. Ordinary control
+    // edits have not yet reached m_manager, so checking only isModified() leaves
+    // their widget values alive when the same dialog is shown again. Restore the
+    // complete editor state for every confirmed discard.
+    QString error;
+    if (!m_manager->reload(&error)) {
+        showError(tr("Cannot discard changes"), error);
+        event->ignore();
+        return;
+    }
+    rebuild();
+    event->accept();
 }
 
 void SettingsDialog::showError(const QString &title, const QString &message) {

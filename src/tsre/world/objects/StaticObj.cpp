@@ -46,7 +46,7 @@ StaticObj::~StaticObj() {
 }
 
 void StaticObj::loadingFixes(){
-    if(Game::useOnlyPositiveQuaternions){
+    if(WorldObj::positiveQuaternionSerialization()){
         if(qDirection[3] < 0){
             Quat::makePositive(qDirection);
             ErrorMessage *e = new ErrorMessage(
@@ -459,7 +459,7 @@ void StaticObj::reload(){
 void StaticObj::save(QTextStream* out){
     if (!loaded) return;
     if (jestPQ < 2) return;
-    if(Game::useOnlyPositiveQuaternions)
+    if(WorldObj::positiveQuaternionSerialization())
         Quat::makePositive(this->qDirection);
     
 if(type == "static")

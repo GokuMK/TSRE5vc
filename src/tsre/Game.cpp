@@ -33,6 +33,7 @@
 #include <tsre/renderer/Renderer.h>
 #include <tsre/texture/AceLib.h>
 #include <tsre/texture/DdsLib.h>
+#include <settings/SettingsManager.h>
 
 bool Game::ServerMode = false;
 QString Game::serverLogin = "";
@@ -65,6 +66,7 @@ bool Game::useNetworkEng = false;
 bool Game::useQuadTree = true;
 bool Game::useTdbEmptyItems = true;
 int Game::allowObjLag = 1000;
+int Game::objectLoadingTokens = 1000;
 int Game::maxObjLag = 10;
 bool Game::ignoreLoadLimits = false;
 int Game::startTileX = 0;
@@ -79,6 +81,7 @@ bool Game::deleteViewDbSpheres = false;
 bool Game::createNewRoutes = false;
 bool Game::writeEnabled = false;
 bool Game::writeTDB = false;
+bool Game::writeTDBSessionAllowed = true;
 bool Game::systemTheme = false;
 bool Game::toolsHidden = false;
 bool Game::usenNumPad = false;
@@ -227,6 +230,182 @@ QString Game::RendererPipelineName(RendererPipeline value){
     }
 }
 
+void Game::applyRuntimeSettings(const QStringList &changedKeys) {
+    SettingsManager &settings = SettingsManager::instance();
+    const bool initial = changedKeys.isEmpty();
+    auto claim = [&](const char *key, SettingType type) {
+        settings.setSupported(QString::fromLatin1(key), type);
+    };
+    auto appliesNow = [&](const char *key) {
+        const QString settingKey = QString::fromLatin1(key);
+        if (initial)
+            return true;
+        if (!changedKeys.contains(settingKey))
+            return false;
+        const SettingsDefinition *definition = settings.registry().definition(settingKey);
+        return definition && definition->apply == "dynamic";
+    };
+    auto boolean = [&](const char *key, bool &target) {
+        claim(key, SettingType::Bool);
+        if (appliesNow(key)) target = settings.runtimeBool(QString::fromLatin1(key));
+    };
+    auto integer = [&](const char *key, int &target) {
+        claim(key, SettingType::Int);
+        if (appliesNow(key)) target = settings.runtimeInt(QString::fromLatin1(key));
+    };
+    auto floating = [&](const char *key, float &target) {
+        claim(key, SettingType::Float);
+        if (appliesNow(key)) target = float(settings.runtimeFloat(QString::fromLatin1(key)));
+    };
+    auto string = [&](const char *key, QString &target, SettingType type = SettingType::String) {
+        claim(key, type);
+        if (appliesNow(key)) target = settings.runtimeString(QString::fromLatin1(key));
+    };
+
+    boolean("core.system.consoleOutput", consoleOutput);
+    boolean("core.system.systemTheme", systemTheme);
+    boolean("core.interface.routeEditor.startMaximized", fullscreen);
+    integer("core.system.fpsLimit", fpsLimit);
+    boolean("core.system.soundEnabled", soundEnabled);
+
+    string("core.paths.gameRoot", root, SettingType::Directory);
+    string("core.paths.geoData", geoPath, SettingType::Directory);
+    string("core.startup.route", route);
+    claim("core.startup.useTilePosition", SettingType::Bool);
+    if (appliesNow("core.startup.useTilePosition"))
+        start = settings.runtimeBool("core.startup.useTilePosition") ? 2 : 0;
+    integer("core.startup.tileX", startTileX);
+    integer("core.startup.tileZ", startTileY);
+    string("core.startup.season", season);
+
+    boolean("core.startup.createMissingRoute", createNewRoutes);
+    boolean("core.route.saving.enabled", writeEnabled);
+    claim("core.route.saving.trackDatabase", SettingType::Bool);
+    if (appliesNow("core.route.saving.trackDatabase"))
+        writeTDB = settings.runtimeBool("core.route.saving.trackDatabase");
+    boolean("core.editing.deleteTrackWatermarks", deleteTrWatermarks);
+    boolean("core.editing.deleteViewDbSpheres", deleteViewDbSpheres);
+    boolean("core.editing.leaveTrackShapeAfterDelete", leaveTrackShapeAfterDelete);
+    boolean("core.route.validation.autoFix", autoFix);
+    integer("core.interface.routeEditor.recentItemLimit", numRecentItems);
+    boolean("core.editing.sortTileObjects", sortTileObjects);
+    claim("core.editing.objectsToRemove", SettingType::StringList);
+    if (appliesNow("core.editing.objectsToRemove"))
+        objectsToRemove = settings.runtimeStringList("core.editing.objectsToRemove");
+
+    floating("core.camera.fieldOfView", cameraFov);
+    floating("core.camera.speed.minimum", cameraSpeedMin);
+    floating("core.camera.speed.standard", cameraSpeedStd);
+    floating("core.camera.speed.maximum", cameraSpeedMax);
+    floating("core.camera.mouseSensitivity", mouseSpeed);
+    boolean("core.camera.stickToTerrain", cameraStickToTerrain);
+    boolean("core.camera.useNumericKeypad", usenNumPad);
+
+    integer("core.rendering.tileRadius", tileLod);
+    floating("core.rendering.objectLodDistance", objectLod);
+    integer("core.rendering.objectLoading.targetTokens", maxObjLag);
+    claim("core.rendering.objectLoading.initialTokens", SettingType::Int);
+    if (appliesNow("core.rendering.objectLoading.initialTokens")) {
+        allowObjLag = settings.runtimeInt("core.rendering.objectLoading.initialTokens");
+        objectLoadingTokens = allowObjLag;
+    }
+    claim("core.rendering.pipeline", SettingType::Enum);
+    if (appliesNow("core.rendering.pipeline")) {
+        requestedRendererPipeline = ParseRendererPipeline(
+                    settings.runtimeString("core.rendering.pipeline"));
+        activeRendererPipeline = requestedRendererPipeline;
+    }
+    boolean("core.rendering.pipelineHotSwap", rendererPipelineHotSwap);
+    boolean("core.rendering.threadedTextureLoading", textureLoaderThreaded);
+    if (appliesNow("core.rendering.threadedTextureLoading")) {
+        AceLib::IsThread = textureLoaderThreaded;
+        DdsLib::IsThread = textureLoaderThreaded;
+    }
+    claim("core.rendering.textureDownscaleFactor", SettingType::Enum);
+    if (appliesNow("core.rendering.textureDownscaleFactor"))
+        textureQuality = settings.runtimeInt("core.rendering.textureDownscaleFactor");
+    claim("core.rendering.antiAliasingSamples", SettingType::Enum);
+    if (appliesNow("core.rendering.antiAliasingSamples"))
+        AASamples = settings.runtimeInt("core.rendering.antiAliasingSamples");
+    claim("core.rendering.shadows.enabled", SettingType::Bool);
+    if (appliesNow("core.rendering.shadows.enabled"))
+        shadowsEnabled = settings.runtimeBool("core.rendering.shadows.enabled") ? 1 : 0;
+    claim("core.rendering.shadow.primaryMapSize", SettingType::Enum);
+    if (appliesNow("core.rendering.shadow.primaryMapSize")) {
+        shadowMapSize = settings.runtimeInt("core.rendering.shadow.primaryMapSize");
+        if (shadowMapSize == 8192) { shadow1Res = 3000.0; shadow1Bias = 0.0004; }
+        else if (shadowMapSize == 4096) { shadow1Res = 2500.0; shadow1Bias = 0.0007; }
+    }
+    claim("core.rendering.shadow.distantMapSize", SettingType::Enum);
+    if (appliesNow("core.rendering.shadow.distantMapSize")) {
+        shadowLowMapSize = settings.runtimeInt("core.rendering.shadow.distantMapSize");
+        if (shadowLowMapSize >= 2048) { shadow2Res = 4000.0; shadow2Bias = 0.001; }
+    }
+    integer("core.rendering.defaultLineWidth", oglDefaultLineWidth);
+    floating("core.rendering.fogDensity", fogDensity);
+    auto colour = [&](const char *key, float target[4]) {
+        claim(key, SettingType::Color);
+        if (!appliesNow(key)) return;
+        const QColor value(settings.runtimeString(QString::fromLatin1(key)));
+        if (!value.isValid()) return;
+        target[0] = value.redF(); target[1] = value.greenF(); target[2] = value.blueF();
+        target[3] = value.alphaF();
+    };
+    colour("core.rendering.fogColor", fogColor);
+    colour("core.rendering.skyColor", skyColor);
+    boolean("core.rendering.renderTrackItems", renderTrItems);
+
+    boolean("core.interface.hideTools", toolsHidden);
+    string("core.interface.mainWindowLayout", mainWindowLayout);
+    string("core.interface.consistWindowLayout", ceWindowLayout);
+    auto nullableColour = [&](const char *key, QColor *&target) {
+        claim(key, SettingType::Color);
+        if (!appliesNow(key)) return;
+        delete target;
+        target = nullptr;
+        const QVariant value = settings.runtimeValue(QString::fromLatin1(key));
+        if (value.isValid() && !value.isNull())
+            target = new QColor(value.toString());
+    };
+    nullableColour("core.interface.consistBackground", colorConView);
+    nullableColour("core.interface.shapeBackground", colorShapeView);
+    boolean("core.interface.hud.enabled", hudEnabled);
+    floating("core.interface.hud.scale", hudScale);
+    boolean("core.interface.hud.showEditorFps", editorFpsHudEnabled);
+    boolean("core.interface.markerLines", markerLines);
+
+    claim("core.track.defaultGradeFormat", SettingType::Enum);
+    if (appliesNow("core.track.defaultGradeFormat")) {
+        const QString grade = settings.runtimeString("core.track.defaultGradeFormat");
+        DefaultElevationBox = grade == "percent" ? 1 : grade == "oneInX" ? 2
+                                  : grade == "angle" ? 3 : 0;
+    }
+    floating("core.editing.defaultMoveStep", DefaultMoveStep);
+    floating("core.track.maximumElevationPermille", trackElevationMaxPm);
+    boolean("core.track.snapRotationOnly", snapableOnlyRot);
+    floating("core.track.snapRadius", snapableRadius);
+    claim("core.track.proceduralMode", SettingType::Enum);
+    if (appliesNow("core.track.proceduralMode"))
+        proceduralTracks = ProceduralTrackPolicy::modeFromSetting(
+                    settings.runtimeString("core.track.proceduralMode"));
+    boolean("core.terrain.seasonalEditing", seasonalEditing);
+    boolean("core.route.loading.preloadAllWorldFiles", loadAllWFiles);
+    boolean("core.geometry.positiveQuaternionsOnly", useOnlyPositiveQuaternions);
+
+    string("core.maps.imageryUrl", imageMapsUrl);
+    claim("core.maps.imageryApiKey", SettingType::Secret);
+    integer("core.maps.imageResolution", mapImageResolution);
+    boolean("core.content.loading.preferOpenRailsEng", ortsEngEnable);
+    string("core.interface.accentColor", StyleMainLabel, SettingType::Color);
+    string("core.network.clientLogin", serverLogin);
+    string("core.network.serverAuthenticationMode", serverAuth, SettingType::Enum);
+    boolean("core.network.playerMode", playerMode);
+    boolean("core.network.useNetworkEngine", useNetworkEng);
+    boolean("core.advanced.useQuadTree", useQuadTree);
+    boolean("core.advanced.useEmptyTrackItems", useTdbEmptyItems);
+    boolean("core.advanced.ignoreMissingGlobalShapes", ignoreMissingGlobalShapes);
+}
+
 void Game::InitAssets() {
     QString path;
     bool newInstallation = false;
@@ -263,7 +442,7 @@ void Game::InitAssets() {
     }
 }
 
-void Game::load() {
+void Game::loadLegacySettings() {
     
     QString sh;
     QString path;

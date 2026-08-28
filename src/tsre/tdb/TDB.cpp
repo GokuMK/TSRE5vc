@@ -12,6 +12,7 @@
 #include <QDebug>
 #include <functional>
 #include <tsre/Game.h>
+#include <settings/SettingsAccess.h>
 #include <tsre/renderer/Renderer.h>
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/fileFunctions/ReadFile.h>
@@ -3732,7 +3733,7 @@ void TDB::updateTrackShape(int id){
 
 void TDB::save() {
     if(!Game::writeEnabled) return;
-    if(!Game::writeTDB) return;
+    if(!Game::writeTDB || !Game::writeTDBSessionAllowed) return;
     
     while(deleteNulls());
     sortItemRefs();
@@ -3968,7 +3969,7 @@ void TDB::saveToStream(QTextStream &out){
 
 void TDB::saveTit() {
     if(!Game::writeEnabled) return;
-    if(!Game::writeTDB) return;
+    if(!Game::writeTDB || !Game::writeTDBSessionAllowed) return;
     
     QString path;
     QString extension = "tit";
@@ -4113,6 +4114,9 @@ void TDB::getUsedTileList(QMap<int, QPair<int, int>*> &tileList, int radius, int
 }
 
 void TDB::checkDatabase(){
+    // Snapshot cold validation policy before this potentially long operation.
+    Game::loadAllWFiles = Settings::boolean("core.route.loading.preloadAllWorldFiles");
+    Game::autoFix = Settings::boolean("core.route.validation.autoFix");
     // Variables
     QHash<int, QVector<WorldObj*>> objects;
 

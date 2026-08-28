@@ -12,6 +12,7 @@
 #include <tsre/world/objects/DynTrackObj.h>
 #include <tsre/math3d/Flex.h>
 #include <tsre/Game.h>
+#include <settings/SettingsAccess.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/Undo.h>
 #include <tsre/procedural/ProceduralShape.h>
@@ -164,7 +165,7 @@ PropertiesDyntrack::PropertiesDyntrack() {
     elevStep.setValidator(doubleValidator);
     QObject::connect(&elevStep, SIGNAL(textEdited(QString)), this, SLOT(elevStepEnabled(QString)));
     hideElevBoxes();
-    elevType.setCurrentIndex(Game::DefaultElevationBox);
+    elevType.setCurrentIndex(Settings::enumIndex("core.track.defaultGradeFormat"));
     showElevBox(elevType.currentText());
     vbox->addItem(vlist);
     

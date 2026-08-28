@@ -12,6 +12,7 @@ class QComboBox;
 class QLineEdit;
 class QTabWidget;
 class QLabel;
+class QPushButton;
 class QVBoxLayout;
 class SettingsManager;
 
@@ -28,6 +29,7 @@ private slots:
     void applyFilters();
     void updateSearchPlacement();
     void saveProfile();
+    void applyToRuntime();
     void reloadProfile();
     void loadProfile();
     void saveProfileAs();
@@ -53,6 +55,7 @@ private:
     };
 
     SettingsManager *m_manager;
+    SettingsManager *m_runtimeManager;
     QString m_usedProfileFile;
     QLineEdit *m_search;
     QAction *m_showUnsupported;
@@ -62,16 +65,20 @@ private:
     QLineEdit *m_profilePath;
     QAction *m_duplicateProfileAction;
     QLabel *m_statusLabel;
+    QPushButton *m_applyRuntime;
     QWidget *m_resultsTab = nullptr;
     QVBoxLayout *m_resultsLayout = nullptr;
     QVector<Editor> m_editors;
 
     QWidget *createEditor(const QJsonObject &setting, Editor *editor);
     void editSettingMetadata(const QString &key);
+    void copySettingKeyValue(const QString &key);
+    void pasteSettingKeyValue();
     bool exchangeJson(const QString &title, const QJsonObject &initial,
                       const std::function<bool(const QJsonObject &, QString *)> &apply);
     bool applyEditors(QString *error);
     bool hasEditorChanges() const;
+    bool isViewingUsedProfile() const;
     bool confirmDiscardChanges();
     void showError(const QString &title, const QString &message);
 };

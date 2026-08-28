@@ -21,6 +21,7 @@
 #include <tsre/trains/Eng.h>
 #include <tsre/trains/Consist.h>
 #include <tsre/Game.h>
+#include <settings/SettingsAccess.h>
 #include <shapeViewer/ShapeViewerGLWidget.h>
 #include <tsre/camera/CameraFree.h>
 #include <tsre/camera/CameraConsist.h>
@@ -44,8 +45,12 @@ ShapeViewerWindow::ShapeViewerWindow() : QMainWindow() {
 
     navigatorWidget = new ShapeViewerNavigatorWidget(this);
     glShapeWidget = new ShapeViewerGLWidget(this);
-    if(Game::colorShapeView != NULL)
-        glShapeWidget->setBackgroundGlColor(Game::colorShapeView->redF(), Game::colorShapeView->greenF(), Game::colorShapeView->blueF());
+    const QVariant shapeBackground = Settings::variant(
+                "core.interface.shapeBackground", SettingType::Color);
+    if (shapeBackground.isValid()) {
+        const QColor color(shapeBackground.toString());
+        glShapeWidget->setBackgroundGlColor(color.redF(), color.greenF(), color.blueF());
+    }
 
     hierarchyWindow = new ShapeHierarchyWindow(this);
     texturesWindow = new ShapeTexturesWindow(this);

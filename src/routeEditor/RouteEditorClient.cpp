@@ -11,6 +11,7 @@
 #include <QApplication>
 #include <routeEditor/RouteEditorClient.h>
 #include <tsre/Game.h>
+#include <settings/SettingsAccess.h>
 #include <QtWebSockets/QWebSocket>
 #include <QDebug>
 #include <tsre/world/Route.h>
@@ -30,7 +31,14 @@
 #include <QMessageBox>
 
 RouteEditorClient::RouteEditorClient() {
-    QStringList args = Game::serverLogin.split("@");
+    QString secretError;
+    const QString login = SettingsManager::instance().resolveSecretPlaceholders(
+                Settings::string("core.network.clientLogin"), &secretError);
+    if (!secretError.isEmpty()) {
+        qWarning() << "Cannot resolve Route Editor client login:" << secretError;
+        return;
+    }
+    QStringList args = login.split("@");
     if(args.size() < 2){
         qDebug() << "Wrong server address";
         return;

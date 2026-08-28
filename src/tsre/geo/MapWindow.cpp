@@ -21,6 +21,7 @@
 #include <tsre/geo/MapDataUrlImage.h>
 #include <QTime>
 #include <tsre/Game.h>
+#include <settings/SettingsAccess.h>
 
 std::unordered_map<int, QImage*> MapWindow::mapTileImages;
 int MapWindow::isAlpha = 0;
@@ -184,7 +185,7 @@ void MapWindow::reload(){
     if(dane->tileX != this->tileX) return;
     if(dane->tileZ != -this->tileZ) return;
     QImage* myImage = NULL;
-    int res = Game::mapImageResolution;
+    int res = Settings::integer("core.maps.imageResolution");
     if(MapWindow::isAlpha > 0)
         myImage = new QImage(res, res, QImage::Format_RGBA8888);
     else

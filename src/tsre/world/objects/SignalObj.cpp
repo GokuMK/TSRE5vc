@@ -41,7 +41,7 @@ SignalObj::SignalObj() {
 }
 
 void SignalObj::loadingFixes(){
-    if(Game::useOnlyPositiveQuaternions){
+    if(WorldObj::positiveQuaternionSerialization()){
         if(qDirection[3] < 0){
             Quat::makePositive(qDirection);
             ErrorMessage *e = new ErrorMessage(
@@ -939,7 +939,7 @@ Ref::RefItem* SignalObj::getRefInfo(){
 void SignalObj::save(QTextStream* out){
     if (!loaded) return;
     if (!trLoaded < 0) return;
-    if(Game::useOnlyPositiveQuaternions)
+    if(WorldObj::positiveQuaternionSerialization())
         Quat::makePositive(this->qDirection);
     
 *(out) << "	Signal (\n";

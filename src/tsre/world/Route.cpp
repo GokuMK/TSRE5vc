@@ -22,6 +22,7 @@
 #include <tsre/world/TerrainLibSimple.h>
 #include <tsre/world/TerrainLibQt.h>
 #include <tsre/Game.h>
+#include <settings/SettingsAccess.h>
 #include <tsre/world/objects/TrackObj.h>
 #include <tsre/trains/Path.h>
 #include <tsre/world/Terrain.h>
@@ -67,6 +68,16 @@
 #include <tsre/tdb/TDBClient.h>
 
 namespace {
+void snapshotRouteSettings() {
+    Game::season = Settings::string("core.startup.season");
+    Game::soundEnabled = Settings::boolean("core.system.soundEnabled");
+    Game::snapableOnlyRot = Settings::boolean("core.track.snapRotationOnly");
+    Game::snapableRadius = float(Settings::floating("core.track.snapRadius"));
+    Game::proceduralTracks = ProceduralTrackPolicy::modeFromSetting(
+                Settings::string("core.track.proceduralMode", SettingType::Enum));
+    Game::seasonalEditing = Settings::boolean("core.terrain.seasonalEditing");
+}
+
 static TrackObj* getGroupTrackAnchor(GroupObj* group) {
     if(group == NULL)
         return NULL;
@@ -85,13 +96,14 @@ Route::Route() {
 }
 
 void Route::load(){
+    snapshotRouteSettings();
     Game::currentRoute = this;
     trkName = Game::trkName;
     routeDir = Game::route;
     
     qDebug() << "# Load Route";
     
-    if(!Game::useQuadTree)
+    if(!Settings::boolean("core.advanced.useQuadTree"))
         terrainLib = new TerrainLibSimple();
     else
         terrainLib = new TerrainLibQt();
@@ -112,7 +124,7 @@ void Route::load(){
     file.setFileName(Game::root + "/routes/" + Game::route);
     if (!file.exists()) {
         qDebug() << "Route does not exist.";
-        if (Game::createNewRoutes) {
+        if (Settings::boolean("core.startup.createMissingRoute")) {
             qDebug() << "new Route";
             Route::createNew();
         }
@@ -139,7 +151,7 @@ void Route::load(){
     if(!checkTrackSectionDatabase())
         return;
     
-    if(Game::loadAllWFiles){
+    if(Settings::boolean("core.route.loading.preloadAllWorldFiles")){
         preloadWFiles(Game::gui);
     }
 
@@ -170,7 +182,7 @@ void Route::load(){
     ForestObj::ForestClearDistance = trk->forestClearDistance;
     CarSpawnerObj::LoadCarSpawnerList();
 
-    if(Game::loadAllWFiles){
+    if(Settings::boolean("core.route.loading.preloadAllWorldFiles")){
         preloadWFilesInit();
     }
     
@@ -198,7 +210,8 @@ void Route::load(){
 }
 
 void Route::load(QString name){
-    if(!Game::useQuadTree)
+    snapshotRouteSettings();
+    if(!Settings::boolean("core.advanced.useQuadTree"))
         terrainLib = new TerrainLibSimple();
     else
         terrainLib = new TerrainLibQt();
@@ -242,7 +255,7 @@ void Route::load(QString name){
 
     this->tsection = new TSectionDAT();
     
-    if(Game::loadAllWFiles){
+    if(Settings::boolean("core.route.loading.preloadAllWorldFiles")){
         preloadWFiles(true);
     }
 
@@ -510,7 +523,7 @@ bool Route::checkTrackSectionDatabase(){
         return true;
     if(!Game::writeEnabled)
         return true;
-    if(!Game::writeTDB)
+    if(!Game::writeTDB || !Game::writeTDBSessionAllowed)
         return true;
     
     // Edit mode. Make an action regarding not synced tsection data
@@ -526,7 +539,8 @@ bool Route::checkTrackSectionDatabase(){
     qDebug() << dialog.actionChoosen;
     
     if(dialog.actionChoosen == "FIX"){
-        Game::loadAllWFiles = true;
+        SettingsManager::instance().setSessionValue(
+                    "core.route.loading.preloadAllWorldFiles", true);
         preloadWFiles(true);
         // load tsection with autofix
         this->tsection = new TSectionDAT(true);
@@ -558,7 +572,7 @@ bool Route::checkTrackSectionDatabase(){
         );
     ErrorMessagesLib::PushErrorMessage(e);
     if(dialog.actionChoosen == "VIEW"){
-        Game::writeTDB = false;
+        Game::writeTDBSessionAllowed = false;
         return true;
     }
     if(dialog.actionChoosen == "IGNORE"){
@@ -2217,7 +2231,7 @@ void Route::deleteObj(WorldObj* obj) {
         Undo::PushTrackDB(trackDB, false);
         Undo::PushTrackDB(roadDB, true);
         removeTrackFromTDB(obj);
-        if(Game::leaveTrackShapeAfterDelete)
+        if(Settings::boolean("core.editing.leaveTrackShapeAfterDelete"))
             return;
     }
     

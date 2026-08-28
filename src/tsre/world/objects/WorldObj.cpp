@@ -32,7 +32,12 @@
 #include <tsre/world/objects/SoundSourceObj.h>
 #include <tsre/world/objects/CarSpawnerObj.h>
 #include <tsre/Game.h>
+#include <settings/SettingsAccess.h>
 #include <tsre/fileFunctions/TS.h>
+
+bool WorldObj::positiveQuaternionSerialization() {
+    return Settings::boolean("core.geometry.positiveQuaternionsOnly");
+}
 #include <tsre/world/TerrainLib.h>
 #include <routeEditor/RouteEditorClient.h>
 #include <tsre/world/Route.h>

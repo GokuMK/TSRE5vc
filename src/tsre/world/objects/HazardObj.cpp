@@ -387,7 +387,7 @@ int HazardObj::getDefaultDetailLevel(){
 
 void HazardObj::save(QTextStream* out){
     if (!loaded) return;
-    if(Game::useOnlyPositiveQuaternions)
+    if(WorldObj::positiveQuaternionSerialization())
         Quat::makePositive(this->qDirection);
     
 *(out) << "	Hazard (\n";

@@ -12,6 +12,7 @@
 #include "ObjTools.h"
 #include <tsre/world/Route.h>
 #include <tsre/Game.h>
+#include <settings/SettingsAccess.h>
 #include <tsre/tdb/SigCfg.h>
 #include <tsre/tdb/SignalShape.h>
 #include <tsre/world/objects/ForestObj.h>
@@ -183,10 +184,10 @@ ObjTools::ObjTools(QString name)
     QObject::connect(&autoSnapableRadius, SIGNAL(textEdited(QString)), this, SLOT(autoSnapableRadiusEnabled(QString)));
     autoSnapableRadius.setText(QString::number(Game::snapableRadius));
     autoSnapableRadius.setValidator(doubleValidator1);
-    QCheckBox *chSnapableOnlyRotation = new QCheckBox("Only Rot ");
-    vlist3->addWidget(chSnapableOnlyRotation,row++,4,1,3);
-    chSnapableOnlyRotation->setChecked(Game::snapableOnlyRot);
-    QObject::connect(chSnapableOnlyRotation, SIGNAL(stateChanged(int)), this, SLOT(chSnapableOnlyRotation(int)));
+    autoSnapableOnlyRotation.setText("Only Rot ");
+    vlist3->addWidget(&autoSnapableOnlyRotation,row++,4,1,3);
+    autoSnapableOnlyRotation.setChecked(Game::snapableOnlyRot);
+    QObject::connect(&autoSnapableOnlyRotation, SIGNAL(stateChanged(int)), this, SLOT(chSnapableOnlyRotation(int)));
     vlist3->addWidget(autoPlacementDeleteLast,row++,0,1,7);
     autoPlacementPosX.setValidator(doubleValidator);
     autoPlacementPosY.setValidator(doubleValidator);
@@ -211,8 +212,9 @@ ObjTools::ObjTools(QString name)
     vbox->addWidget(label2);
     vbox->addWidget(&lastItems);
 
-    lastItems.setMinimumHeight(Game::numRecentItems*16);
-    lastItems.setMaximumHeight(Game::numRecentItems*16);
+    const int recentItemLimit = Settings::integer("core.interface.routeEditor.recentItemLimit");
+    lastItems.setMinimumHeight(recentItemLimit*16);
+    lastItems.setMaximumHeight(recentItemLimit*16);
     //QSizePolicy* sizePolicy = new QSizePolicy(QSizePolicy::Maximum, QSizePolicy::Maximum);
     //astItems.setSizePolicy(*sizePolicy);
     //) QSizePolicy::MinimumExpanding);
@@ -299,6 +301,10 @@ void ObjTools::routeLoaded(Route* a){
     autoPlacementTarget.setCurrentIndex(2);
     route->placementAutoTargetType = 2;
     route->snapableOnlyRotation = Game::snapableOnlyRot;
+    autoSnapableOnlyRotation.blockSignals(true);
+    autoSnapableOnlyRotation.setChecked(route->snapableOnlyRotation);
+    autoSnapableOnlyRotation.blockSignals(false);
+    autoSnapableRadius.setText(QString::number(Game::snapableRadius));
     
     QStringList hash;
     QStringList hash2;
@@ -320,7 +326,9 @@ void ObjTools::routeLoaded(Route* a){
 
     QDir globalShapes(Game::root+"/global/shapes");
     QStringList globalShapesList;
-    if(Game::ignoreMissingGlobalShapes)
+    const bool ignoreMissingGlobalShapes =
+            Settings::boolean("core.advanced.ignoreMissingGlobalShapes");
+    if(ignoreMissingGlobalShapes)
         globalShapesList = globalShapes.entryList();
     if(route->tsection->shape.size() > 0)
     for (auto it = route->tsection->shape.begin(); it != route->tsection->shape.end(); ++it ){
@@ -328,7 +336,7 @@ void ObjTools::routeLoaded(Route* a){
         //hash = track->filename.left(3).toStdString();
         if(track == NULL) continue;
         if(track->dyntrack) continue;
-        if(Game::ignoreMissingGlobalShapes)
+        if(ignoreMissingGlobalShapes)
             if(!globalShapesList.contains(track->filename, Qt::CaseInsensitive)) continue;
         if(track->roadshape){
             hash2.append(track->filename.left(3).toLower());
@@ -665,7 +673,7 @@ void ObjTools::itemSelected(Ref::RefItem* item){
     lastItemsPtr.push_back(item);
     
     new QListWidgetItem ( text, &lastItems, lastItemsPtr.size() - 1 );
-    if(lastItems.count() > Game::numRecentItems){
+    if(lastItems.count() > Settings::integer("core.interface.routeEditor.recentItemLimit")){
         int val = 2147483646;
         int itID = -1;
         for(int i = 0; i < lastItems.count(); i++){

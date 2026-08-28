@@ -162,6 +162,15 @@ SettingsDefinition SettingsDefinition::string(const QString &key,
     return result;
 }
 
+SettingsDefinition SettingsDefinition::stringList(const QString &key,
+                                                   const QStringList &defaultValue) {
+    SettingsDefinition result;
+    result.key = key;
+    result.type = SettingType::StringList;
+    result.defaultValue = defaultValue;
+    return result;
+}
+
 SettingsDefinition SettingsDefinition::enumeration(const QString &key,
                                                     const QVariant &defaultValue) {
     SettingsDefinition result;

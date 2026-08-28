@@ -572,7 +572,7 @@ int DynTrackObj::getDefaultDetailLevel(){
 
 void DynTrackObj::save(QTextStream* out){
     if (!loaded) return;
-    if(Game::useOnlyPositiveQuaternions)
+    if(WorldObj::positiveQuaternionSerialization())
         Quat::makePositive(this->qDirection);
     
 *(out) << "	Dyntrack (\n";

@@ -1,6 +1,7 @@
 #include <settings/SettingsManager.h>
 
 #include <QCryptographicHash>
+#include <QColor>
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
@@ -11,6 +12,32 @@
 #include <QSaveFile>
 #include <QRegularExpression>
 #include <QSet>
+
+namespace {
+bool definitionAcceptsValue(const SettingsDefinition &definition,
+                            const QVariant &value) {
+    if (!value.isValid() || value.isNull())
+        return definition.nullable;
+    const QJsonValue json = settingJsonFromVariant(value, definition.type);
+    if (!settingTypeAcceptsJson(definition.type, json))
+        return false;
+    if (definition.hasRange) {
+        const double number = value.toDouble();
+        if (number < definition.minimum || number > definition.maximum)
+            return false;
+    }
+    if (definition.type == SettingType::Enum) {
+        for (const SettingOption &option : definition.options) {
+            if (option.value == value)
+                return true;
+        }
+        return false;
+    }
+    if (definition.type == SettingType::Color)
+        return QColor(value.toString()).isValid();
+    return true;
+}
+}
 
 SettingsManager::SettingsManager(QObject *parent) : QObject(parent) {}
 
@@ -26,7 +53,25 @@ bool SettingsManager::initialize(const SettingsProfileSelection &selection, QStr
     const QString file = SettingsProfile::resolveSettingsFile(selection);
     if (!loadFile(file, error))
         return false;
-    applyOverrides(selection.overrides);
+    m_runtimeProfileValues.clear();
+    m_startupOverrides.clear();
+    m_commandLineOverrides.clear();
+    m_sessionOverrides.clear();
+    for (const SettingsDefinition &definition : m_registry.definitions()) {
+        QVariant configured;
+        m_runtimeProfileValues.insert(
+                    definition.key,
+                    registeredValue(m_document, definition.key, &configured)
+                        ? configured : definition.defaultValue);
+    }
+    if (!setLaunchOverrides(selection.startupOverrides, &m_startupOverrides,
+                            "startup-args.txt", error)
+            || !setLaunchOverrides(selection.commandLineOverrides,
+                                   &m_commandLineOverrides,
+                                   "command line", error))
+        return false;
+    emit runtimeSettingsChanged(m_registry.definitions().isEmpty()
+                                ? QStringList() : m_runtimeProfileValues.keys());
     return true;
 }
 
@@ -91,8 +136,16 @@ bool SettingsManager::loadFile(const QString &settingsFile, QString *error) {
         m_issues = SettingsValidator::validateDocument(m_document, m_registry);
     }
 
-    if (!loadSecrets(error))
-        return false;
+    QString secretsError;
+    if (!loadSecrets(&secretsError)) {
+        m_secretsDocument = QJsonObject{{"format", "tsre-secrets"},
+                                        {"schemaVersion", 1},
+                                        {"secrets", QJsonObject()}};
+        SettingsIssue issue;
+        issue.severity = SettingsIssue::Warning;
+        issue.message = secretsError;
+        m_issues.append(issue);
+    }
     m_loadedHash = currentFileHash();
     emit profileChanged(m_settingsFile);
     emit settingsChanged();
@@ -187,6 +240,12 @@ QJsonObject SettingsManager::settingObject(const QString &key) const {
 }
 
 QVariant SettingsManager::value(const QString &key, const QVariant &fallback) const {
+    const SettingsDefinition *definition = m_registry.definition(key);
+    if (definition) {
+        QVariant configured;
+        return registeredValue(m_document, key, &configured)
+                ? configured : definition->defaultValue;
+    }
     const QJsonObject object = settingObject(key);
     if (object.isEmpty())
         return fallback;
@@ -197,6 +256,47 @@ QVariant SettingsManager::value(const QString &key, const QVariant &fallback) co
                      && object.value("value").isNull())))
         return fallback;
     return settingVariantFromJson(object.value("value"), type);
+}
+
+QVariant SettingsManager::runtimeValue(const QString &key) const {
+    if (m_sessionOverrides.contains(key))
+        return m_sessionOverrides.value(key);
+    if (m_commandLineOverrides.contains(key))
+        return m_commandLineOverrides.value(key);
+    if (m_startupOverrides.contains(key))
+        return m_startupOverrides.value(key);
+    if (m_runtimeProfileValues.contains(key))
+        return m_runtimeProfileValues.value(key);
+    const SettingsDefinition *definition = m_registry.definition(key);
+    return definition ? definition->defaultValue : QVariant();
+}
+
+SettingsManager::ValueSource SettingsManager::runtimeValueSource(const QString &key) const {
+    if (m_sessionOverrides.contains(key)) return ForcedSession;
+    if (m_commandLineOverrides.contains(key)) return CommandLine;
+    if (m_startupOverrides.contains(key)) return StartupArguments;
+    if (m_runtimeProfileValues.contains(key)) return ProfileValue;
+    return RegistryDefault;
+}
+
+bool SettingsManager::runtimeBool(const QString &key) const {
+    return runtimeValue(key).toBool();
+}
+
+int SettingsManager::runtimeInt(const QString &key) const {
+    return runtimeValue(key).toInt();
+}
+
+double SettingsManager::runtimeFloat(const QString &key) const {
+    return runtimeValue(key).toDouble();
+}
+
+QString SettingsManager::runtimeString(const QString &key) const {
+    return runtimeValue(key).toString();
+}
+
+QStringList SettingsManager::runtimeStringList(const QString &key) const {
+    return runtimeValue(key).toStringList();
 }
 
 SettingsManager::SupportState SettingsManager::supportState(const QString &key) const {
@@ -212,8 +312,59 @@ SettingsManager::SupportState SettingsManager::supportState(const QString &key) 
 }
 
 void SettingsManager::setSupported(const QString &key, SettingType type) {
+    SettingType existing;
+    if (m_registry.supportedType(key, &existing) && existing == type)
+        return;
     m_registry.setSupported(key, type);
     emit settingsChanged();
+}
+
+bool SettingsManager::applyProfileToRuntime(const QJsonObject &profileDocument,
+                                            QStringList *changedKeys,
+                                            QString *error) {
+    const QVector<SettingsIssue> candidateIssues =
+            SettingsValidator::validateDocument(profileDocument, m_registry);
+    if (SettingsValidator::hasErrors(candidateIssues)) {
+        if (error) *error = "The profile contains validation errors.";
+        return false;
+    }
+    QHash<QString, QVariant> next;
+    QStringList changed;
+    for (const SettingsDefinition &definition : m_registry.definitions()) {
+        QVariant configured;
+        if (!registeredValue(profileDocument, definition.key, &configured)) {
+            if (error) *error = QString("Invalid value for known setting: %1")
+                    .arg(definition.key);
+            return false;
+        }
+        next.insert(definition.key, configured);
+        if (m_runtimeProfileValues.value(definition.key) != configured)
+            changed.append(definition.key);
+    }
+    m_runtimeProfileValues = next;
+    if (changedKeys) *changedKeys = changed;
+    if (!changed.isEmpty())
+        emit runtimeSettingsChanged(changed);
+    return true;
+}
+
+bool SettingsManager::setSessionValue(const QString &key, const QVariant &value,
+                                      QString *error) {
+    const SettingsDefinition *definition = m_registry.definition(key);
+    if (!definition || !definitionAcceptsValue(*definition, value)) {
+        if (error) *error = QString("Invalid runtime value for setting: %1").arg(key);
+        return false;
+    }
+    if (m_sessionOverrides.value(key) == value && m_sessionOverrides.contains(key))
+        return true;
+    m_sessionOverrides.insert(key, value);
+    emit runtimeSettingsChanged({key});
+    return true;
+}
+
+void SettingsManager::clearSessionValue(const QString &key) {
+    if (m_sessionOverrides.remove(key) > 0)
+        emit runtimeSettingsChanged({key});
 }
 
 bool SettingsManager::setValue(const QString &key, const QVariant &value, QString *error) {
@@ -433,49 +584,114 @@ void SettingsManager::seedMissingDefinitions() {
     m_document["settings"] = settings;
 }
 
-void SettingsManager::applyOverrides(const QHash<QString, QString> &overrides) {
+bool SettingsManager::setLaunchOverrides(const QHash<QString, QString> &overrides,
+                                         QHash<QString, QVariant> *destination,
+                                         const QString &sourceName,
+                                         QString *error) {
+    destination->clear();
     for (auto it = overrides.constBegin(); it != overrides.constEnd(); ++it) {
-        QJsonObject object = settingObject(it.key());
-        SettingType type;
-        if (object.isEmpty() || !settingTypeFromName(object.value("type").toString(), &type))
-            continue;
         QVariant parsed;
-        switch (type) {
-        case SettingType::Bool:
-            parsed = (it.value().compare("true", Qt::CaseInsensitive) == 0
-                      || it.value() == "1" || it.value().compare("on", Qt::CaseInsensitive) == 0);
-            break;
-        case SettingType::Int: parsed = it.value().toInt(); break;
-        case SettingType::Float: parsed = it.value().toDouble(); break;
-        case SettingType::Enum: {
-            const QJsonArray options = object.value("options").toArray();
-            for (const QJsonValue &entry : options) {
-                const QJsonValue option = entry.toObject().value("value");
-                if ((option.isString()
-                     && option.toString().compare(it.value(), Qt::CaseInsensitive) == 0)
-                        || (option.isDouble()
-                            && QString::number(option.toDouble(), 'g', 16) == it.value())
-                        || (option.isBool()
-                            && option.toBool() == (it.value().compare("true", Qt::CaseInsensitive) == 0))) {
-                    parsed = option.toVariant();
-                    break;
-                }
+        QString parseError;
+        if (!parseRegisteredValue(it.key(), it.value(), &parsed, &parseError)) {
+            if (error) {
+                *error = QString("Invalid %1 override '%2': %3")
+                        .arg(sourceName, it.key(), parseError);
             }
-            if (!parsed.isValid())
-                parsed = it.value();
+            return false;
+        }
+        destination->insert(it.key(), parsed);
+    }
+    return true;
+}
+
+bool SettingsManager::parseRegisteredValue(const QString &key, const QString &text,
+                                           QVariant *value, QString *error) const {
+    const SettingsDefinition *definition = m_registry.definition(key);
+    if (!definition) {
+        if (error) *error = "unknown setting key";
+        return false;
+    }
+    QVariant parsed;
+    bool ok = true;
+    switch (definition->type) {
+    case SettingType::Bool:
+        if (text.compare("true", Qt::CaseInsensitive) == 0 || text == "1"
+                || text.compare("on", Qt::CaseInsensitive) == 0)
+            parsed = true;
+        else if (text.compare("false", Qt::CaseInsensitive) == 0 || text == "0"
+                 || text.compare("off", Qt::CaseInsensitive) == 0)
+            parsed = false;
+        else
+            ok = false;
+        break;
+    case SettingType::Int:
+        parsed = text.toInt(&ok);
+        break;
+    case SettingType::Float:
+        parsed = text.toDouble(&ok);
+        break;
+    case SettingType::Enum:
+        ok = false;
+        for (const SettingOption &option : definition->options) {
+            if ((option.value.metaType().id() == QMetaType::QString
+                 && option.value.toString().compare(text, Qt::CaseInsensitive) == 0)
+                    || option.value.toString() == text) {
+                parsed = option.value;
+                ok = true;
+                break;
+            }
+        }
+        break;
+    case SettingType::StringList:
+        parsed = text.split(':', Qt::SkipEmptyParts);
+        break;
+    default:
+        parsed = text;
+        break;
+    }
+    if (!ok || !definitionAcceptsValue(*definition, parsed)) {
+        if (error) *error = QString("value '%1' is not valid for type %2")
+                .arg(text, settingTypeName(definition->type));
+        return false;
+    }
+    if (value) *value = parsed;
+    return true;
+}
+
+bool SettingsManager::registeredValue(const QJsonObject &document,
+                                      const QString &key,
+                                      QVariant *value) const {
+    const SettingsDefinition *definition = m_registry.definition(key);
+    if (!definition)
+        return false;
+    QJsonObject object;
+    for (const QJsonValue &entry : document.value("settings").toArray()) {
+        if (entry.toObject().value("key").toString() == key) {
+            object = entry.toObject();
             break;
         }
-        case SettingType::StringList: parsed = it.value().split(':', Qt::SkipEmptyParts); break;
-        default: parsed = it.value(); break;
-        }
-        object["value"] = settingJsonFromVariant(parsed, type);
-        const int index = m_index.value(it.key());
-        QJsonArray settings = m_document.value("settings").toArray();
-        settings.replace(index, object);
-        m_document["settings"] = settings;
-        // Launch overrides are effective in memory and deliberately do not mark the profile dirty.
     }
-    rebuildIndex();
+    if (object.isEmpty()) {
+        if (value) *value = definition->defaultValue;
+        return true;
+    }
+    SettingType storedType;
+    if (!settingTypeFromName(object.value("type").toString(), &storedType)
+            || storedType != definition->type)
+        return false;
+    const QJsonValue json = object.value("value");
+    QVariant candidate;
+    if (json.isNull() && definition->nullable) {
+        candidate = QVariant();
+    } else {
+        if (!settingTypeAcceptsJson(definition->type, json))
+            return false;
+        candidate = settingVariantFromJson(json, definition->type);
+    }
+    if (!definitionAcceptsValue(*definition, candidate))
+        return false;
+    if (value) *value = candidate;
+    return true;
 }
 
 bool SettingsManager::loadSecrets(QString *error) {

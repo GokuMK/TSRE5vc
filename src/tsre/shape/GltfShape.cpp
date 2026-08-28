@@ -830,8 +830,8 @@ void GltfShape::render(int selectionColor, unsigned int stateId) {
     }
 
     if (loaded == 0) {
-        if (Game::allowObjLag < 1) return;
-        Game::allowObjLag -= 2;
+        if (Game::objectLoadingTokens < 1) return;
+        Game::objectLoadingTokens -= 2;
         loaded = 2;
         load();
         return;
@@ -920,8 +920,8 @@ void GltfShape::pushRenderItem(int selectionColor, unsigned int stateId) {
     }
 
     if (loaded == 0) {
-        if (Game::allowObjLag < 1) return;
-        Game::allowObjLag -= 2;
+        if (Game::objectLoadingTokens < 1) return;
+        Game::objectLoadingTokens -= 2;
         loaded = 2;
         load();
         return;

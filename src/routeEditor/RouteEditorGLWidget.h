@@ -269,6 +269,8 @@ private:
     GLuint depthTexture1 = 0;
     GLuint FramebufferName2 = 0;
     GLuint depthTexture2 = 0;
+    int shadowMapSize = 2048;
+    int distantShadowMapSize = 1024;
     Brush* defaultPaintBrush;
     MapWindow* mapWindow;
     ShapeLib *currentShapeLib = NULL;

@@ -75,8 +75,8 @@ void ShapeViewerGLWidget::timerEvent(QTimerEvent * event) {
     lastTime = timeNow;
 
 
-    if (Game::allowObjLag < Game::maxObjLag)
-        Game::allowObjLag += 2;
+    if (Game::objectLoadingTokens < Game::maxObjLag)
+        Game::objectLoadingTokens += 2;
 
     camera->update(fps);
     update();

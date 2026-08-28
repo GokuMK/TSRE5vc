@@ -17,6 +17,7 @@
 #include <QImage>
 #include <QPainter>
 #include <tsre/Game.h>
+#include <settings/SettingsAccess.h>
 
 GeoHgtFile::GeoHgtFile() {
 }
@@ -43,7 +44,8 @@ bool GeoHgtFile::load(int lat, int lon){
     while(slon.length() < 3)
         slon = "0"+slon;
     
-    this->pathid = Game::geoPath + "/" + plat + slat + plon + slon + ".hgt";
+    this->pathid = Settings::string("core.paths.geoData", SettingType::Directory)
+            + "/" + plat + slat + plon + slon + ".hgt";
     this->pathid.replace("//", "/");
     qDebug() << this->pathid;
     //qDebug() << "Wczytam teren RAW: " << fSfile;

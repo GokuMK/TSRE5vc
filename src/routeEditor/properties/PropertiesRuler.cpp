@@ -12,6 +12,7 @@
 #include <tsre/world/objects/RulerObj.h>
 #include <tsre/Undo.h>
 #include <tsre/Game.h>
+#include <settings/SettingsAccess.h>
 #include <tsre/procedural/ProceduralShape.h>
 #include <tsre/procedural/ShapeTemplates.h>
 #include <tsre/procedural/OrtsTrackProfile.h>
@@ -92,7 +93,7 @@ PropertiesRuler::PropertiesRuler() {
     elevPropLabel.setText("%");
     vlist->addRow(&elevPropLabel,&elevProp);
     hideElevBoxes();
-    elevType.setCurrentIndex(Game::DefaultElevationBox);
+    elevType.setCurrentIndex(Settings::enumIndex("core.track.defaultGradeFormat"));
     showElevBox(elevType.currentText());
     vbox->addItem(vlist);
     

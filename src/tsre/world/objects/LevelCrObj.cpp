@@ -68,7 +68,7 @@ bool LevelCrObj::isTrackItem(){
 }
 
 void LevelCrObj::loadingFixes(){
-    if(Game::useOnlyPositiveQuaternions){
+    if(WorldObj::positiveQuaternionSerialization()){
         if(qDirection[3] < 0){
             Quat::makePositive(qDirection);
             ErrorMessage *e = new ErrorMessage(
@@ -687,7 +687,7 @@ void LevelCrObj::translate(float px, float py, float pz){
 
 void LevelCrObj::save(QTextStream* out){
     if (!loaded) return;
-    if(Game::useOnlyPositiveQuaternions)
+    if(WorldObj::positiveQuaternionSerialization())
         Quat::makePositive(this->qDirection);
     
 *(out) << "	LevelCr (\n";

@@ -25,6 +25,7 @@ class ErrorMessage;
 
 class WorldObj : public GameObj {
 public:
+    static bool positiveQuaternionSerialization();
     enum TypeID {
         none = 0,
         undefined = 1,

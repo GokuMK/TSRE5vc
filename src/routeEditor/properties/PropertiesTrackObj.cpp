@@ -17,6 +17,7 @@
 #include <routeEditor/properties/EditFileNameDialog.h>
 #include <tsre/Undo.h>
 #include <tsre/Game.h>
+#include <settings/SettingsAccess.h>
 #include <tsre/world/Route.h>
 #include <tsre/procedural/ProceduralShape.h>
 #include <tsre/procedural/ShapeTemplates.h>
@@ -222,7 +223,7 @@ PropertiesTrackObj::PropertiesTrackObj(){
     elevStep.setValidator(doubleValidator);
     QObject::connect(&elevStep, SIGNAL(textEdited(QString)), this, SLOT(elevStepEnabled(QString)));
     hideElevBoxes();
-    elevType.setCurrentIndex(Game::DefaultElevationBox);
+    elevType.setCurrentIndex(Settings::enumIndex("core.track.defaultGradeFormat"));
     showElevBox(elevType.currentText());
     vbox->addItem(vlist);
     

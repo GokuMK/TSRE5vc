@@ -21,6 +21,7 @@
 #include <tsre/world/TerrainLibSimple.h>
 #include "TerrainLibQtClient.h"
 #include <tsre/Game.h>
+#include <settings/SettingsAccess.h>
 #include <tsre/world/objects/TrackObj.h>
 #include <tsre/trains/Path.h>
 #include <tsre/world/Terrain.h>
@@ -75,7 +76,7 @@ void RouteClient::load(){
 
             qDebug() << "# Load Remote Route";
 
-            if(!Game::useQuadTree)
+            if(!Settings::boolean("core.advanced.useQuadTree"))
                 terrainLib = new TerrainLibSimple();
             else
                 terrainLib = new TerrainLibQtClient();

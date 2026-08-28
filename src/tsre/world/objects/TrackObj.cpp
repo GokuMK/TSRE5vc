@@ -77,7 +77,7 @@ int TrackObj::updateTrackSectionInfo(QHash<unsigned int,unsigned int> shapes, QH
 }
 
 void TrackObj::loadingFixes(){
-    if(Game::useOnlyPositiveQuaternions){
+    if(WorldObj::positiveQuaternionSerialization()){
         if(qDirection[3] < 0){
             Quat::makePositive(qDirection);
             ErrorMessage *e = new ErrorMessage(
@@ -605,7 +605,7 @@ int TrackObj::getCollisionType(){
 void TrackObj::save(QTextStream* out){
     if (!loaded) return;
     if (jestPQ < 2) return;
-    if(Game::useOnlyPositiveQuaternions)
+    if(WorldObj::positiveQuaternionSerialization())
         Quat::makePositive(this->qDirection);
     
 *(out) << "	TrackObj (\n";

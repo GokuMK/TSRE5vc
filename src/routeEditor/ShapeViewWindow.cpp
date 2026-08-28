@@ -10,6 +10,7 @@
 #include "ShapeViewWindow.h"
 #include <QDebug>
 #include <tsre/Game.h>
+#include <settings/SettingsAccess.h>
 #include <shapeViewer/ShapeViewerGLWidget.h>
 #include <tsre/camera/CameraRot.h>
 
@@ -21,8 +22,12 @@ ShapeViewWindow::ShapeViewWindow(QWidget* parent) : QWidget(parent) {
     this->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Minimum);
     this->resize(384,256);
     glShapeWidget = new ShapeViewerGLWidget(parent);
-    if(Game::colorShapeView != NULL)
-        glShapeWidget->setBackgroundGlColor(Game::colorShapeView->redF(), Game::colorShapeView->greenF(), Game::colorShapeView->blueF());
+    const QVariant shapeBackground = Settings::variant(
+                "core.interface.shapeBackground", SettingType::Color);
+    if (shapeBackground.isValid()) {
+        const QColor color(shapeBackground.toString());
+        glShapeWidget->setBackgroundGlColor(color.redF(), color.greenF(), color.blueF());
+    }
     camera = new CameraRot();
     camera->setPos(0,0,0);
     camera->setPlayerRot(M_PI/2.0,0);

@@ -39,6 +39,7 @@
 #include <tsre/renderer/Renderer.h>
 #include <tsre/world/Trk.h>
 #include <tsre/world/Route.h>
+#include <settings/SettingsAccess.h>
 
 Tile::Tile() {
     modified = false;
@@ -125,7 +126,9 @@ void Tile::wczytajObiekty() {
 }
 
 void Tile::checkForErrors(){
-    
+    const bool autoFix = Settings::boolean("core.route.validation.autoFix");
+    const QStringList objectsToRemove =
+            Settings::stringList("core.editing.objectsToRemove");
     if(Game::trackDB == NULL)
         return;
     
@@ -135,7 +138,7 @@ void Tile::checkForErrors(){
             continue;
         ErrorMessage* e = obj->checkForErrors();
         if(e != NULL)
-            if(Game::autoFix){
+            if(autoFix){
                 if(e->type == ErrorMessage::Type_Error){
                     e->type = ErrorMessage::Type_AutoFix;
                     e->action += "\nAutoFix: Object removed by TSRE.";
@@ -145,8 +148,10 @@ void Tile::checkForErrors(){
             }
         
         // Remove all objects by type
-        if(Game::objectsToRemove.size() > 0){
-            foreach (QString val, Game::objectsToRemove){
+        if(!objectsToRemove.isEmpty()){
+            foreach (QString val, objectsToRemove){
+                if(val.trimmed().isEmpty())
+                    continue;
                 if(obj->type == val){
                     obj->loaded = false;
                     modified = true;
@@ -663,6 +668,10 @@ void Tile::saveToStream(QTextStream &out){
 }
 
 void Tile::save() {
+    const bool deleteViewDbSpheres =
+            Settings::boolean("core.editing.deleteViewDbSpheres");
+    const bool sortTileObjects =
+            Settings::boolean("core.editing.sortTileObjects");
     QString sh;
     QString path;
     path = Game::root + "/routes/" + Game::route + "/world/w" + getNameXY(x) + "" + getNameXY(-z) + ".w";
@@ -682,14 +691,14 @@ void Tile::save() {
     out << "Tr_Worldfile (\n";
 
     QString offset = "";
-    if(!Game::deleteViewDbSpheres && this->vDbIdCount > 0){
+    if(!deleteViewDbSpheres && this->vDbIdCount > 0){
         out << "	VDbIdCount ( "<<this->vDbIdCount<<" )\n";
         for(int i = 0; i < this->viewDbSphere.size(); i++){
             this->viewDbSphere[i].save(&out, offset + "	");
         }
     }
 
-    if(!Game::sortTileObjects){
+    if(!sortTileObjects){
         for(int i = 0; i < this->jestObiektow; i++){
             if(obiekty[i] == NULL) continue;
             if(this->obiekty[i]->isSoundItem()) continue;

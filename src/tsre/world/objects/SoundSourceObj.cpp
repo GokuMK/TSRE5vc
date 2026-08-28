@@ -168,7 +168,7 @@ int SoundSourceObj::getDefaultDetailLevel(){
 
 void SoundSourceObj::save(QTextStream* out){
     if (!loaded) return;
-    if(Game::useOnlyPositiveQuaternions)
+    if(WorldObj::positiveQuaternionSerialization())
         Quat::makePositive(this->qDirection);
     
 *(out) << "	Soundsource (\n";

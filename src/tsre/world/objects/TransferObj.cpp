@@ -261,8 +261,8 @@ void TransferObj::drawShape(bool pushToQueue, int selectionColor){
 
     if (!init) {
         if(!Game::ignoreLoadLimits){
-            if(Game::allowObjLag < 1)  return;
-            Game::allowObjLag-=2;
+            if(Game::objectLoadingTokens < 1)  return;
+            Game::objectLoadingTokens-=2;
         }
         
             GLUU* gluu = GLUU::get();
@@ -440,7 +440,7 @@ int TransferObj::getDefaultDetailLevel(){
 
 void TransferObj::save(QTextStream* out){
     if (!loaded) return;
-    if(Game::useOnlyPositiveQuaternions)
+    if(WorldObj::positiveQuaternionSerialization())
         Quat::makePositive(this->qDirection);
     
 *(out) << "	Transfer (\n";

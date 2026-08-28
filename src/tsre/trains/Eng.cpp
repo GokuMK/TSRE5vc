@@ -17,6 +17,7 @@
 #include <QDebug>
 #include <QFile>
 #include <tsre/Game.h>
+#include <settings/SettingsAccess.h>
 #include <tsre/renderer/Renderer.h>
 #include <tsre/ogl/GLUU.h>
 #include <tsre/ogl/OglObj.h>
@@ -79,7 +80,7 @@ Eng::Eng(QString p, QString n) {
     pathid.replace("//", "/");
     path = p;
     name = n;
-    if(Game::ortsEngEnable){
+    if(Settings::boolean("core.content.loading.preferOpenRailsEng")){
         orpathid = p.toLower()+"/openrails/"+n.toLower();
         orpathid.replace("//","/");
         orpath = path+"/openrails/";
@@ -108,7 +109,7 @@ Eng::Eng(QString src, QString p, QString n) {
     pathid.replace("//","/");
     path = p;
     name = n;
-    if(Game::ortsEngEnable){
+    if(Settings::boolean("core.content.loading.preferOpenRailsEng")){
         orpathid = p.toLower()+"/openrails/"+n.toLower();
         orpathid.replace("//","/");
         orpath = path+"/openrails/";

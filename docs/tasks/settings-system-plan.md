@@ -36,7 +36,8 @@ Status: complete; retained as historical input.
   groups, legacy file keys, legacy code symbols, owners, and access patterns.
 - [x] Use the catalogue as useful test data for profile generation and the editor;
   no separate approval gate was required at this point.
-- [x] Keep the executable draft in `src/settings/DraftSettingsCatalog.cpp`.
+- [x] Keep the executable draft through Phase 2A; replace its provisional identity
+  with the permanent `SettingsRegistration` entry point during Phase 2B.
 
 Detailed record: [settings-phase0-catalog.md](settings-phase0-catalog.md).
 
@@ -95,7 +96,7 @@ Status: complete and approved for the first runtime implementation.
 - [x] Add `core.startup.useTilePosition`.
 - [x] Make generated content paths and startup route empty; provide
   `--game-root`, `--route`, and `--geo-path` launch commands.
-- [x] Keep `core.editing.createMissingRoute` as a preference for now.
+- [x] Keep `core.startup.createMissingRoute` as a preference for now.
 - [x] Make `writeEnabled` and `writeTrackDatabase` default to true, and document
   why disabling TrackDB writes is unsafe for ordinary editing.
 - [x] Remove route merge and the disabled gather-renderer diagnostic from profile
@@ -113,101 +114,103 @@ Detailed audit and approved mapping:
 
 ## Phase 2B — Runtime integration
 
-Status: next phase; not started.
+Status: in progress; startup/runtime cutover and editor Apply are implemented,
+with the final built-in owner split and remaining consumer review still open.
 
 ### 2B.0 Generate approved profiles
 
 - [x] Confirm that profiles produced during Part 1 were GUI test data and require
   no migration or compatibility handling.
-- [ ] After the approved definitions have moved to distributed owner registrars,
-  generate fresh development/default profiles from that registry.
-- [ ] Verify that renamed draft aliases and removed one-shot commands are absent
+- [x] Generate fresh test/development profiles from the approved 76-setting
+  registry; ordinary startup generates the same profile when none exists.
+- [x] Verify that renamed draft aliases and removed one-shot commands are absent
   from the freshly generated profile used for integration testing.
 
 ### 2B.1 Establish startup and precedence
 
-- [ ] Initialize the selected modern profile early enough for startup-only
+- [x] Initialize the selected modern profile early enough for startup-only
   consumers such as theme and OpenGL/MSAA configuration.
-- [ ] Make registry type, default, nullability, and hard validation authoritative
+- [x] Make registry type, default, nullability, and hard validation authoritative
   for known settings. Missing or invalid known values produce a diagnostic and use
   the registry default rather than an implicit QVariant conversion or caller
   fallback; unknown fork settings continue to use their stored self-description.
-- [ ] Treat invalid built-in registrations as developer errors, malformed selected
+- [x] Treat invalid built-in registrations as developer errors, malformed selected
   profiles as actionable startup errors, and broken secrets as isolated failures
   that do not prevent ordinary non-secret settings from loading.
-- [ ] Define and test precedence between built-in defaults, profile values,
+- [x] Define and test precedence between built-in defaults, profile values,
   `startup-args.txt` overrides, and command-line arguments.
-- [ ] Keep the persistent profile document separate from effective runtime values.
+- [x] Keep the persistent profile document separate from effective runtime values.
   The editor's Save operation writes only the profile, Apply is the only editor
   operation that updates runtime values, and runtime/session changes never write
   themselves back to JSON.
-- [ ] Preserve launch overrides when the startup profile is applied; record enough
+- [x] Preserve launch overrides when the startup profile is applied; record enough
   source information to report later that a runtime value came from the profile,
   `startup-args.txt`, the terminal, or forced session state.
-- [ ] Keep selected content root, selected route, and similar mutable session state
+- [x] Keep selected content root, selected route, and similar mutable session state
   separate from profile defaults.
 - [ ] Keep the existing working-directory behaviour unchanged in this task; its
   brittle `build/` detection belongs to a separate task.
 
 ### 2B.2 Migrate cold consumers
 
-- [ ] Replace the provisional monolithic catalogue with owner/module registration
-  functions collected by one deterministic `registerCoreSettings()` entry point.
-  Keep group/subgroup taxonomy central, reject duplicate/incompatible keys, and
-  allow forks/extensions to contribute additional definitions before profile load.
+- [x] Replace the provisional catalogue API with deterministic
+  `SettingsRegistration::registerAll()`, including ordered fork/extension
+  providers and duplicate/incompatible-key rejection.
+- [ ] Physically split the approved built-in definitions into smaller owner/module
+  registration units while keeping core group/subgroup taxonomy central.
 - [ ] Move startup-, construction-, load-, action-, request-, generation-, and
   save-time consumers to typed `SettingsManager` access at their natural
   boundary.
 - [ ] Place `setSupported(key, type)` beside each real consumer, not in a central
   list that can drift away from the implementation.
-- [ ] Resolve `{secret:ID}` only where a consumer needs the expanded value.
-- [ ] Wire `{apikey}` and direct `{secret:ID}` map URL references without logging
+- [x] Resolve `{secret:ID}` only where a consumer needs the expanded value.
+- [x] Wire `{apikey}` and direct `{secret:ID}` map URL references without logging
   resolved secrets.
-- [ ] Wire Route Editor client login secret expansion at connection time.
+- [x] Wire Route Editor client login secret expansion at connection time.
 
 ### 2B.3 Migrate cached and mutable consumers
 
 - [ ] Give hot values to their owning components (camera/input, renderer/HUD,
   sound, terrain/route, loading scheduler, network simulation, and TDB allocator)
   instead of automatically retaining every value in `Game`.
-- [ ] Update dynamic caches when Settings Manager reports an accepted change.
-- [ ] Implement the separate object-loading `currentTokens` counter; editing
+- [x] Update dynamic caches when Settings Manager reports an accepted change.
+- [x] Implement the separate object-loading `currentTokens` counter; editing
   `initialTokens` resets it once, while refill/consumption never changes the
   profile value.
-- [ ] Keep configured TrackDB write permission separate from the mutable runtime
+- [x] Keep configured TrackDB write permission separate from the mutable runtime
   safety latch used after validation failures.
-- [ ] Keep server/client forced session overrides separate from saved profile
+- [x] Keep server/client forced session overrides separate from saved profile
   preferences.
 
 ### 2B.4 Apply lifecycle and editor feedback
 
-- [ ] Add explicit editor Save/Apply separation. Apply is available only for the
+- [x] Add explicit editor Save/Apply separation. Apply is available only for the
   profile used by the running application and never saves the profile implicitly.
-- [ ] Apply `dynamic` values immediately where safe.
+- [x] Apply `dynamic` values immediately where safe.
 - [ ] Have synchronous cold consumers read dynamic values when their operation
   begins; background operations must snapshot required values before starting so
   mid-operation edits cannot change their behaviour.
-- [ ] Track and communicate when a route reload, renderer restart, or application
+- [x] Track and communicate when a route reload, renderer restart, or application
   restart is required after an edit.
-- [ ] Ensure switching the profile being viewed in the editor never silently
+- [x] Ensure switching the profile being viewed in the editor never silently
   switches the running application's profile.
 
 ### 2B.5 Coordinated legacy cutover and verification
 
 - [ ] Migrate the approved runtime consumers as one coordinated cutover, followed
   by a complete code review of the mapping and ownership changes.
-- [ ] Stop generating legacy `settings.txt` for new installations after the
+- [x] Stop generating legacy `settings.txt` for new installations after the
   cutover. Leave every existing copy untouched and unused so users can inspect
   their old values; any import remains an optional Phase 3 operation. Launch
   arguments remain in the working-directory-level `startup-args.txt`.
-- [ ] Use focused synthetic tests for the highest-risk boundaries: missing keys,
+- [x] Use focused synthetic tests for the highest-risk boundaries: missing keys,
   empty strings, JSON null/default values, invalid types, override precedence,
   secrets, and runtime-cache initialization.
 - [ ] Use code review as the primary verification for the full catalogue rather
   than requiring manual testing of each individual setting.
 - [ ] Smoke-test Route Editor, Consist Editor, Shape Viewer, client, and server
   startup modes after the coordinated cutover.
-- [ ] Confirm all approved catalogue entries have an implemented support claim or
+- [x] Confirm all approved catalogue entries have an implemented support claim or
   an explicit removal/inactive decision.
 
 ## Phase 3 — Legacy migration and cleanup

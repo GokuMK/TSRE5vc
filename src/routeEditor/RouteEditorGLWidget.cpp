@@ -24,6 +24,7 @@
 #include <tsre/trains/Eng.h>
 #include <tsre/world/Tile.h>
 #include <tsre/Game.h>
+#include <settings/SettingsAccess.h>
 #include <tsre/ogl/GLH.h>
 #include <tsre/math3d/Vector2f.h>
 #include <tsre/math3d/Flex.h>
@@ -151,8 +152,8 @@ void RouteEditorGLWidget::timerEvent(QTimerEvent * event) {
 
     lastTime = timeNow;
 
-    if (Game::allowObjLag < Game::maxObjLag)
-        Game::allowObjLag += 2;
+    if (Game::objectLoadingTokens < Game::maxObjLag)
+        Game::objectLoadingTokens += 2;
 
     camera->update(fps);
     
@@ -296,8 +297,9 @@ void RouteEditorGLWidget::initializeGL() {
     fpsDisplayAccumMs = 0.0;
     fpsDisplayAccumFrames = 0;
     int timerStep = 15;
-    if (Game::fpsLimit > 0)
-        timerStep = 1000 / Game::fpsLimit;
+    const int fpsLimit = Settings::integer("core.system.fpsLimit");
+    if (fpsLimit > 0)
+        timerStep = 1000 / fpsLimit;
     timer.start(timerStep, this);
     setFocus();
     setMouseTracking(true);
@@ -331,8 +333,14 @@ void RouteEditorGLWidget::initializeGL() {
     //emit routeLoaded(route);
     emit mkrList(route->getMkrList());
 
-    gluu->makeShadowFramebuffer(FramebufferName1, depthTexture1, Game::shadowMapSize, GL_TEXTURE2);
-    gluu->makeShadowFramebuffer(FramebufferName2, depthTexture2, Game::shadowLowMapSize, GL_TEXTURE3);
+    shadowMapSize = Settings::variant(
+                "core.rendering.shadow.primaryMapSize", SettingType::Enum).toInt();
+    distantShadowMapSize = Settings::variant(
+                "core.rendering.shadow.distantMapSize", SettingType::Enum).toInt();
+    gluu->makeShadowFramebuffer(FramebufferName1, depthTexture1,
+            shadowMapSize, GL_TEXTURE2);
+    gluu->makeShadowFramebuffer(FramebufferName2, depthTexture2,
+            distantShadowMapSize, GL_TEXTURE3);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glActiveTexture(GL_TEXTURE0);
         
@@ -825,7 +833,7 @@ void RouteEditorGLWidget::renderShadowMaps() {
     glBindFramebuffer(GL_FRAMEBUFFER, FramebufferName1);
     glActiveTexture(GL_TEXTURE0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glViewport(0, 0, Game::shadowMapSize, Game::shadowMapSize);
+    glViewport(0, 0, shadowMapSize, shadowMapSize);
     int tempLod = Game::objectLod;
     Game::objectLod = 600;
     Game::terrainLib->renderEmpty(gluu, camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3);
@@ -839,7 +847,7 @@ void RouteEditorGLWidget::renderShadowMaps() {
     glBindFramebuffer(GL_FRAMEBUFFER, FramebufferName2);
     glActiveTexture(GL_TEXTURE0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glViewport(0, 0, Game::shadowLowMapSize, Game::shadowLowMapSize);
+    glViewport(0, 0, distantShadowMapSize, distantShadowMapSize);
     Game::objectLod = 1000;
     route->renderShadowMap(gluu, camera->pozT, camera->getPos(), camera->getTarget(), camera->getRotX(), 3.14f / 3, selection);
     gluu->pShadowMatrix2 = gluu->pShadowMatrix;

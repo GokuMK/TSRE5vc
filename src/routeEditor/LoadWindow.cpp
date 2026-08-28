@@ -189,7 +189,7 @@ void LoadWindow::routeLoad(){
         Game::trkName = Game::route;
         Game::writeEnabled = true;
         Game::createNewRoutes = true;
-        Game::writeTDB = true;
+        Game::writeTDBSessionAllowed = true;
     }else{
         if(routeList.currentRow() < 0) return;
         Game::route = routeList.currentItem()->text();
@@ -303,4 +303,4 @@ void LoadWindow::listRoots(){
         cRecent.addItem(line);
     }
     file.close();
-} 
+}

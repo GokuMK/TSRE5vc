@@ -22,6 +22,7 @@
 #include <tsre/world/TerrainLib.h>
 #include <tsre/fileFunctions/TS.h>
 #include <tsre/Game.h>
+#include <settings/SettingsAccess.h>
 #include <tsre/renderer/Renderer.h>
 #include <tsre/fileFunctions/FileFunctions.h>
 #include <tsre/fileFunctions/ReadFile.h>
@@ -69,7 +70,7 @@ void Coords::render(GLUU* gluu, float * playerT, float* playerW, float playerRot
     
     TextObj* txt;
     for (int i = 0; i < markerList.size(); i++ ) {
-        if(Game::markerLines){
+        if(Settings::boolean("core.interface.markerLines")){
             if(markerList[i].line3d == NULL){
                 markerList[i].line3d = new OglObj();
                 markerList[i].line3d->setLineWidth(2);
@@ -186,7 +187,7 @@ void Coords::pushRenderItems(float *playerT, float* playerW, float playerRot) {
 
     TextObj* txt;
     for (int i = 0; i < markerList.size(); i++) {
-        if (Game::markerLines) {
+        if (Settings::boolean("core.interface.markerLines")) {
             if (markerList[i].line3d == NULL) {
                 markerList[i].line3d = new OglObj();
                 markerList[i].line3d->setLineWidth(2);

@@ -1008,9 +1008,9 @@ void SFile::pushRenderItem(int selectionColor, unsigned int stateId){
     if(Game::currentRenderer == NULL)
         return;
     if (loaded == 0) {
-        if(Game::allowObjLag < 1) return;
+        if(Game::objectLoadingTokens < 1) return;
         
-        Game::allowObjLag-=2;
+        Game::objectLoadingTokens-=2;
         loaded = 2;
         load();
         return;
@@ -1283,9 +1283,9 @@ void SFile::render(int selectionColor, unsigned int stateId) {
     if (isinit != 1 || loaded == 2)
         return;
     if (loaded == 0) {
-        if(Game::allowObjLag < 1)  return;
+        if(Game::objectLoadingTokens < 1)  return;
         
-        Game::allowObjLag-=2;
+        Game::objectLoadingTokens-=2;
         loaded = 2;
         load();
         return;

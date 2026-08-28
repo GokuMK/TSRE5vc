@@ -14,6 +14,13 @@ class SettingsManager : public QObject {
     Q_OBJECT
 public:
     enum SupportState { Unsupported, Supported, TypeMismatch };
+    enum ValueSource {
+        RegistryDefault,
+        ProfileValue,
+        StartupArguments,
+        CommandLine,
+        ForcedSession
+    };
 
     explicit SettingsManager(QObject *parent = nullptr);
     static SettingsManager &instance();
@@ -43,8 +50,22 @@ public:
     bool contains(const QString &key) const;
     QJsonObject settingObject(const QString &key) const;
     QVariant value(const QString &key, const QVariant &fallback = QVariant()) const;
+    QVariant runtimeValue(const QString &key) const;
+    ValueSource runtimeValueSource(const QString &key) const;
+    bool runtimeBool(const QString &key) const;
+    int runtimeInt(const QString &key) const;
+    double runtimeFloat(const QString &key) const;
+    QString runtimeString(const QString &key) const;
+    QStringList runtimeStringList(const QString &key) const;
     SupportState supportState(const QString &key) const;
     void setSupported(const QString &key, SettingType type);
+
+    bool applyProfileToRuntime(const QJsonObject &profileDocument,
+                               QStringList *changedKeys = nullptr,
+                               QString *error = nullptr);
+    bool setSessionValue(const QString &key, const QVariant &value,
+                         QString *error = nullptr);
+    void clearSessionValue(const QString &key);
 
     bool setValue(const QString &key, const QVariant &value, QString *error = nullptr);
     bool replaceSettingObject(const QString &oldKey, const QJsonObject &object,
@@ -62,6 +83,7 @@ public:
 signals:
     void settingsChanged();
     void profileChanged(const QString &path);
+    void runtimeSettingsChanged(const QStringList &keys);
 
 private:
     SettingsRegistry m_registry;
@@ -77,9 +99,20 @@ private:
     QString m_secretsFile;
     bool m_secretsModified = false;
 
+    QHash<QString, QVariant> m_runtimeProfileValues;
+    QHash<QString, QVariant> m_startupOverrides;
+    QHash<QString, QVariant> m_commandLineOverrides;
+    QHash<QString, QVariant> m_sessionOverrides;
+
     void rebuildIndex();
     void seedMissingDefinitions();
-    void applyOverrides(const QHash<QString, QString> &overrides);
+    bool setLaunchOverrides(const QHash<QString, QString> &overrides,
+                            QHash<QString, QVariant> *destination,
+                            const QString &sourceName, QString *error);
+    bool parseRegisteredValue(const QString &key, const QString &text,
+                              QVariant *value, QString *error) const;
+    bool registeredValue(const QJsonObject &document, const QString &key,
+                         QVariant *value) const;
     bool loadSecrets(QString *error);
     bool saveSecrets(QString *error);
     QByteArray currentFileHash() const;

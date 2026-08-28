@@ -7,7 +7,7 @@ Status: historical Phase 0 record; superseded by the approved Phase 2A audit.
 ## Scope
 
 The original provisional catalogue was implemented in
-`src/settings/DraftSettingsCatalog.cpp`. It was produced from the persisted-key
+the registration unit now named `src/settings/SettingsRegistration.cpp`. It was produced from the persisted-key
 branches in `Game::load()`, the static defaults in `Game.cpp`, `settings.txt`, and
 an initial call-site scan. That executable file has since been updated with the
 approved Phase 2A corrections; this document describes how its initial version

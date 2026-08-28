@@ -15,6 +15,7 @@
 #include <tsre/trains/Eng.h>
 #include <tsre/trains/Consist.h>
 #include <tsre/Game.h>
+#include <settings/SettingsAccess.h>
 #include <conEditor/EngListWidget.h>
 #include <conEditor/ConListWidget.h>
 #include <shapeViewer/ShapeViewerGLWidget.h>
@@ -45,12 +46,20 @@ ConEditorWindow::ConEditorWindow() : QMainWindow() {
     ActLib::LoadAllAct(Game::root, true);
     randomConsist = new RandomConsist(this);
     glShapeWidget = new ShapeViewerGLWidget(this);
-    if(Game::colorShapeView != NULL)
-        glShapeWidget->setBackgroundGlColor(Game::colorShapeView->redF(), Game::colorShapeView->greenF(), Game::colorShapeView->blueF());
+    const QVariant shapeBackground = Settings::variant(
+                "core.interface.shapeBackground", SettingType::Color);
+    if (shapeBackground.isValid()) {
+        const QColor color(shapeBackground.toString());
+        glShapeWidget->setBackgroundGlColor(color.redF(), color.greenF(), color.blueF());
+    }
     //glShapeWidget->currentEngLib = englib;
     glConWidget = new ShapeViewerGLWidget(this);
-    if(Game::colorConView != NULL)
-        glConWidget->setBackgroundGlColor(Game::colorConView->redF(), Game::colorConView->greenF(), Game::colorConView->blueF());
+    const QVariant consistBackground = Settings::variant(
+                "core.interface.consistBackground", SettingType::Color);
+    if (consistBackground.isValid()) {
+        const QColor color(consistBackground.toString());
+        glConWidget->setBackgroundGlColor(color.redF(), color.greenF(), color.blueF());
+    }
 
     conCamera = new CameraConsist();
     conCamera->setPos(-100,2.5,42);
@@ -375,13 +384,14 @@ ConEditorWindow::ConEditorWindow() : QMainWindow() {
     QObject::connect(engSetAddFlipButton, SIGNAL(released()),
         this, SLOT(engSetFlipAndAddSelected()));
     
-    if(!Game::ceWindowLayout.contains("C"))
+    const QString windowLayout = Settings::string("core.interface.consistWindowLayout");
+    if(!windowLayout.contains("C"))
         vConList->trigger();
-    if(!Game::ceWindowLayout.contains("1"))
+    if(!windowLayout.contains("1"))
         vEngList1->trigger();
-    if(!Game::ceWindowLayout.contains("2"))
+    if(!windowLayout.contains("2"))
         vEngList2->trigger();
-    if(!Game::ceWindowLayout.contains("U"))
+    if(!windowLayout.contains("U"))
         vConUnits->trigger();
 }
 

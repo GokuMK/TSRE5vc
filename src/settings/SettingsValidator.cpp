@@ -65,10 +65,31 @@ QVector<SettingsIssue> SettingsValidator::validateSetting(
                  QString("Unknown apply lifecycle '%1'.").arg(apply));
 
     const SettingsDefinition *registered = registry.definition(key);
-    if (registered && registered->type != type)
+    if (registered && registered->type != type) {
         addIssue(issues, SettingsIssue::Error, key,
                  QString("Running build expects type '%1'.")
                  .arg(settingTypeName(registered->type)));
+    } else if (registered) {
+        if (valueIsNull && !registered->nullable)
+            addIssue(issues, SettingsIssue::Error, key,
+                     "Running build does not allow a null value.");
+        if (registered->hasRange && setting.value("value").isDouble()) {
+            const double value = setting.value("value").toDouble();
+            if (value < registered->minimum || value > registered->maximum)
+                addIssue(issues, SettingsIssue::Error, key,
+                         "Value is outside the range supported by this build.");
+        }
+        if (registered->type == SettingType::Enum && !valueIsNull) {
+            bool found = false;
+            const QVariant candidate = setting.value("value").toVariant();
+            for (const SettingOption &option : registered->options) {
+                if (option.value == candidate) { found = true; break; }
+            }
+            if (!found)
+                addIssue(issues, SettingsIssue::Error, key,
+                         "Enum value is not supported by this build.");
+        }
+    }
 
     if ((type == SettingType::Int || type == SettingType::Float)
             && setting.value("value").isDouble() && setting.value("range").isObject()) {

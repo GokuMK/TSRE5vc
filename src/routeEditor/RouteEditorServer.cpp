@@ -15,6 +15,7 @@
 #include <QtWebSockets/QWebSocketServer>
 #include <QtWebSockets/QWebSocket>
 #include <tsre/Game.h>
+#include <settings/SettingsAccess.h>
 #include <tsre/shape/ShapeLib.h>
 #include <tsre/world/Route.h>
 #include <tsre/trains/EngLib.h>
@@ -71,9 +72,11 @@ RouteEditorServer::RouteEditorServer() {
 }
 
 void RouteEditorServer::usersAuthInit(){
-    if(Game::serverAuth == " "){
+    const QString authentication = Settings::string(
+                "core.network.serverAuthenticationMode", SettingType::Enum);
+    if(authentication == " "){
 
-    } else if(Game::serverAuth == "file"){
+    } else if(authentication == "file"){
         loadUsersFromFile();
     }
 }
@@ -117,9 +120,11 @@ void RouteEditorServer::listUsers(){
 }
 
 bool RouteEditorServer::userAuth(QString user, QString pass){
-    if(Game::serverAuth == ""){
+    const QString authentication = Settings::string(
+                "core.network.serverAuthenticationMode", SettingType::Enum);
+    if(authentication == ""){
         return true;
-    } else if(Game::serverAuth == "file"){
+    } else if(authentication == "file"){
         if(!usersAuth.contains(user))
             return false;
         if(usersAuth[user] == pass)

@@ -27,9 +27,10 @@
 #include <routeEditor/RouteEditorClient.h>
 #include <tsre/Undo.h>
 #include <tsre/tests/TestRunner.h>
-#include <settings/DraftSettingsCatalog.h>
+#include <settings/SettingsRegistration.h>
 #include <settings/SettingsManager.h>
 #include <settings/SettingsProfile.h>
+#include <settings/SettingsAccess.h>
 
 QFile logFile;
 QTextStream logFileOut;
@@ -68,18 +69,19 @@ void LoadShapeViewer(QString arg){
 }
 
 void LoadRouteEditor(){
-    if(Game::serverLogin.length() > 0)
+    if (!Settings::string("core.network.clientLogin").isEmpty())
         Game::ServerMode = true;
     
     if(Game::ServerMode){
-        Game::useQuadTree = true;
+        SettingsManager::instance().setSessionValue(
+                    "core.advanced.useQuadTree", true);
         Undo::UndoEnabled = false;
         // Create Server Client
         Game::serverClient = new RouteEditorClient();
     }
     
     RouteEditorWindow *window = new RouteEditorWindow();
-    if(Game::fullscreen){
+    if(Settings::boolean("core.interface.routeEditor.startMaximized")){
         window->setWindowFlags(Qt::CustomizeWindowHint);
         window->setWindowState(Qt::WindowMaximized);
     } else {
@@ -103,7 +105,8 @@ void LoadRouteEditor(){
 }
 
 void RunRouteEditorServer(){
-    Game::loadAllWFiles = true;
+    SettingsManager::instance().setSessionValue(
+                "core.route.loading.preloadAllWorldFiles", true);
     Game::gui = false;
     RouteEditorServer *server = new RouteEditorServer();
     //..server->run();
@@ -117,10 +120,10 @@ enum CommandLineParseResult {
 };
 
 QHash<QString, QString> consoleArgs;
-QHash<QString, QString> settingsLaunchOverrides;
 
 CommandLineParseResult parseCommandLineArgs(QCommandLineParser &parser,
-                                            const QStringList &startupArguments){
+                                            const QStringList &startupArguments,
+                                            const QStringList &terminalArguments){
     parser.setSingleDashWordOptionMode(QCommandLineParser::ParseAsLongOptions);
     const QCommandLineOption helpOption = parser.addHelpOption();
     const QCommandLineOption versionOption = parser.addVersionOption();
@@ -183,8 +186,8 @@ CommandLineParseResult parseCommandLineArgs(QCommandLineParser &parser,
     parser.addOption(FlexLogFileOption);
     const QCommandLineOption FlexLogCandidatesOption("flex-log-candidates", "Also log all valid Flex candidates (can be large).");
     parser.addOption(FlexLogCandidatesOption);
-    
-    QStringList commandLineArguments = QCoreApplication::arguments();
+
+    QStringList commandLineArguments = terminalArguments;
     QStringList combinedArguments;
     if (!commandLineArguments.isEmpty())
         combinedArguments.append(commandLineArguments.takeFirst());
@@ -272,15 +275,6 @@ CommandLineParseResult parseCommandLineArgs(QCommandLineParser &parser,
             consoleArgs.remove("SETTINGS_FILE");
         }
     }
-    for (const QString &assignment : parser.values(SettingsOverrideOption)) {
-        const int equals = assignment.indexOf('=');
-        if (equals > 0) {
-            settingsLaunchOverrides.insert(assignment.left(equals).trimmed(),
-                                           assignment.mid(equals + 1).trimmed());
-        } else {
-            qWarning() << "Invalid settings override; expected key=value:" << assignment;
-        }
-    }
     if (parser.isSet(GatherLegacyOverlaysOption)) {
         consoleArgs["GATHER_LEGACY_OVERLAYS"] = "TRUE";
     }
@@ -314,6 +308,57 @@ CommandLineParseResult parseCommandLineArgs(QCommandLineParser &parser,
     return CommandLineOk;
 }
 
+bool collectEarlySettingsArguments(const QStringList &arguments, int firstArgument,
+                                   SettingsProfileSelection *selection,
+                                   QHash<QString, QString> *overrides,
+                                   QString *error) {
+    for (int i = firstArgument; i < arguments.size(); ++i) {
+        const QString argument = arguments.at(i);
+        auto optionValue = [&](const QString &name, QString *result) {
+            const QString equalsForm = name + '=';
+            if (argument.startsWith(equalsForm)) {
+                *result = argument.mid(equalsForm.size());
+                return true;
+            }
+            if (argument == name && i + 1 < arguments.size()) {
+                *result = arguments.at(++i);
+                return true;
+            }
+            return false;
+        };
+        QString value;
+        if (optionValue("--profile", &value)) {
+            selection->profileName = value;
+            selection->settingsFile.clear();
+            selection->useAppDataProfile = false;
+        } else if (optionValue("--settings", &value)) {
+            selection->settingsFile = value;
+            selection->useAppDataProfile = false;
+        } else if (argument == "--appdata-profile") {
+            selection->useAppDataProfile = true;
+            selection->settingsFile.clear();
+        } else if (optionValue("--set", &value)) {
+            const int equals = value.indexOf('=');
+            if (equals <= 0) {
+                if (error) *error = QString("Invalid --set argument '%1'; expected key=value.")
+                        .arg(value);
+                return false;
+            }
+            overrides->insert(value.left(equals).trimmed(),
+                              value.mid(equals + 1).trimmed());
+        }
+    }
+    return true;
+}
+
+QStringList rawCommandLineArguments(int argc, char *argv[]) {
+    QStringList result;
+    result.reserve(argc);
+    for (int i = 0; i < argc; ++i)
+        result.append(QString::fromLocal8Bit(argv[i]));
+    return result;
+}
+
 int main(int argc, char *argv[]){
 
    // #ifdef  Q_OS_WIN32 
@@ -323,7 +368,52 @@ int main(int argc, char *argv[]){
     QLocale lepsze(QLocale::English);
     //loc.setNumberOptions(lepsze.numberOptions());
     QLocale::setDefault(lepsze);
-        
+
+    const QStringList terminalArguments = rawCommandLineArguments(argc, argv);
+    QString workingDir = QDir::currentPath();
+    if (!Game::UseWorkingDir && !terminalArguments.isEmpty()) {
+        const QFileInfo executable(terminalArguments.first());
+        QDir::setCurrent(executable.absoluteDir().absolutePath());
+    }
+    workingDir = QDir::currentPath();
+    workingDir.replace("/build", "");
+    QDir::setCurrent(workingDir);
+
+    QApplication::setApplicationName(Game::AppName);
+    QApplication::setApplicationVersion(Game::AppVersion);
+
+    // This is a working-directory-level alternative to terminal arguments, not
+    // part of any settings profile.
+    const QString startupArgsFile = QDir(QDir::currentPath()).filePath("startup-args.txt");
+    QString startupArgsError;
+    if (!SettingsProfile::ensureStartupArgsFile(startupArgsFile, &startupArgsError)) {
+        fprintf(stderr, "%s\n", qPrintable(startupArgsError));
+        return 1;
+    }
+    QStringList startupArgsWarnings;
+    const QStringList startupArguments = SettingsProfile::readStartupArguments(
+                startupArgsFile, &startupArgsWarnings);
+
+    SettingsManager &settings = SettingsManager::instance();
+    QString settingsError;
+    if (!SettingsRegistration::registerAll(settings.registry(), &settingsError)) {
+        fprintf(stderr, "Invalid built-in settings registration: %s\n",
+                qPrintable(settingsError));
+        return 1;
+    }
+    SettingsProfileSelection settingsSelection;
+    if (!collectEarlySettingsArguments(startupArguments, 0, &settingsSelection,
+                                       &settingsSelection.startupOverrides,
+                                       &settingsError)
+            || !collectEarlySettingsArguments(terminalArguments, 1, &settingsSelection,
+                                               &settingsSelection.commandLineOverrides,
+                                               &settingsError)
+            || !settings.initialize(settingsSelection, &settingsError)) {
+        fprintf(stderr, "Cannot initialize settings: %s\n", qPrintable(settingsError));
+        return 1;
+    }
+    Game::applyRuntimeSettings();
+
     QSurfaceFormat format;
 //#ifdef __APPLE__
 //    format.setVersion(3, 3);
@@ -338,22 +428,10 @@ int main(int argc, char *argv[]){
     QSurfaceFormat::setDefaultFormat(format);
     QApplication::setAttribute(Qt::AA_ShareOpenGLContexts, true);
     //QApplication::setAttribute(Qt::AA_EnableHighDpiScaling, true); // has no effect?
-    QApplication::setApplicationName(Game::AppName);
-    QApplication::setApplicationVersion(Game::AppVersion);
     //QApplication::pr
     QApplication app(argc, argv);
-    
-    QString workingDir = QDir::currentPath();
-    
-    if(!Game::UseWorkingDir){
-        QDir::setCurrent(QCoreApplication::applicationDirPath());
-    }
-    
-    workingDir = QDir::currentPath();
-    workingDir.replace("/build", "");
-    QDir::setCurrent(workingDir);
-    
-    Game::load();
+    QObject::connect(&settings, &SettingsManager::runtimeSettingsChanged,
+                     [](const QStringList &keys) { Game::applyRuntimeSettings(keys); });
         
     logFile.setFileName("log.txt");
     if(logFile.open(QIODevice::WriteOnly)){
@@ -361,25 +439,15 @@ int main(int argc, char *argv[]){
     } else {
         qDebug() << "Cannot open log file for writing!";
     }
-    
+
     qInstallMessageHandler( myMessageOutput );
-    
+
     qDebug() << "workingDir" << workingDir;
-    
-    // This is a working-directory-level alternative to terminal arguments, not
-    // part of any settings profile.
-    const QString startupArgsFile = QDir(QDir::currentPath()).filePath("startup-args.txt");
-    QString startupArgsError;
-    if (!SettingsProfile::ensureStartupArgsFile(startupArgsFile, &startupArgsError))
-        qWarning() << startupArgsError;
-    QStringList startupArgsWarnings;
-    const QStringList startupArguments = SettingsProfile::readStartupArguments(
-                startupArgsFile, &startupArgsWarnings);
     for (const QString &warning : startupArgsWarnings)
         qWarning() << warning;
 
     QCommandLineParser parser;
-    switch (parseCommandLineArgs(parser, startupArguments)) {
+    switch (parseCommandLineArgs(parser, startupArguments, terminalArguments)) {
         case CommandLineOk:
             break;
         case CommandLineError:
@@ -438,20 +506,6 @@ int main(int argc, char *argv[]){
         return TsreTests::run(opts);
     }
 
-    SettingsManager &settings = SettingsManager::instance();
-    DraftSettingsCatalog::registerDefinitions(settings.registry());
-    SettingsProfileSelection settingsSelection;
-    if (!consoleArgs["SETTINGS_PROFILE"].isEmpty())
-        settingsSelection.profileName = consoleArgs["SETTINGS_PROFILE"];
-    if (!consoleArgs["SETTINGS_FILE"].isEmpty())
-        settingsSelection.settingsFile = consoleArgs["SETTINGS_FILE"];
-    if (consoleArgs["SETTINGS_APPDATA"] == "TRUE")
-        settingsSelection.useAppDataProfile = true;
-    settingsSelection.overrides = settingsLaunchOverrides;
-    QString settingsError;
-    if (!settings.initialize(settingsSelection, &settingsError))
-        qWarning() << "New settings profile could not be loaded:" << settingsError;
-
     //app.set
     Game::PixelRatio = app.devicePixelRatio();
     qDebug() << "devicePixelRatio"<< app.devicePixelRatio();
@@ -463,7 +517,7 @@ int main(int argc, char *argv[]){
         darkPalette.setColor(QPalette::WindowText, Qt::white);
         darkPalette.setColor(QPalette::Base, QColor(25,25,25));
         darkPalette.setColor(QPalette::AlternateBase, QColor(53,53,53));
-        darkPalette.setColor(QPalette::ToolTipBase, Qt::white);
+        darkPalette.setColor(QPalette::ToolTipBase, QColor(53,53,53));
         darkPalette.setColor(QPalette::ToolTipText, Qt::white);
         darkPalette.setColor(QPalette::Text, Qt::white);
         darkPalette.setColor(QPalette::Button, QColor(53,53,53));
@@ -475,8 +529,9 @@ int main(int argc, char *argv[]){
         darkPalette.setColor(QPalette::Disabled, QPalette::Text , QColor(153,153,153));
         darkPalette.setColor(QPalette::Disabled, QPalette::WindowText , QColor(153,153,153));
         app.setPalette(darkPalette);
-        app.setStyleSheet("QToolTip { color: #ffffff; background-color: #2a82da; border: 1px solid white; }");
-        app.setStyleSheet("QPushButton:checked{background-color: #666666;} ");
+        app.setStyleSheet("QPushButton:checked { background-color: #666666; }");
+        // Keep the established TSRE dark theme independent from the optional
+        // system-theme accent until TSRE themes become configurable as a unit.
         Game::StyleMainLabel = "#c4a480";
         Game::StyleGreenButton = "#008800";
         Game::StyleRedButton = "#880000";
@@ -484,13 +539,45 @@ int main(int argc, char *argv[]){
         Game::StyleGreenText = "#55FF55";
         Game::StyleRedText = "#FF5555";
     } else {
+        // A system palette may itself be light or dark. Inspect its actual
+        // background instead of equating systemTheme with a light theme.
         QPalette palette = app.palette();
-        palette.setColor(QPalette::Disabled, QPalette::Text , QColor(160,90,64));
-        palette.setColor(QPalette::Disabled, QPalette::WindowText , QColor(160,90,64));
-        palette.setColor(QPalette::Highlight, QColor(160, 90, 64));
-        palette.setColor(QPalette::Inactive, QPalette::HighlightedText, Qt::white);
+        const QColor background = palette.color(QPalette::Window);
+        const bool darkBackground = background.lightnessF() < 0.5;
+        QColor accent(Game::StyleMainLabel);
+        if (!accent.isValid())
+            accent = QColor("#770000");
+        if (qAbs(accent.lightnessF() - background.lightnessF()) < 0.38)
+            accent = darkBackground ? accent.lighter(165) : accent.darker(165);
+
+        Game::StyleMainLabel = accent.name(QColor::HexRgb);
+        if (darkBackground) {
+            Game::StyleGreenButton = "#008800";
+            Game::StyleRedButton = "#880000";
+            Game::StyleYellowButton = "#888800";
+            Game::StyleGreenText = "#55FF55";
+            Game::StyleRedText = "#FF5555";
+        } else {
+            Game::StyleGreenButton = "#55FF55";
+            Game::StyleRedButton = "#FF5555";
+            Game::StyleYellowButton = "#FFFF55";
+            Game::StyleGreenText = "#009900";
+            Game::StyleRedText = "#990000";
+        }
+        palette.setColor(QPalette::Highlight, accent);
+        palette.setColor(QPalette::Inactive, QPalette::Highlight, accent);
+        const QColor highlightedText = accent.lightnessF() < 0.55
+                ? Qt::white : Qt::black;
+        palette.setColor(QPalette::HighlightedText, highlightedText);
+        palette.setColor(QPalette::Inactive, QPalette::HighlightedText,
+                         highlightedText);
         app.setPalette(palette);
-        app.setStyleSheet("QPushButton:checked{background-color: #e0c0a4;} ");
+        const QColor checkedButton = darkBackground
+                ? palette.color(QPalette::Button).lighter(145)
+                : palette.color(QPalette::Button).darker(110);
+        app.setStyleSheet(QString(
+                    "QPushButton:checked { background-color: %1; }")
+                          .arg(checkedButton.name(QColor::HexRgb)));
     }
     
     Game::InitAssets();

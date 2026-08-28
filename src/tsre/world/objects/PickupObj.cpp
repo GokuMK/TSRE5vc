@@ -554,7 +554,7 @@ int PickupObj::getDefaultDetailLevel(){
 
 void PickupObj::save(QTextStream* out){
     if (!loaded) return;
-    if(Game::useOnlyPositiveQuaternions)
+    if(WorldObj::positiveQuaternionSerialization())
         Quat::makePositive(this->qDirection);
     
 *(out) << "	Pickup (\n";

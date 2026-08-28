@@ -835,7 +835,7 @@ void CarSpawnerObj::setCarListName(QString val){
 void CarSpawnerObj::save(QTextStream* out) {
     if (!loaded) return;
     QString flags = ParserX::MakeFlagsString(this->staticFlags);
-    if(Game::useOnlyPositiveQuaternions)
+    if(WorldObj::positiveQuaternionSerialization())
         Quat::makePositive(this->qDirection);
     
     *(out) << "	CarSpawner (\n";

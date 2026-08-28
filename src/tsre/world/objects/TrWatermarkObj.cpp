@@ -15,6 +15,7 @@
 #include <math.h>
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/Game.h>
+#include <settings/SettingsAccess.h>
 #include <QDebug>
 
 #ifndef M_PI
@@ -22,6 +23,8 @@
 #endif
 
 TrWatermarkObj::TrWatermarkObj() {
+    this->type = "tr_watermark";
+    this->typeID = WorldObj::none;
     this->shape = -1;
     this->UiD = 0;
     this->dstLevel = 0;
@@ -29,6 +32,8 @@ TrWatermarkObj::TrWatermarkObj() {
 }
 
 TrWatermarkObj::TrWatermarkObj(int level) {
+    this->type = "tr_watermark";
+    this->typeID = WorldObj::none;
     this->UiD = 0;
     this->dstLevel = level;
     this->shape = -1;
@@ -68,7 +73,7 @@ int TrWatermarkObj::getDefaultDetailLevel(){
 
 void TrWatermarkObj::save(QTextStream* out){
     if (!loaded) return;
-    if (Game::deleteTrWatermarks) return;
+    if (Settings::boolean("core.editing.deleteTrackWatermarks")) return;
     
 *(out) << "	Tr_Watermark ( "<<this->dstLevel<<" )\n";
 }

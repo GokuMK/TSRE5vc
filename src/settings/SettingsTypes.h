@@ -83,6 +83,8 @@ struct SettingsDefinition {
     static SettingsDefinition floating(const QString &key, double defaultValue);
     static SettingsDefinition string(const QString &key, const QString &defaultValue,
                                      SettingType type = SettingType::String);
+    static SettingsDefinition stringList(const QString &key,
+                                         const QStringList &defaultValue = QStringList());
     static SettingsDefinition enumeration(const QString &key, const QVariant &defaultValue);
 
     SettingsDefinition &withName(const QString &value);

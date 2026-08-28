@@ -878,7 +878,7 @@ void PlatformObj::save(QTextStream* out) {
     int l;
     QString flags = ParserX::MakeFlagsString(this->staticFlags);
     QString flags2 = ParserX::MakeFlagsString(this->platformData);
-    if(Game::useOnlyPositiveQuaternions)
+    if(WorldObj::positiveQuaternionSerialization())
         Quat::makePositive(this->qDirection);
     
     if (type == "siding")
