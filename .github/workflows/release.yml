@@ -100,8 +100,15 @@ jobs:
             $env:PATH = $buildPath
           }
 
-          $generatedFiles = @("log.txt", "settings.txt") | ForEach-Object { Join-Path $packageDir $_ }
+          # The launch check initializes a fresh portable settings profile before
+          # handling --version. Keep those first-run files out of the release so
+          # every tester starts with a profile generated on their own machine.
+          $generatedFiles = @("log.txt", "settings.txt", "startup-args.txt") | ForEach-Object { Join-Path $packageDir $_ }
           Remove-Item $generatedFiles -Force -ErrorAction SilentlyContinue
+          $generatedProfileRoot = Join-Path $packageDir "profiles"
+          if (Test-Path -LiteralPath $generatedProfileRoot) {
+            Remove-Item -LiteralPath $generatedProfileRoot -Recurse -Force
+          }
 
           Compress-Archive -Path "$packageDir\*" -DestinationPath $archive
 
