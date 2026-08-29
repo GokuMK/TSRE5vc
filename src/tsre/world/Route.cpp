@@ -2007,9 +2007,14 @@ void Route::addToTDB(WorldObj* obj) {
         //obj->setMartix();
         //track->setJNodePosN();
     } else if(obj->type == "dyntrack"){
-        Undo::Clear();
+        const bool ownsUndoState = !Undo::IsStateOpen();
+        if(ownsUndoState)
+            Undo::StateBegin();
         DynTrackObj* dynTrack = (DynTrackObj*) obj;
         TDB *database = dynTrack->isRoad() ? this->roadDB : this->trackDB;
+        Undo::PushWorldObjData(obj);
+        Undo::PushTrackDB(database, dynTrack->isRoad());
+        Undo::PushTSectionData(this->tsection);
         if(dynTrack->sectionIdx == -1){
             database->fillDynTrack(dynTrack);
         }
@@ -2020,6 +2025,8 @@ void Route::addToTDB(WorldObj* obj) {
         obj->setQdirection(q);
         obj->setModified();
         obj->setMartix();
+        if(ownsUndoState)
+            Undo::StateEnd();
     } 
 }
 
@@ -2078,12 +2085,14 @@ void Route::addToTDBIfNotExist(WorldObj* obj) {
         return;
     }
     
-    Undo::StateBegin();
+    const bool ownsUndoState = !Undo::IsStateOpen();
+    if(ownsUndoState)
+        Undo::StateBegin();
     Undo::PushTrackDB(trackDB, false);
     Undo::PushTrackDB(roadDB, true);
-    Undo::StateEnd();
-    
     addToTDB(obj);
+    if(ownsUndoState)
+        Undo::StateEnd();
 }
 
 void Route::newPositionTDB(WorldObj* obj) {

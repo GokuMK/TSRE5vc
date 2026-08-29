@@ -37,6 +37,53 @@
 
 std::unordered_map<int, TRitem*>* TDB::StaticTrackItems;
 
+namespace {
+
+float wrapTdbAngle(float angle) {
+    while(angle > (float)M_PI)
+        angle -= (float)(2.0 * M_PI);
+    while(angle <= (float)-M_PI)
+        angle += (float)(2.0 * M_PI);
+    return angle;
+}
+
+void matrixToTdbFrame(const float *matrix, float *frame) {
+    frame[0] = std::asin(qBound(-1.0f, -matrix[9], 1.0f));
+    frame[1] = wrapTdbAngle(
+            (float)M_PI - std::atan2(matrix[8], matrix[10]));
+    frame[2] = -std::atan2(matrix[1], matrix[5]);
+}
+
+void tdbFrameToMatrix(const float *frame, float *matrix) {
+    Mat4::identity(matrix);
+    Mat4::rotateY(matrix, matrix, -(float)M_PI - frame[1]);
+    Mat4::rotateX(matrix, matrix, frame[0]);
+    Mat4::rotate(matrix, matrix, -frame[2], 0.0f, 0.0f, 1.0f);
+}
+
+void advanceTdbFrame(const float *startFrame, float sectionAngle,
+        float *endFrame) {
+    if(sectionAngle == 0.0f) {
+        endFrame[0] = startFrame[0];
+        endFrame[1] = startFrame[1];
+        endFrame[2] = startFrame[2];
+        return;
+    }
+    float matrix[16];
+    tdbFrameToMatrix(startFrame, matrix);
+    Mat4::rotateY(matrix, matrix, -sectionAngle);
+    matrixToTdbFrame(matrix, endFrame);
+}
+
+void transformTdbSectionDelta(Vector3f &delta, const float *frame) {
+    if(frame[2] != 0.0f)
+        delta.rotateZ(frame[2], 0.0f);
+    delta.rotateX(frame[0], 0.0f);
+    delta.rotateY((float)M_PI + frame[1], 0.0f);
+}
+
+}
+
 TDB::TDB(TSectionDAT* tsection, bool road) {
     loaded = false;
     this->road = road;
@@ -694,9 +741,13 @@ int TDB::appendTrack(int id, int* ends, int r, int sect, int uid) {
         //qDebug() <<"dlugosc"<< dlugosc;
         Vector3f aa;
         this->tsection->sekcja[sect]->getDrawPosition(&aa, dlugosc);
-        aa.rotateX(endNode->UiD[9], 0);  
-        aa.rotateY(M_PI + endNode->UiD[10], 0);
+        float startFrame[3] = {
+            endNode->UiD[9], endNode->UiD[10], endNode->UiD[11]
+        };
+        transformTdbSectionDelta(aa, startFrame);
         float angle = this->tsection->sekcja[sect]->getAngle();
+        float endFrame[3];
+        advanceTdbFrame(startFrame, angle, endFrame);
         int sid = sect;
 
         p[0] = endNode->UiD[6] + aa.x;
@@ -741,9 +792,17 @@ int TDB::appendTrack(int id, int* ends, int r, int sect, int uid) {
         vector[10] = pp[0];
         vector[11] = pp[1];
         vector[12] = pp[2];
-        vector[13] = endNode->UiD[9];
-        vector[14] = endNode->UiD[10] + vangle;
-        vector[15] = endNode->UiD[11];
+        if(kierunek == 1) {
+            float reverseFrame[3];
+            advanceTdbFrame(startFrame, angle + (float)M_PI, reverseFrame);
+            vector[13] = reverseFrame[0];
+            vector[14] = reverseFrame[1];
+            vector[15] = reverseFrame[2];
+        } else {
+            vector[13] = startFrame[0];
+            vector[14] = startFrame[1] + vangle;
+            vector[15] = startFrame[2];
+        }
 
         //endNode->UiD[0] = endNode->UiD[0];
         //endNode->UiD[1] = endNode->UiD[1];
@@ -754,9 +813,9 @@ int TDB::appendTrack(int id, int* ends, int r, int sect, int uid) {
         endNode->UiD[6] = p[0];
         endNode->UiD[7] = p[1];
         endNode->UiD[8] = p[2];
-        endNode->UiD[9] = endNode->UiD[9];
-        endNode->UiD[10] = endNode->UiD[10] + angle;
-        endNode->UiD[11] = endNode->UiD[11];
+        endNode->UiD[9] = endFrame[0];
+        endNode->UiD[10] = endFrame[1];
+        endNode->UiD[11] = endFrame[2];
     }
     updateTrNode(id);
     updateTrNode(endNode->TrPinS[0]);
@@ -844,11 +903,12 @@ int TDB::newTrack(int x, int z, float* p, float* qe, int* ends, int r, int sect,
     //    aa->rotateX(-qe[0], 0);
     //else
     
-    aa.rotateX(qe[0], 0);  
-    aa.rotateY(M_PI + qe[1], 0);
+    transformTdbSectionDelta(aa, qe);
     
     
     float angle = this->tsection->sekcja[sect]->getAngle();
+    float endFrame[3];
+    advanceTdbFrame(qe, angle, endFrame);
     //Quat::
     //float pp[3];
     pp[0] = pp[0] + aa.x;
@@ -869,9 +929,9 @@ int TDB::newTrack(int x, int z, float* p, float* qe, int* ends, int r, int sect,
     newNode->UiD[7] = pp[1];
     qDebug() << "uid7" << newNode->UiD[7];
     newNode->UiD[8] = pp[2];
-    newNode->UiD[9] = qe[0];
-    newNode->UiD[10] = qe[1] + angle;
-    newNode->UiD[11] = qe[2];
+    newNode->UiD[9] = endFrame[0];
+    newNode->UiD[10] = endFrame[1];
+    newNode->UiD[11] = endFrame[2];
 
     newNode->TrP1 = 1;
     newNode->TrPinS[0] = vecId;
@@ -1011,12 +1071,14 @@ int TDB::joinVectorSections(int id1, int id2) {
     }
     else if (section1e2->equals(section2e2)) {
         qDebug() << "rot2";
-        rotate(id2);
+        if(rotate(id2) < 0)
+            return -1;
         return joinVectorSections(id1, id2);
     }
     else if (section1e1->equals(section2e1)) {
         qDebug() << "rot1";
-        rotate(id1);
+        if(rotate(id1) < 0)
+            return -1;
         return joinVectorSections(id1, id2);
     }
 
@@ -1475,47 +1537,76 @@ bool TDB::deleteFromVectorSection(int id, int j){
 }
 
 int TDB::rotate(int id){
-    TRnode* vect = trackNodes[id];
-    TRnode* e1 = trackNodes[vect->TrPinS[0]];
-    TRnode* e2 = trackNodes[vect->TrPinS[1]];
-    
-    for(int i = 0; i < vect->iTrv; i++){
-        if(i < vect->iTrv - 1){
-            vect->trVectorSection[i].param[8] = vect->trVectorSection[i+1].param[8];
-            vect->trVectorSection[i].param[9] = vect->trVectorSection[i+1].param[9];
-            vect->trVectorSection[i].param[10] = vect->trVectorSection[i+1].param[10];
-            vect->trVectorSection[i].param[11] = vect->trVectorSection[i+1].param[11];
-            vect->trVectorSection[i].param[12] = vect->trVectorSection[i+1].param[12];
-            vect->trVectorSection[i].param[13] = -vect->trVectorSection[i].param[13]; //fix ????
-            vect->trVectorSection[i].param[14] = vect->trVectorSection[i+1].param[14];
-            vect->trVectorSection[i].param[15] = vect->trVectorSection[i+1].param[15];
+    auto vectorIt = trackNodes.find(id);
+    if(vectorIt == trackNodes.end() || vectorIt->second == NULL)
+        return -1;
+    TRnode* vect = vectorIt->second;
+    if(vect->typ != 1 || vect->iTrv <= 0
+            || vect->trVectorSection == NULL)
+        return -1;
+    auto end1It = trackNodes.find(vect->TrPinS[0]);
+    auto end2It = trackNodes.find(vect->TrPinS[1]);
+    if(end1It == trackNodes.end() || end1It->second == NULL
+            || end2It == trackNodes.end() || end2It->second == NULL)
+        return -1;
+    TRnode* e1 = end1It->second;
+    TRnode* e2 = end2It->second;
+
+    TRnode::TRSect *reversed = new TRnode::TRSect[vect->iTrv];
+    for(int oldIndex = 0; oldIndex < vect->iTrv; oldIndex++){
+        const TRnode::TRSect &oldSection =
+                vect->trVectorSection[oldIndex];
+        TRnode::TRSect &newSection =
+                reversed[vect->iTrv - 1 - oldIndex];
+        newSection = oldSection;
+
+        // A TDB boundary is authoritative route data. Adjacent sections may
+        // have been placed and rotated independently, or may contain legacy
+        // rounding/errors which current TSection math cannot reproduce.
+        // Reversal must therefore exchange stored starts, not regenerate
+        // them from section geometry.
+        if(oldIndex < vect->iTrv - 1){
+            const float *nextSection =
+                    vect->trVectorSection[oldIndex + 1].param;
+            for(int parameter = 8; parameter <= 12; parameter++)
+                newSection.param[parameter] = nextSection[parameter];
         } else {
-            vect->trVectorSection[i].param[8] = e2->UiD[4];
-            vect->trVectorSection[i].param[9] = e2->UiD[5];
-            vect->trVectorSection[i].param[10] = e2->UiD[6];
-            vect->trVectorSection[i].param[11] = e2->UiD[7];
-            vect->trVectorSection[i].param[12] = e2->UiD[8];
-            vect->trVectorSection[i].param[13] = -vect->trVectorSection[i].param[13];
-            vect->trVectorSection[i].param[14] = e2->UiD[10];
-            vect->trVectorSection[i].param[15] = e2->UiD[11];
+            for(int parameter = 8; parameter <= 12; parameter++)
+                newSection.param[parameter] = e2->UiD[parameter - 4];
         }
-        float angle = this->tsection->sekcja[vect->trVectorSection[i].param[0]]->getAngle();
-        if (angle > 0) vect->trVectorSection[i].param[0]--;
-        if (angle < 0) vect->trVectorSection[i].param[0]++;
-        
-        int tmp = vect->trVectorSection[i].param[5];
-        vect->trVectorSection[i].param[5] = vect->trVectorSection[i].param[6];
-        vect->trVectorSection[i].param[6] = tmp;
-        
-        vect->trVectorSection[i].param[14] += M_PI;
-        if(vect->trVectorSection[i].param[14] > 2*M_PI)
-            vect->trVectorSection[i].param[14] -= 2*M_PI;
+
+        auto sectionIt = tsection->sekcja.find((int)oldSection.param[0]);
+        if(sectionIt == tsection->sekcja.end()
+                || sectionIt->second == NULL){
+            delete[] reversed;
+            return -1;
+        }
+        const float angle = sectionIt->second->getAngle();
+        if(angle > 0.0f)
+            newSection.param[0]--;
+        else if(angle < 0.0f)
+            newSection.param[0]++;
+        auto reverseSectionIt =
+                tsection->sekcja.find((int)newSection.param[0]);
+        if(reverseSectionIt == tsection->sekcja.end()
+                || reverseSectionIt->second == NULL){
+            delete[] reversed;
+            return -1;
+        }
+
+        // Unlike the stored position, the frame belongs to this individual
+        // section. Reverse its complete end tangent so independently rotated
+        // neighbors do not lend it an unrelated yaw.
+        advanceTdbFrame(oldSection.param + 13,
+                angle + (float)M_PI, newSection.param + 13);
+
+        const float oldEnd = newSection.param[5];
+        newSection.param[5] = newSection.param[6];
+        newSection.param[6] = oldEnd;
     }
-    for(int i = 0; i < vect->iTrv/2; i++){
-        TRnode::TRSect t = vect->trVectorSection[i];
-        vect->trVectorSection[i] = vect->trVectorSection[vect->iTrv - 1 - i];
-        vect->trVectorSection[vect->iTrv - 1 - i] = t;
-    }
+
+    delete[] vect->trVectorSection;
+    vect->trVectorSection = reversed;
     
     e1->setTrPinK(id, 0);
     e2->setTrPinK(id, 1);
@@ -1638,12 +1729,9 @@ bool TDB::findPosition(int &x, int &z, float* p, float* q, float* endp, TrackSha
         float angle2 = 0;
         float dlugosc = 0;
         for (int i = shp->path[startEnd].n - 1; i >= 0; i--) {
-        //for (int i = 0; i < shp->path[startEnd].n; i++) {
             dlugosc = this->tsection->sekcja[shp->path[startEnd].sect[i]]->getDlugosc();
-            //qDebug() << dlugosc;
             this->tsection->sekcja[shp->path[startEnd].sect[i]]->getDrawPosition(&aa2, dlugosc);
             aa2.rotateY(angle, 0);
-            //qDebug() << "aa " << aa2->x << " "<<aa2->z;
             aa.x+=aa2.x;
             aa.z+=aa2.z;
             angle += this->tsection->sekcja[shp->path[startEnd].sect[i]]->getAngle();
@@ -1656,7 +1744,6 @@ bool TDB::findPosition(int &x, int &z, float* p, float* q, float* endp, TrackSha
         endp[0] = -aa3.x;
         endp[1] = 0;
         endp[2] = -aa3.z;
-        //aa.rotateY(-qe[1], 0);
         startPos[0] = aa.x;
         startPos[2] = aa.z;
         qe[1] -= angle + qe[1] - M_PI;
@@ -1669,12 +1756,10 @@ bool TDB::findPosition(int &x, int &z, float* p, float* q, float* endp, TrackSha
         startPos[0] = aa.x;
         startPos[2] = aa.z;
     }
-    //qDebug() << "sp " << startPos[0]  << " "<< startPos[2];
     
     bb.x = shp->path[0].pos[0];
     bb.z = shp->path[0].pos[2];
     bb.rotateY(-qe[1], 0);
-    //aa.set(shp->path[0].pos[0] - shp->path[startEnd].pos[0], shp->path[0].pos[1], shp->path[0].pos[2] - shp->path[startEnd].pos[2]);
     aa.set(0 - shp->path[startEnd].pos[0], shp->path[0].pos[1], 0 - shp->path[startEnd].pos[2]);
     aa.rotateY(shp->path[startEnd].rotDeg*M_PI/180, 0);
     aa.x += shp->path[0].pos[0];
@@ -1744,14 +1829,12 @@ bool TDB::placeTrack(int x, int z, float* p, float* q, TrackShape* shp, int uid,
     vect[0] = 0; vect[1] = 0; vect [2] = 10;
     Vec3::transformQuat(vect, vect, q);
     
-    //float roll = atan2((2*(q[0]*q[1] + q[2]*q[3])),(1-((q[0]*q[0])+(q[1]*q[1]))));
     float sinv = 2*(q[0]*q[2] - q[1]*q[3]);
     if(sinv > 1.0f)
         sinv = 1.0f;
     if(sinv < -1.0f)
         sinv = -1.0f;
     float pitch = asin(sinv);
-    //float yaw = atan2((2*(q[0]*q[3] + q[1]*q[2])),(1-((q[2]*q[2])+(q[3]*q[3]))));
     
     if(vect[2] < 0)
         pitch = M_PI - pitch;
@@ -1809,19 +1892,21 @@ bool TDB::placeTrack(int x, int z, float* p, float* q, TrackShape* shp, int uid,
 
     for (int i = 0; i < shp->numpaths; i++) {
         aa.set(shp->path[i].pos[0], -shp->path[i].pos[1], shp->path[i].pos[2]);
-        //aa.rotateY(-qe[1] + shp->path[i].rotDeg*M_PI/180 - shp->path[startEnd].rotDeg*M_PI/180, 0);
         aa.rotateX(-qe[0], 0);
         aa.rotateY(-qe[1], 0);
 
         pp[0] = p[0] + aa.x;
-        pp[1] = p[1] - aa.y;// po[1];//shp->path[i].pos[1];
+        pp[1] = p[1] - aa.y;
         pp[2] = p[2] - aa.z;
-        if(fabs(shp->path[i].rotDeg) > 90)
-            qee[0] = -qe[0];
-        else
-            qee[0] = qe[0];
-        qee[1] = qe[1] + shp->path[i].rotDeg*M_PI/180;
-        qee[2] = qe[2];
+        float rootFrame[3] = {qe[0], qe[1], qe[2]};
+        const float pathAngle = shp->path[i].rotDeg * (float)M_PI / 180.0f;
+        if(pathAngle == 0.0f) {
+            qee[0] = rootFrame[0];
+            qee[1] = rootFrame[1];
+            qee[2] = rootFrame[2];
+        } else {
+            advanceTdbFrame(rootFrame, pathAngle, qee);
+        }
         
         ends[0] = endsNumbres[i*2];
         ends[1] = endsNumbres[i*2+1];
@@ -1840,14 +1925,19 @@ bool TDB::placeTrack(int x, int z, float* p, float* q, TrackShape* shp, int uid,
             junctionId[ends[0]] = newJunction(x, z, pp, qee, shapeIdForTdb, uid, ends[0]);
         }
 
-        endp = newTrack(x, z, pp, qee, (int*)ends, shapeIdForTdb, shp->path[i].sect[0], uid, &start);
+        endp = newTrack(x, z, pp, qee, (int*)ends,
+                shapeIdForTdb, shp->path[i].sect[0], uid, &start);
 
         for (int j = 1; j < shp->path[i].n; j++) {
             if (endp > 0) {
-                endp = appendTrack(endp, (int*)ends, shapeIdForTdb, shp->path[i].sect[j], uid);
+                endp = appendTrack(endp, (int*)ends,
+                        shapeIdForTdb, shp->path[i].sect[j], uid);
             }
         }
         
+        if(endp <= 0 || start <= 0)
+            continue;
+
         if(junctionId[ends[0]] != 0){
             qDebug() << "append to junction";
             appendToJunction(junctionId[ends[0]], start, 1);
@@ -2530,6 +2620,8 @@ bool TDB::getDrawPositionOnTrNode(float* out, int id, float metry, float *sElev)
         
         float sDistance = metry - length + sectionLength;
         tsection->sekcja.at(idx)->getDrawPosition(&position, sDistance);
+        if(n->trVectorSection[i].param[15] != 0.0f)
+            position.rotateZ(n->trVectorSection[i].param[15], 0.0f);
         //qDebug() << "position"<<position.x<<position.y<<position.z;
 
         float matrix[16];
@@ -2553,7 +2645,7 @@ bool TDB::getDrawPositionOnTrNode(float* out, int id, float metry, float *sElev)
         pos[1] = position.y;
         pos[2] = -position.z;
         Vec3::transformMat4(pos, pos, matrix);
-        
+
         out[3] = -n->trVectorSection[i].param[14] - tsection->sekcja.at(idx)->getDrawAngle(sDistance);
         out[4] = n->trVectorSection[i].param[13];
         out[5] = n->trVectorSection[i].param[8];
@@ -2685,6 +2777,8 @@ void TDB::getLine(float* &ptr, Vector3f p, Vector3f o, int idx, int id, int vid,
     Quat::fromRotationXYZ(q, rot);
     Mat4::fromRotationTranslation(matrix, q, reinterpret_cast<float *> (&p));
     Mat4::rotate(matrix, matrix, o.x, 1, 0, 0);
+    if(o.z != 0.0f)
+        Mat4::rotate(matrix, matrix, -o.z, 0, 0, 1);
 
     if(tsection->sekcja[idx] != NULL){
         tsection->sekcja[idx]->drawSection(ptr, matrix, 0, id, vid, offset, step);
@@ -2705,7 +2799,8 @@ void TDB::drawLine(GLUU *gluu, float* &ptr, Vector3f p, Vector3f o, int idx) {
     Mat4::fromRotationTranslation(matrix, q, reinterpret_cast<float *> (&p));
     //Mat4::rotate(matrix, matrix, -o.y+M_PI, 0, 1, 0);
     Mat4::rotate(matrix, matrix, o.x, 1, 0, 0);
-    //Mat4::rotate(matrix, matrix, o.z, 0, 0, 1);
+    if(o.z != 0.0f)
+        Mat4::rotate(matrix, matrix, -o.z, 0, 0, 1);
     
     float point1[3];
     point1[0] = 0;
@@ -3054,6 +3149,9 @@ void TDB::getVectorSectionPoints(int x, int y, int nId, int sId, QVector<float> 
     Quat::fromRotationXYZ(q, rot);
     Mat4::fromRotationTranslation(matrix, q, p);
     Mat4::rotate(matrix, matrix, n->trVectorSection[sId].param[13], 1, 0, 0);
+    if(n->trVectorSection[sId].param[15] != 0.0f)
+        Mat4::rotate(matrix, matrix,
+                -n->trVectorSection[sId].param[15], 0, 0, 1);
     //Mat4::fromRotationTranslation(matrix, q, objMatrix);
     if(tsection->sekcja[(int) n->trVectorSection[sId].param[0]] == NULL){
         qDebug() << "nie ma sekcji " << (int) n->trVectorSection[sId].param[0];

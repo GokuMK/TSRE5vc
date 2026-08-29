@@ -45,6 +45,8 @@ public:
     void loadRouteUtf16Data(FileBuffer *data, bool autoFix = false);
     void saveRouteToStream(QTextStream &out);
     void mergeTSection(TSectionDAT *second, QHash<unsigned int,unsigned int>& fixedSectionIds, QHash<unsigned int,unsigned int>& fixedShapeIds);
+    bool rollbackRouteAdditions(int routeMaxIdxBefore, int routeShapesBefore,
+            int expectedRouteMaxIdx, int expectedRouteShapes);
 private:
     bool loadGlobal();
     

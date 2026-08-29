@@ -14,6 +14,7 @@
 #include <QVector>
 
 class TDB;
+class TSectionDAT;
 class WorldObj;
 class GameObj;
 
@@ -31,6 +32,13 @@ struct UndoState {
         int x;
         int z;
     };
+    struct TSectionData {
+        TSectionDAT *data = NULL;
+        int routeMaxIdxBefore = 0;
+        int routeShapesBefore = 0;
+        int routeMaxIdxAfter = 0;
+        int routeShapesAfter = 0;
+    };
     unsigned long long id;
     bool modified = false;
     QMap<int, TerrainData*> terrainData;
@@ -38,6 +46,7 @@ struct UndoState {
     QMap<long long int, WorldObjInfo*> objData;
     TDB* trackDB = NULL;
     TDB* roadDB = NULL;
+    TSectionData tsectionData;
 };
 
 class Undo {
@@ -59,6 +68,8 @@ public:
     static void PushWorldObjPlaced(WorldObj* obj);
     static void SinglePushWorldObjData(WorldObj* obj);
     static void PushTrackDB(TDB *tdb, bool road = false);
+    static void PushTSectionData(TSectionDAT *tsection);
+    static bool IsStateOpen();
     //static void PushTerrainTexture(int x, int z, int uu, unsigned char* data);
     
 private:

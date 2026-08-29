@@ -28,10 +28,10 @@ Implemented; GUI acceptance testing pending.
 10. `E`, changing tools, or toggling **FLEX TRACK** off removes the unfinished
     segment and exits continuous placement.
 
-Each accepted segment is immediately represented in TDB. As with the existing
-DynTrack `Z` implementation, creating its dynamic TSection data clears undo
-history because TSection changes are not captured by the current undo model.
-The deferred fix is tracked in
+Each accepted segment is immediately represented in TDB and creates one undo
+item containing the main object, companion objects, TDB/RDB topology, and any
+route-local dynamic TSection definitions allocated for the segment. Details are
+documented in `docs/features/undo.md` and
 `docs/tasks/editor/02-undo-dyntrack-tdb-tsection.md`.
 
 The expanded Flex options expose a minimum curve radius remembered separately
@@ -57,6 +57,8 @@ next pose from the mouse target.
 - The first click immediately enters live Flex.
 - Accepting a segment immediately appends and previews the next segment.
 - Every accepted segment is added to TDB before the next segment is created.
+- Undo removes one accepted segment and all its companions without clearing
+  earlier undo history.
 - Curved, elevated, and tile-crossing chains have no visible gaps or heading
   discontinuities.
 - Escape removes only the unfinished segment and leaves accepted segments.

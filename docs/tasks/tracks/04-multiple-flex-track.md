@@ -64,9 +64,10 @@ tile has been removed.
 5. Escape or changing tools removes the main unfinished object and all
    unfinished companions.
 
-As in Task 03, DynTrack TDB insertion currently clears undo history because
-dynamic TSection changes are not represented by the undo model. The deferred
-fix remains tracked by `docs/tasks/editor/02-undo-dyntrack-tdb-tsection.md`.
+Each accepted segment and its companions are one undo item, including TDB/RDB
+topology and route-local dynamic TSection additions. The implementation is
+documented in `docs/features/undo.md` and
+`docs/tasks/editor/02-undo-dyntrack-tdb-tsection.md`.
 
 ## Acceptance Criteria
 

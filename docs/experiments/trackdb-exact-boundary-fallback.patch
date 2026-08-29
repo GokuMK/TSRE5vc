@@ -1,0 +1,86 @@
+diff --git a/src/tsre/tdb/TDB.cpp b/src/tsre/tdb/TDB.cpp
+--- a/src/tsre/tdb/TDB.cpp
++++ b/src/tsre/tdb/TDB.cpp
+@@
+-        endp = newTrack(x, z, pp, qee, (int*)ends, shapeIdForTdb, shp->path[i].sect[0], uid, &start);
+-
+-        for (int j = 1; j < shp->path[i].n; j++) {
+-            if (endp > 0) {
+-                endp = appendTrack(endp, (int*)ends, shapeIdForTdb, shp->path[i].sect[j], uid);
++        // A TrackShape is one rigid world object. Accumulate its planar path
++        // locally, then apply the path-root pitch/yaw once to every boundary.
++        // appendTrack() remains the low-level topology builder; its endpoint
++        // is corrected here before the next subsection is appended.
++        Vector3f localPathEnd;
++        float localPathHeading = 0.0f;
++        float exactPreviousBoundaryY = pp[1];
++        endp = -1;
++        start = -1;
++        for(int j = 0; j < shp->path[i].n; j++) {
++            const int sectionId = shp->path[i].sect[j];
++            if(j == 0)
++                endp = newTrack(x, z, pp, qee, (int*)ends,
++                        shapeIdForTdb, sectionId, uid, &start);
++            else if(endp > 0)
++                endp = appendTrack(endp, (int*)ends,
++                        shapeIdForTdb, sectionId, uid);
++            if(endp <= 0)
++                break;
++
++            TSection* section = tsection->sekcja[sectionId];
++            if(section == NULL)
++                break;
++
++            Vector3f sectionEnd;
++            section->getDrawPosition(&sectionEnd, section->getDlugosc());
++            Vector3f localStep(sectionEnd);
++            localStep.rotateY(localPathHeading, 0.0f);
++            localPathEnd.add(localStep);
++            localPathHeading += section->getAngle();
++
++            Vector3f worldOffset(localPathEnd);
++            worldOffset.rotateX(qee[0], 0.0f);
++            worldOffset.rotateY(M_PI + qee[1], 0.0f);
++            int exactTileX = x;
++            int exactTileZ = z;
++            float exactPosition[3] = {
++                pp[0] + worldOffset.x,
++                pp[1] + worldOffset.y,
++                pp[2] + worldOffset.z
++            };
++            Game::check_coords(exactTileX, exactTileZ, exactPosition);
++
++            TRnode* boundary = trackNodes[endp];
++            boundary->UiD[4] = exactTileX;
++            boundary->UiD[5] = -exactTileZ;
++            boundary->UiD[6] = exactPosition[0];
++            boundary->UiD[7] = exactPosition[1];
++            boundary->UiD[8] = -exactPosition[2];
++
++            // TDB consumers reconstruct each vector section from its stored
++            // start pose. Give that subsection the pitch which reaches the
++            // exact next boundary. After a curve this can differ from the
++            // complete TrackShape object's root pitch.
++            const int vectorNodeId = boundary->TrPinS[0];
++            TRnode* vectorNode = trackNodes[vectorNodeId];
++            if(vectorNode != NULL && section != NULL
++                    && vectorNode->typ == 1
++                    && vectorNode->iTrv > j) {
++                if(std::fabs(sectionEnd.z) > 1e-6f) {
++                    const float verticalRatio = std::max(-1.0f, std::min(1.0f,
++                            (exactPosition[1] - exactPreviousBoundaryY)
++                            / sectionEnd.z));
++                    vectorNode->trVectorSection[j]
++                            .param[13] = -std::asin(verticalRatio);
++                    updateTrNode(vectorNodeId);
++                }
+             }
++            exactPreviousBoundaryY = exactPosition[1];
++            updateTrNode(endp);
+         }
+@@
+-        if(junctionId[ends[0]] != 0){
++        if(endp <= 0 || start <= 0)
++            continue;
++
++        if(junctionId[ends[0]] != 0){

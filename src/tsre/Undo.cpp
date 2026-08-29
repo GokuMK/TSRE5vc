@@ -16,6 +16,7 @@
 #include <QDateTime>
 #include <tsre/world/objects/WorldObj.h>
 #include <tsre/tdb/TDB.h>
+#include <tsre/tdb/TSectionDAT.h>
 #include <tsre/Game.h>
 #include <tsre/world/Route.h>
 #include <tsre/world/objects/GroupObj.h>
@@ -139,6 +140,16 @@ void Undo::UndoLast(){
             state->roadDB = NULL;
         }
     }
+
+    if(state->tsectionData.data != NULL
+            && Game::currentRoute != NULL
+            && Game::currentRoute->tsection == state->tsectionData.data){
+        state->tsectionData.data->rollbackRouteAdditions(
+                state->tsectionData.routeMaxIdxBefore,
+                state->tsectionData.routeShapesBefore,
+                state->tsectionData.routeMaxIdxAfter,
+                state->tsectionData.routeShapesAfter);
+    }
     
     delete state;
     undoStates.removeLast();
@@ -180,6 +191,12 @@ void Undo::StateEndIfLongTime(){
 
 void Undo::StateEnd(){
     if(currentState != NULL){
+        if(currentState->tsectionData.data != NULL){
+            currentState->tsectionData.routeMaxIdxAfter =
+                    currentState->tsectionData.data->routeMaxIdx;
+            currentState->tsectionData.routeShapesAfter =
+                    currentState->tsectionData.data->routeShapes;
+        }
         if(currentState->modified == true){
             undoStates.push_back(currentState);
             if(undoStates.size() > 50){
@@ -193,6 +210,10 @@ void Undo::StateEnd(){
     }
     currentState = NULL;
     //qDebug() << "undo end";
+}
+
+bool Undo::IsStateOpen(){
+    return currentState != NULL;
 }
 
 void Undo::StateCancel(){
@@ -327,12 +348,29 @@ void Undo::PushWorldObjPlaced(WorldObj* obj){
 void Undo::PushTrackDB(TDB* tdb, bool road){
     if(currentState == NULL)
         return;
-    
-    if(road && currentState->roadDB == NULL ){
-        currentState->roadDB = new TDB(*tdb);
-        currentState->modified = true;
-    } else if(currentState->trackDB == NULL) {
-        currentState->trackDB = new TDB(*tdb);
-        currentState->modified = true;
+
+    if(road) {
+        if(currentState->roadDB == NULL) {
+            currentState->roadDB = new TDB(*tdb);
+            currentState->modified = true;
+        }
+    } else {
+        if(currentState->trackDB == NULL) {
+            currentState->trackDB = new TDB(*tdb);
+            currentState->modified = true;
+        }
     }
+}
+
+void Undo::PushTSectionData(TSectionDAT* tsection){
+    if(currentState == NULL || tsection == NULL)
+        return;
+    if(currentState->tsectionData.data != NULL)
+        return;
+
+    currentState->tsectionData.data = tsection;
+    currentState->tsectionData.routeMaxIdxBefore = tsection->routeMaxIdx;
+    currentState->tsectionData.routeShapesBefore = tsection->routeShapes;
+    currentState->tsectionData.routeMaxIdxAfter = tsection->routeMaxIdx;
+    currentState->tsectionData.routeShapesAfter = tsection->routeShapes;
 }

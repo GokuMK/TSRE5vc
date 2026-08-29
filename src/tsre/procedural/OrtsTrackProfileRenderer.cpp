@@ -93,7 +93,8 @@ int curveSegments(const OrtsTrackProfile &profile, const TSection &section) {
 }
 
 QVector<float> frameDistances(const OrtsTrackProfile &profile,
-        const QVector<TSection> &sections, QStringList *diagnostics) {
+        const QVector<TSection> &sections, float endExtension,
+        QStringList *diagnostics) {
     QVector<float> distances;
     distances.append(0);
     float offset = 0;
@@ -122,6 +123,9 @@ QVector<float> frameDistances(const OrtsTrackProfile &profile,
         if(truncated)
             break;
     }
+    if(!truncated && endExtension > 0 && distances.size() < MaximumFrames
+            && distances.last() + endExtension <= MaximumPathLength)
+        distances.append(distances.last() + endExtension);
     if(truncated && diagnostics != nullptr)
         diagnostics->append("ORTS profile geometry truncated to safety budget");
     return distances;
@@ -133,13 +137,22 @@ struct GeneratedVertex {
 
 GeneratedVertex transformVertex(const OrtsProfileVertex &source,
         const OrtsProfilePolyline &polyline, ComplexLine &line, float distance,
-        float alpha, float startRoll = 0, float endRoll = 0) {
+        float alpha, float startRoll = 0, float endRoll = 0,
+        float endExtension = 0, float endDrop = 0) {
     float frame[6] = {0, 0, 0, 0, 0, 0};
-    line.getDrawPosition(frame, distance);
+    const float sampledDistance = std::min(distance, line.length);
+    line.getDrawPosition(frame, sampledDistance);
     const float yaw = frame[4];
+    const float overflow = std::max(0.0f, distance - line.length);
+    if(overflow > 0){
+        frame[0] += std::sin(yaw) * overflow;
+        frame[2] += std::cos(yaw) * overflow;
+        if(endExtension > 0)
+            frame[1] -= endDrop * overflow / endExtension;
+    }
     const float cosine = std::cos(yaw);
     const float sine = std::sin(yaw);
-    const float fraction = line.length > 0 ? distance / line.length : 0;
+    const float fraction = line.length > 0 ? sampledDistance / line.length : 0;
     const float roll = startRoll * (1.0f - fraction) + endRoll * fraction;
     const float rollCosine = std::cos(roll);
     const float rollSine = std::sin(roll);
@@ -240,7 +253,8 @@ QString texturePath(const QString &routePath, const QString &textureName) {
 static bool buildMeshesForPath(const OrtsTrackProfile &profile,
         const QVector<TSection> &sections,
         QVector<OrtsGeneratedProfileMesh> &meshes,
-        float startRoll, float endRoll, QStringList *diagnostics) {
+        float startRoll, float endRoll, QStringList *diagnostics,
+        float endExtension = 0, float endDrop = 0) {
     meshes.clear();
     if(!profile.valid || sections.isEmpty()){
         if(diagnostics != nullptr)
@@ -250,7 +264,8 @@ static bool buildMeshesForPath(const OrtsTrackProfile &profile,
 
     ComplexLine line;
     line.init(sections);
-    const QVector<float> distances = frameDistances(profile, sections, diagnostics);
+    const QVector<float> distances = frameDistances(
+            profile, sections, endExtension, diagnostics);
     if(distances.size() < 2)
         return false;
 
@@ -300,7 +315,7 @@ static bool buildMeshesForPath(const OrtsTrackProfile &profile,
                             hasPositionControl = true;
                         vertices.append(transformVertex(
                                 vertex, polyline, line, distance, alpha,
-                                startRoll, endRoll));
+                                startRoll, endRoll, endExtension, endDrop));
                     }
                     frames.append(vertices);
                 }
@@ -342,16 +357,19 @@ static bool buildMeshesForPath(const OrtsTrackProfile &profile,
 bool OrtsTrackProfileRenderer::buildMeshes(const OrtsTrackProfile &profile,
         const QVector<TSection> &sections,
         QVector<OrtsGeneratedProfileMesh> &meshes,
-        QStringList *diagnostics) {
+        QStringList *diagnostics, float endExtension, float endDrop) {
     return buildMeshesForPath(
-            profile, sections, meshes, 0, 0, diagnostics);
+            profile, sections, meshes, 0, 0, diagnostics,
+            endExtension, endDrop);
 }
 
 bool OrtsTrackProfileRenderer::generate(const OrtsTrackProfile &profile,
         const QVector<TSection> &sections, QVector<OglObj*> &shape,
-        const QString &routePath, QStringList *diagnostics) {
+        const QString &routePath, QStringList *diagnostics,
+        float endExtension, float endDrop) {
     QVector<OrtsGeneratedProfileMesh> meshes;
-    if(!buildMeshes(profile, sections, meshes, diagnostics))
+    if(!buildMeshes(profile, sections, meshes, diagnostics,
+            endExtension, endDrop))
         return false;
 
     QVector<OglObj*> generated;

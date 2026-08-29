@@ -15,6 +15,7 @@
 #include <tsre/fileFunctions/ReadFile.h>
 #include <QFile>
 #include <QTextStream>
+#include <QDebug>
 
 TSectionDAT::TSectionDAT(bool autoFix, bool loadRouteNow) {
     loadGlobal();
@@ -26,6 +27,51 @@ TSectionDAT::TSectionDAT(const TSectionDAT& orig) {
 }
 
 TSectionDAT::~TSectionDAT() {
+}
+
+bool TSectionDAT::rollbackRouteAdditions(
+        int routeMaxIdxBefore,
+        int routeShapesBefore,
+        int expectedRouteMaxIdx,
+        int expectedRouteShapes) {
+    if(routeMaxIdx != expectedRouteMaxIdx || routeShapes != expectedRouteShapes) {
+        qWarning() << "Undo DynTrack: route TSection data changed after the recorded transaction;"
+                   << "leaving generated definitions as an unused cache";
+        return false;
+    }
+    if(routeMaxIdxBefore < tsectionMaxIdx
+            || routeShapesBefore < tsectionShapes
+            || routeMaxIdxBefore > routeMaxIdx
+            || routeShapesBefore > routeShapes) {
+        qWarning() << "Undo DynTrack: invalid route TSection rollback range";
+        return false;
+    }
+
+    for(int i = routeShapesBefore; i < routeShapes; i++) {
+        auto it = shape.find(i);
+        if(it == shape.end())
+            continue;
+        TrackShape *trackShape = it->second;
+        if(trackShape != NULL) {
+            delete[] trackShape->path;
+            trackShape->path = NULL;
+            delete[] trackShape->xoverpt;
+            trackShape->xoverpt = NULL;
+            delete trackShape;
+        }
+        shape.erase(it);
+    }
+    for(int i = routeMaxIdxBefore; i < routeMaxIdx; i++) {
+        auto it = sekcja.find(i);
+        if(it == sekcja.end())
+            continue;
+        delete it->second;
+        sekcja.erase(it);
+    }
+
+    routeMaxIdx = routeMaxIdxBefore;
+    routeShapes = routeShapesBefore;
+    return true;
 }
 
 bool TSectionDAT::loadGlobal() {

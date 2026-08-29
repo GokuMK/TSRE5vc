@@ -188,6 +188,8 @@ PropertiesDyntrack::PropertiesDyntrack() {
         sSectR[i].setMinimum(15);
         sSectR[i].setMaximum(5000);
         sSectR[i].setSingleStep(1.0);
+        sSectA[i].setKeyboardTracking(false);
+        sSectR[i].setKeyboardTracking(false);
     }
     
     for(int i = 0; i < 5; i++){
@@ -378,7 +380,6 @@ void PropertiesDyntrack::eTemplateEdited(QString val){
         val.clear();
     Undo::SinglePushWorldObjData(worldObj);
     dobj->setTemplate(val);
-    Undo::StateEnd();
 }
 
 void PropertiesDyntrack::updateSectionValues(){
@@ -418,6 +419,7 @@ void PropertiesDyntrack::chSectEnabled(int idx){
     }
     
     bool state = this->chSect[idx].isChecked();
+    Undo::SinglePushWorldObjData(worldObj);
     
     if(state){
         this->wSect[idx].show();
@@ -452,6 +454,7 @@ void PropertiesDyntrack::sSectEnabled(int idx){
     if(idx%2 == 1 && fabs(this->sSectA[idx].value()) < 0.0001 )
         return;
 
+    Undo::SinglePushWorldObjData(worldObj);
     dobj->sections[idx].a = this->sSectA[idx].value();
     if(idx%2 == 1)
         dobj->sections[idx].r = this->sSectR[idx].value();

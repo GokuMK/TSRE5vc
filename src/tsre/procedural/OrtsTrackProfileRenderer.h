@@ -37,12 +37,16 @@ public:
     static bool buildMeshes(const OrtsTrackProfile &profile,
             const QVector<TSection> &sections,
             QVector<OrtsGeneratedProfileMesh> &meshes,
-            QStringList *diagnostics = nullptr);
+            QStringList *diagnostics = nullptr,
+            float endExtension = 0,
+            float endDrop = 0);
     static bool generate(const OrtsTrackProfile &profile,
             const QVector<TSection> &sections,
             QVector<OglObj*> &shape,
             const QString &routePath,
-            QStringList *diagnostics = nullptr);
+            QStringList *diagnostics = nullptr,
+            float endExtension = 0,
+            float endDrop = 0);
     static bool generate(const OrtsTrackProfile &profile,
             const TrackShape &trackShape,
             const QMap<int, float> &angles,

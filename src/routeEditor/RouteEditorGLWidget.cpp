@@ -2168,6 +2168,12 @@ bool RouteEditorGLWidget::updateLiveFlexCompanions(const float *mainSections) {
     };
     QVector<CompanionPreview> previews;
     previews.reserve(liveFlexCompanions.size());
+    const bool shareMainRoadPlane = liveFlexObj->isRoad();
+    const float mainElevationPromille = shareMainRoadPlane
+            ? 1000.0f * std::sin(liveFlexObj->getElevation())
+            : 0.0f;
+    if(!std::isfinite(mainElevationPromille))
+        return liveFlexCompanionsValid = false;
 
     for(int i = 0; i < liveFlexCompanions.size(); i++) {
         DynTrackObj *track = liveFlexCompanions[i];
@@ -2202,19 +2208,18 @@ bool RouteEditorGLWidget::updateLiveFlexCompanions(const float *mainSections) {
                 preview.sections))
             return liveFlexCompanionsValid = false;
 
-        const float dx = (endTileX - track->x) * 2048.0f
-                + endPosition[0] - track->position[0];
-        const float dz = (endTileZ - track->y) * 2048.0f
-                + endPosition[2] - track->position[2];
-        const float horizontalDistance = std::sqrt(dx * dx + dz * dz);
-        if(!std::isfinite(horizontalDistance))
+        if(shareMainRoadPlane) {
+            // Adjacent road profiles form one visible surface. Giving each
+            // lane a slightly different pitch to force equal centerline end
+            // heights puts them on different rigid planes and opens seams.
+            // Keep every lane coplanar with the main road for this milestone.
+            preview.elevation = mainElevationPromille;
+        } else if(!Flex::RigidElevationForEndpointHeight(
+                    preview.sections,
+                    endPosition[1] - track->position[1],
+                    preview.elevation)) {
             return liveFlexCompanionsValid = false;
-        preview.elevation = horizontalDistance > 0.001f
-                ? (endPosition[1] - track->position[1])
-                    * 1000.0f / horizontalDistance
-                : 0.0f;
-        if(!std::isfinite(preview.elevation))
-            return liveFlexCompanionsValid = false;
+        }
         previews.push_back(preview);
     }
 
@@ -2363,19 +2368,42 @@ bool RouteEditorGLWidget::updateLiveFlex(
         }
 
         const float startYaw = (float)std::atan2(dx, -dz);
+        int planarTargetTileX = 0;
+        int planarTargetTileZ = 0;
+        float planarTargetPosition[3] = {0, 0, 0};
+        float elevation = 0.0f;
+        if(!Flex::ElevatedPlanarTarget(
+                liveFlexStartTileX,
+                liveFlexStartTileZ,
+                liveFlexStartPosition,
+                startYaw,
+                targetTileX,
+                targetTileZ,
+                targetPosition,
+                planarTargetTileX,
+                planarTargetTileZ,
+                planarTargetPosition,
+                elevation))
+            return false;
+        const double planarDx =
+                (planarTargetTileX - liveFlexStartTileX) * 2048.0
+                + (double)planarTargetPosition[0]
+                - (double)liveFlexStartPosition[0];
+        const double planarDz =
+                (planarTargetTileZ - liveFlexStartTileZ) * 2048.0
+                + (double)planarTargetPosition[2]
+                - (double)liveFlexStartPosition[2];
+        const double planarDistance = std::hypot(planarDx, planarDz);
+        if(!std::isfinite(planarDistance))
+            return false;
+
         float startQ[4];
         Quat::fill(startQ);
         Quat::rotateY(startQ, startQ, -startYaw);
         liveFlexObj->setQdirection(startQ);
         liveFlexObj->setMartix();
 
-        dyntrackData[0] = (float)std::min(2048.0, horizontalDistance);
-        const float elevation = (float)(
-                ((double)targetPosition[1]
-                    - (double)liveFlexStartPosition[1])
-                * 1000.0 / horizontalDistance);
-        if(!std::isfinite(elevation))
-            return false;
+        dyntrackData[0] = (float)std::min(2048.0, planarDistance);
         liveFlexObj->set("dyntrackdata", dyntrackData);
         liveFlexObj->setElevation(elevation);
 
@@ -2413,6 +2441,23 @@ bool RouteEditorGLWidget::updateLiveFlex(
 
     const float startYaw = Flex::TdbYawFromTrackQuaternion(liveFlexStartQ);
     const float minimumCurveRadius = effectiveContinuousFlexMinimumRadius();
+    int planarTargetTileX = 0;
+    int planarTargetTileZ = 0;
+    float planarTargetPosition[3] = {0, 0, 0};
+    float elevation = 0.0f;
+    if(!Flex::ElevatedPlanarTarget(
+            liveFlexStartTileX,
+            liveFlexStartTileZ,
+            liveFlexStartPosition,
+            startYaw,
+            targetTileX,
+            targetTileZ,
+            targetPosition,
+            planarTargetTileX,
+            planarTargetTileZ,
+            planarTargetPosition,
+            elevation))
+        return false;
     bool success = false;
 
     if(endpointId >= 0) {
@@ -2425,9 +2470,9 @@ bool RouteEditorGLWidget::updateLiveFlex(
                 liveFlexStartTileZ,
                 liveFlexStartPosition,
                 startQ,
-                targetTileX,
-                targetTileZ,
-                targetPosition,
+                planarTargetTileX,
+                planarTargetTileZ,
+                planarTargetPosition,
                 endpointQ,
                 dyntrackData,
                 0.0f,
@@ -2446,9 +2491,9 @@ bool RouteEditorGLWidget::updateLiveFlex(
                 liveFlexStartTileZ,
                 liveFlexStartPosition,
                 startYaw,
-                targetTileX,
-                targetTileZ,
-                targetPosition,
+                planarTargetTileX,
+                planarTargetTileZ,
+                planarTargetPosition,
                 dyntrackData,
                 minimumCurveRadius,
                 straightEndpointTolerance);
@@ -2459,6 +2504,9 @@ bool RouteEditorGLWidget::updateLiveFlex(
     for(int i = 0; i < 10; i++)
         if(!std::isfinite(dyntrackData[i]))
             return false;
+    if(std::fabs(elevation) > 1e-6f
+            && !Flex::CanUseRigidElevation(dyntrackData))
+        return false;
 
     float centerlineLength = 0.0f;
     for(int i = 0; i < 5; i++) {
@@ -2469,19 +2517,6 @@ bool RouteEditorGLWidget::updateLiveFlex(
                     * std::max(0.0f, dyntrackData[i * 2 + 1]);
     }
     if(!std::isfinite(centerlineLength) || centerlineLength < 0.1f)
-        return false;
-
-    const float dx = (targetTileX - liveFlexStartTileX) * 2048.0f
-            + targetPosition[0] - liveFlexStartPosition[0];
-    const float dz = (targetTileZ - liveFlexStartTileZ) * 2048.0f
-            + targetPosition[2] - liveFlexStartPosition[2];
-    const float horizontalDistance = std::sqrt(dx * dx + dz * dz);
-    if(!std::isfinite(horizontalDistance))
-        return false;
-    const float elevation = horizontalDistance > 0.001f
-            ? (targetPosition[1] - liveFlexStartPosition[1]) * 1000.0f / horizontalDistance
-            : 0.0f;
-    if(!std::isfinite(elevation))
         return false;
 
     liveFlexObj->set("dyntrackdata", dyntrackData);
@@ -2527,9 +2562,7 @@ void RouteEditorGLWidget::finishLiveFlex(bool accept, bool keepContinuousTool) {
     liveFlexLastEndpointId = -2;
     liveFlexLastUpdateTime = 0;
 
-    if(accept) {
-        Undo::StateEnd();
-    } else {
+    if(!accept) {
         discardLiveFlexCompanions();
         if(deleteOnCancel && dynTrack != NULL) {
             route->undoPlaceObj(dynTrack->x, dynTrack->y, dynTrack->UiD);
@@ -2556,6 +2589,7 @@ void RouteEditorGLWidget::finishLiveFlex(bool accept, bool keepContinuousTool) {
         for(DynTrackObj *track : acceptedCompanions)
             if(track != NULL)
                 route->addToTDB(track);
+        Undo::StateEnd();
         liveFlexCompanions.clear();
         liveFlexCompanionOffsets.clear();
         liveFlexCompanionsValid = true;
@@ -2576,6 +2610,9 @@ void RouteEditorGLWidget::finishLiveFlex(bool accept, bool keepContinuousTool) {
                 nextPosition,
                 nextQuaternion);
     }
+
+    if(accept && !continuePlacement)
+        Undo::StateEnd();
 
     if(continuePlacement && hasNextPose) {
         if(dynTrack != NULL)
@@ -2769,6 +2806,8 @@ void RouteEditorGLWidget::editFind(int radius) {
 }
 
 void RouteEditorGLWidget::editUndo() {
+    if(liveFlexActive)
+        finishLiveFlex(false, continuousFlexMode);
     Undo::UndoLast();
 }
 

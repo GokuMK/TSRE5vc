@@ -2,7 +2,7 @@
 
 ## Status
 
-Deferred. Implement as part of the later undo-system improvement work.
+Implemented; visual and route-save acceptance testing pending.
 
 ## Problem
 
@@ -18,19 +18,35 @@ shapes created for a DynTrack. `Route::addToTDB(...)` consequently calls
 Continuous Flex Track commits every accepted segment through the same TDB
 operation and inherits this limitation.
 
-## Required Future Work
+## Implementation
 
-- Define ownership and snapshot semantics for mutable route TSection sections
-  and TrackShapes.
-- Capture or transactionally record additions made by
-  `TDB::fillDynTrack(...)`.
-- Restore both TDB topology and TSection identifiers consistently.
-- Remove the DynTrack-specific `Undo::Clear()` only after the complete state
-  can be restored safely.
-- Make ordinary DynTrack `Z` and continuous Flex acceptance undoable without
-  leaving orphaned sections, shapes, or invalid section IDs.
-- Add tests covering add, undo, redo if supported, repeated equivalent shapes,
-  and several continuously placed segments.
+- DynTrack insertion no longer clears the undo stack.
+- The world object, target TDB/RDB, and route TSection allocation boundary are
+  captured in one transaction.
+- `TDB::fillDynTrack(...)` remains append-only. Undo removes definitions added
+  by the transaction when its recorded post-allocation boundary still matches.
+- A boundary mismatch leaves generated definitions as an unused cache instead
+  of risking deletion of definitions used by newer, untracked data.
+- Each accepted continuous Flex segment, including companion tracks or road
+  lanes, is one undo item.
+- Dynamic Track section switches and numeric section properties now create
+  world-object undo snapshots.
+
+The general undo behavior and the TSection delta strategy are documented in
+`docs/features/undo.md`.
+
+## Acceptance Testing
+
+- Add a new rail DynTrack with `Z`, undo it, and verify its previous undo
+  history remains available.
+- Repeat with a road DynTrack.
+- Place and undo a continuous Flex segment without companions.
+- Place and undo a segment with both companion sides enabled.
+- Repeat an equivalent shape and verify undo does not remove the shared
+  pre-existing TrackShape.
+- Save and reload after placement and after undo, checking both TDB topology
+  and route `tsection.dat`.
+- Redo remains out of scope because the editor has no redo stack.
 
 ## Related Work
 

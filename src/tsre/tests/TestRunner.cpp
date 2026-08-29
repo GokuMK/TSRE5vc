@@ -27,9 +27,15 @@
 #include <tsre/math3d/Flex.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/math3d/Vector2f.h>
+#include <tsre/math3d/Vector3f.h>
 #include <tsre/procedural/ProceduralTrackPolicy.h>
 #include <tsre/procedural/OrtsTrackProfile.h>
 #include <tsre/procedural/OrtsTrackProfileRenderer.h>
+#include <tsre/tdb/TDB.h>
+#include <tsre/tdb/TRnode.h>
+#include <tsre/tdb/TrackShape.h>
+#include <tsre/tdb/TSection.h>
+#include <tsre/tdb/TSectionDAT.h>
 #include <tsre/tests/RouteLoadTestSuite.h>
 #include <tsre/tests/SettingsTestSuite.h>
 #include <tsre/world/Ref.h>
@@ -837,6 +843,103 @@ static int runFlexPointSuite(bool verbose) {
             }
         }
     }
+    {
+        // Parallel curves must choose their pitch from their own local
+        // forward depth. Using the horizontal endpoint chord leaves inner
+        // and outer tracks at different heights.
+        float mainSections[10] = {
+            0, 0, (float)M_PI / 3.0f, 100, 0, 0, 0, 0, 0, 0
+        };
+        constexpr int startTileX = -5306;
+        constexpr int startTileZ = -14961;
+        constexpr float startYaw = 0.7f;
+        constexpr float mainGrade = 100.0f;
+        float mainStartPosition[3] = {1019.0f, 12.0f, -1018.0f};
+        float mainStartQ[4] = {0, 0, 0, 1};
+        Quat::rotateY(mainStartQ, mainStartQ, -startYaw);
+        Quat::rotateX(mainStartQ, mainStartQ,
+                std::asin(mainGrade / 1000.0f));
+        int mainEndTileX = 0;
+        int mainEndTileZ = 0;
+        float mainEndPosition[3] = {0, 0, 0};
+        float mainEndQ[4] = {0, 0, 0, 1};
+        const bool mainOk = Flex::DyntrackEndpoint(
+                startTileX, startTileZ,
+                mainStartPosition, mainStartQ, mainSections,
+                mainEndTileX, mainEndTileZ,
+                mainEndPosition, mainEndQ);
+
+        const float offsets[] = {-4.0f, 4.0f};
+        for(float offset : offsets) {
+            parallelCaseCount++;
+            int sideStartTileX = 0;
+            int sideStartTileZ = 0;
+            float sideStartPosition[3] = {0, 0, 0};
+            float sideStartQ[4] = {0, 0, 0, 1};
+            int targetEndTileX = 0;
+            int targetEndTileZ = 0;
+            float targetEndPosition[3] = {0, 0, 0};
+            float targetEndQ[4] = {0, 0, 0, 1};
+            float sideSections[10] = {0};
+            float sideGrade = 0.0f;
+            bool caseOk = mainOk
+                    && Flex::OffsetWorldPose(
+                        startTileX, startTileZ,
+                        mainStartPosition, mainStartQ, offset,
+                        sideStartTileX, sideStartTileZ,
+                        sideStartPosition, sideStartQ)
+                    && Flex::OffsetWorldPose(
+                        mainEndTileX, mainEndTileZ,
+                        mainEndPosition, mainEndQ, offset,
+                        targetEndTileX, targetEndTileZ,
+                        targetEndPosition, targetEndQ)
+                    && Flex::ParallelDyntrackSections(
+                        mainSections, offset, sideSections)
+                    && Flex::RigidElevationForEndpointHeight(
+                        sideSections,
+                        targetEndPosition[1] - sideStartPosition[1],
+                        sideGrade);
+
+            float solvedSideQ[4] = {0, 0, 0, 1};
+            if(caseOk) {
+                Quat::rotateY(solvedSideQ, solvedSideQ, -startYaw);
+                Quat::rotateX(solvedSideQ, solvedSideQ,
+                        std::asin(sideGrade / 1000.0f));
+            }
+            int sideEndTileX = 0;
+            int sideEndTileZ = 0;
+            float sideEndPosition[3] = {0, 0, 0};
+            float sideEndQ[4] = {0, 0, 0, 1};
+            caseOk = caseOk && Flex::DyntrackEndpoint(
+                    sideStartTileX, sideStartTileZ,
+                    sideStartPosition, solvedSideQ, sideSections,
+                    sideEndTileX, sideEndTileZ,
+                    sideEndPosition, sideEndQ);
+            if(caseOk) {
+                const double dx = (sideEndTileX - targetEndTileX) * 2048.0
+                        + (double)sideEndPosition[0]
+                        - (double)targetEndPosition[0];
+                const double dz = (sideEndTileZ - targetEndTileZ) * 2048.0
+                        + (double)sideEndPosition[2]
+                        - (double)targetEndPosition[2];
+                caseOk = nearlyEqual(
+                            sideEndPosition[1], targetEndPosition[1], 1e-4f)
+                        && std::hypot(dx, dz) < 0.03
+                        && ((offset > 0.0f && sideGrade > mainGrade)
+                            || (offset < 0.0f && sideGrade < mainGrade));
+            }
+            if(caseOk) {
+                passed++;
+            } else {
+                failed++;
+                qWarning() << "[tests:flex-point] failed: elevated parallel endpoint"
+                        << "offset=" << offset
+                        << "grade=" << sideGrade
+                        << "expectedY=" << targetEndPosition[1]
+                        << "actualY=" << sideEndPosition[1];
+            }
+        }
+    }
 
     int exactRadiusCaseCount = 0;
     {
@@ -1070,6 +1173,558 @@ static int runFlexPointSuite(bool verbose) {
     }
     {
         guardCaseCount++;
+        float startPosition[3] = {0, 2, 0};
+        float targetPosition[3] = {20, 7, -20};
+        int planarTileX = 0;
+        int planarTileZ = 0;
+        float planarPosition[3] = {0, 0, 0};
+        float gradePromille = 0.0f;
+        float sections[10] = {0};
+        const bool prepared = Flex::ElevatedPlanarTarget(
+                0, 0, startPosition, 0.0f,
+                0, 0, targetPosition,
+                planarTileX, planarTileZ, planarPosition, gradePromille);
+        const bool solved = prepared && Flex::NewFlexToPoint(
+                0, 0, startPosition, 0.0f,
+                planarTileX, planarTileZ, planarPosition,
+                sections, 5.0f);
+        float startQ[4] = {0, 0, 0, 1};
+        if(solved)
+            Quat::rotateX(startQ, startQ,
+                    std::asin(gradePromille / 1000.0f));
+        int endTileX = 0;
+        int endTileZ = 0;
+        float endPosition[3] = {0, 0, 0};
+        float endQ[4] = {0, 0, 0, 1};
+        const bool endpointOk = solved && Flex::DyntrackEndpoint(
+                0, 0, startPosition, startQ, sections,
+                endTileX, endTileZ, endPosition, endQ);
+        const bool caseOk = endpointOk
+                && endTileX == 0
+                && endTileZ == 0
+                && nearlyEqual(endPosition[0], targetPosition[0], 0.01f)
+                && nearlyEqual(endPosition[1], targetPosition[1], 0.01f)
+                && nearlyEqual(endPosition[2], targetPosition[2], 0.01f);
+        if(caseOk)
+            passed++;
+        else {
+            failed++;
+            qWarning() << "[tests:flex-point] failed: elevated curved endpoint"
+                    << "prepared=" << prepared << "solved=" << solved
+                    << "grade=" << gradePromille
+                    << "end=" << endTileX << endTileZ
+                    << endPosition[0] << endPosition[1] << endPosition[2];
+        }
+    }
+    {
+        guardCaseCount++;
+        const int startTileX = 100;
+        const int startTileZ = -200;
+        const float yaw = 0.8f;
+        const double lateral = 15.0;
+        const double forward = 30.0;
+        const double dx = lateral * std::cos((double)yaw)
+                + forward * std::sin((double)yaw);
+        const double dz = lateral * std::sin((double)yaw)
+                - forward * std::cos((double)yaw);
+        float startPosition[3] = {1020, 10, -1000};
+        const double targetAbsoluteX = startTileX * 2048.0
+                + (double)startPosition[0] + dx;
+        const double targetAbsoluteZ = startTileZ * 2048.0
+                + (double)startPosition[2] + dz;
+        const int targetTileX = (int)std::floor(
+                (targetAbsoluteX + 1024.0) / 2048.0);
+        const int targetTileZ = (int)std::floor(
+                (targetAbsoluteZ + 1024.0) / 2048.0);
+        float targetPosition[3] = {
+            (float)(targetAbsoluteX - targetTileX * 2048.0),
+            6.0f,
+            (float)(targetAbsoluteZ - targetTileZ * 2048.0)
+        };
+        int planarTileX = 0;
+        int planarTileZ = 0;
+        float planarPosition[3] = {0, 0, 0};
+        float gradePromille = 0.0f;
+        float sections[10] = {0};
+        const bool prepared = Flex::ElevatedPlanarTarget(
+                startTileX, startTileZ, startPosition, yaw,
+                targetTileX, targetTileZ, targetPosition,
+                planarTileX, planarTileZ, planarPosition, gradePromille);
+        const bool solved = prepared && Flex::NewFlexToPoint(
+                startTileX, startTileZ, startPosition, yaw,
+                planarTileX, planarTileZ, planarPosition,
+                sections, 5.0f);
+        float startQ[4] = {0, 0, 0, 1};
+        Quat::rotateY(startQ, startQ, -yaw);
+        if(solved)
+            Quat::rotateX(startQ, startQ,
+                    std::asin(gradePromille / 1000.0f));
+        int endTileX = 0;
+        int endTileZ = 0;
+        float endPosition[3] = {0, 0, 0};
+        float endQ[4] = {0, 0, 0, 1};
+        const bool endpointOk = solved && Flex::DyntrackEndpoint(
+                startTileX, startTileZ, startPosition, startQ, sections,
+                endTileX, endTileZ, endPosition, endQ);
+        const bool caseOk = endpointOk
+                && endTileX == targetTileX
+                && endTileZ == targetTileZ
+                && nearlyEqual(endPosition[0], targetPosition[0], 0.01f)
+                && nearlyEqual(endPosition[1], targetPosition[1], 0.01f)
+                && nearlyEqual(endPosition[2], targetPosition[2], 0.01f);
+        if(caseOk)
+            passed++;
+        else {
+            failed++;
+            qWarning() << "[tests:flex-point] failed: rotated elevated tile endpoint"
+                    << "prepared=" << prepared << "solved=" << solved
+                    << "expected=" << targetTileX << targetTileZ
+                    << targetPosition[0] << targetPosition[1] << targetPosition[2]
+                    << "actual=" << endTileX << endTileZ
+                    << endPosition[0] << endPosition[1] << endPosition[2];
+        }
+    }
+    {
+        guardCaseCount++;
+        DynTrackObj dyntrack;
+        dyntrack.load(0, 0);
+        float yawQ[4] = {0, 0, 0, 1};
+        Quat::rotateY(yawQ, yawQ, -0.7f);
+        dyntrack.setQdirection(yawQ);
+        dyntrack.setElevation(120.0f);
+        dyntrack.setElevation(-45.0f);
+        const float actualPromille = std::sin(dyntrack.getElevation()) * 1000.0f;
+        if(nearlyEqual(actualPromille, -45.0f, 0.001f))
+            passed++;
+        else {
+            failed++;
+            qWarning() << "[tests:flex-point] failed: exact absolute elevation"
+                    << "actual=" << actualPromille;
+        }
+    }
+    {
+        guardCaseCount++;
+        float sections[10] = {0};
+        sections[2] = (float)M_PI * 0.5f - 0.001f;
+        sections[3] = 100.0f;
+        const bool belowNinetyAccepted =
+                Flex::CanUseRigidElevation(sections);
+        sections[2] = (float)M_PI * 0.5f + 0.001f;
+        const bool aboveNinetyRejected =
+                !Flex::CanUseRigidElevation(sections);
+        sections[2] = (float)M_PI * 0.4f;
+        sections[6] = (float)M_PI * 0.2f;
+        sections[7] = 100.0f;
+        const bool cumulativeTurnRejected =
+                !Flex::CanUseRigidElevation(sections);
+        if(belowNinetyAccepted && aboveNinetyRejected
+                && cumulativeTurnRejected)
+            passed++;
+        else {
+            failed++;
+            qWarning() << "[tests:flex-point] failed: rigid elevation turn limit";
+        }
+    }
+    int tdbBoundaryCaseCount = 0;
+    {
+        tdbBoundaryCaseCount++;
+
+        // Regression captured from route bbb, DynTrack UiD 101. The second
+        // vector section follows a sizeable curve, so the former tangent-
+        // relative append pitch produced a clearly excessive height.
+        constexpr int shapeId = 900000;
+        constexpr int firstSectionId = 900001;
+        TSectionDAT sectionDat(false, false);
+        TSection firstCurve(firstSectionId, 1, -0.634851f, 100.0f);
+        TSection firstCurveReverse(
+                firstSectionId + 1, 1, 0.634851f, 100.0f);
+        TSection middleStraight(firstSectionId + 2, 0, 87.7f, 0.0f);
+        TSection finalCurveReverse(
+                firstSectionId + 3, 1, -0.0432589f, 100.0f);
+        TSection finalCurve(
+                firstSectionId + 4, 1, 0.0432589f, 100.0f);
+        sectionDat.sekcja[firstSectionId] = &firstCurve;
+        sectionDat.sekcja[firstSectionId + 1] = &firstCurveReverse;
+        sectionDat.sekcja[firstSectionId + 2] = &middleStraight;
+        sectionDat.sekcja[firstSectionId + 3] = &finalCurveReverse;
+        sectionDat.sekcja[firstSectionId + 4] = &finalCurve;
+
+        TrackShape::SectionIdx path = {};
+        path.n = 3;
+        path.sect[0] = firstSectionId;
+        path.sect[1] = firstSectionId + 2;
+        path.sect[2] = firstSectionId + 4;
+        TrackShape shape(shapeId);
+        shape.dyntrack = false;
+        shape.numpaths = 1;
+        shape.path = &path;
+        sectionDat.shape[shapeId] = &shape;
+
+        const int startTileX = -5306;
+        const int startTileZ = -14961;
+        float startPosition[3] = {-313.659821f, 0.983149f, -91.258560f};
+        float startQ[4] = {0.0630665f, 0.0f, 0.0f, 0.998009f};
+
+        TDB database(&sectionDat, false);
+        bool caseOk = database.placeTrack(
+                startTileX, startTileZ, startPosition, startQ,
+                shapeId, 101);
+
+        int vectorNodeId = -1;
+        TRnode* vectorNode = NULL;
+        if(caseOk) {
+            for(const auto &entry : database.trackNodes) {
+                if(entry.second != NULL && entry.second->typ == 1) {
+                    vectorNodeId = entry.first;
+                    vectorNode = entry.second;
+                    break;
+                }
+            }
+            caseOk = vectorNode != NULL && vectorNode->iTrv == 3;
+        }
+
+        auto storedPositionMatches = [](
+                int actualTileX, int actualTdbTileZ,
+                float actualX, float actualY, float actualTdbZ,
+                int expectedTileX, int expectedTileZ,
+                const float *expectedPosition) {
+            const double dx = actualTileX * 2048.0 + (double)actualX
+                    - (expectedTileX * 2048.0 + (double)expectedPosition[0]);
+            const double dy = (double)actualY - (double)expectedPosition[1];
+            const double dz = (-actualTdbTileZ) * 2048.0 - (double)actualTdbZ
+                    - (expectedTileZ * 2048.0 + (double)expectedPosition[2]);
+            return std::sqrt(dx * dx + dy * dy + dz * dz) < 0.002;
+        };
+
+        float prefixSections[10] = {0};
+        const float sectionValues[3][2] = {
+            {-0.634851f, 100.0f},
+            {87.7f, 0.0f},
+            {0.0432589f, 100.0f}
+        };
+        const int dyntrackSlots[3] = {1, 2, 3};
+        float cumulativeLength = 0.0f;
+        bool transportedRollFound = false;
+        for(int prefix = 0; caseOk && prefix < 3; prefix++) {
+            prefixSections[dyntrackSlots[prefix] * 2] = sectionValues[prefix][0];
+            prefixSections[dyntrackSlots[prefix] * 2 + 1] = sectionValues[prefix][1];
+            int expectedTileX = 0;
+            int expectedTileZ = 0;
+            float expectedPosition[3] = {0};
+            float expectedQ[4] = {0, 0, 0, 1};
+            caseOk = Flex::DyntrackEndpoint(
+                    startTileX, startTileZ, startPosition, startQ,
+                    prefixSections, expectedTileX, expectedTileZ,
+                    expectedPosition, expectedQ);
+            if(!caseOk)
+                break;
+
+            TSection* currentSection = sectionDat.sekcja[
+                    path.sect[prefix]];
+            cumulativeLength += currentSection->getDlugosc();
+
+            float drawPosition[7] = {0};
+            caseOk = database.getDrawPositionOnTrNode(
+                    drawPosition, vectorNodeId, cumulativeLength);
+            if(caseOk) {
+                const double drawAbsoluteX = drawPosition[5] * 2048.0
+                        + drawPosition[0];
+                const double drawAbsoluteZ = -drawPosition[6] * 2048.0
+                        - drawPosition[2];
+                const double expectedAbsoluteX = expectedTileX * 2048.0
+                        + expectedPosition[0];
+                const double expectedAbsoluteZ = expectedTileZ * 2048.0
+                        + expectedPosition[2];
+                const double dx = drawAbsoluteX - expectedAbsoluteX;
+                const double dy = drawPosition[1] - expectedPosition[1];
+                const double dz = drawAbsoluteZ - expectedAbsoluteZ;
+                caseOk = std::sqrt(dx * dx + dy * dy + dz * dz)
+                        < 0.002;
+            }
+
+            const float* frame =
+                    vectorNode->trVectorSection[prefix].param + 13;
+            caseOk = caseOk
+                    && std::isfinite(frame[0])
+                    && std::isfinite(frame[1])
+                    && std::isfinite(frame[2]);
+            if(prefix > 0 && std::fabs(frame[2]) > 1e-5f)
+                transportedRollFound = true;
+
+            if(caseOk && prefix < 2) {
+                const float* stored =
+                        vectorNode->trVectorSection[prefix + 1].param;
+                caseOk = storedPositionMatches(
+                        (int)stored[8], (int)stored[9],
+                        stored[10], stored[11], stored[12],
+                        expectedTileX, expectedTileZ, expectedPosition);
+            } else if(caseOk) {
+                TRnode* endNode =
+                        database.trackNodes[vectorNode->TrPinS[1]];
+                caseOk = endNode != NULL && storedPositionMatches(
+                        (int)endNode->UiD[4], (int)endNode->UiD[5],
+                        endNode->UiD[6], endNode->UiD[7], endNode->UiD[8],
+                        expectedTileX, expectedTileZ, expectedPosition);
+            }
+        }
+
+        caseOk = caseOk && transportedRollFound;
+
+        struct AbsoluteSample {
+            double x;
+            double y;
+            double z;
+        };
+        auto sampleVector = [&database](int nodeId, float distance,
+                AbsoluteSample &sample) {
+            float drawPosition[7] = {0};
+            if(!database.getDrawPositionOnTrNode(
+                    drawPosition, nodeId, distance))
+                return false;
+            sample.x = drawPosition[5] * 2048.0 + drawPosition[0];
+            sample.y = drawPosition[1];
+            sample.z = -drawPosition[6] * 2048.0 - drawPosition[2];
+            return std::isfinite(sample.x)
+                    && std::isfinite(sample.y)
+                    && std::isfinite(sample.z);
+        };
+        auto samplesMatch = [](const AbsoluteSample &a,
+                const AbsoluteSample &b) {
+            const double dx = a.x - b.x;
+            const double dy = a.y - b.y;
+            const double dz = a.z - b.z;
+            return std::sqrt(dx * dx + dy * dy + dz * dz) < 0.002;
+        };
+
+        const float firstLength = firstCurve.getDlugosc();
+        const float middleLength = middleStraight.getDlugosc();
+        const float finalLength = finalCurve.getDlugosc();
+        const float totalLength = firstLength + middleLength + finalLength;
+        const float sampleDistances[] = {
+            0.0f,
+            firstLength * 0.5f,
+            firstLength,
+            firstLength + middleLength * 0.5f,
+            firstLength + middleLength,
+            firstLength + middleLength + finalLength * 0.5f,
+            totalLength
+        };
+        AbsoluteSample forwardSamples[7] = {};
+        for(int i = 0; caseOk && i < 7; i++)
+            caseOk = sampleVector(
+                    vectorNodeId, sampleDistances[i], forwardSamples[i]);
+
+        // The yellow/collision-line matrix must describe the same path as
+        // the hot TDB sampler. The final curve has transported roll and its
+        // second generated point is exactly four metres into the section.
+        QVector<float> finalCurvePoints;
+        if(caseOk) {
+            database.getVectorSectionPoints(startTileX, -startTileZ,
+                    vectorNodeId, 2, finalCurvePoints);
+            caseOk = finalCurvePoints.size() >= 6;
+        }
+        if(caseOk) {
+            AbsoluteSample sampledPoint = {};
+            caseOk = sampleVector(vectorNodeId,
+                    firstLength + middleLength + 4.0f, sampledPoint);
+            const double expectedX = sampledPoint.x
+                    - startTileX * 2048.0;
+            const double expectedZ = sampledPoint.z
+                    - startTileZ * 2048.0;
+            const double dx = finalCurvePoints[3] - expectedX;
+            const double dy = finalCurvePoints[4] - sampledPoint.y;
+            const double dz = finalCurvePoints[5] - expectedZ;
+            caseOk = std::sqrt(dx * dx + dy * dy + dz * dz) < 0.002;
+        }
+
+        caseOk = caseOk && database.rotate(vectorNodeId) == 0;
+        if(caseOk) {
+            vectorNode = database.trackNodes[vectorNodeId];
+            caseOk = vectorNode != NULL
+                    && (int)vectorNode->trVectorSection[0].param[0]
+                            == firstSectionId + 3
+                    && (int)vectorNode->trVectorSection[1].param[0]
+                            == firstSectionId + 2
+                    && (int)vectorNode->trVectorSection[2].param[0]
+                            == firstSectionId + 1;
+        }
+        for(int i = 0; caseOk && i < 7; i++) {
+            AbsoluteSample reversedSample = {};
+            caseOk = sampleVector(vectorNodeId,
+                    totalLength - sampleDistances[i], reversedSample)
+                    && samplesMatch(forwardSamples[i], reversedSample);
+        }
+
+        caseOk = caseOk && database.rotate(vectorNodeId) == 0;
+        for(int i = 0; caseOk && i < 7; i++) {
+            AbsoluteSample restoredSample = {};
+            caseOk = sampleVector(
+                    vectorNodeId, sampleDistances[i], restoredSample)
+                    && samplesMatch(forwardSamples[i], restoredSample);
+        }
+
+        if(caseOk)
+            passed++;
+        else {
+            failed++;
+            qWarning() << "[tests:flex-point] failed: complete TDB subsection frames";
+        }
+    }
+    {
+        tdbBoundaryCaseCount++;
+
+        // Route bbb endpoints 308-309, vector 310. These three identical
+        // one-degree curves were independently rotated before being joined;
+        // their stored yaws are intentionally not tangent-continuous.
+        constexpr int forwardSectionId = 36170;
+        constexpr int reverseSectionId = 36171;
+        constexpr int startNodeId = 309;
+        constexpr int endNodeId = 308;
+        constexpr int vectorNodeId = 310;
+        TSectionDAT sectionDat(false, false);
+        TSection forwardSection(
+                forwardSectionId, 1, -(float)M_PI / 180.0f, 1000.0f);
+        TSection reverseSection(
+                reverseSectionId, 1, (float)M_PI / 180.0f, 1000.0f);
+        sectionDat.sekcja[forwardSectionId] = &forwardSection;
+        sectionDat.sekcja[reverseSectionId] = &reverseSection;
+
+        TDB database(&sectionDat, false);
+        TRnode *startNode = new TRnode();
+        TRnode *endNode = new TRnode();
+        TRnode *vectorNode = new TRnode();
+        database.trackNodes[startNodeId] = startNode;
+        database.trackNodes[endNodeId] = endNode;
+        database.trackNodes[vectorNodeId] = vectorNode;
+        database.iTRnodes = vectorNodeId;
+
+        startNode->typ = 0;
+        const float startUid[12] = {
+            -5306, 14961, 133, 0, -5306, 14961,
+            -755.71405f, 0.97610611f, -280.55771f,
+            0.0f, (float)M_PI, 0.0f
+        };
+        std::copy(startUid, startUid + 12, startNode->UiD);
+        startNode->TrPinS[0] = vectorNodeId;
+        startNode->TrPinK[0] = 1;
+
+        endNode->typ = 0;
+        const float endUid[12] = {
+            -5306, 14961, 135, 1, -5306, 14961,
+            -746.98889f, 0.9761017f, -230.54849f,
+            -0.00049897865f, -0.0023593903f, 1.1773519e-06f
+        };
+        std::copy(endUid, endUid + 12, endNode->UiD);
+        endNode->TrPinS[0] = vectorNodeId;
+        endNode->TrPinK[0] = 0;
+
+        vectorNode->typ = 1;
+        vectorNode->iTrv = 3;
+        vectorNode->trVectorSection = new TRnode::TRSect[3];
+        const float capturedSections[3][16] = {
+            {36170, 33262, -5306, 14961, 133, 0, 1, 0,
+             -5306, 14961, -755.71405f, 0.97610611f, -280.55771f,
+             0.0f, 0.0f, 0.0f},
+            {36170, 33262, -5306, 14961, 134, 0, 1, 0,
+             -5306, 14961, -755.86633f, 0.97610611f, -263.10532f,
+             0.0f, 0.5325464f, 0.0f},
+            {36170, 33262, -5306, 14961, 135, 0, 1, 0,
+             -5306, 14961, -747.13647f, 0.97610611f, -247.99245f,
+             0.0f, 0.015093067f, 0.0f}
+        };
+        for(int i = 0; i < 3; ++i)
+            std::copy(capturedSections[i], capturedSections[i] + 16,
+                    vectorNode->trVectorSection[i].param);
+        vectorNode->TrPinS[0] = startNodeId;
+        vectorNode->TrPinS[1] = endNodeId;
+        vectorNode->TrPinK[0] = 1;
+        vectorNode->TrPinK[1] = 1;
+
+        struct CapturedSample {
+            double x;
+            double y;
+            double z;
+        };
+        auto sample = [&database](float distance, CapturedSample &result) {
+            float drawPosition[7] = {0};
+            if(!database.getDrawPositionOnTrNode(
+                    drawPosition, vectorNodeId, distance))
+                return false;
+            result.x = drawPosition[5] * 2048.0 + drawPosition[0];
+            result.y = drawPosition[1];
+            result.z = -drawPosition[6] * 2048.0 - drawPosition[2];
+            return true;
+        };
+        auto matches = [](const CapturedSample &a, const CapturedSample &b) {
+            const double dx = a.x - b.x;
+            const double dy = a.y - b.y;
+            const double dz = a.z - b.z;
+            // The captured final curve and endpoint 308 disagree by about
+            // 3.75 cm. Preserve that stored boundary rather than hiding it
+            // by regenerating a new endpoint during reversal.
+            return std::sqrt(dx * dx + dy * dy + dz * dz) < 0.05;
+        };
+
+        const float sectionLength = forwardSection.getDlugosc();
+        const float totalLength = sectionLength * 3.0f;
+        const float distances[6] = {
+            sectionLength * 0.25f, sectionLength * 0.75f,
+            sectionLength * 1.25f, sectionLength * 1.75f,
+            sectionLength * 2.25f, sectionLength * 2.75f
+        };
+        CapturedSample forwardSamples[6] = {};
+        bool caseOk = true;
+        for(int i = 0; caseOk && i < 6; ++i)
+            caseOk = sample(distances[i], forwardSamples[i]);
+        const float originalStartFrame[3] = {
+            startNode->UiD[9], startNode->UiD[10], startNode->UiD[11]
+        };
+        const float originalEndFrame[3] = {
+            endNode->UiD[9], endNode->UiD[10], endNode->UiD[11]
+        };
+
+        caseOk = caseOk && database.rotate(vectorNodeId) == 0;
+        if(caseOk) {
+            vectorNode = database.trackNodes[vectorNodeId];
+            caseOk = vectorNode != NULL
+                    && std::equal(endNode->UiD + 4, endNode->UiD + 9,
+                            vectorNode->trVectorSection[0].param + 8)
+                    && std::equal(capturedSections[2] + 8,
+                            capturedSections[2] + 13,
+                            vectorNode->trVectorSection[1].param + 8)
+                    && std::equal(capturedSections[1] + 8,
+                            capturedSections[1] + 13,
+                            vectorNode->trVectorSection[2].param + 8);
+        }
+        for(int i = 0; caseOk && i < 6; ++i) {
+            CapturedSample reversedSample = {};
+            const bool sampled = sample(
+                    totalLength - distances[i], reversedSample);
+            caseOk = sampled && matches(forwardSamples[i], reversedSample);
+        }
+        const bool endpointFramesUnchanged =
+                std::equal(originalStartFrame, originalStartFrame + 3,
+                        startNode->UiD + 9)
+                && std::equal(originalEndFrame, originalEndFrame + 3,
+                        endNode->UiD + 9);
+        caseOk = caseOk && endpointFramesUnchanged;
+
+        caseOk = caseOk && database.rotate(vectorNodeId) == 0;
+        for(int i = 0; caseOk && i < 6; ++i) {
+            CapturedSample restoredSample = {};
+            caseOk = sample(distances[i], restoredSample)
+                    && matches(forwardSamples[i], restoredSample);
+        }
+
+        if(caseOk)
+            passed++;
+        else {
+            failed++;
+            qWarning() << "[tests:flex-point] failed: stored-boundary vector reversal";
+        }
+    }
+    {
+        guardCaseCount++;
         float p[3] = {0, 0, 0};
         float q[4] = {0, 0, 0, 1};
         int targetTileX = 0;
@@ -1092,6 +1747,7 @@ static int runFlexPointSuite(bool verbose) {
             + endpointOrientationCaseCount
             + parallelCaseCount
             + exactRadiusCaseCount
+            + tdbBoundaryCaseCount
             + guardCaseCount;
     qInfo() << "[tests:flex-point] cases=" << caseCount
             << "passed=" << passed << "failed=" << failed;
@@ -1437,6 +2093,29 @@ static int runOrtsProfileSuite(bool verbose) {
             constantCurveSides = outerEndpointFound && innerEndpointFound;
         }
         check(constantCurveSides, "curve-cross-section-handedness");
+
+        QVector<OrtsGeneratedProfileMesh> apronMeshes;
+        bool endApron = OrtsTrackProfileRenderer::buildMeshes(
+                *xmlProfile, curves, apronMeshes, nullptr, 0.25f, 0.002f)
+                && apronMeshes.size() == 1;
+        bool exactApronEndpointFound = false;
+        bool loweredApronEndpointFound = false;
+        if(endApron){
+            const QVector<float> &vertices = apronMeshes[0].vertices;
+            for(int i = 0; i < vertices.size(); i += 9){
+                const float x = vertices[i];
+                const float y = vertices[i + 1];
+                exactApronEndpointFound = exactApronEndpointFound
+                        || (std::abs(x + 100.0f) < 0.001f
+                            && std::abs(y - 0.2f) < 0.0001f);
+                loweredApronEndpointFound = loweredApronEndpointFound
+                        || (std::abs(x + 100.25f) < 0.001f
+                            && std::abs(y - 0.198f) < 0.0001f);
+            }
+        }
+        check(endApron && exactApronEndpointFound
+              && loweredApronEndpointFound,
+              "road-end-apron-render-only-extension");
 
         QVector<TSection> reverseCurves;
         reverseCurves.append(TSection(0, 1, -(float)M_PI / 2.0f, 100.0f));

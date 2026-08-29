@@ -32,9 +32,18 @@ public:
             int x2, int z2, float *p2, float *dyntrackSections,
             float minimumCurveRadius = 15.0f,
             float straightEndpointTolerance = 0.05f);
+    static bool ElevatedPlanarTarget(
+            int startTileX, int startTileZ, const float *startPosition,
+            float startTdbYaw,
+            int targetTileX, int targetTileZ, const float *targetPosition,
+            int &planarTileX, int &planarTileZ, float *planarPosition,
+            float &gradePromille);
     static bool DyntrackEndpoint(int startTileX, int startTileZ, const float *startPosition, const float *startQuaternion, const float *dyntrackSections, int &endTileX, int &endTileZ, float *endPosition, float *endQuaternion);
+    static bool RigidElevationForEndpointHeight(const float *dyntrackSections,
+            float deltaHeight, float &gradePromille);
     static bool OffsetWorldPose(int sourceTileX, int sourceTileZ, const float *sourcePosition, const float *sourceQuaternion, float rightOffset, int &targetTileX, int &targetTileZ, float *targetPosition, float *targetQuaternion);
     static bool ParallelDyntrackSections(const float *sourceSections, float rightOffset, float *targetSections);
+    static bool CanUseRigidElevation(const float *dyntrackSections);
     static float TdbYawFromTrackQuaternion(const float *q);
     static bool AutoFlex(TDB *tdb, int x1, int z1, float* p1,
             int x2, int z2, float* p2, float* dyntrackSections,

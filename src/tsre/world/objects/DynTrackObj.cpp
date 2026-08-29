@@ -104,17 +104,14 @@ float DynTrackObj::getElevation(){
 void DynTrackObj::setElevation(float prom){
     if(!std::isfinite(prom))
         return;
-    float * q = qDirection;
-    float vect[3];
-    vect[0] = 0; vect[1] = 0; vect [2] = 1000;
-    Vec3::transformQuat(vect, vect, q);
-    if(!std::isfinite(vect[1]))
+    const float targetValue = std::clamp(prom / 1000.0f, -1.0f, 1.0f);
+    const float currentElevation = getElevation();
+    if(!std::isfinite(currentElevation))
         return;
-    const float value = std::clamp(
-            (vect[1] * this->endp[3] + prom) / 1000.0f,
-            -1.0f,
-            1.0f);
-    rotate(std::asin(value), 0, 0);
+    // `rotate` applies endp[3] internally, while getElevation already reports
+    // pitch in that same track-direction convention. Rotate by the exact
+    // angle difference instead of the previous small-angle sine difference.
+    rotate(std::asin(targetValue) - currentElevation, 0, 0);
 }
 
 void DynTrackObj::rotate(float x, float y, float z){
@@ -203,9 +200,26 @@ void DynTrackObj::generateShape(){
             OrtsTrackProfileCatalog::find(resolution.templateName);
     if(resolution.backend == ProceduralTrackBackend::Procedural
             && routeProfile != nullptr){
+        bool hasCurve = false;
+        for(const TSection &section : tsections){
+            if(section.type == 1 && std::abs(section.angle) > kCurveAngleEpsilon){
+                hasCurve = true;
+                break;
+            }
+        }
+        const bool needsRoadEndApron = isRoad() && hasCurve
+                && std::abs(getElevation()) > kCurveAngleEpsilon;
+        // A pitched curve is still one rigid DynTrack object, so its wide road
+        // surface can leave a small visual gap before the next independently
+        // pitched object. Extend only the rendered ORTS-profile mesh slightly
+        // under its neighbour; the RDB endpoint and snapping geometry remain
+        // exact. The tiny drop prevents coplanar overlap from flickering.
+        const float roadEndExtension = needsRoadEndApron ? 0.25f : 0.0f;
+        const float roadEndDrop = needsRoadEndApron ? 0.002f : 0.0f;
         QStringList diagnostics;
         if(OrtsTrackProfileRenderer::generate(
-                *routeProfile, tsections, shape, routePath, &diagnostics)){
+                *routeProfile, tsections, shape, routePath, &diagnostics,
+                roadEndExtension, roadEndDrop)){
             shapeOwned = true;
             init = true;
             static QSet<QString> warnedDiagnostics;

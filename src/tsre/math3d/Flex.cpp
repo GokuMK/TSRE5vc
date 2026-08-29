@@ -615,6 +615,41 @@ bool Flex::DyntrackEndpoint(
     return true;
 }
 
+bool Flex::RigidElevationForEndpointHeight(
+        const float *dyntrackSections,
+        float deltaHeight,
+        float &gradePromille) {
+    gradePromille = 0.0f;
+    if(dyntrackSections == nullptr || !std::isfinite(deltaHeight))
+        return false;
+    for(int i = 0; i < 10; ++i)
+        if(!std::isfinite(dyntrackSections[i]))
+            return false;
+
+    if(std::fabs(deltaHeight) <= 1e-6f)
+        return true;
+
+    // setElevation stores sin(pitch). A rigidly pitched DynTrack gains
+    // height from its local forward endpoint coordinate, not from the X/Z
+    // chord length. This distinction is essential for parallel curves,
+    // whose inner and outer radii have different forward depths.
+    float solverSections[10];
+    std::copy(dyntrackSections, dyntrackSections + 10, solverSections);
+    flipCurveAngleSignsForDyntrack(solverSections);
+    const double forwardDepth = (double)simulate(solverSections).pos.y;
+    if(!std::isfinite(forwardDepth) || forwardDepth <= 1e-6)
+        return false;
+
+    const double sinePitch = (double)deltaHeight / forwardDepth;
+    constexpr double ratioTolerance = 1e-6;
+    if(!std::isfinite(sinePitch)
+            || std::fabs(sinePitch) > 1.0 + ratioTolerance)
+        return false;
+    gradePromille = (float)(1000.0
+            * std::max(-1.0, std::min(1.0, sinePitch)));
+    return std::isfinite(gradePromille);
+}
+
 bool Flex::OffsetWorldPose(
         int sourceTileX,
         int sourceTileZ,
@@ -699,6 +734,106 @@ bool Flex::ParallelDyntrackSections(
         targetSections[radiusIndex] = radius;
     }
     return totalCenterlineLength(targetSections) <= 2048.0f + 0.01f;
+}
+
+bool Flex::CanUseRigidElevation(const float *dyntrackSections) {
+    if(dyntrackSections == nullptr)
+        return false;
+    for(int i = 0; i < 10; ++i)
+        if(!std::isfinite(dyntrackSections[i]))
+            return false;
+
+    // DynTrack elevation rigidly rotates the complete local X/Z plane.
+    // Height is therefore proportional to local forward depth. Once a path
+    // tangent points behind the local +/-90 degree boundary, the same pitch
+    // makes the remaining path descend instead of representing one grade.
+    double heading = 0.0;
+    constexpr double backwardTolerance = 1e-6;
+    for(int section = 1; section < 5; section += 2) {
+        const float angle = dyntrackSections[section * 2];
+        const float radius = dyntrackSections[section * 2 + 1];
+        if(std::fabs(angle) < kCurveAngleEpsilon)
+            continue;
+        if(radius <= 0.1f || std::fabs(angle) > (float)M_PI)
+            return false;
+        heading += angle;
+        if(!std::isfinite(heading)
+                || std::cos(heading) < -backwardTolerance)
+            return false;
+    }
+    return true;
+}
+
+bool Flex::ElevatedPlanarTarget(
+        int startTileX,
+        int startTileZ,
+        const float *startPosition,
+        float startTdbYaw,
+        int targetTileX,
+        int targetTileZ,
+        const float *targetPosition,
+        int &planarTileX,
+        int &planarTileZ,
+        float *planarPosition,
+        float &gradePromille) {
+    if(startPosition == nullptr || targetPosition == nullptr
+            || planarPosition == nullptr || !std::isfinite(startTdbYaw))
+        return false;
+    for(int i = 0; i < 3; i++)
+        if(!std::isfinite(startPosition[i])
+                || !std::isfinite(targetPosition[i]))
+            return false;
+
+    // Work in Flex's tested X/-Z plane. DynTrack elevation rigidly pitches
+    // this plane around local X, so only the local forward component is split
+    // between horizontal distance and height; lateral displacement is
+    // unchanged. Keep tile composition in double precision.
+    const double deltaX = (double)(targetTileX - startTileX) * 2048.0
+            + (double)targetPosition[0] - (double)startPosition[0];
+    const double deltaZ = (double)(targetTileZ - startTileZ) * 2048.0
+            + (double)targetPosition[2] - (double)startPosition[2];
+    const double deltaY = (double)targetPosition[1]
+            - (double)startPosition[1];
+    const double sinYaw = std::sin((double)startTdbYaw);
+    const double cosYaw = std::cos((double)startTdbYaw);
+    const double flexX = deltaX;
+    const double flexY = -deltaZ;
+    const double lateral = flexX * cosYaw - flexY * sinYaw;
+    const double forwardHorizontal = flexX * sinYaw + flexY * cosYaw;
+
+    double forwardPlanar = forwardHorizontal;
+    gradePromille = 0.0f;
+    if(std::fabs(deltaY) > 1e-9) {
+        // A rigid pitch in the normal +/-90 degree range cannot reach an
+        // elevated endpoint which is not ahead of the start tangent.
+        if(forwardHorizontal <= 1e-6)
+            return false;
+        forwardPlanar = std::hypot(forwardHorizontal, deltaY);
+        if(!std::isfinite(forwardPlanar) || forwardPlanar <= 1e-9)
+            return false;
+        gradePromille = (float)(1000.0 * deltaY / forwardPlanar);
+    }
+
+    const double adjustedFlexX = lateral * cosYaw
+            + forwardPlanar * sinYaw;
+    const double adjustedFlexY = -lateral * sinYaw
+            + forwardPlanar * cosYaw;
+    const double absoluteX = (double)startTileX * 2048.0
+            + (double)startPosition[0] + adjustedFlexX;
+    const double absoluteZ = (double)startTileZ * 2048.0
+            + (double)startPosition[2] - adjustedFlexY;
+    if(!std::isfinite(absoluteX) || !std::isfinite(absoluteZ)
+            || !std::isfinite(gradePromille))
+        return false;
+
+    planarTileX = (int)std::floor((absoluteX + 1024.0) / 2048.0);
+    planarTileZ = (int)std::floor((absoluteZ + 1024.0) / 2048.0);
+    planarPosition[0] = (float)(absoluteX - planarTileX * 2048.0);
+    planarPosition[1] = targetPosition[1];
+    planarPosition[2] = (float)(absoluteZ - planarTileZ * 2048.0);
+    return std::isfinite(planarPosition[0])
+            && std::isfinite(planarPosition[1])
+            && std::isfinite(planarPosition[2]);
 }
 
 bool Flex::NewFlexToPoint(
@@ -797,32 +932,23 @@ bool Flex::AutoFlex(TDB *tdb, int x1, int z1, float* p1,
 
     tdb->findNearestNode(x1, z1, p1,(float*) &q1);
     //q1[1] = wrapPi(q1[1] + (float)M_PI);
-    float *p11 = Vec3::clone(p1);
     tdb->findNearestNode(x2, z2, p2,(float*) &q2);
     q2[1] = wrapPi(q2[1] + (float)M_PI);
     //q2[1] = wrapPi(M_PI - q2[1]); // convert to dyntrack convention (heading is direction toward which we turn left)
 
-    float *p22 = Vec3::clone(p2);
+    int planarTileX = 0;
+    int planarTileZ = 0;
+    float planarPosition[3] = {0, 0, 0};
+    if(!Flex::ElevatedPlanarTarget(
+            x1, z1, p1, q1[1],
+            x2, z2, p2,
+            planarTileX, planarTileZ, planarPosition, elev))
+        return false;
 
-    bool success = Flex::NewFlex(x1, z1, p1, (float*)q1, x2, z2, p2, (float*)q2, dyntrackSections, preferredMinCurveRadius);
-
-    p22[0] +=  2048*(x2 - x1);
-    p22[2] +=  2048*(z2 - z1);
-    float dist1 = Vec3::dist(p11, p22);
-    //p11[1] = 0;
-    //p22[1] = 0;
-    //float dist2 = Vec3::dist(p11, p22);
-    
-    if (dist1 > 0.001f)
-        elev = (p22[1] - p11[1])*(1000.0/dist1);
-    else
-        elev = 0.0f;
-    qDebug() << "elev" << dist1 << p2[1] << p1[1];
-
-    delete[] p11;
-    delete[] p22;
-
-    return success;
+    return Flex::NewFlex(
+            x1, z1, p1, (float*)q1,
+            planarTileX, planarTileZ, planarPosition, (float*)q2,
+            dyntrackSections, preferredMinCurveRadius);
 }
 
 bool Flex::NewFlexDeprecatedStaged(int x, int z, float* p, float* q, float * dyntrackSections){
