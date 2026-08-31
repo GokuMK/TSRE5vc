@@ -9,9 +9,11 @@
  */
 
 #include <tsre/world/Terrain.h>
+#include <algorithm>
 #include <QDebug>
 #include <tsre/Game.h>
 #include <QFile>
+#include <QFileInfo>
 #include <tsre/fileFunctions/ReadFile.h>
 #include <tsre/texture/TexLib.h>
 #include <tsre/world/TerrainLib.h>
@@ -28,6 +30,10 @@
 
 QString Terrain::TileDir[2] = {"tiles", "lo_tiles"};
 Brush* Terrain::DefaultBrush = NULL;
+
+static float editorDefaultPatchTextureScale(const TerrainGridLayout &layout) {
+    return 0.998f / static_cast<float>(layout.patchResolution);
+}
 
 Terrain::Terrain(){
 
@@ -53,8 +59,9 @@ void Terrain::load(){
     loaded = false;
     isOgl = false;
     modified = false;
+    editable = false;
     wTexid = -1;
-    for (int i = 0; i < 256; i++) {
+    for (int i = 0; i < TerrainGridLayout::SupportedPatchRecordCount; i++) {
         texid[i] = -1;
         texid2[i] = -1;
         hidden[i] = false;
@@ -90,6 +97,8 @@ void Terrain::load(){
         //qDebug() << " t fail" << name;
         return;
     }
+    if (!validateGridLayout(path + name + ".t"))
+        return;
     if(tfile->sampleYbuffer == NULL)
         return;
     if (!readRAW((path + *tfile->sampleYbuffer/* + "_y.raw"*/))) {
@@ -136,34 +145,36 @@ bool Terrain::isModified() {
 }
 
 void Terrain::setModified(bool value) {
+    if (value && !editable)
+        return;
     this->modified = value;
 }
 
 float Terrain::setHeight(int x, int z, float posx, float posz, float val, bool add){
+    if (!editable)
+        return getHeight(x, z, posx, posz, false);
     setErrorBias(x, z, posx, posz, 0);
-    
-    int samples = *tfile->nsamples;
-    int sampleSize = *tfile->sampleSize;
-    float tileSize = sampleSize*samples;
-
-    posx -= 2048 * (mojex-x) - 1024;
-    posz -= 2048 * (mojez-z) + 1024;
-    posz = tileSize + posz;
+    getLocalCoords(x, z, posx, posz);
+    const int sampleSize = gridLayout.sampleSpacing;
+    const int sx = std::clamp(static_cast<int>(std::floor(posx / sampleSize)),
+                              0, gridLayout.sampleCount);
+    const int sz = std::clamp(static_cast<int>(std::floor(posz / sampleSize)),
+                              0, gridLayout.sampleCount);
     
     if(add)
-        terrainData[(int) (posz) / sampleSize][(int) (posx) / sampleSize] += val;
+        terrainData[sz][sx] += val;
     else
-        terrainData[(int) (posz) / sampleSize][(int) (posx) / sampleSize] = val;
+        terrainData[sz][sx] = val;
 
     setModified(true);
-    return terrainData[(int) (posz) / sampleSize][(int) (posx) / sampleSize];
+    return terrainData[sz][sx];
 }
 
 void Terrain::getLowCornerTileXY(int& X, int& Y){
     int samples = *tfile->nsamples;
     int sampleSize = *tfile->sampleSize;
     int tileSize = sampleSize*samples;
-    int level = tileSize/2048;
+    int level = tileSize/TerrainGridLayout::WorldTileSize;
     
     X = mojex;// - level + 1;
     Y = mojez - level + 1;
@@ -176,7 +187,7 @@ void Terrain::getCornerCoordsXY(int &x, int &z, int ox, int oz){
     int samples = *tfile->nsamples;
     int sampleSize = *tfile->sampleSize;
     int tileSize = sampleSize*samples;
-    int level = tileSize/2048;
+    int level = tileSize/TerrainGridLayout::WorldTileSize;
     
     //if(level == 1){
         x += level*ox;
@@ -194,55 +205,74 @@ void Terrain::getCornerCoordsXY(int &x, int &z, int ox, int oz){
     return;
 }
 
-void Terrain::fillTerrainDataX(Terrain* adjacent){
-    int samples = *tfile->nsamples;
-    int sampleSize = *tfile->sampleSize;
-    int tileSize = sampleSize*samples;
-    
-    if(sampleSize != adjacent->getSampleSize())
+void Terrain::fillTerrainDataX(){
+    if (Game::terrainLib == NULL)
         return;
-    if(samples != adjacent->getSampleCount())
-        return;
-    
-    for (int i = 0; i < samples; i++) {
-        terrainData[i][samples] = adjacent->terrainData[i][0];
+    const int samples = gridLayout.sampleCount;
+    const int spacing = gridLayout.sampleSpacing;
+    // World-local coordinates are half-open: the exact positive boundary is
+    // normalized into the neighboring World cell without moving the sample.
+    const float boundaryX = gridLayout.terrainWorldSize
+            - TerrainGridLayout::WorldTileHalfSize;
+    for (int i = 0; i < samples; ++i) {
+        const float boundaryZ = i * spacing - gridLayout.terrainWorldSize
+                + TerrainGridLayout::WorldTileHalfSize;
+        float height = 0.0f;
+        if (Game::terrainLib->tryGetHeight(
+                    static_cast<int>(mojex), static_cast<int>(mojez),
+                    boundaryX, boundaryZ, height, false, true))
+            terrainData[i][samples] = height;
     }
 }
 
-void Terrain::fillTerrainDataY(Terrain* adjacent){
-    int samples = *tfile->nsamples;
-    int sampleSize = *tfile->sampleSize;
-    int tileSize = sampleSize*samples;
-    
-    if(sampleSize != adjacent->getSampleSize())
+void Terrain::fillTerrainDataY(){
+    if (Game::terrainLib == NULL)
         return;
-    if(samples != adjacent->getSampleCount())
-        return;
-    
-    for (int i = 0; i < samples; i++) {
-        terrainData[samples][i] = adjacent->terrainData[0][i];
+    const int samples = gridLayout.sampleCount;
+    const int spacing = gridLayout.sampleSpacing;
+    const float boundaryZ = TerrainGridLayout::WorldTileHalfSize;
+    for (int i = 0; i < samples; ++i) {
+        const float boundaryX = i * spacing
+                - TerrainGridLayout::WorldTileHalfSize;
+        float height = 0.0f;
+        if (Game::terrainLib->tryGetHeight(
+                    static_cast<int>(mojex), static_cast<int>(mojez),
+                    boundaryX, boundaryZ, height, false, true))
+            terrainData[samples][i] = height;
     }
 }
 
-void Terrain::fillTerrainDataXY(Terrain* adjacent){
-    int samples = *tfile->nsamples;
-    int sampleSize = *tfile->sampleSize;
-    int tileSize = sampleSize*samples;
-    
-    if(sampleSize != adjacent->getSampleSize())
+void Terrain::fillTerrainDataXY(){
+    if (Game::terrainLib == NULL)
         return;
-    if(samples != adjacent->getSampleCount())
-        return;
-    
-    terrainData[samples][samples] = adjacent->terrainData[0][0];
+    float height = 0.0f;
+    if (Game::terrainLib->tryGetHeight(
+                static_cast<int>(mojex), static_cast<int>(mojez),
+                gridLayout.terrainWorldSize
+                    - TerrainGridLayout::WorldTileHalfSize,
+                TerrainGridLayout::WorldTileHalfSize,
+                height, false, true))
+        terrainData[gridLayout.sampleCount][gridLayout.sampleCount] = height;
 }
     
 int Terrain::getSampleCount(){
     return *tfile->nsamples;
 }
 
+int Terrain::getPatchResolution() const {
+    return gridLayout.patchResolution;
+}
+
+const TerrainGridLayout& Terrain::getGridLayout() const {
+    return gridLayout;
+}
+
+bool Terrain::isEditable() const {
+    return editable;
+}
+
 void Terrain::setFixedHeight(float val){
-    if (loaded == false) 
+    if (loaded == false || !editable)
         return;
     int samples = *tfile->nsamples;
     for (int i = 0; i < samples; i++)
@@ -277,7 +307,8 @@ void Terrain::loadTFile(FileBuffer *data){
     //qDebug() << "aaa";
     //this->tfile = new TFile();
     this->tfile->load(data);
-    for (int i = 0; i < 256; i++) {
+    validateGridLayout("network terrain descriptor " + name);
+    for (int i = 0; i < TerrainGridLayout::SupportedPatchRecordCount; i++) {
         texid[i] = -1;
         texid2[i] = -1;
         hidden[i] = false;
@@ -301,35 +332,38 @@ void Terrain::loadFFile(FileBuffer *data){
 
 Terrain::~Terrain() {
     long timeNow1 = QDateTime::currentMSecsSinceEpoch();
+    releaseHeightData();
+    releaseFData();
     if (this->loaded) {
-        for (int i = 0; i < 257; i++) {
-            delete[] terrainData[i];
-            if (this->jestF)
-                delete[] fData[i];
-        }
         //for (int i = 0; i < 256; i++) {
         //    //delete VBO[i];
         //    //delete VAO[i];
         //    //GC::VBO.push_back(VBO[i]);
         //    //GC::VAO.push_back(VAO[i]);
         //}
-        if(VBO != NULL)
-            delete VBO;
-        if(VAO != NULL)
-            delete VAO;
         //delete[] VBO;
         //delete[] VAO;
-
-        delete[] terrainData;
-        if (this->jestF)
-            delete[] fData;
     }
+    delete VBO;
+    VBO = NULL;
+    delete VAO;
+    VAO = NULL;
+    delete tfile;
+    tfile = NULL;
     long timeNow2 = QDateTime::currentMSecsSinceEpoch();
     qDebug() << "= release terrain "<< timeNow2 - timeNow1;
 }
 
-void Terrain::SaveEmpty(QString name, int samples, int sampleSize, int patches, bool low) {
+bool Terrain::SaveEmpty(QString name, int samples, int sampleSize, int patches,
+                        bool low, bool overwrite) {
     qDebug() << "New terrain tile";
+    TerrainGridLayout layout;
+    QString layoutError;
+    if (!TerrainGridLayout::tryCreate(samples, static_cast<float>(sampleSize),
+                                      patches, 0.0f, layout, layoutError)) {
+        qWarning() << "Unsupported terrain layout" << name << layoutError;
+        return false;
+    }
     QString path;
     if(low){
         if(!QDir(Game::root + "/routes/" + Game::route + "/lo_tiles/").exists())
@@ -339,10 +373,14 @@ void Terrain::SaveEmpty(QString name, int samples, int sampleSize, int patches, 
         path = Game::root + "/routes/" + Game::route + "/tiles/" + name + "_y.raw";
     }
     QFile file(path);
+    if (overwrite && file.exists() && !file.remove()) {
+        qWarning() << "Unable to replace terrain elevation file" << path;
+        return false;
+    }
     if (!file.exists()){
         if(!file.open(QIODevice::WriteOnly)){
             qDebug() << "Error creating raw file!";
-            return;
+            return false;
         }
         QDataStream write(&file);
         write.setByteOrder(QDataStream::BigEndian);
@@ -351,10 +389,30 @@ void Terrain::SaveEmpty(QString name, int samples, int sampleSize, int patches, 
             for (int j = 0; j < samples; j++)
                 write << value;
         file.close();
+        std::size_t expectedBytes = 0;
+        layout.expectedPayloadBytes(sizeof(quint16), expectedBytes);
+        if (static_cast<std::size_t>(QFileInfo(path).size()) != expectedBytes) {
+            qWarning() << "Incomplete terrain elevation file" << path
+                       << "expected" << expectedBytes << "actual" << QFileInfo(path).size();
+            QFile::remove(path);
+            return false;
+        }
+    }
+
+    const QString directory = QFileInfo(path).absolutePath() + "/";
+    if (overwrite) {
+        QFile::remove(directory + name + "_e.raw");
+        QFile::remove(directory + name + "_n.raw");
     }
     
     TFile *tfile = new TFile();
     tfile->initNew(name, samples, sampleSize, patches);
+    if (overwrite) {
+        delete tfile->sampleEbuffer;
+        tfile->sampleEbuffer = NULL;
+        delete tfile->sampleNbuffer;
+        tfile->sampleNbuffer = NULL;
+    }
     if(low){
         if(!QDir(Game::root + "/routes/" + Game::route + "/lo_tiles/").exists())
             QDir().mkdir(Game::root + "/routes/" + Game::route + "/lo_tiles/");
@@ -362,6 +420,8 @@ void Terrain::SaveEmpty(QString name, int samples, int sampleSize, int patches, 
     } else {
         tfile->save(Game::root + "/routes/" + Game::route + "/tiles/" + name + ".t");
     }
+    delete tfile;
+    return true;
 }
 
 QString Terrain::getTileName(){
@@ -445,13 +505,16 @@ void Terrain::refresh() {
 }
 
 void Terrain::toggleGaps(int x, int z, float posx, float posz, float direction){
+    if (!editable)
+        return;
     if(!jestF)
         newF();
-    int tx = (posz + 1024) / 8;
-    int tz = (posx + 1024) / 8;
-    if(tx > 256 || tx < 0)
+    getLocalCoords(x, z, posx, posz);
+    int tx = static_cast<int>(std::floor(posz / gridLayout.sampleSpacing));
+    int tz = static_cast<int>(std::floor(posx / gridLayout.sampleSpacing));
+    if(tx > gridLayout.sampleCount || tx < 0)
         return;
-    if(tz > 256 || tz < 0)
+    if(tz > gridLayout.sampleCount || tz < 0)
         return;
     if(direction == 0)
         fData[tx][tz] ^= 0x04;
@@ -460,10 +523,10 @@ void Terrain::toggleGaps(int x, int z, float posx, float posz, float direction){
     if(direction == -1){
         for(int j = -1; j <= 1; j++)
             for(int i = -1; i <= 1; i++){
-                if(tx+j > 256 || tx+j < 0)
-                    return;
-                if(tz+i > 256 || tz+i < 0)
-                    return;
+                if(tx+j > gridLayout.sampleCount || tx+j < 0)
+                    continue;
+                if(tz+i > gridLayout.sampleCount || tz+i < 0)
+                    continue;
                 fData[tx+j][tz+i] &= ~0x04;
             }
     }
@@ -480,6 +543,7 @@ int Terrain::getTexture(int x, int z, float posx, float posz) {
 }
 
 void Terrain::convertTexToDefaultCoords(int idx) {
+    const float defaultTextureScale = editorDefaultPatchTextureScale(gridLayout);
     /*float x11 = (0) * tfile->tdata[(idx)*13 + 3 + 6] + (0) * tfile->tdata[(idx)*13 + 4 + 6] + tfile->tdata[(idx)*13 + 1 + 6];
     float y11 = (0) * tfile->tdata[(idx)*13 + 5 + 6] + (0) * tfile->tdata[(idx)*13 + 6 + 6] + tfile->tdata[(idx)*13 + 2 + 6];
     //qDebug() << x11 << " " <<y11;
@@ -502,10 +566,10 @@ void Terrain::convertTexToDefaultCoords(int idx) {
     }*/
     if((fabs(tfile->tdata[(idx)*13 + 1 + 6] - 0.001)
       +fabs(tfile->tdata[(idx)*13 + 2 + 6] - 0.001)
-      +fabs(tfile->tdata[(idx)*13 + 3 + 6] - 0.062375)
+      +fabs(tfile->tdata[(idx)*13 + 3 + 6] - defaultTextureScale)
       +fabs(tfile->tdata[(idx)*13 + 4 + 6] - 0.0)
       +fabs(tfile->tdata[(idx)*13 + 5 + 6] - 0.0)
-      +fabs(tfile->tdata[(idx)*13 + 6 + 6] - 0.062375)
+      +fabs(tfile->tdata[(idx)*13 + 6 + 6] - defaultTextureScale)
       ) < 0.01){
         qDebug() << "rot ok";
         return;
@@ -515,30 +579,33 @@ void Terrain::convertTexToDefaultCoords(int idx) {
     TexLib::mtex[texid[idx]]->advancedCrop((float*)&tfile->tdata[(idx)*13 + 6], 512, 512);
     tfile->tdata[(idx)*13 + 1 + 6] = 0.001;
     tfile->tdata[(idx)*13 + 2 + 6] = 0.001;
-    tfile->tdata[(idx)*13 + 3 + 6] = 0.062375;
+    tfile->tdata[(idx)*13 + 3 + 6] = defaultTextureScale;
     tfile->tdata[(idx)*13 + 4 + 6] = 0.0;
     tfile->tdata[(idx)*13 + 5 + 6] = 0.0;
-    tfile->tdata[(idx)*13 + 6 + 6] = 0.062375;
+    tfile->tdata[(idx)*13 + 6 + 6] = defaultTextureScale;
     this->refresh();
 }
 
 void Terrain::resetPatchTexCoords(int uu){
-    if( uu >= 0 && uu < 256){
+    if (!editable)
+        return;
+    const float defaultTextureScale = editorDefaultPatchTextureScale(gridLayout);
+    if(gridLayout.isPatchIndexValid(uu)){
         tfile->tdata[(uu)*13 + 1 + 6] = 0.001;
         tfile->tdata[(uu)*13 + 2 + 6] = 0.001;
-        tfile->tdata[(uu)*13 + 3 + 6] = 0.062375;
+        tfile->tdata[(uu)*13 + 3 + 6] = defaultTextureScale;
         tfile->tdata[(uu)*13 + 4 + 6] = 0.0;
         tfile->tdata[(uu)*13 + 5 + 6] = 0.0;
-        tfile->tdata[(uu)*13 + 6 + 6] = 0.062375;
+        tfile->tdata[(uu)*13 + 6 + 6] = defaultTextureScale;
     } else {
-        for (uu = 0; uu < 256; uu++) {
+        for (uu = 0; uu < gridLayout.patchRecordCount(); uu++) {
             if(selectedPatchs[uu]){
                 tfile->tdata[(uu)*13 + 1 + 6] = 0.001;
                 tfile->tdata[(uu)*13 + 2 + 6] = 0.001;
-                tfile->tdata[(uu)*13 + 3 + 6] = 0.062375;
+                tfile->tdata[(uu)*13 + 3 + 6] = defaultTextureScale;
                 tfile->tdata[(uu)*13 + 4 + 6] = 0.0;
                 tfile->tdata[(uu)*13 + 5 + 6] = 0.0;
-                tfile->tdata[(uu)*13 + 6 + 6] = 0.062375;
+                tfile->tdata[(uu)*13 + 6 + 6] = defaultTextureScale;
             }
         }
     }
@@ -547,18 +614,18 @@ void Terrain::resetPatchTexCoords(int uu){
 }
 
 void Terrain::rotateTex(int idx) {
-
+    const float uvSpan = static_cast<float>(gridLayout.patchResolution);
     float x11 = (0) * tfile->tdata[(idx)*13 + 3 + 6] + (0) * tfile->tdata[(idx)*13 + 4 + 6] + tfile->tdata[(idx)*13 + 1 + 6];
     float y11 = (0) * tfile->tdata[(idx)*13 + 5 + 6] + (0) * tfile->tdata[(idx)*13 + 6 + 6] + tfile->tdata[(idx)*13 + 2 + 6];
     qDebug() << x11 << " " << y11;
-    float x21 = (16) * tfile->tdata[(idx)*13 + 3 + 6] + (0) * tfile->tdata[(idx)*13 + 4 + 6] + tfile->tdata[(idx)*13 + 1 + 6];
-    float y21 = (16) * tfile->tdata[(idx)*13 + 5 + 6] + (0) * tfile->tdata[(idx)*13 + 6 + 6] + tfile->tdata[(idx)*13 + 2 + 6];
+    float x21 = uvSpan * tfile->tdata[(idx)*13 + 3 + 6] + (0) * tfile->tdata[(idx)*13 + 4 + 6] + tfile->tdata[(idx)*13 + 1 + 6];
+    float y21 = uvSpan * tfile->tdata[(idx)*13 + 5 + 6] + (0) * tfile->tdata[(idx)*13 + 6 + 6] + tfile->tdata[(idx)*13 + 2 + 6];
     qDebug() << x21 << " " << y21;
-    float x12 = (0) * tfile->tdata[(idx)*13 + 3 + 6] + (16) * tfile->tdata[(idx)*13 + 4 + 6] + tfile->tdata[(idx)*13 + 1 + 6];
-    float y12 = (0) * tfile->tdata[(idx)*13 + 5 + 6] + (16) * tfile->tdata[(idx)*13 + 6 + 6] + tfile->tdata[(idx)*13 + 2 + 6];
+    float x12 = (0) * tfile->tdata[(idx)*13 + 3 + 6] + uvSpan * tfile->tdata[(idx)*13 + 4 + 6] + tfile->tdata[(idx)*13 + 1 + 6];
+    float y12 = (0) * tfile->tdata[(idx)*13 + 5 + 6] + uvSpan * tfile->tdata[(idx)*13 + 6 + 6] + tfile->tdata[(idx)*13 + 2 + 6];
     qDebug() << x12 << " " << y12;
-    float x22 = (16) * tfile->tdata[(idx)*13 + 3 + 6] + (16) * tfile->tdata[(idx)*13 + 4 + 6] + tfile->tdata[(idx)*13 + 1 + 6];
-    float y22 = (16) * tfile->tdata[(idx)*13 + 5 + 6] + (16) * tfile->tdata[(idx)*13 + 6 + 6] + tfile->tdata[(idx)*13 + 2 + 6];
+    float x22 = uvSpan * tfile->tdata[(idx)*13 + 3 + 6] + uvSpan * tfile->tdata[(idx)*13 + 4 + 6] + tfile->tdata[(idx)*13 + 1 + 6];
+    float y22 = uvSpan * tfile->tdata[(idx)*13 + 5 + 6] + uvSpan * tfile->tdata[(idx)*13 + 6 + 6] + tfile->tdata[(idx)*13 + 2 + 6];
     qDebug() << x22 << " " << y22;
     float t;
     if ((x11 < x21) && (y11 == y21)) {
@@ -602,8 +669,9 @@ void Terrain::rotateTex(int idx) {
 }
 
 void Terrain::mirrorXTex(int idx){
-    float x21 = (16) * tfile->tdata[(idx)*13 + 3 + 6] + (0) * tfile->tdata[(idx)*13 + 4 + 6] + tfile->tdata[(idx)*13 + 1 + 6];
-    float y21 = (16) * tfile->tdata[(idx)*13 + 5 + 6] + (0) * tfile->tdata[(idx)*13 + 6 + 6] + tfile->tdata[(idx)*13 + 2 + 6];
+    const float uvSpan = static_cast<float>(gridLayout.patchResolution);
+    float x21 = uvSpan * tfile->tdata[(idx)*13 + 3 + 6] + (0) * tfile->tdata[(idx)*13 + 4 + 6] + tfile->tdata[(idx)*13 + 1 + 6];
+    float y21 = uvSpan * tfile->tdata[(idx)*13 + 5 + 6] + (0) * tfile->tdata[(idx)*13 + 6 + 6] + tfile->tdata[(idx)*13 + 2 + 6];
     tfile->tdata[(idx)*13 + 1 + 6] = x21;
     tfile->tdata[(idx)*13 + 2 + 6] = y21;
     tfile->tdata[(idx)*13 + 3 + 6] = -tfile->tdata[(idx)*13 + 3 + 6];
@@ -613,8 +681,9 @@ void Terrain::mirrorXTex(int idx){
 }
 
 void Terrain::mirrorYTex(int idx){
-    float x12 = (0) * tfile->tdata[(idx)*13 + 3 + 6] + (16) * tfile->tdata[(idx)*13 + 4 + 6] + tfile->tdata[(idx)*13 + 1 + 6];
-    float y12 = (0) * tfile->tdata[(idx)*13 + 5 + 6] + (16) * tfile->tdata[(idx)*13 + 6 + 6] + tfile->tdata[(idx)*13 + 2 + 6];
+    const float uvSpan = static_cast<float>(gridLayout.patchResolution);
+    float x12 = (0) * tfile->tdata[(idx)*13 + 3 + 6] + uvSpan * tfile->tdata[(idx)*13 + 4 + 6] + tfile->tdata[(idx)*13 + 1 + 6];
+    float y12 = (0) * tfile->tdata[(idx)*13 + 5 + 6] + uvSpan * tfile->tdata[(idx)*13 + 6 + 6] + tfile->tdata[(idx)*13 + 2 + 6];
     tfile->tdata[(idx)*13 + 1 + 6] = x12;
     tfile->tdata[(idx)*13 + 2 + 6] = y12;
     tfile->tdata[(idx)*13 + 4 + 6] = -tfile->tdata[(idx)*13 + 4 + 6];
@@ -624,11 +693,15 @@ void Terrain::mirrorYTex(int idx){
 }
 
 float Terrain::getScaleTexX(int idx){
-    return fabs(tfile->tdata[(idx)*13 + 3 + 6] + tfile->tdata[(idx)*13 + 4 + 6])/0.062375;
+    return fabs(tfile->tdata[(idx)*13 + 3 + 6]
+                + tfile->tdata[(idx)*13 + 4 + 6])
+            / editorDefaultPatchTextureScale(gridLayout);
 }
 
 float Terrain::getScaleTexY(int idx){
-    return fabs(tfile->tdata[(idx)*13 + 5 + 6] + tfile->tdata[(idx)*13 + 6 + 6])/0.062375;
+    return fabs(tfile->tdata[(idx)*13 + 5 + 6]
+                + tfile->tdata[(idx)*13 + 6 + 6])
+            / editorDefaultPatchTextureScale(gridLayout);
 }
 
 float Terrain::getScaleTex(int idx){
@@ -687,6 +760,8 @@ void Terrain::setTileBlob(){
 }
 
 void Terrain::makeTextureFromMap(){
+    if (!editable)
+        return;
     if(Game::seasonalEditing && Game::season.length() > 0)
         return;
     
@@ -728,10 +803,12 @@ void Terrain::makeTextureFromMap(){
             tfile->tdata[(j * patches + i)*13 + 0 + 6] = newMat;
             tfile->tdata[(j * patches + i)*13 + 1 + 6] = texstep*i;
             tfile->tdata[(j * patches + i)*13 + 2 + 6] = texstep*j;
-            tfile->tdata[(j * patches + i)*13 + 3 + 6] = texstep/patches;
+            tfile->tdata[(j * patches + i)*13 + 3 + 6] =
+                    texstep / static_cast<float>(gridLayout.patchResolution);
             tfile->tdata[(j * patches + i)*13 + 4 + 6] = 0;
             tfile->tdata[(j * patches + i)*13 + 5 + 6] = 0;
-            tfile->tdata[(j * patches + i)*13 + 6 + 6] = texstep/patches;
+            tfile->tdata[(j * patches + i)*13 + 6 + 6] =
+                    texstep / static_cast<float>(gridLayout.patchResolution);
             //TexLib::mtex[texid[j * 16 + i]]->pathid = name;
         }
 
@@ -740,13 +817,15 @@ void Terrain::makeTextureFromMap(){
 }
 
 void Terrain::removeTextureFromMap(){
+    if (!editable)
+        return;
     QString name = this->getTileName(mojex, -mojez) + "_map.ace";
     int newMat = tfile->getMatByTexture(name);
     if(newMat <= 0){
         return;
     }
     tfile->removeMat(newMat);
-    for (int i = 0; i < 256; i++) {
+    for (int i = 0; i < gridLayout.patchRecordCount(); i++) {
         texid[i] = -1;
     }    
     refresh();
@@ -754,6 +833,8 @@ void Terrain::removeTextureFromMap(){
 }
 
 void Terrain::setWaterDraw() {
+    if (!editable)
+        return;
     int patches = tfile->patchsetNpatches;
     for (int uu = 0; uu < patches*patches; uu++) {
         if(selectedPatchs[uu]){
@@ -765,6 +846,8 @@ void Terrain::setWaterDraw() {
 }
 
 void Terrain::toggleWaterDraw() {
+    if (!editable)
+        return;
     int patches = tfile->patchsetNpatches;
     for (int uu = 0; uu < patches*patches; uu++) {
         if(selectedPatchs[uu]){
@@ -776,6 +859,8 @@ void Terrain::toggleWaterDraw() {
 }
 
 void Terrain::hideWaterDraw() {
+    if (!editable)
+        return;
     int patches = tfile->patchsetNpatches;
     for (int uu = 0; uu < patches*patches; uu++) {
         if(selectedPatchs[uu]){
@@ -791,6 +876,8 @@ void Terrain::updateTFile(){
 }
 
 void Terrain::toggleWaterDraw(int x, int z, float posx, float posz, float direction) {
+    if (!editable)
+        return;
     getPatchCoords(x, z, posx, posz);
     int patches = tfile->patchsetNpatches;
     if(direction == 0)
@@ -804,15 +891,19 @@ void Terrain::toggleWaterDraw(int x, int z, float posx, float posz, float direct
 }
 
 void Terrain::setDrawAdjacent(){
-    for (int uu = 0; uu < 256; uu++) {
+    if (!editable)
+        return;
+    const int patches = gridLayout.patchesPerSide;
+    for (int uu = 0; uu < gridLayout.patchRecordCount(); uu++) {
         if(selectedPatchs[uu]){
-            int u = uu / 16;
-            int y = uu - u*16;
+            int u = gridLayout.patchRow(uu);
+            int y = gridLayout.patchColumn(uu);
             for(int i = u - 1; i <= u+1; i++)
                 for(int j = y - 1; j <= y+1; j++){
-                    if(i < 0 || j < 0 || i > 15 || j > 15)
+                    if(i < 0 || j < 0 || i >= patches || j >= patches)
                         continue;
-                    tfile->flags[i*16+j] = tfile->flags[i*16+j] & ~(0x1);
+                    const int adjacent = gridLayout.patchIndex(i, j);
+                    tfile->flags[adjacent] = tfile->flags[adjacent] & ~(0x1);
                 }
             this->setModified(true);
         }
@@ -821,7 +912,9 @@ void Terrain::setDrawAdjacent(){
 }
 
 void Terrain::rotatePatchTexture(){
-    for (int uu = 0; uu < 256; uu++) {
+    if (!editable)
+        return;
+    for (int uu = 0; uu < gridLayout.patchRecordCount(); uu++) {
         if(selectedPatchs[uu]){
             rotateTex(uu);
         }
@@ -829,7 +922,9 @@ void Terrain::rotatePatchTexture(){
 }
 
 void Terrain::mirrorXPatchTexture(){
-    for (int uu = 0; uu < 256; uu++) {
+    if (!editable)
+        return;
+    for (int uu = 0; uu < gridLayout.patchRecordCount(); uu++) {
         if(selectedPatchs[uu]){
             mirrorXTex(uu);
         }
@@ -837,7 +932,9 @@ void Terrain::mirrorXPatchTexture(){
 }
 
 void Terrain::mirrorYPatchTexture(){
-    for (int uu = 0; uu < 256; uu++) {
+    if (!editable)
+        return;
+    for (int uu = 0; uu < gridLayout.patchRecordCount(); uu++) {
         if(selectedPatchs[uu]){
             mirrorYTex(uu);
         }
@@ -845,7 +942,7 @@ void Terrain::mirrorYPatchTexture(){
 }
 
 float Terrain::getPatchScaleTex(){
-    for (int uu = 0; uu < 256; uu++) {
+    for (int uu = 0; uu < gridLayout.patchRecordCount(); uu++) {
         if(selectedPatchs[uu]){
             return getScaleTex(uu);
         }
@@ -854,7 +951,7 @@ float Terrain::getPatchScaleTex(){
 }
 
 float Terrain::getPatchScaleTexX(){
-    for (int uu = 0; uu < 256; uu++) {
+    for (int uu = 0; uu < gridLayout.patchRecordCount(); uu++) {
         if(selectedPatchs[uu]){
             return getScaleTexX(uu);
         }
@@ -863,7 +960,7 @@ float Terrain::getPatchScaleTexX(){
 }
 
 float Terrain::getPatchScaleTexY(){
-    for (int uu = 0; uu < 256; uu++) {
+    for (int uu = 0; uu < gridLayout.patchRecordCount(); uu++) {
         if(selectedPatchs[uu]){
             return getScaleTexY(uu);
         }
@@ -872,16 +969,17 @@ float Terrain::getPatchScaleTexY(){
 }
 
 QString Terrain::getPatchRotationName(){
-    for (int idx = 0; idx < 256; idx++)
+    const float uvSpan = static_cast<float>(gridLayout.patchResolution);
+    for (int idx = 0; idx < gridLayout.patchRecordCount(); idx++)
         if(selectedPatchs[idx]){
             float x11 = (0) * tfile->tdata[(idx)*13 + 3 + 6] + (0) * tfile->tdata[(idx)*13 + 4 + 6] + tfile->tdata[(idx)*13 + 1 + 6];
             float y11 = (0) * tfile->tdata[(idx)*13 + 5 + 6] + (0) * tfile->tdata[(idx)*13 + 6 + 6] + tfile->tdata[(idx)*13 + 2 + 6];
-            float x21 = (16) * tfile->tdata[(idx)*13 + 3 + 6] + (0) * tfile->tdata[(idx)*13 + 4 + 6] + tfile->tdata[(idx)*13 + 1 + 6];
-            float y21 = (16) * tfile->tdata[(idx)*13 + 5 + 6] + (0) * tfile->tdata[(idx)*13 + 6 + 6] + tfile->tdata[(idx)*13 + 2 + 6];
-            float x12 = (0) * tfile->tdata[(idx)*13 + 3 + 6] + (16) * tfile->tdata[(idx)*13 + 4 + 6] + tfile->tdata[(idx)*13 + 1 + 6];
-            float y12 = (0) * tfile->tdata[(idx)*13 + 5 + 6] + (16) * tfile->tdata[(idx)*13 + 6 + 6] + tfile->tdata[(idx)*13 + 2 + 6];
-            float x22 = (16) * tfile->tdata[(idx)*13 + 3 + 6] + (16) * tfile->tdata[(idx)*13 + 4 + 6] + tfile->tdata[(idx)*13 + 1 + 6];
-            float y22 = (16) * tfile->tdata[(idx)*13 + 5 + 6] + (16) * tfile->tdata[(idx)*13 + 6 + 6] + tfile->tdata[(idx)*13 + 2 + 6];
+            float x21 = uvSpan * tfile->tdata[(idx)*13 + 3 + 6] + (0) * tfile->tdata[(idx)*13 + 4 + 6] + tfile->tdata[(idx)*13 + 1 + 6];
+            float y21 = uvSpan * tfile->tdata[(idx)*13 + 5 + 6] + (0) * tfile->tdata[(idx)*13 + 6 + 6] + tfile->tdata[(idx)*13 + 2 + 6];
+            float x12 = (0) * tfile->tdata[(idx)*13 + 3 + 6] + uvSpan * tfile->tdata[(idx)*13 + 4 + 6] + tfile->tdata[(idx)*13 + 1 + 6];
+            float y12 = (0) * tfile->tdata[(idx)*13 + 5 + 6] + uvSpan * tfile->tdata[(idx)*13 + 6 + 6] + tfile->tdata[(idx)*13 + 2 + 6];
+            float x22 = uvSpan * tfile->tdata[(idx)*13 + 3 + 6] + uvSpan * tfile->tdata[(idx)*13 + 4 + 6] + tfile->tdata[(idx)*13 + 1 + 6];
+            float y22 = uvSpan * tfile->tdata[(idx)*13 + 5 + 6] + uvSpan * tfile->tdata[(idx)*13 + 6 + 6] + tfile->tdata[(idx)*13 + 2 + 6];
             if ((x11 < x21) && (y11 == y21)) {
                 return QString("0°");
             } else if ((x11 == x21) && (y11 < y21)) {
@@ -898,7 +996,9 @@ QString Terrain::getPatchRotationName(){
 }
 
 void Terrain::scalePatchTexCoords(float val){
-    for (int uu = 0; uu < 256; uu++) {
+    if (!editable)
+        return;
+    for (int uu = 0; uu < gridLayout.patchRecordCount(); uu++) {
         if(selectedPatchs[uu]){
             scaleTex(uu, val);
         }
@@ -906,7 +1006,9 @@ void Terrain::scalePatchTexCoords(float val){
 }
 
 void Terrain::scalePatchTexCoordsX(float val){
-    for (int uu = 0; uu < 256; uu++) {
+    if (!editable)
+        return;
+    for (int uu = 0; uu < gridLayout.patchRecordCount(); uu++) {
         if(selectedPatchs[uu]){
             scaleTexX(uu, val);
         }
@@ -914,7 +1016,9 @@ void Terrain::scalePatchTexCoordsX(float val){
 }
 
 void Terrain::scalePatchTexCoordsY(float val){
-    for (int uu = 0; uu < 256; uu++) {
+    if (!editable)
+        return;
+    for (int uu = 0; uu < gridLayout.patchRecordCount(); uu++) {
         if(selectedPatchs[uu]){
             scaleTexY(uu, val);
         }
@@ -922,7 +1026,7 @@ void Terrain::scalePatchTexCoordsY(float val){
 }
 
 QString Terrain::getPatchTexTransformString(){
-    for (int uu = 0; uu < 256; uu++) {
+    for (int uu = 0; uu < gridLayout.patchRecordCount(); uu++) {
         if(selectedPatchs[uu]){
             return QString::number(tfile->tdata[(uu)*13 + 1 + 6]) + " "+
                    QString::number(tfile->tdata[(uu)*13 + 2 + 6]) + " "+
@@ -942,7 +1046,8 @@ QString Terrain::getPatchTexTransformString(int x, int z, float posx, float posz
 }
 
 QString Terrain::getPatchTexTransformString(int u){
-
+    if(!gridLayout.isPatchIndexValid(u))
+        return "";
         return QString::number(tfile->tdata[(u)*13 + 1 + 6]) + " "+
                    QString::number(tfile->tdata[(u)*13 + 2 + 6]) + " "+
                    QString::number(tfile->tdata[(u)*13 + 3 + 6]) + " "+
@@ -953,6 +1058,8 @@ QString Terrain::getPatchTexTransformString(int u){
 }
 
 void Terrain::setPatchTexTransform(QString val){
+    if (!editable)
+        return;
     QStringList list = val.split(" ");
     if(list.size() != 6)
         return;
@@ -965,7 +1072,7 @@ void Terrain::setPatchTexTransform(QString val){
             return;
     }
     
-    for (int uu = 0; uu < 256; uu++) {
+    for (int uu = 0; uu < gridLayout.patchRecordCount(); uu++) {
         if(selectedPatchs[uu]){
             for (int i = 0; i < 6; i++)
                 tfile->tdata[(uu)*13 + i + 1 + 6] = t[i];
@@ -976,6 +1083,10 @@ void Terrain::setPatchTexTransform(QString val){
 }
 
 void Terrain::setPatchTexTransform(QString val, int u){
+    if (!editable)
+        return;
+    if (!gridLayout.isPatchIndexValid(u))
+        return;
     QStringList list = val.split(" ");
     if(list.size() != 6)
         return;
@@ -995,6 +1106,8 @@ void Terrain::setPatchTexTransform(QString val, int u){
 }
     
 void Terrain::removeAllGaps(){
+    if (!editable)
+        return;
     if(!jestF)
         return;
     int patches = tfile->patchsetNpatches;
@@ -1002,10 +1115,10 @@ void Terrain::removeAllGaps(){
         if(selectedPatchs[uu]){
             int u = uu / patches;
             int y = uu - u*patches;
-            // to do qt
-            for(int i = 0; i < 16; i++)
-                for(int j = 0; j < 16; j++)
-                    fData[u*16+i][y*16+j] &= ~(0x04);
+            const int patchRes = gridLayout.patchResolution;
+            for(int i = 0; i < patchRes; i++)
+                for(int j = 0; j < patchRes; j++)
+                    fData[u*patchRes+i][y*patchRes+j] &= ~(0x04);
             modifiedF = true;
             modified = true;
         }
@@ -1014,6 +1127,8 @@ void Terrain::removeAllGaps(){
 }
     
 void Terrain::setDraw() {
+    if (!editable)
+        return;
     int patches = tfile->patchsetNpatches;
     for (int uu = 0; uu < patches*patches; uu++) {
         if(selectedPatchs[uu]){
@@ -1024,6 +1139,8 @@ void Terrain::setDraw() {
 }
 
 void Terrain::toggleDraw() {
+    if (!editable)
+        return;
     int patches = tfile->patchsetNpatches;
     for (int uu = 0; uu < patches*patches; uu++) {
         if(selectedPatchs[uu]){
@@ -1035,6 +1152,8 @@ void Terrain::toggleDraw() {
 }
 
 void Terrain::hideDraw() {
+    if (!editable)
+        return;
     int patches = tfile->patchsetNpatches;
     for (int uu = 0; uu < patches*patches; uu++) {
         if(selectedPatchs[uu]){
@@ -1046,6 +1165,8 @@ void Terrain::hideDraw() {
 }
 
 void Terrain::toggleDraw(int x, int z, float posx, float posz) {
+    if (!editable)
+        return;
     getPatchCoords(x, z, posx, posz);
     int patches = tfile->patchsetNpatches;
     tfile->flags[z * patches + x] = tfile->flags[z * patches + x] ^ 0x1;
@@ -1054,7 +1175,7 @@ void Terrain::toggleDraw(int x, int z, float posx, float posz) {
 }
 
 float Terrain::getErrorBias(){
-    for (int uu = 0; uu < 256; uu++) {
+    for (int uu = 0; uu < gridLayout.patchRecordCount(); uu++) {
         if(selectedPatchs[uu]){
             return tfile->errorBias[uu];
         }
@@ -1063,11 +1184,18 @@ float Terrain::getErrorBias(){
 }
 
 void Terrain::getWTileIds(QSet<int> &ids){
-    ids.insert((int)mojex*(int)10000+(int)mojez);
+    const int worldTilesPerSide = gridLayout.terrainWorldSize
+            / TerrainGridLayout::WorldTileSize;
+    for (int x = 0; x < worldTilesPerSide; ++x)
+        for (int z = 0; z < worldTilesPerSide; ++z)
+            ids.insert((static_cast<int>(mojex) + x) * 10000
+                       + static_cast<int>(mojez) - z);
 }
 
 void Terrain::setErrorBias(float val){
-    for (int uu = 0; uu < 256; uu++) {
+    if (!editable)
+        return;
+    for (int uu = 0; uu < gridLayout.patchRecordCount(); uu++) {
         if(selectedPatchs[uu]){
             tfile->errorBias[uu] = val;
             this->setModified(true);
@@ -1076,6 +1204,8 @@ void Terrain::setErrorBias(float val){
 }
 
 void Terrain::setPatchFlags(int x, int z, float posx, float posz, int val){
+    if (!editable)
+        return;
     this->getPatchCoords(x, z, posx, posz);
     int patches = tfile->patchsetNpatches;
     int u = x;
@@ -1102,6 +1232,8 @@ int Terrain::getPatchFlags(int x, int z, float posx, float posz){
 }
 
 void Terrain::setErrorBias(int x, int z, float posx, float posz, float val){
+    if (!editable)
+        return;
     this->getPatchCoords(x, z, posx, posz);
     int patches = tfile->patchsetNpatches;
     int u = x;
@@ -1143,26 +1275,36 @@ float Terrain::getWaterLevelSE(){
 }
 
 void Terrain::setWaterLevelNW(float val){
+    if (!editable)
+        return;
     tfile->waterLevel = true;
     tfile->WNW = val;
 }
 
 void Terrain::setWaterLevelNE(float val){
+    if (!editable)
+        return;
     tfile->waterLevel = true;
     tfile->WNE = val;
 }
 
 void Terrain::setWaterLevelSW(float val){
+    if (!editable)
+        return;
     tfile->waterLevel = true;
     tfile->WSW = val;
 }
 
 void Terrain::setWaterLevelSE(float val){
+    if (!editable)
+        return;
     tfile->waterLevel = true;
     tfile->WSE = val;
 }
 
 void Terrain::setAvgWaterLevel(float val){
+    if (!editable)
+        return;
     tfile->waterLevel = true;
     tfile->WNE = val;
     tfile->WSE = val;
@@ -1176,10 +1318,14 @@ void Terrain::getAdjacentWaterLevels(float* w){
 }
 
 void Terrain::setAdjacentWaterLevels(float* w){
+    if (!editable)
+        return;
     Game::terrainLib->setWaterLevels(w, mojex, mojez);
 }
 
 void Terrain::setWaterLevelGui(){
+    if (!editable)
+        return;
     TerrainWaterWindow waterWindow;
     waterWindow.setWindowTitle("Water Level");
     waterWindow.WNE = tfile->WNE;
@@ -1200,6 +1346,8 @@ void Terrain::setWaterLevelGui(){
 }
 
 void Terrain::setWaterLevel(float nw, float ne, float sw, float se){
+    if (!editable)
+        return;
     tfile->waterLevel = true;
     tfile->WNE = ne;
     tfile->WSE = se;
@@ -1209,18 +1357,16 @@ void Terrain::setWaterLevel(float nw, float ne, float sw, float se){
 }
 
 void Terrain::getRotation(float* rot, int x, int z, int posx, int posz){
-    int samples = *tfile->nsamples;
-    int sampleSize = *tfile->sampleSize;
-    float tileSize = sampleSize*samples;
-
-    posx -= 2048 * (mojex-x) - 1024;
-    posz -= 2048 * (mojez-z) + 1024;
-    posz = tileSize + posz;
-    
-    float tx = terrainData[(int) (posz ) / sampleSize + 1][(int) (posx) / sampleSize]
-        - terrainData[(int) (posz ) / sampleSize][(int) (posx) / sampleSize];
-    float tz = terrainData[(int) (posz ) / sampleSize][(int) (posx) / sampleSize + 1]
-        - terrainData[(int) (posz) / sampleSize][(int) (posx) / sampleSize];
+    float localX = posx;
+    float localZ = posz;
+    getLocalCoords(x, z, localX, localZ);
+    const int sampleSize = gridLayout.sampleSpacing;
+    const int sx = std::clamp(static_cast<int>(std::floor(localX / sampleSize)),
+                              0, gridLayout.sampleCount - 1);
+    const int sz = std::clamp(static_cast<int>(std::floor(localZ / sampleSize)),
+                              0, gridLayout.sampleCount - 1);
+    float tx = terrainData[sz + 1][sx] - terrainData[sz][sx];
+    float tz = terrainData[sz][sx + 1] - terrainData[sz][sx];
     
     rot[0] = atan(tx/sampleSize);
     rot[1] = atan(tz/sampleSize);
@@ -1230,37 +1376,28 @@ float Terrain::getHeight(int x, int z, float posx, float posz, bool addR){
     //if ((posx + 1024) / 8 + 1 > 256 || (posz + 1024) / 8 + 1 > 256)
     //    return terrainData[(int) (posz + 1024) / 8][(int) (posx + 1024) / 8];
     
-    int samples = *tfile->nsamples;
-    int sampleSize = *tfile->sampleSize;
-    float tileSize = sampleSize*samples;
-
-    posx -= 2048 * (mojex-x) - 1024;
-    posz -= 2048 * (mojez-z) + 1024;
-    posz = tileSize + posz;
-
-    float tx = (posx / sampleSize) - (float) floor(posx / sampleSize);
-    float tz = (posz / sampleSize) - (float) floor(posz / sampleSize);
+    const int samples = gridLayout.sampleCount;
+    const int sampleSize = gridLayout.sampleSpacing;
+    getLocalCoords(x, z, posx, posz);
+    posx = std::clamp(posx, 0.0f, static_cast<float>(gridLayout.terrainWorldSize));
+    posz = std::clamp(posz, 0.0f, static_cast<float>(gridLayout.terrainWorldSize));
+    const int sx = std::clamp(static_cast<int>(std::floor(posx / sampleSize)), 0, samples - 1);
+    const int sz = std::clamp(static_cast<int>(std::floor(posz / sampleSize)), 0, samples - 1);
+    const float tx = (posx - sx * sampleSize) / sampleSize;
+    const float tz = (posz - sz * sampleSize) / sampleSize;
     
     float roznica = 0;
     //return 0;
-    if((int)(posz / sampleSize) >= samples )
-        posz = posz - 1;
-    if((int)(posx / sampleSize) >= samples )
-        posx = posx - 1;
-
     if (addR) {
-        roznica = 0.25 * (terrainData[(int) (posz) / sampleSize][(int) (posx) / sampleSize] +
-                terrainData[(int) (posz) / sampleSize + 1][(int) (posx) / sampleSize + 1] +
-                terrainData[(int) (posz) / sampleSize + 1][(int) (posx) / sampleSize] +
-                terrainData[(int) (posz) / sampleSize][(int) (posx) / sampleSize + 1]) -
-                0.5f * (terrainData[(int) (posz) / sampleSize][(int) (posx) / sampleSize] +
-                terrainData[(int) (posz) / sampleSize + 1][(int) (posx) / sampleSize + 1]);
+        roznica = 0.25 * (terrainData[sz][sx] + terrainData[sz + 1][sx + 1]
+                + terrainData[sz + 1][sx] + terrainData[sz][sx + 1])
+                - 0.5f * (terrainData[sz][sx] + terrainData[sz + 1][sx + 1]);
     }
     return (
-            terrainData[(int) (posz) / sampleSize][(int) (posx) / sampleSize]*(1.0 - tx)*(1.0 - tz) +
-            terrainData[(int) (posz) / sampleSize][(int) (posx) / sampleSize + 1]*(tx)*(1.0 - tz) +
-            terrainData[(int) (posz) / sampleSize + 1][(int) (posx) / sampleSize]*(1.0 - tx)*(tz) +
-            terrainData[(int) (posz) / sampleSize + 1][(int) (posx) / sampleSize + 1]*(tx)*(tz)
+            terrainData[sz][sx]*(1.0 - tx)*(1.0 - tz) +
+            terrainData[sz][sx + 1]*(tx)*(1.0 - tz) +
+            terrainData[sz + 1][sx]*(1.0 - tx)*(tz) +
+            terrainData[sz + 1][sx + 1]*(tx)*(tz)
             + fabs(roznica));
 }
 
@@ -1268,9 +1405,9 @@ void Terrain::refreshWaterShapes(){
     for (WaterTile* wt : water){
         if(wt == NULL)
             continue;
-        for (int uu = 0; uu < 16; uu++) {
-            for (int yy = 0; yy < 16; yy++) {
-                wt->w[uu * 16 + yy].loaded = false;
+        for (int uu = 0; uu < gridLayout.patchesPerSide; uu++) {
+            for (int yy = 0; yy < gridLayout.patchesPerSide; yy++) {
+                wt->w[uu * gridLayout.patchesPerSide + yy].loaded = false;
             }
         }
     }
@@ -1278,60 +1415,52 @@ void Terrain::refreshWaterShapes(){
 }
 
 bool Terrain::isXYinside(int x, int y){
-    int samples = *tfile->nsamples;
-    int sampleSize = *tfile->sampleSize;
-    float tileSize = sampleSize*samples;
-    int patches = tfile->patchsetNpatches;
-    int patchSize = tileSize/patches;
     float posx = 0, posz = 0;
-    posx -= 2048 * (mojex-x) - 1024;
-    posz -= 2048 * (mojez-y) + 1024;
-    posz = tileSize + posz;
+    getLocalCoords(x, y, posx, posz);
 
-    if(posx < 0 || posz < 0 || posx > tileSize || posz > tileSize )
+    if(posx < 0 || posz < 0 || posx > gridLayout.terrainWorldSize
+            || posz > gridLayout.terrainWorldSize)
         return false;
     return true;
 }
 
 int Terrain::getPatchSize(){
-    int samples = *tfile->nsamples;
-    int sampleSize = *tfile->sampleSize;
-    float tileSize = sampleSize*samples;
-    int patches = tfile->patchsetNpatches;
-    return tileSize/patches;
+    return gridLayout.patchWorldSize;
+}
+
+void Terrain::setAllErrorBias(float val){
+    if (!editable)
+        return;
+    const int patchCount = gridLayout.patchesPerSide * gridLayout.patchesPerSide;
+    for (int patch = 0; patch < patchCount; ++patch)
+        tfile->errorBias[patch] = val;
+    setModified(true);
 }
 
 int Terrain::getSampleSize(){
-    return *tfile->sampleSize;
+    return gridLayout.sampleSpacing;
 }
 
 void Terrain::getLocalCoords(int x, int z, float &posx, float &posz){
-    int samples = *tfile->nsamples;
-    int sampleSize = *tfile->sampleSize;
-    float tileSize = sampleSize*samples;
-    int patches = tfile->patchsetNpatches;
-    int patchSize = tileSize/patches;
-    posx -= 2048 * (mojex-x) - 1024;
-    posz -= 2048 * (mojez-z) + 1024;
-    posz = tileSize + posz;
+    posx -= TerrainGridLayout::WorldTileSize * (mojex-x)
+            - TerrainGridLayout::WorldTileHalfSize;
+    posz -= TerrainGridLayout::WorldTileSize * (mojez-z)
+            + TerrainGridLayout::WorldTileHalfSize;
+    posz = gridLayout.terrainWorldSize + posz;
 }
 
 void Terrain::getPatchCoords(int &x, int &z, float &posx, float &posz){
-    int samples = *tfile->nsamples;
-    int sampleSize = *tfile->sampleSize;
-    float tileSize = sampleSize*samples;
-    int patches = tfile->patchsetNpatches;
-    int patchSize = tileSize/patches;
-    posx -= 2048 * (mojex-x) - 1024;
-    posz -= 2048 * (mojez-z) + 1024;
-    posz = tileSize + posz;
-    
-    x = posx / patchSize;
-    z = posz / patchSize;
+    getLocalCoords(x, z, posx, posz);
+    x = std::clamp(static_cast<int>(std::floor(posx / gridLayout.patchWorldSize)),
+                   0, gridLayout.patchesPerSide - 1);
+    z = std::clamp(static_cast<int>(std::floor(posz / gridLayout.patchWorldSize)),
+                   0, gridLayout.patchesPerSide - 1);
 }
 
 
 void Terrain::setTexture(QString textureName, int x, int z, float posx, float posz, QString transformation){
+    if (!editable)
+        return;
     if(Game::seasonalEditing && Game::season.length() > 0)
         return;
     
@@ -1356,6 +1485,8 @@ void Terrain::setTexture(QString textureName, int x, int z, float posx, float po
 }
 
 void Terrain::setTexture(Brush* brush, int x, int z, float posx, float posz) {
+    if (!editable)
+        return;
     if(Game::seasonalEditing && Game::season.length() > 0)
         return;
     
@@ -1366,6 +1497,10 @@ void Terrain::setTexture(Brush* brush, int x, int z, float posx, float posz) {
 }
 
 void Terrain::setTexture(Brush* brush, int u) {
+    if (!editable)
+        return;
+    if(!gridLayout.isPatchIndexValid(u))
+        return;
     if(Game::seasonalEditing && Game::season.length() > 0)
         return;
     
@@ -1447,6 +1582,8 @@ void Terrain::setTexture(Brush* brush, int u) {
 }
 
 void Terrain::paintTexture(Brush* brush, int x, int z, float posx, float posz) {
+    if (!editable)
+        return;
     //if(Game::seasonalEditing)
     //    return;
     
@@ -1466,6 +1603,8 @@ void Terrain::paintTexture(Brush* brush, int x, int z, float posx, float posz) {
 
     for (int i = u - 1; i < u + 2; i++)
         for (int j = y - 1; j < y + 2; j++) {
+            if (i < 0 || j < 0 || i >= patches || j >= patches)
+                continue;
             float tx = posx - i * patchSize;
             float tz = posz - j * patchSize;
             tx /= patchSize;
@@ -1480,6 +1619,8 @@ void Terrain::paintTexture(Brush* brush, int x, int z, float posx, float posz) {
 }
 
 void Terrain::lockTexture(Brush* brush, int x, int z, float posx, float posz) {
+    if (!editable)
+        return;
     getPatchCoords(x, z, posx, posz);
     int patches = tfile->patchsetNpatches;
     texLocked[z * patches + x] = !texLocked[z * patches + x];
@@ -1659,8 +1800,15 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
                 r->disableTextures(0.7,0.7,0.7,1.0);
                 if (hidden[yy * patches + uu]) continue;
                 if ((tfile->flags[yy * patches + uu] & 1) != 0) continue;
-                float lodxx = lodx + uu * 128 - 1024;
-                float lodzz = lodz + yy * 128 - 1024;
+                const float lodxx = lodx
+                        + TerrainGridLayout::WorldTileSize * (mojex - tileX)
+                        - TerrainGridLayout::WorldTileHalfSize
+                        + uu * gridLayout.patchWorldSize;
+                const float lodzz = lodz
+                        + TerrainGridLayout::WorldTileSize * (mojez - tileY)
+                        + TerrainGridLayout::WorldTileHalfSize
+                        - gridLayout.terrainWorldSize
+                        + yy * gridLayout.patchWorldSize;
                 lod = sqrt(lodxx * lodxx + lodzz * lodzz);
                 if(Game::viewTerrainShape)
                     if (lod > 300) continue;
@@ -1963,8 +2111,15 @@ void Terrain::render(float lodx, float lodz, int tileX, int tileY, float* player
             for (int yy = 0; yy < patches; yy++) {
                 if (hidden[yy * patches + uu]) continue;
                 if ((tfile->flags[yy * patches + uu] & 1) != 0) continue;
-                float lodxx = lodx + uu * 128 - 1024;
-                float lodzz = lodz + yy * 128 - 1024;
+                const float lodxx = lodx
+                        + TerrainGridLayout::WorldTileSize * (mojex - tileX)
+                        - TerrainGridLayout::WorldTileHalfSize
+                        + uu * gridLayout.patchWorldSize;
+                const float lodzz = lodz
+                        + TerrainGridLayout::WorldTileSize * (mojez - tileY)
+                        + TerrainGridLayout::WorldTileHalfSize
+                        - gridLayout.terrainWorldSize
+                        + yy * gridLayout.patchWorldSize;
                 lod = sqrt(lodxx * lodxx + lodzz * lodzz);
                 if(Game::viewTerrainShape)
                     if (lod > 300) continue;
@@ -2134,13 +2289,13 @@ void Terrain::renderWater(float lodx, float lodz, float tileX, float tileY, floa
 
 void Terrain::reloadLines() {
     // tile lines
-    float *punkty = new float[256 * 6 * 4];
+    int samples = *tfile->nsamples;
+    int sampleSize = gridLayout.sampleSpacing;
+    int patches = gridLayout.patchesPerSide;
+    int patchRes = gridLayout.patchResolution;
+    float *punkty = new float[static_cast<std::size_t>(samples) * 6 * 4];
     int ptr = 0;
     int i = 0;
-
-    int samples = *tfile->nsamples;
-    int sampleSize = *tfile->sampleSize;
-    int patches = tfile->patchsetNpatches;
     int patchSize = (samples*sampleSize)/patches;
     int min = 0;
     int max = sampleSize * samples;
@@ -2185,11 +2340,11 @@ void Terrain::reloadLines() {
     lines.init(punkty, ptr, RenderItem::V, GL_LINES);
     delete[] punkty;
     //s tile lines
-    punkty = new float[samples * 32 * 6];
+    punkty = new float[static_cast<std::size_t>(samples) * patches * 12];
     ptr = 0;
     i = 0;
 
-    for (int j = 0; j < samples; j += 16) {
+    for (int j = 0; j < samples; j += patchRes) {
         for (i = 0; i < samples; i++) {
             punkty[ptr++] = min + j *sampleSize;
             punkty[ptr++] = 0.9 + terrainData[i][j];
@@ -2215,48 +2370,48 @@ void Terrain::reloadLines() {
     //////////////////////
     
     int ui = 0;
-    for (int uu = 0; uu < 16; uu++)
-        for (int yy = 0; yy < 16; yy++)
-            if(this->uniqueTex[uu*16+yy]) ui++;
+    for (int uu = 0; uu < patches; uu++)
+        for (int yy = 0; yy < patches; yy++)
+            if(this->uniqueTex[uu*patches+yy]) ui++;
     
-    punkty = new float[samples * 128 * 6];
+    punkty = new float[static_cast<std::size_t>(patches) * samples * 24];
     ptr = 0;
     i = 0;
     
-    for (int uu = 0; uu < 16; uu++)
-        for (int yy = 0; yy < 16; yy++){
-            if(!this->uniqueTex[yy*16+uu]) continue;
+    for (int uu = 0; uu < patches; uu++)
+        for (int yy = 0; yy < patches; yy++){
+            if(!this->uniqueTex[yy*patches+uu]) continue;
             
-            for (i = 0; i < 16; i++) {
+            for (i = 0; i < patchRes; i++) {
                  punkty[ptr++] = min + uu*patchSize;
-                 punkty[ptr++] = 0.95 + terrainData[yy*16+i][uu*16+0];
+                 punkty[ptr++] = 0.95 + terrainData[yy*patchRes+i][uu*patchRes];
                  punkty[ptr++] = min + yy*patchSize + i *sampleSize;
                  punkty[ptr++] = min + uu*patchSize;
-                 punkty[ptr++] = 0.95 + terrainData[yy*16+ i + 1][uu*16+0];
+                 punkty[ptr++] = 0.95 + terrainData[yy*patchRes+i+1][uu*patchRes];
                  punkty[ptr++] = min + yy*patchSize + i *sampleSize +sampleSize;
             }
-            for (i = 0; i < 16; i++) {
+            for (i = 0; i < patchRes; i++) {
                  punkty[ptr++] = min + uu*patchSize + i *sampleSize;
-                 punkty[ptr++] = 0.95 + terrainData[yy*16+0][uu*16+i];
+                 punkty[ptr++] = 0.95 + terrainData[yy*patchRes][uu*patchRes+i];
                  punkty[ptr++] = min + yy*patchSize;
                  punkty[ptr++] = min + uu*patchSize + i *sampleSize +sampleSize;
-                 punkty[ptr++] = 0.95 + terrainData[yy*16+0][uu*16+i + 1];
+                 punkty[ptr++] = 0.95 + terrainData[yy*patchRes][uu*patchRes+i+1];
                  punkty[ptr++] = min + yy*patchSize;
             }
-            for (i = 0; i < 16; i++) {
+            for (i = 0; i < patchRes; i++) {
                  punkty[ptr++] = min + uu*patchSize+patchSize;
-                 punkty[ptr++] = 0.95 + terrainData[yy*16+i][uu*16+16];
+                 punkty[ptr++] = 0.95 + terrainData[yy*patchRes+i][(uu+1)*patchRes];
                  punkty[ptr++] = min + yy*patchSize + i *sampleSize;
                  punkty[ptr++] = min + uu*patchSize+patchSize;
-                 punkty[ptr++] = 0.95 + terrainData[yy*16+ i + 1][uu*16+16];
+                 punkty[ptr++] = 0.95 + terrainData[yy*patchRes+i+1][(uu+1)*patchRes];
                  punkty[ptr++] = min + yy*patchSize + i *sampleSize +sampleSize;
             }
-            for (i = 0; i < 16; i++) {
+            for (i = 0; i < patchRes; i++) {
                  punkty[ptr++] = min + uu*patchSize + i *sampleSize;
-                 punkty[ptr++] = 0.95 + terrainData[yy*16+16][uu*16+i];
+                 punkty[ptr++] = 0.95 + terrainData[(yy+1)*patchRes][uu*patchRes+i];
                  punkty[ptr++] = min + yy*patchSize+patchSize;
                  punkty[ptr++] = min + uu*patchSize + i *sampleSize +sampleSize;
-                 punkty[ptr++] = 0.95 + terrainData[yy*16+16][uu*16+i + 1];
+                 punkty[ptr++] = 0.95 + terrainData[(yy+1)*patchRes][uu*patchRes+i+1];
                  punkty[ptr++] = min + yy*patchSize+patchSize;
             }
         }
@@ -2268,48 +2423,48 @@ void Terrain::reloadLines() {
     //////////////////////
     
     ui = 0;
-    for (int uu = 0; uu < 16; uu++)
-        for (int yy = 0; yy < 16; yy++)
-            if(this->texLocked[uu*16+yy]) ui++;
+    for (int uu = 0; uu < patches; uu++)
+        for (int yy = 0; yy < patches; yy++)
+            if(this->texLocked[uu*patches+yy]) ui++;
     
-    punkty = new float[samples * 128 * 6];
+    punkty = new float[static_cast<std::size_t>(patches) * samples * 24];
     ptr = 0;
     i = 0;
     
-    for (int uu = 0; uu < 16; uu++)
-        for (int yy = 0; yy < 16; yy++){
-            if(!this->texLocked[yy*16+uu]) continue;
+    for (int uu = 0; uu < patches; uu++)
+        for (int yy = 0; yy < patches; yy++){
+            if(!this->texLocked[yy*patches+uu]) continue;
             
-            for (i = 0; i < 16; i++) {
+            for (i = 0; i < patchRes; i++) {
                  punkty[ptr++] = min + uu*patchSize;
-                 punkty[ptr++] = 0.99 + terrainData[yy*16+i][uu*16+0];
+                 punkty[ptr++] = 0.99 + terrainData[yy*patchRes+i][uu*patchRes];
                  punkty[ptr++] = min + yy*patchSize + i *sampleSize;
                  punkty[ptr++] = min + uu*patchSize;
-                 punkty[ptr++] = 0.99 + terrainData[yy*16+ i + 1][uu*16+0];
+                 punkty[ptr++] = 0.99 + terrainData[yy*patchRes+i+1][uu*patchRes];
                  punkty[ptr++] = min + yy*patchSize + i *sampleSize +sampleSize;
             }
-            for (i = 0; i < 16; i++) {
+            for (i = 0; i < patchRes; i++) {
                  punkty[ptr++] = min + uu*patchSize + i *sampleSize;
-                 punkty[ptr++] = 0.99 + terrainData[yy*16+0][uu*16+i];
+                 punkty[ptr++] = 0.99 + terrainData[yy*patchRes][uu*patchRes+i];
                  punkty[ptr++] = min + yy*patchSize;
                  punkty[ptr++] = min + uu*patchSize + i *sampleSize +sampleSize;
-                 punkty[ptr++] = 0.99 + terrainData[yy*16+0][uu*16+i + 1];
+                 punkty[ptr++] = 0.99 + terrainData[yy*patchRes][uu*patchRes+i+1];
                  punkty[ptr++] = min + yy*patchSize;
             }
-            for (i = 0; i < 16; i++) {
+            for (i = 0; i < patchRes; i++) {
                  punkty[ptr++] = min + uu*patchSize+patchSize;
-                 punkty[ptr++] = 0.99 + terrainData[yy*16+i][uu*16+16];
+                 punkty[ptr++] = 0.99 + terrainData[yy*patchRes+i][(uu+1)*patchRes];
                  punkty[ptr++] = min + yy*patchSize + i *sampleSize;
                  punkty[ptr++] = min + uu*patchSize+patchSize;
-                 punkty[ptr++] = 0.99 + terrainData[yy*16+ i + 1][uu*16+16];
+                 punkty[ptr++] = 0.99 + terrainData[yy*patchRes+i+1][(uu+1)*patchRes];
                  punkty[ptr++] = min + yy*patchSize + i *sampleSize +sampleSize;
             }
-            for (i = 0; i < 16; i++) {
+            for (i = 0; i < patchRes; i++) {
                  punkty[ptr++] = min + uu*patchSize + i *sampleSize;
-                 punkty[ptr++] = 0.99 + terrainData[yy*16+16][uu*16+i];
+                 punkty[ptr++] = 0.99 + terrainData[(yy+1)*patchRes][uu*patchRes+i];
                  punkty[ptr++] = min + yy*patchSize+patchSize;
                  punkty[ptr++] = min + uu*patchSize + i *sampleSize +sampleSize;
-                 punkty[ptr++] = 0.99 + terrainData[yy*16+16][uu*16+i + 1];
+                 punkty[ptr++] = 0.99 + terrainData[(yy+1)*patchRes][uu*patchRes+i+1];
                  punkty[ptr++] = min + yy*patchSize+patchSize;
             }
         }
@@ -2321,48 +2476,48 @@ void Terrain::reloadLines() {
     //////////////////////
     
     ui = 0;
-    for (int uu = 0; uu < 16; uu++)
-        for (int yy = 0; yy < 16; yy++)
-            if(this->selectedPatchs[uu*16+yy]) ui++;
+    for (int uu = 0; uu < patches; uu++)
+        for (int yy = 0; yy < patches; yy++)
+            if(this->selectedPatchs[uu*patches+yy]) ui++;
     
-    punkty = new float[samples * 128 * 6];
+    punkty = new float[static_cast<std::size_t>(patches) * samples * 24];
     ptr = 0;
     i = 0;
     
-    for (int uu = 0; uu < 16; uu++)
-        for (int yy = 0; yy < 16; yy++){
-            if(!this->selectedPatchs[yy*16+uu]) continue;
+    for (int uu = 0; uu < patches; uu++)
+        for (int yy = 0; yy < patches; yy++){
+            if(!this->selectedPatchs[yy*patches+uu]) continue;
             
-            for (i = 0; i < 16; i++) {
+            for (i = 0; i < patchRes; i++) {
                  punkty[ptr++] = min + uu*patchSize;
-                 punkty[ptr++] = 0.99 + terrainData[yy*16+i][uu*16+0];
+                 punkty[ptr++] = 0.99 + terrainData[yy*patchRes+i][uu*patchRes];
                  punkty[ptr++] = min + yy*patchSize + i *sampleSize;
                  punkty[ptr++] = min + uu*patchSize;
-                 punkty[ptr++] = 0.99 + terrainData[yy*16+ i + 1][uu*16+0];
+                 punkty[ptr++] = 0.99 + terrainData[yy*patchRes+i+1][uu*patchRes];
                  punkty[ptr++] = min + yy*patchSize + i *sampleSize +sampleSize;
             }
-            for (i = 0; i < 16; i++) {
+            for (i = 0; i < patchRes; i++) {
                  punkty[ptr++] = min + uu*patchSize + i *sampleSize;
-                 punkty[ptr++] = 0.99 + terrainData[yy*16+0][uu*16+i];
+                 punkty[ptr++] = 0.99 + terrainData[yy*patchRes][uu*patchRes+i];
                  punkty[ptr++] = min + yy*patchSize;
                  punkty[ptr++] = min + uu*patchSize + i *sampleSize +sampleSize;
-                 punkty[ptr++] = 0.99 + terrainData[yy*16+0][uu*16+i + 1];
+                 punkty[ptr++] = 0.99 + terrainData[yy*patchRes][uu*patchRes+i+1];
                  punkty[ptr++] = min + yy*patchSize;
             }
-            for (i = 0; i < 16; i++) {
+            for (i = 0; i < patchRes; i++) {
                  punkty[ptr++] = min + uu*patchSize+patchSize;
-                 punkty[ptr++] = 0.99 + terrainData[yy*16+i][uu*16+16];
+                 punkty[ptr++] = 0.99 + terrainData[yy*patchRes+i][(uu+1)*patchRes];
                  punkty[ptr++] = min + yy*patchSize + i *sampleSize;
                  punkty[ptr++] = min + uu*patchSize+patchSize;
-                 punkty[ptr++] = 0.99 + terrainData[yy*16+ i + 1][uu*16+16];
+                 punkty[ptr++] = 0.99 + terrainData[yy*patchRes+i+1][(uu+1)*patchRes];
                  punkty[ptr++] = min + yy*patchSize + i *sampleSize +sampleSize;
             }
-            for (i = 0; i < 16; i++) {
+            for (i = 0; i < patchRes; i++) {
                  punkty[ptr++] = min + uu*patchSize + i *sampleSize;
-                 punkty[ptr++] = 0.99 + terrainData[yy*16+16][uu*16+i];
+                 punkty[ptr++] = 0.99 + terrainData[(yy+1)*patchRes][uu*patchRes+i];
                  punkty[ptr++] = min + yy*patchSize+patchSize;
                  punkty[ptr++] = min + uu*patchSize + i *sampleSize +sampleSize;
-                 punkty[ptr++] = 0.99 + terrainData[yy*16+16][uu*16+i + 1];
+                 punkty[ptr++] = 0.99 + terrainData[(yy+1)*patchRes][uu*patchRes+i+1];
                  punkty[ptr++] = min + yy*patchSize+patchSize;
             }
         }
@@ -2516,7 +2671,7 @@ void Terrain::oglInit() {
     }
     QOpenGLVertexArrayObject::Binder vaoBinder(VAO);
     VBO->bind();
-    VBO->allocate(256 * 16 * 16 * 6 * 8 * sizeof (GLfloat));
+    VBO->allocate(static_cast<int>(gridLayout.terrainVboBytes));
     QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
     f->glEnableVertexAttribArray(0);
     f->glEnableVertexAttribArray(1);
@@ -2527,16 +2682,20 @@ void Terrain::oglInit() {
     
     //int ilosc = 16 * 16;
     //int suma;
-    float * punkty = new float[16 * 16 * 48];
+    const std::size_t patchFloatCount = gridLayout.patchVboBytes / sizeof(GLfloat);
+    float * punkty = new float[patchFloatCount]();
     //  var punkty = Terrain.punkty;
     int samples = *tfile->nsamples;
     int patches = tfile->patchsetNpatches;
     int patchRes = samples/patches;
-    float texRes = 1.0;// (float)16.0/patchRes;
+    // Patch texture matrices consume raw sample coordinates (0..patchRes),
+    // matching the interpretation used by Open Rails.
+    constexpr float texRes = 1.0f;
     
     for (int uu = 0; uu < patches; uu++) {
         for (int yy = 0; yy < patches; yy++) {
             int ptr = 0;
+            std::fill(punkty, punkty + patchFloatCount, 0.0f);
             bool fi0j0 = true, fi1j0 = true, fi0j1 = true, fi1j1 = true;
 
             for (int ii = 0; ii < patchRes; ii++) {
@@ -2698,7 +2857,8 @@ void Terrain::oglInit() {
             
             //VBO[0]->bind();
             //VBO[0]->
-            VBO->write((uu * patches + yy) * patchRes * patchRes * 6 * 8 * sizeof (GLfloat), punkty, patchRes * patchRes * 6 * 8 * sizeof (GLfloat));
+            const int patchBytes = static_cast<int>(gridLayout.patchVboBytes);
+            VBO->write((uu * patches + yy) * patchBytes, punkty, patchBytes);
             //VBO[0]->allocate(punkty, 16 * 16 * 6 * 5 * sizeof (GLfloat));
             //f->glEnableVertexAttribArray(0);
             //f->glEnableVertexAttribArray(1);
@@ -2731,7 +2891,7 @@ void Terrain::initBlob(){
     int samples = *tfile->nsamples;
     int patches = tfile->patchsetNpatches;
     int patchRes = samples/patches;
-    float *punkty = new float[65536 * 54];
+    float *punkty = new float[gridLayout.storedCellCount * 54];
     int ptr = 0;
     float step = 1.0/samples;
     for (int jj = 0; jj < samples; jj++) {
@@ -2810,16 +2970,23 @@ bool Terrain::readRAW(QString fSfile) {
     if (!file.open(QIODevice::ReadOnly))
         return false;
     FileBuffer* data = ReadFile::readRAW(&file);
+    if (!validatePayload(data, sizeof(quint16), "height RAW")) {
+        delete data;
+        return false;
+    }
     readRAW(data);
     delete data;
     return true;
 }
 
 void Terrain::readRAW(FileBuffer* data) {
-
-    int samples = *tfile->nsamples;
+    if (!validatePayload(data, sizeof(quint16), "height RAW"))
+        return;
+    releaseHeightData();
+    int samples = gridLayout.sampleCount;
     //qDebug() << data->length;
     terrainData = new float*[samples+1];
+    terrainDataRows = samples + 1;
     //int u = 0;
     for (int i = 0; i < samples+1; i++) {
         terrainData[i] = new float[samples+1];
@@ -2840,9 +3007,13 @@ void Terrain::readRAW(FileBuffer* data) {
 }
 
 void Terrain::readRAWFloat(FileBuffer* data) {
-    int samples = *tfile->nsamples;
+    if (!validatePayload(data, sizeof(float), "float height RAW"))
+        return;
+    releaseHeightData();
+    int samples = gridLayout.sampleCount;
     //qDebug() << data->length;
     terrainData = new float*[samples+1];
+    terrainDataRows = samples + 1;
     //int u = 0;
     for (int i = 0; i < samples+1; i++) {
         terrainData[i] = new float[samples+1];
@@ -2862,6 +3033,8 @@ void Terrain::readRAWFloat(FileBuffer* data) {
 }
 
 void Terrain::fillHeightMap(float* data){
+    if (!editable)
+        return;
     int samples = *tfile->nsamples + 1;
     for (int i = 0; i < samples; i++)
         for (int j = 0; j < samples; j++) {
@@ -2871,6 +3044,8 @@ void Terrain::fillHeightMap(float* data){
 }
 
 void Terrain::save() {
+    if (!editable)
+        return;
     QString path = Game::root + "/routes/" + Game::route + "/" + TileDir[(int)lowTile] + "/";
     QString filename = name;
     if(this->tfile->sampleYbuffer == NULL)
@@ -2948,10 +3123,13 @@ void Terrain::saveRAWFloat(QDataStream &write){
 }
 
 void Terrain::newF(){
-    fData = new unsigned char*[257];
-    for (int j = 0; j < 257; j++) {
-        fData[j] = new unsigned char[257];
-        for (int i = 0; i < 257; i++) {
+    releaseFData();
+    const int side = gridLayout.sampleCount + 1;
+    fData = new unsigned char*[side];
+    fDataRows = side;
+    for (int j = 0; j < side; j++) {
+        fData[j] = new unsigned char[side];
+        for (int i = 0; i < side; i++) {
             fData[j][i] = 0;
         }
     }
@@ -2966,6 +3144,10 @@ bool Terrain::readF(QString fSfile) {
     if (!file.open(QIODevice::ReadOnly))
         return false;
     FileBuffer* data = ReadFile::readRAW(&file);
+    if (!validatePayload(data, sizeof(unsigned char), "terrain F RAW")) {
+        delete data;
+        return false;
+    }
     readF(data);
     delete data;
     return true;
@@ -2974,9 +3156,13 @@ bool Terrain::readF(QString fSfile) {
 void Terrain::readF(FileBuffer *data){
     //qDebug() << "Wczytam teren F: " << fSfile << data->length;
 
-    int samples = *tfile->nsamples;
+    if (!validatePayload(data, sizeof(unsigned char), "terrain F RAW"))
+        return;
+    releaseFData();
+    int samples = gridLayout.sampleCount;
     int u = 0;
     fData = new unsigned char*[samples+1];
+    fDataRows = samples + 1;
     for (int j = 0; j < samples+1; j++) {
         fData[j] = new unsigned char[samples+1];
         for (int i = 0; i < samples+1; i++) {
@@ -2986,8 +3172,9 @@ void Terrain::readF(FileBuffer *data){
                 fData[j][i] = data->data[u++];
         }
     }
+    jestF = true;
 
-} 
+}
 
 void Terrain::saveF(QString name) {
     name.replace("//", "/");
@@ -3016,7 +3203,7 @@ void Terrain::saveF(QDataStream &write) {
 }
 
 int Terrain::getSelectedPathId(){
-    for (int uu = 0; uu < 256; uu++) {
+    for (int uu = 0; uu < gridLayout.patchRecordCount(); uu++) {
         if(selectedPatchs[uu]){
             return uu;
         }
@@ -3025,7 +3212,7 @@ int Terrain::getSelectedPathId(){
 }
 
 int Terrain::getSelectedShaderId(){
-    for (int uu = 0; uu < 256; uu++) {
+    for (int uu = 0; uu < gridLayout.patchRecordCount(); uu++) {
         if(selectedPatchs[uu]){
             return tfile->tdata[(uu)*13 + 0 + 6];
         }
@@ -3034,7 +3221,7 @@ int Terrain::getSelectedShaderId(){
 }
 
 QString Terrain::getPatchMainTextureName(){
-    for (int uu = 0; uu < 256; uu++) {
+    for (int uu = 0; uu < gridLayout.patchRecordCount(); uu++) {
         if(selectedPatchs[uu]){
             return *tfile->materials[(int) tfile->tdata[(uu)*13 + 0 + 6]].tex[0];
         }
@@ -3050,13 +3237,18 @@ QString Terrain::getPatchMainTextureName(int x, int z, float posx, float posz){
 }
 
 QString Terrain::getPatchMainTextureName(int u){
-
+    if(!gridLayout.isPatchIndexValid(u))
+        return "UNDEFINED";
     return *tfile->materials[(int) tfile->tdata[(u)*13 + 0 + 6]].tex[0];
 
     //return "UNDEFINED";
 }
 
 bool Terrain::select(int value, bool oneMore){
+    if (!editable)
+        return false;
+    if (!gridLayout.isPatchIndexValid(value))
+        return false;
     if(oneMore){
         selected = true;
         selectedPatchs[value] = !selectedPatchs[value];
@@ -3067,18 +3259,29 @@ bool Terrain::select(int value, bool oneMore){
 }
 
 bool Terrain::select(int value){
+    if (!editable)
+        return false;
+    if (!gridLayout.isPatchIndexValid(value))
+        return false;
     if(selected){
         int selectedId = 0;
-        for (int uu = 0; uu < 256; uu++) {
+        bool hasAnchor = false;
+        for (int uu = 0; uu < gridLayout.patchRecordCount(); uu++) {
             if(selectedPatchs[uu]){
                 selectedId = uu;
+                hasAnchor = true;
                 break;
             }
         }
-        int u1 = selectedId / 16;
-        int y1 = selectedId - u1*16;
-        int u2 = value / 16;
-        int y2 = value - u2*16;
+        if (!hasAnchor) {
+            selectedPatchs[value] = true;
+            reloadLines();
+            return true;
+        }
+        int u1 = gridLayout.patchRow(selectedId);
+        int y1 = gridLayout.patchColumn(selectedId);
+        int u2 = gridLayout.patchRow(value);
+        int y2 = gridLayout.patchColumn(value);
         if(u1 > u2){
             int temp = u2;
             u2 = u1;
@@ -3091,9 +3294,10 @@ bool Terrain::select(int value){
         }
         for(int i = u1; i <= u2; i++)
             for(int j = y1; j <= y2; j++){
-                if(i < 0 || j < 0 || i > 15 || j > 15)
+                if(i < 0 || j < 0 || i >= gridLayout.patchesPerSide
+                        || j >= gridLayout.patchesPerSide)
                     continue;
-                selectedPatchs[i*16+j] = true;
+                selectedPatchs[gridLayout.patchIndex(i, j)] = true;
             }
     } else {
         selected = true;
@@ -3104,7 +3308,7 @@ bool Terrain::select(int value){
 }
 
 bool Terrain::unselect(){
-    for (int i = 0; i < 256; i++) {
+    for (int i = 0; i < gridLayout.patchRecordCount(); i++) {
         selectedPatchs[i] = false;
     }
     reloadLines();
@@ -3113,6 +3317,8 @@ bool Terrain::unselect(){
 }
 
 void Terrain::pushContextMenuActions(QMenu *menu){
+    if (!editable)
+        return;
     if(contextMenuActions["togglewater"] == NULL){
         contextMenuActions["togglewater"] = new QAction(tr("&Toggle Water")); 
         QObject::connect(contextMenuActions["togglewater"], SIGNAL(triggered()), this, SLOT(menuToggleWater()));
@@ -3146,7 +3352,7 @@ void Terrain::menuToggleDraw(){
 void Terrain::menuPutTexture(){
     if(DefaultBrush == NULL)
         return;
-    for (int uu = 0; uu < 256; uu++) {
+    for (int uu = 0; uu < gridLayout.patchRecordCount(); uu++) {
         if(selectedPatchs[uu]){
             setTexture(DefaultBrush, uu);
         }
@@ -3154,25 +3360,116 @@ void Terrain::menuPutTexture(){
 }
 
 void Terrain::menuSelectObjects(){
-    
-    // Adjust for other tiles than 2048x2048m in the future.
-    
-    int minx = 2048, maxx = 0, minz = 2048, maxz = 0;
-    for (int i = 0; i < 16; i++)
-        for (int j = 0; j < 16; j++) {
-            int uu = j*16 + i;
+    const int patches = gridLayout.patchesPerSide;
+    const int patchSize = gridLayout.patchWorldSize;
+    int minx = gridLayout.terrainWorldSize;
+    int maxx = 0;
+    int minz = gridLayout.terrainWorldSize;
+    int maxz = 0;
+    for (int i = 0; i < patches; i++)
+        for (int j = 0; j < patches; j++) {
+            int uu = j * patches + i;
             if(selectedPatchs[uu]){
-                if(i*128 < minx) minx = i*128;
-                if(i*128+128 > maxx) maxx = i*128+128;
-                if(j*128 < minz) minz = j*128;
-                if(j*128+128 > maxz) maxz = j*128+128;
-                
-                //setTexture(DefaultBrush, uu);
+                if(i * patchSize < minx) minx = i * patchSize;
+                if((i + 1) * patchSize > maxx) maxx = (i + 1) * patchSize;
+                if(j * patchSize < minz) minz = j * patchSize;
+                if((j + 1) * patchSize > maxz) maxz = (j + 1) * patchSize;
             }
         }
-    //minx = 1024 - maxx; maxx = 1024 - minx ; minz = 1024 - maxz; maxz = 1024 - minz;
+    if (minx >= maxx || minz >= maxz)
+        return;
+    if (gridLayout.terrainWorldSize != TerrainGridLayout::WorldTileSize) {
+        qWarning() << "Selecting World objects from terrain patches is unsupported for"
+                   << gridLayout.terrainWorldSize << "m terrain tiles";
+        return;
+    }
     qDebug() << minx << maxx << minz << maxz;
-    qDebug() << minx - 1024 << maxx - 1024 << minz - 1024 << maxz - 1024;
+    qDebug() << minx - TerrainGridLayout::WorldTileHalfSize
+             << maxx - TerrainGridLayout::WorldTileHalfSize
+             << minz - TerrainGridLayout::WorldTileHalfSize
+             << maxz - TerrainGridLayout::WorldTileHalfSize;
     if(Game::currentRoute != NULL)
-        Game::currentRoute->selectObjectsByXYRange(mojex, mojez, minx - 1024 , maxx - 1024 , minz - 1024 , maxz - 1024);
+        Game::currentRoute->selectObjectsByXYRange(
+                    mojex, mojez,
+                    minx - TerrainGridLayout::WorldTileHalfSize,
+                    maxx - TerrainGridLayout::WorldTileHalfSize,
+                    minz - TerrainGridLayout::WorldTileHalfSize,
+                    maxz - TerrainGridLayout::WorldTileHalfSize);
+}
+
+bool Terrain::validateGridLayout(const QString &source) {
+    if (tfile == NULL || tfile->nsamples == NULL || tfile->sampleSize == NULL) {
+        qWarning() << "Unsupported terrain descriptor" << source
+                   << "missing required sample metadata"
+                   << "samples present" << (tfile != NULL && tfile->nsamples != NULL)
+                   << "spacing present" << (tfile != NULL && tfile->sampleSize != NULL);
+        gridLayout = TerrainGridLayout{};
+        return false;
+    }
+    // MSTS accepts omitted sample rotation as the default unrotated grid.
+    // Preserve the omission when saving instead of inserting a new token.
+    const float rotation = tfile->sampleRotation == NULL
+            ? 0.0f : *tfile->sampleRotation;
+    QString error;
+    if (!TerrainGridLayout::tryCreate(*tfile->nsamples, *tfile->sampleSize,
+                                      tfile->patchsetNpatches,
+                                      rotation,
+                                      gridLayout, error)) {
+        qWarning() << "Unsupported terrain descriptor" << source
+                   << "samples" << *tfile->nsamples
+                   << "spacing" << *tfile->sampleSize
+                   << "patches" << tfile->patchsetNpatches
+                   << "rotation" << rotation
+                   << error;
+        editable = false;
+        return false;
+    }
+    editable = gridLayout.supportsEditing();
+    return true;
+}
+
+bool Terrain::validatePayload(const FileBuffer *data, std::size_t bytesPerCell,
+                              const QString &kind) const {
+    if (data == NULL || gridLayout.sampleCount == 0) {
+        qWarning() << "Cannot load" << kind << "for terrain" << name
+                   << "before a supported descriptor";
+        return false;
+    }
+    std::size_t expectedBytes = 0;
+    if (!gridLayout.expectedPayloadBytes(bytesPerCell, expectedBytes)) {
+        qWarning() << "Cannot calculate" << kind << "size for terrain" << name;
+        return false;
+    }
+    const int remaining = data->length - data->off;
+    if (remaining < 0 || static_cast<std::size_t>(remaining) != expectedBytes) {
+        qWarning() << "Invalid" << kind << "for terrain" << name
+                   << "samples" << gridLayout.sampleCount
+                   << "spacing" << gridLayout.sampleSpacing
+                   << "patches" << gridLayout.patchesPerSide
+                   << "expected bytes" << expectedBytes
+                   << "actual bytes" << remaining;
+        return false;
+    }
+    return true;
+}
+
+void Terrain::releaseHeightData() {
+    if (terrainData != NULL) {
+        for (int i = 0; i < terrainDataRows; ++i)
+            delete[] terrainData[i];
+        delete[] terrainData;
+    }
+    terrainData = NULL;
+    terrainDataRows = 0;
+}
+
+void Terrain::releaseFData() {
+    if (fData != NULL) {
+        for (int i = 0; i < fDataRows; ++i)
+            delete[] fData[i];
+        delete[] fData;
+    }
+    fData = NULL;
+    fDataRows = 0;
+    jestF = false;
 }

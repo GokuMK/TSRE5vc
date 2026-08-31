@@ -44,6 +44,7 @@ public slots:
     void hOffsetEnabled(QString val);
     
 private:
+    int allocatedTerrainResolution = 0;
     QLabel* imageLabel;
     QLineEdit *hOffsetEdit;
     float minlat, minlon, maxlat, maxlon;

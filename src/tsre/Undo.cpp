@@ -20,6 +20,7 @@
 #include <tsre/Game.h>
 #include <tsre/world/Route.h>
 #include <tsre/world/objects/GroupObj.h>
+#include <tsre/world/Terrain.h>
 
 bool Undo::UndoEnabled = true;
 UndoState* Undo::currentState = NULL;
@@ -88,8 +89,19 @@ void Undo::UndoLast(){
     while (i.hasNext()) {
         i.next();
         UndoState::TerrainData* tdata = i.value();
-        if(tdata != NULL)
-            Game::terrainLib->fillHeightMap(tdata->x, tdata->z, tdata->data);
+        if(tdata != NULL){
+            if(tdata->low)
+                Game::terrainLib->setDistantAsCurrent();
+            else
+                Game::terrainLib->setDetailedAsCurrent();
+            Terrain *terrain = Game::terrainLib->getTerrainByXY(tdata->x, tdata->z, true);
+            if(terrain != NULL && terrain->loaded
+                    && terrain->getSampleCount() == tdata->samples)
+                terrain->fillHeightMap(tdata->data.data());
+            else
+                qWarning() << "Skipping incompatible terrain undo snapshot"
+                           << tdata->x << tdata->z << "samples" << tdata->samples;
+        }
     }
     QMapIterator<int, unsigned char *> i1(state->texData);
     while (i1.hasNext()) {
@@ -140,6 +152,7 @@ void Undo::UndoLast(){
             state->roadDB = NULL;
         }
     }
+    Game::terrainLib->setDetailedAsCurrent();
 
     if(state->tsectionData.data != NULL
             && Game::currentRoute != NULL
@@ -223,20 +236,24 @@ void Undo::StateCancel(){
     currentState = NULL;
 }
 
-void Undo::PushTerrainHeightMap(int x, int z, float** data, int samples){
+void Undo::PushTerrainHeightMap(int x, int z, float** data, int samples, bool low){
     if(currentState == NULL)
         return;
     
-    samples += 1;
+    const int sampleCount = samples;
+    const int side = sampleCount + 1;
     UndoState::TerrainData * tdata = currentState->terrainData[x*10000+z];
     if(tdata == NULL){
         currentState->terrainData[x*10000+z] = new UndoState::TerrainData();
         tdata = currentState->terrainData[x*10000+z];
         tdata->x = x;
         tdata->z = z;
-        for (int i = 0; i < samples; i++)
-            for (int j = 0; j < samples; j++) {
-                    tdata->data[i*samples+j] = data[i][j];
+        tdata->samples = sampleCount;
+        tdata->low = low;
+        tdata->data.resize(side * side);
+        for (int i = 0; i < side; i++)
+            for (int j = 0; j < side; j++) {
+                    tdata->data[i*side+j] = data[i][j];
             }
         currentState->modified = true;
     }

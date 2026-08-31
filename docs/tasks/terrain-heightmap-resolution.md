@@ -1,14 +1,15 @@
-# Terrain heightmap resolution support (fixed 16 x 16 patches)
+# Terrain heightmap resolution support
 
-Status: detailed review complete; implementation task.
+Status: implemented, including variable patch-count editing up to 16 x 16.
 
 Related task: [variable terrain patch count](terrain-patch-count.md).
 
 ## Decision and scope
 
-Heightmap resolution and patch count are separate compatibility axes. This
-task changes the terrain sample grid while keeping the terrain descriptor's
-patch grid fixed at 16 x 16 (`P = 16`, 256 patch records).
+Heightmap resolution and patch count are separate compatibility axes. New tile
+creation remains fixed at 16 x 16 (`P = 16`, 256 patch records), while existing
+valid grids with `1 <= P <= 16` are loadable, renderable, editable, and
+saveable.
 
 The primary new profile is `512 samples @ 4 m`, alongside the existing
 `256 samples @ 8 m` profile. An experimental `1024 samples @ 2 m` profile is
@@ -26,16 +27,18 @@ In scope:
 
 - safe loading, rendering, editing, undo, F/gap data, geodata, networking, and
   saving for metadata-defined sample count and spacing;
-- validation of the fixed `P = 16` boundary at load/create time;
+- validation and editing of `1 <= P <= 16`, with new creation fixed at
+  `P = 16`;
 - preserving all terrain tile sizes already represented by the quadtree;
 - `512 @ 4 m` as a required supported case;
 - an explicitly experimental `B`-key GUI for creating isolated 256/8, 512/4,
   or 1024/2 test tiles;
-- loading checks that also reject unsupported patch counts cleanly.
+- loading checks that reject patch counts above 16 or incompatible with `N`.
 
 Out of scope:
 
-- a patch grid other than 16 x 16;
+- creating a patch grid other than 16 x 16, or loading more than 16 patches
+  per side;
 - changing the 2048 m World-file lattice;
 - converting/resampling an existing route to a different grid;
 - rectangular or rotated grids unless separately designed;
@@ -243,7 +246,7 @@ Before allocation or reading, validate:
 
 - `N > 0`;
 - `S` is finite and positive;
-- `P == 16`;
+- `1 <= P <= 16`;
 - `N >= P` and `N % P == 0`;
 - `T = N * S` is finite and consistent with the terrain quadtree entry;
 - all count/byte products fit `size_t`, API integer limits, and configured
@@ -308,10 +311,11 @@ path.
 
 ### 9. Texture UVs assume 16 samples per patch
 
-Default/reset UV coefficients are approximately `1 / 16`. With fixed
-`P = 16` but `N = 512`, the patch resolution becomes `R = 32`, so the texture
-is mapped at the wrong scale. `makeTextureFromMap()` also relies on formulas
-that happen to agree in the old `N == P * P == 256` profile.
+Default/reset UV coefficients are approximately `1 / 16`; that 16 is the
+fixed MSTS texture-coordinate domain inside one patch, not the number of
+patches. Rendering scales that domain by `16 / R`. `makeTextureFromMap()` must
+advance by `1 / (P * 16)` inside each patch; the old formula happened to agree
+only for `P == 16`.
 
 Required change:
 
@@ -792,14 +796,14 @@ tests. In particular:
 
 - validate `.t` before committing received height/F bodies;
 - validate exact variable payload sizes;
-- keep fixed patch-state initialization for now, but perform it only after the
-  descriptor confirms `P == 16`.
+- initialize fixed-capacity patch state only after the descriptor confirms
+  `1 <= P <= 16`, and operate only on the active `P * P` records.
 
 ## Suggested implementation stages
 
 1. Add `TerrainGridLayout`, named World constants, checked size calculations,
    early descriptor/payload validation, and length-aware opaque AS/US-buffer
-   preservation. Explicitly accept only `P == 16`.
+   preservation. Accept regular grids with `1 <= P <= 16`.
 2. Make height/F ownership and undo dimension-aware.
 3. Fix VBO, scratch, blob, and line buffers; prove visual parity on 256/8,
    then load/render 512/4.
@@ -821,9 +825,10 @@ tests. In particular:
 | `512 @ 4 m, P=16` | required high-resolution case, 2048 m terrain, `R=32` |
 | `1024 @ 2 m, P=16` | experimental `B`-created static-mesh test tile, `R=64` |
 | `256 @ 16 m, P=16` | 4096 m terrain covering 2 x 2 World files |
-| existing distant-terrain profile | prove larger physical terrain still works |
+| existing distant-terrain profile | prove its 4 x 4 grid loads, renders, edits, and saves |
 | `250 @ 8 m, P=16` | reject because `N % P != 0` |
-| valid `N/S`, `P != 16` | reject as deferred patch-count task |
+| valid `N/S`, `1 <= P < 16` | load/render/edit/save |
+| valid `N/S`, `P > 16` | reject because runtime patch capacity is 16 x 16 |
 | existing AS block | preserve its declared payload byte-for-byte on save |
 | absent AS block | preserve absence, including newly created 512/4 and 1024/2 terrain |
 | synthetic token-282/US block | preserve its label and arbitrary payload byte-for-byte without assigning semantics |
@@ -867,10 +872,12 @@ The 4096 m case additionally verifies:
 
 ## Acceptance criteria
 
-- `256 @ 8 m` and `512 @ 4 m`, both with 16 x 16 patches, load, render, edit,
-  undo, save, and reload without out-of-bounds access or UV distortion.
-- The `B` workflow creates all three named profiles, clearly labels the feature
-  experimental, and does not alter defaults in any other creation workflow.
+- `256 @ 8 m` and `512 @ 4 m`, with any valid patch count up to 16 x 16, load,
+  render, edit, undo, save, and reload without out-of-bounds access or UV
+  distortion.
+- The `B` workflow creates all three named profiles with selectable 4 x 4,
+  8 x 8, or 16 x 16 patch grids, clearly labels the feature experimental,
+  and does not alter defaults in any other creation workflow.
 - A `B`-created 1024/2 tile passes the isolated functional/memory-safety smoke
   test; it is not presented as a production-performance profile.
 - Existing non-2048 terrain sizes remain supported; the 4096 m fixture covers

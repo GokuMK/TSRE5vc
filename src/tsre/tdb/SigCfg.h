@@ -26,6 +26,8 @@ public:
     QHash<QString, SignalShape*> signalShape;
     QHash<int, SignalShape*> signalShapeById;
     QHash<QString, SignalType*> signalType;
+    bool loaded = false;
+    bool sourceFileExists = false;
     SigCfg();
     virtual ~SigCfg();
 private:

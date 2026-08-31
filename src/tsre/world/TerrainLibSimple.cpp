@@ -13,6 +13,7 @@
 #include <tsre/math3d/GLMatrix.h>
 #include <QOpenGLShaderProgram>
 #include <set>
+#include <cmath>
 #include <math.h>
 #include <tsre/Game.h>
 #include <tsre/texture/Brush.h>
@@ -22,6 +23,9 @@
 #include <tsre/world/Route.h>
 #include <tsre/world/Environment.h>
 #include <tsre/world/TerrainInfo.h>
+#include <QFile>
+
+static bool simpleTerrainLayoutSupported(Terrain *terrain);
 
 TerrainLibSimple::TerrainLibSimple() {
 }
@@ -33,7 +37,22 @@ TerrainLibSimple::~TerrainLibSimple() {
 }
 
 Terrain* TerrainLibSimple::getTerrainByXY(int x, int y, bool load){
-    return terrain[x*10000+y];
+    Terrain *value = terrain[x*10000+y];
+    if (value != NULL && value->loaded)
+        simpleTerrainLayoutSupported(value);
+    return value;
+}
+
+static bool simpleTerrainLayoutSupported(Terrain *terrain) {
+    if (terrain == NULL || !terrain->loaded)
+        return false;
+    if (terrain->getSampleCount() == 256 && terrain->getSampleSize() == 8)
+        return true;
+    qWarning() << "TerrainLibSimple supports only 256 samples at 8 m; rejecting"
+               << terrain->getTileName() << terrain->getSampleCount()
+               << terrain->getSampleSize();
+    terrain->loaded = false;
+    return false;
 }
 
 void TerrainLibSimple::loadQuadTree(){
@@ -52,6 +71,30 @@ void TerrainLibSimple::saveEmpty(int x, int z){
     quadTree->addTile(x, z);
     QString name = Terrain::getTileName(x, z);
     Terrain::SaveEmpty(name);
+}
+
+bool TerrainLibSimple::saveEmpty(int x, int z, TerrainHeightProfile profile,
+                                 int patches,
+                                 bool overwrite){
+    if (profile != TerrainHeightProfile::Standard256x8) {
+        qWarning() << "Experimental terrain profiles require quadtree terrain mode";
+        return false;
+    }
+    if (quadTree == NULL)
+        return false;
+    quadTree->addTile(x, z);
+    const QString name = Terrain::getTileName(x, z);
+    const TerrainGridLayout layout = TerrainGridLayout::profile(profile, patches);
+    if (layout.sampleCount == 0)
+        return false;
+    return Terrain::SaveEmpty(name, layout.sampleCount, layout.sampleSpacing,
+                              layout.patchesPerSide, false, overwrite);
+}
+
+bool TerrainLibSimple::hasDetailedTerrain(int x, int z){
+    const QString name = Terrain::getTileName(x, z);
+    return QFile::exists(Game::root + "/routes/" + Game::route
+                         + "/tiles/" + name + ".t");
 }
 
 bool TerrainLibSimple::isLoaded(int x, int z) {
@@ -76,7 +119,7 @@ bool TerrainLibSimple::load(int x, int z) {
     tTile = terrain[x*10000 + z];
     if (tTile == NULL)
         return false;
-    if (tTile->loaded) {
+    if (simpleTerrainLayoutSupported(tTile)) {
         return true;
     }
     return false;
@@ -116,7 +159,7 @@ bool TerrainLibSimple::reload(int x, int z) {
     tTile = terrain[x*10000 + z];
     if (tTile == NULL)
         return false;
-    if (tTile->loaded) {
+    if (simpleTerrainLayoutSupported(tTile)) {
         return true;
     }
     return false;
@@ -132,6 +175,7 @@ void TerrainLibSimple::refresh(int x, int z) {
 
     if (terr == NULL) return;
     if (terr->loaded == false) return;
+    if (!terr->isEditable()) return;
     terr->refresh();
 }
 
@@ -160,6 +204,7 @@ Terrain* TerrainLibSimple::setHeight256(int x, int z, int posx, int posz, float 
 
     if (terr == NULL) return NULL;
     if (terr->loaded == false) return NULL;
+    if (!terr->isEditable()) return NULL;
     
     //float value = terr->terrainData[(int) (posz + 1024) / 8][(int) (posx + 1024) / 8];
     if(diffC == 0 && diffE == 0){
@@ -179,14 +224,26 @@ Terrain* TerrainLibSimple::setHeight256(int x, int z, int posx, int posz, float 
 }
 
 float TerrainLibSimple::getHeight(int x, int z, float posx, float posz, bool addR) {
-    Game::check_coords(x, z, posx, posz);
+    float height = -1.0f;
+    tryGetHeight(x, z, posx, posz, height, addR, false);
+    return height;
+}
 
-    Terrain *terr;
-    terr = terrain[(x * 10000 + z)];
-    if (terr == NULL) return -1;
-    if (terr->loaded == false) return -1;
-
-    return terr->getHeight(x, z, posx, posz, addR);
+bool TerrainLibSimple::tryGetHeight(int x, int z, float posx, float posz,
+                                    float &height, bool addR,
+                                    bool loadIfNeeded) {
+    if (!TerrainGridLayout::normalizeWorldPosition(x, z, posx, posz))
+        return false;
+    Terrain *terr = getTerrainByXY(x, z, false);
+    if ((terr == NULL || !terr->loaded) && loadIfNeeded) {
+        if (!load(x, z))
+            return false;
+        terr = getTerrainByXY(x, z, false);
+    }
+    if (terr == NULL || !terr->loaded)
+        return false;
+    height = terr->getHeight(x, z, posx, posz, addR);
+    return true;
 }
 
 void TerrainLibSimple::fillHeightMap(int x, int z, float* data){
@@ -228,6 +285,7 @@ void TerrainLibSimple::setHeightFromGeoGui(int x, int z, float* p){
     terr = terrain[(x * 10000 + z)];
     if (terr == NULL) return;
     if (terr->loaded == false) return;
+    if (!terr->isEditable()) return;
 
     heightWindow->tileX = x;
     heightWindow->tileZ = -z;
@@ -268,6 +326,7 @@ void TerrainLibSimple::setHeightFromGeo(int x, int z, float* p){
     terr = terrain[(x * 10000 + z)];
     if (terr == NULL) return;
     if (terr->loaded == false) return;
+    if (!terr->isEditable()) return;
 
     heightWindow->tileX = x;
     heightWindow->tileZ = -z;
@@ -315,6 +374,18 @@ void TerrainLibSimple::setTextureToTrackObj(Brush* brush, float* punkty, int len
 
 void TerrainLibSimple::setTerrainToTrackObj(Brush* brush, float* punkty, int length, int tx, int tz, float* matrix, float offsetY){
     QSet<Terrain*> uterr;
+    if (brush == NULL || punkty == NULL || length < 3)
+        return;
+    int referenceX = tx;
+    int referenceZ = tz;
+    float referencePosX = punkty[0];
+    float referencePosZ = punkty[2];
+    Game::check_coords(referenceX, referenceZ,
+                       referencePosX, referencePosZ);
+    Terrain *referenceTerrain = terrain[(referenceX * 10000 + referenceZ)];
+    if (referenceTerrain == NULL || !referenceTerrain->loaded
+            || !referenceTerrain->isEditable())
+        return;
 
     // calculating plane equation
     float p1[3];
@@ -388,6 +459,7 @@ void TerrainLibSimple::setTerrainToTrackObj(Brush* brush, float* punkty, int len
                     terr = terrain[(ttx * 10000 + ttz)];
                     if (terr == NULL) continue;
                     if (terr->loaded == false) continue;
+                    if (!terr->isEditable()) continue;
                     Undo::PushTerrainHeightMap(terr->mojex, terr->mojez, terr->terrainData, terr->getSampleCount());
                 }
             }
@@ -603,6 +675,7 @@ void TerrainLibSimple::setFixedTileHeight(Brush* brush, int x, int z, float* p){
 
     if (terr == NULL) return;
     if (terr->loaded == false) return;
+    if (!terr->isEditable()) return;
     Undo::PushTerrainHeightMap(terr->mojex, terr->mojez, terr->terrainData, terr->getSampleCount());
     for (int i = 0; i < 256; i++)
         for (int j = 0; j < 256; j++) {
@@ -626,6 +699,7 @@ QSet<Terrain*> TerrainLibSimple::paintHeightMap(Brush* brush, int x, int z, floa
     terr = terrain[(x * 10000 + z)];
     if (terr == NULL) return uterr;
     if (terr->loaded == false) return uterr;
+    if (!terr->isEditable()) return uterr;
     //terr->paintTexture(x, z, posx, posz);
     
     //int px = (posx + 1024)/8;
@@ -653,6 +727,7 @@ QSet<Terrain*> TerrainLibSimple::paintHeightMap(Brush* brush, int x, int z, floa
                 terr = terrain[(tx * 10000 + tz)];
                 if (terr == NULL) continue;
                 if (!terr->loaded) continue;
+                if (!terr->isEditable()) continue;
                 Undo::PushTerrainHeightMap(terr->mojex, terr->mojez, terr->terrainData, terr->getSampleCount());
             }
         }
@@ -703,6 +778,7 @@ QSet<Terrain*> TerrainLibSimple::paintHeightMap(Brush* brush, int x, int z, floa
             terr = terrain[(tx * 10000 + tz)];
             if (terr == NULL) continue;
             if (!terr->loaded) continue;
+            if (!terr->isEditable()) continue;
             uterr.insert(terr);
             
             if(sqrt(i*i + j*j) > size) continue;

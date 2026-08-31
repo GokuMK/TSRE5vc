@@ -14,6 +14,7 @@
 #include <unordered_map>
 #include <QString>
 #include <tsre/ogl/GLUU.h>
+#include <tsre/world/TerrainGridLayout.h>
 
 class Terrain;
 class Brush;
@@ -40,6 +41,9 @@ public:
     virtual void fillRaw(Terrain *cTerr, int mojex, int mojez);
     virtual float getHeight(int x, int z, float posx, float posz);
     virtual float getHeight(int x, int z, float posx, float posz, bool addR);
+    virtual bool tryGetHeight(int x, int z, float posx, float posz,
+                              float &height, bool addR = false,
+                              bool loadIfNeeded = false);
     virtual void getRotation(float *rot, int x, int z, float posx, float posz);
     virtual void setHeight(int x, int z, float posx, float posz, float h);
     virtual void fillHeightMap(int x, int z, float *data);
@@ -75,6 +79,10 @@ public:
     virtual void loadQuadTree();
     virtual void createNewRouteTerrain(int x, int z);
     virtual void saveEmpty(int x, int z);
+    virtual bool saveEmpty(int x, int z, TerrainHeightProfile profile,
+                           int patches,
+                           bool overwrite = false);
+    virtual bool hasDetailedTerrain(int x, int z);
     virtual void fillTerrainData(Terrain *tTile, float *offsetXYZ);
     virtual void updateTerrainHeightmap(Terrain *t);
     virtual void updateTerrainTFile(Terrain *t);

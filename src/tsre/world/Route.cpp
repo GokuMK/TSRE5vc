@@ -2477,6 +2477,19 @@ void Route::reloadTile(int x, int z) {
     return;
 }
 
+void Route::ensureWorldTile(int x, int z) {
+    if (!Game::writeEnabled)
+        return;
+    if (tile[x * 10000 + z] == NULL)
+        tile[x * 10000 + z] = new Tile(x, z);
+    if (tile[x * 10000 + z]->loaded == 1)
+        return;
+    // World files always use the fixed 2048 m MSTS lattice and carry no
+    // terrain-heightmap profile.
+    Tile::saveEmpty(x, -z);
+    reloadTile(x, z);
+}
+
 int Route::newTile(int x, int z, bool forced) {
     if (!Game::writeEnabled) return 0;
     

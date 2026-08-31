@@ -47,9 +47,10 @@ public:
         }
     };
     bool loaded;
-    TSectionDAT *tsection; 
-    SigCfg* sigCfg;
-    SpeedPostDAT* speedPostDAT;
+    bool sourceFileExists = false;
+    TSectionDAT *tsection;
+    SigCfg* sigCfg = NULL;
+    SpeedPostDAT* speedPostDAT = NULL;
     //TRnode *trackNodes;
     std::unordered_map<int, TRitem*> trackItems;
     std::unordered_map<int, TRnode*> trackNodes;

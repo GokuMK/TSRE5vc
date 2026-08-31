@@ -28,6 +28,9 @@ public:
     void fillRaw(Terrain *cTerr, int mojex, int mojez);
     float getHeight(int x, int z, float posx, float posz);
     float getHeight(int x, int z, float posx, float posz, bool addR);
+    bool tryGetHeight(int x, int z, float posx, float posz,
+                      float &height, bool addR = false,
+                      bool loadIfNeeded = false);
     void getRotation(float *rot, int x, int z, float posx, float posz);
     void setHeight(int x, int z, float posx, float posz, float h);
     void fillHeightMap(int x, int z, float *data);
@@ -61,6 +64,10 @@ public:
     void loadQuadTree();
     void createNewRouteTerrain(int x, int z);
     void saveEmpty(int x, int z);
+    bool saveEmpty(int x, int z, TerrainHeightProfile profile,
+                   int patches,
+                   bool overwrite = false);
+    bool hasDetailedTerrain(int x, int z);
     void fillTerrainData(Terrain *tTile, float *offsetXYZ);
     void render(GLUU *gluu, float* playerT, float* playerW, float* target, float fov, int renderMode);
     void renderWater(GLUU *gluu, float* playerT, float* playerW, float* target, float fov, int renderMode, int layer);

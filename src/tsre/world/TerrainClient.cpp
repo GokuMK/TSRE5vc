@@ -39,11 +39,15 @@ TerrainClient::TerrainClient(const TerrainClient& orig) {
 void TerrainClient::loadTFile(FileBuffer *data){
     this->tfile = new TFile();
     this->tfile->load(data);
+    if (!validateGridLayout("network terrain descriptor " + name))
+        return;
     loadingProgress++;
     load();
 }
 
 void TerrainClient::loadRAWFile(FileBuffer *data){
+    if (!validatePayload(data, sizeof(float), "network float height RAW"))
+        return;
     loadingProgress++;
     this->readRAWFloat(data);
     load();
@@ -59,6 +63,8 @@ void TerrainClient::loadFFile(FileBuffer *data){
         load();
         return;
     }
+    if (!validatePayload(data, sizeof(unsigned char), "network terrain F RAW"))
+        return;
     jestF = true;
     this->readF(data);
     load();
@@ -75,8 +81,9 @@ void TerrainClient::load(){
             loaded = false;
             isOgl = false;
             modified = false;
+            editable = false;
             wTexid = -1;
-            for (int i = 0; i < 256; i++) {
+            for (int i = 0; i < TerrainGridLayout::SupportedPatchRecordCount; i++) {
                 texid[i] = -1;
                 texid2[i] = -1;
                 hidden[i] = false;

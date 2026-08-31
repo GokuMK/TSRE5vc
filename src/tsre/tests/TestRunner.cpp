@@ -12,10 +12,13 @@
 
 #include <QDebug>
 #include <QDir>
+#include <QDirIterator>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QMap>
 #include <QTextStream>
 #include <QTemporaryDir>
 
@@ -38,6 +41,10 @@
 #include <tsre/tdb/TSectionDAT.h>
 #include <tsre/tests/RouteLoadTestSuite.h>
 #include <tsre/tests/SettingsTestSuite.h>
+#include <tsre/tests/TdbLoadTestSuite.h>
+#include <tsre/world/Terrain.h>
+#include <tsre/world/TerrainGridLayout.h>
+#include <tsre/world/TerrainInfo.h>
 #include <tsre/world/Ref.h>
 #include <tsre/world/objects/DynTrackObj.h>
 
@@ -2217,6 +2224,278 @@ static int runOrtsProfileSuite(bool verbose) {
     return failed == 0 ? 0 : 1;
 }
 
+static int runTerrainGridSuite(bool verbose) {
+    int passed = 0;
+    int failed = 0;
+    auto check = [&](bool condition, const char *name) {
+        if (condition) {
+            ++passed;
+            if (verbose)
+                qInfo() << "[tests:terrain-grid] PASS" << name;
+        } else {
+            ++failed;
+            qWarning() << "[tests:terrain-grid] FAIL" << name;
+        }
+    };
+    auto accepts = [](int samples, float spacing, int patches = 16,
+                      float rotation = 0.0f) {
+        TerrainGridLayout layout;
+        QString error;
+        return TerrainGridLayout::tryCreate(samples, spacing, patches, rotation,
+                                            layout, error);
+    };
+
+    const TerrainGridLayout standard = TerrainGridLayout::profile(
+                TerrainHeightProfile::Standard256x8);
+    const TerrainGridLayout high = TerrainGridLayout::profile(
+                TerrainHeightProfile::High512x4);
+    const TerrainGridLayout ultra = TerrainGridLayout::profile(
+                TerrainHeightProfile::Ultra1024x2);
+    const TerrainGridLayout standardFourPatches = TerrainGridLayout::profile(
+                TerrainHeightProfile::Standard256x8, 4);
+    const TerrainGridLayout standardEightPatches = TerrainGridLayout::profile(
+                TerrainHeightProfile::Standard256x8, 8);
+    check(standard.sampleCount == 256 && standard.sampleSpacing == 8
+          && standard.patchResolution == 16
+          && standard.terrainWorldSize == TerrainGridLayout::WorldTileSize,
+          "profile-256-8");
+    check(high.sampleCount == 512 && high.sampleSpacing == 4
+          && high.patchResolution == 32
+          && high.terrainWorldSize == TerrainGridLayout::WorldTileSize,
+          "profile-512-4");
+    check(ultra.sampleCount == 1024 && ultra.sampleSpacing == 2
+          && ultra.patchResolution == 64
+          && ultra.terrainWorldSize == TerrainGridLayout::WorldTileSize,
+          "profile-1024-2");
+    check(standardFourPatches.patchesPerSide == 4
+          && standardFourPatches.patchResolution == 64,
+          "profile-256-8-four-patches");
+    check(standardEightPatches.patchesPerSide == 8
+          && standardEightPatches.patchResolution == 32,
+          "profile-256-8-eight-patches");
+    check(standard.supportsEditing(), "sixteen-patch-grid-is-editable");
+    TerrainGridLayout fourPatchLayout;
+    QString fourPatchError;
+    check(TerrainGridLayout::tryCreate(64, 32.0f, 4, 0.0f,
+                                       fourPatchLayout, fourPatchError)
+          && fourPatchLayout.supportsEditing(),
+          "four-patch-grid-is-editable");
+    check(fourPatchLayout.patchRecordCount() == 16
+          && fourPatchLayout.isPatchIndexValid(15)
+          && !fourPatchLayout.isPatchIndexValid(16),
+          "four-patch-active-record-range");
+    check(fourPatchLayout.patchRow(11) == 2
+          && fourPatchLayout.patchColumn(11) == 3
+          && fourPatchLayout.patchIndex(2, 3) == 11,
+          "four-patch-index-round-trip");
+    TerrainGridLayout eightPatchLayout;
+    QString eightPatchError;
+    check(TerrainGridLayout::tryCreate(256, 8.0f, 8, 0.0f,
+                                       eightPatchLayout, eightPatchError)
+          && eightPatchLayout.supportsEditing(),
+          "eight-patch-grid-is-editable");
+    check(eightPatchLayout.defaultPatchTextureScale() == 0.03125f,
+          "texture-scale-follows-samples-per-patch");
+    TerrainGridLayout futureLargePatchLayout;
+    futureLargePatchLayout.patchesPerSide = 32;
+    check(!futureLargePatchLayout.supportsEditing(),
+          "future-large-patch-grid-is-read-only");
+    check(accepts(16, 128.0f), "absolute-minimum");
+    check(accepts(64, 32.0f), "lower-resolution-whole-world-tile");
+    check(accepts(2048, 1.0f), "maximum-resolution");
+    check(!accepts(2049, 1.0f), "reject-above-maximum");
+    check(!accepts(15, 256.0f), "reject-below-minimum");
+    check(!accepts(64, 8.0f), "reject-sub-world-tile-footprint");
+    check(accepts(64, 32.0f, 4), "accept-four-patch-grid");
+    check(!accepts(256, 8.0f, 17), "reject-above-maximum-patch-count");
+    check(!accepts(256, 8.0f, 10), "reject-non-divisible-patch-count");
+    check(!accepts(512, 4.5f), "reject-fractional-spacing");
+    check(!accepts(512, 4.0f, 16, 1.0f), "reject-rotated-grid");
+
+    int tileX = 10;
+    int tileZ = 20;
+    float localX = 1024.0f;
+    float localZ = -1024.0f;
+    check(TerrainGridLayout::normalizeWorldPosition(
+              tileX, tileZ, localX, localZ)
+          && tileX == 11 && tileZ == 20
+          && localX == -1024.0f && localZ == -1024.0f,
+          "positive-edge-selects-outside-world-cell");
+    tileX = 10;
+    tileZ = 20;
+    localX = 3072.0f;
+    localZ = -3072.0f;
+    check(TerrainGridLayout::normalizeWorldPosition(
+              tileX, tileZ, localX, localZ)
+          && tileX == 12 && tileZ == 19
+          && localX == -1024.0f && localZ == -1024.0f,
+          "multi-world-tile-normalization");
+    localX = std::numeric_limits<float>::infinity();
+    check(!TerrainGridLayout::normalizeWorldPosition(
+              tileX, tileZ, localX, localZ),
+          "reject-non-finite-world-position");
+
+    qInfo() << "[tests:terrain-grid] cases=" << (passed + failed)
+            << "passed=" << passed << "failed=" << failed;
+    return failed == 0 ? 0 : 1;
+}
+
+struct TerrainCorpusRouteResult {
+    int files = 0;
+    int descriptorsAccepted = 0;
+    int loaded = 0;
+    int editable = 0;
+    int readOnly = 0;
+    int variablePatchEditChecks = 0;
+    int variablePatchEditFailures = 0;
+    int descriptorRejected = 0;
+    int payloadFailed = 0;
+};
+
+static int runTerrainFilesSuite(const TsreTests::TestRunOptions &opts) {
+    const QString scanRoot = QDir::cleanPath(opts.casesFile);
+    if (scanRoot.isEmpty() || !QDir(scanRoot).exists()) {
+        qWarning() << "[tests:terrain-files] --test-cases must name an existing directory:"
+                   << opts.casesFile;
+        return 2;
+    }
+
+    QStringList descriptors;
+    QDirIterator iterator(scanRoot, QStringList() << "*.t", QDir::Files,
+                          QDirIterator::Subdirectories);
+    while (iterator.hasNext()) {
+        const QString path = QDir::cleanPath(iterator.next());
+        const QString directoryName = QFileInfo(path).dir().dirName();
+        if (directoryName.compare("tiles", Qt::CaseInsensitive) == 0
+                || directoryName.compare("lo_tiles", Qt::CaseInsensitive) == 0)
+            descriptors.append(path);
+    }
+    descriptors.sort(Qt::CaseInsensitive);
+
+    if (descriptors.isEmpty()) {
+        qWarning() << "[tests:terrain-files] no terrain descriptors found below"
+                   << scanRoot;
+        return 2;
+    }
+
+    const QString originalRoot = Game::root;
+    const QString originalRoute = Game::route;
+    QMap<QString, TerrainCorpusRouteResult> routeResults;
+    QStringList rejectedDescriptors;
+
+    for (int index = 0; index < descriptors.size(); ++index) {
+        const QString descriptorPath = descriptors[index];
+        const QFileInfo descriptorInfo(descriptorPath);
+        const QDir tileDirectory = descriptorInfo.dir();
+        QDir routeDirectory(tileDirectory);
+        routeDirectory.cdUp();
+        QDir routesDirectory(routeDirectory);
+        routesDirectory.cdUp();
+        QDir simulatorRoot(routesDirectory);
+        simulatorRoot.cdUp();
+
+        Game::root = simulatorRoot.absolutePath();
+        Game::route = routeDirectory.dirName();
+
+        TerrainInfo terrainInfo;
+        terrainInfo.name = descriptorInfo.completeBaseName();
+        terrainInfo.low = tileDirectory.dirName().compare(
+                    "lo_tiles", Qt::CaseInsensitive) == 0;
+
+        if (opts.verbose)
+            qInfo() << "[tests:terrain-files] LOAD"
+                    << (index + 1) << "/" << descriptors.size()
+                    << descriptorPath;
+
+        Terrain terrain(&terrainInfo);
+        TerrainCorpusRouteResult &result = routeResults[Game::route];
+        ++result.files;
+        if (terrain.getGridLayout().sampleCount > 0) {
+            ++result.descriptorsAccepted;
+            if (terrain.isEditable())
+                ++result.editable;
+            else
+                ++result.readOnly;
+            if (terrain.loaded) {
+                ++result.loaded;
+                const TerrainGridLayout &layout = terrain.getGridLayout();
+                if (layout.patchesPerSide
+                        != TerrainGridLayout::DefaultPatchesPerSide) {
+                    ++result.variablePatchEditChecks;
+                    const int lastPatch = layout.patchRecordCount() - 1;
+                    const QString originalTransform =
+                            terrain.getPatchTexTransformString(lastPatch);
+                    const QString probeTransform =
+                            "0.125 0.25 0.03125 0 0 0.03125";
+                    terrain.setPatchTexTransform(probeTransform, lastPatch);
+                    const bool editOk = !originalTransform.isEmpty()
+                            && terrain.getPatchTexTransformString(lastPatch)
+                            == probeTransform;
+                    terrain.setPatchTexTransform(originalTransform, lastPatch);
+                    if (!editOk) {
+                        ++result.variablePatchEditFailures;
+                        qWarning() << "[tests:terrain-files] VARIABLE_PATCH_EDIT_FAILURE"
+                                   << descriptorPath
+                                   << "patches" << layout.patchesPerSide;
+                    }
+                }
+            } else {
+                ++result.payloadFailed;
+                qWarning() << "[tests:terrain-files] PAYLOAD_FAILURE"
+                           << descriptorPath;
+            }
+        } else {
+            ++result.descriptorRejected;
+            rejectedDescriptors.append(descriptorPath);
+            qWarning() << "[tests:terrain-files] REJECT" << descriptorPath;
+        }
+    }
+
+    Game::root = originalRoot;
+    Game::route = originalRoute;
+
+    int loaded = 0;
+    int descriptorsAccepted = 0;
+    int descriptorRejected = 0;
+    int payloadFailed = 0;
+    int editable = 0;
+    int readOnly = 0;
+    int variablePatchEditChecks = 0;
+    int variablePatchEditFailures = 0;
+    for (auto it = routeResults.cbegin(); it != routeResults.cend(); ++it) {
+        descriptorsAccepted += it->descriptorsAccepted;
+        loaded += it->loaded;
+        editable += it->editable;
+        readOnly += it->readOnly;
+        variablePatchEditChecks += it->variablePatchEditChecks;
+        variablePatchEditFailures += it->variablePatchEditFailures;
+        descriptorRejected += it->descriptorRejected;
+        payloadFailed += it->payloadFailed;
+        qInfo() << "[tests:terrain-files] ROUTE" << it.key()
+                << "files=" << it->files
+                << "descriptors_accepted=" << it->descriptorsAccepted
+                << "loaded=" << it->loaded
+                << "editable=" << it->editable
+                << "read_only=" << it->readOnly
+                << "variable_patch_edit_checks=" << it->variablePatchEditChecks
+                << "variable_patch_edit_failures=" << it->variablePatchEditFailures
+                << "descriptor_rejected=" << it->descriptorRejected
+                << "payload_failed=" << it->payloadFailed;
+    }
+    qInfo() << "[tests:terrain-files] root=" << scanRoot
+            << "files=" << descriptors.size()
+            << "descriptors_accepted=" << descriptorsAccepted
+            << "loaded=" << loaded
+            << "editable=" << editable
+            << "read_only=" << readOnly
+            << "variable_patch_edit_checks=" << variablePatchEditChecks
+            << "variable_patch_edit_failures=" << variablePatchEditFailures
+            << "descriptor_rejected=" << descriptorRejected
+            << "payload_failed=" << payloadFailed;
+    return rejectedDescriptors.isEmpty() && variablePatchEditFailures == 0
+            ? 0 : 1;
+}
+
 } // namespace
 
 QStringList TsreTests::listSuites() {
@@ -2227,7 +2506,10 @@ QStringList TsreTests::listSuites() {
         "orts-profile",
         "procedural-policy",
         "route-load",
-        "settings"
+        "settings",
+        "tdb-load",
+        "terrain-files",
+        "terrain-grid"
     };
 }
 
@@ -2245,6 +2527,9 @@ int TsreTests::run(const TestRunOptions &opts) {
     if (suite == "route-load")
         return runRouteLoadSuite(opts);
 
+    if (suite == "tdb-load")
+        return runTdbLoadSuite(opts.verbose);
+
     if (suite == "procedural-policy")
         return runProceduralPolicySuite(opts.verbose);
 
@@ -2257,6 +2542,12 @@ int TsreTests::run(const TestRunOptions &opts) {
     if (suite == "settings")
         return runSettingsSuite(opts.verbose);
 
+    if (suite == "terrain-grid")
+        return runTerrainGridSuite(opts.verbose);
+
+    if (suite == "terrain-files")
+        return runTerrainFilesSuite(opts);
+
     if (suite == "all") {
         int rc = 0;
         rc = std::max(rc, runFlexSuite(opts.casesFile, opts.verbose));
@@ -2266,6 +2557,8 @@ int TsreTests::run(const TestRunOptions &opts) {
         rc = std::max(rc, runOrtsProfileSuite(opts.verbose));
         rc = std::max(rc, runRouteLoadSuite(opts));
         rc = std::max(rc, runSettingsSuite(opts.verbose));
+        rc = std::max(rc, runTdbLoadSuite(opts.verbose));
+        rc = std::max(rc, runTerrainGridSuite(opts.verbose));
         return rc;
     }
 

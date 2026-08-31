@@ -13,7 +13,10 @@
 #include <tsre/Game.h>
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/fileFunctions/ReadFile.h>
+#include <tsre/fileFunctions/MstsTextFileValidation.h>
 #include <tsre/tdb/SpeedPost.h>
+#include <tsre/ErrorMessage.h>
+#include <tsre/ErrorMessagesLib.h>
 #include <tsre/Game.h>
 
 SpeedPostDAT::SpeedPostDAT() {
@@ -22,9 +25,39 @@ SpeedPostDAT::SpeedPostDAT() {
     path.replace("//", "/");
     qDebug() << path;
     QFile file(path);
-    if (!file.open(QIODevice::ReadOnly))
+    sourceFileExists = file.exists();
+    if(!sourceFileExists) {
+        qDebug() << "speedpost.dat does not exist; using an empty speed-post configuration";
+        loaded = true;
         return;
+    }
+    auto reportLoadFailure = [&](const QString &reason) {
+        qWarning() << "Failed to load existing speedpost.dat" << path << reason;
+        ErrorMessagesLib::PushErrorMessage(new ErrorMessage(
+            ErrorMessage::Type_Error,
+            ErrorMessage::Source_TDB,
+            QString("Failed to load existing speed-post configuration: %1").arg(path),
+            reason
+        ));
+    };
+    if(!file.open(QIODevice::ReadOnly)) {
+        reportLoadFailure(file.errorString());
+        return;
+    }
+    if(file.size() < 34) {
+        reportLoadFailure("File is too short to be a valid MSTS speed-post configuration.");
+        file.close();
+        return;
+    }
     FileBuffer* bufor = ReadFile::read(&file);
+    file.close();
+    bufor->toUtf16();
+    QString validationError;
+    if(!MstsTextFileValidation::validate(bufor, validationError)) {
+        reportLoadFailure(validationError);
+        delete bufor;
+        return;
+    }
     bufor->off += 46+16;
 
     qDebug() << "speedpost.dat!";
@@ -59,7 +92,8 @@ SpeedPostDAT::SpeedPostDAT() {
         ParserX::SkipToken(bufor);
         continue;
     }
-    return;
+    loaded = true;
+    delete bufor;
 }
 
 SpeedPostDAT::~SpeedPostDAT() {

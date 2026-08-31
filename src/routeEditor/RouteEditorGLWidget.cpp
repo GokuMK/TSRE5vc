@@ -57,6 +57,11 @@
 #include <routeEditor/RouteEditorClient.h>
 #include <tsre/world/RouteClient.h>
 #include <tsre/ClientInfo.h>
+#include <QComboBox>
+#include <QDialogButtonBox>
+#include <QLabel>
+#include <QMessageBox>
+#include <QVBoxLayout>
 
 RouteEditorGLWidget::RouteEditorGLWidget(QWidget *parent)
 : QOpenGLWidget(parent),
@@ -1191,19 +1196,79 @@ void RouteEditorGLWidget::keyPressEvent(QKeyEvent * event) {
             //    break;
         case Qt::Key_B:
         {
-            QMessageBox msgBox;
-            msgBox.setText("Create new Tile here?");
-            msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
-            msgBox.setDefaultButton(QMessageBox::Yes);
-            if (msgBox.exec() == QMessageBox::Yes){
-                // New Tile != New Terrain. Need fix for distant terrain!
-                int out = 0;
-                out = route->newTile((int) camera->pozT[0], (int) camera->pozT[1]);
-                if(out == 1){
-                    msgBox.setText("Tile exist. Override?");
-                    if (msgBox.exec() == QMessageBox::Yes)
-                        route->newTile((int) camera->pozT[0], (int) camera->pozT[1], true);
-                }
+            QDialog dialog(this);
+            dialog.setWindowTitle("Create terrain test tile");
+            QVBoxLayout *layout = new QVBoxLayout(&dialog);
+            QLabel *title = new QLabel("<b>Experimental terrain profiles</b>", &dialog);
+            QLabel *warning = new QLabel(
+                    "Choose the detailed-terrain heightmap and patch grid for this location. "
+                    "Higher resolutions use substantially more memory and rendering time; "
+                    "1024 / 2 m is intended only for static-mesh testing.", &dialog);
+            warning->setWordWrap(true);
+            QLabel *profileLabel = new QLabel("Heightmap profile:", &dialog);
+            QComboBox *profiles = new QComboBox(&dialog);
+            profiles->addItem("Standard — 256 × 256, 8 m spacing",
+                              static_cast<int>(TerrainHeightProfile::Standard256x8));
+            profiles->addItem("High resolution (experimental) — 512 × 512, 4 m spacing",
+                              static_cast<int>(TerrainHeightProfile::High512x4));
+            profiles->addItem("Ultra resolution (experimental) — 1024 × 1024, 2 m spacing",
+                              static_cast<int>(TerrainHeightProfile::Ultra1024x2));
+            profiles->setCurrentIndex(0);
+            QLabel *patchesLabel = new QLabel("Patches per side:", &dialog);
+            QComboBox *patches = new QComboBox(&dialog);
+            patches->addItem("4 × 4", 4);
+            patches->addItem("8 × 8", 8);
+            patches->addItem("16 × 16", 16);
+            patches->setCurrentIndex(2);
+            QDialogButtonBox *buttons = new QDialogButtonBox(
+                    QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+            connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+            connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+            layout->addWidget(title);
+            layout->addWidget(warning);
+            layout->addWidget(profileLabel);
+            layout->addWidget(profiles);
+            layout->addWidget(patchesLabel);
+            layout->addWidget(patches);
+            layout->addWidget(buttons);
+            if (dialog.exec() != QDialog::Accepted)
+                break;
+
+            const int worldX = static_cast<int>(camera->pozT[0]);
+            const int worldZ = static_cast<int>(camera->pozT[1]);
+            const int terrainZ = -worldZ;
+            const TerrainHeightProfile profile = static_cast<TerrainHeightProfile>(
+                    profiles->currentData().toInt());
+            const int patchCount = patches->currentData().toInt();
+            const bool overwrite = Game::terrainLib->hasDetailedTerrain(worldX, terrainZ);
+            if (overwrite) {
+                const QMessageBox::StandardButton answer = QMessageBox::warning(
+                        this, "Replace detailed terrain?",
+                        "Detailed terrain already exists here. Replace its descriptor and "
+                        "heightmap with the selected profile? The existing World file will be preserved.",
+                        QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+                if (answer != QMessageBox::Yes)
+                    break;
+            }
+
+            if (!Game::terrainLib->saveEmpty(
+                    worldX, terrainZ, profile, patchCount, overwrite)) {
+                QMessageBox::critical(this, "Terrain creation failed",
+                                      "The selected terrain profile could not be created. "
+                                      "See the log for the unsupported-layout or file error.");
+                break;
+            }
+            route->ensureWorldTile(worldX, worldZ);
+            Game::terrainLib->setDetailedAsCurrent();
+            if (!Game::terrainLib->reload(worldX, worldZ)) {
+                QMessageBox::critical(this, "Terrain reload failed",
+                                      "The terrain files were created but could not be reloaded.");
+                break;
+            }
+            if (Game::autoGeoTerrain) {
+                float pos[3];
+                Vec3::set(pos, 0, 0, 0);
+                Game::terrainLib->setHeightFromGeo(worldX, worldZ, pos);
             }
         }
             break;

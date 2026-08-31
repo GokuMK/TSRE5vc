@@ -13,6 +13,7 @@
 #include <QString>
 #include <tsre/ogl/GLUU.h>
 #include <tsre/world/TFile.h>
+#include <tsre/world/TerrainGridLayout.h>
 #include <tsre/math3d/Vector3f.h>
 #include <tsre/ogl/OglObj.h>
 #include <tsre/GameObj.h>
@@ -28,7 +29,7 @@ public:
     static Brush* DefaultBrush;
     
     int loaded = false;
-    float **terrainData;
+    float **terrainData = NULL;
     bool inUse = true;
     bool showBlob = false;
     float mojex = 0;
@@ -48,7 +49,9 @@ public:
     virtual void loadFFile(FileBuffer *data);
     virtual void updateTFile();
     virtual ~Terrain();
-    static void SaveEmpty(QString name, int samples = 256, int sampleSize = 8, int patches = 16, bool low = false);
+    static bool SaveEmpty(QString name, int samples = 256, int sampleSize = 8,
+                          int patches = TerrainGridLayout::SupportedPatchesPerSide,
+                          bool low = false, bool overwrite = false);
     static QString getTileName(int x, int y);
     static QString getTileNameExperimental(int x, int y);
     static QString getTileNameExperimental2(int x, int y);
@@ -59,15 +62,18 @@ public:
     void getLocalCoords(int x, int z, float &posx, float &posz);
     void getPatchCoords(int &x, int &z, float &posx, float &posz);
     void getCornerCoordsXY(int &x, int &z, int ox, int oz);
-    void fillTerrainDataX(Terrain* adjacent);
-    void fillTerrainDataY(Terrain* adjacent);
-    void fillTerrainDataXY(Terrain* adjacent);
+    void fillTerrainDataX();
+    void fillTerrainDataY();
+    void fillTerrainDataXY();
     void save();
     void refresh();
     bool isModified();
     void setModified(bool value = true);
     void getLowCornerTileXY(int &X, int &Y);
     int getSampleCount();
+    int getPatchResolution() const;
+    const TerrainGridLayout& getGridLayout() const;
+    bool isEditable() const;
     float setHeight(int x, int z, float posx, float posz, float val, bool add = false);
     void setFixedHeight(float val);
     void paintTexture(Brush* brush, int x, int z, float posx, float posz);
@@ -120,6 +126,7 @@ public:
     float getErrorBias();
     void getWTileIds(QSet<int> &ids);
     void setErrorBias(float val);
+    void setAllErrorBias(float val);
     void setTileBlob();
     void makeTextureFromMap();
     void removeTextureFromMap();
@@ -154,22 +161,23 @@ public slots:
 protected:
     static QString TileDir[2];
     
-    unsigned char **fData;
+    unsigned char **fData = NULL;
     bool jestF = false;
     bool modifiedF = false;
     bool isOgl = false;
     bool modified = false;
+    bool editable = false;
     QString texturepath;
     QString rootTexturepath;
-    Vector3f **vertexData;//[257][257];
-    Vector3f **normalData;//[257][257];
-    bool hidden[256];
-    bool uniqueTex[256];
-    int texid[256];
-    int texid2[256];
-    bool texModified[256];
-    bool texLocked[256];
-    bool selectedPatchs[256];
+    Vector3f **vertexData = NULL;
+    Vector3f **normalData = NULL;
+    bool hidden[TerrainGridLayout::SupportedPatchRecordCount];
+    bool uniqueTex[TerrainGridLayout::SupportedPatchRecordCount];
+    int texid[TerrainGridLayout::SupportedPatchRecordCount];
+    int texid2[TerrainGridLayout::SupportedPatchRecordCount];
+    bool texModified[TerrainGridLayout::SupportedPatchRecordCount];
+    bool texLocked[TerrainGridLayout::SupportedPatchRecordCount];
+    bool selectedPatchs[TerrainGridLayout::SupportedPatchRecordCount];
     QOpenGLBuffer *VBO = NULL;
     QOpenGLVertexArrayObject *VAO = NULL;
 
@@ -181,7 +189,7 @@ protected:
     OglObj selectedlines;
     
     struct WaterTile {
-        OglObj w[256];
+        OglObj w[TerrainGridLayout::SupportedPatchRecordCount];
     };
     QMap<int, WaterTile*> water;
     //OglObj water[256];
@@ -192,7 +200,10 @@ protected:
     //QOpenGLVertexArrayObject wVAO[256];
     //bool jestW[256];
     int wTexid = -1;
-    TFile* tfile;
+    TFile* tfile = NULL;
+    TerrainGridLayout gridLayout;
+    int terrainDataRows = 0;
+    int fDataRows = 0;
     //int selectedPathId = -1;
     
     void saveRAW(QString name);
@@ -224,6 +235,11 @@ protected:
     void reloadLines();
     
     virtual void load();
+    bool validateGridLayout(const QString &source);
+    bool validatePayload(const FileBuffer *data, std::size_t bytesPerCell,
+                         const QString &kind) const;
+    void releaseHeightData();
+    void releaseFData();
 };
 
 #endif	/* TERRAIN_H */

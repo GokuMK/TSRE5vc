@@ -23,6 +23,9 @@ public:
     QString end_Restricted_Shape;
     
     QVector<SpeedPost*> speedPost;
+
+    bool loaded = false;
+    bool sourceFileExists = false;
     
     SpeedPostDAT();
     virtual ~SpeedPostDAT();

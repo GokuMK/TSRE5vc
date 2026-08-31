@@ -23,7 +23,9 @@ struct UndoState {
     struct TerrainData {
         int x;
         int z;
-        float data[257*257];
+        int samples = 0;
+        bool low = false;
+        QVector<float> data;
     };
     struct WorldObjInfo {
         WorldObj * obj;
@@ -60,7 +62,8 @@ public:
     static void StateEnd();
     static void StateCancel();
     static void StateEndIfLongTime();
-    static void PushTerrainHeightMap(int x, int z, float **data, int samples);
+    static void PushTerrainHeightMap(int x, int z, float **data, int samples,
+                                     bool low = false);
     static void PushTextureData(int id, unsigned char *data, unsigned int size);
     static void PushGameObjData(GameObj* obj);
     static void PushWorldObjData(WorldObj* obj);

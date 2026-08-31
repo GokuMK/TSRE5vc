@@ -1,193 +1,123 @@
-# Variable terrain patch-count support
+# Variable terrain patch-count editing support
 
-Status: separate deferred implementation task.
+Status: implemented as part of terrain heightmap resolution support.
 
-Prerequisite/related task: [heightmap resolution with fixed 16 x 16 patches](terrain-heightmap-resolution.md).
+Related task: [heightmap resolution support](terrain-heightmap-resolution.md).
 
-## Objective
+## Result
 
-Allow `tfile->patchsetNpatches` (`P`) to differ from 16 after heightmap
-resolution support is stable. This task changes the number of patch records,
-patch-owned textures/state/water objects, selection IDs, and per-patch loops.
-It does not change the fixed 2048 m World-file coordinate lattice.
+TSRE loads, renders, edits, and saves regular terrain patch grids from 1 x 1
+through 16 x 16 when the complete terrain layout is valid:
 
-To isolate this axis during development, hold the sample grid and terrain
-extent constant first: use `N=256`, `S=8 m`, and vary only `P`.
+- `1 <= P <= 16`;
+- `16 <= N <= 2048`;
+- `N % P == 0`;
+- sample spacing is a positive whole number of metres;
+- the terrain footprint covers a whole number of 2048 m World tiles;
+- sample rotation is zero.
 
-Derived values:
+This includes the 4 x 4 distant-terrain tiles shipped with MSTS and ordinary
+terrain using intermediate grids such as 8 x 8. Patch-count support is based
+on the descriptor, not on whether the tile is stored under `Tiles` or
+`Lo_tiles`.
 
-- patches per terrain side: `P`;
-- total patch records: `P * P`;
+The experimental B-key tile creator exposes patch grids of 4 x 4, 8 x 8,
+and 16 x 16 for each of its 256/8, 512/4, and 1024/2 heightmap profiles.
+All other tile-creation workflows retain the normal 256/8, 16 x 16 default.
+
+## Editability capability
+
+`Terrain` retains an explicit `editable` capability. For every layout that is
+currently accepted, `1 <= P <= 16`, it is true. Editing APIs and saving still
+check it.
+
+This is intentional preparation for future compatibility work. TSRE may later
+choose to display a layout such as 32 x 32 or a non-regular custom layout
+without immediately supporting all editing operations. Such a layout can then
+be loaded read-only by changing layout acceptance separately from editing
+acceptance. The flag should not be removed merely because every currently
+accepted layout is editable.
+
+## Implementation details
+
+`TerrainGridLayout` is the source of the active geometry:
+
+- patches per side: `P`;
+- patch records: `P * P`;
 - samples per patch side: `R = N / P`;
-- physical patch size: `terrainWorldSize / P = R * S`.
+- physical patch size: `R * S`;
+- flattening: `row * P + column`.
 
-`P > 0`, `N >= P`, and `N % P == 0` are required by the current regular-grid
-renderer.
+It also centralizes patch-index validation and flatten/unflatten helpers.
+Selection, texture operations, water/draw flags, gap editing, error bias,
+overlays, picking, and save paths operate on the active `P * P` records.
+Loops inside a patch use `R`, not `P`.
 
-## Why this is separate
+Runtime patch arrays retain a capacity of 256. This is deliberate and is
+sufficient for the accepted maximum of 16 x 16. Supporting more than 16
+patches per side remains a separate feature because it requires larger
+storage and review of the eight-bit picking identifier.
 
-The heightmap RAW body is sized by `N`, not `P`. Conversely, patch count
-changes the number of texture/material records and runtime patch objects even
-when the heightmap remains exactly 256/8. Combining the two changes would make
-buffer, UV, selection, water, and file-format failures difficult to attribute.
+Patch texture matrices consume raw patch-local sample coordinates from zero
+through `R`. A default once-per-patch transform therefore uses a linear scale
+of `1/R`. Map texture generation advances by `1/(P*R)`, equivalently `1/N`,
+within a sample. This matches Open Rails' renderer and avoids imposing the
+unsubstantiated fixed-16 normalization used by SCOmod. Legacy terrain is
+unchanged because its usual value is `R=16`.
 
-The fixed-16 resolution task may read `P` and must reject `P != 16` safely, but
-it should not make runtime patch state dynamic.
+## World-file independence
 
-## What is already dynamic
+Changing terrain patch count does not change World-file ownership or the
+2048 m `.w` coordinate lattice. A larger terrain tile may cover several World
+files. Patch geometry uses the terrain layout, while World objects remain in
+their independent 2048 m files.
 
-- `TFile::initNew()` allocates `tdata` as `P * P * 13`.
-- `.t` parsing allocates patch records using the descriptor count.
-- `.t` sizing and serialization loop over `P * P`.
-- parts of texture loading, saving, rendering, and coordinate lookup already
-  use `patchsetNpatches` and `N / P`.
-- Open Rails derives `PatchCount` and `PatchSampleCount` independently in its
-  runtime renderer, providing a useful design reference:
-  <https://github.com/openrails/openrails-unstable/blob/41fbd610f3221ece60ef762b50d2f708e92eda9d/Source/RunActivity/Viewer3D/Terrain.cs>.
+The existing object-range command still has its separate limitation for
+terrain footprints larger than 2048 m. That is not a reason to reinterpret
+2048 m World constants as terrain patch constants.
 
-## Blocking findings
+## Supported matrix
 
-### 1. Runtime patch state is statically sized to 256
+For a 256-sample, 8 m terrain footprint:
 
-`Terrain.h` declares `hidden`, `uniqueTex`, `texid`, `texid2`, `texModified`,
-`texLocked`, and `selectedPatchs` as arrays of 256. `WaterTile` likewise owns
-256 `OglObj` entries. Constructors, destructor/cleanup paths, texture methods,
-selection, water, and error-bias code contain fixed 256 loops.
+| Patch grid | Samples per patch | Load/render | Edit/save |
+| --- | ---: | --- | --- |
+| `P=1` | `R=256` | supported | supported |
+| `P=4` | `R=64` | supported | supported |
+| `P=8` | `R=32` | supported | supported |
+| `P=16` | `R=16` | supported | supported |
+| `P=17` | not accepted | rejected | rejected |
+| `P=10` | non-integral for `N=256` | rejected | rejected |
+| `P<=0` | invalid | rejected | rejected |
 
-Required change:
+The same rules combine independently with other accepted heightmap
+resolutions, including 512/4 and 1024/2.
 
-- allocate patch state as `P * P` after `.t` metadata is validated;
-- use a single patch index helper, for example `index = z * P + x`;
-- make ownership/cleanup safe on partial load;
-- initialize defaults through one routine shared by local and client terrain.
+## Verification
 
-### 2. Terrain client initializes 256 entries before it knows `P`
+The focused terrain-grid suite covers:
 
-`TerrainClient::load()` performs fixed-size initialization during its staged
-load, while the authoritative patch count arrives in the `.t` payload.
+- the 256/8, 512/4, and 1024/2 profiles;
+- 256/8 profile construction with 4 x 4 and 8 x 8 patch grids;
+- editable 4 x 4 and 16 x 16 layouts;
+- resolution-dependent default texture-matrix scale;
+- 4 x 4 record bounds and patch-index round trips;
+- rejection above 16 patches and of non-divisible grids;
+- a synthetic future 32 x 32 layout remaining non-editable.
 
-Required change:
+The terrain-file corpus suite parses descriptors, validates payload lengths,
+loads height/F data, and reports editable versus read-only layouts across
+stock MSTS routes and the CMK route. Every accepted patch layout should now be
+reported editable; malformed or truncated payloads remain rejected. The final
+stock MSTS scan accepted all 1108 descriptors, reported all 1108 editable, and
+performed reversible patch-record edits on all 86 non-16 grids with no
+failures. It loaded 1106 payloads; the two pre-existing truncated USA1 RAW
+files remained safely rejected. CMK loaded all 1194 terrain files and reported
+all 1194 editable.
 
-- defer patch-container finalization until the descriptor is parsed;
-- validate `P`, `P * P`, and received patch-record count before committing;
-- reject or reset a staged tile atomically on mismatch.
+## Remaining boundary
 
-### 3. Selection/picking encodes the patch index in eight bits
-
-Terrain picking stores the selected patch in the low byte of the selection
-colour. This makes 256 total patches a format/protocol limit in the current
-picker, not merely an array-size bug. Selection range code also divides by 16
-and many selection loops stop at 256.
-
-Required change:
-
-- define a wider, collision-free picking encoding or use an integer picking
-  attachment/object table;
-- update both encoder and decoder together;
-- derive row/column as `index / P` and `index % P`;
-- document the maximum supported `P` after accounting for GPU/API limits.
-
-Supporting `P=8` alone can temporarily fit the old byte, but full variable
-patch-count support must handle `P=32` (1024 patches) or explicitly declare a
-lower maximum.
-
-### 4. Many patch loops and indexes still use 16 or 256
-
-Examples in `src/tsre/world/Terrain.cpp` include:
-
-- texture selection, lock, rotate/mirror/scale, unique-texture, and reset
-  operations looping over 256;
-- texture painting/indexing using `y * 16 + x`;
-- selected-range calculations using `/ 16`;
-- `refreshWaterShapes()` iterating 16 x 16 and indexing `uu * 16 + yy`;
-- `menuSelectObjects()` iterating 16 x 16 with a hard-coded 128 m patch size;
-- renderer/alternate-renderer height and F indexes using `patch * 16 + cell`;
-- line overlays iterating 16 x 16 patches.
-
-Required change:
-
-- use `P` for patch rows, columns, and flattening;
-- use `R` only for cells inside each patch;
-- use `terrainWorldSize / P` for patch metres;
-- keep texture-coordinate constants separate from patch-count constants.
-
-### 5. Gap/F operations conflate patch count and patch resolution
-
-`removeAllGaps()` walks a selected patch as 16 x 16 samples. This is only
-correct in the standard profile where both `P` and `R` happen to be 16.
-
-Required change:
-
-- patch selection/indexing uses `P`;
-- F-cell iteration inside a patch uses `R`;
-- bounds and border ownership follow the shared height-grid layout.
-
-### 6. Texture transforms contain both patch-count and cell-count assumptions
-
-Patch record indexing must use `P`, while UV increments across a patch depend
-on `R`. Whole-terrain map textures depend on `N`. Existing formulas mix these
-values because all were related by 16 in the standard profile.
-
-Required change:
-
-- name APIs by coordinate domain: patch index, cell-in-patch, or whole-grid;
-- generate/reset per-patch UVs from `R`;
-- position each patch in a whole-terrain texture from `P`;
-- test every transform with `P != 16` while holding `N` fixed.
-
-### 7. Water and object-range behavior assumes 16 patches at 128 m
-
-Water shapes must be stored and invalidated for `P * P` patches.
-`menuSelectObjects()` must calculate ranges from the selected patch bounds in
-terrain/world space; `i * 128 - 1024` is not valid for arbitrary terrain size
-or `P`.
-
-World objects are still owned by independent 2048 m `.w` files. If one terrain
-patch overlaps more than one World file, range selection must query every
-covered World file rather than changing World ownership.
-
-## Implementation outline
-
-1. Reuse the validated layout from the resolution task and remove its
-   `P == 16` rejection behind an explicit feature gate.
-2. Replace every patch-owned fixed array with a `P * P` container and
-   centralize flatten/unflatten helpers.
-3. Update local/client initialization, cleanup, save, reload, and texture
-   ownership.
-4. Redesign terrain picking for more than 256 patch IDs, then update range and
-   multi-selection.
-5. Convert water, F/gaps, texture operations, overlays, renderer offsets, and
-   object-range selection to the correct `P`/`R`/metre domains.
-6. Add malformed descriptor/resource caps and the regression matrix below.
-
-## Regression matrix
-
-Keep `N=256`, `S=8 m`, and terrain size 2048 m initially:
-
-| Patch grid | Result | Purpose |
-| --- | --- | --- |
-| `P=8`, `R=32` | supported | fewer patch records; larger patches |
-| `P=16`, `R=16` | supported | compatibility baseline |
-| `P=32`, `R=8` | supported or documented cap | more than 256 patch IDs |
-| `P=10` | rejected | `N % P != 0` |
-| `P=0`, negative, or overflow-sized | rejected before allocation | malformed input |
-
-For supported cases verify load/render/save, texture record round trip, patch
-picking, single/range selection, water visibility/levels, gaps, overlays,
-unique/locked/painted textures, object-range selection, client/server loading,
-and repeated destruction under heap checking.
-
-After isolating `P`, combine it with at least one nonstandard heightmap profile
-such as `N=512`, `S=4 m` to prove the code does not again conflate `P` and `R`.
-
-## Acceptance criteria
-
-- no patch-owned runtime array is fixed at 256 entries;
-- all patch loops/indexes use `P`, all cell-in-patch loops use `R`, and all
-  physical patch extents use `terrainWorldSize / P`;
-- picking works for the documented maximum patch count without ID collisions;
-- `.t` patch record count is validated against `P * P` before use;
-- standard `P=16` terrain remains byte-compatible and visually equivalent;
-- variable patch count does not change the fixed 2048 m World-file lattice or
-  World object ownership.
-
+This implementation does not authorize more than 16 patches per side. Future
+work may widen descriptor acceptance while leaving `supportsEditing()` false,
+which will use the retained read-only capability without weakening current
+editing guarantees.

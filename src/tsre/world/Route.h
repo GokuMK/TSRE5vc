@@ -92,6 +92,7 @@ public:
     void preloadWFiles(bool gui = false);
     void preloadWFilesInit();
     int newTile(int x, int z, bool forced = false);
+    void ensureWorldTile(int x, int z);
     void reloadTile(int x, int z);
     void deleteObj(WorldObj* obj);
     void undoPlaceObj(int x, int y, int UiD);

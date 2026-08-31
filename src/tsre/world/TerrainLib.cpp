@@ -95,6 +95,23 @@ void TerrainLib::saveEmpty(int x, int z){
 
 }
 
+bool TerrainLib::saveEmpty(int x, int z, TerrainHeightProfile profile,
+                           int patches,
+                           bool overwrite){
+    Q_UNUSED(x)
+    Q_UNUSED(z)
+    Q_UNUSED(profile)
+    Q_UNUSED(patches)
+    Q_UNUSED(overwrite)
+    return false;
+}
+
+bool TerrainLib::hasDetailedTerrain(int x, int z){
+    Q_UNUSED(x)
+    Q_UNUSED(z)
+    return false;
+}
+
 bool TerrainLib::isLoaded(int x, int z) {
     return false;
 }
@@ -137,6 +154,19 @@ Terrain* TerrainLib::setHeight256(int x, int z, int posx, int posz, float h, flo
 
 float TerrainLib::getHeight(int x, int z, float posx, float posz, bool addR) {
     return 0;
+}
+
+bool TerrainLib::tryGetHeight(int x, int z, float posx, float posz,
+                              float &height, bool addR,
+                              bool loadIfNeeded) {
+    Q_UNUSED(x)
+    Q_UNUSED(z)
+    Q_UNUSED(posx)
+    Q_UNUSED(posz)
+    Q_UNUSED(height)
+    Q_UNUSED(addR)
+    Q_UNUSED(loadIfNeeded)
+    return false;
 }
 
 void TerrainLib::fillHeightMap(int x, int z, float* data){

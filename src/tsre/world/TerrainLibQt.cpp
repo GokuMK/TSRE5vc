@@ -13,6 +13,8 @@
 #include <tsre/math3d/GLMatrix.h>
 #include <QOpenGLShaderProgram>
 #include <set>
+#include <algorithm>
+#include <cmath>
 #include <math.h>
 #include <tsre/Game.h>
 #include <tsre/texture/Brush.h>
@@ -24,6 +26,7 @@
 #include <tsre/world/TerrainInfo.h>
 #include <tsre/renderer/Renderer.h>
 #include <tsre/texture/TexLib.h>
+#include <QFile>
 
 TerrainLibQt::TerrainLibQt() {
 }
@@ -243,16 +246,21 @@ Terrain* TerrainLibQt::setHeight256(int x, int z, int posx, int posz, float h) {
 
 Terrain* TerrainLibQt::setHeight256(int x, int z, int posx, int posz, float h, float diffC, float diffE) {
     Game::check_coords(x, z, posx, posz);
+    const int worldPosX = posx;
+    const int worldPosZ = posz;
     Terrain *terr = getTerrainByXY(x, z);
 
     if (terr == NULL) return NULL;
     if (terr->loaded == false) return NULL;
+    if (!terr->isEditable()) return NULL;
 
     float lx = posx, lz = posz;
     terr->getLocalCoords(x, z, lx, lz);
     int sampleSize = terr->getSampleSize();
-    posx = lx / sampleSize;
-    posz = lz / sampleSize;
+    posx = std::clamp(static_cast<int>(std::floor(lx / sampleSize)),
+                      0, terr->getSampleCount());
+    posz = std::clamp(static_cast<int>(std::floor(lz / sampleSize)),
+                      0, terr->getSampleCount());
     
     if(diffC == 0 && diffE == 0){
         terr->terrainData[(posz)][(posx)] = h;
@@ -264,21 +272,28 @@ Terrain* TerrainLibQt::setHeight256(int x, int z, int posx, int posz, float h, f
             if(terr->terrainData[(posz)][(posx)] > h + diffC) 
                 terr->terrainData[(posz)][(posx)] = h + diffC;
     }
-    terr->setErrorBias(x, z, posx, posz, 0);
+    terr->setErrorBias(x, z, worldPosX, worldPosZ, 0);
     terr->setModified(true);
     
     return terr;
 }
 
 float TerrainLibQt::getHeight(int x, int z, float posx, float posz, bool addR) {
-    Game::check_coords(x, z, posx, posz);
-    
-    Terrain *terr = getTerrainByXY(x, z, false);
+    float height = -1.0f;
+    tryGetHeight(x, z, posx, posz, height, addR, false);
+    return height;
+}
 
-    if (terr == NULL) return -1;
-    if (terr->loaded == false) return -1;
-
-    return terr->getHeight(x, z, posx, posz, addR);
+bool TerrainLibQt::tryGetHeight(int x, int z, float posx, float posz,
+                                float &height, bool addR,
+                                bool loadIfNeeded) {
+    if (!TerrainGridLayout::normalizeWorldPosition(x, z, posx, posz))
+        return false;
+    Terrain *terr = getTerrainByXY(x, z, loadIfNeeded);
+    if (terr == NULL || !terr->loaded)
+        return false;
+    height = terr->getHeight(x, z, posx, posz, addR);
+    return true;
 }
 
 void TerrainLibQt::fillHeightMap(int x, int z, float* data) {
@@ -312,6 +327,7 @@ void TerrainLibQt::setHeightFromGeoGui(int x, int z, float* p) {
     Terrain *terr = getTerrainByXY(x, z);
     if (terr == NULL) return;
     if (terr->loaded == false) return;
+    if (!terr->isEditable()) return;
 
     int X, Y;
     terr->getLowCornerTileXY(X, Y);
@@ -329,6 +345,7 @@ void TerrainLibQt::setHeightFromGeoGui(int x, int z, float* p) {
                 terr->terrainData[i][j] = heightWindow->terrainData[j][i];
             }
         }
+        terr->setAllErrorBias(0);
         terr->setModified(true);
         int X, Y;
         for(int i = -1; i <= 1; i++)
@@ -354,6 +371,7 @@ void TerrainLibQt::setHeightFromGeo(int x, int z, float* p) {
     Terrain *terr = getTerrainByXY(x, z);
     if (terr == NULL) return;
     if (terr->loaded == false) return;
+    if (!terr->isEditable()) return;
     int X, Y;
     terr->getLowCornerTileXY(X, Y);
     heightWindow->tileX = X;
@@ -370,6 +388,7 @@ void TerrainLibQt::setHeightFromGeo(int x, int z, float* p) {
                 terr->terrainData[i][j] = heightWindow->terrainData[j][i];
             }
         }
+        terr->setAllErrorBias(0);
         terr->setModified(true);
         //terr->refresh();
         int X, Y;
@@ -413,6 +432,21 @@ void TerrainLibQt::setTextureToTrackObj(Brush* brush, float* punkty, int length,
 
 void TerrainLibQt::setTerrainToTrackObj(Brush* brush, float* punkty, int length, int tx, int tz, float* matrix, float offsetY) {
     QSet<Terrain*> uterr;
+    if (brush == NULL || punkty == NULL || length < 3)
+        return;
+    int referenceX = tx;
+    int referenceZ = tz;
+    float referencePosX = punkty[0];
+    float referencePosZ = punkty[2];
+    Game::check_coords(referenceX, referenceZ, referencePosX, referencePosZ);
+    Terrain *referenceTerrain = getTerrainByXY(referenceX, referenceZ);
+    if (referenceTerrain == NULL || !referenceTerrain->loaded)
+        return;
+    if (!referenceTerrain->isEditable())
+        return;
+    const int gridSpacing = referenceTerrain->getSampleSize();
+    const int radiusCells = static_cast<int>(std::ceil(brush->eRadius * 8.0f / gridSpacing));
+    const int bedCells = static_cast<int>(std::ceil(brush->eSize * 8.0f / gridSpacing));
     // calculating plane equation
     float p1[3];
     float p2[3];
@@ -470,14 +504,15 @@ void TerrainLibQt::setTerrainToTrackObj(Brush* brush, float* punkty, int length,
     //set to undo
     int ttx, ttz;
     Terrain *terr = NULL;
-    for(int ii = -brush->eRadius; ii < brush->eRadius; ii++)
-        for(int jj = -brush->eRadius; jj < brush->eRadius; jj++){
-            if(sqrt(ii*ii + jj*jj) > brush->eRadius) continue;
+    for(int ii = -radiusCells; ii <= radiusCells; ii++)
+        for(int jj = -radiusCells; jj <= radiusCells; jj++){
+            if(sqrt(static_cast<float>(ii*ii + jj*jj)) * gridSpacing
+                    > brush->eRadius * 8.0f) continue;
             for(int i = 0; i< length; i+=3){
-                xx = floor((float)punkty[i]/8.0) + ii;
-                zz = floor((float)punkty[i+2]/8.0) + jj;
-                xx *= 8;
-                zz *= 8;
+                xx = static_cast<int>(floor((float)punkty[i]/gridSpacing)) + ii;
+                zz = static_cast<int>(floor((float)punkty[i+2]/gridSpacing)) + jj;
+                xx *= gridSpacing;
+                zz *= gridSpacing;
                 ttx = tx;
                 ttz = tz;
                 Game::check_coords(ttx, ttz, xx, zz);
@@ -485,38 +520,56 @@ void TerrainLibQt::setTerrainToTrackObj(Brush* brush, float* punkty, int length,
                     terr = getTerrainByXY(ttx, ttz);
                     if (terr == NULL) continue;
                     if (!terr->loaded) continue;
+                    if (!terr->isEditable()) continue;
+                    if (terr->getSampleSize() != gridSpacing) {
+                        qWarning() << "Skipping mixed-resolution track-bed seam";
+                        continue;
+                    }
                     Undo::PushTerrainHeightMap(terr->mojex, terr->mojez, terr->terrainData, terr->getSampleCount());
                 }
             }
         }
     //0
     
-    for(int ii = -brush->eRadius; ii < brush->eRadius; ii++)
-        for(int jj = -brush->eRadius; jj < brush->eRadius; jj++){
-            if(sqrt(ii*ii + jj*jj) > brush->eRadius) continue;
+    for(int ii = -radiusCells; ii <= radiusCells; ii++)
+        for(int jj = -radiusCells; jj <= radiusCells; jj++){
+            if(sqrt(static_cast<float>(ii*ii + jj*jj)) * gridSpacing
+                    > brush->eRadius * 8.0f) continue;
             for(int i = 0; i< length; i+=3){
-                xx = floor((float)punkty[i]/8.0);
-                zz = floor((float)punkty[i+2]/8.0);
+                xx = floor((float)punkty[i]/gridSpacing);
+                zz = floor((float)punkty[i+2]/gridSpacing);
                 xx += ii;
                 zz += jj;
-                if(ii <= -brush->eSize) 
-                    iis = ii+brush->eSize-1;
-                else if(ii >= brush->eSize) 
-                    iis = ii-brush->eSize;
+                if(ii <= -bedCells)
+                    iis = ii+bedCells-1;
+                else if(ii >= bedCells)
+                    iis = ii-bedCells;
                 else
                     iis = 0;
-                if(jj <= -brush->eSize) 
-                    jjs = jj+brush->eSize-1;
-                else if(jj >= brush->eSize) 
-                    jjs = jj-brush->eSize;
+                if(jj <= -bedCells)
+                    jjs = jj+bedCells-1;
+                else if(jj >= bedCells)
+                    jjs = jj-bedCells;
                 else
                     jjs = 0;
-                h = vec3d - vec3.x*xx*8 - vec3.z*zz*8;
+                h = vec3d - vec3.x*xx*gridSpacing - vec3.z*zz*gridSpacing;
                 //
-                diffC = sqrt(iis*iis + jjs*jjs)*brush->eCut;
-                diffE = sqrt(iis*iis + jjs*jjs)*brush->eEmb;
+                const float distanceScale = gridSpacing / 8.0f;
+                diffC = sqrt(static_cast<float>(iis*iis + jjs*jjs))*brush->eCut*distanceScale;
+                diffE = sqrt(static_cast<float>(iis*iis + jjs*jjs))*brush->eEmb*distanceScale;
                 //qDebug() << diffC <<" "<<diffE;
-                uterr.insert(setHeight256(tx, tz, xx*8, zz*8, h + offsetY, diffC, diffE));
+                int targetTileX = tx;
+                int targetTileZ = tz;
+                float targetX = xx * gridSpacing;
+                float targetZ = zz * gridSpacing;
+                Game::check_coords(targetTileX, targetTileZ, targetX, targetZ);
+                Terrain *targetTerrain = getTerrainByXY(targetTileX, targetTileZ);
+                if (targetTerrain == NULL || !targetTerrain->loaded
+                        || !targetTerrain->isEditable()
+                        || targetTerrain->getSampleSize() != gridSpacing)
+                    continue;
+                uterr.insert(setHeight256(tx, tz, xx*gridSpacing, zz*gridSpacing,
+                                          h + offsetY, diffC, diffE));
             }
         }
     
@@ -690,18 +743,18 @@ void TerrainLibQt::setFixedTileHeight(Brush* brush, int x, int z, float* p) {
     Terrain *terr = this->getTerrainByXY(x, z);
     if (terr == NULL) return;
     if (terr->loaded == false) return;
+    if (!terr->isEditable()) return;
     Undo::PushTerrainHeightMap(terr->mojex, terr->mojez, terr->terrainData, terr->getSampleCount());
     terr->setFixedHeight(brush->hFixed);
+    terr->setAllErrorBias(0);
     updateTerrainHeightmap(terr);
 }
 
 QSet<Terrain*> TerrainLibQt::paintHeightMap(Brush* brush, int x, int z, float* p) {
 
     QSet<Terrain*> uterr;
-    
-    float posx = round(p[0]/8.0)*8.0;
-    float posz = round(p[2]/8.0)*8.0;
-    
+    float posx = p[0];
+    float posz = p[2];
     Game::check_coords(x, z, posx, posz);
     qDebug() << x << " " << z << " " << posx << " " << posz;
     
@@ -709,10 +762,16 @@ QSet<Terrain*> TerrainLibQt::paintHeightMap(Brush* brush, int x, int z, float* p
     terr = getTerrainByXY(x, z);
     if (terr == NULL) return uterr;
     if (terr->loaded == false) return uterr;
+    if (!terr->isEditable()) return uterr;
+
+    const int editingSpacing = terr->getSampleSize();
+    posx = std::round(posx / editingSpacing) * editingSpacing;
+    posz = std::round(posz / editingSpacing) * editingSpacing;
 
     int px = posx;
     int pz = posz;
-    float size = brush->size;
+    const float radiusMetres = brush->size * 8.0f;
+    const int radiusCells = static_cast<int>(std::ceil(radiusMetres / editingSpacing));
     float h = 0;
     float rd = 0;
     float hAvg = 0;
@@ -723,10 +782,12 @@ QSet<Terrain*> TerrainLibQt::paintHeightMap(Brush* brush, int x, int z, float* p
     // add tiles that can be modified to undo;
     Undo::PushTerrainHeightMap(terr->mojex, terr->mojez, terr->terrainData, terr->getSampleCount());
     
-    for(int i = -size; i < size; i++)
-        for(int j = -size; j < size; j++){
-            tpx = px+i*8;
-            tpz = pz+j*8;
+    for(int i = -radiusCells; i <= radiusCells; i++)
+        for(int j = -radiusCells; j <= radiusCells; j++){
+            if (std::sqrt(static_cast<float>(i*i + j*j)) * editingSpacing > radiusMetres)
+                continue;
+            tpx = px+i*editingSpacing;
+            tpz = pz+j*editingSpacing;
             tx = x;
             tz = z;
             Game::check_coords(tx, tz, tpx, tpz);
@@ -734,6 +795,11 @@ QSet<Terrain*> TerrainLibQt::paintHeightMap(Brush* brush, int x, int z, float* p
                 terr = getTerrainByXY(tx, tz);
                 if (terr == NULL) continue;
                 if (!terr->loaded) continue;
+                if (!terr->isEditable()) continue;
+                if (terr->getSampleSize() != editingSpacing) {
+                    qWarning() << "Skipping mixed-resolution terrain brush seam";
+                    continue;
+                }
                 Undo::PushTerrainHeightMap(terr->mojex, terr->mojez, terr->terrainData, terr->getSampleCount());
             }
         }
@@ -748,55 +814,67 @@ QSet<Terrain*> TerrainLibQt::paintHeightMap(Brush* brush, int x, int z, float* p
         hAvg = brush->hFixed;
     }
     if(brush->hType == 3){
-        for(int i = -size; i < size; i++)
-            for(int j = -size; j < size; j++){
-                tpx = px+i*8;
-                tpz = pz+j*8;
+        for(int i = -radiusCells; i <= radiusCells; i++)
+            for(int j = -radiusCells; j <= radiusCells; j++){
+                if (std::sqrt(static_cast<float>(i*i + j*j)) * editingSpacing > radiusMetres)
+                    continue;
+                tpx = px+i*editingSpacing;
+                tpz = pz+j*editingSpacing;
                 tx = x;
                 tz = z;
                 Game::check_coords(tx, tz, tpx, tpz);
                 terr = getTerrainByXY(tx, tz);
                 if (terr == NULL) continue;
                 if (!terr->loaded) continue;
+                if (!terr->isEditable()) continue;
+                if (terr->getSampleSize() != editingSpacing) continue;
                 float lx = tpx, lz = tpz;
                 terr->getLocalCoords(tx, tz, lx, lz);
                 int sampleSize = terr->getSampleSize();
-                tpx = lx / sampleSize;
-                tpz = lz / sampleSize;
+                tpx = std::clamp(static_cast<int>(std::floor(lx / sampleSize)),
+                                 0, terr->getSampleCount());
+                tpz = std::clamp(static_cast<int>(std::floor(lz / sampleSize)),
+                                 0, terr->getSampleCount());
                 hAvg += terr->terrainData[tpz][tpx];
                 count++;
             }
-        hAvg /= count;
+        if (count > 0)
+            hAvg /= count;
     }
     
-    for(int i = -size; i < size; i++)
-        for(int j = -size; j < size; j++){
+    for(int i = -radiusCells; i <= radiusCells; i++)
+        for(int j = -radiusCells; j <= radiusCells; j++){
             if(brush->hType == 1)
                 if(i == 0 && j == 0) continue;
             tx = x;
             tz = z;
-            tpx = px+i*8;
-            tpz = pz+j*8;
+            tpx = px+i*editingSpacing;
+            tpz = pz+j*editingSpacing;
             Game::check_coords(tx, tz, tpx, tpz);
             terr = getTerrainByXY(tx, tz);
             if (terr == NULL) continue;
             if (!terr->loaded) continue;
+            if (!terr->isEditable()) continue;
+            if (terr->getSampleSize() != editingSpacing) continue;
             uterr.insert(terr);
-            
-            if(sqrt(i*i + j*j) > size) continue;
-            
+
+            const float distanceMetres = std::sqrt(static_cast<float>(i*i + j*j))
+                    * editingSpacing;
+            if(distanceMetres > radiusMetres) continue;
+
             int sampleSize = terr->getSampleSize();
-            float tileSizeMultipler = (8.0*8.0)/(sampleSize*sampleSize);
-            h = (float)(size - (sqrt(i*i + j*j)))/size;
-            h = h*brush->alpha*brush->direction*10.0*tileSizeMultipler;;
+            h = radiusMetres > 0.0f ? (radiusMetres - distanceMetres) / radiusMetres : 1.0f;
+            h = h*brush->alpha*brush->direction*10.0;
             
             terr->setErrorBias(tx, tz, tpx, tpz, 0);
             float lx = tpx, lz = tpz;
             terr->getLocalCoords(tx, tz, lx, lz);
             //qDebug() << tpx << lx << tpz << lz;
             
-            tpx = lx / sampleSize;
-            tpz = lz / sampleSize;
+            tpx = std::clamp(static_cast<int>(std::floor(lx / sampleSize)),
+                             0, terr->getSampleCount());
+            tpz = std::clamp(static_cast<int>(std::floor(lz / sampleSize)),
+                             0, terr->getSampleCount());
             if(brush->hType == 0){
                     terr->terrainData[tpz][tpx] += h;
             } else if(brush->hType == 1){
@@ -981,22 +1059,30 @@ void TerrainLibQt::fillTerrainData(Terrain* tTile, float* offsetXYZ){
     
     float h = 0;
     tTile->setFixedHeight(200);
-    for(int i = -1024; i < 1024; i+= 8)
-        for(int j = -1024; j < 1024; j+= 8){
+    const TerrainGridLayout &destinationLayout = tTile->getGridLayout();
+    const int startX = -TerrainGridLayout::WorldTileHalfSize;
+    const int endX = startX + destinationLayout.terrainWorldSize;
+    const int endZ = TerrainGridLayout::WorldTileHalfSize;
+    const int startZ = endZ - destinationLayout.terrainWorldSize;
+    for(int i = startX; i < endX; i += destinationLayout.sampleSpacing)
+        for(int j = startZ; j < endZ; j += destinationLayout.sampleSpacing){
             x = tTile->mojex;
             z = tTile->mojez;
             position[0] = i - offsetXYZ[0];
             position[2] = j + offsetXYZ[2];
-            while(position[0] > 1024 || position[0] < -1024 || position[2] > 1024 || position[2] < -1024 ){
+            while(position[0] > TerrainGridLayout::WorldTileHalfSize
+                    || position[0] < -TerrainGridLayout::WorldTileHalfSize
+                    || position[2] > TerrainGridLayout::WorldTileHalfSize
+                    || position[2] < -TerrainGridLayout::WorldTileHalfSize ){
                 Game::check_coords(x, z, position);
             }
-            if(position[0] == 1024){
+            if(position[0] == TerrainGridLayout::WorldTileHalfSize){
                 x++;
-                position[0] = -1024;
+                position[0] = -TerrainGridLayout::WorldTileHalfSize;
             }
-            if(position[2] == 1024){
+            if(position[2] == TerrainGridLayout::WorldTileHalfSize){
                 z++;
-                position[2] = -1024;
+                position[2] = -TerrainGridLayout::WorldTileHalfSize;
             }
             //qDebug() << tTile->mojex << tTile->mojez << x << z << i << j << position[0] << position[2];
             Terrain *terr = getTerrainByXY(x, z, false);
@@ -1010,22 +1096,26 @@ void TerrainLibQt::fillTerrainData(Terrain* tTile, float* offsetXYZ){
         }
     
     Brush *brush = new Brush();
-    for(int i = -1023; i < 1024; i+= 128)
-        for(int j = -1023; j < 1024; j+= 128){
+    const int halfPatch = destinationLayout.patchWorldSize / 2;
+    for(int i = startX + halfPatch; i < endX; i += destinationLayout.patchWorldSize)
+        for(int j = startZ + halfPatch; j < endZ; j += destinationLayout.patchWorldSize){
             x = tTile->mojex;
             z = tTile->mojez;
             position[0] = i - offsetXYZ[0];
             position[2] = j + offsetXYZ[2];
-            while(position[0] > 1024 || position[0] < -1024 || position[2] > 1024 || position[2] < -1024 ){
+            while(position[0] > TerrainGridLayout::WorldTileHalfSize
+                    || position[0] < -TerrainGridLayout::WorldTileHalfSize
+                    || position[2] > TerrainGridLayout::WorldTileHalfSize
+                    || position[2] < -TerrainGridLayout::WorldTileHalfSize ){
                 Game::check_coords(x, z, position);
             }
-            if(position[0] == 1024){
+            if(position[0] == TerrainGridLayout::WorldTileHalfSize){
                 x++;
-                position[0] = -1024;
+                position[0] = -TerrainGridLayout::WorldTileHalfSize;
             }
-            if(position[2] == 1024){
+            if(position[2] == TerrainGridLayout::WorldTileHalfSize){
                 z++;
-                position[2] = -1024;
+                position[2] = -TerrainGridLayout::WorldTileHalfSize;
             }
             Terrain *terr = getTerrainByXY(x, z, false);
             if (terr == NULL){
@@ -1039,13 +1129,13 @@ void TerrainLibQt::fillTerrainData(Terrain* tTile, float* offsetXYZ){
                 }
             }
         }
-
+    delete brush;
 }
 
 void TerrainLibQt::fillRaw(Terrain *cTerr, int mojex, int mojez) {
     QuadTree* tQuadTree = currentQuadTree;
     QHash<unsigned int, TerrainInfo*> *tterrainQt = currentQt;
-    
+
     if(cTerr->lowTile){
         currentQuadTree = quadTreeLo;
         currentQt = &terrainQtLo;
@@ -1054,28 +1144,9 @@ void TerrainLibQt::fillRaw(Terrain *cTerr, int mojex, int mojez) {
         currentQt = &terrainQt;
     }
     
-    Terrain *tTile;
-    int X, Y;
-    cTerr->getCornerCoordsXY(X, Y, 1, 0);
-    tTile = getTerrainByXY(X, Y, true);
-    if(tTile != NULL)
-        if (tTile->loaded) {
-            cTerr->fillTerrainDataX(tTile);
-        }
-
-    cTerr->getCornerCoordsXY(X, Y, 0, 1);
-    tTile = getTerrainByXY(X, Y, true);
-    if(tTile != NULL)
-        if (tTile->loaded) {
-            cTerr->fillTerrainDataY(tTile);
-        }
-
-    cTerr->getCornerCoordsXY(X, Y, 1, 1);
-    tTile = getTerrainByXY(X, Y, true);
-    if(tTile != NULL)
-        if (tTile->loaded) {
-            cTerr->fillTerrainDataXY(tTile);
-        }
+    cTerr->fillTerrainDataX();
+    cTerr->fillTerrainDataY();
+    cTerr->fillTerrainDataXY();
     
     currentQuadTree = tQuadTree;
     currentQt = tterrainQt;
@@ -1427,4 +1498,28 @@ void TerrainLibQt::spiralLoop(int n, int &x, int &y) {
             y = r - (a % en);
             break;
     }
+}
+
+bool TerrainLibQt::saveEmpty(int x, int z, TerrainHeightProfile profile,
+                             int patches,
+                             bool overwrite) {
+    if (quadTree == NULL)
+        return false;
+    currentQuadTree = quadTree;
+    currentQt = &terrainQt;
+    const TerrainGridLayout layout = TerrainGridLayout::profile(profile, patches);
+    if (layout.sampleCount == 0)
+        return false;
+    currentQuadTree->addTile(x, z);
+    const QString name = currentQuadTree->getMyName(x, z);
+    return Terrain::SaveEmpty(name, layout.sampleCount, layout.sampleSpacing,
+                              layout.patchesPerSide, false, overwrite);
+}
+
+bool TerrainLibQt::hasDetailedTerrain(int x, int z) {
+    if (quadTree == NULL || quadTree->getMyNameId(x, z) == 0)
+        return false;
+    const QString name = quadTree->getMyName(x, z);
+    return QFile::exists(Game::root + "/routes/" + Game::route
+                         + "/tiles/" + name + ".t");
 }

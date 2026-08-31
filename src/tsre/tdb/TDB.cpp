@@ -16,6 +16,7 @@
 #include <tsre/renderer/Renderer.h>
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/fileFunctions/ReadFile.h>
+#include <tsre/fileFunctions/MstsTextFileValidation.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/world/Ref.h>
 #include <tsre/tdb/TRnode.h>
@@ -105,6 +106,14 @@ TDB::TDB(TSectionDAT* tsection, bool road) {
 }
 
 void TDB::loadTdb(){
+    loaded = false;
+    sourceFileExists = false;
+    if(!this->road) {
+        if(speedPostDAT == NULL)
+            speedPostDAT = new SpeedPostDAT();
+        if(sigCfg == NULL)
+            sigCfg = new SigCfg();
+    }
 
     QString sh;
     QString extension = "tdb";
@@ -113,17 +122,50 @@ void TDB::loadTdb(){
     path.replace("//", "/");
     qDebug() << "Wczytywanie pliku tdb: " << path;
     QFile file(path);
-    if (!file.open(QIODevice::ReadOnly))
+    sourceFileExists = file.exists();
+    if(!sourceFileExists) {
+        qDebug() << "Database file does not exist; using an empty"
+                 << (road ? "RDB" : "TDB");
+        loaded = true;
         return;
+    }
+    auto reportLoadFailure = [&](const QString &reason) {
+        qWarning() << "Failed to load existing" << (road ? "RDB" : "TDB")
+                   << path << reason;
+        ErrorMessagesLib::PushErrorMessage(new ErrorMessage(
+            ErrorMessage::Type_Error,
+            tdbName,
+            QString("Failed to load existing %1 file: %2")
+                .arg(road ? "road database" : "track database", path),
+            reason + " The existing file will not be overwritten."
+        ));
+    };
+    if(!file.open(QIODevice::ReadOnly)) {
+        reportLoadFailure(file.errorString());
+        return;
+    }
+    if(file.size() < 34) {
+        reportLoadFailure("File is too short to be a valid MSTS database.");
+        file.close();
+        return;
+    }
     FileBuffer* data = ReadFile::read(&file);
     file.close();
     data->toUtf16();
+    QString validationError;
+    if(!MstsTextFileValidation::validate(data, validationError)) {
+        reportLoadFailure(validationError);
+        delete data;
+        return;
+    }
     data->skipBOM();
     ParserX::NextLine(data);
     iTRnodes = 0;
+    bool trackDbFound = false;
     
     while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
         if (sh == "trackdb") {
+            trackDbFound = true;
             loadUtf16Data(data);
             ParserX::SkipToken(data);
             continue;
@@ -131,6 +173,12 @@ void TDB::loadTdb(){
         }
         qDebug() << "#TDB undefined token " << sh;
         ParserX::SkipToken(data);
+    }
+    delete data;
+
+    if(!trackDbFound) {
+        reportLoadFailure("The TrackDB block is missing.");
+        return;
     }
     
     if(tsection->updateSectionDataRequired){
@@ -147,8 +195,6 @@ void TDB::loadTdb(){
     if(!this->road){
         loadTit();
         checkTrSignalRDirs();
-        this->speedPostDAT = new SpeedPostDAT();
-        this->sigCfg = new SigCfg();
         //checkSignals();
     }
     //save();
@@ -3832,7 +3878,13 @@ void TDB::updateTrackShape(int id){
 void TDB::save() {
     if(!Game::writeEnabled) return;
     if(!Game::writeTDB || !Game::writeTDBSessionAllowed) return;
-    
+    if(!loaded) {
+        qWarning() << "Refusing to save an unloaded"
+                   << (road ? "RDB" : "TDB")
+                   << "because an existing database may have failed to load";
+        return;
+    }
+
     while(deleteNulls());
     sortItemRefs();
     this->isInitLines = false;
@@ -4145,6 +4197,7 @@ TDB::TDB(const TDB& o) {
     
     // deep copy
     loaded = o.loaded;
+    sourceFileExists = o.sourceFileExists;
     iTRnodes = o.iTRnodes;
     iTRitems = o.iTRitems;
     serial = o.serial;

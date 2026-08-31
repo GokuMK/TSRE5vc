@@ -10,6 +10,8 @@
 
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <QString>
+#include <QByteArray>
+#include <QVector>
 #include <unordered_map>
 
 #ifndef TFILE_H
@@ -57,7 +59,14 @@ public:
     QString* sampleYbuffer = NULL;
     QString* sampleEbuffer = NULL;
     QString* sampleNbuffer = NULL;
-    char* sampleASbuffer = NULL;
+    struct OpaqueSampleBuffer {
+        bool present = false;
+        QString label;
+        QByteArray payload;
+    };
+    OpaqueSampleBuffer sampleASbuffer;
+    OpaqueSampleBuffer sampleUSbuffer;
+    QVector<int> opaqueSampleBufferOrder;
     
     int patchsetDistance;
     int patchsetNpatches;
@@ -84,6 +93,11 @@ private:
     void get157(FileBuffer* data);
     void get163(FileBuffer* data, int n);
     void get251(FileBuffer* data);
+    void getOpaqueSampleBuffer(FileBuffer *data, int blockEnd,
+                               OpaqueSampleBuffer &buffer);
+    static int opaqueSampleBufferBlockLength(const OpaqueSampleBuffer &buffer);
+    static void saveOpaqueSampleBuffer(QDataStream &write, int token,
+                                       const OpaqueSampleBuffer &buffer);
     
     void print();
     int cloneAMat(int id);

@@ -13,6 +13,7 @@
 #include <QFile>
 #include <tsre/fileFunctions/ReadFile.h>
 #include <QDataStream>
+#include <tsre/world/TerrainGridLayout.h>
 
 TFile::TFile() {
     loaded = false;
@@ -26,6 +27,15 @@ TFile::~TFile() {
 }
 
 void TFile::initNew(QString name, int samples, int sampleS, int patches){
+    TerrainGridLayout layout;
+    QString layoutError;
+    if (!TerrainGridLayout::tryCreate(samples, static_cast<float>(sampleS),
+                                      patches, 0.0f, layout, layoutError)) {
+        qWarning() << "Cannot initialize terrain descriptor" << name
+                   << layoutError;
+        loaded = false;
+        return;
+    }
     sampleEbuffer = new QString(name + "_e.raw");
     sampleNbuffer = new QString(name + "_n.raw");
     sampleYbuffer = new QString(name + "_y.raw");
@@ -52,8 +62,9 @@ void TFile::initNew(QString name, int samples, int sampleS, int patches){
     flags = new int[patches*patches];
     tdata = new float[patches*patches*13];
     errorBias = new float[patches*patches];
-    int tileSize = samples*sampleS;
-    float patchSize = tileSize/patches;
+    const int tileSize = layout.terrainWorldSize;
+    const float patchSize = layout.patchWorldSize;
+    const float textureScale = layout.defaultPatchTextureScale();
     float patchPosZ = -0.5*patchSize;
     float patchPosX = 0.5*patchSize;
     for(int j = 0; j < patches; j++, patchPosZ -= patchSize){
@@ -69,10 +80,10 @@ void TFile::initNew(QString name, int samples, int sampleS, int patches){
             tdata[(j*patches+i)*13+6] = 0;
             tdata[(j*patches+i)*13+7] = 0.0001;
             tdata[(j*patches+i)*13+8] = 0.0001;
-            tdata[(j*patches+i)*13+9] = 0.0625;
+            tdata[(j*patches+i)*13+9] = textureScale;
             tdata[(j*patches+i)*13+10] = 0;
             tdata[(j*patches+i)*13+11] = 0;
-            tdata[(j*patches+i)*13+12] = 0.0625;
+            tdata[(j*patches+i)*13+12] = textureScale;
             errorBias[(j*patches+i)] = 1;
         }
     }
@@ -203,10 +214,14 @@ void TFile::get139(FileBuffer* data, int length) {
                     sampleNbuffer = data->getString(data->off, data->off + slen);
                     break;
                 case 281:
-                    data->off++;
-                    sampleASbuffer = new char[257*257/8+1];
-                    for(int i = 0; i <= 257*257/8; i++)
-                        sampleASbuffer[i] = data->get();
+                    getOpaqueSampleBuffer(data, akto + offset, sampleASbuffer);
+                    if (sampleASbuffer.present && !opaqueSampleBufferOrder.contains(281))
+                        opaqueSampleBufferOrder.push_back(281);
+                    break;
+                case 282:
+                    getOpaqueSampleBuffer(data, akto + offset, sampleUSbuffer);
+                    if (sampleUSbuffer.present && !opaqueSampleBufferOrder.contains(282))
+                        opaqueSampleBufferOrder.push_back(282);
                     break;
                 default:
                     qDebug() << "TFile - unknown token: "<< pozycja;
@@ -216,6 +231,52 @@ void TFile::get139(FileBuffer* data, int length) {
             if(data->off >= length) break;
         }
     }
+
+void TFile::getOpaqueSampleBuffer(FileBuffer *data, int blockEnd,
+                                  OpaqueSampleBuffer &buffer) {
+    buffer = OpaqueSampleBuffer{};
+    if (data == NULL || data->off >= data->length || blockEnd <= data->off
+            || blockEnd > data->length) {
+        qWarning() << "Invalid opaque terrain sample buffer bounds"
+                   << (data == NULL ? 0 : data->off) << blockEnd
+                   << (data == NULL ? 0 : data->length);
+        return;
+    }
+    const int labelCharacters = data->get();
+    const int labelBytes = labelCharacters * 2;
+    if (labelBytes > blockEnd - data->off) {
+        qWarning() << "Invalid opaque terrain sample buffer label length"
+                   << labelCharacters;
+        return;
+    }
+    if (labelBytes > 0) {
+        QString *label = data->getString(data->off, data->off + labelBytes);
+        buffer.label = *label;
+        delete label;
+        data->off += labelBytes;
+    }
+    buffer.payload = QByteArray(
+            reinterpret_cast<const char*>(data->data + data->off),
+            blockEnd - data->off);
+    buffer.present = true;
+}
+
+int TFile::opaqueSampleBufferBlockLength(const OpaqueSampleBuffer &buffer) {
+    return 1 + buffer.label.length() * 2 + buffer.payload.size();
+}
+
+void TFile::saveOpaqueSampleBuffer(QDataStream &write, int token,
+                                   const OpaqueSampleBuffer &buffer) {
+    if (!buffer.present)
+        return;
+    write << static_cast<qint32>(token);
+    write << static_cast<qint32>(opaqueSampleBufferBlockLength(buffer));
+    write << static_cast<quint8>(buffer.label.length());
+    for (const QChar character : buffer.label)
+        write << character.unicode();
+    if (!buffer.payload.isEmpty())
+        write.writeRawData(buffer.payload.constData(), buffer.payload.size());
+}
 
 void TFile::get151(FileBuffer* data) {
         data->off++;
@@ -394,6 +455,10 @@ void TFile::get157(FileBuffer* data) {
 void TFile::get163(FileBuffer* data, int n) {
         int pozycja, offset, akto;
         data->off++;
+        if (n <= 0 || n > TerrainGridLayout::MaximumPatchesPerSide) {
+            qWarning() << "Skipping unsupported terrain patch grid" << n << "x" << n;
+            return;
+        }
         //int ilosc = data.getInt();
         //qDebug() << "i to " << n;
         tdata = new float[n*n*13];
@@ -547,15 +612,17 @@ void TFile::removeMat(int id){
     if(id > materialsCount)
         return;
     
+    const float defaultTextureScale = 0.998f
+            / static_cast<float>(*nsamples / patchsetNpatches);
     for(int j = 0; j < patchsetNpatches*patchsetNpatches; j++){
         if(tdata[j*13+0+6] == id){
             tdata[j*13+0+6] = 0;
             tdata[j*13 + 1 + 6] = 0.001;
             tdata[j*13 + 2 + 6] = 0.001;
-            tdata[j*13 + 3 + 6] = 0.062375;
+            tdata[j*13 + 3 + 6] = defaultTextureScale;
             tdata[j*13 + 4 + 6] = 0.0;
             tdata[j*13 + 5 + 6] = 0.0;
-            tdata[j*13 + 6 + 6] = 0.062375;
+            tdata[j*13 + 6 + 6] = defaultTextureScale;
         }
     }
     for(int j = 0; j < patchsetNpatches*patchsetNpatches; j++){
@@ -624,8 +691,10 @@ void TFile::save(QDataStream &write){
     if(sampleSize != NULL)
         t139+=13;
     // 281
-    if(sampleASbuffer != NULL)
-        t139+=257*257/8+2+8;
+    if(sampleASbuffer.present)
+        t139 += opaqueSampleBufferBlockLength(sampleASbuffer) + 8;
+    if(sampleUSbuffer.present)
+        t139 += opaqueSampleBufferBlockLength(sampleUSbuffer) + 8;
     // 145
     if(sampleFbuffer != NULL)
         t139+=sampleFbuffer->length()*2+3+8;
@@ -742,11 +811,16 @@ void TFile::save(QDataStream &write){
         write << *sampleSize;
     }
     // 281
-    if(sampleASbuffer != NULL){
-        write << (qint32)281;
-        write << (qint32)257*257/8+2;
-        write << (qint8)0;
-        write.writeRawData(sampleASbuffer, 257*257/8+1);
+    QVector<int> opaqueOrder = opaqueSampleBufferOrder;
+    if (sampleASbuffer.present && !opaqueOrder.contains(281))
+        opaqueOrder.push_back(281);
+    if (sampleUSbuffer.present && !opaqueOrder.contains(282))
+        opaqueOrder.push_back(282);
+    for (const int token : opaqueOrder) {
+        if (token == 281)
+            saveOpaqueSampleBuffer(write, token, sampleASbuffer);
+        else if (token == 282)
+            saveOpaqueSampleBuffer(write, token, sampleUSbuffer);
     }
     // 145
     if(sampleFbuffer != NULL){
