@@ -1,2 +1,0 @@
-/home/arch/tsdata
-c:/trainsim
