@@ -401,18 +401,14 @@ bool Terrain::SaveEmpty(QString name, int samples, int sampleSize, int patches,
 
     const QString directory = QFileInfo(path).absolutePath() + "/";
     if (overwrite) {
+        // Discard stale derived data, but keep the E/N resource names in the
+        // replacement descriptor so MSTS Route Editor can regenerate them.
         QFile::remove(directory + name + "_e.raw");
         QFile::remove(directory + name + "_n.raw");
     }
-    
+
     TFile *tfile = new TFile();
     tfile->initNew(name, samples, sampleSize, patches);
-    if (overwrite) {
-        delete tfile->sampleEbuffer;
-        tfile->sampleEbuffer = NULL;
-        delete tfile->sampleNbuffer;
-        tfile->sampleNbuffer = NULL;
-    }
     if(low){
         if(!QDir(Game::root + "/routes/" + Game::route + "/lo_tiles/").exists())
             QDir().mkdir(Game::root + "/routes/" + Game::route + "/lo_tiles/");

@@ -43,6 +43,7 @@
 #include <tsre/tests/SettingsTestSuite.h>
 #include <tsre/tests/TdbLoadTestSuite.h>
 #include <tsre/world/Terrain.h>
+#include <tsre/world/TFile.h>
 #include <tsre/world/TerrainGridLayout.h>
 #include <tsre/world/TerrainInfo.h>
 #include <tsre/world/Ref.h>
@@ -2340,6 +2341,57 @@ static int runTerrainGridSuite(bool verbose) {
     check(!TerrainGridLayout::normalizeWorldPosition(
               tileX, tileZ, localX, localZ),
           "reject-non-finite-world-position");
+
+    QTemporaryDir overwriteDirectory;
+    const QString originalRoot = Game::root;
+    const QString originalRoute = Game::route;
+    bool overwriteDescriptorsOk = overwriteDirectory.isValid();
+    if (overwriteDescriptorsOk) {
+        Game::root = overwriteDirectory.path();
+        Game::route = "terrain-overwrite-test";
+        const QString tilesPath = overwriteDirectory.path()
+                + "/routes/" + Game::route + "/tiles";
+        overwriteDescriptorsOk = QDir().mkpath(tilesPath);
+        struct OverwriteCase {
+            const char *name;
+            int samples;
+            int spacing;
+        };
+        const OverwriteCase overwriteCases[] = {
+            {"overwrite256", 256, 8},
+            {"overwrite512", 512, 4}
+        };
+        for (const OverwriteCase &overwriteCase : overwriteCases) {
+            const QString name = overwriteCase.name;
+            QFile staleE(tilesPath + "/" + name + "_e.raw");
+            QFile staleN(tilesPath + "/" + name + "_n.raw");
+            overwriteDescriptorsOk = overwriteDescriptorsOk
+                    && staleE.open(QIODevice::WriteOnly)
+                    && staleE.write("stale") == 5;
+            staleE.close();
+            overwriteDescriptorsOk = overwriteDescriptorsOk
+                    && staleN.open(QIODevice::WriteOnly)
+                    && staleN.write("stale") == 5;
+            staleN.close();
+            overwriteDescriptorsOk = overwriteDescriptorsOk
+                    && Terrain::SaveEmpty(name, overwriteCase.samples,
+                                          overwriteCase.spacing, 16,
+                                          false, true);
+            TFile descriptor;
+            overwriteDescriptorsOk = overwriteDescriptorsOk
+                    && descriptor.readT(tilesPath + "/" + name + ".t")
+                    && descriptor.sampleEbuffer != NULL
+                    && *descriptor.sampleEbuffer == name + "_e.raw"
+                    && descriptor.sampleNbuffer != NULL
+                    && *descriptor.sampleNbuffer == name + "_n.raw"
+                    && !QFile::exists(tilesPath + "/" + name + "_e.raw")
+                    && !QFile::exists(tilesPath + "/" + name + "_n.raw");
+        }
+    }
+    Game::root = originalRoot;
+    Game::route = originalRoute;
+    check(overwriteDescriptorsOk,
+          "overwrite-retains-e-n-resource-names");
 
     qInfo() << "[tests:terrain-grid] cases=" << (passed + failed)
             << "passed=" << passed << "failed=" << failed;
