@@ -16,6 +16,7 @@
 
 enum class TerrainHeightProfile {
     Standard256x8,
+    Low128x16,
     High512x4,
     Ultra1024x2
 };
@@ -49,6 +50,9 @@ struct TerrainGridLayout {
         TerrainGridLayout layout;
         QString ignored;
         switch (value) {
+        case TerrainHeightProfile::Low128x16:
+            tryCreate(128, 16.0f, patches, 0.0f, layout, ignored);
+            break;
         case TerrainHeightProfile::High512x4:
             tryCreate(512, 4.0f, patches, 0.0f, layout, ignored);
             break;

@@ -2247,6 +2247,8 @@ static int runTerrainGridSuite(bool verbose) {
 
     const TerrainGridLayout standard = TerrainGridLayout::profile(
                 TerrainHeightProfile::Standard256x8);
+    const TerrainGridLayout low = TerrainGridLayout::profile(
+                TerrainHeightProfile::Low128x16);
     const TerrainGridLayout high = TerrainGridLayout::profile(
                 TerrainHeightProfile::High512x4);
     const TerrainGridLayout ultra = TerrainGridLayout::profile(
@@ -2259,6 +2261,10 @@ static int runTerrainGridSuite(bool verbose) {
           && standard.patchResolution == 16
           && standard.terrainWorldSize == TerrainGridLayout::WorldTileSize,
           "profile-256-8");
+    check(low.sampleCount == 128 && low.sampleSpacing == 16
+          && low.patchResolution == 8
+          && low.terrainWorldSize == TerrainGridLayout::WorldTileSize,
+          "profile-128-16");
     check(high.sampleCount == 512 && high.sampleSpacing == 4
           && high.patchResolution == 32
           && high.terrainWorldSize == TerrainGridLayout::WorldTileSize,

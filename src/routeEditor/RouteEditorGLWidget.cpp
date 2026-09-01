@@ -1207,8 +1207,11 @@ void RouteEditorGLWidget::keyPressEvent(QKeyEvent * event) {
             warning->setWordWrap(true);
             QLabel *profileLabel = new QLabel("Heightmap profile:", &dialog);
             QComboBox *profiles = new QComboBox(&dialog);
+            profiles->setStyleSheet("combobox-popup: 0;");
             profiles->addItem("Standard — 256 × 256, 8 m spacing",
                               static_cast<int>(TerrainHeightProfile::Standard256x8));
+            profiles->addItem("Low resolution (experimental) — 128 × 128, 16 m spacing",
+                              static_cast<int>(TerrainHeightProfile::Low128x16));
             profiles->addItem("High resolution (experimental) — 512 × 512, 4 m spacing",
                               static_cast<int>(TerrainHeightProfile::High512x4));
             profiles->addItem("Ultra resolution (experimental) — 1024 × 1024, 2 m spacing",
@@ -1216,6 +1219,7 @@ void RouteEditorGLWidget::keyPressEvent(QKeyEvent * event) {
             profiles->setCurrentIndex(0);
             QLabel *patchesLabel = new QLabel("Patches per side:", &dialog);
             QComboBox *patches = new QComboBox(&dialog);
+            patches->setStyleSheet("combobox-popup: 0;");
             patches->addItem("4 × 4", 4);
             patches->addItem("8 × 8", 8);
             patches->addItem("16 × 16", 16);

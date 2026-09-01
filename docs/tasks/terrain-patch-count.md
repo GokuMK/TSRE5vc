@@ -22,7 +22,7 @@ on the descriptor, not on whether the tile is stored under `Tiles` or
 `Lo_tiles`.
 
 The experimental B-key tile creator exposes patch grids of 4 x 4, 8 x 8,
-and 16 x 16 for each of its 256/8, 512/4, and 1024/2 heightmap profiles.
+and 16 x 16 for each of its 128/16, 256/8, 512/4, and 1024/2 heightmap profiles.
 All other tile-creation workflows retain the normal 256/8, 16 x 16 default.
 
 ## Editability capability
@@ -65,6 +65,26 @@ within a sample. This matches Open Rails' renderer and avoids imposing the
 unsubstantiated fixed-16 normalization used by SCOmod. Legacy terrain is
 unchanged because its usual value is `R=16`.
 
+This model was confirmed directly in the original MSTS Route Editor on
+2026-09-01. Equivalent texture placement on `128/16` terrain (`R=8`) and
+standard `256/16` terrain (`R=16`) rendered identically in MSRE and TSRE when
+the stored transform used `1/R`. SCOmod's fixed-16 domain and `16/R`
+compensation are therefore a known bug, not an alternative compatibility
+interpretation. Future agents must not use that fork as authority for patch
+texture coordinates.
+
+The same experiment established two independent MSRE limits:
+
+```text
+N <= 256
+R = N / P <= 16
+```
+
+Thus `128/16` and `128/8` are MSRE-compatible, while `128/4`, `256/8`, and
+`256/4` are refused because `R > 16`; all profiles above 256 samples are
+refused because `N > 256`. These restrictions describe MSRE, not TSRE. TSRE
+continues to accept the broader validated matrix documented here.
+
 ## World-file independence
 
 Changing terrain patch count does not change World-file ownership or the
@@ -91,13 +111,13 @@ For a 256-sample, 8 m terrain footprint:
 | `P<=0` | invalid | rejected | rejected |
 
 The same rules combine independently with other accepted heightmap
-resolutions, including 512/4 and 1024/2.
+resolutions, including 128/16, 512/4, and 1024/2.
 
 ## Verification
 
 The focused terrain-grid suite covers:
 
-- the 256/8, 512/4, and 1024/2 profiles;
+- the 128/16, 256/8, 512/4, and 1024/2 profiles;
 - 256/8 profile construction with 4 x 4 and 8 x 8 patch grids;
 - editable 4 x 4 and 16 x 16 layouts;
 - resolution-dependent default texture-matrix scale;

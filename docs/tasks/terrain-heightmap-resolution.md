@@ -12,10 +12,10 @@ valid grids with `1 <= P <= 16` are loadable, renderable, editable, and
 saveable.
 
 The primary new profile is `512 samples @ 4 m`, alongside the existing
-`256 samples @ 8 m` profile. An experimental `1024 samples @ 2 m` profile is
-also exposed only through the `B`-key test-tile workflow. The implementation
-must not assume that a terrain file has a 2048 m footprint: terrain size is
-independent of World (`.w`) files.
+`256 samples @ 8 m` profile. Experimental `128 samples @ 16 m` and
+`1024 samples @ 2 m` profiles are also exposed only through the `B`-key
+test-tile workflow. The implementation must not assume that a terrain file has
+a 2048 m footprint: terrain size is independent of World (`.w`) files.
 
 World files remain on the fixed MSTS 2048 m coordinate lattice. For example,
 a 4096 m terrain tile covers four 2048 m World files. The literals 2048 and
@@ -31,8 +31,8 @@ In scope:
   `P = 16`;
 - preserving all terrain tile sizes already represented by the quadtree;
 - `512 @ 4 m` as a required supported case;
-- an explicitly experimental `B`-key GUI for creating isolated 256/8, 512/4,
-  or 1024/2 test tiles;
+- an explicitly experimental `B`-key GUI for creating isolated 128/16, 256/8,
+  512/4, or 1024/2 test tiles;
 - loading checks that reject patch counts above 16 or incompatible with `N`.
 
 Out of scope:
@@ -61,6 +61,7 @@ prominent **Experimental terrain profiles** label and a fixed profile chooser:
 | GUI profile | Samples | Spacing | Footprint | Patches | Status |
 | --- | ---: | ---: | ---: | ---: | --- |
 | Standard | `256 x 256` | `8 m` | `2048 m` | `16 x 16` | normal/default |
+| Low resolution | `128 x 128` | `16 m` | `2048 m` | `16 x 16` | experimental |
 | High resolution | `512 x 512` | `4 m` | `2048 m` | `16 x 16` | experimental |
 | Ultra resolution | `1024 x 1024` | `2 m` | `2048 m` | `16 x 16` | experimental/static-mesh stress test |
 
@@ -69,8 +70,8 @@ Requirements:
 - default to 256/8 every time; do not persist the experimental choice as an
   application or route preference;
 - show that 512/4 and especially 1024/2 have higher memory/rendering cost;
-- offer only these three named profiles, not unrestricted numeric inputs;
-- keep `P = 16` and the 2048 m terrain footprint for all three profiles;
+- offer only these four named profiles, not unrestricted numeric inputs;
+- keep the 2048 m terrain footprint for all four profiles;
 - cancellation must create neither the World file nor terrain/quadtree data;
 - pass the selected profile only to detailed-terrain creation, through both
   initial creation and confirmed terrain overwrite, without asking for it
@@ -309,22 +310,65 @@ Required decision:
 Updating only `TerrainLibQt` is not enough while this is a user-selectable
 path.
 
-### 9. Texture UVs assume 16 samples per patch
+### 9. Texture coordinates use samples per patch, not a fixed 16-unit domain
 
-Default/reset UV coefficients are approximately `1 / 16`; that 16 is the
-fixed MSTS texture-coordinate domain inside one patch, not the number of
-patches. Rendering scales that domain by `16 / R`. `makeTextureFromMap()` must
-advance by `1 / (P * 16)` inside each patch; the old formula happened to agree
-only for `P == 16`.
+Let `R = N / P` be the number of heightmap samples per patch side. Patch
+texture matrices consume raw patch-local sample coordinates from zero through
+`R`. A default transform that maps a texture exactly once across a patch must
+therefore use a linear scale of `1 / R`. Whole-terrain map generation advances
+by `1 / (P * R)`, equivalently `1 / N`, per sample.
 
-Required change:
+This is no longer an inference. On 2026-09-01, otherwise equivalent texture
+placement was tested in both TSRE and the original MSTS Route Editor (MSRE) on
+terrain with different `R` values, including `128 samples / 16 patches` (`R=8`)
+and the standard `256 / 16` (`R=16`). TSRE and MSRE rendered the texture the
+same way when the transform used `1/R`. This directly disproves a permanently
+fixed 16-unit patch texture domain and any compensating `16/R` rescaling of
+stored patch transforms.
 
-- derive per-cell patch UV increments from `R`;
+Open Rails independently uses the same model in its higher-resolution terrain
+work: `PatchSampleCount = SampleCount / PatchCount`; vertices use their raw
+patch-local sample indices as texture-matrix inputs. See
+<https://github.com/openrails/openrails/pull/1246> and commit
+<https://github.com/openrails/openrails/commit/6dca405>.
+
+Implementation rule:
+
+- derive default/reset patch transforms and per-cell patch UV increments from
+  `R`;
 - derive whole-terrain texture increments from `N`;
+- do not multiply stored transforms by `16/R` during load or rendering;
 - preserve the format's inset explicitly rather than baking it into a 16-cell
   coefficient;
 - test default, reset, rotate, mirror, scale, unique, painted, and map-derived
-  texture paths.
+  texture paths at both `R=8` and `R=16`, then at larger TSRE-only values.
+
+#### Empirical MSRE creation/loading limits
+
+The same MSRE tests found that MSRE refuses terrain unless both conditions
+hold:
+
+```text
+terrain_nsamples <= 256
+terrain_nsamples / terrain_patchset_npatches <= 16
+```
+
+These are MSRE compatibility limits, not TSRE format-validation limits. They
+explain why `128/16` was needed as a smaller test profile and divide the test
+matrix as follows:
+
+| Samples / patches | `R` | MSRE result |
+| --- | ---: | --- |
+| `128 / 16` | 8 | accepted |
+| `128 / 8` | 16 | accepted |
+| `128 / 4` | 32 | refused |
+| `256 / 16` | 16 | accepted |
+| `256 / 8` or `256 / 4` | 32 or 64 | refused |
+| `N > 256` | any | refused by the sample-count limit |
+
+TSRE deliberately supports a broader metadata-valid set. Do not turn the MSRE
+limits into TSRE loader restrictions; use them only when producing a tile that
+must be opened by MSRE.
 
 ### 10. Coordinate code must distinguish World and terrain units
 
@@ -704,7 +748,8 @@ Compatibility findings and implementation ideas to evaluate independently:
 - [`Terrain.cpp`](https://github.com/scottb613/TSRE5-SCOmod/blob/1fef2c9e06f3ff0c4c432b424aad4ae121ddff73/Terrain.cpp)
   rejects invalid descriptors early, makes destructor/VBO/staging/blob/line
   sizes resolution-dependent, validates exact RAW/F sizes, uses `R` for F
-  addressing, and applies `16.0 / R` to existing patch UV transforms.
+  addressing, and applies `16.0 / R` to existing patch UV transforms. The last
+  behavior is a confirmed texture-coordinate bug and must not be copied.
 - [`Undo.h`](https://github.com/scottb613/TSRE5-SCOmod/blob/1fef2c9e06f3ff0c4c432b424aad4ae121ddff73/Undo.h)
   and [`Undo.cpp`](https://github.com/scottb613/TSRE5-SCOmod/blob/1fef2c9e06f3ff0c4c432b424aad4ae121ddff73/Undo.cpp)
   replace the 257-squared array with a vector plus sample count.
@@ -719,6 +764,9 @@ is useful for identifying affected paths and compatibility expectations, but
 each behavior still needs to be checked against TSRE's format model and focused
 tests. In particular:
 
+- its fixed-16 texture-domain assumption and `16/R` transform compensation are
+  contradicted by both Open Rails' raw `PatchSampleCount` coordinates and the
+  direct MSRE `R=8`/`R=16` rendering test above;
 - the token-281 AS buffer remains fixed at 257 x 257 bits;
 - `sampleSize` still passes through integer APIs in important paths;
 - some fixed 8/16/256 code remains, including legacy/alternate renderer code;
@@ -751,7 +799,7 @@ tests. In particular:
 ### `src/tsre/world/Terrain.h` and `Terrain.cpp`
 
 - add the validated grid layout and named World constants;
-- represent the three GUI choices as validated named layouts and feed their
+- represent the four GUI choices as validated named layouts and feed their
   values to the existing parameterized `Terrain::SaveEmpty()` implementation;
 - make height/F ownership size-aware;
 - fix mesh, scratch, blob, and overlay allocations/counts;
@@ -830,7 +878,7 @@ tests. In particular:
 | valid `N/S`, `1 <= P < 16` | load/render/edit/save |
 | valid `N/S`, `P > 16` | reject because runtime patch capacity is 16 x 16 |
 | existing AS block | preserve its declared payload byte-for-byte on save |
-| absent AS block | preserve absence, including newly created 512/4 and 1024/2 terrain |
+| absent AS block | preserve absence, including newly created 128/16, 512/4, and 1024/2 terrain |
 | synthetic token-282/US block | preserve its label and arbitrary payload byte-for-byte without assigning semantics |
 | existing E-RAW | recognize the expected `N * N * 4` shape; preserve it for an unchanged tile |
 | resolution-changing overwrite with E/N | invalidate/remove stale derived buffers and do not leave incompatible files referenced |
@@ -847,7 +895,7 @@ smoke-test requirement below until adaptive triangulation exists.
 
 GUI-scope regression tests must verify:
 
-- `B` offers exactly 256/8, 512/4, and 1024/2 and defaults to 256/8;
+- `B` offers exactly 128/16, 256/8, 512/4, and 1024/2 and defaults to 256/8;
 - each choice writes matching `.t` metadata and an exact `N * N * 2` Y-RAW;
 - cancel writes nothing; overwrite retains the selected profile, recreates Y,
   and does not leave old-dimension E/N data referenced by the new descriptor;
@@ -875,7 +923,7 @@ The 4096 m case additionally verifies:
 - `256 @ 8 m` and `512 @ 4 m`, with any valid patch count up to 16 x 16, load,
   render, edit, undo, save, and reload without out-of-bounds access or UV
   distortion.
-- The `B` workflow creates all three named profiles with selectable 4 x 4,
+- The `B` workflow creates all four named profiles with selectable 4 x 4,
   8 x 8, or 16 x 16 patch grids, clearly labels the feature experimental,
   and does not alter defaults in any other creation workflow.
 - A `B`-created 1024/2 tile passes the isolated functional/memory-safety smoke
