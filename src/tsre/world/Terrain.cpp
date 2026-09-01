@@ -356,6 +356,10 @@ Terrain::~Terrain() {
 
 bool Terrain::SaveEmpty(QString name, int samples, int sampleSize, int patches,
                         bool low, bool overwrite) {
+    if (!Game::writeEnabled) {
+        qWarning() << "Terrain creation is disabled because route writing is disabled";
+        return false;
+    }
     qDebug() << "New terrain tile";
     TerrainGridLayout layout;
     QString layoutError;
@@ -1453,6 +1457,25 @@ void Terrain::getPatchCoords(int &x, int &z, float &posx, float &posz){
                    0, gridLayout.patchesPerSide - 1);
 }
 
+void Terrain::updateSelectionWindow(int cameraTileX, int cameraTileZ,
+                                    float cameraLocalX, float cameraLocalZ) {
+    if (!loaded || gridLayout.patchesPerSide <= 0)
+        return;
+    int patchColumn = cameraTileX;
+    int patchRow = cameraTileZ;
+    getPatchCoords(patchColumn, patchRow, cameraLocalX, cameraLocalZ);
+    selectionWindow = TerrainPatchSelectionWindow::forCameraPatch(
+            gridLayout.patchesPerSide, patchRow, patchColumn);
+}
+
+int Terrain::getSelectionId(int patchId) const {
+    return selectionWindow.selectionIdForPatch(patchId);
+}
+
+int Terrain::getPatchIdFromSelectionId(int selectionId) const {
+    return selectionWindow.patchIdForSelection(selectionId);
+}
+
 
 void Terrain::setTexture(QString textureName, int x, int z, float posx, float posz, QString transformation){
     if (!editable)
@@ -1724,9 +1747,16 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
                     if ((ccos > 0) && (xxx > size)) continue;
                 }*/
                 
+                const bool terrainSelection = (selectionColor >> 20) == 10;
+                int patchColorId = yy * patches + uu;
+                if (terrainSelection) {
+                    patchColorId = getSelectionId(patchColorId);
+                    if (patchColorId < 0)
+                        continue;
+                }
                 r = new RenderItem();
                 if(selectionColor != 0){
-                    int tselectionColor = selectionColor | (yy * patches + uu);
+                    int tselectionColor = selectionColor | patchColorId;
                     int wColor = (int)(tselectionColor/65536);
                     int sColor = (int)(tselectionColor - wColor*65536)/256;
                     int bColor = (int)(tselectionColor - wColor*65536 - sColor*256);
@@ -1949,8 +1979,15 @@ void Terrain::pushRenderItemWater(float lodx, float lodz, float tileX, float til
                     w[uu * patches + yy].init(punkty, ptr, RenderItem::VNTA, GL_TRIANGLES);
                     delete punkty;
                 }
+                const bool terrainSelection = (selectionColor >> 20) == 10;
+                int patchColorId = yy * patches + uu;
+                if (terrainSelection) {
+                    patchColorId = getSelectionId(patchColorId);
+                    if (patchColorId < 0)
+                        continue;
+                }
                 if(selectionColor != 0)
-                    tselectionColor = selectionColor | (yy * patches + uu);
+                    tselectionColor = selectionColor | patchColorId;
                 w[uu * patches + yy].pushRenderItem(tselectionColor);
             }
         }
@@ -2036,8 +2073,15 @@ void Terrain::render(float lodx, float lodz, int tileX, int tileY, float* player
                     if ((ccos > 0) && (xxx > size)) continue;
                 }*/
 
+                const bool terrainSelection = (selectionColor >> 20) == 10;
+                int patchColorId = yy * patches + uu;
+                if (terrainSelection) {
+                    patchColorId = getSelectionId(patchColorId);
+                    if (patchColorId < 0)
+                        continue;
+                }
                 if(selectionColor != 0){
-                    int tselectionColor = selectionColor | (yy * patches + uu);
+                    int tselectionColor = selectionColor | patchColorId;
                     int wColor = (int)(tselectionColor/65536);
                     int sColor = (int)(tselectionColor - wColor*65536)/256;
                     int bColor = (int)(tselectionColor - wColor*65536 - sColor*256);
@@ -2275,8 +2319,15 @@ void Terrain::renderWater(float lodx, float lodz, float tileX, float tileY, floa
                     w[uu * patches + yy].init(punkty, ptr, RenderItem::VNTA, GL_TRIANGLES);
                     delete punkty;
                 }
+                const bool terrainSelection = (selectionColor >> 20) == 10;
+                int patchColorId = yy * patches + uu;
+                if (terrainSelection) {
+                    patchColorId = getSelectionId(patchColorId);
+                    if (patchColorId < 0)
+                        continue;
+                }
                 if(selectionColor != 0)
-                    tselectionColor = selectionColor | (yy * patches + uu);
+                    tselectionColor = selectionColor | patchColorId;
                 w[uu * patches + yy].render(tselectionColor);
             }
         }
@@ -3254,6 +3305,13 @@ bool Terrain::select(int value, bool oneMore){
     return select(value);
 }
 
+bool Terrain::selectFromSelectionId(int selectionId, bool oneMore) {
+    const int patchId = getPatchIdFromSelectionId(selectionId);
+    if (patchId < 0)
+        return false;
+    return select(patchId, oneMore);
+}
+
 bool Terrain::select(int value){
     if (!editable)
         return false;
@@ -3421,6 +3479,10 @@ bool Terrain::validateGridLayout(const QString &source) {
         return false;
     }
     editable = gridLayout.supportsEditing();
+    selectionWindow = TerrainPatchSelectionWindow::forCameraPatch(
+            gridLayout.patchesPerSide,
+            gridLayout.patchesPerSide / 2,
+            gridLayout.patchesPerSide / 2);
     return true;
 }
 

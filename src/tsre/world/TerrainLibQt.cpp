@@ -120,6 +120,8 @@ void TerrainLibQt::createNewRouteTerrain(int x, int z) {
 }
 
 void TerrainLibQt::saveEmpty(int x, int z) {
+    if (!Game::writeEnabled)
+        return;
     qDebug() << "#new tile add to QT ";
     currentQuadTree->addTile(x, z);
     qDebug() << "#new tile get name ";
@@ -1191,6 +1193,9 @@ void TerrainLibQt::renderWater(GLUU* gluu, float* playerT, float* playerW, float
                 selectionColor = 10 << 20;
                 selectionColor |= ((i + 1) << 10);
                 selectionColor |= ((j + 1) << 8);
+                tTile->updateSelectionWindow(
+                        static_cast<int>(playerT[0]), static_cast<int>(playerT[1]),
+                        playerW[0], playerW[2]);
             }
             tTile->renderWater(lodx, lodz, playerT[0] + i, playerT[1] + j, playerW, target, fov, layer, selectionColor);
             gluu->mvPopMatrix();
@@ -1241,6 +1246,9 @@ void TerrainLibQt::renderWaterLo(GLUU* gluu, float* playerT, float* playerW, flo
                     selectionColor = 10 << 20;
                     selectionColor |= ((i + 1) << 10);
                     selectionColor |= ((j + 1) << 8);
+                    tTile->updateSelectionWindow(
+                            static_cast<int>(playerT[0]), static_cast<int>(playerT[1]),
+                            playerW[0], playerW[2]);
                 }
                 tTile->renderWater(lodx, lodz, playerT[0] + i, playerT[1] + j, playerW, target, fov, layer, selectionColor);
                 gluu->mvPopMatrix();
@@ -1332,6 +1340,9 @@ void TerrainLibQt::pushRenderItems(float * playerT, float* playerW, float* targe
                 selectionColor = 10 << 20;
                 selectionColor |= ((i + 1) << 10);
                 selectionColor |= ((j + 1) << 8);
+                tTile->updateSelectionWindow(
+                        static_cast<int>(playerT[0]), static_cast<int>(playerT[1]),
+                        playerW[0], playerW[2]);
             }
             tTile->pushRenderItem(lodx, lodz, playerT[0] + i, playerT[1] + j, playerW, target, fov, selectionColor);
             Game::currentRenderer->mvPopMatrix();
@@ -1392,6 +1403,9 @@ void TerrainLibQt::render(GLUU *gluu, float * playerT, float* playerW, float* ta
                 selectionColor = 10 << 20;
                 selectionColor |= ((i + 1) << 10);
                 selectionColor |= ((j + 1) << 8);
+                tTile->updateSelectionWindow(
+                        static_cast<int>(playerT[0]), static_cast<int>(playerT[1]),
+                        playerW[0], playerW[2]);
             }
             tTile->render(lodx, lodz, playerT[0] + i, playerT[1] + j, playerW, target, fov, selectionColor);
             gluu->mvPopMatrix();
@@ -1460,6 +1474,9 @@ void TerrainLibQt::renderLo(GLUU *gluu, float * playerT, float* playerW, float* 
                     selectionColor = 10 << 20;
                     selectionColor |= ((i + 1) << 10);
                     selectionColor |= ((j + 1) << 8);
+                    tTile->updateSelectionWindow(
+                            static_cast<int>(playerT[0]), static_cast<int>(playerT[1]),
+                            playerW[0], playerW[2]);
                 }
                 tTile->render(lodx, lodz, playerT[0] + i, playerT[1] + j, playerW, target, fov, selectionColor);
                 gluu->mvPopMatrix();
@@ -1503,7 +1520,7 @@ void TerrainLibQt::spiralLoop(int n, int &x, int &y) {
 bool TerrainLibQt::saveEmpty(int x, int z, TerrainHeightProfile profile,
                              int patches,
                              bool overwrite) {
-    if (quadTree == NULL)
+    if (!Game::writeEnabled || quadTree == NULL)
         return false;
     currentQuadTree = quadTree;
     currentQt = &terrainQt;

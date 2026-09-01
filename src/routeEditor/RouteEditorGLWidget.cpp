@@ -965,7 +965,7 @@ void RouteEditorGLWidget::handleSelection() {
             if (t == NULL) {
                 qDebug() << "brak obiektu";
             } else {
-                t->select(UiD, keyControlEnabled);
+                t->selectFromSelectionId(UiD, keyControlEnabled);
             }
             setSelectedObj((GameObj*)t);
         } else if( ww == 11 ){
@@ -1196,6 +1196,12 @@ void RouteEditorGLWidget::keyPressEvent(QKeyEvent * event) {
             //    break;
         case Qt::Key_B:
         {
+            if (!Game::writeEnabled) {
+                QMessageBox::information(
+                        this, "Terrain creation disabled",
+                        "Route writing is disabled. Enable route writing before creating or replacing terrain.");
+                break;
+            }
             QDialog dialog(this);
             dialog.setWindowTitle("Create terrain test tile");
             QVBoxLayout *layout = new QVBoxLayout(&dialog);
@@ -1223,6 +1229,7 @@ void RouteEditorGLWidget::keyPressEvent(QKeyEvent * event) {
             patches->addItem("4 × 4", 4);
             patches->addItem("8 × 8", 8);
             patches->addItem("16 × 16", 16);
+            patches->addItem("32 × 32 (experimental)", 32);
             patches->setCurrentIndex(2);
             QDialogButtonBox *buttons = new QDialogButtonBox(
                     QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);

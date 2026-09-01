@@ -2258,6 +2258,8 @@ static int runTerrainGridSuite(bool verbose) {
                 TerrainHeightProfile::Standard256x8, 4);
     const TerrainGridLayout standardEightPatches = TerrainGridLayout::profile(
                 TerrainHeightProfile::Standard256x8, 8);
+    const TerrainGridLayout standardThirtyTwoPatches = TerrainGridLayout::profile(
+                TerrainHeightProfile::Standard256x8, 32);
     check(standard.sampleCount == 256 && standard.sampleSpacing == 8
           && standard.patchResolution == 16
           && standard.terrainWorldSize == TerrainGridLayout::WorldTileSize,
@@ -2280,6 +2282,11 @@ static int runTerrainGridSuite(bool verbose) {
     check(standardEightPatches.patchesPerSide == 8
           && standardEightPatches.patchResolution == 32,
           "profile-256-8-eight-patches");
+    check(standardThirtyTwoPatches.patchesPerSide == 32
+          && standardThirtyTwoPatches.patchResolution == 8
+          && standardThirtyTwoPatches.patchRecordCount() == 1024
+          && standardThirtyTwoPatches.supportsEditing(),
+          "profile-256-8-thirty-two-patches");
     check(standard.supportsEditing(), "sixteen-patch-grid-is-editable");
     TerrainGridLayout fourPatchLayout;
     QString fourPatchError;
@@ -2304,9 +2311,9 @@ static int runTerrainGridSuite(bool verbose) {
     check(eightPatchLayout.defaultPatchTextureScale() == 0.03125f,
           "texture-scale-follows-samples-per-patch");
     TerrainGridLayout futureLargePatchLayout;
-    futureLargePatchLayout.patchesPerSide = 32;
+    futureLargePatchLayout.patchesPerSide = 33;
     check(!futureLargePatchLayout.supportsEditing(),
-          "future-large-patch-grid-is-read-only");
+          "above-maximum-patch-grid-is-read-only");
     check(accepts(16, 128.0f), "absolute-minimum");
     check(accepts(64, 32.0f), "lower-resolution-whole-world-tile");
     check(accepts(2048, 1.0f), "maximum-resolution");
@@ -2314,7 +2321,8 @@ static int runTerrainGridSuite(bool verbose) {
     check(!accepts(15, 256.0f), "reject-below-minimum");
     check(!accepts(64, 8.0f), "reject-sub-world-tile-footprint");
     check(accepts(64, 32.0f, 4), "accept-four-patch-grid");
-    check(!accepts(256, 8.0f, 17), "reject-above-maximum-patch-count");
+    check(accepts(256, 8.0f, 32), "accept-thirty-two-patch-grid");
+    check(!accepts(2048, 1.0f, 33), "reject-above-maximum-patch-count");
     check(!accepts(256, 8.0f, 10), "reject-non-divisible-patch-count");
     check(!accepts(512, 4.5f), "reject-fractional-spacing");
     check(!accepts(512, 4.0f, 16, 1.0f), "reject-rotated-grid");
@@ -2342,9 +2350,60 @@ static int runTerrainGridSuite(bool verbose) {
               tileX, tileZ, localX, localZ),
           "reject-non-finite-world-position");
 
+    auto selectionWindowRoundTrips = [](const TerrainPatchSelectionWindow &window) {
+        int mapped = 0;
+        for (int patchId = 0;
+             patchId < window.patchesPerSide * window.patchesPerSide;
+             ++patchId) {
+            const int selectionId = window.selectionIdForPatch(patchId);
+            if (selectionId < 0)
+                continue;
+            ++mapped;
+            if (window.patchIdForSelection(selectionId) != patchId)
+                return false;
+        }
+        return mapped == 256;
+    };
+    const TerrainPatchSelectionWindow topLeft =
+            TerrainPatchSelectionWindow::forCameraPatch(32, 0, 0);
+    const TerrainPatchSelectionWindow topRight =
+            TerrainPatchSelectionWindow::forCameraPatch(32, 0, 31);
+    const TerrainPatchSelectionWindow bottomLeft =
+            TerrainPatchSelectionWindow::forCameraPatch(32, 31, 0);
+    const TerrainPatchSelectionWindow bottomRight =
+            TerrainPatchSelectionWindow::forCameraPatch(32, 31, 31);
+    const TerrainPatchSelectionWindow centered =
+            TerrainPatchSelectionWindow::forCameraPatch(32, 16, 16);
+    const TerrainPatchSelectionWindow fourPatches =
+            TerrainPatchSelectionWindow::forCameraPatch(4, 3, 3);
+    check(topLeft.row == 0 && topLeft.column == 0
+          && topRight.row == 0 && topRight.column == 16
+          && bottomLeft.row == 16 && bottomLeft.column == 0
+          && bottomRight.row == 16 && bottomRight.column == 16,
+          "selection-window-corners-clamp");
+    check(TerrainPatchSelectionWindow::forCameraPatch(32, 0, 15).row == 0
+          && TerrainPatchSelectionWindow::forCameraPatch(32, 31, 15).row == 16
+          && TerrainPatchSelectionWindow::forCameraPatch(32, 15, 0).column == 0
+          && TerrainPatchSelectionWindow::forCameraPatch(32, 15, 31).column == 16,
+          "selection-window-edges-clamp");
+    check(centered.row == 8 && centered.column == 8
+          && centered.selectionIdForPatch(16 * 32 + 16) == 8 * 16 + 8
+          && centered.selectionIdForPatch(0) == -1
+          && centered.patchIdForSelection(0) == 8 * 32 + 8
+          && fourPatches.selectionIdForPatch(15) == 3 * 16 + 3
+          && fourPatches.patchIdForSelection(3 * 16 + 3) == 15,
+          "selection-window-centers-and-excludes-outside-patches");
+    check(selectionWindowRoundTrips(topLeft)
+          && selectionWindowRoundTrips(topRight)
+          && selectionWindowRoundTrips(bottomLeft)
+          && selectionWindowRoundTrips(bottomRight)
+          && selectionWindowRoundTrips(centered),
+          "selection-window-forward-reverse-round-trips");
+
     QTemporaryDir overwriteDirectory;
     const QString originalRoot = Game::root;
     const QString originalRoute = Game::route;
+    const bool originalWriteEnabled = Game::writeEnabled;
     bool overwriteDescriptorsOk = overwriteDirectory.isValid();
     if (overwriteDescriptorsOk) {
         Game::root = overwriteDirectory.path();
@@ -2352,6 +2411,12 @@ static int runTerrainGridSuite(bool verbose) {
         const QString tilesPath = overwriteDirectory.path()
                 + "/routes/" + Game::route + "/tiles";
         overwriteDescriptorsOk = QDir().mkpath(tilesPath);
+        Game::writeEnabled = false;
+        overwriteDescriptorsOk = overwriteDescriptorsOk
+                && !Terrain::SaveEmpty("writeDisabled", 256, 8, 32)
+                && !QFile::exists(tilesPath + "/writeDisabled.t")
+                && !QFile::exists(tilesPath + "/writeDisabled_y.raw");
+        Game::writeEnabled = true;
         struct OverwriteCase {
             const char *name;
             int samples;
@@ -2387,11 +2452,52 @@ static int runTerrainGridSuite(bool verbose) {
                     && !QFile::exists(tilesPath + "/" + name + "_e.raw")
                     && !QFile::exists(tilesPath + "/" + name + "_n.raw");
         }
+
+        const QString roundTripName = "patches32";
+        overwriteDescriptorsOk = overwriteDescriptorsOk
+                && Terrain::SaveEmpty(roundTripName, 512, 4, 32);
+        TFile createdDescriptor;
+        overwriteDescriptorsOk = overwriteDescriptorsOk
+                && createdDescriptor.readT(
+                        tilesPath + "/" + roundTripName + ".t")
+                && createdDescriptor.patchsetNpatches == 32
+                && createdDescriptor.flags != NULL
+                && createdDescriptor.errorBias != NULL
+                && createdDescriptor.tdata != NULL
+                && std::abs(createdDescriptor.tdata[3] - 49.74062729f)
+                        < 0.00001f
+                && std::abs(createdDescriptor.tdata[1023 * 13 + 3]
+                            - 49.74062729f) < 0.00001f
+                && std::abs(createdDescriptor.tdata[1023 * 13 + 9] - 0.0625f)
+                        < 0.000001f;
+        TerrainInfo terrainInfo;
+        terrainInfo.cx = 0;
+        terrainInfo.cy = 0;
+        terrainInfo.name = roundTripName;
+        Terrain terrain(&terrainInfo);
+        overwriteDescriptorsOk = overwriteDescriptorsOk
+                && terrain.loaded && terrain.isEditable()
+                && terrain.getGridLayout().patchRecordCount() == 1024;
+        if (terrain.loaded && terrain.isEditable()) {
+            terrain.setErrorBias(0, 0, 1023.0f, 1023.0f, 3.5f);
+            terrain.setPatchFlags(0, 0, 1023.0f, 1023.0f, 7);
+            terrain.save();
+        }
+        TFile savedDescriptor;
+        overwriteDescriptorsOk = overwriteDescriptorsOk
+                && savedDescriptor.readT(
+                        tilesPath + "/" + roundTripName + ".t")
+                && savedDescriptor.patchsetNpatches == 32
+                && savedDescriptor.errorBias != NULL
+                && std::abs(savedDescriptor.errorBias[1023] - 3.5f) < 0.000001f
+                && savedDescriptor.flags != NULL
+                && savedDescriptor.flags[1023] == 7;
     }
     Game::root = originalRoot;
     Game::route = originalRoute;
+    Game::writeEnabled = originalWriteEnabled;
     check(overwriteDescriptorsOk,
-          "overwrite-retains-e-n-resource-names");
+          "write-guard-overwrite-and-thirty-two-patch-round-trip");
 
     qInfo() << "[tests:terrain-grid] cases=" << (passed + failed)
             << "passed=" << passed << "failed=" << failed;
@@ -2477,6 +2583,19 @@ static int runTerrainFilesSuite(const TsreTests::TestRunOptions &opts) {
             if (terrain.loaded) {
                 ++result.loaded;
                 const TerrainGridLayout &layout = terrain.getGridLayout();
+                if (opts.verbose) {
+                    qInfo() << "[tests:terrain-files] GRID"
+                            << descriptorPath
+                            << "samples" << layout.sampleCount
+                            << "spacing" << layout.sampleSpacing
+                            << "patches" << layout.patchesPerSide
+                            << "patch_resolution" << layout.patchResolution
+                            << "first_transform"
+                            << terrain.getPatchTexTransformString(0)
+                            << "last_transform"
+                            << terrain.getPatchTexTransformString(
+                                   layout.patchRecordCount() - 1);
+                }
                 if (layout.patchesPerSide
                         != TerrainGridLayout::DefaultPatchesPerSide) {
                     ++result.variablePatchEditChecks;

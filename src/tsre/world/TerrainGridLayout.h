@@ -9,6 +9,7 @@
 #ifndef TERRAINGRIDLAYOUT_H
 #define TERRAINGRIDLAYOUT_H
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <limits>
@@ -25,8 +26,9 @@ struct TerrainGridLayout {
     static constexpr int WorldTileSize = 2048;
     static constexpr int WorldTileHalfSize = WorldTileSize / 2;
     static constexpr int DefaultPatchesPerSide = 16;
-    static constexpr int MaximumEditablePatchesPerSide = 16;
-    static constexpr int MaximumPatchesPerSide = 16;
+    static constexpr int MaximumLoadablePatchesPerSide = 32;
+    static constexpr int MaximumEditablePatchesPerSide = 32;
+    static constexpr int MaximumPatchesPerSide = MaximumLoadablePatchesPerSide;
     static constexpr int SupportedPatchesPerSide = DefaultPatchesPerSide;
     static constexpr int SupportedPatchRecordCount =
             MaximumPatchesPerSide * MaximumPatchesPerSide;
@@ -228,6 +230,55 @@ struct TerrainGridLayout {
 
     float defaultPatchTextureScale() const {
         return 1.0f / static_cast<float>(patchResolution);
+    }
+};
+
+struct TerrainPatchSelectionWindow {
+    static constexpr int Side = 16;
+
+    int patchesPerSide = 0;
+    int row = 0;
+    int column = 0;
+
+    static TerrainPatchSelectionWindow forCameraPatch(
+            int patches, int cameraRow, int cameraColumn) {
+        TerrainPatchSelectionWindow window;
+        if (patches <= 0)
+            return window;
+
+        window.patchesPerSide = patches;
+        cameraRow = std::clamp(cameraRow, 0, patches - 1);
+        cameraColumn = std::clamp(cameraColumn, 0, patches - 1);
+        const int maximumOrigin = std::max(0, patches - Side);
+        window.row = std::clamp(cameraRow - Side / 2, 0, maximumOrigin);
+        window.column = std::clamp(cameraColumn - Side / 2, 0, maximumOrigin);
+        return window;
+    }
+
+    int selectionIdForPatch(int patchId) const {
+        if (patchesPerSide <= 0 || patchId < 0
+                || patchId >= patchesPerSide * patchesPerSide)
+            return -1;
+        const int patchRow = patchId / patchesPerSide;
+        const int patchColumn = patchId % patchesPerSide;
+        const int selectionRow = patchRow - row;
+        const int selectionColumn = patchColumn - column;
+        if (selectionRow < 0 || selectionRow >= Side
+                || selectionColumn < 0 || selectionColumn >= Side)
+            return -1;
+        return selectionRow * Side + selectionColumn;
+    }
+
+    int patchIdForSelection(int selectionId) const {
+        if (patchesPerSide <= 0 || selectionId < 0
+                || selectionId >= Side * Side)
+            return -1;
+        const int patchRow = row + selectionId / Side;
+        const int patchColumn = column + selectionId % Side;
+        if (patchRow < 0 || patchRow >= patchesPerSide
+                || patchColumn < 0 || patchColumn >= patchesPerSide)
+            return -1;
+        return patchRow * patchesPerSide + patchColumn;
     }
 };
 

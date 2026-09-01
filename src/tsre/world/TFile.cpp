@@ -62,8 +62,11 @@ void TFile::initNew(QString name, int samples, int sampleS, int patches){
     flags = new int[patches*patches];
     tdata = new float[patches*patches*13];
     errorBias = new float[patches*patches];
-    const int tileSize = layout.terrainWorldSize;
     const float patchSize = layout.patchWorldSize;
+    // Open Rails names this descriptor field FactorY. Its underlying formula
+    // is not yet documented, but MSRE confirms that the legacy 99.48125458
+    // value for a 128 m patch scales linearly with physical patch size.
+    const float patchFactorY = 99.48125458f * patchSize / 128.0f;
     const float textureScale = layout.defaultPatchTextureScale();
     float patchPosZ = -0.5*patchSize;
     float patchPosX = 0.5*patchSize;
@@ -74,7 +77,7 @@ void TFile::initNew(QString name, int samples, int sampleS, int patches){
             tdata[(j*patches+i)*13+0] = patchPosX;
             tdata[(j*patches+i)*13+1] = 1;
             tdata[(j*patches+i)*13+2] = patchPosZ;
-            tdata[(j*patches+i)*13+3] = 99.48125458;
+            tdata[(j*patches+i)*13+3] = patchFactorY;
             tdata[(j*patches+i)*13+4] = 0;
             tdata[(j*patches+i)*13+5] = 0.5*patchSize;
             tdata[(j*patches+i)*13+6] = 0;

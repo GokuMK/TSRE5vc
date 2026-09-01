@@ -68,6 +68,8 @@ void TerrainLibSimple::createNewRouteTerrain(int x, int z){
 }
 
 void TerrainLibSimple::saveEmpty(int x, int z){
+    if (!Game::writeEnabled)
+        return;
     quadTree->addTile(x, z);
     QString name = Terrain::getTileName(x, z);
     Terrain::SaveEmpty(name);
@@ -76,17 +78,19 @@ void TerrainLibSimple::saveEmpty(int x, int z){
 bool TerrainLibSimple::saveEmpty(int x, int z, TerrainHeightProfile profile,
                                  int patches,
                                  bool overwrite){
+    if (!Game::writeEnabled)
+        return false;
     if (profile != TerrainHeightProfile::Standard256x8) {
         qWarning() << "Experimental terrain profiles require quadtree terrain mode";
         return false;
     }
     if (quadTree == NULL)
         return false;
-    quadTree->addTile(x, z);
-    const QString name = Terrain::getTileName(x, z);
     const TerrainGridLayout layout = TerrainGridLayout::profile(profile, patches);
     if (layout.sampleCount == 0)
         return false;
+    quadTree->addTile(x, z);
+    const QString name = Terrain::getTileName(x, z);
     return Terrain::SaveEmpty(name, layout.sampleCount, layout.sampleSpacing,
                               layout.patchesPerSide, false, overwrite);
 }
@@ -1023,6 +1027,9 @@ void TerrainLibSimple::render(GLUU *gluu, float * playerT, float* playerW, float
                     selectionColor = 10 << 20;
                     selectionColor |= ((i+1) << 10);
                     selectionColor |= ((j+1) << 8);
+                    tTile->updateSelectionWindow(
+                            static_cast<int>(playerT[0]), static_cast<int>(playerT[1]),
+                            playerW[0], playerW[2]);
                 }
                 tTile->render(lodx, lodz, playerT[0]+i, playerT[1]+j, playerW, target, fov, selectionColor);
                 gluu->mvPopMatrix();
@@ -1089,6 +1096,9 @@ void TerrainLibSimple::renderWater(GLUU *gluu, float* playerT, float* playerW, f
                     selectionColor = 10 << 20;
                     selectionColor |= ((i+1) << 10);
                     selectionColor |= ((j+1) << 8);
+                    tTile->updateSelectionWindow(
+                            static_cast<int>(playerT[0]), static_cast<int>(playerT[1]),
+                            playerW[0], playerW[2]);
                 }
                 tTile->renderWater(lodx, lodz, playerT[0]+i, playerT[1]+j, playerW, target, fov, layer, selectionColor);
                 gluu->mvPopMatrix();
