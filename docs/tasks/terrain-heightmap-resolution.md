@@ -697,6 +697,9 @@ terrain generation/editing must continue to receive `ErrorBias = 0`. Semantic
 AS/US generation and MSTS-style adaptive terrain rendering are separate future
 tasks.
 
+Follow-up renderer work is specified separately in
+[`terrain-paged-mesh-and-shared-map.md`](terrain-paged-mesh-and-shared-map.md).
+
 ## External implementation review
 
 ### Open Rails unstable
