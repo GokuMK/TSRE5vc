@@ -254,10 +254,10 @@ ready parser and identifies where each field lives.
 
 ### `.t` parsing and serialization
 
-- [`src/tsre/world/TFile.h`](../../src/tsre/world/TFile.h) declares
+- [`src/tsre/world/TFile.h`](../../../src/tsre/world/TFile.h) declares
   `errthresholdScale`, `alwaysselectMaxdist`, `sampleEbuffer`, `sampleNbuffer`,
   `sampleASbuffer`, and the per-patch `errorBias` array.
-- [`src/tsre/world/TFile.cpp`](../../src/tsre/world/TFile.cpp) lines 104-148
+- [`src/tsre/world/TFile.cpp`](../../../src/tsre/world/TFile.cpp) lines 104-148
   parse the terrain root. Tokens 137 and 138 are handled at lines 117-125.
 - `TFile::get139()` at lines 150-215 parses sample metadata. E/N filename
   tokens are handled at lines 195-203 and the current fixed-size AS reader at
@@ -272,11 +272,11 @@ as a useful landmark, not as a complete format specification.
 
 ### Token dictionaries and the route-level terrain scale
 
-- [`src/tsre/fileFunctions/TS.h`](../../src/tsre/fileFunctions/TS.h) lines
+- [`src/tsre/fileFunctions/TS.h`](../../../src/tsre/fileFunctions/TS.h) lines
   155-191 define the numeric terrain token range 132-168; lines 274-275 add
   water-height token 251 and AS token 281. It also defines route token
   `TerrainErrorScale=1230` around line 1146.
-- [`src/tsre/fileFunctions/TS.cpp`](../../src/tsre/fileFunctions/TS.cpp) lines
+- [`src/tsre/fileFunctions/TS.cpp`](../../../src/tsre/fileFunctions/TS.cpp) lines
   150-186 map those terrain IDs back to their conventional names, line 270
   identifies AS, and line 1141 maps `TerrainErrorScale` to the text spelling
   `terrainerrorscale`.
@@ -286,16 +286,16 @@ as a useful landmark, not as a complete format specification.
   to miss when starting only from `TFile.cpp`.
 - Token 282/US is absent from this TSRE enum/map, which is itself a useful
   warning that the catalogue is not a complete MSTS format specification.
-- [`src/tsre/world/Trk.cpp`](../../src/tsre/world/Trk.cpp) initializes the
+- [`src/tsre/world/Trk.cpp`](../../../src/tsre/world/Trk.cpp) initializes the
   route-level terrain error scale to 1 around line 34, parses
   `terrainerrorscale` at lines 174-176, and writes `TerrainErrorScale` around
-  line 371. [`Trk.h`](../../src/tsre/world/Trk.h) currently stores it as an
+  line 371. [`Trk.h`](../../../src/tsre/world/Trk.h) currently stores it as an
   integer; treat that TSRE type choice as a possible TSRE limitation, not as
   evidence of MSTS's in-memory type.
 
 ### TSRE's compatibility fallback
 
-- [`src/tsre/world/Terrain.cpp`](../../src/tsre/world/Terrain.cpp) lines 89-100
+- [`src/tsre/world/Terrain.cpp`](../../../src/tsre/world/Terrain.cpp) lines 89-100
   load the `.t`, Y-RAW, and optional F data. They do not load E-RAW or N-RAW.
 - `Terrain::setHeight()` sets the containing patch's bias to zero at line 143.
 - `Terrain::setErrorBias(float)` at lines 1069-1075 edits selected patches.
@@ -307,7 +307,7 @@ This is the basis for H1: TSRE relies on patch bias zero without updating E.
 ### Existing research summary
 
 The detailed format review and modern-runtime recommendations are in
-[`docs/tasks/terrain-heightmap-resolution.md`](terrain-heightmap-resolution.md),
+[`docs/tasks/terrain/terrain-heightmap-resolution.md`](terrain-heightmap-resolution.md),
 especially the sections "The E buffer is an external adaptive-LOD error
 field" and "Likely relationship between E, AS, and patch ErrorBias".
 

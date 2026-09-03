@@ -13,6 +13,7 @@ through 32 x 32 when the complete terrain layout is valid:
 - `1 <= P <= 32`;
 - `16 <= N <= 2048`;
 - `N % P == 0`;
+- `4 <= R=N/P <= 128`;
 - sample spacing is a positive whole number of metres;
 - the terrain footprint covers a whole number of 2048 m World tiles;
 - sample rotation is zero.
@@ -25,7 +26,10 @@ on the descriptor, not on whether the tile is stored under `Tiles` or
 The experimental B-key tile creator exposes patch grids of 4 x 4, 8 x 8,
 16 x 16, and 32 x 32 for each of its 128/16, 256/8, 512/4, and 1024/2
 heightmap profiles.
-All other tile-creation workflows retain the normal 256/8, 16 x 16 default.
+The same reusable selector sets the default profile used by automatic
+navigation-created and marker-generated detailed terrain. The initial default
+is 256/8, 16 x 16; new-route bootstrap and distant terrain retain their
+established fixed profiles.
 
 ## Editability capability
 
@@ -90,9 +94,10 @@ also guard the mutating terrain-library entry point before it changes the
 QuadTree, so a future direct caller cannot bypass the global write-disabled
 state.
 
-The B dialog includes `32 x 32` as an experimental patch-count choice. Other
-tile-creation commands retain their existing 16 x 16 default. This provides
-an isolated way to create tiles for selection, editing, save, and reload tests.
+The B dialog includes `32 x 32` as an experimental patch-count choice. The
+GeoTools automatic-generation profile dialog reuses the same selector and can
+also make it the default for subsequent detailed terrain created through
+`Route::newTile()`. B initializes from that default but does not modify it.
 
 ### Camera-relative patch picking
 

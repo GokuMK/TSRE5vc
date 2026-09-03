@@ -1,24 +1,30 @@
 # Paged terrain mesh and shared map rendering
 
-Status: proposed.
+Status: Stage 1 baseline preserved; Stage 2A 8-byte layout selected and
+implemented. Interactive gap/map/selection coverage remains to be completed;
+initial performance and memory comparisons are recorded below.
 
 Related tasks:
 
 - [Terrain heightmap resolution support](terrain-heightmap-resolution.md)
 - [Variable terrain patch count](terrain-patch-count.md)
 - [MSTS adaptive terrain LOD executable analysis](msts-terrain-adaptive-lod-executable-analysis.md)
-- [Renderer task roadmap](renderer/00-task-roadmap.md)
+- [Renderer task roadmap](../renderer/00-task-roadmap.md)
 
 This is a separate renderer/memory task, not unfinished heightmap-resolution
 work. Its first goal is a patch-addressable static mesh suitable for 1024/2
-editing and later LOD work. The first implementation uses an aligned 12-byte
-vertex with float height and explicit patch-local sample coordinates. The
+editing and later LOD work. The Stage 1 baseline used an aligned 12-byte vertex
+with float height and explicit patch-local sample coordinates. Stage 2A now
+uses an 8-byte float-height vertex with coordinates derived from
+`gl_VertexID`. Both layouts remain documented for later comparisons. The
 design must not assume that MSTS adaptive triangulation will be implemented
 immediately.
 
 ## Stage boundary
 
-This task has a strict stop between implementation and later optimization.
+This task used a strict stop between the initial implementation and later
+optimization. The stages below remain separate comparison milestones even
+though Stage 2A has now started.
 
 **Stage 1 -- implement and validate the 12-byte paged backend:**
 
@@ -29,17 +35,49 @@ This task has a strict stop between implementation and later optimization.
 - verify rendering/editing correctness and compare its performance and memory
   use with the legacy renderer.
 
-Stage 1 is complete only after the 12-byte backend passes the verification and
-legacy-comparison gates near the end of this document. Stop there. Do not begin
-an 8-byte implementation as part of Stage 1, even if its data structures appear
-easy to add while building the paged backend.
+The 12-byte implementation is retained as the Stage 1 reference. Its stored-
+coordinate shader and record definition must not be removed merely because
+Stage 2A is active; using that shader again requires restoring the matching
+12-byte VAO layout.
 
 **Stage 2 -- optional measured vertex-format optimization:**
 
-Stage 2 is a separate follow-up after Stage 1 results have been reviewed. It
-may prototype float-height/derived-coordinate and raw-height/explicit-coordinate
-8-byte formats. Its height encoding, editing behavior, and acceptance criteria
-must be clarified using measurements from the working 12-byte implementation.
+Stage 2 started as a separate follow-up. Stage 2A selected the
+float-height/derived-coordinate 8-byte format. Raw-height alternatives remain
+experiments: their height encoding, editing behavior, and acceptance criteria
+must be clarified using measurements rather than folded into Stage 2A.
+
+## Current selected implementation
+
+The active paged terrain design is:
+
+```text
+vertex:      8 bytes = float height + packed 10:10:10 normal/gap
+coordinates: local X/Z derived from gl_VertexID
+topology:    shared 16-bit regular index template
+storage:     one VBO and VAO per page of at most 256 patches
+parameters:  two vec4 values per patch in page-local terrain/map UBOs
+draw:        glDrawElementsBaseVertex(), one draw per visible patch
+mesh default: paged backend; precomputed legacy backend remains selectable
+pipeline:    legacy/direct renderer remains the default; Gather is unfinished
+```
+
+The packed normal's two-bit W component carries the F-buffer gap flag. Terrain
+passes apply the existing fragment discard; the map pass deliberately ignores
+gaps. This preserves gap support without a separate byte or custom index buffer
+in the ordinary case.
+
+The settings UI names the backends `Precomputed / Legacy` and
+`On GPU / Experimental`. Their persisted values remain `legacy` and `paged`
+for configuration compatibility. New/default configurations select `paged`;
+an existing explicit `terrainMesh = legacy` choice remains respected.
+
+Keep VBO pages rather than merging a complete terrain tile into one permanent
+mega-buffer. One tile VBO would save only a few ideal VAO binds while making
+future variable-size LOD allocation and patch replacement harder. Future LOD
+pages may group patches by vertex resolution. Regular LODs should share index
+templates; E/AS-guided or other custom triangulation should use pooled custom
+index ranges without forcing unrelated vertex regeneration.
 
 ## Preserve the legacy implementation for comparison
 
@@ -61,7 +99,7 @@ Terrain
 `TerrainMeshLegacy` should retain the existing tile-wide VBO, baked UVs,
 `terrainBlob`, `glDrawArrays()` calls, and whole-tile regeneration as closely
 as practical. `TerrainMeshPaged` owns the new indexed pages, packed normals,
-patch parameter blocks, gap attributes, and shared map rendering.
+patch parameter blocks, packed gap state, and shared map rendering.
 
 Select the backend with a startup/runtime setting such as `legacy` or `paged`.
 A route reload is acceptable when changing it and is preferable for clean
@@ -99,12 +137,13 @@ N % P == 0
 
 Reject layouts outside this range as unsupported. `R = 2` has too few cells
 to justify new compatibility paths and provides almost no useful recursive
-LOD hierarchy. `R > 128` makes physically oversized patches, weakens future
-patch-distance LOD, and is unnecessary for the supported 1024/32 case
-(`R = 32`). The upper bound also guarantees that a complete patch has at most
+LOD hierarchy. `R > 128` makes physically oversized patches and weakens future
+patch-distance LOD. The preferred native TSRE 1024/16 layout uses `R = 64`;
+the patched-MSTS-compatible 1024/32 layout uses `R = 32`. The upper bound also
+guarantees that a complete patch has at most
 `129^2 = 16,641` vertices and therefore uses 16-bit patch-local indices.
 
-Stage 1 uses this aligned record:
+Stage 1 used this aligned record:
 
 ```cpp
 struct TerrainVertex12 {
@@ -274,7 +313,8 @@ The common shader retains an additive uniform-controlled legacy branch:
 
 - legacy backend: use baked `aTextureCoord` exactly as today;
 - paged backend: obtain the affine rows from the patch parameter block and
-  calculate position and UV from explicit local sample coordinates.
+  calculate position and UV from local sample coordinates—an explicit vertex
+  attribute in Stage 1 and `gl_VertexID`-derived values in Stage 2A.
 
 The condition is constant for a draw/page and has negligible GPU cost. The
 performance concern is repeated CPU-side uniform binding, not this coherent
@@ -308,6 +348,16 @@ and draw work. If a legacy-path prototype cannot use base-vertex-derived slots,
 a single integer patch-slot uniform is a correct fallback and is preferable to
 position-derived patch IDs.
 
+The page UBO remains the selected solution. For P32 it costs 64 KiB per tile
+for both terrain and map records, or only 576 KiB across the nine-tile `large`
+test. Replacing it with ordinary UV uniforms could turn four ordered page binds
+into as many as 1024 transform updates when patch transforms differ. Before
+reconsidering this choice, instrument real routes for visible patches,
+consecutive transform changes, unique transforms, and texture changes. Map
+parameters are deterministic and may eventually be derived in the shader, but
+removing the map UBO alone is a minor memory optimization rather than a current
+priority.
+
 Do not derive terrain patch ownership solely with
 `floor(vertex.xz / patchWorldSize)`. A vertex exactly on a patch boundary has
 the same position in two owning patch blocks, but the two copies may require
@@ -317,8 +367,9 @@ owners correctly.
 ## Packed terrain normals
 
 Replace three 32-bit normal floats with one normalized 32-bit packed value,
-initially `GL_INT_2_10_10_10_REV`. OpenGL can expand it to a shader `vec3`, and
-the existing fragment-stage normalization remains applicable. Ten signed bits
+initially `GL_INT_2_10_10_10_REV`. OpenGL expands it to a shader `vec4`; XYZ
+hold the normal and the otherwise unused W component now holds the gap flag.
+The existing fragment-stage normalization remains applicable. Ten signed bits
 per component give a step of approximately `1/511` and an angular error around
 one tenth of a degree or less, which should be visually indistinguishable for
 ordinary diffuse terrain lighting.
@@ -340,14 +391,12 @@ approximately 192 MiB non-indexed terrain VBO. The regular 64 x 64 16-bit index
 template is only 48 KiB and can be shared. No second map vertex allocation is
 present.
 
-## Stage 2 only: measured 8-byte format experiments
+## Stage 2: measured 8-byte format experiments
 
-**Stop: do not implement this section during Stage 1.**
-
-Begin these experiments only after the 12-byte paged backend has established
-rendering, editing, gap, map, and save/load parity and has been measured against
-the legacy renderer. The Stage 1 results are the baseline for deciding whether
-the extra complexity produces a worthwhile improvement.
+Stage 2 begins only after the 12-byte paged backend has established a usable
+baseline. Keep the 12-byte description and stored-coordinate shader as the
+comparison reference; do not confuse that shader with a runtime switch because
+its vertex attributes are incompatible with the active 8-byte VAO.
 
 ### A. Float height with local coordinates derived from `gl_VertexID`
 
@@ -373,6 +422,22 @@ This preserves float editing and avoids height rebasing, but adds integer
 division/modulo-equivalent work to every processed vertex. `patchSide` varies
 between terrain layouts, so do not assume that every driver will optimize it
 as compile-time constant arithmetic.
+
+This candidate is now the active experimental paged layout. The two local
+coordinate bytes were removed from the VAO, and `terrainPatchSide` is supplied
+as cached terrain render state. The gap flag was not disabled: it occupies the
+positive value in the otherwise unused two-bit W component of
+`GL_INT_2_10_10_10_REV`. Normal XYZ retain all ten-bit components. The vertex
+shader passes that W value to the existing terrain-only fragment discard; the
+map pass sets `terrainApplyGaps` false and therefore continues to draw regular
+all-triangle geometry.
+
+The first user-side comparison on nine fully visible 1024/32 tiles reported
+30--31 FPS for both derived coordinates and the 12-byte stored-coordinate
+baseline. Treat that as evidence that coordinate reconstruction is not a
+measurable bottleneck on that machine, not as complete Stage 2 acceptance.
+Still verify gaps, maps, selection, editing, and other supported hardware with
+the active 8-byte format.
 
 ### B. Raw height with explicit local coordinates
 
@@ -426,7 +491,37 @@ integer-to-float conversion and multiply-add for the extra integer divisions
 in the derived-coordinate format, but expectation is not a performance gate.
 Measure both on actual supported Intel, AMD, and NVIDIA hardware.
 
-### Other layout candidate
+### B2. Raw height with derived coordinates and logical patch location
+
+An alternative use of the two bytes freed by replacing float height with a
+short is to retain derived local coordinates and store logical patch X/Z:
+
+```cpp
+struct TerrainVertex8RawPatchId {
+    uint16_t rawHeight;
+    uint16_t patchLocation;  // packed logical patch X/Z
+    uint32_t packedNormal;
+};
+static_assert(sizeof(TerrainVertex8RawPatchId) == 8);
+```
+
+For the supported maximum P32 layout, five bits per axis are sufficient and
+six bits remain available. This metadata is redundant while logical patch ID
+equals a fixed page slot: page base plus `gl_VertexID / verticesPerPatch` can
+already recover it. It becomes useful when future LOD pages assign arbitrary
+logical patches to physical slots. Keep B2 as the future-LOD-friendly raw
+candidate; do not use it as justification for removing the current UBO before
+transform-change measurements exist.
+
+The existing `terrain-raw-benchmark` measured patch-local min/max scanning,
+quantization, and 8-byte record generation from a 1024-sample tile. Across ten
+separate Release runs of 100 measured iterations after warm-up, the loaded-flat
+mean was approximately 3.03 ms and the edited-relief mean approximately
+2.92 ms. These figures exclude normal generation and GPU upload. They show
+that conversion itself is plausible, but do not resolve tile-wide versus
+patch-local floor/scale behavior during editing.
+
+### 10-byte structure-of-arrays candidate
 
 A 10-byte structure-of-arrays representation can keep float height, packed
 normal, and explicit byte local coordinates in separately aligned regions.
@@ -497,7 +592,11 @@ tile whose duplicated border heights/normals are affected.
 
 ## Verification and performance gates
 
-### Stage 1 completion gate
+### Historical Stage 1 baseline gate
+
+The following criteria defined the 12-byte baseline before Stage 2A began.
+Keep them as regression and comparison coverage; they are no longer an
+instruction to discard or restart the active 8-byte implementation.
 
 Compare legacy and paged backends using identical route, camera, draw-distance,
 map-overlay, texture, and editor state. At minimum cover 256/8, 512/4, and
@@ -529,21 +628,23 @@ Validate the layout limits explicitly:
   or RAW indexing;
 - every supported patch remains addressable with 16-bit local indices.
 
-Record the 12-byte backend's CPU build time, frame time, draw count, buffer
-bindings, CPU/GPU memory, and modified-patch refresh time beside the legacy
-backend results. These results complete Stage 1 and form the optimization
-baseline. Stop after recording and reviewing them; do not continue directly
-into an 8-byte rewrite as part of the same implementation stage.
+The 12-byte backend's CPU build time, frame time, draw count, buffer bindings,
+CPU/GPU memory, and modified-patch refresh time form the optimization baseline
+beside the legacy backend. The original task stopped after reviewing that
+milestone; Stage 2A was subsequently authorized and implemented separately.
 
 ### Stage 2 experimentation gate
 
-This gate applies only when Stage 2 is started separately. Benchmark these
-three vertex layouts through the same indexed draw path:
+Stage 2 started separately from the baseline implementation. Preserve and
+benchmark these layouts through the same indexed draw path when further
+comparisons are needed:
 
 ```text
 C: float height + explicit local X/Z + gap/reserved       12 bytes (baseline)
-A: float height + gl_VertexID-derived local X/Z            8 bytes
-B: patch-local uint16 height + explicit local X/Z           8 bytes
+A: float height + gl_VertexID-derived local X/Z            8 bytes (selected)
+B: uint16 height + explicit local X/Z                       8 bytes
+B2: uint16 height + derived local X/Z + logical patch ID    8 bytes
+D: float height + packed normal + explicit X/Z in SoA      10 bytes
 ```
 
 Build each representation from the same loaded terrain and select it with a
@@ -560,11 +661,157 @@ normal-neighbour updates, one gap toggle, direct tile-wide raw-height updates,
 and any forced height-range rebase. Test patch-local raw requantization only if
 the earlier direct-raw experiments justify it. Compare image output, queried
 terrain heights, boundary equality, and save/reload results in addition to
-timing. Adopt an 8-byte format only after it beats or otherwise materially
-improves on the 12-byte baseline without compromising these correctness
-checks.
+timing. Stage 2A was selected because it reduces vertex memory by one third
+without a measurable frame-rate loss in the initial comparison. It remains
+experimental until the outstanding visual and editing checks pass. Do not
+remove C, B, B2, or D from this document: they are the controlled fallbacks
+and future comparison designs if hardware or raw-height testing changes the
+decision.
 
 Crack-free transitions, distance-driven LOD selection, E/AS-guided adaptive
 triangulation, and constant per-frame MSTS-style refinement remain subsequent
 work. The page/backend design must leave them possible without making their
 implementation a prerequisite for this static paged-mesh stage.
+
+### Patch visibility culling
+
+Before the current implementation, high-resolution terrain submission followed
+`Game::tileLod` only. `Game::objectLod` supplied the projection far plane, but
+the old fixed-size patch-distance and view-cone tests in both
+`Terrain::render()` and `Terrain::pushRenderItem()` were commented out.
+Patches outside the viewport therefore still incurred draw-call,
+index-processing, and vertex-shader cost before clipping.
+
+The old tests were disabled in GokuMK/TSRE5 commit `d078dea` on 2017-11-13 as
+part of "quadtree terrain rendering support, all tile sizes". Their calculations
+used fixed 128 m patches and fixed 1024 m half-tile offsets, so they could not be
+re-enabled unchanged for variable terrain sizes or patch counts.
+
+The implementation uses conservative patch bounding-sphere frustum culling
+using `TerrainGridLayout::patchWorldSize`, the terrain tile's actual world
+bounds, and the active projection whose far plane remains `Game::objectLod`.
+The same visibility decision is applied to the legacy and paged backends and to direct
+and gather submission, including the paged map pass. Loading radius
+(`tileLod`), visibility distance (`objectLod`), and future mesh-detail LOD
+remain three separate controls. Patch centers are transformed with the complete
+terrain model matrix, which covers edge patches of terrain tiles larger than one
+2048 m world tile. Sphere testing also avoids culling a patch solely because its
+origin is outside the frustum.
+
+An additional horizontal radial test uses `objectLod + 256 m`. It retains a
+patch until its complete horizontal bounding circle is outside that radius.
+Interactive testing confirmed the per-patch circle with differently sized
+terrain tiles in `qttest1`. The positive margin keeps its stepped patch boundary
+behind the projection far plane while preserving radial patch selection for
+future terrain LOD.
+
+`TFile::PatchField` now names the anonymous patch descriptor offsets. In
+TSRE's 13-float `tdata` record, offsets 0 through 5 are `CenterX`, `AverageY`,
+`CenterZ`, `FactorY`, `RangeY`, and `RadiusM`; offset 6 is `ShaderIndex`, and
+offsets 7 through 12 are texture-transform `X`, `Y`, `W`, `B`, `C`, and `H`.
+MSTS uses the bounds as:
+
+```text
+min = (CenterX - RadiusM, AverageY - RangeY, CenterZ - RadiusM)
+max = (CenterX + RadiusM, AverageY + RangeY, CenterZ + RadiusM)
+```
+
+It separately supplies `FactorY` as the conservative radius for its
+plane/sphere frustum test. TSRE already reads and writes these values. New flat
+tiles initialize `CenterX`, `CenterZ`, and `RadiusM` from the actual physical
+patch size; they initialize `AverageY = 1`, `RangeY = 0`, and scale the stock
+flat `FactorY` value with patch size.
+
+Height invalidation marks every patch whose inclusive sample range overlaps the
+edit, including neighbours sharing a boundary sample. Before refresh, render,
+or save, dirty patches recompute `AverageY` and `RangeY` from live samples,
+retain the stock flat-radius convention, and grow `FactorY` conservatively with
+vertical range. Initial load calculates separate runtime bounds without
+replacing untouched descriptor values with the inferred formula. Invalid
+runtime bounds and invalid frustum matrices fail open so malformed data cannot
+make visible terrain disappear. The terrain-grid test performs an explicit
+write/read round trip of all 13 named fields and verifies regenerated vertical
+bounds after a height edit.
+
+## Historical Stage 1 implementation record
+
+The Stage 1 milestone retained selectable `legacy` and `paged` backends. At
+that milestone, the paged backend used the 12-byte record, shared 16-bit
+checkerboard indices, 256-patch VBO/UBO pages, base-vertex draws, shared map
+geometry, and dirty-patch uploads. Shader files for both runtime shader
+profiles are source-controlled so the baseline remains reproducible. The
+statement that no eight-byte work was included applies to this historical
+milestone, not to the current implementation.
+
+Automated verification completed:
+
+- Release build;
+- 39/39 `terrain-grid` tests;
+- 86/86 `settings` tests;
+- CMK terrain corpus: 1194 descriptors accepted and loaded, no payload failure;
+- `terrainsize`, `ebias1`, and `qttest1`: 25 descriptors accepted and loaded,
+  including two variable-patch mutation probes and no payload failure;
+- paged runtime startup on CMK and on all four visible `terrainsize` test tiles,
+  including two 32 x 32 layouts using four pages each, with no shader failure.
+
+One same-tile CMK startup smoke measurement (256/8, 16 x 16 patches) recorded:
+
+```text
+backend  GPU mesh bytes  initial build
+legacy      26,738,688       80.775 ms
+paged          907,264       10.625 ms
+```
+
+These are single startup samples, not statistically useful performance results.
+At that milestone, the remaining gate was interactive comparison of rendered
+terrain, map overlay, gaps, selection, shadows, edits, save/reload behavior,
+and proper frame-time/buffer-binding measurements on representative hardware.
+
+Initial interactive visibility and performance checks after restoring patch
+culling found no problematic periodic stalls after a system restart. With nine
+fully visible 32 x 32-patch tiles, 512-sample terrain reached the configured FPS
+limit; 1024-sample terrain measured approximately 30-40 FPS. These observations
+are useful smoke results rather than controlled benchmarks.
+
+## Current Stage 2A implementation record
+
+The active paged vertex is `TerrainVertex8Derived`: float height plus one
+`GL_INT_2_10_10_10_REV` normal/gap value. Local sample coordinates are derived
+from `gl_VertexID`; float height deliberately avoids raw floor/scale and
+editing-rebase policy in this stage. The 12-byte `StandardFogStoredCoords`
+shader is retained for comparison source, but cannot be selected against the
+8-byte VAO without restoring the Stage 1 record and attribute bindings.
+
+On the nine fully visible 1024/P32 tiles in `large`, both the 12-byte stored-
+coordinate variant and the initial 8-byte derived-coordinate variant measured
+approximately 30--31 FPS. This indicates no measurable vertex-fetch or integer
+coordinate-reconstruction difference on the tested GPU. The 8-byte layout was
+kept for its one-third vertex-memory reduction: including current index and
+terrain/map parameter buffers, the nine-tile case is approximately 77.2 MiB
+instead of 115.5 MiB, saving approximately 38.3 MiB.
+
+Paged patch traversal was then changed from column-first submission to
+sequential row-major patch IDs in both the legacy/direct and Gather pipelines.
+The map pass was already sequential, and water does not use terrain VBO pages.
+For a fully visible P32 tile this reduces main-pass VAO and UBO page changes
+from 128 to four. The same `large` view improved by approximately 2 FPS, from
+about 31 to about 33 FPS. This confirms measurable CPU/driver cost from page
+state changes, although triangle processing remains the dominant 1024-terrain
+cost. Gather remains unfinished and the legacy/direct pipeline remains the
+default and authoritative performance path.
+
+Current choices and deferred alternatives are therefore:
+
+- keep the active 8-byte float-height/derived-coordinate layout;
+- keep 256-patch VBO/VAO pages and order draws by page instead of merging a
+  whole tile into one permanent VBO;
+- keep page UBOs for arbitrary MSTS patch UV transforms; measure real transform
+  change frequency before considering ordinary per-patch uniforms;
+- retain the 12-byte interleaved baseline, 10-byte structure-of-arrays design,
+  8-byte raw/explicit-coordinate design, and 8-byte raw/logical-patch-ID design
+  for future controlled comparisons;
+- defer raw-height selection until editing, rebasing, normal generation, GPU
+  upload, cracks, and save/reload behavior have been measured;
+- use separate regular index templates for future LOD levels and pooled custom
+  index ranges for E/AS or other adaptive triangulation, without regenerating
+  vertex pages merely because triangle definitions change.

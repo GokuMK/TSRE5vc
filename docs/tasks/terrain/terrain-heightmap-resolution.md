@@ -1,21 +1,23 @@
 # Terrain heightmap resolution support
 
-Status: implemented, including variable patch-count editing up to 16 x 16.
+Status: implemented, including variable patch-count editing up to 32 x 32 and
+a shared profile selector for manual and automatic tile creation.
 
 Related task: [variable terrain patch count](terrain-patch-count.md).
 
 ## Decision and scope
 
-Heightmap resolution and patch count are separate compatibility axes. New tile
-creation remains fixed at 16 x 16 (`P = 16`, 256 patch records), while existing
-valid grids with `1 <= P <= 16` are loadable, renderable, editable, and
-saveable.
+Heightmap resolution and patch count are separate compatibility axes. Existing
+valid grids with `1 <= P <= 32` and `4 <= R=N/P <= 128` are loadable,
+renderable, editable, and saveable. New detailed terrain can use the same
+validated profile/patch combinations through the B-key replacement dialog or
+the default profile used by automatic tile generation.
 
 The primary new profile is `512 samples @ 4 m`, alongside the existing
 `256 samples @ 8 m` profile. Experimental `128 samples @ 16 m` and
-`1024 samples @ 2 m` profiles are also exposed only through the `B`-key
-test-tile workflow. The implementation must not assume that a terrain file has
-a 2048 m footprint: terrain size is independent of World (`.w`) files.
+`1024 samples @ 2 m` profiles are also exposed through the shared terrain
+profile selector. The implementation must not assume that a terrain file has a
+2048 m footprint: terrain size is independent of World (`.w`) files.
 
 World files remain on the fixed MSTS 2048 m coordinate lattice. For example,
 a 4096 m terrain tile covers four 2048 m World files. The literals 2048 and
@@ -27,51 +29,49 @@ In scope:
 
 - safe loading, rendering, editing, undo, F/gap data, geodata, networking, and
   saving for metadata-defined sample count and spacing;
-- validation and editing of `1 <= P <= 16`, with new creation fixed at
-  `P = 16`;
+- validation and editing of `1 <= P <= 32`, subject to `4 <= R <= 128`;
 - preserving all terrain tile sizes already represented by the quadtree;
 - `512 @ 4 m` as a required supported case;
-- an explicitly experimental `B`-key GUI for creating isolated 128/16, 256/8,
-  512/4, or 1024/2 test tiles;
-- loading checks that reject patch counts above 16 or incompatible with `N`.
+- a reusable GUI for selecting 128/16, 256/8, 512/4, or 1024/2 heightmaps and
+  4, 8, 16, or 32 patches per side;
+- loading checks that reject patch counts above 32 or incompatible with `N`.
 
 Out of scope:
 
-- creating a patch grid other than 16 x 16, or loading more than 16 patches
-  per side;
+- loading or creating more than 32 patches per side, `R < 4`, or `R > 128`;
 - changing the 2048 m World-file lattice;
 - converting/resampling an existing route to a different grid;
 - rectangular or rotated grids unless separately designed;
 - terrain rendering LOD redesign.
 
-## Experimental `B`-key terrain profile UI
+## Shared terrain profile UI
 
-The existing `Qt::Key_B` handler in
-`src/routeEditor/RouteEditorGLWidget.cpp` is the only creation UI that should
-offer nonstandard terrain resolution in this stage. It currently asks whether
-to create a tile at the camera's World-tile coordinate and then calls
-`Route::newTile()`. Despite its name, that current method is a mixed convenience
-operation: it calls `Tile::saveEmpty()` for the World `.w` file and then
-`TerrainLib::saveEmpty()` for terrain. This is existing coupling, not evidence
-that a World tile owns or defines terrain resolution.
-
-Replace that first confirmation with a small creation dialog containing a
-prominent **Experimental terrain profiles** label and a fixed profile chooser:
+`TerrainProfileSelector` is a reusable QWidget embedded in the B-key detailed
+terrain dialog and in a standalone default-profile selection dialog opened
+from GeoTools. It selects the complete `(height profile, patches per side)`
+tuple and shows a meaningful name containing `N`, `S`, `P`, and `R`.
 
 | GUI profile | Samples | Spacing | Footprint | Patches | Status |
 | --- | ---: | ---: | ---: | ---: | --- |
-| Standard | `256 x 256` | `8 m` | `2048 m` | `16 x 16` | normal/default |
-| Low resolution | `128 x 128` | `16 m` | `2048 m` | `16 x 16` | experimental |
-| High resolution | `512 x 512` | `4 m` | `2048 m` | `16 x 16` | experimental |
-| Ultra resolution | `1024 x 1024` | `2 m` | `2048 m` | `16 x 16` | experimental/static-mesh stress test |
+| Standard | `256 x 256` | `8 m` | `2048 m` | selectable | normal/default |
+| Low resolution | `128 x 128` | `16 m` | `2048 m` | selectable | experimental |
+| High resolution | `512 x 512` | `4 m` | `2048 m` | selectable | experimental |
+| Ultra resolution | `1024 x 1024` | `2 m` | `2048 m` | selectable | experimental |
 
 Requirements:
 
-- default to 256/8 every time; do not persist the experimental choice as an
-  application or route preference;
-- show that 512/4 and especially 1024/2 have higher memory/rendering cost;
+- initialize to the current automatic-generation default, initially
+  `256/8, P=16`;
 - offer only these four named profiles, not unrestricted numeric inputs;
+- offer `P=4`, `8`, `16`, and `32`, disabling tuples rejected by the central
+  layout validator;
 - keep the 2048 m terrain footprint for all four profiles;
+- show compatibility for TSRE current, MSTS Bin 1.8, MSTS Bin 1.9, Open Rails
+  master, and Open Rails unstable; green means confirmed support, red means
+  incompatible, and amber means source/limit-compatible but not runtime-tested;
+- mark TSRE's `256/P16`, `512/P16`, and `1024/P16` choices supported and
+  recommended. `1024/P16` keeps the standard 128 m physical patch and reduces
+  per-tile patch draws; patched MSTS instead requires `1024/P32`;
 - cancellation must create neither the World file nor terrain/quadtree data;
 - pass the selected profile only to detailed-terrain creation, through both
   initial creation and confirmed terrain overwrite, without asking for it
@@ -92,33 +92,30 @@ Requirements:
 - retain the current optional `autoGeoTerrain` step, but make it operate at the
   newly created terrain's actual spacing rather than assuming 8 m.
 
-Keep every other creation entry point at 256/8 for now. This explicitly
-includes automatic creation while moving through an empty tile, bulk
-`createNewTiles()`, new-route terrain initialization, and any other editor
-action that calls `Route::newTile()` or `TerrainLib::saveEmpty()` without a
-profile. Distant/low terrain creation is unchanged. Existing default arguments
-must therefore continue to mean 256/8; the experimental profile must be an
-explicit value supplied only by the `B` workflow.
+GeoTools displays **Default Terrain Profile**, its current meaningful name, and
+a button opening the same selector. Automatic creation while moving through an
+empty tile and bulk marker-file `createNewTiles()` both converge on
+`Route::newTile()` and use this selected profile explicitly. The B dialog opens
+with that default selected but remains a one-off choice and does not silently
+change the automatic default. New-route bootstrap terrain and distant/low
+terrain creation remain on their established profiles.
 
 Use a named profile/layout value rather than passing two unrelated GUI integers
 through the terrain call chain. The intended separation is:
 
 ```text
-RouteEditorGLWidget B dialog
+TerrainTileCreationDialog (B key)
   |- World branch (only if .w is absent)
   |    -> Tile::saveEmpty(x, z)                   // no terrain profile
   |
   `- detailed-terrain branch
-       -> TerrainLib::saveEmpty(x, z, selectedProfile)
-       -> Terrain::SaveEmpty(name, N, S, P=16, low=false)
+       -> TerrainLib::saveEmpty(x, z, selectedProfile, selectedPatches)
+       -> Terrain::SaveEmpty(name, N, S, P, low=false)
 ```
 
-This may use a narrowly named coordinator for the `B` workflow, but do not add
-terrain resolution as a property of `Route::newTile()`, `Tile`, or a World-file
-creation API. The existing no-profile `Route::newTile()` convenience path must
-remain behaviorally identical for its current callers and create standard
-256/8 terrain. In particular, do not store a selected profile globally where
-automatic or bulk creation could accidentally inherit it.
+The terrain profile never becomes a property of `Tile` or a World-file API.
+`Route::newTile()` reads the current automatic terrain default and passes it
+only to detailed-terrain creation; World files remain fixed independent data.
 
 ## Required terminology and invariants
 
@@ -130,7 +127,7 @@ reconstructing them from literals:
 - `N = sampleCount = *tfile->nsamples`;
 - `S = sampleSpacing = *tfile->sampleSize` in metres;
 - `T = terrainWorldSize = N * S`;
-- `P = patchesPerSide = 16` for this task;
+- `P = patchesPerSide`, validated from the descriptor or selected profile;
 - `R = patchResolution = N / P` sample cells per patch side;
 - `patchWorldSize = T / P = R * S`;
 - stored RAW/F cells: `N * N`;
@@ -247,7 +244,7 @@ Before allocation or reading, validate:
 
 - `N > 0`;
 - `S` is finite and positive;
-- `1 <= P <= 16`;
+- `1 <= P <= 32` and `4 <= R=N/P <= 128`;
 - `N >= P` and `N % P == 0`;
 - `T = N * S` is finite and consistent with the terrain quadtree entry;
 - all count/byte products fit `size_t`, API integer limits, and configured
@@ -276,21 +273,62 @@ Required change:
 
 ## P1: functional correctness
 
-### 7. Height brushes and track-bed deformation still use an 8 m grid
+### 7. Height brushes and track-bed deformation
 
-`TerrainLibQt::paintHeightMap()` snaps/steps at 8 m.
-`setTerrainToTrackObj()` quantizes and reconstructs points with 8 m arithmetic.
-The current area compensation `(8 * 8) / (S * S)` does not fix incorrect
-sample addressing.
+Height painting now uses the edited terrain's native sample spacing and batches
+one changed-sample rectangle per affected terrain tile before calling
+`refreshModified()`. This avoids repeated complete patch-grid scans while a
+brush is being applied.
 
-Required change:
+`TerrainLibQt::setTerrainToTrackObj()` now builds a world-aligned action raster
+at the finest sample spacing among the intersecting editable terrain tiles.
+Overlapping object-point stamps retain only the strongest legacy
+cut/embankment influence. The action is then sampled once at every target
+terrain's native vertices, so mixed-resolution tiles no longer require direct
+cross-grid writes or an invented high-resolution copy of low-resolution
+terrain. Undo, ErrorBias reset, changed-sample bounds, and modified-patch GPU
+refresh are applied once per affected tile.
 
-- convert the pointer/track point to an absolute World-lattice position;
-- resolve the physical terrain that owns that position;
-- use that terrain's `S`, `N`, anchor, and bounds for sample addressing;
-- express brush radius in documented units (prefer metres);
-- bounds-check every direct `terrainData[row][column]` access;
-- rename obsolete helpers such as `setHeight256()` once callers migrate.
+Track and dynamic-track action rasters calculate continuous distance to the
+line segments between their approximately 4 m source points. This removes the
+coarse point-stamp stepping on 2 m terrain without blurring the flat bed or its
+cut/embankment slopes. Because the old flat point array has no explicit strip
+breaks, segments are joined only across source-point gaps no larger than 8 m.
+Larger gaps retain isolated circular influence. Generic shape borders continue
+to use the legacy point mode until their point API provides explicit line-strip
+breaks, avoiding accidental connections between unrelated borders.
+
+The terrain-adjustment `Size` and `Max Radius` controls now specify metres
+directly rather than using the old fixed 8 m terrain-sample unit. Their numeric
+ranges and defaults preserve the previous maximum physical extent and default
+footprint while allowing high-resolution terrain to use its full detail.
+`Cutting` and `Embankment` now specify slope angles from 10 through 80 degrees.
+The applied vertical allowance is the physical horizontal distance beyond the
+flat bed multiplied by the angle's tangent, so the same settings produce the
+same profile on every terrain sample spacing. The 32-degree defaults closely
+preserve the old 5 m vertical change per 8 m horizontal step.
+
+KEY_F terrain adjustment now derives track centerlines exclusively from the
+selected World object's current transform. It no longer combines a potentially
+stale TDB vector section with the moved object's matrix. Static track iterates
+each TrackShape path separately and applies its path offset and rotation;
+dynamic track constructs temporary `TSection` values directly from its five
+editable section records. Both paths reuse `TSection::getPoints()`, and dynamic
+track therefore works independently of TDB membership and generated
+`sectionIdx` state.
+
+A temporary height raster remains a useful future companion for other batch
+terrain transformations which genuinely need to operate on old and new height
+fields together. It should reuse the action raster's world-aligned bounds and
+native-tile casting rules rather than reintroducing per-sample terrain lookup.
+
+Remaining cleanup:
+
+- rename obsolete helpers such as `setHeight256()` once all callers migrate;
+- replace the temporary 8 m discontinuity guard with explicit line-strip breaks
+  in the track-point API;
+- extend the same batching architecture to other area-wide terrain tools where
+  measurements justify it.
 
 `TerrainLibQt::fillTerrainData()`, used for route merging, independently walks
 `-1024..1024` at 8 m and textures at 128 m. Its World-file traversal can keep
@@ -684,10 +722,10 @@ should investigate together:
 The current resolution work should not make that future implementation harder:
 keep grid dimensions and patch resolution explicit, retain AS/US/E metadata,
 and avoid APIs or buffer ownership that assume every stored sample must always
-become a rendered vertex. For this stage, `1024 @ 2 m` is exposed only as the
-explicit experimental `B`-key profile, with no static-renderer performance
-guarantee. GUI creation above 1024 remains unavailable until a separate policy
-and adaptive-mesh design exist.
+become a rendered vertex. The paged renderer supports `1024 @ 2 m`; TSRE
+recommends P16 to retain 128 m physical patches, while P32 is the compatible
+choice for patched MSTS. GUI creation above 1024 remains unavailable until a
+separate policy and adaptive-mesh design exist.
 
 For newly generated 512/4 or experimental 1024/2 tiles, omit the optional AS
 and US blocks until their creation semantics and simulator compatibility are
@@ -781,19 +819,21 @@ tests. In particular:
 
 ### `src/routeEditor/RouteEditorGLWidget.cpp`
 
-- replace the `B`-key yes/no prompt with the experimental profile dialog;
-- default the chooser to 256/8 and pass its named profile only to the detailed
-  terrain branch, including confirmed terrain overwrite;
+- use the shared profile selector in the B-key dialog and GeoTools automatic
+  profile dialog;
+- initialize B from the automatic default and pass its one-off named profile
+  only to the detailed terrain branch, including confirmed terrain overwrite;
 - create a missing World file without attaching any resolution metadata and
   preserve an existing World file;
-- leave `createNewTiles()` and distant-tile creation on their existing profiles.
+- make automatic and marker-based `createNewTiles()` use the selected detailed
+  profile while leaving distant-tile creation unchanged.
 
 ### `src/tsre/world/Route.h` and `Route.cpp`
 
 - document/refactor the current `newTile()` coupling between World and terrain
   creation rather than adding terrain resolution to the World-tile concept;
-- keep the existing `newTile()` path defaulting to 256/8 for automatic, bulk,
-  and other legacy creation;
+- pass the current automatic detailed-terrain profile explicitly from
+  `newTile()`;
 - provide or expose a World-only helper if the `B` coordinator needs one;
 - keep all World APIs profile-free and route the selected profile directly to
   detailed terrain creation;
@@ -848,13 +888,13 @@ tests. In particular:
 - validate `.t` before committing received height/F bodies;
 - validate exact variable payload sizes;
 - initialize fixed-capacity patch state only after the descriptor confirms
-  `1 <= P <= 16`, and operate only on the active `P * P` records.
+  `1 <= P <= 32`, and operate only on the active `P * P` records.
 
-## Suggested implementation stages
+## Implemented sequence
 
 1. Add `TerrainGridLayout`, named World constants, checked size calculations,
    early descriptor/payload validation, and length-aware opaque AS/US-buffer
-   preservation. Accept regular grids with `1 <= P <= 16`.
+   preservation. Accept regular grids with `1 <= P <= 32` and validated R.
 2. Make height/F ownership and undo dimension-aware.
 3. Fix VBO, scratch, blob, and line buffers; prove visual parity on 256/8,
    then load/render 512/4.
@@ -862,8 +902,8 @@ tests. In particular:
    shared conversions.
 5. Fix UV generation and all texture operations for `R != 16`.
 6. Update/guard `TerrainLibSimple` and validate client/server paths.
-7. Add the isolated `B`-key profile dialog and separated World/terrain creation
-   branches; keep all no-profile callers on 256/8.
+7. Add the shared profile widget, the B-key replacement dialog, the GeoTools
+   automatic default, and separated World/terrain creation branches.
 8. Run save/reload, edge, 4096 m coverage, malformed-file, GUI-scope, and
    memory tests.
 
@@ -874,12 +914,12 @@ tests. In particular:
 | `128 @ 16 m, P=16` | smaller allocation, 2048 m terrain, `R=8` |
 | `256 @ 8 m, P=16` | compatibility baseline, 2048 m terrain, `R=16` |
 | `512 @ 4 m, P=16` | required high-resolution case, 2048 m terrain, `R=32` |
-| `1024 @ 2 m, P=16` | experimental `B`-created static-mesh test tile, `R=64` |
+| `1024 @ 2 m, P=16` | preferred current-TSRE ultra profile, `R=64`; not patched-MSTS compatible |
 | `256 @ 16 m, P=16` | 4096 m terrain covering 2 x 2 World files |
 | existing distant-terrain profile | prove its 4 x 4 grid loads, renders, edits, and saves |
 | `250 @ 8 m, P=16` | reject because `N % P != 0` |
-| valid `N/S`, `1 <= P < 16` | load/render/edit/save |
-| valid `N/S`, `P > 16` | reject because runtime patch capacity is 16 x 16 |
+| valid `N/S`, `1 <= P <= 32`, `4 <= R <= 128` | load/render/edit/save |
+| `P > 32`, `R < 4`, or `R > 128` | reject as unsupported |
 | existing AS block | preserve its declared payload byte-for-byte on save |
 | absent AS block | preserve absence, including newly created 128/16, 512/4, and 1024/2 terrain |
 | synthetic token-282/US block | preserve its label and arbitrary payload byte-for-byte without assigning semantics |
@@ -888,17 +928,23 @@ tests. In particular:
 | truncated/oversized RAW, float RAW, or F | reject before reading/commit |
 | non-zero rotation or fractional `S` | support deliberately or reject clearly |
 
-For every supported non-experimental profile, verify load/render,
-centre/corner/edge height and slope, seams, all height tools, undo, gaps,
-textures/UVs, geodata, save/reload, and client/server round trip. Verify that
-height editing sets `ErrorBias = 0` on every affected patch without changing
-preserved AS or US buffers. Repeat load/unload under AddressSanitizer or an
-equivalent heap checker. The experimental 1024/2 profile has the narrower
-smoke-test requirement below until adaptive triangulation exists.
+For every supported profile, verify load/render, centre/corner/edge height and
+slope, seams, all height tools, undo, gaps, textures/UVs, geodata, save/reload,
+and client/server round trip. Verify that height editing sets `ErrorBias = 0`
+on every affected patch without changing preserved AS or US buffers. Repeat
+load/unload under AddressSanitizer or an equivalent heap checker. Include both
+P16 and P32 in 1024/2 functional and performance comparisons; adaptive
+triangulation remains separate future work.
 
 GUI-scope regression tests must verify:
 
-- `B` offers exactly 128/16, 256/8, 512/4, and 1024/2 and defaults to 256/8;
+- both selectors offer exactly 128/16, 256/8, 512/4, and 1024/2, plus valid
+  P=4/8/16/32 choices, and initially default to 256/8, P=16;
+- changing the automatic default changes subsequent navigation-created and
+  marker-generated detailed terrain; B opens on that default but remains a
+  one-off selection;
+- compatibility labels and green/red/amber states follow
+  `msts-orts-terrain-profile-compatibility.md`;
 - each choice writes matching `.t` metadata and an exact `N * N * 2` Y-RAW;
 - cancel writes nothing; overwrite retains the selected profile, recreates Y,
   and does not leave old-dimension E/N data referenced by the new descriptor;
@@ -907,12 +953,12 @@ GUI-scope regression tests must verify:
   metadata;
 - the overwrite prompt follows detailed-terrain existence and does not describe
   an existing World tile as terrain that must be replaced;
-- automatic tile creation, bulk `createNewTiles()`, and new-route creation
-  still produce 256/8 after an experimental `B` creation;
+- new-route bootstrap terrain remains 256/8 after changing the automatic
+  profile;
 - low/distant terrain creation is unchanged;
-- one 1024/2 tile can be created, loaded, rendered for testing, saved, and
-  reloaded without allocation overflow or out-of-bounds access; sustained
-  static-renderer performance is explicitly not an acceptance requirement.
+- 1024/2 P16 and P32 tiles can be created, loaded, edited, saved, and reloaded;
+  performance comparisons retain P16 as the native TSRE recommendation and
+  P32 as the patched-MSTS-compatible choice.
 
 The 4096 m case additionally verifies:
 
@@ -923,21 +969,20 @@ The 4096 m case additionally verifies:
 
 ## Acceptance criteria
 
-- `256 @ 8 m` and `512 @ 4 m`, with any valid patch count up to 16 x 16, load,
+- `256 @ 8 m` and `512 @ 4 m`, with any valid patch count up to 32 x 32, load,
   render, edit, undo, save, and reload without out-of-bounds access or UV
   distortion.
-- The `B` workflow creates all four named profiles with selectable 4 x 4,
-  8 x 8, or 16 x 16 patch grids, clearly labels the feature experimental,
-  and does not alter defaults in any other creation workflow.
-- A `B`-created 1024/2 tile passes the isolated functional/memory-safety smoke
-  test; it is not presented as a production-performance profile.
+- The shared selector creates all four named profiles with selectable 4 x 4,
+  8 x 8, 16 x 16, or 32 x 32 patch grids, clearly labels compatibility, and
+  supplies both the B workflow and automatic detailed-terrain creation.
+- 1024/2 P16 is presented as TSRE's recommended ultra profile; 1024/2 P32
+  remains supported and is identified as the patched-MSTS-compatible choice.
 - Existing non-2048 terrain sizes remain supported; the 4096 m fixture covers
   four independent `.w` files correctly.
 - Unsupported patch counts and malformed/oversized payloads fail before
   allocation or live-state mutation with complete diagnostics.
 - No production height-grid code uses literal 256, 257, 16, 128, or 8 to mean
-  `N`, `N+1`, `R`, patch metres, or `S`. The fixed patch dimension 16 may remain
-  only as a named, validated task constraint.
+  `N`, `N+1`, `R`, patch metres, or `S`, except named profile/default values.
 - Literals/named constants 2048 and 1024 remain where they express the fixed
   World-file coordinate lattice.
 - Both selectable terrain-library paths are either compliant or explicitly

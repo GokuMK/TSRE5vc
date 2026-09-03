@@ -1,7 +1,7 @@
 # TSRE modern settings system
 
 The durable implementation roadmap is
-[Modern Settings System — Master Plan](tasks/settings-system-plan.md). Keep that
+[Modern Settings System — Master Plan](tasks/settings/settings-system-plan.md). Keep that
 plan updated until runtime integration and legacy migration/cleanup are complete.
 
 Phase 2B runtime integration is active. The modern profile is loaded before
@@ -147,9 +147,9 @@ The Route Editor opens the Settings Editor from **Settings > Settings Editor...*
 
 Writes use `QSaveFile`, retain five timestamped backups, and detect external file changes before overwriting. Recoverable per-setting errors remain loadable for repair, but validation errors prevent saving. Secret values are stored in the profile-local `secrets.json`; dedicated secret settings and inline `{secret:ID}` placeholders store only references.
 
-The approved runtime catalogue contains 76 profile settings. Inactive
+The approved runtime catalogue contains 77 profile settings. Inactive
 `useWorkingDir` and `warningBox`, the disabled `gatherLegacyOverlays` diagnostic,
 and one-shot route merge remain historical audit entries but are not generated
 as profile settings. The
 review and approved decisions are in
-[settings-phase2a-audit.md](tasks/settings-phase2a-audit.md).
+[settings-phase2a-audit.md](tasks/settings/settings-phase2a-audit.md).

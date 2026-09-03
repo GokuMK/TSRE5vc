@@ -79,7 +79,7 @@ Status: complete for the agreed foundation.
 - [x] Provide the runtime support-claim API using a stable key and expected type;
   actual consumer claims are added during Phase 2B.
 
-Implementation overview: [../settings-system.md](../settings-system.md).
+Implementation overview: [../../settings-system.md](../../settings-system.md).
 
 ## Phase 2A — Catalogue audit and decisions
 
