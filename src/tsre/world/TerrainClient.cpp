@@ -92,8 +92,10 @@ void TerrainClient::load(){
                 uniqueTex[i] = false;
                 selectedPatchs[i] = false;
             }
-            VBO = new QOpenGLBuffer();
-            VAO = new QOpenGLVertexArrayObject();
+            if (Game::terrainMeshMode == Game::TERRAIN_MESH_LEGACY) {
+                VBO = new QOpenGLBuffer();
+                VAO = new QOpenGLVertexArrayObject();
+            }
 
             esdAlternativeTexture = 0x01;
             if((esdAlternativeTexture & Game::TextureFlags[Game::season]) != 0)

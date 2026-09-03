@@ -16,6 +16,7 @@
 #include <tsre/math3d/GLMatrix.h>
 #include <QOpenGLFunctions>
 #include <QOpenGLContext>
+#include <QOpenGLExtraFunctions>
 #include <tsre/ogl/GLUU.h>
 #include <tsre/Game.h>
 #ifndef __APPLE__
@@ -74,6 +75,74 @@ bool requiresWireframe(const RenderItem *item){
     if(item == NULL)
         return false;
     return item->polygonMode != 0;
+}
+
+struct TerrainStateCache {
+    bool valid = false;
+    bool paged = false;
+    QOpenGLBuffer *params = NULL;
+    int verticesPerPatch = 0;
+    int patchSide = 0;
+    float sampleSpacing = 0.0f;
+    bool applyGaps = false;
+    bool mapPass = false;
+};
+
+void applyTerrainState(GLUU *gluu, RenderItem *item,
+                       TerrainStateCache &cache){
+    if(gluu == NULL || gluu->currentShader == NULL || item == NULL)
+        return;
+    Shader *shader = gluu->currentShader;
+    if(!cache.valid || cache.paged != item->terrainPaged)
+        shader->setUniformValue(shader->terrainPaged, item->terrainPaged ? 1 : 0);
+    if(!item->terrainPaged){
+        cache.valid = true;
+        cache.paged = false;
+        cache.params = NULL;
+        return;
+    }
+    if(!cache.valid || !cache.paged
+            || cache.verticesPerPatch != item->terrainVerticesPerPatch)
+        shader->setUniformValue(shader->terrainVerticesPerPatch,
+                                item->terrainVerticesPerPatch);
+    if(!cache.valid || !cache.paged
+            || cache.patchSide != item->terrainPatchSide)
+        shader->setUniformValue(shader->terrainPatchSide,
+                                item->terrainPatchSide);
+    if(!cache.valid || !cache.paged
+            || cache.sampleSpacing != item->terrainSampleSpacing)
+        shader->setUniformValue(shader->terrainSampleSpacing,
+                                item->terrainSampleSpacing);
+    if(!cache.valid || !cache.paged || cache.applyGaps != item->terrainApplyGaps)
+        shader->setUniformValue(shader->terrainApplyGaps,
+                                item->terrainApplyGaps ? 1 : 0);
+    if(!cache.valid || !cache.paged || cache.mapPass != item->terrainMapPass)
+        shader->setUniformValue(shader->terrainMapPass,
+                                item->terrainMapPass ? 1 : 0);
+    if(!cache.valid || !cache.paged || cache.params != item->terrainParamsBuffer)
+        QOpenGLContext::currentContext()->extraFunctions()->glBindBufferBase(
+                    GL_UNIFORM_BUFFER, 0,
+                    item->terrainParamsBuffer == NULL ? 0
+                    : item->terrainParamsBuffer->bufferId());
+    cache.valid = true;
+    cache.paged = true;
+    cache.params = item->terrainParamsBuffer;
+    cache.verticesPerPatch = item->terrainVerticesPerPatch;
+    cache.patchSide = item->terrainPatchSide;
+    cache.sampleSpacing = item->terrainSampleSpacing;
+    cache.applyGaps = item->terrainApplyGaps;
+    cache.mapPass = item->terrainMapPass;
+}
+
+void drawItem(QOpenGLFunctions *f, RenderItem *item){
+    if(item->indexed){
+        QOpenGLContext::currentContext()->extraFunctions()->glDrawElementsBaseVertex(
+                    getItemDrawType(item), item->vertCount, item->indexType,
+                    reinterpret_cast<void*>(static_cast<quintptr>(item->indexOffset)),
+                    item->baseVertex);
+    } else {
+        f->glDrawArrays(getItemDrawType(item), item->vertOffset, item->vertCount);
+    }
 }
 
 }
@@ -173,6 +242,7 @@ void OpenGL3Renderer::renderFrame(){
         cleanupMatrixList(mvMatrixDelete);
         return;
     }
+    TerrainStateCache terrainState;
 
     // Generic frame-owned queue.
     for(int i = 0; i < items.size(); i++){
@@ -183,6 +253,7 @@ void OpenGL3Renderer::renderFrame(){
             continue;
 
         applyItemState(gluu, f, item);
+        applyTerrainState(gluu, item, terrainState);
 
         if(item->msMatrix != NULL){
             gluu->currentShader->setUniformValue(gluu->currentShader->msMatrixUniform, *reinterpret_cast<float(*)[4][4]>(item->msMatrix));
@@ -200,7 +271,7 @@ void OpenGL3Renderer::renderFrame(){
             glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
         QOpenGLVertexArrayObject::Binder vaoBinder(item->VAO);
-        f->glDrawArrays(getItemDrawType(item), item->vertOffset, item->vertCount);
+        drawItem(f, item);
 
         if(wireframe)
             glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
@@ -229,6 +300,7 @@ void OpenGL3Renderer::renderFrame(){
                 continue;
 
             applyItemState(gluu, f, item);
+            applyTerrainState(gluu, item, terrainState);
             QOpenGLVertexArrayObject::Binder vaoBinder(item->VAO);
 
             if(item->msMatrix != NULL){
@@ -247,7 +319,7 @@ void OpenGL3Renderer::renderFrame(){
                 if(item->mvMatrixList[i] != NULL){
                     gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]>(item->mvMatrixList[i]));
                 }
-                f->glDrawArrays(getItemDrawType(item), item->vertOffset, item->vertCount);
+                drawItem(f, item);
             }
 
             if(wireframe)
@@ -267,5 +339,10 @@ void OpenGL3Renderer::renderFrame(){
     gluu->setBrightness(1.0f);
     gluu->enableTextures();
     gluu->enableNormals();
+    if(gluu->currentShader != NULL)
+        gluu->currentShader->setUniformValue(
+                    gluu->currentShader->terrainPaged, 0);
+    QOpenGLContext::currentContext()->extraFunctions()->glBindBufferBase(
+                GL_UNIFORM_BUFFER, 0, 0);
 }
 

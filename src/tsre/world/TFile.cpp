@@ -26,6 +26,14 @@ TFile::TFile(const TFile& orig) {
 TFile::~TFile() {
 }
 
+float TFile::patchValue(int patchId, PatchField field) const {
+    return tdata[patchId * PatchFieldCount + static_cast<int>(field)];
+}
+
+void TFile::setPatchValue(int patchId, PatchField field, float value) {
+    tdata[patchId * PatchFieldCount + static_cast<int>(field)] = value;
+}
+
 void TFile::initNew(QString name, int samples, int sampleS, int patches){
     TerrainGridLayout layout;
     QString layoutError;
@@ -60,7 +68,7 @@ void TFile::initNew(QString name, int samples, int sampleS, int patches){
     patchsetDistance = 0;
     patchsetNpatches = patches;
     flags = new int[patches*patches];
-    tdata = new float[patches*patches*13];
+    tdata = new float[patches * patches * PatchFieldCount];
     errorBias = new float[patches*patches];
     const float patchSize = layout.patchWorldSize;
     // Open Rails names this descriptor field FactorY. Its underlying formula
@@ -74,20 +82,21 @@ void TFile::initNew(QString name, int samples, int sampleS, int patches){
         patchPosX = 0.5*patchSize;
         for(int i = 0; i < patches; i++, patchPosX += patchSize){
             flags[(j*patches+i)] = 0;
-            tdata[(j*patches+i)*13+0] = patchPosX;
-            tdata[(j*patches+i)*13+1] = 1;
-            tdata[(j*patches+i)*13+2] = patchPosZ;
-            tdata[(j*patches+i)*13+3] = patchFactorY;
-            tdata[(j*patches+i)*13+4] = 0;
-            tdata[(j*patches+i)*13+5] = 0.5*patchSize;
-            tdata[(j*patches+i)*13+6] = 0;
-            tdata[(j*patches+i)*13+7] = 0.0001;
-            tdata[(j*patches+i)*13+8] = 0.0001;
-            tdata[(j*patches+i)*13+9] = textureScale;
-            tdata[(j*patches+i)*13+10] = 0;
-            tdata[(j*patches+i)*13+11] = 0;
-            tdata[(j*patches+i)*13+12] = textureScale;
-            errorBias[(j*patches+i)] = 1;
+            const int patchId = j * patches + i;
+            setPatchValue(patchId, PatchField::CenterX, patchPosX);
+            setPatchValue(patchId, PatchField::AverageY, 1.0f);
+            setPatchValue(patchId, PatchField::CenterZ, patchPosZ);
+            setPatchValue(patchId, PatchField::FactorY, patchFactorY);
+            setPatchValue(patchId, PatchField::RangeY, 0.0f);
+            setPatchValue(patchId, PatchField::RadiusM, 0.5f * patchSize);
+            setPatchValue(patchId, PatchField::ShaderIndex, 0.0f);
+            setPatchValue(patchId, PatchField::TextureX, 0.0001f);
+            setPatchValue(patchId, PatchField::TextureY, 0.0001f);
+            setPatchValue(patchId, PatchField::TextureW, textureScale);
+            setPatchValue(patchId, PatchField::TextureB, 0.0f);
+            setPatchValue(patchId, PatchField::TextureC, 0.0f);
+            setPatchValue(patchId, PatchField::TextureH, textureScale);
+            errorBias[patchId] = 1;
         }
     }
         
@@ -464,7 +473,7 @@ void TFile::get163(FileBuffer* data, int n) {
         }
         //int ilosc = data.getInt();
         //qDebug() << "i to " << n;
-        tdata = new float[n*n*13];
+        tdata = new float[n * n * PatchFieldCount];
         errorBias = new float[n*n];
         flags = new int[n*n];
         for (int j = 0; j < n*n; j++) {
@@ -476,21 +485,24 @@ void TFile::get163(FileBuffer* data, int n) {
             
             flags[j] = data->getInt();//&0xFFFF;
             //data->off += 4*6;
-            tdata[j*13+0] = data->getFloat();
-            tdata[j*13+1] = data->getFloat();
-            tdata[j*13+2] = data->getFloat();
-            tdata[j*13+3] = data->getFloat();
-            tdata[j*13+4] = data->getFloat();
-            tdata[j*13+5] = data->getFloat();
-            tdata[j*13+6] = (float)data->getInt();
-            if(tdata[j*13+6] >= materialsCount)
-                tdata[j*13+6] -= materialsCount;
-            tdata[j*13+7] = data->getFloat();
-            tdata[j*13+8] = data->getFloat();
-            tdata[j*13+9] = data->getFloat();
-            tdata[j*13+10] = data->getFloat();
-            tdata[j*13+11] = data->getFloat();
-            tdata[j*13+12] = data->getFloat();
+            setPatchValue(j, PatchField::CenterX, data->getFloat());
+            setPatchValue(j, PatchField::AverageY, data->getFloat());
+            setPatchValue(j, PatchField::CenterZ, data->getFloat());
+            setPatchValue(j, PatchField::FactorY, data->getFloat());
+            setPatchValue(j, PatchField::RangeY, data->getFloat());
+            setPatchValue(j, PatchField::RadiusM, data->getFloat());
+            setPatchValue(j, PatchField::ShaderIndex,
+                          static_cast<float>(data->getInt()));
+            if (patchValue(j, PatchField::ShaderIndex) >= materialsCount)
+                setPatchValue(j, PatchField::ShaderIndex,
+                              patchValue(j, PatchField::ShaderIndex)
+                              - materialsCount);
+            setPatchValue(j, PatchField::TextureX, data->getFloat());
+            setPatchValue(j, PatchField::TextureY, data->getFloat());
+            setPatchValue(j, PatchField::TextureW, data->getFloat());
+            setPatchValue(j, PatchField::TextureB, data->getFloat());
+            setPatchValue(j, PatchField::TextureC, data->getFloat());
+            setPatchValue(j, PatchField::TextureH, data->getFloat());
             errorBias[j] = data->getFloat();
             //qDebug() << tdata[j*7+1] << tdata[j*7+2] << tdata[j*7+3] << tdata[j*7+4] << tdata[j*7+5] << tdata[j*7+6];
             
@@ -947,19 +959,19 @@ void TFile::save(QDataStream &write){
         write << (qint32)61;
         write << (qint8)0;
         write << (qint32)flags[j];
-        write << (float)tdata[j*13+0];
-        write << (float)tdata[j*13+1];
-        write << (float)tdata[j*13+2];
-        write << (float)tdata[j*13+3];
-        write << (float)tdata[j*13+4];
-        write << (float)tdata[j*13+5];
-        write << (qint32)tdata[j*13+6];
-        write << (float)tdata[j*13+7];
-        write << (float)tdata[j*13+8];
-        write << (float)tdata[j*13+9];
-        write << (float)tdata[j*13+10];
-        write << (float)tdata[j*13+11];
-        write << (float)tdata[j*13+12];
+        write << patchValue(j, PatchField::CenterX);
+        write << patchValue(j, PatchField::AverageY);
+        write << patchValue(j, PatchField::CenterZ);
+        write << patchValue(j, PatchField::FactorY);
+        write << patchValue(j, PatchField::RangeY);
+        write << patchValue(j, PatchField::RadiusM);
+        write << static_cast<qint32>(patchValue(j, PatchField::ShaderIndex));
+        write << patchValue(j, PatchField::TextureX);
+        write << patchValue(j, PatchField::TextureY);
+        write << patchValue(j, PatchField::TextureW);
+        write << patchValue(j, PatchField::TextureB);
+        write << patchValue(j, PatchField::TextureC);
+        write << patchValue(j, PatchField::TextureH);
         write << (float)errorBias[j];
     }
 }

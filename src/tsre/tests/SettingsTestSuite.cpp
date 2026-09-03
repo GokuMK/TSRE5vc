@@ -33,7 +33,7 @@ int TsreTests::runSettingsSuite(bool verbose) {
 
     SettingsManager manager;
     SettingsRegistration::registerAll(manager.registry());
-    check(manager.registry().definitions().size() == 76,
+    check(manager.registry().definitions().size() == 77,
           "phase2b-catalog-removes-inactive-and-one-shot-settings");
     check(manager.registry().definition("core.system.useWorkingDirectory") == nullptr
           && manager.registry().definition("core.system.warningBox") == nullptr,
@@ -49,6 +49,17 @@ int TsreTests::runSettingsSuite(bool verbose) {
             manager.registry().definition("core.rendering.objectLodDistance");
     check(objectDistance && objectDistance->maximum == 200000.0,
           "phase2a-object-distance-allows-debug-range");
+    const SettingsDefinition *terrainMesh =
+            manager.registry().definition("core.rendering.terrainMesh");
+    check(terrainMesh && terrainMesh->type == SettingType::Enum
+          && terrainMesh->defaultValue.toString() == "paged"
+          && terrainMesh->options.size() == 2
+          && terrainMesh->options[0].value.toString() == "legacy"
+          && terrainMesh->options[0].name == "Precomputed / Legacy"
+          && terrainMesh->options[1].value.toString() == "paged"
+          && terrainMesh->options[1].name == "On GPU / Experimental"
+          && terrainMesh->apply == "routeReload",
+          "paged-terrain-backend-is-default-and-experimental");
     const SettingsDefinition *gradeFormat =
             manager.registry().definition("core.track.defaultGradeFormat");
     check(gradeFormat && gradeFormat->type == SettingType::Enum
@@ -182,7 +193,7 @@ int TsreTests::runSettingsSuite(bool verbose) {
     const QString settingsFile = QDir(temporary.path()).filePath("profile/settings.json");
     QString error;
     check(manager.loadFile(settingsFile, &error), "registry-generates-profile");
-    check(QFile::exists(settingsFile) && manager.settingsArray().size() == 76,
+    check(QFile::exists(settingsFile) && manager.settingsArray().size() == 77,
           "generated-profile-has-catalogue");
     check(manager.value("core.paths.gameRoot").toString().isEmpty()
           && manager.value("core.paths.geoData").toString().isEmpty()
@@ -486,6 +497,14 @@ int TsreTests::runSettingsSuite(bool verbose) {
           && runtimeManager.runtimeValueSource(threadedKey)
              == SettingsManager::CommandLine,
           "clearing-session-value-restores-launch-override");
+    const QString createMissingRouteKey =
+            "core.startup.createMissingRoute";
+    check(runtimeManager.setSessionValue(createMissingRouteKey, true, &error)
+          && runtimeManager.runtimeBool(createMissingRouteKey)
+          && runtimeManager.runtimeValueSource(createMissingRouteKey)
+             == SettingsManager::ForcedSession,
+          "new-route-action-can-override-startup-creation-policy-for-session");
+    runtimeManager.clearSessionValue(createMissingRouteKey);
     SettingsManager invalidOverrideManager;
     SettingsRegistration::registerAll(invalidOverrideManager.registry());
     SettingsProfileSelection invalidOverrideSelection;

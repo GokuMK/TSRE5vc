@@ -1,0 +1,606 @@
+/*  This file is part of TSRE5.
+ *
+ *  TSRE5 - train sim game engine and MSTS/OR Editors.
+ *  Copyright (C) 2016 Piotr Gadecki <pgadecki@gmail.com>
+ *
+ *  Licensed under GNU General Public License 3.0 or later.
+ */
+
+#include <tsre/world/TerrainMeshBackend.h>
+
+#include <algorithm>
+#include <cmath>
+#include <cstddef>
+
+#include <QOpenGLContext>
+#include <QDebug>
+#include <QElapsedTimer>
+#include <QOpenGLExtraFunctions>
+#include <QOpenGLFunctions>
+
+#include <tsre/Game.h>
+#include <tsre/ogl/GLUU.h>
+#include <tsre/ogl/Shader.h>
+#include <tsre/renderer/RenderItem.h>
+#include <tsre/world/Terrain.h>
+#include <tsre/world/TerrainLib.h>
+
+namespace {
+
+struct Vec3 {
+    float x;
+    float y;
+    float z;
+};
+
+Vec3 subtract(const Vec3 &left, const Vec3 &right) {
+    return {left.x - right.x, left.y - right.y, left.z - right.z};
+}
+
+Vec3 cross(const Vec3 &left, const Vec3 &right) {
+    return {left.y * right.z - left.z * right.y,
+            left.z * right.x - left.x * right.z,
+            left.x * right.y - left.y * right.x};
+}
+
+int packedSnorm10(float value) {
+    value = std::max(-1.0f, std::min(1.0f, value));
+    return static_cast<int>(std::lround(value * 511.0f));
+}
+
+}
+
+TerrainMeshBackend::TerrainMeshBackend(Terrain &terrainValue)
+    : terrain(terrainValue) {
+}
+
+TerrainMeshBackend::~TerrainMeshBackend() = default;
+
+TerrainMeshLegacy::TerrainMeshLegacy(Terrain &terrainValue)
+    : TerrainMeshBackend(terrainValue) {
+}
+
+bool TerrainMeshLegacy::isPaged() const {
+    return false;
+}
+
+bool TerrainMeshLegacy::ensureInitialized() {
+    if (terrain.isOgl)
+        return true;
+    if (!terrain.loaded || terrain.tfile == nullptr || terrain.terrainData == nullptr)
+        return false;
+    QElapsedTimer timer;
+    timer.start();
+    if (terrain.VBO == nullptr)
+        terrain.VBO = new QOpenGLBuffer();
+    if (terrain.VAO == nullptr)
+        terrain.VAO = new QOpenGLVertexArrayObject();
+    Game::terrainLib->fillRaw(&terrain, static_cast<int>(terrain.mojex),
+                              static_cast<int>(terrain.mojez));
+    terrain.initializePatchBounds();
+    terrain.vertexInit();
+    terrain.normalInit();
+    terrain.oglInit();
+    terrain.isOgl = true;
+    const quint64 blobBytes = static_cast<quint64>(terrain.gridLayout.storedCellCount)
+            * 6u * 9u * sizeof(float);
+    qInfo() << "Legacy terrain mesh" << terrain.name
+            << "GPU bytes" << terrain.gridLayout.terrainVboBytes + blobBytes
+            << "(terrain" << terrain.gridLayout.terrainVboBytes
+            << "map" << blobBytes << ")"
+            << "build microseconds" << timer.nsecsElapsed() / 1000;
+    return true;
+}
+
+void TerrainMeshLegacy::configureRenderItem(RenderItem &item, int patchId,
+                                             bool, bool) {
+    const int patches = terrain.gridLayout.patchesPerSide;
+    const int row = patchId / patches;
+    const int column = patchId % patches;
+    item.VBO = terrain.VBO;
+    item.VAO = terrain.VAO;
+    item.vertOffset = (column * patches + row)
+            * terrain.gridLayout.pagedIndicesPerPatch();
+    item.vertCount = terrain.gridLayout.pagedIndicesPerPatch();
+}
+
+void TerrainMeshLegacy::drawPatch(int patchId, bool, bool) {
+    const int patches = terrain.gridLayout.patchesPerSide;
+    const int row = patchId / patches;
+    const int column = patchId % patches;
+    QOpenGLFunctions *functions = QOpenGLContext::currentContext()->functions();
+    functions->glDrawArrays(GL_TRIANGLES,
+                            (column * patches + row)
+                            * terrain.gridLayout.pagedIndicesPerPatch(),
+                            terrain.gridLayout.pagedIndicesPerPatch());
+}
+
+void TerrainMeshLegacy::endDirectRender() {
+}
+
+void TerrainMeshLegacy::invalidateAll(unsigned int) {
+    terrain.isOgl = false;
+}
+
+void TerrainMeshLegacy::invalidatePatch(int, unsigned int) {
+    invalidateAll();
+}
+
+void TerrainMeshLegacy::invalidateSamples(int, int, int, int, unsigned int) {
+    invalidateAll();
+}
+
+void TerrainMeshLegacy::refreshModified() {
+}
+
+TerrainMeshPaged::Page::Page()
+    : vertexBuffer(QOpenGLBuffer::VertexBuffer),
+      terrainParamsBuffer(QOpenGLBuffer::VertexBuffer),
+      mapParamsBuffer(QOpenGLBuffer::VertexBuffer) {
+}
+
+TerrainMeshPaged::TerrainMeshPaged(Terrain &terrainValue)
+    : TerrainMeshBackend(terrainValue),
+      indexBuffer(QOpenGLBuffer::IndexBuffer) {
+    dirtyReasons.fill(TerrainDirtyAll, terrain.gridLayout.patchRecordCount());
+}
+
+TerrainMeshPaged::~TerrainMeshPaged() {
+    qDeleteAll(pages);
+    pages.clear();
+}
+
+bool TerrainMeshPaged::isPaged() const {
+    return true;
+}
+
+QVector<quint16> TerrainMeshPaged::buildRegularIndices(int resolution) {
+    QVector<quint16> indices;
+    if (resolution < 1 || resolution > 128)
+        return indices;
+    indices.reserve(resolution * resolution * 6);
+    const int side = resolution + 1;
+    for (int z = 0; z < resolution; ++z) {
+        for (int x = 0; x < resolution; ++x) {
+            const quint16 p00 = static_cast<quint16>(z * side + x);
+            const quint16 p10 = static_cast<quint16>(z * side + x + 1);
+            const quint16 p01 = static_cast<quint16>((z + 1) * side + x);
+            const quint16 p11 = static_cast<quint16>((z + 1) * side + x + 1);
+            if (((x + z) & 1) == 0) {
+                indices << p00 << p01 << p11;
+                indices << p00 << p11 << p10;
+            } else {
+                indices << p01 << p11 << p10;
+                indices << p00 << p01 << p10;
+            }
+        }
+    }
+    return indices;
+}
+
+quint32 TerrainMeshPaged::packNormal(float x, float y, float z, bool gap) {
+    const quint32 px = static_cast<quint32>(packedSnorm10(x)) & 0x3ffu;
+    const quint32 py = static_cast<quint32>(packedSnorm10(y)) & 0x3ffu;
+    const quint32 pz = static_cast<quint32>(packedSnorm10(z)) & 0x3ffu;
+    const quint32 packedGap = gap ? (1u << 30) : 0u;
+    return px | (py << 10) | (pz << 20) | packedGap;
+}
+
+TerrainPatchGpuParams TerrainMeshPaged::terrainParams(const Terrain &terrain,
+                                                       int patchId) {
+    TerrainPatchGpuParams params{};
+    if (!terrain.gridLayout.isPatchIndexValid(patchId) || terrain.tfile == nullptr)
+        return params;
+    const int column = terrain.gridLayout.patchColumn(patchId);
+    const int row = terrain.gridLayout.patchRow(patchId);
+    params.uvAndOriginX[0] = terrain.tfile->patchValue(
+                patchId, TFile::PatchField::TextureW);
+    params.uvAndOriginX[1] = terrain.tfile->patchValue(
+                patchId, TFile::PatchField::TextureB);
+    params.uvAndOriginX[2] = terrain.tfile->patchValue(
+                patchId, TFile::PatchField::TextureX);
+    params.uvAndOriginX[3] = column * terrain.gridLayout.patchWorldSize;
+    params.uvAndOriginZ[0] = terrain.tfile->patchValue(
+                patchId, TFile::PatchField::TextureC);
+    params.uvAndOriginZ[1] = terrain.tfile->patchValue(
+                patchId, TFile::PatchField::TextureH);
+    params.uvAndOriginZ[2] = terrain.tfile->patchValue(
+                patchId, TFile::PatchField::TextureY);
+    params.uvAndOriginZ[3] = row * terrain.gridLayout.patchWorldSize;
+    return params;
+}
+
+TerrainPatchGpuParams TerrainMeshPaged::mapParams(const Terrain &terrain,
+                                                   int patchId) {
+    TerrainPatchGpuParams params{};
+    if (!terrain.gridLayout.isPatchIndexValid(patchId))
+        return params;
+    const int column = terrain.gridLayout.patchColumn(patchId);
+    const int row = terrain.gridLayout.patchRow(patchId);
+    const float step = 1.0f / terrain.gridLayout.sampleCount;
+    params.uvAndOriginX[0] = step;
+    params.uvAndOriginX[2] = column * terrain.gridLayout.patchResolution * step;
+    params.uvAndOriginX[3] = column * terrain.gridLayout.patchWorldSize;
+    params.uvAndOriginZ[1] = step;
+    params.uvAndOriginZ[2] = row * terrain.gridLayout.patchResolution * step;
+    params.uvAndOriginZ[3] = row * terrain.gridLayout.patchWorldSize;
+    return params;
+}
+
+void TerrainMeshPaged::calculateNormal(int sampleX, int sampleZ,
+                                       float &normalX, float &normalY,
+                                       float &normalZ) const {
+    Vec3 sum{0.0f, 0.0f, 0.0f};
+    const int samples = terrain.gridLayout.sampleCount;
+    const float spacing = terrain.gridLayout.sampleSpacing;
+    auto position = [&](int x, int z) {
+        return Vec3{x * spacing, terrain.terrainData[z][x], z * spacing};
+    };
+    auto add = [&](const Vec3 &value) {
+        sum.x += value.x;
+        sum.y += value.y;
+        sum.z += value.z;
+    };
+
+    for (int cellZ = std::max(0, sampleZ - 1);
+         cellZ <= std::min(samples - 1, sampleZ); ++cellZ) {
+        for (int cellX = std::max(0, sampleX - 1);
+             cellX <= std::min(samples - 1, sampleX); ++cellX) {
+            const Vec3 p00 = position(cellX, cellZ);
+            const Vec3 p10 = position(cellX + 1, cellZ);
+            const Vec3 p01 = position(cellX, cellZ + 1);
+            const Vec3 p11 = position(cellX + 1, cellZ + 1);
+            if ((sampleX == cellX && sampleZ == cellZ)
+                    || (sampleX == cellX + 1 && sampleZ == cellZ)
+                    || (sampleX == cellX && sampleZ == cellZ + 1))
+                add(cross(subtract(p00, p01), subtract(p00, p10)));
+            if ((sampleX == cellX + 1 && sampleZ == cellZ + 1)
+                    || (sampleX == cellX + 1 && sampleZ == cellZ)
+                    || (sampleX == cellX && sampleZ == cellZ + 1))
+                add(cross(subtract(p11, p10), subtract(p11, p01)));
+        }
+    }
+    const float length = std::sqrt(sum.x * sum.x + sum.y * sum.y + sum.z * sum.z);
+    if (length > 0.0f) {
+        normalX = sum.x / length;
+        normalY = sum.y / length;
+        normalZ = sum.z / length;
+    } else {
+        normalX = 0.0f;
+        normalY = 1.0f;
+        normalZ = 0.0f;
+    }
+}
+
+QVector<TerrainVertex8Derived> TerrainMeshPaged::buildPatchVertices(int patchId) const {
+    QVector<TerrainVertex8Derived> vertices;
+    if (!terrain.gridLayout.isPatchIndexValid(patchId))
+        return vertices;
+    const int resolution = terrain.gridLayout.patchResolution;
+    const int firstX = terrain.gridLayout.patchColumn(patchId) * resolution;
+    const int firstZ = terrain.gridLayout.patchRow(patchId) * resolution;
+    vertices.resize((resolution + 1) * (resolution + 1));
+    int output = 0;
+    for (int localZ = 0; localZ <= resolution; ++localZ) {
+        for (int localX = 0; localX <= resolution; ++localX) {
+            const int sampleX = firstX + localX;
+            const int sampleZ = firstZ + localZ;
+            float nx = 0.0f;
+            float ny = 1.0f;
+            float nz = 0.0f;
+            calculateNormal(sampleX, sampleZ, nx, ny, nz);
+            TerrainVertex8Derived &vertex = vertices[output++];
+            vertex.height = terrain.terrainData[sampleZ][sampleX];
+            const bool gap = terrain.jestF
+                    && (terrain.fData[sampleZ][sampleX] & 0x04);
+            vertex.packedNormal = packNormal(nx, ny, nz, gap);
+        }
+    }
+    return vertices;
+}
+
+bool TerrainMeshPaged::ensureInitialized() {
+    if (initialized) {
+        refreshModified();
+        return true;
+    }
+    if (!terrain.loaded || terrain.tfile == nullptr || terrain.terrainData == nullptr
+            || QOpenGLContext::currentContext() == nullptr)
+        return false;
+
+    QElapsedTimer timer;
+    timer.start();
+    Game::terrainLib->fillRaw(&terrain, static_cast<int>(terrain.mojex),
+                              static_cast<int>(terrain.mojez));
+    terrain.initializePatchBounds();
+    needsEdgeFill = false;
+    const QVector<quint16> indices = buildRegularIndices(
+                terrain.gridLayout.patchResolution);
+    if (indices.isEmpty())
+        return false;
+
+    indexBuffer.create();
+    indexBuffer.bind();
+    indexBuffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
+    indexBuffer.allocate(indices.constData(), indices.size() * int(sizeof(quint16)));
+    indexBuffer.release();
+
+    for (int pageIndex = 0; pageIndex < terrain.gridLayout.pagedPageCount();
+         ++pageIndex) {
+        Page *page = new Page();
+        page->firstPatch = pageIndex * PatchesPerPage;
+        page->patchCount = std::min(PatchesPerPage,
+                terrain.gridLayout.patchRecordCount() - page->firstPatch);
+        buildPage(*page);
+        pages.append(page);
+    }
+    initialized = true;
+    terrain.isOgl = true;
+    dirtyReasons.fill(TerrainDirtyNone, terrain.gridLayout.patchRecordCount());
+    const quint64 vertexBytes = static_cast<quint64>(
+                terrain.gridLayout.pagedPatchVertexBytes)
+            * terrain.gridLayout.patchRecordCount();
+    const quint64 parameterBytes = static_cast<quint64>(pages.size())
+            * PatchesPerPage * sizeof(TerrainPatchGpuParams) * 2u;
+    qInfo() << "Paged terrain mesh" << terrain.name
+            << "patches" << terrain.gridLayout.patchRecordCount()
+            << "pages" << pages.size()
+            << "GPU bytes" << vertexBytes
+                               + terrain.gridLayout.pagedIndexBytes
+                               + parameterBytes
+            << "(vertices" << vertexBytes
+            << "indices" << terrain.gridLayout.pagedIndexBytes
+            << "terrain+map params" << parameterBytes << ")"
+            << "build microseconds" << timer.nsecsElapsed() / 1000;
+    return true;
+}
+
+void TerrainMeshPaged::buildPage(Page &page) {
+    page.vertexArray.create();
+    page.vertexBuffer.create();
+    page.terrainParamsBuffer.create();
+    page.mapParamsBuffer.create();
+
+    QOpenGLVertexArrayObject::Binder binder(&page.vertexArray);
+    page.vertexBuffer.bind();
+    page.vertexBuffer.setUsagePattern(QOpenGLBuffer::DynamicDraw);
+    page.vertexBuffer.allocate(page.patchCount
+            * static_cast<int>(terrain.gridLayout.pagedPatchVertexBytes));
+    indexBuffer.bind();
+
+    QOpenGLFunctions *functions = QOpenGLContext::currentContext()->functions();
+    functions->glEnableVertexAttribArray(0);
+    functions->glEnableVertexAttribArray(2);
+    functions->glVertexAttribPointer(0, 1, GL_FLOAT, GL_FALSE,
+                                     sizeof(TerrainVertex8Derived), nullptr);
+    functions->glVertexAttribPointer(2, 4, GL_INT_2_10_10_10_REV, GL_TRUE,
+                                     sizeof(TerrainVertex8Derived),
+                                     reinterpret_cast<void*>(offsetof(TerrainVertex8Derived, packedNormal)));
+    page.vertexBuffer.release();
+
+    QVector<TerrainPatchGpuParams> terrainRecords(PatchesPerPage);
+    QVector<TerrainPatchGpuParams> mapRecords(PatchesPerPage);
+    for (int slot = 0; slot < page.patchCount; ++slot) {
+        const int patchId = page.firstPatch + slot;
+        const QVector<TerrainVertex8Derived> vertices = buildPatchVertices(patchId);
+        page.vertexBuffer.bind();
+        page.vertexBuffer.write(slot
+                * static_cast<int>(terrain.gridLayout.pagedPatchVertexBytes),
+                vertices.constData(), vertices.size() * int(sizeof(TerrainVertex8Derived)));
+        page.vertexBuffer.release();
+        terrainRecords[slot] = terrainParams(terrain, patchId);
+        mapRecords[slot] = mapParams(terrain, patchId);
+    }
+
+    page.terrainParamsBuffer.bind();
+    page.terrainParamsBuffer.setUsagePattern(QOpenGLBuffer::DynamicDraw);
+    page.terrainParamsBuffer.allocate(terrainRecords.constData(),
+                                      terrainRecords.size()
+                                      * int(sizeof(TerrainPatchGpuParams)));
+    page.terrainParamsBuffer.release();
+    page.mapParamsBuffer.bind();
+    page.mapParamsBuffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
+    page.mapParamsBuffer.allocate(mapRecords.constData(),
+                                  mapRecords.size()
+                                  * int(sizeof(TerrainPatchGpuParams)));
+    page.mapParamsBuffer.release();
+}
+
+TerrainMeshPaged::Page *TerrainMeshPaged::pageForPatch(int patchId) const {
+    const int pageIndex = patchId / PatchesPerPage;
+    return pageIndex >= 0 && pageIndex < pages.size() ? pages[pageIndex] : nullptr;
+}
+
+void TerrainMeshPaged::configureRenderItem(RenderItem &item, int patchId,
+                                            bool mapPass, bool applyGaps) {
+    Page *page = pageForPatch(patchId);
+    if (page == nullptr)
+        return;
+    const int slot = patchId - page->firstPatch;
+    item.VBO = &page->vertexBuffer;
+    item.VAO = &page->vertexArray;
+    item.vertOffset = 0;
+    item.vertCount = terrain.gridLayout.pagedIndicesPerPatch();
+    item.indexed = true;
+    item.indexType = GL_UNSIGNED_SHORT;
+    item.indexOffset = 0;
+    item.baseVertex = slot * terrain.gridLayout.pagedVerticesPerPatch();
+    item.terrainPaged = true;
+    item.terrainParamsBuffer = mapPass
+            ? &page->mapParamsBuffer : &page->terrainParamsBuffer;
+    item.terrainVerticesPerPatch = terrain.gridLayout.pagedVerticesPerPatch();
+    item.terrainPatchSide = terrain.gridLayout.patchResolution + 1;
+    item.terrainSampleSpacing = terrain.gridLayout.sampleSpacing;
+    item.terrainApplyGaps = applyGaps;
+    item.terrainMapPass = mapPass;
+}
+
+void TerrainMeshPaged::bindDrawState(const RenderItem &item) {
+    GLUU *gluu = GLUU::get();
+    if (gluu == nullptr || gluu->currentShader == nullptr)
+        return;
+    Shader *shader = gluu->currentShader;
+    const unsigned int paramsBuffer = item.terrainParamsBuffer == nullptr ? 0
+            : item.terrainParamsBuffer->bufferId();
+    const bool shaderChanged = !directStateValid || directShader != shader;
+    if (shaderChanged)
+        shader->setUniformValue(shader->terrainPaged, 1);
+    if (shaderChanged || directVerticesPerPatch != item.terrainVerticesPerPatch)
+        shader->setUniformValue(shader->terrainVerticesPerPatch,
+                                item.terrainVerticesPerPatch);
+    if (shaderChanged || directPatchSide != item.terrainPatchSide)
+        shader->setUniformValue(shader->terrainPatchSide,
+                                item.terrainPatchSide);
+    if (shaderChanged || directSampleSpacing != item.terrainSampleSpacing)
+        shader->setUniformValue(shader->terrainSampleSpacing,
+                                item.terrainSampleSpacing);
+    if (shaderChanged || directApplyGaps != item.terrainApplyGaps)
+        shader->setUniformValue(shader->terrainApplyGaps,
+                                item.terrainApplyGaps ? 1 : 0);
+    if (shaderChanged || directMapPass != item.terrainMapPass)
+        shader->setUniformValue(shader->terrainMapPass,
+                                item.terrainMapPass ? 1 : 0);
+    if (shaderChanged || directParamsBuffer != paramsBuffer)
+        QOpenGLContext::currentContext()->extraFunctions()->glBindBufferBase(
+                    GL_UNIFORM_BUFFER, 0, paramsBuffer);
+    directShader = shader;
+    directParamsBuffer = paramsBuffer;
+    directVerticesPerPatch = item.terrainVerticesPerPatch;
+    directPatchSide = item.terrainPatchSide;
+    directSampleSpacing = item.terrainSampleSpacing;
+    directApplyGaps = item.terrainApplyGaps;
+    directMapPass = item.terrainMapPass;
+    directStateValid = true;
+}
+
+void TerrainMeshPaged::drawPatch(int patchId, bool mapPass, bool applyGaps) {
+    RenderItem item;
+    configureRenderItem(item, patchId, mapPass, applyGaps);
+    if (item.VAO == nullptr)
+        return;
+    bindDrawState(item);
+    if (directVertexArray != item.VAO) {
+        if (directVertexArray != nullptr)
+            directVertexArray->release();
+        item.VAO->bind();
+        directVertexArray = item.VAO;
+    }
+    QOpenGLContext::currentContext()->extraFunctions()->glDrawElementsBaseVertex(
+                GL_TRIANGLES, item.vertCount, item.indexType,
+                reinterpret_cast<void*>(static_cast<quintptr>(item.indexOffset)),
+                item.baseVertex);
+}
+
+void TerrainMeshPaged::endDirectRender() {
+    if (directVertexArray != nullptr) {
+        directVertexArray->release();
+        directVertexArray = nullptr;
+    }
+    if (directStateValid && directShader != nullptr)
+        directShader->setUniformValue(directShader->terrainPaged, 0);
+    if (directStateValid && QOpenGLContext::currentContext() != nullptr)
+        QOpenGLContext::currentContext()->extraFunctions()->glBindBufferBase(
+                    GL_UNIFORM_BUFFER, 0, 0);
+    directShader = nullptr;
+    directParamsBuffer = 0;
+    directStateValid = false;
+}
+
+void TerrainMeshPaged::invalidateAll(unsigned int reasons) {
+    for (int patchId = 0; patchId < dirtyReasons.size(); ++patchId)
+        dirtyReasons[patchId] |= reasons;
+    if (reasons & (TerrainDirtyHeight | TerrainDirtyNormals))
+        needsEdgeFill = true;
+}
+
+void TerrainMeshPaged::invalidatePatch(int patchId, unsigned int reasons) {
+    if (patchId >= 0 && patchId < dirtyReasons.size())
+        dirtyReasons[patchId] |= reasons;
+}
+
+void TerrainMeshPaged::invalidateSamples(int minX, int minZ, int maxX, int maxZ,
+                                         unsigned int reasons) {
+    if (dirtyReasons.isEmpty())
+        return;
+    if ((reasons & (TerrainDirtyHeight | TerrainDirtyNormals))
+            && (maxX >= terrain.gridLayout.sampleCount
+                || maxZ >= terrain.gridLayout.sampleCount))
+        needsEdgeFill = true;
+    if (reasons & (TerrainDirtyHeight | TerrainDirtyNormals)) {
+        --minX;
+        --minZ;
+        ++maxX;
+        ++maxZ;
+        reasons |= TerrainDirtyNormals;
+    }
+    minX = std::max(0, minX);
+    minZ = std::max(0, minZ);
+    maxX = std::min(terrain.gridLayout.sampleCount, maxX);
+    maxZ = std::min(terrain.gridLayout.sampleCount, maxZ);
+    const int resolution = terrain.gridLayout.patchResolution;
+    for (int patchId = 0; patchId < dirtyReasons.size(); ++patchId) {
+        const int patchX = terrain.gridLayout.patchColumn(patchId) * resolution;
+        const int patchZ = terrain.gridLayout.patchRow(patchId) * resolution;
+        if (patchX <= maxX && patchX + resolution >= minX
+                && patchZ <= maxZ && patchZ + resolution >= minZ)
+            dirtyReasons[patchId] |= reasons;
+    }
+}
+
+void TerrainMeshPaged::updatePatch(int patchId, unsigned int reasons) {
+    Page *page = pageForPatch(patchId);
+    if (page == nullptr)
+        return;
+    const int slot = patchId - page->firstPatch;
+    if (reasons & (TerrainDirtyHeight | TerrainDirtyNormals | TerrainDirtyGaps)) {
+        const QVector<TerrainVertex8Derived> vertices = buildPatchVertices(patchId);
+        page->vertexBuffer.bind();
+        page->vertexBuffer.write(slot
+                * static_cast<int>(terrain.gridLayout.pagedPatchVertexBytes),
+                vertices.constData(), vertices.size() * int(sizeof(TerrainVertex8Derived)));
+        page->vertexBuffer.release();
+    }
+    if (reasons & TerrainDirtyUvParams) {
+        const TerrainPatchGpuParams params = terrainParams(terrain, patchId);
+        page->terrainParamsBuffer.bind();
+        page->terrainParamsBuffer.write(slot * int(sizeof(TerrainPatchGpuParams)),
+                                        &params, sizeof(params));
+        page->terrainParamsBuffer.release();
+    }
+}
+
+void TerrainMeshPaged::refreshModified() {
+    if (!initialized || QOpenGLContext::currentContext() == nullptr)
+        return;
+    if (needsEdgeFill) {
+        Game::terrainLib->fillRaw(&terrain, static_cast<int>(terrain.mojex),
+                                  static_cast<int>(terrain.mojez));
+        for (int patchId = 0; patchId < dirtyReasons.size(); ++patchId) {
+            if (dirtyReasons[patchId] & TerrainDirtyHeight)
+                terrain.markPatchBoundsDirty(patchId);
+        }
+        terrain.refreshPatchBounds(true);
+        needsEdgeFill = false;
+    }
+    QElapsedTimer timer;
+    timer.start();
+    int updatedPatches = 0;
+    quint64 uploadedBytes = 0;
+    for (int patchId = 0; patchId < dirtyReasons.size(); ++patchId) {
+        if (dirtyReasons[patchId] == TerrainDirtyNone)
+            continue;
+        if (dirtyReasons[patchId]
+                & (TerrainDirtyHeight | TerrainDirtyNormals | TerrainDirtyGaps))
+            uploadedBytes += terrain.gridLayout.pagedPatchVertexBytes;
+        if (dirtyReasons[patchId] & TerrainDirtyUvParams)
+            uploadedBytes += sizeof(TerrainPatchGpuParams);
+        updatePatch(patchId, dirtyReasons[patchId]);
+        dirtyReasons[patchId] = TerrainDirtyNone;
+        ++updatedPatches;
+    }
+    if (updatedPatches > 0)
+        qDebug() << "Paged terrain refresh" << terrain.name
+                 << "patches" << updatedPatches
+                 << "bytes" << uploadedBytes
+                 << "microseconds" << timer.nsecsElapsed() / 1000;
+}

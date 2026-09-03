@@ -55,13 +55,15 @@
 #include <algorithm>
 #include <cmath>
 #include <routeEditor/RouteEditorClient.h>
+#include <routeEditor/TerrainTileCreationDialog.h>
 #include <tsre/world/RouteClient.h>
 #include <tsre/ClientInfo.h>
-#include <QComboBox>
-#include <QDialogButtonBox>
-#include <QLabel>
 #include <QMessageBox>
-#include <QVBoxLayout>
+
+// The active 8-byte paged layout derives local X/Z in StandardFog.
+// StandardFogStoredCoords is retained as the Stage 1 shader reference, but it
+// requires reverting the paged vertex layout to TerrainVertex12 before use.
+static const QString MainRenderShaderName = "StandardFog";
 
 RouteEditorGLWidget::RouteEditorGLWidget(QWidget *parent)
 : QOpenGLWidget(parent),
@@ -500,7 +502,7 @@ bool RouteEditorGLWidget::paintGLGather(bool drawToScreen){
     if (!canRenderFrame()) return false;
     if (Game::currentRenderer == NULL) return false;
     if (Game::currentRenderer->mvMatrix == NULL) return false;
-    if (gluu->shaders["StandardFog"] == NULL) return false;
+    if (gluu->shaders[MainRenderShaderName] == NULL) return false;
     
     // Render Shadows
     //if (Game::shadowsEnabled > 0)
@@ -508,16 +510,20 @@ bool RouteEditorGLWidget::paintGLGather(bool drawToScreen){
 
     // Render Scene
     //gluu->currentShader = gluu->shaders["StandardBloom"];
-    gluu->currentShader = gluu->shaders["StandardFog"];
+    gluu->currentShader = gluu->shaders[MainRenderShaderName];
     gluu->currentShader->bind();
     if(drawToScreen){
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         glActiveTexture(GL_TEXTURE0);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     }
+
     int renderMode = GLUU::RENDER_DEFAULT;
-    if (selection)
+    const GLboolean blendingWasEnabled = glIsEnabled(GL_BLEND);
+    if (selection){
         renderMode = GLUU::RENDER_SELECTION;
+        glDisable(GL_BLEND);
+    }
     
     GLboolean oldColorMask[4];
     GLboolean oldDepthMask;
@@ -572,7 +578,9 @@ bool RouteEditorGLWidget::paintGLGather(bool drawToScreen){
     Game::terrainLib->pushRenderItems(camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3, renderMode);
     
     // Render World
-    Mat4::perspective(gluu->pMatrix, Game::cameraFov * M_PI / 180, float(this->width()) / this->height(), 0.2f, Game::objectLod);
+    Mat4::perspective(gluu->pMatrix, Game::cameraFov * M_PI / 180,
+                      float(this->width()) / this->height(), 0.2f,
+                      Game::objectLod);
     Mat4::multiply(gluu->pMatrix, gluu->pMatrix, camera->getMatrix());
     gluu->setMatrixUniforms();
 
@@ -643,6 +651,8 @@ bool RouteEditorGLWidget::paintGLGather(bool drawToScreen){
         glDepthMask(oldDepthMask);
     }
     // Handle Selection
+    if (blendingWasEnabled)
+        glEnable(GL_BLEND);
     if(drawToScreen)
         handleSelection();
 
@@ -680,14 +690,18 @@ void RouteEditorGLWidget::paintGL2() {
 
     // Render Scene
     //gluu->currentShader = gluu->shaders["StandardBloom"];
-    gluu->currentShader = gluu->shaders["StandardFog"];
+    gluu->currentShader = gluu->shaders[MainRenderShaderName];
     gluu->currentShader->bind();
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glActiveTexture(GL_TEXTURE0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
     int renderMode = GLUU::RENDER_DEFAULT;
-    if (selection)
+    const GLboolean blendingWasEnabled = glIsEnabled(GL_BLEND);
+    if (selection){
         renderMode = GLUU::RENDER_SELECTION;
+        glDisable(GL_BLEND);
+    }
 
     glClearColor(gluu->skyColor[0], gluu->skyColor[1], gluu->skyColor[2], 1.0);
     glViewport(0, 0, (float) this->width() * Game::PixelRatio, (float) this->height() * Game::PixelRatio);
@@ -706,7 +720,7 @@ void RouteEditorGLWidget::paintGL2() {
     gluu->currentShader->setUniformValue(gluu->currentShader->lod, 0.0f);
     route->skydome->render(gluu, renderMode);
     Mat4::identity(gluu->mvMatrix);
-    glClear(GL_DEPTH_BUFFER_BIT); 
+    glClear(GL_DEPTH_BUFFER_BIT);
     
     // Render Low Resolution Terrain
     Mat4::perspective(gluu->pMatrix, Game::cameraFov * M_PI / 180, float(this->width()) / this->height(), 600.0f, Game::distantLod);
@@ -771,6 +785,8 @@ void RouteEditorGLWidget::paintGL2() {
         gluu->currentShader->release();
     }
     // Handle Selection
+    if (blendingWasEnabled)
+        glEnable(GL_BLEND);
     handleSelection();
 
     // Set Info
@@ -1195,93 +1211,10 @@ void RouteEditorGLWidget::keyPressEvent(QKeyEvent * event) {
             }*/
             //    break;
         case Qt::Key_B:
-        {
-            if (!Game::writeEnabled) {
-                QMessageBox::information(
-                        this, "Terrain creation disabled",
-                        "Route writing is disabled. Enable route writing before creating or replacing terrain.");
-                break;
-            }
-            QDialog dialog(this);
-            dialog.setWindowTitle("Create terrain test tile");
-            QVBoxLayout *layout = new QVBoxLayout(&dialog);
-            QLabel *title = new QLabel("<b>Experimental terrain profiles</b>", &dialog);
-            QLabel *warning = new QLabel(
-                    "Choose the detailed-terrain heightmap and patch grid for this location. "
-                    "Higher resolutions use substantially more memory and rendering time; "
-                    "1024 / 2 m is intended only for static-mesh testing.", &dialog);
-            warning->setWordWrap(true);
-            QLabel *profileLabel = new QLabel("Heightmap profile:", &dialog);
-            QComboBox *profiles = new QComboBox(&dialog);
-            profiles->setStyleSheet("combobox-popup: 0;");
-            profiles->addItem("Standard — 256 × 256, 8 m spacing",
-                              static_cast<int>(TerrainHeightProfile::Standard256x8));
-            profiles->addItem("Low resolution (experimental) — 128 × 128, 16 m spacing",
-                              static_cast<int>(TerrainHeightProfile::Low128x16));
-            profiles->addItem("High resolution (experimental) — 512 × 512, 4 m spacing",
-                              static_cast<int>(TerrainHeightProfile::High512x4));
-            profiles->addItem("Ultra resolution (experimental) — 1024 × 1024, 2 m spacing",
-                              static_cast<int>(TerrainHeightProfile::Ultra1024x2));
-            profiles->setCurrentIndex(0);
-            QLabel *patchesLabel = new QLabel("Patches per side:", &dialog);
-            QComboBox *patches = new QComboBox(&dialog);
-            patches->setStyleSheet("combobox-popup: 0;");
-            patches->addItem("4 × 4", 4);
-            patches->addItem("8 × 8", 8);
-            patches->addItem("16 × 16", 16);
-            patches->addItem("32 × 32 (experimental)", 32);
-            patches->setCurrentIndex(2);
-            QDialogButtonBox *buttons = new QDialogButtonBox(
-                    QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
-            connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-            connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-            layout->addWidget(title);
-            layout->addWidget(warning);
-            layout->addWidget(profileLabel);
-            layout->addWidget(profiles);
-            layout->addWidget(patchesLabel);
-            layout->addWidget(patches);
-            layout->addWidget(buttons);
-            if (dialog.exec() != QDialog::Accepted)
-                break;
-
-            const int worldX = static_cast<int>(camera->pozT[0]);
-            const int worldZ = static_cast<int>(camera->pozT[1]);
-            const int terrainZ = -worldZ;
-            const TerrainHeightProfile profile = static_cast<TerrainHeightProfile>(
-                    profiles->currentData().toInt());
-            const int patchCount = patches->currentData().toInt();
-            const bool overwrite = Game::terrainLib->hasDetailedTerrain(worldX, terrainZ);
-            if (overwrite) {
-                const QMessageBox::StandardButton answer = QMessageBox::warning(
-                        this, "Replace detailed terrain?",
-                        "Detailed terrain already exists here. Replace its descriptor and "
-                        "heightmap with the selected profile? The existing World file will be preserved.",
-                        QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
-                if (answer != QMessageBox::Yes)
-                    break;
-            }
-
-            if (!Game::terrainLib->saveEmpty(
-                    worldX, terrainZ, profile, patchCount, overwrite)) {
-                QMessageBox::critical(this, "Terrain creation failed",
-                                      "The selected terrain profile could not be created. "
-                                      "See the log for the unsupported-layout or file error.");
-                break;
-            }
-            route->ensureWorldTile(worldX, worldZ);
-            Game::terrainLib->setDetailedAsCurrent();
-            if (!Game::terrainLib->reload(worldX, worldZ)) {
-                QMessageBox::critical(this, "Terrain reload failed",
-                                      "The terrain files were created but could not be reloaded.");
-                break;
-            }
-            if (Game::autoGeoTerrain) {
-                float pos[3];
-                Vec3::set(pos, 0, 0, 0);
-                Game::terrainLib->setHeightFromGeo(worldX, worldZ, pos);
-            }
-        }
+            TerrainTileCreationDialog::showForTile(
+                    this, route,
+                    static_cast<int>(camera->pozT[0]),
+                    static_cast<int>(camera->pozT[1]));
             break;
         //case Qt::Key_E:
         //    enableTool("selectTool");

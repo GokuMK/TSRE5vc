@@ -39,6 +39,10 @@ public:
     virtual void saveQtToStream(QTextStream &out);
     virtual Terrain* getTerrainByXY(int x, int y, bool load = false);
     virtual void fillRaw(Terrain *cTerr, int mojex, int mojez);
+    virtual void terrainSamplesChanged(Terrain *source,
+                                       int minX, int minZ,
+                                       int maxX, int maxZ,
+                                       unsigned int reasons);
     virtual float getHeight(int x, int z, float posx, float posz);
     virtual float getHeight(int x, int z, float posx, float posz, bool addR);
     virtual bool tryGetHeight(int x, int z, float posx, float posz,
@@ -69,7 +73,10 @@ public:
     virtual void toggleDraw(int x, int z, float* p);
     virtual void setTileBlob(int x, int z, float* p);
     virtual void setTextureToTrackObj(Brush* brush, float* punkty, int length, int x, int z);
-    virtual void setTerrainToTrackObj(Brush* brush, float* punkty, int length, int x, int z, float* matrix, float offsetY = 0);
+    virtual void setTerrainToTrackObj(Brush* brush, float* punkty, int length,
+                                      int x, int z, float* matrix,
+                                      float offsetY = 0,
+                                      bool connectedPath = false);
     virtual int getTexture(int x, int z, float* p);
     virtual bool load(int x, int z);
     virtual void getUnsavedInfo(QVector<QString> &items);

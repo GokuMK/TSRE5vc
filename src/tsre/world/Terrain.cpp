@@ -10,10 +10,13 @@
 
 #include <tsre/world/Terrain.h>
 #include <algorithm>
+#include <cmath>
+#include <limits>
 #include <QDebug>
 #include <tsre/Game.h>
 #include <QFile>
 #include <QFileInfo>
+#include <QOpenGLExtraFunctions>
 #include <tsre/fileFunctions/ReadFile.h>
 #include <tsre/texture/TexLib.h>
 #include <tsre/world/TerrainLib.h>
@@ -25,6 +28,7 @@
 #include <tsre/world/Environment.h>
 #include <routeEditor/AboutWindow.h>
 #include <tsre/world/TerrainInfo.h>
+#include <tsre/world/TerrainMeshBackend.h>
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/renderer/Renderer.h>
 
@@ -34,6 +38,9 @@ Brush* Terrain::DefaultBrush = NULL;
 static float editorDefaultPatchTextureScale(const TerrainGridLayout &layout) {
     return 0.998f / static_cast<float>(layout.patchResolution);
 }
+
+// Keep the stepped radial patch boundary behind the projection far plane.
+static constexpr float TerrainPatchCullMargin = 256.0f;
 
 Terrain::Terrain(){
 
@@ -70,8 +77,10 @@ void Terrain::load(){
         uniqueTex[i] = false;
         selectedPatchs[i] = false;
     }
-    VBO = new QOpenGLBuffer();
-    VAO = new QOpenGLVertexArrayObject();
+    if (Game::terrainMeshMode == Game::TERRAIN_MESH_LEGACY) {
+        VBO = new QOpenGLBuffer();
+        VAO = new QOpenGLVertexArrayObject();
+    }
 
     int esdAlternativeTexture = 0x01;
     QString seasonPath;
@@ -166,6 +175,8 @@ float Terrain::setHeight(int x, int z, float posx, float posz, float val, bool a
     else
         terrainData[sz][sx] = val;
 
+    invalidateSamples(sx, sz, sx, sz,
+                      TerrainDirtyHeight | TerrainDirtyNormals);
     setModified(true);
     return terrainData[sz][sx];
 }
@@ -279,7 +290,8 @@ void Terrain::setFixedHeight(float val){
         for (int j = 0; j < samples; j++) {
             terrainData[i][j] = val;
         }
-    refresh();
+    invalidateSamples(0, 0, samples, samples,
+                      TerrainDirtyHeight | TerrainDirtyNormals);
     setModified(true);
 }
 
@@ -344,6 +356,8 @@ Terrain::~Terrain() {
         //delete[] VBO;
         //delete[] VAO;
     }
+    delete meshBackend;
+    meshBackend = NULL;
     delete VBO;
     VBO = NULL;
     delete VAO;
@@ -498,10 +512,274 @@ QString Terrain::getTileName(int x, int y) {
 }
 
 void Terrain::refresh() {
+    refreshAll();
+}
+
+void Terrain::refreshAll() {
     if (!loaded) return;
-    isOgl = false;
+    patchBoundsDirty.fill(1, gridLayout.patchRecordCount());
+    if (meshBackend != NULL)
+        meshBackend->invalidateAll();
+    else
+        isOgl = false;
     lines.loaded = false;
     //reloadLines();
+}
+
+void Terrain::refreshModified() {
+    refreshPatchBounds(true);
+    if (meshBackend != NULL)
+        meshBackend->refreshModified();
+}
+
+void Terrain::invalidatePatch(int patchId, unsigned int reasons) {
+    if (!loaded)
+        return;
+    if (reasons & TerrainDirtyHeight)
+        markPatchBoundsDirty(patchId);
+    if (meshBackend != NULL)
+        meshBackend->invalidatePatch(patchId, reasons);
+    else
+        isOgl = false;
+}
+
+void Terrain::invalidateAll(unsigned int reasons) {
+    if (!loaded)
+        return;
+    if (reasons & TerrainDirtyHeight)
+        patchBoundsDirty.fill(1, gridLayout.patchRecordCount());
+    if (meshBackend != NULL)
+        meshBackend->invalidateAll(reasons);
+    else
+        isOgl = false;
+}
+
+void Terrain::invalidateSamples(int minX, int minZ, int maxX, int maxZ,
+                                unsigned int reasons) {
+    invalidateSamplesLocal(minX, minZ, maxX, maxZ, reasons);
+    if ((reasons & TerrainDirtyHeight) && Game::terrainLib != NULL)
+        Game::terrainLib->terrainSamplesChanged(this, minX, minZ,
+                                                maxX, maxZ, reasons);
+}
+
+void Terrain::invalidateSynthesizedSamples(int minX, int minZ,
+                                           int maxX, int maxZ,
+                                           unsigned int reasons) {
+    invalidateSamplesLocal(minX, minZ, maxX, maxZ, reasons);
+}
+
+void Terrain::invalidateSamplesLocal(int minX, int minZ,
+                                     int maxX, int maxZ,
+                                     unsigned int reasons) {
+    if (!loaded)
+        return;
+    if (reasons & TerrainDirtyHeight)
+        markPatchBoundsDirtyForSamples(minX, minZ, maxX, maxZ);
+    if (meshBackend != NULL)
+        meshBackend->invalidateSamples(minX, minZ, maxX, maxZ, reasons);
+    else
+        isOgl = false;
+    lines.loaded = false;
+}
+
+void Terrain::initializePatchBounds() {
+    const int count = gridLayout.patchRecordCount();
+    patchBounds.resize(count);
+    patchBoundsDirty.fill(0, count);
+    for (int patchId = 0; patchId < count; ++patchId)
+        patchBounds[patchId] = calculatePatchBounds(patchId);
+}
+
+void Terrain::markPatchBoundsDirty(int patchId) {
+    if (gridLayout.isPatchIndexValid(patchId)
+            && patchId < patchBoundsDirty.size())
+        patchBoundsDirty[patchId] = 1;
+}
+
+void Terrain::markPatchBoundsDirtyForSamples(int minX, int minZ,
+                                             int maxX, int maxZ) {
+    if (patchBoundsDirty.size() != gridLayout.patchRecordCount())
+        patchBoundsDirty.fill(1, gridLayout.patchRecordCount());
+    minX = std::max(0, minX);
+    minZ = std::max(0, minZ);
+    maxX = std::min(gridLayout.sampleCount, maxX);
+    maxZ = std::min(gridLayout.sampleCount, maxZ);
+    const int resolution = gridLayout.patchResolution;
+    for (int patchId = 0; patchId < patchBoundsDirty.size(); ++patchId) {
+        const int patchX = gridLayout.patchColumn(patchId) * resolution;
+        const int patchZ = gridLayout.patchRow(patchId) * resolution;
+        // Patch boundary samples are shared, so inclusive interval overlap is
+        // intentional here.
+        if (patchX <= maxX && patchX + resolution >= minX
+                && patchZ <= maxZ && patchZ + resolution >= minZ)
+            patchBoundsDirty[patchId] = 1;
+    }
+}
+
+Terrain::PatchBounds Terrain::calculatePatchBounds(int patchId) const {
+    PatchBounds bounds;
+    if (terrainData == NULL || !gridLayout.isPatchIndexValid(patchId))
+        return bounds;
+
+    const int resolution = gridLayout.patchResolution;
+    const int firstX = gridLayout.patchColumn(patchId) * resolution;
+    const int firstZ = gridLayout.patchRow(patchId) * resolution;
+    float minY = std::numeric_limits<float>::infinity();
+    float maxY = -std::numeric_limits<float>::infinity();
+    for (int z = firstZ; z <= firstZ + resolution; ++z) {
+        for (int x = firstX; x <= firstX + resolution; ++x) {
+            const float height = terrainData[z][x];
+            if (!std::isfinite(height))
+                return bounds;
+            minY = std::min(minY, height);
+            maxY = std::max(maxY, height);
+        }
+    }
+
+    const float patchSize = gridLayout.patchWorldSize;
+    bounds.centerX = (gridLayout.patchColumn(patchId) + 0.5f) * patchSize;
+    bounds.averageY = 0.5f * (minY + maxY);
+    // The descriptor's Z axis advances negatively, while TSRE's terrain mesh
+    // vertices advance in positive local Z.
+    bounds.centerZ = -(gridLayout.patchRow(patchId) + 0.5f) * patchSize;
+    bounds.rangeY = 0.5f * (maxY - minY);
+    bounds.horizontalRadius = 0.5f * patchSize;
+    const float flatRadius = 99.48125458f * patchSize / 128.0f;
+    bounds.sphereRadius = std::sqrt(flatRadius * flatRadius
+                                    + bounds.rangeY * bounds.rangeY);
+    bounds.valid = std::isfinite(bounds.sphereRadius);
+    return bounds;
+}
+
+void Terrain::refreshPatchBounds(bool updateDescriptor) {
+    if (patchBounds.size() != gridLayout.patchRecordCount()
+            || patchBoundsDirty.size() != gridLayout.patchRecordCount()) {
+        initializePatchBounds();
+        return;
+    }
+    for (int patchId = 0; patchId < patchBoundsDirty.size(); ++patchId) {
+        if (!patchBoundsDirty[patchId])
+            continue;
+        const PatchBounds bounds = calculatePatchBounds(patchId);
+        patchBounds[patchId] = bounds;
+        patchBoundsDirty[patchId] = 0;
+        if (!updateDescriptor || !bounds.valid || tfile == NULL
+                || tfile->tdata == NULL)
+            continue;
+        tfile->setPatchValue(patchId, TFile::PatchField::CenterX,
+                             bounds.centerX);
+        tfile->setPatchValue(patchId, TFile::PatchField::AverageY,
+                             bounds.averageY);
+        tfile->setPatchValue(patchId, TFile::PatchField::CenterZ,
+                             bounds.centerZ);
+        tfile->setPatchValue(patchId, TFile::PatchField::FactorY,
+                             bounds.sphereRadius);
+        tfile->setPatchValue(patchId, TFile::PatchField::RangeY,
+                             bounds.rangeY);
+        tfile->setPatchValue(patchId, TFile::PatchField::RadiusM,
+                             bounds.horizontalRadius);
+    }
+}
+
+Terrain::PatchVisibility Terrain::buildPatchVisibility(
+        const float *modelMatrix, const float *cameraPosition) const {
+    PatchVisibility visibility;
+    GLUU *gluu = GLUU::get();
+    if (gluu == NULL || gluu->pMatrix == NULL || modelMatrix == NULL
+            || cameraPosition == NULL)
+        return visibility;
+    float clip[16];
+    Mat4::multiply(clip, gluu->pMatrix, const_cast<float *>(modelMatrix));
+    const int signs[6][2] = {
+        {0, 1}, {0, -1}, {1, 1}, {1, -1}, {2, 1}, {2, -1}
+    };
+    for (int i = 0; i < 6; ++i) {
+        const int axis = signs[i][0];
+        const float sign = static_cast<float>(signs[i][1]);
+        FrustumPlane &plane = visibility.planes[i];
+        plane.x = clip[3] + sign * clip[axis];
+        plane.y = clip[7] + sign * clip[4 + axis];
+        plane.z = clip[11] + sign * clip[8 + axis];
+        plane.w = clip[15] + sign * clip[12 + axis];
+        const float length = std::sqrt(plane.x * plane.x
+                                       + plane.y * plane.y
+                                       + plane.z * plane.z);
+        if (!(length > 0.0f) || !std::isfinite(length))
+            return PatchVisibility{};
+        plane.x /= length;
+        plane.y /= length;
+        plane.z /= length;
+        plane.w /= length;
+    }
+    // Terrain model matrices contain translations only. Expressing the camera
+    // in terrain-local coordinates makes the radial test independent of World
+    // tile and terrain-tile size.
+    visibility.cameraLocalX = cameraPosition[0] - modelMatrix[12];
+    visibility.cameraLocalZ = cameraPosition[2] - modelMatrix[14];
+    visibility.maximumDistance = std::max(
+                0.0f, static_cast<float>(lowTile
+                                         ? Game::distantLod
+                                         : Game::objectLod)
+                + TerrainPatchCullMargin);
+    if (!std::isfinite(visibility.cameraLocalX)
+            || !std::isfinite(visibility.cameraLocalZ)
+            || !std::isfinite(visibility.maximumDistance))
+        return PatchVisibility{};
+    visibility.valid = true;
+    return visibility;
+}
+
+bool Terrain::isPatchVisible(int patchId,
+                             const PatchVisibility &visibility) const {
+    if (!visibility.valid || patchId < 0 || patchId >= patchBounds.size()
+            || (patchId < patchBoundsDirty.size()
+                && patchBoundsDirty[patchId]))
+        return true;
+    const PatchBounds &bounds = patchBounds[patchId];
+    if (!bounds.valid)
+        return true;
+    const float centerZ = -bounds.centerZ;
+    const float dx = bounds.centerX - visibility.cameraLocalX;
+    const float dz = centerZ - visibility.cameraLocalZ;
+    const float planarRadius = 1.41421356237f * bounds.horizontalRadius;
+    const float radialLimit = visibility.maximumDistance + planarRadius;
+    if (dx * dx + dz * dz > radialLimit * radialLimit)
+        return false;
+    for (const FrustumPlane &plane : visibility.planes) {
+        const float distance = plane.x * bounds.centerX
+                + plane.y * bounds.averageY + plane.z * centerZ + plane.w;
+        if (distance < -bounds.sphereRadius)
+            return false;
+    }
+    return true;
+}
+
+TerrainMeshBackend *Terrain::ensureMeshBackend() {
+    if (meshBackend == NULL) {
+        if (Game::terrainMeshMode == Game::TERRAIN_MESH_PAGED)
+            meshBackend = new TerrainMeshPaged(*this);
+        else
+            meshBackend = new TerrainMeshLegacy(*this);
+    }
+    return meshBackend;
+}
+
+int Terrain::ensureMapTexture() {
+    if (wTexid == -2)
+        return -1;
+    if (wTexid == -1) {
+        int X = 0;
+        int Y = 0;
+        getLowCornerTileXY(X, Y);
+        wTexid = TexLib::addTex(QString::number(X * 10000 + Y) + ".:maptex");
+    }
+    if (wTexid < 0 || TexLib::mtex[wTexid] == NULL
+            || !TexLib::mtex[wTexid]->loaded)
+        return -1;
+    if (!TexLib::mtex[wTexid]->glLoaded)
+        TexLib::mtex[wTexid]->GLTextures();
+    return TexLib::mtex[wTexid]->glLoaded
+            ? static_cast<int>(TexLib::mtex[wTexid]->tex[0]) : -1;
 }
 
 void Terrain::toggleGaps(int x, int z, float posx, float posz, float direction){
@@ -532,7 +810,10 @@ void Terrain::toggleGaps(int x, int z, float posx, float posz, float direction){
     }
     modifiedF = true;
     modified = true;
-    refresh();
+    invalidateSamples(tz - (direction == -1 ? 1 : 0),
+                      tx - (direction == -1 ? 1 : 0),
+                      tz + (direction == -1 ? 1 : 0),
+                      tx + (direction == -1 ? 1 : 0), TerrainDirtyGaps);
 }
 
 int Terrain::getTexture(int x, int z, float posx, float posz) {
@@ -583,7 +864,7 @@ void Terrain::convertTexToDefaultCoords(int idx) {
     tfile->tdata[(idx)*13 + 4 + 6] = 0.0;
     tfile->tdata[(idx)*13 + 5 + 6] = 0.0;
     tfile->tdata[(idx)*13 + 6 + 6] = defaultTextureScale;
-    this->refresh();
+    invalidatePatch(idx, TerrainDirtyUvParams);
 }
 
 void Terrain::resetPatchTexCoords(int uu){
@@ -597,6 +878,7 @@ void Terrain::resetPatchTexCoords(int uu){
         tfile->tdata[(uu)*13 + 4 + 6] = 0.0;
         tfile->tdata[(uu)*13 + 5 + 6] = 0.0;
         tfile->tdata[(uu)*13 + 6 + 6] = defaultTextureScale;
+        invalidatePatch(uu, TerrainDirtyUvParams);
     } else {
         for (uu = 0; uu < gridLayout.patchRecordCount(); uu++) {
             if(selectedPatchs[uu]){
@@ -606,11 +888,11 @@ void Terrain::resetPatchTexCoords(int uu){
                 tfile->tdata[(uu)*13 + 4 + 6] = 0.0;
                 tfile->tdata[(uu)*13 + 5 + 6] = 0.0;
                 tfile->tdata[(uu)*13 + 6 + 6] = defaultTextureScale;
+                invalidatePatch(uu, TerrainDirtyUvParams);
             }
         }
     }
     modified = true;
-    this->refresh();
 }
 
 void Terrain::rotateTex(int idx) {
@@ -665,7 +947,7 @@ void Terrain::rotateTex(int idx) {
         tfile->tdata[(idx)*13 + 5 + 6] = tfile->tdata[(idx)*13 + 6 + 6];
         tfile->tdata[(idx)*13 + 6 + 6] = t;
     }
-    this->refresh();
+    invalidatePatch(idx, TerrainDirtyUvParams);
 }
 
 void Terrain::mirrorXTex(int idx){
@@ -677,7 +959,7 @@ void Terrain::mirrorXTex(int idx){
     tfile->tdata[(idx)*13 + 3 + 6] = -tfile->tdata[(idx)*13 + 3 + 6];
     tfile->tdata[(idx)*13 + 5 + 6] = -tfile->tdata[(idx)*13 + 5 + 6];
     modified = true;
-    this->refresh();
+    invalidatePatch(idx, TerrainDirtyUvParams);
 }
 
 void Terrain::mirrorYTex(int idx){
@@ -689,7 +971,7 @@ void Terrain::mirrorYTex(int idx){
     tfile->tdata[(idx)*13 + 4 + 6] = -tfile->tdata[(idx)*13 + 4 + 6];
     tfile->tdata[(idx)*13 + 6 + 6] = -tfile->tdata[(idx)*13 + 6 + 6];
     modified = true;
-    this->refresh();
+    invalidatePatch(idx, TerrainDirtyUvParams);
 }
 
 float Terrain::getScaleTexX(int idx){
@@ -718,7 +1000,7 @@ void Terrain::scaleTex(int idx, float val){
     tfile->tdata[(idx)*13 + 5 + 6] *= val1;
     tfile->tdata[(idx)*13 + 6 + 6] *= val1;
     modified = true;
-    this->refresh();
+    invalidatePatch(idx, TerrainDirtyUvParams);
 }
 
 void Terrain::scaleTexX(int idx, float val){
@@ -727,7 +1009,7 @@ void Terrain::scaleTexX(int idx, float val){
     tfile->tdata[(idx)*13 + 3 + 6] *= val;
     tfile->tdata[(idx)*13 + 4 + 6] *= val;
     modified = true;
-    this->refresh();
+    invalidatePatch(idx, TerrainDirtyUvParams);
 }
 
 void Terrain::scaleTexY(int idx, float val){
@@ -736,7 +1018,7 @@ void Terrain::scaleTexY(int idx, float val){
     tfile->tdata[(idx)*13 + 5 + 6] *= val;
     tfile->tdata[(idx)*13 + 6 + 6] *= val;
     modified = true;
-    this->refresh();
+    invalidatePatch(idx, TerrainDirtyUvParams);
 }
 
 void Terrain::setTileBlob(){
@@ -812,7 +1094,7 @@ void Terrain::makeTextureFromMap(){
             //TexLib::mtex[texid[j * 16 + i]]->pathid = name;
         }
 
-    refresh();
+    invalidateAll(TerrainDirtyUvParams);
     this->modified = true;
 }
 
@@ -828,7 +1110,7 @@ void Terrain::removeTextureFromMap(){
     for (int i = 0; i < gridLayout.patchRecordCount(); i++) {
         texid[i] = -1;
     }    
-    refresh();
+    invalidateAll(TerrainDirtyUvParams);
     this->modified = true;
 }
 
@@ -1076,10 +1358,10 @@ void Terrain::setPatchTexTransform(QString val){
         if(selectedPatchs[uu]){
             for (int i = 0; i < 6; i++)
                 tfile->tdata[(uu)*13 + i + 1 + 6] = t[i];
+            invalidatePatch(uu, TerrainDirtyUvParams);
         }
     }
     modified = true;
-    this->refresh();
 }
 
 void Terrain::setPatchTexTransform(QString val, int u){
@@ -1103,6 +1385,7 @@ void Terrain::setPatchTexTransform(QString val, int u){
         tfile->tdata[(u)*13 + i + 1 + 6] = t[i];
 
     modified = true;
+    invalidatePatch(u, TerrainDirtyUvParams);
 }
     
 void Terrain::removeAllGaps(){
@@ -1121,9 +1404,9 @@ void Terrain::removeAllGaps(){
                     fData[u*patchRes+i][y*patchRes+j] &= ~(0x04);
             modifiedF = true;
             modified = true;
+            invalidatePatch(uu, TerrainDirtyGaps);
         }
     }
-    refresh();
 }
     
 void Terrain::setDraw() {
@@ -1683,13 +1966,9 @@ void Terrain::paintTextureOnTile(Brush* brush, int y, int u, float x, float z) {
 void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float* playerW, float* target, float fov, int selectionColor){
     if (!loaded)
         return;
-    if (!isOgl) {
-        Game::terrainLib->fillRaw(this, (int) mojex, (int) mojez);
-        vertexInit();
-        normalInit();
-        oglInit();
-        isOgl = true;
-    }
+    TerrainMeshBackend *backend = ensureMeshBackend();
+    if (backend == NULL || !backend->ensureInitialized())
+        return;
 
     if (!lines.loaded) {
         reloadLines();
@@ -1704,6 +1983,9 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
         Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, 2048 * (mojex-tileX) , 0, 2048 * (mojez-tileY) );
     }
     Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, -1024, 0, 1024-sampleSize*samples);
+    refreshPatchBounds(true);
+    const PatchVisibility patchVisibility = buildPatchVisibility(
+                Game::currentRenderer->mvMatrix, playerW);
     if(Game::viewWorldGrid && selectionColor == 0)
         lines.pushRenderItem();
     if(Game::viewTileGrid && selectionColor == 0){
@@ -1719,10 +2001,12 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
     RenderItem *r;
     if(Game::viewTerrainShape && (!(showBlob && MapWindow::isAlpha == 0) || selectionColor != 0)){
         float shaderSecondTexUV = 0;
-        for (int uu = 0; uu < patches; uu++) {
-            for (int yy = 0; yy < patches; yy++) {
-                if (hidden[yy * patches + uu]) continue;
-                if ((tfile->flags[yy * patches + uu] & 1) != 0) continue;
+        for (int yy = 0; yy < patches; yy++) {
+            for (int uu = 0; uu < patches; uu++) {
+                const int patchId = yy * patches + uu;
+                if (hidden[patchId]) continue;
+                if ((tfile->flags[patchId] & 1) != 0) continue;
+                if (!isPatchVisible(patchId, patchVisibility)) continue;
                 /*float lodxx = lodx + uu * 128 - 1024;
                 float lodzz = lodz + yy * 128 - 1024;
                 lod = sqrt(lodxx * lodxx + lodzz * lodzz);
@@ -1748,7 +2032,7 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
                 }*/
                 
                 const bool terrainSelection = (selectionColor >> 20) == 10;
-                int patchColorId = yy * patches + uu;
+                int patchColorId = patchId;
                 if (terrainSelection) {
                     patchColorId = getSelectionId(patchColorId);
                     if (patchColorId < 0)
@@ -1760,7 +2044,7 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
                     int wColor = (int)(tselectionColor/65536);
                     int sColor = (int)(tselectionColor - wColor*65536)/256;
                     int bColor = (int)(tselectionColor - wColor*65536 - sColor*256);
-                    r->disableTextures((float)wColor/255.0f, (float)sColor/255.0f, (float)bColor/255.0f, 1);
+                    r->disableTextures((float)wColor/255.0f, (float)sColor/255.0f, (float)bColor/255.0f, 1.0f);
                 } else {
                     if (texid[yy * patches + uu] == -2) {
                     } else {
@@ -1806,10 +2090,8 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
                     }*/
                 }
                 r->itemType = GL_TRIANGLES;
-                r->vertOffset = (uu * patches + yy) * patchRes * patchRes * 6;
-                r->vertCount = patchRes * patchRes * 6;
-                r->VBO = VBO;
-                r->VAO = VAO;
+                backend->configureRenderItem(*r, patchId,
+                                             false, true);
                 r->msMatrix = Game::currentRenderer->objStrMatrix;
                 r->setVertexAttributes(r->VNT);
                 Game::currentRenderer->pushItem(r, Game::currentRenderer->mvMatrix);
@@ -1820,12 +2102,12 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
         Game::currentRenderer->mvPushMatrix();
         Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, 0, 0.05, 0);
 
-        for (int uu = 0; uu < patches; uu++) {
-            for (int yy = 0; yy < patches; yy++) {
-                r = new RenderItem();
-                r->disableTextures(0.7,0.7,0.7,1.0);
-                if (hidden[yy * patches + uu]) continue;
-                if ((tfile->flags[yy * patches + uu] & 1) != 0) continue;
+        for (int yy = 0; yy < patches; yy++) {
+            for (int uu = 0; uu < patches; uu++) {
+                const int patchId = yy * patches + uu;
+                if (hidden[patchId]) continue;
+                if ((tfile->flags[patchId] & 1) != 0) continue;
+                if (!isPatchVisible(patchId, patchVisibility)) continue;
                 const float lodxx = lodx
                         + TerrainGridLayout::WorldTileSize * (mojex - tileX)
                         - TerrainGridLayout::WorldTileHalfSize
@@ -1838,11 +2120,11 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
                 lod = sqrt(lodxx * lodxx + lodzz * lodzz);
                 if(Game::viewTerrainShape)
                     if (lod > 300) continue;
+                r = new RenderItem();
+                r->disableTextures(0.7,0.7,0.7,1.0);
                 r->itemType = GL_TRIANGLES;
-                r->vertOffset = (uu * patches + yy) * patchRes * patchRes * 6;
-                r->vertCount = patchRes * patchRes * 6;
-                r->VBO = VBO;
-                r->VAO = VAO;
+                backend->configureRenderItem(*r, patchId,
+                                             false, true);
                 r->setVertexAttributes(r->VNT);
                 r->polygonMode = 1;
                 r->msMatrix = Game::currentRenderer->objStrMatrix;
@@ -1853,7 +2135,31 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
     }
     
     if(showBlob && selectionColor == 0){
-        if(MapWindow::isAlpha == 0){
+        if (backend->isPaged()) {
+            const int mapTexture = ensureMapTexture();
+            if (mapTexture >= 0) {
+                if(MapWindow::isAlpha != 0){
+                    Game::currentRenderer->mvPushMatrix();
+                    Mat4::translate(Game::currentRenderer->mvMatrix,
+                                    Game::currentRenderer->mvMatrix,
+                                    0, 0.35, 0);
+                }
+                for (int patchId = 0; patchId < gridLayout.patchRecordCount(); ++patchId) {
+                    if (!isPatchVisible(patchId, patchVisibility))
+                        continue;
+                    r = new RenderItem();
+                    r->enableTextures(static_cast<unsigned int>(mapTexture));
+                    r->itemType = GL_TRIANGLES;
+                    r->msMatrix = Game::currentRenderer->objStrMatrix;
+                    r->setVertexAttributes(r->VNTA);
+                    backend->configureRenderItem(*r, patchId, true, false);
+                    Game::currentRenderer->pushItem(r,
+                                                    Game::currentRenderer->mvMatrix);
+                }
+                if(MapWindow::isAlpha != 0)
+                    Game::currentRenderer->mvPopMatrix();
+            }
+        } else if(MapWindow::isAlpha == 0){
             terrainBlob.pushRenderItem();
         }else{
             Game::currentRenderer->mvPushMatrix();
@@ -1997,13 +2303,9 @@ void Terrain::pushRenderItemWater(float lodx, float lodz, float tileX, float til
 void Terrain::render(float lodx, float lodz, int tileX, int tileY, float* playerW, float* target, float fov, int selectionColor) {
     if (!loaded)
         return;
-    if (!isOgl) {
-        Game::terrainLib->fillRaw(this, (int) mojex, (int) mojez);
-        vertexInit();
-        normalInit();
-        oglInit();
-        isOgl = true;
-    }
+    TerrainMeshBackend *backend = ensureMeshBackend();
+    if (backend == NULL || !backend->ensureInitialized())
+        return;
 
     GLUU* gluu = GLUU::get();
     QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
@@ -2023,6 +2325,9 @@ void Terrain::render(float lodx, float lodz, int tileX, int tileY, float* player
         Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 2048 * (mojex-tileX) , 0, 2048 * (mojez-tileY) );
     }
     Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, -1024, 0, 1024-sampleSize*samples);
+    refreshPatchBounds(true);
+    const PatchVisibility patchVisibility = buildPatchVisibility(
+                gluu->mvMatrix, playerW);
     gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
     gluu->currentShader->setUniformValue(gluu->currentShader->msMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->objStrMatrix));
     gluu->currentMsMatrinxHash = 0;//gluu->getMatrixHash(gluu->objStrMatrix);
@@ -2041,14 +2346,17 @@ void Terrain::render(float lodx, float lodz, int tileX, int tileY, float* player
     float lod = 0;
     float size = 512;
 
-    QOpenGLVertexArrayObject::Binder vaoBinder(VAO);
+    QOpenGLVertexArrayObject::Binder *legacyVaoBinder = backend->isPaged()
+            ? NULL : new QOpenGLVertexArrayObject::Binder(VAO);
     
     if(Game::viewTerrainShape && (!(showBlob && MapWindow::isAlpha == 0) || selectionColor != 0)){
         float shaderSecondTexUV = 0;
-        for (int uu = 0; uu < patches; uu++) {
-            for (int yy = 0; yy < patches; yy++) {
-                if (hidden[yy * patches + uu]) continue;
-                if ((tfile->flags[yy * patches + uu] & 1) != 0) continue;
+        for (int yy = 0; yy < patches; yy++) {
+            for (int uu = 0; uu < patches; uu++) {
+                const int patchId = yy * patches + uu;
+                if (hidden[patchId]) continue;
+                if ((tfile->flags[patchId] & 1) != 0) continue;
+                if (!isPatchVisible(patchId, patchVisibility)) continue;
                 /*float lodxx = lodx + uu * 128 - 1024;
                 float lodzz = lodz + yy * 128 - 1024;
                 lod = sqrt(lodxx * lodxx + lodzz * lodzz);
@@ -2074,7 +2382,7 @@ void Terrain::render(float lodx, float lodz, int tileX, int tileY, float* player
                 }*/
 
                 const bool terrainSelection = (selectionColor >> 20) == 10;
-                int patchColorId = yy * patches + uu;
+                int patchColorId = patchId;
                 if (terrainSelection) {
                     patchColorId = getSelectionId(patchColorId);
                     if (patchColorId < 0)
@@ -2134,7 +2442,7 @@ void Terrain::render(float lodx, float lodz, int tileX, int tileY, float* player
                     }
                 }
                 
-                f->glDrawArrays(GL_TRIANGLES, (uu * patches + yy) * patchRes * patchRes * 6, patchRes * patchRes * 6);
+                backend->drawPatch(patchId, false, true);
             }
         }
         f->glActiveTexture(GL_TEXTURE0);
@@ -2147,10 +2455,12 @@ void Terrain::render(float lodx, float lodz, int tileX, int tileY, float* player
         Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 0, 0.05, 0);
         gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
         glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
-        for (int uu = 0; uu < patches; uu++) {
-            for (int yy = 0; yy < patches; yy++) {
-                if (hidden[yy * patches + uu]) continue;
-                if ((tfile->flags[yy * patches + uu] & 1) != 0) continue;
+        for (int yy = 0; yy < patches; yy++) {
+            for (int uu = 0; uu < patches; uu++) {
+                const int patchId = yy * patches + uu;
+                if (hidden[patchId]) continue;
+                if ((tfile->flags[patchId] & 1) != 0) continue;
+                if (!isPatchVisible(patchId, patchVisibility)) continue;
                 const float lodxx = lodx
                         + TerrainGridLayout::WorldTileSize * (mojex - tileX)
                         - TerrainGridLayout::WorldTileHalfSize
@@ -2163,7 +2473,7 @@ void Terrain::render(float lodx, float lodz, int tileX, int tileY, float* player
                 lod = sqrt(lodxx * lodxx + lodzz * lodzz);
                 if(Game::viewTerrainShape)
                     if (lod > 300) continue;
-                f->glDrawArrays(GL_TRIANGLES, (uu * patches + yy) * patchRes * patchRes * 6, patchRes * patchRes * 6);
+                backend->drawPatch(patchId, false, true);
             }
         }
         gluu->mvPopMatrix();
@@ -2171,7 +2481,26 @@ void Terrain::render(float lodx, float lodz, int tileX, int tileY, float* player
     }
     
     if(showBlob && selectionColor == 0){
-        if(MapWindow::isAlpha == 0){
+        if (backend->isPaged()) {
+            const int mapTexture = ensureMapTexture();
+            if (mapTexture >= 0) {
+                gluu->enableTextures();
+                gluu->bindTexture(f, static_cast<unsigned int>(mapTexture));
+                if(MapWindow::isAlpha != 0){
+                    gluu->mvPushMatrix();
+                    Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 0, 0.35, 0);
+                    gluu->currentShader->setUniformValue(
+                                gluu->currentShader->mvMatrixUniform,
+                                *reinterpret_cast<float(*)[4][4]>(gluu->mvMatrix));
+                }
+                for (int patchId = 0; patchId < gridLayout.patchRecordCount(); ++patchId) {
+                    if (isPatchVisible(patchId, patchVisibility))
+                        backend->drawPatch(patchId, true, false);
+                }
+                if(MapWindow::isAlpha != 0)
+                    gluu->mvPopMatrix();
+            }
+        } else if(MapWindow::isAlpha == 0){
             gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
             terrainBlob.render();
         }else{
@@ -2181,7 +2510,10 @@ void Terrain::render(float lodx, float lodz, int tileX, int tileY, float* player
             terrainBlob.render();
             gluu->mvPopMatrix();
         }
-    } 
+    }
+
+    delete legacyVaoBinder;
+    backend->endDirectRender();
     
     gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
             
@@ -3050,7 +3382,7 @@ void Terrain::readRAW(FileBuffer* data) {
             }
         }
     }
-
+    initializePatchBounds();
 }
 
 void Terrain::readRAWFloat(FileBuffer* data) {
@@ -3076,7 +3408,7 @@ void Terrain::readRAWFloat(FileBuffer* data) {
             }
         }
     }
-
+    initializePatchBounds();
 }
 
 void Terrain::fillHeightMap(float* data){
@@ -3087,12 +3419,14 @@ void Terrain::fillHeightMap(float* data){
         for (int j = 0; j < samples; j++) {
             terrainData[i][j] = data[i*samples+j];
         }
-    this->refresh();
+    invalidateSamples(0, 0, gridLayout.sampleCount, gridLayout.sampleCount,
+                      TerrainDirtyHeight | TerrainDirtyNormals);
 }
 
 void Terrain::save() {
     if (!editable)
         return;
+    refreshPatchBounds(true);
     QString path = Game::root + "/routes/" + Game::route + "/" + TileDir[(int)lowTile] + "/";
     QString filename = name;
     if(this->tfile->sampleYbuffer == NULL)

@@ -209,28 +209,28 @@ TerrainTools::TerrainTools(QString name)
     // enbankment
     sEsize = new QSlider(Qt::Horizontal);
     sEsize->setMinimum(1);
-    sEsize->setMaximum(3);
+    sEsize->setMaximum(24);
     sEsize->setValue(paintBrush->eSize);
     sEemb = new QSlider(Qt::Horizontal);
-    sEemb->setMinimum(1);
-    sEemb->setMaximum(10);
+    sEemb->setMinimum(10);
+    sEemb->setMaximum(80);
     sEemb->setValue(paintBrush->eEmb);
     sEcut = new QSlider(Qt::Horizontal);
-    sEcut->setMinimum(1);
-    sEcut->setMaximum(10);
+    sEcut->setMinimum(10);
+    sEcut->setMaximum(80);
     sEcut->setValue(paintBrush->eCut);
     sEradius = new QSlider(Qt::Horizontal);
     sEradius->setMinimum(1);
-    sEradius->setMaximum(100);
+    sEradius->setMaximum(800);
     sEradius->setValue(paintBrush->eRadius);
     leEsize = GuiFunct::newQLineEdit(25,3);
-    leEsize->setValidator(new QIntValidator(1, 3, this));
+    leEsize->setValidator(new QIntValidator(1, 24, this));
     leEemb = GuiFunct::newQLineEdit(25,3);
-    leEemb->setValidator(new QIntValidator(1, 10, this));
+    leEemb->setValidator(new QIntValidator(10, 80, this));
     leEcut = GuiFunct::newQLineEdit(25,3);
-    leEcut->setValidator(new QIntValidator(1, 10, this));
+    leEcut->setValidator(new QIntValidator(10, 80, this));
     leEradius = GuiFunct::newQLineEdit(25,3);
-    leEradius->setValidator(new QIntValidator(1, 100, this));
+    leEradius->setValidator(new QIntValidator(1, 800, this));
     QLabel *label3 = new QLabel("Embankment settings:");
     label3->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label3->setContentsMargins(3,0,0,0);
@@ -240,16 +240,16 @@ TerrainTools::TerrainTools(QString name)
     vlist2->setSpacing(2);
     vlist2->setContentsMargins(3,0,1,0);
     row = 0;
-    vlist2->addWidget(GuiFunct::newQLabel("Size:", labelWidth),row,0);
+    vlist2->addWidget(GuiFunct::newQLabel("Size [m]:", labelWidth),row,0);
     vlist2->addWidget(leEsize,row,1);
     vlist2->addWidget(sEsize,row++,2);
-    vlist2->addWidget(GuiFunct::newQLabel("Embankment:", labelWidth),row,0);
+    vlist2->addWidget(GuiFunct::newQLabel("Embank. [°]:", labelWidth),row,0);
     vlist2->addWidget(leEemb,row,1);
     vlist2->addWidget(sEemb,row++,2);
-    vlist2->addWidget(GuiFunct::newQLabel("Cutting:", labelWidth),row,0);
+    vlist2->addWidget(GuiFunct::newQLabel("Cutting [°]:", labelWidth),row,0);
     vlist2->addWidget(leEcut,row,1);
     vlist2->addWidget(sEcut,row++,2);
-    vlist2->addWidget(GuiFunct::newQLabel("Max Radius:", labelWidth),row,0);
+    vlist2->addWidget(GuiFunct::newQLabel("Radius [m]:", labelWidth),row,0);
     vlist2->addWidget(leEradius,row,1);
     vlist2->addWidget(sEradius,row++,2);
     vbox->addItem(vlist2);
@@ -574,7 +574,7 @@ void TerrainTools::setEsize(QString val){
     //qDebug() << "a";
     int ival = val.toInt(0, 10);
     this->sEsize->setValue(ival);
-    this->paintBrush->eSize = (float)ival/100;
+    this->paintBrush->eSize = ival;
 }
 void TerrainTools::setEemb(int val){
     emit setPaintBrush(this->paintBrush);
@@ -587,7 +587,7 @@ void TerrainTools::setEemb(QString val){
     //qDebug() << "a";
     int ival = val.toInt(0, 10);
     this->sEemb->setValue(ival);
-    this->paintBrush->eEmb = (float)ival/100;
+    this->paintBrush->eEmb = ival;
 }
 void TerrainTools::setEcut(int val){
     emit setPaintBrush(this->paintBrush);
@@ -600,7 +600,7 @@ void TerrainTools::setEcut(QString val){
     //qDebug() << "a";
     int ival = val.toInt(0, 10);
     this->sEcut->setValue(ival);
-    this->paintBrush->eCut = (float)ival/100;
+    this->paintBrush->eCut = ival;
 }
 void TerrainTools::setEradius(int val){
     emit setPaintBrush(this->paintBrush);
@@ -613,7 +613,7 @@ void TerrainTools::setEradius(QString val){
     //qDebug() << "a";
     int ival = val.toInt(0, 10);
     this->sEradius->setValue(ival);
-    this->paintBrush->eRadius = (float)ival/100;
+    this->paintBrush->eRadius = ival;
 }
 
 //

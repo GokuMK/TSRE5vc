@@ -17,6 +17,7 @@
 #include <tsre/Game.h>
 #include <QDebug>
 #include "NewRouteWindow.h"
+#include <settings/SettingsManager.h>
 #include <tsre/geo/GeoCoordinates.h>
 #include <tsre/fileFunctions/TarFile.h>
 
@@ -185,6 +186,15 @@ void LoadWindow::handleBrowseButton(QString directory){
 void LoadWindow::routeLoad(){
     if(this->newRoute){
         if(!Game::checkRoot(Game::root)) return;
+        QString settingsError;
+        SettingsManager &settings = SettingsManager::instance();
+        if (!settings.setSessionValue("core.startup.createMissingRoute", true,
+                                      &settingsError)
+                || !settings.setSessionValue("core.route.saving.enabled", true,
+                                              &settingsError)) {
+            qWarning() << "Cannot enable the new-route session:" << settingsError;
+            return;
+        }
         Game::routeName = Game::route;
         Game::trkName = Game::route;
         Game::writeEnabled = true;

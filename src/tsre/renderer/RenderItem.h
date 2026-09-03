@@ -38,6 +38,18 @@ public:
     unsigned int vertCount = 0;
     unsigned int itemType = 0;
     unsigned int polygonMode = 0;
+    bool indexed = false;
+    unsigned int indexType = 0;
+    unsigned int indexOffset = 0;
+    int baseVertex = 0;
+
+    bool terrainPaged = false;
+    QOpenGLBuffer *terrainParamsBuffer = 0;
+    int terrainVerticesPerPatch = 0;
+    int terrainPatchSide = 0;
+    float terrainSampleSpacing = 0.0f;
+    bool terrainApplyGaps = false;
+    bool terrainMapPass = false;
     
     float colorX, colorY, colorZ, colorA;
     unsigned int texAddr = 0;

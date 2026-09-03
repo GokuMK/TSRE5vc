@@ -33,6 +33,7 @@
 #include <tsre/renderer/Renderer.h>
 #include <tsre/texture/AceLib.h>
 #include <tsre/texture/DdsLib.h>
+#include <tsre/world/TerrainGridLayout.h>
 #include <settings/SettingsManager.h>
 
 bool Game::ServerMode = false;
@@ -122,6 +123,7 @@ Game::RendererPipeline Game::requestedRendererPipeline = Game::RENDER_PIPELINE_L
 Game::RendererPipeline Game::activeRendererPipeline = Game::RENDER_PIPELINE_LEGACY;
 bool Game::rendererPipelineHotSwap = true;
 bool Game::gatherLegacyOverlays = false;
+Game::TerrainMeshMode Game::terrainMeshMode = Game::TERRAIN_MESH_PAGED;
 bool Game::textureLoaderThreaded = true;
 int Game::shadowMapSize = 2048;
 int Game::shadowLowMapSize = 1024;
@@ -165,6 +167,9 @@ int Game::mapImageResolution = 4096;
 
 bool Game::autoNewTiles = false;
 bool Game::autoGeoTerrain = false;
+TerrainHeightProfile Game::defaultTerrainHeightProfile =
+        TerrainHeightProfile::Standard256x8;
+int Game::defaultTerrainPatchCount = TerrainGridLayout::DefaultPatchesPerSide;
 
 bool Game::useSuperelevation = false;
 
@@ -228,6 +233,19 @@ QString Game::RendererPipelineName(RendererPipeline value){
         default:
             return "legacy";
     }
+}
+
+Game::TerrainMeshMode Game::ParseTerrainMeshMode(QString value, TerrainMeshMode fallback){
+    const QString mode = value.trimmed().toLower();
+    if(mode == "legacy")
+        return TERRAIN_MESH_LEGACY;
+    if(mode == "paged")
+        return TERRAIN_MESH_PAGED;
+    return fallback;
+}
+
+QString Game::TerrainMeshModeName(TerrainMeshMode value){
+    return value == TERRAIN_MESH_PAGED ? "paged" : "legacy";
 }
 
 void Game::applyRuntimeSettings(const QStringList &changedKeys) {
@@ -316,6 +334,10 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
         activeRendererPipeline = requestedRendererPipeline;
     }
     boolean("core.rendering.pipelineHotSwap", rendererPipelineHotSwap);
+    claim("core.rendering.terrainMesh", SettingType::Enum);
+    if (appliesNow("core.rendering.terrainMesh"))
+        terrainMeshMode = ParseTerrainMeshMode(
+                    settings.runtimeString("core.rendering.terrainMesh"));
     boolean("core.rendering.threadedTextureLoading", textureLoaderThreaded);
     if (appliesNow("core.rendering.threadedTextureLoading")) {
         AceLib::IsThread = textureLoaderThreaded;

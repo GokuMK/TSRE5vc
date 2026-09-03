@@ -15,6 +15,8 @@
 #include <tsre/math3d/Vector4f.h>
 #include <QDebug>
 #include <QFile>
+#include <QOpenGLContext>
+#include <QOpenGLExtraFunctions>
 #ifndef __APPLE__
 #include <GL/gl.h>
 #else
@@ -62,6 +64,7 @@ const char* GLUU::getShader(QString shaderScript, QString type) {
 void GLUU::initShader() {
     QVector<QString> shaderNames;
     shaderNames.push_back("StandardFog");
+    shaderNames.push_back("StandardFogStoredCoords");
     shaderNames.push_back("StandardBloom");
     shaderNames.push_back("Shadows");
     
@@ -112,6 +115,20 @@ void GLUU::initShader() {
         currentShader->shadow1Bias = currentShader->uniformLocation("shadow1Bias");
         currentShader->shadow2Res = currentShader->uniformLocation("shadow2Res");
         currentShader->shadow2Bias = currentShader->uniformLocation("shadow2Bias");
+        currentShader->terrainPaged = currentShader->uniformLocation("terrainPaged");
+        currentShader->terrainVerticesPerPatch = currentShader->uniformLocation("terrainVerticesPerPatch");
+        currentShader->terrainPatchSide = currentShader->uniformLocation("terrainPatchSide");
+        currentShader->terrainSampleSpacing = currentShader->uniformLocation("terrainSampleSpacing");
+        currentShader->terrainApplyGaps = currentShader->uniformLocation("terrainApplyGaps");
+        currentShader->terrainMapPass = currentShader->uniformLocation("terrainMapPass");
+
+        QOpenGLExtraFunctions *extra = QOpenGLContext::currentContext()->extraFunctions();
+        const GLuint terrainBlock = extra->glGetUniformBlockIndex(
+                    currentShader->programId(), "TerrainPatchBlock");
+        if (terrainBlock != GL_INVALID_INDEX)
+            extra->glUniformBlockBinding(currentShader->programId(), terrainBlock, 0);
+        if (currentShader->terrainPaged >= 0)
+            currentShader->setUniformValue(currentShader->terrainPaged, 0);
 
         unsigned int tex1 = currentShader->uniformLocation("uSampler");
         currentShader->setUniformValue(tex1, 0);

@@ -26,6 +26,7 @@
 #include <tsre/world/objects/TrackObj.h>
 #include <tsre/trains/Path.h>
 #include <tsre/world/Terrain.h>
+#include <tsre/world/TerrainGridLayout.h>
 #include <tsre/fileFunctions/FileFunctions.h>
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/fileFunctions/ReadFile.h>
@@ -121,7 +122,8 @@ void Route::load(){
         return;
     }
 
-    file.setFileName(Game::root + "/routes/" + Game::route);
+    const QString routePath = Game::root + "/routes/" + Game::route;
+    file.setFileName(routePath);
     if (!file.exists()) {
         qDebug() << "Route does not exist.";
         if (Settings::boolean("core.startup.createMissingRoute")) {
@@ -129,6 +131,16 @@ void Route::load(){
             Route::createNew();
         }
     }
+
+    // Never continue into Trk and route-resource loading unless creation
+    // actually produced a valid route. In particular, do not overwrite or
+    // reinterpret an existing directory which merely has a missing/broken TRK.
+    if (!Game::checkRoute(Game::route)) {
+        qWarning() << "Route creation/loading aborted: no valid TRK in"
+                   << routePath;
+        return;
+    }
+    trkName = Game::trkName;
 
     trk = new Trk();
     trk->load();
@@ -1256,33 +1268,87 @@ void Route::setTerrainToTrackObj(WorldObj* obj, Brush* brush){
     }
     
     if(obj->type == "trackobj" || obj->type == "dyntrack" ){
-        //TrackObj* tobj = (TrackObj*)obj;
-        //TrackObj* track = (TrackObj*)obj;
-        QVector<float> punkty;
-        punkty.reserve(10000);
-        if(this->tsection->isRoadShape(obj->sectionIdx))
-            this->roadDB->getVectorSectionPoints(obj->x, obj->y, obj->UiD, punkty);
-        else
-            this->trackDB->getVectorSectionPoints(obj->x, obj->y, obj->UiD, punkty);
-        int length = punkty.length();
-        qDebug() << "l "<<length;
-        if(length == 0){
-            if(obj->sectionIdx >= 0){
-                float matrix[16];
-                for(int i = 0; i < tsection->shape[obj->sectionIdx]->path[0].n; i++){
-                    memcpy(matrix, obj->matrix, sizeof(float)*16);
-                    int sidx = tsection->shape[obj->sectionIdx]->path[0].sect[i];
-                    tsection->sekcja[sidx]->getPoints(punkty, matrix);
-                }
-            } else {
-                //obj->getLinePoints(ptr);
+        // KEY_F follows the selected World object. Its TDB vector section may
+        // still describe an earlier transform when the object has been moved.
+        const float offset = 0;//-0.3;
+        auto applyPath = [&](QVector<float> &points, float *pathMatrix) {
+            if (points.size() < 6)
+                return;
+            Game::terrainLib->setTerrainToTrackObj(
+                        brush, points.data(), points.size(), obj->x, obj->y,
+                        pathMatrix, offset, true);
+        };
+
+        if (obj->type == "dyntrack") {
+            DynTrackObj *dynTrack = static_cast<DynTrackObj*>(obj);
+            if (dynTrack->sections == NULL)
+                return;
+
+            QVector<float> points;
+            points.reserve(10000);
+            float pathMatrix[16];
+            float generationMatrix[16];
+            Mat4::copy(pathMatrix, obj->matrix);
+            Mat4::copy(generationMatrix, pathMatrix);
+            for (int sectionIndex = 0; sectionIndex < 5; ++sectionIndex) {
+                const DynTrackObj::Section &source =
+                        dynTrack->sections[sectionIndex];
+                if (source.sectIdx > 1000000)
+                    continue;
+                if (source.type != 0 && source.type != 1)
+                    continue;
+                TSection section(0, source.type, source.a, source.r);
+                section.getPoints(points, generationMatrix);
             }
-            length = punkty.length();
-            qDebug() << "l "<<length;
+            applyPath(points, pathMatrix);
+            return;
         }
-        float offset = 0;//-0.3;
-        if(length > 0)
-            Game::terrainLib->setTerrainToTrackObj(brush, punkty.data(), length, obj->x, obj->y, obj->matrix, offset);
+
+        if (tsection == NULL || obj->sectionIdx < 0)
+            return;
+        const auto shapeIterator = tsection->shape.find(obj->sectionIdx);
+        if (shapeIterator == tsection->shape.end()
+                || shapeIterator->second == NULL
+                || shapeIterator->second->path == NULL)
+            return;
+
+        TrackShape *shape = shapeIterator->second;
+        constexpr float DegreesToRadians = 0.01745329251994329577f;
+        for (int pathIndex = 0; pathIndex < shape->numpaths; ++pathIndex) {
+            const TrackShape::SectionIdx &path = shape->path[pathIndex];
+            float pathRotation[4];
+            float pathPosition[3];
+            float localPathMatrix[16];
+            float pathMatrix[16];
+            float generationMatrix[16];
+            Quat::fill(pathRotation);
+            Quat::rotateY(pathRotation, pathRotation,
+                          -path.rotDeg * DegreesToRadians);
+            Vec3::set(pathPosition, -path.pos[0], path.pos[1], path.pos[2]);
+            Mat4::fromRotationTranslation(localPathMatrix, pathRotation,
+                                          pathPosition);
+            Mat4::multiply(pathMatrix, obj->matrix, localPathMatrix);
+            Mat4::copy(generationMatrix, pathMatrix);
+
+            QVector<float> points;
+            points.reserve(10000);
+            bool validPath = true;
+            const int sectionCount = std::min(
+                        path.n, TrackShape::MaxSectionIdxCount);
+            for (int sectionIndex = 0; sectionIndex < sectionCount;
+                 ++sectionIndex) {
+                const auto sectionIterator = tsection->sekcja.find(
+                            static_cast<int>(path.sect[sectionIndex]));
+                if (sectionIterator == tsection->sekcja.end()
+                        || sectionIterator->second == NULL) {
+                    validPath = false;
+                    break;
+                }
+                sectionIterator->second->getPoints(points, generationMatrix);
+            }
+            if (validPath)
+                applyPath(points, pathMatrix);
+        }
     } else if(obj->hasLinePoints()) {
         float* punkty = new float[10000];
         float* ptr = punkty;
@@ -2500,9 +2566,16 @@ int Route::newTile(int x, int z, bool forced) {
         if (tile[x*10000 + z]->loaded == 1)
             return 1;
             
+    if (!Game::terrainLib->saveEmpty(
+            x, -z, Game::defaultTerrainHeightProfile,
+            Game::defaultTerrainPatchCount)) {
+        qWarning() << "Unable to create terrain for new World tile" << x << z
+                   << TerrainGridLayout::profileName(
+                              Game::defaultTerrainHeightProfile,
+                              Game::defaultTerrainPatchCount);
+        return 0;
+    }
     Tile::saveEmpty(x, -z);
-    //Terrain::saveEmpty(x, -z);
-    Game::terrainLib->saveEmpty(x, -z);
     Game::terrainLib->reload(x, z);
     reloadTile(x, z);
 

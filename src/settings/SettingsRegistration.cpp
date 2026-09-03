@@ -229,6 +229,10 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
     ADD(SettingsDefinition::boolean("core.rendering.pipelineHotSwap", true)
             .withName("Allow renderer hot swap").withDescription("Allow the Route Editor pipeline command to switch renderer implementations while running.").inGroup("rendering").inSubgroup("pipeline").asAdvanced(),
         "rendererPipelineHotSwap", "Game::rendererPipelineHotSwap", "Renderer", true, "cached");
+    ADD(SettingsDefinition::string("core.rendering.terrainMesh", "paged", SettingType::Enum)
+            .withName("Terrain mesh backend").withDescription("Select the precomputed legacy terrain mesh or the experimental GPU-oriented paged terrain mesh. A route reload is required.")
+            .withOptions(choices({{"legacy", "Precomputed / Legacy"}, {"paged", "On GPU / Experimental"}})).inGroup("rendering").inSubgroup("pipeline").applies("routeReload").asAdvanced(),
+        "terrainMesh", "Game::terrainMeshMode", "Terrain renderer", true, "route-reload");
     ADD(SettingsDefinition::boolean("core.rendering.threadedTextureLoading", true)
             .withName("Threaded texture loading").withDescription("Allow ACE and DDS libraries to load textures on worker threads.").inGroup("rendering").inSubgroup("textures"),
         "textureLoaderThreaded", "Game::textureLoaderThreaded", "AceLib/DdsLib", true, "startup-cache");

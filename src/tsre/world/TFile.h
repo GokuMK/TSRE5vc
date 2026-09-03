@@ -19,6 +19,23 @@
 
 class TFile {
 public:
+    enum class PatchField : int {
+        CenterX = 0,
+        AverageY = 1,
+        CenterZ = 2,
+        FactorY = 3,
+        RangeY = 4,
+        RadiusM = 5,
+        ShaderIndex = 6,
+        TextureX = 7,
+        TextureY = 8,
+        TextureW = 9,
+        TextureB = 10,
+        TextureC = 11,
+        TextureH = 12
+    };
+    static constexpr int PatchFieldCount = 13;
+
     struct Mat {
         QString* tex[2];
         QString* name = NULL;
@@ -84,6 +101,8 @@ public:
     void removeMat(int id);
     void setBufferNames(QString name);
     void initNew(QString name, int samples, int sampleS, int patches);
+    float patchValue(int patchId, PatchField field) const;
+    void setPatchValue(int patchId, PatchField field, float value);
     
 private:
     void get139(FileBuffer* data, int length);

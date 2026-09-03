@@ -16,6 +16,9 @@ class QImage;
 
 class Brush {
 public:
+    static constexpr int TerrainAdjustmentUnitMetres = 1;
+    static float terrainSlopeRatio(int angleDegrees);
+
     enum Transformation {
         RANDOM = 0,
         ROT0 = 1,
@@ -41,10 +44,10 @@ public:
     float hFixed = 0;
     int hType = 0;
     // embarkment
-    int eSize = 2;
-    int eEmb = 5;
-    int eCut = 5;
-    int eRadius = 20;
+    int eSize = 16;
+    int eEmb = 32;
+    int eCut = 32;
+    int eRadius = 160;
     QImage* brushshape = 0; 
     float getAlpha(int x, int y, int size );
 private:

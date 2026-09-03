@@ -17,11 +17,15 @@
 #include <tsre/math3d/Vector3f.h>
 #include <tsre/ogl/OglObj.h>
 #include <tsre/GameObj.h>
+#include <array>
 
 class Brush;
 class TerrainInfo;
 class FileBuffer;
 class QDataStream;
+class TerrainMeshBackend;
+class TerrainMeshLegacy;
+class TerrainMeshPaged;
 
 class Terrain : public GameObj {
     Q_OBJECT
@@ -67,6 +71,15 @@ public:
     void fillTerrainDataXY();
     void save();
     void refresh();
+    void refreshAll();
+    void refreshModified();
+    void invalidatePatch(int patchId, unsigned int reasons);
+    void invalidateAll(unsigned int reasons);
+    void invalidateSamples(int minX, int minZ, int maxX, int maxZ,
+                           unsigned int reasons);
+    void invalidateSynthesizedSamples(int minX, int minZ,
+                                      int maxX, int maxZ,
+                                      unsigned int reasons);
     bool isModified();
     void setModified(bool value = true);
     void getLowCornerTileXY(int &X, int &Y);
@@ -185,6 +198,7 @@ protected:
     bool selectedPatchs[TerrainGridLayout::SupportedPatchRecordCount];
     QOpenGLBuffer *VBO = NULL;
     QOpenGLVertexArrayObject *VAO = NULL;
+    TerrainMeshBackend *meshBackend = NULL;
 
     OglObj lines;
     OglObj mlines;
@@ -210,6 +224,30 @@ protected:
     TerrainPatchSelectionWindow selectionWindow;
     int terrainDataRows = 0;
     int fDataRows = 0;
+    struct PatchBounds {
+        float centerX = 0.0f;
+        float averageY = 0.0f;
+        float centerZ = 0.0f;
+        float sphereRadius = 0.0f;
+        float rangeY = 0.0f;
+        float horizontalRadius = 0.0f;
+        bool valid = false;
+    };
+    struct FrustumPlane {
+        float x = 0.0f;
+        float y = 0.0f;
+        float z = 0.0f;
+        float w = 0.0f;
+    };
+    struct PatchVisibility {
+        std::array<FrustumPlane, 6> planes;
+        float cameraLocalX = 0.0f;
+        float cameraLocalZ = 0.0f;
+        float maximumDistance = 0.0f;
+        bool valid = false;
+    };
+    QVector<PatchBounds> patchBounds;
+    QVector<quint8> patchBoundsDirty;
     //int selectedPathId = -1;
     
     void saveRAW(QString name);
@@ -246,6 +284,23 @@ protected:
                          const QString &kind) const;
     void releaseHeightData();
     void releaseFData();
+    TerrainMeshBackend *ensureMeshBackend();
+    int ensureMapTexture();
+    void initializePatchBounds();
+    void markPatchBoundsDirty(int patchId);
+    void markPatchBoundsDirtyForSamples(int minX, int minZ,
+                                        int maxX, int maxZ);
+    void invalidateSamplesLocal(int minX, int minZ, int maxX, int maxZ,
+                                unsigned int reasons);
+    void refreshPatchBounds(bool updateDescriptor);
+    PatchBounds calculatePatchBounds(int patchId) const;
+    PatchVisibility buildPatchVisibility(const float *modelMatrix,
+                                         const float *cameraPosition) const;
+    bool isPatchVisible(int patchId,
+                        const PatchVisibility &visibility) const;
+
+    friend class TerrainMeshLegacy;
+    friend class TerrainMeshPaged;
 };
 
 #endif	/* TERRAIN_H */

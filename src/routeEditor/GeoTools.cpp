@@ -17,9 +17,12 @@
 #include <tsre/Game.h>
 #include <tsre/coords/Coords.h>
 #include <tsre/geo/HeightWindow.h>
+#include <routeEditor/TerrainProfileSelector.h>
+#include <tsre/world/TerrainGridLayout.h>
 
 GeoTools::GeoTools(QString name)
-    : QWidget(){
+    : QWidget(),
+      defaultTerrainProfileName(new QLabel(this)) {
     setFixedWidth(250);
     int row = 0;
     
@@ -61,9 +64,25 @@ GeoTools::GeoTools(QString name)
     QCheckBox *chAutoCreateTile = new QCheckBox("Create new tiles if not exist.");
     chAutoCreateTile->setChecked(Game::autoNewTiles);
     QCheckBox *chAutoGeoTerrain = new QCheckBox("Create terrain from Geodata. ");
-    chAutoCreateTile->setChecked(Game::autoGeoTerrain);
+    chAutoGeoTerrain->setChecked(Game::autoGeoTerrain);
     vbox->addWidget(chAutoCreateTile);
     vbox->addWidget(chAutoGeoTerrain);
+
+    label0 = new QLabel("Default Terrain Profile:");
+    label0->setContentsMargins(3,4,0,0);
+    label0->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
+    vbox->addWidget(label0);
+    defaultTerrainProfileName->setContentsMargins(3,0,3,0);
+    defaultTerrainProfileName->setWordWrap(true);
+    defaultTerrainProfileName->setText(TerrainGridLayout::profileName(
+            Game::defaultTerrainHeightProfile,
+            Game::defaultTerrainPatchCount));
+    vbox->addWidget(defaultTerrainProfileName);
+    QPushButton *selectTerrainProfile = new QPushButton(
+            "Select terrain profile...", this);
+    QObject::connect(selectTerrainProfile, SIGNAL(released()),
+                     this, SLOT(selectTerrainProfileEnabled()));
+    vbox->addWidget(selectTerrainProfile);
     
     label0 = new QLabel("Tiles from marker file:");
     label0->setContentsMargins(3,0,0,0);
@@ -289,4 +308,16 @@ void GeoTools::msg(QString text, QString val){
             i.value()->blockSignals(false);
         }
     }
+}
+
+void GeoTools::selectTerrainProfileEnabled(){
+    TerrainHeightProfile profile = Game::defaultTerrainHeightProfile;
+    int patches = Game::defaultTerrainPatchCount;
+    if (!TerrainProfileSelector::choose(
+            this, "Select default terrain profile", profile, patches))
+        return;
+    Game::defaultTerrainHeightProfile = profile;
+    Game::defaultTerrainPatchCount = patches;
+    defaultTerrainProfileName->setText(TerrainGridLayout::profileName(
+            profile, patches));
 }

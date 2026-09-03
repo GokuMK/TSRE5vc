@@ -10,6 +10,7 @@
 
 #include <tsre/world/TerrainLib.h>
 #include <tsre/world/Terrain.h>
+#include <tsre/world/TerrainMeshBackend.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <QOpenGLShaderProgram>
 #include <set>
@@ -22,6 +23,8 @@
 #include <tsre/world/Route.h>
 #include <tsre/world/Environment.h>
 #include <tsre/world/TerrainInfo.h>
+#include <QHash>
+#include <algorithm>
 
 TerrainLib::TerrainLib() {
     
@@ -93,6 +96,69 @@ void TerrainLib::fillTerrainData(Terrain* tTile, float* offsetXYZ){
 
 void TerrainLib::saveEmpty(int x, int z){
 
+}
+
+void TerrainLib::terrainSamplesChanged(Terrain *source,
+                                       int minX, int minZ,
+                                       int maxX, int maxZ,
+                                       unsigned int reasons) {
+    if (source == NULL || !source->loaded || !(reasons & TerrainDirtyHeight))
+        return;
+
+    const bool changedOwnedXEdge = minX <= 0 && maxX >= 0;
+    const bool changedOwnedZEdge = minZ <= 0 && maxZ >= 0;
+    if (!changedOwnedXEdge && !changedOwnedZEdge)
+        return;
+
+    enum DependentEdge {
+        DependentX = 0x01,
+        DependentZ = 0x02,
+        DependentCorner = 0x04
+    };
+    QHash<Terrain*, int> dependents;
+    const TerrainGridLayout &layout = source->getGridLayout();
+    const int worldCells = std::max(1, layout.terrainWorldSize
+                                    / TerrainGridLayout::WorldTileSize);
+    const int firstWorldX = static_cast<int>(source->mojex);
+    const int lastWorldX = firstWorldX + worldCells - 1;
+    const int lastWorldZ = static_cast<int>(source->mojez);
+    const int firstWorldZ = lastWorldZ - worldCells + 1;
+
+    auto addDependent = [&](int worldX, int worldZ, int edge) {
+        Terrain *target = getTerrainByXY(worldX, worldZ, false);
+        if (target != NULL && target != source && target->loaded)
+            dependents[target] |= edge;
+    };
+
+    if (changedOwnedXEdge) {
+        for (int worldZ = firstWorldZ; worldZ <= lastWorldZ; ++worldZ)
+            addDependent(firstWorldX - 1, worldZ, DependentX);
+    }
+    if (changedOwnedZEdge) {
+        for (int worldX = firstWorldX; worldX <= lastWorldX; ++worldX)
+            addDependent(worldX, firstWorldZ - 1, DependentZ);
+    }
+    if (changedOwnedXEdge && changedOwnedZEdge)
+        addDependent(firstWorldX - 1, firstWorldZ - 1, DependentCorner);
+
+    const unsigned int dependentReasons = reasons | TerrainDirtyNormals;
+    for (auto it = dependents.constBegin(); it != dependents.constEnd(); ++it) {
+        Terrain *target = it.key();
+        const int samples = target->getSampleCount();
+        const int edges = it.value();
+        if (edges & DependentX)
+            target->invalidateSynthesizedSamples(samples, 0,
+                                                 samples, samples,
+                                                 dependentReasons);
+        if (edges & DependentZ)
+            target->invalidateSynthesizedSamples(0, samples,
+                                                 samples, samples,
+                                                 dependentReasons);
+        if (edges & DependentCorner)
+            target->invalidateSynthesizedSamples(samples, samples,
+                                                 samples, samples,
+                                                 dependentReasons);
+    }
 }
 
 bool TerrainLib::saveEmpty(int x, int z, TerrainHeightProfile profile,
@@ -197,7 +263,10 @@ void TerrainLib::setTextureToTrackObj(Brush* brush, float* punkty, int length, i
 
 }
 
-void TerrainLib::setTerrainToTrackObj(Brush* brush, float* punkty, int length, int tx, int tz, float* matrix, float offsetY){
+void TerrainLib::setTerrainToTrackObj(Brush* brush, float* punkty, int length,
+                                      int tx, int tz, float* matrix,
+                                      float offsetY, bool connectedPath){
+    Q_UNUSED(connectedPath)
 
 }
 

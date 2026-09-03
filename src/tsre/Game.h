@@ -32,6 +32,7 @@ class TerrainLib;
 class GeoWorldCoordinateConverter;
 class Renderer;
 class RouteEditorClient;
+enum class TerrainHeightProfile;
 
 class Game {
 public:
@@ -39,6 +40,10 @@ public:
         RENDER_PIPELINE_LEGACY = 0,
         RENDER_PIPELINE_GATHER = 1,
         RENDER_PIPELINE_VALIDATION = 2
+    };
+    enum TerrainMeshMode {
+        TERRAIN_MESH_LEGACY = 0,
+        TERRAIN_MESH_PAGED = 1
     };
     
     static bool ServerMode;
@@ -148,6 +153,7 @@ public:
     static RendererPipeline activeRendererPipeline;
     static bool rendererPipelineHotSwap;
     static bool gatherLegacyOverlays;
+    static TerrainMeshMode terrainMeshMode;
     static bool textureLoaderThreaded;
     static int shadowMapSize;
     static int shadowLowMapSize;
@@ -168,6 +174,8 @@ public:
     static int mapImageResolution;
     static bool autoNewTiles;
     static bool autoGeoTerrain;
+    static TerrainHeightProfile defaultTerrainHeightProfile;
+    static int defaultTerrainPatchCount;
     static bool useSuperelevation;
     static bool soundEnabled;
     static bool fullscreen;
@@ -208,6 +216,8 @@ public:
     static QStringList objectsToRemove;
     static RendererPipeline ParseRendererPipeline(QString value, RendererPipeline fallback = RENDER_PIPELINE_LEGACY);
     static QString RendererPipelineName(RendererPipeline value);
+    static TerrainMeshMode ParseTerrainMeshMode(QString value, TerrainMeshMode fallback = TERRAIN_MESH_PAGED);
+    static QString TerrainMeshModeName(TerrainMeshMode value);
     
 private:
     //static RouteEditorWindow* window;

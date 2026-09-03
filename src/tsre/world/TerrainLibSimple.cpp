@@ -10,6 +10,7 @@
 
 #include <tsre/world/TerrainLibSimple.h>
 #include <tsre/world/Terrain.h>
+#include <tsre/world/TerrainMeshBackend.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <QOpenGLShaderProgram>
 #include <set>
@@ -192,7 +193,11 @@ void TerrainLibSimple::setHeight(int x, int z, float posx, float posz, float h) 
     if (terr->loaded == false) return;
     
     //float value = terr->terrainData[(int) (posz + 1024) / 8][(int) (posx + 1024) / 8];
-    terr->terrainData[(int) (posz + 1024) / 8][(int) (posx + 1024) / 8] = h;
+    const int sampleX = static_cast<int>(posx + 1024) / 8;
+    const int sampleZ = static_cast<int>(posz + 1024) / 8;
+    terr->terrainData[sampleZ][sampleX] = h;
+    terr->invalidateSamples(sampleX, sampleZ, sampleX, sampleZ,
+                            TerrainDirtyHeight | TerrainDirtyNormals);
     terr->setErrorBias(x, z, posx, posz, 0);
     terr->setModified(true);
 }
@@ -221,6 +226,10 @@ Terrain* TerrainLibSimple::setHeight256(int x, int z, int posx, int posz, float 
             if(terr->terrainData[(posz+1024)/8][(posx+1024)/8] > h + diffC) 
                 terr->terrainData[(posz+1024)/8][(posx+1024)/8] = h + diffC;
     }
+    const int sampleX = (posx + 1024) / 8;
+    const int sampleZ = (posz + 1024) / 8;
+    terr->invalidateSamples(sampleX, sampleZ, sampleX, sampleZ,
+                            TerrainDirtyHeight | TerrainDirtyNormals);
     terr->setErrorBias(x, z, posx, posz, 0);
     terr->setModified(true);
     
@@ -346,7 +355,7 @@ void TerrainLibSimple::setHeightFromGeo(int x, int z, float* p){
             }
         }
         terr->setModified(true);
-        //terr->refresh();
+        terr->refresh();
         terr = terrain[(x * 10000 + z + 1)];
         if (terr != NULL) terr->refresh();
         terr = terrain[(x * 10000 + z - 1)];
@@ -376,7 +385,11 @@ void TerrainLibSimple::setTextureToTrackObj(Brush* brush, float* punkty, int len
     }
 }
 
-void TerrainLibSimple::setTerrainToTrackObj(Brush* brush, float* punkty, int length, int tx, int tz, float* matrix, float offsetY){
+void TerrainLibSimple::setTerrainToTrackObj(Brush* brush, float* punkty,
+                                            int length, int tx, int tz,
+                                            float* matrix, float offsetY,
+                                            bool connectedPath){
+    Q_UNUSED(connectedPath)
     QSet<Terrain*> uterr;
     if (brush == NULL || punkty == NULL || length < 3)
         return;
@@ -406,9 +419,6 @@ void TerrainLibSimple::setTerrainToTrackObj(Brush* brush, float* punkty, int len
     p3[1] = 0;
     p3[2] = 10;
     Vec3::transformMat4(p3, p3, matrix);
-    qDebug() << p1[0] << " " << p1[1] <<" " << p1[2];
-    qDebug() << p2[0] << " " << p2[1] <<" " << p2[2];
-    qDebug() << p3[0] << " " << p3[1] <<" " << p3[2];
     Vector3f vec1, vec2, vec3;
     vec1.x = p2[0] - p1[0]; vec1.y = p2[1] - p1[1]; vec1.z = p2[2] - p1[2];
     vec2.x = p3[0] - p1[0]; vec2.y = p3[1] - p1[1]; vec2.z = p3[2] - p1[2];
@@ -417,23 +427,12 @@ void TerrainLibSimple::setTerrainToTrackObj(Brush* brush, float* punkty, int len
     vec3.x = vec1.y * vec2.z - vec1.z * vec2.y;
     vec3.y = vec1.z * vec2.x - vec1.x * vec2.z;
     vec3.z = vec1.x * vec2.y - vec1.y * vec2.x;
-    qDebug() << vec1.x << " " << vec1.y <<" " << vec1.z;
-    qDebug() << vec2.x << " " << vec2.y <<" " << vec2.z;
-    qDebug() << vec3.x << " " << vec3.y <<" " << vec3.z;
     float vec3d = vec3.x*p1[0] + vec3.y*p1[1] + vec3.z*p1[2];
     vec3.x /= vec3.y;
     vec3.z /= vec3.y;
     vec3d /= vec3.y;
     
     // end of calculating plane equation
-    
-    for(int i = 0; i < length; i+=3 ){
-        float h = vec3d - vec3.x*punkty[i] - vec3.z*punkty[i+2];
-        qDebug() << punkty[i] << " " << punkty[i+1] <<" " << punkty[i+2] <<" "<<h <<"";
-    }
-    //qDebug() << p1[0] << " " << p1[1] <<" "<<p1[2] <<"";
-    //qDebug() << p2[0] << " " << p2[1] <<" "<<p2[2] <<"";
-    //qDebug() << p3[0] << " " << p3[1] <<" "<<p3[2] <<"";
     
     // use equation
     int xxf, zzf;
@@ -444,13 +443,25 @@ void TerrainLibSimple::setTerrainToTrackObj(Brush* brush, float* punkty, int len
     float diffC = 0;
     float diffE = 0;
     int iis, jjs;
+    constexpr float LegacySampleSpacing = 8.0f;
+    const float radiusMetres = brush->eRadius
+            * Brush::TerrainAdjustmentUnitMetres;
+    const float bedRadiusMetres = brush->eSize
+            * Brush::TerrainAdjustmentUnitMetres;
+    const int radiusCells = static_cast<int>(std::ceil(
+                radiusMetres / LegacySampleSpacing));
+    const int bedCells = static_cast<int>(std::ceil(
+                bedRadiusMetres / LegacySampleSpacing));
+    const float cutSlope = Brush::terrainSlopeRatio(brush->eCut);
+    const float embankmentSlope = Brush::terrainSlopeRatio(brush->eEmb);
     
     //set to undo
     int ttx, ttz;
     Terrain *terr = NULL;
-    for(int ii = -brush->eRadius; ii < brush->eRadius; ii++)
-        for(int jj = -brush->eRadius; jj < brush->eRadius; jj++){
-            if(sqrt(ii*ii + jj*jj) > brush->eRadius) continue;
+    for(int ii = -radiusCells; ii <= radiusCells; ii++)
+        for(int jj = -radiusCells; jj <= radiusCells; jj++){
+            if(sqrt(static_cast<float>(ii*ii + jj*jj))
+                    * LegacySampleSpacing > radiusMetres) continue;
             for(int i = 0; i< length; i+=3){
                 xx = floor((float)punkty[i]/8.0) + ii;
                 zz = floor((float)punkty[i+2]/8.0) + jj;
@@ -470,30 +481,33 @@ void TerrainLibSimple::setTerrainToTrackObj(Brush* brush, float* punkty, int len
         }
     //
     
-    for(int ii = -brush->eRadius; ii < brush->eRadius; ii++)
-        for(int jj = -brush->eRadius; jj < brush->eRadius; jj++){
-            if(sqrt(ii*ii + jj*jj) > brush->eRadius) continue;
+    for(int ii = -radiusCells; ii <= radiusCells; ii++)
+        for(int jj = -radiusCells; jj <= radiusCells; jj++){
+            if(sqrt(static_cast<float>(ii*ii + jj*jj))
+                    * LegacySampleSpacing > radiusMetres) continue;
             for(int i = 0; i< length; i+=3){
                 xx = floor((float)punkty[i]/8.0);
                 zz = floor((float)punkty[i+2]/8.0);
                 xx += ii;
                 zz += jj;
-                if(ii <= -brush->eSize) 
-                    iis = ii+brush->eSize-1;
-                else if(ii >= brush->eSize) 
-                    iis = ii-brush->eSize;
+                if(ii <= -bedCells)
+                    iis = ii+bedCells-1;
+                else if(ii >= bedCells)
+                    iis = ii-bedCells;
                 else
                     iis = 0;
-                if(jj <= -brush->eSize) 
-                    jjs = jj+brush->eSize-1;
-                else if(jj >= brush->eSize) 
-                    jjs = jj-brush->eSize;
+                if(jj <= -bedCells)
+                    jjs = jj+bedCells-1;
+                else if(jj >= bedCells)
+                    jjs = jj-bedCells;
                 else
                     jjs = 0;
                 h = vec3d - vec3.x*xx*8 - vec3.z*zz*8;
                 //
-                diffC = sqrt(iis*iis + jjs*jjs)*brush->eCut;
-                diffE = sqrt(iis*iis + jjs*jjs)*brush->eEmb;
+                const float distanceOutsideBed = sqrt(static_cast<float>(
+                            iis*iis + jjs*jjs)) * LegacySampleSpacing;
+                diffC = distanceOutsideBed * cutSlope;
+                diffE = distanceOutsideBed * embankmentSlope;
                 //qDebug() << diffC <<" "<<diffE;
                 uterr.insert(setHeight256(tx, tz, xx*8, zz*8, h + offsetY, diffC, diffE));
             }
@@ -523,7 +537,7 @@ void TerrainLibSimple::setTerrainToTrackObj(Brush* brush, float* punkty, int len
         if(value == NULL)
             continue;
         value->setModified(true);
-        value->refresh();
+        value->refreshModified();
     }
 }
 
@@ -742,6 +756,9 @@ QSet<Terrain*> TerrainLibSimple::paintHeightMap(Brush* brush, int x, int z, floa
         terr->terrainData[(pz+1024)/8][(px+1024)/8] += h;
         //float rh = brush->alpha*brush->direction*10.0;
         rd = terr->terrainData[(pz+1024)/8][(px+1024)/8];
+        terr->invalidateSamples((px+1024)/8, (pz+1024)/8,
+                                (px+1024)/8, (pz+1024)/8,
+                                TerrainDirtyHeight | TerrainDirtyNormals);
     }
     if(brush->hType == 2){
         hAvg = brush->hFixed;
@@ -815,11 +832,13 @@ QSet<Terrain*> TerrainLibSimple::paintHeightMap(Brush* brush, int x, int z, floa
                         terr->terrainData[tpz][tpx] = hAvg;
                 }
             }
+            terr->invalidateSamples(tpx, tpz, tpx, tpz,
+                                    TerrainDirtyHeight | TerrainDirtyNormals);
         }
     
     foreach (Terrain* value, uterr){
         value->setModified(true);
-        value->refresh();
+        value->refreshModified();
     }
     //terr->setModified(true);
     //terr->refresh();

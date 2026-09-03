@@ -10,11 +10,14 @@
 
 #include <tsre/world/TerrainLibQt.h>
 #include <tsre/world/Terrain.h>
+#include <tsre/world/TerrainActionRaster.h>
+#include <tsre/world/TerrainMeshBackend.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <QOpenGLShaderProgram>
 #include <set>
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <math.h>
 #include <tsre/Game.h>
 #include <tsre/texture/Brush.h>
@@ -27,6 +30,21 @@
 #include <tsre/renderer/Renderer.h>
 #include <tsre/texture/TexLib.h>
 #include <QFile>
+#include <QRect>
+
+namespace {
+
+void includeDirtySample(QHash<Terrain*, QRect> &dirtySampleBounds,
+                        Terrain *terrain, int sampleX, int sampleZ) {
+    const QRect sampleRect(sampleX, sampleZ, 1, 1);
+    auto bounds = dirtySampleBounds.find(terrain);
+    if (bounds == dirtySampleBounds.end())
+        dirtySampleBounds.insert(terrain, sampleRect);
+    else
+        *bounds = bounds->united(sampleRect);
+}
+
+}
 
 TerrainLibQt::TerrainLibQt() {
 }
@@ -274,6 +292,8 @@ Terrain* TerrainLibQt::setHeight256(int x, int z, int posx, int posz, float h, f
             if(terr->terrainData[(posz)][(posx)] > h + diffC) 
                 terr->terrainData[(posz)][(posx)] = h + diffC;
     }
+    terr->invalidateSamples(posx, posz, posx, posz,
+                            TerrainDirtyHeight | TerrainDirtyNormals);
     terr->setErrorBias(x, z, worldPosX, worldPosZ, 0);
     terr->setModified(true);
     
@@ -392,7 +412,7 @@ void TerrainLibQt::setHeightFromGeo(int x, int z, float* p) {
         }
         terr->setAllErrorBias(0);
         terr->setModified(true);
-        //terr->refresh();
+        terr->refresh();
         int X, Y;
         terr->getCornerCoordsXY(X, Y, 0, 1);
         Terrain* tterr;
@@ -432,23 +452,121 @@ void TerrainLibQt::setTextureToTrackObj(Brush* brush, float* punkty, int length,
     }
 }
 
-void TerrainLibQt::setTerrainToTrackObj(Brush* brush, float* punkty, int length, int tx, int tz, float* matrix, float offsetY) {
-    QSet<Terrain*> uterr;
-    if (brush == NULL || punkty == NULL || length < 3)
+void TerrainLibQt::setTerrainToTrackObj(Brush* brush, float* punkty, int length,
+                                        int tx, int tz, float* matrix,
+                                        float offsetY, bool connectedPath) {
+    if (brush == NULL || punkty == NULL || matrix == NULL || length < 3)
         return;
-    int referenceX = tx;
-    int referenceZ = tz;
-    float referencePosX = punkty[0];
-    float referencePosZ = punkty[2];
-    Game::check_coords(referenceX, referenceZ, referencePosX, referencePosZ);
-    Terrain *referenceTerrain = getTerrainByXY(referenceX, referenceZ);
-    if (referenceTerrain == NULL || !referenceTerrain->loaded)
+
+    float minimumX = std::numeric_limits<float>::infinity();
+    float minimumZ = std::numeric_limits<float>::infinity();
+    float maximumX = -std::numeric_limits<float>::infinity();
+    float maximumZ = -std::numeric_limits<float>::infinity();
+    for (int point = 0; point + 2 < length; point += 3) {
+        if (!std::isfinite(punkty[point])
+                || !std::isfinite(punkty[point + 1])
+                || !std::isfinite(punkty[point + 2]))
+            return;
+        minimumX = std::min(minimumX, punkty[point]);
+        minimumZ = std::min(minimumZ, punkty[point + 2]);
+        maximumX = std::max(maximumX, punkty[point]);
+        maximumZ = std::max(maximumZ, punkty[point + 2]);
+    }
+
+    const float radiusMetres = std::max(
+                0.0f, static_cast<float>(brush->eRadius
+                                         * Brush::TerrainAdjustmentUnitMetres));
+    const float bedRadiusMetres = std::max(
+                0.0f, static_cast<float>(brush->eSize
+                                         * Brush::TerrainAdjustmentUnitMetres));
+    const float cutSlope = Brush::terrainSlopeRatio(brush->eCut);
+    const float embankmentSlope = Brush::terrainSlopeRatio(brush->eEmb);
+    minimumX -= radiusMetres;
+    minimumZ -= radiusMetres;
+    maximumX += radiusMetres;
+    maximumZ += radiusMetres;
+
+    int minimumTileX = tx;
+    int minimumTileZ = tz;
+    int maximumTileX = tx;
+    int maximumTileZ = tz;
+    float normalizedMinimumX = minimumX;
+    float normalizedMinimumZ = minimumZ;
+    float normalizedMaximumX = maximumX;
+    float normalizedMaximumZ = maximumZ;
+    if (!TerrainGridLayout::normalizeWorldPosition(
+                minimumTileX, minimumTileZ,
+                normalizedMinimumX, normalizedMinimumZ)
+            || !TerrainGridLayout::normalizeWorldPosition(
+                maximumTileX, maximumTileZ,
+                normalizedMaximumX, normalizedMaximumZ))
         return;
-    if (!referenceTerrain->isEditable())
+    if (minimumTileX > maximumTileX)
+        std::swap(minimumTileX, maximumTileX);
+    if (minimumTileZ > maximumTileZ)
+        std::swap(minimumTileZ, maximumTileZ);
+
+    QSet<Terrain*> targetTerrains;
+    int rasterSpacing = std::numeric_limits<int>::max();
+    for (qint64 tileX = minimumTileX; tileX <= maximumTileX; ++tileX) {
+        for (qint64 tileZ = minimumTileZ; tileZ <= maximumTileZ; ++tileZ) {
+            Terrain *terrain = getTerrainByXY(static_cast<int>(tileX),
+                                              static_cast<int>(tileZ));
+            if (terrain == NULL || !terrain->loaded || !terrain->isEditable())
+                continue;
+            targetTerrains.insert(terrain);
+            rasterSpacing = std::min(rasterSpacing, terrain->getSampleSize());
+        }
+    }
+    if (targetTerrains.isEmpty()
+            || rasterSpacing == std::numeric_limits<int>::max())
         return;
-    const int gridSpacing = referenceTerrain->getSampleSize();
-    const int radiusCells = static_cast<int>(std::ceil(brush->eRadius * 8.0f / gridSpacing));
-    const int bedCells = static_cast<int>(std::ceil(brush->eSize * 8.0f / gridSpacing));
+
+    TerrainActionRaster actionRaster(minimumX, minimumZ, maximumX, maximumZ,
+                                     rasterSpacing);
+    if (!actionRaster.isValid()) {
+        qWarning() << "Unable to allocate terrain action raster";
+        return;
+    }
+    if (connectedPath && length >= 6) {
+        // TSection currently emits points at about 4 m intervals. Refuse to
+        // bridge a larger discontinuity because one flat point array may
+        // contain more than one vector section without explicit strip breaks.
+        constexpr float MaximumConnectedPointDistance = 8.0f;
+        constexpr float MaximumConnectedPointDistanceSquared =
+                MaximumConnectedPointDistance * MaximumConnectedPointDistance;
+        for (int point = 0; point + 5 < length; point += 3) {
+            const float differenceX = punkty[point + 3] - punkty[point];
+            const float differenceY = punkty[point + 4] - punkty[point + 1];
+            const float differenceZ = punkty[point + 5] - punkty[point + 2];
+            const float pointDistanceSquared = differenceX * differenceX
+                    + differenceY * differenceY + differenceZ * differenceZ;
+            if (pointDistanceSquared <= MaximumConnectedPointDistanceSquared) {
+                actionRaster.stampSegment(
+                            punkty[point], punkty[point + 2],
+                            punkty[point + 3], punkty[point + 5],
+                            radiusMetres, bedRadiusMetres);
+            } else {
+                actionRaster.stampSegment(
+                            punkty[point], punkty[point + 2],
+                            punkty[point], punkty[point + 2],
+                            radiusMetres, bedRadiusMetres);
+                actionRaster.stampSegment(
+                            punkty[point + 3], punkty[point + 5],
+                            punkty[point + 3], punkty[point + 5],
+                            radiusMetres, bedRadiusMetres);
+            }
+        }
+    } else if (connectedPath) {
+        actionRaster.stampSegment(punkty[0], punkty[2],
+                                  punkty[0], punkty[2],
+                                  radiusMetres, bedRadiusMetres);
+    } else {
+        for (int point = 0; point + 2 < length; point += 3)
+            actionRaster.stampLegacyPoint(punkty[point], punkty[point + 2],
+                                          radiusMetres, bedRadiusMetres);
+    }
+
     // calculating plane equation
     float p1[3];
     float p2[3];
@@ -464,9 +582,6 @@ void TerrainLibQt::setTerrainToTrackObj(Brush* brush, float* punkty, int length,
     p3[1] = 0;
     p3[2] = 10;
     Vec3::transformMat4(p3, p3, matrix);
-    qDebug() << p1[0] << " " << p1[1] <<" " << p1[2];
-    qDebug() << p2[0] << " " << p2[1] <<" " << p2[2];
-    qDebug() << p3[0] << " " << p3[1] <<" " << p3[2];
     Vector3f vec1, vec2, vec3;
     vec1.x = p2[0] - p1[0]; vec1.y = p2[1] - p1[1]; vec1.z = p2[2] - p1[2];
     vec2.x = p3[0] - p1[0]; vec2.y = p3[1] - p1[1]; vec2.z = p3[2] - p1[2];
@@ -475,9 +590,9 @@ void TerrainLibQt::setTerrainToTrackObj(Brush* brush, float* punkty, int length,
     vec3.x = vec1.y * vec2.z - vec1.z * vec2.y;
     vec3.y = vec1.z * vec2.x - vec1.x * vec2.z;
     vec3.z = vec1.x * vec2.y - vec1.y * vec2.x;
-    qDebug() << vec1.x << " " << vec1.y <<" " << vec1.z;
-    qDebug() << vec2.x << " " << vec2.y <<" " << vec2.z;
-    qDebug() << vec3.x << " " << vec3.y <<" " << vec3.z;
+    if (!std::isfinite(vec3.y)
+            || std::abs(vec3.y) <= std::numeric_limits<float>::epsilon())
+        return;
     float vec3d = vec3.x*p1[0] + vec3.y*p1[1] + vec3.z*p1[2];
     vec3.x /= vec3.y;
     vec3.z /= vec3.y;
@@ -485,121 +600,96 @@ void TerrainLibQt::setTerrainToTrackObj(Brush* brush, float* punkty, int length,
     
     // end of calculating plane equation
     
-    for(int i = 0; i < length; i+=3 ){
-        float h = vec3d - vec3.x*punkty[i] - vec3.z*punkty[i+2];
-        qDebug() << punkty[i] << " " << punkty[i+1] <<" " << punkty[i+2] <<" "<<h <<"";
-    }
-    //qDebug() << p1[0] << " " << p1[1] <<" "<<p1[2] <<"";
-    //qDebug() << p2[0] << " " << p2[1] <<" "<<p2[2] <<"";
-    //qDebug() << p3[0] << " " << p3[1] <<" "<<p3[2] <<"";
-    
-    // use equation
-    int xxf, zzf;
-    int xxc, zzc;
-    int xx, zz;
-    float h; 
+    // Apply the accumulated action once at every native terrain sample. A
+    // lower-resolution tile samples the finest action raster without first
+    // inventing an interpolated high-resolution terrain height field.
+    foreach (Terrain *terrain, targetTerrains) {
+        const TerrainGridLayout &layout = terrain->getGridLayout();
+        const double terrainMinimumX =
+                (static_cast<double>(terrain->mojex) - tx)
+                * TerrainGridLayout::WorldTileSize
+                - TerrainGridLayout::WorldTileHalfSize;
+        const double terrainMinimumZ =
+                (static_cast<double>(terrain->mojez) - tz)
+                * TerrainGridLayout::WorldTileSize
+                + TerrainGridLayout::WorldTileHalfSize
+                - layout.terrainWorldSize;
+        const int firstSampleX = std::clamp(static_cast<int>(std::ceil(
+                    (actionRaster.minimumX() - terrainMinimumX)
+                    / layout.sampleSpacing)), 0, layout.sampleCount);
+        const int firstSampleZ = std::clamp(static_cast<int>(std::ceil(
+                    (actionRaster.minimumZ() - terrainMinimumZ)
+                    / layout.sampleSpacing)), 0, layout.sampleCount);
+        const int lastSampleX = std::clamp(static_cast<int>(std::floor(
+                    (actionRaster.maximumX() - terrainMinimumX)
+                    / layout.sampleSpacing)), 0, layout.sampleCount);
+        const int lastSampleZ = std::clamp(static_cast<int>(std::floor(
+                    (actionRaster.maximumZ() - terrainMinimumZ)
+                    / layout.sampleSpacing)), 0, layout.sampleCount);
+        if (firstSampleX > lastSampleX || firstSampleZ > lastSampleZ)
+            continue;
 
-    float diffC = 0;
-    float diffE = 0;
-    int iis, jjs;
-    
-    //set to undo
-    int ttx, ttz;
-    Terrain *terr = NULL;
-    for(int ii = -radiusCells; ii <= radiusCells; ii++)
-        for(int jj = -radiusCells; jj <= radiusCells; jj++){
-            if(sqrt(static_cast<float>(ii*ii + jj*jj)) * gridSpacing
-                    > brush->eRadius * 8.0f) continue;
-            for(int i = 0; i< length; i+=3){
-                xx = static_cast<int>(floor((float)punkty[i]/gridSpacing)) + ii;
-                zz = static_cast<int>(floor((float)punkty[i+2]/gridSpacing)) + jj;
-                xx *= gridSpacing;
-                zz *= gridSpacing;
-                ttx = tx;
-                ttz = tz;
-                Game::check_coords(ttx, ttz, xx, zz);
-                if(terr != getTerrainByXY(ttx, ttz)){
-                    terr = getTerrainByXY(ttx, ttz);
-                    if (terr == NULL) continue;
-                    if (!terr->loaded) continue;
-                    if (!terr->isEditable()) continue;
-                    if (terr->getSampleSize() != gridSpacing) {
-                        qWarning() << "Skipping mixed-resolution track-bed seam";
-                        continue;
+        QRect dirtySampleBounds;
+        bool hasDirtySamples = false;
+        bool hasAffectedSamples = false;
+        for (int sampleZ = firstSampleZ; sampleZ <= lastSampleZ; ++sampleZ) {
+            const float worldZ = static_cast<float>(terrainMinimumZ
+                    + static_cast<double>(sampleZ) * layout.sampleSpacing);
+            for (int sampleX = firstSampleX; sampleX <= lastSampleX; ++sampleX) {
+                const float worldX = static_cast<float>(terrainMinimumX
+                        + static_cast<double>(sampleX) * layout.sampleSpacing);
+                float distanceOutsideBedMetres = 0.0f;
+                if (!actionRaster.sampleNearest(worldX, worldZ,
+                                                distanceOutsideBedMetres))
+                    continue;
+                if (!hasAffectedSamples) {
+                    Undo::PushTerrainHeightMap(terrain->mojex, terrain->mojez,
+                                               terrain->terrainData,
+                                               terrain->getSampleCount());
+                    hasAffectedSamples = true;
+                }
+
+                terrain->setErrorBias(tx, tz, worldX, worldZ, 0);
+                float &terrainHeight = terrain->terrainData[sampleZ][sampleX];
+                const float oldHeight = terrainHeight;
+                const float targetHeight = vec3d - vec3.x * worldX
+                        - vec3.z * worldZ + offsetY;
+                const float cutDifference = distanceOutsideBedMetres * cutSlope;
+                const float embankmentDifference = distanceOutsideBedMetres
+                        * embankmentSlope;
+                if (cutDifference == 0.0f && embankmentDifference == 0.0f) {
+                    terrainHeight = targetHeight;
+                } else {
+                    if (terrainHeight < targetHeight
+                            && terrainHeight < targetHeight - embankmentDifference)
+                        terrainHeight = targetHeight - embankmentDifference;
+                    if (terrainHeight > targetHeight
+                            && terrainHeight > targetHeight + cutDifference)
+                        terrainHeight = targetHeight + cutDifference;
+                }
+                if (terrainHeight != oldHeight) {
+                    const QRect changedSample(sampleX, sampleZ, 1, 1);
+                    if (!hasDirtySamples) {
+                        dirtySampleBounds = changedSample;
+                        hasDirtySamples = true;
+                    } else {
+                        dirtySampleBounds = dirtySampleBounds.united(changedSample);
                     }
-                    Undo::PushTerrainHeightMap(terr->mojex, terr->mojez, terr->terrainData, terr->getSampleCount());
                 }
             }
         }
-    //0
-    
-    for(int ii = -radiusCells; ii <= radiusCells; ii++)
-        for(int jj = -radiusCells; jj <= radiusCells; jj++){
-            if(sqrt(static_cast<float>(ii*ii + jj*jj)) * gridSpacing
-                    > brush->eRadius * 8.0f) continue;
-            for(int i = 0; i< length; i+=3){
-                xx = floor((float)punkty[i]/gridSpacing);
-                zz = floor((float)punkty[i+2]/gridSpacing);
-                xx += ii;
-                zz += jj;
-                if(ii <= -bedCells)
-                    iis = ii+bedCells-1;
-                else if(ii >= bedCells)
-                    iis = ii-bedCells;
-                else
-                    iis = 0;
-                if(jj <= -bedCells)
-                    jjs = jj+bedCells-1;
-                else if(jj >= bedCells)
-                    jjs = jj-bedCells;
-                else
-                    jjs = 0;
-                h = vec3d - vec3.x*xx*gridSpacing - vec3.z*zz*gridSpacing;
-                //
-                const float distanceScale = gridSpacing / 8.0f;
-                diffC = sqrt(static_cast<float>(iis*iis + jjs*jjs))*brush->eCut*distanceScale;
-                diffE = sqrt(static_cast<float>(iis*iis + jjs*jjs))*brush->eEmb*distanceScale;
-                //qDebug() << diffC <<" "<<diffE;
-                int targetTileX = tx;
-                int targetTileZ = tz;
-                float targetX = xx * gridSpacing;
-                float targetZ = zz * gridSpacing;
-                Game::check_coords(targetTileX, targetTileZ, targetX, targetZ);
-                Terrain *targetTerrain = getTerrainByXY(targetTileX, targetTileZ);
-                if (targetTerrain == NULL || !targetTerrain->loaded
-                        || !targetTerrain->isEditable()
-                        || targetTerrain->getSampleSize() != gridSpacing)
-                    continue;
-                uterr.insert(setHeight256(tx, tz, xx*gridSpacing, zz*gridSpacing,
-                                          h + offsetY, diffC, diffE));
-            }
-        }
-    
-    /*for(int j = 0; j < brush->eSize; j++)
-        for(int i = 0; i< length; i+=3){
-            xxf = floor((float)punkty[i]/8.0 -1*j);
-            zzf = floor((float)punkty[i+2]/8.0 -1*j);
-            xxc = ceil((float)punkty[i]/8.0 +1*j);
-            zzc = ceil((float)punkty[i+2]/8.0 +1*j);
-            //xx+=ii;
-            //zz+=jj;
-            h = vec3d - vec3.x*xxf*8 - vec3.z*zzf*8;
-            uterr.insert(setHeight256(tx, tz, xxf*8, zzf*8, h));
-            h = vec3d - vec3.x*xxc*8 - vec3.z*zzf*8;
-            uterr.insert(setHeight256(tx, tz, xxc*8, zzf*8, h));
-            h = vec3d - vec3.x*xxf*8 - vec3.z*zzc*8;
-            uterr.insert(setHeight256(tx, tz, xxf*8, zzc*8, h));
-            h = vec3d - vec3.x*xxc*8 - vec3.z*zzc*8;
-            uterr.insert(setHeight256(tx, tz, xxc*8, zzc*8, h));
-            //qDebug() << xx << " " << zz << " " << h;
-        }*/
-
-    foreach (Terrain *value, uterr){
-        if(value == NULL)
+        if (!hasAffectedSamples)
             continue;
-        value->setModified(true);
-        value->refresh();
-        updateTerrainHeightmap(value);
+        terrain->setModified(true);
+        if (hasDirtySamples) {
+            terrain->invalidateSamples(dirtySampleBounds.left(),
+                                       dirtySampleBounds.top(),
+                                       dirtySampleBounds.right(),
+                                       dirtySampleBounds.bottom(),
+                                       TerrainDirtyHeight | TerrainDirtyNormals);
+            terrain->refreshModified();
+        }
+        updateTerrainHeightmap(terrain);
     }
 }
 
@@ -755,6 +845,7 @@ void TerrainLibQt::setFixedTileHeight(Brush* brush, int x, int z, float* p) {
 QSet<Terrain*> TerrainLibQt::paintHeightMap(Brush* brush, int x, int z, float* p) {
 
     QSet<Terrain*> uterr;
+    QHash<Terrain*, QRect> dirtySampleBounds;
     float posx = p[0];
     float posz = p[2];
     Game::check_coords(x, z, posx, posz);
@@ -810,7 +901,20 @@ QSet<Terrain*> TerrainLibQt::paintHeightMap(Brush* brush, int x, int z, float* p
     terr = getTerrainByXY(x, z);
     h = brush->alpha*brush->direction*10.0;
     if(brush->hType == 1){
-        rd = terr->setHeight(x, z, posx, posz, h, true);
+        terr->setErrorBias(x, z, posx, posz, 0);
+        float lx = posx, lz = posz;
+        terr->getLocalCoords(x, z, lx, lz);
+        const int sampleSize = terr->getSampleSize();
+        const int sampleX = std::clamp(static_cast<int>(std::floor(lx / sampleSize)),
+                                       0, terr->getSampleCount());
+        const int sampleZ = std::clamp(static_cast<int>(std::floor(lz / sampleSize)),
+                                       0, terr->getSampleCount());
+        const float oldHeight = terr->terrainData[sampleZ][sampleX];
+        terr->terrainData[sampleZ][sampleX] += h;
+        rd = terr->terrainData[sampleZ][sampleX];
+        uterr.insert(terr);
+        if (terr->terrainData[sampleZ][sampleX] != oldHeight)
+            includeDirtySample(dirtySampleBounds, terr, sampleX, sampleZ);
     }
     if(brush->hType == 2){
         hAvg = brush->hFixed;
@@ -858,11 +962,11 @@ QSet<Terrain*> TerrainLibQt::paintHeightMap(Brush* brush, int x, int z, float* p
             if (!terr->loaded) continue;
             if (!terr->isEditable()) continue;
             if (terr->getSampleSize() != editingSpacing) continue;
-            uterr.insert(terr);
 
             const float distanceMetres = std::sqrt(static_cast<float>(i*i + j*j))
                     * editingSpacing;
             if(distanceMetres > radiusMetres) continue;
+            uterr.insert(terr);
 
             int sampleSize = terr->getSampleSize();
             h = radiusMetres > 0.0f ? (radiusMetres - distanceMetres) / radiusMetres : 1.0f;
@@ -877,6 +981,7 @@ QSet<Terrain*> TerrainLibQt::paintHeightMap(Brush* brush, int x, int z, float* p
                              0, terr->getSampleCount());
             tpz = std::clamp(static_cast<int>(std::floor(lz / sampleSize)),
                              0, terr->getSampleCount());
+            const float oldHeight = terr->terrainData[tpz][tpx];
             if(brush->hType == 0){
                     terr->terrainData[tpz][tpx] += h;
             } else if(brush->hType == 1){
@@ -900,11 +1005,19 @@ QSet<Terrain*> TerrainLibQt::paintHeightMap(Brush* brush, int x, int z, float* p
                         terr->terrainData[tpz][tpx] = hAvg;
                 }
             }
+            if (terr->terrainData[tpz][tpx] != oldHeight)
+                includeDirtySample(dirtySampleBounds, terr, tpx, tpz);
         }
-    
+
     foreach (Terrain *value, uterr){
         value->setModified(true);
-        value->refresh();
+        const auto bounds = dirtySampleBounds.constFind(value);
+        if (bounds != dirtySampleBounds.constEnd()) {
+            value->invalidateSamples(bounds->left(), bounds->top(),
+                                     bounds->right(), bounds->bottom(),
+                                     TerrainDirtyHeight | TerrainDirtyNormals);
+            value->refreshModified();
+        }
         updateTerrainHeightmap(value);
     }
     return uterr;
@@ -1152,6 +1265,25 @@ void TerrainLibQt::fillRaw(Terrain *cTerr, int mojex, int mojez) {
     
     currentQuadTree = tQuadTree;
     currentQt = tterrainQt;
+}
+
+void TerrainLibQt::terrainSamplesChanged(Terrain *source,
+                                         int minX, int minZ,
+                                         int maxX, int maxZ,
+                                         unsigned int reasons) {
+    QuadTree *savedQuadTree = currentQuadTree;
+    QHash<unsigned int, TerrainInfo*> *savedTerrainQt = currentQt;
+    if (source != NULL && source->lowTile) {
+        currentQuadTree = quadTreeLo;
+        currentQt = &terrainQtLo;
+    } else {
+        currentQuadTree = quadTree;
+        currentQt = &terrainQt;
+    }
+    TerrainLib::terrainSamplesChanged(source, minX, minZ,
+                                      maxX, maxZ, reasons);
+    currentQuadTree = savedQuadTree;
+    currentQt = savedTerrainQt;
 }
 
 void TerrainLibQt::renderWater(GLUU* gluu, float* playerT, float* playerW, float* target, float fov, int renderMode, int layer) {

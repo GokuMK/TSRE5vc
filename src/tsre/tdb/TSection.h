@@ -36,6 +36,8 @@ public:
     void drawSection(float* &ptr, float* matrix, float height);
     void drawSection(float* &ptr, float* matrix, float height, int idx, int vidx);
     void drawSection(float* &ptr, float* matrix, float height, int idx, int vidx, float offset, int step);
+    // Appends points through the exact section endpoint and advances matrix to
+    // that endpoint so callers can chain multiple sections.
     void getPoints(QVector<float> &ptr, float* matrix);
     void setDrawPosition(float metry);
     float getAngle();

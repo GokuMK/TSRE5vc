@@ -9,6 +9,8 @@
  */
 
 #include <tsre/tdb/TSection.h>
+#include <algorithm>
+#include <cmath>
 #include <math.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <QDebug>
@@ -229,49 +231,48 @@ void TSection::drawSection(float* &ptr, float* matrix, float height, int idx, in
 }
 
 void TSection::getPoints(QVector<float> &ptr, float* matrix) {
-    float kierunek;
-    float step;
     float point1[3];
     if (type == 0) {
-        step = 4;
-        if(size == 0)
+        if (!std::isfinite(size) || size <= 0.0f)
             return;
-        if(step > size)
-            step = size;
-        for (float i = 0; i <= size; i += step) {
+        const int stepCount = std::max(
+                    1, static_cast<int>(std::ceil(size / 4.0f)));
+        for (int stepIndex = 0; stepIndex <= stepCount; ++stepIndex) {
+            const float distance = size * stepIndex / stepCount;
             point1[0] = 0;
             point1[1] = 0;
-            point1[2] = i;
+            point1[2] = distance;
             Vec3::transformMat4(point1, point1, matrix);
             ptr.push_back(point1[0]);
             ptr.push_back(point1[1]);
             ptr.push_back(point1[2]);
-        } 
-    }
-    else if (type == 1) {
-        kierunek = 1;
-        if (angle > 0) kierunek = -1;
-        float point1[3];
-        float dlugosc = getDlugosc() / 4;
-        if(dlugosc < 1.0)
-            dlugosc = 1.0;
-        step = fabs(angle) / dlugosc;
-
-        float aa = -step*kierunek;
-        for (float angle2 = angle * kierunek; angle2 <= 0; angle2 += step) {
-            Vector2f a(0, 0);
-            a.rotate(aa, radius);
-
+        }
+        Mat4::translate(matrix, matrix, 0, 0, size);
+    } else if (type == 1) {
+        if (!std::isfinite(angle) || !std::isfinite(radius)
+                || angle == 0.0f || radius == 0.0f)
+            return;
+        const int direction = angle > 0.0f ? -1 : 1;
+        const int stepCount = std::max(1, static_cast<int>(std::ceil(
+                    std::abs(radius * angle) / 4.0f)));
+        const float angleStep = angle / stepCount;
+        for (int stepIndex = 0; stepIndex <= stepCount; ++stepIndex) {
             point1[0] = 0;
             point1[1] = 0;
             point1[2] = 0;
-
             Vec3::transformMat4(point1, point1, matrix);
             ptr.push_back(point1[0]);
             ptr.push_back(point1[1]);
             ptr.push_back(point1[2]);
-            Mat4::translate(matrix, matrix, kierunek * a.x, 0, kierunek * a.y);
-            Mat4::rotateY(matrix, matrix, -aa);
+            if (stepIndex == stepCount)
+                break;
+
+            Vector2f displacement(0, 0);
+            displacement.rotate(angleStep, radius);
+            Mat4::translate(matrix, matrix,
+                            direction * displacement.x, 0,
+                            direction * displacement.y);
+            Mat4::rotateY(matrix, matrix, -angleStep);
         }
     }
 }

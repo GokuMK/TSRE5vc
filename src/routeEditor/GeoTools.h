@@ -33,6 +33,7 @@ public slots:
     void msg(QString text, QString val);
     void chAutoCreateTileEnabled(int state);
     void chAutoGeoTerrainEnabled(int state);
+    void selectTerrainProfileEnabled();
     void mkrList(QMap<QString, Coords*> list);
     void checkGeodataFilesEnabled();
     void generateTilesEnabled();
@@ -49,6 +50,7 @@ private:
     QMap<QString, Coords*> mkrFiles;
     QComboBox markerFiles;
     QSpinBox eRadius;
+    QLabel *defaultTerrainProfileName;
 };
 
 #endif	/* GEOTOOLS_H */

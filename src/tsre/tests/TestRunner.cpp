@@ -23,6 +23,7 @@
 #include <QTemporaryDir>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
 
@@ -42,9 +43,13 @@
 #include <tsre/tests/RouteLoadTestSuite.h>
 #include <tsre/tests/SettingsTestSuite.h>
 #include <tsre/tests/TdbLoadTestSuite.h>
+#include <tsre/tests/TerrainRawBenchmark.h>
+#include <tsre/texture/Brush.h>
+#include <tsre/world/TerrainActionRaster.h>
 #include <tsre/world/Terrain.h>
 #include <tsre/world/TFile.h>
 #include <tsre/world/TerrainGridLayout.h>
+#include <tsre/world/TerrainMeshBackend.h>
 #include <tsre/world/TerrainInfo.h>
 #include <tsre/world/Ref.h>
 #include <tsre/world/objects/DynTrackObj.h>
@@ -2243,8 +2248,82 @@ static int runTerrainGridSuite(bool verbose) {
         TerrainGridLayout layout;
         QString error;
         return TerrainGridLayout::tryCreate(samples, spacing, patches, rotation,
-                                            layout, error);
+                                             layout, error);
     };
+
+    const Brush defaultBrush;
+    check(Brush::TerrainAdjustmentUnitMetres == 1
+          && defaultBrush.eSize * Brush::TerrainAdjustmentUnitMetres == 16
+          && defaultBrush.eRadius * Brush::TerrainAdjustmentUnitMetres == 160
+          && std::abs(Brush::terrainSlopeRatio(45) - 1.0f) < 0.000001f
+          && std::abs(Brush::terrainSlopeRatio(defaultBrush.eCut) - 0.625f)
+                < 0.001f,
+          "terrain-adjustment-metre-and-degree-units-preserve-defaults");
+
+    float sectionMatrix[16];
+    Mat4::identity(sectionMatrix);
+    QVector<float> sectionPoints;
+    TSection firstStraight(0, 0, 10.0f, 0.0f);
+    firstStraight.getPoints(sectionPoints, sectionMatrix);
+    TSection secondStraight(0, 0, 2.0f, 0.0f);
+    secondStraight.getPoints(sectionPoints, sectionMatrix);
+    check(sectionPoints.size() == 18
+          && std::abs(sectionPoints[sectionPoints.size() - 3]) < 0.000001f
+          && std::abs(sectionPoints[sectionPoints.size() - 2]) < 0.000001f
+          && std::abs(sectionPoints[sectionPoints.size() - 1] - 12.0f)
+                < 0.000001f
+          && std::abs(sectionMatrix[14] - 12.0f) < 0.000001f,
+          "tsection-points-chain-straights-at-exact-endpoints");
+
+    Mat4::identity(sectionMatrix);
+    sectionPoints.clear();
+    TSection curve(0, 1, 0.1f, 100.0f);
+    curve.getPoints(sectionPoints, sectionMatrix);
+    float curveEndpoint[3] = {0.0f, 0.0f, 0.0f};
+    Vec3::transformMat4(curveEndpoint, curveEndpoint, sectionMatrix);
+    check(sectionPoints.size() == 12
+          && std::abs(sectionPoints[sectionPoints.size() - 3]
+                      - curveEndpoint[0]) < 0.000001f
+          && std::abs(sectionPoints[sectionPoints.size() - 2]
+                      - curveEndpoint[1]) < 0.000001f
+          && std::abs(sectionPoints[sectionPoints.size() - 1]
+                      - curveEndpoint[2]) < 0.000001f,
+          "tsection-points-curve-ends-at-output-matrix");
+
+    TerrainActionRaster actionRaster(-9.0f, -9.0f, 9.0f, 9.0f, 2);
+    check(actionRaster.isValid()
+          && actionRaster.minimumX() == -10
+          && actionRaster.minimumZ() == -10
+          && actionRaster.maximumX() == 10
+          && actionRaster.maximumZ() == 10,
+          "terrain-action-raster-aligned-bounds");
+    float actionFactor = -1.0f;
+    actionRaster.stampLegacyPoint(0.0f, 0.0f, 8.0f, 2.0f);
+    check(actionRaster.sampleNearest(0.0f, 0.0f, actionFactor)
+          && std::abs(actionFactor) < 0.000001f,
+          "terrain-action-raster-flat-bed");
+    check(actionRaster.sampleNearest(4.0f, 0.0f, actionFactor)
+          && std::abs(actionFactor - 2.0f) < 0.000001f,
+          "terrain-action-raster-native-distance");
+    actionRaster.stampLegacyPoint(4.0f, 0.0f, 8.0f, 2.0f);
+    check(actionRaster.sampleNearest(4.0f, 0.0f, actionFactor)
+          && std::abs(actionFactor) < 0.000001f,
+          "terrain-action-raster-overlap-selects-strongest");
+    check(!actionRaster.sampleNearest(10.0f, 10.0f, actionFactor),
+          "terrain-action-raster-uncovered-sample");
+    TerrainActionRaster segmentRaster(-12.0f, -12.0f, 12.0f, 12.0f, 2);
+    segmentRaster.stampSegment(-8.0f, -8.0f, 8.0f, 8.0f, 8.0f, 0.0f);
+    const float expectedDiagonalDistance = std::sqrt(2.0f);
+    check(segmentRaster.sampleNearest(0.0f, 2.0f, actionFactor)
+          && std::abs(actionFactor - expectedDiagonalDistance) < 0.000001f,
+          "terrain-action-raster-continuous-segment-distance");
+    TerrainActionRaster bedRaster(-12.0f, -8.0f, 12.0f, 8.0f, 2);
+    bedRaster.stampSegment(-8.0f, 0.0f, 8.0f, 0.0f, 8.0f, 2.0f);
+    check(bedRaster.sampleNearest(0.0f, 2.0f, actionFactor)
+          && std::abs(actionFactor) < 0.000001f
+          && bedRaster.sampleNearest(0.0f, 4.0f, actionFactor)
+          && std::abs(actionFactor - 2.0f) < 0.000001f,
+          "terrain-action-raster-segment-flat-bed-and-slope");
 
     const TerrainGridLayout standard = TerrainGridLayout::profile(
                 TerrainHeightProfile::Standard256x8);
@@ -2264,6 +2343,14 @@ static int runTerrainGridSuite(bool verbose) {
           && standard.patchResolution == 16
           && standard.terrainWorldSize == TerrainGridLayout::WorldTileSize,
           "profile-256-8");
+    check(TerrainGridLayout::heightProfileName(
+                  TerrainHeightProfile::Standard256x8)
+                  == "Standard - 256 x 256 samples at 8 m"
+          && TerrainGridLayout::profileName(
+                  TerrainHeightProfile::High512x4, 32)
+                  == "High resolution - 512 x 512 samples at 4 m; "
+                     "32 x 32 patches; R=16",
+          "profile-meaningful-names");
     check(low.sampleCount == 128 && low.sampleSpacing == 16
           && low.patchResolution == 8
           && low.terrainWorldSize == TerrainGridLayout::WorldTileSize,
@@ -2314,9 +2401,11 @@ static int runTerrainGridSuite(bool verbose) {
     futureLargePatchLayout.patchesPerSide = 33;
     check(!futureLargePatchLayout.supportsEditing(),
           "above-maximum-patch-grid-is-read-only");
-    check(accepts(16, 128.0f), "absolute-minimum");
+    check(!accepts(16, 128.0f), "reject-patch-resolution-below-four");
+    check(accepts(64, 32.0f, 16), "minimum-patch-resolution-four");
     check(accepts(64, 32.0f), "lower-resolution-whole-world-tile");
     check(accepts(2048, 1.0f), "maximum-resolution");
+    check(!accepts(2048, 1.0f, 4), "reject-patch-resolution-above-128");
     check(!accepts(2049, 1.0f), "reject-above-maximum");
     check(!accepts(15, 256.0f), "reject-below-minimum");
     check(!accepts(64, 8.0f), "reject-sub-world-tile-footprint");
@@ -2326,6 +2415,31 @@ static int runTerrainGridSuite(bool verbose) {
     check(!accepts(256, 8.0f, 10), "reject-non-divisible-patch-count");
     check(!accepts(512, 4.5f), "reject-fractional-spacing");
     check(!accepts(512, 4.0f, 16, 1.0f), "reject-rotated-grid");
+    check(standard.pagedVerticesPerPatch() == 17 * 17
+          && standard.pagedIndicesPerPatch() == 16 * 16 * 6
+          && standard.pagedPageCount() == 1
+          && standardThirtyTwoPatches.pagedPageCount() == 4
+          && standard.pagedPatchVertexBytes
+                == static_cast<std::size_t>(17 * 17 * sizeof(TerrainVertex8Derived)),
+          "paged-layout-sizes-and-pages");
+
+    const QVector<quint16> twoCellIndices =
+            TerrainMeshPaged::buildRegularIndices(2);
+    check(twoCellIndices.size() == 24
+          && twoCellIndices[0] == 0 && twoCellIndices[1] == 3
+          && twoCellIndices[2] == 4 && twoCellIndices[3] == 0
+          && twoCellIndices[4] == 4 && twoCellIndices[5] == 1
+          && twoCellIndices[6] == 4 && twoCellIndices[7] == 5
+          && twoCellIndices[8] == 2 && twoCellIndices[9] == 1
+          && twoCellIndices[10] == 4 && twoCellIndices[11] == 2,
+          "paged-checkerboard-index-topology");
+    check(TerrainMeshPaged::packNormal(0.0f, 1.0f, 0.0f)
+                == (511u << 10)
+          && TerrainMeshPaged::packNormal(0.0f, 1.0f, 0.0f, true)
+                == ((511u << 10) | (1u << 30))
+          && sizeof(TerrainVertex8Derived) == 8
+          && sizeof(TerrainPatchGpuParams) == 32,
+          "paged-packed-normal-and-record-layout");
 
     int tileX = 10;
     int tileZ = 20;
@@ -2464,12 +2578,52 @@ static int runTerrainGridSuite(bool verbose) {
                 && createdDescriptor.flags != NULL
                 && createdDescriptor.errorBias != NULL
                 && createdDescriptor.tdata != NULL
-                && std::abs(createdDescriptor.tdata[3] - 49.74062729f)
+                && std::abs(createdDescriptor.patchValue(
+                        0, TFile::PatchField::FactorY) - 49.74062729f)
                         < 0.00001f
-                && std::abs(createdDescriptor.tdata[1023 * 13 + 3]
-                            - 49.74062729f) < 0.00001f
-                && std::abs(createdDescriptor.tdata[1023 * 13 + 9] - 0.0625f)
+                && std::abs(createdDescriptor.patchValue(
+                        1023, TFile::PatchField::FactorY)
+                    - 49.74062729f) < 0.00001f
+                && std::abs(createdDescriptor.patchValue(
+                        1023, TFile::PatchField::TextureW) - 0.0625f)
                         < 0.000001f;
+        const std::array<TFile::PatchField, TFile::PatchFieldCount> fields = {
+            TFile::PatchField::CenterX,
+            TFile::PatchField::AverageY,
+            TFile::PatchField::CenterZ,
+            TFile::PatchField::FactorY,
+            TFile::PatchField::RangeY,
+            TFile::PatchField::RadiusM,
+            TFile::PatchField::ShaderIndex,
+            TFile::PatchField::TextureX,
+            TFile::PatchField::TextureY,
+            TFile::PatchField::TextureW,
+            TFile::PatchField::TextureB,
+            TFile::PatchField::TextureC,
+            TFile::PatchField::TextureH
+        };
+        for (int i = 0; i < static_cast<int>(fields.size()); ++i) {
+            const float value = fields[i] == TFile::PatchField::ShaderIndex
+                    ? 0.0f : 10.25f + static_cast<float>(i);
+            createdDescriptor.setPatchValue(17, fields[i], value);
+        }
+        createdDescriptor.flags[17] = 0x010000c3;
+        createdDescriptor.errorBias[17] = 4.75f;
+        const QString fieldRoundTripPath = tilesPath + "/fields-round-trip.t";
+        createdDescriptor.save(fieldRoundTripPath);
+        TFile fieldRoundTripDescriptor;
+        overwriteDescriptorsOk = overwriteDescriptorsOk
+                && fieldRoundTripDescriptor.readT(fieldRoundTripPath)
+                && fieldRoundTripDescriptor.flags[17] == 0x010000c3
+                && std::abs(fieldRoundTripDescriptor.errorBias[17] - 4.75f)
+                    < 0.000001f;
+        for (int i = 0; i < static_cast<int>(fields.size()); ++i) {
+            const float expected = fields[i] == TFile::PatchField::ShaderIndex
+                    ? 0.0f : 10.25f + static_cast<float>(i);
+            overwriteDescriptorsOk = overwriteDescriptorsOk
+                    && std::abs(fieldRoundTripDescriptor.patchValue(17, fields[i])
+                                - expected) < 0.000001f;
+        }
         TerrainInfo terrainInfo;
         terrainInfo.cx = 0;
         terrainInfo.cy = 0;
@@ -2479,6 +2633,13 @@ static int runTerrainGridSuite(bool verbose) {
                 && terrain.loaded && terrain.isEditable()
                 && terrain.getGridLayout().patchRecordCount() == 1024;
         if (terrain.loaded && terrain.isEditable()) {
+            const int heightSide = terrain.getSampleCount() + 1;
+            std::vector<float> heights(
+                        static_cast<std::size_t>(heightSide) * heightSide,
+                        10.0f);
+            heights[0] = 30.0f;
+            terrain.fillHeightMap(heights.data());
+            terrain.refreshModified();
             terrain.setErrorBias(0, 0, 1023.0f, 1023.0f, 3.5f);
             terrain.setPatchFlags(0, 0, 1023.0f, 1023.0f, 7);
             terrain.save();
@@ -2491,7 +2652,21 @@ static int runTerrainGridSuite(bool verbose) {
                 && savedDescriptor.errorBias != NULL
                 && std::abs(savedDescriptor.errorBias[1023] - 3.5f) < 0.000001f
                 && savedDescriptor.flags != NULL
-                && savedDescriptor.flags[1023] == 7;
+                && savedDescriptor.flags[1023] == 7
+                && std::abs(savedDescriptor.patchValue(
+                        0, TFile::PatchField::CenterX) - 32.0f) < 0.000001f
+                && std::abs(savedDescriptor.patchValue(
+                        0, TFile::PatchField::CenterZ) + 32.0f) < 0.000001f
+                && std::abs(savedDescriptor.patchValue(
+                        0, TFile::PatchField::AverageY) - 20.0f) < 0.000001f
+                && std::abs(savedDescriptor.patchValue(
+                        0, TFile::PatchField::RangeY) - 10.0f) < 0.000001f
+                && std::abs(savedDescriptor.patchValue(
+                        0, TFile::PatchField::RadiusM) - 32.0f) < 0.000001f
+                && std::abs(savedDescriptor.patchValue(
+                        0, TFile::PatchField::FactorY)
+                    - std::sqrt(49.74062729f * 49.74062729f + 100.0f))
+                        < 0.00001f;
     }
     Game::root = originalRoot;
     Game::route = originalRoute;
@@ -2686,7 +2861,8 @@ QStringList TsreTests::listSuites() {
         "settings",
         "tdb-load",
         "terrain-files",
-        "terrain-grid"
+        "terrain-grid",
+        "terrain-raw-benchmark"
     };
 }
 
@@ -2724,6 +2900,9 @@ int TsreTests::run(const TestRunOptions &opts) {
 
     if (suite == "terrain-files")
         return runTerrainFilesSuite(opts);
+
+    if (suite == "terrain-raw-benchmark")
+        return runTerrainRawBenchmark(opts);
 
     if (suite == "all") {
         int rc = 0;

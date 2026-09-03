@@ -34,6 +34,10 @@ struct TerrainGridLayout {
             MaximumPatchesPerSide * MaximumPatchesPerSide;
     static constexpr int MinimumSamples = SupportedPatchesPerSide;
     static constexpr int MaximumSamples = 2048;
+    static constexpr int MinimumPatchResolution = 4;
+    static constexpr int MaximumPatchResolution = 128;
+    static constexpr int PagedPatchesPerPage = 256;
+    static constexpr int PagedVertexStride = 8;
 
     int sampleCount = 0;
     int sampleSpacing = 0;
@@ -45,6 +49,9 @@ struct TerrainGridLayout {
     std::size_t memoryCellCount = 0;
     std::size_t terrainVboBytes = 0;
     std::size_t patchVboBytes = 0;
+    std::size_t pagedPatchVertexBytes = 0;
+    std::size_t pagedTerrainVertexBytes = 0;
+    std::size_t pagedIndexBytes = 0;
 
     static TerrainGridLayout profile(
             TerrainHeightProfile value,
@@ -67,6 +74,32 @@ struct TerrainGridLayout {
             break;
         }
         return layout;
+    }
+
+    static QString heightProfileName(TerrainHeightProfile value) {
+        switch (value) {
+        case TerrainHeightProfile::Low128x16:
+            return "Low resolution - 128 x 128 samples at 16 m";
+        case TerrainHeightProfile::High512x4:
+            return "High resolution - 512 x 512 samples at 4 m";
+        case TerrainHeightProfile::Ultra1024x2:
+            return "Ultra resolution - 1024 x 1024 samples at 2 m";
+        case TerrainHeightProfile::Standard256x8:
+        default:
+            return "Standard - 256 x 256 samples at 8 m";
+        }
+    }
+
+    static QString profileName(
+            TerrainHeightProfile value,
+            int patches = DefaultPatchesPerSide) {
+        const TerrainGridLayout layout = profile(value, patches);
+        if (layout.sampleCount == 0)
+            return QString("%1; %2 x %2 patches (unsupported layout)")
+                    .arg(heightProfileName(value)).arg(patches);
+        return QString("%1; %2 x %2 patches; R=%3")
+                .arg(heightProfileName(value)).arg(patches)
+                .arg(layout.patchResolution);
     }
 
     static bool checkedMultiply(std::size_t left, std::size_t right,
@@ -162,6 +195,13 @@ struct TerrainGridLayout {
         std::size_t patchFloats = 0;
         std::size_t totalFloats = 0;
         const int patchResolution = samples / patches;
+        if (patchResolution < MinimumPatchResolution
+                || patchResolution > MaximumPatchResolution) {
+            error = QString("terrain patch resolution %1 is unsupported; it must be between %2 and %3 samples")
+                    .arg(patchResolution).arg(MinimumPatchResolution)
+                    .arg(MaximumPatchResolution);
+            return false;
+        }
         if (!checkedMultiply(static_cast<std::size_t>(samples),
                              static_cast<std::size_t>(samples), storedCells)
                 || !checkedMultiply(memorySide, memorySide, memoryCells)
@@ -193,6 +233,31 @@ struct TerrainGridLayout {
         layout.memoryCellCount = memoryCells;
         layout.terrainVboBytes = totalBytes;
         layout.patchVboBytes = patchBytes;
+        std::size_t pagedVertices = 0;
+        std::size_t pagedPatchBytes = 0;
+        std::size_t pagedTotalBytes = 0;
+        std::size_t indexCount = 0;
+        std::size_t indexBytes = 0;
+        const std::size_t pagedSide = static_cast<std::size_t>(patchResolution) + 1u;
+        if (!checkedMultiply(pagedSide, pagedSide, pagedVertices)
+                || !checkedMultiply(pagedVertices, PagedVertexStride, pagedPatchBytes)
+                || !checkedMultiply(pagedPatchBytes,
+                                    static_cast<std::size_t>(patches) * patches,
+                                    pagedTotalBytes)
+                || !checkedMultiply(static_cast<std::size_t>(patchResolution),
+                                    static_cast<std::size_t>(patchResolution) * 6u,
+                                    indexCount)
+                || !checkedMultiply(indexCount, sizeof(quint16), indexBytes)
+                || pagedPatchBytes > static_cast<std::size_t>(std::numeric_limits<int>::max())
+                || pagedTotalBytes > static_cast<std::size_t>(std::numeric_limits<int>::max())
+                || indexBytes > static_cast<std::size_t>(std::numeric_limits<int>::max())) {
+            error = "paged terrain render buffer exceeds OpenGL API limits";
+            layout = TerrainGridLayout{};
+            return false;
+        }
+        layout.pagedPatchVertexBytes = pagedPatchBytes;
+        layout.pagedTerrainVertexBytes = pagedTotalBytes;
+        layout.pagedIndexBytes = indexBytes;
         error.clear();
         return true;
     }
@@ -210,6 +275,19 @@ struct TerrainGridLayout {
 
     int patchRecordCount() const {
         return patchesPerSide * patchesPerSide;
+    }
+
+    int pagedPageCount() const {
+        return (patchRecordCount() + PagedPatchesPerPage - 1)
+                / PagedPatchesPerPage;
+    }
+
+    int pagedVerticesPerPatch() const {
+        return (patchResolution + 1) * (patchResolution + 1);
+    }
+
+    int pagedIndicesPerPatch() const {
+        return patchResolution * patchResolution * 6;
     }
 
     bool isPatchIndexValid(int index) const {

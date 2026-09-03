@@ -49,6 +49,12 @@ public:
     unsigned int shadow1Bias;
     unsigned int shadow2Res;
     unsigned int shadow2Bias;
+    int terrainPaged;
+    int terrainVerticesPerPatch;
+    int terrainPatchSide;
+    int terrainSampleSpacing;
+    int terrainApplyGaps;
+    int terrainMapPass;
 private:
 
 };

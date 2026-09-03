@@ -10,11 +10,19 @@
 
 #include <tsre/texture/Brush.h>
 #include <QImage>
+#include <algorithm>
+#include <cmath>
 
 Brush::Brush() {
     this->color[0] = 0;
     this->color[1] = 0;
     this->color[2] = 0;
+}
+
+float Brush::terrainSlopeRatio(int angleDegrees) {
+    constexpr float DegreesToRadians = 0.01745329251994329577f;
+    const int safeAngle = std::clamp(angleDegrees, 0, 89);
+    return std::tan(safeAngle * DegreesToRadians);
 }
 
 float Brush::getAlpha(int x, int y, int size){
