@@ -14,6 +14,7 @@ This folder contains ordered tasks for migrating the TSRE renderer from legacy i
 - [x] `09-hud-compass-pointer.md`
 - [x] `10-shadows-gather-pass.md`
 - [ ] `11-shader-pass-buckets-and-custom-shaders.md`
+- [ ] `13-selection-renderer-and-id-redesign.md`
 - [ ] `12-parity-automation-and-performance-gate.md`
 
 ## Ground Rules For All Tasks
