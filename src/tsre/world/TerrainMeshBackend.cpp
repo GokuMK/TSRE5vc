@@ -24,6 +24,7 @@
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/world/Terrain.h>
 #include <tsre/world/TerrainLib.h>
+#include <tsre/world/TerrainLod.h>
 
 namespace {
 
@@ -93,7 +94,7 @@ bool TerrainMeshLegacy::ensureInitialized() {
 }
 
 void TerrainMeshLegacy::configureRenderItem(RenderItem &item, int patchId,
-                                             bool, bool) {
+                                             bool, bool, int, quint8) {
     const int patches = terrain.gridLayout.patchesPerSide;
     const int row = patchId / patches;
     const int column = patchId % patches;
@@ -104,7 +105,7 @@ void TerrainMeshLegacy::configureRenderItem(RenderItem &item, int patchId,
     item.vertCount = terrain.gridLayout.pagedIndicesPerPatch();
 }
 
-void TerrainMeshLegacy::drawPatch(int patchId, bool, bool) {
+void TerrainMeshLegacy::drawPatch(int patchId, bool, bool, int, quint8) {
     const int patches = terrain.gridLayout.patchesPerSide;
     const int row = patchId / patches;
     const int column = patchId % patches;
@@ -155,27 +156,62 @@ bool TerrainMeshPaged::isPaged() const {
 }
 
 QVector<quint16> TerrainMeshPaged::buildRegularIndices(int resolution) {
+    return buildLodIndices(resolution, 1, 0);
+}
+
+QVector<quint16> TerrainMeshPaged::buildLodIndices(
+        int resolution, int sourceStep, quint8 edgeMask) {
     QVector<quint16> indices;
-    if (resolution < 1 || resolution > 128)
+    if (resolution < 1 || resolution > 128 || sourceStep < 1
+            || resolution % sourceStep != 0 || (sourceStep & (sourceStep - 1))
+            || (edgeMask & 0xf0u))
         return indices;
-    indices.reserve(resolution * resolution * 6);
+    const int cells = resolution / sourceStep;
+    if (edgeMask != 0 && (cells < 2 || (cells & 1)))
+        return indices;
+    indices.reserve(cells * cells * 6);
     const int side = resolution + 1;
-    for (int z = 0; z < resolution; ++z) {
-        for (int x = 0; x < resolution; ++x) {
-            const quint16 p00 = static_cast<quint16>(z * side + x);
-            const quint16 p10 = static_cast<quint16>(z * side + x + 1);
-            const quint16 p01 = static_cast<quint16>((z + 1) * side + x);
-            const quint16 p11 = static_cast<quint16>((z + 1) * side + x + 1);
+    auto vertex = [&](int levelX, int levelZ) {
+        if ((edgeMask & TerrainLod::LocalX0)
+                && levelX == 0 && (levelZ & 1))
+            --levelZ;
+        if ((edgeMask & TerrainLod::LocalXMax)
+                && levelX == cells && (levelZ & 1))
+            --levelZ;
+        if ((edgeMask & TerrainLod::LocalZ0)
+                && levelZ == 0 && (levelX & 1))
+            --levelX;
+        if ((edgeMask & TerrainLod::LocalZMax)
+                && levelZ == cells && (levelX & 1))
+            --levelX;
+        return static_cast<quint16>((levelZ * sourceStep) * side
+                                    + levelX * sourceStep);
+    };
+    auto appendTriangle = [&](quint16 first, quint16 second, quint16 third) {
+        if (first == second || first == third || second == third)
+            return;
+        indices << first << second << third;
+    };
+    for (int z = 0; z < cells; ++z) {
+        for (int x = 0; x < cells; ++x) {
+            const quint16 p00 = vertex(x, z);
+            const quint16 p10 = vertex(x + 1, z);
+            const quint16 p01 = vertex(x, z + 1);
+            const quint16 p11 = vertex(x + 1, z + 1);
             if (((x + z) & 1) == 0) {
-                indices << p00 << p01 << p11;
-                indices << p00 << p11 << p10;
+                appendTriangle(p00, p01, p11);
+                appendTriangle(p00, p11, p10);
             } else {
-                indices << p01 << p11 << p10;
-                indices << p00 << p01 << p10;
+                appendTriangle(p01, p11, p10);
+                appendTriangle(p00, p01, p10);
             }
         }
     }
     return indices;
+}
+
+int TerrainMeshPaged::indexTemplateKey(int sourceStep, quint8 edgeMask) {
+    return (sourceStep << 4) | (edgeMask & 0x0f);
 }
 
 quint32 TerrainMeshPaged::packNormal(float x, float y, float z, bool gap) {
@@ -314,15 +350,41 @@ bool TerrainMeshPaged::ensureInitialized() {
                               static_cast<int>(terrain.mojez));
     terrain.initializePatchBounds();
     needsEdgeFill = false;
-    const QVector<quint16> indices = buildRegularIndices(
-                terrain.gridLayout.patchResolution);
-    if (indices.isEmpty())
-        return false;
+    QVector<quint16> allIndices;
+    QVector<int> sourceSteps = TerrainLod::availableSourceSteps(
+                terrain.gridLayout);
+    if (sourceSteps.isEmpty())
+        sourceSteps.append(1);
+    indexTemplates.clear();
+    for (int level = 0; level < sourceSteps.size(); ++level) {
+        const int sourceStep = sourceSteps[level];
+        const bool hasCoarserLevel = level + 1 < sourceSteps.size()
+                && sourceSteps[level + 1] == sourceStep * 2;
+        const int lastMask = hasCoarserLevel ? 15 : 0;
+        for (int mask = 0; mask <= lastMask; ++mask) {
+            const QVector<quint16> indices = buildLodIndices(
+                        terrain.gridLayout.patchResolution,
+                        sourceStep, static_cast<quint8>(mask));
+            if (indices.isEmpty())
+                return false;
+            IndexTemplate entry;
+            entry.byteOffset = static_cast<unsigned int>(
+                        allIndices.size() * int(sizeof(quint16)));
+            entry.indexCount = indices.size();
+            indexTemplates.insert(indexTemplateKey(sourceStep,
+                                                    static_cast<quint8>(mask)),
+                                  entry);
+            allIndices += indices;
+        }
+    }
+    indexBufferBytes = static_cast<quint64>(allIndices.size())
+            * sizeof(quint16);
 
     indexBuffer.create();
     indexBuffer.bind();
     indexBuffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
-    indexBuffer.allocate(indices.constData(), indices.size() * int(sizeof(quint16)));
+    indexBuffer.allocate(allIndices.constData(),
+                         allIndices.size() * int(sizeof(quint16)));
     indexBuffer.release();
 
     for (int pageIndex = 0; pageIndex < terrain.gridLayout.pagedPageCount();
@@ -346,10 +408,10 @@ bool TerrainMeshPaged::ensureInitialized() {
             << "patches" << terrain.gridLayout.patchRecordCount()
             << "pages" << pages.size()
             << "GPU bytes" << vertexBytes
-                               + terrain.gridLayout.pagedIndexBytes
+                               + indexBufferBytes
                                + parameterBytes
             << "(vertices" << vertexBytes
-            << "indices" << terrain.gridLayout.pagedIndexBytes
+            << "indices" << indexBufferBytes
             << "terrain+map params" << parameterBytes << ")"
             << "build microseconds" << timer.nsecsElapsed() / 1000;
     return true;
@@ -412,7 +474,8 @@ TerrainMeshPaged::Page *TerrainMeshPaged::pageForPatch(int patchId) const {
 }
 
 void TerrainMeshPaged::configureRenderItem(RenderItem &item, int patchId,
-                                            bool mapPass, bool applyGaps) {
+                                            bool mapPass, bool applyGaps,
+                                            int sourceStep, quint8 edgeMask) {
     Page *page = pageForPatch(patchId);
     if (page == nullptr)
         return;
@@ -420,10 +483,16 @@ void TerrainMeshPaged::configureRenderItem(RenderItem &item, int patchId,
     item.VBO = &page->vertexBuffer;
     item.VAO = &page->vertexArray;
     item.vertOffset = 0;
-    item.vertCount = terrain.gridLayout.pagedIndicesPerPatch();
+    auto indexTemplate = indexTemplates.constFind(
+                indexTemplateKey(sourceStep, edgeMask));
+    if (indexTemplate == indexTemplates.constEnd())
+        indexTemplate = indexTemplates.constFind(indexTemplateKey(1, 0));
+    if (indexTemplate == indexTemplates.constEnd())
+        return;
+    item.vertCount = indexTemplate->indexCount;
     item.indexed = true;
     item.indexType = GL_UNSIGNED_SHORT;
-    item.indexOffset = 0;
+    item.indexOffset = indexTemplate->byteOffset;
     item.baseVertex = slot * terrain.gridLayout.pagedVerticesPerPatch();
     item.terrainPaged = true;
     item.terrainParamsBuffer = mapPass
@@ -473,9 +542,11 @@ void TerrainMeshPaged::bindDrawState(const RenderItem &item) {
     directStateValid = true;
 }
 
-void TerrainMeshPaged::drawPatch(int patchId, bool mapPass, bool applyGaps) {
+void TerrainMeshPaged::drawPatch(int patchId, bool mapPass, bool applyGaps,
+                                 int sourceStep, quint8 edgeMask) {
     RenderItem item;
-    configureRenderItem(item, patchId, mapPass, applyGaps);
+    configureRenderItem(item, patchId, mapPass, applyGaps,
+                        sourceStep, edgeMask);
     if (item.VAO == nullptr)
         return;
     bindDrawState(item);

@@ -1,6 +1,21 @@
 # Basic discrete terrain patch LOD
 
-Status: planned; first implementation boundaries reviewed
+Status: first tile-local implementation completed; interactive visual and
+performance tuning remains
+
+Implementation summary:
+
+- route-owned `TsreTerrainLod` parsing, validation, saving, and Route settings
+  editing are implemented;
+- the paged backend builds every valid regular and 16-mask 2:1 transition
+  template up to 32 m and stores them in its existing per-terrain EBO;
+- patch-center selection, native outer rings, gap/neighbour pinning, 2:1
+  constraint relaxation, and stitch-mask selection are implemented;
+- direct and queued terrain, grid, map, selection, and depth/shadow submissions
+  use the selected topology;
+- the legacy backend and distant `Lo_tiles` remain native and unchanged;
+- automated topology/profile/constraint tests are included in the
+  `terrain-grid` suite.
 
 Related tasks:
 

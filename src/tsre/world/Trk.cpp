@@ -13,10 +13,14 @@
 #include <QFile>
 #include <QDir>
 #include <QTextStream>
+#include <QStringList>
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/fileFunctions/ReadFile.h>
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <tsre/texture/TexLib.h>
+
+#include <cmath>
+#include <limits>
 
 Trk::Trk() {
     graphic = "graphic.ace";
@@ -86,6 +90,7 @@ void Trk::load(QString path){
 
 void Trk::loadUtf16Data(FileBuffer* data){
     this->milepostUnitsKilometers = false;
+    terrainLodLevels.clear();
     
     QString sh = "";
     while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
@@ -284,6 +289,46 @@ void Trk::loadUtf16Data(FileBuffer* data){
                     ParserX::SkipToken(data);
                     continue;
                 }
+                if (sh == ("tsreterrainlod")) {
+                    QVector<TerrainLodLevel> parsedLevels;
+                    bool parsed = true;
+                    while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
+                        if (sh == "level") {
+                            const float spacingValue = ParserX::GetNumber(data);
+                            const float endValue = ParserX::GetNumber(data);
+                            if (!std::isfinite(spacingValue)
+                                    || !std::isfinite(endValue)
+                                    || std::floor(spacingValue) != spacingValue
+                                    || std::floor(endValue) != endValue
+                                    || spacingValue > std::numeric_limits<int>::max()
+                                    || spacingValue < std::numeric_limits<int>::min()
+                                    || endValue > std::numeric_limits<int>::max()
+                                    || endValue < std::numeric_limits<int>::min()) {
+                                parsed = false;
+                            } else {
+                                parsedLevels.append({static_cast<int>(spacingValue),
+                                                     static_cast<int>(endValue)});
+                            }
+                            ParserX::SkipToken(data);
+                            continue;
+                        }
+                        parsed = false;
+                        ParserX::SkipToken(data);
+                    }
+                    ParserX::SkipToken(data);
+                    QString error;
+                    if (parsed && TerrainLod::validateProfile(
+                                parsedLevels, &error, false)) {
+                        terrainLodLevels = parsedLevels;
+                    } else {
+                        terrainLodLevels.clear();
+                        if (error.isEmpty())
+                            error = "invalid Level entry";
+                        qWarning() << "Ignoring malformed TsreTerrainLod block:"
+                                   << error;
+                    }
+                    continue;
+                }
 
                 qDebug() << "#TRK tr_routefile - undefined token: " << sh;
                 ParserX::SkipToken(data);
@@ -396,5 +441,28 @@ void Trk::saveToStream(QTextStream &out){
     out << "	TsreDistantTerrainYoffset ( " << this->distantTerrainYOffset << " )" << "\n";
     if(this->tsreSuperelevation > 0)
     out << "	TsreSuperelevation ( " << this->tsreSuperelevation << " )" << "\n";
+    if (!terrainLodLevels.isEmpty()) {
+        out << "\tTsreTerrainLod (" << "\n";
+        for (const TerrainLodLevel &level : terrainLodLevels)
+            out << "\t\tLevel ( " << level.sampleSpacing << " "
+                << level.preferredEndDistance << " )" << "\n";
+        out << "\t)" << "\n";
+    }
     out << ")" << "\n";
+}
+
+QString Trk::terrainLodSummary() const {
+    if (terrainLodLevels.isEmpty())
+        return "Disabled - native terrain resolution at all distances";
+    QStringList parts;
+    int startDistance = 0;
+    for (const TerrainLodLevel &level : terrainLodLevels) {
+        parts.append(QString("%1 m: %2-%3 m")
+                     .arg(level.sampleSpacing)
+                     .arg(startDistance)
+                     .arg(level.preferredEndDistance));
+        startDistance = level.preferredEndDistance;
+    }
+    parts.last().append(" and beyond");
+    return parts.join(", ");
 }

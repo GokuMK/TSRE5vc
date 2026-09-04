@@ -25,9 +25,12 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstring>
 #include <limits>
+#include <set>
 
 #include <tsre/Game.h>
+#include <tsre/fileFunctions/FileBuffer.h>
 #include <tsre/math3d/Flex.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/math3d/Vector2f.h>
@@ -51,6 +54,7 @@
 #include <tsre/world/TerrainGridLayout.h>
 #include <tsre/world/TerrainMeshBackend.h>
 #include <tsre/world/TerrainInfo.h>
+#include <tsre/world/Trk.h>
 #include <tsre/world/Ref.h>
 #include <tsre/world/objects/DynTrackObj.h>
 
@@ -2415,6 +2419,18 @@ static int runTerrainGridSuite(bool verbose) {
     check(!accepts(256, 8.0f, 10), "reject-non-divisible-patch-count");
     check(!accepts(512, 4.5f), "reject-fractional-spacing");
     check(!accepts(512, 4.0f, 16, 1.0f), "reject-rotated-grid");
+    auto generatedLodIndexBytes = [](const TerrainGridLayout &layout) {
+        std::size_t count = 0;
+        const QVector<int> steps = TerrainLod::availableSourceSteps(layout);
+        for (int level = 0; level < steps.size(); ++level) {
+            const int lastMask = level + 1 < steps.size() ? 15 : 0;
+            for (int mask = 0; mask <= lastMask; ++mask)
+                count += TerrainMeshPaged::buildLodIndices(
+                            layout.patchResolution, steps[level],
+                            static_cast<quint8>(mask)).size();
+        }
+        return count * sizeof(quint16);
+    };
     check(standard.pagedVerticesPerPatch() == 17 * 17
           && standard.pagedIndicesPerPatch() == 16 * 16 * 6
           && standard.pagedPageCount() == 1
@@ -2422,6 +2438,9 @@ static int runTerrainGridSuite(bool verbose) {
           && standard.pagedPatchVertexBytes
                 == static_cast<std::size_t>(17 * 17 * sizeof(TerrainVertex8Derived)),
           "paged-layout-sizes-and-pages");
+    check(standard.pagedIndexBytes == generatedLodIndexBytes(standard)
+          && ultra.pagedIndexBytes == generatedLodIndexBytes(ultra),
+          "paged-layout-lod-index-memory-accounting");
 
     const QVector<quint16> twoCellIndices =
             TerrainMeshPaged::buildRegularIndices(2);
@@ -2433,6 +2452,177 @@ static int runTerrainGridSuite(bool verbose) {
           && twoCellIndices[8] == 2 && twoCellIndices[9] == 1
           && twoCellIndices[10] == 4 && twoCellIndices[11] == 2,
           "paged-checkerboard-index-topology");
+
+    bool lodTopologyOk = true;
+    const int topologyResolutions[] = {4, 8, 16, 32, 64, 128};
+    for (int resolution : topologyResolutions) {
+        for (int sourceStep = 1; sourceStep <= resolution;
+             sourceStep *= 2) {
+            if (resolution % sourceStep != 0)
+                break;
+            const int cells = resolution / sourceStep;
+            const int lastMask = cells >= 2 && (cells % 2) == 0 ? 15 : 0;
+            for (int mask = 0; mask <= lastMask; ++mask) {
+                const QVector<quint16> indices =
+                        TerrainMeshPaged::buildLodIndices(
+                            resolution, sourceStep,
+                            static_cast<quint8>(mask));
+                int edgeCount = 0;
+                for (int bit = 0; bit < 4; ++bit)
+                    edgeCount += (mask >> bit) & 1;
+                const int expectedTriangles = 2 * cells * cells
+                        - edgeCount * (cells / 2);
+                lodTopologyOk = lodTopologyOk
+                        && indices.size() == expectedTriangles * 3;
+                const int side = resolution + 1;
+                int doubledArea = 0;
+                std::set<std::array<int, 3>> uniqueTriangles;
+                for (int index = 0; index + 2 < indices.size(); index += 3) {
+                    const int first = indices[index];
+                    const int second = indices[index + 1];
+                    const int third = indices[index + 2];
+                    lodTopologyOk = lodTopologyOk
+                            && first >= 0 && first < side * side
+                            && second >= 0 && second < side * side
+                            && third >= 0 && third < side * side
+                            && first != second && first != third
+                            && second != third;
+                    const int x0 = first % side;
+                    const int z0 = first / side;
+                    const int x1 = second % side;
+                    const int z1 = second / side;
+                    const int x2 = third % side;
+                    const int z2 = third / side;
+                    const int signedArea = (x1 - x0) * (z2 - z0)
+                            - (z1 - z0) * (x2 - x0);
+                    lodTopologyOk = lodTopologyOk && signedArea < 0;
+                    doubledArea -= signedArea;
+                    std::array<int, 3> triangleKey = {first, second, third};
+                    std::sort(triangleKey.begin(), triangleKey.end());
+                    lodTopologyOk = lodTopologyOk
+                            && uniqueTriangles.insert(triangleKey).second;
+                    const int vertices[] = {first, second, third};
+                    for (int vertex : vertices) {
+                        const int x = vertex % side;
+                        const int z = vertex / side;
+                        const int levelX = x / sourceStep;
+                        const int levelZ = z / sourceStep;
+                        lodTopologyOk = lodTopologyOk
+                                && x % sourceStep == 0
+                                && z % sourceStep == 0
+                                && !((mask & TerrainLod::LocalX0)
+                                     && x == 0 && (levelZ & 1))
+                                && !((mask & TerrainLod::LocalXMax)
+                                     && x == resolution && (levelZ & 1))
+                                && !((mask & TerrainLod::LocalZ0)
+                                     && z == 0 && (levelX & 1))
+                                && !((mask & TerrainLod::LocalZMax)
+                                     && z == resolution && (levelX & 1));
+                    }
+                }
+                lodTopologyOk = lodTopologyOk
+                        && doubledArea == 2 * resolution * resolution;
+            }
+        }
+    }
+    check(lodTopologyOk, "paged-lod-all-transition-topologies");
+
+    const QVector<TerrainLodLevel> lodProfile = {
+        {4, 1000}, {8, 2000}, {16, 4000}
+    };
+    QString lodProfileError;
+    check(TerrainLod::validateProfile(lodProfile, &lodProfileError)
+          && TerrainLod::requestedSampleSpacing(lodProfile, 500.0f * 500.0f) == 4
+          && TerrainLod::requestedSampleSpacing(lodProfile, 1500.0f * 1500.0f) == 8
+          && TerrainLod::requestedSampleSpacing(lodProfile, 5000.0f * 5000.0f) == 16
+          && !TerrainLod::validateProfile({{4, 1000}, {16, 2000}},
+                                          &lodProfileError)
+          && !TerrainLod::validateProfile({{4, 1000}, {8, 900}},
+                                          &lodProfileError),
+          "terrain-lod-profile-validation-and-last-range");
+
+    const QVector<int> ultraSteps = TerrainLod::availableSourceSteps(ultra);
+    check(ultraSteps == QVector<int>({1, 2, 4, 8, 16})
+          && TerrainLod::sourceStepForRequest(ultra, 1) == 1
+          && TerrainLod::sourceStepForRequest(ultra, 8) == 4
+          && TerrainLod::sourceStepForRequest(ultra, 32) == 16
+          && TerrainLod::sourceStepForRequest(standard, 4) == 1,
+          "terrain-lod-available-level-selection");
+
+    QVector<quint8> noGaps(ultra.patchRecordCount(), 0);
+    QVector<TerrainPatchLodState> tileLod = TerrainLod::buildTileState(
+                ultra, {{2, 200}, {4, 500}, {8, 1000}, {16, 2000}},
+                1024.0f, 1024.0f, noGaps);
+    bool tileLodOk = tileLod.size() == ultra.patchRecordCount();
+    for (int patchId = 0; patchId < tileLod.size(); ++patchId) {
+        const int row = ultra.patchRow(patchId);
+        const int column = ultra.patchColumn(patchId);
+        if (row == 0 || column == 0
+                || row == ultra.patchesPerSide - 1
+                || column == ultra.patchesPerSide - 1)
+            tileLodOk = tileLodOk && tileLod[patchId].sourceStep == 1;
+        const int neighbours[2][2] = {{row, column + 1}, {row + 1, column}};
+        for (const auto &neighbour : neighbours) {
+            if (neighbour[0] >= ultra.patchesPerSide
+                    || neighbour[1] >= ultra.patchesPerSide)
+                continue;
+            const int neighbourId = ultra.patchIndex(neighbour[0], neighbour[1]);
+            const int lower = std::min(tileLod[patchId].sourceStep,
+                                       tileLod[neighbourId].sourceStep);
+            const int higher = std::max(tileLod[patchId].sourceStep,
+                                        tileLod[neighbourId].sourceStep);
+            tileLodOk = tileLodOk && higher <= lower * 2;
+        }
+    }
+    QVector<quint8> oneGap = noGaps;
+    const int gapPatch = ultra.patchIndex(8, 8);
+    oneGap[gapPatch] = 1;
+    const QVector<TerrainPatchLodState> gapLod = TerrainLod::buildTileState(
+                ultra, {{2, 1}, {4, 2}, {8, 3}, {16, 4}, {32, 5}},
+                0.0f, 0.0f, oneGap);
+    tileLodOk = tileLodOk
+            && gapLod[gapPatch].sourceStep == 1
+            && gapLod[ultra.patchIndex(7, 8)].sourceStep == 1
+            && gapLod[ultra.patchIndex(9, 8)].sourceStep == 1
+            && gapLod[ultra.patchIndex(8, 7)].sourceStep == 1
+            && gapLod[ultra.patchIndex(8, 9)].sourceStep == 1;
+    bool profileViolation = false;
+    TerrainLod::buildTileState(
+                ultra, {{2, 1}, {4, 2}, {8, 3}, {16, 4}, {32, 5}},
+                8.5f * ultra.patchWorldSize,
+                8.5f * ultra.patchWorldSize,
+                noGaps, &profileViolation);
+    tileLodOk = tileLodOk && profileViolation;
+    check(tileLodOk, "terrain-lod-tile-constraints-and-gap-pinning");
+
+    Trk serializedTrk;
+    serializedTrk.terrainLodLevels = lodProfile;
+    QString serializedTrkText;
+    QTextStream serializedTrkStream(&serializedTrkText);
+    serializedTrk.saveToStream(serializedTrkStream);
+    check(serializedTrkText.contains("TsreTerrainLod (\n")
+          && serializedTrkText.contains("Level ( 4 1000 )")
+          && serializedTrkText.contains("Level ( 16 4000 )")
+          && serializedTrk.terrainLodSummary().contains("and beyond"),
+          "terrain-lod-trk-serialization");
+
+    auto parseTrkText = [](const QString &text) {
+        const int byteCount = text.size() * int(sizeof(char16_t));
+        unsigned char *bytes = new unsigned char[byteCount];
+        std::memcpy(bytes, text.utf16(), static_cast<std::size_t>(byteCount));
+        FileBuffer data(bytes, byteCount);
+        Trk parsed;
+        parsed.loadUtf16Data(&data);
+        return parsed.terrainLodLevels;
+    };
+    const QVector<TerrainLodLevel> parsedLod = parseTrkText(
+                "Tr_RouteFile ( TsreTerrainLod ( Level ( 4 1000 ) "
+                "Level ( 8 2000 ) Level ( 16 4000 ) ) )");
+    const QVector<TerrainLodLevel> malformedLod = parseTrkText(
+                "Tr_RouteFile ( TsreTerrainLod ( Level ( 4 1000 ) "
+                "Level ( 16 2000 ) ) )");
+    check(parsedLod == lodProfile && malformedLod.isEmpty(),
+          "terrain-lod-trk-parse-and-malformed-fallback");
     check(TerrainMeshPaged::packNormal(0.0f, 1.0f, 0.0f)
                 == (511u << 10)
           && TerrainMeshPaged::packNormal(0.0f, 1.0f, 0.0f, true)

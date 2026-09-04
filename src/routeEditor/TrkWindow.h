@@ -12,6 +12,7 @@
 #define	TRKWINDOW_H
 
 #include <QtWidgets>
+#include <tsre/world/TerrainLod.h>
 
 class Trk;
 
@@ -30,6 +31,7 @@ public slots:
     void bokEnabled();
     void bcancelEnabled();
     void envNameEnabled(QString item);
+    void terrainLodEnabled();
     
 private:
     QLabel imageGraphic;
@@ -56,6 +58,9 @@ private:
     QComboBox iList;
     QPushButton iCopy;
     QPushButton iPaste;
+    QLabel terrainLodSummary;
+    QPushButton terrainLodEdit;
+    QVector<TerrainLodLevel> pendingTerrainLodLevels;
 };
 
 #endif	/* TRKWINDOW_H */

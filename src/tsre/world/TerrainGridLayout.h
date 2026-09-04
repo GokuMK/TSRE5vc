@@ -236,7 +236,8 @@ struct TerrainGridLayout {
         std::size_t pagedVertices = 0;
         std::size_t pagedPatchBytes = 0;
         std::size_t pagedTotalBytes = 0;
-        std::size_t indexCount = 0;
+        std::size_t regularIndexCount = 0;
+        std::size_t lodIndexCount = 0;
         std::size_t indexBytes = 0;
         const std::size_t pagedSide = static_cast<std::size_t>(patchResolution) + 1u;
         if (!checkedMultiply(pagedSide, pagedSide, pagedVertices)
@@ -246,12 +247,44 @@ struct TerrainGridLayout {
                                     pagedTotalBytes)
                 || !checkedMultiply(static_cast<std::size_t>(patchResolution),
                                     static_cast<std::size_t>(patchResolution) * 6u,
-                                    indexCount)
-                || !checkedMultiply(indexCount, sizeof(quint16), indexBytes)
+                                    regularIndexCount)
                 || pagedPatchBytes > static_cast<std::size_t>(std::numeric_limits<int>::max())
-                || pagedTotalBytes > static_cast<std::size_t>(std::numeric_limits<int>::max())
-                || indexBytes > static_cast<std::size_t>(std::numeric_limits<int>::max())) {
+                || pagedTotalBytes > static_cast<std::size_t>(std::numeric_limits<int>::max())) {
             error = "paged terrain render buffer exceeds OpenGL API limits";
+            layout = TerrainGridLayout{};
+            return false;
+        }
+        for (int sourceStep = 1; sourceStep <= patchResolution;
+             sourceStep *= 2) {
+            if (patchResolution % sourceStep != 0)
+                break;
+            const int effectiveSpacing = integralSpacing * sourceStep;
+            if (effectiveSpacing > 32)
+                break;
+            const int cells = patchResolution / sourceStep;
+            const bool hasCoarser = sourceStep <= patchResolution / 2
+                    && patchResolution % (sourceStep * 2) == 0
+                    && effectiveSpacing <= 16;
+            const std::size_t levelIndices = hasCoarser
+                    ? static_cast<std::size_t>(32 * cells * cells
+                                               - 16 * cells) * 3u
+                    : static_cast<std::size_t>(cells) * cells * 6u;
+            if (levelIndices > std::numeric_limits<std::size_t>::max()
+                    - lodIndexCount) {
+                error = "paged terrain LOD index buffer size overflows";
+                layout = TerrainGridLayout{};
+                return false;
+            }
+            lodIndexCount += levelIndices;
+            if (sourceStep > patchResolution / 2)
+                break;
+        }
+        if (lodIndexCount == 0)
+            lodIndexCount = regularIndexCount;
+        if (!checkedMultiply(lodIndexCount, sizeof(quint16), indexBytes)
+                || indexBytes > static_cast<std::size_t>(
+                    std::numeric_limits<int>::max())) {
+            error = "paged terrain LOD index buffer exceeds OpenGL API limits";
             layout = TerrainGridLayout{};
             return false;
         }

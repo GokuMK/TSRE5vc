@@ -25,6 +25,7 @@
 #include <routeEditor/TerrainWaterWindow.h>
 #include <tsre/geo/MapWindow.h>
 #include <tsre/world/Route.h>
+#include <tsre/world/Trk.h>
 #include <tsre/world/Environment.h>
 #include <routeEditor/AboutWindow.h>
 #include <tsre/world/TerrainInfo.h>
@@ -67,6 +68,7 @@ void Terrain::load(){
     isOgl = false;
     modified = false;
     editable = false;
+    lodProfileWarningShown = false;
     wTexid = -1;
     for (int i = 0; i < TerrainGridLayout::SupportedPatchRecordCount; i++) {
         texid[i] = -1;
@@ -537,6 +539,8 @@ void Terrain::invalidatePatch(int patchId, unsigned int reasons) {
         return;
     if (reasons & TerrainDirtyHeight)
         markPatchBoundsDirty(patchId);
+    if (reasons & TerrainDirtyGaps)
+        markPatchGapStateDirty(patchId);
     if (meshBackend != NULL)
         meshBackend->invalidatePatch(patchId, reasons);
     else
@@ -548,6 +552,8 @@ void Terrain::invalidateAll(unsigned int reasons) {
         return;
     if (reasons & TerrainDirtyHeight)
         patchBoundsDirty.fill(1, gridLayout.patchRecordCount());
+    if (reasons & TerrainDirtyGaps)
+        patchGapState.fill(2, gridLayout.patchRecordCount());
     if (meshBackend != NULL)
         meshBackend->invalidateAll(reasons);
     else
@@ -575,6 +581,8 @@ void Terrain::invalidateSamplesLocal(int minX, int minZ,
         return;
     if (reasons & TerrainDirtyHeight)
         markPatchBoundsDirtyForSamples(minX, minZ, maxX, maxZ);
+    if (reasons & TerrainDirtyGaps)
+        markPatchGapStateDirtyForSamples(minX, minZ, maxX, maxZ);
     if (meshBackend != NULL)
         meshBackend->invalidateSamples(minX, minZ, maxX, maxZ, reasons);
     else
@@ -588,6 +596,81 @@ void Terrain::initializePatchBounds() {
     patchBoundsDirty.fill(0, count);
     for (int patchId = 0; patchId < count; ++patchId)
         patchBounds[patchId] = calculatePatchBounds(patchId);
+}
+
+void Terrain::markPatchGapStateDirty(int patchId) {
+    if (patchGapState.size() != gridLayout.patchRecordCount())
+        patchGapState.fill(2, gridLayout.patchRecordCount());
+    if (gridLayout.isPatchIndexValid(patchId))
+        patchGapState[patchId] = 2;
+}
+
+void Terrain::markPatchGapStateDirtyForSamples(int minX, int minZ,
+                                                int maxX, int maxZ) {
+    if (patchGapState.size() != gridLayout.patchRecordCount())
+        patchGapState.fill(2, gridLayout.patchRecordCount());
+    minX = std::max(0, minX);
+    minZ = std::max(0, minZ);
+    maxX = std::min(gridLayout.sampleCount, maxX);
+    maxZ = std::min(gridLayout.sampleCount, maxZ);
+    const int resolution = gridLayout.patchResolution;
+    for (int patchId = 0; patchId < patchGapState.size(); ++patchId) {
+        const int patchX = gridLayout.patchColumn(patchId) * resolution;
+        const int patchZ = gridLayout.patchRow(patchId) * resolution;
+        if (patchX <= maxX && patchX + resolution >= minX
+                && patchZ <= maxZ && patchZ + resolution >= minZ)
+            patchGapState[patchId] = 2;
+    }
+}
+
+bool Terrain::patchContainsGap(int patchId) {
+    if (!jestF || fData == NULL || !gridLayout.isPatchIndexValid(patchId))
+        return false;
+    if (patchGapState.size() != gridLayout.patchRecordCount())
+        patchGapState.fill(2, gridLayout.patchRecordCount());
+    if (patchGapState[patchId] != 2)
+        return patchGapState[patchId] != 0;
+    const int resolution = gridLayout.patchResolution;
+    const int firstX = gridLayout.patchColumn(patchId) * resolution;
+    const int firstZ = gridLayout.patchRow(patchId) * resolution;
+    bool hasGap = false;
+    for (int z = firstZ; z <= firstZ + resolution && !hasGap; ++z) {
+        for (int x = firstX; x <= firstX + resolution; ++x) {
+            if (fData[z][x] & 0x04) {
+                hasGap = true;
+                break;
+            }
+        }
+    }
+    patchGapState[patchId] = hasGap ? 1 : 0;
+    return hasGap;
+}
+
+QVector<TerrainPatchLodState> Terrain::buildPatchLodState(
+        const PatchVisibility &visibility) {
+    QVector<quint8> gaps(gridLayout.patchRecordCount(), 0);
+    if (jestF) {
+        for (int patchId = 0; patchId < gaps.size(); ++patchId)
+            gaps[patchId] = patchContainsGap(patchId) ? 1 : 0;
+    }
+    if (lowTile || Game::currentRoute == NULL
+            || Game::currentRoute->trk == NULL || !visibility.valid)
+        return TerrainLod::buildTileState(gridLayout, {},
+                                          visibility.cameraLocalX,
+                                          visibility.cameraLocalZ, gaps);
+    bool profileViolation = false;
+    QVector<TerrainPatchLodState> result = TerrainLod::buildTileState(
+                gridLayout, Game::currentRoute->trk->terrainLodLevels,
+                visibility.cameraLocalX, visibility.cameraLocalZ, gaps,
+                &profileViolation);
+    if (profileViolation && !lodProfileWarningShown) {
+        qWarning() << "Terrain LOD profile creates a greater-than-2:1 patch "
+                      "transition; applying conservative refinement"
+                   << name << "patch size" << gridLayout.patchWorldSize
+                   << "profile" << Game::currentRoute->trk->terrainLodSummary();
+        lodProfileWarningShown = true;
+    }
+    return result;
 }
 
 void Terrain::markPatchBoundsDirty(int patchId) {
@@ -1986,6 +2069,9 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
     refreshPatchBounds(true);
     const PatchVisibility patchVisibility = buildPatchVisibility(
                 Game::currentRenderer->mvMatrix, playerW);
+    const QVector<TerrainPatchLodState> patchLod = backend->isPaged()
+            ? buildPatchLodState(patchVisibility)
+            : QVector<TerrainPatchLodState>();
     if(Game::viewWorldGrid && selectionId == 0)
         lines.pushRenderItem();
     if(Game::viewTileGrid && selectionId == 0){
@@ -2087,8 +2173,12 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
                     }*/
                 }
                 r->itemType = GL_TRIANGLES;
+                const TerrainPatchLodState lodState = patchId < patchLod.size()
+                        ? patchLod[patchId] : TerrainPatchLodState{};
                 backend->configureRenderItem(*r, patchId,
-                                             false, true);
+                                             false, true,
+                                             lodState.sourceStep,
+                                             lodState.edgeMask);
                 r->msMatrix = Game::currentRenderer->objStrMatrix;
                 r->setVertexAttributes(r->VNT);
                 Game::currentRenderer->pushItem(r, Game::currentRenderer->mvMatrix);
@@ -2120,8 +2210,12 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
                 r = new RenderItem();
                 r->disableTextures(0.7,0.7,0.7,1.0);
                 r->itemType = GL_TRIANGLES;
+                const TerrainPatchLodState lodState = patchId < patchLod.size()
+                        ? patchLod[patchId] : TerrainPatchLodState{};
                 backend->configureRenderItem(*r, patchId,
-                                             false, true);
+                                             false, true,
+                                             lodState.sourceStep,
+                                             lodState.edgeMask);
                 r->setVertexAttributes(r->VNT);
                 r->polygonMode = 1;
                 r->msMatrix = Game::currentRenderer->objStrMatrix;
@@ -2149,7 +2243,11 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
                     r->itemType = GL_TRIANGLES;
                     r->msMatrix = Game::currentRenderer->objStrMatrix;
                     r->setVertexAttributes(r->VNTA);
-                    backend->configureRenderItem(*r, patchId, true, false);
+                    const TerrainPatchLodState lodState = patchId < patchLod.size()
+                            ? patchLod[patchId] : TerrainPatchLodState{};
+                    backend->configureRenderItem(*r, patchId, true, false,
+                                                 lodState.sourceStep,
+                                                 lodState.edgeMask);
                     Game::currentRenderer->pushItem(r,
                                                     Game::currentRenderer->mvMatrix);
                 }
@@ -2325,6 +2423,9 @@ void Terrain::render(float lodx, float lodz, int tileX, int tileY, float* player
     refreshPatchBounds(true);
     const PatchVisibility patchVisibility = buildPatchVisibility(
                 gluu->mvMatrix, playerW);
+    const QVector<TerrainPatchLodState> patchLod = backend->isPaged()
+            ? buildPatchLodState(patchVisibility)
+            : QVector<TerrainPatchLodState>();
     gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
     gluu->currentShader->setUniformValue(gluu->currentShader->msMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->objStrMatrix));
     gluu->currentMsMatrinxHash = 0;//gluu->getMatrixHash(gluu->objStrMatrix);
@@ -2436,7 +2537,10 @@ void Terrain::render(float lodx, float lodz, int tileX, int tileY, float* player
                     }
                 }
                 
-                backend->drawPatch(patchId, false, true);
+                const TerrainPatchLodState lodState = patchId < patchLod.size()
+                        ? patchLod[patchId] : TerrainPatchLodState{};
+                backend->drawPatch(patchId, false, true,
+                                   lodState.sourceStep, lodState.edgeMask);
             }
         }
         f->glActiveTexture(GL_TEXTURE0);
@@ -2467,7 +2571,10 @@ void Terrain::render(float lodx, float lodz, int tileX, int tileY, float* player
                 lod = sqrt(lodxx * lodxx + lodzz * lodzz);
                 if(Game::viewTerrainShape)
                     if (lod > 300) continue;
-                backend->drawPatch(patchId, false, true);
+                const TerrainPatchLodState lodState = patchId < patchLod.size()
+                        ? patchLod[patchId] : TerrainPatchLodState{};
+                backend->drawPatch(patchId, false, true,
+                                   lodState.sourceStep, lodState.edgeMask);
             }
         }
         gluu->mvPopMatrix();
@@ -2488,8 +2595,13 @@ void Terrain::render(float lodx, float lodz, int tileX, int tileY, float* player
                                 *reinterpret_cast<float(*)[4][4]>(gluu->mvMatrix));
                 }
                 for (int patchId = 0; patchId < gridLayout.patchRecordCount(); ++patchId) {
-                    if (isPatchVisible(patchId, patchVisibility))
-                        backend->drawPatch(patchId, true, false);
+                    if (isPatchVisible(patchId, patchVisibility)) {
+                        const TerrainPatchLodState lodState = patchId < patchLod.size()
+                                ? patchLod[patchId] : TerrainPatchLodState{};
+                        backend->drawPatch(patchId, true, false,
+                                           lodState.sourceStep,
+                                           lodState.edgeMask);
+                    }
                 }
                 if(MapWindow::isAlpha != 0)
                     gluu->mvPopMatrix();
@@ -3807,6 +3919,7 @@ bool Terrain::validateGridLayout(const QString &source) {
         return false;
     }
     editable = gridLayout.supportsEditing();
+    patchGapState.fill(2, gridLayout.patchRecordCount());
     selectionWindow = TerrainPatchSelectionWindow::forCameraPatch(
             gridLayout.patchesPerSide,
             gridLayout.patchesPerSide / 2,

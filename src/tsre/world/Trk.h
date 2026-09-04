@@ -12,7 +12,10 @@
 #define	TRK_H
 
 #include <QString>
+#include <QVector>
 #include <unordered_map>
+
+#include <tsre/world/TerrainLod.h>
 
 class FileBuffer;
 class QTextStream;
@@ -59,6 +62,7 @@ public:
     int imageDetailsId;
     double *tsreProjection = NULL;
     int tsreMaxStaticDetailLevel = 10;
+    QVector<TerrainLodLevel> terrainLodLevels;
     bool isModified();
     void setModified(bool val);
     Trk();
@@ -67,6 +71,7 @@ public:
     void load(QString path);
     void save();
     void saveToStream(QTextStream &out);
+    QString terrainLodSummary() const;
     virtual ~Trk();
     
 private:

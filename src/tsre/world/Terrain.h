@@ -14,6 +14,7 @@
 #include <tsre/ogl/GLUU.h>
 #include <tsre/world/TFile.h>
 #include <tsre/world/TerrainGridLayout.h>
+#include <tsre/world/TerrainLod.h>
 #include <tsre/math3d/Vector3f.h>
 #include <tsre/ogl/OglObj.h>
 #include <tsre/GameObj.h>
@@ -248,6 +249,8 @@ protected:
     };
     QVector<PatchBounds> patchBounds;
     QVector<quint8> patchBoundsDirty;
+    QVector<quint8> patchGapState;
+    bool lodProfileWarningShown = false;
     //int selectedPathId = -1;
     
     void saveRAW(QString name);
@@ -298,6 +301,12 @@ protected:
                                          const float *cameraPosition) const;
     bool isPatchVisible(int patchId,
                         const PatchVisibility &visibility) const;
+    bool patchContainsGap(int patchId);
+    void markPatchGapStateDirty(int patchId);
+    void markPatchGapStateDirtyForSamples(int minX, int minZ,
+                                          int maxX, int maxZ);
+    QVector<TerrainPatchLodState> buildPatchLodState(
+            const PatchVisibility &visibility);
 
     friend class TerrainMeshLegacy;
     friend class TerrainMeshPaged;

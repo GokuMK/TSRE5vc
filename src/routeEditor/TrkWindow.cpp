@@ -9,6 +9,7 @@
  */
 
 #include <routeEditor/TrkWindow.h>
+#include <routeEditor/TerrainLodProfileDialog.h>
 #include <QDebug>
 #include <QString>
 #include <QGraphicsScene>
@@ -60,6 +61,7 @@ TrkWindow::TrkWindow() : QDialog(){
     settings->addWidget(new QLabel("Restricted Speed (km/h): "), row++, 0);
     settings->addWidget(new QLabel("Speed in Miles: "), row++, 0);
     settings->addWidget(new QLabel("Terrain Error Scale: "), row++, 0);
+    settings->addWidget(new QLabel("Terrain mesh LOD: "), row++, 0);
     settings->addWidget(GuiFunct::newTQLabel("Environment"), row++, 0);
     settings->addWidget(&envName, row++, 0);
     QObject::connect(&envName, SIGNAL(textActivated(QString)), this, SLOT(envNameEnabled(QString)));
@@ -102,6 +104,16 @@ TrkWindow::TrkWindow() : QDialog(){
     settings->addWidget(&terrainErrorScale, row++, 1);
     terrainErrorScale.setRange(0, 8);
     terrainErrorScale.setSingleStep(0.1);
+    QWidget *terrainLodWidget = new QWidget;
+    QVBoxLayout *terrainLodLayout = new QVBoxLayout(terrainLodWidget);
+    terrainLodLayout->setContentsMargins(0, 0, 0, 0);
+    terrainLodSummary.setWordWrap(true);
+    terrainLodEdit.setText("Edit terrain LOD profile...");
+    terrainLodLayout->addWidget(&terrainLodSummary);
+    terrainLodLayout->addWidget(&terrainLodEdit);
+    settings->addWidget(terrainLodWidget, row++, 1);
+    QObject::connect(&terrainLodEdit, &QPushButton::released,
+                     this, &TrkWindow::terrainLodEnabled);
     row++;
     settings->addWidget(&envValue, row++, 1);
     tab1->addItem(settings);
@@ -170,6 +182,9 @@ int TrkWindow::exec() {
     this->startpZ.setText(QString::number(trk->startpZ));
     
     this->terrainErrorScale.setValue(trk->terrainErrorScale);
+    pendingTerrainLodLevels = trk->terrainLodLevels;
+    terrainLodSummary.setText(
+                TerrainLodProfileDialog::summary(pendingTerrainLodLevels));
     
     QString txt = trk->description;
     txt.replace("\\n","\n");
@@ -200,6 +215,16 @@ void TrkWindow::envNameEnabled(QString item){
     this->envValue.setText(trk->environment[item.toStdString()]);
 }
 
+void TrkWindow::terrainLodEnabled() {
+    TerrainLodProfileDialog dialog(this);
+    dialog.setLevels(pendingTerrainLodLevels);
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+    pendingTerrainLodLevels = dialog.levels();
+    terrainLodSummary.setText(
+                TerrainLodProfileDialog::summary(pendingTerrainLodLevels));
+}
+
 void TrkWindow::bokEnabled(){
     trk->setModified(true);
     trk->displayName = displayName.text();
@@ -220,6 +245,7 @@ void TrkWindow::bokEnabled(){
     
     trk->tempRestrictedSpeed = tempRestrictedSpeed.value()/3.6;
     trk->speedLimit = speedLimit.value()/3.6;
+    trk->terrainLodLevels = pendingTerrainLodLevels;
     close();
 }
 

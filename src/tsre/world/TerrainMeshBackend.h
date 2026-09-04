@@ -11,6 +11,7 @@
 
 #include <QOpenGLBuffer>
 #include <QOpenGLVertexArrayObject>
+#include <QHash>
 #include <QVector>
 #include <QtGlobal>
 
@@ -36,8 +37,12 @@ public:
     virtual bool isPaged() const = 0;
     virtual bool ensureInitialized() = 0;
     virtual void configureRenderItem(RenderItem &item, int patchId,
-                                     bool mapPass, bool applyGaps) = 0;
-    virtual void drawPatch(int patchId, bool mapPass, bool applyGaps) = 0;
+                                     bool mapPass, bool applyGaps,
+                                     int sourceStep = 1,
+                                     quint8 edgeMask = 0) = 0;
+    virtual void drawPatch(int patchId, bool mapPass, bool applyGaps,
+                           int sourceStep = 1,
+                           quint8 edgeMask = 0) = 0;
     virtual void endDirectRender() = 0;
     virtual void invalidateAll(unsigned int reasons = TerrainDirtyAll) = 0;
     virtual void invalidatePatch(int patchId, unsigned int reasons) = 0;
@@ -55,8 +60,12 @@ public:
     bool isPaged() const override;
     bool ensureInitialized() override;
     void configureRenderItem(RenderItem &item, int patchId,
-                             bool mapPass, bool applyGaps) override;
-    void drawPatch(int patchId, bool mapPass, bool applyGaps) override;
+                             bool mapPass, bool applyGaps,
+                             int sourceStep = 1,
+                             quint8 edgeMask = 0) override;
+    void drawPatch(int patchId, bool mapPass, bool applyGaps,
+                   int sourceStep = 1,
+                   quint8 edgeMask = 0) override;
     void endDirectRender() override;
     void invalidateAll(unsigned int reasons = TerrainDirtyAll) override;
     void invalidatePatch(int patchId, unsigned int reasons) override;
@@ -87,8 +96,12 @@ public:
     bool isPaged() const override;
     bool ensureInitialized() override;
     void configureRenderItem(RenderItem &item, int patchId,
-                             bool mapPass, bool applyGaps) override;
-    void drawPatch(int patchId, bool mapPass, bool applyGaps) override;
+                             bool mapPass, bool applyGaps,
+                             int sourceStep = 1,
+                             quint8 edgeMask = 0) override;
+    void drawPatch(int patchId, bool mapPass, bool applyGaps,
+                   int sourceStep = 1,
+                   quint8 edgeMask = 0) override;
     void endDirectRender() override;
     void invalidateAll(unsigned int reasons = TerrainDirtyAll) override;
     void invalidatePatch(int patchId, unsigned int reasons) override;
@@ -97,6 +110,9 @@ public:
     void refreshModified() override;
 
     static QVector<quint16> buildRegularIndices(int patchResolution);
+    static QVector<quint16> buildLodIndices(int patchResolution,
+                                            int sourceStep,
+                                            quint8 edgeMask);
     static quint32 packNormal(float x, float y, float z, bool gap = false);
     static TerrainPatchGpuParams terrainParams(const Terrain &terrain,
                                                 int patchId);
@@ -104,6 +120,11 @@ public:
                                             int patchId);
 
 private:
+    struct IndexTemplate {
+        unsigned int byteOffset = 0;
+        int indexCount = 0;
+    };
+
     struct Page {
         explicit Page();
         QOpenGLBuffer vertexBuffer;
@@ -116,6 +137,8 @@ private:
 
     QVector<Page*> pages;
     QOpenGLBuffer indexBuffer;
+    QHash<int, IndexTemplate> indexTemplates;
+    quint64 indexBufferBytes = 0;
     QVector<unsigned int> dirtyReasons;
     bool initialized = false;
     bool needsEdgeFill = true;
@@ -136,6 +159,7 @@ private:
     void calculateNormal(int sampleX, int sampleZ,
                          float &normalX, float &normalY, float &normalZ) const;
     void bindDrawState(const RenderItem &item);
+    static int indexTemplateKey(int sourceStep, quint8 edgeMask);
 };
 
 static_assert(sizeof(TerrainVertex8Derived) == 8,
