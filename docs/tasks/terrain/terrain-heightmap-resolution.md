@@ -7,6 +7,7 @@ Related tasks:
 
 - [Variable terrain patch count](terrain-patch-count.md)
 - [Terrain adjacent-edge cache](terrain-adjacent-edge-cache.md)
+- [Terrain height-brush CPU performance](terrain-height-brush-performance.md)
 
 ## Decision and scope
 
@@ -332,9 +333,11 @@ native-tile casting rules rather than reintroducing per-sample terrain lookup.
 
 Remaining cleanup:
 
-- profile the remaining `Heightmap +/-` cost with large brushes on 1024 and
-  2048 terrain; invalidation is batched, but the brush still visits and mutates
-  a large number of samples and can remain visibly slow;
+- implement the separately designed
+  [terrain height-brush CPU performance task](terrain-height-brush-performance.md);
+  profiling has established that the repeated per-sample editing path, rather
+  than paged-mesh regeneration, dominates the empty-route high-resolution
+  reproduction;
 - rename obsolete helpers such as `setHeight256()` once all callers migrate;
 - replace the temporary 8 m discontinuity guard with explicit line-strip breaks
   in the track-point API;
