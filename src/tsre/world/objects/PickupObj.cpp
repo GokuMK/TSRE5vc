@@ -23,6 +23,7 @@
 #include <tsre/ErrorMessagesLib.h>
 #include <tsre/ErrorMessage.h>
 #include <tsre/renderer/Renderer.h>
+#include <tsre/renderer/SelectionId.h>
 
 PickupObj::PickupObj() {
     this->shape = -1;
@@ -370,13 +371,12 @@ void PickupObj::renderTritems(GLUU* gluu, quint32 selectionId, bool pushToQueue)
         }
     }
 
-    const quint32 useSC = selectionId != 0 ? 1u : 0u;
 
     if (pushToQueue) {
         Game::currentRenderer->mvPushMatrix();
         Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPosition[0] + 0 * (drawPosition[5] - this->x), drawPosition[1] + 1, -drawPosition[2] + 0 * (-drawPosition[6] - this->y));
         Mat4::rotateY(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPosition[3]);
-        pointer3d->pushRenderItem(selectionId | 1*useSC);
+        pointer3d->pushRenderItem(SelectionIdCodec::withPart(selectionId, 1));
         Game::currentRenderer->mvPopMatrix();
     } else {
         gluu->mvPushMatrix();
@@ -385,7 +385,7 @@ void PickupObj::renderTritems(GLUU* gluu, quint32 selectionId, bool pushToQueue)
         //Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, this->trItemRData[0] + 2048*(this->trItemRData[3] - playerT[0] ), this->trItemRData[1]+2, -this->trItemRData[2] + 2048*(-this->trItemRData[4] - playerT[1]));
         //Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, this->trItemRData[0] + 0, this->trItemRData[1]+0, -this->trItemRData[2] + 0);
         gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-        pointer3d->render(selectionId | 1*useSC);
+        pointer3d->render(SelectionIdCodec::withPart(selectionId, 1));
         gluu->mvPopMatrix();
     }
 

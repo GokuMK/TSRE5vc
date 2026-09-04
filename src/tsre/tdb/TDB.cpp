@@ -14,6 +14,7 @@
 #include <tsre/Game.h>
 #include <settings/SettingsAccess.h>
 #include <tsre/renderer/Renderer.h>
+#include <tsre/renderer/SelectionId.h>
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/fileFunctions/ReadFile.h>
 #include <tsre/fileFunctions/MstsTextFileValidation.h>
@@ -2769,9 +2770,11 @@ void TDB::renderItems(GLUU *gluu, float* playerT, float playerRot, int renderMod
             if(!isInitTrItemsDraw)
                 obj->refresh();
             if(renderMode == gluu->RENDER_SELECTION){
-                selectionId = 12u << 20;
-                if(this->road)
-                    selectionId |= 1u << 19;
+                selectionId = SelectionIdCodec::databaseItem(
+                            this->road
+                            ? SelectionIdCodec::DatabaseKind::Road
+                            : SelectionIdCodec::DatabaseKind::Track,
+                            obj->trItemId);
             }
             obj->render(this, gluu, playerT, playerRot, selectionId);
         }
@@ -2788,9 +2791,11 @@ void TDB::pushRenderItems(float* playerT, float playerRot, int renderMode) {
             if (!isInitTrItemsDraw)
                 obj->refresh();
             if (renderMode == Game::currentRenderer->RENDER_SELECTION) {
-                selectionId = 12u << 20;
-                if (this->road)
-                    selectionId |= 1u << 19;
+                selectionId = SelectionIdCodec::databaseItem(
+                            this->road
+                            ? SelectionIdCodec::DatabaseKind::Road
+                            : SelectionIdCodec::DatabaseKind::Track,
+                            obj->trItemId);
             }
             obj->pushRenderItem(this, playerT, playerRot, selectionId);
         }

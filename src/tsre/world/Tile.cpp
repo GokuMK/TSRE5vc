@@ -37,6 +37,7 @@
 #include <tsre/ErrorMessagesLib.h>
 #include <tsre/ErrorMessage.h>
 #include <tsre/renderer/Renderer.h>
+#include <tsre/renderer/SelectionId.h>
 #include <tsre/world/Trk.h>
 #include <tsre/world/Route.h>
 #include <settings/SettingsAccess.h>
@@ -912,18 +913,9 @@ void Tile::pushRenderItems(float* playerT, float* playerW, float* target, float 
                 Game::currentRenderer->mvPushMatrix();
                 //obiekty[i]->render(gluu, lod, x-playerT[0]*2048, z-playerT[1]*2048);
                 if (renderMode == Game::currentRenderer->RENDER_SELECTION) {
-                    int sxx = 0;
-                         if(x < playerT[0] && z < playerT[1]) sxx = 1;
-                    else if(x < playerT[0] && z == playerT[1]) sxx = 2;
-                    else if(x < playerT[0] && z > playerT[1]) sxx = 3;
-                    else if(x == playerT[0] && z < playerT[1]) sxx = 4;
-                    else if(x == playerT[0] && z == playerT[1]) sxx = 5;
-                    else if(x == playerT[0] && z > playerT[1]) sxx = 6;
-                    else if(x > playerT[0] && z < playerT[1]) sxx = 7;
-                    else if(x > playerT[0] && z == playerT[1]) sxx = 8;
-                    else if(x > playerT[0] && z > playerT[1]) sxx = 9;
-                    selectionId = static_cast<quint32>(sxx) << 20;
-                    selectionId |= static_cast<quint32>(i) << 4;
+                    selectionId = SelectionIdCodec::worldObject(
+                                x - static_cast<int>(playerT[0]),
+                                z - static_cast<int>(playerT[1]), i);
                 }
                 obiekty[i]->pushRenderItems(lod, lodx, lodz, playerW, target, fov, selectionId);
                 Game::currentRenderer->mvPopMatrix();
@@ -951,26 +943,9 @@ void Tile::render(float * playerT, float* playerW, float* target, float fov, int
                 gluu->mvPushMatrix();
                 //obiekty[i]->render(gluu, lod, x-playerT[0]*2048, z-playerT[1]*2048);
                 if (renderMode == gluu->RENDER_SELECTION) {
-                    int sxx = 0;
-                         if(x < playerT[0] && z < playerT[1]) sxx = 1;
-                    else if(x < playerT[0] && z == playerT[1]) sxx = 2;
-                    else if(x < playerT[0] && z > playerT[1]) sxx = 3;
-                    else if(x == playerT[0] && z < playerT[1]) sxx = 4;
-                    else if(x == playerT[0] && z == playerT[1]) sxx = 5;
-                    else if(x == playerT[0] && z > playerT[1]) sxx = 6;
-                    else if(x > playerT[0] && z < playerT[1]) sxx = 7;
-                    else if(x > playerT[0] && z == playerT[1]) sxx = 8;
-                    else if(x > playerT[0] && z > playerT[1]) sxx = 9;
-                    // only 3 bits for tile number but this requires 4 .. 
-                    //else if(x > playerT[0] && z > playerT[1]) sxx = 8;
-                    //int sxx = (x - playerT[0] + 1)*4 + (z - playerT[1] + 1);
-                    //qDebug() << sxx;
-                    //selectionId = obiekty[i]->UiD + sxx * 131072;
-                    selectionId = static_cast<quint32>(sxx) << 20;
-                    //if(obiekty[i]->isSoundItem())
-                    //    selectionId |= (obiekty[i]->UiD - 50000) << 4;
-                    //else
-                        selectionId |= static_cast<quint32>(i) << 4;
+                    selectionId = SelectionIdCodec::worldObject(
+                                x - static_cast<int>(playerT[0]),
+                                z - static_cast<int>(playerT[1]), i);
                 }
                 obiekty[i]->render(gluu, lod, lodx, lodz, playerW, target, fov, selectionId, renderMode);
                 //obiekty[i]->render(gluu);
@@ -979,20 +954,6 @@ void Tile::render(float * playerT, float* playerW, float* target, float fov, int
         }
     }
     
-    /*for (int i = 0; i < jestObiektowWS; i++) {
-        if (obiektyWS[i]->loaded) {//
-            gluu->mvPushMatrix();
-            if (selection) {
-                int sxx = (x - playerT[0] + 1)*4 + (z - playerT[1] + 1);
-                //qDebug() << sxx;
-                selectionId = static_cast<quint32>(obiektyWS[i]->UiD)
-                        + static_cast<quint32>(sxx) * 131072u;
-            }
-            obiektyWS[i]->render(gluu, lod, lodx, lodz, playerW, target, fov, selectionId);
-            //obiekty[i]->render(gluu);
-            gluu->mvPopMatrix();
-        }
-    }*/
 }
 /*
 Tile.prototype.getObjHash = function(UiD) {

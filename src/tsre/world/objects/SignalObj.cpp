@@ -22,6 +22,7 @@
 #include <tsre/tdb/SignalShape.h>
 #include <tsre/Game.h>
 #include <tsre/renderer/Renderer.h>
+#include <tsre/renderer/SelectionId.h>
 #include <tsre/fileFunctions/TS.h>
 #include <tsre/tdb/TRnode.h>
 #include <tsre/ErrorMessagesLib.h>
@@ -813,7 +814,6 @@ void SignalObj::renderTritems(GLUU* gluu, quint32 selectionId, bool pushToQueue)
         }
     }
 
-    const quint32 useSC = selectionId != 0 ? 1u : 0u;
     int i = getBaseSignalItemId();
     if(i < 0)
         return;
@@ -825,9 +825,9 @@ void SignalObj::renderTritems(GLUU* gluu, quint32 selectionId, bool pushToQueue)
         Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPositions[i][0] + 0 * (drawPositions[i][4] - this->x), drawPositions[i][1] + 1, -drawPositions[i][2] + 0 * (-drawPositions[i][5] - this->y));
         Mat4::rotateY(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, -drawPositions[i][7]+M_PI);
         if(this->selected && this->selectionValue > 0)
-            spointer3dSelected->pushRenderItem(selectionId | (i+1)*useSC);
+            spointer3dSelected->pushRenderItem(SelectionIdCodec::withPart(selectionId, i + 1));
         else
-            spointer3d->pushRenderItem(selectionId | (i+1)*useSC);
+            spointer3d->pushRenderItem(SelectionIdCodec::withPart(selectionId, i + 1));
         Game::currentRenderer->mvPopMatrix();
     } else {
         gluu->mvPushMatrix();
@@ -835,9 +835,9 @@ void SignalObj::renderTritems(GLUU* gluu, quint32 selectionId, bool pushToQueue)
         Mat4::rotateY(gluu->mvMatrix, gluu->mvMatrix, -drawPositions[i][7]+M_PI);
         gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
         if(this->selected && this->selectionValue > 0)
-            spointer3dSelected->render(selectionId | (i+1)*useSC);
+            spointer3dSelected->render(SelectionIdCodec::withPart(selectionId, i + 1));
         else
-            spointer3d->render(selectionId | (i+1)*useSC);
+            spointer3d->render(SelectionIdCodec::withPart(selectionId, i + 1));
         gluu->mvPopMatrix();
     }
 };

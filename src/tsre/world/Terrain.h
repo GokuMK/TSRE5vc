@@ -155,12 +155,7 @@ public:
     void setPatchFlags(int x, int z, float posx, float posz, int val);
     bool select(int value);
     bool select(int value, bool oneMore);
-    bool selectFromSelectionId(quint32 selectionId, bool oneMore = false);
     bool unselect();
-    void updateSelectionWindow(int cameraTileX, int cameraTileZ,
-                               float cameraLocalX, float cameraLocalZ);
-    int getSelectionId(int patchId) const;
-    int getPatchIdFromSelectionId(quint32 selectionId) const;
     void resetPatchTexCoords(int uu = -1);
     void pushContextMenuActions(QMenu *menu);
     void pushRenderItem(float lodx, float lodz, int tileX, int tileY, float* playerW, float* target, float fov, quint32 selectionId);
@@ -222,7 +217,6 @@ protected:
     int wTexid = -1;
     TFile* tfile = NULL;
     TerrainGridLayout gridLayout;
-    TerrainPatchSelectionWindow selectionWindow;
     int terrainDataRows = 0;
     int fDataRows = 0;
     struct PatchBounds {

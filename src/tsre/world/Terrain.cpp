@@ -32,6 +32,7 @@
 #include <tsre/world/TerrainMeshBackend.h>
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/renderer/Renderer.h>
+#include <tsre/renderer/SelectionId.h>
 
 QString Terrain::TileDir[2] = {"tiles", "lo_tiles"};
 Brush* Terrain::DefaultBrush = NULL;
@@ -1824,26 +1825,6 @@ void Terrain::getPatchCoords(int &x, int &z, float &posx, float &posz){
                    0, gridLayout.patchesPerSide - 1);
 }
 
-void Terrain::updateSelectionWindow(int cameraTileX, int cameraTileZ,
-                                    float cameraLocalX, float cameraLocalZ) {
-    if (!loaded || gridLayout.patchesPerSide <= 0)
-        return;
-    int patchColumn = cameraTileX;
-    int patchRow = cameraTileZ;
-    getPatchCoords(patchColumn, patchRow, cameraLocalX, cameraLocalZ);
-    selectionWindow = TerrainPatchSelectionWindow::forCameraPatch(
-            gridLayout.patchesPerSide, patchRow, patchColumn);
-}
-
-int Terrain::getSelectionId(int patchId) const {
-    return selectionWindow.selectionIdForPatch(patchId);
-}
-
-int Terrain::getPatchIdFromSelectionId(quint32 selectionId) const {
-    return selectionWindow.patchIdForSelection(selectionId);
-}
-
-
 void Terrain::setTexture(QString textureName, int x, int z, float posx, float posz, QString transformation){
     if (!editable)
         return;
@@ -2118,17 +2099,10 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
                     if ((ccos > 0) && (xxx > size)) continue;
                 }*/
                 
-                const bool terrainSelection = (selectionId >> 20) == 10;
-                int patchColorId = patchId;
-                if (terrainSelection) {
-                    patchColorId = getSelectionId(patchColorId);
-                    if (patchColorId < 0)
-                        continue;
-                }
                 r = new RenderItem();
                 if(selectionId != 0){
-                    quint32 tselectionId = selectionId | static_cast<quint32>(patchColorId);
-                    r->setSelectionId(tselectionId);
+                    r->setSelectionId(SelectionIdCodec::withTerrainPatch(
+                                          selectionId, patchId));
                 } else {
                     if (texid[yy * patches + uu] == -2) {
                     } else {
@@ -2381,15 +2355,9 @@ void Terrain::pushRenderItemWater(float lodx, float lodz, float tileX, float til
                     w[uu * patches + yy].init(punkty, ptr, RenderItem::VNTA, GL_TRIANGLES);
                     delete punkty;
                 }
-                const bool terrainSelection = (selectionId >> 20) == 10;
-                int patchColorId = yy * patches + uu;
-                if (terrainSelection) {
-                    patchColorId = getSelectionId(patchColorId);
-                    if (patchColorId < 0)
-                        continue;
-                }
                 if(selectionId != 0)
-                    tselectionId = selectionId | static_cast<quint32>(patchColorId);
+                    tselectionId = SelectionIdCodec::withTerrainPatch(
+                                selectionId, yy * patches + uu);
                 w[uu * patches + yy].pushRenderItem(tselectionId);
             }
         }
@@ -2480,16 +2448,9 @@ void Terrain::render(float lodx, float lodz, int tileX, int tileY, float* player
                     if ((ccos > 0) && (xxx > size)) continue;
                 }*/
 
-                const bool terrainSelection = (selectionId >> 20) == 10;
-                int patchColorId = patchId;
-                if (terrainSelection) {
-                    patchColorId = getSelectionId(patchColorId);
-                    if (patchColorId < 0)
-                        continue;
-                }
                 if(selectionId != 0){
-                    quint32 tselectionId = selectionId | static_cast<quint32>(patchColorId);
-                    gluu->setSelectionId(tselectionId);
+                    gluu->setSelectionId(SelectionIdCodec::withTerrainPatch(
+                                             selectionId, patchId));
                 } else {
                     if (texid[yy * patches + uu] == -2) {
                     } else {
@@ -2758,15 +2719,9 @@ void Terrain::renderWater(float lodx, float lodz, float tileX, float tileY, floa
                     w[uu * patches + yy].init(punkty, ptr, RenderItem::VNTA, GL_TRIANGLES);
                     delete punkty;
                 }
-                const bool terrainSelection = (selectionId >> 20) == 10;
-                int patchColorId = yy * patches + uu;
-                if (terrainSelection) {
-                    patchColorId = getSelectionId(patchColorId);
-                    if (patchColorId < 0)
-                        continue;
-                }
                 if(selectionId != 0)
-                    tselectionId = selectionId | static_cast<quint32>(patchColorId);
+                    tselectionId = SelectionIdCodec::withTerrainPatch(
+                                selectionId, yy * patches + uu);
                 w[uu * patches + yy].render(tselectionId);
             }
         }
@@ -3746,13 +3701,6 @@ bool Terrain::select(int value, bool oneMore){
     return select(value);
 }
 
-bool Terrain::selectFromSelectionId(quint32 selectionId, bool oneMore) {
-    const int patchId = getPatchIdFromSelectionId(selectionId);
-    if (patchId < 0)
-        return false;
-    return select(patchId, oneMore);
-}
-
 bool Terrain::select(int value){
     if (!editable)
         return false;
@@ -3921,10 +3869,6 @@ bool Terrain::validateGridLayout(const QString &source) {
     }
     editable = gridLayout.supportsEditing();
     patchGapState.fill(2, gridLayout.patchRecordCount());
-    selectionWindow = TerrainPatchSelectionWindow::forCameraPatch(
-            gridLayout.patchesPerSide,
-            gridLayout.patchesPerSide / 2,
-            gridLayout.patchesPerSide / 2);
     return true;
 }
 

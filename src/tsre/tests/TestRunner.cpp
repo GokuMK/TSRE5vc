@@ -44,6 +44,7 @@
 #include <tsre/tdb/TSection.h>
 #include <tsre/tdb/TSectionDAT.h>
 #include <tsre/tests/RouteLoadTestSuite.h>
+#include <tsre/tests/SelectionIdTestSuite.h>
 #include <tsre/tests/SettingsTestSuite.h>
 #include <tsre/tests/TdbLoadTestSuite.h>
 #include <tsre/tests/TerrainRawBenchmark.h>
@@ -2682,56 +2683,6 @@ static int runTerrainGridSuite(bool verbose) {
               tileX, tileZ, localX, localZ),
           "reject-non-finite-world-position");
 
-    auto selectionWindowRoundTrips = [](const TerrainPatchSelectionWindow &window) {
-        int mapped = 0;
-        for (int patchId = 0;
-             patchId < window.patchesPerSide * window.patchesPerSide;
-             ++patchId) {
-            const int selectionIndex = window.selectionIdForPatch(patchId);
-            if (selectionIndex < 0)
-                continue;
-            ++mapped;
-            if (window.patchIdForSelection(selectionIndex) != patchId)
-                return false;
-        }
-        return mapped == 256;
-    };
-    const TerrainPatchSelectionWindow topLeft =
-            TerrainPatchSelectionWindow::forCameraPatch(32, 0, 0);
-    const TerrainPatchSelectionWindow topRight =
-            TerrainPatchSelectionWindow::forCameraPatch(32, 0, 31);
-    const TerrainPatchSelectionWindow bottomLeft =
-            TerrainPatchSelectionWindow::forCameraPatch(32, 31, 0);
-    const TerrainPatchSelectionWindow bottomRight =
-            TerrainPatchSelectionWindow::forCameraPatch(32, 31, 31);
-    const TerrainPatchSelectionWindow centered =
-            TerrainPatchSelectionWindow::forCameraPatch(32, 16, 16);
-    const TerrainPatchSelectionWindow fourPatches =
-            TerrainPatchSelectionWindow::forCameraPatch(4, 3, 3);
-    check(topLeft.row == 0 && topLeft.column == 0
-          && topRight.row == 0 && topRight.column == 16
-          && bottomLeft.row == 16 && bottomLeft.column == 0
-          && bottomRight.row == 16 && bottomRight.column == 16,
-          "selection-window-corners-clamp");
-    check(TerrainPatchSelectionWindow::forCameraPatch(32, 0, 15).row == 0
-          && TerrainPatchSelectionWindow::forCameraPatch(32, 31, 15).row == 16
-          && TerrainPatchSelectionWindow::forCameraPatch(32, 15, 0).column == 0
-          && TerrainPatchSelectionWindow::forCameraPatch(32, 15, 31).column == 16,
-          "selection-window-edges-clamp");
-    check(centered.row == 8 && centered.column == 8
-          && centered.selectionIdForPatch(16 * 32 + 16) == 8 * 16 + 8
-          && centered.selectionIdForPatch(0) == -1
-          && centered.patchIdForSelection(0) == 8 * 32 + 8
-          && fourPatches.selectionIdForPatch(15) == 3 * 16 + 3
-          && fourPatches.patchIdForSelection(3 * 16 + 3) == 15,
-          "selection-window-centers-and-excludes-outside-patches");
-    check(selectionWindowRoundTrips(topLeft)
-          && selectionWindowRoundTrips(topRight)
-          && selectionWindowRoundTrips(bottomLeft)
-          && selectionWindowRoundTrips(bottomRight)
-          && selectionWindowRoundTrips(centered),
-          "selection-window-forward-reverse-round-trips");
-
     QTemporaryDir overwriteDirectory;
     const QString originalRoot = Game::root;
     const QString originalRoute = Game::route;
@@ -3076,6 +3027,7 @@ QStringList TsreTests::listSuites() {
         "orts-profile",
         "procedural-policy",
         "route-load",
+        "selection-id",
         "settings",
         "tdb-load",
         "terrain-files",
@@ -3097,6 +3049,9 @@ int TsreTests::run(const TestRunOptions &opts) {
 
     if (suite == "route-load")
         return runRouteLoadSuite(opts);
+
+    if (suite == "selection-id")
+        return runSelectionIdSuite(opts.verbose);
 
     if (suite == "tdb-load")
         return runTdbLoadSuite(opts.verbose);
@@ -3130,6 +3085,7 @@ int TsreTests::run(const TestRunOptions &opts) {
         rc = std::max(rc, runDynTrackRoadSuite(opts.verbose));
         rc = std::max(rc, runOrtsProfileSuite(opts.verbose));
         rc = std::max(rc, runRouteLoadSuite(opts));
+        rc = std::max(rc, runSelectionIdSuite(opts.verbose));
         rc = std::max(rc, runSettingsSuite(opts.verbose));
         rc = std::max(rc, runTdbLoadSuite(opts.verbose));
         rc = std::max(rc, runTerrainGridSuite(opts.verbose));

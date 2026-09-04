@@ -1,5 +1,7 @@
 # Task 13 - Selection Renderer And 32-bit ID Redesign
 
+Status: Stage 1 and Stage 2 implemented; manual legacy/gather selection parity confirmation pending.
+
 ## Objective
 
 Move route-editor picking to a dedicated unsigned-integer render target, then replace the nearly exhausted 24-bit RGB selection encoding with a 32-bit encoding.
@@ -16,9 +18,9 @@ The redesign must:
 
 The selection ID is a transient runtime value. A world-object index is the dense index in the tile's object array, not the persistent MSTS `UiD`.
 
-## Current Encoding
+## Legacy 24-bit Encoding
 
-The route editor currently writes a 24-bit selection value through normalized RGB color channels. Its common prefix is a 4-bit selector in bits 23-20.
+Before this task, the route editor wrote a 24-bit selection value through normalized RGB color channels. Its common prefix was a 4-bit selector in bits 23-20.
 
 | Selector | Current category | Current payload |
 | ---: | --- | --- |
@@ -276,6 +278,23 @@ Validate every field before packing. Debug builds should assert invalid values, 
 7. Run selection parity tests in both renderers and re-run the final renderer parity gate.
 
 ## Tests And Acceptance Criteria
+
+### Stage 2 implementation record
+
+- `SelectionIdCodec` is the single owner of packing, decoding, field limits,
+  part replacement, and terrain-patch replacement.
+- Route-editor producers use the five-bit selector and the category layouts
+  defined above; raw selector shifts and part OR operations have been removed.
+- Terrain stores its direct patch ID in the selection value. The former
+  camera-relative 16x16 selection window and its forward/reverse mappings have
+  been removed.
+- The route-editor hit handler decodes a typed `DecodedSelection` rather than
+  applying category-specific masks locally.
+- The `selection-id` test suite covers valid boundaries, round trips, reserved
+  selectors and database kinds, field overflow, and replacement of existing
+  part and terrain fields.
+- Shape Viewer retains its separate RGB selection protocol; its consist-viewer
+  item numbering is deliberately not passed through the route-editor codec.
 
 Codec tests must cover round trips and rejected overflow for:
 

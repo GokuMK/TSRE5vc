@@ -151,7 +151,7 @@ void GLUU::initShader() {
         if (currentShader->terrainPaged >= 0)
             currentShader->setUniformValue(currentShader->terrainPaged, 0);
         if (currentShader->shaderSelectionId >= 0){
-            const quint32 selectionUniformProbe = 0x5aa55aa5u;
+            const quint32 selectionUniformProbe = 0xdaa55aa5u;
             quint32 selectionUniformValue = 0;
             setSelectionId(selectionUniformProbe);
             extra->glGetUniformuiv(currentShader->programId(),

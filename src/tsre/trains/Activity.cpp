@@ -16,6 +16,7 @@
 #include <tsre/fileFunctions/ReadFile.h>
 #include <tsre/Game.h>
 #include <tsre/renderer/Renderer.h>
+#include <tsre/renderer/SelectionId.h>
 #include <QDebug>
 #include <QFile>
 #include <tsre/ogl/GLUU.h>
@@ -606,8 +607,7 @@ void ActivityServiceDefinition::save(QTextStream* out) {
 void ActivityServiceDefinition::render(GLUU* gluu, float* playerT, int renderMode){
     quint32 selectionId = 0;
     if(renderMode == gluu->RENDER_SELECTION){
-        selectionId = 13u << 20;
-        //selectionId |= index << 0;
+        selectionId = SelectionIdCodec::activityService(0);
     }
     if(servicePointer == NULL)
         return;
@@ -618,7 +618,7 @@ void ActivityServiceDefinition::render(GLUU* gluu, float* playerT, int renderMod
 void ActivityServiceDefinition::pushRenderItems(float* playerT, int renderMode) {
     quint32 selectionId = 0;
     if (renderMode == Game::currentRenderer->RENDER_SELECTION) {
-        selectionId = 13u << 20;
+        selectionId = SelectionIdCodec::activityService(0);
     }
     if (servicePointer == NULL)
         return;

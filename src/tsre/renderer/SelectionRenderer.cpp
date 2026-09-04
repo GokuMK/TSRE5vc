@@ -216,7 +216,7 @@ bool SelectionRenderer::resize(int width, int height){
     const unsigned int status = functions->glCheckFramebufferStatus(GL_FRAMEBUFFER);
     bool storageVerified = false;
     if(status == GL_FRAMEBUFFER_COMPLETE){
-        const unsigned int probeValue = 0x5aa55aa5u;
+        const unsigned int probeValue = 0xdaa55aa5u;
         unsigned int readValue = 0;
         extra->glClearBufferuiv(GL_COLOR, 0, &probeValue);
         functions->glReadPixels(0, 0, 1, 1, GL_RED_INTEGER,

@@ -27,6 +27,7 @@
 #include <tsre/procedural/OrtsTrackProfileRenderer.h>
 #include <tsre/procedural/ProceduralShape.h>
 #include <tsre/renderer/Renderer.h>
+#include <tsre/renderer/SelectionId.h>
 #include <QSet>
 
 bool RulerObj::TwoPointRuler = false;
@@ -322,7 +323,6 @@ void RulerObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos,
         pointer3d->render(selectionId);
     }
 
-    const quint32 useSC = selectionId != 0 ? 1u : 0u;
 
     if(shapeEnabled){
         ensureProceduralShape();
@@ -331,7 +331,7 @@ void RulerObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos,
             Mat4::multiply(gluu->mvMatrix, gluu->mvMatrix, points[j].matrix);
             gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
             for(int i = 0; i < points[j].procShape.size(); i++){
-                points[j].procShape[i]->render(selectionId | (i&0xF)*useSC);
+                points[j].procShape[i]->render(SelectionIdCodec::withPart(selectionId, i));
             }
             gluu->mvPopMatrix();
         }
@@ -399,10 +399,9 @@ void RulerObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos,
         gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
         if(i == 0 || i == points.size() - 1 || DrawPoints){
             if(this->selected && this->selectionValue == i) 
-                point3dSelected->render(selectionId | (i&0xF)*useSC);
+                point3dSelected->render(SelectionIdCodec::withPart(selectionId, i));
             else
-                point3d->render(selectionId | (i&0xF)*useSC);
-        //    pointer3d->render(selectionId + (i+1)*131072*8*useSC);
+                point3d->render(SelectionIdCodec::withPart(selectionId, i));
         }
         gluu->mvPopMatrix();
     }
@@ -424,7 +423,6 @@ void RulerObj::pushRenderItems(float lod, float posx, float posz, float* playerW
         pointer3d->pushRenderItem(selectionId);
     }
 
-    const quint32 useSC = selectionId != 0 ? 1u : 0u;
 
     if(shapeEnabled){
         ensureProceduralShape();
@@ -432,7 +430,7 @@ void RulerObj::pushRenderItems(float lod, float posx, float posz, float* playerW
             Game::currentRenderer->mvPushMatrix();
             Mat4::multiply(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, points[j].matrix);
             for(int i = 0; i < points[j].procShape.size(); i++){
-                points[j].procShape[i]->pushRenderItem(selectionId | (i&0xF)*useSC);
+                points[j].procShape[i]->pushRenderItem(SelectionIdCodec::withPart(selectionId, i));
             }
             Game::currentRenderer->mvPopMatrix();
         }
@@ -497,9 +495,9 @@ void RulerObj::pushRenderItems(float lod, float posx, float posz, float* playerW
         Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, points[i].position[0], points[i].position[1], points[i].position[2]);
         if(i == 0 || i == points.size() - 1 || DrawPoints){
             if(this->selected && this->selectionValue == i)
-                point3dSelected->pushRenderItem(selectionId | (i&0xF)*useSC);
+                point3dSelected->pushRenderItem(SelectionIdCodec::withPart(selectionId, i));
             else
-                point3d->pushRenderItem(selectionId | (i&0xF)*useSC);
+                point3d->pushRenderItem(SelectionIdCodec::withPart(selectionId, i));
         }
         Game::currentRenderer->mvPopMatrix();
     }

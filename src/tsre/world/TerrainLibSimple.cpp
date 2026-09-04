@@ -24,6 +24,7 @@
 #include <tsre/world/Route.h>
 #include <tsre/world/Environment.h>
 #include <tsre/world/TerrainInfo.h>
+#include <tsre/renderer/SelectionId.h>
 #include <QFile>
 
 static bool simpleTerrainLayoutSupported(Terrain *terrain);
@@ -1043,12 +1044,7 @@ void TerrainLibSimple::render(GLUU *gluu, float * playerT, float* playerW, float
                 Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 2048 * i, 0, 2048 * j);
                 gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
                 if (renderMode == gluu->RENDER_SELECTION) {
-                    selectionId = 10u << 20;
-                    selectionId |= static_cast<quint32>(i + 1) << 10;
-                    selectionId |= static_cast<quint32>(j + 1) << 8;
-                    tTile->updateSelectionWindow(
-                            static_cast<int>(playerT[0]), static_cast<int>(playerT[1]),
-                            playerW[0], playerW[2]);
+                    selectionId = SelectionIdCodec::terrain(i, j, 0);
                 }
                 tTile->render(lodx, lodz, playerT[0]+i, playerT[1]+j, playerW, target, fov, selectionId);
                 gluu->mvPopMatrix();
@@ -1112,12 +1108,7 @@ void TerrainLibSimple::renderWater(GLUU *gluu, float* playerT, float* playerW, f
                 Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 2048 * i, Game::currentRoute->env->water[layer].height, 2048 * j);
                 gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
                 if (renderMode == gluu->RENDER_SELECTION) {
-                    selectionId = 10u << 20;
-                    selectionId |= static_cast<quint32>(i + 1) << 10;
-                    selectionId |= static_cast<quint32>(j + 1) << 8;
-                    tTile->updateSelectionWindow(
-                            static_cast<int>(playerT[0]), static_cast<int>(playerT[1]),
-                            playerW[0], playerW[2]);
+                    selectionId = SelectionIdCodec::terrain(i, j, 0);
                 }
                 tTile->renderWater(lodx, lodz, playerT[0]+i, playerT[1]+j, playerW, target, fov, layer, selectionId);
                 gluu->mvPopMatrix();

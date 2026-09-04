@@ -18,6 +18,7 @@
 #include <tsre/shape/SFile.h>
 #include <tsre/Game.h>
 #include <tsre/renderer/Renderer.h>
+#include <tsre/renderer/SelectionId.h>
 #include <tsre/ogl/GLUU.h>
 #include <QDebug>
 #include <QFile>
@@ -557,6 +558,8 @@ QString Consist::getFirstEngName(){
 }
 
 void Consist::render(int aktwx, int aktwz, quint32 selectionId, bool renderText) {
+    // Shape Viewer owns the RGB value used by this overload. Route-editor
+    // picking uses renderOnTrack() and the SelectionIdCodec below.
     //gl.glTranslatef(0, 0.2f, 0);
     //qDebug() << loaded;
     if (loaded != 1) return;
@@ -781,7 +784,7 @@ void Consist::renderOnTrack(GLUU* gluu, float* playerT, quint32 selectionId) {
         //    Mat4::rotate(gluu->mvMatrix, gluu->mvMatrix, M_PI, 0, 1, 0);
         //gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
         if(selectionId != 0){
-            scolor = selectionId | static_cast<quint32>(i);
+            scolor = SelectionIdCodec::withPart(selectionId, i);
         }
         engItems[i].engPointer->renderOnTrack(gluu, playerT, scolor);
         if(selectedIdx == i)
@@ -797,7 +800,7 @@ void Consist::pushRenderItemsOnTrack(float* playerT, quint32 selectionId) {
     for (int i = 0; i < engItems.size(); i++) {
         Game::currentRenderer->mvPushMatrix();
         if (selectionId != 0) {
-            scolor = selectionId | static_cast<quint32>(i);
+            scolor = SelectionIdCodec::withPart(selectionId, i);
         }
         engItems[i].engPointer->pushRenderItemOnTrack(playerT, scolor);
         if (selectedIdx == i)

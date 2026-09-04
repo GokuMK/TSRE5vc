@@ -23,6 +23,7 @@
 #include <tsre/ErrorMessagesLib.h>
 #include <tsre/ErrorMessage.h>
 #include <tsre/renderer/Renderer.h>
+#include <tsre/renderer/SelectionId.h>
 
 float LevelCrObj::MaxPlacingDistance = 30;
 
@@ -435,7 +436,6 @@ void LevelCrObj::renderTritems(GLUU* gluu, quint32 selectionId, bool pushToQueue
     }
 
     //if(pos == NULL) return;
-    const quint32 useSC = selectionId != 0 ? 1u : 0u;
 
     for(int i = 0; i < drawPositions.size(); i++){
         drawPosition = drawPositions[i];
@@ -444,9 +444,9 @@ void LevelCrObj::renderTritems(GLUU* gluu, quint32 selectionId, bool pushToQueue
             Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPosition[0] + 0 * (drawPosition[4] - this->x), drawPosition[1] + 1, -drawPosition[2] + 0 * (-drawPosition[5] - this->y));
             Mat4::rotateY(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPosition[3]);
             if(this->selected && this->selectionValue == i+1)
-                pointer3dSelected->pushRenderItem(selectionId | (i+1)*useSC);
+                pointer3dSelected->pushRenderItem(SelectionIdCodec::withPart(selectionId, i + 1));
             else
-                pointer3d->pushRenderItem(selectionId | (i+1)*useSC);
+                pointer3d->pushRenderItem(SelectionIdCodec::withPart(selectionId, i + 1));
             Game::currentRenderer->mvPopMatrix();
         } else {
             gluu->mvPushMatrix();
@@ -456,9 +456,9 @@ void LevelCrObj::renderTritems(GLUU* gluu, quint32 selectionId, bool pushToQueue
             //Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, this->trItemRData[0] + 0, this->trItemRData[1]+0, -this->trItemRData[2] + 0);
             gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
             if(this->selected && this->selectionValue == i+1)
-                pointer3dSelected->render(selectionId | (i+1)*useSC);
+                pointer3dSelected->render(SelectionIdCodec::withPart(selectionId, i + 1));
             else
-                pointer3d->render(selectionId | (i+1)*useSC);
+                pointer3d->render(SelectionIdCodec::withPart(selectionId, i + 1));
             gluu->mvPopMatrix();
         }
     }

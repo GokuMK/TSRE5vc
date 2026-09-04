@@ -28,6 +28,7 @@
 #include <tsre/ErrorMessagesLib.h>
 #include <tsre/ErrorMessage.h>
 #include <tsre/renderer/Renderer.h>
+#include <tsre/renderer/SelectionId.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -632,24 +633,23 @@ void CarSpawnerObj::renderTritems(GLUU* gluu, quint32 selectionId, bool pushToQu
     //float rot = (aa+1)*M_PI/2 + (float)(atan((drawPositionB[0]-drawPositionE[0])/(drawPositionB[2]-drawPositionE[2]))); 
     
     //(-(float)(atan((drawPositionB[1]-drawPositionE[1])/(dlugosc))
-    const quint32 useSC = selectionId != 0 ? 1u : 0u;
     if(pushToQueue){
         Game::currentRenderer->mvPushMatrix();
         Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPositionB[0] + 0 * (drawPositionB[4] - this->x), drawPositionB[1] + 1, -drawPositionB[2] + 0 * (-drawPositionB[5] - this->y));
         Mat4::rotateY(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPositionB[3] + rotB*M_PI);
         if(this->selected && this->selectionValue == 1)
-            spointer3dSelected->pushRenderItem(selectionId | 1*useSC);
+            spointer3dSelected->pushRenderItem(SelectionIdCodec::withPart(selectionId, 1));
         else
-            spointer3d->pushRenderItem(selectionId | 1*useSC);
+            spointer3d->pushRenderItem(SelectionIdCodec::withPart(selectionId, 1));
         Game::currentRenderer->mvPopMatrix();
 
         Game::currentRenderer->mvPushMatrix();
         Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPositionE[0] + 0 * (drawPositionE[4] - this->x), drawPositionE[1] + 1, -drawPositionE[2] + 0 * (-drawPositionE[5] - this->y));
         Mat4::rotateY(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPositionE[3] + rotE*M_PI);
         if(this->selected && this->selectionValue == 3)
-            spointer3dSelected->pushRenderItem(selectionId | 3*useSC);
+            spointer3dSelected->pushRenderItem(SelectionIdCodec::withPart(selectionId, 3));
         else
-            spointer3d->pushRenderItem(selectionId | 3*useSC);
+            spointer3d->pushRenderItem(SelectionIdCodec::withPart(selectionId, 3));
         Game::currentRenderer->mvPopMatrix();
 
         if(selectionId == 0)
@@ -662,9 +662,9 @@ void CarSpawnerObj::renderTritems(GLUU* gluu, quint32 selectionId, bool pushToQu
         //Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, this->trItemRData[0] + 0, this->trItemRData[1]+0, -this->trItemRData[2] + 0);
         gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
         if(this->selected && this->selectionValue == 1)
-            spointer3dSelected->render(selectionId | 1*useSC);
+            spointer3dSelected->render(SelectionIdCodec::withPart(selectionId, 1));
         else
-            spointer3d->render(selectionId | 1*useSC);
+            spointer3d->render(SelectionIdCodec::withPart(selectionId, 1));
         gluu->mvPopMatrix();
 
         gluu->mvPushMatrix();
@@ -674,9 +674,9 @@ void CarSpawnerObj::renderTritems(GLUU* gluu, quint32 selectionId, bool pushToQu
         //Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, this->trItemRData[0] + 0, this->trItemRData[1]+0, -this->trItemRData[2] + 0);
         gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
         if(this->selected && this->selectionValue == 3)
-            spointer3dSelected->render(selectionId | 3*useSC);
+            spointer3dSelected->render(SelectionIdCodec::withPart(selectionId, 3));
         else
-            spointer3d->render(selectionId | 3*useSC);
+            spointer3d->render(SelectionIdCodec::withPart(selectionId, 3));
         gluu->mvPopMatrix();
 
         gluu->mvPushMatrix();

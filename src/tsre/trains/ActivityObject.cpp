@@ -12,6 +12,7 @@
 #include <tsre/trains/Consist.h>
 #include <tsre/Game.h>
 #include <tsre/renderer/Renderer.h>
+#include <tsre/renderer/SelectionId.h>
 #include <tsre/ogl/GLUU.h>
 #include <QDebug>
 #include <QMenu>
@@ -260,8 +261,7 @@ void ActivityObject::setModified(bool val){
 void ActivityObject::render(GLUU* gluu, float* playerT, int renderMode, int index){
     quint32 selectionId = 0;
     if(renderMode == gluu->RENDER_SELECTION){
-        selectionId = 11u << 20;
-        selectionId |= static_cast<quint32>(index) << 8;
+        selectionId = SelectionIdCodec::activityObject(index);
     }
     
     if(objectTypeId == ActivityObject::WAGONLIST ){
@@ -286,8 +286,7 @@ void ActivityObject::render(GLUU* gluu, float* playerT, int renderMode, int inde
 void ActivityObject::pushRenderItems(float* playerT, int renderMode, int index) {
     quint32 selectionId = 0;
     if (renderMode == Game::currentRenderer->RENDER_SELECTION) {
-        selectionId = 11u << 20;
-        selectionId |= static_cast<quint32>(index) << 8;
+        selectionId = SelectionIdCodec::activityObject(index);
     }
 
     if (objectTypeId == ActivityObject::WAGONLIST) {
@@ -383,16 +382,14 @@ void ActivityObject::SpeedZone::render(GLUU* gluu, float* playerT, quint32 selec
     }
     float aa = (drawPositionE[2]-drawPositionB[2]);
     if(aa != 0) aa = (aa/fabs(aa));
-    const quint32 useSC = selectionId != 0 ? 1u : 0u;
-
     gluu->mvPushMatrix();
     Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, drawPositionB[0] + 2048 * (start[0] - playerT[0]), drawPositionB[1] + 1, -drawPositionB[2] + 2048 * (-start[1] - playerT[1]));
     Mat4::rotateY(gluu->mvMatrix, gluu->mvMatrix, drawPositionB[3] + rotB*M_PI);
     gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
     if(selected && selectionValue == 1) 
-        pointer3dSelected->render(selectionId | 1*useSC);
+        pointer3dSelected->render(SelectionIdCodec::withPart(selectionId, 1));
     else
-        pointer3d->render(selectionId | 1*useSC);
+        pointer3d->render(SelectionIdCodec::withPart(selectionId, 1));
     gluu->mvPopMatrix();
     
     gluu->mvPushMatrix();
@@ -400,9 +397,9 @@ void ActivityObject::SpeedZone::render(GLUU* gluu, float* playerT, quint32 selec
     Mat4::rotateY(gluu->mvMatrix, gluu->mvMatrix, drawPositionE[3] + rotE*M_PI);
     gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
     if(selected && selectionValue == 3) 
-        pointer3dSelected->render(selectionId | 3*useSC);
+        pointer3dSelected->render(SelectionIdCodec::withPart(selectionId, 3));
     else
-        pointer3d->render(selectionId | 3*useSC);
+        pointer3d->render(SelectionIdCodec::withPart(selectionId, 3));
     gluu->mvPopMatrix();
     
     gluu->mvPushMatrix();
@@ -473,24 +470,22 @@ void ActivityObject::SpeedZone::pushRenderItems(float* playerT, quint32 selectio
         pointer3d->setMaterial(1.0, 0.0, 0.4);
         pointer3dSelected->setMaterial(1.0, 0.3, 0.7);
     }
-    const quint32 useSC = selectionId != 0 ? 1u : 0u;
-
     Game::currentRenderer->mvPushMatrix();
     Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPositionB[0] + 2048 * (start[0] - playerT[0]), drawPositionB[1] + 1, -drawPositionB[2] + 2048 * (-start[1] - playerT[1]));
     Mat4::rotateY(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPositionB[3] + rotB*M_PI);
     if (selected && selectionValue == 1)
-        pointer3dSelected->pushRenderItem(selectionId | 1 * useSC);
+        pointer3dSelected->pushRenderItem(SelectionIdCodec::withPart(selectionId, 1));
     else
-        pointer3d->pushRenderItem(selectionId | 1 * useSC);
+        pointer3d->pushRenderItem(SelectionIdCodec::withPart(selectionId, 1));
     Game::currentRenderer->mvPopMatrix();
 
     Game::currentRenderer->mvPushMatrix();
     Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPositionE[0] + 2048 * (start[0] - playerT[0]), drawPositionE[1] + 1, -drawPositionE[2] + 2048 * (-start[1] - playerT[1]));
     Mat4::rotateY(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPositionE[3] + rotE*M_PI);
     if (selected && selectionValue == 3)
-        pointer3dSelected->pushRenderItem(selectionId | 3 * useSC);
+        pointer3dSelected->pushRenderItem(SelectionIdCodec::withPart(selectionId, 3));
     else
-        pointer3d->pushRenderItem(selectionId | 3 * useSC);
+        pointer3d->pushRenderItem(SelectionIdCodec::withPart(selectionId, 3));
     Game::currentRenderer->mvPopMatrix();
 
     Game::currentRenderer->mvPushMatrix();
