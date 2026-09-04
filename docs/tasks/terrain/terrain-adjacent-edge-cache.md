@@ -1,6 +1,6 @@
 # Terrain adjacent-edge cache
 
-Status: proposed foundation task; simplified design reviewed
+Status: proposed foundation task; simplified design and lifecycle reviewed
 
 Related tasks:
 
@@ -39,6 +39,7 @@ adaptive triangulation, AS/E interpretation, or a global render scheduler.
 4. Find overlapping sections with a linear ordered scan. The expected count
    is tiny--normally one or a few and only around eight in unusually divided
    supported layouts--so a separate edge-to-patch lookup table is unjustified.
+   Eight is a performance example, not a section-count or capacity limit.
 5. Keep only a minimal stable source-terrain locator on a section. Derive the
    adjacent patch index arithmetically from the section position and that
    terrain's layout; do not store a patch mapping.
@@ -46,6 +47,21 @@ adaptive triangulation, AS/E interpretation, or a global render scheduler.
 7. Invalidate and rebuild a complete affected edge instead of maintaining
    fine-grained point or source revisions. Edge data is small and cheap enough
    that the simpler lifecycle is preferable.
+
+Full edge/stitching functionality targets aligned power-of-two layouts. Exact
+full-feature requirements remain to be defined. Other currently loadable
+layouts remain loadable and visible with best-effort edge handling, allowing
+route designers to inspect and replace unsuitable content. Do not tighten
+terrain loading validation as part of this task.
+
+Prefer cheap, deterministic fallback over complicated handling of rare visible
+imperfections. Do not add clipped-overlap interval metadata, irregular-grid
+topology, or per-frame geometric repair solely for unusual layouts.
+
+This task records the agreed design, not an immutable implementation recipe.
+Implementation may improve it when inspection reveals a simpler or very cheap
+solution consistent with these priorities. Record any such decision and its
+actual coverage, especially if it resolves a limitation left open below.
 
 ## Existing behavior to preserve
 
@@ -165,8 +181,9 @@ array, hash, interval tree, point-to-patch map, or cached `Terrain*` around it.
 Adjacent sections normally share their endpoint. Preserve one copy in each
 section so either section is independently valid. Sampling uses half-open
 section ownership except for the final edge endpoint. If the two copies have
-different heights, mark the edge as conflicting rather than hiding the seam by
-arbitrarily choosing one.
+different heights, mark the edge as conflicting and use the owner-height
+fallback for the ambiguous sample. Keep usable portions of the edge. Do not
+implement iterative seam repair or reject the terrain because of that conflict.
 
 At eight bytes per point, four 1025-point edges occupy about 32 KiB before
 small container overhead. Even a 4096 m edge represented at 1 m resolution is
@@ -206,8 +223,11 @@ section 1                           [ terrain B edge points ]
 ```
 
 Do not assume that terrain size, patch count, patch physical size, or native
-sample spacing matches the owner. The accepted power-of-two layouts remain
-aligned in physical space, which is the property this representation uses.
+sample spacing matches the owner. Aligned power-of-two layouts provide the
+physical alignment this representation relies on for full functionality;
+the current loading validator accepts a wider set of layouts. If an unusual
+overlap cannot be represented by a regular native point section, leave that
+part unavailable and use the owner-height fallback. Keep the tile loadable.
 
 The cached point spacing describes the adjacent terrain's native grid even
 when another terrain owns the persistent boundary heights. For example, on an
@@ -224,13 +244,25 @@ Support two discovery modes:
 
 ```text
 LoadedOnly          do not load terrain to construct the edge
-LoadDirectNeighbor  may load only terrain touching the requested edge
+LoadDirectNeighbor  may load terrain sharing a nonzero span of the requested edge
 ```
 
 `N+1` synthesis may retain the current direct-neighbour loading behavior. LOD
 inspection uses `LoadedOnly`, so examining an edge cannot expand residency
 beyond `tileLod`. Loading a direct neighbour must not recursively resolve all
 of that neighbour's edges.
+
+Use endpoint heights already available from ordinary edge construction and
+reuse a shared endpoint result for sections meeting there. An endpoint can
+otherwise require a third terrain. Do not add endpoint-only terrain loading
+or recursively construct another tile's edges merely to obtain it. Use the
+owner-height fallback when the required value is unavailable. The diagonal
+XMax/ZMax case is explicitly left incomplete as described below.
+
+A `LoadedOnly` miss is not a permanent negative cache. A subsequent
+`LoadDirectNeighbor` request can attempt the permitted load. Missing sections
+are reconsidered on the next relevant terrain refresh; do not retry failed
+loads every frame or once per sample.
 
 ## Linear edge scanning and sampling
 
@@ -273,9 +305,10 @@ nativeSpacing = point[j + 1].alongM - point[j].alongM
 ```
 
 At an interior point, `(point[j + 1] - point[j - 1]) / 2` gives the same
-result. Endpoint code uses the one-sided difference. Reject zero, negative, or
-non-uniform spacing while building the section instead of carrying a broken
-edge into rendering.
+result. Endpoint code uses the one-sided difference. A section needs at least
+two points for spacing inference. Zero, negative, or non-uniform spacing makes
+that section unavailable to this regular-grid algorithm, not the terrain
+unloadable. Use the cheap fallback instead of adding irregular-grid machinery.
 
 ## Replacing `N+1` filling
 
@@ -295,16 +328,48 @@ Applying a resolved edge must:
 
 - walk destination samples and cached source points monotonically;
 - linearly interpolate mixed native resolutions;
-- update only available values which actually changed;
+- write resolved or fallback heights only when the destination value changes;
 - return the changed sample range;
 - invalidate only overlapping patch vertices, bounds, and normal halos;
-- preserve the repeated-own-edge fallback for missing sections;
+- use repeated-own-edge heights for missing or ambiguous samples;
 - avoid setting terrain or route modified state.
 
-Resolve the synthesized positive-X/positive-Z corner from its canonical
-diagonal owner when the two direct edge collections cannot supply it
-unambiguously. Exact corner tests are required because two independently
-interpolated edge results must not disagree.
+### Deliberately incomplete diagonal corner
+
+The sample `terrainData[N][N]` is synthesized on both axes. Unlike the other
+three tile corners, its canonical height may require the diagonal terrain
+which ordinary edge construction does not load. Exact canonical matching for
+this case is deliberately not required in the initial implementation.
+
+Use a valid endpoint height already available from ordinary edge construction.
+If none is available unambiguously, use `terrainData[N-1][N-1]`. Assign the
+result once so the XMax and ZMax applications cannot overwrite the shared
+corner with different values. Never leave the mesh vertex uninitialized.
+
+This can leave a visible height mismatch in the cells adjoining that corner.
+It is an accepted limitation, not a claim that the diagonal case is solved.
+Do not build dedicated diagonal discovery or dependency machinery for it.
+Existing inexpensive notifications can remain in use. If implementation
+reveals a very cheap way to obtain and maintain the correct value through
+existing lookups or edge data, it may implement that improvement and update
+this note and tests to describe the resulting behavior.
+
+The fallback reads current stored heights, never stale synthesized values:
+
+```text
+XMax at row z: terrainData[min(z, N-1)][N-1]
+ZMax at col x: terrainData[N-1][min(x, N-1)]
+XMax/ZMax corner: terrainData[N-1][N-1]
+```
+
+Current RAW initialization already repeats the last stored row/column, but
+current point-query fill leaves old synthesized values in place on lookup
+failure. The cache implementation deliberately defines fallback again during
+a refresh that discovers an unavailable neighbour. Recompute it when the
+owner's last stored row/column changes, even if no adjacent cache was dirtied.
+X0/Z0 caches may use the owner's canonical boundary heights as fallback for
+height consumers, but must not invent resident adjacent terrain or a native
+spacing for LOD. Stored X0/Z0 heights remain untouched.
 
 Keep `tryGetHeight()` as the general world-space point query. This cache only
 replaces its repetitive use along known terrain boundaries.
@@ -316,19 +381,48 @@ edge dirty and rebuild it on next use when any fact capable of changing its
 contents changes:
 
 - a source height edit touches the shared boundary;
-- an owner or adjacent terrain loads, unloads, reloads, or is replaced;
+- an owner or adjacent terrain loads, reloads, or is replaced;
 - QuadTree population or terrain layout changes;
 - a terrain becomes unsupported or becomes available again;
 - the detailed/distant terrain domain changes.
 
-Extend `TerrainLib::terrainSamplesChanged()` so its existing boundary coverage
-logic marks the corresponding cached edge dirty before updating synthesized
-samples. Interior height edits do not invalidate edge caches.
+Extend `TerrainLib::terrainSamplesChanged()` with explicit local and dependent
+invalidation:
 
-Copied point data and stable source locators prevent dangling pointers. A
-cached snapshot may remain readable after an unchanged neighbour unload, but
-must not be interpreted as proof that the source terrain is resident for
-rendering. `LoadedOnly` LOD code observes current residency separately.
+- a canonical X0 edit dirties the edited terrain's own X0 cache and the
+  dependent neighbours' XMax caches;
+- a canonical Z0 edit dirties the edited terrain's own Z0 cache and the
+  dependent neighbours' ZMax caches;
+- a changed canonical corner dirties supplied endpoints through ordinary
+  owner/edge invalidation; no additional diagonal dependency mechanism is
+  required for the deliberately incomplete XMax/ZMax case;
+- dirty the affected synthesized mesh samples through
+  `invalidateSynthesizedSamples()` so an already-built mesh requests edge fill;
+- applying synthesized samples must not emit another canonical-height
+  notification or recursively invalidate neighbours.
+
+The existing boundary coverage scan is the starting point. Extend it for
+owner caches and ordinary edge dependencies; no persistent reverse-dependency map
+is required. The section's neighbouring grid source is not necessarily its
+height owner. Ordinary interior edits do not rebuild adjacent vectors, though
+an edit to the last stored row/column must update a missing-edge fallback.
+
+Successful load, reload/replacement, and complete RAW replacement should mark
+affected loaded owners' caches and mesh borders dirty through a small local
+notification. Cover a previously missing neighbour becoming available. Use
+geometric adjacency and existing domain-aware lookup, not a route-wide scan.
+
+Unload notifications are optional, recommended only if easy and cheap. There
+is no requirement to force neighbouring meshes to refresh when a tile is
+unloaded. Copied points may remain in use until the owner's next relevant
+refresh. During that refresh, cheaply recheck section sources by stable
+locator; if unavailable under the requested discovery mode, use the owner's
+current height data. Do not preserve stale neighbour heights once absence has
+been detected. Do not poll all caches or rebuild them every render frame.
+
+Copied point data and stable source locators prevent dangling pointers.
+`LoadedOnly` LOD code checks current residency independently and cannot treat
+a cached snapshot as proof that a neighbouring mesh is being rendered.
 
 Whole-edge rebuild is intentionally selected. With only four small vectors,
 per-section generation counters and partial refresh bookkeeping add more state
@@ -368,6 +462,12 @@ For example, a native 2 m adjacent edge rendered at 8 m uses every fourth
 cached point. Moving the camera can change the source step, but not the cached
 points or sections.
 
+The finer rendered border conforms to the coarser border line. For example,
+a 2 m border meeting an 8 m border must align to the 8 m line during stitching;
+the coarser mesh is not required to reproduce every native 2 m height detail.
+That topology/geometry work, including ratios beyond the initial 2:1 templates,
+belongs to the LOD task. It must not be added to this static cache task.
+
 If one local patch edge overlaps adjacent sections which currently render at
 different effective resolutions, it touches two LOD levels. The initial LOD
 design declares that layout/configuration unsupported for guaranteed
@@ -397,16 +497,21 @@ not itself solve render-order coordination.
 - Implement monotonic section and point iteration.
 - Implement exact lookup and linear interpolation.
 - Replace point-by-point positive-edge filling with cached sampling.
-- Preserve the existing repeated-last-row/column fallback.
+- Apply the explicit current-owner last-row/column fallback when lookup fails.
 - Compare generated `(N+1)` values with the current `tryGetHeight()` results
-  on uniform and mixed-resolution routes.
+  on uniform and mixed-resolution routes, reporting the deliberate diagonal
+  corner fallback separately instead of requiring equality there.
 
 ### Stage 3: whole-edge invalidation
 
-- Connect canonical boundary changes to complete dependent-edge invalidation.
+- Connect canonical boundary changes to owner and dependent-edge invalidation,
+  including endpoints supplied by ordinary edge construction. No new dedicated
+  diagonal dependency tracking is required.
 - Rebuild dirty edges lazily before height fill, mesh refresh, or LOD use.
 - Reuse `terrainSamplesChanged()` and `invalidateSynthesizedSamples()`.
-- Verify safe terrain unload/reload and QuadTree tile replacement.
+- Connect load, reload, RAW replacement, and QuadTree changes to local cache
+  and mesh invalidation. Add unload notifications only if easy and cheap.
+- Verify fallback on the next refresh after an unnotified unload.
 
 ### Stage 4: expose sections to cross-tile LOD
 
@@ -421,7 +526,8 @@ not itself solve render-order coordination.
 Automated tests must cover:
 
 - all four local edge orientations and source reversals;
-- all four corners, including the diagonal positive-edge corner;
+- the three ordinary corners and the explicitly limited diagonal corner:
+  reuse an available endpoint or initialize the documented fallback;
 - 256/8, 512/4, and 1024/2 neighbours in both fine-to-coarse directions;
 - P4, P8, P16, and P32 patch boundaries;
 - a large terrain edge touching several smaller terrains;
@@ -433,10 +539,17 @@ Automated tests must cover:
 - linear scanning across zero, one, and several sections;
 - populated QuadTree entries without a terrain payload;
 - `LoadedOnly` causing no terrain loads;
-- `LoadDirectNeighbor` not recursively loading second-order neighbours;
-- a canonical X0/Z0 edge edit rebuilding the dependent complete cache;
+- `LoadDirectNeighbor` not loading a diagonal terrain solely for an endpoint
+  or recursively constructing neighbouring edges;
+- a `LoadedOnly` miss followed by a permitted direct load;
+- a canonical X0/Z0 edge edit rebuilding both owner and dependent caches;
+- canonical corner edits invalidating endpoints supplied by ordinary edges;
 - interior edits causing no edge-cache rebuild;
 - terrain unload, reload, and replacement without stale pointer access;
+- unnotified unload followed by refresh using current owner-height fallback;
+- edits to the last stored row/column updating a missing-edge fallback;
+- previously missing neighbours becoming available and refreshing existing meshes;
+- unusual currently loadable layouts remaining loadable with cheap fallback;
 - synthesized samples remaining excluded from `_y.raw` save data;
 - no terrain/route modified flag caused by cache resolution or refresh;
 - LOD source steps such as native 2 m rendered at 4, 8, and 16 m without
@@ -458,4 +571,11 @@ border split across multiple smaller terrain tiles.
 - changing RAW ownership or saving synthesized `N+1` samples;
 - replacing general `tryGetHeight()` point queries;
 - supporting terrain layouts not already accepted by `TerrainGridLayout`;
+- tightening loading rules to require powers of two, or guaranteeing perfect
+  stitching for every currently loadable unusual layout;
+- mandatory unload broadcasts, per-frame cache polling, or complex repair of
+  rare geometric imperfections;
+- guaranteed canonical XMax/ZMax corner matching or dedicated diagonal
+  discovery/dependency machinery; a very cheap implementation improvement is
+  allowed as described in the deliberate-limitation note;
 - forcing detailed and distant terrain to share edge data or LOD policy.
