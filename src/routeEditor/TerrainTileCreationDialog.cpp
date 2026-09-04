@@ -22,7 +22,7 @@
 
 TerrainTileCreationDialog::TerrainTileCreationDialog(QWidget *parent)
     : QDialog(parent),
-      profileSelector(new TerrainProfileSelector(this)) {
+      profileSelector(new TerrainProfileSelector(this, true)) {
     setWindowTitle("Create or replace detailed terrain");
 
     QVBoxLayout *layout = new QVBoxLayout(this);

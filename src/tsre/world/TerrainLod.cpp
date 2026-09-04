@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <QStringList>
 
 #include <tsre/world/TerrainGridLayout.h>
 
@@ -21,6 +22,25 @@ bool isSupportedSpacing(int spacing) {
             || spacing == 8 || spacing == 16 || spacing == 32;
 }
 
+}
+
+const QVector<TerrainLodLevel> &TerrainLod::defaultProfile() {
+    static const QVector<TerrainLodLevel> levels = {
+        {1, 500}, {2, 1000}, {4, 2000}, {8, 8000}
+    };
+    return levels;
+}
+
+QString TerrainLod::profileSummary(const QVector<TerrainLodLevel> &levels) {
+    if (levels.isEmpty())
+        return "Not set; using TSRE default.";
+    QStringList parts;
+    parts.append("0");
+    for (const TerrainLodLevel &level : levels) {
+        parts.append(QString("%1 m").arg(level.sampleSpacing));
+        parts.append(QString("%1 m").arg(level.preferredEndDistance));
+    }
+    return parts.join(" - ");
 }
 
 bool TerrainLod::validateProfile(const QVector<TerrainLodLevel> &levels,

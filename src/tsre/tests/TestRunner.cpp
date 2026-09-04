@@ -2337,6 +2337,8 @@ static int runTerrainGridSuite(bool verbose) {
                 TerrainHeightProfile::High512x4);
     const TerrainGridLayout ultra = TerrainGridLayout::profile(
                 TerrainHeightProfile::Ultra1024x2);
+    const TerrainGridLayout extreme = TerrainGridLayout::profile(
+                TerrainHeightProfile::Extreme2048x1);
     const TerrainGridLayout standardFourPatches = TerrainGridLayout::profile(
                 TerrainHeightProfile::Standard256x8, 4);
     const TerrainGridLayout standardEightPatches = TerrainGridLayout::profile(
@@ -2367,6 +2369,19 @@ static int runTerrainGridSuite(bool verbose) {
           && ultra.patchResolution == 64
           && ultra.terrainWorldSize == TerrainGridLayout::WorldTileSize,
           "profile-1024-2");
+    check(extreme.sampleCount == 2048 && extreme.sampleSpacing == 1
+          && extreme.patchesPerSide == 16
+          && extreme.patchResolution == 128
+          && extreme.terrainWorldSize == TerrainGridLayout::WorldTileSize,
+          "profile-2048-1");
+    const TerrainGridLayout extremeThirtyTwoPatches = TerrainGridLayout::profile(
+                TerrainHeightProfile::Extreme2048x1, 32);
+    const TerrainGridLayout unsupportedExtremeEightPatches =
+            TerrainGridLayout::profile(TerrainHeightProfile::Extreme2048x1, 8);
+    check(extremeThirtyTwoPatches.sampleCount == 2048
+          && extremeThirtyTwoPatches.patchResolution == 64
+          && unsupportedExtremeEightPatches.sampleCount == 0,
+          "profile-2048-supported-patch-grids");
     check(standardFourPatches.patchesPerSide == 4
           && standardFourPatches.patchResolution == 64,
           "profile-256-8-four-patches");
@@ -2532,6 +2547,9 @@ static int runTerrainGridSuite(bool verbose) {
     };
     QString lodProfileError;
     check(TerrainLod::validateProfile(lodProfile, &lodProfileError)
+          && TerrainLod::defaultProfile()
+             == QVector<TerrainLodLevel>({{1, 500}, {2, 1000},
+                                          {4, 2000}, {8, 8000}})
           && TerrainLod::requestedSampleSpacing(lodProfile, 500.0f * 500.0f) == 4
           && TerrainLod::requestedSampleSpacing(lodProfile, 1500.0f * 1500.0f) == 8
           && TerrainLod::requestedSampleSpacing(lodProfile, 5000.0f * 5000.0f) == 16
@@ -2596,6 +2614,15 @@ static int runTerrainGridSuite(bool verbose) {
     check(tileLodOk, "terrain-lod-tile-constraints-and-gap-pinning");
 
     Trk serializedTrk;
+    check(serializedTrk.terrainLodLevels.isEmpty()
+          && serializedTrk.effectiveTerrainLodLevels()
+             == TerrainLod::defaultProfile()
+          && serializedTrk.terrainLodSummary()
+             == "Not set; using TSRE default."
+          && TerrainLod::sourceStepForRequest(
+                 standard, TerrainLod::requestedSampleSpacing(
+                     TerrainLod::defaultProfile(), 9000.0f * 9000.0f)) == 1,
+          "terrain-lod-default-profile-and-legacy-native-fallback");
     serializedTrk.terrainLodLevels = lodProfile;
     QString serializedTrkText;
     QTextStream serializedTrkStream(&serializedTrkText);
@@ -2603,7 +2630,8 @@ static int runTerrainGridSuite(bool verbose) {
     check(serializedTrkText.contains("TsreTerrainLod (\n")
           && serializedTrkText.contains("Level ( 4 1000 )")
           && serializedTrkText.contains("Level ( 16 4000 )")
-          && serializedTrk.terrainLodSummary().contains("and beyond"),
+          && serializedTrk.terrainLodSummary()
+             == "0 - 4 m - 1000 m - 8 m - 2000 m - 16 m - 4000 m",
           "terrain-lod-trk-serialization");
 
     auto parseTrkText = [](const QString &text) {

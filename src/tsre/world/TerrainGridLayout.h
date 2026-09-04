@@ -19,7 +19,8 @@ enum class TerrainHeightProfile {
     Standard256x8,
     Low128x16,
     High512x4,
-    Ultra1024x2
+    Ultra1024x2,
+    Extreme2048x1
 };
 
 struct TerrainGridLayout {
@@ -68,6 +69,9 @@ struct TerrainGridLayout {
         case TerrainHeightProfile::Ultra1024x2:
             tryCreate(1024, 2.0f, patches, 0.0f, layout, ignored);
             break;
+        case TerrainHeightProfile::Extreme2048x1:
+            tryCreate(2048, 1.0f, patches, 0.0f, layout, ignored);
+            break;
         case TerrainHeightProfile::Standard256x8:
         default:
             tryCreate(256, 8.0f, patches, 0.0f, layout, ignored);
@@ -84,6 +88,8 @@ struct TerrainGridLayout {
             return "High resolution - 512 x 512 samples at 4 m";
         case TerrainHeightProfile::Ultra1024x2:
             return "Ultra resolution - 1024 x 1024 samples at 2 m";
+        case TerrainHeightProfile::Extreme2048x1:
+            return "Extreme resolution - 2048 x 2048 samples at 1 m";
         case TerrainHeightProfile::Standard256x8:
         default:
             return "Standard - 256 x 256 samples at 8 m";

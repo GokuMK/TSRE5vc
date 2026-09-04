@@ -42,6 +42,8 @@ public:
 
     static constexpr int MaximumSampleSpacing = 32;
 
+    static const QVector<TerrainLodLevel> &defaultProfile();
+    static QString profileSummary(const QVector<TerrainLodLevel> &levels);
     static bool validateProfile(const QVector<TerrainLodLevel> &levels,
                                 QString *error = nullptr,
                                 bool allowEmpty = true);

@@ -13,7 +13,6 @@
 #include <QFile>
 #include <QDir>
 #include <QTextStream>
-#include <QStringList>
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/fileFunctions/ReadFile.h>
 #include <tsre/fileFunctions/FileBuffer.h>
@@ -451,18 +450,11 @@ void Trk::saveToStream(QTextStream &out){
     out << ")" << "\n";
 }
 
+const QVector<TerrainLodLevel> &Trk::effectiveTerrainLodLevels() const {
+    return terrainLodLevels.isEmpty()
+            ? TerrainLod::defaultProfile() : terrainLodLevels;
+}
+
 QString Trk::terrainLodSummary() const {
-    if (terrainLodLevels.isEmpty())
-        return "Disabled - native terrain resolution at all distances";
-    QStringList parts;
-    int startDistance = 0;
-    for (const TerrainLodLevel &level : terrainLodLevels) {
-        parts.append(QString("%1 m: %2-%3 m")
-                     .arg(level.sampleSpacing)
-                     .arg(startDistance)
-                     .arg(level.preferredEndDistance));
-        startDistance = level.preferredEndDistance;
-    }
-    parts.last().append(" and beyond");
-    return parts.join(", ");
+    return TerrainLod::profileSummary(terrainLodLevels);
 }

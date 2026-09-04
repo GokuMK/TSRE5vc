@@ -17,7 +17,7 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QSpinBox>
-#include <QStringList>
+#include <QStandardItemModel>
 #include <QTableWidget>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -31,11 +31,12 @@ TerrainLodProfileDialog::TerrainLodProfileDialog(QWidget *parent)
     QLabel *description = new QLabel(
                 "Choose the preferred terrain sample spacing for each distance "
                 "range. The last level continues beyond its preferred end until "
-                "normal terrain visibility culling.");
+                "normal terrain visibility culling. Change the first sample "
+                "spacing; following levels adjust automatically.");
     description->setWordWrap(true);
     layout->addWidget(description);
 
-    enabled = new QCheckBox("Enable terrain mesh LOD for this route");
+    enabled = new QCheckBox("Use a route-specific terrain mesh LOD profile");
     layout->addWidget(enabled);
 
     table = new QTableWidget(0, 2);
@@ -77,11 +78,11 @@ void TerrainLodProfileDialog::setLevels(
         const QVector<TerrainLodLevel> &newLevels) {
     table->setRowCount(0);
     enabled->setChecked(!newLevels.isEmpty());
-    const QVector<TerrainLodLevel> displayed = newLevels.isEmpty()
-            ? QVector<TerrainLodLevel>{{4, 1000}, {8, 2000}, {16, 4000}}
-            : newLevels;
+    const QVector<TerrainLodLevel> &displayed = newLevels.isEmpty()
+            ? TerrainLod::defaultProfile() : newLevels;
     for (const TerrainLodLevel &level : displayed)
         addLevelRow(level);
+    synchronizeSpacings();
     updateEnabledState();
     validateInput();
 }
@@ -102,7 +103,11 @@ void TerrainLodProfileDialog::addLevelRow(const TerrainLodLevel &level) {
     table->setCellWidget(row, 0, spacing);
     table->setCellWidget(row, 1, endDistance);
     connect(spacing, &QComboBox::currentIndexChanged, this,
-            [this]() { validateInput(); });
+            [this, spacing]() {
+        if (table->rowCount() > 0 && table->cellWidget(0, 0) == spacing)
+            synchronizeSpacings();
+        validateInput();
+    });
     connect(endDistance, &QSpinBox::valueChanged, this,
             [this]() { validateInput(); });
     table->selectRow(row);
@@ -127,47 +132,71 @@ QVector<TerrainLodLevel> TerrainLodProfileDialog::levels() const {
 
 QString TerrainLodProfileDialog::summary(
         const QVector<TerrainLodLevel> &levels) {
-    if (levels.isEmpty())
-        return "Disabled - native terrain resolution at all distances";
-    QStringList parts;
-    int startDistance = 0;
-    for (const TerrainLodLevel &level : levels) {
-        parts.append(QString("%1 m: %2-%3 m")
-                     .arg(level.sampleSpacing)
-                     .arg(startDistance)
-                     .arg(level.preferredEndDistance));
-        startDistance = level.preferredEndDistance;
-    }
-    parts.last().append(" and beyond");
-    return parts.join(", ");
+    return TerrainLod::profileSummary(levels);
 }
 
 void TerrainLodProfileDialog::addSuggestedLevel() {
     TerrainLodLevel next{1, 1000};
     if (table->rowCount() > 0) {
-        const QComboBox *spacing = qobject_cast<QComboBox*>(
-                    table->cellWidget(table->rowCount() - 1, 0));
         const QSpinBox *endDistance = qobject_cast<QSpinBox*>(
                     table->cellWidget(table->rowCount() - 1, 1));
-        if (spacing != nullptr)
-            next.sampleSpacing = std::min(32,
-                                          spacing->currentData().toInt() * 2);
         if (endDistance != nullptr)
             next.preferredEndDistance = endDistance->value() + 1000;
     }
     addLevelRow(next);
+    synchronizeSpacings();
+    validateInput();
 }
 
 void TerrainLodProfileDialog::removeSelectedLevel() {
     if (table->currentRow() >= 0)
         table->removeRow(table->currentRow());
+    synchronizeSpacings();
     validateInput();
+}
+
+void TerrainLodProfileDialog::synchronizeSpacings() {
+    const int rows = table->rowCount();
+    if (rows <= 0)
+        return;
+    QComboBox *first = qobject_cast<QComboBox*>(table->cellWidget(0, 0));
+    if (first == nullptr)
+        return;
+    const int maximumFirstIndex = std::max(0, first->count() - rows);
+    QStandardItemModel *firstModel =
+            qobject_cast<QStandardItemModel*>(first->model());
+    if (firstModel != nullptr) {
+        for (int index = 0; index < first->count(); ++index)
+            firstModel->item(index)->setEnabled(index <= maximumFirstIndex);
+    }
+    if (first->currentIndex() > maximumFirstIndex) {
+        const QSignalBlocker blocker(first);
+        first->setCurrentIndex(maximumFirstIndex);
+    }
+    const int firstIndex = first->currentIndex();
+    for (int row = 0; row < rows; ++row) {
+        QComboBox *spacing = qobject_cast<QComboBox*>(table->cellWidget(row, 0));
+        if (spacing == nullptr)
+            continue;
+        const QSignalBlocker blocker(spacing);
+        spacing->setCurrentIndex(firstIndex + row);
+        spacing->setEnabled(enabled->isChecked() && row == 0);
+        spacing->setToolTip(row == 0
+                ? "Following LOD resolutions are derived from this value."
+                : "Automatically set to twice the preceding LOD resolution.");
+    }
 }
 
 void TerrainLodProfileDialog::updateEnabledState() {
     const bool isEnabled = enabled->isChecked();
     table->setEnabled(isEnabled);
-    addButton->setEnabled(isEnabled);
+    synchronizeSpacings();
+    const QComboBox *lastSpacing = table->rowCount() > 0
+            ? qobject_cast<QComboBox*>(table->cellWidget(table->rowCount() - 1, 0))
+            : nullptr;
+    addButton->setEnabled(isEnabled && table->rowCount() < 6
+                          && (lastSpacing == nullptr
+                              || lastSpacing->currentData().toInt() < 32));
     removeButton->setEnabled(isEnabled);
 }
 
@@ -177,4 +206,5 @@ void TerrainLodProfileDialog::validateInput() {
                 levels(), &error, !enabled->isChecked());
     validation->setText(valid ? QString() : error);
     okButton->setEnabled(valid);
+    updateEnabledState();
 }

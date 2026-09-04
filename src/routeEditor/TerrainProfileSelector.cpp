@@ -32,7 +32,8 @@ QLabel *compatibilityLabel(QWidget *parent) {
 
 }
 
-TerrainProfileSelector::TerrainProfileSelector(QWidget *parent)
+TerrainProfileSelector::TerrainProfileSelector(QWidget *parent,
+                                               bool includeExtremeProfile)
     : QWidget(parent),
       profiles(new QComboBox(this)),
       patches(new QComboBox(this)),
@@ -60,6 +61,11 @@ TerrainProfileSelector::TerrainProfileSelector(QWidget *parent)
     profiles->addItem(TerrainGridLayout::heightProfileName(
                               TerrainHeightProfile::Ultra1024x2),
                       static_cast<int>(TerrainHeightProfile::Ultra1024x2));
+    if (includeExtremeProfile) {
+        profiles->addItem(TerrainGridLayout::heightProfileName(
+                                  TerrainHeightProfile::Extreme2048x1),
+                          static_cast<int>(TerrainHeightProfile::Extreme2048x1));
+    }
 
     patches->setStyleSheet("combobox-popup: 0;");
     patches->addItem("4 x 4", 4);
@@ -214,7 +220,9 @@ void TerrainProfileSelector::setCompatibility(
         QLabel *name, QLabel *status, const QString &text) {
     status->setText(text);
     QString color = "#d6a000";
-    if (text.startsWith("Supported"))
+    if (text.startsWith("Supported but not Recommended"))
+        color = "#d6a000";
+    else if (text.startsWith("Supported"))
         color = Game::StyleGreenText;
     else if (text.startsWith("Not compatible"))
         color = Game::StyleRedText;
@@ -224,6 +232,8 @@ void TerrainProfileSelector::setCompatibility(
 
 QString TerrainProfileSelector::tsreCompatibility(
         const TerrainGridLayout &layout) const {
+    if (layout.sampleCount == 2048)
+        return "Supported but not Recommended";
     const bool recommended =
             (layout.sampleCount == 256 && layout.patchesPerSide == 16)
             || (layout.sampleCount == 512 && layout.patchesPerSide == 16)

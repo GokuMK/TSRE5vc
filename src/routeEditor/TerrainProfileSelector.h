@@ -21,7 +21,8 @@ class TerrainProfileSelector : public QWidget {
 public:
     static constexpr int SelectionDialogWidth = 720;
 
-    explicit TerrainProfileSelector(QWidget *parent = nullptr);
+    explicit TerrainProfileSelector(QWidget *parent = nullptr,
+                                    bool includeExtremeProfile = false);
 
     TerrainHeightProfile selectedProfile() const;
     int selectedPatchCount() const;

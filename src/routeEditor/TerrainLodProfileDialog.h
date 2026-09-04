@@ -38,6 +38,7 @@ private:
     void addLevelRow(const TerrainLodLevel &level);
     void addSuggestedLevel();
     void removeSelectedLevel();
+    void synchronizeSpacings();
     void updateEnabledState();
     void validateInput();
 };

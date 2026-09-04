@@ -660,7 +660,8 @@ QVector<TerrainPatchLodState> Terrain::buildPatchLodState(
                                           visibility.cameraLocalZ, gaps);
     bool profileViolation = false;
     QVector<TerrainPatchLodState> result = TerrainLod::buildTileState(
-                gridLayout, Game::currentRoute->trk->terrainLodLevels,
+                gridLayout,
+                Game::currentRoute->trk->effectiveTerrainLodLevels(),
                 visibility.cameraLocalX, visibility.cameraLocalZ, gaps,
                 &profileViolation);
     if (profileViolation && !lodProfileWarningShown) {

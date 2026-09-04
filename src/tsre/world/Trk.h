@@ -71,6 +71,7 @@ public:
     void load(QString path);
     void save();
     void saveToStream(QTextStream &out);
+    const QVector<TerrainLodLevel> &effectiveTerrainLodLevels() const;
     QString terrainLodSummary() const;
     virtual ~Trk();
     
