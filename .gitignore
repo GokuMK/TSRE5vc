@@ -105,6 +105,7 @@ CMakeLists.txt.user*
 !/appdata/0.697/shaders/StandardFogStoredCoords.fs
 !/appdata/0.697/shaders/Shadows.vs
 !/appdata/0.697/shaders/Shadows.fs
+!/appdata/0.697/shaders/Selection.fs
 !/appdata/0.697/shaders330/
 /appdata/0.697/shaders330/*
 !/appdata/0.697/shaders330/StandardBloom.vs
@@ -115,6 +116,7 @@ CMakeLists.txt.user*
 !/appdata/0.697/shaders330/StandardFogStoredCoords.fs
 !/appdata/0.697/shaders330/Shadows.vs
 !/appdata/0.697/shaders330/Shadows.fs
+!/appdata/0.697/shaders330/Selection.fs
 /assets/
 /plugins/
 /profiles/

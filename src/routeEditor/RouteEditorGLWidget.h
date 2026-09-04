@@ -41,6 +41,7 @@ class QOpenGLFunctions_3_3_Core;
 class QAction;
 class GuiGlCompass;
 class DynTrackObj;
+class SelectionRenderer;
 
 QT_FORWARD_DECLARE_CLASS(QOpenGLShaderProgram)
 
@@ -204,6 +205,7 @@ private:
     GLUU* gluu;
     QOpenGLFunctions_3_3_Core* funcs = 0;
     unsigned int fbo[3];
+    SelectionRenderer *selectionRenderer = NULL;
     bool m_transparent;
     Camera* camera = NULL;
     CameraFree* cameraFree = NULL;

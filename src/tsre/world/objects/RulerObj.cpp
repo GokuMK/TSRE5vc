@@ -310,7 +310,7 @@ void RulerObj::enableShape(){
 
 }
 
-void RulerObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos, float* target, float fov, int selectionColor, int renderMode) {
+void RulerObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos, float* target, float fov, quint32 selectionId, int renderMode) {
     if (!loaded) return;
     if (jestPQ < 2) return;
     
@@ -319,10 +319,10 @@ void RulerObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos,
             pointer3d = new TrackItemObj(1);
             pointer3d->setMaterial(0.9,0.9,0.7);
         }
-        pointer3d->render(selectionColor);
+        pointer3d->render(selectionId);
     }
 
-    int useSC = (float)selectionColor/(float)(selectionColor+0.000001);
+    const quint32 useSC = selectionId != 0 ? 1u : 0u;
 
     if(shapeEnabled){
         ensureProceduralShape();
@@ -331,7 +331,7 @@ void RulerObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos,
             Mat4::multiply(gluu->mvMatrix, gluu->mvMatrix, points[j].matrix);
             gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
             for(int i = 0; i < points[j].procShape.size(); i++){
-                points[j].procShape[i]->render(selectionColor | (i&0xF)*useSC);
+                points[j].procShape[i]->render(selectionId | (i&0xF)*useSC);
             }
             gluu->mvPopMatrix();
         }
@@ -391,7 +391,7 @@ void RulerObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos,
     }
     
     gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-    line3d->render(selectionColor);
+    line3d->render(selectionId);
     
     for(int i = 0; i < points.size(); i++){
         gluu->mvPushMatrix();
@@ -399,16 +399,16 @@ void RulerObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos,
         gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
         if(i == 0 || i == points.size() - 1 || DrawPoints){
             if(this->selected && this->selectionValue == i) 
-                point3dSelected->render(selectionColor | (i&0xF)*useSC);
+                point3dSelected->render(selectionId | (i&0xF)*useSC);
             else
-                point3d->render(selectionColor | (i&0xF)*useSC);
-        //    pointer3d->render(selectionColor + (i+1)*131072*8*useSC);
+                point3d->render(selectionId | (i&0xF)*useSC);
+        //    pointer3d->render(selectionId + (i+1)*131072*8*useSC);
         }
         gluu->mvPopMatrix();
     }
 };
 
-void RulerObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor) {
+void RulerObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId) {
     if (!loaded)
         return;
     if (jestPQ < 2)
@@ -421,10 +421,10 @@ void RulerObj::pushRenderItems(float lod, float posx, float posz, float* playerW
             pointer3d = new TrackItemObj(1);
             pointer3d->setMaterial(0.9,0.9,0.7);
         }
-        pointer3d->pushRenderItem(selectionColor);
+        pointer3d->pushRenderItem(selectionId);
     }
 
-    int useSC = (float)selectionColor/(float)(selectionColor+0.000001);
+    const quint32 useSC = selectionId != 0 ? 1u : 0u;
 
     if(shapeEnabled){
         ensureProceduralShape();
@@ -432,7 +432,7 @@ void RulerObj::pushRenderItems(float lod, float posx, float posz, float* playerW
             Game::currentRenderer->mvPushMatrix();
             Mat4::multiply(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, points[j].matrix);
             for(int i = 0; i < points[j].procShape.size(); i++){
-                points[j].procShape[i]->pushRenderItem(selectionColor | (i&0xF)*useSC);
+                points[j].procShape[i]->pushRenderItem(selectionId | (i&0xF)*useSC);
             }
             Game::currentRenderer->mvPopMatrix();
         }
@@ -490,16 +490,16 @@ void RulerObj::pushRenderItems(float lod, float posx, float posz, float* playerW
         refreshLength();
     }
 
-    line3d->pushRenderItem(selectionColor);
+    line3d->pushRenderItem(selectionId);
 
     for(int i = 0; i < points.size(); i++){
         Game::currentRenderer->mvPushMatrix();
         Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, points[i].position[0], points[i].position[1], points[i].position[2]);
         if(i == 0 || i == points.size() - 1 || DrawPoints){
             if(this->selected && this->selectionValue == i)
-                point3dSelected->pushRenderItem(selectionColor | (i&0xF)*useSC);
+                point3dSelected->pushRenderItem(selectionId | (i&0xF)*useSC);
             else
-                point3d->pushRenderItem(selectionColor | (i&0xF)*useSC);
+                point3d->pushRenderItem(selectionId | (i&0xF)*useSC);
         }
         Game::currentRenderer->mvPopMatrix();
     }

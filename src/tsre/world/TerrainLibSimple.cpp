@@ -1022,7 +1022,7 @@ void TerrainLibSimple::render(GLUU *gluu, float * playerT, float* playerW, float
     gluu->enableNormals();
 
     Terrain *tTile;
-    int selectionColor = 0;
+    quint32 selectionId = 0;
     for (int i = mintile; i <= maxtile; i++) {
         for (int j = maxtile; j >= mintile; j--) {
             tTile = terrain[(((int)playerT[0] + i)*10000 + (int)playerT[1] + j)];
@@ -1043,14 +1043,14 @@ void TerrainLibSimple::render(GLUU *gluu, float * playerT, float* playerW, float
                 Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 2048 * i, 0, 2048 * j);
                 gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
                 if (renderMode == gluu->RENDER_SELECTION) {
-                    selectionColor = 10 << 20;
-                    selectionColor |= ((i+1) << 10);
-                    selectionColor |= ((j+1) << 8);
+                    selectionId = 10u << 20;
+                    selectionId |= static_cast<quint32>(i + 1) << 10;
+                    selectionId |= static_cast<quint32>(j + 1) << 8;
                     tTile->updateSelectionWindow(
                             static_cast<int>(playerT[0]), static_cast<int>(playerT[1]),
                             playerW[0], playerW[2]);
                 }
-                tTile->render(lodx, lodz, playerT[0]+i, playerT[1]+j, playerW, target, fov, selectionColor);
+                tTile->render(lodx, lodz, playerT[0]+i, playerT[1]+j, playerW, target, fov, selectionId);
                 gluu->mvPopMatrix();
             }
         }
@@ -1096,7 +1096,7 @@ void TerrainLibSimple::renderWater(GLUU *gluu, float* playerT, float* playerW, f
     gluu->enableNormals();
 
     Terrain *tTile;
-    int selectionColor = 0;
+    quint32 selectionId = 0;
     for (int i = mintile; i <= maxtile; i++) {
         for (int j = maxtile; j >= mintile; j--) {
             tTile = terrain[(((int)playerT[0] + i)*10000 + (int)playerT[1] + j)];
@@ -1112,14 +1112,14 @@ void TerrainLibSimple::renderWater(GLUU *gluu, float* playerT, float* playerW, f
                 Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 2048 * i, Game::currentRoute->env->water[layer].height, 2048 * j);
                 gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
                 if (renderMode == gluu->RENDER_SELECTION) {
-                    selectionColor = 10 << 20;
-                    selectionColor |= ((i+1) << 10);
-                    selectionColor |= ((j+1) << 8);
+                    selectionId = 10u << 20;
+                    selectionId |= static_cast<quint32>(i + 1) << 10;
+                    selectionId |= static_cast<quint32>(j + 1) << 8;
                     tTile->updateSelectionWindow(
                             static_cast<int>(playerT[0]), static_cast<int>(playerT[1]),
                             playerW[0], playerW[2]);
                 }
-                tTile->renderWater(lodx, lodz, playerT[0]+i, playerT[1]+j, playerW, target, fov, layer, selectionColor);
+                tTile->renderWater(lodx, lodz, playerT[0]+i, playerT[1]+j, playerW, target, fov, layer, selectionId);
                 gluu->mvPopMatrix();
             }
         }

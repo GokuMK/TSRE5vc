@@ -88,7 +88,6 @@ public:
     float size;
     int jestPQ = 0;
     bool modified = false;
-    Vector3f selectionColor;
     OglObj box;
     OglObj* snapableEndPoint = NULL;
     bool snapable = false;
@@ -172,8 +171,8 @@ public:
     virtual void setModified(bool val = true);
     virtual void randomTransform(Ref::RandomTransformation * transformation);
     virtual int updateTrackSectionInfo(QHash<unsigned int, unsigned int> shapes, QHash<unsigned int, unsigned int> sections);
-    virtual void pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor);
-    virtual void render(GLUU* gluu, float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor, int renderMode);
+    virtual void pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
+    virtual void render(GLUU* gluu, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId, int renderMode);
 protected:
     virtual void loadSnapablePoints();
     virtual bool getSimpleBorder(float* border);

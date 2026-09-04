@@ -113,7 +113,7 @@ void SoundSourceObj::set(QString sh, FileBuffer* data) {
     return;
 }
 
-void SoundSourceObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos, float* target, float fov, int selectionColor, int renderMode) {
+void SoundSourceObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos, float* target, float fov, quint32 selectionId, int renderMode) {
     if (!loaded) return;
     if(!Game::viewInteractives || renderMode == gluu->RENDER_SHADOWMAP) 
         return;
@@ -121,9 +121,8 @@ void SoundSourceObj::render(GLUU* gluu, float lod, float posx, float posz, float
     Mat4::multiply(gluu->mvMatrix, gluu->mvMatrix, matrix);
     gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
     
-    if(selectionColor != 0){
-        gluu->disableTextures(selectionColor);
-    } else {
+    gluu->setSelectionId(selectionId);
+    if(selectionId == 0){
         gluu->enableTextures();
     }
     
@@ -135,12 +134,12 @@ void SoundSourceObj::render(GLUU* gluu, float lod, float posx, float posz, float
     }
     
     if(this->selected) 
-        pointer3dSelected->render(selectionColor);
+        pointer3dSelected->render(selectionId);
     else
-        pointer3d->render(selectionColor);
+        pointer3d->render(selectionId);
 };
 
-void SoundSourceObj::pushRenderItems(float lod, float posx, float posz, float* pos, float* target, float fov, int selectionColor){
+void SoundSourceObj::pushRenderItems(float lod, float posx, float posz, float* pos, float* target, float fov, quint32 selectionId){
     if (!loaded) return;
     if(!Game::viewInteractives)
         return;
@@ -157,9 +156,9 @@ void SoundSourceObj::pushRenderItems(float lod, float posx, float posz, float* p
     }
 
     if(this->selected)
-        pointer3dSelected->pushRenderItem(selectionColor);
+        pointer3dSelected->pushRenderItem(selectionId);
     else
-        pointer3d->pushRenderItem(selectionColor);
+        pointer3d->pushRenderItem(selectionId);
 }
 
 int SoundSourceObj::getDefaultDetailLevel(){

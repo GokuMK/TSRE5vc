@@ -215,7 +215,7 @@ void HazardObj::set(QString sh, FileBuffer* data) {
     return;
 }
 
-void HazardObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos, float* target, float fov, int selectionColor, int renderMode) {
+void HazardObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos, float* target, float fov, quint32 selectionId, int renderMode) {
     if (!loaded) 
         return;
     if (shape < 0) return;
@@ -250,13 +250,12 @@ void HazardObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos
     Mat4::multiply(gluu->mvMatrix, gluu->mvMatrix, matrix);
     gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
     
-    if(selectionColor != 0){
-        gluu->disableTextures(selectionColor);
-    } else {
+    gluu->setSelectionId(selectionId);
+    if(selectionId == 0){
         gluu->enableTextures();
     }
         
-    Game::currentShapeLib->shape[shape]->render(selectionColor, 0);
+    Game::currentShapeLib->shape[shape]->render(selectionId, 0);
     
     if(selected){
         drawBox();
@@ -264,24 +263,24 @@ void HazardObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos
     gluu->mvPopMatrix();
     
     if(Game::viewInteractives) 
-        this->renderTritems(gluu, selectionColor);
+        this->renderTritems(gluu, selectionId);
 };
 
-void HazardObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor){
+void HazardObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId){
     if (!loaded)
         return;
     if (Game::currentRenderer == NULL)
         return;
 
     Game::currentRenderer->mvPushMatrix();
-    WorldObj::pushRenderItems(lod, posx, posz, playerW, target, fov, selectionColor);
+    WorldObj::pushRenderItems(lod, posx, posz, playerW, target, fov, selectionId);
     Game::currentRenderer->mvPopMatrix();
 
     if (Game::viewInteractives)
-        this->renderTritems(NULL, selectionColor, true);
+        this->renderTritems(NULL, selectionId, true);
 }
 
-void HazardObj::renderTritems(GLUU* gluu, int selectionColor, bool pushToQueue){
+void HazardObj::renderTritems(GLUU* gluu, quint32 selectionId, bool pushToQueue){
     
     ///////////////////////////////
     TDB* tdb = Game::trackDB;
@@ -307,14 +306,13 @@ void HazardObj::renderTritems(GLUU* gluu, int selectionColor, bool pushToQueue){
     }
 
     //if(pos == NULL) return;
-    int useSC;
+    const quint32 useSC = selectionId != 0 ? 1u : 0u;
 
     if (pushToQueue) {
         Game::currentRenderer->mvPushMatrix();
         Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPosition[0] + 0 * (drawPosition[4] - this->x), drawPosition[1] + 1, -drawPosition[2] + 0 * (-drawPosition[5] - this->y));
         Mat4::rotateY(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPosition[3]);
-        useSC = (float)selectionColor/(float)(selectionColor+0.000001);
-        pointer3d->pushRenderItem(selectionColor | 1*useSC);
+        pointer3d->pushRenderItem(selectionId | 1*useSC);
         Game::currentRenderer->mvPopMatrix();
     } else {
         gluu->mvPushMatrix();
@@ -323,8 +321,7 @@ void HazardObj::renderTritems(GLUU* gluu, int selectionColor, bool pushToQueue){
         //Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, this->trItemRData[0] + 2048*(this->trItemRData[3] - playerT[0] ), this->trItemRData[1]+2, -this->trItemRData[2] + 2048*(-this->trItemRData[4] - playerT[1]));
         //Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, this->trItemRData[0] + 0, this->trItemRData[1]+0, -this->trItemRData[2] + 0);
         gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-        useSC = (float)selectionColor/(float)(selectionColor+0.000001);
-        pointer3d->render(selectionColor | 1*useSC);
+        pointer3d->render(selectionId | 1*useSC);
         gluu->mvPopMatrix();
     }
 

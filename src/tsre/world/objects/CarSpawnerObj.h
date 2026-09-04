@@ -48,8 +48,8 @@ public:
         SimpleCar(QString name);
         ~SimpleCar();
         void updateSim(float deltaTime);
-        void pushRenderItems(int selectionColor);
-        void render(GLUU *gluu, int selectionColor);
+        void pushRenderItems(quint32 selectionId);
+        void render(GLUU *gluu, quint32 selectionId);
     };
     
     static void LoadCarSpawnerList();
@@ -83,8 +83,8 @@ public:
     void expand();
     int getDefaultDetailLevel();
     void updateSim(float deltaTime);
-    void pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor);
-    void render(GLUU* gluu, float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor, int renderMode);
+    void pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
+    void render(GLUU* gluu, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId, int renderMode);
 private:
     int trItemId[4];
     int trItemIdCount = 0;
@@ -103,7 +103,7 @@ private:
     float carsNewTime = 0;
     float carFreq = 1;
     QVector<SimpleCar> cars;
-    void renderTritems(GLUU* gluu, int selectionColor, bool pushToQueue = false);
+    void renderTritems(GLUU* gluu, quint32 selectionId, bool pushToQueue = false);
     void makelineShape();
     static void parseCarList(FileBuffer* data);
 };

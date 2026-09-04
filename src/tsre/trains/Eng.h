@@ -88,8 +88,8 @@ public:
     bool searchFilter(QString q);
     void initOnTrack(float *tpos, int direction, QMap<int, int>* junctionDirections);
     void getCameraPosition(float *out = NULL);
-    void renderOnTrack(GLUU* gluu, float* playerT, int selectionColor);
-    void pushRenderItemOnTrack(float* playerT, int selectionColor);
+    void renderOnTrack(GLUU* gluu, float* playerT, quint32 selectionId);
+    void pushRenderItemOnTrack(float* playerT, quint32 selectionId);
     void move(float m);
     float getCurrentElevation();
     float getTotalDistanceDownPath();
@@ -97,8 +97,8 @@ public:
     bool isBroken();
     void updateSim(float deltaTime);
     float getCurrentSpeed();
-    void render(int selectionColor = 0);
-    void render(int aktwx, int aktwz, int selectionColor);
+    void render(quint32 selectionId = 0);
+    void render(int aktwx, int aktwz, quint32 selectionId);
     float *getCurrentPositionOnTrack();
     void fillContentHierarchyInfo(QVector<ContentHierarchyInfo*>& list, int parent);
 private:

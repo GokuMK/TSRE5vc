@@ -132,7 +132,7 @@ void OglObj::setDistanceRange(float min, float max){
     maxDistance = max;
 }
 
-void OglObj::pushRenderItem(int selectionColor, float lod){
+void OglObj::pushRenderItem(quint32 selectionId, float lod){
     if(!loaded)
         return;
     if(lod > maxDistance || lod < minDistance)
@@ -149,9 +149,8 @@ void OglObj::pushRenderItem(int selectionColor, float lod){
     RenderItem *r = new RenderItem();
     r->setVertexAttributes(vAttribures);
 
-    if(selectionColor != 0){
-        r->disableTextures(selectionColor);
-    } else if(materialType == TEXTURE){
+    r->setSelectionId(selectionId);
+    if(selectionId == 0 && materialType == TEXTURE){
         if (texId == -1) {
             texId = TexLib::addTex(*res);
         }
@@ -167,7 +166,7 @@ void OglObj::pushRenderItem(int selectionColor, float lod){
             r->disableTextures(1.0f, 0.0f, 1.0f, 1.0f);
         }
 
-    } else if(materialType == COLOR){
+    } else if(selectionId == 0 && materialType == COLOR){
         r->disableTextures(color);
     }  
 
@@ -187,7 +186,7 @@ void OglObj::pushRenderItem(int selectionColor, float lod){
     Game::currentRenderer->pushItem(r, Game::currentRenderer->mvMatrix);
 }
 
-void OglObj::render(int selectionColor, float lod) {
+void OglObj::render(quint32 selectionId, float lod) {
     if(!loaded)
         return;
     if(lod > maxDistance || lod < minDistance)
@@ -207,9 +206,8 @@ void OglObj::render(int selectionColor, float lod) {
         gluu->enableNormals();
     }  
     
-    if(selectionColor != 0){
-        gluu->disableTextures(selectionColor);
-    } else if(materialType == TEXTURE){
+    gluu->setSelectionId(selectionId);
+    if(selectionId == 0 && materialType == TEXTURE){
         gluu->enableTextures();
         if (texId == -2) {
             return;
@@ -226,7 +224,7 @@ void OglObj::render(int selectionColor, float lod) {
             } else {
             }
         }
-    } else if(materialType == COLOR){
+    } else if(selectionId == 0 && materialType == COLOR){
         gluu->disableTextures(color);
     } else if(materialType == NONE){
         return;

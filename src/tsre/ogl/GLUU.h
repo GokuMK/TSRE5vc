@@ -76,8 +76,8 @@ public:
     float degToRad(float degrees);
     void disableTextures(Vector4f* color);
     void disableTextures(Vector3f* color);
-    void disableTextures(int color);
     void disableTextures(float x, float y, float z, float a);
+    void setSelectionId(quint32 selectionId);
     void enableTextures();
     void disableNormals();
     void enableNormals();

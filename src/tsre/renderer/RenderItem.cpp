@@ -40,13 +40,6 @@ void RenderItem::setVertexAttributes(VertexAttr attr){
     }  
 }
 
-void RenderItem::disableTextures(int color){
-    int wColor = (int)(color/65536);
-    int sColor = (int)(color - wColor*65536)/256;
-    int bColor = (int)(color - wColor*65536 - sColor*256);
-    disableTextures((float)wColor/255.0f, (float)sColor/255.0f, (float)bColor/255.0f, 1);
-}
-
 void RenderItem::disableTextures(Vector4f* color){
     texturesEnabled = 0;
     colorX = color->x;
@@ -69,6 +62,10 @@ void RenderItem::disableTextures(float x, float y, float z, float a){
     colorY = y;
     colorZ = z;
     colorA = a;
+}
+
+void RenderItem::setSelectionId(quint32 id){
+    selectionId = id;
 }
 
 void RenderItem::enableTextures(unsigned int addr){

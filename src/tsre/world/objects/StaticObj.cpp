@@ -142,7 +142,7 @@ void StaticObj::updateSim(float deltaTime){
         shapePointer->updateSim(deltaTime, shapeState);
 }
 
-void StaticObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor){
+void StaticObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId){
     if (!loaded) return;
     if (shape < 0) return;
     if (jestPQ < 2) return;
@@ -191,17 +191,17 @@ void StaticObj::pushRenderItems(float lod, float posx, float posz, float* player
             pointer3d = new TrackItemObj(1);
             pointer3d->setMaterial(0.9,0.9,0.7);
         }
-        //pointer3d->pushRenderItem(selectionColor);
+        //pointer3d->pushRenderItem(selectionId);
     }
     
-    /*if(selectionColor != 0){
-        gluu->disableTextures(selectionColor);
+    /*if(selectionId != 0){
+        gluu->setSelectionId(selectionId);
     } else {
         gluu->enableTextures();
     }*/
     
     if(shapePointer != NULL){
-        shapePointer->pushRenderItem(selectionColor, shapeState);
+        shapePointer->pushRenderItem(selectionId, shapeState);
     }
 
     if(selected){
@@ -209,7 +209,7 @@ void StaticObj::pushRenderItems(float lod, float posx, float posz, float* player
     }
 }
 
-void StaticObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos, float* target, float fov, int selectionColor, int renderMode) {
+void StaticObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos, float* target, float fov, quint32 selectionId, int renderMode) {
     if (!loaded) return;
     if (shape < 0) return;
     if (jestPQ < 2) return;
@@ -259,17 +259,16 @@ void StaticObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos
             pointer3d = new TrackItemObj(1);
             pointer3d->setMaterial(0.9,0.9,0.7);
         }
-        pointer3d->render(selectionColor);
+        pointer3d->render(selectionId);
     }
     
-    if(selectionColor != 0){
-        gluu->disableTextures(selectionColor);
-    } else {
+    gluu->setSelectionId(selectionId);
+    if(selectionId == 0){
         gluu->enableTextures();
     }
     
     if(shapePointer != NULL)
-        shapePointer->render(selectionColor, shapeState);
+        shapePointer->render(selectionId, shapeState);
     //Game::currentShapeLib->shape[shape]->render(isAnimated());
     
     if(selected){

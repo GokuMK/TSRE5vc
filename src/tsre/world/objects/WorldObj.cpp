@@ -322,9 +322,6 @@ WorldObj::WorldObj(const WorldObj& o) {
     size = o.size;
     jestPQ = o.jestPQ;
     modified = o.modified;
-    selectionColor.x = o.selectionColor.x;
-    selectionColor.y = o.selectionColor.y;
-    selectionColor.z = o.selectionColor.z;
     snapable = o.snapable;
     Vec2::copy(tRotation, (float*)o.tRotation);
     endp = o.endp;
@@ -592,7 +589,7 @@ bool WorldObj::isSimilar(WorldObj* obj){
     return false;
 }
 
-void WorldObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor){
+void WorldObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId){
     if (!loaded) return;
     if (jestPQ < 2) return;
     if (Game::currentRenderer == NULL) return;
@@ -628,10 +625,10 @@ void WorldObj::pushRenderItems(float lod, float posx, float posz, float* playerW
     }
 
     Mat4::multiply(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, matrix);
-    shapeToRender->pushRenderItem(selectionColor, shapeState);
+    shapeToRender->pushRenderItem(selectionId, shapeState);
 }
 
-void WorldObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos, float* target, float fov, int selectionColor, int renderMode) {
+void WorldObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos, float* target, float fov, quint32 selectionId, int renderMode) {
 
 }
 

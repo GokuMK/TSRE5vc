@@ -84,8 +84,8 @@ private:
         int init = 0;
         int failedSignal = -1;
         bool getWorldPosition(float *posTW);
-        void render(GLUU* gluu, float * playerT, int selectionColor, bool selected = false);
-        void pushRenderItems(float * playerT, int selectionColor, bool selected = false);
+        void render(GLUU* gluu, float * playerT, quint32 selectionId, bool selected = false);
+        void pushRenderItems(float * playerT, quint32 selectionId, bool selected = false);
     };
     
     struct SpeedZone {
@@ -101,12 +101,12 @@ private:
         int init = 0;
         float trid[6];
         bool getWorldPosition(float *posTW);
-        void render(GLUU* gluu, float * playerT, int selectionColor, bool selected = false);
-        void pushRenderItems(float * playerT, int selectionColor, bool selected = false);
+        void render(GLUU* gluu, float * playerT, quint32 selectionId, bool selected = false);
+        void pushRenderItems(float * playerT, quint32 selectionId, bool selected = false);
         void makelineShape();
     };
     
-    //void renderZone(GLUU* gluu, float * playerT, int selectionColor);
+    //void renderZone(GLUU* gluu, float * playerT, quint32 selectionId);
     SpeedZone* speedZoneData = NULL;
     FailedSignalData* failedSignalData = NULL;
 };

@@ -845,7 +845,7 @@ void TRitem::refresh(){
     drawPosition = NULL;
 }
 
-void TRitem::render(TDB *tdb, GLUU *gluu, float* playerT, float playerRot, int selectionColor) {
+void TRitem::render(TDB *tdb, GLUU *gluu, float* playerT, float playerRot, quint32 selectionId) {
     if (this->type == "emptyitem") {
         //qDebug() << "empty";
         return;
@@ -894,13 +894,13 @@ void TRitem::render(TDB *tdb, GLUU *gluu, float* playerT, float playerRot, int s
             pointer3d->setMaterial(0.0, 0.0, 0.0);
         else
             pointer3d->setMaterial(0.2, 0.2, 0.2);
-    if(selectionColor != 0)
-        selectionColor |= trItemId;
-    pointer3d->render(selectionColor);
+    if(selectionId != 0)
+        selectionId |= static_cast<quint32>(trItemId);
+    pointer3d->render(selectionId);
     gluu->mvPopMatrix();
 }
 
-void TRitem::pushRenderItem(TDB *tdb, float* playerT, float playerRot, int selectionColor) {
+void TRitem::pushRenderItem(TDB *tdb, float* playerT, float playerRot, quint32 selectionId) {
     if (this->type == "emptyitem") {
         return;
     }
@@ -940,9 +940,9 @@ void TRitem::pushRenderItem(TDB *tdb, float* playerT, float playerRot, int selec
             pointer3d->setMaterial(0.0, 0.0, 0.0);
         else
             pointer3d->setMaterial(0.2, 0.2, 0.2);
-    if (selectionColor != 0)
-        selectionColor |= trItemId;
-    pointer3d->pushRenderItem(selectionColor);
+    if (selectionId != 0)
+        selectionId |= static_cast<quint32>(trItemId);
+    pointer3d->pushRenderItem(selectionId);
     Game::currentRenderer->mvPopMatrix();
 }
 

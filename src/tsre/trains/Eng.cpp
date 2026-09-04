@@ -706,20 +706,19 @@ float Eng::getCurrentSpeed(){
     return currentSpeed;
 }
 
-void Eng::render(int selectionColor) {
-    render(0, 0, selectionColor);
+void Eng::render(quint32 selectionId) {
+    render(0, 0, selectionId);
 }
 
-void Eng::render(int aktwx, int aktwz, int selectionColor) {
+void Eng::render(int aktwx, int aktwz, quint32 selectionId) {
     //gl.glTranslatef(0, 0.2f, 0);
     //qDebug() << loaded;
     if (loaded != 1) return;
 
     GLUU *gluu = GLUU::get();
     
-     if(selectionColor != 0){
-        gluu->disableTextures(selectionColor);
-    } else {
+    gluu->setSelectionId(selectionId);
+    if(selectionId == 0){
         gluu->enableTextures();
     }
     
@@ -762,14 +761,14 @@ void Eng::render(int aktwx, int aktwz, int selectionColor) {
      gl.glColor3f(1.0f, 1.0f, 1.0f);  */
      //gluu.mvPushMatrix();
     if(shape.id[shapeLibId] >= 0) 
-        Game::currentShapeLib->shape[shape.id[shapeLibId]]->render(selectionColor, 0);
+        Game::currentShapeLib->shape[shape.id[shapeLibId]]->render(selectionId, 0);
 
     for(int i = 0; i < freightanimShape.size(); i++){
         if(freightanimShape[i].id[shapeLibId] >= 0) {
             gluu->mvPushMatrix();
             Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, -freightanimShape[i].x, freightanimShape[i].y, -freightanimShape[i].z);
             gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-            Game::currentShapeLib->shape[freightanimShape[i].id[shapeLibId]]->render(selectionColor, 0);
+            Game::currentShapeLib->shape[freightanimShape[i].id[shapeLibId]]->render(selectionId, 0);
             gluu->mvPopMatrix();
         }
     }
@@ -860,7 +859,7 @@ void Eng::getCameraPosition(float* out){
     //Mat4::rotateY(gluu->mvMatrix, gluu->mvMatrix, flip*M_PI /*+ M_PI*/);
 }
 
-void Eng::renderOnTrack(GLUU* gluu, float* playerT, int selectionColor) {
+void Eng::renderOnTrack(GLUU* gluu, float* playerT, quint32 selectionId) {
     if (loaded != 1) return;
 
     long long int shapeLibId = reinterpret_cast<long long int>(Game::currentShapeLib);
@@ -923,9 +922,8 @@ void Eng::renderOnTrack(GLUU* gluu, float* playerT, int selectionColor) {
     float rotY = ((float)someval+1.0)*(M_PI/2.0)+(float)(atan((drawPosition1[0]-drawPosition2[0])/(drawPosition1[2]-drawPosition2[2]))); 
     float rotX = -(float)(asin((drawPosition1[1]-drawPosition2[1])/(dlugosc))); 
 
-     if(selectionColor != 0){
-        gluu->disableTextures(selectionColor);
-    } else {
+    gluu->setSelectionId(selectionId);
+    if(selectionId == 0){
         gluu->enableTextures();
     }
         
@@ -939,7 +937,7 @@ void Eng::renderOnTrack(GLUU* gluu, float* playerT, int selectionColor) {
     gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
 
     if(shape.id[shapeLibId] >= 0) 
-        Game::currentShapeLib->shape[shape.id[shapeLibId]]->render(selectionColor, 0);
+        Game::currentShapeLib->shape[shape.id[shapeLibId]]->render(selectionId, 0);
     
     
     for(int i = 0; i < freightanimShape.size(); i++){
@@ -947,7 +945,7 @@ void Eng::renderOnTrack(GLUU* gluu, float* playerT, int selectionColor) {
             gluu->mvPushMatrix();
             Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, freightanimShape[i].x, freightanimShape[i].y, -freightanimShape[i].z);
             gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-            Game::currentShapeLib->shape[freightanimShape[i].id[shapeLibId]]->render(selectionColor, 0);
+            Game::currentShapeLib->shape[freightanimShape[i].id[shapeLibId]]->render(selectionId, 0);
             gluu->mvPopMatrix();
         }
     }
@@ -955,7 +953,7 @@ void Eng::renderOnTrack(GLUU* gluu, float* playerT, int selectionColor) {
     
 }
 
-void Eng::pushRenderItemOnTrack(float* playerT, int selectionColor) {
+void Eng::pushRenderItemOnTrack(float* playerT, quint32 selectionId) {
     if (loaded != 1) return;
 
     long long int shapeLibId = reinterpret_cast<long long int>(Game::currentShapeLib);
@@ -1002,13 +1000,13 @@ void Eng::pushRenderItemOnTrack(float* playerT, int selectionColor) {
     Mat4::rotateY(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, flip*M_PI);
 
     if (shape.id[shapeLibId] >= 0)
-        Game::currentShapeLib->shape[shape.id[shapeLibId]]->pushRenderItem(selectionColor, 0);
+        Game::currentShapeLib->shape[shape.id[shapeLibId]]->pushRenderItem(selectionId, 0);
 
     for (int i = 0; i < freightanimShape.size(); i++) {
         if (freightanimShape[i].id[shapeLibId] >= 0) {
             Game::currentRenderer->mvPushMatrix();
             Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, freightanimShape[i].x, freightanimShape[i].y, -freightanimShape[i].z);
-            Game::currentShapeLib->shape[freightanimShape[i].id[shapeLibId]]->pushRenderItem(selectionColor, 0);
+            Game::currentShapeLib->shape[freightanimShape[i].id[shapeLibId]]->pushRenderItem(selectionId, 0);
             Game::currentRenderer->mvPopMatrix();
         }
     }

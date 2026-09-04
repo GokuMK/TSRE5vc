@@ -215,9 +215,9 @@ public:
     void disablePart(unsigned int uid, unsigned int stateId = 0) override;
     void updateSim(float deltaTime, unsigned int stateId = 0) override;
     void render() override;
-    void render(int selectionColor, unsigned int stateId) override;
+    void render(quint32 selectionId, unsigned int stateId) override;
     void pushRenderItem() override;
-    void pushRenderItem(int selectionColor, unsigned int stateId) override;
+    void pushRenderItem(quint32 selectionId, unsigned int stateId) override;
     void invalidateRenderState(bool invalidateMatrixCache = true) override;
     void getSize();
     bool getBoxPoints(QVector<float> &points) override;

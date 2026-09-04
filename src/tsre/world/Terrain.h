@@ -154,18 +154,18 @@ public:
     void setPatchFlags(int x, int z, float posx, float posz, int val);
     bool select(int value);
     bool select(int value, bool oneMore);
-    bool selectFromSelectionId(int selectionId, bool oneMore = false);
+    bool selectFromSelectionId(quint32 selectionId, bool oneMore = false);
     bool unselect();
     void updateSelectionWindow(int cameraTileX, int cameraTileZ,
                                float cameraLocalX, float cameraLocalZ);
     int getSelectionId(int patchId) const;
-    int getPatchIdFromSelectionId(int selectionId) const;
+    int getPatchIdFromSelectionId(quint32 selectionId) const;
     void resetPatchTexCoords(int uu = -1);
     void pushContextMenuActions(QMenu *menu);
-    void pushRenderItem(float lodx, float lodz, int tileX, int tileY, float* playerW, float* target, float fov, int selectionColor);
-    void pushRenderItemWater(float lodx, float lodz, float tileX, float tileY, float* playerW, float* target, float fov, int layer, int selectionColor = 0);
-    void render(float lodx, float lodz, int tileX, int tileY, float* playerW, float* target, float fov, int selectionColor);
-    void renderWater(float lodx, float lodz, float tileX, float tileY, float* playerW, float* target, float fov, int layer, int selectionColor = 0);
+    void pushRenderItem(float lodx, float lodz, int tileX, int tileY, float* playerW, float* target, float fov, quint32 selectionId);
+    void pushRenderItemWater(float lodx, float lodz, float tileX, float tileY, float* playerW, float* target, float fov, int layer, quint32 selectionId = 0);
+    void render(float lodx, float lodz, int tileX, int tileY, float* playerW, float* target, float fov, quint32 selectionId);
+    void renderWater(float lodx, float lodz, float tileX, float tileY, float* playerW, float* target, float fov, int layer, quint32 selectionId = 0);
     void refreshWaterShapes();
     void getRotation(float *rot, int x, int z, int posx, int posz);
     float getHeight(int x, int z, float posx, float posz, bool addR);

@@ -677,14 +677,14 @@ bool SignalObj::isSimilar(WorldObj* obj){
     return false;
 }
 
-void SignalObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor){
+void SignalObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId){
     if (!loaded) return;
     if (shape < 0) return;
     if (jestPQ < 2) return;
     if (Game::currentRenderer == NULL) return;
 
     Game::currentRenderer->mvPushMatrix();
-    WorldObj::pushRenderItems(lod, posx, posz, playerW, target, fov, selectionColor);
+    WorldObj::pushRenderItems(lod, posx, posz, playerW, target, fov, selectionId);
     Game::currentRenderer->mvPopMatrix();
 
     if(Game::showWorldObjPivotPoints){
@@ -694,16 +694,16 @@ void SignalObj::pushRenderItems(float lod, float posx, float posz, float* player
             pointer3d = new TrackItemObj(1);
             pointer3d->setMaterial(0.9,0.9,0.7);
         }
-        pointer3d->pushRenderItem(selectionColor);
+        pointer3d->pushRenderItem(selectionId);
         Game::currentRenderer->mvPopMatrix();
     }
 
     if(trLoaded >= 0)
         if(Game::viewInteractives)
-            this->renderTritems(NULL, selectionColor, true);
+            this->renderTritems(NULL, selectionId, true);
 }
 
-void SignalObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos, float* target, float fov, int selectionColor, int renderMode) {
+void SignalObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos, float* target, float fov, quint32 selectionId, int renderMode) {
     if (!loaded) return;
     if (shape < 0) return;
     if (jestPQ < 2) return;
@@ -748,16 +748,15 @@ void SignalObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos
             pointer3d = new TrackItemObj(1);
             pointer3d->setMaterial(0.9,0.9,0.7);
         }
-        pointer3d->render(selectionColor);
+        pointer3d->render(selectionId);
     }
     
-    if(selectionColor != 0){
-        gluu->disableTextures(selectionColor);
-    } else {
+    gluu->setSelectionId(selectionId);
+    if(selectionId == 0){
         gluu->enableTextures();
     }
     if(shapePointer != NULL)
-        shapePointer->render(selectionColor, shapeState);
+        shapePointer->render(selectionId, shapeState);
     //Game::currentShapeLib->shape[shape]->render(false, signalSubObj);
     
     if(selected){
@@ -767,10 +766,10 @@ void SignalObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos
     
     if(trLoaded >= 0)
         if(Game::viewInteractives && renderMode != gluu->RENDER_SHADOWMAP) 
-            this->renderTritems(gluu, selectionColor);
+            this->renderTritems(gluu, selectionId);
 };
 
-void SignalObj::renderTritems(GLUU* gluu, int selectionColor, bool pushToQueue){
+void SignalObj::renderTritems(GLUU* gluu, quint32 selectionId, bool pushToQueue){
 
     ///////////////////////////////
     if (drawPositions == NULL) {
@@ -814,7 +813,7 @@ void SignalObj::renderTritems(GLUU* gluu, int selectionColor, bool pushToQueue){
         }
     }
 
-    int useSC;
+    const quint32 useSC = selectionId != 0 ? 1u : 0u;
     int i = getBaseSignalItemId();
     if(i < 0)
         return;
@@ -825,22 +824,20 @@ void SignalObj::renderTritems(GLUU* gluu, int selectionColor, bool pushToQueue){
         Game::currentRenderer->mvPushMatrix();
         Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPositions[i][0] + 0 * (drawPositions[i][4] - this->x), drawPositions[i][1] + 1, -drawPositions[i][2] + 0 * (-drawPositions[i][5] - this->y));
         Mat4::rotateY(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, -drawPositions[i][7]+M_PI);
-        useSC = (float)selectionColor/(float)(selectionColor+0.000001);
         if(this->selected && this->selectionValue > 0)
-            spointer3dSelected->pushRenderItem(selectionColor | (i+1)*useSC);
+            spointer3dSelected->pushRenderItem(selectionId | (i+1)*useSC);
         else
-            spointer3d->pushRenderItem(selectionColor | (i+1)*useSC);
+            spointer3d->pushRenderItem(selectionId | (i+1)*useSC);
         Game::currentRenderer->mvPopMatrix();
     } else {
         gluu->mvPushMatrix();
         Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, drawPositions[i][0] + 0 * (drawPositions[i][4] - this->x), drawPositions[i][1] + 1, -drawPositions[i][2] + 0 * (-drawPositions[i][5] - this->y));
         Mat4::rotateY(gluu->mvMatrix, gluu->mvMatrix, -drawPositions[i][7]+M_PI);
         gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-        useSC = (float)selectionColor/(float)(selectionColor+0.000001);
         if(this->selected && this->selectionValue > 0)
-            spointer3dSelected->render(selectionColor | (i+1)*useSC);
+            spointer3dSelected->render(selectionId | (i+1)*useSC);
         else
-            spointer3d->render(selectionColor | (i+1)*useSC);
+            spointer3d->render(selectionId | (i+1)*useSC);
         gluu->mvPopMatrix();
     }
 };

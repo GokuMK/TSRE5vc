@@ -1299,7 +1299,7 @@ void TerrainLibQt::renderWater(GLUU* gluu, float* playerT, float* playerW, float
     gluu->enableNormals();
 
     Terrain *tTile;
-    int selectionColor = 0;
+    quint32 selectionId = 0;
     int i = 0, j = 0;
     QHash<QString, bool> rendered;
     for (int n = -1; n < (Game::tileLod * 2 + 1)*(Game::tileLod * 2 + 1) - 1; n++) {
@@ -1322,14 +1322,14 @@ void TerrainLibQt::renderWater(GLUU* gluu, float* playerT, float* playerW, float
             Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 2048 * i, Game::currentRoute->env->water[layer].height, 2048 * j);
             gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
             if (renderMode == gluu->RENDER_SELECTION) {
-                selectionColor = 10 << 20;
-                selectionColor |= ((i + 1) << 10);
-                selectionColor |= ((j + 1) << 8);
+                selectionId = 10u << 20;
+                selectionId |= static_cast<quint32>(i + 1) << 10;
+                selectionId |= static_cast<quint32>(j + 1) << 8;
                 tTile->updateSelectionWindow(
                         static_cast<int>(playerT[0]), static_cast<int>(playerT[1]),
                         playerW[0], playerW[2]);
             }
-            tTile->renderWater(lodx, lodz, playerT[0] + i, playerT[1] + j, playerW, target, fov, layer, selectionColor);
+            tTile->renderWater(lodx, lodz, playerT[0] + i, playerT[1] + j, playerW, target, fov, layer, selectionId);
             gluu->mvPopMatrix();
         }
     }
@@ -1345,7 +1345,7 @@ void TerrainLibQt::renderWaterLo(GLUU* gluu, float* playerT, float* playerW, flo
     gluu->enableNormals();
 
     Terrain *tTile;
-    int selectionColor = 0;
+    quint32 selectionId = 0;
     unsigned int terrainNameId;
     for (int n = -1, i = 0, j = 0; n < renderCount; n+=16) {
         if (n != -1)
@@ -1375,14 +1375,14 @@ void TerrainLibQt::renderWaterLo(GLUU* gluu, float* playerT, float* playerW, flo
                 Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 2048 * i, Game::currentRoute->env->water[layer].height, 2048 * j);
                 gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
                 if (renderMode == gluu->RENDER_SELECTION) {
-                    selectionColor = 10 << 20;
-                    selectionColor |= ((i + 1) << 10);
-                    selectionColor |= ((j + 1) << 8);
+                    selectionId = 10u << 20;
+                    selectionId |= static_cast<quint32>(i + 1) << 10;
+                    selectionId |= static_cast<quint32>(j + 1) << 8;
                     tTile->updateSelectionWindow(
                             static_cast<int>(playerT[0]), static_cast<int>(playerT[1]),
                             playerW[0], playerW[2]);
                 }
-                tTile->renderWater(lodx, lodz, playerT[0] + i, playerT[1] + j, playerW, target, fov, layer, selectionColor);
+                tTile->renderWater(lodx, lodz, playerT[0] + i, playerT[1] + j, playerW, target, fov, layer, selectionId);
                 gluu->mvPopMatrix();
             }
         }
@@ -1445,7 +1445,7 @@ void TerrainLibQt::pushRenderItems(float * playerT, float* playerW, float* targe
     //gluu->enableNormals();
 
     Terrain *tTile;
-    int selectionColor = 0;
+    quint32 selectionId = 0;
     QHash<QString, bool> rendered;
     
     for (int n = -1, i = 0, j = 0; n < renderCount - 1; n++) {
@@ -1469,14 +1469,14 @@ void TerrainLibQt::pushRenderItems(float * playerT, float* playerW, float* targe
             Game::currentRenderer->mvPushMatrix();
             Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, 2048 * i, 0, 2048 * j);
             if (renderMode == Game::currentRenderer->RENDER_SELECTION) {
-                selectionColor = 10 << 20;
-                selectionColor |= ((i + 1) << 10);
-                selectionColor |= ((j + 1) << 8);
+                selectionId = 10u << 20;
+                selectionId |= static_cast<quint32>(i + 1) << 10;
+                selectionId |= static_cast<quint32>(j + 1) << 8;
                 tTile->updateSelectionWindow(
                         static_cast<int>(playerT[0]), static_cast<int>(playerT[1]),
                         playerW[0], playerW[2]);
             }
-            tTile->pushRenderItem(lodx, lodz, playerT[0] + i, playerT[1] + j, playerW, target, fov, selectionColor);
+            tTile->pushRenderItem(lodx, lodz, playerT[0] + i, playerT[1] + j, playerW, target, fov, selectionId);
             Game::currentRenderer->mvPopMatrix();
         }
     }
@@ -1508,7 +1508,7 @@ void TerrainLibQt::render(GLUU *gluu, float * playerT, float* playerW, float* ta
     gluu->enableNormals();
 
     Terrain *tTile;
-    int selectionColor = 0;
+    quint32 selectionId = 0;
     QHash<QString, bool> rendered;
     
     for (int n = -1, i = 0, j = 0; n < renderCount - 1; n++) {
@@ -1532,14 +1532,14 @@ void TerrainLibQt::render(GLUU *gluu, float * playerT, float* playerW, float* ta
             gluu->mvPushMatrix();
             Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 2048 * i, 0, 2048 * j);
             if (renderMode == gluu->RENDER_SELECTION) {
-                selectionColor = 10 << 20;
-                selectionColor |= ((i + 1) << 10);
-                selectionColor |= ((j + 1) << 8);
+                selectionId = 10u << 20;
+                selectionId |= static_cast<quint32>(i + 1) << 10;
+                selectionId |= static_cast<quint32>(j + 1) << 8;
                 tTile->updateSelectionWindow(
                         static_cast<int>(playerT[0]), static_cast<int>(playerT[1]),
                         playerW[0], playerW[2]);
             }
-            tTile->render(lodx, lodz, playerT[0] + i, playerT[1] + j, playerW, target, fov, selectionColor);
+            tTile->render(lodx, lodz, playerT[0] + i, playerT[1] + j, playerW, target, fov, selectionId);
             gluu->mvPopMatrix();
         }
     }
@@ -1574,7 +1574,7 @@ void TerrainLibQt::renderLo(GLUU *gluu, float * playerT, float* playerW, float* 
     gluu->enableNormals();
 
     Terrain *tTile;
-    int selectionColor = 0;
+    quint32 selectionId = 0;
     unsigned int terrainNameId;
     for (int n = -1, i = 0, j = 0; n < renderCount; n+=16) {
         if (n != -1)
@@ -1603,14 +1603,14 @@ void TerrainLibQt::renderLo(GLUU *gluu, float * playerT, float* playerW, float* 
                 gluu->mvPushMatrix();
                 Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 2048 * i, 0, 2048 * j);
                 if (renderMode == gluu->RENDER_SELECTION) {
-                    selectionColor = 10 << 20;
-                    selectionColor |= ((i + 1) << 10);
-                    selectionColor |= ((j + 1) << 8);
+                    selectionId = 10u << 20;
+                    selectionId |= static_cast<quint32>(i + 1) << 10;
+                    selectionId |= static_cast<quint32>(j + 1) << 8;
                     tTile->updateSelectionWindow(
                             static_cast<int>(playerT[0]), static_cast<int>(playerT[1]),
                             playerW[0], playerW[2]);
                 }
-                tTile->render(lodx, lodz, playerT[0] + i, playerT[1] + j, playerW, target, fov, selectionColor);
+                tTile->render(lodx, lodz, playerT[0] + i, playerT[1] + j, playerW, target, fov, selectionId);
                 gluu->mvPopMatrix();
             }
         }

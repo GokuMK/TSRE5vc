@@ -1755,7 +1755,7 @@ int Terrain::getSelectionId(int patchId) const {
     return selectionWindow.selectionIdForPatch(patchId);
 }
 
-int Terrain::getPatchIdFromSelectionId(int selectionId) const {
+int Terrain::getPatchIdFromSelectionId(quint32 selectionId) const {
     return selectionWindow.patchIdForSelection(selectionId);
 }
 
@@ -1963,7 +1963,7 @@ void Terrain::paintTextureOnTile(Brush* brush, int y, int u, float x, float z) {
     this->modified = true;
 }
 
-void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float* playerW, float* target, float fov, int selectionColor){
+void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float* playerW, float* target, float fov, quint32 selectionId){
     if (!loaded)
         return;
     TerrainMeshBackend *backend = ensureMeshBackend();
@@ -1986,9 +1986,9 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
     refreshPatchBounds(true);
     const PatchVisibility patchVisibility = buildPatchVisibility(
                 Game::currentRenderer->mvMatrix, playerW);
-    if(Game::viewWorldGrid && selectionColor == 0)
+    if(Game::viewWorldGrid && selectionId == 0)
         lines.pushRenderItem();
-    if(Game::viewTileGrid && selectionColor == 0){
+    if(Game::viewTileGrid && selectionId == 0){
         slines.pushRenderItem();
         ulines.pushRenderItem();
         lockedlines.pushRenderItem();
@@ -1999,7 +1999,7 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
     float size = 512;
 
     RenderItem *r;
-    if(Game::viewTerrainShape && (!(showBlob && MapWindow::isAlpha == 0) || selectionColor != 0)){
+    if(Game::viewTerrainShape && (!(showBlob && MapWindow::isAlpha == 0) || selectionId != 0)){
         float shaderSecondTexUV = 0;
         for (int yy = 0; yy < patches; yy++) {
             for (int uu = 0; uu < patches; uu++) {
@@ -2031,7 +2031,7 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
                     if ((ccos > 0) && (xxx > size)) continue;
                 }*/
                 
-                const bool terrainSelection = (selectionColor >> 20) == 10;
+                const bool terrainSelection = (selectionId >> 20) == 10;
                 int patchColorId = patchId;
                 if (terrainSelection) {
                     patchColorId = getSelectionId(patchColorId);
@@ -2039,12 +2039,9 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
                         continue;
                 }
                 r = new RenderItem();
-                if(selectionColor != 0){
-                    int tselectionColor = selectionColor | patchColorId;
-                    int wColor = (int)(tselectionColor/65536);
-                    int sColor = (int)(tselectionColor - wColor*65536)/256;
-                    int bColor = (int)(tselectionColor - wColor*65536 - sColor*256);
-                    r->disableTextures((float)wColor/255.0f, (float)sColor/255.0f, (float)bColor/255.0f, 1.0f);
+                if(selectionId != 0){
+                    quint32 tselectionId = selectionId | static_cast<quint32>(patchColorId);
+                    r->setSelectionId(tselectionId);
                 } else {
                     if (texid[yy * patches + uu] == -2) {
                     } else {
@@ -2134,7 +2131,7 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
         Game::currentRenderer->mvPopMatrix();
     }
     
-    if(showBlob && selectionColor == 0){
+    if(showBlob && selectionId == 0){
         if (backend->isPaged()) {
             const int mapTexture = ensureMapTexture();
             if (mapTexture >= 0) {
@@ -2170,7 +2167,7 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
     }
 }
 
-void Terrain::pushRenderItemWater(float lodx, float lodz, float tileX, float tileY, float* playerW, float* target, float fov, int layer, int selectionColor){
+void Terrain::pushRenderItemWater(float lodx, float lodz, float tileX, float tileY, float* playerW, float* target, float fov, int layer, quint32 selectionId){
     if(showBlob)
         return;
     float alpha = 0;
@@ -2189,7 +2186,7 @@ void Terrain::pushRenderItemWater(float lodx, float lodz, float tileX, float til
         water[layer] = new WaterTile();
     OglObj *w = water[layer]->w;
     
-    int tselectionColor = 0;
+    quint32 tselectionId = 0;
     for (int uu = 0; uu < patches; uu++) {
         for (int yy = 0; yy < patches; yy++) {
             if (hidden[yy * patches + uu]) continue;
@@ -2285,22 +2282,22 @@ void Terrain::pushRenderItemWater(float lodx, float lodz, float tileX, float til
                     w[uu * patches + yy].init(punkty, ptr, RenderItem::VNTA, GL_TRIANGLES);
                     delete punkty;
                 }
-                const bool terrainSelection = (selectionColor >> 20) == 10;
+                const bool terrainSelection = (selectionId >> 20) == 10;
                 int patchColorId = yy * patches + uu;
                 if (terrainSelection) {
                     patchColorId = getSelectionId(patchColorId);
                     if (patchColorId < 0)
                         continue;
                 }
-                if(selectionColor != 0)
-                    tselectionColor = selectionColor | patchColorId;
-                w[uu * patches + yy].pushRenderItem(tselectionColor);
+                if(selectionId != 0)
+                    tselectionId = selectionId | static_cast<quint32>(patchColorId);
+                w[uu * patches + yy].pushRenderItem(tselectionId);
             }
         }
     }
 }
 
-void Terrain::render(float lodx, float lodz, int tileX, int tileY, float* playerW, float* target, float fov, int selectionColor) {
+void Terrain::render(float lodx, float lodz, int tileX, int tileY, float* playerW, float* target, float fov, quint32 selectionId) {
     if (!loaded)
         return;
     TerrainMeshBackend *backend = ensureMeshBackend();
@@ -2331,9 +2328,9 @@ void Terrain::render(float lodx, float lodz, int tileX, int tileY, float* player
     gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
     gluu->currentShader->setUniformValue(gluu->currentShader->msMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->objStrMatrix));
     gluu->currentMsMatrinxHash = 0;//gluu->getMatrixHash(gluu->objStrMatrix);
-    if(Game::viewWorldGrid && selectionColor == 0)
+    if(Game::viewWorldGrid && selectionId == 0)
         lines.render();
-    if(Game::viewTileGrid && selectionColor == 0){
+    if(Game::viewTileGrid && selectionId == 0){
         slines.render();
         ulines.render();
         lockedlines.render();
@@ -2349,7 +2346,7 @@ void Terrain::render(float lodx, float lodz, int tileX, int tileY, float* player
     QOpenGLVertexArrayObject::Binder *legacyVaoBinder = backend->isPaged()
             ? NULL : new QOpenGLVertexArrayObject::Binder(VAO);
     
-    if(Game::viewTerrainShape && (!(showBlob && MapWindow::isAlpha == 0) || selectionColor != 0)){
+    if(Game::viewTerrainShape && (!(showBlob && MapWindow::isAlpha == 0) || selectionId != 0)){
         float shaderSecondTexUV = 0;
         for (int yy = 0; yy < patches; yy++) {
             for (int uu = 0; uu < patches; uu++) {
@@ -2381,19 +2378,16 @@ void Terrain::render(float lodx, float lodz, int tileX, int tileY, float* player
                     if ((ccos > 0) && (xxx > size)) continue;
                 }*/
 
-                const bool terrainSelection = (selectionColor >> 20) == 10;
+                const bool terrainSelection = (selectionId >> 20) == 10;
                 int patchColorId = patchId;
                 if (terrainSelection) {
                     patchColorId = getSelectionId(patchColorId);
                     if (patchColorId < 0)
                         continue;
                 }
-                if(selectionColor != 0){
-                    int tselectionColor = selectionColor | patchColorId;
-                    int wColor = (int)(tselectionColor/65536);
-                    int sColor = (int)(tselectionColor - wColor*65536)/256;
-                    int bColor = (int)(tselectionColor - wColor*65536 - sColor*256);
-                    gluu->disableTextures((float)wColor/255.0f, (float)sColor/255.0f, (float)bColor/255.0f, 1);
+                if(selectionId != 0){
+                    quint32 tselectionId = selectionId | static_cast<quint32>(patchColorId);
+                    gluu->setSelectionId(tselectionId);
                 } else {
                     if (texid[yy * patches + uu] == -2) {
                     } else {
@@ -2480,7 +2474,7 @@ void Terrain::render(float lodx, float lodz, int tileX, int tileY, float* player
         glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
     }
     
-    if(showBlob && selectionColor == 0){
+    if(showBlob && selectionId == 0){
         if (backend->isPaged()) {
             const int mapTexture = ensureMapTexture();
             if (mapTexture >= 0) {
@@ -2517,11 +2511,11 @@ void Terrain::render(float lodx, float lodz, int tileX, int tileY, float* player
     
     gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
             
-    //if(!showBlob && selectionColor == 0)
+    //if(!showBlob && selectionId == 0)
     //    renderWater(lodx, lodz, playerT, playerW, target, fov);
 }
 
-void Terrain::renderWater(float lodx, float lodz, float tileX, float tileY, float* playerW, float* target, float fov, int layer, int selectionColor) {
+void Terrain::renderWater(float lodx, float lodz, float tileX, float tileY, float* playerW, float* target, float fov, int layer, quint32 selectionId) {
     float lod;
     if(showBlob)
         return;
@@ -2548,7 +2542,7 @@ void Terrain::renderWater(float lodx, float lodz, float tileX, float tileY, floa
         water[layer] = new WaterTile();
     OglObj *w = water[layer]->w;
     
-    int tselectionColor = 0;
+    quint32 tselectionId = 0;
     for (int uu = 0; uu < patches; uu++) {
         for (int yy = 0; yy < patches; yy++) {
             if (hidden[yy * patches + uu]) continue;
@@ -2651,16 +2645,16 @@ void Terrain::renderWater(float lodx, float lodz, float tileX, float tileY, floa
                     w[uu * patches + yy].init(punkty, ptr, RenderItem::VNTA, GL_TRIANGLES);
                     delete punkty;
                 }
-                const bool terrainSelection = (selectionColor >> 20) == 10;
+                const bool terrainSelection = (selectionId >> 20) == 10;
                 int patchColorId = yy * patches + uu;
                 if (terrainSelection) {
                     patchColorId = getSelectionId(patchColorId);
                     if (patchColorId < 0)
                         continue;
                 }
-                if(selectionColor != 0)
-                    tselectionColor = selectionColor | patchColorId;
-                w[uu * patches + yy].render(tselectionColor);
+                if(selectionId != 0)
+                    tselectionId = selectionId | static_cast<quint32>(patchColorId);
+                w[uu * patches + yy].render(tselectionId);
             }
         }
     }
@@ -3639,7 +3633,7 @@ bool Terrain::select(int value, bool oneMore){
     return select(value);
 }
 
-bool Terrain::selectFromSelectionId(int selectionId, bool oneMore) {
+bool Terrain::selectFromSelectionId(quint32 selectionId, bool oneMore) {
     const int patchId = getPatchIdFromSelectionId(selectionId);
     if (patchId < 0)
         return false;

@@ -219,20 +219,20 @@ void Service::save(){
     modified = false;
 }
 
-void Service::render(GLUU* gluu, float* playerT, int selectionColor){
+void Service::render(GLUU* gluu, float* playerT, quint32 selectionId){
     initToPlay();
     
-    pathPointer->render(gluu, playerT, selectionColor);
+    pathPointer->render(gluu, playerT, selectionId);
     
-    conPointer->renderOnTrack(gluu, playerT, selectionColor);
+    conPointer->renderOnTrack(gluu, playerT, selectionId);
 }
 
-void Service::pushRenderItems(float* playerT, int selectionColor) {
+void Service::pushRenderItems(float* playerT, quint32 selectionId) {
     initToPlay();
     if (pathPointer != NULL)
-        pathPointer->pushRenderItems(playerT, selectionColor);
+        pathPointer->pushRenderItems(playerT, selectionId);
     if (conPointer != NULL)
-        conPointer->pushRenderItemsOnTrack(playerT, selectionColor);
+        conPointer->pushRenderItemsOnTrack(playerT, selectionId);
 }
 
 void Service::initToPlay(){

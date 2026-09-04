@@ -347,12 +347,12 @@ struct TerrainPatchSelectionWindow {
         return selectionRow * Side + selectionColumn;
     }
 
-    int patchIdForSelection(int selectionId) const {
-        if (patchesPerSide <= 0 || selectionId < 0
-                || selectionId >= Side * Side)
+    int patchIdForSelection(int selectionIndex) const {
+        if (patchesPerSide <= 0 || selectionIndex < 0
+                || selectionIndex >= Side * Side)
             return -1;
-        const int patchRow = row + selectionId / Side;
-        const int patchColumn = column + selectionId % Side;
+        const int patchRow = row + selectionIndex / Side;
+        const int patchColumn = column + selectionIndex % Side;
         if (patchRow < 0 || patchRow >= patchesPerSide
                 || patchColumn < 0 || patchColumn >= patchesPerSide)
             return -1;

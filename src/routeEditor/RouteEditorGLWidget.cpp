@@ -51,6 +51,7 @@
 #include <tsre/sound/SoundManager.h>
 #include <tsre/world/Skydome.h>
 #include <tsre/renderer/OpenGL3Renderer.h>
+#include <tsre/renderer/SelectionRenderer.h>
 #include <QDebug>
 #include <algorithm>
 #include <cmath>
@@ -97,6 +98,11 @@ QSize RouteEditorGLWidget::sizeHint() const {
 
 void RouteEditorGLWidget::cleanup() {
     makeCurrent();
+    if(selectionRenderer != NULL){
+        selectionRenderer->release();
+        delete selectionRenderer;
+        selectionRenderer = NULL;
+    }
     //delete gluu->m_program;
     //gluu->m_program = 0;
     doneCurrent();
@@ -278,6 +284,7 @@ void RouteEditorGLWidget::initializeGL() {
     qDebug() << "# InitShaders";
     gluu->initShader();
     qDebug() << "# InitShaders finished";
+    selectionRenderer = new SelectionRenderer();
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
     glEnable(GL_BLEND);
@@ -348,7 +355,7 @@ void RouteEditorGLWidget::initializeGL() {
             shadowMapSize, GL_TEXTURE2);
     gluu->makeShadowFramebuffer(FramebufferName2, depthTexture2,
             distantShadowMapSize, GL_TEXTURE3);
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
     glActiveTexture(GL_TEXTURE0);
         
     
@@ -502,7 +509,22 @@ bool RouteEditorGLWidget::paintGLGather(bool drawToScreen){
     if (!canRenderFrame()) return false;
     if (Game::currentRenderer == NULL) return false;
     if (Game::currentRenderer->mvMatrix == NULL) return false;
-    if (gluu->shaders[MainRenderShaderName] == NULL) return false;
+    const bool selectionPass = selection;
+    const QString shaderName = selectionPass ? "Selection" : MainRenderShaderName;
+    if (gluu->shaders[shaderName] == NULL){
+        if(selectionPass){
+            qWarning() << "Selection shader is unavailable";
+            selection = false;
+            update();
+        }
+        return false;
+    }
+    if(selectionPass && selectionRenderer == NULL){
+        qWarning() << "Selection renderer is unavailable";
+        selection = false;
+        update();
+        return false;
+    }
     
     // Render Shadows
     //if (Game::shadowsEnabled > 0)
@@ -510,17 +532,28 @@ bool RouteEditorGLWidget::paintGLGather(bool drawToScreen){
 
     // Render Scene
     //gluu->currentShader = gluu->shaders["StandardBloom"];
-    gluu->currentShader = gluu->shaders[MainRenderShaderName];
-    gluu->currentShader->bind();
     if(drawToScreen){
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-        glActiveTexture(GL_TEXTURE0);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        if(selectionPass){
+            const int selectionWidth = qRound((float)this->width() * Game::PixelRatio);
+            const int selectionHeight = qRound((float)this->height() * Game::PixelRatio);
+            if(!selectionRenderer->begin(selectionWidth, selectionHeight)){
+                qWarning() << "Could not start the integer selection pass";
+                selection = false;
+                update();
+                return false;
+            }
+        } else {
+            glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
+            glActiveTexture(GL_TEXTURE0);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        }
     }
+    gluu->currentShader = gluu->shaders[shaderName];
+    gluu->currentShader->bind();
 
     int renderMode = GLUU::RENDER_DEFAULT;
     const GLboolean blendingWasEnabled = glIsEnabled(GL_BLEND);
-    if (selection){
+    if (selectionPass){
         renderMode = GLUU::RENDER_SELECTION;
         glDisable(GL_BLEND);
     }
@@ -535,8 +568,9 @@ bool RouteEditorGLWidget::paintGLGather(bool drawToScreen){
     }
 
     glClearColor(gluu->skyColor[0], gluu->skyColor[1], gluu->skyColor[2], 1.0);
-    if(drawToScreen)
-        glViewport(0, 0, (float) this->width() * Game::PixelRatio, (float) this->height() * Game::PixelRatio);
+    if(drawToScreen && !selectionPass)
+        glViewport(0, 0, qRound((float)this->width() * Game::PixelRatio),
+                   qRound((float)this->height() * Game::PixelRatio));
     Mat4::identity(gluu->mvMatrix);
     Mat4::identity(Game::currentRenderer->mvMatrix);
     
@@ -584,7 +618,7 @@ bool RouteEditorGLWidget::paintGLGather(bool drawToScreen){
     Mat4::multiply(gluu->pMatrix, gluu->pMatrix, camera->getMatrix());
     gluu->setMatrixUniforms();
 
-    const bool drawPointerEnabled = drawToScreen && !selection && !Game::playerMode;
+    const bool drawPointerEnabled = drawToScreen && !selectionPass && !Game::playerMode;
     const bool drawPointerOnTerrain = drawPointerEnabled && stickPointerToTerrain && Game::viewTerrainShape;
     const bool drawPointerAfterWorld = drawPointerEnabled && (!stickPointerToTerrain || !Game::viewTerrainShape);
 
@@ -619,7 +653,7 @@ bool RouteEditorGLWidget::paintGLGather(bool drawToScreen){
         drawPointer();
 
     // render compass
-    if (drawToScreen && !selection && Game::viewCompass){
+    if (drawToScreen && !selectionPass && Game::viewCompass){
         Mat4::identity(gluu->mvMatrix);
         Mat4::ortho(gluu->pMatrix, -1.0, 1.0, 1.0 - 2*(float(this->height()) / this->width()), 1.0, 0.0, 1.0);
         Mat4::identity(gluu->objStrMatrix);
@@ -632,7 +666,7 @@ bool RouteEditorGLWidget::paintGLGather(bool drawToScreen){
     
     
     // HUD
-    if(drawToScreen && Game::hudEnabled){
+    if(drawToScreen && !selectionPass && Game::hudEnabled){
         int shadowsState = Game::shadowsEnabled;
         Game::shadowsEnabled = 0;
         float hudScale = Game::hudScale;
@@ -653,8 +687,12 @@ bool RouteEditorGLWidget::paintGLGather(bool drawToScreen){
     // Handle Selection
     if (blendingWasEnabled)
         glEnable(GL_BLEND);
-    if(drawToScreen)
+    if(drawToScreen && selectionPass){
         handleSelection();
+        selectionRenderer->end();
+        gluu->currentShader->release();
+        return true;
+    }
 
     
     // Set Info
@@ -671,10 +709,15 @@ bool RouteEditorGLWidget::paintGLGather(bool drawToScreen){
 bool RouteEditorGLWidget::paintGLValidation(){
     if(!canRenderFrame()) return false;
     if(Game::currentRenderer == NULL) return false;
-    
+
+    const bool selectionPass = selection;
+
     // Keep legacy output authoritative for user interaction.
     paintGL2();
-    
+
+    if(selectionPass)
+        return true;
+
     // Run gather path in parallel for parity/debug validation.
     return paintGLGather(false);
 }
@@ -684,27 +727,57 @@ void RouteEditorGLWidget::paintGL2() {
     if (route == NULL) return;
     if (!route->loaded) return;
 
+    const bool selectionPass = selection;
+
     // Render Shadows
-    if (Game::shadowsEnabled > 0)
+    if (!selectionPass && Game::shadowsEnabled > 0)
        renderShadowMaps();
 
     // Render Scene
     //gluu->currentShader = gluu->shaders["StandardBloom"];
-    gluu->currentShader = gluu->shaders[MainRenderShaderName];
+    const QString shaderName = selectionPass ? "Selection" : MainRenderShaderName;
+    if(gluu->shaders[shaderName] == NULL){
+        if(selectionPass){
+            qWarning() << "Selection shader is unavailable";
+            selection = false;
+            update();
+        }
+        return;
+    }
+    if(selectionPass){
+        if(selectionRenderer == NULL){
+            qWarning() << "Selection renderer is unavailable";
+            selection = false;
+            update();
+            return;
+        }
+        const int selectionWidth = qRound((float)this->width() * Game::PixelRatio);
+        const int selectionHeight = qRound((float)this->height() * Game::PixelRatio);
+        if(!selectionRenderer->begin(selectionWidth, selectionHeight)){
+            qWarning() << "Could not start the integer selection pass";
+            selection = false;
+            update();
+            return;
+        }
+    } else {
+        glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
+        glActiveTexture(GL_TEXTURE0);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    }
+    gluu->currentShader = gluu->shaders[shaderName];
     gluu->currentShader->bind();
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glActiveTexture(GL_TEXTURE0);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     int renderMode = GLUU::RENDER_DEFAULT;
     const GLboolean blendingWasEnabled = glIsEnabled(GL_BLEND);
-    if (selection){
+    if (selectionPass){
         renderMode = GLUU::RENDER_SELECTION;
         glDisable(GL_BLEND);
     }
 
     glClearColor(gluu->skyColor[0], gluu->skyColor[1], gluu->skyColor[2], 1.0);
-    glViewport(0, 0, (float) this->width() * Game::PixelRatio, (float) this->height() * Game::PixelRatio);
+    if(!selectionPass)
+        glViewport(0, 0, qRound((float)this->width() * Game::PixelRatio),
+                   qRound((float)this->height() * Game::PixelRatio));
     Mat4::identity(gluu->mvMatrix);
     
     Mat4::perspective(gluu->fMatrix, Game::cameraFov * M_PI / 180, float(this->width()) / this->height(), 0.2f, Game::objectLod);
@@ -746,7 +819,7 @@ void RouteEditorGLWidget::paintGL2() {
     gluu->setMatrixUniforms();
 
     if (stickPointerToTerrain && Game::viewTerrainShape)
-        if (!selection && !Game::playerMode) drawPointer();
+        if (!selectionPass && !Game::playerMode) drawPointer();
     
     route->render(gluu, camera->pozT, camera->getPos(), camera->getTarget(), camera->getRotX(), 3.14f / 3, renderMode);
 
@@ -755,10 +828,10 @@ void RouteEditorGLWidget::paintGL2() {
         Game::terrainLib->renderWater(gluu, camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3, renderMode, i);
 
     if (!stickPointerToTerrain || !Game::viewTerrainShape)
-        if (!selection && !Game::playerMode) drawPointer();
+        if (!selectionPass && !Game::playerMode) drawPointer();
     
     // render compass
-    if (!selection && Game::viewCompass){
+    if (!selectionPass && Game::viewCompass){
         Mat4::identity(gluu->mvMatrix);
         Mat4::ortho(gluu->pMatrix, -1.0, 1.0, 1.0 - 2*(float(this->height()) / this->width()), 1.0, 0.0, 1.0);
         Mat4::identity(gluu->objStrMatrix);
@@ -771,7 +844,7 @@ void RouteEditorGLWidget::paintGL2() {
     
     
     // HUD
-    if(Game::hudEnabled){
+    if(!selectionPass && Game::hudEnabled){
         int shadowsState = Game::shadowsEnabled;
         Game::shadowsEnabled = 0;
         float hudScale = Game::hudScale;
@@ -787,7 +860,12 @@ void RouteEditorGLWidget::paintGL2() {
     // Handle Selection
     if (blendingWasEnabled)
         glEnable(GL_BLEND);
-    handleSelection();
+    if(selectionPass){
+        handleSelection();
+        selectionRenderer->end();
+        gluu->currentShader->release();
+        return;
+    }
 
     // Set Info
     if (this->isActiveWindow()) {
@@ -879,26 +957,17 @@ void RouteEditorGLWidget::renderShadowMaps() {
 
 void RouteEditorGLWidget::handleSelection() {
     if (selection) {
+        if(selectionRenderer == NULL || !selectionRenderer->isActive()){
+            qWarning() << "Selection read requested without an active selection target";
+            selection = false;
+            update();
+            return;
+        }
         int x = mousex;
-        int y = mousey;
-
-        float winZ[4];
-
-        int* viewport = new int[4];
-        float* mvmatrix = new float[16];
-        float* projmatrix = new float[16];
-        float* wcoord = new float[4];
-
-        glGetIntegerv(GL_VIEWPORT, viewport);
-        glGetFloatv(GL_MODELVIEW_MATRIX, mvmatrix);
-        glGetFloatv(GL_PROJECTION_MATRIX, projmatrix);
-        int realy = viewport[3] - (int) y - 1;
-        glReadPixels(x, realy, 1, 1, GL_RGBA, GL_FLOAT, &winZ);
-
-        qDebug() << winZ[0] << " " << winZ[1] << " " << winZ[2] << " " << winZ[3];
-        int colorHash = (int) (winZ[0]*255)*256 * 256 + (int) (winZ[1]*255)*256 + (int) (winZ[2]*255);
-        qDebug() << colorHash;
-        int ww = (colorHash >> 20) & 0xF;
+        int realy = selectionRenderer->height() - (int)mousey - 1;
+        quint32 selectionId = selectionRenderer->readPixel(x, realy);
+        qDebug() << selectionId;
+        int ww = (selectionId >> 20) & 0xF;
         qDebug() << "ww"<< ww;
 
         // WorldObj Selected
@@ -910,10 +979,10 @@ void RouteEditorGLWidget::handleSelection() {
                 setSelectedObj(NULL);
             }
         } else if( ww >= 1 && ww <= 9 ){
-            int UiD = (colorHash >> 4) & 0xFFFF;
+            int UiD = (selectionId >> 4) & 0xFFFF;
             //if(UiD >= 50000)
             //    UiD += 50000;
-            int cdata = colorHash & 0xF;
+            int cdata = selectionId & 0xF;
             int wx = 0;
             int wz = 0;
             if (ww == 1 || ww == 2 || ww == 3) wx = camera->pozT[0] - 1;
@@ -959,9 +1028,9 @@ void RouteEditorGLWidget::handleSelection() {
                 } 
             }
         } else if( ww == 10 ){
-            int wx = camera->pozT[0] - 1 + ((colorHash >> 10) & 0x3);
-            int wz = camera->pozT[1] - 1 + ((colorHash >> 8) & 0x3);
-            int UiD = (colorHash) & 0xFF;
+            int wx = camera->pozT[0] - 1 + ((selectionId >> 10) & 0x3);
+            int wz = camera->pozT[1] - 1 + ((selectionId >> 8) & 0x3);
+            int UiD = (selectionId) & 0xFF;
             qDebug() << wx << wz << UiD;
             if (selectedObj != NULL) {
                 if ((keyControlEnabled || keyShiftEnabled) && selectedObj->typeObj == GameObj::terrainobj ) {
@@ -991,8 +1060,8 @@ void RouteEditorGLWidget::handleSelection() {
                     route->addToTDBIfNotExist((WorldObj*)selectedObj);
                 setSelectedObj(NULL);
             }
-            int CID = ((colorHash) >> 8) & 0xFFF;
-            int EID = ((colorHash)) & 0xFF;
+            int CID = ((selectionId) >> 8) & 0xFFF;
+            int EID = ((selectionId)) & 0xFF;
             qDebug() << CID << EID;
             setSelectedObj((GameObj*)route->getActivityObject(CID));
             if (selectedObj == NULL) {
@@ -1009,8 +1078,8 @@ void RouteEditorGLWidget::handleSelection() {
                     route->addToTDBIfNotExist((WorldObj*)selectedObj);
                 setSelectedObj(NULL);
             }
-            int TID = ((colorHash) >> 19) & 0x1;
-            int UID = ((colorHash)) & 0xFFFF;
+            int TID = ((selectionId) >> 19) & 0x1;
+            int UID = ((selectionId)) & 0xFFFF;
             qDebug() << TID << UID;
             setSelectedObj((GameObj*)route->getTrackItem(TID, UID));
             if (selectedObj == NULL) {
@@ -1025,8 +1094,8 @@ void RouteEditorGLWidget::handleSelection() {
                     route->addToTDBIfNotExist((WorldObj*)selectedObj);
                 setSelectedObj(NULL);
             }
-            int CID = ((colorHash) >> 8) & 0xFFF;
-            int EID = ((colorHash)) & 0xFF;
+            int CID = ((selectionId) >> 8) & 0xFFF;
+            int EID = ((selectionId)) & 0xFF;
             qDebug() << CID << EID;
             setSelectedObj((GameObj*)route->getActivityConsist(CID));
             if (selectedObj == NULL) {
@@ -1047,7 +1116,7 @@ void RouteEditorGLWidget::handleSelection() {
 
         //qDebug() << "selection" << selection;
         selection = false;// !selection;
-        paintGL();
+        update();
     }
 }
 

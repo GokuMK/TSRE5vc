@@ -52,6 +52,7 @@ public:
     bool terrainMapPass = false;
     
     float colorX, colorY, colorZ, colorA;
+    quint32 selectionId = 0;
     unsigned int texAddr = 0;
     int lineWidth = 0;
     
@@ -61,8 +62,8 @@ public:
     void setVertexAttributes(VertexAttr attr);
     void disableTextures(Vector3f* color);
     void disableTextures(Vector4f* color);
-    void disableTextures(int color);
     void disableTextures(float x, float y, float z, float a);
+    void setSelectionId(quint32 selectionId);
     void enableTextures(unsigned int addr);
 private:
 

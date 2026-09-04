@@ -57,8 +57,8 @@ public:
     bool isInfinite();
     bool isBroken();
     int getDefaultDetailLevel();
-    void render(GLUU* gluu, float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor, int renderMode);
-    void pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor);
+    void render(GLUU* gluu, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId, int renderMode);
+    void pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
 
 private:
     float speedRange[2];
@@ -71,7 +71,7 @@ private:
     int trItemIdCount = 0;
     TrackItemObj* pointer3d = NULL;
     float* drawPosition = NULL;
-    void renderTritems(GLUU* gluu, int selectionColor, bool pushToQueue = false);
+    void renderTritems(GLUU* gluu, quint32 selectionId, bool pushToQueue = false);
     bool getSimpleBorder(float* border);
     bool getBoxPoints(QVector<float> &points);
 };

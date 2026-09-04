@@ -219,7 +219,7 @@ void CarSpawnerObj::SimpleCar::updateSim(float deltaTime){
     }
 }
 
-void CarSpawnerObj::SimpleCar::render(GLUU *gluu, int selectionColor){
+void CarSpawnerObj::SimpleCar::render(GLUU *gluu, quint32 selectionId){
     //if(drawPosition == NULL)
     //    drawPosition = new float[7];
         //qDebug() <<"car"<< trNodeId<< trPosM;
@@ -231,8 +231,6 @@ void CarSpawnerObj::SimpleCar::render(GLUU *gluu, int selectionColor){
         drawPosition[0] += 2048 * (drawPosition[5] - x);
         drawPosition[2] -= 2048 * (-drawPosition[6] - y);
     //}
-    int useSC;
-
     gluu->mvPushMatrix();
     Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, drawPosition[0], drawPosition[1], -drawPosition[2]);
     Mat4::rotateY(gluu->mvMatrix, gluu->mvMatrix, drawPosition[3] + M_PI);
@@ -240,15 +238,14 @@ void CarSpawnerObj::SimpleCar::render(GLUU *gluu, int selectionColor){
         Mat4::rotateX(gluu->mvMatrix, gluu->mvMatrix, drawPosition[4] );
     Mat4::rotateY(gluu->mvMatrix, gluu->mvMatrix, M_PI*0.5 + M_PI*0.5*direction);
     gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-    useSC = (float)selectionColor/(float)(selectionColor+0.000001);
     if(shapePointer != NULL){
-        shapePointer->render(selectionColor, shapeState);
+        shapePointer->render(selectionId, shapeState);
     }
     //this->shapePointer->render();
     gluu->mvPopMatrix();
 }
 
-void CarSpawnerObj::SimpleCar::pushRenderItems(int selectionColor){
+void CarSpawnerObj::SimpleCar::pushRenderItems(quint32 selectionId){
     if(Game::currentRenderer == NULL)
         return;
     bool ok = Game::roadDB->getDrawPositionOnTrNode(drawPosition, trNodeId, trPosMb);
@@ -266,7 +263,7 @@ void CarSpawnerObj::SimpleCar::pushRenderItems(int selectionColor){
         Mat4::rotateX(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPosition[4] );
     Mat4::rotateY(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, M_PI*0.5 + M_PI*0.5*direction);
     if(shapePointer != NULL){
-        shapePointer->pushRenderItem(selectionColor, shapeState);
+        shapePointer->pushRenderItem(selectionId, shapeState);
     }
     Game::currentRenderer->mvPopMatrix();
 }
@@ -508,7 +505,7 @@ void CarSpawnerObj::updateSim(float deltaTime){
     }
 };
 
-void CarSpawnerObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos, float* target, float fov, int selectionColor, int renderMode) {
+void CarSpawnerObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos, float* target, float fov, quint32 selectionId, int renderMode) {
     if(!this->loaded) 
         return;
     
@@ -520,25 +517,24 @@ void CarSpawnerObj::render(GLUU* gluu, float lod, float posx, float posz, float*
             pointer3d = new TrackItemObj(1);
             pointer3d->setMaterial(0.9,0.9,0.7);
         }
-        pointer3d->render(selectionColor);
+        pointer3d->render(selectionId);
         gluu->mvPopMatrix();
     }
     
-    if(selectionColor != 0){
-        gluu->disableTextures(selectionColor);
-    } else {
+    gluu->setSelectionId(selectionId);
+    if(selectionId == 0){
         gluu->enableTextures();
     }
 
     for(int i = 0; i < cars.size(); i++){
-        cars[i].render(gluu, selectionColor);
+        cars[i].render(gluu, selectionId);
     }
     
     if(Game::viewInteractives && renderMode != gluu->RENDER_SHADOWMAP) 
-        this->renderTritems(gluu, selectionColor);
+        this->renderTritems(gluu, selectionId);
 };
 
-void CarSpawnerObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor) {
+void CarSpawnerObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId) {
     if(!this->loaded || Game::currentRenderer == NULL)
         return;
 
@@ -549,19 +545,19 @@ void CarSpawnerObj::pushRenderItems(float lod, float posx, float posz, float* pl
             pointer3d = new TrackItemObj(1);
             pointer3d->setMaterial(0.9,0.9,0.7);
         }
-        pointer3d->pushRenderItem(selectionColor);
+        pointer3d->pushRenderItem(selectionId);
         Game::currentRenderer->mvPopMatrix();
     }
 
     for(int i = 0; i < cars.size(); i++){
-        cars[i].pushRenderItems(selectionColor);
+        cars[i].pushRenderItems(selectionId);
     }
 
     if(Game::viewInteractives)
-        this->renderTritems(NULL, selectionColor, true);
+        this->renderTritems(NULL, selectionId, true);
 }
 
-void CarSpawnerObj::renderTritems(GLUU* gluu, int selectionColor, bool pushToQueue){
+void CarSpawnerObj::renderTritems(GLUU* gluu, quint32 selectionId, bool pushToQueue){
     
     if (drawPositionB == NULL) {
         TDB* tdb = Game::trackDB;
@@ -636,29 +632,27 @@ void CarSpawnerObj::renderTritems(GLUU* gluu, int selectionColor, bool pushToQue
     //float rot = (aa+1)*M_PI/2 + (float)(atan((drawPositionB[0]-drawPositionE[0])/(drawPositionB[2]-drawPositionE[2]))); 
     
     //(-(float)(atan((drawPositionB[1]-drawPositionE[1])/(dlugosc))
-    int useSC;
+    const quint32 useSC = selectionId != 0 ? 1u : 0u;
     if(pushToQueue){
         Game::currentRenderer->mvPushMatrix();
         Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPositionB[0] + 0 * (drawPositionB[4] - this->x), drawPositionB[1] + 1, -drawPositionB[2] + 0 * (-drawPositionB[5] - this->y));
         Mat4::rotateY(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPositionB[3] + rotB*M_PI);
-        useSC = (float)selectionColor/(float)(selectionColor+0.000001);
         if(this->selected && this->selectionValue == 1)
-            spointer3dSelected->pushRenderItem(selectionColor | 1*useSC);
+            spointer3dSelected->pushRenderItem(selectionId | 1*useSC);
         else
-            spointer3d->pushRenderItem(selectionColor | 1*useSC);
+            spointer3d->pushRenderItem(selectionId | 1*useSC);
         Game::currentRenderer->mvPopMatrix();
 
         Game::currentRenderer->mvPushMatrix();
         Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPositionE[0] + 0 * (drawPositionE[4] - this->x), drawPositionE[1] + 1, -drawPositionE[2] + 0 * (-drawPositionE[5] - this->y));
         Mat4::rotateY(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPositionE[3] + rotE*M_PI);
-        useSC = (float)selectionColor/(float)(selectionColor+0.000001);
         if(this->selected && this->selectionValue == 3)
-            spointer3dSelected->pushRenderItem(selectionColor | 3*useSC);
+            spointer3dSelected->pushRenderItem(selectionId | 3*useSC);
         else
-            spointer3d->pushRenderItem(selectionColor | 3*useSC);
+            spointer3d->pushRenderItem(selectionId | 3*useSC);
         Game::currentRenderer->mvPopMatrix();
 
-        if(selectionColor == 0)
+        if(selectionId == 0)
             line->pushRenderItem();
     } else {
         gluu->mvPushMatrix();
@@ -667,12 +661,10 @@ void CarSpawnerObj::renderTritems(GLUU* gluu, int selectionColor, bool pushToQue
         //Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, this->trItemRData[0] + 2048*(this->trItemRData[3] - playerT[0] ), this->trItemRData[1]+2, -this->trItemRData[2] + 2048*(-this->trItemRData[4] - playerT[1]));
         //Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, this->trItemRData[0] + 0, this->trItemRData[1]+0, -this->trItemRData[2] + 0);
         gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-
-        useSC = (float)selectionColor/(float)(selectionColor+0.000001);
         if(this->selected && this->selectionValue == 1)
-            spointer3dSelected->render(selectionColor | 1*useSC);
+            spointer3dSelected->render(selectionId | 1*useSC);
         else
-            spointer3d->render(selectionColor | 1*useSC);
+            spointer3d->render(selectionId | 1*useSC);
         gluu->mvPopMatrix();
 
         gluu->mvPushMatrix();
@@ -681,17 +673,16 @@ void CarSpawnerObj::renderTritems(GLUU* gluu, int selectionColor, bool pushToQue
         //Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, this->trItemRData[0] + 2048*(this->trItemRData[3] - playerT[0] ), this->trItemRData[1]+2, -this->trItemRData[2] + 2048*(-this->trItemRData[4] - playerT[1]));
         //Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, this->trItemRData[0] + 0, this->trItemRData[1]+0, -this->trItemRData[2] + 0);
         gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-        useSC = (float)selectionColor/(float)(selectionColor+0.000001);
         if(this->selected && this->selectionValue == 3)
-            spointer3dSelected->render(selectionColor | 3*useSC);
+            spointer3dSelected->render(selectionId | 3*useSC);
         else
-            spointer3d->render(selectionColor | 3*useSC);
+            spointer3d->render(selectionId | 3*useSC);
         gluu->mvPopMatrix();
 
         gluu->mvPushMatrix();
         //Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, drawPositionB[0] + 0 * (drawPositionB[4] - this->x), drawPositionB[1] + 1, -drawPositionB[2] + 0 * (-drawPositionB[5] - this->y));
         gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-        if(selectionColor == 0)
+        if(selectionId == 0)
             line->render();
         gluu->mvPopMatrix();
     }

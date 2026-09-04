@@ -2469,11 +2469,11 @@ static int runTerrainGridSuite(bool verbose) {
         for (int patchId = 0;
              patchId < window.patchesPerSide * window.patchesPerSide;
              ++patchId) {
-            const int selectionId = window.selectionIdForPatch(patchId);
-            if (selectionId < 0)
+            const int selectionIndex = window.selectionIdForPatch(patchId);
+            if (selectionIndex < 0)
                 continue;
             ++mapped;
-            if (window.patchIdForSelection(selectionId) != patchId)
+            if (window.patchIdForSelection(selectionIndex) != patchId)
                 return false;
         }
         return mapped == 256;

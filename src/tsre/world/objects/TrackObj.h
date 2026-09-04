@@ -41,8 +41,8 @@ public:
     int getDefaultDetailLevel();
     bool isSimilar(WorldObj* obj);
     int updateTrackSectionInfo(QHash<unsigned int, unsigned int> shapes, QHash<unsigned int, unsigned int> sect);
-    void pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor);
-    void render(GLUU* gluu, float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor, int renderMode);
+    void pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
+    void render(GLUU* gluu, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId, int renderMode);
     QVector<std::array<float, 5>> jNodePosn;
     void fillJNodePosn();
     void setElevation(float prom);

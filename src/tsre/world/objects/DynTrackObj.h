@@ -53,8 +53,8 @@ public:
     void setTemplate(QString name);
     int getDefaultDetailLevel();
     int updateTrackSectionInfo(QHash<unsigned int, unsigned int> shapes, QHash<unsigned int, unsigned int> sect);
-    void pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor);
-    void render(GLUU* gluu, float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor, int renderMode);
+    void pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
+    void render(GLUU* gluu, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId, int renderMode);
 private:
     int tex1;
     int tex2;

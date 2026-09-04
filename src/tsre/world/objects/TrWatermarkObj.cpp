@@ -62,7 +62,7 @@ void TrWatermarkObj::set(QString sh, FileBuffer* data) {
     return;
 }
 
-void TrWatermarkObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos, float* target, float fov, int selectionColor, int renderMode) {
+void TrWatermarkObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos, float* target, float fov, quint32 selectionId, int renderMode) {
     return;
 };
 

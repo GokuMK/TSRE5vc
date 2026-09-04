@@ -62,8 +62,8 @@ public:
     int getDefaultDetailLevel();
     bool isNumberDot();
     void setNumberDot(bool val);
-    void render(GLUU* gluu, float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor, int renderMode);
-    void pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor);
+    void render(GLUU* gluu, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId, int renderMode);
+    void pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
 private:
     int speedPostId = -1;
     int speedPostType = -1;
@@ -79,7 +79,7 @@ private:
     float* drawPosition = NULL;
     OglObj* drawLine = NULL;
     
-    void renderTritems(GLUU* gluu, int selectionColor, bool pushToQueue = false);
+    void renderTritems(GLUU* gluu, quint32 selectionId, bool pushToQueue = false);
     int selectionValue = 0;
     bool getSimpleBorder(float* border);
     bool getBoxPoints(QVector<float> &points);

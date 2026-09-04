@@ -487,7 +487,7 @@ void DynTrackObj::set(QString sh, float* val) {
     deleteVBO();
 }
 
-void DynTrackObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos, float* target, float fov, int selectionColor, int renderMode) {
+void DynTrackObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos, float* target, float fov, quint32 selectionId, int renderMode) {
     if (!loaded) 
         return;
 
@@ -500,14 +500,14 @@ void DynTrackObj::render(GLUU* gluu, float lod, float posx, float posz, float* p
             pointer3d = new TrackItemObj(1);
             pointer3d->setMaterial(0.9,0.9,0.7);
         }
-        pointer3d->render(selectionColor);
+        pointer3d->render(selectionId);
     }
 
     generateShape();
     // A generated shape is ready immediately. Draw it in this pass instead
     // of leaving the DynTrack absent for one complete frame.
     for(int i = 0; i < shape.size(); i++){
-        shape[i]->render(selectionColor, lod);
+        shape[i]->render(selectionId, lod);
     }
     
     if(selected){
@@ -515,7 +515,7 @@ void DynTrackObj::render(GLUU* gluu, float lod, float posx, float posz, float* p
     }   
 };
 
-void DynTrackObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor) {
+void DynTrackObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId) {
     if (!loaded)
         return;
     if (Game::currentRenderer == NULL)
@@ -528,13 +528,13 @@ void DynTrackObj::pushRenderItems(float lod, float posx, float posz, float* play
             pointer3d = new TrackItemObj(1);
             pointer3d->setMaterial(0.9,0.9,0.7);
         }
-        pointer3d->pushRenderItem(selectionColor);
+        pointer3d->pushRenderItem(selectionId);
     }
 
     generateShape();
 
     for(int i = 0; i < shape.size(); i++){
-        shape[i]->pushRenderItem(selectionColor, lod);
+        shape[i]->pushRenderItem(selectionId, lod);
     }
 }
 

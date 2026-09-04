@@ -822,7 +822,7 @@ void GltfShape::render() {
     render(0, 0);
 }
 
-void GltfShape::render(int selectionColor, unsigned int stateId) {
+void GltfShape::render(quint32 selectionId, unsigned int stateId) {
     (void)stateId;
 
     if (isinit != 1 || loaded == 2) {
@@ -851,11 +851,10 @@ void GltfShape::render(int selectionColor, unsigned int stateId) {
         return;
     }
 
-    if (selectionColor == 0) {
+    gluu->setSelectionId(selectionId);
+    if (selectionId == 0) {
         syncTextureAddresses();
         gluu->enableTextures();
-    } else {
-        gluu->disableTextures(selectionColor);
     }
     gluu->enableNormals();
     gluu->setBrightness(1.0f);
@@ -883,7 +882,7 @@ void GltfShape::render(int selectionColor, unsigned int stateId) {
             gluu->currentMsMatrinxHash = 0;
         }
 
-        if (selectionColor == 0) {
+        if (selectionId == 0) {
             if (!prim->material.hasTexture || prim->material.texId < 0) {
                 gluu->disableTextures(prim->material.color[0], prim->material.color[1], prim->material.color[2], prim->material.color[3]);
             } else if (prim->material.texAddr >= 0 && TexLib::disabledTextures.value(prim->material.texAddr, 0) != 1) {
@@ -896,7 +895,7 @@ void GltfShape::render(int selectionColor, unsigned int stateId) {
         QOpenGLVertexArrayObject::Binder vaoBinder(&prim->VAO);
         f->glDrawArrays(GL_TRIANGLES, 0, prim->vertCount);
 
-        if (selectionColor == 0) {
+        if (selectionId == 0) {
             gluu->enableTextures();
         }
     }
@@ -908,7 +907,7 @@ void GltfShape::pushRenderItem() {
     pushRenderItem(0, 0);
 }
 
-void GltfShape::pushRenderItem(int selectionColor, unsigned int stateId) {
+void GltfShape::pushRenderItem(quint32 selectionId, unsigned int stateId) {
     if (isinit != 1 || loaded == 2) {
         return;
     }
@@ -927,7 +926,7 @@ void GltfShape::pushRenderItem(int selectionColor, unsigned int stateId) {
         return;
     }
 
-    if (selectionColor == 0) {
+    if (selectionId == 0) {
         syncTextureAddresses();
         const unsigned long long textureStateHash = getTextureStateHash();
         if (renderItemsTextureHash.value(stateId, 0ULL) != textureStateHash) {
@@ -967,9 +966,8 @@ void GltfShape::pushRenderItem(int selectionColor, unsigned int stateId) {
             r->normalsEnabled = 1;
             r->brightness = 1.0f;
 
-            if (selectionColor != 0) {
-                r->disableTextures(selectionColor);
-            } else if (!prim->material.hasTexture || prim->material.texId < 0) {
+            r->setSelectionId(0);
+            if (!prim->material.hasTexture || prim->material.texId < 0) {
                 r->disableTextures(prim->material.color[0], prim->material.color[1], prim->material.color[2], prim->material.color[3]);
             } else if (prim->material.texAddr >= 0 && TexLib::disabledTextures.value(prim->material.texAddr, 0) != 1) {
                 r->enableTextures((unsigned int)prim->material.texAddr);
@@ -990,14 +988,14 @@ void GltfShape::pushRenderItem(int selectionColor, unsigned int stateId) {
         renderItemsTextureHash[stateId] = getTextureStateHash();
     }
 
-    if (selectionColor != 0) {
+    if (selectionId != 0) {
         for (int i = 0; i < renderItems[stateId].size(); i++) {
             RenderItem* baseItem = renderItems[stateId][i];
             if (baseItem == nullptr) continue;
 
             RenderItem* selectionItem = new RenderItem(*baseItem);
             selectionItem->shared = false;
-            selectionItem->disableTextures(selectionColor);
+            selectionItem->setSelectionId(selectionId);
             selectionItem->lineWidth = 0;
             Game::currentRenderer->pushItem(selectionItem, Game::currentRenderer->mvMatrix);
         }

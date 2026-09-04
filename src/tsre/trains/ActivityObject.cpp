@@ -258,58 +258,58 @@ void ActivityObject::setModified(bool val){
 }
 
 void ActivityObject::render(GLUU* gluu, float* playerT, int renderMode, int index){
-    int selectionColor = 0;
+    quint32 selectionId = 0;
     if(renderMode == gluu->RENDER_SELECTION){
-        selectionColor = 11 << 20;
-        selectionColor |= index << 8;
+        selectionId = 11u << 20;
+        selectionId |= static_cast<quint32>(index) << 8;
     }
     
     if(objectTypeId == ActivityObject::WAGONLIST ){
         if(con != NULL){
             if (!con->isOnTrack)
                 con->initOnTrack(tile, direction);
-            con->renderOnTrack(gluu, playerT, selectionColor);
+            con->renderOnTrack(gluu, playerT, selectionId);
         }
     }
     
     if(objectTypeId == ActivityObject::RESTRICTEDSPEEDZONE ){
         if(speedZoneData != NULL)
-            speedZoneData->render(gluu, playerT, selectionColor, selected);
+            speedZoneData->render(gluu, playerT, selectionId, selected);
     }
     
     if(objectTypeId == ActivityObject::FAILEDSIGNAL ){
         if(failedSignalData != NULL)
-            failedSignalData->render(gluu, playerT, selectionColor, selected);
+            failedSignalData->render(gluu, playerT, selectionId, selected);
     }
 }
 
 void ActivityObject::pushRenderItems(float* playerT, int renderMode, int index) {
-    int selectionColor = 0;
+    quint32 selectionId = 0;
     if (renderMode == Game::currentRenderer->RENDER_SELECTION) {
-        selectionColor = 11 << 20;
-        selectionColor |= index << 8;
+        selectionId = 11u << 20;
+        selectionId |= static_cast<quint32>(index) << 8;
     }
 
     if (objectTypeId == ActivityObject::WAGONLIST) {
         if (con != NULL) {
             if (!con->isOnTrack)
                 con->initOnTrack(tile, direction);
-            con->pushRenderItemsOnTrack(playerT, selectionColor);
+            con->pushRenderItemsOnTrack(playerT, selectionId);
         }
     }
 
     if (objectTypeId == ActivityObject::RESTRICTEDSPEEDZONE) {
         if (speedZoneData != NULL)
-            speedZoneData->pushRenderItems(playerT, selectionColor, selected);
+            speedZoneData->pushRenderItems(playerT, selectionId, selected);
     }
 
     if (objectTypeId == ActivityObject::FAILEDSIGNAL) {
         if (failedSignalData != NULL)
-            failedSignalData->pushRenderItems(playerT, selectionColor, selected);
+            failedSignalData->pushRenderItems(playerT, selectionId, selected);
     }
 }
 
-void ActivityObject::SpeedZone::render(GLUU* gluu, float* playerT, int selectionColor, bool selected){
+void ActivityObject::SpeedZone::render(GLUU* gluu, float* playerT, quint32 selectionId, bool selected){
     if(init < 0)
         return;
     float posT[2], pos[3];
@@ -383,29 +383,26 @@ void ActivityObject::SpeedZone::render(GLUU* gluu, float* playerT, int selection
     }
     float aa = (drawPositionE[2]-drawPositionB[2]);
     if(aa != 0) aa = (aa/fabs(aa));
-    int useSC;
+    const quint32 useSC = selectionId != 0 ? 1u : 0u;
 
     gluu->mvPushMatrix();
     Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, drawPositionB[0] + 2048 * (start[0] - playerT[0]), drawPositionB[1] + 1, -drawPositionB[2] + 2048 * (-start[1] - playerT[1]));
     Mat4::rotateY(gluu->mvMatrix, gluu->mvMatrix, drawPositionB[3] + rotB*M_PI);
     gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-    
-    useSC = (float)selectionColor/(float)(selectionColor+0.000001);
     if(selected && selectionValue == 1) 
-        pointer3dSelected->render(selectionColor | 1*useSC);
+        pointer3dSelected->render(selectionId | 1*useSC);
     else
-        pointer3d->render(selectionColor | 1*useSC);
+        pointer3d->render(selectionId | 1*useSC);
     gluu->mvPopMatrix();
     
     gluu->mvPushMatrix();
     Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, drawPositionE[0] + 2048 * (start[0] - playerT[0]), drawPositionE[1] + 1, -drawPositionE[2] + 2048 * (-start[1] - playerT[1]));
     Mat4::rotateY(gluu->mvMatrix, gluu->mvMatrix, drawPositionE[3] + rotE*M_PI);
     gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-    useSC = (float)selectionColor/(float)(selectionColor+0.000001);
     if(selected && selectionValue == 3) 
-        pointer3dSelected->render(selectionColor | 3*useSC);
+        pointer3dSelected->render(selectionId | 3*useSC);
     else
-        pointer3d->render(selectionColor | 3*useSC);
+        pointer3d->render(selectionId | 3*useSC);
     gluu->mvPopMatrix();
     
     gluu->mvPushMatrix();
@@ -415,7 +412,7 @@ void ActivityObject::SpeedZone::render(GLUU* gluu, float* playerT, int selection
     gluu->mvPopMatrix();
 };
 
-void ActivityObject::SpeedZone::pushRenderItems(float* playerT, int selectionColor, bool selected) {
+void ActivityObject::SpeedZone::pushRenderItems(float* playerT, quint32 selectionId, bool selected) {
     if (init < 0)
         return;
     float posT[2], pos[3];
@@ -476,27 +473,24 @@ void ActivityObject::SpeedZone::pushRenderItems(float* playerT, int selectionCol
         pointer3d->setMaterial(1.0, 0.0, 0.4);
         pointer3dSelected->setMaterial(1.0, 0.3, 0.7);
     }
-    int useSC;
+    const quint32 useSC = selectionId != 0 ? 1u : 0u;
 
     Game::currentRenderer->mvPushMatrix();
     Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPositionB[0] + 2048 * (start[0] - playerT[0]), drawPositionB[1] + 1, -drawPositionB[2] + 2048 * (-start[1] - playerT[1]));
     Mat4::rotateY(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPositionB[3] + rotB*M_PI);
-
-    useSC = (float)selectionColor / (float)(selectionColor + 0.000001);
     if (selected && selectionValue == 1)
-        pointer3dSelected->pushRenderItem(selectionColor | 1 * useSC);
+        pointer3dSelected->pushRenderItem(selectionId | 1 * useSC);
     else
-        pointer3d->pushRenderItem(selectionColor | 1 * useSC);
+        pointer3d->pushRenderItem(selectionId | 1 * useSC);
     Game::currentRenderer->mvPopMatrix();
 
     Game::currentRenderer->mvPushMatrix();
     Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPositionE[0] + 2048 * (start[0] - playerT[0]), drawPositionE[1] + 1, -drawPositionE[2] + 2048 * (-start[1] - playerT[1]));
     Mat4::rotateY(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPositionE[3] + rotE*M_PI);
-    useSC = (float)selectionColor / (float)(selectionColor + 0.000001);
     if (selected && selectionValue == 3)
-        pointer3dSelected->pushRenderItem(selectionColor | 3 * useSC);
+        pointer3dSelected->pushRenderItem(selectionId | 3 * useSC);
     else
-        pointer3d->pushRenderItem(selectionColor | 3 * useSC);
+        pointer3d->pushRenderItem(selectionId | 3 * useSC);
     Game::currentRenderer->mvPopMatrix();
 
     Game::currentRenderer->mvPushMatrix();
@@ -607,7 +601,7 @@ bool ActivityObject::FailedSignalData::getWorldPosition(float *posTW){
     return true;
 }
 
-void ActivityObject::FailedSignalData::render(GLUU* gluu, float* playerT, int selectionColor, bool selected){
+void ActivityObject::FailedSignalData::render(GLUU* gluu, float* playerT, quint32 selectionId, bool selected){
     if(init < 0)
         return;
     if(init == 0){
@@ -645,15 +639,14 @@ void ActivityObject::FailedSignalData::render(GLUU* gluu, float* playerT, int se
     //Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, this->trItemRData[0] + 2048*(this->trItemRData[3] - playerT[0] ), this->trItemRData[1]+2, -this->trItemRData[2] + 2048*(-this->trItemRData[4] - playerT[1]));
     //Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, this->trItemRData[0] + 0, this->trItemRData[1]+0, -this->trItemRData[2] + 0);
     gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-    //int useSC = (float)selectionColor/(float)(selectionColor+0.000001);
     if(selected)
-        pointer3dSelected->render(selectionColor);
+        pointer3dSelected->render(selectionId);
     else
-        pointer3d->render(selectionColor);
+        pointer3d->render(selectionId);
     gluu->mvPopMatrix();
 }
 
-void ActivityObject::FailedSignalData::pushRenderItems(float* playerT, int selectionColor, bool selected) {
+void ActivityObject::FailedSignalData::pushRenderItems(float* playerT, quint32 selectionId, bool selected) {
     if (init < 0)
         return;
     if (init == 0) {
@@ -686,9 +679,9 @@ void ActivityObject::FailedSignalData::pushRenderItems(float* playerT, int selec
     Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPosition[0] + 2048 * (drawPosition[5] - playerT[0]), drawPosition[1] + 1, -drawPosition[2] + 2048 * (-drawPosition[6] - playerT[1]));
     Mat4::rotateY(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPosition[3]);
     if (selected)
-        pointer3dSelected->pushRenderItem(selectionColor);
+        pointer3dSelected->pushRenderItem(selectionId);
     else
-        pointer3d->pushRenderItem(selectionColor);
+        pointer3d->pushRenderItem(selectionId);
     Game::currentRenderer->mvPopMatrix();
 }
 

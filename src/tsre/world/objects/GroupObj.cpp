@@ -412,7 +412,7 @@ void GroupObj::setMartix(){
     }
 }
 
-void GroupObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos, float* target, float fov, int selectionColor, int renderMode) {
+void GroupObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos, float* target, float fov, quint32 selectionId, int renderMode) {
     
 }
 

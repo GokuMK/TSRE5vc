@@ -17,6 +17,8 @@
 #include <QFile>
 #include <QOpenGLContext>
 #include <QOpenGLExtraFunctions>
+#include <QOpenGLFunctions_3_0>
+#include <QOpenGLVersionFunctionsFactory>
 #ifndef __APPLE__
 #include <GL/gl.h>
 #else
@@ -62,27 +64,46 @@ const char* GLUU::getShader(QString shaderScript, QString type) {
 }
 
 void GLUU::initShader() {
-    QVector<QString> shaderNames;
-    shaderNames.push_back("StandardFog");
-    shaderNames.push_back("StandardFogStoredCoords");
-    shaderNames.push_back("StandardBloom");
-    shaderNames.push_back("Shadows");
-    
-    for(int i = 0; i < shaderNames.size(); i++ ){
-        shaders[shaderNames[i]] = new Shader();
-        if(!shaders[shaderNames[i]]->addShaderFromSourceCode(QOpenGLShader::Vertex, getShader(shaderNames[i], "vs"))){
+    QOpenGLContext *context = QOpenGLContext::currentContext();
+    QOpenGLExtraFunctions *extra = context->extraFunctions();
+    QOpenGLFunctions_3_0 *functions30 =
+            QOpenGLVersionFunctionsFactory::get<QOpenGLFunctions_3_0>(context);
+    struct ShaderDefinition {
+        QString name;
+        QString vertexSource;
+        QString fragmentSource;
+    };
+    QVector<ShaderDefinition> shaderDefinitions;
+    shaderDefinitions.push_back({"StandardFog", "StandardFog", "StandardFog"});
+    shaderDefinitions.push_back({"StandardFogStoredCoords", "StandardFogStoredCoords", "StandardFogStoredCoords"});
+    shaderDefinitions.push_back({"StandardBloom", "StandardBloom", "StandardBloom"});
+    shaderDefinitions.push_back({"Shadows", "Shadows", "Shadows"});
+    shaderDefinitions.push_back({"Selection", "StandardFog", "Selection"});
+
+    for(int i = 0; i < shaderDefinitions.size(); i++ ){
+        const ShaderDefinition &definition = shaderDefinitions[i];
+        shaders[definition.name] = new Shader();
+        if(!shaders[definition.name]->addShaderFromSourceCode(QOpenGLShader::Vertex, getShader(definition.vertexSource, "vs"))){
             qDebug() << "Loading shader .vs file failed.";
         }
-        if(!shaders[shaderNames[i]]->addShaderFromSourceCode(QOpenGLShader::Fragment, getShader(shaderNames[i], "fs"))){
+        if(!shaders[definition.name]->addShaderFromSourceCode(QOpenGLShader::Fragment, getShader(definition.fragmentSource, "fs"))){
             qDebug() << "Loading shader .fs file failed.";
         }
-        currentShader = shaders[shaderNames[i]];
+        currentShader = shaders[definition.name];
         currentShader->bindAttributeLocation("vertex", 0);
         currentShader->bindAttributeLocation("aTextureCoord", 1);
         currentShader->bindAttributeLocation("normal", 2);
         currentShader->bindAttributeLocation("alpha", 3);
+        if(definition.name == "Selection" && functions30 != nullptr)
+            functions30->glBindFragDataLocation(currentShader->programId(), 0,
+                                                "selectionResult");
         if(!currentShader->link()){
             qDebug() << "Shader link failed.";
+        }
+        if(definition.name == "Selection"
+                && extra->glGetFragDataLocation(currentShader->programId(),
+                                                "selectionResult") != 0){
+            qWarning() << "Selection shader output is not bound to color attachment 0";
         }
         if(!currentShader->bind()){
             qDebug() << "Shader bind failed.";
@@ -102,6 +123,7 @@ void GLUU::initShader() {
         currentShader->shaderAlphaTest = currentShader->uniformLocation("alphaTest");
         currentShader->shaderTextureEnabled = currentShader->uniformLocation("textureEnabled");
         currentShader->shaderShapeColor = currentShader->uniformLocation("shapeColor");
+        currentShader->shaderSelectionId = currentShader->uniformLocation("selectionId");
         currentShader->shaderEnableNormals = currentShader->uniformLocation("enableNormals");
         currentShader->shaderDiffuseColor = currentShader->uniformLocation("diffuseColor");
         currentShader->shaderAmbientColor = currentShader->uniformLocation("ambientColor");
@@ -122,13 +144,23 @@ void GLUU::initShader() {
         currentShader->terrainApplyGaps = currentShader->uniformLocation("terrainApplyGaps");
         currentShader->terrainMapPass = currentShader->uniformLocation("terrainMapPass");
 
-        QOpenGLExtraFunctions *extra = QOpenGLContext::currentContext()->extraFunctions();
         const GLuint terrainBlock = extra->glGetUniformBlockIndex(
                     currentShader->programId(), "TerrainPatchBlock");
         if (terrainBlock != GL_INVALID_INDEX)
             extra->glUniformBlockBinding(currentShader->programId(), terrainBlock, 0);
         if (currentShader->terrainPaged >= 0)
             currentShader->setUniformValue(currentShader->terrainPaged, 0);
+        if (currentShader->shaderSelectionId >= 0){
+            const quint32 selectionUniformProbe = 0x5aa55aa5u;
+            quint32 selectionUniformValue = 0;
+            setSelectionId(selectionUniformProbe);
+            extra->glGetUniformuiv(currentShader->programId(),
+                                   currentShader->shaderSelectionId,
+                                   &selectionUniformValue);
+            if(selectionUniformValue != selectionUniformProbe)
+                qWarning() << "Selection uint uniform test failed";
+            setSelectionId(0);
+        }
 
         unsigned int tex1 = currentShader->uniformLocation("uSampler");
         currentShader->setUniformValue(tex1, 0);
@@ -181,6 +213,8 @@ void GLUU::setMatrixUniforms() {
     currentShader->setUniformValue(currentShader->shaderShadowsEnabled, Game::shadowsEnabled);
     currentShader->setUniformValue(currentShader->shaderBrightness, currentBrightness);
     currentShader->setUniformValue(currentShader->shaderFogDensity, fogDensity);
+    if(currentShader->shaderSelectionId >= 0)
+        setSelectionId(0);
     
     currentShader->setUniformValue(currentShader->shadow1Res, shadow1Res);
     currentShader->setUniformValue(currentShader->shadow1Bias, shadow1Bias);
@@ -206,19 +240,19 @@ void GLUU::disableTextures(Vector3f* color){
     currentShader->setUniformValue(currentShader->shaderTextureEnabled, 0.0f);
 }
 
-void GLUU::disableTextures(int color){
-    int wColor = (int)(color/65536);
-    int sColor = (int)(color - wColor*65536)/256;
-    int bColor = (int)(color - wColor*65536 - sColor*256);
-    disableTextures((float)wColor/255.0f, (float)sColor/255.0f, (float)bColor/255.0f, 1);
-}
-
 void GLUU::disableTextures(float x, float y, float z, float a){
     currentShader->setUniformValue(currentShader->shaderShapeColor, x, y, z, a);
     if(!this->textureEnabled) 
         return;
     this->textureEnabled = false;
     currentShader->setUniformValue(currentShader->shaderTextureEnabled, 0.0f);
+}
+
+void GLUU::setSelectionId(quint32 selectionId){
+    if(currentShader == nullptr || currentShader->shaderSelectionId < 0)
+        return;
+    QOpenGLContext::currentContext()->extraFunctions()->glUniform1ui(
+                currentShader->shaderSelectionId, selectionId);
 }
 
 /*bool GLUU::disableTexturesOptional(float x, float y, float z, float a){
@@ -231,7 +265,7 @@ void GLUU::disableTextures(float x, float y, float z, float a){
 }*/
 
 void GLUU::enableTextures(){
-    if(this->textureEnabled) 
+    if(this->textureEnabled)
         return;
     this->textureEnabled = true;
     currentShader->setUniformValue(currentShader->shaderTextureEnabled, 1.0f);

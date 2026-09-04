@@ -503,8 +503,8 @@ void  Consist::setDisplayName(QString n){
     modified = true;
 }
 
-void Consist::render(int selectionColor, bool renderText) {
-    render(0, 0, selectionColor, renderText);
+void Consist::render(quint32 selectionId, bool renderText) {
+    render(0, 0, selectionId, renderText);
 }
 
 void Consist::setTextColor(float* bgColor) {
@@ -556,27 +556,27 @@ QString Consist::getFirstEngName(){
     return engItems[0].ename.toLower();
 }
 
-void Consist::render(int aktwx, int aktwz, int selectionColor, bool renderText) {
+void Consist::render(int aktwx, int aktwz, quint32 selectionId, bool renderText) {
     //gl.glTranslatef(0, 0.2f, 0);
     //qDebug() << loaded;
     if (loaded != 1) return;
 
     GLUU *gluu = GLUU::get();
-    int scolor = 0;
+    quint32 scolor = 0;
     for(int i = 0; i < engItems.size(); i++){
         gluu->mvPushMatrix();
         Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 0, 0, engItems[i].pos);
         if(!engItems[i].flip)
             Mat4::rotate(gluu->mvMatrix, gluu->mvMatrix, M_PI, 0, 1, 0);
         gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-        if(selectionColor != 0)
-            scolor = selectionColor + i;
+        if(selectionId != 0)
+            scolor = selectionId + static_cast<quint32>(i);
         if(selectedIdx == i)
             Game::currentEngLib->eng[engItems[i].eng]->drawBorder();
         Game::currentEngLib->eng[engItems[i].eng]->render(aktwx, aktwz, scolor);
         gluu->mvPopMatrix();
         
-        if(selectionColor != 0 || !renderText)
+        if(selectionId != 0 || !renderText)
             continue;
         gluu->mvPushMatrix();
         Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 0, -1, engItems[i].pos);
@@ -770,18 +770,18 @@ void Consist::getCameraPosition(float *out){
     engItems[0].engPointer->getCameraPosition(out);
 }
 
-void Consist::renderOnTrack(GLUU* gluu, float* playerT, int selectionColor) {
+void Consist::renderOnTrack(GLUU* gluu, float* playerT, quint32 selectionId) {
     if (loaded != 1) return;
 
-    int scolor = 0;
+    quint32 scolor = 0;
     for(int i = 0; i < engItems.size(); i++){
         gluu->mvPushMatrix();
         //Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 0, 0, engItems[i].pos);
         //if(!engItems[i].flip)
         //    Mat4::rotate(gluu->mvMatrix, gluu->mvMatrix, M_PI, 0, 1, 0);
         //gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-        if(selectionColor != 0){
-            scolor = selectionColor | i;
+        if(selectionId != 0){
+            scolor = selectionId | static_cast<quint32>(i);
         }
         engItems[i].engPointer->renderOnTrack(gluu, playerT, scolor);
         if(selectedIdx == i)
@@ -790,14 +790,14 @@ void Consist::renderOnTrack(GLUU* gluu, float* playerT, int selectionColor) {
     }
 }
 
-void Consist::pushRenderItemsOnTrack(float* playerT, int selectionColor) {
+void Consist::pushRenderItemsOnTrack(float* playerT, quint32 selectionId) {
     if (loaded != 1) return;
 
-    int scolor = 0;
+    quint32 scolor = 0;
     for (int i = 0; i < engItems.size(); i++) {
         Game::currentRenderer->mvPushMatrix();
-        if (selectionColor != 0) {
-            scolor = selectionColor | i;
+        if (selectionId != 0) {
+            scolor = selectionId | static_cast<quint32>(i);
         }
         engItems[i].engPointer->pushRenderItemOnTrack(playerT, scolor);
         if (selectedIdx == i)

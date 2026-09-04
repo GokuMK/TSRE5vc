@@ -32,8 +32,8 @@ public:
     void set(QString sh, FileBuffer* data);
     void save(QTextStream* out);
     int getDefaultDetailLevel();
-    void pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor);
-    void render(GLUU* gluu, float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor, int renderMode);
+    void pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
+    void render(GLUU* gluu, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId, int renderMode);
 private:
     PoleObj* pointer3d = NULL;
     PoleObj* pointer3dSelected = NULL;

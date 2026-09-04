@@ -55,6 +55,7 @@ void applyItemState(GLUU *gluu, QOpenGLFunctions *f, RenderItem *item){
 
     gluu->setBrightness(item->brightness);
 
+    gluu->setSelectionId(item->selectionId);
     if(item->texturesEnabled){
         gluu->enableTextures();
         gluu->bindTexture(f, item->texAddr);

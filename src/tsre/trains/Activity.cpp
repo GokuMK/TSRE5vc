@@ -604,25 +604,25 @@ void ActivityServiceDefinition::save(QTextStream* out) {
 }
 
 void ActivityServiceDefinition::render(GLUU* gluu, float* playerT, int renderMode){
-    int selectionColor = 0;
+    quint32 selectionId = 0;
     if(renderMode == gluu->RENDER_SELECTION){
-        selectionColor = 13 << 20;
-        //selectionColor |= index << 0;
+        selectionId = 13u << 20;
+        //selectionId |= index << 0;
     }
     if(servicePointer == NULL)
         return;
-    servicePointer->render(gluu, playerT, selectionColor);
+    servicePointer->render(gluu, playerT, selectionId);
 
 }
 
 void ActivityServiceDefinition::pushRenderItems(float* playerT, int renderMode) {
-    int selectionColor = 0;
+    quint32 selectionId = 0;
     if (renderMode == Game::currentRenderer->RENDER_SELECTION) {
-        selectionColor = 13 << 20;
+        selectionId = 13u << 20;
     }
     if (servicePointer == NULL)
         return;
-    servicePointer->pushRenderItems(playerT, selectionColor);
+    servicePointer->pushRenderItems(playerT, selectionId);
 }
 
 void ActivityServiceDefinition::updateSim(float *playerT, float deltaTime){

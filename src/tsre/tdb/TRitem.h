@@ -122,8 +122,8 @@ public:
     float getTrackPosition();
     void setTrackPosition(float val);
     void trackPositionAdd(float val);
-    void render(TDB *tdb, GLUU *gluu, float* playerT, float playerRot, int selectionColor);
-    void pushRenderItem(TDB *tdb, float* playerT, float playerRot, int selectionColor);
+    void render(TDB *tdb, GLUU *gluu, float* playerT, float playerRot, quint32 selectionId);
+    void pushRenderItem(TDB *tdb, float* playerT, float playerRot, quint32 selectionId);
     void addPositionOffset(float offsetXYZ[]);
     void addTrackNodeItemOffset(unsigned int trackNodeOffset, unsigned int trackItemOffset);
 

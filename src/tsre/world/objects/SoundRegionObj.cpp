@@ -354,14 +354,14 @@ void SoundRegionObj::set(QString sh, FileBuffer* data) {
     return;
 }
 
-void SoundRegionObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos, float* target, float fov, int selectionColor, int renderMode) {
+void SoundRegionObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos, float* target, float fov, quint32 selectionId, int renderMode) {
     if (!loaded) return;
 
     if(Game::viewInteractives && renderMode != gluu->RENDER_SHADOWMAP) 
-        this->renderTritems(gluu, selectionColor, false);
+        this->renderTritems(gluu, selectionId, false);
 };
 
-void SoundRegionObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor){
+void SoundRegionObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId){
     if (!loaded)
         return;
     if(!Game::viewInteractives)
@@ -369,10 +369,10 @@ void SoundRegionObj::pushRenderItems(float lod, float posx, float posz, float* p
     if(Game::currentRenderer == NULL)
         return;
 
-    this->renderTritems(NULL, selectionColor, true);
+    this->renderTritems(NULL, selectionId, true);
 }
 
-void SoundRegionObj::renderTritems(GLUU* gluu, int selectionColor, bool pushToQueue){
+void SoundRegionObj::renderTritems(GLUU* gluu, quint32 selectionId, bool pushToQueue){
     
     ///////////////////////////////
     TDB* tdb = Game::trackDB;
@@ -448,9 +448,9 @@ void SoundRegionObj::renderTritems(GLUU* gluu, int selectionColor, bool pushToQu
         }
     }
 
-    int useSC;
+    const quint32 useSC = selectionId != 0 ? 1u : 0u;
     if(pushToQueue){
-        if(selectionColor == 0)
+        if(selectionId == 0)
             drawLine->pushRenderItem();
 
         for(int i = 0; i < drawPositions.size(); i++){
@@ -458,16 +458,15 @@ void SoundRegionObj::renderTritems(GLUU* gluu, int selectionColor, bool pushToQu
             Game::currentRenderer->mvPushMatrix();
             Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPosition[0] + 0 * (drawPosition[4] - this->x), drawPosition[1] + 1, -drawPosition[2] + 0 * (-drawPosition[5] - this->y));
             Mat4::rotateY(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, -drawPosition[7]+M_PI);
-            useSC = (float)selectionColor/(float)(selectionColor+0.000001);
             if(this->selected && this->selectionValue == i+1)
-                pointer3dSelected->pushRenderItem(selectionColor | (i+1)*useSC);
+                pointer3dSelected->pushRenderItem(selectionId | (i+1)*useSC);
             else
-                pointer3d->pushRenderItem(selectionColor | (i+1)*useSC);
+                pointer3d->pushRenderItem(selectionId | (i+1)*useSC);
             Game::currentRenderer->mvPopMatrix();
         }
     } else {
         gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-        if(selectionColor == 0)
+        if(selectionId == 0)
             drawLine->render();
 
         for(int i = 0; i < drawPositions.size(); i++){
@@ -476,11 +475,10 @@ void SoundRegionObj::renderTritems(GLUU* gluu, int selectionColor, bool pushToQu
             Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, drawPosition[0] + 0 * (drawPosition[4] - this->x), drawPosition[1] + 1, -drawPosition[2] + 0 * (-drawPosition[5] - this->y));
             Mat4::rotateY(gluu->mvMatrix, gluu->mvMatrix, -drawPosition[7]+M_PI);
             gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-            useSC = (float)selectionColor/(float)(selectionColor+0.000001);
             if(this->selected && this->selectionValue == i+1)
-                pointer3dSelected->render(selectionColor | (i+1)*useSC);
+                pointer3dSelected->render(selectionId | (i+1)*useSC);
             else
-                pointer3d->render(selectionColor | (i+1)*useSC);
+                pointer3d->render(selectionId | (i+1)*useSC);
             gluu->mvPopMatrix();
         }
     }

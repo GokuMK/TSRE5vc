@@ -267,7 +267,7 @@ void ForestObj::resize(float x, float y, float z){
     deleteVBO();
 }
 
-void ForestObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos, float* target, float fov, int selectionColor, int renderMode) {
+void ForestObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos, float* target, float fov, quint32 selectionId, int renderMode) {
     if (!loaded) return;
     //if (jestPQ < 2) return;
     //GLUU* gluu = GLUU::get();
@@ -305,7 +305,7 @@ void ForestObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos
 
     //if(selected){
     //    selected = !selected;
-    //    selectionColor = 155;
+    //    selectionId = 155;
     //}
     //gluu.setMatrixUniforms();
 
@@ -314,19 +314,12 @@ void ForestObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos
 
     gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
    
-    if(selectionColor != 0){
-        int wColor = (int)(selectionColor/65536);
-        int sColor = (int)(selectionColor - wColor*65536)/256;
-        int bColor = (int)(selectionColor - wColor*65536 - sColor*256);
-        shape.setMaterial((float)wColor/255.0f, (float)sColor/255.0f, (float)bColor/255.0f);
-    } else {
-        shape.setMaterial(texturePath);
-    }
+    shape.setMaterial(texturePath);
     
-    drawShape(false, selectionColor);
+    drawShape(false, selectionId);
 };
 
-void ForestObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor){
+void ForestObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId){
     if (!loaded)
         return;
     if (Game::currentRenderer == NULL)
@@ -334,19 +327,12 @@ void ForestObj::pushRenderItems(float lod, float posx, float posz, float* player
 
     Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, position[0], 0, position[2]);
 
-    if(selectionColor != 0){
-        int wColor = (int)(selectionColor/65536);
-        int sColor = (int)(selectionColor - wColor*65536)/256;
-        int bColor = (int)(selectionColor - wColor*65536 - sColor*256);
-        shape.setMaterial((float)wColor/255.0f, (float)sColor/255.0f, (float)bColor/255.0f);
-    } else {
-        shape.setMaterial(texturePath);
-    }
+    shape.setMaterial(texturePath);
 
-    drawShape(true, selectionColor);
+    drawShape(true, selectionId);
 }
 
-void ForestObj::drawShape(bool pushToQueue, int selectionColor){
+void ForestObj::drawShape(bool pushToQueue, quint32 selectionId){
     QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
     /*if (tex == -2) {
         f->glDisable(GL_TEXTURE_2D);
@@ -506,9 +492,9 @@ void ForestObj::drawShape(bool pushToQueue, int selectionColor){
         init = true;
     }
     if(pushToQueue){
-        shape.pushRenderItem(selectionColor);
+        shape.pushRenderItem(selectionId);
     } else {
-        shape.render();
+        shape.render(selectionId);
     }
     if(selected && !pushToQueue){
         drawBox();

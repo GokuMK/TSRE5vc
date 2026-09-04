@@ -422,7 +422,7 @@ void Path::init3dShapes(bool initShapes){
         isinit2 = true;
 }
 
-void Path::render(GLUU* gluu, float * playerT, int selectionColor){
+void Path::render(GLUU* gluu, float * playerT, quint32 selectionId){
     if(pointer3d == NULL){
         pointer3d = new TrackItemObj(1);
         pointer3d->setMaterial(0.0,1.0,0.0);
@@ -454,7 +454,7 @@ void Path::render(GLUU* gluu, float * playerT, int selectionColor){
     }
 }
 
-void Path::pushRenderItems(float *playerT, int selectionColor) {
+void Path::pushRenderItems(float *playerT, quint32 selectionId) {
     if (pointer3d == NULL) {
         pointer3d = new TrackItemObj(1);
         pointer3d->setMaterial(0.0, 1.0, 0.0);

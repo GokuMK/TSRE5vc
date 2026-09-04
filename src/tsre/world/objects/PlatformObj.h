@@ -56,8 +56,8 @@ public:
     void deleteTrItems();
     int getTrackBegItemId();
     int getDefaultDetailLevel();
-    void pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor);
-    void render(GLUU* gluu, float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor, int renderMode);
+    void pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
+    void render(GLUU* gluu, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId, int renderMode);
 private:
     unsigned int platformData = 0;
     int trItemId[4];
@@ -70,7 +70,7 @@ private:
     int rotB = 0;
     int rotE = 0;
     int selectionValue = 0;
-    void renderTritems(GLUU* gluu, int selectionColor, bool pushToQueue = false);
+    void renderTritems(GLUU* gluu, quint32 selectionId, bool pushToQueue = false);
     void makelineShape();
 };
 

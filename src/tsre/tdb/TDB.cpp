@@ -2761,7 +2761,7 @@ void TDB::renderItems(GLUU *gluu, float* playerT, float playerRot, int renderMod
 
     gluu->setMatrixUniforms();
     
-    int selectionColor = 0;
+    quint32 selectionId = 0;
     for (auto it = this->trackItems.begin(); it != this->trackItems.end(); ++it) {
         //console.log(obj.type);
         TRitem* obj = (TRitem*) it->second;
@@ -2769,11 +2769,11 @@ void TDB::renderItems(GLUU *gluu, float* playerT, float playerRot, int renderMod
             if(!isInitTrItemsDraw)
                 obj->refresh();
             if(renderMode == gluu->RENDER_SELECTION){
-                selectionColor = 12 << 20;
+                selectionId = 12u << 20;
                 if(this->road)
-                    selectionColor |= 1 << 19;
+                    selectionId |= 1u << 19;
             }
-            obj->render(this, gluu, playerT, playerRot, selectionColor);
+            obj->render(this, gluu, playerT, playerRot, selectionId);
         }
     }
     isInitTrItemsDraw = true;
@@ -2781,18 +2781,18 @@ void TDB::renderItems(GLUU *gluu, float* playerT, float playerRot, int renderMod
 
 void TDB::pushRenderItems(float* playerT, float playerRot, int renderMode) {
 
-    int selectionColor = 0;
+    quint32 selectionId = 0;
     for (auto it = this->trackItems.begin(); it != this->trackItems.end(); ++it) {
         TRitem* obj = (TRitem*) it->second;
         if (obj != NULL) {
             if (!isInitTrItemsDraw)
                 obj->refresh();
             if (renderMode == Game::currentRenderer->RENDER_SELECTION) {
-                selectionColor = 12 << 20;
+                selectionId = 12u << 20;
                 if (this->road)
-                    selectionColor |= 1 << 19;
+                    selectionId |= 1u << 19;
             }
-            obj->pushRenderItem(this, playerT, playerRot, selectionColor);
+            obj->pushRenderItem(this, playerT, playerRot, selectionId);
         }
     }
     isInitTrItemsDraw = true;

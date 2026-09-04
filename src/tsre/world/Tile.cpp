@@ -897,7 +897,7 @@ void Tile::updateSim(float deltaTime){
 
 void Tile::pushRenderItems(float* playerT, float* playerW, float* target, float fov, int renderMode){
     if (loaded != 1) return;
-    int selectionColor = 0;
+    quint32 selectionId = 0;
     float lodx, lodz, lod;
 
     for (int i = 0; i < jestObiektow; i++) {
@@ -922,10 +922,10 @@ void Tile::pushRenderItems(float* playerT, float* playerW, float* target, float 
                     else if(x > playerT[0] && z < playerT[1]) sxx = 7;
                     else if(x > playerT[0] && z == playerT[1]) sxx = 8;
                     else if(x > playerT[0] && z > playerT[1]) sxx = 9;
-                    selectionColor = sxx << 20;
-                    selectionColor |= (i) << 4;
+                    selectionId = static_cast<quint32>(sxx) << 20;
+                    selectionId |= static_cast<quint32>(i) << 4;
                 }
-                obiekty[i]->pushRenderItems(lod, lodx, lodz, playerW, target, fov, selectionColor);
+                obiekty[i]->pushRenderItems(lod, lodx, lodz, playerW, target, fov, selectionId);
                 Game::currentRenderer->mvPopMatrix();
             }
         }
@@ -938,7 +938,7 @@ void Tile::render(float * playerT, float* playerW, float* target, float fov, int
     //gl.activeTexture(gl.TEXTURE0);
     //gluu->setMatrixUniforms();
     //this.obiekty.forEach(function(obj) {
-    int selectionColor = 0;
+    quint32 selectionId = 0;
     float lodx, lodz, lod;
     for (int i = 0; i < jestObiektow; i++) {
         if(obiekty[i] == NULL) continue;
@@ -965,14 +965,14 @@ void Tile::render(float * playerT, float* playerW, float* target, float fov, int
                     //else if(x > playerT[0] && z > playerT[1]) sxx = 8;
                     //int sxx = (x - playerT[0] + 1)*4 + (z - playerT[1] + 1);
                     //qDebug() << sxx;
-                    //selectionColor = obiekty[i]->UiD + sxx * 131072;
-                    selectionColor = sxx << 20;
+                    //selectionId = obiekty[i]->UiD + sxx * 131072;
+                    selectionId = static_cast<quint32>(sxx) << 20;
                     //if(obiekty[i]->isSoundItem())
-                    //    selectionColor |= (obiekty[i]->UiD - 50000) << 4;
+                    //    selectionId |= (obiekty[i]->UiD - 50000) << 4;
                     //else
-                        selectionColor |= (i) << 4;
+                        selectionId |= static_cast<quint32>(i) << 4;
                 }
-                obiekty[i]->render(gluu, lod, lodx, lodz, playerW, target, fov, selectionColor, renderMode);
+                obiekty[i]->render(gluu, lod, lodx, lodz, playerW, target, fov, selectionId, renderMode);
                 //obiekty[i]->render(gluu);
                 gluu->mvPopMatrix();
             }
@@ -985,9 +985,10 @@ void Tile::render(float * playerT, float* playerW, float* target, float fov, int
             if (selection) {
                 int sxx = (x - playerT[0] + 1)*4 + (z - playerT[1] + 1);
                 //qDebug() << sxx;
-                selectionColor = (obiektyWS[i]->UiD) + sxx * 131072;
+                selectionId = static_cast<quint32>(obiektyWS[i]->UiD)
+                        + static_cast<quint32>(sxx) * 131072u;
             }
-            obiektyWS[i]->render(gluu, lod, lodx, lodz, playerW, target, fov, selectionColor);
+            obiektyWS[i]->render(gluu, lod, lodx, lodz, playerW, target, fov, selectionId);
             //obiekty[i]->render(gluu);
             gluu->mvPopMatrix();
         }

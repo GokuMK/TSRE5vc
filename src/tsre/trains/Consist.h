@@ -104,10 +104,10 @@ public:
     void updateSim(float deltaTime);
     void renderHud();
     void getCameraPosition(float *out);
-    void renderOnTrack(GLUU* gluu, float * playerT, int selectionColor);
-    void pushRenderItemsOnTrack(float *playerT, int selectionColor);
-    void render(int selectionColor = 0, bool renderText = false);
-    void render(int aktwx, int aktwz, int selectionColor, bool renderText);
+    void renderOnTrack(GLUU* gluu, float * playerT, quint32 selectionId);
+    void pushRenderItemsOnTrack(float *playerT, quint32 selectionId);
+    void render(quint32 selectionId = 0, bool renderText = false);
+    void render(int aktwx, int aktwz, quint32 selectionId, bool renderText);
     void initPos();
     void setMaxVelocityFixed(bool val);
     bool isMaxVelocityFixed();

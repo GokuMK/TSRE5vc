@@ -191,7 +191,7 @@ void TransferObj::resize(float x, float y, float z){
     deleteVBO();
 }
 
-void TransferObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos, float* target, float fov, int selectionColor, int renderMode) {
+void TransferObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos, float* target, float fov, quint32 selectionId, int renderMode) {
     if (!loaded) 
         return;
     if(renderMode == gluu->RENDER_SHADOWMAP) 
@@ -232,7 +232,7 @@ void TransferObj::render(GLUU* gluu, float lod, float posx, float posz, float* p
 
     //if(selected){
     //    selected = !selected;
-    //    selectionColor = 155;
+    //    selectionId = 155;
     //}
     //gluu.setMatrixUniforms();
 
@@ -241,23 +241,23 @@ void TransferObj::render(GLUU* gluu, float lod, float posx, float posz, float* p
 
     gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
        
-    drawShape(false, selectionColor);
+    drawShape(false, selectionId);
     if(selected){
         drawBox();
     }
 };
 
-void TransferObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, int selectionColor){
+void TransferObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId){
     if (!loaded)
         return;
     if (Game::currentRenderer == NULL)
         return;
 
     Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, position[0], 0, position[2]);
-    drawShape(true, selectionColor);
+    drawShape(true, selectionId);
 }
 
-void TransferObj::drawShape(bool pushToQueue, int selectionColor){
+void TransferObj::drawShape(bool pushToQueue, quint32 selectionId){
 
     if (!init) {
         if(!Game::ignoreLoadLimits){
@@ -375,9 +375,9 @@ void TransferObj::drawShape(bool pushToQueue, int selectionColor){
     }
     
     if(pushToQueue){
-        shape.pushRenderItem(selectionColor);
+        shape.pushRenderItem(selectionId);
     } else {
-        shape.render(selectionColor);
+        shape.render(selectionId);
     }
 }
 
