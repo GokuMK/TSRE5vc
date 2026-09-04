@@ -2,8 +2,13 @@
 
 Status: exploratory reverse-engineering task; success is not assumed.
 
-Related implementation review:
-[terrain heightmap resolution support](terrain-heightmap-resolution.md).
+Related implementation tasks:
+
+- [Terrain heightmap resolution support](terrain-heightmap-resolution.md)
+- [Basic discrete terrain patch LOD](terrain-basic-discrete-lod.md)
+
+The basic discrete LOD is intentionally independent of this exploratory MSTS
+study. Neither task blocks the other.
 
 ## Objective
 

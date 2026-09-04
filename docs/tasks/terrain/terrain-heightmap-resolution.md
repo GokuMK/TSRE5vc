@@ -3,7 +3,10 @@
 Status: implemented, including variable patch-count editing up to 32 x 32 and
 a shared profile selector for manual and automatic tile creation.
 
-Related task: [variable terrain patch count](terrain-patch-count.md).
+Related tasks:
+
+- [Variable terrain patch count](terrain-patch-count.md)
+- [Terrain adjacent-edge cache](terrain-adjacent-edge-cache.md)
 
 ## Decision and scope
 
