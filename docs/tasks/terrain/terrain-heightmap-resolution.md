@@ -19,8 +19,10 @@ the default profile used by automatic tile generation.
 The primary new profile is `512 samples @ 4 m`, alongside the existing
 `256 samples @ 8 m` profile. Experimental `128 samples @ 16 m` and
 `1024 samples @ 2 m` profiles are also exposed through the shared terrain
-profile selector. The implementation must not assume that a terrain file has a
-2048 m footprint: terrain size is independent of World (`.w`) files.
+profile selector. The B-key testing dialog additionally exposes
+`2048 samples @ 1 m`; automatic generation omits this extreme profile. The
+implementation must not assume that a terrain file has a 2048 m footprint:
+terrain size is independent of World (`.w`) files.
 
 World files remain on the fixed MSTS 2048 m coordinate lattice. For example,
 a 4096 m terrain tile covers four 2048 m World files. The literals 2048 and
@@ -37,6 +39,8 @@ In scope:
 - `512 @ 4 m` as a required supported case;
 - a reusable GUI for selecting 128/16, 256/8, 512/4, or 1024/2 heightmaps and
   4, 8, 16, or 32 patches per side;
+- a B-key-only 2048/1 profile for explicitly creating P16 (`R=128`) or P32
+  (`R=64`) testing tiles, marked supported but not recommended by TSRE;
 - loading checks that reject patch counts above 32 or incompatible with `N`.
 
 Out of scope:
@@ -60,6 +64,7 @@ tuple and shows a meaningful name containing `N`, `S`, `P`, and `R`.
 | Low resolution | `128 x 128` | `16 m` | `2048 m` | selectable | experimental |
 | High resolution | `512 x 512` | `4 m` | `2048 m` | selectable | experimental |
 | Ultra resolution | `1024 x 1024` | `2 m` | `2048 m` | selectable | experimental |
+| Extreme resolution | `2048 x 2048` | `1 m` | `2048 m` | B-key P16/P32 only | experimental, not recommended |
 
 Requirements:
 
@@ -327,6 +332,9 @@ native-tile casting rules rather than reintroducing per-sample terrain lookup.
 
 Remaining cleanup:
 
+- profile the remaining `Heightmap +/-` cost with large brushes on 1024 and
+  2048 terrain; invalidation is batched, but the brush still visits and mutates
+  a large number of samples and can remain visibly slow;
 - rename obsolete helpers such as `setHeight256()` once all callers migrate;
 - replace the temporary 8 m discontinuity guard with explicit line-strip breaks
   in the track-point API;
@@ -947,7 +955,7 @@ GUI-scope regression tests must verify:
   marker-generated detailed terrain; B opens on that default but remains a
   one-off selection;
 - compatibility labels and green/red/amber states follow
-  `msts-orts-terrain-profile-compatibility.md`;
+  [the terrain-profile compatibility report](../../msts/msts-orts-terrain-profile-compatibility.md);
 - each choice writes matching `.t` metadata and an exact `N * N * 2` Y-RAW;
 - cancel writes nothing; overwrite retains the selected profile, recreates Y,
   and does not leave old-dimension E/N data referenced by the new descriptor;

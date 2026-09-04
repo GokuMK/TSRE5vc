@@ -10,7 +10,7 @@ Related tasks:
 - [Variable terrain patch count](terrain-patch-count.md)
 - [Basic discrete terrain patch LOD](terrain-basic-discrete-lod.md)
 - [Terrain adjacent-edge cache](terrain-adjacent-edge-cache.md)
-- [MSTS adaptive terrain LOD executable analysis](msts-terrain-adaptive-lod-executable-analysis.md)
+- [MSTS adaptive terrain LOD executable analysis](../../msts/msts-terrain-adaptive-lod-executable-analysis.md)
 - [Renderer task roadmap](../renderer/00-task-roadmap.md)
 
 This is a separate renderer/memory task, not unfinished heightmap-resolution

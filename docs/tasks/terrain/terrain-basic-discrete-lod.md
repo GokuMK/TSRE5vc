@@ -23,7 +23,7 @@ Related tasks:
 - [Terrain adjacent-edge cache](terrain-adjacent-edge-cache.md)
 - [Terrain heightmap resolution support](terrain-heightmap-resolution.md)
 - [Variable terrain patch count](terrain-patch-count.md)
-- [MSTS adaptive terrain LOD executable analysis](msts-terrain-adaptive-lod-executable-analysis.md)
+- [MSTS adaptive terrain LOD executable analysis](../../msts/msts-terrain-adaptive-lod-executable-analysis.md)
 
 This task adds the first deliberately simple terrain level-of-detail system to
 the paged terrain renderer. Its immediate purpose is to make 1024-sample
@@ -169,16 +169,25 @@ important patch one resolution step finer beyond the normal preferred end.
 The exact AS/ErrorBias rule and that refinement are not part of this task.
 Loading the block must not mark the route modified; editing it must.
 
-A legacy route without this block uses native/full terrain at every distance.
-LOD is therefore opt-in until a route designer reviews its terrain profiles
-and saves a route-owned profile. This preserves the rendering of existing
-routes and avoids inventing a universal distance profile which may be invalid
-for their patch sizes.
+A legacy route without this block uses TSRE's runtime default profile:
 
-An empty or malformed block also disables LOD for that load and reports a
-clear route warning. Do not silently normalize malformed values and later
-overwrite the route with different data. The Route settings dialog may help
-the user construct a replacement explicitly.
+```text
+Level ( 1 500 )
+Level ( 2 1000 )
+Level ( 4 2000 )
+Level ( 8 8000 )
+```
+
+Normal MSTS 8 m terrain still renders at its full native resolution because it
+cannot provide the requested 1 m, 2 m, or 4 m levels. Higher-resolution terrain
+gets useful LOD immediately, allowing the feature to be tested without
+modifying every existing route. The fallback is not written to the `.trk` file
+unless a route author explicitly selects a route-owned profile.
+
+An empty or malformed block is cleared and therefore uses the same runtime
+default. A malformed block reports a clear route warning. Do not silently
+normalize malformed values and later overwrite the route with different data.
+The Route settings dialog may help the user construct a replacement explicitly.
 
 Keep the Route settings integration small: show a terrain-LOD summary and a
 button in `TrkWindow`, and open a dedicated profile dialog rather than growing

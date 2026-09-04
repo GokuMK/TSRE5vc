@@ -1,7 +1,7 @@
-# Terrain profile compatibility: MSTS Bin 1.8, MSTS Bin 1.9, and Open Rails
+# Terrain profile compatibility: MSTS Bin 1.8, patched MSTS, and Open Rails
 
 Status: **compatibility matrix; static boundaries plus identified runtime tests**  
-Date: 2026-09-04
+Date: 2026-09-03
 
 ## Scope and notation
 
@@ -9,8 +9,8 @@ This report covers ordinary detailed terrain tiles with a 2,048 m side and
 power-of-two sample counts from 128 through 2,048. It compares:
 
 - unmodified MSTS Bin 1.8.052113;
-- MSTS Bin 1.9, the terrain build produced by
-  `extra/MSTS/bin-1.9/patch_msts_bin_1_9-alpha.py`;
+- the terrain build produced by
+  `share/msts-bin-1.8-terrain-patcher/patch_msts_bin_1_8_terrain.py`;
 - Open Rails `master` commit
   `3a4d79804140d1749e39cc175c8f4a5939bbeb66` and `unstable` commit
   `bbeb7ab6dd00bf7f61503f0b177839095ee7a5b8`, inspected on 2026-09-03.
@@ -38,7 +38,7 @@ with both Open Rails branches because the calculated unstable resolution and
 master's fixed resolution are both 16. The next table exposes the difference
 for other `N/P` ratios.
 
-| `N` | `S` | `P` for this row | `R` | MSTS Bin 1.8 | MSTS Bin 1.9 | ORTS `master` | ORTS `unstable` |
+| `N` | `S` | `P` for this row | `R` | MSTS Bin 1.8 | Patched MSTS | ORTS `master` | ORTS `unstable` |
 |---:|---:|---:|---:|---|---|---|---|
 | 128 | 16 m | 8 | 16 | Passes recovered limits; not runtime-tested as this exact tuple | Within patch envelope; not separately tested | Source-compatible; custom tuple not runtime-tested | Source-compatible; custom tuple not runtime-tested |
 | 256 | 8 m | 16 | 16 | **Supported standard profile** | **Supported**, inherited | **Supported standard profile** | **Supported standard profile** |
@@ -64,7 +64,7 @@ parsed sample spacing, but lighting normals can therefore be wrong when
 This table lists the common power-of-two patch grids inside each implementation's
 established support envelope. Parentheses contain `R=N/P`.
 
-| `N` | MSTS Bin 1.8 | MSTS Bin 1.9 | ORTS `master` correct geometry | ORTS `unstable` source envelope |
+| `N` | MSTS Bin 1.8 | Patched MSTS | ORTS `master` correct geometry | ORTS `unstable` source envelope |
 |---:|---|---|---|---|
 | 128 | `P=8 (R=16)`, `P=16 (R=8)` | `P=4 (R=32)`, `8 (16)`, `16 (8)`, `32 (4)` | `P=8 (R=16)` | Power-of-two `P=1..128` (`R=128..1`) |
 | 256 | `P=16 (R=16)` | `P=8 (R=32)`, `16 (16)`, `32 (8)` | `P=16 (R=16)` | Power-of-two `P=2..256` (`R=128..1`) |
@@ -102,7 +102,7 @@ MSRE test proves that `N=256` and `R=16` are ceilings, not mandatory exact
 values. For route-safe profiles this report retains the stock `P<=16`
 capacity envelope.
 
-### MSTS Bin 1.9 terrain patch
+### Patched MSTS Bin 1.8
 
 The distributed terrain patch is designed for:
 
@@ -169,10 +169,10 @@ does not consume MSTS E/AS adaptive terrain LOD for this purpose.
 |---|---|---|
 | `N=128, P=16, R=8` | unmodified MSRE | User-reported load success |
 | `N=256, P=16, R=16` | MSTS and both inspected Open Rails branches | Standard baseline |
-| `N=512, P=16, R=32` | MSTS Bin 1.9 Route Editor | User-reported rendering and height-edit/save success after descriptor repair |
-| `N=512, P=32, R=16` | MSTS Bin 1.9 | User-reported rendering success |
-| `N=1024, P=32, R=32` | MSTS Bin 1.9 | User-reported rendering success with a complete 3-by-3 tile grid |
-| `N=1024, P=16, R=64` | experimental MSTS Bin 1.9 attempts | Failed dense-patch rendering; not retained |
+| `N=512, P=16, R=32` | patched MSRE | User-reported rendering and height-edit/save success after descriptor repair |
+| `N=512, P=32, R=16` | patched MSTS | User-reported rendering success |
+| `N=1024, P=32, R=32` | patched MSTS | User-reported rendering success with a complete 3-by-3 tile grid |
+| `N=1024, P=16, R=64` | experimental patched MSTS attempts | Failed dense-patch rendering; not retained |
 | Any nonstandard tuple | Open Rails `master` or `unstable` | No runtime result recorded in this workspace |
 
 The enlarged P32 visible-patch lists have been tested successfully with a
@@ -183,14 +183,12 @@ sixteen-tile case remains untested.
 
 ## Practical choices
 
-- Preferred current-TSRE profiles preserve the standard 128 m physical patch:
-  **`N=256, S=8, P=16, R=16`**, **`N=512, S=4, P=16, R=32`**, and
-  **`N=1024, S=2, P=16, R=64`**. For 1024 terrain, P16 reduces patch draws and
-  duplicated edge vertices compared with P32. This is a TSRE recommendation,
-  not an MSTS Bin 1.9 compatibility claim: that build does not
-  support the 1024/P16 dense-patch geometry.
-- Maximum profile shared by the current MSTS Bin 1.9 design and Open Rails
-  `unstable` geometry: **`N=1024, S=2, P=32, R=32`**. Bin 1.9 rendering
+- TSRE can load, render, edit, and explicitly create `N=2048, S=1` with P16
+  (`R=128`) or P32 (`R=64`). These profiles are experimental testing options,
+  not recommendations: their CPU height arrays, editing cost, and GPU vertex
+  data are substantially larger than 1024 terrain.
+- Maximum profile shared by the current patched MSTS design and Open Rails
+  `unstable` geometry: **`N=1024, S=2, P=32, R=32`**. Patched MSTS rendering
   is confirmed with a 3-by-3 tile grid; Open Rails support is source-derived
   and needs a runtime test, and its normals need the sample-spacing fix.
 - For Open Rails `master` rather than `unstable`, retain
@@ -205,7 +203,7 @@ sixteen-tile case remains untested.
   in this repository).
 - Earlier local analysis: `msts-bin-1.8-p32-n1024-r32-experimental-build.md`
   (not retained in this repository).
-- [`extra/MSTS/bin-1.9/README.md`](../../../extra/MSTS/bin-1.9/README.md)
+- [`extra/MSTS/bin-1.9/README.md`](../../extra/MSTS/bin-1.9/README.md)
 - Open Rails unstable `Terrain.cs` at the inspected commit:
   <https://github.com/openrails/openrails/blob/bbeb7ab6dd00bf7f61503f0b177839095ee7a5b8/Source/RunActivity/Viewer3D/Terrain.cs>
 - Open Rails unstable `Tiles.cs` at the inspected commit:
