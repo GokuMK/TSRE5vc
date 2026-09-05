@@ -7,6 +7,8 @@
  */
 
 #include <tsre/world/TerrainMeshBackend.h>
+#include <tsre/world/TerrainBrushProfiler.h>
+#include <tsre/world/TerrainNormals.h>
 
 #include <algorithm>
 #include <cmath>
@@ -25,31 +27,6 @@
 #include <tsre/world/Terrain.h>
 #include <tsre/world/TerrainLib.h>
 #include <tsre/world/TerrainLod.h>
-
-namespace {
-
-struct Vec3 {
-    float x;
-    float y;
-    float z;
-};
-
-Vec3 subtract(const Vec3 &left, const Vec3 &right) {
-    return {left.x - right.x, left.y - right.y, left.z - right.z};
-}
-
-Vec3 cross(const Vec3 &left, const Vec3 &right) {
-    return {left.y * right.z - left.z * right.y,
-            left.z * right.x - left.x * right.z,
-            left.x * right.y - left.y * right.x};
-}
-
-int packedSnorm10(float value) {
-    value = std::max(-1.0f, std::min(1.0f, value));
-    return static_cast<int>(std::lround(value * 511.0f));
-}
-
-}
 
 TerrainMeshBackend::TerrainMeshBackend(Terrain &terrainValue)
     : terrain(terrainValue) {
@@ -132,6 +109,7 @@ void TerrainMeshLegacy::invalidateSamples(int, int, int, int, unsigned int) {
 }
 
 void TerrainMeshLegacy::refreshModified() {
+    TerrainBrushProfiler::add(TerrainBrushProfiler::LegacyRefresh);
 }
 
 TerrainMeshPaged::Page::Page()
@@ -144,6 +122,8 @@ TerrainMeshPaged::TerrainMeshPaged(Terrain &terrainValue)
     : TerrainMeshBackend(terrainValue),
       indexBuffer(QOpenGLBuffer::IndexBuffer) {
     dirtyReasons.fill(TerrainDirtyAll, terrain.gridLayout.patchRecordCount());
+    uniformNormalGrid = TerrainNormals::uniformCoordinates(terrain.gridLayout.sampleCount,
+                                                            terrain.gridLayout.sampleSpacing);
 }
 
 TerrainMeshPaged::~TerrainMeshPaged() {
@@ -215,11 +195,7 @@ int TerrainMeshPaged::indexTemplateKey(int sourceStep, quint8 edgeMask) {
 }
 
 quint32 TerrainMeshPaged::packNormal(float x, float y, float z, bool gap) {
-    const quint32 px = static_cast<quint32>(packedSnorm10(x)) & 0x3ffu;
-    const quint32 py = static_cast<quint32>(packedSnorm10(y)) & 0x3ffu;
-    const quint32 pz = static_cast<quint32>(packedSnorm10(z)) & 0x3ffu;
-    const quint32 packedGap = gap ? (1u << 30) : 0u;
-    return px | (py << 10) | (pz << 20) | packedGap;
+    return TerrainNormals::packNormal(x, y, z, gap);
 }
 
 TerrainPatchGpuParams TerrainMeshPaged::terrainParams(const Terrain &terrain,
@@ -266,46 +242,9 @@ TerrainPatchGpuParams TerrainMeshPaged::mapParams(const Terrain &terrain,
 void TerrainMeshPaged::calculateNormal(int sampleX, int sampleZ,
                                        float &normalX, float &normalY,
                                        float &normalZ) const {
-    Vec3 sum{0.0f, 0.0f, 0.0f};
-    const int samples = terrain.gridLayout.sampleCount;
-    const float spacing = terrain.gridLayout.sampleSpacing;
-    auto position = [&](int x, int z) {
-        return Vec3{x * spacing, terrain.terrainData[z][x], z * spacing};
-    };
-    auto add = [&](const Vec3 &value) {
-        sum.x += value.x;
-        sum.y += value.y;
-        sum.z += value.z;
-    };
-
-    for (int cellZ = std::max(0, sampleZ - 1);
-         cellZ <= std::min(samples - 1, sampleZ); ++cellZ) {
-        for (int cellX = std::max(0, sampleX - 1);
-             cellX <= std::min(samples - 1, sampleX); ++cellX) {
-            const Vec3 p00 = position(cellX, cellZ);
-            const Vec3 p10 = position(cellX + 1, cellZ);
-            const Vec3 p01 = position(cellX, cellZ + 1);
-            const Vec3 p11 = position(cellX + 1, cellZ + 1);
-            if ((sampleX == cellX && sampleZ == cellZ)
-                    || (sampleX == cellX + 1 && sampleZ == cellZ)
-                    || (sampleX == cellX && sampleZ == cellZ + 1))
-                add(cross(subtract(p00, p01), subtract(p00, p10)));
-            if ((sampleX == cellX + 1 && sampleZ == cellZ + 1)
-                    || (sampleX == cellX + 1 && sampleZ == cellZ)
-                    || (sampleX == cellX && sampleZ == cellZ + 1))
-                add(cross(subtract(p11, p10), subtract(p11, p01)));
-        }
-    }
-    const float length = std::sqrt(sum.x * sum.x + sum.y * sum.y + sum.z * sum.z);
-    if (length > 0.0f) {
-        normalX = sum.x / length;
-        normalY = sum.y / length;
-        normalZ = sum.z / length;
-    } else {
-        normalX = 0.0f;
-        normalY = 1.0f;
-        normalZ = 0.0f;
-    }
+    const auto normal = TerrainNormals::calculate(terrain.terrainData, terrain.gridLayout.sampleCount,
+                         terrain.gridLayout.sampleSpacing, sampleX, sampleZ, uniformNormalGrid);
+    normalX = normal.x; normalY = normal.y; normalZ = normal.z;
 }
 
 QVector<TerrainVertex8Derived> TerrainMeshPaged::buildPatchVertices(int patchId) const {
@@ -315,6 +254,34 @@ QVector<TerrainVertex8Derived> TerrainMeshPaged::buildPatchVertices(int patchId)
     const int resolution = terrain.gridLayout.patchResolution;
     const int firstX = terrain.gridLayout.patchColumn(patchId) * resolution;
     const int firstZ = terrain.gridLayout.patchRow(patchId) * resolution;
+    if (TerrainBrushProfiler::active()) {
+        // Diagnostic-only split: time two whole-patch passes, never a timer per
+        // vertex. Reuse the output array; no temporary normal array is needed.
+        // The ordinary interleaved builder below stays unchanged.
+        {
+            TerrainBrushProfiler::Scope timing(TerrainBrushProfiler::Vertex);
+            vertices.resize((resolution + 1) * (resolution + 1));
+            int output = 0;
+            for (int localZ = 0; localZ <= resolution; ++localZ)
+                for (int localX = 0; localX <= resolution; ++localX)
+                    vertices[output++].height = terrain.terrainData[firstZ + localZ][firstX + localX];
+        }
+        {
+            TerrainBrushProfiler::Scope timing(TerrainBrushProfiler::Normals);
+            int output = 0;
+            for (int localZ = 0; localZ <= resolution; ++localZ) {
+                for (int localX = 0; localX <= resolution; ++localX) {
+                    const int sampleX = firstX + localX;
+                    const int sampleZ = firstZ + localZ;
+                    float nx = 0.0f, ny = 1.0f, nz = 0.0f;
+                    calculateNormal(sampleX, sampleZ, nx, ny, nz);
+                    const bool gap = terrain.jestF && (terrain.fData[sampleZ][sampleX] & 0x04);
+                    vertices[output++].packedNormal = TerrainNormals::packNormal(nx, ny, nz, gap);
+                }
+            }
+        }
+        return vertices;
+    }
     vertices.resize((resolution + 1) * (resolution + 1));
     int output = 0;
     for (int localZ = 0; localZ <= resolution; ++localZ) {
@@ -329,7 +296,7 @@ QVector<TerrainVertex8Derived> TerrainMeshPaged::buildPatchVertices(int patchId)
             vertex.height = terrain.terrainData[sampleZ][sampleX];
             const bool gap = terrain.jestF
                     && (terrain.fData[sampleZ][sampleX] & 0x04);
-            vertex.packedNormal = packNormal(nx, ny, nz, gap);
+            vertex.packedNormal = TerrainNormals::packNormal(nx, ny, nz, gap);
         }
     }
     return vertices;
@@ -627,7 +594,17 @@ void TerrainMeshPaged::updatePatch(int patchId, unsigned int reasons) {
         return;
     const int slot = patchId - page->firstPatch;
     if (reasons & (TerrainDirtyHeight | TerrainDirtyNormals | TerrainDirtyGaps)) {
-        const QVector<TerrainVertex8Derived> vertices = buildPatchVertices(patchId);
+        QVector<TerrainVertex8Derived> vertices;
+        {
+            TerrainBrushProfiler::Scope timing(TerrainBrushProfiler::Build);
+            vertices = buildPatchVertices(patchId);
+        }
+        TerrainBrushProfiler::add(TerrainBrushProfiler::Patches);
+        TerrainBrushProfiler::add(TerrainBrushProfiler::Vertices, vertices.size());
+        TerrainBrushProfiler::add(TerrainBrushProfiler::UploadCalls);
+        TerrainBrushProfiler::add(TerrainBrushProfiler::UploadBytes,
+                                 vertices.size() * sizeof(TerrainVertex8Derived));
+        TerrainBrushProfiler::Scope timing(TerrainBrushProfiler::Upload);
         page->vertexBuffer.bind();
         page->vertexBuffer.write(slot
                 * static_cast<int>(terrain.gridLayout.pagedPatchVertexBytes),
@@ -636,6 +613,9 @@ void TerrainMeshPaged::updatePatch(int patchId, unsigned int reasons) {
     }
     if (reasons & TerrainDirtyUvParams) {
         const TerrainPatchGpuParams params = terrainParams(terrain, patchId);
+        TerrainBrushProfiler::add(TerrainBrushProfiler::UploadCalls);
+        TerrainBrushProfiler::add(TerrainBrushProfiler::UploadBytes, sizeof(params));
+        TerrainBrushProfiler::Scope timing(TerrainBrushProfiler::Upload);
         page->terrainParamsBuffer.bind();
         page->terrainParamsBuffer.write(slot * int(sizeof(TerrainPatchGpuParams)),
                                         &params, sizeof(params));
@@ -644,16 +624,30 @@ void TerrainMeshPaged::updatePatch(int patchId, unsigned int reasons) {
 }
 
 void TerrainMeshPaged::refreshModified() {
-    if (!initialized || QOpenGLContext::currentContext() == nullptr)
+    if (!initialized || QOpenGLContext::currentContext() == nullptr) {
+        TerrainBrushProfiler::add(TerrainBrushProfiler::Deferred);
         return;
+    }
+    const bool profilingWork = TerrainBrushProfiler::enabled()
+            && std::any_of(dirtyReasons.cbegin(), dirtyReasons.cend(),
+                           [](unsigned int reason) { return reason != TerrainDirtyNone; });
+    TerrainBrushProfiler::Event profile("mesh", profilingWork
+        ? QString("tile=%1 N=%2 P=%3").arg(terrain.name)
+          .arg(terrain.gridLayout.sampleCount).arg(terrain.gridLayout.patchesPerSide)
+        : QString(), profilingWork);
+    TerrainBrushProfiler::Scope meshTiming(TerrainBrushProfiler::Mesh);
     if (needsEdgeFill) {
+        TerrainBrushProfiler::Scope edgeTiming(TerrainBrushProfiler::Edges);
         Game::terrainLib->fillRaw(&terrain, static_cast<int>(terrain.mojex),
                                   static_cast<int>(terrain.mojez));
         for (int patchId = 0; patchId < dirtyReasons.size(); ++patchId) {
             if (dirtyReasons[patchId] & TerrainDirtyHeight)
                 terrain.markPatchBoundsDirty(patchId);
         }
-        terrain.refreshPatchBounds(true);
+        {
+            TerrainBrushProfiler::Scope boundsTiming(TerrainBrushProfiler::Bounds);
+            terrain.refreshPatchBounds(true);
+        }
         needsEdgeFill = false;
     }
     QElapsedTimer timer;
@@ -672,7 +666,7 @@ void TerrainMeshPaged::refreshModified() {
         dirtyReasons[patchId] = TerrainDirtyNone;
         ++updatedPatches;
     }
-    if (updatedPatches > 0)
+    if (updatedPatches > 0 && !TerrainBrushProfiler::active())
         qDebug() << "Paged terrain refresh" << terrain.name
                  << "patches" << updatedPatches
                  << "bytes" << uploadedBytes

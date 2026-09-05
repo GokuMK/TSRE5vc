@@ -229,14 +229,6 @@ void TerrainLib::setHeight(int x, int z, float posx, float posz, float h) {
 
 }
 
-Terrain* TerrainLib::setHeight256(int x, int z, int posx, int posz, float h){
-    return 0;
-}
-
-Terrain* TerrainLib::setHeight256(int x, int z, int posx, int posz, float h, float diffC, float diffE) {
-    return 0;
-}
-
 float TerrainLib::getHeight(int x, int z, float posx, float posz, bool addR) {
     return 0;
 }

@@ -47,12 +47,12 @@ public:
     void fillHeightMap(int x, int z, float *data);
     void fillWaterLevels(float *w, int mojex, int mojez);
     void setWaterLevels(float *w, int mojex, int mojez);
-    Terrain* setHeight256(int x, int z, int posx, int posz, float h);
-    Terrain* setHeight256(int x, int z, int posx, int posz, float h, float diffC, float diffE);
     void setHeightFromGeoGui(int x, int z, float* p);
     void setHeightFromGeo(int x, int z, float* p);
     bool isLoaded(int x, int z);
     QSet<Terrain*> paintHeightMap(Brush* brush, int x, int z, float* p);
+    // Original implementation retained for comparison tests and unusual-grid fallback.
+    QSet<Terrain*> paintHeightMapLegacy(Brush* brush, int x, int z, float* p);
     void paintTexture(Brush* brush, int x, int z, float* p);
     void lockTexture(Brush* brush, int x, int z, float* p);
     void setTerrainTexture(Brush* brush, int x, int z, float* p);

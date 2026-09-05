@@ -14,6 +14,8 @@
 #include <QSet>
 #include <algorithm>
 #include <tsre/world/Route.h>
+#include <tsre/world/TerrainBrushProfiler.h>
+#include <tsre/texture/Brush.h>
 #include <tsre/tdb/TSectionDAT.h>
 #include <tsre/ogl/GLUU.h>
 #include <tsre/world/Tile.h>
@@ -2455,8 +2457,16 @@ void Route::flipObject(WorldObj *obj){
 }
 
 void Route::paintHeightMap(Brush* brush, int x, int z, float* p){
+    TerrainBrushProfiler::Event profile("brush", TerrainBrushProfiler::enabled()
+        ? QString("world=%1,%2 local=%3,%4 size=%5 mode=%6")
+          .arg(x).arg(z).arg(p[0]).arg(p[2]).arg(brush->size).arg(brush->hType) : QString());
     Game::ignoreLoadLimits = true;
-    QSet<Terrain*> modifiedTiles = Game::terrainLib->paintHeightMap(brush, x, z, p);
+    QSet<Terrain*> modifiedTiles;
+    {
+        TerrainBrushProfiler::Scope timing(TerrainBrushProfiler::Paint);
+        modifiedTiles = Game::terrainLib->paintHeightMap(brush, x, z, p);
+    }
+    TerrainBrushProfiler::Scope objectTiming(TerrainBrushProfiler::Objects);
     Tile *ttile;
 
     QSet<int> tileIds;

@@ -141,6 +141,7 @@ private:
     quint64 indexBufferBytes = 0;
     QVector<unsigned int> dirtyReasons;
     bool initialized = false;
+    bool uniformNormalGrid = false;
     bool needsEdgeFill = true;
     Shader *directShader = nullptr;
     unsigned int directParamsBuffer = 0;

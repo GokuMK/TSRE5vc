@@ -19,6 +19,8 @@ class HeightWindow;
 class QuadTree;
 class TerrainInfo;
 
+// Deprecated fixed-grid backend. Retained until TerrainLibQt supports direct
+// 2 km lookup without relying on populated QuadTree entries.
 class TerrainLibSimple : public TerrainLib {
 public:
     TerrainLibSimple();
@@ -36,8 +38,6 @@ public:
     void fillHeightMap(int x, int z, float *data);
     void fillWaterLevels(float *w, int mojex, int mojez);
     void setWaterLevels(float *w, int mojex, int mojez);
-    Terrain* setHeight256(int x, int z, int posx, int posz, float h);
-    Terrain* setHeight256(int x, int z, int posx, int posz, float h, float diffC, float diffE);
     void setHeightFromGeoGui(int x, int z, float* p);
     void setHeightFromGeo(int x, int z, float* p);
     bool isLoaded(int x, int z);
@@ -78,6 +78,9 @@ public:
     void renderShadowMap(GLUU *gluu, float* playerT, float* playerW, float* target, float fov);
     
 private:
+    // Fixed-grid track-bed helper; not part of the shared terrain API.
+    Terrain* setHeight256(int x, int z, int posx, int posz, float h);
+    Terrain* setHeight256(int x, int z, int posx, int posz, float h, float diffC, float diffE);
     QuadTree* quadTree = NULL;
     std::unordered_map<int, Terrain*> terrain;
 };

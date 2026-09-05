@@ -9,6 +9,7 @@
  */
 
 #include <tsre/world/TerrainLibQt.h>
+#include <tsre/world/TerrainHeightBrush.h>
 #include <tsre/world/Terrain.h>
 #include <tsre/world/TerrainActionRaster.h>
 #include <tsre/world/TerrainMeshBackend.h>
@@ -281,46 +282,6 @@ void TerrainLibQt::setHeight(int x, int z, float posx, float posz, float h) {
     if (terr->loaded == false) return;
     
     terr->setHeight(x, z, posx, posz, h);
-}
-
-Terrain* TerrainLibQt::setHeight256(int x, int z, int posx, int posz, float h) {
-    return setHeight256(x, z, posx, posz, h, 0, 0);
-}
-
-Terrain* TerrainLibQt::setHeight256(int x, int z, int posx, int posz, float h, float diffC, float diffE) {
-    Game::check_coords(x, z, posx, posz);
-    const int worldPosX = posx;
-    const int worldPosZ = posz;
-    Terrain *terr = getTerrainByXY(x, z);
-
-    if (terr == NULL) return NULL;
-    if (terr->loaded == false) return NULL;
-    if (!terr->isEditable()) return NULL;
-
-    float lx = posx, lz = posz;
-    terr->getLocalCoords(x, z, lx, lz);
-    int sampleSize = terr->getSampleSize();
-    posx = std::clamp(static_cast<int>(std::floor(lx / sampleSize)),
-                      0, terr->getSampleCount());
-    posz = std::clamp(static_cast<int>(std::floor(lz / sampleSize)),
-                      0, terr->getSampleCount());
-    
-    if(diffC == 0 && diffE == 0){
-        terr->terrainData[(posz)][(posx)] = h;
-    } else {
-        if(terr->terrainData[(posz)][(posx)] < h)
-            if(terr->terrainData[(posz)][(posx)] < h - diffE) 
-                terr->terrainData[(posz)][(posx)] = h - diffE;
-        if(terr->terrainData[(posz)][(posx)] > h)
-            if(terr->terrainData[(posz)][(posx)] > h + diffC) 
-                terr->terrainData[(posz)][(posx)] = h + diffC;
-    }
-    terr->invalidateSamples(posx, posz, posx, posz,
-                            TerrainDirtyHeight | TerrainDirtyNormals);
-    terr->setErrorBias(x, z, worldPosX, worldPosZ, 0);
-    terr->setModified(true);
-    
-    return terr;
 }
 
 float TerrainLibQt::getHeight(int x, int z, float posx, float posz, bool addR) {
@@ -866,6 +827,12 @@ void TerrainLibQt::setFixedTileHeight(Brush* brush, int x, int z, float* p) {
 }
 
 QSet<Terrain*> TerrainLibQt::paintHeightMap(Brush* brush, int x, int z, float* p) {
+    if (!brush) return {};
+    return TerrainHeightBrush::paint(*this, *brush, x, z, p,
+                                    TerrainHeightBrush::Method::DirectSlices);
+}
+
+QSet<Terrain*> TerrainLibQt::paintHeightMapLegacy(Brush* brush, int x, int z, float* p) {
 
     QSet<Terrain*> uterr;
     QHash<Terrain*, QRect> dirtySampleBounds;

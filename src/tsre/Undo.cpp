@@ -9,6 +9,7 @@
  */
 
 #include <tsre/Undo.h>
+#include <tsre/world/TerrainBrushProfiler.h>
 #include <QDebug>
 #include <tsre/world/TerrainLib.h>
 #include <tsre/texture/TexLib.h>
@@ -237,6 +238,7 @@ void Undo::StateCancel(){
 }
 
 void Undo::PushTerrainHeightMap(int x, int z, float** data, int samples, bool low){
+    TerrainBrushProfiler::Scope timing(TerrainBrushProfiler::Undo);
     if(currentState == NULL)
         return;
     
@@ -244,6 +246,7 @@ void Undo::PushTerrainHeightMap(int x, int z, float** data, int samples, bool lo
     const int side = sampleCount + 1;
     UndoState::TerrainData * tdata = currentState->terrainData[x*10000+z];
     if(tdata == NULL){
+        TerrainBrushProfiler::add(TerrainBrushProfiler::Snapshots);
         currentState->terrainData[x*10000+z] = new UndoState::TerrainData();
         tdata = currentState->terrainData[x*10000+z];
         tdata->x = x;

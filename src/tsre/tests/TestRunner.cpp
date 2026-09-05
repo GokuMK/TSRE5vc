@@ -48,6 +48,9 @@
 #include <tsre/tests/SettingsTestSuite.h>
 #include <tsre/tests/TdbLoadTestSuite.h>
 #include <tsre/tests/TerrainRawBenchmark.h>
+#include <tsre/tests/TerrainBrushBenchmark.h>
+#include <tsre/tests/TerrainBrushTestSuite.h>
+#include <tsre/tests/TerrainNormalTestSuite.h>
 #include <tsre/texture/Brush.h>
 #include <tsre/world/TerrainActionRaster.h>
 #include <tsre/world/Terrain.h>
@@ -3089,7 +3092,11 @@ QStringList TsreTests::listSuites() {
         "terrain-files",
         "terrain-grid",
         "terrain-edges",
-        "terrain-raw-benchmark"
+        "terrain-raw-benchmark",
+        "terrain-brush-benchmark",
+        "terrain-brush",
+        "terrain-normals",
+        "terrain-normal-benchmark"
     };
 }
 
@@ -3137,6 +3144,18 @@ int TsreTests::run(const TestRunOptions &opts) {
     if (suite == "terrain-raw-benchmark")
         return runTerrainRawBenchmark(opts);
 
+    if (suite == "terrain-brush-benchmark")
+        return runTerrainBrushBenchmark(opts);
+
+    if (suite == "terrain-brush")
+        return runTerrainBrushSuite(opts.verbose);
+
+    if (suite == "terrain-normals")
+        return runTerrainNormalSuite(opts.verbose);
+
+    if (suite == "terrain-normal-benchmark")
+        return runTerrainNormalBenchmark(opts);
+
     if (suite == "all") {
         int rc = 0;
         rc = std::max(rc, runFlexSuite(opts.casesFile, opts.verbose));
@@ -3150,6 +3169,8 @@ int TsreTests::run(const TestRunOptions &opts) {
         rc = std::max(rc, runTdbLoadSuite(opts.verbose));
         rc = std::max(rc, runTerrainGridSuite(opts.verbose));
         rc = std::max(rc, runTerrainEdgeSuite(opts.verbose));
+        rc = std::max(rc, runTerrainBrushSuite(opts.verbose));
+        rc = std::max(rc, runTerrainNormalSuite(opts.verbose));
         return rc;
     }
 

@@ -140,6 +140,7 @@ public:
     void removeAllGaps();
     void toggleGaps(int x, int z, float posx, float posz, float direction);
     void setErrorBias(int x, int z, float posx, float posz, float val);
+    void setPatchErrorBias(int patchId, float value);
     float getErrorBias();
     void getWTileIds(QSet<int> &ids);
     void setErrorBias(float val);

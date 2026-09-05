@@ -9,6 +9,7 @@
  */
 
 #include <tsre/world/Terrain.h>
+#include <tsre/world/TerrainBrushProfiler.h>
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -530,7 +531,10 @@ void Terrain::refreshAll() {
 }
 
 void Terrain::refreshModified() {
-    refreshPatchBounds(true);
+    {
+        TerrainBrushProfiler::Scope timing(TerrainBrushProfiler::Bounds);
+        refreshPatchBounds(true);
+    }
     if (meshBackend != NULL)
         meshBackend->refreshModified();
 }
@@ -1616,6 +1620,12 @@ int Terrain::getPatchFlags(int x, int z, float posx, float posz){
         return 0;
     }
     return tfile->flags[uu];
+}
+
+void Terrain::setPatchErrorBias(int patchId, float value) {
+    if (editable && gridLayout.isPatchIndexValid(patchId)
+            && tfile != nullptr && tfile->errorBias != nullptr)
+        tfile->errorBias[patchId] = value;
 }
 
 void Terrain::setErrorBias(int x, int z, float posx, float posz, float val){
