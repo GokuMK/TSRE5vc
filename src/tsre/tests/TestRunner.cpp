@@ -9,6 +9,8 @@
  */
 
 #include <tsre/tests/TestRunner.h>
+#include <routeEditor/TerrainProfileSelector.h>
+#include <QLabel>
 
 #include <QDebug>
 #include <QDir>
@@ -2336,6 +2338,33 @@ static int runTerrainGridSuite(bool verbose) {
 
     const TerrainGridLayout standard = TerrainGridLayout::profile(
                 TerrainHeightProfile::Standard256x8);
+    {
+        TerrainProfileSelector selector(nullptr, true);
+        const auto *name = selector.findChild<QLabel *>("msts19Name");
+        const auto *status = selector.findChild<QLabel *>("msts19Status");
+        auto checkCompatibility = [&](TerrainHeightProfile profile, int patches,
+                                      const QString &prefix, const QString &color,
+                                      const char *testName) {
+            selector.setSelection(profile, patches);
+            check(name && status && status->text().startsWith(prefix)
+                  && name->styleSheet().contains(color), testName);
+        };
+        checkCompatibility(TerrainHeightProfile::Ultra1024x2, 16,
+                           "Supported; runtime-confirmed", Game::StyleGreenText,
+                           "profile-msts19-1024-p16-r64-confirmed");
+        checkCompatibility(TerrainHeightProfile::High512x4, 8,
+                           "Within patched limits", "#d6a000",
+                           "profile-msts19-other-r64-untested");
+        checkCompatibility(TerrainHeightProfile::Ultra1024x2, 8,
+                           "Not compatible", Game::StyleRedText,
+                           "profile-msts19-r128-rejected");
+        checkCompatibility(TerrainHeightProfile::Extreme2048x1, 32,
+                           "Not compatible", Game::StyleRedText,
+                           "profile-msts19-n2048-rejected");
+        checkCompatibility(TerrainHeightProfile::Ultra1024x2, 32,
+                           "Supported; runtime-confirmed", Game::StyleGreenText,
+                           "profile-msts19-p32-support-retained");
+    }
     const TerrainGridLayout low = TerrainGridLayout::profile(
                 TerrainHeightProfile::Low128x16);
     const TerrainGridLayout high = TerrainGridLayout::profile(

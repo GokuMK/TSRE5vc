@@ -48,6 +48,8 @@ TerrainProfileSelector::TerrainProfileSelector(QWidget *parent,
       msts19Status(compatibilityLabel(this)),
       ortsMasterStatus(compatibilityLabel(this)),
       ortsUnstableStatus(compatibilityLabel(this)) {
+    msts19Name->setObjectName("msts19Name");
+    msts19Status->setObjectName("msts19Status");
     profiles->setStyleSheet("combobox-popup: 0;");
     profiles->addItem(TerrainGridLayout::heightProfileName(
                               TerrainHeightProfile::Standard256x8),
@@ -258,13 +260,15 @@ QString TerrainProfileSelector::msts19Compatibility(
     const bool confirmed = (layout.sampleCount == 256 && layout.patchesPerSide == 16)
             || (layout.sampleCount == 512 && layout.patchesPerSide == 16)
             || (layout.sampleCount == 512 && layout.patchesPerSide == 32)
+            // Requires the R64 update; detailed test limits are documented.
+            || (layout.sampleCount == 1024 && layout.patchesPerSide == 16)
             || (layout.sampleCount == 1024 && layout.patchesPerSide == 32);
     if (confirmed)
         return "Supported; runtime-confirmed";
     if (layout.sampleCount <= 1024 && layout.patchesPerSide <= 32
-            && layout.patchResolution <= 32)
+            && layout.patchResolution <= 64)
         return "Within patched limits; this tuple is not runtime-tested";
-    return "Not compatible (requires N<=1024, P<=32 and R<=32)";
+    return "Not compatible (requires N<=1024, P<=32 and R<=64)";
 }
 
 QString TerrainProfileSelector::ortsMasterCompatibility(

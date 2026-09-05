@@ -85,7 +85,8 @@ Requirements:
   incompatible, and amber means source/limit-compatible but not runtime-tested;
 - mark TSRE's `256/P16`, `512/P16`, and `1024/P16` choices supported and
   recommended. `1024/P16` keeps the standard 128 m physical patch and reduces
-  per-tile patch draws; patched MSTS instead requires `1024/P32`;
+  per-tile patch draws; MSTS Bin 1.9's R64 update also supports `1024/P16`
+  with rendering confirmation (broader editing tests remain incomplete);
 - cancellation must create neither the World file nor terrain/quadtree data;
 - pass the selected profile only to detailed-terrain creation, through both
   initial creation and confirmed terrain overwrite, without asking for it

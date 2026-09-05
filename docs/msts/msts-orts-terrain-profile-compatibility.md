@@ -1,7 +1,7 @@
 # Terrain profile compatibility: MSTS Bin 1.8, patched MSTS, and Open Rails
 
 Status: **compatibility matrix; static boundaries plus identified runtime tests**  
-Date: 2026-09-03
+Date: 2026-09-05 (MSTS R64 update; Open Rails inspection remains 2026-09-03)
 
 ## Scope and notation
 
@@ -10,7 +10,7 @@ power-of-two sample counts from 128 through 2,048. It compares:
 
 - unmodified MSTS Bin 1.8.052113;
 - the terrain build produced by
-  `share/msts-bin-1.8-terrain-patcher/patch_msts_bin_1_8_terrain.py`;
+  [MSTS Bin 1.9 R64 patcher](../../extra/MSTS/bin-1.9/README.md);
 - Open Rails `master` commit
   `3a4d79804140d1749e39cc175c8f4a5939bbeb66` and `unstable` commit
   `bbeb7ab6dd00bf7f61503f0b177839095ee7a5b8`, inspected on 2026-09-03.
@@ -66,10 +66,10 @@ established support envelope. Parentheses contain `R=N/P`.
 
 | `N` | MSTS Bin 1.8 | Patched MSTS | ORTS `master` correct geometry | ORTS `unstable` source envelope |
 |---:|---|---|---|---|
-| 128 | `P=8 (R=16)`, `P=16 (R=8)` | `P=4 (R=32)`, `8 (16)`, `16 (8)`, `32 (4)` | `P=8 (R=16)` | Power-of-two `P=1..128` (`R=128..1`) |
-| 256 | `P=16 (R=16)` | `P=8 (R=32)`, `16 (16)`, `32 (8)` | `P=16 (R=16)` | Power-of-two `P=2..256` (`R=128..1`) |
-| 512 | none | `P=16 (R=32)`, `P=32 (R=16)` | `P=32 (R=16)` | Power-of-two `P=4..512` (`R=128..1`) |
-| 1024 | none | `P=32 (R=32)` | `P=64 (R=16)` | Power-of-two `P=8..1024` (`R=128..1`) |
+| 128 | `P=8 (R=16)`, `P=16 (R=8)` | `P=2 (R=64)`, `4 (32)`, `8 (16)`, `16 (8)`, `32 (4)` | `P=8 (R=16)` | Power-of-two `P=1..128` (`R=128..1`) |
+| 256 | `P=16 (R=16)` | `P=4 (R=64)`, `8 (32)`, `16 (16)`, `32 (8)` | `P=16 (R=16)` | Power-of-two `P=2..256` (`R=128..1`) |
+| 512 | none | `P=8 (R=64)`, `16 (32)`, `32 (16)` | `P=32 (R=16)` | Power-of-two `P=4..512` (`R=128..1`) |
+| 1024 | none | `P=16 (R=64)`, `32 (32)` | `P=64 (R=16)` | Power-of-two `P=8..1024` (`R=128..1`) |
 | 2048 | none | none | `P=128 (R=16)` | Power-of-two `P=16..2048` (`R=128..1`) |
 
 The MSTS columns describe supported target envelopes, not every value the
@@ -109,14 +109,22 @@ The distributed terrain patch is designed for:
 ```text
 N <= 1024
 P <= 32
-R = N/P <= 32
+R = N/P <= 64
 ```
 
-It includes the R32 per-patch renderer changes, N1024 Route Editor bitmap and
+It includes the R64 v5 per-patch renderer changes, N1024 Route Editor bitmap and
 seam changes, and two enlarged visible-patch lists sized for sixteen complete
-P32 tiles. This is still an experimental rather than a universal format
-guarantee: `N=1024, P=16, R=64` remains unsupported after its dense-patch
-geometry failures.
+P32 tiles. `N=1024, P=16, R=64` is now supported by the 2026-09-05 patcher
+update: v5 dense-hover textured/wireframe rendering was tested successfully
+in Wine, with user retests on `mini` and the formerly problematic route.
+Earlier failing R64 attempts do not describe the current patcher. R64 remains
+experimental: fully dense multi-tile, whole-tile ErrorBias zero, and R64 height
+edit/save/reload coverage is incomplete. Other newly admitted R64 tuples are
+within the envelope, not automatically runtime-confirmed.
+
+Older Bin 1.9 outputs with the R32 limit must be regenerated with the updated
+patcher from clean Bin 1.8 input; the display name alone does not identify
+which patcher revision produced an executable.
 
 ### Open Rails `master`
 
@@ -172,7 +180,7 @@ does not consume MSTS E/AS adaptive terrain LOD for this purpose.
 | `N=512, P=16, R=32` | patched MSRE | User-reported rendering and height-edit/save success after descriptor repair |
 | `N=512, P=32, R=16` | patched MSTS | User-reported rendering success |
 | `N=1024, P=32, R=32` | patched MSTS | User-reported rendering success with a complete 3-by-3 tile grid |
-| `N=1024, P=16, R=64` | experimental patched MSTS attempts | Failed dense-patch rendering; not retained |
+| `N=1024, P=16, R=64` | MSTS Bin 1.9 R64 v5 update | Successful dense-hover rendering and user retests; broader edit/save/reload matrix remains incomplete |
 | Any nonstandard tuple | Open Rails `master` or `unstable` | No runtime result recorded in this workspace |
 
 The enlarged P32 visible-patch lists have been tested successfully with a
@@ -188,9 +196,11 @@ sixteen-tile case remains untested.
   not recommendations: their CPU height arrays, editing cost, and GPU vertex
   data are substantially larger than 1024 terrain.
 - Maximum profile shared by the current patched MSTS design and Open Rails
-  `unstable` geometry: **`N=1024, S=2, P=32, R=32`**. Patched MSTS rendering
-  is confirmed with a 3-by-3 tile grid; Open Rails support is source-derived
-  and needs a runtime test, and its normals need the sample-spacing fix.
+  `unstable` geometry: **`N=1024, S=2` with P16/R64 or P32/R32**. P16/R64
+  requires the R64 patcher update and has bounded rendering confirmation;
+  P32/R32 is confirmed with a 3-by-3 tile grid. Open Rails support is
+  source-derived and needs a runtime test, and its normals need the
+  sample-spacing fix.
 - For Open Rails `master` rather than `unstable`, retain
   **`N=512, S=4, P=32, R=16`** because that branch still assumes `R=16` at the
   inspected commit.
