@@ -265,13 +265,11 @@ struct TerrainGridLayout {
             if (patchResolution % sourceStep != 0)
                 break;
             const int effectiveSpacing = integralSpacing * sourceStep;
-            if (effectiveSpacing > 32)
+            if (effectiveSpacing > 32 && sourceStep > 1)
                 break;
             const int cells = patchResolution / sourceStep;
-            const bool hasCoarser = sourceStep <= patchResolution / 2
-                    && patchResolution % (sourceStep * 2) == 0
-                    && effectiveSpacing <= 16;
-            const std::size_t levelIndices = hasCoarser
+            const bool hasTransitions = cells >= 2 && cells % 2 == 0;
+            const std::size_t levelIndices = hasTransitions
                     ? static_cast<std::size_t>(32 * cells * cells
                                                - 16 * cells) * 3u
                     : static_cast<std::size_t>(cells) * cells * 6u;

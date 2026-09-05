@@ -89,6 +89,7 @@ public:
     int getSampleCount();
     int getPatchResolution() const;
     const TerrainGridLayout& getGridLayout() const;
+    QVector<quint8> getPatchGapState();
     bool isEditable() const;
     float setHeight(int x, int z, float posx, float posz, float val, bool add = false);
     void setFixedHeight(float val);

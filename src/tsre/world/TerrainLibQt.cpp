@@ -25,6 +25,7 @@
 #include <tsre/world/QuadTree.h>
 #include <tsre/Undo.h>
 #include <tsre/world/Route.h>
+#include <tsre/world/Trk.h>
 #include <tsre/world/Environment.h>
 #include <tsre/world/TerrainInfo.h>
 #include <tsre/renderer/Renderer.h>
@@ -33,6 +34,7 @@
 #include <QFile>
 #include <QRect>
 #include <QScopedValueRollback>
+#include <QScopeGuard>
 
 namespace {
 
@@ -1400,7 +1402,34 @@ void TerrainLibQt::renderWaterLo(GLUU* gluu, float* playerT, float* playerW, flo
     }
 }
 
+void TerrainLibQt::prepareTerrainLod(float *playerT, float *playerW) {
+    clearPreparedTerrainLod();
+    if (Game::terrainMeshMode != Game::TERRAIN_MESH_PAGED) return;
+    // Use the same camera neighbourhood for colour, picking and shadows, even
+    // when a pass draws only its inner 3x3 World cells. Load this set before
+    // selecting any patch; traversal order must not change neighbour LODs.
+    const int radius = std::max(1, Game::tileLod);
+    const int count = (radius * 2 + 1) * (radius * 2 + 1);
+    QVector<Terrain*> tiles;
+    QSet<Terrain*> seen;
+    for (int n = -1, x = 0, z = 0; n < count - 1; ++n) {
+        if (n != -1) spiralLoop(n, x, z);
+        Terrain *terrain = edgeTerrainAt(int(playerT[0]) + x,
+                                         int(playerT[1]) + z, false, true);
+        if (terrain == nullptr || !terrain->loaded || seen.contains(terrain)) continue;
+        seen.insert(terrain);
+        tiles.append(terrain);
+    }
+    const auto &levels = Game::currentRoute != nullptr && Game::currentRoute->trk != nullptr
+            ? Game::currentRoute->trk->effectiveTerrainLodLevels() : TerrainLod::defaultProfile();
+    TerrainLib::prepareTerrainLod(tiles, levels,
+                                  double(playerT[0]) * 2048 + playerW[0],
+                                  double(playerT[1]) * 2048 + playerW[2]);
+}
+
 void TerrainLibQt::renderShadowMap(GLUU *gluu, float * playerT, float* playerW, float* target, float fov) {
+    prepareTerrainLod(playerT, playerW);
+    const auto lodScope = qScopeGuard([this] { clearPreparedTerrainLod(); });
     gluu->currentShader->setUniformValue(gluu->currentShader->shaderAlpha, 0.0f);
     gluu->enableNormals();
 
@@ -1442,6 +1471,8 @@ void TerrainLibQt::renderEmpty(GLUU *gluu, float * playerT, float* playerW, floa
 }
 
 void TerrainLibQt::pushRenderItems(float * playerT, float* playerW, float* target, float fov, int renderMode) {
+    prepareTerrainLod(playerT, playerW);
+    const auto lodScope = qScopeGuard([this] { clearPreparedTerrainLod(); });
     int renderCount = (Game::tileLod * 2 + 1)*(Game::tileLod * 2 + 1);
     if (renderMode == Game::currentRenderer->RENDER_SELECTION)
         renderCount = 9;
@@ -1500,6 +1531,8 @@ void TerrainLibQt::pushRenderItems(float * playerT, float* playerW, float* targe
 }
 
 void TerrainLibQt::render(GLUU *gluu, float * playerT, float* playerW, float* target, float fov, int renderMode) {
+    prepareTerrainLod(playerT, playerW);
+    const auto lodScope = qScopeGuard([this] { clearPreparedTerrainLod(); });
     int renderCount = (Game::tileLod * 2 + 1)*(Game::tileLod * 2 + 1);
     if (renderMode == gluu->RENDER_SELECTION)
         renderCount = 9;

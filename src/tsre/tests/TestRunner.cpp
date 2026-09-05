@@ -2440,7 +2440,8 @@ static int runTerrainGridSuite(bool verbose) {
         std::size_t count = 0;
         const QVector<int> steps = TerrainLod::availableSourceSteps(layout);
         for (int level = 0; level < steps.size(); ++level) {
-            const int lastMask = level + 1 < steps.size() ? 15 : 0;
+            const int cells = layout.patchResolution / steps[level];
+            const int lastMask = cells >= 2 && cells % 2 == 0 ? 15 : 0;
             for (int mask = 0; mask <= lastMask; ++mask)
                 count += TerrainMeshPaged::buildLodIndices(
                             layout.patchResolution, steps[level],
@@ -2614,6 +2615,60 @@ static int runTerrainGridSuite(bool verbose) {
                 noGaps, &profileViolation);
     tileLodOk = tileLodOk && profileViolation;
     check(tileLodOk, "terrain-lod-tile-constraints-and-gap-pinning");
+
+    auto makeLodState = [](const TerrainGridLayout &layout, int spacing) {
+        TerrainLodTileState state;
+        state.layout = layout;
+        state.gaps.fill(0, layout.patchRecordCount());
+        state.patches = TerrainLod::buildTileState(layout, {{spacing, 1000}},
+                                                  0, 0, state.gaps, nullptr, false);
+        return state;
+    };
+    QVector<TerrainLodTileState> connected = {makeLodState(ultra, 32),
+                                             makeLodState(standard, 32)};
+    const int fineEdge = ultra.patchIndex(8, ultra.patchesPerSide - 1);
+    const int coarseEdge = standard.patchIndex(8, 0);
+    const QVector<TerrainLodConnection> links = {{0, fineEdge, TerrainLod::LocalXMax,
+                                                 1, coarseEdge, TerrainLod::LocalX0}};
+    check(connected[0].patches[fineEdge].effectiveSampleSpacing == 32,
+          "terrain-lod-coordinated-outer-ring-not-pinned");
+    connected[0].gaps[fineEdge] = 1;
+    connected[0].patches[fineEdge] = {1, ultra.sampleSpacing, 0};
+    TerrainLod::connectTileStates(connected, links);
+    check(connected[1].patches[coarseEdge].sourceStep == 1
+          && connected[0].patches[fineEdge].edgeMask & TerrainLod::LocalXMax,
+          "terrain-lod-cross-tile-gap-pinning-and-native-mismatch");
+    bool finalInternalRatios = true;
+    for (const auto &tile : connected)
+        for (int id = 0; id < tile.patches.size(); ++id) {
+            const int row = tile.layout.patchRow(id), col = tile.layout.patchColumn(id);
+            for (int next : {col + 1 < tile.layout.patchesPerSide ? id + 1 : -1,
+                            row + 1 < tile.layout.patchesPerSide ? id + tile.layout.patchesPerSide : -1}) {
+                if (next < 0) continue;
+                const int a = tile.patches[id].sourceStep, b = tile.patches[next].sourceStep;
+                finalInternalRatios &= std::max(a, b) <= std::min(a, b) * 2;
+            }
+        }
+    check(finalInternalRatios, "terrain-lod-cross-tile-refinement-propagates-inward");
+    auto coarseNative = ultra;
+    coarseNative.sampleSpacing = 64;
+    connected = {makeLodState(ultra, 32), makeLodState(coarseNative, 32)};
+    TerrainLod::connectTileStates(connected, links);
+    const auto topLevel = connected[0].patches[fineEdge];
+    check(topLevel.effectiveSampleSpacing == 32
+          && topLevel.edgeMask == TerrainLod::LocalXMax
+          && !TerrainMeshPaged::buildLodIndices(ultra.patchResolution,
+                        topLevel.sourceStep, topLevel.edgeMask).isEmpty(),
+          "terrain-lod-coarsest-level-can-stitch-to-coarser-native-tile");
+    connected = {makeLodState(ultra, 4), makeLodState(standard, 8),
+                 makeLodState(ultra, 4)};
+    QVector<TerrainLodConnection> mixedLinks = links;
+    mixedLinks.append({0, fineEdge, TerrainLod::LocalXMax,
+                       2, coarseEdge, TerrainLod::LocalX0});
+    TerrainLod::connectTileStates(connected, mixedLinks);
+    check((connected[0].patches[fineEdge].edgeMask & TerrainLod::LocalXMax)
+          && connected[0].bestEffortBoundary,
+          "terrain-lod-mixed-edge-spans-use-coarse-mask-and-report-best-effort");
 
     Trk serializedTrk;
     check(serializedTrk.terrainLodLevels.isEmpty()

@@ -16,6 +16,7 @@
 #include <tsre/ogl/GLUU.h>
 #include <tsre/world/TerrainGridLayout.h>
 #include <tsre/world/TerrainAdjacentEdge.h>
+#include <tsre/world/TerrainLod.h>
 
 class Terrain;
 class Brush;
@@ -43,6 +44,15 @@ public:
     const TerrainAdjacentEdge &resolveAdjacentEdge(Terrain &terrain,
                         TerrainEdgeSide side, TerrainEdgeDiscovery mode);
     void fillCachedRaw(Terrain &terrain);
+    // Prepare once before a render traversal, then clear after submission.
+    void prepareTerrainLod(const QVector<Terrain*> &terrains,
+                           const QVector<TerrainLodLevel> &levels,
+                           double cameraX, double cameraZ);
+    const QVector<TerrainPatchLodState> *preparedPatchLod(Terrain *terrain) const {
+        const auto it = preparedTerrainLod.constFind(terrain);
+        return it == preparedTerrainLod.constEnd() ? nullptr : &it.value();
+    }
+    void clearPreparedTerrainLod() { preparedTerrainLod.clear(); }
     virtual void terrainAvailabilityChanged(Terrain *terrain);
     virtual void terrainSamplesChanged(Terrain *source,
                                        int minX, int minZ,
@@ -107,6 +117,8 @@ public:
     virtual void renderShadowMap(GLUU *gluu, float* playerT, float* playerW, float* target, float fov);
     
 protected:
+    QHash<Terrain*, QVector<TerrainPatchLodState>> preparedTerrainLod;
+    QSet<QString> terrainLodWarnings;
     virtual Terrain *edgeTerrainAt(int worldX, int worldZ, bool low, bool load);
     HeightWindow* heightWindow = NULL;
 };

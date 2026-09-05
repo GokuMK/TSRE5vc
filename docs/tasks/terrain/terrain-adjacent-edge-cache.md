@@ -15,7 +15,9 @@ uses cached positive edges for both mesh backends, while general
 - Source locators store a World-cell address, terrain name, domain, and side.
   They never retain a `Terrain*`. `sourcePatchAt()` derives the neighbouring
   patch arithmetically; native spacing retrieval is constant-time after section
-  validation. No LOD selection or outer-ring policy was changed.
+  validation. The edge-cache commit itself did not change LOD selection;
+  the [cross-tile LOD continuation](terrain-basic-discrete-lod.md) now consumes
+  these sections and removes the temporary native outer-ring restriction.
 - Sampling walks points monotonically, interpolates valid spans, and uses
   current owner heights for missing or conflicting values. A missing endpoint
   is represented by a non-finite cached height, never written to terrain;
@@ -45,8 +47,9 @@ lookups per fill (one per positive-edge section), with measured averages around
 16-21 microseconds in Release runs. This is a CPU fixture measurement,
 not a claim about complete editor frame time or GPU refresh performance.
 
-Verification: Release build succeeded; `terrain-edges` passed 40/40 cases and
-the existing `terrain-grid` suite passed 56/56. Interactive seam/normal checks
+Edge-cache milestone verification: Release build succeeded; `terrain-edges`
+passed 40/40 cases and the existing `terrain-grid` suite passed 56/56. The LOD
+continuation extends both suites with rendered-topology checks. Interactive seam/normal checks
 on actual routes are still required. Save/reload tests compare cached heights
 exactly with decoded RAW values, accounting for the existing uint16 disk
 quantization when comparing those values with pre-save float heights.

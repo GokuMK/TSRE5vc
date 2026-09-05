@@ -136,7 +136,7 @@ QVector<TerrainPatchLodState> TerrainLod::buildTileState(
         const QVector<TerrainLodLevel> &levels,
         float cameraLocalX, float cameraLocalZ,
         const QVector<quint8> &patchHasGap,
-        bool *profileViolation) {
+        bool *profileViolation, bool pinOuterRing) {
     const int patches = layout.patchesPerSide;
     const int count = layout.patchRecordCount();
     QVector<TerrainPatchLodState> result(count);
@@ -174,8 +174,8 @@ QVector<TerrainPatchLodState> TerrainLod::buildTileState(
             result[patchId].sourceStep = stepForRequest(requested);
             result[patchId].effectiveSampleSpacing = layout.sampleSpacing
                     * result[patchId].sourceStep;
-            if (row == 0 || column == 0
-                    || row == patches - 1 || column == patches - 1)
+            if (pinOuterRing && (row == 0 || column == 0
+                    || row == patches - 1 || column == patches - 1))
                 pinned[patchId] = 1;
         }
     }
@@ -228,6 +228,14 @@ QVector<TerrainPatchLodState> TerrainLod::buildTileState(
         result[patchId].effectiveSampleSpacing = layout.sampleSpacing;
     }
 
+    refineTileState(layout, result);
+    return result;
+}
+
+bool TerrainLod::refineTileState(const TerrainGridLayout &layout,
+                                QVector<TerrainPatchLodState> &result) {
+    const int patches = layout.patchesPerSide;
+    bool refined = false;
     // Refine only the coarser side until every internal edge is 1:1 or 2:1.
     bool changed = true;
     while (changed) {
@@ -249,12 +257,12 @@ QVector<TerrainPatchLodState> TerrainLod::buildTileState(
                         first = second * 2;
                         result[patchId].effectiveSampleSpacing =
                                 layout.sampleSpacing * first;
-                        changed = true;
+                        changed = refined = true;
                     } else if (second > first * 2) {
                         second = first * 2;
                         result[neighbourId].effectiveSampleSpacing =
                                 layout.sampleSpacing * second;
-                        changed = true;
+                        changed = refined = true;
                     }
                 }
             }
@@ -285,5 +293,74 @@ QVector<TerrainPatchLodState> TerrainLod::buildTileState(
             result[patchId].edgeMask = mask;
         }
     }
-    return result;
+    return refined;
+}
+
+void TerrainLod::connectTileStates(QVector<TerrainLodTileState> &tiles,
+                                  const QVector<TerrainLodConnection> &connections) {
+    auto pin = [](TerrainLodTileState &tile, int patch) {
+        tile.patches[patch].sourceStep = 1;
+        tile.patches[patch].effectiveSampleSpacing = tile.layout.sampleSpacing;
+    };
+    for (const auto &c : connections) {
+        auto &a = tiles[c.firstTile];
+        auto &b = tiles[c.secondTile];
+        if (a.gaps.value(c.firstPatch)) pin(b, c.secondPatch);
+        if (b.gaps.value(c.secondPatch)) pin(a, c.firstPatch);
+    }
+    auto refine = [](TerrainPatchLodState &a, const TerrainPatchLodState &b) {
+        bool changed = false;
+        // Never invent a finer-than-native level. A native 4:1 boundary keeps
+        // the existing 2:1 transition as best effort, not extra templates.
+        while (a.sourceStep > 1
+               && a.effectiveSampleSpacing > b.effectiveSampleSpacing * 2) {
+            a.sourceStep /= 2;
+            a.effectiveSampleSpacing /= 2;
+            changed = true;
+        }
+        return changed;
+    };
+    bool changed;
+    do {
+        changed = false;
+        for (auto &tile : tiles)
+            changed |= refineTileState(tile.layout, tile.patches);
+        for (const auto &c : connections) {
+            auto &a = tiles[c.firstTile].patches[c.firstPatch];
+            auto &b = tiles[c.secondTile].patches[c.secondPatch];
+            changed |= refine(a, b);
+            changed |= refine(b, a);
+        }
+    } while (changed);
+
+    auto stitch = [](TerrainLodTileState &tile, int patch, quint8 edge,
+                     const TerrainPatchLodState &neighbor) {
+        auto &state = tile.patches[patch];
+        const int cells = tile.layout.patchResolution / state.sourceStep;
+        if (cells >= 2 && cells % 2 == 0
+                && neighbor.effectiveSampleSpacing >= state.effectiveSampleSpacing * 2)
+            state.edgeMask |= edge;
+    };
+    // All selections are now final. OR implements the deterministic coarse
+    // fallback for an edge meeting multiple, differently selected patches.
+    for (const auto &c : connections) {
+        auto &a = tiles[c.firstTile];
+        auto &b = tiles[c.secondTile];
+        stitch(a, c.firstPatch, c.firstEdge, b.patches[c.secondPatch]);
+        stitch(b, c.secondPatch, c.secondEdge, a.patches[c.firstPatch]);
+    }
+    for (const auto &c : connections) {
+        auto &a = tiles[c.firstTile];
+        auto &b = tiles[c.secondTile];
+        const auto &first = a.patches[c.firstPatch];
+        const auto &second = b.patches[c.secondPatch];
+        const int small = std::min(first.effectiveSampleSpacing, second.effectiveSampleSpacing);
+        const int large = std::max(first.effectiveSampleSpacing, second.effectiveSampleSpacing);
+        // An edge mask requested by one span but unsuitable for another span
+        // reveals the unsupported mixed-neighbour case without a mapping table.
+        if (large > small * 2
+                || ((first.edgeMask & c.firstEdge) && second.effectiveSampleSpacing < first.effectiveSampleSpacing * 2)
+                || ((second.edgeMask & c.secondEdge) && first.effectiveSampleSpacing < second.effectiveSampleSpacing * 2))
+            a.bestEffortBoundary = b.bestEffortBoundary = true;
+    }
 }

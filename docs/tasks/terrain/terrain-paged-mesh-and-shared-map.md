@@ -670,10 +670,11 @@ remove C, B, B2, or D from this document: they are the controlled fallbacks
 and future comparison designs if hardware or raw-height testing changes the
 decision.
 
-Crack-free transitions, distance-driven LOD selection, E/AS-guided adaptive
-triangulation, and constant per-frame MSTS-style refinement remain subsequent
-work. The page/backend design must leave them possible without making their
-implementation a prerequisite for this static paged-mesh stage.
+Distance-driven selection and aligned 2:1 cross-tile transitions have since
+been implemented in the [basic discrete LOD task](terrain-basic-discrete-lod.md),
+using index templates over the unchanged full native vertex blocks. E/AS-guided
+adaptive triangulation and constant per-frame MSTS-style refinement remain
+future work, not prerequisites for this static paged-mesh stage.
 
 ### Patch visibility culling
 

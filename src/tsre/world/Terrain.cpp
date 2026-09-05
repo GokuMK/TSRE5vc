@@ -656,13 +656,23 @@ bool Terrain::patchContainsGap(int patchId) {
     return hasGap;
 }
 
-QVector<TerrainPatchLodState> Terrain::buildPatchLodState(
-        const PatchVisibility &visibility) {
+QVector<quint8> Terrain::getPatchGapState() {
     QVector<quint8> gaps(gridLayout.patchRecordCount(), 0);
     if (jestF) {
         for (int patchId = 0; patchId < gaps.size(); ++patchId)
             gaps[patchId] = patchContainsGap(patchId) ? 1 : 0;
     }
+    return gaps;
+}
+
+QVector<TerrainPatchLodState> Terrain::buildPatchLodState(
+        const PatchVisibility &visibility) {
+    if (!lowTile && Game::terrainLib != nullptr) {
+        const auto *prepared = Game::terrainLib->preparedPatchLod(this);
+        if (prepared != nullptr)
+            return *prepared;
+    }
+    const auto gaps = getPatchGapState();
     if (lowTile || Game::currentRoute == NULL
             || Game::currentRoute->trk == NULL || !visibility.valid)
         return TerrainLod::buildTileState(gridLayout, {},

@@ -358,9 +358,10 @@ bool TerrainMeshPaged::ensureInitialized() {
     indexTemplates.clear();
     for (int level = 0; level < sourceSteps.size(); ++level) {
         const int sourceStep = sourceSteps[level];
-        const bool hasCoarserLevel = level + 1 < sourceSteps.size()
-                && sourceSteps[level + 1] == sourceStep * 2;
-        const int lastMask = hasCoarserLevel ? 15 : 0;
+        // A neighbour can be coarser natively, including beyond this tile's
+        // coarsest selectable LOD. Such borders still need transition masks.
+        const int cells = terrain.gridLayout.patchResolution / sourceStep;
+        const int lastMask = cells >= 2 && cells % 2 == 0 ? 15 : 0;
         for (int mask = 0; mask <= lastMask; ++mask) {
             const QVector<quint16> indices = buildLodIndices(
                         terrain.gridLayout.patchResolution,
@@ -485,6 +486,8 @@ void TerrainMeshPaged::configureRenderItem(RenderItem &item, int patchId,
     item.vertOffset = 0;
     auto indexTemplate = indexTemplates.constFind(
                 indexTemplateKey(sourceStep, edgeMask));
+    if (indexTemplate == indexTemplates.constEnd())
+        indexTemplate = indexTemplates.constFind(indexTemplateKey(sourceStep, 0));
     if (indexTemplate == indexTemplates.constEnd())
         indexTemplate = indexTemplates.constFind(indexTemplateKey(1, 0));
     if (indexTemplate == indexTemplates.constEnd())

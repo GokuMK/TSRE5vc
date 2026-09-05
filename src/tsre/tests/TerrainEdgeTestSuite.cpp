@@ -17,12 +17,14 @@
 #include <vector>
 #include <cmath>
 #include <cstring>
+#include <algorithm>
 
 namespace {
 // Exercise the production domain guard and resolver with deterministic loaded
 // terrain bounds, without disk I/O during lookup or an OpenGL context.
 class EdgeLibrary : public TerrainLibQt {
 public:
+    using TerrainLib::prepareTerrainLod;
     QVector<Terrain*> tiles;
     QSet<Terrain*> loadable;
     int lookups = 0;
@@ -133,6 +135,50 @@ int TsreTests::runTerrainEdgeSuite(bool verbose) {
         check(false, "fixtures-load"); return 1;
     }
     const auto b = TerrainPhysicalBounds::of(*owner);
+    library.prepareTerrainLod(library.tiles, {{2, 1000}}, 0, 0);
+    const auto nativeStates = *library.preparedPatchLod(owner);
+    check((nativeStates[32 * 10].edgeMask & TerrainLod::LocalX0)
+          && (nativeStates[32 * 10 + 31].edgeMask & TerrainLod::LocalXMax)
+          && (nativeStates[10].edgeMask & TerrainLod::LocalZ0)
+          && (nativeStates[31 * 32 + 10].edgeMask & TerrainLod::LocalZMax),
+          "lod-native-2-to-4-and-2-to-8-stitches-all-four-sides");
+    check(((*library.preparedPatchLod(left))[8 * 3 + 7].edgeMask & TerrainLod::LocalXMax) == 0,
+          "lod-coarser-native-side-does-not-stitch-to-finer");
+    auto sameStates = [](const QVector<TerrainPatchLodState> &a,
+                         const QVector<TerrainPatchLodState> &b) {
+        if (a.size() != b.size()) return false;
+        for (int i = 0; i < a.size(); ++i)
+            if (a[i].sourceStep != b[i].sourceStep
+                    || a[i].effectiveSampleSpacing != b[i].effectiveSampleSpacing
+                    || a[i].edgeMask != b[i].edgeMask) return false;
+        return true;
+    };
+    QVector<Terrain*> reversed = library.tiles;
+    std::reverse(reversed.begin(), reversed.end());
+    library.prepareTerrainLod(reversed, {{2, 1000}}, 0, 0);
+    check(sameStates(nativeStates, *library.preparedPatchLod(owner)),
+          "lod-native-selection-independent-of-tile-traversal-order");
+    const auto *cachedPoints = owner->adjacentEdges[0].sections[0].points.constData();
+    library.prepareTerrainLod(library.tiles, {{8, 1000}}, 10000, 10000);
+    const auto reducedStates = *library.preparedPatchLod(owner);
+    bool equalEdges = true;
+    for (const auto &state : reducedStates)
+        equalEdges &= state.effectiveSampleSpacing == 8 && state.edgeMask == 0;
+    check(equalEdges, "lod-equal-effective-spacing-across-different-native-grids");
+    check(cachedPoints == owner->adjacentEdges[0].sections[0].points.constData(),
+          "lod-camera-change-keeps-native-edge-vectors");
+    library.prepareTerrainLod(library.tiles, TerrainLod::defaultProfile(), 500, 500);
+    const auto distanceStates = *library.preparedPatchLod(owner);
+    library.prepareTerrainLod(reversed, TerrainLod::defaultProfile(), 500, 500);
+    check(sameStates(distanceStates, *library.preparedPatchLod(owner)),
+          "lod-distance-and-refinement-independent-of-submission-order");
+    right->loaded = false;
+    library.prepareTerrainLod(library.tiles, {{2, 1000}}, 0, 0);
+    check(((*library.preparedPatchLod(owner))[32 * 10 + 31].edgeMask & TerrainLod::LocalXMax) == 0,
+          "lod-missing-neighbour-has-no-external-transition");
+    right->loaded = true;
+    library.terrainAvailabilityChanged(right);
+    library.clearPreparedTerrainLod();
     for (auto side : {TerrainEdgeSide::LocalX0, TerrainEdgeSide::LocalXMax,
                       TerrainEdgeSide::LocalZ0, TerrainEdgeSide::LocalZMax}) {
         const auto &e = library.resolveAdjacentEdge(*owner, side, TerrainEdgeDiscovery::LoadedOnly);
@@ -241,6 +287,16 @@ int TsreTests::runTerrainEdgeSuite(bool verbose) {
         const auto lb = TerrainPhysicalBounds::of(*large);
         check(large->terrainData[256][512] == plane(lb.maxX, lb.minZ + 2048),
               "section-junction-canonical-owner-on-first-cold-fill");
+        library.prepareTerrainLod({large, smallA, smallB}, {{4, 1000}}, 0, 0);
+        bool splitLod = true;
+        for (int row = 0; row < 32; ++row)
+            splitLod &= ((*library.preparedPatchLod(smallA))[row * 32].edgeMask
+                         & TerrainLod::LocalX0) != 0;
+        for (int row = 0; row < 16; ++row)
+            splitLod &= ((*library.preparedPatchLod(smallB))[row * 16].edgeMask
+                         & TerrainLod::LocalX0) == 0;
+        check(splitLod, "lod-four-km-edge-walks-two-two-km-sections-and-patch-sizes");
+        library.clearPreparedTerrainLod();
         library.tiles.removeAll(smallB);
         large->adjacentEdges[1].dirty = true;
         library.fillCachedRaw(*large);
@@ -290,6 +346,67 @@ int TsreTests::runTerrainEdgeSuite(bool verbose) {
         check(extreme->terrainData[3][2048] == plane(eb.maxX, eb.minZ + 3),
               "2048-one-metre-non-midpoint-interpolation");
     } else check(false, "extreme-fixtures");
+
+    // The reported 4m/8m crack: a fine-only border vertex must remain editable
+    // in RAW but disappear from the transition's referenced boundary vertices.
+    Terrain *fine = make(40, 0, 512, 4, 16);
+    QVector<Terrain*> stitchTiles = {fine, make(39, 0, 256, 8, 16),
+                                   make(41, 0, 256, 8, 32),
+                                   make(40, -1, 256, 8, 8),
+                                   make(40, 1, 256, 8, 4)};
+    if (std::all_of(stitchTiles.begin(), stitchTiles.end(), [](Terrain *t) { return t != nullptr; })) {
+        fine->terrainData[5][0] = -999;
+        fine->terrainData[0][5] = -999;
+        fine->invalidateSamples(0, 0, 5, 5, TerrainDirtyHeight);
+        for (Terrain *t : stitchTiles) library.fillCachedRaw(*t);
+        library.prepareTerrainLod(stitchTiles, {{4, 1000}}, 40.0 * 2048, 0);
+        const auto &states = *library.preparedPatchLod(fine);
+        bool boundaryTopology = true;
+        for (int side = 0; side < 4; ++side) {
+            const int id = side == 0 ? 16 * 5 : side == 1 ? 16 * 5 + 15
+                                    : side == 2 ? 5 : 15 * 16 + 5;
+            const auto &state = states[id];
+            boundaryTopology &= state.sourceStep == 1 && (state.edgeMask & (1 << side));
+            const auto indices = TerrainMeshPaged::buildLodIndices(32, state.sourceStep, state.edgeMask);
+            for (quint16 vertex : indices) {
+                const int x = vertex % 33, z = vertex / 33;
+                if ((side == 0 && x == 0) || (side == 1 && x == 32))
+                    boundaryTopology &= z % 2 == 0;
+                if ((side == 2 && z == 0) || (side == 3 && z == 32))
+                    boundaryTopology &= x % 2 == 0;
+            }
+        }
+        check(boundaryTopology && fine->terrainData[5][0] == -999
+              && fine->terrainData[0][5] == -999,
+              "lod-four-to-eight-metre-all-sides-omit-fine-midpoints-without-changing-raw");
+        // Check exact shared endpoint geometry (away from the documented
+        // diagonal-corner fallback), not just the transition mask.
+        bool sharedHeights = true;
+        for (int k = 2; k < 250; ++k) {
+            sharedHeights &= fine->terrainData[k * 2][0] == stitchTiles[1]->terrainData[k][256];
+            sharedHeights &= fine->terrainData[k * 2][512] == stitchTiles[2]->terrainData[k][0];
+            sharedHeights &= fine->terrainData[0][k * 2] == stitchTiles[3]->terrainData[256][k];
+            sharedHeights &= fine->terrainData[512][k * 2] == stitchTiles[4]->terrainData[0][k];
+        }
+        check(sharedHeights, "lod-two-to-one-shared-endpoint-heights-match-both-ownership-directions");
+        fine->setModified(true);
+        fine->save();
+        TerrainInfo info;
+        info.cx = 40; info.cy = 0; info.name = fine->name;
+        auto reloadedFine = std::make_unique<Terrain>(&info);
+        library.tiles.removeAll(fine);
+        library.tiles.append(reloadedFine.get());
+        library.terrainAvailabilityChanged(reloadedFine.get());
+        stitchTiles[0] = reloadedFine.get();
+        library.prepareTerrainLod(stitchTiles, {{4, 1000}}, 40.0 * 2048, 0);
+        const auto *reloadedStates = library.preparedPatchLod(reloadedFine.get());
+        check(reloadedFine->loaded && reloadedStates
+              && ((*reloadedStates)[0].edgeMask & TerrainLod::LocalX0)
+              && reloadedFine->terrainData[5][0] < -998,
+              "lod-edit-save-reload-keeps-raw-dip-and-restores-transition");
+        library.clearPreparedTerrainLod();
+        library.tiles.removeAll(reloadedFine.get());
+    } else check(false, "lod-stitch-fixtures-load");
 
     // Independent comparison with the existing world-space query on valid spans.
     bool parity = true;
@@ -361,6 +478,17 @@ int TsreTests::runTerrainEdgeSuite(bool verbose) {
     for (int repeat = 0; repeat < 100; ++repeat) library.fillCachedRaw(*owner);
     qInfo() << "[tests:terrain-edges] warm 1024 fill average us="
             << timer.nsecsElapsed() / 100000.0 << "lookups=" << library.lookups;
+    library.prepareTerrainLod({owner, left, up, down, replacementTerrain},
+                              TerrainLod::defaultProfile(), 0, 0);
+    timer.restart();
+    const int loadsBeforeLod = library.loads;
+    for (int repeat = 0; repeat < 100; ++repeat)
+        library.prepareTerrainLod({owner, left, up, down, replacementTerrain},
+                                  TerrainLod::defaultProfile(), repeat, repeat);
+    qInfo() << "[tests:terrain-edges] warm five-tile LOD preparation average us="
+            << timer.nsecsElapsed() / 100000.0;
+    check(library.loads == loadsBeforeLod, "lod-neighbour-walk-never-loads-terrain");
+    library.clearPreparedTerrainLod();
     qInfo() << "[tests:terrain-edges] cases=" << passed + failed
             << "passed=" << passed << "failed=" << failed;
     return failed ? 1 : 0;

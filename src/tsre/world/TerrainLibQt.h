@@ -91,6 +91,7 @@ public:
     void renderEmpty(GLUU *gluu, float* playerT, float* playerW, float* target, float fov);
     void renderShadowMap(GLUU *gluu, float* playerT, float* playerW, float* target, float fov);
 protected:
+    void prepareTerrainLod(float *playerT, float *playerW);
     Terrain *edgeTerrainAt(int worldX, int worldZ, bool low, bool load) override;
     QuadTree* quadTree = NULL;
     QuadTree* quadTreeLo = NULL;

@@ -1,13 +1,13 @@
 # Basic discrete terrain patch LOD
 
-Status: tile-local milestone completed; cross-tile continuation approved after
-implementation of the adjacent-edge cache
+Status: tile-local milestone and cross-tile continuation completed;
+user testing confirms the cross-tile implementation works
 
 ## Cross-tile continuation (current implementation scope)
 
 The native outer-ring restriction below describes the completed first
 milestone. It was temporary because the adjacent-edge cache did not yet exist.
-The next implementation uses that cache and removes the restriction for
+The continuation uses that cache and removes the restriction for
 participating detailed terrain. This section supersedes the historical
 first-pass exclusions of cross-tile coordination and outer-ring removal.
 
@@ -75,7 +75,56 @@ Required continuation tests include:
 
 The sections below retain the original topology design and first-milestone
 history. Their first-pass-only boundaries must not be interpreted as cancelling
-this now-approved continuation.
+this continuation.
+
+### Cross-tile implementation notes
+
+- `TerrainLibQt` gathers the camera's detailed-terrain render neighbourhood
+  before patch selection. Colour, selection and terrain shadow entry points
+  use the same neighbourhood and camera coordinates. The normal render set is
+  loaded up front; edge discovery itself uses loaded neighbours only and does
+  not recursively expand this set.
+- `TerrainLibLod.cpp` prepares transient states, walks cached native sections,
+  and splits their spans arithmetically at the two sides' patch boundaries.
+  It does not retain a point-to-patch map or camera-dependent edge vectors.
+- `TerrainLod::connectTileStates()` applies cross-border gap-neighbour pinning
+  and monotonic refinement before assigning masks. The finer patch selects
+  its 2:1 template for any neighbour at least twice as coarse. For a patch edge
+  meeting different neighbour levels, the coarse transition wins for the whole
+  edge; this remains best effort. Unsupported larger native ratios and mixed
+  spans produce a warning once per terrain, not once per frame.
+- Final states live only during submission. `Terrain::render()` and
+  `pushRenderItem()` consume them for their existing terrain, map, grid,
+  selection and depth paths. There are no LOD-only height changes, vertex
+  uploads or new shaders. Direct rendering without the coordinated Qt library
+  retains the earlier conservative tile-local fallback.
+- Transition generation includes the coarsest available level whenever its
+  edge has an even number of cells (at least two). Invalid-mask lookup first
+  falls back to the regular template at the requested step. Index-memory
+  accounting includes these additional masks.
+
+CPU tests cover 4 m/8 m boundaries in all directions, preserving a lowered
+fine-only RAW sample while omitting it from the transition, shared endpoint
+heights in both ownership directions, save/reload, 4:1 native fallback,
+equal effective spacing from unequal native grids, camera/traversal order,
+4 km/2 km sections and different patch sizes, missing neighbours, gap pinning,
+mixed spans, and coarsest-level transitions. Full topology tests cover all
+16 masks. These are CPU/serialization tests. The user subsequently confirmed
+that the implementation works in interactive testing. This confirmation does
+not establish exhaustive coverage of both direct and gather renderers or all
+documented best-effort boundary cases.
+
+Verification of the continuation: Release build succeeded; `terrain-edges`
+passed 52/52 and `terrain-grid` passed 61/61. Warm preparation of the synthetic
+five-tile mixed-resolution neighbourhood averaged approximately 71-84
+microseconds over 100 successive camera positions, including neighbour
+lookup and refinement, without terrain loads. This is a CPU fixture timing,
+not an editor/GPU frame-rate measurement. The broader `all` run also passed
+the procedural-policy, dyntrack-road, ORTS-profile, selection, settings and
+TDB-load suites. It retained the `flex-point` failure `complete TDB subsection
+frames` (reproduced with the previous executable); route-load tests lacked
+their required MSTS root/test-route configuration, and flex baseline capture
+was unavailable. These unrelated checks were not changed by this task.
 
 Implementation summary:
 
@@ -83,7 +132,7 @@ Implementation summary:
   editing are implemented;
 - the paged backend builds every valid regular and 16-mask 2:1 transition
   template up to 32 m and stores them in its existing per-terrain EBO;
-- patch-center selection, native outer rings, gap/neighbour pinning, 2:1
+- patch-center selection, cross-tile outer rings, gap/neighbour pinning, 2:1
   constraint relaxation, and stitch-mask selection are implemented;
 - direct and queued terrain, grid, map, selection, and depth/shadow submissions
   use the selected topology;

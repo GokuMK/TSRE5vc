@@ -12,6 +12,7 @@
 #include <QVector>
 #include <QString>
 #include <QtGlobal>
+#include <tsre/world/TerrainGridLayout.h>
 
 struct TerrainGridLayout;
 
@@ -29,6 +30,22 @@ struct TerrainPatchLodState {
     int sourceStep = 1;
     int effectiveSampleSpacing = 0;
     quint8 edgeMask = 0;
+};
+
+// Transient selection state: no height/vertex storage and no camera-dependent
+// changes to the native adjacent-edge cache.
+struct TerrainLodTileState {
+    TerrainGridLayout layout;
+    QVector<TerrainPatchLodState> patches;
+    QVector<quint8> gaps;
+    bool bestEffortBoundary = false;
+};
+
+struct TerrainLodConnection {
+    int firstTile, firstPatch;
+    quint8 firstEdge;
+    int secondTile, secondPatch;
+    quint8 secondEdge;
 };
 
 class TerrainLod {
@@ -58,7 +75,12 @@ public:
             const QVector<TerrainLodLevel> &levels,
             float cameraLocalX, float cameraLocalZ,
             const QVector<quint8> &patchHasGap,
-            bool *profileViolation = nullptr);
+            bool *profileViolation = nullptr,
+            bool pinOuterRing = true);
+    static bool refineTileState(const TerrainGridLayout &layout,
+                                QVector<TerrainPatchLodState> &patches);
+    static void connectTileStates(QVector<TerrainLodTileState> &tiles,
+                                 const QVector<TerrainLodConnection> &connections);
 };
 
 #endif // TERRAINLOD_H
