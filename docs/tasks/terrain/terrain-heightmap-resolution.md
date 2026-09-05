@@ -3,11 +3,16 @@
 Status: implemented, including variable patch-count editing up to 32 x 32 and
 a shared profile selector for manual and automatic tile creation.
 
+For current completion/follow-up status, see the [terrain task index](README.md).
+This document also retains the original investigation and historical proposals;
+newer implementation notes and linked feature/analysis reports take precedence.
+
 Related tasks:
 
 - [Variable terrain patch count](terrain-patch-count.md)
 - [Terrain adjacent-edge cache](terrain-adjacent-edge-cache.md)
 - [Terrain height-brush CPU performance](terrain-height-brush-performance.md)
+- [Replace the deprecated simple backend](terrain-simple-lookup-migration.md)
 
 ## Decision and scope
 
@@ -326,27 +331,29 @@ editable section records. Both paths reuse `TSection::getPoints()`, and dynamic
 track therefore works independently of TDB membership and generated
 `sectionIdx` state.
 
-A temporary height raster remains a useful future companion for other batch
-terrain transformations which genuinely need to operate on old and new height
-fields together. It should reuse the action raster's world-aligned bounds and
-native-tile casting rules rather than reintroducing per-sample terrain lookup.
+A reusable temporary float height area is now available for other batch terrain
+transformations through `TerrainHeightArea::getArea()` / `setArea()`; see the
+[feature documentation and examples](../../features/terrain-height-area.md).
+The ordinary editor brush now uses direct tile-slice processing. The buffer
+brush and original implementation remain available for comparison in the
+[height-brush performance task](terrain-height-brush-performance.md).
+KEY_F retains its dedicated action raster.
 
 Remaining cleanup:
 
-- implement the separately designed
+- complete populated-route/multiplayer checks where needed; empty-route
+  interactive profiling and normal optimization are complete. See the
   [terrain height-brush CPU performance task](terrain-height-brush-performance.md);
-  profiling has established that the repeated per-sample editing path, rather
-  than paged-mesh regeneration, dominates the empty-route high-resolution
-  reproduction;
-- rename obsolete helpers such as `setHeight256()` once all callers migrate;
+- `setHeight256()` is now private to the deprecated simple backend; remove it
+  with that backend after the [lookup migration](terrain-simple-lookup-migration.md);
 - replace the temporary 8 m discontinuity guard with explicit line-strip breaks
   in the track-point API;
 - extend the same batching architecture to other area-wide terrain tools where
   measurements justify it.
 
-`TerrainLibQt::fillTerrainData()`, used for route merging, independently walks
-`-1024..1024` at 8 m and textures at 128 m. Its World-file traversal can keep
-2048/1024, but sample and patch steps must come from the destination terrain.
+`TerrainLibQt::fillTerrainData()`, used for route merging, now derives the
+footprint and sample/patch steps from the destination layout. World-cell
+normalization still correctly uses 2048/1024; those are not obsolete constants.
 
 ### 8. `TerrainLibSimple` remains selectable and is fixed-grid
 
@@ -354,13 +361,10 @@ Route and client construction still select `TerrainLibSimple` when quadtree
 terrain is disabled. Its direct access, slopes, geodata, track-bed, brushes,
 fill, and stitching contain extensive 256/8 assumptions.
 
-Required decision:
-
-- migrate it to the shared grid/coordinate helpers, or
-- disable the legacy mode for unsupported grids with a clear message.
-
-Updating only `TerrainLibQt` is not enough while this is a user-selectable
-path.
+Current protection rejects non-256/8 terrain in the simple backend. It is
+deprecated; the proposed replacement is Qt terrain with synthetic detailed
+lookup, not duplicating every new editor feature in the old library. See
+[the migration task](terrain-simple-lookup-migration.md).
 
 ### 9. Texture coordinates use samples per patch, not a fixed 16-unit domain
 
@@ -452,18 +456,12 @@ edge adjustment used by `getHeight()` and can address beyond the border.
 
 ### 11. Neighbor stitching rejects different grids
 
-`fillTerrainDataX/Y/XY()` only copies a border when neighboring `N` and `S`
-match. That is safe for a uniform resolution but leaves the initially
-duplicated edge for mixed neighboring resolutions.
-
-Required policy:
-
-- if mixed adjacent resolutions are outside the first release, detect and
-  report them rather than silently keeping a false seam; or
-- sample the adjacent edge at this terrain's world-space positions.
-
-Index-for-index copying is invalid between unlike grids. Test both directions
-if mixed resolution is claimed.
+Historical defect, resolved: Qt's `fillRaw()` now samples cached native edges
+at world-space positions; see [adjacent edges](terrain-adjacent-edge-cache.md).
+The [cross-tile LOD implementation](terrain-basic-discrete-lod.md) additionally
+selects finer-side transition topology for unlike rendered grids. Interpolation
+alone does not constrain extra fine-grid vertices. Exact aligned 2:1 matching
+and larger-ratio best-effort behavior are documented in that task.
 
 ### 12. `sampleSize` is parsed as float but truncated by the API
 
@@ -471,16 +469,19 @@ if mixed resolution is claimed.
 locals/creation methods use `int`. `sampleRotation` is parsed and written but
 not applied.
 
-Required decision:
-
-- either preserve floating-point spacing through all coordinate APIs; or
-- validate finite, positive, integral spacing and expose that supported
-  restriction explicitly.
-
-Likewise, either implement grid rotation or require zero rotation with a clear
-unsupported-file diagnostic.
+Implemented decision: `TerrainGridLayout::tryCreate()` requires finite,
+positive integral spacing and zero rotation, with unsupported-file diagnostics.
+Fractional spacing/rotated terrain support is not an outstanding requirement
+of the selected implementation.
 
 ### 13. Token 281/AS buffer must be length-driven, not assumed to be 257 x 257
+
+Implementation status: `TFile::getOpaqueSampleBuffer()` and the corresponding
+writer now preserve declared-length payloads, labels and opaque-buffer order.
+The fixed-size reader/writer defect described below is the historical baseline,
+not current code. For recovered E/AS/ErrorBias semantics, use the newer
+[MSTS report](../../msts/msts-terrain-adaptive-lod-analysis.md), which supersedes
+the speculative relationships retained later in this original review.
 
 The binary child-block header already defines this buffer's stored size. The
 layout read by `TFile::get139()` is:
@@ -519,8 +520,9 @@ coordinates, consistent with that use.
 TSRE does not implement this per-vertex adaptive mesh. Its compatibility
 strategy is deliberately coarser: when terrain heights are edited, it sets the
 containing patch's `ErrorBias` to zero so MSTS keeps the whole patch at full
-detail. This is done by `Terrain::setHeight()`, `TerrainLibQt::setHeight256()`,
-and the height-painting path through `Terrain::setErrorBias()`. Despite often
+detail. Current mutation paths include `Terrain::setHeight()`, the KEY_F
+action raster through `Terrain::setErrorBias()`, and height-brush patch
+bookkeeping through `Terrain::setPatchErrorBias()`. Despite often
 being described as a patch "high-resolution flag", this fork stores the
 behavior in the `terrain_patchset_patch` error-bias field; `TFile::flags` is
 used for other patch properties such as drawing and water.
