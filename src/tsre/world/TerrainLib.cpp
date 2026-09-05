@@ -107,6 +107,10 @@ void TerrainLib::terrainSamplesChanged(Terrain *source,
 
     const bool changedOwnedXEdge = minX <= 0 && maxX >= 0;
     const bool changedOwnedZEdge = minZ <= 0 && maxZ >= 0;
+    if (changedOwnedXEdge)
+        source->adjacentEdges[size_t(TerrainEdgeSide::LocalX0)].dirty = true;
+    if (changedOwnedZEdge)
+        source->adjacentEdges[size_t(TerrainEdgeSide::LocalZ0)].dirty = true;
     if (!changedOwnedXEdge && !changedOwnedZEdge)
         return;
 
@@ -146,18 +150,33 @@ void TerrainLib::terrainSamplesChanged(Terrain *source,
         Terrain *target = it.key();
         const int samples = target->getSampleCount();
         const int edges = it.value();
-        if (edges & DependentX)
+        if (edges & DependentX) {
+            target->adjacentEdges[size_t(TerrainEdgeSide::LocalXMax)].dirty = true;
+            if (changedOwnedZEdge) {
+                target->adjacentEdges[size_t(TerrainEdgeSide::LocalZ0)].dirty = true;
+                target->adjacentEdges[size_t(TerrainEdgeSide::LocalZMax)].dirty = true;
+            }
             target->invalidateSynthesizedSamples(samples, 0,
-                                                 samples, samples,
-                                                 dependentReasons);
-        if (edges & DependentZ)
+                                                  samples, samples,
+                                                  dependentReasons);
+        }
+        if (edges & DependentZ) {
+            target->adjacentEdges[size_t(TerrainEdgeSide::LocalZMax)].dirty = true;
+            if (changedOwnedXEdge) {
+                target->adjacentEdges[size_t(TerrainEdgeSide::LocalX0)].dirty = true;
+                target->adjacentEdges[size_t(TerrainEdgeSide::LocalXMax)].dirty = true;
+            }
             target->invalidateSynthesizedSamples(0, samples,
-                                                 samples, samples,
-                                                 dependentReasons);
-        if (edges & DependentCorner)
+                                                  samples, samples,
+                                                  dependentReasons);
+        }
+        if (edges & DependentCorner) {
+            target->adjacentEdges[size_t(TerrainEdgeSide::LocalXMax)].dirty = true;
+            target->adjacentEdges[size_t(TerrainEdgeSide::LocalZMax)].dirty = true;
             target->invalidateSynthesizedSamples(samples, samples,
-                                                 samples, samples,
-                                                 dependentReasons);
+                                                  samples, samples,
+                                                  dependentReasons);
+        }
     }
 }
 

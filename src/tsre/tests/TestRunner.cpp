@@ -54,6 +54,7 @@
 #include <tsre/world/TFile.h>
 #include <tsre/world/TerrainGridLayout.h>
 #include <tsre/world/TerrainMeshBackend.h>
+#include <tsre/tests/TerrainEdgeTestSuite.h>
 #include <tsre/world/TerrainInfo.h>
 #include <tsre/world/Trk.h>
 #include <tsre/world/Ref.h>
@@ -3032,6 +3033,7 @@ QStringList TsreTests::listSuites() {
         "tdb-load",
         "terrain-files",
         "terrain-grid",
+        "terrain-edges",
         "terrain-raw-benchmark"
     };
 }
@@ -3071,6 +3073,9 @@ int TsreTests::run(const TestRunOptions &opts) {
     if (suite == "terrain-grid")
         return runTerrainGridSuite(opts.verbose);
 
+    if (suite == "terrain-edges")
+        return runTerrainEdgeSuite(opts.verbose);
+
     if (suite == "terrain-files")
         return runTerrainFilesSuite(opts);
 
@@ -3089,6 +3094,7 @@ int TsreTests::run(const TestRunOptions &opts) {
         rc = std::max(rc, runSettingsSuite(opts.verbose));
         rc = std::max(rc, runTdbLoadSuite(opts.verbose));
         rc = std::max(rc, runTerrainGridSuite(opts.verbose));
+        rc = std::max(rc, runTerrainEdgeSuite(opts.verbose));
         return rc;
     }
 

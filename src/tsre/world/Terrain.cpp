@@ -562,8 +562,17 @@ void Terrain::invalidateAll(unsigned int reasons) {
 }
 
 void Terrain::invalidateSamples(int minX, int minZ, int maxX, int maxZ,
-                                unsigned int reasons) {
+                                 unsigned int reasons) {
     invalidateSamplesLocal(minX, minZ, maxX, maxZ, reasons);
+    if (loaded && (reasons & TerrainDirtyHeight)) {
+        // Missing-neighbour fallback repeats the last persistent row/column.
+        // Editing that row must schedule edge fill even if sample N wasn't edited.
+        const int n = gridLayout.sampleCount;
+        if (minX <= n - 1 && maxX >= n - 1)
+            invalidateSynthesizedSamples(n, std::max(0, minZ), n, std::min(n, maxZ + 1), reasons);
+        if (minZ <= n - 1 && maxZ >= n - 1)
+            invalidateSynthesizedSamples(std::max(0, minX), n, std::min(n, maxX + 1), n, reasons);
+    }
     if ((reasons & TerrainDirtyHeight) && Game::terrainLib != NULL)
         Game::terrainLib->terrainSamplesChanged(this, minX, minZ,
                                                 maxX, maxZ, reasons);
@@ -3471,6 +3480,14 @@ void Terrain::readRAWFloat(FileBuffer* data) {
         }
     }
     initializePatchBounds();
+    for (auto &edge : adjacentEdges)
+        edge.dirty = true;
+    if (loaded) {
+        invalidateSamples(0, 0, samples, samples,
+                          TerrainDirtyHeight | TerrainDirtyNormals);
+        if (Game::terrainLib != nullptr)
+            Game::terrainLib->terrainAvailabilityChanged(this);
+    }
 }
 
 void Terrain::fillHeightMap(float* data){

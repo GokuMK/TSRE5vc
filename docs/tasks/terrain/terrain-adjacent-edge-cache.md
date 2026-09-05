@@ -1,6 +1,55 @@
 # Terrain adjacent-edge cache
 
-Status: proposed foundation task; simplified design and lifecycle reviewed
+Status: implemented; interactive seam/normal inspection remains
+
+## Implementation notes
+
+The runtime implementation is in `TerrainAdjacentEdge.h/.cpp` and
+`TerrainLibEdges.cpp`. `Terrain` owns four caches. `TerrainLibQt::fillRaw()`
+uses cached positive edges for both mesh backends, while general
+`tryGetHeight()` and the non-QuadTree library retain their existing paths.
+
+- Discovery queries World cells along the requested edge, deduplicates the
+  adjacent terrains, then builds native point sections. Direct neighbours are
+  loaded before reading shared endpoints, avoiding a first-fill ordering gap.
+- Source locators store a World-cell address, terrain name, domain, and side.
+  They never retain a `Terrain*`. `sourcePatchAt()` derives the neighbouring
+  patch arithmetically; native spacing retrieval is constant-time after section
+  validation. No LOD selection or outer-ring policy was changed.
+- Sampling walks points monotonically, interpolates valid spans, and uses
+  current owner heights for missing or conflicting values. A missing endpoint
+  is represented by a non-finite cached height, never written to terrain;
+  sampling involving it returns failure and applies current owner fallback.
+- Boundary edits invalidate owner zero-side and dependent positive-side
+  caches. Load, reload, full network RAW replacement, and QuadTree replacement
+  notify affected meshes. Last-stored-row/column edits schedule positive-edge
+  filling so fallback follows edits as well.
+- Unload broadcasts were not added. A refresh rechecks source residency;
+  unavailable sources use fallback. Missing sections are reconsidered on an
+  actual fill, without a per-frame retry loop.
+- The cheap corner improvement uses a canonical endpoint owner only if it is
+  already loaded. It never loads a diagonal tile. Missing or ambiguous corner
+  data uses the documented owner-height fallback. Exact matching is therefore
+  still not guaranteed in the deliberately incomplete case below.
+
+Automated coverage lives in `TerrainEdgeTestSuite.cpp`, exposed as
+`--test --test-suite terrain-edges` and included in `--test-suite all`. It uses
+synthetic native grids plus actual temporary `.t`/RAW files and the production
+QuadTree load/reload path, without an OpenGL context. Coverage includes domain
+isolation, mixed sizes/resolutions, 2048/1 m, first-load section junctions,
+conflicts, missing payloads, unnotified unload, replacement, reset/undo,
+save/reload, and native border parity with `tryGetHeight()` on valid spans.
+
+Warm 1024-sample fills in the synthetic registry fixture performed two terrain
+lookups per fill (one per positive-edge section), with measured averages around
+16-21 microseconds in Release runs. This is a CPU fixture measurement,
+not a claim about complete editor frame time or GPU refresh performance.
+
+Verification: Release build succeeded; `terrain-edges` passed 40/40 cases and
+the existing `terrain-grid` suite passed 56/56. Interactive seam/normal checks
+on actual routes are still required. Save/reload tests compare cached heights
+exactly with decoded RAW values, accounting for the existing uint16 disk
+quantization when comparing those values with pre-save float heights.
 
 Related tasks:
 

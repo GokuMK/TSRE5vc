@@ -32,6 +32,7 @@
 #include <tsre/texture/TexLib.h>
 #include <QFile>
 #include <QRect>
+#include <QScopedValueRollback>
 
 namespace {
 
@@ -87,6 +88,8 @@ Terrain* TerrainLibQt::getTerrainByXY(int x, int y, bool load) {
         currentQuadTree->fillTerrainInfo(x, -y, (*currentQt)[terrainNameId]);
         //qDebug() << terrainNameId;
         (*currentQt)[terrainNameId]->t = new Terrain((*currentQt)[terrainNameId]);
+        if ((*currentQt)[terrainNameId]->t->loaded)
+            terrainAvailabilityChanged((*currentQt)[terrainNameId]->t);
         return (*currentQt)[terrainNameId]->t;
     }
 
@@ -110,25 +113,38 @@ void TerrainLibQt::saveQtLoToStream(QTextStream &out){
 }
 
 void TerrainLibQt::loadQuadTree() {
+    const bool distantWasCurrent = currentQuadTree != nullptr && currentQuadTree == quadTreeLo;
     quadTree = new QuadTree();
     quadTree->load();
 
     quadTreeLo = new QuadTree(true);
     quadTreeLo->load();
 
-    //currentQt = &terrainQtLo;
-    //currentQuadTree = quadTreeLo;
-    //quadTree->listNames();
+    if (distantWasCurrent) setDistantAsCurrent(); else setDetailedAsCurrent();
+    for (const auto *map : {&terrainQt, &terrainQtLo})
+        for (auto info : *map)
+            if (info != nullptr && info->t != nullptr)
+                terrainAvailabilityChanged(info->t);
 }
 
 void TerrainLibQt::loadQuadTreeDetailed(FileBuffer *data) {
+    for (auto info : terrainQt)
+        if (info != nullptr && info->t != nullptr)
+            terrainAvailabilityChanged(info->t);
+    const bool wasCurrent = currentQuadTree == quadTree;
     quadTree = new QuadTree();
     quadTree->load(data, false);
+    if (wasCurrent) setDetailedAsCurrent();
 }
 
 void TerrainLibQt::loadQuadTreeDistant(FileBuffer *data) {
+    for (auto info : terrainQtLo)
+        if (info != nullptr && info->t != nullptr)
+            terrainAvailabilityChanged(info->t);
+    const bool wasCurrent = currentQuadTree == quadTreeLo;
     quadTreeLo = new QuadTree();
     quadTreeLo->load(data, false);
+    if (wasCurrent) setDistantAsCurrent();
 }
 
 void TerrainLibQt::createNewRouteTerrain(int x, int z) {
@@ -231,9 +247,13 @@ bool TerrainLibQt::reload(int x, int z) {
     if (terrainNameId == 0)
         return false;
 
+    TerrainInfo *previous = currentQt->value(terrainNameId, nullptr);
+    if (previous != nullptr && previous->t != nullptr)
+        terrainAvailabilityChanged(previous->t);
     (*currentQt)[terrainNameId] = new TerrainInfo();
     currentQuadTree->fillTerrainInfo(x, -z, (*currentQt)[terrainNameId]);
     (*currentQt)[terrainNameId]->t = new Terrain((*currentQt)[terrainNameId]);
+    terrainAvailabilityChanged((*currentQt)[terrainNameId]->t);
     if ((*currentQt)[terrainNameId]->t->loaded)
         return true;
     return false;
@@ -1249,23 +1269,20 @@ void TerrainLibQt::fillTerrainData(Terrain* tTile, float* offsetXYZ){
 }
 
 void TerrainLibQt::fillRaw(Terrain *cTerr, int mojex, int mojez) {
-    QuadTree* tQuadTree = currentQuadTree;
-    QHash<unsigned int, TerrainInfo*> *tterrainQt = currentQt;
+    Q_UNUSED(mojex)
+    Q_UNUSED(mojez)
+    if (cTerr != nullptr)
+        fillCachedRaw(*cTerr);
+}
 
-    if(cTerr->lowTile){
-        currentQuadTree = quadTreeLo;
-        currentQt = &terrainQtLo;
-    } else {
-        currentQuadTree = quadTree;
-        currentQt = &terrainQt;
-    }
-    
-    cTerr->fillTerrainDataX();
-    cTerr->fillTerrainDataY();
-    cTerr->fillTerrainDataXY();
-    
-    currentQuadTree = tQuadTree;
-    currentQt = tterrainQt;
+Terrain *TerrainLibQt::edgeTerrainAt(int x, int z, bool low, bool load) {
+    QScopedValueRollback<QuadTree*> treeGuard(currentQuadTree, low ? quadTreeLo : quadTree);
+    QScopedValueRollback<QHash<unsigned int, TerrainInfo*>*> mapGuard(
+                currentQt, low ? &terrainQtLo : &terrainQt);
+    if (currentQuadTree == nullptr)
+        return nullptr;
+    // Virtual dispatch preserves asynchronous TerrainLibQtClient loading.
+    return getTerrainByXY(x, z, load);
 }
 
 void TerrainLibQt::terrainSamplesChanged(Terrain *source,

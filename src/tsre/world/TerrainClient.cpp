@@ -12,6 +12,7 @@
 #include <tsre/world/TerrainClient.h>
 #include <routeEditor/RouteEditorClient.h>
 #include <tsre/world/TerrainInfo.h>
+#include <tsre/world/TerrainLib.h>
 
 TerrainClient::TerrainClient(){
     
@@ -157,6 +158,8 @@ void TerrainClient::load(){
             }
 
             loaded = true;
+            if (Game::terrainLib != nullptr)
+                Game::terrainLib->terrainAvailabilityChanged(this);
             break;
     }
 }

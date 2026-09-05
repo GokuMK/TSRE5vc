@@ -15,6 +15,7 @@
 #include <tsre/world/TFile.h>
 #include <tsre/world/TerrainGridLayout.h>
 #include <tsre/world/TerrainLod.h>
+#include <tsre/world/TerrainAdjacentEdge.h>
 #include <tsre/math3d/Vector3f.h>
 #include <tsre/ogl/OglObj.h>
 #include <tsre/GameObj.h>
@@ -41,6 +42,7 @@ public:
     float mojez = 0;
     QString name;
     bool lowTile = false;
+    std::array<TerrainAdjacentEdge, 4> adjacentEdges;
     Terrain();
     Terrain(TerrainInfo *ti);
     Terrain(float x, float y);
