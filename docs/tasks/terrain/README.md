@@ -16,6 +16,7 @@ their old future-tense checklists do not by themselves mean work is missing.
 | [Basic discrete LOD](terrain-basic-discrete-lod.md) | Tile-local and cross-tile milestones implemented and user-tested | Larger-than-2:1 transitions and mixed spacing along one patch edge remain deliberately best effort. No additional ratio templates or E/AS refinement promised. |
 | [Height brushes](terrain-height-brush-performance.md) | Direct tile brush, reusable float area, example, profiling and exact normal optimization implemented and tested | User accepted speed. Populated-route/multiplayer performance coverage is not established by empty-route tests. Old brush remains for comparison/unusual-grid fallback; old paged normal implementation is removed. |
 | [Simple lookup migration](terrain-simple-lookup-migration.md) | Design reviewed; preliminary private-helper cleanup implemented | Synthetic detailed lookup and removal of `TerrainLibSimple` remain to implement. |
+| [Procedural materials](terrain-procedural-materials.md) | Tech-demo design only; no implementation authorization | Direct IDs 0..255, fill-0 enable, static restoration, default UVs, DXT1 and per-tile material caches with TexLib output sharing selected; detailed specs follow measurements. |
 
 ## Actual follow-up implementation
 
