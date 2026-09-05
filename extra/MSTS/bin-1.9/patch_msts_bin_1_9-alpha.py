@@ -2,9 +2,10 @@
 """Patch the verified MSTS Bin 1.8.052113 executable for custom terrain.
 
 The mandatory terrain profile supports terrain sample grids up to 1024x1024,
-patch grids up to 32x32, and patch meshes up to 32x32 samples.  It includes
+patch grids up to 32x32, and patch meshes up to 64x64 samples.  It includes
 the corresponding Route Editor height-edit bitmap and seam-limit changes and
-enlarges both visible-patch lists from 4,096 to 16,384 entries.
+enlarges both visible-patch lists from 4,096 to 16,384 entries. The tested R64
+v5 renderer capacities, including 160,000-entry clipping buffers, are retained.
 
 Optional switches add the validated native ``-editroute:ROUTE_FOLDER`` command
 and an editor-guarded 1280x800 Route Editor window/render/mouse configuration.
@@ -63,19 +64,19 @@ EXPECTED_OUTPUTS: dict[tuple[bool, bool], tuple[int, str]] = {
     # (direct route, 1280x800): (size, SHA-256)
     (False, False): (
         4_358_144,
-        "810ac9d4c21eb493ad9172ffbb499b25ea9bba13ef09e982b3a1f8e5812eaf19",
+        "69ad461e98fd2a2975907b2dbf65c3d1abf04a0a897127b420dc1ec6ad8d3c57",
     ),
     (False, True): (
         4_362_240,
-        "484e534521a25b46d680a46871852d8653096daeae91b295e750d00d45ac4eeb",
+        "ca51d5cebbd1877aece42e1fc33fb0cd9cf1ed07193f8be7062221a7c1c88088",
     ),
     (True, False): (
         4_362_240,
-        "5f5f398bb7abf6a58e2609b945f01d7df12e52cdaaed417255785bd3cce328ce",
+        "380672ea44e299637b183b7bcddebcaaf14baa1f6d029c0aae04671184bb8571",
     ),
     (True, True): (
         4_366_336,
-        "13e1104718d5f0da78deb3f334e37828424c31937be237e99d49228fe7ef9a8f",
+        "97b4ceda684b447a69878dcdc13e37af8783e2e35103ab6ed48cba8f4a1cfaf0",
     ),
 }
 
@@ -352,6 +353,52 @@ N1024_EDITOR_PATCHES = (
 )
 
 
+# Applied after the existing N1024/P32/R32 stages, preserving their verified
+# intermediate hashes. These 18 upgrades produce the historical R64 v5 values
+# at all 40 of its instruction sites; the N1024 editor sites already match.
+# The full output is byte-identical to the successfully live-tested Wine build.
+R64_V5_UPGRADE_PATCHES = (
+    Patch("per-patch vertex-cache allocation: 0x1104 -> 0x4204 bytes", 0x006BD8FD,
+          bytes.fromhex("b9 04 11 00 00"), bytes.fromhex("b9 04 42 00 00")),
+    Patch("fallback mesh constructor R: 32 -> 64", 0x006BD942,
+          bytes.fromhex("ba 20 00 00 00"), bytes.fromhex("ba 40 00 00 00")),
+    Patch("per-patch vertex-cache free size: 0x1104 -> 0x4204 bytes", 0x006BD9F0,
+          bytes.fromhex("ba 04 11 00 00"), bytes.fromhex("ba 04 42 00 00")),
+    Patch("fallback mesh destructor R: 32 -> 64", 0x006BDA17,
+          bytes.fromhex("ba 20 00 00 00"), bytes.fromhex("ba 40 00 00 00")),
+    Patch("terrain registration maximum R: 32 -> 64", 0x006BDE74,
+          bytes.fromhex("83 7f 68 20"), bytes.fromhex("83 7f 68 40")),
+    Patch("second registration maximum R: 32 -> 64", 0x006EE23B,
+          bytes.fromhex("83 7a 68 20"), bytes.fromhex("83 7a 68 40")),
+    Patch("terrain render threshold A: 0x1800 -> 0x6000 indices", 0x0070A344,
+          bytes.fromhex("81 fa 00 18 00 00"), bytes.fromhex("81 fa 00 60 00 00")),
+    Patch("terrain render threshold B: 0x1800 -> 0x6000 indices", 0x0070A644,
+          bytes.fromhex("81 fa 00 18 00 00"), bytes.fromhex("81 fa 00 60 00 00")),
+    Patch("terrain render threshold C: 0x1800 -> 0x6000 indices", 0x0070A802,
+          bytes.fromhex("81 fa 00 18 00 00"), bytes.fromhex("81 fa 00 60 00 00")),
+    Patch("terrain render threshold D: 0x1800 -> 0x6000 indices", 0x0070ABB2,
+          bytes.fromhex("81 fa 00 18 00 00"), bytes.fromhex("81 fa 00 60 00 00")),
+    Patch("application source/final uint16 indices: 16000 -> 65536", 0x0049AE86,
+          bytes.fromhex("68 80 3e 00 00"), bytes.fromhex("68 00 00 01 00")),
+    Patch("subsystem source/final uint16 indices: 16000 -> 65536", 0x006B6676,
+          bytes.fromhex("68 80 3e 00 00"), bytes.fromhex("68 00 00 01 00")),
+    Patch("application common vertex capacity: 16000 -> 32768", 0x0049AE8B,
+          bytes.fromhex("ba 80 3e 00 00"), bytes.fromhex("ba 00 80 00 00")),
+    Patch("subsystem common vertex capacity: 16000 -> 32768", 0x006B667B,
+          bytes.fromhex("ba 80 3e 00 00"), bytes.fromhex("ba 00 80 00 00")),
+    # Both initialization paths size the same two shared clipping arrays.
+    # 160,000 uint16 entries = 320,000 bytes per array, not per terrain patch.
+    Patch("application dual clipping uint16 capacities: 10000 -> 160000", 0x0049AE7C,
+          bytes.fromhex("68 10 27 00 00"), bytes.fromhex("68 00 71 02 00")),
+    Patch("application auxiliary renderer workspace: 10000 -> 160000 units", 0x0049AE81,
+          bytes.fromhex("68 10 27 00 00"), bytes.fromhex("68 00 71 02 00")),
+    Patch("subsystem dual clipping uint16 capacities: 10000 -> 160000", 0x006B666C,
+          bytes.fromhex("68 10 27 00 00"), bytes.fromhex("68 00 71 02 00")),
+    Patch("subsystem auxiliary renderer workspace: 10000 -> 160000 units", 0x006B6671,
+          bytes.fromhex("68 10 27 00 00"), bytes.fromhex("68 00 71 02 00")),
+)
+
+
 DIRECT_ROUTE_PAYLOAD_B85 = (
     "c-jl?eA@g*p)>SFr|+BKu<-6uj?RzWt~|{@IQg5p7#J9OMHxgo7y@>10@*Jbfkfxwh}PRBML-3mxrQeV"
     "zctqiFqCk0yNYxhbh}D)bM)GZ05zl?XJ=q&Jy~MZ`mIE-`6pA6NLsU<QYl|rbB*6WrBb%$V@%C2nHqmG"
@@ -553,6 +600,7 @@ def build(source: bytes, direct_route: bool, window_1280x800: bool) -> bytes:
 
     if window_1280x800:
         output = add_guarded_editor_window(output)
+    output, _ = apply_patches(output, R64_V5_UPGRADE_PATCHES)
     return output
 
 
@@ -648,7 +696,7 @@ def main() -> int:
         )
 
     atomic_write(output_path, output, args.source.stat().st_mode, args.force)
-    features = ["N1024/P32/R32 terrain and editing"]
+    features = ["terrain/editing limits N<=1024, P<=32, R=N/P<=64 (v5 buffers)"]
     if direct_route:
         features.append("direct route launch")
     if window_1280x800:
