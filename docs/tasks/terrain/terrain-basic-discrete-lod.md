@@ -1,7 +1,81 @@
 # Basic discrete terrain patch LOD
 
-Status: first tile-local implementation completed; interactive visual and
-performance tuning remains
+Status: tile-local milestone completed; cross-tile continuation approved after
+implementation of the adjacent-edge cache
+
+## Cross-tile continuation (current implementation scope)
+
+The native outer-ring restriction below describes the completed first
+milestone. It was temporary because the adjacent-edge cache did not yet exist.
+The next implementation uses that cache and removes the restriction for
+participating detailed terrain. This section supersedes the historical
+first-pass exclusions of cross-tile coordination and outer-ring removal.
+
+Agreed requirements:
+
+- Full stitching targets physically aligned power-of-two grids. Coarse sample
+  positions coincide with a subset of the fine grid. Additional intermediate
+  fine points are handled by transition topology; arbitrary unrelated sample
+  lattices are not required. Other loadable layouts retain best-effort rendering.
+- Compare final effective sample spacing in metres, whether determined by a
+  tile's native grid or by distance-selected LOD. Native 8 m terrain beside a
+  patch rendered at 4 m requires the same transition as native 4 m terrain
+  reduced to 8 m beside that patch.
+- Select the finer patch's existing 2:1 edge template when the neighbouring
+  spacing is at least twice its own. Equal or finer neighbours require no
+  transition on this side. Exact agreement is guaranteed for aligned 2:1
+  transitions; larger ratios use the same template as best-effort improvement.
+  Do not add 4:1/8:1 templates. Keep useful existing refinement for avoidable
+  LOD differences, but do not try to refine below a tile's native resolution.
+- Prepare participating tiles' states before drawing. Compare neighbours after
+  native limits, gap constraints, and any refinement have been applied. Do not
+  let traversal/draw order or a previous frame determine neighbour spacing.
+- Discover loaded neighbours through the ordered cached edge sections. Derive
+  source patch indices arithmetically and inspect overlapping patches by a
+  short linear walk. LOD discovery must not load more terrain or regenerate
+  native point vectors because the camera moved.
+- A patch edge spanning different neighbour effective spacings remains outside
+  guaranteed stitching. Use a simple deterministic conservative fallback and
+  bounded diagnostics; do not introduce partial-edge topology or a new mapping
+  structure for this uncommon configuration.
+- Emit valid transition masks even at a tile's coarsest available LOD if its
+  current patch grid still has an even number of cells along the edge. Another
+  tile can be coarser even when this tile has no next selectable level. Preserve
+  the regular template at the same source step if a requested mask is invalid.
+- Use the same prepared topology for terrain, grid, map, selection, and
+  shadow/depth rendering. Keep distant terrain and the precomputed backend on
+  their established rendering paths.
+
+The index-based design stays selected. Stored heights and vertex heights are
+not averaged or overwritten to implement stitching; unused intermediate edge
+vertices remain available for editing and later topology changes. A separate
+adjusted float edge vector is a retained alternative for a future mesh path
+which keeps those vertices referenced, not a requirement of this implementation.
+
+Native edge caching and rendered topology have separate lifetimes. Source
+height/layout/availability changes can rebuild a cache; moving the camera
+changes LOD source steps and stitch masks without changing the cached points.
+The deliberately incomplete diagonal-corner fallback remains as documented in
+the edge-cache task.
+
+Required continuation tests include:
+
+- native 4 m / 8 m neighbours with the fine-only midpoint lowered: the stitched
+  boundary does not reference the lowered midpoint and follows the coarse line;
+- both height-ownership orientations, all four sides, edit and save/reload;
+- equal effective spacing produced by different native profiles;
+- neighbour spacing selected by distance, and consistency across draw order;
+- 4:1 or larger native mismatch selecting the existing 2:1 improvement;
+- different tile sizes and patch counts, multiple sections along a large edge;
+- a patch edge spanning mixed neighbour levels, missing neighbours, gaps, and
+  the documented corner fallback;
+- transition availability at the coarsest selectable tile level;
+- unchanged native height data and no LOD-only vertex uploads;
+- existing terrain-grid/edge suites and both renderer submission paths.
+
+The sections below retain the original topology design and first-milestone
+history. Their first-pass-only boundaries must not be interpreted as cancelling
+this now-approved continuation.
 
 Implementation summary:
 
@@ -534,10 +608,12 @@ different native spacing, patch counts, physical sizes, or patch divisions.
 That follow-up can remove the pinned rings without changing the topology
 generator or render-item format.
 
-Do not confuse this with heightmap edge filling. Interpolating stored border
-heights makes different source grids meet geometrically; LOD transition
-topology additionally ensures that both rendered sides use the same boundary
-segments.
+Aligned power-of-two grids share their coarse sample positions; the finer grid
+also contains intermediate points. Heightmap edge filling supplies boundary
+heights at those sample positions. Transition topology makes the two rendered
+sides use matching boundary segments by omitting intermediate fine vertices.
+Edge filling alone does not constrain a lowered fine-only midpoint on a stored
+RAW boundary to the neighbour's coarser line.
 
 ## Gaps, hidden patches, maps, and render passes
 
