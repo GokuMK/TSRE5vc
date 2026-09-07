@@ -13,6 +13,7 @@
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <tsre/texture/Texture.h>
 #include <QDebug>
+#include <QSaveFile>
 #include <QOpenGLShaderProgram>
 #include <QString>
 #include <tsre/Game.h>
@@ -321,6 +322,36 @@ void AceLib::run() {
     //qDebug() << "--";
     //qDebug() << "2";
     return;
+}
+
+bool AceLib::saveRgbChecked(const QString &path, const QImage &image, QString &error) {
+    const QImage rgb=image.convertToFormat(QImage::Format_RGB888);
+    if (rgb.isNull() || rgb.width()>16384 || rgb.height()>16384) {
+        error="Invalid RGB ACE dimensions"; return false;
+    }
+    QSaveFile file(path);
+    if (!file.open(QIODevice::WriteOnly)) { error=file.errorString(); return false; }
+    QDataStream out(&file); out.setByteOrder(QDataStream::LittleEndian);
+    out.writeRawData("SIMISA@@@@@@@@@@",16);
+    out << qint32(1) << qint32(0) << qint32(rgb.width()) << qint32(rgb.height())
+        << qint32(14) << qint32(3) << qint32(0);
+    for (int i=0;i<31;++i) out << qint32(0);
+    for (int channel=3;channel<=5;++channel)
+        out << qint32(8) << qint32(0) << qint32(channel) << qint32(0);
+    // Offsets are relative to the ACE payload, excluding the 16-byte SIMISA header.
+    const int firstRow=200+rgb.height()*4;
+    for (int y=0;y<rgb.height();++y) out << qint32(firstRow+y*rgb.width()*3);
+    QByteArray row(rgb.width()*3,Qt::Uninitialized);
+    for (int y=0;y<rgb.height();++y) {
+        const auto *src=rgb.constScanLine(y);
+        for (int c=0;c<3;++c) for (int x=0;x<rgb.width();++x)
+            row[c*rgb.width()+x]=char(src[3*x+c]);
+        out.writeRawData(row.constData(),row.size());
+    }
+    if (out.status()!=QDataStream::Ok || !file.commit()) {
+        error="Cannot save RGB ACE: "+file.errorString(); return false;
+    }
+    return true;
 }
 
 void AceLib::save(QString path, Texture* t){

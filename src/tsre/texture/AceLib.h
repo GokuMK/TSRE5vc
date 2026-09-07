@@ -12,6 +12,7 @@
 #define	ACELIB_H
 
 #include <QThread>
+#include <QImage>
 #include <tsre/texture/Texture.h>
 
 class AceLib : public QThread
@@ -24,6 +25,8 @@ public:
     //static bool LoadACE(Texture* texture);
     Texture* texture;
     static void save(QString path, Texture* t);
+    // Checked RGB format-14 output; legacy save/reader remain reference paths.
+    static bool saveRgbChecked(const QString &path, const QImage &image, QString &error);
     void run();
 private:
     
