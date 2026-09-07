@@ -11,6 +11,8 @@
 #include <tsre/world/TFile.h>
 #include <QDebug>
 #include <QFile>
+#include <QSaveFile>
+#include <tsre/fileFunctions/TS.h>
 #include <tsre/fileFunctions/ReadFile.h>
 #include <QDataStream>
 #include <tsre/world/TerrainGridLayout.h>
@@ -35,6 +37,8 @@ void TFile::setPatchValue(int patchId, PatchField field, float value) {
 }
 
 void TFile::initNew(QString name, int samples, int sampleS, int patches){
+    sampleMaterialBuffer.clear();
+    bakedMaterialInfo.clear();
     TerrainGridLayout layout;
     QString layoutError;
     if (!TerrainGridLayout::tryCreate(samples, static_cast<float>(sampleS),
@@ -125,6 +129,8 @@ bool TFile::readT(QString fSfile) {
         return true;
 }
 void TFile::load(FileBuffer* data){
+        sampleMaterialBuffer.clear();
+        bakedMaterialInfo.clear();
         data->off += 32;
         int pozycja, offset, akto;
         data->findToken(136);
@@ -225,6 +231,24 @@ void TFile::get139(FileBuffer* data, int length) {
                     slen = data->getShort()*2;
                     sampleNbuffer = data->getString(data->off, data->off + slen);
                     break;
+                case TS::TSRE_Terrain_Material_Buffer:
+                case TS::TSRE_Terrain_Baked_Material: {
+                    QString &value = pozycja == TS::TSRE_Terrain_Material_Buffer
+                            ? sampleMaterialBuffer : bakedMaterialInfo;
+                    // Keep malformed presence active/refused, never silently disable it.
+                    value = ":invalid procedural material reference:";
+                    const int end = akto + offset;
+                    if (offset < 3 || end > data->length) return;
+                    const int labelBytes = data->get() * 2;
+                    if (labelBytes + 2 > end - data->off) return;
+                    data->off += labelBytes;
+                    const int bytes = quint16(data->getShort()) * 2;
+                    if (bytes == 0 || bytes > end - data->off) return;
+                    QString *reference = data->getString(data->off, data->off + bytes);
+                    value = *reference;
+                    delete reference;
+                    break;
+                }
                 case 281:
                     getOpaqueSampleBuffer(data, akto + offset, sampleASbuffer);
                     if (sampleASbuffer.present && !opaqueSampleBufferOrder.contains(281))
@@ -622,6 +646,10 @@ int TFile::newMat(){
 }
 
 void TFile::removeMat(int id){
+    if (!sampleMaterialBuffer.isEmpty()) {
+        qWarning() << "Procedural terrain: shader removal/renumbering is disabled";
+        return;
+    }
     if(id <= 0) 
         return;
     if(id > materialsCount)
@@ -661,18 +689,19 @@ int TFile::getMatByTexture(QString tname){
     return -1;
 }
 
-void TFile::save(QString name){
+bool TFile::save(QString name){
     name.replace("//", "/");
-    QFile *file = new QFile(name);
+    QSaveFile file(name);
     qDebug() << "zapis .t "<<name;
-    if (!file->open(QIODevice::WriteOnly))
-        return;
-    QDataStream write(file);
+    if (!file.open(QIODevice::WriteOnly))
+        return false;
+    QDataStream write(&file);
     write.setByteOrder(QDataStream::LittleEndian);
     write.setFloatingPointPrecision(QDataStream::SinglePrecision);
     save(write);
+    const bool ok = write.status() == QDataStream::Ok;
     write.setDevice(nullptr);
-    file->close();
+    return ok && file.commit();
 }
 
 void TFile::save(QDataStream &write){
@@ -692,6 +721,10 @@ void TFile::save(QDataStream &write){
 
     // 139
     int t139 = 1;
+    if (!sampleMaterialBuffer.isEmpty())
+        t139 += sampleMaterialBuffer.length()*2 + 11;
+    if (!bakedMaterialInfo.isEmpty())
+        t139 += bakedMaterialInfo.length()*2 + 11;
     // 140
     if(nsamples != NULL)
         t139+=13;
@@ -723,7 +756,7 @@ void TFile::save(QDataStream &write){
     if(sampleNbuffer != NULL)
         t139+=sampleNbuffer->length()*2+3+8;
     
-    // 151 
+    // 151
     int t151 = 0;
     t151+=5;
     int* t152 = new int[materialsCount*2];
@@ -879,6 +912,18 @@ void TFile::save(QDataStream &write){
     }
 
     // 151 
+    if (!sampleMaterialBuffer.isEmpty()) {
+        write << qint32(TS::TSRE_Terrain_Material_Buffer)
+              << qint32(sampleMaterialBuffer.length()*2+3) << qint8(0)
+              << quint16(sampleMaterialBuffer.length());
+        for (QChar c : sampleMaterialBuffer) write << c.unicode();
+    }
+    if (!bakedMaterialInfo.isEmpty()) {
+        write << qint32(TS::TSRE_Terrain_Baked_Material)
+              << qint32(bakedMaterialInfo.length()*2+3) << qint8(0)
+              << quint16(bakedMaterialInfo.length());
+        for (QChar c : bakedMaterialInfo) write << c.unicode();
+    }
     write << (qint32)151;
     write << (qint32)t151;
     write << (qint8)0;

@@ -75,6 +75,8 @@ public:
     virtual bool isLoaded(int x, int z);
     virtual QSet<Terrain*> paintHeightMap(Brush* brush, int x, int z, float* p);
     virtual void paintTexture(Brush* brush, int x, int z, float* p);
+    // operation follows TerrainMaterialMap::EditOperation; fills affect one tile.
+    void paintProceduralTexture(Brush* brush, int x, int z, float* p, int operation = 0);
     virtual void lockTexture(Brush* brush, int x, int z, float* p);
     virtual void setTerrainTexture(Brush* brush, int x, int z, float* p);
     virtual void toggleGaps(int x, int z, float* p, float direction);

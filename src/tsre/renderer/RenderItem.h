@@ -13,6 +13,7 @@
 
 #include <QSharedPointer>
 #include <QVector>
+#include <QVector3D>
 
 class Vector3f;
 class Vector4f;
@@ -54,6 +55,9 @@ public:
     float colorX, colorY, colorZ, colorA;
     quint32 selectionId = 0;
     unsigned int texAddr = 0;
+    unsigned int secondTexAddr = 0;
+    float secondTexScale = 0.0f;
+    QVector3D terrainTextureRemap;
     int lineWidth = 0;
     
     RenderItem();

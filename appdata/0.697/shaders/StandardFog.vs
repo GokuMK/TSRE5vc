@@ -14,6 +14,8 @@ uniform mat4 uMVMatrix;
 uniform mat4 uMSMatrix;
 uniform float fogDensity;
 uniform int terrainPaged;
+// Zero is identity. A procedural patch can sample its tile bake without a mesh rebuild.
+uniform vec3 terrainTextureRemap;
 uniform int terrainVerticesPerPatch;
 uniform int terrainPatchSide;
 uniform float terrainSampleSpacing;
@@ -61,7 +63,7 @@ void main() {
     shadow2Pos = uShadow2PMatrix * uMVMatrix * uMSMatrix * renderVertex;
     gl_Position = uPMatrix * uMVMatrix * uMSMatrix * renderVertex;
     vec4 fogPosition = uFMatrix * uMVMatrix * uMSMatrix * renderVertex;
-    vTextureCoord = renderUv;
+    vTextureCoord = renderUv * (1.0 + terrainTextureRemap.x) + terrainTextureRemap.yz;
 
     fogFactor = sqrt((fogPosition.x)*(fogPosition.x) + (fogPosition.z)*(fogPosition.z))/(lod*1.4);
     fogFactor = clamp(fogFactor, 0.0, fogDensity);

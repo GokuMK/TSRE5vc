@@ -76,6 +76,11 @@ public:
     QString* sampleYbuffer = NULL;
     QString* sampleEbuffer = NULL;
     QString* sampleNbuffer = NULL;
+    // TSRE experimental extension; nonempty reference enables procedural materials.
+    QString sampleMaterialBuffer;
+    // v1:pending or v1:<recipe SHA256>. Also retained when procedural mode is off;
+    // explicitly identifies reserved material zero, never guesses from a filename.
+    QString bakedMaterialInfo;
     struct OpaqueSampleBuffer {
         bool present = false;
         QString label;
@@ -93,7 +98,7 @@ public:
     virtual ~TFile();
     bool readT(QString fSfile);
     void load(FileBuffer* data);
-    void save(QString name);
+    bool save(QString name);
     void save(QDataStream &write);
     int newMat();
     int cloneMat(int id);

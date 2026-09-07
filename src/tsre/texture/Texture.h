@@ -50,6 +50,8 @@ public:
     bool error = false;
 
     void setEditable();
+    // Decode retained ACE/DDS blocks without uploading or reading back a GL texture.
+    bool decodeToCpu();
     bool GLTextures(bool mipmaps = false);
     qint64 estimatedCpuBytes() const;
     qint64 estimatedVramBytes() const;

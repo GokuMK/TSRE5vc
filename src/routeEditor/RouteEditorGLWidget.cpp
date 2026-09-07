@@ -20,6 +20,7 @@
 #include <tsre/fileFunctions/ReadFile.h>
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <tsre/world/Route.h>
+#include <tsre/world/TerrainMaterialMap.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/trains/Eng.h>
 #include <tsre/world/Tile.h>
@@ -466,6 +467,7 @@ void RouteEditorGLWidget::cycleRendererPipelineMode(){
 void RouteEditorGLWidget::paintGL(){
     Game::currentShapeLib = currentShapeLib;
     if (!canRenderFrame()) return;
+    Terrain::beginProceduralFrame();
     restoreDefaultGlState();
 
     int requestedPipeline = (int)Game::requestedRendererPipeline;
@@ -1685,10 +1687,30 @@ void RouteEditorGLWidget::mousePressEvent(QMouseEvent *event) {
             else
                 Game::terrainLib->paintTexture(defaultPaintBrush, (int) camera->pozT[0], (int) camera->pozT[1], aktPointerPos);
         }
+        if (toolEnabled == "proceduralPaintTextureTool" || toolEnabled == "proceduralFillPatchTool"
+                || toolEnabled == "proceduralFillTool") {
+            const int operation=toolEnabled=="proceduralFillPatchTool" ? TerrainMaterialMap::FillPatch
+                    : (toolEnabled=="proceduralFillTool" ? TerrainMaterialMap::FloodFill : TerrainMaterialMap::TexturePaint);
+            Game::terrainLib->paintProceduralTexture(defaultPaintBrush,int(camera->pozT[0]),int(camera->pozT[1]),aktPointerPos,operation);
+        }
         if (toolEnabled == "pickTerrainTexTool") {
             // qDebug() << aktPointerPos[0] << " " << aktPointerPos[2];
             int textureId = Game::terrainLib->getTexture((int) camera->pozT[0], (int) camera->pozT[1], aktPointerPos);
             emit setBrushTextureId(textureId);
+            int x=int(camera->pozT[0]), z=int(camera->pozT[1]);
+            float px=aktPointerPos[0], pz=aktPointerPos[2];
+            Game::check_coords(x,z,px,pz);
+            Terrain *terrain=Game::terrainLib->getTerrainByXY(x,z);
+            if (terrain && textureId >= 0) terrain->rememberProceduralSource(defaultPaintBrush,x,z,px,pz);
+        }
+        if (toolEnabled == "proceduralTileEnableTool" || toolEnabled == "proceduralTileDisableTool") {
+            int x=int(camera->pozT[0]), z=int(camera->pozT[1]);
+            float px=aktPointerPos[0], pz=aktPointerPos[2];
+            Game::check_coords(x,z,px,pz);
+            Terrain *terrain=Game::terrainLib->getTerrainByXY(x,z);
+            QString error;
+            if (terrain && terrain->loaded && !terrain->setProceduralMaterial(toolEnabled == "proceduralTileEnableTool",error))
+                QMessageBox::warning(this,"Procedural terrain",error);
         }
         if (toolEnabled == "putTerrainTexTool") {
             Game::terrainLib->setTerrainTexture(defaultPaintBrush, (int) camera->pozT[0], (int) camera->pozT[1], aktPointerPos);
@@ -1824,6 +1846,10 @@ void RouteEditorGLWidget::mouseMoveEvent(QMouseEvent *event) {
             if (mousex != m_lastPos.x() || mousey != m_lastPos.y()) {
                 Game::terrainLib->paintTexture(defaultPaintBrush, (int) camera->pozT[0], (int) camera->pozT[1], aktPointerPos);
             }
+        }
+        if (toolEnabled == "proceduralPaintTextureTool" && mouseLPressed
+                && (mousex != m_lastPos.x() || mousey != m_lastPos.y())) {
+            Game::terrainLib->paintProceduralTexture(defaultPaintBrush,int(camera->pozT[0]),int(camera->pozT[1]),aktPointerPos);
         }
         if (toolEnabled == "heightTool" && mouseLPressed == true) {
             if (mousex != m_lastPos.x() || mousey != m_lastPos.y()) {

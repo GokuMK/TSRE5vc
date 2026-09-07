@@ -23,6 +23,7 @@
 #include <tsre/world/Route.h>
 #include <tsre/world/Environment.h>
 #include <tsre/world/TerrainInfo.h>
+#include <tsre/world/TerrainMaterialMap.h>
 #include <QHash>
 #include <algorithm>
 
@@ -311,6 +312,32 @@ void TerrainLib::toggleDraw(int x, int z, float* p){
 
 int TerrainLib::getTexture(int x, int z, float* p){
     return 0;
+}
+
+void TerrainLib::paintProceduralTexture(Brush* brush, int x, int z, float* p, int operation) {
+    if (!Game::writeEnabled || Game::serverClient || !brush || !p) return;
+    float posx=p[0],posz=p[2];
+    if (!TerrainGridLayout::normalizeWorldPosition(x,z,posx,posz)) return;
+    Terrain *terr=getTerrainByXY(x,z);
+    if (!terr || !terr->loaded || !terr->usesProceduralMaterial()) return;
+    if (operation!=TerrainMaterialMap::TexturePaint) {
+        terr->paintProceduralMaterial(brush,x,z,posx,posz,0,operation);
+        return;
+    }
+    // One physical radius per stamp, independent of each destination tile's P.
+    const float radius=brush->size*terr->getGridLayout().patchWorldSize/512.0f;
+    int minX=x,minZ=z,maxX=x,maxZ=z;
+    float a=posx-radius,b=posz-radius,c=posx+radius,d=posz+radius;
+    if (!TerrainGridLayout::normalizeWorldPosition(minX,minZ,a,b)
+            || !TerrainGridLayout::normalizeWorldPosition(maxX,maxZ,c,d)) return;
+    QSet<Terrain*> visited;
+    for (int tx=minX;tx<=maxX;++tx) for (int tz=minZ;tz<=maxZ;++tz) {
+        Terrain *target=getTerrainByXY(tx,tz);
+        if (!target || !target->loaded || visited.contains(target)) continue;
+        visited.insert(target);
+        if (target->usesProceduralMaterial())
+            target->paintProceduralMaterial(brush,x,z,posx,posz,radius);
+    }
 }
 
 void TerrainLib::paintTexture(Brush* brush, int x, int z, float* p){

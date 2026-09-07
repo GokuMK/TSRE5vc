@@ -20,6 +20,7 @@
 #include <tsre/ogl/OglObj.h>
 #include <tsre/GameObj.h>
 #include <array>
+#include <memory>
 
 class Brush;
 class TerrainInfo;
@@ -28,6 +29,7 @@ class QDataStream;
 class TerrainMeshBackend;
 class TerrainMeshLegacy;
 class TerrainMeshPaged;
+struct TerrainProceduralState;
 
 class Terrain : public GameObj {
     Q_OBJECT
@@ -72,7 +74,24 @@ public:
     void fillTerrainDataX();
     void fillTerrainDataY();
     void fillTerrainDataXY();
-    void save();
+    bool save();
+    bool usesProceduralMaterial() const;
+    static constexpr float ProceduralDetailScale = 32.0f;
+    bool rendersProceduralMaterial() const;
+    bool hasProceduralBake() const;
+    // Drop derived images, not the editable ID map/palette. Call on tile residency exit.
+    void releaseProceduralTextures();
+    int proceduralResidentPatchCount() const;
+    struct ProceduralWorkStats {
+        int active, peakActive, outstanding, uploads, published, discarded;
+    };
+    static void beginProceduralFrame();
+    static ProceduralWorkStats proceduralWorkStats();
+    bool setProceduralMaterial(bool enabled, QString &error);
+    void rememberProceduralSource(Brush *brush, int x, int z, float posx, float posz);
+    // operation: TerrainMaterialMap::TexturePaint / FillPatch / FloodFill.
+    void paintProceduralMaterial(Brush *brush, int x, int z, float posx, float posz,
+                                 float radiusMeters, int operation = 0);
     void refresh();
     void refreshAll();
     void refreshModified();
@@ -177,6 +196,22 @@ public slots:
     void menuSelectObjects();
     
 protected:
+    std::shared_ptr<TerrainProceduralState> procedural;
+    void loadProceduralMaterial(const QString &directory);
+    // Synchronous mode is retained for CPU tests/save-time diagnostics only.
+    int proceduralTexture(int patch, bool background = false);
+    int proceduralFallbackTexture();
+    bool reserveProceduralBake(QString &error);
+    QString proceduralBakeSignature() const;
+    bool saveProceduralBake();
+    void clearStaticTextureRefs();
+    QVector3D proceduralTextureRemap(int patch, int generatedTexture) const;
+    int proceduralDetailTexture();
+    int proceduralSourceTexture(int x, int z, float posx, float posz);
+    bool saveProceduralMap(const QString &directory, QString &previousReference);
+    void proceduralSaveFailed();
+    void proceduralSaveCompleted();
+    bool proceduralToolAllowed() const;
     static QString TileDir[2];
     
     unsigned char **fData = NULL;
@@ -245,6 +280,9 @@ protected:
         float maximumDistance = 0.0f;
         bool valid = false;
     };
+    QVector<int> proceduralRequestOrder(const PatchVisibility &visibility) const;
+    bool proceduralNearCamera(const PatchVisibility &visibility) const;
+    void prepareVisibleProceduralTextures(const PatchVisibility &visibility);
     QVector<PatchBounds> patchBounds;
     QVector<quint8> patchBoundsDirty;
     QVector<quint8> patchGapState;

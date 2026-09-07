@@ -44,7 +44,14 @@ void cleanupRenderItems(QVector<RenderItem*> &items){
     items.clear();
 }
 
-void applyItemState(GLUU *gluu, QOpenGLFunctions *f, RenderItem *item){
+struct DetailStateCache {
+    QVector3D remap;
+    float scale = -1.0f;
+    unsigned int texture = 0;
+};
+
+void applyItemState(GLUU *gluu, QOpenGLFunctions *f, RenderItem *item,
+                    DetailStateCache &detail){
     if(item == NULL)
         return;
 
@@ -56,6 +63,22 @@ void applyItemState(GLUU *gluu, QOpenGLFunctions *f, RenderItem *item){
     gluu->setBrightness(item->brightness);
 
     gluu->setSelectionId(item->selectionId);
+    if (detail.remap != item->terrainTextureRemap) {
+        gluu->currentShader->setUniformValue(gluu->currentShader->terrainTextureRemap, item->terrainTextureRemap);
+        detail.remap=item->terrainTextureRemap;
+    }
+    const float detailScale = item->texturesEnabled && !item->selectionId
+            ? item->secondTexScale : 0.0f;
+    if (detailScale != 0.0f && detail.texture != item->secondTexAddr) {
+        f->glActiveTexture(GL_TEXTURE1);
+        f->glBindTexture(GL_TEXTURE_2D, item->secondTexAddr);
+        f->glActiveTexture(GL_TEXTURE0);
+        detail.texture = item->secondTexAddr;
+    }
+    if (detail.scale != detailScale) {
+        gluu->currentShader->setUniformValue(gluu->currentShader->shaderSecondTexEnabled, detailScale);
+        detail.scale = detailScale;
+    }
     if(item->texturesEnabled){
         gluu->enableTextures();
         gluu->bindTexture(f, item->texAddr);
@@ -244,6 +267,8 @@ void OpenGL3Renderer::renderFrame(){
         return;
     }
     TerrainStateCache terrainState;
+    DetailStateCache detailState;
+    f->glActiveTexture(GL_TEXTURE0);
 
     // Generic frame-owned queue.
     for(int i = 0; i < items.size(); i++){
@@ -253,7 +278,7 @@ void OpenGL3Renderer::renderFrame(){
         if(item->VAO == NULL)
             continue;
 
-        applyItemState(gluu, f, item);
+        applyItemState(gluu, f, item, detailState);
         applyTerrainState(gluu, item, terrainState);
 
         if(item->msMatrix != NULL){
@@ -300,7 +325,7 @@ void OpenGL3Renderer::renderFrame(){
             if(item->VAO == NULL)
                 continue;
 
-            applyItemState(gluu, f, item);
+            applyItemState(gluu, f, item, detailState);
             applyTerrainState(gluu, item, terrainState);
             QOpenGLVertexArrayObject::Binder vaoBinder(item->VAO);
 
@@ -332,6 +357,8 @@ void OpenGL3Renderer::renderFrame(){
         itemsVNTA[it.key()].clear();
     }
 
+    gluu->currentShader->setUniformValue(gluu->currentShader->shaderSecondTexEnabled, 0.0f);
+    gluu->currentShader->setUniformValue(gluu->currentShader->terrainTextureRemap, QVector3D());
     itemsVNTA.clear();
     cleanupRenderItems(items);
     cleanupMatrixList(mvMatrixs);

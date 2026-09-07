@@ -38,6 +38,15 @@
 QString Terrain::TileDir[2] = {"tiles", "lo_tiles"};
 Brush* Terrain::DefaultBrush = NULL;
 
+static int validTerrainShader(const TFile *file, int patch) {
+    const int requested=int(file->patchValue(patch,TFile::PatchField::ShaderIndex));
+    for (const int id : {requested,0}) {
+        const auto it=file->materials.find(id);
+        if (it!=file->materials.end() && it->second.count153>0 && it->second.tex[0]) return id;
+    }
+    return -1;
+}
+
 static float editorDefaultPatchTextureScale(const TerrainGridLayout &layout) {
     return 0.998f / static_cast<float>(layout.patchResolution);
 }
@@ -149,6 +158,7 @@ void Terrain::load(){
             }
         }
     
+    loadProceduralMaterial(path);
     loaded = true;
     //save();
 }
@@ -347,6 +357,7 @@ void Terrain::loadFFile(FileBuffer *data){
 }
 
 Terrain::~Terrain() {
+    procedural.reset();
     long timeNow1 = QDateTime::currentMSecsSinceEpoch();
     releaseHeightData();
     releaseFData();
@@ -610,6 +621,17 @@ void Terrain::initializePatchBounds() {
     patchBoundsDirty.fill(0, count);
     for (int patchId = 0; patchId < count; ++patchId)
         patchBounds[patchId] = calculatePatchBounds(patchId);
+}
+
+static void uploadTerrainBaseTexture(Texture *texture, bool baked) {
+    if (texture->glLoaded) return;
+    // Bake mipmaps temporarily disabled to isolate tile-entry upload hitches.
+    if (!texture->GLTextures(false)) return;
+    if (baked) {
+        auto *f=QOpenGLContext::currentContext()->functions();
+        f->glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);
+        f->glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
+    }
 }
 
 void Terrain::markPatchGapStateDirty(int patchId) {
@@ -925,6 +947,7 @@ void Terrain::toggleGaps(int x, int z, float posx, float posz, float direction){
 }
 
 int Terrain::getTexture(int x, int z, float posx, float posz) {
+    if (usesProceduralMaterial()) return proceduralSourceTexture(x,z,posx,posz);
     getPatchCoords(x, z, posx, posz);
     int patches = tfile->patchsetNpatches;
 
@@ -932,6 +955,7 @@ int Terrain::getTexture(int x, int z, float posx, float posz) {
 }
 
 void Terrain::convertTexToDefaultCoords(int idx) {
+    if (!proceduralToolAllowed()) return;
     const float defaultTextureScale = editorDefaultPatchTextureScale(gridLayout);
     /*float x11 = (0) * tfile->tdata[(idx)*13 + 3 + 6] + (0) * tfile->tdata[(idx)*13 + 4 + 6] + tfile->tdata[(idx)*13 + 1 + 6];
     float y11 = (0) * tfile->tdata[(idx)*13 + 5 + 6] + (0) * tfile->tdata[(idx)*13 + 6 + 6] + tfile->tdata[(idx)*13 + 2 + 6];
@@ -976,6 +1000,7 @@ void Terrain::convertTexToDefaultCoords(int idx) {
 }
 
 void Terrain::resetPatchTexCoords(int uu){
+    if (!proceduralToolAllowed()) return;
     if (!editable)
         return;
     const float defaultTextureScale = editorDefaultPatchTextureScale(gridLayout);
@@ -1004,6 +1029,7 @@ void Terrain::resetPatchTexCoords(int uu){
 }
 
 void Terrain::rotateTex(int idx) {
+    if (!proceduralToolAllowed()) return;
     const float uvSpan = static_cast<float>(gridLayout.patchResolution);
     float x11 = (0) * tfile->tdata[(idx)*13 + 3 + 6] + (0) * tfile->tdata[(idx)*13 + 4 + 6] + tfile->tdata[(idx)*13 + 1 + 6];
     float y11 = (0) * tfile->tdata[(idx)*13 + 5 + 6] + (0) * tfile->tdata[(idx)*13 + 6 + 6] + tfile->tdata[(idx)*13 + 2 + 6];
@@ -1059,6 +1085,7 @@ void Terrain::rotateTex(int idx) {
 }
 
 void Terrain::mirrorXTex(int idx){
+    if (!proceduralToolAllowed()) return;
     const float uvSpan = static_cast<float>(gridLayout.patchResolution);
     float x21 = uvSpan * tfile->tdata[(idx)*13 + 3 + 6] + (0) * tfile->tdata[(idx)*13 + 4 + 6] + tfile->tdata[(idx)*13 + 1 + 6];
     float y21 = uvSpan * tfile->tdata[(idx)*13 + 5 + 6] + (0) * tfile->tdata[(idx)*13 + 6 + 6] + tfile->tdata[(idx)*13 + 2 + 6];
@@ -1071,6 +1098,7 @@ void Terrain::mirrorXTex(int idx){
 }
 
 void Terrain::mirrorYTex(int idx){
+    if (!proceduralToolAllowed()) return;
     const float uvSpan = static_cast<float>(gridLayout.patchResolution);
     float x12 = (0) * tfile->tdata[(idx)*13 + 3 + 6] + uvSpan * tfile->tdata[(idx)*13 + 4 + 6] + tfile->tdata[(idx)*13 + 1 + 6];
     float y12 = (0) * tfile->tdata[(idx)*13 + 5 + 6] + uvSpan * tfile->tdata[(idx)*13 + 6 + 6] + tfile->tdata[(idx)*13 + 2 + 6];
@@ -1099,6 +1127,7 @@ float Terrain::getScaleTex(int idx){
 }
 
 void Terrain::scaleTex(int idx, float val){
+    if (!proceduralToolAllowed()) return;
     float s = getScaleTexX(idx);
     float val1 = val/s;
     tfile->tdata[(idx)*13 + 3 + 6] *= val1;
@@ -1112,6 +1141,7 @@ void Terrain::scaleTex(int idx, float val){
 }
 
 void Terrain::scaleTexX(int idx, float val){
+    if (!proceduralToolAllowed()) return;
     float s = getScaleTexX(idx);
     val = val/s;
     tfile->tdata[(idx)*13 + 3 + 6] *= val;
@@ -1121,6 +1151,7 @@ void Terrain::scaleTexX(int idx, float val){
 }
 
 void Terrain::scaleTexY(int idx, float val){
+    if (!proceduralToolAllowed()) return;
     float s = getScaleTexY(idx);
     val = val/s;
     tfile->tdata[(idx)*13 + 5 + 6] *= val;
@@ -1150,6 +1181,7 @@ void Terrain::setTileBlob(){
 }
 
 void Terrain::makeTextureFromMap(){
+    if (!proceduralToolAllowed()) return;
     if (!editable)
         return;
     if(Game::seasonalEditing && Game::season.length() > 0)
@@ -1207,6 +1239,7 @@ void Terrain::makeTextureFromMap(){
 }
 
 void Terrain::removeTextureFromMap(){
+    if (!proceduralToolAllowed()) return;
     if (!editable)
         return;
     QString name = this->getTileName(mojex, -mojez) + "_map.ace";
@@ -1448,6 +1481,7 @@ QString Terrain::getPatchTexTransformString(int u){
 }
 
 void Terrain::setPatchTexTransform(QString val){
+    if (!proceduralToolAllowed()) return;
     if (!editable)
         return;
     QStringList list = val.split(" ");
@@ -1473,6 +1507,7 @@ void Terrain::setPatchTexTransform(QString val){
 }
 
 void Terrain::setPatchTexTransform(QString val, int u){
+    if (!proceduralToolAllowed()) return;
     if (!editable)
         return;
     if (!gridLayout.isPatchIndexValid(u))
@@ -1855,6 +1890,7 @@ void Terrain::getPatchCoords(int &x, int &z, float &posx, float &posz){
 }
 
 void Terrain::setTexture(QString textureName, int x, int z, float posx, float posz, QString transformation){
+    if (!proceduralToolAllowed()) return;
     if (!editable)
         return;
     if(Game::seasonalEditing && Game::season.length() > 0)
@@ -1881,6 +1917,7 @@ void Terrain::setTexture(QString textureName, int x, int z, float posx, float po
 }
 
 void Terrain::setTexture(Brush* brush, int x, int z, float posx, float posz) {
+    if (usesProceduralMaterial()) return;
     if (!editable)
         return;
     if(Game::seasonalEditing && Game::season.length() > 0)
@@ -1893,6 +1930,7 @@ void Terrain::setTexture(Brush* brush, int x, int z, float posx, float posz) {
 }
 
 void Terrain::setTexture(Brush* brush, int u) {
+    if (usesProceduralMaterial()) return;
     if (!editable)
         return;
     if(!gridLayout.isPatchIndexValid(u))
@@ -1978,6 +2016,7 @@ void Terrain::setTexture(Brush* brush, int u) {
 }
 
 void Terrain::paintTexture(Brush* brush, int x, int z, float posx, float posz) {
+    if (usesProceduralMaterial()) return;
     if (!editable)
         return;
     //if(Game::seasonalEditing)
@@ -2097,6 +2136,7 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
 
     RenderItem *r;
     if(Game::viewTerrainShape && (!(showBlob && MapWindow::isAlpha == 0) || selectionId != 0)){
+        if (selectionId==0) prepareVisibleProceduralTextures(patchVisibility);
         float shaderSecondTexUV = 0;
         for (int yy = 0; yy < patches; yy++) {
             for (int uu = 0; uu < patches; uu++) {
@@ -2133,43 +2173,67 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
                     r->setSelectionId(SelectionIdCodec::withTerrainPatch(
                                           selectionId, patchId));
                 } else {
-                    if (texid[yy * patches + uu] == -2) {
+                    const int proceduralId = proceduralTexture(patchId, true);
+                    const int shaderId = validTerrainShader(tfile,patchId);
+                    r->terrainTextureRemap=proceduralTextureRemap(patchId,proceduralId);
+                    const bool bakedFallback=proceduralId<0 && rendersProceduralMaterial()
+                            && shaderId==0 && !tfile->bakedMaterialInfo.isEmpty();
+                    const int outputId=bakedFallback?proceduralFallbackTexture():proceduralId;
+                    if (outputId >= 0) {
+                        r->enableTextures(TexLib::mtex.at(outputId)->tex[0]);
+                        const int detailId = proceduralDetailTexture();
+                        if (detailId >= 0) {
+                            r->secondTexAddr = TexLib::mtex.at(detailId)->tex[0];
+                            r->secondTexScale = ProceduralDetailScale*(bakedFallback?patches:1);
+                        }
+                    } else if (bakedFallback || texid[yy * patches + uu] == -2) {
                     } else {
                         if (texid[yy * patches + uu] == -1) {
                             //texid[uu*16+yy] = TexLib.addTex(texturepath,"nasyp-k.ace", gl);
                             //qDebug() << texturepath << " "<<tfile->tdata[(yy * 16 + uu)*7+0] <<" "<< tfile->materials[(int)tfile->tdata[(yy * 16 + uu)*7+0]].tex[0];
-                            if (tfile->materialsCount <= (int) tfile->tdata[(yy * patches + uu)*13 + 0 + 6]){
+                            if (shaderId < 0){
                                 texid[yy * patches + uu] = -2;
                                 return;
                             } else {
-                                texid[yy * patches + uu] = TexLib::addTex(texturepath, *tfile->materials[(int) tfile->tdata[(yy * patches + uu)*13 + 0 + 6]].tex[0]);
+                                texid[yy * patches + uu] = TexLib::addTex(texturepath, *tfile->materials[shaderId].tex[0]);
                             }//System.out.println(tfile.materials[tfile.tdata[uu*16+yy]].tex[0]);
                             //texid = TexLib.addTex(texturepath,"nasyp-k.ace", gl);
                             //    gl.glDisable(GL2.GL_TEXTURE_2D);
                         }
                         if (TexLib::mtex[texid[yy * patches + uu]]->loaded) {
-                            if (!TexLib::mtex[texid[yy * patches + uu]]->glLoaded)
-                                TexLib::mtex[texid[yy * patches + uu]]->GLTextures();
+                            uploadTerrainBaseTexture(TexLib::mtex[texid[patchId]],
+                                                     shaderId==0 && !tfile->bakedMaterialInfo.isEmpty());
                             r->enableTextures(TexLib::mtex[texid[yy * patches + uu]]->tex[0]);
                         } else {
                         }
                     }
+                    if (!bakedFallback && proceduralId<0 && shaderId==0 && !tfile->bakedMaterialInfo.isEmpty()
+                            && tfile->materials[0].count153>=2 && tfile->materials[0].tex[1]) {
+                        if (texid2[patchId]==-1)
+                            texid2[patchId]=TexLib::addTex(texturepath,*tfile->materials[0].tex[1]);
+                        const auto detail=TexLib::mtex.find(texid2[patchId]);
+                        if (detail!=TexLib::mtex.end() && detail->second && detail->second->loaded) {
+                            if (!detail->second->glLoaded) detail->second->GLTextures(true);
+                            r->secondTexAddr=detail->second->tex[0];
+                            r->secondTexScale=ProceduralDetailScale*patches;
+                        }
+                    }
                     /*if (texid2[yy * patches + uu] == -2) {
-                    } else if (tfile->materials[(int) tfile->tdata[(yy * patches + uu)*13 + 0 + 6]].count153 < 2){
+                    } else if (tfile->materials[shaderId].count153 < 2){
                             texid2[yy * patches + uu] = -2;
                     } else {
                         if (texid2[yy * patches + uu] == -1) {
-                            if (tfile->materialsCount <= (int) tfile->tdata[(yy * patches + uu)*13 + 0 + 6])
+                            if (shaderId < 0)
                                 texid[yy * patches + uu] = -2;
                             else
-                                texid2[yy * patches + uu] = TexLib::addTex(texturepath, *tfile->materials[(int) tfile->tdata[(yy * patches + uu)*13 + 0 + 6]].tex[1]);
+                                texid2[yy * patches + uu] = TexLib::addTex(texturepath, *tfile->materials[shaderId].tex[1]);
                         }
                         if (TexLib::mtex[texid2[yy * patches + uu]]->loaded) {
                             if (!TexLib::mtex[texid2[yy * patches + uu]]->glLoaded)
                                 TexLib::mtex[texid2[yy * patches + uu]]->GLTextures(true);
                             r->enableTextures(TexLib::mtex[texid2[yy * patches + uu]]->tex[0]);
-                            if(shaderSecondTexUV != *(float*)&tfile->materials[(int) tfile->tdata[(yy * patches + uu)*13 + 0 + 6]].itex[1][3]){
-                                shaderSecondTexUV = *(float*)&tfile->materials[(int) tfile->tdata[(yy * patches + uu)*13 + 0 + 6]].itex[1][3];
+                            if(shaderSecondTexUV != *(float*)&tfile->materials[shaderId].itex[1][3]){
+                                shaderSecondTexUV = *(float*)&tfile->materials[shaderId].itex[1][3];
                                 gluu->currentShader->setUniformValue(gluu->currentShader->shaderSecondTexEnabled, shaderSecondTexUV);
                             }
                         } else {
@@ -2446,7 +2510,9 @@ void Terrain::render(float lodx, float lodz, int tileX, int tileY, float* player
             ? NULL : new QOpenGLVertexArrayObject::Binder(VAO);
     
     if(Game::viewTerrainShape && (!(showBlob && MapWindow::isAlpha == 0) || selectionId != 0)){
+        if (selectionId==0) prepareVisibleProceduralTextures(patchVisibility);
         float shaderSecondTexUV = 0;
+        QVector3D shaderTextureRemap;
         for (int yy = 0; yy < patches; yy++) {
             for (int uu = 0; uu < patches; uu++) {
                 const int patchId = yy * patches + uu;
@@ -2481,46 +2547,77 @@ void Terrain::render(float lodx, float lodz, int tileX, int tileY, float* player
                     gluu->setSelectionId(SelectionIdCodec::withTerrainPatch(
                                              selectionId, patchId));
                 } else {
-                    if (texid[yy * patches + uu] == -2) {
+                    const int proceduralId = proceduralTexture(patchId, true);
+                    const int shaderId = validTerrainShader(tfile,patchId);
+                    const bool bakedFallback=proceduralId<0 && rendersProceduralMaterial()
+                            && shaderId==0 && !tfile->bakedMaterialInfo.isEmpty();
+                    const int outputId=bakedFallback?proceduralFallbackTexture():proceduralId;
+                    const auto remap=proceduralTextureRemap(patchId,proceduralId);
+                    if (shaderTextureRemap!=remap) {
+                        shaderTextureRemap=remap;
+                        gluu->currentShader->setUniformValue(gluu->currentShader->terrainTextureRemap,remap);
+                    }
+                    if (outputId >= 0) {
+                        f->glActiveTexture(GL_TEXTURE0);
+                        gluu->bindTexture(f, TexLib::mtex.at(outputId)->tex[0]);
+                    } else if (bakedFallback) {
+                        // The baked-file job is pending too; do not start an
+                        // unowned ordinary ACE loader or reuse the previous patch.
+                        gluu->disableTextures(0.65f,0.65f,0.65f,1.0f);
+                    } else if (texid[yy * patches + uu] == -2) {
                     } else {
                         if (texid[yy * patches + uu] == -1) {
                             //texid[uu*16+yy] = TexLib.addTex(texturepath,"nasyp-k.ace", gl);
                             //qDebug() << texturepath << " "<<tfile->tdata[(yy * 16 + uu)*7+0] <<" "<< tfile->materials[(int)tfile->tdata[(yy * 16 + uu)*7+0]].tex[0];
-                            if (tfile->materialsCount <= (int) tfile->tdata[(yy * patches + uu)*13 + 0 + 6]){
+                            if (shaderId < 0){
                                 texid[yy * patches + uu] = -2;
                                 return;
                             } else {
-                                texid[yy * patches + uu] = TexLib::addTex(texturepath, *tfile->materials[(int) tfile->tdata[(yy * patches + uu)*13 + 0 + 6]].tex[0]);
+                                texid[yy * patches + uu] = TexLib::addTex(texturepath, *tfile->materials[shaderId].tex[0]);
                             }//System.out.println(tfile.materials[tfile.tdata[uu*16+yy]].tex[0]);
                             //texid = TexLib.addTex(texturepath,"nasyp-k.ace", gl);
                             //    gl.glDisable(GL2.GL_TEXTURE_2D);
                         }
                         if (TexLib::mtex[texid[yy * patches + uu]]->loaded) {
-                            if (!TexLib::mtex[texid[yy * patches + uu]]->glLoaded)
-                                TexLib::mtex[texid[yy * patches + uu]]->GLTextures();
+                            uploadTerrainBaseTexture(TexLib::mtex[texid[patchId]],
+                                                     shaderId==0 && !tfile->bakedMaterialInfo.isEmpty());
                             f->glActiveTexture(GL_TEXTURE0);
                             //f->glBindTexture(GL_TEXTURE_2D, TexLib::mtex[texid[yy * 16 + uu]]->tex[0]);
                             gluu->bindTexture(f, TexLib::mtex[texid[yy * patches + uu]]->tex[0]);
                         } else {
                         }
                     }
-                    if (texid2[yy * patches + uu] == -2) {
-                    } else if (tfile->materials[(int) tfile->tdata[(yy * patches + uu)*13 + 0 + 6]].count153 < 2){
+                    if (outputId>=0 || bakedFallback) {
+                        if (outputId>=0) gluu->enableTextures();
+                        const int detailId = outputId>=0?proceduralDetailTexture():-1;
+                        const float detailScale = detailId >= 0 ? ProceduralDetailScale*(bakedFallback?patches:1) : 0.0f;
+                        if (detailId >= 0) {
+                            f->glActiveTexture(GL_TEXTURE1);
+                            f->glBindTexture(GL_TEXTURE_2D, TexLib::mtex.at(detailId)->tex[0]);
+                        }
+                        // Leave unit zero active for the next patch's generated upload.
+                        f->glActiveTexture(GL_TEXTURE0);
+                        if (shaderSecondTexUV != detailScale) {
+                            shaderSecondTexUV = detailScale;
+                            gluu->currentShader->setUniformValue(gluu->currentShader->shaderSecondTexEnabled, detailScale);
+                        }
+                    } else if (shaderId < 0 || texid2[yy * patches + uu] == -2) {
+                    } else if (tfile->materials[shaderId].count153 < 2){
                             texid2[yy * patches + uu] = -2;
                     } else {
                         if (texid2[yy * patches + uu] == -1) {
-                            if (tfile->materialsCount <= (int) tfile->tdata[(yy * patches + uu)*13 + 0 + 6])
+                            if (shaderId < 0)
                                 texid[yy * patches + uu] = -2;
                             else
-                                texid2[yy * patches + uu] = TexLib::addTex(texturepath, *tfile->materials[(int) tfile->tdata[(yy * patches + uu)*13 + 0 + 6]].tex[1]);
+                                texid2[yy * patches + uu] = TexLib::addTex(texturepath, *tfile->materials[shaderId].tex[1]);
                         }
                         if (TexLib::mtex[texid2[yy * patches + uu]]->loaded) {
                             if (!TexLib::mtex[texid2[yy * patches + uu]]->glLoaded)
                                 TexLib::mtex[texid2[yy * patches + uu]]->GLTextures(true);
                             f->glActiveTexture(GL_TEXTURE1);
                             f->glBindTexture(GL_TEXTURE_2D, TexLib::mtex[texid2[yy * patches + uu]]->tex[0]);
-                            if(shaderSecondTexUV != *(float*)&tfile->materials[(int) tfile->tdata[(yy * patches + uu)*13 + 0 + 6]].itex[1][3]){
-                                shaderSecondTexUV = *(float*)&tfile->materials[(int) tfile->tdata[(yy * patches + uu)*13 + 0 + 6]].itex[1][3];
+                            if(shaderSecondTexUV != *(float*)&tfile->materials[shaderId].itex[1][3]){
+                                shaderSecondTexUV = *(float*)&tfile->materials[shaderId].itex[1][3];
                                 gluu->currentShader->setUniformValue(gluu->currentShader->shaderSecondTexEnabled, shaderSecondTexUV);
                             }
                         } else {
@@ -2536,6 +2633,7 @@ void Terrain::render(float lodx, float lodz, int tileX, int tileY, float* player
         }
         f->glActiveTexture(GL_TEXTURE0);
         gluu->currentShader->setUniformValue(gluu->currentShader->shaderSecondTexEnabled, 0.0f);
+        gluu->currentShader->setUniformValue(gluu->currentShader->terrainTextureRemap, QVector3D());
     }
         
     if(Game::viewTerrainGrid || !Game::viewTerrainShape){
@@ -3153,6 +3251,17 @@ void Terrain::oglInit() {
     //int ilosc = 16 * 16;
     //int suma;
     const std::size_t patchFloatCount = gridLayout.patchVboBytes / sizeof(GLfloat);
+    // Default composite UVs are runtime-only; preserve every stored transform.
+    QVector<float> proceduralUv;
+    const float *effectiveData = tfile->tdata;
+    if (rendersProceduralMaterial()) {
+        proceduralUv = QVector<float>(tfile->tdata, tfile->tdata + gridLayout.patchRecordCount()*13);
+        for (int p=0; p<gridLayout.patchRecordCount(); ++p) {
+            float *d=proceduralUv.data()+p*13;
+            d[7]=d[8]=d[10]=d[11]=0; d[9]=d[12]=1.0f/gridLayout.patchResolution;
+        }
+        effectiveData=proceduralUv.constData();
+    }
     float * punkty = new float[patchFloatCount]();
     //  var punkty = Terrain.punkty;
     int samples = *tfile->nsamples;
@@ -3192,8 +3301,8 @@ void Terrain::oglInit() {
                             punkty[ptr++] = normalData[(uu * patchRes + jj)][yy * patchRes + ii].x;
                             punkty[ptr++] = normalData[(uu * patchRes + jj)][yy * patchRes + ii].y;
                             punkty[ptr++] = normalData[(uu * patchRes + jj)][yy * patchRes + ii].z;
-                            punkty[ptr++] = texRes * (jj * tfile->tdata[(yy * patches + uu)*13 + 3 + 6] + ii * tfile->tdata[(yy * patches + uu)*13 + 4 + 6]) + tfile->tdata[(yy * patches + uu)*13 + 1 + 6];
-                            punkty[ptr++] = texRes * (jj * tfile->tdata[(yy * patches + uu)*13 + 5 + 6] + ii * tfile->tdata[(yy * patches + uu)*13 + 6 + 6]) + tfile->tdata[(yy * patches + uu)*13 + 2 + 6];
+                            punkty[ptr++] = texRes * (jj * effectiveData[(yy * patches + uu)*13 + 3 + 6] + ii * effectiveData[(yy * patches + uu)*13 + 4 + 6]) + effectiveData[(yy * patches + uu)*13 + 1 + 6];
+                            punkty[ptr++] = texRes * (jj * effectiveData[(yy * patches + uu)*13 + 5 + 6] + ii * effectiveData[(yy * patches + uu)*13 + 6 + 6]) + effectiveData[(yy * patches + uu)*13 + 2 + 6];
 
                             punkty[ptr++] = vertexData[(uu * patchRes + jj)][yy * patchRes + ii + 1].x;
                             punkty[ptr++] = vertexData[(uu * patchRes + jj)][yy * patchRes + ii + 1].y;
@@ -3201,8 +3310,8 @@ void Terrain::oglInit() {
                             punkty[ptr++] = normalData[(uu * patchRes + jj)][yy * patchRes + ii + 1].x;
                             punkty[ptr++] = normalData[(uu * patchRes + jj)][yy * patchRes + ii + 1].y;
                             punkty[ptr++] = normalData[(uu * patchRes + jj)][yy * patchRes + ii + 1].z;
-                            punkty[ptr++] = texRes * ((jj) * tfile->tdata[(yy * patches + uu)*13 + 3 + 6] + (ii + 1) * tfile->tdata[(yy * patches + uu)*13 + 4 + 6]) + tfile->tdata[(yy * patches + uu)*13 + 1 + 6];
-                            punkty[ptr++] = texRes * ((jj) * tfile->tdata[(yy * patches + uu)*13 + 5 + 6] + (ii + 1) * tfile->tdata[(yy * patches + uu)*13 + 6 + 6]) + tfile->tdata[(yy * patches + uu)*13 + 2 + 6];
+                            punkty[ptr++] = texRes * ((jj) * effectiveData[(yy * patches + uu)*13 + 3 + 6] + (ii + 1) * effectiveData[(yy * patches + uu)*13 + 4 + 6]) + effectiveData[(yy * patches + uu)*13 + 1 + 6];
+                            punkty[ptr++] = texRes * ((jj) * effectiveData[(yy * patches + uu)*13 + 5 + 6] + (ii + 1) * effectiveData[(yy * patches + uu)*13 + 6 + 6]) + effectiveData[(yy * patches + uu)*13 + 2 + 6];
 
                             punkty[ptr++] = vertexData[(uu * patchRes + jj + 1)][yy * patchRes + ii + 1].x;
                             punkty[ptr++] = vertexData[(uu * patchRes + jj + 1)][yy * patchRes + ii + 1].y;
@@ -3210,8 +3319,8 @@ void Terrain::oglInit() {
                             punkty[ptr++] = normalData[(uu * patchRes + jj + 1)][yy * patchRes + ii + 1].x;
                             punkty[ptr++] = normalData[(uu * patchRes + jj + 1)][yy * patchRes + ii + 1].y;
                             punkty[ptr++] = normalData[(uu * patchRes + jj + 1)][yy * patchRes + ii + 1].z;
-                            punkty[ptr++] = texRes * ((jj + 1) * tfile->tdata[(yy * patches + uu)*13 + 3 + 6] + (ii + 1) * tfile->tdata[(yy * patches + uu)*13 + 4 + 6]) + tfile->tdata[(yy * patches + uu)*13 + 1 + 6];
-                            punkty[ptr++] = texRes * ((jj + 1) * tfile->tdata[(yy * patches + uu)*13 + 5 + 6] + (ii + 1) * tfile->tdata[(yy * patches + uu)*13 + 6 + 6]) + tfile->tdata[(yy * patches + uu)*13 + 2 + 6];
+                            punkty[ptr++] = texRes * ((jj + 1) * effectiveData[(yy * patches + uu)*13 + 3 + 6] + (ii + 1) * effectiveData[(yy * patches + uu)*13 + 4 + 6]) + effectiveData[(yy * patches + uu)*13 + 1 + 6];
+                            punkty[ptr++] = texRes * ((jj + 1) * effectiveData[(yy * patches + uu)*13 + 5 + 6] + (ii + 1) * effectiveData[(yy * patches + uu)*13 + 6 + 6]) + effectiveData[(yy * patches + uu)*13 + 2 + 6];
                             }
                             ///////////////////////////////////////////////////////////
                             if(fi0j0 && fi0j1 && fi1j1){
@@ -3221,8 +3330,8 @@ void Terrain::oglInit() {
                             punkty[ptr++] = normalData[(uu * patchRes + jj)][yy * patchRes + ii].x;
                             punkty[ptr++] = normalData[(uu * patchRes + jj)][yy * patchRes + ii].y;
                             punkty[ptr++] = normalData[(uu * patchRes + jj)][yy * patchRes + ii].z;
-                            punkty[ptr++] = texRes * (jj * tfile->tdata[(yy * patches + uu)*13 + 3 + 6] + ii * tfile->tdata[(yy * patches + uu)*13 + 4 + 6]) + tfile->tdata[(yy * patches + uu)*13 + 1 + 6];
-                            punkty[ptr++] = texRes * (jj * tfile->tdata[(yy * patches + uu)*13 + 5 + 6] + ii * tfile->tdata[(yy * patches + uu)*13 + 6 + 6]) + tfile->tdata[(yy * patches + uu)*13 + 2 + 6];
+                            punkty[ptr++] = texRes * (jj * effectiveData[(yy * patches + uu)*13 + 3 + 6] + ii * effectiveData[(yy * patches + uu)*13 + 4 + 6]) + effectiveData[(yy * patches + uu)*13 + 1 + 6];
+                            punkty[ptr++] = texRes * (jj * effectiveData[(yy * patches + uu)*13 + 5 + 6] + ii * effectiveData[(yy * patches + uu)*13 + 6 + 6]) + effectiveData[(yy * patches + uu)*13 + 2 + 6];
 
                             punkty[ptr++] = vertexData[(uu * patchRes + jj + 1)][yy * patchRes + ii + 1].x;
                             punkty[ptr++] = vertexData[(uu * patchRes + jj + 1)][yy * patchRes + ii + 1].y;
@@ -3230,8 +3339,8 @@ void Terrain::oglInit() {
                             punkty[ptr++] = normalData[(uu * patchRes + jj + 1)][yy * patchRes + ii + 1].x;
                             punkty[ptr++] = normalData[(uu * patchRes + jj + 1)][yy * patchRes + ii + 1].y;
                             punkty[ptr++] = normalData[(uu * patchRes + jj + 1)][yy * patchRes + ii + 1].z;
-                            punkty[ptr++] = texRes * ((jj + 1) * tfile->tdata[(yy * patches + uu)*13 + 3 + 6] + (ii + 1) * tfile->tdata[(yy * patches + uu)*13 + 4 + 6]) + tfile->tdata[(yy * patches + uu)*13 + 1 + 6];
-                            punkty[ptr++] = texRes * ((jj + 1) * tfile->tdata[(yy * patches + uu)*13 + 5 + 6] + (ii + 1) * tfile->tdata[(yy * patches + uu)*13 + 6 + 6]) + tfile->tdata[(yy * patches + uu)*13 + 2 + 6];
+                            punkty[ptr++] = texRes * ((jj + 1) * effectiveData[(yy * patches + uu)*13 + 3 + 6] + (ii + 1) * effectiveData[(yy * patches + uu)*13 + 4 + 6]) + effectiveData[(yy * patches + uu)*13 + 1 + 6];
+                            punkty[ptr++] = texRes * ((jj + 1) * effectiveData[(yy * patches + uu)*13 + 5 + 6] + (ii + 1) * effectiveData[(yy * patches + uu)*13 + 6 + 6]) + effectiveData[(yy * patches + uu)*13 + 2 + 6];
 
                             punkty[ptr++] = vertexData[(uu * patchRes + jj + 1)][yy * patchRes + ii].x;
                             punkty[ptr++] = vertexData[(uu * patchRes + jj + 1)][yy * patchRes + ii].y;
@@ -3239,8 +3348,8 @@ void Terrain::oglInit() {
                             punkty[ptr++] = normalData[(uu * patchRes + jj + 1)][yy * patchRes + ii].x;
                             punkty[ptr++] = normalData[(uu * patchRes + jj + 1)][yy * patchRes + ii].y;
                             punkty[ptr++] = normalData[(uu * patchRes + jj + 1)][yy * patchRes + ii].z;
-                            punkty[ptr++] = texRes * ((jj + 1) * tfile->tdata[(yy * patches + uu)*13 + 3 + 6] + (ii) * tfile->tdata[(yy * patches + uu)*13 + 4 + 6]) + tfile->tdata[(yy * patches + uu)*13 + 1 + 6];
-                            punkty[ptr++] = texRes * ((jj + 1) * tfile->tdata[(yy * patches + uu)*13 + 5 + 6] + (ii) * tfile->tdata[(yy * patches + uu)*13 + 6 + 6]) + tfile->tdata[(yy * patches + uu)*13 + 2 + 6];
+                            punkty[ptr++] = texRes * ((jj + 1) * effectiveData[(yy * patches + uu)*13 + 3 + 6] + (ii) * effectiveData[(yy * patches + uu)*13 + 4 + 6]) + effectiveData[(yy * patches + uu)*13 + 1 + 6];
+                            punkty[ptr++] = texRes * ((jj + 1) * effectiveData[(yy * patches + uu)*13 + 5 + 6] + (ii) * effectiveData[(yy * patches + uu)*13 + 6 + 6]) + effectiveData[(yy * patches + uu)*13 + 2 + 6];
                             }
                         }
                         if(((ii+jj) % 2 == 1)){
@@ -3251,8 +3360,8 @@ void Terrain::oglInit() {
                             punkty[ptr++] = normalData[(uu * patchRes + jj)][yy * patchRes + ii + 1].x;
                             punkty[ptr++] = normalData[(uu * patchRes + jj)][yy * patchRes + ii + 1].y;
                             punkty[ptr++] = normalData[(uu * patchRes + jj)][yy * patchRes + ii + 1].z;
-                            punkty[ptr++] = texRes * ((jj) * tfile->tdata[(yy * patches + uu)*13 + 3 + 6] + (ii + 1) * tfile->tdata[(yy * patches + uu)*13 + 4 + 6]) + tfile->tdata[(yy * patches + uu)*13 + 1 + 6];
-                            punkty[ptr++] = texRes * ((jj) * tfile->tdata[(yy * patches + uu)*13 + 5 + 6] + (ii + 1) * tfile->tdata[(yy * patches + uu)*13 + 6 + 6]) + tfile->tdata[(yy * patches + uu)*13 + 2 + 6];
+                            punkty[ptr++] = texRes * ((jj) * effectiveData[(yy * patches + uu)*13 + 3 + 6] + (ii + 1) * effectiveData[(yy * patches + uu)*13 + 4 + 6]) + effectiveData[(yy * patches + uu)*13 + 1 + 6];
+                            punkty[ptr++] = texRes * ((jj) * effectiveData[(yy * patches + uu)*13 + 5 + 6] + (ii + 1) * effectiveData[(yy * patches + uu)*13 + 6 + 6]) + effectiveData[(yy * patches + uu)*13 + 2 + 6];
                             
                             punkty[ptr++] = vertexData[(uu * patchRes + jj + 1)][yy * patchRes + ii + 1].x;
                             punkty[ptr++] = vertexData[(uu * patchRes + jj + 1)][yy * patchRes + ii + 1].y;
@@ -3260,8 +3369,8 @@ void Terrain::oglInit() {
                             punkty[ptr++] = normalData[(uu * patchRes + jj + 1)][yy * patchRes + ii + 1].x;
                             punkty[ptr++] = normalData[(uu * patchRes + jj + 1)][yy * patchRes + ii + 1].y;
                             punkty[ptr++] = normalData[(uu * patchRes + jj + 1)][yy * patchRes + ii + 1].z;
-                            punkty[ptr++] = texRes * ((jj + 1) * tfile->tdata[(yy * patches + uu)*13 + 3 + 6] + (ii + 1) * tfile->tdata[(yy * patches + uu)*13 + 4 + 6]) + tfile->tdata[(yy * patches + uu)*13 + 1 + 6];
-                            punkty[ptr++] = texRes * ((jj + 1) * tfile->tdata[(yy * patches + uu)*13 + 5 + 6] + (ii + 1) * tfile->tdata[(yy * patches + uu)*13 + 6 + 6]) + tfile->tdata[(yy * patches + uu)*13 + 2 + 6];
+                            punkty[ptr++] = texRes * ((jj + 1) * effectiveData[(yy * patches + uu)*13 + 3 + 6] + (ii + 1) * effectiveData[(yy * patches + uu)*13 + 4 + 6]) + effectiveData[(yy * patches + uu)*13 + 1 + 6];
+                            punkty[ptr++] = texRes * ((jj + 1) * effectiveData[(yy * patches + uu)*13 + 5 + 6] + (ii + 1) * effectiveData[(yy * patches + uu)*13 + 6 + 6]) + effectiveData[(yy * patches + uu)*13 + 2 + 6];
 
                             punkty[ptr++] = vertexData[(uu * patchRes + jj + 1)][yy * patchRes + ii].x;
                             punkty[ptr++] = vertexData[(uu * patchRes + jj + 1)][yy * patchRes + ii].y;
@@ -3269,8 +3378,8 @@ void Terrain::oglInit() {
                             punkty[ptr++] = normalData[(uu * patchRes + jj + 1)][yy * patchRes + ii].x;
                             punkty[ptr++] = normalData[(uu * patchRes + jj + 1)][yy * patchRes + ii].y;
                             punkty[ptr++] = normalData[(uu * patchRes + jj + 1)][yy * patchRes + ii].z;
-                            punkty[ptr++] = texRes * ((jj + 1) * tfile->tdata[(yy * patches + uu)*13 + 3 + 6] + (ii) * tfile->tdata[(yy * patches + uu)*13 + 4 + 6]) + tfile->tdata[(yy * patches + uu)*13 + 1 + 6];
-                            punkty[ptr++] = texRes * ((jj + 1) * tfile->tdata[(yy * patches + uu)*13 + 5 + 6] + (ii) * tfile->tdata[(yy * patches + uu)*13 + 6 + 6]) + tfile->tdata[(yy * patches + uu)*13 + 2 + 6];
+                            punkty[ptr++] = texRes * ((jj + 1) * effectiveData[(yy * patches + uu)*13 + 3 + 6] + (ii) * effectiveData[(yy * patches + uu)*13 + 4 + 6]) + effectiveData[(yy * patches + uu)*13 + 1 + 6];
+                            punkty[ptr++] = texRes * ((jj + 1) * effectiveData[(yy * patches + uu)*13 + 5 + 6] + (ii) * effectiveData[(yy * patches + uu)*13 + 6 + 6]) + effectiveData[(yy * patches + uu)*13 + 2 + 6];
                             }
                             ///////////////////////////////////////////////////////////
                             if(fi0j0 && fi0j1 && fi1j0){
@@ -3280,8 +3389,8 @@ void Terrain::oglInit() {
                             punkty[ptr++] = normalData[(uu * patchRes + jj)][yy * patchRes + ii].x;
                             punkty[ptr++] = normalData[(uu * patchRes + jj)][yy * patchRes + ii].y;
                             punkty[ptr++] = normalData[(uu * patchRes + jj)][yy * patchRes + ii].z;
-                            punkty[ptr++] = texRes * (jj * tfile->tdata[(yy * patches + uu)*13 + 3 + 6] + ii * tfile->tdata[(yy * patches + uu)*13 + 4 + 6]) + tfile->tdata[(yy * patches + uu)*13 + 1 + 6];
-                            punkty[ptr++] = texRes * (jj * tfile->tdata[(yy * patches + uu)*13 + 5 + 6] + ii * tfile->tdata[(yy * patches + uu)*13 + 6 + 6]) + tfile->tdata[(yy * patches + uu)*13 + 2 + 6];
+                            punkty[ptr++] = texRes * (jj * effectiveData[(yy * patches + uu)*13 + 3 + 6] + ii * effectiveData[(yy * patches + uu)*13 + 4 + 6]) + effectiveData[(yy * patches + uu)*13 + 1 + 6];
+                            punkty[ptr++] = texRes * (jj * effectiveData[(yy * patches + uu)*13 + 5 + 6] + ii * effectiveData[(yy * patches + uu)*13 + 6 + 6]) + effectiveData[(yy * patches + uu)*13 + 2 + 6];
 
                             punkty[ptr++] = vertexData[(uu * patchRes + jj)][yy * patchRes + ii + 1].x;
                             punkty[ptr++] = vertexData[(uu * patchRes + jj)][yy * patchRes + ii + 1].y;
@@ -3289,8 +3398,8 @@ void Terrain::oglInit() {
                             punkty[ptr++] = normalData[(uu * patchRes + jj)][yy * patchRes + ii + 1].x;
                             punkty[ptr++] = normalData[(uu * patchRes + jj)][yy * patchRes + ii + 1].y;
                             punkty[ptr++] = normalData[(uu * patchRes + jj)][yy * patchRes + ii + 1].z;
-                            punkty[ptr++] = texRes * ((jj) * tfile->tdata[(yy * patches + uu)*13 + 3 + 6] + (ii + 1) * tfile->tdata[(yy * patches + uu)*13 + 4 + 6]) + tfile->tdata[(yy * patches + uu)*13 + 1 + 6];
-                            punkty[ptr++] = texRes * ((jj) * tfile->tdata[(yy * patches + uu)*13 + 5 + 6] + (ii + 1) * tfile->tdata[(yy * patches + uu)*13 + 6 + 6]) + tfile->tdata[(yy * patches + uu)*13 + 2 + 6];
+                            punkty[ptr++] = texRes * ((jj) * effectiveData[(yy * patches + uu)*13 + 3 + 6] + (ii + 1) * effectiveData[(yy * patches + uu)*13 + 4 + 6]) + effectiveData[(yy * patches + uu)*13 + 1 + 6];
+                            punkty[ptr++] = texRes * ((jj) * effectiveData[(yy * patches + uu)*13 + 5 + 6] + (ii + 1) * effectiveData[(yy * patches + uu)*13 + 6 + 6]) + effectiveData[(yy * patches + uu)*13 + 2 + 6];
 
                             punkty[ptr++] = vertexData[(uu * patchRes + jj + 1)][yy * patchRes + ii].x;
                             punkty[ptr++] = vertexData[(uu * patchRes + jj + 1)][yy * patchRes + ii].y;
@@ -3298,8 +3407,8 @@ void Terrain::oglInit() {
                             punkty[ptr++] = normalData[(uu * patchRes + jj + 1)][yy * patchRes + ii].x;
                             punkty[ptr++] = normalData[(uu * patchRes + jj + 1)][yy * patchRes + ii].y;
                             punkty[ptr++] = normalData[(uu * patchRes + jj + 1)][yy * patchRes + ii].z;
-                            punkty[ptr++] = texRes * ((jj + 1) * tfile->tdata[(yy * patches + uu)*13 + 3 + 6] + (ii) * tfile->tdata[(yy * patches + uu)*13 + 4 + 6]) + tfile->tdata[(yy * patches + uu)*13 + 1 + 6];
-                            punkty[ptr++] = texRes * ((jj + 1) * tfile->tdata[(yy * patches + uu)*13 + 5 + 6] + (ii) * tfile->tdata[(yy * patches + uu)*13 + 6 + 6]) + tfile->tdata[(yy * patches + uu)*13 + 2 + 6];
+                            punkty[ptr++] = texRes * ((jj + 1) * effectiveData[(yy * patches + uu)*13 + 3 + 6] + (ii) * effectiveData[(yy * patches + uu)*13 + 4 + 6]) + effectiveData[(yy * patches + uu)*13 + 1 + 6];
+                            punkty[ptr++] = texRes * ((jj + 1) * effectiveData[(yy * patches + uu)*13 + 5 + 6] + (ii) * effectiveData[(yy * patches + uu)*13 + 6 + 6]) + effectiveData[(yy * patches + uu)*13 + 2 + 6];
                             }
                         }
                     //}
@@ -3522,12 +3631,19 @@ void Terrain::fillHeightMap(float* data){
                       TerrainDirtyHeight | TerrainDirtyNormals);
 }
 
-void Terrain::save() {
-    if (!editable)
-        return;
+bool Terrain::save() {
+    if (!editable || !Game::writeEnabled)
+        return false;
     refreshPatchBounds(true);
     QString path = Game::root + "/routes/" + Game::route + "/" + TileDir[(int)lowTile] + "/";
     QString filename = name;
+    QString previousMaterialReference;
+    if (!saveProceduralBake()) return false;
+    if (!saveProceduralMap(path,previousMaterialReference)) {
+        proceduralSaveFailed();
+        tfile->sampleMaterialBuffer=previousMaterialReference;
+        return false;
+    }
     if(this->tfile->sampleYbuffer == NULL)
         this->tfile->sampleYbuffer = new QString(filename + "_y.raw");
     saveRAW(path + *this->tfile->sampleYbuffer );
@@ -3537,7 +3653,13 @@ void Terrain::save() {
         saveF(path + *this->tfile->sampleFbuffer);
     }
     qDebug() << "writing t start";
-    this->tfile->save(path + filename + ".t");
+    if (!this->tfile->save(path + filename + ".t")) {
+        proceduralSaveFailed();
+        tfile->sampleMaterialBuffer = previousMaterialReference;
+        qWarning() << "Terrain descriptor save failed; keeping edits dirty" << name;
+        return false;
+    }
+    proceduralSaveCompleted();
     qDebug() << "writing t end";
     int patches = tfile->patchsetNpatches;
     for (int u = 0; u < patches; u++)
@@ -3547,6 +3669,7 @@ void Terrain::save() {
             TexLib::save("ace", TexLib::mtex[texid[y * patches + u]]->pathid, texid[y * patches + u]);
             this->texModified[y * patches + u] = false;
         }
+    return true;
 }
 
 void Terrain::saveRAW(QString name) {

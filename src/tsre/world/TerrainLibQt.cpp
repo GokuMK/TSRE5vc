@@ -227,8 +227,8 @@ void TerrainLibQt::save() {
         Terrain* tTile = (Terrain*) i.value()->t;
         if (tTile == NULL) continue;
         if (tTile->loaded && tTile->isModified()) {
-            tTile->save();
-            tTile->setModified(false);
+            if (tTile->save())
+                tTile->setModified(false);
         }
     }
     qDebug() << "save lo terrain";
@@ -239,8 +239,8 @@ void TerrainLibQt::save() {
         Terrain* tTile = (Terrain*) i2.value()->t;
         if (tTile == NULL) continue;
         if (tTile->loaded && tTile->isModified()) {
-            tTile->save();
-            tTile->setModified(false);
+            if (tTile->save())
+                tTile->setModified(false);
         }
     }
 }
@@ -776,6 +776,7 @@ int TerrainLibQt::getTexture(int x, int z, float* p) {
 }
 
 void TerrainLibQt::paintTexture(Brush* brush, int x, int z, float* p) {
+    if (!Game::writeEnabled) return;
     float posx = p[0];
     float posz = p[2];
     Game::check_coords(x, z, posx, posz);
@@ -1483,18 +1484,16 @@ void TerrainLibQt::pushRenderItems(float * playerT, float* playerW, float* targe
         return;
     
     QHashIterator<unsigned int, TerrainInfo*> i(terrainQt);
-    /*while (i.hasNext()) {
+    // Gather retains Terrain objects; still release their derived textures when
+    // outside the tile region. No render item from this pass references these tiles.
+    while (i.hasNext()) {
         i.next();
         if (i.value() == NULL) continue;
         Terrain* obj = (Terrain*) i.value()->t;
         if(obj == NULL) continue;
-        if(!obj->inUse && obj->loaded && !obj->isModified() && !obj->isSelected()){
-           delete obj;
-           i.value()->t = NULL;
-       } else {
-           obj->inUse = false;
-       }
-    }*/
+        if (!rendered.contains(obj->name)) obj->releaseProceduralTextures();
+        obj->inUse = false;
+    }
 }
 
 void TerrainLibQt::render(GLUU *gluu, float * playerT, float* playerW, float* target, float fov, int renderMode) {
@@ -1548,6 +1547,8 @@ void TerrainLibQt::render(GLUU *gluu, float * playerT, float* playerW, float* ta
         if (i.value() == NULL) continue;
         Terrain* obj = (Terrain*) i.value()->t;
         if(obj == NULL) continue;
+        // Dirty/selected tiles keep edit data, not their derived texture cache.
+        if (!rendered.contains(obj->name)) obj->releaseProceduralTextures();
         if(!obj->inUse && obj->loaded && !obj->isModified() && !obj->isSelected()){
            delete obj;
            i.value()->t = NULL;
@@ -1609,6 +1610,8 @@ void TerrainLibQt::renderLo(GLUU *gluu, float * playerT, float* playerW, float* 
     while (i.hasNext()) {
         i.next();
         if (i.value() == NULL) continue;
+        if (renderMode != gluu->RENDER_SELECTION && !i.value()->rendered && i.value()->t)
+            i.value()->t->releaseProceduralTextures();
         i.value()->rendered = false;
     }
 }

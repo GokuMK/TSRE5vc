@@ -10,9 +10,12 @@
 
 #ifndef BRUSH_H
 #define	BRUSH_H
+#include <QString>
+#include <memory>
 
 class Texture;
 class QImage;
+struct TerrainMaterialSource;
 
 class Brush {
 public:
@@ -35,6 +38,13 @@ public:
     bool useTexture = false;
     int color[3];
     int texId = -1;
+    // Exact picked terrain shader identity, ignored after choosing another texture.
+    QString terrainShaderKey;
+    bool terrainShaderIsBake = false;
+    int terrainShaderTextureId = -1;
+    int terrainPickedShaderId = -1;
+    QString terrainShaderTile;
+    std::shared_ptr<const TerrainMaterialSource> terrainShaderSource;
     // universal
     int size = 10;
     float scale = 1;

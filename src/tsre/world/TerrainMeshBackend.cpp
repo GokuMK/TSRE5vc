@@ -219,6 +219,11 @@ TerrainPatchGpuParams TerrainMeshPaged::terrainParams(const Terrain &terrain,
     params.uvAndOriginZ[2] = terrain.tfile->patchValue(
                 patchId, TFile::PatchField::TextureY);
     params.uvAndOriginZ[3] = row * terrain.gridLayout.patchWorldSize;
+    if (terrain.rendersProceduralMaterial()) {
+        params.uvAndOriginX[0] = params.uvAndOriginZ[1] = 1.0f/terrain.gridLayout.patchResolution;
+        params.uvAndOriginX[1] = params.uvAndOriginX[2] = 0;
+        params.uvAndOriginZ[0] = params.uvAndOriginZ[2] = 0;
+    }
     return params;
 }
 

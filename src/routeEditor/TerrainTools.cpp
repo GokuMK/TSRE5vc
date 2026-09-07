@@ -62,11 +62,22 @@ TerrainTools::TerrainTools(QString name)
         buttonTools["paintToolColor"] = new QPushButton("Color", this);
         buttonTools["paintToolTexture"] = new QPushButton("Texture", this);
         buttonTools["lockTexTool"] = new QPushButton("Lock", this);
+        buttonTools["proceduralPaintTextureTool"] = new QPushButton("Texture", this);
+        buttonTools["proceduralFillPatchTool"] = new QPushButton("Fill Patch", this);
+        buttonTools["proceduralFillTool"] = new QPushButton("Fill", this);
+        buttonTools["paintToolColor"]->setToolTip("Paint static textures only; procedural tiles are ignored.");
+        buttonTools["paintToolTexture"]->setToolTip("Paint static textures only; procedural tiles are ignored.");
+        buttonTools["lockTexTool"]->setToolTip("Toggle patch texture lock. Applies to both static and procedural painting and fills.");
+        buttonTools["proceduralPaintTextureTool"]->setToolTip("Paint shader IDs on procedural tiles using the selected texture and brush mask. No Undo in this demo.");
+        buttonTools["proceduralFillPatchTool"]->setToolTip("Replace every shader ID in the clicked unlocked procedural patch. Ignores brush size/mask. No Undo in this demo.");
+        buttonTools["proceduralFillTool"]->setToolTip("Fill the four-connected region matching the clicked shader ID, within this tile. Locked patches are barriers. Ignores brush size/mask. No Undo in this demo.");
     }
+    buttonTools["putTerrainTexTool"]->setToolTip("Set the material of a static patch; procedural tiles are ignored.");
     QMapIterator<QString, QPushButton*> i(buttonTools);
     while (i.hasNext()) {
         i.next();
         i.value()->setCheckable(true);
+        i.value()->setObjectName(i.key());
     }
     
     QPushButton *loadTerrainTexTool = new QPushButton("Load...", this);
@@ -95,16 +106,18 @@ TerrainTools::TerrainTools(QString name)
     vlist0->setSpacing(2);
     vlist0->setContentsMargins(3,0,1,0);    
     row = 0;
-    vlist0->addWidget(buttonTools["paintToolColor"],row,0);
-    vlist0->addWidget(buttonTools["paintToolTexture"],row,1);
-    vlist0->addWidget(buttonTools["lockTexTool"],row++,2);
+    if (Game::serverClient == nullptr) {
+        vlist0->addWidget(buttonTools["paintToolColor"],row,0);
+        vlist0->addWidget(buttonTools["paintToolTexture"],row,1);
+    }
+    vlist0->addWidget(buttonTools["putTerrainTexTool"],row++,2);
     
     QGridLayout *vlist1 = new QGridLayout;
     vlist1->setSpacing(2);
     vlist1->setContentsMargins(3,0,1,0);    
     row = 0;
     vlist1->addWidget(buttonTools["pickTerrainTexTool"],row,0);
-    vlist1->addWidget(buttonTools["putTerrainTexTool"],row,1);
+    if (Game::serverClient == nullptr) vlist1->addWidget(buttonTools["lockTexTool"],row,1);
     vlist1->addWidget(loadTerrainTexTool,row,2);
     
     colorw = new QPushButton("#000000", this);
@@ -125,15 +138,49 @@ TerrainTools::TerrainTools(QString name)
     label0->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     vbox->addWidget(label0);
     vbox->addItem(vlist4);*/
-    if(Game::serverClient == NULL){
-        label0 = new QLabel("Paint Texture:");
+    {
+        label0 = new QLabel("Static textures:");
         label0->setContentsMargins(3,0,0,0);
         label0->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
         vbox->addWidget(label0);
         vbox->addItem(vlist0);
     }
 
-    label0 = new QLabel("Texture:");
+    label0 = new QLabel("Shared texture tools:");
+    if (Game::serverClient == nullptr) {
+        auto *heading = new QLabel("Procedural Materials (experimental):");
+        heading->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
+        vbox->addWidget(heading);
+        const QStringList names {"proceduralTileEnableTool", "proceduralTileDisableTool"};
+        const QStringList captions {"Make tile use procedural material", "Make tile use static textures"};
+        for (int i=0; i<names.size(); ++i) {
+            auto *button = new QPushButton(captions[i],this);
+            button->setCheckable(true);
+            button->setToolTip("Select this tool, then click a terrain tile. Save generates one baked tile ACE for static/distant rendering. Save current procedural edits before switching to static textures; the bake is kept. Source shaders are retained. No Undo for procedural painting/toggles.");
+            buttonTools[names[i]] = button;
+            connect(button,&QPushButton::clicked,this,[this,tool=names[i]](bool checked) {
+                emit enableTool(checked ? tool : QString());
+            });
+            vbox->addWidget(button);
+        }
+        auto *painting = new QHBoxLayout;
+        painting->setSpacing(2);
+        painting->setContentsMargins(3,0,1,0);
+        for (const QString &tool : {QStringLiteral("proceduralPaintTextureTool"),
+                                   QStringLiteral("proceduralFillPatchTool"),
+                                   QStringLiteral("proceduralFillTool")}) {
+            QPushButton *button=buttonTools[tool];
+            painting->addWidget(button);
+            connect(button,&QPushButton::clicked,this,[this,tool](bool checked) {
+                if (checked) {
+                    paintBrush->useTexture=true;
+                    emit setPaintBrush(paintBrush);
+                }
+                emit enableTool(checked ? tool : QString());
+            });
+        }
+        vbox->addLayout(painting);
+    }
     label0->setContentsMargins(3,0,0,0);
     label0->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     vbox->addWidget(label0);
@@ -502,6 +549,8 @@ void TerrainTools::setTexToolEnabled(){
 
         int tid = TexLib::addTex(filename);
         this->paintBrush->texId = tid;
+        this->paintBrush->terrainShaderKey.clear();
+        this->paintBrush->terrainShaderSource.reset();
         this->paintBrush->tex = TexLib::mtex[tid];
 
         texLastItems.push_back(qMakePair(this->paintBrush->texId, this->paintBrush->tex));
@@ -619,6 +668,8 @@ void TerrainTools::setEradius(QString val){
 //
 
 void TerrainTools::setBrushTextureId(int val){
+    paintBrush->terrainShaderKey.clear();
+    paintBrush->terrainShaderSource.reset();
     emit setPaintBrush(this->paintBrush);
     if(val < 0) return;
     if(TexLib::mtex[val] == NULL) return;
@@ -665,6 +716,8 @@ void TerrainTools::updateTexPrev(){
 }
 
 void TerrainTools::texPreviewEnabled(int val){
+    paintBrush->terrainShaderKey.clear();
+    paintBrush->terrainShaderSource.reset();
     qDebug() << val;
     if(val == 6){
         nextBrushShape();

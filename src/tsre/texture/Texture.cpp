@@ -369,6 +369,10 @@ static bool decodeCompressedToImageData(Texture *texture) {
 Texture::Texture() {
 }
 
+bool Texture::decodeToCpu() {
+    return imageData != nullptr || (!compressedData.isEmpty() && decodeCompressedToImageData(this));
+}
+
 Texture::Texture(QString pathid) {
     this->pathid = pathid;
     this->hashid.push_back(pathid);

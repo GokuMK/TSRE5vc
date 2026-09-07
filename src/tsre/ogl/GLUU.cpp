@@ -130,6 +130,7 @@ void GLUU::initShader() {
         currentShader->shaderSpecularColor = currentShader->uniformLocation("specularColor");
         currentShader->shaderLightDirection = currentShader->uniformLocation("lightDirection");
         currentShader->shaderSecondTexEnabled = currentShader->uniformLocation("secondTexEnabled");
+        currentShader->terrainTextureRemap = currentShader->uniformLocation("terrainTextureRemap");
         currentShader->shaderShadowsEnabled = currentShader->uniformLocation("shadowsEnabled");
         currentShader->shaderBrightness = currentShader->uniformLocation("colorBrightness");
         currentShader->shaderFogDensity = currentShader->uniformLocation("fogDensity");
@@ -210,6 +211,7 @@ void GLUU::setMatrixUniforms() {
     currentShader->setUniformValue(currentShader->shaderTextureEnabled, 1.0f);
     currentShader->setUniformValue(currentShader->shaderEnableNormals, 1.0f);
     currentShader->setUniformValue(currentShader->shaderSecondTexEnabled, 0.0f);
+    currentShader->setUniformValue(currentShader->terrainTextureRemap, QVector3D());
     currentShader->setUniformValue(currentShader->shaderShadowsEnabled, Game::shadowsEnabled);
     currentShader->setUniformValue(currentShader->shaderBrightness, currentBrightness);
     currentShader->setUniformValue(currentShader->shaderFogDensity, fogDensity);

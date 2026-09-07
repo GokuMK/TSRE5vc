@@ -323,6 +323,29 @@ void Route::setAsCurrentGameRoute(){
 }
 
 void Route::mergeRoute(QString route2Name, float offsetX, float offsetY, float offsetZ){
+    // The experimental ID plane has no route-merge remapping yet. Refuse before
+    // touching either TDB or world objects, not midway through terrain copying.
+    bool proceduralTerrain = false;
+    for (const QString &routeName : {Game::route, route2Name}) {
+        for (const QString &tilesDir : {QString("tiles"),QString("lo_tiles")}) {
+            const QDir directory(Game::root+"/routes/"+routeName+"/"+tilesDir);
+            proceduralTerrain |= !directory.entryList({"*.pmap"},QDir::Files).isEmpty();
+        }
+    }
+    // Also catch an enabled-but-not-yet-saved tile in the current editor session.
+    for (Tile *worldTile : tile) {
+        if (!worldTile || !terrainLib) continue;
+        Terrain *terrain = terrainLib->getTerrainByXY(worldTile->x,worldTile->z,false);
+        if (terrain && terrain->usesProceduralMaterial()) { proceduralTerrain=true; break; }
+    }
+    if (proceduralTerrain) {
+        const QString message = "Route merge is unavailable for the procedural terrain demo. "
+                "This conservative check also includes retained .pmap sidecars. "
+                "Use a separate static-only copy for merging.";
+        qWarning().noquote() << message;
+        QMessageBox::warning(nullptr,"Procedural terrain",message);
+        return;
+    }
     QProgressDialog *progress = NULL;
     bool gui = true;
     

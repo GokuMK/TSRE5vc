@@ -53,6 +53,7 @@
 #include <tsre/tests/TerrainBrushBenchmark.h>
 #include <tsre/tests/TerrainBrushTestSuite.h>
 #include <tsre/tests/TerrainNormalTestSuite.h>
+#include <tsre/tests/TerrainMaterialTestSuite.h>
 #include <tsre/texture/Brush.h>
 #include <tsre/world/TerrainActionRaster.h>
 #include <tsre/world/Terrain.h>
@@ -3125,7 +3126,10 @@ QStringList TsreTests::listSuites() {
         "terrain-brush-benchmark",
         "terrain-brush",
         "terrain-normals",
-        "terrain-normal-benchmark"
+        "terrain-normal-benchmark",
+        "terrain-material",
+        "terrain-material-gl",
+        "terrain-material-benchmark"
     };
 }
 
@@ -3185,6 +3189,11 @@ int TsreTests::run(const TestRunOptions &opts) {
     if (suite == "terrain-normal-benchmark")
         return runTerrainNormalBenchmark(opts);
 
+    if (suite == "terrain-material" || suite == "terrain-material-benchmark")
+        return runTerrainMaterialSuite(opts.verbose, suite == "terrain-material-benchmark");
+    if (suite == "terrain-material-gl")
+        return runTerrainMaterialGlSuite();
+
     if (suite == "all") {
         int rc = 0;
         rc = std::max(rc, runFlexSuite(opts.casesFile, opts.verbose));
@@ -3200,6 +3209,7 @@ int TsreTests::run(const TestRunOptions &opts) {
         rc = std::max(rc, runTerrainEdgeSuite(opts.verbose));
         rc = std::max(rc, runTerrainBrushSuite(opts.verbose));
         rc = std::max(rc, runTerrainNormalSuite(opts.verbose));
+        rc = std::max(rc, runTerrainMaterialSuite(opts.verbose));
         return rc;
     }
 

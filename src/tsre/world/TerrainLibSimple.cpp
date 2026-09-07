@@ -151,8 +151,8 @@ void TerrainLibSimple::save(){
         Terrain* tTile = (Terrain*) it->second;
         if (tTile == NULL) continue;
         if (tTile->loaded && tTile->isModified()) {
-            tTile->save();
-            tTile->setModified(false);
+            if (tTile->save())
+                tTile->setModified(false);
         }
     }
 }
@@ -1069,6 +1069,7 @@ void TerrainLibSimple::render(GLUU *gluu, float * playerT, float* playerW, float
         //console.log(obj.type);
         Terrain* obj = (Terrain*) it->second;
         if(obj == NULL) continue;
+        if (!obj->inUse) obj->releaseProceduralTextures();
         if(!obj->inUse && obj->loaded && !obj->isModified() && !obj->isSelected()){
            //console.log("a"+this.tile[key]);
            delete obj;
