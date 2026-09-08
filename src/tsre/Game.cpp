@@ -19,6 +19,7 @@
 #include <QNetworkAccessManager>
 #include <QNetworkRequest>
 #include <QNetworkReply>
+#include <QTemporaryDir>
 //#include <QUrl>
 //#include <QUrlQuery>
 //#include <routeEditor/RouteEditorWindow.h>
@@ -49,7 +50,7 @@ TerrainLib *Game::terrainLib = NULL;
 bool Game::UseWorkingDir = false;
 QString Game::AppName = "TSRE5";
 QString Game::AppVersion = "v" TSRE5_VERSION;
-QString Game::AppDataVersion = "0.697";
+QString Game::AppDataVersion = "0.7";
 bool Game::caseInsensitiveFS = true;
 QString Game::root = "C:/tsdata/Train Simulator/";
 QString Game::route = "bbb1";
@@ -428,9 +429,56 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
     boolean("core.advanced.ignoreMissingGlobalShapes", ignoreMissingGlobalShapes);
 }
 
+namespace {
+bool downloadResourceDirectory(const QString &parent, const QString &name) {
+    const QString target=QDir(parent).absoluteFilePath(name);
+    if (QFileInfo::exists(target)) return QDir(target).exists();
+    if (!QDir().mkpath(parent)) return false;
+    const QUrl url("https://koniec.org/tsre5/data/appdata/"+name+".tar");
+    qInfo() << "Downloading optional/missing resources" << url;
+    QNetworkAccessManager manager;
+    QNetworkRequest request(url);
+    request.setTransferTimeout(30000);
+    QNetworkReply *reply=manager.get(request);
+    QEventLoop loop;
+    QObject::connect(reply,&QNetworkReply::finished,&loop,&QEventLoop::quit);
+    loop.exec();
+    if (reply->error()!=QNetworkReply::NoError) {
+        qWarning() << "Resource download failed:" << url << reply->errorString();
+        return false;
+    }
+    const QByteArray archive=reply->readAll();
+    if (archive.size()<1024 || archive.size()%512 || archive.size()>64*1024*1024) {
+        qWarning() << "Invalid resource archive length" << url << archive.size();
+        return false;
+    }
+    QTemporaryDir staging(QDir(parent).filePath(".download-XXXXXX"));
+    if (!staging.isValid()) {
+        qWarning() << "Cannot stage resource download" << parent << staging.errorString();
+        return false;
+    }
+    auto *bytes=new unsigned char[archive.size()];
+    std::copy(archive.constData(),archive.constData()+archive.size(),bytes);
+    TarFile tar(new FileBuffer(bytes,archive.size()),false);
+    if (!tar.extractResourceTo(staging.path(),name)) {
+        qWarning() << "Invalid or unwritable resource archive" << url;
+        return false;
+    }
+    // Same-filesystem rename installs only a completed directory. Never replace
+    // an existing local directory, including one created while we downloaded.
+    const QString stagedRoot=QDir(staging.path()).absoluteFilePath(name);
+    if (QFileInfo::exists(target) || !QDir().rename(stagedRoot,target)) {
+        qWarning() << "Cannot install staged resource directory" << stagedRoot << target
+                   << "source exists" << QDir(stagedRoot).exists() << "target exists" << QFileInfo::exists(target);
+        return false;
+    }
+    qInfo() << "Installed resource directory" << target;
+    return true;
+}
+}
+
 void Game::InitAssets() {
     QString path;
-    bool newInstallation = false;
     path = "./assets/";
     QFile appFile3(path);
     if (!appFile3.exists()){
@@ -441,7 +489,6 @@ void Game::InitAssets() {
     
     QFile appFile1(path);
     if (!appFile1.exists()){
-        newInstallation = true;
         QMessageBox msgBox;
         msgBox.setWindowTitle("TSRE");
         msgBox.setText("Welcome in TSRE!\n\nThis is experimental version.\nUsing it may seriously damage your data."
@@ -453,14 +500,29 @@ void Game::InitAssets() {
     
     path += Game::AppDataVersion;
     
-    QFile appFile2(path);
-    if (!appFile2.exists()){
+    if (!QDir(path).exists()){
         qDebug() << "no appdata";
         DownloadAppData(path);
     }
-    if (!appFile2.exists()){
+    if (!QDir(path).exists()){
         qDebug() << "appdata failed to load";
         return;
+    }
+    if (!downloadResourceDirectory("./assets", "procedural_examples"))
+        qWarning() << "Procedural examples unavailable; continuing startup. Will retry if still missing next time.";
+    // Bundled appdata no longer goes through DownloadAppData. Keep the optional
+    // launchers available on both installation paths without replacing user edits.
+    const QString executable=QFileInfo(QCoreApplication::applicationFilePath()).fileName();
+    for (const auto &launcher : {qMakePair(QString("ConsistEditor.bat"),QString(" --conedit")),
+                                 qMakePair(QString("ShapeViewer.bat"),QString(" --shapeview"))}) {
+        QFile file(launcher.first);
+        if (file.exists()) continue;
+        if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            qWarning() << "Failed to create" << launcher.first;
+            continue;
+        }
+        QTextStream out(&file);
+        out << '"' << executable << '"' << launcher.second << '\n';
     }
 }
 
@@ -1151,49 +1213,6 @@ void Game::CheckForOpenAl(){
 }
 
 void Game::DownloadAppData(QString path){
-    QDir().mkdir(path);
-    
-    // Download and extract AppData
-    QNetworkAccessManager* mgr = new QNetworkAccessManager();
-    qDebug() << "Wait ..";
-    QString Url = "http://koniec.org/tsre5/data/appdata/"+ Game::AppDataVersion + ".tar";
-    qDebug() << Url;
-    QNetworkRequest req;//(QUrl(Url));
-    req.setUrl(QUrl(Url));
-    qDebug() << req.url();
-    QNetworkReply* r = mgr->get(req);
-    QEventLoop loop;
-    QObject::connect(r, SIGNAL(finished()), &loop, SLOT(quit()));
-    loop.exec();
-    
-    qDebug() << "Network Reply Loop End";
-    QByteArray data = r->readAll();
-    FileBuffer *fileData = new FileBuffer((unsigned char*)data.data(), data.length());
-    TarFile tarFile(fileData);
-    tarFile.extractTo("./appdata/");
-
-    QTextStream out;
-    // Create bat file for Consist Editor.
-    QString conBatFile = QFileInfo(QCoreApplication::applicationFilePath()).fileName()+" --conedit";
-    QFile file1("./ConsistEditor.bat");
-    if(file1.open(QIODevice::WriteOnly | QIODevice::Text)){
-        out.setDevice(&file1);
-        out << conBatFile;
-        out.flush();
-        file1.close();
-    } else {
-        qDebug() << "Failed to create ConsistEditor.bat";
-    }
-    
-    // Create bat file for Shape Viewer.
-    conBatFile = QFileInfo(QCoreApplication::applicationFilePath()).fileName()+" --shapeview";
-    QFile file2("./ShapeViewer.bat");
-    if(file2.open(QIODevice::WriteOnly | QIODevice::Text)){
-        out.setDevice(&file2);
-        out << conBatFile;
-        out.flush();
-        file2.close();
-    } else {
-        qDebug() << "Failed to create ShapeViewer.bat";
-    }
+    if (!downloadResourceDirectory("./appdata",Game::AppDataVersion) || !QDir(path).exists())
+        qWarning() << "Appdata archive did not provide" << path;
 }

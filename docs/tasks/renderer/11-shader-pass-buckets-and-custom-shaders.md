@@ -16,7 +16,7 @@ Split gather rendering into shader-specific passes so we do not run one large sh
 - `src/tsre/renderer/OpenGL3Renderer.cpp`
 - `src/routeEditor/RouteEditorGLWidget.cpp`
 - Gather producers in world/terrain/overlay paths that should set shader pass hints
-- `appdata/0.697/shaders/*` (new shader files or minimal variants)
+- `appdata/0.7/shaders/*` (new shader files or minimal variants)
 
 ## Requirements
 - Preserve runtime switch safety between legacy and gather.

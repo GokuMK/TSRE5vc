@@ -7,6 +7,14 @@ This is my TSRE5 project ported from Qt5 to Qt6 and from Makefile + Netbeans to 
 Netbeans version here:
 https://github.com/GokuMK/TSRE5
 
+GitHub release ZIPs include the matching runtime resources in `appdata/0.7/`.
+Extract the full ZIP when updating so shaders stay in sync with the executable.
+`appdata/` is version-controlled; `assets/` contains local, untracked content and
+is not included in releases. Online appdata download remains a fallback if
+`appdata/0.7/` is missing. On first startup, procedural examples are downloaded
+into `assets/procedural_examples/` if absent; they are not enabled automatically.
+See [release packaging](docs/development/releases.md).
+
 See more:
 
 Route Editor: 

@@ -68,9 +68,9 @@ TerrainTools::TerrainTools(QString name)
         buttonTools["paintToolColor"]->setToolTip("Paint static textures only; procedural tiles are ignored.");
         buttonTools["paintToolTexture"]->setToolTip("Paint static textures only; procedural tiles are ignored.");
         buttonTools["lockTexTool"]->setToolTip("Toggle patch texture lock. Applies to both static and procedural painting and fills.");
-        buttonTools["proceduralPaintTextureTool"]->setToolTip("Paint shader IDs on procedural tiles using the selected texture and brush mask. No Undo in this demo.");
-        buttonTools["proceduralFillPatchTool"]->setToolTip("Replace every shader ID in the clicked unlocked procedural patch. Ignores brush size/mask. No Undo in this demo.");
-        buttonTools["proceduralFillTool"]->setToolTip("Fill the four-connected region matching the clicked shader ID, within this tile. Locked patches are barriers. Ignores brush size/mask. No Undo in this demo.");
+        buttonTools["proceduralPaintTextureTool"]->setToolTip("Paint shader IDs on procedural tiles using the selected texture and brush mask. Undo groups long strokes into two-second actions.");
+        buttonTools["proceduralFillPatchTool"]->setToolTip("Replace every shader ID in the clicked unlocked procedural patch. Ignores brush size/mask. Supports Undo.");
+        buttonTools["proceduralFillTool"]->setToolTip("Fill the four-connected region matching the clicked shader ID, within this tile. Locked patches are barriers. Ignores brush size/mask. Supports Undo.");
     }
     buttonTools["putTerrainTexTool"]->setToolTip("Set the material of a static patch; procedural tiles are ignored.");
     QMapIterator<QString, QPushButton*> i(buttonTools);
@@ -156,7 +156,7 @@ TerrainTools::TerrainTools(QString name)
         for (int i=0; i<names.size(); ++i) {
             auto *button = new QPushButton(captions[i],this);
             button->setCheckable(true);
-            button->setToolTip("Select this tool, then click a terrain tile. Save generates one baked tile ACE for static/distant rendering. Save current procedural edits before switching to static textures; the bake is kept. Source shaders are retained. No Undo for procedural painting/toggles.");
+            button->setToolTip("Select this tool, then click a terrain tile. Save generates one baked tile ACE for static/distant rendering. Save current procedural edits before switching to static textures; the bake is kept. Source shaders are retained. Supports Undo.");
             buttonTools[names[i]] = button;
             connect(button,&QPushButton::clicked,this,[this,tool=names[i]](bool checked) {
                 emit enableTool(checked ? tool : QString());

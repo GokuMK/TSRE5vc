@@ -40,6 +40,9 @@ public:
     TarFile(FileBuffer *oData, bool copy = true);
     TarFile(const TarFile& orig);
     bool extractTo(QString destination);
+    // Confined resource download extraction: regular files/directories only,
+    // all beneath requiredRoot. Unlike the legacy path, checks every write.
+    bool extractResourceTo(const QString &destination, const QString &requiredRoot);
     virtual ~TarFile();
 private:
     QString filePath;

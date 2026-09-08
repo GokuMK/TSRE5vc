@@ -5,8 +5,15 @@ Stage B remains a design only. The user approved a small checked RGB ACE writer
 addition for A; the future replacement ACE class is not a prerequisite.
 
 2026-09-08 ACE integration update: the replacement is now implemented.
-Baking calls `AceLib::save(target, image, options, error)` with explicit RGB
-options; CPU source/baked-file loading uses `AceLib::load` without mip staging.
+Baking now uses the new ACE document API with opaque DXT1 output (follow-up below);
+CPU source/baked-file loading uses `AceLib::load` without mip staging.
+
+Compatibility finding: TSRE v0.7.620 rejects these valid no-mipmap DXT1 bakes
+because its legacy reader assumes a full mip-offset table. Older unchecked
+readers may display plausible but shifted block data. This is documented as a
+[legacy reader bug](../../features/ace-library.md#legacy-tsre-bug-dxt1-ace-without-mipmaps),
+including reproduction details and the measured cost of the optional full-mip
+workaround. Updating the reader/build is the proper fix; bakes remain mip-free.
 The temporary `saveRgbChecked` exists only in `AceLibLegacy`. See the
 [ACE library API](../../features/ace-library.md). Earlier verification and
 interactive-lag observations below remain historical evidence, not new timing
@@ -19,7 +26,7 @@ Related: [current procedural demo](terrain-procedural-materials.md),
 
 ## A: requested outcome
 
-Current implementation verified: **398 CPU checks, 0 failures**, and the
+Pre-DXT1 detail-distance milestone: **398 CPU checks, 0 failures**, and the
 offscreen OpenGL suite passes. Six loaded tiles exercise saturation/retry beyond
 the four-job cap without rendering; baked GPU uploads occur before visible-patch
 requests, preserve texture binding state, share identical outputs and release on
@@ -50,7 +57,7 @@ are retained in `AceLibLegacy`; production now uses the new API described above,
 including CPU-only loading for incremental-save bake reads. No background
 resizing of old bakes.
 
-On saving a procedural terrain tile, generate one opaque **512 x 512 RGB ACE**
+On saving a procedural terrain tile, generate one opaque **1024 x 1024 DXT1 ACE**
 texture covering the complete physical terrain tile. Every patch uses the same
 ordinary terrain material and a different part of that image, as with Make
 Texture From Map. This provides a standard-texture fallback for legacy readers
@@ -64,12 +71,13 @@ Keep original source assets; A does not authorize deleting a route's old ACEs.
 The texture covers a terrain tile, not a 2048 m World-file cell. Larger terrain
 tiles still receive one image; W-file ownership and coordinates remain unchanged.
 Keep the existing 4096-square ID map and 512-square near-patch output settings
-independent from this 512-square baked output setting. The bake was initially
-2048-square; it was reduced after isolated non-mipmapped uploads took 30–53 ms.
-Old 2048 bakes are not resampled or used: the loader requires the current size.
+independent from the now 1024-square baked output setting. The bake was initially
+2048-square; it was reduced to 512 after isolated non-mipmapped uploads took
+30–53 ms, then increased to 1024 after DXT1 baking was implemented.
+Old 512/2048 bakes are not resampled or used: the loader requires the current size.
 The loader rejects old-size bakes: save the tile once to generate
-the new 512 ACE and restore normal near/far selection. No route files are changed
-merely by loading them. The runtime upload is 0.75 MiB RGB, 1/16 of the old payload;
+the new 1024 ACE and restore normal near/far selection. No route files are changed
+merely by loading them. The runtime upload is 3 MiB RGB;
 near patch quality and the stored ID map are unchanged. The coarse fallback and
 legacy-reader appearance lose detail; verify this tradeoff interactively.
 
@@ -447,7 +455,7 @@ For either option, the baked draw material remains a normal standard material.
 Only after sources no longer depend on `TFile::materials` can B reduce that table
 to the baked draw entry/pair alone. Legacy fallback must not depend on the catalogue.
 
-## Acceptance and decisions before implementing A
+## Historical acceptance and decisions before implementing A
 
 - Confirmed design choices: material 0 reserved at procedural conversion, sources
   shifted by one; current-save prerequisite for disable; image reduction; A1 and
@@ -677,3 +685,72 @@ texture quality is reduced. See the [ACE library verification](../../features/ac
 for commands, logs and the separate standalone DXT3 GPU-readback discrepancy
 on this Windows/AMD host. These results do not remeasure the historical save
 timings above or repeat the MSRE experiments.
+
+### Opaque DXT1 baked fallback (2026-09-08)
+
+At the initial DXT1 milestone, 512x512 tile bakes used `AceEncoding::Dxt1`, with no alpha, authored
+mipmaps or SIMISA zlib envelope. The BC1 image payload is **131,072 bytes
+(128 KiB)** instead of 786,432 bytes (768 KiB) for RGB, plus a small ACE header.
+This is lossy texture compression, not lossless packing of the previous RGB.
+The standard shader, tile-wide UVs, microtex, near/far distance and disable
+behavior are unchanged. MSRE compatibility tests from the ACE library remain
+separate evidence; this change does not claim a fresh interactive MSRE test.
+
+Encoding is part of the small bake-settings key. Previously saved RGB bakes
+remain loadable as fallbacks and are upgraded on the next actual terrain save
+that checks/rebuilds the bake; route load does not modify files or mark every
+old tile for unsolicited saving. Unchanged saves of a current DXT1 bake do not
+rewrite it or rotate backups. The decoder continues to require the current
+bake dimensions and still does not resample old 2048 images.
+
+Assembly and DXT1 encoding run in the existing worker pool. Save waits for that
+work, then synchronously performs the checked ACE write and existing `.bk` /
+map / descriptor transaction: this is not background route saving. Initial
+encoding uses the new ACE document API. Incremental saves preserve old BC1
+blocks outside the dirty patches and their existing sampling halos, rather than
+re-encoding those blocks from a previously decompressed base. All current
+P4/P8/P16/P32 miniature edges align to 4x4 blocks. A full rebake, old RGB bake
+or incompatible previous document follows the full-encoding path. This avoids
+cumulative colour drift in unchanged regions after eviction/reload, while
+retaining the one-patch save optimization.
+
+This follow-up changes the **saved encoding**, not the owned procedural bake
+prefetch/cache representation: that path still decodes on its worker, keeps an
+RGB CPU base for incremental assembly and uploads RGB without mipmaps. No extra
+VRAM reduction is claimed for that active procedural fallback cache. Ordinary
+static texture loading can use the ACE loader's compressed GPU upload path.
+
+New checks inspect opaque DXT1 headers, dimensions, single-level block payload
+and file size at P4/P8/P16/P32. Existing tests cover legacy RGB bases, shared
+fallback loading, source refresh, no-op saves, disabling, migration and failed
+save rollback. A valid noncanonical compressed block in an untouched patch is
+verified byte-for-byte across three edit/save/reload cycles to detect accidental
+lossy recompression. The old source-refresh fixture now explicitly CPU-decodes
+the loaded bake, because a rendering ACE load correctly retains DXT1 blocks.
+
+Verification: Windows Release build, **417 CPU checks in both BC1 and RGB near
+output modes**, and the procedural OpenGL suite pass. RGB near-output mode does
+not change the new on-disk DXT1 bake policy. Logs:
+`build/terrain-material-dxt1-bake-{cpu,rgb,gl}.log`. The user's app log was restored;
+tests operate on temporary routes, not original route data.
+
+### Default bake increased to 1024 (2026-09-08)
+
+`TerrainMaterialMap::BakedSide` is now **1024**; ID maps stay 4096-square and near
+patch output stays 512-square. Opaque DXT1 payload becomes **524,288 bytes
+(512 KiB)** plus the ACE header. The active procedural fallback still uses the
+existing decoded RGB cache/upload path, now 3 MiB rather than 0.75 MiB per unique
+bake; no compressed-GPU-cache optimization or mipmaps are added by this change.
+Miniatures automatically derive their side from `BakedSide / P`: P16 now uses
+64-square miniatures and P32 uses 32-square miniatures.
+
+The existing exact-size loading policy is unchanged: old 512 and 2048 bakes are
+not resized or used by the procedural fallback loader. A successful terrain save
+regenerates them at 1024. Until then detailed procedural generation is the
+fallback, so there may be no baked placeholder during loading. Merely loading a
+route does not rewrite old files. Tests cover both old sizes and regeneration.
+
+Verification at 1024: Release build, **421 CPU checks in both BC1 and RGB near
+output modes**, and the procedural OpenGL suite pass. The incremental-edit
+fixture now derives its probe pixel from bake size instead of assuming 512.
+Logs: `build/terrain-material-1024-bake-{cpu,rgb,gl}.log`; original app log restored.

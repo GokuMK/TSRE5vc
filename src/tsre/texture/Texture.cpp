@@ -167,6 +167,42 @@ bool pixelTransferSucceeded(Texture &texture) {
     return false;
 }
 
+// Read a resident texture into the destination's already allocated CPU pixels.
+// Some AMD drivers expand DXT3 alpha to n*16 in glGetTexImage, while shader
+// sampling correctly uses n*17. Keep rendering compressed; bypass only this
+// readback decompression path. Other GPU formats retain ordinary readback.
+bool readGpuPixels(const Texture &source, Texture &destination) {
+    beginPixelTransfer();
+    PixelRows rows(true);
+    glBindTexture(GL_TEXTURE_2D, source.tex[0]);
+    if (source.gpuInternalFormat != GL_COMPRESSED_RGBA_S3TC_DXT3_EXT) {
+        glGetTexImage(GL_TEXTURE_2D, 0, destination.type, GL_UNSIGNED_BYTE, destination.imageData);
+        return pixelTransferSucceeded(destination);
+    }
+    using ReadCompressed = void (QOPENGLF_APIENTRYP)(GLenum, GLint, void *);
+    const auto readCompressed = reinterpret_cast<ReadCompressed>(
+        QOpenGLContext::currentContext()->getProcAddress("glGetCompressedTexImage"));
+    GLint size = 0;
+    glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_COMPRESSED_IMAGE_SIZE, &size);
+    if (!pixelTransferSucceeded(destination)) return false;
+    const qint64 expected = DxtCodec::byteSize(source.width, source.height, DxtCodec::Format::Dxt3);
+    if (!readCompressed || expected <= 0 || size != expected) {
+        destination.error = true;
+        destination.errorMessage = "Cannot read resident DXT3 blocks: unavailable API or invalid size";
+        return false; // Do not silently fall back to the faulty alpha decompression path.
+    }
+    QByteArray blocks(size, Qt::Uninitialized);
+    readCompressed(GL_TEXTURE_2D, 0, blocks.data());
+    if (!pixelTransferSucceeded(destination)) return false;
+    if (!DxtCodec::decodeInto(blocks, source.width, source.height, DxtCodec::Format::Dxt3,
+                              destination.type == GL_RGBA, destination.imageData,
+                              destination.imageSize, destination.errorMessage)) {
+        destination.error = true;
+        return false;
+    }
+    return true;
+}
+
 } // namespace
 
 Texture::Texture() {}
@@ -230,11 +266,7 @@ Texture::Texture(const Texture *orig) {
         memcpy(imageData, decoded.constData(), imageSize);
     } else if (orig->glLoaded && orig->tex && QOpenGLContext::currentContext()) {
         imageData = new unsigned char[imageSize];
-        beginPixelTransfer();
-        PixelRows rows(true);
-        glBindTexture(GL_TEXTURE_2D, orig->tex[0]);
-        glGetTexImage(GL_TEXTURE_2D, 0, type, GL_UNSIGNED_BYTE, imageData);
-        if (!pixelTransferSucceeded(*this)) {
+        if (!readGpuPixels(*orig, *this)) {
             delete[] imageData;
             imageData = nullptr;
             return;
@@ -261,11 +293,7 @@ void Texture::setEditable() {
         return;
     imageSize = width * height * bytesPerPixel;
     imageData = new unsigned char[imageSize];
-    beginPixelTransfer();
-    PixelRows rows(true);
-    glBindTexture(GL_TEXTURE_2D, tex[0]);
-    glGetTexImage(GL_TEXTURE_2D, 0, type, GL_UNSIGNED_BYTE, imageData);
-    if (!pixelTransferSucceeded(*this)) {
+    if (!readGpuPixels(*this, *this)) {
         delete[] imageData;
         imageData = nullptr;
         return;

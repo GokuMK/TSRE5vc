@@ -3,6 +3,7 @@
 #include <tsre/texture/AceLibLegacy.h>
 #include <tsre/texture/Texture.h>
 #include <tsre/texture/DxtCodec.h>
+#include "AceDxt3Diagnostic.h"
 #include <QGuiApplication>
 #include <QTemporaryDir>
 #include <QFile>
@@ -681,7 +682,8 @@ int main(int argc, char **argv) {
     });
     bool gl = false;
     for (int i = 1; i < argc; ++i)
-        if (QByteArray(argv[i]) == "--gl")
+        if (QByteArray(argv[i]) == "--gl" || QByteArray(argv[i]) == "--gl-dxt3"
+            || QByteArray(argv[i]) == "--bench-readback")
             gl = true;
     if (!gl && !qEnvironmentVariableIsSet("QT_QPA_PLATFORM"))
         qputenv("QT_QPA_PLATFORM", "offscreen");
@@ -689,6 +691,10 @@ int main(int argc, char **argv) {
     const auto args = app.arguments();
     if (args.contains("--self-test"))
         return selfTest();
+    if (args.contains("--gl-dxt3"))
+        return runDxt3Diagnostic();
+    if (args.contains("--bench-readback"))
+        return runReadbackBenchmark();
     if (gl)
         return glTest();
     if (args.size() == 3 && args[1] == "--generate")
@@ -702,7 +708,7 @@ int main(int argc, char **argv) {
     if (args.contains("--bench-write"))
         return benchmarkWrite(args.size() == 3 ? args[2] : QString());
     qInfo()
-        << "--self-test | --gl | --generate NEW_DIRECTORY | --fixture FORMAT SIZE NEW_FILE "
+        << "--self-test | --gl | --gl-dxt3 | --bench-readback | --generate NEW_DIRECTORY | --fixture FORMAT SIZE NEW_FILE "
            "[--mips] [--zlib] | --scan DIRECTORY | --bench [NEW_JSON] | --bench-write [NEW_JSON]";
     return 2;
 }

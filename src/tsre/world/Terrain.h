@@ -31,6 +31,8 @@ class TerrainMeshBackend;
 class TerrainMeshLegacy;
 class TerrainMeshPaged;
 struct TerrainProceduralState;
+struct TerrainMaterialUndo;
+struct UndoSnapshot;
 
 class Terrain : public GameObj {
     Q_OBJECT
@@ -89,6 +91,7 @@ public:
     static void beginProceduralFrame();
     static ProceduralWorkStats proceduralWorkStats();
     bool setProceduralMaterial(bool enabled, QString &error);
+    std::shared_ptr<UndoSnapshot> captureProceduralUndo();
     void rememberProceduralSource(Brush *brush, int x, int z, float posx, float posz);
     // operation: TerrainMaterialMap::TexturePaint / FillPatch / FloodFill.
     void paintProceduralMaterial(Brush *brush, int x, int z, float posx, float posz,
@@ -198,6 +201,8 @@ public slots:
     
 protected:
     std::shared_ptr<TerrainProceduralState> procedural;
+    friend struct TerrainMaterialUndo;
+    quint64 proceduralUndoEpoch = 0;
     void loadProceduralMaterial(const QString &directory);
     // Synchronous mode is retained for CPU tests/save-time diagnostics only.
     int proceduralTexture(int patch, bool background = false);

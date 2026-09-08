@@ -3,6 +3,8 @@
 #include <QCryptographicHash>
 #include <QDataStream>
 #include <QIODevice>
+#include <QSet>
+#include <algorithm>
 
 namespace {
 bool copyShader(const TFile::Mat &from, TerrainMaterialSource::Shader &to) {
@@ -55,4 +57,23 @@ int TerrainMaterialSource::appendTo(TFile &file, QString &error) const {
     file.amaterials.emplace(id,ownedShader(auxiliary));
     ++file.materialsCount;
     return id;
+}
+void TerrainMaterialSource::restorePalette(TFile &file,
+        const QVector<std::shared_ptr<const TerrainMaterialSource>> &palette) {
+    // Legacy shader records can share QString pointers after palette moves.
+    QSet<QString*> strings;
+    for (auto *table : {&file.materials, &file.amaterials}) {
+        for (const auto &entry : *table) {
+            strings.insert(entry.second.name);
+            for (int i=0; i<std::min(2,entry.second.count153); ++i)
+                strings.insert(entry.second.tex[i]);
+        }
+        table->clear();
+    }
+    for (auto *text : strings) delete text;
+    file.materialsCount = palette.size();
+    for (int i=0; i<palette.size(); ++i) {
+        file.materials.emplace(i,ownedShader(palette[i]->normal));
+        file.amaterials.emplace(i,ownedShader(palette[i]->auxiliary));
+    }
 }

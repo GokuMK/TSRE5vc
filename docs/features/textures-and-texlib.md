@@ -101,7 +101,7 @@ Note:
 
 Implications:
 - GPU textures can stay **compressed** for sources that provide compatible blocks (ACE and DDS DXT1/3/5).
-- `editable` becomes `false` after upload (but `setEditable()` can read pixels back from GPU later via `glGetTexImage`).
+- `editable` becomes `false` after upload (but `setEditable()` can read pixels back from GPU later; resident DXT3 uses compressed-byte readback plus CPU decoding, other formats use `glGetTexImage`).
 
 ---
 
@@ -126,9 +126,9 @@ upload and readback require the owning context.
 
 ## 6. Texture Saving (Editor)
 `TexLib::save(type, path, id)` is currently ACE-focused:
-- it ensures the texture is editable (CPU decode, or existing-GPU `glGetTexImage` readback),
+- it ensures the texture is editable (CPU decode, or existing-GPU readback; DXT3 bypasses driver decompression),
 - then calls `AceLib::save(...)` to write RGB or RGBA ACE without mips by default;
-- explicit `AceWriteOptions` select encoding/mips/zlib through the new API. Procedural baking uses the general QImage overload with explicit opaque RGB options.
+- explicit `AceWriteOptions` select encoding/mips/zlib through the new API. Procedural baking now uses the document API with opaque DXT1, preserving unchanged blocks during incremental saves.
 
 This is used by terrain/map-texture workflows; saving other formats is not implemented today.
 

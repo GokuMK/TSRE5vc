@@ -3,6 +3,8 @@
 #include "TerrainMaterialSource.h"
 #include "TerrainMeshBackend.h"
 #include <tsre/Game.h>
+#include <tsre/Undo.h>
+#include <tsre/UndoBuffer.h>
 #include <tsre/texture/Brush.h>
 #include <tsre/texture/Texture.h>
 #include <tsre/texture/TexLib.h>
@@ -107,7 +109,7 @@ QString primaryName(const TFile &file, int id) {
 QString bakeSettingsKey(const TFile &file, const QString &directory, int patches) {
     QByteArray bytes; QDataStream out(&bytes,QIODevice::WriteOnly);
     out << TerrainMaterialMap::Side << TerrainMaterialMap::BakedSide << TerrainMaterialMap::OutputSide
-        << TerrainMaterialMap::SamplingMode << patches;
+        << TerrainMaterialMap::SamplingMode << patches << qint32(AceEncoding::Dxt1);
     for (int id=1;id<file.materialsCount;++id) {
         out << shaderKey(file,id);
         QString path=QDir(directory).filePath(primaryName(file,id));
@@ -520,6 +522,114 @@ struct TerrainProceduralState {
     }
 };
 
+// Only authoritative material state is captured, never generated images, jobs,
+// height bounds or mesh buffers. Shader IDs and UVs must survive mode changes.
+struct TerrainMaterialUndo : UndoSnapshot {
+    QPointer<Terrain> terrain;
+    quint64 epoch = 0;
+    QString root, route, name, reference, bakeInfo;
+    int samples = 0, patches = 0;
+    float spacing = 0;
+    QVector<std::shared_ptr<const TerrainMaterialSource>> palette;
+    QVector<float> uv;
+    bool targetValid() const override {
+        return terrain && terrain->loaded && terrain->tfile
+                && terrain->proceduralUndoEpoch == epoch
+                && Game::root == root && Game::route == route && terrain->name == name
+                && terrain->gridLayout.sampleCount == samples
+                && terrain->gridLayout.patchesPerSide == patches
+                && *terrain->tfile->sampleSize == spacing;
+    }
+    bool restore() override {
+        if (!targetValid() || !Game::writeEnabled || !terrain->editable || Game::serverClient) return false;
+        auto &t = *terrain;
+        if (t.procedural && (!t.procedural->savedMapPath.isEmpty() || !t.procedural->savedBakePath.isEmpty()))
+            return false; // Never discard recovery state from a failed save.
+        auto next = std::make_shared<TerrainProceduralState>();
+        QSet<int> dirty;
+        bool samePalette = t.tfile->materialsCount == palette.size();
+        for (int i=0; samePalette && i<palette.size(); ++i) {
+            const auto current = TerrainMaterialSource::capture(*t.tfile,i);
+            samePalette = current && current->key() == palette[i]->key();
+        }
+        if (!reference.isEmpty()) {
+            next->map.ids = buffer->bytes();
+            if (!next->map.valid()) return false;
+            next->sourceIds = next->map.usedIds();
+            // Validate sources before changing either the map or its palette.
+            for (int id : next->sourceIds) {
+                if (id<=0 || id>=palette.size()) return false;
+                QImage image;
+                if (samePalette && t.procedural && t.procedural->sources.contains(id))
+                    image = t.procedural->sources[id];
+                else if (!loadSource(t.texturepath,palette[id]->normal.textures[0],image,next->error)) return false;
+                next->sources.insert(id,image);
+            }
+            next->patches.resize(patches*patches);
+            next->patchKeys.resize(patches*patches);
+            next->recipeKeys.resize(patches*patches);
+            const bool reuse = samePalette && t.procedural && t.procedural->ready;
+            if (reuse) next->cache = t.procedural->cache;
+            for (int p=0; p<patches*patches; ++p) {
+                // Keys include the sampling halo, so neighbours affected by a
+                // restored border are regenerated, even if their IDs are equal.
+                if (reuse && next->map.patchKey(p,patches) == t.procedural->map.patchKey(p,patches)) {
+                    if (p<t.procedural->patches.size()) next->patches[p]=t.procedural->patches[p];
+                    if (p<t.procedural->patchKeys.size()) next->patchKeys[p]=t.procedural->patchKeys[p];
+                    if (p<t.procedural->recipeKeys.size()) next->recipeKeys[p]=t.procedural->recipeKeys[p];
+                } else dirty.insert(p);
+            }
+            next->ready = next->changed = next->fullBakeRequired = true;
+            next->bakeCurrent = false;
+            next->bakeAvailable = bakeInfo != "v1:pending"
+                    && QFileInfo::exists(QDir(t.texturepath).filePath(palette[0]->normal.textures[0]));
+        }
+        if (t.procedural) t.procedural->cancelPending();
+        t.clearStaticTextureRefs();
+        if (!samePalette) TerrainMaterialSource::restorePalette(*t.tfile,palette);
+        t.tfile->sampleMaterialBuffer = reference;
+        t.tfile->bakedMaterialInfo = bakeInfo;
+        for (int p=0; p<patches*patches; ++p)
+            std::copy_n(uv.constData()+p*7,7,t.tfile->tdata+p*13+6);
+        t.procedural = reference.isEmpty() ? nullptr : next;
+        if (t.procedural) {
+            proceduralStates.push_back(next);
+            for (int p : dirty) {
+                next->editedPatches.insert(p);
+                next->patches[p] = next->sharedPatch(p,patches,true);
+                if (next->patches[p]) {
+                    next->patches[p]->immediateUpload = true;
+                    if (QOpenGLContext::currentContext()) t.proceduralTexture(p);
+                }
+            }
+            next->pruneCache();
+        }
+        t.modified = true; // Disk may have been saved since the snapshot.
+        t.invalidateAll(TerrainDirtyUvParams);
+        t.refreshModified();
+        return true;
+    }
+};
+std::shared_ptr<UndoSnapshot> Terrain::captureProceduralUndo() {
+    if (!tfile || (usesProceduralMaterial() && (!procedural || !procedural->ready))) return {};
+    auto snapshot = std::make_shared<TerrainMaterialUndo>();
+    snapshot->terrain=this; snapshot->epoch=proceduralUndoEpoch;
+    snapshot->root=Game::root; snapshot->route=Game::route; snapshot->name=name;
+    snapshot->samples=gridLayout.sampleCount; snapshot->patches=gridLayout.patchesPerSide;
+    snapshot->spacing=*tfile->sampleSize;
+    snapshot->reference=tfile->sampleMaterialBuffer; snapshot->bakeInfo=tfile->bakedMaterialInfo;
+    for (int id=0; id<tfile->materialsCount; ++id) {
+        const auto source=TerrainMaterialSource::capture(*tfile,id);
+        if (!source) return {};
+        snapshot->palette.push_back(source);
+    }
+    snapshot->uv.resize(gridLayout.patchRecordCount()*7);
+    for (int p=0; p<gridLayout.patchRecordCount(); ++p)
+        std::copy_n(tfile->tdata+p*13+6,7,snapshot->uv.data()+p*7);
+    if (usesProceduralMaterial()) snapshot->buffer=std::make_shared<UndoBuffer>(procedural->map.ids);
+    return snapshot;
+}
+
 bool Terrain::usesProceduralMaterial() const { return tfile && !tfile->sampleMaterialBuffer.isEmpty(); }
 void Terrain::beginProceduralFrame() {
     uploadsThisFrame=recipesThisFrame=0;
@@ -667,10 +777,11 @@ void Terrain::releaseProceduralTextures() {
 }
 bool Terrain::proceduralToolAllowed() const {
     if (!usesProceduralMaterial()) return true;
-    reportToolError("This static texture/UV tool is disabled on procedural terrain. Use Texture painting or switch the tile to static textures first. Procedural undo is not available in this demo.");
+    reportToolError("This static texture/UV tool is disabled on procedural terrain. Use Texture painting or switch the tile to static textures first.");
     return false;
 }
 void Terrain::loadProceduralMaterial(const QString &directory) {
+    ++proceduralUndoEpoch;
     procedural.reset();
     if (!usesProceduralMaterial()) return;
     procedural = std::make_shared<TerrainProceduralState>();
@@ -720,6 +831,7 @@ bool Terrain::setProceduralMaterial(bool enabled, QString &error) {
         auto state = std::make_shared<TerrainProceduralState>();
         const int first=tfile->bakedMaterialInfo.isEmpty()?0:1;
         if (!state->ensureSource(*tfile,first,texturepath)) { error = state->error; return false; }
+        if (!Undo::PushTerrainMaterial(this)) { error="Cannot capture procedural undo state"; return false; }
         if (!reserveProceduralBake(error)) return false;
         state->sources.insert(1,state->sources.take(first));
         state->map.initialize(1); state->ready=true; state->changed=true;
@@ -734,6 +846,7 @@ bool Terrain::setProceduralMaterial(bool enabled, QString &error) {
                 || !QFileInfo::exists(QDir(texturepath).filePath(primaryName(*tfile,0)))) {
             error="Save the current procedural tile successfully before switching to static textures"; return false;
         }
+        if (!Undo::PushTerrainMaterial(this)) { error="Cannot capture procedural undo state"; return false; }
         tfile->sampleMaterialBuffer.clear();
         procedural.reset();
         clearStaticTextureRefs();
@@ -967,17 +1080,18 @@ void Terrain::paintProceduralMaterial(Brush *brush, int x, int z, float posx, fl
         return procedural->map.fill(int(posx*scale),int(posz*scale),id,gridLayout.patchesPerSide,
                                      operation==TerrainMaterialMap::FillPatch,locked,dryRun);
     };
+    const bool capture = Undo::NeedsTerrainMaterialSnapshot(this);
+    if ((capture || importing) && apply(true).isEmpty()) return;
+    QImage importedSource;
     if (importing) {
         // Import only for a real, unlocked, nonwhite paint stamp. Existing IDs
         // and cached outputs remain stable because the shader pair is appended.
-        if (apply(true).isEmpty()) return;
-        QImage source;
-        if (!loadSource(texturepath,brush->terrainShaderSource->normal.textures[0],source,procedural->error)) {
+        if (tfile->materials.count(id) || tfile->amaterials.count(id)) {
+            reportToolError("Cannot append to an inconsistent terrain shader table"); return;
+        }
+        if (!loadSource(texturepath,brush->terrainShaderSource->normal.textures[0],importedSource,procedural->error)) {
             reportToolError(procedural->error); return;
         }
-        id = brush->terrainShaderSource->appendTo(*tfile,procedural->error);
-        if (id < 0) { reportToolError(procedural->error); return; }
-        procedural->sources.insert(id,source);
     } else if (!procedural->ensureSource(*tfile,id,texturepath)) {
         reportToolError(procedural->error); return;
     }
@@ -987,6 +1101,15 @@ void Terrain::paintProceduralMaterial(Brush *brush, int x, int z, float posx, fl
         if (!procedural->ensureSource(*tfile,sourceId,texturepath)) {
             reportToolError(procedural->error); return;
         }
+    }
+    // Capture after validation, before palette/ID mutation, once per action.
+    if (capture && !Undo::PushTerrainMaterial(this)) {
+        reportToolError("Cannot capture procedural undo state"); return;
+    }
+    if (importing) {
+        id = brush->terrainShaderSource->appendTo(*tfile,procedural->error);
+        if (id < 0) { reportToolError(procedural->error); return; }
+        procedural->sources.insert(id,importedSource);
     }
     const auto changed = apply(false);
     if (changed.isEmpty()) return;
@@ -1076,7 +1199,12 @@ bool Terrain::saveProceduralBake() {
     QElapsedTimer timer; timer.start();
     // Saving already waits for the bake. Assemble it (and generate/reduce any
     // cache misses) in the same four-worker pool, never in the render/upload path.
-    using BakeResult=std::pair<QImage,QVector<QByteArray>>;
+    struct BakeResult {
+        QImage image;
+        QVector<QByteArray> keys;
+        AceDocument document;
+        QString error;
+    };
     auto bakeJob=std::make_shared<std::packaged_task<BakeResult()>>(
             [map=procedural->map, sources=procedural->sources, miniatures,
              keys=procedural->recipeKeys, previous=procedural->bakeImage,
@@ -1086,16 +1214,45 @@ bool Terrain::saveProceduralBake() {
                 if (!fullBake && base.isNull()) base=loadBakeImage(target);
                 if (profileEnabled()) qInfo() << "Terrain bake mode" << (base.isNull()?"full":"incremental")
                                              << "dirty patches" << dirty.size();
-                QImage image=map.bake(count,sources,miniatures,base,dirty,&keys);
-                return BakeResult{image,std::move(keys)};
+                BakeResult output;
+                output.image=map.bake(count,sources,miniatures,base,dirty,&keys);
+                output.keys=std::move(keys);
+                if (output.image.isNull()) return output;
+                const QImage rgb=output.image.convertToFormat(QImage::Format_RGB888);
+                AceWriteOptions options; options.encoding=AceEncoding::Dxt1;
+                if (!AceDocument::fromPixels(rgb.constBits(),rgb.sizeInBytes(),rgb.width(),rgb.height(),
+                                             3,options,output.document,output.error)) return output;
+                // Patch miniatures are 4x4-block aligned. Preserve old compressed
+                // blocks outside edited patches/halos, avoiding lossy recompression
+                // drift after the CPU bake has been evicted and decoded from disk.
+                AceDocument previousDocument;
+                QString readError;
+                if (!base.isNull() && count>0 && rgb.width()%count==0 && (rgb.width()/count)%4==0
+                        && AceDocument::read(target,previousDocument,readError)
+                        && previousDocument.surface()==18 && !previousDocument.hasAlpha()
+                        && previousDocument.levels.size()==1 && previousDocument.levels[0].raw
+                        && previousDocument.levels[0].width==rgb.width()
+                        && previousDocument.levels[0].height==rgb.height()
+                        && previousDocument.levels[0].data.size()==output.document.levels[0].data.size()) {
+                    const int blocks=rgb.width()/4, patchSide=rgb.width()/count;
+                    auto &encoded=output.document.levels[0].data;
+                    const auto &old=previousDocument.levels[0].data;
+                    for (int z=0;z<rgb.height()/4;++z) for (int x=0;x<blocks;++x)
+                        if (!dirty.contains((z*4/patchSide)*count+x*4/patchSide))
+                            memcpy(encoded.data()+(z*blocks+x)*8,old.constData()+(z*blocks+x)*8,8);
+                }
+                return output;
              });
     auto result=bakeJob->get_future();
     materialPool().start(QRunnable::create([bakeJob] { (*bakeJob)(); }),1);
     QImage image;
+    AceDocument bakeDocument;
     try {
         auto output=result.get();
-        image=std::move(output.first);
-        procedural->recipeKeys=std::move(output.second);
+        if (!output.error.isEmpty()) { qWarning() << output.error; return false; }
+        image=std::move(output.image);
+        bakeDocument=std::move(output.document);
+        procedural->recipeKeys=std::move(output.keys);
     }
     catch (...) { qWarning() << "Cannot generate terrain bake" << name; return false; }
     if (image.isNull()) { qWarning() << "Cannot synthesize terrain bake" << name; return false; }
@@ -1105,9 +1262,7 @@ bool Terrain::saveProceduralBake() {
             || (QFile::exists(backup) && !QFile::remove(backup)) || !QFile::copy(target,backup))) {
         qWarning() << "Cannot back up terrain bake" << target; return false;
     }
-    AceWriteOptions aceOptions;
-    aceOptions.encoding = AceEncoding::Rgb; // Legacy fallback deliberately opaque, one tile image.
-    if (!AceLib::save(target,image,aceOptions,procedural->error)) {
+    if (!bakeDocument.write(target,false,procedural->error)) {
         qWarning() << procedural->error; return false; // QSaveFile left old ACE intact.
     }
     procedural->savedBakePath=target; procedural->backupBakePath=backup;
@@ -1127,7 +1282,7 @@ bool Terrain::saveProceduralBake() {
     tfile->bakedMaterialInfo=TerrainMaterialMap::ValidateBakeOnLoad
             ? "v1:checked:"+settings+":"+signature.mid(3)
             : "v1:unchecked:"+settings+":"+QUuid::createUuid().toString(QUuid::WithoutBraces);
-    if (profileEnabled()) qInfo() << "Terrain bake synthesis+RGB ACE save ms" << timer.nsecsElapsed()/1e6;
+    if (profileEnabled()) qInfo() << "Terrain bake synthesis+DXT1 ACE save ms" << timer.nsecsElapsed()/1e6;
     return true;
 }
 bool Terrain::saveProceduralMap(const QString &directory, QString &previousReference) {

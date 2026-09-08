@@ -204,7 +204,9 @@ not reasons to write mislabeled data.
 or full RGBA according to the texture, without mips by default. The overload
 accepting `AceWriteOptions` selects a different encoding. A general
 `save(path, QImage, options, error)` overload handles QImage conversion/row padding.
-Procedural baked fallbacks now call that API with explicit `AceEncoding::Rgb`;
+Procedural baked fallbacks use `AceDocument::fromPixels` with `AceEncoding::Dxt1`
+on the save worker, preserve unchanged compressed blocks on incremental edits,
+then call `AceDocument::write`; the QImage RGB path was the initial integration.
 the temporary `saveRgbChecked()` API exists only in `AceLibLegacy`. All new disk writes use `QSaveFile`;
 validation/encoding failure does not truncate an existing destination.
 
@@ -243,8 +245,8 @@ Completed:
   resident GPU content requires the owning GL context, as does other existing
   cache GPU management.
 - Procedural source and background baked-texture readers request CPU pixels and
-  no mip staging. Baked-file writing uses the new general QImage API with explicit
-  RGB options, not an adapter preserving the temporary checked-RGB API.
+  no mip staging. Baked-file writing now uses the document API with opaque DXT1
+  and unchanged-block preservation, following the initial QImage RGB integration.
 - Cloning, editing, upload and memory estimates account for the new source state.
   `loaded` publishes completed worker content atomically; this is not a redesign
   of concurrent reload/cache ownership.
@@ -265,6 +267,63 @@ Remaining, intentionally separate from this implementation:
 - Full cache lifetime/deferred GPU deletion and concurrent-reload redesign.
 - DDS authored-mip ingestion: this change supports ACE mip staging; it does not
   rewrite the DDS file reader into an equivalent document model.
+
+## Legacy TSRE bug: DXT1 ACE without mipmaps
+
+Confirmed by source inspection and the user's compatibility test (2026-09-08).
+Valid opaque DXT1 files without authored mipmaps can be rejected by TSRE
+v0.7.620. This is a **legacy ACE-reader bug**, not invalid output from ACE v2.
+The new reader supports these files. Forks retaining the legacy reader should
+update the reader or move to a build containing ACE v2; removing the bounds
+check is not a fix.
+
+The old DXT1 path calculates the pixel offset as though a complete mip-offset
+table always exists, ignoring the no-mip flag/table size. Commit `73a3fd0`
+(hardware-compressed texture loading) retained this calculation and added a
+payload-size bounds check. Source at `71c0c5e` identifies itself as v0.7.620
+and contains both the incorrect calculation and the rejecting check.
+
+Both inspected files in the moved route
+`C:/MagiPacks/Microsoft Train Simulator/ROUTES/procedural/TERRTEX/`
+(`-11dbfb9c_procedural.ace` and `-11dbfba0_procedural.ace`) have these properties:
+
+| Field | Value |
+|---|---:|
+| Dimensions | 1024 x 1024 |
+| Options | 16: raw/compressed-block data, no mip chain |
+| Correct base DXT1 block offset | 224 bytes |
+| Legacy reader's assumed offset | 264 bytes |
+| DXT1 base payload | 524,288 bytes |
+| Actual file length | 524,512 bytes |
+| Legacy calculated overrun | 40 bytes |
+
+The new check therefore rejects the image with `ACE: invalid DXT1 data size`
+(that diagnostic is conditional on non-threaded loading). The earlier manual
+CPU decoder used the same wrong offset but lacked this check. For these files
+it skips five complete 8-byte DXT1 blocks, shifts the flattened block sequence,
+and reads beyond the file at the end. Because block boundaries remain aligned,
+most data still decodes into plausible colours. Repeated/low-detail terrain can
+conceal the displacement (five 4-pixel blocks, or 20 texels across an ordinary
+row, with row-boundary carry). This explains how it can *look* correct without
+establishing pixel-correct decoding. The user's older Qt5 copy displayed the
+texture acceptably; its exact binary has not been subjected to pixel comparison.
+
+MSTS and the current reader display the files successfully in the user's test.
+Adding a full mip chain is a possible output-compatibility workaround, not a
+format requirement or a replacement for fixing the legacy reader. It has not
+been enabled for procedural bakes.
+
+Cost measurement: two actual route bakes decoded once to RGB, five warmups and
+50 interleaved runs per variant/file, 1024 x 1024 DXT1. Writer output was parsed
+back and the base compressed payload verified identical with/without mipmaps.
+Means: base encoding 15.3–16.6 ms versus 23.4–24.7 ms including mip generation;
+encoding plus serialization/atomic temporary-file write 20.9–21.8 ms versus
+29.2–30.3 ms. File sizes: 524,512 versus 699,359 bytes (about +33%). This excludes
+procedural bake-image assembly and is not a whole-route save benchmark.
+Log: `build/bake-mipmap-benchmark.log`; temporary benchmark sources/binaries stay
+outside versioned application code. Current procedural fallback loading requests
+no authored mip staging and uploads only the base RGB image, so including mips
+on disk alone would not increase its resident GPU allocation.
 
 ## Reproducible verification
 
@@ -338,8 +397,9 @@ procedural save optimizations and independent 2048 m detailed-texture distance.
 Both source-image loading and the shared `loadBakeImage()` helper use explicit
 `AceLoadOptions` with CPU pixels, quality 1 and no mip staging. The latter helper
 also serves incremental saves after CPU-bake eviction; it must not use the
-rendering adapter's `Game::textureQuality` policy. Baked writing uses the new
-QImage API with RGB encoding, preserving checked/atomic output and one `.bk`.
+rendering adapter's `Game::textureQuality` policy. At the merge milestone baked
+writing used the new QImage RGB API; the subsequent DXT1 follow-up preserves
+checked/atomic output and one `.bk` through the document API.
 
 A regression fixture runs at `textureQuality=2`, loads an authored-mip ACE source
 with one-pixel stripes, and verifies the generated texture against full-resolution
@@ -390,3 +450,134 @@ Logs: `build/ace-v2-merge-{ctest,gl,gl-diagnostic}.log` and
 `build/terrain-material-ace-merge-{cpu,rgb,gl,grid}.log`.
 The MSRE experiments and stock-file scan in the original report were not rerun
 as part of this Windows merge verification.
+
+### Isolated DXT3 readback diagnosis (2026-09-08)
+
+The ten broad-suite failures reproduced unchanged after a system restart.
+`tests/ace/AceDxt3Diagnostic.cpp` adds a separate, fast investigation mode:
+
+```powershell
+cmake --build build --target tsre_ace_tool -j 1
+$env:QT_QPA_PLATFORM = 'windows'
+& .\build\tsre_ace_tool.exe --gl-dxt3
+```
+
+It uploads a handcrafted 4x4 DXT3/BC2 block containing all alpha nibbles 0..15,
+white RGB and fixed color selectors. The expected alpha bytes are independently
+constructed as `n * 17`, not obtained from the ACE decoder. Tests compare:
+
+- Raw OpenGL upload of this block, bypassing all ACE and Texture code.
+- An uncompressed RGBA8 control containing the same expected pixels.
+- The handcrafted block passed through an ACE file and production Texture upload.
+- A block generated by the ACE encoder, passed through the same integration path.
+
+Each compressed case checks byte-identical `glGetCompressedTexImage` results,
+direct `glGetTexImage` pixels, and shader sampling into a 4x4 RGBA8 framebuffer.
+The shader uses `texelFetch` with no filtering or blending, then writes either
+RGBA or sampled alpha into RGB with output alpha forced to one. The second pass
+rules out framebuffer-alpha handling concealing a sampling problem. Direct
+floating-point readback is also printed for comparison with unsigned-byte output.
+
+Results on **AMD Custom GPU 0932**, vendor **ATI Technologies Inc.**, GL version
+**3.3.0 Core Profile Context 24.10.02.03.240606**:
+
+| Path | Compressed bytes | Direct texture readback alpha | Shader RGBA and alpha-as-RGB |
+|---|---|---|---|
+| Handcrafted, raw GL | Identical | `0, 16, ... 240` (wrong) | `0, 17, ... 255` (correct) |
+| Uncompressed RGBA8 control | Not applicable | Correct | Correct |
+| Handcrafted through ACE/Texture | Identical | Same wrong values | Correct |
+| ACE-generated through ACE/Texture | Identical | Same wrong values | Correct |
+
+All CPU reference, file/block preservation, shader output and GL error checks
+pass. The diagnostic reports **37 checks, 3 failures**, one direct pixel-readback
+comparison per compressed path. Float readback, multiplied by 255 for display,
+also produces `0, 16, ... 240`: this is not merely the final unsigned-byte
+conversion. Reproduction without the ACE library or Texture wrapper isolates
+the problem to this host's direct OpenGL DXT3 readback/decompression path.
+Normal shader sampling is correct in these fixtures; this result does not claim
+that every driver, texture format or filtering/mipmap case has been tested.
+
+At this initial diagnostic stage production code and existing test tolerances
+were unchanged. `Texture::setEditable()` and GPU-resident cloning still used
+direct readback, acquiring incorrect DXT3 alpha on this host despite correct
+ordinary rendering. The subsequently implemented narrow workaround is described
+below. The raw-driver diagnostic deliberately continues to return nonzero while
+the underlying readback mismatch remains.
+
+Logs: `build/ace-v2-post-restart-gl.log` and `build/ace-v2-dxt3-isolated.log`.
+Only standalone temporary fixtures are used; route data and the app log are not
+modified by these commands.
+
+### DXT3-only CPU readback workaround and timings (2026-09-08)
+
+`Texture.cpp` now shares a `readGpuPixels()` helper between `setEditable()` and
+GPU-resident cloning. Only when the source's **current GPU internal format** is
+DXT3 does it read compressed blocks with `glGetCompressedTexImage` and decode them
+with `DxtCodec::decodeInto`. The existing pixel-pack state guard also unbinds and
+restores any pack buffer. Block size and GL errors are checked before decoding;
+a failed compressed readback does not fall back to the known-bad decompression
+path. Blocks are temporary, not retained as another permanent CPU copy.
+
+DXT1, DXT5 and uncompressed GPU formats retain ordinary pixel readback. DXT1 can
+represent **1-bit transparency** as well as opaque RGB; the DXT1 performance
+fixture below is the opaque RGB variant. No change is made to retained CPU-block
+decoding, normal GPU-compressed rendering, or non-GL source loading. Editing
+uploads RGBA8/RGB8 as before, so subsequent GPU readback dispatches on that
+current format, not the original ACE/DDS encoding.
+
+Measured on the same Windows/AMD host with the Release CPU decoder: three fresh
+process runs, each with three warmups and **31 measured repetitions per case**
+(93 measured samples per table cell). Methods run in rotating order. Timings
+include CPU output allocation; the new path also includes the compressed-size
+query, temporary block allocation, compressed readback and decoding. GPU upload
+is outside the measurement and `glFinish` precedes every timed operation: these
+are **idle, already-resident texture acquisition timings**, not busy-renderer
+frame times. CPU output is checked against the source-block decode outside the
+timed interval. Fixtures have varying RGB blocks; DXT3 includes all alpha levels.
+
+Arithmetic means across the 93 samples, milliseconds:
+
+| Format | Texture size | Driver pixel readback | Compressed readback + CPU decode | CPU decode alone |
+|---|---:|---:|---:|---:|
+| DXT1 opaque RGB | 256x256 | 0.661 | 0.528 | 0.229 |
+| DXT1 opaque RGB | 512x512 | 2.472 | 1.927 | 0.926 |
+| DXT1 opaque RGB | 1024x1024 | 8.508 | 6.715 | 4.727 |
+| DXT1 opaque RGB | 2048x2048 | 25.710 | 21.575 | 19.083 |
+| DXT3 RGBA | 256x256 | 0.474 | 0.747 | 0.334 |
+| DXT3 RGBA | 512x512 | 2.480 | 3.095 | 1.631 |
+| DXT3 RGBA | 1024x1024 | 5.817 | 8.205 | 5.861 |
+| DXT3 RGBA | 2048x2048 | 14.838 | 25.513 | 22.179 |
+
+DXT3's additional cost is approximately 0.27 / 0.62 / 2.39 / 10.68 ms for these
+sizes. It occurs when acquiring CPU pixels, not on every subsequent brush stroke
+while those pixels remain available. Despite the faster DXT1 measurements here,
+the selected scope remains **DXT3 only**, fixing the demonstrated correctness
+issue without changing other GPU-format readback policies. Results vary with
+hardware/driver/system load; the measured direct DXT3 path is also incorrect.
+
+The benchmark is retained in `tests/ace/AceReadbackBenchmark.cpp`:
+
+```powershell
+$env:QT_QPA_PLATFORM = 'windows'
+& .\build\tsre_ace_tool.exe --bench-readback
+```
+
+Output includes mean, median and p95 for each case. Original measurements used
+the same harness as a standalone executable; logs are
+`build/ace-readback-benchmark-run{1,2,3}.log`.
+
+The isolated diagnostic now also exercises GPU-only cloning, source independence,
+editing with hostile pack state, RGBA8 re-upload/readback and edited DXT3
+save/reload. Its raw OpenGL probes are deliberately **not** routed through the
+workaround or assigned looser tolerances, preserving a way to detect whether a
+future driver fixes the underlying behavior.
+
+Verification after the workaround: the Windows Release app and ACE tool build;
+**7,539 CPU/API checks** and **1,062 standard OpenGL checks** pass. The full-app
+procedural OpenGL suite reports zero failures. The isolated diagnostic reports
+**55 checks, 3 raw-driver failures**: all 18 added production-path checks pass,
+while the three intentionally direct DXT3 driver-readback probes still reproduce
+the mismatch. Existing broad-suite tolerances are unchanged.
+Logs: `build/ace-v2-dxt3-workaround{,-full-gl}.log` and
+`build/terrain-material-dxt3-workaround-gl.log`. The user's application log was
+restored after the full-app test.

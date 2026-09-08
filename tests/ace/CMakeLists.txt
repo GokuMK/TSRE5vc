@@ -1,7 +1,7 @@
 find_package(OpenGL REQUIRED)
 set(ACE_TEXTURE_ROOT "${PROJECT_SOURCE_DIR}/src/tsre/texture")
 qt_add_executable(tsre_ace_tool
-    AceTool.cpp AceTestSupport.cpp
+    AceTool.cpp AceTestSupport.cpp AceDxt3Diagnostic.cpp AceReadbackBenchmark.cpp
     "${ACE_TEXTURE_ROOT}/AceDocument.cpp"
     "${ACE_TEXTURE_ROOT}/DxtCodec.cpp"
     "${ACE_TEXTURE_ROOT}/AceLib.cpp" "${ACE_TEXTURE_ROOT}/AceLib.h"

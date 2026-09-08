@@ -78,6 +78,14 @@ jobs:
 
           New-Item -ItemType Directory -Force -Path $packageDir | Out-Null
           Copy-Item "build-release/TSRE5vc.exe" $packageDir
+          # Ship the tagged resources, never independently downloaded shaders.
+          if (-not (Test-Path -LiteralPath "appdata/0.7/shaders330/StandardFog.vs")) {
+            throw "Tracked appdata/0.7 is missing from the source checkout"
+          }
+          Copy-Item -LiteralPath "appdata" -Destination $packageDir -Recurse
+          $proceduralFiles = Get-ChildItem (Join-Path $packageDir "appdata/0.7/procedural") -Force |
+            Where-Object { $_.Name -ne ".gitkeep" }
+          if ($proceduralFiles) { throw "Default global procedural directory must ship empty" }
 
           & $windeployqt `
             --release `

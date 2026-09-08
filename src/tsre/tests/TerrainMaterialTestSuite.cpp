@@ -9,6 +9,8 @@
 #include <tsre/texture/TexLib.h>
 #include <tsre/texture/Brush.h>
 #include <tsre/Game.h>
+#include <tsre/Undo.h>
+#include <tsre/UndoBuffer.h>
 #include <tsre/renderer/RenderItem.h>
 #include <QTemporaryDir>
 #include <QDir>
@@ -94,6 +96,15 @@ bool finishMaterialJobs() {
         if (Terrain::proceduralWorkStats().outstanding==0) return true;
         QThread::msleep(1);
     } while(timer.elapsed()<10000);
+    return false;
+}
+bool finishUndoJobs() {
+    QElapsedTimer timer; timer.start();
+    do {
+        UndoBuffer::pump();
+        if (!UndoBuffer::busy()) return true;
+        QThread::msleep(1);
+    } while (timer.elapsed()<10000);
     return false;
 }
 void variedMaterialMap(TerrainMaterialMap &map) {
@@ -303,6 +314,121 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
     QDir().mkpath(tileDir);
     red.save(temp.path()+"/red.png"); blue.save(temp.path()+"/blue.png");
     {
+        QByteArray original(TerrainMaterialMap::Side*TerrainMaterialMap::Side,char(17));
+        auto snapshot=std::make_shared<UndoBuffer>(original);
+        check(snapshot->bytes()==original && snapshot->bytes().constData()!=original.constData(),"undo-capture-is-deep-copy");
+        snapshot->compressLater();
+        check(snapshot->bytes()==original,"undo-raw-available-while-compression-pending");
+        original[0]=char(21);
+        check(snapshot->bytes()[0]==char(17),"undo-snapshot-is-immutable-after-edit");
+        check(finishUndoJobs() && snapshot->rawSize()==0 && snapshot->compressedSize()<100000,
+              "undo-background-level-one-compression-releases-raw");
+        check(snapshot->bytes()==QByteArray(original.size(),char(17)),"undo-compressed-restore-exact");
+        auto active=std::make_shared<UndoBuffer>(original);
+        active->compressLater();
+        auto queued=std::make_shared<UndoBuffer>(original);
+        queued->compressLater();
+        std::weak_ptr<UndoBuffer> weakActive=active, weakQueued=queued;
+        active.reset(); queued.reset();
+        check(weakActive.expired() && weakQueued.expired(),"undo-workers-and-queue-do-not-own-history");
+        check(finishUndoJobs(),"undo-abandoned-jobs-drain-safely");
+    }
+    {
+        Undo::Clear();
+        QScopedValueRollback<bool> enabled(Undo::UndoEnabled,true);
+        TestTerrain t,other;
+        t.setup(temp.path(),16,"undo-material"); other.setup(temp.path(),16,"undo-neighbour");
+        const auto staticBefore=t.staticDescriptorBytes();
+        Undo::StateBegin();
+        check(t.setProceduralMaterial(true,error),"undo-enable-procedural");
+        Undo::StateEnd(); Undo::UndoLast();
+        check(!t.usesProceduralMaterial() && t.staticDescriptorBytes()==staticBefore,
+              "undo-enable-restores-static-palette-and-uv");
+        t.setProceduralMaterial(true,error); other.setProceduralMaterial(true,error);
+        const auto before=t.captureProceduralUndo();
+        const auto ids=before->buffer->bytes();
+        const int retained=t.proceduralTexture(255);
+        Texture source(temp.path()+"/blue.png");
+        Brush brush; brush.useTexture=true; brush.tex=&source;
+        QImage mask(3,3,QImage::Format_Grayscale8); mask.fill(0); brush.brushshape=&mask;
+        Undo::StateBegin();
+        t.lock(0);
+        t.paintProceduralMaterial(&brush,0,0,-992,-992,8);
+        check(Undo::NeedsTerrainMaterialSnapshot(&t),"undo-locked-stamp-does-not-capture");
+        t.lock(0,false); mask.fill(255);
+        t.paintProceduralMaterial(&brush,0,0,-992,-992,8);
+        check(Undo::NeedsTerrainMaterialSnapshot(&t),"undo-white-stamp-does-not-capture");
+        mask.fill(0); Undo::StateCancel();
+        Undo::StateBegin();
+        t.paintProceduralMaterial(&brush,0,0,-992,-992,8);
+        check(!Undo::NeedsTerrainMaterialSnapshot(&t),"undo-captured-on-first-real-stamp");
+        t.paintProceduralMaterial(&brush,0,0,-984,-984,8);
+        other.paintProceduralMaterial(&brush,0,0,-992,-992,8);
+        check(t.captureProceduralUndo()->buffer->bytes()!=ids,"undo-stamps-change-id-plane");
+        Undo::StateEnd(); Undo::UndoLast();
+        check(t.captureProceduralUndo()->buffer->bytes()==ids && other.captureProceduralUndo()->buffer->bytes()==ids,
+              "undo-overlapping-stamps-and-multiple-tiles-one-action");
+        check(t.proceduralTexture(255)==retained,"undo-retains-unaffected-patch-output");
+        check(t.isModified(),"undo-marks-restored-tile-dirty");
+        Game::writeEnabled=false;
+        check(!before->restore(),"undo-respects-write-protection");
+        Game::writeEnabled=true;
+        Undo::StateBegin();
+        t.paintProceduralMaterial(&brush,0,0,-992,-992,0,TerrainMaterialMap::FillPatch);
+        Undo::StateEnd();
+        check(finishUndoJobs(),"undo-closed-paint-action-compresses");
+        Undo::UndoLast();
+        check(t.captureProceduralUndo()->buffer->bytes()==ids,"undo-fill-after-compression");
+        Undo::StateBegin();
+        QThread::msleep(2050); Undo::StateEndIfLongTime();
+        check(!Undo::IsStateOpen(),"undo-existing-two-second-action-boundary");
+        Undo::StateBeginIfNotExist();
+        t.paintProceduralMaterial(&brush,0,0,-992,-992,8);
+        Undo::StateEnd();
+        const auto segment=t.captureProceduralUndo()->buffer->bytes();
+        Undo::StateBeginIfNotExist();
+        t.paintProceduralMaterial(&brush,0,0,-700,-700,8);
+        Undo::UndoLast();
+        check(t.captureProceduralUndo()->buffer->bytes()==segment,"undo-next-segment-retains-previous-stroke-part");
+        Undo::UndoLast();
+        check(t.captureProceduralUndo()->buffer->bytes()==ids,"undo-previous-segment-restores-original");
+        // Import a genuinely different shader definition, not just its filename.
+        other.descriptor().materials[1].atex[0][0]=19;
+        brush.texId=73; other.rememberProceduralSource(&brush,0,0,-992,-992);
+        const auto paletteBefore=t.staticDescriptorBytes();
+        Undo::StateBegin();
+        t.paintProceduralMaterial(&brush,0,0,-992,-992,8);
+        check(t.descriptor().materialsCount==4,"undo-import-adds-source");
+        Undo::StateEnd(); Undo::UndoLast();
+        check(t.descriptor().materialsCount==3 && t.staticDescriptorBytes()==paletteBefore
+              && t.captureProceduralUndo()->buffer->bytes()==ids,"undo-import-restores-palette-and-ids");
+        check(t.save(),"undo-save-restored-material");
+        Undo::StateBegin();
+        check(t.setProceduralMaterial(false,error),"undo-disable-current-bake");
+        Undo::StateEnd(); Undo::UndoLast();
+        check(t.usesProceduralMaterial() && t.captureProceduralUndo()->buffer->bytes()==ids,
+              "undo-disable-restores-procedural-mode");
+        check(t.save(),"undo-restored-mode-can-save");
+        TestTerrain loaded; loaded.setup(temp.path(),16,"undo-material");
+        loaded.setProceduralMaterial(true,error);
+        loaded.loadProceduralMaterial(tileDir);
+        check(loaded.captureProceduralUndo()->buffer->bytes()==ids,"undo-save-reload-preserves-restored-ids");
+        const auto obsolete=t.captureProceduralUndo();
+        t.loadProceduralMaterial(tileDir);
+        check(!obsolete->restore(),"undo-refuses-reloaded-tile-snapshot");
+        const auto evicted=t.captureProceduralUndo();
+        t.releaseProceduralTextures();
+        check(evicted->restore(),"undo-survives-gpu-and-source-cache-eviction");
+        auto dying=std::make_unique<TestTerrain>(); dying->setup(temp.path(),16,"undo-dying");
+        dying->setProceduralMaterial(true,error);
+        auto dead=dying->captureProceduralUndo(); dying.reset();
+        check(!dead->restore(),"undo-refuses-destroyed-tile");
+        Undo::StateBegin();
+        t.paintProceduralMaterial(&brush,0,0,-992,-992,8);
+        Undo::Clear();
+        check(!Undo::IsStateOpen() && finishUndoJobs(),"undo-clear-open-state-and-worker-history");
+    }
+    {
         // Independent ACE row-table reader: the permissive legacy loader ignores
         // those offsets, so its successful round trip alone cannot verify them.
         QImage rgb(8,4,QImage::Format_RGB888);
@@ -354,7 +480,14 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
         QFile savedAce(ace); check(savedAce.open(QIODevice::ReadOnly),"open-saved-tile-bake");
         const auto aceBytes=savedAce.readAll(); savedAce.close();
         const int bakeSide=TerrainMaterialMap::BakedSide;
-        check(aceBytes.size()==216+bakeSide*4+bakeSide*bakeSide*3,"bake-uncompressed-rgb-file-size");
+        AceDocument bakeDocument;
+        check(AceDocument::parse(aceBytes,bakeDocument,error) && bakeDocument.surface()==18
+              && !bakeDocument.hasAlpha() && bakeDocument.levels.size()==1
+              && bakeDocument.levels[0].raw && bakeDocument.levels[0].width==bakeSide
+              && bakeDocument.levels[0].height==bakeSide
+              && bakeDocument.levels[0].data.size()==bakeSide*bakeSide/2,
+              "bake-is-opaque-dxt1-single-level-with-expected-payload");
+        check(aceBytes.size()<bakeSide*bakeSide/2+1024,"bake-dxt1-file-size-with-small-header");
         check(baked.save() && !QFileInfo::exists(ace+".bk"),"unchanged-save-reuses-bake-without-backup-rotation");
         if (p==4) {
             // More tiles than workers: rejected initial requests must retry
@@ -379,14 +512,16 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
             Terrain::beginProceduralFrame();
             check(Terrain::proceduralWorkStats().outstanding==0,
                   "released-bake-prefetch-is-not-restarted-by-frame-pump");
-            QImage oldBake(2048,2048,QImage::Format_RGB888); oldBake.fill(Qt::red);
-            check(AceLib::save(ace,oldBake,AceWriteOptions{},error),"write-earlier-2048-bake-fixture");
-            baked.loadProceduralMaterial(tileDir);
-            check(finishMaterialJobs(),"earlier-bake-validation-worker-completes");
-            check(baked.proceduralFallbackTexture()<0 && !baked.hasProceduralBake(),
-                  "earlier-2048-bake-is-rejected-without-resampling");
-            baked.releaseProceduralTextures();
-            check(baked.save(),"save-regenerates-rejected-bake-at-current-size");
+            for (int oldSide : {512,2048}) {
+                QImage oldBake(oldSide,oldSide,QImage::Format_RGB888); oldBake.fill(Qt::red);
+                check(AceLib::save(ace,oldBake,AceWriteOptions{},error),"write-other-size-bake-fixture");
+                baked.loadProceduralMaterial(tileDir);
+                check(finishMaterialJobs(),"other-size-bake-validation-worker-completes");
+                check(baked.proceduralFallbackTexture()<0 && !baked.hasProceduralBake(),
+                      "other-size-bake-is-rejected-without-resampling");
+                baked.releaseProceduralTextures();
+                check(baked.save(),"save-regenerates-rejected-bake-at-current-size");
+            }
         }
         TestTerrain::PatchVisibility view; view.valid=true; view.maximumDistance=100000;
         view.cameraLocalX=view.cameraLocalZ=1024;
@@ -554,11 +689,33 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
             delete[] texture.imageData; texture.imageData=nullptr; return image;
         };
         auto image=readBake();
-        check(!image.isNull() && image.pixelColor(8,8)==QColor(Qt::blue)
+        const int editedPixel=TerrainMaterialMap::BakedSide/64; // 32 m into this 2048 m tile.
+        check(!image.isNull() && image.pixelColor(editedPixel,editedPixel)==QColor(Qt::blue)
               && image.pixelColor(image.width()-1,image.height()-1)==QColor(Qt::green),
               "one-patch-save-preserves-unvisited-baked-regions");
         const QString marker=t.descriptor().bakedMaterialInfo;
         check(t.save() && t.descriptor().bakedMaterialInfo==marker,"unchanged-save-retains-unchecked-bake-revision");
+        // A valid but noncanonical green BC1 block would be changed by another
+        // encode pass. It must survive unrelated edits byte-for-byte after reload.
+        AceDocument priorBake;
+        check(AceDocument::read(path,priorBake,error),"read-dxt1-bake-for-preservation-test");
+        const QByteArray preservedBlock=QByteArray::fromHex("e007010000000000");
+        if (!priorBake.levels.isEmpty() && priorBake.levels[0].data.size()>=8) {
+            priorBake.levels[0].data.replace(priorBake.levels[0].data.size()-8,8,preservedBlock);
+            check(priorBake.write(path,false,error),"write-noncanonical-valid-unchanged-dxt1-block");
+            Texture redSource(temp.path()+"/red.png");
+            for (int repeat=0;repeat<3;++repeat) {
+                t.releaseProceduralTextures(); t.loadProceduralMaterial(tileDir);
+                brush.tex=repeat%2 ? &source : &redSource;
+                t.paintProceduralMaterial(&brush,0,0,-992,-992,12);
+                check(t.save(),"repeat-incremental-dxt1-save-after-reload");
+                AceDocument nextBake;
+                check(AceDocument::read(path,nextBake,error) && !nextBake.levels.isEmpty()
+                      && nextBake.levels[0].data.right(8)==preservedBlock,
+                      "untouched-dxt1-block-survives-without-recompression-drift");
+            }
+            brush.tex=&source;
+        }
         {
             QScopedValueRollback<bool> validation(TerrainMaterialMap::ValidateBakeOnLoad,true);
             t.setModified(false); t.loadProceduralMaterial(tileDir);
@@ -658,7 +815,7 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
         AceLib loader; loader.texture=&baked; loader.run();
         const int nearId=t.proceduralTexture(0);
         auto *near=TexLib::mtex.at(nearId); near->decodeToCpu();
-        check(baked.loaded && baked.imageData && baked.imageData[2]==255 && baked.imageData[0]==0
+        check(baked.loaded && baked.decodeToCpu() && baked.imageData && baked.imageData[2]==255 && baked.imageData[0]==0
               && near->imageData && near->imageData[2]>245 && near->imageData[0]<10,
               "rebake-and-near-cache-use-fresh-source-not-new-stamp-with-old-pixels");
         delete[] baked.imageData; baked.imageData=nullptr;
@@ -1219,7 +1376,7 @@ int TsreTests::runTerrainMaterialGlSuite() {
     int failed=0;
     for (const QString &directory : {QStringLiteral("shaders"),QStringLiteral("shaders330")}) {
         for (const QString &shaderName : {QStringLiteral("StandardFog"),QStringLiteral("StandardFogStoredCoords"),QStringLiteral("StandardBloom")}) {
-            const QString base="appdata/0.697/"+directory+"/"+shaderName;
+            const QString base="appdata/"+Game::AppDataVersion+"/"+directory+"/"+shaderName;
             QOpenGLShaderProgram program;
             if (!program.addShaderFromSourceFile(QOpenGLShader::Vertex,base+".vs")
                     || !program.addShaderFromSourceFile(QOpenGLShader::Fragment,base+".fs") || !program.link()) {
@@ -1231,7 +1388,7 @@ int TsreTests::runTerrainMaterialGlSuite() {
         // Render actual vertex-shader UV remapping. The same post-transform is
         // used for precomputed attributes and paged UBO-derived coordinates.
         QOpenGLShaderProgram program;
-        bool ok=program.addShaderFromSourceFile(QOpenGLShader::Vertex,"appdata/0.697/shaders330/StandardFog.vs")
+        bool ok=program.addShaderFromSourceFile(QOpenGLShader::Vertex,"appdata/"+Game::AppDataVersion+"/shaders330/StandardFog.vs")
                 && program.addShaderFromSourceCode(QOpenGLShader::Fragment,
                     "#version 330 core\nin vec2 vTextureCoord; out vec4 fragColor; void main(){fragColor=vec4(vTextureCoord,0,1);}")
                 && program.link() && program.bind();
@@ -1403,6 +1560,38 @@ int TsreTests::runTerrainMaterialGlSuite() {
         ok &= !f->glIsTexture(aGpu);
         if (!ok) ++failed;
         qInfo() << "[tests:terrain-material-gl] saved edits retain uploaded output, deduplicate without regeneration and release final owner" << ok;
+    }
+    {
+        Undo::Clear();
+        QScopedValueRollback<bool> enabled(Undo::UndoEnabled,true);
+        TestTerrain a,b; a.setup(temp.path(),16,"undo-gl-a"); b.setup(temp.path(),16,"undo-gl-b");
+        QString error;
+        bool ok=a.setProceduralMaterial(true,error) && b.setProceduralMaterial(true,error);
+        const auto ids=a.captureProceduralUndo()->buffer->bytes();
+        const int shared=a.proceduralTexture(0);
+        ok &= shared>=0 && b.proceduralTexture(0)==shared;
+        const GLuint gpu=shared>=0 ? TexLib::mtex.at(shared)->tex[0] : 0;
+        Texture source(temp.path()+"/blue.png");
+        QImage solid(9,9,QImage::Format_Grayscale8); solid.fill(0);
+        Brush brush; brush.useTexture=true; brush.tex=&source; brush.brushshape=&solid;
+        Undo::StateBegin();
+        a.paintProceduralMaterial(&brush,0,0,-969,-971,13);
+        ok &= a.proceduralTexture(0)!=shared;
+        Undo::StateEnd(); Undo::UndoLast();
+        const int restored=a.proceduralTexture(0);
+        ok &= restored>=0 && a.captureProceduralUndo()->buffer->bytes()==ids
+                && b.proceduralTexture(0)==shared && f->glIsTexture(gpu);
+        if (restored>=0) {
+            Texture copy(TexLib::mtex.at(restored));
+            ok &= copy.imageData && copy.imageData[0]>245 && copy.imageData[2]<10;
+            delete[] copy.imageData; copy.imageData=nullptr;
+        }
+        ok &= finishUndoJobs() && finishMaterialJobs();
+        // Late completions must not replace the restored output.
+        ok &= a.captureProceduralUndo()->buffer->bytes()==ids && a.proceduralTexture(0)==restored;
+        Undo::Clear();
+        if (!ok) ++failed;
+        qInfo() << "[tests:terrain-material-gl] undo restores GPU output, preserves shared owner and rejects stale jobs" << ok;
     }
     {
         TestTerrain a,b; a.setup(temp.path(),16,"release-a"); b.setup(temp.path(),32,"release-b");

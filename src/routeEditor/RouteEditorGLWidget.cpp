@@ -1849,6 +1849,7 @@ void RouteEditorGLWidget::mouseMoveEvent(QMouseEvent *event) {
         }
         if (toolEnabled == "proceduralPaintTextureTool" && mouseLPressed
                 && (mousex != m_lastPos.x() || mousey != m_lastPos.y())) {
+            Undo::StateBeginIfNotExist();
             Game::terrainLib->paintProceduralTexture(defaultPaintBrush,int(camera->pozT[0]),int(camera->pozT[1]),aktPointerPos);
         }
         if (toolEnabled == "heightTool" && mouseLPressed == true) {

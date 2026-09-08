@@ -1,6 +1,7 @@
 #pragma once
 #include <QString>
 #include <memory>
+#include <QVector>
 class TFile;
 
 // Value snapshot of a picked shader pair: independent of the palette tile's lifetime.
@@ -17,4 +18,6 @@ struct TerrainMaterialSource {
     QString key() const;
     // Append only; never renumber existing bitmap IDs or static patch references.
     int appendTo(TFile &file, QString &error) const;
+    static void restorePalette(TFile &file,
+            const QVector<std::shared_ptr<const TerrainMaterialSource>> &palette);
 };

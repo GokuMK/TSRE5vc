@@ -13,7 +13,7 @@ class TerrainMaterialMap {
 public:
     static constexpr int Side = 4096;
     static constexpr int OutputSide = 512;
-    static constexpr int BakedSide = 512;
+    static constexpr int BakedSide = 1024;
     // Horizontal camera-to-patch-center distance for detailed procedural output.
     // Independent of object/geometry LOD; farther patches use the saved bake.
     static inline float DetailDistanceMeters = 2048.0f;

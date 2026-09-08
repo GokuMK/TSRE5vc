@@ -9,6 +9,7 @@
  */
 
 #include <tsre/Undo.h>
+#include <tsre/UndoBuffer.h>
 #include <tsre/world/TerrainBrushProfiler.h>
 #include <QDebug>
 #include <tsre/world/TerrainLib.h>
@@ -64,11 +65,13 @@ UndoState::~UndoState(){
 }
 
 void Undo::Clear(){
+    delete currentState;
     currentState = NULL;
     for(int i = 0; i < undoStates.size();){
         delete undoStates.last();
         undoStates.removeLast();
     }
+    UndoBuffer::pump();
 }
 
 void Undo::UndoLast(){
@@ -85,6 +88,9 @@ void Undo::UndoLast(){
     UndoState *state = undoStates.back();
 
     qDebug() << "undo";
+    UndoBuffer::pump();
+    for (const auto &snapshot : state->terrainMaterials)
+        if (!snapshot->restore()) qWarning() << "Skipping unavailable/incompatible procedural terrain undo";
     
     QMapIterator<int, UndoState::TerrainData*> i(state->terrainData);
     while (i.hasNext()) {
@@ -153,7 +159,7 @@ void Undo::UndoLast(){
             state->roadDB = NULL;
         }
     }
-    Game::terrainLib->setDetailedAsCurrent();
+    if (Game::terrainLib) Game::terrainLib->setDetailedAsCurrent();
 
     if(state->tsectionData.data != NULL
             && Game::currentRoute != NULL
@@ -194,6 +200,7 @@ void Undo::StateBegin(){
 }
 
 void Undo::StateEndIfLongTime(){
+    UndoBuffer::pump();
     if(currentState == NULL)
         return;
     unsigned long long int timeNow = QDateTime::currentMSecsSinceEpoch();
@@ -212,6 +219,8 @@ void Undo::StateEnd(){
                     currentState->tsectionData.data->routeShapes;
         }
         if(currentState->modified == true){
+            for (const auto &snapshot : currentState->terrainMaterials)
+                if (snapshot->buffer) snapshot->buffer->compressLater();
             undoStates.push_back(currentState);
             if(undoStates.size() > 50){
                 delete undoStates.first();
@@ -228,6 +237,20 @@ void Undo::StateEnd(){
 
 bool Undo::IsStateOpen(){
     return currentState != NULL;
+}
+
+bool Undo::NeedsTerrainMaterialSnapshot(Terrain *terrain) {
+    if (!UndoEnabled || !currentState) return false;
+    const auto found = currentState->terrainMaterials.constFind(terrain);
+    return found == currentState->terrainMaterials.constEnd() || !(*found)->targetValid();
+}
+bool Undo::PushTerrainMaterial(Terrain *terrain) {
+    if (!NeedsTerrainMaterialSnapshot(terrain)) return true;
+    auto snapshot = terrain->captureProceduralUndo();
+    if (!snapshot) return false;
+    currentState->terrainMaterials.insert(terrain, std::move(snapshot));
+    currentState->modified = true;
+    return true;
 }
 
 void Undo::StateCancel(){

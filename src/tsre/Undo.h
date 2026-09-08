@@ -12,11 +12,14 @@
 #define	UNDO_H
 #include <QMap>
 #include <QVector>
+#include <memory>
 
 class TDB;
 class TSectionDAT;
 class WorldObj;
 class GameObj;
+class Terrain;
+struct UndoSnapshot;
 
 struct UndoState {
     ~UndoState();
@@ -45,6 +48,7 @@ struct UndoState {
     bool modified = false;
     QMap<int, TerrainData*> terrainData;
     QMap<int, unsigned char*> texData;
+    QMap<Terrain*, std::shared_ptr<UndoSnapshot>> terrainMaterials;
     QMap<long long int, WorldObjInfo*> objData;
     TDB* trackDB = NULL;
     TDB* roadDB = NULL;
@@ -73,6 +77,8 @@ public:
     static void PushTrackDB(TDB *tdb, bool road = false);
     static void PushTSectionData(TSectionDAT *tsection);
     static bool IsStateOpen();
+    static bool NeedsTerrainMaterialSnapshot(Terrain *terrain);
+    static bool PushTerrainMaterial(Terrain *terrain);
     //static void PushTerrainTexture(int x, int z, int uu, unsigned char* data);
     
 private:

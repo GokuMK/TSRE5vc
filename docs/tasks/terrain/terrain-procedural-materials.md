@@ -7,9 +7,9 @@ The user's ?? review comments are incorporated below. This remains a **minimal
 performance tech demo**, not a production material-system specification.
 Detailed specifications and further features follow measurement.
 
-Stage A verification update: 398 procedural CPU checks and the offscreen OpenGL
-suite pass with 512 bakes and tile-load prefetch; the preceding 66 terrain-grid checks
-also passed. See the baked-fallback task for current
+Stage A verification update: the ACE integration passed 405 procedural CPU checks
+and the OpenGL suite, plus 66 terrain-grid checks. The DXT1-bake follow-up adds
+further checks; see the baked-fallback task for current
 save/migration/near-far behavior and remaining interactive acceptance. Earlier
 counts below describe the preceding demo milestones, not the latest total.
 
@@ -39,7 +39,7 @@ level 1 for faster saves without changing the file format. See the baked-fallbac
 task for checked/unchecked markers, migration, rollback and measurements.
 
 Stage A follow-up: [baked tile fallback; B — material catalogue](terrain-procedural-baked-fallback.md).
-A now adds a checked 512-square uncompressed RGB ACE bake on save and distant
+A now adds a checked 1024-square opaque DXT1 ACE bake on save and distant
 texture selection. Saved bakes are prefetched at tile load, with bounded retries
 and begin-frame GPU uploads independent of patch visibility. Pending near patches
 use the baked image until their generated textures are ready. A brand-new/unbaked
@@ -288,7 +288,7 @@ sidecar is not permission to replace it silently with zeros. The saved bake
 is a render fallback, not corrupt-file recovery. Keep file references
 within the intended route location.
 
-Ordinary procedural save writes the ID bitmap, one whole-tile RGB ACE and the
+Ordinary procedural save writes the ID bitmap, one whole-tile opaque DXT1 ACE and the
 descriptor, never individual generated patch ACEs. Keep one backup per sidecar
 and commit the descriptor last, restoring overwritten data on reported failure.
 Preserve source definitions and unrelated fields; baked patch assignments/UVs
@@ -355,9 +355,8 @@ parity when the demo intentionally ignores those transforms.
   filtering halos/mipmap seams and sophisticated season/hot-reload policies.
 - Global dedup before cross-tile synthesis. The selected design uses per-tile
   material caches and global TexLib output sharing instead.
-- Production undo: authoritative state is IDs/toggle state, not generated RGB.
-  Do not let existing RGB-only undo silently alter procedural output; if undo
-  is not integrated into the demo, explicitly disable it for these operations.
+- General redo remains separate (the global Undo API has no redo). Procedural
+  undo is implemented below using IDs/toggle/palette state, not generated RGB.
 - Production safe-save/export/cleanup, route merge/B replacement and networking.
   Until handled, gate incompatible actions rather than leave stale references.
 - Worker queues/global cache or memory-manager redesign only if measurements
@@ -369,6 +368,88 @@ Related: [terrain task index](README.md),
 [height-brush batching](terrain-height-brush-performance.md).
 
 ## Implemented demo: entry points and trial instructions
+
+### Procedural undo follow-up
+
+Implemented: the first real material edit to each tile in an open Undo action
+deep-copies its full authoritative byte-ID plane (16 MiB). Further stamps in
+that action reuse the snapshot. Painting, patch fill, flood fill, shader import,
+and procedural/static toggles participate. Snapshot metadata includes complete
+normal/auxiliary shader definitions, the material reference/bake marker and patch
+shader IDs/UV transforms. Height/bounds/flags and generated textures are not
+captured. A static-before-enable snapshot needs no ID plane.
+
+The existing **two-second action boundary is intentional**: a long drag splits
+into short undoable segments, and mouse release closes the final segment. The
+procedural mouse-move handler opens a new action after the timer closes one.
+One action can capture several tiles. The existing 50-action history limit stays.
+
+At action completion, `UndoBuffer` queues zlib level-1 compression on a dedicated
+**single-worker** pool. There is at most one submitted compression job; waiting
+entries are weak references to history-owned snapshots, not extra map copies.
+The worker owns only immutable bytes, never Terrain or the Undo stack. The
+existing Undo timer publishes completed results on the main thread and releases
+raw storage only if compression succeeded and shrank the payload. Until then,
+Ctrl+Z reads the raw snapshot without waiting. Afterwards it decompresses it.
+Clear/cancel/history eviction destroy snapshot ownership; expired queue entries
+are skipped, and an already-running job may finish but cannot resurrect history.
+`Undo::Clear()` also deletes the previously leaked open action.
+
+Restore cancels old procedural generation/miniature requests, restores palette
+and IDs together, preserves unaffected resident patches, and regenerates changed
+patches including sampling halos synchronously. Mode/palette changes can require
+all patch outputs again. The tile becomes modified and its bake is marked for
+rebuild: saving since capture must not make the restored state appear clean.
+Undo never writes files or rolls back a previously saved ACE immediately.
+Missing/deleted/reloaded/replaced tiles, changed layouts/routes, write-protected
+sessions, and outstanding save-recovery state are refused rather than applying
+the snapshot to the wrong target. Source files must still be available unless
+their decoded images remain cached. GPU/cache eviction alone does not expire
+undo. General redo remains outside this implementation.
+
+Alternative retained for future comparison: fixed chunks or contiguous region
+deltas can lower peak capture memory (a 64x64 ID chunk is 4 KiB). They complicate
+overlapping stamps/fills and were not selected for the first implementation.
+Raw snapshots waiting for compression still consume 16 MiB each; compression
+is not a global memory budget. Noisy maps can compress poorly.
+
+Pre-implementation measurements on the current
+`C:/trainsim/routes/procedural/tiles/-11dbfba0_materials.pmap`, Release Qt code,
+two warmups and 11 measured repetitions per level, disk I/O excluded:
+
+| zlib level | Deep clone | Compression | Clone + compression | Decompression | Compressed bytes |
+|---|---:|---:|---:|---:|---:|
+| 1 | 4.558 ms | 46.036 ms | 50.594 ms | 17.536 ms | 174,193 (~170 KiB) |
+| 6 | 3.763 ms | 124.377 ms | 128.140 ms | 40.919 ms | 87,322 (~85 KiB) |
+
+The raw plane is 16 MiB. These are actual deep copies, not cheap implicitly shared
+`QByteArray` handles. Every decompression was checked byte-for-byte. The map was
+only read; log: `build/procedural-undo-map-benchmark.log`. Results depend strongly
+on map content and system load; noisy/scattered maps may compress worse. Patch
+texture regeneration is excluded and is acceptable as part of Ctrl+Z according
+to the user; no actual procedural undo implementation was timed.
+
+Level-1 snapshots would use about 8.3 MiB for 50 maps of this particular content,
+versus 800 MiB raw (excluding metadata and any pending raw snapshots). Synchronous
+compression could cause a ~51 ms stroke-start pause; the implemented worker
+avoids putting that compression on the painting thread. The explicit deep copy
+still occurs once per tile/action, not per mouse-move stamp.
+
+Implementation: `src/tsre/Undo.{h,cpp}`, `src/tsre/UndoBuffer.{h,cpp}`,
+`Terrain::captureProceduralUndo()` / `TerrainMaterialUndo::restore()` in
+`src/tsre/world/TerrainProceduralMaterial.cpp`. CPU and GL regression coverage
+belongs to `--test --test-suite terrain-material` and `terrain-material-gl`.
+
+Verification (2026-09-08): Release build passed; `terrain-material` passed
+454 checks in each of the default BC1 and `TSRE_TERRAIN_MATERIAL_RGB=1` near-output
+modes, and `terrain-material-gl` reported
+zero failures. Coverage includes deep-copy isolation, raw restore while a worker
+is pending, compressed restore, weak queue ownership/cleanup, no-op/locked stamps,
+multi-tile overlapping strokes, two-second action boundaries, separate stroke
+segments, shader import, enable/disable, save/reload, write protection, tile
+reload/deletion, cache eviction, restored GPU colours and shared texture lifetime.
+Logs: `build/terrain-material-undo-{cpu,rgb,gl}.log`.
+Tests use temporary route fixtures and preserve the user's application log.
 
 - [TerrainMaterialMap](../../../src/tsre/world/TerrainMaterialMap.h): CPU-only
   ID-plane codec, categorical brush, patch hashing, texture synthesis and fast
@@ -442,7 +523,7 @@ the updated F2 screenshot was visually inspected. A whole 4096-square ID-plane
 flood took approximately 192 ms in one CPU-only test (excluding synthesis/save);
 this is not an interactive frame-time measurement.
 
-The buttons describe the missing procedural Undo support in their tooltip.
+The buttons describe procedural Undo support; painting uses two-second actions.
 UV manipulation/map-to-texture tools and material removal remain refused on
 procedural tiles. Height editing, water and gaps remain independent.
 Do not use this prototype as an interchange/export format. Route merge is
@@ -494,7 +575,8 @@ the old file becomes the one `.bk`. Other unreferenced historical map files are
 not automatically swept from the route directory. The removed whole-map hash
 was only a filename/version identifier, not an integrity check or cache key.
 The independent patch-recipe and generated-output hashes below remain in use.
-No generated ACEs are saved. This does not make the older Y/F/ACE save paths a
+No per-patch generated ACEs are saved; Stage A saves one tile-wide fallback.
+This does not make the older Y/F/ACE save paths a
 whole-tile transaction.
 
 As of 2026-09-07, load/enable prepares no patch output. The colour render paths
