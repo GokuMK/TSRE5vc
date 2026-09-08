@@ -44,7 +44,8 @@ QByteArray TerrainMaterialMap::encode() const {
     qToLittleEndian<quint32>(Side, result.data()+12);
     qToLittleEndian<quint32>(Side, result.data()+16);
     // qCompress's four-byte length is redundant: the versioned header fixes it.
-    result += qCompress(ids, 6).mid(4);
+    // Same zlib/file format, favor interactive saves over maximum compression.
+    result += qCompress(ids, 1).mid(4);
     return result;
 }
 bool TerrainMaterialMap::decode(const QByteArray &file, QByteArray &out, QString &error) {
@@ -259,18 +260,30 @@ QImage TerrainMaterialMap::generate(int patch, int patches, const QHash<int, QIm
     }
     return output;
 }
-QImage TerrainMaterialMap::bake(int patches, const QHash<int,QImage> &sources) const {
+QImage TerrainMaterialMap::bake(int patches, const QHash<int,QImage> &sources,
+                              const QHash<QByteArray,QImage> &miniatures,
+                              const QImage &previous, const QSet<int> &dirtyPatches,
+                              QVector<QByteArray> *recipeKeys) const {
     if (!valid() || patches<=0 || BakedSide%patches || Side%patches) return {};
-    QImage tile(BakedSide,BakedSide,QImage::Format_RGB888);
+    const bool incremental=previous.size()==QSize(BakedSide,BakedSide)
+            && previous.format()==QImage::Format_RGB888;
+    QImage tile=incremental ? previous : QImage(BakedSide,BakedSide,QImage::Format_RGB888);
+    if (recipeKeys && recipeKeys->size()!=patches*patches) recipeKeys->fill({},patches*patches);
     const int side=BakedSide/patches;
     // Cache only reduced recipes: even a completely unique tile costs one extra
     // tile image, not a P*512-square intermediate or resident patch textures.
-    QHash<QByteArray,QImage> reduced;
+    QHash<QByteArray,QImage> reduced=miniatures;
     for (int patch=0;patch<patches*patches;++patch) {
-        const auto key=patchKey(patch,patches);
+        if (incremental && !dirtyPatches.contains(patch)) continue;
+        QByteArray key=recipeKeys ? recipeKeys->at(patch) : QByteArray();
+        if (key.isEmpty()) {
+            key=patchKey(patch,patches);
+            if (recipeKeys) (*recipeKeys)[patch]=key;
+        }
         auto found=reduced.constFind(key);
         QImage image;
-        if (found!=reduced.constEnd()) image=*found;
+        if (found!=reduced.constEnd() && found->size()==QSize(side,side)
+                && found->format()==QImage::Format_RGB888) image=*found;
         else {
             image=generate(patch,patches,sources);
             if (image.isNull()) return {};

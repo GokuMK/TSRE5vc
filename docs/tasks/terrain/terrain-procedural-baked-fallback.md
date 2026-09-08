@@ -11,19 +11,33 @@ Related: [current procedural demo](terrain-procedural-materials.md),
 
 ## A: requested outcome
 
-Current 512-bake implementation verified: **296 CPU checks, 0 failures**, and the
+Current implementation verified: **398 CPU checks, 0 failures**, and the
 offscreen OpenGL suite passes. Six loaded tiles exercise saturation/retry beyond
 the four-job cap without rendering; baked GPU uploads occur before visible-patch
 requests, preserve texture binding state, share identical outputs and release on
-final ownership loss.
+final ownership loss. Tests cover validation off/on, mismatch detection and
+continued use of a stale bake without forced distant-patch generation.
 
-**Open performance issue / ACE handoff:** the user still observes comparable,
+**Historical tile-entry issue / ACE handoff:** the user observed comparable,
 though smaller, tile-entry lag with the 512 bake. Removing baked tile textures
 from disk eliminates the lag while staged procedural patch generation remains
 visible. Disabling bake mipmaps did not solve it; they remain disabled. Isolated
 offscreen upload calls measured 30–53 ms at 2048 and 0.42–0.46 ms at 512, but this
 does **not** explain the full interactive delay or establish its remaining cause.
-Further runtime diagnosis is deferred until after the new ACE work. Current
+Follow-up diagnosis isolated synchronous bake validation: SHA-256 of the complete
+16 MiB ID map took roughly 120–150 ms per actual route tile. Missing bake files
+skip that check; smaller bake images do not shrink the ID map. Normal tile load
+now trusts the saved bake. `TerrainMaterialMap::ValidateBakeOnLoad` is an internal
+debug/restore setting, default **false**, retained for a future editable procedural
+terrain settings section (no GUI/settings.txt entry yet). Enabling it restores
+the full input/signature check and marks mismatches for rebaking on save, but a
+stale, decodable bake remains available for pending patches and distant terrain.
+Unsaved interactive painting still uses procedural output. Normal saves now use
+tracked patch edits and small source/settings metadata, not full-map hashing.
+Explicit validation/repair mode hashes inputs and establishes checked signatures.
+Missing/invalid-file checks remain
+enabled regardless of this setting. The user confirmed that disabling load-time
+validation resolved the lag. Current
 `AceLib::saveRgbChecked` is the small checked RGB writer; legacy `AceLib::save`
 and the existing reader remain available. No background resizing of old bakes.
 
@@ -44,7 +58,7 @@ Keep the existing 4096-square ID map and 512-square near-patch output settings
 independent from this 512-square baked output setting. The bake was initially
 2048-square; it was reduced after isolated non-mipmapped uploads took 30–53 ms.
 Old 2048 bakes are not resampled or used: the loader requires the current size.
-The changed bake recipe marks old bakes stale: save the tile once to generate
+The loader rejects old-size bakes: save the tile once to generate
 the new 512 ACE and restore normal near/far selection. No route files are changed
 merely by loading them. The runtime upload is 0.75 MiB RGB, 1/16 of the old payload;
 near patch quality and the stored ID map are unchanged. The coarse fallback and
@@ -82,13 +96,28 @@ and leave original disk data intact until a successful save. Define a reliable
 way to recognize converted tiles (including disabled/re-enabled tiles) before
 implementation; do not assume every existing material 0 is already a bake.
 Implemented recognition: optional sample token `TSRE_Terrain_Baked_Material`
-(100010), a UTF-16 string `v1:pending` or `v1:<SHA256>`. It persists when procedural
+(100010), a UTF-16 string. It persists when procedural
 mode is disabled. This explicitly reserves material zero; its expected primary
 filename and complete pair are also checked on conversion/load. Old demo maps
 without the marker migrate in memory (palette and byte IDs together), becoming
 dirty without writing route files until save. A full old 256-entry palette is
 refused, not truncated. The marker is separate from the existing map reference.
 This migration is separate from B's possible future global-ID mapping.
+
+Current marker forms (all retain v1 palette/material-zero semantics):
+
+- `v1:pending`: no completed bake yet.
+- `v1:unchecked:<settings SHA256>:<UUID>`: ordinary save. The small settings hash
+  covers source definitions/file existence/size/timestamps, patch count, bitmap
+  and output sizes, and sampling mode. The UUID distinguishes saved bake versions;
+  it is not an input-validation hash.
+- `v1:checked:<settings SHA256>:<full-input SHA256>`: explicit validation/repair
+  mode computed a whole-map input signature.
+- Old `v1:<SHA256>` markers still load. They lack separate source/settings
+  metadata, so their first actual save rebuilds once to establish the new baseline.
+  Merely loading an old tile in normal mode does not force validation or migration
+  writes. With validation enabled, unchecked/mismatched input signatures schedule
+  a full repair; a decodable old bake remains usable meanwhile.
 
 ## Existing code to reuse, and traps
 
@@ -143,9 +172,59 @@ would be wrong for P4/P8/P32. A does not require changing that older tool here.
 
 ## Image generation, filtering and memory
 
-Proposed first implementation: generate/reuse one uncompressed 512-square patch
-image at a time, reduce it into its 512/P-square region of the final image, then
-release/reuse that scratch buffer. Do not assemble the full-resolution tile at
+Current implementation retains a small CPU miniature with each generated
+material. Automatic generation shrinks the original RGB image in its worker,
+before BC1 encoding/upload. Synchronous painting uses a **separate coalescing
+queue**, retaining only the latest request per patch. It does not lose that
+request when workers are busy. The frame pump retries waiting work; a subsequent
+edit replaces only that patch's request, not other patches' work. Both queues
+share the same four-worker pool. Background loading retains its four-outstanding
+job limit; at most four edit jobs are submitted in addition, with the rest kept
+in the per-patch queue. GPU handoff never shrinks images. Cancelled/replaced
+materials cannot receive stale jobs' results.
+
+Queued edit work temporarily retains the already-generated RGB image (implicitly
+shared for identical materials), until reduction and output hashing complete.
+Backlog memory is bounded by the latest edited patch versions plus at most four
+superseded submitted jobs, not by stroke count. Tile eviction/destruction cancels
+this queue and releases pending images; workers cannot resurrect the tile.
+
+The size is `TerrainMaterialMap::BakedSide / patchesPerSide`, not a fixed 32.
+Save validates both recipe and current required dimensions, and clears cached
+results when source-image comparison detects a change. Miniatures are released
+with generated materials (no permanent full-size CPU images or GPU readback).
+At the current bake size, distinct miniatures for all patches total at most
+0.75 MiB of RGB pixels per tile, excluding container/alignment overhead.
+
+Save first drains this tile's edit queue, then takes the ready miniatures and
+updates only dirty regions of the existing baked image in the same worker pool.
+The dirty set includes sampling-halo neighbours. Unvisited unchanged patches do
+not need near images or miniatures. Only missing/mismatched dirty recipes
+generate/reduce a scratch near image. The
+save operation still waits for completion. It queues at most one save assembly
+job in addition to bounded automatic work, without increasing worker concurrency.
+The UI thread blocks without pumping editing events: this is not asynchronous
+route saving. Whole-map input hashing is opt-in, not a normal save cost. The ID
+map still compresses as a whole, now using zlib level 1 instead of 6; the format
+and bounded decoder are unchanged.
+
+The CPU bake image is retained after asynchronous loading or successful save
+(0.75 MiB of RGB pixels at 512 square), and released with GPU residency. If it is
+absent at save, the worker loads the saved ACE. Missing/invalid/wrong-size base,
+new conversion, changed source/settings, or explicit repair require a full bake.
+Recipe hashes are cached independently of GPU residency and invalidated only for
+affected patches. Source changes invalidate output images, not ID-only recipes.
+Small CPU images/metadata are committed only after descriptor save succeeds;
+rollback retains the previous baseline and the dirty patch set for retry.
+
+Successful save now promotes existing private output using the content key
+computed by the edit worker. Unique textures keep their existing GPU object;
+identical textures acquire the existing shared TexLib reference. A deduplicated
+texture not yet uploaded bypasses the automatic upload budget on first draw.
+No patch synthesis or BC1 encoding is performed by save-time finalization.
+This avoids discarding visible edited textures and showing a temporary fallback.
+
+Do not assemble the full-resolution tile at
 P*512 pixels per side and shrink it afterwards. P32 would otherwise require a
 16384-square intermediate. Repeated patch recipes may reuse reduced images.
 
@@ -313,15 +392,21 @@ factor. Binding the bake alone without selecting those parameters is insufficien
 Check legacy and Gather, precomputed and paged meshes, without affecting geometry
 LOD or map overlays.
 
-The first version includes **per-tile texture distance selection**, defaulting
-to procedural textures in the **3 x 3 near-tile region**, and the bake farther
-away. No per-patch distance transitions or fading in A2. Keep texture distance
-independent from geometry LOD. For ordinary 2048 m tiles this is the camera's
-tile plus one neighbour in each direction. Reuse the existing world-tile distance
-convention for mixed physical terrain sizes, make one decision per terrain tile,
-and verify a larger tile overlapping the near region is not incorrectly treated
-as distant merely because its origin is outside it. This does not increase the
-overall terrain render distance.
+The initial 3 x 3 per-tile switch is now replaced by **per-patch texture distance**.
+`TerrainMaterialMap::DetailDistanceMeters` defaults to **2048 m**, alongside the
+other internal procedural settings (no settings.txt/TRK/GUI control yet).
+Measure horizontal camera-to-patch-center distance in physical metres, including
+mixed tile sizes and patch counts. Within the radius, use/request detailed output;
+outside, use the saved tile bake, even if that patch's detailed texture is already
+resident. The limit filters both nearest-first generation requests and actual
+draw selection. It is independent of objectlod, tilelod and geometry LOD, but
+cannot make already-culled geometry visible. There is no fading or hysteresis.
+
+Unbaked tiles and tiles with unsaved procedural changes retain their previous
+detailed-rendering override so old baked pixels cannot hide edits. Cached detailed
+textures are not evicted per patch on crossing this boundary: existing whole-tile
+residency release remains responsible for reclaiming them. Returning inside the
+radius can therefore reuse existing output without regeneration.
 
 **Original eager behavior, replaced by the prerequisite:** `loadProceduralMaterial()` called
 `proceduralTexture(0)`, whose first invocation loops over every patch and prepares
@@ -383,17 +468,20 @@ to the baked draw entry/pair alone. Legacy fallback must not depend on the catal
 
 ## Stage A implementation notes
 
-- `TerrainMaterialMap::bake()` generates the same 512-square near output, then
-  minifies it with Qt smooth image reduction into a 512/P region. A cache retains
+- `TerrainMaterialMap::bake()` updates dirty regions of a correctly sized saved
+  bake, using cached recipe hashes and valid worker-generated miniatures. Dirty
+  cache misses generate the same near output and minify it into a `BakedSide/P` region.
+  A cache retains
   only reduced recipes, bounded by one tile image; no all-patch full-resolution
   intermediate, GPU readback or near-output residency is required.
 - `Terrain::saveProceduralBake()` prepares the ACE before the map/descriptor save.
   The ACE keeps one `.bk`; a reported map/descriptor failure restores the old ACE,
   ID map, bake marker and changed patch fields. The `.t` commits last. Existing
   Y/F write behavior and power-loss recovery are not redesigned.
-- The recipe signature includes IDs, source shader definitions/file stamps,
-  patch count, output sizes and sampling mode. Unchanged/height-only saves keep
-  a valid bake; missing files or changed inputs cause rebaking. A rebake decodes
+- Full input signatures are debug/repair-only. Small source/settings metadata
+  and tracked edits drive normal saves. Unchanged/height-only saves keep
+  a valid bake; missing files or changed source/settings cause a full rebuild.
+  Ordinary painting replaces only dirty bake regions. A rebake decodes
   current used source files and invalidates near outputs if their source pixels
   changed, so it cannot save new file stamps alongside old cached pixels.
   Continuous source-file watching outside save/reload is not implemented.
@@ -403,9 +491,9 @@ to the baked draw entry/pair alone. Legacy fallback must not depend on the catal
   it is reset before other draws. No geometry rebuild or shader-program switch
   occurs as workers finish or the tile crosses the texture-distance boundary.
   Both legacy submission and Gather carry the remap and 32*P baked detail scale.
-- Normal and pending-near fallback draws use the same saved bake. A tile outside
-  the camera's 3x3 World-cell region does not request procedural patch output.
-  Physical terrain bounds, not just tile origins, determine region overlap.
+- Normal and pending-near fallback draws use the same saved bake. Patches outside
+  `DetailDistanceMeters` do not request or draw detailed procedural output.
+  Physical patch centers, not World-cell indices, determine the distance.
   Dirty/unbaked tiles remain procedural. Geometry LOD is unchanged.
 - Successful rebakes invalidate ordinary TexLib lookup aliases for the stable
   filename and release this tile's static texture references. Loader-owned
@@ -466,3 +554,103 @@ build/TSRE5vc.exe --test --test-suite terrain-grid
 - Local logs: `build/terrain-material-baked-{cpu,gl,grid}.log`. The user's root
   `log.txt` was restored byte-for-byte. Interactive route and external-editor
   acceptance are still required, preferably on a copied test route.
+
+## Miniature-cache verification, 2026-09-08
+
+- Release build succeeded. `terrain-material` passed **340 CPU checks**, zero
+  failures; `terrain-material-gl` also passed with zero failures. New checks cover
+  worker miniatures at P4/P8/P16/P32, cached versus regenerated bake equality,
+  changed recipes, wrong-size rejection/regeneration, synchronous painting's
+  queued reduction, and cache release. OpenGL checks confirm that miniatures
+  survive release of full-size CPU pixels after upload, including different
+  miniature dimensions for P16/P32 sharing the same GPU output.
+- On temporary copies of `procedural/tiles/-11dbfba0` (256 patches, 71 distinct
+  recipes), five forced rebake/map-write saves per case averaged **1742 ms without
+  miniatures** (1666–1862 ms), versus **665 ms with ready miniatures** (566–855 ms).
+  Bake time including signature/source checks and ACE writing averaged 1586 ms
+  versus 484 ms. All 71 recipes were reused in every cached run.
+- These runs had substantial background memory pressure. Compare the paired
+  cases, not their absolute timings against earlier measurements. Prewarming was
+  excluded from save timing and used CPU-only generation; the separate OpenGL
+  test verifies that upload does not invalidate that cache. This fixture did not
+  include private edited-material finalization, so it is not a complete benchmark
+  of every interactive save. No GPU-readback benchmark was performed.
+- ID-map compression and full bake-signature hashing remain possible
+  optimizations. The subsequent edit-queue fix removes finalization regeneration.
+  Source images still
+  undergo the existing save-time freshness check before miniature reuse.
+- Logs: `build/terrain-material-miniatures-{cpu,gl}.log` and
+  `build/terrain-save-miniatures-{uncached,cached}.log`. Existing route files were
+  only read; tests wrote temporary copies. The user's `log.txt` was restored.
+
+### Edit-queue and save-flicker correction (2026-09-08)
+
+The earlier skip-on-full miniature requests were insufficient: later painting
+cancelled other patches' unfinished work, and successful save regenerated private
+materials as shared ones, replacing textures that were already visible. This is
+now replaced by the separate coalescing edit queue and in-place promotion/content
+deduplication described above. Background-loading request limits are unchanged.
+
+Release build and **345 CPU checks in both BC1 and RGB modes** pass, with zero failures; the offscreen
+OpenGL suite also passes. New tests edit 16 distinct patch recipes twice without
+explicit inter-stroke waits and compare all final miniatures before save. They
+also save immediately after another edit and verify texture identity retention.
+The OpenGL test verifies that the unique edited texture's GPU object survives
+save, an identical edited texture in another tile deduplicates to it, and final
+reference release deletes the GPU object only after both users release it.
+Existing source-change, failed-save, cancellation and tile-lifecycle checks pass.
+Logs: `build/terrain-material-edit-queue-{cpu,gl,rgb}.log`.
+These are automated/offscreen checks, not interactive acceptance of the reported
+flicker. The earlier cached-save timings predate this correction.
+
+### Incremental save implementation and verification (2026-09-08)
+
+Implemented all three follow-ups: dirty-region bake updates, persistent native
+recipe-key caching, and removing full ID-map hashes from normal saving. Zlib level
+1 replaces level 6 without changing the `.pmap` format. An old-style bake rebuilds
+once on its first actual save to establish source/settings metadata; subsequent
+painting saves use the incremental path. New conversions, source/settings changes,
+missing/invalid base images and explicit validation/repair retain full rebuilding.
+
+Release build succeeded. **377 CPU checks passed in both BC1 and RGB modes**, the
+offscreen OpenGL suite passed, and **66 terrain-grid checks passed**. Coverage
+includes P4/P8/P16/P32 incremental/full image equality, sampling halos, cached
+keys, missing miniatures, wrong-size bases, eviction and worker-side base loading,
+checked/unchecked T-file metadata round trips, explicit repair, and prior save
+failure/rollback, source-refresh and shared-texture lifetime checks.
+
+Five one-click/one-patch save runs on temporary copies of the current
+`procedural/-11dbfba0` tile (N256/P16, 123 original unique recipes):
+
+| Case | Earlier review average | Incremental average |
+|---|---:|---:|
+| All near recipes warmed | 543 ms | 105 ms |
+| No other near recipes resident, CPU bake retained | 2234 ms | 94 ms |
+| CPU bake and generated textures explicitly evicted before painting | not measured | 120 ms |
+
+The evicted case included worker-side ACE reading; four runs were 96–105 ms and
+one was 190 ms under background load. Every measured edit used incremental mode
+with exactly one dirty patch. Baseline preparation/migration and painting are
+excluded from save timing. These are terrain-save measurements, not whole-route
+save or interactive frame-latency claims. Original route files were only read.
+
+Isolated compression of the route's 16 MiB map averaged about 41 ms at level 1
+versus 109 ms at level 6. File size increases from 87,338 to 174,209 bytes (about
+85 to 170 KiB); the bounded decoder accepts both. Whole-map compression and the
+existing Y/raw save remain non-incremental, but no longer dominate a multi-second
+unchanged-patch regeneration pass.
+
+Logs: `build/terrain-material-incremental-{cpu,rgb,gl,grid}.log`,
+`build/terrain-single-save-incremental-{warm,cold,evicted}.log`, and
+`build/terrain-pmap-compression-levels.log`. The user's `log.txt` was restored.
+
+### Independent detailed-texture distance (2026-09-08)
+
+`TerrainMaterialMap::DetailDistanceMeters = 2048.0f` now controls per-patch
+generation and draw selection, replacing the fixed 3x3 whole-tile switch.
+Build, **398 CPU checks** and the offscreen OpenGL suite passed. New tests cover
+P16/P32, exact and just-outside boundaries, independence from objectlod, cached
+far textures switching to the bake, camera movement back to resident output,
+and physical distances on larger tiles. Logs:
+`build/terrain-material-detail-distance-{cpu,gl}.log`. Existing unsaved/unbaked
+overrides and tile-level resource eviction are preserved.

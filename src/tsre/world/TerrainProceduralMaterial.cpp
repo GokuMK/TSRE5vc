@@ -25,6 +25,7 @@
 #include <cstring>
 #include <cmath>
 #include <limits>
+#include <future>
 
 namespace {
 // Dedicated pool: do not consume the normal ACE/DDS loader's thread budget.
@@ -35,6 +36,7 @@ constexpr qint64 UploadBudgetNs = 2000000;
 constexpr int RecipeLimit = 16;
 constexpr qint64 RecipeBudgetNs = 2000000;
 std::atomic<int> activeWorkers{0}, peakWorkers{0}, outstandingJobs{0};
+std::atomic<int> miniatureJobs{0}, miniatureInFlight{0};
 int uploadsThisFrame=0, recipesThisFrame=0, publishedJobs=0, discardedJobs=0;
 qint64 uploadNsThisFrame=0, recipeNsThisFrame=0;
 QVector<std::weak_ptr<TerrainProceduralState>> proceduralStates;
@@ -44,13 +46,29 @@ QThreadPool &materialPool() {
     Q_UNUSED(configured);
     return pool;
 }
+struct Material;
 struct MaterialJob {
     std::atomic<bool> cancelled{false}, done{false};
     QImage rgb;
+    QImage miniature;
     QByteArray blocks;
     QString outputKey;
     bool bc1=false, privateEdit=false;
     ~MaterialJob() { --outstandingJobs; }
+};
+// Separate edit queue: one latest request per patch, not one request per stroke.
+// Submitted jobs use the same four-worker pool as background generation.
+struct MiniatureJob {
+    QImage rgb, miniature;
+    QString outputKey;
+    std::weak_ptr<Material> target;
+    int side=0;
+    bool started=false;
+    std::atomic<bool> cancelled{false}, done{false};
+    std::promise<void> completed;
+    std::future<void> completion=completed.get_future();
+    MiniatureJob() { ++miniatureJobs; }
+    ~MiniatureJob() { --miniatureJobs; }
 };
 struct PendingTextureDelete { QPointer<QOpenGLContextGroup> group; unsigned int id; };
 QVector<PendingTextureDelete> pendingDeletes;
@@ -86,6 +104,40 @@ QString primaryName(const TFile &file, int id) {
     auto it = file.materials.find(id);
     return it != file.materials.end() && it->second.tex[0] ? *it->second.tex[0] : QString();
 }
+QString bakeSettingsKey(const TFile &file, const QString &directory, int patches) {
+    QByteArray bytes; QDataStream out(&bytes,QIODevice::WriteOnly);
+    out << TerrainMaterialMap::Side << TerrainMaterialMap::BakedSide << TerrainMaterialMap::OutputSide
+        << TerrainMaterialMap::SamplingMode << patches;
+    for (int id=1;id<file.materialsCount;++id) {
+        out << shaderKey(file,id);
+        QString path=QDir(directory).filePath(primaryName(file,id));
+        const QString dds=path.left(path.size()-3)+"dds";
+        if (path.endsWith(".ace",Qt::CaseInsensitive) && QFileInfo::exists(dds)) path=dds;
+        const QFileInfo source(path);
+        out << source.exists() << source.size() << source.lastModified().toMSecsSinceEpoch();
+    }
+    return QString::fromLatin1(QCryptographicHash::hash(bytes,QCryptographicHash::Sha256).toHex());
+}
+QString storedBakeSettings(const QString &marker) {
+    const auto parts=marker.split(':');
+    return parts.size()==4 && (parts[1]=="unchecked" || parts[1]=="checked")
+            && parts[2].size()==64 ? parts[2] : QString();
+}
+QString storedBakeValidation(const QString &marker) {
+    const auto parts=marker.split(':');
+    if (parts.size()==4 && parts[1]=="checked" && parts[3].size()==64) return "v1:"+parts[3];
+    return parts.size()==2 && parts[1].size()==64 ? marker : QString(); // Old v1 signatures.
+}
+QImage loadBakeImage(const QString &path) {
+    Texture texture(path); texture.editable=true;
+    AceLib loader; loader.texture=&texture; loader.run();
+    QImage image;
+    if (texture.loaded && texture.decodeToCpu() && texture.imageData && texture.bytesPerPixel==3
+            && texture.width==TerrainMaterialMap::BakedSide && texture.height==TerrainMaterialMap::BakedSide)
+        image=QImage(texture.imageData,texture.width,texture.height,texture.width*3,QImage::Format_RGB888).copy();
+    delete[] texture.imageData; texture.imageData=nullptr;
+    return image;
+}
 bool loadSource(const QString &directory, const QString &filename, QImage &image, QString &error) {
     QString path = QDir(directory).filePath(filename);
     if (Game::caseInsensitiveFS) path = path.toLower();
@@ -112,6 +164,9 @@ bool loadSource(const QString &directory, const QString &filename, QImage &image
 // patches/cache share the Material, not additional untracked texture references.
 struct Material {
     int textureId = -1;
+    QImage miniature; // Reduced CPU image; independent of uploaded Texture pixels.
+    QImage pendingImage; // Only until the edit worker has reduced/hashed this version.
+    QString outputKey;
     bool privateEdit = false;
     bool immediateUpload = false; // Interactive edits bypass automatic streaming budgets.
     ~Material() {
@@ -167,6 +222,8 @@ MaterialPtr makeMaterial(const QImage &rgb, bool privateEdit) {
 // content hash and compression; collecting a result must not repeat that work.
 MaterialPtr registerJob(const MaterialJob &job) {
     auto material=std::make_shared<Material>();
+    material->miniature=job.miniature;
+    material->outputKey=job.outputKey;
     material->privateEdit=job.privateEdit;
     if (!job.privateEdit) {
         material->textureId=TexLib::getTex(job.outputKey);
@@ -189,6 +246,30 @@ MaterialPtr registerJob(const MaterialJob &job) {
     material->textureId=TexLib::addTex(texture);
     return material;
 }
+MaterialPtr shareMaterial(const MaterialPtr &material) {
+    if (!material || !material->privateEdit || material->outputKey.isEmpty()) return material;
+    const int existing=TexLib::getTex(material->outputKey);
+    if (existing>=0 && existing!=material->textureId) {
+        auto shared=std::make_shared<Material>(); // Owns getTex's acquired reference.
+        shared->textureId=existing;
+        shared->outputKey=material->outputKey;
+        shared->miniature=material->miniature;
+        // If the identical texture has not been uploaded yet, do not expose a
+        // fallback while it waits behind the automatic upload budget.
+        shared->immediateUpload=true;
+        return shared;
+    }
+    auto texture=TexLib::mtex.find(material->textureId);
+    if (texture==TexLib::mtex.end() || !texture->second) return material;
+    if (existing==material->textureId) --texture->second->ref;
+    else {
+        texture->second->hashid.clear();
+        texture->second->hashid.push_back(material->outputKey);
+    }
+    // Unique output: publish its content identity without replacing CPU/GPU data.
+    material->privateEdit=false;
+    return material;
+}
 void reportToolError(const QString &error) {
     // At most once for identical repeated mouse-move failures; no modal dialog per stamp.
     static QString last;
@@ -209,14 +290,30 @@ struct TerrainProceduralState {
     QSet<int> sourceIds;
     QSet<int> editedPatches;
     QVector<QByteArray> patchKeys;
+    QVector<QByteArray> recipeKeys; // Native recipe hashes survive GPU/cache eviction.
     QSet<QByteArray> failedRecipes;
     QHash<QByteArray,std::shared_ptr<MaterialJob>> pending;
+    QHash<int,std::shared_ptr<MiniatureJob>> miniatureQueue;
     QByteArray prefetchBakeKey;
     QString prefetchBakePath;
     QString error;
     bool ready = false;
     bool changed = false;
     bool bakeAvailable = false, bakeCurrent = false, nearCamera = true;
+    bool detailViewValid=false;
+    double detailCameraX=0, detailCameraZ=0;
+    bool fullBakeRequired=true;
+    QString bakeSettings, pendingBakeSettings;
+    QImage bakeImage, pendingBakeImage;
+    bool detailedPatch(int patch, const TerrainGridLayout &grid, double cameraX, double cameraZ, bool valid) const {
+        // Keep unbaked/unsaved painting visible instead of displaying stale data.
+        if (!valid || !bakeAvailable || changed) return true;
+        const double size=double(grid.terrainWorldSize)/grid.patchesPerSide;
+        const double dx=(grid.patchColumn(patch)+0.5)*size-cameraX;
+        const double dz=(grid.patchRow(patch)+0.5)*size-cameraZ;
+        const double limit=std::max(0.0f,TerrainMaterialMap::DetailDistanceMeters);
+        return dx*dx+dz*dz<=limit*limit;
+    }
     QString savedBakePath, backupBakePath, previousBakeInfo;
     bool bakeWritten = false, bakeExisted = false;
     QVector<float> previousPatchData;
@@ -237,10 +334,14 @@ struct TerrainProceduralState {
         cancelPending();
         if (detailTextureId >= 0) TexLib::delRef(detailTextureId);
     }
-    void cancelPending() {
+    void cancelPending(bool includeMiniatures=true) {
         for (const auto &job : pending) job->cancelled.store(true);
         pending.clear();
         failedRecipes.clear();
+        if (includeMiniatures) {
+            for (const auto &job : miniatureQueue) job->cancelled.store(true);
+            miniatureQueue.clear();
+        }
     }
     void collectCompleted() {
         for (auto it=pending.begin();it!=pending.end();) {
@@ -254,9 +355,88 @@ struct TerrainProceduralState {
                 }
             } else {
                 cache.insert(it.key(),registerJob(*job));
+                if (it.key().startsWith("B:")) bakeImage=job->rgb;
                 ++publishedJobs;
             }
             it=pending.erase(it);
+        }
+        serviceMiniatures();
+    }
+    QByteArray recipe(int patch, int count) {
+        if (recipeKeys.size()!=count*count) recipeKeys.fill({},count*count);
+        auto &key=recipeKeys[patch];
+        if (key.isEmpty()) key=map.patchKey(patch,count);
+        return key;
+    }
+    void queueMiniature(int patch, int count, const MaterialPtr &material) {
+        auto old=miniatureQueue.find(patch);
+        if (old!=miniatureQueue.end()) {
+            if (old.value()->target.lock()==material) return;
+            old.value()->cancelled.store(true);
+            miniatureQueue.erase(old);
+        }
+        if (material->pendingImage.isNull()) return;
+        auto job=std::make_shared<MiniatureJob>();
+        job->rgb=material->pendingImage;
+        job->target=material;
+        job->side=count>0 && TerrainMaterialMap::BakedSide%count==0 ? TerrainMaterialMap::BakedSide/count : 0;
+        miniatureQueue.insert(patch,job);
+        // Do not drop work if the pool is busy. The frame pump retries it.
+    }
+    void serviceMiniatures() {
+        for (auto it=miniatureQueue.begin();it!=miniatureQueue.end();) {
+            auto job=it.value();
+            auto material=job->target.lock();
+            if (!material || job->cancelled.load()) {
+                job->cancelled.store(true);
+                it=miniatureQueue.erase(it); continue;
+            }
+            if (job->done.load(std::memory_order_acquire)) {
+                if (!job->miniature.isNull()) {
+                    material->miniature=job->miniature;
+                    material->outputKey=job->outputKey;
+                    material->pendingImage=QImage();
+                }
+                it=miniatureQueue.erase(it); continue;
+            }
+            // Identical fills may share a Material across several patch slots.
+            if (!material->miniature.isNull() && !material->outputKey.isEmpty()) {
+                job->cancelled.store(true);
+                it=miniatureQueue.erase(it); continue;
+            }
+            if (!job->started && miniatureInFlight.load()<WorkerLimit) {
+                job->started=true;
+                ++miniatureInFlight;
+                materialPool().start(QRunnable::create([job] {
+                    const int active=++activeWorkers;
+                    int peak=peakWorkers.load();
+                    while(active>peak && !peakWorkers.compare_exchange_weak(peak,active)) {}
+                    try {
+                        if (!job->cancelled.load() && job->side>0) {
+                            job->miniature=job->rgb.scaled(job->side,job->side,
+                                    Qt::IgnoreAspectRatio,Qt::SmoothTransformation).convertToFormat(QImage::Format_RGB888);
+                            if (!job->cancelled.load()) job->outputKey=TerrainMaterialMap::textureKey(job->rgb,useBC1());
+                        }
+                    } catch (...) { job->miniature=QImage(); }
+                    --activeWorkers;
+                    --miniatureInFlight;
+                    job->done.store(true,std::memory_order_release);
+                    job->completed.set_value();
+                }),1);
+            }
+            ++it;
+        }
+    }
+    void finishMiniatures() {
+        // Route save remains blocking. No event processing or editing while we
+        // wait; preserve final painted images instead of regenerating them.
+        while (!miniatureQueue.isEmpty()) {
+            serviceMiniatures();
+            if (miniatureQueue.isEmpty()) break;
+            std::shared_ptr<MiniatureJob> running;
+            for (const auto &job : miniatureQueue) if (job->started) { running=job; break; }
+            if (running) running->completion.wait();
+            else materialPool().waitForDone(); // Other tiles currently own the submitted slots.
         }
     }
     void request(const QByteArray &key, int patch, int count, bool privateEdit, const QString &bakePath = {}) {
@@ -272,23 +452,21 @@ struct TerrainProceduralState {
         // array; workers never hold a Terrain, TFile, Material or GL reference.
         materialPool().start(QRunnable::create([job,
                 snapshot=bakePath.isEmpty()?map:TerrainMaterialMap(),
-                images=bakePath.isEmpty()?sources:QHash<int,QImage>(), patch, count, bakePath] {
+                images=bakePath.isEmpty()?sources:QHash<int,QImage>(),
+                miniatureSide=count>0 && TerrainMaterialMap::BakedSide%count==0 ? TerrainMaterialMap::BakedSide/count : 0,
+                patch, count, bakePath] {
             const int active=++activeWorkers;
             int peak=peakWorkers.load();
             while(active>peak && !peakWorkers.compare_exchange_weak(peak,active)) {}
             try {
                 if (!job->cancelled.load()) {
                     if (bakePath.isEmpty()) job->rgb=snapshot.generate(patch,count,images);
-                    else {
-                        Texture texture(bakePath); texture.editable=true;
-                        AceLib loader; loader.texture=&texture; loader.run();
-                        if (texture.loaded && texture.imageData && texture.bytesPerPixel==3
-                                && texture.width==TerrainMaterialMap::BakedSide && texture.height==TerrainMaterialMap::BakedSide)
-                            job->rgb=QImage(texture.imageData,texture.width,texture.height,texture.width*3,QImage::Format_RGB888).copy();
-                        delete[] texture.imageData; texture.imageData=nullptr;
-                    }
+                    else job->rgb=loadBakeImage(bakePath);
                 }
                 if (!job->cancelled.load() && !job->rgb.isNull()) {
+                    if (bakePath.isEmpty() && miniatureSide>0)
+                        job->miniature=job->rgb.scaled(miniatureSide,miniatureSide,
+                                Qt::IgnoreAspectRatio,Qt::SmoothTransformation).convertToFormat(QImage::Format_RGB888);
                     job->outputKey=TerrainMaterialMap::textureKey(job->rgb,job->bc1);
                     if (!bakePath.isEmpty()) job->outputKey.prepend("base-level-bake:");
                     if (job->bc1 && !job->cancelled.load()) job->blocks=TerrainMaterialMap::encodeBC1(job->rgb);
@@ -320,14 +498,20 @@ struct TerrainProceduralState {
         }
     }
     MaterialPtr sharedPatch(int patch, int count, bool privateEdit = false) {
+        collectCompleted();
         // Keep edited outputs private until save, but share identical fills within this tile.
-        const QByteArray key = QByteArray(1, privateEdit ? 'P' : 'S') + map.patchKey(patch,count);
+        const QByteArray key = QByteArray(1, privateEdit ? 'P' : 'S') + recipe(patch,count);
         auto it = cache.constFind(key);
-        if (it != cache.constEnd()) return it.value();
+        if (it != cache.constEnd()) {
+            queueMiniature(patch,count,it.value());
+            return it.value();
+        }
         const QImage image = map.generate(patch,count,sources);
         if (image.isNull()) return {};
         auto material = makeMaterial(image,privateEdit);
+        material->pendingImage=image;
         cache.insert(key,material);
+        queueMiniature(patch,count,material);
         return material;
     }
 };
@@ -365,7 +549,7 @@ void Terrain::beginProceduralFrame() {
     }
 }
 Terrain::ProceduralWorkStats Terrain::proceduralWorkStats() {
-    return {activeWorkers.load(),peakWorkers.load(),outstandingJobs.load(),uploadsThisFrame,publishedJobs,discardedJobs};
+    return {activeWorkers.load(),peakWorkers.load(),outstandingJobs.load()+miniatureJobs.load(),uploadsThisFrame,publishedJobs,discardedJobs};
 }
 bool Terrain::rendersProceduralMaterial() const { return usesProceduralMaterial() && procedural && procedural->ready; }
 bool Terrain::hasProceduralBake() const {
@@ -439,14 +623,14 @@ QString Terrain::proceduralBakeSignature() const {
     return "v1:"+QString::fromLatin1(hash.result().toHex());
 }
 bool Terrain::proceduralNearCamera(const PatchVisibility &visibility) const {
-    if (!procedural || !procedural->bakeCurrent || procedural->changed) return true;
-    // The native tile occupies local [0,size] in both axes. Find the camera's
-    // 2048 m World cell and overlap its 3x3 cell region, including larger tiles.
-    const double originZ=2048.0-gridLayout.terrainWorldSize;
-    const double cellX=std::floor(visibility.cameraLocalX/2048.0)*2048.0;
-    const double cellZ=std::floor((visibility.cameraLocalZ+originZ)/2048.0)*2048.0-originZ;
-    return cellX-2048.0<gridLayout.terrainWorldSize && cellX+4096.0>0
-            && cellZ-2048.0<gridLayout.terrainWorldSize && cellZ+4096.0>0;
+    if (!procedural || !procedural->bakeAvailable || procedural->changed || !visibility.valid) return true;
+    // Cheap tile rejection; individual patches still test their own centers.
+    const double half=double(gridLayout.terrainWorldSize)/gridLayout.patchesPerSide/2;
+    const double end=gridLayout.terrainWorldSize-half;
+    const double dx=visibility.cameraLocalX-std::clamp(double(visibility.cameraLocalX),half,end);
+    const double dz=visibility.cameraLocalZ-std::clamp(double(visibility.cameraLocalZ),half,end);
+    const double limit=std::max(0.0f,TerrainMaterialMap::DetailDistanceMeters);
+    return dx*dx+dz*dz<=limit*limit;
 }
 QVector3D Terrain::proceduralTextureRemap(int patch, int generatedTexture) const {
     if (!rendersProceduralMaterial() || generatedTexture>=0 || !hasProceduralBake()
@@ -465,8 +649,10 @@ void Terrain::releaseProceduralTextures() {
     procedural->prefetchBakePath.clear();
     procedural->cancelPending();
     procedural->patchKeys.clear();
+    procedural->detailViewValid=false;
     procedural->patches.clear();
     procedural->cache.clear();
+    procedural->bakeImage=QImage();
     procedural->sources.clear();
     if (procedural->detailTextureId >= 0) {
         TexLib::delRef(procedural->detailTextureId);
@@ -501,7 +687,13 @@ void Terrain::loadProceduralMaterial(const QString &directory) {
         procedural->bakeAvailable=tfile->bakedMaterialInfo!="v1:pending"
                 && QFileInfo::exists(QDir(texturepath).filePath(primaryName(*tfile,0)));
         procedural->bakeCurrent=procedural->bakeAvailable
-                && tfile->bakedMaterialInfo==proceduralBakeSignature();
+                && (!TerrainMaterialMap::ValidateBakeOnLoad
+                    || storedBakeValidation(tfile->bakedMaterialInfo)==proceduralBakeSignature());
+        procedural->bakeSettings=storedBakeSettings(tfile->bakedMaterialInfo);
+        procedural->fullBakeRequired=!procedural->bakeCurrent || procedural->bakeSettings.isEmpty()
+                || procedural->bakeSettings!=bakeSettingsKey(*tfile,texturepath,gridLayout.patchesPerSide);
+        if (procedural->ready && procedural->bakeAvailable && !procedural->bakeCurrent)
+            qWarning() << name << "Bake validation mismatch; retaining saved fallback and marking tile for rebake";
         if (procedural->ready && !procedural->bakeCurrent) modified=true;
         if (procedural->ready && procedural->bakeAvailable) {
             procedural->prefetchBakeKey="B:"+tfile->bakedMaterialInfo.toUtf8();
@@ -556,6 +748,7 @@ QVector<int> Terrain::proceduralRequestOrder(const PatchVisibility &visibility) 
     const double patchSize=gridLayout.terrainWorldSize/gridLayout.patchesPerSide;
     for(int patch=0;patch<gridLayout.patchRecordCount();++patch) {
         if (hidden[patch] || (tfile->flags[patch]&1) || !isPatchVisible(patch,visibility)) continue;
+        if (!procedural->detailedPatch(patch,gridLayout,visibility.cameraLocalX,visibility.cameraLocalZ,visibility.valid)) continue;
         if (patch<procedural->patches.size() && procedural->patches[patch]) {
             const auto texture=TexLib::mtex.find(procedural->patches[patch]->textureId);
             if (texture!=TexLib::mtex.end() && texture->second
@@ -579,7 +772,10 @@ QVector<int> Terrain::proceduralRequestOrder(const PatchVisibility &visibility) 
 }
 void Terrain::prepareVisibleProceduralTextures(const PatchVisibility &visibility) {
     if (!rendersProceduralMaterial()) return;
-    if (procedural) procedural->nearCamera=proceduralNearCamera(visibility);
+    procedural->nearCamera=proceduralNearCamera(visibility);
+    procedural->detailViewValid=visibility.valid;
+    procedural->detailCameraX=visibility.cameraLocalX;
+    procedural->detailCameraZ=visibility.cameraLocalZ;
     const auto order=procedural->nearCamera ? proceduralRequestOrder(visibility) : QVector<int>();
     if (procedural->nearCamera && order.isEmpty()) return;
     // Only resource requests/uploads are sorted. Restore texture state so this
@@ -602,8 +798,9 @@ void Terrain::prepareVisibleProceduralTextures(const PatchVisibility &visibility
 int Terrain::proceduralTexture(int patch, bool background) {
     flushTextureDeletes();
     if (!usesProceduralMaterial() || !procedural || !procedural->ready) return -1;
-    if (background && !procedural->nearCamera && procedural->bakeCurrent && !procedural->changed) return -1;
     if (patch < 0 || patch >= gridLayout.patchRecordCount()) return -1;
+    if (background && !procedural->detailedPatch(patch,gridLayout,procedural->detailCameraX,
+                                              procedural->detailCameraZ,procedural->detailViewValid)) return -1;
     if (procedural->patches.isEmpty())
         procedural->patches.resize(gridLayout.patchRecordCount());
     if (!procedural->patches[patch]) {
@@ -616,7 +813,7 @@ int Terrain::proceduralTexture(int patch, bool background) {
             if (key.isEmpty() && recipesThisFrame<RecipeLimit && recipeNsThisFrame<RecipeBudgetNs) {
                 QElapsedTimer timer; timer.start();
                 key=QByteArray(1,procedural->editedPatches.contains(patch)?'P':'S')
-                        +procedural->map.patchKey(patch,gridLayout.patchesPerSide);
+                        +procedural->recipe(patch,gridLayout.patchesPerSide);
                 ++recipesThisFrame; recipeNsThisFrame+=timer.nsecsElapsed();
             }
             if (!key.isEmpty()) {
@@ -789,7 +986,7 @@ void Terrain::paintProceduralMaterial(Brush *brush, int x, int z, float posx, fl
     }
     const auto changed = apply(false);
     if (changed.isEmpty()) return;
-    procedural->cancelPending();
+    procedural->cancelPending(false); // Edits replace only their own miniature requests.
     procedural->sourceIds.insert(id);
     procedural->changed = true;
     procedural->bakeCurrent = false;
@@ -799,6 +996,7 @@ void Terrain::paintProceduralMaterial(Brush *brush, int x, int z, float posx, fl
     for (int patch : changed) {
         procedural->editedPatches.insert(patch);
         if (!procedural->patchKeys.isEmpty()) procedural->patchKeys[patch].clear();
+        if (!procedural->recipeKeys.isEmpty()) procedural->recipeKeys[patch].clear();
         procedural->patches[patch]=procedural->sharedPatch(patch,gridLayout.patchesPerSide,true);
         if (procedural->patches[patch]) {
             procedural->patches[patch]->immediateUpload=true;
@@ -810,6 +1008,18 @@ void Terrain::paintProceduralMaterial(Brush *brush, int x, int z, float posx, fl
     procedural->pruneCache();
     if (profileEnabled()) qInfo() << "Terrain material synchronously painted patches" << changed.size()
                                 << "generation+upload ms" << timer.nsecsElapsed()/1e6;
+}
+QHash<QByteArray,QImage> Terrain::proceduralBakeMiniatures() const {
+    QHash<QByteArray,QImage> miniatures;
+    if (!procedural || gridLayout.patchesPerSide<=0
+            || TerrainMaterialMap::BakedSide%gridLayout.patchesPerSide) return miniatures;
+    const int side=TerrainMaterialMap::BakedSide/gridLayout.patchesPerSide;
+    for (auto it=procedural->cache.constBegin();it!=procedural->cache.constEnd();++it) {
+        if ((it.key().startsWith('S') || it.key().startsWith('P'))
+                && it.value()->miniature.size()==QSize(side,side))
+            miniatures.insert(it.key().mid(1),it.value()->miniature);
+    }
+    return miniatures;
 }
 bool Terrain::saveProceduralBake() {
     if (!usesProceduralMaterial()) return true;
@@ -824,14 +1034,19 @@ bool Terrain::saveProceduralBake() {
     if (!procedural->savedBakePath.isEmpty() || !procedural->savedMapPath.isEmpty()) {
         qWarning() << "Previous procedural save needs recovery before another save"; return false;
     }
-    const QString signature=proceduralBakeSignature();
+    const QString settings=bakeSettingsKey(*tfile,texturepath,gridLayout.patchesPerSide);
+    const QString signature=TerrainMaterialMap::ValidateBakeOnLoad ? proceduralBakeSignature() : QString();
     const QString target=QDir(texturepath).filePath(primaryName(*tfile,0));
-    if (procedural->bakeAvailable && signature==tfile->bakedMaterialInfo && QFileInfo(target).isFile()) {
+    bool fullBake=procedural->fullBakeRequired || settings!=procedural->bakeSettings
+            || !procedural->bakeAvailable || !QFileInfo(target).isFile();
+    if (TerrainMaterialMap::ValidateBakeOnLoad && storedBakeValidation(tfile->bakedMaterialInfo)!=signature)
+        fullBake=true;
+    if (!procedural->changed && !fullBake) {
         procedural->bakeAvailable=procedural->bakeCurrent=true;
         return true;
     }
-    // The signature records current source-file stamps: bake current file pixels,
-    // not an older decoded cache (e.g. a source painted on a neighbouring tile).
+    // Check current source pixels too when writing a bake. No full ID-map hash
+    // is needed: tracked patch edits and compact source/settings metadata suffice.
     // Decode only used sources, with no dependency on resident output or GL.
     QHash<int,QImage> bakeSources;
     const auto used=procedural->map.usedIds();
@@ -846,11 +1061,39 @@ bool Terrain::saveProceduralBake() {
     }
     if (sourceChanged) {
         releaseProceduralTextures();
+        fullBake=procedural->fullBakeRequired=true;
         procedural->bakeCurrent=false; modified=true;
     }
     procedural->sources=std::move(bakeSources); procedural->sourceIds=used;
+    procedural->collectCompleted();
+    procedural->finishMiniatures();
+    const auto miniatures=proceduralBakeMiniatures();
+    if (profileEnabled()) qInfo() << "Terrain bake reusable miniature recipes" << miniatures.size();
     QElapsedTimer timer; timer.start();
-    const QImage image=procedural->map.bake(gridLayout.patchesPerSide,procedural->sources);
+    // Saving already waits for the bake. Assemble it (and generate/reduce any
+    // cache misses) in the same four-worker pool, never in the render/upload path.
+    using BakeResult=std::pair<QImage,QVector<QByteArray>>;
+    auto bakeJob=std::make_shared<std::packaged_task<BakeResult()>>(
+            [map=procedural->map, sources=procedural->sources, miniatures,
+             keys=procedural->recipeKeys, previous=procedural->bakeImage,
+             dirty=procedural->editedPatches, fullBake, target,
+             count=gridLayout.patchesPerSide]() mutable {
+                QImage base=fullBake ? QImage() : previous;
+                if (!fullBake && base.isNull()) base=loadBakeImage(target);
+                if (profileEnabled()) qInfo() << "Terrain bake mode" << (base.isNull()?"full":"incremental")
+                                             << "dirty patches" << dirty.size();
+                QImage image=map.bake(count,sources,miniatures,base,dirty,&keys);
+                return BakeResult{image,std::move(keys)};
+             });
+    auto result=bakeJob->get_future();
+    materialPool().start(QRunnable::create([bakeJob] { (*bakeJob)(); }),1);
+    QImage image;
+    try {
+        auto output=result.get();
+        image=std::move(output.first);
+        procedural->recipeKeys=std::move(output.second);
+    }
+    catch (...) { qWarning() << "Cannot generate terrain bake" << name; return false; }
     if (image.isNull()) { qWarning() << "Cannot synthesize terrain bake" << name; return false; }
     const QString backup=target+".bk";
     const bool existed=QFileInfo::exists(target);
@@ -864,6 +1107,8 @@ bool Terrain::saveProceduralBake() {
     procedural->savedBakePath=target; procedural->backupBakePath=backup;
     procedural->bakeWritten=true; procedural->bakeExisted=existed;
     procedural->previousBakeInfo=tfile->bakedMaterialInfo;
+    procedural->pendingBakeImage=image;
+    procedural->pendingBakeSettings=settings;
     procedural->previousPatchData=QVector<float>(tfile->tdata,tfile->tdata+gridLayout.patchRecordCount()*13);
     for (int patch=0;patch<gridLayout.patchRecordCount();++patch) {
         float *d=tfile->tdata+patch*13;
@@ -871,7 +1116,11 @@ bool Terrain::saveProceduralBake() {
         d[8]=float(patch/gridLayout.patchesPerSide)/gridLayout.patchesPerSide;
         d[9]=d[12]=1.0f/gridLayout.sampleCount; d[10]=d[11]=0;
     }
-    tfile->bakedMaterialInfo=signature;
+    // Preserve v1 palette semantics, but never present a stale validation hash
+    // as current. Unchecked saves get a cheap unique output revision instead.
+    tfile->bakedMaterialInfo=TerrainMaterialMap::ValidateBakeOnLoad
+            ? "v1:checked:"+settings+":"+signature.mid(3)
+            : "v1:unchecked:"+settings+":"+QUuid::createUuid().toString(QUuid::WithoutBraces);
     if (profileEnabled()) qInfo() << "Terrain bake synthesis+RGB ACE save ms" << timer.nsecsElapsed()/1e6;
     return true;
 }
@@ -931,6 +1180,7 @@ void Terrain::proceduralSaveFailed() {
     }
     if (!restored) { qWarning() << "Terrain bake rollback failed; recover from" << procedural->backupBakePath; return; }
     procedural->savedBakePath.clear(); procedural->backupBakePath.clear();
+    procedural->pendingBakeImage=QImage(); procedural->pendingBakeSettings.clear();
     procedural->previousPatchData.clear(); procedural->bakeWritten=false;
 }
 void Terrain::proceduralSaveCompleted() {
@@ -957,17 +1207,28 @@ void Terrain::proceduralSaveCompleted() {
         }
         procedural->previousPatchData.clear(); procedural->bakeWritten=false;
         procedural->bakeAvailable=procedural->bakeCurrent=true;
+        procedural->bakeImage=std::move(procedural->pendingBakeImage);
+        procedural->bakeSettings=std::move(procedural->pendingBakeSettings);
+        procedural->fullBakeRequired=false;
     }
-    procedural->cancelPending();
+    procedural->cancelPending(false);
+    procedural->finishMiniatures();
     procedural->patchKeys.clear();
     procedural->savedMapPath.clear();
     procedural->oldMapPath.clear();
     procedural->backupMapPath.clear();
     procedural->mapWritten = false;
     if (!procedural->patches.isEmpty()) {
-        for (int i=0; i<procedural->patches.size(); ++i)
-            if (procedural->patches[i] && procedural->patches[i]->privateEdit)
-                procedural->patches[i] = procedural->sharedPatch(i,gridLayout.patchesPerSide);
+        for (int i=0; i<procedural->patches.size(); ++i) {
+            auto &material=procedural->patches[i];
+            if (!material || !material->privateEdit) continue;
+            material=shareMaterial(material);
+            if (!material->privateEdit)
+                procedural->cache.insert("S"+procedural->recipe(i,gridLayout.patchesPerSide),material);
+        }
+        for (auto it=procedural->cache.begin();it!=procedural->cache.end();) {
+            if (it.key().startsWith('P')) it=procedural->cache.erase(it); else ++it;
+        }
         // Drop obsolete immutable entries after deduplication.
         procedural->pruneCache();
     }

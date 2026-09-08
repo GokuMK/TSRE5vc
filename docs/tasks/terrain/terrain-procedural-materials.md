@@ -7,11 +7,36 @@ The user's ?? review comments are incorporated below. This remains a **minimal
 performance tech demo**, not a production material-system specification.
 Detailed specifications and further features follow measurement.
 
-Stage A verification update: 296 procedural CPU checks and the offscreen OpenGL
+Stage A verification update: 398 procedural CPU checks and the offscreen OpenGL
 suite pass with 512 bakes and tile-load prefetch; the preceding 66 terrain-grid checks
 also passed. See the baked-fallback task for current
 save/migration/near-far behavior and remaining interactive acceptance. Earlier
 counts below describe the preceding demo milestones, not the latest total.
+
+Load-time bake input hashing is now behind the internal
+`TerrainMaterialMap::ValidateBakeOnLoad` setting, default false. Keep it for a
+future debug/restore control in procedural terrain settings. Even when validation
+reports stale inputs, the existing decodable bake remains a usable fallback.
+Full save-time signatures are also opt-in. Normal saves use tracked dirty patches
+and compact source/settings metadata; unchecked saved bakes never retain stale
+validation signatures. Interactive edit invalidation remains enabled.
+
+Generated materials now retain reduced CPU bake miniatures. Background workers
+produce them before full-size CPU data is discarded; synchronous painting uses
+a separate latest-request-per-patch queue for shrinking and output hashing.
+Busy workers no longer cause the final edit's request to be dropped. Size comes
+from the current baked tile size divided by
+patch count, and save checks dimensions/recipe validity before reuse. Save-time
+assembly and any missing-image generation/reduction run in the existing worker
+pool, while saving still waits for completion without processing editing input.
+Save drains pending edit miniatures and promotes/deduplicates existing textures
+without regenerating visible patch output. No GPU readback is used.
+Incremental saving updates dirty regions of the existing bake, including after
+near-texture eviction. Recipe keys survive GPU eviction and only edited/halo
+patches invalidate them. CPU bake images are released with tile residency and
+can be read again by the save worker. Whole ID-map compression remains, at zlib
+level 1 for faster saves without changing the file format. See the baked-fallback
+task for checked/unchecked markers, migration, rollback and measurements.
 
 Stage A follow-up: [baked tile fallback; B — material catalogue](terrain-procedural-baked-fallback.md).
 A now adds a checked 512-square uncompressed RGB ACE bake on save and distant
@@ -376,8 +401,10 @@ Testing in the editor:
 4. Save and reload to test ID persistence, the whole-tile ACE bake and deduplication.
    Select **Make tile use static textures** and click to keep the current saved
    baked appearance. Unsaved procedural changes must be saved first.
-5. Increase terrain visibility beyond the camera's 3x3 World-cell region to test
-   the baked far texture. Returning near resumes per-visible-patch generation.
+5. Increase terrain visibility beyond `TerrainMaterialMap::DetailDistanceMeters`
+   (default 2048 m) to test the baked far texture. The cutoff is per patch, using
+   horizontal distance to its center, independent of objectlod and geometry LOD.
+   Returning near reuses cached output or resumes per-visible-patch generation.
    Geometry LOD remains independent; unsaved tiles stay procedural.
 
 The **Static textures** section contains Color, Texture and Put; these silently
@@ -502,7 +529,7 @@ does not redesign global TexLib asynchronous-source lifetime/cleanup.
 ### Bounded background generation (2026-09-07)
 
 Both colour render paths now request background generation. A dedicated
-QThreadPool runs **at most four workers**, with **four outstanding jobs globally**
+QThreadPool runs **at most four workers**, with **four outstanding background jobs globally**
 (running, queued or awaiting collection). Repeated pending recipes within a tile
 coalesce into one job. Workers generate RGB, hash output and encode BC1; they
 never access Terrain/TFile objects, TexLib, OpenGL or mutable editing state.
@@ -534,7 +561,7 @@ they cannot pre-empt a single slow driver/hash call. Reusing already uploaded
 shared textures consumes no additional upload slot.
 
 **Interactive painting is synchronous**, following the user's regression report.
-Texture painting, Fill Patch and Fill cancel older pending tile jobs and generate
+Texture painting, Fill Patch and Fill cancel older pending background tile jobs and generate
 all changed patch outputs during the edit, including sampling-halo dependants.
 Identical changed recipes still share private outputs. No-op stamps neither
 generate output nor cancel work. Painted textures upload immediately if the
@@ -546,7 +573,8 @@ before the first bake it remains a temporary source preview).
 Geometry/picking do not wait for completion. Source validation/decoding still
 happens on load or first use after source-cache release; file I/O, geometry,
 microtex and ordinary texture uploads are not covered by these budgets. The
-synchronous generation path serves painting, tests and save-time finalization;
+synchronous generation path serves painting and tests; save-time finalization
+now promotes/deduplicates existing outputs instead of regenerating them. The
 normal automatic colour-render generation uses workers. No worker-count/settings UI is added; the small limits
 are named constants in TerrainProceduralMaterial.cpp.
 

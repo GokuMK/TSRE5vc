@@ -11,6 +11,7 @@
 #ifndef TERRAIN_H
 #define	TERRAIN_H
 #include <QString>
+#include <QImage>
 #include <tsre/ogl/GLUU.h>
 #include <tsre/world/TFile.h>
 #include <tsre/world/TerrainGridLayout.h>
@@ -203,6 +204,7 @@ protected:
     int proceduralFallbackTexture();
     bool reserveProceduralBake(QString &error);
     QString proceduralBakeSignature() const;
+    QHash<QByteArray,QImage> proceduralBakeMiniatures() const;
     bool saveProceduralBake();
     void clearStaticTextureRefs();
     QVector3D proceduralTextureRemap(int patch, int generatedTexture) const;

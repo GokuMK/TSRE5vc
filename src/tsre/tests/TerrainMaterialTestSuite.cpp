@@ -48,6 +48,7 @@ public:
     using Terrain::proceduralNearCamera;
     using Terrain::proceduralTextureRemap;
     using Terrain::proceduralFallbackTexture;
+    using Terrain::proceduralBakeMiniatures;
     void setup(const QString &directory, int patches, const QString &tileName, int samples=256, int sampleSpacing=8) {
         name=tileName;
         tfile=new TFile(); tfile->initNew(tileName,samples,sampleSpacing,patches);
@@ -405,6 +406,29 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
             check(finishMaterialJobs() && baked.proceduralFallbackTexture()<0
                   && baked.proceduralNearCamera(view),"missing-bake-file-job-falls-back-to-procedural");
             check(baked.save() && QFileInfo::exists(ace),"save-regenerates-missing-or-failed-bake");
+            check(!TerrainMaterialMap::ValidateBakeOnLoad,"bake-input-validation-defaults-off");
+            {
+                QScopedValueRollback<QString> marker(baked.descriptor().bakedMaterialInfo,
+                                                     QStringLiteral("v1:intentionally-stale"));
+                for (bool validate : {false,true}) {
+                    QScopedValueRollback<bool> validation(TerrainMaterialMap::ValidateBakeOnLoad,validate);
+                    baked.setModified(false);
+                    baked.loadProceduralMaterial(tileDir);
+                    check(baked.isModified()==validate,
+                          validate?"enabled-validation-marks-mismatch-for-rebake"
+                                  :"normal-load-trusts-saved-bake-without-validating");
+                    check(finishMaterialJobs() && baked.proceduralFallbackTexture()>=0
+                          && !baked.proceduralNearCamera(view),
+                          "stale-bake-remains-usable-as-far-fallback");
+                    baked.prepareVisibleProceduralTextures(view);
+                    check(baked.proceduralTexture(0,true)<0 && baked.proceduralResidentPatchCount()==0,
+                          "stale-far-bake-does-not-force-near-patch-generation");
+                    baked.releaseProceduralTextures();
+                }
+            }
+            baked.loadProceduralMaterial(tileDir);
+            check(finishMaterialJobs(),"restore-current-bake-after-validation-test");
+            baked.releaseProceduralTextures();
         }
         const auto remap=baked.proceduralTextureRemap(p*p-1,-1);
         check(remap==QVector3D(1.0f/p-1.0f,float(p-1)/p,float(p-1)/p)
@@ -416,6 +440,178 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
         check(baked.setProceduralMaterial(true,error) && baked.descriptor().materialsCount==3,
               "reenable-does-not-reserve-another-bake-slot");
         check(baked.proceduralNearCamera(view),"unsaved-procedural-edits-do-not-use-old-far-bake");
+    }
+    for (int p : {4,8,16,32}) {
+        TestTerrain t; t.setup(temp.path(),p,"miniatures");
+        check(t.setProceduralMaterial(true,error),"enable-miniature-fixture");
+        Terrain::beginProceduralFrame(); t.proceduralTexture(0,true);
+        check(finishMaterialJobs(),"background-miniature-job-completes");
+        const auto images=t.proceduralBakeMiniatures();
+        const int side=TerrainMaterialMap::BakedSide/p;
+        check(images.size()==1 && images.constBegin()->size()==QSize(side,side),
+              "worker-miniature-size-derived-from-bake-and-patch-count");
+        TerrainMaterialMap plane; plane.initialize(1);
+        const auto expected=plane.bake(p,{{1,red}});
+        check(!expected.isNull() && plane.bake(p,{},images)==expected,
+              "cached-miniatures-bake-identically-without-source-regeneration");
+        auto wrongSize=images;
+        for(auto &image : wrongSize) image=image.scaled(side+1,side+1);
+        check(plane.bake(p,{},wrongSize).isNull() && plane.bake(p,{{1,red}},wrongSize)==expected,
+              "save-rejects-wrong-size-miniatures-and-regenerates-them");
+        plane.ids[0]=2;
+        check(plane.bake(p,{},images).isNull(),"edited-recipe-cannot-reuse-old-miniature");
+        t.releaseProceduralTextures();
+        t.proceduralTexture(0);
+        check(t.proceduralBakeMiniatures().isEmpty(),"synchronous-paint-path-does-not-shrink-inline");
+        check(finishMaterialJobs() && t.proceduralBakeMiniatures()==images,
+              "synchronous-generation-queues-identical-worker-miniature");
+        t.releaseProceduralTextures();
+        check(finishMaterialJobs() && t.proceduralBakeMiniatures().isEmpty(),
+              "miniatures-release-with-generated-materials");
+    }
+    {
+        TestTerrain t; t.setup(temp.path(),16,"edit-miniatures");
+        check(t.setProceduralMaterial(true,error),"enable-latest-edit-miniatures");
+        Texture source(temp.path()+"/blue.png");
+        QImage solid(9,9,QImage::Format_Grayscale8); solid.fill(0);
+        Brush brush; brush.useTexture=true; brush.tex=&source; brush.brushshape=&solid;
+        TerrainMaterialMap expected; expected.initialize(1);
+        // More patches than worker slots, then replace each patch's pending
+        // version. No explicit frame pump or wait between strokes.
+        for (int pass=0;pass<2;++pass) for (int p=0;p<16;++p) {
+            const float x=p*128+28+p*2+pass*5, z=35+pass*13;
+            t.paintProceduralMaterial(&brush,0,0,x-1024,z-1024,7);
+            expected.paint(x*2,z*2,14,2,16,solid);
+        }
+        check(finishMaterialJobs(),"latest-edit-queue-eventually-drains-without-another-stroke");
+        auto minis=t.proceduralBakeMiniatures();
+        bool same=true;
+        for (int p=0;p<16;++p) {
+            const auto wanted=expected.generate(p,16,{{1,red},{2,blue}})
+                    .scaled(TerrainMaterialMap::BakedSide/16,TerrainMaterialMap::BakedSide/16,
+                            Qt::IgnoreAspectRatio,Qt::SmoothTransformation).convertToFormat(QImage::Format_RGB888);
+            same &= minis.value(expected.patchKey(p,16))==wanted;
+        }
+        check(same,"every-final-edited-recipe-has-worker-miniature-before-save");
+        // Save immediately after the final edit; it must wait for pending
+        // reduction and promote the existing material, not synthesize it again.
+        t.paintProceduralMaterial(&brush,0,0,-964,-955,9);
+        const int before=t.proceduralTexture(0);
+        check(t.save() && t.proceduralTexture(0)==before,
+              "immediate-save-drains-edits-and-preserves-unique-texture-id");
+        check(finishMaterialJobs(),"save-does-not-leave-private-regeneration-jobs");
+    }
+    for (int p : {4,8,16,32}) {
+        TerrainMaterialMap plane; plane.initialize(1);
+        QVector<QByteArray> keys;
+        const auto base=plane.bake(p,{{1,red}}, {}, {}, {}, &keys);
+        const auto oldKeys=keys;
+        QImage solid(9,9,QImage::Format_Grayscale8); solid.fill(0);
+        // Straddle a patch boundary: include the ID sampler's neighbouring halo.
+        const auto dirty=plane.paint(TerrainMaterialMap::Side/p,31,12,2,p,solid);
+        for (int patch : dirty) keys[patch].clear();
+        const auto incremental=plane.bake(p,{{1,red},{2,blue}}, {}, base, dirty, &keys);
+        check(incremental==plane.bake(p,{{1,red},{2,blue}}),"incremental-bake-matches-full-bake-including-halo");
+        bool stable=true;
+        for (int patch=0;patch<keys.size();++patch)
+            if (!dirty.contains(patch)) stable &= keys[patch]==oldKeys[patch];
+        check(stable && !keys.isEmpty(),"incremental-bake-retains-untouched-recipe-keys");
+        QHash<QByteArray,QImage> minis;
+        const int side=TerrainMaterialMap::BakedSide/p;
+        for (int patch : dirty)
+            minis.insert(keys[patch],incremental.copy((patch%p)*side,(patch/p)*side,side,side));
+        check(plane.bake(p,{},minis,base,dirty,&keys)==incremental,
+              "incremental-bake-needs-no-unchanged-materials-or-source-generation");
+        check(plane.bake(p,{}, {},base,{},&keys)==base,"empty-incremental-edit-preserves-complete-bake");
+        check(plane.bake(p,{}, {},base.scaled(7,7),dirty).isNull(),
+              "incorrect-bake-dimensions-require-full-regeneration");
+    }
+    {
+        TestTerrain t; t.setup(temp.path(),16,"incremental-save");
+        check(t.setProceduralMaterial(true,error) && t.save(),"establish-incremental-save-baseline");
+        check(t.descriptor().bakedMaterialInfo.startsWith("v1:unchecked:"),
+              "normal-save-explicitly-omits-whole-map-validation-signature");
+        const QString path=temp.path()+"/incremental-save_procedural.ace";
+        QImage sentinel(TerrainMaterialMap::BakedSide,TerrainMaterialMap::BakedSide,QImage::Format_RGB888);
+        sentinel.fill(Qt::green);
+        check(AceLib::saveRgbChecked(path,sentinel,error),"write-distinct-existing-bake-regions");
+        t.releaseProceduralTextures(); t.loadProceduralMaterial(tileDir);
+        Texture source(temp.path()+"/blue.png");
+        QImage solid(9,9,QImage::Format_Grayscale8); solid.fill(0);
+        Brush brush; brush.useTexture=true; brush.tex=&source; brush.brushshape=&solid;
+        t.paintProceduralMaterial(&brush,0,0,-992,-992,12);
+        // Clear the CPU bake/prefetch too: incremental save must read the saved
+        // base on its worker, not require every near patch to become visible.
+        t.releaseProceduralTextures();
+        check(t.save() && t.proceduralResidentPatchCount()==0,"incremental-save-after-eviction-with-no-resident-near-textures");
+        auto readBake=[&]() {
+            Texture texture(path); AceLib loader; loader.texture=&texture; loader.run();
+            QImage image;
+            if (texture.loaded && texture.decodeToCpu() && texture.imageData)
+                image=QImage(texture.imageData,texture.width,texture.height,texture.width*3,QImage::Format_RGB888).copy();
+            delete[] texture.imageData; texture.imageData=nullptr; return image;
+        };
+        auto image=readBake();
+        check(!image.isNull() && image.pixelColor(8,8)==QColor(Qt::blue)
+              && image.pixelColor(image.width()-1,image.height()-1)==QColor(Qt::green),
+              "one-patch-save-preserves-unvisited-baked-regions");
+        const QString marker=t.descriptor().bakedMaterialInfo;
+        check(t.save() && t.descriptor().bakedMaterialInfo==marker,"unchanged-save-retains-unchecked-bake-revision");
+        {
+            QScopedValueRollback<bool> validation(TerrainMaterialMap::ValidateBakeOnLoad,true);
+            t.setModified(false); t.loadProceduralMaterial(tileDir);
+            check(t.isModified() && t.save() && t.descriptor().bakedMaterialInfo.startsWith("v1:checked:"),
+                  "explicit-validation-rebuilds-unverified-bake-and-records-full-signature");
+            TFile checked;
+            check(checked.readT(tileDir+"/incremental-save.t")
+                  && checked.bakedMaterialInfo==t.descriptor().bakedMaterialInfo,
+                  "checked-bake-metadata-round-trips-through-tfile");
+            image=readBake();
+            check(!image.isNull() && image.pixelColor(image.width()-1,image.height()-1)==QColor(Qt::red),
+                  "explicit-repair-regenerates-unchanged-regions-too");
+            t.setModified(false); t.loadProceduralMaterial(tileDir);
+            check(!t.isModified(),"checked-bake-validates-after-reload");
+        }
+        t.paintProceduralMaterial(&brush,0,0,-965,-992,12);
+        check(t.save() && t.descriptor().bakedMaterialInfo.startsWith("v1:unchecked:"),
+              "ordinary-edit-save-never-retains-stale-checked-signature");
+        t.releaseProceduralTextures(); check(finishMaterialJobs(),"incremental-fixture-releases-workers");
+    }
+    check(TerrainMaterialMap::DetailDistanceMeters==2048.0f,"procedural-detail-distance-defaults-to-2048-metres");
+    for (int p : {16,32}) {
+        TestTerrain t; t.setup(temp.path(),p,"detail-distance"+QString::number(p));
+        check(t.setProceduralMaterial(true,error) && t.save(),"enable-distance-limited-detail-fixture");
+        QScopedValueRollback<float> distance(TerrainMaterialMap::DetailDistanceMeters,200.0f);
+        TestTerrain::PatchVisibility view; view.valid=true; view.maximumDistance=100000;
+        const float center=1024.0f/p;
+        view.cameraLocalX=view.cameraLocalZ=center;
+        const int farPatch=p*p-1;
+        const int cachedFar=t.proceduralTexture(farPatch);
+        check(finishMaterialJobs(),"distance-fixture-preloads-far-output");
+        auto order=t.proceduralRequestOrder(view);
+        check(order.contains(0) && !order.contains(farPatch),"detail-distance-filters-requests-per-patch-within-one-tile");
+        {
+            QScopedValueRollback<float> objects(Game::objectLod,99999.0f);
+            check(t.proceduralRequestOrder(view)==order,"detail-distance-independent-of-objectlod");
+        }
+        Terrain::beginProceduralFrame(); t.prepareVisibleProceduralTextures(view);
+        check(finishMaterialJobs() && t.proceduralTexture(0,true)>=0
+              && t.proceduralTexture(farPatch,true)<0,"far-resident-detail-is-not-drawn-outside-radius");
+        view.cameraLocalX=center-200;
+        Terrain::beginProceduralFrame(); t.prepareVisibleProceduralTextures(view);
+        check(t.proceduralTexture(0,true)>=0,"detail-radius-includes-exact-boundary");
+        view.cameraLocalX-=1;
+        Terrain::beginProceduralFrame(); t.prepareVisibleProceduralTextures(view);
+        check(t.proceduralTexture(0,true)<0,"detail-radius-switches-to-bake-beyond-boundary");
+        view.cameraLocalX=view.cameraLocalZ=2048-center;
+        Terrain::beginProceduralFrame(); t.prepareVisibleProceduralTextures(view);
+        check(t.proceduralTexture(farPatch,true)==cachedFar && t.proceduralTexture(0,true)<0,
+              "moving-camera-reuses-cached-detail-on-opposite-side-of-tile");
+        t.spacing(16); view.cameraLocalX=view.cameraLocalZ=center*2;
+        Terrain::beginProceduralFrame(); t.prepareVisibleProceduralTextures(view);
+        check(t.proceduralTexture(0,true)>=0 && t.proceduralTexture(farPatch,true)<0,
+              "detail-distance-uses-metres-on-larger-terrain-tiles");
+        t.releaseProceduralTextures(); check(finishMaterialJobs(),"distance-fixture-releases-owned-output");
     }
     const int texturesBefore=TexLib::mtex.size();
     {
@@ -643,7 +839,7 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
         }
         check(a.descriptor().materialsCount==count,"shader-renumbering-gated");
         check(a.save(),"save-sidecar-and-tfile");
-        check(a.proceduralTexture(0)!=privateTexture,"save-finalizes-private-material");
+        check(a.proceduralTexture(0)>=0,"save-finalizes-private-material-without-dropping-output");
         TFile roundtrip;
         check(roundtrip.readT(tileDir+"/testa.t") && !roundtrip.sampleMaterialBuffer.isEmpty()
               && roundtrip.materialsCount==count && roundtrip.patchValue(0,TFile::PatchField::TextureW)==1.0f/256
@@ -1047,6 +1243,14 @@ int TsreTests::runTerrainMaterialGlSuite() {
         const int other=b.proceduralTexture(10);
         auto *texture=TexLib::mtex.at(id);
         if(id!=other || !texture->glLoaded || !f->glIsTexture(texture->tex[0])) ++failed;
+        bool miniatureOk=finishMaterialJobs();
+        const auto aMini=a.proceduralBakeMiniatures(), bMini=b.proceduralBakeMiniatures();
+        miniatureOk &= !texture->imageData && texture->compressedData.isEmpty()
+                && aMini.size()==1 && bMini.size()==1;
+        if (miniatureOk) miniatureOk &= aMini.constBegin()->size()==QSize(TerrainMaterialMap::BakedSide/16,TerrainMaterialMap::BakedSide/16)
+                && bMini.constBegin()->size()==QSize(TerrainMaterialMap::BakedSide/32,TerrainMaterialMap::BakedSide/32);
+        if (!miniatureOk) ++failed;
+        qInfo() << "[tests:terrain-material-gl] worker miniatures survive GPU upload with per-layout dimensions" << miniatureOk;
         // A deterministic ordinary TexLib source, initially pending: detail must
         // not use stale GPU state while it is unavailable, nor replace primary.
         QString detailPath = temp.path()+"/microtex.ace";
@@ -1143,6 +1347,30 @@ int TsreTests::runTerrainMaterialGlSuite() {
         }
         if (!ok) ++failed;
         qInfo() << "[tests:terrain-material-gl] bounded base-level bake uploads, linear filtering, cross-tile sharing and final-owner release" << ok;
+    }
+    {
+        TestTerrain a,b; a.setup(temp.path(),16,"saved-edit-a"); b.setup(temp.path(),16,"saved-edit-b");
+        QString error;
+        bool ok=a.setProceduralMaterial(true,error) && b.setProceduralMaterial(true,error);
+        Texture source(temp.path()+"/blue.png");
+        QImage solid(9,9,QImage::Format_Grayscale8); solid.fill(0);
+        Brush brush; brush.useTexture=true; brush.tex=&source; brush.brushshape=&solid;
+        a.paintProceduralMaterial(&brush,0,0,-969,-971,13);
+        b.paintProceduralMaterial(&brush,0,0,-969,-971,13);
+        const int aId=a.proceduralTexture(0), bId=b.proceduralTexture(0);
+        ok &= aId>=0 && bId>=0 && aId!=bId;
+        GLuint aGpu=0,bGpu=0;
+        if (ok) { aGpu=TexLib::mtex.at(aId)->tex[0]; bGpu=TexLib::mtex.at(bId)->tex[0]; }
+        ok &= a.save() && a.proceduralTexture(0,true)==aId && f->glIsTexture(aGpu);
+        ok &= b.save() && b.proceduralTexture(0,true)==aId && f->glIsTexture(aGpu)
+                && !f->glIsTexture(bGpu) && !TexLib::mtex.count(bId);
+        ok &= finishMaterialJobs();
+        a.releaseProceduralTextures();
+        ok &= f->glIsTexture(aGpu) && b.proceduralTexture(0,true)==aId;
+        b.releaseProceduralTextures();
+        ok &= !f->glIsTexture(aGpu);
+        if (!ok) ++failed;
+        qInfo() << "[tests:terrain-material-gl] saved edits retain uploaded output, deduplicate without regeneration and release final owner" << ok;
     }
     {
         TestTerrain a,b; a.setup(temp.path(),16,"release-a"); b.setup(temp.path(),32,"release-b");
