@@ -1,9 +1,9 @@
 /*  This file is part of TSRE5.
  *
- *  TSRE5 - train sim game engine and MSTS/OR Editors. 
+ *  TSRE5 - train sim game engine and MSTS/OR Editors.
  *  Copyright (C) 2016 Piotr Gadecki <pgadecki@gmail.com>
  *
- *  Licensed under GNU General Public License 3.0 or later. 
+ *  Licensed under GNU General Public License 3.0 or later.
  *
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
@@ -21,6 +21,11 @@
 #include <tsre/Game.h>
 #include <cstddef>
 #include <cstdint>
+#include <tsre/texture/DxtCodec.h>
+#include <tsre/texture/AceDocument.h>
+#include <algorithm>
+#include <cstring>
+#include <cmath>
 
 #ifndef GL_COMPRESSED_RGB_S3TC_DXT1_EXT
 #define GL_COMPRESSED_RGB_S3TC_DXT1_EXT 0x83F0
@@ -38,43 +43,27 @@
 namespace {
 
 bool supportsDXT1() {
-    static int cachedSupport = -1;
-    if (cachedSupport != -1) {
-        return cachedSupport == 1;
-    }
-
     QOpenGLContext *ctx = QOpenGLContext::currentContext();
     if (ctx == nullptr) {
-        cachedSupport = 0;
         return false;
     }
 
-    const bool ok =
-            ctx->hasExtension(QByteArrayLiteral("GL_EXT_texture_compression_s3tc")) ||
-            ctx->hasExtension(QByteArrayLiteral("GL_EXT_texture_compression_dxt1")) ||
-            ctx->hasExtension(QByteArrayLiteral("GL_NV_texture_compression_s3tc")) ||
-            ctx->hasExtension(QByteArrayLiteral("GL_S3_s3tc"));
-    cachedSupport = ok ? 1 : 0;
+    const bool ok = ctx->hasExtension(QByteArrayLiteral("GL_EXT_texture_compression_s3tc")) ||
+                    ctx->hasExtension(QByteArrayLiteral("GL_EXT_texture_compression_dxt1")) ||
+                    ctx->hasExtension(QByteArrayLiteral("GL_NV_texture_compression_s3tc")) ||
+                    ctx->hasExtension(QByteArrayLiteral("GL_S3_s3tc"));
     return ok;
 }
 
 bool supportsS3TCFull() {
-    static int cachedSupport = -1;
-    if (cachedSupport != -1) {
-        return cachedSupport == 1;
-    }
-
     QOpenGLContext *ctx = QOpenGLContext::currentContext();
     if (ctx == nullptr) {
-        cachedSupport = 0;
         return false;
     }
 
-    const bool ok =
-            ctx->hasExtension(QByteArrayLiteral("GL_EXT_texture_compression_s3tc")) ||
-            ctx->hasExtension(QByteArrayLiteral("GL_NV_texture_compression_s3tc")) ||
-            ctx->hasExtension(QByteArrayLiteral("GL_S3_s3tc"));
-    cachedSupport = ok ? 1 : 0;
+    const bool ok = ctx->hasExtension(QByteArrayLiteral("GL_EXT_texture_compression_s3tc")) ||
+                    ctx->hasExtension(QByteArrayLiteral("GL_NV_texture_compression_s3tc")) ||
+                    ctx->hasExtension(QByteArrayLiteral("GL_S3_s3tc"));
     return ok;
 }
 
@@ -105,293 +94,110 @@ int dxtBlockBytes(int glFormat) {
     return 0;
 }
 
-static inline void decodeRGB565(uint16_t c, uint8_t &r, uint8_t &g, uint8_t &b) {
-    r = static_cast<uint8_t>(((c >> 11) & 0x1F) * 255 / 31);
-    g = static_cast<uint8_t>(((c >> 5) & 0x3F) * 255 / 63);
-    b = static_cast<uint8_t>((c & 0x1F) * 255 / 31);
-}
-
-static void decodeDXT1Block(const uint8_t *block, uint8_t *rgba, int stride /* bytes per row */) {
-    const uint16_t c0 = uint16_t(block[0]) | (uint16_t(block[1]) << 8);
-    const uint16_t c1 = uint16_t(block[2]) | (uint16_t(block[3]) << 8);
-
-    uint8_t r0, g0, b0;
-    uint8_t r1, g1, b1;
-    decodeRGB565(c0, r0, g0, b0);
-    decodeRGB565(c1, r1, g1, b1);
-
-    uint8_t colors[4][4];
-    colors[0][0] = r0; colors[0][1] = g0; colors[0][2] = b0; colors[0][3] = 255;
-    colors[1][0] = r1; colors[1][1] = g1; colors[1][2] = b1; colors[1][3] = 255;
-
-    if (c0 > c1) {
-        colors[2][0] = (2 * r0 + r1) / 3;
-        colors[2][1] = (2 * g0 + g1) / 3;
-        colors[2][2] = (2 * b0 + b1) / 3;
-        colors[2][3] = 255;
-
-        colors[3][0] = (r0 + 2 * r1) / 3;
-        colors[3][1] = (g0 + 2 * g1) / 3;
-        colors[3][2] = (b0 + 2 * b1) / 3;
-        colors[3][3] = 255;
-    } else {
-        colors[2][0] = (r0 + r1) / 2;
-        colors[2][1] = (g0 + g1) / 2;
-        colors[2][2] = (b0 + b1) / 2;
-        colors[2][3] = 255;
-
-        colors[3][0] = 0;
-        colors[3][1] = 0;
-        colors[3][2] = 0;
-        colors[3][3] = 0;
-    }
-
-    const uint32_t code = uint32_t(block[4]) |
-                          (uint32_t(block[5]) << 8) |
-                          (uint32_t(block[6]) << 16) |
-                          (uint32_t(block[7]) << 24);
-
-    for (int j = 0; j < 4; ++j) {
-        for (int i = 0; i < 4; ++i) {
-            const int idx = (code >> (2 * (4 * j + i))) & 0x03;
-            uint8_t *dst = rgba + j * stride + i * 4;
-            dst[0] = colors[idx][0];
-            dst[1] = colors[idx][1];
-            dst[2] = colors[idx][2];
-            dst[3] = colors[idx][3];
-        }
-    }
-}
-
-static void decodeDXT3Block(const uint8_t *block, uint8_t *rgba, int stride /* bytes per row */) {
-    // First 8 bytes: 4-bit alpha for 16 pixels (64 bits)
-    uint64_t alphaBits = 0;
-    for (int i = 0; i < 8; ++i) {
-        alphaBits |= (uint64_t(block[i]) << (8 * i));
-    }
-
-    const uint8_t *colorBlock = block + 8;
-
-    const uint16_t c0 = uint16_t(colorBlock[0]) | (uint16_t(colorBlock[1]) << 8);
-    const uint16_t c1 = uint16_t(colorBlock[2]) | (uint16_t(colorBlock[3]) << 8);
-
-    uint8_t r0, g0, b0;
-    uint8_t r1, g1, b1;
-    decodeRGB565(c0, r0, g0, b0);
-    decodeRGB565(c1, r1, g1, b1);
-
-    uint8_t colors[4][3]; // RGB
-    colors[0][0] = r0; colors[0][1] = g0; colors[0][2] = b0;
-    colors[1][0] = r1; colors[1][1] = g1; colors[1][2] = b1;
-
-    // DXT3 always treats this as a 4-color block (no transparent color)
-    colors[2][0] = (2 * r0 + r1) / 3;
-    colors[2][1] = (2 * g0 + g1) / 3;
-    colors[2][2] = (2 * b0 + b1) / 3;
-
-    colors[3][0] = (r0 + 2 * r1) / 3;
-    colors[3][1] = (g0 + 2 * g1) / 3;
-    colors[3][2] = (b0 + 2 * b1) / 3;
-
-    const uint32_t code = uint32_t(colorBlock[4]) |
-                          (uint32_t(colorBlock[5]) << 8) |
-                          (uint32_t(colorBlock[6]) << 16) |
-                          (uint32_t(colorBlock[7]) << 24);
-
-    for (int j = 0; j < 4; ++j) {
-        for (int i = 0; i < 4; ++i) {
-            const int pixelIndex = 4 * j + i;
-            const uint8_t alpha4 = (alphaBits >> (4 * pixelIndex)) & 0x0F;
-            const uint8_t a = alpha4 * 17; // 0..15 -> 0..255
-
-            const int colorIndex = (code >> (2 * pixelIndex)) & 0x03;
-
-            uint8_t *dst = rgba + j * stride + i * 4;
-            dst[0] = colors[colorIndex][0];
-            dst[1] = colors[colorIndex][1];
-            dst[2] = colors[colorIndex][2];
-            dst[3] = a;
-        }
-    }
-}
-
-static void decodeDXT5Block(const uint8_t *block, uint8_t *rgba, int stride /* bytes per row */) {
-    // Alpha
-    const uint8_t alpha0 = block[0];
-    const uint8_t alpha1 = block[1];
-
-    uint8_t alphaTable[8];
-    alphaTable[0] = alpha0;
-    alphaTable[1] = alpha1;
-    if (alpha0 > alpha1) {
-        alphaTable[2] = (6 * alpha0 + 1 * alpha1) / 7;
-        alphaTable[3] = (5 * alpha0 + 2 * alpha1) / 7;
-        alphaTable[4] = (4 * alpha0 + 3 * alpha1) / 7;
-        alphaTable[5] = (3 * alpha0 + 4 * alpha1) / 7;
-        alphaTable[6] = (2 * alpha0 + 5 * alpha1) / 7;
-        alphaTable[7] = (1 * alpha0 + 6 * alpha1) / 7;
-    } else {
-        alphaTable[2] = (4 * alpha0 + 1 * alpha1) / 5;
-        alphaTable[3] = (3 * alpha0 + 2 * alpha1) / 5;
-        alphaTable[4] = (2 * alpha0 + 3 * alpha1) / 5;
-        alphaTable[5] = (1 * alpha0 + 4 * alpha1) / 5;
-        alphaTable[6] = 0;
-        alphaTable[7] = 255;
-    }
-
-    // 48 bits of alpha indices
-    uint64_t alphaBits = 0;
-    for (int i = 0; i < 6; ++i) {
-        alphaBits |= (uint64_t(block[2 + i]) << (8 * i));
-    }
-
-    // Color data (DXT1-like) in block[8..15], always 4-color mode for DXT5.
-    const uint8_t *colorBlock = block + 8;
-
-    const uint16_t c0 = uint16_t(colorBlock[0]) | (uint16_t(colorBlock[1]) << 8);
-    const uint16_t c1 = uint16_t(colorBlock[2]) | (uint16_t(colorBlock[3]) << 8);
-
-    uint8_t r0, g0, b0;
-    uint8_t r1, g1, b1;
-    decodeRGB565(c0, r0, g0, b0);
-    decodeRGB565(c1, r1, g1, b1);
-
-    uint8_t colors[4][3];
-    colors[0][0] = r0; colors[0][1] = g0; colors[0][2] = b0;
-    colors[1][0] = r1; colors[1][1] = g1; colors[1][2] = b1;
-    colors[2][0] = (2 * r0 + r1) / 3;
-    colors[2][1] = (2 * g0 + g1) / 3;
-    colors[2][2] = (2 * b0 + b1) / 3;
-    colors[3][0] = (r0 + 2 * r1) / 3;
-    colors[3][1] = (g0 + 2 * g1) / 3;
-    colors[3][2] = (b0 + 2 * b1) / 3;
-
-    const uint32_t code = uint32_t(colorBlock[4]) |
-                          (uint32_t(colorBlock[5]) << 8) |
-                          (uint32_t(colorBlock[6]) << 16) |
-                          (uint32_t(colorBlock[7]) << 24);
-
-    for (int j = 0; j < 4; ++j) {
-        for (int i = 0; i < 4; ++i) {
-            const int pixelIndex = 4 * j + i;
-            const int colorIndex = (code >> (2 * pixelIndex)) & 0x03;
-            const int alphaIndex = (alphaBits >> (3 * pixelIndex)) & 0x07;
-
-            uint8_t *dst = rgba + j * stride + i * 4;
-            dst[0] = colors[colorIndex][0];
-            dst[1] = colors[colorIndex][1];
-            dst[2] = colors[colorIndex][2];
-            dst[3] = alphaTable[alphaIndex];
-        }
-    }
+DxtCodec::Format codecFormat(int format) {
+    return format == GL_COMPRESSED_RGBA_S3TC_DXT3_EXT   ? DxtCodec::Format::Dxt3
+           : format == GL_COMPRESSED_RGBA_S3TC_DXT5_EXT ? DxtCodec::Format::Dxt5
+                                                        : DxtCodec::Format::Dxt1;
 }
 
 static bool decodeCompressedToImageData(Texture *texture) {
-    if (texture == nullptr) {
+    if (!texture || !dxtBlockBytes(texture->compressedGLFormat))
+        return false;
+    QByteArray pixels;
+    QString error;
+    if (!DxtCodec::decode(texture->compressedData, texture->width, texture->height,
+                          codecFormat(texture->compressedGLFormat), texture->type == GL_RGBA,
+                          pixels, error)) {
+        texture->errorMessage = error;
         return false;
     }
-    if (texture->compressedData.isEmpty()) {
-        return false;
-    }
-
-    const int width = texture->width;
-    const int height = texture->height;
-    if (width <= 0 || height <= 0) {
-        return false;
-    }
-
-    const int blocksWide = (width + 3) / 4;
-    const int blocksHigh = (height + 3) / 4;
-    const int blockBytes = dxtBlockBytes(texture->compressedGLFormat);
-    if (blockBytes == 0) {
-        return false;
-    }
-    const int expectedSize = blocksWide * blocksHigh * blockBytes;
-    if (texture->compressedData.size() < expectedSize) {
-        return false;
-    }
-
-    const int outBpp = (texture->type == GL_RGBA) ? 4 : 3;
-    texture->bytesPerPixel = outBpp;
-    texture->imageSize = outBpp * width * height;
-
-    if (texture->imageData != nullptr) {
-        delete[] texture->imageData;
-        texture->imageData = nullptr;
-    }
-    texture->imageData = new unsigned char[size_t(width) * size_t(height) * size_t(outBpp)];
-
-    const uint8_t *blockPtr = reinterpret_cast<const uint8_t*>(texture->compressedData.constData());
-    for (int by = 0; by < blocksHigh; ++by) {
-        for (int bx = 0; bx < blocksWide; ++bx) {
-            uint8_t tile[4 * 4 * 4];
-
-            if (texture->compressedGLFormat == GL_COMPRESSED_RGBA_S3TC_DXT3_EXT) {
-                decodeDXT3Block(blockPtr, tile, 4 * 4);
-            } else if (texture->compressedGLFormat == GL_COMPRESSED_RGBA_S3TC_DXT5_EXT) {
-                decodeDXT5Block(blockPtr, tile, 4 * 4);
-            } else {
-                decodeDXT1Block(blockPtr, tile, 4 * 4);
-            }
-
-            const int x0 = bx * 4;
-            const int y0 = by * 4;
-            for (int j = 0; j < 4; ++j) {
-                const int y = y0 + j;
-                if (y >= height) {
-                    break;
-                }
-                for (int i = 0; i < 4; ++i) {
-                    const int x = x0 + i;
-                    if (x >= width) {
-                        break;
-                    }
-
-                    const uint8_t *srcPixel = &tile[(j * 4 + i) * 4];
-                    unsigned char *dstPixel = texture->imageData + (y * width + x) * outBpp;
-                    dstPixel[0] = srcPixel[0];
-                    dstPixel[1] = srcPixel[1];
-                    dstPixel[2] = srcPixel[2];
-                    if (outBpp == 4) {
-                        dstPixel[3] = srcPixel[3];
-                    }
-                }
-            }
-
-            blockPtr += blockBytes;
-        }
-    }
+    texture->bytesPerPixel = texture->type == GL_RGBA ? 4 : 3;
+    texture->bpp = texture->bytesPerPixel * 8;
+    texture->imageSize = pixels.size();
+    delete[] texture->imageData;
+    texture->imageData = new unsigned char[texture->imageSize];
+    memcpy(texture->imageData, pixels.constData(), pixels.size());
     return true;
+}
+
+// Tight CPU rows must not inherit another caller's pixel-transfer state.
+struct PixelRows {
+    bool pack;
+    GLint alignment = 4, length = 0, rows = 0, pixels = 0, buffer = 0;
+    QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
+    explicit PixelRows(bool readback = false) : pack(readback) {
+        glGetIntegerv(pack ? GL_PACK_ALIGNMENT : GL_UNPACK_ALIGNMENT, &alignment);
+        glGetIntegerv(pack ? GL_PACK_ROW_LENGTH : GL_UNPACK_ROW_LENGTH, &length);
+        glGetIntegerv(pack ? GL_PACK_SKIP_ROWS : GL_UNPACK_SKIP_ROWS, &rows);
+        glGetIntegerv(pack ? GL_PACK_SKIP_PIXELS : GL_UNPACK_SKIP_PIXELS, &pixels);
+        glGetIntegerv(pack ? GL_PIXEL_PACK_BUFFER_BINDING : GL_PIXEL_UNPACK_BUFFER_BINDING,
+                      &buffer);
+        f->glBindBuffer(pack ? GL_PIXEL_PACK_BUFFER : GL_PIXEL_UNPACK_BUFFER, 0);
+        glPixelStorei(pack ? GL_PACK_ALIGNMENT : GL_UNPACK_ALIGNMENT, 1);
+        glPixelStorei(pack ? GL_PACK_ROW_LENGTH : GL_UNPACK_ROW_LENGTH, 0);
+        glPixelStorei(pack ? GL_PACK_SKIP_ROWS : GL_UNPACK_SKIP_ROWS, 0);
+        glPixelStorei(pack ? GL_PACK_SKIP_PIXELS : GL_UNPACK_SKIP_PIXELS, 0);
+    }
+    ~PixelRows() {
+        glPixelStorei(pack ? GL_PACK_ALIGNMENT : GL_UNPACK_ALIGNMENT, alignment);
+        glPixelStorei(pack ? GL_PACK_ROW_LENGTH : GL_UNPACK_ROW_LENGTH, length);
+        glPixelStorei(pack ? GL_PACK_SKIP_ROWS : GL_UNPACK_SKIP_ROWS, rows);
+        glPixelStorei(pack ? GL_PACK_SKIP_PIXELS : GL_UNPACK_SKIP_PIXELS, pixels);
+        f->glBindBuffer(pack ? GL_PIXEL_PACK_BUFFER : GL_PIXEL_UNPACK_BUFFER, buffer);
+    }
+};
+
+void beginPixelTransfer() {
+    // Isolate errors from this transfer without attributing another renderer's
+    // stale error to the ACE file. Never spin on a lost context.
+    for (int i = 0; i < 16; ++i) {
+        const GLenum error = glGetError();
+        if (error == GL_NO_ERROR)
+            return;
+        qWarning() << "Texture: pre-existing OpenGL error" << Qt::hex << error;
+    }
+}
+
+bool pixelTransferSucceeded(Texture &texture) {
+    const GLenum error = glGetError();
+    if (error == GL_NO_ERROR)
+        return true;
+    texture.errorMessage = QString("OpenGL texture transfer failed (0x%1)").arg(error, 0, 16);
+    texture.error = true;
+    return false;
 }
 
 } // namespace
 
-Texture::Texture() {
-}
+Texture::Texture() {}
 
 bool Texture::decodeToCpu() {
-    return imageData != nullptr || (!compressedData.isEmpty() && decodeCompressedToImageData(this));
+    bool ok =
+        imageData != nullptr || (!compressedData.isEmpty() && decodeCompressedToImageData(this));
+    if (ok)
+        editable = true;
+    return ok;
 }
 
 Texture::Texture(QString pathid) {
     this->pathid = pathid;
     this->hashid.push_back(pathid);
-    //temp fix for dds/ace loading
-    // Openrails uses .dds textures instead of .ace
+    // temp fix for dds/ace loading
+    //  Openrails uses .dds textures instead of .ace
     QString tType = pathid.toLower().split(".").last();
-    if(tType == "dds"){
-        hashid.push_back(pathid.left(pathid.length() - 3)+"ace");
+    if (tType == "dds") {
+        hashid.push_back(pathid.left(pathid.length() - 3) + "ace");
     }
 }
-    
-Texture::Texture(int x, int y, int bpp, Brush* brush){
+
+Texture::Texture(int x, int y, int bpp, Brush *brush) {
     width = x;
     height = y;
-    bpp = bpp;
+    this->bpp = bpp;
     bytesPerPixel = (bpp / 8);
     imageSize = (bytesPerPixel * width * height);
     imageData = new unsigned char[imageSize];
-    std::fill(imageData, imageData+imageSize, 255);
+    std::fill(imageData, imageData + imageSize, 255);
     if (bpp == 24) {
         type = GL_RGB;
     } else {
@@ -402,385 +208,502 @@ Texture::Texture(int x, int y, int bpp, Brush* brush){
     loaded = true;
 }
 
-Texture::Texture(const Texture* orig) {
-    qDebug() << "clone tex" << orig->pathid;
-    //QOpenGLFunctions_3_2_Core *f = QOpenGLContext::currentContext()->functions();
+Texture::Texture(const Texture *orig) {
+    if (!orig || !orig->loaded)
+        return;
     width = orig->width;
     height = orig->height;
     bpp = orig->bpp;
     type = orig->type;
     bytesPerPixel = orig->bytesPerPixel;
-    
-    //QOpenGLFunctions_3_2_Core *f = new QOpenGLFunctions_3_2_Core();
-    if(orig->editable){
-        imageData = new unsigned char[bytesPerPixel*width*height];
-        memcpy(imageData, orig->imageData, bytesPerPixel*width*height);
-        this->editable = true;
-    } else {
-        imageData = new unsigned char[bytesPerPixel*width*height];
+    imageSize = width * height * bytesPerPixel;
+    QByteArray decoded;
+    QString message;
+    if (orig->imageData) {
+        imageData = new unsigned char[imageSize];
+        memcpy(imageData, orig->imageData, imageSize);
+    } else if (!orig->compressedData.isEmpty() &&
+               DxtCodec::decode(orig->compressedData, width, height,
+                                codecFormat(orig->compressedGLFormat), type == GL_RGBA, decoded,
+                                message)) {
+        imageData = new unsigned char[imageSize];
+        memcpy(imageData, decoded.constData(), imageSize);
+    } else if (orig->glLoaded && orig->tex && QOpenGLContext::currentContext()) {
+        imageData = new unsigned char[imageSize];
+        beginPixelTransfer();
+        PixelRows rows(true);
         glBindTexture(GL_TEXTURE_2D, orig->tex[0]);
-        glGetTexImage(GL_TEXTURE_2D, 0, orig->type, GL_UNSIGNED_BYTE, imageData);
-        this->editable = true;
+        glGetTexImage(GL_TEXTURE_2D, 0, type, GL_UNSIGNED_BYTE, imageData);
+        if (!pixelTransferSucceeded(*this)) {
+            delete[] imageData;
+            imageData = nullptr;
+            return;
+        }
+    } else {
+        error = true;
+        errorMessage = "Cannot clone texture pixels without a source or GL context";
+        return;
     }
-
-    tex = new unsigned int[1];
-    glGenTextures(1, tex);
-    glBindTexture(GL_TEXTURE_2D, tex[0]);
-    glTexImage2D(GL_TEXTURE_2D, 0, type, width, height, 0, type, GL_UNSIGNED_BYTE, imageData);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    //delete imageData;
-    glLoaded = true;
-
-    /*unsigned int* pex = new unsigned int[1];
-    f->glGenBuffers(1, pex);
-    f->glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pex[0]);
-    f->glBufferData(GL_PIXEL_UNPACK_BUFFER, bytesPerPixel*width*height, 0, GL_STREAM_DRAW_ARB);
-    imageData = (unsigned byte*)f->glMapBuffer(GL_PIXEL_UNPACK_BUFFER, GL_WRITE_ONLY);
-    
-    
-    
-    f->glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height,
-                type, GL_UNSIGNED_BYTE, 0);
-    
-    f->glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);*/
-    loaded = true;
+    if (orig->aceMetadata)
+        aceMetadata = std::make_shared<AceMetadata>(*orig->aceMetadata);
+    editable = loaded = true;
+    gpuMipmaps = orig->gpuMipmaps;
+    if (QOpenGLContext::currentContext())
+        update();
 }
 
-void Texture::setEditable(){
-    if(editable)
+void Texture::setEditable() {
+    if (!loaded)
         return;
-    if(!loaded)
+    if (decodeToCpu())
         return;
-    if(imageData != nullptr){
-        this->editable = true;
+    if (!glLoaded || !tex || !QOpenGLContext::currentContext())
         return;
-    }
-    if(!glLoaded){
-        if(!GLTextures())
-            return;
-    }
-
-    imageData = new unsigned char[bytesPerPixel*width*height];
-
-    //QOpenGLFunctions_3_2_Core *f = QOpenGLContext::currentContext()-> functions();
+    imageSize = width * height * bytesPerPixel;
+    imageData = new unsigned char[imageSize];
+    beginPixelTransfer();
+    PixelRows rows(true);
     glBindTexture(GL_TEXTURE_2D, tex[0]);
     glGetTexImage(GL_TEXTURE_2D, 0, type, GL_UNSIGNED_BYTE, imageData);
-    this->editable = true;
+    if (!pixelTransferSucceeded(*this)) {
+        delete[] imageData;
+        imageData = nullptr;
+        return;
+    }
+    editable = true;
 }
 
-unsigned char * Texture::getImageData(int width, int height){
-    if(!editable) 
+void Texture::pixelsChanged() {
+    sourceMipmaps.clear();
+    compressedData.clear();
+    compressedGLFormat = 0;
+    aceDocument.reset(); // Its source pixels are no longer the edited document.
+    imageSize = width * height * bytesPerPixel;
+    bpp = bytesPerPixel * 8;
+}
+
+void Texture::takeContentFrom(Texture &other) {
+    if (this == &other)
+        return;
+    const bool ready = other.loaded.load();
+    loaded = false;
+    // CPU reloads keep the old GL name for the next upload. In particular, the
+    // disk worker must not discard a resident handle without a GL context.
+    unsigned int *reusable = other.tex ? nullptr : tex;
+    if (reusable)
+        tex = nullptr;
+    // Moving an already GPU-resident source still requires the owning context.
+    if (tex && tex[0] && QOpenGLContext::currentContext())
+        glDeleteTextures(1, tex);
+    delete[] tex;
+    tex = nullptr;
+    delete[] imageData;
+    imageData = nullptr;
+    width = other.width;
+    height = other.height;
+    bpp = other.bpp;
+    imageSize = other.imageSize;
+    bytesPerPixel = other.bytesPerPixel;
+    compressed = other.compressed;
+    type = other.type;
+    typk = other.typk;
+    compressedData = std::move(other.compressedData);
+    compressedGLFormat = other.compressedGLFormat;
+    gpuInternalFormat = other.gpuInternalFormat;
+    sourceMipmaps = std::move(other.sourceMipmaps);
+    aceMetadata = std::move(other.aceMetadata);
+    aceDocument = std::move(other.aceDocument);
+    gpuMipmaps = other.gpuMipmaps;
+    gpuMipLevels = other.gpuMipLevels;
+    imageData = other.imageData;
+    other.imageData = nullptr;
+    tex = other.tex ? other.tex : reusable;
+    other.tex = nullptr;
+    glLoaded = other.glLoaded;
+    editable = other.editable;
+    missing = other.missing;
+    error = other.error;
+    errorMessage = std::move(other.errorMessage);
+    other.loaded = other.glLoaded = other.editable = false;
+    other.compressedGLFormat = other.gpuInternalFormat = 0;
+    other.gpuMipmaps = false;
+    other.gpuMipLevels = 1;
+    loaded.store(ready);
+}
+
+unsigned char *Texture::getImageData(int width, int height) {
+    if (!editable)
         setEditable();
-    
-    //qDebug() << width << height << bytesPerPixel;
-    unsigned char * out = new unsigned char[width*height*bytesPerPixel];
-    
-    float scalew = (float)this->width/width;
-    float scaleh = (float)this->height/height;
-    
-    qDebug() << this->width <<" "<< this->height;
-    
-    int lineWidth = (this->width*bytesPerPixel);
-    //if( lineWidth%4 !=0) 
-    //    lineWidth = lineWidth + 4 - lineWidth%4;
-    //lineWidth /= 4;
-    //if(lineWidth*4 < this->width*bytesPerPixel)
-    //    lineWidth = lineWidth*4+4;
-    //else
-    //    lineWidth = lineWidth*4;
-    
-    for(int i = 0; i < height; i++ )
-        for(int j = 0; j < width; j++ ){
-            int wsi = scaleh*i;
-            int hsi = scalew*j;
-            out[i*width*bytesPerPixel + j*bytesPerPixel+0] = imageData[wsi*lineWidth + hsi*bytesPerPixel+0];
-            out[i*width*bytesPerPixel + j*bytesPerPixel+1] = imageData[wsi*lineWidth + hsi*bytesPerPixel+1];
-            out[i*width*bytesPerPixel + j*bytesPerPixel+2] = imageData[wsi*lineWidth + hsi*bytesPerPixel+2];
-            if(bytesPerPixel == 4)
-                out[i*width*bytesPerPixel + j*bytesPerPixel+3] = imageData[wsi*lineWidth + hsi*bytesPerPixel+3];
+
+    if (!imageData || width <= 0 || height <= 0 || qint64(width) * height > 64 * 1024 * 1024)
+        return nullptr;
+    // qDebug() << width << height << bytesPerPixel;
+    unsigned char *out = new unsigned char[width * height * bytesPerPixel];
+
+    float scalew = (float)this->width / width;
+    float scaleh = (float)this->height / height;
+
+    qDebug() << this->width << " " << this->height;
+
+    int lineWidth = (this->width * bytesPerPixel);
+    // if( lineWidth%4 !=0)
+    //     lineWidth = lineWidth + 4 - lineWidth%4;
+    // lineWidth /= 4;
+    // if(lineWidth*4 < this->width*bytesPerPixel)
+    //     lineWidth = lineWidth*4+4;
+    // else
+    //     lineWidth = lineWidth*4;
+
+    for (int i = 0; i < height; i++)
+        for (int j = 0; j < width; j++) {
+            int wsi = scaleh * i;
+            int hsi = scalew * j;
+            out[i * width * bytesPerPixel + j * bytesPerPixel + 0] =
+                imageData[wsi * lineWidth + hsi * bytesPerPixel + 0];
+            out[i * width * bytesPerPixel + j * bytesPerPixel + 1] =
+                imageData[wsi * lineWidth + hsi * bytesPerPixel + 1];
+            out[i * width * bytesPerPixel + j * bytesPerPixel + 2] =
+                imageData[wsi * lineWidth + hsi * bytesPerPixel + 2];
+            if (bytesPerPixel == 4)
+                out[i * width * bytesPerPixel + j * bytesPerPixel + 3] =
+                    imageData[wsi * lineWidth + hsi * bytesPerPixel + 3];
         }
-    
+
     return out;
 }
 
-void Texture::advancedCrop(float* texCoords, int w, int h){
-    if(!editable)
+void Texture::advancedCrop(float *texCoords, int w, int h) {
+    if (!editable)
         setEditable();
-    
-    if(w == 0) 
-        w = width;
-    if(h == 0) 
-        h = height;
-    float texCoords2[7];
-    texCoords2[1] = texCoords[1]*w;
-    texCoords2[2] = texCoords[2]*h;
-    texCoords2[3] = texCoords[3]*16.0;//*width;
-    texCoords2[4] = texCoords[4]*16.0;//*height;
-    texCoords2[5] = texCoords[5]*16.0;//*width;
-    texCoords2[6] = texCoords[6]*16.0;//*height;
-    
-    qDebug() << width << height << bytesPerPixel << "--" << w << h;
-    qDebug() << texCoords2[1] << texCoords2[2] << texCoords2[3] << texCoords2[4] << texCoords2[5] << texCoords2[6];
-    qDebug() << texCoords[1] << texCoords[2] << texCoords[3] << texCoords[4] << texCoords[5] << texCoords[6];
-    
-    unsigned char* newData = new unsigned char[w*h*this->bytesPerPixel];    
-    
-    float ii, jj;
-    float widthRatio = (float)width/w;
-    float heightTatio = (float)height/h;
-    for(int i = 0; i < w; i++)
-        for(int j = 0; j < h; j++){
-            jj = texCoords2[1] + texCoords2[3]*j + texCoords2[4]*i;
-            ii = texCoords2[2] + texCoords2[5]*j + texCoords2[6]*i;
-            ii *= widthRatio;
-            jj *= heightTatio;
-
-            while(ii >= width)
-                ii -= width;
-            while(jj >= height)
-                jj -= height;
-            
-            while(ii < 0)
-                ii += width;
-            while(jj < 0)
-                jj += height;
-                            
-            newData[i*w*bytesPerPixel+j*bytesPerPixel+0] = imageData[(int)ii*width*bytesPerPixel+(int)jj*bytesPerPixel+0];
-            newData[i*w*bytesPerPixel+j*bytesPerPixel+1] = imageData[(int)ii*width*bytesPerPixel+(int)jj*bytesPerPixel+1];
-            newData[i*w*bytesPerPixel+j*bytesPerPixel+2] = imageData[(int)ii*width*bytesPerPixel+(int)jj*bytesPerPixel+2];
-            if(this->bytesPerPixel == 4)
-                newData[i*width*bytesPerPixel+j*bytesPerPixel+3] = imageData[(int)ii*width*bytesPerPixel+(int)jj*bytesPerPixel+3];            
-        }
-        
-    qDebug() << "advanced rot finished";
-    delete[] this->imageData;
-    this->imageData = newData;
-    this->width = w;
-    this->height = h;
-    this->update();
-}
-
-void Texture::crop(float x1, float y1, float x2, float y2){
-    if(!editable) 
-        setEditable();
-
-    qDebug() << x1 <<" "<<y1<<" "<<x2<<" "<<y2;
-
-    if(x1 < x2 && y1 < y2)
-        return;   
-    
-    unsigned char* newData = new unsigned char[this->width*this->height*this->bytesPerPixel];    
-    
-    if(x1 > x2 && y1 > y2){
-        int ii, jj;
-        for(int i = 0; i < width; i++)
-            for(int j = 0; j < height; j++){
-                ii = width - i - 1;
-                jj = height - j - 1;
-                newData[i*width*bytesPerPixel+j*bytesPerPixel+0] = imageData[ii*width*bytesPerPixel+jj*bytesPerPixel+0];
-                newData[i*width*bytesPerPixel+j*bytesPerPixel+1] = imageData[ii*width*bytesPerPixel+jj*bytesPerPixel+1];
-                newData[i*width*bytesPerPixel+j*bytesPerPixel+2] = imageData[ii*width*bytesPerPixel+jj*bytesPerPixel+2];
-                if(this->bytesPerPixel == 4)
-                    newData[i*width*bytesPerPixel+j*bytesPerPixel+3] = imageData[ii*width*bytesPerPixel+jj*bytesPerPixel+3];            
-            }
-    }
-    
-    if(x1 > x2 && y1 < y2){
-        int ii, jj;
-        for(int i = 0; i < width; i++)
-            for(int j = 0; j < height; j++){
-                ii = j;
-                jj = width - i - 1;
-                newData[i*width*bytesPerPixel+j*bytesPerPixel+0] = imageData[ii*width*bytesPerPixel+jj*bytesPerPixel+0];
-                newData[i*width*bytesPerPixel+j*bytesPerPixel+1] = imageData[ii*width*bytesPerPixel+jj*bytesPerPixel+1];
-                newData[i*width*bytesPerPixel+j*bytesPerPixel+2] = imageData[ii*width*bytesPerPixel+jj*bytesPerPixel+2];
-                if(this->bytesPerPixel == 4)
-                    newData[i*width*bytesPerPixel+j*bytesPerPixel+3] = imageData[ii*width*bytesPerPixel+jj*bytesPerPixel+3];            
-            }
-        ii = this->height;
-        this->height = this->width;
-        this->width = ii;
-    }
-
-    if(x1 < x2 && y1 > y2){
-        int ii, jj;
-        for(int i = 0; i < width; i++)
-            for(int j = 0; j < height; j++){
-                ii = height - j - 1;
-                jj = i;
-                newData[i*width*bytesPerPixel+j*bytesPerPixel+0] = imageData[ii*width*bytesPerPixel+jj*bytesPerPixel+0];
-                newData[i*width*bytesPerPixel+j*bytesPerPixel+1] = imageData[ii*width*bytesPerPixel+jj*bytesPerPixel+1];
-                newData[i*width*bytesPerPixel+j*bytesPerPixel+2] = imageData[ii*width*bytesPerPixel+jj*bytesPerPixel+2];
-                if(this->bytesPerPixel == 4)
-                    newData[i*width*bytesPerPixel+j*bytesPerPixel+3] = imageData[ii*width*bytesPerPixel+jj*bytesPerPixel+3];
-            }
-        ii = this->height;
-        this->height = this->width;
-        this->width = ii;
-    }
-    
-    delete[] this->imageData;
-    this->imageData = newData;
-    
-    this->update();
-}
-
-void Texture::sendToUndo(int id){
-    if(!editable) 
-        setEditable();
-    Undo::PushTextureData(id, imageData, bytesPerPixel*width*height);
-}
-
-void Texture::fillData(unsigned char* data){
-    if(imageData == NULL)
+    if (!imageData || !texCoords)
         return;
-    memcpy(imageData, data, bytesPerPixel*width*height);
+    if (w == 0)
+        w = width;
+    if (h == 0)
+        h = height;
+    if (w <= 0 || h <= 0 || qint64(w) * h > 64 * 1024 * 1024)
+        return;
+    for (int i = 1; i <= 6; ++i)
+        if (!std::isfinite(texCoords[i]))
+            return;
+    unsigned char *next = new unsigned char[qsizetype(w) * h * bytesPerPixel];
+    // Preserve the terrain patch's historical 16-unit UV transformation.
+    for (int y = 0; y < h; ++y)
+        for (int x = 0; x < w; ++x) {
+            const double u =
+                (texCoords[1] * w + 16.0 * (texCoords[3] * x + texCoords[4] * y)) * width / w;
+            const double v =
+                (texCoords[2] * h + 16.0 * (texCoords[5] * x + texCoords[6] * y)) * height / h;
+            const int sx = int(std::fmod(std::fmod(u, width) + width, width));
+            const int sy = int(std::fmod(std::fmod(v, height) + height, height));
+            memcpy(next + (qsizetype(y) * w + x) * bytesPerPixel,
+                   imageData + (qsizetype(sy) * width + sx) * bytesPerPixel, bytesPerPixel);
+        }
+    delete[] imageData;
+    imageData = next;
+    width = w;
+    height = h;
     update();
 }
 
-void Texture::paint(Brush* brush, float x, float z){
-    if(!editable) 
+void Texture::crop(float x1, float y1, float x2, float y2) {
+    if (!editable)
         setEditable();
-    
-    Texture* tex = brush->tex;
-    
-    if(tex != NULL){
-        if(!tex->loaded) tex = NULL;
-        else if(!tex->editable)
+    if (!imageData || x1 == x2 || y1 == y2 || (x1 < x2 && y1 < y2))
+        return;
+    const bool halfTurn = x1 > x2 && y1 > y2;
+    const int newWidth = halfTurn ? width : height, newHeight = halfTurn ? height : width;
+    unsigned char *next = new unsigned char[qsizetype(newWidth) * newHeight * bytesPerPixel];
+    for (int y = 0; y < newHeight; ++y)
+        for (int x = 0; x < newWidth; ++x) {
+            const int sx = halfTurn ? width - 1 - x : x1 > x2 ? width - 1 - y : y;
+            const int sy = halfTurn ? height - 1 - y : x1 > x2 ? x : height - 1 - x;
+            memcpy(next + (qsizetype(y) * newWidth + x) * bytesPerPixel,
+                   imageData + (qsizetype(sy) * width + sx) * bytesPerPixel, bytesPerPixel);
+        }
+    delete[] imageData;
+    imageData = next;
+    width = newWidth;
+    height = newHeight;
+    update();
+}
+
+void Texture::sendToUndo(int id) {
+    if (!editable)
+        setEditable();
+    if (imageData)
+        Undo::PushTextureData(id, imageData, bytesPerPixel * width * height);
+}
+
+void Texture::fillData(unsigned char *data) {
+    if (imageData == NULL)
+        return;
+    memcpy(imageData, data, bytesPerPixel * width * height);
+    update();
+}
+
+void Texture::paint(Brush *brush, float x, float z) {
+    if (!editable)
+        setEditable();
+    if (!brush || !imageData)
+        return;
+    pixelsChanged();
+
+    Texture *tex = brush->tex;
+
+    if (tex != NULL) {
+        if (!tex->loaded)
+            tex = NULL;
+        else if (!tex->editable)
             tex->setEditable();
+        if (tex && !tex->imageData)
+            tex = nullptr;
     }
-    
-    int tx = x*width;
-    int tz = z*height;
-    
+
+    int tx = x * width;
+    int tz = z * height;
+
     int txi, tzj;
-    
+
     float talpha = 0;
-    
-    int size = (brush->size*this->width)/512;
-    if(size < 1)
+
+    int size = (brush->size * this->width) / 512;
+    if (size < 1)
         size = 1;
-    //size = (size/512);
-    
-    for(int i = -size; i < size; i++)
-        for(int j = -size; j < size; j++){
-            txi = tx+i;
-            tzj = tz+j;
-            if(tx+i >= height) continue;
-            if(tz+j >= width) continue;
-            if(tx+i < 0) continue;
-            if(tz+j < 0) continue;
-            //if(sqrt(i*i + j*j) > size) continue;
-            
-            talpha = (brush->alpha)*brush->getAlpha(i, j, size);
-            //talpha = (brush->alpha)*(1.0-(float)sqrt(i*i + j*j)/size);
-            txi*=1;
-            tzj*=1;
-            
-            if(tex != NULL && brush->useTexture){
-                
-                if(tzj >= tex->width){
-                    tzj = tzj%tex->width;
+    // size = (size/512);
+
+    for (int i = -size; i < size; i++)
+        for (int j = -size; j < size; j++) {
+            txi = tx + i;
+            tzj = tz + j;
+            if (tx + i >= height)
+                continue;
+            if (tz + j >= width)
+                continue;
+            if (tx + i < 0)
+                continue;
+            if (tz + j < 0)
+                continue;
+            // if(sqrt(i*i + j*j) > size) continue;
+
+            talpha = (brush->alpha) * brush->getAlpha(i, j, size);
+            // talpha = (brush->alpha)*(1.0-(float)sqrt(i*i + j*j)/size);
+            txi *= 1;
+            tzj *= 1;
+
+            if (tex != NULL && brush->useTexture) {
+
+                if (tzj >= tex->width) {
+                    tzj = tzj % tex->width;
                 }
-                if(txi >= tex->height){
-                    txi = txi%tex->height;
+                if (txi >= tex->height) {
+                    txi = txi % tex->height;
                 }
-                
-                imageData[(tx+i)*width*bytesPerPixel + (tz + j)*bytesPerPixel] 
-                        = (1-talpha)*imageData[(tx+i)*width*bytesPerPixel + (tz + j)*bytesPerPixel] + (talpha)*tex->imageData[(txi)*tex->width*tex->bytesPerPixel + (tzj)*tex->bytesPerPixel];
-                imageData[(tx+i)*width*bytesPerPixel + (tz + j)*bytesPerPixel+1] 
-                        = (1-talpha)*imageData[(tx+i)*width*bytesPerPixel + (tz + j)*bytesPerPixel+1] + (talpha)*tex->imageData[(txi)*tex->width*tex->bytesPerPixel + (tzj)*tex->bytesPerPixel+1];
-                imageData[(tx+i)*width*bytesPerPixel + (tz + j)*bytesPerPixel+2] 
-                        = (1-talpha)*imageData[(tx+i)*width*bytesPerPixel + (tz + j)*bytesPerPixel+2] + (talpha)*tex->imageData[(txi)*tex->width*tex->bytesPerPixel + (tzj)*tex->bytesPerPixel+2];
+
+                imageData[(tx + i) * width * bytesPerPixel + (tz + j) * bytesPerPixel] =
+                    (1 - talpha) *
+                        imageData[(tx + i) * width * bytesPerPixel + (tz + j) * bytesPerPixel] +
+                    (talpha)*tex->imageData[(txi)*tex->width * tex->bytesPerPixel +
+                                            (tzj)*tex->bytesPerPixel];
+                imageData[(tx + i) * width * bytesPerPixel + (tz + j) * bytesPerPixel + 1] =
+                    (1 - talpha) *
+                        imageData[(tx + i) * width * bytesPerPixel + (tz + j) * bytesPerPixel + 1] +
+                    (talpha)*tex->imageData[(txi)*tex->width * tex->bytesPerPixel +
+                                            (tzj)*tex->bytesPerPixel + 1];
+                imageData[(tx + i) * width * bytesPerPixel + (tz + j) * bytesPerPixel + 2] =
+                    (1 - talpha) *
+                        imageData[(tx + i) * width * bytesPerPixel + (tz + j) * bytesPerPixel + 2] +
+                    (talpha)*tex->imageData[(txi)*tex->width * tex->bytesPerPixel +
+                                            (tzj)*tex->bytesPerPixel + 2];
             } else {
-                imageData[(tx+i)*width*bytesPerPixel + (tz + j)*bytesPerPixel] 
-                        = (1-talpha)*imageData[(tx+i)*width*bytesPerPixel + (tz + j)*bytesPerPixel] + (talpha)*(brush->color[0]);
-                imageData[(tx+i)*width*bytesPerPixel + (tz + j)*bytesPerPixel+1] 
-                        = (1-talpha)*imageData[(tx+i)*width*bytesPerPixel + (tz + j)*bytesPerPixel+1] + (talpha)*(brush->color[1]);
-                imageData[(tx+i)*width*bytesPerPixel + (tz + j)*bytesPerPixel+2] 
-                        = (1-talpha)*imageData[(tx+i)*width*bytesPerPixel + (tz + j)*bytesPerPixel+2] + (talpha)*(brush->color[2]);
+                imageData[(tx + i) * width * bytesPerPixel + (tz + j) * bytesPerPixel] =
+                    (1 - talpha) *
+                        imageData[(tx + i) * width * bytesPerPixel + (tz + j) * bytesPerPixel] +
+                    (talpha) * (brush->color[0]);
+                imageData[(tx + i) * width * bytesPerPixel + (tz + j) * bytesPerPixel + 1] =
+                    (1 - talpha) *
+                        imageData[(tx + i) * width * bytesPerPixel + (tz + j) * bytesPerPixel + 1] +
+                    (talpha) * (brush->color[1]);
+                imageData[(tx + i) * width * bytesPerPixel + (tz + j) * bytesPerPixel + 2] =
+                    (1 - talpha) *
+                        imageData[(tx + i) * width * bytesPerPixel + (tz + j) * bytesPerPixel + 2] +
+                    (talpha) * (brush->color[2]);
             }
         }
 }
 
-void Texture::update(){
-    //QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
+void Texture::update() {
+    if (!imageData)
+        return;
+    pixelsChanged();
+    if (!QOpenGLContext::currentContext())
+        return;
+    auto *f = QOpenGLContext::currentContext()->functions();
+    beginPixelTransfer();
+    if (!tex) {
+        tex = new unsigned int[1]{};
+        glGenTextures(1, tex);
+    }
     glBindTexture(GL_TEXTURE_2D, tex[0]);
-    glTexImage2D(GL_TEXTURE_2D, 0, type, width, height, 0, type, GL_UNSIGNED_BYTE, imageData);
+    PixelRows rows;
+    const int internal = type == GL_RGBA ? GL_RGBA8 : GL_RGB8;
+    glTexImage2D(GL_TEXTURE_2D, 0, internal, width, height, 0, type, GL_UNSIGNED_BYTE, imageData);
+    gpuInternalFormat = internal;
+    glLoaded = true;
+    gpuMipLevels = 1;
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 1000);
+    if (gpuMipmaps) {
+        f->glGenerateMipmap(GL_TEXTURE_2D);
+        for (int n = std::max(width, height); n > 1; n >>= 1)
+            ++gpuMipLevels;
+    } else
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
+                    gpuMipmaps ? GL_LINEAR_MIPMAP_LINEAR : GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    if (!pixelTransferSucceeded(*this))
+        glLoaded = false;
 }
 
 Texture::~Texture() {
+    // Existing callers own/free the legacy raw pointers. New containers are RAII.
 }
 
 bool Texture::GLTextures(bool mipmaps) {
-    if(!loaded) return false;
-
-    tex = new unsigned int[1];
-    QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
-    
-    glGenTextures(1, tex);
+    auto *context = QOpenGLContext::currentContext();
+    if (!loaded || !context || width <= 0 || height <= 0 ||
+        (bytesPerPixel != 3 && bytesPerPixel != 4))
+        return false;
+    auto *f = context->functions();
+    GLint maximum = 0;
+    glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maximum);
+    if (width > maximum || height > maximum) {
+        errorMessage = "Texture exceeds GL_MAX_TEXTURE_SIZE";
+        error = true;
+        return false;
+    }
+    beginPixelTransfer();
+    if (glLoaded) {
+        // A later consumer may request mips after an earlier base-only upload.
+        glBindTexture(GL_TEXTURE_2D, tex[0]);
+        if (mipmaps && !gpuMipmaps) {
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 1000);
+            f->glGenerateMipmap(GL_TEXTURE_2D);
+            gpuMipmaps = true;
+            gpuMipLevels = 1;
+            for (int n = std::max(width, height); n > 1; n >>= 1)
+                ++gpuMipLevels;
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        }
+        return pixelTransferSucceeded(*this);
+    }
+    if (!tex) {
+        tex = new unsigned int[1]{};
+        glGenTextures(1, tex);
+    }
     glBindTexture(GL_TEXTURE_2D, tex[0]);
-
-    gpuInternalFormat = 0;
-    bool uploadedCompressed = false;
-    if (!compressedData.isEmpty() && compressedGLFormat != 0) {
-        const int blocksWide = (width + 3) / 4;
-        const int blocksHigh = (height + 3) / 4;
-        const int expectedSize = blocksWide * blocksHigh * dxtBlockBytes(compressedGLFormat);
-
-        if (expectedSize > 0 &&
-                (width % 4 == 0) && (height % 4 == 0) &&
-                (compressedData.size() >= expectedSize) &&
-                supportsCompressedFormat(compressedGLFormat)) {
-            f->glCompressedTexImage2D(GL_TEXTURE_2D, 0, compressedGLFormat, width, height, 0,
-                                      expectedSize, compressedData.constData());
-            uploadedCompressed = true;
-            gpuInternalFormat = compressedGLFormat;
-        } else if (imageData == nullptr) {
-            if (!decodeCompressedToImageData(this)) {
+    PixelRows rows;
+    const bool direct = !compressedData.isEmpty() && dxtBlockBytes(compressedGLFormat) &&
+                        compressedData.size() ==
+                            DxtCodec::byteSize(width, height, codecFormat(compressedGLFormat)) &&
+                        supportsCompressedFormat(compressedGLFormat);
+    if (!direct && !decodeToCpu())
+        return false;
+    if (direct) {
+        gpuInternalFormat = compressedGLFormat;
+        f->glCompressedTexImage2D(GL_TEXTURE_2D, 0, gpuInternalFormat, width, height, 0,
+                                  compressedData.size(), compressedData.constData());
+    } else {
+        gpuInternalFormat = type == GL_RGBA ? GL_RGBA8 : GL_RGB8;
+        if (Game::AASamples > 0 && Game::AARemoveBorder && type == GL_RGBA) {
+            for (int y = 0; y < height; ++y) {
+                imageData[(qsizetype(y) * width) * 4 + 3] = 0;
+                imageData[(qsizetype(y) * width + width - 1) * 4 + 3] = 0;
+            }
+            for (int x = 0; x < width; ++x) {
+                imageData[x * 4 + 3] = 0;
+                imageData[(qsizetype(height - 1) * width + x) * 4 + 3] = 0;
+            }
+            sourceMipmaps.clear(); // Do not combine altered base edges with unaltered mips.
+        }
+        glTexImage2D(GL_TEXTURE_2D, 0, gpuInternalFormat, width, height, 0, type, GL_UNSIGNED_BYTE,
+                     imageData);
+    }
+    gpuMipmaps = mipmaps;
+    gpuMipLevels = 1;
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 1000);
+    if (mipmaps && !sourceMipmaps.isEmpty()) {
+        int previousW = width, previousH = height;
+        for (const auto &mip : sourceMipmaps) {
+            if (mip.width != std::max(1, previousW / 2) ||
+                mip.height != std::max(1, previousH / 2)) {
+                errorMessage = "Invalid staged mip dimensions";
                 return false;
             }
-        }
-    }
-
-    if (!uploadedCompressed) {
-        if (imageData == nullptr) {
-            return false;
-        }
-
-        if(Game::AASamples > 0 && Game::AARemoveBorder)
-            if(type == GL_RGBA){
-                for (int i = 0; i < height; i++)
-                    imageData[i*width*bytesPerPixel + (width-1)*bytesPerPixel + 3] = 0;
-                for (int i = 0; i < height; i++)
-                    imageData[i*width*bytesPerPixel + 3] = 0;
-                for (int i = 0; i < width; i++)
-                    imageData[(height-1)*width*bytesPerPixel + i*bytesPerPixel + 3] = 0;
-                for (int i = 0; i < width; i++)
-                    imageData[i*bytesPerPixel + 3] = 0;
+            QByteArray converted;
+            QString message;
+            const QByteArray *data = &mip.data;
+            if (direct) {
+                if (mip.compressedFormat != gpuInternalFormat) {
+                    if (mip.compressedFormat) {
+                        errorMessage = "Mixed compressed mip formats";
+                        return false;
+                    }
+                    // ACE tiny tails are planar: encode only these tiny levels for the
+                    // homogeneous GPU BC chain. The optional document retains originals.
+                    if (!DxtCodec::encode(
+                            reinterpret_cast<const unsigned char *>(mip.data.constData()),
+                            mip.data.size(), mip.width, mip.height, bytesPerPixel,
+                            codecFormat(gpuInternalFormat), type == GL_RGBA, converted, message)) {
+                        errorMessage = message;
+                        return false;
+                    }
+                    data = &converted;
+                }
+                if (data->size() !=
+                    DxtCodec::byteSize(mip.width, mip.height, codecFormat(gpuInternalFormat)))
+                    return false;
+                f->glCompressedTexImage2D(GL_TEXTURE_2D, gpuMipLevels, gpuInternalFormat, mip.width,
+                                          mip.height, 0, data->size(), data->constData());
+            } else {
+                if (mip.compressedFormat) {
+                    if (!DxtCodec::decode(mip.data, mip.width, mip.height,
+                                          codecFormat(mip.compressedFormat), type == GL_RGBA,
+                                          converted, message)) {
+                        errorMessage = message;
+                        return false;
+                    }
+                    data = &converted;
+                }
+                if (data->size() != qsizetype(mip.width) * mip.height * bytesPerPixel)
+                    return false;
+                glTexImage2D(GL_TEXTURE_2D, gpuMipLevels, gpuInternalFormat, mip.width, mip.height,
+                             0, type, GL_UNSIGNED_BYTE, data->constData());
             }
-
-        glTexImage2D(GL_TEXTURE_2D, 0, type, width, height, 0, type, GL_UNSIGNED_BYTE, imageData);
-        gpuInternalFormat = type;
-    }
-    
-    //f->glTexStorage2D(GL_TEXTURE_2D, 4, GL_RGBA8, width, height);
-    //f->glTexSubImage2D(GL_TEXTURE_2D, 0​, 0, 0, width​, height​, GL_BGRA, GL_UNSIGNED_BYTE, pixels);
-    if(mipmaps){
+            ++gpuMipLevels;
+            previousW = mip.width;
+            previousH = mip.height;
+        }
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, gpuMipLevels - 1);
+    } else if (mipmaps) {
         f->glGenerateMipmap(GL_TEXTURE_2D);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,  GL_LINEAR_MIPMAP_LINEAR );
-    } else {
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,  GL_LINEAR );
-    }
-
+        for (int n = std::max(width, height); n > 1; n >>= 1)
+            ++gpuMipLevels;
+    } else
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
+                    mipmaps ? GL_LINEAR_MIPMAP_LINEAR : GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
+    if (!pixelTransferSucceeded(*this))
+        return false; // Keep CPU data for retry/diagnostics.
     delete[] imageData;
-    imageData = NULL;
-    this->editable = false;
+    imageData = nullptr;
+    editable = false;
     compressedData.clear();
     compressedGLFormat = 0;
+    sourceMipmaps.clear();
     glLoaded = true;
     return true;
 }
@@ -795,6 +718,19 @@ qint64 Texture::estimatedCpuBytes() const {
         }
     }
     bytes += compressedData.size();
+    for (const auto &mip : sourceMipmaps)
+        bytes += mip.data.size();
+    if (aceMetadata) {
+        bytes += aceMetadata->header.size() + aceMetadata->trailing.size();
+        for (const auto &p : aceMetadata->palettes)
+            bytes += p.data.size();
+        bytes += aceMetadata->channels.size() * sizeof(AceChannel);
+    }
+    if (aceDocument) {
+        bytes += aceDocument->originalBytes().size();
+        for (const auto &mip : aceDocument->levels)
+            bytes += mip.data.size();
+    }
     return bytes;
 }
 
@@ -803,16 +739,20 @@ qint64 Texture::estimatedVramBytes() const {
         return 0;
     }
 
-    const int format =
-            (glLoaded && gpuInternalFormat != 0) ? gpuInternalFormat :
-            (!compressedData.isEmpty() && compressedGLFormat != 0) ? compressedGLFormat :
-            0;
+    const int format = (glLoaded && gpuInternalFormat != 0)                     ? gpuInternalFormat
+                       : (!compressedData.isEmpty() && compressedGLFormat != 0) ? compressedGLFormat
+                                                                                : 0;
 
     const int blockBytes = dxtBlockBytes(format);
     if (blockBytes > 0) {
         const int blocksWide = (width + 3) / 4;
         const int blocksHigh = (height + 3) / 4;
-        return qint64(blocksWide) * qint64(blocksHigh) * qint64(blockBytes);
+        qint64 total = qint64(blocksWide) * blocksHigh * blockBytes;
+        if (glLoaded)
+            for (int level = 1; level < gpuMipLevels; ++level)
+                total += DxtCodec::byteSize(std::max(1, width >> level),
+                                            std::max(1, height >> level), codecFormat(format));
+        return total;
     }
 
     int bppBytes = bytesPerPixel;
@@ -829,7 +769,11 @@ qint64 Texture::estimatedVramBytes() const {
         return 0;
     }
 
-    return qint64(width) * qint64(height) * qint64(bppBytes);
+    qint64 total = qint64(width) * height * bppBytes;
+    if (glLoaded)
+        for (int level = 1; level < gpuMipLevels; ++level)
+            total += qint64(std::max(1, width >> level)) * std::max(1, height >> level) * bppBytes;
+    return total;
 }
 
 bool Texture::gpuIsCompressed() const {
@@ -839,15 +783,19 @@ bool Texture::gpuIsCompressed() const {
     return dxtBlockBytes(gpuInternalFormat) > 0;
 }
 
-
 void Texture::delVBO() {
-    //System.out.println("==== usuwam texture!");
+    sourceMipmaps.clear();
+    aceDocument.reset();
+    aceMetadata.reset();
+    gpuMipmaps = false;
+    gpuMipLevels = 1;
+    errorMessage.clear();
+    // System.out.println("==== usuwam texture!");
     glLoaded = false;
     loaded = false;
     editable = false;
     missing = false;
     error = false;
     gpuInternalFormat = 0;
-    //gl.glDeleteTextures(1, tex, 0);
+    // gl.glDeleteTextures(1, tex, 0);
 }
-

@@ -1,421 +1,185 @@
-/*  This file is part of TSRE5.
- *
- *  TSRE5 - train sim game engine and MSTS/OR Editors. 
- *  Copyright (C) 2016 Piotr Gadecki <pgadecki@gmail.com>
- *
- *  Licensed under GNU General Public License 3.0 or later. 
- *
- *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
- */
-
-#include <tsre/texture/AceLib.h>
-#include <tsre/fileFunctions/ReadFile.h>
-#include <tsre/fileFunctions/FileBuffer.h>
-#include <tsre/texture/Texture.h>
-#include <QDebug>
-#include <QSaveFile>
-#include <QOpenGLShaderProgram>
-#include <QString>
+#include "AceLib.h"
+#include "Texture.h"
 #include <tsre/Game.h>
+#include <QDebug>
+#include <QFileInfo>
+#include <QImage>
+#include <algorithm>
+#include <cstring>
 #include <memory>
-
-#ifndef GL_COMPRESSED_RGB_S3TC_DXT1_EXT
-#define GL_COMPRESSED_RGB_S3TC_DXT1_EXT 0x83F0
-#endif
-#ifndef GL_COMPRESSED_RGBA_S3TC_DXT1_EXT
-#define GL_COMPRESSED_RGBA_S3TC_DXT1_EXT 0x83F1
-#endif
 
 bool AceLib::IsThread = true;
 
-AceLib::AceLib(){
-    
+namespace {
+int compressedFormat(const AceDocument &doc, const AceLevel &level) {
+    if (!level.raw)
+        return 0;
+    switch (doc.surface()) {
+    case 18:
+        return doc.hasAlpha() ? 0x83f1 : 0x83f0;
+    case 20:
+        return 0x83f2;
+    case 22:
+        return 0x83f3;
+    default:
+        return 0; // DXT2/4 normalized to straight alpha on CPU.
+    }
 }
+} // namespace
 
-/*===============================================================
-===== Wczytywanie tekstury w formacie ACE [RGB,cRGB, DXT, cDXT]
-==============================================================*/
-//bool AceLib::LoadACE(Texture* texture) {
-void AceLib::run() {
-
-    QFile file(texture->pathid);
-    if (!file.open(QIODevice::ReadOnly)){
-        texture->missing = true;
-        if(!IsThread)
-            qDebug() << "ACE: not exist "<<texture->pathid;
-        //return false;
-        return;
+bool AceLib::load(const QString &path, Texture &target, const AceLoadOptions &o, QString &error) {
+    AceDocument doc;
+    auto reader = o.reader;
+    if (!o.preserveDocument)
+        reader.retainOriginal = false;
+    if (!AceDocument::read(path, doc, error, reader))
+        return false;
+    const int divisor = std::max(1, o.quality);
+    const int width = std::max(1, doc.levels[0].width / divisor),
+              height = std::max(1, doc.levels[0].height / divisor);
+    int first = 0;
+    while (first + 1 < doc.levels.size() && doc.levels[first + 1].width >= width &&
+           doc.levels[first + 1].height >= height)
+        ++first;
+    Texture incoming;
+    incoming.width = width;
+    incoming.height = height;
+    incoming.bytesPerPixel = doc.hasAlpha() ? 4 : 3;
+    incoming.bpp = incoming.bytesPerPixel * 8;
+    incoming.type = incoming.bytesPerPixel == 4 ? 0x1908 : 0x1907; // GL_RGBA / GL_RGB; no GL calls.
+    incoming.imageSize = width * height * incoming.bytesPerPixel;
+    incoming.compressed = doc.surface();
+    incoming.typk = doc.hasAlpha() ? 1 : 0;
+    QByteArray pixels;
+    std::unique_ptr<unsigned char[]> base;
+    int components = incoming.bytesPerPixel;
+    const bool resample = doc.levels[first].width != width || doc.levels[first].height != height;
+    incoming.compressedGLFormat = compressedFormat(doc, doc.levels[first]);
+    if (incoming.compressedGLFormat && !o.cpuPixels && !resample)
+        incoming.compressedData = doc.levels[first].data;
+    else {
+        incoming.compressedGLFormat = 0;
+        base.reset(new unsigned char[incoming.imageSize]);
+        if (resample) {
+            if (!doc.decode(first, pixels, components, error))
+                return false;
+            const int sw = doc.levels[first].width, sh = doc.levels[first].height;
+            for (int y = 0; y < height; ++y)
+                for (int x = 0; x < width; ++x)
+                    memcpy(base.get() + (qsizetype(y) * width + x) * components,
+                           pixels.constData() +
+                               (qsizetype(qint64(y) * sh / height) * sw + qint64(x) * sw / width) *
+                                   components,
+                           components);
+        } else if (!doc.decodeInto(first, base.get(), incoming.imageSize, components, error))
+            return false;
     }
-    //if(!IsThread)
-    //    qDebug() << "ACE: "<<texture->pathid;
-    std::unique_ptr<FileBuffer> data(ReadFile::read(&file));
-    //qDebug() << "Date:" << data->length;
-    unsigned char* bufor = data->data;
-    int offset = 0;//-16;
-    int typ = 0, dane;
-    unsigned char tempt;
-
-    dane = bufor[20 + offset];
-    texture->compressed = bufor[32 + offset];
-
-    texture->width = bufor[25 + offset] * 256 + bufor[24 + offset];
-    texture->height = bufor[29 + offset] * 256 + bufor[28 + offset];
-
-    if (bufor[36 + offset] == 3) {
-        texture->bpp = 24;
-        texture->typk = typ = 0;
-    }
-    if (bufor[36 + offset] == 4) {
-        texture->bpp = 32;
-        texture->typk = typ = 2;
-    }
-    if (bufor[36 + offset] == 5) {
-        texture->bpp = 32;
-        texture->typk = typ = 1;
-    }
-    
-    if(!IsThread)
-        qDebug() << "--"<<texture->width<<":"<<texture->height<<" "<<texture->bpp<<" "<<texture->compressed<<" "<<texture->pathid;
-
-    if ((texture->width <= 1) || (texture->height <= 1) || ((texture->bpp != 24) && (texture->bpp != 32))) {
-        texture->error = true;
-        if(!IsThread)
-            qDebug() << "!!!!!!!!!!!!! mega fail tex: " <<  texture->pathid
-                <<  " " <<  texture->width
-                <<  " " <<  texture->height
-                <<  " " <<  texture->bpp
-                ;
-        return;
-    }
-    if (/*(texture->width % 2) != 0 || (texture->height % 2) != 0 ||*/ ((texture->width > 8192) && (texture->height > 8192))) {
-        texture->error = true;
-        if(!IsThread)
-            qDebug() << "!!!!!!!!!!!!! mega fail tex: " <<  texture->pathid
-                <<  " " <<  texture->width
-                <<  " " <<  texture->height
-                <<  " " <<  texture->bpp
-                ;
-        return;
-    }
-    if ( texture->width % 2 != 0 || texture->height % 2 != 0 ) {
-        texture->error = true;
-        if(!IsThread)
-            qDebug() << "!!!!!!!!!!!!! mega fail tex dim % 2 != 0: " << texture->pathid
-                << " " << texture->width
-                << " " << texture->height
-                << " " << texture->bpp
-                ;
-        return;
-    }
-
-    texture->bytesPerPixel = (texture->bpp / 8);
-    texture->imageSize = (texture->bytesPerPixel * texture->width * texture->height);
-    if (texture->bpp == 24) {
-        texture->type = GL_RGB;
-    } else {
-        texture->type = GL_RGBA;
-    }
-
-    if(texture->imageData != nullptr){
-        delete[] texture->imageData;
-        texture->imageData = nullptr;
-    }
-    texture->compressedData.clear();
-    texture->compressedGLFormat = 0;
-        
-    int ptr = 0;
-    if (texture->compressed != 18) {
-        texture->imageData = new unsigned char[texture->imageSize];
-        int iw = 0, ite;
-        if (typ == 0) ptr = 216 + offset;
-        if (typ == 1) ptr = 248 + offset;
-        if (typ == 2) ptr = 232 + offset;
-        if (dane == 0) ptr += texture->height * 4;
-        else if (dane == 1) ptr += texture->height * 8 - 4;
-        else if (dane == 4) ptr += texture->height * 4;
-        else if (dane == 5) ptr += texture->height * 8 - 4;
-        //if (dane == 5) {
-        //    qDebug() << "ace dane: " << dane << texture->pathid;
-        //}
-
-        //if(!IsThread)
-        //    qDebug() << "tekstura wtyp" << typ;
-            
-        if (typ == 0) {
-            for (int ih = 0; ih<texture->height; ih++) {
-                for (iw = 0; iw<texture->width; iw = iw + 1) {
-                    texture->imageData[texture->bytesPerPixel * texture->width * ih + iw * texture->bytesPerPixel] = bufor[ptr++];
-                }
-                for (iw = 0; iw<texture->width; iw = iw + 1) {
-                    texture->imageData[texture->bytesPerPixel * texture->width * ih + iw * texture->bytesPerPixel + 1] = bufor[ptr++];
-                }
-                for (iw = 0; iw<texture->width; iw = iw + 1) {
-                    texture->imageData[texture->bytesPerPixel * texture->width * ih + iw * texture->bytesPerPixel + 2] = bufor[ptr++];
-                }
+    if (o.stageMipmaps && !resample)
+        for (int m = first + 1; m < doc.levels.size(); ++m) {
+            TextureMip mip;
+            mip.width = doc.levels[m].width;
+            mip.height = doc.levels[m].height;
+            mip.compressedFormat = compressedFormat(doc, doc.levels[m]);
+            if (mip.compressedFormat && !o.cpuPixels)
+                mip.data = doc.levels[m].data;
+            else {
+                mip.compressedFormat = 0;
+                if (!doc.decode(m, mip.data, components, error))
+                    return false;
             }
+            incoming.sourceMipmaps.push_back(std::move(mip));
         }
-        if (typ == 1) {
-            for (int ih = 0; ih<texture->height; ih++) {
-                for (iw = 0; iw<texture->width; iw = iw + 1) {
-                    texture->imageData[texture->bytesPerPixel * texture->width * ih + iw * texture->bytesPerPixel] = bufor[ptr++];
-                }
-                for (iw = 0; iw<texture->width; iw = iw + 1) {
-                    texture->imageData[texture->bytesPerPixel * texture->width * ih + iw * texture->bytesPerPixel + 1] = bufor[ptr++];
-                }
-                for (iw = 0; iw<texture->width; iw = iw + 1) {
-                    texture->imageData[texture->bytesPerPixel * texture->width * ih + iw * texture->bytesPerPixel + 2] = bufor[ptr++];
-                }
-                ptr += texture->height / 8;
-                for (iw = 0; iw<texture->width; iw = iw + 1) {
-                    texture->imageData[texture->bytesPerPixel * texture->width * ih + iw * texture->bytesPerPixel + 3] = bufor[ptr++];
-                }
-            }
-        }
-        if (typ == 2) {
-            for (int ih = 0; ih<texture->height; ih++) {
-                for (iw = 0; iw<texture->width; iw = iw + 1) {
-                    texture->imageData[texture->bytesPerPixel * texture->width * ih + iw * texture->bytesPerPixel] = bufor[ptr++];
-                }
-                for (iw = 0; iw<texture->width; iw = iw + 1) {
-                    texture->imageData[texture->bytesPerPixel * texture->width * ih + iw * texture->bytesPerPixel + 1] = bufor[ptr++];
-                }
-                for (iw = 0; iw<texture->width; iw = iw + 1) {
-                    texture->imageData[texture->bytesPerPixel * texture->width * ih + iw * texture->bytesPerPixel + 2] = bufor[ptr++];
-                }
-                for (iw = 0; iw<texture->width; ptr++) {
-                    for (ite = 0; ite < 8; ite++) {
-                        tempt = (unsigned char)(bufor[ptr] << ite);
-                        texture->imageData[texture->bytesPerPixel * texture->width * ih + iw * texture->bytesPerPixel + 3] = (unsigned char)(tempt >> 7)*255;
-                        iw = iw + 1;
-                        if(iw == texture->width)
-                            break;
-                    }
-                }
-            }
-        }
-        //texture->loaded = true;
-        //texture->editable = true;        
-    } else {
-        //var start = new Date().getTime();
-        ptr = 216 + offset;
-        int tempp = texture->height;
-        if (texture->bpp == 24) ptr += 4;
-        else ptr += 20;
-        while (tempp >= 1) {
-            ptr += 4;
-            tempp = tempp / 2;
-        }
-
-        const int blocksWide = (texture->width + 3) / 4;
-        const int blocksHigh = (texture->height + 3) / 4;
-        const int dxtSize = blocksWide * blocksHigh * 8;
-
-        if(ptr + dxtSize > data->length){
-            texture->error = true;
-            if(!IsThread)
-                qDebug() << "ACE: invalid DXT1 data size:" << texture->pathid;
-            return;
-        }
-
-        if(Game::textureQuality > 1){
-            texture->imageData = new unsigned char[texture->imageSize];
-
-            unsigned short c[5] = {0,0,0,0,0};
-            unsigned char r[4] = {0,0,0,0};
-            unsigned char g[4] = {0,0,0,0};
-            unsigned char b[4] = {0,0,0,0};
-            unsigned char a[5] = {255, 255, 255, 255, 255};
-            unsigned char bits[4];
-
-            int pptr = ptr;
-            for (int ih = 0; ih<texture->height; ih += 4) {
-                for (int iw = 0; iw<texture->width; iw += 4) {
-
-                    c[0] = bufor[pptr] + bufor[pptr+1]*256;
-                    pptr+=2;
-                    c[1] = bufor[pptr] + bufor[pptr+1]*256;
-                    pptr+=2;
-                    bits[0] = bufor[pptr++];
-                    bits[1] = bufor[pptr++];
-                    bits[2] = bufor[pptr++];
-                    bits[3] = bufor[pptr++];
-
-                    c[4] = c[0] & 0xf800;
-                    r[0] = ((c[4] >> 11) << 3) + (c[4] >> 13);
-                    c[4] = c[0] & 0x07e0;
-                    g[0] = ((c[4] >> 5) << 2) + (c[4] >> 9);
-                    c[4] = c[0] & 0x1f;
-                    b[0] = ((c[4] >> 0) << 3) + (c[4] >> 2);
-
-                    c[4] = c[1] & 0xf800;
-                    r[1] = ((c[4] >> 11) << 3) + (c[4] >> 13);
-                    c[4] = c[1] & 0x07e0;
-                    g[1] = ((c[4] >> 5) << 2) + (c[4] >> 9);
-                    c[4] = c[1] & 0x1f;
-                    b[1] = ((c[4] >> 0) << 3) + (c[4] >> 2);
-
-                    if (c[0] <= c[1]) {
-                        r[2] = (r[0] + r[1]) / 2;
-                        r[3] = 0;
-                        g[2] = (g[0] + g[1]) / 2;
-                        g[3] = 0;
-                        b[2] = (b[0] + b[1]) / 2;
-                        b[3] = 0;
-                        a[3] = 0;
-                    } else {
-                        r[2] = ((2 * r[0] + r[1]) / 3);
-                        r[3] = ((r[0] + 2 * r[1]) / 3);
-                        g[2] = ((2 * g[0] + g[1]) / 3);
-                        g[3] = ((g[0] + 2 * g[1]) / 3);
-                        b[2] = ((2 * b[0] + b[1]) / 3);
-                        b[3] = ((b[0] + 2 * b[1]) / 3);
-                        a[3] = 255;
-                    }
-
-                    for (int ii = 0; ii < 4; ii++) {
-                        for (int jj = 0; jj < 4; jj++) {
-                            int o = (bits[ii] >> (jj * 2)) & 0x3;
-                            int p = texture->bytesPerPixel * texture->width * (ih + ii) + (iw + jj) * texture->bytesPerPixel + 0;
-                            texture->imageData[p] = r[o];
-                            texture->imageData[p + 1] = g[o];
-                            texture->imageData[p + 2] = b[o];
-                            if (texture->bpp == 32)
-                                texture->imageData[p + 3] = a[o];
-                        }
-                    }
-                }
-            }
-        } else {
-            texture->compressedData = QByteArray(reinterpret_cast<const char*>(bufor + ptr), dxtSize);
-            texture->compressedGLFormat = (texture->type == GL_RGBA) ? GL_COMPRESSED_RGBA_S3TC_DXT1_EXT : GL_COMPRESSED_RGB_S3TC_DXT1_EXT;
-        }
-        //texture->loaded = true;
-        //texture->editable = true;
+    incoming.aceMetadata = std::make_shared<AceMetadata>(doc.metadata);
+    if (!o.preserveDocument) {
+        incoming.aceMetadata->trailing.clear();
+        for (auto &palette : incoming.aceMetadata->palettes)
+            palette.data.clear();
+    } else
+        incoming.aceDocument = std::make_shared<AceDocument>(std::move(doc));
+    if (base) {
+        incoming.imageData = base.release();
+        incoming.editable = true;
     }
-    if(texture->imageData != nullptr && Game::textureQuality > 1){
-        int nw = texture->width/Game::textureQuality;
-        int nh = texture->height/Game::textureQuality;
-        float scalew = (float)texture->width/nw;
-        float scaleh = (float)texture->height/nh;
-        texture->imageSize = (texture->bytesPerPixel * nw * nh );
-        //qDebug() << texture->width << texture->height << nw << nh;
-        unsigned char * nd = new unsigned char[texture->imageSize];
-
-        for (int ii = 0; ii < nh; ii++) {
-            for (int jj = 0; jj < nw; jj++) {
-                int wsi = scaleh*ii;
-                int hsi = scalew*jj;
-                nd[ii*nw*texture->bytesPerPixel + jj*texture->bytesPerPixel+0] = texture->imageData[wsi*texture->width*texture->bytesPerPixel + hsi*texture->bytesPerPixel+0];
-                nd[ii*nw*texture->bytesPerPixel + jj*texture->bytesPerPixel+1] = texture->imageData[wsi*texture->width*texture->bytesPerPixel + hsi*texture->bytesPerPixel+1];
-                nd[ii*nw*texture->bytesPerPixel + jj*texture->bytesPerPixel+2] = texture->imageData[wsi*texture->width*texture->bytesPerPixel + hsi*texture->bytesPerPixel+2];
-                if(texture->bytesPerPixel == 4)
-                    nd[ii*nw*texture->bytesPerPixel + jj*texture->bytesPerPixel+3] = texture->imageData[wsi*texture->width*texture->bytesPerPixel + hsi*texture->bytesPerPixel+3];
-            }
-        }
-        delete [] texture->imageData;
-        texture->imageData = nd;
-        texture->width = nw;
-        texture->height = nh;
-    }
-    texture->loaded = true;
-    texture->editable = (texture->imageData != nullptr);
-    //qDebug() << "--";
-    //qDebug() << "2";
-    return;
-}
-
-bool AceLib::saveRgbChecked(const QString &path, const QImage &image, QString &error) {
-    const QImage rgb=image.convertToFormat(QImage::Format_RGB888);
-    if (rgb.isNull() || rgb.width()>16384 || rgb.height()>16384) {
-        error="Invalid RGB ACE dimensions"; return false;
-    }
-    QSaveFile file(path);
-    if (!file.open(QIODevice::WriteOnly)) { error=file.errorString(); return false; }
-    QDataStream out(&file); out.setByteOrder(QDataStream::LittleEndian);
-    out.writeRawData("SIMISA@@@@@@@@@@",16);
-    out << qint32(1) << qint32(0) << qint32(rgb.width()) << qint32(rgb.height())
-        << qint32(14) << qint32(3) << qint32(0);
-    for (int i=0;i<31;++i) out << qint32(0);
-    for (int channel=3;channel<=5;++channel)
-        out << qint32(8) << qint32(0) << qint32(channel) << qint32(0);
-    // Offsets are relative to the ACE payload, excluding the 16-byte SIMISA header.
-    const int firstRow=200+rgb.height()*4;
-    for (int y=0;y<rgb.height();++y) out << qint32(firstRow+y*rgb.width()*3);
-    QByteArray row(rgb.width()*3,Qt::Uninitialized);
-    for (int y=0;y<rgb.height();++y) {
-        const auto *src=rgb.constScanLine(y);
-        for (int c=0;c<3;++c) for (int x=0;x<rgb.width();++x)
-            row[c*rgb.width()+x]=char(src[3*x+c]);
-        out.writeRawData(row.constData(),row.size());
-    }
-    if (out.status()!=QDataStream::Ok || !file.commit()) {
-        error="Cannot save RGB ACE: "+file.errorString(); return false;
-    }
+    incoming.loaded = true;
+    target.takeContentFrom(incoming);
+    error.clear();
     return true;
 }
 
-void AceLib::save(QString path, Texture* t){
-    path.replace("//", "/");
-    QFile *file = new QFile(path);
-    qDebug() << "zapis .ace "<<path;
-    if (!file->open(QIODevice::WriteOnly))
+void AceLib::run() {
+    if (!texture)
         return;
-    QDataStream write(file);
-    write.setByteOrder(QDataStream::LittleEndian);
-    write.setFloatingPointPrecision(QDataStream::SinglePrecision);
-    
-    const char header[] = {
-        0x53,0x49,0x4D,0x49,0x53,0x41,0x40,0x40,0x40,0x40,0x40,0x40,0x40,0x40,0x40,0x40
-    };
-    //header
-    write.writeRawData(header, 16);
-    write << (qint32)1;
-    //options
-    write << (qint32)0;
-    //width
-    write << (qint32)t->width;
-    //height
-    write << (qint32)t->height;
-    //pixel format
-    write << (qint32)14;
-    //channels
-    write << (qint32)3;
-    //0
-    write << (qint32)0;
-    //empty strings
-    for(int i = 0; i < 31; i++)
-        write << (qint32)0;
-    
-    //channels
-    write << (qint32)8;
-    write << (qint32)0;
-    write << (qint32)3;
-    write << (qint32)0;
-    write << (qint32)8;
-    write << (qint32)0;
-    write << (qint32)4;
-    write << (qint32)0;
-    write << (qint32)8;
-    write << (qint32)0;
-    write << (qint32)5;
-    write << (qint32)0;
-    //200
-    int offset = t->height*4 + 200;
-    for(int i = 0; i < t->height; i++){
-        write << (qint32)offset + i*t->width*3*4;
+    AceLoadOptions options;
+    options.quality = Game::textureQuality;
+    QString error;
+    if (!load(texture->pathid, *texture, options, error)) {
+        texture->error = true;
+        texture->missing = !QFileInfo::exists(texture->pathid);
+        texture->errorMessage = error;
+        texture->loaded = false;
+        qWarning().noquote() << "ACE:" << texture->pathid << error;
     }
-    //data
-    for(int i = 0; i < t->height; i++){
-        for (int j = 0; j<t->width; j++) {
-            write << (qint8)t->imageData[t->bytesPerPixel*t->width*i + j*t->bytesPerPixel];
-        }
-        for (int j = 0; j<t->width; j++) {
-            write << (qint8)t->imageData[t->bytesPerPixel*t->width*i + j*t->bytesPerPixel+1];
-        }
-        for (int j = 0; j<t->width; j++) {
-            write << (qint8)t->imageData[t->bytesPerPixel*t->width*i + j*t->bytesPerPixel+2];
-        }
+}
+
+bool AceLib::save(QString path, Texture *texture) {
+    AceWriteOptions options;
+    options.encoding =
+        texture && texture->bytesPerPixel == 4 ? AceEncoding::Rgba : AceEncoding::Rgb;
+    QString error;
+    const bool ok = save(path, texture, options, error);
+    if (!ok)
+        qWarning().noquote() << "ACE save:" << path << error;
+    return ok;
+}
+
+bool AceLib::save(QString path, Texture *texture, const AceWriteOptions &options, QString &error) {
+    if (!texture || !texture->loaded) {
+        error = "No loaded texture to save";
+        return false;
     }
-    write.setDevice(nullptr);
-    file->close();
+    if (!texture->decodeToCpu())
+        texture->setEditable();
+    if (!texture->imageData) {
+        error = "No CPU pixels and no usable OpenGL readback context";
+        return false;
+    }
+    AceWriteOptions effective = options;
+    if (effective.headerTemplate.isEmpty() && texture->aceMetadata)
+        effective.headerTemplate = texture->aceMetadata->header;
+    AceDocument doc;
+    if (!AceDocument::fromPixels(
+            texture->imageData,
+            qsizetype(texture->width) * texture->height * texture->bytesPerPixel, texture->width,
+            texture->height, texture->bytesPerPixel, effective, doc, error))
+        return false;
+    return doc.write(path, effective.zlib, error);
+}
+
+bool AceLib::save(const QString &path, const QImage &image, const AceWriteOptions &options,
+                  QString &error) {
+    if (image.isNull() || image.width() > 16384 || image.height() > 16384 ||
+        qint64(image.width()) * image.height() > 64 * 1024 * 1024) {
+        error = "Invalid ACE image dimensions";
+        return false;
+    }
+    const bool opaque =
+        options.encoding == AceEncoding::Rgb || options.encoding == AceEncoding::Rgb565 ||
+        options.encoding == AceEncoding::Dxt1 || options.encoding == AceEncoding::IndexedRgb;
+    const int components = !opaque && image.hasAlphaChannel() ? 4 : 3;
+    const QImage converted =
+        image.convertToFormat(components == 4 ? QImage::Format_RGBA8888 : QImage::Format_RGB888);
+    const qsizetype row = qsizetype(image.width()) * components;
+    QByteArray tight;
+    const unsigned char *pixels = converted.constBits();
+    if (converted.bytesPerLine() != row) {
+        tight.resize(row * image.height());
+        for (int y = 0; y < image.height(); ++y)
+            memcpy(tight.data() + y * row, converted.constScanLine(y), row);
+        pixels = reinterpret_cast<const unsigned char *>(tight.constData());
+    }
+    AceDocument doc;
+    if (!AceDocument::fromPixels(pixels, row * image.height(), image.width(), image.height(),
+                                 components, options, doc, error))
+        return false;
+    return doc.write(path, options.zlib, error);
 }

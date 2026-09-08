@@ -1,9 +1,9 @@
 /*  This file is part of TSRE5.
  *
- *  TSRE5 - train sim game engine and MSTS/OR Editors. 
+ *  TSRE5 - train sim game engine and MSTS/OR Editors.
  *  Copyright (C) 2016 Piotr Gadecki <pgadecki@gmail.com>
  *
- *  Licensed under GNU General Public License 3.0 or later. 
+ *  Licensed under GNU General Public License 3.0 or later.
  *
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
@@ -64,7 +64,7 @@ void TexLib::dumpStats(QString label) {
             }
         }
 
-        cpuEncodedBytes += t->compressedData.size();
+        cpuEncodedBytes += t->estimatedCpuBytes() - (t->imageData ? qint64(t->width)*t->height*t->bytesPerPixel : 0);
 
         if (t->glLoaded) {
             estimatedVramBytes += t->estimatedVramBytes();
@@ -129,7 +129,7 @@ void TexLib::delRef(int texx) {
             }
         }
     } catch (const std::out_of_range& oor) {
-            
+
     }
 }
 
@@ -138,8 +138,8 @@ void TexLib::addRef(int texx) {
         Texture* t = mtex.at(texx);
         t->ref++;
     } catch (const std::out_of_range& oor) {
-            
-    }    
+
+    }
 }
 
 int TexLib::addTex(QString path, QString name, bool reload) {
@@ -155,7 +155,7 @@ int TexLib::getTex(QString pathid) {
     for ( auto it = mtex.begin(); it != mtex.end(); ++it ){
         if(it->second == NULL) continue;
         for(int i = 0; i < ((Texture*) it->second)->hashid.size(); i++)
-            if (((Texture*) it->second)->hashid[i].length() == pathid.length()) 
+            if (((Texture*) it->second)->hashid[i].length() == pathid.length())
                 if (((Texture*) it->second)->hashid[i] == pathid) {
                     ((Texture*) it->second)->ref++;
                     return (int)it->first;
@@ -197,33 +197,7 @@ int TexLib::addTex(Texture* texture, bool reload) {
                     return (int)it->first;
                 }
 
-                existing->delVBO();
-                if(existing->imageData != nullptr){
-                    delete[] existing->imageData;
-                    existing->imageData = nullptr;
-                }
-                existing->compressedData.clear();
-                existing->compressedGLFormat = 0;
-
-                existing->bpp = texture->bpp;
-                existing->imageSize = texture->imageSize;
-                existing->bytesPerPixel = texture->bytesPerPixel;
-                existing->compressed = texture->compressed;
-                existing->width = texture->width;
-                existing->height = texture->height;
-                existing->type = texture->type;
-                existing->typk = texture->typk;
-
-                existing->compressedData = texture->compressedData;
-                existing->compressedGLFormat = texture->compressedGLFormat;
-
-                existing->imageData = texture->imageData;
-                texture->imageData = nullptr;
-
-                existing->loaded = texture->loaded;
-                existing->editable = texture->editable;
-                existing->missing = texture->missing;
-                existing->error = texture->error;
+                existing->takeContentFrom(*texture);
 
                 // Merge identities (keep existing stable ids, add new ones).
                 for(int k = 0; k < texture->hashid.size(); k++){
@@ -328,12 +302,12 @@ bool TexLib::decodeFromBytes(Texture* texture, const QByteArray& encodedBytes, Q
 }
 
 int TexLib::addTex(QString pathid, bool reload) {
-    
+
     Texture* newFile = NULL;
     for ( auto it = mtex.begin(); it != mtex.end(); ++it ){
         if(it->second == NULL) continue;
         for(int i = 0; i < ((Texture*) it->second)->hashid.size(); i++)
-            if (((Texture*) it->second)->hashid[i].length() == pathid.length()) 
+            if (((Texture*) it->second)->hashid[i].length() == pathid.length())
                 if (((Texture*) it->second)->hashid[i] == pathid) {
                     if(!reload){
                         ((Texture*) it->second)->ref++;
@@ -345,9 +319,9 @@ int TexLib::addTex(QString pathid, bool reload) {
                 }
     }
     //qDebug() << "Nowa " << jesttextur << " textura: " << pathid;
-    
+
     QString tType = pathid.toLower().split(".").last();
-    
+
     // Openrails uses .dds textures instead of .ace
     if(tType == "ace"){
         QFile file(pathid);
@@ -357,7 +331,7 @@ int TexLib::addTex(QString pathid, bool reload) {
         }
         //qDebug() << "Using DDS";
     }
-    
+
     int texId = 0;
     if(newFile == NULL){
         newFile = new Texture(pathid);
@@ -370,7 +344,7 @@ int TexLib::addTex(QString pathid, bool reload) {
     }
     //qDebug() << pathid.toLower();
     //qDebug() << tType;
-        
+
     if(tType == "ace"){
         AceLib* t = new AceLib();
         t->texture = newFile;
@@ -416,13 +390,13 @@ int TexLib::cloneTex(int id) {
     Texture* newFile = new Texture(t);
     newFile->ref++;
     mtex[jesttextur] = newFile;
- 
+
     return jesttextur++;
 }
 
 void TexLib::save(QString type, QString path, int id){
     Texture* t = mtex.at(id);
-    if(t == NULL) 
+    if(t == NULL)
         return;
     if(!t->editable)
         t->setEditable();

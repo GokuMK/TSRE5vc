@@ -93,8 +93,10 @@ bool loadSource(const QString &directory, const QString &filename, QImage &image
     const QString dds = path.left(path.size()-3) + "dds";
     if (path.endsWith(".ace",Qt::CaseInsensitive) && QFileInfo::exists(dds)) path = dds;
     Texture texture(path);
-    texture.editable = true;
-    if (path.endsWith(".ace", Qt::CaseInsensitive)) { AceLib loader; loader.texture=&texture; loader.run(); }
+    if (path.endsWith(".ace", Qt::CaseInsensitive)) {
+        AceLoadOptions options; options.cpuPixels=true; options.stageMipmaps=false;
+        AceLib::load(path,texture,options,error);
+    }
     else if (path.endsWith(".dds", Qt::CaseInsensitive)) { DdsLib loader; loader.texture=&texture; loader.run(); }
     else image = QImage(path);
     if (texture.loaded) texture.decodeToCpu(); // No GL upload/readback for sources.
@@ -280,8 +282,10 @@ struct TerrainProceduralState {
                 if (!job->cancelled.load()) {
                     if (bakePath.isEmpty()) job->rgb=snapshot.generate(patch,count,images);
                     else {
-                        Texture texture(bakePath); texture.editable=true;
-                        AceLib loader; loader.texture=&texture; loader.run();
+                        Texture texture(bakePath);
+                        AceLoadOptions options; options.cpuPixels=true; options.stageMipmaps=false;
+                        QString loadError;
+                        AceLib::load(bakePath,texture,options,loadError);
                         if (texture.loaded && texture.imageData && texture.bytesPerPixel==3
                                 && texture.width==TerrainMaterialMap::BakedSide && texture.height==TerrainMaterialMap::BakedSide)
                             job->rgb=QImage(texture.imageData,texture.width,texture.height,texture.width*3,QImage::Format_RGB888).copy();
@@ -858,7 +862,9 @@ bool Terrain::saveProceduralBake() {
             || (QFile::exists(backup) && !QFile::remove(backup)) || !QFile::copy(target,backup))) {
         qWarning() << "Cannot back up terrain bake" << target; return false;
     }
-    if (!AceLib::saveRgbChecked(target,image,procedural->error)) {
+    AceWriteOptions aceOptions;
+    aceOptions.encoding = AceEncoding::Rgb; // Legacy fallback deliberately opaque, one tile image.
+    if (!AceLib::save(target,image,aceOptions,procedural->error)) {
         qWarning() << procedural->error; return false; // QSaveFile left old ACE intact.
     }
     procedural->savedBakePath=target; procedural->backupBakePath=backup;

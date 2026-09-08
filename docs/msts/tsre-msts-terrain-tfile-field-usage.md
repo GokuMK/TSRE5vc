@@ -3,6 +3,12 @@
 Status: **static source audit, executable data-flow review, and stock-file census**
 Date: 2026-09-03
 
+Mirror synchronized: 2026-09-08, including the 2026-09-05 MSTS shader/patch-set/water
+follow-ups. TSRE behavior columns describe the dated source audit, not a fresh
+review of every later TSRE change. For current implementation status, see the
+[terrain task index](../tasks/terrain/README.md). Evidence paths under `analysis/`
+and `scripts/` refer to the separate MSTS research workspace.
+
 ## Executive result
 
 TSRE5 does not implement MSTS's adaptive terrain selection. It renders and edits
@@ -177,7 +183,7 @@ and `N=512` patch assessment was recorded in the earlier local
 | Token | TSRE load/save | Runtime use in TSRE | MSTS load/use status and interpretation |
 |---|---|---|---|
 | `terrain_shaders` (151) | Preserved only under TSRE's assumed paired layout | Used indirectly | **MSTS loaded and used:** counted material table addressed by each patch's shader index. Ordinary detailed tiles use paired halves, while low-detail tiles use a flat table; details below. |
-| `terrain_shader` (152) | Preserved | Name itself is not used to select a TSRE shader | **MSTS loaded and used:** UTF-16 shader name followed by `terrain_texslots` and `terrain_uvcalcs`; detailed renderer selection remains untraced. |
+| `terrain_shader` (152) | Preserved | Name itself is not used to select a TSRE shader | **MSTS loaded and used:** UTF-16 shader name followed by `terrain_texslots` and `terrain_uvcalcs`. MSTS resolves the name while loading and rejects an unrecognized shader, including an unreferenced entry. Detailed/auxiliary index switching is traced below; complete graphics-state semantics remain partly open. |
 | `terrain_texslots` (153) | Preserved | First texture used; second depends on renderer path | **MSTS loaded and used:** uint32 count followed by `terrain_texslot` records. |
 | `terrain_texslot` (154) | Filename and two integers preserved | Filename active; two integers have no clear TSRE consumer | **MSTS used, names open:** UTF-16 texture filename plus two int32 values. For each accepted slot, MSTS builds three distinct material-state nodes: state kind `0` from the second integer, kind `1` from the resolved texture resource, and kind `5` from the first integer. Both integers therefore affect material setup, although the public enum/semantic names of state kinds `0` and `5` remain unidentified. |
 | `terrain_uvcalcs` (155) | Preserved | Mostly inactive in current renderer | **MSTS loaded:** uint32 count followed by `terrain_uvcalc` records; renderer semantics only partly traced. |
@@ -207,6 +213,30 @@ that the two halves are alternate records for one editable ordinary-terrain
 material. The precise visual meaning of every `0x00000100`/`0x00000200` state
 is not yet fully named.
 
+The 2026-09-05 follow-up also traced active runtime switching: `0x006cda00`
+selects a farther-distance submission path when the terrain-manager mode
+allows it, and `0x006f11d0` adds half the shader count to select the auxiliary
+record. Returning to the normal path subtracts that half-count again. This is
+a distance-dependent material alternative, not a generic fallback for unknown
+shader names or selection of another patch set: drawing remains within the
+selected last set. Patch loading at `0x006f0b50` also folds/validates indices against
+the half-count when the manager's paired-mode flag is set. These routines match
+between the inspected Microsoft 1.4 and Bin 1.8 builds. See
+[shader pairing and procedural fallback](msts-terrain-shader-pairing-and-procedural-fallback.md)
+for the conditions, parser-extension constraints, and a procedural material-map
+design reusing the existing material array under read-only legacy compatibility.
+
+The follow-up also resolves where that mode comes from: ordinary `Tiles`
+manager creation passes a paired-mode argument of one; distant `Lo_tiles`
+creation passes zero. The choice precedes parsing the shader list and is not
+inferred from shader names or list length. In Route Editor mode the inspected
+distant-terrain initializer returns before creating the `Lo_tiles` manager;
+MSRE's ordinary material creation, selection, and removal helpers themselves
+assume pairs. Thus a single `TexDiff` entry copied into a normal tile does not
+obtain native flat-list handling: the paired loader computes a half-count of
+zero and rejects its patch index. A two-record same-atlas workaround is
+proposed, but not runtime-tested, in the focused report.
+
 The expanded six-route census confirms the convention for ordinary `Tiles`:
 all 963 shader lists have even length; all 5,211 first-half entries are
 `DetailTerrain` with two texture slots, and all 5,211 second-half entries are
@@ -235,8 +265,8 @@ user explicitly converts it.
 | Token | TSRE load/save | Runtime use in TSRE | MSTS load/use status and interpretation |
 |---|---|---|---|
 | `terrain_patches` (157) | Container | Structural | Patch section. |
-| `terrain_patchsets` (158) | Reads declared list | Limited | Collection of patch grids with an apparently intended distance field. No inspected stock tile contains more than one. |
-| `terrain_patchset` (159) | Reads each, retains only one | Limited | One terrain patch grid. Multiple sets are lossy in TSRE; describing them as active MSTS LOD levels would be stronger than the executable evidence permits. |
+| `terrain_patchsets` (158) | Reads declared list | Limited | MSTS loads the collection in file order and saves multiple sets. Normal drawing and terrain intersection select the last set; registration checks limits across all sets. No inspected stock tile contains more than one. |
+| `terrain_patchset` (159) | Reads each, retains only one | Limited | One terrain patch grid. TSRE collapses the loaded sets, retaining the last; MSTS retains multiple sets but draws the last. ORTS master and unstable retain multiple sets but draw the first. No MSTS file parameter selecting the first set was found in the 2026-09-05 review; see the dedicated subsection below. |
 | `terrain_patchset_distance` (160) | Preserves the four bytes but declares them as an integer | None | **MSTS loaded/saved as float32, no consumer found:** serializer independently confirms the type. The recovered draw path selects the last patch set by array position, not this distance, and no read of patch-set offset `+0x04` was found outside parse/save. TSRE and Open Rails currently type it incorrectly as int32. The token name suggests intended selection semantics, but that is not executable evidence for this build. |
 | `terrain_patchset_npatches` (161) | Preserved integer | Heavily used | Number of patches per side; record count is its square. Stock MSTS parses and allocates `P*P` records dynamically, then computes `R=terrain_nsamples/P` and rejects the terrain during registration when the largest `R` exceeds 16. This is a samples-per-patch limit, not a requirement that `P` itself always equal 16. The user's `N=128`, `P=16` (`R=8`) fixture loads in MSRE. The executable's later mesh resources explain why changing only the guard to permit `R=32` would be unsafe. |
 | `terrain_patchset_fbuffer` (162) | Not parsed; omitted on save | None | **MSTS loaded and used:** UTF-16 filename of an external `P*P` byte array, where `P=terrain_patchset_npatches`. Each byte initializes the corresponding patch flags word and overrides the flags value in the patch record. MSTS serialization writes `Flags & 0xcb` to this file. Absent from the expanded stock census. |
@@ -269,6 +299,40 @@ multiple sets, but the records do not contain independent heightmaps or
 prebuilt meshes. The renderer would still need to define how a selected set
 reduces geometry, use transition hysteresis, and retain a sensible last set as
 the fallback for MSTS, which ignores the distances in the analyzed build.
+
+### Multiple-set selection and water: 2026-09-05 follow-up
+
+MSTS does **not** load only the last set. Its normal draw routine
+`0x006cda00` and terrain intersection routine `0x0070bc60` directly select
+`patchSets[count-1]`. Their complete code matches between the Microsoft 1.4
+and local Bin 1.8 inputs. No distance, flag, or other parsed file control was
+found that changes those routines to select set zero. Disabling a last-set
+patch skips it; it does not fall back to an earlier set. Other operations
+can visit all sets or an explicitly indexed set.
+
+ORTS `master` and `unstable`, at the commits pinned in the
+[profile report](msts-orts-terrain-profile-compatibility.md), use set zero for
+terrain and water geometry. `ContainsWater` scans all sets, but only decides
+whether a water primitive should be created: its actual geometry still reads
+the first set. If water appears only in a later set, the predicate is true
+while the generated water index list is empty. The mismatch already exists in
+the imported December 2009 source and survived the 2013 terrain rewrite; no
+historical evidence was found that it implements an observed MSTS rule.
+MSTS's audited water callbacks instead consume the visible patches selected
+from the last set.
+
+For a TSRE-defined multi-set LOD layout, a possible compatibility experiment
+is to duplicate the fallback at both ends: `[A, TSRE LOD sets..., A]`.
+Both engines then select equivalent data. This is untested, and **every set**
+must satisfy MSTS's samples-per-patch limits even if it is not rendered.
+MSRE editing must also be checked for whether it keeps the duplicate sets
+synchronized.
+
+The [focused patch-set and water review](msts-orts-multiple-patchsets-and-water.md)
+records the executable addresses, source/history links, alternative designs,
+and minimal manual tests. It also identifies a separate ORTS limitation: both
+inspected branches still use fixed 16-by-16 water geometry for custom patch
+grids, even where their terrain geometry accepts other dimensions.
 
 ## Implementation schema for TSRE gaps
 
@@ -314,7 +378,7 @@ into a 76-byte runtime record.
 
 | File order | Field name | TSRE behavior | MSTS status, meaning, and confidence |
 |---:|---|---|---|
-| 0 | `Flags` | Interprets bit `0x00000001` as do-not-draw and bits `0x000000c0` as water; preserves other bits | **MSTS used, partial:** bit `0x1` disables drawing; bit `0x2` summarizes F samples containing hole bit `0x04` and selects the hole-aware mesh builder; bit `0x4` summarizes F low bits; bit `0x8` gates terrain-shape substitution/collision. The external patch F writer preserves only `Flags & 0xcb`. Bits `0x10`/`0x20` and `0x100`/`0x200` are runtime cache/rebuild state and are excluded from that external mask. Water bits `0x40`/`0x80` and serialized high bits `0x01000000`/`0x02000000` are still not individually decoded in MSTS. |
+| 0 | `Flags` | Interprets bit `0x00000001` as do-not-draw and bits `0x000000c0` as water; preserves other bits | **MSTS used, partial:** bit `0x1` disables drawing; bit `0x2` summarizes F samples containing hole bit `0x04` and selects the hole-aware mesh builder; bit `0x4` summarizes F low bits; bit `0x8` gates terrain-shape substitution/collision. The external patch F writer preserves only `Flags & 0xcb`. Bits `0x10`/`0x20` and `0x100`/`0x200` are runtime cache/rebuild state and are excluded from that external mask. The 2026-09-05 review traces `0x40` to the first water-layer callback and `0x80` to subsequent-layer callbacks on submitted patches; their shared emitter also requires `0x01000000`. Full authoring semantics and `0x02000000` remain unresolved. See the focused patch-set/water report. |
 | 1 | `CenterX` | Loaded/saved, otherwise ignored | **MSTS used (confirmed):** patch center X in placement, view culling, and bounds. |
 | 2 | `AverageY` | Loaded/saved, otherwise ignored | **MSTS used (confirmed):** vertical center/representative height. MSTS uses `AverageY - RangeY` and `AverageY + RangeY` as the patch's vertical bounds and also derives tile-level bounds from it. |
 | 3 | `CenterZ` | Loaded/saved, otherwise ignored | **MSTS used (confirmed):** patch center Z in placement, view culling, and bounds. Standard grids progress in the negative-Z direction. |
@@ -559,8 +623,8 @@ work to the two narrow fixtures and observation points defined above.
 |---|---|---|
 | `terrain_alwaysselect_maxdist` (138) | Parsed as float, square cached, original serialized; no consumer of tile `+0x34/+0x38` found. Selector manager `+0x4c/+0x50` receives `asnear²`/`asmax²`, default `350²`/`700²`, directly during application setup. | No capture recommended for semantic discovery: the static data flow shows that this token is not the selector setting in this build. A watchpoint would only validate the negative result. |
 | Route `TerrainErrorScale` (1230) | Float load/save and full runtime handoff are confirmed. It multiplies `trterrain_errthreshold`, defaults effectively to 7 when the route scale is 1, is clamped to 7–50, and then enters the camera-scaled LOD factor. | No capture is needed to establish that it is active. Runtime comparison would only quantify visual impact or help name the remaining camera divisor. |
-| `terrain_patchset_distance` (160) | Float type is confirmed; no consumer of patch-set `+0x04`; normal draw selects the last set by position. | Only with a valid multi-patch-set tile. None is currently identified, so capture is premature. |
-| F low bits, water/high patch flags | F low bits affect hierarchy propagation and patch summary `0x4`; remaining flag branches are not separated. | Useful only after finding or generating a tile where one bit can be changed independently. |
+| `terrain_patchset_distance` (160) | Float type is confirmed; no consumer of patch-set `+0x04`; normal draw and intersection select the last set by position. | The 2026-09-05 focused report now defines a minimal two-set order/distance experiment; fixtures and manual runtime testing remain pending. |
+| F low bits, water/high patch flags | F low bits affect hierarchy propagation and patch summary `0x4`. Water callback routing for `0x40`/`0x80` and the emitter's `0x01000000` gate are recovered; complete authoring rules remain unresolved. | Useful after finding or generating a tile where one bit can be changed independently. |
 | D and US | D edge copying is confirmed; US is separate from AS and has no recovered selector consumer. | Low value without a real D/US fixture and data watchpoints. Visual testing alone is unlikely to reveal meaning. |
 | `terrain_transfers` (165) / `terrain_transfer` (166) | Parser, rectangle-to-patch conversion, and overlay-mesh construction are confirmed; no stock record was found. | The central checkerboard fixture above can confirm that the retained feature renders and establish texture/alpha behavior. API capture is unnecessary for the first test. |
 | `terrain_shapes` (167) / `terrain_shape` (168) | Shape loading, bounds-centre placement, rotations, patch marking, and terrain-query participation are confirmed; independent visual rendering is not. | The elevated box/ramp plus `Y`-snap fixture above can distinguish a query/collision surface from visible scenery and determine rotation axes. |

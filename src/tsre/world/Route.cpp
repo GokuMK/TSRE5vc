@@ -16,6 +16,7 @@
 #include <tsre/world/Route.h>
 #include <tsre/world/TerrainBrushProfiler.h>
 #include <tsre/texture/Brush.h>
+#include <tsre/texture/Texture.h>
 #include <tsre/tdb/TSectionDAT.h>
 #include <tsre/ogl/GLUU.h>
 #include <tsre/world/Tile.h>

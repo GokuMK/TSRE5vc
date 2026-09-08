@@ -4,6 +4,14 @@ Status: **stage A implementation authorized and implemented; verification below*
 Stage B remains a design only. The user approved a small checked RGB ACE writer
 addition for A; the future replacement ACE class is not a prerequisite.
 
+2026-09-08 ACE integration update: the replacement is now implemented.
+Baking calls `AceLib::save(target, image, options, error)` with explicit RGB
+options; CPU source/baked-file loading uses `AceLib::load` without mip staging.
+The temporary `saveRgbChecked` exists only in `AceLibLegacy`. See the
+[ACE library API](../../features/ace-library.md). Earlier verification and
+interactive-lag observations below remain historical evidence, not new timing
+claims for the replacement.
+
 Related: [current procedural demo](terrain-procedural-materials.md),
 [patch count](terrain-patch-count.md), [heightmap resolution](terrain-heightmap-resolution.md),
 [paged renderer](terrain-paged-mesh-and-shared-map.md),
@@ -23,9 +31,10 @@ from disk eliminates the lag while staged procedural patch generation remains
 visible. Disabling bake mipmaps did not solve it; they remain disabled. Isolated
 offscreen upload calls measured 30–53 ms at 2048 and 0.42–0.46 ms at 512, but this
 does **not** explain the full interactive delay or establish its remaining cause.
-Further runtime diagnosis is deferred until after the new ACE work. Current
-`AceLib::saveRgbChecked` is the small checked RGB writer; legacy `AceLib::save`
-and the existing reader remain available. No background resizing of old bakes.
+Further interactive runtime diagnosis remains separate from the ACE codec
+benchmark. The original checked RGB writer and original reader are retained in
+`AceLibLegacy`; production now uses the new API described above. No background
+resizing of old bakes.
 
 On saving a procedural terrain tile, generate one opaque **512 x 512 RGB ACE**
 texture covering the complete physical terrain tile. Every patch uses the same
@@ -102,14 +111,12 @@ This migration is separate from B's possible future global-ID mapping.
 - [TerrainProceduralMaterial](../../../src/tsre/world/TerrainProceduralMaterial.cpp)
   resolves source shaders, manages generated textures, rotates the map's single
   `.bk` and finalizes private materials after successful save.
-- [AceLib::save](../../../src/tsre/texture/AceLib.cpp) currently writes uncompressed
-  RGB ACE data (format 14, no mip chain). It is **not a DXT1 writer**, although
-  AceLib can read DXT1. Existing BC1 block generation alone is not a valid ACE
-  container. A now uses `AceLib::saveRgbChecked`: RGB format 14, checked QSaveFile
-  commit, planar scanlines and corrected payload-relative row offsets. The old
-  `AceLib::save` and permissive reader are retained unchanged as legacy references.
-  DXT1 output and stored mip chains are deferred to the future ACE class. No DDS
-  substitution or unrelated texture-saving rewrite is included.
+- [AceLib::save](../../../src/tsre/texture/AceLib.cpp) now accepts explicit writer
+  options. Stage A deliberately selects RGB format 14, no mip chain, atomic
+  QSaveFile commit and payload-relative row offsets. The new library additionally
+  supports DXT output and authored mip payloads, but that does not change this
+  bake recipe. The original writer/reader remain in `AceLibLegacy`. No DDS
+  substitution is introduced.
 - `TFile` contains owning/raw pointers. Do not assume a default C++ copy is a safe
   transactional descriptor snapshot. Back up affected fields/material records
   explicitly or serialize a properly prepared descriptor projection.
