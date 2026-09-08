@@ -5,13 +5,27 @@
 #include <QHash>
 #include <QtEndian>
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <limits>
+#include <vector>
 #define MINIZ_NO_ZLIB_COMPATIBLE_NAMES
 #include <mzip/miniz/miniz.h>
 
 namespace {
-quint32 u32(const QByteArray &b, qsizetype p) {
+// Parser-local view: unlike the private std-backed QByteArray::fromRawData,
+// this never copies the whole uncompressed file. Retained records still own bytes.
+struct ReadView {
+    const char *bytes = nullptr;
+    qsizetype length = 0;
+    const char *constData() const { return bytes; }
+    qsizetype size() const { return length; }
+    QByteArray mid(qsizetype pos, qsizetype n = -1) const {
+        return QByteArray(bytes + pos, n < 0 ? length - pos : n);
+    }
+    QByteArray left(qsizetype n) const { return mid(0, n); }
+};
+template <class Bytes> quint32 u32(const Bytes &b, qsizetype p) {
     return qFromLittleEndian<quint32>(b.constData() + p);
 }
 void put32(QByteArray &b, qsizetype p, quint32 v) { qToLittleEndian(v, b.data() + p); }
@@ -25,7 +39,7 @@ void append64(QByteArray &b, quint64 v) {
     qToLittleEndian(v, p);
     b.append(p, 8);
 }
-bool span(const QByteArray &b, qint64 p, qint64 n) {
+template <class Bytes> bool span(const Bytes &b, qint64 p, qint64 n) {
     return p >= 0 && n >= 0 && p <= b.size() && n <= b.size() - p;
 }
 bool fail(QString &e, const QString &s) {
@@ -128,20 +142,22 @@ bool AceDocument::parse(const QByteArray &file, AceDocument &out, QString &error
         return fail(error, "Invalid ACE reader resource limits");
     if (file.size() < 16 || file.size() > o.maxBytes)
         return fail(error, "Invalid ACE envelope size");
-    QByteArray body;
+    QByteArray inflated;
+    ReadView body;
     AceDocument doc;
     // Non-owning view is confined to this call; all retained records own their bytes.
     if (file.startsWith("SIMISA@@@@@@@@@@"))
-        body = QByteArray::fromRawData(file.constData() + 16, file.size() - 16);
+        body = {file.constData() + 16, file.size() - 16};
     else if (file.startsWith("SIMISA@F") && file.mid(12, 4) == "@@@@") {
         const quint32 size = u32(file, 8);
         if (size < 152 || size > o.maxBytes || size > quint32(std::numeric_limits<int>::max()))
             return fail(error, "Inflated ACE size exceeds reader bounds");
-        body.resize(size);
+        inflated.resize(size);
+        body = {inflated.constData(), inflated.size()};
         mz_stream z{};
         z.next_in = reinterpret_cast<const unsigned char *>(file.constData() + 16);
         z.avail_in = file.size() - 16;
-        z.next_out = reinterpret_cast<unsigned char *>(body.data());
+        z.next_out = reinterpret_cast<unsigned char *>(inflated.data());
         z.avail_out = size;
         if (mz_inflateInit(&z) != MZ_OK)
             return fail(error, "ACE inflater initialization failed");
@@ -287,6 +303,80 @@ bool AceDocument::decode(int mip, QByteArray &out, int &components, QString &err
                     components, error, mask))
         return false;
     out = std::move(pixels);
+    return true;
+}
+
+bool AceDocument::decodeThumbnail(int mip, int dw, int dh, QByteArray &out,
+                                  QString &error) const {
+    if (mip < 0 || mip >= levels.size())
+        return fail(error, "ACE mip index out of range");
+    const auto &level = levels[mip];
+    const int sw = level.width, sh = level.height;
+    if (sw <= 0 || sh <= 0 || sw > 16384 || sh > 16384 ||
+        qint64(sw) * sh > 64 * 1024 * 1024 || dw < 1 || dh < 1 ||
+        dw > 1024 || dh > 1024 || dw > sw || dh > sh)
+        return fail(error, "ACE thumbnail dimensions exceed bounds");
+    const bool blocks = level.raw && dxt(surface());
+    const int stripHeight = blocks ? 4 : 1;
+    const qint64 stride = blocks ? ((qint64(sw) + 3) / 4) * DxtCodec::blockBytes(dxtFormat(surface()))
+                                : level.raw ? qint64(sw) * 2 : rowBytes(sw, metadata.channels);
+    const qint64 rows = blocks ? (sh + 3) / 4 : sh;
+    if (stride <= 0 || level.data.size() != stride * rows)
+        return fail(error, "Invalid ACE thumbnail payload length");
+    // Bound metadata copies in the Qt-free implementation as well as pixel scratch.
+    if (metadata.channels.size() > 64 || metadata.palettes.size() > 1 ||
+        (!metadata.palettes.isEmpty() && metadata.palettes[0].data.size() > 1024))
+        return fail(error, "Unsupported ACE thumbnail metadata");
+    AceDocument strip;
+    strip.metadata.header = metadata.header;
+    strip.metadata.channels = metadata.channels;
+    strip.metadata.palettes = metadata.palettes;
+    strip.levels.push_back({sw, 1, level.raw, {}});
+    const int components = hasAlpha() ? 4 : 3;
+    QByteArray decoded(qsizetype(sw) * stripHeight * components, Qt::Uninitialized);
+    QByteArray result(qsizetype(dw) * dh * 4, Qt::Uninitialized);
+    std::vector<double> sums(std::size_t(dw) * 4);
+    int cachedStrip = -1;
+    const double xscale = double(sw) / dw;
+    for (int y = 0; y < dh; ++y) {
+        std::fill(sums.begin(), sums.end(), 0.0);
+        const double top = double(y) * sh / dh, bottom = double(y + 1) * sh / dh;
+        for (int sy = int(top); sy < std::min(sh, int(std::ceil(bottom))); ++sy) {
+            const int current = sy / stripHeight;
+            if (current != cachedStrip) {
+                auto &part = strip.levels[0];
+                part.height = std::min(stripHeight, sh - current * stripHeight);
+                part.data = level.data.mid(qsizetype(current * stride), qsizetype(stride));
+                int actualComponents = 0;
+                if (!strip.decodeInto(0, reinterpret_cast<unsigned char *>(decoded.data()),
+                                      qsizetype(sw) * part.height * components, actualComponents, error))
+                    return false;
+                cachedStrip = current;
+            }
+            const double wy = std::min(bottom, double(sy + 1)) - std::max(top, double(sy));
+            const auto *line = reinterpret_cast<const unsigned char *>(decoded.constData()) +
+                               qsizetype(sy % stripHeight) * sw * components;
+            for (int x = 0; x < dw; ++x) {
+                const double left = double(x) * sw / dw, right = double(x + 1) * sw / dw;
+                auto *sum = sums.data() + x * 4;
+                for (int sx = int(left); sx < std::min(sw, int(std::ceil(right))); ++sx) {
+                    const double weight = wy * (std::min(right, double(sx + 1)) - std::max(left, double(sx)));
+                    const auto *p = line + sx * components;
+                    const double a = components == 4 ? p[3] : 255;
+                    for (int k = 0; k < 3; ++k) sum[k] += p[k] * a / 255.0 * weight;
+                    sum[3] += a * weight;
+                }
+            }
+        }
+        const double area = (bottom - top) * xscale;
+        auto *dst = reinterpret_cast<unsigned char *>(result.data()) + qsizetype(y) * dw * 4;
+        for (int x = 0; x < dw; ++x)
+            for (int k = 0; k < 4; ++k)
+                dst[x * 4 + (k == 3 ? 3 : 2 - k)] = static_cast<unsigned char>(
+                    std::clamp(std::lround(sums[x * 4 + k] / area), 0L, 255L));
+    }
+    out = std::move(result);
+    error.clear();
     return true;
 }
 

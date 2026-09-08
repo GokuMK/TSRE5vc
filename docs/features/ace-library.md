@@ -25,6 +25,15 @@ describe `AceLibLegacy`, not this replacement library.
 
 ## Rendering and CPU-only loading
 
+`AceDocument::decodeThumbnail(level, width, height, bgra, error)` provides a
+separate bounded thumbnail path. It returns top-down premultiplied BGRA using
+area filtering, decodes at most four source rows at once, and leaves output
+unchanged on failure. Output dimensions must be 1..1024 and no larger than the
+chosen source level. The caller chooses the mip and aspect ratio. Encoded
+payloads remain in the document; this API does not stream the file envelope.
+TSRE's existing `decode`/`decodeInto`, texture upload and rendering paths are
+unchanged. The Explorer provider uses this API for textures up to 8192 x 8192.
+
 Existing `TexLib::addTex(...)` calls automatically use the new `AceLib` for ACE.
 No caller has to rename the loader. Its worker does not call OpenGL. It stages
 authored lower mip levels because the later rendering consumer may request them.

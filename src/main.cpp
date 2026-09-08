@@ -22,6 +22,8 @@
 #include <routeEditor/LoadWindow.h>
 #include <conEditor/CELoadWindow.h>
 #include <shapeViewer/ShapeViewerWindow.h>
+#include <aceConverter/AceConverter.h>
+#include <aceConverter/AceConverterWindow.h>
 #include <tsre/geo/MapWindow.h>
 #include <routeEditor/RouteEditorServer.h>
 #include <routeEditor/RouteEditorClient.h>
@@ -131,7 +133,7 @@ CommandLineParseResult parseCommandLineArgs(QCommandLineParser &parser,
     parser.addOption(ServerIpOption);
     const QCommandLineOption ServerPortOption("port", "Server Port.", "port");
     parser.addOption(ServerPortOption);
-    const QCommandLineOption FileOption("file", "Optional file to load with shapeview or play.", "file");
+    const QCommandLineOption FileOption("file", "Optional file to load with shapeview, aceconv or play.", "file");
     parser.addOption(FileOption);
     const QCommandLineOption ShapeViewOption("shapeview", "Run ShapeViewer.");
     parser.addOption(ShapeViewOption);
@@ -362,6 +364,26 @@ QStringList rawCommandLineArguments(int argc, char *argv[]) {
 
 int main(int argc, char *argv[]){
 
+    // Conversion paths are relative to the caller's cwd, and console conversion
+    // needs neither a GUI platform plugin nor game settings/assets.
+    bool aceGuiRequested = false;
+    QString aceGuiInput;
+    for (int i = 1; i < argc; ++i) {
+        const QByteArray argument(argv[i]);
+        if (argument == "--") break;
+        if (argument == "--aceconv" || argument == "-aceconv") {
+            const int result = AceConverter::run(argc, argv, [&](const QString &input) {
+                // Continue through the same settings and palette setup as the
+                // other TSRE windows, while retaining the caller-relative input.
+                aceGuiRequested = true;
+                if (!input.isEmpty()) aceGuiInput = QFileInfo(input).absoluteFilePath();
+                return 0;
+            });
+            if (!aceGuiRequested) return result;
+            break;
+        }
+    }
+
    // #ifdef  Q_OS_WIN32 
    //     ::ShowWindow( ::GetConsoleWindow(), SW_HIDE ); //hide console window
    // #endif
@@ -581,6 +603,15 @@ int main(int argc, char *argv[]){
                           .arg(checkedButton.name(QColor::HexRgb)));
     }
     
+    if (consoleArgs["ACE"] == "TRUE") {
+        // Also honor GUI launches selected through startup-args.txt.
+        AceConverterWindow window(QColor(Game::StyleMainLabel));
+        window.show();
+        const QString input = aceGuiRequested ? aceGuiInput : consoleArgs["FILENAME"];
+        if (!input.isEmpty()) window.loadFile(input);
+        return app.exec();
+    }
+
     Game::InitAssets();
     
     //Game::window.resize(1280, 720);
@@ -612,11 +643,6 @@ int main(int argc, char *argv[]){
         qDebug() << RouteEditorServer::Port ;
     }
     
-    if(consoleArgs["ACE"] == "TRUE"){
-        // Run ace converter
-        qDebug() << "Run ace converter";
-        return app.exec();
-    }
     if(consoleArgs["CON"] == "TRUE"){
         // Run ace converter
         qDebug() << "Run con editor";

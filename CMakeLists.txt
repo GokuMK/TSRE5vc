@@ -90,6 +90,8 @@ file(GLOB TSRE5vc_SRC CONFIGURE_DEPENDS
     "./src/conEditor/*.cpp"
     "./src/shapeViewer/*.h"
     "./src/shapeViewer/*.cpp"
+    "./src/aceConverter/*.h"
+    "./src/aceConverter/*.cpp"
 )
 
 qt_add_executable(TSRE5vc ${TSRE5vc_SRC})
@@ -111,4 +113,5 @@ option(TSRE_BUILD_ACE_TESTS "Build standalone ACE codec, benchmark and GL probes
 if(TSRE_BUILD_ACE_TESTS)
     enable_testing()
     add_subdirectory(tests/ace)
+    add_subdirectory(tests/aceConverter)
 endif()

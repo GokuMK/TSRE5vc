@@ -13,6 +13,8 @@
 #include <QTextStream>
 #include <tsre/fileFunctions/FileBuffer.h>
 
+const int TrackShape::MaxSectionIdxCount;
+
 TrackShape::TrackShape() {
     
 }

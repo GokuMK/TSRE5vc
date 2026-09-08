@@ -5,6 +5,7 @@ This folder contains ordered tasks for refactoring texture decoding/upload and a
 ## Execution Order
 - [x] `01-texture-format-and-upload-refactor.md`
 - [x] `02-texture-memory-stats-and-debug-dump.md`
+- [x] `03-ace-converter.md` — GUI and console texture conversion.
 
 ## Ground Rules For All Tasks
 - Keep existing formats (`.ace`, `.dds`, common image files, `.:paintTex`) working throughout.

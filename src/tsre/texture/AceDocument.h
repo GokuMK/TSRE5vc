@@ -75,6 +75,12 @@ class AceDocument {
     // Destination must not alias document storage; contents may be partial on failure.
     bool decodeInto(int level, unsigned char *pixels, qsizetype size, int &components,
                     QString &error, QByteArray *independentMask = nullptr) const;
+    // Area-filter a selected level to top-down premultiplied BGRA. No upscaling.
+    // Output dimensions must be 1..1024 and no larger than the source level.
+    // Decodes at most four source rows at once; never allocates full-size RGB(A).
+    // Encoded payloads remain owned by this document. Output is unchanged on failure.
+    bool decodeThumbnail(int level, int width, int height, QByteArray &bgra,
+                         QString &error) const;
     bool serialize(QByteArray &file, bool zlib, QString &error) const;
     bool write(const QString &path, bool zlib, QString &error) const;
     // Lossless original-envelope copy is explicit; it does not serialize metadata edits.
