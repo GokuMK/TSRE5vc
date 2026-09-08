@@ -90,7 +90,7 @@ public:
     };
     static void beginProceduralFrame();
     static ProceduralWorkStats proceduralWorkStats();
-    bool setProceduralMaterial(bool enabled, QString &error);
+    bool setProceduralMaterial(bool enabled, QString &error, quint32 materialUid = 0);
     std::shared_ptr<UndoSnapshot> captureProceduralUndo();
     void rememberProceduralSource(Brush *brush, int x, int z, float posx, float posz);
     // operation: TerrainMaterialMap::TexturePaint / FillPatch / FloodFill.
@@ -290,6 +290,7 @@ protected:
     QVector<int> proceduralRequestOrder(const PatchVisibility &visibility) const;
     bool proceduralNearCamera(const PatchVisibility &visibility) const;
     void prepareVisibleProceduralTextures(const PatchVisibility &visibility);
+    void synchronizeMaterialLibrary();
     QVector<PatchBounds> patchBounds;
     QVector<quint8> patchBoundsDirty;
     QVector<quint8> patchGapState;

@@ -1471,7 +1471,8 @@ public:
         TSRE_Requested_TD_File = 100007,
         TSRE_Requested_TD_Lo_File = 100008,
         TSRE_Terrain_Material_Buffer = 100009,
-        TSRE_Terrain_Baked_Material = 100010
+        TSRE_Terrain_Baked_Material = 100010,
+        TSRE_Terrain_Material_Map = 100011
     };
     static std::unordered_map< int, const char* > IdName;
 };

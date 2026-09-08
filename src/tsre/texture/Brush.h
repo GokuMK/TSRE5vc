@@ -38,6 +38,8 @@ public:
     bool useTexture = false;
     int color[3];
     int texId = -1;
+    quint32 terrainMaterialUid = 0;
+    QString terrainMaterialRoute;
     // Exact picked terrain shader identity, ignored after choosing another texture.
     QString terrainShaderKey;
     bool terrainShaderIsBake = false;

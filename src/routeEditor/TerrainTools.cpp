@@ -9,6 +9,9 @@
  */
 
 #include "TerrainTools.h"
+#include "TerrainMaterialDialog.h"
+#include <tsre/world/TerrainMaterialLibrary.h>
+#include <tsre/world/TerrainMaterialSource.h>
 #include <tsre/texture/TexLib.h>
 #include <tsre/texture/Brush.h>
 #include <tsre/texture/Texture.h>
@@ -31,6 +34,7 @@ TerrainTools::TerrainTools(QString name)
     texPreviewLabel->setPixmap(*texPreview);
     for(int i = 0; i < 7; i++){
         texPreviewLabels.push_back(new ClickableLabel(""));
+        texPreviewLabels.back()->setObjectName(QString("recentTerrainMaterial%1").arg(i));
         texPreviewLabels.back()->setContentsMargins(0,0,0,0);
         texPreviewLabels.back()->setPixmap(*defaultTexPreview);
         texPreviewSignals.setMapping(texPreviewLabels.back(), i);
@@ -65,6 +69,10 @@ TerrainTools::TerrainTools(QString name)
         buttonTools["proceduralPaintTextureTool"] = new QPushButton("Texture", this);
         buttonTools["proceduralFillPatchTool"] = new QPushButton("Fill Patch", this);
         buttonTools["proceduralFillTool"] = new QPushButton("Fill", this);
+        buttonTools["proceduralPickTool"] = new QPushButton("Pick", this);
+        buttonTools["proceduralLockTool"] = new QPushButton("Lock", this);
+        buttonTools["proceduralPickTool"]->setToolTip("Pick the source material from terrain. Same picking tool as in the static section.");
+        buttonTools["proceduralLockTool"]->setToolTip("Toggle patch texture lock. Same shared lock as in the static section.");
         buttonTools["paintToolColor"]->setToolTip("Paint static textures only; procedural tiles are ignored.");
         buttonTools["paintToolTexture"]->setToolTip("Paint static textures only; procedural tiles are ignored.");
         buttonTools["lockTexTool"]->setToolTip("Toggle patch texture lock. Applies to both static and procedural painting and fills.");
@@ -80,7 +88,9 @@ TerrainTools::TerrainTools(QString name)
         i.value()->setObjectName(i.key());
     }
     
-    QPushButton *loadTerrainTexTool = new QPushButton("Load...", this);
+    QPushButton *loadTerrainTexTool = new QPushButton("Load", this);
+    loadTerrainTexTool->setObjectName("loadTerrainTexture");
+    loadTerrainTexTool->setToolTip("Load a static texture from an image file.");
     
     QGridLayout *vlist3 = new QGridLayout;
     vlist3->setSpacing(2);
@@ -109,15 +119,15 @@ TerrainTools::TerrainTools(QString name)
     if (Game::serverClient == nullptr) {
         vlist0->addWidget(buttonTools["paintToolColor"],row,0);
         vlist0->addWidget(buttonTools["paintToolTexture"],row,1);
+        vlist0->addWidget(buttonTools["lockTexTool"],row,2);
     }
-    vlist0->addWidget(buttonTools["putTerrainTexTool"],row++,2);
     
     QGridLayout *vlist1 = new QGridLayout;
     vlist1->setSpacing(2);
     vlist1->setContentsMargins(3,0,1,0);    
     row = 0;
     vlist1->addWidget(buttonTools["pickTerrainTexTool"],row,0);
-    if (Game::serverClient == nullptr) vlist1->addWidget(buttonTools["lockTexTool"],row,1);
+    vlist1->addWidget(buttonTools["putTerrainTexTool"],row,1);
     vlist1->addWidget(loadTerrainTexTool,row,2);
     
     colorw = new QPushButton("#000000", this);
@@ -144,25 +154,41 @@ TerrainTools::TerrainTools(QString name)
         label0->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
         vbox->addWidget(label0);
         vbox->addItem(vlist0);
+        vbox->addItem(vlist1);
     }
 
-    label0 = new QLabel("Shared texture tools:");
     if (Game::serverClient == nullptr) {
         auto *heading = new QLabel("Procedural Materials (experimental):");
         heading->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
         vbox->addWidget(heading);
         const QStringList names {"proceduralTileEnableTool", "proceduralTileDisableTool"};
-        const QStringList captions {"Make tile use procedural material", "Make tile use static textures"};
+        const QStringList captions {"Enable on tile", "Disable"};
+        auto *conversion=new QHBoxLayout;
+        conversion->setSpacing(2);
+        conversion->setContentsMargins(3,0,1,0);
         for (int i=0; i<names.size(); ++i) {
             auto *button = new QPushButton(captions[i],this);
             button->setCheckable(true);
-            button->setToolTip("Select this tool, then click a terrain tile. Save generates one baked tile ACE for static/distant rendering. Save current procedural edits before switching to static textures; the bake is kept. Source shaders are retained. Supports Undo.");
+            button->setObjectName(names[i]);
+            button->setToolTip(i==0
+                    ? "Choose the initial material, then click a tile to enable procedural painting. Supports Undo."
+                    : "Click a procedural tile to switch it to static textures. Save first; its baked texture is kept. Supports Undo.");
             buttonTools[names[i]] = button;
             connect(button,&QPushButton::clicked,this,[this,tool=names[i]](bool checked) {
+                if (checked && tool=="proceduralTileEnableTool"
+                        && (!TerrainMaterialLibrary::current()->find(paintBrush->terrainMaterialUid)
+                            || paintBrush->terrainMaterialRoute!=TerrainMaterialLibrary::current()->path())) {
+                    if (!chooseProceduralMaterial("To enable procedural materials on a tile, first choose its initial material. "
+                            "The tile will be filled with this material. Choose an existing entry or add one with From image, "
+                            "then click the tile you want to convert.")) {
+                        emit enableTool(QString()); return;
+                    }
+                }
                 emit enableTool(checked ? tool : QString());
             });
-            vbox->addWidget(button);
+            conversion->addWidget(button,i==0 ? 2 : 1);
         }
+        vbox->addLayout(conversion);
         auto *painting = new QHBoxLayout;
         painting->setSpacing(2);
         painting->setContentsMargins(3,0,1,0);
@@ -180,11 +206,20 @@ TerrainTools::TerrainTools(QString name)
             });
         }
         vbox->addLayout(painting);
+        auto *selection=new QHBoxLayout;
+        selection->setSpacing(2);
+        selection->setContentsMargins(3,0,1,0);
+        selection->addWidget(buttonTools["proceduralPickTool"]);
+        selection->addWidget(buttonTools["proceduralLockTool"]);
+        auto *choose=new QPushButton("Choose",this);
+        choose->setObjectName("chooseProceduralMaterial");
+        choose->setToolTip("Choose a procedural material from the route library, or add one from an image.");
+        selection->addWidget(choose);
+        connect(choose,&QPushButton::clicked,this,[this] { chooseProceduralMaterial(); });
+        connect(buttonTools["proceduralPickTool"],&QPushButton::clicked,this,&TerrainTools::pickTexToolEnabled);
+        connect(buttonTools["proceduralLockTool"],&QPushButton::clicked,this,&TerrainTools::lockTexToolEnabled);
+        vbox->addLayout(selection);
     }
-    label0->setContentsMargins(3,0,0,0);
-    label0->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
-    vbox->addWidget(label0);
-    vbox->addItem(vlist1);
 
     vlist1 = new QGridLayout;
     vlist1->setSpacing(0);
@@ -400,6 +435,8 @@ TerrainTools::TerrainTools(QString name)
 
 
 TerrainTools::~TerrainTools() {
+    for (const auto &entry : texLastItems) TexLib::delRef(entry.textureId);
+    if (selectedTextureRef>=0) TexLib::delRef(selectedTextureRef);
 }
 
 void TerrainTools::nextBrushShape(){
@@ -517,6 +554,23 @@ void TerrainTools::fixedTileToolEnabled(bool val){
     }
 }
 
+bool TerrainTools::chooseProceduralMaterial(const QString &message) {
+        TerrainMaterialDialog dialog(this,paintBrush->terrainMaterialUid,message);
+        if (dialog.exec()!=QDialog::Accepted) return false;
+        const auto library=TerrainMaterialLibrary::current();
+        const auto material=library->find(dialog.selectedUid());
+        if (!material) return false;
+        const int textureId=TexLib::addTex(library->textureDirectory(),material->texture);
+        setBrushTextureId(textureId);
+        TexLib::delRef(textureId);
+        paintBrush->terrainMaterialUid=material->uid;
+        paintBrush->terrainMaterialRoute=library->path();
+        paintBrush->useTexture=true;
+        rememberCurrentMaterial();
+        QTimer::singleShot(300,this,&TerrainTools::updateTexPrev);
+        emit setPaintBrush(paintBrush);
+        return true;
+}
 void TerrainTools::setTexToolEnabled(){
     QFileDialog fd;
     QString path = Game::root+"/routes/"+Game::route+"/terrtex";
@@ -535,29 +589,12 @@ void TerrainTools::setTexToolEnabled(){
     
     for(int i = 0; i < fd.selectedFiles().length(); i++){
         filename = fd.selectedFiles()[i];
-        TexLib::addTex(filename);
-    }
-    
-    QTime cTime = QTime::currentTime().addMSecs(300);  
-    while (QTime::currentTime() < cTime){
-        QCoreApplication::processEvents(QEventLoop::AllEvents, 100);
-    }
-    
-    for(int i = 0; i < fd.selectedFiles().length(); i++){
-        filename = fd.selectedFiles()[i];
         qDebug()<<"texture file "<<filename;
 
         int tid = TexLib::addTex(filename);
-        this->paintBrush->texId = tid;
-        this->paintBrush->terrainShaderKey.clear();
-        this->paintBrush->terrainShaderSource.reset();
-        this->paintBrush->tex = TexLib::mtex[tid];
-
-        texLastItems.push_back(qMakePair(this->paintBrush->texId, this->paintBrush->tex));
-        if(texLastItems.size() > 7){
-            texLastItems.removeFirst();
-        }
-        updateTexPrev();
+        setBrushTextureId(tid);
+        TexLib::delRef(tid);
+        rememberCurrentMaterial();
     //emit enableTool("setTexTool");
     }
     emit setPaintBrush(this->paintBrush);
@@ -668,68 +705,104 @@ void TerrainTools::setEradius(QString val){
 //
 
 void TerrainTools::setBrushTextureId(int val){
+    const auto texture=TexLib::mtex.find(val);
+    if (val<0 || texture==TexLib::mtex.end() || !texture->second) return;
+    TexLib::addRef(val);
+    if (selectedTextureRef>=0) TexLib::delRef(selectedTextureRef);
+    selectedTextureRef=val;
+    paintBrush->texId=val;
+    paintBrush->tex=texture->second;
+    paintBrush->terrainMaterialUid=0;
+    paintBrush->terrainMaterialRoute.clear();
     paintBrush->terrainShaderKey.clear();
     paintBrush->terrainShaderSource.reset();
+    paintBrush->terrainShaderIsBake=false;
+    paintBrush->terrainShaderTextureId=-1;
+    paintBrush->terrainPickedShaderId=-1;
+    paintBrush->terrainShaderTile.clear();
     emit setPaintBrush(this->paintBrush);
-    if(val < 0) return;
-    if(TexLib::mtex[val] == NULL) return;
-    this->paintBrush->texId = val;
-    this->paintBrush->tex = TexLib::mtex[val];
-    
-    texLastItems.push_back(qMakePair(this->paintBrush->texId, this->paintBrush->tex));
-    if(texLastItems.size() > 6){
-        texLastItems.removeFirst();
+}
+
+void TerrainTools::rememberCurrentMaterial() {
+    if (!paintBrush->tex || paintBrush->texId<0) return;
+    RecentMaterial entry;
+    entry.textureId=paintBrush->texId; entry.texturePath=paintBrush->tex->pathid;
+    entry.uid=paintBrush->terrainMaterialUid; entry.route=paintBrush->terrainMaterialRoute;
+    entry.shaderKey=paintBrush->terrainShaderKey; entry.shaderSource=paintBrush->terrainShaderSource;
+    entry.isBake=paintBrush->terrainShaderIsBake; entry.pickedShaderId=paintBrush->terrainPickedShaderId;
+    entry.shaderTile=paintBrush->terrainShaderTile;
+    TexLib::addRef(entry.textureId);
+    for (int i=texLastItems.size()-1;i>=0;--i) {
+        const auto &old=texLastItems[i];
+        const bool same=entry.uid ? old.uid==entry.uid && old.route==entry.route
+            : !old.uid && old.texturePath==entry.texturePath && old.shaderKey==entry.shaderKey
+              && (old.shaderSource ? old.shaderSource->key() : QString())
+                   ==(entry.shaderSource ? entry.shaderSource->key() : QString());
+        if (same) { TexLib::delRef(old.textureId); texLastItems.removeAt(i); }
     }
+    texLastItems.push_back(entry);
+    while (texLastItems.size()>6) { TexLib::delRef(texLastItems.first().textureId); texLastItems.removeFirst(); }
     updateTexPrev();
 }
 
 void TerrainTools::updateTexPrev(){
-    if(!this->paintBrush->tex->loaded)
-        return;
-
-    ClickableLabel *tlabel;
-    unsigned char * out;
-    int idx;
-    int res;
-    for(int i = 1; i < 8; i++){
-        idx = texLastItems.size() - i;
-        if(idx < 0)
-            continue;
-        if(i == 1){
-            tlabel = texPreviewLabel;
-            res = 192;
-            out = this->paintBrush->tex->getImageData(res,res);
-            if(this->paintBrush->tex->bytesPerPixel == 3)
-                tlabel->setPixmap(QPixmap::fromImage(QImage(out,res,res,QImage::Format_RGB888)));
-            if(this->paintBrush->tex->bytesPerPixel == 4)
-                tlabel->setPixmap(QPixmap::fromImage(QImage(out,res,res,QImage::Format_RGBA8888)));   
-        }// else {
-        tlabel = texPreviewLabels[i-1];
-        res = 64;
-        out = texLastItems[idx].second->getImageData(res,res);
-        //}
-        if(texLastItems[idx].second->bytesPerPixel == 3)
-            tlabel->setPixmap(QPixmap::fromImage(QImage(out,res,res,QImage::Format_RGB888)));
-        if(texLastItems[idx].second->bytesPerPixel == 4)
-            tlabel->setPixmap(QPixmap::fromImage(QImage(out,res,res,QImage::Format_RGBA8888)));   
+    bool pending=false;
+    auto draw=[&](ClickableLabel *label,int textureId,quint32 uid,const QString &route,int size) {
+        QPixmap preview(size,size); preview.fill(Qt::gray);
+        const auto found=TexLib::mtex.find(textureId);
+        Texture *texture=found==TexLib::mtex.end()?nullptr:found->second;
+        if (texture && texture->loaded) {
+            std::unique_ptr<unsigned char[]> pixels(texture->getImageData(size,size));
+            if (pixels && (texture->bytesPerPixel==3 || texture->bytesPerPixel==4))
+                preview=QPixmap::fromImage(QImage(pixels.get(),size,size,
+                    texture->bytesPerPixel==3?QImage::Format_RGB888:QImage::Format_RGBA8888));
+        } else if (texture && !texture->missing && !texture->error) pending=true;
+        QString description=texture ? QFileInfo(texture->pathid).fileName() : "Unavailable texture";
+        if (uid) {
+            const auto library=TerrainMaterialLibrary::current();
+            const auto material=route==library->path()?library->find(uid):nullptr;
+            description=QString("Procedural: %1 (UiD %2)").arg(material?material->displayName:"unavailable material").arg(uid);
+        } else description="Static / local shader: "+description;
+        QPainter painter(&preview);
+        painter.fillRect(0,0,18,18,uid?QColor(25,85,155):QColor(55,55,55));
+        painter.setPen(Qt::white); painter.drawText(QRect(0,0,18,18),Qt::AlignCenter,uid?"P":"S");
+        painter.end(); label->setPixmap(preview); label->setToolTip(description);
+    };
+    if (paintBrush->tex) draw(texPreviewLabel,paintBrush->texId,paintBrush->terrainMaterialUid,paintBrush->terrainMaterialRoute,192);
+    for (int i=0;i<6;++i) {
+        const int index=texLastItems.size()-i-1;
+        texPreviewLabels[i]->setEnabled(index>=0);
+        if (index<0) { texPreviewLabels[i]->setPixmap(*defaultTexPreview); texPreviewLabels[i]->setToolTip("No recent material"); continue; }
+        const auto &entry=texLastItems[index];
+        draw(texPreviewLabels[i],entry.textureId,entry.uid,entry.route,64);
+    }
+    // Slot 6 is exclusively the brush shape; never paint a seventh history image over it.
+    if (pending && !previewRetryScheduled) {
+        previewRetryScheduled=true;
+        QTimer::singleShot(200,this,[this] { previewRetryScheduled=false; updateTexPrev(); });
     }
 }
 
 void TerrainTools::texPreviewEnabled(int val){
-    paintBrush->terrainShaderKey.clear();
-    paintBrush->terrainShaderSource.reset();
-    qDebug() << val;
-    if(val == 6){
-        nextBrushShape();
-        return;
+    if (val==6) { nextBrushShape(); return; }
+    if (val<0 || val>=6 || val>=texLastItems.size()) return;
+    const auto entry=texLastItems[texLastItems.size()-val-1];
+    if (entry.uid) {
+        const auto library=TerrainMaterialLibrary::current(); library->poll();
+        const auto material=entry.route==library->path()?library->find(entry.uid):nullptr;
+        if (!material) { QMessageBox::warning(this,"Recent terrain material","This procedural material is not available in the current route. Use Choose to select another material."); return; }
+        const int textureId=TexLib::addTex(library->textureDirectory(),material->texture);
+        setBrushTextureId(textureId); TexLib::delRef(textureId);
+        paintBrush->terrainMaterialUid=entry.uid; paintBrush->terrainMaterialRoute=entry.route;
+    } else {
+        setBrushTextureId(entry.textureId);
+        paintBrush->terrainShaderKey=entry.shaderKey; paintBrush->terrainShaderSource=entry.shaderSource;
+        paintBrush->terrainShaderIsBake=entry.isBake; paintBrush->terrainPickedShaderId=entry.pickedShaderId;
+        paintBrush->terrainShaderTextureId=entry.textureId; paintBrush->terrainShaderTile=entry.shaderTile;
     }
-    qDebug() <<texLastItems.size() ;
-    int idx = texLastItems.size() - val - 1;
-    if(idx > texLastItems.size() - 1) return;
-    if(idx < 0) return;
-    this->paintBrush->tex = texLastItems[idx].second;
-    this->paintBrush->texId = texLastItems[idx].first;
-    updateTexPrev();
+    paintBrush->useTexture=true;
+    rememberCurrentMaterial();
+    emit setPaintBrush(paintBrush);
 }
 
 void TerrainTools::msg(QString text, QString val){
@@ -744,6 +817,10 @@ void TerrainTools::msg(QString text, QString val){
         }
         if(buttonTools[val] != NULL)
             buttonTools[val]->setChecked(true);
+        if (val=="pickTerrainTexTool" && buttonTools.value("proceduralPickTool"))
+            buttonTools["proceduralPickTool"]->setChecked(true);
+        if (val=="lockTexTool" && buttonTools.value("proceduralLockTool"))
+            buttonTools["proceduralLockTool"]->setChecked(true);
         i.toFront();
         while (i.hasNext()) {
             i.next();

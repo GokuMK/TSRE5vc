@@ -492,6 +492,8 @@ RouteEditorWindow::RouteEditorWindow() {
     
     QObject::connect(glWidget, SIGNAL(setBrushTextureId(int)),
                       terrainTools, SLOT(setBrushTextureId(int)));   
+    QObject::connect(glWidget, &RouteEditorGLWidget::terrainMaterialPicked,
+                     terrainTools, &TerrainTools::rememberCurrentMaterial);
     
     QObject::connect(naviWindow, SIGNAL(jumpTo(PreciseTileCoordinate*)),
                       glWidget, SLOT(jumpTo(PreciseTileCoordinate*)));

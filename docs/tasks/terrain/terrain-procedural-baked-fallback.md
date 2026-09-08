@@ -1,8 +1,10 @@
 # Procedural terrain: A — baked tile fallback; B — material catalogue
 
 Status: **stage A implementation authorized and implemented; verification below**.
-Stage B remains a design only. The user approved a small checked RGB ACE writer
-addition for A; the future replacement ACE class is not a prerequisite.
+Stage B's stable-UiD mapping and route chooser are now implemented; see the
+[route material library](../../features/terrain-material-library.md) for the
+format, workflow, compatibility fallback and verification. The original small
+checked RGB writer authorization for A is historical below.
 
 2026-09-08 ACE integration update: the replacement is now implemented.
 Baking now uses the new ACE document API with opaque DXT1 output (follow-up below);
@@ -446,8 +448,10 @@ an outdated far bake; an initial policy can keep dirty tiles procedural until sa
 | Global selection UI, copy definitions locally | Pick from one catalogue, append/reuse complete definitions in each tile's current palette. Bitmap bytes remain local IDs. | Smallest extension; A's source resolution and persistence remain usable. |
 | Local byte-ID to global material-ID mapping | Tile stores a compact mapping; definitions and future mixing_type/importance live in a catalogue. | Removes duplicate source definitions, but requires mapping persistence, stable identities, catalogue ownership, migration and missing-entry handling. |
 
-Prefer analyzing the first option as the migration-friendly baseline, not
-preselecting it permanently. **Global means per route**, not per TSRE installation:
+**Chosen: local byte-ID to stable global UiD mapping**, without definition copies
+in `.t`. The copy-locally alternative above is retained for design history, not
+the implementation requirement. No migration wizard is required. **Global means
+per route**, not per TSRE installation:
 each route designer defines that route's material set. Shared definitions must
 remain portable when distributing a route.
 Do not use catalogue list positions or TexLib runtime IDs as persistent IDs.

@@ -2099,6 +2099,7 @@ void Terrain::paintTextureOnTile(Brush* brush, int y, int u, float x, float z) {
 void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float* playerW, float* target, float fov, quint32 selectionId){
     if (!loaded)
         return;
+    synchronizeMaterialLibrary();
     TerrainMeshBackend *backend = ensureMeshBackend();
     if (backend == NULL || !backend->ensureInitialized())
         return;
@@ -2460,6 +2461,7 @@ void Terrain::pushRenderItemWater(float lodx, float lodz, float tileX, float til
 void Terrain::render(float lodx, float lodz, int tileX, int tileY, float* playerW, float* target, float fov, quint32 selectionId) {
     if (!loaded)
         return;
+    synchronizeMaterialLibrary();
     TerrainMeshBackend *backend = ensureMeshBackend();
     if (backend == NULL || !backend->ensureInitialized())
         return;

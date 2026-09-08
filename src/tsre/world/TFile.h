@@ -12,6 +12,7 @@
 #include <QString>
 #include <QByteArray>
 #include <QVector>
+#include <QMap>
 #include <unordered_map>
 
 #ifndef TFILE_H
@@ -81,6 +82,10 @@ public:
     // v1:pending or v1:<recipe SHA256>. Also retained when procedural mode is off;
     // explicitly identifies reserved material zero, never guesses from a filename.
     QString bakedMaterialInfo;
+    // Absence retains the legacy local-shader source; invalid presence must not.
+    bool materialUidMapPresent = false;
+    bool materialUidMapValid = true;
+    QMap<int,quint32> materialUids;
     struct OpaqueSampleBuffer {
         bool present = false;
         QString label;

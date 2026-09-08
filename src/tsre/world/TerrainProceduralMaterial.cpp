@@ -1,6 +1,7 @@
 #include "Terrain.h"
 #include "TerrainMaterialMap.h"
 #include "TerrainMaterialSource.h"
+#include "TerrainMaterialLibrary.h"
 #include "TerrainMeshBackend.h"
 #include <tsre/Game.h>
 #include <tsre/Undo.h>
@@ -106,13 +107,29 @@ QString primaryName(const TFile &file, int id) {
     auto it = file.materials.find(id);
     return it != file.materials.end() && it->second.tex[0] ? *it->second.tex[0] : QString();
 }
+QString sourceName(const TFile &file, int id) {
+    if (!file.materialUidMapPresent) return primaryName(file,id);
+    if (!file.materialUidMapValid) return {};
+    const auto material=TerrainMaterialLibrary::current()->find(file.materialUids.value(id));
+    return material ? material->texture : QString();
+}
+QString sourceKey(const TFile &file, int id) {
+    return file.materialUidMapPresent ? sourceName(file,id) : shaderKey(file,id);
+}
+QList<int> sourceSlots(const TFile &file) {
+    if (file.materialUidMapPresent) return file.materialUids.keys();
+    QList<int> ids;
+    for (int i=1;i<file.materialsCount;++i) ids.push_back(i);
+    return ids;
+}
 QString bakeSettingsKey(const TFile &file, const QString &directory, int patches) {
     QByteArray bytes; QDataStream out(&bytes,QIODevice::WriteOnly);
     out << TerrainMaterialMap::Side << TerrainMaterialMap::BakedSide << TerrainMaterialMap::OutputSide
         << TerrainMaterialMap::SamplingMode << patches << qint32(AceEncoding::Dxt1);
-    for (int id=1;id<file.materialsCount;++id) {
-        out << shaderKey(file,id);
-        QString path=QDir(directory).filePath(primaryName(file,id));
+    for (int id : sourceSlots(file)) {
+        if (file.materialUidMapPresent) out << id;
+        out << sourceKey(file,id);
+        QString path=QDir(directory).filePath(sourceName(file,id));
         const QString dds=path.left(path.size()-3)+"dds";
         if (path.endsWith(".ace",Qt::CaseInsensitive) && QFileInfo::exists(dds)) path=dds;
         const QFileInfo source(path);
@@ -289,6 +306,15 @@ void reportToolError(const QString &error) {
 static int uploadProceduralOutput(const MaterialPtr &material, bool background, bool mipmaps=false);
 
 struct TerrainProceduralState {
+    quint64 libraryRevision=0;
+    QMap<int,QString> resolvedSources;
+    bool libraryCanRecover=false;
+    void rememberLibrary(const TFile &file) {
+        if (!file.materialUidMapPresent) return;
+        libraryRevision=TerrainMaterialLibrary::current()->revision();
+        resolvedSources.clear();
+        for (int id : sourceIds) resolvedSources[id]=sourceName(file,id);
+    }
     TerrainMaterialMap map;
     QHash<int,QImage> sources;
     QHash<QByteArray,MaterialPtr> cache;
@@ -489,12 +515,12 @@ struct TerrainProceduralState {
             request(prefetchBakeKey,0,0,false,prefetchBakePath);
     }
     bool ensureSource(const TFile &file, int id, const QString &directory) {
-        if (id>=0 && id<=255 && sources.contains(id)) return true;
-        if (id < 0 || id > 255 || shaderKey(file,id).isEmpty()) {
-            error = QString("Procedural material requires an existing normal shader ID 0..255 (got %1)").arg(id); return false;
+        if (id < 0 || id > 255 || sourceKey(file,id).isEmpty()) {
+            error = QString("Missing/invalid procedural source for local ID %1 (route UiD %2)").arg(id).arg(file.materialUids.value(id)); return false;
         }
+        if (sources.contains(id)) return true;
         QImage source;
-        if (!loadSource(directory,primaryName(file,id),source,error)) return false;
+        if (!loadSource(directory,sourceName(file,id),source,error)) return false;
         sources.insert(id,source); return true;
     }
     void pruneCache() {
@@ -532,6 +558,8 @@ struct TerrainMaterialUndo : UndoSnapshot {
     float spacing = 0;
     QVector<std::shared_ptr<const TerrainMaterialSource>> palette;
     QVector<float> uv;
+    bool uidMapPresent=false, uidMapValid=true;
+    QMap<int,quint32> uids;
     bool targetValid() const override {
         return terrain && terrain->loaded && terrain->tfile
                 && terrain->proceduralUndoEpoch == epoch
@@ -547,7 +575,8 @@ struct TerrainMaterialUndo : UndoSnapshot {
             return false; // Never discard recovery state from a failed save.
         auto next = std::make_shared<TerrainProceduralState>();
         QSet<int> dirty;
-        bool samePalette = t.tfile->materialsCount == palette.size();
+        bool samePalette = t.tfile->materialsCount == palette.size()
+                && t.tfile->materialUidMapPresent==uidMapPresent && t.tfile->materialUids==uids;
         for (int i=0; samePalette && i<palette.size(); ++i) {
             const auto current = TerrainMaterialSource::capture(*t.tfile,i);
             samePalette = current && current->key() == palette[i]->key();
@@ -558,11 +587,12 @@ struct TerrainMaterialUndo : UndoSnapshot {
             next->sourceIds = next->map.usedIds();
             // Validate sources before changing either the map or its palette.
             for (int id : next->sourceIds) {
-                if (id<=0 || id>=palette.size()) return false;
+                const auto definition=uidMapPresent ? TerrainMaterialLibrary::current()->find(uids.value(id)) : nullptr;
+                if (uidMapPresent ? (!uidMapValid || !definition) : (id<=0 || id>=palette.size())) return false;
                 QImage image;
-                if (samePalette && t.procedural && t.procedural->sources.contains(id))
+                if (!uidMapPresent && samePalette && t.procedural && t.procedural->sources.contains(id))
                     image = t.procedural->sources[id];
-                else if (!loadSource(t.texturepath,palette[id]->normal.textures[0],image,next->error)) return false;
+                else if (!loadSource(t.texturepath,uidMapPresent ? definition->texture : palette[id]->normal.textures[0],image,next->error)) return false;
                 next->sources.insert(id,image);
             }
             next->patches.resize(patches*patches);
@@ -589,10 +619,15 @@ struct TerrainMaterialUndo : UndoSnapshot {
         if (!samePalette) TerrainMaterialSource::restorePalette(*t.tfile,palette);
         t.tfile->sampleMaterialBuffer = reference;
         t.tfile->bakedMaterialInfo = bakeInfo;
+        t.tfile->materialUidMapPresent=uidMapPresent;
+        t.tfile->materialUidMapValid=uidMapValid;
+        t.tfile->materialUids=uids;
         for (int p=0; p<patches*patches; ++p)
             std::copy_n(uv.constData()+p*7,7,t.tfile->tdata+p*13+6);
         t.procedural = reference.isEmpty() ? nullptr : next;
         if (t.procedural) {
+            next->libraryCanRecover=true;
+            next->rememberLibrary(*t.tfile);
             proceduralStates.push_back(next);
             for (int p : dirty) {
                 next->editedPatches.insert(p);
@@ -618,6 +653,8 @@ std::shared_ptr<UndoSnapshot> Terrain::captureProceduralUndo() {
     snapshot->samples=gridLayout.sampleCount; snapshot->patches=gridLayout.patchesPerSide;
     snapshot->spacing=*tfile->sampleSize;
     snapshot->reference=tfile->sampleMaterialBuffer; snapshot->bakeInfo=tfile->bakedMaterialInfo;
+    snapshot->uidMapPresent=tfile->materialUidMapPresent;
+    snapshot->uidMapValid=tfile->materialUidMapValid; snapshot->uids=tfile->materialUids;
     for (int id=0; id<tfile->materialsCount; ++id) {
         const auto source=TerrainMaterialSource::capture(*tfile,id);
         if (!source) return {};
@@ -631,6 +668,38 @@ std::shared_ptr<UndoSnapshot> Terrain::captureProceduralUndo() {
 }
 
 bool Terrain::usesProceduralMaterial() const { return tfile && !tfile->sampleMaterialBuffer.isEmpty(); }
+void Terrain::synchronizeMaterialLibrary() {
+    if (!procedural || !tfile->materialUidMapPresent || !procedural->libraryCanRecover) return;
+    const auto library=TerrainMaterialLibrary::current(); library->poll();
+    if (procedural->libraryRevision==library->revision()) return;
+    procedural->libraryRevision=library->revision();
+    QMap<int,QString> names;
+    bool valid=tfile->materialUidMapValid && procedural->map.valid();
+    for (int id : procedural->sourceIds) {
+        names[id]=sourceName(*tfile,id);
+        valid &= !names[id].isEmpty();
+    }
+    if (names==procedural->resolvedSources && valid==procedural->ready) return;
+    // Changes to other, unreferenced definitions do not invalidate this tile.
+    // Workers own immutable snapshots; cancellation prevents stale publication.
+    releaseProceduralTextures();
+    procedural->recipeKeys.clear();
+    procedural->resolvedSources=names;
+    const bool modeChanged=procedural->ready!=valid;
+    procedural->ready=valid;
+    if (modeChanged) {
+        // Legacy vertices and paged UV parameters differ for the saved bake.
+        invalidateAll(TerrainDirtyUvParams);
+        refreshModified();
+    }
+    if (!valid) {
+        procedural->error="Missing/invalid route material UiD or material map; repair terrainmaterials.dat. Saved bake retained.";
+        qWarning() << name << procedural->error; return;
+    }
+    procedural->error.clear();
+    procedural->fullBakeRequired=true; procedural->bakeCurrent=false;
+    modified=true;
+}
 void Terrain::beginProceduralFrame() {
     uploadsThisFrame=recipesThisFrame=0;
     uploadNsThisFrame=recipeNsThisFrame=0;
@@ -678,12 +747,16 @@ void Terrain::clearStaticTextureRefs() {
 }
 bool Terrain::reserveProceduralBake(QString &error) {
     if (!tfile->bakedMaterialInfo.isEmpty()) {
-        if (!tfile->bakedMaterialInfo.startsWith("v1:") || tfile->materialsCount<2 || tfile->materialsCount>256
+        if (!tfile->bakedMaterialInfo.startsWith("v1:") || tfile->materialsCount<(tfile->materialUidMapPresent?1:2) || tfile->materialsCount>256
                 || !TerrainMaterialSource::capture(*tfile,0)
                 || primaryName(*tfile,0)!=name+(lowTile?"_lo_procedural.ace":"_procedural.ace")) {
             error="Unsupported or invalid baked terrain material marker/palette"; return false;
         }
         return true;
+    }
+    if (tfile->materialUidMapPresent) {
+        error="Mapped procedural terrain requires its baked material marker; local byte IDs must not be shifted";
+        return false;
     }
     const int count=tfile->materialsCount;
     if (count<1 || count>=256) {
@@ -725,9 +798,10 @@ QString Terrain::proceduralBakeSignature() const {
     QDataStream out(&settings,QIODevice::WriteOnly);
     out << qint32(1) << TerrainMaterialMap::BakedSide << TerrainMaterialMap::OutputSide
         << TerrainMaterialMap::SamplingMode << gridLayout.patchesPerSide;
-    for (int i=1;i<tfile->materialsCount;++i) {
-        out << shaderKey(*tfile,i);
-        QString path=QDir(texturepath).filePath(primaryName(*tfile,i));
+    for (int i : sourceSlots(*tfile)) {
+        if (tfile->materialUidMapPresent) out << i;
+        out << sourceKey(*tfile,i);
+        QString path=QDir(texturepath).filePath(sourceName(*tfile,i));
         const QString dds=path.left(path.size()-3)+"dds";
         if (path.endsWith(".ace",Qt::CaseInsensitive) && QFileInfo::exists(dds)) path=dds;
         const QFileInfo source(path);
@@ -793,10 +867,11 @@ void Terrain::loadProceduralMaterial(const QString &directory) {
         procedural->error = "Procedural bitmap is not divisible by this patch count";
     else if (procedural->map.read(QDir(directory).filePath(ref),procedural->error)) {
         procedural->ready = reserveProceduralBake(procedural->error);
+        procedural->libraryCanRecover=procedural->ready;
         procedural->sourceIds = procedural->map.usedIds();
         for (int id : procedural->sourceIds) {
             if (!procedural->ready) break;
-            if (id==0) { procedural->error="Reserved bake cannot be a procedural source"; procedural->ready=false; break; }
+            if (id==0 && !tfile->materialUidMapPresent) { procedural->error="Reserved bake cannot be a procedural source"; procedural->ready=false; break; }
             if (!procedural->ensureSource(*tfile,id,texturepath)) { procedural->ready = false; break; }
         }
         procedural->bakeAvailable=tfile->bakedMaterialInfo!="v1:pending"
@@ -817,8 +892,9 @@ void Terrain::loadProceduralMaterial(const QString &directory) {
         }
     }
     if (!procedural->ready) qWarning() << name << procedural->error << "Procedural painting/save refused; static fallback retained";
+    procedural->rememberLibrary(*tfile);
 }
-bool Terrain::setProceduralMaterial(bool enabled, QString &error) {
+bool Terrain::setProceduralMaterial(bool enabled, QString &error, quint32 materialUid) {
     if (!Game::writeEnabled || !editable || Game::serverClient) { error = "Terrain is not writable/editable in this session"; return false; }
     if (enabled == usesProceduralMaterial()) return true;
     if (enabled) {
@@ -830,12 +906,37 @@ bool Terrain::setProceduralMaterial(bool enabled, QString &error) {
         }
         auto state = std::make_shared<TerrainProceduralState>();
         const int first=tfile->bakedMaterialInfo.isEmpty()?0:1;
-        if (!state->ensureSource(*tfile,first,texturepath)) { error = state->error; return false; }
+        if (materialUid) {
+            const auto definition=TerrainMaterialLibrary::current()->find(materialUid);
+            QImage source;
+            if (!definition) { error="Selected route material UiD does not exist"; return false; }
+            if (!loadSource(texturepath,definition->texture,source,error)) return false;
+            state->sources.insert(first,source);
+        } else if (tfile->materialUidMapPresent) {
+            error="Choose a route material before enabling procedural terrain"; return false;
+        } else if (!state->ensureSource(*tfile,first,texturepath)) { error = state->error; return false; }
         if (!Undo::PushTerrainMaterial(this)) { error="Cannot capture procedural undo state"; return false; }
-        if (!reserveProceduralBake(error)) return false;
+        if (materialUid) {
+            // No source-palette migration or spare local shader slot is needed.
+            // The old palette is already captured by undo; keep only a fresh
+            // conventional baked shader pair in the descriptor.
+            const int slot=tfile->newMat();
+            *tfile->materials[slot].tex[0]=*tfile->amaterials[slot].tex[0]=name+(lowTile?"_lo_procedural.ace":"_procedural.ace");
+            const float detail=ProceduralDetailScale*gridLayout.patchesPerSide;
+            memcpy(&tfile->materials[slot].itex[1][3],&detail,sizeof(detail));
+            const auto bake=TerrainMaterialSource::capture(*tfile,slot);
+            TerrainMaterialSource::restorePalette(*tfile,{bake});
+            if (!tfile->bakedMaterialInfo.startsWith("v1:")) tfile->bakedMaterialInfo="v1:pending";
+            tfile->materialUidMapPresent=tfile->materialUidMapValid=true;
+            tfile->materialUids={{1,materialUid}};
+            for (int p=0;p<gridLayout.patchRecordCount();++p) tfile->tdata[p*13+6]=0;
+            clearStaticTextureRefs();
+        } else if (!reserveProceduralBake(error)) return false;
         state->sources.insert(1,state->sources.take(first));
         state->map.initialize(1); state->ready=true; state->changed=true;
         state->sourceIds.insert(1);
+        state->libraryCanRecover=true;
+        state->rememberLibrary(*tfile);
         state->bakeAvailable=tfile->bakedMaterialInfo!="v1:pending"
                 && QFileInfo::exists(QDir(texturepath).filePath(primaryName(*tfile,0)));
         procedural = state;
@@ -888,6 +989,7 @@ QVector<int> Terrain::proceduralRequestOrder(const PatchVisibility &visibility) 
     return order;
 }
 void Terrain::prepareVisibleProceduralTextures(const PatchVisibility &visibility) {
+    synchronizeMaterialLibrary();
     if (!rendersProceduralMaterial()) return;
     procedural->nearCamera=proceduralNearCamera(visibility);
     procedural->detailViewValid=visibility.valid;
@@ -1013,7 +1115,7 @@ int Terrain::proceduralSourceTexture(int x, int z, float posx, float posz) {
     getLocalCoords(x,z,posx,posz);
     const int id = procedural->map.at(int(posx*TerrainMaterialMap::Side/gridLayout.terrainWorldSize),
                                      int(posz*TerrainMaterialMap::Side/gridLayout.terrainWorldSize));
-    return TexLib::addTex(texturepath,primaryName(*tfile,id));
+    return TexLib::addTex(texturepath,sourceName(*tfile,id));
 }
 void Terrain::rememberProceduralSource(Brush *brush, int x, int z, float posx, float posz) {
     if (!brush || !loaded) return;
@@ -1022,6 +1124,8 @@ void Terrain::rememberProceduralSource(Brush *brush, int x, int z, float posx, f
     if (usesProceduralMaterial() && procedural && procedural->ready)
         id = procedural->map.at(int(posx*TerrainMaterialMap::Side/gridLayout.terrainWorldSize),int(posz*TerrainMaterialMap::Side/gridLayout.terrainWorldSize));
     brush->terrainShaderKey = shaderKey(*tfile,id);
+    brush->terrainMaterialUid=usesProceduralMaterial() && tfile->materialUidMapPresent ? tfile->materialUids.value(id) : 0;
+    brush->terrainMaterialRoute=TerrainMaterialLibrary::current()->path();
     brush->terrainShaderIsBake = id==0 && !tfile->bakedMaterialInfo.isEmpty();
     brush->terrainShaderSource = TerrainMaterialSource::capture(*tfile,id);
     brush->terrainShaderTextureId = brush->texId;
@@ -1031,12 +1135,26 @@ void Terrain::rememberProceduralSource(Brush *brush, int x, int z, float posx, f
 void Terrain::paintProceduralMaterial(Brush *brush, int x, int z, float posx, float posz,
                                       float radiusMeters, int operation) {
     if (!usesProceduralMaterial()) return;
+    synchronizeMaterialLibrary();
     if (operation<TerrainMaterialMap::TexturePaint || operation>TerrainMaterialMap::FloodFill) return;
     if (!Game::writeEnabled || !editable || Game::serverClient || !brush) return;
     if (!procedural || !procedural->ready) { reportToolError(procedural ? procedural->error : "Procedural bitmap unavailable"); return; }
     if (!brush->useTexture || !brush->tex) { reportToolError("Procedural terrain paints shader IDs, not colors. Select an existing terrain shader texture."); return; }
     const bool exactPick = brush->terrainShaderTextureId == brush->texId && !brush->terrainShaderKey.isEmpty();
     int id = -1;
+    const bool global=tfile->materialUidMapPresent;
+    const auto library=TerrainMaterialLibrary::current();
+    const auto definition=library->find(brush->terrainMaterialUid);
+    if (global) {
+        if (!tfile->materialUidMapValid || !definition || brush->terrainMaterialRoute!=library->path()) {
+            reportToolError("Choose an existing material from this route's global list first"); return;
+        }
+        for (auto it=tfile->materialUids.cbegin();it!=tfile->materialUids.cend();++it)
+            if (it.value()==definition->uid) { id=it.key(); break; }
+    } else {
+    if (brush->terrainMaterialUid) {
+        reportToolError("This legacy procedural tile has no UiD table. Save it, switch to static, then enable with a global material to start a new map."); return;
+    }
     const QString filename = QFileInfo(brush->tex->pathid).fileName();
     if (exactPick && brush->terrainShaderIsBake) {
         reportToolError("The baked composite is not a procedural source; pick an original source shader"); return;
@@ -1056,8 +1174,12 @@ void Terrain::paintProceduralMaterial(Brush *brush, int x, int z, float posx, fl
         && brush->terrainPickedShaderId >= 1 && brush->terrainPickedShaderId < 256
         && shaderKey(*tfile,brush->terrainPickedShaderId) == brush->terrainShaderKey)
         id = brush->terrainPickedShaderId;
+    }
     const bool importing = id < 0;
-    if (importing) {
+    if (importing && global) {
+        for (int slot=0;slot<256;++slot) if (!tfile->materialUids.contains(slot)) { id=slot; break; }
+        if (id<0) { reportToolError("Tile material map is full (256 local IDs)"); return; }
+    } else if (importing) {
         if (!exactPick || !brush->terrainShaderSource) {
             reportToolError("Pick a source shader from a terrain palette tile first; its complete definition is needed for import."); return;
         }
@@ -1083,7 +1205,11 @@ void Terrain::paintProceduralMaterial(Brush *brush, int x, int z, float posx, fl
     const bool capture = Undo::NeedsTerrainMaterialSnapshot(this);
     if ((capture || importing) && apply(true).isEmpty()) return;
     QImage importedSource;
-    if (importing) {
+    if (importing && global) {
+        if (!loadSource(texturepath,definition->texture,importedSource,procedural->error)) {
+            reportToolError(procedural->error); return;
+        }
+    } else if (importing) {
         // Import only for a real, unlocked, nonwhite paint stamp. Existing IDs
         // and cached outputs remain stable because the shader pair is appended.
         if (tfile->materials.count(id) || tfile->amaterials.count(id)) {
@@ -1107,7 +1233,8 @@ void Terrain::paintProceduralMaterial(Brush *brush, int x, int z, float posx, fl
         reportToolError("Cannot capture procedural undo state"); return;
     }
     if (importing) {
-        id = brush->terrainShaderSource->appendTo(*tfile,procedural->error);
+        if (global) tfile->materialUids.insert(id,definition->uid);
+        else id = brush->terrainShaderSource->appendTo(*tfile,procedural->error);
         if (id < 0) { reportToolError(procedural->error); return; }
         procedural->sources.insert(id,importedSource);
     }
@@ -1115,6 +1242,7 @@ void Terrain::paintProceduralMaterial(Brush *brush, int x, int z, float posx, fl
     if (changed.isEmpty()) return;
     procedural->cancelPending(false); // Edits replace only their own miniature requests.
     procedural->sourceIds.insert(id);
+    procedural->rememberLibrary(*tfile);
     procedural->changed = true;
     procedural->bakeCurrent = false;
     modified = true;
@@ -1150,6 +1278,7 @@ QHash<QByteArray,QImage> Terrain::proceduralBakeMiniatures() const {
 }
 bool Terrain::saveProceduralBake() {
     if (!usesProceduralMaterial()) return true;
+    synchronizeMaterialLibrary();
     if (!procedural || !procedural->ready) return false;
     if (QFileInfo(primaryName(*tfile,0)).fileName()!=primaryName(*tfile,0)
             || primaryName(*tfile,0).contains('\\') || primaryName(*tfile,0).contains(':')) {
@@ -1180,7 +1309,7 @@ bool Terrain::saveProceduralBake() {
     bool sourceChanged=false;
     for (int id : used) {
         QImage image;
-        if (!loadSource(texturepath,primaryName(*tfile,id),image,procedural->error)) {
+        if (sourceName(*tfile,id).isEmpty() || !loadSource(texturepath,sourceName(*tfile,id),image,procedural->error)) {
             qWarning() << procedural->error; return false;
         }
         sourceChanged |= procedural->sources.contains(id) && procedural->sources[id]!=image;

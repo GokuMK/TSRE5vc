@@ -1702,6 +1702,10 @@ void RouteEditorGLWidget::mousePressEvent(QMouseEvent *event) {
             Game::check_coords(x,z,px,pz);
             Terrain *terrain=Game::terrainLib->getTerrainByXY(x,z);
             if (terrain && textureId >= 0) terrain->rememberProceduralSource(defaultPaintBrush,x,z,px,pz);
+            if (textureId>=0) emit terrainMaterialPicked();
+            // Procedural picking acquires a source ref; static picking borrows
+            // the patch's ref. The toolbar now retains its own selection/history.
+            if (terrain && terrain->usesProceduralMaterial() && textureId>=0) TexLib::delRef(textureId);
         }
         if (toolEnabled == "proceduralTileEnableTool" || toolEnabled == "proceduralTileDisableTool") {
             int x=int(camera->pozT[0]), z=int(camera->pozT[1]);
@@ -1709,7 +1713,8 @@ void RouteEditorGLWidget::mousePressEvent(QMouseEvent *event) {
             Game::check_coords(x,z,px,pz);
             Terrain *terrain=Game::terrainLib->getTerrainByXY(x,z);
             QString error;
-            if (terrain && terrain->loaded && !terrain->setProceduralMaterial(toolEnabled == "proceduralTileEnableTool",error))
+            if (terrain && terrain->loaded && !terrain->setProceduralMaterial(toolEnabled == "proceduralTileEnableTool",error,
+                    defaultPaintBrush ? defaultPaintBrush->terrainMaterialUid : 0))
                 QMessageBox::warning(this,"Procedural terrain",error);
         }
         if (toolEnabled == "putTerrainTexTool") {

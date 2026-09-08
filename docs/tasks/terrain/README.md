@@ -36,7 +36,7 @@ implement them; deferred designs are not blockers for the working terrain tools.
 - [x] Stage A bake/disable fallback, miniature caching and incremental saves.
 - [x] Independent 2048 m detailed-texture distance and load-time bake prefetch.
 - [x] DXT1 baked fallback, now 1024-square: 421 CPU checks in both near-output modes and procedural GL pass; old-size regeneration, legacy RGB loading and unchanged-block preservation covered.
-- [ ] [Stage B route material catalogue](terrain-procedural-baked-fallback.md#b-options-to-analyze-later): decide local definition copies versus stable-ID mapping.
+- [x] [Stage B route material catalogue](../../features/terrain-material-library.md): UTF-16 `.dat`, stable UiDs, tile-local byte-ID mapping, Choose/From image, legacy no-table fallback and mapping-aware undo. User confirmed the revised separate-button and mixed-material history workflow works.
 - [x] [Procedural undo](terrain-procedural-materials.md#procedural-undo-follow-up): one deep ID-map snapshot per tile/action; existing two-second stroke segmentation; background level-1 compression; restore IDs, toggle/palette/UV state, not generated textures. Region deltas remain an alternative.
 - [ ] Procedural settings UI: detail distance, output sizes and debug/restore validation; replace internal-only controls when the production settings design is agreed.
 - [ ] [Simple lookup migration](terrain-simple-lookup-migration.md): remove `TerrainLibSimple`, using synthetic no-TD lookup in the common backend.

@@ -131,6 +131,7 @@ signals:
     void pointerInfo(float* pos);
     void setToolbox(QString name);
     void setBrushTextureId(int val);
+    void terrainMaterialPicked();
     void showProperties(GameObj* obj);
     void updateProperties(GameObj* obj);
     void flexData(int x, int z, float* p);

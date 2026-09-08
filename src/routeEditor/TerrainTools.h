@@ -13,6 +13,8 @@
 
 #include <QtWidgets>
 #include <tsre/world/Route.h>
+#include <memory>
+struct TerrainMaterialSource;
 
 class Brush;
 class ClickableLabel;
@@ -41,6 +43,7 @@ public slots:
     void chooseColorEnabled();
     void updateTexPrev();
     void setBrushTextureId(int val);
+    void rememberCurrentMaterial(); // Call after picked/selected material metadata is complete.
     // brush
     void setBrushSize(int val);
     void setBrushSize(QString val);
@@ -65,11 +68,22 @@ signals:
     void setPaintBrush(Brush* brush);
     
 private:
+    bool chooseProceduralMaterial(const QString &message = {});
     Brush* paintBrush;
     QVector<QImage> brushShapes;
     int currentBrushShape = -1;
     void nextBrushShape();
-    QVector<QPair<int, Texture*>> texLastItems;
+    struct RecentMaterial {
+        int textureId=-1;
+        quint32 uid=0;
+        QString route, texturePath, shaderKey, shaderTile;
+        bool isBake=false;
+        int pickedShaderId=-1;
+        std::shared_ptr<const TerrainMaterialSource> shaderSource;
+    };
+    QVector<RecentMaterial> texLastItems;
+    int selectedTextureRef=-1;
+    bool previewRetryScheduled=false;
     //QVector<QImage
     
     QPixmap* texPreview;

@@ -1,6 +1,11 @@
 #include "TerrainMaterialTestSuite.h"
 #include <tsre/world/TerrainMaterialMap.h>
 #include <tsre/world/TerrainMaterialSource.h>
+#include <tsre/world/TerrainMaterialLibrary.h>
+#include <routeEditor/TerrainMaterialDialog.h>
+#include <QTextStream>
+#include <QStringConverter>
+#include <QFontDatabase>
 #include <tsre/world/Terrain.h>
 #include <tsre/world/TerrainLib.h>
 #include <tsre/world/TerrainMeshBackend.h>
@@ -47,6 +52,7 @@ public:
     using Terrain::PatchVisibility;
     using Terrain::proceduralRequestOrder;
     using Terrain::prepareVisibleProceduralTextures;
+    using Terrain::synchronizeMaterialLibrary;
     using Terrain::proceduralNearCamera;
     using Terrain::proceduralTextureRemap;
     using Terrain::proceduralFallbackTexture;
@@ -313,6 +319,96 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
     const QString tileDir=temp.path()+"/routes/proc-test/tiles";
     QDir().mkpath(tileDir);
     red.save(temp.path()+"/red.png"); blue.save(temp.path()+"/blue.png");
+    {
+        const auto library=TerrainMaterialLibrary::current();
+        check(library->error().isEmpty() && library->materials().isEmpty(),"global-library-missing-starts-empty");
+        const auto redUid=library->addImage(temp.path()+"/red.png",error);
+        const auto blueUid=library->addImage(temp.path()+"/blue.png",error);
+        check(redUid==1 && blueUid==2 && library->find(redUid)->texture=="red.png","global-library-add-images-stable-uids");
+        QFile dat(library->path()); check(dat.open(QIODevice::ReadOnly),"global-fixture-open-library"); const auto original=dat.readAll(); dat.close();
+        check(original.startsWith("\xff\xfe") && library->reload() && library->find(blueUid),"global-library-utf16-bom-roundtrip");
+        check(!TerrainMaterialLibrary::validTextureName("../escape.ace")
+              && !TerrainMaterialLibrary::validTextureName("C:/absolute.ace")
+              && TerrainMaterialLibrary::validTextureName("sub/Żwir.ace"),"global-library-confined-unicode-source-paths");
+        auto writeText=[&](const QString &text) {
+            QFile file(library->path());
+            if (!file.open(QIODevice::WriteOnly)) { check(false,"global-fixture-open-text"); return; }
+            QTextStream stream(&file); stream.setEncoding(QStringConverter::Utf16LE); stream.setGenerateByteOrderMark(true);
+            stream << text;
+        };
+        const QString prefix="TSRE_Terrain_Materials ( Version ( 1 ) NextUiD ( 10 ) ";
+        writeText(prefix+"Material ( UiD ( 2 ) Name ( \"Żwir\" ) Texture ( \"blue.png\" ) ) )");
+        check(library->reload() && !library->find(1) && library->find(2)->displayName=="Żwir","global-library-removal-does-not-renumber");
+        check(library->addImage(temp.path()+"/red.png",error)==10,"global-library-nextuid-never-reuses-deleted-slot");
+        writeText(prefix+"Material ( UiD ( 2 ) Name ( a ) Texture ( blue.png ) ) Material ( UiD ( 2 ) Name ( b ) Texture ( red.png ) ) )");
+        check(!library->reload() && !library->find(2) && !library->save(error),"global-library-duplicate-uid-refuses-overwrite");
+        check(dat.open(QIODevice::WriteOnly),"global-fixture-restore-library"); dat.write(original); dat.close();
+        check(library->reload(),"global-library-repair-recovers");
+        { QScopedValueRollback<bool> writable(Game::writeEnabled,false);
+          check(!library->addImage(temp.path()+"/red.png",error) && !library->save(error),"global-library-respects-readonly"); }
+        TerrainMaterialDialog chooser(nullptr,blueUid);
+        check(chooser.selectedUid()==blueUid,"global-chooser-selects-stable-uid");
+#ifdef Q_OS_WIN
+        // The offscreen QPA has no Windows font discovery. Production's Windows
+        // plugin does; load its normal UI font explicitly for this screenshot.
+        const int font=QFontDatabase::addApplicationFont(qEnvironmentVariable("WINDIR")+"/Fonts/segoeui.ttf");
+        if (font>=0) chooser.setFont(QFont(QFontDatabase::applicationFontFamilies(font).value(0),9));
+#endif
+        chooser.show(); QApplication::processEvents();
+        chooser.grab().save("build/terrain-material-chooser.png"); chooser.hide();
+
+        TestTerrain global; global.setup(library->textureDirectory(),16,"global-library");
+        check(global.setProceduralMaterial(true,error,redUid),"global-tile-enable-from-uid");
+        check(global.descriptor().materialsCount==1 && global.descriptor().materialUids==QMap<int,quint32>{{1,redUid}},"global-tile-only-bake-shader-no-definition-copies");
+        const int redOutput=global.proceduralTexture(0);
+        auto outputBytes=[&] {
+            const int id=global.proceduralTexture(0);
+            if (id<0) return QByteArray();
+            auto *texture=TexLib::mtex.at(id);
+            return texture->decodeToCpu() && texture->imageData ? QByteArray(reinterpret_cast<const char*>(texture->imageData),texture->imageSize) : QByteArray();
+        };
+        const auto redPixels=outputBytes();
+        auto undo=global.captureProceduralUndo();
+        Texture source(library->textureDirectory()+"/blue.png");
+        Brush brush; brush.tex=&source; brush.useTexture=true;
+        brush.terrainMaterialUid=blueUid; brush.terrainMaterialRoute=library->path();
+        global.paintProceduralMaterial(&brush,0,0,-992,-992,8,TerrainMaterialMap::FillPatch);
+        const int blueOutput=global.proceduralTexture(0);
+        const auto bluePixels=outputBytes();
+        check(redOutput>=0 && blueOutput>=0 && redOutput!=blueOutput
+              && global.descriptor().materialsCount==1 && global.descriptor().materialUids.value(0)==blueUid,
+              "global-paint-imports-byte-id-zero-without-local-shader");
+        check(undo && undo->restore() && global.descriptor().materialUids.size()==1
+              && !redPixels.isEmpty() && outputBytes()==redPixels,"global-undo-restores-uid-table-and-pixels");
+        global.paintProceduralMaterial(&brush,0,0,-992,-992,8,TerrainMaterialMap::FillPatch);
+        check(global.save(),"global-tile-bake-map-and-descriptor-save");
+        TFile disk; disk.readT(tileDir+"/global-library.t");
+        check(disk.materialUidMapPresent && disk.materialUidMapValid && disk.materialUids==global.descriptor().materialUids
+              && disk.materialsCount==1,"global-uid-table-binary-roundtrip");
+        global.releaseProceduralTextures(); global.loadProceduralMaterial(tileDir);
+        check(global.rendersProceduralMaterial() && !bluePixels.isEmpty() && outputBytes()==bluePixels,"global-tile-load-regenerates-identical-output");
+        Brush picked; global.rememberProceduralSource(&picked,0,0,-992,-992);
+        check(picked.terrainMaterialUid==blueUid && picked.terrainMaterialRoute==library->path(),"global-pick-retains-uid");
+        writeText(prefix+"Material ( UiD ( 1 ) Name ( red ) Texture ( red.png ) ) Material ( UiD ( 2 ) Name ( changed ) Texture ( red.png ) ) )");
+        check(library->reload(),"global-library-edit-definition");
+        global.synchronizeMaterialLibrary();
+        check(outputBytes()==redPixels && global.descriptor().materialUids.value(0)==blueUid,"global-source-change-invalidates-pixels-not-ids");
+        writeText(prefix+"Material ( UiD ( 1 ) Name ( red ) Texture ( red.png ) ) )");
+        library->reload(); global.synchronizeMaterialLibrary();
+        check(!global.rendersProceduralMaterial() && !global.save(),"global-deleted-definition-refuses-save");
+        check(dat.open(QIODevice::WriteOnly),"global-fixture-repair-library"); dat.write(original); dat.close();
+        library->reload(); global.synchronizeMaterialLibrary();
+        check(global.rendersProceduralMaterial() && outputBytes()==bluePixels,"global-repaired-definition-recovers-existing-map");
+        global.descriptor().materialUids[0]=0x80000001u;
+        check(global.descriptor().save(tileDir+"/global-high-uid.t"),"global-unsigned-uid-save");
+        TFile high; high.readT(tileDir+"/global-high-uid.t");
+        check(high.materialUids.value(0)==0x80000001u,"global-unsigned-uid-roundtrip");
+        global.loadProceduralMaterial(tileDir);
+        check(!global.rendersProceduralMaterial() && !global.save(),"global-missing-uid-refuses-procedural-no-local-fallback");
+        global.descriptor().materialUidMapValid=false;
+        check(!global.descriptor().save(tileDir+"/invalid-uid.t"),"global-malformed-table-refuses-serialization");
+        check(finishMaterialJobs(),"global-library-background-jobs-drain");
+    }
     {
         QByteArray original(TerrainMaterialMap::Side*TerrainMaterialMap::Side,char(17));
         auto snapshot=std::make_shared<UndoBuffer>(original);
@@ -1374,6 +1470,30 @@ int TsreTests::runTerrainMaterialGlSuite() {
     QImage red(256,256,QImage::Format_RGB888);red.fill(Qt::red);red.save(temp.path()+"/red.png");
     QImage blue(256,256,QImage::Format_RGB888);blue.fill(Qt::blue);blue.save(temp.path()+"/blue.png");
     int failed=0;
+    {
+        const auto library=TerrainMaterialLibrary::current();
+        QString error;
+        const auto redUid=library->addImage(temp.path()+"/red.png",error);
+        const auto blueUid=library->addImage(temp.path()+"/blue.png",error);
+        TestTerrain a,b; a.setup(library->textureDirectory(),16,"global-gl-a"); b.setup(library->textureDirectory(),16,"global-gl-b");
+        bool ok=redUid && blueUid && a.setProceduralMaterial(true,error,redUid) && b.setProceduralMaterial(true,error,redUid);
+        const int shared=a.proceduralTexture(0);
+        ok &= shared>=0 && b.proceduralTexture(0)==shared && TexLib::mtex.at(shared)->glLoaded;
+        auto snapshot=a.captureProceduralUndo();
+        Texture source(library->textureDirectory()+"/blue.png");
+        Brush brush; brush.tex=&source; brush.useTexture=true;
+        brush.terrainMaterialUid=blueUid; brush.terrainMaterialRoute=library->path();
+        a.paintProceduralMaterial(&brush,0,0,-992,-992,8,TerrainMaterialMap::FillPatch);
+        const int painted=a.proceduralTexture(0);
+        ok &= painted>=0 && painted!=shared && TexLib::mtex.at(painted)->glLoaded && b.proceduralTexture(0)==shared;
+        ok &= snapshot && snapshot->restore() && a.descriptor().materialUids.size()==1;
+        ok &= a.save() && a.proceduralTexture(0)==shared && a.descriptor().materialsCount==1;
+        a.releaseProceduralTextures();
+        ok &= b.proceduralTexture(0)==shared && f->glIsTexture(TexLib::mtex.at(shared)->tex[0]);
+        b.releaseProceduralTextures(); ok &= finishMaterialJobs();
+        if (!ok) ++failed;
+        qInfo() << "[tests:terrain-material-gl] global UiD sharing, synchronous paint, undo/save and independent release" << ok << error;
+    }
     for (const QString &directory : {QStringLiteral("shaders"),QStringLiteral("shaders330")}) {
         for (const QString &shaderName : {QStringLiteral("StandardFog"),QStringLiteral("StandardFogStoredCoords"),QStringLiteral("StandardBloom")}) {
             const QString base="appdata/"+Game::AppDataVersion+"/"+directory+"/"+shaderName;
@@ -1713,6 +1833,117 @@ int TsreTests::runTerrainMaterialGlSuite() {
         if(!selectedTool.isEmpty()) ++failed;
     }
     if(tools.findChildren<QPushButton*>("lockTexTool").size()!=1) ++failed;
+    for (const auto &pair : {qMakePair(QString("proceduralPickTool"),QString("pickTerrainTexTool")),
+                             qMakePair(QString("proceduralLockTool"),QString("lockTexTool"))}) {
+        auto *button=tools.findChild<QPushButton*>(pair.first);
+        if (!button) { ++failed; continue; }
+        button->click(); tools.msg("toolEnabled",selectedTool);
+        if (selectedTool!=pair.second || !button->isChecked()
+                || !tools.findChild<QPushButton*>(pair.second)->isChecked()) ++failed;
+        button->click(); tools.msg("toolEnabled",selectedTool);
+        if (!selectedTool.isEmpty() || button->isChecked()) ++failed;
+    }
+    const bool nativeDialogs=QApplication::testAttribute(Qt::AA_DontUseNativeDialogs);
+    QApplication::setAttribute(Qt::AA_DontUseNativeDialogs,true);
+    bool filePicker=false, materialPicker=false, conversionMessage=false;
+    QTimer::singleShot(0,[&] {
+        if (auto *dialog=qobject_cast<QFileDialog*>(QApplication::activeModalWidget())) {
+            filePicker=true; dialog->reject();
+        }
+    });
+    // Selecting a procedural tool must not change the static Load button.
+    tools.msg("toolEnabled","proceduralFillTool");
+    tools.findChild<QPushButton*>("loadTerrainTexture")->click();
+    QTimer::singleShot(0,[&] {
+        if (auto *dialog=dynamic_cast<TerrainMaterialDialog*>(QApplication::activeModalWidget())) {
+            materialPicker=!dialog->findChild<QLabel*>("materialChooserMessage"); dialog->reject();
+        }
+    });
+    tools.msg("toolEnabled","paintToolTexture");
+    tools.findChild<QPushButton*>("chooseProceduralMaterial")->click();
+    QTimer::singleShot(0,[&] {
+        if (auto *dialog=dynamic_cast<TerrainMaterialDialog*>(QApplication::activeModalWidget())) {
+            auto *message=dialog->findChild<QLabel*>("materialChooserMessage");
+            conversionMessage=message && message->text().contains("initial material");
+            dialog->grab().save("build/terrain-material-conversion-chooser.png");
+            dialog->reject();
+        }
+    });
+    tools.findChild<QPushButton*>("proceduralTileEnableTool")->click();
+    tools.msg("toolEnabled",selectedTool);
+    QApplication::setAttribute(Qt::AA_DontUseNativeDialogs,nativeDialogs);
+    if (!filePicker || !materialPicker || !conversionMessage || !selectedTool.isEmpty()) ++failed;
+    qInfo() << "[tests:terrain-material-gl] separate static/procedural buttons and explanatory conversion chooser"
+            << filePicker << materialPicker << conversionMessage;
+    {
+        const auto library=TerrainMaterialLibrary::current();
+        const int redTexture=TexLib::addTex(library->textureDirectory(),QStringLiteral("red.png"));
+        tools.setBrushTextureId(redTexture); TexLib::delRef(redTexture);
+        tools.rememberCurrentMaterial();
+        selectedBrush->size=37;
+        QTimer::singleShot(0,[&] {
+            if (auto *dialog=dynamic_cast<TerrainMaterialDialog*>(QApplication::activeModalWidget())) {
+                dialog->findChild<QListWidget*>()->setCurrentRow(0); dialog->accept();
+            }
+        });
+        tools.findChild<QPushButton*>("chooseProceduralMaterial")->click();
+        bool ok=selectedBrush->terrainMaterialUid==1;
+        auto *first=tools.findChild<QLabel*>("recentTerrainMaterial0");
+        auto *second=tools.findChild<QLabel*>("recentTerrainMaterial1");
+        ok &= first && second && first->toolTip().startsWith("Procedural:")
+                && second->toolTip().startsWith("Static / local shader:");
+        tools.texPreviewEnabled(1);
+        ok &= selectedBrush->terrainMaterialUid==0 && selectedBrush->texId==redTexture && selectedBrush->size==37;
+        tools.texPreviewEnabled(1);
+        ok &= selectedBrush->terrainMaterialUid==1 && selectedBrush->terrainMaterialRoute==library->path()
+                && selectedBrush->size==37 && selectedBrush->useTexture;
+        const auto shapeBefore=tools.findChild<QLabel*>("recentTerrainMaterial6")->pixmap().cacheKey();
+        tools.updateTexPrev();
+        ok &= tools.findChild<QLabel*>("recentTerrainMaterial6")->pixmap().cacheKey()==shapeBefore;
+        TestTerrain target; target.setup(library->textureDirectory(),16,"recent-paint");
+        QString error; ok &= target.setProceduralMaterial(true,error,2);
+        target.paintProceduralMaterial(selectedBrush,0,0,-992,-992,8,TerrainMaterialMap::FillPatch);
+        ok &= target.descriptor().materialUids.values().contains(1) && target.descriptor().materialUids.size()==2;
+        // Picking captures metadata after the texture signal, not before it.
+        tools.setBrushTextureId(redTexture);
+        target.rememberProceduralSource(selectedBrush,0,0,-992,-992);
+        tools.rememberCurrentMaterial();
+        ok &= first->toolTip().startsWith("Procedural:") && second->isEnabled()
+                && !tools.findChild<QLabel*>("recentTerrainMaterial2")->isEnabled();
+        tools.texPreviewEnabled(7); // Main preview must not erase selection identity.
+        ok &= selectedBrush->terrainMaterialUid==1;
+        // Exercise local shader identity and bounded history independently.
+        {
+            TerrainTools recent("Terrain"); Brush *brush=nullptr;
+            QObject::connect(&recent,&TerrainTools::setPaintBrush,[&](Brush *value){ brush=value; });
+            TestTerrain palette; palette.setup(library->textureDirectory(),16,"recent-palette");
+            recent.setBrushTextureId(redTexture); palette.rememberProceduralSource(brush,0,0,-992,-992);
+            const auto key=brush->terrainShaderKey;
+            recent.rememberCurrentMaterial();
+            recent.setBrushTextureId(redTexture); recent.rememberCurrentMaterial();
+            recent.texPreviewEnabled(1);
+            ok &= brush->terrainShaderKey==key && brush->terrainShaderSource && brush->terrainShaderTextureId==redTexture;
+            for (int i=0;i<8;++i) {
+                recent.setBrushTextureId(redTexture); brush->terrainShaderKey=QString::number(i); recent.rememberCurrentMaterial();
+            }
+            for (int i=0;i<6;++i) ok &= recent.findChild<QLabel*>(QString("recentTerrainMaterial%1").arg(i))->isEnabled();
+            recent.texPreviewEnabled(5); ok &= brush->terrainShaderKey=="2";
+        }
+        QElapsedTimer previewWait; previewWait.start();
+        while (!selectedBrush->tex->loaded && previewWait.elapsed()<2000) {
+            QApplication::processEvents(); QThread::msleep(1);
+        }
+        tools.updateTexPrev();
+        const auto previewColor=first->pixmap().toImage().pixelColor(32,32);
+        if (previewColor.red()<240 || previewColor.green()>10 || previewColor.blue()>10)
+            qInfo() << "[tests:terrain-material-gl] recent preview diagnostic" << previewColor
+                    << selectedBrush->texId << redTexture << selectedBrush->tex->ref
+                    << selectedBrush->tex->loaded << selectedBrush->tex->error
+                    << selectedBrush->tex->pathid << TexLib::mtex.count(selectedBrush->texId);
+        ok &= previewColor.red()>240 && previewColor.green()<10 && previewColor.blue()<10;
+        if (!ok) ++failed;
+        qInfo() << "[tests:terrain-material-gl] mixed recent materials restore identity, paint, deduplicate and retain six slots" << ok;
+    }
     tools.ensurePolished(); tools.resize(tools.sizeHint());
     QImage screenshot(tools.size(),QImage::Format_ARGB32);screenshot.fill(Qt::white);tools.render(&screenshot);
     screenshot.save("build/terrain-procedural-tools.png");

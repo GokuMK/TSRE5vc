@@ -1,5 +1,10 @@
 # Terrain procedural materials from a painted ID map
 
+Stage B update: new global-material tiles use the
+[route material library](../../features/terrain-material-library.md), not copied
+local shader definitions. Earlier local-palette descriptions below document the
+original demo and the retained fallback for tiles without a UiD table.
+
 Status: stage-1 tech demo implemented; automated verification is recorded below,
 and interactive acceptance is pending. Implementation was authorized after the
 reviewed design was committed as `ea0c02d`.

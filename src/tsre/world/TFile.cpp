@@ -39,6 +39,7 @@ void TFile::setPatchValue(int patchId, PatchField field, float value) {
 void TFile::initNew(QString name, int samples, int sampleS, int patches){
     sampleMaterialBuffer.clear();
     bakedMaterialInfo.clear();
+    materialUidMapPresent=false; materialUidMapValid=true; materialUids.clear();
     TerrainGridLayout layout;
     QString layoutError;
     if (!TerrainGridLayout::tryCreate(samples, static_cast<float>(sampleS),
@@ -131,6 +132,7 @@ bool TFile::readT(QString fSfile) {
 void TFile::load(FileBuffer* data){
         sampleMaterialBuffer.clear();
         bakedMaterialInfo.clear();
+        materialUidMapPresent=false; materialUidMapValid=true; materialUids.clear();
         data->off += 32;
         int pozycja, offset, akto;
         data->findToken(136);
@@ -231,6 +233,24 @@ void TFile::get139(FileBuffer* data, int length) {
                     slen = data->getShort()*2;
                     sampleNbuffer = data->getString(data->off, data->off + slen);
                     break;
+                case TS::TSRE_Terrain_Material_Map: {
+                    const bool duplicate=materialUidMapPresent;
+                    materialUidMapPresent=true; materialUidMapValid=false;
+                    const int end=akto+offset;
+                    if (duplicate || offset<5 || end>data->length) return;
+                    const int labelBytes=data->get()*2;
+                    if (labelBytes+4>end-data->off) return;
+                    data->off+=labelBytes;
+                    const quint32 count=quint32(data->getInt());
+                    if (count>256 || quint64(count)*8!=quint64(end-data->off)) return;
+                    for (quint32 i=0;i<count;++i) {
+                        const quint32 id=quint32(data->getInt()), uid=quint32(data->getInt());
+                        if (id>255 || !uid || materialUids.contains(int(id))) return;
+                        materialUids.insert(int(id),uid);
+                    }
+                    materialUidMapValid=true;
+                    break;
+                }
                 case TS::TSRE_Terrain_Material_Buffer:
                 case TS::TSRE_Terrain_Baked_Material: {
                     QString &value = pozycja == TS::TSRE_Terrain_Material_Buffer
@@ -705,6 +725,11 @@ bool TFile::save(QString name){
 }
 
 void TFile::save(QDataStream &write){
+    if (materialUidMapPresent && (!materialUidMapValid || materialUids.size()>256)) {
+        write.setStatus(QDataStream::WriteFailed); return;
+    }
+    for (auto it=materialUids.cbegin();materialUidMapPresent && it!=materialUids.cend();++it)
+        if (it.key()<0 || it.key()>255 || !it.value()) { write.setStatus(QDataStream::WriteFailed); return; }
     //calculate size
     
     int t137 = 0;
@@ -721,6 +746,7 @@ void TFile::save(QDataStream &write){
 
     // 139
     int t139 = 1;
+    if (materialUidMapPresent) t139 += 13 + materialUids.size()*8;
     if (!sampleMaterialBuffer.isEmpty())
         t139 += sampleMaterialBuffer.length()*2 + 11;
     if (!bakedMaterialInfo.isEmpty())
@@ -923,6 +949,12 @@ void TFile::save(QDataStream &write){
               << qint32(bakedMaterialInfo.length()*2+3) << qint8(0)
               << quint16(bakedMaterialInfo.length());
         for (QChar c : bakedMaterialInfo) write << c.unicode();
+    }
+    if (materialUidMapPresent) {
+        write << qint32(TS::TSRE_Terrain_Material_Map)
+              << qint32(5+materialUids.size()*8) << qint8(0) << quint32(materialUids.size());
+        for (auto it=materialUids.cbegin();it!=materialUids.cend();++it)
+            write << quint32(it.key()) << it.value();
     }
     write << (qint32)151;
     write << (qint32)t151;
