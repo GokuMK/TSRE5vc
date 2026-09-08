@@ -43,7 +43,7 @@ public:
     float getElevation();
     void setElevation(float prom);
     void rotate(float x, float y, float z);
-    void set(int sh, FileBuffer* val);
+    void set(TS::TokenId sh, FileBuffer* val);
     void set(QString sh, FileBuffer* data);
     void set(QString sh, float* val);
     void save(QTextStream* out);

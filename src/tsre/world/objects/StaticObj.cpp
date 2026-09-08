@@ -108,16 +108,16 @@ void StaticObj::set(QString sh, QString val){
     return;
 }
 
-void StaticObj::set(int sh, FileBuffer* data) {
+void StaticObj::set(TS::TokenId sh, FileBuffer* data) {
     if (sh == TS::FileName) {
-        data->off++;
+        data->skipLabel();
         int slen = data->getShort()*2;
         fileName = *data->getString(data->off, data->off + slen);
         data->off += slen;
         return;
     }
     if (sh == TS::NoDirLight) {
-        //data->off++;
+        //data->skipLabel();
         return;
     }
     WorldObj::set(sh, data);

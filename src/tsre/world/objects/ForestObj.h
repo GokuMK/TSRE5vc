@@ -48,7 +48,7 @@ public:
     WorldObj* clone();
     bool allowNew();
     void load(int x, int y);
-    void set(int sh, FileBuffer* data);
+    void set(TS::TokenId sh, FileBuffer* data);
     void set(QString sh, long long int val);
     void set(QString sh, float val);
     void set(QString sh, QString val);

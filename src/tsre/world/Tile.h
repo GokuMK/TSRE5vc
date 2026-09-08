@@ -25,7 +25,7 @@ public:
 	float position[3];
 	float radius;
         QVector<ViewDbSphere> viewDbSphere;
-        void set(int sh, FileBuffer* data);
+        void set(TS::TokenId sh, FileBuffer* data);
         void set(QString sh, FileBuffer* data);
         void save(QTextStream* out, const QString offset);
     };
@@ -51,6 +51,8 @@ public:
     static QString getNameXY(int e);
     void load();
     void loadUtf16Data(FileBuffer *data);
+    // Reads binary object state without loading shapes, sounds or GL resources.
+    bool loadBinaryData(FileBuffer* data, bool sound = false, QString* error = nullptr);
     void loadInit();
     void replaceWorldObj(WorldObj *nowy);
     void selectObjectsByXYRange(QVector<GameObj*> &objects, int minx, int maxx, int minz, int maxz);

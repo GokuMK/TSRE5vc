@@ -244,40 +244,40 @@ void LevelCrObj::set(QString sh, QString val){
     return;
 }
 
-void LevelCrObj::set(int sh, FileBuffer* data) {
+void LevelCrObj::set(TS::TokenId sh, FileBuffer* data) {
     if (sh == TS::LevelCrParameters) {
-        data->off++;
+        data->skipLabel();
         levelCrParameters[0] = data->getFloat();
         levelCrParameters[1] = data->getFloat();
         return;
     }
     if (sh == TS::CrashProbability) {
-        data->off++;
+        data->skipLabel();
         crashProbability = data->getFloat();
         return;
     }
     if (sh == TS::LevelCrData) {
-        data->off++;
+        data->skipLabel();
         levelCrData[0] = data->getUint();
         levelCrData[1] = data->getUint();
         trItemId.fill(-1,levelCrData[1]*4);
         return;
     }
     if (sh == TS::LevelCrTiming) {
-        data->off++;
+        data->skipLabel();
         levelCrTiming[0] = data->getFloat();
         levelCrTiming[1] = data->getFloat();
         levelCrTiming[2] = data->getFloat();
         return;
     }
     if (sh == TS::TrItemId) {
-        data->off++;
+        data->skipLabel();
         trItemId[trItemIdCount++] = data->getUint();
         trItemId[trItemIdCount++] = data->getUint();
         return;
     }
     if (sh == TS::FileName) {
-        data->off++;
+        data->skipLabel();
         int slen = data->getShort()*2;
         fileName = *data->getString(data->off, data->off + slen);
         data->off += slen;

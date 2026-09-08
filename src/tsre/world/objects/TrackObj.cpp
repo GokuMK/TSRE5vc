@@ -294,26 +294,26 @@ void TrackObj::set(QString sh, QString val){
     return;
 }
 
-void TrackObj::set(int sh, FileBuffer* data) {
+void TrackObj::set(TS::TokenId sh, FileBuffer* data) {
     if (sh == TS::FileName) {
-        data->off++;
+        data->skipLabel();
         int slen = data->getShort()*2;
         fileName = *data->getString(data->off, data->off + slen);
         data->off += slen;
         return;
     }
     if (sh == TS::SectionIdx) {
-        data->off++;
+        data->skipLabel();
         sectionIdx = data->getUint();
         return;
     }
     if (sh == TS::Elevation) {
-        data->off++;
+        data->skipLabel();
         elevation = data->getFloat();
         return;
     }
     if (sh == TS::JNodePosn) {
-        data->off++;
+        data->skipLabel();
         jNodePosn.push_back(std::array<float,5>());
         jNodePosn.back()[0] = data->getInt();
         jNodePosn.back()[1] = data->getInt();

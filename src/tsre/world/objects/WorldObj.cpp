@@ -103,7 +103,7 @@ int WorldObj::isTrackObj(QString sh) {
 }
 
 
-WorldObj* WorldObj::createObj(int sh) {
+WorldObj* WorldObj::createObj(TS::TokenId sh) {
     WorldObj* nowy;
     if (sh == TS::Static) {
         nowy = (WorldObj*) (new StaticObj());
@@ -121,7 +121,7 @@ WorldObj* WorldObj::createObj(int sh) {
         nowy = (WorldObj*) (new TrackObj());
         (nowy)->resPath = Game::root + "/global/shapes";
         (nowy)->typeID = (nowy)->trackobj;
-    } else if (sh == TS::Gantry || sh == TS::Gantry2) {
+    } else if (sh == TS::Gantry) {
         nowy = (WorldObj*) (new StaticObj());
         (nowy)->resPath = Game::root + "/routes/" + Game::route + "/shapes";
         (nowy)->typeID = (nowy)->gantry;
@@ -129,7 +129,7 @@ WorldObj* WorldObj::createObj(int sh) {
         nowy = (WorldObj*) (new StaticObj());
         (nowy)->resPath = Game::root + "/routes/" + Game::route + "/shapes";    
         (nowy)->typeID = (nowy)->collideobject;
-    } else if (sh == TS::Dyntrack || sh == TS::DynTrack2) {
+    } else if (sh == TS::Dyntrack) {
         nowy = (WorldObj*) (new DynTrackObj());
         (nowy)->resPath = Game::root + "/routes/" + Game::route + "/textures";
         (nowy)->typeID = (nowy)->dyntrack;
@@ -137,7 +137,7 @@ WorldObj* WorldObj::createObj(int sh) {
         nowy = (WorldObj*) (new ForestObj());
         (nowy)->resPath = Game::root + "/routes/" + Game::route + "/textures";
         (nowy)->typeID = (nowy)->forest;
-    } else if (sh == TS::Transfer || sh == TS::Transfer2) {
+    } else if (sh == TS::Transfer) {
         nowy = (WorldObj*) (new TransferObj());
         (nowy)->resPath = Game::root + "/routes/" + Game::route + "/textures";
         (nowy)->typeID = (nowy)->transfer;
@@ -145,11 +145,11 @@ WorldObj* WorldObj::createObj(int sh) {
         nowy = (WorldObj*) (new PlatformObj());
         (nowy)->resPath = Game::root + "/routes/" + Game::route + "/shapes";
         (nowy)->typeID = (nowy)->platform;
-    } else if (sh == TS::Siding || sh == TS::Siding2) {
+    } else if (sh == TS::Siding) {
         nowy = (WorldObj*) (new PlatformObj());
         (nowy)->resPath = Game::root + "/routes/" + Game::route + "/shapes";       
         (nowy)->typeID = (nowy)->siding;
-    } else if (sh == TS::CarSpawner || sh == TS::CarSpawner2) {
+    } else if (sh == TS::CarSpawner) {
         nowy = (WorldObj*) (new CarSpawnerObj());
         (nowy)->resPath = Game::root + "/routes/" + Game::route + "/shapes";     
         (nowy)->typeID = (nowy)->carspawner;
@@ -157,7 +157,7 @@ WorldObj* WorldObj::createObj(int sh) {
         nowy = (WorldObj*) (new LevelCrObj());
         (nowy)->resPath = Game::root + "/routes/" + Game::route + "/shapes";   
         (nowy)->typeID = (nowy)->levelcr;
-    } else if (sh == TS::Pickup || sh == TS::Pickup2) {
+    } else if (sh == TS::Pickup) {
         nowy = (WorldObj*) (new PickupObj());
         (nowy)->resPath = Game::root + "/routes/" + Game::route + "/shapes";       
         (nowy)->typeID = (nowy)->pickup;
@@ -165,21 +165,21 @@ WorldObj* WorldObj::createObj(int sh) {
         nowy = (WorldObj*) (new HazardObj());
         (nowy)->resPath = Game::root + "/routes/" + Game::route + "/shapes";    
         (nowy)->typeID = (nowy)->hazard;
-    }/* else if (sh == TS::) {
+    } else if (sh == TS::Soundsource) {
         nowy = (WorldObj*) (new SoundSourceObj());
         (nowy)->resPath = Game::root + "/routes/" + Game::route + "/shapes";    
         (nowy)->typeID = (nowy)->soundsource;
-    } else if (sh == TS::) {
+    } else if (sh == TS::Soundregion) {
         nowy = (WorldObj*) (new SoundRegionObj());
         (nowy)->resPath = Game::root + "/routes/" + Game::route + "/shapes";    
         (nowy)->typeID = (nowy)->soundregion;
-    }*/ else {
-        qDebug() << "# Unsupported WorldObj !!! " << sh;
+    } else {
+        qDebug() << "# Unsupported WorldObj !!! " << TS::describe(sh);
         //(*nowy) = new WorldObj();
         return NULL;
         //
     }
-    (nowy)->type = TS::IdName[sh];
+    (nowy)->type = TS::name(sh);
     return nowy;
 }
 
@@ -425,19 +425,19 @@ void WorldObj::set(QString sh, QString val) {
 
 }
 
-void WorldObj::set(int sh, FileBuffer* data) {
+void WorldObj::set(TS::TokenId sh, FileBuffer* data) {
     if (sh == TS::UiD) {
-        data->off++;
+        data->skipLabel();
         UiD = data->getUint();
         return;
     }
     if (sh == TS::StaticFlags) {
-        data->off++;
+        data->skipLabel();
         staticFlags = data->getUint();
         return;
     }
     if (sh == TS::Position) {
-        data->off++;
+        data->skipLabel();
         position[0] = data->getFloat();
         position[1] = data->getFloat();
         position[2] = data->getFloat();
@@ -445,7 +445,7 @@ void WorldObj::set(int sh, FileBuffer* data) {
         return;
     }
     if (sh == TS::QDirection) {
-        data->off++;
+        data->skipLabel();
         qDirection[0] = data->getFloat();
         qDirection[1] = data->getFloat();
         qDirection[2] = data->getFloat();
@@ -455,7 +455,7 @@ void WorldObj::set(int sh, FileBuffer* data) {
         return;
     }
     if (sh == TS::Matrix3x3) {
-        data->off++;
+        data->skipLabel();
         matrix3x3 = new float[9];
         matrix3x3[0] = data->getFloat();
         matrix3x3[1] = data->getFloat();
@@ -473,27 +473,27 @@ void WorldObj::set(int sh, FileBuffer* data) {
         return;
     }
     if (sh == TS::VDbId) {
-        data->off++;
+        data->skipLabel();
         vDbId = data->getUint();
         return;
     }
     if (sh == TS::StaticDetailLevel) {
-        data->off++;
+        data->skipLabel();
         staticDetailLevel = data->getUint();
         return;
     }
     if (sh == TS::CollideFlags) {
-        data->off++;
+        data->skipLabel();
         collideFlags = data->getUint();
         return;
     }
     if (sh == TS::CollideFunction) {
-        data->off++;
+        data->skipLabel();
         collideFunction = data->getUint();
         return;
     }
     if (sh == TS::MaxVisDistance) {
-        data->off++;
+        data->skipLabel();
         // 4byte undefined data
         return;
     }

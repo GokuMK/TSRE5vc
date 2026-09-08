@@ -87,10 +87,18 @@ importance, mixing types, seasonal properties and source alpha remain future wor
 
 ## Tile mapping and compatibility
 
-Binary `.t` token `TSRE_Terrain_Material_Map` (100011), inside `terrain_samples`,
+Binary `.t` token `TSRETerrainMaterialMap` (`0x00061002`), inside `terrain_samples`,
 contains the standard label byte, uint32 pair count and `(uint32 localID, uint32
 UiD)` pairs. At most 256 pairs; local IDs are 0..255 and UiDs must be nonzero.
 The 8-bit compressed `.pmap` still contains **local IDs**, never UiDs.
+
+The namespace migration deliberately does not recognize prototype token 100011
+or the earlier 100009/100010 reference tokens. Recreate the experimental tiles;
+there is no token-number migration on load or save. See
+[native SIMIS token IDs](native-token-ids.md) for the complete allocation.
+The inspected legacy ORTS reader rejects unknown `terrain_samples` children,
+so namespace allocation alone does not provide fallback in that reader; its
+container policy needs a separate change. MSTS's unknown-child skipping differs.
 
 New global-material tiles retain just the ordinary baked material-0 shader pair
 in `terrain_shaders`; no global definition copies are written there. Local ID 0

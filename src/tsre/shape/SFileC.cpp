@@ -17,469 +17,245 @@
 #include <QOpenGLBuffer>
 #include <tsre/ogl/GLUU.h>
 #include <tsre/fileFunctions/TS.h>
+#include <tsre/fileFunctions/SimisReader.h>
+#include <vector>
 
-    void SFileC::odczytajshaders(FileBuffer* bufor, SFile* pliks) {
-        int temp;
-        
-        bufor->off += 1;
-        pliks->ishaders = bufor->getInt();
 
-        pliks->shader = new SFile::fshader[pliks->ishaders];
-        for (int i = 0; i < pliks->ishaders; i++) {
-            bufor->off += 4;
-            temp = bufor->get();
-            bufor->off += 6;
-            //pliks->image[i] = new SFile::imgs();
-            pliks->shader[i].name = "";
-            for (int j = 0; j < (temp - 3) / 2; j++) {
-                pliks->shader[i].name += bufor->getShort();
-                //bufor->get();
-            }
-            pliks->shader[i].name = pliks->shader[i].name.toLower();
-            if(pliks->shader[i].name == "texdiff") 
-                pliks->shader[i].alpha = 1;
-            else 
-                pliks->shader[i].alpha = 0;
-            //qDebug() << pliks->shaderName[i];
-        }
-        return;
+void SFileC::odczytajshaders(FileBuffer* data, SFile* shape) {
+    data->skipLabel();
+    shape->ishaders = Simis::count(data);
+    shape->shader = new SFile::fshader[shape->ishaders];
+    for (int i = 0; i < shape->ishaders; ++i) {
+        Simis::Block item(data, TS::named_shader);
+        shape->shader[i].name = data->readString().toLower();
+        shape->shader[i].alpha = shape->shader[i].name == "texdiff" ? 1 : 0;
     }
+}
 
-    //-----------------------------------
-    //Szukanie sekcji
-    //-----------------------------------
-    /*void SFileC::szukajsekcjic(int szukane, FileBuffer* bufor) {
-        int s;
-        while (bufor->length>bufor->off) {
-            s = (int)bufor->getInt();
-            if (s == szukane) {
-                return;
-            }
-
-            s = bufor->getInt();
-            bufor->off += s;
-        }
-        //Console.WriteLine("nie znaleziono 7");
-        return;
-    }*/
-    //-----------------------------------
-    //Oczytanie i zapisanie sekcji points
-    //-----------------------------------
-
-    void SFileC::odczytajpunktyc(FileBuffer* bufor, SFile* pliks) {
-        bufor->off += 1;
-        pliks->tpoints.ipoints = bufor->getInt();
-
-        pliks->tpoints.points = new SFile::fpoint[ pliks->tpoints.ipoints + 1];
-        for (int i = 0; i <  pliks->tpoints.ipoints; i++) {
-            bufor->off += 9;
-            //pliks->tpoints.points[i] = new SFile::fpoint();
-            pliks->tpoints.points[i].x = bufor->getFloat();
-            pliks->tpoints.points[i].y = bufor->getFloat();
-            pliks->tpoints.points[i].z = bufor->getFloat();
-        }
-        return;
+void SFileC::odczytajpunktyc(FileBuffer* data, SFile* shape) {
+    data->skipLabel();
+    shape->tpoints.ipoints = Simis::count(data);
+    shape->tpoints.points = new SFile::fpoint[shape->tpoints.ipoints + 1];
+    for (int i = 0; i < shape->tpoints.ipoints; ++i) {
+        Simis::Block item(data, TS::point);
+        shape->tpoints.points[i].x = data->getFloat();
+        shape->tpoints.points[i].y = data->getFloat();
+        shape->tpoints.points[i].z = data->getFloat();
     }
-    //-----------------------------------
-    //Oczytanie i zapisanie sekcji uv_points
-    //-----------------------------------
+}
 
-    void SFileC::odczytajuvpunktyc(FileBuffer* bufor, SFile* pliks) {
-        bufor->off += 1;
-        pliks->tpoints.iuv_points = bufor->getInt();
-        
-        pliks->tpoints.uv_points = new SFile::fpoint[pliks->tpoints.iuv_points + 1];
-        for (int i = 0; i < pliks->tpoints.iuv_points; i++) {
-            bufor->off += 9;
-            //pliks->tpoints.uv_points[i] = new SFile::fpoint();
-            pliks->tpoints.uv_points[i].x = bufor->getFloat();
-            pliks->tpoints.uv_points[i].y = bufor->getFloat();
-        }
-        return;
+void SFileC::odczytajuvpunktyc(FileBuffer* data, SFile* shape) {
+    data->skipLabel();
+    shape->tpoints.iuv_points = Simis::count(data);
+    shape->tpoints.uv_points = new SFile::fpoint[shape->tpoints.iuv_points + 1];
+    for (int i = 0; i < shape->tpoints.iuv_points; ++i) {
+        Simis::Block item(data, TS::uv_point);
+        shape->tpoints.uv_points[i].x = data->getFloat();
+        shape->tpoints.uv_points[i].y = data->getFloat();
     }
-    //-----------------------------------
-    //Oczytanie i zapisanie sekcji normals
-    //-----------------------------------
+}
 
-    void SFileC::odczytajnormalnec(FileBuffer* bufor, SFile* pliks) {
-        bufor->off += 1;
-        pliks->tpoints.inormals = bufor->getInt();
-        pliks->tpoints.normals = new SFile::fpoint[pliks->tpoints.inormals + 1];
-        for (int i = 0; i < pliks->tpoints.inormals; i++) {
-            bufor->off += 9;
-            //pliks->tpoints.normals[i] = new SFile::fpoint();
-            pliks->tpoints.normals[i].x = bufor->getFloat();
-            pliks->tpoints.normals[i].y = bufor->getFloat();
-            pliks->tpoints.normals[i].z = bufor->getFloat();
-        }
-        return;
+void SFileC::odczytajnormalnec(FileBuffer* data, SFile* shape) {
+    data->skipLabel();
+    shape->tpoints.inormals = Simis::count(data);
+    shape->tpoints.normals = new SFile::fpoint[shape->tpoints.inormals + 1];
+    for (int i = 0; i < shape->tpoints.inormals; ++i) {
+        Simis::Block item(data, TS::vector);
+        shape->tpoints.normals[i].x = data->getFloat();
+        shape->tpoints.normals[i].y = data->getFloat();
+        shape->tpoints.normals[i].z = data->getFloat();
     }
-    //-----------------------------------
-    //Oczytanie i zapisanie sekcji matrices
-    //-----------------------------------
+}
 
-    void SFileC::odczytajmatricesc(FileBuffer* bufor, SFile* pliks) {
-        int temp;
+void SFileC::odczytajmatricesc(FileBuffer* data, SFile* shape) {
+    data->skipLabel();
+    shape->iloscm = Simis::count(data);
+    shape->macierz = new SFile::matrt[shape->iloscm + 1];
+    for (int i = 0; i < shape->iloscm; ++i) {
+        Simis::Block item(data, TS::matrix);
+        shape->macierz[i].name = item.label();
+        for (int j = 0; j < 16; ++j)
+            shape->macierz[i].param[j] = j == 15 ? 1
+                    : (j == 3 || j == 7 || j == 11) ? 0 : data->getFloat();
+    }
+}
 
-        bufor->off += 1;
-        pliks->iloscm = bufor->getInt();
+void SFileC::odczytajimagesc(FileBuffer* data, SFile* shape) {
+    data->skipLabel();
+    shape->ilosci = Simis::count(data);
+    shape->image = new SFile::imgs[shape->ilosci + 1];
+    for (int i = 0; i < shape->ilosci; ++i) {
+        Simis::Block item(data, TS::image);
+        shape->image[i].name = data->readString();
+        shape->image[i].tex = -1;
+    }
+}
 
-        pliks->macierz = new SFile::matrt[pliks->iloscm + 1];
-        for (int i = 0; i < pliks->iloscm; i++) {
-            bufor->off += 8;
-            temp = bufor->get();
-            pliks->macierz[i].name = *bufor->getString(bufor->off, bufor->off + temp*2);
-            //qDebug() << pliks->macierz[i].name;
-            bufor->off += temp*2;
-            //pliks->macierz[i] = new SFile::matrt();
-            for (int j = 0; j < 16; j++) {
-                if(j==3 || j==7 || j==11) {
-                    pliks->macierz[i].param[j] = 0;
-                    continue;
-                }
-                if(j==15) {
-                    pliks->macierz[i].param[j] = 1;
-                    continue;
-                }
-                pliks->macierz[i].param[j] = bufor->getFloat();
+void SFileC::odczytajtexturesc(FileBuffer* data, SFile* shape) {
+    data->skipLabel();
+    shape->ilosct = Simis::count(data);
+    shape->texture = new SFile::text[shape->ilosct];
+    for (int i = 0; i < shape->ilosct; ++i) {
+        Simis::Block item(data, TS::texture);
+        shape->texture[i].image = data->getInt();
+        shape->texture[i].arg1 = data->getInt();
+        shape->texture[i].arg2 = data->getInt();
+        shape->texture[i].arg3 = data->getInt();
+    }
+}
+
+void SFileC::odczytajvtx_statesc(FileBuffer* data, SFile* shape) {
+    data->skipLabel();
+    shape->iloscv = Simis::count(data);
+    shape->vtxstate = new SFile::vtxs[shape->iloscv];
+    for (int i = 0; i < shape->iloscv; ++i) {
+        Simis::Block item(data, TS::vtx_state);
+        shape->vtxstate[i].arg1 = data->getInt();
+        shape->vtxstate[i].matrix = data->getInt();
+        shape->vtxstate[i].arg2 = data->getInt();
+        shape->vtxstate[i].arg3 = data->getInt();
+        shape->vtxstate[i].arg4 = data->getInt();
+    }
+}
+
+void SFileC::odczytajprim_statesc(FileBuffer* data, SFile* shape) {
+    data->skipLabel();
+    shape->iloscps = Simis::count(data);
+    shape->primstate = new SFile::primst[shape->iloscps];
+    for (int i = 0; i < shape->iloscps; ++i) {
+        Simis::Block item(data, TS::prim_state);
+        shape->primstate[i].arg1 = data->getInt();
+        shape->primstate[i].arg2 = data->getInt();
+        {
+            Simis::Block textures(data, TS::tex_idxs);
+            shape->primstate[i].arg3 = Simis::count(data, 4);
+            shape->primstate[i].arg4 = -1;
+            for (int j = 0; j < shape->primstate[i].arg3; ++j) {
+                const int index = data->getInt();
+                if (j == 0) shape->primstate[i].arg4 = index;
             }
         }
-        return;
+        shape->primstate[i].arg5 = data->getInt();
+        shape->primstate[i].vtx_state = data->getInt();
+        shape->primstate[i].arg6 = data->getInt();
+        shape->primstate[i].arg7 = data->getInt();
+        shape->primstate[i].arg8 = data->getInt();
     }
-    //-----------------------------------
-    //Oczytanie i zapisanie sekcji images
-    //-----------------------------------
+}
 
-    void SFileC::odczytajimagesc(FileBuffer* bufor, SFile* pliks) {
-        int temp;
+void SFileC::odczytajloddc(FileBuffer* bufor, SFile* pliks) {
+    if (!QOpenGLContext::currentContext())
+        throw FileBuffer::ParseError("Shape mesh upload requires an OpenGL context");
+    QOpenGLFunctions* f = QOpenGLContext::currentContext()->functions();
+    GLUU* gluu = GLUU::get();
+    int w, n, p, txt;
+    std::vector<fvertex> vert;
 
-        bufor->off += 1;
-        pliks->ilosci = bufor->getInt();
+    bufor->skipLabel();
+    const int controls = Simis::count(bufor);
+    if (!controls) return;
+    // Preserve TSRE's single-LOD-control policy.
+    Simis::Block control(bufor, TS::lod_control);
+    {
+        Simis::Block header(bufor, TS::distance_levels_header);
+    }
+    Simis::Block levels(bufor, TS::distance_levels);
+    pliks->iloscd = Simis::count(bufor);
+    pliks->distancelevel = new SFile::dist[pliks->iloscd];
 
-        pliks->image = new SFile::imgs[pliks->ilosci + 1];
-        for (int i = 0; i < pliks->ilosci; i++) {
-            bufor->off += 4;
-            temp = bufor->get();
-            bufor->off += 6;
-            //pliks->image[i] = new SFile::imgs();
-            pliks->image[i].name = "";
-            for (int j = 0; j < (temp - 3) / 2; j++) {
-                pliks->image[i].name += bufor->getShort();
-                //bufor->get();
+    for (int j = 0; j < pliks->iloscd; ++j) {
+        Simis::Block level(bufor, TS::distance_level);
+        {
+            Simis::Block header(bufor, TS::distance_level_header);
+            {
+                Simis::Block selection(bufor, TS::dlevel_selection);
+                pliks->distancelevel[j].levelSelection = bufor->getFloat();
             }
-            pliks->image[i].tex = -1;
-        }
-        return;
-    }
-    //-----------------------------------
-    //Oczytanie i zapisanie sekcji textures
-    //-----------------------------------
-
-    void SFileC::odczytajtexturesc(FileBuffer* bufor, SFile* pliks) {
-
-        bufor->off += 1;
-
-        pliks->ilosct = bufor->getInt();
-
-        pliks->texture = new SFile::text[pliks->ilosct];
-
-        for (int i = 0; i < pliks->ilosct; i++) {
-            //pliks->texture[i] = new SFile::text();
-            bufor->off += 9;
-            pliks->texture[i].image = bufor->getInt();
-            pliks->texture[i].arg1 = bufor->getInt();
-            pliks->texture[i].arg2 = bufor->getInt();
-            pliks->texture[i].arg3 = bufor->getInt();
-        }
-        return;
-    }
-    //-----------------------------------
-    //Oczytanie i zapisanie sekcji vtx_states
-    //-----------------------------------
-
-    void SFileC::odczytajvtx_statesc(FileBuffer* bufor, SFile* pliks) {
-
-        bufor->off += 1;
-        pliks->iloscv = bufor->getInt();
-
-        pliks->vtxstate = new SFile::vtxs[pliks->iloscv];
-
-        for (int i = 0; i < pliks->iloscv; i++) {
-            bufor->off += 9;
-            //pliks->vtxstate[i] = new SFile::vtxs();
-            pliks->vtxstate[i].arg1 = bufor->getInt();
-            pliks->vtxstate[i].matrix = bufor->getInt();
-            pliks->vtxstate[i].arg2 = bufor->getInt();
-            pliks->vtxstate[i].arg3 = bufor->getInt();
-            pliks->vtxstate[i].arg4 = bufor->getInt();
-        }
-        return;
-    }
-    //-----------------------------------
-    //Oczytanie i zapisanie sekcji prim_states
-    //-----------------------------------
-
-    void SFileC::odczytajprim_statesc(FileBuffer* bufor, SFile* pliks) {
-        int temp;
-
-        bufor->off += 1;
-        pliks->iloscps = bufor->getInt();
-
-        pliks->primstate = new SFile::primst[pliks->iloscps];
-        for (int i = 0; i < pliks->iloscps; i++) {
-            bufor->off += 8;
-            temp = bufor->get();
-            bufor->off += temp*2;
-
-            //pliks->primstate[i] = new SFile::primst();
-
-            pliks->primstate[i].arg1 = bufor->getInt();
-            pliks->primstate[i].arg2 = bufor->getInt();
-
-            bufor->off += 9;
-
-            pliks->primstate[i].arg3 = bufor->getInt();
-            pliks->primstate[i].arg4 = -1;
-            for(int j = 0; j<pliks->primstate[i].arg3; j++){
-                if(j == 0) pliks->primstate[i].arg4 = bufor->getInt();
-                else bufor->getInt();
+            {
+                Simis::Block hierarchy(bufor, TS::hierarchy);
+                pliks->distancelevel[j].ilosch = Simis::count(bufor, 4);
+                pliks->distancelevel[j].hierarchia = new int[pliks->distancelevel[j].ilosch + 1];
+                for (int i = 0; i < pliks->distancelevel[j].ilosch; ++i)
+                    pliks->distancelevel[j].hierarchia[i] = bufor->getInt();
             }
-            
-            pliks->primstate[i].arg5 = bufor->getInt();
-
-            pliks->primstate[i].vtx_state = bufor->getInt();
-
-            pliks->primstate[i].arg6 = bufor->getInt();
-            pliks->primstate[i].arg7 = bufor->getInt();
-            pliks->primstate[i].arg8 = bufor->getInt();
-
         }
-        return;
-    }
-    //-----------------------------------
-    //Oczytanie i zapisanie sekcji loddetail
-    //-----------------------------------
-
-    void SFileC::odczytajloddc(FileBuffer* bufor, SFile* pliks) {
-        int temp;
-        int i, w, n, p, txt;
-        int v_ilosc;
-        
-        QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
-        GLUU* gluu = GLUU::get();
-        fvertex* vert = new fvertex[120000];
-
-        bufor->off += 5; // pominiecie ilosci lodcontrols;
-
-        //Odczytanie jednego LOD_Control=0;
-        i = 0;
-
-        bufor->off += 13;
-        // pominiecie sekcji;
-        temp = bufor->getInt();
-
-        bufor->off += temp+9;
-
-        // odczytanie ilosci distance levels
-        pliks->iloscd = bufor->getInt();
-
-        // przydzielenie dla nich pamieci
-        pliks->distancelevel = new SFile::dist[pliks->iloscd];
-
-        for (int j = 0; j < pliks->iloscd; j++) {
-            //pliks.distancelevel[j] = new Sfile.dist();
-
-            bufor->off += 27;
-            // pomieniecie sekcji dlevel selection
-            //bufor->off += 4;
-            pliks->distancelevel[j].levelSelection = bufor->getFloat();
-            bufor->off += 9;
-            // odczytanie dlugosci hierarchii obiektow
-            pliks->distancelevel[j].ilosch = bufor->getInt();
-
-            // przydzielenie dla niej pamieci
-            pliks->distancelevel[j].hierarchia = new int[pliks->distancelevel[j].ilosch + 1];
-            // wczytanie hierarchii
-            for (int ii = 0; ii < pliks->distancelevel[j].ilosch; ii++) {
-                pliks->distancelevel[j].hierarchia[ii] = bufor->getInt();
-            }
-
-            // odczytanie ilosci subobjektow
-            bufor->off += 9;
-            pliks->distancelevel[j].iloscs = bufor->getInt();
-            //qDebug () << "--iloscs " << pliks->distancelevel[j].iloscs;
-
-            // przydzielenie im pamieci
-            pliks->distancelevel[j].subobiekty = new SFile::sub[pliks->distancelevel[j].iloscs + 1];
-            // wczytanie subobjektow
-            for (int ii = 0; ii < pliks->distancelevel[j].iloscs; ii++) {
-                //pliks->distancelevel[j].subobiekty[ii] = new SFile::sub();
-
-                
-                bufor->off += 9;
-                bufor->findToken(TS::sub_object_header);
-                //qDebug() << "sub_object_header";
-                int offset1 = bufor->getInt();
-                int akto1 = bufor->off;
-                bufor->off++;
+        Simis::Block subObjects(bufor, TS::sub_objects);
+        pliks->distancelevel[j].iloscs = Simis::count(bufor);
+        pliks->distancelevel[j].subobiekty = new SFile::sub[pliks->distancelevel[j].iloscs + 1];
+        for (int ii = 0; ii < pliks->distancelevel[j].iloscs; ++ii) {
+            Simis::Block object(bufor, TS::sub_object);
+            {
+                Simis::Block header(bufor, TS::sub_object_header);
+                bufor->require(20);
                 bufor->off += 20;
-                for (;;) {
-                    int pozycja2,offset2,akto2;
-                    pozycja2 = bufor->getInt();
-                    offset2 = bufor->getInt();
-                    akto2 = bufor->off;
-                    switch (pozycja2) {
-                        case TS::subobject_shaders:
-                            break;
-                        case TS::subobject_light_cfgs:
-                            break;
-                        case TS::geometry_info:
-                            int pozycja3,offset3,akto3;
-                            bufor->off++;
-                            bufor->off+=40;
-                            for (;;) {
-                                pozycja3 = bufor->getInt();
-                                offset3 = bufor->getInt();
-                                akto3 = bufor->off;
-                                int count;
-                                switch (pozycja3) {
-                                    case TS::geometry_nodes:
-                                        break;
-                                    case TS::geometry_node_map:
-                                        bufor->off++;
-                                        count = bufor->getInt();
-                                        for(int ignm = 0; ignm < count; ignm++ ){
-                                            pliks->distancelevel[j].subobiekty[ii].header.geometryNodeMap.push_back(bufor->getInt());
-                                        }
-                                        break;
-                                    default:
-                                        qDebug() << "#SFile geometry_info - unknown token: "<< pozycja3 << TS::IdName[pozycja3];
-                                        break;
-                                }
-                                bufor->off = akto3 + offset3;
-                                if(bufor->off >= akto2 + offset2) break;
+                while (bufor->off < bufor->readEnd()) {
+                    const auto child = bufor->readBlock();
+                    FileBuffer::ScopedLimit childScope(*bufor, child.end);
+                    if (child.id == TS::geometry_info) {
+                        bufor->skipLabel();
+                        bufor->require(40);
+                        bufor->off += 40;
+                        while (bufor->off < child.end) {
+                            const auto geometry = bufor->readBlock();
+                            FileBuffer::ScopedLimit geometryScope(*bufor, geometry.end);
+                            if (geometry.id == TS::geometry_node_map) {
+                                bufor->skipLabel();
+                                const int count = Simis::count(bufor, 4);
+                                for (int i = 0; i < count; ++i)
+                                    pliks->distancelevel[j].subobiekty[ii].header.geometryNodeMap.push_back(bufor->getInt());
                             }
-                            break;
-                        default:
-                            //qDebug() << "#SFile sub_object_header - unknown token: "<< pozycja2 << TS::IdName[pozycja2];
-                            break;
-                    }
-                    bufor->off = akto2 + offset2;
-                    if(bufor->off >= akto1 + offset1) break;
-                }
-                bufor->off = akto1 + offset1;
-                
-                // Wczytanie wierzcholkow
-                bufor->findToken(TS::vertices);
-                bufor->off += 5;
-                v_ilosc = bufor->getInt();
-                if(v_ilosc > 120000){
-                    delete[] vert;
-                    vert = new fvertex[v_ilosc];
-                }
-                
-                //qDebug () << "iloscv " << v_ilosc;
-                
-                for (int jj = 0; jj < v_ilosc; jj++) {
-                    bufor->off += 9;
-                    //vert[jj] = new fvertex();
-                    vert[jj].arg1 = (short) bufor->getInt();
-                    vert[jj].point = (unsigned int) bufor->getInt();
-                    vert[jj].normal = (unsigned int) bufor->getInt();
-                    vert[jj].arg2 = (short) bufor->getInt();
-                    vert[jj].arg3 = (short) bufor->getInt();
-
-                    bufor->off += 9;
-                    vert[jj].material = (short) bufor->getInt();
-                    
-                    for(int jjjj = 0; jjjj<vert[jj].material; jjjj++){
-                        if(jjjj == 0) vert[jj].uvpoint = (unsigned int) bufor->getInt();
-                        else bufor->getInt();
-                    }
-                    
-                }
-
-                // odczytanie primitives-'czesci'
-                bufor->findToken(53);
-                bufor->off += 5;
-                // odczytanie ich ilosci
-                pliks->distancelevel[j].subobiekty[ii].iloscc = bufor->getInt();
-                //System.out.println("iloscc "+pliks.distancelevel[j].subobiekty[ii].iloscc);
-                int czilosc = 0, aktidx = 0;
-                // przydzielenie im pamieci   
-                pliks->distancelevel[j].subobiekty[ii].czesci = new SFile::czes[pliks->distancelevel[j].subobiekty[ii].iloscc + 1];
-
-                // wczytanie czesci  
-                for (int jj = 0; jj < pliks->distancelevel[j].subobiekty[ii].iloscc; jj++) {
-                    //pliks->distancelevel[j]->subobiekty[ii].czesci[czilosc] = new SFile::czes();
-                    //qDebug() << "cc " << pliks->distancelevel[j].subobiekty[ii].iloscc;
-                    temp = bufor->getInt();
-
-                    if (temp == 56) {
-                        bufor->off += 5;
-                        aktidx = bufor->getInt();
-
-                    } else {
-                        bufor->off += 5 + 9;
-                        pliks->distancelevel[j].subobiekty[ii].czesci[czilosc].prim_state_idx = aktidx;
-                        pliks->distancelevel[j].subobiekty[ii].czesci[czilosc].iloscv = bufor->getInt();
-
-                        //float *wierzcholki = new float[pliks->distancelevel[j].subobiekty[ii].czesci[czilosc].iloscv*8];
-
-                        // wczytanie listy wierzcholkow
-                        //int directxSmierdzi = 0;
-                        //for (int iii = 0; iii < pliks.distancelevel[j].subobiekty[ii].czesci[czilosc].iloscv; iii++) {
-                        
-                        pliks->distancelevel[j].subobiekty[ii].czesci[czilosc].idx = new int[pliks->distancelevel[j].subobiekty[ii].czesci[czilosc].iloscv];
-                        for (int iii = pliks->distancelevel[j].subobiekty[ii].czesci[czilosc].iloscv - 1; iii >= 0; iii--) {
-                            //pliks->distancelevel[j].subobiekty[ii].czesci[czilosc].wierzcholki[iii] = new SFile::wie();
-                            pliks->distancelevel[j].subobiekty[ii].czesci[czilosc].idx[iii] = bufor->getInt();
-                            //w = bufor->getInt();
-                            //System.out.println("----v "+w);
-                            /*n = vert[w].normal;
-                            txt = vert[w].uvpoint;
-                            p = vert[w].point;
-
-                            wierzcholki[iii*8+0] = pliks->tpoints.points[p].x;
-                            wierzcholki[iii*8+1] = pliks->tpoints.points[p].y;
-                            wierzcholki[iii*8+2] = pliks->tpoints.points[p].z;
-                            wierzcholki[iii*8+3] = pliks->tpoints.normals[n].x;
-                            wierzcholki[iii*8+4] = pliks->tpoints.normals[n].y;
-                            wierzcholki[iii*8+5] = pliks->tpoints.normals[n].z;
-                            wierzcholki[iii*8+6] = pliks->tpoints.uv_points[txt].x;
-                            wierzcholki[iii*8+7] = pliks->tpoints.uv_points[txt].y;
-                        */
-                            //directxSmierdzi-=2;
-                            //if(directxSmierdzi<-2) directxSmierdzi = 2;
+                            bufor->off = geometry.end;
                         }
-                        /*QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
-                        pliks->distancelevel[j].subobiekty[ii].czesci[czilosc].VAO.create();
-                        QOpenGLVertexArrayObject::Binder vaoBinder(&pliks->distancelevel[j].subobiekty[ii].czesci[czilosc].VAO);
-                        
-                        pliks->distancelevel[j].subobiekty[ii].czesci[czilosc].VBO.create();
-                        pliks->distancelevel[j].subobiekty[ii].czesci[czilosc].VBO.bind();
-                        pliks->distancelevel[j].subobiekty[ii].czesci[czilosc].VBO.allocate(wierzcholki, pliks->distancelevel[j].subobiekty[ii].czesci[czilosc].iloscv * 8 * sizeof(GLfloat));
-                        f->glEnableVertexAttribArray(0);
-                        f->glEnableVertexAttribArray(1);
-                        f->glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(GLfloat), 0);
-                        f->glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(GLfloat), reinterpret_cast<void *>(6 * sizeof(GLfloat)));
-                        pliks->distancelevel[j].subobiekty[ii].czesci[czilosc].VBO.release();
-                        
-                        delete[] wierzcholki;*/
-                        
-                        bufor->off += 4;
-                        temp = bufor->getInt();
-                        bufor->off += temp;
-
-                        bufor->off += 4;
-                        temp = bufor->getInt();
-                        bufor->off += temp;
-
-                        czilosc++;
-                        
+                    }
+                    bufor->off = child.end;
+                }
+            }
+            {
+                Simis::Block vertices(bufor, TS::vertices);
+                const int count = Simis::count(bufor);
+                vert.clear();
+                vert.resize(count);
+                for (int i = 0; i < count; ++i) {
+                    Simis::Block vertex(bufor, TS::vertex);
+                    vert[i].arg1 = short(bufor->getInt());
+                    vert[i].point = bufor->getUint();
+                    vert[i].normal = bufor->getUint();
+                    vert[i].arg2 = short(bufor->getInt());
+                    vert[i].arg3 = short(bufor->getInt());
+                    Simis::Block uvs(bufor, TS::vertex_uvs);
+                    const int uvCount = Simis::count(bufor, 4);
+                    vert[i].material = short(uvCount);
+                    for (int u = 0; u < uvCount; ++u) {
+                        const auto index = bufor->getUint();
+                        if (!u) vert[i].uvpoint = index;
                     }
                 }
-                pliks->distancelevel[j].subobiekty[ii].iloscc = czilosc;
+            }
+            int czilosc = 0, aktidx = 0;
+            {
+                Simis::Block primitives(bufor, TS::primitives);
+                const int count = Simis::count(bufor);
+                pliks->distancelevel[j].subobiekty[ii].czesci = new SFile::czes[count + 1];
+                for (int i = 0; i < count; ++i) {
+                    const auto primitive = bufor->readBlock();
+                    FileBuffer::ScopedLimit primitiveScope(*bufor, primitive.end);
+                    bufor->skipLabel();
+                    if (primitive.id == TS::prim_state_idx) {
+                        aktidx = bufor->getInt();
+                    } else if (primitive.id == TS::indexed_trilist) {
+                        // Remaining normal/flag children are not rendered by TSRE.
+                        Simis::Block indices(bufor, TS::vertex_idxs);
+                        auto& part = pliks->distancelevel[j].subobiekty[ii].czesci[czilosc++];
+                        part.prim_state_idx = aktidx;
+                        part.iloscv = Simis::count(bufor, 4);
+                        part.idx = new int[part.iloscv];
+                        for (int k = part.iloscv - 1; k >= 0; --k)
+                            part.idx[k] = bufor->getInt();
+                    }
+                    bufor->off = primitive.end;
+                }
+            }
+            pliks->distancelevel[j].subobiekty[ii].iloscc = czilosc;
                 /////////////////////////
                 int iloscv = 0;
                 int offset = 0;
@@ -510,9 +286,11 @@
 
                         w = pliks->distancelevel[j].subobiekty[ii].czesci[jj].idx[iii];
                         int prim_state = pliks->distancelevel[j].subobiekty[ii].czesci[jj].prim_state_idx;
+                        if (w < 0 || w >= int(vert.size()) || prim_state < 0 || prim_state >= pliks->iloscps)
+                            throw FileBuffer::ParseError("Invalid shape vertex or primitive-state index");
                         float alpha = 0;
                         float alphaTest = 0;
-                        if(pliks->primstate[prim_state].arg2 < pliks->ishaders)
+                        if(pliks->primstate[prim_state].arg2 >= 0 && pliks->primstate[prim_state].arg2 < pliks->ishaders)
                             alpha = pliks->shader[pliks->primstate[prim_state].arg2].alpha;
                         else 
                             alpha = 0;
@@ -526,6 +304,9 @@
                         n = vert[w].normal;
                         txt = vert[w].uvpoint;
                         p = vert[w].point;
+                        if (p < 0 || p >= pliks->tpoints.ipoints || n < 0 || n >= pliks->tpoints.inormals
+                                || txt < 0 || txt >= pliks->tpoints.iuv_points)
+                            throw FileBuffer::ParseError("Invalid shape point/normal/UV index");
 
                         wierzcholki[iii*9+0] = pliks->tpoints.points[p].x;
                         wierzcholki[iii*9+1] = pliks->tpoints.points[p].y;
@@ -548,7 +329,6 @@
                 pliks->distancelevel[j].subobiekty[ii].VBO.release();
             }
         }
-        delete[] vert;
         delete[] pliks->tpoints.normals;
         delete[] pliks->tpoints.points;
         delete[] pliks->tpoints.uv_points;

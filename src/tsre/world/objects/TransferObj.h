@@ -34,7 +34,7 @@ public:
     virtual ~TransferObj();
     bool allowNew();
     void load(int x, int y);
-    void set(int sh, FileBuffer* val);
+    void set(TS::TokenId sh, FileBuffer* val);
     void set(QString sh, QString val);
     void set(QString sh, float val);
     void set(QString sh, long long int val);

@@ -78,14 +78,14 @@ bool PlatformObj::allowNew(){
     return true;
 }
 
-void PlatformObj::set(int sh, FileBuffer* data) {
+void PlatformObj::set(TS::TokenId sh, FileBuffer* data) {
     if (sh == TS::SidingData || sh == TS::PlatformData) {
-        data->off++;
+        data->skipLabel();
         platformData = data->getUint();
         return;
     }
     if (sh == TS::TrItemId) {
-        data->off++;
+        data->skipLabel();
         trItemId[trItemIdCount++] = data->getUint();
         trItemId[trItemIdCount++] = data->getUint();
         return;

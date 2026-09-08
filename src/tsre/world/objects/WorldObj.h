@@ -12,6 +12,7 @@
 #define	WORLDOBJ_H
 
 #include <tsre/GameObj.h>
+#include <tsre/fileFunctions/TS.h>
 #include <QString>
 #include <tsre/ogl/GLUU.h>
 #include <tsre/fileFunctions/FileBuffer.h>
@@ -58,7 +59,7 @@ public:
         ShadowDynamic = 4
     };
     
-    static WorldObj* createObj(int sh);
+    static WorldObj* createObj(TS::TokenId sh);
     static WorldObj* createObj(QString sh);
     static QString getResPath(Ref::RefItem* sh);
     static int isTrackObj(QString sh);
@@ -103,7 +104,7 @@ public:
     virtual void load(int x, int y);
     virtual void loadInit();
     virtual ErrorMessage* checkForErrors();
-    virtual void set(int sh, FileBuffer* data);
+    virtual void set(TS::TokenId sh, FileBuffer* data);
     virtual void set(QString sh, FileBuffer* data);
     virtual void set(QString sh, QString val);
     virtual void set(QString sh, float* val);

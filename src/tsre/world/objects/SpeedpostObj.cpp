@@ -606,23 +606,23 @@ void SpeedpostObj::set(QString sh, QString val){
     return;
 }
 
-void SpeedpostObj::set(int sh, FileBuffer* data) {
+void SpeedpostObj::set(TS::TokenId sh, FileBuffer* data) {
     if (sh == TS::FileName) {
-        data->off++;
+        data->skipLabel();
         int slen = data->getShort()*2;
         fileName = *data->getString(data->off, data->off + slen);
         data->off += slen;
         return;
     }
     if (sh == TS::Speed_Digit_Tex) {
-        data->off++;
+        data->skipLabel();
         int slen = data->getShort()*2;
         speedDigitTex = *data->getString(data->off, data->off + slen);
         data->off += slen;
         return;
     }
     if (sh == TS::Speed_Sign_Shape) {
-        data->off++;
+        data->skipLabel();
         int len = data->getUint();
         speedSignShape = new float[len*4+1];
         speedSignShape[0] = len;
@@ -631,14 +631,14 @@ void SpeedpostObj::set(int sh, FileBuffer* data) {
         return;
     }
     if (sh == TS::Speed_Text_Size) {
-        data->off++;
+        data->skipLabel();
         speedTextSize[0] = data->getFloat();
         speedTextSize[1] = data->getFloat();
         speedTextSize[2] = data->getFloat();
         return;
     }
     if (sh == TS::TrItemId) {
-        data->off++;
+        data->skipLabel();
         //this->trItemId = new int[2];
         //trItemId[0] = data->getUint();
         //trItemId[1] = data->getUint();

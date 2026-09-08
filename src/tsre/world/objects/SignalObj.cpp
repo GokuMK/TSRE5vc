@@ -9,6 +9,7 @@
  */
 
 #include <tsre/world/objects/SignalObj.h>
+#include <tsre/fileFunctions/SimisReader.h>
 #include <tsre/shape/SFile.h>
 #include <tsre/shape/ShapeLib.h>
 #include <tsre/math3d/GLMatrix.h>
@@ -348,30 +349,31 @@ void SignalObj::set(QString sh, QString val){
     return;
 }
 
-void SignalObj::set(int sh, FileBuffer* data) {
+void SignalObj::set(TS::TokenId sh, FileBuffer* data) {
     if (sh == TS::FileName) {
-        data->off++;
+        data->skipLabel();
         int slen = data->getShort()*2;
         fileName = *data->getString(data->off, data->off + slen);
         data->off += slen;
         return;
     }
     if (sh == TS::SignalSubObj) {
-        data->off++;
+        data->skipLabel();
         signalSubObj = data->getUint();
         return;
     }
     if (sh == TS::SignalUnits) {
-        data->off++;
-        signalUnits = data->getUint();
+        data->skipLabel();
+        const auto count = data->getUint();
+        if (count > 32)
+            throw FileBuffer::ParseError("Too many signal units for TSRE");
+        signalUnits = int(count);
         for(int i = 0; i < signalUnits; i++){
-            data->getToken();
-            data->getInt();
-            data->off++;
+            Simis::Block unit(data, TS::SignalUnit);
             int sUnitId = data->getInt();
-            data->getToken();
-            data->getInt();
-            data->off++;
+            if (sUnitId < 0 || sUnitId >= 32)
+                throw FileBuffer::ParseError("Signal unit index outside TSRE capacity");
+            Simis::Block item(data, TS::TrItemId);
             signalUnit[sUnitId].enabled = true;
             signalUnit[sUnitId].head = true;
             signalUnit[sUnitId].tdbId = data->getUint();

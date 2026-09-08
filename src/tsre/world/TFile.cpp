@@ -125,115 +125,107 @@ bool TFile::readT(QString fSfile) {
         }
         FileBuffer* data = ReadFile::read(&file);
         //qDebug() << "Date:" << data->length;
-        load(data);
+        const bool ok = load(data);
         delete data;
-        return true;
+        return ok;
 }
-void TFile::load(FileBuffer* data){
-        sampleMaterialBuffer.clear();
-        bakedMaterialInfo.clear();
-        materialUidMapPresent=false; materialUidMapValid=true; materialUids.clear();
+bool TFile::load(FileBuffer* data) {
+    loaded = false;
+    sampleMaterialBuffer.clear();
+    bakedMaterialInfo.clear();
+    materialUidMapPresent = false;
+    materialUidMapValid = true;
+    materialUids.clear();
+    try {
+        FileBuffer::ScopedLimit input(*data, data->readEnd());
+        data->require(32);
         data->off += 32;
-        int pozycja, offset, akto;
-        data->findToken(136);
-        //qDebug() << "znaleziono sekcje 136 na " << data->off << " ";
-        data->off += 5;
-        for (int i = 0; i < 6; i++) {
-            pozycja = data->getInt();
-            offset = data->getInt();
-            akto = data->off;
-            //qDebug() << "znaleziono sekcje " << pozycja <<" na " << data->off << " " << offset;
-
-            switch (pozycja) {
-                case 137:
-                    data->off++;
-                    errthresholdScale = new float;
-                    *errthresholdScale = data->getFloat();
-                    break;
-                case 138:
-                    data->off++;
-                    alwaysselectMaxdist = new float;
-                    *alwaysselectMaxdist = data->getFloat();
-                    break;
-                case 139:
-                    get139(data, akto + offset);
-                    break;
-                case 251:
-                    get251(data);
-                    break;
-                case 151:
-                    get151(data);
-                    break;
-                case 157:
-                    get157(data);
-                    break;
-                default:
-                    qDebug() << "TFile - unknown token: "<< pozycja;
-                    i--;
-                    break;
+        data->findToken(TS::terrain);
+        const int end = data->readBlockEnd();
+        FileBuffer::ScopedLimit root(*data, end);
+        data->skipLabel();
+        while (data->off < end) {
+            const auto block = data->readBlock();
+            FileBuffer::ScopedLimit child(*data, block.end);
+            switch (block.id) {
+            case TS::terrain_errthreshold_scale:
+                data->skipLabel();
+                errthresholdScale = new float(data->getFloat());
+                break;
+            case TS::terrain_alwaysselect_maxdist:
+                data->skipLabel();
+                alwaysselectMaxdist = new float(data->getFloat());
+                break;
+            case TS::terrain_samples: get139(data, block.end); break;
+            case TS::terrain_water_height_offset: get251(data); break;
+            case TS::terrain_shaders: get151(data); break;
+            case TS::terrain_patches: get157(data); break;
+            default: qDebug() << "TFile - unknown token:" << TS::describe(block.id); break;
             }
-            //if(pozycja==157) qDebug() << " ok";
-            data->off = akto + offset;
-            if(data->off >= data->length) break;
+            data->off = block.end;
         }
+        loaded = true;
+        return true;
+    } catch (const FileBuffer::ParseError& error) {
+        qWarning() << "Invalid terrain SIMIS data at" << data->off << ":" << error.what();
+        return false;
     }
+}
 
 void TFile::get139(FileBuffer* data, int length) {
-        int pozycja, offset, akto;
         int slen;
-        data->off++;
-        for (int j = 0; j < 2;) {
-
-            pozycja = data->getInt();
-            offset = data->getInt();
-            akto = data->off;
-            //qDebug() << "139 znaleziono sekcje " << pozycja <<" na " << data->off << " " << offset;
+        data->skipLabel();
+        while (data->off < length) {
+            const auto block = data->readBlock();
+            FileBuffer::ScopedLimit child(*data, block.end);
+            const auto pozycja = block.id;
+            const int akto = block.body, offset = block.end - block.body;
 
             switch (pozycja) {
-                case 140:
-                    data->off++;
+                case TS::terrain_nsamples:
+                    data->skipLabel();
                     nsamples = new int;
                     *nsamples = data->getInt();
                     break;
-                case 141:
-                    data->off++;
+                case TS::terrain_sample_rotation:
+                    data->skipLabel();
                     sampleRotation = new float;
                     *sampleRotation = data->getFloat();
                     break;    
-                case 142:
-                    data->off++;
+                case TS::terrain_sample_floor:
+                    data->skipLabel();
                     floor = data->getFloat();
                     break;
-                case 143:
-                    data->off++;
+                case TS::terrain_sample_scale:
+                    data->skipLabel();
                     scale = data->getFloat();
                     break;
-                case 144:
-                    data->off++;
+                case TS::terrain_sample_size:
+                    data->skipLabel();
                     sampleSize = new float;
                     *sampleSize = data->getFloat();
                     break;
-                case 145:
-                    data->off++;
+                case TS::terrain_sample_fbuffer:
+                    data->skipLabel();
                     slen = data->getShort()*2;
                     sampleFbuffer = data->getString(data->off, data->off + slen);
                     break;
-                case 146:
-                    data->off++;
+                case TS::terrain_sample_ybuffer:
+                    data->skipLabel();
                     slen = data->getShort()*2;
                     sampleYbuffer = data->getString(data->off, data->off + slen);
                     break;
-                case 147:
-                    data->off++;
+                case TS::terrain_sample_ebuffer:
+                    data->skipLabel();
                     slen = data->getShort()*2;
                     sampleEbuffer = data->getString(data->off, data->off + slen);
                     break;
-                case 148:
-                    data->off++;
+                case TS::terrain_sample_nbuffer:
+                    data->skipLabel();
                     slen = data->getShort()*2;
                     sampleNbuffer = data->getString(data->off, data->off + slen);
                     break;
-                case TS::TSRE_Terrain_Material_Map: {
+                case TS::TSRETerrainMaterialMap: {
                     const bool duplicate=materialUidMapPresent;
                     materialUidMapPresent=true; materialUidMapValid=false;
                     const int end=akto+offset;
@@ -251,9 +243,9 @@ void TFile::get139(FileBuffer* data, int length) {
                     materialUidMapValid=true;
                     break;
                 }
-                case TS::TSRE_Terrain_Material_Buffer:
-                case TS::TSRE_Terrain_Baked_Material: {
-                    QString &value = pozycja == TS::TSRE_Terrain_Material_Buffer
+                case TS::TSRETerrainMaterialBuffer:
+                case TS::TSRETerrainBakedMaterial: {
+                    QString &value = pozycja == TS::TSRETerrainMaterialBuffer
                             ? sampleMaterialBuffer : bakedMaterialInfo;
                     // Keep malformed presence active/refused, never silently disable it.
                     value = ":invalid procedural material reference:";
@@ -269,18 +261,18 @@ void TFile::get139(FileBuffer* data, int length) {
                     delete reference;
                     break;
                 }
-                case 281:
+                case TS::terrain_sample_asbuffer:
                     getOpaqueSampleBuffer(data, akto + offset, sampleASbuffer);
-                    if (sampleASbuffer.present && !opaqueSampleBufferOrder.contains(281))
-                        opaqueSampleBufferOrder.push_back(281);
+                    if (sampleASbuffer.present && !opaqueSampleBufferOrder.contains(TS::terrain_sample_asbuffer))
+                        opaqueSampleBufferOrder.push_back(TS::terrain_sample_asbuffer);
                     break;
-                case 282:
+                case TS::terrain_sample_usbuffer:
                     getOpaqueSampleBuffer(data, akto + offset, sampleUSbuffer);
-                    if (sampleUSbuffer.present && !opaqueSampleBufferOrder.contains(282))
-                        opaqueSampleBufferOrder.push_back(282);
+                    if (sampleUSbuffer.present && !opaqueSampleBufferOrder.contains(TS::terrain_sample_usbuffer))
+                        opaqueSampleBufferOrder.push_back(TS::terrain_sample_usbuffer);
                     break;
                 default:
-                    qDebug() << "TFile - unknown token: "<< pozycja;
+                    qDebug() << "TFile - unknown token: "<< TS::describe(pozycja);
                     break;
             }
             data->off = akto + offset;
@@ -321,11 +313,11 @@ int TFile::opaqueSampleBufferBlockLength(const OpaqueSampleBuffer &buffer) {
     return 1 + buffer.label.length() * 2 + buffer.payload.size();
 }
 
-void TFile::saveOpaqueSampleBuffer(QDataStream &write, int token,
+void TFile::saveOpaqueSampleBuffer(QDataStream &write, TS::TokenId token,
                                    const OpaqueSampleBuffer &buffer) {
     if (!buffer.present)
         return;
-    write << static_cast<qint32>(token);
+    write << static_cast<quint32>(token);
     write << static_cast<qint32>(opaqueSampleBufferBlockLength(buffer));
     write << static_cast<quint8>(buffer.label.length());
     for (const QChar character : buffer.label)
@@ -334,198 +326,133 @@ void TFile::saveOpaqueSampleBuffer(QDataStream &write, int token,
         write.writeRawData(buffer.payload.constData(), buffer.payload.size());
 }
 
+
+namespace {
+FileBuffer::Block nextTerrainBlock(FileBuffer* data, TS::TokenId id) {
+    data->findToken(id);
+    data->off -= 4;
+    return data->readBlock();
+}
+
+int terrainBlockCount(FileBuffer* data) {
+    const int count = data->getInt();
+    if (count < 0 || count > (data->readEnd() - data->off) / 9)
+        throw FileBuffer::ParseError("Invalid terrain child count");
+    return count;
+}
+}
+
 void TFile::get151(FileBuffer* data) {
-        data->off++;
-        int pozycja, offset, akto;
-        int slen;
-        
-        int ttilosc = data->getInt();
-        //materials = new mat[ttilosc];
-        materialsCount = ttilosc/2;
-        //System.out.println("ilosc " + ttilosc);
-        Mat *tmat;
-        //int mtilosc = ttilosc/2;
-        for (int j = 0; j < ttilosc; j++) {
-            
-            if(j < materialsCount)
-                tmat = &materials[j];
-            else
-                tmat = &amaterials[j-materialsCount];
-            pozycja = data->getInt();
-            offset = data->getInt();
-            akto = data->off;
-            //System.out.println("=znaleziono sekcje " + pozycja + " na " + data.position() + " " + offset);
-
-            int tttpozycja, tttoffset, tttakto;
-            data->off++;
-
-            slen = data->getShort()*2;
-            tmat->name = data->getString(data->off, data->off + slen);
-            //*tname = tname->trimmed();
-            //qDebug() << *tmat->name;
-            data->off += slen;
-            
-            for (int jj = 0; jj < 2; ) {
-
-                tttpozycja = data->getInt();
-                tttoffset = data->getInt();
-                tttakto = data->off;
-                //System.out.println("==znaleziono sekcje " + tttpozycja + " na " + data.position() + " " + tttoffset);
-
-                switch (tttpozycja) {
-                    case 153:
-                        get153(data, tmat);
-                        jj++;
-                        break;
-                    case 155:
-                        get156(data, tmat);
-                        jj++;
-                        break;
-                    default:
-                        break;
-                }
-                data->off = tttakto + tttoffset;
+    data->skipLabel();
+    const int count = terrainBlockCount(data);
+    // Keep TSRE's existing detailed/auxiliary split; shader policy is unchanged.
+    materialsCount = count / 2;
+    for (int j = 0; j < count; ++j) {
+        const auto shader = nextTerrainBlock(data, TS::terrain_shader);
+        FileBuffer::ScopedLimit shaderScope(*data, shader.end);
+        Mat* mat = j < materialsCount ? &materials[j] : &amaterials[j - materialsCount];
+        data->skipLabel();
+        mat->name = new QString(data->readString());
+        while (data->off < shader.end) {
+            const auto child = data->readBlock();
+            FileBuffer::ScopedLimit childScope(*data, child.end);
+            switch (child.id) {
+            case TS::terrain_texslots: get153(data, mat); break;
+            case TS::terrain_uvcalcs: get156(data, mat); break;
+            default: break;
             }
-
-           data->off = akto + offset;
+            data->off = child.end;
         }
+        data->off = shader.end;
     }
+}
 
-void TFile::get153(FileBuffer* data, TFile::Mat* m) {
-        int pozycja, offset, akto;
-        int slen;
-        
-        data->off++;
-        int ilosc = data->getInt();
-        m->count153 = ilosc;
-        //System.out.println("i to " + ilosc);
-        for (int j = 0; j < ilosc; j++) {
-            pozycja = data->getInt();
-            offset = data->getInt();
-            akto = data->off;
-            //System.out.println("===znaleziono sekcje " + pozycja + " na " + data.position() + " " + offset);     
-            data->off ++;
-
-            //m->tex[j] = "";
-            //char bbb;
-            //while ((bbb = data->get()) > 31) {
-            //    m->tex[j] += bbb;
-            //    data->off++;
-            //}
-            //m->tex[j] = m->tex[j].trimmed();
-
-            slen = data->getShort()*2;
-            m->tex[j] = data->getString(data->off, data->off + slen);
-            //*tname = tname->trimmed();
-            //qDebug() << *m->tex[j];
-            data->off += slen;
-            
-            
-            //qDebug() << j << " "<< *m->tex[j];
-            //data->off -= 3;
-            m->atex[j][0] = data->getInt();
-            m->atex[j][1] = data->getInt();
-            //qDebug() << m->atex[j][0] << " " << m->atex[j][1];
-            data->off = akto + offset;
-        }
+void TFile::get153(FileBuffer* data, TFile::Mat* mat) {
+    data->skipLabel();
+    const int count = terrainBlockCount(data);
+    if (count > 2)
+        throw FileBuffer::ParseError("TSRE supports at most two terrain texture slots");
+    mat->count153 = count;
+    for (int j = 0; j < count; ++j) {
+        const auto slot = nextTerrainBlock(data, TS::terrain_texslot);
+        FileBuffer::ScopedLimit scope(*data, slot.end);
+        data->skipLabel();
+        mat->tex[j] = new QString(data->readString());
+        mat->atex[j][0] = data->getInt();
+        mat->atex[j][1] = data->getInt();
+        data->off = slot.end;
     }
-    
-void TFile::get156(FileBuffer* data, TFile::Mat* m) {
-        int pozycja, offset, akto;
-        data->off++;
-        int ilosc = data->getInt();
-        m->count155 = ilosc;
-        //System.out.println("i to " + ilosc);
-        for (int j = 0; j < ilosc; j++) {
-            pozycja = data->getInt();
-            offset = data->getInt();
-            akto = data->off;
-            //System.out.println("===znaleziono sekcje " + pozycja + " na " + data.position() + " " + offset);     
-            data->off++;
-            
-            m->itex[j][0] = data->getInt();//&0xff;
-            m->itex[j][1] = data->getInt();//&0xff;
-            m->itex[j][2] = data->getInt();//&0xff;
-            m->itex[j][3] = data->getInt();//&0xff;
-            //qDebug() << j <<":" <<m->itex[j][0] << " " << m->itex[j][1] << " " << m->itex[j][2] << " " << m->itex[j][3];
+}
 
-            data->off = akto + offset;
-        }
+void TFile::get156(FileBuffer* data, TFile::Mat* mat) {
+    data->skipLabel();
+    const int count = terrainBlockCount(data);
+    if (count > 2)
+        throw FileBuffer::ParseError("TSRE supports at most two terrain UV calculations");
+    mat->count155 = count;
+    for (int j = 0; j < count; ++j) {
+        const auto uv = nextTerrainBlock(data, TS::terrain_uvcalc);
+        FileBuffer::ScopedLimit scope(*data, uv.end);
+        data->skipLabel();
+        for (int k = 0; k < 4; ++k)
+            mat->itex[j][k] = data->getInt();
+        data->off = uv.end;
     }
-    
+}
+
 void TFile::get157(FileBuffer* data) {
-        data->off++;
-        int pozycja, offset, akto;
-        
-        pozycja = data->getInt();
-        offset = data->getInt();
-        akto = data->off;
-        //System.out.println("=znaleziono sekcje " + pozycja + " na " + data.position() + " " + offset);
-        data->off++;
-        int ttilosc = data->getInt();
-        //qDebug() << "ttilosc " << ttilosc;
-        //System.out.println("ilosc " + ttilosc);
-        int tttpozycja, tttoffset, tttakto;
-        //
-        
-        for (int j = 0; j < ttilosc; j++) {
-            tttpozycja = data->getInt();
-            tttoffset = data->getInt();
-            tttakto = data->off;
-            //System.out.println("==znaleziono sekcje " + tttpozycja + " na " + data.position() + " " + tttoffset);
-            data->off++;
-
-            int ttpozycja, ttoffset, ttakto;
-
-            for (int jj = 0; jj < 3;) {
-                ttpozycja = data->getInt();
-                ttoffset = data->getInt();
-                ttakto = data->off;
-                //System.out.println("===znaleziono sekcje " + ttpozycja + " na " + data.position() + " " + ttoffset);
-
-                switch (ttpozycja) {
-                    case 160:
-                        data->off++;
-                        patchsetDistance = data->getInt();
-                        //System.out.println("= " + data.getInt());
-                        jj++;
-                        break;
-                    case 161:
-                        data->off++;
-                        patchsetNpatches = data->getInt();
-                        jj++;
-                        break;
-                    case 163:
-                        get163(data, patchsetNpatches);
-                        jj++;
-                        break;                        
-                    default:
-                        break;
-                }
-                data->off = ttakto + ttoffset;
+    data->skipLabel();
+    const auto sets = nextTerrainBlock(data, TS::terrain_patchsets);
+    FileBuffer::ScopedLimit setsScope(*data, sets.end);
+    data->skipLabel();
+    const int count = terrainBlockCount(data);
+    for (int j = 0; j < count; ++j) {
+        const auto set = nextTerrainBlock(data, TS::terrain_patchset);
+        FileBuffer::ScopedLimit setScope(*data, set.end);
+        data->skipLabel();
+        while (data->off < set.end) {
+            const auto child = data->readBlock();
+            FileBuffer::ScopedLimit childScope(*data, child.end);
+            switch (child.id) {
+            case TS::terrain_patchset_distance:
+                data->skipLabel();
+                patchsetDistance = data->getInt();
+                break;
+            case TS::terrain_patchset_npatches:
+                data->skipLabel();
+                patchsetNpatches = data->getInt();
+                break;
+            case TS::terrain_patchset_patches:
+                get163(data, patchsetNpatches);
+                break;
+            default: break;
             }
-            data->off = tttakto + tttoffset;
+            data->off = child.end;
         }
+        // Preserve TSRE's last-set-wins behavior.
+        data->off = set.end;
     }
-    
+}
+
 void TFile::get163(FileBuffer* data, int n) {
-        int pozycja, offset, akto;
-        data->off++;
+        data->skipLabel();
         if (n <= 0 || n > TerrainGridLayout::MaximumPatchesPerSide) {
-            qWarning() << "Skipping unsupported terrain patch grid" << n << "x" << n;
-            return;
+            throw FileBuffer::ParseError("Unsupported terrain patch grid");
         }
         //int ilosc = data.getInt();
         //qDebug() << "i to " << n;
+        if (n * n > (data->readEnd() - data->off) / 69)
+            throw FileBuffer::ParseError("Truncated terrain patch collection");
+        delete[] tdata;
+        delete[] errorBias;
+        delete[] flags;
         tdata = new float[n * n * PatchFieldCount];
         errorBias = new float[n*n];
         flags = new int[n*n];
         for (int j = 0; j < n*n; j++) {
-            pozycja = data->getInt();
-            offset = data->getInt();
-            akto = data->off;
-            //System.out.println("===znaleziono sekcje " + pozycja + " na " + data.position() + " " + offset);     
-            data->off++;
+            const auto patch = nextTerrainBlock(data, TS::terrain_patchset_patch);
+            FileBuffer::ScopedLimit scope(*data, patch.end);
+            data->skipLabel();
             
             flags[j] = data->getInt();//&0xFFFF;
             //data->off += 4*6;
@@ -550,12 +477,12 @@ void TFile::get163(FileBuffer* data, int n) {
             errorBias[j] = data->getFloat();
             //qDebug() << tdata[j*7+1] << tdata[j*7+2] << tdata[j*7+3] << tdata[j*7+4] << tdata[j*7+5] << tdata[j*7+6];
             
-            //data->off = akto + offset;
+            data->off = patch.end;
         }
     }
 
 void TFile::get251(FileBuffer* data) {
-        data->off++;
+        data->skipLabel();
         
         waterLevel = true;
         WSW = data->getFloat();
@@ -764,7 +691,7 @@ void TFile::save(QDataStream &write){
     // 144 
     if(sampleSize != NULL)
         t139+=13;
-    // 281
+    // TS::terrain_sample_asbuffer
     if(sampleASbuffer.present)
         t139 += opaqueSampleBufferBlockLength(sampleASbuffer) + 8;
     if(sampleUSbuffer.present)
@@ -785,8 +712,8 @@ void TFile::save(QDataStream &write){
     // 151
     int t151 = 0;
     t151+=5;
-    int* t152 = new int[materialsCount*2];
-    int* t153 = new int[materialsCount*2];
+    QVector<int> t152(materialsCount * 2);
+    QVector<int> t153(materialsCount * 2);
     Mat tmat;
     for(int j = 0; j < materialsCount*2; j++){
         t152[j] = 1;
@@ -822,19 +749,19 @@ void TFile::save(QDataStream &write){
         0x4A,0x49,0x4E,0x58,0x30,0x74,0x36,0x62,0x5F,0x5F,0x5F,0x5F,0x5F,0x5F,0x0D,0x0A
     };
     write.writeRawData(header, 32);
-    write << (qint32)136;
+    write << quint32(TS::terrain);
     write << (qint32)t136;
     write << (qint8)0;
     
     if(errthresholdScale != NULL){
-        write << (qint32)137;
+        write << quint32(TS::terrain_errthreshold_scale);
         write << (qint32)5;
         write << (qint8)0;
         write << *errthresholdScale;
     }
     
     if(waterLevel){
-        write << (qint32)251;
+        write << quint32(TS::terrain_water_height_offset);
         write << (qint32)17;
         write << (qint8)0;
         write << WSW;
@@ -844,61 +771,61 @@ void TFile::save(QDataStream &write){
     }
     
     if(alwaysselectMaxdist != NULL){
-        write << (qint32)138;
+        write << quint32(TS::terrain_alwaysselect_maxdist);
         write << (qint32)5;
         write << (qint8)0;
         write << *alwaysselectMaxdist;
     }
     
-    write << (qint32)139;
+    write << quint32(TS::terrain_samples);
     write << (qint32)t139;
     write << (qint8)0;
     // 140
     if(nsamples != NULL){
-        write << (qint32)140;
+        write << quint32(TS::terrain_nsamples);
         write << (qint32)5;
         write << (qint8)0;
         write << *nsamples;
     }
     // 141 
     if(sampleRotation != NULL){
-        write << (qint32)141;
+        write << quint32(TS::terrain_sample_rotation);
         write << (qint32)5;
         write << (qint8)0;
         write << *sampleRotation;
     }
     // 142
-    write << (qint32)142;
+    write << quint32(TS::terrain_sample_floor);
     write << (qint32)5;
     write << (qint8)0;
     write << floor;
     // 143 
-    write << (qint32)143;
+    write << quint32(TS::terrain_sample_scale);
     write << (qint32)5;
     write << (qint8)0;
     write << scale;
     // 144 
     if(sampleSize != NULL){
-        write << (qint32)144;
+        write << quint32(TS::terrain_sample_size);
         write << (qint32)5;
         write << (qint8)0;
         write << *sampleSize;
     }
-    // 281
-    QVector<int> opaqueOrder = opaqueSampleBufferOrder;
-    if (sampleASbuffer.present && !opaqueOrder.contains(281))
-        opaqueOrder.push_back(281);
-    if (sampleUSbuffer.present && !opaqueOrder.contains(282))
-        opaqueOrder.push_back(282);
-    for (const int token : opaqueOrder) {
-        if (token == 281)
+    // TS::terrain_sample_asbuffer
+    QVector<TS::TokenId> opaqueOrder = opaqueSampleBufferOrder;
+    if (sampleASbuffer.present && !opaqueOrder.contains(TS::terrain_sample_asbuffer))
+        opaqueOrder.push_back(TS::terrain_sample_asbuffer);
+    if (sampleUSbuffer.present && !opaqueOrder.contains(TS::terrain_sample_usbuffer))
+        opaqueOrder.push_back(TS::terrain_sample_usbuffer);
+    for (const TS::TokenId token : opaqueOrder) {
+        if (token == TS::terrain_sample_asbuffer)
             saveOpaqueSampleBuffer(write, token, sampleASbuffer);
-        else if (token == 282)
+        else if (token == TS::terrain_sample_usbuffer)
             saveOpaqueSampleBuffer(write, token, sampleUSbuffer);
     }
     // 145
     if(sampleFbuffer != NULL){
-        write << (qint32)145;
+        write << quint32(TS::terrain_sample_fbuffer);
         write << (qint32)sampleFbuffer->length()*2+3;
         write << (qint8)0;
         write << (qint16)sampleFbuffer->length();
@@ -908,7 +835,7 @@ void TFile::save(QDataStream &write){
     }
     // 146
     if(sampleYbuffer != NULL){
-        write << (qint32)146;
+        write << quint32(TS::terrain_sample_ybuffer);
         write << (qint32)sampleYbuffer->length()*2+3;
         write << (qint8)0;
         write << (qint16)sampleYbuffer->length();
@@ -918,7 +845,7 @@ void TFile::save(QDataStream &write){
     }
     // 147
     if(sampleEbuffer != NULL){
-        write << (qint32)147;
+        write << quint32(TS::terrain_sample_ebuffer);
         write << (qint32)sampleEbuffer->length()*2+3;
         write << (qint8)0;
         write << (qint16)sampleEbuffer->length();
@@ -928,7 +855,7 @@ void TFile::save(QDataStream &write){
     }
     // 148
     if(sampleNbuffer != NULL){
-        write << (qint32)148;
+        write << quint32(TS::terrain_sample_nbuffer);
         write << (qint32)sampleNbuffer->length()*2+3;
         write << (qint8)0;
         write << (qint16)sampleNbuffer->length();
@@ -939,24 +866,24 @@ void TFile::save(QDataStream &write){
 
     // 151 
     if (!sampleMaterialBuffer.isEmpty()) {
-        write << qint32(TS::TSRE_Terrain_Material_Buffer)
+        write << quint32(TS::TSRETerrainMaterialBuffer)
               << qint32(sampleMaterialBuffer.length()*2+3) << qint8(0)
               << quint16(sampleMaterialBuffer.length());
         for (QChar c : sampleMaterialBuffer) write << c.unicode();
     }
     if (!bakedMaterialInfo.isEmpty()) {
-        write << qint32(TS::TSRE_Terrain_Baked_Material)
+        write << quint32(TS::TSRETerrainBakedMaterial)
               << qint32(bakedMaterialInfo.length()*2+3) << qint8(0)
               << quint16(bakedMaterialInfo.length());
         for (QChar c : bakedMaterialInfo) write << c.unicode();
     }
     if (materialUidMapPresent) {
-        write << qint32(TS::TSRE_Terrain_Material_Map)
+        write << quint32(TS::TSRETerrainMaterialMap)
               << qint32(5+materialUids.size()*8) << qint8(0) << quint32(materialUids.size());
         for (auto it=materialUids.cbegin();it!=materialUids.cend();++it)
             write << quint32(it.key()) << it.value();
     }
-    write << (qint32)151;
+    write << quint32(TS::terrain_shaders);
     write << (qint32)t151;
     write << (qint8)0;
     write << (qint32)materialsCount*2;
@@ -966,19 +893,19 @@ void TFile::save(QDataStream &write){
             tmat = materials[j];
         else
             tmat = amaterials[j-materialsCount];
-        write << (qint32)152;
+        write << quint32(TS::terrain_shader);
         write << (qint32)t152[j];
         write << (qint8)0;
         write << (qint16)tmat.name->length();
         for(int i = 0; i < tmat.name->length(); i++){
             write << tmat.name->at(i).unicode();
         }
-        write << (qint32)153;
+        write << quint32(TS::terrain_texslots);
         write << (qint32)t153[j];
         write << (qint8)0;
         write << (qint32)tmat.count153;
         for(int i = 0; i < tmat.count153; i++){
-            write << (qint32)154;
+            write << quint32(TS::terrain_texslot);
             write << (qint32)(tmat.tex[i]->length()*2+3+8);
             write << (qint8)0;
             write << (qint16)tmat.tex[i]->length();
@@ -988,12 +915,12 @@ void TFile::save(QDataStream &write){
             write << (qint32)tmat.atex[i][0];
             write << (qint32)tmat.atex[i][1];
         }
-        write << (qint32)155;
+        write << quint32(TS::terrain_uvcalcs);
         write << (qint32)(25*tmat.count155+5);
         write << (qint8)0;
         write << (qint32)tmat.count155;
         for(int i = 0; i < tmat.count155; i++){
-            write << (qint32)156;
+            write << quint32(TS::terrain_uvcalc);
             write << (qint32)17;
             write << (qint8)0;
             write << (qint32)tmat.itex[i][0];
@@ -1004,35 +931,35 @@ void TFile::save(QDataStream &write){
     }
     
     // 157
-    write << (qint32)157;
+    write << quint32(TS::terrain_patches);
     write << (qint32)t157;
     write << (qint8)0;
     
-    write << (qint32)158;
+    write << quint32(TS::terrain_patchsets);
     write << (qint32)69*patchsetNpatches*patchsetNpatches+9+24+3+8+4+1;
     write << (qint8)0;
     write << (qint32)1;
     
-    write << (qint32)159;
+    write << quint32(TS::terrain_patchset);
     write << (qint32)69*patchsetNpatches*patchsetNpatches+9+24+3;
     write << (qint8)0;
 
-    write << (qint32)160;
+    write << quint32(TS::terrain_patchset_distance);
     write << (qint32)5;
     write << (qint8)0;
     write << (qint32)patchsetDistance;
     
-    write << (qint32)161;
+    write << quint32(TS::terrain_patchset_npatches);
     write << (qint32)5;
     write << (qint8)0;
     write << (qint32)patchsetNpatches;
     
-    write << (qint32)163;
+    write << quint32(TS::terrain_patchset_patches);
     write << (qint32)69*patchsetNpatches*patchsetNpatches+1;
     write << (qint8)0;
 
     for(int j = 0; j < patchsetNpatches*patchsetNpatches; j++){
-        write << (qint32)164;
+        write << quint32(TS::terrain_patchset_patch);
         write << (qint32)61;
         write << (qint8)0;
         write << (qint32)flags[j];

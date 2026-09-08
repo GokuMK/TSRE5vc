@@ -31,7 +31,7 @@ public:
     void getTrackItemIds(QVector<int> &ids, int tdbId);
     void load(int x, int y);
     void set(QString sh, QString val);
-    void set(int sh, FileBuffer* data);
+    void set(TS::TokenId sh, FileBuffer* data);
     void set(QString sh, FileBuffer* data);
     void save(QTextStream* out);
     void setSensitivityActivateLevel(float val);

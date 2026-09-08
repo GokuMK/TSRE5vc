@@ -114,8 +114,9 @@ source definitions and **all existing bitmap IDs** together. Preserve appearance
 and leave original disk data intact until a successful save. Define a reliable
 way to recognize converted tiles (including disabled/re-enabled tiles) before
 implementation; do not assume every existing material 0 is already a bake.
-Implemented recognition: optional sample token `TSRE_Terrain_Baked_Material`
-(100010), a UTF-16 string. It persists when procedural
+Implemented recognition: optional sample token `TSRETerrainBakedMaterial`
+(`0x00061001`), a UTF-16 string. Prototype ID 100010 is no longer recognized.
+It persists when procedural
 mode is disabled. This explicitly reserves material zero; its expected primary
 filename and complete pair are also checked on conversion/load. Old demo maps
 without the marker migrate in memory (palette and byte IDs together), becoming

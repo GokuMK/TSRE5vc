@@ -332,7 +332,8 @@ void Terrain::saveFfileToStream(QDataStream &out){
 void Terrain::loadTFile(FileBuffer *data){
     //qDebug() << "aaa";
     //this->tfile = new TFile();
-    this->tfile->load(data);
+    if (!this->tfile->load(data))
+        return;
     validateGridLayout("network terrain descriptor " + name);
     for (int i = 0; i < TerrainGridLayout::SupportedPatchRecordCount; i++) {
         texid[i] = -1;
