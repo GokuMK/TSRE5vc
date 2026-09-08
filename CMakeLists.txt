@@ -106,3 +106,9 @@ install(TARGETS TSRE5vc
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     #RUNTIME DESTINATION "."
 )
+
+option(TSRE_BUILD_ACE_TESTS "Build standalone ACE codec, benchmark and GL probes" ON)
+if(TSRE_BUILD_ACE_TESTS)
+    enable_testing()
+    add_subdirectory(tests/ace)
+endif()

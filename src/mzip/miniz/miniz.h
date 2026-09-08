@@ -545,8 +545,12 @@ extern "C" {
 #define MZ_CLEAR_OBJ(obj) memset(&(obj), 0, sizeof(obj))
 
 #if MINIZ_USE_UNALIGNED_LOADS_AND_STORES && MINIZ_LITTLE_ENDIAN
-#define MZ_READ_LE16(p) *((const mz_uint16 *)(p))
-#define MZ_READ_LE32(p) *((const mz_uint32 *)(p))
+/* Avoid alignment/aliasing UB in the bounded ACE inflater (also shared readers).
+   Constant-size memcpy still compiles to an unaligned load on x86. */
+static inline mz_uint16 mz_read_le16_unaligned(const void *p) { mz_uint16 v; memcpy(&v, p, sizeof(v)); return v; }
+static inline mz_uint32 mz_read_le32_unaligned(const void *p) { mz_uint32 v; memcpy(&v, p, sizeof(v)); return v; }
+#define MZ_READ_LE16(p) mz_read_le16_unaligned(p)
+#define MZ_READ_LE32(p) mz_read_le32_unaligned(p)
 #else
 #define MZ_READ_LE16(p) ((mz_uint32)(((const mz_uint8 *)(p))[0]) | ((mz_uint32)(((const mz_uint8 *)(p))[1]) << 8U))
 #define MZ_READ_LE32(p) ((mz_uint32)(((const mz_uint8 *)(p))[0]) | ((mz_uint32)(((const mz_uint8 *)(p))[1]) << 8U) | ((mz_uint32)(((const mz_uint8 *)(p))[2]) << 16U) | ((mz_uint32)(((const mz_uint8 *)(p))[3]) << 24U))

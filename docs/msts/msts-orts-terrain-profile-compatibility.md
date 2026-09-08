@@ -3,6 +3,10 @@
 Status: **compatibility matrix; static boundaries plus identified runtime tests**  
 Date: 2026-09-05 (MSTS R64 update; Open Rails inspection remains 2026-09-03)
 
+Mirror synchronized: 2026-09-08, including the 2026-09-05 multiple-set/water
+follow-up. Repository-specific TSRE profile notes and patcher links are retained;
+the pinned Open Rails commits have not been replaced by a new branch review.
+
 ## Scope and notation
 
 This report covers ordinary detailed terrain tiles with a 2,048 m side and
@@ -59,6 +63,15 @@ distance of 8 m (`Size*8`) rather than `terrain_sample_size`. Geometry uses the
 parsed sample spacing, but lighting normals can therefore be wrong when
 `S!=8`, even for the `R=16` profiles above.
 
+These Open Rails columns describe **terrain-surface geometry**. Water has an
+additional restriction in both inspected branches: `WaterPrimitive` still
+uses a fixed 17-by-17 vertex grid and stride 17, so custom `P!=16` does not
+have matching water-grid support. In particular, `P>16` can generate water
+indices beyond the fixed buffer. Also, both branches select the first patch
+set, whereas MSTS's recovered draw path selects the last. See the
+[patch-set and water review](msts-orts-multiple-patchsets-and-water.md) for
+source links, consequences, and proposed tests.
+
 ## Supported/common patch combinations
 
 This table lists the common power-of-two patch grids inside each implementation's
@@ -77,6 +90,9 @@ descriptor parser can allocate. The stock parser has no general `P<=16`
 guard, but larger grids exceed the route-safe design of its 4,096-entry
 visible-patch lists and have editor-selection concerns. The patched executable
 relocates those lists and is deliberately scoped to `P<=32`.
+The newly admitted R64 combinations for N128/N256/N512 are within the static
+patch envelope, not separately runtime-tested profiles. R64 rendering evidence
+is specifically for N1024/P16.
 
 The Open Rails entries are static geometry envelopes, not practical or tested
 recommendations. Very large `P` values create `P*P` patch objects and quickly
@@ -112,8 +128,9 @@ P <= 32
 R = N/P <= 64
 ```
 
-It includes the R64 v5 per-patch renderer changes, N1024 Route Editor bitmap and
-seam changes, and two enlarged visible-patch lists sized for sixteen complete
+It includes the R64 v5 per-patch/cache/batch and shared renderer-workspace
+changes, N1024 Route Editor bitmap and seam changes, and two enlarged
+visible-patch lists sized for sixteen complete
 P32 tiles. `N=1024, P=16, R=64` is now supported by the 2026-09-05 patcher
 update: v5 dense-hover textured/wireframe rendering was tested successfully
 in Wine, with user retests on `mini` and the formerly problematic route.
@@ -200,10 +217,13 @@ sixteen-tile case remains untested.
   requires the R64 patcher update and has bounded rendering confirmation;
   P32/R32 is confirmed with a 3-by-3 tile grid. Open Rails support is
   source-derived and needs a runtime test, and its normals need the
-  sample-spacing fix.
+  sample-spacing fix. Its water grid needs a separate fix for P32; P16 retains
+  the expected water-grid dimensions. MSTS R64 evidence is narrower than the
+  P32 3-by-3-grid test.
 - For Open Rails `master` rather than `unstable`, retain
   **`N=512, S=4, P=32, R=16`** because that branch still assumes `R=16` at the
-  inspected commit.
+  inspected commit. This is a terrain-geometry choice, not working P32 water
+  support; the water-grid and normal-spacing caveats still apply.
 - Maximum stock-compatible detailed profile:
   **`N=256, S=8, P=16, R=16`**.
 
@@ -214,6 +234,10 @@ sixteen-tile case remains untested.
 - Earlier local analysis: `msts-bin-1.8-p32-n1024-r32-experimental-build.md`
   (not retained in this repository).
 - [`extra/MSTS/bin-1.9/README.md`](../../extra/MSTS/bin-1.9/README.md)
+- [Multiple patch sets and water](msts-orts-multiple-patchsets-and-water.md)
+- [Shader pairing and procedural fallback](msts-terrain-shader-pairing-and-procedural-fallback.md)
+- Wine retest evidence in the separate MSTS workspace:
+  `reports/msts-wine-mini-terrain-comparison.md` (not retained in this repository).
 - Open Rails unstable `Terrain.cs` at the inspected commit:
   <https://github.com/openrails/openrails/blob/bbeb7ab6dd00bf7f61503f0b177839095ee7a5b8/Source/RunActivity/Viewer3D/Terrain.cs>
 - Open Rails unstable `Tiles.cs` at the inspected commit:

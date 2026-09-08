@@ -1,5 +1,8 @@
 # TSRE Textures and Texture Management (Current State)
 
+Updated 2026-09-08 for the [new ACE library](ace-library.md). That guide contains
+API examples, memory policy, format qualifications and verification commands.
+
 ## Scope
 - Project: TSRE5vc
 - Goal: document how textures are identified, loaded (threaded), cached, and uploaded to OpenGL today.
@@ -9,7 +12,8 @@
 - Texture cache and loader dispatch: `src/tsre/texture/TexLib.cpp:68`
 - Texture identity/de-dup mechanism: `src/tsre/texture/TexLib.cpp:94`, `src/tsre/texture/Texture.cpp:22`
 - OpenGL upload path: `src/tsre/texture/Texture.cpp:351`
-- ACE loader (CPU decode for RGB/RGBA; can keep DXT1 blocks): `src/tsre/texture/AceLib.cpp:30`
+- ACE worker/document adapter: `src/tsre/texture/AceLib.cpp`
+- ACE container and codecs: `src/tsre/texture/AceDocument.cpp`, `src/tsre/texture/DxtCodec.cpp`
 - DDS loader (keep DXT blocks; uncompressed RGB decode): `src/tsre/texture/DdsLib.cpp:339`
 - Standard image loader (QImage -> RGB/RGBA): `src/tsre/texture/ImageLib.cpp:21`
 - Procedural/in-memory texture example (text rendering): `src/tsre/ogl/TextObj.cpp:64`, `src/tsre/texture/PaintTexLib.cpp:20`
@@ -40,6 +44,8 @@ Loader dispatch is based on file extension (or pseudo extension):
 - identity: `pathid` and `hashid[]` (multiple aliases supported)
 - CPU-side pixels: `imageData`, `bytesPerPixel`, `type` (GL_RGB/GL_RGBA), `loaded`, `editable`
 - optional encoded blocks for direct GPU upload: `compressedData` + `compressedGLFormat`
+- transient authored mip staging: `sourceMipmaps`; released after successful upload
+- small ACE metadata: `aceMetadata`; full source document: explicit opt-in `aceDocument`
 - GPU-side handle: `tex[0]`, `glLoaded`
 
 `hashid[]` is used for identity matching in `TexLib::getTex/addTex`. Example: `Texture(pathid)` adds `pathid` and may add an alias (e.g. `.dds` adds a corresponding `.ace` alias) (`src/tsre/texture/Texture.cpp:22`).
@@ -79,40 +85,50 @@ Instead, render code checks `Texture::loaded` and calls `Texture::GLTextures()` 
 
 ### 4.1 CPU Decode/Conversion Happens Per-Format
 Each loader converts its input into CPU-side RGB/RGBA8:
-- `AceLib` decodes uncompressed ACE into RGB/RGBA `imageData`; for DXT1-compressed ACE it can keep the encoded blocks in `compressedData` (and only CPU-decode when needed, e.g. for downscaling).
+- `AceLib` structurally parses ACE with `AceDocument`, decodes planar/packed/indexed images to RGB/RGBA, and keeps DXT1/3/5 blocks for direct upload. DXT2/4 normalize premultiplied colors on CPU. CPU-only callers explicitly request pixels. Authored mip staging is independent of eventual filtering.
 - `DdsLib` stores DXT1/DXT3/DXT5 as encoded blocks (`compressedData`) and handles uncompressed DDS variants by decoding to RGB/RGBA `imageData`.
 - `ImageLib` uses `QImage` conversion to RGB888/RGBA8888.
 
 ### 4.2 GPU Upload is Usually Uncompressed (But Can Be Compressed)
 `Texture::GLTextures()` uploads either:
 - uncompressed pixels via `glTexImage2D(..., GL_UNSIGNED_BYTE, imageData)`, or
-- encoded DXT1 blocks via `glCompressedTexImage2D` when `compressedData` is present and S3TC/BC1 is supported.
+- compatible DXT1/3/5 blocks via `glCompressedTexImage2D`, with CPU decoding when unsupported.
 
-After upload, `Texture::GLTextures()` deletes `imageData` (if present), clears `compressedData`, and sets `editable = false`.
+After successful upload, `Texture::GLTextures()` deletes `imageData`, clears `compressedData` and `sourceMipmaps`, and sets `editable = false`. Small metadata remains; a full document remains only when explicitly requested. `GLTextures(true)` uses authored mips when staged, otherwise generates them. `false` uploads only the base level.
 
 Note:
 - `Game::AARemoveBorder` (alpha-border clearing) is not applied for the compressed upload path (we do not decode/patch/re-encode compressed blocks).
 
 Implications:
-- GPU textures can stay **compressed** for sources that provide compatible blocks (currently: DXT1-in-ACE).
+- GPU textures can stay **compressed** for sources that provide compatible blocks (ACE and DDS DXT1/3/5).
 - `editable` becomes `false` after upload (but `setEditable()` can read pixels back from GPU later via `glGetTexImage`).
 
 ---
 
-## 5. Known Limitations (Motivating Refactor)
-- DXT/ACE decode work is duplicated across loaders (and will grow as more source formats are added).
-- There is no centralized concept of "encoded texture source" vs "decoded pixels" (we have the first hook via `compressedData`, but it is not generalized yet).
-- GPU capability-based choice is only partially implemented (currently: DXT-in-ACE and DXT-in-DDS; other formats still decode to RGBA8 before upload).
-- Editor workflows need predictable behavior for `editable` textures (keep CPU RGBA when required).
+## 5. Remaining Texture-Pipeline Work
 
-See `docs/tasks/textures/01-texture-format-and-upload-refactor.md` for the proposed next step.
+ACE and Texture now share CPU DXT decoding through `DxtCodec`; the DDS reader
+still has its own format parsing and does not stage its authored mip chain.
+Other image formats remain decoded RGB/RGBA sources. Full cache lifetime,
+deferred GPU deletion and concurrent reload ownership are not redesigned here.
+
+`editable` still means that CPU pixels are ready now. `setEditable()` decodes
+retained blocks or reads back an existing GPU texture; it does not require
+permanent duplicate storage. Pixel edits invalidate source blocks/document/mips.
+`update()` regenerates mips only for a texture that uses them.
+
+`TexLib::addTex(Texture*, true)` now moves content through
+`Texture::takeContentFrom()` instead of manually copying selected fields.
+Cache identity/aliases/reference count remain cache-owned. GPU replacement,
+upload and readback require the owning context.
 
 ---
 
 ## 6. Texture Saving (Editor)
 `TexLib::save(type, path, id)` is currently ACE-focused:
-- it ensures the texture is editable (may trigger a GPU upload + `glGetTexImage` readback),
-- then calls `AceLib::save(...)` to write an `.ace` file.
+- it ensures the texture is editable (CPU decode, or existing-GPU `glGetTexImage` readback),
+- then calls `AceLib::save(...)` to write RGB or RGBA ACE without mips by default;
+- explicit `AceWriteOptions` select encoding/mips/zlib through the new API. Procedural baking uses the general QImage overload with explicit opaque RGB options.
 
 This is used by terrain/map-texture workflows; saving other formats is not implemented today.
 
@@ -121,7 +137,7 @@ This is used by terrain/map-texture workflows; saving other formats is not imple
 ## 7. Debugging / Memory Stats
 TSRE can dump a quick texture summary to the console/debug output:
 - hotkey: `Ctrl+Shift+F10` (Route Editor and Shape Viewer)
-- output: total texture count + CPU pixel bytes, CPU encoded bytes, and estimated GPU bytes
+- output: total texture count + CPU pixel bytes, other CPU source bytes, and estimated GPU bytes (the existing `cpuEncodedMB` label includes staged mips/ACE metadata now)
 
 Notes:
 - GPU bytes are estimated from the uploaded internal format recorded at upload time (`Texture::gpuInternalFormat`).

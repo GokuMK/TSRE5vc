@@ -4,6 +4,8 @@ Reviewed against the source and recorded/user-reported tests on 2026-09-05.
 This is a status review, not a fresh exhaustive interactive acceptance run.
 The long task files retain historical proposals and rejected alternatives;
 their old future-tense checklists do not by themselves mean work is missing.
+ACE writer wording updated 2026-09-08; the other status entries retain the
+original review scope above.
 
 ## Current tasks
 
@@ -17,7 +19,7 @@ their old future-tense checklists do not by themselves mean work is missing.
 | [Height brushes](terrain-height-brush-performance.md) | Direct tile brush, reusable float area, example, profiling and exact normal optimization implemented and tested | User accepted speed. Populated-route/multiplayer performance coverage is not established by empty-route tests. Old brush remains for comparison/unusual-grid fallback; old paged normal implementation is removed. |
 | [Simple lookup migration](terrain-simple-lookup-migration.md) | Design reviewed; preliminary private-helper cleanup implemented | Synthetic detailed lookup and removal of `TerrainLibSimple` remain to implement. |
 | [Procedural materials](terrain-procedural-materials.md) | Experimental demo; four-worker loading and synchronous painting tested | Compressed ID plane, F2 tools, shader import, BC1/RGB sharing, tile-level cache release and bounded background generation. Nearest-visible-first requests/uploads within each tile; draw order unchanged. Other production features deferred. |
-| [Procedural baked fallback / catalogue](terrain-procedural-baked-fallback.md) | Stage A implemented; B remains design only | A: one checked RGB ACE tile bake on save, keep-bake-on-disable, reserved source palette, and 3x3 near-region texture selection. DXT1 ACE awaits the future writer. B: per-route material catalogue alternatives. |
+| [Procedural baked fallback / catalogue](terrain-procedural-baked-fallback.md) | Stage A implemented; B remains design only | A: one RGB ACE tile bake on save through the [new AceLib API](../../features/ace-library.md), keep-bake-on-disable, reserved source palette, and 3x3 near-region texture selection. DXT1 encoding is now available in AceLib but is not selected by this bake path. B: per-route material catalogue alternatives. |
 
 ## Actual follow-up implementation
 

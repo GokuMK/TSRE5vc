@@ -297,6 +297,8 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
     QScopedValueRollback<QString> route(Game::route,QString("proc-test"));
     QScopedValueRollback<bool> write(Game::writeEnabled,true);
     QScopedValueRollback<bool> seasonal(Game::seasonalEditing,false);
+    // QTemporaryDir names can contain uppercase letters on case-sensitive hosts.
+    QScopedValueRollback<bool> caseFolding(Game::caseInsensitiveFS,false);
     const QString tileDir=temp.path()+"/routes/proc-test/tiles";
     QDir().mkpath(tileDir);
     red.save(temp.path()+"/red.png"); blue.save(temp.path()+"/blue.png");
@@ -306,7 +308,7 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
         QImage rgb(8,4,QImage::Format_RGB888);
         for (int y=0;y<4;++y) for (int x=0;x<8;++x) rgb.setPixelColor(x,y,QColor(x*27,y*53,(x+y)*19));
         const QString path=temp.path()+"/checked.ace";
-        check(AceLib::saveRgbChecked(path,rgb,error),"checked-rgb-ace-write");
+        check(AceLib::save(path,rgb,AceWriteOptions{},error),"checked-rgb-ace-write");
         QFile file(path); check(file.open(QIODevice::ReadOnly),"checked-ace-open-for-independent-read"); const auto bytes=file.readAll(); file.close();
         bool correct=bytes.size()==216+4*4+8*4*3 && bytes.startsWith("SIMISA@@@@@@@@@@");
         for (int y=0;y<4 && correct;++y) {
@@ -318,10 +320,10 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
         check(correct,"independent-ace-offset-table-and-planar-rgb-payload");
         Texture texture(path); texture.editable=true; AceLib loader; loader.texture=&texture; loader.run();
         check(texture.loaded && texture.width==8 && texture.height==4 && texture.imageData
-              && !memcmp(texture.imageData,rgb.constBits(),96),"checked-ace-legacy-reader-round-trip");
+              && !memcmp(texture.imageData,rgb.constBits(),96),"checked-ace-new-reader-round-trip");
         delete[] texture.imageData; texture.imageData=nullptr;
-        check(!AceLib::saveRgbChecked(temp.path(),rgb,error),"checked-ace-reports-directory-write-failure");
-        check(!AceLib::saveRgbChecked(path,QImage(),error),"checked-ace-rejects-empty-image-without-overwriting");
+        check(!AceLib::save(temp.path(),rgb,AceWriteOptions{},error),"checked-ace-reports-directory-write-failure");
+        check(!AceLib::save(path,QImage(),AceWriteOptions{},error),"checked-ace-rejects-empty-image-without-overwriting");
         check(file.open(QIODevice::ReadOnly) && file.readAll()==bytes,"checked-ace-failure-preserves-existing-file");
     }
     for (int p : {4,8,16,32}) {
@@ -378,7 +380,7 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
             check(Terrain::proceduralWorkStats().outstanding==0,
                   "released-bake-prefetch-is-not-restarted-by-frame-pump");
             QImage oldBake(2048,2048,QImage::Format_RGB888); oldBake.fill(Qt::red);
-            check(AceLib::saveRgbChecked(ace,oldBake,error),"write-earlier-2048-bake-fixture");
+            check(AceLib::save(ace,oldBake,AceWriteOptions{},error),"write-earlier-2048-bake-fixture");
             baked.loadProceduralMaterial(tileDir);
             check(finishMaterialJobs(),"earlier-bake-validation-worker-completes");
             check(baked.proceduralFallbackTexture()<0 && !baked.hasProceduralBake(),
@@ -534,7 +536,7 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
         const QString path=temp.path()+"/incremental-save_procedural.ace";
         QImage sentinel(TerrainMaterialMap::BakedSide,TerrainMaterialMap::BakedSide,QImage::Format_RGB888);
         sentinel.fill(Qt::green);
-        check(AceLib::saveRgbChecked(path,sentinel,error),"write-distinct-existing-bake-regions");
+        check(AceLib::save(path,sentinel,AceWriteOptions{},error),"write-distinct-existing-bake-regions");
         t.releaseProceduralTextures(); t.loadProceduralMaterial(tileDir);
         Texture source(temp.path()+"/blue.png");
         QImage solid(9,9,QImage::Format_Grayscale8); solid.fill(0);
@@ -612,6 +614,35 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
         check(t.proceduralTexture(0,true)>=0 && t.proceduralTexture(farPatch,true)<0,
               "detail-distance-uses-metres-on-larger-terrain-tiles");
         t.releaseProceduralTextures(); check(finishMaterialJobs(),"distance-fixture-releases-owned-output");
+    }
+    {
+        // The new ACE rendering adapter honors Game::textureQuality. Procedural
+        // source and saved-bake readers must explicitly bypass that policy.
+        QScopedValueRollback<int> quality(Game::textureQuality,2);
+        QImage stripes(TerrainMaterialMap::OutputSide,TerrainMaterialMap::OutputSide,QImage::Format_RGB888);
+        for (int y=0;y<stripes.height();++y) for (int x=0;x<stripes.width();++x)
+            stripes.setPixelColor(x,y,(x&1)?QColor(Qt::blue):QColor(Qt::red));
+        AceWriteOptions options; options.encoding=AceEncoding::Rgb; options.mipmaps=true;
+        check(AceLib::save(temp.path()+"/procedural-quality.ace",stripes,options,error),
+              "write-authored-mip-source-for-procedural-quality-test");
+        TestTerrain t; t.setup(temp.path(),16,"ace-quality");
+        *t.descriptor().materials[0].tex[0]="procedural-quality.ace";
+        check(t.setProceduralMaterial(true,error),"enable-full-resolution-ace-source");
+        const int actual=t.proceduralTexture(0);
+        TerrainMaterialMap map; map.initialize(1);
+        const auto expected=map.generate(0,16,{{1,stripes}});
+        const int shared=TexLib::getTex(TerrainMaterialMap::textureKey(expected,
+                                         !qEnvironmentVariableIsSet("TSRE_TERRAIN_MATERIAL_RGB")));
+        check(shared>=0 && shared==actual,"procedural-ace-source-ignores-render-quality-downsampling");
+        if (shared>=0) TexLib::delRef(shared);
+        check(t.save(),"save-bake-under-reduced-render-texture-quality");
+        t.releaseProceduralTextures(); t.loadProceduralMaterial(tileDir);
+        check(finishMaterialJobs(),"explicit-cpu-bake-reader-completes");
+        const int bake=t.proceduralFallbackTexture();
+        check(bake>=0 && TexLib::mtex.at(bake)->width==TerrainMaterialMap::BakedSide
+              && TexLib::mtex.at(bake)->sourceMipmaps.isEmpty(),
+              "bake-reader-keeps-native-size-and-does-not-stage-mips");
+        t.releaseProceduralTextures(); check(finishMaterialJobs(),"ace-quality-fixture-releases-output");
     }
     const int texturesBefore=TexLib::mtex.size();
     {
@@ -1179,6 +1210,7 @@ int TsreTests::runTerrainMaterialGlSuite() {
     QTemporaryDir temp;
     QScopedValueRollback<bool> write(Game::writeEnabled,true);
     QScopedValueRollback<bool> seasonal(Game::seasonalEditing,false);
+    QScopedValueRollback<bool> caseFolding(Game::caseInsensitiveFS,false);
     QScopedValueRollback<QString> root(Game::root,temp.path());
     QScopedValueRollback<QString> route(Game::route,QStringLiteral("proc-gl"));
     QDir().mkpath(temp.path()+"/routes/proc-gl/tiles");

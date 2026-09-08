@@ -184,7 +184,7 @@ The relevant structure is:
 | `148` | `terrain_sample_nbuffer` | external N-RAW filename |
 | `281` | `terrain_sample_asbuffer` | embedded opaque AS block |
 | `282` | `terrain_sample_usbuffer` | optional embedded unknown block |
-| `164` | `terrain_patchset_patch` | 61-byte patch payload; last float is `ErrorBias` |
+| `164` | `terrain_patchset_patch` | 60 bytes of fields plus the empty-label byte (61-byte block payload); last float is `ErrorBias` |
 
 For a normal `N=256`, 8 m terrain tile:
 
@@ -421,7 +421,7 @@ loader.
 1. Use a `.t` fixture with a distinctive safe bias such as `0.5` in only one
    known patch and `1` elsewhere.
 2. Locate the parsed float in memory from its final position in token-164's
-   61-byte payload.
+   60-byte field region (61-byte block payload including the empty-label byte).
 3. Watch reads of that value while the patch becomes visible or changes LOD.
 4. Compare traces for `0`, `0.5`, `1`, and `2` while holding Y, E, AS, camera,
    display settings, and route files constant.
