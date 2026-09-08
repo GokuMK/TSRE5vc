@@ -1,18 +1,26 @@
 # TSRE local work plan: native 32-bit SIMIS token IDs and extension allocation
 
-Status: **implemented and locally verified on `feature/native-token-ids`**.
-Local commit approved; the user will publish the branch for independent testing.
-See [implementation results](tsre-native-token-id-implementation.md) and
-[the current API/allocation](../features/native-token-ids.md). The sections below
+Status, 2026-09-09: the native-ID implementation is in commit `8c85bb1` on
+`feature/native-token-ids`. That commit also contains binary-parser refactoring;
+its whole-file rejection/rollback behavior is **not accepted as TSRE's
+recovery-first loading policy**. The plan below is retained as design history,
+not a claim that the entire parser integration is complete.
+See the [consumer inventory and follow-up TODOs](../../features/file-buffer.md#111-status-and-follow-up-todos).
+The later QuadTree correction is limited to two named writer IDs; its reader
+is intentionally unchanged.
+See [implementation results](native-token-ids-and-binary-parser-implementation.md) and
+[the current API/allocation](../../features/native-token-ids.md). The sections below
 retain the reviewed design and describe the pre-migration baseline where noted.
 Reworked 2026-09-08 against current TSRE `main`, commit
 `9f389f08450411614256d9f3e018225ddc62584a` (merged ACE converter and route-wide
-procedural material work). The user subsequently approved implementation, which has been implemented and verified here.
-A later agent will receive
-the completed branch and a focused additional-testing request, not this plan as
-an implementation handoff.
-This task is also kept as `reports/tsre-full-token-id-migration-task.md` in the
-separate MSTS research workspace. Paths in the source inventory refer to TSRE.
+procedural material work). Implementation and fixture verification were recorded
+in `8c85bb1`; the subsequent review identified parser scope and recovery-policy
+issues. Use the combined report and current TODOs for follow-up, rather than
+treating this historical plan as another implementation handoff.
+This TSRE task now belongs in `docs/tasks/core`, not the MSTS research category.
+The separate research workspace's `reports/tsre-full-token-id-migration-task.md`
+is an earlier copy; this repository document and the linked follow-up checklist
+are the current references. Paths in the source inventory refer to TSRE.
 
 Decisions incorporated from the latest review:
 
@@ -325,15 +333,15 @@ mapping, save/cache/undo behavior, ACE library and converter integration.
 
 | Area | Observed state | Required work |
 | --- | --- | --- |
-| [TS.h](../../src/tsre/fileFunctions/TS.h), [TS.cpp](../../src/tsre/fileFunctions/TS.cpp) | Explicit flattened enum; `unordered_map<int, const char*>`; stale “not used” comments | Apply native mapping, allocate extensions, document ranges, remove stale comments and canonicalize aliases; use unsigned 32-bit token keys |
-| [FileBuffer.h](../../src/tsre/fileFunctions/FileBuffer.h), [FileBuffer.cpp](../../src/tsre/fileFunctions/FileBuffer.cpp) | `getToken()` reads an int and subtracts `tokenOffset`; `findToken(int)` uses `getInt()` | Remove offset state/setter and subtraction; return the complete little-endian uint32, preserve it in searches, and bound touched header/skip reads |
-| [Tile.cpp](../../src/tsre/world/Tile.cpp) | Both `load()` and `loadWS()` set 261844 and test literal 375; nested view-database parsing uses tokens | Remove both offset calls, use named full IDs, review the distinct `.w`/`.ws` root checks, update local token variables and length-safe unknown skipping |
-| [WorldObj.cpp](../../src/tsre/world/objects/WorldObj.cpp) and subclasses | `createObj(int)` has canonical/helper alternatives; virtual `set(int, FileBuffer*)` methods compare TS names | Propagate token types through declarations/overrides/callers, remove duplicate binary identities, preserve object behavior and canonical textual names |
-| [SignalObj.cpp](../../src/tsre/world/objects/SignalObj.cpp) | Nested signal-unit token headers use `getToken()` | Verify nested alignment and full IDs; do not mistake nested IDs or lengths for payload flags |
-| [TFile.cpp](../../src/tsre/world/TFile.cpp), [TFile.h](../../src/tsre/world/TFile.h) | Direct `getInt()` token reads; Core numeric switches/writes; numeric AS/US order entries; three TSRE children in `get139()` and writer | Replace token literals with names, keep native Core values, use full-ID types, switch all three extension IDs; no prototype aliases; preserve mapping validation and invalid-state behavior |
-| [SFile.cpp](../../src/tsre/shape/SFile.cpp), [SFileC.cpp](../../src/tsre/shape/SFileC.cpp) | Numeric shape-root/section/animation cases, `findToken(53)` and `temp == 56`; some reads bypass `getToken()` | Replace all proven token literals with names, verify unchanged Core semantics and locate token narrowing/file-dependent arithmetic |
-| [RouteEditorClient.cpp](../../src/routeEditor/RouteEditorClient.cpp), [RouteEditorServer.cpp](../../src/routeEditor/RouteEditorServer.cpp) | Binary messages start with `B`, then a four-byte ID; old 100001–100008; nested terrain payloads | Upgrade both ends and wire tests; preserve envelope, sizes and payloads; decide explicit old-peer policy |
-| [TerrainMaterialTestSuite.cpp](../../src/tsre/tests/TerrainMaterialTestSuite.cpp), [terrain-material-library.md](../features/terrain-material-library.md), other docs/fixtures | Current route-wide material tests and documentation include the third token and typed selection behavior | Add new-ID and enum-name regressions, preserve existing catalogue/undo tests, update current ID documentation; do not add a historical terrain-file migration suite |
+| [TS.h](../../../src/tsre/fileFunctions/TS.h), [TS.cpp](../../../src/tsre/fileFunctions/TS.cpp) | Explicit flattened enum; `unordered_map<int, const char*>`; stale “not used” comments | Apply native mapping, allocate extensions, document ranges, remove stale comments and canonicalize aliases; use unsigned 32-bit token keys |
+| [FileBuffer.h](../../../src/tsre/fileFunctions/FileBuffer.h), [FileBuffer.cpp](../../../src/tsre/fileFunctions/FileBuffer.cpp) | `getToken()` reads an int and subtracts `tokenOffset`; `findToken(int)` uses `getInt()` | Remove offset state/setter and subtraction; return the complete little-endian uint32, preserve it in searches, and bound touched header/skip reads |
+| [Tile.cpp](../../../src/tsre/world/Tile.cpp) | Both `load()` and `loadWS()` set 261844 and test literal 375; nested view-database parsing uses tokens | Remove both offset calls, use named full IDs, review the distinct `.w`/`.ws` root checks, update local token variables and length-safe unknown skipping |
+| [WorldObj.cpp](../../../src/tsre/world/objects/WorldObj.cpp) and subclasses | `createObj(int)` has canonical/helper alternatives; virtual `set(int, FileBuffer*)` methods compare TS names | Propagate token types through declarations/overrides/callers, remove duplicate binary identities, preserve object behavior and canonical textual names |
+| [SignalObj.cpp](../../../src/tsre/world/objects/SignalObj.cpp) | Nested signal-unit token headers use `getToken()` | Verify nested alignment and full IDs; do not mistake nested IDs or lengths for payload flags |
+| [TFile.cpp](../../../src/tsre/world/TFile.cpp), [TFile.h](../../../src/tsre/world/TFile.h) | Direct `getInt()` token reads; Core numeric switches/writes; numeric AS/US order entries; three TSRE children in `get139()` and writer | Replace token literals with names, keep native Core values, use full-ID types, switch all three extension IDs; no prototype aliases; preserve mapping validation and invalid-state behavior |
+| [SFile.cpp](../../../src/tsre/shape/SFile.cpp), [SFileC.cpp](../../../src/tsre/shape/SFileC.cpp) | Numeric shape-root/section/animation cases, `findToken(53)` and `temp == 56`; some reads bypass `getToken()` | Replace all proven token literals with names, verify unchanged Core semantics and locate token narrowing/file-dependent arithmetic |
+| [RouteEditorClient.cpp](../../../src/routeEditor/RouteEditorClient.cpp), [RouteEditorServer.cpp](../../../src/routeEditor/RouteEditorServer.cpp) | Binary messages start with `B`, then a four-byte ID; old 100001–100008; nested terrain payloads | Upgrade both ends and wire tests; preserve envelope, sizes and payloads; decide explicit old-peer policy |
+| [TerrainMaterialTestSuite.cpp](../../../src/tsre/tests/TerrainMaterialTestSuite.cpp), [terrain-material-library.md](../../features/terrain-material-library.md), other docs/fixtures | Current route-wide material tests and documentation include the third token and typed selection behavior | Add new-ID and enum-name regressions, preserve existing catalogue/undo tests, update current ID documentation; do not add a historical terrain-file migration suite |
 
 ### Mandatory replacement of numeric token IDs
 
@@ -599,8 +607,9 @@ Acceptance checklist:
 - [x] All three terrain extension readers/writers and both network ends use the
   new assigned IDs. No prototype terrain-ID aliases, conversion on save, dual
   writes or migration tool have been added.
-- [x] Unicode behavior and existing native binary consumers remain equivalent
-  within their documented support; unimplemented codecs remain clearly listed.
+- [ ] Re-establish recovery-first behavior and verify existing native binary
+  consumers against representative files. The initial fixture results did not
+  establish equivalence of recovery/error handling; codec gaps remain listed.
 - [x] Our tests cover real TSRE parsing and the stated negative cases; the full
   build and relevant current-main suites pass or have explicitly diagnosed blockers.
 - [x] Current docs include the final assignment list, prototype/old-peer policy,
@@ -629,13 +638,13 @@ steps authorizes ORTS publication, bundling proprietary files or Windows access.
 
 Related existing TSRE work:
 
-- [Procedural terrain storage](../tasks/terrain/terrain-procedural-materials.md)
-  and [baked fallback](../tasks/terrain/terrain-procedural-baked-fallback.md).
-- [Route-wide terrain material library](../features/terrain-material-library.md):
+- [Procedural terrain storage](../terrain/terrain-procedural-materials.md)
+  and [baked fallback](../terrain/terrain-procedural-baked-fallback.md).
+- [Route-wide terrain material library](../../features/terrain-material-library.md):
   current catalogue, local-ID/UiD map and prototype semantics to preserve.
-- [World-file control records](../tasks/world/world-file-control-records.md):
+- [World-file control records](../world/world-file-control-records.md):
   preserve current `Tr_Watermark` behavior; do not fold that redesign into this task.
-- [ACE integration](../features/ace-library.md): completed, separate file format;
+- [ACE integration](../../features/ace-library.md): completed, separate file format;
   ACE payloads do not become SIMIS token trees because token IDs are cleaned up.
-- [ACE converter](../features/ace-converter.md): now present on main;
+- [ACE converter](../../features/ace-converter.md): now present on main;
   preserve it without confusing ACE surface-format numbers with SIMIS tokens.

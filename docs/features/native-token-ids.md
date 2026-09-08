@@ -76,6 +76,11 @@ payload behavior is unchanged.
 
 ## Reader/writer API
 
+For the detailed API, ownership/cursor rules, old/new loading examples,
+recovery-first integration and block-writing examples, see
+[FileBuffer usage](file-buffer.md). Checked framing does not itself provide
+recovery; some current consumers still abort whole-file loads on parse errors.
+
 `FileBuffer::getToken()` reads an unaligned-safe little-endian uint32. There is
 no `tokenOffset`, `setTokenOffset`, world-file subtraction, +300 adjustment or
 namespace inference from filename. Use `TS::name(id)` for non-mutating lookup,
@@ -190,7 +195,7 @@ new terrain contents.
 
 ## Verification
 
-See [implementation results and testing handoff](../msts/tsre-native-token-id-implementation.md)
+See [token-ID and parser implementation results](../tasks/core/native-token-ids-and-binary-parser-implementation.md)
 for commands, measured results and remaining tests. The portable fixtures are
 generated in temporary directories; they need no proprietary files, Windows
 registry, Wine or running network server.

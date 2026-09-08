@@ -1,21 +1,35 @@
-# TSRE native token-ID implementation and testing handoff
+# TSRE native token IDs and binary parser changes: implementation and follow-up
 
-Date: 2026-09-08. Branch: `feature/native-token-ids`.
+Initial implementation: 2026-09-08; scope/status clarification: 2026-09-09.
+Branch: `feature/native-token-ids`; implementation commit: `8c85bb1`.
 Base: `main` at `9f389f08450411614256d9f3e018225ddc62584a`.
-Status: implemented and locally verified. Local commit approved; the user will
-publish `feature/native-token-ids` for independent testing.
+
+**This is a combined token-ID and parser-change report, not a token-only diff.**
+The native-ID mechanism is implemented and the checks below passed at the
+recorded revision. The additional parser integration is **not complete or
+accepted as a recovery-first TSRE replacement**: current whole-file aborts and
+world-object rollback discard usable content. Test success does not approve
+that policy. The user controls publication; no merge is implied by this report.
+
+The canonical [consumer inventory](../../features/file-buffer.md#11-current-consumers)
+and [remaining-work checklist](../../features/file-buffer.md#111-status-and-follow-up-todos)
+are in the FileBuffer guide. The recovery example there is documentation, not
+an implemented recovery fix. This TSRE implementation history belongs under
+`docs/tasks/core`; the separate MSTS workspace's earlier report is historical.
 
 The user approved implementation of the
-[reviewed local plan](tsre-full-token-id-migration-task.md).
-[Native SIMIS token IDs](../features/native-token-ids.md) documents the final
+[reviewed local plan](native-token-id-migration.md).
+[Native SIMIS token IDs](../../features/native-token-ids.md) documents the final
 allocation, API, compatibility break and remaining binary-codec limits.
 
-## Changes
+## 1. Native token-ID and allocation changes
 
 - Complete unsigned uint32 IDs throughout the enum, registry, terrain/world/
   shape readers, writer and network-token boundary. Removed the world-file
   offset state/subtraction and numeric SIMIS token use sites, including Core
   terrain/shape dispatch and AS/US ordering. Ordinary payload numbers remain.
+  A later audit found two remaining literal IDs in QuadTree's writer; the
+  narrowly scoped follow-up is recorded below.
 - Native sparse forms and all 34 brake-order corrections; canonical names
   replace the invented `...2` aliases. Added recovered `terrain_sample_usbuffer`
   (282), `Soundsource` (`0x00040043`) and `Soundregion` (`0x00040044`).
@@ -23,6 +37,12 @@ allocation, API, compatibility break and remaining binary-codec limits.
   `TSRETerrainBakedMaterial`, `TSRETerrainMaterialMap` at `0x00061000–02`.
   No prototype aliases or test-tile conversion. Eight network names keep their
   underscores and use `0x00060001–08` on both ends.
+
+## 2. Additional parser and compatibility changes
+
+These changes go beyond enum renumbering. They must be reviewed as parser
+behavior changes rather than assumed to be a mechanical part of token migration.
+
 - Checked block/label/parent boundaries, endian-safe scalar/token reads and
   non-mutating unknown-name lookup. Legacy positional reads are bounded when
   parsing a scoped binary block; this is not a wholesale text-parser rewrite.
@@ -36,8 +56,50 @@ allocation, API, compatibility break and remaining binary-codec limits.
 - Counted terrain slots/UV calculations exceeding TSRE's two-entry storage are
   rejected, instead of overflowing those existing arrays. Existing shader-list
   splitting and last-patchset behavior are intentionally not redesigned.
-- API/allocation documentation, actual world-extension inventory, portable
-  generated-fixture tests and current procedural terrain docs were updated.
+- `findToken()` now throws for missing required tokens as well as malformed
+  framing. `Simis::Block` introduced additional required-child searches;
+  optional versus required assumptions need explicit review.
+- `TFile::load()` now returns failure, and terrain network callers stop their
+  local load processing on that result. This is a load-policy/API change.
+- Binary detection now checks the subheader; BOM and short-input probes changed
+  in shared FileBuffer/ReadFile code. Shape labels and shader-name strings now
+  use their declared framing.
+- Binary sound-source/region factories became reachable through the corrected
+  WS root and native IDs; specialized SoundRegion fields remain incomplete.
+- Signal-unit count/index checks, shape geometry-index checks and an explicit
+  missing-GL-context failure were added. These check policies are distinct from
+  token identity and do not implement local recovery.
+- Shared network header encoding/decoding adds empty/truncated/unsupported-token
+  diagnostics. The wire envelope and data payloads otherwise remain unchanged.
+
+## 3. Allocation/cleanup and test infrastructure changes
+
+- Shape temporary vertex storage changed from an initial 120,000-entry array
+  to a sized vector. Terrain-writer temporary length arrays now use QVector.
+  Some file/buffer cleanup was added; this is not a comprehensive ownership fix.
+- The CPU-only world parse entry point and the `tokens`, `token-world` and
+  `token-shape-gl` test suites were added, including a standalone CTest target.
+- API/allocation documentation, actual world-extension inventory and current
+  procedural terrain docs were updated. No parser performance benchmark was
+  performed.
+
+## 4. Minimum QuadTree follow-up, 2026-09-09
+
+`QuadTree::saveTD()` now writes `TS::terrain_desc` (132, `0x84`) and
+`TS::terrain_desc_tiles` (135, `0x87`) as explicit quint32 IDs instead of two
+numeric literals, with a direct TS.h include. Both TD and TDL use this writer.
+This follow-up changes **no reader code**, fixed header skips, packed quadtree
+bytes, lengths, labels or recovery behavior. It is not a conversion of QuadTree
+to the new parser. The native values and resulting serialized bytes are unchanged.
+
+Verification of this follow-up: the actual QuadTree translation unit compiled
+successfully. A temporary QDataStream check compared the old and named-ID block
+serialization for payload sizes 0, 1, 257 and 65,536; all four were byte-identical.
+This checks the changed writer expressions, not a new full-route/TD parser test.
+
+The [FileBuffer TODOs](../../features/file-buffer.md#111-status-and-follow-up-todos)
+separate this completed token cleanup from any optional future QuadTree parser
+work. They do not authorize additional implementation in this follow-up.
 
 No ACE implementation, procedural material catalogue/bitmap format, selection
 ID scheme, ORTS source, MSTS executable or existing route/test tile was changed.
@@ -45,7 +107,7 @@ No Windows-host filesystem/registry/process access or Wine run was performed.
 Static executable table verification read the already-provided Linux-local
 copies as data; it did not execute them.
 
-## Verification results
+## Verification results for the original implementation
 
 Linux/WSL, GCC 16.2.1, Qt 6.11.2. Full Release application build succeeded.
 The original mixed LF/CRLF endings of unchanged lines were restored afterward
@@ -161,7 +223,10 @@ After publication, fetch `feature/native-token-ids`; record the tested revision
 with `git rev-parse HEAD`. Do not merge the older
 `docs/tsre-token-migration-plan` branch as if it contained this implementation.
 
-Ask the next agent to **test the completed change, not reimplement the plan**:
+Ask the next agent to **review/test the current change, not blindly reimplement
+the historical plan or assume the parser integration is finished**. Recovery
+corrections require a separately scoped implementation request; the TODO list
+is not authorization to perform them:
 
 1. Fetch the approved `feature/native-token-ids` commit and repeat the commands
    above in a clean checkout, preserving any unrelated local work.
