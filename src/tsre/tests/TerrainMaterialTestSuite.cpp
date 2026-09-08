@@ -31,6 +31,7 @@
 #include <QOpenGLExtraFunctions>
 #include <routeEditor/TerrainTools.h>
 #include <QPushButton>
+#include <QTableWidget>
 #include <QThread>
 #include <algorithm>
 #include <cstring>
@@ -325,6 +326,8 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
         const auto redUid=library->addImage(temp.path()+"/red.png",error);
         const auto blueUid=library->addImage(temp.path()+"/blue.png",error);
         check(redUid==1 && blueUid==2 && library->find(redUid)->texture=="red.png","global-library-add-images-stable-uids");
+        check(library->find(redUid)->displayName=="red" && library->find(blueUid)->displayName=="blue",
+              "global-library-initial-name-from-image-basename");
         QFile dat(library->path()); check(dat.open(QIODevice::ReadOnly),"global-fixture-open-library"); const auto original=dat.readAll(); dat.close();
         check(original.startsWith("\xff\xfe") && library->reload() && library->find(blueUid),"global-library-utf16-bom-roundtrip");
         check(!TerrainMaterialLibrary::validTextureName("../escape.ace")
@@ -345,9 +348,43 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
         check(dat.open(QIODevice::WriteOnly),"global-fixture-restore-library"); dat.write(original); dat.close();
         check(library->reload(),"global-library-repair-recovers");
         { QScopedValueRollback<bool> writable(Game::writeEnabled,false);
-          check(!library->addImage(temp.path()+"/red.png",error) && !library->save(error),"global-library-respects-readonly"); }
+          check(!library->addImage(temp.path()+"/red.png",error) && !library->save(error)
+                && !library->rename(blueUid,"Forbidden",error),"global-library-respects-readonly");
+          TerrainMaterialDialog readonly;
+          check(!(readonly.findChild<QTableWidget*>()->item(0,2)->flags() & Qt::ItemIsEditable),
+                "global-chooser-readonly-name-not-editable"); }
         TerrainMaterialDialog chooser(nullptr,blueUid);
         check(chooser.selectedUid()==blueUid,"global-chooser-selects-stable-uid");
+        auto *table=chooser.findChild<QTableWidget*>();
+        check(table && table->rowCount()==2 && table->columnCount()==3
+              && table->horizontalHeaderItem(0)->text()=="UiD"
+              && table->horizontalHeaderItem(1)->text()=="Texture"
+              && table->horizontalHeaderItem(2)->text()=="Name","global-chooser-table-columns");
+        check(!(table->item(0,0)->flags() & Qt::ItemIsEditable)
+              && !(table->item(0,1)->flags() & Qt::ItemIsEditable)
+              && (table->item(0,2)->flags() & Qt::ItemIsEditable),"global-chooser-only-name-editable");
+        check(!table->item(0,1)->icon().isNull() && !table->item(1,1)->icon().isNull()
+              && table->item(1,1)->icon().pixmap(64,64).toImage().pixelColor(0,0)==QColor(Qt::blue),
+              "global-chooser-source-thumbnails");
+        const QString renamed=QString::fromUtf8("Blue gravel / Żwir \"fine\"");
+        table->item(1,2)->setText("  "+renamed+"  ");
+        check(chooser.selectedUid()==blueUid && table->item(1,2)->text()==renamed
+              && library->reload() && library->find(blueUid)->displayName==renamed
+              && library->find(blueUid)->texture=="blue.png","global-chooser-inline-rename-persists-stable-uid");
+        table->item(1,2)->setText("   ");
+        check(table->item(1,2)->text()==renamed && library->find(blueUid)->displayName==renamed,
+              "global-chooser-empty-rename-reverted");
+        const quint64 revision=library->revision();
+        check(library->rename(blueUid,renamed,error) && library->revision()==revision,
+              "global-library-unchanged-name-does-not-save");
+        check(!library->rename(999,"Missing",error),"global-library-rename-missing-uid-refused");
+        // External changes must not be silently overwritten by an inline edit.
+        check(dat.open(QIODevice::Append),"global-fixture-external-library-change"); dat.write(" "); dat.close();
+        check(!library->rename(blueUid,"Stale edit",error) && library->find(blueUid)->displayName==renamed,
+              "global-library-failed-rename-rolls-back");
+        check(dat.open(QIODevice::WriteOnly),"global-fixture-restore-after-rename"); dat.write(original); dat.close();
+        check(library->reload(),"global-library-reload-after-rename");
+        table->item(1,2)->setText("Blue gravel");
 #ifdef Q_OS_WIN
         // The offscreen QPA has no Windows font discovery. Production's Windows
         // plugin does; load its normal UI font explicitly for this screenshot.
@@ -356,6 +393,27 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
 #endif
         chooser.show(); QApplication::processEvents();
         chooser.grab().save("build/terrain-material-chooser.png"); chooser.hide();
+
+        AceWriteOptions thumbnailOptions; thumbnailOptions.encoding=AceEncoding::Dxt1;
+        const QString thumbnailPath=temp.path()+"/thumbnail.ace";
+        check(AceLib::save(thumbnailPath,red,thumbnailOptions,error),"global-chooser-ace-thumbnail-fixture");
+        const quint32 aceUid=library->addImage(thumbnailPath,error);
+        {
+            TerrainMaterialDialog aceChooser(nullptr,aceUid);
+            auto *aceTable=aceChooser.findChild<QTableWidget*>();
+            check(aceUid && aceTable->rowCount()==3 && !aceTable->item(2,1)->icon().isNull()
+                  && aceTable->item(2,1)->icon().pixmap(64,64).toImage().pixelColor(0,0)==QColor(Qt::red),
+                  "global-chooser-ace-thumbnail-correct-color");
+        }
+        check(QFile::remove(library->textureDirectory()+"/thumbnail.ace"),"global-fixture-remove-thumbnail-source");
+        {
+            TerrainMaterialDialog missingChooser(nullptr,aceUid);
+            check(missingChooser.selectedUid()==aceUid
+                  && missingChooser.findChild<QTableWidget*>()->item(2,1)->text()=="No preview",
+                  "global-chooser-missing-thumbnail-keeps-uid-selectable");
+        }
+        check(dat.open(QIODevice::WriteOnly),"global-fixture-restore-after-thumbnails"); dat.write(original); dat.close();
+        check(library->reload(),"global-library-reload-after-thumbnails");
 
         TestTerrain global; global.setup(library->textureDirectory(),16,"global-library");
         check(global.setProceduralMaterial(true,error,redUid),"global-tile-enable-from-uid");
@@ -1883,7 +1941,7 @@ int TsreTests::runTerrainMaterialGlSuite() {
         selectedBrush->size=37;
         QTimer::singleShot(0,[&] {
             if (auto *dialog=dynamic_cast<TerrainMaterialDialog*>(QApplication::activeModalWidget())) {
-                dialog->findChild<QListWidget*>()->setCurrentRow(0); dialog->accept();
+                dialog->findChild<QTableWidget*>()->setCurrentCell(0,2); dialog->accept();
             }
         });
         tools.findChild<QPushButton*>("chooseProceduralMaterial")->click();

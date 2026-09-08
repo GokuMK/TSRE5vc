@@ -2,7 +2,7 @@
 #include <QDialog>
 #include <memory>
 class TerrainMaterialLibrary;
-class QListWidget;
+class QTableWidget;
 class QLabel;
 class QPushButton;
 class TerrainMaterialDialog : public QDialog {
@@ -12,7 +12,7 @@ public:
 private:
     void refresh(quint32 selected);
     std::shared_ptr<TerrainMaterialLibrary> library;
-    QListWidget *list;
+    QTableWidget *table;
     QLabel *status;
     QPushButton *choose, *fromImage;
 };

@@ -19,6 +19,7 @@ public:
     void poll(); // Throttled, UI thread only; never called by generation workers.
     bool save(QString &error);
     quint32 addImage(const QString &source, QString &error);
+    bool rename(quint32 uid, const QString &name, QString &error);
     const QMap<quint32,TerrainMaterialDefinition> &materials() const { return definitions; }
     const TerrainMaterialDefinition *find(quint32 uid) const;
     QString textureDirectory() const;

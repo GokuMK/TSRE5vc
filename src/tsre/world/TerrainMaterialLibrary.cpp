@@ -147,6 +147,21 @@ bool TerrainMaterialLibrary::save(QString &error) {
     stamp=QFileInfo(path()).lastModified().toMSecsSinceEpoch(); fileSize=QFileInfo(path()).size(); ++generation;
     return true;
 }
+bool TerrainMaterialLibrary::rename(quint32 uid, const QString &name, QString &error) {
+    error.clear();
+    if (!Game::writeEnabled || Game::serverClient) { error="Route is not writable"; return false; }
+    if (!loaded || !loadError.isEmpty()) { error=loadError; return false; }
+    auto material=definitions.find(uid);
+    if (material==definitions.end()) { error="Material UiD no longer exists"; return false; }
+    const QString trimmed=name.trimmed();
+    if (trimmed.isEmpty()) { error="Material name cannot be empty"; return false; }
+    if (material->displayName==trimmed) return true;
+    const QString previous=material->displayName;
+    material->displayName=trimmed;
+    if (save(error)) return true;
+    material->displayName=previous;
+    return false;
+}
 quint32 TerrainMaterialLibrary::addImage(const QString &source, QString &error) {
     if (!Game::writeEnabled || Game::serverClient) { error="Route is not writable"; return 0; }
     if (!loaded || !loadError.isEmpty()) { error=loadError; return 0; }

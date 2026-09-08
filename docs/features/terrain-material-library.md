@@ -22,6 +22,17 @@ Lock are duplicated controls for the same underlying tools and share checked
 state. **From image...** validates
 an image, copies it into route `TERRTEX` if necessary, and adds a definition.
 Existing filenames are not overwritten; colliding external names get a suffix.
+The chooser is a row-selection table: **UiD**, **Texture** thumbnail and **Name**.
+New names use the original image filename without its extension, even if copying
+the file required a collision suffix. Double-click the name or press F2 to rename
+it; the trimmed, nonempty name is saved immediately without changing its UiD,
+texture source or tile mappings. Only names are editable; read-only routes disable
+editing. A failed save restores the old name and displays an error below the table.
+Renaming is a library change, not a terrain undo action. Double-clicking the UiD
+or thumbnail selects the material; double-clicking its name edits it instead.
+Thumbnails are CPU previews (including ACE and DDS), independent of terrain GPU
+textures. Missing/invalid images show **No preview** with details in the tooltip;
+the material's UiD remains selectable.
 Select the new/existing entry and press **Choose**. Activating tile conversion
 without a selected route material opens this chooser too, with an explanatory
 message: select the initial fill material, then click the tile to convert. The
@@ -158,6 +169,14 @@ restore S/P identities using the same source image, paint with a restored UiD,
 retain picked local-shader data, deduplicate entries, exercise the six-entry
 limit and preserve brush settings/shape. Loaded thumbnail pixels and S/P badges
 were checked as well. Log: `build/terrain-material-undo-recent-materials-final.log`.
+
+Material-table follow-up: Release build passes, **503 CPU checks pass**, and the
+OpenGL suite reports **0 failures**. Added coverage for initial image-based names,
+table columns/edit flags, PNG/ACE thumbnail colors, missing-image selection,
+Unicode/quoted-name save/reload, stable UiDs, empty-name rejection, read-only
+editing and rollback after an external file change. The table screenshot was
+inspected. Logs: `build/terrain-material-undo-material-table-cpu.log` and
+`build/terrain-material-undo-material-table-gl.log` (not tracked).
 The user subsequently confirmed that the mixed recent-material selection works
 and approved committing this implementation and its UI follow-ups.
 
