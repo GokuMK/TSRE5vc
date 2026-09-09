@@ -33,13 +33,51 @@ if ($Tool -eq 'ace-thumbnails') {
     Copy-Item -LiteralPath (Join-Path $root 'extra/gimp-ace/install.ps1') -Destination $package
     Copy-Item -LiteralPath (Join-Path $root 'extra/gimp-ace/distribution/install.cmd') -Destination $package
 }
-$licenses = Join-Path $package 'licenses'
-New-Item -ItemType Directory -Force $licenses | Out-Null
-# Preserve all notices embedded in the bundled miniz source.
-Copy-Item -LiteralPath (Join-Path $root 'src/mzip/miniz/miniz.h') -Destination $licenses
-if ($RuntimeLicenseDirectory) {
-    Copy-Item -LiteralPath $RuntimeLicenseDirectory -Destination (Join-Path $licenses 'toolchain') -Recurse
+# Consolidate verbatim notices, grouping identical texts without losing their
+# component/file attribution. This is an inventory, not a relicensing step.
+$noticeTexts = [Collections.Generic.List[string]]::new()
+$noticeSources = [Collections.Generic.Dictionary[string, Collections.Generic.List[string]]]::new([StringComparer]::Ordinal)
+function Add-Notice([string]$Source, [string]$Text) {
+    $Text = $Text.Trim()
+    if (!$Text) { return }
+    if (!$noticeSources.ContainsKey($Text)) {
+        $noticeSources.Add($Text, [Collections.Generic.List[string]]::new())
+        $noticeTexts.Add($Text)
+    }
+    $noticeSources[$Text].Add($Source)
 }
+$minizPath = Join-Path $root 'src/mzip/miniz/miniz.h'
+$minizComments = [regex]::Matches([IO.File]::ReadAllText($minizPath), '(?s)/\*.*?\*/')
+$minizNotices = @($minizComments | Where-Object {
+    $_.Value -match 'Permission is hereby granted|This is free and unencumbered software'
+})
+if (!$minizNotices.Count) { throw 'No miniz license notices found; review the source before packaging' }
+foreach ($notice in $minizNotices) {
+    Add-Notice 'Bundled miniz (src/mzip/miniz/miniz.h)' $notice.Value
+}
+if ($RuntimeLicenseDirectory) {
+    $licenseRoot = (Get-Item -LiteralPath $RuntimeLicenseDirectory).FullName.TrimEnd('\', '/')
+    foreach ($file in (Get-ChildItem -LiteralPath $licenseRoot -File -Recurse | Sort-Object FullName)) {
+        $relative = $file.FullName.Substring($licenseRoot.Length + 1).Replace('\', '/')
+        Add-Notice "Build environment: $relative" ([IO.File]::ReadAllText($file.FullName))
+    }
+}
+$notices = [Text.StringBuilder]::new()
+[void]$notices.AppendLine('THIRD-PARTY NOTICES')
+[void]$notices.AppendLine('Original component terms and copyright notices are preserved below.')
+[void]$notices.AppendLine('This file does not relicense the components or specify a license for TSRE.')
+[void]$notices.AppendLine('Build-environment entries inventory SDK/runtime notices; they include build')
+[void]$notices.AppendLine('tools and dependencies that are not necessarily distributed in this package.')
+[void]$notices.AppendLine('Identical notice texts are grouped with all source-file attributions.')
+foreach ($noticeText in $noticeTexts) {
+    [void]$notices.AppendLine("`n" + ('=' * 72))
+    foreach ($sourceName in ($noticeSources[$noticeText] | Select-Object -Unique)) {
+        [void]$notices.AppendLine($sourceName)
+    }
+    [void]$notices.AppendLine(('=' * 72) + "`n")
+    [void]$notices.AppendLine($noticeText)
+}
+[IO.File]::WriteAllText((Join-Path $package 'THIRD-PARTY-NOTICES.txt'), $notices.ToString(), [Text.UTF8Encoding]::new($false))
 @"
 Tool: $Tool
 Version: $Version
@@ -50,7 +88,7 @@ Build date (UTC): $([DateTime]::UtcNow.ToString('u'))
 
 The source archive includes the tool, shared ACE codec, Qt compatibility layer,
 and build instructions. No Qt runtime is included or required.
-miniz copyright and license notices are retained in licenses/miniz.h.
+Third-party copyright and license notices are in THIRD-PARTY-NOTICES.txt.
 "@ | Set-Content -LiteralPath (Join-Path $package 'BUILD.txt') -Encoding UTF8
 if (Test-Path -LiteralPath (Join-Path $BuildDirectory 'toolchain.txt')) {
     Copy-Item -LiteralPath (Join-Path $BuildDirectory 'toolchain.txt') -Destination $package

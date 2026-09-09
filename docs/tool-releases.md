@@ -17,6 +17,13 @@ Each ZIP includes the production binary, installation instructions/helpers,
 source commit and link, and third-party notices. Tests and SDK DLLs are excluded.
 A matching `.sha256` asset gives the ZIP checksum.
 
+`THIRD-PARTY-NOTICES.txt` consolidates miniz and build-environment notices into
+one file, preserving the original terms and component/file names. Identical
+texts are included once with all their attributions. The SDK inventory also
+contains build tools and dependencies not shipped in the ZIP; it is retained
+for notice coverage, not as a statement that every listed component is linked.
+This does not relicense third-party code or change TSRE's license.
+
 The first binary packages target Windows x64. The GIMP source continues to
 support native Linux builds through its standalone CMake project. A Windows EXE
 is not a Linux package; build against the GIMP SDK installed on that system.
