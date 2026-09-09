@@ -1486,10 +1486,6 @@ public:
         Length = 0x0005080D,
         Flipped = 0x0005080E,
 
-        // Existing TSRE world names: no blanket renaming of native/text formats.
-        Ruler = 0x00060800,
-        ShapeTemplate = 0x00060801,
-
         // Internal/network messages retain underscores; file blocks below do not.
         TSRE_Requested_Terrain_tFile = 0x00060001,
         TSRE_Requested_Terrain_RawFile = 0x00060002,
@@ -1499,6 +1495,13 @@ public:
         TSRE_Terrain_FtFile = 0x00060006,
         TSRE_Requested_TD_File = 0x00060007,
         TSRE_Requested_TD_Lo_File = 0x00060008,
+
+        // TSRE World tokens
+        // Existing TSRE world names: no blanket renaming of native/text formats.
+        Ruler = 0x00060800,
+        ShapeTemplate = 0x00060801,
+
+        // TSRE Terrain tokens
         TSRETerrainMaterialBuffer = 0x00061000,
         TSRETerrainBakedMaterial = 0x00061001,
         TSRETerrainMaterialMap = 0x00061002
