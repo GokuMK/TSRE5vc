@@ -2413,8 +2413,8 @@ void Route::save() {
     foreach (Tile* tTile, tile){
         if (tTile == NULL) continue;
         if (tTile->loaded == 1 && tTile->isModified()) {
-            tTile->save();
-            tTile->setModified(false);
+            if (tTile->save())
+                tTile->setModified(false);
         }
     }
     Game::terrainLib->save();

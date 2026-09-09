@@ -28,6 +28,7 @@
 #include <tsre/world/objects/PickupObj.h>
 #include <tsre/ogl/GLUU.h>
 #include <QString>
+#include <QStringList>
 #include <QDebug>
 #include <QFile>
 #include <tsre/ogl/GLUU.h>
@@ -257,8 +258,10 @@ void Tile::load() {
         }
     } else {
         QString error;
-        if (!loadBinaryData(data, false, &error)) {
+        const bool parsed = loadBinaryData(data, false, &error);
+        if (!error.isEmpty())
             qWarning() << path << error;
+        if (!parsed) {
             delete data;
             delete file;
             return;
@@ -276,9 +279,14 @@ void Tile::load() {
 
 bool Tile::loadBinaryData(FileBuffer* data, bool sound, QString* error) {
     // Parse object state only. Asset/GL loading is performed by the caller.
+    BinaryLoadState& state = sound ? soundBinaryLoadState : worldBinaryLoadState;
+    state = BinaryLoadState::Failed;
+    if (error)
+        error->clear();
+    const QString fileKind = sound ? QStringLiteral("WS") : QStringLiteral("W");
+    QStringList diagnostics;
     const int firstObject = jestObiektow;
-    const auto oldSpheres = viewDbSphere;
-    const auto oldCount = vDbIdCount;
+
     try {
         data->off = 32;
         const auto root = data->readBlock();
@@ -287,51 +295,79 @@ bool Tile::loadBinaryData(FileBuffer* data, bool sound, QString* error) {
             throw FileBuffer::ParseError("Unexpected world-file root token");
         FileBuffer::ScopedLimit rootScope(*data, root.end);
         data->skipLabel();
+        state = BinaryLoadState::Complete;
+
         while (data->off < root.end) {
-            const auto block = data->readBlock();
-            FileBuffer::ScopedLimit blockScope(*data, block.end);
-            if (!sound && block.id == TS::ViewDbSphere) {
-                data->skipLabel();
-                viewDbSphere.push_back(ViewDbSphere());
-                while (data->off < block.end) {
-                    const auto id = data->getToken();
-                    viewDbSphere.back().set(id, data);
-                }
-            } else if (!sound && block.id == TS::VDbIdCount) {
-                data->skipLabel();
-                vDbIdCount = data->getInt();
-            } else if (!sound && block.id == TS::Tr_Watermark) {
-                data->skipLabel();
-                obiekty[jestObiektow++] = new TrWatermarkObj(data->getInt());
-            } else {
-                std::unique_ptr<WorldObj> object(WorldObj::createObj(block.id));
-                if (object) {
+            const int blockStart = data->off;
+            FileBuffer::Block block;
+            try {
+                block = data->readBlock();
+            } catch (const FileBuffer::ParseError& failure) {
+                state = BinaryLoadState::Recovered;
+                diagnostics.push_back(QStringLiteral(
+                    "%1 top-level framing error at byte %2; parsing stopped after %3 completed object(s): %4")
+                    .arg(fileKind).arg(blockStart).arg(jestObiektow - firstObject)
+                    .arg(QString::fromLatin1(failure.what())));
+                break;
+            }
+
+            try {
+                FileBuffer::ScopedLimit blockScope(*data, block.end);
+                if (!sound && block.id == TS::ViewDbSphere) {
                     data->skipLabel();
+                    ViewDbSphere sphere{};
                     while (data->off < block.end) {
-                        const auto child = data->readBlock();
-                        FileBuffer::ScopedLimit childScope(*data, child.end);
-                        object->set(child.id, data);
-                        data->off = child.end;
+                        const auto id = data->getToken();
+                        sphere.set(id, data);
                     }
-                    obiekty[jestObiektow++] = object.release();
+                    viewDbSphere.push_back(sphere);
+                } else if (!sound && block.id == TS::VDbIdCount) {
+                    data->skipLabel();
+                    const int count = data->getInt();
+                    vDbIdCount = count;
+                } else if (!sound && block.id == TS::Tr_Watermark) {
+                    data->skipLabel();
+                    std::unique_ptr<WorldObj> watermark(new TrWatermarkObj(data->getInt()));
+                    obiekty[jestObiektow++] = watermark.release();
+                } else {
+                    std::unique_ptr<WorldObj> object(WorldObj::createObj(block.id));
+                    if (object) {
+                        data->skipLabel();
+                        while (data->off < block.end) {
+                            const auto child = data->readBlock();
+                            FileBuffer::ScopedLimit childScope(*data, child.end);
+                            object->set(child.id, data);
+                            data->off = child.end;
+                        }
+                        obiekty[jestObiektow++] = object.release();
+                    }
                 }
+            } catch (const FileBuffer::ParseError& failure) {
+                state = BinaryLoadState::Recovered;
+                diagnostics.push_back(QStringLiteral(
+                    "%1 block %2 at byte %3 was discarded; parsing continued at byte %4: %5")
+                    .arg(fileKind).arg(TS::describe(block.id)).arg(blockStart)
+                    .arg(block.end).arg(QString::fromLatin1(failure.what())));
             }
             data->off = block.end;
         }
+
+        if (error)
+            *error = diagnostics.join(QStringLiteral("\n"));
         return true;
     } catch (const FileBuffer::ParseError& failure) {
-        // Do not leave partially parsed objects in a tile after a failed load.
-        while (jestObiektow > firstObject) {
-            --jestObiektow;
-            delete obiekty[jestObiektow];
-            obiekty.erase(jestObiektow);
-        }
-        viewDbSphere = oldSpheres;
-        vDbIdCount = oldCount;
-        if (error) *error = QString::fromLatin1(failure.what())
-                + QStringLiteral(" at byte %1").arg(data->off);
+        // Root validation happens before any tile state is published.
+        state = BinaryLoadState::Failed;
+        if (error)
+            *error = QStringLiteral("%1 root parse failed at byte %2: %3")
+                    .arg(fileKind).arg(data->off)
+                    .arg(QString::fromLatin1(failure.what()));
         return false;
     }
+}
+
+Tile::BinaryLoadState Tile::binaryLoadState(bool sound) const {
+    return sound ? soundBinaryLoadState : worldBinaryLoadState;
 }
 
 void Tile::loadUtf16Data(FileBuffer *data){
@@ -431,9 +467,10 @@ void Tile::loadWS() {
     } else {
         const int firstSound = jestObiektow;
         QString error;
-        if (!loadBinaryData(data, true, &error))
+        const bool parsed = loadBinaryData(data, true, &error);
+        if (!error.isEmpty())
             qWarning() << path << error;
-        else for (int i = firstSound; i < jestObiektow; ++i) {
+        if (parsed) for (int i = firstSound; i < jestObiektow; ++i) {
             WorldObj* object = obiekty[i];
             object->load(x, z);
             if (object->UiD < 1000000 && object->UiD > maxUiDWS)
@@ -674,7 +711,11 @@ void Tile::saveToStream(QTextStream &out){
     out << ")";
 }
 
-void Tile::save() {
+bool Tile::save() {
+    if (worldBinaryLoadState != BinaryLoadState::Complete) {
+        qWarning() << "Refusing to overwrite an incomplete binary W file for tile" << x << z;
+        return false;
+    }
     const bool deleteViewDbSpheres =
             Settings::boolean("core.editing.deleteViewDbSpheres");
     const bool sortTileObjects =
@@ -688,7 +729,7 @@ void Tile::save() {
     
     if(!file.open(QIODevice::WriteOnly | QIODevice::Text)){
         qDebug() << "Error saving W file " << path;
-        return;
+        return false;
     }
     QTextStream out(&file);
     out.setEncoding(QStringConverter::Utf16);
@@ -740,10 +781,14 @@ void Tile::save() {
  
     // optional, as QFile destructor will already do it:
     file.close(); 
-    saveWS();
+    return saveWS();
 }
 
-void Tile::saveWS() {
+bool Tile::saveWS() {
+    if (soundBinaryLoadState != BinaryLoadState::Complete) {
+        qWarning() << "Refusing to overwrite an incomplete binary WS file for tile" << x << z;
+        return false;
+    }
     QString path;
     
     path = Game::root + "/routes/" + Game::route + "/world/w" + getNameXY(x) + "" + getNameXY(-z) + ".ws";
@@ -759,13 +804,18 @@ void Tile::saveWS() {
     qDebug() << countWS;
     if(countWS == 0){
         qDebug() << "delete ws file if exist";
-        file.remove();
-        return;
+        if (!file.exists())
+            return true;
+        if (!file.remove()) {
+            qWarning() << "Error deleting empty WS file " << path;
+            return false;
+        }
+        return true;
     }
     
     if(!file.open(QIODevice::WriteOnly | QIODevice::Text)){
         qDebug() << "Error saving WS file " << path;
-        return;
+        return false;
     }   
     QTextStream out(&file);
     out.setEncoding(QStringConverter::Utf16);
@@ -780,8 +830,8 @@ void Tile::saveWS() {
     }
     out << ")";
  
-    file.close(); 
-    
+    file.close();
+    return true;
 }
 
 bool Tile::isModified(){

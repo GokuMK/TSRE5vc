@@ -20,6 +20,11 @@ class GroupObj;
 
 class Tile {
 public:
+    enum class BinaryLoadState {
+        Complete,
+        Recovered,
+        Failed
+    };
     struct ViewDbSphere {
         int vDbId;
 	float position[3];
@@ -53,6 +58,7 @@ public:
     void loadUtf16Data(FileBuffer *data);
     // Reads binary object state without loading shapes, sounds or GL resources.
     bool loadBinaryData(FileBuffer* data, bool sound = false, QString* error = nullptr);
+    BinaryLoadState binaryLoadState(bool sound = false) const;
     void loadInit();
     void replaceWorldObj(WorldObj *nowy);
     void selectObjectsByXYRange(QVector<GameObj*> &objects, int minx, int maxx, int minz, int maxz);
@@ -79,16 +85,18 @@ public:
     void pushRenderItems(float *  playerT, float* playerW, float* target, float fov, int renderMode);
     void render(float *  playerT, float* playerW, float* target, float fov, int renderMode);
     //void renderWS(float *  playerT, float* playerW, float* target, float fov, int renderMode);
-    void save();
+    bool save();
     void saveToStream(QTextStream &out);
     
 private:
     int maxUiD = 0;
-    int maxUiDWS = 100000;    
+    int maxUiDWS = 100000;
     bool modified;
+    BinaryLoadState worldBinaryLoadState = BinaryLoadState::Complete;
+    BinaryLoadState soundBinaryLoadState = BinaryLoadState::Complete;
     QString* viewDbSphereRaw = NULL;
     void wczytajObiekty();
-    void saveWS();
+    bool saveWS();
 };
 
 #endif	/* TILE_H */

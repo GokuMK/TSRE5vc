@@ -4,11 +4,10 @@ Updated: 2026-09-09. Describes the API in token-ID commit `8c85bb1` on
 `feature/native-token-ids`, not a new parser implementation.
 
 **Recovery policy matters:** TSRE should retain usable content for viewing.
-The current helpers provide checked reads, but do not implement recovery.
-Some migrated consumers currently abort an entire shape/terrain load or roll
-back a world-file load on `ParseError`. That behavior is under review and is
-not the recommended TSRE policy. The recovery example below is an integration
-pattern using the existing API; it has **not** been installed in those consumers.
+The checked helpers do not implement recovery by themselves. Binary W/WS now
+recover at validated top-level boundaries, while shape and terrain consumers
+can still reject an entire file on `ParseError`. The recovery example below is
+the general integration pattern; consumer policy remains explicit.
 
 This guide covers the buffer, the small `SimisReader.h` helpers, old/new usage
 and an example writer. It is not a general S/W/T converter or an ACE reader.
@@ -676,10 +675,11 @@ unknown-block document model, optional-search status, full-file validation,
 streaming/memory-mapped storage, 64-bit file offsets, a general writer or an
 old-versus-new parser performance result.
 
-At the documented commit, Tile's binary loader rolls back newly parsed objects,
-SFile marks the shape failed, and TFile reports load failure on ParseError.
-Those are consumer decisions, **not necessary consequences of checked reads**.
-This documentation adds no runtime fix for that policy.
+Tile's binary W/WS loader now publishes only completed top-level units, skips a
+bad unit when its outer end is trusted, and stops without rolling back earlier
+units when the next boundary is unsafe. SFile still marks the whole shape
+failed, and TFile reports whole-file load failure on ParseError. Those are
+consumer decisions, **not necessary consequences of checked reads**.
 
 ### 11.1. Status and follow-up TODOs
 
@@ -693,19 +693,23 @@ Completed / retained scope:
 - [x] Document actual API behavior, examples, consumers and current limits.
 - [x] Replace the two QuadTree writer token literals with enum names while
   leaving its legacy reader and wire bytes unchanged.
+- [x] Recover binary W/WS at validated top-level boundaries, retain earlier
+  objects on unsafe framing, expose incomplete state and prevent source
+  overwrite after partial recovery.
 
 Required before accepting the parser integration as a recovery-first replacement:
 
-- [ ] Replace whole-file rejection/rollback with recovery at the smallest safe
-  field/object/primitive/sub-object boundary. Retain usable independent content;
-  do not remove bounds checks or render structures with invalid dependencies.
+- [ ] Extend the world-file recovery policy already implemented to remaining
+  whole-file consumers at their smallest safe field/primitive/sub-object
+  boundaries. Retain usable independent content; do not remove bounds checks
+  or render structures with invalid dependencies.
 - [ ] Review every required-child assumption. Treat optional absence normally;
   distinguish missing required data from damaged framing. An optional-search
   result or explicit required-search API may help, but simply catching all
   ParseError exceptions as “not found” is not a solution.
-- [ ] Keep partial-load diagnostics/state separate from permission to save.
-  Recovery for viewing must not silently overwrite an original with incomplete
-  or dropped content.
+- [ ] Apply the W/WS separation of diagnostics/state from save permission to
+  every future partial-load consumer. Recovery for viewing must not silently
+  overwrite an original with incomplete or dropped content.
 - [ ] Audit allocations and state on partial failure, including shape arrays/GL
   resources and terrain data. A block scope is not an ownership rollback.
 - [ ] Compare representative existing binary/Unicode files against the previous

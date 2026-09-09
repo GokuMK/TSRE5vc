@@ -133,10 +133,77 @@ int TsreTests::runTokenWorldSuite(bool verbose, bool withGl) {
     {
         Tile tile;
         auto data = buffer(file(block(TS::Tr_Worldfile,
-                block(TS::Static, uid(1)) + block(TS::Static, block(TS::UiD))), 'w'));
+                block(TS::Static, uid(1))
+                + block(TS::Static, block(TS::UiD))
+                + block(TS::Static, uid(3))), 'w'));
         QString error;
-        test.check(!tile.loadBinaryData(data.get(), false, &error) && tile.jestObiektow == 0
-                   && !error.isEmpty(), "world payload truncation fails and rolls back partial objects");
+        test.check(tile.loadBinaryData(data.get(), false, &error)
+                   && tile.binaryLoadState() == Tile::BinaryLoadState::Recovered
+                   && tile.jestObiektow == 2 && tile.obiekty[0]->UiD == 1
+                   && tile.obiekty[1]->UiD == 3
+                   && error.contains("static", Qt::CaseInsensitive)
+                   && error.contains("continued"),
+                   "bad object payload is discarded at its known boundary and later object loads");
+        test.check(!tile.save(), "recovered W load cannot overwrite its source");
+    }
+    {
+        const QByteArray invalidHeader = uints({quint32(TS::Static), 0xFFFFFFFFu});
+        Tile tile;
+        auto data = buffer(file(block(TS::Tr_Worldfile,
+                block(TS::Static, uid(1)) + invalidHeader), 'w'));
+        QString error;
+        test.check(tile.loadBinaryData(data.get(), false, &error)
+                   && tile.binaryLoadState() == Tile::BinaryLoadState::Recovered
+                   && tile.jestObiektow == 1 && tile.obiekty[0]->UiD == 1
+                   && error.contains("framing") && error.contains("stopped"),
+                   "unsafe top-level framing stops without rolling back completed objects");
+    }
+    {
+        Tile tile;
+        auto* existing = new TrWatermarkObj(4);
+        tile.obiekty[0] = existing;
+        tile.jestObiektow = 1;
+        tile.vDbIdCount = 7;
+        Tile::ViewDbSphere sphere{};
+        sphere.vDbId = 9;
+        tile.viewDbSphere.push_back(sphere);
+        auto data = buffer(file(uints({quint32(TS::Tr_Worldfile), 0xFFFFFFFFu}), 'w'));
+        QString error;
+        test.check(!tile.loadBinaryData(data.get(), false, &error)
+                   && tile.binaryLoadState() == Tile::BinaryLoadState::Failed
+                   && tile.jestObiektow == 1 && tile.obiekty[0] == existing
+                   && tile.vDbIdCount == 7 && tile.viewDbSphere.size() == 1
+                   && tile.viewDbSphere[0].vDbId == 9 && error.contains("root"),
+                   "malformed root preserves all pre-existing tile state");
+    }
+    {
+        const QByteArray badSphere = block(TS::ViewDbSphere,
+                block(TS::VDbId, uints({8}))
+                + block(TS::Position, floats({1, 2})), "bad-sphere");
+        Tile tile;
+        auto data = buffer(file(block(TS::Tr_Worldfile,
+                block(TS::Static, uid(1)) + badSphere + block(TS::Static, uid(3))), 'w'));
+        QString error;
+        test.check(tile.loadBinaryData(data.get(), false, &error)
+                   && tile.binaryLoadState() == Tile::BinaryLoadState::Recovered
+                   && tile.jestObiektow == 2 && tile.obiekty[0]->UiD == 1
+                   && tile.obiekty[1]->UiD == 3 && tile.viewDbSphere.isEmpty()
+                   && error.contains("viewdbsphere", Qt::CaseInsensitive)
+                   && error.contains("continued"),
+                   "bad ViewDbSphere is transactional and does not discard sibling objects");
+    }
+    {
+        Tile tile;
+        auto data = buffer(file(block(TS::Tr_Worldsoundfile,
+                block(TS::Soundsource, uid(1))
+                + block(TS::Soundsource, block(TS::UiD))
+                + block(TS::Soundsource, uid(3))), 'w'));
+        QString error;
+        test.check(tile.loadBinaryData(data.get(), true, &error)
+                   && tile.binaryLoadState(true) == Tile::BinaryLoadState::Recovered
+                   && tile.jestObiektow == 2 && tile.obiekty[0]->UiD == 1
+                   && tile.obiekty[1]->UiD == 3 && error.contains("continued"),
+                   "WS object recovery follows the same transactional policy");
     }
     {
         auto data = buffer(block(TS::shader_names, uints({1}) + block(0xFFFF0800u, "unknown")

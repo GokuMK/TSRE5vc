@@ -6,10 +6,9 @@ Base: `main` at `9f389f08450411614256d9f3e018225ddc62584a`.
 
 **This is a combined token-ID and parser-change report, not a token-only diff.**
 The native-ID mechanism is implemented and the checks below passed at the
-recorded revision. The additional parser integration is **not complete or
-accepted as a recovery-first TSRE replacement**: current whole-file aborts and
-world-object rollback discard usable content. Test success does not approve
-that policy. The user controls publication; no merge is implied by this report.
+recorded revision. The branch has since merged. Binary W/WS recovery was
+implemented as a separate approved follow-up; shape and terrain whole-file
+failure policies remain separate work rather than consequences of native IDs.
 
 The canonical [consumer inventory](../../features/file-buffer.md#11-current-consumers)
 and [remaining-work checklist](../../features/file-buffer.md#111-status-and-follow-up-todos)
@@ -113,7 +112,7 @@ copies as data; it did not execute them.
 
 Stock-file testing exposed two compatibility bugs missed by the original
 generated fixtures. These corrections do not change native token IDs, generic
-FileBuffer bounds checks, or the unresolved whole-file failure/recovery policy.
+FileBuffer bounds checks, or the then-unresolved failure/recovery policy.
 
 - **Shapes:** `sub_object_header` (40) permits a final optional `uint32 SubObjID`
   after `geometry_info` (41) and optional `subobject_shaders` (104) /
@@ -236,7 +235,7 @@ terrain blobs at a nonzero message offset.
 
 World tests compare all 15 supported native W object factories with the Unicode
 path and check view spheres, dynamic-track sections, signal units, WS roots,
-unknown extensions and rollback. Shape tests cover named shaders (including
+unknown extensions and top-level recovery. Shape tests cover named shaders (including
 long names), labeled arrays, linear/TCB/slerp keys and actual mesh upload bytes.
 The GL test is a vertex-data comparison, not a visual MSTS capture.
 
@@ -305,16 +304,15 @@ ASAN_OPTIONS=detect_leaks=0 QT_FORCE_STDERR_LOGGING=1 build-token-asan/tests/tok
 
 ## Post-merge handoff
 
-The branch has been merged and validated. Before implementing more changes,
-present the outstanding tasks to the user and ask which one, if any, to start:
+The branch has been merged and validated. World recovery was subsequently
+approved, implemented and verified. Before implementing more changes, present
+the remaining tasks to the user and ask which one, if any, to start:
 
-1. [Binary world parser recovery](../world/binary-world-parser-recovery.md), so
-   one damaged object does not roll back earlier valid world objects.
-2. [Procedural terrain token tile migration](../terrain/procedural-token-tile-migration.md)
+1. [Procedural terrain token tile migration](../terrain/procedural-token-tile-migration.md)
    for affected test assets, if any, and the user's local procedural route.
-3. Terrain failure propagation and the other findings in the deferred
+2. Terrain failure propagation and the other findings in the deferred
    [server/client rework](server-client-rework.md).
-4. A later shape-parser recovery rework; whole-shape rejection is accepted only
+3. A later shape-parser recovery rework; whole-shape rejection is accepted only
    as a temporary policy.
 
 Do not combine these tasks merely because they were found during one review.
