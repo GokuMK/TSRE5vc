@@ -1,7 +1,7 @@
 # Procedural terrain token tile migration
 
-Status: local asset migration completed on 2026-09-09; automated validation
-passed. Visual Route Editor acceptance remains.
+Status: completed on 2026-09-09. Automated validation and visual Route Editor
+acceptance passed.
 
 ## Scope
 
@@ -81,5 +81,6 @@ Validation completed after the rewrite:
 - procedural-material suite: 503 passed, 0 failed, including paint, bake,
   save and reopen coverage.
 
-Opening the local route in Route Editor and visually checking all three tiles
-is still required before deleting the migration backup.
+The user subsequently opened the local route in Route Editor and confirmed the
+migrated terrain looked correct. The migration backup remains available for
+manual removal when it is no longer wanted.

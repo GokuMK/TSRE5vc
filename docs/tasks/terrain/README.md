@@ -20,7 +20,7 @@ detail distance. Test counts in historical sections remain milestone-specific.
 | [Simple lookup migration](terrain-simple-lookup-migration.md) | Design reviewed; preliminary private-helper cleanup implemented | Synthetic detailed lookup and removal of `TerrainLibSimple` remain to implement. |
 | [Procedural materials](terrain-procedural-materials.md) | Experimental demo; four-worker loading and synchronous painting tested | Compressed ID plane, F2 tools, shader import, BC1/RGB sharing, tile-level cache release and bounded background generation. Nearest-visible-first requests/uploads within each tile; draw order unchanged. Other production features deferred. |
 | [Procedural baked fallback / catalogue](terrain-procedural-baked-fallback.md) | Stage A and DXT1 follow-up implemented/tested; B remains design only | A: one 1024-square opaque DXT1 ACE bake on save through [AceLib/AceDocument](../../features/ace-library.md), keep-bake-on-disable, reserved source palette, incremental saves and independent 2048 m per-patch detailed-texture distance. B: per-route material catalogue alternatives. |
-| [Procedural token tile migration](procedural-token-tile-migration.md) | Local asset rewrite and automated validation completed 2026-09-09 | Open the procedural route and visually confirm the three migrated tiles before deleting the migration backup. |
+| [Procedural token tile migration](procedural-token-tile-migration.md) | Completed 2026-09-09; automated validation and visual Route Editor acceptance passed | Migration backup retained for manual removal when no longer wanted. |
 
 ## Tracked milestone and sub-task checklist
 
