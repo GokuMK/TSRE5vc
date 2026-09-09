@@ -7,8 +7,11 @@ The two standalone tools have independent releases in this repository:
 | Explorer thumbnails | `ace-thumbnails-v1.0.0` | `ace-thumbnails-1.0.0-windows-x64.zip` |
 | GIMP ACE exporter | `gimp-ace-v1.0.0` | `gimp-ace-1.0.0-windows-x64.zip` |
 
-These tags do not trigger the TSRE workflow (`v*-build.*`). Tool releases use
-`--latest=false`, so they do not take over TSRE's **Latest** release marker.
+These tags do not trigger the TSRE workflow (`v*-build.*`). Tool releases request
+`--latest=false`. However, when all TSRE releases are prereleases and there is
+no stable TSRE release designated **Latest**, GitHub can still select a stable
+tool release as **Latest**. Marking the tool release as a prerelease excludes it
+from that slot; `--latest=false` alone does not guarantee this.
 Each ZIP includes the production binary, installation instructions/helpers,
 source commit and link, and third-party notices. Tests and SDK DLLs are excluded.
 A matching `.sha256` asset gives the ZIP checksum.
