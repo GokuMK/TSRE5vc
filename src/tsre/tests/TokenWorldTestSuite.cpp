@@ -33,13 +33,18 @@ QByteArray shapeSections() {
         + block(TS::prim_states, uints({1}) + block(TS::prim_state, uints({0, 0})
                 + block(TS::tex_idxs, uints({1, 0})) + uints({0, 0, 0, 0, 0}), "primitive"));
 }
-QByteArray shapeLod() {
+QByteArray shapeLod(int subObjId = -1) {
     QByteArray vertices;
     for (quint32 i = 0; i < 3; ++i)
         vertices += block(TS::vertex, uints({0, i, 0, 0, 0}) + block(TS::vertex_uvs, uints({1, 0})), "vertex");
     const auto sub = block(TS::sub_object,
         block(TS::sub_object_header, QByteArray(20, '\0') + block(TS::geometry_info,
-            QByteArray(40, '\0') + block(TS::geometry_node_map, uints({1, 0}))))
+            QByteArray(40, '\0') + block(TS::geometry_nodes, uints({0}))
+                + block(TS::geometry_node_map, uints({1, 0})))
+            + (subObjId < 0 ? QByteArray() :
+                block(TS::subobject_shaders, uints({1, 0}))
+                + block(TS::subobject_light_cfgs, uints({1, 0}))
+                + uints({quint32(subObjId)})))
         + block(TS::vertices, uints({3}) + vertices)
         + block(TS::primitives, uints({3}) + block(TS::prim_state_idx, uints({0}))
             + block(0x80000800u, "ignored primitive")
@@ -213,28 +218,32 @@ int TsreTests::runTokenWorldSuite(bool verbose, bool withGl) {
             test.check(false, "OpenGL context required for shape mesh test");
         } else {
             for (bool compress : {false, true}) {
-                QFile input(temporary.filePath(compress ? "compressed.s" : "plain.s"));
-                const QByteArray bytes = file(block(TS::shape,
-                        block(0x80000800u, "unknown root child") + shapeSections() + shapeLod(), "shape"), 's');
-                if (!input.open(QIODevice::WriteOnly)) {
-                    test.check(false, "shape fixture write open");
-                    continue;
+                for (int subObjId : {-1, 0, 1, 2}) {
+                    QFile input(temporary.filePath(compress ? "compressed.s" : "plain.s"));
+                    const QByteArray bytes = file(block(TS::shape,
+                            block(0x80000800u, "unknown root child") + shapeSections() + shapeLod(subObjId), "shape"), 's');
+                    if (!input.open(QIODevice::WriteOnly)) {
+                        test.check(false, "shape fixture write open");
+                        continue;
+                    }
+                    input.write(compress ? compressed(bytes) : bytes);
+                    input.close();
+                    SFile shape(input.fileName(), "fixture.s", temporary.path());
+                    shape.load();
+                    bool ok = shape.loaded == 1 && shape.iloscd == 1 && shape.distancelevel[0].iloscs == 1;
+                    if (ok) {
+                        auto& sub = shape.distancelevel[0].subobiekty[0];
+                        float vertices[27] = {};
+                        ok = sub.iloscc == 1 && sub.czesci[0].iloscv == 3 && sub.VBO.bind()
+                                && sub.VBO.read(0, vertices, sizeof(vertices));
+                        sub.VBO.release();
+                        ok = ok && vertices[0] == 7 && vertices[1] == 8 && vertices[2] == 9
+                                && vertices[18] == 1 && vertices[19] == 2 && vertices[20] == 3;
+                    }
+                    test.check(ok, QString("%1 shape full LOD mesh VBO bytes, SubObjID %2")
+                            .arg(compress ? "compressed" : "plain")
+                            .arg(subObjId < 0 ? "absent" : QString::number(subObjId)));
                 }
-                input.write(compress ? compressed(bytes) : bytes);
-                input.close();
-                SFile shape(input.fileName(), "fixture.s", temporary.path());
-                shape.load();
-                bool ok = shape.loaded == 1 && shape.iloscd == 1 && shape.distancelevel[0].iloscs == 1;
-                if (ok) {
-                    auto& sub = shape.distancelevel[0].subobiekty[0];
-                    float vertices[27] = {};
-                    ok = sub.iloscc == 1 && sub.czesci[0].iloscv == 3 && sub.VBO.bind()
-                            && sub.VBO.read(0, vertices, sizeof(vertices));
-                    sub.VBO.release();
-                    ok = ok && vertices[0] == 7 && vertices[1] == 8 && vertices[2] == 9
-                            && vertices[18] == 1 && vertices[19] == 2 && vertices[20] == 3;
-                }
-                test.check(ok, compress ? "compressed shape full LOD mesh VBO bytes" : "plain shape full LOD mesh VBO bytes");
             }
         }
     }

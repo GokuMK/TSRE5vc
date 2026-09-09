@@ -107,6 +107,58 @@ No Windows-host filesystem/registry/process access or Wine run was performed.
 Static executable table verification read the already-provided Linux-local
 copies as data; it did not execute them.
 
+## Stock-file schema corrections, 2026-09-09
+
+Stock-file testing exposed two compatibility bugs missed by the original
+generated fixtures. These corrections do not change native token IDs, generic
+FileBuffer bounds checks, or the unresolved whole-file failure/recovery policy.
+
+- **Shapes:** `sub_object_header` (40) permits a final optional `uint32 SubObjID`
+  after `geometry_info` (41) and optional `subobject_shaders` (104) /
+  `subobject_light_cfgs` (105). This is a positional scalar, not a child block
+  and not padding inside `geometry_info`. The corrected header loop consumes
+  the final four bytes without interpreting them as a token; TSRE continues
+  to ignore the value. Microsoft's supplied `UTILS/FFEDIT/newshape.bnf`, rule
+  `sub_object_header`, documents `[:uint,SubObjID]` at the end of the rule.
+  The stock scan found 797 such fields, including values 0, 1 and 2.
+- **Terrain:** `terrain_water_height_offset` (251) accepts either one float32
+  or four float32 values after the label. One height applies to all four
+  corners; the four-value form retains SW, SE, NE, NW order. The MSTS 1.4
+  terrain loader `FUN_006ee290`, instructions `0x006ee486–0x006ee498`, confirms
+  single-value replication. The reader checks payload size after skipping the
+  label, so nonempty labels do not change the decision. Empty, truncated,
+  two-/three-float and overlong payloads are still rejected; no following
+  sibling is consumed as a missing water value.
+
+The old shape fixtures omitted SubObjID and therefore missed the stock layout.
+The expanded `token-shape-gl` fixtures exercise absent and 0/1/2 SubObjID values
+through plain/compressed full shape loading and mesh VBO readback, including
+the optional shader/light-configuration children. The `tokens` suite now tests
+both water layouts with empty/nonempty labels, a following sibling, and invalid
+payload lengths. Proprietary assets are not added to the repository.
+
+Verification after applying the corrections on `feature/native-token-ids`:
+
+| Check | Result |
+| --- | --- |
+| Full Release application build | Passed |
+| `tokens` suite | **1,533 passed, 0 failed** |
+| `token-shape-gl`, including world checks and mesh VBO readback | **35 passed, 0 failed** |
+| CTest: `simis_tokens`, `ace_codec`, `ace_converter` | **3/3 passed** |
+| Supplied MSTS `TRAINS`, actual `SFile::load()` with Xvfb/Mesa | **129/129 loaded**, previously 8/129 |
+| Supplied `fail1`, actual `TFile::load()` | **7/7 loaded**, previously 2/7; water values checked |
+| Local MSTS installation's `ROUTES`, actual `TFile::load()` | **38/38 loaded** |
+
+The 121 originally failing stock shapes are binary; the eight survivors are
+text and bypassed the affected binary reader. Stock shape success here means
+successful loading, not visual/pixel comparison. The larger external terrain
+corpus was not rerun. The stock diagnostics linked the rebuilt application
+objects (shapes) or compiled the branch readers (terrain); their drivers and
+logs were kept outside the repository under `/tmp/tsre-stock-parser-fixes.Qfs0o5`
+and `/tmp/tsre-stock-parser-diagnosis.70Fi8U`. These are local, temporary test
+artifacts, not distributable fixtures. No Windows access or stock-asset edits
+were used. This result does not resolve the separate recovery-policy concerns.
+
 ## Verification results for the original implementation
 
 Linux/WSL, GCC 16.2.1, Qt 6.11.2. Full Release application build succeeded.

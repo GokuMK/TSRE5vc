@@ -192,6 +192,32 @@ int TsreTests::runTokenIdSuite(bool verbose) {
         TFile decoded;
         test.check(!decoded.load(data.get()) && !decoded.loaded, "actual terrain reader rejects truncated scalar");
     }
+    for (const QString& label : {QString(), QString("water")}) {
+        for (int count : {1, 4}) {
+            const auto heights = count == 1 ? floats({60}) : floats({1125, 1065, 1140, 1141});
+            auto data = buffer(file(block(TS::terrain,
+                    block(TS::terrain_water_height_offset, heights, label)
+                    + block(TS::terrain_alwaysselect_maxdist, floats({22})))));
+            TFile decoded;
+            test.check(decoded.load(data.get()) && decoded.waterLevel
+                       && decoded.WSW == (count == 1 ? 60 : 1125)
+                       && decoded.WSE == (count == 1 ? 60 : 1065)
+                       && decoded.WNE == (count == 1 ? 60 : 1140)
+                       && decoded.WNW == (count == 1 ? 60 : 1141)
+                       && decoded.alwaysselectMaxdist && *decoded.alwaysselectMaxdist == 22,
+                       QString("water height: %1 float(s), label '%2', following sibling intact")
+                           .arg(count).arg(label));
+        }
+        for (int bytes : {0, 3, 8, 12, 20}) {
+            auto data = buffer(file(block(TS::terrain,
+                    block(TS::terrain_water_height_offset, QByteArray(bytes, '\0'), label)
+                    + block(TS::terrain_alwaysselect_maxdist, floats({22})))));
+            TFile decoded;
+            test.check(!decoded.load(data.get()) && !decoded.loaded && !decoded.waterLevel,
+                       QString("reject malformed water payload: %1 bytes, label '%2'")
+                           .arg(bytes).arg(label));
+        }
+    }
     QTemporaryDir temporary;
     test.check(temporary.isValid(), "temporary fixture directory");
     for (bool compress : {false, true}) {

@@ -483,14 +483,20 @@ void TFile::get163(FileBuffer* data, int n) {
 
 void TFile::get251(FileBuffer* data) {
         data->skipLabel();
-        
+        const int payloadBytes = data->readEnd() - data->off;
+        if (payloadBytes != 4 && payloadBytes != 16)
+            throw FileBuffer::ParseError("Invalid terrain_water_height_offset payload size");
+
+        // MSTS's legacy one-float form applies the same height to every corner.
+        const float sw = data->getFloat();
+        const float se = payloadBytes == 4 ? sw : data->getFloat();
+        const float ne = payloadBytes == 4 ? sw : data->getFloat();
+        const float nw = payloadBytes == 4 ? sw : data->getFloat();
+        WSW = sw;
+        WSE = se;
+        WNE = ne;
+        WNW = nw;
         waterLevel = true;
-        WSW = data->getFloat();
-        WSE = data->getFloat();
-        WNE = data->getFloat();
-        WNW = data->getFloat();
-        //tdata = new float[n*n][7];
-        //flags = new int[n*n];
     }
 
 int TFile::cloneMat(int id){

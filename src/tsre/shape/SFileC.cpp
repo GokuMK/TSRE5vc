@@ -189,6 +189,12 @@ void SFileC::odczytajloddc(FileBuffer* bufor, SFile* pliks) {
                 bufor->require(20);
                 bufor->off += 20;
                 while (bufor->off < bufor->readEnd()) {
+                    // The optional final SubObjID is a scalar, not a child block
+                    // (newshape.bnf: sub_object_header). TSRE does not use it.
+                    if (bufor->readEnd() - bufor->off == 4) {
+                        bufor->getUint();
+                        break;
+                    }
                     const auto child = bufor->readBlock();
                     FileBuffer::ScopedLimit childScope(*bufor, child.end);
                     if (child.id == TS::geometry_info) {
