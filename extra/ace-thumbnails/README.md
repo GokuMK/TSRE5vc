@@ -1,5 +1,10 @@
 # ACE thumbnails for Windows Explorer
 
+Prebuilt Windows ZIPs are published under `ace-thumbnails-v*` on the repository's
+[Releases page](https://github.com/GokuMK/TSRE5vc/releases). Extract to a permanent
+folder and run `install.cmd`. See [tool releases](../../docs/tool-releases.md)
+for packaging and publishing instructions.
+
 A standalone x64 MinGW COM thumbnail provider for MSTS/Open Rails ACE textures.
 The distributable is **AceThumbnails.dll**. It requires no Qt, zlib or MinGW
 runtime DLLs alongside it; its imports are Windows system libraries only.

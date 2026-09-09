@@ -1,9 +1,14 @@
 param(
     [string]$GimpRoot = 'C:\Program Files\GIMP 3',
     [string]$PluginDirectory,
-    [string]$BuildDirectory = (Join-Path $PSScriptRoot 'build')
+    [string]$BuildDirectory
 )
 $ErrorActionPreference = 'Stop'
+if (!$BuildDirectory) {
+    $BuildDirectory = if (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'file-tsre-ace.exe')) {
+        $PSScriptRoot # Extracted release ZIP.
+    } else { Join-Path $PSScriptRoot 'build' }
+}
 $source = Join-Path $BuildDirectory 'file-tsre-ace.exe'
 if (!(Test-Path -LiteralPath $source)) { throw 'Build the plug-in first with build.ps1' }
 if (!$PluginDirectory) {

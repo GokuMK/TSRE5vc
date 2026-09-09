@@ -1,0 +1,78 @@
+name: ACE Thumbnails release
+
+on:
+  push:
+    tags: ["ace-thumbnails-v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: msys2/setup-msys2@v2
+        id: msys2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-ninja
+      - name: Build and test
+        shell: msys2 {0}
+        run: |
+          cmake -S extra/ace-thumbnails -B extra/ace-thumbnails/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=g++ -DBUILD_TESTING=ON
+          cmake --build extra/ace-thumbnails/build --parallel 4
+          ctest --test-dir extra/ace-thumbnails/build --output-on-failure
+          pacman -Q > extra/ace-thumbnails/build/toolchain.txt
+      - name: Package
+        shell: pwsh
+        env:
+          MSYS2_LOCATION: ${{ steps.msys2.outputs.msys2-location }}
+        run: |
+          $version = if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            $env:GITHUB_REF_NAME.Substring('ace-thumbnails-v'.Length)
+          } else { "0.0.0-dev.$env:GITHUB_RUN_NUMBER" }
+          ./extra/common/release/package.ps1 -Tool ace-thumbnails -Version $version -RuntimeLicenseDirectory "$env:MSYS2_LOCATION/ucrt64/share/licenses"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ace-thumbnails-windows-x64
+          path: |
+            dist/ace-thumbnails/*.zip
+            dist/ace-thumbnails/*.sha256
+          if-no-files-found: error
+
+  publish:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/ace-thumbnails-v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: ace-thumbnails-windows-x64
+          path: release-assets
+      - name: Publish separate tools release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          version="${GITHUB_REF_NAME#ace-thumbnails-v}"
+          (cd release-assets && sha256sum --check *.sha256)
+          args=()
+          if [[ "$version" == *-* ]]; then args+=(--prerelease); fi
+          gh release create "$GITHUB_REF_NAME" release-assets/*.zip release-assets/*.sha256 \
+            --verify-tag --latest=false --notes-from-tag \
+            --title "ACE Thumbnails $version" "${args[@]}"

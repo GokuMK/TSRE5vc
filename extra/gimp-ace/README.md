@@ -1,5 +1,10 @@
 # GIMP 3 ACE exporter
 
+Prebuilt Windows ZIPs are published under `gimp-ace-v*` on the repository's
+[Releases page](https://github.com/GokuMK/TSRE5vc/releases). Extract and run
+`install.cmd`, or follow the included manual installation instructions.
+See [tool releases](../../docs/tool-releases.md) for packaging and publishing.
+
 A native GIMP 3 plug-in using TSRE's unchanged ACE codec and the Qt-free
 compatibility layer in `extra/common/ace-codec`. Windows and Linux share the
 same C++17 sources and standalone CMake project. It does not build TSRE.
