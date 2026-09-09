@@ -7,11 +7,12 @@ The two standalone tools have independent releases in this repository:
 | Explorer thumbnails | `ace-thumbnails-v1.0.0` | `ace-thumbnails-1.0.0-windows-x64.zip` |
 | GIMP ACE exporter | `gimp-ace-v1.0.0` | `gimp-ace-1.0.0-windows-x64.zip` |
 
-These tags do not trigger the TSRE workflow (`v*-build.*`). Tool releases request
-`--latest=false`. However, when all TSRE releases are prereleases and there is
-no stable TSRE release designated **Latest**, GitHub can still select a stable
-tool release as **Latest**. Marking the tool release as a prerelease excludes it
-from that slot; `--latest=false` alone does not guarantee this.
+These tags do not trigger the TSRE workflow (`v*-build.*`). All tool releases
+are published as GitHub **prereleases**, including plain versions such as
+`1.0.0`, to exclude them from the repository's **Latest** slot. The downloads
+remain public. Workflows also set `--latest=false`, but that flag alone does
+not prevent GitHub selecting a tool when no stable TSRE release is designated
+**Latest**.
 Each ZIP includes the production binary, installation instructions/helpers,
 source commit and link, and third-party notices. Tests and SDK DLLs are excluded.
 A matching `.sha256` asset gives the ZIP checksum.
@@ -33,7 +34,7 @@ only Windows system libraries. The GIMP workflow uses MSYS2 CLANG64 and runs the
 export tests plus the production plug-in inside MSYS2's GIMP. Package versions
 are recorded in `toolchain.txt`. This CI test does not establish compatibility
 with every official GIMP build: test the downloaded EXE with the intended
-official Windows GIMP before tagging a stable release. Initial development was
+official Windows GIMP before tagging a release. Initial development was
 tested with official GIMP 3.2.4.
 
 ## Publish from main
@@ -50,8 +51,8 @@ git push origin ace-thumbnails-v1.0.0
 
 For the exporter, use `gimp-ace-v1.0.0` instead. Versions are independent;
 releasing one tool does not require releasing the other or TSRE.
-Use `major.minor.patch`, optionally with a suffix such as `-rc.1`; suffixes
-are published as prereleases. The annotated tag message becomes the release
+Use `major.minor.patch`, optionally with a suffix such as `-rc.1`; every version
+uses GitHub's prerelease setting. The annotated tag message becomes the release
 notes, so include the tool's changes and relevant compatibility notes there.
 
 A tag push builds, tests, packages, and publishes automatically using

@@ -79,8 +79,6 @@ jobs:
         run: |
           version="${GITHUB_REF_NAME#gimp-ace-v}"
           (cd release-assets && sha256sum --check *.sha256)
-          args=()
-          if [[ "$version" == *-* ]]; then args+=(--prerelease); fi
           gh release create "$GITHUB_REF_NAME" release-assets/*.zip release-assets/*.sha256 \
-            --verify-tag --latest=false --notes-from-tag \
-            --title "GIMP ACE Exporter $version" "${args[@]}"
+            --verify-tag --prerelease --latest=false --notes-from-tag \
+            --title "GIMP ACE Exporter $version"
