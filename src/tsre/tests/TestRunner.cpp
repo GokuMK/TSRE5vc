@@ -47,6 +47,7 @@
 #include <tsre/tdb/TSectionDAT.h>
 #include <tsre/tests/RouteLoadTestSuite.h>
 #include <tsre/tests/SelectionIdTestSuite.h>
+#include <tsre/tests/TokenIdTestSuite.h>
 #include <tsre/tests/SettingsTestSuite.h>
 #include <tsre/tests/TdbLoadTestSuite.h>
 #include <tsre/tests/TerrainRawBenchmark.h>
@@ -3117,6 +3118,9 @@ QStringList TsreTests::listSuites() {
         "procedural-policy",
         "route-load",
         "selection-id",
+        "tokens",
+        "token-world",
+        "token-shape-gl",
         "settings",
         "tdb-load",
         "terrain-files",
@@ -3149,6 +3153,11 @@ int TsreTests::run(const TestRunOptions &opts) {
 
     if (suite == "selection-id")
         return runSelectionIdSuite(opts.verbose);
+
+    if (suite == "tokens")
+        return runTokenIdSuite(opts.verbose);
+    if (suite == "token-world" || suite == "token-shape-gl")
+        return runTokenWorldSuite(opts.verbose, suite == "token-shape-gl");
 
     if (suite == "tdb-load")
         return runTdbLoadSuite(opts.verbose);
@@ -3203,6 +3212,8 @@ int TsreTests::run(const TestRunOptions &opts) {
         rc = std::max(rc, runOrtsProfileSuite(opts.verbose));
         rc = std::max(rc, runRouteLoadSuite(opts));
         rc = std::max(rc, runSelectionIdSuite(opts.verbose));
+        rc = std::max(rc, runTokenIdSuite(opts.verbose));
+        rc = std::max(rc, runTokenWorldSuite(opts.verbose));
         rc = std::max(rc, runSettingsSuite(opts.verbose));
         rc = std::max(rc, runTdbLoadSuite(opts.verbose));
         rc = std::max(rc, runTerrainGridSuite(opts.verbose));

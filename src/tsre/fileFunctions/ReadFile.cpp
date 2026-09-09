@@ -9,6 +9,7 @@
  */
 
 #include "ReadFile.h"
+#include <QtEndian>
 //#include "zlib.h"
 
 //unsigned char* ReadFile::out = new unsigned char[10000000];
@@ -23,11 +24,11 @@ FileBuffer* ReadFile::read(QFile* file) {
     unsigned char* data = NULL;
     //int maxSize = 25000000;
     int nLength = 0;
-    unsigned short bom = *((unsigned short int*) & in[0]);
+    const quint16 bom = size >= 2 ? qFromLittleEndian<quint16>(in) : 0;
     //for (int i = 0; i < 100; i++)
     //   qDebug() << ":" << (char)in[i];
     
-    if (bom != 65279 && in[7] == 'F') {
+    if (size >= 16 && bom != 65279 && in[7] == 'F') {
         in[12] = in[11];
         in[13] = in[10];
         in[14] = in[9];
@@ -38,7 +39,7 @@ FileBuffer* ReadFile::read(QFile* file) {
         std::copy(in, in + 16, data);
         std::copy(out.data(), out.data() + nLength - 16, data + 16);
         delete[] in;
-    } else if (bom == 65279 && in[16] == 'F') {
+    } else if (size >= 34 && bom == 65279 && in[16] == 'F') {
         in[30] = in[19];
         in[31] = in[18];
         in[32] = in[17];

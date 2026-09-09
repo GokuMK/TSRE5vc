@@ -35,7 +35,7 @@ public:
     void load(int x, int y);
     void loadInit();
     void set(QString sh, long long int val);
-    void set(int sh, FileBuffer* val);
+    void set(TS::TokenId sh, FileBuffer* val);
     void set(QString sh, QString val);
     void set(QString sh, FileBuffer* data);
     void save(QTextStream* out);

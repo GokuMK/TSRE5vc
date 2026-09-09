@@ -110,6 +110,11 @@ install(TARGETS TSRE5vc
 )
 
 option(TSRE_BUILD_ACE_TESTS "Build standalone ACE codec, benchmark and GL probes" ON)
+option(TSRE_BUILD_TOKEN_TESTS "Build standalone native SIMIS token tests" ON)
+if(TSRE_BUILD_TOKEN_TESTS)
+    enable_testing()
+    add_subdirectory(tests/tokens)
+endif()
 if(TSRE_BUILD_ACE_TESTS)
     enable_testing()
     add_subdirectory(tests/ace)

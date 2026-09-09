@@ -57,7 +57,7 @@ public:
     //mat* materials;
     std::unordered_map<int, Mat> materials;
     std::unordered_map<int, Mat> amaterials;
-    int* flags;
+    int* flags = nullptr;
     float WSW = 0;
     float WSE = 0;
     float WNE = 0;
@@ -67,8 +67,8 @@ public:
     int* nsamples = NULL;
     float* sampleRotation = NULL;
     float* sampleSize = NULL;
-    float floor;
-    float scale;
+    float floor = 0;
+    float scale = 1;
     
     bool waterLevel = false;
     int materialsCount = 0;
@@ -93,16 +93,16 @@ public:
     };
     OpaqueSampleBuffer sampleASbuffer;
     OpaqueSampleBuffer sampleUSbuffer;
-    QVector<int> opaqueSampleBufferOrder;
+    QVector<TS::TokenId> opaqueSampleBufferOrder;
     
-    int patchsetDistance;
-    int patchsetNpatches;
+    int patchsetDistance = 0;
+    int patchsetNpatches = 0;
     
     TFile();
     TFile(const TFile& orig);
     virtual ~TFile();
     bool readT(QString fSfile);
-    void load(FileBuffer* data);
+    bool load(FileBuffer* data);
     bool save(QString name);
     void save(QDataStream &write);
     int newMat();
@@ -125,7 +125,7 @@ private:
     void getOpaqueSampleBuffer(FileBuffer *data, int blockEnd,
                                OpaqueSampleBuffer &buffer);
     static int opaqueSampleBufferBlockLength(const OpaqueSampleBuffer &buffer);
-    static void saveOpaqueSampleBuffer(QDataStream &write, int token,
+    static void saveOpaqueSampleBuffer(QDataStream &write, TS::TokenId token,
                                        const OpaqueSampleBuffer &buffer);
     
     void print();

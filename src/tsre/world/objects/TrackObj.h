@@ -30,7 +30,7 @@ public:
     void loadingFixes();
     void load(int x, int y);
     void loadInit();
-    void set(int sh, FileBuffer* val);
+    void set(TS::TokenId sh, FileBuffer* val);
     void set(QString sh, QString val);
     void set(QString sh, FileBuffer* data);
     void set(QString sh, long long int val);

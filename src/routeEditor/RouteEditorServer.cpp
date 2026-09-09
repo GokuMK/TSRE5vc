@@ -24,6 +24,7 @@
 #include <tsre/world/TerrainLib.h>
 #include <tsre/world/Terrain.h>
 #include <tsre/fileFunctions/TS.h>
+#include <tsre/fileFunctions/NetworkToken.h>
 #include <QSocketNotifier>
 #include <iostream>
 #include <tsre/tdb/TSectionDAT.h>
@@ -365,9 +366,7 @@ void RouteEditorServer::readUtf16Message(QWebSocket *client, QByteArray &message
                     QDataStream out2(&outd2, QIODevice::WriteOnly);
                     out2.setByteOrder(QDataStream::LittleEndian);
                     out2.setFloatingPointPrecision(QDataStream::SinglePrecision);
-                    out2 << (qint8)'B';
-
-                    out2 << TS::TSRE_Requested_TD_File;
+                    NetworkToken::write(out2, TS::TSRE_Requested_TD_File);
                     out2 << (qint32)0; //should be size in bytes;
                     out2 << (qint8)0;
                     out2 << (qint32)i.value()->x;
@@ -387,9 +386,7 @@ void RouteEditorServer::readUtf16Message(QWebSocket *client, QByteArray &message
                     QDataStream out2(&outd2, QIODevice::WriteOnly);
                     out2.setByteOrder(QDataStream::LittleEndian);
                     out2.setFloatingPointPrecision(QDataStream::SinglePrecision);
-                    out2 << (qint8)'B';
-
-                    out2 << TS::TSRE_Requested_TD_Lo_File;
+                    NetworkToken::write(out2, TS::TSRE_Requested_TD_Lo_File);
                     out2 << (qint32)0; //should be size in bytes;
                     out2 << (qint8)0;
                     out2 << (qint32)i.value()->x;
@@ -415,8 +412,7 @@ void RouteEditorServer::readUtf16Message(QWebSocket *client, QByteArray &message
                 QDataStream out(&outd, QIODevice::WriteOnly);
                 out.setByteOrder(QDataStream::LittleEndian);
                 out.setFloatingPointPrecision(QDataStream::SinglePrecision);
-                out << (qint8)'B';
-                out << TS::TSRE_Requested_Terrain_tFile;
+                NetworkToken::write(out, TS::TSRE_Requested_Terrain_tFile);
                 out << (qint32)0; //should be size in bytes;
                 out << (qint8)0;
                 out << (qint32)x;
@@ -440,8 +436,7 @@ void RouteEditorServer::readUtf16Message(QWebSocket *client, QByteArray &message
                 QDataStream out(&outd, QIODevice::WriteOnly);
                 out.setByteOrder(QDataStream::LittleEndian);
                 out.setFloatingPointPrecision(QDataStream::SinglePrecision);
-                out << (qint8)'B';
-                out << TS::TSRE_Requested_Terrain_RawFile;
+                NetworkToken::write(out, TS::TSRE_Requested_Terrain_RawFile);
                 out << (qint32)0; //should be size in bytes;
                 out << (qint8)0;
                 out << (qint32)x;
@@ -465,8 +460,7 @@ void RouteEditorServer::readUtf16Message(QWebSocket *client, QByteArray &message
                 QDataStream out(&outd, QIODevice::WriteOnly);
                 out.setByteOrder(QDataStream::LittleEndian);
                 out.setFloatingPointPrecision(QDataStream::SinglePrecision);
-                out << (qint8)'B';
-                out << TS::TSRE_Requested_Terrain_FtFile;
+                NetworkToken::write(out, TS::TSRE_Requested_Terrain_FtFile);
                 out << (qint32)0; //should be size in bytes;
                 out << (qint8)0;
                 out << (qint32)x;
@@ -648,13 +642,17 @@ void RouteEditorServer::readBinaryMessage(QWebSocket *client, QByteArray &messag
     S_OUT << QDateTime::currentDateTime().toString("HH:mm:ss") << " Msg: ";
     unsigned long long int timeNow = QDateTime::currentMSecsSinceEpoch();
     
-    data->get(); // get B;
-    int token = data->getInt();
+    TS::TokenId token;
+    QString tokenError;
+    if (!NetworkToken::read(data, token, tokenError)) {
+        qWarning().noquote() << tokenError;
+        return;
+    }
     int x, z;
     Terrain *t;
     switch (token) {
         case TS::TSRE_Terrain_tFile:
-            S_OUT << TS::IdName[TS::TSRE_Terrain_tFile] << " ";
+            S_OUT << TS::name(TS::TSRE_Terrain_tFile) << " ";
             data->getInt();
             data->get();
             x = data->getInt();
@@ -670,7 +668,7 @@ void RouteEditorServer::readBinaryMessage(QWebSocket *client, QByteArray &messag
             sendMessageToClients(client, message);
             break;
         case TS::TSRE_Terrain_RawFile:
-            S_OUT << TS::IdName[TS::TSRE_Terrain_RawFile] << " ";
+            S_OUT << TS::name(TS::TSRE_Terrain_RawFile) << " ";
             data->getInt();
             data->get();
             x = data->getInt();
@@ -686,7 +684,7 @@ void RouteEditorServer::readBinaryMessage(QWebSocket *client, QByteArray &messag
             sendMessageToClients(client, message);
             break;
         case TS::TSRE_Terrain_FtFile:
-            S_OUT << TS::IdName[TS::TSRE_Terrain_FtFile];
+            S_OUT << TS::name(TS::TSRE_Terrain_FtFile);
             data->getInt();
             data->get();
             x = data->getInt();
@@ -708,6 +706,7 @@ void RouteEditorServer::readBinaryMessage(QWebSocket *client, QByteArray &messag
 }
 
 void RouteEditorServer::processBinaryMessage(QByteArray message){
+    if (message.isEmpty()) return;
     QWebSocket *pClient = qobject_cast<QWebSocket *>(sender());
     //qDebug() << "Binary Message received:";
     //if (pClient) {

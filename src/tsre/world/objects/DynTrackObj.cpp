@@ -9,6 +9,7 @@
  */
 
 #include <tsre/world/objects/DynTrackObj.h>
+#include <tsre/fileFunctions/SimisReader.h>
 #include <tsre/fileFunctions/ParserX.h>
 #include <QDebug>
 #include <QSet>
@@ -387,20 +388,20 @@ void DynTrackObj::resize(float x, float y, float z){
     deleteVBO();
 }
 
-void DynTrackObj::set(int sh, FileBuffer* data) {
+void DynTrackObj::set(TS::TokenId sh, FileBuffer* data) {
     //qDebug() << "dyntrack: "<<sh;
     if (sh == TS::SectionIdx) {
-        data->off++;
+        data->skipLabel();
         sectionIdx = data->getUint();
         return;
     }
     if (sh == TS::Elevation) {
-        data->off++;
+        data->skipLabel();
         elevation = data->getFloat();
         return;
     }
     if (sh == TS::JNodePosn) {
-        data->off++;
+        data->skipLabel();
         jNodePosn = new float[5];
         jNodePosn[0] = data->getFloat();
         jNodePosn[1] = data->getFloat();
@@ -411,11 +412,14 @@ void DynTrackObj::set(int sh, FileBuffer* data) {
     }
     if (sh == TS::TrackSections) {
         if(sections == NULL) sections = new Section[5];
-        data->off++;
+        data->skipLabel();
         
         for (int iii = 0; iii < 5; iii++) {
-            data->off+=18;
-            sections[iii].type = data->getUint();
+            Simis::Block section(data, TS::TrackSection);
+            {
+                Simis::Block curve(data, TS::SectionCurve);
+                sections[iii].type = data->getUint();
+            }
             sections[iii].sectIdx = data->getUint();
             sections[iii].a = data->getFloat();
             sections[iii].r = data->getFloat();

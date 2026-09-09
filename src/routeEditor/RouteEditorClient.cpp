@@ -20,6 +20,7 @@
 #include <tsre/tdb/TRnode.h>
 #include <tsre/tdb/TRitem.h>
 #include <tsre/fileFunctions/TS.h>
+#include <tsre/fileFunctions/NetworkToken.h>
 #include <tsre/world/TerrainLib.h>
 #include <tsre/world/Terrain.h>
 #include <tsre/tdb/TSectionDAT.h>
@@ -110,6 +111,7 @@ void RouteEditorClient::close() {
 }
 
 void RouteEditorClient::processBinaryMessage(QByteArray message) {
+    if (message.isEmpty()) return;
     QWebSocket *pClient = qobject_cast<QWebSocket *>(sender());
     //qDebug() << "Binary Message received:";
     //if (pClient) {
@@ -124,15 +126,19 @@ void RouteEditorClient::processBinaryMessage(QByteArray message) {
 }
 
 void RouteEditorClient::readBinaryMessage(QWebSocket *client, FileBuffer* data) {
-    data->get(); // get B;
-    int token = data->getInt();
+    TS::TokenId token;
+    QString tokenError;
+    if (!NetworkToken::read(data, token, tokenError)) {
+        qWarning().noquote() << tokenError;
+        return;
+    }
     int x, z;
     Terrain *t;
     QuadTree *qt;
-    qDebug() << "Token: " << token <<" : "<< TS::IdName[token];
+    qDebug() << "Token: " << token <<" : "<< TS::name(token);
     switch (token) {
         case TS::TSRE_Requested_TD_File:
-            qDebug() << TS::IdName[TS::TSRE_Requested_TD_File];
+            qDebug() << TS::name(TS::TSRE_Requested_TD_File);
             data->getInt();
             data->get();
             x = data->getInt();
@@ -142,7 +148,7 @@ void RouteEditorClient::readBinaryMessage(QWebSocket *client, FileBuffer* data) 
             qt->loadTD(x, z, data);
             break;
         case TS::TSRE_Requested_TD_Lo_File:
-            qDebug() << TS::IdName[TS::TSRE_Requested_TD_Lo_File];
+            qDebug() << TS::name(TS::TSRE_Requested_TD_Lo_File);
             data->getInt();
             data->get();
             x = data->getInt();
@@ -152,7 +158,7 @@ void RouteEditorClient::readBinaryMessage(QWebSocket *client, FileBuffer* data) 
             qt->loadTD(x, z, data);
             break;
         case TS::TSRE_Requested_Terrain_tFile:
-            qDebug() << TS::IdName[TS::TSRE_Requested_Terrain_tFile];
+            qDebug() << TS::name(TS::TSRE_Requested_Terrain_tFile);
             data->getInt();
             data->get();
             x = data->getInt();
@@ -166,7 +172,7 @@ void RouteEditorClient::readBinaryMessage(QWebSocket *client, FileBuffer* data) 
             t->loadTFile(data);
             break;
         case TS::TSRE_Requested_Terrain_RawFile:
-            qDebug() << TS::IdName[TS::TSRE_Requested_Terrain_RawFile];
+            qDebug() << TS::name(TS::TSRE_Requested_Terrain_RawFile);
             data->getInt();
             data->get();
             x = data->getInt();
@@ -180,7 +186,7 @@ void RouteEditorClient::readBinaryMessage(QWebSocket *client, FileBuffer* data) 
             t->loadRAWFile(data);
             break;
         case TS::TSRE_Requested_Terrain_FtFile:
-            qDebug() << TS::IdName[TS::TSRE_Requested_Terrain_FtFile];
+            qDebug() << TS::name(TS::TSRE_Requested_Terrain_FtFile);
             data->getInt();
             data->get();
             x = data->getInt();
@@ -194,7 +200,7 @@ void RouteEditorClient::readBinaryMessage(QWebSocket *client, FileBuffer* data) 
             t->loadFFile(data);
             break;
         case TS::TSRE_Terrain_tFile:
-            qDebug() << TS::IdName[TS::TSRE_Terrain_tFile];
+            qDebug() << TS::name(TS::TSRE_Terrain_tFile);
             data->getInt();
             data->get();
             x = data->getInt();
@@ -209,7 +215,7 @@ void RouteEditorClient::readBinaryMessage(QWebSocket *client, FileBuffer* data) 
             t->refresh();
             break;
         case TS::TSRE_Terrain_RawFile:
-            qDebug() << TS::IdName[TS::TSRE_Terrain_RawFile];
+            qDebug() << TS::name(TS::TSRE_Terrain_RawFile);
             data->getInt();
             data->get();
             x = data->getInt();
@@ -486,8 +492,7 @@ void RouteEditorClient::updateTerrainHeightmap(Terrain *t) {
         QDataStream out(&outd, QIODevice::WriteOnly);
         out.setByteOrder(QDataStream::LittleEndian);
         out.setFloatingPointPrecision(QDataStream::SinglePrecision);
-        out << (qint8) 'B';
-        out << TS::TSRE_Terrain_RawFile;
+        NetworkToken::write(out, TS::TSRE_Terrain_RawFile);
         out << (qint32) 0; //should be size in bytes;
         out << (qint8) 0;
         out << (qint32) t->mojex;
@@ -505,8 +510,7 @@ void RouteEditorClient::updateTerrainTFile(Terrain *t) {
         QDataStream out(&outd, QIODevice::WriteOnly);
         out.setByteOrder(QDataStream::LittleEndian);
         out.setFloatingPointPrecision(QDataStream::SinglePrecision);
-        out << (qint8) 'B';
-        out << TS::TSRE_Terrain_tFile;
+        NetworkToken::write(out, TS::TSRE_Terrain_tFile);
         out << (qint32) 0; //should be size in bytes;
         out << (qint8) 0;
         out << (qint32) t->mojex;

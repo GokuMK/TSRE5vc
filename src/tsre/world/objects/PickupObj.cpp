@@ -198,40 +198,40 @@ void PickupObj::set(QString sh, QString val){
     return;
 }
 
-void PickupObj::set(int sh, FileBuffer* data) {
+void PickupObj::set(TS::TokenId sh, FileBuffer* data) {
     if (sh == TS::SpeedRange) {
-        data->off++;
+        data->skipLabel();
         speedRange[0] = data->getFloat();
         speedRange[1] = data->getFloat();
         return;
     }
     if (sh == TS::PickupType) {
-        data->off++;
+        data->skipLabel();
         pickupType[0] = data->getUint();
         pickupType[1] = data->getUint();
         return;
     }
     if (sh == TS::PickupAnimData) {
-        data->off++;
+        data->skipLabel();
         pickupAnimData1 = data->getUint();
         pickupAnimData2 = data->getFloat();
         return;
     }
     if (sh == TS::PickupCapacity) {
-        data->off++;
+        data->skipLabel();
         pickupCapacity1 = data->getFloat();
         pickupCapacity2 = data->getFloat();
         return;
     }
     if (sh == TS::TrItemId) {
-        data->off++;
+        data->skipLabel();
         this->trItemId = new int[2];
         trItemId[trItemIdCount++] = data->getUint();
         trItemId[trItemIdCount++] = data->getUint();
         return;
     }
     if (sh == TS::FileName) {
-        data->off++;
+        data->skipLabel();
         int slen = data->getShort()*2;
         fileName = *data->getString(data->off, data->off + slen);
         data->off += slen;

@@ -9,6 +9,7 @@
  */
 
 #include <tsre/world/Tile.h>
+#include <memory>
 #include <tsre/Game.h>
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <tsre/fileFunctions/ParserX.h>
@@ -240,9 +241,8 @@ void Tile::load() {
     }
     FileBuffer* data = ReadFile::read(file);
 
-    data->setTokenOffset(261844);
     data->off = 32;
-    if (data->getToken() != 375){
+    if (!data->isBinarySimis()){
         qDebug() << "w file uncompressed " << path;
         data->off = 0;
         ParserX::NextLine(data);
@@ -256,53 +256,13 @@ void Tile::load() {
             ParserX::SkipToken(data);
         }
     } else {
-        qDebug() << "w file compressed   " << path;
-        data->off+=5;
-        int offset, offsetO;
-        int idx, idxO;
-        WorldObj* nowy;
-        while(data->length > data->off){
-            idx = data->getToken();
-            offset = data->off + data->getInt() + 4;
-            //qDebug() << idx;
-            if(idx == TS::ViewDbSphere){
-                data->off++;
-                viewDbSphere.push_back(ViewDbSphere());
-                while (data->off < offset) {
-                    idxO = data->getToken();
-                    viewDbSphere.back().set(idxO, data);
-                }
-                data->off = offset;
-                continue;
-            }
-            if(idx == TS::VDbIdCount){
-                data->off++;
-                vDbIdCount = data->getInt();
-                data->off = offset;
-                continue;
-            }
-            if(idx == TS::Tr_Watermark){
-                data->off++;
-                nowy = (WorldObj*)(new TrWatermarkObj(data->getInt()));
-                obiekty[jestObiektow++] = nowy;
-                data->off = offset;
-                continue;
-            }
-            if ((nowy = WorldObj::createObj(idx)) == NULL) {
-                data->off = offset;
-                continue;
-            }
-            data->off++;
-            while (data->off < offset) {
-                idxO = data->getToken();
-                offsetO = data->off + data->getInt() + 4;
-                //qDebug() << "nid- "<< idxO;
-                nowy->set(idxO, data);
-                data->off = offsetO;
-            }
-            obiekty[jestObiektow++] = nowy;
-            data->off = offset;
-       }
+        QString error;
+        if (!loadBinaryData(data, false, &error)) {
+            qWarning() << path << error;
+            delete data;
+            delete file;
+            return;
+        }
     }
     qDebug() << obiekty.size();
     loaded = 0;
@@ -311,6 +271,67 @@ void Tile::load() {
     loadWS();
     file->close();
     delete data;
+    delete file;
+}
+
+bool Tile::loadBinaryData(FileBuffer* data, bool sound, QString* error) {
+    // Parse object state only. Asset/GL loading is performed by the caller.
+    const int firstObject = jestObiektow;
+    const auto oldSpheres = viewDbSphere;
+    const auto oldCount = vDbIdCount;
+    try {
+        data->off = 32;
+        const auto root = data->readBlock();
+        const auto expected = sound ? TS::Tr_Worldsoundfile : TS::Tr_Worldfile;
+        if (root.id != expected)
+            throw FileBuffer::ParseError("Unexpected world-file root token");
+        FileBuffer::ScopedLimit rootScope(*data, root.end);
+        data->skipLabel();
+        while (data->off < root.end) {
+            const auto block = data->readBlock();
+            FileBuffer::ScopedLimit blockScope(*data, block.end);
+            if (!sound && block.id == TS::ViewDbSphere) {
+                data->skipLabel();
+                viewDbSphere.push_back(ViewDbSphere());
+                while (data->off < block.end) {
+                    const auto id = data->getToken();
+                    viewDbSphere.back().set(id, data);
+                }
+            } else if (!sound && block.id == TS::VDbIdCount) {
+                data->skipLabel();
+                vDbIdCount = data->getInt();
+            } else if (!sound && block.id == TS::Tr_Watermark) {
+                data->skipLabel();
+                obiekty[jestObiektow++] = new TrWatermarkObj(data->getInt());
+            } else {
+                std::unique_ptr<WorldObj> object(WorldObj::createObj(block.id));
+                if (object) {
+                    data->skipLabel();
+                    while (data->off < block.end) {
+                        const auto child = data->readBlock();
+                        FileBuffer::ScopedLimit childScope(*data, child.end);
+                        object->set(child.id, data);
+                        data->off = child.end;
+                    }
+                    obiekty[jestObiektow++] = object.release();
+                }
+            }
+            data->off = block.end;
+        }
+        return true;
+    } catch (const FileBuffer::ParseError& failure) {
+        // Do not leave partially parsed objects in a tile after a failed load.
+        while (jestObiektow > firstObject) {
+            --jestObiektow;
+            delete obiekty[jestObiektow];
+            obiekty.erase(jestObiektow);
+        }
+        viewDbSphere = oldSpheres;
+        vDbIdCount = oldCount;
+        if (error) *error = QString::fromLatin1(failure.what())
+                + QStringLiteral(" at byte %1").arg(data->off);
+        return false;
+    }
 }
 
 void Tile::loadUtf16Data(FileBuffer *data){
@@ -374,10 +395,10 @@ void Tile::loadWS() {
     //    data->off = i;
     //    qDebug() << (char)data->get()<<"-"<<data->get();
     //}
-    data->setTokenOffset(261844);
     data->off = 32;
-    if (data->getToken() != 375){
+    if (!data->isBinarySimis()){
         qDebug() << "ws file uncompressed " << path;
+        data->off = 0;
         ParserX::NextLine(data);
     
         QString sh = "";
@@ -408,34 +429,18 @@ void Tile::loadWS() {
             ParserX::SkipToken(data);
         }
     } else {
-        qDebug() << "ws file compressed   " << path;
-        data->off+=5;
-        int offset, offsetO;
-        int idx, idxO;
-        WorldObj* nowy;
-        while(data->length > data->off){
-            idx = data->getToken();
-            offset = data->off + data->getInt() + 4;
-            //qDebug() << idx;
-            if ((nowy = WorldObj::createObj(idx)) == NULL) {
-                data->off = offset;
-                continue;
-            }
-            data->off++;
-            while (data->off < offset) {
-                idxO = data->getToken();
-                offsetO = data->off + data->getInt() + 4;
-                //qDebug() << "- "<< idxO;
-                nowy->set(idxO, data);
-                data->off = offsetO;
-            }
-            nowy->load(x, z);
-            if(nowy->UiD < 1000000)
-                if(nowy->UiD > maxUiDWS) maxUiDWS = nowy->UiD;
-            obiekty[jestObiektow++] = nowy;
-            data->off = offset;
-       }
+        const int firstSound = jestObiektow;
+        QString error;
+        if (!loadBinaryData(data, true, &error))
+            qWarning() << path << error;
+        else for (int i = firstSound; i < jestObiektow; ++i) {
+            WorldObj* object = obiekty[i];
+            object->load(x, z);
+            if (object->UiD < 1000000 && object->UiD > maxUiDWS)
+                maxUiDWS = object->UiD;
+        }
     }
+    delete data;
     qDebug() <<"WS size: "<< obiekty.size();
 }
 
@@ -491,9 +496,10 @@ void Tile::ViewDbSphere::set(QString sh, FileBuffer* data){
     qDebug() << "viewdbsphere unknown:" << sh;
 }
 
-void Tile::ViewDbSphere::set(int sh, FileBuffer* data){
-    int offset = data->off + data->getInt() + 4;
-    data->off++;
+void Tile::ViewDbSphere::set(TS::TokenId sh, FileBuffer* data){
+    const int offset = data->readBlockEnd();
+    FileBuffer::ScopedLimit scope(*data, offset);
+    data->skipLabel();
     
     if (sh == TS::VDbId) {
         vDbId = data->getUint();
@@ -505,7 +511,7 @@ void Tile::ViewDbSphere::set(int sh, FileBuffer* data){
         position[2] = data->getFloat();
     } else if(sh == TS::ViewDbSphere){
         viewDbSphere.push_back(ViewDbSphere());
-        int idx;
+        TS::TokenId idx;
         while (data->off < offset) {
             idx = data->getToken();
             viewDbSphere.back().set(idx, data);

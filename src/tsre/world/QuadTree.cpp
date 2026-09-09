@@ -13,6 +13,7 @@
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/fileFunctions/ReadFile.h>
+#include <tsre/fileFunctions/TS.h>
 #include <QString>
 #include <QDebug>
 #include <QFile>
@@ -525,10 +526,10 @@ void QuadTree::saveTD(int x, int y, QDataStream* out){
     int id = x * 100000 + y;
     td[id]->qt->save(treeData);
 
-    *out << (qint32) 0x84;
+    *out << quint32(TS::terrain_desc);
     *out << (qint32) treeData.size() + 14;
     *out << (qint8) 0;
-    *out << (qint32) 0x87;
+    *out << quint32(TS::terrain_desc_tiles);
     *out << (qint32) treeData.size() + 5;
     *out << (qint8) 0;
     *out << (qint32) treeData.size();

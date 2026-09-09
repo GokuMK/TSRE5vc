@@ -45,7 +45,8 @@ linked into this repository. They are not bundled here. No proprietary executabl
 route asset or screenshot was copied as part of this documentation sync.
 
 For current TSRE behavior rather than a historical proposal/source audit, see
-the [terrain task index](../tasks/terrain/README.md) and
+the [core infrastructure tasks](../tasks/core/README.md),
+[terrain task index](../tasks/terrain/README.md) and
 [ACE API/integration guide](../features/ace-library.md). The patcher shipped with
 TSRE is documented in [extra/MSTS/bin-1.9](../../extra/MSTS/bin-1.9/README.md).
 

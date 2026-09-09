@@ -167,34 +167,34 @@ void ForestObj::set(QString sh, float val) {
     setModified();
 }
 
-void ForestObj::set(int sh, FileBuffer* data) {
+void ForestObj::set(TS::TokenId sh, FileBuffer* data) {
     if (sh == TS::TreeTexture) {
-        data->off++;
+        data->skipLabel();
         int slen = data->getShort()*2;
         treeTexture = *data->getString(data->off, data->off + slen);
         data->off += slen;
         return;
     }
     if (sh == TS::ScaleRange) {
-        data->off++;
+        data->skipLabel();
         scaleRangeX = data->getFloat();
         scaleRangeZ = data->getFloat();
         return;
     }
     if (sh == TS::Area) {
-        data->off++;
+        data->skipLabel();
         areaX = data->getFloat();
         areaZ = data->getFloat();
         return;
     }
     if (sh == TS::TreeSize) {
-        data->off++;
+        data->skipLabel();
         treeSizeX = data->getFloat();
         treeSizeZ = data->getFloat();
         return;
     }
     if (sh == TS::Population) {
-        data->off++;
+        data->skipLabel();
         population = data->getUint();
         return;
     }

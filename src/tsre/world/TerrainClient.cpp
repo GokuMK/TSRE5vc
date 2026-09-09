@@ -39,7 +39,8 @@ TerrainClient::TerrainClient(const TerrainClient& orig) {
 
 void TerrainClient::loadTFile(FileBuffer *data){
     this->tfile = new TFile();
-    this->tfile->load(data);
+    if (!this->tfile->load(data))
+        return;
     if (!validateGridLayout("network terrain descriptor " + name))
         return;
     loadingProgress++;
@@ -166,4 +167,3 @@ void TerrainClient::load(){
 
 TerrainClient::~TerrainClient() {
 }
-

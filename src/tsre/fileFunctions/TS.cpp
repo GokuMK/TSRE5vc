@@ -1,26 +1,22 @@
 /*  This file is part of TSRE5.
  *
- *  TSRE5 - train sim game engine and MSTS/OR Editors. 
+ *  TSRE5 - train sim game engine and MSTS/OR Editors.
  *  Copyright (C) 2016 Piotr Gadecki <pgadecki@gmail.com>
  *
- *  Licensed under GNU General Public License 3.0 or later. 
+ *  Licensed under GNU General Public License 3.0 or later.
  *
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
-/*
- * This file is currently not used in TSRE project. 
- */
-
 #include "TS.h"
 
-std::unordered_map< int, const char* > TS::IdName = {
+const std::unordered_map<TS::TokenId, const char*> TS::IdName = {
     { error ,"error"},
     { comment ,"comment"},
     { point ,"point"},
     { vector ,"vector"},
     { quat ,"quat"},
-    { normals ,"normals"}, 
+    { normals ,"normals"},
     { normal_idxs ,"normal_idxs"},
     { points ,"points"},
     { uv_point ,"uv_point"},
@@ -268,21 +264,18 @@ std::unordered_map< int, const char* > TS::IdName = {
     { world_fog_start_distance ,"world_fog_start_distance"},
     { terrain_water_height_offset ,"terrain_water_height_offset"},
     { terrain_sample_asbuffer ,"terrain_sample_asbuffer"},
+    { terrain_sample_usbuffer, "terrain_sample_usbuffer" },
     { Static ,"static"},
     { TrackObj ,"trackobj"},
-    { DynTrack2 ,"dyntrack"},
     { Forest ,"forest"},
     { CollideObject ,"collideobject"},
     { Signal ,"signal"},
-    { Gantry2 ,"gantry"},
-    { CarSpawner2 ,"carspawner"},
-    { Pickup2 ,"pickup"},
     { Platform ,"platform"},
-    { Siding2 ,"siding"},
     { LevelCr ,"levelcr"},
-    { Transfer2 ,"transfer"},
     { Speedpost ,"speedpost"},
     { Hazard ,"hazard"},
+    { Soundsource, "soundsource" },
+    { Soundregion, "soundregion" },
     { Tr_Worldfile ,"tr_worldfile"},
     { Tr_Watermark ,"tr_watermark"},
     { Tr_DataFile ,"tr_datafile"},
@@ -1217,7 +1210,7 @@ std::unordered_map< int, const char* > TS::IdName = {
     { ActivateEvent ,"activateevent"},
     { RestoreActLevel ,"restoreactlevel"},
     { DisplayMessage ,"displaymessage"},
-    { PlaySound ,"playsound"}, 
+    { PlaySound ,"playsound"},
     { ActivitySuccess ,"activitysuccess"},
     { ActivityFail ,"activityfail"},
     { StartIgnoringSpeedLimits ,"startignoringspeedlimits"},
@@ -1456,6 +1449,23 @@ std::unordered_map< int, const char* > TS::IdName = {
     { Pickup ,"pickup"},
     { Wagon ,"wagon"},
     { Engine ,"engine"},
+    { ORTSListName, "ORTSListName" },
+    { ORTSSoundFileName, "ORTSSoundFileName" },
+    { ORTSPantographToggle3, "ORTSPantographToggle3" },
+    { ORTSPantographToggle4, "ORTSPantographToggle4" },
+    { ORTSCraneSound, "ORTSCraneSound" },
+    { ORTSMaxStackedContainers, "ORTSMaxStackedContainers" },
+    { ORTSStackLocations, "ORTSStackLocations" },
+    { ORTSStackLocationsLength, "ORTSStackLocationsLength" },
+    { ORTSPickingSurfaceYOffset, "ORTSPickingSurfaceYOffset" },
+    { ORTSPickingSurfaceRelativeTopStartPosition, "ORTSPickingSurfaceRelativeTopStartPosition" },
+    { ORTSGrabberArmsParts, "ORTSGrabberArmsParts" },
+    { StackLocation, "StackLocation" },
+    { MaxStackedContainers, "MaxStackedContainers" },
+    { Length, "Length" },
+    { Flipped, "Flipped" },
+    { Ruler, "Ruler" },
+    { ShapeTemplate, "ShapeTemplate" },
     { TSRE_Requested_Terrain_tFile, "TSRE_Requested_Terrain_tFile"},
     { TSRE_Requested_Terrain_RawFile, "TSRE_Requested_Terrain_RawFile"},
     { TSRE_Requested_Terrain_FtFile, "TSRE_Requested_Terrain_FtFile"},
@@ -1464,7 +1474,18 @@ std::unordered_map< int, const char* > TS::IdName = {
     { TSRE_Terrain_FtFile, "TSRE_Terrain_FtFile"},
     { TSRE_Requested_TD_File, "TSRE_Requested_TD_File"},
     { TSRE_Requested_TD_Lo_File, "TSRE_Requested_TD_Lo_File"},
-    { TSRE_Terrain_Material_Buffer, "TSRE_Terrain_Material_Buffer"},
-    { TSRE_Terrain_Baked_Material, "TSRE_Terrain_Baked_Material"},
-    { TSRE_Terrain_Material_Map, "TSRE_Terrain_Material_Map"}
+    { TSRETerrainMaterialBuffer, "TSRETerrainMaterialBuffer"},
+    { TSRETerrainBakedMaterial, "TSRETerrainBakedMaterial"},
+    { TSRETerrainMaterialMap, "TSRETerrainMaterialMap"}
 };
+
+const char* TS::name(TokenId id) {
+    const auto it = IdName.find(id);
+    return it == IdName.end() ? "<unknown>" : it->second;
+}
+
+QString TS::describe(TokenId id) {
+    return QStringLiteral("%1 (0x%2, namespace %3, local %4)")
+        .arg(QString::fromLatin1(name(id))).arg(qulonglong(id), 8, 16, QLatin1Char('0'))
+        .arg(nameSpace(id)).arg(localId(id));
+}

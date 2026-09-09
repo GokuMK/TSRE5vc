@@ -273,19 +273,19 @@ bool CarSpawnerObj::allowNew(){
     return true;
 }
 
-void CarSpawnerObj::set(int sh, FileBuffer* data) {
+void CarSpawnerObj::set(TS::TokenId sh, FileBuffer* data) {
     if (sh == TS::CarFrequency) {
-        data->off++;
+        data->skipLabel();
         carFrequency = data->getFloat();
         return;
     }
     if (sh == TS::CarAvSpeed) {
-        data->off++;
+        data->skipLabel();
         carAvSpeed = data->getFloat();
         return;
     }
     if (sh == TS::TrItemId) {
-        data->off++;
+        data->skipLabel();
         trItemId[trItemIdCount++] = data->getUint();
         trItemId[trItemIdCount++] = data->getUint();
         return;

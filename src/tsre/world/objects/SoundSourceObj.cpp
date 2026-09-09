@@ -92,9 +92,9 @@ void SoundSourceObj::set(QString sh, QString val){
     return;
 }
 
-void SoundSourceObj::set(int sh, FileBuffer* data) {
+void SoundSourceObj::set(TS::TokenId sh, FileBuffer* data) {
     if (sh == TS::FileName) {
-        data->off++;
+        data->skipLabel();
         int slen = data->getShort()*2;
         fileName = *data->getString(data->off, data->off + slen);
         data->off += slen;

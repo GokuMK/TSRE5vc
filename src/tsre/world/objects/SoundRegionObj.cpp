@@ -318,9 +318,9 @@ void SoundRegionObj::set(QString sh, QString val){
     return;
 }
 
-void SoundRegionObj::set(int sh, FileBuffer* data) {
+void SoundRegionObj::set(TS::TokenId sh, FileBuffer* data) {
     if (sh == TS::FileName) {
-        data->off++;
+        data->skipLabel();
         int slen = data->getShort()*2;
         fileName = *data->getString(data->off, data->off + slen);
         data->off += slen;

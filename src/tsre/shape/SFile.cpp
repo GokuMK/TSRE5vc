@@ -24,6 +24,7 @@
 #include <QString>
 #include <tsre/Game.h>
 #include <tsre/fileFunctions/TS.h>
+#include <tsre/fileFunctions/SimisReader.h>
 #include <shapeViewer/ShapeTextureInfo.h>
 #include <shapeViewer/ShapeHierarchyInfo.h>
 #include <shapeViewer/ContentHierarchyInfo.h>
@@ -63,113 +64,98 @@ void SFile::load() {
     //qDebug() << "--" << pathid << "--" << data->length;
 
     data->off = 32;
-    if (data->getInt() == 71) {
-        int pozycja, offset, akto;
+    if (data->isBinarySimis()) {
+        try {
         data->off = 32;
-        int val = data->getInt();
+        Simis::Block root(data, TS::shape);
         
-        //qDebug() << val << " plik binarny ";
-        //wczytanie binarnego
-        data->off += 5;
-        for (;;) {
-            pozycja = data->getInt();
-            offset = data->getInt();
-            akto = data->off;
-            //qDebug() << "#SFile - token: "<< pozycja << TS::IdName[pozycja];
+        while (data->off < data->readEnd()) {
+            const auto block = data->readBlock();
+            FileBuffer::ScopedLimit scope(*data, block.end);
+            const auto pozycja = block.id;
+
             switch (pozycja) {
-                case 70:
+                case TS::shape_header:
                     break;
-                case 68:
+                case TS::volumes:
                     break;
-                case 72:
+                case TS::shader_names:
                     loadingCount++;
                     SFileC::odczytajshaders(data, this);
                     break;
-                case 7:
+                case TS::points:
                     loadingCount++;
                     SFileC::odczytajpunktyc(data, this);
                     getSize();
                     break;
-                case 9:
+                case TS::uv_points:
                     loadingCount++;
                     SFileC::odczytajuvpunktyc(data, this);
                     break;
-                case 5:
+                case TS::normals:
                     loadingCount++;
                     SFileC::odczytajnormalnec(data, this);
                     break;
-                case 66:
+                case TS::matrices:
                     loadingCount++;
                     SFileC::odczytajmatricesc(data, this);
                     break;
-                case 14:
+                case TS::images:
                     loadingCount++;
                     SFileC::odczytajimagesc(data, this);
                     break;
-                case 16:
+                case TS::textures:
                     loadingCount++;
                     SFileC::odczytajtexturesc(data, this);
                     break;
-                case 47:
+                case TS::vtx_states:
                     loadingCount++;
                     SFileC::odczytajvtx_statesc(data, this);
                     break;
-                case 55:
+                case TS::prim_states:
                     loadingCount++;
                     SFileC::odczytajprim_statesc(data, this);
                     break;
-                case 74:
+                case TS::texture_filter_names:
                     break;
-                case 76:
+                case TS::sort_vectors:
                     break;
-                case 11:
+                case TS::colours:
                     break;
-                case 18:
+                case TS::light_materials:
                     break;
-                case 79:
+                case TS::light_model_cfgs:
                     break;
-                case 31:
+                case TS::lod_controls:
                     if(loadingCount < 9){
-                        qDebug() << "#shape - loading error" << 31 << TS::IdName[31];
-                        return;
+                        throw FileBuffer::ParseError("Shape LOD appears before required data");
                     }
                     SFileC::odczytajloddc(data, this);
                     loaded = 1;
                     break;
-                case 29:
-                    int pozycja1,offset1,akto1,some_val;
-                    //some_val = data->getInt();
-                    data->off+=5; // maybe read animation number instead?
-                    //qDebug() << some_val;
-                    //qDebug() << data->off << akto + offset;
-                    //some_val = data->off+=4;
-                    if(data->off >= akto + offset) break;
-                    for (;;) {
-                        pozycja1 = data->getInt();
-                        offset1 = data->getInt();
-                        akto1 = data->off;
-                        switch (pozycja1) {
-                            case 28:
-                                animations.push_back(Animation());
-                                animations.back().loadC(data, akto1 + offset1);
-                                if(animations.size() > 0){
-                                    //qDebug() << animations[0].node.size();
-                                }
-                                break;
-                            default:
-                                qDebug() << "#SFile Animations - unknown token: "<< pozycja1 << TS::IdName[pozycja1];
-                                break;
+                case TS::animations: {
+                    data->skipLabel();
+                    const int count = Simis::count(data);
+                    for (int i = 0; i < count; ++i) {
+                        const auto animation = data->readBlock();
+                        FileBuffer::ScopedLimit animationScope(*data, animation.end);
+                        if (animation.id == TS::animation) {
+                            animations.push_back(Animation());
+                            animations.back().loadC(data, animation.end);
                         }
-                        data->off = akto1 + offset1;
-                        if(data->off >= akto + offset) break;
+                        data->off = animation.end;
                     }
                     break;
+                }
                 default:
-                    qDebug() << "#SFile - unknown token: "<< pozycja << TS::IdName[pozycja];
+                    qDebug() << "#SFile - unknown token: "<< pozycja << TS::name(pozycja);
                     break;
             }
-            data->off = akto + offset;
-            if(data->off >= data->length) break;
+            data->off = block.end;
+        }
+        } catch (const FileBuffer::ParseError& error) {
+            loaded = 2;
+            qWarning() << "Invalid shape SIMIS data" << pathid << data->off << error.what();
         }
     } else {
         //qDebug() << "plik xml:";
@@ -318,102 +304,63 @@ void SFile::load() {
     return;
 }
 
-void SFile::Animation::loadC(FileBuffer* data, int length){
-    data->off++;
+void SFile::Animation::loadC(FileBuffer* data, int length) {
+    FileBuffer::ScopedLimit animationScope(*data, length);
+    data->skipLabel();
     frames = data->getInt();
     fps = data->getInt();
-    int pozycja, offset, akto;
-    int pozycja1, offset1, akto1;
-    int pozycja2, offset2, akto2;
-    int nodeCount, cCount, kCount;
-    
-    for (;;) {
-        pozycja = data->getInt();
-        offset = data->getInt();
-        akto = data->off;
-
-        switch (pozycja) {
-            case 27:
-                data->off++;
-                nodeCount = data->getInt();
-                for(int i = 0; i < nodeCount; i++){
-                    node.push_back(AnimNode());
-                    pozycja1 = data->getInt();
-                    offset1 = data->getInt();
-                    akto1 = data->off;
-                    int temp = data->get();
-                    data->off += temp*2;
-                    data->off++;
-                    data->off += 8;
-                    cCount = data->getInt();
-                    //qDebug() << cCount;
-                    for(int j = 0; j < cCount; j++){
-                        pozycja2 = data->getInt();
-                        offset2 = data->getInt();
-                        akto2 = data->off;
-                        switch(pozycja2){
-                            case 24:
-                                data->off++;
-                                kCount = data->getInt();
-                                //qDebug() << "kCount"<<kCount;
-                                for(int ii = 0; ii < kCount; ii++){
-                                    int tcbid = data->getInt();
-                                    data->getInt();
-                                    data->off++;
-                                    if(tcbid == 20){
-                                        node.back().tcbKey.push_back(AnimNode::TcbKey());
-                                        node.back().tcbKey.back().frame = data->getUint();
-                                        node.back().tcbKey.back().quat[0] = -data->getFloat();
-                                        node.back().tcbKey.back().quat[1] = data->getFloat();
-                                        node.back().tcbKey.back().quat[2] = -data->getFloat();
-                                        node.back().tcbKey.back().quat[3] = data->getFloat();
-                                        for(int i = 0; i < 5; i++){
-                                            node.back().tcbKey.back().param[i] = data->getFloat();
-                                        }
-                                    }
-                                    if(tcbid == 23){
-                                        node.back().slerpRot.push_back(AnimNode::SlerpRot());
-                                        node.back().slerpRot.back().frame = data->getUint();
-                                        node.back().slerpRot.back().quat[0] = -data->getFloat();
-                                        node.back().slerpRot.back().quat[1] = data->getFloat();
-                                        node.back().slerpRot.back().quat[2] = -data->getFloat();
-                                        node.back().slerpRot.back().quat[3] = data->getFloat();
-                                    }
-                                }
-                                break;
-                            case 21:
-                                data->off++;
-                                kCount = data->getInt();
-                                //qDebug() << "kCount"<<kCount;
-                                for(int ii = 0; ii < kCount; ii++){
-                                    //qDebug() << 
-                                    data->getInt();
-                                    data->getInt();
-                                    data->off++;
-                                    node.back().linearKey.push_back(AnimNode::LinearKey());
-                                    node.back().linearKey.back().frame = data->getUint();
-                                    for(int i = 0; i < 3; i++){
-                                        node.back().linearKey.back().pos[i] = data->getFloat();
-                                    }
-                                }
-                                break;
-                            default:
-                                qDebug() << "#controller" << pozycja2 << TS::IdName[pozycja2];
-                                break;
+    while (data->off < length) {
+        const auto child = data->readBlock();
+        FileBuffer::ScopedLimit childScope(*data, child.end);
+        if (child.id == TS::anim_nodes) {
+            data->skipLabel();
+            const int nodeCount = Simis::count(data);
+            for (int i = 0; i < nodeCount; ++i) {
+                Simis::Block animNode(data, TS::anim_node);
+                node.push_back(AnimNode());
+                Simis::Block controllers(data, TS::controllers);
+                const int controllerCount = Simis::count(data);
+                for (int j = 0; j < controllerCount; ++j) {
+                    const auto controller = data->readBlock();
+                    FileBuffer::ScopedLimit controllerScope(*data, controller.end);
+                    data->skipLabel();
+                    if (controller.id == TS::tcb_rot || controller.id == TS::linear_pos) {
+                        const int keyCount = Simis::count(data);
+                        for (int k = 0; k < keyCount; ++k) {
+                            const auto key = data->readBlock();
+                            FileBuffer::ScopedLimit keyScope(*data, key.end);
+                            data->skipLabel();
+                            if (controller.id == TS::tcb_rot && key.id == TS::tcb_key) {
+                                node.back().tcbKey.push_back(AnimNode::TcbKey());
+                                auto& value = node.back().tcbKey.back();
+                                value.frame = data->getUint();
+                                value.quat[0] = -data->getFloat();
+                                value.quat[1] = data->getFloat();
+                                value.quat[2] = -data->getFloat();
+                                value.quat[3] = data->getFloat();
+                                for (int a = 0; a < 5; ++a) value.param[a] = data->getFloat();
+                            } else if (controller.id == TS::tcb_rot && key.id == TS::slerp_rot) {
+                                node.back().slerpRot.push_back(AnimNode::SlerpRot());
+                                auto& value = node.back().slerpRot.back();
+                                value.frame = data->getUint();
+                                value.quat[0] = -data->getFloat();
+                                value.quat[1] = data->getFloat();
+                                value.quat[2] = -data->getFloat();
+                                value.quat[3] = data->getFloat();
+                            } else if (controller.id == TS::linear_pos && key.id == TS::linear_key) {
+                                node.back().linearKey.push_back(AnimNode::LinearKey());
+                                auto& value = node.back().linearKey.back();
+                                value.frame = data->getUint();
+                                for (int a = 0; a < 3; ++a) value.pos[a] = data->getFloat();
+                            }
+                            data->off = key.end;
                         }
-                        data->off = akto2 + offset2;
-                        if(data->off >= akto1+offset1) break;
                     }
-                    //qDebug() << "pozycja" << pozycja1 << TS::IdName[pozycja1];
-                    data->off = akto1+offset1;
+                    data->off = controller.end;
                 }
-                break;
-            default:
-                qDebug() << "#SFile Animation - unknown token: "<< pozycja << TS::IdName[pozycja];
-                break;
+            }
         }
-        data->off = akto + offset;
-        if(data->off >= length) break;
+        data->off = child.end;
     }
 }
 

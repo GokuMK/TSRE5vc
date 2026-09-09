@@ -110,21 +110,21 @@ void TransferObj::set(QString sh, float val){
     return;
 }
 
-void TransferObj::set(int sh, FileBuffer* data) {
+void TransferObj::set(TS::TokenId sh, FileBuffer* data) {
     if (sh == TS::FileName) {
-        data->off++;
+        data->skipLabel();
         int slen = data->getShort()*2;
         texture = *data->getString(data->off, data->off + slen);
         data->off += slen;
         return;
     }
     if (sh == TS::Width) {
-        data->off++;
+        data->skipLabel();
         width = data->getFloat();
         return;
     }
     if (sh == TS::Height) {
-        data->off++;
+        data->skipLabel();
         height = data->getFloat();
         return;
     }

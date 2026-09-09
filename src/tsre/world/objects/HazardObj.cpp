@@ -180,16 +180,16 @@ void HazardObj::set(QString sh, QString val){
     return;
 }
 
-void HazardObj::set(int sh, FileBuffer* data) {
+void HazardObj::set(TS::TokenId sh, FileBuffer* data) {
     if (sh == TS::FileName) {
-        data->off++;
+        data->skipLabel();
         int slen = data->getShort()*2;
         fileName = *data->getString(data->off, data->off + slen);
         data->off += slen;
         return;
     }
     if (sh == TS::TrItemId) {
-        data->off++;
+        data->skipLabel();
         this->trItemIdCount = 2;
         trItemId = new int[2];
         trItemId[0] = data->getUint();
