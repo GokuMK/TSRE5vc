@@ -104,8 +104,11 @@ UiD)` pairs. At most 256 pairs; local IDs are 0..255 and UiDs must be nonzero.
 The 8-bit compressed `.pmap` still contains **local IDs**, never UiDs.
 
 The namespace migration deliberately does not recognize prototype token 100011
-or the earlier 100009/100010 reference tokens. Recreate the experimental tiles;
-there is no token-number migration on load or save. See
+or the earlier 100009/100010 reference tokens. There is no token-number
+migration on load or save. A separately approved one-time update of affected
+test and local procedural-route tiles is tracked in the
+[procedural token tile migration](../tasks/terrain/procedural-token-tile-migration.md).
+See
 [native SIMIS token IDs](native-token-ids.md) for the complete allocation.
 The inspected legacy ORTS reader rejects unknown `terrain_samples` children,
 so namespace allocation alone does not provide fallback in that reader; its
@@ -126,9 +129,10 @@ If the token exists but an ID/UiD is missing or invalid, procedural generation,
 painting and saving are refused with a warning; the saved static bake remains
 the fallback. There is no silent local-shader substitution.
 
-No migration/import wizard is included. The two experimental legacy tiles can
-be converted manually by authoring matching UiDs and a table, or restarted by
-saving, disabling and enabling with a global material (which resets the map).
+No migration/import wizard is included. Experimental legacy tiles can be
+updated as one-time asset maintenance after backup, either by authoring matching
+UiDs and a table or by restarting them through save/disable/enable with a global
+material (which resets the map).
 Manual cross-route copying requires the designer to reconcile UiDs. A future
 import tool must allocate destination UiDs and rewrite pairs, not bitmap bytes.
 

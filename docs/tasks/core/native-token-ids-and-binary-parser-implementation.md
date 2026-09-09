@@ -59,8 +59,10 @@ behavior changes rather than assumed to be a mechanical part of token migration.
 - `findToken()` now throws for missing required tokens as well as malformed
   framing. `Simis::Block` introduced additional required-child searches;
   optional versus required assumptions need explicit review.
-- `TFile::load()` now returns failure, and terrain network callers stop their
-  local load processing on that result. This is a load-policy/API change.
+- `TFile::load()` now returns failure, and terrain wrappers stop some local
+  processing on that result. The outer network handlers still expose `void`
+  update APIs and may refresh, mark modified or rebroadcast after failure; this
+  is tracked in the [server/client rework](server-client-rework.md).
 - Binary detection now checks the subheader; BOM and short-input probes changed
   in shared FileBuffer/ReadFile code. Shape labels and shader-name strings now
   use their declared framing.
@@ -158,6 +160,39 @@ logs were kept outside the repository under `/tmp/tsre-stock-parser-fixes.Qfs0o5
 and `/tmp/tsre-stock-parser-diagnosis.70Fi8U`. These are local, temporary test
 artifacts, not distributable fixtures. No Windows access or stock-asset edits
 were used. This result does not resolve the separate recovery-policy concerns.
+
+## Merge and Windows corpus result, 2026-09-09
+
+The final branch revision `2974865` was tested on Windows before merge. The
+corpus run loaded 11,746 of 11,747 shapes, 2,517 of 2,517 terrain descriptors
+and 727 of 727 stock world files. Structural counts matched `main` for every
+mutually loaded shape and terrain file. The remaining shape,
+`JAPAN1/SHAPES/JP1SigGant4.s`, is an abruptly truncated UTF-16 file which also
+crashes on the old parser and therefore does not exercise the rewritten binary
+reader. Warm measurements found no serious parser performance regression.
+
+The branch was merged into `main` as `e1d7c8c`. The merged Release build passed,
+as did `tokens` (1,533/1,533), `token-world` (27/27), `token-shape-gl` (35/35),
+terrain grid (66/66), procedural terrain material (503/503), and the standalone
+`simis_tokens` CTest. Temporary corpus-runner sources and proprietary corpus
+assets were not committed.
+
+The post-merge disposition is explicit:
+
+- whole-shape rejection after a local binary parse error is accepted as a
+  temporary regression because the shape parser requires a separate rework;
+- binary world parsing must preserve objects completed before a later damaged
+  object. This is tracked in
+  [binary world parser recovery](../world/binary-world-parser-recovery.md);
+- the prototype procedural-token test/local-route tiles need a one-time update,
+  tracked in
+  [procedural terrain token tile migration](../terrain/procedural-token-tile-migration.md);
+- terrain update propagation and other multiplayer issues are deferred to the
+  broader [server/client subsystem rework](server-client-rework.md).
+
+Merging and validating the branch does **not** authorize any of those follow-up
+implementations. Present them after the merge checks and obtain separate user
+approval before starting one.
 
 ## Verification results for the original implementation
 
@@ -268,32 +303,23 @@ cmake --build build-token-asan --target tsre_token_tests -j 4
 ASAN_OPTIONS=detect_leaks=0 QT_FORCE_STDERR_LOGGING=1 build-token-asan/tests/tokens/tsre_token_tests
 ```
 
-## Testing-only handoff after the user publishes the branch
+## Post-merge handoff
 
-The user has approved the local commit and will publish the branch themselves.
-After publication, fetch `feature/native-token-ids`; record the tested revision
-with `git rev-parse HEAD`. Do not merge the older
-`docs/tsre-token-migration-plan` branch as if it contained this implementation.
+The branch has been merged and validated. Before implementing more changes,
+present the outstanding tasks to the user and ask which one, if any, to start:
 
-Ask the next agent to **review/test the current change, not blindly reimplement
-the historical plan or assume the parser integration is finished**. Recovery
-corrections require a separately scoped implementation request; the TODO list
-is not authorization to perform them:
+1. [Binary world parser recovery](../world/binary-world-parser-recovery.md), so
+   one damaged object does not roll back earlier valid world objects.
+2. [Procedural terrain token tile migration](../terrain/procedural-token-tile-migration.md)
+   for affected test assets, if any, and the user's local procedural route.
+3. Terrain failure propagation and the other findings in the deferred
+   [server/client rework](server-client-rework.md).
+4. A later shape-parser recovery rework; whole-shape rejection is accepted only
+   as a temporary policy.
 
-1. Fetch the approved `feature/native-token-ids` commit and repeat the commands
-   above in a clean checkout, preserving any unrelated local work.
-2. Build with the user's normal toolchain. If that requires Windows host access,
-   prepare the command/task and obtain approval before running anything there.
-3. Open copies of representative ordinary binary/Unicode W and S files and
-   ordinary terrain tiles. Check selection, property values, texture/material
-   behavior and animated shapes. This local run used generated fixtures, not
-   broad real-route certification.
-4. Recreate the experimental procedural tiles under the new implementation;
-   verify paint/bake/save/reopen and new wire IDs. Do not add migration support
-   or rewrite the old three tiles unless separately requested.
-5. Test a matched client/server pair with real terrain/QT exchange. Header and
-   nested-file tests pass, but a live network route session was not exercised.
-   Check clear rejection when a new peer receives legacy IDs.
+Do not combine these tasks merely because they were found during one review.
+Each requires its own scope and approval. In particular, do not modify local
+route assets while implementing parser recovery.
 
 Remain aware of explicit non-goals: no binary W converter, no Ruler/ShapeTemplate
 or ORTS extension payload codecs, incomplete binary SoundRegion fields, no ORTS

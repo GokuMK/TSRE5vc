@@ -26,8 +26,9 @@ Decisions incorporated from the latest review:
 
 - Replace numeric SIMIS token IDs at TSRE use sites with enum names, including
   unchanged Core IDs in terrain and shape code, not only offset-related world IDs.
-- No backward migration for the prototype terrain token numbers: the user has
-  only three testing tiles. Do not add old-ID reader aliases or a converter.
+- No runtime backward migration for the prototype terrain token numbers. Do not
+  add old-ID reader aliases or a converter. A separate, user-approved post-merge
+  asset task may update the small number of experimental tiles in place.
 - Keep underscored network/app message names; use PascalCase with the `TSRE`
   prefix for the three renamed terrain file blocks, so the roles remain
   visually distinct. Update their enum names and textual name-table entries.
@@ -430,9 +431,12 @@ ordering/control-record behavior; its object-model cleanup is a separate task.
 
 ## 7. Prototype terrain tokens: clean switch, no migration
 
-The user has only **three testing tiles** and does not need backward migration.
-Remove the former requirement for old-ID reader aliases, conversion on save,
-mixed-old/new conflict handling, dual writes, or a compatibility conversion tool.
+The user has only a small number of testing tiles and does not need runtime
+backward migration. Remove the former requirement for old-ID reader aliases,
+conversion on save, mixed-old/new conflict handling, dual writes, or a
+compatibility conversion tool. Updating those assets after merge is tracked as
+a separately approved
+[procedural token tile migration](../terrain/procedural-token-tile-migration.md).
 
 Current main writes these three children of `terrain_samples` (139):
 
@@ -453,9 +457,9 @@ Implementation requirements:
    emit only the new assignments for these TSRE extensions. Old prototype IDs
    are no longer recognized as procedural terrain tokens; no global namespace-1
    remapper, low-word matching or special alias cases.
-2. Do not rely on the three old tiles as new-reader round-trip fixtures.
-   Recreate test tiles under the new implementation when testing starts, or use
-   freshly generated fixtures. This plan rework does not alter those files.
+2. Do not rely on old tiles as new-reader round-trip fixtures. Use freshly
+   generated fixtures for implementation verification. Any later rewrite of
+   existing test or local-route assets is a separate post-merge task.
 3. Preserve validation, invalid-presence handling, atomic saves, sidecar backup
    behavior and dirty-state rules for the **supported new-ID** records. Do not
    remove these existing safeguards under the heading of removing migration.

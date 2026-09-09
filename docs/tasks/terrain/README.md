@@ -20,6 +20,7 @@ detail distance. Test counts in historical sections remain milestone-specific.
 | [Simple lookup migration](terrain-simple-lookup-migration.md) | Design reviewed; preliminary private-helper cleanup implemented | Synthetic detailed lookup and removal of `TerrainLibSimple` remain to implement. |
 | [Procedural materials](terrain-procedural-materials.md) | Experimental demo; four-worker loading and synchronous painting tested | Compressed ID plane, F2 tools, shader import, BC1/RGB sharing, tile-level cache release and bounded background generation. Nearest-visible-first requests/uploads within each tile; draw order unchanged. Other production features deferred. |
 | [Procedural baked fallback / catalogue](terrain-procedural-baked-fallback.md) | Stage A and DXT1 follow-up implemented/tested; B remains design only | A: one 1024-square opaque DXT1 ACE bake on save through [AceLib/AceDocument](../../features/ace-library.md), keep-bake-on-disable, reserved source palette, incremental saves and independent 2048 m per-patch detailed-texture distance. B: per-route material catalogue alternatives. |
+| [Procedural token tile migration](procedural-token-tile-migration.md) | Proposed post-merge asset maintenance; not yet approved | Inventory and back up affected test/local-route `.t` files, rewrite prototype procedural token IDs through the current writer, then verify paint/bake/save/reopen. |
 
 ## Tracked milestone and sub-task checklist
 
@@ -41,6 +42,8 @@ implement them; deferred designs are not blockers for the working terrain tools.
 - [ ] Procedural settings UI: detail distance, output sizes and debug/restore validation; replace internal-only controls when the production settings design is agreed.
 - [ ] [Simple lookup migration](terrain-simple-lookup-migration.md): remove `TerrainLibSimple`, using synthetic no-TD lookup in the common backend.
 - [ ] KEY_F explicit line-strip boundaries instead of the 8 m break heuristic.
+- [ ] After separate approval, update procedural test/local-route tiles that use
+  the three prototype SIMIS token IDs; do not add runtime compatibility aliases.
 
 Deferred production features / testing (not requirements to close Stage A):
 
