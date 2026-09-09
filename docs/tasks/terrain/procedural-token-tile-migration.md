@@ -1,8 +1,7 @@
 # Procedural terrain token tile migration
 
-Status: proposed post-merge asset-maintenance task. Do not run it as part of
-the native-token merge or without the user's separate approval after merge
-validation.
+Status: local asset migration completed on 2026-09-09; automated validation
+passed. Visual Route Editor acceptance remains.
 
 ## Scope
 
@@ -47,3 +46,40 @@ may have changed.
 The file inventory and asset rewrite are deliberately separate from merging
 the parser code. Present the discovered targets and exact proposed operation to
 the user before modifying route data.
+
+## Migration result (2026-09-09)
+
+The repository contains no tracked `.t` or `.pmap` fixture requiring an asset
+rewrite. The synthetic old-ID rejection case in `TokenIdTestSuite.cpp` remains
+intentionally unchanged.
+
+The approved local procedural route contained three affected descriptors:
+
+- `tiles/-11dbfb9c.t`
+- `tiles/-11dbfba0.t`
+- `tiles/-11dbfbac.t`
+
+Each descriptor contained all three prototype blocks as valid direct children
+of `terrain_samples`. Only their four-byte token fields were changed; block
+lengths, labels and payloads were retained byte-for-byte. The descriptors,
+their `.pmap` files, current baked `_procedural.ace` files and
+`terrainmaterials.dat` were backed up first. The backup directory contains a
+before-hash manifest and per-descriptor before/after hashes.
+
+Validation completed after the rewrite:
+
+- structured scan: native IDs present and prototype IDs absent in all three
+  descriptors;
+- binary comparison: descriptor sizes unchanged and differences limited to
+  the nine expected token-byte positions per file;
+- all backed-up `.pmap`, baked ACE and catalogue hashes match the live files;
+- local procedural-route terrain corpus: 3/3 descriptors accepted, loaded and
+  editable, with no payload failure;
+- actual descriptor save/reopen on disposable copies: 3/3 retained their map
+  reference, baked marker and valid UiD map;
+- token suite: 1533 passed, 0 failed;
+- procedural-material suite: 503 passed, 0 failed, including paint, bake,
+  save and reopen coverage.
+
+Opening the local route in Route Editor and visually checking all three tiles
+is still required before deleting the migration backup.
