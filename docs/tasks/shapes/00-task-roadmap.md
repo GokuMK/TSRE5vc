@@ -6,6 +6,7 @@ This folder contains ordered tasks for generalizing TSRE "complex shapes" (curre
 - [x] `01-complex-shape-abstraction.md`
 - [x] `02-gltf-glb-shape-loader.md`
 - [ ] `03-complex-shape-metadata-sidecar.md`
+- [ ] [04-sfile-complex-implementation.md](04-sfile-complex-implementation.md) — new MSTS implementation alongside legacy SFile/C/X; class boundary accepted, ParserX review and load/save requirements documented; implementation not started. Independent of Task 03.
 
 ## Ground Rules For All Tasks
 - Keep MSTS `.s` + `.sd` support working throughout.
@@ -18,3 +19,7 @@ This folder contains ordered tasks for generalizing TSRE "complex shapes" (curre
 ## Related Dependencies
 - Texture pipeline work is a practical prerequisite for embedded textures and future compressed formats:
   - `docs/tasks/textures/01-texture-format-and-upload-refactor.md`
+
+## Supporting Reviews
+
+- [SFile legacy findings](sfile-legacy-findings.md) — field exposure and caller audit for Task 04.
