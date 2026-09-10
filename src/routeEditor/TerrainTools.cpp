@@ -11,6 +11,7 @@
 #include "TerrainTools.h"
 #include "TerrainMaterialDialog.h"
 #include <tsre/world/TerrainMaterialLibrary.h>
+#include <tsre/world/TerrainMaterialMap.h>
 #include <tsre/world/TerrainMaterialSource.h>
 #include <tsre/texture/TexLib.h>
 #include <tsre/texture/Brush.h>
@@ -219,6 +220,14 @@ TerrainTools::TerrainTools(QString name)
         connect(buttonTools["proceduralPickTool"],&QPushButton::clicked,this,&TerrainTools::pickTexToolEnabled);
         connect(buttonTools["proceduralLockTool"],&QPushButton::clicked,this,&TerrainTools::lockTexToolEnabled);
         vbox->addLayout(selection);
+        if (!TerrainMaterialMap::Enabled) {
+            const QString disabled="Disabled in Terrain / Procedural materials settings. Enable and restart TSRE to use these tools.";
+            heading->setText("Procedural Materials (disabled in settings)");
+            choose->setEnabled(false); choose->setToolTip(disabled);
+            for (auto it=buttonTools.begin();it!=buttonTools.end();++it) {
+                if (it.key().startsWith("procedural")) { it.value()->setEnabled(false); it.value()->setToolTip(disabled); }
+            }
+        }
     }
 
     vlist1 = new QGridLayout;
@@ -555,6 +564,7 @@ void TerrainTools::fixedTileToolEnabled(bool val){
 }
 
 bool TerrainTools::chooseProceduralMaterial(const QString &message) {
+        if (!TerrainMaterialMap::Enabled) return false;
         TerrainMaterialDialog dialog(this,paintBrush->terrainMaterialUid,message);
         if (dialog.exec()!=QDialog::Accepted) return false;
         const auto library=TerrainMaterialLibrary::current();
@@ -787,6 +797,7 @@ void TerrainTools::texPreviewEnabled(int val){
     if (val==6) { nextBrushShape(); return; }
     if (val<0 || val>=6 || val>=texLastItems.size()) return;
     const auto entry=texLastItems[texLastItems.size()-val-1];
+    if (entry.uid && !TerrainMaterialMap::Enabled) return;
     if (entry.uid) {
         const auto library=TerrainMaterialLibrary::current(); library->poll();
         const auto material=entry.route==library->path()?library->find(entry.uid):nullptr;

@@ -91,7 +91,8 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
           {"shapeViewer", "Shape Viewer", "Shape preview appearance.", 30},
           {"hud", "HUD", "Heads-up display.", 40}}},
         {"terrain", "Terrain", "Terrain and seasonal editing options.", 70,
-         {{"terrain", "Terrain", "Terrain loading and seasonal editing.", 20},
+         {{"terrain", "Static materials", "Terrain loading and seasonal editing.", 20},
+          {"proceduralMaterials", "Procedural materials", "Procedural terrain display, output quality and diagnostics.", 25},
           {"serialization", "Geometry serialization", "Compatibility rules used when saving objects.", 30}}},
         {"maps", "Maps and geodata", "Map imagery and geographic data sources.", 80,
          {{"geodata", "Geodata", "Local elevation and geographic-data sources.", 5},
@@ -327,6 +328,21 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
     ADD(SettingsDefinition::boolean("core.terrain.seasonalEditing", false)
             .withName("Edit seasonal terrain files").withDescription("When a content season is selected, load and save terrain texture and raw files in that season's directories.").inGroup("terrain").inSubgroup("terrain").asAdvanced(),
         "seasonalEditing", "Game::seasonalEditing", "Terrain", true, "terrain-load-save-time");
+    ADD(SettingsDefinition::boolean("core.terrain.procedural.enabled", true)
+            .withName("Enable procedural materials").withDescription("Generate and display procedural terrain materials. When disabled, use saved static textures without loading or rewriting procedural maps or bakes. Procedural texture tools are unavailable; saved material data is preserved. Requires an application restart.").inGroup("terrain").inSubgroup("proceduralMaterials"),
+        "", "", "TerrainMaterialMap", true, "startup");
+    ADD(SettingsDefinition::floating("core.terrain.procedural.detailDistance", 2048)
+            .withName("Detailed texture distance").withDescription("Horizontal camera-to-patch-centre distance for detailed procedural textures. Beyond this distance use the saved tile bake when available. Independent of terrain geometry and object draw distances; applies immediately.").withRange(0, 200000, 128).withUnit("m").inGroup("terrain").inSubgroup("proceduralMaterials"),
+        "", "", "TerrainMaterialMap", true, "hot-cache");
+    ADD(SettingsDefinition::enumeration("core.terrain.procedural.patchTextureSize", 512)
+            .withName("Patch texture size").withDescription("Width and height of each generated detailed patch texture. Higher values increase generation time and memory use. Does not resize the painted material-ID map. Requires an application restart.").withOptions(numericChoices({{128,"128 x 128"},{256,"256 x 256"},{512,"512 x 512"},{1024,"1024 x 1024"},{2048,"2048 x 2048"}})).withUnit("px").inGroup("terrain").inSubgroup("proceduralMaterials"),
+        "", "", "TerrainMaterialMap", true, "startup");
+    ADD(SettingsDefinition::enumeration("core.terrain.procedural.bakedTextureSize", 1024)
+            .withName("Baked tile texture size").withDescription("Width and height of the whole-tile DXT1 fallback texture. Existing bakes remain visible; a changed size is generated on the next tile save after restarting. Does not resize the material-ID map.").withOptions(numericChoices({{256,"256 x 256"},{512,"512 x 512"},{1024,"1024 x 1024"},{2048,"2048 x 2048"}})).withUnit("px").inGroup("terrain").inSubgroup("proceduralMaterials"),
+        "", "", "TerrainMaterialMap", true, "startup");
+    ADD(SettingsDefinition::boolean("core.terrain.procedural.validateBakeInputs", false)
+            .withName("Validate baked texture inputs").withDescription("Diagnostic/repair mode: hash the entire material-ID map and generation/source metadata on load and save. A mismatch requests a full rebake on save, but keeps displaying the existing fallback. Can cause pauses; leave off for normal editing. Requires an application restart.").inGroup("terrain").inSubgroup("proceduralMaterials").asAdvanced(),
+        "", "", "TerrainMaterialMap", true, "startup");
     ADD(SettingsDefinition::boolean("core.route.loading.preloadAllWorldFiles", false)
             .withName("Preload all world files").withDescription("Load every route world tile during route initialization instead of only the normal working set; server mode forces this on.").inGroup("content").inSubgroup("loading").asAdvanced(),
         "loadAllWFiles", "Game::loadAllWFiles", "Route", true, "route-load-time");

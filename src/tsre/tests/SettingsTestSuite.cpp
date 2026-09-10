@@ -6,6 +6,8 @@
 #include <settings/SettingsProfile.h>
 #include <settings/ui/SettingsDialog.h>
 #include <tsre/Game.h>
+#include <tsre/world/TerrainMaterialMap.h>
+#include <QScopedValueRollback>
 
 #include <QAction>
 #include <QApplication>
@@ -33,8 +35,24 @@ int TsreTests::runSettingsSuite(bool verbose) {
 
     SettingsManager manager;
     SettingsRegistration::registerAll(manager.registry());
-    check(manager.registry().definitions().size() == 77,
+    check(manager.registry().definitions().size() == 82,
           "phase2b-catalog-removes-inactive-and-one-shot-settings");
+    const auto *proceduralEnabled=manager.registry().definition("core.terrain.procedural.enabled");
+    const auto *detail=manager.registry().definition("core.terrain.procedural.detailDistance");
+    const auto *patchSize=manager.registry().definition("core.terrain.procedural.patchTextureSize");
+    const auto *bakeSize=manager.registry().definition("core.terrain.procedural.bakedTextureSize");
+    const auto *validation=manager.registry().definition("core.terrain.procedural.validateBakeInputs");
+    check(proceduralEnabled && detail && patchSize && bakeSize && validation
+          && proceduralEnabled->defaultValue.toBool() && proceduralEnabled->subgroup=="proceduralMaterials"
+          && proceduralEnabled->order<detail->order && detail->defaultValue.toDouble()==2048
+          && patchSize->defaultValue.toInt()==512 && bakeSize->defaultValue.toInt()==1024
+          && !validation->defaultValue.toBool() && validation->advanced,
+          "procedural-settings-defaults-and-master-first");
+    check(proceduralEnabled && detail && patchSize && bakeSize && validation
+          && proceduralEnabled->apply=="applicationRestart" && patchSize->apply=="applicationRestart"
+          && bakeSize->apply=="applicationRestart" && validation->apply=="applicationRestart"
+          && detail->apply=="dynamic" && patchSize->type==SettingType::Enum && bakeSize->type==SettingType::Enum,
+          "procedural-settings-safe-apply-policy-and-size-choices");
     check(manager.registry().definition("core.system.useWorkingDirectory") == nullptr
           && manager.registry().definition("core.system.warningBox") == nullptr,
           "inactive-legacy-settings-are-not-generated");
@@ -193,7 +211,7 @@ int TsreTests::runSettingsSuite(bool verbose) {
     const QString settingsFile = QDir(temporary.path()).filePath("profile/settings.json");
     QString error;
     check(manager.loadFile(settingsFile, &error), "registry-generates-profile");
-    check(QFile::exists(settingsFile) && manager.settingsArray().size() == 77,
+    check(QFile::exists(settingsFile) && manager.settingsArray().size() == 82,
           "generated-profile-has-catalogue");
     check(manager.value("core.paths.gameRoot").toString().isEmpty()
           && manager.value("core.paths.geoData").toString().isEmpty()
@@ -277,6 +295,10 @@ int TsreTests::runSettingsSuite(bool verbose) {
               == SettingsManager::Supported,
           "shadow-map-size-enums-have-runtime-support-claims");
     SettingsDialog supportDialog(&applicationSettings);
+    for (const char *key : {"enabled","detailDistance","patchTextureSize","bakedTextureSize","validateBakeInputs"}) {
+        auto *supported=supportDialog.findChild<QCheckBox*>(QString("setting-support:core.terrain.procedural.")+key);
+        check(supported && supported->isChecked(),"procedural-settings-editor-generated-supported-row");
+    }
     QCheckBox *nearShadowSupport = supportDialog.findChild<QCheckBox *>(
                 "setting-support:core.rendering.shadow.primaryMapSize");
     QCheckBox *distantShadowSupport = supportDialog.findChild<QCheckBox *>(
@@ -563,6 +585,36 @@ int TsreTests::runSettingsSuite(bool verbose) {
           && extensionManager.registry().definition("fork.test.enabled"),
           "extension-provider-contributes-definition");
 
+    {
+        const int oldPatch=TerrainMaterialMap::OutputSide, oldBake=TerrainMaterialMap::BakedSide;
+        const bool oldEnabled=TerrainMaterialMap::Enabled, oldValidation=TerrainMaterialMap::ValidateBakeOnLoad;
+        QJsonObject document=applicationSettings.document();
+        auto records=document.value("settings").toArray();
+        for (int i=0;i<records.size();++i) {
+            auto entry=records[i].toObject(); const QString key=entry.value("key").toString();
+            if (key=="core.terrain.procedural.enabled") entry["value"]=!oldEnabled;
+            if (key=="core.terrain.procedural.detailDistance") entry["value"]=4096.0;
+            if (key=="core.terrain.procedural.patchTextureSize") entry["value"]=256;
+            if (key=="core.terrain.procedural.bakedTextureSize") entry["value"]=512;
+            if (key=="core.terrain.procedural.validateBakeInputs") entry["value"]=!oldValidation;
+            records[i]=entry;
+        }
+        document["settings"]=records;
+        check(applicationSettings.applyProfileToRuntime(document,nullptr,&error)
+              && TerrainMaterialMap::DetailDistanceMeters==4096
+              && TerrainMaterialMap::Enabled==oldEnabled && TerrainMaterialMap::OutputSide==oldPatch
+              && TerrainMaterialMap::BakedSide==oldBake && TerrainMaterialMap::ValidateBakeOnLoad==oldValidation,
+              "procedural-only-distance-applies-live");
+        Game::applyRuntimeSettings(); // Simulate startup after saving the new profile.
+        check(TerrainMaterialMap::Enabled!=oldEnabled && TerrainMaterialMap::OutputSide==256
+              && TerrainMaterialMap::BakedSide==512 && TerrainMaterialMap::ValidateBakeOnLoad!=oldValidation,
+              "procedural-startup-applies-generation-settings");
+        check(!applicationSettings.setSessionValue("core.terrain.procedural.patchTextureSize",300,&error)
+              && !applicationSettings.setSessionValue("core.terrain.procedural.detailDistance",-1,&error),
+              "procedural-invalid-size-and-distance-rejected");
+        applicationSettings.applyProfileToRuntime(applicationSettings.document(),nullptr,&error);
+        Game::applyRuntimeSettings();
+    }
     qInfo() << "[tests:settings] cases=" << (passed + failed)
             << "passed=" << passed << "failed=" << failed;
     return failed == 0 ? 0 : 1;

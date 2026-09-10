@@ -20,7 +20,7 @@ detail distance. Test counts in historical sections remain milestone-specific.
 | [Height brushes](terrain-height-brush-performance.md) | Direct tile brush, reusable float area, example, profiling and exact normal optimization implemented and tested | User accepted speed. Populated-route/multiplayer performance coverage is not established by empty-route tests. Old brush remains for comparison/unusual-grid fallback; old paged normal implementation is removed. |
 | [Simple lookup migration](terrain-simple-lookup-migration.md) | Design reviewed; preliminary private-helper cleanup implemented | Synthetic detailed lookup and removal of `TerrainLibSimple` remain to implement. |
 | [Procedural materials](terrain-procedural-materials.md) | Experimental demo; four-worker loading and synchronous painting tested | Compressed ID plane, F2 tools, shader import, BC1/RGB sharing, tile-level cache release and bounded background generation. Nearest-visible-first requests/uploads within each tile; draw order unchanged. Other production features deferred. |
-| [Procedural baked fallback / catalogue](terrain-procedural-baked-fallback.md) | Stage A and DXT1 follow-up implemented/tested; B remains design only | A: one 1024-square opaque DXT1 ACE bake on save through [AceLib/AceDocument](../../features/ace-library.md), keep-bake-on-disable, reserved source palette, incremental saves and independent 2048 m per-patch detailed-texture distance. B: per-route material catalogue alternatives. |
+| [Procedural baked fallback / catalogue](terrain-procedural-baked-fallback.md) | Stage A, DXT1 follow-up and Stage B route catalogue implemented/tested | One 1024-square opaque DXT1 ACE bake on save, incremental saves and independent 2048 m detailed-texture distance. Stage B uses a UTF-16 route material catalogue with stable UiDs; earlier catalogue alternatives are historical. |
 | [Procedural token tile migration](procedural-token-tile-migration.md) | Completed 2026-09-09; automated validation and visual Route Editor acceptance passed | Migration backup retained for manual removal when no longer wanted. |
 
 ## Tracked milestone and sub-task checklist
@@ -40,7 +40,7 @@ implement them; deferred designs are not blockers for the working terrain tools.
 - [x] DXT1 baked fallback, now 1024-square: 421 CPU checks in both near-output modes and procedural GL pass; old-size regeneration, legacy RGB loading and unchanged-block preservation covered.
 - [x] [Stage B route material catalogue](../../features/terrain-material-library.md): UTF-16 `.dat`, stable UiDs, tile-local byte-ID mapping, Choose/From image, legacy no-table fallback and mapping-aware undo. User confirmed the revised separate-button and mixed-material history workflow works.
 - [x] [Procedural undo](terrain-procedural-materials.md#procedural-undo-follow-up): one deep ID-map snapshot per tile/action; existing two-second stroke segmentation; background level-1 compression; restore IDs, toggle/palette/UV state, not generated textures. Region deltas remain an alternative.
-- [ ] Procedural settings UI: detail distance, output sizes and debug/restore validation; replace internal-only controls when the production settings design is agreed.
+- [x] [Procedural settings JSON/editor](../../features/terrain-procedural-settings.md): master enable switch, detail distance, output sizes and optional debug/restore validation. Boundary sampling belongs to material definitions, not global settings.
 - [ ] [Simple lookup migration](terrain-simple-lookup-migration.md): remove `TerrainLibSimple`, using synthetic no-TD lookup in the common backend.
 - [ ] KEY_F explicit line-strip boundaries instead of the 8 m break heuristic.
 - [x] After separate approval, update procedural test/local-route tiles that use
@@ -57,6 +57,30 @@ Deferred production features / testing (not requirements to close Stage A):
 - [ ] Global memory management and expanded/custom-layout policies, as separate tasks.
 
 ## Actual follow-up implementation
+
+### Procedural settings implemented (2026-09-10)
+
+- First control: enable/disable procedural materials globally. Disabled means
+  bypassing procedural functionality and displaying the tile's static textures;
+  it is not the F2 conversion tool and must not remove the tile's procedural
+  references or material-ID data. Disabled mode skips procedural loading/saving
+  and protects texture edits; ordinary height editing/saving remains available.
+- Expose detailed-texture distance and generated patch/baked tile output sizes
+  through the existing JSON settings registry/editor, preserving current defaults.
+  Distance applies live; the master switch, sizes and validation require an
+  application restart. See the linked feature documentation for keys and choices.
+- Do not add a global boundary-sampling selector: this belongs to future material
+  properties. Current scattering remains until that material work is implemented.
+- Optional advanced validation hashes the entire ID map plus generation/source
+  metadata. A mismatch requests rebaking but does not hide the existing fallback.
+  Default remains off; its purpose and cost must be clear in the editor.
+- Map dimensions are a separate implementation issue, not a file-format obstacle:
+  `.pmap` v1 already contains width and height. The runtime currently insists on
+  compile-time `4096 x 4096`. Supporting per-map dimensions requires updating
+  allocation, addressing, painting, generation and undo consumers. A future
+  creation-size default must not change interpretation of existing maps.
+
+### Other implementation work
 
 - Replace deprecated `TerrainLibSimple` with Qt's common terrain machinery and
   deterministic 2 km lookup with no TD reads/writes. Explicit QuadTree

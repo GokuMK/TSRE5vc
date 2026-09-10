@@ -646,6 +646,7 @@ struct TerrainMaterialUndo : UndoSnapshot {
     }
 };
 std::shared_ptr<UndoSnapshot> Terrain::captureProceduralUndo() {
+    if (!TerrainMaterialMap::Enabled) return {};
     if (!tfile || (usesProceduralMaterial() && (!procedural || !procedural->ready))) return {};
     auto snapshot = std::make_shared<TerrainMaterialUndo>();
     snapshot->terrain=this; snapshot->epoch=proceduralUndoEpoch;
@@ -669,6 +670,7 @@ std::shared_ptr<UndoSnapshot> Terrain::captureProceduralUndo() {
 
 bool Terrain::usesProceduralMaterial() const { return tfile && !tfile->sampleMaterialBuffer.isEmpty(); }
 void Terrain::synchronizeMaterialLibrary() {
+    if (!TerrainMaterialMap::Enabled) return;
     if (!procedural || !tfile->materialUidMapPresent || !procedural->libraryCanRecover) return;
     const auto library=TerrainMaterialLibrary::current(); library->poll();
     if (procedural->libraryRevision==library->revision()) return;
@@ -701,6 +703,7 @@ void Terrain::synchronizeMaterialLibrary() {
     modified=true;
 }
 void Terrain::beginProceduralFrame() {
+    if (!TerrainMaterialMap::Enabled) return;
     uploadsThisFrame=recipesThisFrame=0;
     uploadNsThisFrame=recipeNsThisFrame=0;
     flushTextureDeletes();
@@ -734,9 +737,9 @@ void Terrain::beginProceduralFrame() {
 Terrain::ProceduralWorkStats Terrain::proceduralWorkStats() {
     return {activeWorkers.load(),peakWorkers.load(),outstandingJobs.load()+miniatureJobs.load(),uploadsThisFrame,publishedJobs,discardedJobs};
 }
-bool Terrain::rendersProceduralMaterial() const { return usesProceduralMaterial() && procedural && procedural->ready; }
+bool Terrain::rendersProceduralMaterial() const { return TerrainMaterialMap::Enabled && usesProceduralMaterial() && procedural && procedural->ready; }
 bool Terrain::hasProceduralBake() const {
-    return procedural && procedural->bakeAvailable;
+    return TerrainMaterialMap::Enabled && procedural && procedural->bakeAvailable;
 }
 void Terrain::clearStaticTextureRefs() {
     for (int p=0;p<gridLayout.patchRecordCount();++p) {
@@ -857,7 +860,7 @@ bool Terrain::proceduralToolAllowed() const {
 void Terrain::loadProceduralMaterial(const QString &directory) {
     ++proceduralUndoEpoch;
     procedural.reset();
-    if (!usesProceduralMaterial()) return;
+    if (!TerrainMaterialMap::Enabled || !usesProceduralMaterial()) return;
     procedural = std::make_shared<TerrainProceduralState>();
     proceduralStates.push_back(procedural);
     const QString ref = tfile->sampleMaterialBuffer;
@@ -895,6 +898,7 @@ void Terrain::loadProceduralMaterial(const QString &directory) {
     procedural->rememberLibrary(*tfile);
 }
 bool Terrain::setProceduralMaterial(bool enabled, QString &error, quint32 materialUid) {
+    if (!TerrainMaterialMap::Enabled) { error="Procedural materials are disabled in settings. Enable them and restart TSRE first."; return false; }
     if (!Game::writeEnabled || !editable || Game::serverClient) { error = "Terrain is not writable/editable in this session"; return false; }
     if (enabled == usesProceduralMaterial()) return true;
     if (enabled) {
@@ -1015,6 +1019,7 @@ void Terrain::prepareVisibleProceduralTextures(const PatchVisibility &visibility
     }
 }
 int Terrain::proceduralTexture(int patch, bool background) {
+    if (!TerrainMaterialMap::Enabled) return -1;
     flushTextureDeletes();
     if (!usesProceduralMaterial() || !procedural || !procedural->ready) return -1;
     if (patch < 0 || patch >= gridLayout.patchRecordCount()) return -1;
@@ -1050,6 +1055,7 @@ int Terrain::proceduralTexture(int patch, bool background) {
     return uploadProceduralOutput(material,background);
 }
 int Terrain::proceduralFallbackTexture() {
+    if (!TerrainMaterialMap::Enabled) return -1;
     if (!rendersProceduralMaterial() || !hasProceduralBake()) return -1;
     const QByteArray key="B:"+tfile->bakedMaterialInfo.toUtf8();
     if (procedural->failedRecipes.contains(key)) {
@@ -1089,6 +1095,7 @@ static int uploadProceduralOutput(const MaterialPtr &material, bool background, 
     return material->textureId;
 }
 int Terrain::proceduralDetailTexture() {
+    if (!TerrainMaterialMap::Enabled) return -1;
     auto *context = QOpenGLContext::currentContext();
     if (!rendersProceduralMaterial() || !context) return -1;
     // Same route/season texture lookup and mipmapped upload as static terrain.
@@ -1111,6 +1118,7 @@ int Terrain::proceduralDetailTexture() {
     return texture->glLoaded ? procedural->detailTextureId : -1;
 }
 int Terrain::proceduralSourceTexture(int x, int z, float posx, float posz) {
+    if (!TerrainMaterialMap::Enabled) return -1;
     if (!procedural || !procedural->ready) return -1;
     getLocalCoords(x,z,posx,posz);
     const int id = procedural->map.at(int(posx*TerrainMaterialMap::Side/gridLayout.terrainWorldSize),
@@ -1118,6 +1126,7 @@ int Terrain::proceduralSourceTexture(int x, int z, float posx, float posz) {
     return TexLib::addTex(texturepath,sourceName(*tfile,id));
 }
 void Terrain::rememberProceduralSource(Brush *brush, int x, int z, float posx, float posz) {
+    if (!TerrainMaterialMap::Enabled) return;
     if (!brush || !loaded) return;
     getPatchCoords(x,z,posx,posz);
     int id = int(tfile->patchValue(z*gridLayout.patchesPerSide+x,TFile::PatchField::ShaderIndex));
@@ -1134,6 +1143,7 @@ void Terrain::rememberProceduralSource(Brush *brush, int x, int z, float posx, f
 }
 void Terrain::paintProceduralMaterial(Brush *brush, int x, int z, float posx, float posz,
                                       float radiusMeters, int operation) {
+    if (!TerrainMaterialMap::Enabled) return;
     if (!usesProceduralMaterial()) return;
     synchronizeMaterialLibrary();
     if (operation<TerrainMaterialMap::TexturePaint || operation>TerrainMaterialMap::FloodFill) return;
@@ -1277,6 +1287,7 @@ QHash<QByteArray,QImage> Terrain::proceduralBakeMiniatures() const {
     return miniatures;
 }
 bool Terrain::saveProceduralBake() {
+    if (!TerrainMaterialMap::Enabled) return true;
     if (!usesProceduralMaterial()) return true;
     synchronizeMaterialLibrary();
     if (!procedural || !procedural->ready) return false;
@@ -1416,6 +1427,7 @@ bool Terrain::saveProceduralBake() {
 }
 bool Terrain::saveProceduralMap(const QString &directory, QString &previousReference) {
     previousReference = tfile->sampleMaterialBuffer;
+    if (!TerrainMaterialMap::Enabled) return true;
     if (!usesProceduralMaterial()) return true;
     if (!procedural || !procedural->ready) { qWarning() << "Refusing to save unavailable procedural map" << name; return false; }
     if (!procedural->savedMapPath.isEmpty() && !procedural->rollbackMapSave()) {

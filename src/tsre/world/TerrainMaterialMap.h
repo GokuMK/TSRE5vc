@@ -12,12 +12,14 @@
 class TerrainMaterialMap {
 public:
     static constexpr int Side = 4096;
-    static constexpr int OutputSide = 512;
-    static constexpr int BakedSide = 1024;
+    // Startup-cached settings: immutable while generation workers are running.
+    static inline bool Enabled = true;
+    static inline int OutputSide = 512;
+    static inline int BakedSide = 1024;
     // Horizontal camera-to-patch-center distance for detailed procedural output.
     // Independent of object/geometry LOD; farther patches use the saved bake.
     static inline float DetailDistanceMeters = 2048.0f;
-    // Internal debug/restore mode; expose in procedural terrain settings later.
+    // Advanced debug/restore setting, applied on application restart.
     // Full input validation/hashing on load/save is opt-in, never a normal save cost.
     static inline bool ValidateBakeOnLoad = false;
     // Rebuild/reload to compare: 1 = strongest, 2 = deterministic scattering,

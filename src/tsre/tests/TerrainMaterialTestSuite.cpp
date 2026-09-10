@@ -125,6 +125,9 @@ void variedMaterialMap(TerrainMaterialMap &map) {
 }
 
 int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
+    QScopedValueRollback<bool> enabledSetting(TerrainMaterialMap::Enabled,true);
+    QScopedValueRollback<int> patchSizeSetting(TerrainMaterialMap::OutputSide,512);
+    QScopedValueRollback<int> bakeSizeSetting(TerrainMaterialMap::BakedSide,1024);
     int passed=0,failed=0;
     auto check=[&](bool ok,const char *name) {
         if (ok) ++passed; else ++failed;
@@ -132,6 +135,16 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
     };
     TerrainMaterialMap map;
     map.initialize();
+    {
+        const auto key=map.patchKey(0,16);
+        QScopedValueRollback<int> outputSize(TerrainMaterialMap::OutputSide,128);
+        QScopedValueRollback<int> bakeSize(TerrainMaterialMap::BakedSide,256);
+        QImage red(2,2,QImage::Format_RGB888); red.fill(Qt::red);
+        const QHash<int,QImage> sources{{0,red}};
+        check(map.generate(0,16,sources).size()==QSize(128,128) && map.patchKey(0,16)!=key,
+              "configured-patch-size-controls-output-and-recipe-key");
+        check(map.bake(32,sources).size()==QSize(256,256),"configured-bake-size-supports-p32");
+    }
     check(map.valid() && map.usedIds()==QSet<int>{0},"default-zero-plane");
     map.ids[42]=char(255);
     QString error;
@@ -1271,6 +1284,29 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
         check(!a.setProceduralMaterial(true,error),"global-write-protection");
         Game::writeEnabled=true;
         a.descriptor().sampleMaterialBuffer="missing.pmap";
+        {
+            check(finishMaterialJobs(),"disabled-setting-fixture-drains-prior-workers");
+            QScopedValueRollback<bool> disabled(TerrainMaterialMap::Enabled,false);
+            const auto descriptor=a.staticDescriptorBytes();
+            const auto reference=a.descriptor().sampleMaterialBuffer;
+            const auto work=Terrain::proceduralWorkStats();
+            a.loadProceduralMaterial(tileDir);
+            a.prepareVisibleProceduralTextures(TestTerrain::PatchVisibility{});
+            check(a.usesProceduralMaterial() && !a.rendersProceduralMaterial()
+                  && !a.hasProceduralBake() && a.proceduralTexture(0,true)==-1
+                  && a.proceduralFallbackTexture()==-1 && Terrain::proceduralWorkStats().outstanding==work.outstanding,
+                  "global-disable-skips-missing-map-and-background-generation");
+            check(!a.setProceduralMaterial(false,error) && !a.setProceduralMaterial(true,error),
+                  "global-disable-blocks-conversion-tools");
+            a.paintProceduralMaterial(&brush,0,0,-992,-992,12);
+            check(a.save() && a.descriptor().sampleMaterialBuffer==reference
+                  && a.staticDescriptorBytes()==descriptor && !QFileInfo::exists(tileDir+"/missing.pmap"),
+                  "global-disable-save-preserves-unknown-procedural-data-without-regeneration");
+            TestTerrain disabledLoad; disabledLoad.setup(temp.path(),16,"disabled-load");
+            check(disabledLoad.descriptor().readT(tileDir+"/testa.t")
+                  && disabledLoad.descriptor().sampleMaterialBuffer==reference,
+                  "global-disable-preserves-reference-on-disk");
+        }
         a.loadProceduralMaterial(tileDir);
         check(a.usesProceduralMaterial() && !a.rendersProceduralMaterial() && !a.save(),"missing-sidecar-not-replaced-by-zero");
     }

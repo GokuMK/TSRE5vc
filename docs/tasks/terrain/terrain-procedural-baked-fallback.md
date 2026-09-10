@@ -44,9 +44,10 @@ does **not** explain the full interactive delay or establish its remaining cause
 Follow-up diagnosis isolated synchronous bake validation: SHA-256 of the complete
 16 MiB ID map took roughly 120–150 ms per actual route tile. Missing bake files
 skip that check; smaller bake images do not shrink the ID map. Normal tile load
-now trusts the saved bake. `TerrainMaterialMap::ValidateBakeOnLoad` is an internal
-debug/restore setting, default **false**, retained for a future editable procedural
-terrain settings section (no GUI/settings.txt entry yet). Enabling it restores
+now trusts the saved bake. `TerrainMaterialMap::ValidateBakeOnLoad` is a cached
+debug/restore setting, default **false**, now exposed through the advanced
+[procedural JSON/editor settings](../../features/terrain-procedural-settings.md).
+Enabling it restores
 the full input/signature check and marks mismatches for rebaking on save, but a
 stale, decodable bake remains available for pending patches and distant terrain.
 Unsaved interactive painting still uses procedural output. Normal saves now use
@@ -325,7 +326,9 @@ resource release are required, not optional later memory optimizations.
 
 Implementation update, 2026-09-07: the user separately authorized lazy generation
 and texture management, followed by bounded background generation. Per-request
-generation, paint invalidation and tile-region release are implemented. A now builds on these; B remains design-only.
+generation, paint invalidation and tile-region release are implemented. This was
+the prerequisite milestone for A. A and B have since been implemented; current
+Stage B behaviour is documented in the [route material library](../../features/terrain-material-library.md).
 See the [current demo](terrain-procedural-materials.md) for lifecycle details and
 verification. Four-worker scheduling and controlled uploads are now implemented. This
 does not fix the general TexLib lifetime of asynchronously loaded file textures.
@@ -412,7 +415,7 @@ LOD or map overlays.
 
 The initial 3 x 3 per-tile switch is now replaced by **per-patch texture distance**.
 `TerrainMaterialMap::DetailDistanceMeters` defaults to **2048 m**, alongside the
-other internal procedural settings (no settings.txt/TRK/GUI control yet).
+other procedural settings, now exposed in the JSON settings editor (not TRK).
 Measure horizontal camera-to-patch-center distance in physical metres, including
 mixed tile sizes and patch counts. Within the radius, use/request detailed output;
 outside, use the saved tile bake, even if that patch's detailed texture is already

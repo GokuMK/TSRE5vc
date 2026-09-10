@@ -36,6 +36,7 @@
 #include <tsre/texture/DdsLib.h>
 #include <tsre/world/TerrainGridLayout.h>
 #include <settings/SettingsManager.h>
+#include <tsre/world/TerrainMaterialMap.h>
 
 bool Game::ServerMode = false;
 QString Game::serverLogin = "";
@@ -412,6 +413,15 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
         proceduralTracks = ProceduralTrackPolicy::modeFromSetting(
                     settings.runtimeString("core.track.proceduralMode"));
     boolean("core.terrain.seasonalEditing", seasonalEditing);
+    boolean("core.terrain.procedural.enabled", TerrainMaterialMap::Enabled);
+    floating("core.terrain.procedural.detailDistance", TerrainMaterialMap::DetailDistanceMeters);
+    boolean("core.terrain.procedural.validateBakeInputs", TerrainMaterialMap::ValidateBakeOnLoad);
+    claim("core.terrain.procedural.patchTextureSize", SettingType::Enum);
+    if (appliesNow("core.terrain.procedural.patchTextureSize"))
+        TerrainMaterialMap::OutputSide = settings.runtimeInt("core.terrain.procedural.patchTextureSize");
+    claim("core.terrain.procedural.bakedTextureSize", SettingType::Enum);
+    if (appliesNow("core.terrain.procedural.bakedTextureSize"))
+        TerrainMaterialMap::BakedSide = settings.runtimeInt("core.terrain.procedural.bakedTextureSize");
     boolean("core.route.loading.preloadAllWorldFiles", loadAllWFiles);
     boolean("core.geometry.positiveQuaternionsOnly", useOnlyPositiveQuaternions);
 

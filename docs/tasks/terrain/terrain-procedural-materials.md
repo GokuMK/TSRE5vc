@@ -5,8 +5,11 @@ Stage B update: new global-material tiles use the
 local shader definitions. Earlier local-palette descriptions below document the
 original demo and the retained fallback for tiles without a UiD table.
 
-Status: stage-1 tech demo implemented; automated verification is recorded below,
-and interactive acceptance is pending. Implementation was authorized after the
+Status: the original tech demo and subsequent painting, background generation,
+baking, undo and route-catalogue milestones are implemented; user acceptance is
+recorded for those workflows. Further production work remains in the
+[terrain status checklist](README.md). Historical pending-test statements below
+belong to their individual milestones. Implementation was authorized after the
 reviewed design was committed as `ea0c02d`.
 The user's ?? review comments are incorporated below. This remains a **minimal
 performance tech demo**, not a production material-system specification.
@@ -15,12 +18,13 @@ Detailed specifications and further features follow measurement.
 Stage A verification update: the ACE integration passed 405 procedural CPU checks
 and the OpenGL suite, plus 66 terrain-grid checks. The DXT1-bake follow-up adds
 further checks; see the baked-fallback task for current
-save/migration/near-far behavior and remaining interactive acceptance. Earlier
+save/migration/near-far behavior and verification. Earlier
 counts below describe the preceding demo milestones, not the latest total.
 
-Load-time bake input hashing is now behind the internal
-`TerrainMaterialMap::ValidateBakeOnLoad` setting, default false. Keep it for a
-future debug/restore control in procedural terrain settings. Even when validation
+Load-time bake input hashing is behind the advanced
+`core.terrain.procedural.validateBakeInputs` setting, default false. The
+[procedural settings](../../features/terrain-procedural-settings.md) expose it
+alongside enable/disable, output sizes and detail distance. Even when validation
 reports stale inputs, the existing decodable bake remains a usable fallback.
 Full save-time signatures are also opt-in. Normal saves use tracked dirty patches
 and compact source/settings metadata; unchecked saved bakes never retain stale
@@ -553,6 +557,12 @@ of exactly `Side * Side` ID bytes. The current experimental setting is **4096**
 (16,777,216 bytes), increased by the user from the original 2048 setting.
 The demo still requires file dimensions to match that compile-time setting;
 automatic resizing/loading of the older 2048 maps is not implemented here.
+This is a prototype runtime restriction, not a requirement of `.pmap` v1: width
+and height are already stored explicitly. `Side` currently controls allocation,
+row addressing, painting, generation, decompression limits and other consumers.
+Per-map dimensions can reuse this header; simply changing the global default
+would instead reject previously saved maps. Loading different dimensions and
+resampling existing maps are separate operations; loading need not resize them.
 This is **not** an ordinary Y RAW file or a SIMISA wrapper.
 Compression uses Qt's zlib-compatible compressor; the decoder uses existing
 miniz with a fixed output allocation and requires complete, exact stream length.
