@@ -957,15 +957,20 @@ void Tile::pushRenderItems(float* playerT, float* playerW, float* target, float 
     quint32 selectionId = 0;
     float lodx, lodz, lod;
 
+    // Transfers first within this tile; preserve object indices for picking.
+    for (int pass = 0; pass < 2; ++pass)
     for (int i = 0; i < jestObiektow; i++) {
-        if(obiekty[i] == NULL) continue;
-       
-        if (obiekty[i]->loaded) {
-            lodx = (x - playerT[0])*2048 + obiekty[i]->position[0] - playerW[0];
-            lodz = (z - playerT[1])*2048 + obiekty[i]->position[2] - playerW[2];
+        const auto found = obiekty.find(i);
+        if (found == obiekty.end() || !found->second) continue;
+        WorldObj *obj = found->second;
+        if ((obj->typeID == WorldObj::transfer) != (pass == 0)) continue;
+
+        if (obj->loaded) {
+            lodx = (x - playerT[0])*2048 + obj->position[0] - playerW[0];
+            lodz = (z - playerT[1])*2048 + obj->position[2] - playerW[2];
             //console.log(this.x);
             lod = (float) sqrt(lodx * lodx + lodz * lodz);
-            if (lod < Game::objectLod || obiekty[i]->isInternalLodControl()) {
+            if (lod < Game::objectLod || obj->isInternalLodControl()) {
                 Game::currentRenderer->mvPushMatrix();
                 //obiekty[i]->render(gluu, lod, x-playerT[0]*2048, z-playerT[1]*2048);
                 if (renderMode == Game::currentRenderer->RENDER_SELECTION) {
@@ -973,7 +978,7 @@ void Tile::pushRenderItems(float* playerT, float* playerW, float* target, float 
                                 x - static_cast<int>(playerT[0]),
                                 z - static_cast<int>(playerT[1]), i);
                 }
-                obiekty[i]->pushRenderItems(lod, lodx, lodz, playerW, target, fov, selectionId);
+                obj->pushRenderItems(lod, lodx, lodz, playerW, target, fov, selectionId);
                 Game::currentRenderer->mvPopMatrix();
             }
         }
@@ -988,14 +993,19 @@ void Tile::render(float * playerT, float* playerW, float* target, float fov, int
     //this.obiekty.forEach(function(obj) {
     quint32 selectionId = 0;
     float lodx, lodz, lod;
+    // Same ordering as the queued renderer, without duplicating draw logic.
+    for (int pass = 0; pass < 2; ++pass)
     for (int i = 0; i < jestObiektow; i++) {
-        if(obiekty[i] == NULL) continue;
-        if (obiekty[i]->loaded) {
-            lodx = (x - playerT[0])*2048 + obiekty[i]->position[0] - playerW[0];
-            lodz = (z - playerT[1])*2048 + obiekty[i]->position[2] - playerW[2];
+        const auto found = obiekty.find(i);
+        if (found == obiekty.end() || !found->second) continue;
+        WorldObj *obj = found->second;
+        if ((obj->typeID == WorldObj::transfer) != (pass == 0)) continue;
+        if (obj->loaded) {
+            lodx = (x - playerT[0])*2048 + obj->position[0] - playerW[0];
+            lodz = (z - playerT[1])*2048 + obj->position[2] - playerW[2];
             //console.log(this.x);
             lod = (float) sqrt(lodx * lodx + lodz * lodz);
-            if (lod < Game::objectLod || obiekty[i]->isInternalLodControl()) {
+            if (lod < Game::objectLod || obj->isInternalLodControl()) {
                 gluu->mvPushMatrix();
                 //obiekty[i]->render(gluu, lod, x-playerT[0]*2048, z-playerT[1]*2048);
                 if (renderMode == gluu->RENDER_SELECTION) {
@@ -1003,7 +1013,7 @@ void Tile::render(float * playerT, float* playerW, float* target, float fov, int
                                 x - static_cast<int>(playerT[0]),
                                 z - static_cast<int>(playerT[1]), i);
                 }
-                obiekty[i]->render(gluu, lod, lodx, lodz, playerW, target, fov, selectionId, renderMode);
+                obj->render(gluu, lod, lodx, lodz, playerW, target, fov, selectionId, renderMode);
                 //obiekty[i]->render(gluu);
                 gluu->mvPopMatrix();
             }

@@ -9,6 +9,7 @@
  */
 
 #include "OglObj.h"
+#include "ScopedTerrainDecal.h"
 #include <tsre/texture/TexLib.h>
 #include <tsre/Game.h>
 #include <tsre/math3d/GLMatrix.h>
@@ -147,6 +148,7 @@ void OglObj::pushRenderItem(quint32 selectionId, float lod){
         return;
     
     RenderItem *r = new RenderItem();
+    r->terrainDecal = terrainDecal && selectionId == 0;
     r->setVertexAttributes(vAttribures);
 
     r->setSelectionId(selectionId);
@@ -235,6 +237,7 @@ void OglObj::render(quint32 selectionId, float lod) {
     gluu->currentShader->setUniformValue(gluu->currentShader->msMatrixUniform, *reinterpret_cast<float(*)[4][4]>(gluu->objStrMatrix));
     gluu->currentMsMatrinxHash = 0;//gluu->getMatrixHash(gluu->objStrMatrix);
     QOpenGLVertexArrayObject::Binder vaoBinder(&VAO);
+    ScopedTerrainDecal decalState(f, terrainDecal && selectionId == 0);
     f->glDrawArrays(shapeType, 0, length); /**/
     
     if(lineWidth > 0 && lineWidth != Game::oglDefaultLineWidth)

@@ -19,6 +19,8 @@ class OglObj {
 public:
     enum MaterialType {NONE, TEXTURE, COLOR};
     bool loaded;
+    // Ground-only decal: biased depth test, no depth writes. Not used for picking.
+    bool terrainDecal = false;
     
     OglObj();
     OglObj(const OglObj& orig);

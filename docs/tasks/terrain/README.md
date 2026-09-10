@@ -11,6 +11,7 @@ detail distance. Test counts in historical sections remain milestone-specific.
 
 | Task | Implementation status | Remaining work / qualification |
 |---|---|---|
+| [World transfer mesh](../world/transfer-terrain-conforming-mesh.md) | Terrain-conforming mesh, surface/LOD cache, decal depth handling and separate hole-cover mesh implemented; 53 CPU and 44 OpenGL checks pass; user visual acceptance recorded | Transfers cover holes by default; optional hole-following UI and route-wide transfer ordering remain possible follow-ups, not requirements of this implementation. |
 | [Heightmap resolution](terrain-heightmap-resolution.md) | Core support, validation, profiles and shared creation UI implemented | Explicit track-line strip breaks remain; deprecated simple lookup is a separate migration below. Older defect descriptions are historical, not current code. |
 | [Patch count](terrain-patch-count.md) | Regular grids through P32 load, view, edit and save; picking implemented | Larger/rectangular/custom grids are outside scope, not unfinished P32 work. |
 | [Paged mesh/shared maps](terrain-paged-mesh-and-shared-map.md) | Selected 8-byte float-height/derived-coordinate layout, shared vertices, page traversal and dirty-patch updates implemented | Exhaustive interactive gap/map/selection/shadow and Gather coverage is not recorded. Raw-height and 10/12-byte alternatives remain comparison designs, not selected implementation requirements. |

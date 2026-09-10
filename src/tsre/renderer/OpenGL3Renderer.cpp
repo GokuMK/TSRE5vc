@@ -18,6 +18,7 @@
 #include <QOpenGLContext>
 #include <QOpenGLExtraFunctions>
 #include <tsre/ogl/GLUU.h>
+#include <tsre/ogl/ScopedTerrainDecal.h>
 #include <tsre/Game.h>
 #ifndef __APPLE__
 #include <GL/gl.h>
@@ -159,6 +160,7 @@ void applyTerrainState(GLUU *gluu, RenderItem *item,
 }
 
 void drawItem(QOpenGLFunctions *f, RenderItem *item){
+    ScopedTerrainDecal decalState(f, item->terrainDecal && item->selectionId == 0);
     if(item->indexed){
         QOpenGLContext::currentContext()->extraFunctions()->glDrawElementsBaseVertex(
                     getItemDrawType(item), item->vertCount, item->indexType,

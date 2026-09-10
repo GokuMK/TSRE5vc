@@ -40,6 +40,7 @@ public:
     unsigned int itemType = 0;
     unsigned int polygonMode = 0;
     bool indexed = false;
+    bool terrainDecal = false;
     unsigned int indexType = 0;
     unsigned int indexOffset = 0;
     int baseVertex = 0;

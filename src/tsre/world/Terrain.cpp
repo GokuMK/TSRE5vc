@@ -74,6 +74,8 @@ Terrain::Terrain(float x, float y) {
 }
 
 void Terrain::load(){
+    ++surfaceGeneration;
+    renderedSurfaceLod.clear();
     typeObj = this->terrainobj;
     loaded = false;
     isOgl = false;
@@ -334,6 +336,8 @@ void Terrain::loadTFile(FileBuffer *data){
     //this->tfile = new TFile();
     if (!this->tfile->load(data))
         return;
+    ++surfaceGeneration;
+    renderedSurfaceLod.clear();
     validateGridLayout("network terrain descriptor " + name);
     for (int i = 0; i < TerrainGridLayout::SupportedPatchRecordCount; i++) {
         texid[i] = -1;
@@ -348,6 +352,7 @@ void Terrain::loadTFile(FileBuffer *data){
     
 void Terrain::loadRAWFile(FileBuffer *data){
     this->readRAWFloat(data);
+    ++surfaceGeneration;
 }
 
 void Terrain::loadFFile(FileBuffer *data){
@@ -355,6 +360,7 @@ void Terrain::loadFFile(FileBuffer *data){
         return;
     jestF = true;
     this->readF(data);
+    ++surfaceGeneration;
 }
 
 Terrain::~Terrain() {
@@ -533,6 +539,7 @@ void Terrain::refresh() {
 
 void Terrain::refreshAll() {
     if (!loaded) return;
+    ++surfaceGeneration;
     patchBoundsDirty.fill(1, gridLayout.patchRecordCount());
     if (meshBackend != NULL)
         meshBackend->invalidateAll();
@@ -554,6 +561,7 @@ void Terrain::refreshModified() {
 void Terrain::invalidatePatch(int patchId, unsigned int reasons) {
     if (!loaded)
         return;
+    if (reasons & (TerrainDirtyHeight | TerrainDirtyNormals | TerrainDirtyGaps)) ++surfaceGeneration;
     if (reasons & TerrainDirtyHeight)
         markPatchBoundsDirty(patchId);
     if (reasons & TerrainDirtyGaps)
@@ -567,6 +575,7 @@ void Terrain::invalidatePatch(int patchId, unsigned int reasons) {
 void Terrain::invalidateAll(unsigned int reasons) {
     if (!loaded)
         return;
+    if (reasons & (TerrainDirtyHeight | TerrainDirtyNormals | TerrainDirtyGaps)) ++surfaceGeneration;
     if (reasons & TerrainDirtyHeight)
         patchBoundsDirty.fill(1, gridLayout.patchRecordCount());
     if (reasons & TerrainDirtyGaps)
@@ -605,6 +614,7 @@ void Terrain::invalidateSamplesLocal(int minX, int minZ,
                                      unsigned int reasons) {
     if (!loaded)
         return;
+    if (reasons & (TerrainDirtyHeight | TerrainDirtyNormals | TerrainDirtyGaps)) ++surfaceGeneration;
     if (reasons & TerrainDirtyHeight)
         markPatchBoundsDirtyForSamples(minX, minZ, maxX, maxZ);
     if (reasons & TerrainDirtyGaps)
@@ -681,6 +691,23 @@ bool Terrain::patchContainsGap(int patchId) {
     }
     patchGapState[patchId] = hasGap ? 1 : 0;
     return hasGap;
+}
+
+TerrainPatchLodState Terrain::surfacePatchLod(int patch) const {
+    if (Game::terrainMeshMode == Game::TERRAIN_MESH_PAGED
+            && patch >= 0 && patch < renderedSurfaceLod.size()) return renderedSurfaceLod[patch];
+    return {};
+}
+
+bool Terrain::surfacePatchHidden(int patch) const {
+    return !gridLayout.isPatchIndexValid(patch) || !tfile
+            || hidden[patch] || (tfile->flags[patch] & 1);
+}
+
+bool Terrain::surfaceSampleGap(int sx, int sz) const {
+    return jestF && fData && sx >= 0 && sz >= 0
+            && sx <= gridLayout.sampleCount && sz <= gridLayout.sampleCount
+            && (fData[sz][sx] & 4);
 }
 
 QVector<quint8> Terrain::getPatchGapState() {
@@ -2124,6 +2151,7 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
     const QVector<TerrainPatchLodState> patchLod = backend->isPaged()
             ? buildPatchLodState(patchVisibility)
             : QVector<TerrainPatchLodState>();
+    renderedSurfaceLod = patchLod;
     if(Game::viewWorldGrid && selectionId == 0)
         lines.pushRenderItem();
     if(Game::viewTileGrid && selectionId == 0){
@@ -2491,6 +2519,7 @@ void Terrain::render(float lodx, float lodz, int tileX, int tileY, float* player
     const QVector<TerrainPatchLodState> patchLod = backend->isPaged()
             ? buildPatchLodState(patchVisibility)
             : QVector<TerrainPatchLodState>();
+    renderedSurfaceLod = patchLod;
     gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
     gluu->currentShader->setUniformValue(gluu->currentShader->msMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->objStrMatrix));
     gluu->currentMsMatrinxHash = 0;//gluu->getMatrixHash(gluu->objStrMatrix);

@@ -112,6 +112,11 @@ public:
     int getSampleCount();
     int getPatchResolution() const;
     const TerrainGridLayout& getGridLayout() const;
+    // Ground-projected objects consume the topology selected before world rendering.
+    quint64 surfaceRevision() const { return surfaceGeneration; }
+    TerrainPatchLodState surfacePatchLod(int patch) const;
+    bool surfacePatchHidden(int patch) const;
+    bool surfaceSampleGap(int sx, int sz) const;
     QVector<quint8> getPatchGapState();
     bool isEditable() const;
     float setHeight(int x, int z, float posx, float posz, float val, bool add = false);
@@ -241,6 +246,8 @@ protected:
     QOpenGLBuffer *VBO = NULL;
     QOpenGLVertexArrayObject *VAO = NULL;
     TerrainMeshBackend *meshBackend = NULL;
+    quint64 surfaceGeneration = 1;
+    QVector<TerrainPatchLodState> renderedSurfaceLod;
 
     OglObj lines;
     OglObj mlines;

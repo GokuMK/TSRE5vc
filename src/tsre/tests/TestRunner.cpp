@@ -55,6 +55,7 @@
 #include <tsre/tests/TerrainBrushTestSuite.h>
 #include <tsre/tests/TerrainNormalTestSuite.h>
 #include <tsre/tests/TerrainMaterialTestSuite.h>
+#include <tsre/tests/TransferMeshTestSuite.h>
 #include <tsre/texture/Brush.h>
 #include <tsre/world/TerrainActionRaster.h>
 #include <tsre/world/Terrain.h>
@@ -3133,6 +3134,8 @@ QStringList TsreTests::listSuites() {
         "terrain-normal-benchmark",
         "terrain-material",
         "terrain-material-gl",
+        "transfer-mesh",
+        "transfer-depth-gl",
         "terrain-material-benchmark"
     };
 }
@@ -3202,6 +3205,10 @@ int TsreTests::run(const TestRunOptions &opts) {
         return runTerrainMaterialSuite(opts.verbose, suite == "terrain-material-benchmark");
     if (suite == "terrain-material-gl")
         return runTerrainMaterialGlSuite();
+    if (suite == "transfer-mesh")
+        return runTransferMeshSuite(opts.verbose);
+    if (suite == "transfer-depth-gl")
+        return runTransferDepthGlSuite();
 
     if (suite == "all") {
         int rc = 0;

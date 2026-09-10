@@ -35,6 +35,7 @@ TransferObj::TransferObj(const TransferObj& o) : WorldObj(o) {
     texture = o.texture;
     width = o.width;
     height = o.height;
+    respectTerrainHoles = o.respectTerrainHoles;
 
     tex = o.tex;
     init = false;
@@ -49,7 +50,7 @@ WorldObj* TransferObj::clone(){
 }
 
 TransferObj::~TransferObj() {
-    
+    delete texturePath;
 }
 
 void TransferObj::load(int x, int y) {
@@ -61,6 +62,7 @@ void TransferObj::load(int x, int y) {
     this->tex = -1;
     this->init = false;
     this->skipLevel = 3;
+    terrainMesh.invalidate();
     this->modified = false;
 }
 
@@ -163,6 +165,7 @@ Ref::RefItem* TransferObj::getRefInfo(){
 void TransferObj::deleteVBO(){
     //this->shape.deleteVBO();
     this->init = false;
+    terrainMesh.invalidate();
     this->box.deleteVBO();
 }
 
@@ -257,181 +260,61 @@ void TransferObj::pushRenderItems(float lod, float posx, float posz, float* play
     drawShape(true, selectionId);
 }
 
-void TransferObj::drawShape(bool pushToQueue, quint32 selectionId){
-
-    if (!init) {
-        if(!Game::ignoreLoadLimits){
-            if(Game::objectLoadingTokens < 1)  return;
-            Game::objectLoadingTokens-=2;
-        }
-        
-            GLUU* gluu = GLUU::get();
-            float alpha = -gluu->alphaTest;
-            
-            float scale = (float) sqrt(qDirection[0] * qDirection[0] + qDirection[1] * qDirection[1] + qDirection[2] * qDirection[2]);
-            float off = ((qDirection[1]+0.000001f)/fabs(scale+0.000001f))*(float)-acos(qDirection[3])*2;
-        
-            Vector2f x1y1(-width/2,-height/2, off, 0);
-            Vector2f x1y2(-width/2,height/2, off, 0);
-            Vector2f x2y1(width/2,-height/2, off, 0);
-            Vector2f x1y12 = x1y2.subv(x1y1);
-            Vector2f x12y1 = x2y1.subv(x1y1);
-            float x1y12d = x1y12.getDlugosc();
-            float x12y1d = x12y1.getDlugosc();
-            
-            float step = 2.0;
-            bool addR = true;
-            if(x12y1d*x1y12d < 2000) {
-                step = 1;
-                addR = false;
+void TransferObj::drawShape(bool pushToQueue, quint32 selectionId) {
+    if (!init && !Game::ignoreLoadLimits && Game::objectLoadingTokens < 1) return;
+    QVector<float> vertices, holeVertices;
+    if (terrainMesh.update(Game::terrainLib, x, y, position, width, height,
+                           qDirection, -GLUU::get()->alphaTest, vertices, holeVertices, respectTerrainHoles)) {
+        if (!init && !Game::ignoreLoadLimits) Game::objectLoadingTokens-=2;
+        box.deleteVBO();
+        if (!vertices.isEmpty() || !holeVertices.isEmpty()) {
+            const int esdAlternativeTexture=0x01;
+            QString seasonPath;
+            if ((esdAlternativeTexture & Game::TextureFlags[Game::season]) != 0)
+                seasonPath=Game::season.toLower()+"/";
+            if (Game::season=="Winter" || Game::season=="AutumnSnow"
+                    || Game::season=="WinterSnow" || Game::season=="SpringSnow") {
+                if ((esdAlternativeTexture & Game::TextureFlags["Snow"]) != 0
+                        || (esdAlternativeTexture & Game::TextureFlags["SnowTrack"]) != 0)
+                    seasonPath="snow/";
             }
-                
-            int iloscv = (int)((x12y1d/step)+1)*(int)((x1y12d/step)+1);
-            float* punkty = new float[iloscv*54];
-            
-            int ptr = 0;
-            float wysokosc = 0;
-            for(float j = 0; j < x12y1d; j+=step){
-                float jj = j+step;
-                if(jj>x12y1d) jj = x12y1d;
-                for(float i = 0; i < x1y12d; i+=step){
-
-                        float ii = i+step;
-                        if(ii>x1y12d) ii = x1y12d;
-                        
-                        wysokosc = Game::terrainLib->getHeight(x, y, x1y1.x + x1y12.divf(x1y12d/i).x + x12y1.divf(x12y1d/j).x + position[0], ( x1y1.y + x1y12.divf(x1y12d/i).y + x12y1.divf(x12y1d/j).y + position[2]), addR);
-                        punkty[ptr++] = x1y1.x + x1y12.divf(x1y12d/i).x + x12y1.divf(x12y1d/j).x;
-                        punkty[ptr++] = wysokosc+0.05f;
-                        punkty[ptr++] = x1y1.y + x1y12.divf(x1y12d/i).y + x12y1.divf(x12y1d/j).y;
-                        punkty[ptr++] = 0; punkty[ptr++] = 1; punkty[ptr++] = 0;
-                        punkty[ptr++] = j/x12y1d;
-                        punkty[ptr++] = i/x1y12d;
-                        punkty[ptr++] = alpha;
-
-                        wysokosc = Game::terrainLib->getHeight(x, y, x1y1.x + x1y12.divf(x1y12d/ii).x + x12y1.divf(x12y1d/j).x + position[0], ( x1y1.y + x1y12.divf(x1y12d/ii).y + x12y1.divf(x12y1d/j).y + position[2]), addR);
-                        punkty[ptr++] = x1y1.x + x1y12.divf(x1y12d/ii).x + x12y1.divf(x12y1d/j).x;
-                        punkty[ptr++] = wysokosc+0.05f;
-                        punkty[ptr++] = x1y1.y + x1y12.divf(x1y12d/ii).y + x12y1.divf(x12y1d/j).y;
-                        punkty[ptr++] = 0; punkty[ptr++] = 1; punkty[ptr++] = 0;
-                        punkty[ptr++] = j/x12y1d;
-                        punkty[ptr++] = ii/x1y12d;
-                        punkty[ptr++] = alpha;
-                        
-                        wysokosc = Game::terrainLib->getHeight(x, y, x1y1.x + x1y12.divf(x1y12d/ii).x + x12y1.divf(x12y1d/jj).x + position[0], ( x1y1.y + x1y12.divf(x1y12d/ii).y + x12y1.divf(x12y1d/jj).y + position[2]), addR);
-                        punkty[ptr++] = x1y1.x + x1y12.divf(x1y12d/ii).x + x12y1.divf(x12y1d/jj).x;
-                        punkty[ptr++] = wysokosc+0.05f;
-                        punkty[ptr++] = x1y1.y + x1y12.divf(x1y12d/ii).y + x12y1.divf(x12y1d/jj).y;
-                        punkty[ptr++] = 0; punkty[ptr++] = 1; punkty[ptr++] = 0;
-                        punkty[ptr++] = jj/x12y1d;
-                        punkty[ptr++] = ii/x1y12d;
-                        punkty[ptr++] = alpha;
-
-                        wysokosc = Game::terrainLib->getHeight(x, y, x1y1.x + x1y12.divf(x1y12d/i).x + x12y1.divf(x12y1d/j).x + position[0], ( x1y1.y + x1y12.divf(x1y12d/i).y + x12y1.divf(x12y1d/j).y + position[2]), addR);
-                        punkty[ptr++] = x1y1.x + x1y12.divf(x1y12d/i).x + x12y1.divf(x12y1d/j).x;
-                        punkty[ptr++] = wysokosc+0.05f;
-                        punkty[ptr++] = x1y1.y + x1y12.divf(x1y12d/i).y + x12y1.divf(x12y1d/j).y;
-                        punkty[ptr++] = 0; punkty[ptr++] = 1; punkty[ptr++] = 0;
-                        punkty[ptr++] = j/x12y1d;
-                        punkty[ptr++] = i/x1y12d;
-                        punkty[ptr++] = alpha;
-
-                        wysokosc = Game::terrainLib->getHeight(x, y, x1y1.x + x1y12.divf(x1y12d/ii).x + x12y1.divf(x12y1d/jj).x + position[0], ( x1y1.y + x1y12.divf(x1y12d/ii).y + x12y1.divf(x12y1d/jj).y + position[2]), addR);
-                        punkty[ptr++] = x1y1.x + x1y12.divf(x1y12d/ii).x + x12y1.divf(x12y1d/jj).x;
-                        punkty[ptr++] = wysokosc+0.05f;
-                        punkty[ptr++] = x1y1.y + x1y12.divf(x1y12d/ii).y + x12y1.divf(x12y1d/jj).y;
-                        punkty[ptr++] = 0; punkty[ptr++] = 1; punkty[ptr++] = 0;
-                        punkty[ptr++] = jj/x12y1d;
-                        punkty[ptr++] = ii/x1y12d;
-                        punkty[ptr++] = alpha;
-                        
-                        wysokosc = Game::terrainLib->getHeight(x, y, x1y1.x + x1y12.divf(x1y12d/i).x + x12y1.divf(x12y1d/jj).x + position[0], ( x1y1.y + x1y12.divf(x1y12d/i).y + x12y1.divf(x12y1d/jj).y + position[2]), addR);
-                        punkty[ptr++] = x1y1.x + x1y12.divf(x1y12d/i).x + x12y1.divf(x12y1d/jj).x;
-                        punkty[ptr++] = wysokosc+0.05f;
-                        punkty[ptr++] = x1y1.y + x1y12.divf(x1y12d/i).y + x12y1.divf(x12y1d/jj).y;
-                        punkty[ptr++] = 0; punkty[ptr++] = 1; punkty[ptr++] = 0;
-                        punkty[ptr++] = jj/x12y1d;
-                        punkty[ptr++] = i/x1y12d;
-                        punkty[ptr++] = alpha;
-                }
-            }
-            
-        int esdAlternativeTexture = 0x01;
-        QString seasonPath;
-        if((esdAlternativeTexture & Game::TextureFlags[Game::season]) != 0)
-            seasonPath = Game::season.toLower() + "/";
-
-        if(Game::season == "Winter" || Game::season == "AutumnSnow" || Game::season == "WinterSnow" || Game::season == "SpringSnow" ){
-            if(esdAlternativeTexture & Game::TextureFlags["Snow"] != 0)
-                seasonPath = "snow/";
-            if(esdAlternativeTexture & Game::TextureFlags["SnowTrack"] != 0)
-                seasonPath = "snow/";
+            if (!texturePath) texturePath=new QString;
+            *texturePath=resPath.toLower()+"/"+seasonPath+texture.toLower();
         }
-        
-        texturePath = new QString(resPath.toLower()+"/"+seasonPath+texture.toLower());
-        shape.setMaterial(texturePath);
-        shape.init(punkty, ptr, RenderItem::VNTA, GL_TRIANGLES);
-        delete[] punkty;
-        init = true;
+        if (vertices.isEmpty()) shape.deleteVBO();
+        else {
+            shape.setMaterial(texturePath);
+            shape.init(vertices.data(),int(vertices.size()),RenderItem::VNTA,GL_TRIANGLES);
+        }
+        if (holeVertices.isEmpty()) {
+            if (holeShape) holeShape->deleteVBO();
+        } else {
+            if (!holeShape) holeShape=std::make_unique<OglObj>();
+            holeShape->setMaterial(texturePath);
+            holeShape->init(holeVertices.data(),int(holeVertices.size()),RenderItem::VNTA,GL_TRIANGLES);
+        }
+        init=true;
     }
-    
-    if(pushToQueue){
-        shape.pushRenderItem(selectionId);
-    } else {
-        shape.render(selectionId);
+    shape.terrainDecal = true;
+    if (pushToQueue) shape.pushRenderItem(selectionId);
+    else shape.render(selectionId);
+    if (holeShape && holeShape->loaded) {
+        // Hole covers must write depth so geometry below the carpet is occluded.
+        holeShape->terrainDecal=false;
+        if (pushToQueue) holeShape->pushRenderItem(selectionId);
+        else holeShape->render(selectionId);
     }
 }
 
-bool TransferObj::getBoxPoints(QVector<float>& points){
-    if (!loaded) 
-        return false;
-    float scale = (float) sqrt(qDirection[0] * qDirection[0] + qDirection[1] * qDirection[1] + qDirection[2] * qDirection[2]);
-    float off = ((qDirection[1]+0.000001f)/fabs(scale+0.000001f))*(float)-acos(qDirection[3])*2;
-        
-            Vector2f x1y1(-width/2,-height/2, off, 0);
-            Vector2f x1y2(-width/2,height/2, off, 0);
-            Vector2f x2y1(width/2,-height/2, off, 0);
-            Vector2f x1y12 = x1y2.subv(x1y1);
-            Vector2f x12y1 = x2y1.subv(x1y1);
-            float x1y12d = x1y12.getDlugosc();
-            float x12y1d = x12y1.getDlugosc();
-            float wysokosc = 0;
-            float step = 2;
-            
-            for(float i = 0; i <= x1y12d; i+=x1y12d){
-                for(float j = 0; j < x12y1d; j+=step){
-                    float jj = j+step;
-                    if(jj>x12y1d) jj = x12y1d;          
-
-                    wysokosc = Game::terrainLib->getHeight(x, y, x1y1.x + x1y12.divf(x1y12d/i).x + x12y1.divf(x12y1d/j).x + position[0], ( x1y1.y + x1y12.divf(x1y12d/i).y + x12y1.divf(x12y1d/j).y + position[2]));
-                    points << x1y1.x + x1y12.divf(x1y12d/i).x + x12y1.divf(x12y1d/j).x;
-                    points << wysokosc+0.5f;
-                    points << x1y1.y + x1y12.divf(x1y12d/i).y + x12y1.divf(x12y1d/j).y;
-                    wysokosc = Game::terrainLib->getHeight(x, y, x1y1.x + x1y12.divf(x1y12d/i).x + x12y1.divf(x12y1d/jj).x + position[0], ( x1y1.y + x1y12.divf(x1y12d/i).y + x12y1.divf(x12y1d/jj).y + position[2]));
-                    points << x1y1.x + x1y12.divf(x1y12d/i).x + x12y1.divf(x12y1d/jj).x;
-                    points << wysokosc+0.5f;
-                    points << x1y1.y + x1y12.divf(x1y12d/i).y + x12y1.divf(x12y1d/jj).y;
-                }
-            }
-            for(float j = 0; j <= x12y1d; j+=x12y1d){
-                for(float i = 0; i < x1y12d; i+=step){
-                    float ii = i+step;
-                    if(ii>x1y12d) ii = x1y12d;          
-
-                    wysokosc = Game::terrainLib->getHeight(x, y, x1y1.x + x1y12.divf(x1y12d/i).x + x12y1.divf(x12y1d/j).x + position[0], ( x1y1.y + x1y12.divf(x1y12d/i).y + x12y1.divf(x12y1d/j).y + position[2]));
-                    points << x1y1.x + x1y12.divf(x1y12d/i).x + x12y1.divf(x12y1d/j).x;
-                    points << wysokosc+0.5f;
-                    points << x1y1.y + x1y12.divf(x1y12d/i).y + x12y1.divf(x12y1d/j).y;
-                    wysokosc = Game::terrainLib->getHeight(x, y, x1y1.x + x1y12.divf(x1y12d/ii).x + x12y1.divf(x12y1d/j).x + position[0], ( x1y1.y + x1y12.divf(x1y12d/ii).y + x12y1.divf(x12y1d/j).y + position[2]));
-                    points << x1y1.x + x1y12.divf(x1y12d/ii).x + x12y1.divf(x12y1d/j).x;
-                    points << wysokosc+0.5f;
-                    points << x1y1.y + x1y12.divf(x1y12d/ii).y + x12y1.divf(x12y1d/j).y;
-                }
-            }
-            return true;
+bool TransferObj::getBoxPoints(QVector<float> &points) {
+    if (!loaded || terrainMesh.outline().isEmpty()) return false;
+    points += terrainMesh.outline();
+    return true;
 }
 
 int TransferObj::getTexId(){
-    return this->shape.getTexId();
+    if (!shape.loaded && holeShape && holeShape->loaded) return holeShape->getTexId();
+    return shape.getTexId();
 }
 
 int TransferObj::getDefaultDetailLevel(){
