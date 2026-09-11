@@ -1,5 +1,7 @@
 #include "TerrainMaterialTestSuite.h"
 #include <tsre/world/TerrainMaterialMap.h>
+#include <tsre/world/TerrainSeason.h>
+#include <tsre/world/TerrainBakeCommand.h>
 #include <tsre/world/TerrainMaterialSource.h>
 #include <tsre/world/TerrainMaterialLibrary.h>
 #include <routeEditor/TerrainMaterialDialog.h>
@@ -125,6 +127,7 @@ void variedMaterialMap(TerrainMaterialMap &map) {
 }
 
 int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
+    QScopedValueRollback<QString> baseSeason(Game::season,QString());
     QScopedValueRollback<bool> enabledSetting(TerrainMaterialMap::Enabled,true);
     QScopedValueRollback<int> patchSizeSetting(TerrainMaterialMap::OutputSide,512);
     QScopedValueRollback<int> bakeSizeSetting(TerrainMaterialMap::BakedSide,1024);
@@ -133,6 +136,43 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
         if (ok) ++passed; else ++failed;
         if (!ok || verbose) qInfo() << "[tests:terrain-material]" << (ok?"PASS":"FAIL") << name;
     };
+    {
+        QTemporaryDir sources;
+        for (const QString &folder:{QString(),QString("spring"),QString("snow"),QString("autumnrain")}) {
+            QDir().mkpath(sources.path()+"/"+folder);
+            QFile f(sources.path()+"/"+folder+"/soil.ace");
+            check(f.open(QIODevice::WriteOnly) && f.write("fixture")==7,"season-source-fixture-write");
+        }
+        auto resolved=[&](const QString &season){return TerrainSeason::resolve(sources.path(),season,"soil.ace",false);};
+        check(resolved("Winter")==sources.path()+"/soil.ace","season-dry-winter-falls-back-to-main-not-snow");
+        check(resolved("SpringRain")==sources.path()+"/spring/soil.ace","season-rain-falls-back-to-dry-season");
+        check(resolved("AutumnRain")==sources.path()+"/autumnrain/soil.ace","season-rain-prefers-exact-variant");
+        check(resolved("SpringSnow")==sources.path()+"/snow/soil.ace","season-snow-falls-back-to-common-snow");
+        check(resolved("WinterSnow")==resolved("Snow") && resolved("Summer")==resolved("Base"),"season-aliases-share-destinations");
+        QFile::remove(sources.path()+"/snow/soil.ace");
+        check(resolved("WinterSnow")==sources.path()+"/soil.ace","season-missing-snow-falls-back-to-main");
+        check(TerrainSeason::resolve(sources.path(),"Snow","absent.ace",false).isEmpty(),"season-missing-base-safe-failure");
+        const auto all=TerrainSeason::available(sources.path());
+        check(all==QStringList({"Base","Snow","Spring","AutumnRain"}),"season-all-discovers-existing-directories-without-aliases");
+    }
+    {
+        TFile original,decoded;
+        original.bakedMaterialInfo="v1:pending";original.materialContentRevision=(quint64(1)<<40)+3;
+        TFile::BakeRecord record;record.revision=original.materialContentRevision;record.resolution=1024;
+        record.settings="settings";record.sources="sources";
+        original.seasonalBakes.insert("Spring",record);original.seasonalBakes.insert("FutureVariant",record);
+        const QByteArray bytes=original.bakeMetadata();
+        check(decoded.readBakeMetadata(bytes) && decoded.materialContentRevision==original.materialContentRevision
+              && decoded.seasonalBakes.size()==2 && decoded.seasonalBakes.value("Spring").resolution==1024,
+              "season-bake-metadata-uint64-and-unknown-variant-round-trip");
+        QByteArray bad=bytes;bad[1]=3;
+        check(!decoded.readBakeMetadata(bad) && !decoded.bakedMaterialsValid,"season-bake-metadata-rejects-unsupported-version");
+        check(!decoded.readBakeMetadata(bytes.left(bytes.size()-1)),"season-bake-metadata-rejects-truncated-entry");
+        check(!decoded.readBakeMetadata(bytes+bytes.mid(13)),"season-bake-metadata-rejects-duplicate-variants");
+        QByteArray extra;QDataStream out(&extra,QIODevice::WriteOnly);out.setByteOrder(QDataStream::LittleEndian);
+        out<<quint32(0x12345678)<<quint32(1)<<quint8(0);
+        check(decoded.readBakeMetadata(bytes+extra),"season-bake-metadata-skips-unknown-child");
+    }
     TerrainMaterialMap map;
     map.initialize();
     {
@@ -333,6 +373,31 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
     const QString tileDir=temp.path()+"/routes/proc-test/tiles";
     QDir().mkpath(tileDir);
     red.save(temp.path()+"/red.png"); blue.save(temp.path()+"/blue.png");
+    {
+        QDir().mkpath(temp.path()+"/spring");blue.save(temp.path()+"/spring/red.png");
+        TestTerrain seasonalTile;seasonalTile.setup(temp.path(),16,"seasonal-check");
+        {
+            QScopedValueRollback<QString> spring(Game::season,QString("Spring"));
+            check(seasonalTile.setProceduralMaterial(true,error) && seasonalTile.save(),"season-conversion-and-save-in-spring");
+        }
+        const auto firstRevision=seasonalTile.descriptor().materialContentRevision;
+        check(firstRevision>0 && seasonalTile.descriptor().seasonalBakes.contains("Spring")
+              && !seasonalTile.descriptor().seasonalBakes.contains("Base"),"season-save-records-only-current-variant");
+        check(seasonalTile.save() && seasonalTile.descriptor().materialContentRevision==firstRevision,
+              "season-loaded-tile-retains-variant-and-unchanged-revision");
+        TestTerrain baseTile;baseTile.setup(temp.path(),16,"seasonal-check");
+        check(baseTile.descriptor().readT(tileDir+"/seasonal-check.t"),"season-reload-saved-descriptor");
+        baseTile.loadProceduralMaterial(tileDir);
+        check(baseTile.save() && baseTile.descriptor().seasonalBakes.contains("Base")
+              && baseTile.descriptor().seasonalBakes.contains("Spring")
+              && baseTile.descriptor().materialContentRevision==firstRevision,"season-bake-new-variant-does-not-change-shared-revision");
+        Texture source(temp.path()+"/blue.png");Brush brush;brush.tex=&source;brush.useTexture=true;
+        baseTile.paintProceduralMaterial(&brush,0,0,-992,-992,12);
+        check(baseTile.save() && baseTile.descriptor().materialContentRevision==firstRevision+1
+              && baseTile.descriptor().seasonalBakes.value("Base").revision==firstRevision+1
+              && baseTile.descriptor().seasonalBakes.value("Spring").revision==firstRevision,
+              "season-paint-advances-shared-revision-but-preserves-stale-other-bake");
+    }
     {
         const auto library=TerrainMaterialLibrary::current();
         check(library->error().isEmpty() && library->materials().isEmpty(),"global-library-missing-starts-empty");
@@ -684,10 +749,11 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
                 check(AceLib::save(ace,oldBake,AceWriteOptions{},error),"write-other-size-bake-fixture");
                 baked.loadProceduralMaterial(tileDir);
                 check(finishMaterialJobs(),"other-size-bake-validation-worker-completes");
-                check(baked.proceduralFallbackTexture()<0 && !baked.hasProceduralBake(),
-                      "other-size-bake-is-rejected-without-resampling");
+                const int oldBakeId=baked.proceduralFallbackTexture();
+                check(oldBakeId>=0 && baked.hasProceduralBake() && TexLib::mtex[oldBakeId]->width==oldSide,
+                      "other-size-stale-bake-remains-visible-without-resampling");
                 baked.releaseProceduralTextures();
-                check(baked.save(),"save-regenerates-rejected-bake-at-current-size");
+                check(baked.save(),"save-regenerates-stale-bake-at-current-size");
             }
         }
         TestTerrain::PatchVisibility view; view.valid=true; view.maximumDistance=100000;
@@ -712,8 +778,8 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
             check(baked.save() && QFileInfo::exists(ace),"save-regenerates-missing-or-failed-bake");
             check(!TerrainMaterialMap::ValidateBakeOnLoad,"bake-input-validation-defaults-off");
             {
-                QScopedValueRollback<QString> marker(baked.descriptor().bakedMaterialInfo,
-                                                     QStringLiteral("v1:intentionally-stale"));
+                QScopedValueRollback<QString> marker(baked.descriptor().seasonalBakes["Base"].validation,
+                                                     QStringLiteral("intentionally-stale"));
                 for (bool validate : {false,true}) {
                     QScopedValueRollback<bool> validation(TerrainMaterialMap::ValidateBakeOnLoad,validate);
                     baked.setModified(false);
@@ -1227,6 +1293,7 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
         QFile lastBake(temp.path()+"/testa_procedural.ace"); check(lastBake.open(QIODevice::ReadOnly),"open-bake-before-failure-test");
         const auto lastBakeBytes=lastBake.readAll(); lastBake.close();
         const QString lastBakeInfo=a.descriptor().bakedMaterialInfo;
+        const QByteArray lastSeasonalMetadata=a.descriptor().bakeMetadata();
         // Fail the descriptor replacement after a successful map replacement.
         QFile::rename(tileDir+"/testa.t",tileDir+"/testa-test-original.t");
         QDir().mkdir(tileDir+"/testa.t");
@@ -1235,7 +1302,8 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
               && saved.read(backup,error) && saved.ids==lastSavedIds,
               "descriptor-failure-restores-current-map-and-retains-backup");
         check(lastBake.open(QIODevice::ReadOnly),"open-restored-bake");
-        check(lastBake.readAll()==lastBakeBytes && a.descriptor().bakedMaterialInfo==lastBakeInfo,
+        check(lastBake.readAll()==lastBakeBytes && a.descriptor().bakedMaterialInfo==lastBakeInfo
+              && a.descriptor().bakeMetadata()==lastSeasonalMetadata,
               "descriptor-failure-also-restores-ace-and-bake-signature"); lastBake.close();
         QDir().rmdir(tileDir+"/testa.t");
         QFile::rename(tileDir+"/testa-test-original.t",tileDir+"/testa.t");
@@ -1546,6 +1614,7 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
 }
 
 int TsreTests::runTerrainMaterialGlSuite() {
+    QScopedValueRollback<QString> baseSeason(Game::season,QString());
     QOpenGLContext context;
     QSurfaceFormat format; format.setVersion(3,3); format.setProfile(QSurfaceFormat::CompatibilityProfile);
     context.setFormat(format);
@@ -1641,6 +1710,9 @@ int TsreTests::runTerrainMaterialGlSuite() {
         if (defaultDetailScale != Terrain::ProceduralDetailScale
                 || *a.descriptor().materials[0].tex[1] != "microtex.ace") ++failed;
         QString error;
+        // Seasonal resolution now verifies the file at tile setup, before the
+        // synthetic pending TexLib object used by this binding test is installed.
+        if (!AceLib::save(temp.path()+"/microtex.ace",red.scaled(4,4),AceWriteOptions{},error)) ++failed;
         if (!a.setProceduralMaterial(true,error) || !b.setProceduralMaterial(true,error)) ++failed;
         const int id=a.proceduralTexture(0);
         const int other=b.proceduralTexture(10);
@@ -1667,6 +1739,9 @@ int TsreTests::runTerrainMaterialGlSuite() {
         detail->loaded=true;
         f->glActiveTexture(GL_TEXTURE0); f->glBindTexture(GL_TEXTURE_2D,texture->tex[0]);
         if (a.proceduralDetailTexture()!=detailId || b.proceduralDetailTexture()!=detailId) ++failed;
+        if (!detail->glLoaded || !detail->tex) {
+            qWarning()<<"[tests:terrain-material-gl] microtexture did not upload";return failed+1;
+        }
         GLint activeUnit=0,primaryBinding=0,filter=0,wrap=0;
         f->glGetIntegerv(GL_ACTIVE_TEXTURE,&activeUnit);
         f->glGetIntegerv(GL_TEXTURE_BINDING_2D,&primaryBinding);

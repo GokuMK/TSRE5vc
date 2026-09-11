@@ -79,9 +79,21 @@ public:
     QString* sampleNbuffer = NULL;
     // TSRE experimental extension; nonempty reference enables procedural materials.
     QString sampleMaterialBuffer;
-    // v1:pending or v1:<recipe SHA256>. Also retained when procedural mode is off;
-    // explicitly identifies reserved material zero, never guesses from a filename.
+    // Internal cache identity/legacy-reader adapter. New files serialize the
+    // structured seasonal records below, not this runtime string.
     QString bakedMaterialInfo;
+    struct BakeRecord {
+        quint64 revision = 0;
+        quint32 resolution = 0;
+        QString settings, sources, validation;
+    };
+    quint64 materialContentRevision = 0;
+    QMap<QString,BakeRecord> seasonalBakes;
+    bool bakedMaterialsValid = true;
+    QByteArray bakeMetadata() const;
+    bool readBakeMetadata(const QByteArray &bytes);
+    // Runtime cache identity; only the structured metadata is written in new files.
+    void selectBakeVariant(const QString &variant);
     // Absence retains the legacy local-shader source; invalid presence must not.
     bool materialUidMapPresent = false;
     bool materialUidMapValid = true;

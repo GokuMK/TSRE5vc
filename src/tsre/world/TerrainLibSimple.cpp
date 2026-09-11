@@ -242,6 +242,9 @@ float TerrainLibSimple::getHeight(int x, int z, float posx, float posz, bool add
     tryGetHeight(x, z, posx, posz, height, addR, false);
     return height;
 }
+void TerrainLibSimple::reloadProceduralBakeMetadata() {
+    for (auto &entry:terrain) if (entry.second) entry.second->reloadProceduralBakeMetadata();
+}
 
 bool TerrainLibSimple::tryGetHeight(int x, int z, float posx, float posz,
                                     float &height, bool addR,

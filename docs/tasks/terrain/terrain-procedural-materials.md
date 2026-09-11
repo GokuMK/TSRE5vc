@@ -1,5 +1,10 @@
 # Terrain procedural materials from a painted ID map
 
+Seasonal implementation and verification:
+[procedural seasons and route-wide baking](terrain-procedural-seasons.md).
+It supersedes the earlier seasonal deferrals below. See
+[current usage](../../features/terrain-procedural-seasons.md).
+
 Stage B update: new global-material tiles use the
 [route material library](../../features/terrain-material-library.md), not copied
 local shader definitions. Earlier local-palette descriptions below document the

@@ -79,6 +79,7 @@ public:
     void fillTerrainDataXY();
     bool save();
     bool usesProceduralMaterial() const;
+    void reloadProceduralBakeMetadata();
     static constexpr float ProceduralDetailScale = 32.0f;
     bool rendersProceduralMaterial() const;
     bool hasProceduralBake() const;
@@ -206,9 +207,12 @@ public slots:
     
 protected:
     std::shared_ptr<TerrainProceduralState> procedural;
+    QString proceduralVariant = "Base";
+    void configureProceduralSeason();
+    QString proceduralSourceRoot() const;
     friend struct TerrainMaterialUndo;
     quint64 proceduralUndoEpoch = 0;
-    void loadProceduralMaterial(const QString &directory);
+    void loadProceduralMaterial(const QString &directory, bool prefetch = true);
     // Synchronous mode is retained for CPU tests/save-time diagnostics only.
     int proceduralTexture(int patch, bool background = false);
     int proceduralFallbackTexture();

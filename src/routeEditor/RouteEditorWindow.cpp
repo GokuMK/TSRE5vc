@@ -12,6 +12,7 @@
 #include "RouteEditorGLWidget.h"
 #include <routeEditor/RouteEditorWindow.h>
 #include <tsre/Game.h>
+#include <tsre/world/TerrainBakeCommand.h>
 #include <tsre/texture/AceLib.h>
 #include <QDebug>
 #include <tsre/gui/GuiFunct.h>
@@ -342,6 +343,15 @@ RouteEditorWindow::RouteEditorWindow() {
     settingsMenu->addAction(terrainCameraAction);
     settingsMenu->addAction(mstsShadowsAction);
     settingsMenu->addMenu(terrainMenu);
+    auto *bakeTerrainAction=settingsMenu->addAction(tr("Bake procedural terrain textures…"));
+    connect(bakeTerrainAction,&QAction::triggered,this,[this] {
+        QVector<QString> unsaved;
+        glWidget->getUnsavedInfo(unsaved);
+        if (!unsaved.isEmpty()) {
+            QMessageBox::warning(this,tr("Bake terrain"),tr("Save or discard route changes before batch baking."));return;
+        }
+        TerrainBakeCommand::showDialog(this,Game::root+"/routes/"+Game::route);
+    });
     // Help
     aboutAction = new QAction(tr("&About"), this);
     QObject::connect(aboutAction, SIGNAL(triggered()), this, SLOT(about()));

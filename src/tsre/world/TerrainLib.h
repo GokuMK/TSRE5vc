@@ -96,6 +96,7 @@ public:
     virtual bool load(int x, int z);
     virtual void getUnsavedInfo(QVector<QString> &items);
     virtual void save();
+    virtual void reloadProceduralBakeMetadata() {}
     virtual void refresh(int x, int z);
     virtual bool reload(int x, int z);
     virtual void loadQuadTree();

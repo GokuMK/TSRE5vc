@@ -6,6 +6,7 @@
 #include <QTableWidget>
 #include <QHeaderView>
 #include <QImageReader>
+#include <tsre/world/TerrainSeason.h>
 #include <QDir>
 #include <QSignalBlocker>
 #include <QLabel>
@@ -124,7 +125,7 @@ void TerrainMaterialDialog::refresh(quint32 selected) {
         }
         if (Game::writeEnabled && !Game::serverClient) name->setFlags(name->flags() | Qt::ItemIsEditable);
         QString error;
-        const QImage preview=materialThumbnail(QDir(library->textureDirectory()).filePath(m.texture),error);
+        const QImage preview=materialThumbnail(TerrainSeason::resolve(library->textureDirectory(),Game::season,m.texture),error);
         if (!preview.isNull()) thumbnail->setIcon(QPixmap::fromImage(preview));
         else { thumbnail->setText("No preview"); thumbnail->setToolTip(m.texture+"\n"+error); }
         if (m.uid==selected) table->setCurrentItem(name);

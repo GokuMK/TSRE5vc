@@ -21,6 +21,7 @@ detail distance. Test counts in historical sections remain milestone-specific.
 | [Simple lookup migration](terrain-simple-lookup-migration.md) | Design reviewed; preliminary private-helper cleanup implemented | Synthetic detailed lookup and removal of `TerrainLibSimple` remain to implement. |
 | [Procedural materials](terrain-procedural-materials.md) | Experimental demo; four-worker loading and synchronous painting tested | Compressed ID plane, F2 tools, shader import, BC1/RGB sharing, tile-level cache release and bounded background generation. Nearest-visible-first requests/uploads within each tile; draw order unchanged. Other production features deferred. |
 | [Procedural baked fallback / catalogue](terrain-procedural-baked-fallback.md) | Stage A, DXT1 follow-up and Stage B route catalogue implemented/tested | One 1024-square opaque DXT1 ACE bake on save, incremental saves and independent 2048 m detailed-texture distance. Stage B uses a UTF-16 route material catalogue with stable UiDs; earlier catalogue alternatives are historical. |
+| [Procedural seasons and route-wide baking](terrain-procedural-seasons.md) | Completed 2026-09-11; automated checks and user visual acceptance passed | Per-source seasonal/rain fallback, snow-free Winter, per-variant bake revisions, current-variant saves and CLI/Settings-menu batch baking. Optional extended verification is listed in the task. |
 | [Procedural token tile migration](procedural-token-tile-migration.md) | Completed 2026-09-09; automated validation and visual Route Editor acceptance passed | Migration backup retained for manual removal when no longer wanted. |
 
 ## Tracked milestone and sub-task checklist
@@ -41,6 +42,7 @@ implement them; deferred designs are not blockers for the working terrain tools.
 - [x] [Stage B route material catalogue](../../features/terrain-material-library.md): UTF-16 `.dat`, stable UiDs, tile-local byte-ID mapping, Choose/From image, legacy no-table fallback and mapping-aware undo. User confirmed the revised separate-button and mixed-material history workflow works.
 - [x] [Procedural undo](terrain-procedural-materials.md#procedural-undo-follow-up): one deep ID-map snapshot per tile/action; existing two-second stroke segmentation; background level-1 compression; restore IDs, toggle/palette/UV state, not generated textures. Region deltas remain an alternative.
 - [x] [Procedural settings JSON/editor](../../features/terrain-procedural-settings.md): master enable switch, detail distance, output sizes and optional debug/restore validation. Boundary sampling belongs to material definitions, not global settings.
+- [x] [Procedural seasons and route-wide baking](terrain-procedural-seasons.md): directory fallback, per-variant records, CLI and route-filtered Settings-menu dialog; automated checks passed and user confirmed seasonal visual acceptance.
 - [ ] [Simple lookup migration](terrain-simple-lookup-migration.md): remove `TerrainLibSimple`, using synthetic no-TD lookup in the common backend.
 - [ ] KEY_F explicit line-strip boundaries instead of the 8 m break heuristic.
 - [x] After separate approval, update procedural test/local-route tiles that use
@@ -49,7 +51,7 @@ implement them; deferred designs are not blockers for the working terrain tools.
 Deferred production features / testing (not requirements to close Stage A):
 
 - [ ] Richer material/UV/detail/mixing properties, source alpha and physical-scale policy.
-- [ ] Seasonal materials and live source reload.
+- [ ] Live source reload (seasonal implementation now has its own agreed task above).
 - [ ] Procedural route merge, portable export/sidecar cleanup and multiplayer support.
 - [ ] Broader Gather, gap/seam/shadow and populated-route/multiplayer acceptance coverage.
 - [ ] E/AS-driven adaptive triangulation.

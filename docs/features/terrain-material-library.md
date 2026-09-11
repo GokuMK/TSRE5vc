@@ -94,7 +94,9 @@ There is no arbitrary comment syntax in this initial reader.
 `TerrainMaterialDefinition` contains only UiD, display name and primary source
 texture. It does not inherit `TFile::Mat`. Generation retains today's repeated
 source-image behavior and fixed microtex detail. Rotation, physical scale,
-importance, mixing types, seasonal properties and source alpha remain future work.
+importance, mixing types, per-material seasonal overrides and source alpha remain
+future work. Shared directory-based [seasonal lookup](terrain-procedural-seasons.md)
+is implemented without adding per-season filenames to material definitions.
 
 ## Tile mapping and compatibility
 

@@ -56,14 +56,15 @@ int TsreTests::runTokenIdSuite(bool verbose) {
         {TS::ShapeTemplate, 0x00060801u, "ShapeTemplate"},
         {TS::TSRETerrainMaterialBuffer, 0x00061000u, "TSRETerrainMaterialBuffer"},
         {TS::TSRETerrainBakedMaterial, 0x00061001u, "TSRETerrainBakedMaterial"},
-        {TS::TSRETerrainMaterialMap, 0x00061002u, "TSRETerrainMaterialMap"}
+        {TS::TSRETerrainMaterialMap, 0x00061002u, "TSRETerrainMaterialMap"},
+        {TS::TSRETerrainBakedMaterials, 0x00061003u, "TSRETerrainBakedMaterials"}
     };
     for (const Golden& entry : extensions)
         test.check(entry.actual == entry.expected && QString::fromLatin1(TS::name(entry.actual)) == entry.name,
                    QString::fromLatin1(entry.name));
     QSet<QString> names;
     for (const auto& entry : TS::IdName) names.insert(QString::fromLatin1(entry.second).toLower());
-    test.check(TS::IdName.size() == 1466 && names.size() == 1466, "unique canonical IDs and case-insensitive names");
+    test.check(TS::IdName.size() == 1467 && names.size() == 1467, "unique canonical IDs and case-insensitive names");
     const auto registrySize = TS::IdName.size();
     test.check(QString::fromLatin1(TS::name(0xFFFF0800u)) == "<unknown>"
                && TS::describe(0xFFFF0800u).contains("ffff0800")

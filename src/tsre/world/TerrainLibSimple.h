@@ -62,6 +62,7 @@ public:
     bool load(int x, int z);
     void getUnsavedInfo(QVector<QString> &items);
     void save();
+    void reloadProceduralBakeMetadata() override;
     void refresh(int x, int z);
     bool reload(int x, int z);
     void loadQuadTree();

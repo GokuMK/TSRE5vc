@@ -152,7 +152,7 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
             .withName("Startup tile Z").withDescription("World tile Z coordinate used for the initial Route Editor camera position; the legacy file calls it startTileY.").withRange(-32768, 32767, 1).inGroup("content").inSubgroup("routeStartup"),
         "startTileY", "Game::startTileY", "Game", false, "startup");
     ADD(SettingsDefinition::string("core.startup.season", "")
-            .withName("Content season").withDescription("Select the seasonal texture variant used while loading route terrain and objects.").inGroup("content").inSubgroup("routeStartup").asAdvanced(),
+            .withName("Content season").withDescription("Season loaded on route startup: Summer (base), Spring, Autumn, Winter, their Rain/Snow variants, or Snow (WinterSnow). Procedural terrain supports all variants; static terrain and shapes retain their legacy alternative-texture rules.").inGroup("content").inSubgroup("routeStartup").asAdvanced(),
         "season", "Game::season", "Route content session", true, "route-reload");
 
     order = 0;

@@ -54,6 +54,7 @@ high-bit namespaces; this table is not a decoding whitelist.
 | `TSRETerrainMaterialBuffer` | `0x00061000` |
 | `TSRETerrainBakedMaterial` | `0x00061001` |
 | `TSRETerrainMaterialMap` | `0x00061002` |
+| `TSRETerrainBakedMaterials` | `0x00061003` |
 
 Network names intentionally retain underscores; new file blocks use the
 `TSRETerrain...` spelling. Existing native names/case conventions are unchanged.
@@ -121,13 +122,19 @@ for allocation/inspection; ordinary dispatch uses full enum names directly.
 
 ## Terrain compatibility
 
-All three TSRE file blocks remain children of `terrain_samples` (139):
+Current top-level TSRE terrain blocks are children of `terrain_samples` (139):
 
 | Block | Payload after label | Purpose |
 | --- | --- | --- |
 | `TSRETerrainMaterialBuffer` | uint16 character count, UTF-16LE string | `.pmap` filename |
-| `TSRETerrainBakedMaterial` | uint16 character count, UTF-16LE string | Existing bake marker, e.g. `v1:pending` |
+| `TSRETerrainBakedMaterials` | uint32 version (2), uint64 shared revision, child records | Per-season bake metadata |
 | `TSRETerrainMaterialMap` | uint32 count, repeated `(uint32 localMaterialId, uint32 UiD)` | At most 256 pairs, local IDs 0–255, nonzero route-library UiDs |
+
+Inside the plural version-2 container, `TSRETerrainBakedMaterial` entries contain
+a UTF-16 variant, uint64 baked revision, uint32 resolution and three UTF-16
+signature strings. Each string has a uint16 character count. The old root-level
+string marker is no longer written; its existing reader is retained. See
+[procedural seasons](terrain-procedural-seasons.md) for current semantics.
 
 The bitmap's 8-bit material IDs, library UiDs, `.pmap`, bake logic, ACE textures,
 patch records and AS/US bytes are not renumbered. Invalid-presence behavior is

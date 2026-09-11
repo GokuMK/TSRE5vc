@@ -151,7 +151,7 @@ void Terrain::load(){
             if (name2 == *tfile->materials[(int) tfile->tdata[(y * patches + u)*13 + 0 + 6]].tex[0])
                 this->uniqueTex[y*patches+u] = true;
             
-            if(Game::seasonalEditing && Game::season.length() > 0){
+            if(Game::seasonalEditing && Game::season.length() > 0 && !usesProceduralMaterial()){
                 // copy missing season textures
                 QFile file(texturepath + *tfile->materials[(int) tfile->tdata[(y * patches + u)*13 + 0 + 6]].tex[0]);
                 if (!file.exists()){

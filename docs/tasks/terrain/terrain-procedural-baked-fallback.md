@@ -1,6 +1,10 @@
 # Procedural terrain: A — baked tile fallback; B — material catalogue
 
 Status: **stage A implementation authorized and implemented; verification below**.
+The [seasonal bake implementation](terrain-procedural-seasons.md) supersedes
+the single-bake metadata and base-season restrictions described historically
+below: compact per-variant records, current-variant saves and CLI/GUI batch
+baking. See [current usage](../../features/terrain-procedural-seasons.md).
 Stage B's stable-UiD mapping and route chooser are now implemented; see the
 [route material library](../../features/terrain-material-library.md) for the
 format, workflow, compatibility fallback and verification. The original small

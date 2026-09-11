@@ -289,6 +289,10 @@ float TerrainLibQt::getHeight(int x, int z, float posx, float posz, bool addR) {
     tryGetHeight(x, z, posx, posz, height, addR, false);
     return height;
 }
+void TerrainLibQt::reloadProceduralBakeMetadata() {
+    for (const auto *table:{&terrainQt,&terrainQtLo}) for (auto *info:*table)
+        if (info && info->t) static_cast<Terrain*>(info->t)->reloadProceduralBakeMetadata();
+}
 
 bool TerrainLibQt::tryGetHeight(int x, int z, float posx, float posz,
                                 float &height, bool addR,

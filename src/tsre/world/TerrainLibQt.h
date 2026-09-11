@@ -74,6 +74,7 @@ public:
     void getUnsavedInfo(QVector<QString> &items);
     void save();
     void refresh(int x, int z);
+    void reloadProceduralBakeMetadata() override;
     bool reload(int x, int z);
     void loadQuadTree();
     void createNewRouteTerrain(int x, int z);

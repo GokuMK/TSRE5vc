@@ -1476,6 +1476,7 @@ const std::unordered_map<TS::TokenId, const char*> TS::IdName = {
     { TSRE_Requested_TD_Lo_File, "TSRE_Requested_TD_Lo_File"},
     { TSRETerrainMaterialBuffer, "TSRETerrainMaterialBuffer"},
     { TSRETerrainBakedMaterial, "TSRETerrainBakedMaterial"},
+    { TSRETerrainBakedMaterials, "TSRETerrainBakedMaterials"},
     { TSRETerrainMaterialMap, "TSRETerrainMaterialMap"}
 };
 

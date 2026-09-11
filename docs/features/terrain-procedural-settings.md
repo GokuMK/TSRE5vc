@@ -1,5 +1,9 @@
 # Procedural terrain settings
 
+Seasonal source resolution and CLI/GUI batch baking are described in
+[procedural seasons](terrain-procedural-seasons.md). The Static materials
+subgroup's seasonal-editing option is not required for procedural seasons.
+
 Available in the JSON settings system and **Settings -> Terrain -> Procedural
 materials**. These are application preferences, not route material definitions.
 

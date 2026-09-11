@@ -9,6 +9,7 @@
  */
 
 #include <QApplication>
+#include <tsre/world/TerrainBakeCommand.h>
 #include <QDebug>
 #include <QtCore>
 #include <QFile>
@@ -366,6 +367,10 @@ int main(int argc, char *argv[]){
 
     // Conversion paths are relative to the caller's cwd, and console conversion
     // needs neither a GUI platform plugin nor game settings/assets.
+    for (int i=1;i<argc;++i) {
+        if (QByteArray(argv[i])=="--") break;
+        if (QByteArray(argv[i])=="--refreshpmaptextures") return TerrainBakeCommand::run(argc,argv);
+    }
     bool aceGuiRequested = false;
     QString aceGuiInput;
     for (int i = 1; i < argc; ++i) {

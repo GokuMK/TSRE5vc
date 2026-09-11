@@ -38,7 +38,7 @@ void TFile::setPatchValue(int patchId, PatchField field, float value) {
 
 void TFile::initNew(QString name, int samples, int sampleS, int patches){
     sampleMaterialBuffer.clear();
-    bakedMaterialInfo.clear();
+    bakedMaterialInfo.clear(); seasonalBakes.clear(); materialContentRevision=0; bakedMaterialsValid=true;
     materialUidMapPresent=false; materialUidMapValid=true; materialUids.clear();
     TerrainGridLayout layout;
     QString layoutError;
@@ -132,7 +132,7 @@ bool TFile::readT(QString fSfile) {
 bool TFile::load(FileBuffer* data) {
     loaded = false;
     sampleMaterialBuffer.clear();
-    bakedMaterialInfo.clear();
+    bakedMaterialInfo.clear(); seasonalBakes.clear(); materialContentRevision=0; bakedMaterialsValid=true;
     materialUidMapPresent = false;
     materialUidMapValid = true;
     materialUids.clear();
@@ -174,6 +174,7 @@ bool TFile::load(FileBuffer* data) {
 
 void TFile::get139(FileBuffer* data, int length) {
         int slen;
+        bool bakeContainerSeen=false;
         data->skipLabel();
         while (data->off < length) {
             const auto block = data->readBlock();
@@ -259,6 +260,15 @@ void TFile::get139(FileBuffer* data, int length) {
                     QString *reference = data->getString(data->off, data->off + bytes);
                     value = *reference;
                     delete reference;
+                    break;
+                }
+                case TS::TSRETerrainBakedMaterials: {
+                    const int end=akto+offset;
+                    if (bakeContainerSeen || end>data->length || offset<13 || offset>1024*1024
+                            || !readBakeMetadata(QByteArray(reinterpret_cast<const char*>(data->data+data->off),end-data->off))) {
+                        bakedMaterialsValid=false; bakedMaterialInfo=":invalid bake metadata:";return;
+                    }
+                    bakeContainerSeen=true;
                     break;
                 }
                 case TS::terrain_sample_asbuffer:
@@ -682,8 +692,8 @@ void TFile::save(QDataStream &write){
     if (materialUidMapPresent) t139 += 13 + materialUids.size()*8;
     if (!sampleMaterialBuffer.isEmpty())
         t139 += sampleMaterialBuffer.length()*2 + 11;
-    if (!bakedMaterialInfo.isEmpty())
-        t139 += bakedMaterialInfo.length()*2 + 11;
+    const QByteArray bakedMetadata=bakeMetadata();
+    if (!bakedMetadata.isEmpty()) t139 += bakedMetadata.size()+8;
     // 140
     if(nsamples != NULL)
         t139+=13;
@@ -877,11 +887,9 @@ void TFile::save(QDataStream &write){
               << quint16(sampleMaterialBuffer.length());
         for (QChar c : sampleMaterialBuffer) write << c.unicode();
     }
-    if (!bakedMaterialInfo.isEmpty()) {
-        write << quint32(TS::TSRETerrainBakedMaterial)
-              << qint32(bakedMaterialInfo.length()*2+3) << qint8(0)
-              << quint16(bakedMaterialInfo.length());
-        for (QChar c : bakedMaterialInfo) write << c.unicode();
+    if (!bakedMetadata.isEmpty()) {
+        write << quint32(TS::TSRETerrainBakedMaterials) << qint32(bakedMetadata.size());
+        write.writeRawData(bakedMetadata.constData(),bakedMetadata.size());
     }
     if (materialUidMapPresent) {
         write << quint32(TS::TSRETerrainMaterialMap)
