@@ -31,7 +31,10 @@ bool SFileComplex::initGL() {
             return false;
         }
         SFileComplex replacement(d->path, d->name, d->textureRoot);
-        replacement.setLoadOptions(d->options);
+        replacement.setLoadOptions({
+            {QString::fromLatin1(ShapeLoadOption::FirstLodOnly), d->options.firstLodOnly},
+            {QString::fromLatin1(ShapeLoadOption::Compact), d->options.compact}
+        });
         if (!replacement.loadData() || replacement.health() == Health::Broken ||
             !replacement.initGL()) {
             d->gpuState = GpuState::Failed;

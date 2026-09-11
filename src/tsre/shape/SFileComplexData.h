@@ -16,6 +16,10 @@
 #include <tsre/renderer/RenderItem.h>
 #include <vector>
 struct SFileComplex::Data {
+    struct Options {
+        bool firstLodOnly = false;
+        bool compact = false;
+    };
     struct Matrix {
         QString name;
         QMatrix4x4 transform;
@@ -83,7 +87,7 @@ struct SFileComplex::Data {
         std::vector<std::unique_ptr<RenderItem>> packets;
     };
     QString path, name, textureRoot, texturePath;
-    LoadOptions options;
+    Options options;
     qint64 loadDocumentBytes = 0, sourceBlocks = 0, sourceScalars = 0, skippedSourceBlocks = 0;
     double readMs = 0, extractMs = 0, metadataMs = 0, cleanupMs = 0;
     bool sourceAvailable = false; // Required CPU arrays survive until successful GL upload.

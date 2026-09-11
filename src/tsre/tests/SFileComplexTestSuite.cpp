@@ -42,6 +42,13 @@
 #include <tsre/texture/ImageLib.h>
 using namespace TokenTest;
 namespace {
+ShapeLoadOptions shapeLoadOptions(bool firstLodOnly = false, bool compact = false) {
+    return {
+        {QString::fromLatin1(ShapeLoadOption::FirstLodOnly), firstLodOnly},
+        {QString::fromLatin1(ShapeLoadOption::Compact), compact}
+    };
+}
+
 const QByteArray triangle = R"(SIMISA@@@@@@@@@@JINX0s1t______
 shape (
  shape_header ( 00000000 00000000 )
@@ -449,7 +456,8 @@ template<class Shape> int threeCompatSnapshot(const QString &path, bool compact 
     if (!context.create() || !context.makeCurrent(&surface)) return 3;
     RenderProbe render; render.orderedGather = true;
     Shape shape(path, QFileInfo(path).fileName(), QFileInfo(path).absolutePath());
-    if constexpr (std::is_same_v<Shape, SFileComplex>) shape.setLoadOptions({false,compact});
+    if constexpr (std::is_same_v<Shape, SFileComplex>)
+        shape.setLoadOptions(shapeLoadOptions(false, compact));
     QJsonObject result{{"stage","loading"}}; compatEmit(result);
     context.doneCurrent();
     QElapsedTimer timer; timer.start();
@@ -606,6 +614,16 @@ int TsreTests::runSFileComplexSuite(bool verbose, bool gl) {
         t.check(dynamic_cast<SFile *>(oldAsset.get()) != nullptr,
                 "explicit old factory fallback remains available");
         fallback.shape.clear();
+        qputenv("TSRE_MSTS_SHAPE_BACKEND", "complex-compact");
+        ShapeLib compactFactory;
+        const int compactId = compactFactory.addShape(factoryPath, tmp.path());
+        std::unique_ptr<ComplexShape> compactAsset(compactFactory.shape.at(compactId));
+        auto *compactShape = dynamic_cast<SFileComplex *>(compactAsset.get());
+        t.check(compactShape && compactShape->loadData() &&
+                    compactShape->retention() == SFileComplex::Retention::Compact &&
+                    compactShape->statistics().documentBytes == 0,
+                "generic factory load options reach SFileComplex backend");
+        compactFactory.shape.clear();
     }
     SFileComplex shape(path, "fixture.s", tmp.path());
     t.check(shape.loadData() && shape.isLoaded(), "CPU loaded before GL");
@@ -637,7 +655,7 @@ int TsreTests::runSFileComplexSuite(bool verbose, bool gl) {
             const QString badPath = tmp.filePath("bad-compact.s");
             write(badPath, invalidSource.encode(binary, false, error));
             SFileComplex brokenCompact(badPath, "bad compact", tmp.path());
-            brokenCompact.setLoadOptions({false, true});
+            brokenCompact.setLoadOptions(shapeLoadOptions(false, true));
             t.check(brokenCompact.loadData() && brokenCompact.isLoaded() &&
                         brokenCompact.health() == SFileComplex::Health::Broken &&
                         brokenCompact.statistics().documentBytes > 0 && !brokenCompact.initGL(),
@@ -650,7 +668,7 @@ int TsreTests::runSFileComplexSuite(bool verbose, bool gl) {
     write(spacedPath, spacedMatrix);
     for (bool compact : {false, true}) {
         SFileComplex named(spacedPath, "spaced label", tmp.path());
-        named.setLoadOptions({false, compact});
+        named.setLoadOptions(shapeLoadOptions(false, compact));
         t.check(named.loadData() && named.health() == SFileComplex::Health::Recovered,
                 "multi-word label recovery produces a renderable Recovered shape");
         if (!compact) {
@@ -672,7 +690,7 @@ int TsreTests::runSFileComplexSuite(bool verbose, bool gl) {
     write(animationPath, damagedAnimation);
     for (bool compact : {false, true}) {
         SFileComplex recovered(animationPath, "damaged animation", tmp.path());
-        recovered.setLoadOptions({false, compact});
+        recovered.setLoadOptions(shapeLoadOptions(false, compact));
         t.check(recovered.loadData() && recovered.isLoaded() &&
                     recovered.health() == SFileComplex::Health::Recovered &&
                     recovered.statistics().animations == 0 && recovered.statistics().lods == 1,
@@ -684,7 +702,7 @@ int TsreTests::runSFileComplexSuite(bool verbose, bool gl) {
         const auto badPath = tmp.filePath("damaged-animation-and-geometry.s");
         write(badPath, badGeometry);
         SFileComplex broken(badPath, "broken geometry", tmp.path());
-        broken.setLoadOptions({false, compact});
+        broken.setLoadOptions(shapeLoadOptions(false, compact));
         t.check(broken.loadData() && broken.health() == SFileComplex::Health::Broken &&
                     !broken.initGL(), "animation recovery cannot hide invalid static geometry");
     }
@@ -704,14 +722,14 @@ int TsreTests::runSFileComplexSuite(bool verbose, bool gl) {
     QString multiPath = tmp.filePath("multi.s");
     write(multiPath, multi.encode(false, false, error));
     SFileComplex partial(multiPath, "multi", tmp.path());
-    partial.setLoadOptions({true, false});
+    partial.setLoadOptions(shapeLoadOptions(true, false));
     t.check(partial.loadData() && partial.statistics().lods == 1 &&
                 partial.retention() == SFileComplex::Retention::Partial,
             "first LOD skips later level storage");
     t.check(!partial.save(tmp.filePath("partial.s"), SFileComplex::Format::Text, false, &error),
             "Partial save requires full reload");
     SFileComplex firstCompact(multiPath, "first compact", tmp.path());
-    firstCompact.setLoadOptions({true, true});
+    firstCompact.setLoadOptions(shapeLoadOptions(true, true));
     t.check(firstCompact.loadData() && firstCompact.statistics().lods == 1 &&
                 firstCompact.retention() == SFileComplex::Retention::Compact &&
                 firstCompact.statistics().documentBytes == 0,
@@ -728,7 +746,7 @@ int TsreTests::runSFileComplexSuite(bool verbose, bool gl) {
                 metadata.saveMetadata(tmp.filePath("saved.sd"), false, &error),
             "metadata edit and save");
     SFileComplex requestedCompact(path, "fixture compact", tmp.path());
-    t.check(requestedCompact.setLoadOptions({false, true}) && requestedCompact.loadData() &&
+    t.check(requestedCompact.setLoadOptions(shapeLoadOptions(false, true)) && requestedCompact.loadData() &&
                 requestedCompact.isLoaded() &&
                 requestedCompact.retention() == SFileComplex::Retention::Compact &&
                 requestedCompact.gpuState() == SFileComplex::GpuState::NotInitialized &&
@@ -738,7 +756,7 @@ int TsreTests::runSFileComplexSuite(bool verbose, bool gl) {
             "pre-load Compact request skips source records before GL and retains upload arrays");
     t.check(!requestedCompact.save(tmp.filePath("too-early.s"), SFileComplex::Format::Text, false,
                                    &error) &&
-                !requestedCompact.setLoadOptions({}),
+                !requestedCompact.setLoadOptions(shapeLoadOptions()),
             "Compact is not saveable or relabeled Complete before upload");
     t.check(requestedCompact.getEsdDetailLevel() == 4 && requestedCompact.getBound()[0] == 7,
             "Compact retains CPU metadata and bounds");
@@ -750,7 +768,7 @@ int TsreTests::runSFileComplexSuite(bool verbose, bool gl) {
         t.check(context.create() && context.makeCurrent(&surface), "GL context");
         for (bool compact : {false, true}) {
             SFileComplex recovered(animationPath, "damaged animation GL", tmp.path());
-            recovered.setLoadOptions({false, compact});
+            recovered.setLoadOptions(shapeLoadOptions(false, compact));
             t.check(recovered.loadData() && recovered.initGL(),
                     "damaged animation shape initializes static GL buffers");
         }
@@ -1025,7 +1043,7 @@ int TsreTests::runSFileComplexCorpus(const QString &input, bool gl) {
                            {"runtime_bytes", double(stats.runtimeBytes)},
                            {"diagnostics", shape.diagnostics().join("; ")}};
         SFileComplex requested(path, QFileInfo(path).fileName(), textures);
-        requested.setLoadOptions({false, true});
+        requested.setLoadOptions(shapeLoadOptions(false, true));
         timer.restart();
         bool requestedValid =
             requested.loadData() && requested.health() != SFileComplex::Health::Broken;
@@ -1046,7 +1064,7 @@ int TsreTests::runSFileComplexCorpus(const QString &input, bool gl) {
             ++failures;
         {
             SFileComplex first(path, QFileInfo(path).fileName(), textures);
-            first.setLoadOptions({true, false});
+            first.setLoadOptions(shapeLoadOptions(true, false));
             timer.restart();
             first.loadData();
             result["first_lod_cpu_ms"] = timer.nsecsElapsed() / 1e6;

@@ -13,11 +13,19 @@
 
 #include <QHash>
 #include <QString>
+#include <QVariantMap>
 #include <QVector>
 
 class ContentHierarchyInfo;
 class ShapeHierarchyInfo;
 class ShapeTextureInfo;
+
+using ShapeLoadOptions = QVariantMap;
+
+namespace ShapeLoadOption {
+inline constexpr const char FirstLodOnly[] = "firstLodOnly";
+inline constexpr const char Compact[] = "compact";
+}
 
 class ComplexShape {
 public:
@@ -35,6 +43,9 @@ public:
 
     virtual void load() = 0;
     virtual void reload() = 0;
+    // Load options are applied before load(). Backends consume the keys they
+    // support and ignore the rest. False means loading has already started.
+    virtual bool setLoadOptions(const ShapeLoadOptions &options);
 
     virtual unsigned int newState() = 0;
     virtual void setAnimated(unsigned int stateId, bool animated) = 0;
@@ -76,6 +87,11 @@ inline QString ComplexShape::getShapePreviewPath() const {
 
 inline int ComplexShape::getEsdDetailLevel() const {
     return -1;
+}
+
+inline bool ComplexShape::setLoadOptions(const ShapeLoadOptions& options) {
+    (void)options;
+    return true;
 }
 
 inline void ComplexShape::setEnabledSubObjs(unsigned int stateId, unsigned int enabledSubObjs) {

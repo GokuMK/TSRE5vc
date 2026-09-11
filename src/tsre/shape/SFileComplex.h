@@ -9,10 +9,6 @@ class SFileComplex final : public ComplexShape {
     enum class Health { Valid, Recovered, Broken };
     enum class GpuState { NotInitialized, Ready, Failed };
     enum class Format { Text, Binary };
-    struct LoadOptions {
-        bool firstLodOnly = false;
-        bool compact = false;
-    };
     struct Statistics {
         int matrices = 0, images = 0, lods = 0, subobjects = 0, parts = 0, vertices = 0,
             animations = 0;
@@ -37,7 +33,7 @@ class SFileComplex final : public ComplexShape {
     GpuState gpuState() const;
     QStringList diagnostics() const;
     Statistics statistics() const;
-    bool setLoadOptions(LoadOptions options); // Only before CPU load.
+    bool setLoadOptions(const ShapeLoadOptions &options) override; // Only before CPU load.
     bool loadData(); // CPU only; retained broken documents remain inspectable.
     bool initGL();
     void releaseGL();

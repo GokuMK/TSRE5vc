@@ -74,22 +74,25 @@ int ShapeLib::addShape(QString path, QString texPath) {
     qDebug() << "Nowy " << jestshape << " shape: " << pathid;
 
     QString ext = pathid.toLower().split(".").last();
+    ComplexShape *asset = nullptr;
     if(ext == "gltf" || ext == "glb"){
-        shape[jestshape] = new GltfShape(pathid, path.split("/").last(), texPath);
-        return jestshape++;
-    }
-    if(ext != "s"){
+        asset = new GltfShape(pathid, path.split("/").last(), texPath);
+    } else if(ext != "s"){
         qDebug() << "ShapeLib: unknown extension, treating as MSTS shape:" << ext << "path:" << pathid;
     }
-    if(mstsBackend == "complex" || mstsBackend == "complex-compact") {
-        auto* asset = new SFileComplex(pathid, path.split("/").last(), texPath);
-        asset->setLoadOptions({firstMstsLodOnly, mstsBackend == "complex-compact"});
-        shape[jestshape] = asset;
-    } else if(mstsBackend == "old") {
-        shape[jestshape] = new SFile(pathid, path.split("/").last(), texPath);
-    } else {
-        shape[jestshape] = new SFileLegacy(pathid, path.split("/").last(), texPath);
+    if(asset == nullptr) {
+        if(mstsBackend == "complex" || mstsBackend == "complex-compact")
+            asset = new SFileComplex(pathid, path.split("/").last(), texPath);
+        else if(mstsBackend == "old")
+            asset = new SFile(pathid, path.split("/").last(), texPath);
+        else
+            asset = new SFileLegacy(pathid, path.split("/").last(), texPath);
     }
+    asset->setLoadOptions({
+        {QString::fromLatin1(ShapeLoadOption::FirstLodOnly), firstMstsLodOnly},
+        {QString::fromLatin1(ShapeLoadOption::Compact), mstsBackend == "complex-compact"}
+    });
+    shape[jestshape] = asset;
 
     return jestshape++;
 }

@@ -74,10 +74,13 @@ SFileComplex::Retention SFileComplex::retention() const { return d->retention; }
 SFileComplex::Health SFileComplex::health() const { return d->health; }
 SFileComplex::GpuState SFileComplex::gpuState() const { return d->gpuState; }
 QStringList SFileComplex::diagnostics() const { return d->diagnostics; }
-bool SFileComplex::setLoadOptions(LoadOptions o) {
+bool SFileComplex::setLoadOptions(const ShapeLoadOptions &options) {
     if (d->attempted)
         return false;
-    d->options = o;
+    d->options.firstLodOnly = options.value(
+        QString::fromLatin1(ShapeLoadOption::FirstLodOnly), false).toBool();
+    d->options.compact = options.value(
+        QString::fromLatin1(ShapeLoadOption::Compact), false).toBool();
     return true;
 }
 SFileComplex::Statistics SFileComplex::statistics() const {
