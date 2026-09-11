@@ -9,6 +9,7 @@
  */
 
 #include <tsre/tests/TestRunner.h>
+#include <tsre/tests/SFileComplexTestSuite.h>
 #include <routeEditor/TerrainProfileSelector.h>
 #include <QLabel>
 
@@ -3120,6 +3121,10 @@ QStringList TsreTests::listSuites() {
         "route-load",
         "selection-id",
         "tokens",
+        "shape-complex",
+        "shape-complex-gl",
+        "shape-complex-corpus",
+        "shape-complex-corpus-gl",
         "token-world",
         "token-shape-gl",
         "settings",
@@ -3156,6 +3161,11 @@ int TsreTests::run(const TestRunOptions &opts) {
 
     if (suite == "selection-id")
         return runSelectionIdSuite(opts.verbose);
+
+    if (suite == "shape-complex" || suite == "shape-complex-gl")
+        return runSFileComplexSuite(opts.verbose, suite == "shape-complex-gl");
+    if (suite == "shape-complex-corpus" || suite == "shape-complex-corpus-gl")
+        return runSFileComplexCorpus(opts.casesFile, suite == "shape-complex-corpus-gl");
 
     if (suite == "tokens")
         return runTokenIdSuite(opts.verbose);

@@ -14,11 +14,15 @@
 #include <tsre/shape/ComplexShape.h>
 #include <tsre/shape/GltfShape.h>
 #include <tsre/shape/SFile.h>
+#include <tsre/shape/SFileComplex.h>
+#include <tsre/shape/SFileLegacy.h>
 
 //int ShapeLib::jestshape;
 //std::unordered_map<int, SFile*> ShapeLib::shape;
 
 ShapeLib::ShapeLib() {
+    mstsBackend = qEnvironmentVariable("TSRE_MSTS_SHAPE_BACKEND");
+    firstMstsLodOnly = qEnvironmentVariableIntValue("TSRE_MSTS_FIRST_LOD_ONLY") == 1;
 }
 
 ShapeLib::ShapeLib(const ShapeLib& orig) {
@@ -77,7 +81,15 @@ int ShapeLib::addShape(QString path, QString texPath) {
     if(ext != "s"){
         qDebug() << "ShapeLib: unknown extension, treating as MSTS shape:" << ext << "path:" << pathid;
     }
-    shape[jestshape] = new SFile(pathid, path.split("/").last(), texPath);
+    if(mstsBackend == "complex" || mstsBackend == "complex-compact") {
+        auto* asset = new SFileComplex(pathid, path.split("/").last(), texPath);
+        asset->setLoadOptions({firstMstsLodOnly, mstsBackend == "complex-compact"});
+        shape[jestshape] = asset;
+    } else if(mstsBackend == "old") {
+        shape[jestshape] = new SFile(pathid, path.split("/").last(), texPath);
+    } else {
+        shape[jestshape] = new SFileLegacy(pathid, path.split("/").last(), texPath);
+    }
 
     return jestshape++;
 }

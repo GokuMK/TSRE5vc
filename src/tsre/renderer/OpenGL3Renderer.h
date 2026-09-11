@@ -15,6 +15,7 @@
 #include <tsre/renderer/Renderer.h>
 #include <QOpenGLVertexArrayObject>
 #include <QOpenGLBuffer>
+#include <QSharedPointer>
 
 class QOpenGLFunctions;
 
@@ -28,6 +29,7 @@ public:
     void pushItemsVNTA(QVector<RenderItem*>& r, float* mvmatrix);
     void pushItemVNTA(RenderItem *r, float* mvmatrix);
 private:
+    QVector<QSharedPointer<RenderItem>> retainedPackets;
     QOpenGLVertexArrayObject VAO;
     QOpenGLFunctions *f;
 };

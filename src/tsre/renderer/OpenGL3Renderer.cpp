@@ -91,6 +91,8 @@ void applyItemState(GLUU *gluu, QOpenGLFunctions *f, RenderItem *item,
 unsigned int getItemDrawType(const RenderItem *item){
     if(item == NULL)
         return GL_TRIANGLES;
+    if(item->itemType == RenderItem::Points)
+        return GL_POINTS;
     if(item->itemType == 0)
         return GL_TRIANGLES;
     return item->itemType;
@@ -228,6 +230,8 @@ void OpenGL3Renderer::pushItemsVNTA(QVector<RenderItem*>& r, float* mvmatrix){
         //itemsVNTA[r[i]->texAddr].push_back(r[i]);
         if(itemsVNTA[r[i]->texAddr][(unsigned long long int)r[i]] == NULL){
             itemsVNTA[r[i]->texAddr][(unsigned long long int)r[i]] = r[i];
+            if (auto owner = r[i]->cacheOwner.toStrongRef())
+                retainedPackets.push_back(owner);
             r[i]->mvMatrixList.clear();
         }
         r[i]->mvMatrixList.push_back(mvmatrix);
@@ -264,6 +268,7 @@ void OpenGL3Renderer::renderFrame(){
     if(gluu == NULL || f == NULL){
         cleanupRenderItems(items);
         itemsVNTA.clear();
+        retainedPackets.clear();
         cleanupMatrixList(mvMatrixs);
         cleanupMatrixList(mvMatrixDelete);
         return;
@@ -362,6 +367,7 @@ void OpenGL3Renderer::renderFrame(){
     gluu->currentShader->setUniformValue(gluu->currentShader->shaderSecondTexEnabled, 0.0f);
     gluu->currentShader->setUniformValue(gluu->currentShader->terrainTextureRemap, QVector3D());
     itemsVNTA.clear();
+    retainedPackets.clear();
     cleanupRenderItems(items);
     cleanupMatrixList(mvMatrixs);
     cleanupMatrixList(mvMatrixDelete);

@@ -6,7 +6,9 @@ This folder contains ordered tasks for generalizing TSRE "complex shapes" (curre
 - [x] `01-complex-shape-abstraction.md`
 - [x] `02-gltf-glb-shape-loader.md`
 - [ ] `03-complex-shape-metadata-sidecar.md`
-- [ ] [04-sfile-complex-implementation.md](04-sfile-complex-implementation.md) — new MSTS implementation alongside legacy SFile/C/X; class boundary accepted, ParserX review and load/save requirements documented; implementation not started. Independent of Task 03.
+- [ ] [04-sfile-complex-implementation.md](04-sfile-complex-implementation.md) — new MSTS implementation alongside legacy SFile/C/X; opt-in implementation, stock comparison and typed-storage/pre-load Compact optimization implemented; SFileLegacy is the default, with original SFile/C/X retained as an explicit fallback. Independent of Task 03.
+
+- [x] [05-sfile-legacy-load-gl.md](05-sfile-legacy-load-gl.md) — SFileLegacy consolidates legacy parsing/rendering with separate CPU loading and GL initialization; stock regression checks and repeated SFileX/C comparisons complete.
 
 ## Ground Rules For All Tasks
 - Keep MSTS `.s` + `.sd` support working throughout.
@@ -22,4 +24,12 @@ This folder contains ordered tasks for generalizing TSRE "complex shapes" (curre
 
 ## Supporting Reviews
 
-- [SFile legacy findings](sfile-legacy-findings.md) — field exposure and caller audit for Task 04.
+Supporting audits, investigations and benchmark reports live in [reports/](reports/); numbered implementation tasks remain in this directory.
+
+- [SFile legacy findings](reports/sfile-legacy-findings.md) — field exposure and caller audit for Task 04.
+- [Parser performance investigation](reports/sfile-parser-performance.md) — UTF-16 stage measurements, local Open Rails timings and proposed typed storage optimization for Complete/Compact.
+- [Optimization results](reports/sfile-optimization-results.md) — native storage, early Compact selection and packed Compact tables, with loading profiles, repeated comparisons and preservation/rendering checks.
+- [UTF-16 optimization results](reports/sfile-utf16-optimization-results.md) — reusable reader improvements, direct numeric arrays, paired timings and byte-identical Complete exports.
+
+- [Third-party SFileLegacy comparison](reports/sfile-legacy-third-party-comparison.md) — read-only Windows trainset collection, independent old/new runs and replacement assessment.
+- [Legacy / Compact / Complete comparison](reports/sfile-three-mode-comparison.md) — three-mode compatibility and diagnostic loading timings across the read-only third-party collection.
