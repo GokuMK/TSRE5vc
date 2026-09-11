@@ -41,6 +41,16 @@ public:
     bool wasCreated() const;
     bool hasExternalChange() const;
 
+    // Differences are limited to definitions registered by this build. Unknown
+    // settings and fork-specific metadata do not make a profile out of sync.
+    int catalogDifferenceCount() const;
+    QString catalogApplication() const;
+    QString catalogVersion() const;
+    bool updateRegisteredDefinitions(int *updatedCount = nullptr,
+                                     QString *error = nullptr);
+    static QString currentCatalogApplication();
+    static QString currentCatalogVersion();
+
     QJsonObject document() const;
     QJsonArray settingsArray() const;
     QJsonArray groupsArray() const;
@@ -94,6 +104,7 @@ private:
     QByteArray m_loadedHash;
     bool m_modified = false;
     bool m_created = false;
+    int m_seededCatalogDifferences = 0;
 
     QJsonObject m_secretsDocument;
     QString m_secretsFile;
@@ -105,7 +116,7 @@ private:
     QHash<QString, QVariant> m_sessionOverrides;
 
     void rebuildIndex();
-    void seedMissingDefinitions();
+    int seedMissingDefinitions();
     bool setLaunchOverrides(const QHash<QString, QString> &overrides,
                             QHash<QString, QVariant> *destination,
                             const QString &sourceName, QString *error);

@@ -97,7 +97,28 @@ placeholder, never the resolved value. For example:
 editor:{secret:network.clientPassword}@localhost:65535
 ```
 
-Registry definitions create missing objects and groups. They never overwrite an existing object's name, description, range, or other stored metadata. Existing objects are compared with the registry by stable key and type. Unknown keys and unknown types are retained for fork interoperability and remain available through raw JSON editing.
+Registry definitions create missing objects and groups. During ordinary loading
+they never overwrite an existing object's name, description, range, or other
+stored metadata. Existing objects are compared with the registry by stable key
+and type. Unknown keys and unknown types are retained for fork interoperability
+and remain available through raw JSON editing.
+
+New profiles record `createdBy` and `catalog` objects containing the stable
+catalogue implementation ID (`TSRE5vc`) and build version. `createdBy` identifies
+the build which originally generated the file; `catalog` identifies the build
+whose definitions were most recently copied into it. Forks should use a distinct
+stable catalogue ID if they want the editor to identify their profiles reliably.
+
+The editor compares registered setting and group metadata with the stored copy.
+When registered definitions collide but differ, it shows **Stored setting
+definitions differ from this TSRE build**, with **Update** and **Hide** actions.
+Update refreshes only metadata owned by registered definitions and records the
+current `catalog`; setting values, unknown fields, unknown groups, and unknown
+fork/custom settings are preserved. The result remains an unsaved editor change
+until **Save Profile** is used and does not alter runtime values. Hide suppresses
+the message for that profile only for the lifetime of the current editor dialog.
+Extra settings which are not registered by the running build do not trigger the
+message.
 
 For a known key, the registry's type, default, nullability, and hard validation
 rules are authoritative at runtime. Stored names, descriptions, grouping, and
@@ -147,7 +168,8 @@ The Route Editor opens the Settings Editor from **Settings > Settings Editor...*
 
 Writes use `QSaveFile`, retain five timestamped backups, and detect external file changes before overwriting. Recoverable per-setting errors remain loadable for repair, but validation errors prevent saving. Secret values are stored in the profile-local `secrets.json`; dedicated secret settings and inline `{secret:ID}` placeholders store only references.
 
-The approved runtime catalogue contains 77 profile settings. Inactive
+The runtime catalogue contains the approved legacy replacements plus native
+settings added by newer subsystems. Inactive
 `useWorkingDir` and `warningBox`, the disabled `gatherLegacyOverlays` diagnostic,
 and one-shot route merge remain historical audit entries but are not generated
 as profile settings. The

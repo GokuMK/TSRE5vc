@@ -18,6 +18,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonDocument>
+#include <QPushButton>
 #include <QTemporaryDir>
 
 int TsreTests::runSettingsSuite(bool verbose) {
@@ -213,6 +214,14 @@ int TsreTests::runSettingsSuite(bool verbose) {
     check(manager.loadFile(settingsFile, &error), "registry-generates-profile");
     check(QFile::exists(settingsFile) && manager.settingsArray().size() == 82,
           "generated-profile-has-catalogue");
+    check(manager.document().value("createdBy").toObject().value("application").toString()
+              == SettingsManager::currentCatalogApplication()
+          && manager.document().value("createdBy").toObject().value("version").toString()
+              == SettingsManager::currentCatalogVersion()
+          && manager.catalogApplication() == SettingsManager::currentCatalogApplication()
+          && manager.catalogVersion() == SettingsManager::currentCatalogVersion()
+          && manager.catalogDifferenceCount() == 0,
+          "generated-profile-records-creator-and-current-catalogue");
     check(manager.value("core.paths.gameRoot").toString().isEmpty()
           && manager.value("core.paths.geoData").toString().isEmpty()
           && manager.value("core.startup.route").toString().isEmpty(),
@@ -383,6 +392,8 @@ int TsreTests::runSettingsSuite(bool verbose) {
     check(manager.addSettingObject(custom, &error), "custom-setting-add");
     check(manager.supportState("fork.weather.enabled") == SettingsManager::Unsupported,
           "custom-setting-unsupported");
+    check(manager.catalogDifferenceCount() == 0,
+          "unknown-fork-setting-does-not-trigger-catalogue-message");
     check(manager.save(&error), "custom-setting-save");
 
     SettingsManager reloaded;
@@ -391,6 +402,10 @@ int TsreTests::runSettingsSuite(bool verbose) {
     check(reloaded.value("fork.weather.enabled").toBool(), "custom-setting-preserved");
 
     QJsonObject customized = reloaded.settingObject(threadedKey);
+    customized["forkMetadata"] = "preserve this too";
+    check(reloaded.replaceSettingObject(threadedKey, customized, &error)
+          && reloaded.catalogDifferenceCount() == 0,
+          "extra-field-on-known-setting-does-not-trigger-catalogue-message");
     customized["description"] = "Profile-owned description";
     check(reloaded.replaceSettingObject(threadedKey, customized, &error)
           && reloaded.save(&error), "stored-metadata-customization");
@@ -399,6 +414,33 @@ int TsreTests::runSettingsSuite(bool verbose) {
     check(preserved.loadFile(settingsFile, &error)
           && preserved.settingObject(threadedKey).value("description").toString()
              == "Profile-owned description", "registry-does-not-overwrite-stored-metadata");
+    check(preserved.catalogDifferenceCount() == 1,
+          "changed-known-metadata-is-detected-as-catalogue-difference");
+    SettingsDialog catalogDialog(&preserved);
+    QWidget *catalogBanner = catalogDialog.findChild<QWidget *>(
+                "settings-catalog-banner");
+    QPushButton *hideCatalog = catalogDialog.findChild<QPushButton *>(
+                "hide-settings-catalog");
+    check(catalogBanner && !catalogBanner->isHidden() && hideCatalog,
+          "settings-dialog-shows-catalogue-update-message");
+    if (hideCatalog)
+        hideCatalog->click();
+    check(catalogBanner && catalogBanner->isHidden(),
+          "catalogue-message-can-be-hidden-for-dialog-session");
+    const QVariant preservedThreadedValue = preserved.value(threadedKey);
+    int updatedDefinitions = 0;
+    check(preserved.updateRegisteredDefinitions(&updatedDefinitions, &error)
+          && updatedDefinitions == 1
+          && preserved.value(threadedKey) == preservedThreadedValue
+          && preserved.value("fork.weather.enabled").toBool()
+          && preserved.settingObject(threadedKey).value("description").toString()
+             == preserved.registry().definition(threadedKey)->description
+          && preserved.settingObject(threadedKey).value("forkMetadata").toString()
+             == "preserve this too"
+          && preserved.catalogDifferenceCount() == 0
+          && preserved.catalogApplication() == SettingsManager::currentCatalogApplication()
+          && preserved.catalogVersion() == SettingsManager::currentCatalogVersion(),
+          "catalogue-update-refreshes-known-metadata-and-preserves-values-and-fork-settings");
 
     QJsonObject invalidDocument = preserved.document();
     QJsonArray invalidSettings = invalidDocument.value("settings").toArray();

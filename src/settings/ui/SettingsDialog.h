@@ -4,6 +4,7 @@
 #include <settings/SettingsTypes.h>
 
 #include <QDialog>
+#include <QSet>
 #include <QVector>
 #include <functional>
 
@@ -38,6 +39,8 @@ private slots:
     void openProfileFolder();
     void addCustomSetting();
     void showRawDocument();
+    void updateStoredDefinitions();
+    void hideCatalogMessage();
 
 private:
     struct Editor {
@@ -63,12 +66,15 @@ private:
     QTabWidget *m_tabs;
     QComboBox *m_profileName;
     QLineEdit *m_profilePath;
+    QWidget *m_catalogBanner;
+    QLabel *m_catalogMessage;
     QAction *m_duplicateProfileAction;
     QLabel *m_statusLabel;
     QPushButton *m_applyRuntime;
     QWidget *m_resultsTab = nullptr;
     QVBoxLayout *m_resultsLayout = nullptr;
     QVector<Editor> m_editors;
+    QSet<QString> m_hiddenCatalogMessages;
 
     QWidget *createEditor(const QJsonObject &setting, Editor *editor);
     void editSettingMetadata(const QString &key);
@@ -79,6 +85,7 @@ private:
     bool applyEditors(QString *error);
     bool hasEditorChanges() const;
     bool isViewingUsedProfile() const;
+    void updateCatalogBanner();
     bool confirmDiscardChanges();
     void showError(const QString &title, const QString &message);
 };

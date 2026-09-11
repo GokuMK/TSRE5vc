@@ -1,5 +1,7 @@
 #include <settings/SettingsManager.h>
 
+#include <TSRE5Version.h>
+
 #include <QCryptographicHash>
 #include <QColor>
 #include <QDateTime>
@@ -14,6 +16,30 @@
 #include <QSet>
 
 namespace {
+const QStringList &settingDefinitionFields() {
+    static const QStringList fields{
+        "name", "default", "type", "group", "subgroup", "description",
+        "order", "apply", "unit", "advanced", "nullable", "range",
+        "options", "legacy", "implementation"
+    };
+    return fields;
+}
+
+bool fieldsDiffer(const QJsonObject &stored, const QJsonObject &expected,
+                  const QStringList &fields) {
+    for (const QString &field : fields) {
+        if (stored.contains(field) != expected.contains(field)
+                || stored.value(field) != expected.value(field))
+            return true;
+    }
+    return false;
+}
+
+QJsonObject buildIdentity() {
+    return QJsonObject{{"application", SettingsManager::currentCatalogApplication()},
+                       {"version", SettingsManager::currentCatalogVersion()}};
+}
+
 bool definitionAcceptsValue(const SettingsDefinition &definition,
                             const QVariant &value) {
     if (!value.isValid() || value.isNull())
@@ -81,6 +107,7 @@ bool SettingsManager::loadFile(const QString &settingsFile, QString *error) {
     m_created = false;
     m_modified = false;
     m_secretsModified = false;
+    m_seededCatalogDifferences = 0;
 
     QFile file(m_settingsFile);
     if (!file.exists()) {
@@ -92,11 +119,14 @@ bool SettingsManager::loadFile(const QString &settingsFile, QString *error) {
         m_document = QJsonObject{
             {"format", "tsre-settings"},
             {"schemaVersion", 1},
+            {"createdBy", buildIdentity()},
+            {"catalog", buildIdentity()},
             {"profile", profile},
             {"groups", QJsonArray()},
             {"settings", QJsonArray()}
         };
         seedMissingDefinitions();
+        m_seededCatalogDifferences = 0;
         rebuildIndex();
         m_issues = SettingsValidator::validateDocument(m_document, m_registry);
         if (SettingsValidator::hasErrors(m_issues)) {
@@ -131,7 +161,7 @@ bool SettingsManager::loadFile(const QString &settingsFile, QString *error) {
         m_issues = SettingsValidator::validateDocument(m_document, m_registry);
         // Per-setting errors remain loadable so the editor can expose and repair them.
         // Only structural errors above prevent indexing the document safely.
-        seedMissingDefinitions();
+        m_seededCatalogDifferences = seedMissingDefinitions();
         rebuildIndex();
         m_issues = SettingsValidator::validateDocument(m_document, m_registry);
     }
@@ -217,6 +247,163 @@ bool SettingsManager::hasExternalChange() const {
     if (m_settingsFile.isEmpty() || m_loadedHash.isEmpty() || !QFileInfo::exists(m_settingsFile))
         return false;
     return currentFileHash() != m_loadedHash;
+}
+
+QString SettingsManager::currentCatalogApplication() {
+    // This deliberately identifies the settings catalogue rather than the
+    // window title. Forks should give their catalogue a distinct stable ID.
+    return QStringLiteral("TSRE5vc");
+}
+
+QString SettingsManager::currentCatalogVersion() {
+    return QStringLiteral(TSRE5_VERSION);
+}
+
+QString SettingsManager::catalogApplication() const {
+    return m_document.value("catalog").toObject().value("application").toString();
+}
+
+QString SettingsManager::catalogVersion() const {
+    return m_document.value("catalog").toObject().value("version").toString();
+}
+
+int SettingsManager::catalogDifferenceCount() const {
+    int differences = m_seededCatalogDifferences;
+
+    QHash<QString, QJsonObject> storedGroups;
+    for (const QJsonValue &entry : m_document.value("groups").toArray()) {
+        const QJsonObject group = entry.toObject();
+        storedGroups.insert(group.value("id").toString(), group);
+    }
+    const QStringList groupFields{"name", "description", "order"};
+    for (const SettingsGroupDefinition &definition : m_registry.groups()) {
+        const QJsonObject stored = storedGroups.value(definition.id);
+        const QJsonObject expected = definition.toJson();
+        if (stored.isEmpty()) {
+            ++differences;
+            continue;
+        }
+        if (fieldsDiffer(stored, expected, groupFields))
+            ++differences;
+
+        QHash<QString, QJsonObject> storedSubgroups;
+        for (const QJsonValue &entry : stored.value("subgroups").toArray()) {
+            const QJsonObject subgroup = entry.toObject();
+            storedSubgroups.insert(subgroup.value("id").toString(), subgroup);
+        }
+        for (const SettingsSubgroupDefinition &subgroup : definition.subgroups) {
+            const QJsonObject storedSubgroup = storedSubgroups.value(subgroup.id);
+            if (storedSubgroup.isEmpty()
+                    || fieldsDiffer(storedSubgroup, subgroup.toJson(), groupFields))
+                ++differences;
+        }
+    }
+
+    for (const SettingsDefinition &definition : m_registry.definitions()) {
+        const QJsonObject stored = settingObject(definition.key);
+        if (stored.isEmpty()) {
+            ++differences;
+            continue;
+        }
+        // Type conversion is a migration problem, not a safe metadata refresh.
+        // The validator already reports it as an error.
+        if (stored.value("type").toString() != settingTypeName(definition.type))
+            continue;
+        if (fieldsDiffer(stored, definition.toJson(), settingDefinitionFields()))
+            ++differences;
+    }
+    return differences;
+}
+
+bool SettingsManager::updateRegisteredDefinitions(int *updatedCount, QString *error) {
+    Q_UNUSED(error);
+    int updated = m_seededCatalogDifferences;
+
+    QJsonArray groups = m_document.value("groups").toArray();
+    for (const SettingsGroupDefinition &definition : m_registry.groups()) {
+        for (int i = 0; i < groups.size(); ++i) {
+            QJsonObject stored = groups.at(i).toObject();
+            if (stored.value("id").toString() != definition.id)
+                continue;
+            const QJsonObject expected = definition.toJson();
+            bool changed = false;
+            for (const QString &field : QStringList{"name", "description", "order"}) {
+                if (stored.contains(field) != expected.contains(field)
+                        || stored.value(field) != expected.value(field)) {
+                    if (expected.contains(field))
+                        stored.insert(field, expected.value(field));
+                    else
+                        stored.remove(field);
+                    changed = true;
+                }
+            }
+
+            QJsonArray subgroups = stored.value("subgroups").toArray();
+            for (const SettingsSubgroupDefinition &subgroupDefinition : definition.subgroups) {
+                const QJsonObject expectedSubgroup = subgroupDefinition.toJson();
+                int storedIndex = -1;
+                for (int j = 0; j < subgroups.size(); ++j) {
+                    if (subgroups.at(j).toObject().value("id").toString()
+                            == subgroupDefinition.id) {
+                        storedIndex = j;
+                        break;
+                    }
+                }
+                if (storedIndex < 0) {
+                    subgroups.append(expectedSubgroup);
+                    changed = true;
+                    continue;
+                }
+                QJsonObject storedSubgroup = subgroups.at(storedIndex).toObject();
+                if (fieldsDiffer(storedSubgroup, expectedSubgroup,
+                                 QStringList{"name", "description", "order"})) {
+                    storedSubgroup["name"] = expectedSubgroup.value("name");
+                    storedSubgroup["description"] = expectedSubgroup.value("description");
+                    storedSubgroup["order"] = expectedSubgroup.value("order");
+                    subgroups.replace(storedIndex, storedSubgroup);
+                    changed = true;
+                }
+            }
+            stored["subgroups"] = subgroups;
+            if (changed) {
+                groups.replace(i, stored);
+                ++updated;
+            }
+            break;
+        }
+    }
+    m_document["groups"] = groups;
+
+    QJsonArray settings = m_document.value("settings").toArray();
+    for (const SettingsDefinition &definition : m_registry.definitions()) {
+        const auto it = m_index.constFind(definition.key);
+        if (it == m_index.constEnd())
+            continue; // Normally seeded during load.
+        QJsonObject stored = settings.at(it.value()).toObject();
+        const QJsonObject expected = definition.toJson();
+        if (stored.value("type").toString() != expected.value("type").toString())
+            continue;
+        if (!fieldsDiffer(stored, expected, settingDefinitionFields()))
+            continue;
+        for (const QString &field : settingDefinitionFields()) {
+            if (expected.contains(field))
+                stored.insert(field, expected.value(field));
+            else
+                stored.remove(field);
+        }
+        settings.replace(it.value(), stored);
+        ++updated;
+    }
+    m_document["settings"] = settings;
+    m_document["catalog"] = buildIdentity();
+    m_seededCatalogDifferences = 0;
+    rebuildIndex();
+    m_issues = SettingsValidator::validateDocument(m_document, m_registry);
+    m_modified = true;
+    if (updatedCount)
+        *updatedCount = updated;
+    emit settingsChanged();
+    return true;
 }
 
 QJsonObject SettingsManager::document() const { return m_document; }
@@ -537,7 +724,8 @@ void SettingsManager::rebuildIndex() {
     }
 }
 
-void SettingsManager::seedMissingDefinitions() {
+int SettingsManager::seedMissingDefinitions() {
+    int added = 0;
     QJsonArray groups = m_document.value("groups").toArray();
     QSet<QString> groupIds;
     for (const QJsonValue &entry : groups)
@@ -547,6 +735,7 @@ void SettingsManager::seedMissingDefinitions() {
             groups.append(group.toJson());
             groupIds.insert(group.id);
             m_modified = true;
+            ++added;
         } else if (!group.subgroups.isEmpty()) {
             // Preserve profile-owned group metadata, but seed newly registered
             // subgroup definitions so an older profile can display new sections.
@@ -563,6 +752,7 @@ void SettingsManager::seedMissingDefinitions() {
                         subgroups.append(subgroup.toJson());
                         subgroupIds.insert(subgroup.id);
                         m_modified = true;
+                        ++added;
                     }
                 }
                 stored["subgroups"] = subgroups;
@@ -579,9 +769,11 @@ void SettingsManager::seedMissingDefinitions() {
         if (!m_index.contains(definition.key)) {
             settings.append(definition.toJson());
             m_modified = true;
+            ++added;
         }
     }
     m_document["settings"] = settings;
+    return added;
 }
 
 bool SettingsManager::setLaunchOverrides(const QHash<QString, QString> &overrides,

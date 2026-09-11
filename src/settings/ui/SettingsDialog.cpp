@@ -38,6 +38,7 @@
 #include <QTabWidget>
 #include <QToolButton>
 #include <QUrl>
+#include <QVersionNumber>
 #include <QVBoxLayout>
 #include <algorithm>
 
@@ -166,6 +167,33 @@ SettingsDialog::SettingsDialog(SettingsManager *manager, QWidget *parent)
         m_search->addAction(searchIcon, QLineEdit::LeadingPosition);
     profileRow->addWidget(m_search, 1);
     layout->addLayout(profileRow);
+
+    m_catalogBanner = new QWidget;
+    m_catalogBanner->setObjectName("settings-catalog-banner");
+    m_catalogBanner->setStyleSheet(QString(
+        "QWidget#settings-catalog-banner { border: 1px solid %1; }")
+        .arg(Game::StyleMainLabel));
+    m_catalogBanner->setAutoFillBackground(true);
+    QPalette bannerPalette = m_catalogBanner->palette();
+    bannerPalette.setColor(QPalette::Window,
+                           bannerPalette.color(QPalette::AlternateBase));
+    m_catalogBanner->setPalette(bannerPalette);
+    auto *catalogLayout = new QHBoxLayout(m_catalogBanner);
+    catalogLayout->setContentsMargins(8, 5, 5, 5);
+    m_catalogMessage = new QLabel;
+    m_catalogMessage->setWordWrap(true);
+    catalogLayout->addWidget(m_catalogMessage, 1);
+    auto *updateCatalog = new QPushButton(tr("Update"));
+    updateCatalog->setObjectName("update-settings-catalog");
+    auto *hideCatalog = new QPushButton(tr("Hide"));
+    hideCatalog->setObjectName("hide-settings-catalog");
+    catalogLayout->addWidget(updateCatalog);
+    catalogLayout->addWidget(hideCatalog);
+    layout->addWidget(m_catalogBanner);
+    connect(updateCatalog, &QPushButton::clicked,
+            this, &SettingsDialog::updateStoredDefinitions);
+    connect(hideCatalog, &QPushButton::clicked,
+            this, &SettingsDialog::hideCatalogMessage);
 
     m_tabs = new QTabWidget;
     layout->addWidget(m_tabs, 1);
@@ -449,6 +477,7 @@ void SettingsDialog::rebuild() {
     m_applyRuntime->setToolTip(isViewingUsedProfile()
             ? tr("Apply the editor values to this running TSRE session without saving them.")
             : tr("Only the profile used to start this TSRE session can be applied."));
+    updateCatalogBanner();
 
     QHash<QString, QVBoxLayout *> groupLayouts;
     QHash<QString, QVBoxLayout *> sectionLayouts;
@@ -835,6 +864,80 @@ bool SettingsDialog::hasEditorChanges() const {
 bool SettingsDialog::isViewingUsedProfile() const {
     return QDir::cleanPath(QFileInfo(m_manager->settingsFilePath()).absoluteFilePath())
             .compare(m_usedProfileFile, Qt::CaseInsensitive) == 0;
+}
+
+void SettingsDialog::updateCatalogBanner() {
+    const QString profile = QDir::cleanPath(
+                QFileInfo(m_manager->settingsFilePath()).absoluteFilePath()).toLower();
+    const int differences = m_manager->catalogDifferenceCount();
+    if (differences <= 0 || m_hiddenCatalogMessages.contains(profile)) {
+        m_catalogBanner->hide();
+        return;
+    }
+
+    QString message = tr("Stored setting definitions differ from this TSRE build.");
+    const QString sourceApplication = m_manager->catalogApplication();
+    const QString sourceVersion = m_manager->catalogVersion();
+    const QString currentApplication = SettingsManager::currentCatalogApplication();
+    const QString currentVersion = SettingsManager::currentCatalogVersion();
+    if (sourceApplication.isEmpty()) {
+        const QJsonObject createdBy = m_manager->document().value("createdBy").toObject();
+        const QString creator = createdBy.value("application").toString();
+        const QString version = createdBy.value("version").toString();
+        if (!creator.isEmpty())
+            message += tr(" The profile was created by %1 %2, but its last definition source is unknown.")
+                    .arg(creator, version);
+        else
+            message += tr(" The source build is unknown.");
+    } else if (sourceApplication != currentApplication) {
+        message += tr(" They were last updated by %1 %2, which may be another fork.")
+                .arg(sourceApplication, sourceVersion);
+    } else if (!sourceVersion.isEmpty() && sourceVersion != currentVersion) {
+        auto parsedVersion = [](QString text) {
+            if (text.startsWith('v', Qt::CaseInsensitive))
+                text.remove(0, 1);
+            return QVersionNumber::fromString(text);
+        };
+        const QVersionNumber stored = parsedVersion(sourceVersion);
+        const QVersionNumber current = parsedVersion(currentVersion);
+        if (!stored.isNull() && !current.isNull() && stored < current) {
+            message += tr(" They were last updated by the older %1 %2 build.")
+                    .arg(sourceApplication, sourceVersion);
+        } else if (!stored.isNull() && !current.isNull() && stored > current) {
+            message += tr(" They were last updated by the newer %1 %2 build.")
+                    .arg(sourceApplication, sourceVersion);
+        } else {
+            message += tr(" They were last updated by %1 %2.")
+                    .arg(sourceApplication, sourceVersion);
+        }
+    }
+    message += tr(" %1 registered definition(s) can be updated without changing their values.")
+            .arg(differences);
+    m_catalogMessage->setText(message);
+    m_catalogBanner->show();
+}
+
+void SettingsDialog::updateStoredDefinitions() {
+    QString error;
+    if (!applyEditors(&error)) {
+        showError(tr("Cannot update setting definitions"), error);
+        return;
+    }
+    int updated = 0;
+    if (!m_manager->updateRegisteredDefinitions(&updated, &error)) {
+        showError(tr("Cannot update setting definitions"), error);
+        return;
+    }
+    rebuild();
+    m_statusLabel->setText(tr("Updated %1 stored definition(s) | unsaved changes")
+                           .arg(updated));
+}
+
+void SettingsDialog::hideCatalogMessage() {
+    const QString profile = QDir::cleanPath(
+                QFileInfo(m_manager->settingsFilePath()).absoluteFilePath()).toLower();
+    m_hiddenCatalogMessages.insert(profile);
+    m_catalogBanner->hide();
 }
 
 void SettingsDialog::saveProfile() {
