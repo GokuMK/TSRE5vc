@@ -19,6 +19,8 @@
 #include <tsre/math3d/Vector2f.h>
 
 #include <tsre/world/TerrainLib.h>
+#include <tsre/world/TerrainSeason.h>
+#include <QDir>
 #include <QOpenGLShaderProgram>
 #include <tsre/Game.h>
 #include <tsre/fileFunctions/TS.h>
@@ -268,18 +270,10 @@ void TransferObj::drawShape(bool pushToQueue, quint32 selectionId) {
         if (!init && !Game::ignoreLoadLimits) Game::objectLoadingTokens-=2;
         box.deleteVBO();
         if (!vertices.isEmpty() || !holeVertices.isEmpty()) {
-            const int esdAlternativeTexture=0x01;
-            QString seasonPath;
-            if ((esdAlternativeTexture & Game::TextureFlags[Game::season]) != 0)
-                seasonPath=Game::season.toLower()+"/";
-            if (Game::season=="Winter" || Game::season=="AutumnSnow"
-                    || Game::season=="WinterSnow" || Game::season=="SpringSnow") {
-                if ((esdAlternativeTexture & Game::TextureFlags["Snow"]) != 0
-                        || (esdAlternativeTexture & Game::TextureFlags["SnowTrack"]) != 0)
-                    seasonPath="snow/";
-            }
             if (!texturePath) texturePath=new QString;
-            *texturePath=resPath.toLower()+"/"+seasonPath+texture.toLower();
+            *texturePath=TerrainSeason::resolve(resPath, Game::season, texture);
+            if (texturePath->isEmpty())
+                *texturePath=QDir(resPath).filePath(texture);
         }
         if (vertices.isEmpty()) shape.deleteVBO();
         else {

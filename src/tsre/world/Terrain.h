@@ -206,6 +206,10 @@ public slots:
     void menuSelectObjects();
     
 protected:
+    void configureTerrainSeason();
+    int loadTerrainTexture(const QString &filename);
+    bool preparePaintTexture(int patch, const QString &filename);
+    QHash<QString, QString> terrainTextureSources;
     std::shared_ptr<TerrainProceduralState> procedural;
     QString proceduralVariant = "Base";
     void configureProceduralSeason();

@@ -73,8 +73,6 @@ void TerrainClient::loadFFile(FileBuffer *data){
 }
 
 void TerrainClient::load(){
-    int esdAlternativeTexture = 0x01;
-    QString seasonPath;
     QString path;
     
     switch(loadingProgress){
@@ -99,19 +97,7 @@ void TerrainClient::load(){
                 VAO = new QOpenGLVertexArrayObject();
             }
 
-            esdAlternativeTexture = 0x01;
-            if((esdAlternativeTexture & Game::TextureFlags[Game::season]) != 0)
-                seasonPath = Game::season.toLower() + "/";
-
-            if(Game::season == "Winter" || Game::season == "AutumnSnow" || Game::season == "WinterSnow" || Game::season == "SpringSnow" ){
-                if(esdAlternativeTexture & Game::TextureFlags["Snow"] != 0)
-                    seasonPath = "snow/";
-                if(esdAlternativeTexture & Game::TextureFlags["SnowTrack"] != 0)
-                    seasonPath = "snow/";
-            }
-
-            texturepath = Game::root + "/routes/" + Game::route + "/terrtex/"+seasonPath;
-            rootTexturepath = Game::root + "/routes/" + Game::route + "/terrtex/";
+            configureTerrainSeason();
             path = Game::root + "/routes/" + Game::route + "/" + TileDir[(int)lowTile] + "/";
 
             Game::serverClient->sendUtf16Message("request_terrain_tfile( "+QString::number(mojex)+" "+QString::number(mojez)+" )");

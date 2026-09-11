@@ -41,6 +41,12 @@
 namespace {
 class TestTerrain : public Terrain {
 public:
+    using Terrain::configureTerrainSeason;
+    using Terrain::loadTerrainTexture;
+    using Terrain::preparePaintTexture;
+    QString writeTextureDirectory() const { return texturepath; }
+    void patchTexture(int patch, int id) { texid[patch] = id; }
+    int patchTexture(int patch) const { return texid[patch]; }
     TFile &descriptor() { return *tfile; }
     QByteArray staticDescriptorBytes() {
         QScopedValueRollback<QString> reference(tfile->sampleMaterialBuffer,QString());
@@ -154,6 +160,63 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
         check(TerrainSeason::resolve(sources.path(),"Snow","absent.ace",false).isEmpty(),"season-missing-base-safe-failure");
         const auto all=TerrainSeason::available(sources.path());
         check(all==QStringList({"Base","Snow","Spring","AutumnRain"}),"season-all-discovers-existing-directories-without-aliases");
+    }
+    {
+        QTemporaryDir route;
+        QScopedValueRollback<QString> root(Game::root, route.path());
+        QScopedValueRollback<QString> routeName(Game::route, QString("season-test"));
+        QScopedValueRollback<QString> season(Game::season, QString("SpringRain"));
+        QScopedValueRollback<bool> writes(Game::writeEnabled, true);
+        QScopedValueRollback<bool> caseSensitive(Game::caseInsensitiveFS, false);
+        const QString textures = route.path()+"/routes/season-test/terrtex";
+        QDir().mkpath(textures+"/spring");
+        auto fixture=[&](const QString &path) {
+            auto *texture=new Texture(2,2,24);
+            texture->pathid=path;
+            const int id=TexLib::addTex(texture);
+            TexLib::save("ace",path,id);
+            return id;
+        };
+        const int dry=fixture(textures+"/spring/soil.ace");
+        const int base=fixture(textures+"/detail.ace");
+        TestTerrain tile;
+        tile.setup(textures,16,"season-test");
+        tile.configureTerrainSeason();
+        check(tile.loadTerrainTexture("soil.ace")==dry
+              && tile.loadTerrainTexture("detail.ace")==base,
+              "static-terrain-resolves-each-texture-through-shared-fallback");
+        check(tile.writeTextureDirectory()==textures+"/springrain/"
+              && !QDir(textures+"/springrain").exists(),
+              "static-terrain-load-does-not-create-seasonal-files");
+        tile.patchTexture(0,dry);
+        check(tile.preparePaintTexture(0,"soil.ace") && tile.patchTexture(0)!=dry,
+              "static-seasonal-paint-clones-dry-fallback");
+        auto *painted=TexLib::mtex[tile.patchTexture(0)];
+        painted->imageData[0]=17;
+        check(TexLib::mtex[dry]->imageData[0]==255
+              && painted->pathid==textures+"/springrain/soil.ace",
+              "static-seasonal-paint-preserves-shared-source-pixels-and-path");
+        const int first=tile.patchTexture(0);
+        check(tile.preparePaintTexture(0,"soil.ace") && tile.patchTexture(0)==first,
+              "static-seasonal-paint-does-not-reclone-on-every-stroke");
+        TexLib::save("ace",painted->pathid,first);
+        QString loadError;
+        Texture saved(painted->pathid);
+        AceLib::load(painted->pathid,saved,AceLoadOptions{},loadError);
+        check(saved.loaded && saved.decodeToCpu() && saved.imageData[0]==17,
+              "static-seasonal-paint-save-reloads-from-selected-directory");
+        Texture original(textures+"/spring/soil.ace");
+        AceLib::load(original.pathid,original,AceLoadOptions{},loadError);
+        check(original.loaded && original.decodeToCpu() && original.imageData[0]==255,
+              "static-seasonal-save-keeps-source-file-unchanged");
+        Game::writeEnabled=false;
+        tile.patchTexture(1,base);
+        check(!tile.preparePaintTexture(1,"detail.ace") && tile.patchTexture(1)==base,
+              "static-seasonal-paint-respects-write-disable");
+        Game::season="Winter"; tile.configureTerrainSeason();
+        check(tile.writeTextureDirectory()==textures+"/winter/"
+              && tile.loadTerrainTexture("detail.ace")==base,
+              "static-winter-is-snow-free-with-base-fallback");
     }
     {
         TFile original,decoded;

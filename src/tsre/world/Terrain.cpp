@@ -17,6 +17,8 @@
 #include <tsre/Game.h>
 #include <QFile>
 #include <QFileInfo>
+#include <QDir>
+#include <tsre/world/TerrainSeason.h>
 #include <QOpenGLExtraFunctions>
 #include <tsre/fileFunctions/ReadFile.h>
 #include <tsre/texture/TexLib.h>
@@ -97,20 +99,7 @@ void Terrain::load(){
         VAO = new QOpenGLVertexArrayObject();
     }
 
-    int esdAlternativeTexture = 0x01;
-    QString seasonPath;
-    if((esdAlternativeTexture & Game::TextureFlags[Game::season]) != 0)
-        seasonPath = Game::season.toLower() + "/";
-
-    if(Game::season == "Winter" || Game::season == "AutumnSnow" || Game::season == "WinterSnow" || Game::season == "SpringSnow" ){
-        if(esdAlternativeTexture & Game::TextureFlags["Snow"] != 0)
-            seasonPath = "snow/";
-        if(esdAlternativeTexture & Game::TextureFlags["SnowTrack"] != 0)
-            seasonPath = "snow/";
-    }
-    
-    texturepath = Game::root + "/routes/" + Game::route + "/terrtex/"+seasonPath;
-    rootTexturepath = Game::root + "/routes/" + Game::route + "/terrtex/";
+    configureTerrainSeason();
     QString path = Game::root + "/routes/" + Game::route + "/" + TileDir[(int)lowTile] + "/";
     tfile = new TFile();
 
@@ -151,13 +140,6 @@ void Terrain::load(){
             if (name2 == *tfile->materials[(int) tfile->tdata[(y * patches + u)*13 + 0 + 6]].tex[0])
                 this->uniqueTex[y*patches+u] = true;
             
-            if(Game::seasonalEditing && Game::season.length() > 0 && !usesProceduralMaterial()){
-                // copy missing season textures
-                QFile file(texturepath + *tfile->materials[(int) tfile->tdata[(y * patches + u)*13 + 0 + 6]].tex[0]);
-                if (!file.exists()){
-                    QFile::copy(rootTexturepath + *tfile->materials[(int) tfile->tdata[(y * patches + u)*13 + 0 + 6]].tex[0], texturepath + *tfile->materials[(int) tfile->tdata[(y * patches + u)*13 + 0 + 6]].tex[0]);
-                }
-            }
         }
     
     loadProceduralMaterial(path);
@@ -632,6 +614,52 @@ void Terrain::initializePatchBounds() {
     patchBoundsDirty.fill(0, count);
     for (int patchId = 0; patchId < count; ++patchId)
         patchBounds[patchId] = calculatePatchBounds(patchId);
+}
+
+void Terrain::configureTerrainSeason() {
+    terrainTextureSources.clear();
+    rootTexturepath = Game::root + "/routes/" + Game::route + "/terrtex/";
+    QString variant = TerrainSeason::canonical(Game::season);
+    if (variant.isEmpty()) variant = "Base";
+    // Write destination, not necessarily the source of a fallback texture.
+    texturepath = TerrainSeason::directory(rootTexturepath, variant) + "/";
+}
+
+int Terrain::loadTerrainTexture(const QString &filename) {
+    auto entry = terrainTextureSources.constFind(filename);
+    if (entry == terrainTextureSources.cend()) {
+        terrainTextureSources.insert(filename,
+                TerrainSeason::resolve(rootTexturepath, Game::season, filename));
+        entry = terrainTextureSources.constFind(filename);
+    }
+    const QString &source = entry.value();
+    // Retain the normal missing-texture placeholder/cache behavior when absent.
+    return source.isEmpty() ? TexLib::addTex(texturepath, filename)
+                            : TexLib::addTex(QFileInfo(source).path(), QFileInfo(source).fileName());
+}
+
+bool Terrain::preparePaintTexture(int patch, const QString &filename) {
+    if (!Game::writeEnabled) return false;
+    Texture *source = TexLib::mtex[texid[patch]];
+    if (!source || !source->loaded || source->error || source->missing) return false;
+    const QString target = QDir(texturepath).filePath(filename);
+    if (!QDir().mkpath(QFileInfo(target).absolutePath())) return false;
+    const Qt::CaseSensitivity sensitivity = Game::caseInsensitiveFS
+            ? Qt::CaseInsensitive : Qt::CaseSensitive;
+    if (QFileInfo(source->pathid).absoluteFilePath().compare(
+                QFileInfo(target).absoluteFilePath(), sensitivity) != 0) {
+        // Do not edit the shared base/dry/snow fallback, even when this patch
+        // already owns a unique filename. Clone only at the first actual edit.
+        const int cloned = TexLib::cloneTex(texid[patch]);
+        if (cloned < 0) return false;
+        if (!TexLib::mtex[cloned]->loaded || TexLib::mtex[cloned]->error) {
+            TexLib::delRef(cloned);
+            return false;
+        }
+        texid[patch] = cloned;
+        TexLib::mtex[cloned]->pathid = target;
+    }
+    return true;
 }
 
 static void uploadTerrainBaseTexture(Texture *texture, bool baked) {
@@ -2115,6 +2143,7 @@ void Terrain::paintTextureOnTile(Brush* brush, int y, int u, float x, float z) {
         //TexLib::save("ace", texturepath+name, texid[y * 16 + u]);
         //TexLib::mtex[texid[y * 16 + u]]->GLTextures();
     }
+    if (!preparePaintTexture(y * patches + u, name)) return;
     convertTexToDefaultCoords(y * patches + u);
 
     TexLib::mtex[texid[y * patches + u]]->sendToUndo(texid[y * patches + u]);
@@ -2225,7 +2254,7 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
                                 texid[yy * patches + uu] = -2;
                                 return;
                             } else {
-                                texid[yy * patches + uu] = TexLib::addTex(texturepath, *tfile->materials[shaderId].tex[0]);
+                                texid[yy * patches + uu] = loadTerrainTexture(*tfile->materials[shaderId].tex[0]);
                             }//System.out.println(tfile.materials[tfile.tdata[uu*16+yy]].tex[0]);
                             //texid = TexLib.addTex(texturepath,"nasyp-k.ace", gl);
                             //    gl.glDisable(GL2.GL_TEXTURE_2D);
@@ -2240,7 +2269,7 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
                     if (!bakedFallback && proceduralId<0 && shaderId==0 && !tfile->bakedMaterialInfo.isEmpty()
                             && tfile->materials[0].count153>=2 && tfile->materials[0].tex[1]) {
                         if (texid2[patchId]==-1)
-                            texid2[patchId]=TexLib::addTex(texturepath,*tfile->materials[0].tex[1]);
+                            texid2[patchId]=loadTerrainTexture(*tfile->materials[0].tex[1]);
                         const auto detail=TexLib::mtex.find(texid2[patchId]);
                         if (detail!=TexLib::mtex.end() && detail->second && detail->second->loaded) {
                             if (!detail->second->glLoaded) detail->second->GLTextures(true);
@@ -2256,7 +2285,7 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
                             if (shaderId < 0)
                                 texid[yy * patches + uu] = -2;
                             else
-                                texid2[yy * patches + uu] = TexLib::addTex(texturepath, *tfile->materials[shaderId].tex[1]);
+                                texid2[yy * patches + uu] = loadTerrainTexture(*tfile->materials[shaderId].tex[1]);
                         }
                         if (TexLib::mtex[texid2[yy * patches + uu]]->loaded) {
                             if (!TexLib::mtex[texid2[yy * patches + uu]]->glLoaded)
@@ -2605,7 +2634,7 @@ void Terrain::render(float lodx, float lodz, int tileX, int tileY, float* player
                                 texid[yy * patches + uu] = -2;
                                 return;
                             } else {
-                                texid[yy * patches + uu] = TexLib::addTex(texturepath, *tfile->materials[shaderId].tex[0]);
+                                texid[yy * patches + uu] = loadTerrainTexture(*tfile->materials[shaderId].tex[0]);
                             }//System.out.println(tfile.materials[tfile.tdata[uu*16+yy]].tex[0]);
                             //texid = TexLib.addTex(texturepath,"nasyp-k.ace", gl);
                             //    gl.glDisable(GL2.GL_TEXTURE_2D);
@@ -2641,7 +2670,7 @@ void Terrain::render(float lodx, float lodz, int tileX, int tileY, float* player
                             if (shaderId < 0)
                                 texid[yy * patches + uu] = -2;
                             else
-                                texid2[yy * patches + uu] = TexLib::addTex(texturepath, *tfile->materials[shaderId].tex[1]);
+                                texid2[yy * patches + uu] = loadTerrainTexture(*tfile->materials[shaderId].tex[1]);
                         }
                         if (TexLib::mtex[texid2[yy * patches + uu]]->loaded) {
                             if (!TexLib::mtex[texid2[yy * patches + uu]]->glLoaded)

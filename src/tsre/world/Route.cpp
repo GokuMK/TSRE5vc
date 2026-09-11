@@ -73,7 +73,7 @@
 
 namespace {
 void snapshotRouteSettings() {
-    Game::season = Settings::string("core.startup.season");
+    Game::season = Settings::string("core.startup.season", SettingType::Enum);
     Game::soundEnabled = Settings::boolean("core.system.soundEnabled");
     Game::snapableOnlyRot = Settings::boolean("core.track.snapRotationOnly");
     Game::snapableRadius = float(Settings::floating("core.track.snapRadius"));

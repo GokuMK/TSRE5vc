@@ -20,9 +20,35 @@ The fixed microtexture and material-picker thumbnails use the same resolver.
 Lookup is case-insensitive and prefers DDS over ACE within each directory.
 Directory checks happen during loading, choosing, or saving, not per frame.
 
-Static terrain and shapes retain their previous alternative-texture rules.
-In particular, procedural dry Winter is different from legacy winter, which
-selects snow. Keep Base and Snow bakes for legacy consumers.
+Static terrain (detailed and distant, both rendering backends and the network
+client) and transfers now use the same per-file seasonal resolver. Primary and
+detail textures may independently fall back to different directories. Plain
+Winter is snow-free in TSRE terrain; retain Base and Snow bakes for legacy
+MSTS/ORTS consumers, whose lookup behavior is unchanged.
+
+Shapes retain their existing `.sd` alternative-texture flags and seasonal
+behavior. Rain textures for shapes are deferred; no new flag bits or implicit
+rain-directory lookup have been added for shapes.
+
+## Season setting and static editing
+
+`core.startup.season` is a string-backed enum shown as a dropdown: Default,
+the four seasons and each season's Rain/Snow variants. Existing `Base`, `Default`
+and `Snow` aliases remain selectable for profile compatibility. Unlike the bake
+dialog, this startup dropdown is not filtered by the current route's directories.
+Changing it requires reloading the route.
+
+Old free-string entries migrate in memory to the enum, normalizing the case of
+recognized values. Unknown text is retained for explicit correction in the
+settings editor. Migration is persisted on settings save through the normal
+backup/write path, not by silently overwriting the profile on load.
+
+Static texture lookup does not create seasonal files. On the first paint edit
+of a fallback texture, TSRE clones its pixels into a separate texture targeting
+the selected variant directory, creating that directory when necessary. Later
+strokes reuse that copy. Saving writes it there, never back into the base/dry/
+common-snow source. Existing seasonal-editing restrictions on changing patch
+materials remain; this change does not introduce seasonal raw-heightmap rules.
 
 ## Saving and batch baking
 

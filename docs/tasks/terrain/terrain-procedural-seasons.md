@@ -6,7 +6,7 @@ Settings work was committed as `fd0e8fa`.
 
 ## Implementation entry points
 
-- `TerrainSeason.cpp`: centralized procedural-only directory/fallback policy.
+- `TerrainSeason.cpp`: centralized terrain/transfer directory/fallback policy.
 - `TFileBakeMetadata.cpp`: bounded version-2 metadata reader/writer. The previous
   string field remains an internal runtime cache-identity adapter, not the new
   on-disk representation; freshness comes from the named seasonal records.
@@ -60,8 +60,36 @@ executable verification of every MSTS variant.
 TSRE procedural terrain will deliberately support snow-free winter and rain
 variants beyond that legacy behavior. `Winter` uses winter; `WinterSnow` uses
 snow. Legacy applications continue selecting the snow bake throughout winter;
-additional directories do not change their lookup behavior. Do not globally
-change static terrain/shape season semantics as an incidental part of this task.
+additional directories do not change their lookup behavior. The initial task
+left static terrain/shapes unchanged. A subsequently approved follow-up now
+aligns static terrain and transfers with this resolver; shapes remain unchanged.
+
+## Follow-up: season dropdown and mixed static/procedural terrain
+
+Implemented after the original procedural milestone:
+
+- String-backed startup season dropdown, including all Rain/Snow variants and
+  existing aliases. Explicit old-string migration preserves recognized values
+  and keeps unknown values visible for repair. Route reload is required.
+- Static primary/detail textures resolve separately through `TerrainSeason`,
+  in both terrain render paths and the multiplayer terrain client.
+- Transfers resolve textures through the same policy; shapes keep existing
+  alternative flags. Shape rain support is deliberately deferred.
+- No eager seasonal texture copies on load. Painting clones a fallback texture
+  on first use and saves into the selected directory without changing the
+  shared fallback pixels or file.
+- Settings and terrain-material regression suites cover migration, per-file
+  lookup, snow-free Winter and fallback paint/save isolation. Interactive mixed
+  route/seasonal painting acceptance remains for the user.
+
+Follow-up verification (2026-09-11): Release build succeeded;
+`--test --test-suite settings` passed 117 checks;
+`--test --test-suite terrain-material` passed 542 checks;
+`--test --test-suite transfer-depth-gl` passed 44 checks;
+`--test --test-suite terrain-material-gl` reported zero failures on AMD Custom
+GPU 0932. Fixtures use temporary directories; no user route data was modified.
+Static source-path decisions are cached per tile/filename until reload to avoid
+repeating directory scans for every patch sharing a texture.
 
 ## Variant and source lookup rules
 
@@ -228,8 +256,9 @@ of current seasonal rendering support or in-app visual acceptance.
 
 ### Code and acceptance
 
-- `Terrain.cpp`: currently hardcodes Snow mask for texturepath; preserve legacy
-  static behavior while separating procedural source/output resolution.
+- `Terrain.cpp`: the initial implementation preserved the legacy static Snow
+  mask. The approved shared-season follow-up above replaces it with per-file
+  resolution; the write destination remains separate from fallback sources.
 - `TerrainProceduralMaterial.cpp`: `loadSource`, `ensureSource`, bake loading,
   settings signatures, miniature/cache keys, save rollback and undo snapshots.
   Remove base-season conversion/baking guards only once the replacement works.

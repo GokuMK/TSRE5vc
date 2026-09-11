@@ -49,6 +49,7 @@ implement them; deferred designs are not blockers for the working terrain tools.
 - [x] [Procedural undo](terrain-procedural-materials.md#procedural-undo-follow-up): one deep ID-map snapshot per tile/action; existing two-second stroke segmentation; background level-1 compression; restore IDs, toggle/palette/UV state, not generated textures. Region deltas remain an alternative.
 - [x] [Procedural settings JSON/editor](../../features/terrain-procedural-settings.md): master enable switch, detail distance, output sizes and optional debug/restore validation. Boundary sampling belongs to material definitions, not global settings.
 - [x] [Procedural seasons and route-wide baking](terrain-procedural-seasons.md): directory fallback, per-variant records, CLI and route-filtered Settings-menu dialog; automated checks passed and user confirmed seasonal visual acceptance.
+- [x] [Shared terrain seasons and startup dropdown](../../features/terrain-procedural-seasons.md#season-setting-and-static-editing): static terrain and transfers use the procedural fallback policy; seasonal painting protects fallback sources. Shape rain support remains deferred; this follow-up awaits interactive acceptance.
 - [ ] [Simple lookup migration](terrain-simple-lookup-migration.md): remove `TerrainLibSimple`, using synthetic no-TD lookup in the common backend.
 - [x] After separate approval, update procedural test/local-route tiles that use
   the three prototype SIMIS token IDs; no runtime compatibility aliases added.

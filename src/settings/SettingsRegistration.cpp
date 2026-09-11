@@ -151,8 +151,16 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
     ADD(SettingsDefinition::integer("core.startup.tileZ", 0)
             .withName("Startup tile Z").withDescription("World tile Z coordinate used for the initial Route Editor camera position; the legacy file calls it startTileY.").withRange(-32768, 32767, 1).inGroup("content").inSubgroup("routeStartup"),
         "startTileY", "Game::startTileY", "Game", false, "startup");
-    ADD(SettingsDefinition::string("core.startup.season", "")
-            .withName("Content season").withDescription("Season loaded on route startup: Summer (base), Spring, Autumn, Winter, their Rain/Snow variants, or Snow (WinterSnow). Procedural terrain supports all variants; static terrain and shapes retain their legacy alternative-texture rules.").inGroup("content").inSubgroup("routeStartup").asAdvanced(),
+    ADD(SettingsDefinition::string("core.startup.season", "", SettingType::Enum)
+            .withName("Content season").withDescription("Static/procedural terrain and transfers share seasonal texture fallback, including rain and snow-free Winter. Shapes retain their existing alternative-texture flags; rain textures for shapes are not implemented. Reload the route after changing season.")
+            .withOptions(choices({{"", "Default (base)"}, {"Spring", "Spring"},
+                {"Summer", "Summer"}, {"Autumn", "Autumn"}, {"Winter", "Winter"},
+                {"SpringRain", "Spring Rain"}, {"SummerRain", "Summer Rain"},
+                {"AutumnRain", "Autumn Rain"}, {"WinterRain", "Winter Rain"},
+                {"SpringSnow", "Spring Snow"}, {"SummerSnow", "Summer Snow"},
+                {"AutumnSnow", "Autumn Snow"}, {"WinterSnow", "Winter Snow"},
+                {"Snow", "Snow (alias)"}, {"Base", "Base (alias)"}, {"Default", "Default (alias)"}}))
+            .inGroup("content").inSubgroup("routeStartup").applies("routeReload").asAdvanced(),
         "season", "Game::season", "Route content session", true, "route-reload");
 
     order = 0;

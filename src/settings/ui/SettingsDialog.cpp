@@ -281,6 +281,12 @@ QWidget *SettingsDialog::createEditor(const QJsonObject &setting, Editor *record
         }
         const int selected = widget->findData(current);
         if (selected >= 0) widget->setCurrentIndex(selected);
+        else {
+            // Preserve invalid imported values until the user explicitly picks
+            // a replacement instead of silently displaying/saving option zero.
+            widget->addItem(tr("Unsupported value: %1").arg(current.toString()), current);
+            widget->setCurrentIndex(widget->count() - 1);
+        }
         record->value = [widget] { return widget->currentData(); };
         return widget;
     }

@@ -157,6 +157,30 @@ bool SettingsManager::loadFile(const QString &settingsFile, QString *error) {
         if (!isStructurallyLoadable(candidate, error))
             return false;
         m_document = candidate;
+        // Explicit migration: the startup season was formerly a free string.
+        // Preserve recognized values/aliases (normalizing case); retain unknown
+        // text as an invalid enum value for the editor to expose, not discard.
+        const auto *seasonDefinition = m_registry.definition("core.startup.season");
+        if (seasonDefinition && seasonDefinition->type == SettingType::Enum) {
+            QJsonArray settings = m_document.value("settings").toArray();
+            for (int i = 0; i < settings.size(); ++i) {
+                QJsonObject setting = settings[i].toObject();
+                if (setting.value("key").toString() != "core.startup.season"
+                        || setting.value("type").toString() != "string") continue;
+                const auto expected = seasonDefinition->toJson();
+                for (const QString &field : {QString("type"), QString("options"),
+                                            QString("description"), QString("apply")})
+                    setting[field] = expected.value(field);
+                QVariant normalized;
+                if (setting.value("value").isString()
+                        && parseRegisteredValue(seasonDefinition->key,
+                            setting.value("value").toString(), &normalized, nullptr))
+                    setting["value"] = QJsonValue::fromVariant(normalized);
+                settings[i] = setting;
+                m_modified = true;
+            }
+            m_document["settings"] = settings;
+        }
         rebuildIndex();
         m_issues = SettingsValidator::validateDocument(m_document, m_registry);
         // Per-setting errors remain loadable so the editor can expose and repair them.

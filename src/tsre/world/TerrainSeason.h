@@ -1,7 +1,7 @@
 #pragma once
 #include <QStringList>
 
-// Procedural-only policy; static terrain/shape alternatives remain unchanged.
+// Shared terrain/transfer texture policy. Shape alternative flags remain separate.
 namespace TerrainSeason {
 QString canonical(const QString &season);
 QStringList variants();

@@ -296,7 +296,7 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
         start = settings.runtimeBool("core.startup.useTilePosition") ? 2 : 0;
     integer("core.startup.tileX", startTileX);
     integer("core.startup.tileZ", startTileY);
-    string("core.startup.season", season);
+    string("core.startup.season", season, SettingType::Enum);
 
     boolean("core.startup.createMissingRoute", createNewRoutes);
     boolean("core.route.saving.enabled", writeEnabled);

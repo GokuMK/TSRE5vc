@@ -12,6 +12,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
+#include <QComboBox>
 #include <QClipboard>
 #include <QDebug>
 #include <QDir>
@@ -212,6 +213,48 @@ int TsreTests::runSettingsSuite(bool verbose) {
     const QString settingsFile = QDir(temporary.path()).filePath("profile/settings.json");
     QString error;
     check(manager.loadFile(settingsFile, &error), "registry-generates-profile");
+    {
+        const auto *season = manager.registry().definition("core.startup.season");
+        check(season && season->type==SettingType::Enum && season->options.size()==16
+              && season->defaultValue.toString().isEmpty() && season->apply=="routeReload",
+              "season-dropdown-has-all-variants-and-compatible-aliases");
+        for (const QString &value : {QString("springrain"),QString("Base"),QString("Snow"),QString("unrecognized-season")}) {
+            QJsonObject oldProfile=manager.document();
+            QJsonArray array=oldProfile.value("settings").toArray();
+            for (int i=0;i<array.size();++i) {
+                QJsonObject setting=array[i].toObject();
+                if (setting.value("key").toString()!="core.startup.season") continue;
+                setting["type"]="string"; setting["value"]=value; setting.remove("options");
+                array[i]=setting;
+            }
+            oldProfile["settings"]=array;
+            QFile oldFile(temporary.filePath("old-season.json"));
+            check(oldFile.open(QIODevice::WriteOnly),"old-season-profile-open");
+            oldFile.write(QJsonDocument(oldProfile).toJson()); oldFile.close();
+            SettingsManager upgraded; SettingsRegistration::registerAll(upgraded.registry());
+            check(upgraded.loadFile(oldFile.fileName(),&error)
+                  && upgraded.settingObject("core.startup.season").value("type")=="enum"
+                  && upgraded.settingObject("core.startup.season").value("value").toString()
+                     == (value=="springrain" ? QString("SpringRain") : value),
+                  "old-season-string-migrates-without-losing-value");
+            if (value!="unrecognized-season") {
+                SettingsProfileSelection selection;
+                selection.settingsFile=oldFile.fileName();
+                check(upgraded.save(&error) && upgraded.initialize(selection,&error)
+                      && upgraded.runtimeValue("core.startup.season").toString()
+                         == (value=="springrain" ? QString("SpringRain") : value),
+                      "migrated-season-saves-and-reloads");
+            } else {
+                check(!upgraded.save(&error),"unknown-season-kept-for-explicit-repair");
+                SettingsDialog dialog(&upgraded);
+                bool displayed=false;
+                for (auto *combo:dialog.findChildren<QComboBox*>())
+                    displayed |= combo->currentData().toString()==value
+                            && combo->currentText().contains("Unsupported value");
+                check(displayed,"unknown-season-is-visible-in-dropdown-until-corrected");
+            }
+        }
+    }
     check(QFile::exists(settingsFile) && manager.settingsArray().size() == 82,
           "generated-profile-has-catalogue");
     check(manager.document().value("createdBy").toObject().value("application").toString()
