@@ -12,6 +12,7 @@
 #define RENDERITEM_H
 
 #include <QSharedPointer>
+#include <QWeakPointer>
 #include <QVector>
 #include <QVector3D>
 
@@ -28,6 +29,8 @@ public:
     QOpenGLBuffer *VBO = 0;    
     QOpenGLVertexArrayObject *VAO = 0;    
     bool shared = false;
+    // Optional owner for cached packets retained by the gathered renderer.
+    QWeakPointer<RenderItem> cacheOwner;
     float *msMatrix = 0;
     float *mvMatrix = 0;
     QVector<float*> mvMatrixList;
@@ -37,6 +40,7 @@ public:
     float brightness = 1.0;
     unsigned int vertOffset = 0;
     unsigned int vertCount = 0;
+    static constexpr unsigned int Points = ~0u; // GL_POINTS is also the legacy default sentinel.
     unsigned int itemType = 0;
     unsigned int polygonMode = 0;
     bool indexed = false;

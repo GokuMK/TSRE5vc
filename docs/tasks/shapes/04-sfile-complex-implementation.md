@@ -1,15 +1,36 @@
 # Task 04 - New Shape File Implementation (`SFileComplex`)
 
-Status: class boundary accepted; ParserX review complete; implementation not started.
-Updated: 2026-09-10.
+Status: opt-in implementation milestone ready for visual and practical testing in `feature/sfile-complex`. SFileLegacy is now the default; SFileComplex remains opt-in and original SFile/C/X remains available as a fallback.
+Updated: 2026-09-11.
+
+## Current implementation and validation
+
+SFileComplex provides Complete and pre-load Compact modes, separate CPU loading and GL initialization, and normalized saving from Complete storage. SFileLegacy joins the original loaders while separating loading from GL generation. Select the backend through `TSRE_MSTS_SHAPE_BACKEND`: `legacy` for SFileLegacy, `complex` for Complete, or `complex-compact` for Compact. Unset selects SFileLegacy; `old` selects original SFile/C/X. `TSRE_MSTS_FIRST_LOD_ONLY=1` applies only to the Complex backends; preferences are fixed when a ShapeLib is constructed.
+
+- [Latest three-mode compatibility results](reports/sfile-three-mode-comparison.md): all 4,306 collection inputs now initialize GL in Compact and Complete after the two documented recovery fixes. Existing Legacy/new rendering and animation differences remain observations requiring practical review.
+- [Label recovery and final parsing-time checks](reports/sfile-label-recovery.md): 16 spaced-label coaches recovered, all 203 UTF-16 files replayed on the final parser, 233 standalone checks and 108 CPU/GL checks passing. No material parsing-time regression observed.
+- [Malformed-animation handling](reports/sfile-malformed-input-investigation.md): unusable animations can be discarded for static rendering; damaged Complete documents still refuse saving.
+- [Current loading/storage measurements](reports/sfile-optimization-results.md) and [subsequent UTF-16 measurements](reports/sfile-utf16-optimization-results.md) supersede the initial slow-loader results. The label report measures the latest incremental parser change, not end-to-end application loading.
+- [Preservation versus renderer coverage](reports/sfile-complex-format-coverage.md) records implemented source retention and runtime limitations.
+
+The implementation history below retains measurements and check counts from each stage. Statements about the initial heavyweight tree, 9–12× loading cost, outstanding optimization, and earlier Broken shapes describe those historical builds, not the current implementation. Compare timings only within each report's stated workload and conditions.
+
+## Remaining practical acceptance
+
+- Visually compare Legacy, Compact and Complete in Shape Viewer and representative routes/trainsets, through direct and gathered rendering, including transparency, textures, LOD changes and picking.
+- Exercise animated trains and named controls in actual use. Complex animation differences need independent visual validation; Legacy is not an established correctness reference for every animation.
+- Exercise multiple instances, visibility controls, reload, seasonal textures, route switching and sustained rendering. Check responsiveness and resource behavior during normal use.
+- Exercise Complete editing/save/reload workflows on private copies; verify Compact requires a full reload before saving.
+- Record practical findings with SFileLegacy as the default before removing old classes or adopting SFileComplex by default. Persistent matrix reuse and the renderer ownership redesign remain separate follow-up work in [Task 05](05-sfile-legacy-load-gl.md) and the [renderer task](../renderer/02-renderer-core-generic-queue.md).
+
 
 ## Objective and accepted boundary
 
 Implement `SFileComplex : public ComplexShape` with private storage. Keep `SFile`, `SFileC`, and `SFileX` in the project and working until the replacement is complete and proven. Default adoption and legacy deprecation are separate later steps.
 
-The [SFile legacy findings](sfile-legacy-findings.md) contain the full field, nested-type and caller audit. Application callers already use `ComplexShape` methods; the new implementation does not need public mutable parsing structures, arrays or GPU objects.
+The [SFile legacy findings](reports/sfile-legacy-findings.md) contain the full field, nested-type and caller audit. Application callers already use `ComplexShape` methods; the new implementation does not need public mutable parsing structures, arrays or GPU objects.
 
-This update records the agreed requirements and the requested parser review. It makes no source changes. Task 03 (non-MSTS metadata sidecars) is not a prerequisite; MSTS `.sd` remains supported.
+The requirements and ParserX review below preceded implementation. Current implementation and validation are recorded at the end of this task. Task 03 (non-MSTS metadata sidecars) is not a prerequisite; MSTS `.sd` remains supported.
 
 ## Loading, preservation and saving
 
@@ -62,7 +83,7 @@ Keep data retention, shape health and GL readiness distinct. Proposed internal r
 
 | Dimension | Suggested values and meaning |
 | --- | --- |
-| Data retention | `Unloaded`, `Complete`, `Partial`, `Compact`; Complete retains the entire source structure, Partial intentionally omits requested portions, Compact has released source-only data |
+| Data retention | `Unloaded`, `Complete`, `Partial`, `Compact`; Complete retains the entire source structure, Partial intentionally omits requested portions, Compact retains the required runtime subset and temporary data needed for GL initialization |
 | Shape health | `Valid`, `Recovered`, `Broken`; diagnostics distinguish tolerated issues from missing/invalid essential rendering data |
 | GPU state | `NotInitialized`, `Ready`, `Failed`; a context-related failure is independent of source health |
 
@@ -72,9 +93,11 @@ Caller check (2026-09-10): current application-level shape `isLoaded()` calls gu
 
 Load preferences must be set before parsing, with full loading as default. Include a first-LOD-only option and record exactly which controls/levels were loaded, skipped, retained opaquely or discarded. Proposed initial meaning: first distance level of each LOD control; retain all shared tables needed by selected levels. If a different global-first interpretation is needed, make it explicit.
 
+Accepted clarification: the consumer requests Complete or Compact **before loading starts**, independently of the resulting health and GPU state. The parser must apply that request while reading and allocating storage. For a Compact request, skip source-only fields and unknown payloads that are unnecessary for the runtime contract using bounded traversal; do not construct Complete storage and discard it afterward. Keep dependencies required by selected geometry, animations, bounds and other runtime queries. The request remains fixed for that load; entering a Complete/save workflow after data was omitted requires a full reload.
+
 Selective loading must still navigate past skipped blocks safely and reach later metadata/animations. Avoid allocating decoded mesh arrays for skipped LODs. Compressed streams may still require decompression/scanning; do not promise random-access I/O savings.
 
-Compaction is an explicit option/operation with a documented retention policy and state transition. Keep the runtime subset needed for TSRE rendering, animation, inspection, bounds, snapping and reinitialization strategy. Report lost full-save capability rather than silently claiming Complete status.
+An explicit later Complete-to-Compact operation may release an already loaded document's source-only data, but does not replace applying a Compact request during parsing. Releasing temporary geometry/index arrays after successful `initGL()` is a separate cleanup step. Keep the runtime subset needed for TSRE rendering, animation, inspection, bounds, snapping and reinitialization strategy. Report lost full-save capability as soon as required source data is omitted rather than claiming Complete status until upload.
 
 ## Realtime rendering and Compact performance
 
@@ -82,7 +105,7 @@ Realtime rendering is the primary use case. Complete mode enables load/save work
 
 - Compile renderer-ready draw data and lookup tables during `initGL()`. Steady-state rendering must not traverse a token tree, parse strings, expand original indices, or rebuild unchanged triangle caches.
 - Share immutable mesh/material/animation data across instances; keep instance state small. Prefer contiguous arrays and stable indices for hot data. Resolve names outside the per-frame path where possible.
-- Release source-only tables, raw text/binary storage and unknown payloads in Compact mode when no longer required. Avoid retaining both a full document and a duplicate runtime model solely for hypothetical saving.
+- For a Compact load request, avoid allocating source-only tables and retaining raw text/binary or unknown payloads unless needed for runtime processing. Release temporary rendering arrays only after successful buffer creation. Avoid constructing a full document and a duplicate runtime model solely for hypothetical saving.
 - Avoid recurring heap allocations and unnecessary matrix/material work in render/gather/update paths. Cache static results and invalidate them on relevant changes; dynamic animation still updates correctly.
 - Measure load/decompression/parsing, cache generation/GL upload, retained CPU/GPU memory, peak loading memory and steady-state update/render costs separately. First-LOD loading should avoid decoded storage and GL work for skipped levels.
 - Compare Compact against legacy under the same build, assets, texture cache conditions, LOD, instance count, animation and rendering pipeline. Investigate measured regressions before adoption; document correctness/performance tradeoffs. Do not invent a percentage target before a baseline exists.
@@ -181,7 +204,7 @@ Other proposed implementation defaults, to make the task concrete:
 
 ## Initial old/new comparison corpus
 
-After implementation, compare `SFileComplex` with legacy `SFile` using original shapes recursively under `/root/msts/proprietary/msts_app/TRAINS/TRAINSET`. This is the user's initial real-asset comparison scope; more complex asset/scenario testing comes later. The directory was verified on 2026-09-10. No old/new comparison has been run yet.
+After implementation, compare `SFileComplex` with legacy `SFile` using original shapes recursively under `/root/msts/proprietary/msts_app/TRAINS/TRAINSET`. This is the user's initial real-asset comparison scope; more complex asset/scenario testing comes later. The directory was verified on 2026-09-10. The initial comparison is now implemented; see the comparison report linked below.
 
 - Enumerate all `.s` files case-insensitively, with adjacent `.sd` and appropriate texture roots. Record relative paths, hashes and load options in a local manifest; account for every file as success, failure or an explicitly explained skip.
 - Compare CPU-loaded bounds, LOD/hierarchy/part counts, materials/textures and animations where present. Separately record differences due to legacy data loss or bugs; legacy output is not the sole correctness oracle.
@@ -202,6 +225,8 @@ Synthetic parser, malformed-input and round-trip tests remain part of implementa
 
 Acceptance must cover:
 
+- A consumer's pre-load Compact request controls parsing and allocation before GL initialization: unnecessary source records are never materialized, omitted data makes full saving unavailable immediately, and required source indices survive until successful upload. Verify this independently of final retained-memory counters and compare loading peaks against Complete mode.
+
 - All known format families read/save/read with preserved values, types, labels, optional presence, indices and nested structure, allowing normalized token/section order; unknown blocks survive same-encoding round-trip, including after editing a known sibling.
 - Full default loading, first-LOD selection, explicit compaction and full-save capability are tested separately. Compact/Partial-to-save requires a successful complete reload; a missing source or failed reload must not produce a partial replacement file. `isLoaded()` becomes true after CPU load and before initialization, including without a GL context, and stays true through GL failure/invalidation; bounds queries work at that point. Complete indices survive initialization; failed initialization does not erase source data.
 - Missing optional blocks, extra/unknown blocks, unusual ordering, malformed bounded children, invalid counts/indices, quoted parentheses, escaped strings, Unicode, numeric edge cases and truncation preserve recoverable data without hangs/out-of-bounds access.
@@ -211,4 +236,55 @@ Acceptance must cover:
 - Resource ownership survives partial failure, compaction, reload and destruction. Compare load/render time and memory against legacy on named local fixtures.
 - Existing legacy checks remain passing; record commands, fixture coverage, visual evidence and limitations. A successful build or one rendered shape is not proof of completion.
 
-Current validation: source/reference inspection and the five temporary ParserX probes above. No new class, parser replacement, factory switch or legacy code change has been made.
+## Implementation history — initial implementation (2026-09-10)
+
+Worktree: `/root/TSRE5vc-sfile-complex`, branch `feature/sfile-complex`, based on the committed documentation at `9c6cf1b`. Main is kept separate.
+
+- `SFileComplex` implements `ComplexShape` directly through private owned data. `loadData()` is CPU-only, `initGL()` builds packed geometry and buffers, and compatibility `load()` invokes both when a context exists.
+- `SimisTextReader` is a single reusable class for bounded SIMIS token/string/numeric reading. ParserX and SFile/C/X remain unchanged.
+- `SFileDocument` owns typed source records, labels, repeated blocks, extra roots and opaque binary data. See the [format coverage ledger](reports/sfile-complex-format-coverage.md).
+- Retention, source health and GPU readiness are separate. Compact/Partial saves require full reload. Unsaved edits prevent compaction and `reloadComplete()`; explicit legacy-compatible `reload()` discards edits. A failed Compact buffer rebuild leaves the previous CPU bounds/state inspectable and can be retried when the source becomes available.
+- `field()` / `setField()` access existing scalar values without exposing mutable containers (`points/point[0]`, or `sd/esd_detail_level`). Edits invalidate derived GPU caches. `save()` writes the shape; `saveMetadata()` writes `.sd` separately. Saving exports a snapshot; it does not retarget the asset's source path or clear edit protection. An explicit `reload()` discards the in-memory edits when that is intended.
+- Runtime data retains matrices, material references, animation keys, LOD/visibility information, bounds and per-instance state after compaction. Complete source records remain available for saving. A pre-load Compact request now skips unused records during parsing and releases its temporary document after CPU extraction; required geometry/index arrays survive until successful GL initialization.
+- The development factory originally exposed `TSRE_MSTS_SHAPE_BACKEND=complex` or `complex-compact`; it now also accepts `legacy` for SFileLegacy. The subsequent default switch selects SFileLegacy when unset; `old` explicitly selects original SFile/C/X. `TSRE_MSTS_FIRST_LOD_ONLY=1` applies to the new backend. Preferences are captured per ShapeLib so a library cache does not mix backends/options. Existing renderer packets gained an explicit point primitive sentinel because zero already means default triangles.
+- Tests cover CPU load/GL independence, full/partial/compact retention, malformed data, serialization, runtime rebuild and stock comparisons. The [comparison report](reports/sfile-complex-comparison.md) records commands, measured results and remaining limits.
+
+This initial implementation does not authorize default adoption or legacy deprecation. Complex-route stress tests and broader rendering features remain a later validation phase, as requested.
+
+## Larger-file follow-up comparison
+
+The requested three files in `TRAINS/CD_193_290` were compared in three runs each. See the [CD_193_290 report](reports/sfile-complex-cd193290-comparison.md): total new load times are 9.07–11.90× legacy; static rendering, picking and save/reload agree; main/FG animation behavior differs; neither implementation is a validated correctness reference. No implementation changes were made during this comparison.
+
+## Parser performance follow-up
+
+The [UTF-16 and Open Rails investigation](reports/sfile-parser-performance.md) isolates decoding, tokenization and retained-document construction. Large original UTF-16 SD402 is also about 9.5× slower through the current full loader. UTF-16 decoding is cheap; generic storage, token handling and runtime conversion need changes. The unchanged local Open Rails C# parser was built independently and measured on all three requested compressed shapes, identical uncompressed payloads and normalized UTF-16 exports.
+
+User clarification: Complete only needs editing and saving without data loss. For example, a point array can reconstruct its source block; a separate object for each coordinate is unnecessary. Recommended next work is to optimize Complete itself into dense typed arrays/records, preserve optional and unsupported data with its necessary context, and remeasure. Compact should reuse that model while skipping/releasing unneeded records. The current heavyweight tree does not justify two separate implementations; no public class split is selected. Keep `isLoaded()` after CPU loading, indices until successful GL initialization, and full reload before Compact enters a saving workflow. Substantial loading/peak-memory improvement remains outstanding; Open Rails parity does not satisfy the realtime target.
+
+The external-parser check found and fixed a malformed text-export subheader, with an exact-header regression check. All three corrected UTF-16 exports load in Open Rails with validation and no warnings. Animation differences remain unclassified observations until independently validated.
+
+## Implemented storage/loading optimization
+
+The [optimization results](reports/sfile-optimization-results.md) record the completed pass and repeated measurements. Complete uses contiguous native numeric arrays and lightweight block records, with separate storage for labels, exceptional values and unknown payloads. The text reader avoids ordinary-token allocation and converts numeric fields once. Compact applies the consumer's requested mode during parsing; bounded capacity estimates exclude ignored top-level blocks. There is still one `SFileComplex` implementation.
+
+Complete CPU loading on CD main/MS/FG decreased from 415/282/134 ms to 92/58/29 ms; requested Compact measures 80/41/20 ms. Original UTF-16 SD402 decreased from 170 to 53 ms. Complete document estimates are roughly 15× smaller on the CD shapes. Legacy remains faster in these load comparisons; default adoption is not implied.
+
+Both CTest suites and all 51 application shape/GL checks pass. ASan/UBSan runs pass 2,112 stock-inclusive checks and 238 CD-inclusive checks, including pre-load Compact and exact original binary payload preservation. All 129 stock shapes pass the new Complete/Compact render and picking comparison; the three CD shapes pass repeated checks. Source indices, CPU-loaded state, reload-before-save and failed-rebuild behavior retain their accepted contracts. Legacy classes and the default backend are unchanged.
+
+## Compact loading follow-up
+
+CPU stage profiling identified document reading as the main Compact cost, followed by extraction; document destruction was negligible for the binary CD shapes. Compact now reads regular point, normal, UV and vertex tables into native arrays without per-row block records. Binary parsing bounds every row and nested UV payload. Text parsing uses an independent reader cursor; a noncanonical or invalid row restarts the general parser for that table. Counts never control an unbounded allocation. Runtime coordinate/reference validation, first-LOD selection and nesting limits remain enforced.
+
+On CD main, the temporary document falls from 20.99 MiB to 4.71 MiB and materialized records from 358,874 to 644. Complete retains its editable source structure; Compact still retains geometry and indices until GL upload and requires Complete reload before saving. Remaining temporary numeric tables are copied into runtime arrays during extraction, so this is not a zero-copy loader or a measurement of peak process memory.
+
+Both CTest suites and 56 application shape/GL checks pass. ASan/UBSan with leak detection passes 2,121 stock-inclusive and 247 CD-inclusive checks. All 129 stock shapes pass Complete/Compact rendering and picking comparisons. The final depth-limit guard and stage-counter adjustments are covered by the focused checks, full sanitizer corpus and repeated CD/text comparisons. Current timing methodology and results are in the [Compact follow-up section](reports/sfile-optimization-results.md#compact-loading-follow-up).
+
+The authorized timing rerun completed in three alternating pairs per asset. Generic→packed Compact CPU medians are 77.47→42.06 ms (CD main), 41.50→22.70 ms (MS), 20.45→8.88 ms (FG), and 52.12→41.25 ms (original UTF-16 SD402). All 30 asset processes pass. Windows still showed 13–26% baseline activity before/after testing and some timing outliers remain; the report includes all sample ranges and qualifies these as current-condition measurements, not fully idle-host validation. The deterministic temporary-storage reductions are unaffected by that timing qualification.
+
+## UTF-16 loading optimization
+
+The [UTF-16 results](reports/sfile-utf16-optimization-results.md) record the completed follow-up. Profiling identified lookahead and token/storage overhead. The reusable `SimisTextReader` now has fixed lookahead storage, kind-only lookahead, and consuming checked numeric reads over UTF-16 spans. Compact table-name comparisons avoid temporary QString conversions. Regular integer arrays append directly into native storage in Complete and Compact modes, with cursor/value rollback to the permissive parser for irregular content. Numeric syntax/range checks, Unicode decoding, source preservation and the single-class reader boundary remain intact.
+
+On original SD402, paired application Compact CPU loading decreases from 39.87 to 28.24 ms and Complete from 67.49 to 57.75 ms. Compact CPU + GL is 29.25 ms against the same-run SFileX 16.22 ms. Document-only Compact parsing decreases from 26.99 to 15.81 ms. Large generated CD text files also improve; the report separates those document-only results from application timing and includes the tiny wiper's non-improving Compact sample. Host activity remained 10–23%, so timings are qualified rather than described as fully idle-host validation.
+
+Both CTest suites, 56 application shape/GL checks, all 129 stock render/picking comparisons, and 12 paired application runs pass. ASan/UBSan passes 2,131 stock-inclusive checks and 251 checks over the large generated UTF-16 shapes. Old/new Complete exports are byte-identical for SD402 and all three CD text files. No legacy parser/backend or animation behavior was changed, and default adoption remains separate.

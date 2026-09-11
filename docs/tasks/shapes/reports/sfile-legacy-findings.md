@@ -1,6 +1,6 @@
 # SFile Legacy Findings
 
-Historical source audit supporting [Task 04 - SFileComplex](04-sfile-complex-implementation.md). Legacy classes remain unchanged; implementation requirements and the ParserX review live in Task 04.
+Historical source audit supporting [Task 04 - SFileComplex](../04-sfile-complex-implementation.md). Legacy classes remain unchanged; implementation requirements and the ParserX review live in Task 04.
 
 ## Audit scope and result
 
@@ -46,14 +46,14 @@ Both readers directly access the same 15 top-level fields: `tpoints`, `iloscm`, 
 
 The public nested types are `SObjHeader`, `fshader`, `czes`, `sub`, `dist`, `matrt`, `primst`, `text`, `vtxs`, `imgs`, `fpoint`, `punlist`, `EsdBoundingBox`, `AnimFrameId`, `AnimNode` (with `TcbKey`, `SlerpRot`, `LinearKey`), and `Animation`.
 
-- C/X construct and fill the geometry/material types, including matrix parameters, shader alpha, image names, primitive arguments, LOD hierarchies, `header.geometryNodeMap`, part counts/indices/offsets, and VAO/VBO objects. See [binary reader](../../../src/tsre/shape/SFileC.cpp) and [text reader](../../../src/tsre/shape/SFileX.cpp).
+- C/X construct and fill the geometry/material types, including matrix parameters, shader alpha, image names, primitive arguments, LOD hierarchies, `header.geometryNodeMap`, part counts/indices/offsets, and VAO/VBO objects. See [binary reader](../../../../src/tsre/shape/SFileC.cpp) and [text reader](../../../../src/tsre/shape/SFileX.cpp).
 - Their LOD readers also upload GPU buffers and release temporary geometry. Parsing and GPU work are coupled today; private CPU parsing data and a separate upload stage are a useful proposed boundary for the new implementation.
 - `EsdBoundingBox` and animation runtime/index structures have no application-side direct consumers. `Animation::loadC/loadX` are `SFile` nested-type methods, not dependencies from unrelated application classes.
 - New equivalents of these structures can be private or confined to implementation-only parser data. Do not expose mutable arrays or GPU buffers merely to let parsers or tests access them. Leave the old C/X classes unchanged.
 
 ### Direct test dependencies
 
-[TokenWorldTestSuite.cpp](../../../src/tsre/tests/TokenWorldTestSuite.cpp):
+[TokenWorldTestSuite.cpp](../../../../src/tsre/tests/TokenWorldTestSuite.cpp):
 
 - Around line 213: creates `SFile`, calls `SFileC::odczytajshaders`, and reads `ishaders` and `shader[0].name`.
 - Around lines 226 and 241: constructs `SFile::Animation`, invokes `loadC`, and reads `frames`, `node`, linear key frame/position, TCB quaternion/parameters, and slerp quaternion values.
@@ -64,15 +64,15 @@ These tests must continue to exercise the legacy implementation during coexisten
 
 ## Existing application boundary to retain
 
-[ComplexShape.h](../../../src/tsre/shape/ComplexShape.h) already supplies identity, loaded status, bounds, loading/reloading, per-instance state, animation/subobject/part control, LOD selection, rendering, gather submission, cache invalidation, inspection and snapping methods.
+[ComplexShape.h](../../../../src/tsre/shape/ComplexShape.h) already supplies identity, loaded status, bounds, loading/reloading, per-instance state, animation/subobject/part control, LOD selection, rendering, gather submission, cache invalidation, inspection and snapping methods.
 
 Concrete evidence:
 
-- [ShapeLib.cpp](../../../src/tsre/shape/ShapeLib.cpp): deduplicates through `getPathId()`, stores `ComplexShape*`, and constructs `SFile` for MSTS shapes. No raw field access is needed for registration.
-- [WorldObj.cpp](../../../src/tsre/world/objects/WorldObj.cpp): reads `isLoaded()` / `getSize()` and controls animation through methods.
-- [StaticObj.cpp](../../../src/tsre/world/objects/StaticObj.cpp) and [TrackObj.cpp](../../../src/tsre/world/objects/TrackObj.cpp): query preview paths and detail level through methods.
-- [ShapeViewerGLWidget.cpp](../../../src/shapeViewer/ShapeViewerGLWidget.cpp): stores `ComplexShape*`, reads bounds via `getBound()`, and fills hierarchy/texture information through methods.
-- [ShapeViewerWindow.cpp](../../../src/shapeViewer/ShapeViewerWindow.cpp): selects LOD through `setCurrentDistanceLevel()`.
+- [ShapeLib.cpp](../../../../src/tsre/shape/ShapeLib.cpp): deduplicates through `getPathId()`, stores `ComplexShape*`, and constructs `SFile` for MSTS shapes. No raw field access is needed for registration.
+- [WorldObj.cpp](../../../../src/tsre/world/objects/WorldObj.cpp): reads `isLoaded()` / `getSize()` and controls animation through methods.
+- [StaticObj.cpp](../../../../src/tsre/world/objects/StaticObj.cpp) and [TrackObj.cpp](../../../../src/tsre/world/objects/TrackObj.cpp): query preview paths and detail level through methods.
+- [ShapeViewerGLWidget.cpp](../../../../src/shapeViewer/ShapeViewerGLWidget.cpp): stores `ComplexShape*`, reads bounds via `getBound()`, and fills hierarchy/texture information through methods.
+- [ShapeViewerWindow.cpp](../../../../src/shapeViewer/ShapeViewerWindow.cpp): selects LOD through `setCurrentDistanceLevel()`.
 - `SFile::fillShapeHierarchyInfo()` copies hierarchy indices, matrix names and part summaries into `ShapeHierarchyInfo`. Texture inspection likewise creates `ShapeTextureInfo` records. These outputs already avoid exposing loader arrays directly.
 
 Several files still include `SFile.h`, but includes alone are not field dependencies. `RouteEditorGLWidget.h` retains an `SFile* sFile` declaration; its construction/load examples in the implementation are commented out and no active use of that member was found. No active production downcast to `SFile` was found. Older task 01 wording about MSTS inspection using raw `SFile` details is not evidence of a current caller.

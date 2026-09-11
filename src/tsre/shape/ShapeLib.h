@@ -20,6 +20,8 @@ public:
     int addShape(QString path, QString texPath);
     void invalidateRendererCaches(bool invalidateMatrixCache = true);
 private:
+    QString mstsBackend; // Fixed per library; cache cannot mix implementations.
+    bool firstMstsLodOnly = false;
 
 };
 

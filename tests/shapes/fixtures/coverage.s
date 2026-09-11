@@ -1,0 +1,47 @@
+SIMISA@@@@@@@@@@JINX0s1t______
+shape (
+ shape_header ( 1 ) shape_header ( 1 ff )
+ volumes ( 1 vol_sphere ( vector ( -1 2 3 ) 4.5 ) )
+ shader_names ( 1 named_shader ( "TexDiff" ) )
+ texture_filter_names ( 1 named_filter_mode ( "MipLinear" ) )
+ points ( 1 point ( -1.25 2e+3 3 ) ) uv_points ( 1 uv_point ( .25 -.5 ) )
+ normals ( 1 vector ( 0 1 0 ) ) sort_vectors ( 1 vector ( 1 0 0 ) )
+ colours ( 1 colour ( 1 .25 .5 .75 ) )
+ matrices ( 1 matrix "MAIN" ( 1 0 0 0 1 0 0 0 1 0 0 0 ) )
+ images ( 1 image ( "test.ace" ) ) textures ( 2 texture ( 0 0 -3 ) texture ( 0 0 1 ffffffff ) )
+ light_materials ( 1 light_material ( ff 1 2 3 4 12.5 ) )
+ light_model_cfgs ( 1 light_model_cfg ( 0 uv_ops ( 15
+  uv_op_share ( 1 2 ) uv_op_copy ( 1 2 ) uvop_copy ( 1 )
+  uv_op_uniformscale ( 1 2 3.5 ) uv_op_user_uninformscale ( 1 2 3 )
+  uv_op_nonuniformscale ( 1 2 3.5 4.5 ) uv_op_user_nonuninformscale ( 1 2 3 )
+  uv_op_transform ( 1 2 1 0 0 1 .5 .25 ) uv_op_user_transform ( 1 2 3 )
+  uv_op_reflectmap ( 1 ) uv_op_reflectmapfull ( 2 ) uv_op_spheremap ( 3 )
+  uv_op_spheremapfull ( 4 ) uv_op_specularmap ( 5 ) uv_op_embossbump ( 1 2 .5 )
+ ) ) )
+ vtx_states ( 2 vtx_state ( 0 0 -5 0 2 ) vtx_state ( 0 0 -5 0 2 -1 ) )
+ prim_states ( 2 prim_state "opaque" ( 0 0 tex_idxs ( 2 0 1 ) .5 0 )
+  prim_state ( 0 0 tex_idxs ( 1 0 ) 0 0 1 2 3 ) )
+ lod_controls ( 1 lod_control ( distance_levels_header ( 1 1.25 ) distance_levels ( 1
+  distance_level ( distance_level_header ( dlevel_selection ( 250 ) hierarchy ( 1 -1 ) )
+   sub_objects ( 1 sub_object ( sub_object_header ( 0 -1 -1 ff ff
+    geometry_info ( 1 2 3 4 5 6 7 8 9 10
+     geometry_nodes ( 1 geometry_node ( 1 2 3 4 5 cullable_prims ( 1 2 3 ) ) )
+     geometry_node_map ( 2 -1 0 ) )
+    subobject_shaders ( 2 0 1 ) subobject_light_cfgs ( 1 0 ) 17 )
+    vertices ( 2 vertex ( 0 0 0 ffffffff ff000000 vertex_uvs ( 2 0 1 ) )
+     vertex ( 0 0 0 ffffffff ff000000 vertex_uvs ( 1 0 ) .25 ) )
+    vertex_sets ( 1 vertex_set ( 0 0 2 ) )
+    primitives ( 3 prim_state_idx ( 0 ) indexed_trilist (
+     vertex_idxs ( 3 0 1 0 ) normal_idxs ( 1 0 3 ) flags ( 1 ffffffff ) )
+     prim_state_idx ( 1 ) indexed_line_list ( vertex_idxs ( 2 0 1 ) ) point_list ( 0 2 ) )
+   ) )
+  )
+ ) ) )
+ animations ( 1 animation ( 20 30 anim_nodes ( 1 anim_node "MAIN" ( controllers ( 4
+  tcb_rot ( 1 tcb_key ( 0 0 0 0 1 .1 .2 .3 .4 .5 ) )
+  tcb_pos ( 1 tcb_key ( 0 1 2 3 0 .1 .2 .3 .4 .5 ) )
+  slerp_rot ( 1 linear_key ( 0 1 2 3 ) ) linear_pos ( 1 linear_key ( 0 1 2 3 ) )
+ ) ) ) ) )
+ shape_named_data ( shape_named_data_header ( 1 )
+  shape_named_geometry ( "fixture" 1 shape_geom_ref ( 1 2 3 4 5 ) ) )
+)

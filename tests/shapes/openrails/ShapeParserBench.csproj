@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <OrtsSource Condition="'$(OrtsSource)' == ''">/root/openrails/Source</OrtsSource>
+    <MonoGameAssembly Condition="'$(MonoGameAssembly)' == ''">/root/.nuget/packages/monogame.framework.desktopgl/3.8.1.303/lib/net6.0/MonoGame.Framework.dll</MonoGameAssembly>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="$(OrtsSource)/Orts.Formats.Msts/ShapeFile.cs" />
+    <Compile Include="$(OrtsSource)/Orts.Parsers.Msts/SBR.cs" />
+    <Compile Include="$(OrtsSource)/Orts.Parsers.Msts/STFReader.cs" />
+    <Compile Include="$(OrtsSource)/Orts.Parsers.Msts/TokenID.cs" />
+    <Reference Include="MonoGame.Framework"><HintPath>$(MonoGameAssembly)</HintPath></Reference>
+  </ItemGroup>
+</Project>
