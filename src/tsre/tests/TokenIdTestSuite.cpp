@@ -7,6 +7,7 @@
 #include <QFile>
 #include <QSet>
 #include <QTemporaryDir>
+#include <array>
 
 namespace {
 using namespace TokenTest;
@@ -232,7 +233,33 @@ int TsreTests::runTokenIdSuite(bool verbose) {
         TFile decoded;
         test.check(decoded.readT(input.fileName()) && saveTerrain(decoded) == full,
                    compress ? "real compressed SIMISA terrain path" : "real plain SIMISA terrain path");
+        TFile::LayoutInfo layout;
+        test.check(TFile::readLayoutInfo(input.fileName(), layout)
+                   && layout.samples == 128 && layout.spacing == 16 && layout.patches == 16,
+                   compress ? "compressed terrain layout-only probe" : "plain terrain layout-only probe");
     }
+
+    for (const auto &dimensions : {std::array<int, 3>{256, 16, 4},
+                                  std::array<int, 3>{1024, 2, 32}}) {
+        TFile fixture;
+        fixture.initNew("layout-only", dimensions[0], dimensions[1], dimensions[2]);
+        QFile input(temporary.filePath("layout-only.t"));
+        test.check(input.open(QIODevice::WriteOnly), "layout fixture open");
+        const QByteArray bytes = saveTerrain(fixture);
+        input.write(bytes);
+        input.close();
+        TFile::LayoutInfo layout;
+        test.check(TFile::readLayoutInfo(input.fileName(), layout)
+                   && layout.samples == dimensions[0] && layout.spacing == dimensions[1]
+                   && layout.patches == dimensions[2], "nonstandard terrain layout-only probe");
+        test.check(input.open(QIODevice::WriteOnly), "truncated layout fixture open");
+        input.write(bytes.left(bytes.size() - 1));
+        input.close();
+        test.check(!TFile::readLayoutInfo(input.fileName(), layout), "truncated layout probe rejected");
+    }
+    TFile::LayoutInfo missingLayout;
+    test.check(!TFile::readLayoutInfo(temporary.filePath("missing.t"), missingLayout),
+               "missing layout probe rejected");
 
     const TS::TokenId messages[] = {TS::TSRE_Requested_Terrain_tFile, TS::TSRE_Requested_Terrain_RawFile,
         TS::TSRE_Requested_Terrain_FtFile, TS::TSRE_Terrain_tFile, TS::TSRE_Terrain_RawFile,

@@ -114,6 +114,13 @@ public:
     TFile(const TFile& orig);
     virtual ~TFile();
     bool readT(QString fSfile);
+    // Read descriptor dimensions only, without allocating materials or patch arrays.
+    struct LayoutInfo {
+        int samples = 0;
+        float spacing = 0;
+        int patches = 0;
+    };
+    static bool readLayoutInfo(const QString &path, LayoutInfo &info);
     bool load(FileBuffer* data);
     bool save(QString name);
     void save(QDataStream &write);

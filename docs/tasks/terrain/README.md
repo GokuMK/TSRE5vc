@@ -11,6 +11,10 @@ intentionally unchanged after reviewing its current callers.
 
 ## Current tasks
 
+The [B-key creation status](../../features/terrain-tile-creation-status.md)
+shows terrain descriptor presence/layout independently of QuadTree population,
+including files on disk that are not registered in the tree.
+
 | Task | Implementation status | Remaining work / qualification |
 |---|---|---|
 | [World transfer mesh](../world/transfer-terrain-conforming-mesh.md) | Terrain-conforming mesh, surface/LOD cache, decal depth handling and separate hole-cover mesh implemented; 53 CPU and 44 OpenGL checks pass; user visual acceptance recorded | Transfers cover holes by default; optional hole-following UI and route-wide transfer ordering remain possible follow-ups, not requirements of this implementation. |

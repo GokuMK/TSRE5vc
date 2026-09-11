@@ -16,6 +16,7 @@
 
 class Route;
 class TerrainProfileSelector;
+class QLabel;
 
 class TerrainTileCreationDialog : public QDialog {
 public:
@@ -26,8 +27,11 @@ public:
 private:
     TerrainHeightProfile selectedProfile() const;
     int selectedPatchCount() const;
+    void showStatus(int worldX, int worldZ);
 
     TerrainProfileSelector *profileSelector;
+    QLabel *terrainStatus;
+    QLabel *quadTreeStatus;
 };
 
 #endif /* TERRAINTILECREATIONDIALOG_H */

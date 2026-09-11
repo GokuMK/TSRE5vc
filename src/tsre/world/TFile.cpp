@@ -16,6 +16,58 @@
 #include <tsre/fileFunctions/ReadFile.h>
 #include <QDataStream>
 #include <tsre/world/TerrainGridLayout.h>
+#include <memory>
+#include <cmath>
+
+namespace {
+void readLayoutBlocks(FileBuffer &data, TFile::LayoutInfo &info, int depth) {
+    if (depth > 6)
+        throw FileBuffer::ParseError("Terrain layout nesting limit");
+    while (data.off < data.readEnd()) {
+        const auto block = data.readBlock();
+        FileBuffer::ScopedLimit scope(data, block.end);
+        switch (block.id) {
+        case TS::terrain:
+        case TS::terrain_samples:
+        case TS::terrain_patches:
+        case TS::terrain_patchset:
+            data.skipLabel();
+            readLayoutBlocks(data, info, depth + 1);
+            break;
+        case TS::terrain_patchsets:
+            data.skipLabel();
+            data.getInt(); // Child count; dimensions follow in bounded blocks.
+            readLayoutBlocks(data, info, depth + 1);
+            break;
+        case TS::terrain_nsamples:
+            data.skipLabel(); info.samples = data.getInt(); break;
+        case TS::terrain_sample_size:
+            data.skipLabel(); info.spacing = data.getFloat(); break;
+        case TS::terrain_patchset_npatches:
+            data.skipLabel(); info.patches = data.getInt(); break;
+        default: break;
+        }
+        data.off = block.end;
+    }
+}
+}
+
+bool TFile::readLayoutInfo(const QString &path, LayoutInfo &info) {
+    info = LayoutInfo{};
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) return false;
+    try {
+        std::unique_ptr<FileBuffer> data(ReadFile::read(&file));
+        if (!data) return false;
+        data->require(32);
+        data->off = 32;
+        readLayoutBlocks(*data, info, 0);
+        return info.samples > 0 && info.patches > 0
+                && std::isfinite(info.spacing) && info.spacing > 0;
+    } catch (const FileBuffer::ParseError &) {
+        return false;
+    }
+}
 
 TFile::TFile() {
     loaded = false;
