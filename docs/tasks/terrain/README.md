@@ -6,13 +6,15 @@ The long task files retain historical proposals and rejected alternatives;
 their old future-tense checklists do not by themselves mean work is missing.
 Includes the ACE v2 integration, procedural save optimizations and independent
 detail distance. Test counts in historical sections remain milestone-specific.
+KEY_F line-continuity assessment corrected on 2026-09-11; implementation is
+intentionally unchanged after reviewing its current callers.
 
 ## Current tasks
 
 | Task | Implementation status | Remaining work / qualification |
 |---|---|---|
 | [World transfer mesh](../world/transfer-terrain-conforming-mesh.md) | Terrain-conforming mesh, surface/LOD cache, decal depth handling and separate hole-cover mesh implemented; 53 CPU and 44 OpenGL checks pass; user visual acceptance recorded | Transfers cover holes by default; optional hole-following UI and route-wide transfer ordering remain possible follow-ups, not requirements of this implementation. |
-| [Heightmap resolution](terrain-heightmap-resolution.md) | Core support, validation, profiles and shared creation UI implemented | Explicit track-line strip breaks remain; deprecated simple lookup is a separate migration below. Older defect descriptions are historical, not current code. |
+| [Heightmap resolution](terrain-heightmap-resolution.md) | Core support, validation, profiles and shared creation UI implemented | KEY_F callers already submit separate continuous paths; explicit breaks are optional future API cleanup, not a confirmed defect. Deprecated simple lookup is a separate migration below. Older defect descriptions are historical, not current code. |
 | [Patch count](terrain-patch-count.md) | Regular grids through P32 load, view, edit and save; picking implemented | Larger/rectangular/custom grids are outside scope, not unfinished P32 work. |
 | [Paged mesh/shared maps](terrain-paged-mesh-and-shared-map.md) | Selected 8-byte float-height/derived-coordinate layout, shared vertices, page traversal and dirty-patch updates implemented | Exhaustive interactive gap/map/selection/shadow and Gather coverage is not recorded. Raw-height and 10/12-byte alternatives remain comparison designs, not selected implementation requirements. |
 | [Adjacent edges](terrain-adjacent-edge-cache.md) | Native edge sections, interpolation and invalidation implemented; consumed by LOD | User confirmed cross-tile behavior. Full seam/normal test matrix is not recorded. Rare missing diagonal-owner corner uses the agreed best-effort fallback; no forced unload broadcast. |
@@ -44,7 +46,6 @@ implement them; deferred designs are not blockers for the working terrain tools.
 - [x] [Procedural settings JSON/editor](../../features/terrain-procedural-settings.md): master enable switch, detail distance, output sizes and optional debug/restore validation. Boundary sampling belongs to material definitions, not global settings.
 - [x] [Procedural seasons and route-wide baking](terrain-procedural-seasons.md): directory fallback, per-variant records, CLI and route-filtered Settings-menu dialog; automated checks passed and user confirmed seasonal visual acceptance.
 - [ ] [Simple lookup migration](terrain-simple-lookup-migration.md): remove `TerrainLibSimple`, using synthetic no-TD lookup in the common backend.
-- [ ] KEY_F explicit line-strip boundaries instead of the 8 m break heuristic.
 - [x] After separate approval, update procedural test/local-route tiles that use
   the three prototype SIMIS token IDs; no runtime compatibility aliases added.
 
@@ -88,17 +89,33 @@ Deferred production features / testing (not requirements to close Stage A):
   deterministic 2 km lookup with no TD reads/writes. Explicit QuadTree
   regeneration is optional repair work, never a side effect of tile creation.
   Resolve multiplayer behavior as part of migration, not merely a class rename.
-- KEY_F connected points still use an 8 m discontinuity guard in
-  `TerrainLibQt::setTerrainToTrackObj()`. An explicit line-strip/break API would
-  remove this heuristic. This is separate from the now-fast action raster.
-  The input is a flat list of points sampled around every 4 m and can contain
-  separate paths without separators. Consecutive points at most 8 m apart are
-  joined; more distant pairs are stamped individually, without a connecting
-  terrain strip. This guesses where paths end: nearby unrelated paths can still
-  be joined, and a legitimate widely spaced segment can be split. The threshold
-  is not terrain heightmap resolution. Explicit path boundaries remove that guess.
 - More area tools can adopt `TerrainHeightArea`, but only where useful or
   measured; universal conversion is not required to finish height painting.
+
+### KEY_F line continuity — reviewed, leave unchanged
+
+The earlier claim that current KEY_F inputs concatenate unrelated track paths
+was incorrect. `Route::setTerrainToTrackObj()` submits each static TrackShape
+path separately; dynamic-track sections form one continuous path. Group members
+are processed separately too. `TSection::getPoints()` samples straight and curved
+sections at intervals of 4 m or less, including endpoints. Generic shape borders
+use point-stamping mode, not connected segments.
+
+`TerrainLibQt::setTerrainToTrackObj()` has no explicit line-break markers. Its
+connected-path mode retains a defensive 8 m **3D distance** guard: consecutive
+points within that distance form a segment; more distant pairs are stamped at
+their endpoints without a connecting strip. This threshold is independent of
+terrain sample resolution and normally should not trigger for current track
+inputs.
+
+No current in-editor reproduction of an erroneous path connection was found.
+A hypothetical caller passing several disconnected paths in one flat array
+could defeat the guard, but that is not how current KEY_F track callers work.
+The user chose to retain the code as-is. Explicit strip boundaries remain an
+optional API improvement if future callers need disjoint paths in one call,
+not an outstanding correctness fix. See the
+[heightmap task](terrain-heightmap-resolution.md#7-height-brushes-and-track-bed-deformation)
+for implementation references.
 
 ## Deferred designs, not blockers for current terrain
 

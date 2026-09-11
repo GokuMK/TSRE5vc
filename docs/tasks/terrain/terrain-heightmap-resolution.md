@@ -305,13 +305,14 @@ terrain. Undo, ErrorBias reset, changed-sample bounds, and modified-patch GPU
 refresh are applied once per affected tile.
 
 Track and dynamic-track action rasters calculate continuous distance to the
-line segments between their approximately 4 m source points. This removes the
+line segments between source points spaced at most 4 m apart. This removes the
 coarse point-stamp stepping on 2 m terrain without blurring the flat bed or its
-cut/embankment slopes. Because the old flat point array has no explicit strip
-breaks, segments are joined only across source-point gaps no larger than 8 m.
-Larger gaps retain isolated circular influence. Generic shape borders continue
-to use the legacy point mode until their point API provides explicit line-strip
-breaks, avoiding accidental connections between unrelated borders.
+cut/embankment slopes. The flat point array has no explicit strip-break markers.
+Connected-path mode retains a defensive guard: consecutive points are joined
+only when their 3D distance is at most 8 m; larger gaps retain isolated circular
+influence at their endpoints. This is not a terrain-resolution limit. Generic
+shape borders use point-stamping mode, avoiding accidental connections between
+unrelated borders; no conversion of that mode is currently required.
 
 The terrain-adjustment `Size` and `Max Radius` controls now specify metres
 directly rather than using the old fixed 8 m terrain-sample unit. Their numeric
@@ -332,6 +333,23 @@ editable section records. Both paths reuse `TSection::getPoints()`, and dynamic
 track therefore works independently of TDB membership and generated
 `sectionIdx` state.
 
+**Line-continuity review, 2026-09-11:** each static TrackShape path is submitted
+in a separate call, dynamic-track sections form a continuous path, and grouped
+objects are processed separately. Source sampling includes both section
+endpoints with intervals no larger than 4 m. The 8 m guard therefore normally
+should not trigger for current track inputs. Earlier documentation suggesting
+these callers concatenate unrelated paths without separators was incorrect;
+no current in-editor reproduction of that problem was found. The user chose
+to leave the implementation unchanged. Explicit line-strip boundaries are an
+optional future API improvement if a caller needs multiple disjoint paths in
+one call, not an outstanding KEY_F correctness fix.
+
+Implementation references: [Route.cpp](../../../src/tsre/world/Route.cpp)
+(`Route::setTerrainToTrackObj()`),
+[TSection.cpp](../../../src/tsre/tdb/TSection.cpp) (`TSection::getPoints()`), and
+[TerrainLibQt.cpp](../../../src/tsre/world/TerrainLibQt.cpp)
+(`TerrainLibQt::setTerrainToTrackObj()`).
+
 A reusable temporary float height area is now available for other batch terrain
 transformations through `TerrainHeightArea::getArea()` / `setArea()`; see the
 [feature documentation and examples](../../features/terrain-height-area.md).
@@ -347,8 +365,6 @@ Remaining cleanup:
   [terrain height-brush CPU performance task](terrain-height-brush-performance.md);
 - `setHeight256()` is now private to the deprecated simple backend; remove it
   with that backend after the [lookup migration](terrain-simple-lookup-migration.md);
-- replace the temporary 8 m discontinuity guard with explicit line-strip breaks
-  in the track-point API;
 - extend the same batching architecture to other area-wide terrain tools where
   measurements justify it.
 
