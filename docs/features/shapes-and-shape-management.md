@@ -1,5 +1,7 @@
 # TSRE Shapes and Shape Management (Current State)
 
+For on-disk `.s`/`.sd` structure, blocks, fields and unresolved semantics, see the [MSTS shape file format reference](msts-shape-file-format.md). The implementation history below predates SFileLegacy becoming the default; current backend selection is documented in [Task 04](../tasks/shapes/04-sfile-complex-implementation.md).
+
 ## Scope
 - Project: TSRE5vc
 - Goal: document how shapes are represented, loaded, cached, and rendered today.
