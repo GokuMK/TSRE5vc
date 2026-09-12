@@ -5,6 +5,7 @@ and historical format audits remain under [docs/msts](../../msts/README.md).
 
 | Document | Purpose / status |
 | --- | --- |
+| [Case-sensitive filepaths and game-root repair](case-sensitive-filepaths.md) | Design only: main-executable B dry run first, then A path handling, then B repair; uppercase directories and folded logical keys |
 | [Native token-ID migration](native-token-id-migration.md) | Reviewed design and historical baseline; token mechanism implemented, parser follow-up still outstanding |
 | [Native token IDs and binary parser implementation](native-token-ids-and-binary-parser-implementation.md) | Separates token changes, parser behavior, cleanup and verification; records the minimum QuadTree writer correction |
 | [Route Editor server/client rework](server-client-rework.md) | Deferred multiplayer redesign issues: update atomicity, buffer ownership, framing, versioning and integration coverage |
