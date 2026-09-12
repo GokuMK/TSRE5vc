@@ -186,6 +186,29 @@ types and one LOD-control tree. Unknown primitive/controller kinds are skipped;
 token cleanup does not add their renderers. Block labels and lengths are now
 honored instead of relying on fixed 9-byte header skips.
 
+## FFEDIT coverage update (2026-09-13)
+
+The registry now has **1,552** unique IDs/names. The 85 additions close every
+name gap against the original FFEDIT `coreids.tok`, `forms.hdr` and
+`loadstr.hdr`, including their four boundary markers:
+
+- 29 Core entries at IDs 252–280;
+- 52 Train forms, including 36 `TrGUI_*` names;
+- `Form_first`, `Form_last`, `Loadstring_first` and `Loadstring_last`.
+
+Every added ID was independently checked against the checksum-verified native
+MSTS Bin 1.8 token table (`train-1.8.exe`, SHA-256
+`69218fce876298c684a2140c7d3925a452c47bb10037ffd8c491f65c5c0c6e7a`). Existing
+assignments are unchanged. FFEDIT's brake-controller sequence differs from the
+native executable for 34 names; TSRE already matches the executable, so those
+values were deliberately retained. FFEDIT ordering must not be used to
+regenerate existing assignments blindly.
+
+`NativeTokenGolden.inc` includes the added literal IDs; tests check both native
+IDs and canonical names. Registering a token does not implement its schema.
+The world factories separately gained read/save support for
+[`Telepole` (`0x00040009`)](msts-world-telepole.md).
+
 ## Network policy
 
 Update client and server together. `NetworkToken::write/read` is shared by their

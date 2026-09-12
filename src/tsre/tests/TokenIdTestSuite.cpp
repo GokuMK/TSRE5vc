@@ -45,7 +45,10 @@ int TsreTests::runTokenIdSuite(bool verbose) {
     using namespace TokenTest;
     Suite test{"[tests:tokens]", verbose};
     for (const Golden& entry : native)
-        test.check(entry.actual == entry.expected, QString::fromLatin1(entry.name));
+        test.check(entry.actual == entry.expected
+                   && QString::fromLatin1(TS::name(entry.actual)).compare(
+                       QString::fromLatin1(entry.name), Qt::CaseInsensitive) == 0,
+                   QString::fromLatin1(entry.name));
 
     const Golden extensions[] = {
         {TS::Soundsource, 0x00040043u, "soundsource"},
@@ -65,7 +68,7 @@ int TsreTests::runTokenIdSuite(bool verbose) {
                    QString::fromLatin1(entry.name));
     QSet<QString> names;
     for (const auto& entry : TS::IdName) names.insert(QString::fromLatin1(entry.second).toLower());
-    test.check(TS::IdName.size() == 1467 && names.size() == 1467, "unique canonical IDs and case-insensitive names");
+    test.check(TS::IdName.size() == 1552 && names.size() == 1552, "unique canonical IDs and case-insensitive names");
     const auto registrySize = TS::IdName.size();
     test.check(QString::fromLatin1(TS::name(0xFFFF0800u)) == "<unknown>"
                && TS::describe(0xFFFF0800u).contains("ffff0800")

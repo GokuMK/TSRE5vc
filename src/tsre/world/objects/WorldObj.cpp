@@ -9,6 +9,7 @@
  */
 
 #include <tsre/world/objects/WorldObj.h>
+#include <tsre/world/objects/TelepoleObj.h>
 #include <tsre/shape/ComplexShape.h>
 #include <tsre/shape/ShapeLib.h>
 #include <tsre/fileFunctions/ParserX.h>
@@ -133,6 +134,8 @@ WorldObj* WorldObj::createObj(TS::TokenId sh) {
         nowy = (WorldObj*) (new DynTrackObj());
         (nowy)->resPath = Game::root + "/routes/" + Game::route + "/textures";
         (nowy)->typeID = (nowy)->dyntrack;
+    } else if (sh == TS::Telepole) {
+        nowy = new TelepoleObj();
     } else if (sh == TS::Forest) {
         nowy = (WorldObj*) (new ForestObj());
         (nowy)->resPath = Game::root + "/routes/" + Game::route + "/textures";
@@ -213,6 +216,8 @@ WorldObj* WorldObj::createObj(QString sh) {
         nowy = (WorldObj*) (new DynTrackObj());
         (nowy)->resPath = Game::root + "/routes/" + Game::route + "/textures";
         (nowy)->typeID = (nowy)->dyntrack;
+    } else if (sh == "telepole") {
+        nowy = new TelepoleObj();
     } else if (sh == "forest") {
         nowy = (WorldObj*) (new ForestObj());
         (nowy)->resPath = Game::root + "/routes/" + Game::route + "/textures";

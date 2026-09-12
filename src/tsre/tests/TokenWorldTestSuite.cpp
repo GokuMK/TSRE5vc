@@ -4,6 +4,7 @@
 #include <tsre/fileFunctions/ReadFile.h>
 #include <tsre/world/Tile.h>
 #include <tsre/world/objects/WorldObj.h>
+#include <tsre/world/objects/TelepoleObj.h>
 #include <tsre/world/objects/TrWatermarkObj.h>
 #include <tsre/world/objects/DynTrackObj.h>
 #include <tsre/world/objects/SignalObj.h>
@@ -14,11 +15,24 @@
 #include <QOffscreenSurface>
 #include <QOpenGLContext>
 #include <QOpenGLFunctions>
+#include <QLocale>
 
 namespace {
 using namespace TokenTest;
 QByteArray uid(quint32 value) { return block(TS::UiD, uints({value}), "uid"); }
 QByteArray position() { return block(TS::Position, floats({1, 2, 3}), "position"); }
+std::unique_ptr<FileBuffer> unicodeBuffer(const QString& text) {
+    return buffer(fields([&](QDataStream& s) { for (QChar c : text) s << c.unicode(); }));
+}
+QString saveObject(WorldObj& object) {
+    QString text;
+    QTextStream out(&text);
+    // A Telepole must not inherit a caller's lossy precision or decimal comma.
+    out.setRealNumberPrecision(3);
+    out.setLocale(QLocale(QLocale::Polish));
+    object.save(&out);
+    return text;
+}
 QByteArray shapeSections() {
     QByteArray matrices = floats({1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0});
     const auto point = [](float x, float y, float z) { return block(TS::point, floats({x, y, z}), "point"); };
@@ -65,7 +79,7 @@ int TsreTests::runTokenWorldSuite(bool verbose, bool withGl) {
     Suite test{"[tests:token-world]", verbose};
     const TS::TokenId forms[] = {TS::Static, TS::TrackObj, TS::Dyntrack, TS::Forest,
         TS::CollideObject, TS::Signal, TS::Gantry, TS::CarSpawner, TS::Pickup,
-        TS::Platform, TS::Siding, TS::LevelCr, TS::Transfer, TS::Speedpost, TS::Hazard};
+        TS::Platform, TS::Siding, TS::LevelCr, TS::Transfer, TS::Speedpost, TS::Hazard, TS::Telepole};
     for (auto id : forms) {
         Tile binary, unicode;
         auto input = buffer(file(block(TS::Tr_Worldfile, block(id, uid(35) + position(), "object")), 'w'));
@@ -82,6 +96,114 @@ int TsreTests::runTokenWorldSuite(bool verbose, bool withGl) {
                    && binary.obiekty[0]->type == unicode.obiekty[0]->type
                    && binary.obiekty[0]->UiD == 35 && binary.obiekty[0]->position[2] == 3,
                    "binary/Unicode object dispatch: " + QString::fromLatin1(TS::name(id)));
+    }
+    {
+        const std::pair<TS::TokenId, QByteArray> properties[] = {
+            {TS::UiD, uints({35})}, {TS::Population, uints({3})},
+            {TS::StartPosition, floats({-101.123456f, 22.9824f, 500.1234f})},
+            {TS::EndPosition, floats({-100.123456f, 25.125f, 520.1234f})},
+            {TS::StartType, uints({0})}, {TS::EndType, uints({7})},
+            {TS::StartDirection, floats({90})}, {TS::EndDirection, floats({-45.125f})},
+            {TS::Config, uints({0})}, {TS::Quality, uints({0xFFFFFFFFu})},
+            {TS::Position, floats({1.12345678f, -2.12345678f, 539.465f})},
+            {TS::Direction, floats({1.25e-12f, -0.25f, 1.25e+12f})},
+            {TS::MaxVisDistance, floats({1234.56789f})}, {TS::VDbId, uints({0xFFFFFFFFu})}
+        };
+        QByteArray payload;
+        for (const auto& property : properties)
+            payload += block(property.first, property.second, "property");
+        Tile tile;
+        auto input = buffer(file(block(TS::Tr_Worldfile, block(TS::Telepole, payload, "span")), 'w'));
+        const bool ok = tile.loadBinaryData(input.get()) && tile.jestObiektow == 1;
+        test.check(ok, "Telepole reads all 14 grammar fields with binary labels");
+        if (ok) {
+            WorldObj& object = *tile.obiekty[0];
+            test.check(saveObject(object).isEmpty(), "unloaded Telepole is not serialized");
+            object.load(12, -34);
+            const QString saved = saveObject(object);
+            bool allFields = true;
+            for (const auto& property : properties)
+                allFields &= saved.contains(QString::fromLatin1(TS::name(property.first)) + " (", Qt::CaseInsensitive);
+            test.check(allFields && saved.contains("Quality ( 4294967295 )")
+                       && saved.contains("VDbId ( 4294967295 )") && saved.contains("StartType ( 0 )")
+                       && saved.contains("Config ( 0 )") && saved.contains("1.24999998e+12"),
+                       "Telepole saves every field, zeroes, full-width integers and float precision");
+            auto text = unicodeBuffer(saved + ")");
+            Tile reloaded;
+            reloaded.loadUtf16Data(text.get());
+            test.check(reloaded.jestObiektow == 1, "Telepole saved text dispatch");
+            if (reloaded.jestObiektow == 1) {
+                auto& other = *reloaded.obiekty[0];
+                other.load(12, -34);
+                test.check(saveObject(other) == saved && other.position[2] == object.position[2],
+                           "Telepole binary/text round trip preserves all values and coordinate conversion");
+            }
+            std::unique_ptr<WorldObj> copy(object.clone());
+            copy->load(12, -34);
+            test.check(saveObject(*copy) == saved && !copy->allowNew(),
+                       "Telepole clone/repeated load retains fields without a second Z flip");
+        }
+        // Every schema field must remain bounded by its own binary block.
+        for (const auto& property : properties) {
+            Tile damaged;
+            auto data = buffer(file(block(TS::Tr_Worldfile,
+                block(TS::Telepole, uid(1) + block(property.first, property.second.chopped(1)))
+                + block(TS::Telepole, uid(2))), 'w'));
+            QString error;
+            test.check(damaged.loadBinaryData(data.get(), false, &error)
+                       && damaged.binaryLoadState() == Tile::BinaryLoadState::Recovered
+                       && damaged.jestObiektow == 1 && damaged.obiekty[0]->UiD == 2 && !error.isEmpty(),
+                       "truncated Telepole property cannot consume next object: "
+                           + QString::fromLatin1(TS::name(property.first)));
+        }
+        Tile minimal;
+        auto text = unicodeBuffer("Telepole ( UiD ( 7 ) ) )");
+        minimal.loadUtf16Data(text.get());
+        test.check(minimal.jestObiektow == 1, "minimal Telepole loads");
+        if (minimal.jestObiektow == 1) {
+            minimal.obiekty[0]->load(0, 0);
+            test.check(saveObject(*minimal.obiekty[0]) == "\tTelepole (\n\t\tUiD ( 7 )\n\t)\n",
+                       "Telepole save does not invent absent properties");
+        }
+        TelepoleObj invalid;
+        for (const QString value : {QString(")"), QString("4294967296 )"), QString("-1 )")}) {
+            auto data = unicodeBuffer(value);
+            test.check(rejects([&] { invalid.set(QString("population"), data.get()); }),
+                       "Telepole rejects missing/overflow/negative unsigned text values");
+        }
+    }
+    // Optional private corpus test; original MSTS files never enter the repository.
+    const QString telepoleWorld = qEnvironmentVariable("TSRE_TEST_TELEPOLE_WORLD");
+    if (!telepoleWorld.isEmpty()) {
+        QFile source(telepoleWorld);
+        const bool opened = source.open(QIODevice::ReadOnly);
+        test.check(opened, "Telepole native sample opens read-only");
+        if (opened) {
+            std::unique_ptr<FileBuffer> input(ReadFile::read(&source));
+            Tile native;
+            QString error;
+            const bool ok = input && native.loadBinaryData(input.get(), false, &error)
+                    && native.binaryLoadState() == Tile::BinaryLoadState::Complete;
+            test.check(ok, "Telepole native world parses completely: " + error);
+            if (ok) {
+                int count = 0;
+                for (int i = 0; i < native.jestObiektow; ++i) {
+                    auto& object = *native.obiekty[i];
+                    if (object.typeID != WorldObj::telepole) continue;
+                    ++count;
+                    object.load(0, 0);
+                    const QString saved = saveObject(object);
+                    auto text = unicodeBuffer(saved + ")");
+                    Tile reloaded;
+                    reloaded.loadUtf16Data(text.get());
+                    const bool found = reloaded.jestObiektow == 1;
+                    if (found) reloaded.obiekty[0]->load(0, 0);
+                    test.check(found && saveObject(*reloaded.obiekty[0]) == saved,
+                               QString("native Telepole %1 binary/text round trip").arg(object.UiD));
+                }
+                test.check(count > 0, QString("native Telepole count: %1").arg(count));
+            }
+        }
     }
     {
         const QByteArray sphere = block(TS::ViewDbSphere, block(TS::VDbId, uints({8}))
