@@ -3,6 +3,8 @@
 Status: opt-in implementation milestone ready for visual and practical testing in `feature/sfile-complex`. SFileLegacy is now the default; SFileComplex remains opt-in and original SFile/C/X remains available as a fallback.
 Updated: 2026-09-11.
 
+The [MSTS shape file format reference](../../features/msts-shape-file-format.md) inventories blocks, ordered fields and unresolved semantics.
+
 ## Current implementation and validation
 
 SFileComplex provides Complete and pre-load Compact modes, separate CPU loading and GL initialization, and normalized saving from Complete storage. SFileLegacy joins the original loaders while separating loading from GL generation. Select the backend through `TSRE_MSTS_SHAPE_BACKEND`: `legacy` for SFileLegacy, `complex` for Complete, or `complex-compact` for Compact. Unset selects SFileLegacy; `old` selects original SFile/C/X. `TSRE_MSTS_FIRST_LOD_ONLY=1` applies only to the Complex backends; preferences are fixed when a ShapeLib is constructed.
