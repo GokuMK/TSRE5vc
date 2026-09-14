@@ -237,7 +237,8 @@ public:
     }
     void resolve(Edge &e) {
         e.spelling.replace('\\','/');
-        if(e.spelling.isEmpty() || external(e.spelling) && (QDir::isAbsolutePath(e.spelling)||e.spelling.contains(':'))) {
+        if(e.spelling.isEmpty()) {e.status="empty-reference";return;}
+        if(external(e.spelling) && (QDir::isAbsolutePath(e.spelling)||e.spelling.contains(':'))) {
             e.status="external-or-invalid";return;
         }
         bool escaped=false, searchedInside=false;
@@ -268,10 +269,10 @@ public:
         e.optional=optional;e.implicit=f.values[value].begin<0;
         // These fields are stems in the format, just as in Service/Consist.
         // Do not quietly reinterpret a malformed stem ending in its extension.
-        if(!suffix.isEmpty())e.spelling+=suffix;
+        if(!e.spelling.isEmpty() && !suffix.isEmpty())e.spelling+=suffix;
         resolve(e);
         static const QSet<QString> routeFamilies={"w","ws","t","trk","ref","env","haz","catalog"};
-        if(job.route.isEmpty() && routeFamilies.contains(job.family)) {
+        if(e.status!="empty-reference" && job.route.isEmpty() && routeFamilies.contains(job.family)) {
             e.status="context-unbound";e.target=-1;
         }
         if(e.target>=0 && kind=="shape") {
@@ -292,7 +293,7 @@ public:
         const QString raw=f.values[value].text;
         edges[edge].authoredTexture=raw;
         const Edge original=edges[edge];
-        if(original.status=="context-unbound" || original.status=="external-or-invalid")return;
+        if(original.status=="context-unbound" || original.status=="external-or-invalid" || original.status=="empty-reference")return;
         auto candidate=[&](const QString &candidateBase,bool dds,const QString &kind) {
             Edge result=original;result.bases={candidateBase};result.target=-1;
             result.candidates.clear();result.priority=-1;result.kind=kind;result.optional=true;
@@ -348,7 +349,8 @@ public:
             if(i>=0 && edges[i].target>=0)jobs.push_back({edges[i].target,family,base,route,job.textureBase});
             return;
         }
-        if((n=="enginedata" || n=="wagondata") && f.values.size()>=2) {
+        if(family=="cvf" && n=="enginedata")return; // Cab metadata, not a consist vehicle reference.
+        if((family=="con" || family=="act") && (n=="enginedata" || n=="wagondata") && f.values.size()>=2) {
             add(job,f,0,n,{"TRAINS/TRAINSET"},n=="enginedata"?".eng":".wag",false,
                 f.values[1].text+"/"+f.values[0].text);return;
         }
@@ -398,16 +400,25 @@ public:
             if(!route.isEmpty())roots<<route+"/SOUND";
             roots<<"SOUND";add(job,f,0,"sound-sample",roots);return;
         }
-        if(family=="cvf" && (n=="graphic"||n=="cabviewfile"||n=="cabviewwindowfile"||n=="fuelcoal")) {texture(job,f,0,parent(files[job.file].path));return;}
+        // Includes inherit the owning CVF's directory; the include's physical
+        // directory only controls nested Include lookup, not cab textures.
+        if(family=="cvf" && (n=="graphic"||n=="cabviewfile"||n=="cabviewwindowfile"||n=="fuelcoal")) {texture(job,f,0,base);return;}
         if(family=="env" && (n=="terrain_texslot"||n=="filename"||n=="texture")) {
             texture(job,f,0,route.isEmpty()?parent(files[job.file].path)+"/TEXTURES":route+"/ENVFILES/TEXTURES");return;
         }
         if(family=="env" && n=="world_water_terrain_patch_map") {
+            // Some ENV files put a numeric map index before the RAW filename.
+            // Select the resource scalar, retaining its original source offset.
+            int value=-1;
+            for(int i=0;i<f.values.size();++i)if(f.values[i].text.endsWith(".raw",Qt::CaseInsensitive)) {
+                if(value>=0){value=-1;break;} // Ambiguous: keep the unclassified-field error.
+                value=i;
+            }
             // Negative inventory evidence can prove absence without inventing a
             // lookup base. Never use a basename match to resolve this reference.
-            const bool present=inventoryBasenames.contains(leaf(normalized(f.values[0].text)).toLower());
-            if(!present && !external(normalized(f.values[0].text))) {
-                add(job,f,0,"absent-water-patch-map",{});return;
+            const bool present=value>=0 && inventoryBasenames.contains(leaf(normalized(f.values[value].text)).toLower());
+            if(value>=0 && !present && !external(normalized(f.values[value].text))) {
+                add(job,f,value,"absent-water-patch-map",{});return;
             }
             // A present candidate still requires a typed rule; fall through to
             // the unclassified-field failure instead of choosing its location.
@@ -946,6 +957,7 @@ public:
             }
             fail(e.source,e.status,e.status=="context-unbound"?"Reference lookup context could not be established":
                 e.status=="case-collision"?"Competing physical targets prevent filename synchronization":
+                e.status=="empty-reference"?"Filename field is empty; optional-field semantics have not been established (not a missing asset)":
                 "Reference is external, crosses a link, or has an invalid path",detail,i);
         }
         for(const auto &value:collisionList) {

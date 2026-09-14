@@ -47,6 +47,24 @@ int main(int argc,char **argv) {
             const auto d=ContentCase::inspectDocument(bytes,"s");check(d.valid&&d.fields.size()==1,"binary shape reference");
             check(d.fields[0].values[0].text=="Bark.ace","binary string preserves case");
         }
+        const auto sd=QByteArray("SIMISA@@@@@@@@@@JINX0t1b________")+block(TS::shape,string("LargeTree.s")+
+            block(TS::ESD_Detail_Level,word(2))+block(TS::ESD_Alternative_Texture,word(257))+
+            block(TS::ESD_Complex,block(TS::ESD_Complex_Box,QByteArray(48,0))));
+        for(const auto &bytes:{sd,compressed(sd)}) {
+            const auto descriptor=ContentCase::inspectDocument(bytes,"sd");
+            check(descriptor.valid && descriptor.referenceScanComplete && descriptor.fields.size()==1,
+                "binary SD root filename discovered without classifying metadata as paths");
+            const auto value=descriptor.fields[0].values[0];
+            check(value.text=="LargeTree.s" && sd.mid(value.begin,value.end-value.begin)==string("LargeTree.s"),
+                "SD reference offsets identify the exact binary string");
+        }
+        check(!ContentCase::inspectDocument(sd.left(sd.size()-1),"sd").referenceScanComplete,"truncated binary SD retains discovery error");
+        const auto wrongSd=ContentCase::inspectDocument(compressed(s),"sd");
+        check(!wrongSd.referenceScanComplete && wrongSd.diagnostics.join(' ').contains("different binary document kind"),
+            "S geometry mislabeled as SD has an explicit format mismatch diagnostic");
+        const auto unknownSd=QByteArray("SIMISA@@@@@@@@@@JINX0t1b________")+
+            block(TS::shape,string("LargeTree.s")+block(TS::image,string("Unknown.ace")));
+        check(!ContentCase::inspectDocument(unknownSd,"sd").referenceScanComplete,"unexpected SD extension cannot silently certify coverage");
         const auto t=binary(block(TS::terrain,block(TS::terrain_samples,block(TS::terrain_sample_ybuffer,string("Tile_Y.raw")))+
             block(TS::terrain_shaders,word(1)+block(TS::terrain_shader,string("shader")+
                 block(TS::terrain_texslots,word(1)+block(TS::terrain_texslot,string("Grass.ace")+word(0)+word(0)))))));
@@ -91,6 +109,14 @@ int main(int argc,char **argv) {
         const auto zipWide=QByteArray("\xff\xfe",2)+wide("SIMISA@F")+word(body.size())+wide("@@@@@@")+qCompress(body).mid(4);
         check(ContentCase::inspectDocument(zipWide,"s").valid,"compressed Unicode envelope");
         QTemporaryDir tmp;check(tmp.isValid(),"temporary directory");const QString root=tmp.path()+"/GameRoot";
+        const QString descriptorRoot=tmp.path()+"/DescriptorRoot";
+        put(descriptorRoot+"/TRAINS/TRAINSET/Product/LargeTree.sd",compressed(sd));
+        put(descriptorRoot+"/TRAINS/TRAINSET/Product/LargeTree.s",s);
+        put(descriptorRoot+"/TRAINS/TRAINSET/Product/Bark.ace","texture");
+        QString descriptorError;
+        const auto descriptorPlan=ContentCase::scan(descriptorRoot,descriptorError);
+        check(descriptorError.isEmpty() && descriptorPlan["failures"].toArray().isEmpty() &&
+            edge(descriptorPlan,"sd-shape-name","exact"),"compressed binary SD participates in scoped planner resolution");
         put(root+"/routes/RouteOne/WORLD/test.w",w);
         put(root+"/routes/RouteOne/RouteOne.trk","Tr_RouteFile ( Name ( RouteOne ) )");
         put(root+"/routes/RouteOne/SHAPES/TREE.s",s);
@@ -400,10 +426,15 @@ int main(int argc,char **argv) {
         }
         check(passenger && coal && globalTexture && signalEdges==4,"vehicle, cab, all signal entries and global image scopes are correct");
         const QString waterRoot=tmp.path()+"/WaterRoot";
-        put(waterRoot+"/TEMPLATE/ENVFILES/water.env","world ( world_water ( world_water_terrain_patch_map ( Wsib-W.raw ) ) )");
+        put(waterRoot+"/TEMPLATE/ENVFILES/water.env","world ( world_water ( world_water_terrain_patch_map ( Wsib-W.raw ) world_water_terrain_patch_map ( 0 Wsib-W.raw ) ) )");
         const auto absentWater=ContentCase::scan(waterRoot,error);
-        check(absentWater["failures"].toArray().isEmpty() && absentWater["summary"].toObject()["missingTargetReferences"].toInt()==1,
+        check(absentWater["failures"].toArray().isEmpty() && absentWater["summary"].toObject()["missingTargetReferences"].toInt()==2,
             "globally absent water map is a missing warning without an invented base");
+        int waterEdges=0;
+        for(const auto &v:absentWater["references"].toArray())if(v.toObject()["kind"]=="absent-water-patch-map") {
+            ++waterEdges;check(v.toObject()["spelling"]=="Wsib-W.raw","ENV map index is never mistaken for a filename");
+        }
+        check(waterEdges==2,"indexed and unindexed water map fields both discovered");
         put(waterRoot+"/Unrelated/Wsib-W.raw","not an authorized lookup location");
         const auto presentWater=ContentCase::scan(waterRoot,error);
         check(!presentWater["failures"].toArray().isEmpty() && !edge(presentWater,"absent-water-patch-map","exact"),
@@ -488,6 +519,21 @@ int main(int argc,char **argv) {
         put(cabRoot+"/TRAINS/common.inc/Orphan.inc","ORTS3DCab ( ORTS3DCabFile ( Ghost.s ) )");
         const auto orphanCab=ContentCase::scan(cabRoot,error);
         check(edge(orphanCab,"shape","context-unbound"),"ownerless 3D cab include is not resolved from an invented base");
+        const QString cvfRoot=tmp.path()+"/CvfRoot";
+        put(cvfRoot+"/TRAINS/TRAINSET/Loco/CABVIEW/Cab.cvf",
+            "Tr_CabViewFile ( EngineData ( SP45 / SU45 ) Include ( ../../common.cab/Controls.inc ) )");
+        put(cvfRoot+"/TRAINS/TRAINSET/common.cab/Controls.inc","Dial ( Graphic ( Needle.ace ) )");
+        put(cvfRoot+"/TRAINS/TRAINSET/Loco/CABVIEW/Needle.ace","correct owner texture");
+        put(cvfRoot+"/TRAINS/TRAINSET/common.cab/Needle.ace","unrelated include-directory texture");
+        const auto cvfPlan=ContentCase::scan(cvfRoot,error);
+        check(cvfPlan["failures"].toArray().isEmpty(),"CVF metadata no longer produces a synthetic vehicle path");
+        bool cvfTexture=false;
+        for(const auto &v:cvfPlan["references"].toArray()) {
+            const auto e=v.toObject();check(e["kind"]!="enginedata","CVF EngineData is not a vehicle reference");
+            if(e["kind"]=="texture")cvfTexture=e["status"]=="exact" &&
+                e["searchBases"].toArray()==QJsonArray{"TRAINS/TRAINSET/Loco/CABVIEW"};
+        }
+        check(cvfTexture,"CVF include textures resolve against the owning CVF, not the include file");
         const QString fallbackRoot=tmp.path()+"/FallbackRoot";
         put(fallbackRoot+"/TRAINS/TRAINSET/A/SOUND/A.sms",
             "Tr_SMS ( File ( ../../B/SOUND/Missing.wav ) File ( ../../B/SOUND/Exists.wav ) File ( Shared.wav ) )");
@@ -510,9 +556,12 @@ int main(int argc,char **argv) {
         check(missingScoped && existingScoped && rootFallback,"in-root relative paths and valid fallbacks preserve exact scope");
         check(command({"--contentcase",fallbackRoot,"--plan"})==0,"mixed missing/rejected fallback alone does not fail CLI");
         put(fallbackRoot+"/SOUND/Outside.sms","Tr_SMS ( File ( ../../Outside.wav ) File ( C:/Outside.wav ) File ( \"\" ) )");
+        put(fallbackRoot+"/TEMPLATE/SERVICES/Empty.srv","Service_Definition ( Train_Config ( \"\" ) )");
         const auto outside=ContentCase::scan(fallbackRoot,error);int externalEdges=0;
         for(const auto &v:outside["references"].toArray())if(v.toObject()["status"]=="external-or-invalid")++externalEdges;
-        check(externalEdges==3,"all-escaping, absolute and empty references remain errors");
+        check(externalEdges==2 && edge(outside,"sound-sample","empty-reference") && errorCode(outside,"empty-reference"),
+            "empty filename has a separate diagnostic from external paths and missing assets");
+        check(edge(outside,"consist","empty-reference"),"empty stem stays empty instead of becoming a suffix-only missing asset");
         check(command({"--contentcase",fallbackRoot,"--plan"})==1,"actual path errors retain scan error exit");
         put(fallbackRoot+"/SOUND/Locomotive.sms","Tr_SMS ( File ( ../../gp38/sound/gp_power_cruise3.wav ) )");
         put(fallbackRoot+"/TRAINS/TRAINSET/gp38/sound/gp_power_cruise3.wav","must not infer vehicle context");

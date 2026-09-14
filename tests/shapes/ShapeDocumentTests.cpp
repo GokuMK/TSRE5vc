@@ -2,6 +2,7 @@
 #include <QDebug>
 #include <QDirIterator>
 #include <QFile>
+#include <QTemporaryDir>
 #include <QtEndian>
 #include <iostream>
 #include <limits>
@@ -231,6 +232,61 @@ int main(int argc, char **argv) {
                               "shape ( train.s ESD_Detail_Level ( 0 ) )") && !descriptor.damaged &&
               descriptor.root.scalar(0) == "train.s" && descriptor.root.child("esd_detail_level"),
           "shape descriptor filename remains a value before a child block");
+    // Independent binary SD fixture: construct bytes directly, without using
+    // the writer whose round-trip fidelity is being tested.
+    auto sdWord = [](quint32 value) {
+        QByteArray out(4, Qt::Uninitialized);
+        qToLittleEndian(value, out.data()); return out;
+    };
+    auto sdString = [](const QString &value) {
+        QByteArray out(2 + value.size() * 2, Qt::Uninitialized);
+        qToLittleEndian<quint16>(value.size(), out.data());
+        for (int i = 0; i < value.size(); ++i)
+            qToLittleEndian<quint16>(value[i].unicode(), out.data() + 2 + 2 * i);
+        return out;
+    };
+    auto sdBlock = [&](TS::TokenId token, const QByteArray &payload) {
+        return sdWord(token) + sdWord(payload.size() + 1) + QByteArray(1, 0) + payload;
+    };
+    const auto sdMetadata = sdBlock(TS::ESD_Detail_Level, sdWord(2)) +
+        sdBlock(TS::ESD_Alternative_Texture, sdWord(257)) +
+        sdBlock(TS::ESD_Bounding_Box, QByteArray(24, 0)) +
+        sdBlock(TS::ESD_Complex, sdBlock(TS::ESD_Complex_Box, QByteArray(48, 0)));
+    const auto sdBytes = QByteArray("SIMISA@@@@@@@@@@JINX0t1b________") +
+        sdBlock(TS::shape, sdString("LargeTree.s") + sdMetadata);
+    QTemporaryDir sdDirectory;
+    check(sdDirectory.isValid(), "temporary SD output directory");
+    for (bool zip : {false, true}) {
+        const auto sdInput = zip ? QByteArray("SIMISA@F") + sdWord(sdBytes.size() - 16) +
+            QByteArray("@@@@") + qCompress(sdBytes.mid(16)).mid(4) : sdBytes;
+        Document sd;
+        check(sd.readBytes(sdInput) && !sd.damaged && sd.binary && sd.compressed == zip &&
+                  sd.root.scalar(0) == "LargeTree.s" && sd.root.child("esd_alternative_texture").integer(0) == 257,
+              "independent binary SD read, including compressed envelope");
+        check(sd.encode(true, false, error) == sdBytes && error.isEmpty(),
+              "unchanged SD binary bytes match independent fixture exactly");
+        const auto output = sdDirectory.path() + (zip ? "/compressed.sd" : "/plain.sd");
+        check(sd.save(output, true, zip, error) && error.isEmpty(), "write binary SD to temporary file");
+        Document reread;
+        check(reread.read(output) && !reread.damaged && reread.compressed == zip &&
+                  reread.encode(true, false, error) == sdBytes && error.isEmpty(),
+              "written SD reload matches original decompressed bytes");
+        check(reread.root.setScalar(0, "TallerTree.s", &error) && error.isEmpty() &&
+                  reread.save(output, true, zip, error), "edit and save SD filename");
+        Document edited;
+        const auto expected = QByteArray("SIMISA@@@@@@@@@@JINX0t1b________") +
+            sdBlock(TS::shape, sdString("TallerTree.s") + sdMetadata);
+        check(edited.read(output) && !edited.damaged && edited.compressed == zip &&
+                  edited.encode(true, false, error) == expected && error.isEmpty(),
+              "SD filename edit adjusts lengths and preserves every metadata byte");
+        Document textSd;
+        check(textSd.readBytes(sd.encode(false, zip, error)) && !textSd.damaged &&
+                  textSd.encode(true, false, error) == sdBytes && error.isEmpty(),
+              "SD text conversion retains filename and metadata");
+    }
+    Document shortSd;
+    check(!shortSd.readBytes(sdBytes.left(sdBytes.size() - 1)) || shortSd.damaged,
+          "truncated binary SD is not accepted for editing");
     for (auto input : {"matrix long label ) points ( 0 )", "matrix long label",
                        "matrix \"quoted name\" extra ( 0 )"}) {
         SimisTextReader reader(QString::fromLatin1(input));

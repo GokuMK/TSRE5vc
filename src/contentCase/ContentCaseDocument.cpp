@@ -25,7 +25,7 @@ bool interesting(const QString &name) {
         "lighttex", "signalshape", "speedwarningsignshape", "speedpostsignshape",
         "speedresumesignshape", "milepostshape", "ortssoundfilename", "ortscranesound",
         "terrain_sample_ybuffer", "terrain_sample_ebuffer", "terrain_sample_nbuffer",
-        "terrain_sample_fbuffer", "tsreterrainmaterialbuffer"
+        "terrain_sample_fbuffer", "tsreterrainmaterialbuffer", "world_water_terrain_patch_map"
     };
     return names.contains(name);
 }
@@ -161,6 +161,21 @@ void binaryBlock(FileBuffer &data, Document &doc, QStringList &parents, int dept
         if (name == "images") { counted = true; count = data.getInt(); }
         if (name == "image" && !parents.isEmpty() && parents.last() == "images") stringValue(data, f);
         if (depth == 0 && name != "shape") throw FileBuffer::ParseError("Expected binary shape root");
+    } else if (family == "sd") {
+        if (depth == 0) {
+            if (name != "shape") throw FileBuffer::ParseError("Expected binary shape descriptor root");
+            stringValue(data, f);
+            children = true;
+        } else {
+            // These SD fields contain metadata, not resource names. Keep
+            // unknown extensions uncertified instead of silently skipping them.
+            static const QSet<QString> metadata = {"esd_detail_level", "esd_alternative_texture",
+                "esd_bounding_box", "esd_complex_box", "esd_complex", "esd_snapable",
+                "esd_no_visual_obstruction"};
+            children = name == "esd_complex";
+            if (!metadata.contains(name))
+                discoveryFailure(doc, "Unclassified binary SD field: " + name);
+        }
     } else if (family == "w" || family == "ws") {
         if (depth == 0 && name != (family == "w" ? "tr_worldfile" : "tr_worldsoundfile"))
             throw FileBuffer::ParseError("Unexpected binary world root");
@@ -254,8 +269,12 @@ Document inspectDocument(const QByteArray &input, const QString &family) {
     if (doc.binary) {
         doc.decoded=true;
         doc.encoding="SIMIS binary"; doc.offsets="decompressed-envelope-byte";
-        if (family!="s" && family!="w" && family!="ws" && family!="t") {
+        if (family!="s" && family!="sd" && family!="w" && family!="ws" && family!="t") {
             doc.diagnostics << "Binary schema not implemented for " + family; return doc;
+        }
+        if (family == "sd" && bytes[21] != 't') {
+            discoveryFailure(doc, "Expected an SD descriptor (JINX0t); this .sd file contains a different binary document kind (JINX0" + QString(QChar(bytes[21])) + ")");
+            return doc;
         }
         auto storage=new unsigned char[bytes.size()];
         std::copy(bytes.cbegin(),bytes.cend(),storage);

@@ -708,7 +708,11 @@ struct BinaryReader {
                 return index;
             }
             static const Layout directQuaternion{"uffff", {}, {}, false, false};
-            const auto &l = n.id == TS::slerp_rot && stop - p == 20 ? directQuaternion : it.value();
+            // SD uses the same shape token as S, but its root begins with a
+            // filename string. Select by envelope kind, never by its suffix.
+            static const Layout descriptorRoot{"s", {}, {}, false, true};
+            const auto &l = depth == 0 && n.id == TS::shape && doc.fileKind == 't' ? descriptorRoot :
+                n.id == TS::slerp_rot && stop - p == 20 ? directQuaternion : it.value();
             if (doc.compact && depth < 127 && packedWidth(n.id)) {
                 PackedTable table;
                 quint32 count;
