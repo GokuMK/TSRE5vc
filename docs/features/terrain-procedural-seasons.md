@@ -6,8 +6,10 @@ Set `core.startup.season` (Content season), then reload the route.
 
 | Season | Source search order | Bake directory |
 |---|---|---|
-| Base / Default / Summer | TERRTEX | TERRTEX |
-| Spring, Autumn, Winter | named directory, TERRTEX | named directory |
+| SummerClear / Summer / Base / Default | TERRTEX | TERRTEX |
+| SpringClear / Spring | spring, TERRTEX | spring |
+| AutumnClear / Autumn | autumn, TERRTEX | autumn |
+| WinterClear / Winter | winter, TERRTEX | winter |
 | SpringRain, AutumnRain, WinterRain | named rain directory, dry season, TERRTEX | named rain directory |
 | SummerRain | summerrain, TERRTEX | summerrain |
 | SpringSnow, SummerSnow, AutumnSnow | named snow directory, snow, TERRTEX | named snow directory |
@@ -33,15 +35,26 @@ rain-directory lookup have been added for shapes.
 ## Season setting and static editing
 
 `core.startup.season` is a string-backed enum shown as a dropdown: Default,
-the four seasons and each season's Rain/Snow variants. Existing `Base`, `Default`
-and `Snow` aliases remain selectable for profile compatibility. Unlike the bake
-dialog, this startup dropdown is not filtered by the current route's directories.
+then the twelve original TRK combinations, grouped by season (`SpringClear`,
+`SpringRain`, `SpringSnow`, and likewise for Summer, Autumn and Winter).
+The UI displays these as “Spring Clear”, etc. There are exactly 13 choices;
+compatibility aliases are not shown. When reading a settings profile or startup
+override, `Base` and `Default` map to the empty Default value, `Snow` maps to
+`WinterSnow`, and short season names map to their corresponding `*Clear` value.
+Unlike the bake dialog, this startup dropdown is not filtered by route directories.
 Changing it requires reloading the route.
 
-Old free-string entries migrate in memory to the enum, normalizing the case of
-recognized values. Unknown text is retained for explicit correction in the
+Old free-string and earlier enum entries migrate in memory to the current
+choices, normalizing aliases and the case of recognized values. Unknown text is retained for explicit correction in the
 settings editor. Migration is persisted on settings save through the normal
 backup/write path, not by silently overwriting the profile on load.
+
+TRK environment names are not texture-directory names. The resolver maps Clear
+names to the existing short names, so no `springclear` directories, renamed
+bakes or metadata revisions are required. The same Clear-name adapter supplies
+legacy short names to the shape flag lookup; existing shape Winter/Snow behavior
+and lack of rain textures are unchanged. The bake CLI also accepts Clear names;
+the bake dialog and stored bake keys retain their existing directory-oriented names.
 
 Static texture lookup does not create seasonal files. On the first paint edit
 of a fallback texture, TSRE clones its pixels into a separate texture targeting

@@ -157,7 +157,8 @@ bool SettingsManager::loadFile(const QString &settingsFile, QString *error) {
         if (!isStructurallyLoadable(candidate, error))
             return false;
         m_document = candidate;
-        // Explicit migration: the startup season was formerly a free string.
+        // Explicit migration: upgrade both free strings and the short-name enum
+        // to the current TRK-named season choices.
         // Preserve recognized values/aliases (normalizing case); retain unknown
         // text as an invalid enum value for the editor to expose, not discard.
         const auto *seasonDefinition = m_registry.definition("core.startup.season");
@@ -165,8 +166,10 @@ bool SettingsManager::loadFile(const QString &settingsFile, QString *error) {
             QJsonArray settings = m_document.value("settings").toArray();
             for (int i = 0; i < settings.size(); ++i) {
                 QJsonObject setting = settings[i].toObject();
+                const QJsonObject previous = setting;
                 if (setting.value("key").toString() != "core.startup.season"
-                        || setting.value("type").toString() != "string") continue;
+                        || (setting.value("type").toString() != "string"
+                            && setting.value("type").toString() != "enum")) continue;
                 const auto expected = seasonDefinition->toJson();
                 for (const QString &field : {QString("type"), QString("options"),
                                             QString("description"), QString("apply")})
@@ -177,7 +180,7 @@ bool SettingsManager::loadFile(const QString &settingsFile, QString *error) {
                             setting.value("value").toString(), &normalized, nullptr))
                     setting["value"] = QJsonValue::fromVariant(normalized);
                 settings[i] = setting;
-                m_modified = true;
+                if (setting != previous) m_modified = true;
             }
             m_document["settings"] = settings;
         }
@@ -846,18 +849,37 @@ bool SettingsManager::parseRegisteredValue(const QString &key, const QString &te
     case SettingType::Float:
         parsed = text.toDouble(&ok);
         break;
-    case SettingType::Enum:
+    case SettingType::Enum: {
+        QString enumText = text;
+        if (key == "core.startup.season") {
+            // Read compatibility only: aliases do not belong in the dropdown.
+            enumText = enumText.trimmed();
+            if (enumText.compare("Base", Qt::CaseInsensitive) == 0
+                    || enumText.compare("Default", Qt::CaseInsensitive) == 0)
+                enumText = "";
+            else if (enumText.compare("Snow", Qt::CaseInsensitive) == 0)
+                enumText = "WinterSnow";
+            else {
+                for (const QString &season : {QString("Spring"), QString("Summer"),
+                                              QString("Autumn"), QString("Winter")})
+                    if (enumText.compare(season, Qt::CaseInsensitive) == 0) {
+                        enumText = season + "Clear";
+                        break;
+                    }
+            }
+        }
         ok = false;
         for (const SettingOption &option : definition->options) {
             if ((option.value.metaType().id() == QMetaType::QString
-                 && option.value.toString().compare(text, Qt::CaseInsensitive) == 0)
-                    || option.value.toString() == text) {
+                 && option.value.toString().compare(enumText, Qt::CaseInsensitive) == 0)
+                    || option.value.toString() == enumText) {
                 parsed = option.value;
                 ok = true;
                 break;
             }
         }
         break;
+    }
     case SettingType::StringList:
         parsed = text.split(':', Qt::SkipEmptyParts);
         break;

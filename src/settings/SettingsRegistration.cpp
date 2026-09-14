@@ -153,13 +153,11 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
         "startTileY", "Game::startTileY", "Game", false, "startup");
     ADD(SettingsDefinition::string("core.startup.season", "", SettingType::Enum)
             .withName("Content season").withDescription("Static/procedural terrain and transfers share seasonal texture fallback, including rain and snow-free Winter. Shapes retain their existing alternative-texture flags; rain textures for shapes are not implemented. Reload the route after changing season.")
-            .withOptions(choices({{"", "Default (base)"}, {"Spring", "Spring"},
-                {"Summer", "Summer"}, {"Autumn", "Autumn"}, {"Winter", "Winter"},
-                {"SpringRain", "Spring Rain"}, {"SummerRain", "Summer Rain"},
-                {"AutumnRain", "Autumn Rain"}, {"WinterRain", "Winter Rain"},
-                {"SpringSnow", "Spring Snow"}, {"SummerSnow", "Summer Snow"},
-                {"AutumnSnow", "Autumn Snow"}, {"WinterSnow", "Winter Snow"},
-                {"Snow", "Snow (alias)"}, {"Base", "Base (alias)"}, {"Default", "Default (alias)"}}))
+            .withOptions(choices({{"", "Default"},
+                {"SpringClear", "Spring Clear"}, {"SpringRain", "Spring Rain"}, {"SpringSnow", "Spring Snow"},
+                {"SummerClear", "Summer Clear"}, {"SummerRain", "Summer Rain"}, {"SummerSnow", "Summer Snow"},
+                {"AutumnClear", "Autumn Clear"}, {"AutumnRain", "Autumn Rain"}, {"AutumnSnow", "Autumn Snow"},
+                {"WinterClear", "Winter Clear"}, {"WinterRain", "Winter Rain"}, {"WinterSnow", "Winter Snow"}}))
             .inGroup("content").inSubgroup("routeStartup").applies("routeReload").asAdvanced(),
         "season", "Game::season", "Route content session", true, "route-reload");
 

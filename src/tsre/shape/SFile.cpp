@@ -14,6 +14,7 @@
 #include <tsre/fileFunctions/ReadFile.h>
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/texture/TexLib.h>
+#include <tsre/world/TerrainSeason.h>
 #include <QDebug>
 #include <QtCore>
 #include <iostream>
@@ -526,12 +527,13 @@ void SFile::loadSd() {
         }
     }
     QString seasonPath;
+    const QString season = TerrainSeason::legacySeason(Game::season);
     //qDebug() << esdAlternativeTexture << this->TextureFlags[Game::season];
     //qDebug() << (esdAlternativeTexture & this->TextureFlags[Game::season]);
-    if((esdAlternativeTexture & Game::TextureFlags[Game::season]) != 0)
-        seasonPath = "/" + Game::season.toLower();
+    if((esdAlternativeTexture & Game::TextureFlags[season]) != 0)
+        seasonPath = "/" + season.toLower();
     
-    if(Game::season == "Winter" || Game::season == "AutumnSnow" || Game::season == "WinterSnow" || Game::season == "SpringSnow" ){
+    if(season == "Winter" || season == "AutumnSnow" || season == "WinterSnow" || season == "SpringSnow" ){
         if(esdAlternativeTexture & Game::TextureFlags["Snow"] != 0)
             seasonPath = "/snow";
         if(esdAlternativeTexture & Game::TextureFlags["SnowTrack"] != 0)

@@ -150,6 +150,16 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
             check(f.open(QIODevice::WriteOnly) && f.write("fixture")==7,"season-source-fixture-write");
         }
         auto resolved=[&](const QString &season){return TerrainSeason::resolve(sources.path(),season,"soil.ace",false);};
+        for (const QString &season : {QString("Spring"),QString("Summer"),QString("Autumn"),QString("Winter")}) {
+            check(resolved(season+"Clear")==resolved(season)
+                  && TerrainSeason::canonical(season+"Clear")==TerrainSeason::canonical(season),
+                  "trk-clear-name-uses-existing-texture-directory-and-bake-key");
+            check(TerrainSeason::legacySeason((season+"Clear").toLower())==season,
+                  "trk-clear-name-preserves-legacy-shape-flag-lookup");
+        }
+        check(TerrainSeason::legacySeason("WinterRain")=="WinterRain"
+              && TerrainSeason::legacySeason("WinterSnow")=="WinterSnow",
+              "clear-name-adapter-does-not-change-rain-or-snow-shape-policy");
         check(resolved("Winter")==sources.path()+"/soil.ace","season-dry-winter-falls-back-to-main-not-snow");
         check(resolved("SpringRain")==sources.path()+"/spring/soil.ace","season-rain-falls-back-to-dry-season");
         check(resolved("AutumnRain")==sources.path()+"/autumnrain/soil.ace","season-rain-prefers-exact-variant");

@@ -66,10 +66,29 @@ aligns static terrain and transfers with this resolver; shapes remain unchanged.
 
 ## Follow-up: season dropdown and mixed static/procedural terrain
 
+Naming refinement (2026-09-12): startup choices now use the twelve original
+TRK season/weather names, including `SpringClear` through `WinterClear`.
+Short names remain read-compatible aliases, hidden from the 13-choice dropdown
+(one Default plus twelve TRK combinations). `Base`/`Default` normalize to the
+empty Default value, `Snow` to `WinterSnow`, and short seasons to `*Clear`.
+Free-string and earlier enum profiles receive the
+updated choices without losing recognized values. Clear names map to existing
+texture directories/bake keys and to the existing short-name shape flags;
+no `.sd` flag or rain-texture behavior changes are introduced. The bake CLI
+accepts the same aliases without changing existing canonical bake records.
+Verification: Release build passed; settings suite passed 141 checks and
+terrain-material CPU suite passed 551 checks, including Clear/short-name
+equivalence and preservation of legacy shape-name mapping. No user route
+files were modified.
+
+Alias-visibility follow-up: Release build and 184 settings checks passed,
+including normalization/save/reload of both old string and enum profiles.
+Aliases remain accepted on input but are not dropdown entries.
+
 Implemented after the original procedural milestone:
 
-- String-backed startup season dropdown, including all Rain/Snow variants and
-  existing aliases. Explicit old-string migration preserves recognized values
+- String-backed startup season dropdown, including all Rain/Snow variants with
+  hidden read-compatible aliases. Explicit old-string migration preserves recognized meanings
   and keeps unknown values visible for repair. Route reload is required.
 - Static primary/detail textures resolve separately through `TerrainSeason`,
   in both terrain render paths and the multiplayer terrain client.

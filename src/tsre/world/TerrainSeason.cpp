@@ -8,7 +8,14 @@ QStringList TerrainSeason::variants() {
     return {"Base","Spring","Autumn","Winter","SpringRain","SummerRain",
             "AutumnRain","WinterRain","SpringSnow","SummerSnow","AutumnSnow","Snow"};
 }
-QString TerrainSeason::canonical(const QString &s) {
+QString TerrainSeason::legacySeason(const QString &season) {
+    for (const QString &name : {QString("Spring"), QString("Summer"),
+                                QString("Autumn"), QString("Winter")})
+        if (season.compare(name + "Clear", Qt::CaseInsensitive) == 0) return name;
+    return season;
+}
+QString TerrainSeason::canonical(const QString &season) {
+    const QString s = legacySeason(season);
     if (s.isEmpty() || s.compare("Default",Qt::CaseInsensitive)==0
             || s.compare("Summer",Qt::CaseInsensitive)==0) return "Base";
     if (s.compare("WinterSnow",Qt::CaseInsensitive)==0) return "Snow";

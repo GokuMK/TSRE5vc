@@ -215,16 +215,26 @@ int TsreTests::runSettingsSuite(bool verbose) {
     check(manager.loadFile(settingsFile, &error), "registry-generates-profile");
     {
         const auto *season = manager.registry().definition("core.startup.season");
-        check(season && season->type==SettingType::Enum && season->options.size()==16
+        check(season && season->type==SettingType::Enum && season->options.size()==13
               && season->defaultValue.toString().isEmpty() && season->apply=="routeReload",
-              "season-dropdown-has-all-variants-and-compatible-aliases");
-        for (const QString &value : {QString("springrain"),QString("Base"),QString("Snow"),QString("unrecognized-season")}) {
+              "season-dropdown-has-one-default-and-twelve-trk-variants");
+        for (const QString &storedType : {QString("string"), QString("enum")})
+        for (const QString &value : {QString("springrain"),QString("Base"),QString("Default"),QString("Snow"),
+                                    QString("SpringClear"),QString("SummerClear"),QString("AutumnClear"),QString("WinterClear"),
+                                    QString("Spring"),QString("Summer"),QString("Autumn"),QString("Winter"),
+                                    QString("unrecognized-season")}) {
+            QString expected=value;
+            if (value=="Base" || value=="Default") expected="";
+            else if (value=="Snow") expected="WinterSnow";
+            else if (value=="springrain") expected="SpringRain";
+            else if (QStringList{"Spring","Summer","Autumn","Winter"}.contains(value)) expected=value+"Clear";
             QJsonObject oldProfile=manager.document();
             QJsonArray array=oldProfile.value("settings").toArray();
             for (int i=0;i<array.size();++i) {
                 QJsonObject setting=array[i].toObject();
                 if (setting.value("key").toString()!="core.startup.season") continue;
-                setting["type"]="string"; setting["value"]=value; setting.remove("options");
+                setting["type"]=storedType;
+                setting["value"]=value; setting.remove("options");
                 array[i]=setting;
             }
             oldProfile["settings"]=array;
@@ -234,15 +244,16 @@ int TsreTests::runSettingsSuite(bool verbose) {
             SettingsManager upgraded; SettingsRegistration::registerAll(upgraded.registry());
             check(upgraded.loadFile(oldFile.fileName(),&error)
                   && upgraded.settingObject("core.startup.season").value("type")=="enum"
+                  && upgraded.settingObject("core.startup.season").value("options").toArray().size()==13
                   && upgraded.settingObject("core.startup.season").value("value").toString()
-                     == (value=="springrain" ? QString("SpringRain") : value),
+                     == expected,
                   "old-season-string-migrates-without-losing-value");
             if (value!="unrecognized-season") {
                 SettingsProfileSelection selection;
                 selection.settingsFile=oldFile.fileName();
                 check(upgraded.save(&error) && upgraded.initialize(selection,&error)
                       && upgraded.runtimeValue("core.startup.season").toString()
-                         == (value=="springrain" ? QString("SpringRain") : value),
+                         == expected,
                       "migrated-season-saves-and-reloads");
             } else {
                 check(!upgraded.save(&error),"unknown-season-kept-for-explicit-repair");
