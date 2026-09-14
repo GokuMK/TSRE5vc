@@ -154,6 +154,42 @@ void runExecutionTests() {
 
     QTemporaryDir tmp;
     check(tmp.isValid(), "execution temporary directory");
+    // A TRK scalar expands into several independent companion references.
+    const auto companionRoot = tmp.path() + "/Companions";
+    fixture(companionRoot);
+    const auto companionBase = companionRoot + "/routes/Tutorial Route";
+    put(companionBase + "/tutorial route.trk",
+        "Tr_RouteFile ( FileName ( \"Tutorial Route\" ) )");
+    for (const auto &suffix : {".tdb", ".rdb", ".tit", ".rit", ".ref"})
+        put(companionBase + "/Tutorial Route" + suffix, "SIMISA@@@@@@@@@@JINX0t1t______\n");
+    const auto companionInitial = snapshot(companionRoot);
+    const auto companionPlan = ContentCase::scan(companionRoot, error);
+    check(ContentCase::verifyReferences(companionPlan, companionPlan, {}, error),
+          "unchanged route companion references verify independently: " + error);
+    int companionCount = 0;
+    const auto companionRefs = companionPlan["references"].toArray();
+    for (int i = 0; i < companionRefs.size(); ++i) {
+        auto ref = companionRefs[i].toObject();
+        if (ref["kind"] != "route-companion-stem")
+            continue;
+        ++companionCount;
+        check(ref["targetFileId"].toInt(-1) >= 0, "companion fixture resolves");
+        auto damaged = companionPlan;
+        auto refs = companionRefs;
+        ref["targetFileId"] = -1;
+        refs[i] = ref;
+        damaged["references"] = refs;
+        check(!ContentCase::verifyReferences(companionPlan, damaged, {}, error),
+              "lost companion target still fails verification: " + ref["suffix"].toString());
+    }
+    check(companionCount == 4, "all four route companion suffixes covered");
+    const auto companionResult = ContentCase::execute(
+        companionRoot, {}, tmp.path() + "/CompanionJournal", error);
+    check(!companionResult.isEmpty() && companionResult["actionsApplied"].toInt() > 0,
+          "conversion with route companions passes postverification: " + error);
+    check(ContentCase::rollback(companionRoot, companionResult["journal"].toString(), error),
+          "route companion rollback: " + error);
+    check(snapshot(companionRoot) == companionInitial, "route companion rollback exact");
     const auto root = tmp.path() + "/Pure";
     fixture(root);
     const auto initial = snapshot(root);
@@ -292,6 +328,7 @@ void runExecutionTests() {
         put(base + "/world/tile.w", "Tr_WorldFile ( TrackObj ( FileName ( GlobalTree.s ) ) )");
         put(base + "/textures/" + (route == "A" ? "BARK.ace" : "bark.ace"),
             "different texture content: " + route.toUtf8());
+        put(base + "/textures/winter/bARK.ace", "seasonal ACE: " + route.toUtf8());
         put(base + "/textures/winter/BaRk.dds", "seasonal DDS: " + route.toUtf8());
     }
     const auto sharedInitial = snapshot(sharedRoot);

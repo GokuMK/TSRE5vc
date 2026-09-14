@@ -155,3 +155,16 @@ cmake -S tests/contentCase -B /tmp/tsre-content-case-tests -DCMAKE_BUILD_TYPE=De
 cmake --build /tmp/tsre-content-case-tests -j 4
 ctest --test-dir /tmp/tsre-content-case-tests --output-on-failure
 ```
+
+### Installation-test verifier correction
+
+The first WSL installation conversion rolled back with an apparent changed
+`Tutorial Route.rdb` target. The verifier had keyed all four optional TRK
+companions (`.rdb`, `.tit`, `.rit`, `.ref`) identically, so the last edge replaced
+the others in its lookup. This was reproducible by comparing a plan with itself.
+The key now includes the implicit suffix and the derived-DDS flag; the latter
+also distinguishes seasonal ACE/DDS pairs sharing one field and search base.
+Regression tests cover unchanged companions, rejection of each missing companion,
+execution/rollback with companions, and coexisting seasonal ACE/DDS assets.
+The installation journal recorded completed rollback; the installation was not
+reconverted while testing this correction.

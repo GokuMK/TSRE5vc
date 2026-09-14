@@ -285,8 +285,10 @@ QString refKey(const QJsonObject &ref, const QString &source, const QMap<QString
     QStringList bases;
     for (const auto &v : ref["searchBases"].toArray())
         bases << mapped(paths, v.toString()).toLower();
+    // One scalar can name several route companions or seasonal ACE/DDS targets.
     return source + '|' + QString::number(ref["fieldIndex"].toInt(-1)) + '|' +
            QString::number(ref["scalarIndex"].toInt()) + '|' + ref["kind"].toString() + '|' +
+           ref["suffix"].toString() + '|' + QString::number(ref["derivedDds"].toBool()) + '|' +
            bases.join(';');
 }
 struct Selection {
