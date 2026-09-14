@@ -9,6 +9,7 @@
  */
 
 #include <QApplication>
+#include <contentCase/ContentCase.h>
 #include <tsre/world/TerrainBakeCommand.h>
 #include <QDebug>
 #include <QtCore>
@@ -367,6 +368,12 @@ int main(int argc, char *argv[]){
 
     // Conversion paths are relative to the caller's cwd, and console conversion
     // needs neither a GUI platform plugin nor game settings/assets.
+    // Give the read-only scanner its own dispatch pass: mixed conversion modes
+    // must be rejected by its parser before any other command can write content.
+    for (int i=1;i<argc;++i) {
+        if (QByteArray(argv[i])=="--") break;
+        if (QByteArray(argv[i])=="--contentcase") return ContentCase::run(argc,argv);
+    }
     for (int i=1;i<argc;++i) {
         if (QByteArray(argv[i])=="--") break;
         if (QByteArray(argv[i])=="--refreshpmaptextures") return TerrainBakeCommand::run(argc,argv);

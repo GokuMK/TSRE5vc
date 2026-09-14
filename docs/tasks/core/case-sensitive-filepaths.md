@@ -1,7 +1,14 @@
 # Case-sensitive filepaths and game-root repair
 
-Status: design only. Reviewed 2026-09-12 against `d425ec2`. No runtime, parser,
-content, or filename changes are part of this task.
+Status: **stage 1 accepted as the first read-only scanner/planner version on
+2026-09-14. Stage A runtime path handling is next.**
+The original source review was made on 2026-09-12 against `d425ec2`; the design
+was committed in `ebe215d`. See [stage-1 usage and evaluation](case-sensitive-filepaths-stage1.md)
+for implementation scope, real-root results, and remaining coverage work.
+No part A runtime changes or content mutation are included in this implementation.
+Stage 3 repair execution remains deferred until stage A and the relevant
+reference-writing/coverage checks are complete. Acceptance of stage 1 does not
+certify an apply-ready repair plan.
 
 Revision: incorporates the author's inline review comments. The selected approach
 is offline content conversion with simple application paths. Supporting two
@@ -22,8 +29,10 @@ and `GLOBAL`. On a case-insensitive filesystem those requests also work with
 existing alternative casing. When a required directory is missing, a diagnostic
 can identify a likely wrongly named directory and offer to run the repair tool.
 The application does not maintain directory aliases or transparently repair
-paths while loading. The converter makes all content directories below the game
-root uppercase and brings references into agreement with actual filenames.
+paths while loading. The converter uppercases directories with fixed application
+roles, plus recognized route directories, and brings references into agreement
+with actual filenames. Vehicle folders and custom shared asset directories keep their existing spelling
+unless a reference constraint requires a change.
 
 `Tree.ace` and `tree.ace` in the same resource context mean the same intended
 asset. Lowercase comparison/hash inputs can express that identity, but the key
@@ -51,18 +60,22 @@ Agreed delivery order:
 4. **Optional naming improvements.** Prefer existing readable spellings or
    explicit overrides; defer automatic CamelCase generation.
 
-No further user policy decision is required to start stage 1. The conventions
-are settled: uppercase content directories below the supplied root; preserve
+Stage 1 can continue with the following conventions:
+uppercase fixed application directories and recognized route directories below
+the supplied root; preserve other dynamically discovered/referenced directory names; preserve
 filename spelling in I/O; use folded logical keys within resource context;
 unify case variants of references; and report competing physical files. Normal
 implicit suffix rules and reference-driven name selection are described below.
+The agreed fixed-file convention is lowercase (`tsection.dat`, `forests.dat`),
+matching existing requests.
 Remaining details such as per-format reference fields/search roots, preservation
 coverage, and exact CLI spelling are implementation or discovery work, not a
 reason to delay the scanner. A conflicting pair's intended version is naturally
 a per-game-root decision reported by the tool, not a global policy to guess now.
 
 The source review below establishes concrete migration hazards. It does not
-certify every MSTS/Open Rails extension, and no installed game root was scanned.
+certify every MSTS/Open Rails extension. The separate stage-1 evaluation records
+the subsequently authorized read-only scans of two installed game roots.
 The repair tool must report its coverage rather than claim an arbitrary root
 is completely repaired just because TSRE can render it.
 
@@ -189,8 +202,9 @@ Proposed rules:
    components against the reference's declared base; do not blindly collapse
    `..` across symlink boundaries.
 2. Request fixed uppercase directories: `ROUTES`, `TRAINS`, `GLOBAL`, `SHAPES`,
-   `TEXTURES`, seasons, and so on. New-directory creation uses uppercase too,
-   including user-named content folders. The application can enumerate route and
+   `TEXTURES`, seasons, and so on, only in their defined structural locations.
+   New-directory creation uses uppercase for these roles, preserving user-named
+   content folders. The application can enumerate route and
    trainset folders normally; it does not create a case-translation map for them.
 3. If a required directory is missing, check the parent for likely naming errors
    only to produce a useful diagnostic. Explain the expected path and offer to
@@ -216,6 +230,13 @@ Proposed rules:
    name by replacing the S suffix with `.sd`, rather than searching for `.SD`,
    `.Sd`, etc. This avoids a blanket extension conversion or a runtime suffix
    discovery system.
+   Thus `Tree.S` and `Tree.s` both imply `Tree.sd`; `.S` does not imply `.SD`.
+   The existing literal `+ "d"` would produce `.Sd` for `.S` and must be replaced
+   in part A. Apply the same generated-suffix rule to ACE-to-DDS requests:
+   `Leaf.ACE` and `Leaf.ace` both imply `Leaf.dds`, preserving the stem exactly.
+   Explicit ACE spelling remains authored; uppercase source suffixes are accepted.
+   Existing ACE and DDS representations, and their existing seasonal variants,
+   need coordinated stems even when one representation shadows another at runtime.
 7. Keep keyword parsing (`ParserX::NextToken...().toLower()`), shader names,
    season labels, user search, sorting, and other intentional symbolic matching.
    Audit `Qt::CaseInsensitive` and case-folded map keys as well as `toLower()`;
@@ -302,35 +323,52 @@ files a valid portable result. Never choose arbitrary enumeration order.
 
 ### B2. Directory and filename policy
 
-Adopt uppercase names for **all content directories below the game root**, not
-only the known structural ones. Structural examples are:
+Adopt uppercase names for **directories the application accesses by a fixed
+name in a defined location**. Structural examples are:
 `ROUTES`, `GLOBAL`, `TRAINS`, `SHAPES`, `TEXTURES`, `TRAINSET`, `CONSISTS`,
 `WORLD`, `TILES`, `LO_TILES`, `TERRTEX`, `TD`, `ACTIVITIES`, `SERVICES`,
 `TRAFFIC`, `PATHS`, `SOUND`, `ENVFILES`, and `CABVIEW` where applicable.
-This includes `OPENRAILS`, addon/procedural folders, seasons, route folders,
-TRAINSET product folders, shared folders such as `COMMON.SOUND`, and arbitrary
-user content subdirectories. It changes directory names, not route display names,
-logical RouteIDs, TRK file stems, or all filenames. Leave the game-root argument
-and its parents as supplied; do not traverse external links to uppercase their
-targets. This is the selected project convention, not a claim that every existing
-installation already uses these spellings.
+This includes recognized override and seasonal locations. By explicit layout
+convention, recognized route directories are also uppercase: `ROUTES/CMK/SHAPES`.
+Route enumeration does not technically require uppercase; this is a consistency
+choice. Cross-route references such as `../../Cmk/SHAPES/Tree.s` are possible and
+must follow the proposed rename. An uneditable reference with conflicting route
+spelling remains an error for the affected component; do not silently break it.
+This does **not** impose uppercase on TRAINSET product folders, custom shared directories
+such as `common.snd` or `track_b`, or arbitrary asset subdirectories. These names
+are obtained by enumeration or references: preserve the existing spelling when
+consistent, and reconcile real case mismatches through references/renames.
+A custom directory called `textures` is not automatically the route's `TEXTURES`.
+For example, `routes/RouteOne/shapes` becomes `ROUTES/ROUTEONE/SHAPES`, while
+`trains/trainset/ep09` becomes `TRAINS/TRAINSET/ep09`.
+Leave route display names, logical RouteIDs, TRK stems, the game-root argument,
+and its parents unchanged. Do not follow external links to rename their targets.
 
-Fixed system basenames such as `tsection.dat` use the spelling requested by the
-application. The converter repairs their casing; the runtime needs no discovery
-service for them. Implicit extensions/companion names likewise follow the simple
+Fixed system basenames use the **agreed lowercase convention**, matching
+existing requests: `tsection.dat`,
+`forests.dat` (plural), `sigcfg.dat`, `sigscr.dat`, `carspawn.dat`, `ssource.dat`,
+`ttype.dat`, `speedpost.dat`, `gantry.dat`, `hazards.dat`, `telepole.dat`,
+`terrainmaterials.dat`, and `ENVFILES/editor.env` in their defined locations.
+The runtime and converter must use the same spelling.
+This is a role-based registry, not a rule for every DAT or ENV file. The dry-run
+currently retains its lowercase system-catalog convention; full fixed-file and
+directory coverage needs the part A direct-access audit. The runtime needs no
+discovery service for fixed names. Implicit extensions/companion names follow the simple
 construction rules in A3. Explicit file references can retain a different suffix
 case where no implicit-path constraint conflicts.
 
-Every directory rename must update references that explicitly contain it. For
-example, `..\\..\\common.sound\\Horn.sms` becomes
-`..\\..\\COMMON.SOUND\\Horn.sms`. Unknown directories still receive an uppercase
-proposal; missing reference coverage blocks applying that proposal, rather than
-silently exempting the directory from the policy. User overrides are needed for
-actual typos (`route` versus `ROUTES`); uppercasing alone cannot correct them.
+Every proposed directory rename must account for references that explicitly
+contain it. A consistent `..\\..\\common.sound\\Horn.sms` can stay unchanged.
+An uneditable reference may instead require renaming an existing `COMMON.SOUND`
+directory to `common.sound`; conflicting uneditable spellings remain errors for
+that component. Preserve an authored relative path if it resolves exactly in
+the planned tree; do not demand a rewrite just to shorten it. Unknown directory
+roles retain their spelling and remain part of reference discovery. User
+overrides are needed for actual typos (`route` versus `ROUTES`).
 
 For ordinary assets, choose among spellings already present on disk or in
-references, considering the **entire path**, not just the leaf. Uppercase
-directories and fixed/implicit filename conventions are hard constraints; minimize
+references, considering the **entire path**, not just the leaf. Fixed application
+directory, uppercase route directory, and fixed/implicit filename conventions are hard constraints; minimize
 edits among names satisfying those constraints:
 
 1. Satisfy unpatchable references first within the fixed naming constraints. If
@@ -357,6 +395,12 @@ edits among names satisfying those constraints:
    seasonal variants, TRK-related stems, W/WS tile pairs, and terrain descriptor
    and sample companions. Preserve tile-coordinate naming and numeric track,
    activity, and material identifiers. Do not beautify generated tile names.
+   Stage B's texture planner connects targets through shared source fields,
+   existing representations and seasons, including transitive connections across
+   multiple shapes. It chooses one feasible name per connected group, preserving
+   separate physical files. It records incompatible frozen constraints instead
+   of independently selecting contradictory route-local names. Full-path
+   differences still need validation after filename selection.
 6. Keep valid unreferenced filenames as found unless a fixed/implicit naming rule
    or collision requires repair. Still scan recognized unreferenced
    files for outgoing references: an unused REF, consist, or shape can be used
@@ -505,6 +549,16 @@ them absent or authorize a rename based on guessed string matches.
 
 ### B7. Transaction, coverage, and failure handling
 
+- Separate whole-document syntax diagnostics, filename-reference discovery, and
+  reference-editing capability. A source that cannot be safely saved can still
+  supply complete filename data. Keep its reference strings fixed and satisfy
+  them by renaming targets, coordinating other editable references as necessary.
+  Missing save support and unrelated syntax defects are not automatic conversion
+  blockers. Identify the fields or unread regions that actually prevent filename
+  synchronization; see the [stage-1 impact review](case-sensitive-filepaths-stage1.md#conversion-impact-reference-discovery-and-source-rewriting-are-separate).
+  Fixed reference spellings are constraints, not merely votes overridden to reduce
+  edit counts. If those constraints cannot be satisfied together with the selected
+  directory conventions, report the specific affected component and conflict.
 - Plan internally before mutation in every mode; a separate user-run dry run or
   exported plan is optional. Classify known leaf resources separately from potential
   reference-bearing files; unrelated executables and documentation do not need
@@ -535,13 +589,20 @@ them absent or authorize a rename based on guessed string matches.
 - Verify every supported edge still resolves to the **same target file ID**
   after remapping, or the explicitly recorded retained/selected target for a
   consolidation. Verify exact component spelling, one final file per logical
-  key/context, uppercase content directories, and the same override/season
+  key/context, uppercase fixed application directories, and the same override/season
   behavior. Distinguish pre-existing missing assets from newly broken edges.
-  Mandatory unresolved references prevent a “fully repaired” result; optional
-  fallback variants are reported under their format rules.
-- A plan with blocked components is not a complete repair. An optional partial
-  apply must explicitly identify independent components proven unaffected by the
-  blocked ones, and its report must retain the incomplete status.
+  Pre-existing missing targets in known lookup locations are warnings, not
+  conversion blockers. Preserve their unresolved references and report them
+  separately; conversion does not restore absent content. Never substitute a
+  same-named resource from an unrelated route or vehicle. Unknown lookup rules,
+  unread filename data, and newly broken edges remain failures. Optional fallback
+  variants are reported under their format rules.
+- A failed independent asset must not prevent conversion of unaffected components.
+  Retain its failure in the report and isolate the affected operations and
+  dependencies; continue conversion elsewhere. If unread reference data could
+  constrain shared targets, bound that uncertainty before renaming those targets.
+  The report must identify skipped components and retain an incomplete status;
+  successfully converting unaffected content does not repair the broken asset.
 
 ## Delivery sequence and acceptance criteria
 
@@ -589,8 +650,8 @@ Verification cases:
 stage 1 and report the dependency and minimum prerequisite. Do not make part A
 changes under the scanner task. A missing writer is a later-stage limitation;
 an inability to read the necessary paths/references correctly is a stage-1 issue.
-This stop rule does not authorize implementation now; this document remains
-design-only until implementation is requested.
+The user subsequently authorized stage 1, including read-only evaluation of two
+game roots. No dependency requiring part A was found in that implementation.
 
 ### Stage 2: A, runtime identity and layout
 
@@ -600,12 +661,12 @@ together; retain useful terrain hash/comparison folding and separate synthetic
 texture identities. Share directory constants and deterministic companion/save
 path rules. Remove runtime case-search fallback; missing-directory diagnostics
 offer conversion. Keep token/search case folding. An indexed asset map is optional.
-Do this before promising that a repaired uppercase root is usable.
+Do this before promising that a repaired root is usable with exact-case access.
 
 Verification cases:
 
-- Mixed-case game root and parents, uppercase content directories (including
-  route/trainset folders), and mixed-case filename stems work in the local editor,
+- Mixed-case game root and parents, uppercase fixed and route directories,
+  preserved mixed-case trainset/shared folders, and filename stems work in the local editor,
   shape viewer, consist editor, and client; file access and saves preserve spelling.
 - Lowercase key inputs group `Tree.ace`/`tree.ace` identically on both platforms,
   while the case-preserving I/O path remains separate. Repaired content has one
@@ -620,8 +681,9 @@ Verification cases:
   on which texture was loaded first. Synthetic and embedded textures still work.
 - The same global shape with different route texture roots does not share the
   wrong texture context. Season switching and Open Rails overrides remain correct.
-- Save/new/import/recent file paths preserve case; new content directories follow
-  the uppercase rule. Lowercase material hashes remain stable for spelling-only
+- Save/new/import/recent file paths preserve case; new fixed application directories
+  follow the uppercase rule, while user-named folders retain their spelling.
+  Lowercase material hashes remain stable for spelling-only
   changes when their schema is unchanged. Path-dependent derived bake signatures
   are revalidated/invalidated as needed without changing authored UiDs.
 
@@ -669,5 +731,6 @@ operation report and reload repaired fixtures using strict resolution. Rendering
 alone is insufficient, and the test harness must not manufacture lowercase
 aliases to make the repair pass (existing shape fixtures sometimes do this).
 
-No build or runtime tests are required for this design-only change. Implementation
-must supply the above fixtures and preservation evidence before enabling apply.
+The original design-only revision required no build. Stage-1 build and scanner
+tests are recorded in its evaluation; preservation evidence and the remaining
+acceptance cases are still required before enabling apply.

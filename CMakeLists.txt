@@ -92,6 +92,8 @@ file(GLOB TSRE5vc_SRC CONFIGURE_DEPENDS
     "./src/shapeViewer/*.cpp"
     "./src/aceConverter/*.h"
     "./src/aceConverter/*.cpp"
+    "./src/contentCase/*.h"
+    "./src/contentCase/*.cpp"
 )
 
 qt_add_executable(TSRE5vc ${TSRE5vc_SRC})
@@ -125,4 +127,10 @@ option(TSRE_BUILD_SHAPE_TESTS "Build standalone shape document tests" ON)
 if(TSRE_BUILD_SHAPE_TESTS)
     enable_testing()
     add_subdirectory(tests/shapes)
+endif()
+
+option(TSRE_BUILD_CONTENT_CASE_TESTS "Build read-only content-case scanner tests" ON)
+if(TSRE_BUILD_CONTENT_CASE_TESTS)
+    enable_testing()
+    add_subdirectory(tests/contentCase)
 endif()
