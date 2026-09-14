@@ -4,6 +4,9 @@
 #include <tsre/fileFunctions/TS.h>
 #include <QSet>
 #include <QtEndian>
+#include <QStringDecoder>
+#include <QMap>
+#include <algorithm>
 #include <memory>
 #define MINIZ_HEADER_FILE_ONLY
 #include <mzip/miniz/miniz.h>
@@ -34,6 +37,7 @@ bool ignored(const QString &name) {
 }
 void retain(Document &doc, Field &&f) {
     if (f.values.isEmpty()) return;
+    f.index = doc.fields.size();
     if (interesting(f.name)) { doc.fields.push_back(std::move(f)); return; }
     for (const auto &s : f.values) if (looksLikeResource(s.text)) {
         doc.fields.push_back(std::move(f)); return;
@@ -137,7 +141,7 @@ void stringValue(FileBuffer &data, Field &f) {
     f.values.push_back({value, begin, data.off});
 }
 void binaryBlock(FileBuffer &data, Document &doc, QStringList &parents, int depth,
-                 const QString &family) {
+                 const QString &family, QVector<int> lengths = {}) {
     if (depth > MaxDepth) throw FileBuffer::ParseError("Binary nesting limit exceeded");
     const int start = data.off;
     const auto block = data.readBlock();
@@ -149,6 +153,7 @@ void binaryBlock(FileBuffer &data, Document &doc, QStringList &parents, int dept
     }
     data.skipLabel();
     Field f; f.name=name; f.parents=parents;
+    lengths.push_back(start+4);f.binaryLengthOffsets=lengths;
     f.location=(parents+QStringList{name}).join('/')+"@"+QString::number(start);
     static const QSet<QString> worldObjects = {"static", "trackobj", "forest", "collideobject",
         "signal", "platform", "siding", "levelcr", "speedpost", "hazard", "soundsource",
@@ -223,7 +228,7 @@ void binaryBlock(FileBuffer &data, Document &doc, QStringList &parents, int dept
             throw FileBuffer::ParseError("Invalid binary child count");
         parents.push_back(name);
         int seen = 0;
-        while (data.off < block.end) { binaryBlock(data,doc,parents,depth+1,family); ++seen; }
+        while (data.off < block.end) { binaryBlock(data,doc,parents,depth+1,family,lengths); ++seen; }
         parents.removeLast();
         if (count >= 0 && seen != count) throw FileBuffer::ParseError("Binary child count mismatch");
         if(family=="s" && name=="images")doc.shapeImagesComplete=true;
@@ -331,4 +336,98 @@ Document inspectDocument(const QByteArray &input, const QString &family) {
     if(doc.syntaxWarning)doc.valid=false;
     return doc;
 }
+bool patchDocument(const QByteArray &input, const QString &family, const QVector<ReferenceEdit> &edits,
+                   QByteArray &output, QString &error) {
+    error.clear();output.clear();
+    const auto source=inspectDocument(input,family);
+    auto fail=[&](const QString &s){error=s;return false;};
+    if(!source.valid || !source.referenceScanComplete)return fail("Source is not eligible for reference edits");
+    QByteArray bytes=input;Document envelope;
+    if(!unwrap(bytes,envelope))return fail("Cannot decompress source");
+    struct Patch { int begin,end;QByteArray bytes; };
+    QVector<Patch> patches;QMap<int,qint64> lengthChanges;
+    QMap<QPair<int,int>,QString> changed;
+    QString text;
+    const bool le=bytes.startsWith(QByteArray("\xff\xfe",2)),be=bytes.startsWith(QByteArray("\xfe\xff",2));
+    const bool utf8Bom=bytes.startsWith(QByteArray("\xef\xbb\xbf",3));
+    bool latin=false;
+    if(!source.binary) {
+        if(!Reader::decode(bytes,text,error))return false;
+        if(!le && !be){QStringDecoder decoder(QStringDecoder::Utf8);const QString decoded=decoder(bytes);Q_UNUSED(decoded);latin=decoder.hasError();}
+    }
+    auto encode=[&](const QString &s)->QByteArray {
+        if(le)return utf16(s);
+        if(be){auto b=utf16(s);for(int i=0;i<b.size();i+=2)std::swap(b[i],b[i+1]);return b;}
+        return latin?s.toLatin1():s.toUtf8();
+    };
+    for(const auto &edit:edits) {
+        if(edit.fieldIndex<0 || edit.fieldIndex>=source.fields.size())return fail("Reference field no longer exists");
+        const auto &field=source.fields[edit.fieldIndex];
+        if(edit.scalarIndex<0 || edit.scalarIndex>=field.values.size())return fail("Reference scalar no longer exists");
+        const auto &value=field.values[edit.scalarIndex];
+        if(value.text!=edit.expected)return fail("Reference text differs from plan");
+        const auto key=qMakePair(edit.fieldIndex,edit.scalarIndex);
+        if(changed.contains(key)) {
+            if(changed.value(key)!=edit.replacement)return fail("Conflicting edits for one reference scalar");
+            continue;
+        }
+        changed[key]=edit.replacement;
+        if(value.text==edit.replacement)continue;
+        if(source.binary) {
+            if(edit.replacement.size()>65535 || field.binaryLengthOffsets.isEmpty())return fail("Unsupported binary string edit");
+            auto replacement=utf16(edit.replacement);QByteArray count(2,Qt::Uninitialized);
+            qToLittleEndian<quint16>(edit.replacement.size(),count.data());replacement.prepend(count);
+            patches.push_back({int(value.begin),int(value.end),replacement});
+            for(int at:field.binaryLengthOffsets)lengthChanges[at]+=replacement.size()-(value.end-value.begin);
+        } else {
+            if(value.begin<0 || value.end>text.size())return fail("Invalid text reference span");
+            QString replacement=edit.replacement;
+            if(latin && QString::fromLatin1(replacement.toLatin1())!=replacement)return fail("Filename is not representable in source byte encoding");
+            // Retain the original separator convention where it is unambiguous.
+            if(value.text.contains('\\') && !value.text.contains('/'))replacement.replace('/','\\');
+            const auto lexeme=text.mid(value.begin,value.end-value.begin);
+            bool quoted=lexeme.startsWith('"');
+            for(auto c:replacement)quoted|=c.isSpace() || c=='(' || c==')' || c=='"';
+            if(quoted)replacement='"'+replacement.replace('\\',"\\\\").replace('"',"\\\"").replace('\n',"\\n").replace('\t',"\\t")+'"';
+            const int prefix=le||be?2:utf8Bom?3:0;
+            const int begin=prefix+encode(text.left(value.begin)).size();
+            const int end=prefix+encode(text.left(value.end)).size();
+            patches.push_back({begin,end,encode(replacement)});
+        }
+    }
+    for(auto it=lengthChanges.cbegin();it!=lengthChanges.cend();++it) {
+        const qint64 length=qFromLittleEndian<quint32>(bytes.constData()+it.key())+it.value();
+        if(length<1 || length>MaxDocument)return fail("Binary block length would be invalid");
+        QByteArray word(4,Qt::Uninitialized);qToLittleEndian<quint32>(length,word.data());
+        patches.push_back({it.key(),it.key()+4,word});
+    }
+    std::sort(patches.begin(),patches.end(),[](const Patch &a,const Patch &b){return a.begin>b.begin;});
+    int bound=bytes.size();
+    for(const auto &p:patches) {
+        if(p.begin<0 || p.end<p.begin || p.end>bound)return fail("Overlapping or invalid reference patches");
+        bytes.replace(p.begin,p.end-p.begin,p.bytes);bound=p.begin;
+    }
+    output=bytes;
+    if(envelope.compressed) {
+        const bool wide=input.startsWith(QByteArray("\xff\xfe",2));
+        const int header=wide?34:16;
+        const auto payload=bytes.mid(header);
+        output=input.left(header);
+        qToLittleEndian<quint32>(payload.size(),output.data()+(wide?18:8));
+        output+=qCompress(payload).mid(4);
+    }
+    const auto result=inspectDocument(output,family);
+    if(!result.valid || !result.referenceScanComplete || result.fields.size()!=source.fields.size())return fail("Patched document failed reference verification");
+    for(int f=0;f<source.fields.size();++f) {
+        const auto &before=source.fields[f],&after=result.fields[f];
+        if(before.name!=after.name || before.parents!=after.parents || before.values.size()!=after.values.size())return fail("Patched document structure changed: "+before.name+" ["+before.parents.join('/')+"] -> "+after.name+" ["+after.parents.join('/')+"]");
+        for(int v=0;v<before.values.size();++v) {
+            QString expected=changed.value(qMakePair(f,v),before.values[v].text),actual=after.values[v].text;
+            if(changed.contains(qMakePair(f,v))){expected.replace('\\','/');actual.replace('\\','/');}
+            if(actual!=expected)return fail("Patched document changed an unexpected scalar");
+        }
+    }
+    return true;
+}
+
 }

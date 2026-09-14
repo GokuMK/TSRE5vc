@@ -4,7 +4,7 @@
 #include <functional>
 
 namespace ContentCase {
-// Read-only scanner. No API in this module performs content mutation.
+// Read-only inventory/planning API. Execution is separate in ContentCaseExecution.h.
 QJsonObject scan(const QString &root, QString &error,
                  const std::function<void(const QString &)> &progress = {});
 QString markdownReport(const QJsonObject &plan);

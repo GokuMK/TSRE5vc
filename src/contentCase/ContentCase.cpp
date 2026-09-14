@@ -63,7 +63,7 @@ struct Entry {
 };
 struct Edge {
     int source=-1, target=-1;
-    int scalarIndex=0;
+    int scalarIndex=0, fieldIndex=-1;
     QString field, spelling, kind, status, context, suffix, expectedLeaf, sourceFamily;
     QString authoredTexture;
     QStringList bases;
@@ -264,6 +264,7 @@ public:
             const QString &suffix={},bool optional=false,QString overrideSpelling={}) {
         if(value>=f.values.size())return -1;
         Edge e;e.source=job.file;e.field=f.location;e.kind=kind;e.bases=bases;e.scalarIndex=value;e.sourceFamily=job.family;
+        e.fieldIndex=f.index;
         e.spelling=overrideSpelling.isEmpty()?f.values[value].text:overrideSpelling;
         e.literals=f.values;e.suffix=suffix;e.context=job.route.isEmpty()?job.resourceBase:job.route;
         e.optional=optional;e.implicit=f.values[value].begin<0;
@@ -862,7 +863,7 @@ public:
             ops.append(QJsonObject{{"operation","edit-reference"},{"edgeId",i},{"edgeIds",QJsonArray{i}},{"sourceFileId",e.source},
                 {"location",e.field},{"originalLogicalReference",original},{"proposedLogicalReference",spelling},
                 {"reason","match final filename and directory spelling"},
-                {"readiness","writer not implemented; token mapping and preservation must be verified"}});
+                {"readiness","requires execution preflight and preservation verification"}});
         }
         QSet<int> blockedEdges;
         for(auto it=fieldSpellings.cbegin();it!=fieldSpellings.cend();++it)if(it.value().size()>1) {
@@ -994,7 +995,7 @@ public:
             if(!e.sha.isEmpty()) {obj["sha256"]=e.sha;content.addData((e.path+"\n"+e.sha+"\n").toUtf8());}
             if(e.parsed){obj["encoding"]=e.encoding;obj["compressed"]=e.compressed;obj["offsetUnit"]=e.offsets;
                 obj["referenceScanComplete"]=e.document.referenceScanComplete;
-                obj["referenceEditPolicy"]=frozen(id)?"rename-targets-only":"patch-proposal; writer not implemented";
+                obj["referenceEditPolicy"]=frozen(id)?"rename-targets-only":"source-span patch subject to execution preflight";
                 obj["syncAssessment"]=failedFiles.contains(id)?"failed":
                     (e.document.syntaxWarning||missingTargets.contains(id))?"warning-only":"no-known-failure-in-subset";
             }
@@ -1016,16 +1017,17 @@ public:
                 {"spelling",e.spelling},{"context",e.context},{"searchBases",strings(e.bases)},
                 {"status",e.status},{"targetFileId",e.target},{"candidateFileIds",numbers(e.candidates)},
                 {"selectedSearchBase",e.priority},{"implicit",e.implicit},{"optional",e.optional},
-                {"sourceScalars",spans},{"scalarIndex",e.scalarIndex}});
+                {"sourceScalars",spans},{"scalarIndex",e.scalarIndex},{"fieldIndex",e.fieldIndex},
+                {"sourceFamily",e.sourceFamily},{"suffix",e.suffix}});
             if(!e.authoredTexture.isEmpty()) {
                 auto ref=refs.last().toObject();ref["authoredTextureReference"]=e.authoredTexture;
                 ref["derivedDds"]=e.derivedDds;refs[refs.size()-1]=ref;
             }
         }
         auto counts=[](const QMap<QString,int>&map){QJsonObject o;for(auto it=map.cbegin();it!=map.cend();++it)o[it.key()]=it.value();return o;};
-        return {{"schema","tsre-content-case-plan-v1"},{"stage","B1-read-only"},{"gameRoot",root},
+        return {{"schema","tsre-content-case-plan-v1"},{"stage","B3-plan"},{"gameRoot",root},
             {"applyReady",false},{"coverageCertified",false},
-            {"coverageNote","Reference-subset inventory. Unknown fields/formats and implicit simulator rules remain review work; no writer is implemented."},
+            {"coverageNote","Reference-subset inventory. Unknown fields/formats and implicit simulator rules remain review work. Execution isolates unresolved components and verifies preservation."},
             {"summary",QJsonObject{{"files",files.size()-dirs},{"directories",dirs},{"parsedDocuments",parsed},
                 {"incompleteDocuments",invalid},{"documentDiagnostics",diagnostics},{"references",edges.size()},
                 {"proposedOperations",ops.size()},{"collisionGroups",collisionList.size()},
@@ -1061,7 +1063,7 @@ QJsonObject scan(const QString &root, QString &error, const std::function<void(c
 QString markdownReport(const QJsonObject &plan) {
     const auto summary=plan["summary"].toObject();
     QString out="# Content filename case: dry-run report\n\nRoot: `"+plan["gameRoot"].toString()+"`\n\n";
-    out+="No content was changed. This is a reference-subset scan, not a certified complete repair plan. Mutation is unavailable.\n\n";
+    out+="No content was changed. This is a reference-subset scan, not a certified complete repair plan. Execution requires separate preflight and isolates unresolved components.\n\n";
     out+="## Errors\n\n";
     out+="Errors are grouped by source and reason. An isolated bad asset does not stop conversion of unaffected components; affected operations and shared dependencies must be isolated. Every group is listed here; JSON retains all affected edge IDs. Missing content in a known lookup location and recovered syntax warnings do not block conversion; they are listed separately below. Unknown lookup rules or unread filename fields remain errors.\n\n";
     out+="| ID | Category | Source | Reason and examples | Occurrences |\n| --- | --- | --- | --- | ---: |\n";

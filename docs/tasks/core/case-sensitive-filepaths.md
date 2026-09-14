@@ -1,14 +1,13 @@
 # Case-sensitive filepaths and game-root repair
 
-Status: **stage 1 accepted as the first read-only scanner/planner version on
-2026-09-14. Stage A runtime path handling is next.**
-The original source review was made on 2026-09-12 against `d425ec2`; the design
-was committed in `ebe215d`. See [stage-1 usage and evaluation](case-sensitive-filepaths-stage1.md)
-for implementation scope, real-root results, and remaining coverage work.
-No part A runtime changes or content mutation are included in this implementation.
-Stage 3 repair execution remains deferred until stage A and the relevant
-reference-writing/coverage checks are complete. Acceptance of stage 1 does not
-certify an apply-ready repair plan.
+Status: **stage A is committed; stage 3 execution v1 is implemented.**
+See [current conversion commands and execution limits](case-sensitive-filepaths-stage3.md),
+[stage-A runtime handling](case-sensitive-filepaths-stage-a.md), and the historical
+[stage-1 scanner evaluation](case-sensitive-filepaths-stage1.md). The original
+review was against `d425ec2`, and the design was committed in `ebe215d`.
+Whole-root coverage remains uncertified. Execution v1 withholds unresolved
+components and case-collision merges; the broader acceptance list below remains
+the design target, not a claim that every third-party format is supported.
 
 Revision: incorporates the author's inline review comments. The selected approach
 is offline content conversion with simple application paths. Supporting two
@@ -249,8 +248,8 @@ Proposed rules:
 
 ### B1. Interface and guarantees
 
-Illustrative CLI through the main executable, not implemented. `--contentcase`
-is the proposed mode switch; a separate executable is not required:
+CLI through the main executable. `--contentcase` is the console mode switch;
+a separate executable is not required:
 
 ```text
 TSRE5vc --contentcase <gameroot>
@@ -261,12 +260,12 @@ TSRE5vc --contentcase <gameroot> --verify
 TSRE5vc --contentcase <gameroot> --rollback <journal.json>
 ```
 
-These are the **finished tool's** modes. Stage 1 implements only `--plan` and
-its optional outputs/help. Invocations requesting repairs, apply, or rollback
-must exit with an explicit "not implemented in the dry-run stage" message;
-they must not fall through into normal editor startup or silently change meaning.
-Reports/plans may be written outside the content tree; game-root contents must
-remain untouched.
+These modes are implemented in [stage 3 execution v1](case-sensitive-filepaths-stage3.md),
+which also documents the optional `--journal` argument and current limits.
+`--plan` and `--verify` are read-only. Default invocation and `--apply` repair
+independently checked components with backups, journaling, and verification;
+`--rollback` restores recorded changes. Case-collision consolidation/merging
+remains withheld. Reports/plans and recovery data are stored outside the content tree.
 
 Use early command dispatch in [`main.cpp`](../../../src/main.cpp), following
 the existing `--aceconv` console branch and `--refreshpmaptextures` entry point.

@@ -9,9 +9,11 @@ struct Scalar {
     qint64 begin = -1, end = -1;
 };
 struct Field {
+    int index = -1;
     QString name, location;
     QStringList parents;
     QVector<Scalar> values;
+    QVector<int> binaryLengthOffsets;
 };
 // A reference inventory, not an editable document or an editor/rendering object.
 struct Document {
@@ -27,4 +29,7 @@ struct Document {
 };
 Document inspectDocument(const QByteArray &bytes, const QString &family);
 bool looksLikeResource(const QString &value);
+struct ReferenceEdit { int fieldIndex, scalarIndex; QString expected, replacement; };
+bool patchDocument(const QByteArray &input, const QString &family, const QVector<ReferenceEdit> &edits,
+                   QByteArray &output, QString &error);
 }

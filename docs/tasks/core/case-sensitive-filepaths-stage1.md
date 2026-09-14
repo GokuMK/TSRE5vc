@@ -1,5 +1,9 @@
 # Case-sensitive filepaths: stage 1
 
+**Historical stage-1 record.** Current conversion, verification, and rollback
+commands are documented in [stage 3 execution](case-sensitive-filepaths-stage3.md).
+Statements below that mutation is unavailable describe the earlier scanner stage.
+
 Implemented on 2026-09-12 following the [agreed design](case-sensitive-filepaths.md).
 This is B's read-only scanner and provisional planner. It is available through
 the main executable and does not need part A. Existing editor loaders, runtime

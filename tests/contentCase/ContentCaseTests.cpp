@@ -13,6 +13,8 @@
 #include <QtEndian>
 #include <stdexcept>
 
+void runExecutionTests();
+
 namespace {
 void check(bool ok,const char *message){if(!ok)throw std::runtime_error(message);}
 void put(const QString &path,const QByteArray &bytes) {
@@ -162,8 +164,8 @@ int main(int argc,char **argv) {
         if(a!=b){int pos=0;while(pos<std::min(a.size(),b.size())&&a[pos]==b[pos])++pos;
             QTextStream(stderr)<<"First difference at "<<pos<<"\n"<<a.mid(std::max(0,pos-80),250)<<"\n"<<b.mid(std::max(0,pos-80),250)<<"\n";}
         check(a==b,"repeat scan deterministic and unchanged inputs");
-        check(command({"--contentcase",root})==2,"default mutation disabled");
-        check(command({"--contentcase",root,"--apply","anything.json"})==2,"apply disabled");
+        check(command({"--contentcase",root+"/Missing"})==2,"default repair requires an existing root");
+        check(command({"--contentcase",root,"--apply","anything.json"})==2,"missing saved plan rejected");
         check(command({"--refreshpmaptextures","--contentcase",root,"--plan"})==2,"mixed command modes refused");
         check(command({"--contentcase",root,"--plan","--report",root+"/forbidden.md"})==2,"root output refused");
         check(!QFile::exists(root+"/forbidden.md"),"root output never created");
@@ -579,6 +581,7 @@ int main(int argc,char **argv) {
                 unresolvedSms=e["targetFileId"].toInt()==-1 && e["status"]=="external-or-invalid";
         }
         check(explainedSms && unresolvedSms,"root SOUND locomotive-style path has an understandable error without guessed vehicle lookup");
+        runExecutionTests();
         QTextStream(stdout)<<"Content-case tests passed\n";return 0;
     } catch(const std::exception &e){QTextStream(stderr)<<e.what()<<"\n";return 1;}
 }
