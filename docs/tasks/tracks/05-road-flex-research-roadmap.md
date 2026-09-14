@@ -175,8 +175,8 @@ Problems:
 - the hardcoded fallback is rail-specific;
 - the advanced template file declares `TRACK`/`ROAD` types, but the parser
   currently ignores the type value and assigns `DEFAULT`;
-- `shapetemplates.dat` is loaded only from application data, while referenced
-  OBJ and texture assets can be overridden by a route.
+- `shapetemplates.dat` is loaded from the active route's `procedural`
+  directory; referenced OBJ and texture assets resolve there first.
 
 Replace the boolean with three modes while preserving old configuration:
 

@@ -21,7 +21,21 @@
 #include <tsre/tdb/SpeedPostDAT.h>
 #include <tsre/world/SoundList.h>
 #include <tsre/tdb/TRitem.h>
+#include <tsre/procedural/ProceduralShape.h>
+#include <tsre/procedural/ShapeTemplates.h>
+#include <tsre/procedural/OrtsTrackProfile.h>
 #include <QMapIterator>
+
+namespace {
+
+bool isContinuousFlexRoleProfile(const QString &name) {
+    const QString normalized = name.trimmed().toLower();
+    return normalized.endsWith("_left")
+            || normalized.endsWith("_middle")
+            || normalized.endsWith("_right");
+}
+
+}
 
 ObjTools::ObjTools(QString name)
     : QWidget(){
@@ -99,19 +113,23 @@ ObjTools::ObjTools(QString name)
     QGridLayout *continuousFlexOptionsLayout = new QGridLayout;
     continuousFlexOptionsLayout->setSpacing(2);
     continuousFlexOptionsLayout->setContentsMargins(3,0,3,0);
+    continuousFlexProfile.setStyleSheet("combobox-popup: 0;");
+    continuousFlexProfile.setToolTip(
+            "Procedural profile used for new Flex objects. Road lane role profiles are selected automatically.");
+    continuousFlexOptionsLayout->addWidget(&continuousFlexProfile, 0, 0, 1, 2);
     continuousFlexLeft.setText("Track on left");
     continuousFlexRight.setText("Track on right");
-    continuousFlexOptionsLayout->addWidget(&continuousFlexLeft, 0, 0);
-    continuousFlexOptionsLayout->addWidget(&continuousFlexRight, 0, 1);
-    continuousFlexOptionsLayout->addWidget(new QLabel("Separation:"), 1, 0);
-    continuousFlexSeparation.setDecimals(2);
+    continuousFlexOptionsLayout->addWidget(&continuousFlexLeft, 1, 0);
+    continuousFlexOptionsLayout->addWidget(&continuousFlexRight, 1, 1);
+    continuousFlexOptionsLayout->addWidget(new QLabel("Separation:"), 2, 0);
+    continuousFlexSeparation.setDecimals(3);
     continuousFlexSeparation.setRange(1.0, 20.0);
     continuousFlexSeparation.setSingleStep(0.25);
     continuousFlexSeparation.setSuffix(" m");
     continuousFlexSeparation.setValue(4.0);
     continuousFlexSeparation.setEnabled(false);
-    continuousFlexOptionsLayout->addWidget(&continuousFlexSeparation, 1, 1);
-    continuousFlexOptionsLayout->addWidget(new QLabel("Minimum radius:"), 2, 0);
+    continuousFlexOptionsLayout->addWidget(&continuousFlexSeparation, 2, 1);
+    continuousFlexOptionsLayout->addWidget(new QLabel("Minimum radius:"), 3, 0);
     continuousFlexMinimumRadius.setDecimals(2);
     continuousFlexMinimumRadius.setRange(5.0, 10000.0);
     continuousFlexMinimumRadius.setSingleStep(0.5);
@@ -119,11 +137,13 @@ ObjTools::ObjTools(QString name)
     continuousFlexMinimumRadius.setValue(continuousFlexTrackMinimumRadius);
     continuousFlexMinimumRadius.setToolTip(
             "Raised when necessary to keep inner companion tracks or lanes valid.");
-    continuousFlexOptionsLayout->addWidget(&continuousFlexMinimumRadius, 2, 1);
+    continuousFlexOptionsLayout->addWidget(&continuousFlexMinimumRadius, 3, 1);
     continuousFlexOptionsWidget.setLayout(continuousFlexOptionsLayout);
     continuousFlexOptionsWidget.hide();
     vlist3->addWidget(&continuousFlexOptionsWidget,2,0,1,4);
 
+    QObject::connect(&continuousFlexProfile, SIGNAL(textActivated(QString)),
+            this, SLOT(continuousFlexProfileChanged(QString)));
     QObject::connect(&continuousFlexLeft, SIGNAL(toggled(bool)),
             this, SLOT(continuousFlexOptionsChanged()));
     QObject::connect(&continuousFlexRight, SIGNAL(toggled(bool)),
@@ -297,6 +317,7 @@ void ObjTools::refreshObjLists(){
 
 void ObjTools::routeLoaded(Route* a){
     this->route = a;
+    refreshContinuousFlexProfiles();
             
     autoPlacementTarget.setCurrentIndex(2);
     route->placementAutoTargetType = 2;
@@ -603,6 +624,7 @@ void ObjTools::enableContinuousFlexTool(bool road, bool enabled){
                 ? continuousFlexRoadMinimumRadius
                 : continuousFlexTrackMinimumRadius);
     }
+    refreshContinuousFlexProfiles();
     continuousFlexLeft.setText(road ? "Lane on left" : "Track on left");
     continuousFlexRight.setText(road ? "Lane on right" : "Track on right");
     itemRef = Ref::RefItem();
@@ -619,6 +641,84 @@ void ObjTools::enableContinuousFlexTool(bool road, bool enabled){
 
 void ObjTools::continuousFlexOptionsButtonEnabled(bool val){
     continuousFlexOptionsWidget.setVisible(val);
+}
+
+void ObjTools::refreshContinuousFlexProfiles(){
+    if(route == NULL)
+        return;
+
+    const QString preferred = continuousFlexRoadOptions
+            ? continuousFlexRoadProfile
+            : continuousFlexTrackProfile;
+    const QSignalBlocker blocker(&continuousFlexProfile);
+    continuousFlexProfile.clear();
+    continuousFlexProfile.addItem("Built-in dynamic track", QString());
+
+    ProceduralShape::Load();
+    OrtsTrackProfileCatalog::load(Game::root + "/routes/" + Game::route);
+
+    // Route-local ORTS profiles have the same precedence as the object
+    // properties selectors. Role variants are assigned automatically when a
+    // road group is created and would only clutter this base-profile list.
+    for(const QString &profileId : OrtsTrackProfileCatalog::profileIds()){
+        if(isContinuousFlexRoleProfile(profileId))
+            continue;
+        if(continuousFlexProfile.findText(profileId, Qt::MatchFixedString) < 0)
+            continuousFlexProfile.addItem(profileId, profileId);
+    }
+
+    if(ProceduralShape::ShapeTemplateFile != NULL){
+        QMapIterator<QString, ShapeTemplate*> iterator(
+                ProceduralShape::ShapeTemplateFile->templates);
+        while(iterator.hasNext()){
+            iterator.next();
+            if(iterator.value() == NULL)
+                continue;
+            const ShapeTemplate::TemplateType expectedType =
+                    continuousFlexRoadOptions
+                    ? ShapeTemplate::ROAD
+                    : ShapeTemplate::TRACK;
+            if(iterator.value()->type != expectedType)
+                continue;
+            const QString name = iterator.value()->name;
+            if(isContinuousFlexRoleProfile(name))
+                continue;
+            if(OrtsTrackProfileCatalog::find(name) != nullptr)
+                continue;
+            if(continuousFlexProfile.findText(name, Qt::MatchFixedString) < 0)
+                continuousFlexProfile.addItem(name, name);
+        }
+    }
+
+    int selectedIndex = -1;
+    for(int i = 0; i < continuousFlexProfile.count(); i++){
+        if(continuousFlexProfile.itemData(i).toString().compare(
+                preferred, Qt::CaseInsensitive) == 0){
+            selectedIndex = i;
+            break;
+        }
+    }
+    if(selectedIndex < 0 && continuousFlexRoadOptions)
+        selectedIndex = continuousFlexProfile.findText(
+                "default_road", Qt::MatchFixedString);
+    if(selectedIndex < 0 && continuousFlexProfile.count() > 0)
+        selectedIndex = 0;
+    continuousFlexProfile.setCurrentIndex(selectedIndex);
+
+    if(continuousFlexRoadOptions)
+        continuousFlexRoadProfile = continuousFlexProfile.currentData().toString();
+    else
+        continuousFlexTrackProfile = continuousFlexProfile.currentData().toString();
+}
+
+void ObjTools::continuousFlexProfileChanged(const QString &value){
+    Q_UNUSED(value);
+    const QString profile = continuousFlexProfile.currentData().toString();
+    if(continuousFlexRoadOptions)
+        continuousFlexRoadProfile = profile;
+    else
+        continuousFlexTrackProfile = profile;
+    continuousFlexOptionsChanged();
 }
 
 void ObjTools::continuousFlexOptionsChanged(){
@@ -638,6 +738,8 @@ void ObjTools::continuousFlexOptionsChanged(){
     emit sendMsg("continuousFlexRight", continuousFlexRight.isChecked());
     emit sendMsg("continuousFlexSeparation", (float)continuousFlexSeparation.value());
     emit sendMsg("continuousFlexMinimumRadius", (float)continuousFlexMinimumRadius.value());
+    emit sendMsg("continuousFlexProfile",
+            continuousFlexProfile.currentData().toString());
 }
 
 void ObjTools::autoPlacementButtonEnabled(bool val){

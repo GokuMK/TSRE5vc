@@ -60,11 +60,13 @@ private:
     int tex2;
     bool init;
     bool shapeOwned = false;
+    QVector<OglObj*> deferredOwnedShape;
     float elevation;
     float* jNodePosn = NULL;
     int sidxSelected = 0;
     bool getSimpleBorder(float* border);
     bool getBoxPoints(QVector<float> &points);
+    void releaseDeferredOwnedShape();
     void generateShape();
 };
 

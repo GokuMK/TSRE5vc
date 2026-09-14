@@ -43,6 +43,7 @@ public:
     static QHash<QString, QVector<OglObj*>> Shapes;
     
     static bool Loaded;
+    static QString LoadedRoutePath;
     static QMap<QString, ObjFile*> Files;
     
     static void Load();

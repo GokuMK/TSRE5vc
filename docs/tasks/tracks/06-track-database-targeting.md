@@ -268,9 +268,11 @@ or stretching either 1.5 m half. This retains both road sides at the same
 visual scale as the left and right lane roles.
 
 The grouped left, middle, and right profiles sample U ranges `0..0.75`,
-`0.125..0.875`, and `0.25..1`, respectively. U is written in reverse
-profile-X order to account for TSRE's profile-to-shape X orientation;
-otherwise both side strips appear at internal lane seams. Longitudinal V
+`0.125..0.875`, and `0.25..1`, respectively. U follows native ORTS profile-X
+order. Earlier versions wrote U in reverse order to compensate for TSRE's
+profile-to-shape orientation; cross-engine testing exposed that workaround as
+a horizontal mirror in Open Rails. TSRE now converts the complete ORTS
+`-Z`-forward profile basis to its `+Z`-forward sweep instead. Longitudinal V
 advances by `1/6` per metre, giving a six-metre texture repeat.
 
 Every three-metre role uses the same cross-section: 4 cm above the Dyntrack

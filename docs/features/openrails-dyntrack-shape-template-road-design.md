@@ -284,6 +284,14 @@ loader now discovers those TSRE profile IDs directly. Missing road defaults
 still use the documented visible profile-0 fallback. A closer examination of
 road banking and a dedicated overhead-wire check remain deferred.
 
+Cross-engine testing later exposed that the first road examples reversed U
+across profile X to compensate for an incomplete TSRE coordinate conversion.
+Open Rails correctly retained the native profile vertex/UV pairs, so road-side
+markings appeared on the opposite side. The example profiles now use native
+ORTS X/U ordering. TSRE performs the required 180-degree local-Y basis
+conversion between ORTS/XNA `-Z` forward and TSRE `+Z` forward without
+altering UV values; the Open Rails runtime requires no corresponding change.
+
 Named profile rendering on TSRE Rulers was also visually accepted. This path
 remains active independently of the Open Rails superelevation setting.
 

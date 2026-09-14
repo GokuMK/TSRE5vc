@@ -48,6 +48,7 @@
 #include <tsre/tdb/TSectionDAT.h>
 #include <tsre/tests/RouteLoadTestSuite.h>
 #include <tsre/tests/SelectionIdTestSuite.h>
+#include <tsre/tests/ProceduralProfileBenchmark.h>
 #include <tsre/tests/TokenIdTestSuite.h>
 #include <tsre/tests/SettingsTestSuite.h>
 #include <tsre/tests/TdbLoadTestSuite.h>
@@ -2029,6 +2030,36 @@ static int runOrtsProfileSuite(bool verbose) {
               && std::abs(straightMeshes[0].bounds[1] + 1.0f) < 0.001f
               && std::abs(straightMeshes[0].bounds[4] - 10.0f) < 0.001f,
               "straight-geometry");
+        bool profileBasisHandedness = false;
+        if(!straightMeshes.isEmpty()){
+            bool sourceLeftUvFound = false;
+            bool sourceRightUvFound = false;
+            const QVector<float> &vertices = straightMeshes[0].vertices;
+            for(int i = 0; i < vertices.size(); i += 9){
+                sourceLeftUvFound = sourceLeftUvFound
+                        || (std::abs(vertices[i] - 1.0f) < 0.001f
+                            && std::abs(vertices[i + 6]) < 0.001f);
+                sourceRightUvFound = sourceRightUvFound
+                        || (std::abs(vertices[i] + 1.0f) < 0.001f
+                            && std::abs(vertices[i + 6] - 1.0f) < 0.001f);
+            }
+            profileBasisHandedness = sourceLeftUvFound && sourceRightUvFound;
+        }
+        check(profileBasisHandedness,
+              "orts-minus-z-to-tsre-plus-z-profile-basis");
+        bool counterClockwiseTopFace = false;
+        if(!straightMeshes.isEmpty()
+                && straightMeshes[0].vertices.size() >= 27){
+            const QVector<float> &vertices = straightMeshes[0].vertices;
+            const float abX = vertices[9] - vertices[0];
+            const float abZ = vertices[11] - vertices[2];
+            const float acX = vertices[18] - vertices[0];
+            const float acZ = vertices[20] - vertices[2];
+            const float normalY = abZ * acX - abX * acZ;
+            counterClockwiseTopFace = normalY > 0;
+        }
+        check(counterClockwiseTopFace,
+              "profile-basis-keeps-opengl-front-face");
         check(renderDiagnostics.join(' ').contains("PositionControl")
               && renderDiagnostics.join(' ').contains("LightModelName"),
               "compatibility-diagnostics");
@@ -2112,11 +2143,11 @@ static int runOrtsProfileSuite(bool verbose) {
                 outerEndpointFound = outerEndpointFound
                         || (std::abs(x + 100.0f) < 0.01f
                             && std::abs(z - 101.0f) < 0.01f
-                            && std::abs(textureU - 1.0f) < 0.01f);
+                            && std::abs(textureU) < 0.01f);
                 innerEndpointFound = innerEndpointFound
                         || (std::abs(x + 100.0f) < 0.01f
                             && std::abs(z - 99.0f) < 0.01f
-                            && std::abs(textureU) < 0.01f);
+                            && std::abs(textureU - 1.0f) < 0.01f);
             }
             constantCurveSides = outerEndpointFound && innerEndpointFound;
         }
@@ -2162,11 +2193,11 @@ static int runOrtsProfileSuite(bool verbose) {
                 reverseInnerEndpointFound = reverseInnerEndpointFound
                         || (std::abs(x - 100.0f) < 0.01f
                             && std::abs(z - 99.0f) < 0.01f
-                            && std::abs(textureU - 1.0f) < 0.01f);
+                            && std::abs(textureU) < 0.01f);
                 reverseOuterEndpointFound = reverseOuterEndpointFound
                         || (std::abs(x - 100.0f) < 0.01f
                             && std::abs(z - 101.0f) < 0.01f
-                            && std::abs(textureU) < 0.01f);
+                            && std::abs(textureU - 1.0f) < 0.01f);
             }
         }
         check(reverseCurveSides && reverseInnerEndpointFound
@@ -3117,6 +3148,7 @@ QStringList TsreTests::listSuites() {
         "flex",
         "flex-point",
         "orts-profile",
+        "procedural-profile-benchmark",
         "procedural-policy",
         "route-load",
         "selection-id",
@@ -3183,6 +3215,9 @@ int TsreTests::run(const TestRunOptions &opts) {
 
     if (suite == "orts-profile")
         return runOrtsProfileSuite(opts.verbose);
+
+    if (suite == "procedural-profile-benchmark")
+        return runProceduralProfileBenchmark(opts);
 
     if (suite == "settings")
         return runSettingsSuite(opts.verbose);

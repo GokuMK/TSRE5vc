@@ -14,10 +14,12 @@
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/tdb/TrackShape.h>
 #include <tsre/tdb/TSectionDAT.h>
+#include <tsre/texture/TexLib.h>
 #include <tsre/world/Route.h>
 
 #include <QDir>
 #include <QFileInfo>
+#include <QHash>
 #include <QSet>
 #include <QtMath>
 #include <algorithm>
@@ -135,10 +137,17 @@ struct GeneratedVertex {
     float values[9];
 };
 
-GeneratedVertex transformVertex(const OrtsProfileVertex &source,
-        const OrtsProfilePolyline &polyline, ComplexLine &line, float distance,
-        float alpha, float startRoll = 0, float endRoll = 0,
-        float endExtension = 0, float endDrop = 0) {
+struct GeneratedPathFrame {
+    float position[3] = {0, 0, 0};
+    float cosine = 1;
+    float sine = 0;
+    float rollCosine = 1;
+    float rollSine = 0;
+    float distance = 0;
+};
+
+GeneratedPathFrame samplePathFrame(ComplexLine &line, float distance,
+        float startRoll, float endRoll, float endExtension, float endDrop) {
     float frame[6] = {0, 0, 0, 0, 0, 0};
     const float sampledDistance = std::min(distance, line.length);
     line.getDrawPosition(frame, sampledDistance);
@@ -150,20 +159,41 @@ GeneratedVertex transformVertex(const OrtsProfileVertex &source,
         if(endExtension > 0)
             frame[1] -= endDrop * overflow / endExtension;
     }
-    const float cosine = std::cos(yaw);
-    const float sine = std::sin(yaw);
     const float fraction = line.length > 0 ? sampledDistance / line.length : 0;
     const float roll = startRoll * (1.0f - fraction) + endRoll * fraction;
-    const float rollCosine = std::cos(roll);
-    const float rollSine = std::sin(roll);
-    const float rolledX = source.position[0] * rollCosine
-            - source.position[1] * rollSine;
-    const float rolledY = source.position[0] * rollSine
-            + source.position[1] * rollCosine;
-    const float rolledNormalX = source.normal[0] * rollCosine
-            - source.normal[1] * rollSine;
-    const float rolledNormalY = source.normal[0] * rollSine
-            + source.normal[1] * rollCosine;
+
+    GeneratedPathFrame result;
+    result.position[0] = frame[0];
+    result.position[1] = frame[1];
+    result.position[2] = frame[2];
+    result.cosine = std::cos(yaw);
+    result.sine = std::sin(yaw);
+    result.rollCosine = std::cos(roll);
+    result.rollSine = std::sin(roll);
+    result.distance = distance;
+    return result;
+}
+
+GeneratedVertex transformVertex(const OrtsProfileVertex &source,
+        const OrtsProfilePolyline &polyline,
+        const GeneratedPathFrame &frame, float alpha) {
+    const float rolledX = source.position[0] * frame.rollCosine
+            - source.position[1] * frame.rollSine;
+    const float rolledY = source.position[0] * frame.rollSine
+            + source.position[1] * frame.rollCosine;
+    const float rolledNormalX = source.normal[0] * frame.rollCosine
+            - source.normal[1] * frame.rollSine;
+    const float rolledNormalY = source.normal[0] * frame.rollSine
+            + source.normal[1] * frame.rollCosine;
+    // ORTS/XNA profiles face local -Z, while TSRE sweeps paths toward local
+    // +Z. Convert the complete profile basis with a 180 degree Y rotation,
+    // not a one-axis reflection: keeping X unchanged mirrors asymmetric
+    // profiles left-to-right relative to travel. UVs deliberately stay paired
+    // with their source vertices.
+    const float profileX = -rolledX;
+    const float profileZ = -source.position[2];
+    const float profileNormalX = -rolledNormalX;
+    const float profileNormalZ = -source.normal[2];
 
     GeneratedVertex result;
     // ComplexLine exposes the TSRE object yaw: its sign is opposite to the
@@ -173,16 +203,20 @@ GeneratedVertex transformVertex(const OrtsProfileVertex &source,
     // yaw directly twists a cross-section on curves, moving an outside X
     // vertex progressively to the inside. Rotate by the inverse yaw so each
     // profile side keeps a constant curve radius.
-    result.values[0] = frame[0] + rolledX * cosine
-            + source.position[2] * sine;
-    result.values[1] = frame[1] + rolledY;
-    result.values[2] = frame[2] - rolledX * sine
-            + source.position[2] * cosine;
-    result.values[3] = rolledNormalX * cosine + source.normal[2] * sine;
+    result.values[0] = frame.position[0] + profileX * frame.cosine
+            + profileZ * frame.sine;
+    result.values[1] = frame.position[1] + rolledY;
+    result.values[2] = frame.position[2] - profileX * frame.sine
+            + profileZ * frame.cosine;
+    result.values[3] = profileNormalX * frame.cosine
+            + profileNormalZ * frame.sine;
     result.values[4] = rolledNormalY;
-    result.values[5] = -rolledNormalX * sine + source.normal[2] * cosine;
-    result.values[6] = source.texCoord[0] + polyline.deltaTexCoord[0] * distance;
-    result.values[7] = source.texCoord[1] + polyline.deltaTexCoord[1] * distance;
+    result.values[5] = -profileNormalX * frame.sine
+            + profileNormalZ * frame.cosine;
+    result.values[6] = source.texCoord[0]
+            + polyline.deltaTexCoord[0] * frame.distance;
+    result.values[7] = source.texCoord[1]
+            + polyline.deltaTexCoord[1] * frame.distance;
     result.values[8] = alpha;
     return result;
 }
@@ -248,6 +282,52 @@ QString texturePath(const QString &routePath, const QString &textureName) {
     return routeTexture;
 }
 
+QString normalizedTextureId(QString path) {
+    path.replace('\\', '/');
+    path.replace("//", "/");
+    if(Game::caseInsensitiveFS)
+        path = path.toLower();
+    return path;
+}
+
+bool textureIdMatches(int textureId, const Texture *texture) {
+    const auto found = TexLib::mtex.find(textureId);
+    return found != TexLib::mtex.end()
+            && found->second != nullptr
+            && found->second == texture;
+}
+
+int profileTextureId(const QString &routePath, const QString &textureName) {
+    // ORTS profiles can emit many LOD/material objects which all reuse a
+    // small set of textures. Resolving each new OglObj independently made
+    // every live Flex rebuild repeat filesystem probes and linear TexLib
+    // scans. Keep one validated TexLib reference per route/texture instead.
+    static QHash<QString, int> textureIds;
+    static QHash<QString, Texture*> textures;
+
+    QString normalizedName = textureName;
+    normalizedName.replace('\\', '/');
+    QString normalizedRoute = QDir::cleanPath(routePath);
+    if(Game::caseInsensitiveFS){
+        normalizedRoute = normalizedRoute.toLower();
+        normalizedName = normalizedName.toLower();
+    }
+    const QString cacheKey = normalizedRoute + "\n" + normalizedName;
+    const auto cached = textureIds.constFind(cacheKey);
+    if(cached != textureIds.cend()
+            && textureIdMatches(cached.value(), textures.value(cacheKey)))
+        return cached.value();
+
+    const QString path = normalizedTextureId(
+            texturePath(routePath, normalizedName));
+    const int textureId = TexLib::addTex(path);
+    textureIds.insert(cacheKey, textureId);
+    const auto loaded = TexLib::mtex.find(textureId);
+    textures.insert(cacheKey,
+            loaded == TexLib::mtex.end() ? nullptr : loaded->second);
+    return textureId;
+}
+
 }
 
 static bool buildMeshesForPath(const OrtsTrackProfile &profile,
@@ -268,6 +348,16 @@ static bool buildMeshesForPath(const OrtsTrackProfile &profile,
             profile, sections, endExtension, diagnostics);
     if(distances.size() < 2)
         return false;
+
+    // Every profile vertex at a given distance shares the same centerline
+    // position and orientation. Complex profiles can contain over a hundred
+    // vertices across their LODs, so sample the path once per distance.
+    QVector<GeneratedPathFrame> pathFrames;
+    pathFrames.reserve(distances.size());
+    for(float distance : distances)
+        pathFrames.append(samplePathFrame(
+                line, distance, startRoll, endRoll,
+                endExtension, endDrop));
 
     float previousCutoff = -1;
     bool hasPositionControl = false;
@@ -306,16 +396,15 @@ static bool buildMeshesForPath(const OrtsTrackProfile &profile,
                 if(polyline.vertices.size() < 2)
                     continue;
                 QVector<QVector<GeneratedVertex>> frames;
-                frames.reserve(distances.size());
-                for(float distance : distances){
+                frames.reserve(pathFrames.size());
+                for(const GeneratedPathFrame &pathFrame : pathFrames){
                     QVector<GeneratedVertex> vertices;
                     vertices.reserve(polyline.vertices.size());
                     for(const OrtsProfileVertex &vertex : polyline.vertices){
                         if(vertex.positionControl != OrtsProfileVertex::PositionControl::None)
                             hasPositionControl = true;
                         vertices.append(transformVertex(
-                                vertex, polyline, line, distance, alpha,
-                                startRoll, endRoll, endExtension, endDrop));
+                                vertex, polyline, pathFrame, alpha));
                     }
                     frames.append(vertices);
                 }
@@ -324,12 +413,15 @@ static bool buildMeshesForPath(const OrtsTrackProfile &profile,
                     const QVector<GeneratedVertex> &previous = frames[frameIndex - 1];
                     const QVector<GeneratedVertex> &current = frames[frameIndex];
                     for(int vertexIndex = 1; vertexIndex < current.size(); vertexIndex++){
+                        // ORTS uses clockwise front faces. Reversing profile X
+                        // above removes the reflection which previously made
+                        // that order appear counter-clockwise in OpenGL.
                         appendVertex(mesh.vertices, current[vertexIndex]);
-                        appendVertex(mesh.vertices, previous[vertexIndex - 1]);
                         appendVertex(mesh.vertices, current[vertexIndex - 1]);
-                        appendVertex(mesh.vertices, current[vertexIndex]);
-                        appendVertex(mesh.vertices, previous[vertexIndex]);
                         appendVertex(mesh.vertices, previous[vertexIndex - 1]);
+                        appendVertex(mesh.vertices, current[vertexIndex]);
+                        appendVertex(mesh.vertices, previous[vertexIndex - 1]);
+                        appendVertex(mesh.vertices, previous[vertexIndex]);
                     }
                 }
             }
@@ -385,9 +477,8 @@ bool OrtsTrackProfileRenderer::generate(const OrtsTrackProfile &profile,
             float *vertexData = new float[mesh.vertices.size()];
             std::copy(mesh.vertices.cbegin(), mesh.vertices.cend(), vertexData);
             OglObj *object = new OglObj();
-            QString *materialPath =
-                    new QString(texturePath(routePath, mesh.textureName));
-            object->setMaterial(materialPath);
+            object->setMaterialTextureId(
+                    profileTextureId(routePath, mesh.textureName));
             object->setDistanceRange(mesh.minimumDistance, mesh.maximumDistance);
             object->init(
                     vertexData, mesh.vertices.size(), RenderItem::VNTA, GL_TRIANGLES);
@@ -445,9 +536,8 @@ bool OrtsTrackProfileRenderer::generate(const OrtsTrackProfile &profile,
             float *vertexData = new float[mesh.vertices.size()];
             std::copy(mesh.vertices.cbegin(), mesh.vertices.cend(), vertexData);
             OglObj *object = new OglObj();
-            QString *materialPath =
-                    new QString(texturePath(routePath, mesh.textureName));
-            object->setMaterial(materialPath);
+            object->setMaterialTextureId(
+                    profileTextureId(routePath, mesh.textureName));
             object->setDistanceRange(mesh.minimumDistance, mesh.maximumDistance);
             object->init(
                     vertexData, mesh.vertices.size(), RenderItem::VNTA, GL_TRIANGLES);

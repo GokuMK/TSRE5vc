@@ -12,6 +12,7 @@
 #include <tsre/fileFunctions/SimisReader.h>
 #include <tsre/fileFunctions/ParserX.h>
 #include <QDebug>
+#include <QElapsedTimer>
 #include <QSet>
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/texture/TexLib.h>
@@ -43,6 +44,7 @@
 
 namespace {
 constexpr float kCurveAngleEpsilon = 1e-6f;
+constexpr qint64 kSlowShapeOperationMs = 50;
 }
 
 DynTrackObj::DynTrackObj() {
@@ -152,13 +154,37 @@ void DynTrackObj::rotate(float x, float y, float z){
 void DynTrackObj::deleteVBO(){
     this->init = false;
     if(shapeOwned){
-        for(int i = 0; i < shape.size(); i++){
-            shape[i]->deleteVBO();
-            delete shape[i];
-        }
+        // Shape edits also arrive from mouse and wheel event handlers, where
+        // the QOpenGLWidget context is not guaranteed to be current. Queue
+        // owned GPU objects and release them in generateShape(), which runs
+        // from the render pass with the correct context current.
+        for(OglObj *object : shape)
+            deferredOwnedShape.append(object);
     }
     shape.clear();
     shapeOwned = false;
+}
+
+void DynTrackObj::releaseDeferredOwnedShape(){
+    if(deferredOwnedShape.isEmpty())
+        return;
+
+    QElapsedTimer timer;
+    timer.start();
+    const int objectCount = deferredOwnedShape.size();
+    for(OglObj *object : deferredOwnedShape){
+        if(object == nullptr)
+            continue;
+        object->deleteVBO();
+        delete object;
+    }
+    deferredOwnedShape.clear();
+
+    const qint64 elapsedMs = timer.elapsed();
+    if(elapsedMs >= kSlowShapeOperationMs){
+        qWarning() << "DynTrack deferred VBO cleanup took"
+                   << elapsedMs << "ms for" << objectCount << "objects";
+    }
 }
 
 void DynTrackObj::setTemplate(QString name){
@@ -172,6 +198,8 @@ void DynTrackObj::setTemplate(QString name){
 void DynTrackObj::generateShape(){
     if(init)
         return;
+
+    releaseDeferredOwnedShape();
 
     QVector<TSection> tsections;
     for(int i = 0; i < 5; i++){
@@ -218,9 +246,18 @@ void DynTrackObj::generateShape(){
         const float roadEndExtension = needsRoadEndApron ? 0.25f : 0.0f;
         const float roadEndDrop = needsRoadEndApron ? 0.002f : 0.0f;
         QStringList diagnostics;
-        if(OrtsTrackProfileRenderer::generate(
+        QElapsedTimer generationTimer;
+        generationTimer.start();
+        const bool generated = OrtsTrackProfileRenderer::generate(
                 *routeProfile, tsections, shape, routePath, &diagnostics,
-                roadEndExtension, roadEndDrop)){
+                roadEndExtension, roadEndDrop);
+        const qint64 generationMs = generationTimer.elapsed();
+        if(generationMs >= kSlowShapeOperationMs){
+            qWarning() << "ORTS track profile generation took"
+                       << generationMs << "ms for" << routeProfile->id
+                       << "(" << shape.size() << "objects )";
+        }
+        if(generated){
             shapeOwned = true;
             init = true;
             static QSet<QString> warnedDiagnostics;
@@ -238,27 +275,40 @@ void DynTrackObj::generateShape(){
             qWarning() << "ORTS track profile" << routeProfile->id
                        << diagnostic;
         ProceduralTrackPolicy::warnGenerationFailureOnce(resolution.templateName);
-    } else if(resolution.backend == ProceduralTrackBackend::Procedural
-            && Game::trackDB != NULL && Game::trackDB->tsection != NULL
-            && Game::trackDB->tsection->shape.find(sectionIdx)
-                    != Game::trackDB->tsection->shape.end()
-            && Game::trackDB->tsection->shape[sectionIdx] != NULL){
-        TrackShape *tsh = Game::trackDB->tsection->shape[sectionIdx];
-        QMap<int, float> angles;
-        if(Game::useSuperelevation){
-            Game::trackDB->fillTrackAngles(x, -y, UiD, angles);
-            bool positiveAngles = false;
-            for(int i = 0; i < tsections.size(); i++){
-                if(tsections[i].angle > 0)
-                    positiveAngles = true;
-            }
-            if(positiveAngles){
-                const QList<int> keys = angles.keys();
-                for(int key : keys)
-                    angles[key] = -angles[key];
-            }
+    } else if(resolution.backend == ProceduralTrackBackend::Procedural){
+        TrackShape *tsh = NULL;
+        if(Game::trackDB != NULL && Game::trackDB->tsection != NULL){
+            const auto shapeIterator =
+                    Game::trackDB->tsection->shape.find(sectionIdx);
+            if(shapeIterator != Game::trackDB->tsection->shape.end())
+                tsh = shapeIterator->second;
         }
-        ProceduralShape::GetShape(resolution.templateName, shape, tsh, angles);
+
+        if(tsh != NULL){
+            QMap<int, float> angles;
+            if(Game::useSuperelevation){
+                Game::trackDB->fillTrackAngles(x, -y, UiD, angles);
+                bool positiveAngles = false;
+                for(int i = 0; i < tsections.size(); i++){
+                    if(tsections[i].angle > 0)
+                        positiveAngles = true;
+                }
+                if(positiveAngles){
+                    const QList<int> keys = angles.keys();
+                    for(int key : keys)
+                        angles[key] = -angles[key];
+                }
+            }
+            ProceduralShape::GetShape(
+                    resolution.templateName, shape, tsh, angles);
+        } else {
+            // Live Flex DynTracks do not receive a TDB TrackShape/sectionIdx
+            // until placement is finalized. Generate their one local path
+            // directly from the same section list so the selected native
+            // TSRE template is visible during preview.
+            ProceduralShape::GetShape(
+                    resolution.templateName, shape, tsections);
+        }
         if(!shape.isEmpty()){
             shapeOwned = false;
             init = true;

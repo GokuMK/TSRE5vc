@@ -16,6 +16,7 @@
 #include <tsre/world/Route.h>
 #include <tsre/tdb/TSectionDAT.h>
 #include <QDateTime>
+#include <QDir>
 #include <QFile>
 #include <math.h>
 #include <tsre/math3d/Intersections.h>
@@ -28,6 +29,7 @@ ShapeTemplates *ProceduralShape::ShapeTemplateFile = NULL;
 GlobalDefinitions *ProceduralShape::GlobalDefinitionFile = NULL;
 
 bool ProceduralShape::Loaded = false;
+QString ProceduralShape::LoadedRoutePath;
 QMap<QString, ObjFile*> ProceduralShape::Files;
 float ProceduralShape::Alpha = 0;
 unsigned int ProceduralShape::ShapeCount = 0;
@@ -61,12 +63,17 @@ QString ProceduralShape::GetTexturePath(QString textureName){
 }
 
 void ProceduralShape::Load() {
-    if(Loaded)
+    const QString routePath = QDir::cleanPath(
+            Game::root + "/routes/" + Game::route);
+    if(Loaded && LoadedRoutePath == routePath)
         return;
-    // Load Templates
-    ShapeTemplateFile = new ShapeTemplates();
+
+    delete ShapeTemplateFile;
+    ShapeTemplateFile = new ShapeTemplates(
+            routePath + "/procedural/shapetemplates.dat");
 
     Alpha = -0.3;
+    LoadedRoutePath = routePath;
     Loaded = true;
 }
 
@@ -77,7 +84,8 @@ QString ProceduralShape::GetShapeHash(QString templateName, TrackShape* tsh, QMa
         i.next();
         angless += QString::number(i.key(), 16) + QString::number((int)(i.value()*100), 16) + "_";
     }
-    return tsh->getHashString() + QString::number(shapeOffset, 16) + angless + templateName;
+    return LoadedRoutePath + "|" + tsh->getHashString()
+            + QString::number(shapeOffset, 16) + angless + templateName;
     //return QString::number(QTime::currentTime().msecsSinceStartOfDay());
 }
 
@@ -85,17 +93,20 @@ QString ProceduralShape::GetShapeHash(QString templateName, QVector<TSection> &s
     QString sectionHash; 
     for(int i = 0; i < sections.size(); i++)
         sectionHash += QString::number(sections[i].getHash(), 16);
-    return sectionHash + QString::number(shapeOffset, 16) + templateName;
+    return LoadedRoutePath + "|" + sectionHash
+            + QString::number(shapeOffset, 16) + templateName;
     //return QString::number(QTime::currentTime().msecsSinceStartOfDay());
 }
 
 QString ProceduralShape::GetShapeHash(QString templateName, ComplexLine &line, int shapeOffset){
     QString lineHash = line.getHash();
-    return lineHash + QString::number(shapeOffset, 16) + templateName;
+    return LoadedRoutePath + "|" + lineHash
+            + QString::number(shapeOffset, 16) + templateName;
     //return QString::number(QTime::currentTime().msecsSinceStartOfDay());
 }
 
 void ProceduralShape::GetShape(QString templateName, QVector<OglObj*>& shape, TrackShape* tsh, QMap<int, float> &angles) {
+    Load();
     QString hash = ProceduralShape::GetShapeHash(templateName, tsh, angles, 0);
     if(ProceduralShape::Shapes[hash].size() == 0){
         qDebug() << "New Procedural Shape: "<< ShapeCount++ << hash;
@@ -170,6 +181,7 @@ void ProceduralShape::GenShape(QString templateName, QVector<OglObj*>& shape, Tr
 }
 
 void ProceduralShape::GetShape(QString templateName, QVector<OglObj*>& shape, QVector<TSection> &sections, int shapeOffset) {
+    Load();
     QString hash = ProceduralShape::GetShapeHash(templateName, sections, shapeOffset);
     if(ProceduralShape::Shapes[hash].size() == 0){
         qDebug() << "New Procedural Shape: "<< ShapeCount++ << hash;
@@ -190,6 +202,7 @@ void ProceduralShape::GenShape(QString templateName, QVector<OglObj*>& shape, QV
     
 
 void ProceduralShape::GetShape(QString templateName, QVector<OglObj*>& shape, ComplexLine& line, int shapeOffset) {
+    Load();
     QString hash = ProceduralShape::GetShapeHash(templateName, line, shapeOffset);
     if(ProceduralShape::Shapes[hash].size() == 0){
         qDebug() << "New Procedural Shape: "<< ShapeCount++ << hash;

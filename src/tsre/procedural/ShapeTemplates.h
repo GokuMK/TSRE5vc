@@ -53,7 +53,8 @@ public:
         NONE = 0,
         DEFAULT = 1,
         TRACK = 2,
-        ROAD = 3
+        ROAD = 3,
+        RULER = 4
     };
     TemplateType type = NONE;
     QString name;
@@ -73,7 +74,7 @@ public:
 
     QMap<QString, ShapeTemplate*> templates;
 
-    ShapeTemplates();
+    explicit ShapeTemplates(const QString &path);
     virtual ~ShapeTemplates();
 private:
 

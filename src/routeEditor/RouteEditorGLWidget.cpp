@@ -30,6 +30,9 @@
 #include <tsre/math3d/Vector2f.h>
 #include <tsre/math3d/Flex.h>
 #include <tsre/world/objects/DynTrackObj.h>
+#include <tsre/procedural/ProceduralShape.h>
+#include <tsre/procedural/ShapeTemplates.h>
+#include <tsre/procedural/OrtsTrackProfile.h>
 
 #include <tsre/world/TerrainLib.h>
 #include <tsre/texture/Brush.h>
@@ -67,6 +70,7 @@
 // StandardFogStoredCoords is retained as the Stage 1 shader reference, but it
 // requires reverting the paged vertex layout to TerrainVertex12 before use.
 static const QString MainRenderShaderName = "StandardFog";
+static constexpr unsigned long long LiveFlexUpdateIntervalMs = 50;
 
 RouteEditorGLWidget::RouteEditorGLWidget(QWidget *parent)
 : QOpenGLWidget(parent),
@@ -1189,8 +1193,11 @@ void RouteEditorGLWidget::drawPointer() {
         updateLiveFlex((int)camera->pozT[0], (int)camera->pozT[1], aktPointerPos);
     //qDebug()<<aktPointerPos[0]<< aktPointerPos[1]<< aktPointerPos[2];
     if (Game::viewPointer3d) {
+        const float displayedPointerY = aktPointerPos[1]
+                + ((continuousFlexMode || liveFlexActive) ? flexYOffset : 0.0f);
         gluu->mvPushMatrix();
-        Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, aktPointerPos[0], aktPointerPos[1], aktPointerPos[2]);
+        Mat4::translate(gluu->mvMatrix, gluu->mvMatrix,
+                aktPointerPos[0], displayedPointerY, aktPointerPos[2]);
         Mat4::identity(gluu->objStrMatrix);
         gluu->setMatrixUniforms();
         //gluu->m_program->setUniformValue(gluu->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
@@ -1790,6 +1797,26 @@ void RouteEditorGLWidget::mousePressEvent(QMouseEvent *event) {
 void RouteEditorGLWidget::wheelEvent(QWheelEvent *event) {
     float numDegrees = 0.01 * event->angleDelta().y();
 
+    if(continuousFlexMode || liveFlexActive) {
+        const float step = (event->modifiers() & Qt::ControlModifier)
+                ? moveMaxStep / 10.0f
+                : moveMaxStep;
+        flexYOffset += numDegrees * step;
+        if(liveFlexActive) {
+            // Wheel elevation is an explicit edit, so apply every step. GPU
+            // cleanup remains safe because DynTrack defers it to rendering.
+            liveFlexHasLastTarget = false;
+            updateLiveFlex(
+                    (int)camera->pozT[0],
+                    (int)camera->pozT[1],
+                    aktPointerPos,
+                    true);
+        }
+        update();
+        event->accept();
+        return;
+    }
+
     if (toolEnabled == "selectTool" || toolEnabled == "placeTool") {
         if (selectedObj != NULL) {
             if (selectedObj->typeObj == GameObj::worldobj) {
@@ -1934,6 +1961,9 @@ void RouteEditorGLWidget::enableTool(QString name) {
             && name != "liveFlexTool"
             && name != toolEnabled)
         finishLiveFlex(false);
+    const bool wasFlexTool = continuousFlexMode
+            || liveFlexActive
+            || toolEnabled == "liveFlexTool";
     if(name == "continuousFlexTool") {
         continuousFlexMode = true;
         continuousFlexRoadMode = false;
@@ -1944,6 +1974,11 @@ void RouteEditorGLWidget::enableTool(QString name) {
         continuousFlexMode = false;
         continuousFlexRoadMode = false;
     }
+    if(wasFlexTool
+            && name != "continuousFlexTool"
+            && name != "continuousFlexRoadTool"
+            && name != "liveFlexTool")
+        flexYOffset = 0.0f;
     qDebug() << name;
     toolEnabled = name;
     //if(toolEnabled == "placeTool" || toolEnabled == "selectTool" || toolEnabled == "autoPlaceSimpleTool"){
@@ -2070,19 +2105,10 @@ bool RouteEditorGLWidget::startLiveFlex(bool reuseUndoState, bool deleteOnCancel
     liveFlexSolutionValid = false;
     liveFlexCompanionsValid = true;
 
-    if(continuousFlexMode && dynTrack->isRoad()) {
-        QString profile = "default_road";
-        if(continuousFlexLeftEnabled && continuousFlexRightEnabled)
-            profile = "default_road_middle";
-        else if(continuousFlexLeftEnabled)
-            profile = "default_road_right";
-        else if(continuousFlexRightEnabled)
-            profile = "default_road_left";
-        dynTrack->setTemplate(profile);
-    }
-
     if(continuousFlexMode && !createLiveFlexCompanions())
         return false;
+    if(continuousFlexMode)
+        applyContinuousFlexProfiles();
 
     liveFlexActive = true;
 
@@ -2116,6 +2142,8 @@ bool RouteEditorGLWidget::placeContinuousFlexTrack(
     float p[3];
     float q[4];
     Vec3::copy(p, position);
+    if(initialMousePlacement)
+        p[1] += flexYOffset;
     Quat::copy(q, quaternion);
     DynTrackObj *dynTrack = (DynTrackObj*)route->placeObject(
             tileX, tileZ, p, q, 0, &dynTrackRef);
@@ -2220,14 +2248,72 @@ bool RouteEditorGLWidget::createLiveFlexCompanions() {
             discardLiveFlexCompanions();
             return false;
         }
-        if(track->isRoad())
-            track->setTemplate(offset < 0
-                    ? "default_road_left"
-                    : "default_road_right");
         liveFlexCompanions.push_back(track);
         liveFlexCompanionOffsets.push_back(offset);
     }
     return true;
+}
+
+QString RouteEditorGLWidget::continuousFlexProfileForRole(
+        const QString &role) const {
+    QString base = continuousFlexProfile.trimmed();
+    const bool road = liveFlexObj != NULL && liveFlexObj->isRoad();
+    if(base.isEmpty() || !road || role.isEmpty())
+        return base;
+
+    QString groupBase = base;
+    if(groupBase.endsWith("_single", Qt::CaseInsensitive))
+        groupBase.chop(QString("_single").size());
+    const QString candidate = groupBase + "_" + role;
+
+    OrtsTrackProfileCatalog::load(Game::root + "/routes/" + Game::route);
+    const QSharedPointer<const OrtsTrackProfile> routeProfile =
+            OrtsTrackProfileCatalog::find(candidate);
+    if(routeProfile != nullptr)
+        return routeProfile->id;
+
+    ProceduralShape::Load();
+    if(ProceduralShape::ShapeTemplateFile != NULL){
+        QMapIterator<QString, ShapeTemplate*> iterator(
+                ProceduralShape::ShapeTemplateFile->templates);
+        while(iterator.hasNext()){
+            iterator.next();
+            if(iterator.value() != NULL
+                    && iterator.value()->name.compare(
+                            candidate, Qt::CaseInsensitive) == 0)
+                return iterator.value()->name;
+        }
+    }
+
+    // Generic profiles may not provide road-specific role variants. Reusing
+    // the selected base profile is safer than saving a missing template name.
+    return base;
+}
+
+void RouteEditorGLWidget::applyContinuousFlexProfiles() {
+    if(liveFlexObj == NULL)
+        return;
+
+    QString mainRole;
+    if(liveFlexObj->isRoad()){
+        if(continuousFlexLeftEnabled && continuousFlexRightEnabled)
+            mainRole = "middle";
+        else if(continuousFlexLeftEnabled)
+            mainRole = "right";
+        else if(continuousFlexRightEnabled)
+            mainRole = "left";
+    }
+    liveFlexObj->setTemplate(continuousFlexProfileForRole(mainRole));
+
+    for(int i = 0; i < liveFlexCompanions.size(); i++){
+        DynTrackObj *companion = liveFlexCompanions[i];
+        if(companion == NULL)
+            continue;
+        QString role;
+        if(liveFlexObj->isRoad() && i < liveFlexCompanionOffsets.size())
+            role = liveFlexCompanionOffsets[i] < 0 ? "left" : "right";
+        companion->setTemplate(continuousFlexProfileForRole(role));
+    }
 }
 
 void RouteEditorGLWidget::discardLiveFlexCompanions() {
@@ -2389,22 +2475,23 @@ bool RouteEditorGLWidget::updateLiveFlex(
 
     // Rendering remains independent; only endpoint search, solving, and mesh
     // invalidation are limited to 20 Hz.
-    constexpr unsigned long long kLiveFlexUpdateIntervalMs = 50;
     constexpr float kLiveFlexSnapRadius = 1.0f;
     const unsigned long long now = QDateTime::currentMSecsSinceEpoch();
     if(!force && liveFlexLastUpdateTime != 0
-            && now - liveFlexLastUpdateTime < kLiveFlexUpdateIntervalMs)
+            && now - liveFlexLastUpdateTime < LiveFlexUpdateIntervalMs)
         return liveFlexSolutionValid;
     liveFlexLastUpdateTime = now;
 
     const int rawTargetTileX = pointerTileX;
     const int rawTargetTileZ = pointerTileZ;
     float rawTargetPosition[3] = {
-        pointerPosition[0], pointerPosition[1], pointerPosition[2]
+        pointerPosition[0], pointerPosition[1] + flexYOffset, pointerPosition[2]
     };
     int targetTileX = pointerTileX;
     int targetTileZ = pointerTileZ;
-    float targetPosition[3] = {pointerPosition[0], pointerPosition[1], pointerPosition[2]};
+    float targetPosition[3] = {
+        pointerPosition[0], pointerPosition[1] + flexYOffset, pointerPosition[2]
+    };
     float endpointQ[4] = {0, 0, 0, 1};
     int endpointId = -1;
 
@@ -3351,6 +3438,12 @@ void RouteEditorGLWidget::msg(QString text, float val) {
 
 void RouteEditorGLWidget::msg(QString text, QString val) {
     //qDebug() << text;
+    if (text == "continuousFlexProfile") {
+        continuousFlexProfile = val;
+        if(liveFlexActive)
+            applyContinuousFlexProfiles();
+        return;
+    }
     if (text == "mkrFile") {
         this->route->setMkrFile(val);
         return;

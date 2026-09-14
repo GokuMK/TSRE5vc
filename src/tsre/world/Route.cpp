@@ -2113,7 +2113,13 @@ void Route::addToTDB(WorldObj* obj) {
         database->placeTrack(
                 x, z, (float*) &p, (float*) &q,
                 dynTrack->sectionIdx, obj->UiD);
-        obj->setPosition(p);
+        // setPosition() invalidates the complete generated DynTrack mesh.
+        // Preserve it when TDB insertion returned the position unchanged;
+        // detailed procedural profiles are expensive to regenerate.
+        if(p[0] != obj->position[0]
+                || p[1] != obj->position[1]
+                || p[2] != obj->position[2])
+            obj->setPosition(p);
         obj->setQdirection(q);
         obj->setModified();
         obj->setMartix();

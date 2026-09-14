@@ -43,8 +43,17 @@ Implementation summary:
   WorldObj/OpenGL-to-TDB heading conversion boundary.
 - `RouteEditorGLWidget` owns the live preview lifecycle, world-space grid
   quantization, endpoint-mode selection, and one-state undo transaction.
-- Live Flex uses its own `1m` endpoint snap radius and limits geometry rebuilds
-  to `20Hz`; neither setting changes the editor's global snapping/render rate.
+- Live Flex uses its own `1m` endpoint snap radius and limits pointer-driven
+  geometry rebuilds to `20Hz`; neither setting changes the editor's global
+  snapping/render rate.
+- Every mouse-wheel elevation step is applied immediately. This was restored
+  after fixing the actual ORTS-profile stalls in GPU cleanup and texture
+  resolution; a finishing click still forces the latest elevation.
+- Owned DynTrack meshes invalidated by input handlers are queued for release
+  in the next render pass, where the OpenGL context is current. ORTS profile
+  materials reuse one validated texture-library lookup per route/texture,
+  instead of repeating filesystem probes and linear texture scans for every
+  LOD submesh on every rebuild.
 - `Undo::StateCancel()` discards a cancelled gesture after the object snapshot
   has been restored.
 - The `flex-point` headless suite covers geometry, tile transitions, rejection

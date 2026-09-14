@@ -37,6 +37,7 @@ public slots:
     void continuousFlexToolEnabled(bool val);
     void continuousFlexRoadToolEnabled(bool val);
     void continuousFlexOptionsButtonEnabled(bool val);
+    void continuousFlexProfileChanged(const QString &value);
     void continuousFlexOptionsChanged();
     void autoPlacementButtonEnabled(bool val);
     void itemSelected(Ref::RefItem* item);
@@ -93,6 +94,7 @@ private:
     
     QWidget advancedPlacementWidget;
     QWidget continuousFlexOptionsWidget;
+    QComboBox continuousFlexProfile;
     QCheckBox continuousFlexLeft;
     QCheckBox continuousFlexRight;
     QDoubleSpinBox continuousFlexSeparation;
@@ -101,6 +103,8 @@ private:
     double continuousFlexTrackSeparation = 4.0;
     double continuousFlexTrackMinimumRadius = 15.0;
     double continuousFlexRoadMinimumRadius = 6.0;
+    QString continuousFlexTrackProfile;
+    QString continuousFlexRoadProfile = "default_road";
     QLineEdit autoPlacementPosX;
     QLineEdit autoPlacementPosY;
     QLineEdit autoPlacementPosZ;
@@ -113,6 +117,7 @@ private:
     QComboBox autoPlacementTarget;
 
     void enableContinuousFlexTool(bool road, bool enabled);
+    void refreshContinuousFlexProfiles();
 
 };
 

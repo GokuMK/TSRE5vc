@@ -33,6 +33,7 @@ public:
     void deleteVBO();
     void setMaterial(float r, float g, float b);
     void setMaterial(QString* path);
+    void setMaterialTextureId(int id);
     int getTexId();
     void setDistanceRange(float min, float max);
     void setLineWidth(int val);

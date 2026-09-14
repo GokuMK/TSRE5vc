@@ -11,36 +11,22 @@
 #include <tsre/procedural/ShapeTemplates.h>
 #include <QString>
 #include <QFile>
-#include <tsre/Game.h>
 #include <tsre/fileFunctions/ReadFile.h>
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <tsre/fileFunctions/ParserX.h>
 
-ShapeTemplates::ShapeTemplates() {
-    
-    QString resPath = QString("appdata/")+Game::AppDataVersion+"/procedural/";
-    //QString path2 = QString("appdata/")+Game::AppDataVersion+"/tracks/uic60.obj";
-    //QString path3 = QString("appdata/")+Game::AppDataVersion+"/tracks/ballast1.obj";
-    //QString path3 = QString("appdata/")+Game::AppDataVersion+"/tracks/ballast2.obj";
-    /*if(Files[path1] == NULL)
-        Files[path1] = new ObjFile(path1);
-    if(Files[path2] == NULL)
-        Files[path2] = new ObjFile(path2);
-    if(Files[path3] == NULL)
-        Files[path3] = new ObjFile(path3);*/
-    
-    QString path = resPath + "shapetemplates.dat";
-    
+ShapeTemplates::ShapeTemplates(const QString &sourcePath) {
+    QString path = sourcePath;
     QString sh;
     path.replace("//", "/");
-    QFile *file = new QFile(path);
-    if (!file->open(QIODevice::ReadOnly)) {
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
         qDebug() << path << " shape definition file not exist";
         return;
     }
 
-    FileBuffer* data = ReadFile::read(file);
-    file->close();
+    FileBuffer* data = ReadFile::read(&file);
+    file.close();
     data->toUtf16();
     data->skipBOM();
 
@@ -53,7 +39,18 @@ ShapeTemplates::ShapeTemplates() {
                     templates[name]->name = name;
                     while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
                         if (sh == ("type")) {
-                            templates[name]->type = templates[name]->DEFAULT;
+                            const QString type =
+                                    ParserX::GetString(data).trimmed().toLower();
+                            if(type == "track")
+                                templates[name]->type = ShapeTemplate::TRACK;
+                            else if(type == "road")
+                                templates[name]->type = ShapeTemplate::ROAD;
+                            else if(type == "ruler")
+                                templates[name]->type = ShapeTemplate::RULER;
+                            else if(type == "default")
+                                templates[name]->type = ShapeTemplate::DEFAULT;
+                            else
+                                templates[name]->type = ShapeTemplate::NONE;
                             ParserX::SkipToken(data);
                             continue;
                         }
@@ -139,5 +136,13 @@ void ShapeTemplateElement::load(FileBuffer* data){
 }
 
 ShapeTemplates::~ShapeTemplates() {
+    for(ShapeTemplate *shapeTemplate : templates){
+        if(shapeTemplate == NULL)
+            continue;
+        for(ShapeTemplateElement *element : shapeTemplate->elements)
+            delete element;
+        delete shapeTemplate;
+    }
+    templates.clear();
 }
 

@@ -48,18 +48,25 @@ with representative route profiles:
   space, applies chord-span/chord-length/chord-displacement subdivision, keeps
   UV distance continuous, transforms normals, and applies additive or
   replacement LOD ranges;
+- the ORTS `-Z`-forward profile basis is rotated 180 degrees around local Y
+  into TSRE's `+Z`-forward sweep; profile X, optional profile-local Z, and
+  their normal components are converted together while UVs remain attached
+  to their original vertices;
 - static TrackObj ORTS generation sweeps each TrackShape path, applies the
   established TSRE path offset/yaw transform, and interpolates its TDB
   start/end superelevation angles;
 - named ORTS profiles on ordinary static TrackObjs were visually accepted in
   both TSRE and Open Rails on route `bbb`;
 - route textures are preferred with global-texture fallback;
+- generated ORTS LOD/material objects share a validated route-texture lookup,
+  avoiding repeated filesystem checks and full texture-library scans during
+  live DynTrack rebuilds;
 - unsupported material details and profile-specific `PositionControl`
   superelevation deformation produce diagnostics rather than silent parity
   claims;
-- parser, invalid-input, XML precedence, alias, straight geometry, curve
-  subdivision, and curve endpoint tests are available in the `orts-profile`
-  suite.
+- parser, invalid-input, XML precedence, alias, straight geometry, basis
+  handedness/OpenGL winding, curve subdivision, and curve endpoint tests are
+  available in the `orts-profile` suite.
 
 Milestone 2 is visually accepted for the tested rail, road, and Ruler profiles
 in route `bbb`. Full `PositionControl` superelevation deformation, detailed
@@ -113,7 +120,7 @@ Milestone 2 acceptance:
 TSRE loads:
 
 ```text
-appdata/<version>/procedural/shapetemplates.dat
+<route>/procedural/shapetemplates.dat
 ```
 
 Templates contain named elements such as:
@@ -124,8 +131,12 @@ Templates contain named elements such as:
 - `Stretch`;
 - `Point`.
 
-Elements reference OBJ cross-sections/repeated shapes and textures. Assets may
-be overridden under:
+The template `Type` value is parsed as `TRACK`, `ROAD`, or `RULER`. The Flex
+Track/Road selector only offers native TSRE templates matching its active
+database mode.
+
+Elements reference OBJ cross-sections/repeated shapes and textures. Route assets
+are resolved under:
 
 ```text
 <route>/procedural/
@@ -139,8 +150,6 @@ be overridden under:
 
 Current weaknesses:
 
-- route-local `shapetemplates.dat` is not loaded;
-- template type is declared but not parsed correctly;
 - unknown names silently cache an empty shape;
 - `DEFAULT` is hardwired to `DefaultTrack`;
 - DynTrack does not serialize its template choice;

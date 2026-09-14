@@ -27,7 +27,7 @@ TrProfile (
                 Vertex (
                     Position ( -1.5 0.04 )
                     Normal ( 0 1 0 )
-                    TexCoord ( 0.52 0 )
+                    TexCoord ( 0 0 )
                     PositionControl ( All )
                 )
                 Vertex (
@@ -39,7 +39,7 @@ TrProfile (
                 Vertex (
                     Position ( 1.5 0.04 )
                     Normal ( 0 1 0 )
-                    TexCoord ( 0 0 )
+                    TexCoord ( 0.52 0 )
                     PositionControl ( All )
                 )
             )

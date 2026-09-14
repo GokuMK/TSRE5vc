@@ -171,6 +171,8 @@ private:
             float *quaternion, bool initialMousePlacement = false);
     DynTrackObj* placeRawDynTrack(int tileX, int tileZ, float *position, float *quaternion);
     bool createLiveFlexCompanions();
+    QString continuousFlexProfileForRole(const QString &role = QString()) const;
+    void applyContinuousFlexProfiles();
     void discardLiveFlexCompanions();
     bool updateLiveFlexCompanions(const float *mainSections);
     float effectiveContinuousFlexMinimumRadius() const;
@@ -258,6 +260,8 @@ private:
     bool continuousFlexRightEnabled = false;
     float continuousFlexSeparation = 4.0f;
     float continuousFlexMinimumRadius = 15.0f;
+    QString continuousFlexProfile;
+    float flexYOffset = 0.0f;
     bool stickPointerToTerrain = true;
     bool autoAddToTDB = true;
     float lastNewObjPos[3];
