@@ -8,6 +8,7 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/shape/SFile.h>
 #include "SFileC.h"
 #include "SFileX.h"
@@ -453,9 +454,9 @@ void SFile::Animation::loadX(FileBuffer* data){
 void SFile::loadSd() {
     if(loadedSd == true)
         return;
-    QFile file(pathid+"d");
+    QFile file(ContentPath::withExtension(pathid, "sd"));
     if (!file.open(QIODevice::ReadOnly)){
-        qDebug() << "Sd Shape: not exist "<<pathid+"d";
+        qDebug() << "Sd Shape: not exist "<<ContentPath::withExtension(pathid, "sd");
         return;
     }
     FileBuffer* data = ReadFile::read(&file);
@@ -531,13 +532,13 @@ void SFile::loadSd() {
     //qDebug() << esdAlternativeTexture << this->TextureFlags[Game::season];
     //qDebug() << (esdAlternativeTexture & this->TextureFlags[Game::season]);
     if((esdAlternativeTexture & Game::TextureFlags[season]) != 0)
-        seasonPath = "/" + season.toLower();
+        seasonPath = "/" + season.toUpper();
     
     if(season == "Winter" || season == "AutumnSnow" || season == "WinterSnow" || season == "SpringSnow" ){
         if(esdAlternativeTexture & Game::TextureFlags["Snow"] != 0)
-            seasonPath = "/snow";
+            seasonPath = "/SNOW";
         if(esdAlternativeTexture & Game::TextureFlags["SnowTrack"] != 0)
-            seasonPath = "/snow";
+            seasonPath = "/SNOW";
     }
     texPath += seasonPath;
     loadedSd = true;

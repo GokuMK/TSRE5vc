@@ -570,7 +570,8 @@ public:
             // although the application discovers them by enumeration.
             fixedDir(route);
             for(const auto &name:{"SHAPES","TEXTURES","TERRTEX","TILES","LO_TILES","WORLD","TD",
-                    "ACTIVITIES","SERVICES","TRAFFIC","PATHS","SOUND","ENVFILES","OPENRAILS"})
+                    "ACTIVITIES","SERVICES","TRAFFIC","PATHS","SOUND","ENVFILES","OPENRAILS",
+                    "ADDONS","PROCEDURAL","TRACKPROFILES","TERRAIN_MAPS"})
                 fixedDir(route+"/"+name);
             fixedDir(route+"/ENVFILES/TEXTURES");
             textureBases.insert(route+"/TEXTURES");textureBases.insert(route+"/TERRTEX");
@@ -770,6 +771,14 @@ public:
                 (!route.isEmpty() && (base.compare(route,Qt::CaseInsensitive)==0 ||
                     base.compare(route+"/OPENRAILS",Qt::CaseInsensitive)==0));
             if(fixedCatalog && (family=="tsection"||family=="catalog"))selected=leaf(e.path).toLower();
+            if(!route.isEmpty()) {
+                const QString name=leaf(e.path).toLower();
+                if(base.compare(route,Qt::CaseInsensitive)==0
+                        && (name=="sigscr.dat" || name=="terrainmaterials.dat" || name=="weathertransitions.dat"))
+                    selected=name;
+                if(base.compare(route+"/PROCEDURAL",Qt::CaseInsensitive)==0 && name=="shapetemplates.dat")
+                    selected=name;
+            }
             plannedNames[id]=joined(plannedDirectory(parent(e.path)),selected);
         }
         coordinateTextures();

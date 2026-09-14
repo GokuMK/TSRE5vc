@@ -483,7 +483,7 @@ void PropertiesTrackObj::refreshTemplateList(){
     eTemplate.addItem("DISABLED");
 
     ProceduralShape::Load();
-    OrtsTrackProfileCatalog::load(Game::root + "/routes/" + Game::route);
+    OrtsTrackProfileCatalog::load(Game::root + "/ROUTES/" + Game::route);
 
     // Route-local ORTS profiles override application-level TSRE templates and
     // are shown first so the most relevant choices are easiest to find.

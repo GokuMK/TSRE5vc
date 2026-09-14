@@ -8,6 +8,7 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/trains/EngLib.h>
 #include <tsre/trains/Eng.h>
 #include <QDebug>
@@ -17,6 +18,7 @@
 #include <QProgressDialog>
 #include <QCoreApplication>
 #include <tsre/Game.h>
+#include <settings/SettingsAccess.h>
 
 //int EngLib::jesteng = 0;
 //std::unordered_map<int, Eng*> EngLib::eng;
@@ -36,16 +38,20 @@ int EngLib::getEngByPointer(Eng* pointer){
 }
 
 int EngLib::addEng(QString path, QString name) {
-    QString pathid = (path + "/" + name);//.toLower();
-    if(Game::caseInsensitiveFS)
-        pathid = pathid.toLower();
+    QString pathid = (path + "/" + name);
     pathid.replace("\\", "/");
-    pathid.replace("//", "/");
+    pathid = ContentPath::normalize(pathid);
+    QString selectedSource = pathid;
+    const QString overrideSource = ContentPath::join(path, "OPENRAILS/" + name);
+    if(Settings::boolean("core.content.loading.preferOpenRailsEng")
+            && ContentPath::readable(overrideSource)) selectedSource = overrideSource;
     //qDebug() << pathid;
     for ( auto it = eng.begin(); it != eng.end(); ++it ){
         if(it->second == NULL) continue;
-        if (((Eng*) it->second)->pathid.length() == pathid.length())
-            if (((Eng*) it->second)->pathid == pathid) {
+        if (((Eng*) it->second)->loaded == 1)
+            if (ContentPath::key(pathid) == ContentPath::key(it->second->pathid)
+                    && !it->second->filePaths.isEmpty()
+                    && ContentPath::canReuse(selectedSource, it->second->filePaths.first())) {
                 ((Eng*) it->second)->ref++;
                 //qDebug() <<"engid "<< pathid;
                 return (int)it->first;
@@ -75,8 +81,8 @@ void EngLib::removeAll(){
 int EngLib::getEngByPathid(QString pathid) {
     for ( auto it = eng.begin(); it != eng.end(); ++it ){
         if(it->second == NULL) continue;
-        if (((Eng*) it->second)->pathid.length() == pathid.length())
-            if (((Eng*) it->second)->pathid == pathid) {
+        if (((Eng*) it->second)->loaded == 1)
+            if (ContentPath::canReuse(pathid, ((Eng*) it->second)->pathid)) {
                 return (int)it->first;
             }
     }
@@ -85,7 +91,7 @@ int EngLib::getEngByPathid(QString pathid) {
 
 int EngLib::loadAll(QString gameRoot, bool gui){
     QString path;
-    path = gameRoot + "/trains/trainset/";
+    path = gameRoot + "/TRAINS/TRAINSET/";
     QDir dir(path);
     QDir trainDir;
     trainDir.setFilter(QDir::Files);

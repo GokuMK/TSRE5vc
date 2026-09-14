@@ -51,7 +51,7 @@ void SoundSourceObj::load(int x, int y) {
     this->loaded = true;
     
     if(Game::soundEnabled){
-        QString path = Game::root+"/routes/"+Game::route+"/sound";
+        QString path = Game::root+"/ROUTES/"+Game::route+"/SOUND";
         int sid = MstsSoundDefinition::AddDefinition(path, fileName);
         if(sid != -1){
             if(MstsSoundDefinition::Definitions[sid]->group.size() > 0){

@@ -99,7 +99,7 @@ void TerrainTileCreationDialog::showStatus(int worldX, int worldZ) {
         const QString name = node.getMyName(worldX, terrainZ);
         if (!names.contains(name)) names << name;
     }
-    const QString directory = Game::root + "/routes/" + Game::route + "/tiles/";
+    const QString directory = Game::root + "/ROUTES/" + Game::route + "/TILES/";
     QStringList descriptions, paths;
     for (const QString &name : names) {
         const QString path = directory + name + ".t";

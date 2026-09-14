@@ -9,6 +9,7 @@
  */
 
 #include <tsre/tests/TestRunner.h>
+#include <tsre/tests/ContentPathTestSuite.h>
 #include <tsre/tests/SFileComplexTestSuite.h>
 #include <routeEditor/TerrainProfileSelector.h>
 #include <QLabel>
@@ -2209,13 +2210,13 @@ static int runOrtsProfileSuite(bool verbose) {
     bool precedenceOk = temporaryDirectory.isValid();
     bool routeOverrideOk = false;
     if(precedenceOk){
-        QDir().mkpath(temporaryDirectory.path() + "/TrackProfiles");
+        QDir().mkpath(temporaryDirectory.path() + "/TRACKPROFILES");
         QFile stfFile(temporaryDirectory.path()
-                      + "/TrackProfiles/TrProfileDual.stf");
+                      + "/TRACKPROFILES/TrProfileDual.stf");
         QFile xmlFile(temporaryDirectory.path()
-                      + "/TrackProfiles/TrProfileDual.xml");
+                      + "/TRACKPROFILES/TrProfileDual.xml");
         QFile defaultFile(temporaryDirectory.path()
-                          + "/TrackProfiles/default_road.stf");
+                          + "/TRACKPROFILES/default_road.stf");
         precedenceOk = stfFile.open(QIODevice::WriteOnly)
                 && stfFile.write(stf.toUtf8()) > 0;
         stfFile.close();
@@ -2815,7 +2816,7 @@ static int runTerrainGridSuite(bool verbose) {
         Game::root = overwriteDirectory.path();
         Game::route = "terrain-overwrite-test";
         const QString tilesPath = overwriteDirectory.path()
-                + "/routes/" + Game::route + "/tiles";
+                + "/ROUTES/" + Game::route + "/TILES";
         overwriteDescriptorsOk = QDir().mkpath(tilesPath);
         Game::writeEnabled = false;
         overwriteDescriptorsOk = overwriteDescriptorsOk
@@ -3153,6 +3154,7 @@ QStringList TsreTests::listSuites() {
         "route-load",
         "selection-id",
         "tokens",
+        "content-path",
         "shape-complex",
         "shape-complex-gl",
         "shape-complex-corpus",
@@ -3199,6 +3201,8 @@ int TsreTests::run(const TestRunOptions &opts) {
     if (suite == "shape-complex-corpus" || suite == "shape-complex-corpus-gl")
         return runSFileComplexCorpus(opts.casesFile, suite == "shape-complex-corpus-gl");
 
+    if (suite == "content-path")
+        return runContentPathSuite(opts.verbose);
     if (suite == "tokens")
         return runTokenIdSuite(opts.verbose);
     if (suite == "token-world" || suite == "token-shape-gl")

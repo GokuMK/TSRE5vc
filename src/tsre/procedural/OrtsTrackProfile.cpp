@@ -510,7 +510,7 @@ QSharedPointer<OrtsTrackProfile> OrtsTrackProfileParser::parseXml(
 
 void OrtsTrackProfileCatalog::load(const QString &routePath, bool forceReload) {
     const QString normalizedPath = QDir::cleanPath(routePath);
-    if(!forceReload && loadedRoutePath.compare(normalizedPath, Qt::CaseInsensitive) == 0)
+    if(!forceReload && loadedRoutePath == normalizedPath)
         return;
 
     loadedRoutePath = normalizedPath;
@@ -518,7 +518,7 @@ void OrtsTrackProfileCatalog::load(const QString &routePath, bool forceReload) {
     aliases.clear();
     loadDiagnostics.clear();
 
-    QDir directory(normalizedPath + "/TrackProfiles");
+    QDir directory(normalizedPath + "/TRACKPROFILES");
     if(!directory.exists())
         return;
 

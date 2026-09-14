@@ -328,7 +328,7 @@ void PropertiesDyntrack::refreshTemplateList(){
     eTemplate.addItem("DISABLED");
 
     ProceduralShape::Load();
-    OrtsTrackProfileCatalog::load(Game::root + "/routes/" + Game::route);
+    OrtsTrackProfileCatalog::load(Game::root + "/ROUTES/" + Game::route);
 
     // Route-local ORTS profiles are the most specific definitions, so show
     // them before application-level TSRE templates.

@@ -8,6 +8,7 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/world/Ref.h>
 #include <QDebug>
 #include <QDir>
@@ -26,7 +27,7 @@ Ref::Ref(QString path) {
 
 void Ref::loadFile(QString path){
     qDebug() << "Wczytywanie pliku ref: " << path;
-    path.replace("//", "/");
+    path = ContentPath::normalize(path);
     qDebug() << path;
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly))
@@ -176,7 +177,7 @@ static QString NormalizeRefRelativePath(QString path){
         return "";
     path.replace("\\", "/");
     while(path.contains("//"))
-        path.replace("//", "/");
+        path = ContentPath::normalize(path);
     if(path.startsWith("./"))
         path = path.mid(2);
     if(path.startsWith("/"))
@@ -195,10 +196,10 @@ void Ref::expandTemplates(){
     if(templateItems.size() == 0)
         return;
 
-    QString shapesRoot = Game::root + "/routes/" + Game::route + "/shapes";
+    QString shapesRoot = Game::root + "/ROUTES/" + Game::route + "/SHAPES";
     shapesRoot.replace("\\", "/");
     while(shapesRoot.contains("//"))
-        shapesRoot.replace("//", "/");
+        shapesRoot = ContentPath::normalize(shapesRoot);
     while(shapesRoot.endsWith("/"))
         shapesRoot.chop(1);
 
@@ -243,7 +244,7 @@ void Ref::expandTemplates(){
         if(!relDir.isEmpty())
             scanPath += "/" + relDir;
         while(scanPath.contains("//"))
-            scanPath.replace("//", "/");
+            scanPath = ContentPath::normalize(scanPath);
 
         QDir scanDir(scanPath);
         if(!scanDir.exists())

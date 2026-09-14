@@ -65,7 +65,7 @@ int TsreTests::runTdbLoadSuite(bool verbose) {
     if(!temporaryDirectory.isValid())
         return 1;
 
-    const QString routeDirectory = temporaryDirectory.path() + "/routes/empty";
+    const QString routeDirectory = temporaryDirectory.path() + "/ROUTES/empty";
     QDir().mkpath(routeDirectory);
     Game::root = temporaryDirectory.path();
     Game::route = "empty";

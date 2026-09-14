@@ -115,7 +115,7 @@ void ActivityServiceWindow::bNewServiceSelected(){
     EditFileNameDialog eWindow;
     eWindow.exec();
     if(eWindow.isOk && eWindow.name.text().length() > 0){
-        ActLib::AddService(Game::root + "/routes/" + Game::route + "/services/", eWindow.name.text()+".srv", true);
+        ActLib::AddService(Game::root + "/ROUTES/" + Game::route + "/SERVICES/", eWindow.name.text()+".srv", true);
     }
     showServices(route);
     reloadServicesList();

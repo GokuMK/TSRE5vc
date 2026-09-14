@@ -217,6 +217,7 @@ public:
     const QString& getTexPath() const override { return texPath; }
     int getEsdDetailLevel() const override { return esdDetailLevel; }
     bool isLoaded() const override { return loaded == 1; }
+    bool hasLoadFailed() const override { return loaded == 2; }
     float getSize() const override { return size; }
     const float* getBound() const override { return bound; }
 

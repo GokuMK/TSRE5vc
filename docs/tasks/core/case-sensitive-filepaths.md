@@ -79,7 +79,10 @@ the subsequently authorized read-only scans of two installed game roots.
 The repair tool must report its coverage rather than claim an arbitrary root
 is completely repaired just because TSRE can render it.
 
-## A. Findings in the current code
+## A. Findings from the pre-implementation code review
+
+The following audit motivated the migration. Current implementation and validation
+are tracked in the [stage-A report](case-sensitive-filepaths-stage-a.md).
 
 Source links are relative to this document. Function names identify the reviewed
 locations; line numbers will change during implementation.

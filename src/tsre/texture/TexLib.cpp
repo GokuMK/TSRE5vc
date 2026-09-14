@@ -8,6 +8,7 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/texture/TexLib.h>
 #include <tsre/texture/AceLib.h>
 #include <tsre/texture/DdsLib.h>
@@ -25,6 +26,18 @@
 int TexLib::jesttextur = 0;
 std::unordered_map<int, Texture*> TexLib::mtex;
 QHash<int, int> TexLib::disabledTextures;
+
+namespace {
+bool textureIdentityMatches(const QString &path, const QString &key, const Texture &texture) {
+    // Removing lookup aliases retires a cached bake without mutating a loader
+    // which may still be using the source path on another thread.
+    bool registered = false;
+    for(const auto &alias : texture.hashid)
+        if(alias == key) registered = true;
+    if(ContentPath::synthetic(path)) return registered;
+    return registered && ContentPath::canReuse(path, texture.pathid);
+}
+}
 
 void TexLib::reset() {
     jesttextur = 0;
@@ -144,22 +157,21 @@ void TexLib::addRef(int texx) {
 
 int TexLib::addTex(QString path, QString name, bool reload) {
     QString pathid = (path+"/"+name);
-    if(Game::caseInsensitiveFS)
-    pathid = pathid.toLower();
     pathid.replace("\\", "/");
-    pathid.replace("//", "/");
+    pathid = ContentPath::normalize(pathid);
     return addTex(pathid, reload);
 }
 
 int TexLib::getTex(QString pathid) {
-    for ( auto it = mtex.begin(); it != mtex.end(); ++it ){
-        if(it->second == NULL) continue;
-        for(int i = 0; i < ((Texture*) it->second)->hashid.size(); i++)
-            if (((Texture*) it->second)->hashid[i].length() == pathid.length())
-                if (((Texture*) it->second)->hashid[i] == pathid) {
-                    ((Texture*) it->second)->ref++;
-                    return (int)it->first;
-                }
+    pathid = ContentPath::textureSource(pathid);
+    const QString key = ContentPath::key(pathid);
+    for(const auto &entry : mtex) {
+        const Texture *texture = entry.second;
+        if(texture && !texture->missing && !texture->error
+                && textureIdentityMatches(pathid, key, *texture)) {
+            entry.second->ref++;
+            return entry.first;
+        }
     }
     return -1;
 }
@@ -171,6 +183,7 @@ int TexLib::addTex(Texture* texture, bool reload) {
     if (texture->hashid.isEmpty() && !texture->pathid.isEmpty()) {
         texture->hashid.push_back(texture->pathid);
     }
+    for(auto &alias : texture->hashid) alias = ContentPath::key(alias);
 
     for ( auto it = mtex.begin(); it != mtex.end(); ++it ){
         Texture* existing = it->second;
@@ -178,9 +191,13 @@ int TexLib::addTex(Texture* texture, bool reload) {
 
         for(int i = 0; i < existing->hashid.size(); i++){
             for(int j = 0; j < texture->hashid.size(); j++){
-                if(existing->hashid[i].length() != texture->hashid[j].length())
+                if(existing->error || existing->missing)
                     continue;
                 if(existing->hashid[i] != texture->hashid[j])
+                    continue;
+                if(!ContentPath::synthetic(texture->hashid[j])
+                        && !ContentPath::canReuse(texture->pathid, existing->pathid)
+                        && !(texture->pathid == existing->pathid && texture->loaded))
                     continue;
 
                 if(!reload){
@@ -302,45 +319,29 @@ bool TexLib::decodeFromBytes(Texture* texture, const QByteArray& encodedBytes, Q
 }
 
 int TexLib::addTex(QString pathid, bool reload) {
-
-    Texture* newFile = NULL;
-    for ( auto it = mtex.begin(); it != mtex.end(); ++it ){
-        if(it->second == NULL) continue;
-        for(int i = 0; i < ((Texture*) it->second)->hashid.size(); i++)
-            if (((Texture*) it->second)->hashid[i].length() == pathid.length())
-                if (((Texture*) it->second)->hashid[i] == pathid) {
-                    if(!reload){
-                        ((Texture*) it->second)->ref++;
-                        return (int)it->first;
-                    } else {
-                        newFile = ((Texture*) it->second);
-                        break;
-                    }
-                }
+    // Resolve format fallback before matching any cached asset identity.
+    pathid = ContentPath::textureSource(pathid);
+    const QString key = ContentPath::key(pathid);
+    Texture* newFile = nullptr;
+    int texId = -1;
+    for(const auto &entry : mtex) {
+        Texture *existing = entry.second;
+        if(!existing || existing->missing || existing->error) continue;
+        if(!textureIdentityMatches(pathid, key, *existing)) continue;
+        if(!reload) { existing->ref++; return entry.first; }
+        newFile = existing;
+        texId = entry.first;
+        break;
     }
-    //qDebug() << "Nowa " << jesttextur << " textura: " << pathid;
-
-    QString tType = pathid.toLower().split(".").last();
-
-    // Openrails uses .dds textures instead of .ace
-    if(tType == "ace"){
-        QFile file(pathid);
-        if (!file.exists()){
-            tType = "dds";
-            pathid = pathid.left(pathid.length() - 3)+"dds";
-        }
-        //qDebug() << "Using DDS";
-    }
-
-    int texId = 0;
-    if(newFile == NULL){
+    const QString tType = QFileInfo(pathid).suffix().toLower();
+    if(!newFile) {
         newFile = new Texture(pathid);
         newFile->ref++;
-        mtex[jesttextur] = newFile;
-        texId = jesttextur;
-        jesttextur++;
+        texId = jesttextur++;
+        mtex[texId] = newFile;
     } else {
         newFile->delVBO();
+        newFile->pathid = pathid;
     }
     //qDebug() << pathid.toLower();
     //qDebug() << tType;

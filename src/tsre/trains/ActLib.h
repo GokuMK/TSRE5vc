@@ -36,16 +36,16 @@ public:
     static int AddAct(QString path, QString name, bool nowe = false);
     static int AddService(QString path, QString name, bool nowe = false);
     static int AddTraffic(QString path, QString name, bool nowe = false);
-    static Service* GetServiceByName(QString name);
-    static Traffic* GetTrafficByName(QString name);
-    static Path* GetPathByName(QString name);
-    static bool IsServiceInUse(QString n);
-    static bool IsTrafficInUse(QString n);
-    static QVector<QString> GetServiceInUseList(QString n);
+    static Service* GetServiceByName(QString name, QString routePath = {});
+    static Traffic* GetTrafficByName(QString name, QString routePath = {});
+    static Path* GetPathByName(QString name, QString routePath = {});
+    static bool IsServiceInUse(QString n, QString routePath = {});
+    static bool IsTrafficInUse(QString n, QString routePath = {});
+    static QVector<QString> GetServiceInUseList(QString n, QString routePath = {});
     static int AddPath(QString path, QString name);
     static int LoadAllAct(QString gameRoot, bool gui = false);
     static void GetUnsavedInfo(QVector<QString> &items);
-    static void UpdateServiceChanges(QString serviceNameId);
+    static void UpdateServiceChanges(QString serviceNameId, QString routePath = {});
     static void SaveAll();
 private:
 

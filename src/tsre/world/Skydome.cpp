@@ -14,7 +14,7 @@
 #include <tsre/shape/ShapeLib.h>
 
 Skydome::Skydome() {
-    QString resPath = Game::root + "/routes/" + Game::route + "/shapes";  
+    QString resPath = Game::root + "/ROUTES/" + Game::route + "/SHAPES";
     int shape = Game::currentShapeLib->addShape(resPath +"/skydome.s");
     this->shapePointer = Game::currentShapeLib->shape[shape];
     if(this->shapePointer == NULL)

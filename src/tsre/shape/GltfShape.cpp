@@ -8,6 +8,7 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/shape/GltfShape.h>
 
 #include <QCryptographicHash>
@@ -48,11 +49,8 @@
 namespace {
 
 static QString normalizePathId(QString pathid) {
-    if (Game::caseInsensitiveFS) {
-        pathid = pathid.toLower();
-    }
     pathid.replace("\\", "/");
-    pathid.replace("//", "/");
+    pathid = ContentPath::normalize(pathid);
     return pathid;
 }
 

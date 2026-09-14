@@ -4,6 +4,7 @@
  *  Licensed under GNU General Public License 3.0 or later.
  */
 
+#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/procedural/OrtsTrackProfileRenderer.h>
 
 #include <tsre/ogl/OglObj.h>
@@ -271,12 +272,12 @@ void transformStaticPath(OrtsGeneratedProfileMesh &mesh,
 QString texturePath(const QString &routePath, const QString &textureName) {
     QString normalizedName = textureName;
     normalizedName.replace('\\', '/');
-    const QString routeTexture = QDir::cleanPath(routePath + "/textures/" + normalizedName);
+    const QString routeTexture = QDir::cleanPath(routePath + "/TEXTURES/" + normalizedName);
     if(QFileInfo::exists(routeTexture))
         return routeTexture;
     const QDir routeDirectory(routePath);
     const QString globalTexture = QDir::cleanPath(
-            routeDirectory.absoluteFilePath("../../global/textures/" + normalizedName));
+            routeDirectory.absoluteFilePath("../../GLOBAL/TEXTURES/" + normalizedName));
     if(QFileInfo::exists(globalTexture))
         return globalTexture;
     return routeTexture;
@@ -284,9 +285,7 @@ QString texturePath(const QString &routePath, const QString &textureName) {
 
 QString normalizedTextureId(QString path) {
     path.replace('\\', '/');
-    path.replace("//", "/");
-    if(Game::caseInsensitiveFS)
-        path = path.toLower();
+    path = ContentPath::normalize(path);
     return path;
 }
 
@@ -308,18 +307,16 @@ int profileTextureId(const QString &routePath, const QString &textureName) {
     QString normalizedName = textureName;
     normalizedName.replace('\\', '/');
     QString normalizedRoute = QDir::cleanPath(routePath);
-    if(Game::caseInsensitiveFS){
-        normalizedRoute = normalizedRoute.toLower();
-        normalizedName = normalizedName.toLower();
-    }
-    const QString cacheKey = normalizedRoute + "\n" + normalizedName;
+    const QString path = ContentPath::textureSource(normalizedTextureId(
+            texturePath(routePath, normalizedName)));
+    const QString cacheKey = ContentPath::key(normalizedRoute) + "\n" + normalizedName.toLower();
     const auto cached = textureIds.constFind(cacheKey);
-    if(cached != textureIds.cend()
-            && textureIdMatches(cached.value(), textures.value(cacheKey)))
+    const Texture *existing = textures.value(cacheKey);
+    if(cached != textureIds.cend() && textureIdMatches(cached.value(), existing)
+            && !existing->missing && !existing->error
+            && ContentPath::canReuse(path, existing->pathid))
         return cached.value();
 
-    const QString path = normalizedTextureId(
-            texturePath(routePath, normalizedName));
     const int textureId = TexLib::addTex(path);
     textureIds.insert(cacheKey, textureId);
     const auto loaded = TexLib::mtex.find(textureId);

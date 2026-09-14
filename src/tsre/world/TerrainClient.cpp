@@ -98,7 +98,7 @@ void TerrainClient::load(){
             }
 
             configureTerrainSeason();
-            path = Game::root + "/routes/" + Game::route + "/" + TileDir[(int)lowTile] + "/";
+            path = Game::root + "/ROUTES/" + Game::route + "/" + TileDir[(int)lowTile] + "/";
 
             Game::serverClient->sendUtf16Message("request_terrain_tfile( "+QString::number(mojex)+" "+QString::number(mojez)+" )");
             break;

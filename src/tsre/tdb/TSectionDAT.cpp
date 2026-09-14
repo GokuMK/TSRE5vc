@@ -8,6 +8,7 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/tdb/TSectionDAT.h>
 #include <tsre/Game.h>
 #include <tsre/fileFunctions/ParserX.h>
@@ -77,17 +78,15 @@ bool TSectionDAT::rollbackRouteAdditions(
 bool TSectionDAT::loadGlobal() {
     // Wczytaj główne tsection
     QString sh;
-    QString path = Game::root + "/global/tsection.dat";
-    QString orpath = Game::root + "/routes/" + Game::route + "/openrails/tsection.dat";
+    QString path = Game::root + "/GLOBAL/tsection.dat";
+    QString orpath = Game::root + "/ROUTES/" + Game::route + "/OPENRAILS/tsection.dat";
     QString incpath;
-    path.replace("//", "/");
-    orpath.replace("//", "/");
+    path = ContentPath::normalize(path);
+    orpath = ContentPath::normalize(orpath);
 
     QFile *file = new QFile(orpath);
     if (!file->open(QIODevice::ReadOnly)){
         incpath = path;
-        if(Game::caseInsensitiveFS)
-            incpath = path.toLower();
         file->close();
         file = new QFile(path);
         if (!file->open(QIODevice::ReadOnly)){
@@ -95,11 +94,11 @@ bool TSectionDAT::loadGlobal() {
             return false;
         } else {
             qDebug() << path;
-            incpath = Game::root + "/global";
+            incpath = Game::root + "/GLOBAL";
         }
     } else {
         qDebug() << orpath;
-        incpath = Game::root + "/routes/" + Game::route + "/openrails";
+        incpath = Game::root + "/ROUTES/" + Game::route + "/OPENRAILS";
     }
 
     FileBuffer* data = ReadFile::read(file);
@@ -112,7 +111,7 @@ bool TSectionDAT::loadGlobal() {
             continue;
         }
         if (sh == ("include")) {
-            QString incPath = ParserX::GetStringInside(data).toLower();
+            QString incPath = ParserX::GetStringInside(data);
             ParserX::SkipToken(data);
             data->insertFile(incpath + "/" + incPath);
             continue;
@@ -290,8 +289,8 @@ bool TSectionDAT::saveRoute() {
 
     QString sh;
     QString path;
-    path = Game::root + "/routes/" + Game::route + "/tsection.dat";
-    path.replace("//", "/");
+    path = Game::root + "/ROUTES/" + Game::route + "/tsection.dat";
+    path = ContentPath::normalize(path);
     qDebug() << path;
     QFile file(path);
     if(!file.open(QIODevice::WriteOnly | QIODevice::Text)){
@@ -339,8 +338,8 @@ void TSectionDAT::saveRouteToStream(QTextStream &out){
 bool TSectionDAT::loadRoute(bool autoFix) {
 
     QString path;
-    path = Game::root + "/routes/" + Game::route + "/tsection.dat";
-    path.replace("//", "/");
+    path = Game::root + "/ROUTES/" + Game::route + "/tsection.dat";
+    path = ContentPath::normalize(path);
     qDebug() << path;
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly))

@@ -732,7 +732,7 @@ void ActivityTools::cTrafficEnabled(QString val){
 }
 
 void ActivityTools::newActButtonEnabled(){
-    QString pathid = Game::root + "/routes/" + Game::route + "/activities/";
+    QString pathid = Game::root + "/ROUTES/" + Game::route + "/ACTIVITIES/";
     //ActLib::Act[ActLib::jestact] = new Activity(pathid, "file.act", true);
     for(int i = 0; i < 1000; i++){
         QString name = QString("file")+QString::number(i)+QString(".act");
@@ -937,7 +937,7 @@ void ActivityTools::actZoneDeleteAllEnabled(){
 
 /*void ActivityTools::actServiceNewEnabled(){
     ActivityServiceTools sTools;
-    QString pathid = Game::root + "/routes/" + Game::route + "/services/";
+    QString pathid = Game::root + "/ROUTES/" + Game::route + "/SERVICES/";
     QString name = "aaaaa1";
     Service *s = new Service(pathid, name+".srv", true);
     sTools.setData(s, route->path);

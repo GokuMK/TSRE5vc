@@ -87,7 +87,7 @@ int TsreTests::runTerrainBrushSuite(bool verbose) {
     const auto loggingGuard = qScopeGuard([&] {
         logging->setEnabled(QtDebugMsg, debug); logging->setEnabled(QtWarningMsg, warning);
     });
-    QDir().mkpath(directory.path() + "/routes/brush-tests/tiles");
+    QDir().mkpath(directory.path() + "/ROUTES/brush-tests/TILES");
     FixtureLibrary library;
     QScopedValueRollback<TerrainLib*> active(Game::terrainLib, &library);
     for (int z = -1; z <= 1; ++z) for (int x = -1; x <= 1; ++x)

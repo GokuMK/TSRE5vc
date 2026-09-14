@@ -9,6 +9,7 @@
  */
 
 
+#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/trains/Service.h>
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/fileFunctions/FileBuffer.h>
@@ -26,7 +27,7 @@
 
 Service::Service(QString p, QString n, bool nowe) {
     pathid = p + "/" + n;
-    pathid.replace("//", "/");
+    pathid = ContentPath::normalize(pathid);
     path = p;
     name = n;
     nameId = n.section(".", 0, -2);
@@ -55,7 +56,7 @@ Service::~Service() {
 
 void Service::load(){
     QString sh;
-    pathid.replace("//", "/");
+    pathid = ContentPath::normalize(pathid);
     qDebug() << pathid;
     QFile *file = new QFile(pathid);
     if (!file->open(QIODevice::ReadOnly)) {
@@ -177,7 +178,7 @@ void Service::save(){
     }
     
     tpath = path+"/"+name;
-    tpath.replace("//", "/");
+    tpath = ContentPath::normalize(tpath);
     qDebug() << tpath;
     QFile file(tpath);
 
@@ -237,13 +238,13 @@ void Service::pushRenderItems(float* playerT, quint32 selectionId) {
 
 void Service::initToPlay(){
     if(pathPointer == NULL){
-        QDir dir(Game::root + "/routes/" + Game::route + "/paths");
+        QDir dir(Game::root + "/ROUTES/" + Game::route + "/PATHS");
         int pathPointerId;
         qDebug() << "pathid" << (pathPointerId = ActLib::AddPath(dir.path(), pathId+".pat"));
         pathPointer = ActLib::Paths[pathPointerId];
     }
     if(conPointer == NULL){
-        QDir dir(Game::root + "/trains/consists/");
+        QDir dir(Game::root + "/TRAINS/CONSISTS/");
         int conPointerId;
         qDebug() << "conid" << (conPointerId =  ConLib::addCon(dir.path(), trainConfig+".con"));
         conPointer = new Consist(ConLib::con[conPointerId], true);
@@ -277,7 +278,7 @@ void Service::setNewPath(QString pathName){
     if(pathId.length() <= 0)
         return;
     qDebug() << "new path:" << pathId;
-    Path *p = ActLib::GetPathByName(pathId);
+    Path *p = ActLib::GetPathByName(pathId, ContentPath::parentDirectory(path));
     if(p == NULL){
         qDebug() << "null path";
         return;
@@ -294,14 +295,14 @@ void Service::setNewPath(QString pathName){
         stationStop.back().skipCount = ii++;
     }
     modified = true;
-    ActLib::UpdateServiceChanges(nameId);
+    ActLib::UpdateServiceChanges(nameId, ContentPath::parentDirectory(path));
 }
 
 void Service::disableStationStop(int count){
     for(int ii = 0; ii < stationStop.size(); ii++ ){
         if(stationStop[ii].skipCount == count){
             stationStop.remove(ii);
-            ActLib::UpdateServiceChanges(nameId);
+            ActLib::UpdateServiceChanges(nameId, ContentPath::parentDirectory(path));
             return;
         }
     }
@@ -338,7 +339,7 @@ void Service::enableStationStop(int count){
             return;            
         }
     }
-    Path *p = ActLib::GetPathByName(pathId);
+    Path *p = ActLib::GetPathByName(pathId, ContentPath::parentDirectory(path));
     if(p == NULL){
         return;
     }
@@ -358,6 +359,6 @@ void Service::enableStationStop(int count){
     stationStop[i].platformStartID = p->pathObjects[count]->trItemId;
     stationStop[i].skipCount = count;
     
-    ActLib::UpdateServiceChanges(nameId);
+    ActLib::UpdateServiceChanges(nameId, ContentPath::parentDirectory(path));
     modified = true;
 }

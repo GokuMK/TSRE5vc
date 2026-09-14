@@ -8,6 +8,7 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/trains/Traffic.h>
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/fileFunctions/FileBuffer.h>
@@ -21,7 +22,7 @@
 
 Traffic::Traffic(QString p, QString n, bool nowe) {
     pathid = p + "/" + n;
-    pathid.replace("//", "/");
+    pathid = ContentPath::normalize(pathid);
     path = p;
     name = n;
     nameId = n.section(".", 0, -2);
@@ -43,7 +44,7 @@ Traffic::~Traffic() {
 
 void Traffic::load(){
     QString sh;
-    pathid.replace("//", "/");
+    pathid = ContentPath::normalize(pathid);
     qDebug() << pathid;
     QFile *file = new QFile(pathid);
     if (!file->open(QIODevice::ReadOnly)) {
@@ -71,6 +72,7 @@ void Traffic::load(){
                 }
                 if (sh == ("service_definition")) {
                     service.push_back(new ActivityTimetable());
+                    service.back()->routePath = ContentPath::parentDirectory(path);
                     service.back()->load(data);
                     ParserX::SkipToken(data);
                     continue;
@@ -113,7 +115,7 @@ void Traffic::save(){
     }
     
     tpath = path+"/"+name;
-    tpath.replace("//", "/");
+    tpath = ContentPath::normalize(tpath);
     qDebug() << tpath;
     QFile file(tpath);
 

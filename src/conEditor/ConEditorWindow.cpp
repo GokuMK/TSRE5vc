@@ -8,6 +8,7 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <tsre/fileFunctions/ContentPath.h>
 #include <conEditor/ConEditorWindow.h>
 #include <QDebug>
 #include <tsre/trains/EngLib.h>
@@ -523,7 +524,7 @@ void ConEditorWindow::saveCurrentConsist(){
         QString spath;
         do {
             spath = currentCon->path + "/" + currentCon->name;
-            spath.replace("//", "/");
+            spath = ContentPath::normalize(spath);
             qDebug() << spath;
             QFile file(spath);
             if(!file.exists())
@@ -763,7 +764,7 @@ void ConEditorWindow::cSaveAsEngSetSelected(){
     
     QString spath;
     spath = currentCon->path + "/" + currentCon->name;
-    spath.replace("//", "/");
+    spath = ContentPath::normalize(spath);
     qDebug() << spath;
     QFile file(spath);
     if(file.exists()){

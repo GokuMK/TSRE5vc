@@ -8,6 +8,7 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/sound/MstsSoundDefinition.h>
 #include <QDebug>
 #include <QFile>
@@ -35,11 +36,11 @@ MstsSoundDefinition::MstsSoundDefinition(QString p, QString n) {
     path = p;
     pathid = p + "/" + n;
     pathid.replace("\\", "/");
-    pathid.replace("//", "/");
+    pathid = ContentPath::normalize(pathid);
     name = n;
     
     QString sh;
-    pathid.replace("//", "/");
+    pathid = ContentPath::normalize(pathid);
     qDebug() << "SMS" << pathid;
     QFile *file = new QFile(pathid);
     if (!file->open(QIODevice::ReadOnly)) {
@@ -86,7 +87,7 @@ MstsSoundDefinition::MstsSoundDefinition(QString p, QString n) {
 }
 
 QString SoundDefinitionGroup::Stream::Trigger::getFileName(){
-    return Game::root+"/routes/"+Game::route+"/sound/"+files.first();
+    return Game::root+"/ROUTES/"+Game::route+"/SOUND/"+files.first();
 }
 
 void SoundDefinitionGroup::Stream::setRelative(bool v){
@@ -469,14 +470,14 @@ MstsSoundDefinition::~MstsSoundDefinition() {
 int MstsSoundDefinition::AddDefinition(QString path, QString name){
     QString pathid = path + "/" + name;
     pathid.replace("\\", "/");
-    pathid.replace("//", "/");
+    pathid = ContentPath::normalize(pathid);
     //console.log(pathid);
     QMapIterator<int, MstsSoundDefinition*> i(Definitions);
     while (i.hasNext()) {
         i.next();
         if(i.value() == NULL) continue;
-        if (i.value()->pathid.length() == pathid.length())
-            if (i.value()->pathid == pathid) {
+        if (i.value()->loaded)
+            if (ContentPath::canReuse(pathid, i.value()->pathid)) {
                 i.value()->ref++;
                 return (int)i.key();
             }
@@ -630,7 +631,7 @@ void SoundDefinitionGroup::Stream::init(QString path, bool stereo){
         alGenBuffers(1, (ALuint*)&trigger[i]->alBid);
         qDebug("buffer generation");
         QString filepath = path + "/" + trigger[i]->files.first();
-        filepath.replace("//", "/");
+        filepath = ContentPath::normalize(filepath);
         QFile file(filepath);
         qDebug()<< "vaw" << file.fileName();
         if (!file.open(QIODevice::ReadOnly)){

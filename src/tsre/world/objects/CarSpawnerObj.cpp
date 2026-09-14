@@ -8,6 +8,7 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/world/objects/CarSpawnerObj.h>
 #include <tsre/shape/SFile.h>
 #include <tsre/shape/ShapeLib.h>
@@ -37,8 +38,8 @@
 QVector<CarSpawnerObj::CarSpawnerList> CarSpawnerObj::carSpawnerList;
 
 void CarSpawnerObj::LoadCarSpawnerList(){
-    QString path = Game::root + "/routes/" + Game::route + "/carspawn.dat";
-    path.replace("//", "/");
+    QString path = Game::root + "/ROUTES/" + Game::route + "/carspawn.dat";
+    path = ContentPath::normalize(path);
     qDebug() << path;
     QFile *file = new QFile(path);
     if (!file->open(QIODevice::ReadOnly))
@@ -51,8 +52,8 @@ void CarSpawnerObj::LoadCarSpawnerList(){
     parseCarList(data);
     delete data;
     
-    path = Game::root + "/routes/" + Game::route + "/openrails/carspawn.dat";
-    path.replace("//", "/");
+    path = Game::root + "/ROUTES/" + Game::route + "/OPENRAILS/carspawn.dat";
+    path = ContentPath::normalize(path);
     qDebug() << path;
     file = new QFile(path);
     if (!file->open(QIODevice::ReadOnly))
@@ -202,7 +203,7 @@ CarSpawnerObj::SimpleCar::~SimpleCar(){
 
 CarSpawnerObj::SimpleCar::SimpleCar(QString name){
     carName = name;
-    QString resPath = Game::root + "/routes/" + Game::route + "/shapes";
+    QString resPath = Game::root + "/ROUTES/" + Game::route + "/SHAPES";
     shapeId = Game::currentShapeLib->addShape(resPath +"/"+ name);
     shapePointer = Game::currentShapeLib->shape[shapeId];
     shapeState = shapePointer->newState();

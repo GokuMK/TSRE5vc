@@ -8,6 +8,7 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/texture/AceLibLegacy.h>
 #include <tsre/fileFunctions/ReadFile.h>
 #include <tsre/fileFunctions/FileBuffer.h>
@@ -355,7 +356,7 @@ bool AceLibLegacy::saveRgbChecked(const QString &path, const QImage &image, QStr
 }
 
 void AceLibLegacy::save(QString path, Texture* t){
-    path.replace("//", "/");
+    path = ContentPath::normalize(path);
     QFile *file = new QFile(path);
     qDebug() << "zapis .ace "<<path;
     if (!file->open(QIODevice::WriteOnly))

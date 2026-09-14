@@ -8,6 +8,7 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <tsre/fileFunctions/ContentPath.h>
 #include <shapeViewer/ShapeViewerNavigatorWidget.h>
 #include <shapeViewer/ContentHierarchyInfo.h>
 #include <tsre/Game.h>
@@ -105,7 +106,7 @@ void ShapeViewerNavigatorWidget::listHierarchy(QVector<ContentHierarchyInfo*> in
 
 void ShapeViewerNavigatorWidget::listDirectoryFiles(QString filepath){
     filepath.replace("\\", "/");
-    filepath.replace("//", "/");
+    filepath = ContentPath::normalize(filepath);
     dirPath = filepath.section("/",0,-2);
     qDebug() << dirPath;
     QDir dir(dirPath);

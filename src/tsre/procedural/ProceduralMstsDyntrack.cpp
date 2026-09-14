@@ -797,12 +797,12 @@ void ProceduralMstsDyntrack::GenShape(QVector<OglObj*> &shape, QVector<TSection>
     Q_UNUSED(bufferTrimmed);
     //qDebug() << ptr << "" << str;
     
-    QString resPath = Game::root + "/routes/" + Game::route + "/textures";
-    QString* texturePath = new QString(resPath.toLower()+"/acleantrack1.ace");
+    QString resPath = Game::root + "/ROUTES/" + Game::route + "/TEXTURES";
+    QString* texturePath = new QString(resPath+"/acleantrack1.ace");
     shape.push_back(new OglObj());
     shape.push_back(new OglObj());
     shape[0]->setMaterial(texturePath);
-    texturePath = new QString(resPath.toLower()+"/acleantrack2.ace");
+    texturePath = new QString(resPath+"/acleantrack2.ace");
     shape[1]->setMaterial(texturePath);
     shape[0]->init(pd, ptr, RenderItem::VNTA, GL_TRIANGLES );
     shape[1]->init(sk, str, RenderItem::VNTA, GL_TRIANGLES );

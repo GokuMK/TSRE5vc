@@ -8,6 +8,7 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/world/TFile.h>
 #include <QDebug>
 #include <QFile>
@@ -168,7 +169,7 @@ void TFile::setBufferNames(QString name){
 }
 
 bool TFile::readT(QString fSfile) {
-        fSfile.replace("//","/");
+        fSfile = ContentPath::normalize(fSfile);
         qDebug() << "T File "<< fSfile;
         QFile file(fSfile);
         if (!file.open(QIODevice::ReadOnly)){
@@ -705,7 +706,7 @@ int TFile::getMatByTexture(QString tname){
 }
 
 bool TFile::save(QString name){
-    name.replace("//", "/");
+    name = ContentPath::normalize(name);
     QSaveFile file(name);
     qDebug() << "zapis .t "<<name;
     if (!file.open(QIODevice::WriteOnly))

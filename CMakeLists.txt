@@ -133,4 +133,5 @@ option(TSRE_BUILD_CONTENT_CASE_TESTS "Build read-only content-case scanner tests
 if(TSRE_BUILD_CONTENT_CASE_TESTS)
     enable_testing()
     add_subdirectory(tests/contentCase)
+    add_subdirectory(tests/contentPaths)
 endif()

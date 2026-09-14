@@ -8,6 +8,7 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/Game.h>
 #include <TSRE5Version.h>
 #include <QDebug>
@@ -57,6 +58,7 @@ QString Game::root = "C:/tsdata/Train Simulator/";
 QString Game::route = "bbb1";
 QString Game::routeName = "bbb";
 QString Game::trkName = "bbb";
+QString Game::trkFileName;
 QString Game::season = "";
 //QString Game::route = "traska";
 //QString Game::route = "cmk";
@@ -972,71 +974,31 @@ bool Game::loadConEditor(){
 }
 */
 bool Game::checkRoot(QString dir){
-    QString path;
-    path = dir + "/routes";
-    path.replace("//", "/");
-    QFile file(path);
-    if (!file.exists()) {
-        qDebug () << "/routes not exist: "<< file.fileName();
-        return false;
-    }
-    path = dir + "/global";
-    path.replace("//", "/");
-    file.setFileName(path);
-    if (!file.exists()) {
-        qDebug () << "/global not exist: "<< file.fileName();
-        return false;
-    }
-    path = dir + "/global/tsection.dat";
-    path.replace("//", "/");
-    file.setFileName(path);
-    if (!file.exists()) {
-        qDebug () << "/global/tsection.dat not exist: "<< file.fileName();
-        return false;
-    }
-    
-    return true;
+    return ContentPath::requiredDirectory(ContentPath::join(dir,"ROUTES"))
+            && ContentPath::requiredDirectory(ContentPath::join(dir,"GLOBAL"))
+            && ContentPath::readable(ContentPath::join(dir,"GLOBAL/tsection.dat"));
 }
 
 bool Game::checkCERoot(QString dir){
-    QString path;
-    path = dir + "/trains";
-    path.replace("//", "/");
-    QFile file(path);
-    if (!file.exists()) {
-        qDebug () << "/trains not exist: "<< file.fileName();
-        return false;
-    }
-    path = dir + "/trains/trainset";
-    path.replace("//", "/");
-    file.setFileName(path);
-    if (!file.exists()) {
-        qDebug () << "/trains/trainset not exist: " << file.fileName();
-        return false;
-    }
-    path = dir + "/trains/consists";
-    path.replace("//", "/");
-    file.setFileName(path);
-    if (!file.exists()) {
-        qDebug () << "/trains/consists not exist: " << file.fileName();
-        return false;
-    }
-    
-    return true;
+    return ContentPath::requiredDirectory(ContentPath::join(dir,"TRAINS/TRAINSET"))
+            && ContentPath::requiredDirectory(ContentPath::join(dir,"TRAINS/CONSISTS"));
 }
 
 bool Game::checkRoute(QString dir){
+    Game::trkFileName.clear();
     QFile file;
-    file.setFileName(Game::root+"/routes/"+dir+"/"+dir+".trk");
+    file.setFileName(Game::root+"/ROUTES/"+dir+"/"+dir+".trk");
     if(file.exists()){
         Game::trkName = dir;
+        Game::trkFileName = dir + ".trk";
         return true;
     }
-    QDir folder(Game::root+"/routes/"+dir+"/");
+    QDir folder(Game::root+"/ROUTES/"+dir+"/");
     folder.setNameFilters(QStringList() << "*.trk");
     folder.setFilter(QDir::Files);
     foreach(QString dirFile, folder.entryList()){
-        Game::trkName = dirFile.split(".")[0];
+        Game::trkName = QFileInfo(dirFile).completeBaseName();
+        Game::trkFileName = dirFile;
         //qDebug() << Game::trkName;
         return true;
     }
@@ -1048,7 +1010,7 @@ bool Game::checkRoute(QString dir){
 
 bool Game::checkRemoteRoute(QString dir){
     QFile file;
-    file.setFileName(Game::root+"/routes/"+dir);
+    file.setFileName(Game::root+"/ROUTES/"+dir);
     if(file.exists()){
         //Game::trkName = dir;
         return true;

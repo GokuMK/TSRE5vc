@@ -8,6 +8,7 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/world/SoundList.h>
 #include <QFile>
 #include <tsre/fileFunctions/ParserX.h>
@@ -24,7 +25,7 @@ SoundListItem::~SoundListItem() {
 }
 
 void SoundList::loadSoundSources(QString path){
-    path.replace("//", "/");
+    path = ContentPath::normalize(path);
     qDebug() << path;
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly))
@@ -67,7 +68,7 @@ void SoundList::loadSoundSources(QString path){
         sourcesLoaded = true;
 }
 void SoundList::loadSoundRegions(QString path){
-    path.replace("//", "/");
+    path = ContentPath::normalize(path);
     qDebug() << path;
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly))

@@ -8,6 +8,7 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/trains/ActLib.h>
 #include <tsre/trains/Activity.h>
 #include <tsre/trains/Service.h>
@@ -19,6 +20,14 @@
 #include <tsre/Game.h>
 #include <QProgressDialog>
 #include <QCoreApplication>
+
+namespace {
+bool sameRoute(const QString &contentDirectory, QString routePath) {
+    if(routePath.isEmpty()) routePath = Game::root + "/ROUTES/" + Game::route;
+    const QString owner = ContentPath::parentDirectory(contentDirectory);
+    return owner == QDir(routePath).absolutePath() || ContentPath::sameLocation(owner, routePath);
+}
+}
 
 int ActLib::jestact = 0;
 int ActLib::jestservice = 0;
@@ -38,17 +47,16 @@ ActLib::~ActLib() {
 
 int ActLib::GetAct(QString path, QString name){
     QString pathid = (path + "/" + name);
-    if(Game::caseInsensitiveFS)
-        pathid = pathid.toLower();
     pathid.replace("\\", "/");
-    pathid.replace("//", "/");
+    pathid = ContentPath::normalize(pathid);
     //qDebug() << pathid;
     QHashIterator<int, Activity*> i(Act);
     while (i.hasNext()) {
         i.next();
         if(i.value() == NULL) continue;
-        if (i.value()->pathid.length() == pathid.length())
-            if (i.value()->pathid == pathid) {
+        if (i.value()->loaded == 1)
+            if (ContentPath::canReuse(pathid, i.value()->pathid)
+                    || (i.value()->isUnSaved() && pathid == i.value()->pathid)) {
                 i.value()->ref++;
                 qDebug() <<"actid "<< pathid;
                 return (int)i.key();
@@ -58,16 +66,17 @@ int ActLib::GetAct(QString path, QString name){
 }
 
 int ActLib::AddAct(QString path, QString name, bool nowe) {
-    QString pathid = (path + "/" + name).toLower();
+    QString pathid = (path + "/" + name);
     pathid.replace("\\", "/");
-    pathid.replace("//", "/");
+    pathid = ContentPath::normalize(pathid);
     //qDebug() << pathid;
     QHashIterator<int, Activity*> i(Act);
     while (i.hasNext()) {
         i.next();
         if(i.value() == NULL) continue;
-        if (i.value()->pathid.length() == pathid.length())
-            if (i.value()->pathid == pathid) {
+        if (i.value()->loaded == 1)
+            if (ContentPath::canReuse(pathid, i.value()->pathid)
+                    || (i.value()->isUnSaved() && pathid == i.value()->pathid)) {
                 i.value()->ref++;
                 qDebug() <<"actid "<< pathid;
                 return (int)i.key();
@@ -75,31 +84,33 @@ int ActLib::AddAct(QString path, QString name, bool nowe) {
     }
     qDebug() << "Nowy " << jestact << " act: " << pathid;
     Act[jestact] = new Activity(pathid, path, name, nowe);
-    if(!nowe)
+    if(!nowe && Act[jestact]->loaded == 1 && Act[jestact]->header)
         route[Act[jestact]->header->routeid].push_back(jestact);
     return jestact++;
 }
 
-void ActLib::UpdateServiceChanges(QString serviceNameId){
+void ActLib::UpdateServiceChanges(QString serviceNameId, QString routePath){
     QHashIterator<int, Activity*> i(Act);
     while (i.hasNext()) {
         i.next();
-        if(i.value() == NULL) continue;
+        if(i.value() == NULL || i.value()->loaded != 1) continue;
+        if(!sameRoute(i.value()->path, routePath)) continue;
         i.value()->updateService(serviceNameId);
     }
 }
 
 int ActLib::AddService(QString path, QString name, bool nowe) {
-    QString pathid = (path + "/" + name).toLower();
+    QString pathid = (path + "/" + name);
     pathid.replace("\\", "/");
-    pathid.replace("//", "/");
+    pathid = ContentPath::normalize(pathid);
     //qDebug() << pathid;
     QHashIterator<int, Service*> i(Services);
     while (i.hasNext()) {
         i.next();
         if(i.value() == NULL) continue;
-        if (i.value()->pathid.length() == pathid.length())
-            if (i.value()->pathid == pathid) {
+        if (i.value()->loaded == 1)
+            if (ContentPath::canReuse(pathid, i.value()->pathid)
+                    || (i.value()->isModified() && pathid == i.value()->pathid)) {
                 //i.value()->ref++;
                 qDebug() <<"serviceid "<< pathid;
                 return (int)i.key();
@@ -111,16 +122,17 @@ int ActLib::AddService(QString path, QString name, bool nowe) {
 }
 
 int ActLib::AddTraffic(QString path, QString name, bool nowe) {
-    QString pathid = (path + "/" + name).toLower();
+    QString pathid = (path + "/" + name);
     pathid.replace("\\", "/");
-    pathid.replace("//", "/");
+    pathid = ContentPath::normalize(pathid);
     //qDebug() << pathid;
     QHashIterator<int, Traffic*> i(Traffics);
     while (i.hasNext()) {
         i.next();
         if(i.value() == NULL) continue;
-        if (i.value()->pathid.length() == pathid.length())
-            if (i.value()->pathid == pathid) {
+        if (i.value()->loaded == 1)
+            if (ContentPath::canReuse(pathid, i.value()->pathid)
+                    || (i.value()->isModified() && pathid == i.value()->pathid)) {
                 i.value()->ref++;
                 qDebug() <<"trafficid "<< pathid;
                 return (int)i.key();
@@ -131,67 +143,73 @@ int ActLib::AddTraffic(QString path, QString name, bool nowe) {
     return jesttraffic++;
 }
 
-bool ActLib::IsServiceInUse(QString n){
+bool ActLib::IsServiceInUse(QString n, QString routePath){
     QHashIterator<int, Activity*> i(Act);
     while (i.hasNext()) {
         i.next();
-        if(i.value() == NULL) continue;
+        if(i.value() == NULL || i.value()->loaded != 1) continue;
+        if(!sameRoute(i.value()->path, routePath)) continue;
         if(i.value()->isServiceInUse(n))
             return true;
     }
     return false;
 }
 
-bool ActLib::IsTrafficInUse(QString name){
+bool ActLib::IsTrafficInUse(QString name, QString routePath){
     QHashIterator<int, Traffic*> i(Traffics);
     while (i.hasNext()) {
         i.next();
-        if(i.value() == NULL) continue;
+        if(i.value() == NULL || i.value()->loaded != 1) continue;
+        if(!sameRoute(i.value()->path, routePath)) continue;
         if(i.value()->nameId.toLower() == name.toLower())
             return true;
     }
     return false;
 }
 
-QVector<QString> ActLib::GetServiceInUseList(QString n){
+QVector<QString> ActLib::GetServiceInUseList(QString n, QString routePath){
     QVector<QString> list;
     QHashIterator<int, Activity*> i(Act);
     while (i.hasNext()) {
         i.next();
-        if(i.value() == NULL) continue;
+        if(i.value() == NULL || i.value()->loaded != 1) continue;
+        if(!sameRoute(i.value()->path, routePath)) continue;
         if(i.value()->isServiceInUse(n)){
             list.push_back(QString("Activity:") + i.value()->header->name);
         }
     }
     return list;
 }
-Service* ActLib::GetServiceByName(QString name){
+Service* ActLib::GetServiceByName(QString name, QString routePath){
     QHashIterator<int, Service*> i(Services);
     while (i.hasNext()) {
         i.next();
-        if(i.value() == NULL) continue;
+        if(i.value() == NULL || i.value()->loaded != 1) continue;
+        if(!sameRoute(i.value()->path, routePath)) continue;
         if(i.value()->nameId.toLower() == name.toLower())
             return i.value();
     }
     return NULL;
 }
 
-Traffic* ActLib::GetTrafficByName(QString name){
+Traffic* ActLib::GetTrafficByName(QString name, QString routePath){
     QHashIterator<int, Traffic*> i(Traffics);
     while (i.hasNext()) {
         i.next();
-        if(i.value() == NULL) continue;
+        if(i.value() == NULL || i.value()->loaded != 1) continue;
+        if(!sameRoute(i.value()->path, routePath)) continue;
         if(i.value()->nameId.toLower() == name.toLower())
             return i.value();
     }
     return NULL;
 }
 
-Path* ActLib::GetPathByName(QString name){
+Path* ActLib::GetPathByName(QString name, QString routePath){
     QHashIterator<int, Path*> i(Paths);
     while (i.hasNext()) {
         i.next();
-        if(i.value() == NULL) continue;
+        if(i.value() == NULL || i.value()->loaded != 1) continue;
+        if(!sameRoute(i.value()->path, routePath)) continue;
         if(i.value()->trPathName.toLower() == name.toLower())
             return i.value();
     }
@@ -199,17 +217,18 @@ Path* ActLib::GetPathByName(QString name){
 }
 
 int ActLib::AddPath(QString path, QString name) {
-    QString pathid = (path + "/" + name).toLower();
+    QString pathid = (path + "/" + name);
     pathid.replace("\\", "/");
-    pathid.replace("//", "/");
+    pathid = ContentPath::normalize(pathid);
     //qDebug() << pathid;
     QHashIterator<int, Path*> i(Paths);
     while (i.hasNext()) {
         i.next();
         if(i.value() == NULL) continue;
         ///qDebug() << i.value()->pathid << pathid; 
-        if (i.value()->pathid.length() == pathid.length())
-            if (i.value()->pathid == pathid) {
+        if (i.value()->loaded == 1)
+            if (ContentPath::canReuse(pathid, i.value()->pathid)
+                    || (i.value()->isModified() && pathid == i.value()->pathid)) {
                 i.value()->ref++;
                 qDebug() <<"pathid "<< pathid;
                 return (int)i.key();
@@ -222,7 +241,7 @@ int ActLib::AddPath(QString path, QString name) {
 
 int ActLib::LoadAllAct(QString gameRoot, bool gui){
     QString path;
-    path = gameRoot + "/routes";
+    path = gameRoot + "/ROUTES";
     QDir dir(path);
     qDebug() << path;
     dir.setFilter(QDir::Dirs);
@@ -234,7 +253,7 @@ int ActLib::LoadAllAct(QString gameRoot, bool gui){
         if(dirFile == "." || dirFile == "..")   
             continue;
         
-        dirFile += "/activities";
+        dirFile += "/ACTIVITIES";
         //qDebug() <<dirFile;
         QDir aDir(path+"/"+dirFile);
         if(!aDir.exists()) continue;

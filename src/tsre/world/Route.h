@@ -164,6 +164,7 @@ signals:
 
 protected:
     QString trkName;
+    QString trkFileName;
     QString routeDir;
     QString routeName;
     

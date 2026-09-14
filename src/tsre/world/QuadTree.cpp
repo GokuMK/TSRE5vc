@@ -8,6 +8,7 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/world/QuadTree.h>
 #include <tsre/Game.h>
 #include <tsre/fileFunctions/FileBuffer.h>
@@ -27,10 +28,10 @@ void QuadTree::load() {
 
     QString path;
     if(low)
-        path = Game::root + "/routes/" + Game::route + "/td/lo_td_idx.dat";
+        path = Game::root + "/ROUTES/" + Game::route + "/TD/lo_td_idx.dat";
     else
-        path = Game::root + "/routes/" + Game::route + "/td/td_idx.dat";
-    path.replace("//", "/");
+        path = Game::root + "/ROUTES/" + Game::route + "/TD/td_idx.dat";
+    path = ContentPath::normalize(path);
 
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly)) {
@@ -322,8 +323,8 @@ void QuadTree::QuadTile::addTile(int tileX, int tileY, int dLevel) {
 /*void QuadTree::loadTD(int x, int y){
     QString sh;
     QString path;
-    path = Game::root + "/routes/" + Game::route + "/td/"+ getNameXY(x) + "" + getNameXY(y) +".td";
-    path.replace("//", "/");
+    path = Game::root + "/ROUTES/" + Game::route + "/TD/"+ getNameXY(x) + "" + getNameXY(y) +".td";
+    path = ContentPath::normalize(path);
 
     QFile *file = new QFile(path);
     if (!file->open(QIODevice::ReadOnly)) {
@@ -414,10 +415,10 @@ void QuadTree::save() {
     QString sh;
     QString path;
     if(!low)
-        path = Game::root + "/routes/" + Game::route + "/td/td_idx.dat";
+        path = Game::root + "/ROUTES/" + Game::route + "/TD/td_idx.dat";
     else
-        path = Game::root + "/routes/" + Game::route + "/td/lo_td_idx.dat";
-    path.replace("//", "/");
+        path = Game::root + "/ROUTES/" + Game::route + "/TD/lo_td_idx.dat";
+    path = ContentPath::normalize(path);
     QFile file(path);
     if(!file.open(QIODevice::WriteOnly | QIODevice::Text)){
         qDebug() << "Error saving quad tree file!";
@@ -463,10 +464,10 @@ void QuadTree::loadTD(int x, int y) {
     QString sh;
     QString path;
     if(!low)
-        path = Game::root + "/routes/" + Game::route + "/td/" + getNameXY(x) + "" + getNameXY(y) + ".td";
+        path = Game::root + "/ROUTES/" + Game::route + "/TD/" + getNameXY(x) + "" + getNameXY(y) + ".td";
     else
-        path = Game::root + "/routes/" + Game::route + "/td/" + getNameXY(x) + "" + getNameXY(y) + ".tdl";
-    path.replace("//", "/");
+        path = Game::root + "/ROUTES/" + Game::route + "/TD/" + getNameXY(x) + "" + getNameXY(y) + ".tdl";
+    path = ContentPath::normalize(path);
 
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly)) {
@@ -493,10 +494,10 @@ void QuadTree::saveTD(int x, int y) {
     QString sh;
     QString path;
     if(low)
-        path = Game::root + "/routes/" + Game::route + "/td/" + getNameXY(x) + "" + getNameXY(y) + ".tdl";
+        path = Game::root + "/ROUTES/" + Game::route + "/TD/" + getNameXY(x) + "" + getNameXY(y) + ".tdl";
     else
-        path = Game::root + "/routes/" + Game::route + "/td/" + getNameXY(x) + "" + getNameXY(y) + ".td";
-    path.replace("//", "/");
+        path = Game::root + "/ROUTES/" + Game::route + "/TD/" + getNameXY(x) + "" + getNameXY(y) + ".td";
+    path = ContentPath::normalize(path);
     QFile *file = new QFile(path);
     qDebug() << "zapis .td " << path;
     if (!file->open(QIODevice::WriteOnly)) {

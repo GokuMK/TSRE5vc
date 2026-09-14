@@ -8,6 +8,7 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/coords/CoordsMkr.h>
 #include <QFile>
 #include <tsre/math3d/GLMatrix.h>
@@ -24,7 +25,7 @@
 #include <tsre/geo/GeoCoordinates.h>
 
 CoordsMkr::CoordsMkr(QString path) {
-    path.replace("//", "/");
+    path = ContentPath::normalize(path);
     qDebug() << path;
     QFile *file = new QFile(path);
     if (!file->open(QIODevice::ReadOnly))

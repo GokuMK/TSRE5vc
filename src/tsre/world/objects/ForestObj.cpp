@@ -8,6 +8,7 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <tsre/fileFunctions/ContentPath.h>
 #include <QFile>
 #include <tsre/world/objects/ForestObj.h>
 #include <tsre/math3d/GLMatrix.h>
@@ -65,8 +66,8 @@ ForestObj::~ForestObj() {
 }
 
 void ForestObj::LoadForestList(){
-    QString path = Game::root + "/routes/" + Game::route + "/forests.dat";
-    path.replace("//", "/");
+    QString path = Game::root + "/ROUTES/" + Game::route + "/forests.dat";
+    path = ContentPath::normalize(path);
     qDebug() << path;
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly))
@@ -471,7 +472,7 @@ void ForestObj::drawShape(bool pushToQueue, quint32 selectionId){
                 }
             }
             
-        texturePath = new QString(resPath.toLower()+"/"+treeTexture.toLower());
+        texturePath = new QString(resPath+"/"+treeTexture);
         shape.setMaterial(texturePath);
         shape.init(punkty, ptr, RenderItem::VNTA, GL_TRIANGLES);
         /*shape.VAO.create();

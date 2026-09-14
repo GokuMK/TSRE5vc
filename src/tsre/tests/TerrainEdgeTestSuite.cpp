@@ -109,8 +109,8 @@ int TsreTests::runTerrainEdgeSuite(bool verbose) {
     QScopedValueRollback<bool> write(Game::writeEnabled, true);
     EdgeLibrary library;
     QScopedValueRollback<TerrainLib*> terrainLibrary(Game::terrainLib, &library);
-    QDir().mkpath(Game::root + "/routes/edge-tests/tiles");
-    QDir().mkpath(Game::root + "/routes/edge-tests/lo_tiles");
+    QDir().mkpath(Game::root + "/ROUTES/edge-tests/TILES");
+    QDir().mkpath(Game::root + "/ROUTES/edge-tests/LO_TILES");
     std::vector<std::unique_ptr<Terrain>> owned;
     auto make = [&](int wx, int wz, int n, int s, int p, bool low = false) -> Terrain* {
         const QString name = "test" + QString::number(owned.size());
@@ -423,7 +423,7 @@ int TsreTests::runTerrainEdgeSuite(bool verbose) {
         TerrainLibQt real;
         QScopedValueRollback<TerrainLib*> actual(Game::terrainLib, &real);
         real.loadQuadTree();
-        QDir().mkpath(Game::root + "/routes/edge-tests/td");
+        QDir().mkpath(Game::root + "/ROUTES/edge-tests/TD");
         auto *qt = real.getQuadTreeDetailed();
         qt->addTile(20, 0);
         qt->addTile(21, 0);

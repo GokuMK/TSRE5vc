@@ -1,3 +1,4 @@
+#include <tsre/fileFunctions/ContentPath.h>
 #include "SFileComplexData.h"
 #include <QElapsedTimer>
 #include <QFileInfo>
@@ -68,6 +69,7 @@ const QString &SFileComplex::getPathId() const { return d->path; }
 const QString &SFileComplex::getTexPath() const { return d->texturePath; }
 int SFileComplex::getEsdDetailLevel() const { return d->detail; }
 bool SFileComplex::isLoaded() const { return d->loaded; }
+bool SFileComplex::hasLoadFailed() const { return d->attempted && !d->loaded; }
 float SFileComplex::getSize() const { return d->size; }
 const float *SFileComplex::getBound() const { return d->bound; }
 SFileComplex::Retention SFileComplex::retention() const { return d->retention; }
@@ -567,7 +569,7 @@ void SFileComplex::loadMetadata(bool readFile) {
     d->boxes.clear();
     d->texturePath = d->textureRoot;
     if (readFile) {
-        QString path = d->path + "d";
+        QString path = ContentPath::withExtension(d->path, "sd");
         if (!QFileInfo::exists(path))
             return;
         d->metadata = std::make_unique<SFileDetail::Document>();
@@ -597,11 +599,11 @@ void SFileComplex::loadMetadata(bool readFile) {
         box(*b, 6);
     QString seasonPath;
     if ((d->alternative & Game::TextureFlags.value(Game::season)) != 0)
-        seasonPath = '/' + Game::season.toLower();
+        seasonPath = '/' + Game::season.toUpper();
     if (Game::season == "Winter" || Game::season.endsWith("Snow"))
         if ((d->alternative &
              (Game::TextureFlags.value("Snow") | Game::TextureFlags.value("SnowTrack"))) != 0)
-            seasonPath = "/snow";
+            seasonPath = "/SNOW";
     d->texturePath += seasonPath;
     if (!readFile)
         releaseTextures();

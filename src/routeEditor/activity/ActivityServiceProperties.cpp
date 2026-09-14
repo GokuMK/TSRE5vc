@@ -124,7 +124,7 @@ void ActivityServiceProperties::showService(Service *s){
         cConFiles.addItem(name.section('/', -1), QVariant(name.section('/', -1)));
     }
     if(s->trainConfig.length() > 0){ 
-        cConFiles.setCurrentIndex(cConFiles.findData(s->trainConfig.toLower()+".con"));
+        cConFiles.setCurrentIndex(cConFiles.findData(s->trainConfig+".con", Qt::UserRole, Qt::MatchFixedString));
     } else {
         cConFiles.setCurrentIndex(0);
     }

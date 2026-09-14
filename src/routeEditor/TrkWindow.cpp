@@ -204,7 +204,7 @@ int TrkWindow::exec() {
                 imageLoad.setPixmap(QPixmap::fromImage(QImage(out,640,450,QImage::Format_RGBA8888)));   
             delete[] out;
     }
-    //int imageLoadId = TexLib::addTex(Game::root+"/routes/"+idName+"/"+imageLoad);
+    //int imageLoadId = TexLib::addTex(Game::root+"/ROUTES/"+idName+"/"+imageLoad);
     
     
     

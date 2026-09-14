@@ -8,6 +8,7 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/procedural/ShapeTemplates.h>
 #include <QString>
 #include <QFile>
@@ -18,7 +19,7 @@
 ShapeTemplates::ShapeTemplates(const QString &sourcePath) {
     QString path = sourcePath;
     QString sh;
-    path.replace("//", "/");
+    path = ContentPath::normalize(path);
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly)) {
         qDebug() << path << " shape definition file not exist";

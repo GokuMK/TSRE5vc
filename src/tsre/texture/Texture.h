@@ -56,7 +56,7 @@ class Texture {
     QString errorMessage;
     unsigned int *tex = nullptr;
     QString pathid;
-    QVector<QString> hashid;
+    QVector<QString> hashid; // Logical lookup keys only; pathid retains I/O spelling.
     std::atomic<bool> loaded{false}; // Worker publishes fully prepared content last.
     int ref = 0;
     bool glLoaded = false;

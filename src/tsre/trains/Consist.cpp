@@ -8,6 +8,7 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/trains/Consist.h>
 #include <tsre/trains/Eng.h>
 #include <tsre/trains/EngLib.h>
@@ -40,7 +41,7 @@ TextObj * Consist::txtEngineT = NULL;
 
 Consist::Consist() {
     typeObj = this->consistobj;
-    path = Game::root + "/trains/consists/";
+    path = Game::root + "/TRAINS/CONSISTS/";
     loaded = 1;
     serial = 1;
     durability = 1;
@@ -103,7 +104,7 @@ Consist::~Consist() {
 Consist::Consist(QString p, QString n) {
     typeObj = this->consistobj;
     pathid = p + "/" + n;
-    pathid.replace("//", "/");
+    pathid = ContentPath::normalize(pathid);
     path = p;
     name = n;
     loaded = -1;
@@ -124,7 +125,7 @@ Consist::Consist(QString src, QString p, QString n) {
 void Consist::load(){
     int i;
     QString sh;
-    pathid.replace("//","/");
+    pathid = ContentPath::normalize(pathid);
     qDebug() << pathid;
     QFile *file = new QFile(pathid);
     if (!file->open(QIODevice::ReadOnly)){
@@ -853,7 +854,7 @@ void Consist::save(){
     QString sh;
     QString spath;
     spath = path + "/" + name;
-    spath.replace("//", "/");
+    spath = ContentPath::normalize(spath);
     qDebug() << spath;
     QFile file(spath);
     

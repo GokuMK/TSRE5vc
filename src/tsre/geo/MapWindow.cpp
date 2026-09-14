@@ -8,6 +8,7 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/geo/MapWindow.h>
 #include <QDebug>
 #include <QString>
@@ -211,8 +212,8 @@ void MapWindow::saveToDisk(){
     int hash = (int)(this->tileX)*10000+(int)(this->tileZ);
     if(MapWindow::mapTileImages[hash] == NULL)
         return;
-    QString path = Game::root + "/routes/" + Game::route + "/terrain_maps/";
-    path.replace("//","/");
+    QString path = Game::root + "/ROUTES/" + Game::route + "/TERRAIN_MAPS/";
+    path = ContentPath::normalize(path);
     if (!QDir(path).exists()) {
         QDir().mkdir(path);
     }
@@ -224,7 +225,7 @@ void MapWindow::saveToDisk(){
 
 bool MapWindow::LoadMapFromDisk(int x, int z){
     int hash = x*10000+z;
-    QString path = Game::root + "/routes/" + Game::route + "/terrain_maps/"+QString::number(hash)+".png";
+    QString path = Game::root + "/ROUTES/" + Game::route + "/TERRAIN_MAPS/"+QString::number(hash)+".png";
     QFile file(path);
     if(!file.exists())
         return false;

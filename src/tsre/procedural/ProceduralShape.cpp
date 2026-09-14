@@ -8,6 +8,7 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/procedural/ProceduralShape.h>
 #include <tsre/shape/ObjFile.h>
 #include <tsre/Game.h>
@@ -36,10 +37,10 @@ unsigned int ProceduralShape::ShapeCount = 0;
 
 ObjFile* ProceduralShape::GetObjFile(QString name) {
     
-    QString pathRoute = Game::root + "/routes/" + Game::route + "/procedural/" + name;
-    pathRoute.replace("//", "/");
+    QString pathRoute = Game::root + "/ROUTES/" + Game::route + "/PROCEDURAL/" + name;
+    pathRoute = ContentPath::normalize(pathRoute);
     QString pathApp = QString("appdata/") + Game::AppDataVersion + "/procedural/" + name;
-    pathApp.replace("//", "/");
+    pathApp = ContentPath::normalize(pathApp);
     QString path = pathApp;
     QFile file(pathRoute);
     if(file.exists())
@@ -51,10 +52,10 @@ ObjFile* ProceduralShape::GetObjFile(QString name) {
 }
 
 QString ProceduralShape::GetTexturePath(QString textureName){
-    QString pathRoute = Game::root + "/routes/" + Game::route + "/procedural/" + textureName;
-    pathRoute.replace("//", "/");
+    QString pathRoute = Game::root + "/ROUTES/" + Game::route + "/PROCEDURAL/" + textureName;
+    pathRoute = ContentPath::normalize(pathRoute);
     QString pathApp = QString("appdata/") + Game::AppDataVersion + "/procedural/" + textureName;
-    pathApp.replace("//", "/");
+    pathApp = ContentPath::normalize(pathApp);
     QString path = pathApp;
     QFile file(pathRoute);
     if(file.exists())
@@ -64,13 +65,13 @@ QString ProceduralShape::GetTexturePath(QString textureName){
 
 void ProceduralShape::Load() {
     const QString routePath = QDir::cleanPath(
-            Game::root + "/routes/" + Game::route);
+            Game::root + "/ROUTES/" + Game::route);
     if(Loaded && LoadedRoutePath == routePath)
         return;
 
     delete ShapeTemplateFile;
     ShapeTemplateFile = new ShapeTemplates(
-            routePath + "/procedural/shapetemplates.dat");
+            routePath + "/PROCEDURAL/shapetemplates.dat");
 
     Alpha = -0.3;
     LoadedRoutePath = routePath;
@@ -949,4 +950,3 @@ void ProceduralShape::PushShapePartStretch(float* &ptr, ObjFile* tFile, float of
         *ptr++ = Alpha;
     }
 }
-

@@ -39,7 +39,7 @@ void TerrainBakeCommand::showDialog(QWidget *parent,const QString &route) {
     auto *form=new QFormLayout();auto *season=new QComboBox(&dialog);
     season->setStyleSheet("combobox-popup: 0;");
     season->addItem("All available variants","all");
-    for (const auto &v:TerrainSeason::available(QDir(route).filePath("terrtex"))) season->addItem(v,v);
+    for (const auto &v:TerrainSeason::available(QDir(route).filePath("TERRTEX"))) season->addItem(v,v);
     auto *resolution=new QComboBox(&dialog);
     resolution->setStyleSheet("combobox-popup: 0;");
     for (int n:{256,512,1024,2048,4096}) resolution->addItem(QString::number(n),n);

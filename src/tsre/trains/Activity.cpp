@@ -8,6 +8,7 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/trains/Activity.h>
 #include <tsre/trains/ActLib.h>
 #include <tsre/trains/Consist.h>
@@ -36,6 +37,7 @@ void Activity::init(QString route, QString name) {
     nextServiceUID = 1;
     nextActivityObjectUID = 32768;
     playerServiceDefinition = new ActivityServiceDefinition();
+    playerServiceDefinition->routePath = ContentPath::parentDirectory(path);
     playerServiceDefinition->player = true;
 }
 
@@ -78,7 +80,7 @@ Activity::~Activity() {
 
 Activity::Activity(QString p, QString n, bool isnew) {
     pathid = p + "/" + n;
-    pathid.replace("//", "/");
+    pathid = ContentPath::normalize(pathid);
     path = p;
     name = n;
     nameid = n.section(".", 0, -2);
@@ -113,7 +115,7 @@ Activity::Activity(QString src, QString p, QString n, bool isnew) {
 void Activity::load() {
 
     QString sh;
-    pathid.replace("//", "/");
+    pathid = ContentPath::normalize(pathid);
     qDebug() << pathid;
     QFile *file = new QFile(pathid);
     if (!file->open(QIODevice::ReadOnly)) {
@@ -162,6 +164,7 @@ void Activity::load() {
 
                         if (sh == ("player_service_definition")) {
                             playerServiceDefinition = new ActivityServiceDefinition();
+                            playerServiceDefinition->routePath = ContentPath::parentDirectory(path);
                             playerServiceDefinition->player = true;
                             playerServiceDefinition->load(data);
                             ParserX::SkipToken(data);
@@ -189,6 +192,7 @@ void Activity::load() {
 
                                 if (sh == ("service_definition")) {
                                     traffic->service.push_back(ActivityServiceDefinition());
+                                    traffic->service.back().routePath = ContentPath::parentDirectory(path);
                                     traffic->service.back().load(data);
                                     ParserX::SkipToken(data);
                                     continue;
@@ -340,7 +344,7 @@ void Activity::save() {
     }
     
     tpath = path+"/"+name;
-    tpath.replace("//", "/");
+    tpath = ContentPath::normalize(tpath);
     qDebug() << tpath;
     QFile file(tpath);
 
@@ -430,7 +434,7 @@ void Activity::save() {
     tpath = pathid;
     tpath.remove(tpath.length()-4, 4);
     tpath += ".asv";
-    tpath.replace("//", "/");
+    tpath = ContentPath::normalize(tpath);
     qDebug() << tpath;
     QFile::remove(tpath);
 }
@@ -438,6 +442,7 @@ void Activity::save() {
 void ActivityServiceDefinition::reloadTimetable(){
     if(trafficDefinition == NULL)
         return;
+    trafficDefinition->routePath = routePath;
     trafficDefinition->reloadTimetable();
     
     reloadDefinition();
@@ -453,10 +458,10 @@ bool ActivityServiceDefinition::isModified(){
 void ActivityServiceDefinition::calculateTimetable(){
     ActivityTimetable *t = trafficDefinition;
 
-    Service *srv = ActLib::GetServiceByName(name);
+    Service *srv = ActLib::GetServiceByName(name, routePath);
     if(srv == NULL)
         return;
-    Consist *con = ConLib::con[ConLib::addCon(Game::root+"/trains/consists/", srv->trainConfig+".con")];
+    Consist *con = ConLib::con[ConLib::addCon(Game::root+"/TRAINS/CONSISTS/", srv->trainConfig+".con")];
     if(con == NULL)
         return;
     qDebug() << con->maxVelocity[0] << con->maxVelocity[1];
@@ -502,7 +507,7 @@ void ActivityServiceDefinition::setTimetableEfficiency(int id, float val){
 }
 
 void ActivityServiceDefinition::reloadDefinition(){
-    Service *s = ActLib::GetServiceByName(name);
+    Service *s = ActLib::GetServiceByName(name, routePath);
     if(s == NULL)
         return;
     ActivityTimetable *t = trafficDefinition;
@@ -527,6 +532,7 @@ void ActivityServiceDefinition::load(FileBuffer* data) {
         empty = false;
         if (sh == ("player_traffic_definition")) {
             trafficDefinition = new ActivityTimetable();
+            trafficDefinition->routePath = routePath;
             trafficDefinition->actTimetable = true;
             trafficDefinition->load(data);
             trafficDefinition->name = name;
@@ -803,7 +809,7 @@ bool Activity::isNew(){
 }
 
 void Activity::initToPlay(){
-    playerServiceDefinition->servicePointer = ActLib::GetServiceByName(playerServiceDefinition->name);
+    playerServiceDefinition->servicePointer = ActLib::GetServiceByName(playerServiceDefinition->name, ContentPath::parentDirectory(path));
     if(playerServiceDefinition->servicePointer != NULL)
         playerServiceDefinition->servicePointer->initToPlay();
 }
@@ -841,7 +847,7 @@ void Activity::setFileName(QString val){
     nameid = val;
     name = val+".act";
     pathid = path + "/" + name;
-    pathid.replace("//", "/");
+    pathid = ContentPath::normalize(pathid);
     modified = true;
 }
 
@@ -1071,6 +1077,7 @@ bool Activity::getCarPosition(int oid, int eid, float *posTW){
 
 void Activity::createNewPlayerService(QString sName, int sTime ){
     playerServiceDefinition = new ActivityServiceDefinition();
+    playerServiceDefinition->routePath = ContentPath::parentDirectory(path);
     playerServiceDefinition->player = true;
     playerServiceDefinition->empty = false;
     playerServiceDefinition->name = sName;
@@ -1081,7 +1088,7 @@ void Activity::createNewPlayerService(QString sName, int sTime ){
     playerServiceDefinition->reloadTimetable();
     
     // Fill pathid in act header info:
-    Service *s = ActLib::GetServiceByName(playerServiceDefinition->name);
+    Service *s = ActLib::GetServiceByName(playerServiceDefinition->name, ContentPath::parentDirectory(path));
     if(s != NULL)
         header->pathid = s->pathId;
     
@@ -1093,6 +1100,7 @@ void Activity::createNewTrafficService(Traffic *t){
     traffic->name = t->nameId;
     for(int i = 0; i < t->service.size(); i++){
         traffic->service.push_back(ActivityServiceDefinition());
+        traffic->service.back().routePath = ContentPath::parentDirectory(path);
         traffic->service[i].empty = false;
         traffic->service[i].name = t->service[i]->name;
         traffic->service[i].time = t->service[i]->time;
@@ -1254,7 +1262,7 @@ QVector<ActivityServiceDefinition*> Activity::getServiceList(){
         s.push_back(playerServiceDefinition);
     if(traffic == NULL)
         return s;
-    Traffic *t = ActLib::GetTrafficByName(traffic->name);
+    Traffic *t = ActLib::GetTrafficByName(traffic->name, ContentPath::parentDirectory(path));
     if(t == NULL){
         qDebug() << "t == NULL";
         return s;
@@ -1281,7 +1289,7 @@ void Activity::updateService(QString serviceName){
     if(traffic == NULL)
         return;
     
-    Traffic *t = ActLib::GetTrafficByName(traffic->name);
+    Traffic *t = ActLib::GetTrafficByName(traffic->name, ContentPath::parentDirectory(path));
     if(t == NULL){
         return;
     }

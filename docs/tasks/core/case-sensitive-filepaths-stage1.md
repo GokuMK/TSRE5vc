@@ -3,7 +3,9 @@
 Implemented on 2026-09-12 following the [agreed design](case-sensitive-filepaths.md).
 This is B's read-only scanner and provisional planner. It is available through
 the main executable and does not need part A. Existing editor loaders, runtime
-path lowercasing, and save behavior have not been changed. No content mutation
+path lowercasing, and save behavior were not changed by stage 1. The subsequent
+[stage-A runtime implementation](case-sensitive-filepaths-stage-a.md) is tracked
+separately. No content mutation
 mode is implemented.
 
 **Accepted as the first stage-1 version on 2026-09-14.** The user agreed that the
@@ -47,9 +49,10 @@ Known follow-up work is retained rather than treated as complete:
   water-map scalar selection, binary SD coverage, and remaining include/context
   adapters still need attention in B. Other unclassified formats and implicit
   companion families remain outside certified coverage.
-- Stage A must implement case-preserving I/O with distinct logical keys, the
+- Stage A's [runtime implementation and tests](case-sensitive-filepaths-stage-a.md)
+  now cover case-preserving I/O with distinct logical keys, the
   uppercase structural/route directory and lowercase fixed-file conventions,
-  and deterministic generated suffixes. In particular, replace literal S-name
+  and deterministic generated suffixes, including replacing literal S-name
   `+ "d"` construction with the agreed `.sd` companion rule. See the main design
   for producer/consumer, cache, hash, and save-path migration details.
 - Stage 3 must implement verified reference edits, execution/rollback, and

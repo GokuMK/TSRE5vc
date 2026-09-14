@@ -8,6 +8,7 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <tsre/fileFunctions/ContentPath.h>
 #include <shapeViewer/ShapeViewerWindow.h>
 #include <shapeViewer/ShapeTexturesWindow.h>
 #include <shapeViewer/ShapeHierarchyWindow.h>
@@ -228,7 +229,7 @@ void ShapeViewerWindow::reloadFileEnabled(){
 void ShapeViewerWindow::openFileEnabled(){
     QFileDialog fd;
     QString path = "";
-    path.replace("//", "/");
+    path = ContentPath::normalize(path);
     fd.setDirectory(path);
     fd.setFileMode(QFileDialog::ExistingFiles);
     int result = fd.exec();
@@ -249,15 +250,15 @@ void ShapeViewerWindow::openFileEnabled(){
 
 void ShapeViewerWindow::loadFile(QString path){
     path.replace("\\", "/");
-    path.replace("//", "/");
+    path = ContentPath::normalize(path);
     QString dir = path.section("/",0,-2);
     qDebug() << dir;
     QString filename = path.section("/",-1,-1);
     qDebug() << filename;
     
     if(filename.endsWith(".s", Qt::CaseInsensitive)){
-        if(dir.endsWith("/shapes", Qt::CaseInsensitive)){
-            QString dir2 = dir.section("/", 0, -2)+"/textures";
+        if(dir.endsWith("/SHAPES", Qt::CaseInsensitive)){
+            QString dir2 = dir.section("/", 0, -2)+"/TEXTURES";
             if(QFileInfo::exists(dir2)){
                 dir = dir2;
             }
@@ -282,9 +283,9 @@ void ShapeViewerWindow::loadFile(QString path){
         currentEng = eng;
     }
     if(filename.endsWith(".con", Qt::CaseInsensitive)){
-        if(!dir.contains("/trains/consists", Qt::CaseInsensitive))
+        if(!dir.contains("/TRAINS/CONSISTS", Qt::CaseInsensitive))
             return;
-        QString gameRoot = dir.left(dir.indexOf("/trains/consists", 0, Qt::CaseInsensitive));
+        QString gameRoot = dir.left(dir.indexOf("/TRAINS/CONSISTS", 0, Qt::CaseInsensitive));
         Game::root = gameRoot;
         int cid = ConLib::addCon(dir, filename);
         Consist* con = ConLib::con[cid];

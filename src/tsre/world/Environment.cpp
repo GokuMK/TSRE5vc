@@ -8,6 +8,7 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/world/Environment.h>
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/fileFunctions/FileBuffer.h>
@@ -19,12 +20,12 @@
 
 Environment::Environment(QString path) {
     loaded = false;
-    texturePath = Game::root + "/routes/" + Game::route + "/envfiles/textures/";
+    texturePath = Game::root + "/ROUTES/" + Game::route + "/ENVFILES/TEXTURES/";
             
     qDebug() << "Wczytywanie pliku env: " << path;
 
     QString sh;
-    path.replace("//", "/");
+    path = ContentPath::normalize(path);
     qDebug() << path;
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly))
@@ -112,7 +113,7 @@ void Environment::loadWaterLayer(FileBuffer* data){
                         if (sh == "terrain_texslots") {
                             while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
                                 if (sh == "terrain_texslot") {
-                                    water.back().tex = texturePath + ParserX::GetString(data).toLower();
+                                    water.back().tex = texturePath + ParserX::GetString(data);
                                     ParserX::SkipToken(data);
                                     continue;
                                 }

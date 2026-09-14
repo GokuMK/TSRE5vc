@@ -8,6 +8,7 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/trains/Path.h>
 #include <tsre/tdb/TRnode.h>
 #include <QString>
@@ -32,8 +33,8 @@ Path::Path() {
 
 Path::Path(QString p, QString n, bool nowe) {
     typeObj = activitypath;
-    pathid = p.toLower() + "/" + n.toLower();
-    pathid.replace("//", "/");
+    pathid = p + "/" + n;
+    pathid = ContentPath::normalize(pathid);
     path = p;
     name = n;
     nameId = n.section(".", 0, -2);
@@ -54,7 +55,7 @@ bool Path::isModified(){
 
 void Path::load(){
     QString sh;
-    pathid.replace("//", "/");
+    pathid = ContentPath::normalize(pathid);
     qDebug() << pathid;
     QFile *file = new QFile(pathid);
     if (!file->open(QIODevice::ReadOnly)) {
@@ -490,7 +491,7 @@ Path::~Path() {
 
 void Path::CreatePaths(TDB * tdb){
     QString path;
-    path = Game::root + "/routes/" + Game::route + "/paths";
+    path = Game::root + "/ROUTES/" + Game::route + "/PATHS";
     QDir dir(path);
     qDebug() << path;
     dir.setNameFilters(QStringList() << "*.pat");

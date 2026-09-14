@@ -9,6 +9,7 @@
  */
 
 #include <tsre/texture/Texture.h>
+#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/texture/Brush.h>
 #include <tsre/Undo.h>
 #include <QOpenGLShaderProgram>
@@ -217,12 +218,12 @@ bool Texture::decodeToCpu() {
 
 Texture::Texture(QString pathid) {
     this->pathid = pathid;
-    this->hashid.push_back(pathid);
+    this->hashid.push_back(ContentPath::key(pathid));
     // temp fix for dds/ace loading
     //  Openrails uses .dds textures instead of .ace
     QString tType = pathid.toLower().split(".").last();
     if (tType == "dds") {
-        hashid.push_back(pathid.left(pathid.length() - 3) + "ace");
+        hashid.push_back(ContentPath::key(ContentPath::withExtension(pathid, "ace")));
     }
 }
 

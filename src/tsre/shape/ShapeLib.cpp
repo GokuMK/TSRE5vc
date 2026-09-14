@@ -8,6 +8,7 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/shape/ShapeLib.h>
 #include <tsre/Game.h>
 #include <QDebug>
@@ -34,6 +35,9 @@ ShapeLib::~ShapeLib() {
 void ShapeLib::reset() {
     jestshape = 0;
     shape.clear();
+    contexts.clear();
+    textureRoots.clear();
+    pathKeys.clear();
 }
         
 void ShapeLib::delRef(int texx) {
@@ -54,22 +58,23 @@ void ShapeLib::addRef(int texx) {
 }
 
 int ShapeLib::addShape(QString path){
-    return addShape(path, Game::root+"/routes/"+Game::route+"/textures");
+    return addShape(path, Game::root+"/ROUTES/"+Game::route+"/TEXTURES");
 }       
 
 int ShapeLib::addShape(QString path, QString texPath) {
-    QString pathid = path;//(path + "/" + name).toLower();
-    if(Game::caseInsensitiveFS)
-        pathid = pathid.toLower(); 
+    QString pathid = path;//(path + "/" + name);
     pathid.replace("\\", "/");
-    pathid.replace("//", "/");
-    //console.log(pathid);
-    for ( auto it = shape.begin(); it != shape.end(); ++it ){
-        if(it->second == NULL) continue;
-        const QString& existingPath = it->second->getPathId();
-        if (existingPath.length() == pathid.length())
-            if (existingPath == pathid)
-                return (int)it->first;
+    pathid = ContentPath::normalize(pathid);
+    texPath = ContentPath::normalize(texPath);
+    const QString context = ContentPath::key(texPath) + "\n" + Game::season;
+    const QString pathKey = ContentPath::key(pathid);
+    for (const auto &entry : shape) {
+        if(entry.second && !entry.second->hasLoadFailed() && pathKeys[entry.first] == pathKey
+                && contexts[entry.first] == context
+                && (texPath == textureRoots[entry.first]
+                    || ContentPath::sameLocation(texPath, textureRoots[entry.first]))
+                && ContentPath::canReuse(pathid, entry.second->getPathId()))
+            return entry.first;
     }
     qDebug() << "Nowy " << jestshape << " shape: " << pathid;
 
@@ -93,6 +98,9 @@ int ShapeLib::addShape(QString path, QString texPath) {
         {QString::fromLatin1(ShapeLoadOption::Compact), mstsBackend == "complex-compact"}
     });
     shape[jestshape] = asset;
+    contexts[jestshape] = context;
+    textureRoots[jestshape] = texPath;
+    pathKeys[jestshape] = pathKey;
 
     return jestshape++;
 }

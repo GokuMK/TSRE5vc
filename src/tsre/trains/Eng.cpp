@@ -8,6 +8,7 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/trains/Eng.h>
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/fileFunctions/FileBuffer.h>
@@ -76,14 +77,14 @@ Eng::~Eng() {
 }
 
 Eng::Eng(QString p, QString n) {
-    pathid = p.toLower() + "/" + n.toLower();
-    pathid.replace("//", "/");
+    pathid = p + "/" + n;
+    pathid = ContentPath::normalize(pathid);
     path = p;
     name = n;
     if(Settings::boolean("core.content.loading.preferOpenRailsEng")){
-        orpathid = p.toLower()+"/openrails/"+n.toLower();
-        orpathid.replace("//","/");
-        orpath = path+"/openrails/";
+        orpathid = p+"/OPENRAILS/"+n;
+        orpathid = ContentPath::normalize(orpathid);
+        orpath = path+"/OPENRAILS/";
     } else {
         orpathid = pathid;
         orpath = path;
@@ -100,19 +101,19 @@ Eng::Eng(QString p, QString n) {
 
 void Eng::addToFileList(QString val){
     val.replace("\\","/");
-    val.replace("//","/");
+    val = ContentPath::normalize(val);
     filePaths.push_back(val);
 }
 
 Eng::Eng(QString src, QString p, QString n) {
     pathid = src;
-    pathid.replace("//","/");
+    pathid = ContentPath::normalize(pathid);
     path = p;
     name = n;
     if(Settings::boolean("core.content.loading.preferOpenRailsEng")){
-        orpathid = p.toLower()+"/openrails/"+n.toLower();
-        orpathid.replace("//","/");
-        orpath = path+"/openrails/";
+        orpathid = p+"/OPENRAILS/"+n;
+        orpathid = ContentPath::normalize(orpathid);
+        orpath = path+"/OPENRAILS/";
     } else {
         orpathid = pathid;
         orpath = path;
@@ -129,12 +130,12 @@ Eng::Eng(QString src, QString p, QString n) {
 
 void Eng::load(){
     filePaths.clear();
-    QString mstsincpath = path.toLower();
-    QString incpath = orpath.toLower();
+    QString mstsincpath = path;
+    QString incpath = orpath;
     QString sh;
     QFile *file = new QFile(orpathid);
     if (!file->open(QIODevice::ReadOnly)){
-        incpath = path.toLower();
+        incpath = path;
         file = new QFile(pathid);
         if (!file->open(QIODevice::ReadOnly)){
             qDebug() << pathid << "not exist";
@@ -160,7 +161,7 @@ void Eng::load(){
             continue;
         }
         if (sh == ("include")) {
-            QString incPath = ParserX::GetStringInside(data).toLower();
+            QString incPath = ParserX::GetStringInside(data);
             ParserX::SkipToken(data);
             if(data->insertFile(incpath + "/" + incPath, mstsincpath + "/" + incPath, &loadedPath))
                 addToFileList(loadedPath);
@@ -174,7 +175,7 @@ void Eng::load(){
             while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
                 //qDebug() << sh;
                 if (sh == ("include")) {
-                    QString incPath = ParserX::GetStringInside(data).toLower();
+                    QString incPath = ParserX::GetStringInside(data);
                     ParserX::SkipToken(data);
                     if(data->insertFile(incpath + "/" + incPath, mstsincpath + "/" + incPath, &loadedPath))
                         addToFileList(loadedPath);
@@ -330,7 +331,7 @@ void Eng::load(){
             while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
                 //qDebug() << sh;
                 if (sh == ("include")) {
-                    QString incPath = ParserX::GetStringInside(data).toLower();
+                    QString incPath = ParserX::GetStringInside(data);
                     ParserX::SkipToken(data);
                     if(data->insertFile(incpath + "/" + incPath, mstsincpath + "/" + incPath, &loadedPath))
                         addToFileList(loadedPath);
@@ -806,7 +807,7 @@ float *Eng::getCurrentPositionOnTrack(){
 void Eng::getCameraPosition(float* out){
     if(Game::soundEnabled){
         if(camSoundSourceId == -1){
-            QString spath = path+"/sound";
+            QString spath = path+"/SOUND";
             int sid = MstsSoundDefinition::AddDefinition(spath, souncCabFile);
 
             if(sid != -1){

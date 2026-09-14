@@ -8,6 +8,7 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/shape/SFileLegacy.h>
 
 
@@ -465,9 +466,9 @@ void SFileLegacy::Animation::loadX(FileBuffer* data){
 void SFileLegacy::loadSd() {
     if(loadedSd == true)
         return;
-    QFile file(pathid+"d");
+    QFile file(ContentPath::withExtension(pathid, "sd"));
     if (!file.open(QIODevice::ReadOnly)){
-        qDebug() << "Sd Shape: not exist "<<pathid+"d";
+        qDebug() << "Sd Shape: not exist "<<ContentPath::withExtension(pathid, "sd");
         return;
     }
     FileBuffer* data = ReadFile::read(&file);
@@ -542,13 +543,13 @@ void SFileLegacy::loadSd() {
     //qDebug() << esdAlternativeTexture << this->TextureFlags[Game::season];
     //qDebug() << (esdAlternativeTexture & this->TextureFlags[Game::season]);
     if((esdAlternativeTexture & Game::TextureFlags[Game::season]) != 0)
-        seasonPath = "/" + Game::season.toLower();
+        seasonPath = "/" + Game::season.toUpper();
 
     if(Game::season == "Winter" || Game::season == "AutumnSnow" || Game::season == "WinterSnow" || Game::season == "SpringSnow" ){
         if(esdAlternativeTexture & Game::TextureFlags["Snow"] != 0)
-            seasonPath = "/snow";
+            seasonPath = "/SNOW";
         if(esdAlternativeTexture & Game::TextureFlags["SnowTrack"] != 0)
-            seasonPath = "/snow";
+            seasonPath = "/SNOW";
     }
     texPath += seasonPath;
     loadedSd = true;

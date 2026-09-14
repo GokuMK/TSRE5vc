@@ -8,6 +8,7 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/world/Tile.h>
 #include <memory>
 #include <tsre/Game.h>
@@ -232,8 +233,8 @@ void Tile::load() {
 
     QString sh;
     QString path;
-    path = Game::root + "/routes/" + Game::route + "/world/w" + getNameXY(x) + "" + getNameXY(-z) + ".w";
-    path.replace("//", "/");
+    path = Game::root + "/ROUTES/" + Game::route + "/WORLD/w" + getNameXY(x) + "" + getNameXY(-z) + ".w";
+    path = ContentPath::normalize(path);
     
     QFile *file = new QFile(path);
     if (!file->open(QIODevice::ReadOnly)){
@@ -416,8 +417,8 @@ void Tile::loadWS() {
 
     QString sh;
     QString path;
-    path = Game::root + "/routes/" + Game::route + "/world/w" + getNameXY(x) + "" + getNameXY(-z) + ".ws";
-    path.replace("//", "/");
+    path = Game::root + "/ROUTES/" + Game::route + "/WORLD/w" + getNameXY(x) + "" + getNameXY(-z) + ".ws";
+    path = ContentPath::normalize(path);
     
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly)){
@@ -678,8 +679,8 @@ WorldObj* Tile::placeObject(float* p, float* q, Ref::RefItem* itemData, float* t
 void Tile::saveEmpty(int nx, int nz) {
     QString sh;
     QString path;
-    path = Game::root + "/routes/" + Game::route + "/world/w" + getNameXY(nx) + "" + getNameXY(nz) + ".w";
-    path.replace("//", "/");
+    path = Game::root + "/ROUTES/" + Game::route + "/WORLD/w" + getNameXY(nx) + "" + getNameXY(nz) + ".w";
+    path = ContentPath::normalize(path);
     qDebug() << path;
     QFile file(path);
     if(file.exists()) return;
@@ -722,8 +723,8 @@ bool Tile::save() {
             Settings::boolean("core.editing.sortTileObjects");
     QString sh;
     QString path;
-    path = Game::root + "/routes/" + Game::route + "/world/w" + getNameXY(x) + "" + getNameXY(-z) + ".w";
-    path.replace("//", "/");
+    path = Game::root + "/ROUTES/" + Game::route + "/WORLD/w" + getNameXY(x) + "" + getNameXY(-z) + ".w";
+    path = ContentPath::normalize(path);
     qDebug() << path;
     QFile file(path);
     
@@ -791,8 +792,8 @@ bool Tile::saveWS() {
     }
     QString path;
     
-    path = Game::root + "/routes/" + Game::route + "/world/w" + getNameXY(x) + "" + getNameXY(-z) + ".ws";
-    path.replace("//", "/");
+    path = Game::root + "/ROUTES/" + Game::route + "/WORLD/w" + getNameXY(x) + "" + getNameXY(-z) + ".ws";
+    path = ContentPath::normalize(path);
     qDebug() << path;
     QFile file(path);
     

@@ -62,7 +62,7 @@ void RandomConsist::loadSets(){
     list.clear();
     
     QString path;
-    path = Game::root + "/trains/consists/randomsets/";
+    path = Game::root + "/TRAINS/CONSISTS/RANDOMSETS/";
     QDir dir(path);
     dir.setFilter(QDir::Files);
     dir.setNameFilters(QStringList()<<"*.con");
@@ -98,7 +98,7 @@ void RandomConsist::save(){
     if(items.count() < 1)
         return;
     Consist *c = new Consist();
-    c->path += "randomsets/";
+    c->path += "RANDOMSETS/";
     c->name = name.text()+".con";
     
     QDir dir(c->path);

@@ -225,7 +225,7 @@ void RouteEditorGLWidget::initRoute2(){
 }
 
 void RouteEditorGLWidget::playInit(){
-        int actId = ActLib::GetAct(Game::root + "/routes/" + Game::route + "/activities", Game::ActivityToPlay );
+        int actId = ActLib::GetAct(Game::root + "/ROUTES/" + Game::route + "/ACTIVITIES", Game::ActivityToPlay );
         qDebug() << "======== actId" << actId << Game::ActivityToPlay;
         if(actId < 0){
             PlayActivitySelectWindow actWindow;
@@ -372,7 +372,7 @@ void RouteEditorGLWidget::initializeGL() {
 
 void RouteEditorGLWidget::reloadRefFile(){
     route->loadAddons();
-    //route->ref = new Ref((Game::root + "/routes/" + Game::route + "/" + Game::routeName + ".ref"));
+    //route->ref = new Ref((Game::root + "/ROUTES/" + Game::route + "/" + Game::routeName + ".ref"));
     emit refreshObjLists();
 }
 
@@ -2266,7 +2266,7 @@ QString RouteEditorGLWidget::continuousFlexProfileForRole(
         groupBase.chop(QString("_single").size());
     const QString candidate = groupBase + "_" + role;
 
-    OrtsTrackProfileCatalog::load(Game::root + "/routes/" + Game::route);
+    OrtsTrackProfileCatalog::load(Game::root + "/ROUTES/" + Game::route);
     const QSharedPointer<const OrtsTrackProfile> routeProfile =
             OrtsTrackProfileCatalog::find(candidate);
     if(routeProfile != nullptr)

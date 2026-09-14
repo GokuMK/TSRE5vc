@@ -885,7 +885,7 @@ QString Terrain::proceduralSourceRoot() const {
 }
 void Terrain::reloadProceduralBakeMetadata() {
     if (!loaded || !usesProceduralMaterial() || modified) return;
-    const QString directory=Game::root+"/routes/"+Game::route+"/"+TileDir[int(lowTile)];
+    const QString directory=Game::root+"/ROUTES/"+Game::route+"/"+TileDir[int(lowTile)];
     ScopedBakeTFile saved;
     if (!saved.readT(QDir(directory).filePath(name+".t")) || !saved.bakedMaterialsValid) return;
     tfile->seasonalBakes=saved.seasonalBakes;

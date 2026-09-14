@@ -1,0 +1,12 @@
+cmake_minimum_required(VERSION 3.16)
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    project(TsreContentPaths LANGUAGES CXX)
+    enable_testing()
+    find_package(Qt6 REQUIRED COMPONENTS Core)
+endif()
+add_executable(tsre_content_path_tests ContentPathTests.cpp
+    ../../src/tsre/world/TerrainSeason.cpp)
+target_compile_features(tsre_content_path_tests PRIVATE cxx_std_17)
+target_include_directories(tsre_content_path_tests PRIVATE ../../src)
+target_link_libraries(tsre_content_path_tests PRIVATE Qt6::Core)
+add_test(NAME content_paths COMMAND tsre_content_path_tests)

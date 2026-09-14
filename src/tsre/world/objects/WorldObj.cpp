@@ -108,73 +108,73 @@ WorldObj* WorldObj::createObj(TS::TokenId sh) {
     WorldObj* nowy;
     if (sh == TS::Static) {
         nowy = (WorldObj*) (new StaticObj());
-        (nowy)->resPath = Game::root + "/routes/" + Game::route + "/shapes";
+        (nowy)->resPath = Game::root + "/ROUTES/" + Game::route + "/SHAPES";
         (nowy)->typeID = (nowy)->sstatic;
     } else if(sh == TS::Signal) {
         nowy = (WorldObj*) (new SignalObj());
-        (nowy)->resPath = Game::root + "/routes/" + Game::route + "/shapes";
+        (nowy)->resPath = Game::root + "/ROUTES/" + Game::route + "/SHAPES";
         (nowy)->typeID = (nowy)->signal;
     } else if (sh == TS::Speedpost) {
         nowy = (WorldObj*) (new SpeedpostObj());
-        (nowy)->resPath = Game::root + "/routes/" + Game::route + "/shapes";
+        (nowy)->resPath = Game::root + "/ROUTES/" + Game::route + "/SHAPES";
         (nowy)->typeID = (nowy)->speedpost;
     } else if (sh == TS::TrackObj) {
         nowy = (WorldObj*) (new TrackObj());
-        (nowy)->resPath = Game::root + "/global/shapes";
+        (nowy)->resPath = Game::root + "/GLOBAL/SHAPES";
         (nowy)->typeID = (nowy)->trackobj;
     } else if (sh == TS::Gantry) {
         nowy = (WorldObj*) (new StaticObj());
-        (nowy)->resPath = Game::root + "/routes/" + Game::route + "/shapes";
+        (nowy)->resPath = Game::root + "/ROUTES/" + Game::route + "/SHAPES";
         (nowy)->typeID = (nowy)->gantry;
     } else if (sh == TS::CollideObject) {
         nowy = (WorldObj*) (new StaticObj());
-        (nowy)->resPath = Game::root + "/routes/" + Game::route + "/shapes";    
+        (nowy)->resPath = Game::root + "/ROUTES/" + Game::route + "/SHAPES";
         (nowy)->typeID = (nowy)->collideobject;
     } else if (sh == TS::Dyntrack) {
         nowy = (WorldObj*) (new DynTrackObj());
-        (nowy)->resPath = Game::root + "/routes/" + Game::route + "/textures";
+        (nowy)->resPath = Game::root + "/ROUTES/" + Game::route + "/TEXTURES";
         (nowy)->typeID = (nowy)->dyntrack;
     } else if (sh == TS::Telepole) {
         nowy = new TelepoleObj();
     } else if (sh == TS::Forest) {
         nowy = (WorldObj*) (new ForestObj());
-        (nowy)->resPath = Game::root + "/routes/" + Game::route + "/textures";
+        (nowy)->resPath = Game::root + "/ROUTES/" + Game::route + "/TEXTURES";
         (nowy)->typeID = (nowy)->forest;
     } else if (sh == TS::Transfer) {
         nowy = (WorldObj*) (new TransferObj());
-        (nowy)->resPath = Game::root + "/routes/" + Game::route + "/textures";
+        (nowy)->resPath = Game::root + "/ROUTES/" + Game::route + "/TEXTURES";
         (nowy)->typeID = (nowy)->transfer;
     } else if (sh == TS::Platform) {
         nowy = (WorldObj*) (new PlatformObj());
-        (nowy)->resPath = Game::root + "/routes/" + Game::route + "/shapes";
+        (nowy)->resPath = Game::root + "/ROUTES/" + Game::route + "/SHAPES";
         (nowy)->typeID = (nowy)->platform;
     } else if (sh == TS::Siding) {
         nowy = (WorldObj*) (new PlatformObj());
-        (nowy)->resPath = Game::root + "/routes/" + Game::route + "/shapes";       
+        (nowy)->resPath = Game::root + "/ROUTES/" + Game::route + "/SHAPES";
         (nowy)->typeID = (nowy)->siding;
     } else if (sh == TS::CarSpawner) {
         nowy = (WorldObj*) (new CarSpawnerObj());
-        (nowy)->resPath = Game::root + "/routes/" + Game::route + "/shapes";     
+        (nowy)->resPath = Game::root + "/ROUTES/" + Game::route + "/SHAPES";
         (nowy)->typeID = (nowy)->carspawner;
     } else if (sh == TS::LevelCr) {
         nowy = (WorldObj*) (new LevelCrObj());
-        (nowy)->resPath = Game::root + "/routes/" + Game::route + "/shapes";   
+        (nowy)->resPath = Game::root + "/ROUTES/" + Game::route + "/SHAPES";
         (nowy)->typeID = (nowy)->levelcr;
     } else if (sh == TS::Pickup) {
         nowy = (WorldObj*) (new PickupObj());
-        (nowy)->resPath = Game::root + "/routes/" + Game::route + "/shapes";       
+        (nowy)->resPath = Game::root + "/ROUTES/" + Game::route + "/SHAPES";
         (nowy)->typeID = (nowy)->pickup;
     } else if (sh == TS::Hazard) {
         nowy = (WorldObj*) (new HazardObj());
-        (nowy)->resPath = Game::root + "/routes/" + Game::route + "/shapes";    
+        (nowy)->resPath = Game::root + "/ROUTES/" + Game::route + "/SHAPES";
         (nowy)->typeID = (nowy)->hazard;
     } else if (sh == TS::Soundsource) {
         nowy = (WorldObj*) (new SoundSourceObj());
-        (nowy)->resPath = Game::root + "/routes/" + Game::route + "/shapes";    
+        (nowy)->resPath = Game::root + "/ROUTES/" + Game::route + "/SHAPES";
         (nowy)->typeID = (nowy)->soundsource;
     } else if (sh == TS::Soundregion) {
         nowy = (WorldObj*) (new SoundRegionObj());
-        (nowy)->resPath = Game::root + "/routes/" + Game::route + "/shapes";    
+        (nowy)->resPath = Game::root + "/ROUTES/" + Game::route + "/SHAPES";
         (nowy)->typeID = (nowy)->soundregion;
     } else {
         qDebug() << "# Unsupported WorldObj !!! " << TS::describe(sh);
@@ -190,77 +190,77 @@ WorldObj* WorldObj::createObj(QString sh) {
     WorldObj* nowy;
     if (sh == "static") {
         nowy = (WorldObj*) (new StaticObj());
-        (nowy)->resPath = Game::root + "/routes/" + Game::route + "/shapes";
+        (nowy)->resPath = Game::root + "/ROUTES/" + Game::route + "/SHAPES";
         (nowy)->typeID = (nowy)->sstatic;
     } else if (sh == "signal") {
         nowy = (WorldObj*) (new SignalObj());
-        (nowy)->resPath = Game::root + "/routes/" + Game::route + "/shapes";
+        (nowy)->resPath = Game::root + "/ROUTES/" + Game::route + "/SHAPES";
         (nowy)->typeID = (nowy)->signal;
     } else if (sh == "speedpost") {
         nowy = (WorldObj*) (new SpeedpostObj());
-        (nowy)->resPath = Game::root + "/routes/" + Game::route + "/shapes";
+        (nowy)->resPath = Game::root + "/ROUTES/" + Game::route + "/SHAPES";
         (nowy)->typeID = (nowy)->speedpost;
     } else if (sh == "trackobj") {
         nowy = (WorldObj*) (new TrackObj());
-        (nowy)->resPath = Game::root + "/global/shapes";
+        (nowy)->resPath = Game::root + "/GLOBAL/SHAPES";
         (nowy)->typeID = (nowy)->trackobj;
     } else if (sh == "gantry") {
         nowy = (WorldObj*) (new StaticObj());
-        (nowy)->resPath = Game::root + "/routes/" + Game::route + "/shapes";
+        (nowy)->resPath = Game::root + "/ROUTES/" + Game::route + "/SHAPES";
         (nowy)->typeID = (nowy)->gantry;
     } else if (sh == "collideobject") {
         nowy = (WorldObj*) (new StaticObj());
-        (nowy)->resPath = Game::root + "/routes/" + Game::route + "/shapes";    
+        (nowy)->resPath = Game::root + "/ROUTES/" + Game::route + "/SHAPES";
         (nowy)->typeID = (nowy)->collideobject;
     } else if (sh == "dyntrack") {
         nowy = (WorldObj*) (new DynTrackObj());
-        (nowy)->resPath = Game::root + "/routes/" + Game::route + "/textures";
+        (nowy)->resPath = Game::root + "/ROUTES/" + Game::route + "/TEXTURES";
         (nowy)->typeID = (nowy)->dyntrack;
     } else if (sh == "telepole") {
         nowy = new TelepoleObj();
     } else if (sh == "forest") {
         nowy = (WorldObj*) (new ForestObj());
-        (nowy)->resPath = Game::root + "/routes/" + Game::route + "/textures";
+        (nowy)->resPath = Game::root + "/ROUTES/" + Game::route + "/TEXTURES";
         (nowy)->typeID = (nowy)->forest;
     } else if (sh == "transfer") {
         nowy = (WorldObj*) (new TransferObj());
-        (nowy)->resPath = Game::root + "/routes/" + Game::route + "/textures";
+        (nowy)->resPath = Game::root + "/ROUTES/" + Game::route + "/TEXTURES";
         (nowy)->typeID = (nowy)->transfer;
     } else if (sh == "platform") {
         nowy = (WorldObj*) (new PlatformObj());
-        (nowy)->resPath = Game::root + "/routes/" + Game::route + "/shapes";
+        (nowy)->resPath = Game::root + "/ROUTES/" + Game::route + "/SHAPES";
         (nowy)->typeID = (nowy)->platform;
     } else if (sh == "siding") {
         nowy = (WorldObj*) (new PlatformObj());
-        (nowy)->resPath = Game::root + "/routes/" + Game::route + "/shapes";       
+        (nowy)->resPath = Game::root + "/ROUTES/" + Game::route + "/SHAPES";
         (nowy)->typeID = (nowy)->siding;
     } else if (sh == "carspawner") {
         nowy = (WorldObj*) (new CarSpawnerObj());
-        (nowy)->resPath = Game::root + "/routes/" + Game::route + "/shapes";     
+        (nowy)->resPath = Game::root + "/ROUTES/" + Game::route + "/SHAPES";
         (nowy)->typeID = (nowy)->carspawner;
     } else if (sh == "levelcr") {
         nowy = (WorldObj*) (new LevelCrObj());
-        (nowy)->resPath = Game::root + "/routes/" + Game::route + "/shapes";   
+        (nowy)->resPath = Game::root + "/ROUTES/" + Game::route + "/SHAPES";
         (nowy)->typeID = (nowy)->levelcr;
     } else if (sh == "pickup") {
         nowy = (WorldObj*) (new PickupObj());
-        (nowy)->resPath = Game::root + "/routes/" + Game::route + "/shapes";       
+        (nowy)->resPath = Game::root + "/ROUTES/" + Game::route + "/SHAPES";
         (nowy)->typeID = (nowy)->pickup;
     } else if (sh == "hazard") {
         nowy = (WorldObj*) (new HazardObj());
-        (nowy)->resPath = Game::root + "/routes/" + Game::route + "/shapes";    
+        (nowy)->resPath = Game::root + "/ROUTES/" + Game::route + "/SHAPES";
         (nowy)->typeID = (nowy)->hazard;
     } else if (sh == "soundsource") {
         nowy = (WorldObj*) (new SoundSourceObj());
-        (nowy)->resPath = Game::root + "/routes/" + Game::route + "/shapes";    
+        (nowy)->resPath = Game::root + "/ROUTES/" + Game::route + "/SHAPES";
         (nowy)->typeID = (nowy)->soundsource;
     } else if (sh == "soundregion") {
         nowy = (WorldObj*) (new SoundRegionObj());
-        (nowy)->resPath = Game::root + "/routes/" + Game::route + "/shapes";    
+        (nowy)->resPath = Game::root + "/ROUTES/" + Game::route + "/SHAPES";
         (nowy)->typeID = (nowy)->soundregion;
     } else if (sh == "ruler") {
         nowy = (WorldObj*) (new RulerObj());
-        (nowy)->resPath = Game::root + "/routes/" + Game::route + "/shapes";    
+        (nowy)->resPath = Game::root + "/ROUTES/" + Game::route + "/SHAPES";
         (nowy)->typeID = (nowy)->ruler;
     } else {
         qDebug() << " Unsupported WorldObj !!! " + sh;
@@ -274,17 +274,17 @@ WorldObj* WorldObj::createObj(QString sh) {
 
 QString WorldObj::getResPath(Ref::RefItem* sh) {
     if (sh->type == "static") {
-        return Game::root + "/routes/" + Game::route + "/shapes/"+sh->getShapeName();
+        return Game::root + "/ROUTES/" + Game::route + "/SHAPES/"+sh->getShapeName();
     } else if (sh->type == "signal") {
-        return Game::root + "/routes/" + Game::route + "/shapes/"+sh->getShapeName();
+        return Game::root + "/ROUTES/" + Game::route + "/SHAPES/"+sh->getShapeName();
     } else if (sh->type == "speedpost") {
-        return Game::root + "/routes/" + Game::route + "/shapes/"+sh->getShapeName();
+        return Game::root + "/ROUTES/" + Game::route + "/SHAPES/"+sh->getShapeName();
     } else if (sh->type == "trackobj") {
-        return Game::root + "/global/shapes/"+sh->getShapeName();
+        return Game::root + "/GLOBAL/SHAPES/"+sh->getShapeName();
     } else if (sh->type == "gantry") {
-        return Game::root + "/routes/" + Game::route + "/shapes/"+sh->getShapeName();
+        return Game::root + "/ROUTES/" + Game::route + "/SHAPES/"+sh->getShapeName();
     } else if (sh->type == "collideobject") {
-        return Game::root + "/routes/" + Game::route + "/shapes/"+sh->getShapeName();
+        return Game::root + "/ROUTES/" + Game::route + "/SHAPES/"+sh->getShapeName();
     } else {
         return "";
     }

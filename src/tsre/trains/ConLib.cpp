@@ -8,6 +8,7 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/trains/ConLib.h>
 #include <tsre/trains/Consist.h>
 #include <QDebug>
@@ -28,16 +29,15 @@ ConLib::~ConLib() {
 }
 
 int ConLib::addCon(QString path, QString name) {
-    QString pathid = (path + "/" + name);//.toLower();
-    if(Game::caseInsensitiveFS)
-        pathid = pathid.toLower();
+    QString pathid = (path + "/" + name);
     pathid.replace("\\", "/");
-    pathid.replace("//", "/");
+    pathid = ContentPath::normalize(pathid);
     //qDebug() << pathid;
     for ( auto it = con.begin(); it != con.end(); ++it ){
         if(it->second == NULL) continue;
-        if (((Consist*) it->second)->pathid.length() == pathid.length())
-            if (((Consist*) it->second)->pathid == pathid) {
+        if (((Consist*) it->second)->loaded == 1)
+            if (ContentPath::canReuse(pathid, it->second->pathid)
+                    || (it->second->isUnSaved() && pathid == it->second->pathid)) {
                 ((Consist*) it->second)->ref++;
                 qDebug() <<"conid "<< pathid;
                 return (int)it->first;
@@ -60,7 +60,7 @@ int ConLib::refreshEngDataAll(){
 
 int ConLib::loadAll(QString gameRoot, bool gui){
     QString path;
-    path = gameRoot + "/trains/consists/";
+    path = gameRoot + "/TRAINS/CONSISTS/";
     QDir dir(path);
     QDir trainDir;
     dir.setFilter(QDir::Files);
@@ -91,11 +91,13 @@ int ConLib::loadAll(QString gameRoot, bool gui){
 }
 
 int ConLib::loadSimpleList(QString gameRoot, bool reload){
-    if(ConLib::conFileList.size() > 0 && reload == false)
+    static QString listedRoot;
+    if(listedRoot == gameRoot && ConLib::conFileList.size() > 0 && reload == false)
         return 0;
+    listedRoot = gameRoot;
     ConLib::conFileList.clear();
     QString path;
-    path = gameRoot + "/trains/consists/";
+    path = gameRoot + "/TRAINS/CONSISTS/";
     QDir dir(path);
     QDir trainDir;
     dir.setFilter(QDir::Files);
@@ -105,7 +107,7 @@ int ConLib::loadSimpleList(QString gameRoot, bool reload){
         qDebug() << "not exist";
     qDebug() << dir.count() <<" con files";
     foreach(QString engfile, dir.entryList())
-        ConLib::conFileList.push_back(path.toLower()+engfile.toLower());
+        ConLib::conFileList.push_back(path+engfile);
     qDebug() << "loaded";
     return 0;
 }

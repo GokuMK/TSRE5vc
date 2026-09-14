@@ -163,9 +163,9 @@ void CELoadWindow::handleBrowseButton(){
         browse->setStyleSheet(QString("color: ")+Game::StyleGreenText);
         Game::root = directory;
         //this->listRoutes();
-        recentDirs.addItem(directory.toLower());
+        recentDirs.addItem(directory);
         for(int i = 0; i < recentDirs.count() - 1; i++){
-            if(recentDirs.item(i)->text() == directory.toLower()){
+            if(recentDirs.item(i)->text() == directory){
                 recentDirs.removeItemWidget(recentDirs.item(i));
                 i--;
             }
@@ -196,12 +196,12 @@ void CELoadWindow::routeLoad(){
 
 void CELoadWindow::listInfo(){
     QString num = 0;
-    QDir dir(Game::root + "/trains/consists/");
+    QDir dir(Game::root + "/TRAINS/CONSISTS/");
     dir.setFilter(QDir::Files);
     dir.setNameFilters(QStringList()<<"*.con");
     num = QString::number(dir.count());
     conNumber.setText(num+" consists");    
-    QDir dir2(Game::root + "/trains/trainset/");
+    QDir dir2(Game::root + "/TRAINS/TRAINSET/");
     dir2.setFilter(QDir::Dirs);
     num = QString::number(dir2.count()-2);
     trainsNumber.setText(num+" dirs");    
@@ -219,7 +219,7 @@ void CELoadWindow::listRoutes(){
     QTextStream in(&file);
     QString line;
     while (!in.atEnd()) {
-        line = in.readLine().toLower();
+        line = in.readLine();
         recentDirs.addItem(line);
     }
     file.close();

@@ -8,6 +8,7 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/tdb/SigCfg.h>
 #include <QDebug>
 #include <tsre/Game.h>
@@ -22,8 +23,8 @@
 
 SigCfg::SigCfg() {
     QString sh;
-    QString path = Game::root + "/routes/" + Game::route + "/sigcfg.dat";
-    path.replace("//", "/");
+    QString path = Game::root + "/ROUTES/" + Game::route + "/sigcfg.dat";
+    path = ContentPath::normalize(path);
     qDebug() << path;
     QFile file(path);
     sourceFileExists = file.exists();

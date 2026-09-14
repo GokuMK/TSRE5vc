@@ -8,6 +8,7 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <tsre/fileFunctions/ContentPath.h>
 #include "FileBuffer.h"
 #include <tsre/fileFunctions/ReadFile.h>
 #include <QFile>
@@ -214,9 +215,9 @@ bool FileBuffer::insertFile(QString incPath, QString alternativePath, QString* l
     int i;
     QString sh;
     incPath.replace("\\","/");
-    incPath.replace("//","/");
+    incPath = ContentPath::normalize(incPath);
     alternativePath.replace("\\","/");
-    alternativePath.replace("//","/");
+    alternativePath = ContentPath::normalize(alternativePath);
     QFile file(incPath);
     if (!file.open(QIODevice::ReadOnly)){
         if(alternativePath.length() > 0){

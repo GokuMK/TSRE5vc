@@ -54,12 +54,12 @@ Tokens tokenize(const QString &text) {
 TerrainMaterialLibrary::TerrainMaterialLibrary(QString routeDirectory) : directory(QDir::cleanPath(routeDirectory)) { reload(); }
 std::shared_ptr<TerrainMaterialLibrary> TerrainMaterialLibrary::current() {
     static std::shared_ptr<TerrainMaterialLibrary> library;
-    const QString directory=QDir::cleanPath(Game::root+"/routes/"+Game::route);
+    const QString directory=QDir::cleanPath(Game::root+"/ROUTES/"+Game::route);
     if (!library || library->directory!=directory) library=std::make_shared<TerrainMaterialLibrary>(directory);
     return library;
 }
 QString TerrainMaterialLibrary::path() const { return QDir(directory).filePath(FileName); }
-QString TerrainMaterialLibrary::textureDirectory() const { return QDir(directory).filePath("terrtex"); }
+QString TerrainMaterialLibrary::textureDirectory() const { return QDir(directory).filePath("TERRTEX"); }
 bool TerrainMaterialLibrary::validTextureName(const QString &name) {
     if (name.isEmpty() || QDir::isAbsolutePath(name) || name.contains(':') || name.contains('\\')
             || QDir::cleanPath(name)!=name || name.split('/').contains("..")) return false;

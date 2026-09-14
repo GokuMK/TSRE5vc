@@ -206,6 +206,22 @@ int main(int argc,char **argv) {
         check(plannedLeaf(connected,"ROUTES/C/TEXTURES/SNOW/concrete.ace")==plannedLeaf(connected,"ROUTES/A/TEXTURES/Concrete.ace"),"season matches coordinated base filename");
 
         const QString representationsRoot=tmp.path()+"/RepresentationsRoot";
+        const QString runtimeRoot=tmp.path()+"/RuntimeConventionRoot";
+        put(runtimeRoot+"/ROUTES/Runtime/Route.TRK","Tr_RouteFile ( Name ( Runtime ) )");
+        put(runtimeRoot+"/ROUTES/Runtime/Procedural/ShapeTemplates.DAT","Templates ( )");
+        put(runtimeRoot+"/ROUTES/Runtime/TrackProfiles/TrProfileMain.stf","profile fixture");
+        put(runtimeRoot+"/ROUTES/Runtime/TerrainMaterials.DAT","material fixture");
+        const auto runtime=ContentCase::scan(runtimeRoot,error);
+        check(plannedLeaf(runtime,"ROUTES/Runtime/Procedural/ShapeTemplates.DAT")=="shapetemplates.dat"
+                && plannedLeaf(runtime,"ROUTES/Runtime/TerrainMaterials.DAT")=="terrainmaterials.dat",
+                "planner matches fixed runtime catalog filename conventions");
+        bool profilesDirectory=false;
+        for(const auto &v:runtime["operations"].toArray()) {
+            const auto op=v.toObject();
+            if(op["from"]=="ROUTES/Runtime/TrackProfiles")
+                profilesDirectory=op["to"].toString().section('/',-1)=="TRACKPROFILES";
+        }
+        check(profilesDirectory,"planner matches the runtime track-profile directory convention");
         put(representationsRoot+"/GLOBAL/SHAPES/Tree.S","shape ( images ( 1 image ( Leaf.ACE ) ) )");
         put(representationsRoot+"/GLOBAL/SHAPES/Tree.SD","Shape ( Tree.S )");
         for(const auto &route:{"A","B"})put(representationsRoot+"/ROUTES/"+route+"/route.trk","Tr_RouteFile ( Name ( Route ) )");

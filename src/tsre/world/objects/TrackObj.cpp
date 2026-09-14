@@ -158,7 +158,7 @@ bool TrackObj::useProceduralShape(){
     clearProceduralShape();
 
     ProceduralShape::Load();
-    const QString routePath = Game::root + "/routes/" + Game::route;
+    const QString routePath = Game::root + "/ROUTES/" + Game::route;
     OrtsTrackProfileCatalog::load(routePath);
     QStringList availableTemplates = OrtsTrackProfileCatalog::selectionNames();
     if(ProceduralShape::ShapeTemplateFile != NULL){

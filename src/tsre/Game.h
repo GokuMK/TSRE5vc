@@ -63,11 +63,13 @@ public:
     static QString AppVersion;
     static QString AppDataVersion;
     static QString AppName;
+    // Legacy API only. Physical content paths always retain their spelling.
     static bool caseInsensitiveFS;
     static QString root;
     static QString route;
     static QString routeName;
     static QString trkName;
+    static QString trkFileName; // Exact filename discovered when selecting a route.
     static QString season;
     static QString mainWindowLayout;
     static QString ceWindowLayout;

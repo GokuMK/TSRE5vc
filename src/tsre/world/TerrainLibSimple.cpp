@@ -99,8 +99,8 @@ bool TerrainLibSimple::saveEmpty(int x, int z, TerrainHeightProfile profile,
 
 bool TerrainLibSimple::hasDetailedTerrain(int x, int z){
     const QString name = Terrain::getTileName(x, z);
-    return QFile::exists(Game::root + "/routes/" + Game::route
-                         + "/tiles/" + name + ".t");
+    return QFile::exists(Game::root + "/ROUTES/" + Game::route
+                         + "/TILES/" + name + ".t");
 }
 
 bool TerrainLibSimple::isLoaded(int x, int z) {

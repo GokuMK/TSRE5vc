@@ -8,6 +8,7 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/world/Trk.h>
 #include <tsre/Game.h>
 #include <QFile>
@@ -70,8 +71,8 @@ Trk::~Trk() {
 }
 
 void Trk::load(){
-    QString path = Game::root + "/routes/" + Game::route + "/" + Game::trkName + ".trk";
-    path.replace("//", "/");
+    QString path = Game::root + "/ROUTES/" + Game::route + "/" + (Game::trkFileName.isEmpty() ? Game::trkName + ".trk" : Game::trkFileName);
+    path = ContentPath::normalize(path);
     qDebug() << "# TRK file: " <<path;
     load(path);
 }
@@ -339,8 +340,8 @@ void Trk::loadUtf16Data(FileBuffer* data){
         ParserX::SkipToken(data);
     }
 
-    imageLoadId = TexLib::addTex(Game::root+"/routes/"+idName+"/load.ace");
-    imageDetailsId = TexLib::addTex(Game::root+"/routes/"+idName+"/details.ace");
+    imageLoadId = TexLib::addTex(Game::root+"/ROUTES/"+idName+"/load.ace");
+    imageDetailsId = TexLib::addTex(Game::root+"/ROUTES/"+idName+"/details.ace");
     modified = false;
 }
 
@@ -359,7 +360,7 @@ void Trk::save() {
     QTextStream out;
     QString filepath;
 
-    filepath = Game::root + "/routes/" + Game::route + "/" + Game::trkName + ".trk";
+    filepath = Game::root + "/ROUTES/" + Game::route + "/" + (Game::trkFileName.isEmpty() ? Game::trkName + ".trk" : Game::trkFileName);
     file.setFileName(filepath);
     //qDebug() << filepath;
     if(!file.open(QIODevice::WriteOnly | QIODevice::Text)){

@@ -54,7 +54,7 @@ public:
     QString trPathEnd;
     unsigned int trPathFlags;
     int ref = 0;
-    int loaded;
+    int loaded = -1;
     
     QVector<float*> trackPdp;
     QVector<unsigned int*> trPathNode;

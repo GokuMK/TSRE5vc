@@ -68,7 +68,7 @@ void ActivityTimetable::setDepart(int id, int t){
 void ActivityTimetable::reloadTimetable(){
     clear();
 
-    Service *s = ActLib::GetServiceByName(name);
+    Service *s = ActLib::GetServiceByName(name, routePath);
     if(s == NULL){
         qDebug() << "s == NILL " << name;
         return;

@@ -345,7 +345,7 @@ void ObjTools::routeLoaded(Route* a){
     hash.clear();
     hash2.clear();
 
-    QDir globalShapes(Game::root+"/global/shapes");
+    QDir globalShapes(Game::root+"/GLOBAL/SHAPES");
     QStringList globalShapesList;
     const bool ignoreMissingGlobalShapes =
             Settings::boolean("core.advanced.ignoreMissingGlobalShapes");
@@ -655,7 +655,7 @@ void ObjTools::refreshContinuousFlexProfiles(){
     continuousFlexProfile.addItem("Built-in dynamic track", QString());
 
     ProceduralShape::Load();
-    OrtsTrackProfileCatalog::load(Game::root + "/routes/" + Game::route);
+    OrtsTrackProfileCatalog::load(Game::root + "/ROUTES/" + Game::route);
 
     // Route-local ORTS profiles have the same precedence as the object
     // properties selectors. Role variants are assigned automatically when a

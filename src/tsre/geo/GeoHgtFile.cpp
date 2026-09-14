@@ -8,6 +8,7 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/geo/GeoHgtFile.h>
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <math.h>
@@ -46,7 +47,7 @@ bool GeoHgtFile::load(int lat, int lon){
     
     this->pathid = Settings::string("core.paths.geoData", SettingType::Directory)
             + "/" + plat + slat + plon + slon + ".hgt";
-    this->pathid.replace("//", "/");
+    this->pathid = ContentPath::normalize(pathid);
     qDebug() << this->pathid;
     //qDebug() << "Wczytam teren RAW: " << fSfile;
     QFile file(this->pathid);

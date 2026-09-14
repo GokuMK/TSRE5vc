@@ -103,6 +103,7 @@ void Route::load(){
     snapshotRouteSettings();
     Game::currentRoute = this;
     trkName = Game::trkName;
+    trkFileName = Game::trkFileName;
     routeDir = Game::route;
     
     qDebug() << "# Load Route";
@@ -114,18 +115,18 @@ void Route::load(){
     
     Game::terrainLib = terrainLib;
     
-    QFile file(Game::root + "/routes");
+    QFile file(Game::root + "/ROUTES");
     if (!file.exists()){ 
         qDebug() << "Route dir not exist " << file.fileName();
         return;
     }
-    file.setFileName(Game::root + "/global");
+    file.setFileName(Game::root + "/GLOBAL");
     if (!file.exists()){ 
         qDebug() << "Global dir not exist " << file.fileName();
         return;
     }
 
-    const QString routePath = Game::root + "/routes/" + Game::route;
+    const QString routePath = Game::root + "/ROUTES/" + Game::route;
     file.setFileName(routePath);
     if (!file.exists()) {
         qDebug() << "Route does not exist.";
@@ -144,6 +145,7 @@ void Route::load(){
         return;
     }
     trkName = Game::trkName;
+    trkFileName = Game::trkFileName;
 
     trk = new Trk();
     trk->load();
@@ -156,8 +158,8 @@ void Route::load(){
         qDebug() << "MSTS Geo Projection";
         Game::GeoCoordConverter = new GeoMstsCoordinateConverter();
     }
-    env = new Environment(Game::root + "/routes/" + Game::route + "/ENVFILES/editor.env");
-    Game::routeName = trk->routeName.toLower();
+    env = new Environment(Game::root + "/ROUTES/" + Game::route + "/ENVFILES/editor.env");
+    Game::routeName = trk->routeName;
     routeName = Game::routeName;
     qDebug() << Game::routeName;
 
@@ -187,8 +189,8 @@ void Route::load(){
     loadActivities();
 
     soundList = new SoundList();
-    soundList->loadSoundSources(Game::root + "/routes/" + Game::route + "/ssource.dat");
-    soundList->loadSoundRegions(Game::root + "/routes/" + Game::route + "/ttype.dat");
+    soundList->loadSoundSources(Game::root + "/ROUTES/" + Game::route + "/ssource.dat");
+    soundList->loadSoundRegions(Game::root + "/ROUTES/" + Game::route + "/ttype.dat");
     Game::soundList = soundList;
     
     Game::terrainLib->loadQuadTree();
@@ -231,18 +233,18 @@ void Route::load(QString name){
     else
         terrainLib = new TerrainLibQt();
     
-    QFile file(Game::root + "/routes");
+    QFile file(Game::root + "/ROUTES");
     if (!file.exists()){ 
         qDebug() << "Route dir not exist " << file.fileName();
         return;
     }
-    file.setFileName(Game::root + "/global");
+    file.setFileName(Game::root + "/GLOBAL");
     if (!file.exists()){ 
         qDebug() << "Global dir not exist " << file.fileName();
         return;
     }
 
-    file.setFileName(Game::root + "/routes/" + name);
+    file.setFileName(Game::root + "/ROUTES/" + name);
     if (!file.exists()) {
         qDebug() << "Route does not exist.";
         return;
@@ -251,6 +253,7 @@ void Route::load(QString name){
     Game::checkRoute(Game::route);
     routeDir = Game::route;
     trkName = Game::trkName;
+    trkFileName = Game::trkFileName;
     trk = new Trk();
     trk->load();
     //Game::useSuperelevation = trk->tsreSuperelevation;
@@ -263,8 +266,8 @@ void Route::load(QString name){
         qDebug() << "MSTS Geo Projection";
         Game::GeoCoordConverter = new GeoMstsCoordinateConverter();
     }
-    env = new Environment(Game::root + "/routes/" + Game::route + "/ENVFILES/editor.env");*/
-    Game::routeName = trk->routeName.toLower();
+    env = new Environment(Game::root + "/ROUTES/" + Game::route + "/ENVFILES/editor.env");*/
+    Game::routeName = trk->routeName;
     routeName = Game::routeName;
     qDebug() << Game::routeName;
 
@@ -291,8 +294,8 @@ void Route::load(QString name){
     //loadActivities();
 
     //soundList = new SoundList();
-    //soundList->loadSoundSources(Game::root + "/routes/" + Game::route + "/ssource.dat");
-    //soundList->loadSoundRegions(Game::root + "/routes/" + Game::route + "/ttype.dat");
+    //soundList->loadSoundSources(Game::root + "/ROUTES/" + Game::route + "/ssource.dat");
+    //soundList->loadSoundRegions(Game::root + "/ROUTES/" + Game::route + "/ttype.dat");
     //Game::soundList = soundList;
     
     terrainLib->loadQuadTree();
@@ -320,6 +323,7 @@ void Route::setAsCurrentGameRoute(){
     Game::route = routeDir;
     Game::routeName = routeName;
     Game::trkName = trkName;
+    Game::trkFileName = trkFileName;
     Game::currentRoute = this;
 }
 
@@ -328,8 +332,8 @@ void Route::mergeRoute(QString route2Name, float offsetX, float offsetY, float o
     // touching either TDB or world objects, not midway through terrain copying.
     bool proceduralTerrain = false;
     for (const QString &routeName : {Game::route, route2Name}) {
-        for (const QString &tilesDir : {QString("tiles"),QString("lo_tiles")}) {
-            const QDir directory(Game::root+"/routes/"+routeName+"/"+tilesDir);
+        for (const QString &tilesDir : {QString("TILES"),QString("LO_TILES")}) {
+            const QDir directory(Game::root+"/ROUTES/"+routeName+"/"+tilesDir);
             proceduralTerrain |= !directory.entryList({"*.pmap"},QDir::Files).isEmpty();
         }
     }
@@ -524,9 +528,9 @@ Route::~Route() {
 }
 
 void Route::loadAddons(){
-    this->ref = new Ref((Game::root + "/routes/" + Game::route + "/" + Game::routeName + ".ref"));
+    this->ref = new Ref((Game::root + "/ROUTES/" + Game::route + "/" + Game::routeName + ".ref"));
     
-    QString dirFile = Game::root + "/routes/" + Game::route + "/addons";
+    QString dirFile = Game::root + "/ROUTES/" + Game::route + "/ADDONS";
     QDir aDir(dirFile);
     if(!aDir.exists()){
         qDebug() << dirFile;
@@ -659,16 +663,16 @@ void Route::createMkrPlaces(){
 }
 
 void Route::loadMkrList(){
-    //this->mkr = new CoordsMkr(Game::root + "/routes/" + Game::route + "/" + Game::routeName +".mkr");
-    QDir dir(Game::root + "/routes/" + Game::route);
+    //this->mkr = new CoordsMkr(Game::root + "/ROUTES/" + Game::route + "/" + Game::routeName +".mkr");
+    QDir dir(Game::root + "/ROUTES/" + Game::route);
     dir.setFilter(QDir::Files);
     foreach(QString dirFile, dir.entryList()){
         if(dirFile.endsWith(".mkr", Qt::CaseInsensitive))
-            mkrList[(dirFile).toLower()] = new CoordsMkr(Game::root + "/routes/" + Game::route + "/" + dirFile);
+            mkrList[(dirFile).toLower()] = new CoordsMkr(Game::root + "/ROUTES/" + Game::route + "/" + dirFile);
         if(dirFile.endsWith(".kml", Qt::CaseInsensitive))
-            mkrList[(dirFile).toLower()] = new CoordsKml(Game::root + "/routes/" + Game::route + "/" + dirFile);
+            mkrList[(dirFile).toLower()] = new CoordsKml(Game::root + "/ROUTES/" + Game::route + "/" + dirFile);
         if(dirFile.endsWith(".gpx", Qt::CaseInsensitive))
-            mkrList[(dirFile).toLower()] = new CoordsGpx(Game::root + "/routes/" + Game::route + "/" + dirFile);
+            mkrList[(dirFile).toLower()] = new CoordsGpx(Game::root + "/ROUTES/" + Game::route + "/" + dirFile);
     }
     if(mkrList.size() > 0){
         if(mkrList[(Game::routeName+".mkr").toLower()] != NULL){
@@ -689,7 +693,7 @@ void Route::setMkrFile(QString name){
 }
 
 void Route::loadActivities(){
-    QDir dir(Game::root + "/routes/" + Game::route + "/activities");
+    QDir dir(Game::root + "/ROUTES/" + Game::route + "/ACTIVITIES");
     if(!dir.exists()) 
         return;
     dir.setFilter(QDir::Files);
@@ -707,7 +711,7 @@ void Route::loadActivities(){
 }
 
 void Route::loadServices(){
-    QDir dir(Game::root + "/routes/" + Game::route + "/services");
+    QDir dir(Game::root + "/ROUTES/" + Game::route + "/SERVICES");
     if(!dir.exists()) 
         return;
     dir.setFilter(QDir::Files);
@@ -722,7 +726,7 @@ void Route::loadServices(){
 }
 
 void Route::loadTraffic(){
-    QDir dir(Game::root + "/routes/" + Game::route + "/traffic");
+    QDir dir(Game::root + "/ROUTES/" + Game::route + "/TRAFFIC");
     if(!dir.exists()) 
         return;
     dir.setFilter(QDir::Files);
@@ -736,7 +740,7 @@ void Route::loadTraffic(){
 }
 
 void Route::loadPaths(){
-    QDir dir(Game::root + "/routes/" + Game::route + "/paths");
+    QDir dir(Game::root + "/ROUTES/" + Game::route + "/PATHS");
     if(!dir.exists()) 
         return;
     dir.setFilter(QDir::Files);
@@ -954,7 +958,7 @@ void Route::updateTileData(FileBuffer *data){
 void Route::preloadWFiles(bool gui){
     Tile *tTile;
     
-    QString path = Game::root + "/routes/" + Game::route + "/world";
+    QString path = Game::root + "/ROUTES/" + Game::route + "/WORLD";
     QDir dir(path);
     //qDebug() << path;
     dir.setFilter(QDir::Files);
@@ -2515,23 +2519,26 @@ void Route::createNew() {
     if (!Game::writeEnabled) return;
 
     QString path;
+    Game::route = Game::route.toUpper();
+    Game::trkName = Game::route;
+    Game::trkFileName = Game::trkName + ".trk";
 
-    path = Game::root + "/routes/" + Game::route;
+    path = Game::root + "/ROUTES/" + Game::route;
     if (QDir(path).exists()) {
         qDebug() << "route folder exist - aborting";
         return;
     }
     QDir().mkdir(path);
-    QDir().mkdir(path + "/envfiles");
-    QDir().mkdir(path + "/envfiles/textures");
-    QDir().mkdir(path + "/paths");
-    QDir().mkdir(path + "/shapes");
-    QDir().mkdir(path + "/sound");
-    QDir().mkdir(path + "/textures");
-    QDir().mkdir(path + "/terrtex");
-    QDir().mkdir(path + "/tiles");
-    QDir().mkdir(path + "/td");
-    QDir().mkdir(path + "/world");
+    QDir().mkdir(path + "/ENVFILES");
+    QDir().mkdir(path + "/ENVFILES/TEXTURES");
+    QDir().mkdir(path + "/PATHS");
+    QDir().mkdir(path + "/SHAPES");
+    QDir().mkdir(path + "/SOUND");
+    QDir().mkdir(path + "/TEXTURES");
+    QDir().mkdir(path + "/TERRTEX");
+    QDir().mkdir(path + "/TILES");
+    QDir().mkdir(path + "/TD");
+    QDir().mkdir(path + "/WORLD");
 
     int x = Game::newRouteX;
     int z = Game::newRouteZ;
@@ -2543,6 +2550,7 @@ void Route::createNew() {
     newTrk->startTileX = Game::newRouteX;
     newTrk->startTileZ = Game::newRouteZ;
     showTrkEditr(newTrk);
+    Game::routeName = newTrk->routeName;
     newTrk->save();
     
     TDB::saveEmpty(false);
@@ -2558,7 +2566,7 @@ void Route::createNew() {
     QFile::copy(res + "sigcfg.dat", path + "sigcfg.dat");
     QFile::copy(res + "sigscr.dat", path + "sigscr.dat");
     QFile::copy(res + "ttype.dat", path + "ttype.dat");
-    QFile::copy(res + "template.ref", path + Game::route + ".ref");
+    QFile::copy(res + "template.ref", path + Game::routeName + ".ref");
     QFile::copy(res + "carspawn.dat", path + "carspawn.dat");
     QFile::copy(res + "deer.haz", path + "deer.haz");
     QFile::copy(res + "forests.dat", path + "forests.dat");
@@ -2567,12 +2575,12 @@ void Route::createNew() {
     QFile::copy(res + "ssource.dat", path + "ssource.dat");
     QFile::copy(res + "telepole.dat", path + "telepole.dat");
 
-    FileFunctions::copyFiles(res + "envfiles", path + "envfiles");
-    FileFunctions::copyFiles(res + "envfiles/textures", path + "envfiles/textures");
-    FileFunctions::copyFiles(res + "shapes", path + "shapes");
-    FileFunctions::copyFiles(res + "sound", path + "sound");
-    FileFunctions::copyFiles(res + "terrtex", path + "terrtex");
-    FileFunctions::copyFiles(res + "textures", path + "textures");
+    FileFunctions::copyFiles(res + "envfiles", path + "ENVFILES");
+    FileFunctions::copyFiles(res + "envfiles/textures", path + "ENVFILES/TEXTURES");
+    FileFunctions::copyFiles(res + "shapes", path + "SHAPES");
+    FileFunctions::copyFiles(res + "sound", path + "SOUND");
+    FileFunctions::copyFiles(res + "terrtex", path + "TERRTEX");
+    FileFunctions::copyFiles(res + "textures", path + "TEXTURES");
     
     Texture *graphicTexture = new Texture(200,150,24);
     AceLib::save(path + "graphic.ace", graphicTexture);

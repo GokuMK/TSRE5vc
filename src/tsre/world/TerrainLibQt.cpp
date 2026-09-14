@@ -1666,6 +1666,6 @@ bool TerrainLibQt::hasDetailedTerrain(int x, int z) {
     if (quadTree == NULL || quadTree->getMyNameId(x, z) == 0)
         return false;
     const QString name = quadTree->getMyName(x, z);
-    return QFile::exists(Game::root + "/routes/" + Game::route
-                         + "/tiles/" + name + ".t");
+    return QFile::exists(Game::root + "/ROUTES/" + Game::route
+                         + "/TILES/" + name + ".t");
 }

@@ -1,3 +1,4 @@
+#include <tsre/fileFunctions/ContentPath.h>
 #include "TerrainSeason.h"
 #include <QDir>
 #include <QFileInfo>
@@ -24,9 +25,7 @@ QString TerrainSeason::canonical(const QString &season) {
 }
 QString TerrainSeason::directory(const QString &root, const QString &variant) {
     if (variant=="Base") return QDir::cleanPath(root);
-    const auto dirs=QDir(root).entryList(QDir::Dirs|QDir::NoDotAndDotDot);
-    for (const auto &d:dirs) if (d.compare(variant,Qt::CaseInsensitive)==0) return QDir(root).filePath(d);
-    return QDir(root).filePath(variant.toLower());
+    return ContentPath::join(root,variant.toUpper());
 }
 QStringList TerrainSeason::available(const QString &root) {
     QStringList result{"Base","Snow"};
@@ -47,20 +46,7 @@ QString TerrainSeason::resolve(const QString &root, const QString &variant, cons
         QStringList candidates{file};
         if (file.endsWith(".ace",Qt::CaseInsensitive)) candidates.prepend(file.left(file.size()-3)+"dds");
         for (const auto &candidate:candidates) {
-            QString path=dir.filePath(candidate);
-            if (!QFileInfo(path).isFile()) {
-                // Catalogue filenames may contain subdirectories. Resolve each
-                // component's case, not just the leaf, on case-sensitive hosts.
-                QString resolved=dir.absolutePath();
-                for (const auto &part:candidate.split('/')) {
-                    const QDir parent(resolved);
-                    QString spelling=part;
-                    for (const auto &entry:parent.entryList(QDir::AllEntries|QDir::NoDotAndDotDot))
-                        if (entry.compare(part,Qt::CaseInsensitive)==0) {spelling=entry;break;}
-                    resolved=parent.filePath(spelling);
-                }
-                path=resolved;
-            }
+            QString path=ContentPath::join(dir.path(),candidate);
             if (!QFileInfo(path).isFile()) continue;
             if (warn && index>0) {
                 static QSet<QString> warned;

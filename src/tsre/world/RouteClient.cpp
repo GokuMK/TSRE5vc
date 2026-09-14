@@ -72,6 +72,7 @@ void RouteClient::load(){
         case 0:
             Game::currentRoute = this;
             trkName = Game::trkName;
+            trkFileName = Game::trkFileName;
             routeDir = Game::route;
 
             qDebug() << "# Load Remote Route";
@@ -95,8 +96,8 @@ void RouteClient::load(){
                 qDebug() << "MSTS Geo Projection";
                 Game::GeoCoordConverter = new GeoMstsCoordinateConverter();
             }
-            env = new Environment(Game::root + "/routes/" + Game::route + "/ENVFILES/editor.env");
-            Game::routeName = trk->routeName.toLower();
+            env = new Environment(Game::root + "/ROUTES/" + Game::route + "/ENVFILES/editor.env");
+            Game::routeName = trk->routeName;
             routeName = Game::routeName;
             qDebug() << Game::routeName;
 
@@ -122,8 +123,8 @@ void RouteClient::load(){
             //loadActivities();
 
             soundList = new SoundList();
-            soundList->loadSoundSources(Game::root + "/routes/" + Game::route + "/ssource.dat");
-            soundList->loadSoundRegions(Game::root + "/routes/" + Game::route + "/ttype.dat");
+            soundList->loadSoundSources(Game::root + "/ROUTES/" + Game::route + "/ssource.dat");
+            soundList->loadSoundRegions(Game::root + "/ROUTES/" + Game::route + "/ttype.dat");
             Game::soundList = soundList;/**/
 
             //Game::terrainLib->loadQuadTree();
@@ -179,4 +180,3 @@ void RouteClient::save(){
 void RouteClient::getUnsavedInfo(QVector<QString> &items){
     
 }
-

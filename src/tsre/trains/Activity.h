@@ -28,6 +28,7 @@ class GLUU;
 class ActivityServiceDefinition {
 public:
     QString name;
+    QString routePath;
     Service* servicePointer = NULL;
     int time = -1;
     int uid = -1;

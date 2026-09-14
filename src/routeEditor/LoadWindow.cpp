@@ -162,11 +162,11 @@ void LoadWindow::handleBrowseButton(QString directory){
         
         int i = 0;
         for(i = 0; i < cRecent.count(); i++){
-            if(cRecent.itemText(i) == directory.toLower())
+            if(cRecent.itemText(i) == directory)
                 break;
         }
         if(i == cRecent.count())
-            cRecent.addItem(directory.toLower());
+            cRecent.addItem(directory);
         
         QString path;
         path = "cerecent.txt";
@@ -197,6 +197,7 @@ void LoadWindow::routeLoad(){
         }
         Game::routeName = Game::route;
         Game::trkName = Game::route;
+        Game::trkFileName = Game::trkName + ".trk";
         Game::writeEnabled = true;
         Game::createNewRoutes = true;
         Game::writeTDBSessionAllowed = true;
@@ -211,7 +212,7 @@ void LoadWindow::routeLoad(){
 }
 
 void LoadWindow::listRoutes(){
-    QDir dir(Game::root+"/routes");
+    QDir dir(Game::root+"/ROUTES");
     dir.setFilter(QDir::Dirs);
     
     foreach(QString dirFile, dir.entryList()){
@@ -252,7 +253,7 @@ void LoadWindow::setNewRoute(){
     newWindow.exec();
     if(newWindow.changed){
         if(newWindow.name.text().length() < 2) return;
-        Game::route = newWindow.name.text();
+        Game::route = newWindow.name.text().toUpper();
         double lat = newWindow.lat.text().toDouble();
         double lon = newWindow.lon.text().toDouble();
         
@@ -309,7 +310,7 @@ void LoadWindow::listRoots(){
     QTextStream in(&file);
     QString line;
     while (!in.atEnd()) {
-        line = in.readLine().toLower();
+        line = in.readLine();
         cRecent.addItem(line);
     }
     file.close();

@@ -123,10 +123,10 @@ void ActivityTimetableProperties::showTimetable(ActivityServiceDefinition* s){
     }
     lTimetable.blockSignals(false);
     
-    Service *srv = ActLib::GetServiceByName(service->name);
+    Service *srv = ActLib::GetServiceByName(service->name, service->routePath);
     if(srv == NULL)
         return;
-    Consist *con = ConLib::con[ConLib::addCon(Game::root+"/trains/consists/", srv->trainConfig+".con")];
+    Consist *con = ConLib::con[ConLib::addCon(Game::root+"/TRAINS/CONSISTS/", srv->trainConfig+".con")];
     if(con == NULL)
         return;
     eMainEng.setText(con->engItems[0].ename);

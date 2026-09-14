@@ -144,7 +144,7 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
     };
     {
         QTemporaryDir sources;
-        for (const QString &folder:{QString(),QString("spring"),QString("snow"),QString("autumnrain")}) {
+        for (const QString &folder:{QString(),QString("SPRING"),QString("SNOW"),QString("AUTUMNRAIN")}) {
             QDir().mkpath(sources.path()+"/"+folder);
             QFile f(sources.path()+"/"+folder+"/soil.ace");
             check(f.open(QIODevice::WriteOnly) && f.write("fixture")==7,"season-source-fixture-write");
@@ -161,11 +161,11 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
               && TerrainSeason::legacySeason("WinterSnow")=="WinterSnow",
               "clear-name-adapter-does-not-change-rain-or-snow-shape-policy");
         check(resolved("Winter")==sources.path()+"/soil.ace","season-dry-winter-falls-back-to-main-not-snow");
-        check(resolved("SpringRain")==sources.path()+"/spring/soil.ace","season-rain-falls-back-to-dry-season");
-        check(resolved("AutumnRain")==sources.path()+"/autumnrain/soil.ace","season-rain-prefers-exact-variant");
-        check(resolved("SpringSnow")==sources.path()+"/snow/soil.ace","season-snow-falls-back-to-common-snow");
+        check(resolved("SpringRain")==sources.path()+"/SPRING/soil.ace","season-rain-falls-back-to-dry-season");
+        check(resolved("AutumnRain")==sources.path()+"/AUTUMNRAIN/soil.ace","season-rain-prefers-exact-variant");
+        check(resolved("SpringSnow")==sources.path()+"/SNOW/soil.ace","season-snow-falls-back-to-common-snow");
         check(resolved("WinterSnow")==resolved("Snow") && resolved("Summer")==resolved("Base"),"season-aliases-share-destinations");
-        QFile::remove(sources.path()+"/snow/soil.ace");
+        QFile::remove(sources.path()+"/SNOW/soil.ace");
         check(resolved("WinterSnow")==sources.path()+"/soil.ace","season-missing-snow-falls-back-to-main");
         check(TerrainSeason::resolve(sources.path(),"Snow","absent.ace",false).isEmpty(),"season-missing-base-safe-failure");
         const auto all=TerrainSeason::available(sources.path());
@@ -178,8 +178,8 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
         QScopedValueRollback<QString> season(Game::season, QString("SpringRain"));
         QScopedValueRollback<bool> writes(Game::writeEnabled, true);
         QScopedValueRollback<bool> caseSensitive(Game::caseInsensitiveFS, false);
-        const QString textures = route.path()+"/routes/season-test/terrtex";
-        QDir().mkpath(textures+"/spring");
+        const QString textures = route.path()+"/ROUTES/season-test/TERRTEX";
+        QDir().mkpath(textures+"/SPRING");
         auto fixture=[&](const QString &path) {
             auto *texture=new Texture(2,2,24);
             texture->pathid=path;
@@ -187,7 +187,7 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
             TexLib::save("ace",path,id);
             return id;
         };
-        const int dry=fixture(textures+"/spring/soil.ace");
+        const int dry=fixture(textures+"/SPRING/soil.ace");
         const int base=fixture(textures+"/detail.ace");
         TestTerrain tile;
         tile.setup(textures,16,"season-test");
@@ -195,8 +195,8 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
         check(tile.loadTerrainTexture("soil.ace")==dry
               && tile.loadTerrainTexture("detail.ace")==base,
               "static-terrain-resolves-each-texture-through-shared-fallback");
-        check(tile.writeTextureDirectory()==textures+"/springrain/"
-              && !QDir(textures+"/springrain").exists(),
+        check(tile.writeTextureDirectory()==textures+"/SPRINGRAIN/"
+              && !QDir(textures+"/SPRINGRAIN").exists(),
               "static-terrain-load-does-not-create-seasonal-files");
         tile.patchTexture(0,dry);
         check(tile.preparePaintTexture(0,"soil.ace") && tile.patchTexture(0)!=dry,
@@ -204,7 +204,7 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
         auto *painted=TexLib::mtex[tile.patchTexture(0)];
         painted->imageData[0]=17;
         check(TexLib::mtex[dry]->imageData[0]==255
-              && painted->pathid==textures+"/springrain/soil.ace",
+              && painted->pathid==textures+"/SPRINGRAIN/soil.ace",
               "static-seasonal-paint-preserves-shared-source-pixels-and-path");
         const int first=tile.patchTexture(0);
         check(tile.preparePaintTexture(0,"soil.ace") && tile.patchTexture(0)==first,
@@ -215,7 +215,7 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
         AceLib::load(painted->pathid,saved,AceLoadOptions{},loadError);
         check(saved.loaded && saved.decodeToCpu() && saved.imageData[0]==17,
               "static-seasonal-paint-save-reloads-from-selected-directory");
-        Texture original(textures+"/spring/soil.ace");
+        Texture original(textures+"/SPRING/soil.ace");
         AceLib::load(original.pathid,original,AceLoadOptions{},loadError);
         check(original.loaded && original.decodeToCpu() && original.imageData[0]==255,
               "static-seasonal-save-keeps-source-file-unchanged");
@@ -224,7 +224,7 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
         check(!tile.preparePaintTexture(1,"detail.ace") && tile.patchTexture(1)==base,
               "static-seasonal-paint-respects-write-disable");
         Game::season="Winter"; tile.configureTerrainSeason();
-        check(tile.writeTextureDirectory()==textures+"/winter/"
+        check(tile.writeTextureDirectory()==textures+"/WINTER/"
               && tile.loadTerrainTexture("detail.ace")==base,
               "static-winter-is-snow-free-with-base-fallback");
     }
@@ -443,11 +443,11 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
     QScopedValueRollback<bool> seasonal(Game::seasonalEditing,false);
     // QTemporaryDir names can contain uppercase letters on case-sensitive hosts.
     QScopedValueRollback<bool> caseFolding(Game::caseInsensitiveFS,false);
-    const QString tileDir=temp.path()+"/routes/proc-test/tiles";
+    const QString tileDir=temp.path()+"/ROUTES/proc-test/TILES";
     QDir().mkpath(tileDir);
     red.save(temp.path()+"/red.png"); blue.save(temp.path()+"/blue.png");
     {
-        QDir().mkpath(temp.path()+"/spring");blue.save(temp.path()+"/spring/red.png");
+        QDir().mkpath(temp.path()+"/SPRING");blue.save(temp.path()+"/SPRING/red.png");
         TestTerrain seasonalTile;seasonalTile.setup(temp.path(),16,"seasonal-check");
         {
             QScopedValueRollback<QString> spring(Game::season,QString("Spring"));
@@ -1702,7 +1702,7 @@ int TsreTests::runTerrainMaterialGlSuite() {
     QScopedValueRollback<bool> caseFolding(Game::caseInsensitiveFS,false);
     QScopedValueRollback<QString> root(Game::root,temp.path());
     QScopedValueRollback<QString> route(Game::route,QStringLiteral("proc-gl"));
-    QDir().mkpath(temp.path()+"/routes/proc-gl/tiles");
+    QDir().mkpath(temp.path()+"/ROUTES/proc-gl/TILES");
     QImage red(256,256,QImage::Format_RGB888);red.fill(Qt::red);red.save(temp.path()+"/red.png");
     QImage blue(256,256,QImage::Format_RGB888);blue.fill(Qt::blue);blue.save(temp.path()+"/blue.png");
     int failed=0;
@@ -1862,8 +1862,8 @@ int TsreTests::runTerrainMaterialGlSuite() {
         TestTerrain a,b; a.setup(temp.path(),16,"bake-gl-a"); b.setup(temp.path(),32,"bake-gl-b");
         QString error;
         bool ok=a.setProceduralMaterial(true,error) && b.setProceduralMaterial(true,error) && a.save() && b.save();
-        a.loadProceduralMaterial(Game::root+"/routes/"+Game::route+"/tiles");
-        b.loadProceduralMaterial(Game::root+"/routes/"+Game::route+"/tiles");
+        a.loadProceduralMaterial(Game::root+"/ROUTES/"+Game::route+"/TILES");
+        b.loadProceduralMaterial(Game::root+"/ROUTES/"+Game::route+"/TILES");
         TestTerrain::PatchVisibility far; far.valid=true; far.maximumDistance=100000;
         far.cameraLocalX=6000; far.cameraLocalZ=1000;
         int first=-1,second=-1; QElapsedTimer timer; timer.start();

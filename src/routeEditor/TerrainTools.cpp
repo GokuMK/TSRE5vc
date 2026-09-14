@@ -8,6 +8,7 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <tsre/fileFunctions/ContentPath.h>
 #include "TerrainTools.h"
 #include "TerrainMaterialDialog.h"
 #include <tsre/world/TerrainMaterialLibrary.h>
@@ -583,8 +584,8 @@ bool TerrainTools::chooseProceduralMaterial(const QString &message) {
 }
 void TerrainTools::setTexToolEnabled(){
     QFileDialog fd;
-    QString path = Game::root+"/routes/"+Game::route+"/terrtex";
-    path.replace("//", "/");
+    QString path = Game::root+"/ROUTES/"+Game::route+"/TERRTEX";
+    path = ContentPath::normalize(path);
     fd.setDirectory(path);
     fd.setFileMode(QFileDialog::ExistingFiles);
     //QTreeView *tree = fd->findChild <QTreeView*>();

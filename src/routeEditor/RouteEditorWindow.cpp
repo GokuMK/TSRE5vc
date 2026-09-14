@@ -350,7 +350,7 @@ RouteEditorWindow::RouteEditorWindow() {
         if (!unsaved.isEmpty()) {
             QMessageBox::warning(this,tr("Bake terrain"),tr("Save or discard route changes before batch baking."));return;
         }
-        TerrainBakeCommand::showDialog(this,Game::root+"/routes/"+Game::route);
+        TerrainBakeCommand::showDialog(this,Game::root+"/ROUTES/"+Game::route);
     });
     // Help
     aboutAction = new QAction(tr("&About"), this);

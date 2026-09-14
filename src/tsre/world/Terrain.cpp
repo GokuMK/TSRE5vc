@@ -8,6 +8,7 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/world/Terrain.h>
 #include <tsre/world/TerrainBrushProfiler.h>
 #include <algorithm>
@@ -37,7 +38,7 @@
 #include <tsre/renderer/Renderer.h>
 #include <tsre/renderer/SelectionId.h>
 
-QString Terrain::TileDir[2] = {"tiles", "lo_tiles"};
+QString Terrain::TileDir[2] = {"TILES", "LO_TILES"};
 Brush* Terrain::DefaultBrush = NULL;
 
 static int validTerrainShader(const TFile *file, int patch) {
@@ -100,7 +101,7 @@ void Terrain::load(){
     }
 
     configureTerrainSeason();
-    QString path = Game::root + "/routes/" + Game::route + "/" + TileDir[(int)lowTile] + "/";
+    QString path = Game::root + "/ROUTES/" + Game::route + "/" + TileDir[(int)lowTile] + "/";
     tfile = new TFile();
 
     //QString filename = getTileName((int) x, (int) -y);
@@ -388,11 +389,11 @@ bool Terrain::SaveEmpty(QString name, int samples, int sampleSize, int patches,
     }
     QString path;
     if(low){
-        if(!QDir(Game::root + "/routes/" + Game::route + "/lo_tiles/").exists())
-            QDir().mkdir(Game::root + "/routes/" + Game::route + "/lo_tiles/");
-        path = Game::root + "/routes/" + Game::route + "/lo_tiles/" + name + "_y.raw";
+        if(!QDir(Game::root + "/ROUTES/" + Game::route + "/LO_TILES/").exists())
+            QDir().mkdir(Game::root + "/ROUTES/" + Game::route + "/LO_TILES/");
+        path = Game::root + "/ROUTES/" + Game::route + "/LO_TILES/" + name + "_y.raw";
     } else {
-        path = Game::root + "/routes/" + Game::route + "/tiles/" + name + "_y.raw";
+        path = Game::root + "/ROUTES/" + Game::route + "/TILES/" + name + "_y.raw";
     }
     QFile file(path);
     if (overwrite && file.exists() && !file.remove()) {
@@ -432,11 +433,11 @@ bool Terrain::SaveEmpty(QString name, int samples, int sampleSize, int patches,
     TFile *tfile = new TFile();
     tfile->initNew(name, samples, sampleSize, patches);
     if(low){
-        if(!QDir(Game::root + "/routes/" + Game::route + "/lo_tiles/").exists())
-            QDir().mkdir(Game::root + "/routes/" + Game::route + "/lo_tiles/");
-        tfile->save(Game::root + "/routes/" + Game::route + "/lo_tiles/" + name + ".t");
+        if(!QDir(Game::root + "/ROUTES/" + Game::route + "/LO_TILES/").exists())
+            QDir().mkdir(Game::root + "/ROUTES/" + Game::route + "/LO_TILES/");
+        tfile->save(Game::root + "/ROUTES/" + Game::route + "/LO_TILES/" + name + ".t");
     } else {
-        tfile->save(Game::root + "/routes/" + Game::route + "/tiles/" + name + ".t");
+        tfile->save(Game::root + "/ROUTES/" + Game::route + "/TILES/" + name + ".t");
     }
     delete tfile;
     return true;
@@ -618,7 +619,7 @@ void Terrain::initializePatchBounds() {
 
 void Terrain::configureTerrainSeason() {
     terrainTextureSources.clear();
-    rootTexturepath = Game::root + "/routes/" + Game::route + "/terrtex/";
+    rootTexturepath = Game::root + "/ROUTES/" + Game::route + "/TERRTEX/";
     QString variant = TerrainSeason::canonical(Game::season);
     if (variant.isEmpty()) variant = "Base";
     // Write destination, not necessarily the source of a fallback texture.
@@ -644,8 +645,7 @@ bool Terrain::preparePaintTexture(int patch, const QString &filename) {
     if (!source || !source->loaded || source->error || source->missing) return false;
     const QString target = QDir(texturepath).filePath(filename);
     if (!QDir().mkpath(QFileInfo(target).absolutePath())) return false;
-    const Qt::CaseSensitivity sensitivity = Game::caseInsensitiveFS
-            ? Qt::CaseInsensitive : Qt::CaseSensitive;
+    const Qt::CaseSensitivity sensitivity = Qt::CaseSensitive;
     if (QFileInfo(source->pathid).absoluteFilePath().compare(
                 QFileInfo(target).absoluteFilePath(), sensitivity) != 0) {
         // Do not edit the shared base/dry/snow fallback, even when this patch
@@ -3603,7 +3603,7 @@ void Terrain::initBlob(){
 }
 
 bool Terrain::readRAW(QString fSfile) {
-    fSfile.replace("//", "/");
+    fSfile = ContentPath::normalize(fSfile);
     //qDebug() << fSfile;
     //qDebug() << "Wczytam teren RAW: " << fSfile;
     QFile file(fSfile);
@@ -3696,7 +3696,7 @@ bool Terrain::save() {
     if (!editable || !Game::writeEnabled)
         return false;
     refreshPatchBounds(true);
-    QString path = Game::root + "/routes/" + Game::route + "/" + TileDir[(int)lowTile] + "/";
+    QString path = Game::root + "/ROUTES/" + Game::route + "/" + TileDir[(int)lowTile] + "/";
     QString filename = name;
     QString previousMaterialReference;
     if (!saveProceduralBake()) return false;
@@ -3734,7 +3734,7 @@ bool Terrain::save() {
 }
 
 void Terrain::saveRAW(QString name) {
-    name.replace("//", "/");
+    name = ContentPath::normalize(name);
     QFile *file = new QFile(name);
     qDebug() << "zapis " << name;
     if (!file->open(QIODevice::WriteOnly))
@@ -3803,7 +3803,7 @@ void Terrain::newF(){
 }
 
 bool Terrain::readF(QString fSfile) {
-    fSfile.replace("//", "/");
+    fSfile = ContentPath::normalize(fSfile);
     QFile file(fSfile);
     if (!file.open(QIODevice::ReadOnly))
         return false;
@@ -3841,7 +3841,7 @@ void Terrain::readF(FileBuffer *data){
 }
 
 void Terrain::saveF(QString name) {
-    name.replace("//", "/");
+    name = ContentPath::normalize(name);
     QFile *file = new QFile(name);
     qDebug() << "zapis " << name;
     if (!file->open(QIODevice::WriteOnly))

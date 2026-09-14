@@ -439,11 +439,11 @@ void SettingsDialog::rebuild() {
     auto sameFile = [](const QString &left, const QString &right) {
         return QDir::cleanPath(QFileInfo(left).absoluteFilePath())
                 .compare(QDir::cleanPath(QFileInfo(right).absoluteFilePath()),
-                         Qt::CaseInsensitive) == 0;
+                         Qt::CaseSensitive) == 0;
     };
     auto addProfile = [&](const QString &name, const QString &file, bool custom) {
         const QString absoluteFile = QDir::cleanPath(QFileInfo(file).absoluteFilePath());
-        const QString identity = absoluteFile.toLower();
+        const QString identity = absoluteFile;
         if (listedFiles.contains(identity))
             return;
         listedFiles.insert(identity);
@@ -466,9 +466,9 @@ void SettingsDialog::rebuild() {
                 .filePath(profileName + "/settings.json");
         addProfile(profileName, file, false);
     }
-    if (!listedFiles.contains(m_usedProfileFile.toLower()))
+    if (!listedFiles.contains(m_usedProfileFile))
         addProfile(QFileInfo(m_usedProfileFile).dir().dirName(), m_usedProfileFile, true);
-    if (!listedFiles.contains(viewedFile.toLower()))
+    if (!listedFiles.contains(viewedFile))
         addProfile(m_manager->profileName(), viewedFile, true);
     m_profileName->setCurrentIndex(viewedProfileIndex);
     m_profileName->setToolTip(tr(
@@ -869,12 +869,12 @@ bool SettingsDialog::hasEditorChanges() const {
 
 bool SettingsDialog::isViewingUsedProfile() const {
     return QDir::cleanPath(QFileInfo(m_manager->settingsFilePath()).absoluteFilePath())
-            .compare(m_usedProfileFile, Qt::CaseInsensitive) == 0;
+            .compare(m_usedProfileFile, Qt::CaseSensitive) == 0;
 }
 
 void SettingsDialog::updateCatalogBanner() {
     const QString profile = QDir::cleanPath(
-                QFileInfo(m_manager->settingsFilePath()).absoluteFilePath()).toLower();
+                QFileInfo(m_manager->settingsFilePath()).absoluteFilePath());
     const int differences = m_manager->catalogDifferenceCount();
     if (differences <= 0 || m_hiddenCatalogMessages.contains(profile)) {
         m_catalogBanner->hide();
@@ -941,7 +941,7 @@ void SettingsDialog::updateStoredDefinitions() {
 
 void SettingsDialog::hideCatalogMessage() {
     const QString profile = QDir::cleanPath(
-                QFileInfo(m_manager->settingsFilePath()).absoluteFilePath()).toLower();
+                QFileInfo(m_manager->settingsFilePath()).absoluteFilePath());
     m_hiddenCatalogMessages.insert(profile);
     m_catalogBanner->hide();
 }
@@ -1071,7 +1071,7 @@ void SettingsDialog::switchProfile(int index) {
     const QString currentFile = QDir::cleanPath(
                 QFileInfo(m_manager->settingsFilePath()).absoluteFilePath());
     if (QDir::cleanPath(QFileInfo(selectedFile).absoluteFilePath())
-            .compare(currentFile, Qt::CaseInsensitive) == 0)
+            .compare(currentFile, Qt::CaseSensitive) == 0)
         return;
     if (!confirmDiscardChanges()) {
         rebuild();

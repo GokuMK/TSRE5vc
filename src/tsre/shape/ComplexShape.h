@@ -37,6 +37,7 @@ public:
     virtual int getEsdDetailLevel() const;
 
     virtual bool isLoaded() const = 0;
+    virtual bool hasLoadFailed() const { return false; }
     virtual float getSize() const = 0;
     virtual const float* getBound() const = 0;
     virtual bool getBoxPoints(QVector<float> &points) = 0;

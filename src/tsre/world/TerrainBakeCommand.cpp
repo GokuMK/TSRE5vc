@@ -42,10 +42,10 @@ bool TerrainBakeCommand::bakeRoute(const QString &route, const QString &season, 
                                    const std::function<void(const QString &)> &progress, QString &error) {
     if (!Game::writeEnabled || Game::serverClient) {error="Route writing is disabled";return false;}
     const QDir dir(QFileInfo(route).absoluteFilePath());
-    if (!dir.exists("terrtex") || !dir.exists("tiles")) {error="Expected a route containing TERRTEX and TILES";return false;}
+    if (!dir.exists("TERRTEX") || !dir.exists("TILES")) {error="Expected a route containing TERRTEX and TILES";return false;}
     if (resolution<256 || resolution>4096 || (resolution&(resolution-1))) {error="Resolution must be 256, 512, 1024, 2048 or 4096";return false;}
     QStringList seasons;
-    if (season.compare("all",Qt::CaseInsensitive)==0) seasons=TerrainSeason::available(dir.filePath("terrtex"));
+    if (season.compare("all",Qt::CaseInsensitive)==0) seasons=TerrainSeason::available(dir.filePath("TERRTEX"));
     else {const auto v=TerrainSeason::canonical(season);if (v.isEmpty()) {error="Unknown season: "+season;return false;}seasons<<v;}
     QLockFile lock(dir.filePath(".tsre-procedural-bake.lock"));
     lock.setStaleLockTime(0); // A large route may legitimately bake for minutes.
@@ -56,14 +56,14 @@ bool TerrainBakeCommand::bakeRoute(const QString &route, const QString &season, 
     Game::root=install.absolutePath();Game::route=dir.dirName();
     TerrainMaterialMap::Enabled=true;TerrainMaterialMap::BakedSide=resolution;
     bool ok=true;
-    for (const auto &folder : {QString("tiles"),QString("lo_tiles")}) {
+    for (const auto &folder : {QString("TILES"),QString("LO_TILES")}) {
         const QDir tiles(dir.filePath(folder));
         for (const auto &entry:tiles.entryInfoList(QDir::Files,QDir::Name)) {
             if (entry.suffix().compare("t",Qt::CaseInsensitive)!=0) continue;
             for (const auto &variant:seasons) {
                 Game::season=variant;QElapsedTimer timer;timer.start();
                 BatchTerrain tile;QString failure;
-                const bool saved=tile.bake(entry.absoluteFilePath(),dir.filePath("terrtex"),failure);
+                const bool saved=tile.bake(entry.absoluteFilePath(),dir.filePath("TERRTEX"),failure);
                 progress(QString("%1 / %2: %3 (%4 ms)").arg(entry.fileName(),variant,saved?"OK":failure).arg(timer.elapsed()));
                 if (!saved) {ok=false;error=failure;break;}
             }

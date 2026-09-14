@@ -26,6 +26,7 @@ class SFileComplex final : public ComplexShape {
     const QString &getTexPath() const override;
     int getEsdDetailLevel() const override;
     bool isLoaded() const override;
+    bool hasLoadFailed() const override;
     float getSize() const override;
     const float *getBound() const override;
     Retention retention() const;

@@ -8,6 +8,7 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/tdb/TDB.h>
 #include <QDebug>
 #include <functional>
@@ -119,8 +120,8 @@ void TDB::loadTdb(){
     QString sh;
     QString extension = "tdb";
     if(this->road) extension = "rdb";
-    QString path = Game::root + "/routes/" + Game::route + "/" + Game::routeName + "." + extension;
-    path.replace("//", "/");
+    QString path = Game::root + "/ROUTES/" + Game::route + "/" + Game::routeName + "." + extension;
+    path = ContentPath::normalize(path);
     qDebug() << "Wczytywanie pliku tdb: " << path;
     QFile file(path);
     sourceFileExists = file.exists();
@@ -440,8 +441,8 @@ void TDB::loadTit(){
     QString sh;
     QString extension = "tit";
     if(this->road) extension = "rit";
-    QString path = Game::root + "/routes/" + Game::route + "/" + Game::routeName + "." + extension;
-    path.replace("//", "/");
+    QString path = Game::root + "/ROUTES/" + Game::route + "/" + Game::routeName + "." + extension;
+    path = ContentPath::normalize(path);
     qDebug() << path;
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly))
@@ -3845,8 +3846,8 @@ void TDB::saveEmpty(bool road) {
     QString path;
     QString extension = "tdb";
     if(road) extension = "rdb";
-    path = Game::root + "/routes/" + Game::route + "/" + Game::routeName + "." + extension;
-    path.replace("//", "/");
+    path = Game::root + "/ROUTES/" + Game::route + "/" + Game::routeName + "." + extension;
+    path = ContentPath::normalize(path);
     qDebug() << path;
     QFile file(path);
     if(!file.open(QIODevice::WriteOnly | QIODevice::Text)){
@@ -3898,8 +3899,8 @@ void TDB::save() {
     QString path;
     QString extension = "tdb";
     if(this->road) extension = "rdb";
-    path = Game::root + "/routes/" + Game::route + "/" + Game::routeName + "." + extension;
-    path.replace("//", "/");
+    path = Game::root + "/ROUTES/" + Game::route + "/" + Game::routeName + "." + extension;
+    path = ContentPath::normalize(path);
     qDebug() << path;
     QFile file(path);
 
@@ -4129,8 +4130,8 @@ void TDB::saveTit() {
     QString path;
     QString extension = "tit";
     if(this->road) extension = "rit";
-    path = Game::root + "/routes/" + Game::route + "/" + Game::routeName + "." + extension;
-    path.replace("//", "/");
+    path = Game::root + "/ROUTES/" + Game::route + "/" + Game::routeName + "." + extension;
+    path = ContentPath::normalize(path);
     qDebug() << path;
     QFile file(path);
 
