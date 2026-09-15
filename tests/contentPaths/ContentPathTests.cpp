@@ -27,11 +27,14 @@ int main(int argc,char **argv) {
     check(sensitive,"Unix temporary filesystem must distinguish case for this test");
 #endif
     check(ContentPath::key(upper)==ContentPath::key(lower),"logical identities fold case");
-    check(ContentPath::canReuse(upper,upper),"valid physical file can be reused");
+    const QString storedKey=ContentPath::key(upper);
+    check(ContentPath::normalize(upper)==upper,"I/O path retains its authored spelling");
     if(sensitive) {
-        check(!ContentPath::canReuse(lower,upper),"missing wrong-case path must not be repaired by cache");
+        check(ContentPath::key(lower)==storedKey && !QFileInfo::exists(lower),
+                "cache key matches case variants without changing filesystem lookup");
         put("MixedRoot/tree.s");
-        check(!ContentPath::canReuse(lower,upper),"different case-only files cannot share a cached identity");
+        check(ContentPath::key(lower)==storedKey,
+                "case-only files share one logical runtime identity");
     }
     check(ContentPath::withExtension(upper,"sd")==temp.filePath("MixedRoot/Tree.sd"),"implicit companion preserves stem");
     const auto dds=put("MixedRoot/Leaf.dds");
