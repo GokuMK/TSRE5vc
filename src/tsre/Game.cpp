@@ -296,6 +296,7 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
 
     string("core.paths.gameRoot", root, SettingType::Directory);
     string("core.paths.geoData", geoPath, SettingType::Directory);
+    claim("geo.elevation.source", SettingType::Enum);
     string("core.startup.route", route);
     claim("core.startup.useTilePosition", SettingType::Bool);
     if (appliesNow("core.startup.useTilePosition"))

@@ -7548,14 +7548,12 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <translation>Root directory containing GLOBAL, ROUTES, and TRAINS. Editors can replace it while selecting content.</translation>
     </message>
     <message id="settings.core.paths.geo.data.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="364" />
-        <source>HGT and TIFF geodata directory</source>
-        <translation>HGT and TIFF geodata directory</translation>
+        <source>Geodata and elevation cache directory</source>
+        <translation>Geodata and elevation cache directory</translation>
     </message>
     <message id="settings.core.paths.geo.data.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="366" />
-        <source>Directory read by the HGT and TIFF geographic-data tools.</source>
-        <translation>Directory read by the HGT and TIFF geographic-data tools.</translation>
+        <source>Geodata root: HGT files in hgt/ or the root; downloaded elevation rasters in cache/.</source>
+        <translation>Geodata root: HGT files in hgt/ or the root; downloaded elevation rasters in cache/.</translation>
     </message>
     <message id="settings.core.startup.route.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="371" />
@@ -10028,6 +10026,141 @@ Now TSRE will download app data.</translation>
         <location filename="../src/tsre/trains/ActivityEvent.cpp" line="108" />
         <source>Change the Weather.</source>
         <translation>Change the Weather.</translation>
+    </message>
+
+    <message id="geo.elevation.report.summary">
+        <source>Source: %1
+Source samples: %2; HGT samples: %3
+Cache blocks: %4; downloaded blocks: %5</source>
+        <translation>Source: %1
+Source samples: %2; HGT samples: %3
+Cache blocks: %4; downloaded blocks: %5</translation>
+    </message>
+    <message id="geo.elevation.report.fallback">
+        <source>
+HGT fallback: %1 samples. Missing/zero data: %2; outside coverage: %3; unavailable blocks: %4.</source>
+        <translation>
+HGT fallback: %1 samples. Missing/zero data: %2; outside coverage: %3; unavailable blocks: %4.</translation>
+    </message>
+    <message id="geo.elevation.report.datum">
+        <source>
+Geoportal and HGT heights may use different vertical datums. No vertical datum conversion is applied.</source>
+        <translation>
+Geoportal and HGT heights may use different vertical datums. No vertical datum conversion is applied.</translation>
+    </message>
+    <message id="geo.elevation.report.cancelled">
+        <source>
+Cancelled. No elevation heights were applied.</source>
+        <translation>
+Cancelled. No elevation heights were applied.</translation>
+    </message>
+    <message id="geo.elevation.report.title">
+        <source>Terrain elevation report</source>
+        <translation>Terrain elevation report</translation>
+    </message>
+    <message id="geo.elevation.title">
+        <source>Terrain elevation</source>
+        <translation>Terrain elevation</translation>
+    </message>
+    <message id="geo.elevation.source.hgt">
+        <source>Local HGT files</source>
+        <translation>Local HGT files</translation>
+    </message>
+    <message id="geo.elevation.preview">
+        <source>Load preview</source>
+        <translation>Load preview</translation>
+    </message>
+    <message id="geo.elevation.apply">
+        <source>Apply</source>
+        <translation>Apply</translation>
+    </message>
+    <message id="geo.elevation.close">
+        <source>Close</source>
+        <translation>Close</translation>
+    </message>
+    <message id="geo.elevation.offset">
+        <source>Y offset (m):</source>
+        <translation>Y offset (m):</translation>
+    </message>
+    <message id="geo.elevation.source.note">
+        <source>Geoportal uses 1 m source data. Output spacing follows this terrain tile. Missing coverage and NoData use HGT fallback.</source>
+        <translation>Geoportal uses 1 m source data. Output spacing follows this terrain tile. Missing coverage and NoData use HGT fallback.</translation>
+    </message>
+    <message id="geo.elevation.tile.title">
+        <source>Terrain elevation - tile %1 %2</source>
+        <translation>Terrain elevation - tile %1 %2</translation>
+    </message>
+    <message id="geo.elevation.grid.invalid">
+        <source>Invalid terrain grid or coordinate converter.</source>
+        <translation>Invalid terrain grid or coordinate converter.</translation>
+    </message>
+    <message id="geo.elevation.prepare">
+        <source>Preparing terrain elevation</source>
+        <translation>Preparing terrain elevation</translation>
+    </message>
+    <message id="geo.elevation.cancel">
+        <source>Cancel</source>
+        <translation>Cancel</translation>
+    </message>
+    <message id="geo.elevation.cancelling">
+        <source>Cancelling elevation load</source>
+        <translation>Cancelling elevation load</translation>
+    </message>
+    <message id="geo.elevation.load.failed">
+        <source>Elevation load failed: %1</source>
+        <translation>Elevation load failed: %1</translation>
+    </message>
+    <message id="geo.elevation.tile.report">
+        <source>Tile %1 %2
+%3</source>
+        <translation>Tile %1 %2
+%3</translation>
+    </message>
+    <message id="geo.elevation.hgt.check">
+        <source>Local HGT file check</source>
+        <translation>Local HGT file check</translation>
+    </message>
+    <message id="geo.elevation.hgt.fallback.check">
+        <source>HGT fallback file check. Geoportal blocks are prepared when terrain is loaded.</source>
+        <translation>HGT fallback file check. Geoportal blocks are prepared when terrain is loaded.</translation>
+    </message>
+    <message id="geo.elevation.hgt.present">
+        <source>
+All checked HGT files are present.</source>
+        <translation>
+All checked HGT files are present.</translation>
+    </message>
+    <message id="geo.elevation.hgt.missing">
+        <source>
+Missing HGT files:
+%1</source>
+        <translation>
+Missing HGT files:
+%1</translation>
+    </message>
+    <message id="geo.elevation.data.title">
+        <source>Elevation data</source>
+        <translation>Elevation data</translation>
+    </message>
+    <message id="settings.geo.elevation.source.name">
+        <source>Terrain elevation source</source>
+        <translation>Terrain elevation source</translation>
+    </message>
+    <message id="settings.geo.elevation.source.description">
+        <source>Source for manual and automatic terrain elevation. Geoportal downloads 1 m data and reports HGT fallback.</source>
+        <translation>Source for manual and automatic terrain elevation. Geoportal downloads 1 m data and reports HGT fallback.</translation>
+    </message>
+    <message id="settings.geo.elevation.source.hgt">
+        <source>Local HGT files</source>
+        <translation>Local HGT files</translation>
+    </message>
+    <message id="settings.geo.elevation.source.kron86">
+        <source>Geoportal NMT 1 m - KRON86 (GeoTIFF)</source>
+        <translation>Geoportal NMT 1 m - KRON86 (GeoTIFF)</translation>
+    </message>
+    <message id="settings.geo.elevation.source.evrf2007">
+        <source>Geoportal NMT 1 m - EVRF2007 (ASCII Grid)</source>
+        <translation>Geoportal NMT 1 m - EVRF2007 (ASCII Grid)</translation>
     </message>
 </context>
 </TS>

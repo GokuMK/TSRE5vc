@@ -38,6 +38,7 @@
 #include <tsre/texture/Brush.h>
 #include <tsre/texture/TexLib.h>
 #include <tsre/geo/GeoCoordinates.h>
+#include <tsre/geo/HeightWindow.h>
 #include <tsre/geo/MapWindow.h>
 #include "TerrainTreeWindow.h"
 #include <tsre/shape/ShapeLib.h>
@@ -3420,6 +3421,7 @@ void RouteEditorGLWidget::showContextMenu(const QPoint & point) {
 }
 
 void RouteEditorGLWidget::createNewTiles(QMap<int, QPair<int, int>*> list){
+    HeightWindow::resetLoadCancellation();
     int x, z;
     QMapIterator<int, QPair<int, int>*> i2(list);
     while (i2.hasNext()) {
@@ -3430,10 +3432,12 @@ void RouteEditorGLWidget::createNewTiles(QMap<int, QPair<int, int>*> list){
         z = i2.value()->second;
         qDebug() << x << z;
         route->newTile(x, -z);
+        if (Game::autoGeoTerrain && HeightWindow::lastLoadWasCancelled()) break;
     }
 }
 
 void RouteEditorGLWidget::createNewLoTiles(QMap<int, QPair<int, int>*> list){
+    HeightWindow::resetLoadCancellation();
     int x, z;
     QMapIterator<int, QPair<int, int>*> i2(list);
     if (!Game::writeEnabled) return;
@@ -3453,6 +3457,7 @@ void RouteEditorGLWidget::createNewLoTiles(QMap<int, QPair<int, int>*> list){
             Game::terrainLib->setHeightFromGeo(x, -z, (float*)&pos);
         }
         Game::terrainLib->setDetailedTerrainAsCurrent();
+        if (Game::autoGeoTerrain && HeightWindow::lastLoadWasCancelled()) break;
     }
 }
 

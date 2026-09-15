@@ -1,0 +1,5 @@
+# Preserve response/fixture bytes and their manifest hashes on every platform.
+*.xml -text
+*.asc -text
+*.tif -text
+projection-reference.json -text

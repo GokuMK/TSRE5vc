@@ -1,0 +1,80 @@
+{
+  "retrieved": "2026-09-16",
+  "files": [
+    {
+      "file": "ascii-capabilities.xml",
+      "bytes": 7544,
+      "sha256": "c1b2b5b894cf8640c27ffd821477503ce50a8fdf27ca15a5040811f328c0e0eb"
+    },
+    {
+      "file": "ascii-description.xml",
+      "bytes": 2545,
+      "sha256": "d5b2adb6f480d68f9f87458e409bcf78389cc07f4da5efaba17fb0536a542b92"
+    },
+    {
+      "file": "evrf-sample.asc",
+      "bytes": 21645,
+      "sha256": "ed3d4c2a2565c71a70f93b7084a6c93beb426c65f1c4f55422bf5c3349a3dab3"
+    },
+    {
+      "file": "evrf-sample.tif",
+      "bytes": 3539,
+      "sha256": "dcba1f5da72e268934a885735a91747ca9671317b725ece9269e0ab3faecc95b"
+    },
+    {
+      "file": "geographic-subset.tif",
+      "bytes": 953,
+      "sha256": "4332fc8f8501b2545d88307ea36142008239e01cd68700961e5815f8fb154fd8"
+    },
+    {
+      "file": "native-sample.tif",
+      "bytes": 4551,
+      "sha256": "91c0a6125654ad9794b537a0833970d403587a86dda3537da8a03f7e540fb46d"
+    },
+    {
+      "file": "projection-east.tif",
+      "bytes": 953,
+      "sha256": "04f97e4f40a82d8a470fa88bc6dea6269f00a2207434a33ca38eca450492682f"
+    },
+    {
+      "file": "projection-reference.json",
+      "bytes": 16243,
+      "sha256": "48bb35a138c381827e1b61e0a1704f4bf770644f87fc8465867a9ca9fde0ad2e"
+    },
+    {
+      "file": "projection-west.tif",
+      "bytes": 953,
+      "sha256": "5ca84ca27348072a522d30d240997d107c91fcc009642581673d47f28c67c96f"
+    },
+    {
+      "file": "sea-sample.asc",
+      "bytes": 3438,
+      "sha256": "bc23c7426647db1d75c80a332c1cb7dbad33f707a13af2fb1e62027b61739228"
+    },
+    {
+      "file": "sea-sample.tif",
+      "bytes": 4551,
+      "sha256": "126ca91e01f43c286ae4062715fc11b043352a7c2b4513ca0192c81f5b500723"
+    },
+    {
+      "file": "signed16-big-endian.tif",
+      "bytes": 328,
+      "sha256": "3f9f4681d0fd43caacc6ec1c6291bd47eeb06b9e82ff145739e6daced64f55cc"
+    },
+    {
+      "file": "signed16-pixel-is-point.tif",
+      "bytes": 328,
+      "sha256": "07238b6746a298fe4bebdc23cff3e77a2aec1f5b4756d29446c87b481e445e99"
+    },
+    {
+      "file": "tiff-capabilities.xml",
+      "bytes": 7334,
+      "sha256": "bbf82ec49c62c40b9803c146b9e2da78b6ef372f2d76323bf58adcf2c93d7904"
+    },
+    {
+      "file": "tiff-description.xml",
+      "bytes": 2557,
+      "sha256": "c86e8b99cf520fd98c6f8e258df86282a9cab0ac6722b499c8243c36f5c3d0c6"
+    }
+  ]
+}

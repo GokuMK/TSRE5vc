@@ -40,8 +40,13 @@ int TsreTests::runSettingsSuite(bool verbose) {
 
     SettingsManager manager;
     SettingsRegistration::registerAll(manager.registry());
-    check(manager.registry().definitions().size() == 83,
-          "phase2b-catalog-removes-inactive-and-one-shot-settings");
+    check(manager.registry().definitions().size() == 84,
+          "catalog-includes-terrain-elevation-source");
+    const auto *elevationSource = manager.registry().definition("geo.elevation.source");
+    check(elevationSource && elevationSource->type == SettingType::Enum
+          && elevationSource->defaultValue.toString().isEmpty()
+          && elevationSource->options.size() == 3 && elevationSource->apply == "dynamic",
+          "elevation-source-defaults-to-hgt-and-applies-on-next-generation");
     const SettingsDefinition *language =
             manager.registry().definition("core.interface.language");
     check(language && language->type == SettingType::Enum
@@ -83,11 +88,11 @@ int TsreTests::runSettingsSuite(bool verbose) {
               == QString::fromUtf8("Anuluj"),
           "translation-polish-app-and-qtbase-entries-load");
     check(qtTrId("ace.converter.ace.converter.window.button.open")
-              == "ace.converter.ace.converter.window.button.open",
-          "translation-unfinished-polish-entry-displays-id");
+              == QString::fromUtf8("Otwórz obraz…"),
+          "translation-polish-open-image-entry-is-complete");
     check(qtTrId("settings.dialog.tooltip.name").arg("core.test")
-              == "settings.dialog.tooltip.name [core.test]",
-          "translation-unfinished-formatted-entry-retains-value-without-arg-warning");
+              == QString::fromUtf8("Klucz: core.test"),
+          "translation-polish-formatted-entry-retains-value");
     check(qtTrId("route.properties.group.children.count", 5)
               == QString::fromUtf8("5 obiektów"),
           "translation-polish-plural-selection");
@@ -324,7 +329,7 @@ int TsreTests::runSettingsSuite(bool verbose) {
             }
         }
     }
-    check(QFile::exists(settingsFile) && manager.settingsArray().size() == 83,
+    check(QFile::exists(settingsFile) && manager.settingsArray().size() == 84,
           "generated-profile-has-catalogue");
     check(manager.document().value("createdBy").toObject().value("application").toString()
               == SettingsManager::currentCatalogApplication()

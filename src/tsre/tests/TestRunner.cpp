@@ -9,6 +9,7 @@
  */
 
 #include <tsre/tests/TestRunner.h>
+#include <tsre/tests/ElevationUiTestSuite.h>
 #include <tsre/tests/ContentPathTestSuite.h>
 #include <tsre/tests/SFileComplexTestSuite.h>
 #include <routeEditor/TerrainProfileSelector.h>
@@ -3162,6 +3163,7 @@ QStringList TsreTests::listSuites() {
         "token-world",
         "token-shape-gl",
         "settings",
+        "elevation-ui",
         "tdb-load",
         "terrain-files",
         "terrain-grid",
@@ -3225,6 +3227,9 @@ int TsreTests::run(const TestRunOptions &opts) {
 
     if (suite == "settings")
         return runSettingsSuite(opts.verbose);
+
+    if (suite == "elevation-ui")
+        return runElevationUiSuite(opts.casesFile, opts.verbose);
 
     if (suite == "terrain-grid")
         return runTerrainGridSuite(opts.verbose);

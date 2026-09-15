@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "datasets": [
+    {
+      "id": "pl.gugik.nmt1.kron86",
+      "name": "Poland - Geoportal NMT 1 m (KRON86, GeoTIFF)",
+      "provider": "wcs-2.0.1",
+      "endpoint": "https://mapy.geoportal.gov.pl/wss/service/PZGIK/NMT/GRID1/WCS/DigitalTerrainModelFormatTIFF",
+      "coverage": "DTM_PL-KRON86-NH_TIFF",
+      "format": "image/tiff",
+      "axisX": "x",
+      "axisY": "y",
+      "crs": 2180,
+      "verticalDatum": "PL-KRON86-NH",
+      "resolution": 1,
+      "origin": [160828.34326572, 796521.669409553],
+      "bounds": [160828.34326572, 98928.8977745594, 876029.97009323, 796521.669409553],
+      "blockPixels": 512,
+      "zeroIsNoData": true,
+      "attribution": "GUGiK / Geoportal.gov.pl"
+    },
+    {
+      "id": "pl.gugik.nmt1.evrf2007",
+      "name": "Poland - Geoportal NMT 1 m (EVRF2007, ASCII Grid)",
+      "provider": "wcs-2.0.1",
+      "endpoint": "https://mapy.geoportal.gov.pl/wss/service/PZGIK/NMT/GRID1/WCS/DigitalTerrainModel",
+      "coverage": "DTM_PL-EVRF2007-NH",
+      "format": "image/x-aaigrid",
+      "axisX": "x",
+      "axisY": "y",
+      "crs": 2180,
+      "verticalDatum": "PL-EVRF2007-NH",
+      "resolution": 1,
+      "origin": [160828.34326572, 796521.669409553],
+      "bounds": [160828.34326572, 98928.8977745594, 876029.97009323, 796521.669409553],
+      "blockPixels": 512,
+      "zeroIsNoData": true,
+      "attribution": "GUGiK / Geoportal.gov.pl"
+    }
+  ]
+}

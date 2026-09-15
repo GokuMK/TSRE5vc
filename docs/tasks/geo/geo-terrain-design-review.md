@@ -4,6 +4,12 @@ Reviewed 2026-09-16 against main commit `0be6601` and
 [the original ideas](tsre_geoportal_generic_elevation_ideas.md).
 Design only; no implementation or build changes.
 
+Follow-up: the user subsequently authorized coding once the design was clear.
+See [implementation and verification](geo-terrain-implementation.md) for the
+current state, confirmed 1 m services and resolved format/projection choices.
+The sections below retain the initial review rather than claiming its open
+questions still describe the implementation.
+
 ## Conclusion
 
 Keep the dataset-oriented source/provider split. Geoportal should fetch raster
@@ -191,6 +197,7 @@ coverage was downloaded and no live terrain generation was attempted.
 ## Accepted user decisions
 
 - Geoportal first; validate the shared design against other services.
+- Target the 1 m source dataset, independently of the destination terrain spacing.
 - Begin with no new external dependencies, using the existing C++/Qt stack.
   This is a preference, not a prohibition. A focused GeoTIFF implementation is
   acceptable; GDAL/PROJ are not the assumed dependency choice.

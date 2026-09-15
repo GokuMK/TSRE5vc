@@ -360,11 +360,28 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
         "gameRoot", "Game::root", "Content session", false, "startup-default");
     ADD(SettingsDefinition::string("core.paths.geoData", "", SettingType::Directory)
             .withNameId(
-                //% "HGT and TIFF geodata directory"
+                //% "Geodata and elevation cache directory"
                 QT_TRID_NOOP("settings.core.paths.geo.data.name")).withDescriptionId(
-                //% "Directory read by the HGT and TIFF geographic-data tools."
+                //% "Geodata root: HGT files in hgt/ or the root; downloaded elevation rasters in cache/."
                 QT_TRID_NOOP("settings.core.paths.geo.data.description")).inGroup("maps").inSubgroup("geodata"),
         "geoPath", "Game::geoPath", "GeoTools", false, "direct");
+    ADD(SettingsDefinition::string("geo.elevation.source", "", SettingType::Enum)
+            .withNameId(
+                //% "Terrain elevation source"
+                QT_TRID_NOOP("settings.geo.elevation.source.name")).withDescriptionId(
+                //% "Source for manual and automatic terrain elevation. Geoportal downloads 1 m data and reports HGT fallback."
+                QT_TRID_NOOP("settings.geo.elevation.source.description"))
+            .withOptions(choices({{"",
+                //% "Local HGT files"
+                QT_TRID_NOOP("settings.geo.elevation.source.hgt")},
+                {"pl.gugik.nmt1.kron86",
+                //% "Geoportal NMT 1 m - KRON86 (GeoTIFF)"
+                QT_TRID_NOOP("settings.geo.elevation.source.kron86")},
+                {"pl.gugik.nmt1.evrf2007",
+                //% "Geoportal NMT 1 m - EVRF2007 (ASCII Grid)"
+                QT_TRID_NOOP("settings.geo.elevation.source.evrf2007")}}))
+            .inGroup("maps").inSubgroup("geodata"),
+        "", "", "Terrain elevation", false, "generation-time");
     ADD(SettingsDefinition::string("core.startup.route", "")
             .withNameId(
                 //% "Startup route"
