@@ -39,28 +39,40 @@ it does not load from that candidate.
 
 ## Identity and sharing
 
-`ContentPath` separates normalized physical paths, folded absolute logical keys,
-generated suffixes, and physical-file identity. A folded cache match is reusable
-only when the requested source is readable and represents the same physical file.
-Physical equivalence uses filesystem identity, including on Windows directories
-configured for case-sensitive names. Different case-only files are diagnosed and
-remain separate cached assets. Failed entries do not mask later valid requests.
-New/edited activities, services, traffic files and consists retain their exact
-in-memory identity before they have been saved.
+Updated after the Conedit performance review: `ContentPath` preserves I/O paths
+and constructs case-insensitive logical keys. Runtime caches now match those
+keys directly, including differently cased requests. Physical collisions are
+converter diagnostics, not a reason to reinterpret cache equality. This replaces
+the original stage-A per-hit readability/filesystem-equivalence policy.
+
+Engines, consists, activities, services, traffic, paths, and SMS definitions store
+`hashid`; route-owned objects also store `routeHashid`. Incoming keys are prepared
+once per lookup. Constructors/copies and supported rename methods maintain stored
+keys. Failed entries remain ineligible; unsaved/modified objects participate in
+the same logical identity rule. Following the performance experiment, EngLib now
+adds a `QHash<QString,int>` path index while retaining its numeric-ID map. Other
+libraries currently retain cached-key linear lookup. EngLib registers the index
+in `addEng`, removes matching failed IDs in `removeBroken`, and clears it in
+`removeAll`. A failed entry cannot mask a later successful retry. Engine filenames
+are fixed after construction; the current engine reload flow clears/reloads the
+library, while `Eng::reload()` reloads shapes only. Future engine rename or bulk
+registration APIs must maintain the index rather than writing directly to `eng`.
 
 Shape sharing includes the texture root and season. Backend and load options
 remain fixed per library. Shape path keys and texture lookup keys are stored
 separately from source paths; sequential IDs remain unchanged. No persisted
 numeric path hash or replacement asset-ID scheme was introduced.
 
-Textures select their physical ACE/DDS source before cache matching, so loading a
-DDS first cannot hide a subsequently requested, existing ACE. Synthetic glTF,
+Textures first match the requested representation using stored alias strings.
+Only a miss probes ACE-to-DDS fallback and searches its key; an existing ACE is
+still distinct from a DDS fallback. Ordinary cache hits do not probe the disk. Synthetic glTF,
 terrain, paint, and map identities remain exact strings. Published terrain content
 keys can still refer to a formerly private generated texture. Retiring texture
 lookup entries after a bake still prevents stale reuse without mutating an
 asynchronous loader's source path.
 
-Vehicle cache reuse checks the selected Open Rails override or base source.
+Vehicle cache hits retain the previously selected source. An explicit reload
+selects a newly added Open Rails override or changed base source.
 Consist discovery remembers the gameroot associated with its list. Services,
 traffic and paths keep case-insensitive logical names within their owning route;
 activity definitions and timetables carry that route context. Settings profile

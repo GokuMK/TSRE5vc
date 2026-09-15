@@ -142,6 +142,7 @@ public:
         
     int ref = 0;
     QString pathid;
+    QString hashid;
     QString path;
     QString name;
     

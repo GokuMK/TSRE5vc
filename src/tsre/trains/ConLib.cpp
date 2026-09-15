@@ -32,12 +32,12 @@ int ConLib::addCon(QString path, QString name) {
     QString pathid = (path + "/" + name);
     pathid.replace("\\", "/");
     pathid = ContentPath::normalize(pathid);
+    const QString hashid = ContentPath::key(pathid);
     //qDebug() << pathid;
     for ( auto it = con.begin(); it != con.end(); ++it ){
         if(it->second == NULL) continue;
         if (((Consist*) it->second)->loaded == 1)
-            if (ContentPath::canReuse(pathid, it->second->pathid)
-                    || (it->second->isUnSaved() && pathid == it->second->pathid)) {
+            if (hashid == it->second->hashid) {
                 ((Consist*) it->second)->ref++;
                 qDebug() <<"conid "<< pathid;
                 return (int)it->first;

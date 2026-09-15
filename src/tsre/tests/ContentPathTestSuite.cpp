@@ -15,6 +15,9 @@
 #include <tsre/trains/Eng.h>
 #include <tsre/trains/EngLib.h>
 #include <tsre/trains/ConLib.h>
+#include <tsre/trains/Consist.h>
+#include <tsre/trains/Activity.h>
+#include <tsre/sound/MstsSoundDefinition.h>
 #include <tsre/world/TerrainSeason.h>
 #include <tsre/world/Trk.h>
 #include <settings/SettingsAccess.h>
@@ -22,6 +25,7 @@
 #include <QScopedValueRollback>
 #include <QImage>
 #include <QProcess>
+#include <QElapsedTimer>
 
 int TsreTests::runContentPathSuite(bool verbose) {
     TokenTest::Suite test{"[tests:content-path]",verbose};
@@ -75,14 +79,15 @@ int TsreTests::runContentPathSuite(bool verbose) {
     test.check(shapes.shape[sa]->getPathId()==shapePath,"shape I/O path is preserved with legacy flag enabled");
     Game::caseInsensitiveFS=false;
     test.check(shapes.addShape(shapePath,a+"/TEXTURES")==sa,"legacy flag cannot change cache identity");
+    test.check(shapes.addShape(shapePath.toLower(),(a+"/TEXTURES").toLower())==sa,"shape and texture context keys ignore case");
     test.check(shapes.addShape(shapePath,b+"/TEXTURES")!=sa,"shared shape keeps route texture context");
     Game::season="Snow";
     test.check(shapes.addShape(shapePath,a+"/TEXTURES")!=sa,"season change cannot reuse stale texture context");
     Game::season="Summer";
     if(caseSensitive) {
-        test.check(shapes.addShape(root+"/GLOBAL/SHAPES/tree.s",a+"/TEXTURES")!=sa,"warm shape cache cannot repair wrong spelling");
+        test.check(shapes.addShape(root+"/GLOBAL/SHAPES/tree.s",a+"/TEXTURES")==sa,"shape cache matches filename case variants");
         put(root+"/GLOBAL/SHAPES/tree.s","distinct shape");
-        test.check(shapes.addShape(root+"/GLOBAL/SHAPES/tree.s",a+"/TEXTURES")!=sa,"competing case-only files remain distinct");
+        test.check(shapes.addShape(root+"/GLOBAL/SHAPES/tree.s",a+"/TEXTURES")==sa,"case-only files share one logical runtime shape identity");
     }
     SFileComplex metadata(shapePath,"Tree.S",a+"/TEXTURES");
     metadata.loadData();
@@ -95,7 +100,7 @@ int TsreTests::runContentPathSuite(bool verbose) {
     const int imageId=TexLib::addTex(imagePath);
     test.check(TexLib::mtex[imageId]->loaded && TexLib::mtex[imageId]->pathid==imagePath,"actual image loader preserves name");
     test.check(TexLib::addTex(a+"/TEXTURES",QStringLiteral("MixedLeaf.png"))==imageId,"texture overloads share identity");
-    if(caseSensitive) test.check(TexLib::getTex(a+"/TEXTURES/mixedleaf.png")==-1,"warm texture cache cannot repair spelling");
+    if(caseSensitive) test.check(TexLib::getTex(a+"/TEXTURES/mixedleaf.png")==imageId,"texture cache matches filename case variants");
     const QString late=a+"/TEXTURES/Late.png";
     const int failed=TexLib::addTex(late);
     test.check(!TexLib::mtex[failed]->loaded && pixels.save(late),"missing-first image fixture");
@@ -150,12 +155,110 @@ int TsreTests::runContentPathSuite(bool verbose) {
     test.check(engines.eng[engId]->loaded==1 && engines.eng[engId]->pathid==vehicle+"/Mixed.eng","vehicle directory and engine spelling survive loading");
     test.check(engines.eng[engId]->shape.name=="MixedBody.S","engine include retains authored filename and shape spelling");
     test.check(engines.addEng(vehicle,"Mixed.eng")==engId,"engine cache reuses a valid source");
+    test.check(engines.addEng(vehicle.toLower(),"MIXED.ENG")==engId &&
+            engines.getEngByPathid((vehicle+"/MIXED.eng").toUpper())==engId,
+            "engine add/get use the same case-insensitive stored identity");
+    Eng engineCopy(engines.eng[engId]);
+    test.check(engineCopy.hashid==engines.eng[engId]->hashid,"engine copies retain logical identity");
     if(Settings::boolean("core.content.loading.preferOpenRailsEng")) {
         put(vehicle+"/OPENRAILS/Mixed.eng","SIMISA@@@@@@@@@@JINX0D0t______\r\nWagon ( Mixed WagonShape ( OverrideBody.S ) )");
+        test.check(engines.addEng(vehicle,"Mixed.eng")==engId,
+                "engine cache keeps its selected source until reload");
+        engines.removeAll();
         const int overrideId=engines.addEng(vehicle,"Mixed.eng");
-        test.check(overrideId!=engId && engines.eng[overrideId]->shape.name=="OverrideBody.S",
-                "newly available Open Rails override cannot be hidden by a cached base engine");
+        test.check(engines.eng[overrideId]->shape.name=="OverrideBody.S",
+                "explicit engine reload selects newly available Open Rails override");
     }
+    const int mixedId=engines.getEngByPathid(vehicle+"/Mixed.eng");
+    const int oldRef=engines.eng.at(mixedId)->ref;
+    const auto oldCount=engines.eng.size();
+    test.check(engines.getEngByPathid(vehicle+"/Missing.eng")==-1
+            && engines.eng.size()==oldCount && engines.eng.at(mixedId)->ref==oldRef,
+            "indexed engine misses and get do not insert entries or change references");
+    test.check(engines.addEng(vehicle,"MIXED.ENG")==mixedId
+            && engines.eng.at(mixedId)->ref==oldRef+1,
+            "indexed engine add increments the existing reference count");
+    const int missingEngine=engines.addEng(vehicle,"Late.eng");
+    test.check(engines.eng.at(missingEngine)->loaded!=1
+            && engines.getEngByPathid(vehicle+"/Late.eng")==-1,
+            "failed engine is not returned from the index");
+    put(vehicle+"/Late.eng","SIMISA@@@@@@@@@@JINX0D0t______\r\nWagon ( Late WagonShape ( Late.S ) )");
+    const int recoveredEngine=engines.addEng(vehicle,"Late.eng");
+    test.check(recoveredEngine!=missingEngine && engines.eng.at(recoveredEngine)->loaded==1
+            && engines.getEngByPathid(vehicle+"/LATE.ENG")==recoveredEngine,
+            "successful retry replaces a failed engine index entry");
+    const int stillMissing=engines.addEng(vehicle,"StillMissing.eng");
+    engines.removeBroken();
+    test.check(engines.eng.at(missingEngine)==nullptr && engines.eng.at(stillMissing)==nullptr
+            && engines.getEngByPathid(vehicle+"/LATE.ENG")==recoveredEngine
+            && engines.getEngByPathid(vehicle+"/Mixed.eng")==mixedId,
+            "removeBroken preserves the newer successful entry for the same key");
+    put(vehicle+"/StillMissing.eng","SIMISA@@@@@@@@@@JINX0D0t______\r\nWagon ( Later )");
+    const int afterRemoval=engines.addEng(vehicle,"StillMissing.eng");
+    test.check(afterRemoval!=stillMissing && engines.getEngByPathid(vehicle+"/STILLMISSING.ENG")==afterRemoval,
+            "removed failed engine can be loaded and indexed later");
+    engines.removeAll();
+    test.check(engines.jesteng==0 && engines.eng.empty()
+            && engines.getEngByPathid(vehicle+"/Mixed.eng")==-1
+            && engines.getEngByPathid(vehicle+"/Late.eng")==-1,
+            "removeAll clears engine identities as well as numeric IDs");
+    const int reusedId=engines.addEng(vehicle,"Late.eng");
+    test.check(reusedId==0 && engines.getEngByPathid(vehicle+"/LATE.ENG")==0
+            && engines.getEngByPathid(vehicle+"/Mixed.eng")==-1,
+            "reused numeric ID cannot be reached through a stale engine key");
+    const int act=ActLib::AddAct(a+"/ACTIVITIES","Mixed.act",true);
+    test.check(ActLib::AddAct((a+"/ACTIVITIES").toLower(),"MIXED.ACT",true)==act &&
+            ActLib::GetAct((a+"/ACTIVITIES").toLower(),"MIXED.ACT")==act,
+            "unsaved activity identity ignores filename case");
+    test.check(ActLib::AddService((a+"/SERVICES").toLower(),"LOCAL.SRV",true)==srvA &&
+            ActLib::AddTraffic((a+"/TRAFFIC").toLower(),"LOCAL.TRF",true)==trA &&
+            ActLib::AddPath((a+"/PATHS").toLower(),"LOCAL.PAT")==paId,
+            "service traffic and path caches ignore filename case");
+    ActLib::Services[srvA]->setNameId("Renamed");
+    test.check(ActLib::AddService(a+"/SERVICES","RENAMED.SRV",true)==srvA,
+            "service rename refreshes hashid");
+    ActLib::Act[act]->setFileName("Renamed");
+    test.check(ActLib::GetAct(a+"/ACTIVITIES","RENAMED.ACT")==act,
+            "activity rename refreshes hashid");
+    auto *unsavedCon=new Consist();unsavedCon->setFileName("NewConsist");
+    const int conId=ConLib::jestcon++;ConLib::con[conId]=unsavedCon;
+    test.check(ConLib::addCon((root+"/TRAINS/CONSISTS").toLower(),"NEWCONSIST.CON")==conId,
+            "unsaved consist cached identity ignores case");
+    unsavedCon->setFileName("RenamedConsist");
+    test.check(ConLib::addCon(root+"/TRAINS/CONSISTS","RENAMEDCONSIST.CON")==conId,
+            "consist rename refreshes hashid");
+    put(a+"/SOUND/Mixed.sms","SIMISA@@@@@@@@@@JINX0t1t______\nTr_SMS ( )");
+    const int sms=MstsSoundDefinition::AddDefinition(a+"/SOUND","Mixed.sms");
+    test.check(MstsSoundDefinition::AddDefinition((a+"/SOUND").toLower(),"MIXED.SMS")==sms,
+            "SMS definitions reuse stored case-insensitive identity");
+    EngLib lookupBenchmark;
+    QVector<QString> requests;
+    bool fixturesWritten=true, insertionIdsMatch=true;
+    for(int i=0;i<3597;++i) {
+        const QString filename="Benchmark"+QString::number(i)+".eng";
+        QFile fixture(vehicle+"/"+filename);
+        const QByteArray bytes="SIMISA@@@@@@@@@@JINX0D0t______\r\nWagon ( Benchmark )";
+        fixturesWritten &= fixture.open(QIODevice::WriteOnly) && fixture.write(bytes)==bytes.size();
+        fixture.close();
+        insertionIdsMatch &= lookupBenchmark.addEng(vehicle,filename)==i;
+        requests.push_back((vehicle+"/"+filename).toUpper());
+    }
+    test.check(fixturesWritten && insertionIdsMatch,"3597 engine fixtures register through production addEng");
+    QElapsedTimer lookupTimer;lookupTimer.start();
+    bool lookupIdsMatch=true;
+    for(int i=0;i<requests.size();++i)
+        lookupIdsMatch &= lookupBenchmark.getEngByPathid(requests[i])==i;
+    qInfo()<<"[tests:content-path] 3597 indexed EngLib lookups ms:"<<lookupTimer.elapsed();
+    test.check(lookupIdsMatch,"indexed engine lookups retain IDs across 3597 mixed-case requests");
+    bool duplicateIdsMatch=true;
+    for(int i=0;i<requests.size();++i) {
+        const QFileInfo request(requests[i]);
+        duplicateIdsMatch &= lookupBenchmark.addEng(request.path(),request.fileName())==i;
+    }
+    test.check(duplicateIdsMatch && lookupBenchmark.jesteng==3597,
+            "3597 indexed duplicate adds preserve IDs and library size");
+    for(auto &entry:lookupBenchmark.eng) delete entry.second;
+    lookupBenchmark.removeAll();
     put(root+"/TRAINS/CONSISTS/Mixed.con","fixture");
     ConLib::loadSimpleList(root,true);
     test.check(ConLib::conFileList.contains(root+"/TRAINS/CONSISTS/Mixed.con"),"consist discovery preserves spelling");

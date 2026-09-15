@@ -28,7 +28,9 @@
 Service::Service(QString p, QString n, bool nowe) {
     pathid = p + "/" + n;
     pathid = ContentPath::normalize(pathid);
+    hashid = ContentPath::key(pathid);
     path = p;
+    routeHashid = ContentPath::key(ContentPath::parentDirectory(path));
     name = n;
     nameId = n.section(".", 0, -2);
     if(!nowe){
@@ -57,6 +59,7 @@ Service::~Service() {
 void Service::load(){
     QString sh;
     pathid = ContentPath::normalize(pathid);
+    hashid = ContentPath::key(pathid);
     qDebug() << pathid;
     QFile *file = new QFile(pathid);
     if (!file->open(QIODevice::ReadOnly)) {
@@ -269,6 +272,8 @@ bool Service::isModified(){
 void Service::setNameId(QString val){
     nameId = val;
     name = val+".srv";
+    pathid = ContentPath::join(path, name);
+    hashid = ContentPath::key(pathid);
     modified = true;
 }
 

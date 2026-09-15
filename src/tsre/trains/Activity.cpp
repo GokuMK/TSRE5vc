@@ -81,7 +81,9 @@ Activity::~Activity() {
 Activity::Activity(QString p, QString n, bool isnew) {
     pathid = p + "/" + n;
     pathid = ContentPath::normalize(pathid);
+    hashid = ContentPath::key(pathid);
     path = p;
+    routeHashid = ContentPath::key(ContentPath::parentDirectory(path));
     name = n;
     nameid = n.section(".", 0, -2);
     if(!isnew){
@@ -97,7 +99,9 @@ Activity::Activity(QString p, QString n, bool isnew) {
 
 Activity::Activity(QString src, QString p, QString n, bool isnew) {
     pathid = src;
+    hashid = ContentPath::key(pathid);
     path = p;
+    routeHashid = ContentPath::key(ContentPath::parentDirectory(path));
     name = n;
     nameid = n.section(".",0,-2);
     loaded = -1;
@@ -116,6 +120,7 @@ void Activity::load() {
 
     QString sh;
     pathid = ContentPath::normalize(pathid);
+    hashid = ContentPath::key(pathid);
     qDebug() << pathid;
     QFile *file = new QFile(pathid);
     if (!file->open(QIODevice::ReadOnly)) {
@@ -848,6 +853,7 @@ void Activity::setFileName(QString val){
     name = val+".act";
     pathid = path + "/" + name;
     pathid = ContentPath::normalize(pathid);
+    hashid = ContentPath::key(pathid);
     modified = true;
 }
 

@@ -21,7 +21,6 @@ public:
     void invalidateRendererCaches(bool invalidateMatrixCache = true);
 private:
     std::unordered_map<int, QString> contexts;
-    std::unordered_map<int, QString> textureRoots;
     std::unordered_map<int, QString> pathKeys;
     QString mstsBackend; // Fixed per library; cache cannot mix implementations.
     bool firstMstsLodOnly = false;

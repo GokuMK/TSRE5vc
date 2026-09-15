@@ -18,7 +18,6 @@
 #include <QProgressDialog>
 #include <QCoreApplication>
 #include <tsre/Game.h>
-#include <settings/SettingsAccess.h>
 
 //int EngLib::jesteng = 0;
 //std::unordered_map<int, Eng*> EngLib::eng;
@@ -41,52 +40,47 @@ int EngLib::addEng(QString path, QString name) {
     QString pathid = (path + "/" + name);
     pathid.replace("\\", "/");
     pathid = ContentPath::normalize(pathid);
-    QString selectedSource = pathid;
-    const QString overrideSource = ContentPath::join(path, "OPENRAILS/" + name);
-    if(Settings::boolean("core.content.loading.preferOpenRailsEng")
-            && ContentPath::readable(overrideSource)) selectedSource = overrideSource;
-    //qDebug() << pathid;
-    for ( auto it = eng.begin(); it != eng.end(); ++it ){
-        if(it->second == NULL) continue;
-        if (((Eng*) it->second)->loaded == 1)
-            if (ContentPath::key(pathid) == ContentPath::key(it->second->pathid)
-                    && !it->second->filePaths.isEmpty()
-                    && ContentPath::canReuse(selectedSource, it->second->filePaths.first())) {
-                ((Eng*) it->second)->ref++;
-                //qDebug() <<"engid "<< pathid;
-                return (int)it->first;
-            }
+    const QString hashid = ContentPath::key(pathid);
+    const int existing = findEng(hashid);
+    if (existing >= 0) {
+        eng.at(existing)->ref++;
+        return existing;
     }
-    //qDebug() << "Nowy " << jesteng << " eng: " << pathid;
 
-    eng[jesteng] = new Eng(pathid, path, name);
-
+    const int id = jesteng;
+    eng[id] = new Eng(pathid, path, name);
+    engIds.insert(hashid, id);
     return jesteng++;
 }
 
 int EngLib::removeBroken() {
-    for (int i = 0; i < jesteng; i++){
-        if(eng[i] == NULL) continue;
-        if (eng[i]->loaded != 1)
-            eng[i] = NULL;
+    for (auto &entry : eng) {
+        if (!entry.second || entry.second->loaded == 1) continue;
+        const auto indexed = engIds.constFind(entry.second->hashid);
+        if (indexed != engIds.cend() && indexed.value() == entry.first)
+            engIds.remove(entry.second->hashid);
+        entry.second = nullptr;
     }
     return 0;
 }
 
 void EngLib::removeAll(){
+    engIds.clear();
     eng.clear();
     jesteng = 0;
 }
 
+int EngLib::findEng(const QString &hashid) const {
+    const auto indexed = engIds.constFind(hashid);
+    if (indexed == engIds.cend()) return -1;
+    const auto entry = eng.find(indexed.value());
+    if (entry == eng.end() || !entry->second || entry->second->loaded != 1
+            || entry->second->hashid != hashid) return -1;
+    return entry->first;
+}
+
 int EngLib::getEngByPathid(QString pathid) {
-    for ( auto it = eng.begin(); it != eng.end(); ++it ){
-        if(it->second == NULL) continue;
-        if (((Eng*) it->second)->loaded == 1)
-            if (ContentPath::canReuse(pathid, ((Eng*) it->second)->pathid)) {
-                return (int)it->first;
-            }
-    }
-    return -1;
+    return findEng(ContentPath::key(pathid));
 }
 
 int EngLib::loadAll(QString gameRoot, bool gui){

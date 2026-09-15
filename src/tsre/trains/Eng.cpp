@@ -47,6 +47,7 @@ Eng::Eng(Eng *o) {
     name = o->name;
     path = o->path;
     pathid = o->pathid;
+    hashid = o->hashid;
     orpathid = o->orpathid;
     orpath = o->orpath;
 
@@ -79,6 +80,7 @@ Eng::~Eng() {
 Eng::Eng(QString p, QString n) {
     pathid = p + "/" + n;
     pathid = ContentPath::normalize(pathid);
+    hashid = ContentPath::key(pathid);
     path = p;
     name = n;
     if(Settings::boolean("core.content.loading.preferOpenRailsEng")){
@@ -108,6 +110,7 @@ void Eng::addToFileList(QString val){
 Eng::Eng(QString src, QString p, QString n) {
     pathid = src;
     pathid = ContentPath::normalize(pathid);
+    hashid = ContentPath::key(pathid);
     path = p;
     name = n;
     if(Settings::boolean("core.content.loading.preferOpenRailsEng")){

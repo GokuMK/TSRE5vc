@@ -471,13 +471,14 @@ int MstsSoundDefinition::AddDefinition(QString path, QString name){
     QString pathid = path + "/" + name;
     pathid.replace("\\", "/");
     pathid = ContentPath::normalize(pathid);
+    const QString hashid = ContentPath::key(pathid);
     //console.log(pathid);
     QMapIterator<int, MstsSoundDefinition*> i(Definitions);
     while (i.hasNext()) {
         i.next();
         if(i.value() == NULL) continue;
         if (i.value()->loaded)
-            if (ContentPath::canReuse(pathid, i.value()->pathid)) {
+            if (hashid == i.value()->hashid) {
                 i.value()->ref++;
                 return (int)i.key();
             }
@@ -486,6 +487,7 @@ int MstsSoundDefinition::AddDefinition(QString path, QString name){
 
     Definitions[jestsms] = new MstsSoundDefinition(path, name);
     Definitions[jestsms]->pathid = pathid;
+    Definitions[jestsms]->hashid = hashid;
 
     return jestsms++;
 }

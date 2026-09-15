@@ -13,12 +13,14 @@
 
 #include <unordered_map>
 #include <QString>
+#include <QHash>
 
 class Eng;
 
 class EngLib {
 public:
     int jesteng = 0;
+    // ID-based access for consumers. Register/remove entries through EngLib.
     std::unordered_map<int, Eng*> eng;
     EngLib();
     virtual ~EngLib();
@@ -29,6 +31,9 @@ public:
     int removeBroken();
     void removeAll();
 private:
+    // Numeric IDs remain authoritative; path keys only accelerate lookup.
+    QHash<QString, int> engIds;
+    int findEng(const QString &hashid) const;
 
 };
 

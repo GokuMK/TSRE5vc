@@ -70,6 +70,7 @@ Consist::Consist(Consist * con, bool fullCopy) {
         lastTxtColor = con->lastTxtColor;
         name = con->name;
         pathid = con->pathid;
+        hashid = con->hashid;
         conName = con->conName;
         showName = con->showName;
         serial = con->serial;
@@ -105,6 +106,7 @@ Consist::Consist(QString p, QString n) {
     typeObj = this->consistobj;
     pathid = p + "/" + n;
     pathid = ContentPath::normalize(pathid);
+    hashid = ContentPath::key(pathid);
     path = p;
     name = n;
     loaded = -1;
@@ -115,6 +117,7 @@ Consist::Consist(QString p, QString n) {
 Consist::Consist(QString src, QString p, QString n) {
     typeObj = this->consistobj;
     pathid = src;
+    hashid = ContentPath::key(pathid);
     path = p;
     name = n;
     loaded = -1;
@@ -126,6 +129,7 @@ void Consist::load(){
     int i;
     QString sh;
     pathid = ContentPath::normalize(pathid);
+    hashid = ContentPath::key(pathid);
     qDebug() << pathid;
     QFile *file = new QFile(pathid);
     if (!file->open(QIODevice::ReadOnly)){
@@ -497,6 +501,8 @@ void Consist::moveRightSelected(){
 void  Consist::setFileName(QString n){
     this->conName = n;
     this->name = n+".con";
+    pathid = ContentPath::join(path, name);
+    hashid = ContentPath::key(pathid);
     modified = true;
 }
 void  Consist::setDisplayName(QString n){

@@ -1,0 +1,18 @@
+# Qt 6.11.2, compiler 16.2.1 20260810, unique real paths 3597, duplicate keys 0
+# Median of 3 rounds after 1 warmup, times in ms. All returned IDs validated.
+dataset,workload,assets,requests,linear_ms,index_ms,speedup,linear_min,linear_max,index_min,index_max
+real-eng-wag,cold-add,3597,3597,63.1047,14.2548,4.42691,62.8937,63.118,14.0938,14.5332
+real-eng-wag,hits-prepared-key,3597,10000,169.428,1.757,96.4301,157.171,224.249,1.6296,1.786
+real-eng-wag,misses-prepared-key,3597,10000,374.281,2.0503,182.55,371.622,435.956,1.0536,2.2618
+real-eng-wag,hits-with-key,3597,10000,238.493,52.2621,4.56341,223.096,289.571,44.584,53.2748
+real-eng-wag,misses-with-key,3597,10000,425.514,52.765,8.06432,417.569,433.044,40.7441,54.8706
+synthetic,cold-add,10000,10000,546.575,38.5599,14.1747,423.105,629.035,37.7466,38.9421
+synthetic,hits-prepared-key,10000,2000,154.441,0.5088,303.54,139.398,281.026,0.2385,0.517
+synthetic,misses-prepared-key,10000,2000,113.116,0.1996,566.713,109.604,116.069,0.0626,0.2196
+synthetic,hits-with-key,10000,2000,349.324,8.3348,41.9115,318.278,364.315,8.1069,8.5984
+synthetic,misses-with-key,10000,2000,135.969,8.4873,16.0203,122.438,204.18,7.3678,8.8973
+synthetic,hits-prepared-key,100000,1000,4732.82,0.6652,7114.88,4713.5,4927.02,0.3847,0.7148
+synthetic,misses-prepared-key,100000,1000,9625.96,0.2268,42442.5,9199.2,9669.41,0.0625,0.2737
+synthetic,hits-with-key,100000,1000,5048.62,4.641,1087.83,4981.97,5555.95,4.5845,5.0286
+synthetic,misses-with-key,100000,1000,9350.24,3.8769,2411.78,9256.1,9665.85,3.7073,4.0504
+# PASS: every expected hit, miss, and insertion ID matched.

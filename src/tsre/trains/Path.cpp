@@ -35,7 +35,9 @@ Path::Path(QString p, QString n, bool nowe) {
     typeObj = activitypath;
     pathid = p + "/" + n;
     pathid = ContentPath::normalize(pathid);
+    hashid = ContentPath::key(pathid);
     path = p;
+    routeHashid = ContentPath::key(ContentPath::parentDirectory(path));
     name = n;
     nameId = n.section(".", 0, -2);
     if(!nowe){
@@ -56,6 +58,7 @@ bool Path::isModified(){
 void Path::load(){
     QString sh;
     pathid = ContentPath::normalize(pathid);
+    hashid = ContentPath::key(pathid);
     qDebug() << pathid;
     QFile *file = new QFile(pathid);
     if (!file->open(QIODevice::ReadOnly)) {

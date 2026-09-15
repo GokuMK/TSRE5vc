@@ -41,6 +41,7 @@ public:
     QString name;
     QString path;
     QString pathid;
+    QString hashid; // Cached logical key; pathid preserves the filename used for I/O.
     QString orpathid;
     QString orpath;
     QVector<QString> filePaths;

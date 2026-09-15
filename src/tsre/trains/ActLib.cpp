@@ -22,10 +22,9 @@
 #include <QCoreApplication>
 
 namespace {
-bool sameRoute(const QString &contentDirectory, QString routePath) {
+QString routeKey(QString routePath) {
     if(routePath.isEmpty()) routePath = Game::root + "/ROUTES/" + Game::route;
-    const QString owner = ContentPath::parentDirectory(contentDirectory);
-    return owner == QDir(routePath).absolutePath() || ContentPath::sameLocation(owner, routePath);
+    return ContentPath::key(routePath);
 }
 }
 
@@ -49,14 +48,14 @@ int ActLib::GetAct(QString path, QString name){
     QString pathid = (path + "/" + name);
     pathid.replace("\\", "/");
     pathid = ContentPath::normalize(pathid);
+    const QString hashid = ContentPath::key(pathid);
     //qDebug() << pathid;
     QHashIterator<int, Activity*> i(Act);
     while (i.hasNext()) {
         i.next();
         if(i.value() == NULL) continue;
         if (i.value()->loaded == 1)
-            if (ContentPath::canReuse(pathid, i.value()->pathid)
-                    || (i.value()->isUnSaved() && pathid == i.value()->pathid)) {
+            if (hashid == i.value()->hashid) {
                 i.value()->ref++;
                 qDebug() <<"actid "<< pathid;
                 return (int)i.key();
@@ -69,14 +68,14 @@ int ActLib::AddAct(QString path, QString name, bool nowe) {
     QString pathid = (path + "/" + name);
     pathid.replace("\\", "/");
     pathid = ContentPath::normalize(pathid);
+    const QString hashid = ContentPath::key(pathid);
     //qDebug() << pathid;
     QHashIterator<int, Activity*> i(Act);
     while (i.hasNext()) {
         i.next();
         if(i.value() == NULL) continue;
         if (i.value()->loaded == 1)
-            if (ContentPath::canReuse(pathid, i.value()->pathid)
-                    || (i.value()->isUnSaved() && pathid == i.value()->pathid)) {
+            if (hashid == i.value()->hashid) {
                 i.value()->ref++;
                 qDebug() <<"actid "<< pathid;
                 return (int)i.key();
@@ -90,11 +89,12 @@ int ActLib::AddAct(QString path, QString name, bool nowe) {
 }
 
 void ActLib::UpdateServiceChanges(QString serviceNameId, QString routePath){
+    const QString ownerKey = routeKey(routePath);
     QHashIterator<int, Activity*> i(Act);
     while (i.hasNext()) {
         i.next();
         if(i.value() == NULL || i.value()->loaded != 1) continue;
-        if(!sameRoute(i.value()->path, routePath)) continue;
+        if(i.value()->routeHashid != ownerKey) continue;
         i.value()->updateService(serviceNameId);
     }
 }
@@ -103,14 +103,14 @@ int ActLib::AddService(QString path, QString name, bool nowe) {
     QString pathid = (path + "/" + name);
     pathid.replace("\\", "/");
     pathid = ContentPath::normalize(pathid);
+    const QString hashid = ContentPath::key(pathid);
     //qDebug() << pathid;
     QHashIterator<int, Service*> i(Services);
     while (i.hasNext()) {
         i.next();
         if(i.value() == NULL) continue;
         if (i.value()->loaded == 1)
-            if (ContentPath::canReuse(pathid, i.value()->pathid)
-                    || (i.value()->isModified() && pathid == i.value()->pathid)) {
+            if (hashid == i.value()->hashid) {
                 //i.value()->ref++;
                 qDebug() <<"serviceid "<< pathid;
                 return (int)i.key();
@@ -125,14 +125,14 @@ int ActLib::AddTraffic(QString path, QString name, bool nowe) {
     QString pathid = (path + "/" + name);
     pathid.replace("\\", "/");
     pathid = ContentPath::normalize(pathid);
+    const QString hashid = ContentPath::key(pathid);
     //qDebug() << pathid;
     QHashIterator<int, Traffic*> i(Traffics);
     while (i.hasNext()) {
         i.next();
         if(i.value() == NULL) continue;
         if (i.value()->loaded == 1)
-            if (ContentPath::canReuse(pathid, i.value()->pathid)
-                    || (i.value()->isModified() && pathid == i.value()->pathid)) {
+            if (hashid == i.value()->hashid) {
                 i.value()->ref++;
                 qDebug() <<"trafficid "<< pathid;
                 return (int)i.key();
@@ -144,11 +144,12 @@ int ActLib::AddTraffic(QString path, QString name, bool nowe) {
 }
 
 bool ActLib::IsServiceInUse(QString n, QString routePath){
+    const QString ownerKey = routeKey(routePath);
     QHashIterator<int, Activity*> i(Act);
     while (i.hasNext()) {
         i.next();
         if(i.value() == NULL || i.value()->loaded != 1) continue;
-        if(!sameRoute(i.value()->path, routePath)) continue;
+        if(i.value()->routeHashid != ownerKey) continue;
         if(i.value()->isServiceInUse(n))
             return true;
     }
@@ -156,24 +157,26 @@ bool ActLib::IsServiceInUse(QString n, QString routePath){
 }
 
 bool ActLib::IsTrafficInUse(QString name, QString routePath){
+    const QString ownerKey = routeKey(routePath);
     QHashIterator<int, Traffic*> i(Traffics);
     while (i.hasNext()) {
         i.next();
         if(i.value() == NULL || i.value()->loaded != 1) continue;
-        if(!sameRoute(i.value()->path, routePath)) continue;
-        if(i.value()->nameId.toLower() == name.toLower())
+        if(i.value()->routeHashid != ownerKey) continue;
+        if(i.value()->nameId.compare(name, Qt::CaseInsensitive) == 0)
             return true;
     }
     return false;
 }
 
 QVector<QString> ActLib::GetServiceInUseList(QString n, QString routePath){
+    const QString ownerKey = routeKey(routePath);
     QVector<QString> list;
     QHashIterator<int, Activity*> i(Act);
     while (i.hasNext()) {
         i.next();
         if(i.value() == NULL || i.value()->loaded != 1) continue;
-        if(!sameRoute(i.value()->path, routePath)) continue;
+        if(i.value()->routeHashid != ownerKey) continue;
         if(i.value()->isServiceInUse(n)){
             list.push_back(QString("Activity:") + i.value()->header->name);
         }
@@ -181,36 +184,39 @@ QVector<QString> ActLib::GetServiceInUseList(QString n, QString routePath){
     return list;
 }
 Service* ActLib::GetServiceByName(QString name, QString routePath){
+    const QString ownerKey = routeKey(routePath);
     QHashIterator<int, Service*> i(Services);
     while (i.hasNext()) {
         i.next();
         if(i.value() == NULL || i.value()->loaded != 1) continue;
-        if(!sameRoute(i.value()->path, routePath)) continue;
-        if(i.value()->nameId.toLower() == name.toLower())
+        if(i.value()->routeHashid != ownerKey) continue;
+        if(i.value()->nameId.compare(name, Qt::CaseInsensitive) == 0)
             return i.value();
     }
     return NULL;
 }
 
 Traffic* ActLib::GetTrafficByName(QString name, QString routePath){
+    const QString ownerKey = routeKey(routePath);
     QHashIterator<int, Traffic*> i(Traffics);
     while (i.hasNext()) {
         i.next();
         if(i.value() == NULL || i.value()->loaded != 1) continue;
-        if(!sameRoute(i.value()->path, routePath)) continue;
-        if(i.value()->nameId.toLower() == name.toLower())
+        if(i.value()->routeHashid != ownerKey) continue;
+        if(i.value()->nameId.compare(name, Qt::CaseInsensitive) == 0)
             return i.value();
     }
     return NULL;
 }
 
 Path* ActLib::GetPathByName(QString name, QString routePath){
+    const QString ownerKey = routeKey(routePath);
     QHashIterator<int, Path*> i(Paths);
     while (i.hasNext()) {
         i.next();
         if(i.value() == NULL || i.value()->loaded != 1) continue;
-        if(!sameRoute(i.value()->path, routePath)) continue;
-        if(i.value()->trPathName.toLower() == name.toLower())
+        if(i.value()->routeHashid != ownerKey) continue;
+        if(i.value()->trPathName.compare(name, Qt::CaseInsensitive) == 0)
             return i.value();
     }
     return NULL;
@@ -220,6 +226,7 @@ int ActLib::AddPath(QString path, QString name) {
     QString pathid = (path + "/" + name);
     pathid.replace("\\", "/");
     pathid = ContentPath::normalize(pathid);
+    const QString hashid = ContentPath::key(pathid);
     //qDebug() << pathid;
     QHashIterator<int, Path*> i(Paths);
     while (i.hasNext()) {
@@ -227,8 +234,7 @@ int ActLib::AddPath(QString path, QString name) {
         if(i.value() == NULL) continue;
         ///qDebug() << i.value()->pathid << pathid; 
         if (i.value()->loaded == 1)
-            if (ContentPath::canReuse(pathid, i.value()->pathid)
-                    || (i.value()->isModified() && pathid == i.value()->pathid)) {
+            if (hashid == i.value()->hashid) {
                 i.value()->ref++;
                 qDebug() <<"pathid "<< pathid;
                 return (int)i.key();

@@ -1,0 +1,6 @@
+Qt 6.10.1 files=3597 comparisons=6467406
+plain QString comparison: 27.5368 ms, comparisons=6467406, hits=0
+current: both keys inside loop: 57527.5 ms, comparisons=6467406, hits=0
+request key hoisted only: 30389.2 ms, comparisons=6467406, hits=0
+both keys cached, still linear: 44.421 ms, comparisons=6467406, hits=0
+precomputed key hash lookup: 18.6912 ms, comparisons=0, hits=0

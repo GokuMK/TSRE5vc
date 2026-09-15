@@ -36,7 +36,6 @@ void ShapeLib::reset() {
     jestshape = 0;
     shape.clear();
     contexts.clear();
-    textureRoots.clear();
     pathKeys.clear();
 }
         
@@ -70,10 +69,7 @@ int ShapeLib::addShape(QString path, QString texPath) {
     const QString pathKey = ContentPath::key(pathid);
     for (const auto &entry : shape) {
         if(entry.second && !entry.second->hasLoadFailed() && pathKeys[entry.first] == pathKey
-                && contexts[entry.first] == context
-                && (texPath == textureRoots[entry.first]
-                    || ContentPath::sameLocation(texPath, textureRoots[entry.first]))
-                && ContentPath::canReuse(pathid, entry.second->getPathId()))
+                && contexts[entry.first] == context)
             return entry.first;
     }
     qDebug() << "Nowy " << jestshape << " shape: " << pathid;
@@ -99,7 +95,6 @@ int ShapeLib::addShape(QString path, QString texPath) {
     });
     shape[jestshape] = asset;
     contexts[jestshape] = context;
-    textureRoots[jestshape] = texPath;
     pathKeys[jestshape] = pathKey;
 
     return jestshape++;

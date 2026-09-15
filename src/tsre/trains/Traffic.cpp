@@ -23,7 +23,9 @@
 Traffic::Traffic(QString p, QString n, bool nowe) {
     pathid = p + "/" + n;
     pathid = ContentPath::normalize(pathid);
+    hashid = ContentPath::key(pathid);
     path = p;
+    routeHashid = ContentPath::key(ContentPath::parentDirectory(path));
     name = n;
     nameId = n.section(".", 0, -2);
     if(!nowe){
@@ -45,6 +47,7 @@ Traffic::~Traffic() {
 void Traffic::load(){
     QString sh;
     pathid = ContentPath::normalize(pathid);
+    hashid = ContentPath::key(pathid);
     qDebug() << pathid;
     QFile *file = new QFile(pathid);
     if (!file->open(QIODevice::ReadOnly)) {

@@ -1,0 +1,11 @@
+cmake_minimum_required(VERSION 3.21)
+project(ContentPathLookupBenchmark LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 17)
+find_package(Qt6 REQUIRED COMPONENTS Core)
+add_executable(content_path_lookup_benchmark main.cpp)
+target_include_directories(content_path_lookup_benchmark PRIVATE "${TSRE_SOURCE}/src")
+target_link_libraries(content_path_lookup_benchmark PRIVATE Qt6::Core)
+
+add_executable(content_path_index_benchmark index.cpp)
+target_include_directories(content_path_index_benchmark PRIVATE "${TSRE_SOURCE}/src")
+target_link_libraries(content_path_index_benchmark PRIVATE Qt6::Core)

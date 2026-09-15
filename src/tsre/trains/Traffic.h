@@ -25,6 +25,8 @@ public:
     QString nameId;
     QString path;
     QString pathid;  
+    QString hashid; // Cached logical key; pathid preserves the filename used for I/O.
+    QString routeHashid;
     int loaded = -1;
     int ref = 0;
     

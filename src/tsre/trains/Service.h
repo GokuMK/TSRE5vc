@@ -31,6 +31,8 @@ public:
     QString nameId;
     QString path;
     QString pathid;  
+    QString hashid; // Cached logical key; pathid preserves the filename used for I/O.
+    QString routeHashid;
     QString trainConfig;
     QString pathId;
     float maxWheelAcceleration;

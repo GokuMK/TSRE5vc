@@ -307,15 +307,15 @@ int profileTextureId(const QString &routePath, const QString &textureName) {
     QString normalizedName = textureName;
     normalizedName.replace('\\', '/');
     QString normalizedRoute = QDir::cleanPath(routePath);
-    const QString path = ContentPath::textureSource(normalizedTextureId(
-            texturePath(routePath, normalizedName)));
     const QString cacheKey = ContentPath::key(normalizedRoute) + "\n" + normalizedName.toLower();
     const auto cached = textureIds.constFind(cacheKey);
     const Texture *existing = textures.value(cacheKey);
     if(cached != textureIds.cend() && textureIdMatches(cached.value(), existing)
-            && !existing->missing && !existing->error
-            && ContentPath::canReuse(path, existing->pathid))
+            && !existing->missing && !existing->error)
         return cached.value();
+
+    const QString path = ContentPath::textureSource(normalizedTextureId(
+            texturePath(routePath, normalizedName)));
 
     const int textureId = TexLib::addTex(path);
     textureIds.insert(cacheKey, textureId);

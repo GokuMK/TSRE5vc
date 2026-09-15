@@ -54,6 +54,7 @@ public:
     QString name;
     QString path;
     QString pathid;
+    QString hashid; // Cached logical key; pathid preserves the filename used for I/O.
     QString conName;
     QString displayName;
     QString showName;

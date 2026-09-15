@@ -36,7 +36,15 @@ unless a reference constraint requires a change.
 `Tree.ace` and `tree.ace` in the same resource context mean the same intended
 asset. Lowercase comparison/hash inputs can express that identity, but the key
 must never replace the correctly spelled path passed to the filesystem. Two
-physical files competing for that identity are a content conflict to resolve.
+physical files competing for that identity are a content conflict to resolve
+in the converter. Runtime caches use case-insensitive identity consistently:
+matching stored keys reuse the loaded object without checking filesystem case or
+physical equivalence. A cache hit retains its selected source until explicit
+reload/removal. Compute the request key once and store each asset's `hashid`;
+linear comparisons must not normalize paths, lowercase strings, or query the
+filesystem. Following the measured index experiment, EngLib adds a path-key index
+without replacing its numeric-ID storage. Other libraries retain cached-string
+linear lookups until their mutation paths are covered by equivalent index updates.
 
 This means **stop forcing lowercase**, not prohibit naturally lowercase names.
 If every reference says `largetree.s`, retaining that name is a valid repair.

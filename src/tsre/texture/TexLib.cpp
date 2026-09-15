@@ -28,14 +28,20 @@ std::unordered_map<int, Texture*> TexLib::mtex;
 QHash<int, int> TexLib::disabledTextures;
 
 namespace {
-bool textureIdentityMatches(const QString &path, const QString &key, const Texture &texture) {
-    // Removing lookup aliases retires a cached bake without mutating a loader
-    // which may still be using the source path on another thread.
-    bool registered = false;
-    for(const auto &alias : texture.hashid)
-        if(alias == key) registered = true;
-    if(ContentPath::synthetic(path)) return registered;
-    return registered && ContentPath::canReuse(path, texture.pathid);
+bool textureIdentityMatches(const QString &key, const Texture &texture) {
+    // Retired aliases stay retired. Identity is logical, never a filesystem probe.
+    if(!texture.hashid.contains(key)) return false;
+    // An ACE alias on a DDS asset is a fallback, not an existing ACE representation.
+    return ContentPath::synthetic(key) || !texture.pathid.endsWith(".dds", Qt::CaseInsensitive)
+            || key.endsWith(".dds", Qt::CaseInsensitive);
+}
+int findTexture(const QString &key) {
+    for(const auto &entry : TexLib::mtex) {
+        const auto *texture = entry.second;
+        if(texture && !texture->missing && !texture->error && textureIdentityMatches(key, *texture))
+            return entry.first;
+    }
+    return -1;
 }
 }
 
@@ -163,17 +169,14 @@ int TexLib::addTex(QString path, QString name, bool reload) {
 }
 
 int TexLib::getTex(QString pathid) {
-    pathid = ContentPath::textureSource(pathid);
-    const QString key = ContentPath::key(pathid);
-    for(const auto &entry : mtex) {
-        const Texture *texture = entry.second;
-        if(texture && !texture->missing && !texture->error
-                && textureIdentityMatches(pathid, key, *texture)) {
-            entry.second->ref++;
-            return entry.first;
-        }
+    pathid = ContentPath::normalize(pathid);
+    int id = findTexture(ContentPath::key(pathid));
+    if(id < 0) {
+        const QString fallback = ContentPath::textureSource(pathid);
+        if(fallback != pathid) id = findTexture(ContentPath::key(fallback));
     }
-    return -1;
+    if(id >= 0) mtex[id]->ref++;
+    return id;
 }
 
 int TexLib::addTex(Texture* texture, bool reload) {
@@ -196,8 +199,8 @@ int TexLib::addTex(Texture* texture, bool reload) {
                 if(existing->hashid[i] != texture->hashid[j])
                     continue;
                 if(!ContentPath::synthetic(texture->hashid[j])
-                        && !ContentPath::canReuse(texture->pathid, existing->pathid)
-                        && !(texture->pathid == existing->pathid && texture->loaded))
+                        && existing->pathid.endsWith(".dds", Qt::CaseInsensitive)
+                            != texture->pathid.endsWith(".dds", Qt::CaseInsensitive))
                     continue;
 
                 if(!reload){
@@ -319,19 +322,19 @@ bool TexLib::decodeFromBytes(Texture* texture, const QByteArray& encodedBytes, Q
 }
 
 int TexLib::addTex(QString pathid, bool reload) {
-    // Resolve format fallback before matching any cached asset identity.
-    pathid = ContentPath::textureSource(pathid);
-    const QString key = ContentPath::key(pathid);
-    Texture* newFile = nullptr;
-    int texId = -1;
-    for(const auto &entry : mtex) {
-        Texture *existing = entry.second;
-        if(!existing || existing->missing || existing->error) continue;
-        if(!textureIdentityMatches(pathid, key, *existing)) continue;
-        if(!reload) { existing->ref++; return entry.first; }
-        newFile = existing;
-        texId = entry.first;
-        break;
+    pathid = ContentPath::normalize(pathid);
+    int texId = findTexture(ContentPath::key(pathid));
+    if(texId < 0) {
+        const QString fallback = ContentPath::textureSource(pathid);
+        if(fallback != pathid) {
+            pathid = fallback;
+            texId = findTexture(ContentPath::key(pathid));
+        }
+    }
+    Texture* newFile = texId < 0 ? nullptr : mtex[texId];
+    if(newFile) {
+        if(!reload) { newFile->ref++; return texId; }
+        pathid = newFile->pathid; // Reload the selected asset using its stored spelling.
     }
     const QString tType = QFileInfo(pathid).suffix().toLower();
     if(!newFile) {
