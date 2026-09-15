@@ -104,6 +104,23 @@ merely to satisfy a class hierarchy.
 
 ## Cache and service configuration
 
+Reuse the existing `geoPath` setting (registered as `core.paths.geoData`) as
+the shared geodata root. Proposed directory layout:
+
+```text
+<geoPath>/
+    hgt/                         local HGT source files
+    cache/<dataset-id>/          downloaded rasters and cache metadata
+```
+
+Moving existing HGT files into `hgt/` is an allowed design option, not an
+operation performed during this review. Proposed compatibility behavior: look
+in `hgt/` first, then the legacy root location; use deterministic precedence
+when both contain the same filename. Any later migration must handle filename
+conflicts without overwriting data. Cache cleanup must target only managed
+cache entries and must never delete local HGT source files. Exact cache nesting
+below the dataset directory will follow the cache identity described below.
+
 Prefer a deterministic grid in the dataset CRS, with bounds snapped to its
 sample lattice and a sampling margin, over arbitrary floating-point request
 bounds. Block dimensions remain provisional until service limits are measured.
@@ -185,6 +202,9 @@ coverage was downloaded and no live terrain generation was attempted.
   and tradeoff against custom code. Projection conversion is an explicit example:
   do not build a substantial projection framework merely to avoid a dependency.
 - Use HGT fallback for missing coverage/NoData and show a visible report.
+- Reuse `geoPath` for cache storage. HGT files may be organized into a dedicated
+  subdirectory under that root; compatibility and migration details remain
+  design proposals above.
 
 Other proposals in this review remain design recommendations. No additional
 user answer is required to continue service/format investigation. The original
