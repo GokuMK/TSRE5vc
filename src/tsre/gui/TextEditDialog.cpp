@@ -16,9 +16,13 @@ TextEditDialog::TextEditDialog() : QDialog(){
     QVBoxLayout *mainLayout = new QVBoxLayout;
     QHBoxLayout *ibuttons = new QHBoxLayout;
     ibuttons->setContentsMargins(1,1,1,1);
-    QPushButton *bok = new QPushButton("OK");
+    QPushButton *bok = new QPushButton(
+        //% "OK"
+        qtTrId("tsre.gui.text.edit.dialog.button.bok"));
     QObject::connect(bok, SIGNAL(released()), this, SLOT(ok()));
-    QPushButton *bcancel = new QPushButton("Cancel");
+    QPushButton *bcancel = new QPushButton(
+        //% "Cancel"
+        qtTrId("tsre.gui.text.edit.dialog.button.bcancel"));
     QObject::connect(bcancel, SIGNAL(released()), this, SLOT(cancel()));
     ibuttons->addWidget(bok);
     ibuttons->addWidget(bcancel);

@@ -25,12 +25,22 @@ RandomConsist::RandomConsist(QWidget* parent) : QWidget(parent){
     number.setText("10");
     number.setFixedWidth(240);
     //this->setFixedSize(300,300);
-    setWindowTitle(tr("Random Consist"));
+    setWindowTitle(
+        //% "Random Consist"
+        qtTrId("con.editor.random.consist.title.random.consist"));
     
-    QLabel *label = new QLabel("Add items to the List, you want in random consist:");
-    QPushButton* ok = new QPushButton("Add Random");
-    QPushButton* cancel = new QPushButton("Cancel");
-    QPushButton* save = new QPushButton("Save");
+    QLabel *label = new QLabel(
+        //% "Add items to the List, you want in random consist:"
+        qtTrId("con.editor.random.consist.label.label"));
+    QPushButton* ok = new QPushButton(
+        //% "Add Random"
+        qtTrId("con.editor.random.consist.button.ok"));
+    QPushButton* cancel = new QPushButton(
+        //% "Cancel"
+        qtTrId("con.editor.random.consist.button.cancel"));
+    QPushButton* save = new QPushButton(
+        //% "Save"
+        qtTrId("con.editor.random.consist.button.save"));
     connect(ok, SIGNAL (released()), this, SLOT (ok()));
     connect(cancel, SIGNAL (released()), this, SLOT (cancel()));
     connect(save, SIGNAL (released()), this, SLOT (save()));
@@ -39,14 +49,20 @@ RandomConsist::RandomConsist(QWidget* parent) : QWidget(parent){
     vlist->setSpacing(2);
     vlist->addWidget(label, 0, 0, 1, 3, Qt::AlignCenter);
     vlist->addWidget(&items, 1, 0, 1, 3, Qt::AlignCenter);
-    vlist->addWidget(new QLabel("Or load List from disk:"), 2, 0, Qt::AlignLeft);
+    vlist->addWidget(new QLabel(
+        //% "Or load List from disk:"
+        qtTrId("con.editor.random.consist.label.load.list.from.disk")), 2, 0, Qt::AlignLeft);
     vlist->addWidget(&list, 2, 1, 1, 2, Qt::AlignCenter);
     QObject::connect(&list, SIGNAL(textActivated(QString)),
                       this, SLOT(listSelected(QString)));
-    vlist->addWidget(new QLabel("Save current List as:"), 3, 0, Qt::AlignLeft);
+    vlist->addWidget(new QLabel(
+        //% "Save current List as:"
+        qtTrId("con.editor.random.consist.label.save.current.list.as")), 3, 0, Qt::AlignLeft);
     vlist->addWidget(&name, 3, 1, Qt::AlignCenter);
     vlist->addWidget(save, 3, 2, Qt::AlignCenter);
-    vlist->addWidget(new QLabel("Number of Units:"), 4, 0, Qt::AlignLeft);
+    vlist->addWidget(new QLabel(
+        //% "Number of Units:"
+        qtTrId("con.editor.random.consist.label.number.units")), 4, 0, Qt::AlignLeft);
     vlist->addWidget(&number, 4, 1, 1, 2);
     vlist->addWidget(ok, 5, 0, 1, 2);
     vlist->addWidget(cancel, 5, 2);

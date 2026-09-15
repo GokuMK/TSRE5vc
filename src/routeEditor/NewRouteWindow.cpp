@@ -13,17 +13,27 @@
 NewRouteWindow::NewRouteWindow() : QDialog(){
     this->setFixedSize(200, 100);
 
-    QPushButton* ok = new QPushButton("OK");
-    QPushButton* cancel = new QPushButton("Cancel");
+    QPushButton* ok = new QPushButton(
+        //% "OK"
+        qtTrId("route.editor.new.route.window.button.ok"));
+    QPushButton* cancel = new QPushButton(
+        //% "Cancel"
+        qtTrId("route.editor.new.route.window.button.cancel"));
     connect(ok, SIGNAL (released()), this, SLOT (ok()));
     connect(cancel, SIGNAL (released()), this, SLOT (cancel()));
 
     QFormLayout *vlist = new QFormLayout;
     vlist->setSpacing(2);
     vlist->setContentsMargins(3,0,3,0);
-    vlist->addRow("Name ID:",&this->name);
-    vlist->addRow("Lat:",&this->lat);
-    vlist->addRow("Lon:",&this->lon);
+    vlist->addRow(
+        //% "Name ID:"
+        qtTrId("route.editor.new.route.window.label.name.id"),&this->name);
+    vlist->addRow(
+        //% "Lat:"
+        qtTrId("route.editor.new.route.window.label.lat"),&this->lat);
+    vlist->addRow(
+        //% "Lon:"
+        qtTrId("route.editor.new.route.window.label.lon"),&this->lon);
     vlist->addRow(ok,cancel);
     vlist->setContentsMargins(1,1,1,1);
     this->setLayout(vlist);

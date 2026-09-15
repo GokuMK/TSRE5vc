@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.22)
 
 project(TSRE5vc LANGUAGES CXX)
 
@@ -13,7 +13,7 @@ configure_file(
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Network Core Widgets OpenGL OpenGLWidgets WebSockets )
+find_package(Qt6 REQUIRED COMPONENTS Network Core Widgets OpenGL OpenGLWidgets WebSockets LinguistTools)
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     find_package(OpenGL REQUIRED)
@@ -34,7 +34,6 @@ qt_standard_project_setup()
 include_directories("./src")
 
 file(GLOB TSRE5vc_SRC CONFIGURE_DEPENDS
-    "./src/mzip/miniz"
     "./src/mzip/miniz/miniz.h"
     "./src/*.h"
     "./src/*.cpp"
@@ -104,6 +103,19 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
 endif()
 
 target_link_libraries(TSRE5vc PRIVATE OpenAL::OpenAL Qt6::Network Qt6::Widgets Qt6::OpenGL Qt6::OpenGLWidgets Qt6::WebSockets )
+
+qt_add_translations(
+    TSRE5vc
+    SOURCE_TARGETS TSRE5vc
+    TS_FILES
+        translations/tsre_en.ts
+        translations/tsre_pl.ts
+    RESOURCE_PREFIX "/i18n"
+    LUPDATE_OPTIONS -no-obsolete
+    LRELEASE_OPTIONS -nounfinished
+    MERGE_QT_TRANSLATIONS
+    QT_TRANSLATION_CATALOGS qtbase
+)
 
 install(TARGETS TSRE5vc
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}

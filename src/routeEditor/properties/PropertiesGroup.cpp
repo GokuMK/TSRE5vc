@@ -20,12 +20,16 @@ PropertiesGroup::PropertiesGroup() {
     QVBoxLayout *vbox = new QVBoxLayout;
     vbox->setSpacing(2);
     vbox->setContentsMargins(0,1,1,1);
-    infoLabel = new QLabel("Group:");
+    infoLabel = new QLabel(
+        //% "Group:"
+        qtTrId("route.editor.properties.group.label.info.label"));
     infoLabel->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     infoLabel->setContentsMargins(3,0,0,0);
     vbox->addWidget(infoLabel);
 
-    QLabel *label = new QLabel("Position & Rotation:");
+    QLabel *label = new QLabel(
+        //% "Position & Rotation:"
+        qtTrId("route.editor.properties.group.label.label"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
@@ -34,49 +38,75 @@ PropertiesGroup::PropertiesGroup() {
     vlist->setContentsMargins(3,0,3,0);
     QDoubleValidator* doubleValidator = new QDoubleValidator(-1500, 1500, 6, this);
     doubleValidator->setNotation(QDoubleValidator::StandardNotation);
-    vlist->addRow("Y:",&this->posY);
+    vlist->addRow(
+        //% "Y:"
+        qtTrId("route.editor.properties.group.label.y"),&this->posY);
     this->posY.setValidator(doubleValidator);
     QObject::connect(&this->posY, SIGNAL(textEdited(QString)), this, SLOT(editPositionYEnabled(QString)));
     this->quat.setDisabled(true);
     this->quat.setAlignment(Qt::AlignCenter);
-    vlist->addRow("Rot:",&this->quat);
+    vlist->addRow(
+        //% "Rot:"
+        qtTrId("route.editor.properties.group.label.rot"),&this->quat);
     vbox->addItem(vlist);
 
     QGridLayout *posRotList = new QGridLayout;
     posRotList->setSpacing(2);
     posRotList->setContentsMargins(0,0,0,0);
 
-    QPushButton *copyPos = new QPushButton("Copy Pos", this);
+    QPushButton *copyPos = new QPushButton(
+        //% "Copy Pos"
+        qtTrId("route.editor.properties.group.button.copy.pos"), this);
     QObject::connect(copyPos, SIGNAL(released()),
                       this, SLOT(copyPEnabled()));
-    QPushButton *pastePos = new QPushButton("Paste", this);
+    QPushButton *pastePos = new QPushButton(
+        //% "Paste"
+        qtTrId("route.editor.properties.group.button.paste.pos"), this);
     QObject::connect(pastePos, SIGNAL(released()),
                       this, SLOT(pastePEnabled()));
-    QPushButton *copyQrot = new QPushButton("Copy Rot", this);
+    QPushButton *copyQrot = new QPushButton(
+        //% "Copy Rot"
+        qtTrId("route.editor.properties.group.button.copy.qrot"), this);
     QObject::connect(copyQrot, SIGNAL(released()),
                       this, SLOT(copyREnabled()));
-    QPushButton *pasteQrot = new QPushButton("Paste", this);
+    QPushButton *pasteQrot = new QPushButton(
+        //% "Paste"
+        qtTrId("route.editor.properties.group.button.paste.qrot"), this);
     QObject::connect(pasteQrot, SIGNAL(released()),
                       this, SLOT(pasteREnabled()));
-    QPushButton *copyPosRot = new QPushButton("Copy Pos+Rot", this);
+    QPushButton *copyPosRot = new QPushButton(
+        //% "Copy Pos+Rot"
+        qtTrId("route.editor.properties.group.button.copy.pos.rot"), this);
     QObject::connect(copyPosRot, SIGNAL(released()),
                       this, SLOT(copyPREnabled()));
-    QPushButton *pastePosRot = new QPushButton("Paste", this);
+    QPushButton *pastePosRot = new QPushButton(
+        //% "Paste"
+        qtTrId("route.editor.properties.group.button.paste.pos.rot"), this);
     QObject::connect(pastePosRot, SIGNAL(released()),
                       this, SLOT(pastePREnabled()));
-    QPushButton *resetQrot = new QPushButton("Reset Rot", this);
+    QPushButton *resetQrot = new QPushButton(
+        //% "Reset Rot"
+        qtTrId("route.editor.properties.group.button.reset.qrot"), this);
     QObject::connect(resetQrot, SIGNAL(released()),
                       this, SLOT(resetRotEnabled()));
-    QPushButton *qRot90 = new QPushButton("Rot Y 90Â°", this);
+    QPushButton *qRot90 = new QPushButton(
+        //% "Rot Y 90Â°"
+        qtTrId("route.editor.properties.group.button.q.rot90"), this);
     QObject::connect(qRot90, SIGNAL(released()),
                       this, SLOT(rotYEnabled()));
-    QPushButton *transform = new QPushButton("Transform ...", this);
+    QPushButton *transform = new QPushButton(
+        //% "Transform ..."
+        qtTrId("route.editor.properties.group.button.transform"), this);
     QObject::connect(transform, SIGNAL(released()),
                       this, SLOT(transformEnabled()));
-    QPushButton *rtransform = new QPushButton("Random Transform ...", this);
+    QPushButton *rtransform = new QPushButton(
+        //% "Random Transform ..."
+        qtTrId("route.editor.properties.group.button.rtransform"), this);
     QObject::connect(rtransform, SIGNAL(released()),
                       this, SLOT(rtransformEnabled()));
-    chSeparateRotation.setText("Separate Rotation");
+    chSeparateRotation.setText(
+        //% "Separate Rotation"
+        qtTrId("route.editor.properties.group.text.separate.rotation"));
     QObject::connect(&chSeparateRotation, SIGNAL(stateChanged(int)),
                       this, SLOT(chIndividualRotationEdited(int)));
 
@@ -93,14 +123,20 @@ PropertiesGroup::PropertiesGroup() {
     posRotList->addWidget(&chSeparateRotation, 6, 0, 1, 2);
     vbox->addItem(posRotList);
 
-    label = new QLabel("Detail Level:");
+    label = new QLabel(
+        //% "Detail Level:"
+        qtTrId("route.editor.properties.group.label.label.2"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     this->defaultDetailLevel.setDisabled(true);
     this->defaultDetailLevel.setAlignment(Qt::AlignCenter);
-    this->enableCustomDetailLevel.setText("Custom");
-    QCheckBox* defaultDetailLevelLabel = new QCheckBox("Default", this);
+    this->enableCustomDetailLevel.setText(
+        //% "Custom"
+        qtTrId("route.editor.properties.group.text.custom"));
+    QCheckBox* defaultDetailLevelLabel = new QCheckBox(
+        //% "Default"
+        qtTrId("route.editor.properties.group.option.default.detail.level.label"), this);
     defaultDetailLevelLabel->setDisabled(true);
     defaultDetailLevelLabel->setChecked(true);
     QObject::connect(&enableCustomDetailLevel, SIGNAL(stateChanged(int)),
@@ -118,7 +154,9 @@ PropertiesGroup::PropertiesGroup() {
     detailLevelView->addWidget(&customDetailLevel, 1, 1);
     vbox->addItem(detailLevelView);
 
-    label = new QLabel("Flags:");
+    label = new QLabel(
+        //% "Flags:"
+        qtTrId("route.editor.properties.group.label.label.3"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
@@ -128,34 +166,54 @@ PropertiesGroup::PropertiesGroup() {
     QGridLayout *flagslView = new QGridLayout;
     flagslView->setSpacing(2);
     flagslView->setContentsMargins(0,0,0,0);
-    QPushButton *copyFlags = new QPushButton("Copy Flags", this);
+    QPushButton *copyFlags = new QPushButton(
+        //% "Copy Flags"
+        qtTrId("route.editor.properties.group.button.copy.flags"), this);
     QObject::connect(copyFlags, SIGNAL(released()),
                       this, SLOT(copyFEnabled()));
-    QPushButton *pasteFlags = new QPushButton("Paste", this);
+    QPushButton *pasteFlags = new QPushButton(
+        //% "Paste"
+        qtTrId("route.editor.properties.group.button.paste.flags"), this);
     QObject::connect(pasteFlags, SIGNAL(released()),
                       this, SLOT(pasteFEnabled()));
     flagslView->addWidget(copyFlags,0,0);
     flagslView->addWidget(pasteFlags,0,1);
     vbox->addItem(flagslView);
-    checkboxAnim.setText("Animate Object");
-    checkboxTerrain.setText("Terrain Object");
+    checkboxAnim.setText(
+        //% "Animate Object"
+        qtTrId("route.editor.properties.group.text.animate.object"));
+    checkboxTerrain.setText(
+        //% "Terrain Object"
+        qtTrId("route.editor.properties.group.text.terrain.object"));
     vbox->addWidget(&checkboxAnim);
     QObject::connect(&checkboxAnim, SIGNAL(stateChanged(int)),
                       this, SLOT(checkboxAnimEdited(int)));
     vbox->addWidget(&checkboxTerrain);
     QObject::connect(&checkboxTerrain, SIGNAL(stateChanged(int)),
                       this, SLOT(checkboxTerrainEdited(int)));
-    cShadowType.addItem("No Shadow");
-    cShadowType.addItem("Round Shadow");
-    cShadowType.addItem("Rect. Shadow");
-    cShadowType.addItem("Treeline Shadow");
-    cShadowType.addItem("Dynamic Shadow");
+    cShadowType.addItem(
+        //% "No Shadow"
+        qtTrId("route.editor.properties.group.item.no.shadow"));
+    cShadowType.addItem(
+        //% "Round Shadow"
+        qtTrId("route.editor.properties.group.item.round.shadow"));
+    cShadowType.addItem(
+        //% "Rect. Shadow"
+        qtTrId("route.editor.properties.group.item.rect.shadow"));
+    cShadowType.addItem(
+        //% "Treeline Shadow"
+        qtTrId("route.editor.properties.group.item.treeline.shadow"));
+    cShadowType.addItem(
+        //% "Dynamic Shadow"
+        qtTrId("route.editor.properties.group.item.dynamic.shadow"));
     cShadowType.setStyleSheet("combobox-popup: 0;");
     vbox->addWidget(&cShadowType);
     QObject::connect(&cShadowType, SIGNAL(activated(int)),
                       this, SLOT(cShadowTypeEdited(int)));
 
-    label = new QLabel("Child Objects:");
+    label = new QLabel(
+        //% "Child Objects:"
+        qtTrId("route.editor.properties.group.label.label.4"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
@@ -170,13 +228,17 @@ PropertiesGroup::PropertiesGroup() {
                       this, SLOT(childSelectionChanged()));
     vbox->addWidget(&childList);
 
-    selectChildButton.setText("Select");
+    selectChildButton.setText(
+        //% "Select"
+        qtTrId("route.editor.properties.group.text.select"));
     selectChildButton.setEnabled(false);
     QObject::connect(&selectChildButton, SIGNAL(released()),
                       this, SLOT(selectChildEnabled()));
     vbox->addWidget(&selectChildButton);
 
-    selectSimilarChildButton.setText("Select Similar");
+    selectSimilarChildButton.setText(
+        //% "Select Similar"
+        qtTrId("route.editor.properties.group.text.select.similar"));
     selectSimilarChildButton.setEnabled(false);
     QObject::connect(&selectSimilarChildButton, SIGNAL(released()),
                       this, SLOT(selectSimilarChildEnabled()));
@@ -186,7 +248,9 @@ PropertiesGroup::PropertiesGroup() {
     pinnedLabel.hide();
     vbox->addWidget(&pinnedLabel);
 
-    reselectGroupButton.setText("Reselect This Group Object");
+    reselectGroupButton.setText(
+        //% "Reselect This Group Object"
+        qtTrId("route.editor.properties.group.text.reselect.this.group.object"));
     reselectGroupButton.hide();
     QObject::connect(&reselectGroupButton, SIGNAL(released()),
                       this, SLOT(reselectGroupEnabled()));
@@ -202,16 +266,21 @@ PropertiesGroup::~PropertiesGroup() {
 
 void PropertiesGroup::showObj(GameObj* obj){
     if(obj == NULL){
-        infoLabel->setText("NULL");
+        infoLabel->setText(
+            //% "NULL"
+            qtTrId("route.editor.properties.group.text.null"));
         worldObj = NULL;
         childList.clear();
-        childListLabel.setText("0 objects");
+        childListLabel.setText(
+            //% "0 objects"
+            qtTrId("route.editor.properties.group.text.0.objects"));
         childSelectionChanged();
         return;
     }
     worldObj = (WorldObj*)obj;
     GroupObj *gobj = (GroupObj*)worldObj;
-    infoLabel->setText("Group: " + QString::number(gobj->count()) + " objects");
+    //% "Group: %n object(s)"
+    infoLabel->setText(qtTrId("route.properties.group.object.count", gobj->count()));
 
     float *qDirection = gobj->getQuatRotation();
     float *position = gobj->getPosition();
@@ -259,7 +328,8 @@ void PropertiesGroup::updateObj(GameObj* obj){
         return;
     }
     GroupObj *gobj = (GroupObj*)obj;
-    infoLabel->setText("Group: " + QString::number(gobj->count()) + " objects");
+    //% "Group: %n object(s)"
+    infoLabel->setText(qtTrId("route.properties.group.object.count", gobj->count()));
     if(!posX.hasFocus() && !posY.hasFocus() && !posZ.hasFocus() && !quat.hasFocus()){
         float *qDirection = gobj->getQuatRotation();
         float *position = gobj->getPosition();
@@ -379,7 +449,9 @@ void PropertiesGroup::setPinnedSelectionState(GameObj* pinnedObj, GameObj* selec
                     selectedName = wobj->fileName;
             }
         }
-        pinnedLabel.setText("Pinned to this group while current selection is " + selectedName + ".");
+    //% "Pinned to this group while the current selection is %1."
+    pinnedLabel.setText(qtTrId("route.properties.group.pinned.selection")
+                        .arg(selectedName));
     } else {
         pinnedLabel.clear();
     }
@@ -448,7 +520,9 @@ void PropertiesGroup::refreshChildList(GroupObj* gobj){
         childList.addItem(item);
     }
 
-    childListLabel.setText(QString::number(childList.count()) + " objects");
+    //% "%n object(s)"
+    childListLabel.setText(qtTrId("route.properties.group.children.count",
+                                  childList.count()));
     for(int i = 0; i < childList.count(); i++){
         QListWidgetItem *item = childList.item(i);
         if((WorldObj*)item->data(Qt::UserRole).toULongLong() == selectedChild){

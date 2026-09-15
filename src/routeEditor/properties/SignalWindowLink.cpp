@@ -13,16 +13,24 @@
 SignalWindowLink::SignalWindowLink() : QDialog(){
     this->setFixedSize(200, 60);
 
-    QPushButton* ok = new QPushButton("OK");
-    QPushButton* cancel = new QPushButton("Cancel");
+    QPushButton* ok = new QPushButton(
+        //% "OK"
+        qtTrId("route.editor.properties.signal.window.link.button.ok"));
+    QPushButton* cancel = new QPushButton(
+        //% "Cancel"
+        qtTrId("route.editor.properties.signal.window.link.button.cancel"));
     connect(ok, SIGNAL (released()), this, SLOT (ok()));
     connect(cancel, SIGNAL (released()), this, SLOT (cancel()));
 
     QFormLayout *vlist = new QFormLayout;
     vlist->setSpacing(2);
     vlist->setContentsMargins(3,0,3,0);
-    vlist->addRow("from:",&this->from);
-    vlist->addRow("to:",&this->to);
+    vlist->addRow(
+        //% "from:"
+        qtTrId("route.editor.properties.signal.window.link.label.from"),&this->from);
+    vlist->addRow(
+        //% "to:"
+        qtTrId("route.editor.properties.signal.window.link.label.value"),&this->to);
     vlist->addRow(ok,cancel);
     vlist->setContentsMargins(1,1,1,1);
     this->setLayout(vlist);

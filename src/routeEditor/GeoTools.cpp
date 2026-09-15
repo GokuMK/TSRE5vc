@@ -26,11 +26,21 @@ GeoTools::GeoTools(QString name)
     setFixedWidth(250);
     int row = 0;
     
-    buttonTools["mapTileShowTool"] = new QPushButton("Show/Hide Map", this);
-    buttonTools["mapTileLoadTool"] = new QPushButton("Load Map", this);
-    buttonTools["heightTileLoadTool"] = new QPushButton("Load Height", this);
-    buttonTools["makeTileTextureTool"] = new QPushButton("Make Tile Texture from Map", this);
-    buttonTools["removeTileTextureTool"] = new QPushButton("Remove Map Tile Texture", this);
+    buttonTools["mapTileShowTool"] = new QPushButton(
+        //% "Show/Hide Map"
+        qtTrId("route.editor.geo.tools.button.show.hide.map"), this);
+    buttonTools["mapTileLoadTool"] = new QPushButton(
+        //% "Load Map"
+        qtTrId("route.editor.geo.tools.button.load.map"), this);
+    buttonTools["heightTileLoadTool"] = new QPushButton(
+        //% "Load Height"
+        qtTrId("route.editor.geo.tools.button.load.height"), this);
+    buttonTools["makeTileTextureTool"] = new QPushButton(
+        //% "Make Tile Texture from Map"
+        qtTrId("route.editor.geo.tools.button.make.tile.texture.from.map"), this);
+    buttonTools["removeTileTextureTool"] = new QPushButton(
+        //% "Remove Map Tile Texture"
+        qtTrId("route.editor.geo.tools.button.remove.map.tile.texture"), this);
     QMapIterator<QString, QPushButton*> i(buttonTools);
     while (i.hasNext()) {
         i.next();
@@ -42,7 +52,9 @@ GeoTools::GeoTools(QString name)
     vbox->setSpacing(2);
     vbox->setContentsMargins(0,1,1,1);
         
-    label0 = new QLabel("Map Layers:");
+    label0 = new QLabel(
+        //% "Map Layers:"
+        qtTrId("route.editor.geo.tools.label.label0"));
     label0->setContentsMargins(3,0,0,0);
     label0->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     vbox->addWidget(label0);
@@ -51,24 +63,34 @@ GeoTools::GeoTools(QString name)
     vbox->addWidget(buttonTools["makeTileTextureTool"]);
     vbox->addWidget(buttonTools["removeTileTextureTool"]);
     
-    label0 = new QLabel("Terrain Heightmap:");
+    label0 = new QLabel(
+        //% "Terrain Heightmap:"
+        qtTrId("route.editor.geo.tools.label.label0.2"));
     label0->setContentsMargins(3,0,0,0);
     label0->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     vbox->addWidget(label0);
     vbox->addWidget(buttonTools["heightTileLoadTool"]);
     
-    label0 = new QLabel("Auto tile generation:");
+    label0 = new QLabel(
+        //% "Auto tile generation:"
+        qtTrId("route.editor.geo.tools.label.label0.3"));
     label0->setContentsMargins(3,0,0,0);
     label0->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     vbox->addWidget(label0);
-    QCheckBox *chAutoCreateTile = new QCheckBox("Create new tiles if not exist.");
+    QCheckBox *chAutoCreateTile = new QCheckBox(
+        //% "Create new tiles if not exist."
+        qtTrId("route.editor.geo.tools.option.ch.auto.create.tile"));
     chAutoCreateTile->setChecked(Game::autoNewTiles);
-    QCheckBox *chAutoGeoTerrain = new QCheckBox("Create terrain from Geodata. ");
+    QCheckBox *chAutoGeoTerrain = new QCheckBox(
+        //% "Create terrain from Geodata. "
+        qtTrId("route.editor.geo.tools.option.ch.auto.geo.terrain"));
     chAutoGeoTerrain->setChecked(Game::autoGeoTerrain);
     vbox->addWidget(chAutoCreateTile);
     vbox->addWidget(chAutoGeoTerrain);
 
-    label0 = new QLabel("Default Terrain Profile:");
+    label0 = new QLabel(
+        //% "Default Terrain Profile:"
+        qtTrId("route.editor.geo.tools.label.label0.4"));
     label0->setContentsMargins(3,4,0,0);
     label0->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     vbox->addWidget(label0);
@@ -79,12 +101,15 @@ GeoTools::GeoTools(QString name)
             Game::defaultTerrainPatchCount));
     vbox->addWidget(defaultTerrainProfileName);
     QPushButton *selectTerrainProfile = new QPushButton(
-            "Select terrain profile...", this);
+            //% "Select terrain profile..."
+            qtTrId("route.editor.geo.tools.button.select.terrain.profile"), this);
     QObject::connect(selectTerrainProfile, SIGNAL(released()),
                      this, SLOT(selectTerrainProfileEnabled()));
     vbox->addWidget(selectTerrainProfile);
     
-    label0 = new QLabel("Tiles from marker file:");
+    label0 = new QLabel(
+        //% "Tiles from marker file:"
+        qtTrId("route.editor.geo.tools.label.label0.5"));
     label0->setContentsMargins(3,0,0,0);
     //label0->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     vbox->addWidget(label0);
@@ -93,33 +118,47 @@ GeoTools::GeoTools(QString name)
     QFormLayout *vlist = new QFormLayout;
     vlist->setSpacing(2);
     vlist->setContentsMargins(3,0,3,0);
-    vlist->addRow("Radius:",&this->eRadius);
+    vlist->addRow(
+        //% "Radius:"
+        qtTrId("route.editor.geo.tools.label.radius"),&this->eRadius);
     eRadius.setRange(0,2);
     eRadius.setValue(0);
     vbox->addItem(vlist);
-    QPushButton * checkGeodataFiles = new QPushButton("Check if geodata files available.", this);
+    QPushButton * checkGeodataFiles = new QPushButton(
+        //% "Check if geodata files available."
+        qtTrId("route.editor.geo.tools.button.check.geodata.files"), this);
     QObject::connect(checkGeodataFiles, SIGNAL(released()),
                       this, SLOT(checkGeodataFilesEnabled()));
     vbox->addWidget(checkGeodataFiles);
     
-    QPushButton * generateTiles = new QPushButton("Generate tiles.", this);
+    QPushButton * generateTiles = new QPushButton(
+        //% "Generate tiles."
+        qtTrId("route.editor.geo.tools.button.generate.tiles"), this);
     QObject::connect(generateTiles, SIGNAL(released()),
                       this, SLOT(generateTilesEnabled()));
     vbox->addWidget(generateTiles);
 
-    label0 = new QLabel("Distant Terrain:");
+    label0 = new QLabel(
+        //% "Distant Terrain:"
+        qtTrId("route.editor.geo.tools.label.label0.6"));
     label0->setContentsMargins(3,0,0,0);
     vbox->addWidget(label0);
-    QPushButton * checkGeodataLoFiles = new QPushButton("Check if geodata files available.", this);
+    QPushButton * checkGeodataLoFiles = new QPushButton(
+        //% "Check if geodata files available."
+        qtTrId("route.editor.geo.tools.button.check.geodata.lo.files"), this);
     //QObject::connect(checkGeodataFiles, SIGNAL(released()),
     //                  this, SLOT(checkGeodataFilesEnabled()));
     vbox->addWidget(checkGeodataLoFiles);
     
-    QPushButton * generateLoTiles = new QPushButton("Generate tiles using MKR.", this);
+    QPushButton * generateLoTiles = new QPushButton(
+        //% "Generate tiles using MKR."
+        qtTrId("route.editor.geo.tools.button.generate.lo.tiles"), this);
     QObject::connect(generateLoTiles, SIGNAL(released()),
                       this, SLOT(generateLoTilesEnabled()));
     vbox->addWidget(generateLoTiles);
-    QPushButton * generateLoTilesFromTDB = new QPushButton("Generate tiles using TDB.", this);
+    QPushButton * generateLoTilesFromTDB = new QPushButton(
+        //% "Generate tiles using TDB."
+        qtTrId("route.editor.geo.tools.button.generate.lo.tiles.from.tdb"), this);
     QObject::connect(generateLoTilesFromTDB, SIGNAL(released()),
                       this, SLOT(generateLoTilesFromTDBEnabled()));
     vbox->addWidget(generateLoTilesFromTDB);

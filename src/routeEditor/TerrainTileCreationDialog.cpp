@@ -29,10 +29,14 @@
 TerrainTileCreationDialog::TerrainTileCreationDialog(QWidget *parent)
     : QDialog(parent),
       profileSelector(new TerrainProfileSelector(this, true)) {
-    setWindowTitle("Create or replace detailed terrain");
+    setWindowTitle(
+        //% "Create or replace detailed terrain"
+        qtTrId("route.editor.terrain.tile.creation.dialog.title.create.replace.detailed.terrain"));
 
     QVBoxLayout *layout = new QVBoxLayout(this);
-    QLabel *statusTitle = new QLabel("<b>Current status</b>", this);
+    QLabel *statusTitle = new QLabel(
+        //% "<b>Current status</b>"
+        qtTrId("route.editor.terrain.tile.creation.dialog.label.status.title"), this);
     statusTitle->setStyleSheet(QString("QLabel { color: %1; }").arg(Game::StyleMainLabel));
     layout->addWidget(statusTitle);
     terrainStatus = new QLabel(this);
@@ -42,14 +46,13 @@ TerrainTileCreationDialog::TerrainTileCreationDialog(QWidget *parent)
     layout->addWidget(terrainStatus);
     layout->addWidget(quadTreeStatus);
     layout->addSpacing(8);
-    QLabel *title = new QLabel("<b>Detailed terrain tile</b>", this);
+    QLabel *title = new QLabel(
+        //% "<b>Detailed terrain tile</b>"
+        qtTrId("route.editor.terrain.tile.creation.dialog.label.title"), this);
     title->setStyleSheet(QString("QLabel { color: %1; }").arg(Game::StyleMainLabel));
     QLabel *warning = new QLabel(
-            "Choose the detailed-terrain heightmap resolution and patch grid for "
-            "this location. This B-key tool creates missing terrain or explicitly "
-            "replaces existing terrain. Non-standard profiles are experimental; "
-            "compatibility for the selected layout is shown below. The independent "
-            "2048 m World tile is created only when it is missing.", this);
+            //% "Choose the detailed-terrain heightmap resolution and patch grid for this location. This B-key tool creates missing terrain or explicitly replaces existing terrain. Non-standard profiles are experimental; compatibility for the selected layout is shown below. The independent 2048 m World tile is created only when it is missing."
+            qtTrId("route.editor.terrain.tile.creation.dialog.label.warning"), this);
     warning->setWordWrap(true);
     profileSelector->setSelection(Game::defaultTerrainHeightProfile,
                                   Game::defaultTerrainPatchCount);
@@ -80,9 +83,18 @@ void TerrainTileCreationDialog::showStatus(int worldX, int worldZ) {
     TerrainInfo info;
     QuadTree *tree = Game::terrainLib->getQuadTreeDetailed();
     if (tree) tree->fillTerrainInfo(worldX, terrainZ, &info);
-    quadTreeStatus->setText(!tree ? "QuadTree: unavailable (simple terrain mode)"
-            : info.name.isEmpty() ? "QuadTree: not populated"
-            : QString("QuadTree: populated at size %1 m").arg(info.level * 2048));
+    quadTreeStatus->setText(!tree
+            ?
+              //% "QuadTree: unavailable (simple terrain mode)"
+              qtTrId("terrain.creation.quadtree.unavailable")
+            : info.name.isEmpty()
+              ?
+                //% "QuadTree: not populated"
+                qtTrId("terrain.creation.quadtree.not.populated")
+              :
+                //% "QuadTree: populated at size %1 m"
+                qtTrId("terrain.creation.quadtree.populated")
+                    .arg(info.level * 2048));
 
     QStringList names;
     if (!info.name.isEmpty()) names << info.name;
@@ -106,16 +118,28 @@ void TerrainTileCreationDialog::showStatus(int worldX, int worldZ) {
         if (!QFileInfo(path).isFile()) continue;
         TFile::LayoutInfo layout;
         if (TFile::readLayoutInfo(path, layout)) {
-            descriptions << QString("exists, size %1 m, type: %2 samples / %3 patches (%4)")
+            //% "exists, size %1 m, type: %2 samples / %3 patches (%4)"
+            descriptions << qtTrId("terrain.creation.tile.existing.layout")
                     .arg(double(layout.samples) * layout.spacing)
                     .arg(layout.samples).arg(layout.patches).arg(name);
         } else {
-            descriptions << QString("exists, unreadable layout (%1)").arg(name);
+            //% "exists, unreadable layout (%1)"
+            descriptions << qtTrId("terrain.creation.tile.existing.unreadable")
+                            .arg(name);
         }
         paths << path;
     }
-    terrainStatus->setText("Terrain tile: " + (descriptions.isEmpty()
-            ? QString("does not exist") : descriptions.join("\nTerrain tile: ")));
+    if (descriptions.isEmpty()) {
+        //% "Terrain tile: does not exist"
+        terrainStatus->setText(qtTrId("terrain.creation.tile.missing"));
+    } else {
+        QStringList lines;
+        for (const QString &description : descriptions) {
+            //% "Terrain tile: %1"
+            lines << qtTrId("terrain.creation.tile.status").arg(description);
+        }
+        terrainStatus->setText(lines.join('\n'));
+    }
     terrainStatus->setToolTip(paths.join('\n'));
 }
 
@@ -123,8 +147,11 @@ void TerrainTileCreationDialog::showForTile(
         QWidget *parent, Route *route, int worldX, int worldZ) {
     if (!Game::writeEnabled) {
         QMessageBox::information(
-                parent, "Terrain creation disabled",
-                "Route writing is disabled. Enable route writing before creating or replacing terrain.");
+                parent,
+                    //% "Terrain creation disabled"
+                    qtTrId("route.editor.terrain.tile.creation.dialog.dialog.title.terrain.creation.disabled"),
+                //% "Route writing is disabled. Enable route writing before creating or replacing terrain."
+                qtTrId("route.editor.terrain.tile.creation.dialog.dialog.message.route.writing.is.disabled.enable.route.writing"));
         return;
     }
 
@@ -139,9 +166,11 @@ void TerrainTileCreationDialog::showForTile(
     const bool overwrite = Game::terrainLib->hasDetailedTerrain(worldX, terrainZ);
     if (overwrite) {
         const QMessageBox::StandardButton answer = QMessageBox::warning(
-                parent, "Replace detailed terrain?",
-                "Detailed terrain already exists here. Replace its descriptor and "
-                "heightmap with the selected profile? The existing World file will be preserved.",
+                parent,
+                    //% "Replace detailed terrain?"
+                    qtTrId("route.editor.terrain.tile.creation.dialog.dialog.title.answer"),
+                //% "Detailed terrain already exists here. Replace its descriptor and heightmap with the selected profile? The existing World file will be preserved."
+                qtTrId("route.editor.terrain.tile.creation.dialog.dialog.message.answer"),
                 QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
         if (answer != QMessageBox::Yes)
             return;
@@ -149,17 +178,22 @@ void TerrainTileCreationDialog::showForTile(
 
     if (!Game::terrainLib->saveEmpty(
             worldX, terrainZ, profile, patchCount, overwrite)) {
-        QMessageBox::critical(parent, "Terrain creation failed",
-                              "The selected terrain profile could not be created. "
-                              "See the log for the unsupported-layout or file error.");
+        QMessageBox::critical(parent,
+            //% "Terrain creation failed"
+            qtTrId("route.editor.terrain.tile.creation.dialog.dialog.title.terrain.creation.failed"),
+                              //% "The selected terrain profile could not be created. See the log for the unsupported-layout or file error."
+                              qtTrId("route.editor.terrain.tile.creation.dialog.dialog.message.selected.terrain.profile.could.not.be.created"));
         return;
     }
 
     route->ensureWorldTile(worldX, worldZ);
     Game::terrainLib->setDetailedAsCurrent();
     if (!Game::terrainLib->reload(worldX, worldZ)) {
-        QMessageBox::critical(parent, "Terrain reload failed",
-                              "The terrain files were created but could not be reloaded.");
+        QMessageBox::critical(parent,
+            //% "Terrain reload failed"
+            qtTrId("route.editor.terrain.tile.creation.dialog.dialog.title.terrain.reload.failed"),
+                              //% "The terrain files were created but could not be reloaded."
+                              qtTrId("route.editor.terrain.tile.creation.dialog.dialog.message.terrain.files.were.created.but.could.not"));
         return;
     }
 

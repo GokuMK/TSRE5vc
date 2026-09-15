@@ -22,15 +22,23 @@ NaviWindow::NaviWindow(QWidget* parent) : QWidget(parent) {
     //this->setWindowFlags(Qt::WindowStaysOnTopHint);
     this->setFixedWidth(300);
     this->setFixedHeight(180);
-    this->setWindowTitle(tr("Navi Window"));
+    this->setWindowTitle(
+        //% "Navi Window"
+        qtTrId("route.editor.navi.window.title.navi.window"));
     markerFiles.setStyleSheet("combobox-popup: 0;");
     markerFiles.view()->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     markerList.setStyleSheet("combobox-popup: 0;");
     markerList.view()->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     
-    QPushButton *jumpButton = new QPushButton("Jump", this);
-    QLabel *cameraPosLabel = new QLabel("Camera:", this);
-    QLabel *pointerPosLabel = new QLabel("Pointer:", this);
+    QPushButton *jumpButton = new QPushButton(
+        //% "Jump"
+        qtTrId("route.editor.navi.window.button.jump.button"), this);
+    QLabel *cameraPosLabel = new QLabel(
+        //% "Camera:"
+        qtTrId("route.editor.navi.window.label.camera.pos.label"), this);
+    QLabel *pointerPosLabel = new QLabel(
+        //% "Pointer:"
+        qtTrId("route.editor.navi.window.label.pointer.pos.label"), this);
     QLabel *txLabel = new QLabel("X", this);
     QLabel *tyLabel = new QLabel("Y", this);
     QLabel *xLabel = new QLabel("x", this);
@@ -43,7 +51,9 @@ NaviWindow::NaviWindow(QWidget* parent) : QWidget(parent) {
     QLabel *lonLabel = new QLabel("lon", this);
     QLabel *empty = new QLabel(" ", this);
     
-    QLabel *label1 = new QLabel("Position:");
+    QLabel *label1 = new QLabel(
+        //% "Position:"
+        qtTrId("route.editor.navi.window.label.label1"));
     label1->setContentsMargins(3,0,0,0);
     label1->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
 
@@ -162,7 +172,9 @@ void NaviWindow::naviInfo(int all, int hidden){
     if(all != objCount || hidden != objHidden ){
         objCount = all;
         objHidden = hidden;
-        this->tileInfo.setText("Objects: "+QString::number(all, 10)+" ( including "+QString::number(hidden, 10)+" hidden )");
+        //% "Objects: %1 (including %2 hidden)"
+        this->tileInfo.setText(qtTrId("route.navigation.window.tile.objects.summary")
+                               .arg(all).arg(hidden));
     }
 }
 

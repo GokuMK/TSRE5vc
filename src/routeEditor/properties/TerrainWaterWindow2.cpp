@@ -16,7 +16,9 @@
 
 TerrainWaterWindow2::TerrainWaterWindow2(QWidget* parent) : QWidget(parent) {
     this->setWindowFlags(Qt::WindowType::Tool | Qt::MSWindowsFixedSizeDialogHint);
-    this->setWindowTitle(tr("Water Level"));
+    this->setWindowTitle(
+        //% "Water Level"
+        qtTrId("route.editor.properties.terrain.water.window2.title.water.level"));
     
     for(int i = 0; i < 12; i++){
         e[i].setFixedWidth(50);
@@ -32,20 +34,28 @@ TerrainWaterWindow2::TerrainWaterWindow2(QWidget* parent) : QWidget(parent) {
     vlist1->setSpacing(2);
     vlist1->setContentsMargins(3,0,3,0);
     int row = 0;
-    vlist1->addWidget(new QLabel("Water:"), row, 0);
+    vlist1->addWidget(new QLabel(
+        //% "Water:"
+        qtTrId("route.editor.properties.terrain.water.window2.label.water")), row, 0);
     vlist1->addWidget(&e[0], 0, 0);
     vlist1->addWidget(&e[1], 0, 2);
     vlist1->addWidget(&e[2], 0, 4);
     vlist1->addWidget(&e[3], 0, 6);
-    vlist1->addWidget(new QLabel("NW"), 1, 1);
+    vlist1->addWidget(new QLabel(
+        //% "NW"
+        qtTrId("route.editor.properties.terrain.water.window2.label.nw")), 1, 1);
     vlist1->addWidget(new QLabel("  ---------"), 1, 2);
     vlist1->addWidget(new QLabel("  ---------"), 1, 3);
     vlist1->addWidget(new QLabel("  ---------"), 1, 4);
-    vlist1->addWidget(new QLabel("NE"), 1, 5);
+    vlist1->addWidget(new QLabel(
+        //% "NE"
+        qtTrId("route.editor.properties.terrain.water.window2.label.ne")), 1, 5);
     vlist1->addWidget(&e[4], 2, 0);
     vlist1->addWidget(new QLabel("|"), 2, 1);
     vlist1->addWidget(&eNW, 2, 2);
-    vlist1->addWidget(new QLabel(" Average:"), 2, 3);
+    vlist1->addWidget(new QLabel(
+        //% " Average:"
+        qtTrId("route.editor.properties.terrain.water.window2.label.average")), 2, 3);
     vlist1->addWidget(&eNE, 2, 4);
     vlist1->addWidget(new QLabel("|"), 2, 5);
     vlist1->addWidget(&e[5], 2, 6);
@@ -59,16 +69,22 @@ TerrainWaterWindow2::TerrainWaterWindow2(QWidget* parent) : QWidget(parent) {
     vlist1->addWidget(&eSE, 4, 4);
     vlist1->addWidget(new QLabel("|"), 4, 5);
     vlist1->addWidget(&e[7], 4, 6);
-    vlist1->addWidget(new QLabel("SW"), 5, 1);
+    vlist1->addWidget(new QLabel(
+        //% "SW"
+        qtTrId("route.editor.properties.terrain.water.window2.label.sw")), 5, 1);
     vlist1->addWidget(new QLabel("  ---------"), 5, 2);
     vlist1->addWidget(new QLabel("  ---------"), 5, 3);
     vlist1->addWidget(new QLabel("  ---------"), 5, 4);
-    vlist1->addWidget(new QLabel("SE"), 5, 5);
+    vlist1->addWidget(new QLabel(
+        //% "SE"
+        qtTrId("route.editor.properties.terrain.water.window2.label.se")), 5, 5);
     vlist1->addWidget(&e[8], 6, 0);
     vlist1->addWidget(&e[9], 6, 2);
     vlist1->addWidget(&e[10], 6, 4);
     vlist1->addWidget(&e[11], 6, 6);
-    QPushButton *bAdjust = new QPushButton("Adjust Adjacent Tiles");
+    QPushButton *bAdjust = new QPushButton(
+        //% "Adjust Adjacent Tiles"
+        qtTrId("route.editor.properties.terrain.water.window2.button.b.adjust"));
     connect(bAdjust, SIGNAL (released()), this, SLOT (bAdjustEdited()));
     vlist1->addWidget(bAdjust, 7, 0, 1, 7);
     this->setLayout(vlist1);
@@ -90,7 +106,9 @@ void TerrainWaterWindow2::setTerrain(Terrain* t){
         return;
     
     terrain = t;
-    this->setWindowTitle(tr("Water Level ") + QString::number(terrain->mojex) + " "+ QString::number(-terrain->mojez));
+    //% "Water Level %1 %2"
+    this->setWindowTitle(qtTrId("route.terrain.water.level.tile.title")
+                         .arg(terrain->mojex).arg(-terrain->mojez));
     
     eAvg.setText(QString::number(terrain->getAvgVaterLevel()));
     float waterLevels[4];

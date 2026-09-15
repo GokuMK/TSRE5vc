@@ -19,26 +19,35 @@
 
 ActivityServiceWindow::ActivityServiceWindow(QWidget* parent) : QWidget(parent) {
     setWindowFlags(Qt::WindowType::Tool);
-    setWindowTitle(tr("Services"));
+    setWindowTitle(
+        //% "Services"
+        qtTrId("route.editor.activity.service.window.title.services"));
     
     serviceProperties = new ActivityServiceProperties(this);
     
     QVBoxLayout *actionListLayout = new QVBoxLayout;
     actionListLayout->setContentsMargins(0,0,0,0);
     actionListLayout->setSpacing(0);
-    QPushButton *bNewActionEvent = new QPushButton("New Service");
+    QPushButton *bNewActionEvent = new QPushButton(
+        //% "New Service"
+        qtTrId("route.editor.activity.service.window.button.b.new.action.event"));
     QObject::connect(bNewActionEvent, SIGNAL(released()),
                       this, SLOT(bNewServiceSelected()));
-    QPushButton *bDeleteActionEvent = new QPushButton("Delete");
+    QPushButton *bDeleteActionEvent = new QPushButton(
+        //% "Delete"
+        qtTrId("route.editor.activity.service.window.button.b.delete.action.event"));
     QObject::connect(bDeleteActionEvent, SIGNAL(released()),
                       this, SLOT(bDeleteServiceSelected()));
     actionListLayout->addWidget(&serviceList);
     actionListLayout->addWidget(bNewActionEvent);
     actionListLayout->addWidget(bDeleteActionEvent);
     QStringList list;
-    list.append("Name:");
-    list.append("This:");
-    list.append("Any:");
+    //% "Name:"
+    list.append(qtTrId("activity.service.list.header.name"));
+    //% "This:"
+    list.append(qtTrId("activity.service.list.header.this"));
+    //% "Any:"
+    list.append(qtTrId("activity.service.list.header.any"));
     serviceList.setFixedWidth(250);
     serviceList.setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     serviceList.setColumnCount(3);

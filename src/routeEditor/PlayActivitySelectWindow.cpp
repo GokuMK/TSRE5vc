@@ -15,9 +15,13 @@
 
 PlayActivitySelectWindow::PlayActivitySelectWindow() : QDialog(){
     setFixedSize(500, 400);
-    setWindowTitle("Choose Activity");
+    setWindowTitle(
+        //% "Choose Activity"
+        qtTrId("route.editor.play.activity.select.window.title.choose.activity"));
     
-    QPushButton* ok = new QPushButton("OK");
+    QPushButton* ok = new QPushButton(
+        //% "OK"
+        qtTrId("route.editor.play.activity.select.window.button.ok"));
     connect(ok, SIGNAL (released()), this, SLOT (close()));
 
     QVBoxLayout *vlist = new QVBoxLayout;

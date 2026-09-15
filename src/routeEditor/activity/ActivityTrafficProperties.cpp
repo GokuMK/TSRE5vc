@@ -31,24 +31,32 @@ ActivityTrafficProperties::ActivityTrafficProperties(QWidget* parent) : QWidget(
     int row = 0;
     QLabel *label = NULL;
     
-    label = new QLabel("Name:");
+    label = new QLabel(
+        //% "Name:"
+        qtTrId("route.editor.activity.traffic.properties.label.label"));
     label->setMinimumWidth(100);
     vlist->addWidget(label, row, 0);
     vlist->addWidget(&eFileName, row++, 1);
     //QObject::connect(&eFileName, SIGNAL(textEdited(QString)), this, SLOT(eFileNameSelected(QString)));
-    label = new QLabel("Display Name:");
+    label = new QLabel(
+        //% "Display Name:"
+        qtTrId("route.editor.activity.traffic.properties.label.label.2"));
     label->setMinimumWidth(100);
     vlist->addWidget(label, row, 0);
     vlist->addWidget(&eDisplayName, row++, 1);
     //QObject::connect(&eDisplayName, SIGNAL(textEdited(QString)), this, SLOT(eDisplayNameSelected(QString)));
         
-    label = new QLabel("Services:");
+    label = new QLabel(
+        //% "Services:"
+        qtTrId("route.editor.activity.traffic.properties.label.label.3"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vlist->addWidget(label, row++, 0, 1, 2);
     QStringList list;
-    list.append("Name:");
-    list.append("Start Time:");
+    //% "Name:"
+    list.append(qtTrId("activity.traffic.services.header.name"));
+    //% "Start Time:"
+    list.append(qtTrId("activity.traffic.services.header.start.time"));
     lServcies.setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     lServcies.setColumnCount(2);
     lServcies.setHeaderLabels(list);
@@ -56,32 +64,44 @@ ActivityTrafficProperties::ActivityTrafficProperties(QWidget* parent) : QWidget(
     lServcies.header()->resizeSection(0,200);    
     lServcies.header()->resizeSection(1,100);    
     vlist->addWidget(&lServcies, row++, 0, 1, 2);
-    QPushButton *bAddOutcome = new QPushButton("Add New");
+    QPushButton *bAddOutcome = new QPushButton(
+        //% "Add New"
+        qtTrId("route.editor.activity.traffic.properties.button.b.add.outcome"));
     QObject::connect(bAddOutcome, SIGNAL(released()),
                       this, SLOT(bAddServiceSelected()));
     vlist->addWidget(bAddOutcome, row++, 0, 1, 2);
-    QPushButton *bRemoveOutcome = new QPushButton("Remove Selected");
+    QPushButton *bRemoveOutcome = new QPushButton(
+        //% "Remove Selected"
+        qtTrId("route.editor.activity.traffic.properties.button.b.remove.outcome"));
     QObject::connect(bRemoveOutcome, SIGNAL(released()),
                       this, SLOT(bRemoveServiceSelected()));
     vlist->addWidget(bRemoveOutcome, row++, 0, 1, 2);
-    QPushButton *bCloneOutcome = new QPushButton("Clone Selected");
+    QPushButton *bCloneOutcome = new QPushButton(
+        //% "Clone Selected"
+        qtTrId("route.editor.activity.traffic.properties.button.b.clone.outcome"));
     QObject::connect(bCloneOutcome, SIGNAL(released()),
                       this, SLOT(bCloneOutcomeSelected()));
     vlist->addWidget(bCloneOutcome, row++, 0, 1, 2);
     
-    label = new QLabel("Selected Service:");
+    label = new QLabel(
+        //% "Selected Service:"
+        qtTrId("route.editor.activity.traffic.properties.label.label.4"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vlist->addWidget(label, row++, 0, 1, 2);
     
-    vlist->addWidget(new QLabel("Service:"), row, 0);
+    vlist->addWidget(new QLabel(
+        //% "Service:"
+        qtTrId("route.editor.activity.traffic.properties.label.service")), row, 0);
     cServiceList.setStyleSheet("combobox-popup: 0;");
     cServiceList.setMaxVisibleItems(30);
     cServiceList.view()->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     vlist->addWidget(&cServiceList, row++, 1);
     QObject::connect(&cServiceList, SIGNAL(textActivated(QString)),
                       this, SLOT(serviceActoionListSelected(QString)));
-    vlist->addWidget(new QLabel("Start Time:"), row, 0);
+    vlist->addWidget(new QLabel(
+        //% "Start Time:"
+        qtTrId("route.editor.activity.traffic.properties.label.start.time")), row, 0);
     eTime.setDisplayFormat("HH:mm:ss");
     vlist->addWidget(&eTime, row++, 1);
     QObject::connect(&eTime, SIGNAL(timeChanged(QTime)),
@@ -129,7 +149,9 @@ void ActivityTrafficProperties::lServciesSelected(QTreeWidgetItem* item, int col
         return;
     
     cServiceList.clear();
-    cServiceList.addItem("UNDEFINED", "");
+    cServiceList.addItem(
+        //% "UNDEFINED"
+        qtTrId("route.editor.activity.traffic.properties.item.undefined"), "");
     for(int i = 0; i < ActLib::jestservice; i++){
         if(ActLib::Services[i] == NULL)
             continue;
@@ -160,8 +182,12 @@ void ActivityTrafficProperties::bCloneOutcomeSelected(){
     QLineEdit number, mins;
     number.setText("0");
     mins.setText("15");
-    vlist->addRow("Number of services:",&number);
-    vlist->addRow("Duration:",&mins);
+    vlist->addRow(
+        //% "Number of services:"
+        qtTrId("route.editor.activity.traffic.properties.label.number.services"),&number);
+    vlist->addRow(
+        //% "Duration:"
+        qtTrId("route.editor.activity.traffic.properties.label.duration"),&mins);
     dialog.setLayout(vlist);
     dialog.exec();
     

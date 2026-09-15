@@ -21,7 +21,9 @@
 #include <QSignalBlocker>
 
 PropertiesDyntrack::PropertiesDyntrack() {
-    buttonTools["FlexTool"] = new QPushButton("Flex", this);
+    buttonTools["FlexTool"] = new QPushButton(
+        //% "Flex"
+        qtTrId("route.editor.properties.dyntrack.button.flex"), this);
     QMapIterator<QString, QPushButton*> i(buttonTools);
     while (i.hasNext()) {
         i.next();
@@ -32,7 +34,9 @@ PropertiesDyntrack::PropertiesDyntrack() {
     vbox->setSpacing(2);
     vbox->setContentsMargins(0,1,1,1);
     
-    infoLabel = new QLabel("DynTrack:");
+    infoLabel = new QLabel(
+        //% "DynTrack:"
+        qtTrId("route.editor.properties.dyntrack.label.info.label"));
     infoLabel->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     infoLabel->setContentsMargins(3,0,0,0);
     vbox->addWidget(infoLabel);
@@ -44,83 +48,130 @@ PropertiesDyntrack::PropertiesDyntrack() {
     this->tY.setDisabled(true);
     this->eSectionIdx.setDisabled(true);
     this->eDatabase.setReadOnly(true);
-    vlist->addRow("UiD:",&this->uid);
-    vlist->addRow("Tile X:",&this->tX);
-    vlist->addRow("Tile Z:",&this->tY);
-    vlist->addRow("TrackShape:",&this->eSectionIdx);
-    vlist->addRow("Database:",&this->eDatabase);
+    vlist->addRow(
+        //% "UiD:"
+        qtTrId("route.editor.properties.dyntrack.label.ui.d"),&this->uid);
+    vlist->addRow(
+        //% "Tile X:"
+        qtTrId("route.editor.properties.dyntrack.label.tile.x"),&this->tX);
+    vlist->addRow(
+        //% "Tile Z:"
+        qtTrId("route.editor.properties.dyntrack.label.tile.z"),&this->tY);
+    vlist->addRow(
+        //% "TrackShape:"
+        qtTrId("route.editor.properties.dyntrack.label.track.shape"),&this->eSectionIdx);
+    vlist->addRow(
+        //% "Database:"
+        qtTrId("route.editor.properties.dyntrack.label.database"),&this->eDatabase);
     vbox->addItem(vlist);
 
-    QLabel *templateLabel = new QLabel("Shape Template:");
+    QLabel *templateLabel = new QLabel(
+        //% "Shape Template:"
+        qtTrId("route.editor.properties.dyntrack.label.template.label"));
     templateLabel->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     templateLabel->setContentsMargins(3,0,0,0);
     vbox->addWidget(templateLabel);
     vbox->addWidget(&eTemplate);
     eTemplate.setStyleSheet("combobox-popup: 0;");
-    eTemplate.addItem("NOT SET");
-    eTemplate.addItem("DEFAULT");
-    eTemplate.addItem("DISABLED");
-    eTemplate.setToolTip("NOT SET uses the hardcoded shape in Enabled mode; "
-                         "DEFAULT explicitly requests the default procedural template.");
+    eTemplate.addItem(
+        //% "NOT SET"
+        qtTrId("common.value.not.set"), QString());
+    eTemplate.addItem(
+        //% "DEFAULT"
+        qtTrId("common.value.default"), "DEFAULT");
+    eTemplate.addItem(
+        //% "DISABLED"
+        qtTrId("common.value.disabled"), "DISABLED");
+    eTemplate.setToolTip(
+        //% "NOT SET uses the hardcoded shape in Enabled mode; DEFAULT explicitly requests the default procedural template."
+        qtTrId("route.editor.properties.dyntrack.tooltip.not.set.uses.hardcoded.shape.in.enabled"));
     refreshTemplateList();
     QObject::connect(&eTemplate, SIGNAL(currentTextChanged(QString)),
                      this, SLOT(eTemplateEdited(QString)));
     
-    QLabel * label2 = new QLabel("Sections:");
+    QLabel * label2 = new QLabel(
+        //% "Sections:"
+        qtTrId("route.editor.properties.dyntrack.label.label2"));
     label2->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label2->setContentsMargins(3,0,0,0);
     vbox->addWidget(label2);
     
     
-    this->chSect[0].setText("First Straight section");
+    this->chSect[0].setText(
+        //% "First Straight section"
+        qtTrId("route.editor.properties.dyntrack.text.first.straight.section"));
     this->chSect[0].setChecked(true);
     //this->chSect[0].setEnabled(false);// .setCheckable(false);
     vbox->addWidget(&chSect[0]);
     vSect[0].setSpacing(2);
     vSect[0].setContentsMargins(3,0,3,0);
-    vSect[0].addRow("Length:",&this->sSectA[0]);
+    vSect[0].addRow(
+        //% "Length:"
+        qtTrId("route.editor.properties.dyntrack.label.length"),&this->sSectA[0]);
     wSect[0].setLayout(&vSect[0]);
     vbox->addWidget(&wSect[0]);
     
-    this->chSect[1].setText("First curve");
+    this->chSect[1].setText(
+        //% "First curve"
+        qtTrId("route.editor.properties.dyntrack.text.first.curve"));
     vbox->addWidget(&chSect[1]);
     vSect[1].setSpacing(2);
     vSect[1].setContentsMargins(3,0,3,0);
-    vSect[1].addRow("Angle:",&this->sSectA[1]);
-    vSect[1].addRow("Radius:",&this->sSectR[1]);
+    vSect[1].addRow(
+        //% "Angle:"
+        qtTrId("route.editor.properties.dyntrack.label.angle"),&this->sSectA[1]);
+    vSect[1].addRow(
+        //% "Radius:"
+        qtTrId("route.editor.properties.dyntrack.label.radius"),&this->sSectR[1]);
     wSect[1].setLayout(&vSect[1]);
     vbox->addWidget(&wSect[1]);
     
     
-    this->chSect[2].setText("Second Straight section");
+    this->chSect[2].setText(
+        //% "Second Straight section"
+        qtTrId("route.editor.properties.dyntrack.text.second.straight.section"));
     vbox->addWidget(&chSect[2]);
     vSect[2].setSpacing(2);
     vSect[2].setContentsMargins(3,0,3,0);
-    vSect[2].addRow("Length:",&this->sSectA[2]);
+    vSect[2].addRow(
+        //% "Length:"
+        qtTrId("route.editor.properties.dyntrack.label.length.2"),&this->sSectA[2]);
     wSect[2].setLayout(&vSect[2]);
     vbox->addWidget(&wSect[2]);
     
-    this->chSect[3].setText("Second curve");
+    this->chSect[3].setText(
+        //% "Second curve"
+        qtTrId("route.editor.properties.dyntrack.text.second.curve"));
     vbox->addWidget(&chSect[3]);
     vSect[3].setSpacing(2);
     vSect[3].setContentsMargins(3,0,3,0);
-    vSect[3].addRow("Angle:",&this->sSectA[3]);
-    vSect[3].addRow("Radius:",&this->sSectR[3]);
+    vSect[3].addRow(
+        //% "Angle:"
+        qtTrId("route.editor.properties.dyntrack.label.angle.2"),&this->sSectA[3]);
+    vSect[3].addRow(
+        //% "Radius:"
+        qtTrId("route.editor.properties.dyntrack.label.radius.2"),&this->sSectR[3]);
     wSect[3].setLayout(&vSect[3]);
     vbox->addWidget(&wSect[3]);
     
     
-    this->chSect[4].setText("Third Straight section");
+    this->chSect[4].setText(
+        //% "Third Straight section"
+        qtTrId("route.editor.properties.dyntrack.text.third.straight.section"));
     vbox->addWidget(&chSect[4]);
     vSect[4].setSpacing(2);
     vSect[4].setContentsMargins(3,0,3,0);
-    vSect[4].addRow("Length:",&this->sSectA[4]);
+    vSect[4].addRow(
+        //% "Length:"
+        qtTrId("route.editor.properties.dyntrack.label.length.3"),&this->sSectA[4]);
     wSect[4].setLayout(&vSect[4]);
     vbox->addWidget(&wSect[4]);
     
     vbox->addWidget(buttonTools["FlexTool"]);
     
-    QLabel *label = new QLabel("Elevation:");
+    QLabel *label = new QLabel(
+        //% "Elevation:"
+        qtTrId("route.editor.properties.dyntrack.label.label"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
@@ -133,11 +184,21 @@ PropertiesDyntrack::PropertiesDyntrack() {
     doubleValidator1->setNotation(QDoubleValidator::StandardNotation);
     
     //‰
-    vlist->addRow("Value: ",&this->elevType);
-    elevType.addItem("Permille ‰");
-    elevType.addItem("Percent %");
-    elevType.addItem("1 in 'X' m");
-    elevType.addItem("Angle º");
+    vlist->addRow(
+        //% "Value: "
+        qtTrId("route.editor.properties.dyntrack.label.value"),&this->elevType);
+    elevType.addItem(
+        //% "Permille ‰"
+        qtTrId("route.editor.properties.dyntrack.item.permille"), "permille");
+    elevType.addItem(
+        //% "Percent %"
+        qtTrId("route.editor.properties.dyntrack.item.percent"), "percent");
+    elevType.addItem(
+        //% "1 in 'X' m"
+        qtTrId("route.editor.properties.dyntrack.item.1.in.x.m"), "oneInX");
+    elevType.addItem(
+        //% "Angle º"
+        qtTrId("route.editor.properties.dyntrack.item.angle"), "angle");
     elevType.setStyleSheet("combobox-popup: 0;");
     QObject::connect(&elevType, SIGNAL(currentTextChanged(QString)),
                       this, SLOT(elevTypeEdited(QString)));
@@ -147,12 +208,16 @@ PropertiesDyntrack::PropertiesDyntrack() {
     elevProm.setValidator(doubleValidator1);
     QObject::connect(&elevProm, SIGNAL(textEdited(QString)), this, SLOT(elevPromEnabled(QString)));
     //oneInXm
-    elev1inXmLabel.setText("1 in 'x' m");
+    elev1inXmLabel.setText(
+        //% "1 in 'x' m"
+        qtTrId("route.editor.properties.dyntrack.text.1.in.x.m"));
     vlist->addRow(&elev1inXmLabel,&elev1inXm);
     elev1inXm.setValidator(doubleValidator);
     QObject::connect(&elev1inXm, SIGNAL(textEdited(QString)), this, SLOT(elev1inXmEnabled(QString)));
     //º
-    elevProgLabel.setText("º");
+    elevProgLabel.setText(
+        //% "º"
+        qtTrId("route.editor.properties.dyntrack.text.value"));
     vlist->addRow(&elevProgLabel,&elevProg);
     elevProg.setValidator(doubleValidator1);
     QObject::connect(&elevProg, SIGNAL(textEdited(QString)), this, SLOT(elevProgEnabled(QString)));
@@ -161,12 +226,15 @@ PropertiesDyntrack::PropertiesDyntrack() {
     vlist->addRow(&elevPropLabel,&elevProp);
     elevProp.setValidator(doubleValidator1);
     QObject::connect(&elevProp, SIGNAL(textEdited(QString)), this, SLOT(elevPropEnabled(QString)));
-    vlist->addRow("Step:",&elevStep);
+    vlist->addRow(
+        //% "Step:"
+        qtTrId("route.editor.properties.dyntrack.label.step"),&elevStep);
     elevStep.setValidator(doubleValidator);
     QObject::connect(&elevStep, SIGNAL(textEdited(QString)), this, SLOT(elevStepEnabled(QString)));
     hideElevBoxes();
     elevType.setCurrentIndex(Settings::enumIndex("core.track.defaultGradeFormat"));
-    showElevBox(elevType.currentText());
+    ElevTypeName = elevType.currentData().toString();
+    showElevBox(ElevTypeName);
     vbox->addItem(vlist);
     
     vbox->addStretch(1);
@@ -242,13 +310,17 @@ void PropertiesDyntrack::msg(QString name, QString val){
 
 void PropertiesDyntrack::showObj(GameObj* obj){
     if(obj == NULL){
-        infoLabel->setText("NULL");
+        infoLabel->setText(
+            //% "NULL"
+            qtTrId("route.editor.properties.dyntrack.text.null"));
         return;
     }
     worldObj = (WorldObj*)obj;
     dobj = (DynTrackObj*)obj;
     refreshTemplateList();
-    this->infoLabel->setText("Object: "+dobj->type);
+    //% "Object: %1"
+    this->infoLabel->setText(qtTrId("route.properties.dynamic.track.object.type")
+                             .arg(dobj->type));
     
     this->uid.setText(QString::number(dobj->UiD, 10));
     this->tX.setText(QString::number(dobj->x, 10));
@@ -257,14 +329,19 @@ void PropertiesDyntrack::showObj(GameObj* obj){
         this->eSectionIdx.setText("");
     else
         this->eSectionIdx.setText(QString::number(dobj->sectionIdx, 10));
-    this->eDatabase.setText(
-            dobj->isRoad() ? "Road (RDB)" : "Rail (TDB)");
+    this->eDatabase.setText(dobj->isRoad()
+            ?
+              //% "Road (RDB)"
+              qtTrId("route.properties.dyntrack.database.road")
+            :
+              //% "Rail (TDB)"
+              qtTrId("route.properties.dyntrack.database.rail"));
     
     updateSectionValues();
     updateTemplateValue();
     
     ///////////
-    elevType.setCurrentText(ElevTypeName);
+    elevType.setCurrentIndex(qMax(0, elevType.findData(ElevTypeName)));
     
     float * q = dobj->qDirection;
     float vect[3];
@@ -294,8 +371,13 @@ void PropertiesDyntrack::updateObj(GameObj* obj){
         return;
     }
     dobj = (DynTrackObj*)obj;
-    this->eDatabase.setText(
-            dobj->isRoad() ? "Road (RDB)" : "Rail (TDB)");
+    this->eDatabase.setText(dobj->isRoad()
+            ?
+              //% "Road (RDB)"
+              qtTrId("route.properties.dyntrack.database.road")
+            :
+              //% "Rail (TDB)"
+              qtTrId("route.properties.dyntrack.database.rail"));
     float * q = dobj->qDirection;
     float vect[3];
     vect[0] = 0; vect[1] = 0; vect [2] = 1000.0;
@@ -320,12 +402,18 @@ void PropertiesDyntrack::updateObj(GameObj* obj){
 
 void PropertiesDyntrack::refreshTemplateList(){
     const QSignalBlocker blocker(&eTemplate);
-    const QString previousValue = eTemplate.currentText();
+    const QString previousValue = eTemplate.currentData().toString();
 
     eTemplate.clear();
-    eTemplate.addItem("NOT SET");
-    eTemplate.addItem("DEFAULT");
-    eTemplate.addItem("DISABLED");
+    eTemplate.addItem(
+        //% "NOT SET"
+        qtTrId("common.value.not.set"), QString());
+    eTemplate.addItem(
+        //% "DEFAULT"
+        qtTrId("common.value.default"), "DEFAULT");
+    eTemplate.addItem(
+        //% "DISABLED"
+        qtTrId("common.value.disabled"), "DISABLED");
 
     ProceduralShape::Load();
     OrtsTrackProfileCatalog::load(Game::root + "/ROUTES/" + Game::route);
@@ -333,8 +421,8 @@ void PropertiesDyntrack::refreshTemplateList(){
     // Route-local ORTS profiles are the most specific definitions, so show
     // them before application-level TSRE templates.
     for(const QString &profileId : OrtsTrackProfileCatalog::profileIds())
-        if(eTemplate.findText(profileId, Qt::MatchFixedString) < 0)
-            eTemplate.addItem(profileId);
+        if(eTemplate.findData(profileId) < 0)
+            eTemplate.addItem(profileId, profileId);
 
     if(ProceduralShape::ShapeTemplateFile != NULL){
         QMapIterator<QString, ShapeTemplate*> iterator(
@@ -349,35 +437,33 @@ void PropertiesDyntrack::refreshTemplateList(){
             // template and only the route definition remains selectable.
             if(OrtsTrackProfileCatalog::find(name) != nullptr)
                 continue;
-            if(eTemplate.findText(name, Qt::MatchFixedString) < 0)
-                eTemplate.addItem(name);
+            if(eTemplate.findData(name) < 0)
+                eTemplate.addItem(name, name);
         }
     }
 
     if(!previousValue.isEmpty()
-            && eTemplate.findText(previousValue, Qt::MatchFixedString) < 0)
-        eTemplate.addItem(previousValue);
+            && eTemplate.findData(previousValue) < 0)
+        eTemplate.addItem(previousValue, previousValue);
     if(!previousValue.isEmpty())
-        eTemplate.setCurrentText(previousValue);
+        eTemplate.setCurrentIndex(eTemplate.findData(previousValue));
 }
 
 void PropertiesDyntrack::updateTemplateValue(){
     if(dobj == NULL)
         return;
     QString name = dobj->getTemplate();
-    if(name.isEmpty())
-        name = "NOT SET";
     const QSignalBlocker blocker(&eTemplate);
-    if(eTemplate.findText(name, Qt::MatchFixedString) < 0)
-        eTemplate.addItem(name);
-    eTemplate.setCurrentText(name);
+    if(eTemplate.findData(name) < 0)
+        eTemplate.addItem(name, name);
+    eTemplate.setCurrentIndex(eTemplate.findData(name));
 }
 
 void PropertiesDyntrack::eTemplateEdited(QString val){
     if(dobj == NULL)
         return;
-    if(val == "NOT SET")
-        val.clear();
+    Q_UNUSED(val);
+    val = eTemplate.currentData().toString();
     Undo::SinglePushWorldObjData(worldObj);
     dobj->setTemplate(val);
 }
@@ -414,7 +500,9 @@ void PropertiesDyntrack::updateSectionValues(){
 void PropertiesDyntrack::chSectEnabled(int idx){
     qDebug() << "chSectEnabled";
     if(dobj == NULL){
-        infoLabel->setText("NULL");
+        infoLabel->setText(
+            //% "NULL"
+            qtTrId("route.editor.properties.dyntrack.text.null.2"));
         return;
     }
     
@@ -448,7 +536,9 @@ void PropertiesDyntrack::chSectEnabled(int idx){
 void PropertiesDyntrack::sSectEnabled(int idx){
     qDebug() << "sSectEnabled";
     if(dobj == NULL){
-        infoLabel->setText("NULL");
+        infoLabel->setText(
+            //% "NULL"
+            qtTrId("route.editor.properties.dyntrack.text.null.3"));
         return;
     }
     if(idx%2 == 1 && fabs(this->sSectA[idx].value()) < 0.0001 )
@@ -515,25 +605,27 @@ void PropertiesDyntrack::flexData(int x, int z, float* p){
 }
 
 void PropertiesDyntrack::elevTypeEdited(QString val){
+    Q_UNUSED(val);
+    val = elevType.currentData().toString();
     hideElevBoxes();
     showElevBox(val);
     ElevTypeName = val;
 }
 
 void PropertiesDyntrack::showElevBox(QString val){
-    if(val == "Permille ‰"){
+    if(val == "permille"){
         elevProm.show();
         elevPromLabel.show();
     }
-    if(val == "Percent %"){
+    if(val == "percent"){
         elevProp.show();
         elevPropLabel.show();
     }
-    if(val == "1 in 'X' m"){
+    if(val == "oneInX"){
         elev1inXm.show();
         elev1inXmLabel.show();
     }
-    if(val == "Angle º"){
+    if(val == "angle"){
         elevProg.show();
         elevProgLabel.show();
     }    

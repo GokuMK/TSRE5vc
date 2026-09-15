@@ -4,25 +4,40 @@
 #include <QImageReader>
 #include <QImageWriter>
 #include <QSaveFile>
+#include <QCoreApplication>
 #include <cstring>
 
 namespace AceConverter {
 const QVector<Encoding> &encodings() {
     static const QVector<Encoding> values = {
-        {"rgb", "RGB (24-bit, no alpha)", AceEncoding::Rgb},
-        {"rgba", "RGBA (8-bit alpha)", AceEncoding::Rgba},
-        {"mask", "RGB + 1-bit mask", AceEncoding::Mask},
-        {"dxt1", "DXT1 (opaque)", AceEncoding::Dxt1},
-        {"dxt1mask", "DXT1 (1-bit alpha)", AceEncoding::Dxt1Mask},
-        {"dxt3", "DXT3 (4-bit alpha)", AceEncoding::Dxt3},
-        {"dxt5", "DXT5 (interpolated alpha)", AceEncoding::Dxt5},
-        {"rgb565", "RGB565 (16-bit, no alpha)", AceEncoding::Rgb565},
-        {"argb1555", "ARGB1555 (1-bit alpha)", AceEncoding::Argb1555},
-        {"argb4444", "ARGB4444 (4-bit alpha)", AceEncoding::Argb4444},
-        {"dxt2", "DXT2 (premultiplied alpha)", AceEncoding::Dxt2},
-        {"dxt4", "DXT4 (premultiplied alpha)", AceEncoding::Dxt4},
-        {"indexed-rgb", "Indexed RGB (up to 256 colors)", AceEncoding::IndexedRgb},
-        {"indexed-rgba", "Indexed RGBA (up to 256 colors)", AceEncoding::IndexedRgba}
+        //% "RGB (24-bit, no alpha)"
+        {"rgb", QT_TRID_NOOP("ace.converter.encoding.rgb"), AceEncoding::Rgb},
+        //% "RGBA (8-bit alpha)"
+        {"rgba", QT_TRID_NOOP("ace.converter.encoding.rgba"), AceEncoding::Rgba},
+        //% "RGB + 1-bit mask"
+        {"mask", QT_TRID_NOOP("ace.converter.encoding.mask"), AceEncoding::Mask},
+        //% "DXT1 (opaque)"
+        {"dxt1", QT_TRID_NOOP("ace.converter.encoding.dxt1"), AceEncoding::Dxt1},
+        //% "DXT1 (1-bit alpha)"
+        {"dxt1mask", QT_TRID_NOOP("ace.converter.encoding.dxt1.mask"), AceEncoding::Dxt1Mask},
+        //% "DXT3 (4-bit alpha)"
+        {"dxt3", QT_TRID_NOOP("ace.converter.encoding.dxt3"), AceEncoding::Dxt3},
+        //% "DXT5 (interpolated alpha)"
+        {"dxt5", QT_TRID_NOOP("ace.converter.encoding.dxt5"), AceEncoding::Dxt5},
+        //% "RGB565 (16-bit, no alpha)"
+        {"rgb565", QT_TRID_NOOP("ace.converter.encoding.rgb565"), AceEncoding::Rgb565},
+        //% "ARGB1555 (1-bit alpha)"
+        {"argb1555", QT_TRID_NOOP("ace.converter.encoding.argb1555"), AceEncoding::Argb1555},
+        //% "ARGB4444 (4-bit alpha)"
+        {"argb4444", QT_TRID_NOOP("ace.converter.encoding.argb4444"), AceEncoding::Argb4444},
+        //% "DXT2 (premultiplied alpha)"
+        {"dxt2", QT_TRID_NOOP("ace.converter.encoding.dxt2"), AceEncoding::Dxt2},
+        //% "DXT4 (premultiplied alpha)"
+        {"dxt4", QT_TRID_NOOP("ace.converter.encoding.dxt4"), AceEncoding::Dxt4},
+        //% "Indexed RGB (up to 256 colors)"
+        {"indexed-rgb", QT_TRID_NOOP("ace.converter.encoding.indexed.rgb"), AceEncoding::IndexedRgb},
+        //% "Indexed RGBA (up to 256 colors)"
+        {"indexed-rgba", QT_TRID_NOOP("ace.converter.encoding.indexed.rgba"), AceEncoding::IndexedRgba}
     };
     return values;
 }
@@ -240,14 +255,23 @@ QString inputFilter() {
     for (const QByteArray &format : QImageReader::supportedImageFormats())
         patterns.append("*." + QString::fromLatin1(format));
     patterns.removeDuplicates();
-    return "Images (" + patterns.join(' ') + ");;All files (*)";
+    // Keep QFileDialog's wildcard syntax outside the translation. An absent
+    // translation may deliberately display its ID, but it must not disable the
+    // file filter.
+    //% "Images"
+    const QString images = qtTrId("ace.converter.filter.input.images");
+    //% "All files"
+    const QString allFiles = qtTrId("ace.converter.filter.input.all.files");
+    return images + " (" + patterns.join(' ') + ");;" + allFiles + " (*)";
 }
 QStringList outputFilters() {
     QStringList filters;
     for (const QByteArray &format : QImageWriter::supportedImageFormats()) {
         if (format == "ace") continue;
-        filters.append(QString::fromLatin1(format).toUpper() + " image (*." +
-                       QString::fromLatin1(format) + ')');
+        //% "%1 image"
+        filters.append(qtTrId("ace.converter.filter.output.image")
+                       .arg(QString::fromLatin1(format).toUpper())
+                       + " (*." + QString::fromLatin1(format) + ')');
     }
     return filters;
 }

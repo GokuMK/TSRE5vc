@@ -16,7 +16,9 @@ PropertiesConsist::PropertiesConsist() {
     QVBoxLayout *vbox = new QVBoxLayout;
     vbox->setSpacing(2);
     vbox->setContentsMargins(0,1,1,1);
-    infoLabel = new QLabel("ActivityConsist:");
+    infoLabel = new QLabel(
+        //% "ActivityConsist:"
+        qtTrId("route.editor.properties.consist.label.info.label"));
     infoLabel->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     infoLabel->setContentsMargins(3,0,0,0);
     vbox->addWidget(infoLabel);
@@ -24,7 +26,9 @@ PropertiesConsist::PropertiesConsist() {
     QFormLayout *vlist = new QFormLayout;
     vlist->setSpacing(2);
     vlist->setContentsMargins(3,0,3,0);
-    vlist->addRow("Speed:",&eSpeed);
+    vlist->addRow(
+        //% "Speed:"
+        qtTrId("route.editor.properties.consist.label.speed"),&eSpeed);
     QObject::connect(&eSpeed, SIGNAL(textEdited(QString)),
                       this, SLOT(eSpeedEnabled(QString)));
     //vlist->addRow("Id:",&eId);
@@ -34,7 +38,9 @@ PropertiesConsist::PropertiesConsist() {
     //eEid.setDisabled(true);
     vbox->addItem(vlist);
     
-    QPushButton *bCam = new QPushButton("Get Camera View");
+    QPushButton *bCam = new QPushButton(
+        //% "Get Camera View"
+        qtTrId("route.editor.properties.consist.button.b.cam"));
     QObject::connect(bCam, SIGNAL(released()), this, SLOT(bCamEnabled()));
     vbox->addWidget(bCam);
     
@@ -48,12 +54,16 @@ PropertiesConsist::~PropertiesConsist() {
 
 void PropertiesConsist::showObj(GameObj* obj){
     if(obj == NULL){
-        infoLabel->setText("NULL");
+        infoLabel->setText(
+            //% "NULL"
+            qtTrId("route.editor.properties.consist.text.null"));
         return;
     }
     conObj = (Consist*)obj;
     
-    infoLabel->setText("Object: Activity Consist");
+    infoLabel->setText(
+        //% "Object: Activity Consist"
+        qtTrId("route.editor.properties.consist.text.object.activity.consist"));
     eSpeed.setText(QString::number(conObj->getTrainSpeed()));
 }
 

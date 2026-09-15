@@ -38,11 +38,21 @@ TerrainProfileSelector::TerrainProfileSelector(QWidget *parent,
       profiles(new QComboBox(this)),
       patches(new QComboBox(this)),
       profileDescription(new QLabel(this)),
-      tsreName(new QLabel("TSRE current:", this)),
-      msts18Name(new QLabel("MSTS Bin 1.8:", this)),
-      msts19Name(new QLabel("MSTS Bin 1.9:", this)),
-      ortsMasterName(new QLabel("ORTS master:", this)),
-      ortsUnstableName(new QLabel("ORTS unstable:", this)),
+      tsreName(new QLabel(
+          //% "TSRE current:"
+          qtTrId("route.editor.terrain.profile.selector.label.tsre.current"), this)),
+      msts18Name(new QLabel(
+          //% "MSTS Bin 1.8:"
+          qtTrId("route.editor.terrain.profile.selector.label.msts.bin.1.8"), this)),
+      msts19Name(new QLabel(
+          //% "MSTS Bin 1.9:"
+          qtTrId("route.editor.terrain.profile.selector.label.msts.bin.1.9"), this)),
+      ortsMasterName(new QLabel(
+          //% "ORTS master:"
+          qtTrId("route.editor.terrain.profile.selector.label.orts.master"), this)),
+      ortsUnstableName(new QLabel(
+          //% "ORTS unstable:"
+          qtTrId("route.editor.terrain.profile.selector.label.orts.unstable"), this)),
       tsreStatus(compatibilityLabel(this)),
       msts18Status(compatibilityLabel(this)),
       msts19Status(compatibilityLabel(this)),
@@ -70,18 +80,32 @@ TerrainProfileSelector::TerrainProfileSelector(QWidget *parent,
     }
 
     patches->setStyleSheet("combobox-popup: 0;");
-    patches->addItem("4 x 4", 4);
-    patches->addItem("8 x 8", 8);
-    patches->addItem("16 x 16", 16);
-    patches->addItem("32 x 32 (experimental)", 32);
+    patches->addItem(
+        //% "4 x 4"
+        qtTrId("route.editor.terrain.profile.selector.item.4.x.4"), 4);
+    patches->addItem(
+        //% "8 x 8"
+        qtTrId("route.editor.terrain.profile.selector.item.8.x.8"), 8);
+    patches->addItem(
+        //% "16 x 16"
+        qtTrId("route.editor.terrain.profile.selector.item.16.x.16"), 16);
+    patches->addItem(
+        //% "32 x 32 (experimental)"
+        qtTrId("route.editor.terrain.profile.selector.item.32.x.32.experimental"), 32);
 
     QFormLayout *selectionLayout = new QFormLayout;
-    selectionLayout->addRow("Heightmap profile:", profiles);
-    selectionLayout->addRow("Patches per side:", patches);
+    selectionLayout->addRow(
+        //% "Heightmap profile:"
+        qtTrId("route.editor.terrain.profile.selector.label.heightmap.profile"), profiles);
+    selectionLayout->addRow(
+        //% "Patches per side:"
+        qtTrId("route.editor.terrain.profile.selector.label.patches.per.side"), patches);
 
     profileDescription->setWordWrap(true);
 
-    QGroupBox *compatibility = new QGroupBox("Compatibility", this);
+    QGroupBox *compatibility = new QGroupBox(
+        //% "Compatibility"
+        qtTrId("route.editor.terrain.profile.selector.group.compatibility"), this);
     QGridLayout *compatibilityLayout = new QGridLayout(compatibility);
     compatibilityLayout->setColumnStretch(1, 1);
     compatibilityLayout->addWidget(tsreName, 0, 0);
@@ -222,11 +246,16 @@ void TerrainProfileSelector::setCompatibility(
         QLabel *name, QLabel *status, const QString &text) {
     status->setText(text);
     QString color = "#d6a000";
-    if (text.startsWith("Supported but not Recommended"))
+    //% "Supported but not Recommended"
+    if (text == qtTrId("terrain.compatibility.supported.not.recommended"))
         color = "#d6a000";
-    else if (text.startsWith("Supported"))
+    else if (text.startsWith(
+                 //% "Supported"
+                 qtTrId("terrain.compatibility.supported.prefix")))
         color = Game::StyleGreenText;
-    else if (text.startsWith("Not compatible"))
+    else if (text.startsWith(
+                 //% "Not compatible"
+                 qtTrId("terrain.compatibility.not.compatible.prefix")))
         color = Game::StyleRedText;
     name->setStyleSheet(QString("QLabel { color: %1; font-weight: bold; }")
                         .arg(color));
@@ -235,24 +264,35 @@ void TerrainProfileSelector::setCompatibility(
 QString TerrainProfileSelector::tsreCompatibility(
         const TerrainGridLayout &layout) const {
     if (layout.sampleCount == 2048)
-        return "Supported but not Recommended";
+        //% "Supported but not Recommended"
+        return qtTrId("terrain.compatibility.supported.not.recommended");
     const bool recommended =
             (layout.sampleCount == 256 && layout.patchesPerSide == 16)
             || (layout.sampleCount == 512 && layout.patchesPerSide == 16)
             || (layout.sampleCount == 1024 && layout.patchesPerSide == 16);
-    return recommended ? "Supported and Recommended" : "Supported";
+    return recommended
+            ?
+              //% "Supported and Recommended"
+              qtTrId("terrain.compatibility.supported.recommended")
+            :
+              //% "Supported"
+              qtTrId("terrain.compatibility.supported.prefix");
 }
 
 QString TerrainProfileSelector::msts18Compatibility(
         const TerrainGridLayout &layout) const {
     if (layout.sampleCount == 256 && layout.patchesPerSide == 16)
-        return "Supported standard profile";
+        //% "Supported standard profile"
+        return qtTrId("terrain.compatibility.supported.standard");
     if (layout.sampleCount == 128 && layout.patchesPerSide == 16)
-        return "Supported; confirmed in MSTS Route Editor";
+        //% "Supported; confirmed in MSTS Route Editor"
+        return qtTrId("terrain.compatibility.msts.confirmed.editor");
     if (layout.sampleCount <= 256 && layout.patchesPerSide <= 16
             && layout.patchResolution <= 16)
-        return "Within recovered limits; this tuple is not runtime-tested";
-    return "Not compatible (requires N<=256, P<=16 and R<=16)";
+        //% "Within recovered limits; this tuple is not runtime-tested"
+        return qtTrId("terrain.compatibility.msts18.within.limits");
+    //% "Not compatible (requires N<=256, P<=16 and R<=16)"
+    return qtTrId("terrain.compatibility.msts18.not.compatible");
 }
 
 QString TerrainProfileSelector::msts19Compatibility(
@@ -264,29 +304,35 @@ QString TerrainProfileSelector::msts19Compatibility(
             || (layout.sampleCount == 1024 && layout.patchesPerSide == 16)
             || (layout.sampleCount == 1024 && layout.patchesPerSide == 32);
     if (confirmed)
-        return "Supported; runtime-confirmed";
+        //% "Supported; runtime-confirmed"
+        return qtTrId("terrain.compatibility.msts19.confirmed.runtime");
     if (layout.sampleCount <= 1024 && layout.patchesPerSide <= 32
             && layout.patchResolution <= 64)
-        return "Within patched limits; this tuple is not runtime-tested";
-    return "Not compatible (requires N<=1024, P<=32 and R<=64)";
+        //% "Within patched limits; this tuple is not runtime-tested"
+        return qtTrId("terrain.compatibility.msts19.within.limits");
+    //% "Not compatible (requires N<=1024, P<=32 and R<=64)"
+    return qtTrId("terrain.compatibility.msts19.not.compatible");
 }
 
 QString TerrainProfileSelector::ortsMasterCompatibility(
         const TerrainGridLayout &layout) const {
     if (layout.patchResolution != 16)
-        return "Not compatible: renderer assumes R=16";
+        //% "Not compatible: renderer assumes R=16"
+        return qtTrId("terrain.compatibility.orts.master.patch.resolution");
     if (layout.sampleCount == 256 && layout.patchesPerSide == 16)
-        return "Supported standard profile";
+        return qtTrId("terrain.compatibility.supported.standard");
     if (layout.sampleSpacing != 8)
-        return "Geometry source-compatible; untested; normals assume 8 m spacing";
-    return "Source-compatible; this tuple is not runtime-tested";
+        //% "Geometry source-compatible; untested; normals assume 8 m spacing"
+        return qtTrId("terrain.compatibility.orts.geometry.spacing");
+    //% "Source-compatible; this tuple is not runtime-tested"
+    return qtTrId("terrain.compatibility.orts.source.compatible");
 }
 
 QString TerrainProfileSelector::ortsUnstableCompatibility(
         const TerrainGridLayout &layout) const {
     if (layout.sampleCount == 256 && layout.patchesPerSide == 16)
-        return "Supported standard profile";
+        return qtTrId("terrain.compatibility.supported.standard");
     if (layout.sampleSpacing != 8)
-        return "Geometry source-compatible; untested; normals assume 8 m spacing";
-    return "Source-compatible; this tuple is not runtime-tested";
+        return qtTrId("terrain.compatibility.orts.geometry.spacing");
+    return qtTrId("terrain.compatibility.orts.source.compatible");
 }

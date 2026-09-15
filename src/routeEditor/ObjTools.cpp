@@ -43,11 +43,21 @@ ObjTools::ObjTools(QString name)
     //QRadioButton *radio2 = new QRadioButton(tr("R&adio button 2"));
     //QRadioButton *radio3 = new QRadioButton(tr("Ra&dio button 3"));
     setFixedWidth(250);
-    buttonTools["selectTool"] = new QPushButton("Select", this);
-    buttonTools["placeTool"] = new QPushButton("Place New", this);
-    buttonTools["continuousFlexTool"] = new QPushButton("FLEX TRACK", this);
-    buttonTools["continuousFlexRoadTool"] = new QPushButton("FLEX ROAD", this);
-    buttonTools["autoPlaceSimpleTool"] = new QPushButton("Auto Placement", this);
+    buttonTools["selectTool"] = new QPushButton(
+        //% "Select"
+        qtTrId("route.editor.obj.tools.button.select"), this);
+    buttonTools["placeTool"] = new QPushButton(
+        //% "Place New"
+        qtTrId("route.editor.obj.tools.button.place.new"), this);
+    buttonTools["continuousFlexTool"] = new QPushButton(
+        //% "FLEX TRACK"
+        qtTrId("route.editor.obj.tools.button.flex.track"), this);
+    buttonTools["continuousFlexRoadTool"] = new QPushButton(
+        //% "FLEX ROAD"
+        qtTrId("route.editor.obj.tools.button.flex.road"), this);
+    buttonTools["autoPlaceSimpleTool"] = new QPushButton(
+        //% "Auto Placement"
+        qtTrId("route.editor.obj.tools.button.auto.placement"), this);
     QMapIterator<QString, QPushButton*> i(buttonTools);
     while (i.hasNext()) {
         i.next();
@@ -57,12 +67,16 @@ ObjTools::ObjTools(QString name)
     QPushButton *advancedPlacenentButton = new QPushButton("...", this);
     advancedPlacenentButton->setCheckable(true);
     QObject::connect(advancedPlacenentButton, SIGNAL(toggled(bool)), this, SLOT(advancedPlacementButtonEnabled(bool)));
-    QPushButton *resetRotationButton = new QPushButton("Reset Place Rot", this);
+    QPushButton *resetRotationButton = new QPushButton(
+        //% "Reset Place Rot"
+        qtTrId("route.editor.obj.tools.button.reset.rotation.button"), this);
     QPushButton *continuousFlexOptionsButton = new QPushButton("...", this);
     continuousFlexOptionsButton->setCheckable(true);
     QObject::connect(continuousFlexOptionsButton, SIGNAL(toggled(bool)),
             this, SLOT(continuousFlexOptionsButtonEnabled(bool)));
-    QPushButton *autoPlacementDeleteLast = new QPushButton("Delete last placed objects", this);
+    QPushButton *autoPlacementDeleteLast = new QPushButton(
+        //% "Delete last placed objects"
+        qtTrId("route.editor.obj.tools.button.auto.placement.delete.last"), this);
     QObject::connect(autoPlacementDeleteLast, SIGNAL(released()), this, SLOT(autoPlacementDeleteLastEnabled()));
     
     //searchBox = new QLineEdit(this);
@@ -71,18 +85,30 @@ ObjTools::ObjTools(QString name)
     QVBoxLayout *vbox = new QVBoxLayout;
     vbox->setSpacing(2);
     vbox->setContentsMargins(0,1,1,1);
-    QLabel *label1 = new QLabel("Objects:");
+    QLabel *label1 = new QLabel(
+        //% "Objects:"
+        qtTrId("route.editor.obj.tools.label.label1"));
     label1->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label1->setContentsMargins(3,0,0,0);
     vbox->addWidget(label1);
     QFormLayout *vlist = new QFormLayout;
     vlist->setSpacing(2);
     vlist->setContentsMargins(3,0,3,0);
-    vlist->addRow("Ref file:",&refClass);
-    vlist->addRow("Tracks:",&refTrack);
-    vlist->addRow("Roads:",&refRoad);
-    vlist->addRow("Other:",&refOther);
-    vlist->addRow("Search:",&searchBox);
+    vlist->addRow(
+        //% "Ref file:"
+        qtTrId("route.editor.obj.tools.label.ref.file"),&refClass);
+    vlist->addRow(
+        //% "Tracks:"
+        qtTrId("route.editor.obj.tools.label.tracks"),&refTrack);
+    vlist->addRow(
+        //% "Roads:"
+        qtTrId("route.editor.obj.tools.label.roads"),&refRoad);
+    vlist->addRow(
+        //% "Other:"
+        qtTrId("route.editor.obj.tools.label.other"),&refOther);
+    vlist->addRow(
+        //% "Search:"
+        qtTrId("route.editor.obj.tools.label.search"),&searchBox);
     vbox->addItem(vlist);
     vbox->addWidget(&refList);
     QGridLayout *vlist3 = new QGridLayout;
@@ -115,13 +141,20 @@ ObjTools::ObjTools(QString name)
     continuousFlexOptionsLayout->setContentsMargins(3,0,3,0);
     continuousFlexProfile.setStyleSheet("combobox-popup: 0;");
     continuousFlexProfile.setToolTip(
-            "Procedural profile used for new Flex objects. Road lane role profiles are selected automatically.");
+            //% "Procedural profile used for new Flex objects. Road lane role profiles are selected automatically."
+            qtTrId("route.editor.obj.tools.tooltip.procedural.profile.used.for.new.flex.objects"));
     continuousFlexOptionsLayout->addWidget(&continuousFlexProfile, 0, 0, 1, 2);
-    continuousFlexLeft.setText("Track on left");
-    continuousFlexRight.setText("Track on right");
+    continuousFlexLeft.setText(
+        //% "Track on left"
+        qtTrId("route.editor.obj.tools.text.track.on.left"));
+    continuousFlexRight.setText(
+        //% "Track on right"
+        qtTrId("route.editor.obj.tools.text.track.on.right"));
     continuousFlexOptionsLayout->addWidget(&continuousFlexLeft, 1, 0);
     continuousFlexOptionsLayout->addWidget(&continuousFlexRight, 1, 1);
-    continuousFlexOptionsLayout->addWidget(new QLabel("Separation:"), 2, 0);
+    continuousFlexOptionsLayout->addWidget(new QLabel(
+        //% "Separation:"
+        qtTrId("route.editor.obj.tools.label.separation")), 2, 0);
     continuousFlexSeparation.setDecimals(3);
     continuousFlexSeparation.setRange(1.0, 20.0);
     continuousFlexSeparation.setSingleStep(0.25);
@@ -129,14 +162,17 @@ ObjTools::ObjTools(QString name)
     continuousFlexSeparation.setValue(4.0);
     continuousFlexSeparation.setEnabled(false);
     continuousFlexOptionsLayout->addWidget(&continuousFlexSeparation, 2, 1);
-    continuousFlexOptionsLayout->addWidget(new QLabel("Minimum radius:"), 3, 0);
+    continuousFlexOptionsLayout->addWidget(new QLabel(
+        //% "Minimum radius:"
+        qtTrId("route.editor.obj.tools.label.minimum.radius")), 3, 0);
     continuousFlexMinimumRadius.setDecimals(2);
     continuousFlexMinimumRadius.setRange(5.0, 10000.0);
     continuousFlexMinimumRadius.setSingleStep(0.5);
     continuousFlexMinimumRadius.setSuffix(" m");
     continuousFlexMinimumRadius.setValue(continuousFlexTrackMinimumRadius);
     continuousFlexMinimumRadius.setToolTip(
-            "Raised when necessary to keep inner companion tracks or lanes valid.");
+            //% "Raised when necessary to keep inner companion tracks or lanes valid."
+            qtTrId("route.editor.obj.tools.tooltip.raised.when.necessary.keep.inner.companion.tracks"));
     continuousFlexOptionsLayout->addWidget(&continuousFlexMinimumRadius, 3, 1);
     continuousFlexOptionsWidget.setLayout(continuousFlexOptionsLayout);
     continuousFlexOptionsWidget.hide();
@@ -157,54 +193,90 @@ ObjTools::ObjTools(QString name)
     vlist3->setSpacing(2);
     vlist3->setContentsMargins(3,0,1,0);    
     row = 0;
-    vlist3->addWidget(new QLabel("Rotation Type:"),row,0,1,1);
+    vlist3->addWidget(new QLabel(
+        //% "Rotation Type:"
+        qtTrId("route.editor.obj.tools.label.rotation.type")),row,0,1,1);
     vlist3->addWidget(&autoPlacementRotType,row++,1,1,6);
     QObject::connect(&autoPlacementRotType, SIGNAL(textActivated(QString)),
                       this, SLOT(autoPlacementRotTypeSelected(QString)));
     autoPlacementRotType.setStyleSheet("combobox-popup: 0;");
-    autoPlacementRotType.addItem("Two Point Rotation");
-    autoPlacementRotType.addItem("One Point Rotation");
-    vlist3->addWidget(new QLabel("Target:"),row,0,1,1);
+    autoPlacementRotType.addItem(
+        //% "Two Point Rotation"
+        qtTrId("route.editor.obj.tools.item.two.point.rotation"));
+    autoPlacementRotType.addItem(
+        //% "One Point Rotation"
+        qtTrId("route.editor.obj.tools.item.one.point.rotation"));
+    vlist3->addWidget(new QLabel(
+        //% "Target:"
+        qtTrId("route.editor.obj.tools.label.target")),row,0,1,1);
     vlist3->addWidget(&autoPlacementTarget,row++,1,1,6);
     QObject::connect(&autoPlacementTarget, SIGNAL(textActivated(QString)),
                       this, SLOT(autoPlacementTargetSelected(QString)));
     autoPlacementTarget.setStyleSheet("combobox-popup: 0;");
-    autoPlacementTarget.addItem("Tracks");
-    autoPlacementTarget.addItem("Roads");
-    autoPlacementTarget.addItem("Tracks & Roads");
-    autoPlacementTarget.addItem("Snapable");
-    vlist3->addWidget(new QLabel("Translate Offset"),row,0);
-    vlist3->addWidget(new QLabel("X:"),row,1);
+    autoPlacementTarget.addItem(
+        //% "Tracks"
+        qtTrId("route.editor.obj.tools.item.tracks"));
+    autoPlacementTarget.addItem(
+        //% "Roads"
+        qtTrId("route.editor.obj.tools.item.roads"));
+    autoPlacementTarget.addItem(
+        //% "Tracks & Roads"
+        qtTrId("route.editor.obj.tools.item.tracks.roads"));
+    autoPlacementTarget.addItem(
+        //% "Snapable"
+        qtTrId("route.editor.obj.tools.item.snapable"));
+    vlist3->addWidget(new QLabel(
+        //% "Translate Offset"
+        qtTrId("route.editor.obj.tools.label.translate.offset")),row,0);
+    vlist3->addWidget(new QLabel(
+        //% "X:"
+        qtTrId("route.editor.obj.tools.label.x")),row,1);
     vlist3->addWidget(&autoPlacementPosX,row,2);
     QObject::connect(&autoPlacementPosX, SIGNAL(textEdited(QString)), this, SLOT(autoPlacementOffsetEnabled(QString)));
     autoPlacementPosX.setText("0");
-    vlist3->addWidget(new QLabel("Y:"),row,3);
+    vlist3->addWidget(new QLabel(
+        //% "Y:"
+        qtTrId("route.editor.obj.tools.label.y")),row,3);
     vlist3->addWidget(&autoPlacementPosY,row,4);
     QObject::connect(&autoPlacementPosY, SIGNAL(textEdited(QString)), this, SLOT(autoPlacementOffsetEnabled(QString)));
     autoPlacementPosY.setText("0");
-    vlist3->addWidget(new QLabel("Z:"),row,5);
+    vlist3->addWidget(new QLabel(
+        //% "Z:"
+        qtTrId("route.editor.obj.tools.label.z")),row,5);
     vlist3->addWidget(&autoPlacementPosZ,row++,6);    
     QObject::connect(&autoPlacementPosZ, SIGNAL(textEdited(QString)), this, SLOT(autoPlacementOffsetEnabled(QString)));
     autoPlacementPosZ.setText("0");
-    vlist3->addWidget(new QLabel("Rotate Offset"),row,0);
-    vlist3->addWidget(new QLabel("X:"),row,1);
+    vlist3->addWidget(new QLabel(
+        //% "Rotate Offset"
+        qtTrId("route.editor.obj.tools.label.rotate.offset")),row,0);
+    vlist3->addWidget(new QLabel(
+        //% "X:"
+        qtTrId("route.editor.obj.tools.label.x.2")),row,1);
     vlist3->addWidget(&autoPlacementRotX,row,2);
     QObject::connect(&autoPlacementRotX, SIGNAL(textEdited(QString)), this, SLOT(autoPlacementOffsetEnabled(QString)));
     autoPlacementRotX.setText("0");
-    vlist3->addWidget(new QLabel("Y:"),row,3);
+    vlist3->addWidget(new QLabel(
+        //% "Y:"
+        qtTrId("route.editor.obj.tools.label.y.2")),row,3);
     vlist3->addWidget(&autoPlacementRotY,row,4);
     QObject::connect(&autoPlacementRotY, SIGNAL(textEdited(QString)), this, SLOT(autoPlacementOffsetEnabled(QString)));
     autoPlacementRotY.setText("0");
-    vlist3->addWidget(new QLabel("Z:"),row,5);
+    vlist3->addWidget(new QLabel(
+        //% "Z:"
+        qtTrId("route.editor.obj.tools.label.z.2")),row,5);
     vlist3->addWidget(&autoPlacementRotZ,row++,6);    
     QObject::connect(&autoPlacementRotZ, SIGNAL(textEdited(QString)), this, SLOT(autoPlacementOffsetEnabled(QString)));
     autoPlacementRotZ.setText("0");
-    vlist3->addWidget(new QLabel("Snapable max radius:"),row,0,1,1);
+    vlist3->addWidget(new QLabel(
+        //% "Snapable max radius:"
+        qtTrId("route.editor.obj.tools.label.snapable.max.radius")),row,0,1,1);
     vlist3->addWidget(&autoSnapableRadius,row,1,1,3);
     QObject::connect(&autoSnapableRadius, SIGNAL(textEdited(QString)), this, SLOT(autoSnapableRadiusEnabled(QString)));
     autoSnapableRadius.setText(QString::number(Game::snapableRadius));
     autoSnapableRadius.setValidator(doubleValidator1);
-    autoSnapableOnlyRotation.setText("Only Rot ");
+    autoSnapableOnlyRotation.setText(
+        //% "Only Rot "
+        qtTrId("route.editor.obj.tools.text.only.rot"));
     vlist3->addWidget(&autoSnapableOnlyRotation,row++,4,1,3);
     autoSnapableOnlyRotation.setChecked(Game::snapableOnlyRot);
     QObject::connect(&autoSnapableOnlyRotation, SIGNAL(stateChanged(int)), this, SLOT(chSnapableOnlyRotation(int)));
@@ -219,10 +291,14 @@ ObjTools::ObjTools(QString name)
     vbox->addWidget(&advancedPlacementWidget);
     advancedPlacementWidget.hide();
     
-    stickToTDB.setText("Stick To Target");
+    stickToTDB.setText(
+        //% "Stick To Target"
+        qtTrId("route.editor.obj.tools.text.stick.target"));
     stickToTDB.setChecked(false);
     //vbox->addWidget(&stickToTDB);
-    QLabel *label2 = new QLabel("Recent items:");
+    QLabel *label2 = new QLabel(
+        //% "Recent items:"
+        qtTrId("route.editor.obj.tools.label.label2"));
     label2->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label2->setContentsMargins(3,0,0,0);
     //refClasssetMargin(0);
@@ -493,15 +569,33 @@ void ObjTools::routeLoaded(Route* a){
     item.type = "ruler";
     route->ref->refItems[QString("#TSRE#")+"tsre tools"].push_back(item);
     
-    refOther.addItem("Signals");
-    refOther.addItem("Forests");
-    refOther.addItem("Sound Sources");
-    refOther.addItem("Sound Regions");    
-    refOther.addItem("SpeedSign");
-    refOther.addItem("SpeedResume");
-    refOther.addItem("SpeedWarning");
-    refOther.addItem("Milepost");
-    refOther.addItem("TSRE Tools");
+    refOther.addItem(
+        //% "Signals"
+        qtTrId("route.editor.obj.tools.item.signals"), "signals");
+    refOther.addItem(
+        //% "Forests"
+        qtTrId("route.editor.obj.tools.item.forests"), "forests");
+    refOther.addItem(
+        //% "Sound Sources"
+        qtTrId("route.editor.obj.tools.item.sound.sources"), "sound sources");
+    refOther.addItem(
+        //% "Sound Regions"
+        qtTrId("route.editor.obj.tools.item.sound.regions"), "sound regions");
+    refOther.addItem(
+        //% "SpeedSign"
+        qtTrId("route.editor.obj.tools.item.speed.sign"), "speedsign");
+    refOther.addItem(
+        //% "SpeedResume"
+        qtTrId("route.editor.obj.tools.item.speed.resume"), "speedresume");
+    refOther.addItem(
+        //% "SpeedWarning"
+        qtTrId("route.editor.obj.tools.item.speed.warning"), "speedwarning");
+    refOther.addItem(
+        //% "Milepost"
+        qtTrId("route.editor.obj.tools.item.milepost"), "milepost");
+    refOther.addItem(
+        //% "TSRE Tools"
+        qtTrId("route.editor.obj.tools.item.tsre.tools"), "tsre tools");
     refOther.setMaxVisibleItems(35);
 }
 
@@ -544,12 +638,13 @@ void ObjTools::refTrackSelected(const QString & text){
 }
 
 void ObjTools::refOtherSelected(const QString & text){
-
+    Q_UNUSED(text);
+    const QString key = refOther.currentData().toString();
     refList.clear();
     currentItemList.clear();
-    for (int it = 0; it < route->ref->refItems[QString("#TSRE#")+text.toLower()].size(); ++it ){
-        new QListWidgetItem ( route->ref->refItems[QString("#TSRE#")+text.toLower()][it].description, &refList, it );
-        currentItemList.push_back(&route->ref->refItems[QString("#TSRE#")+text.toLower()][it]);
+    for (int it = 0; it < route->ref->refItems[QString("#TSRE#")+key].size(); ++it ){
+        new QListWidgetItem ( route->ref->refItems[QString("#TSRE#")+key][it].description, &refList, it );
+        currentItemList.push_back(&route->ref->refItems[QString("#TSRE#")+key][it]);
     }
     refList.sortItems(Qt::AscendingOrder);
 }
@@ -625,8 +720,20 @@ void ObjTools::enableContinuousFlexTool(bool road, bool enabled){
                 : continuousFlexTrackMinimumRadius);
     }
     refreshContinuousFlexProfiles();
-    continuousFlexLeft.setText(road ? "Lane on left" : "Track on left");
-    continuousFlexRight.setText(road ? "Lane on right" : "Track on right");
+    continuousFlexLeft.setText(road
+        ?
+          //% "Lane on left"
+          qtTrId("route.flex.road.lane.left")
+        :
+          //% "Track on left"
+          qtTrId("route.flex.track.left"));
+    continuousFlexRight.setText(road
+        ?
+          //% "Lane on right"
+          qtTrId("route.flex.road.lane.right")
+        :
+          //% "Track on right"
+          qtTrId("route.flex.track.right"));
     itemRef = Ref::RefItem();
     itemRef.type = "dyntrack";
     itemRef.value = -1;
@@ -652,7 +759,9 @@ void ObjTools::refreshContinuousFlexProfiles(){
             : continuousFlexTrackProfile;
     const QSignalBlocker blocker(&continuousFlexProfile);
     continuousFlexProfile.clear();
-    continuousFlexProfile.addItem("Built-in dynamic track", QString());
+    continuousFlexProfile.addItem(
+        //% "Built-in dynamic track"
+        qtTrId("route.editor.obj.tools.item.built.in.dynamic.track"), QString());
 
     ProceduralShape::Load();
     OrtsTrackProfileCatalog::load(Game::root + "/ROUTES/" + Game::route);
@@ -902,7 +1011,9 @@ void ObjTools::showLastItemsContextMenu(QPoint val){
     QPoint globalPos = lastItems.mapToGlobal(val);
 
     QMenu myMenu;
-    myMenu.addAction("Find similar", this, SLOT(lastItemsMenuFindSimilar()));
+    myMenu.addAction(
+        //% "Find similar"
+        qtTrId("route.editor.obj.tools.action.find.similar"), this, SLOT(lastItemsMenuFindSimilar()));
 
     myMenu.exec(globalPos);
 }

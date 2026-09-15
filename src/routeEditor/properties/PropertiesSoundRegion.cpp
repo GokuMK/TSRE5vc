@@ -21,7 +21,9 @@ PropertiesSoundRegion::PropertiesSoundRegion() {
     QVBoxLayout *vbox = new QVBoxLayout;
     vbox->setSpacing(2);
     vbox->setContentsMargins(0,1,1,1);
-    infoLabel = new QLabel("SoundRegion:");
+    infoLabel = new QLabel(
+        //% "SoundRegion:"
+        qtTrId("route.editor.properties.sound.region.label.info.label"));
     infoLabel->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     infoLabel->setContentsMargins(3,0,0,0);
     vbox->addWidget(infoLabel);
@@ -31,33 +33,53 @@ PropertiesSoundRegion::PropertiesSoundRegion() {
     this->uid.setDisabled(true);
     this->tX.setDisabled(true);
     this->tY.setDisabled(true);
-    vlist->addRow("UiD:",&this->uid);
-    vlist->addRow("Tile X:",&this->tX);
-    vlist->addRow("Tile Z:",&this->tY);
+    vlist->addRow(
+        //% "UiD:"
+        qtTrId("route.editor.properties.sound.region.label.ui.d"),&this->uid);
+    vlist->addRow(
+        //% "Tile X:"
+        qtTrId("route.editor.properties.sound.region.label.tile.x"),&this->tX);
+    vlist->addRow(
+        //% "Tile Z:"
+        qtTrId("route.editor.properties.sound.region.label.tile.z"),&this->tY);
     vbox->addItem(vlist);
     
-    QLabel * label2 = new QLabel("Position:");
+    QLabel * label2 = new QLabel(
+        //% "Position:"
+        qtTrId("route.editor.properties.sound.region.label.label2"));
     label2->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label2->setContentsMargins(3,0,0,0);
     vbox->addWidget(label2);
     vlist = new QFormLayout;
     vlist->setSpacing(2);
     vlist->setContentsMargins(3,0,3,0);
-    vlist->addRow("X:",&this->posX);
-    vlist->addRow("Y:",&this->posY);
-    vlist->addRow("Z:",&this->posZ);
+    vlist->addRow(
+        //% "X:"
+        qtTrId("route.editor.properties.sound.region.label.x"),&this->posX);
+    vlist->addRow(
+        //% "Y:"
+        qtTrId("route.editor.properties.sound.region.label.y"),&this->posY);
+    vlist->addRow(
+        //% "Z:"
+        qtTrId("route.editor.properties.sound.region.label.z"),&this->posZ);
     vbox->addItem(vlist);
 
-    QPushButton *button = new QPushButton("Flip", this);
+    QPushButton *button = new QPushButton(
+        //% "Flip"
+        qtTrId("route.editor.properties.sound.region.button.button"), this);
     vbox->addWidget(button);
     connect(button, SIGNAL(released()), this, SLOT(flip()));
 
-    QLabel *label = new QLabel("Region name:");
+    QLabel *label = new QLabel(
+        //% "Region name:"
+        qtTrId("route.editor.properties.sound.region.label.label"));
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     vbox->addWidget(&this->sName);
     // Edit
-    label = new QLabel("Change name:");
+    label = new QLabel(
+        //% "Change name:"
+        qtTrId("route.editor.properties.sound.region.label.label.2"));
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     vbox->addWidget(&this->sources);
@@ -65,25 +87,35 @@ PropertiesSoundRegion::PropertiesSoundRegion() {
     QObject::connect(&this->sources, SIGNAL(textActivated(QString)),
         this, SLOT(sourcesListSelected(QString)));
     
-    label = new QLabel("Track Items:");
+    label = new QLabel(
+        //% "Track Items:"
+        qtTrId("route.editor.properties.sound.region.label.label.3"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     
-    QPushButton *bDeleteSelected = new QPushButton("Delete Selected");
+    QPushButton *bDeleteSelected = new QPushButton(
+        //% "Delete Selected"
+        qtTrId("route.editor.properties.sound.region.button.b.delete.selected"));
     vbox->addWidget(bDeleteSelected);
     QObject::connect(bDeleteSelected, SIGNAL(released()),
                       this, SLOT(bDeleteSelectedEnabled()));
-    QPushButton *bExpandSelected = new QPushButton("Expand");
+    QPushButton *bExpandSelected = new QPushButton(
+        //% "Expand"
+        qtTrId("route.editor.properties.sound.region.button.b.expand.selected"));
     vbox->addWidget(bExpandSelected);
     QObject::connect(bExpandSelected, SIGNAL(released()),
                       this, SLOT(bExpandEnabled()));
     
-    label = new QLabel("Global settings:");
+    label = new QLabel(
+        //% "Global settings:"
+        qtTrId("route.editor.properties.sound.region.label.label.4"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
-    vbox->addWidget(new QLabel("Max placing radius:"));
+    vbox->addWidget(new QLabel(
+        //% "Max placing radius:"
+        qtTrId("route.editor.properties.sound.region.label.max.placing.radius")));
     vbox->addWidget(&eMaxPlacingDistance);
     eMaxPlacingDistance.setValidator(doubleValidator);
     QObject::connect(&eMaxPlacingDistance, SIGNAL(textEdited(QString)), this, SLOT(eMaxPlacingDistanceEnabled(QString)));
@@ -123,13 +155,17 @@ void PropertiesSoundRegion::flip(){
 
 void PropertiesSoundRegion::showObj(GameObj* obj){
     if(obj == NULL){
-        infoLabel->setText("NULL");
+        infoLabel->setText(
+            //% "NULL"
+            qtTrId("route.editor.properties.sound.region.text.null"));
         return;
     }
     worldObj = (WorldObj*)obj;
     sobj = (SoundRegionObj*)obj;
     
-    this->infoLabel->setText("Object: "+sobj->type);
+    //% "Object: %1"
+    this->infoLabel->setText(qtTrId("route.properties.sound.region.object.type")
+                             .arg(sobj->type));
     
     this->uid.setText(QString::number(sobj->UiD, 10));
     this->tX.setText(QString::number(sobj->x, 10));

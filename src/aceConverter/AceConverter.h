@@ -9,7 +9,7 @@
 namespace AceConverter {
 struct Encoding {
     const char *key;
-    const char *label;
+    const char *labelId;
     AceEncoding value;
 };
 const QVector<Encoding> &encodings();

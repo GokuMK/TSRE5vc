@@ -22,7 +22,9 @@ PropertiesRuler::PropertiesRuler() {
     QVBoxLayout *vbox = new QVBoxLayout;
     vbox->setSpacing(2);
     vbox->setContentsMargins(0,1,1,1);
-    infoLabel = new QLabel("Ruler:");
+    infoLabel = new QLabel(
+        //% "Ruler:"
+        qtTrId("route.editor.properties.ruler.label.info.label"));
     infoLabel->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     infoLabel->setContentsMargins(3,0,0,0);
     vbox->addWidget(infoLabel);
@@ -32,11 +34,19 @@ PropertiesRuler::PropertiesRuler() {
     this->uid.setDisabled(true);
     this->tX.setDisabled(true);
     this->tY.setDisabled(true);
-    vlist->addRow("UiD:",&this->uid);
-    vlist->addRow("Tile X:",&this->tX);
-    vlist->addRow("Tile Z:",&this->tY);
+    vlist->addRow(
+        //% "UiD:"
+        qtTrId("route.editor.properties.ruler.label.ui.d"),&this->uid);
+    vlist->addRow(
+        //% "Tile X:"
+        qtTrId("route.editor.properties.ruler.label.tile.x"),&this->tX);
+    vlist->addRow(
+        //% "Tile Z:"
+        qtTrId("route.editor.properties.ruler.label.tile.z"),&this->tY);
     vbox->addItem(vlist);
-    QLabel *label = new QLabel("Game Length:");
+    QLabel *label = new QLabel(
+        //% "Game Length:"
+        qtTrId("route.editor.properties.ruler.label.label"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
@@ -44,10 +54,14 @@ PropertiesRuler::PropertiesRuler() {
     vlist->setSpacing(2);
     vlist->setContentsMargins(3,0,3,0);
 
-    vlist->addRow("Meters: ",&this->lengthM);
+    vlist->addRow(
+        //% "Meters: "
+        qtTrId("route.editor.properties.ruler.label.meters"),&this->lengthM);
     vbox->addItem(vlist);
     
-    label = new QLabel("Geo Length:");
+    label = new QLabel(
+        //% "Geo Length:"
+        qtTrId("route.editor.properties.ruler.label.label.2"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
@@ -55,11 +69,15 @@ PropertiesRuler::PropertiesRuler() {
     vlist->setSpacing(2);
     vlist->setContentsMargins(3,0,3,0);
 
-    vlist->addRow("Meters: ",&this->lengthGM);
+    vlist->addRow(
+        //% "Meters: "
+        qtTrId("route.editor.properties.ruler.label.meters.2"),&this->lengthGM);
     vbox->addItem(vlist);
     
     
-    label = new QLabel("Average Elevation:");
+    label = new QLabel(
+        //% "Average Elevation:"
+        qtTrId("route.editor.properties.ruler.label.label.3"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
@@ -72,11 +90,21 @@ PropertiesRuler::PropertiesRuler() {
     doubleValidator1->setNotation(QDoubleValidator::StandardNotation);
     
     //‰
-    vlist->addRow("Value: ",&this->elevType);
-    elevType.addItem("Permille ‰");
-    elevType.addItem("Percent %");
-    elevType.addItem("1 in 'X' m");
-    elevType.addItem("Angle º");
+    vlist->addRow(
+        //% "Value: "
+        qtTrId("route.editor.properties.ruler.label.value"),&this->elevType);
+    elevType.addItem(
+        //% "Permille ‰"
+        qtTrId("route.editor.properties.ruler.item.permille"), "permille");
+    elevType.addItem(
+        //% "Percent %"
+        qtTrId("route.editor.properties.ruler.item.percent"), "percent");
+    elevType.addItem(
+        //% "1 in 'X' m"
+        qtTrId("route.editor.properties.ruler.item.1.in.x.m"), "oneInX");
+    elevType.addItem(
+        //% "Angle º"
+        qtTrId("route.editor.properties.ruler.item.angle"), "angle");
     elevType.setStyleSheet("combobox-popup: 0;");
     QObject::connect(&elevType, SIGNAL(currentTextChanged(QString)),
                       this, SLOT(elevTypeEdited(QString)));
@@ -84,62 +112,90 @@ PropertiesRuler::PropertiesRuler() {
     elevPromLabel.setText("‰");
     vlist->addRow(&elevPromLabel,&elevProm);
     //oneInXm
-    elev1inXmLabel.setText("1 in 'x' m");
+    elev1inXmLabel.setText(
+        //% "1 in 'x' m"
+        qtTrId("route.editor.properties.ruler.text.1.in.x.m"));
     vlist->addRow(&elev1inXmLabel,&elev1inXm);
     //º
-    elevProgLabel.setText("º");
+    elevProgLabel.setText(
+        //% "º"
+        qtTrId("route.editor.properties.ruler.text.value"));
     vlist->addRow(&elevProgLabel,&elevProg);
     //%
     elevPropLabel.setText("%");
     vlist->addRow(&elevPropLabel,&elevProp);
     hideElevBoxes();
     elevType.setCurrentIndex(Settings::enumIndex("core.track.defaultGradeFormat"));
-    showElevBox(elevType.currentText());
+    ElevTypeName = elevType.currentData().toString();
+    showElevBox(ElevTypeName);
     vbox->addItem(vlist);
     
     
-    label = new QLabel("Default Settings:");
+    label = new QLabel(
+        //% "Default Settings:"
+        qtTrId("route.editor.properties.ruler.label.label.4"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
-    checkboxTwoPoint.setText("Only Two-Point Ruler");
+    checkboxTwoPoint.setText(
+        //% "Only Two-Point Ruler"
+        qtTrId("route.editor.properties.ruler.text.only.two.point.ruler"));
     checkboxTwoPoint.setChecked(false);
     vbox->addWidget(&checkboxTwoPoint);
     QObject::connect(&checkboxTwoPoint, SIGNAL(stateChanged(int)),
                       this, SLOT(checkboxTwoPointEdited(int)));
-    checkboxDrawPoints.setText("Render points");
+    checkboxDrawPoints.setText(
+        //% "Render points"
+        qtTrId("route.editor.properties.ruler.text.render.points"));
     checkboxDrawPoints.setChecked(false);
     vbox->addWidget(&checkboxDrawPoints);
     QObject::connect(&checkboxDrawPoints, SIGNAL(stateChanged(int)),
                       this, SLOT(checkboxDrawPointsEdited(int)));
-    label = new QLabel("Experimental:");
+    label = new QLabel(
+        //% "Experimental:"
+        qtTrId("route.editor.properties.ruler.label.label.5"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
-    QPushButton *button = new QPushButton("Create Road Paths");
+    QPushButton *button = new QPushButton(
+        //% "Create Road Paths"
+        qtTrId("route.editor.properties.ruler.button.button"));
     vbox->addWidget(button);
     QObject::connect(button, SIGNAL(released()),
                       this, SLOT(createRoadPathsEdited()));
-    button = new QPushButton("Remove Road Paths");
+    button = new QPushButton(
+        //% "Remove Road Paths"
+        qtTrId("route.editor.properties.ruler.button.button.2"));
     vbox->addWidget(button);
     QObject::connect(button, SIGNAL(released()),
                       this, SLOT(removeRoadPathsEdited()));
     
-    label = new QLabel("Shape Template:");
+    label = new QLabel(
+        //% "Shape Template:"
+        qtTrId("route.editor.properties.ruler.label.label.6"));
     //label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     vbox->addWidget(&eTemplate);
     eTemplate.setStyleSheet("combobox-popup: 0;");
-    eTemplate.addItem("NOT SET");
-    eTemplate.addItem("DEFAULT");
-    eTemplate.addItem("DISABLED");
-    eTemplate.setToolTip("NOT SET disables the procedural Ruler shape; "
-                         "DEFAULT explicitly requests the default procedural template.");
+    eTemplate.addItem(
+        //% "NOT SET"
+        qtTrId("common.value.not.set"), QString());
+    eTemplate.addItem(
+        //% "DEFAULT"
+        qtTrId("common.value.default"), "DEFAULT");
+    eTemplate.addItem(
+        //% "DISABLED"
+        qtTrId("common.value.disabled"), "DISABLED");
+    eTemplate.setToolTip(
+        //% "NOT SET disables the procedural Ruler shape; DEFAULT explicitly requests the default procedural template."
+        qtTrId("route.editor.properties.ruler.tooltip.not.set.disables.procedural.ruler.shape.default"));
     refreshTemplateList();
     QObject::connect(&eTemplate, SIGNAL(currentTextChanged(QString)),
                       this, SLOT(eTemplateEdited(QString)));
-    button = new QPushButton("Add Shape");
+    button = new QPushButton(
+        //% "Add Shape"
+        qtTrId("route.editor.properties.ruler.button.button.3"));
     vbox->addWidget(button);
     QObject::connect(button, SIGNAL(released()),
                       this, SLOT(addShapeEdited()));
@@ -151,6 +207,8 @@ PropertiesRuler::~PropertiesRuler() {
 }
 
 void PropertiesRuler::elevTypeEdited(QString val){
+    Q_UNUSED(val);
+    val = elevType.currentData().toString();
     hideElevBoxes();
     showElevBox(val);
     ElevTypeName = val;
@@ -160,8 +218,8 @@ void PropertiesRuler::eTemplateEdited(QString val){
     if(worldObj == NULL){
         return;
     }
-    if(val == "NOT SET")
-        val.clear();
+    Q_UNUSED(val);
+    val = eTemplate.currentData().toString();
     Undo::SinglePushWorldObjData(worldObj);
     worldObj->setTemplate(val);
     Undo::StateEnd();
@@ -169,12 +227,18 @@ void PropertiesRuler::eTemplateEdited(QString val){
 
 void PropertiesRuler::refreshTemplateList(){
     const QSignalBlocker blocker(&eTemplate);
-    const QString previousValue = eTemplate.currentText();
+    const QString previousValue = eTemplate.currentData().toString();
 
     eTemplate.clear();
-    eTemplate.addItem("NOT SET");
-    eTemplate.addItem("DEFAULT");
-    eTemplate.addItem("DISABLED");
+    eTemplate.addItem(
+        //% "NOT SET"
+        qtTrId("common.value.not.set"), QString());
+    eTemplate.addItem(
+        //% "DEFAULT"
+        qtTrId("common.value.default"), "DEFAULT");
+    eTemplate.addItem(
+        //% "DISABLED"
+        qtTrId("common.value.disabled"), "DISABLED");
 
     ProceduralShape::Load();
     OrtsTrackProfileCatalog::load(Game::root + "/ROUTES/" + Game::route);
@@ -182,8 +246,8 @@ void PropertiesRuler::refreshTemplateList(){
     // Route-local ORTS profiles are the most specific definitions, so show
     // them before application-level TSRE templates.
     for(const QString &profileId : OrtsTrackProfileCatalog::profileIds())
-        if(eTemplate.findText(profileId, Qt::MatchFixedString) < 0)
-            eTemplate.addItem(profileId);
+        if(eTemplate.findData(profileId) < 0)
+            eTemplate.addItem(profileId, profileId);
 
     if(ProceduralShape::ShapeTemplateFile != NULL){
         QMapIterator<QString, ShapeTemplate*> iterator(
@@ -195,33 +259,33 @@ void PropertiesRuler::refreshTemplateList(){
             const QString name = iterator.value()->name;
             if(OrtsTrackProfileCatalog::find(name) != nullptr)
                 continue;
-            if(eTemplate.findText(name, Qt::MatchFixedString) < 0)
-                eTemplate.addItem(name);
+            if(eTemplate.findData(name) < 0)
+                eTemplate.addItem(name, name);
         }
     }
 
     if(!previousValue.isEmpty()
-            && eTemplate.findText(previousValue, Qt::MatchFixedString) < 0)
-        eTemplate.addItem(previousValue);
+            && eTemplate.findData(previousValue) < 0)
+        eTemplate.addItem(previousValue, previousValue);
     if(!previousValue.isEmpty())
-        eTemplate.setCurrentText(previousValue);
+        eTemplate.setCurrentIndex(eTemplate.findData(previousValue));
 }
 
 void PropertiesRuler::updateTemplateValue(){
     if(worldObj == NULL)
         return;
     QString name = worldObj->getTemplate();
-    if(name.isEmpty())
-        name = "NOT SET";
     const QSignalBlocker blocker(&eTemplate);
-    if(eTemplate.findText(name, Qt::MatchFixedString) < 0)
-        eTemplate.addItem(name);
-    eTemplate.setCurrentText(name);
+    if(eTemplate.findData(name) < 0)
+        eTemplate.addItem(name, name);
+    eTemplate.setCurrentIndex(eTemplate.findData(name));
 }
 
 void PropertiesRuler::showObj(GameObj* obj){
     if(obj == NULL){
-        infoLabel->setText("NULL");
+        infoLabel->setText(
+            //% "NULL"
+            qtTrId("route.editor.properties.ruler.text.null"));
         return;
     }
     worldObj = (WorldObj*)obj;
@@ -235,7 +299,7 @@ void PropertiesRuler::showObj(GameObj* obj){
     
     updateTemplateValue();
     
-    elevType.setCurrentText(ElevTypeName);
+    elevType.setCurrentIndex(qMax(0, elevType.findData(ElevTypeName)));
     float elev = sin(robj->getElevation())*1000;
     float oneInXm = 0.0;
     float prog = qRadiansToDegrees(qAtan(elev/1000.0));
@@ -329,19 +393,19 @@ bool PropertiesRuler::support(GameObj* obj){
 }
 
 void PropertiesRuler::showElevBox(QString val){
-    if(val == "Permille ‰"){
+    if(val == "permille"){
         elevProm.show();
         elevPromLabel.show();
     }
-    if(val == "Percent %"){
+    if(val == "percent"){
         elevProp.show();
         elevPropLabel.show();
     }
-    if(val == "1 in 'X' m"){
+    if(val == "oneInX"){
         elev1inXm.show();
         elev1inXmLabel.show();
     }
-    if(val == "Angle º"){
+    if(val == "angle"){
         elevProg.show();
         elevProgLabel.show();
     }    

@@ -26,7 +26,9 @@ ClientUsersWindow::ClientUsersWindow(QWidget* parent) : QWidget(parent) {
     //this->setFixedWidth(350);
     this->setMinimumWidth(730);
     this->setFixedHeight(150);
-    this->setWindowTitle(tr("Users:"));
+    this->setWindowTitle(
+        //% "Users:"
+        qtTrId("route.editor.client.users.window.title.users"));
     
     QVBoxLayout *errorListLayout = new QVBoxLayout;
     errorListLayout->setContentsMargins(0,0,0,0);
@@ -35,9 +37,12 @@ ClientUsersWindow::ClientUsersWindow(QWidget* parent) : QWidget(parent) {
     errorListLayout->addWidget(&usersList);
 
     QStringList list;
-    list.append("User:");
-    list.append("Position:");
-    list.append("Last Action:");
+    //% "User:"
+    list.append(qtTrId("network.users.header.user"));
+    //% "Position:"
+    list.append(qtTrId("network.users.header.position"));
+    //% "Last Action:"
+    list.append(qtTrId("network.users.header.last.action"));
 
     usersList.setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     usersList.setColumnCount(3);

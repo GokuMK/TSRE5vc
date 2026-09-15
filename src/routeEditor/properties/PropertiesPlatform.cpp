@@ -17,7 +17,9 @@ PropertiesPlatform::PropertiesPlatform() {
     vbox->setSpacing(2);
     vbox->setContentsMargins(0,1,1,1);
     
-    infoLabel = new QLabel("Platform:");
+    infoLabel = new QLabel(
+        //% "Platform:"
+        qtTrId("route.editor.properties.platform.label.info.label"));
     infoLabel->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     infoLabel->setContentsMargins(3,0,0,0);
     vbox->addWidget(infoLabel);
@@ -28,46 +30,76 @@ PropertiesPlatform::PropertiesPlatform() {
     this->tX.setDisabled(true);
     this->tY.setDisabled(true);
     this->lengthPlatform.setDisabled(true);
-    vlist->addRow("UiD:",&this->uid);
-    vlist->addRow("Tile X:",&this->tX);
-    vlist->addRow("Tile Z:",&this->tY);
-    vlist->addRow("Length:",&this->lengthPlatform);
+    vlist->addRow(
+        //% "UiD:"
+        qtTrId("route.editor.properties.platform.label.ui.d"),&this->uid);
+    vlist->addRow(
+        //% "Tile X:"
+        qtTrId("route.editor.properties.platform.label.tile.x"),&this->tX);
+    vlist->addRow(
+        //% "Tile Z:"
+        qtTrId("route.editor.properties.platform.label.tile.z"),&this->tY);
+    vlist->addRow(
+        //% "Length:"
+        qtTrId("route.editor.properties.platform.label.length"),&this->lengthPlatform);
     vbox->addItem(vlist);
     // names
-    QLabel * label = new QLabel("Station Name:");
+    QLabel * label = new QLabel(
+        //% "Station Name:"
+        qtTrId("route.editor.properties.platform.label.label"));
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     vbox->addWidget(&this->nameStation);
-    label = new QLabel("Platform Name:");
+    label = new QLabel(
+        //% "Platform Name:"
+        qtTrId("route.editor.properties.platform.label.label.2"));
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     vbox->addWidget(&this->namePlatform);
     // side
-    label = new QLabel("Side:");
+    label = new QLabel(
+        //% "Side:"
+        qtTrId("route.editor.properties.platform.label.label.3"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
-    leftSide.setText("Left");
-    rightSide.setText("Right");
+    leftSide.setText(
+        //% "Left"
+        qtTrId("route.editor.properties.platform.text.left"));
+    rightSide.setText(
+        //% "Right"
+        qtTrId("route.editor.properties.platform.text.right"));
     vbox->addWidget(&leftSide);
     vbox->addWidget(&rightSide);
     // wait
-    label = new QLabel("Platform Wait:");
+    label = new QLabel(
+        //% "Platform Wait:"
+        qtTrId("route.editor.properties.platform.label.label.4"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     vlist = new QFormLayout;
     vlist->setSpacing(2);
     vlist->setContentsMargins(3,0,3,0);
-    vlist->addRow("Minutes:",&this->waitMin);
-    vlist->addRow("Seconds:",&this->waitSec);
-    vlist->addRow("Passengers:",&this->waitPas);
+    vlist->addRow(
+        //% "Minutes:"
+        qtTrId("route.editor.properties.platform.label.minutes"),&this->waitMin);
+    vlist->addRow(
+        //% "Seconds:"
+        qtTrId("route.editor.properties.platform.label.seconds"),&this->waitSec);
+    vlist->addRow(
+        //% "Passengers:"
+        qtTrId("route.editor.properties.platform.label.passengers"),&this->waitPas);
     vbox->addItem(vlist);
     // misc
-    label = new QLabel("Misc:");
+    label = new QLabel(
+        //% "Misc:"
+        qtTrId("route.editor.properties.platform.label.label.5"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
-    disablePlatform.setText("Disable Platform");
+    disablePlatform.setText(
+        //% "Disable Platform"
+        qtTrId("route.editor.properties.platform.text.disable.platform"));
     vbox->addWidget(&disablePlatform);
     vbox->addStretch(1);
     this->setLayout(vbox);
@@ -99,12 +131,16 @@ PropertiesPlatform::~PropertiesPlatform() {
 
 void PropertiesPlatform::showObj(GameObj* obj){
     if(obj == NULL){
-        infoLabel->setText("NULL");
+        infoLabel->setText(
+            //% "NULL"
+            qtTrId("route.editor.properties.platform.text.null"));
         return;
     }
     worldObj = (WorldObj*)obj;
     pobj = (PlatformObj*)obj;
-    this->infoLabel->setText("Object: "+pobj->type);
+    //% "Object: %1"
+    this->infoLabel->setText(qtTrId("route.properties.platform.object.type")
+                             .arg(pobj->type));
     this->uid.setText(QString::number(pobj->UiD, 10));
     this->tX.setText(QString::number(pobj->x, 10));
     this->tY.setText(QString::number(-pobj->y, 10));

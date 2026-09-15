@@ -18,7 +18,9 @@ PropertiesUndefined::PropertiesUndefined(){
     QVBoxLayout *vbox = new QVBoxLayout;
     vbox->setSpacing(2);
     vbox->setContentsMargins(0,1,1,1);
-    infoLabel = new QLabel("Select to see properties.");
+    infoLabel = new QLabel(
+        //% "Select to see properties."
+        qtTrId("route.editor.properties.undefined.label.info.label"));
     infoLabel->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     infoLabel->setContentsMargins(3,0,0,0);
     vbox->addWidget(infoLabel); 
@@ -33,11 +35,17 @@ PropertiesUndefined::~PropertiesUndefined() {
 
 void PropertiesUndefined::showObj(GameObj* obj){
     if(obj == NULL)
-        infoLabel->setText("Select to see properties.");
+        infoLabel->setText(
+            //% "Select to see properties."
+            qtTrId("route.editor.properties.undefined.text.select.see.properties"));
     else if(obj->typeObj == GameObj::worldobj)
-        infoLabel->setText("Unsupported: "+((WorldObj*)obj)->type);
+    //% "Unsupported: %1"
+    infoLabel->setText(qtTrId("route.properties.unsupported.object.type")
+                       .arg(((WorldObj*)obj)->type));
     else
-        infoLabel->setText("Unsupported");
+        infoLabel->setText(
+            //% "Unsupported"
+            qtTrId("route.editor.properties.undefined.text.unsupported"));
 }
 
 bool PropertiesUndefined::support(GameObj* obj){

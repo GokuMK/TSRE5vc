@@ -36,10 +36,14 @@ ActivityTimetableProperties::ActivityTimetableProperties(QWidget* parent) : QWid
     QLabel *label = NULL;
     
     QStringList list;
-    list.append("Station:");
-    list.append("Arrive:");
-    list.append("Depart:");
-    list.append("Performance:");
+    //% "Station:"
+    list.append(qtTrId("activity.timetable.header.station"));
+    //% "Arrive:"
+    list.append(qtTrId("activity.timetable.header.arrive"));
+    //% "Depart:"
+    list.append(qtTrId("activity.timetable.header.depart"));
+    //% "Performance:"
+    list.append(qtTrId("activity.timetable.header.performance"));
     //lTimetable.setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     //lTimetable.setColumnCount(4);
     //lTimetable.setHeaderLabels(list);
@@ -58,20 +62,30 @@ ActivityTimetableProperties::ActivityTimetableProperties(QWidget* parent) : QWid
     lTimetable.horizontalHeader()->resizeSection(3,100);
     lTimetable.horizontalHeader()->setDefaultAlignment(Qt::AlignLeft);
     vlist->addWidget(&lTimetable, row++, 0, 1, 2);
-    QPushButton *bCalculate = new QPushButton("Calculate");
+    QPushButton *bCalculate = new QPushButton(
+        //% "Calculate"
+        qtTrId("route.editor.activity.timetable.properties.button.b.calculate"));
     QObject::connect(bCalculate, SIGNAL(released()), this, SLOT(bCalculateSelected()));
     vlist->addWidget(bCalculate, row++, 0, 1, 2);
-    vlist->addWidget(new QLabel("Start Time:"), row, 0);
+    vlist->addWidget(new QLabel(
+        //% "Start Time:"
+        qtTrId("route.editor.activity.timetable.properties.label.start.time")), row, 0);
     vlist->addWidget(&eTime, row++, 1);
     eTime.setDisplayFormat("HH:mm:ss");
     eTime.setDisabled(true);
-    vlist->addWidget(new QLabel("Consist main ENG:"), row, 0);
+    vlist->addWidget(new QLabel(
+        //% "Consist main ENG:"
+        qtTrId("route.editor.activity.timetable.properties.label.consist.main.eng")), row, 0);
     vlist->addWidget(&eMainEng, row++, 1);
     eMainEng.setDisabled(true);
-    vlist->addWidget(new QLabel("Max ENG Speed:"), row, 0);
+    vlist->addWidget(new QLabel(
+        //% "Max ENG Speed:"
+        qtTrId("route.editor.activity.timetable.properties.label.max.eng.speed")), row, 0);
     vlist->addWidget(&eMaxSpeed, row++, 1);
     eMaxSpeed.setDisabled(true);
-    vlist->addWidget(new QLabel("Timetable Avg Speed:"), row, 0);
+    vlist->addWidget(new QLabel(
+        //% "Timetable Avg Speed:"
+        qtTrId("route.editor.activity.timetable.properties.label.timetable.avg.speed")), row, 0);
     vlist->addWidget(&eAvgSpeed, row++, 1);
     eAvgSpeed.setDisabled(true);
     vbox->addItem(vlist);
@@ -135,7 +149,9 @@ void ActivityTimetableProperties::showTimetable(ActivityServiceDefinition* s){
     if(t->platformStartID.size() > 1)
         eAvgSpeed.setText(QString::number(3.6*(t->distanceDownPath[t->distanceDownPath.size()-1]/(t->arrivalTime[t->arrivalTime.size()-1]-t->time))) + " km/h");
     else
-        eAvgSpeed.setText("NONE");
+        eAvgSpeed.setText(
+            //% "NONE"
+            qtTrId("route.editor.activity.timetable.properties.text.none"));
 }
 
 void ActivityTimetableProperties::bCalculateSelected(){

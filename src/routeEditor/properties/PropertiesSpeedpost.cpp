@@ -23,7 +23,9 @@ PropertiesSpeedpost::PropertiesSpeedpost() {
     QVBoxLayout *vbox = new QVBoxLayout;
     vbox->setSpacing(2);
     vbox->setContentsMargins(0,1,1,1);
-    infoLabel = new QLabel("SpeedPost:");
+    infoLabel = new QLabel(
+        //% "SpeedPost:"
+        qtTrId("route.editor.properties.speedpost.label.info.label"));
     infoLabel->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     infoLabel->setContentsMargins(3,0,0,0);
     vbox->addWidget(infoLabel);
@@ -33,87 +35,143 @@ PropertiesSpeedpost::PropertiesSpeedpost() {
     this->uid.setDisabled(true);
     this->tX.setDisabled(true);
     this->tY.setDisabled(true);
-    vlist->addRow("Type:",&this->speedpostType);
+    vlist->addRow(
+        //% "Type:"
+        qtTrId("route.editor.properties.speedpost.label.type"),&this->speedpostType);
     speedpostType.setDisabled(true);
-    vlist->addRow("UiD:",&this->uid);
-    vlist->addRow("Tile X:",&this->tX);
-    vlist->addRow("Tile Z:",&this->tY);
+    vlist->addRow(
+        //% "UiD:"
+        qtTrId("route.editor.properties.speedpost.label.ui.d"),&this->uid);
+    vlist->addRow(
+        //% "Tile X:"
+        qtTrId("route.editor.properties.speedpost.label.tile.x"),&this->tX);
+    vlist->addRow(
+        //% "Tile Z:"
+        qtTrId("route.editor.properties.speedpost.label.tile.z"),&this->tY);
     vbox->addItem(vlist);
     
-    QLabel * label = new QLabel("Position:");
+    QLabel * label = new QLabel(
+        //% "Position:"
+        qtTrId("route.editor.properties.speedpost.label.label"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     vlist = new QFormLayout;
     vlist->setSpacing(2);
     vlist->setContentsMargins(3,0,3,0);
-    vlist->addRow("X:",&this->posX);
-    vlist->addRow("Y:",&this->posY);
-    vlist->addRow("Z:",&this->posZ);
+    vlist->addRow(
+        //% "X:"
+        qtTrId("route.editor.properties.speedpost.label.x"),&this->posX);
+    vlist->addRow(
+        //% "Y:"
+        qtTrId("route.editor.properties.speedpost.label.y"),&this->posY);
+    vlist->addRow(
+        //% "Z:"
+        qtTrId("route.editor.properties.speedpost.label.z"),&this->posZ);
     vbox->addItem(vlist);
-    speedlabel = new QLabel("Speed:");
+    speedlabel = new QLabel(
+        //% "Speed:"
+        qtTrId("route.editor.properties.speedpost.label.speedlabel"));
     speedlabel->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     speedlabel->setContentsMargins(3,0,0,0);
-    chCustomSpeed.setText("Speed instead of Number");
+    chCustomSpeed.setText(
+        //% "Speed instead of Number"
+        qtTrId("route.editor.properties.speedpost.text.speed.instead.number"));
     vbox->addWidget(speedlabel);
     vbox->addWidget(&chCustomSpeed);
     vbox->addWidget(&speed);
     vbox->addWidget(&kmm);
     kmm.setStyleSheet("combobox-popup: 0;");
-    kmm.addItem("Kilometers");
-    kmm.addItem("Miles");
-    lSpeedFor = new QLabel("Speed for:");
+    kmm.addItem(
+        //% "Kilometers"
+        qtTrId("route.editor.properties.speedpost.item.kilometers"));
+    kmm.addItem(
+        //% "Miles"
+        qtTrId("route.editor.properties.speedpost.item.miles"));
+    lSpeedFor = new QLabel(
+        //% "Speed for:"
+        qtTrId("route.editor.properties.speedpost.label.l.speed.for"));
     lSpeedFor->setContentsMargins(3,0,0,0);
     vbox->addWidget(lSpeedFor);
     vbox->addWidget(&ptb);
-    ptb.addItem("Passenger");
-    ptb.addItem("Freight");
-    ptb.addItem("Both");
+    ptb.addItem(
+        //% "Passenger"
+        qtTrId("route.editor.properties.speedpost.item.passenger"));
+    ptb.addItem(
+        //% "Freight"
+        qtTrId("route.editor.properties.speedpost.item.freight"));
+    ptb.addItem(
+        //% "Both"
+        qtTrId("route.editor.properties.speedpost.item.both"));
     ptb.setStyleSheet("combobox-popup: 0;");
-    numberlabel = new QLabel("Number:");
+    numberlabel = new QLabel(
+        //% "Number:"
+        qtTrId("route.editor.properties.speedpost.label.numberlabel"));
     numberlabel->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     numberlabel->setContentsMargins(3,0,0,0);
-    chCustomNumber.setText("Number instead of Speed");
+    chCustomNumber.setText(
+        //% "Number instead of Speed"
+        qtTrId("route.editor.properties.speedpost.text.number.instead.speed"));
     vbox->addWidget(numberlabel);
     vbox->addWidget(&chCustomNumber);
     vbox->addWidget(&number);
     number.setValidator(doubleValidator2);
-    chNumberDot.setText("Show Dot");
+    chNumberDot.setText(
+        //% "Show Dot"
+        qtTrId("route.editor.properties.speedpost.text.show.dot"));
     vbox->addWidget(&chNumberDot);
 
-    label = new QLabel("Track Items:");
+    label = new QLabel(
+        //% "Track Items:"
+        qtTrId("route.editor.properties.speedpost.label.label.2"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
-    QPushButton *button = new QPushButton("Flip", this);
+    QPushButton *button = new QPushButton(
+        //% "Flip"
+        qtTrId("route.editor.properties.speedpost.button.button"), this);
     vbox->addWidget(button);
     connect(button, SIGNAL(released()), this, SLOT(flipSignal()));
-    chFlipShape.setText("Flip Shape");
+    chFlipShape.setText(
+        //% "Flip Shape"
+        qtTrId("route.editor.properties.speedpost.text.flip.shape"));
     chFlipShape.setChecked(true);
     vbox->addWidget(&chFlipShape);
-    QPushButton *bDeleteSelected = new QPushButton("Delete Selected");
+    QPushButton *bDeleteSelected = new QPushButton(
+        //% "Delete Selected"
+        qtTrId("route.editor.properties.speedpost.button.b.delete.selected"));
     vbox->addWidget(bDeleteSelected);
     QObject::connect(bDeleteSelected, SIGNAL(released()),
                       this, SLOT(bDeleteSelectedEnabled()));
-    QPushButton *bExpandSelected = new QPushButton("Expand");
+    QPushButton *bExpandSelected = new QPushButton(
+        //% "Expand"
+        qtTrId("route.editor.properties.speedpost.button.b.expand.selected"));
     vbox->addWidget(bExpandSelected);
     QObject::connect(bExpandSelected, SIGNAL(released()),
                       this, SLOT(bExpandEnabled()));
     
-    label = new QLabel("Global settings:");
+    label = new QLabel(
+        //% "Global settings:"
+        qtTrId("route.editor.properties.speedpost.label.label.3"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
-    vbox->addWidget(new QLabel("Max placing radius:"));
+    vbox->addWidget(new QLabel(
+        //% "Max placing radius:"
+        qtTrId("route.editor.properties.speedpost.label.max.placing.radius")));
     vbox->addWidget(&eMaxPlacingDistance);
     eMaxPlacingDistance.setValidator(doubleValidator);
     QObject::connect(&eMaxPlacingDistance, SIGNAL(textEdited(QString)), this, SLOT(eMaxPlacingDistanceEnabled(QString)));
     
-    label = new QLabel("Advanced:");
+    label = new QLabel(
+        //% "Advanced:"
+        qtTrId("route.editor.properties.speedpost.label.label.4"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
-    QPushButton *hacks = new QPushButton("Hacks", this);
+    QPushButton *hacks = new QPushButton(
+        //% "Hacks"
+        qtTrId("route.editor.properties.speedpost.button.hacks"), this);
     QObject::connect(hacks, SIGNAL(released()),
                       this, SLOT(hacksButtonEnabled()));
     vbox->addWidget(hacks);
@@ -248,13 +306,17 @@ void PropertiesSpeedpost::flipSignal(){
 
 void PropertiesSpeedpost::showObj(GameObj* obj){
     if(obj == NULL){
-        infoLabel->setText("NULL");
+        infoLabel->setText(
+            //% "NULL"
+            qtTrId("route.editor.properties.speedpost.text.null"));
         return;
     }
     worldObj = (WorldObj*)obj;
     sobj = (SpeedpostObj*)obj;
     QString stype = sobj->getSpeedpostType();
-    this->infoLabel->setText("Object: "+sobj->type);
+    //% "Object: %1"
+    this->infoLabel->setText(qtTrId("route.properties.speedpost.object.type")
+                             .arg(sobj->type));
     this->speedpostType.setText(stype);
     this->uid.setText(QString::number(sobj->UiD, 10));
     this->tX.setText(QString::number(sobj->x, 10));
@@ -401,13 +463,19 @@ void PropertiesSpeedpost::hacksButtonEnabled(){
     
     QDialog d;
     d.setMinimumWidth(400);
-    d.setWindowTitle("SpeedpostObj Hacks");
+    d.setWindowTitle(
+        //% "SpeedpostObj Hacks"
+        qtTrId("route.editor.properties.speedpost.title.speedpost.obj.hacks"));
     QVBoxLayout *vbox = new QVBoxLayout;
-    QLabel *label = new QLabel("Use only if you know what you are doing.");
+    QLabel *label = new QLabel(
+        //% "Use only if you know what you are doing."
+        qtTrId("route.editor.properties.speedpost.label.label.5"));
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     label->setWordWrap(true);
-    QPushButton *haxRemoveTDBVector = new QPushButton("Remove broken Track Items and Expand", this);
+    QPushButton *haxRemoveTDBVector = new QPushButton(
+        //% "Remove broken Track Items and Expand"
+        qtTrId("route.editor.properties.speedpost.button.hax.remove.tdbvector"), this);
     QObject::connect(haxRemoveTDBVector, SIGNAL(released()),
                       this, SLOT(haxFixTrackItemsEnabled()));
     vbox->addWidget(haxRemoveTDBVector);
@@ -427,10 +495,15 @@ void PropertiesSpeedpost::haxFixTrackItemsEnabled(){
     int res = sobj->fixTrackItems();
     QMessageBox dialog;
     if(res == -1)
-        dialog.setText("Speedpost broken, can't fix.");
+        dialog.setText(
+            //% "Speedpost broken, can't fix."
+            qtTrId("route.editor.properties.speedpost.text.speedpost.broken.can.t.fix"));
     else if(res == 0)
-        dialog.setText("No need for fix.");
+        dialog.setText(
+            //% "No need for fix."
+            qtTrId("route.editor.properties.speedpost.text.no.need.for.fix"));
     else
-        dialog.setText("Fixed "+QString::number(res)+"Track Items.");
+    //% "Fixed %n track item(s)."
+    dialog.setText(qtTrId("route.properties.speedpost.fixed.track.items", res));
     dialog.exec();
 }

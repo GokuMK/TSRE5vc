@@ -12,11 +12,15 @@
 #include <tsre/Game.h>
 
 NaviBox::NaviBox() : QWidget(){
-    QPushButton *jumpButton = new QPushButton("Jump", this);
+    QPushButton *jumpButton = new QPushButton(
+        //% "Jump"
+        qtTrId("route.editor.navi.box.button.jump.button"), this);
     QLabel *xLabel = new QLabel("x", this);
     QLabel *yLabel = new QLabel("y", this);
     
-    QLabel *label1 = new QLabel("Position:");
+    QLabel *label1 = new QLabel(
+        //% "Position:"
+        qtTrId("route.editor.navi.box.label.label1"));
     label1->setContentsMargins(3,0,0,0);
     label1->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     QFormLayout *vbox = new QFormLayout;
@@ -51,7 +55,9 @@ void NaviBox::naviInfo(int x, int z, int all, int hidden){
         objHidden = hidden;
         this->xBox.setText(QString::number(x, 10));
         this->yBox.setText(QString::number(z, 10));
-        this->tileInfo.setText("Objects: "+QString::number(all, 10)+" ( including "+QString::number(hidden, 10)+" hidden )");
+        //% "Objects: %1 (including %2 hidden)"
+        this->tileInfo.setText(qtTrId("route.navigation.tile.objects.summary")
+                               .arg(all).arg(hidden));
     }
 }
 

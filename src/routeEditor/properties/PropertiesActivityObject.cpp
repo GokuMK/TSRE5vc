@@ -17,7 +17,9 @@ PropertiesActivityObject::PropertiesActivityObject() {
     QVBoxLayout *vbox = new QVBoxLayout;
     vbox->setSpacing(2);
     vbox->setContentsMargins(0,1,1,1);
-    infoLabel = new QLabel("ActivityObject:");
+    infoLabel = new QLabel(
+        //% "ActivityObject:"
+        qtTrId("route.editor.properties.activity.object.label.info.label"));
     infoLabel->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     infoLabel->setContentsMargins(3,0,0,0);
     vbox->addWidget(infoLabel);
@@ -25,19 +27,29 @@ PropertiesActivityObject::PropertiesActivityObject() {
     QFormLayout *vlist = new QFormLayout;
     vlist->setSpacing(2);
     vlist->setContentsMargins(3,0,3,0);
-    vlist->addRow("Type:",&eObjectType);
-    vlist->addRow("Id:",&eId);
-    vlist->addRow("eId:",&eEid);
+    vlist->addRow(
+        //% "Type:"
+        qtTrId("route.editor.properties.activity.object.label.type"),&eObjectType);
+    vlist->addRow(
+        //% "Id:"
+        qtTrId("route.editor.properties.activity.object.label.id"),&eId);
+    vlist->addRow(
+        //% "eId:"
+        qtTrId("route.editor.properties.activity.object.label.e.id"),&eEid);
     eObjectType.setDisabled(true);
     eId.setDisabled(true);
     eEid.setDisabled(true);
     vbox->addItem(vlist);
     
-    QPushButton *bDelete = new QPushButton("Delete");
+    QPushButton *bDelete = new QPushButton(
+        //% "Delete"
+        qtTrId("route.editor.properties.activity.object.button.b.delete"));
     QObject::connect(bDelete, SIGNAL(released()), this, SLOT(bDeleteEnabled()));
     vbox->addWidget(bDelete);
     
-    QLabel *label = new QLabel("Owned by:");
+    QLabel *label = new QLabel(
+        //% "Owned by:"
+        qtTrId("route.editor.properties.activity.object.label.label"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
@@ -52,12 +64,16 @@ PropertiesActivityObject::~PropertiesActivityObject() {
 
 void PropertiesActivityObject::showObj(GameObj* obj){
     if(obj == NULL){
-        infoLabel->setText("NULL");
+        infoLabel->setText(
+            //% "NULL"
+            qtTrId("route.editor.properties.activity.object.text.null"));
         return;
     }
     actObj = (ActivityObject*)obj;
     
-    infoLabel->setText("Object: ActivityObject");
+    infoLabel->setText(
+        //% "Object: ActivityObject"
+        qtTrId("route.editor.properties.activity.object.text.object.activity.object"));
     eObjectType.setText(actObj->objectType);
     eId.setText(QString::number(actObj->getId()));
     eEid.setText(QString::number(actObj->getSelectedElementId()));

@@ -306,7 +306,9 @@ void reportToolError(const QString &error) {
     if (error == last) return;
     last = error;
     qWarning().noquote() << error;
-    QMessageBox::warning(nullptr, "Experimental procedural terrain", error);
+    QMessageBox::warning(nullptr,
+        //% "Experimental procedural terrain"
+        qtTrId("tsre.world.terrain.procedural.material.dialog.title.experimental.procedural.terrain"), error);
 }
 }
 

@@ -286,6 +286,10 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
 
     boolean("core.system.consoleOutput", consoleOutput);
     boolean("core.system.systemTheme", systemTheme);
+    // TranslationManager consumes this startup-only setting after QApplication
+    // is constructed. Claim its runtime support here with the other registered
+    // startup settings even though it is not copied into a Game field.
+    claim("core.interface.language", SettingType::Enum);
     boolean("core.interface.routeEditor.startMaximized", fullscreen);
     integer("core.system.fpsLimit", fpsLimit);
     boolean("core.system.soundEnabled", soundEnabled);
@@ -502,9 +506,12 @@ void Game::InitAssets() {
     QFile appFile1(path);
     if (!appFile1.exists()){
         QMessageBox msgBox;
-        msgBox.setWindowTitle("TSRE");
-        msgBox.setText("Welcome in TSRE!\n\nThis is experimental version.\nUsing it may seriously damage your data."
-                       "\nMake backup first!\n\n\nNow TSRE will download app data.");
+        msgBox.setWindowTitle(
+            //% "TSRE"
+            qtTrId("tsre.game.title.tsre"));
+        msgBox.setText(
+            //% "Welcome in TSRE!\n\nThis is experimental version.\nUsing it may seriously damage your data.\nMake backup first!\n\n\nNow TSRE will download app data."
+            qtTrId("tsre.game.text.welcome.in.tsre.this.is.experimental.version"));
         msgBox.setIcon(QMessageBox::Warning);
         msgBox.exec();
         QDir().mkdir(path);

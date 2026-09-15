@@ -112,8 +112,12 @@ RouteEditorWindow::RouteEditorWindow() {
     box = new QWidget(this);
     box2 = new QWidget(this);
     box->setFixedWidth(250);
-    box->setWindowTitle("Tools Window");
-    box2->setWindowFilePath("Properties Window");
+    box->setWindowTitle(
+        //% "Tools Window"
+        qtTrId("route.editor.route.editor.window.title.tools.window"));
+    box2->setWindowTitle(
+        //% "Properties Window"
+        qtTrId("route.editor.properties.window.title"));
     box2->setMaximumWidth(160);
     box2->setMinimumWidth(160);
     //box2->setMaximumWidth(250);
@@ -185,157 +189,247 @@ RouteEditorWindow::RouteEditorWindow() {
     mainLayout->setContentsMargins(0,0,0,0);
     
     this->setCentralWidget(main);
-    setWindowTitle(Game::AppName+" "+Game::AppVersion+" Route Editor");
+    //% "%1 %2 Route Editor"
+    setWindowTitle(qtTrId("route.editor.title")
+                   .arg(Game::AppName, Game::AppVersion));
     
     // MENUBAR
     // Route
-    saveAction = new QAction(tr("&Save"), this);
+    saveAction = new QAction(
+        //% "&Save"
+        qtTrId("route.editor.route.editor.window.action.save.action"), this);
     saveAction->setShortcut(QKeySequence("Shift+Ctrl+S"));
     QObject::connect(saveAction, SIGNAL(triggered()), this, SLOT(save()));
-    createPathsAction = new QAction(tr("&Create Debug Paths"), this);
+    createPathsAction = new QAction(
+        //% "&Create Debug Paths"
+        qtTrId("route.editor.route.editor.window.action.create.paths.action"), this);
     QObject::connect(createPathsAction, SIGNAL(triggered()), this, SLOT(createPaths()));
-    reloadRefAction = new QAction(tr("&Reload Ref File"), this);
+    reloadRefAction = new QAction(
+        //% "&Reload Ref File"
+        qtTrId("route.editor.route.editor.window.action.reload.ref.action"), this);
     QObject::connect(reloadRefAction, SIGNAL(triggered()), this, SLOT(reloadRef()));
-    exitAction = new QAction(tr("&Exit"), this);
+    exitAction = new QAction(
+        //% "&Exit"
+        qtTrId("route.editor.route.editor.window.action.exit.action"), this);
     exitAction->setShortcut(QKeySequence("Alt+F4"));
     QObject::connect(exitAction, SIGNAL(triggered()), this, SLOT(close()));
-    trkEditr = new QAction(tr("&Edit route settings"), this);
+    trkEditr = new QAction(
+        //% "&Edit route settings"
+        qtTrId("route.editor.route.editor.window.action.trk.editr"), this);
     QObject::connect(trkEditr, SIGNAL(triggered()), glWidget, SLOT(showTrkEditr()));
     if(Game::serverClient == NULL){
-        routeMenu = menuBar()->addMenu(tr("&Route"));
+        routeMenu = menuBar()->addMenu(
+            //% "&Route"
+            qtTrId("route.editor.route.editor.window.menu.route.menu"));
         routeMenu->addAction(saveAction);
         routeMenu->addAction(reloadRefAction);
         routeMenu->addAction(createPathsAction);
         routeMenu->addAction(trkEditr);
         routeMenu->addAction(exitAction);
     } else {
-        routeMenu = menuBar()->addMenu(tr("&Server"));
+        routeMenu = menuBar()->addMenu(
+            //% "&Server"
+            qtTrId("route.editor.route.editor.window.menu.route.menu.2"));
         routeMenu->addAction(exitAction);
     }
     // Edit
-    editMenu = menuBar()->addMenu(tr("&Edit"));
+    editMenu = menuBar()->addMenu(
+        //% "&Edit"
+        qtTrId("route.editor.route.editor.window.menu.edit.menu"));
     if(Undo::UndoEnabled){
-        undoAction = new QAction(tr("&Undo"), this); 
+        undoAction = new QAction(
+            //% "&Undo"
+            qtTrId("route.editor.route.editor.window.action.undo.action"), this);
         undoAction->setShortcut(QKeySequence("Ctrl+Z"));
         QObject::connect(undoAction, SIGNAL(triggered()), glWidget, SLOT(editUndo()));
         editMenu->addAction(undoAction);
     }
-    copyAction = new QAction(tr("&Copy"), this); 
+    copyAction = new QAction(
+        //% "&Copy"
+        qtTrId("route.editor.route.editor.window.action.copy.action"), this);
     copyAction->setShortcut(QKeySequence("Ctrl+C"));
     QObject::connect(copyAction, SIGNAL(triggered()), glWidget, SLOT(editCopy()));
     editMenu->addAction(copyAction);
-    pasteAction = new QAction(tr("&Paste"), this); 
+    pasteAction = new QAction(
+        //% "&Paste"
+        qtTrId("route.editor.route.editor.window.action.paste.action"), this);
     pasteAction->setShortcut(QKeySequence("Ctrl+V"));
     QObject::connect(pasteAction, SIGNAL(triggered()), glWidget, SLOT(editPaste()));
     editMenu->addAction(pasteAction);
     editMenu->addSeparator();
-    selectAction = new QAction(tr("&Select Tool"), this); 
+    selectAction = new QAction(
+        //% "&Select Tool"
+        qtTrId("route.editor.route.editor.window.action.select.action"), this);
     selectAction->setShortcut(QKeySequence("E"));
     QObject::connect(selectAction, SIGNAL(triggered()), glWidget, SLOT(editSelect()));
     editMenu->addAction(selectAction);
     // View
-    viewMenu = menuBar()->addMenu(tr("&View"));
+    viewMenu = menuBar()->addMenu(
+        //% "&View"
+        qtTrId("route.editor.route.editor.window.menu.view.menu"));
     //toolsAction = GuiFunct::newMenuCheckAction(tr("&Tools"), this); 
     //viewMenu->addAction(toolsAction);
     //QObject::connect(toolsAction, SIGNAL(triggered(bool)), this, SLOT(hideShowToolWidget(bool)));
-    QAction* viewUnselectAll = new QAction(tr("&Unselect All"), this); 
+    QAction* viewUnselectAll = new QAction(
+        //% "&Unselect All"
+        qtTrId("route.editor.route.editor.window.action.view.unselect.all"), this);
     viewMenu->addAction(viewUnselectAll);
     QObject::connect(viewUnselectAll, SIGNAL(triggered()), this, SLOT(viewUnselectAll()));
     viewMenu->addSeparator();
-    vViewWorldGrid = GuiFunct::newMenuCheckAction(tr("&World Grid"), this); 
+    vViewWorldGrid = GuiFunct::newMenuCheckAction(
+        //% "&World Grid"
+        qtTrId("route.editor.route.editor.window.action.v.view.world.grid"), this);
     viewMenu->addAction(vViewWorldGrid);
     QObject::connect(vViewWorldGrid, SIGNAL(triggered(bool)), this, SLOT(viewWorldGrid(bool)));
-    vViewTileGrid = GuiFunct::newMenuCheckAction(tr("&Tile Grid"), this); 
+    vViewTileGrid = GuiFunct::newMenuCheckAction(
+        //% "&Tile Grid"
+        qtTrId("route.editor.route.editor.window.action.v.view.tile.grid"), this);
     viewMenu->addAction(vViewTileGrid);
     QObject::connect(vViewTileGrid, SIGNAL(triggered(bool)), this, SLOT(viewTileGrid(bool)));    
-    vViewTerrainGrid = GuiFunct::newMenuCheckAction(tr("&Terrain Grid"), this, false); 
+    vViewTerrainGrid = GuiFunct::newMenuCheckAction(
+        //% "&Terrain Grid"
+        qtTrId("route.editor.route.editor.window.action.v.view.terrain.grid"), this, false);
     viewMenu->addAction(vViewTerrainGrid);
     QObject::connect(vViewTerrainGrid, SIGNAL(triggered(bool)), this, SLOT(viewTerrainGrid(bool)));   
-    vViewTerrainShape = GuiFunct::newMenuCheckAction(tr("&Hide Terrain Shape"), this, false); 
+    vViewTerrainShape = GuiFunct::newMenuCheckAction(
+        //% "&Hide Terrain Shape"
+        qtTrId("route.editor.route.editor.window.action.v.view.terrain.shape"), this, false);
     viewMenu->addAction(vViewTerrainShape);
     QObject::connect(vViewTerrainShape, SIGNAL(triggered(bool)), this, SLOT(viewTerrainShape(bool)));   
-    vShowWorldObjPivotPoints = GuiFunct::newMenuCheckAction(tr("&WorldObj Markers"), this, false); 
+    vShowWorldObjPivotPoints = GuiFunct::newMenuCheckAction(
+        //% "&WorldObj Markers"
+        qtTrId("route.editor.route.editor.window.action.v.show.world.obj.pivot.points"), this, false);
     viewMenu->addAction(vShowWorldObjPivotPoints);
     QObject::connect(vShowWorldObjPivotPoints, SIGNAL(triggered(bool)), this, SLOT(showWorldObjPivotPointsEnabled(bool)));
-    vViewInteractives = GuiFunct::newMenuCheckAction(tr("&Interactives"), this); 
+    vViewInteractives = GuiFunct::newMenuCheckAction(
+        //% "&Interactives"
+        qtTrId("route.editor.route.editor.window.action.v.view.interactives"), this);
     viewMenu->addAction(vViewInteractives);
     QObject::connect(vViewInteractives, SIGNAL(triggered(bool)), this, SLOT(viewInteractives(bool)));
-    vViewTrackDbLines = GuiFunct::newMenuCheckAction(tr("&TrackDB Lines"), this); 
+    vViewTrackDbLines = GuiFunct::newMenuCheckAction(
+        //% "&TrackDB Lines"
+        qtTrId("route.editor.route.editor.window.action.v.view.track.db.lines"), this);
     viewMenu->addAction(vViewTrackDbLines);
     QObject::connect(vViewTrackDbLines, SIGNAL(triggered(bool)), this, SLOT(viewTrackDbLines(bool)));    
-    vViewTsectionLines = GuiFunct::newMenuCheckAction(tr("&Tsection Lines"), this); 
+    vViewTsectionLines = GuiFunct::newMenuCheckAction(
+        //% "&Tsection Lines"
+        qtTrId("route.editor.route.editor.window.action.v.view.tsection.lines"), this);
     viewMenu->addAction(vViewTsectionLines);
     QObject::connect(vViewTsectionLines, SIGNAL(triggered(bool)), this, SLOT(viewTsectionLines(bool)));
-    vViewTrackItems = GuiFunct::newMenuCheckAction(tr("&TrackDB Items"), this, Game::renderTrItems); 
+    vViewTrackItems = GuiFunct::newMenuCheckAction(
+        //% "&TrackDB Items"
+        qtTrId("route.editor.route.editor.window.action.v.view.track.items"), this, Game::renderTrItems);
     viewMenu->addAction(vViewTrackItems);
     QObject::connect(vViewTrackItems, SIGNAL(triggered(bool)), this, SLOT(viewTrackItems(bool)));
     
-    vViewPointer3d = GuiFunct::newMenuCheckAction(tr("&3D Pointer"), this); 
+    vViewPointer3d = GuiFunct::newMenuCheckAction(
+        //% "&3D Pointer"
+        qtTrId("route.editor.route.editor.window.action.v.view.pointer3d"), this);
     viewMenu->addAction(vViewPointer3d);
     QObject::connect(vViewPointer3d, SIGNAL(triggered(bool)), this, SLOT(viewPointer3d(bool)));
-    vViewMarkers = GuiFunct::newMenuCheckAction(tr("&Markers"), this, false); 
+    vViewMarkers = GuiFunct::newMenuCheckAction(
+        //% "&Markers"
+        qtTrId("route.editor.route.editor.window.action.v.view.markers"), this, false);
     viewMenu->addAction(vViewMarkers);
     QObject::connect(vViewMarkers, SIGNAL(triggered(bool)), this, SLOT(viewMarkers(bool)));
-    vViewSnapable = GuiFunct::newMenuCheckAction(tr("&Snapable Points"), this, false); 
+    vViewSnapable = GuiFunct::newMenuCheckAction(
+        //% "&Snapable Points"
+        qtTrId("route.editor.route.editor.window.action.v.view.snapable"), this, false);
     viewMenu->addAction(vViewSnapable);
     QObject::connect(vViewSnapable, SIGNAL(triggered(bool)), this, SLOT(viewSnapable(bool)));
-    QAction* vViewCompass = GuiFunct::newMenuCheckAction(tr("&Compass"), this, false); 
+    QAction* vViewCompass = GuiFunct::newMenuCheckAction(
+        //% "&Compass"
+        qtTrId("route.editor.route.editor.window.action.v.view.compass"), this, false);
     viewMenu->addAction(vViewCompass);
     QObject::connect(vViewCompass, SIGNAL(triggered(bool)), this, SLOT(viewCompass(bool)));
     // Tools
-    toolsMenu = menuBar()->addMenu(tr("&Tools"));
-    propertiesAction = GuiFunct::newMenuCheckAction(tr("&Properties"), this); 
+    toolsMenu = menuBar()->addMenu(
+        //% "&Tools"
+        qtTrId("route.editor.route.editor.window.menu.tools.menu"));
+    propertiesAction = GuiFunct::newMenuCheckAction(
+        //% "&Properties"
+        qtTrId("route.editor.route.editor.window.action.properties.action"), this);
     toolsMenu->addAction(propertiesAction);
     QObject::connect(propertiesAction, SIGNAL(triggered(bool)), this, SLOT(hideShowPropertiesWidget(bool)));
-    naviAction = GuiFunct::newMenuCheckAction(tr("&Navi Window"), this); 
+    naviAction = GuiFunct::newMenuCheckAction(
+        //% "&Navi Window"
+        qtTrId("route.editor.route.editor.window.action.navi.action"), this);
     toolsMenu->addAction(naviAction);
     QObject::connect(naviAction, SIGNAL(triggered(bool)), this, SLOT(hideShowNaviWidget(bool)));
-    shapeViewAction = GuiFunct::newMenuCheckAction(tr("&Shape View Window"), this, false); 
+    shapeViewAction = GuiFunct::newMenuCheckAction(
+        //% "&Shape View Window"
+        qtTrId("route.editor.route.editor.window.action.shape.view.action"), this, false);
     toolsMenu->addAction(shapeViewAction);
     QObject::connect(shapeViewAction, SIGNAL(triggered(bool)), this, SLOT(hideShowShapeViewWidget(bool)));
-    errorViewAction = GuiFunct::newMenuCheckAction(tr("&Errors and Messages"), this, false); 
+    errorViewAction = GuiFunct::newMenuCheckAction(
+        //% "&Errors and Messages"
+        qtTrId("route.editor.route.editor.window.action.error.view.action"), this, false);
     toolsMenu->addAction(errorViewAction);
     QObject::connect(errorViewAction, SIGNAL(triggered(bool)), this, SLOT(hideShowErrorMsgWidget(bool)));
     toolsMenu->addSeparator();
-    objectsAndTerrainAction = GuiFunct::newMenuCheckAction(tr("&Objects and Terrain"), this); 
+    objectsAndTerrainAction = GuiFunct::newMenuCheckAction(
+        //% "&Objects and Terrain"
+        qtTrId("route.editor.route.editor.window.action.objects.and.terrain.action"), this);
     toolsMenu->addAction(objectsAndTerrainAction);
     QObject::connect(objectsAndTerrainAction, SIGNAL(triggered(bool)), this, SLOT(showToolsObjectAndTerrain(bool)));
-    objectsAction = GuiFunct::newMenuCheckAction(tr("&Objects"), this); 
+    objectsAction = GuiFunct::newMenuCheckAction(
+        //% "&Objects"
+        qtTrId("route.editor.route.editor.window.action.objects.action"), this);
     objectsAction->setShortcut(QKeySequence("F1"));
     toolsMenu->addAction(objectsAction);
     QObject::connect(objectsAction, SIGNAL(triggered(bool)), this, SLOT(showToolsObject(bool)));
-    terrainAction = GuiFunct::newMenuCheckAction(tr("&Terrain"), this); 
+    terrainAction = GuiFunct::newMenuCheckAction(
+        //% "&Terrain"
+        qtTrId("route.editor.route.editor.window.action.terrain.action"), this);
     terrainAction->setChecked(false);    
     terrainAction->setShortcut(QKeySequence("F2"));
     toolsMenu->addAction(terrainAction);
     QObject::connect(terrainAction, SIGNAL(triggered(bool)), this, SLOT(showToolsTerrain(bool)));
-    geoAction = GuiFunct::newMenuCheckAction(tr("&Geo"), this); 
+    geoAction = GuiFunct::newMenuCheckAction(
+        //% "&Geo"
+        qtTrId("route.editor.route.editor.window.action.geo.action"), this);
     geoAction->setChecked(false);    
     geoAction->setShortcut(QKeySequence("F3"));
     toolsMenu->addAction(geoAction);
     QObject::connect(geoAction, SIGNAL(triggered(bool)), this, SLOT(showToolsGeo(bool)));
-    activityAction = GuiFunct::newMenuCheckAction(tr("&Activity"), this); 
+    activityAction = GuiFunct::newMenuCheckAction(
+        //% "&Activity"
+        qtTrId("route.editor.route.editor.window.action.activity.action"), this);
     activityAction->setChecked(false);    
     activityAction->setShortcut(QKeySequence("F4"));
     toolsMenu->addAction(activityAction);
     QObject::connect(activityAction, SIGNAL(triggered(bool)), this, SLOT(showToolsActivity(bool)));
     // Settigs
-    terrainCameraAction = GuiFunct::newMenuCheckAction(tr("&Stick Camera To Terrain"), this); 
+    terrainCameraAction = GuiFunct::newMenuCheckAction(
+        //% "&Stick Camera To Terrain"
+        qtTrId("route.editor.route.editor.window.action.terrain.camera.action"), this);
     terrainCameraAction->setChecked(Game::cameraStickToTerrain);
     terrainCameraAction->setShortcut(QKeySequence("/"));
     QObject::connect(terrainCameraAction, SIGNAL(triggered(bool)), this, SLOT(terrainCamera(bool)));
-    mstsShadowsAction = GuiFunct::newMenuCheckAction(tr("&MSTS Shadows"), this); 
+    mstsShadowsAction = GuiFunct::newMenuCheckAction(
+        //% "&MSTS Shadows"
+        qtTrId("route.editor.route.editor.window.action.msts.shadows.action"), this);
     mstsShadowsAction->setChecked(Game::mstsShadows);
     QObject::connect(mstsShadowsAction, SIGNAL(triggered(bool)), this, SLOT(mstsShadows(bool)));
-    QMenu *terrainMenu = new QMenu("&Terrain Editing:");
-    QAction *detailTerrainAction = new QAction(tr("&Detailed Terrain"), this);
+    QMenu *terrainMenu = new QMenu(
+        //% "&Terrain Editing:"
+        qtTrId("route.editor.route.editor.window.menu.terrain.menu"));
+    QAction *detailTerrainAction = new QAction(
+        //% "&Detailed Terrain"
+        qtTrId("route.editor.route.editor.window.action.detail.terrain.action"), this);
     QObject::connect(detailTerrainAction, SIGNAL(triggered()), this, SLOT(detailedTerrainEnabled()));
-    QAction *distantTerrainAction = new QAction(tr("&Distant Terrain"), this);
+    QAction *distantTerrainAction = new QAction(
+        //% "&Distant Terrain"
+        qtTrId("route.editor.route.editor.window.action.distant.terrain.action"), this);
     QObject::connect(distantTerrainAction, SIGNAL(triggered()), this, SLOT(distantTerrainEnabled()));
     terrainMenu->addAction(detailTerrainAction);
     terrainMenu->addAction(distantTerrainAction);
-    settingsMenu = menuBar()->addMenu(tr("&Settings"));
-    settingsEditorAction = new QAction(tr("Settings &Editor..."), this);
+    settingsMenu = menuBar()->addMenu(
+        //% "&Settings"
+        qtTrId("route.editor.route.editor.window.menu.settings.menu"));
+    settingsEditorAction = new QAction(
+        //% "Settings &Editor..."
+        qtTrId("route.editor.route.editor.window.action.settings.editor.action"), this);
     settingsEditorAction->setShortcut(QKeySequence("F12"));
     QObject::connect(settingsEditorAction, SIGNAL(triggered()), this, SLOT(showSettingsEditor()));
     settingsMenu->addAction(settingsEditorAction);
@@ -343,19 +437,29 @@ RouteEditorWindow::RouteEditorWindow() {
     settingsMenu->addAction(terrainCameraAction);
     settingsMenu->addAction(mstsShadowsAction);
     settingsMenu->addMenu(terrainMenu);
-    auto *bakeTerrainAction=settingsMenu->addAction(tr("Bake procedural terrain textures…"));
+    auto *bakeTerrainAction=settingsMenu->addAction(
+        //% "Bake procedural terrain textures…"
+        qtTrId("route.editor.route.editor.window.action.bake.terrain.action"));
     connect(bakeTerrainAction,&QAction::triggered,this,[this] {
         QVector<QString> unsaved;
         glWidget->getUnsavedInfo(unsaved);
         if (!unsaved.isEmpty()) {
-            QMessageBox::warning(this,tr("Bake terrain"),tr("Save or discard route changes before batch baking."));return;
+            QMessageBox::warning(this,
+                //% "Bake terrain"
+                qtTrId("route.editor.route.editor.window.message.bake.terrain"),
+                //% "Save or discard route changes before batch baking."
+                qtTrId("route.editor.route.editor.window.message.save.discard.route.changes.before.batch.baking"));return;
         }
         TerrainBakeCommand::showDialog(this,Game::root+"/ROUTES/"+Game::route);
     });
     // Help
-    aboutAction = new QAction(tr("&About"), this);
+    aboutAction = new QAction(
+        //% "&About"
+        qtTrId("route.editor.route.editor.window.action.about.action"), this);
     QObject::connect(aboutAction, SIGNAL(triggered()), this, SLOT(about()));
-    helpMenu = menuBar()->addMenu(tr("&Help"));
+    helpMenu = menuBar()->addMenu(
+        //% "&Help"
+        qtTrId("route.editor.route.editor.window.menu.help.menu"));
     helpMenu->addAction(aboutAction);
     
     hideAllTools();
@@ -611,8 +715,12 @@ void RouteEditorWindow::closeEvent(QCloseEvent * event ){
     }
     
     UnsavedDialog unsavedDialog;
-    unsavedDialog.setWindowTitle("Save changes?");
-    unsavedDialog.setMsg("Save changes in route?");
+    unsavedDialog.setWindowTitle(
+        //% "Save changes?"
+        qtTrId("route.editor.route.editor.window.title.save.changes"));
+    unsavedDialog.setMsg(
+        //% "Save changes in route?"
+        qtTrId("route.editor.route.editor.window.message.save.changes.in.route"));
     for(int i = 0; i < unsavedItems.size(); i++){
         unsavedDialog.items.addItem(unsavedItems[i]);
     }
@@ -648,7 +756,9 @@ void RouteEditorWindow::reloadRef(){
 
 void RouteEditorWindow::createPaths(){
     QMessageBox msgBox;
-    msgBox.setText("This action will delete all your existing activity paths and create new simple paths! Continue?");
+    msgBox.setText(
+        //% "This action will delete all your existing activity paths and create new simple paths! Continue?"
+        qtTrId("route.editor.route.editor.window.text.this.action.will.delete.all.your.existing"));
     msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
     msgBox.setDefaultButton(QMessageBox::No);
     switch (msgBox.exec()) {

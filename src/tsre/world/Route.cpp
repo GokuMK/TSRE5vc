@@ -348,7 +348,9 @@ void Route::mergeRoute(QString route2Name, float offsetX, float offsetY, float o
                 "This conservative check also includes retained .pmap sidecars. "
                 "Use a separate static-only copy for merging.";
         qWarning().noquote() << message;
-        QMessageBox::warning(nullptr,"Procedural terrain",message);
+        QMessageBox::warning(nullptr,
+            //% "Procedural terrain"
+            qtTrId("tsre.world.route.dialog.title.procedural.terrain"),message);
         return;
     }
     QProgressDialog *progress = NULL;
@@ -570,7 +572,9 @@ bool Route::checkTrackSectionDatabase(){
     
     // Edit mode. Make an action regarding not synced tsection data
     ActionChooseDialog dialog(4);
-    dialog.setWindowTitle("TDB Error");
+    dialog.setWindowTitle(
+        //% "TDB Error"
+        qtTrId("tsre.world.route.title.tdb.error"));
     dialog.setInfoText("Route Track Section database is out of sync with your Global database.\n"
                        "Choose action:");
     dialog.pushAction("FIX", "Convert route database to current Global now");

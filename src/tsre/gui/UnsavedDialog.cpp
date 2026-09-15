@@ -21,12 +21,22 @@ UnsavedDialog::UnsavedDialog(QString buttonLayout) : QDialog(){
     qDebug() << buttonLayout;
     //QLabel *label = new QLabel("Save changes in consists?");
     if(buttonLayout == "SQC"){
-        bok = new QPushButton("Save and Quit");
-        bexit = new QPushButton("Discard and Quit");
-        bcancel = new QPushButton("Cancel");
+        bok = new QPushButton(
+            //% "Save and Quit"
+            qtTrId("tsre.gui.unsaved.dialog.button.bok"));
+        bexit = new QPushButton(
+            //% "Discard and Quit"
+            qtTrId("tsre.gui.unsaved.dialog.button.bexit"));
+        bcancel = new QPushButton(
+            //% "Cancel"
+            qtTrId("tsre.gui.unsaved.dialog.button.bcancel"));
     } else if(buttonLayout == "SC"){
-        bok = new QPushButton("Save");
-        bcancel = new QPushButton("Cancel");
+        bok = new QPushButton(
+            //% "Save"
+            qtTrId("tsre.gui.unsaved.dialog.button.bok.2"));
+        bcancel = new QPushButton(
+            //% "Cancel"
+            qtTrId("tsre.gui.unsaved.dialog.button.bcancel.2"));
     } else { 
         qDebug() << "#UnsavedDialog: wrong button layout";
         return;

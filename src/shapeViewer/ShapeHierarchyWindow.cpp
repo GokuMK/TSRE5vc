@@ -15,22 +15,29 @@
 
 ShapeHierarchyWindow::ShapeHierarchyWindow(QWidget* parent) : QWidget(parent) {
     setWindowFlags(Qt::WindowType::Tool);
-    setWindowTitle(tr("Shape Hierarchy"));
+    setWindowTitle(
+        //% "Shape Hierarchy"
+        qtTrId("shape.viewer.shape.hierarchy.window.title.shape.hierarchy"));
     
     QVBoxLayout *vbox = new QVBoxLayout;
     vbox->setSpacing(2);
     vbox->setContentsMargins(0,1,1,1);
     
-    QLabel *label = new QLabel("Hierarchy:");
+    QLabel *label = new QLabel(
+        //% "Hierarchy:"
+        qtTrId("shape.viewer.shape.hierarchy.window.label.label"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     //vbox->addWidget(label);
 
     QStringList list;
     //list.append("Show:");
-    list.append("Name:");
-    list.append("Polys:");
-    list.append("Texture:");
+    //% "Name:"
+    list.append(qtTrId("shape.hierarchy.header.name"));
+    //% "Polys:"
+    list.append(qtTrId("shape.hierarchy.header.polygons"));
+    //% "Texture:"
+    list.append(qtTrId("shape.hierarchy.header.texture"));
     hierarchyList.setColumnCount(3);
     hierarchyList.setHeaderLabels(list);
     hierarchyList.setRootIsDecorated(false);
@@ -116,7 +123,8 @@ void ShapeHierarchyWindow::setHierarchyList(ShapeHierarchyInfo* info){
     foreach( ShapeHierarchyInfo::ShapePart i, info->parts){
         count++;
         list.clear();
-        list.append("Shape Part");
+    //% "Shape Part"
+    list.append(qtTrId("shape.hierarchy.root"));
         list.append(QString::number(i.polyCount));
         list.append(i.textureName);
         QTreeWidgetItem *item = new QTreeWidgetItem((QTreeWidget*)0, list, i.uid );

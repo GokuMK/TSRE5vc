@@ -18,7 +18,8 @@
 namespace {
 const QStringList &settingDefinitionFields() {
     static const QStringList fields{
-        "name", "default", "type", "group", "subgroup", "description",
+        "name", "nameId", "default", "type", "group", "subgroup",
+        "description", "descriptionId",
         "order", "apply", "unit", "advanced", "nullable", "range",
         "options", "legacy", "implementation"
     };
@@ -302,7 +303,7 @@ int SettingsManager::catalogDifferenceCount() const {
         const QJsonObject group = entry.toObject();
         storedGroups.insert(group.value("id").toString(), group);
     }
-    const QStringList groupFields{"name", "description", "order"};
+    const QStringList groupFields{"name", "nameId", "description", "descriptionId", "order"};
     for (const SettingsGroupDefinition &definition : m_registry.groups()) {
         const QJsonObject stored = storedGroups.value(definition.id);
         const QJsonObject expected = definition.toJson();
@@ -354,7 +355,7 @@ bool SettingsManager::updateRegisteredDefinitions(int *updatedCount, QString *er
                 continue;
             const QJsonObject expected = definition.toJson();
             bool changed = false;
-            for (const QString &field : QStringList{"name", "description", "order"}) {
+            for (const QString &field : QStringList{"name", "nameId", "description", "descriptionId", "order"}) {
                 if (stored.contains(field) != expected.contains(field)
                         || stored.value(field) != expected.value(field)) {
                     if (expected.contains(field))
@@ -383,9 +384,11 @@ bool SettingsManager::updateRegisteredDefinitions(int *updatedCount, QString *er
                 }
                 QJsonObject storedSubgroup = subgroups.at(storedIndex).toObject();
                 if (fieldsDiffer(storedSubgroup, expectedSubgroup,
-                                 QStringList{"name", "description", "order"})) {
-                    storedSubgroup["name"] = expectedSubgroup.value("name");
-                    storedSubgroup["description"] = expectedSubgroup.value("description");
+                                 QStringList{"name", "nameId", "description", "descriptionId", "order"})) {
+                    storedSubgroup.remove("name");
+                    storedSubgroup["nameId"] = expectedSubgroup.value("nameId");
+                    storedSubgroup.remove("description");
+                    storedSubgroup["descriptionId"] = expectedSubgroup.value("descriptionId");
                     storedSubgroup["order"] = expectedSubgroup.value("order");
                     subgroups.replace(storedIndex, storedSubgroup);
                     changed = true;

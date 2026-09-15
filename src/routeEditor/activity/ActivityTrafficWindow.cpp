@@ -19,23 +19,32 @@
 
 ActivityTrafficWindow::ActivityTrafficWindow(QWidget* parent) : QWidget(parent) {
     setWindowFlags(Qt::WindowType::Tool);
-    setWindowTitle(tr("Traffic"));
+    setWindowTitle(
+        //% "Traffic"
+        qtTrId("route.editor.activity.traffic.window.title.traffic"));
     
     trafficProperties = new ActivityTrafficProperties(this);
     
     QVBoxLayout *actionListLayout = new QVBoxLayout;
     actionListLayout->setContentsMargins(0,0,0,0);
     actionListLayout->setSpacing(0);
-    QPushButton *bNew = new QPushButton("New Traffic");
+    QPushButton *bNew = new QPushButton(
+        //% "New Traffic"
+        qtTrId("route.editor.activity.traffic.window.button.b.new"));
     QObject::connect(bNew, SIGNAL(released()),
                       this, SLOT(bNewTrafficSelected()));
-    QPushButton *bDelete = new QPushButton("Delete");
+    QPushButton *bDelete = new QPushButton(
+        //% "Delete"
+        qtTrId("route.editor.activity.traffic.window.button.b.delete"));
     //QObject::connect(bDelete, SIGNAL(released()),
     //                  this, SLOT(bDeleteTrafficSelected()));
     QStringList list;
-    list.append("Name:");
-    list.append("This:");
-    list.append("Any:");
+    //% "Name:"
+    list.append(qtTrId("activity.traffic.list.header.name"));
+    //% "This:"
+    list.append(qtTrId("activity.traffic.list.header.this"));
+    //% "Any:"
+    list.append(qtTrId("activity.traffic.list.header.any"));
     lTraffic.setFixedWidth(250);
     lTraffic.setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     lTraffic.setColumnCount(3);

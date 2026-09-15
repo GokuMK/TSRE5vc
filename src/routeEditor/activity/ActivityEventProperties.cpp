@@ -17,6 +17,13 @@
 #include <tsre/world/objects/WorldObj.h>
 #include <tsre/world/OrtsWeatherChange.h>
 
+namespace {
+QString translatedActivityId(const QString &id) {
+    const QByteArray utf8 = id.toUtf8();
+    return qtTrId(utf8.constData());
+}
+}
+
 ActivityEventProperties::ActivityEventProperties(QWidget* parent) : QWidget(parent) {
     //this->setMinimumHeight(400);
     setMinimumWidth(350);
@@ -31,16 +38,18 @@ ActivityEventProperties::ActivityEventProperties(QWidget* parent) : QWidget(pare
             continue;
         if(i1.key() == ActivityEvent::EventTypeTime)
             continue;
-        cActionType.addItem(i1.value(), i1.key());
+        cActionType.addItem(translatedActivityId(i1.value()), i1.key());
     }
 
     QMapIterator<ActivityEvent::Outcome::OutcomeType, QString> i2(ActivityEvent::Outcome::OutcomeTypeDescription);
     while (i2.hasNext()) {
         i2.next();
-        cOutcome.addItem(i2.value(), i2.key());
+        cOutcome.addItem(translatedActivityId(i2.value()), i2.key());
     }
     
-    buttonTools["pickNewEventLocationTool"] = new QPushButton("Pick new location");
+    buttonTools["pickNewEventLocationTool"] = new QPushButton(
+        //% "Pick new location"
+        qtTrId("route.editor.activity.event.properties.button.pick.new.location"));
     //buttonTools["pickNewEventWagonTool"] = new QPushButton("Pick new Car");
     QMapIterator<QString, QPushButton*> i(buttonTools);
     while (i.hasNext()) {
@@ -48,10 +57,18 @@ ActivityEventProperties::ActivityEventProperties(QWidget* parent) : QWidget(pare
         i.value()->setCheckable(true);
     }
     
-    cSoundType.addItem("Everywhere", QString("Everywhere"));
-    cSoundType.addItem("Cab", QString("Cab"));
-    cSoundType.addItem("Pass", QString("Pass"));
-    cSoundType.addItem("Ground", QString("Ground"));
+    cSoundType.addItem(
+        //% "Everywhere"
+        qtTrId("route.editor.activity.event.properties.item.everywhere"), QString("Everywhere"));
+    cSoundType.addItem(
+        //% "Cab"
+        qtTrId("route.editor.activity.event.properties.item.cab"), QString("Cab"));
+    cSoundType.addItem(
+        //% "Pass"
+        qtTrId("route.editor.activity.event.properties.item.pass"), QString("Pass"));
+    cSoundType.addItem(
+        //% "Ground"
+        qtTrId("route.editor.activity.event.properties.item.ground"), QString("Ground"));
 
     
     cActionType.setStyleSheet("combobox-popup: 0;");
@@ -80,12 +97,16 @@ ActivityEventProperties::ActivityEventProperties(QWidget* parent) : QWidget(pare
     vlist->setContentsMargins(3,0,3,0);
     
     int row = 0;
-    QLabel *label = new QLabel("Action:");
+    QLabel *label = new QLabel(
+        //% "Action:"
+        qtTrId("route.editor.activity.event.properties.label.label"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vlist->addWidget(label, row++, 0, 1, 2);
     
-    label = new QLabel("Type:");
+    label = new QLabel(
+        //% "Type:"
+        qtTrId("route.editor.activity.event.properties.label.label.2"));
     label->setMinimumWidth(100);
     vlist->addWidget(label, row, 0);
     cActionType.setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
@@ -101,7 +122,9 @@ ActivityEventProperties::ActivityEventProperties(QWidget* parent) : QWidget(pare
     vlist->setSpacing(2);
     vlist->setContentsMargins(3,0,3,0);
     row = 0;
-    label = new QLabel("Station:");
+    label = new QLabel(
+        //% "Station:"
+        qtTrId("route.editor.activity.event.properties.label.label.3"));
     label->setMinimumWidth(100);
     vlist->addWidget(label, row, 0);
     cStationStopAction.setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
@@ -118,12 +141,16 @@ ActivityEventProperties::ActivityEventProperties(QWidget* parent) : QWidget(pare
     vlist->setSpacing(2);
     vlist->setContentsMargins(3,0,3,0);
     row = 0;
-    label = new QLabel("Siding:");
+    label = new QLabel(
+        //% "Siding:"
+        qtTrId("route.editor.activity.event.properties.label.label.4"));
     label->setMinimumWidth(100);
     vlist->addWidget(label, row, 0);
     vlist->addWidget(&eActionSiding, row, 1);
     eActionSiding.setDisabled(true);
-    bActionSiding.setText("Link Selected");
+    bActionSiding.setText(
+        //% "Link Selected"
+        qtTrId("route.editor.activity.event.properties.text.link.selected"));
     QObject::connect(&bActionSiding, SIGNAL(released()),
                       this, SLOT(bActionSidingSelected()));
     vlist->addWidget(&bActionSiding, row++, 2);
@@ -134,7 +161,9 @@ ActivityEventProperties::ActivityEventProperties(QWidget* parent) : QWidget(pare
     vlist->setSpacing(2);
     vlist->setContentsMargins(3,0,3,0);
     row = 0;
-    label = new QLabel("Speed:");
+    label = new QLabel(
+        //% "Speed:"
+        qtTrId("route.editor.activity.event.properties.label.label.5"));
     label->setMinimumWidth(100);
     vlist->addWidget(label, row, 0);
     eActionSpeed.setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
@@ -148,21 +177,31 @@ ActivityEventProperties::ActivityEventProperties(QWidget* parent) : QWidget(pare
     vlist = new QGridLayout;
     vlist->setSpacing(2);
     vlist->setContentsMargins(1,0,1,0);
-    QPushButton *bRemoveCar = new QPushButton("Remove Selected");
+    QPushButton *bRemoveCar = new QPushButton(
+        //% "Remove Selected"
+        qtTrId("route.editor.activity.event.properties.button.b.remove.car"));
     QObject::connect(bRemoveCar, SIGNAL(released()),
                       this, SLOT(bRemoveCarSelected()));
-    QPushButton *bJumpToCar = new QPushButton("Jump To Selected");
+    QPushButton *bJumpToCar = new QPushButton(
+        //% "Jump To Selected"
+        qtTrId("route.editor.activity.event.properties.button.b.jump.to.car"));
     QObject::connect(bJumpToCar, SIGNAL(released()),
                       this, SLOT(bJumpToCarSelected()));
-    QPushButton *bDescCar = new QPushButton("Edit description");
+    QPushButton *bDescCar = new QPushButton(
+        //% "Edit description"
+        qtTrId("route.editor.activity.event.properties.button.b.desc.car"));
     QObject::connect(bDescCar, SIGNAL(released()),
                       this, SLOT(bDescCarSelected()));
     bJumpToCar->setMinimumWidth(100);
-    label = new QLabel("Wagon List:");
+    label = new QLabel(
+        //% "Wagon List:"
+        qtTrId("route.editor.activity.event.properties.label.label.6"));
     label->setMaximumHeight(25);
     vlist->addWidget(label, 0, 0);
     vlist->addWidget(&wagonList, 0, 1, 5, 1);
-    QPushButton *pickNewEventWagon = new QPushButton("Pick Selected");
+    QPushButton *pickNewEventWagon = new QPushButton(
+        //% "Pick Selected"
+        qtTrId("route.editor.activity.event.properties.button.pick.new.event.wagon"));
     vlist->addWidget(pickNewEventWagon, 1, 0);
     QObject::connect(pickNewEventWagon, SIGNAL(released()),
                       this, SLOT(bPickNewEventWagonToolSelected()));
@@ -170,8 +209,10 @@ ActivityEventProperties::ActivityEventProperties(QWidget* parent) : QWidget(pare
     vlist->addWidget(bRemoveCar, 3, 0);
     vlist->addWidget(bDescCar, 4, 0);
     QStringList list;
-    list.append("ID:");
-    list.append("Description:");
+    //% "ID:"
+    list.append(qtTrId("activity.event.wagon.header.id"));
+    //% "Description:"
+    list.append(qtTrId("activity.event.wagon.header.description"));
     wagonList.setColumnCount(2);
     wagonList.setHeaderLabels(list);
     //wagonList.setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
@@ -183,28 +224,38 @@ ActivityEventProperties::ActivityEventProperties(QWidget* parent) : QWidget(pare
     vlist->setContentsMargins(3,0,3,0);
     
     row = 0;
-    label = new QLabel("Location:");
+    label = new QLabel(
+        //% "Location:"
+        qtTrId("route.editor.activity.event.properties.label.label.7"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vlist->addWidget(label, row++, 0, 1, 2);
 
-    label = new QLabel("Position:");
+    label = new QLabel(
+        //% "Position:"
+        qtTrId("route.editor.activity.event.properties.label.label.8"));
     label->setMinimumWidth(100);
     vlist->addWidget(label, row, 0);
     vlist->addWidget(&eLocationPosition, row++, 1, 1, 2);
-    QPushButton *button = new QPushButton("Jump to location");
+    QPushButton *button = new QPushButton(
+        //% "Jump to location"
+        qtTrId("route.editor.activity.event.properties.button.button"));
     QObject::connect(button, SIGNAL(released()),
                       this, SLOT(bJumpToEventLocationSelected()));
     vlist->addWidget(button, row, 1);
     QObject::connect(buttonTools["pickNewEventLocationTool"], SIGNAL(toggled(bool)),
                       this, SLOT(bPickEventLocationSelected(bool)));
     vlist->addWidget(buttonTools["pickNewEventLocationTool"], row++, 2);
-    vlist->addWidget(new QLabel("Radius:"), row, 0);
+    vlist->addWidget(new QLabel(
+        //% "Radius:"
+        qtTrId("route.editor.activity.event.properties.label.radius")), row, 0);
     vlist->addWidget(&eLocationRadius, row++, 1, 1, 2);
     eLocationRadius.setRange(0,100);
     QObject::connect(&eLocationRadius, SIGNAL(editingFinished()),
                       this, SLOT(eLocationRadiusSelected()));
-    label = new QLabel("Train must stop:");
+    label = new QLabel(
+        //% "Train must stop:"
+        qtTrId("route.editor.activity.event.properties.label.label.9"));
     label->setMinimumHeight(25);
     vlist->addWidget(label, row, 0);
     vlist->addWidget(&cLocationStop, row++, 1, 1, 2);
@@ -219,12 +270,16 @@ ActivityEventProperties::ActivityEventProperties(QWidget* parent) : QWidget(pare
     vlist->setContentsMargins(3,0,3,0);
     
     row = 0;
-    label = new QLabel("Time:");
+    label = new QLabel(
+        //% "Time:"
+        qtTrId("route.editor.activity.event.properties.label.label.10"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vlist->addWidget(label, row++, 0, 1, 2);
     
-    label = new QLabel("Activation Time:");
+    label = new QLabel(
+        //% "Activation Time:"
+        qtTrId("route.editor.activity.event.properties.label.label.11"));
     label->setMinimumWidth(100);
     vlist->addWidget(label, row, 0);
     vlist->addWidget(&eTime, row++, 1);
@@ -247,35 +302,49 @@ ActivityEventProperties::ActivityEventProperties(QWidget* parent) : QWidget(pare
     vlist->setSpacing(2);
     vlist->setContentsMargins(3,0,3,0);
     
-    label = new QLabel("Event:");
+    label = new QLabel(
+        //% "Event:"
+        qtTrId("route.editor.activity.event.properties.label.label.12"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vlist->addWidget(label, row++, 0, 1, 2);
     
-    label = new QLabel("Name:");
+    label = new QLabel(
+        //% "Name:"
+        qtTrId("route.editor.activity.event.properties.label.label.13"));
     label->setMinimumWidth(100);
     vlist->addWidget(label, row, 0);
     vlist->addWidget(&eName, row++, 1);
     QObject::connect(&eName, SIGNAL(editingFinished()),
                       this, SLOT(eNameSelected()));
-    vlist->addWidget(new QLabel("Activation Level:"), row, 0);
+    vlist->addWidget(new QLabel(
+        //% "Activation Level:"
+        qtTrId("route.editor.activity.event.properties.label.activation.level")), row, 0);
     vlist->addWidget(&eActivationLevel, row++, 1);
     eActivationLevel.setRange(-100,100);
     QObject::connect(&eActivationLevel, SIGNAL(editingFinished()),
                       this, SLOT(eActivationLevelSelected()));
-    vlist->addWidget(new QLabel("Triggered Text:"), row, 0);
+    vlist->addWidget(new QLabel(
+        //% "Triggered Text:"
+        qtTrId("route.editor.activity.event.properties.label.triggered.text")), row, 0);
     vlist->addWidget(&eTriggeredText, row++, 1);
     QObject::connect(&eTriggeredText, SIGNAL(textEdited(QString)),
                       this, SLOT(eTriggeredTextSelected(QString)));
-    vlist->addWidget(new QLabel("Untriggered Text:"), row, 0);
+    vlist->addWidget(new QLabel(
+        //% "Untriggered Text:"
+        qtTrId("route.editor.activity.event.properties.label.untriggered.text")), row, 0);
     vlist->addWidget(&eUntriggeredText, row++, 1);
     QObject::connect(&eUntriggeredText, SIGNAL(textEdited(QString)),
                       this, SLOT(eUntriggeredTextSelected(QString)));
-    vlist->addWidget(new QLabel("Notes:"), row, 0);
+    vlist->addWidget(new QLabel(
+        //% "Notes:"
+        qtTrId("route.editor.activity.event.properties.label.notes")), row, 0);
     vlist->addWidget(&eNotes, row++, 1);
     QObject::connect(&eNotes, SIGNAL(textEdited(QString)),
                       this, SLOT(eNotesSelected(QString)));
-    cAutoContinueLabel.setText("Disable pause:");
+    cAutoContinueLabel.setText(
+        //% "Disable pause:"
+        qtTrId("route.editor.activity.event.properties.text.disable.pause"));
     cAutoContinueLabel.setMinimumHeight(22);
     vlist->addWidget(&cAutoContinueLabel, row, 0);
     QObject::connect(&cAutoContinueLabel, SIGNAL(stateChanged(int)),
@@ -285,19 +354,27 @@ ActivityEventProperties::ActivityEventProperties(QWidget* parent) : QWidget(pare
                       this, SLOT(eAutoContinueSelected()));
     //lReversable.setText("Reversable:");
     cReversable.setMinimumHeight(22);
-    cReversable.setText("Reversable.");
+    cReversable.setText(
+        //% "Reversable."
+        qtTrId("route.editor.activity.event.properties.text.reversable"));
     //vlist->addWidget(&lReversable, row, 0);
     vlist->addWidget(&cReversable, row++, 0);
     QObject::connect(&cReversable, SIGNAL(stateChanged(int)),
                       this, SLOT(cReversableSelected(int)));
     
-    label = new QLabel("Outcomes:");
+    label = new QLabel(
+        //% "Outcomes:"
+        qtTrId("route.editor.activity.event.properties.label.label.14"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vlist->addWidget(label, row++, 0, 1, 2);
     vlist->addWidget(&outcomeList, row++, 0, 1, 2);
-    QPushButton *bAddOutcome = new QPushButton("Add New");
-    QPushButton *bRemoveOutcome = new QPushButton("Remove Selected");
+    QPushButton *bAddOutcome = new QPushButton(
+        //% "Add New"
+        qtTrId("route.editor.activity.event.properties.button.b.add.outcome"));
+    QPushButton *bRemoveOutcome = new QPushButton(
+        //% "Remove Selected"
+        qtTrId("route.editor.activity.event.properties.button.b.remove.outcome"));
     QObject::connect(bAddOutcome, SIGNAL(released()),
                       this, SLOT(bAddOutcomeSelected()));
     QObject::connect(bRemoveOutcome, SIGNAL(released()),
@@ -306,12 +383,16 @@ ActivityEventProperties::ActivityEventProperties(QWidget* parent) : QWidget(pare
     vlist->addWidget(bAddOutcome, row++, 0, 1, 2);
     vlist->addWidget(bRemoveOutcome, row++, 0, 1, 2);
     
-    label = new QLabel("Selected Outcome:");
+    label = new QLabel(
+        //% "Selected Outcome:"
+        qtTrId("route.editor.activity.event.properties.label.label.15"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vlist->addWidget(label, row++, 0, 1, 2);
     
-    vlist->addWidget(new QLabel("Action:"), row, 0);
+    vlist->addWidget(new QLabel(
+        //% "Action:"
+        qtTrId("route.editor.activity.event.properties.label.action")), row, 0);
     vlist->addWidget(&cOutcome, row++, 1);
     QObject::connect(&cOutcome, SIGNAL(textActivated(QString)),
                       this, SLOT(outcomeActoionListSelected(QString)));
@@ -323,7 +404,9 @@ ActivityEventProperties::ActivityEventProperties(QWidget* parent) : QWidget(pare
     vlist->setSpacing(2);
     vlist->setContentsMargins(3,0,3,0);
     row = 0;
-    label = new QLabel("Event:");
+    label = new QLabel(
+        //% "Event:"
+        qtTrId("route.editor.activity.event.properties.label.label.16"));
     label->setMinimumWidth(100);
     vlist->addWidget(label, row, 0);
     cOutcomeEvent.setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
@@ -340,7 +423,9 @@ ActivityEventProperties::ActivityEventProperties(QWidget* parent) : QWidget(pare
     vlist->setSpacing(2);
     vlist->setContentsMargins(3,0,3,0);
     row = 0;
-    vlist->addWidget(new QLabel("Message:"), row++, 0, 1, 2);
+    vlist->addWidget(new QLabel(
+        //% "Message:"
+        qtTrId("route.editor.activity.event.properties.label.message")), row++, 0, 1, 2);
     vlist->addWidget(&eOutcomeMessage, row++, 0, 1, 2);
     QObject::connect(&eOutcomeMessage, SIGNAL(textChanged()),
                       this, SLOT(eOutcomeMessageSelected()));
@@ -354,13 +439,17 @@ ActivityEventProperties::ActivityEventProperties(QWidget* parent) : QWidget(pare
     vlist->setSpacing(2);
     vlist->setContentsMargins(3,0,3,0);
     row = 0;
-    label = new QLabel("Sound File:");
+    label = new QLabel(
+        //% "Sound File:"
+        qtTrId("route.editor.activity.event.properties.label.label.17"));
     label->setMinimumWidth(100);
     vlist->addWidget(label, row, 0);
     eSoundFileName.setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
     vlist->addWidget(&eSoundFileName, row++, 1);
     QObject::connect(&eSoundFileName, SIGNAL(textEdited(QString)), this, SLOT(eSoundFileNameEdited(QString)));
-    vlist->addWidget(new QLabel("Sound Type:"), row, 0);
+    vlist->addWidget(new QLabel(
+        //% "Sound Type:"
+        qtTrId("route.editor.activity.event.properties.label.sound.type")), row, 0);
     vlist->addWidget(&cSoundType, row++, 1);
     QObject::connect(&cSoundType, SIGNAL(textActivated(QString)), this, SLOT(cSoundTypeSelected(QString)));
     outcomeProperties[(int)ActivityEvent::Outcome::CategorySoundFile] = new QWidget(this);
@@ -373,7 +462,9 @@ ActivityEventProperties::ActivityEventProperties(QWidget* parent) : QWidget(pare
     vlist->setSpacing(2);
     vlist->setContentsMargins(3,0,3,0);
     row = 0;
-    label = new QLabel("Weather Change:");
+    label = new QLabel(
+        //% "Weather Change:"
+        qtTrId("route.editor.activity.event.properties.label.label.18"));
     label->setMinimumWidth(100);
     vlist->addWidget(label, row, 0);
     cWeatherChange.setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
@@ -453,7 +544,9 @@ void ActivityEventProperties::showEvent(ActivityEvent *e){
                 eActionSiding.setText(QString("[")+QString::number(event->sidingItem)+"] "+event->getSidingDescription());
             } else {
                 eActionSiding.setStyleSheet("color: red");
-                eActionSiding.setText("Not Linked.");
+                eActionSiding.setText(
+                    //% "Not Linked."
+                    qtTrId("route.editor.activity.event.properties.text.not.linked"));
             }
         }
         if((event->eventType == ActivityEvent::EventTypeAssembleTrain)
@@ -521,7 +614,9 @@ void ActivityEventProperties::showEvent(ActivityEvent *e){
     
     outcomeList.clear();
     for(int i = 0; i < event->outcomes.size(); i++){
-       new QListWidgetItem ( ActivityEvent::Outcome::OutcomeTypeDescription[event->outcomes[i]->type], &outcomeList, i );
+       new QListWidgetItem(translatedActivityId(
+               ActivityEvent::Outcome::OutcomeTypeDescription[event->outcomes[i]->type]),
+               &outcomeList, i);
     }
     
     if(outcomeList.count() > 0){
@@ -537,8 +632,12 @@ void ActivityEventProperties::bActionSidingSelected(){
     bool ok = event->setSidingFromSelected();
     if(!ok){
         QMessageBox msgBox;
-        msgBox.setWindowTitle("Siding not linked!");
-        msgBox.setText("Select siding before using this button.");
+        msgBox.setWindowTitle(
+            //% "Siding not linked!"
+            qtTrId("route.editor.activity.event.properties.title.siding.not.linked"));
+        msgBox.setText(
+            //% "Select siding before using this button."
+            qtTrId("route.editor.activity.event.properties.text.select.siding.before.using.this.button"));
         msgBox.exec();
         return;
     }
@@ -660,13 +759,15 @@ void ActivityEventProperties::eSoundFileNameEdited(QString val){
 void ActivityEventProperties::cSoundTypeSelected(QString val){
     if(outcome == NULL)
         return;
-    outcome->setSoundType(val);
+    Q_UNUSED(val);
+    outcome->setSoundType(cSoundType.currentData().toString());
 }
 
 void ActivityEventProperties::cWeatherChangeSelected(QString val){
     if(outcome == NULL)
         return;
-    outcome->setWeatherName(val);
+    Q_UNUSED(val);
+    outcome->setWeatherName(cWeatherChange.currentData().toString());
 }
 
 void ActivityEventProperties::setEventList(QMap<int, QString> eventNames){
@@ -880,7 +981,9 @@ void ActivityEventProperties::bDescCarSelected(){
     if(event == NULL)
         return;
     EditFileNameDialog dialog;
-    dialog.setWindowTitle("Wagon Item Description.");
+    dialog.setWindowTitle(
+        //% "Wagon Item Description."
+        qtTrId("route.editor.activity.event.properties.title.wagon.item.description"));
     qDebug() << wagonList.currentItem()->type();
     dialog.name.setText(event->getWagonListItemDescription(wagonList.currentItem()->type()));
     dialog.exec();

@@ -113,18 +113,42 @@ ConEditorWindow::ConEditorWindow() : QMainWindow() {
     QGridLayout *engInfoForm = new QGridLayout;
     engInfoForm->setSpacing(2);
     engInfoForm->setContentsMargins(1,1,1,1);    
-    engInfoForm->addWidget(new QLabel("Name:"),0,0);
-    engInfoForm->addWidget(new QLabel("File Name:"),1,0);
-    engInfoForm->addWidget(new QLabel("Dir Name:"),2,0);
-    engInfoForm->addWidget(new QLabel("Shape:"),3,0);
-    engInfoForm->addWidget(new QLabel("Type:"),0,2);
-    engInfoForm->addWidget(new QLabel("Brakes:"),1,2);
-    engInfoForm->addWidget(new QLabel("Couplings:"),2,2);
-    engInfoForm->addWidget(new QLabel("Size:"),3,2);
-    engInfoForm->addWidget(new QLabel("Mass:"),0,4);
-    engInfoForm->addWidget(new QLabel("Max. Speed:"),1,4);
-    engInfoForm->addWidget(new QLabel("Max. Force:"),2,4);
-    engInfoForm->addWidget(new QLabel("Max. Power:"),3,4);    
+    engInfoForm->addWidget(new QLabel(
+        //% "Name:"
+        qtTrId("con.editor.con.editor.window.label.name")),0,0);
+    engInfoForm->addWidget(new QLabel(
+        //% "File Name:"
+        qtTrId("con.editor.con.editor.window.label.file.name")),1,0);
+    engInfoForm->addWidget(new QLabel(
+        //% "Dir Name:"
+        qtTrId("con.editor.con.editor.window.label.dir.name")),2,0);
+    engInfoForm->addWidget(new QLabel(
+        //% "Shape:"
+        qtTrId("con.editor.con.editor.window.label.shape")),3,0);
+    engInfoForm->addWidget(new QLabel(
+        //% "Type:"
+        qtTrId("con.editor.con.editor.window.label.type")),0,2);
+    engInfoForm->addWidget(new QLabel(
+        //% "Brakes:"
+        qtTrId("con.editor.con.editor.window.label.brakes")),1,2);
+    engInfoForm->addWidget(new QLabel(
+        //% "Couplings:"
+        qtTrId("con.editor.con.editor.window.label.couplings")),2,2);
+    engInfoForm->addWidget(new QLabel(
+        //% "Size:"
+        qtTrId("con.editor.con.editor.window.label.size")),3,2);
+    engInfoForm->addWidget(new QLabel(
+        //% "Mass:"
+        qtTrId("con.editor.con.editor.window.label.mass")),0,4);
+    engInfoForm->addWidget(new QLabel(
+        //% "Max. Speed:"
+        qtTrId("con.editor.con.editor.window.label.max.speed")),1,4);
+    engInfoForm->addWidget(new QLabel(
+        //% "Max. Force:"
+        qtTrId("con.editor.con.editor.window.label.max.force")),2,4);
+    engInfoForm->addWidget(new QLabel(
+        //% "Max. Power:"
+        qtTrId("con.editor.con.editor.window.label.max.power")),3,4);
     
     engInfoForm->addWidget(&eName,0,1);
     engInfoForm->addWidget(&eFileName,1,1);
@@ -148,14 +172,24 @@ ConEditorWindow::ConEditorWindow() : QMainWindow() {
     engSetsWidgetForm->setSpacing(0);
     engSetsWidgetForm->setContentsMargins(0,0,0,0);    
     engSetsWidget->setLayout(engSetsWidgetForm);
-    QLabel *engSetsLabel = GuiFunct::newTQLabel("Eng Sets Detected:");
-    QPushButton *engSetShowButton = new QPushButton("Show");
+    QLabel *engSetsLabel = GuiFunct::newTQLabel(
+        //% "Eng Sets Detected:"
+        qtTrId("con.editor.con.editor.window.label.eng.sets.label"));
+    QPushButton *engSetShowButton = new QPushButton(
+        //% "Show"
+        qtTrId("con.editor.con.editor.window.button.eng.set.show.button"));
     engSetShowButton->setFixedWidth(60);
-    QPushButton *engSetHideButton = new QPushButton("Hide");
+    QPushButton *engSetHideButton = new QPushButton(
+        //% "Hide"
+        qtTrId("con.editor.con.editor.window.button.eng.set.hide.button"));
     engSetHideButton->setFixedWidth(60);
-    QPushButton *engSetAddButton = new QPushButton("Add to Consist");
+    QPushButton *engSetAddButton = new QPushButton(
+        //% "Add to Consist"
+        qtTrId("con.editor.con.editor.window.button.eng.set.add.button"));
     engSetAddButton->setFixedWidth(120);
-    QPushButton *engSetAddFlipButton = new QPushButton("Flip and add to Consist");
+    QPushButton *engSetAddFlipButton = new QPushButton(
+        //% "Flip and add to Consist"
+        qtTrId("con.editor.con.editor.window.button.eng.set.add.flip.button"));
     engSetAddFlipButton->setFixedWidth(135);
     engSetsList.setFixedWidth(250);
     engSetsWidgetForm->addWidget(engSetsLabel,0,0);
@@ -176,14 +210,30 @@ ConEditorWindow::ConEditorWindow() : QMainWindow() {
     QGridLayout *conInfoForm = new QGridLayout;
     conInfoForm->setSpacing(2);
     conInfoForm->setContentsMargins(1,1,1,1);    
-    conInfoForm->addWidget(new QLabel("File Name:"),0,0);
-    conInfoForm->addWidget(new QLabel("Display Name:"),1,0);
-    conInfoForm->addWidget(new QLabel("Total Mass:"),0,2);
-    conInfoForm->addWidget(new QLabel("Length:"),1,2);
-    conInfoForm->addWidget(new QLabel("Eng Mass:"),0,4);
-    conInfoForm->addWidget(new QLabel("Wag Mass:"),1,4);
-    conInfoForm->addWidget(new QLabel("Units:"),0,6);
-    conInfoForm->addWidget(new QLabel("Durability:"),1,6);
+    conInfoForm->addWidget(new QLabel(
+        //% "File Name:"
+        qtTrId("con.editor.con.editor.window.label.file.name.2")),0,0);
+    conInfoForm->addWidget(new QLabel(
+        //% "Display Name:"
+        qtTrId("con.editor.con.editor.window.label.display.name")),1,0);
+    conInfoForm->addWidget(new QLabel(
+        //% "Total Mass:"
+        qtTrId("con.editor.con.editor.window.label.total.mass")),0,2);
+    conInfoForm->addWidget(new QLabel(
+        //% "Length:"
+        qtTrId("con.editor.con.editor.window.label.length")),1,2);
+    conInfoForm->addWidget(new QLabel(
+        //% "Eng Mass:"
+        qtTrId("con.editor.con.editor.window.label.eng.mass")),0,4);
+    conInfoForm->addWidget(new QLabel(
+        //% "Wag Mass:"
+        qtTrId("con.editor.con.editor.window.label.wag.mass")),1,4);
+    conInfoForm->addWidget(new QLabel(
+        //% "Units:"
+        qtTrId("con.editor.con.editor.window.label.units")),0,6);
+    conInfoForm->addWidget(new QLabel(
+        //% "Durability:"
+        qtTrId("con.editor.con.editor.window.label.durability")),1,6);
     conInfoForm->addWidget(&cFileName,0,1);
     conInfoForm->addWidget(&cDisplayName,1,1);
     conInfoForm->addWidget(&cMass,0,3);
@@ -211,103 +261,181 @@ ConEditorWindow::ConEditorWindow() : QMainWindow() {
     main->setLayout(mbox);
     this->setCentralWidget(main);
     
-    setWindowTitle(Game::AppName+" "+Game::AppVersion+" Consist Editor"+"   [ "+Game::root+" ]");
-    fileMenu = menuBar()->addMenu(tr("&File"));
-    fNew = new QAction(tr("&New"), this); 
+    //% "%1 %2 Consist Editor   [ %3 ]"
+    setWindowTitle(qtTrId("con.editor.title.root")
+                   .arg(Game::AppName, Game::AppVersion, Game::root));
+    fileMenu = menuBar()->addMenu(
+        //% "&File"
+        qtTrId("con.editor.con.editor.window.menu.file.menu"));
+    fNew = new QAction(
+        //% "&New"
+        qtTrId("con.editor.con.editor.window.action.f.new"), this);
     fileMenu->addAction(fNew);
     QObject::connect(fNew, SIGNAL(triggered(bool)), this, SLOT(newConsist()));
-    fSave = new QAction(tr("&Save"), this); 
+    fSave = new QAction(
+        //% "&Save"
+        qtTrId("con.editor.con.editor.window.action.f.save"), this);
     fileMenu->addAction(fSave);
     QObject::connect(fSave, SIGNAL(triggered(bool)), this, SLOT(save()));
-    fExit = new QAction(tr("&Exit"), this); 
+    fExit = new QAction(
+        //% "&Exit"
+        qtTrId("con.editor.con.editor.window.action.f.exit"), this);
     fileMenu->addAction(fExit);
     QObject::connect(fExit, SIGNAL(triggered(bool)), this, SLOT(close()));
-    consistMenu = menuBar()->addMenu(tr("&Consist"));
-    cReverse = new QAction(tr("&Reverse"), this); 
+    consistMenu = menuBar()->addMenu(
+        //% "&Consist"
+        qtTrId("con.editor.con.editor.window.menu.consist.menu"));
+    cReverse = new QAction(
+        //% "&Reverse"
+        qtTrId("con.editor.con.editor.window.action.c.reverse"), this);
     consistMenu->addAction(cReverse);
     QObject::connect(cReverse, SIGNAL(triggered(bool)), this, SLOT(cReverseSelected()));
-    cClone = new QAction(tr("&Clone"), this); 
+    cClone = new QAction(
+        //% "&Clone"
+        qtTrId("con.editor.con.editor.window.action.c.clone"), this);
     consistMenu->addAction(cClone);
     QObject::connect(cClone, SIGNAL(triggered(bool)), this, SLOT(cCloneSelected()));
-    cDelete = new QAction(tr("&Delete"), this); 
+    cDelete = new QAction(
+        //% "&Delete"
+        qtTrId("con.editor.con.editor.window.action.c.delete"), this);
     consistMenu->addAction(cDelete);
     QObject::connect(cDelete, SIGNAL(triggered(bool)), this, SLOT(cDeleteSelected()));
-    cOpenInExtEditor = new QAction(tr("&Open in external editor"), this); 
+    cOpenInExtEditor = new QAction(
+        //% "&Open in external editor"
+        qtTrId("con.editor.con.editor.window.action.c.open.in.ext.editor"), this);
     consistMenu->addAction(cOpenInExtEditor);
     QObject::connect(cOpenInExtEditor, SIGNAL(triggered(bool)), this, SLOT(cOpenInExternalEditor()));
-    cSaveAsEngSet = new QAction(tr("&Save as Eng Set"), this); 
+    cSaveAsEngSet = new QAction(
+        //% "&Save as Eng Set"
+        qtTrId("con.editor.con.editor.window.action.c.save.as.eng.set"), this);
     consistMenu->addAction(cSaveAsEngSet);
     QObject::connect(cSaveAsEngSet, SIGNAL(triggered()), this, SLOT(cSaveAsEngSetSelected()));
-    engMenu = menuBar()->addMenu(tr("&Eng"));
-    eFindCons = new QAction(tr("&Find Consists"), this); 
+    engMenu = menuBar()->addMenu(
+        //% "&Eng"
+        qtTrId("con.editor.con.editor.window.menu.eng.menu"));
+    eFindCons = new QAction(
+        //% "&Find Consists"
+        qtTrId("con.editor.con.editor.window.action.e.find.cons"), this);
     engMenu->addAction(eFindCons);
     QObject::connect(eFindCons, SIGNAL(triggered(bool)), this, SLOT(eFindConsistsByEng()));
-    eOpenInExtEditor = new QAction(tr("&Open in external editor"), this); 
+    eOpenInExtEditor = new QAction(
+        //% "&Open in external editor"
+        qtTrId("con.editor.con.editor.window.action.e.open.in.ext.editor"), this);
     engMenu->addAction(eOpenInExtEditor);
     QObject::connect(eOpenInExtEditor, SIGNAL(triggered(bool)), this, SLOT(eOpenInExternalEditor()));
-    eOpenLegacyInExtEditor = new QAction(tr("&Open legacy ENG in ext. editor"), this); 
+    eOpenLegacyInExtEditor = new QAction(
+        //% "&Open legacy ENG in ext. editor"
+        qtTrId("con.editor.con.editor.window.action.e.open.legacy.in.ext.editor"), this);
     engMenu->addAction(eOpenLegacyInExtEditor);
     QObject::connect(eOpenLegacyInExtEditor, SIGNAL(triggered(bool)), this, SLOT(eOpenLegacyInExternalEditor()));
-    eReload = new QAction(tr("&Reload Shape"), this); 
+    eReload = new QAction(
+        //% "&Reload Shape"
+        qtTrId("con.editor.con.editor.window.action.e.reload"), this);
     engMenu->addAction(eReload);
     QObject::connect(eReload, SIGNAL(triggered(bool)), this, SLOT(eReloadEnabled()));
-    replaceMenu = menuBar()->addMenu(tr("&Replace"));
-    QAction *replaceOne = new QAction(tr("&Only selected Unit"), this); 
+    replaceMenu = menuBar()->addMenu(
+        //% "&Replace"
+        qtTrId("con.editor.con.editor.window.menu.replace.menu"));
+    QAction *replaceOne = new QAction(
+        //% "&Only selected Unit"
+        qtTrId("con.editor.con.editor.window.action.replace.one"), this);
     QObject::connect(replaceOne, SIGNAL(triggered(bool)), this, SLOT(replaceOneEnabled()));
     replaceMenu->addAction(replaceOne);
-    QAction *replaceAll = new QAction(tr("&All units in selected Consist"), this); 
+    QAction *replaceAll = new QAction(
+        //% "&All units in selected Consist"
+        qtTrId("con.editor.con.editor.window.action.replace.all"), this);
     QObject::connect(replaceAll, SIGNAL(triggered(bool)), this, SLOT(replaceAllEnabled()));
     replaceMenu->addAction(replaceAll);
-    QAction *replaceAllAll = new QAction(tr("&All units in all Consists"), this); 
+    QAction *replaceAllAll = new QAction(
+        //% "&All units in all Consists"
+        qtTrId("con.editor.con.editor.window.action.replace.all.all"), this);
     QObject::connect(replaceAllAll, SIGNAL(triggered(bool)), this, SLOT(replaceAllAllEnabled()));
     replaceMenu->addAction(replaceAllAll);
-    viewMenu = menuBar()->addMenu(tr("&View"));
-    vConList = GuiFunct::newMenuCheckAction(tr("&Consist List"), this); 
+    viewMenu = menuBar()->addMenu(
+        //% "&View"
+        qtTrId("con.editor.con.editor.window.menu.view.menu"));
+    vConList = GuiFunct::newMenuCheckAction(
+        //% "&Consist List"
+        qtTrId("con.editor.con.editor.window.action.v.con.list"), this);
     viewMenu->addAction(vConList);
     QObject::connect(vConList, SIGNAL(triggered(bool)), this, SLOT(viewConList(bool)));
-    vEngList1 = GuiFunct::newMenuCheckAction(tr("&Eng List 1"), this); 
+    vEngList1 = GuiFunct::newMenuCheckAction(
+        //% "&Eng List 1"
+        qtTrId("con.editor.con.editor.window.action.v.eng.list1"), this);
     viewMenu->addAction(vEngList1);
     QObject::connect(vEngList1, SIGNAL(triggered(bool)), this, SLOT(viewEngList1(bool)));
-    vEngList2 = GuiFunct::newMenuCheckAction(tr("&Eng List 2"), this); 
+    vEngList2 = GuiFunct::newMenuCheckAction(
+        //% "&Eng List 2"
+        qtTrId("con.editor.con.editor.window.action.v.eng.list2"), this);
     viewMenu->addAction(vEngList2);
     QObject::connect(vEngList2, SIGNAL(triggered(bool)), this, SLOT(viewEngList2(bool)));
-    vConUnits = GuiFunct::newMenuCheckAction(tr("&Consist Units"), this); 
+    vConUnits = GuiFunct::newMenuCheckAction(
+        //% "&Consist Units"
+        qtTrId("con.editor.con.editor.window.action.v.con.units"), this);
     viewMenu->addAction(vConUnits);
     QObject::connect(vConUnits, SIGNAL(triggered(bool)), this, SLOT(viewConUnits(bool)));
-    vEngView = GuiFunct::newMenuCheckAction(tr("&Eng View"), this); 
+    vEngView = GuiFunct::newMenuCheckAction(
+        //% "&Eng View"
+        qtTrId("con.editor.con.editor.window.action.v.eng.view"), this);
     viewMenu->addAction(vEngView);
     QObject::connect(vEngView, SIGNAL(triggered(bool)), this, SLOT(viewEngView(bool)));
-    vConView = GuiFunct::newMenuCheckAction(tr("&Con View"), this); 
+    vConView = GuiFunct::newMenuCheckAction(
+        //% "&Con View"
+        qtTrId("con.editor.con.editor.window.action.v.con.view"), this);
     viewMenu->addAction(vConView);
     QObject::connect(vConView, SIGNAL(triggered(bool)), this, SLOT(viewConView(bool)));
-    view3dMenu = menuBar()->addMenu(tr("&3D View"));
-    vResetShapeView = new QAction(tr("&Shape View: Reset"), this); 
+    view3dMenu = menuBar()->addMenu(
+        //% "&3D View"
+        qtTrId("con.editor.con.editor.window.menu.view3d.menu"));
+    vResetShapeView = new QAction(
+        //% "&Shape View: Reset"
+        qtTrId("con.editor.con.editor.window.action.v.reset.shape.view"), this);
     view3dMenu->addAction(vResetShapeView);
     QObject::connect(vResetShapeView, SIGNAL(triggered()), this, SLOT(vResetShapeViewSelected()));
-    vGetImgShapeView = new QAction(tr("&Shape View: Copy Image"), this); 
+    vGetImgShapeView = new QAction(
+        //% "&Shape View: Copy Image"
+        qtTrId("con.editor.con.editor.window.action.v.get.img.shape.view"), this);
     view3dMenu->addAction(vGetImgShapeView);
     QObject::connect(vGetImgShapeView, SIGNAL(triggered()), this, SLOT(vGetImgShapeViewSelected()));
-    vSaveImgShapeView = new QAction(tr("&Shape View: Save Image"), this); 
+    vSaveImgShapeView = new QAction(
+        //% "&Shape View: Save Image"
+        qtTrId("con.editor.con.editor.window.action.v.save.img.shape.view"), this);
     view3dMenu->addAction(vSaveImgShapeView);
     QObject::connect(vSaveImgShapeView, SIGNAL(triggered()), this, SLOT(vSaveImgShapeViewSelected()));    
-    vSetColorShapeView = new QAction(tr("&Shape View: Set Color"), this); 
+    vSetColorShapeView = new QAction(
+        //% "&Shape View: Set Color"
+        qtTrId("con.editor.con.editor.window.action.v.set.color.shape.view"), this);
     view3dMenu->addAction(vSetColorShapeView);
     QObject::connect(vSetColorShapeView, SIGNAL(triggered()), this, SLOT(vSetColorShapeViewSelected()));
-    vSetColorConView = new QAction(tr("&Con View: Set Color"), this); 
+    vSetColorConView = new QAction(
+        //% "&Con View: Set Color"
+        qtTrId("con.editor.con.editor.window.action.v.set.color.con.view"), this);
     view3dMenu->addAction(vSetColorConView);
     QObject::connect(vSetColorConView, SIGNAL(triggered()), this, SLOT(vSetColorConViewSelected()));
-    settingsMenu = menuBar()->addMenu(tr("&Settings"));
-    sLoadEngSetsByDefault = GuiFunct::newMenuCheckAction(tr("&Auto load Eng Sets"), this);
+    settingsMenu = menuBar()->addMenu(
+        //% "&Settings"
+        qtTrId("con.editor.con.editor.window.menu.settings.menu"));
+    sLoadEngSetsByDefault = GuiFunct::newMenuCheckAction(
+        //% "&Auto load Eng Sets"
+        qtTrId("con.editor.con.editor.window.action.s.load.eng.sets.by.default"), this);
     QObject::connect(sLoadEngSetsByDefault, SIGNAL(triggered(bool)), this, SLOT(sLoadEngSetsByDefaultSelected(bool)));
     settingsMenu->addAction(sLoadEngSetsByDefault);
-    sRefreshEngList = new QAction(tr("&Refresh Eng Data"), this);
+    sRefreshEngList = new QAction(
+        //% "&Refresh Eng Data"
+        qtTrId("con.editor.con.editor.window.action.s.refresh.eng.list"), this);
     QObject::connect(sRefreshEngList, SIGNAL(triggered()), this, SLOT(sRefreshEngListSelected()));
     settingsMenu->addAction(sRefreshEngList);
-    sForceReloadEngList = new QAction(tr("&Force Reload Eng Data"), this);
+    sForceReloadEngList = new QAction(
+        //% "&Force Reload Eng Data"
+        qtTrId("con.editor.con.editor.window.action.s.force.reload.eng.list"), this);
     QObject::connect(sForceReloadEngList, SIGNAL(triggered()), this, SLOT(sForceReloadEngListSelected()));
     settingsMenu->addAction(sForceReloadEngList);
-    helpMenu = menuBar()->addMenu(tr("&Help"));
-    aboutAction = new QAction(tr("&About"), this);
+    helpMenu = menuBar()->addMenu(
+        //% "&Help"
+        qtTrId("con.editor.con.editor.window.menu.help.menu"));
+    aboutAction = new QAction(
+        //% "&About"
+        qtTrId("con.editor.con.editor.window.action.about.action"), this);
     QObject::connect(aboutAction, SIGNAL(triggered()), this, SLOT(about()));
     helpMenu->addAction(aboutAction);
     
@@ -400,12 +528,16 @@ ConEditorWindow::~ConEditorWindow() {
 }
 
 void ConEditorWindow::vSetColorConViewSelected(){
-    QColor color = QColorDialog::getColor(Qt::black, this, "Shape View Color",  QColorDialog::DontUseNativeDialog);
+    QColor color = QColorDialog::getColor(Qt::black, this,
+        //% "Shape View Color"
+        qtTrId("con.editor.con.editor.window.dialog.title.color"),  QColorDialog::DontUseNativeDialog);
     glConWidget->setBackgroundGlColor((float)color.redF(), (float)color.greenF(), (float)color.blueF());
 }
 
 void ConEditorWindow::vSetColorShapeViewSelected(){
-    QColor color = QColorDialog::getColor(Qt::black, this, "Shape View Color",  QColorDialog::DontUseNativeDialog);
+    QColor color = QColorDialog::getColor(Qt::black, this,
+        //% "Shape View Color"
+        qtTrId("con.editor.con.editor.window.dialog.title.color.2"),  QColorDialog::DontUseNativeDialog);
     glShapeWidget->setBackgroundGlColor((float)color.redF(), (float)color.greenF(), (float)color.blueF());
 }
 
@@ -445,8 +577,12 @@ void ConEditorWindow::eOpenInExternalEditor(){
             QDesktopServices::openUrl(QUrl::fromLocalFile(currentEng->filePaths[0]));
     } else {
         ChooseFileDialog chooseFileDialog;
-        chooseFileDialog.setMsg("This ENG contains more than one file:");
-        chooseFileDialog.setWindowTitle("Choose file:");
+        chooseFileDialog.setMsg(
+            //% "This ENG contains more than one file:"
+            qtTrId("con.editor.con.editor.window.message.this.eng.contains.more.than.one.file"));
+        chooseFileDialog.setWindowTitle(
+            //% "Choose file:"
+            qtTrId("con.editor.con.editor.window.title.choose.file"));
         for(int i = 0; i < currentEng->filePaths.size(); i++){
             chooseFileDialog.items.addItem(""+currentEng->filePaths[i]);
         }
@@ -469,7 +605,11 @@ void ConEditorWindow::saveImgShapeView(){
     if(glShapeWidget->screenShot != NULL){
         //QImage img = glShapeWidget->screenShot->mirrored(false, true);
         QImage img = glShapeWidget->screenShot->flipped(Qt::Vertical);
-        QString path = QFileDialog::getSaveFileName(this, "Save File", "./", "Images (*.png *.jpg)");
+        QString path = QFileDialog::getSaveFileName(this,
+            //% "Save File"
+            qtTrId("con.editor.con.editor.window.dialog.title.path"), "./",
+            //% "Images (*.png *.jpg)"
+            qtTrId("con.editor.con.editor.window.dialog.filter.path"));
         qDebug() << path;
         if(path.length() < 1) return;
         QFile file(path);
@@ -519,7 +659,9 @@ void ConEditorWindow::saveCurrentConsist(){
     if(currentCon == NULL) return;
     if(currentCon->isNewConsist()){
         OverwriteDialog owerwriteDialog;
-        owerwriteDialog.setWindowTitle("Overwrite \""+currentCon->conName+"\" ?");
+        //% "Overwrite \"%1\"?"
+        owerwriteDialog.setWindowTitle(
+                    qtTrId("con.editor.overwrite.title").arg(currentCon->conName));
         //owerwriteDialog.name.setText(currentCon->conName);
         QString spath;
         do {
@@ -742,7 +884,9 @@ void ConEditorWindow::cSaveAsEngSetSelected(){
     if(currentCon == NULL) return;
     if(!currentCon->isNewConsist()){
         QMessageBox msgBox;
-        msgBox.setText("Consist must be new.");
+        msgBox.setText(
+            //% "Consist must be new."
+            qtTrId("con.editor.con.editor.window.text.consist.must.be.new"));
         msgBox.exec();
         return;
     }
@@ -760,7 +904,9 @@ void ConEditorWindow::cSaveAsEngSetSelected(){
     currentCon->name = fileName+".con";
     
     OverwriteDialog owerwriteDialog;
-    owerwriteDialog.setWindowTitle("Overwrite \""+currentCon->conName+"\" ?");
+        //% "Overwrite \"%1\"?"
+        owerwriteDialog.setWindowTitle(
+                    qtTrId("con.editor.overwrite.title").arg(currentCon->conName));
     
     QString spath;
     spath = currentCon->path + "/" + currentCon->name;
@@ -919,8 +1065,12 @@ void ConEditorWindow::closeEvent( QCloseEvent *event )
     }
     
     UnsavedDialog unsavedDialog;
-    unsavedDialog.setMsg("Save changes in consists?");
-    unsavedDialog.setWindowTitle("Save changes?");
+    unsavedDialog.setMsg(
+        //% "Save changes in consists?"
+        qtTrId("con.editor.con.editor.window.message.save.changes.in.consists"));
+    unsavedDialog.setWindowTitle(
+        //% "Save changes?"
+        qtTrId("con.editor.con.editor.window.title.save.changes"));
     for(int i = 0; i < unsavedConIds.size(); i++){
         if(ConLib::con[unsavedConIds[i]] == NULL) continue;
         unsavedDialog.items.addItem("[C] "+ConLib::con[unsavedConIds[i]]->showName);

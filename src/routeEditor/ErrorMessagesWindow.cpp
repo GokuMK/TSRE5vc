@@ -26,7 +26,9 @@ ErrorMessagesWindow::ErrorMessagesWindow(QWidget* parent) : QWidget(parent) {
     //this->setFixedWidth(350);
     this->setMinimumWidth(730);
     this->setFixedHeight(400);
-    this->setWindowTitle(tr("Errors & Messages"));
+    this->setWindowTitle(
+        //% "Errors & Messages"
+        qtTrId("route.editor.error.messages.window.title.errors.messages"));
     
     properties = new ErrorMessageProperties(this);
     
@@ -44,11 +46,16 @@ ErrorMessagesWindow::ErrorMessagesWindow(QWidget* parent) : QWidget(parent) {
     //errorListLayout->addWidget(bNewActionEvent);
     //errorListLayout->addWidget(bDeleteActionEvent);
     QStringList list;
-    list.append("ID:");
-    list.append("Time:");
-    list.append("Type:");
-    list.append("Source:");
-    list.append("Message:");
+    //% "ID:"
+    list.append(qtTrId("route.errors.header.id"));
+    //% "Time:"
+    list.append(qtTrId("route.errors.header.time"));
+    //% "Type:"
+    list.append(qtTrId("route.errors.header.type"));
+    //% "Source:"
+    list.append(qtTrId("route.errors.header.source"));
+    //% "Message:"
+    list.append(qtTrId("route.errors.header.message"));
     //list.append("Any:");
     //errorList.setFixedWidth(250);
     errorList.setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);

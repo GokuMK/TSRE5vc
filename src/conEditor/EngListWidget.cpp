@@ -14,24 +14,54 @@
 #include <tsre/Game.h>
 
 EngListWidget::EngListWidget() : QWidget(){
-    addBegButton.setText("Add Beg");
-    addCurButton.setText("Add Cur");
-    addEndButton.setText("Add End");
-    addRandButton.setText("Add Rand");
+    addBegButton.setText(
+        //% "Add Beg"
+        qtTrId("con.editor.eng.list.widget.text.add.beg"));
+    addCurButton.setText(
+        //% "Add Cur"
+        qtTrId("con.editor.eng.list.widget.text.add.cur"));
+    addEndButton.setText(
+        //% "Add End"
+        qtTrId("con.editor.eng.list.widget.text.add.end"));
+    addRandButton.setText(
+        //% "Add Rand"
+        qtTrId("con.editor.eng.list.widget.text.add.rand"));
     addNum.setText("1");
     
-    engType.addItem("ALL");
-    engType.addItem("electric");
-    engType.addItem("diesel");
-    engType.addItem("steam");
-    engType.addItem("carriage");
-    engType.addItem("freight");
-    engType.addItem("tender");
+    engType.addItem(
+        //% "ALL"
+        qtTrId("con.editor.eng.list.widget.item.all"), QString());
+    engType.addItem(
+        //% "electric"
+        qtTrId("con.editor.eng.list.widget.item.electric"), "electric");
+    engType.addItem(
+        //% "diesel"
+        qtTrId("con.editor.eng.list.widget.item.diesel"), "diesel");
+    engType.addItem(
+        //% "steam"
+        qtTrId("con.editor.eng.list.widget.item.steam"), "steam");
+    engType.addItem(
+        //% "carriage"
+        qtTrId("con.editor.eng.list.widget.item.carriage"), "carriage");
+    engType.addItem(
+        //% "freight"
+        qtTrId("con.editor.eng.list.widget.item.freight"), "freight");
+    engType.addItem(
+        //% "tender"
+        qtTrId("con.editor.eng.list.widget.item.tender"), "tender");
 
-    couplingType.addItem("ALL");
-    couplingType.addItem("Chain");
-    couplingType.addItem("Automatic");
-    couplingType.addItem("Bar");
+    couplingType.addItem(
+        //% "ALL"
+        qtTrId("con.editor.eng.list.widget.item.all.2"), QString());
+    couplingType.addItem(
+        //% "Chain"
+        qtTrId("con.editor.eng.list.widget.item.chain"), "Chain");
+    couplingType.addItem(
+        //% "Automatic"
+        qtTrId("con.editor.eng.list.widget.item.automatic"), "Automatic");
+    couplingType.addItem(
+        //% "Bar"
+        qtTrId("con.editor.eng.list.widget.item.bar"), "Bar");
     
     QVBoxLayout *vbox = new QVBoxLayout;
     vbox->setSpacing(2);
@@ -39,11 +69,21 @@ EngListWidget::EngListWidget() : QWidget(){
     QFormLayout *vlist = new QFormLayout;
     vlist->setSpacing(2);
     vlist->setContentsMargins(3,0,3,0);
-    vlist->addRow("Total:", &totalVal);
-    vlist->addRow("Type:", &engType);
-    vlist->addRow("Coupling:", &couplingType);
-    vlist->addRow("Search", &searchBox);
-    vlist->addRow("Num to add", &addNum);
+    vlist->addRow(
+        //% "Total:"
+        qtTrId("con.editor.eng.list.widget.label.total"), &totalVal);
+    vlist->addRow(
+        //% "Type:"
+        qtTrId("con.editor.eng.list.widget.label.type"), &engType);
+    vlist->addRow(
+        //% "Coupling:"
+        qtTrId("con.editor.eng.list.widget.label.coupling"), &couplingType);
+    vlist->addRow(
+        //% "Search"
+        qtTrId("con.editor.eng.list.widget.label.search"), &searchBox);
+    vlist->addRow(
+        //% "Num to add"
+        qtTrId("con.editor.eng.list.widget.label.num.add"), &addNum);
     vbox->addItem(vlist);
     QHBoxLayout *addbuttons = new QHBoxLayout;
     addbuttons->addWidget(&addBegButton);
@@ -87,12 +127,9 @@ EngListWidget::~EngListWidget() {
 }
 
 void EngListWidget::fs(QString n){
-    QString ef = engType.currentText();
-    if(engType.currentIndex() == 0)
-        ef = "";
-    QString cf = couplingType.currentText();
-    if(couplingType.currentIndex() == 0)
-        cf = "";
+    Q_UNUSED(n);
+    const QString ef = engType.currentData().toString();
+    const QString cf = couplingType.currentData().toString();
     QString sf = searchBox.text();
     qDebug() << ef <<" "<< cf <<" "<< sf;
     fillEngList(ef, cf, sf);

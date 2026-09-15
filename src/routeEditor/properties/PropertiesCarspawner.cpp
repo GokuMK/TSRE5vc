@@ -18,7 +18,9 @@ PropertiesCarspawner::PropertiesCarspawner() {
     vbox->setSpacing(2);
     vbox->setContentsMargins(0,1,1,1);
     
-    infoLabel = new QLabel("Carspawner:");
+    infoLabel = new QLabel(
+        //% "Carspawner:"
+        qtTrId("route.editor.properties.carspawner.label.info.label"));
     infoLabel->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     infoLabel->setContentsMargins(3,0,0,0);
     vbox->addWidget(infoLabel);
@@ -29,33 +31,51 @@ PropertiesCarspawner::PropertiesCarspawner() {
     this->tX.setDisabled(true);
     this->tY.setDisabled(true);
     this->lengthPlatform.setDisabled(true);
-    vlist->addRow("UiD:",&this->uid);
-    vlist->addRow("Tile X:",&this->tX);
-    vlist->addRow("Tile Z:",&this->tY);
-    vlist->addRow("Length:",&this->lengthPlatform);
+    vlist->addRow(
+        //% "UiD:"
+        qtTrId("route.editor.properties.carspawner.label.ui.d"),&this->uid);
+    vlist->addRow(
+        //% "Tile X:"
+        qtTrId("route.editor.properties.carspawner.label.tile.x"),&this->tX);
+    vlist->addRow(
+        //% "Tile Z:"
+        qtTrId("route.editor.properties.carspawner.label.tile.z"),&this->tY);
+    vlist->addRow(
+        //% "Length:"
+        qtTrId("route.editor.properties.carspawner.label.length"),&this->lengthPlatform);
     vbox->addItem(vlist);
     // names
-    QLabel * label = new QLabel("Car Number:");
+    QLabel * label = new QLabel(
+        //% "Car Number:"
+        qtTrId("route.editor.properties.carspawner.label.label"));
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     vbox->addWidget(&this->carNumber);
-    label = new QLabel("Car speed:");
+    label = new QLabel(
+        //% "Car speed:"
+        qtTrId("route.editor.properties.carspawner.label.label.2"));
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     vbox->addWidget(&this->carSpeed);
     //vbox->addWidget(&this->useCustomList);
     //useCustomList.setText("Use custom car list.");
-    label = new QLabel("Car List:");
+    label = new QLabel(
+        //% "Car List:"
+        qtTrId("route.editor.properties.carspawner.label.label.3"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     vbox->addWidget(&this->carspawnList);
     carspawnList.setStyleSheet("combobox-popup: 0;");
-    label = new QLabel("Track Items:");
+    label = new QLabel(
+        //% "Track Items:"
+        qtTrId("route.editor.properties.carspawner.label.label.4"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
-    QPushButton *bExpandSelected = new QPushButton("Expand");
+    QPushButton *bExpandSelected = new QPushButton(
+        //% "Expand"
+        qtTrId("route.editor.properties.carspawner.button.b.expand.selected"));
     vbox->addWidget(bExpandSelected);
     QObject::connect(bExpandSelected, SIGNAL(released()),
                       this, SLOT(bExpandEnabled()));
@@ -81,11 +101,15 @@ PropertiesCarspawner::~PropertiesCarspawner() {
 
 void PropertiesCarspawner::showObj(GameObj* obj){
     if(obj == NULL){
-        infoLabel->setText("NULL");
+        infoLabel->setText(
+            //% "NULL"
+            qtTrId("route.editor.properties.carspawner.text.null"));
         return;
     }
     worldObj = (WorldObj*)obj;
-    this->infoLabel->setText("Object: "+worldObj->type);
+    //% "Object: %1"
+    this->infoLabel->setText(qtTrId("route.properties.carspawner.object.type")
+                             .arg(worldObj->type));
     this->uid.setText(QString::number(worldObj->UiD, 10));
     this->tX.setText(QString::number(worldObj->x, 10));
     this->tY.setText(QString::number(-worldObj->y, 10));

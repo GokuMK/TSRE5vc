@@ -682,11 +682,15 @@ void ActivityObject::FailedSignalData::pushRenderItems(float* playerT, quint32 s
 
 void ActivityObject::pushContextMenuActions(QMenu *menu){
     if(contextMenuActions["ToggleDirection"] == NULL){
-        contextMenuActions["ToggleDirection"] = new QAction(tr("&Toggle Direction")); 
+        contextMenuActions["ToggleDirection"] = new QAction(
+            //% "&Toggle Direction"
+            qtTrId("tsre.trains.activity.object.action.toggle.direction"));
         QObject::connect(contextMenuActions["ToggleDirection"], SIGNAL(triggered()), this, SLOT(menuToggleDirection()));
     }
     if(contextMenuActions["Reverse"] == NULL){
-        contextMenuActions["Reverse"] = new QAction(tr("&Reverse Selected")); 
+        contextMenuActions["Reverse"] = new QAction(
+            //% "&Reverse Selected"
+            qtTrId("tsre.trains.activity.object.action.reverse.selected"));
         QObject::connect(contextMenuActions["Reverse"], SIGNAL(triggered()), this, SLOT(menuToggleReverse()));
     }
     if(objectTypeId == WAGONLIST){

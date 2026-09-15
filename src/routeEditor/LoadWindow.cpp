@@ -23,29 +23,43 @@
 
 LoadWindow::LoadWindow() {
     //this->setWindowFlags( Qt::CustomizeWindowHint );
-    setWindowTitle(Game::AppName+" "+Game::AppVersion+" Route Editor");
+    //% "%1 %2 Route Editor"
+    setWindowTitle(qtTrId("route.editor.load.title")
+                   .arg(Game::AppName, Game::AppVersion));
     this->setFixedSize(600, 700);
     QImage* myImage = new QImage();
     myImage->load(QString("appdata/")+Game::AppDataVersion+"/load.png");
 
     QLabel* myLabel = new QLabel("");
     myLabel->setContentsMargins(0,0,0,0);
-    QLabel* myLabel2 = new QLabel("Choose folder containing 'Global' and 'Routes': ");
+    QLabel* myLabel2 = new QLabel(
+        //% "Choose folder containing 'Global' and 'Routes': "
+        qtTrId("route.editor.load.window.label.my.label2"));
     myLabel2->setContentsMargins(5,0,0,0);
-    QLabel* myLabel3 = new QLabel("Select route above or enter name for new route: ");
+    QLabel* myLabel3 = new QLabel(
+        //% "Select route above or enter name for new route: "
+        qtTrId("route.editor.load.window.label.my.label3"));
     myLabel3->setContentsMargins(5,0,0,0);
     
     myLabel->setPixmap(QPixmap::fromImage(*myImage));
 
-    browse = new QPushButton("Browse");
+    browse = new QPushButton(
+        //% "Browse"
+        qtTrId("route.editor.load.window.button.browse"));
     connect(browse, SIGNAL (released()), this, SLOT (handleBrowseButton()));
-    load = new QPushButton("Load");
+    load = new QPushButton(
+        //% "Load"
+        qtTrId("route.editor.load.window.button.load"));
     load->setStyleSheet(QString("background-color: ")+Game::StyleGreenButton);
     connect(load, SIGNAL (released()), this, SLOT (routeLoad()));
-    neww = new QPushButton("New");
+    neww = new QPushButton(
+        //% "New"
+        qtTrId("route.editor.load.window.button.neww"));
     neww->setStyleSheet(QString("background-color: ")+Game::StyleYellowButton);
     connect(neww, SIGNAL (released()), this, SLOT (setNewRoute()));
-    exit = new QPushButton("Exit");
+    exit = new QPushButton(
+        //% "Exit"
+        qtTrId("route.editor.load.window.button.exit"));
     exit->setStyleSheet(QString("background-color: ")+Game::StyleRedButton);
     
     
@@ -67,7 +81,9 @@ LoadWindow::LoadWindow() {
     cRecent.setStyleSheet("combobox-popup: 0;");
     QObject::connect(&cRecent, SIGNAL(textActivated(QString)),
                       this, SLOT(cRecentEnabled(QString)));
-    recentLayout->addRow("Recent: ", &cRecent);
+    recentLayout->addRow(
+        //% "Recent: "
+        qtTrId("route.editor.load.window.label.recent"), &cRecent);
     mainLayout->addItem(recentLayout);
     mainLayout->addWidget(&routeList);
     
@@ -226,7 +242,9 @@ void LoadWindow::listRoutes(){
 
 void LoadWindow::setLoadRoute(){
     //qDebug() << "load";
-    this->load->setText("Load");
+    this->load->setText(
+        //% "Load"
+        qtTrId("route.editor.load.window.text.load"));
     this->newRoute = false;
 }
 
@@ -246,7 +264,9 @@ void LoadWindow::setNewRoute(){
     }
     
     NewRouteWindow newWindow;
-    newWindow.setWindowTitle("New route");
+    newWindow.setWindowTitle(
+        //% "New route"
+        qtTrId("route.editor.load.window.title.new.route"));
     newWindow.name.setText("");
     newWindow.lat.setText("50.0");
     newWindow.lon.setText("20.0");

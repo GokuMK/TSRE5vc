@@ -55,34 +55,78 @@ TerrainTools::TerrainTools(QString name)
         brushShapes.push_back(QImage(QString("appdata/")+Game::AppDataVersion+"/brush/"+bfile).convertToFormat(QImage::Format_Grayscale8));
     nextBrushShape();
     
-    buttonTools["heightTool"] = new QPushButton("HeightMap +", this);
-    buttonTools["pickTerrainTexTool"] = new QPushButton("Pick", this);
-    buttonTools["putTerrainTexTool"] = new QPushButton("Put", this);
-    buttonTools["waterTerrTool"] = new QPushButton("Water +", this);
+    buttonTools["heightTool"] = new QPushButton(
+        //% "HeightMap +"
+        qtTrId("route.editor.terrain.tools.button.height.map"), this);
+    buttonTools["pickTerrainTexTool"] = new QPushButton(
+        //% "Pick"
+        qtTrId("route.editor.terrain.tools.button.pick"), this);
+    buttonTools["putTerrainTexTool"] = new QPushButton(
+        //% "Put"
+        qtTrId("route.editor.terrain.tools.button.put"), this);
+    buttonTools["waterTerrTool"] = new QPushButton(
+        //% "Water +"
+        qtTrId("route.editor.terrain.tools.button.water"), this);
     //buttonTools["drawTerrTool"] = new QPushButton("Show/H Tile", this);
-    buttonTools["gapsTerrainTool"] = new QPushButton("Gaps +", this);
+    buttonTools["gapsTerrainTool"] = new QPushButton(
+        //% "Gaps +"
+        qtTrId("route.editor.terrain.tools.button.gaps"), this);
     //buttonTools["waterHeightTileTool"] = new QPushButton("Water level", this);
     //buttonTools["fixedTileTool"] = new QPushButton("Fixed Height", this);
     //buttonTools["waTileTool"] = new QPushButton("Fixed Height", this);
     if(Game::serverClient == NULL){
-        buttonTools["paintToolColor"] = new QPushButton("Color", this);
-        buttonTools["paintToolTexture"] = new QPushButton("Texture", this);
-        buttonTools["lockTexTool"] = new QPushButton("Lock", this);
-        buttonTools["proceduralPaintTextureTool"] = new QPushButton("Texture", this);
-        buttonTools["proceduralFillPatchTool"] = new QPushButton("Fill Patch", this);
-        buttonTools["proceduralFillTool"] = new QPushButton("Fill", this);
-        buttonTools["proceduralPickTool"] = new QPushButton("Pick", this);
-        buttonTools["proceduralLockTool"] = new QPushButton("Lock", this);
-        buttonTools["proceduralPickTool"]->setToolTip("Pick the source material from terrain. Same picking tool as in the static section.");
-        buttonTools["proceduralLockTool"]->setToolTip("Toggle patch texture lock. Same shared lock as in the static section.");
-        buttonTools["paintToolColor"]->setToolTip("Paint static textures only; procedural tiles are ignored.");
-        buttonTools["paintToolTexture"]->setToolTip("Paint static textures only; procedural tiles are ignored.");
-        buttonTools["lockTexTool"]->setToolTip("Toggle patch texture lock. Applies to both static and procedural painting and fills.");
-        buttonTools["proceduralPaintTextureTool"]->setToolTip("Paint shader IDs on procedural tiles using the selected texture and brush mask. Undo groups long strokes into two-second actions.");
-        buttonTools["proceduralFillPatchTool"]->setToolTip("Replace every shader ID in the clicked unlocked procedural patch. Ignores brush size/mask. Supports Undo.");
-        buttonTools["proceduralFillTool"]->setToolTip("Fill the four-connected region matching the clicked shader ID, within this tile. Locked patches are barriers. Ignores brush size/mask. Supports Undo.");
+        buttonTools["paintToolColor"] = new QPushButton(
+            //% "Color"
+            qtTrId("route.editor.terrain.tools.button.color"), this);
+        buttonTools["paintToolTexture"] = new QPushButton(
+            //% "Texture"
+            qtTrId("route.editor.terrain.tools.button.texture"), this);
+        buttonTools["lockTexTool"] = new QPushButton(
+            //% "Lock"
+            qtTrId("route.editor.terrain.tools.button.lock"), this);
+        buttonTools["proceduralPaintTextureTool"] = new QPushButton(
+            //% "Texture"
+            qtTrId("route.editor.terrain.tools.button.texture.2"), this);
+        buttonTools["proceduralFillPatchTool"] = new QPushButton(
+            //% "Fill Patch"
+            qtTrId("route.editor.terrain.tools.button.fill.patch"), this);
+        buttonTools["proceduralFillTool"] = new QPushButton(
+            //% "Fill"
+            qtTrId("route.editor.terrain.tools.button.fill"), this);
+        buttonTools["proceduralPickTool"] = new QPushButton(
+            //% "Pick"
+            qtTrId("route.editor.terrain.tools.button.pick.2"), this);
+        buttonTools["proceduralLockTool"] = new QPushButton(
+            //% "Lock"
+            qtTrId("route.editor.terrain.tools.button.lock.2"), this);
+        buttonTools["proceduralPickTool"]->setToolTip(
+            //% "Pick the source material from terrain. Same picking tool as in the static section."
+            qtTrId("route.editor.terrain.tools.tooltip.pick.source.material.from.terrain.same.picking"));
+        buttonTools["proceduralLockTool"]->setToolTip(
+            //% "Toggle patch texture lock. Same shared lock as in the static section."
+            qtTrId("route.editor.terrain.tools.tooltip.toggle.patch.texture.lock.same.shared.lock"));
+        buttonTools["paintToolColor"]->setToolTip(
+            //% "Paint static textures only; procedural tiles are ignored."
+            qtTrId("route.editor.terrain.tools.tooltip.paint.static.textures.only.procedural.tiles.are"));
+        buttonTools["paintToolTexture"]->setToolTip(
+            //% "Paint static textures only; procedural tiles are ignored."
+            qtTrId("route.editor.terrain.tools.tooltip.paint.static.textures.only.procedural.tiles.are.2"));
+        buttonTools["lockTexTool"]->setToolTip(
+            //% "Toggle patch texture lock. Applies to both static and procedural painting and fills."
+            qtTrId("route.editor.terrain.tools.tooltip.toggle.patch.texture.lock.applies.both.static"));
+        buttonTools["proceduralPaintTextureTool"]->setToolTip(
+            //% "Paint shader IDs on procedural tiles using the selected texture and brush mask. Undo groups long strokes into two-second actions."
+            qtTrId("route.editor.terrain.tools.tooltip.paint.shader.ids.on.procedural.tiles.using"));
+        buttonTools["proceduralFillPatchTool"]->setToolTip(
+            //% "Replace every shader ID in the clicked unlocked procedural patch. Ignores brush size/mask. Supports Undo."
+            qtTrId("route.editor.terrain.tools.tooltip.replace.every.shader.id.in.clicked.unlocked"));
+        buttonTools["proceduralFillTool"]->setToolTip(
+            //% "Fill the four-connected region matching the clicked shader ID, within this tile. Locked patches are barriers. Ignores brush size/mask. Supports Undo."
+            qtTrId("route.editor.terrain.tools.tooltip.fill.four.connected.region.matching.clicked.shader"));
     }
-    buttonTools["putTerrainTexTool"]->setToolTip("Set the material of a static patch; procedural tiles are ignored.");
+    buttonTools["putTerrainTexTool"]->setToolTip(
+        //% "Set the material of a static patch; procedural tiles are ignored."
+        qtTrId("route.editor.terrain.tools.tooltip.set.material.static.patch.procedural.tiles.are"));
     QMapIterator<QString, QPushButton*> i(buttonTools);
     while (i.hasNext()) {
         i.next();
@@ -90,9 +134,13 @@ TerrainTools::TerrainTools(QString name)
         i.value()->setObjectName(i.key());
     }
     
-    QPushButton *loadTerrainTexTool = new QPushButton("Load", this);
+    QPushButton *loadTerrainTexTool = new QPushButton(
+        //% "Load"
+        qtTrId("route.editor.terrain.tools.button.load.terrain.tex.tool"), this);
     loadTerrainTexTool->setObjectName("loadTerrainTexture");
-    loadTerrainTexTool->setToolTip("Load a static texture from an image file.");
+    loadTerrainTexTool->setToolTip(
+        //% "Load a static texture from an image file."
+        qtTrId("route.editor.terrain.tools.tooltip.load.static.texture.from.image.file"));
     
     QGridLayout *vlist3 = new QGridLayout;
     vlist3->setSpacing(2);
@@ -140,7 +188,9 @@ TerrainTools::TerrainTools(QString name)
     vbox->setSpacing(2);
     vbox->setContentsMargins(0,1,1,1);
     
-    label0 = new QLabel("Edit Terrain Layers:");
+    label0 = new QLabel(
+        //% "Edit Terrain Layers:"
+        qtTrId("route.editor.terrain.tools.label.label0"));
     label0->setContentsMargins(3,0,0,0);
     label0->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     vbox->addWidget(label0);
@@ -151,7 +201,9 @@ TerrainTools::TerrainTools(QString name)
     vbox->addWidget(label0);
     vbox->addItem(vlist4);*/
     {
-        label0 = new QLabel("Static textures:");
+        label0 = new QLabel(
+            //% "Static textures:"
+            qtTrId("route.editor.terrain.tools.label.label0.2"));
         label0->setContentsMargins(3,0,0,0);
         label0->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
         vbox->addWidget(label0);
@@ -160,7 +212,9 @@ TerrainTools::TerrainTools(QString name)
     }
 
     if (Game::serverClient == nullptr) {
-        auto *heading = new QLabel("Procedural Materials (experimental):");
+        auto *heading = new QLabel(
+            //% "Procedural Materials (experimental):"
+            qtTrId("route.editor.terrain.tools.label.heading"));
         heading->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
         vbox->addWidget(heading);
         const QStringList names {"proceduralTileEnableTool", "proceduralTileDisableTool"};
@@ -180,9 +234,9 @@ TerrainTools::TerrainTools(QString name)
                 if (checked && tool=="proceduralTileEnableTool"
                         && (!TerrainMaterialLibrary::current()->find(paintBrush->terrainMaterialUid)
                             || paintBrush->terrainMaterialRoute!=TerrainMaterialLibrary::current()->path())) {
-                    if (!chooseProceduralMaterial("To enable procedural materials on a tile, first choose its initial material. "
-                            "The tile will be filled with this material. Choose an existing entry or add one with From image, "
-                            "then click the tile you want to convert.")) {
+                    if (!chooseProceduralMaterial(
+                        //% "To enable procedural materials on a tile, first choose its initial material. The tile will be filled with this material. Choose an existing entry or add one with From image, then click the tile you want to convert."
+                        qtTrId("route.editor.terrain.tools.prompt.enable.procedural.materials.on.tile.first.choose"))) {
                         emit enableTool(QString()); return;
                     }
                 }
@@ -213,9 +267,13 @@ TerrainTools::TerrainTools(QString name)
         selection->setContentsMargins(3,0,1,0);
         selection->addWidget(buttonTools["proceduralPickTool"]);
         selection->addWidget(buttonTools["proceduralLockTool"]);
-        auto *choose=new QPushButton("Choose",this);
+        auto *choose=new QPushButton(
+            //% "Choose"
+            qtTrId("route.editor.terrain.tools.button.choose"),this);
         choose->setObjectName("chooseProceduralMaterial");
-        choose->setToolTip("Choose a procedural material from the route library, or add one from an image.");
+        choose->setToolTip(
+            //% "Choose a procedural material from the route library, or add one from an image."
+            qtTrId("route.editor.terrain.tools.tooltip.choose.procedural.material.from.route.library.add"));
         selection->addWidget(choose);
         connect(choose,&QPushButton::clicked,this,[this] { chooseProceduralMaterial(); });
         connect(buttonTools["proceduralPickTool"],&QPushButton::clicked,this,&TerrainTools::pickTexToolEnabled);
@@ -223,7 +281,9 @@ TerrainTools::TerrainTools(QString name)
         vbox->addLayout(selection);
         if (!TerrainMaterialMap::Enabled) {
             const QString disabled="Disabled in Terrain / Procedural materials settings. Enable and restart TSRE to use these tools.";
-            heading->setText("Procedural Materials (disabled in settings)");
+            heading->setText(
+                //% "Procedural Materials (disabled in settings)"
+                qtTrId("route.editor.terrain.tools.text.procedural.materials.disabled.in.settings"));
             choose->setEnabled(false); choose->setToolTip(disabled);
             for (auto it=buttonTools.begin();it!=buttonTools.end();++it) {
                 if (it.key().startsWith("procedural")) { it.value()->setEnabled(false); it.value()->setToolTip(disabled); }
@@ -246,7 +306,9 @@ TerrainTools::TerrainTools(QString name)
     vbox->setAlignment(vlist1, Qt::AlignHCenter);
     //vbox->addWidget(texPreviewLabel);
     //vbox->setAlignment(texPreviewLabel, Qt::AlignHCenter);
-    QLabel *label2 = new QLabel("Brush settings:");
+    QLabel *label2 = new QLabel(
+        //% "Brush settings:"
+        qtTrId("route.editor.terrain.tools.label.label2"));
     label2->setContentsMargins(3,0,0,0);
     label2->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     vbox->addWidget(label2);
@@ -265,10 +327,18 @@ TerrainTools::TerrainTools(QString name)
     sIntensity->setValue(paintBrush->alpha*100);
     hType = new QComboBox;
     hType->setStyleSheet("combobox-popup: 0;");
-    hType->addItem("Add - simple");
-    hType->addItem("Add - if inside 'Size' radius");
-    hType->addItem("Fixed Height");
-    hType->addItem("Flatten");
+    hType->addItem(
+        //% "Add - simple"
+        qtTrId("route.editor.terrain.tools.item.add.simple"));
+    hType->addItem(
+        //% "Add - if inside 'Size' radius"
+        qtTrId("route.editor.terrain.tools.item.add.if.inside.size.radius"));
+    hType->addItem(
+        //% "Fixed Height"
+        qtTrId("route.editor.terrain.tools.item.fixed.height"));
+    hType->addItem(
+        //% "Flatten"
+        qtTrId("route.editor.terrain.tools.item.flatten"));
     hType->setCurrentIndex(paintBrush->hType);
     fheight = new QLineEdit();
     QDoubleValidator* doubleValidator = new QDoubleValidator(-5000, 5000, 2, this); 
@@ -283,17 +353,27 @@ TerrainTools::TerrainTools(QString name)
     leIntensity = GuiFunct::newQLineEdit(25,3);
     leIntensity->setValidator(new QIntValidator(1, 100, this));
     row = 0;
-    vlist->addWidget(GuiFunct::newQLabel("Color:", labelWidth),row,0);
+    vlist->addWidget(GuiFunct::newQLabel(
+        //% "Color:"
+        qtTrId("route.editor.terrain.tools.label.color"), labelWidth),row,0);
     vlist->addWidget(colorw,row++,1,1,2);
-    vlist->addWidget(GuiFunct::newQLabel("Size:", labelWidth),row,0);
+    vlist->addWidget(GuiFunct::newQLabel(
+        //% "Size:"
+        qtTrId("route.editor.terrain.tools.label.size"), labelWidth),row,0);
     vlist->addWidget(leSize,row,1);
     vlist->addWidget(sSize,row++,2);
-    vlist->addWidget(GuiFunct::newQLabel("Intensity:", labelWidth),row,0);
+    vlist->addWidget(GuiFunct::newQLabel(
+        //% "Intensity:"
+        qtTrId("route.editor.terrain.tools.label.intensity"), labelWidth),row,0);
     vlist->addWidget(leIntensity,row,1);
     vlist->addWidget(sIntensity,row++,2);
-    vlist->addWidget(GuiFunct::newQLabel("Fixed Height:", labelWidth),row,0);
+    vlist->addWidget(GuiFunct::newQLabel(
+        //% "Fixed Height:"
+        qtTrId("route.editor.terrain.tools.label.fixed.height"), labelWidth),row,0);
     vlist->addWidget(fheight,row++,1,1,2);
-    vlist->addWidget(GuiFunct::newQLabel("Height type:", labelWidth),row,0);
+    vlist->addWidget(GuiFunct::newQLabel(
+        //% "Height type:"
+        qtTrId("route.editor.terrain.tools.label.height.type"), labelWidth),row,0);
     vlist->addWidget(hType,row++,1,1,2);
     vbox->addItem(vlist);
     
@@ -323,7 +403,9 @@ TerrainTools::TerrainTools(QString name)
     leEcut->setValidator(new QIntValidator(10, 80, this));
     leEradius = GuiFunct::newQLineEdit(25,3);
     leEradius->setValidator(new QIntValidator(1, 800, this));
-    QLabel *label3 = new QLabel("Embankment settings:");
+    QLabel *label3 = new QLabel(
+        //% "Embankment settings:"
+        qtTrId("route.editor.terrain.tools.label.label3"));
     label3->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label3->setContentsMargins(3,0,0,0);
     vbox->addWidget(label3);
@@ -332,16 +414,24 @@ TerrainTools::TerrainTools(QString name)
     vlist2->setSpacing(2);
     vlist2->setContentsMargins(3,0,1,0);
     row = 0;
-    vlist2->addWidget(GuiFunct::newQLabel("Size [m]:", labelWidth),row,0);
+    vlist2->addWidget(GuiFunct::newQLabel(
+        //% "Size [m]:"
+        qtTrId("route.editor.terrain.tools.label.size.m"), labelWidth),row,0);
     vlist2->addWidget(leEsize,row,1);
     vlist2->addWidget(sEsize,row++,2);
-    vlist2->addWidget(GuiFunct::newQLabel("Embank. [°]:", labelWidth),row,0);
+    vlist2->addWidget(GuiFunct::newQLabel(
+        //% "Embank. [°]:"
+        qtTrId("route.editor.terrain.tools.label.embank"), labelWidth),row,0);
     vlist2->addWidget(leEemb,row,1);
     vlist2->addWidget(sEemb,row++,2);
-    vlist2->addWidget(GuiFunct::newQLabel("Cutting [°]:", labelWidth),row,0);
+    vlist2->addWidget(GuiFunct::newQLabel(
+        //% "Cutting [°]:"
+        qtTrId("route.editor.terrain.tools.label.cutting"), labelWidth),row,0);
     vlist2->addWidget(leEcut,row,1);
     vlist2->addWidget(sEcut,row++,2);
-    vlist2->addWidget(GuiFunct::newQLabel("Radius [m]:", labelWidth),row,0);
+    vlist2->addWidget(GuiFunct::newQLabel(
+        //% "Radius [m]:"
+        qtTrId("route.editor.terrain.tools.label.radius.m"), labelWidth),row,0);
     vlist2->addWidget(leEradius,row,1);
     vlist2->addWidget(sEradius,row++,2);
     vbox->addItem(vlist2);
@@ -498,7 +588,9 @@ void TerrainTools::paintTexToolEnabled(bool val){
 
 void TerrainTools::chooseColorEnabled(){
     QColor aColor(paintBrush->color[0], paintBrush->color[1], paintBrush->color[2]);
-    QColor color = QColorDialog::getColor(aColor, this, "Text Color",  QColorDialog::DontUseNativeDialog);
+    QColor color = QColorDialog::getColor(aColor, this,
+        //% "Text Color"
+        qtTrId("route.editor.terrain.tools.dialog.title.color"),  QColorDialog::DontUseNativeDialog);
     paintBrush->color[0] = color.red();
     paintBrush->color[1] = color.green();
     paintBrush->color[2] = color.blue();
@@ -783,7 +875,9 @@ void TerrainTools::updateTexPrev(){
     for (int i=0;i<6;++i) {
         const int index=texLastItems.size()-i-1;
         texPreviewLabels[i]->setEnabled(index>=0);
-        if (index<0) { texPreviewLabels[i]->setPixmap(*defaultTexPreview); texPreviewLabels[i]->setToolTip("No recent material"); continue; }
+        if (index<0) { texPreviewLabels[i]->setPixmap(*defaultTexPreview); texPreviewLabels[i]->setToolTip(
+            //% "No recent material"
+            qtTrId("route.editor.terrain.tools.tooltip.no.recent.material")); continue; }
         const auto &entry=texLastItems[index];
         draw(texPreviewLabels[i],entry.textureId,entry.uid,entry.route,64);
     }
@@ -802,7 +896,11 @@ void TerrainTools::texPreviewEnabled(int val){
     if (entry.uid) {
         const auto library=TerrainMaterialLibrary::current(); library->poll();
         const auto material=entry.route==library->path()?library->find(entry.uid):nullptr;
-        if (!material) { QMessageBox::warning(this,"Recent terrain material","This procedural material is not available in the current route. Use Choose to select another material."); return; }
+        if (!material) { QMessageBox::warning(this,
+            //% "Recent terrain material"
+            qtTrId("route.editor.terrain.tools.dialog.title.recent.terrain.material"),
+            //% "This procedural material is not available in the current route. Use Choose to select another material."
+            qtTrId("route.editor.terrain.tools.dialog.message.this.procedural.material.is.not.available.in")); return; }
         const int textureId=TexLib::addTex(library->textureDirectory(),material->texture);
         setBrushTextureId(textureId); TexLib::delRef(textureId);
         paintBrush->terrainMaterialUid=entry.uid; paintBrush->terrainMaterialRoute=entry.route;

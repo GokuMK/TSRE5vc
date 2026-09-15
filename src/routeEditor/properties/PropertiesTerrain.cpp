@@ -20,7 +20,9 @@ PropertiesTerrain::PropertiesTerrain() {
     
     waterWindow = new TerrainWaterWindow2(this);
     waterWindow->hide();
-    infoLabel = new QLabel("Terrain:");
+    infoLabel = new QLabel(
+        //% "Terrain:"
+        qtTrId("route.editor.properties.terrain.label.info.label"));
     infoLabel->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     infoLabel->setContentsMargins(3,0,0,0);
     vbox->addWidget(infoLabel);
@@ -29,85 +31,131 @@ PropertiesTerrain::PropertiesTerrain() {
     vlist->setContentsMargins(3,0,3,0);
     this->tX.setDisabled(true);
     this->tY.setDisabled(true);
-    vlist->addRow("Tile X:",&this->tX);
-    vlist->addRow("Tile Z:",&this->tY);
+    vlist->addRow(
+        //% "Tile X:"
+        qtTrId("route.editor.properties.terrain.label.tile.x"),&this->tX);
+    vlist->addRow(
+        //% "Tile Z:"
+        qtTrId("route.editor.properties.terrain.label.tile.z"),&this->tY);
     this->tX.setDisabled(true);
     this->tY.setDisabled(true);
-    vlist->addRow("Name:",&this->fileName);
+    vlist->addRow(
+        //% "Name:"
+        qtTrId("route.editor.properties.terrain.label.name"),&this->fileName);
     vbox->addItem(vlist);
-    QPushButton *bShaderEditor = new QPushButton("Shader Editor...", this);
+    QPushButton *bShaderEditor = new QPushButton(
+        //% "Shader Editor..."
+        qtTrId("route.editor.properties.terrain.button.b.shader.editor"), this);
     QObject::connect(bShaderEditor, SIGNAL(released()),
                       this, SLOT(bShaderEditorEnabled()));
     vbox->addWidget(bShaderEditor);
     
-    QLabel* label = new QLabel("Water Level:");
+    QLabel* label = new QLabel(
+        //% "Water Level:"
+        qtTrId("route.editor.properties.terrain.label.label"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     vlist = new QFormLayout;
     vlist->setSpacing(2);
     vlist->setContentsMargins(3,0,3,0);
-    vlist->addRow("Average:",&this->eAvgWater);
+    vlist->addRow(
+        //% "Average:"
+        qtTrId("route.editor.properties.terrain.label.average"),&this->eAvgWater);
     QObject::connect(&eAvgWater, SIGNAL(textEdited(QString)),
                       this, SLOT(eAvgWaterEnabled(QString)));
-    QPushButton *bWaterEditor = new QPushButton("Advanced ...", this);
+    QPushButton *bWaterEditor = new QPushButton(
+        //% "Advanced ..."
+        qtTrId("route.editor.properties.terrain.button.b.water.editor"), this);
     QObject::connect(bWaterEditor, SIGNAL(released()),
                       this, SLOT(bWaterEditorEnabled()));
     vbox->addItem(vlist);
     vbox->addWidget(bWaterEditor);
     
-    label = new QLabel("Height Map:");
+    label = new QLabel(
+        //% "Height Map:"
+        qtTrId("route.editor.properties.terrain.label.label.2"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
-    QPushButton *bHeightMapReset = new QPushButton("Reset Height ...", this);
+    QPushButton *bHeightMapReset = new QPushButton(
+        //% "Reset Height ..."
+        qtTrId("route.editor.properties.terrain.button.b.height.map.reset"), this);
     QObject::connect(bHeightMapReset, SIGNAL(released()),
                       this, SLOT(bHeightMapResetEnabled()));
     vbox->addWidget(bHeightMapReset);
     
-    label = new QLabel("Selected Terrain Patch(s):");
+    label = new QLabel(
+        //% "Selected Terrain Patch(s):"
+        qtTrId("route.editor.properties.terrain.label.label.3"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     vlist = new QFormLayout;
     vlist->setSpacing(2);
     vlist->setContentsMargins(3,0,3,0);
-    vlist->addRow("Selected:",&this->tP);
-    vlist->addRow("Shader ID:",&this->tS);
-    vlist->addRow("Main Tex:",&this->tTex);
+    vlist->addRow(
+        //% "Selected:"
+        qtTrId("route.editor.properties.terrain.label.selected"),&this->tP);
+    vlist->addRow(
+        //% "Shader ID:"
+        qtTrId("route.editor.properties.terrain.label.shader.id"),&this->tS);
+    vlist->addRow(
+        //% "Main Tex:"
+        qtTrId("route.editor.properties.terrain.label.main.tex"),&this->tTex);
     this->tP.setDisabled(true);
     this->tS.setDisabled(true);
     vbox->addItem(vlist);
-    QPushButton *bRemoveAllGaps = new QPushButton("Remove All Gaps", this);
+    QPushButton *bRemoveAllGaps = new QPushButton(
+        //% "Remove All Gaps"
+        qtTrId("route.editor.properties.terrain.button.b.remove.all.gaps"), this);
     QObject::connect(bRemoveAllGaps, SIGNAL(released()),
                       this, SLOT(bRemoveAllGapsEnabled()));
-    QPushButton *bShowWater = new QPushButton("Show", this);
+    QPushButton *bShowWater = new QPushButton(
+        //% "Show"
+        qtTrId("route.editor.properties.terrain.button.b.show.water"), this);
     QObject::connect(bShowWater, SIGNAL(released()), this, SLOT(bShowWaterEnabled()));
-    QPushButton *bShowDraw = new QPushButton("Show", this);
+    QPushButton *bShowDraw = new QPushButton(
+        //% "Show"
+        qtTrId("route.editor.properties.terrain.button.b.show.draw"), this);
     QObject::connect(bShowDraw, SIGNAL(released()), this, SLOT(bShowDrawEnabled()));
-    QPushButton *bHideWater = new QPushButton("Hide", this);
+    QPushButton *bHideWater = new QPushButton(
+        //% "Hide"
+        qtTrId("route.editor.properties.terrain.button.b.hide.water"), this);
     QObject::connect(bHideWater, SIGNAL(released()), this, SLOT(bHideWaterEnabled()));
-    QPushButton *bHideDraw = new QPushButton("Hide", this);
+    QPushButton *bHideDraw = new QPushButton(
+        //% "Hide"
+        qtTrId("route.editor.properties.terrain.button.b.hide.draw"), this);
     QObject::connect(bHideDraw, SIGNAL(released()), this, SLOT(bHideDrawEnabled()));
 
-    label = new QLabel("Visibility:");
+    label = new QLabel(
+        //% "Visibility:"
+        qtTrId("route.editor.properties.terrain.label.label.4"));
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     QGridLayout *vlist1 = new QGridLayout;
     vlist1->setSpacing(2);
     vlist1->setContentsMargins(3,0,3,0);
     int row = 0;
-    vlist1->addWidget(new QLabel("Water:"), row, 0);
+    vlist1->addWidget(new QLabel(
+        //% "Water:"
+        qtTrId("route.editor.properties.terrain.label.water")), row, 0);
     vlist1->addWidget(bShowWater, row, 1);
     vlist1->addWidget(bHideWater, row++, 2);
-    vlist1->addWidget(new QLabel("Draw:"), row, 0);
+    vlist1->addWidget(new QLabel(
+        //% "Draw:"
+        qtTrId("route.editor.properties.terrain.label.draw")), row, 0);
     vlist1->addWidget(bShowDraw, row, 1);
     vlist1->addWidget(bHideDraw, row++, 2);
-    vlist1->addWidget(new QLabel("Gaps:"), row, 0);
+    vlist1->addWidget(new QLabel(
+        //% "Gaps:"
+        qtTrId("route.editor.properties.terrain.label.gaps")), row, 0);
     vlist1->addWidget(bRemoveAllGaps, row++, 1, 1, 2);
     vbox->addItem(vlist1);
     
-    label = new QLabel("Texture Transformation:");
+    label = new QLabel(
+        //% "Texture Transformation:"
+        qtTrId("route.editor.properties.terrain.label.label.5"));
     //label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
@@ -115,25 +163,37 @@ PropertiesTerrain::PropertiesTerrain() {
     vlist1->setSpacing(2);
     vlist1->setContentsMargins(3,0,3,0);
     row = 0;
-    QPushButton *bCopy = new QPushButton("Copy", this);
+    QPushButton *bCopy = new QPushButton(
+        //% "Copy"
+        qtTrId("route.editor.properties.terrain.button.b.copy"), this);
     QObject::connect(bCopy, SIGNAL(released()), this, SLOT(bCopyEnabled()));
     vlist1->addWidget(bCopy, row, 0);
-    QPushButton *bPaste = new QPushButton("Paste", this);
+    QPushButton *bPaste = new QPushButton(
+        //% "Paste"
+        qtTrId("route.editor.properties.terrain.button.b.paste"), this);
     QObject::connect(bPaste, SIGNAL(released()), this, SLOT(bPasteEnabled()));
     vlist1->addWidget(bPaste, row++, 1);
-    QPushButton *bMirrorX = new QPushButton("Mirror Y", this);
+    QPushButton *bMirrorX = new QPushButton(
+        //% "Mirror Y"
+        qtTrId("route.editor.properties.terrain.button.b.mirror.x"), this);
     QObject::connect(bMirrorX, SIGNAL(released()), this, SLOT(bMirrorXEnabled()));
     vlist1->addWidget(bMirrorX, row, 0);
-    QPushButton *bMirrorY = new QPushButton("Mirror X", this);
+    QPushButton *bMirrorY = new QPushButton(
+        //% "Mirror X"
+        qtTrId("route.editor.properties.terrain.button.b.mirror.y"), this);
     QObject::connect(bMirrorY, SIGNAL(released()), this, SLOT(bMirrorYEnabled()));
     vlist1->addWidget(bMirrorY, row++, 1);
-    QPushButton *bRotate = new QPushButton("Rotate 90°", this);
+    QPushButton *bRotate = new QPushButton(
+        //% "Rotate 90°"
+        qtTrId("route.editor.properties.terrain.button.b.rotate"), this);
     QObject::connect(bRotate, SIGNAL(released()), this, SLOT(bRotateEnabled()));
     vlist1->addWidget(bRotate, row, 0);
     //QPushButton *bScale = new QPushButton("Scale...", this);
     //QObject::connect(bScale, SIGNAL(released()), this, SLOT(bScaleEnabled()));
     //vlist1->addWidget(bScale, row, 1);
-    QPushButton *bReset = new QPushButton("Reset", this);
+    QPushButton *bReset = new QPushButton(
+        //% "Reset"
+        qtTrId("route.editor.properties.terrain.button.b.reset"), this);
     QObject::connect(bReset, SIGNAL(released()), this, SLOT(bResetEnabled()));
     vlist1->addWidget(bReset, row++, 1);
     vbox->addItem(vlist1);
@@ -141,33 +201,45 @@ PropertiesTerrain::PropertiesTerrain() {
     vlist = new QFormLayout;
     vlist->setSpacing(2);
     vlist->setContentsMargins(3,0,3,0);
-    vlist->addRow("Scale XY", &eScalexy);
+    vlist->addRow(
+        //% "Scale XY"
+        qtTrId("route.editor.properties.terrain.label.scale.xy"), &eScalexy);
     eScalexy.setDecimals(2);
     eScalexy.setRange(0.1, 100.0);
     eScalexy.setSingleStep(1.0);
     QObject::connect(&eScalexy, SIGNAL(editingFinished()), this, SLOT(bScaleEnabled()));
-    vlist->addRow("Scale X:", &eScalex);
+    vlist->addRow(
+        //% "Scale X:"
+        qtTrId("route.editor.properties.terrain.label.scale.x"), &eScalex);
     eScalex.setDecimals(2);
     eScalex.setRange(0.1, 100.0);
     eScalex.setSingleStep(1.0);
     QObject::connect(&eScalex, SIGNAL(editingFinished()), this, SLOT(bScaleXEnabled()));
-    vlist->addRow("Scale Y:", &eScaley);
+    vlist->addRow(
+        //% "Scale Y:"
+        qtTrId("route.editor.properties.terrain.label.scale.y"), &eScaley);
     eScaley.setDecimals(2);
     eScaley.setRange(0.1, 100.0);
     eScaley.setSingleStep(1.0);
     QObject::connect(&eScaley, SIGNAL(editingFinished()), this, SLOT(bScaleYEnabled()));
-    vlist->addRow("Rotation:", &eRotation);
+    vlist->addRow(
+        //% "Rotation:"
+        qtTrId("route.editor.properties.terrain.label.rotation"), &eRotation);
     eRotation.setDisabled(true);
     vbox->addItem(vlist);
     
-    label = new QLabel("MSTS Settings:");
+    label = new QLabel(
+        //% "MSTS Settings:"
+        qtTrId("route.editor.properties.terrain.label.label.6"));
     //label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     vlist = new QFormLayout;
     vlist->setSpacing(2);
     vlist->setContentsMargins(3,0,3,0);
-    vlist->addRow("Error Bias:",&eBias);
+    vlist->addRow(
+        //% "Error Bias:"
+        qtTrId("route.editor.properties.terrain.label.error.bias"),&eBias);
     QObject::connect(&eBias, SIGNAL(textEdited(QString)),
                       this, SLOT(eBiasEnabled(QString)));
     vbox->addItem(vlist);
@@ -181,12 +253,16 @@ PropertiesTerrain::~PropertiesTerrain() {
 
 void PropertiesTerrain::showObj(GameObj* obj){
     if(obj == NULL){
-        infoLabel->setText("NULL");
+        infoLabel->setText(
+            //% "NULL"
+            qtTrId("route.editor.properties.terrain.text.null"));
         return;
     }
     terrainObj = (Terrain*)obj;
     
-    this->infoLabel->setText("Object: Terrain");
+    this->infoLabel->setText(
+        //% "Object: Terrain"
+        qtTrId("route.editor.properties.terrain.text.object.terrain"));
 
     this->tX.setText(QString::number(terrainObj->mojex));
     this->tY.setText(QString::number(-terrainObj->mojez));
@@ -256,8 +332,11 @@ void PropertiesTerrain::bHeightMapResetEnabled(){
     }
     Undo::PushTerrainHeightMap(terrainObj->mojex, terrainObj->mojez, terrainObj->terrainData, terrainObj->getSampleCount());
     bool ok;
-    float val = QInputDialog::getDouble(this, tr("Reset Tile Height Map."),
-                                       tr("Height:"), 0, -10000, 10000, 2, &ok);
+    float val = QInputDialog::getDouble(this,
+        //% "Reset Tile Height Map."
+        qtTrId("route.editor.properties.terrain.text.val"),
+                                       //% "Height:"
+                                       qtTrId("route.editor.properties.terrain.text.height"), 0, -10000, 10000, 2, &ok);
     if(ok)
         terrainObj->setFixedHeight(val);
 }

@@ -83,16 +83,21 @@ struct TerrainGridLayout {
     static QString heightProfileName(TerrainHeightProfile value) {
         switch (value) {
         case TerrainHeightProfile::Low128x16:
-            return "Low resolution - 128 x 128 samples at 16 m";
+            //% "Low resolution - 128 x 128 samples at 16 m"
+            return qtTrId("terrain.profile.height.low");
         case TerrainHeightProfile::High512x4:
-            return "High resolution - 512 x 512 samples at 4 m";
+            //% "High resolution - 512 x 512 samples at 4 m"
+            return qtTrId("terrain.profile.height.high");
         case TerrainHeightProfile::Ultra1024x2:
-            return "Ultra resolution - 1024 x 1024 samples at 2 m";
+            //% "Ultra resolution - 1024 x 1024 samples at 2 m"
+            return qtTrId("terrain.profile.height.ultra");
         case TerrainHeightProfile::Extreme2048x1:
-            return "Extreme resolution - 2048 x 2048 samples at 1 m";
+            //% "Extreme resolution - 2048 x 2048 samples at 1 m"
+            return qtTrId("terrain.profile.height.extreme");
         case TerrainHeightProfile::Standard256x8:
         default:
-            return "Standard - 256 x 256 samples at 8 m";
+            //% "Standard - 256 x 256 samples at 8 m"
+            return qtTrId("terrain.profile.height.standard");
         }
     }
 
@@ -101,9 +106,11 @@ struct TerrainGridLayout {
             int patches = DefaultPatchesPerSide) {
         const TerrainGridLayout layout = profile(value, patches);
         if (layout.sampleCount == 0)
-            return QString("%1; %2 x %2 patches (unsupported layout)")
+            //% "%1; %2 x %2 patches (unsupported layout)"
+            return qtTrId("terrain.profile.description.unsupported")
                     .arg(heightProfileName(value)).arg(patches);
-        return QString("%1; %2 x %2 patches; R=%3")
+        //% "%1; %2 x %2 patches; R=%3"
+        return qtTrId("terrain.profile.description")
                 .arg(heightProfileName(value)).arg(patches)
                 .arg(layout.patchResolution);
     }

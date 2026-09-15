@@ -580,7 +580,8 @@ void MapDataOSM::isData(QNetworkReply* r){
     
     if(data.length()< 100){
         //"No data from the network..." label
-        emit statusInfo(QString("No data from the network..."));
+        //% "No data from the network..."
+        emit statusInfo(qtTrId("map.network.status.no.data"));
         // 5 seconds, warning time.
         QTime cTime = QTime::currentTime().addSecs(5);  
         while (QTime::currentTime() < cTime){
@@ -589,15 +590,19 @@ void MapDataOSM::isData(QNetworkReply* r){
         //End delay
         r->close();
         //"Load" label
-        emit statusInfo(QString("Load"));
+        //% "Load"
+        emit statusInfo(qtTrId("map.network.status.load"));
     } else {
         loadData(&data);
         loadCount++;
         if(loadCount == totalLoadCount){
-            emit statusInfo(QString("Load"));
+            //% "Load"
+            emit statusInfo(qtTrId("map.network.status.load"));
             emit loaded(); 
         } else {
-            emit statusInfo(QString("Wait [")+QString::number(loadCount)+"/"+QString::number(totalLoadCount)+"] ...");
+            //% "Wait [%1/%2] ..."
+            emit statusInfo(qtTrId("map.network.status.wait")
+                            .arg(loadCount).arg(totalLoadCount));
         }
     }
 }

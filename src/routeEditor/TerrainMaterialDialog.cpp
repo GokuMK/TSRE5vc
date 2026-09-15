@@ -17,7 +17,10 @@
 #include <QMessageBox>
 
 namespace {
-const char *libraryHelp="Double-click a name to edit it. Changes are saved immediately to terrainmaterials.dat.";
+QString libraryHelp() {
+    //% "Double-click a name to edit it. Changes are saved immediately to terrainmaterials.dat."
+    return qtTrId("terrain.material.library.edit.help");
+}
 QImage materialThumbnail(const QString &path, QString &error) {
     const QSize bound(64,64);
     if (path.endsWith(".ace",Qt::CaseInsensitive)) {
@@ -50,9 +53,13 @@ QImage materialThumbnail(const QString &path, QString &error) {
 
 TerrainMaterialDialog::TerrainMaterialDialog(QWidget *parent, quint32 selected, const QString &message)
     : QDialog(parent), library(TerrainMaterialLibrary::current()) {
-    setWindowTitle("Choose terrain material"); resize(600,440);
+    setWindowTitle(
+        //% "Choose terrain material"
+        qtTrId("route.editor.terrain.material.dialog.title.choose.terrain.material")); resize(600,440);
     auto *layout=new QVBoxLayout(this);
-    auto *title=new QLabel("Route procedural materials",this);
+    auto *title=new QLabel(
+        //% "Route procedural materials"
+        qtTrId("route.editor.terrain.material.dialog.label.title"),this);
     title->setStyleSheet("color: "+Game::StyleMainLabel+";"); layout->addWidget(title);
     if (!message.isEmpty()) {
         auto *context=new QLabel(message,this);
@@ -63,7 +70,13 @@ TerrainMaterialDialog::TerrainMaterialDialog(QWidget *parent, quint32 selected, 
     }
     table=new QTableWidget(0,3,this); layout->addWidget(table);
     table->setObjectName("terrainMaterialTable");
-    table->setHorizontalHeaderLabels({"UiD","Texture","Name"});
+    table->setHorizontalHeaderLabels({
+        //% "UiD"
+        qtTrId("terrain.material.header.uid"),
+        //% "Texture"
+        qtTrId("terrain.material.header.texture"),
+        //% "Name"
+        qtTrId("terrain.material.header.name")});
     table->setSelectionBehavior(QAbstractItemView::SelectRows);
     table->setSelectionMode(QAbstractItemView::SingleSelection);
     table->setEditTriggers(QAbstractItemView::DoubleClicked | QAbstractItemView::EditKeyPressed);
@@ -76,8 +89,12 @@ TerrainMaterialDialog::TerrainMaterialDialog(QWidget *parent, quint32 selected, 
     table->horizontalHeader()->setSectionResizeMode(2,QHeaderView::Stretch);
     status=new QLabel(this); status->setTextFormat(Qt::PlainText); status->setWordWrap(true); layout->addWidget(status);
     auto *buttons=new QDialogButtonBox(this);
-    fromImage=buttons->addButton("From image...",QDialogButtonBox::ActionRole);
-    choose=buttons->addButton("Choose",QDialogButtonBox::AcceptRole);
+    fromImage=buttons->addButton(
+        //% "From image..."
+        qtTrId("route.editor.terrain.material.dialog.button.from.image"),QDialogButtonBox::ActionRole);
+    choose=buttons->addButton(
+        //% "Choose"
+        qtTrId("route.editor.terrain.material.dialog.button.choose"),QDialogButtonBox::AcceptRole);
     buttons->addButton(QDialogButtonBox::Cancel); layout->addWidget(buttons);
     connect(buttons,&QDialogButtonBox::accepted,this,&QDialog::accept);
     connect(buttons,&QDialogButtonBox::rejected,this,&QDialog::reject);
@@ -94,14 +111,24 @@ TerrainMaterialDialog::TerrainMaterialDialog(QWidget *parent, quint32 selected, 
         const auto *material=library->find(uid);
         item->setText(material ? material->displayName : item->data(Qt::UserRole+1).toString());
         item->setData(Qt::UserRole+1,item->text());
-        status->setText(saved ? QString::fromLatin1(libraryHelp) : "Name not saved: "+error);
+        if (saved) {
+            status->setText(libraryHelp());
+        } else {
+            //% "Name not saved: %1"
+            status->setText(qtTrId("terrain.material.name.not.saved").arg(error));
+        }
     });
     connect(fromImage,&QPushButton::clicked,this,[this] {
-        const QString file=QFileDialog::getOpenFileName(this,"Terrain material source",library->textureDirectory(),
-                "Images (*.ace *.dds *.png *.jpg *.jpeg *.bmp *.tga)");
+        const QString file=QFileDialog::getOpenFileName(this,
+            //% "Terrain material source"
+            qtTrId("route.editor.terrain.material.dialog.dialog.title.file"),library->textureDirectory(),
+                //% "Images (*.ace *.dds *.png *.jpg *.jpeg *.bmp *.tga)"
+                qtTrId("route.editor.terrain.material.dialog.dialog.filter.file"));
         if (file.isEmpty()) return;
         QString error; const quint32 uid=library->addImage(file,error);
-        if (!uid) QMessageBox::warning(this,"Terrain materials",error);
+        if (!uid) QMessageBox::warning(this,
+            //% "Terrain materials"
+            qtTrId("route.editor.terrain.material.dialog.dialog.title.terrain.materials"),error);
         refresh(uid);
     });
     library->reload(); refresh(selected);
@@ -127,10 +154,12 @@ void TerrainMaterialDialog::refresh(quint32 selected) {
         QString error;
         const QImage preview=materialThumbnail(TerrainSeason::resolve(library->textureDirectory(),Game::season,m.texture),error);
         if (!preview.isNull()) thumbnail->setIcon(QPixmap::fromImage(preview));
-        else { thumbnail->setText("No preview"); thumbnail->setToolTip(m.texture+"\n"+error); }
+        else { thumbnail->setText(
+            //% "No preview"
+            qtTrId("route.editor.terrain.material.dialog.text.no.preview")); thumbnail->setToolTip(m.texture+"\n"+error); }
         if (m.uid==selected) table->setCurrentItem(name);
     }
-    status->setText(library->error().isEmpty() ? QString::fromLatin1(libraryHelp) : library->error());
+    status->setText(library->error().isEmpty() ? libraryHelp() : library->error());
     choose->setEnabled(selectedUid()!=0);
     fromImage->setEnabled(Game::writeEnabled && !Game::serverClient && library->error().isEmpty());
 }

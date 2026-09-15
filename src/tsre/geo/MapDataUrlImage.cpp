@@ -41,8 +41,11 @@ QString resolvedMapUrl(QString *error) {
     if (url.contains("{apikey}")) {
         const QString apiKey = manager.secretValue(apiReference);
         if (apiKey.isEmpty()) {
-            if (error) *error = QString("Missing imagery API-key secret: %1")
-                    .arg(apiReference);
+            if (error) {
+                //% "Missing imagery API-key secret: %1"
+                *error = qtTrId("map.imagery.error.api.key.missing")
+                        .arg(apiReference);
+            }
             return QString();
         }
         url.replace("{apikey}", apiKey);
@@ -130,7 +133,9 @@ void MapDataUrlImage::load() {
     if (resolvedMapUrl(&urlError).length() < 2) {
         QMessageBox msgBox;
         msgBox.setText(urlError.isEmpty()
-                ? "Configure an imagery URL in the active settings profile."
+                ?
+                  //% "Configure an imagery URL in the active settings profile."
+                  qtTrId("map.imagery.error.url.not.configured")
                 : urlError);
         msgBox.exec();
         return;
@@ -247,23 +252,27 @@ void MapDataUrlImage::isTimerData(QNetworkReply* r) {
     
     //requestCout++;
     if (data.length() == 0) {
-        emit statusInfo(QString("No data from the network..."));
+        //% "No data from the network..."
+        emit statusInfo(qtTrId("map.network.status.no.data"));
         QTime cTime = QTime::currentTime().addSecs(5);
         while (QTime::currentTime() < cTime) {
             QCoreApplication::processEvents(QEventLoop::AllEvents, 100);
         }
         r->close();
         getTimer->stop();
-        emit statusInfo(QString("Load"));
+        //% "Load"
+        emit statusInfo(qtTrId("map.network.status.load"));
     } else if(data.length() < 1000){
-        emit statusInfo(QString("Data read failed, see log.txt..."));
+        //% "Data read failed, see log.txt..."
+        emit statusInfo(qtTrId("map.network.status.read.failed"));
         QTime cTime = QTime::currentTime().addSecs(5);
         while (QTime::currentTime() < cTime) {
             QCoreApplication::processEvents(QEventLoop::AllEvents, 100);
         }
         r->close();
         getTimer->stop();
-        emit statusInfo(QString("Load"));
+        //% "Load"
+        emit statusInfo(qtTrId("map.network.status.load"));
         qDebug() << data;
     } else {
         images.push_back(MapImage(lat, lon, zoom, (unsigned char*) data.constData(), data.length()));
@@ -275,10 +284,13 @@ void MapDataUrlImage::isTimerData(QNetworkReply* r) {
         
         if(requestCout == totalRequestCout){
             getTimer->stop();
-            emit statusInfo(QString("Load"));
+            //% "Load"
+            emit statusInfo(qtTrId("map.network.status.load"));
             emit loaded();
         } else {
-            emit statusInfo(QString("Wait [")+QString::number(requestCout)+"/"+QString::number(totalRequestCout)+"] ...");
+            //% "Wait [%1/%2] ..."
+            emit statusInfo(qtTrId("map.network.status.wait")
+                            .arg(requestCout).arg(totalRequestCout));
         }
     }
 }
@@ -321,22 +333,27 @@ void MapDataUrlImage::isData(QNetworkReply* r) {
     
     requestCout++;
     if (data.length() == 0) {
-        emit statusInfo(QString("No data from the network..."));
+        //% "No data from the network..."
+        emit statusInfo(qtTrId("map.network.status.no.data"));
         QTime cTime = QTime::currentTime().addSecs(5);
         while (QTime::currentTime() < cTime) {
             QCoreApplication::processEvents(QEventLoop::AllEvents, 100);
         }
         r->close();
-        emit statusInfo(QString("Load"));
+        //% "Load"
+        emit statusInfo(qtTrId("map.network.status.load"));
     } else if(data.length() < 1000){
             qDebug() << data;
     } else {
         images.push_back(MapImage(lat, lon, zoom, (unsigned char*) data.constData(), data.length()));
         if(requestCout == totalRequestCout){
-            emit statusInfo(QString("Load"));
+            //% "Load"
+            emit statusInfo(qtTrId("map.network.status.load"));
             emit loaded();
         } else {
-            emit statusInfo(QString("Wait [")+QString::number(requestCout)+"/"+QString::number(totalRequestCout)+"] ...");
+            //% "Wait [%1/%2] ..."
+            emit statusInfo(qtTrId("map.network.status.wait")
+                            .arg(requestCout).arg(totalRequestCout));
         }
     }
 }

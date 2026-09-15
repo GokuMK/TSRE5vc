@@ -19,7 +19,9 @@ PropertiesStatic::PropertiesStatic(){
     QVBoxLayout *vbox = new QVBoxLayout;
     vbox->setSpacing(2);
     vbox->setContentsMargins(0,1,1,1);
-    infoLabel = new QLabel("Static:");
+    infoLabel = new QLabel(
+        //% "Static:"
+        qtTrId("route.editor.properties.static.label.info.label"));
     infoLabel->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     infoLabel->setContentsMargins(3,0,0,0);
     vbox->addWidget(infoLabel);
@@ -29,12 +31,20 @@ PropertiesStatic::PropertiesStatic(){
     this->uid.setDisabled(true);
     this->tX.setDisabled(true);
     this->tY.setDisabled(true);
-    vlist->addRow("UiD:",&this->uid);
-    vlist->addRow("Tile X:",&this->tX);
-    vlist->addRow("Tile Z:",&this->tY);
+    vlist->addRow(
+        //% "UiD:"
+        qtTrId("route.editor.properties.static.label.ui.d"),&this->uid);
+    vlist->addRow(
+        //% "Tile X:"
+        qtTrId("route.editor.properties.static.label.tile.x"),&this->tX);
+    vlist->addRow(
+        //% "Tile Z:"
+        qtTrId("route.editor.properties.static.label.tile.z"),&this->tY);
     vbox->addItem(vlist);
     QLabel * label;
-    label = new QLabel("FileName:");
+    label = new QLabel(
+        //% "FileName:"
+        qtTrId("route.editor.properties.static.label.label"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
@@ -44,67 +54,99 @@ PropertiesStatic::PropertiesStatic(){
     QGridLayout *filenameList = new QGridLayout;
     filenameList->setSpacing(2);
     filenameList->setContentsMargins(0,0,0,0);    
-    QPushButton *copyF = new QPushButton("Copy", this);
+    QPushButton *copyF = new QPushButton(
+        //% "Copy"
+        qtTrId("route.editor.properties.static.button.copy.f"), this);
     QObject::connect(copyF, SIGNAL(released()),
                       this, SLOT(copyFileNameEnabled()));
-    QPushButton *editF = new QPushButton("Edit", this);
+    QPushButton *editF = new QPushButton(
+        //% "Edit"
+        qtTrId("route.editor.properties.static.button.edit.f"), this);
     QObject::connect(editF, SIGNAL(released()),
                       this, SLOT(editFileNameEnabled()));
     filenameList->addWidget(copyF, 0, 0);
     filenameList->addWidget(editF, 0, 1);
     vbox->addItem(filenameList);
     
-    label = new QLabel("Position & Rotation:");
+    label = new QLabel(
+        //% "Position & Rotation:"
+        qtTrId("route.editor.properties.static.label.label.2"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     vlist = new QFormLayout;
     vlist->setSpacing(2);
     vlist->setContentsMargins(3,0,3,0);
-    vlist->addRow("X:",&this->posX);
+    vlist->addRow(
+        //% "X:"
+        qtTrId("route.editor.properties.static.label.x"),&this->posX);
     QDoubleValidator* doubleValidator = new QDoubleValidator(-1500, 1500, 6, this); 
     doubleValidator->setNotation(QDoubleValidator::StandardNotation);
     this->posX.setValidator(doubleValidator);
     QObject::connect(&this->posX, SIGNAL(textEdited(QString)), this, SLOT(editPositionEnabled(QString)));
-    vlist->addRow("Y:",&this->posY);
+    vlist->addRow(
+        //% "Y:"
+        qtTrId("route.editor.properties.static.label.y"),&this->posY);
     this->posY.setValidator(doubleValidator);
     QObject::connect(&this->posY, SIGNAL(textEdited(QString)), this, SLOT(editPositionEnabled(QString)));
-    vlist->addRow("Z:",&this->posZ);
+    vlist->addRow(
+        //% "Z:"
+        qtTrId("route.editor.properties.static.label.z"),&this->posZ);
     this->posZ.setValidator(doubleValidator);
     QObject::connect(&this->posZ, SIGNAL(textEdited(QString)), this, SLOT(editPositionEnabled(QString)));
     this->quat.setDisabled(true);
     this->quat.setAlignment(Qt::AlignCenter);
-    vlist->addRow("Rot:",&this->quat);
+    vlist->addRow(
+        //% "Rot:"
+        qtTrId("route.editor.properties.static.label.rot"),&this->quat);
     vbox->addItem(vlist);
     QGridLayout *posRotList = new QGridLayout;
     posRotList->setSpacing(2);
     posRotList->setContentsMargins(0,0,0,0);    
 
-    QPushButton *copyPos = new QPushButton("Copy Pos", this);
+    QPushButton *copyPos = new QPushButton(
+        //% "Copy Pos"
+        qtTrId("route.editor.properties.static.button.copy.pos"), this);
     QObject::connect(copyPos, SIGNAL(released()),
                       this, SLOT(copyPEnabled()));
-    QPushButton *pastePos = new QPushButton("Paste", this);
+    QPushButton *pastePos = new QPushButton(
+        //% "Paste"
+        qtTrId("route.editor.properties.static.button.paste.pos"), this);
     QObject::connect(pastePos, SIGNAL(released()),
                       this, SLOT(pastePEnabled()));
-    QPushButton *copyQrot = new QPushButton("Copy Rot", this);
+    QPushButton *copyQrot = new QPushButton(
+        //% "Copy Rot"
+        qtTrId("route.editor.properties.static.button.copy.qrot"), this);
     QObject::connect(copyQrot, SIGNAL(released()),
                       this, SLOT(copyREnabled()));
-    QPushButton *pasteQrot = new QPushButton("Paste", this);
+    QPushButton *pasteQrot = new QPushButton(
+        //% "Paste"
+        qtTrId("route.editor.properties.static.button.paste.qrot"), this);
     QObject::connect(pasteQrot, SIGNAL(released()),
                       this, SLOT(pasteREnabled()));
-    QPushButton *copyPosRot = new QPushButton("Copy Pos+Rot", this);
+    QPushButton *copyPosRot = new QPushButton(
+        //% "Copy Pos+Rot"
+        qtTrId("route.editor.properties.static.button.copy.pos.rot"), this);
     QObject::connect(copyPosRot, SIGNAL(released()),
                       this, SLOT(copyPREnabled()));
-    QPushButton *pastePosRot = new QPushButton("Paste", this);
+    QPushButton *pastePosRot = new QPushButton(
+        //% "Paste"
+        qtTrId("route.editor.properties.static.button.paste.pos.rot"), this);
     QObject::connect(pastePosRot, SIGNAL(released()),
                       this, SLOT(pastePREnabled()));
-    QPushButton *resetQrot = new QPushButton("Reset Rot", this);
+    QPushButton *resetQrot = new QPushButton(
+        //% "Reset Rot"
+        qtTrId("route.editor.properties.static.button.reset.qrot"), this);
     QObject::connect(resetQrot, SIGNAL(released()),
                       this, SLOT(resetRotEnabled()));
-    QPushButton *qRot90 = new QPushButton("Rot Y 90°", this);
+    QPushButton *qRot90 = new QPushButton(
+        //% "Rot Y 90°"
+        qtTrId("route.editor.properties.static.button.q.rot90"), this);
     QObject::connect(qRot90, SIGNAL(released()),
                       this, SLOT(rotYEnabled()));
-    QPushButton *transform = new QPushButton("Transform ...", this);
+    QPushButton *transform = new QPushButton(
+        //% "Transform ..."
+        qtTrId("route.editor.properties.static.button.transform"), this);
     QObject::connect(transform, SIGNAL(released()),
                       this, SLOT(transformEnabled()));
     
@@ -119,14 +161,20 @@ PropertiesStatic::PropertiesStatic(){
     posRotList->addWidget(transform, 4, 0, 1, 2);
     vbox->addItem(posRotList);
     
-    label = new QLabel("Detail Level:");
+    label = new QLabel(
+        //% "Detail Level:"
+        qtTrId("route.editor.properties.static.label.label.3"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     this->defaultDetailLevel.setDisabled(true);
     this->defaultDetailLevel.setAlignment(Qt::AlignCenter);
-    this->enableCustomDetailLevel.setText("Custom");
-    QCheckBox* defaultDetailLevelLabel = new QCheckBox("Default", this);
+    this->enableCustomDetailLevel.setText(
+        //% "Custom"
+        qtTrId("route.editor.properties.static.text.custom"));
+    QCheckBox* defaultDetailLevelLabel = new QCheckBox(
+        //% "Default"
+        qtTrId("route.editor.properties.static.option.default.detail.level.label"), this);
     defaultDetailLevelLabel->setDisabled(true);
     defaultDetailLevelLabel->setChecked(true);
     QObject::connect(&enableCustomDetailLevel, SIGNAL(stateChanged(int)),
@@ -144,7 +192,9 @@ PropertiesStatic::PropertiesStatic(){
     detailLevelView->addWidget(&customDetailLevel, 1, 1);
     vbox->addItem(detailLevelView);
     
-    label = new QLabel("Flags:");
+    label = new QLabel(
+        //% "Flags:"
+        qtTrId("route.editor.properties.static.label.label.4"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
@@ -154,56 +204,88 @@ PropertiesStatic::PropertiesStatic(){
     QGridLayout *flagslView = new QGridLayout;
     flagslView->setSpacing(2);
     flagslView->setContentsMargins(0,0,0,0);    
-    QPushButton *copyFlags = new QPushButton("Copy Flags", this);
+    QPushButton *copyFlags = new QPushButton(
+        //% "Copy Flags"
+        qtTrId("route.editor.properties.static.button.copy.flags"), this);
     QObject::connect(copyFlags, SIGNAL(released()),
                       this, SLOT(copyFEnabled()));
-    QPushButton *pasteFlags = new QPushButton("Paste", this);
+    QPushButton *pasteFlags = new QPushButton(
+        //% "Paste"
+        qtTrId("route.editor.properties.static.button.paste.flags"), this);
     QObject::connect(pasteFlags, SIGNAL(released()),
                       this, SLOT(pasteFEnabled()));
     flagslView->addWidget(copyFlags,0,0);
     flagslView->addWidget(pasteFlags,0,1);
     vbox->addItem(flagslView);
-    checkboxAnim.setText("Animate Object");
-    checkboxTerrain.setText("Terrain Object");
+    checkboxAnim.setText(
+        //% "Animate Object"
+        qtTrId("route.editor.properties.static.text.animate.object"));
+    checkboxTerrain.setText(
+        //% "Terrain Object"
+        qtTrId("route.editor.properties.static.text.terrain.object"));
     vbox->addWidget(&checkboxAnim);
     QObject::connect(&checkboxAnim, SIGNAL(stateChanged(int)),
                       this, SLOT(checkboxAnimEdited(int)));
     vbox->addWidget(&checkboxTerrain);
     QObject::connect(&checkboxTerrain, SIGNAL(stateChanged(int)),
                       this, SLOT(checkboxTerrainEdited(int)));
-    cShadowType.addItem("No Shadow");
-    cShadowType.addItem("Round Shadow");
-    cShadowType.addItem("Rect. Shadow");
-    cShadowType.addItem("Treeline Shadow");
-    cShadowType.addItem("Dynamic Shadow");
+    cShadowType.addItem(
+        //% "No Shadow"
+        qtTrId("route.editor.properties.static.item.no.shadow"));
+    cShadowType.addItem(
+        //% "Round Shadow"
+        qtTrId("route.editor.properties.static.item.round.shadow"));
+    cShadowType.addItem(
+        //% "Rect. Shadow"
+        qtTrId("route.editor.properties.static.item.rect.shadow"));
+    cShadowType.addItem(
+        //% "Treeline Shadow"
+        qtTrId("route.editor.properties.static.item.treeline.shadow"));
+    cShadowType.addItem(
+        //% "Dynamic Shadow"
+        qtTrId("route.editor.properties.static.item.dynamic.shadow"));
     cShadowType.setStyleSheet("combobox-popup: 0;");
     vbox->addWidget(&cShadowType);
     QObject::connect(&cShadowType, SIGNAL(currentIndexChanged(int)),
                       this, SLOT(cShadowTypeEdited(int)));
 
-    label = new QLabel("MSTS Collision:");
+    label = new QLabel(
+        //% "MSTS Collision:"
+        qtTrId("route.editor.properties.static.label.label.5"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     vbox->addWidget(&eCollisionFlags);
     eCollisionFlags.setDisabled(true);
     eCollisionFlags.setAlignment(Qt::AlignCenter);
-    cCollisionType.addItem("Disabled");
-    cCollisionType.addItem("Immovable");
-    cCollisionType.addItem("Buffer");
+    cCollisionType.addItem(
+        //% "Disabled"
+        qtTrId("route.editor.properties.static.item.disabled"));
+    cCollisionType.addItem(
+        //% "Immovable"
+        qtTrId("route.editor.properties.static.item.immovable"));
+    cCollisionType.addItem(
+        //% "Buffer"
+        qtTrId("route.editor.properties.static.item.buffer"));
     cCollisionType.setStyleSheet("combobox-popup: 0;");
     vbox->addWidget(&cCollisionType);
     QObject::connect(&cCollisionType, SIGNAL(currentIndexChanged(int)),
                       this, SLOT(cCollisionTypeEdited(int)));
-    QPushButton *resetFlags = new QPushButton("Remove Collisions", this);
+    QPushButton *resetFlags = new QPushButton(
+        //% "Remove Collisions"
+        qtTrId("route.editor.properties.static.button.reset.flags"), this);
     QObject::connect(resetFlags, SIGNAL(released()),
                       this, SLOT(removeCollisionsEnabled()));
     vbox->addWidget(resetFlags);
-    label = new QLabel("Position & Rotation:");
+    label = new QLabel(
+        //% "Position & Rotation:"
+        qtTrId("route.editor.properties.static.label.label.6"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
-    QPushButton *reload = new QPushButton("Reload", this);
+    QPushButton *reload = new QPushButton(
+        //% "Reload"
+        qtTrId("route.editor.properties.static.button.reload"), this);
     QObject::connect(reload, SIGNAL(released()),
                       this, SLOT(reloadEnabled()));
     vbox->addWidget(reload);
@@ -217,12 +299,16 @@ PropertiesStatic::~PropertiesStatic() {
 
 void PropertiesStatic::showObj(GameObj* obj){
     if(obj == NULL){
-        infoLabel->setText("NULL");
+        infoLabel->setText(
+            //% "NULL"
+            qtTrId("route.editor.properties.static.text.null"));
         return;
     }
     worldObj = (WorldObj*)obj;
     
-    this->infoLabel->setText("Object: "+worldObj->type);
+    //% "Object: %1"
+    this->infoLabel->setText(qtTrId("route.properties.static.object.type")
+                             .arg(worldObj->type));
     this->fileName.setText(worldObj->fileName);
     
     this->uid.setText(QString::number(worldObj->UiD, 10));

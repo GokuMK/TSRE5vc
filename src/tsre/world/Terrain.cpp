@@ -1815,7 +1815,9 @@ void Terrain::setWaterLevelGui(){
     if (!editable)
         return;
     TerrainWaterWindow waterWindow;
-    waterWindow.setWindowTitle("Water Level");
+    waterWindow.setWindowTitle(
+        //% "Water Level"
+        qtTrId("tsre.world.terrain.title.water.level"));
     waterWindow.WNE = tfile->WNE;
     waterWindow.WSE = tfile->WSE;
     waterWindow.WNW = tfile->WNW;
@@ -3984,19 +3986,27 @@ void Terrain::pushContextMenuActions(QMenu *menu){
     if (!editable)
         return;
     if(contextMenuActions["togglewater"] == NULL){
-        contextMenuActions["togglewater"] = new QAction(tr("&Toggle Water")); 
+        contextMenuActions["togglewater"] = new QAction(
+            //% "&Toggle Water"
+            qtTrId("tsre.world.terrain.action.toggle.water"));
         QObject::connect(contextMenuActions["togglewater"], SIGNAL(triggered()), this, SLOT(menuToggleWater()));
     }
     if(contextMenuActions["puttexture"] == NULL){
-        contextMenuActions["puttexture"] = new QAction(tr("&Put Texture")); 
+        contextMenuActions["puttexture"] = new QAction(
+            //% "&Put Texture"
+            qtTrId("tsre.world.terrain.action.put.texture"));
         QObject::connect(contextMenuActions["puttexture"], SIGNAL(triggered()), this, SLOT(menuPutTexture()));
     }
     if(contextMenuActions["toggledraw"] == NULL){
-        contextMenuActions["toggledraw"] = new QAction(tr("&Toggle Draw")); 
+        contextMenuActions["toggledraw"] = new QAction(
+            //% "&Toggle Draw"
+            qtTrId("tsre.world.terrain.action.toggle.draw"));
         QObject::connect(contextMenuActions["toggledraw"], SIGNAL(triggered()), this, SLOT(menuToggleDraw()));
     }
     if(contextMenuActions["selectobjects"] == NULL){
-        contextMenuActions["selectobjects"] = new QAction(tr("&Select Objects")); 
+        contextMenuActions["selectobjects"] = new QAction(
+            //% "&Select Objects"
+            qtTrId("tsre.world.terrain.action.select.objects"));
         QObject::connect(contextMenuActions["selectobjects"], SIGNAL(triggered()), this, SLOT(menuSelectObjects()));
     }
     menu->addAction(contextMenuActions["puttexture"]);

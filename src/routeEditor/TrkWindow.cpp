@@ -43,30 +43,72 @@ TrkWindow::TrkWindow() : QDialog(){
     int row = 0;
     idName.setMinimumWidth(200);
     
-    settings->addWidget(GuiFunct::newTQLabel("Route names"), row++, 0);
-    settings->addWidget(new QLabel("Route ID: "), row++, 0);
-    settings->addWidget(new QLabel("File names: "), row++, 0);
-    settings->addWidget(new QLabel("Display name: "), row++, 0);
-    settings->addWidget(GuiFunct::newTQLabel("Electricity"), row++, 0);
-    settings->addWidget(new QLabel("Electrified: "), row++, 0);
-    settings->addWidget(new QLabel("Wire Height: "), row++, 0);
-    settings->addWidget(new QLabel("Max Voltage: "), row++, 0);
-    settings->addWidget(GuiFunct::newTQLabel("Start Tile"), row++, 0);
-    settings->addWidget(new QLabel("Tile X: "), row++, 0);
-    settings->addWidget(new QLabel("Tile Z: "), row++, 0);
-    settings->addWidget(new QLabel("Position X: "), row++, 0);
-    settings->addWidget(new QLabel("Position Z: "), row++, 0);
-    settings->addWidget(GuiFunct::newTQLabel("Other"), row++, 0);
-    settings->addWidget(new QLabel("Speed Limit (km/h): "), row++, 0);
-    settings->addWidget(new QLabel("Restricted Speed (km/h): "), row++, 0);
-    settings->addWidget(new QLabel("Speed in Miles: "), row++, 0);
-    settings->addWidget(new QLabel("Terrain Error Scale: "), row++, 0);
-    settings->addWidget(new QLabel("Terrain mesh LOD: "), row++, 0);
-    settings->addWidget(GuiFunct::newTQLabel("Environment"), row++, 0);
+    settings->addWidget(GuiFunct::newTQLabel(
+        //% "Route names"
+        qtTrId("route.editor.trk.window.label.route.names")), row++, 0);
+    settings->addWidget(new QLabel(
+        //% "Route ID: "
+        qtTrId("route.editor.trk.window.label.route.id")), row++, 0);
+    settings->addWidget(new QLabel(
+        //% "File names: "
+        qtTrId("route.editor.trk.window.label.file.names")), row++, 0);
+    settings->addWidget(new QLabel(
+        //% "Display name: "
+        qtTrId("route.editor.trk.window.label.display.name")), row++, 0);
+    settings->addWidget(GuiFunct::newTQLabel(
+        //% "Electricity"
+        qtTrId("route.editor.trk.window.label.electricity")), row++, 0);
+    settings->addWidget(new QLabel(
+        //% "Electrified: "
+        qtTrId("route.editor.trk.window.label.electrified")), row++, 0);
+    settings->addWidget(new QLabel(
+        //% "Wire Height: "
+        qtTrId("route.editor.trk.window.label.wire.height")), row++, 0);
+    settings->addWidget(new QLabel(
+        //% "Max Voltage: "
+        qtTrId("route.editor.trk.window.label.max.voltage")), row++, 0);
+    settings->addWidget(GuiFunct::newTQLabel(
+        //% "Start Tile"
+        qtTrId("route.editor.trk.window.label.start.tile")), row++, 0);
+    settings->addWidget(new QLabel(
+        //% "Tile X: "
+        qtTrId("route.editor.trk.window.label.tile.x")), row++, 0);
+    settings->addWidget(new QLabel(
+        //% "Tile Z: "
+        qtTrId("route.editor.trk.window.label.tile.z")), row++, 0);
+    settings->addWidget(new QLabel(
+        //% "Position X: "
+        qtTrId("route.editor.trk.window.label.position.x")), row++, 0);
+    settings->addWidget(new QLabel(
+        //% "Position Z: "
+        qtTrId("route.editor.trk.window.label.position.z")), row++, 0);
+    settings->addWidget(GuiFunct::newTQLabel(
+        //% "Other"
+        qtTrId("route.editor.trk.window.label.other")), row++, 0);
+    settings->addWidget(new QLabel(
+        //% "Speed Limit (km/h): "
+        qtTrId("route.editor.trk.window.label.speed.limit.km.h")), row++, 0);
+    settings->addWidget(new QLabel(
+        //% "Restricted Speed (km/h): "
+        qtTrId("route.editor.trk.window.label.restricted.speed.km.h")), row++, 0);
+    settings->addWidget(new QLabel(
+        //% "Speed in Miles: "
+        qtTrId("route.editor.trk.window.label.speed.in.miles")), row++, 0);
+    settings->addWidget(new QLabel(
+        //% "Terrain Error Scale: "
+        qtTrId("route.editor.trk.window.label.terrain.error.scale")), row++, 0);
+    settings->addWidget(new QLabel(
+        //% "Terrain mesh LOD: "
+        qtTrId("route.editor.trk.window.label.terrain.mesh.lod")), row++, 0);
+    settings->addWidget(GuiFunct::newTQLabel(
+        //% "Environment"
+        qtTrId("route.editor.trk.window.label.environment")), row++, 0);
     settings->addWidget(&envName, row++, 0);
     QObject::connect(&envName, SIGNAL(textActivated(QString)), this, SLOT(envNameEnabled(QString)));
     envName.setStyleSheet("combobox-popup: 0;");
-    settings->addWidget(GuiFunct::newTQLabel("Description"), row++, 0);
+    settings->addWidget(GuiFunct::newTQLabel(
+        //% "Description"
+        qtTrId("route.editor.trk.window.label.description")), row++, 0);
     row = 0;
     row++;
     settings->addWidget(&idName, row++, 1);
@@ -77,8 +119,12 @@ TrkWindow::TrkWindow() : QDialog(){
     row++;
     settings->addWidget(&electrified, row++, 1);
     electrified.setStyleSheet("combobox-popup: 0;");
-    electrified.addItem("No", 0);
-    electrified.addItem("Yes", 1);
+    electrified.addItem(
+        //% "No"
+        qtTrId("route.editor.trk.window.item.no"), 0);
+    electrified.addItem(
+        //% "Yes"
+        qtTrId("route.editor.trk.window.item.yes"), 1);
     settings->addWidget(&overheadWireHeight, row++, 1);
     overheadWireHeight.setRange(0, 10000);
     overheadWireHeight.setSingleStep(0.5);
@@ -99,8 +145,12 @@ TrkWindow::TrkWindow() : QDialog(){
     tempRestrictedSpeed.setSingleStep(5);
     settings->addWidget(&milepostUnitsKilometers, row++, 1);
     milepostUnitsKilometers.setStyleSheet("combobox-popup: 0;");
-    milepostUnitsKilometers.addItem("No", 0);
-    milepostUnitsKilometers.addItem("Yes", 1);
+    milepostUnitsKilometers.addItem(
+        //% "No"
+        qtTrId("route.editor.trk.window.item.no.2"), 0);
+    milepostUnitsKilometers.addItem(
+        //% "Yes"
+        qtTrId("route.editor.trk.window.item.yes.2"), 1);
     settings->addWidget(&terrainErrorScale, row++, 1);
     terrainErrorScale.setRange(0, 8);
     terrainErrorScale.setSingleStep(0.1);
@@ -108,7 +158,9 @@ TrkWindow::TrkWindow() : QDialog(){
     QVBoxLayout *terrainLodLayout = new QVBoxLayout(terrainLodWidget);
     terrainLodLayout->setContentsMargins(0, 0, 0, 0);
     terrainLodSummary.setWordWrap(true);
-    terrainLodEdit.setText("Edit terrain LOD profile...");
+    terrainLodEdit.setText(
+        //% "Edit terrain LOD profile..."
+        qtTrId("route.editor.trk.window.text.edit.terrain.lod.profile"));
     terrainLodLayout->addWidget(&terrainLodSummary);
     terrainLodLayout->addWidget(&terrainLodEdit);
     settings->addWidget(terrainLodWidget, row++, 1);
@@ -121,12 +173,20 @@ TrkWindow::TrkWindow() : QDialog(){
     QHBoxLayout *ibuttons = new QHBoxLayout;
     ibuttons->addWidget(&iList);
     iList.setStyleSheet("combobox-popup: 0;");
-    iList.addItem("Load Image", 0);
-    iList.addItem("Details Image", 1);
+    iList.addItem(
+        //% "Load Image"
+        qtTrId("route.editor.trk.window.item.load.image"), 0);
+    iList.addItem(
+        //% "Details Image"
+        qtTrId("route.editor.trk.window.item.details.image"), 1);
     iList.setSizePolicy(QSizePolicy::Expanding,QSizePolicy::Fixed);
     ibuttons->addWidget(&iCopy);
-    iCopy.setText(" Copy ");
-    iPaste.setText(" Paste ");
+    iCopy.setText(
+        //% " Copy "
+        qtTrId("route.editor.trk.window.text.copy"));
+    iPaste.setText(
+        //% " Paste "
+        qtTrId("route.editor.trk.window.text.paste"));
     ibuttons->addWidget(&iPaste);    
     tab2->addItem(ibuttons);
     tab2->addWidget(&imageLoad);
@@ -138,9 +198,13 @@ TrkWindow::TrkWindow() : QDialog(){
     //mainLayout->addWidget(loadButton);
     //mainLayout->addWidget(imageLabel);
     ibuttons = new QHBoxLayout;
-    QPushButton *bok = new QPushButton("OK");
+    QPushButton *bok = new QPushButton(
+        //% "OK"
+        qtTrId("route.editor.trk.window.button.bok"));
     QObject::connect(bok, SIGNAL(released()), this, SLOT(bokEnabled()));
-    QPushButton *bcancel = new QPushButton("Cancel");
+    QPushButton *bcancel = new QPushButton(
+        //% "Cancel"
+        qtTrId("route.editor.trk.window.button.bcancel"));
     QObject::connect(bcancel, SIGNAL(released()), this, SLOT(bcancelEnabled()));
     ibuttons->addWidget(bok);
     ibuttons->addWidget(bcancel);
@@ -155,7 +219,9 @@ TrkWindow::TrkWindow() : QDialog(){
 int TrkWindow::exec() {
     if(this->trk == NULL)
         return 0;
-    this->setWindowTitle("Route settings");
+    this->setWindowTitle(
+        //% "Route settings"
+        qtTrId("route.editor.trk.window.title.route.settings"));
     
     this->idName.setText(trk->idName);
     this->routeName.setText(trk->routeName);

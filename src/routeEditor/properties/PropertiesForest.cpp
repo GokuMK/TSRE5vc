@@ -17,7 +17,9 @@ PropertiesForest::PropertiesForest() {
     QVBoxLayout *vbox = new QVBoxLayout;
     vbox->setSpacing(2);
     vbox->setContentsMargins(0,1,1,1);
-    infoLabel = new QLabel("Forest:");
+    infoLabel = new QLabel(
+        //% "Forest:"
+        qtTrId("route.editor.properties.forest.label.info.label"));
     infoLabel->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     infoLabel->setContentsMargins(3,0,0,0);
     
@@ -28,32 +30,48 @@ PropertiesForest::PropertiesForest() {
     vlistt->setContentsMargins(3,0,3,0);
     this->tX.setDisabled(true);
     this->tY.setDisabled(true);
-    vlistt->addRow("Tile X:",&this->tX);
-    vlistt->addRow("Tile Z:",&this->tY);
+    vlistt->addRow(
+        //% "Tile X:"
+        qtTrId("route.editor.properties.forest.label.tile.x"),&this->tX);
+    vlistt->addRow(
+        //% "Tile Z:"
+        qtTrId("route.editor.properties.forest.label.tile.z"),&this->tY);
     vbox->addItem(vlistt);
     
-    QLabel * label = new QLabel("Texture:");
+    QLabel * label = new QLabel(
+        //% "Texture:"
+        qtTrId("route.editor.properties.forest.label.label"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
-    QLabel * label1 = new QLabel("FileName:");
+    QLabel * label1 = new QLabel(
+        //% "FileName:"
+        qtTrId("route.editor.properties.forest.label.label1"));
     label1->setContentsMargins(3,0,0,0);
     vbox->addWidget(label1);
     this->fileName.setDisabled(true);
     this->fileName.setAlignment(Qt::AlignCenter);
     vbox->addWidget(&this->fileName);
-    QPushButton *copyF = new QPushButton("Copy FileName", this);
+    QPushButton *copyF = new QPushButton(
+        //% "Copy FileName"
+        qtTrId("route.editor.properties.forest.button.copy.f"), this);
     vbox->addWidget(copyF);
     
-    QLabel * label12 = new QLabel("Size:");
+    QLabel * label12 = new QLabel(
+        //% "Size:"
+        qtTrId("route.editor.properties.forest.label.label12"));
     label12->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label12->setContentsMargins(3,0,0,0);
     vbox->addWidget(label12);
     QFormLayout *vlist = new QFormLayout;
     vlist->setSpacing(2);
     vlist->setContentsMargins(3,0,3,0);
-    vlist->addRow("Width:",&this->sizeX);
-    vlist->addRow("Height:",&this->sizeY);
+    vlist->addRow(
+        //% "Width:"
+        qtTrId("route.editor.properties.forest.label.width"),&this->sizeX);
+    vlist->addRow(
+        //% "Height:"
+        qtTrId("route.editor.properties.forest.label.height"),&this->sizeY);
     QDoubleValidator* doubleValidator = new QDoubleValidator(0, 1000, 2, this); 
     doubleValidator->setNotation(QDoubleValidator::StandardNotation);
     sizeX.setValidator(doubleValidator);
@@ -63,60 +81,92 @@ PropertiesForest::PropertiesForest() {
     QObject::connect(&sizeY, SIGNAL(textEdited(QString)),
                       this, SLOT(sizeEnabled(QString)));
     
-    vlist->addRow("Population:",&this->population);
+    vlist->addRow(
+        //% "Population:"
+        qtTrId("route.editor.properties.forest.label.population"),&this->population);
     population.setValidator( new QIntValidator(0, 1000000, this) );
     QObject::connect(&population, SIGNAL(textEdited(QString)),
                       this, SLOT(populationEnabled(QString)));
     
-    vlist->addRow("Density/KM:",&this->densitykm);
+    vlist->addRow(
+        //% "Density/KM:"
+        qtTrId("route.editor.properties.forest.label.density.km"),&this->densitykm);
     densitykm.setValidator( new QIntValidator(0, 1000000, this) );
     QObject::connect(&densitykm, SIGNAL(textEdited(QString)),
                       this, SLOT(densitykmEnabled(QString)));
     vbox->addItem(vlist);
     
-    label = new QLabel("Position & Rotation:");
+    label = new QLabel(
+        //% "Position & Rotation:"
+        qtTrId("route.editor.properties.forest.label.label.2"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     vlist = new QFormLayout;
     vlist->setSpacing(2);
     vlist->setContentsMargins(3,0,3,0);
-    vlist->addRow("X:",&this->posX);
-    vlist->addRow("Y:",&this->posY);
-    vlist->addRow("Z:",&this->posZ);
+    vlist->addRow(
+        //% "X:"
+        qtTrId("route.editor.properties.forest.label.x"),&this->posX);
+    vlist->addRow(
+        //% "Y:"
+        qtTrId("route.editor.properties.forest.label.y"),&this->posY);
+    vlist->addRow(
+        //% "Z:"
+        qtTrId("route.editor.properties.forest.label.z"),&this->posZ);
     this->quat.setDisabled(true);
     this->quat.setAlignment(Qt::AlignCenter);
-    vlist->addRow("Rot:",&this->quat);
+    vlist->addRow(
+        //% "Rot:"
+        qtTrId("route.editor.properties.forest.label.rot"),&this->quat);
     vbox->addItem(vlist);
     QGridLayout *posRotList = new QGridLayout;
     posRotList->setSpacing(2);
     posRotList->setContentsMargins(0,0,0,0);    
 
-    QPushButton *copyPos = new QPushButton("Copy Pos", this);
+    QPushButton *copyPos = new QPushButton(
+        //% "Copy Pos"
+        qtTrId("route.editor.properties.forest.button.copy.pos"), this);
     QObject::connect(copyPos, SIGNAL(released()),
                       this, SLOT(copyPEnabled()));
-    QPushButton *pastePos = new QPushButton("Paste", this);
+    QPushButton *pastePos = new QPushButton(
+        //% "Paste"
+        qtTrId("route.editor.properties.forest.button.paste.pos"), this);
     QObject::connect(pastePos, SIGNAL(released()),
                       this, SLOT(pastePEnabled()));
-    QPushButton *copyQrot = new QPushButton("Copy Rot", this);
+    QPushButton *copyQrot = new QPushButton(
+        //% "Copy Rot"
+        qtTrId("route.editor.properties.forest.button.copy.qrot"), this);
     QObject::connect(copyQrot, SIGNAL(released()),
                       this, SLOT(copyREnabled()));
-    QPushButton *pasteQrot = new QPushButton("Paste", this);
+    QPushButton *pasteQrot = new QPushButton(
+        //% "Paste"
+        qtTrId("route.editor.properties.forest.button.paste.qrot"), this);
     QObject::connect(pasteQrot, SIGNAL(released()),
                       this, SLOT(pasteREnabled()));
-    QPushButton *copyPosRot = new QPushButton("Copy Pos+Rot", this);
+    QPushButton *copyPosRot = new QPushButton(
+        //% "Copy Pos+Rot"
+        qtTrId("route.editor.properties.forest.button.copy.pos.rot"), this);
     QObject::connect(copyPosRot, SIGNAL(released()),
                       this, SLOT(copyPREnabled()));
-    QPushButton *pastePosRot = new QPushButton("Paste", this);
+    QPushButton *pastePosRot = new QPushButton(
+        //% "Paste"
+        qtTrId("route.editor.properties.forest.button.paste.pos.rot"), this);
     QObject::connect(pastePosRot, SIGNAL(released()),
                       this, SLOT(pastePREnabled()));
-    QPushButton *resetQrot = new QPushButton("Reset Rot", this);
+    QPushButton *resetQrot = new QPushButton(
+        //% "Reset Rot"
+        qtTrId("route.editor.properties.forest.button.reset.qrot"), this);
     QObject::connect(resetQrot, SIGNAL(released()),
                       this, SLOT(resetRotEnabled()));
-    QPushButton *qRot90 = new QPushButton("Rot Y 90°", this);
+    QPushButton *qRot90 = new QPushButton(
+        //% "Rot Y 90°"
+        qtTrId("route.editor.properties.forest.button.q.rot90"), this);
     QObject::connect(qRot90, SIGNAL(released()),
                       this, SLOT(rotYEnabled()));
-    QPushButton *transform = new QPushButton("Transform ...", this);
+    QPushButton *transform = new QPushButton(
+        //% "Transform ..."
+        qtTrId("route.editor.properties.forest.button.transform"), this);
     QObject::connect(transform, SIGNAL(released()),
                       this, SLOT(transformEnabled()));
     
@@ -131,14 +181,20 @@ PropertiesForest::PropertiesForest() {
     posRotList->addWidget(transform, 4, 0, 1, 2);
     vbox->addItem(posRotList);
     
-    label = new QLabel("Detail Level:");
+    label = new QLabel(
+        //% "Detail Level:"
+        qtTrId("route.editor.properties.forest.label.label.3"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     this->defaultDetailLevel.setDisabled(true);
     this->defaultDetailLevel.setAlignment(Qt::AlignCenter);
-    this->enableCustomDetailLevel.setText("Custom");
-    QCheckBox* defaultDetailLevelLabel = new QCheckBox("Default", this);
+    this->enableCustomDetailLevel.setText(
+        //% "Custom"
+        qtTrId("route.editor.properties.forest.text.custom"));
+    QCheckBox* defaultDetailLevelLabel = new QCheckBox(
+        //% "Default"
+        qtTrId("route.editor.properties.forest.option.default.detail.level.label"), this);
     defaultDetailLevelLabel->setDisabled(true);
     defaultDetailLevelLabel->setChecked(true);
     QObject::connect(&enableCustomDetailLevel, SIGNAL(stateChanged(int)),
@@ -156,7 +212,9 @@ PropertiesForest::PropertiesForest() {
     detailLevelView->addWidget(&customDetailLevel, 1, 1);
     vbox->addItem(detailLevelView);
     
-    label = new QLabel("Flags:");
+    label = new QLabel(
+        //% "Flags:"
+        qtTrId("route.editor.properties.forest.label.label.4"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
@@ -166,10 +224,14 @@ PropertiesForest::PropertiesForest() {
     QGridLayout *flagslView = new QGridLayout;
     flagslView->setSpacing(2);
     flagslView->setContentsMargins(0,0,0,0);    
-    QPushButton *copyFlags = new QPushButton("Copy Flags", this);
+    QPushButton *copyFlags = new QPushButton(
+        //% "Copy Flags"
+        qtTrId("route.editor.properties.forest.button.copy.flags"), this);
     QObject::connect(copyFlags, SIGNAL(released()),
                       this, SLOT(copyFEnabled()));
-    QPushButton *pasteFlags = new QPushButton("Paste", this);
+    QPushButton *pasteFlags = new QPushButton(
+        //% "Paste"
+        qtTrId("route.editor.properties.forest.button.paste.flags"), this);
     QObject::connect(pasteFlags, SIGNAL(released()),
                       this, SLOT(pasteFEnabled()));
     flagslView->addWidget(copyFlags,0,0);
@@ -185,14 +247,18 @@ PropertiesForest::~PropertiesForest() {
 
 void PropertiesForest::showObj(GameObj* obj){
     if(obj == NULL){
-        infoLabel->setText("NULL");
+        infoLabel->setText(
+            //% "NULL"
+            qtTrId("route.editor.properties.forest.text.null"));
         return;
     }
     worldObj = (WorldObj*)obj;
     forestObj = (ForestObj*)obj;
     ForestObj* tobj = (ForestObj*)obj;
         
-    this->infoLabel->setText("Object: "+forestObj->type);
+    //% "Object: %1"
+    this->infoLabel->setText(qtTrId("route.properties.forest.object.type")
+                             .arg(forestObj->type));
     this->fileName.setText(tobj->treeTexture);
         
     this->tX.setText(QString::number(forestObj->x, 10));

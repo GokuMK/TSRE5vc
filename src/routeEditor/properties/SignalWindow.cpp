@@ -50,11 +50,15 @@ SignalWindow::SignalWindow(QWidget *parent) : QWidget(parent) {
 
     connect(&signalsChSect, SIGNAL(mappedInt(int)), this, SLOT(chSubEnabled(int)));
     connect(&signalsLinkButton, SIGNAL(mappedInt(int)), this, SLOT(bLinkEnabled(int)));
-    QPushButton* closeButton = new QPushButton("Close");
+    QPushButton* closeButton = new QPushButton(
+        //% "Close"
+        qtTrId("route.editor.properties.signal.window.button.close.button"));
     connect(closeButton, SIGNAL(released()), this, SLOT(close()));
     //vbox->setAlignment(setLinkButton, Qt::AlignBottom);
     vbox->addWidget(closeButton);
-    QLabel *label = new QLabel("SubObj Link Info (press Link button above to show):");
+    QLabel *label = new QLabel(
+        //% "SubObj Link Info (press Link button above to show):"
+        qtTrId("route.editor.properties.signal.window.label.label"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
@@ -62,9 +66,13 @@ SignalWindow::SignalWindow(QWidget *parent) : QWidget(parent) {
     QGridLayout *vlist = new QGridLayout;
     vlist->setSpacing(2);
     vlist->setContentsMargins(3,0,1,0);    
-    setLinkButton = new QPushButton("Set Link");
+    setLinkButton = new QPushButton(
+        //% "Set Link"
+        qtTrId("route.editor.properties.signal.window.button.set.link.button"));
     connect(setLinkButton, SIGNAL(released()), this, SLOT(setLink()));
-    label = new QLabel("From - To: ");
+    label = new QLabel(
+        //% "From - To: "
+        qtTrId("route.editor.properties.signal.window.label.label.2"));
     vlist->addWidget(label,0,0);
     vlist->addWidget(&eLink1,0,1);
     eLink1.setDisabled(true);
@@ -102,7 +110,9 @@ void SignalWindow::bLinkEnabled(int i) {
     currentSubObjLinkInfo = i;
     if(currentSubObjLinkInfo < 0){
         setLinkButton->setDisabled(true);
-        setLinkButton->setText("Set Link");
+        setLinkButton->setText(
+            //% "Set Link"
+            qtTrId("route.editor.properties.signal.window.text.set.link"));
         eLink1.setText("");
         eLink2.setText("");
         eLink3.setText("");
@@ -110,7 +120,8 @@ void SignalWindow::bLinkEnabled(int i) {
     }
     this->sobj->subObjSelected = i;
     setLinkButton->setDisabled(false);
-    setLinkButton->setText(QString("Set Link [")+QString::number(i)+"]");
+        //% "Set Link [%1]"
+        setLinkButton->setText(qtTrId("route.signal.link.set.button").arg(i));
     int ids[3];
     int linkId = sobj->getLinkedJunctionValue(i);
     if(linkId < 1){
@@ -125,7 +136,8 @@ void SignalWindow::bLinkEnabled(int i) {
     eLink3.setText(QString::number(ids[2]));
     
     /*SignalWindowLink window;
-    window.setWindowTitle("Link Signal");
+    //% "Link Signal"
+    window.setWindowTitle(qtTrId("route.signal.link.title"));
     window.exec();
     if (window.changed) {
         int from = window.from.text().toInt();
@@ -176,7 +188,9 @@ void SignalWindow::showObj(SignalObj* obj) {
         if (signalShape->subObj[i].isJnLink) {
             this->bSub[i].show();
             this->bSub[i].setStyleSheet("color: gray");
-            this->bSub[i].setText("Link");
+            this->bSub[i].setText(
+                //% "Link"
+                qtTrId("route.editor.properties.signal.window.text.link"));
             this->bSub[i].setEnabled(false);
             if (this->chSub[i].isChecked()) {
                 setLinkInfo(i);
@@ -184,7 +198,9 @@ void SignalWindow::showObj(SignalObj* obj) {
         } else if (signalShape->subObj[i].iLink > 0) {
             this->bSub[i].show();
             this->bSub[i].setStyleSheet("color: gray");
-            this->bSub[i].setText("Link");
+            this->bSub[i].setText(
+                //% "Link"
+                qtTrId("route.editor.properties.signal.window.text.link.2"));
             this->bSub[i].setEnabled(false);
             for (int j = 0; j < signalShape->subObj[i].iLink; j++) {
                 linkPtr = signalShape->subObj[i].sigSubJnLinkIf[j];
@@ -216,7 +232,9 @@ void SignalWindow::updateObj(SignalObj* obj) {
         if (signalShape->subObj[i].isJnLink) {
             this->bSub[i].show();
             this->bSub[i].setStyleSheet("color: gray");
-            this->bSub[i].setText("Link");
+            this->bSub[i].setText(
+                //% "Link"
+                qtTrId("route.editor.properties.signal.window.text.link.3"));
             this->bSub[i].setEnabled(false);
             if (this->chSub[i].isChecked()) {
                 setLinkInfo(i);
@@ -224,7 +242,9 @@ void SignalWindow::updateObj(SignalObj* obj) {
         } else if (signalShape->subObj[i].iLink > 0) {
             this->bSub[i].show();
             this->bSub[i].setStyleSheet("color: gray");
-            this->bSub[i].setText("Link");
+            this->bSub[i].setText(
+                //% "Link"
+                qtTrId("route.editor.properties.signal.window.text.link.4"));
             this->bSub[i].setEnabled(false);
             for (int j = 0; j < signalShape->subObj[i].iLink; j++) {
                 linkPtr = signalShape->subObj[i].sigSubJnLinkIf[j];
@@ -243,20 +263,27 @@ void SignalWindow::setLinkInfo(int i) {
     if (linkId == -1) {
         this->bSub[i].setEnabled(false);
         this->bSub[i].setStyleSheet("color: red");
-        this->bSub[i].setText("NULL");
+        this->bSub[i].setText(
+            //% "NULL"
+            qtTrId("route.editor.properties.signal.window.text.null"));
     } else if (linkId == 0) {
         this->bSub[i].setStyleSheet("");
         if (sobj->isJunctionAvailable(i)) {
-            this->bSub[i].setText("Link");
+            this->bSub[i].setText(
+                //% "Link"
+                qtTrId("route.editor.properties.signal.window.text.link.5"));
             this->bSub[i].setEnabled(true);
         } else {
-            this->bSub[i].setText("No Junction");
+            this->bSub[i].setText(
+                //% "No Junction"
+                qtTrId("route.editor.properties.signal.window.text.no.junction"));
             this->bSub[i].setEnabled(false);
         }
     } else {
         this->bSub[i].setEnabled(true);
         this->bSub[i].setStyleSheet("color: green");
-        this->bSub[i].setText("Linked: " + QString::number(linkId, 10));
+    //% "Linked: %1"
+    this->bSub[i].setText(qtTrId("route.signal.linked.item").arg(linkId));
     }
 }
 

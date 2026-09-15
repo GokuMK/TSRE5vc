@@ -25,15 +25,21 @@ ActivityServiceProperties::ActivityServiceProperties(QWidget* parent) : QWidget(
     vbox->setSpacing(2);
     vbox->setContentsMargins(0,1,1,1);
     
-    QLabel *label = new QLabel("Service Info:");
+    QLabel *label = new QLabel(
+        //% "Service Info:"
+        qtTrId("route.editor.activity.service.properties.label.label"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     QFormLayout *vlist = new QFormLayout;
     vlist->setSpacing(2);
     vlist->setContentsMargins(3,0,3,0);
-    vlist->addRow("File Name:",&eFileName);
-    vlist->addRow("Display Name:",&eDisplayName);
+    vlist->addRow(
+        //% "File Name:"
+        qtTrId("route.editor.activity.service.properties.label.file.name"),&eFileName);
+    vlist->addRow(
+        //% "Display Name:"
+        qtTrId("route.editor.activity.service.properties.label.display.name"),&eDisplayName);
     QObject::connect(&eDisplayName, SIGNAL(textEdited(QString)),
                       this, SLOT(eDisplayNameEnabled(QString)));
     vbox->addItem(vlist);
@@ -41,18 +47,26 @@ ActivityServiceProperties::ActivityServiceProperties(QWidget* parent) : QWidget(
     vlist = new QFormLayout;
     vlist->setSpacing(2);
     vlist->setContentsMargins(3,0,3,0);
-    vlist->addRow("Expected Player Performance:",&ePlayerPerformance);
+    vlist->addRow(
+        //% "Expected Player Performance:"
+        qtTrId("route.editor.activity.service.properties.label.expected.player.performance"),&ePlayerPerformance);
     QObject::connect(&ePlayerPerformance, SIGNAL(textEdited(QString)),
                       this, SLOT(ePlayerPerformanceEnabled(QString)));
-    vlist->addRow("Start Speed:",&eStartSpeed);
+    vlist->addRow(
+        //% "Start Speed:"
+        qtTrId("route.editor.activity.service.properties.label.start.speed"),&eStartSpeed);
     QObject::connect(&eStartSpeed, SIGNAL(textEdited(QString)),
                       this, SLOT(eStartSpeedEnabled(QString)));
-    vlist->addRow("End Speed:",&eEndSpeed);
+    vlist->addRow(
+        //% "End Speed:"
+        qtTrId("route.editor.activity.service.properties.label.end.speed"),&eEndSpeed);
     QObject::connect(&eEndSpeed, SIGNAL(textEdited(QString)),
                       this, SLOT(eEndSpeedEnabled(QString)));
     vbox->addItem(vlist);
     
-    label = new QLabel("Consist:");
+    label = new QLabel(
+        //% "Consist:"
+        qtTrId("route.editor.activity.service.properties.label.label.2"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
@@ -63,7 +77,9 @@ ActivityServiceProperties::ActivityServiceProperties(QWidget* parent) : QWidget(
     QObject::connect(&cConFiles, SIGNAL(activated(int)),
                       this, SLOT(cConFilesEnabled(int)));
     
-    label = new QLabel("Path:");
+    label = new QLabel(
+        //% "Path:"
+        qtTrId("route.editor.activity.service.properties.label.label.3"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
@@ -75,9 +91,12 @@ ActivityServiceProperties::ActivityServiceProperties(QWidget* parent) : QWidget(
                       this, SLOT(cPathEnabled(int)));
 
     QStringList list;
-    list.append("Stop:");
-    list.append("Station Name:");
-    list.append("Distance (km):");
+    //% "Stop:"
+    list.append(qtTrId("activity.service.station.header.stop"));
+    //% "Station Name:"
+    list.append(qtTrId("activity.service.station.header.name"));
+    //% "Distance (km):"
+    list.append(qtTrId("activity.service.station.header.distance"));
     stationList.setColumnCount(3);
     stationList.setHeaderLabels(list);
     stationList.setRootIsDecorated(false);
@@ -88,13 +107,17 @@ ActivityServiceProperties::ActivityServiceProperties(QWidget* parent) : QWidget(
     QObject::connect(&stationList, SIGNAL(itemChanged(QTreeWidgetItem*, int)),
                       this, SLOT(stationListSelected(QTreeWidgetItem*, int)));
 
-    label = new QLabel("Used by:");
+    label = new QLabel(
+        //% "Used by:"
+        qtTrId("route.editor.activity.service.properties.label.label.4"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     list.clear();
-    list.append("Type:");
-    list.append("Name:");
+    //% "Type:"
+    list.append(qtTrId("activity.service.used.by.header.type"));
+    //% "Name:"
+    list.append(qtTrId("activity.service.used.by.header.name"));
     lUsedBy.setColumnCount(2);
     lUsedBy.setHeaderLabels(list);
     lUsedBy.setRootIsDecorated(false);
@@ -119,7 +142,9 @@ void ActivityServiceProperties::showService(Service *s){
     service = s;
     cConFiles.clear();
     ConLib::loadSimpleList(Game::root);
-    cConFiles.addItem("UNDEFINED", "#");
+    cConFiles.addItem(
+        //% "UNDEFINED"
+        qtTrId("route.editor.activity.service.properties.item.undefined"), "#");
     foreach(QString name, ConLib::conFileList){
         cConFiles.addItem(name.section('/', -1), QVariant(name.section('/', -1)));
     }
@@ -130,7 +155,9 @@ void ActivityServiceProperties::showService(Service *s){
     }
     
     cPath.clear();
-    cPath.addItem("UNDEFINED", "#");
+    cPath.addItem(
+        //% "UNDEFINED"
+        qtTrId("route.editor.activity.service.properties.item.undefined.2"), "#");
     for(int i = 0; i < paths.size(); i++ )
         cPath.addItem(paths[i]->displayName, /*QVariant(i)*/QVariant(paths[i]->trPathName));
     if(s->pathId.length() > 0){

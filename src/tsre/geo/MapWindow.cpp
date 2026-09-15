@@ -31,15 +31,25 @@ MapWindow::MapWindow() : QDialog() {
 
     mapServicesCombo.setMaximumWidth(130);
     mapServicesCombo.setStyleSheet("combobox-popup: 0;");
-    mapServicesCombo.addItem("OSM Vector", 0);
+    mapServicesCombo.addItem(
+        //% "OSM Vector"
+        qtTrId("tsre.geo.map.window.item.osm.vector"), 0);
     mapServices.push_back(new MapDataOSM());
-    mapServicesCombo.addItem("Raster Images Z17", 1);
+    mapServicesCombo.addItem(
+        //% "Raster Images Z17"
+        qtTrId("tsre.geo.map.window.item.raster.images.z17"), 1);
     mapServices.push_back(new MapDataUrlImage(17));
-    mapServicesCombo.addItem("Raster Images Z18", 2);
+    mapServicesCombo.addItem(
+        //% "Raster Images Z18"
+        qtTrId("tsre.geo.map.window.item.raster.images.z18"), 2);
     mapServices.push_back(new MapDataUrlImage(18));
     
-    loadButton = new QPushButton("Load", this);
-    QPushButton *saveButton = new QPushButton("Save to disk", this);
+    loadButton = new QPushButton(
+        //% "Load"
+        qtTrId("tsre.geo.map.window.button.load.button"), this);
+    QPushButton *saveButton = new QPushButton(
+        //% "Save to disk"
+        qtTrId("tsre.geo.map.window.button.save.button"), this);
     saveButton->setFixedWidth(100);
     QImage myImage(800, 800, QImage::Format_RGB888);
     //myImage->load("F:/2.png");
@@ -49,14 +59,22 @@ MapWindow::MapWindow() : QDialog() {
     
     QVBoxLayout *mainLayout = new QVBoxLayout;
     //mainLayout->addWidget(loadButton);
-    QLabel *colorLabel = new QLabel("Color: ");
+    QLabel *colorLabel = new QLabel(
+        //% "Color: "
+        qtTrId("tsre.geo.map.window.label.color.label"));
     colorLabel->setMaximumWidth(40);
     QComboBox *colorCombo = new QComboBox();
     colorCombo->setMaximumWidth(100);
     colorCombo->setStyleSheet("combobox-popup: 0;");
-    colorCombo->addItem("standard", 0);
-    colorCombo->addItem("invert", 1);
-    QLabel *alphaLabel = new QLabel("Alpha: ");
+    colorCombo->addItem(
+        //% "standard"
+        qtTrId("tsre.geo.map.window.item.standard"), 0);
+    colorCombo->addItem(
+        //% "invert"
+        qtTrId("tsre.geo.map.window.item.invert"), 1);
+    QLabel *alphaLabel = new QLabel(
+        //% "Alpha: "
+        qtTrId("tsre.geo.map.window.label.alpha.label"));
     alphaBox.setMaximumWidth(40);
     alphaBox.setMaximum(255);
     alphaBox.setMinimum(0);
@@ -101,7 +119,9 @@ MapWindow::MapWindow() : QDialog() {
 }
 
 int MapWindow::exec() {
-    this->setWindowTitle("Tile: " + QString::number(this->tileX) + " " + QString::number(-this->tileZ));
+    //% "Tile: %1 %2"
+    this->setWindowTitle(qtTrId("geodata.map.tile.title")
+                         .arg(this->tileX).arg(-this->tileZ));
     return QDialog::exec();
 } 
 
@@ -166,7 +186,9 @@ void MapWindow::load(){
     dane->maxlon = maxLatlon->Longitude;
     dane->maxlat = maxLatlon->Latitude;
     
-    loadButton->setText("Wait ...");
+    loadButton->setText(
+        //% "Wait ..."
+        qtTrId("tsre.geo.map.window.text.wait"));
     
     if(dane->init == false){
         dane->init = true;

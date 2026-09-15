@@ -17,7 +17,9 @@
 
 CELoadWindow::CELoadWindow() {
     //this->setWindowFlags( Qt::CustomizeWindowHint );
-    setWindowTitle(Game::AppName+" "+Game::AppVersion+" Consist Editor");
+    //% "%1 %2 Consist Editor"
+    setWindowTitle(qtTrId("con.editor.load.title")
+                   .arg(Game::AppName, Game::AppVersion));
     this->setFixedSize(600, 600);
     QImage* myImage = new QImage();
     myImage->load(QString("appdata/")+Game::AppDataVersion+"/load.png");
@@ -26,17 +28,25 @@ CELoadWindow::CELoadWindow() {
     myLabel->setContentsMargins(0,0,0,0);
     //QLabel* myLabel2 = new QLabel("Choose folder containing 'Trains': ");
     //myLabel2->setContentsMargins(5,0,0,0);
-    QLabel* myLabel3 = new QLabel("Choose folder containing 'Trains' above, or select recent below: ");
+    QLabel* myLabel3 = new QLabel(
+        //% "Choose folder containing 'Trains' above, or select recent below: "
+        qtTrId("con.editor.ceload.window.label.my.label3"));
     myLabel3->setContentsMargins(5,0,0,0);
     
     myLabel->setPixmap(QPixmap::fromImage(*myImage));
 
-    browse = new QPushButton("Browse");
+    browse = new QPushButton(
+        //% "Browse"
+        qtTrId("con.editor.ceload.window.button.browse"));
     connect(browse, SIGNAL (released()), this, SLOT (handleBrowseButton()));
-    load = new QPushButton("Load");
+    load = new QPushButton(
+        //% "Load"
+        qtTrId("con.editor.ceload.window.button.load"));
     load->setStyleSheet("background-color: #008800");
     connect(load, SIGNAL (released()), this, SLOT (routeLoad()));
-    exit = new QPushButton("Exit");
+    exit = new QPushButton(
+        //% "Exit"
+        qtTrId("con.editor.ceload.window.button.exit"));
     exit->setStyleSheet("background-color: #880000");
 
     
@@ -57,8 +67,12 @@ CELoadWindow::CELoadWindow() {
     QFormLayout *vlist = new QFormLayout;
     vlist->setSpacing(2);
     vlist->setContentsMargins(3,0,3,0);
-    vlist->addRow("Consists:", &conNumber);
-    vlist->addRow("Rolling Stock:", &trainsNumber);
+    vlist->addRow(
+        //% "Consists:"
+        qtTrId("con.editor.ceload.window.label.consists"), &conNumber);
+    vlist->addRow(
+        //% "Rolling Stock:"
+        qtTrId("con.editor.ceload.window.label.rolling.stock"), &trainsNumber);
     info->setLayout(vlist);
     mainLayout->addWidget(info);
     //nowa = new QWidget();
@@ -195,16 +209,17 @@ void CELoadWindow::routeLoad(){
 }
 
 void CELoadWindow::listInfo(){
-    QString num = 0;
     QDir dir(Game::root + "/TRAINS/CONSISTS/");
     dir.setFilter(QDir::Files);
     dir.setNameFilters(QStringList()<<"*.con");
-    num = QString::number(dir.count());
-    conNumber.setText(num+" consists");    
+    //% "%n consist(s)"
+    conNumber.setText(qtTrId("con.editor.load.consists.count", dir.count()));
     QDir dir2(Game::root + "/TRAINS/TRAINSET/");
     dir2.setFilter(QDir::Dirs);
-    num = QString::number(dir2.count()-2);
-    trainsNumber.setText(num+" dirs");    
+    const int directoryCount = dir2.count() - 2;
+    //% "%n trainset director(y/ies)"
+    trainsNumber.setText(qtTrId("con.editor.load.trainset.directories.count",
+                                directoryCount));
 }
 
 void CELoadWindow::listRoutes(){

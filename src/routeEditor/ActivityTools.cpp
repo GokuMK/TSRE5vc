@@ -31,21 +31,45 @@ ActivityTools::ActivityTools(QString name)
     : QWidget(){
     setFixedWidth(250);
     cSeason.setStyleSheet("combobox-popup: 0;");
-    cSeason.addItem("Spring",0);
-    cSeason.addItem("Summer",1);
-    cSeason.addItem("Autumn",2);
-    cSeason.addItem("Winter",3);
+    cSeason.addItem(
+        //% "Spring"
+        qtTrId("route.editor.activity.tools.item.spring"),0);
+    cSeason.addItem(
+        //% "Summer"
+        qtTrId("route.editor.activity.tools.item.summer"),1);
+    cSeason.addItem(
+        //% "Autumn"
+        qtTrId("route.editor.activity.tools.item.autumn"),2);
+    cSeason.addItem(
+        //% "Winter"
+        qtTrId("route.editor.activity.tools.item.winter"),3);
     cWeather.setStyleSheet("combobox-popup: 0;");
-    cWeather.addItem("Clear",0);
-    cWeather.addItem("Rain",1);
-    cWeather.addItem("Snow",2);
+    cWeather.addItem(
+        //% "Clear"
+        qtTrId("route.editor.activity.tools.item.clear"),0);
+    cWeather.addItem(
+        //% "Rain"
+        qtTrId("route.editor.activity.tools.item.rain"),1);
+    cWeather.addItem(
+        //% "Snow"
+        qtTrId("route.editor.activity.tools.item.snow"),2);
     cDifficulty.setStyleSheet("combobox-popup: 0;");
-    cDifficulty.addItem("Easy",0);
-    cDifficulty.addItem("Medium",1);
-    cDifficulty.addItem("Hard",2);
+    cDifficulty.addItem(
+        //% "Easy"
+        qtTrId("route.editor.activity.tools.item.easy"),0);
+    cDifficulty.addItem(
+        //% "Medium"
+        qtTrId("route.editor.activity.tools.item.medium"),1);
+    cDifficulty.addItem(
+        //% "Hard"
+        qtTrId("route.editor.activity.tools.item.hard"),2);
     
-    buttonTools["actNewLooseConsistTool"] = new QPushButton("Place Consist", this);
-    buttonTools["actNewSpeedZoneTool"] = new QPushButton("New", this);
+    buttonTools["actNewLooseConsistTool"] = new QPushButton(
+        //% "Place Consist"
+        qtTrId("route.editor.activity.tools.button.place.consist"), this);
+    buttonTools["actNewSpeedZoneTool"] = new QPushButton(
+        //% "New"
+        qtTrId("route.editor.activity.tools.button.new"), this);
 
     QMapIterator<QString, QPushButton*> i(buttonTools);
     while (i.hasNext()) {
@@ -55,7 +79,9 @@ ActivityTools::ActivityTools(QString name)
     QObject::connect(buttonTools["actNewLooseConsistTool"], SIGNAL(toggled(bool)), this, SLOT(actNewLooseConsistToolEnabled(bool)));
     
     //QPushButton *loadActFilesButton = new QPushButton("Load Activities", this);
-    QPushButton *newActButton = new QPushButton("New Activity", this);
+    QPushButton *newActButton = new QPushButton(
+        //% "New Activity"
+        qtTrId("route.editor.activity.tools.button.new.act.button"), this);
     //advancedPlacenentButton->setCheckable(true);
     QObject::connect(newActButton, SIGNAL(released()), this, SLOT(newActButtonEnabled()));
 
@@ -65,7 +91,9 @@ ActivityTools::ActivityTools(QString name)
     QVBoxLayout *vbox = new QVBoxLayout;
     vbox->setSpacing(2);
     vbox->setContentsMargins(0,1,1,1);
-    QLabel *label = new QLabel("Activity List:");
+    QLabel *label = new QLabel(
+        //% "Activity List:"
+        qtTrId("route.editor.activity.tools.label.label"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
@@ -75,7 +103,9 @@ ActivityTools::ActivityTools(QString name)
     actShow.view()->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     vbox->addWidget(newActButton);
     
-    label = new QLabel("Player:");
+    label = new QLabel(
+        //% "Player:"
+        qtTrId("route.editor.activity.tools.label.label.2"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
@@ -83,11 +113,15 @@ ActivityTools::ActivityTools(QString name)
     cService.setStyleSheet("combobox-popup: 0;");
     cService.setMaxVisibleItems(35);
     cService.view()->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-    QPushButton *actServiceOpen = new QPushButton("Open Service Editor");
+    QPushButton *actServiceOpen = new QPushButton(
+        //% "Open Service Editor"
+        qtTrId("route.editor.activity.tools.button.act.service.open"));
     QObject::connect(actServiceOpen, SIGNAL(released()), this, SLOT(actServiceOpenEnabled()));
     vbox->addWidget(actServiceOpen);
     
-    label = new QLabel("Traffic:");
+    label = new QLabel(
+        //% "Traffic:"
+        qtTrId("route.editor.activity.tools.label.label.3"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
@@ -95,19 +129,27 @@ ActivityTools::ActivityTools(QString name)
     cTraffic.setStyleSheet("combobox-popup: 0;");
     cTraffic.setMaxVisibleItems(35);
     cTraffic.view()->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-    QPushButton *actTrafficOpen = new QPushButton("Open Traffic Editor");
+    QPushButton *actTrafficOpen = new QPushButton(
+        //% "Open Traffic Editor"
+        qtTrId("route.editor.activity.tools.button.act.traffic.open"));
     QObject::connect(actTrafficOpen, SIGNAL(released()), this, SLOT(actTrafficOpenEnabled()));
     vbox->addWidget(actTrafficOpen);
     
-    label = new QLabel("Timetable:");
+    label = new QLabel(
+        //% "Timetable:"
+        qtTrId("route.editor.activity.tools.label.label.4"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
-    QPushButton *actTimetableOpen = new QPushButton("Open Timetable Editor");
+    QPushButton *actTimetableOpen = new QPushButton(
+        //% "Open Timetable Editor"
+        qtTrId("route.editor.activity.tools.button.act.timetable.open"));
     QObject::connect(actTimetableOpen, SIGNAL(released()), this, SLOT(actTimetableOpenEnabled()));
     vbox->addWidget(actTimetableOpen);
     
-    label = new QLabel("Paths:");
+    label = new QLabel(
+        //% "Paths:"
+        qtTrId("route.editor.activity.tools.label.label.5"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
@@ -118,21 +160,33 @@ ActivityTools::ActivityTools(QString name)
     vlist1 = new QGridLayout;
     vlist1->setSpacing(2);
     vlist1->setContentsMargins(0,0,1,0);
-    QPushButton *actPathsNew = new QPushButton("New");
-    QPushButton *actPathsEdit = new QPushButton("Edit");
+    QPushButton *actPathsNew = new QPushButton(
+        //% "New"
+        qtTrId("route.editor.activity.tools.button.act.paths.new"));
+    QPushButton *actPathsEdit = new QPushButton(
+        //% "Edit"
+        qtTrId("route.editor.activity.tools.button.act.paths.edit"));
     QObject::connect(actPathsEdit, SIGNAL(released()), this, SLOT(actPathsEditToolEnabled()));
-    QPushButton *actPathsClone = new QPushButton("Clone");
-    QPushButton *actPathsDelete = new QPushButton("Delete");
+    QPushButton *actPathsClone = new QPushButton(
+        //% "Clone"
+        qtTrId("route.editor.activity.tools.button.act.paths.clone"));
+    QPushButton *actPathsDelete = new QPushButton(
+        //% "Delete"
+        qtTrId("route.editor.activity.tools.button.act.paths.delete"));
     vlist1->addWidget(actPathsNew,0,0);
     vlist1->addWidget(actPathsEdit,0,1);
     vlist1->addWidget(actPathsClone,0,2);
     vlist1->addWidget(actPathsDelete,0,3);
-    QPushButton *actPathsRefreshList = new QPushButton("Refresh List");
+    QPushButton *actPathsRefreshList = new QPushButton(
+        //% "Refresh List"
+        qtTrId("route.editor.activity.tools.button.act.paths.refresh.list"));
     QObject::connect(actPathsRefreshList, SIGNAL(released()), this, SLOT(actPathsRefreshListSelected()));
     vlist1->addWidget(actPathsRefreshList,1,1,1,3);
     vbox->addItem(vlist1);    
    
-    label = new QLabel("Activity Objects List:");
+    label = new QLabel(
+        //% "Activity Objects List:"
+        qtTrId("route.editor.activity.tools.label.label.6"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
@@ -143,14 +197,20 @@ ActivityTools::ActivityTools(QString name)
     vlist1 = new QGridLayout;
     vlist1->setSpacing(2);
     vlist1->setContentsMargins(0,0,1,0);
-    QPushButton *actConsistJump = new QPushButton("Jump To");
+    QPushButton *actConsistJump = new QPushButton(
+        //% "Jump To"
+        qtTrId("route.editor.activity.tools.button.act.consist.jump"));
     QObject::connect(actConsistJump, SIGNAL(released()), this, SLOT(actConsistJumpEnabled()));
-    QPushButton *actConsistDelete = new QPushButton("Delete");
+    QPushButton *actConsistDelete = new QPushButton(
+        //% "Delete"
+        qtTrId("route.editor.activity.tools.button.act.consist.delete"));
     QObject::connect(actConsistDelete, SIGNAL(released()), this, SLOT(actConsistDeleteEnabled()));
     vlist1->addWidget(actConsistJump,0,0);
     vlist1->addWidget(actConsistDelete,0,1);
     vlist1->addWidget(buttonTools["actNewLooseConsistTool"],0,2,1,2);
-    label = new QLabel("Consist:");
+    label = new QLabel(
+        //% "Consist:"
+        qtTrId("route.editor.activity.tools.label.label.7"));
     //label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vlist1->addWidget(label,1,0);
@@ -158,12 +218,16 @@ ActivityTools::ActivityTools(QString name)
     conFilesShow.setStyleSheet("combobox-popup: 0;");
     conFilesShow.setMaxVisibleItems(35);
     conFilesShow.view()->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-    QPushButton *conFilesRefresh = new QPushButton("Refresh List");
+    QPushButton *conFilesRefresh = new QPushButton(
+        //% "Refresh List"
+        qtTrId("route.editor.activity.tools.button.con.files.refresh"));
     QObject::connect(conFilesRefresh, SIGNAL(released()), this, SLOT(conFilesRefreshSelected()));
     vlist1->addWidget(conFilesRefresh,2,1,1,3);
     vbox->addItem(vlist1);
     
-    label = new QLabel("Restricted Speed Zones List:");
+    label = new QLabel(
+        //% "Restricted Speed Zones List:"
+        qtTrId("route.editor.activity.tools.label.label.8"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
@@ -174,12 +238,18 @@ ActivityTools::ActivityTools(QString name)
     vlist1 = new QGridLayout;
     vlist1->setSpacing(2);
     vlist1->setContentsMargins(0,0,1,0);
-    QPushButton *actZoneJump = new QPushButton("Jump To");
+    QPushButton *actZoneJump = new QPushButton(
+        //% "Jump To"
+        qtTrId("route.editor.activity.tools.button.act.zone.jump"));
     QObject::connect(actZoneJump, SIGNAL(released()), this, SLOT(actReducedSpeedZonesEnabled()));
     QObject::connect(buttonTools["actNewSpeedZoneTool"], SIGNAL(toggled(bool)), this, SLOT(actZoneNewToolEnabled(bool)));
-    QPushButton *actZoneDelete = new QPushButton("Delete");
+    QPushButton *actZoneDelete = new QPushButton(
+        //% "Delete"
+        qtTrId("route.editor.activity.tools.button.act.zone.delete"));
     QObject::connect(actZoneDelete, SIGNAL(released()), this, SLOT(actZoneDeleteEnabled()));
-    QPushButton *actZoneDeleteAll = new QPushButton("Delete All");
+    QPushButton *actZoneDeleteAll = new QPushButton(
+        //% "Delete All"
+        qtTrId("route.editor.activity.tools.button.act.zone.delete.all"));
     QObject::connect(actZoneDeleteAll, SIGNAL(released()), this, SLOT(actZoneDeleteAllEnabled()));
     vlist1->addWidget(actZoneJump,0,0);
     vlist1->addWidget(buttonTools["actNewSpeedZoneTool"],0,1);
@@ -187,7 +257,9 @@ ActivityTools::ActivityTools(QString name)
     vlist1->addWidget(actZoneDeleteAll,0,3);
     vbox->addItem(vlist1);
     
-    label = new QLabel("Failed Signals List:");
+    label = new QLabel(
+        //% "Failed Signals List:"
+        qtTrId("route.editor.activity.tools.label.label.9"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
@@ -198,13 +270,21 @@ ActivityTools::ActivityTools(QString name)
     vlist1 = new QGridLayout;
     vlist1->setSpacing(2);
     vlist1->setContentsMargins(0,0,1,0);
-    QPushButton *actFailedSignalJump = new QPushButton("Jump To");
+    QPushButton *actFailedSignalJump = new QPushButton(
+        //% "Jump To"
+        qtTrId("route.editor.activity.tools.button.act.failed.signal.jump"));
     QObject::connect(actFailedSignalJump, SIGNAL(released()), this, SLOT(actFailedSignalsJumpEnabled()));
-    QPushButton *actFailedSignalTool = new QPushButton("Disable");
+    QPushButton *actFailedSignalTool = new QPushButton(
+        //% "Disable"
+        qtTrId("route.editor.activity.tools.button.act.failed.signal.tool"));
     QObject::connect(actFailedSignalTool, SIGNAL(released()), this, SLOT(actFailedSignalNewToolEnabled()));
-    QPushButton *actFailedSignalDelete = new QPushButton("Delete");
+    QPushButton *actFailedSignalDelete = new QPushButton(
+        //% "Delete"
+        qtTrId("route.editor.activity.tools.button.act.failed.signal.delete"));
     QObject::connect(actFailedSignalDelete, SIGNAL(released()), this, SLOT(actFailedSignalDeleteEnabled()));
-    QPushButton *actFailedSignalDeleteAll = new QPushButton("Delete All");
+    QPushButton *actFailedSignalDeleteAll = new QPushButton(
+        //% "Delete All"
+        qtTrId("route.editor.activity.tools.button.act.failed.signal.delete.all"));
     QObject::connect(actFailedSignalDeleteAll, SIGNAL(released()), this, SLOT(actFailedSignalDeleteAllEnabled()));
     vlist1->addWidget(actFailedSignalJump,0,0);
     vlist1->addWidget(actFailedSignalTool,0,1);
@@ -212,35 +292,51 @@ ActivityTools::ActivityTools(QString name)
     vlist1->addWidget(actFailedSignalDeleteAll,0,3);
     vbox->addItem(vlist1);
     
-    label = new QLabel("Events:");
+    label = new QLabel(
+        //% "Events:"
+        qtTrId("route.editor.activity.tools.label.label.10"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
-    QPushButton *actEventsOpen = new QPushButton("Open Event Editor");
+    QPushButton *actEventsOpen = new QPushButton(
+        //% "Open Event Editor"
+        qtTrId("route.editor.activity.tools.button.act.events.open"));
     QObject::connect(actEventsOpen, SIGNAL(released()), this, SLOT(actEventsOpenEnabled()));
     vbox->addWidget(actEventsOpen);
     
-    label = new QLabel("Activity Info:");
+    label = new QLabel(
+        //% "Activity Info:"
+        qtTrId("route.editor.activity.tools.label.label.11"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
-    QPushButton *actSettingsOpen = new QPushButton("Open Settings ...");
+    QPushButton *actSettingsOpen = new QPushButton(
+        //% "Open Settings ..."
+        qtTrId("route.editor.activity.tools.button.act.settings.open"));
     QObject::connect(actSettingsOpen, SIGNAL(released()), this, SLOT(actSettingsOpenEnabled()));
     vbox->addWidget(actSettingsOpen);
     
-    label = new QLabel("Experimental:");
+    label = new QLabel(
+        //% "Experimental:"
+        qtTrId("route.editor.activity.tools.label.label.12"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
-    QPushButton *actPlayButton = new QPushButton("Play: Don't use!");
+    QPushButton *actPlayButton = new QPushButton(
+        //% "Play: Don't use!"
+        qtTrId("route.editor.activity.tools.button.act.play.button"));
     QObject::connect(actPlayButton, SIGNAL(released()), this, SLOT(actPlayEnabled()));
     vbox->addWidget(actPlayButton);
     
-    label = new QLabel("General:");
+    label = new QLabel(
+        //% "General:"
+        qtTrId("route.editor.activity.tools.label.label.13"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
-    QPushButton *actSaveButton = new QPushButton("Save Activities");
+    QPushButton *actSaveButton = new QPushButton(
+        //% "Save Activities"
+        qtTrId("route.editor.activity.tools.button.act.save.button"));
     QObject::connect(actSaveButton, SIGNAL(released()), this, SLOT(actSaveEnabled()));
     vbox->addWidget(actSaveButton);
     
@@ -250,30 +346,46 @@ ActivityTools::ActivityTools(QString name)
     QGridLayout *vlist = new QGridLayout;
     vlist->setSpacing(2);
     vlist->setContentsMargins(0,0,1,0);
-    vlist->addWidget(new QLabel("File Name:"), row, 0);
+    vlist->addWidget(new QLabel(
+        //% "File Name:"
+        qtTrId("route.editor.activity.tools.label.file.name")), row, 0);
     vlist->addWidget(&eFileName, row++, 1, 1, 2);
     QObject::connect(&eFileName, SIGNAL(textEdited(QString)), this, SLOT(eFileNameEnabled(QString)));
-    vlist->addWidget(new QLabel("Display Name:"), row, 0);
+    vlist->addWidget(new QLabel(
+        //% "Display Name:"
+        qtTrId("route.editor.activity.tools.label.display.name")), row, 0);
     vlist->addWidget(&eDisplayName, row++, 1, 1, 2);
     QObject::connect(&eDisplayName, SIGNAL(textEdited(QString)), this, SLOT(eDisplayNameEnabled(QString)));
-    vlist->addWidget(new QLabel("Difficulty:"), row, 0);
+    vlist->addWidget(new QLabel(
+        //% "Difficulty:"
+        qtTrId("route.editor.activity.tools.label.difficulty")), row, 0);
     vlist->addWidget(&cDifficulty, row++, 1, 1, 2);
     QObject::connect(&cDifficulty, SIGNAL(activated(int)), this, SLOT(cDifficultyEnabled(int)));
-    vlist->addWidget(new QLabel("Duration:"), row, 0);
+    vlist->addWidget(new QLabel(
+        //% "Duration:"
+        qtTrId("route.editor.activity.tools.label.duration")), row, 0);
     vlist->addWidget(&eDuration, row++, 1, 1, 2);
     QObject::connect(&eDuration, SIGNAL(editingFinished()), this, SLOT(eDurationEnabled()));
     eDuration.setDisplayFormat("HH:mm");
-    vlist->addWidget(new QLabel("Start Time:"), row, 0);
+    vlist->addWidget(new QLabel(
+        //% "Start Time:"
+        qtTrId("route.editor.activity.tools.label.start.time")), row, 0);
     vlist->addWidget(&eStartTime, row++, 1, 1, 2);
     QObject::connect(&eStartTime, SIGNAL(editingFinished()), this, SLOT(eStartTimeEnabled()));
     eStartTime.setDisplayFormat("HH:mm:ss");
-    vlist->addWidget(new QLabel("Season:"), row, 0);
+    vlist->addWidget(new QLabel(
+        //% "Season:"
+        qtTrId("route.editor.activity.tools.label.season")), row, 0);
     vlist->addWidget(&cSeason, row++, 1, 1, 2);
     QObject::connect(&cSeason, SIGNAL(activated(int)), this, SLOT(cSeasonEnabled(int)));
-    vlist->addWidget(new QLabel("Weather:"), row, 0);
+    vlist->addWidget(new QLabel(
+        //% "Weather:"
+        qtTrId("route.editor.activity.tools.label.weather")), row, 0);
     vlist->addWidget(&cWeather, row++, 1, 1, 2);
     QObject::connect(&cWeather, SIGNAL(activated(int)), this, SLOT(cWeatherEnabled(int)));
-    vlist->addWidget(new QLabel("Horn At Crossings: "), row, 0);
+    vlist->addWidget(new QLabel(
+        //% "Horn At Crossings: "
+        qtTrId("route.editor.activity.tools.label.horn.at.crossings")), row, 0);
     cHornAtCrossings.setMinimumHeight(25);
     vlist->addWidget(&cHornAtCrossings, row++, 1, 1, 2);
     QObject::connect(&cHornAtCrossings, SIGNAL(stateChanged(int)), this, SLOT(cHornAtCrossingsEnabled(int)));
@@ -284,35 +396,45 @@ ActivityTools::ActivityTools(QString name)
     eHazardAnimal = GuiFunct::newQLineEdit(25,3);  
     eHazardPeople = GuiFunct::newQLineEdit(25,3);  
             
-    vlist->addWidget(new QLabel("Fuel Coal:"), row, 0);
+    vlist->addWidget(new QLabel(
+        //% "Fuel Coal:"
+        qtTrId("route.editor.activity.tools.label.fuel.coal")), row, 0);
     vlist->addWidget(eFuelCoal, row, 1);
     vlist->addWidget(&sFuelCoal, row++, 2);
     QObject::connect(eFuelCoal, SIGNAL(textEdited(QString)), this, SLOT(eFuelCoalEnabled(QString)));
     QObject::connect(&sFuelCoal, SIGNAL(sliderReleased()), this, SLOT(sFuelCoalEnabled()));
     sFuelCoal.setRange(0, 100);
     sFuelCoal.setOrientation(Qt::Horizontal);
-    vlist->addWidget(new QLabel("Fuel Diesel:"), row, 0);
+    vlist->addWidget(new QLabel(
+        //% "Fuel Diesel:"
+        qtTrId("route.editor.activity.tools.label.fuel.diesel")), row, 0);
     vlist->addWidget(eFuelDiesel, row, 1);
     vlist->addWidget(&sFuelDiesel, row++, 2);
     QObject::connect(eFuelDiesel, SIGNAL(textEdited(QString)), this, SLOT(eFuelDieselEnabled(QString)));
     QObject::connect(&sFuelDiesel, SIGNAL(sliderReleased()), this, SLOT(sFuelDieselEnabled()));
     sFuelDiesel.setRange(0, 100);
     sFuelDiesel.setOrientation(Qt::Horizontal);
-    vlist->addWidget(new QLabel("Fuel Water:"), row, 0);
+    vlist->addWidget(new QLabel(
+        //% "Fuel Water:"
+        qtTrId("route.editor.activity.tools.label.fuel.water")), row, 0);
     vlist->addWidget(eFuelWater, row, 1);
     vlist->addWidget(&sFuelWater, row++, 2);
     QObject::connect(eFuelWater, SIGNAL(textEdited(QString)), this, SLOT(eFuelWaterEnabled(QString)));
     QObject::connect(&sFuelWater, SIGNAL(sliderReleased()), this, SLOT(sFuelWaterEnabled()));
     sFuelWater.setRange(0, 100);
     sFuelWater.setOrientation(Qt::Horizontal);
-    vlist->addWidget(new QLabel("Hazard Animal:"), row, 0);
+    vlist->addWidget(new QLabel(
+        //% "Hazard Animal:"
+        qtTrId("route.editor.activity.tools.label.hazard.animal")), row, 0);
     vlist->addWidget(eHazardAnimal, row, 1);
     vlist->addWidget(&sHazardAnimal, row++, 2);
     QObject::connect(eHazardAnimal, SIGNAL(textEdited(QString)), this, SLOT(eHazardAnimalEnabled(QString)));
     QObject::connect(&sHazardAnimal, SIGNAL(sliderReleased()), this, SLOT(sHazardAnimalEnabled()));
     sHazardAnimal.setRange(0, 100);
     sHazardAnimal.setOrientation(Qt::Horizontal);
-    vlist->addWidget(new QLabel("Hazard People:"), row, 0);
+    vlist->addWidget(new QLabel(
+        //% "Hazard People:"
+        qtTrId("route.editor.activity.tools.label.hazard.people")), row, 0);
     vlist->addWidget(eHazardPeople, row, 1);
     vlist->addWidget(&sHazardPeople, row++, 2);
     QObject::connect(eHazardPeople, SIGNAL(textEdited(QString)), this, SLOT(eHazardPeopleEnabled(QString)));
@@ -327,11 +449,15 @@ ActivityTools::ActivityTools(QString name)
 
     vbox2 = new QVBoxLayout;
     vbox2->setContentsMargins(0,0,0,0);
-    vbox2->addWidget(new QLabel("Description:"));
+    vbox2->addWidget(new QLabel(
+        //% "Description:"
+        qtTrId("route.editor.activity.tools.label.description")));
     vbox2->addWidget(&eDescription);
     QObject::connect(&eDescription, SIGNAL(textChanged()), this, SLOT(eDescriptionEnabled()));
     eDescription.setMinimumWidth(350);
-    vbox2->addWidget(new QLabel("Briefing:"));
+    vbox2->addWidget(new QLabel(
+        //% "Briefing:"
+        qtTrId("route.editor.activity.tools.label.briefing")));
     vbox2->addWidget(&eBriefing);
     QObject::connect(&eBriefing, SIGNAL(textChanged()), this, SLOT(eBriefingEnabled()));
     eBriefing.setMinimumWidth(350);
@@ -339,7 +465,9 @@ ActivityTools::ActivityTools(QString name)
     settingsWidget.setParent(this);
     settingsWidget.setLayout(vbox1);
     settingsWidget.setWindowFlags(Qt::WindowType::Tool);
-    settingsWidget.setWindowTitle("Activity Settings.");
+    settingsWidget.setWindowTitle(
+        //% "Activity Settings."
+        qtTrId("route.editor.activity.tools.title.activity.settings"));
     settingsWidget.setMinimumWidth(650);
     
     vbox->addStretch(1);
@@ -435,7 +563,9 @@ void ActivityTools::reloadActivityList(){
 void ActivityTools::reloadServicesList(){
     int idx = cService.currentIndex();
     cService.clear();
-    cService.addItem("UNDEFINED", QVariant(-1));
+    cService.addItem(
+        //% "UNDEFINED"
+        qtTrId("route.editor.activity.tools.item.undefined"), QVariant(-1));
     for(int i = 0; i < ActLib::jestservice; i++ ){
         if(ActLib::Services[i] == NULL)
             continue;
@@ -449,7 +579,9 @@ void ActivityTools::reloadServicesList(){
 void ActivityTools::reloadTrafficsList(){
     int idx = cTraffic.currentIndex();
     cTraffic.clear();
-    cTraffic.addItem("UNDEFINED", QVariant(-1));
+    cTraffic.addItem(
+        //% "UNDEFINED"
+        qtTrId("route.editor.activity.tools.item.undefined.2"), QVariant(-1));
     for(int i = 0; i < ActLib::jesttraffic; i++ ){
         if(ActLib::Traffics[i] == NULL)
             continue;
@@ -504,8 +636,12 @@ void ActivityTools::actSaveEnabled(){
     }
     
     UnsavedDialog unsavedDialog("SC");
-    unsavedDialog.setWindowTitle("Save changes?");
-    unsavedDialog.setMsg("Save changes in activities?");
+    unsavedDialog.setWindowTitle(
+        //% "Save changes?"
+        qtTrId("route.editor.activity.tools.title.save.changes"));
+    unsavedDialog.setMsg(
+        //% "Save changes in activities?"
+        qtTrId("route.editor.activity.tools.message.save.changes.in.activities"));
     for(int i = 0; i < unsavedItems.size(); i++){
         unsavedDialog.items.addItem(unsavedItems[i]);
     }
@@ -642,7 +778,9 @@ void ActivityTools::reloadActivityObjectLists(){
     for (int i = 0; i < ActLib::Act[id]->activityFailedSignal.size(); i++){
         rz = ActLib::Act[id]->activityFailedSignal[i];
         if(rz == NULL) continue;
-        failedSignals.addItem(QString("Signal ID: ")+QString::number(rz->getFailedSignalId()), QVariant(i));
+        //% "Signal ID: %1"
+        failedSignals.addItem(qtTrId("activity.failed.signal.id")
+                              .arg(rz->getFailedSignalId()), QVariant(i));
     }
 }
 
@@ -831,8 +969,12 @@ void ActivityTools::actFailedSignalNewToolEnabled(){
     bool ok = a->newFailedSignalFromSelected();
     if(!ok){
         QMessageBox msgBox;
-        msgBox.setWindowTitle("Signal not disabled!");
-        msgBox.setText("Select signal before using this button.");
+        msgBox.setWindowTitle(
+            //% "Signal not disabled!"
+            qtTrId("route.editor.activity.tools.title.signal.not.disabled"));
+        msgBox.setText(
+            //% "Select signal before using this button."
+            qtTrId("route.editor.activity.tools.text.select.signal.before.using.this.button"));
         msgBox.exec();
         return;
     }
@@ -1137,7 +1279,9 @@ void ActivityTools::descriptionOpenEnabled(){
     QString txt = a->header->description;
     txt.replace("\\n","\n");
     dialog.textBox.setPlainText(txt);
-    dialog.setWindowTitle("Activity Description");
+    dialog.setWindowTitle(
+        //% "Activity Description"
+        qtTrId("route.editor.activity.tools.title.activity.description"));
     dialog.exec();
     if(dialog.changed == 1){
         txt = dialog.textBox.toPlainText();
@@ -1154,7 +1298,9 @@ void ActivityTools::briefingOpenEnabled(){
     QString txt = a->header->briefing;
     txt.replace("\\n","\n");
     dialog.textBox.setPlainText(txt);
-    dialog.setWindowTitle("Activity Description");
+    dialog.setWindowTitle(
+        //% "Activity Description"
+        qtTrId("route.editor.activity.tools.title.activity.description.2"));
     dialog.exec();
     if(dialog.changed == 1){
         txt = dialog.textBox.toPlainText();

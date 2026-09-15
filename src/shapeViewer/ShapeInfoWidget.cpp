@@ -17,12 +17,24 @@ ShapeInfoWidget::ShapeInfoWidget(QWidget* parent) : QWidget(parent) {
     QGridLayout *engInfoForm = new QGridLayout;
     engInfoForm->setSpacing(2);
     engInfoForm->setContentsMargins(1,1,1,1);    
-    engInfoForm->addWidget(new QLabel("File Name:"),0,0);
-    engInfoForm->addWidget(new QLabel("Shape Type:"),1,0);
-    engInfoForm->addWidget(new QLabel("SD File:"),2,0);
-    engInfoForm->addWidget(new QLabel("Poly count:"),0,2);
-    engInfoForm->addWidget(new QLabel("Dimensions SD file:"),1,2);
-    engInfoForm->addWidget(new QLabel("Dimensions Calculated:"),2,2);
+    engInfoForm->addWidget(new QLabel(
+        //% "File Name:"
+        qtTrId("shape.viewer.shape.info.widget.label.file.name")),0,0);
+    engInfoForm->addWidget(new QLabel(
+        //% "Shape Type:"
+        qtTrId("shape.viewer.shape.info.widget.label.shape.type")),1,0);
+    engInfoForm->addWidget(new QLabel(
+        //% "SD File:"
+        qtTrId("shape.viewer.shape.info.widget.label.sd.file")),2,0);
+    engInfoForm->addWidget(new QLabel(
+        //% "Poly count:"
+        qtTrId("shape.viewer.shape.info.widget.label.poly.count")),0,2);
+    engInfoForm->addWidget(new QLabel(
+        //% "Dimensions SD file:"
+        qtTrId("shape.viewer.shape.info.widget.label.dimensions.sd.file")),1,2);
+    engInfoForm->addWidget(new QLabel(
+        //% "Dimensions Calculated:"
+        qtTrId("shape.viewer.shape.info.widget.label.dimensions.calculated")),2,2);
     
     engInfoForm->addWidget(&sName,0,1);
     engInfoForm->addWidget(&sType,1,1);

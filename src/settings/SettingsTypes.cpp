@@ -109,15 +109,15 @@ QVariant settingVariantFromJson(const QJsonValue &value, SettingType type) {
 }
 
 QJsonObject SettingsSubgroupDefinition::toJson() const {
-    return QJsonObject{{"id", id}, {"name", name},
-                       {"description", description}, {"order", order}};
+    return QJsonObject{{"id", id}, {"nameId", nameId},
+                       {"descriptionId", descriptionId}, {"order", order}};
 }
 
 QJsonObject SettingsGroupDefinition::toJson() const {
     QJsonObject object;
     object["id"] = id;
-    object["name"] = name;
-    object["description"] = description;
+    object["nameId"] = nameId;
+    object["descriptionId"] = descriptionId;
     object["order"] = order;
     if (!subgroups.isEmpty()) {
         QJsonArray array;
@@ -180,8 +180,8 @@ SettingsDefinition SettingsDefinition::enumeration(const QString &key,
     return result;
 }
 
-SettingsDefinition &SettingsDefinition::withName(const QString &value) { name = value; return *this; }
-SettingsDefinition &SettingsDefinition::withDescription(const QString &value) { description = value; return *this; }
+SettingsDefinition &SettingsDefinition::withNameId(const QString &value) { nameId = value; return *this; }
+SettingsDefinition &SettingsDefinition::withDescriptionId(const QString &value) { descriptionId = value; return *this; }
 SettingsDefinition &SettingsDefinition::inGroup(const QString &value, int valueOrder) { group = value; order = valueOrder; return *this; }
 SettingsDefinition &SettingsDefinition::inSubgroup(const QString &value) { subgroup = value; return *this; }
 SettingsDefinition &SettingsDefinition::withUnit(const QString &value) { unit = value; return *this; }
@@ -202,14 +202,14 @@ SettingsDefinition &SettingsDefinition::implementedBy(const QString &owner, bool
 QJsonObject SettingsDefinition::toJson() const {
     QJsonObject object;
     object["key"] = key;
-    object["name"] = name;
+    object["nameId"] = nameId;
     object["value"] = settingJsonFromVariant(defaultValue, type);
     object["default"] = settingJsonFromVariant(defaultValue, type);
     object["type"] = settingTypeName(type);
     object["group"] = group;
     if (!subgroup.isEmpty())
         object["subgroup"] = subgroup;
-    object["description"] = description;
+    object["descriptionId"] = descriptionId;
     object["order"] = order;
     object["apply"] = apply;
     if (!unit.isEmpty())
@@ -231,7 +231,7 @@ QJsonObject SettingsDefinition::toJson() const {
         for (const SettingOption &option : options) {
             QJsonObject optionObject;
             optionObject["value"] = QJsonValue::fromVariant(option.value);
-            optionObject["name"] = option.name;
+            optionObject["nameId"] = option.nameId;
             optionArray.append(optionObject);
         }
         object["options"] = optionArray;

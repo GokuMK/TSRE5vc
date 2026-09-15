@@ -23,20 +23,28 @@ AboutWindow::AboutWindow(QWidget* parent) : QWidget(parent) {
     QLabel* myLabel = new QLabel("");
     myLabel->setContentsMargins(0,0,0,0);   
     
-    QLabel* myLabel2 = new QLabel("<b>User guide</b> <a href=\"http://koniec.org/tsre5/\"><b>http://koniec.org/tsre5.</b></a>");
+    QLabel* myLabel2 = new QLabel(
+        //% "<b>User guide</b> <a href=\"http://koniec.org/tsre5/\"><b>http://koniec.org/tsre5.</b></a>"
+        qtTrId("route.editor.about.window.label.my.label2"));
     myLabel2->setOpenExternalLinks(true);
     myLabel2->setContentsMargins(5,0,0,0);
-    QLabel* myLabel21 = new QLabel("<b>Official Forum</b> <a href=\"http://www.onrails.eu\"><b>http://www.onrails.eu.</b></a>");
+    QLabel* myLabel21 = new QLabel(
+        //% "<b>Official Forum</b> <a href=\"http://www.onrails.eu\"><b>http://www.onrails.eu.</b></a>"
+        qtTrId("route.editor.about.window.label.my.label21"));
     myLabel21->setOpenExternalLinks(true);
     myLabel21->setContentsMargins(5,0,0,0);
     
-    QLabel* myLabel3 = new QLabel("Copyright © GokuMK, mail pgadecki@gmail.com ");
+    QLabel* myLabel3 = new QLabel(
+        //% "Copyright © GokuMK, mail pgadecki@gmail.com "
+        qtTrId("route.editor.about.window.label.my.label3"));
     myLabel3->setContentsMargins(5,0,0,0);
   
     
     myLabel->setPixmap(QPixmap::fromImage(*myImage));
 
-    QPushButton* browse = new QPushButton("Close");
+    QPushButton* browse = new QPushButton(
+        //% "Close"
+        qtTrId("route.editor.about.window.button.browse"));
     connect(browse, SIGNAL (released()), this, SLOT (close()));
 
     QVBoxLayout *mainLayout = new QVBoxLayout;

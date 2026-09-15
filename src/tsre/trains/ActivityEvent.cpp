@@ -29,17 +29,28 @@
 OglObj *ActivityEvent::simpleMarkerObj = NULL;
 
 QMap<ActivityEvent::EventType, QString> ActivityEvent::EventTypeDescription = {
-    { ActivityEvent::EventTypeNone ,"None." },
-    { ActivityEvent::EventTypeTime ,"Time Event." },
-    { ActivityEvent::EventTypeLocation ,"Location Event." },
-    { ActivityEvent::EventTypeAllstops ,"Stop at final station." },
-    { ActivityEvent::EventTypePickupWagons ,"Pick up Wagons." },
-    { ActivityEvent::EventTypeAssembleTrain ,"Assemble Train" },
-    { ActivityEvent::EventTypeAssembleTrainAtLocation ,"Assemble Train at location." },
-    { ActivityEvent::EventTypeDropoffWagonsAtLocation ,"Drop off cars at location." },
-    { ActivityEvent::EventTypePickupPassengers ,"Pick up Passengers." },
-    { ActivityEvent::EventTypeReachSpeed ,"Reach Speed." },
-    { ActivityEvent::EventTypePickUp ,"Make a pickup." }
+    //% "None."
+    { ActivityEvent::EventTypeNone, QT_TRID_NOOP("activity.event.type.none") },
+    //% "Time Event."
+    { ActivityEvent::EventTypeTime, QT_TRID_NOOP("activity.event.type.time") },
+    //% "Location Event."
+    { ActivityEvent::EventTypeLocation, QT_TRID_NOOP("activity.event.type.location") },
+    //% "Stop at final station."
+    { ActivityEvent::EventTypeAllstops, QT_TRID_NOOP("activity.event.type.all.stops") },
+    //% "Pick up Wagons."
+    { ActivityEvent::EventTypePickupWagons, QT_TRID_NOOP("activity.event.type.pickup.wagons") },
+    //% "Assemble Train"
+    { ActivityEvent::EventTypeAssembleTrain, QT_TRID_NOOP("activity.event.type.assemble.train") },
+    //% "Assemble Train at location."
+    { ActivityEvent::EventTypeAssembleTrainAtLocation, QT_TRID_NOOP("activity.event.type.assemble.at.location") },
+    //% "Drop off cars at location."
+    { ActivityEvent::EventTypeDropoffWagonsAtLocation, QT_TRID_NOOP("activity.event.type.dropoff.at.location") },
+    //% "Pick up Passengers."
+    { ActivityEvent::EventTypePickupPassengers, QT_TRID_NOOP("activity.event.type.pickup.passengers") },
+    //% "Reach Speed."
+    { ActivityEvent::EventTypeReachSpeed, QT_TRID_NOOP("activity.event.type.reach.speed") },
+    //% "Make a pickup."
+    { ActivityEvent::EventTypePickUp, QT_TRID_NOOP("activity.event.type.make.pickup") }
 };
 
 QMap<ActivityEvent::EventType, QString> ActivityEvent::EventTypeName = {
@@ -71,18 +82,30 @@ QMap<QString, ActivityEvent::EventType> ActivityEvent::EventNameType = {
 };
 
 QMap<ActivityEvent::Outcome::OutcomeType, QString> ActivityEvent::Outcome::OutcomeTypeDescription = {
-    { ActivityEvent::Outcome::TypeNone ,"None." },
-    { ActivityEvent::Outcome::TypeDisplayMessage ,"Display a message." },
-    { ActivityEvent::Outcome::TypeActivitySuccess ,"Complete Activity successfully." },
-    { ActivityEvent::Outcome::TypeActivityFail ,"End Activity without success." },
-    { ActivityEvent::Outcome::TypeIncActLevel ,"Increase an event's activation level." },
-    { ActivityEvent::Outcome::TypeDecActLevel ,"Decrease an event's activation level." },
-    { ActivityEvent::Outcome::TypeRestorAactLevel ,"Restore an event's activation level." },
-    { ActivityEvent::Outcome::TypeActivateEvent ,"Activate an event." },
-    { ActivityEvent::Outcome::TypeStartIgnoringSpeedLimits ,"Start ignoring speed limits." },
-    { ActivityEvent::Outcome::TypeStopIgnoringSpeedLimits ,"Stop ignoring speed limits." },
-    { ActivityEvent::Outcome::TypeORTSActSoundFile , "Play sound from file." },
-    { ActivityEvent::Outcome::TypeORTSWeatherChange , "Change the Weather." }
+    //% "None."
+    { ActivityEvent::Outcome::TypeNone, QT_TRID_NOOP("activity.outcome.type.none") },
+    //% "Display a message."
+    { ActivityEvent::Outcome::TypeDisplayMessage, QT_TRID_NOOP("activity.outcome.type.display.message") },
+    //% "Complete Activity successfully."
+    { ActivityEvent::Outcome::TypeActivitySuccess, QT_TRID_NOOP("activity.outcome.type.activity.success") },
+    //% "End Activity without success."
+    { ActivityEvent::Outcome::TypeActivityFail, QT_TRID_NOOP("activity.outcome.type.activity.fail") },
+    //% "Increase an event's activation level."
+    { ActivityEvent::Outcome::TypeIncActLevel, QT_TRID_NOOP("activity.outcome.type.increase.activation") },
+    //% "Decrease an event's activation level."
+    { ActivityEvent::Outcome::TypeDecActLevel, QT_TRID_NOOP("activity.outcome.type.decrease.activation") },
+    //% "Restore an event's activation level."
+    { ActivityEvent::Outcome::TypeRestorAactLevel, QT_TRID_NOOP("activity.outcome.type.restore.activation") },
+    //% "Activate an event."
+    { ActivityEvent::Outcome::TypeActivateEvent, QT_TRID_NOOP("activity.outcome.type.activate.event") },
+    //% "Start ignoring speed limits."
+    { ActivityEvent::Outcome::TypeStartIgnoringSpeedLimits, QT_TRID_NOOP("activity.outcome.type.start.ignore.speed.limits") },
+    //% "Stop ignoring speed limits."
+    { ActivityEvent::Outcome::TypeStopIgnoringSpeedLimits, QT_TRID_NOOP("activity.outcome.type.stop.ignore.speed.limits") },
+    //% "Play sound from file."
+    { ActivityEvent::Outcome::TypeORTSActSoundFile, QT_TRID_NOOP("activity.outcome.type.play.sound") },
+    //% "Change the Weather."
+    { ActivityEvent::Outcome::TypeORTSWeatherChange, QT_TRID_NOOP("activity.outcome.type.change.weather") }
 };
 
 QMap<ActivityEvent::Outcome::OutcomeType, QString> ActivityEvent::Outcome::OutcomeTypeName = {

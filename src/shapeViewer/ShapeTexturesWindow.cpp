@@ -17,7 +17,9 @@
 
 ShapeTexturesWindow::ShapeTexturesWindow(QWidget* parent) : QWidget(parent) {
     setWindowFlags(Qt::WindowType::Tool);
-    setWindowTitle(tr("Shape Textures"));
+    setWindowTitle(
+        //% "Shape Textures"
+        qtTrId("shape.viewer.shape.textures.window.title.shape.textures"));
     
     texPreview = new QPixmap(192,192);
     texPreview->fill(Qt::gray);
@@ -29,17 +31,24 @@ ShapeTexturesWindow::ShapeTexturesWindow(QWidget* parent) : QWidget(parent) {
     vbox->setSpacing(2);
     vbox->setContentsMargins(0,1,1,1);
     
-    QLabel *label = new QLabel("Textures:");
+    QLabel *label = new QLabel(
+        //% "Textures:"
+        qtTrId("shape.viewer.shape.textures.window.label.label"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     //vbox->addWidget(label);
 
     QStringList list;
-    list.append("Show:");
-    list.append("Texture Name:");
-    list.append("Loaded:");
-    list.append("Resolution:");
-    list.append("Format:");
+    //% "Show:"
+    list.append(qtTrId("shape.textures.header.show"));
+    //% "Texture Name:"
+    list.append(qtTrId("shape.textures.header.name"));
+    //% "Loaded:"
+    list.append(qtTrId("shape.textures.header.loaded"));
+    //% "Resolution:"
+    list.append(qtTrId("shape.textures.header.resolution"));
+    //% "Format:"
+    list.append(qtTrId("shape.textures.header.format"));
     textureList.setColumnCount(5);
     textureList.setHeaderLabels(list);
     textureList.setRootIsDecorated(false);
@@ -100,7 +109,11 @@ void ShapeTexturesWindow::saveImg(){
     if(currentTex == NULL)
         return;
     
-    QString path = QFileDialog::getSaveFileName(this, "Save File", "./", "Images (*.png *.bmp *.tga)");
+    QString path = QFileDialog::getSaveFileName(this,
+        //% "Save File"
+        qtTrId("shape.viewer.shape.textures.window.dialog.title.path"), "./",
+        //% "Images (*.png *.bmp *.tga)"
+        qtTrId("shape.viewer.shape.textures.window.dialog.filter.path"));
     qDebug() << path;
     if(path.length() < 1) 
         return;

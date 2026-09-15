@@ -5,6 +5,7 @@
 #include <settings/SettingsManager.h>
 #include <settings/SettingsProfile.h>
 #include <settings/ui/SettingsDialog.h>
+#include <TranslationManager.h>
 #include <tsre/Game.h>
 #include <tsre/world/TerrainMaterialMap.h>
 #include <QScopedValueRollback>
@@ -19,8 +20,10 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonDocument>
+#include <QLocale>
 #include <QPushButton>
 #include <QTemporaryDir>
+#include <QTranslator>
 
 int TsreTests::runSettingsSuite(bool verbose) {
     int passed = 0;
@@ -37,8 +40,59 @@ int TsreTests::runSettingsSuite(bool verbose) {
 
     SettingsManager manager;
     SettingsRegistration::registerAll(manager.registry());
-    check(manager.registry().definitions().size() == 82,
+    check(manager.registry().definitions().size() == 83,
           "phase2b-catalog-removes-inactive-and-one-shot-settings");
+    const SettingsDefinition *language =
+            manager.registry().definition("core.interface.language");
+    check(language && language->type == SettingType::Enum
+          && language->defaultValue.toString() == "system"
+          && language->apply == "applicationRestart"
+          && language->options.size() == 3
+          && language->options[0].value.toString() == "system"
+          && language->options[1].value.toString() == "en"
+          && language->options[2].value.toString() == "pl",
+          "translation-language-setting-contract");
+    check(QLocale().decimalPoint() == ".",
+          "translation-ui-language-keeps-english-numeric-locale");
+    check(TranslationManager::resolveLanguage("pl", {"en-US"}) == "pl"
+          && TranslationManager::resolveLanguage("en", {"pl-PL"}) == "en"
+          && TranslationManager::resolveLanguage("system", {"fr-FR", "pl-PL", "en-US"}) == "pl"
+          && TranslationManager::resolveLanguage("system", {"de-DE", "en-US", "pl-PL"}) == "en"
+          && TranslationManager::resolveLanguage("system", {"de-DE"}) == "en",
+          "translation-language-resolution-contract");
+
+    QTranslator englishTranslations;
+    check(englishTranslations.load(":/i18n/tsre_en.qm")
+          && qApp->installTranslator(&englishTranslations),
+          "translation-english-catalogue-is-embedded");
+    check(qtTrId("settings.core.interface.language.name") == "Interface language",
+          "translation-english-catalogue-is-complete");
+    qApp->removeTranslator(&englishTranslations);
+
+    TranslationManager polishTranslations;
+    QString effectiveLanguage;
+    check(polishTranslations.install(*qApp, QStringLiteral("pl"),
+                                     &effectiveLanguage)
+          && effectiveLanguage == QStringLiteral("pl"),
+          "translation-polish-catalogue-is-embedded");
+    check(qtTrId("settings.core.interface.language.name")
+              == QString::fromUtf8("Język interfejsu")
+          && QCoreApplication::translate(
+                 QByteArray::fromHex("51506c6174666f726d5468656d65").constData(),
+                 QByteArray::fromHex("43616e63656c").constData())
+              == QString::fromUtf8("Anuluj"),
+          "translation-polish-app-and-qtbase-entries-load");
+    check(qtTrId("ace.converter.ace.converter.window.button.open")
+              == "ace.converter.ace.converter.window.button.open",
+          "translation-unfinished-polish-entry-displays-id");
+    check(qtTrId("settings.dialog.tooltip.name").arg("core.test")
+              == "settings.dialog.tooltip.name [core.test]",
+          "translation-unfinished-formatted-entry-retains-value-without-arg-warning");
+    check(qtTrId("route.properties.group.children.count", 5)
+              == QString::fromUtf8("5 obiektów"),
+          "translation-polish-plural-selection");
+    check(qApp->installTranslator(&englishTranslations),
+          "translation-settings-suite-continues-in-english");
     const auto *proceduralEnabled=manager.registry().definition("core.terrain.procedural.enabled");
     const auto *detail=manager.registry().definition("core.terrain.procedural.detailDistance");
     const auto *patchSize=manager.registry().definition("core.terrain.procedural.patchTextureSize");
@@ -63,7 +117,7 @@ int TsreTests::runSettingsSuite(bool verbose) {
     check(tileRadius && tileRadius->legacyFileKeys.contains("tileLod")
           && tileRadius->subgroup == "visibility"
           && tileRadius->maximum == 128
-          && tileRadius->description.contains("radius", Qt::CaseInsensitive),
+          && tileRadius->descriptionId == "settings.core.rendering.tile.radius.description",
           "phase2a-corrects-tile-radius-semantics");
     const SettingsDefinition *objectDistance =
             manager.registry().definition("core.rendering.objectLodDistance");
@@ -75,9 +129,11 @@ int TsreTests::runSettingsSuite(bool verbose) {
           && terrainMesh->defaultValue.toString() == "paged"
           && terrainMesh->options.size() == 2
           && terrainMesh->options[0].value.toString() == "legacy"
-          && terrainMesh->options[0].name == "Precomputed / Legacy"
+          && terrainMesh->options[0].nameId
+             == "settings.core.rendering.terrain.mesh.option.legacy"
           && terrainMesh->options[1].value.toString() == "paged"
-          && terrainMesh->options[1].name == "On GPU / Experimental"
+          && terrainMesh->options[1].nameId
+             == "settings.core.rendering.terrain.mesh.option.paged"
           && terrainMesh->apply == "routeReload",
           "paged-terrain-backend-is-default-and-experimental");
     const SettingsDefinition *gradeFormat =
@@ -96,7 +152,8 @@ int TsreTests::runSettingsSuite(bool verbose) {
     const SettingsDefinition *writeTrackDatabase =
             manager.registry().definition("core.route.saving.trackDatabase");
     check(writeTrackDatabase && writeTrackDatabase->defaultValue.toBool()
-          && writeTrackDatabase->description.contains("Disabling"),
+          && writeTrackDatabase->descriptionId
+             == "settings.core.route.saving.track.database.description",
           "phase2a-track-database-writes-default-enabled");
     const SettingsDefinition *serverAuthentication =
             manager.registry().definition("core.network.serverAuthenticationMode");
@@ -114,7 +171,8 @@ int TsreTests::runSettingsSuite(bool verbose) {
     const SettingsDefinition *clientLogin =
             manager.registry().definition("core.network.clientLogin");
     check(clientLogin && clientLogin->type == SettingType::String
-          && clientLogin->description.contains("{secret:ID}"),
+          && clientLogin->descriptionId
+             == "settings.core.network.client.login.description",
           "phase2a-client-login-supports-inline-secret-reference");
     const SettingsDefinition *mapApiKey =
             manager.registry().definition("core.maps.imageryApiKey");
@@ -134,7 +192,7 @@ int TsreTests::runSettingsSuite(bool verbose) {
     check(accent && accent->type == SettingType::Color
           && accent->group == "interface" && accent->subgroup == "appearance"
           && accent->defaultValue.toString() == "#770000"
-          && accent->description.contains("only", Qt::CaseInsensitive)
+          && accent->descriptionId == "settings.core.interface.accent.color.description"
           && systemTheme && systemTheme->group == "interface"
           && systemTheme->subgroup == "appearance"
           && procedural && procedural->defaultValue.toString() == "Enabled"
@@ -266,7 +324,7 @@ int TsreTests::runSettingsSuite(bool verbose) {
             }
         }
     }
-    check(QFile::exists(settingsFile) && manager.settingsArray().size() == 82,
+    check(QFile::exists(settingsFile) && manager.settingsArray().size() == 83,
           "generated-profile-has-catalogue");
     check(manager.document().value("createdBy").toObject().value("application").toString()
               == SettingsManager::currentCatalogApplication()
@@ -341,6 +399,16 @@ int TsreTests::runSettingsSuite(bool verbose) {
     for (const SettingsDefinition &definition : applicationSettings.registry().definitions()) {
         if (applicationSettings.supportState(definition.key)
                 != SettingsManager::Supported) {
+            SettingType supportedType;
+            SettingType storedType;
+            applicationSettings.registry().supportedType(definition.key, &supportedType);
+            settingTypeFromName(applicationSettings.settingObject(definition.key)
+                                .value("type").toString(), &storedType);
+            qWarning() << "[tests:settings] unsupported built-in setting"
+                       << definition.key
+                       << "state" << applicationSettings.supportState(definition.key)
+                       << "supported type" << int(supportedType)
+                       << "stored type" << int(storedType);
             allRuntimeSettingsClaimed = false;
             break;
         }
@@ -460,14 +528,14 @@ int TsreTests::runSettingsSuite(bool verbose) {
     check(reloaded.replaceSettingObject(threadedKey, customized, &error)
           && reloaded.catalogDifferenceCount() == 0,
           "extra-field-on-known-setting-does-not-trigger-catalogue-message");
-    customized["description"] = "Profile-owned description";
+    customized["descriptionId"] = "profile.owned.description";
     check(reloaded.replaceSettingObject(threadedKey, customized, &error)
           && reloaded.save(&error), "stored-metadata-customization");
     SettingsManager preserved;
     SettingsRegistration::registerAll(preserved.registry());
     check(preserved.loadFile(settingsFile, &error)
-          && preserved.settingObject(threadedKey).value("description").toString()
-             == "Profile-owned description", "registry-does-not-overwrite-stored-metadata");
+          && preserved.settingObject(threadedKey).value("descriptionId").toString()
+             == "profile.owned.description", "registry-does-not-overwrite-stored-metadata");
     check(preserved.catalogDifferenceCount() == 1,
           "changed-known-metadata-is-detected-as-catalogue-difference");
     SettingsDialog catalogDialog(&preserved);
@@ -487,8 +555,8 @@ int TsreTests::runSettingsSuite(bool verbose) {
           && updatedDefinitions == 1
           && preserved.value(threadedKey) == preservedThreadedValue
           && preserved.value("fork.weather.enabled").toBool()
-          && preserved.settingObject(threadedKey).value("description").toString()
-             == preserved.registry().definition(threadedKey)->description
+          && preserved.settingObject(threadedKey).value("descriptionId").toString()
+             == preserved.registry().definition(threadedKey)->descriptionId
           && preserved.settingObject(threadedKey).value("forkMetadata").toString()
              == "preserve this too"
           && preserved.catalogDifferenceCount() == 0
@@ -668,12 +736,14 @@ int TsreTests::runSettingsSuite(bool verbose) {
     check(SettingsRegistration::addProvider(
               "test.fork", [](SettingsRegistry &registry, QString *providerError) {
         if (!registry.defineGroup(
-                    {"forkTest", "Fork test", "Test extension settings.", 500, {}},
+                    {"forkTest", "fork.test.group.name",
+                     "fork.test.group.description", 500, {}},
                     providerError))
             return false;
         return registry.define(
                     SettingsDefinition::boolean("fork.test.enabled", true)
-                        .withName("Fork test").withDescription("Extension setting")
+                        .withNameId("fork.test.setting.name")
+                        .withDescriptionId("fork.test.setting.description")
                         .inGroup("forkTest"), providerError);
     }, &error), "extension-provider-registers");
     SettingsManager extensionManager;
@@ -713,5 +783,6 @@ int TsreTests::runSettingsSuite(bool verbose) {
     }
     qInfo() << "[tests:settings] cases=" << (passed + failed)
             << "passed=" << passed << "failed=" << failed;
+    qApp->removeTranslator(&englishTranslations);
     return failed == 0 ? 0 : 1;
 }

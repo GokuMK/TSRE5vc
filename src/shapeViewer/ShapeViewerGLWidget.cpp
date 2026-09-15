@@ -405,17 +405,29 @@ void ShapeViewerGLWidget::mouseMoveEvent(QMouseEvent *event) {
 
 void ShapeViewerGLWidget::showContextMenu(const QPoint & point) {
     if(defaultMenuActions["flipSelected"] == NULL){
-        defaultMenuActions["flipSelected"] = new QAction(tr("&Flip"), this); 
+        defaultMenuActions["flipSelected"] = new QAction(
+            //% "&Flip"
+            qtTrId("shape.viewer.shape.viewer.glwidget.action.flip"), this);
         QObject::connect(defaultMenuActions["flipSelected"], SIGNAL(triggered()), this, SLOT(flipConSelected()));
-        defaultMenuActions["leftSelected"] = new QAction(tr("&Move Left"), this); 
+        defaultMenuActions["leftSelected"] = new QAction(
+            //% "&Move Left"
+            qtTrId("shape.viewer.shape.viewer.glwidget.action.move.left"), this);
         QObject::connect(defaultMenuActions["leftSelected"], SIGNAL(triggered()), this, SLOT(leftConSelected()));
-        defaultMenuActions["rightSelected"] = new QAction(tr("&Move right"), this); 
+        defaultMenuActions["rightSelected"] = new QAction(
+            //% "&Move right"
+            qtTrId("shape.viewer.shape.viewer.glwidget.action.move.right"), this);
         QObject::connect(defaultMenuActions["rightSelected"], SIGNAL(triggered()), this, SLOT(rightConSelected()));
-        defaultMenuActions["deleteSelected"] = new QAction(tr("&Delete"), this); 
+        defaultMenuActions["deleteSelected"] = new QAction(
+            //% "&Delete"
+            qtTrId("shape.viewer.shape.viewer.glwidget.action.delete"), this);
         QObject::connect(defaultMenuActions["deleteSelected"], SIGNAL(triggered()), this, SLOT(deleteConSelected()));
-        defaultMenuActions["copyUnit"] = new QAction(tr("&Copy"), this); 
+        defaultMenuActions["copyUnit"] = new QAction(
+            //% "&Copy"
+            qtTrId("shape.viewer.shape.viewer.glwidget.action.copy"), this);
         QObject::connect(defaultMenuActions["copyUnit"], SIGNAL(triggered()), this, SLOT(copyUnitConSelected()));
-        defaultMenuActions["pasteUnit"] = new QAction(tr("&Paste Right"), this); 
+        defaultMenuActions["pasteUnit"] = new QAction(
+            //% "&Paste Right"
+            qtTrId("shape.viewer.shape.viewer.glwidget.action.paste.right"), this);
         QObject::connect(defaultMenuActions["pasteUnit"], SIGNAL(triggered()), this, SLOT(pasteUnitConSelected()));
     }
     
@@ -427,7 +439,9 @@ void ShapeViewerGLWidget::showContextMenu(const QPoint & point) {
               color: ")+Game::StyleMainLabel+";\
             }";
         menu.setStyleSheet(menuStyle);
-        menu.addSection("Selected Unit");
+        menu.addSection(
+            //% "Selected Unit"
+            qtTrId("shape.viewer.context.selected.unit"));
         menu.addAction(defaultMenuActions["flipSelected"]);
         menu.addAction(defaultMenuActions["leftSelected"]);
         menu.addAction(defaultMenuActions["rightSelected"]);

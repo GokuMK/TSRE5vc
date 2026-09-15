@@ -16,8 +16,12 @@ ChooseFileDialog::ChooseFileDialog() : QDialog(){
     //this->setFixedSize(300,300);
 
     //QLabel *label = new QLabel("Save changes in consists?");
-    QPushButton* ok = new QPushButton("Edit");
-    QPushButton* cancel = new QPushButton("Close");
+    QPushButton* ok = new QPushButton(
+        //% "Edit"
+        qtTrId("tsre.gui.choose.file.dialog.button.ok"));
+    QPushButton* cancel = new QPushButton(
+        //% "Close"
+        qtTrId("tsre.gui.choose.file.dialog.button.cancel"));
     connect(ok, SIGNAL (released()), this, SLOT (ok()));
     connect(cancel, SIGNAL (released()), this, SLOT (cancel()));
     

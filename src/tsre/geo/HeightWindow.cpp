@@ -29,7 +29,9 @@
 std::unordered_map<int, GeoTerrainFile*> HeightWindow::hqtFiles;
 
 HeightWindow::HeightWindow() : QDialog() {
-    QPushButton *loadButton = new QPushButton("Load", this);
+    QPushButton *loadButton = new QPushButton(
+        //% "Load"
+        qtTrId("tsre.geo.height.window.button.load.button"), this);
     QImage myImage(800, 800, QImage::Format_RGB888);
     //myImage->load("F:/2.png");
     imageLabel = new QLabel("");
@@ -40,7 +42,9 @@ HeightWindow::HeightWindow() : QDialog() {
     vlist3->setSpacing(2);
     vlist3->setContentsMargins(3,0,1,0);
     vlist3->addWidget(loadButton,0,0);
-    QLabel *alphaLabel = new QLabel("Y Offset: ");
+    QLabel *alphaLabel = new QLabel(
+        //% "Y Offset: "
+        qtTrId("tsre.geo.height.window.label.alpha.label"));
     alphaLabel->setFixedWidth(70);
     vlist3->addWidget(alphaLabel,0,1);
     QLineEdit *hOffsetEdit = new QLineEdit();
@@ -68,7 +72,9 @@ HeightWindow::HeightWindow() : QDialog() {
 }
 
 int HeightWindow::exec() {
-    this->setWindowTitle("Tile: " + QString::number(this->tileX) + " " + QString::number(-this->tileZ));
+    //% "Tile: %1 %2"
+    this->setWindowTitle(qtTrId("geodata.height.tile.title")
+                         .arg(this->tileX).arg(-this->tileZ));
     return QDialog::exec();
 } 
 
@@ -109,8 +115,12 @@ void HeightWindow::CheckForMissingGeodataFiles(QMap<int,QPair<int,int>*>& tileLi
     if(missingFiles.count() > 0){
         QMapIterator<QString, bool> i2(missingFiles);
         UnsavedDialog missingDialog;
-        missingDialog.setWindowTitle("Missing files?");
-        missingDialog.setMsg("Missing terrain heightmap files. ");
+        missingDialog.setWindowTitle(
+            //% "Missing files?"
+            qtTrId("tsre.geo.height.window.title.missing.files"));
+        missingDialog.setMsg(
+            //% "Missing terrain heightmap files. "
+            qtTrId("tsre.geo.height.window.message.missing.terrain.heightmap.files"));
         missingDialog.hideButtons();
 
         while (i2.hasNext()) {
@@ -167,7 +177,9 @@ void HeightWindow::load(bool gui){
             if(!fail) {
                 if(gui){
                     QMessageBox msgBox;
-                    msgBox.setText("Failed to load "+this->hqtFiles[itlat->first*1000+itlon->first]->pathid);
+                    //% "Failed to load %1"
+                    msgBox.setText(qtTrId("geodata.height.load.failed")
+                        .arg(this->hqtFiles[itlat->first*1000+itlon->first]->pathid));
                     msgBox.exec();
                 }
                 return;

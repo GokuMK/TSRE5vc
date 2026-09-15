@@ -25,12 +25,20 @@ ConListWidget::ConListWidget() : QWidget(){
     QFormLayout *vlist = new QFormLayout;
     vlist->setSpacing(2);
     vlist->setContentsMargins(3,0,3,0);
-    vlist->addRow("Total:",&totalVal);
-    QLabel *lshow = new QLabel("Show:");
+    vlist->addRow(
+        //% "Total:"
+        qtTrId("con.editor.con.list.widget.label.total"),&totalVal);
+    QLabel *lshow = new QLabel(
+        //% "Show:"
+        qtTrId("con.editor.con.list.widget.label.lshow"));
     lshow->setMinimumWidth(50);
-    QLabel *lroute = new QLabel("Route:");
+    QLabel *lroute = new QLabel(
+        //% "Route:"
+        qtTrId("con.editor.con.list.widget.label.lroute"));
     lroute->setMinimumWidth(50);
-    QLabel *lfilter = new QLabel("Filter:");
+    QLabel *lfilter = new QLabel(
+        //% "Filter:"
+        qtTrId("con.editor.con.list.widget.label.lfilter"));
     lfilter->setMinimumWidth(50);
     vlist->addRow(lshow,&conShow);
     vbox->addItem(vlist);
@@ -44,7 +52,9 @@ ConListWidget::ConListWidget() : QWidget(){
     vlist->setSpacing(2);
     vlist->setContentsMargins(3,0,3,0);
     vlist->addRow(lroute,&routeShow);
-    vlist->addRow("Activity:",&actShow);
+    vlist->addRow(
+        //% "Activity:"
+        qtTrId("con.editor.con.list.widget.label.activity"),&actShow);
     actTypeList.setLayout(vlist);
     vbox->addWidget(&actTypeList);
     vbox->addWidget(&items);
@@ -58,14 +68,26 @@ ConListWidget::ConListWidget() : QWidget(){
     actShow.setMaxVisibleItems(20);
     actShow.view()->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     conShow.setStyleSheet("combobox-popup: 0;");
-    conShow.addItem("Consists");
-    conShow.addItem("Activity Consists");
+    conShow.addItem(
+        //% "Consists"
+        qtTrId("con.editor.con.list.widget.item.consists"));
+    conShow.addItem(
+        //% "Activity Consists"
+        qtTrId("con.editor.con.list.widget.item.activity.consists"));
     
     conType.setStyleSheet("combobox-popup: 0;");
-    conType.addItem("ALL");
-    conType.addItem("Broken");
-    conType.addItem("Unsaved");
-    conType.addItem("Last Query");
+    conType.addItem(
+        //% "ALL"
+        qtTrId("con.editor.con.list.widget.item.all"), "all");
+    conType.addItem(
+        //% "Broken"
+        qtTrId("con.editor.con.list.widget.item.broken"), "broken");
+    conType.addItem(
+        //% "Unsaved"
+        qtTrId("con.editor.con.list.widget.item.unsaved"), "unsaved");
+    conType.addItem(
+        //% "Last Query"
+        qtTrId("con.editor.con.list.widget.item.last.query"), "last-query");
     this->setMinimumWidth(250);
     
     actTypeList.hide();
@@ -163,13 +185,13 @@ void ConListWidget::actTChan(QString n){
 }
 
 void ConListWidget::conFChan(QString n){
-    if(conType.currentIndex() == 0)
-        n = "";
-    if(n.toLower() == "last query"){
+    Q_UNUSED(n);
+    const QString filter = conType.currentData().toString();
+    if(filter == "last-query"){
         fillConListLastQuery();
         return;
     }
-    fillConList(n);
+    fillConList(filter == "all" ? QString() : filter);
 }
 
 void ConListWidget::fillConList(){
@@ -257,9 +279,12 @@ void ConListWidget::deleteCurrentCon(){
         return;
     }
     OverwriteDialog owerwriteDialog;
-    owerwriteDialog.setWindowTitle("Delete?");
-    owerwriteDialog.label->setText("Delete this consist from disk?\n\n"+
-        e->pathid+"\n");
+    owerwriteDialog.setWindowTitle(
+        //% "Delete?"
+        qtTrId("con.editor.con.list.widget.title.delete"));
+    //% "Delete this consist from disk?\n\n%1\n"
+    owerwriteDialog.label->setText(
+                qtTrId("con.editor.consist.delete.message").arg(e->pathid));
     owerwriteDialog.setFixedWidth(250);
     owerwriteDialog.exec();
 
@@ -317,7 +342,7 @@ void ConListWidget::findConsistsByEng(int id){
         }
     }
     query.sortItems(Qt::AscendingOrder);
-    conType.setCurrentText("Last Query");
+    conType.setCurrentIndex(conType.findData("last-query"));
     fillConListLastQuery();
     
 }

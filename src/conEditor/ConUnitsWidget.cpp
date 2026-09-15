@@ -15,10 +15,18 @@
 #include <tsre/Game.h>
 
 ConUnitsWidget::ConUnitsWidget() {
-    QPushButton *bUp = new QPushButton("Up");
-    QPushButton *bDown = new QPushButton("Down");
-    QPushButton *bDel = new QPushButton("Delete");
-    QPushButton *bFlip = new QPushButton("Flip");
+    QPushButton *bUp = new QPushButton(
+        //% "Up"
+        qtTrId("con.editor.con.units.widget.button.b.up"));
+    QPushButton *bDown = new QPushButton(
+        //% "Down"
+        qtTrId("con.editor.con.units.widget.button.b.down"));
+    QPushButton *bDel = new QPushButton(
+        //% "Delete"
+        qtTrId("con.editor.con.units.widget.button.b.del"));
+    QPushButton *bFlip = new QPushButton(
+        //% "Flip"
+        qtTrId("con.editor.con.units.widget.button.b.flip"));
     QHBoxLayout *bbox = new QHBoxLayout;
     bbox->addWidget(bUp);
     bbox->addWidget(bDown);
@@ -31,7 +39,9 @@ ConUnitsWidget::ConUnitsWidget() {
     QFormLayout *vlist = new QFormLayout;
     vlist->setSpacing(2);
     vlist->setContentsMargins(3,0,3,0);
-    vlist->addRow("Units:",&count);
+    vlist->addRow(
+        //% "Units:"
+        qtTrId("con.editor.con.units.widget.label.units"),&count);
     vbox->addItem(bbox);
     vbox->addItem(vlist);
     vbox->addWidget(&items);

@@ -325,7 +325,8 @@ void guiTests(const QString &dir, const QString &snapshot) {
     check(encoding->currentData().toInt() == int(AceEncoding::Dxt5), "DDS DXT4 suggests DXT5 under simulator filter");
     recommended->setChecked(false);
     check(encoding->findData(int(AceEncoding::Dxt4)) >= 0 &&
-          window.findChild<QLabel *>("formatSuggestion")->text().contains("DXT4"),
+          window.findChild<QLabel *>("formatSuggestion")->property("suggestedEncoding").toInt()
+              == int(AceEncoding::Dxt4),
           "original DXT4 suggested when advanced formats are allowed");
 }
 

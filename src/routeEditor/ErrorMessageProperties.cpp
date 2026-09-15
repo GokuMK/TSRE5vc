@@ -23,7 +23,9 @@ ErrorMessageProperties::ErrorMessageProperties(QWidget* parent) : QWidget(parent
     vbox->setSpacing(2);
     vbox->setContentsMargins(2,2,2,2);
     
-    QLabel *label = new QLabel("Selected Message:");
+    QLabel *label = new QLabel(
+        //% "Selected Message:"
+        qtTrId("route.editor.error.message.properties.label.label"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
@@ -43,14 +45,20 @@ ErrorMessageProperties::ErrorMessageProperties(QWidget* parent) : QWidget(parent
     vlist->addWidget(&lLocation,row,0);
     vlist->addWidget(&eLocation,row,1);
     vlist->addWidget(&bLocation,row++,2);
-    lMessage.setText("Message:");
+    lMessage.setText(
+        //% "Message:"
+        qtTrId("route.editor.error.message.properties.text.message"));
     lMessage.hide();
     eMessage.hide();
     lAction.hide();
-    lAction.setText("Description:");
+    lAction.setText(
+        //% "Description:"
+        qtTrId("route.editor.error.message.properties.text.description"));
     lAction.setAlignment(Qt::AlignTop);
     eAction.hide();
-    lLocation.setText("Location:");
+    lLocation.setText(
+        //% "Location:"
+        qtTrId("route.editor.error.message.properties.text.location"));
     lLocation.hide();
     eLocation.hide();
     eLocation.setDisabled(true);
@@ -93,18 +101,29 @@ void ErrorMessageProperties::showMessage(ErrorMessage* msg){
     
     if(currentMessage->obj != NULL){
         bSelect.setEnabled(true);
-        bSelect.setText("Select Object");
+        bSelect.setText(
+            //% "Select Object"
+            qtTrId("route.editor.error.message.properties.text.select.object"));
     } else {
         bSelect.setDisabled(true);
-        bSelect.setText("NO OBJECT");
+        bSelect.setText(
+            //% "NO OBJECT"
+            qtTrId("route.editor.error.message.properties.text.no.object"));
     }
     
     if(currentMessage->coords != NULL){
         lLocation.show();
         eLocation.show();
-        eLocation.setText(QString("Tile: ") + QString::number(currentMessage->coords->TileX) + " "+ QString::number(currentMessage->coords->TileZ) + " " + 
-        ". Coordinates: " + QString::number(currentMessage->coords->wX) + " "+ QString::number(currentMessage->coords->wY) + " "+ QString::number(currentMessage->coords->wZ) + " ");
-        bLocation.setText("Jump");
+        //% "Tile: %1 %2. Coordinates: %3 %4 %5"
+        eLocation.setText(qtTrId("route.error.location.coordinates")
+                          .arg(currentMessage->coords->TileX)
+                          .arg(currentMessage->coords->TileZ)
+                          .arg(currentMessage->coords->wX)
+                          .arg(currentMessage->coords->wY)
+                          .arg(currentMessage->coords->wZ));
+        bLocation.setText(
+            //% "Jump"
+            qtTrId("route.editor.error.message.properties.text.jump"));
         bLocation.show();
     }
     

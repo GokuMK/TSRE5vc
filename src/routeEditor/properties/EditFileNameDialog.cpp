@@ -12,10 +12,16 @@
 
 EditFileNameDialog::EditFileNameDialog() : QDialog(){
     //this->setFixedSize(200, 100);
-    this->setWindowTitle("Edit FileName");
+    this->setWindowTitle(
+        //% "Edit FileName"
+        qtTrId("route.editor.properties.edit.file.name.dialog.title.edit.file.name"));
     this->setFixedWidth(350);
-    QPushButton* ok = new QPushButton("OK");
-    QPushButton* cancel = new QPushButton("Cancel");
+    QPushButton* ok = new QPushButton(
+        //% "OK"
+        qtTrId("route.editor.properties.edit.file.name.dialog.button.ok"));
+    QPushButton* cancel = new QPushButton(
+        //% "Cancel"
+        qtTrId("route.editor.properties.edit.file.name.dialog.button.cancel"));
     connect(ok, SIGNAL (released()), this, SLOT (ok()));
     connect(cancel, SIGNAL (released()), this, SLOT (cancel()));
 

@@ -18,7 +18,9 @@ ShapeViewWindow::ShapeViewWindow(QWidget* parent) : QWidget(parent) {
     this->setWindowFlags(Qt::WindowMaximizeButtonHint);
     this->setWindowFlags(Qt::WindowType::Tool);
     //this->setWindowFlags(Qt::WindowStaysOnTopHint);
-    this->setWindowTitle(tr("Shape Preview"));
+    this->setWindowTitle(
+        //% "Shape Preview"
+        qtTrId("route.editor.shape.view.window.title.shape.preview"));
     this->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Minimum);
     this->resize(384,256);
     glShapeWidget = new ShapeViewerGLWidget(parent);

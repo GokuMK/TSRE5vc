@@ -17,7 +17,9 @@ ShapeViewerNavigatorWidget::ShapeViewerNavigatorWidget(QWidget* parent) : QWidge
     QVBoxLayout *vbox = new QVBoxLayout;
     vbox->setSpacing(2);
     vbox->setContentsMargins(0,1,1,1);
-    QLabel *label = new QLabel("Directory Files:");
+    QLabel *label = new QLabel(
+        //% "Directory Files:"
+        qtTrId("shape.viewer.shape.viewer.navigator.widget.label.label"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
@@ -25,7 +27,9 @@ ShapeViewerNavigatorWidget::ShapeViewerNavigatorWidget(QWidget* parent) : QWidge
     QObject::connect(&searchFiles, SIGNAL(textEdited(QString)), this, SLOT(searchFilesEnabled(QString)));
     vbox->addWidget(&dirFiles);
     
-    label = new QLabel("Current File Items:");
+    label = new QLabel(
+        //% "Current File Items:"
+        qtTrId("shape.viewer.shape.viewer.navigator.widget.label.label.2"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);

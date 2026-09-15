@@ -29,7 +29,9 @@ PropertiesTrackObj::PropertiesTrackObj(){
     QVBoxLayout *vbox = new QVBoxLayout;
     vbox->setSpacing(2);
     vbox->setContentsMargins(0,1,1,1);
-    infoLabel = new QLabel("TrackObj:");
+    infoLabel = new QLabel(
+        //% "TrackObj:"
+        qtTrId("route.editor.properties.track.obj.label.info.label"));
     infoLabel->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     infoLabel->setContentsMargins(3,0,0,0);
     vbox->addWidget(infoLabel);
@@ -40,85 +42,136 @@ PropertiesTrackObj::PropertiesTrackObj(){
     this->tX.setDisabled(true);
     this->tY.setDisabled(true);
     this->eSectionIdx.setDisabled(true);
-    vlist->addRow("UiD:",&this->uid);
-    vlist->addRow("Tile X:",&this->tX);
-    vlist->addRow("Tile Z:",&this->tY);
-    vlist->addRow("Id:",&this->eSectionIdx);
-    vlist->addRow("Name:",&this->fileName);
+    vlist->addRow(
+        //% "UiD:"
+        qtTrId("route.editor.properties.track.obj.label.ui.d"),&this->uid);
+    vlist->addRow(
+        //% "Tile X:"
+        qtTrId("route.editor.properties.track.obj.label.tile.x"),&this->tX);
+    vlist->addRow(
+        //% "Tile Z:"
+        qtTrId("route.editor.properties.track.obj.label.tile.z"),&this->tY);
+    vlist->addRow(
+        //% "Id:"
+        qtTrId("route.editor.properties.track.obj.label.id"),&this->eSectionIdx);
+    vlist->addRow(
+        //% "Name:"
+        qtTrId("route.editor.properties.track.obj.label.name"),&this->fileName);
     vbox->addItem(vlist);
     this->fileName.setDisabled(true);
     this->fileName.setAlignment(Qt::AlignCenter);
     QGridLayout *filenameList = new QGridLayout;
     filenameList->setSpacing(2);
     filenameList->setContentsMargins(0,0,0,0);    
-    QPushButton *copyF = new QPushButton("Copy Name", this);
+    QPushButton *copyF = new QPushButton(
+        //% "Copy Name"
+        qtTrId("route.editor.properties.track.obj.button.copy.f"), this);
     QObject::connect(copyF, SIGNAL(released()),
                       this, SLOT(copyFileNameEnabled()));
-    QPushButton *editF = new QPushButton("Edit", this);
+    QPushButton *editF = new QPushButton(
+        //% "Edit"
+        qtTrId("route.editor.properties.track.obj.button.edit.f"), this);
     QObject::connect(editF, SIGNAL(released()),
                       this, SLOT(editFileNameEnabled()));
     filenameList->addWidget(copyF, 0, 0);
     filenameList->addWidget(editF, 0, 1);
     vbox->addItem(filenameList);
     
-    label = new QLabel("Shape Template:");
+    label = new QLabel(
+        //% "Shape Template:"
+        qtTrId("route.editor.properties.track.obj.label.label"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     vbox->addWidget(&eTemplate);
     eTemplate.setStyleSheet("combobox-popup: 0;");
-    eTemplate.addItem("NOT SET");
-    eTemplate.addItem("DEFAULT");
-    eTemplate.addItem("DISABLED");
-    eTemplate.setToolTip("NOT SET uses the static shape in Enabled mode; "
-                         "DEFAULT explicitly requests the default procedural template.");
+    eTemplate.addItem(
+        //% "NOT SET"
+        qtTrId("common.value.not.set"), QString());
+    eTemplate.addItem(
+        //% "DEFAULT"
+        qtTrId("common.value.default"), "DEFAULT");
+    eTemplate.addItem(
+        //% "DISABLED"
+        qtTrId("common.value.disabled"), "DISABLED");
+    eTemplate.setToolTip(
+        //% "NOT SET uses the static shape in Enabled mode; DEFAULT explicitly requests the default procedural template."
+        qtTrId("route.editor.properties.track.obj.tooltip.not.set.uses.static.shape.in.enabled"));
     refreshTemplateList();
     QObject::connect(&eTemplate, SIGNAL(currentTextChanged(QString)),
                       this, SLOT(eTemplateEdited(QString)));
     
-    label = new QLabel("Position & Rotation:");
+    label = new QLabel(
+        //% "Position & Rotation:"
+        qtTrId("route.editor.properties.track.obj.label.label.2"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     vlist = new QFormLayout;
     vlist->setSpacing(2);
     vlist->setContentsMargins(3,0,3,0);
-    vlist->addRow("X:",&this->posX);
-    vlist->addRow("Y:",&this->posY);
-    vlist->addRow("Z:",&this->posZ);
+    vlist->addRow(
+        //% "X:"
+        qtTrId("route.editor.properties.track.obj.label.x"),&this->posX);
+    vlist->addRow(
+        //% "Y:"
+        qtTrId("route.editor.properties.track.obj.label.y"),&this->posY);
+    vlist->addRow(
+        //% "Z:"
+        qtTrId("route.editor.properties.track.obj.label.z"),&this->posZ);
     this->quat.setDisabled(true);
     this->quat.setAlignment(Qt::AlignCenter);
-    vlist->addRow("Rot:",&this->quat);
+    vlist->addRow(
+        //% "Rot:"
+        qtTrId("route.editor.properties.track.obj.label.rot"),&this->quat);
     vbox->addItem(vlist);
     QGridLayout *posRotList = new QGridLayout;
     posRotList->setSpacing(2);
     posRotList->setContentsMargins(0,0,0,0);    
 
-    QPushButton *copyPos = new QPushButton("Copy Pos", this);
+    QPushButton *copyPos = new QPushButton(
+        //% "Copy Pos"
+        qtTrId("route.editor.properties.track.obj.button.copy.pos"), this);
     QObject::connect(copyPos, SIGNAL(released()),
                       this, SLOT(copyPEnabled()));
-    QPushButton *pastePos = new QPushButton("Paste", this);
+    QPushButton *pastePos = new QPushButton(
+        //% "Paste"
+        qtTrId("route.editor.properties.track.obj.button.paste.pos"), this);
     QObject::connect(pastePos, SIGNAL(released()),
                       this, SLOT(pastePEnabled()));
-    QPushButton *copyQrot = new QPushButton("Copy Rot", this);
+    QPushButton *copyQrot = new QPushButton(
+        //% "Copy Rot"
+        qtTrId("route.editor.properties.track.obj.button.copy.qrot"), this);
     QObject::connect(copyQrot, SIGNAL(released()),
                       this, SLOT(copyREnabled()));
-    QPushButton *pasteQrot = new QPushButton("Paste", this);
+    QPushButton *pasteQrot = new QPushButton(
+        //% "Paste"
+        qtTrId("route.editor.properties.track.obj.button.paste.qrot"), this);
     QObject::connect(pasteQrot, SIGNAL(released()),
                       this, SLOT(pasteREnabled()));
-    QPushButton *copyPosRot = new QPushButton("Copy Pos+Rot", this);
+    QPushButton *copyPosRot = new QPushButton(
+        //% "Copy Pos+Rot"
+        qtTrId("route.editor.properties.track.obj.button.copy.pos.rot"), this);
     QObject::connect(copyPosRot, SIGNAL(released()),
                       this, SLOT(copyPREnabled()));
-    QPushButton *pastePosRot = new QPushButton("Paste", this);
+    QPushButton *pastePosRot = new QPushButton(
+        //% "Paste"
+        qtTrId("route.editor.properties.track.obj.button.paste.pos.rot"), this);
     QObject::connect(pastePosRot, SIGNAL(released()),
                       this, SLOT(pastePREnabled()));
-    QPushButton *resetQrot = new QPushButton("Reset Rot", this);
+    QPushButton *resetQrot = new QPushButton(
+        //% "Reset Rot"
+        qtTrId("route.editor.properties.track.obj.button.reset.qrot"), this);
     QObject::connect(resetQrot, SIGNAL(released()),
                       this, SLOT(resetRotEnabled()));
-    QPushButton *qRot90 = new QPushButton("Rot Y 90°", this);
+    QPushButton *qRot90 = new QPushButton(
+        //% "Rot Y 90°"
+        qtTrId("route.editor.properties.track.obj.button.q.rot90"), this);
     QObject::connect(qRot90, SIGNAL(released()),
                       this, SLOT(rotYEnabled()));
-    QPushButton *transform = new QPushButton("Transform ...", this);
+    QPushButton *transform = new QPushButton(
+        //% "Transform ..."
+        qtTrId("route.editor.properties.track.obj.button.transform"), this);
     QObject::connect(transform, SIGNAL(released()),
                       this, SLOT(transformEnabled()));
     
@@ -133,14 +186,20 @@ PropertiesTrackObj::PropertiesTrackObj(){
     posRotList->addWidget(transform, 4, 0, 1, 2);
     vbox->addItem(posRotList);
     
-    label = new QLabel("Detail Level:");
+    label = new QLabel(
+        //% "Detail Level:"
+        qtTrId("route.editor.properties.track.obj.label.label.3"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     this->defaultDetailLevel.setDisabled(true);
     this->defaultDetailLevel.setAlignment(Qt::AlignCenter);
-    this->enableCustomDetailLevel.setText("Custom");
-    QCheckBox* defaultDetailLevelLabel = new QCheckBox("Default", this);
+    this->enableCustomDetailLevel.setText(
+        //% "Custom"
+        qtTrId("route.editor.properties.track.obj.text.custom"));
+    QCheckBox* defaultDetailLevelLabel = new QCheckBox(
+        //% "Default"
+        qtTrId("route.editor.properties.track.obj.option.default.detail.level.label"), this);
     defaultDetailLevelLabel->setDisabled(true);
     defaultDetailLevelLabel->setChecked(true);
     QObject::connect(&enableCustomDetailLevel, SIGNAL(stateChanged(int)),
@@ -158,7 +217,9 @@ PropertiesTrackObj::PropertiesTrackObj(){
     detailLevelView->addWidget(&customDetailLevel, 1, 1);
     vbox->addItem(detailLevelView);
     
-    label = new QLabel("Flags:");
+    label = new QLabel(
+        //% "Flags:"
+        qtTrId("route.editor.properties.track.obj.label.label.4"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
@@ -168,17 +229,23 @@ PropertiesTrackObj::PropertiesTrackObj(){
     QGridLayout *flagslView = new QGridLayout;
     flagslView->setSpacing(2);
     flagslView->setContentsMargins(0,0,0,0);    
-    QPushButton *copyFlags = new QPushButton("Copy Flags", this);
+    QPushButton *copyFlags = new QPushButton(
+        //% "Copy Flags"
+        qtTrId("route.editor.properties.track.obj.button.copy.flags"), this);
     QObject::connect(copyFlags, SIGNAL(released()),
                       this, SLOT(copyFEnabled()));
-    QPushButton *pasteFlags = new QPushButton("Paste", this);
+    QPushButton *pasteFlags = new QPushButton(
+        //% "Paste"
+        qtTrId("route.editor.properties.track.obj.button.paste.flags"), this);
     QObject::connect(pasteFlags, SIGNAL(released()),
                       this, SLOT(pasteFEnabled()));
     flagslView->addWidget(copyFlags,0,0);
     flagslView->addWidget(pasteFlags,0,1);
     vbox->addItem(flagslView);
     
-    label = new QLabel("Elevation:");
+    label = new QLabel(
+        //% "Elevation:"
+        qtTrId("route.editor.properties.track.obj.label.label.5"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
@@ -191,11 +258,21 @@ PropertiesTrackObj::PropertiesTrackObj(){
     doubleValidator1->setNotation(QDoubleValidator::StandardNotation);
     
     //‰
-    vlist->addRow("Value: ",&this->elevType);
-    elevType.addItem("Permille ‰");
-    elevType.addItem("Percent %");
-    elevType.addItem("1 in 'X' m");
-    elevType.addItem("Angle º");
+    vlist->addRow(
+        //% "Value: "
+        qtTrId("route.editor.properties.track.obj.label.value"),&this->elevType);
+    elevType.addItem(
+        //% "Permille ‰"
+        qtTrId("route.editor.properties.track.obj.item.permille"), "permille");
+    elevType.addItem(
+        //% "Percent %"
+        qtTrId("route.editor.properties.track.obj.item.percent"), "percent");
+    elevType.addItem(
+        //% "1 in 'X' m"
+        qtTrId("route.editor.properties.track.obj.item.1.in.x.m"), "oneInX");
+    elevType.addItem(
+        //% "Angle º"
+        qtTrId("route.editor.properties.track.obj.item.angle"), "angle");
     elevType.setStyleSheet("combobox-popup: 0;");
     QObject::connect(&elevType, SIGNAL(currentTextChanged(QString)),
                       this, SLOT(elevTypeEdited(QString)));
@@ -205,12 +282,16 @@ PropertiesTrackObj::PropertiesTrackObj(){
     elevProm.setValidator(doubleValidator1);
     QObject::connect(&elevProm, SIGNAL(textEdited(QString)), this, SLOT(elevPromEnabled(QString)));
     //oneInXm
-    elev1inXmLabel.setText("1 in 'x' m");
+    elev1inXmLabel.setText(
+        //% "1 in 'x' m"
+        qtTrId("route.editor.properties.track.obj.text.1.in.x.m"));
     vlist->addRow(&elev1inXmLabel,&elev1inXm);
     elev1inXm.setValidator(doubleValidator);
     QObject::connect(&elev1inXm, SIGNAL(textEdited(QString)), this, SLOT(elev1inXmEnabled(QString)));
     //º
-    elevProgLabel.setText("º");
+    elevProgLabel.setText(
+        //% "º"
+        qtTrId("route.editor.properties.track.obj.text.value"));
     vlist->addRow(&elevProgLabel,&elevProg);
     elevProg.setValidator(doubleValidator1);
     QObject::connect(&elevProg, SIGNAL(textEdited(QString)), this, SLOT(elevProgEnabled(QString)));
@@ -219,25 +300,36 @@ PropertiesTrackObj::PropertiesTrackObj(){
     vlist->addRow(&elevPropLabel,&elevProp);
     elevProp.setValidator(doubleValidator1);
     QObject::connect(&elevProp, SIGNAL(textEdited(QString)), this, SLOT(elevPropEnabled(QString)));
-    vlist->addRow("Step:",&elevStep);
+    vlist->addRow(
+        //% "Step:"
+        qtTrId("route.editor.properties.track.obj.label.step"),&elevStep);
     elevStep.setValidator(doubleValidator);
     QObject::connect(&elevStep, SIGNAL(textEdited(QString)), this, SLOT(elevStepEnabled(QString)));
     hideElevBoxes();
     elevType.setCurrentIndex(Settings::enumIndex("core.track.defaultGradeFormat"));
-    showElevBox(elevType.currentText());
+    ElevTypeName = elevType.currentData().toString();
+    showElevBox(ElevTypeName);
     vbox->addItem(vlist);
     
     
-    label = new QLabel("MSTS Collision:");
+    label = new QLabel(
+        //% "MSTS Collision:"
+        qtTrId("route.editor.properties.track.obj.label.label.6"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     vbox->addWidget(&eCollisionFlags);
     eCollisionFlags.setDisabled(true);
     eCollisionFlags.setAlignment(Qt::AlignCenter);
-    cCollisionType.addItem("Disabled");
-    cCollisionType.addItem("Immovable");
-    cCollisionType.addItem("Buffer");
+    cCollisionType.addItem(
+        //% "Disabled"
+        qtTrId("route.editor.properties.track.obj.item.disabled.2"));
+    cCollisionType.addItem(
+        //% "Immovable"
+        qtTrId("route.editor.properties.track.obj.item.immovable"));
+    cCollisionType.addItem(
+        //% "Buffer"
+        qtTrId("route.editor.properties.track.obj.item.buffer"));
     cCollisionType.setStyleSheet("combobox-popup: 0;");
     vbox->addWidget(&cCollisionType);
     QObject::connect(&cCollisionType, SIGNAL(currentIndexChanged(int)),
@@ -246,12 +338,16 @@ PropertiesTrackObj::PropertiesTrackObj(){
     //QObject::connect(resetFlags, SIGNAL(released()),
     //                  this, SLOT(copyFEnabled()));
     //vbox->addWidget(resetFlags);
-    label = new QLabel("Advanced:");
+    label = new QLabel(
+        //% "Advanced:"
+        qtTrId("route.editor.properties.track.obj.label.label.7"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     
-    QPushButton *hacks = new QPushButton("Hacks", this);
+    QPushButton *hacks = new QPushButton(
+        //% "Hacks"
+        qtTrId("route.editor.properties.track.obj.button.hacks"), this);
     QObject::connect(hacks, SIGNAL(released()),
                       this, SLOT(hacksButtonEnabled()));
     vbox->addWidget(hacks);
@@ -267,33 +363,35 @@ void PropertiesTrackObj::eTemplateEdited(QString val){
     if(trackObj == NULL){
         return;
     }
-    if(val == "NOT SET")
-        val.clear();
+    Q_UNUSED(val);
+    val = eTemplate.currentData().toString();
     Undo::SinglePushWorldObjData(worldObj);
     trackObj->setTemplate(val);
     Undo::StateEnd();
 }
 
 void PropertiesTrackObj::elevTypeEdited(QString val){
+    Q_UNUSED(val);
+    val = elevType.currentData().toString();
     hideElevBoxes();
     showElevBox(val);
     ElevTypeName = val;
 }
 
 void PropertiesTrackObj::showElevBox(QString val){
-    if(val == "Permille ‰"){
+    if(val == "permille"){
         elevProm.show();
         elevPromLabel.show();
     }
-    if(val == "Percent %"){
+    if(val == "percent"){
         elevProp.show();
         elevPropLabel.show();
     }
-    if(val == "1 in 'X' m"){
+    if(val == "oneInX"){
         elev1inXm.show();
         elev1inXmLabel.show();
     }
-    if(val == "Angle º"){
+    if(val == "angle"){
         elevProg.show();
         elevProgLabel.show();
     }    
@@ -330,29 +428,41 @@ void PropertiesTrackObj::hacksButtonEnabled(){
     
     QDialog d;
     d.setMinimumWidth(400);
-    d.setWindowTitle("TrackObj Hacks");
+    d.setWindowTitle(
+        //% "TrackObj Hacks"
+        qtTrId("route.editor.properties.track.obj.title.track.obj.hacks"));
     QVBoxLayout *vbox = new QVBoxLayout;
-    QLabel *label = new QLabel("These functions will damage your route if you don't know what you are doing.");
+    QLabel *label = new QLabel(
+        //% "These functions will damage your route if you don't know what you are doing."
+        qtTrId("route.editor.properties.track.obj.label.label.8"));
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     label->setWordWrap(true);
     
-    QPushButton *fixJNodePosn = new QPushButton("Fix JNodePosn", this);
+    QPushButton *fixJNodePosn = new QPushButton(
+        //% "Fix JNodePosn"
+        qtTrId("route.editor.properties.track.obj.button.fix.jnode.posn"), this);
     QObject::connect(fixJNodePosn, SIGNAL(released()),
                       this, SLOT(fixJNodePosnEnabled()));
     vbox->addWidget(fixJNodePosn);
     
-    QPushButton *haxRemoveTDBVector = new QPushButton("Remove TDB Vector ( remove TrItems first )", this);
+    QPushButton *haxRemoveTDBVector = new QPushButton(
+        //% "Remove TDB Vector ( remove TrItems first )"
+        qtTrId("route.editor.properties.track.obj.button.hax.remove.tdbvector"), this);
     QObject::connect(haxRemoveTDBVector, SIGNAL(released()),
                       this, SLOT(haxRemoveTDBVectorEnabled()));
     vbox->addWidget(haxRemoveTDBVector);
     
-    QPushButton *haxRemoveTDBTree = new QPushButton("Remove TDB Tree ( remove TrItems first; max 1000 nodes )", this);
+    QPushButton *haxRemoveTDBTree = new QPushButton(
+        //% "Remove TDB Tree ( remove TrItems first; max 1000 nodes )"
+        qtTrId("route.editor.properties.track.obj.button.hax.remove.tdbtree"), this);
     QObject::connect(haxRemoveTDBTree, SIGNAL(released()),
                       this, SLOT(haxRemoveTDBTreeEnabled()));
     vbox->addWidget(haxRemoveTDBTree);
     
-    QPushButton *haxElevTDBVector = new QPushButton("[Fix sElev] Don't click me!", this);
+    QPushButton *haxElevTDBVector = new QPushButton(
+        //% "[Fix sElev] Don't click me!"
+        qtTrId("route.editor.properties.track.obj.button.hax.elev.tdbvector"), this);
     QObject::connect(haxElevTDBVector, SIGNAL(released()),
                       this, SLOT(haxElevTDBVectorEnabled()));
     vbox->addWidget(haxElevTDBVector);
@@ -391,14 +501,18 @@ void PropertiesTrackObj::haxRemoveTDBTreeEnabled(){
 
 void PropertiesTrackObj::showObj(GameObj* obj){
     if(obj == NULL){
-        infoLabel->setText("NULL");
+        infoLabel->setText(
+            //% "NULL"
+            qtTrId("route.editor.properties.track.obj.text.null"));
         return;
     }
     worldObj = (WorldObj*)obj;
     trackObj = (TrackObj*) obj;
     refreshTemplateList();
     
-    this->infoLabel->setText("Object: "+trackObj->type);
+    //% "Object: %1"
+    this->infoLabel->setText(qtTrId("route.properties.track.object.type")
+                             .arg(trackObj->type));
     this->fileName.setText(trackObj->fileName);
     
     this->uid.setText(QString::number(trackObj->UiD, 10));
@@ -431,7 +545,7 @@ void PropertiesTrackObj::showObj(GameObj* obj){
     this->flags.setText(ParserX::MakeFlagsString(trackObj->staticFlags));
     
     ///////////
-    elevType.setCurrentText(ElevTypeName);
+    elevType.setCurrentIndex(qMax(0, elevType.findData(ElevTypeName)));
     
     TrackObj* track = (TrackObj*)obj;
     float * q = track->qDirection;
@@ -475,12 +589,18 @@ void PropertiesTrackObj::showObj(GameObj* obj){
 
 void PropertiesTrackObj::refreshTemplateList(){
     const QSignalBlocker blocker(&eTemplate);
-    const QString previousValue = eTemplate.currentText();
+    const QString previousValue = eTemplate.currentData().toString();
 
     eTemplate.clear();
-    eTemplate.addItem("NOT SET");
-    eTemplate.addItem("DEFAULT");
-    eTemplate.addItem("DISABLED");
+    eTemplate.addItem(
+        //% "NOT SET"
+        qtTrId("common.value.not.set"), QString());
+    eTemplate.addItem(
+        //% "DEFAULT"
+        qtTrId("common.value.default"), "DEFAULT");
+    eTemplate.addItem(
+        //% "DISABLED"
+        qtTrId("common.value.disabled"), "DISABLED");
 
     ProceduralShape::Load();
     OrtsTrackProfileCatalog::load(Game::root + "/ROUTES/" + Game::route);
@@ -488,8 +608,8 @@ void PropertiesTrackObj::refreshTemplateList(){
     // Route-local ORTS profiles override application-level TSRE templates and
     // are shown first so the most relevant choices are easiest to find.
     for(const QString &profileId : OrtsTrackProfileCatalog::profileIds())
-        if(eTemplate.findText(profileId, Qt::MatchFixedString) < 0)
-            eTemplate.addItem(profileId);
+        if(eTemplate.findData(profileId) < 0)
+            eTemplate.addItem(profileId, profileId);
 
     if(ProceduralShape::ShapeTemplateFile != NULL){
         QMapIterator<QString, ShapeTemplate*> iterator(
@@ -501,28 +621,26 @@ void PropertiesTrackObj::refreshTemplateList(){
             const QString name = iterator.value()->name;
             if(OrtsTrackProfileCatalog::find(name) != nullptr)
                 continue;
-            if(eTemplate.findText(name, Qt::MatchFixedString) < 0)
-                eTemplate.addItem(name);
+            if(eTemplate.findData(name) < 0)
+                eTemplate.addItem(name, name);
         }
     }
 
     if(!previousValue.isEmpty()
-            && eTemplate.findText(previousValue, Qt::MatchFixedString) < 0)
-        eTemplate.addItem(previousValue);
+            && eTemplate.findData(previousValue) < 0)
+        eTemplate.addItem(previousValue, previousValue);
     if(!previousValue.isEmpty())
-        eTemplate.setCurrentText(previousValue);
+        eTemplate.setCurrentIndex(eTemplate.findData(previousValue));
 }
 
 void PropertiesTrackObj::updateTemplateValue(){
     if(trackObj == NULL)
         return;
     QString name = trackObj->getTemplate();
-    if(name.isEmpty())
-        name = "NOT SET";
     const QSignalBlocker blocker(&eTemplate);
-    if(eTemplate.findText(name, Qt::MatchFixedString) < 0)
-        eTemplate.addItem(name);
-    eTemplate.setCurrentText(name);
+    if(eTemplate.findData(name) < 0)
+        eTemplate.addItem(name, name);
+    eTemplate.setCurrentIndex(eTemplate.findData(name));
 }
 
 void PropertiesTrackObj::setStepValue(float step){

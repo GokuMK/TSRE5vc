@@ -30,23 +30,43 @@ protected:
 }
 void TerrainBakeCommand::showDialog(QWidget *parent,const QString &route) {
     if (!Game::writeEnabled || Game::serverClient) {
-        QMessageBox::warning(parent,"Bake terrain","Route writing is disabled in this session.");return;
+        QMessageBox::warning(parent,
+            //% "Bake terrain"
+            qtTrId("route.editor.terrain.bake.dialog.dialog.title.bake.terrain"),
+            //% "Route writing is disabled in this session."
+            qtTrId("route.editor.terrain.bake.dialog.dialog.message.route.writing.is.disabled.in.this.session"));return;
     }
-    BakeDialog dialog(parent);dialog.setWindowTitle("Bake procedural terrain textures");dialog.resize(640,400);
+    BakeDialog dialog(parent);dialog.setWindowTitle(
+        //% "Bake procedural terrain textures"
+        qtTrId("route.editor.terrain.bake.dialog.title.bake.procedural.terrain.textures"));dialog.resize(640,400);
     auto *layout=new QVBoxLayout(&dialog);
-    auto *description=new QLabel("Bake saved material maps. Editing is blocked until completion.\nAll includes Base, Snow and seasonal directories present in TERRTEX.",&dialog);
+    auto *description=new QLabel(
+        //% "Bake saved material maps. Editing is blocked until completion.\nAll includes Base, Snow and seasonal directories present in TERRTEX."
+        qtTrId("route.editor.terrain.bake.dialog.label.description"),&dialog);
     layout->addWidget(description);
     auto *form=new QFormLayout();auto *season=new QComboBox(&dialog);
     season->setStyleSheet("combobox-popup: 0;");
-    season->addItem("All available variants","all");
+    season->addItem(
+        //% "All available variants"
+        qtTrId("route.editor.terrain.bake.dialog.item.all.available.variants"),
+            //% "all"
+            qtTrId("route.editor.terrain.bake.dialog.item.all"));
     for (const auto &v:TerrainSeason::available(QDir(route).filePath("TERRTEX"))) season->addItem(v,v);
     auto *resolution=new QComboBox(&dialog);
     resolution->setStyleSheet("combobox-popup: 0;");
     for (int n:{256,512,1024,2048,4096}) resolution->addItem(QString::number(n),n);
     resolution->setCurrentIndex(resolution->findData(TerrainMaterialMap::BakedSide));
-    form->addRow("Season",season);form->addRow("Baked texture size",resolution);layout->addLayout(form);
+    form->addRow(
+        //% "Season"
+        qtTrId("route.editor.terrain.bake.dialog.label.season"),season);form->addRow(
+        //% "Baked texture size"
+        qtTrId("route.editor.terrain.bake.dialog.label.baked.texture.size"),resolution);layout->addLayout(form);
     auto *output=new QPlainTextEdit(&dialog);output->setReadOnly(true);output->setMaximumBlockCount(2000);layout->addWidget(output);
-    auto *start=new QPushButton("Bake",&dialog);auto *close=new QPushButton("Close",&dialog);
+    auto *start=new QPushButton(
+        //% "Bake"
+        qtTrId("route.editor.terrain.bake.dialog.button.start"),&dialog);auto *close=new QPushButton(
+        //% "Close"
+        qtTrId("route.editor.terrain.bake.dialog.button.close"),&dialog);
     layout->addWidget(start);layout->addWidget(close);
     QProcess process(&dialog);process.setProcessChannelMode(QProcess::MergedChannels);
     QObject::connect(close,&QPushButton::clicked,&dialog,&QDialog::reject);

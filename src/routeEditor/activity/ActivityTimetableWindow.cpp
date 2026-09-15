@@ -14,7 +14,9 @@
 
 ActivityTimetableWindow::ActivityTimetableWindow(QWidget* parent) : QWidget(parent) {
     setWindowFlags(Qt::WindowType::Tool);
-    setWindowTitle(tr("Timetable"));
+    setWindowTitle(
+        //% "Timetable"
+        qtTrId("route.editor.activity.timetable.window.title.timetable"));
     
     timetableProperties = new ActivityTimetableProperties(this);
     

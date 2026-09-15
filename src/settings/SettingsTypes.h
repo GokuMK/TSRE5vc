@@ -30,13 +30,13 @@ QVariant settingVariantFromJson(const QJsonValue &value, SettingType type);
 
 struct SettingOption {
     QVariant value;
-    QString name;
+    QString nameId;
 };
 
 struct SettingsSubgroupDefinition {
     QString id;
-    QString name;
-    QString description;
+    QString nameId;
+    QString descriptionId;
     int order = 0;
 
     QJsonObject toJson() const;
@@ -44,8 +44,8 @@ struct SettingsSubgroupDefinition {
 
 struct SettingsGroupDefinition {
     QString id;
-    QString name;
-    QString description;
+    QString nameId;
+    QString descriptionId;
     int order = 0;
     QVector<SettingsSubgroupDefinition> subgroups;
 
@@ -56,8 +56,8 @@ struct SettingsDefinition {
     QString key;
     SettingType type = SettingType::String;
     QVariant defaultValue;
-    QString name;
-    QString description;
+    QString nameId;
+    QString descriptionId;
     QString group;
     QString subgroup;
     QString unit;
@@ -87,8 +87,8 @@ struct SettingsDefinition {
                                          const QStringList &defaultValue = QStringList());
     static SettingsDefinition enumeration(const QString &key, const QVariant &defaultValue);
 
-    SettingsDefinition &withName(const QString &value);
-    SettingsDefinition &withDescription(const QString &value);
+    SettingsDefinition &withNameId(const QString &value);
+    SettingsDefinition &withDescriptionId(const QString &value);
     SettingsDefinition &inGroup(const QString &value, int valueOrder = 0);
     SettingsDefinition &inSubgroup(const QString &value);
     SettingsDefinition &withUnit(const QString &value);

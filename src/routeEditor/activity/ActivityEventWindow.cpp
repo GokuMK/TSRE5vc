@@ -15,17 +15,23 @@
 
 ActivityEventWindow::ActivityEventWindow(QWidget* parent) : QWidget(parent) {
     setWindowFlags(Qt::WindowType::Tool);
-    setWindowTitle(tr("Activity Events"));
+    setWindowTitle(
+        //% "Activity Events"
+        qtTrId("route.editor.activity.event.window.title.activity.events"));
     
     eventProperties = new ActivityEventProperties(this);
     
     QVBoxLayout *actionListLayout = new QVBoxLayout;
     actionListLayout->setContentsMargins(0,0,0,0);
     actionListLayout->setSpacing(0);
-    QPushButton *bNewActionEvent = new QPushButton("New Action Event");
+    QPushButton *bNewActionEvent = new QPushButton(
+        //% "New Action Event"
+        qtTrId("route.editor.activity.event.window.button.b.new.action.event"));
     QObject::connect(bNewActionEvent, SIGNAL(released()),
                       this, SLOT(bNewEventSelected()));
-    QPushButton *bDeleteActionEvent = new QPushButton("Delete");
+    QPushButton *bDeleteActionEvent = new QPushButton(
+        //% "Delete"
+        qtTrId("route.editor.activity.event.window.button.b.delete.action.event"));
     QObject::connect(bDeleteActionEvent, SIGNAL(released()),
                       this, SLOT(bDeleteEventSelected()));
     actionListLayout->addWidget(&actionList);
@@ -37,10 +43,14 @@ ActivityEventWindow::ActivityEventWindow(QWidget* parent) : QWidget(parent) {
     QVBoxLayout *locationListLayout = new QVBoxLayout;
     locationListLayout->setContentsMargins(0,0,0,0);
     locationListLayout->setSpacing(0);
-    QPushButton *bNewLocationEvent = new QPushButton("New Location Event");
+    QPushButton *bNewLocationEvent = new QPushButton(
+        //% "New Location Event"
+        qtTrId("route.editor.activity.event.window.button.b.new.location.event"));
     QObject::connect(bNewLocationEvent, SIGNAL(released()),
                       this, SLOT(bNewEventSelected()));
-    QPushButton *bDeleteLocationEvent = new QPushButton("Delete");
+    QPushButton *bDeleteLocationEvent = new QPushButton(
+        //% "Delete"
+        qtTrId("route.editor.activity.event.window.button.b.delete.location.event"));
     QObject::connect(bDeleteLocationEvent, SIGNAL(released()),
                       this, SLOT(bDeleteEventSelected()));
     locationListLayout->addWidget(&locationList);
@@ -52,10 +62,14 @@ ActivityEventWindow::ActivityEventWindow(QWidget* parent) : QWidget(parent) {
     QVBoxLayout *timeListLayout = new QVBoxLayout;
     timeListLayout->setContentsMargins(0,0,0,0);
     timeListLayout->setSpacing(0);
-    QPushButton *bNewTimeEvent = new QPushButton("New Time Event");
+    QPushButton *bNewTimeEvent = new QPushButton(
+        //% "New Time Event"
+        qtTrId("route.editor.activity.event.window.button.b.new.time.event"));
     QObject::connect(bNewTimeEvent, SIGNAL(released()),
                       this, SLOT(bNewEventSelected()));
-    QPushButton *bDeleteTimeEvent = new QPushButton("Delete");
+    QPushButton *bDeleteTimeEvent = new QPushButton(
+        //% "Delete"
+        qtTrId("route.editor.activity.event.window.button.b.delete.time.event"));
     QObject::connect(bDeleteTimeEvent, SIGNAL(released()),
                       this, SLOT(bDeleteEventSelected()));
     timeListLayout->addWidget(&timeList);
@@ -70,9 +84,15 @@ ActivityEventWindow::ActivityEventWindow(QWidget* parent) : QWidget(parent) {
     
     QTabWidget *tabWidget = new QTabWidget;
     tabWidget->setContentsMargins(1,1,1,1);
-    tabWidget->addTab(&actionWidget, "Action");
-    tabWidget->addTab(&locationWidget, "Location");
-    tabWidget->addTab(&timeWidget, "Time");
+    tabWidget->addTab(&actionWidget,
+        //% "Action"
+        qtTrId("route.editor.activity.event.window.tab.action"));
+    tabWidget->addTab(&locationWidget,
+        //% "Location"
+        qtTrId("route.editor.activity.event.window.tab.location"));
+    tabWidget->addTab(&timeWidget,
+        //% "Time"
+        qtTrId("route.editor.activity.event.window.tab.time"));
     
     QHBoxLayout *v = new QHBoxLayout;
     v->setSpacing(2);

@@ -24,23 +24,29 @@
 
 TerrainLodProfileDialog::TerrainLodProfileDialog(QWidget *parent)
     : QDialog(parent) {
-    setWindowTitle("Terrain mesh LOD profile");
+    setWindowTitle(
+        //% "Terrain mesh LOD profile"
+        qtTrId("route.editor.terrain.lod.profile.dialog.title.terrain.mesh.lod.profile"));
     setMinimumWidth(560);
 
     QVBoxLayout *layout = new QVBoxLayout(this);
     QLabel *description = new QLabel(
-                "Choose the preferred terrain sample spacing for each distance "
-                "range. The last level continues beyond its preferred end until "
-                "normal terrain visibility culling. Change the first sample "
-                "spacing; following levels adjust automatically.");
+                //% "Choose the preferred terrain sample spacing for each distance range. The last level continues beyond its preferred end until normal terrain visibility culling. Change the first sample spacing; following levels adjust automatically."
+                qtTrId("route.editor.terrain.lod.profile.dialog.label.description"));
     description->setWordWrap(true);
     layout->addWidget(description);
 
-    enabled = new QCheckBox("Use a route-specific terrain mesh LOD profile");
+    enabled = new QCheckBox(
+        //% "Use a route-specific terrain mesh LOD profile"
+        qtTrId("route.editor.terrain.lod.profile.dialog.option.enabled"));
     layout->addWidget(enabled);
 
     table = new QTableWidget(0, 2);
-    table->setHorizontalHeaderLabels({"Sample spacing", "Preferred end distance"});
+    table->setHorizontalHeaderLabels({
+        //% "Sample spacing"
+        qtTrId("terrain.lod.header.sample.spacing"),
+        //% "Preferred end distance"
+        qtTrId("terrain.lod.header.preferred.end.distance")});
     table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
     table->verticalHeader()->setVisible(false);
     table->setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -48,8 +54,12 @@ TerrainLodProfileDialog::TerrainLodProfileDialog(QWidget *parent)
     layout->addWidget(table);
 
     QHBoxLayout *editButtons = new QHBoxLayout;
-    addButton = new QPushButton("Add level");
-    removeButton = new QPushButton("Remove selected");
+    addButton = new QPushButton(
+        //% "Add level"
+        qtTrId("route.editor.terrain.lod.profile.dialog.button.add.button"));
+    removeButton = new QPushButton(
+        //% "Remove selected"
+        qtTrId("route.editor.terrain.lod.profile.dialog.button.remove.button"));
     editButtons->addWidget(addButton);
     editButtons->addWidget(removeButton);
     editButtons->addStretch();

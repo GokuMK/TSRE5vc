@@ -19,7 +19,9 @@ PropertiesSoundSource::PropertiesSoundSource() {
     vbox->setSpacing(2);
     vbox->setContentsMargins(0,1,1,1);
     
-    infoLabel = new QLabel("Sound Source:");
+    infoLabel = new QLabel(
+        //% "Sound Source:"
+        qtTrId("route.editor.properties.sound.source.label.info.label"));
     infoLabel->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     infoLabel->setContentsMargins(3,0,0,0);
     vbox->addWidget(infoLabel);
@@ -29,21 +31,33 @@ PropertiesSoundSource::PropertiesSoundSource() {
     this->uid.setDisabled(true);
     this->tX.setDisabled(true);
     this->tY.setDisabled(true);
-    vlist->addRow("UiD:",&this->uid);
-    vlist->addRow("Tile X:",&this->tX);
-    vlist->addRow("Tile Z:",&this->tY);
+    vlist->addRow(
+        //% "UiD:"
+        qtTrId("route.editor.properties.sound.source.label.ui.d"),&this->uid);
+    vlist->addRow(
+        //% "Tile X:"
+        qtTrId("route.editor.properties.sound.source.label.tile.x"),&this->tX);
+    vlist->addRow(
+        //% "Tile Z:"
+        qtTrId("route.editor.properties.sound.source.label.tile.z"),&this->tY);
     vbox->addItem(vlist);
     // Info
-    QLabel* label = new QLabel("FileName:");
+    QLabel* label = new QLabel(
+        //% "FileName:"
+        qtTrId("route.editor.properties.sound.source.label.label"));
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     vbox->addWidget(&this->fileName);
-    label = new QLabel("Source name:");
+    label = new QLabel(
+        //% "Source name:"
+        qtTrId("route.editor.properties.sound.source.label.label.2"));
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     vbox->addWidget(&this->sName);
     // Edit
-    label = new QLabel("Change source:");
+    label = new QLabel(
+        //% "Change source:"
+        qtTrId("route.editor.properties.sound.source.label.label.3"));
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     vbox->addWidget(&this->sources);
@@ -70,7 +84,9 @@ void PropertiesSoundSource::sourcesListSelected(QString val){
 
 void PropertiesSoundSource::showObj(GameObj* obj){
     if(obj == NULL){
-        infoLabel->setText("NULL");
+        infoLabel->setText(
+            //% "NULL"
+            qtTrId("route.editor.properties.sound.source.text.null"));
         return;
     }
     worldObj = (WorldObj*)obj;
@@ -79,7 +95,9 @@ void PropertiesSoundSource::showObj(GameObj* obj){
     this->uid.setText(QString::number(sobj->UiD, 10));
     this->tX.setText(QString::number(sobj->x, 10));
     this->tY.setText(QString::number(-sobj->y, 10));
-    this->infoLabel->setText("Object: "+sobj->type);
+    //% "Object: %1"
+    this->infoLabel->setText(qtTrId("route.properties.sound.source.object.type")
+                             .arg(sobj->type));
     
     this->sources.clear();
     if(Game::soundList != NULL)

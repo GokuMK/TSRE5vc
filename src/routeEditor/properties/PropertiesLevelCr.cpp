@@ -21,7 +21,9 @@ PropertiesLevelCr::PropertiesLevelCr() {
     QVBoxLayout *vbox = new QVBoxLayout;
     vbox->setSpacing(2);
     vbox->setContentsMargins(0,1,1,1);
-    infoLabel = new QLabel("LevelCr:");
+    infoLabel = new QLabel(
+        //% "LevelCr:"
+        qtTrId("route.editor.properties.level.cr.label.info.label"));
     infoLabel->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     infoLabel->setContentsMargins(3,0,0,0);
     vbox->addWidget(infoLabel);
@@ -31,24 +33,40 @@ PropertiesLevelCr::PropertiesLevelCr() {
     this->uid.setDisabled(true);
     this->tX.setDisabled(true);
     this->tY.setDisabled(true);
-    vlist->addRow("UiD:",&this->uid);
-    vlist->addRow("Tile X:",&this->tX);
-    vlist->addRow("Tile Z:",&this->tY);
+    vlist->addRow(
+        //% "UiD:"
+        qtTrId("route.editor.properties.level.cr.label.ui.d"),&this->uid);
+    vlist->addRow(
+        //% "Tile X:"
+        qtTrId("route.editor.properties.level.cr.label.tile.x"),&this->tX);
+    vlist->addRow(
+        //% "Tile Z:"
+        qtTrId("route.editor.properties.level.cr.label.tile.z"),&this->tY);
     vbox->addItem(vlist);
     
-    QLabel * label = new QLabel("Position:");
+    QLabel * label = new QLabel(
+        //% "Position:"
+        qtTrId("route.editor.properties.level.cr.label.label"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     vlist = new QFormLayout;
     vlist->setSpacing(2);
     vlist->setContentsMargins(3,0,3,0);
-    vlist->addRow("X:",&this->posX);
-    vlist->addRow("Y:",&this->posY);
-    vlist->addRow("Z:",&this->posZ);
+    vlist->addRow(
+        //% "X:"
+        qtTrId("route.editor.properties.level.cr.label.x"),&this->posX);
+    vlist->addRow(
+        //% "Y:"
+        qtTrId("route.editor.properties.level.cr.label.y"),&this->posY);
+    vlist->addRow(
+        //% "Z:"
+        qtTrId("route.editor.properties.level.cr.label.z"),&this->posZ);
     vbox->addItem(vlist);
     
-    label = new QLabel("Filename:");
+    label = new QLabel(
+        //% "Filename:"
+        qtTrId("route.editor.properties.level.cr.label.label.2"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
@@ -56,51 +74,69 @@ PropertiesLevelCr::PropertiesLevelCr() {
     fileName.setAlignment(Qt::AlignCenter);
     vbox->addWidget(&fileName);
     
-    label = new QLabel("Level Crossing Sensitivity:");
+    label = new QLabel(
+        //% "Level Crossing Sensitivity:"
+        qtTrId("route.editor.properties.level.cr.label.label.3"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     //QFormLayout *vlist = new QFormLayout;
     //vlist->setSpacing(2);
     //vlist->setContentsMargins(3,0,3,0);
-    vbox->addWidget(new QLabel("Activate LevelCr by [s]:"));
+    vbox->addWidget(new QLabel(
+        //% "Activate LevelCr by [s]:"
+        qtTrId("route.editor.properties.level.cr.label.activate.level.cr.by.s")));
     vbox->addWidget(&eActivateLevelCrossing);
     eActivateLevelCrossing.setValidator(doubleValidator);
     QObject::connect(&eActivateLevelCrossing, SIGNAL(textEdited(QString)), this, SLOT(eActivateLevelCrossingEnabled(QString)));
-    vbox->addWidget(new QLabel("Min activation distance [m]:"));
+    vbox->addWidget(new QLabel(
+        //% "Min activation distance [m]:"
+        qtTrId("route.editor.properties.level.cr.label.min.activation.distance.m")));
     vbox->addWidget(&eMinActDist);
     eMinActDist.setValidator(doubleValidator);
     QObject::connect(&eMinActDist, SIGNAL(textEdited(QString)), this, SLOT(eMinActDistEnabled(QString)));
     //vbox->addItem(vlist);
-    label = new QLabel("Level Crossing Timing:");
+    label = new QLabel(
+        //% "Level Crossing Timing:"
+        qtTrId("route.editor.properties.level.cr.label.label.4"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     //vlist = new QFormLayout;
     //vlist->setSpacing(2);
     //vlist->setContentsMargins(3,0,3,0);
-    vbox->addWidget(new QLabel("Initial warning phase [s]:"));
+    vbox->addWidget(new QLabel(
+        //% "Initial warning phase [s]:"
+        qtTrId("route.editor.properties.level.cr.label.initial.warning.phase.s")));
     vbox->addWidget(&eInitialWarning);
     eInitialWarning.setValidator(doubleValidator);
     QObject::connect(&eInitialWarning, SIGNAL(textEdited(QString)), this, SLOT(eInitialWarningEnabled(QString)));
-    vbox->addWidget(new QLabel("Serious warning phase [s]:"));
+    vbox->addWidget(new QLabel(
+        //% "Serious warning phase [s]:"
+        qtTrId("route.editor.properties.level.cr.label.serious.warning.phase.s")));
     vbox->addWidget(&eMoreWarning);
     eMoreWarning.setValidator(doubleValidator);
     QObject::connect(&eMoreWarning, SIGNAL(textEdited(QString)), this, SLOT(eMoreWarningEnabled(QString)));
-    vbox->addWidget(new QLabel("Gate animation length [s]:"));
+    vbox->addWidget(new QLabel(
+        //% "Gate animation length [s]:"
+        qtTrId("route.editor.properties.level.cr.label.gate.animation.length.s")));
     vbox->addWidget(&eGateAnimLength);
     eGateAnimLength.setValidator(doubleValidator);
     QObject::connect(&eGateAnimLength, SIGNAL(textEdited(QString)), this, SLOT(eGateAnimLengthEnabled(QString)));
     //vbox->addItem(vlist);
 
-    label = new QLabel("More Options:");
+    label = new QLabel(
+        //% "More Options:"
+        qtTrId("route.editor.properties.level.cr.label.label.5"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     //vlist = new QFormLayout;
     //vlist->setSpacing(2);
     //vlist->setContentsMargins(3,0,3,0);
-    vbox->addWidget(new QLabel("Crash probability:"));
+    vbox->addWidget(new QLabel(
+        //% "Crash probability:"
+        qtTrId("route.editor.properties.level.cr.label.crash.probability")));
     vbox->addWidget(&eCrashProbability);
     eCrashProbability.setValidator(doubleValidator);
     QObject::connect(&eCrashProbability, SIGNAL(textEdited(QString)), this, SLOT(eCrashProbabilityEnabled(QString)));
@@ -111,25 +147,39 @@ PropertiesLevelCr::PropertiesLevelCr() {
     vbox->addWidget(&chSilentHax);
     QObject::connect(&chSilentHax, SIGNAL(stateChanged(int)),
                       this, SLOT(chSilentHaxEnabled(int)));
-    chInvisible.setText("Crossing is invisible");
-    chSilentHax.setText("Silent crossing MSTS HAX");
+    chInvisible.setText(
+        //% "Crossing is invisible"
+        qtTrId("route.editor.properties.level.cr.text.crossing.is.invisible"));
+    chSilentHax.setText(
+        //% "Silent crossing MSTS HAX"
+        qtTrId("route.editor.properties.level.cr.text.silent.crossing.msts.hax"));
     
-    label = new QLabel("Track Items:");
+    label = new QLabel(
+        //% "Track Items:"
+        qtTrId("route.editor.properties.level.cr.label.label.6"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     
-    QPushButton *bDeleteSelected = new QPushButton("Delete Selected");
+    QPushButton *bDeleteSelected = new QPushButton(
+        //% "Delete Selected"
+        qtTrId("route.editor.properties.level.cr.button.b.delete.selected"));
     vbox->addWidget(bDeleteSelected);
     QObject::connect(bDeleteSelected, SIGNAL(released()),
                       this, SLOT(bDeleteSelectedEnabled()));
     
-    label = new QLabel("Sound File:");
+    label = new QLabel(
+        //% "Sound File:"
+        qtTrId("route.editor.properties.level.cr.label.label.7"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
-    cSoundType.addItem("DEFAULT");
-    cSoundType.addItem("CUSTOM");
+    cSoundType.addItem(
+        //% "DEFAULT"
+        qtTrId("route.editor.properties.level.cr.item.default"));
+    cSoundType.addItem(
+        //% "CUSTOM"
+        qtTrId("route.editor.properties.level.cr.item.custom"));
     cSoundType.setStyleSheet("combobox-popup: 0;");
     QObject::connect(&cSoundType, SIGNAL(currentIndexChanged(int)),
             this, SLOT(cSoundTypeEnabled(int)));
@@ -138,11 +188,15 @@ PropertiesLevelCr::PropertiesLevelCr() {
     QObject::connect(&eSoundName, SIGNAL(textEdited(QString)), this, SLOT(eSoundNameEnabled(QString)));
 
     
-    label = new QLabel("Global settings:");
+    label = new QLabel(
+        //% "Global settings:"
+        qtTrId("route.editor.properties.level.cr.label.label.8"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
-    vbox->addWidget(new QLabel("Max placing radius:"));
+    vbox->addWidget(new QLabel(
+        //% "Max placing radius:"
+        qtTrId("route.editor.properties.level.cr.label.max.placing.radius")));
     vbox->addWidget(&eMaxPlacingDistance);
     eMaxPlacingDistance.setValidator(doubleValidator);
     QObject::connect(&eMaxPlacingDistance, SIGNAL(textEdited(QString)), this, SLOT(eMaxPlacingDistanceEnabled(QString)));
@@ -157,13 +211,17 @@ PropertiesLevelCr::~PropertiesLevelCr() {
 
 void PropertiesLevelCr::showObj(GameObj* obj){
     if(obj == NULL){
-        infoLabel->setText("NULL");
+        infoLabel->setText(
+            //% "NULL"
+            qtTrId("route.editor.properties.level.cr.text.null"));
         return;
     }
     worldObj = (WorldObj*)obj;
     lobj = (LevelCrObj*)obj;
     
-    this->infoLabel->setText("Object: "+lobj->type);
+    //% "Object: %1"
+    this->infoLabel->setText(qtTrId("route.properties.level.crossing.object.type")
+                             .arg(lobj->type));
     this->fileName.setText(lobj->fileName);
 
     this->uid.setText(QString::number(lobj->UiD, 10));

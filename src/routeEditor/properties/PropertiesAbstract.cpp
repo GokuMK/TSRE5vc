@@ -15,7 +15,7 @@
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/Undo.h>
 
-QString PropertiesAbstract::ElevTypeName = "Permille ‰";
+QString PropertiesAbstract::ElevTypeName = "permille";
 
 PropertiesAbstract::PropertiesAbstract() : QWidget() {
     foreach (QObject *child, children()) {

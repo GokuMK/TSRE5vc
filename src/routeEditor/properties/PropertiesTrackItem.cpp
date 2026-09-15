@@ -16,16 +16,22 @@ PropertiesTrackItem::PropertiesTrackItem() {
    QVBoxLayout *vbox = new QVBoxLayout;
     vbox->setSpacing(2);
     vbox->setContentsMargins(0,1,1,1);
-    infoLabel = new QLabel("Terrain:");
+    infoLabel = new QLabel(
+        //% "Terrain:"
+        qtTrId("route.editor.properties.track.item.label.info.label"));
     infoLabel->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     infoLabel->setContentsMargins(3,0,0,0);
     vbox->addWidget(infoLabel);
-    QLabel *label = new QLabel("Type:");
+    QLabel *label = new QLabel(
+        //% "Type:"
+        qtTrId("route.editor.properties.track.item.label.label"));
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     vbox->addWidget(&eItemType);
     eItemType.setDisabled(true);
-    label = new QLabel("Id:");
+    label = new QLabel(
+        //% "Id:"
+        qtTrId("route.editor.properties.track.item.label.label.2"));
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     vbox->addWidget(&eItemId);
@@ -40,12 +46,16 @@ PropertiesTrackItem::~PropertiesTrackItem() {
 
 void PropertiesTrackItem::showObj(GameObj* obj){
     if(obj == NULL){
-        infoLabel->setText("NULL");
+        infoLabel->setText(
+            //% "NULL"
+            qtTrId("route.editor.properties.track.item.text.null"));
         return;
     }
     itemObj = (TRitem*)obj;
     
-    infoLabel->setText("Object: TrackItem");
+    infoLabel->setText(
+        //% "Object: TrackItem"
+        qtTrId("route.editor.properties.track.item.text.object.track.item"));
     eItemType.setText(itemObj->type);
     eItemId.setText(QString::number(itemObj->trItemId));
     

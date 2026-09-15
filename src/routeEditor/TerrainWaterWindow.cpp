@@ -13,19 +13,33 @@
 TerrainWaterWindow::TerrainWaterWindow() : QDialog(){
     this->setFixedSize(200, 130);
 
-    QPushButton* ok = new QPushButton("OK");
-    QPushButton* cancel = new QPushButton("Cancel");
+    QPushButton* ok = new QPushButton(
+        //% "OK"
+        qtTrId("route.editor.terrain.water.window.button.ok"));
+    QPushButton* cancel = new QPushButton(
+        //% "Cancel"
+        qtTrId("route.editor.terrain.water.window.button.cancel"));
     connect(ok, SIGNAL (released()), this, SLOT (ok()));
     connect(cancel, SIGNAL (released()), this, SLOT (cancel()));
 
     QFormLayout *vlist = new QFormLayout;
     vlist->setSpacing(2);
     vlist->setContentsMargins(3,0,3,0);
-    vlist->addRow("ALL:",&this->eALL);
-    vlist->addRow("WSW:",&this->eWSW);
-    vlist->addRow("WSE:",&this->eWSE);
-    vlist->addRow("WNE:",&this->eWNE);
-    vlist->addRow("WNW:",&this->eWNW);
+    vlist->addRow(
+        //% "ALL:"
+        qtTrId("route.editor.terrain.water.window.label.all"),&this->eALL);
+    vlist->addRow(
+        //% "WSW:"
+        qtTrId("route.editor.terrain.water.window.label.wsw"),&this->eWSW);
+    vlist->addRow(
+        //% "WSE:"
+        qtTrId("route.editor.terrain.water.window.label.wse"),&this->eWSE);
+    vlist->addRow(
+        //% "WNE:"
+        qtTrId("route.editor.terrain.water.window.label.wne"),&this->eWNE);
+    vlist->addRow(
+        //% "WNW:"
+        qtTrId("route.editor.terrain.water.window.label.wnw"),&this->eWNW);
     connect(&this->eALL, SIGNAL (textEdited(QString)), this, SLOT (eWSWtextEdited(QString)));
     vlist->addRow(ok,cancel);
 //    mainLayout->setAlignment(browse, Qt::AlignBottom);

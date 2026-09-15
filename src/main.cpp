@@ -35,6 +35,7 @@
 #include <settings/SettingsManager.h>
 #include <settings/SettingsProfile.h>
 #include <settings/SettingsAccess.h>
+#include <TranslationManager.h>
 
 QFile logFile;
 QTextStream logFileOut;
@@ -465,6 +466,18 @@ int main(int argc, char *argv[]){
     //QApplication::setAttribute(Qt::AA_EnableHighDpiScaling, true); // has no effect?
     //QApplication::pr
     QApplication app(argc, argv);
+    TranslationManager translationManager;
+    QString translationMessage;
+    if (!translationManager.install(
+            app,
+            Settings::variant("core.interface.language", SettingType::Enum).toString(),
+                                    nullptr, &translationMessage)) {
+        fprintf(stderr, "Cannot initialize translations: %s\n",
+                qPrintable(translationMessage));
+        return 1;
+    }
+    if (!translationMessage.isEmpty())
+        fprintf(stderr, "Translation warning: %s\n", qPrintable(translationMessage));
     QObject::connect(&settings, &SettingsManager::runtimeSettingsChanged,
                      [](const QStringList &keys) { Game::applyRuntimeSettings(keys); });
         

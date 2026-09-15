@@ -18,7 +18,9 @@ PropertiesTransfer::PropertiesTransfer() {
     QVBoxLayout *vbox = new QVBoxLayout;
     vbox->setSpacing(2);
     vbox->setContentsMargins(0,1,1,1);
-    infoLabel = new QLabel("Transfer:");
+    infoLabel = new QLabel(
+        //% "Transfer:"
+        qtTrId("route.editor.properties.transfer.label.info.label"));
     infoLabel->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     infoLabel->setContentsMargins(3,0,0,0);
     
@@ -34,40 +36,62 @@ PropertiesTransfer::PropertiesTransfer() {
     vlistt->setContentsMargins(3,0,3,0);
     this->tX.setDisabled(true);
     this->tY.setDisabled(true);
-    vlistt->addRow("Tile X:",&this->tX);
-    vlistt->addRow("Tile Z:",&this->tY);
+    vlistt->addRow(
+        //% "Tile X:"
+        qtTrId("route.editor.properties.transfer.label.tile.x"),&this->tX);
+    vlistt->addRow(
+        //% "Tile Z:"
+        qtTrId("route.editor.properties.transfer.label.tile.z"),&this->tY);
     vbox->addItem(vlistt);
     
-    QLabel * label0 = new QLabel("Texture:");
+    QLabel * label0 = new QLabel(
+        //% "Texture:"
+        qtTrId("route.editor.properties.transfer.label.label0"));
     label0->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label0->setContentsMargins(3,0,0,0);
     vbox->addWidget(label0);
-    QLabel * label1 = new QLabel("FileName:");
+    QLabel * label1 = new QLabel(
+        //% "FileName:"
+        qtTrId("route.editor.properties.transfer.label.label1"));
     label1->setContentsMargins(3,0,0,0);
     vbox->addWidget(label1);
     this->fileName.setDisabled(true);
     this->fileName.setAlignment(Qt::AlignCenter);
     vbox->addWidget(&this->fileName);
-    QPushButton *copyF = new QPushButton("Copy FileName", this);
+    QPushButton *copyF = new QPushButton(
+        //% "Copy FileName"
+        qtTrId("route.editor.properties.transfer.button.copy.f"), this);
     vbox->addWidget(copyF);
     vbox->addWidget(texPreviewLabel);
     vbox->setAlignment(texPreviewLabel, Qt::AlignHCenter);
-    QPushButton *texLoad = new QPushButton("Load Texture", this);
-    QPushButton *texPick = new QPushButton("Pick This", this);
-    QPushButton *texPut = new QPushButton("Put Here", this);
+    QPushButton *texLoad = new QPushButton(
+        //% "Load Texture"
+        qtTrId("route.editor.properties.transfer.button.tex.load"), this);
+    QPushButton *texPick = new QPushButton(
+        //% "Pick This"
+        qtTrId("route.editor.properties.transfer.button.tex.pick"), this);
+    QPushButton *texPut = new QPushButton(
+        //% "Put Here"
+        qtTrId("route.editor.properties.transfer.button.tex.put"), this);
     vbox->addWidget(texLoad);
     vbox->addWidget(texPick);
     vbox->addWidget(texPut);
     
-    QLabel * label = new QLabel("Size:");
+    QLabel * label = new QLabel(
+        //% "Size:"
+        qtTrId("route.editor.properties.transfer.label.label"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     QFormLayout *vlist = new QFormLayout;
     vlist->setSpacing(2);
     vlist->setContentsMargins(3,0,3,0);
-    vlist->addRow("Width:",&this->sizeX);
-    vlist->addRow("Height:",&this->sizeY);
+    vlist->addRow(
+        //% "Width:"
+        qtTrId("route.editor.properties.transfer.label.width"),&this->sizeX);
+    vlist->addRow(
+        //% "Height:"
+        qtTrId("route.editor.properties.transfer.label.height"),&this->sizeY);
     vbox->addItem(vlist);
     QDoubleValidator* doubleValidator = new QDoubleValidator(0, 999, 2, this); 
     doubleValidator->setNotation(QDoubleValidator::StandardNotation);
@@ -78,49 +102,77 @@ PropertiesTransfer::PropertiesTransfer() {
     QObject::connect(&sizeY, SIGNAL(textEdited(QString)),
                       this, SLOT(sizeEnabled(QString)));
     
-    label = new QLabel("Position & Rotation:");
+    label = new QLabel(
+        //% "Position & Rotation:"
+        qtTrId("route.editor.properties.transfer.label.label.2"));
     label->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     vlist = new QFormLayout;
     vlist->setSpacing(2);
     vlist->setContentsMargins(3,0,3,0);
-    vlist->addRow("X:",&this->posX);
-    vlist->addRow("Y:",&this->posY);
-    vlist->addRow("Z:",&this->posZ);
+    vlist->addRow(
+        //% "X:"
+        qtTrId("route.editor.properties.transfer.label.x"),&this->posX);
+    vlist->addRow(
+        //% "Y:"
+        qtTrId("route.editor.properties.transfer.label.y"),&this->posY);
+    vlist->addRow(
+        //% "Z:"
+        qtTrId("route.editor.properties.transfer.label.z"),&this->posZ);
     this->quat.setDisabled(true);
     this->quat.setAlignment(Qt::AlignCenter);
-    vlist->addRow("Rot:",&this->quat);
+    vlist->addRow(
+        //% "Rot:"
+        qtTrId("route.editor.properties.transfer.label.rot"),&this->quat);
     vbox->addItem(vlist);
     QGridLayout *posRotList = new QGridLayout;
     posRotList->setSpacing(2);
     posRotList->setContentsMargins(0,0,0,0);    
 
-    QPushButton *copyPos = new QPushButton("Copy Pos", this);
+    QPushButton *copyPos = new QPushButton(
+        //% "Copy Pos"
+        qtTrId("route.editor.properties.transfer.button.copy.pos"), this);
     QObject::connect(copyPos, SIGNAL(released()),
                       this, SLOT(copyPEnabled()));
-    QPushButton *pastePos = new QPushButton("Paste", this);
+    QPushButton *pastePos = new QPushButton(
+        //% "Paste"
+        qtTrId("route.editor.properties.transfer.button.paste.pos"), this);
     QObject::connect(pastePos, SIGNAL(released()),
                       this, SLOT(pastePEnabled()));
-    QPushButton *copyQrot = new QPushButton("Copy Rot", this);
+    QPushButton *copyQrot = new QPushButton(
+        //% "Copy Rot"
+        qtTrId("route.editor.properties.transfer.button.copy.qrot"), this);
     QObject::connect(copyQrot, SIGNAL(released()),
                       this, SLOT(copyREnabled()));
-    QPushButton *pasteQrot = new QPushButton("Paste", this);
+    QPushButton *pasteQrot = new QPushButton(
+        //% "Paste"
+        qtTrId("route.editor.properties.transfer.button.paste.qrot"), this);
     QObject::connect(pasteQrot, SIGNAL(released()),
                       this, SLOT(pasteREnabled()));
-    QPushButton *copyPosRot = new QPushButton("Copy Pos+Rot", this);
+    QPushButton *copyPosRot = new QPushButton(
+        //% "Copy Pos+Rot"
+        qtTrId("route.editor.properties.transfer.button.copy.pos.rot"), this);
     QObject::connect(copyPosRot, SIGNAL(released()),
                       this, SLOT(copyPREnabled()));
-    QPushButton *pastePosRot = new QPushButton("Paste", this);
+    QPushButton *pastePosRot = new QPushButton(
+        //% "Paste"
+        qtTrId("route.editor.properties.transfer.button.paste.pos.rot"), this);
     QObject::connect(pastePosRot, SIGNAL(released()),
                       this, SLOT(pastePREnabled()));
-    QPushButton *resetQrot = new QPushButton("Reset Rot", this);
+    QPushButton *resetQrot = new QPushButton(
+        //% "Reset Rot"
+        qtTrId("route.editor.properties.transfer.button.reset.qrot"), this);
     QObject::connect(resetQrot, SIGNAL(released()),
                       this, SLOT(resetRotEnabled()));
-    QPushButton *qRot90 = new QPushButton("Rot Y 90°", this);
+    QPushButton *qRot90 = new QPushButton(
+        //% "Rot Y 90°"
+        qtTrId("route.editor.properties.transfer.button.q.rot90"), this);
     QObject::connect(qRot90, SIGNAL(released()),
                       this, SLOT(rotYEnabled()));
-    QPushButton *transform = new QPushButton("Transform ...", this);
+    QPushButton *transform = new QPushButton(
+        //% "Transform ..."
+        qtTrId("route.editor.properties.transfer.button.transform"), this);
     QObject::connect(transform, SIGNAL(released()),
                       this, SLOT(transformEnabled()));
     
@@ -144,7 +196,9 @@ PropertiesTransfer::~PropertiesTransfer() {
 
 void PropertiesTransfer::showObj(GameObj* obj){
     if(obj == NULL){
-        infoLabel->setText("NULL");
+        infoLabel->setText(
+            //% "NULL"
+            qtTrId("route.editor.properties.transfer.text.null"));
         return;
     }
     worldObj = (WorldObj*)obj;
@@ -152,7 +206,9 @@ void PropertiesTransfer::showObj(GameObj* obj){
 
     TransferObj* tobj = (TransferObj*)obj;
         
-    this->infoLabel->setText("Object: "+transferObj->type);
+    //% "Object: %1"
+    this->infoLabel->setText(qtTrId("route.properties.transfer.object.type")
+                             .arg(transferObj->type));
     this->fileName.setText(tobj->texture);
         
     this->tX.setText(QString::number(transferObj->x, 10));
