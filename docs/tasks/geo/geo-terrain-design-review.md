@@ -174,8 +174,16 @@ coverage was downloaded and no live terrain generation was attempted.
 ## Accepted user decisions
 
 - Geoportal first; validate the shared design against other services.
-- Prefer pure Qt where practical. A focused GeoTIFF implementation is acceptable;
-  GDAL/PROJ are not the assumed dependency choice.
+- Begin with no new external dependencies, using the existing C++/Qt stack.
+  This is a preference, not a prohibition. A focused GeoTIFF implementation is
+  acceptable; GDAL/PROJ are not the assumed dependency choice.
+- If a subtask becomes disproportionately large, or an existing library offers
+  a clear advantage in correctness, maintenance or implementation effort, pause
+  that subtask and propose the concrete alternative before integrating it.
+  Prefer suitable source vendoring or static linking where practical. Explain
+  the supported scope, licence, transitive dependencies, build/distribution cost
+  and tradeoff against custom code. Projection conversion is an explicit example:
+  do not build a substantial projection framework merely to avoid a dependency.
 - Use HGT fallback for missing coverage/NoData and show a visible report.
 
 Other proposals in this review remain design recommendations. No additional
