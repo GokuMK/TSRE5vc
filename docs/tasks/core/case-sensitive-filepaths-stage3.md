@@ -4,7 +4,8 @@ Implemented after stage A and the binary-SD/planner follow-up. This extends the
 main executable's `--contentcase` command with conversion, saved-plan execution,
 strict verification, and rollback. The supplied `C:\trainsim` and
 `C:\MagiPacks\Microsoft Train Simulator` installations have not been modified or
-used for write tests. Full installation-scale execution has not been evaluated.
+used for write tests. Execution and rollback have also been validated on a temporary copy of the WSL
+installation; see the test results below.
 
 ## Commands
 
@@ -69,14 +70,30 @@ if a required patch cannot preserve it, that component is withheld and reported.
 
 ## Selection, verification, and remaining limits
 
-Resolved reference edges and texture/season/representation groups connect files
-whose repair decisions depend on each other. Read/sync errors, unknown source
-families, links, and failed writers protect their affected components. Incomplete
-reference discovery also protects default asset scopes and discovered lookup
-bases. This is deliberately conservative: an incomplete route source can withhold
-its route, and an unread shared S image table can protect textures in many routes.
-A parent directory rename is withheld when it would carry a protected descendant.
-Independent leaf/directory repairs use the paths of the actually selected subset.
+Readability and editability apply to individual source files, not to their entire
+connected reference graph. Unreadable or incompletely parsed source bytes are not
+rewritten; their errors remain in the result. Their filenames and containing
+runtime directories can still be repaired. Unknown files are preserved as opaque
+content rather than freezing their route. `.tdb`, `.rdb`, `.tit`, `.rit`, and
+`sigscr.dat` are explicitly classified as non-reference data; references to their
+names can still require renames. This is a narrow exception: `ttype.dat`,
+`telepole.dat`, `ssource.dat`, `speedpost.dat`, and `sigcfg.dat` remain parsed
+reference-bearing catalogs, and other DAT files are not assumed reference-free.
+
+Known references in noneditable sources still constrain their targets. Selection
+withholds only the specific path-component renames that disagree with those
+references, then recomputes paths and edits until the constraints stabilize. A
+failed preservation writer uses the same local constraints. No error propagates
+through a shared shape/texture graph merely because files are connected. The
+planner still coordinates seasonal and alternate-representation names globally.
+
+Physical collisions remain local errors: colliding names and directory subtrees
+are retained, without merging or overwriting files. Their containing runtime
+directories can still be renamed. Links and ancestors carrying links remain
+protected. Excluded entries receive no individual repair operations, but can move
+with a repaired containing directory. Undiscovered references in unreadable or
+unknown content cannot be verified; this limitation remains explicit rather than
+preventing supported repairs elsewhere.
 
 Missing content remains a warning. It is not substituted from another scope.
 Case-only duplicate-file consolidation and directory-collision merging are **not
@@ -98,7 +115,7 @@ withheld operations, writer errors, missing-content warnings, and remaining coun
 
 All edited sources receive exact-byte backups and staged replacements before
 content mutation. A second full preflight scan detects changes during preparation.
-This adds scan cost; installation-scale performance still needs evaluation.
+This adds scan cost; large-installation performance still needs evaluation.
 Replacement bytes and rename-source hashes are checked again before each action.
 
 `journal.json` contains immutable actions and original metadata. `events.jsonl`
@@ -168,3 +185,22 @@ Regression tests cover unchanged companions, rejection of each missing companion
 execution/rollback with companions, and coexisting seasonal ACE/DDS assets.
 The installation journal recorded completed rollback; the installation was not
 reconverted while testing this correction.
+
+### Narrow protection regression validation
+
+WSL Qt Core tests cover route database companions connected to world assets,
+opaque files carried by runtime directory repairs, noneditable ENV references,
+physical collisions, and a broken route shape connected to another route through
+a shared global shape. The reference-bearing DAT catalogs listed above are
+asserted to remain scanned; `sigscr.dat` is renamed without rewriting its payload.
+
+A temporary copy of `/root/msts/proprietary/msts_app` (4,902 files) was converted
+and rolled back after the protection change. It applied 1,542 transaction steps,
+left **zero proposed operations, zero withheld operations, zero writer errors,
+and zero case-mismatched known references**. The only remaining errors were the
+two already broken `JP1Signal2.s` files in MINI and PROCEDURAL. Tutorial's WORLD,
+SHAPES, TEXTURES, and ENVFILES directories adopted runtime case, with all 20 world
+files present. Rollback restored every original copied path, byte hash, file
+permission, and millisecond modification time. The original installation was not
+modified. This verifies conversion/preservation; it is not an interactive editor
+rendering test.

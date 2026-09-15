@@ -300,139 +300,61 @@ struct Selection {
 };
 Selection select(const QJsonObject &plan, const QSet<int> &extra) {
     const auto files = plan["files"].toArray(), refs = plan["references"].toArray();
-    QVector<int> sets(files.size()), weights(files.size(), 1);
-    for (int i = 0; i < sets.size(); ++i)
-        sets[i] = i;
-    auto find = [&](int a) {
-        int root = a;
-        while (sets[root] != root)
-            root = sets[root];
-        while (sets[a] != a) {
-            const int next = sets[a];
-            sets[a] = root;
-            a = next;
-        }
-        return root;
-    };
-    auto unite = [&](int a, int b) {
-        if (a >= 0 && b >= 0 && a < sets.size() && b < sets.size()) {
-            a = find(a);
-            b = find(b);
-            if (a == b)
-                return;
-            if (weights[a] < weights[b])
-                std::swap(a, b);
-            sets[b] = a;
-            weights[a] += weights[b];
-        }
-    };
-    for (const auto &v : refs) {
-        const auto r = v.toObject();
-        unite(r["sourceFileId"].toInt(-1), r["targetFileId"].toInt(-1));
-    }
-    for (const auto &v : plan["textureNamingGroups"].toArray()) {
-        const auto ids = v.toObject()["fileIds"].toArray();
-        for (int i = 1; i < ids.size(); ++i)
-            unite(ids[0].toInt(), ids[i].toInt());
-    }
     Selection result;
-    QSet<int> blocked = extra;
-    for (const auto &v : plan["failures"].toArray())
-        if (v.toObject()["sourceFileId"].toInt(-1) >= 0)
-            blocked.insert(v.toObject()["sourceFileId"].toInt());
-    for (int i = 0; i < files.size(); ++i) {
-        const auto f = files[i].toObject();
-        if (f["link"].toBool() || f["coverage"] == "unclassified" ||
-            f["coverage"].toString().startsWith("excluded"))
-            blocked.insert(i);
-    }
-    QMap<int, QStringList> sourceBases;
-    for (const auto &v : refs) {
-        const auto r = v.toObject();
-        for (const auto &base : r["searchBases"].toArray()) {
-            auto &list = sourceBases[r["sourceFileId"].toInt()];
-            if (!list.contains(base.toString()))
-                list << base.toString();
-        }
-    }
-    // Incomplete discovery can hide inbound edges into default asset scopes.
-    // Freeze those scopes as well as the known connected component. A corrupt S
-    // never licenses renaming its undiscovered texture names.
-    QSet<QString> protectedScopes;
-    bool protectSharedTextures = false;
+    // Content editability is local to a source. An unreadable shape or an opaque
+    // database must not freeze every asset reachable through the reference graph.
+    result.blocked = extra;
+    QMap<int, QString> renameBlocks;
+    QSet<QString> fixedPaths, collisionScopes;
     for (const auto &v : plan["failures"].toArray()) {
         const auto failure = v.toObject();
         const int id = failure["sourceFileId"].toInt(-1);
-        if (id < 0 || (failure["code"] != "source-read-failed" &&
-                       failure["code"] != "reference-discovery-incomplete" &&
-                       failure["code"] != "unclassified-reference-field" &&
-                       failure["code"] != "context-unbound"))
+        if (id < 0)
             continue;
-        const QString path = files[id].toObject()["path"].toString(), lower = path.toLower();
-        QString scope = parent(path);
-        if (lower.startsWith("routes/"))
-            scope = path.section('/', 0, 1);
-        else if (lower.startsWith("trains/trainset/"))
-            scope = path.section('/', 0, 2);
-        const bool shared = lower.endsWith(".s") &&
-                            (lower.startsWith("global/") ||
-                             (!lower.startsWith("routes/") && !lower.startsWith("trains/")));
-        protectedScopes.insert(scope.toLower());
-        protectSharedTextures |= shared;
-        for (const auto &base : sourceBases.value(id))
-            protectedScopes.insert(clean(base).toLower());
-    }
-    for (int i = 0; i < files.size(); ++i) {
-        const QString path = files[i].toObject()["path"].toString().toLower();
-        if (protectSharedTextures && (path.contains("/textures/") || path.contains("/terrtex/")))
-            blocked.insert(i);
-        QString at = path;
-        while (!at.isEmpty()) {
-            if (protectedScopes.contains(at)) {
-                blocked.insert(i);
-                break;
-            }
-            at = parent(at);
+        const auto code = failure["code"].toString();
+        if (code == "source-read-failed" || code == "reference-discovery-incomplete" ||
+            code == "include-cycle")
+            result.blocked.insert(id);
+        if (code == "physical-name-conflict") {
+            const auto f = files[id].toObject();
+            renameBlocks[id] = "Unresolved physical name collision";
+            if (f["directory"].toBool())
+                collisionScopes.insert(f["path"].toString());
         }
     }
-    QSet<int> roots;
-    for (int id : blocked)
-        roots.insert(find(id));
-    for (int i = 0; i < files.size(); ++i)
-        if (roots.contains(find(i)))
+    for (int i = 0; i < files.size(); ++i) {
+        const auto f = files[i].toObject();
+        if (f["link"].toBool() || f["coverage"] == "unclassified" ||
+            f["coverage"].toString().startsWith("excluded") ||
+            f["referenceEditPolicy"].toString() == "rename-targets-only")
             result.blocked.insert(i);
-    QSet<QString> protectedAncestors;
-    for (int id : result.blocked) {
-        QString at = files[id].toObject()["path"].toString();
-        while (!at.isEmpty()) {
-            protectedAncestors.insert(at);
-            at = parent(at);
+        if (f["coverage"].toString().startsWith("excluded"))
+            renameBlocks[i] = "Entry excluded from content repair";
+        if (f["link"].toBool()) {
+            renameBlocks[i] = "Link is not relocated";
+            QString at = f["path"].toString();
+            while (!at.isEmpty()) {
+                fixedPaths.insert(at);
+                at = parent(at);
+            }
         }
     }
     for (const auto &v : plan["operations"].toArray()) {
         const auto op = v.toObject();
-        if (op["operation"] == "edit-reference") {
-            if (result.blocked.contains(op["sourceFileId"].toInt(-1))) {
-                auto entry = op;
-                entry["executionReason"] = "Unresolved source reference component";
-                result.skipped.append(entry);
-            }
-            continue;
-        }
+        if (op["operation"] == "edit-reference")
+            continue; // Recompute required edits from the actually selected names.
         const int id = op["fileId"].toInt(-1);
         if (id < 0)
             continue;
-        bool skip = result.blocked.contains(id) || op["readiness"].toString().startsWith("blocked");
-        if (op["operation"] == "rename-directory")
-            for (int blockedId : result.blocked)
-                skip |=
-                    under(files[blockedId].toObject()["path"].toString(), op["from"].toString());
-        if (skip) {
-            auto entry = op;
-            entry["executionReason"] =
-                "Unresolved reference component, unknown source, link, or protected descendant";
-            result.skipped.append(entry);
-        } else
+        const QString from = files[id].toObject()["path"].toString();
+        if (op["readiness"].toString().startsWith("blocked"))
+            renameBlocks[id] = op["readiness"].toString();
+        if (fixedPaths.contains(from))
+            renameBlocks[id] = "Path contains a link that must not be relocated";
+        for (const auto &scope : collisionScopes)
+            if (under(from, scope))
+                renameBlocks[id] = "Entry belongs to an unresolved directory collision";
+        if (!renameBlocks.contains(id))
             result.leaves[id] = leaf(op["to"].toString());
     }
     // Inventory is parent-before-child; map ancestors even when a parent rename
@@ -440,19 +362,77 @@ Selection select(const QJsonObject &plan, const QSet<int> &extra) {
     QMap<QString, int> spellings;
     for (const auto &v : files)
         ++spellings[v.toObject()["path"].toString().toLower()];
-    for (int i = 0; i < files.size(); ++i) {
-        const QString from = files[i].toObject()["path"].toString();
-        const QString base = parent(from),
-                      to = clean((base.isEmpty() ? QString() : mapped(result.paths, base) + '/') +
-                                 result.leaves.value(i, leaf(from)));
-        result.paths[from] = to;
-        if (spellings.value(from.toLower()) == 1)
-            result.paths[QChar(0) + from.toLower()] = to;
+    auto mapPaths = [&]() {
+        result.paths.clear();
+        for (int i = 0; i < files.size(); ++i) {
+            const QString from = files[i].toObject()["path"].toString();
+            const QString base = parent(from),
+                          to = clean((base.isEmpty() ? QString() : mapped(result.paths, base) + '/') +
+                                     result.leaves.value(i, leaf(from)));
+            result.paths[from] = to;
+            if (spellings.value(from.toLower()) == 1)
+                result.paths[QChar(0) + from.toLower()] = to;
+        }
+    };
+    QMap<QString, int> fileIds;
+    for (int i = 0; i < files.size(); ++i)
+        fileIds[files[i].toObject()["path"].toString()] = i;
+    // A noneditable scalar constrains only components explicitly named by that
+    // reference. Default lookup directories may still adopt their runtime case.
+    // Removing a rename can affect other constraints, so repeat to a fixed point.
+    bool changed;
+    do {
+        mapPaths();
+        changed = false;
+        for (const auto &v : refs) {
+            const auto r = v.toObject();
+            const int s = r["sourceFileId"].toInt(-1), t = r["targetFileId"].toInt(-1);
+            if (s < 0 || t < 0 || !result.blocked.contains(s) || r["implicit"].toBool())
+                continue;
+            const auto bases = r["searchBases"].toArray();
+            const int priority = r["selectedSearchBase"].toInt(-1);
+            if (priority < 0 || priority >= bases.size())
+                continue;
+            const QString targetPath = files[t].toObject()["path"].toString();
+            const auto actual = mapped(result.paths, targetPath).split('/');
+            const auto requested = clean(mapped(result.paths, bases[priority].toString()) + '/' +
+                                         r["spelling"].toString()).split('/');
+            // Planned repairs are case-only; unresolved pre-existing mismatches
+            // remain reported. Withhold only renames introducing a mismatching
+            // component, without propagating protection through unrelated edges.
+            QString at = targetPath;
+            for (int component = actual.size() - 1; component >= 0 && !at.isEmpty(); --component) {
+                const int id = fileIds.value(at, -1);
+                if (id >= 0 && result.leaves.contains(id) &&
+                    (component >= requested.size() || actual[component] != requested[component])) {
+                    result.leaves.remove(id);
+                    renameBlocks[id] = "Name required by noneditable reference: " +
+                                       files[s].toObject()["path"].toString() + " / " +
+                                       r["location"].toString();
+                    changed = true;
+                }
+                at = parent(at);
+            }
+        }
+    } while (changed);
+    for (const auto &v : plan["operations"].toArray()) {
+        auto op = v.toObject();
+        if (op["operation"] == "edit-reference") {
+            if (!result.blocked.contains(op["sourceFileId"].toInt(-1)))
+                continue;
+            op["executionReason"] = "Source cannot be rewritten; known references constrain target names";
+        } else {
+            const int id = op["fileId"].toInt(-1);
+            if (!renameBlocks.contains(id))
+                continue;
+            op["executionReason"] = renameBlocks.value(id);
+        }
+        result.skipped.append(op);
     }
     for (const auto &v : refs) {
         const auto r = v.toObject();
         const int s = r["sourceFileId"].toInt(-1), t = r["targetFileId"].toInt(-1);
-        if (s < 0 || t < 0 || result.blocked.contains(s) || result.blocked.contains(t) ||
+        if (s < 0 || t < 0 || result.blocked.contains(s) ||
             r["implicit"].toBool() || r["kind"] == "seasonal-texture-candidate")
             continue;
         const auto bases = r["searchBases"].toArray();

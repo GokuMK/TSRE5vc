@@ -50,6 +50,11 @@ QString coverageOf(const QString &path) {
     const QString ext=QFileInfo(path).suffix().toLower();
     static const QSet<QString> leaves={"ace","dds","wav","raw","png","jpg","jpeg","bmp","tga","thm"};
     static const QSet<QString> other={"exe","dll","pdf","rtf","htm","html","zip","rar","7z","log","bak","bk","asv","dtbak"};
+    // Route databases and item tables contain no filename references. Their
+    // stems are referenced by TRK, but their opaque payloads need no parser.
+    static const QSet<QString> routeData={"tdb","rdb","tit","rit"};
+    if(routeData.contains(ext) || QFileInfo(path).fileName().compare("sigscr.dat",Qt::CaseInsensitive)==0)
+        return "non-reference-data";
     if(leaves.contains(ext))return "leaf-resource";
     if(other.contains(ext))return "non-source-or-backup";
     return "unclassified"; // Includes glTF, material catalogs, databases and extension formats.

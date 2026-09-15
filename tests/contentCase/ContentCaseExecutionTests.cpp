@@ -157,15 +157,58 @@ void runExecutionTests() {
     // A TRK scalar expands into several independent companion references.
     const auto companionRoot = tmp.path() + "/Companions";
     fixture(companionRoot);
+    fixture(companionRoot, "Tutorial Route");
     const auto companionBase = companionRoot + "/routes/Tutorial Route";
-    put(companionBase + "/tutorial route.trk",
+    put(companionBase + "/Tutorial Route.trk",
         "Tr_RouteFile ( FileName ( \"Tutorial Route\" ) )");
     for (const auto &suffix : {".tdb", ".rdb", ".tit", ".rit", ".ref"})
         put(companionBase + "/Tutorial Route" + suffix, "SIMISA@@@@@@@@@@JINX0t1t______\n");
+    put(companionBase + "/Tutorial Route.ref", "Static ( FileName ( Tree.s ) )");
+    put(companionBase + "/world/opaque.custom", "opaque bytes retained");
+    put(companionBase + "/SigScr.DAT", "signal script bytes retained without parsing");
+    put(companionBase + "/ttype.dat", "TrackType ( Rail.sms )");
+    put(companionBase + "/ssource.dat", "SoundSource ( FileName ( Rail.sms ) )");
+    put(companionBase + "/sigcfg.dat", "SignalShapes ( _SignalShape ( Tree.s ) )");
+    put(companionBase + "/speedpost.dat", "SpeedSignShape ( Tree.s )");
+    put(companionBase + "/telepole.dat", "TPoleConfig ( FileName ( Tree.s ) )");
+    put(companionBase + "/sound/rail.sms", "Tr_SMS ( )");
     const auto companionInitial = snapshot(companionRoot);
     const auto companionPlan = ContentCase::scan(companionRoot, error);
     check(ContentCase::verifyReferences(companionPlan, companionPlan, {}, error),
           "unchanged route companion references verify independently: " + error);
+    int databaseCount = 0;
+    for (const auto &value : companionPlan["files"].toArray()) {
+        const auto file = value.toObject();
+        const auto ext = QFileInfo(file["path"].toString()).suffix();
+        if (QStringList{"tdb", "rdb", "tit", "rit"}.contains(ext)) {
+            ++databaseCount;
+            check(file["coverage"] == "non-reference-data",
+                  "route databases are explicitly classified as non-reference data");
+        }
+    }
+    check(databaseCount == 4, "all route database formats covered");
+    bool signalScriptCovered = false;
+    for (const auto &value : companionPlan["files"].toArray()) {
+        const auto file = value.toObject();
+        if (file["path"].toString().endsWith("/sigscr.dat", Qt::CaseInsensitive))
+            signalScriptCovered = file["coverage"] == "non-reference-data";
+    }
+    check(signalScriptCovered, "signal scripts are explicitly classified as non-reference data");
+
+    int catalogCount = 0;
+    for (const auto &value : companionPlan["files"].toArray()) {
+        const auto file = value.toObject();
+        const auto name = QFileInfo(file["path"].toString()).fileName();
+        if (!QStringList{"ttype.dat", "ssource.dat", "sigcfg.dat", "speedpost.dat", "telepole.dat"}.contains(name))
+            continue;
+        ++catalogCount;
+        bool found = false;
+        for (const auto &edge : companionPlan["references"].toArray())
+            found |= edge.toObject()["sourceFileId"] == file["id"];
+        check(file["coverage"] == "reference-subset" && found,
+              "reference-bearing DAT catalog still scanned: " + name);
+    }
+    check(catalogCount == 5, "all explicitly reference-bearing catalogs covered");
     int companionCount = 0;
     const auto companionRefs = companionPlan["references"].toArray();
     for (int i = 0; i < companionRefs.size(); ++i) {
@@ -185,8 +228,17 @@ void runExecutionTests() {
     check(companionCount == 4, "all four route companion suffixes covered");
     const auto companionResult = ContentCase::execute(
         companionRoot, {}, tmp.path() + "/CompanionJournal", error);
-    check(!companionResult.isEmpty() && companionResult["actionsApplied"].toInt() > 0,
-          "conversion with route companions passes postverification: " + error);
+    check(!companionResult.isEmpty() && companionResult["status"] == "complete",
+          "conversion with route companions passes postverification: " + error +
+              QString::fromUtf8(QJsonDocument(companionResult).toJson()));
+    check(QFileInfo::exists(companionRoot + "/ROUTES/TUTORIAL ROUTE/WORLD/test.w") &&
+              QFileInfo::exists(companionRoot + "/ROUTES/TUTORIAL ROUTE/SHAPES/Tree.s") &&
+              get(companionRoot + "/ROUTES/TUTORIAL ROUTE/WORLD/opaque.custom") ==
+                  "opaque bytes retained",
+          "opaque route companions and custom files do not block runtime directories");
+    check(get(companionRoot + "/ROUTES/TUTORIAL ROUTE/sigscr.dat") ==
+              "signal script bytes retained without parsing",
+          "direct-access signal script name repaired without rewriting bytes");
     check(ContentCase::rollback(companionRoot, companionResult["journal"].toString(), error),
           "route companion rollback: " + error);
     check(snapshot(companionRoot) == companionInitial, "route companion rollback exact");
@@ -372,17 +424,66 @@ void runExecutionTests() {
           "CLI direct repair needs no exported plan");
     check(snapshot(cliRoot) == cliApplied,
           "direct and saved-plan execution produce identical output");
+    const auto frozenRoot = tmp.path() + "/Frozen";
+    fixture(frozenRoot);
+    const auto frozenEnv = QByteArray("world ( terrain_texslot ( Sky.ace ) ) )");
+    put(frozenRoot + "/routes/RouteOne/envfiles/Test.env", frozenEnv);
+    put(frozenRoot + "/routes/RouteOne/envfiles/textures/SKY.ace", "sky texture");
+    const auto frozenInitial = snapshot(frozenRoot);
+    const auto frozen = ContentCase::execute(frozenRoot, {}, tmp.path() + "/FrozenJournal", error);
+    check(!frozen.isEmpty() && frozen["status"] == "complete",
+          "recovered noneditable reference permits target-only repairs: " + error +
+              QString::fromUtf8(QJsonDocument(frozen).toJson()));
+    check(get(frozenRoot + "/ROUTES/ROUTEONE/ENVFILES/Test.env") == frozenEnv &&
+              get(frozenRoot + "/ROUTES/ROUTEONE/ENVFILES/TEXTURES/Sky.ace") == "sky texture",
+          "frozen source bytes preserved while runtime directories and target spelling change");
+    check(ContentCase::rollback(frozenRoot, frozen["journal"].toString(), error) &&
+              snapshot(frozenRoot) == frozenInitial, "frozen-source rollback");
+
+    // Case-sensitive filesystems can contain both spellings: retain both and
+    // report the collision, while still repairing independent directory names.
+    const auto collisionRoot = tmp.path() + "/Collision";
+    fixture(collisionRoot);
+    const auto collisionDir = collisionRoot + "/routes/RouteOne/shapes/";
+    if (!QFileInfo::exists(collisionDir + "Tree.s")) {
+        put(collisionDir + "Tree.s", "different shape bytes");
+        const auto collisionInitial = snapshot(collisionRoot);
+        const auto collision = ContentCase::execute(
+            collisionRoot, {}, tmp.path() + "/CollisionJournal", error);
+        check(!collision.isEmpty() && collision["status"] == "partial",
+              "collision isolated without global abort: " + error);
+        check(get(collisionRoot + "/ROUTES/ROUTEONE/SHAPES/TREE.s") == shape &&
+                  get(collisionRoot + "/ROUTES/ROUTEONE/SHAPES/Tree.s") == "different shape bytes",
+              "colliding files are never merged or overwritten");
+        check(ContentCase::rollback(collisionRoot, collision["journal"].toString(), error) &&
+                  snapshot(collisionRoot) == collisionInitial, "collision rollback exact");
+    }
+
     const auto partialRoot = tmp.path() + "/Partial";
     fixture(partialRoot);
     fixture(partialRoot, "Broken");
+    put(partialRoot + "/global/shapes/GLOBALTREE.s", shape);
+    for (const auto &route : {QString("RouteOne"), QString("Broken")})
+        put(partialRoot + "/routes/" + route + "/world/shared.w",
+            "Tr_WorldFile ( TrackObj ( FileName ( GlobalTree.s ) ) )");
     put(partialRoot + "/routes/Broken/shapes/TREE.s", "broken shape");
+    const auto partialInitial = snapshot(partialRoot);
     const auto broken = get(partialRoot + "/routes/Broken/shapes/TREE.s");
     const auto partial =
         ContentCase::execute(partialRoot, {}, tmp.path() + "/PartialJournal", error);
     check(!partial.isEmpty() && partial["status"] == "partial",
-          "broken component isolation: " + error);
-    check(get(partialRoot + "/routes/Broken/shapes/TREE.s") == broken,
-          "broken component left untouched");
-    check(QFileInfo::exists(partialRoot + "/routes/ROUTEONE/SHAPES/Tree.s"),
-          "independent route repaired despite isolated error");
+          "broken source isolation: " + error);
+    check(get(partialRoot + "/ROUTES/BROKEN/SHAPES/Tree.s") == broken,
+          "broken source bytes retained while its referenced filename is repaired");
+    check(QFileInfo::exists(partialRoot + "/ROUTES/ROUTEONE/SHAPES/Tree.s") &&
+              QFileInfo::exists(partialRoot + "/ROUTES/BROKEN/WORLD/shared.w") &&
+              QFileInfo::exists(partialRoot + "/GLOBAL/SHAPES/GlobalTree.s"),
+          "shared assets and both routes repaired despite isolated error");
+    check(partial["remainingOperations"].toInt() == 0 &&
+              partial["summary"].toObject()["failedCases"].toInt() == 1 &&
+              partial["skippedOperations"].toArray().isEmpty(),
+          "unreadable shape stays an error without withholding valid repairs");
+    check(ContentCase::rollback(partialRoot, partial["journal"].toString(), error),
+          "partial conversion rollback: " + error);
+    check(snapshot(partialRoot) == partialInitial, "partial rollback restores broken file and paths");
 }
