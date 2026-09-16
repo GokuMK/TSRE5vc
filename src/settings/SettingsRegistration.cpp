@@ -369,7 +369,7 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
             .withNameId(
                 //% "Terrain elevation source"
                 QT_TRID_NOOP("settings.geo.elevation.source.name")).withDescriptionId(
-                //% "Source for manual and automatic terrain elevation. Geoportal downloads 1 m data and reports HGT fallback."
+                //% "Source for manual and automatic terrain elevation. Downloads elevation data and reports HGT fallback."
                 QT_TRID_NOOP("settings.geo.elevation.source.description"))
             .withOptions(choices({{"",
                 //% "Local HGT files"
@@ -379,7 +379,13 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 QT_TRID_NOOP("settings.geo.elevation.source.kron86")},
                 {"pl.gugik.nmt1.evrf2007",
                 //% "Geoportal NMT 1 m - EVRF2007 (ASCII Grid)"
-                QT_TRID_NOOP("settings.geo.elevation.source.evrf2007")}}))
+                QT_TRID_NOOP("settings.geo.elevation.source.evrf2007")},
+                {"cz.cuzk.dmr4g",
+                //% "Czechia - CUZK DMR 4G (5 m, EVRS)"
+                QT_TRID_NOOP("settings.geo.elevation.source.dmr4g")},
+                {"cz.cuzk.dmr5g",
+                //% "Czechia - CUZK DMR 5G (2 m, Bpv)"
+                QT_TRID_NOOP("settings.geo.elevation.source.dmr5g")}}))
             .inGroup("maps").inSubgroup("geodata"),
         "", "", "Terrain elevation", false, "generation-time");
     ADD(SettingsDefinition::string("core.startup.route", "")

@@ -45,7 +45,7 @@ int TsreTests::runSettingsSuite(bool verbose) {
     const auto *elevationSource = manager.registry().definition("geo.elevation.source");
     check(elevationSource && elevationSource->type == SettingType::Enum
           && elevationSource->defaultValue.toString().isEmpty()
-          && elevationSource->options.size() == 3 && elevationSource->apply == "dynamic",
+          && elevationSource->options.size() == 5 && elevationSource->apply == "dynamic",
           "elevation-source-defaults-to-hgt-and-applies-on-next-generation");
     const SettingsDefinition *language =
             manager.registry().definition("core.interface.language");

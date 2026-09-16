@@ -1,0 +1,313 @@
+{
+ "extent": {
+  "ymin": -1227414.1200000001,
+  "xmin": -904703.59999999998,
+  "ymax": -935118.12000000011,
+  "xmax": -431605.59999999998,
+  "spatialReference": {
+   "latestVcsWkid": 8357,
+   "latestWkid": 5514,
+   "wkid": 102067,
+   "vcsWkid": 8357
+  }
+ },
+ "blockWidth": 2048,
+ "mosaicOperator": "First",
+ "serviceSourceType": "esriImageServiceSourceTypeMosaicDataset",
+ "hasMultidimensions": false,
+ "maxImageWidth": 15000,
+ "maxRecordCount": 1000,
+ "meanValues": [448.15581519675328],
+ "hasColormap": false,
+ "compressionType": "None",
+ "defaultCompressionQuality": 75,
+ "maxValues": [1603.5799560546875],
+ "hasHistograms": true,
+ "datasetFormat": "AMD",
+ "maxImageHeight": 4100,
+ "sortField": "",
+ "bandNames": ["Band_1"],
+ "spatialReference": {
+  "latestVcsWkid": 8357,
+  "latestWkid": 5514,
+  "wkid": 102067,
+  "vcsWkid": 8357
+ },
+ "fullExtent": {
+  "ymin": -1227414.1200000001,
+  "xmin": -904703.59999999998,
+  "ymax": -935118.12000000011,
+  "xmax": -431605.59999999998,
+  "spatialReference": {
+   "latestVcsWkid": 8357,
+   "latestWkid": 5514,
+   "wkid": 102067,
+   "vcsWkid": 8357
+  }
+ },
+ "bandCount": 1,
+ "rasterFunctionInfos": [
+  {
+   "help": "",
+   "name": "GrayscaleHillshade",
+   "description": "A raster function template."
+  },
+  {
+   "help": "",
+   "name": "AspectRGBMap",
+   "description": "A raster function template."
+  },
+  {
+   "help": "",
+   "name": "GrayscaleHillshadeZ10",
+   "description": "A raster function template."
+  },
+  {
+   "help": "",
+   "name": "GrayscaleHillshadeZ20",
+   "description": "A raster function template."
+  },
+  {
+   "help": "",
+   "name": "SlopeRGBMap2",
+   "description": "A raster function template."
+  },
+  {
+   "help": "",
+   "name": "SlopeRGBMap",
+   "description": "A raster function template."
+  },
+  {
+   "help": "",
+   "name": "TintedHillshadeContinuous",
+   "description": "A raster function template."
+  },
+  {
+   "help": "",
+   "name": "None",
+   "description": ""
+  }
+ ],
+ "supportsStatistics": true,
+ "sortableFields": "MinPS,MaxPS,LowPS,HighPS,CenterX,CenterY,ZOrder,Shape_Length,Shape_Area",
+ "minValues": [9.7600002288818359],
+ "allowRasterFunction": true,
+ "allowComputeTiePoints": false,
+ "serviceDataType": "esriImageServiceDataTypeGeneric",
+ "supportsAdvancedQueries": true,
+ "maxDownloadSizeLimit": 2048,
+ "currentVersion": 12,
+ "heightModelInfo": {
+  "vertCRS": "Baltic_1957_height",
+  "heightModel": "gravity_related_height",
+  "heightUnit": "meter"
+ },
+ "sortValue": null,
+ "objectIdField": "OBJECTID",
+ "blockHeight": 256,
+ "initialExtent": {
+  "ymin": -1227414.1200000001,
+  "xmin": -904703.59999999998,
+  "ymax": -935118.12000000011,
+  "xmax": -431605.59999999998,
+  "spatialReference": {
+   "latestVcsWkid": 8357,
+   "latestWkid": 5514,
+   "wkid": 102067,
+   "vcsWkid": 8357
+  }
+ },
+ "pixelSizeX": 2,
+ "pixelSizeY": 2,
+ "defaultMosaicMethod": "Northwest",
+ "name": "dmr5g",
+ "allowedMosaicMethods": "NorthWest,Center,LockRaster,ByAttribute,Nadir,Viewpoint,Seamline,None",
+ "maxDownloadImageCount": 20,
+ "fields": [
+  {
+   "domain": null,
+   "name": "OBJECTID",
+   "alias": "OBJECTID",
+   "type": "esriFieldTypeOID"
+  },
+  {
+   "domain": null,
+   "name": "Shape",
+   "alias": "Shape",
+   "type": "esriFieldTypeGeometry"
+  },
+  {
+   "domain": null,
+   "name": "Name",
+   "length": 200,
+   "alias": "Name",
+   "type": "esriFieldTypeString"
+  },
+  {
+   "domain": null,
+   "name": "MinPS",
+   "alias": "MinPS",
+   "type": "esriFieldTypeDouble"
+  },
+  {
+   "domain": null,
+   "name": "MaxPS",
+   "alias": "MaxPS",
+   "type": "esriFieldTypeDouble"
+  },
+  {
+   "domain": null,
+   "name": "LowPS",
+   "alias": "LowPS",
+   "type": "esriFieldTypeDouble"
+  },
+  {
+   "domain": null,
+   "name": "HighPS",
+   "alias": "HighPS",
+   "type": "esriFieldTypeDouble"
+  },
+  {
+   "domain": {
+    "splitPolicy": "esriSPTDefaultValue",
+    "name": "MosaicCatalogItemCategoryDomain",
+    "description": "Catalog item categories.",
+    "type": "codedValue",
+    "codedValues": [
+     {
+      "code": 0,
+      "name": "Unknown"
+     },
+     {
+      "code": 1,
+      "name": "Primary"
+     },
+     {
+      "code": 2,
+      "name": "Overview"
+     },
+     {
+      "code": 3,
+      "name": "Unprocessed Overview"
+     },
+     {
+      "code": 4,
+      "name": "Partial Overview"
+     },
+     {
+      "code": 5,
+      "name": "Inactive"
+     },
+     {
+      "code": 253,
+      "name": "Uploaded"
+     },
+     {
+      "code": 254,
+      "name": "Incomplete"
+     },
+     {
+      "code": 255,
+      "name": "Custom"
+     }
+    ],
+    "mergePolicy": "esriMPTDefaultValue"
+   },
+   "name": "Category",
+   "alias": "Category",
+   "type": "esriFieldTypeInteger"
+  },
+  {
+   "domain": null,
+   "name": "Tag",
+   "length": 100,
+   "alias": "Tag",
+   "type": "esriFieldTypeString"
+  },
+  {
+   "domain": null,
+   "name": "GroupName",
+   "length": 100,
+   "alias": "GroupName",
+   "type": "esriFieldTypeString"
+  },
+  {
+   "domain": null,
+   "name": "ProductName",
+   "length": 100,
+   "alias": "ProductName",
+   "type": "esriFieldTypeString"
+  },
+  {
+   "domain": null,
+   "name": "CenterX",
+   "alias": "CenterX",
+   "type": "esriFieldTypeDouble"
+  },
+  {
+   "domain": null,
+   "name": "CenterY",
+   "alias": "CenterY",
+   "type": "esriFieldTypeDouble"
+  },
+  {
+   "domain": null,
+   "name": "ZOrder",
+   "alias": "ZOrder",
+   "type": "esriFieldTypeInteger"
+  },
+  {
+   "domain": null,
+   "name": "Shape_Length",
+   "alias": "Shape_Length",
+   "type": "esriFieldTypeDouble"
+  },
+  {
+   "domain": null,
+   "name": "Shape_Area",
+   "alias": "Shape_Area",
+   "type": "esriFieldTypeDouble"
+  }
+ ],
+ "allowAnalysis": true,
+ "hasRasterAttributeTable": false,
+ "useStandardizedQueries": true,
+ "description": "Digitální model reliefu České republiky 5. generace (DMR 5G) představuje zobrazení přirozeného nebo lidskou činností upraveného zemského povrchu v digitálním tvaru ve formě výšek diskrétních bodů v nepravidelné trojúhelníkové síti (TIN) bodů o souřadnicích X,Y,H, kde H reprezentuje nadmořskou výšku ve výškovém referenčním systému Balt po vyrovnání (Bpv) s úplnou střední chybou výšky 0,18 m v odkrytém terénu a 0,3 m v zalesněném terénu. Model vznikl z dat pořízených metodou leteckého laserového skenování výškopisu území České republiky v letech 2009 až 2013. DMR 5G je určen k analýzám terénních poměrů lokálního charakteru a rozsahu, např. při projektování pozemkových úprav, plánování a projektování dopravních, vodohospodářských a pozemních staveb, modelování přírodních jevů lokálního charakteru, apod. DMR 5G je základní zdrojovou databází pro tvorbu vrstevnic určených pro mapy velkých měřítek a počítačové vizualizace výškopisu v územně orientovaných informačních systémech vysoké úrovně podrobnosti.",
+ "pixelType": "F32",
+ "meanPixelSize": 2,
+ "exportTilesAllowed": false,
+ "editFieldsInfo": null,
+ "rasterTypeInfos": [{
+  "help": "",
+  "name": "Raster Dataset",
+  "description": "Supports all ArcGIS Raster Datasets"
+ }],
+ "defaultResamplingMethod": "Bilinear",
+ "itemAccess": false,
+ "minScale": 0,
+ "serviceProperties": "<ImageServer><ImageServiceProperties><MosaicMethod>NorthWest<\/MosaicMethod><MosaicOperator>First<\/MosaicOperator><SortAscending>true<\/SortAscending><LockImageID><\/LockImageID><TileOrderField>Name<\/TileOrderField><TileOrderBase>0<\/TileOrderBase><AvgImageSpacingX>600,000000<\/AvgImageSpacingX><AvgImageSpacingY>300,000000<\/AvgImageSpacingY><ViewPointX>0.0<\/ViewPointX><ViewPointY>0.0<\/ViewPointY><ViewPointDefShiftX>0.0<\/ViewPointDefShiftX><ViewPointDefShiftY>0.0<\/ViewPointDefShiftY><CompressionMethod>None<\/CompressionMethod><CompressionQuality>75<\/CompressionQuality><CompressionTolerance>0,010000<\/CompressionTolerance><SamplingMethod>Bilinear<\/SamplingMethod><\/ImageServiceProperties><\/ImageServer>",
+ "advancedQueryCapabilities": {
+  "supportsStatistics": true,
+  "supportsSqlExpression": true,
+  "supportsOrderBy": true,
+  "useStandardizedQueries": true,
+  "supportsPagination": true,
+  "supportsDistinct": true
+ },
+ "capabilities": "Catalog,Mensuration,Image,Metadata",
+ "maxScale": 0,
+ "stdvValues": [180.49231871602635],
+ "allowedFields": "Name,MinPS,MaxPS,LowPS,HighPS,Tag,GroupName,ProductName,CenterX,CenterY,ZOrder,Shape_Length,Shape_Area",
+ "minPixelSize": 0,
+ "resampling": false,
+ "sortAscending": true,
+ "maxMosaicImageCount": 20,
+ "inspectionCapabilities": "",
+ "maxPixelSize": 0,
+ "uncompressedSize": 138284653008,
+ "serviceDescription": "Digitální model reliefu České republiky 5. generace (DMR 5G) představuje zobrazení přirozeného nebo lidskou činností upraveného zemského povrchu v digitálním tvaru ve formě výšek diskrétních bodů v nepravidelné trojúhelníkové síti (TIN) bodů o souřadnicích X,Y,H, kde H reprezentuje nadmořskou výšku ve výškovém referenčním systému Balt po vyrovnání (Bpv) s úplnou střední chybou výšky 0,18 m v odkrytém terénu a 0,3 m v zalesněném terénu. Model vznikl z dat pořízených metodou leteckého laserového skenování výškopisu území České republiky v letech 2009 až 2013. DMR 5G je určen k analýzám terénních poměrů lokálního charakteru a rozsahu, např. při projektování pozemkových úprav, plánování a projektování dopravních, vodohospodářských a pozemních staveb, modelování přírodních jevů lokálního charakteru, apod. DMR 5G je základní zdrojovou databází pro tvorbu vrstevnic určených pro mapy velkých měřítek a počítačové vizualizace výškopisu v územně orientovaných informačních systémech vysoké úrovně podrobnosti.",
+ "allowCopy": true,
+ "copyrightText": "© ČÚZK",
+ "mensurationCapabilities": "",
+ "ownershipBasedAccessControlForRasters": null
+}

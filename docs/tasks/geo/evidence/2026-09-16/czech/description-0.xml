@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wcs:CoverageDescriptions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xmlns="http://www.opengis.net/gml/3.2"
+ xmlns:wcs="http://www.opengis.net/wcs/2.0"
+ xmlns:ows="http://www.opengis.net/ows/2.0"
+ xmlns:gml="http://www.opengis.net/gml/3.2"
+ xmlns:gmlcov="http://www.opengis.net/gmlcov/1.0"
+ xmlns:swe="http://www.opengis.net/swe/2.0"
+ xmlns:crs="http://www.opengis.net/wcs/service-extension/crs/1.0"
+ xmlns:xlink="http://www.w3.org/1999/xlink"
+ xsi:schemaLocation="http://www.opengis.net/wcs/2.0 http://schemas.opengis.net/wcs/2.0/wcsDescribeCoverage.xsd http://www.opengis.net/swe/2.0 http://schemas.opengis.net/sweCommon/2.0/swe.xsd">
+  <wcs:CoverageDescription>     <gml:boundedBy>
+      <gml:Envelope srsName="http://www.opengis.net/def/crs/EPSG/0/3045" axisLabels="y x" uomLabels="Meter Meter" srsDimension="2">
+        <gml:lowerCorner>5375998.94293634221 292001.732277163304</gml:lowerCorner>
+        <gml:upperCorner>5657998.94293634221 780001.732277163304</gml:upperCorner>
+      </gml:Envelope>
+   </gml:boundedBy>
+    <wcs:CoverageId>MD_LAS</wcs:CoverageId>
+    <gml:domainSet>
+      <gml:RectifiedGrid gml:id="grid_MD_LAS" dimension="2">
+        <gml:limits>
+          <gml:GridEnvelope>
+            <gml:low>0 0</gml:low>
+            <gml:high>56399 97599</gml:high>
+          </gml:GridEnvelope>
+        </gml:limits>
+        <gml:axisLabels>y x</gml:axisLabels>
+        <gml:origin>
+          <gml:Point gml:id="grid_origin_MD_LAS" srsName="http://www.opengis.net/def/crs/EPSG/0/3045">
+            <gml:pos>5657996.44293634221 292004.232277163304</gml:pos>
+          </gml:Point>
+        </gml:origin>
+          <gml:offsetVector srsName="EPSG:3045" srsDimension="2">-5 0</gml:offsetVector>
+          <gml:offsetVector srsName="EPSG:3045" srsDimension="2">0 5</gml:offsetVector>
+      </gml:RectifiedGrid>
+    </gml:domainSet>
+    <gmlcov:rangeType>
+      <swe:DataRecord>
+        <swe:field name="Band_1">
+          <swe:Quantity>
+            <swe:description>Band_1</swe:description>
+            <swe:uom code="unknown"/>
+            <swe:constraint>
+              <swe:AllowedValues>
+                <swe:interval>9.921881 1603.418823</swe:interval>
+              </swe:AllowedValues>
+            </swe:constraint>
+          </swe:Quantity>
+        </swe:field>
+      </swe:DataRecord>
+    </gmlcov:rangeType>
+    <wcs:ServiceParameters>
+      <wcs:CoverageSubtype>RectifiedGridCoverage</wcs:CoverageSubtype>
+      <wcs:nativeFormat>image/tiff</wcs:nativeFormat>
+    </wcs:ServiceParameters>
+  </wcs:CoverageDescription>
+</wcs:CoverageDescriptions>

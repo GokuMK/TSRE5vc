@@ -24,7 +24,8 @@ int main(int argc, char **argv) {
         return 2;
     }
     QString error;
-    const auto catalog = Elevation::datasets(error);
+    auto catalog = Elevation::datasets(error);
+    catalog.removeIf([](const Elevation::Dataset &d) { return !d.id.startsWith("pl.gugik."); });
     if (catalog.size() != 2) { std::cerr << error.toStdString(); return 2; }
     QJsonObject document{{"startedUtc",QDateTime::currentDateTimeUtc().toString(Qt::ISODate)},
         {"latitude",52.0},{"longitude",19.0},

@@ -31,7 +31,16 @@ std::array<double,4> bounds(const Dataset &d, Block b) {
     return {{left, top-span, left+span, top}};
 }
 bool decode(const Dataset &d, const QByteArray &bytes, Raster &r, QString &error) {
-    return d.format == "image/tiff" ? readGeoTiff(bytes,r,error) : readAsciiGrid(bytes,d.epsg,r,error);
+    if (d.provider == "arcgis-imageserver") {
+        const auto serviceError = QJsonDocument::fromJson(bytes).object().value("error").toObject();
+        if (!serviceError.isEmpty()) {
+            error = QStringLiteral("ImageServer error %1: %2").arg(serviceError.value("code").toInt())
+                .arg(serviceError.value("message").toString().left(512));
+            return false;
+        }
+        return readGeoTiff(bytes,r,error);
+    }
+    return d.format == "image/tiff" ? readWcsTiff(bytes,d.epsg,r,error) : readAsciiGrid(bytes,d.epsg,r,error);
 }
 bool validate(const Dataset &d, Block b, const Raster &r, QString &error) {
     const auto box = bounds(d,b);
@@ -40,7 +49,7 @@ bool validate(const Dataset &d, Block b, const Raster &r, QString &error) {
             || std::abs(r.transform[1]-d.resolution) > 1e-8
             || std::abs(r.transform[5]+d.resolution) > 1e-8
             || r.transform[2] != 0 || r.transform[4] != 0) {
-        error = QStringLiteral("Service raster does not match the requested native-resolution grid");
+        error = QStringLiteral("Service raster does not match the requested elevation grid");
         return false;
     }
     return true;
@@ -95,9 +104,9 @@ public:
     virtual QMap<Block,QString> acquire(const QVector<Block> &blocks,
         std::atomic_bool &cancel, const Progress &progress) = 0;
 };
-class WcsProvider final : public RasterProvider {
+class CachedRasterProvider : public RasterProvider {
 public:
-    WcsProvider(QString path, Dataset data, Report &r)
+    CachedRasterProvider(QString path, Dataset data, Report &r)
         : root(std::move(path)), dataset(std::move(data)), report(r) {}
     QMap<Block,QString> acquire(const QVector<Block> &blocks, std::atomic_bool &cancel,
                                const Progress &progress) override {
@@ -107,7 +116,7 @@ public:
         bool stopNetwork = false;
         const auto notify = [&](int count, const QString &activity) {
             if (progress) progress(count,blocks.size(),
-                QStringLiteral("%1 1 m elevation blocks: %2/%3").arg(activity).arg(count).arg(blocks.size()));
+                QStringLiteral("%1 elevation blocks: %2/%3").arg(activity).arg(count).arg(blocks.size()));
         };
         notify(0,QStringLiteral("Checking"));
         // Resolve every cache hit even if later HTTP requests fail.
@@ -126,7 +135,7 @@ public:
             }
             QVector<QUrl> urls;
             const int count = int(std::min(qsizetype(dataset.concurrentRequests),missing.size()-first));
-            for (int i=0; i<count; ++i) urls.push_back(coverageUrl(dataset,missing[first+i]));
+            for (int i=0; i<count; ++i) urls.push_back(requestUrl(missing[first+i]));
             const auto responses = downloadWave(urls,cancel,[&](int finished) {
                 notify(done+finished,QStringLiteral("Completed"));
             });
@@ -171,7 +180,7 @@ private:
         ++report.downloads;
         QJsonObject metadata;
         metadata["dataset"] = dataset.id;
-        metadata["url"] = coverageUrl(dataset,b).toString();
+        metadata["url"] = requestUrl(b).toString();
         metadata["retrievedUtc"] = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
         metadata["verticalDatum"] = dataset.verticalDatum;
         metadata["sha256"] = QString::fromLatin1(QCryptographicHash::hash(bytes,QCryptographicHash::Sha256).toHex());
@@ -182,8 +191,23 @@ private:
         return path;
     }
     QString root;
+protected:
+    virtual QUrl requestUrl(Block b) const = 0;
     Dataset dataset;
+private:
     Report &report;
+};
+class WcsProvider final : public CachedRasterProvider {
+public:
+    using CachedRasterProvider::CachedRasterProvider;
+private:
+    QUrl requestUrl(Block b) const override { return coverageUrl(dataset,b); }
+};
+class ArcGisImageServerProvider final : public CachedRasterProvider {
+public:
+    using CachedRasterProvider::CachedRasterProvider;
+private:
+    QUrl requestUrl(Block b) const override { return imageServerUrl(dataset,b); }
 };
 
 class RasterSource final : public Source {
@@ -243,6 +267,7 @@ QVector<Dataset> datasets(QString &error) {
         Dataset d;
         d.definition = entry.toObject(); const auto &o = d.definition;
         d.id = o.value("id").toString(); d.name = o.value("name").toString();
+        d.provider = o.value("provider").toString();
         d.endpoint = QUrl(o.value("endpoint").toString()); d.coverage = o.value("coverage").toString();
         d.axisX = o.value("axisX").toString(); d.axisY = o.value("axisY").toString();
         d.format = o.value("format").toString(); d.epsg = o.value("crs").toInt();
@@ -255,13 +280,16 @@ QVector<Dataset> datasets(QString &error) {
         d.minX = box.at(0).toDouble(); d.minY = box.at(1).toDouble();
         d.maxX = box.at(2).toDouble(); d.maxY = box.at(3).toDouble();
         d.zeroIsNoData = o.value("zeroIsNoData").toBool();
+        const bool wcs = d.provider == "wcs-2.0.1";
+        const bool arcgis = d.provider == "arcgis-imageserver";
         if (d.id.isEmpty() || ids.contains(d.id) || d.id.contains('/') || d.id.contains('\\') || d.id.contains("..")
-                || o.value("provider").toString() != "wcs-2.0.1" || d.endpoint.scheme() != "https"
-                || d.endpoint.host().isEmpty() || d.coverage.isEmpty() || d.resolution <= 0
-                || d.axisX.isEmpty() || d.axisY.isEmpty() || d.axisX == d.axisY
+                || (!wcs && !arcgis) || d.endpoint.scheme() != "https"
+                || d.endpoint.host().isEmpty() || d.resolution <= 0
+                || (wcs && (d.coverage.isEmpty() || d.axisX.isEmpty() || d.axisY.isEmpty() || d.axisX == d.axisY))
+                || (arcgis && d.format != "image/tiff")
                 || d.blockPixels < 16 || d.blockPixels > 1024
                 || d.concurrentRequests < 1 || d.concurrentRequests > 4
-                || d.maxX <= d.minX || d.maxY <= d.minY || (d.epsg != 2180 && d.epsg != 4326)
+                || d.maxX <= d.minX || d.maxY <= d.minY || !supportedCrs(d.epsg)
                 || (d.format != "image/tiff" && d.format != "image/x-aaigrid")) {
             error = QStringLiteral("Invalid elevation dataset definition: %1").arg(d.id); return {};
         }
@@ -283,6 +311,27 @@ QUrl coverageUrl(const Dataset &d, Block b) {
     query.addQueryItem("SUBSET",QStringLiteral("%1(%2,%3)").arg(d.axisY,decimal(box[1]),decimal(box[3])));
     query.addQueryItem("SCALESIZE",QStringLiteral("%1(%3),%2(%3)").arg(d.axisX,d.axisY).arg(d.blockPixels+2));
     query.addQueryItem("FORMAT",d.format);
+    url.setQuery(query); return url;
+}
+QUrl imageServerUrl(const Dataset &d, Block b) {
+    QUrl url = d.endpoint;
+    QString path = url.path();
+    if (path.endsWith('/')) path.chop(1);
+    url.setPath(path+"/exportImage");
+    QUrlQuery query(url);
+    const auto box = bounds(d,b);
+    query.addQueryItem("f","image");
+    query.addQueryItem("bbox",QStringLiteral("%1,%2,%3,%4").arg(decimal(box[0]),decimal(box[1]),decimal(box[2]),decimal(box[3])));
+    query.addQueryItem("bboxSR",QString::number(d.epsg));
+    query.addQueryItem("imageSR",QString::number(d.epsg));
+    query.addQueryItem("size",QStringLiteral("%1,%1").arg(d.blockPixels+2));
+    query.addQueryItem("adjustAspectRatio","false");
+    query.addQueryItem("format","tiff");
+    query.addQueryItem("pixelType","F32");
+    query.addQueryItem("compression","None");
+    query.addQueryItem("bandIds","0");
+    query.addQueryItem("renderingRule",QStringLiteral(R"({"rasterFunction":"None"})"));
+    query.addQueryItem("interpolation","RSP_BilinearInterpolation");
     url.setQuery(query); return url;
 }
 QString cacheRelativePath(const Dataset &d, Block b) {
@@ -318,8 +367,13 @@ Result generate(const QString &root, const QString &id, const QVector<Point> &po
     if (!id.isEmpty()) {
         const auto catalog = datasets(result.error);
         if (!result.error.isEmpty()) return result;
-        for (const auto &d : catalog) if (d.id == id)
-            primary = std::make_unique<RasterSource>(d,std::make_unique<WcsProvider>(root,d,result.report),result.report);
+        for (const auto &d : catalog) if (d.id == id) {
+            std::unique_ptr<RasterProvider> provider;
+            if (d.provider == "arcgis-imageserver")
+                provider = std::make_unique<ArcGisImageServerProvider>(root,d,result.report);
+            else provider = std::make_unique<WcsProvider>(root,d,result.report);
+            primary = std::make_unique<RasterSource>(d,std::move(provider),result.report);
+        }
         if (!primary) { result.error = QStringLiteral("Unknown elevation dataset: %1").arg(id); return result; }
         if (!primary->prepare(points,cancel,progress,result.error)) {
             result.cancelled = cancel.load(); return result;

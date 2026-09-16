@@ -2,6 +2,7 @@
 
 #include <QMap>
 #include <QtEndian>
+#include <QXmlStreamReader>
 #include <algorithm>
 #include <charconv>
 #include <cmath>
@@ -75,13 +76,22 @@ bool number(QByteArrayView token, double &value) {
 }
 }
 
+bool supportedCrs(int epsg) {
+    return epsg == 2180 || epsg == 4326 || epsg == 3045 || epsg == 25833;
+}
+
 bool project(Point p, int epsg, XY &out) {
     if (!std::isfinite(p.latitude) || !std::isfinite(p.longitude)
             || p.latitude < -90 || p.latitude > 90
             || p.longitude < -180 || p.longitude > 180) return false;
     if (epsg == 4326) { out = {p.longitude, p.latitude}; return true; }
-    if (epsg != 2180 || p.latitude < 48 || p.latitude > 57
-            || p.longitude < 13 || p.longitude > 25) return false;
+    const bool cs92 = epsg == 2180;
+    if (cs92) {
+        if (p.latitude < 48 || p.latitude > 57 || p.longitude < 13 || p.longitude > 25) return false;
+    } else if ((epsg != 3045 && epsg != 25833) || p.latitude < 0 || p.latitude > 84
+               || p.longitude < 9 || p.longitude > 21) return false;
+    const double meridian = cs92 ? 19 : 15, factor = cs92 ? .9993 : .9996;
+    const double falseNorth = cs92 ? -5300000 : 0;
     // Fourth-order Krueger series, with analytic conformal latitude.
     // Equations: PROJ Transverse Mercator documentation, mathematical definition.
     // This bounded forward projection is not a general CRS/datum engine.
@@ -95,7 +105,7 @@ bool project(Point p, int epsg, XY &out) {
         61*n3/240 - 103*n4/140,
         49561*n4/161280
     };
-    const double phi = p.latitude*pi/180, lambda = (p.longitude-19)*pi/180;
+    const double phi = p.latitude*pi/180, lambda = (p.longitude-meridian)*pi/180;
     const double e = std::sqrt(f*(2-f));
     const double t = std::sinh(std::asinh(std::tan(phi)) - e*std::atanh(e*std::sin(phi)));
     const double xi = std::atan2(t, std::cos(lambda));
@@ -105,7 +115,7 @@ bool project(Point p, int epsg, XY &out) {
         north += alpha[j-1]*std::sin(2*j*xi)*std::cosh(2*j*eta);
         east += alpha[j-1]*std::cos(2*j*xi)*std::sinh(2*j*eta);
     }
-    out = {500000 + 0.9993*A*east, -5300000 + 0.9993*A*north};
+    out = {500000 + factor*A*east, falseNorth + factor*A*north};
     return std::isfinite(out.x) && std::isfinite(out.y);
 }
 
@@ -129,7 +139,7 @@ Sample Raster::sample(XY p, bool zero) const {
     return blend(*this, ids, weights, zero);
 }
 
-bool readGeoTiff(const QByteArray &bytes, Raster &output, QString &error) {
+static bool readTiff(const QByteArray &bytes, int metadataEpsg, Raster &output, QString &error) {
     error.clear();
     if (bytes.size() < 8 || bytes.size() > MaxBytes)
         return fail(error, "Invalid TIFF size");
@@ -170,15 +180,17 @@ bool readGeoTiff(const QByteArray &bytes, Raster &output, QString &error) {
             || !((bits == 32 && sampleFormat == 3) || (bits == 16 && sampleFormat == 2)))
         return fail(error, "TIFF must contain one float32 or signed-int16 height band; RGB is not elevation");
     if (integer(259,1) != 1 || integer(317,1) != 1 || integer(274,1) != 1
-            || integer(284,1) != 1 || tags.contains(322))
-        return fail(error, "Only uncompressed, top-down, stripped TIFF is currently supported");
+            || integer(284,1) != 1)
+        return fail(error, "Only uncompressed, top-down TIFF is currently supported");
     if (rd.u32(ifd+2+count*12) != 0)
         return fail(error, "Multiple TIFF directories are not supported");
     const Tag keys = tags.value(34735);
-    if (keys.type != 3 || keys.count < 4 || integer(34735,0,0) != 1)
+    if (tags.contains(34735) && (keys.type != 3 || keys.count < 4 || integer(34735,0,0) != 1))
+        return fail(error, "Invalid GeoTIFF coordinate system");
+    if (!tags.contains(34735) && !metadataEpsg)
         return fail(error, "Missing GeoTIFF coordinate system");
     const quint32 keyCount = integer(34735,0,3);
-    if (keyCount > (keys.count-4)/4) return fail(error, "Invalid GeoTIFF key directory");
+    if (keys.count && keyCount > (keys.count-4)/4) return fail(error, "Invalid GeoTIFF key directory");
     bool point = false;
     int linearUnits = 9001, angularUnits = 9102;
     for (quint32 k = 0; k < keyCount; ++k) {
@@ -194,9 +206,10 @@ bool readGeoTiff(const QByteArray &bytes, Raster &output, QString &error) {
         if (key == 3076) linearUnits = v;
         if (key == 2054) angularUnits = v;
     }
-    if (r.epsg != 2180 && r.epsg != 4326)
-        return fail(error, "Unsupported raster CRS (supported: EPSG:2180, EPSG:4326)");
-    if ((r.epsg == 2180 && linearUnits != 9001) || (r.epsg == 4326 && angularUnits != 9102))
+    if (!tags.contains(34735)) r.epsg = metadataEpsg;
+    if (!supportedCrs(r.epsg)) return fail(error, "Unsupported raster CRS");
+    if (metadataEpsg && metadataEpsg != r.epsg) return fail(error, "TIFF and WCS metadata CRS disagree");
+    if ((r.epsg != 4326 && linearUnits != 9001) || (r.epsg == 4326 && angularUnits != 9102))
         return fail(error, "Raster coordinate units conflict with its CRS");
     const Tag matrix = tags.value(34264), scale = tags.value(33550), tie = tags.value(33922);
     if (matrix.type == 12 && matrix.count == 16) {
@@ -227,27 +240,140 @@ bool readGeoTiff(const QByteArray &bytes, Raster &output, QString &error) {
         if (!ok) return fail(error, "Invalid TIFF NoData value");
         r.hasNoData = true;
     }
-    const quint32 rows = integer(278, quint32(r.height));
-    if (!rows) return fail(error, "Invalid TIFF rows per strip");
-    const quint32 strips = quint32((quint64(r.height)+rows-1)/rows);
-    if (tags.value(273).count != strips || tags.value(279).count != strips)
-        return fail(error, "Invalid TIFF strip table");
-    r.values.resize(qsizetype(r.width)*r.height);
-    qsizetype destination = 0;
-    for (quint32 s = 0; s < strips; ++s) {
-        const quint64 samples = quint64(std::min(rows, quint32(r.height)-s*rows))*r.width;
-        const quint64 offset = integer(273, quint32(bytes.size()), s);
-        const quint64 size = samples*(bits/8);
-        if (integer(279,0,s) != size || !rd.range(offset,size))
-            return fail(error, "Truncated or inconsistent TIFF strip");
-        for (quint64 i = 0; i < samples; ++i) {
-            float value;
-            if (bits == 32) { const quint32 raw = rd.u32(offset+i*4); std::memcpy(&value,&raw,4); }
-            else value = qint16(rd.u16(offset+i*2));
-            r.values[destination++] = value;
+    const auto valueAt = [&](quint64 offset) {
+        float value;
+        if (bits == 32) { const quint32 raw = rd.u32(offset); std::memcpy(&value,&raw,4); }
+        else value = qint16(rd.u16(offset));
+        return value;
+    };
+    r.values.fill(std::numeric_limits<float>::quiet_NaN(),qsizetype(r.width)*r.height);
+    if (tags.contains(322) || tags.contains(323) || tags.contains(324) || tags.contains(325)) {
+        const quint32 tw = integer(322,0), th = integer(323,0);
+        if (!tw || !th || tw > MaxPixels || th > MaxPixels || quint64(tw)*th > MaxPixels
+                || tags.contains(273) || tags.contains(279))
+            return fail(error, "Invalid TIFF tile dimensions or mixed storage");
+        const quint32 columns = (r.width+tw-1)/tw, rows = (r.height+th-1)/th;
+        const quint64 tiles = quint64(columns)*rows, size = quint64(tw)*th*(bits/8);
+        if (tags.value(324).count != tiles || tags.value(325).count != tiles
+                || tags.value(324).type != 4 || tags.value(325).type != 4)
+            return fail(error, "Invalid TIFF tile table");
+        for (quint32 tile = 0; tile < tiles; ++tile) {
+            const quint64 offset = integer(324,0,tile), length = integer(325,0,tile);
+            // Sparse service tiles contain no samples. Never treat absent data as sea level.
+            if (offset == 0 && length == 0) continue;
+            if (offset < 8 || length != size || !rd.range(offset,size))
+                return fail(error, "Truncated or inconsistent TIFF tile");
+            const quint32 x = (tile%columns)*tw, y = (tile/columns)*th;
+            for (quint32 row = 0; row < std::min(th,quint32(r.height)-y); ++row)
+                for (quint32 col = 0; col < std::min(tw,quint32(r.width)-x); ++col)
+                    r.values[(y+row)*r.width+x+col] = valueAt(offset+(quint64(row)*tw+col)*(bits/8));
+        }
+    } else {
+        const quint32 rows = integer(278, quint32(r.height));
+        if (!rows) return fail(error, "Invalid TIFF rows per strip");
+        const quint32 strips = quint32((quint64(r.height)+rows-1)/rows);
+        if (tags.value(273).count != strips || tags.value(279).count != strips)
+            return fail(error, "Invalid TIFF strip table");
+        qsizetype destination = 0;
+        for (quint32 s = 0; s < strips; ++s) {
+            const quint64 samples = quint64(std::min(rows, quint32(r.height)-s*rows))*r.width;
+            const quint64 offset = integer(273, quint32(bytes.size()), s);
+            const quint64 size = samples*(bits/8);
+            if (integer(279,0,s) != size || !rd.range(offset,size))
+                return fail(error, "Truncated or inconsistent TIFF strip");
+            for (quint64 i = 0; i < samples; ++i) {
+                r.values[destination++] = valueAt(offset+i*(bits/8));
+            }
         }
     }
     output = std::move(r);
+    return true;
+}
+
+bool readGeoTiff(const QByteArray &bytes, Raster &output, QString &error) {
+    return readTiff(bytes,0,output,error);
+}
+
+bool readWcsTiff(const QByteArray &bytes, int expectedEpsg, Raster &output, QString &error) {
+    error.clear();
+    Raster raster;
+    if (!bytes.startsWith("--")) {
+        if (!readGeoTiff(bytes,raster,error)) return false;
+    } else {
+        if (bytes.size() > MaxBytes) return fail(error,"Oversized WCS multipart response");
+        const qsizetype line = bytes.indexOf('\n');
+        if (line < 3 || line > 200) return fail(error,"Invalid WCS multipart boundary");
+        const QByteArray boundary = bytes.left(line).trimmed();
+        const QByteArray newline = bytes[line-1] == '\r' ? QByteArray("\r\n") : QByteArray("\n");
+        QByteArray tiff, xml, contentId;
+        qsizetype cursor = line+1;
+        bool closed = false;
+        for (int part = 0; part < 8; ++part) {
+            QMap<QByteArray,QByteArray> headers;
+            const qsizetype headerStart = cursor;
+            for (;;) {
+                const qsizetype end = bytes.indexOf('\n',cursor);
+                if (end < 0 || end-headerStart > 16384) return fail(error,"Invalid WCS part headers");
+                const QByteArray header = bytes.mid(cursor,end-cursor).trimmed();
+                cursor = end+1;
+                if (header.isEmpty()) break;
+                const qsizetype colon = header.indexOf(':');
+                if (colon <= 0) return fail(error,"Invalid WCS part header");
+                const auto name = header.left(colon).toLower();
+                if (headers.contains(name)) return fail(error,"Duplicate WCS part header");
+                headers.insert(name,header.mid(colon+1).trimmed());
+            }
+            const qsizetype end = bytes.indexOf(newline+boundary,cursor);
+            if (end < 0) return fail(error,"Truncated WCS multipart body");
+            const qsizetype bodyEnd = end;
+            const QByteArray type = headers.value("content-type").split(';').first().trimmed().toLower();
+            const QByteArray encoding = headers.value("content-transfer-encoding").toLower();
+            if (!encoding.isEmpty() && encoding != "binary" && encoding != "8bit")
+                return fail(error,"Unsupported WCS part encoding");
+            if (type == "image/tiff") {
+                if (!tiff.isEmpty()) return fail(error,"Multiple WCS TIFF parts");
+                tiff = bytes.mid(cursor,bodyEnd-cursor);
+                contentId = headers.value("content-id");
+                if (contentId.startsWith('<') && contentId.endsWith('>')) contentId = contentId.mid(1,contentId.size()-2);
+            } else if (type == "text/xml" || type == "application/xml" || type == "application/gml+xml") {
+                if (!xml.isEmpty() || bodyEnd-cursor > 1024*1024) return fail(error,"Ambiguous or oversized WCS GML");
+                xml = bytes.mid(cursor,bodyEnd-cursor);
+            } else return fail(error,"Unsupported WCS multipart content");
+            cursor = end+newline.size()+boundary.size();
+            if (bytes.mid(cursor,2) == "--") {
+                if (!bytes.mid(cursor+2).trimmed().isEmpty()) return fail(error,"Extra WCS multipart content");
+                closed = true; break;
+            }
+            if (bytes.mid(cursor,2) == "\r\n") cursor += 2;
+            else if (bytes.mid(cursor,1) == "\n") ++cursor;
+            else return fail(error,"Invalid WCS multipart separator");
+        }
+        if (!closed || tiff.isEmpty() || xml.isEmpty()) return fail(error,"Incomplete WCS multipart response");
+        QXmlStreamReader reader(xml);
+        int metadataEpsg = 0, envelopes = 0;
+        QString reference;
+        while (!reader.atEnd()) {
+            reader.readNext();
+            if (reader.isDTD()) return fail(error,"DTD is not supported in WCS metadata");
+            if (!reader.isStartElement() || reader.namespaceUri() != QLatin1String("http://www.opengis.net/gml/3.2")) continue;
+            if (reader.name() == QLatin1String("Envelope")) {
+                ++envelopes;
+                const QString crs = reader.attributes().value("srsName").toString();
+                const QString prefix = QStringLiteral("http://www.opengis.net/def/crs/EPSG/0/");
+                if (crs.startsWith(prefix)) metadataEpsg = crs.mid(prefix.size()).toInt();
+            } else if (reader.name() == QLatin1String("fileReference")) {
+                if (!reference.isEmpty()) return fail(error,"Multiple WCS file references");
+                reference = reader.readElementText();
+            }
+        }
+        if (reader.hasError() || envelopes != 1 || !supportedCrs(metadataEpsg)
+                || metadataEpsg != expectedEpsg || contentId.isEmpty()
+                || reference != QStringLiteral("cid:")+QString::fromLatin1(contentId))
+            return fail(error,"Invalid or conflicting WCS GML raster reference/CRS");
+        if (!readTiff(tiff,metadataEpsg,raster,error)) return false;
+    }
+    if (raster.epsg != expectedEpsg) return fail(error,"WCS raster CRS differs from requested dataset");
+    output = std::move(raster);
     return true;
 }
 

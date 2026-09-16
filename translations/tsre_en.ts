@@ -10044,9 +10044,9 @@ HGT fallback: %1 samples. Missing/zero data: %2; outside coverage: %3; unavailab
     </message>
     <message id="geo.elevation.report.datum">
         <source>
-Geoportal and HGT heights may use different vertical datums. No vertical datum conversion is applied.</source>
+Source and HGT heights may use different vertical datums. No vertical datum conversion is applied.</source>
         <translation>
-Geoportal and HGT heights may use different vertical datums. No vertical datum conversion is applied.</translation>
+Source and HGT heights may use different vertical datums. No vertical datum conversion is applied.</translation>
     </message>
     <message id="geo.elevation.report.cancelled">
         <source>
@@ -10083,8 +10083,8 @@ Cancelled. No elevation heights were applied.</translation>
         <translation>Y offset (m):</translation>
     </message>
     <message id="geo.elevation.source.note">
-        <source>Geoportal uses 1 m source data. Output spacing follows this terrain tile. Missing coverage and NoData use HGT fallback.</source>
-        <translation>Geoportal uses 1 m source data. Output spacing follows this terrain tile. Missing coverage and NoData use HGT fallback.</translation>
+        <source>Source resolution depends on the selected dataset. Output spacing follows this terrain tile. Missing coverage and NoData use HGT fallback.</source>
+        <translation>Source resolution depends on the selected dataset. Output spacing follows this terrain tile. Missing coverage and NoData use HGT fallback.</translation>
     </message>
     <message id="geo.elevation.tile.title">
         <source>Terrain elevation - tile %1 %2</source>
@@ -10121,8 +10121,8 @@ Cancelled. No elevation heights were applied.</translation>
         <translation>Local HGT file check</translation>
     </message>
     <message id="geo.elevation.hgt.fallback.check">
-        <source>HGT fallback file check. Geoportal blocks are prepared when terrain is loaded.</source>
-        <translation>HGT fallback file check. Geoportal blocks are prepared when terrain is loaded.</translation>
+        <source>HGT fallback file check. Elevation blocks are prepared when terrain is loaded.</source>
+        <translation>HGT fallback file check. Elevation blocks are prepared when terrain is loaded.</translation>
     </message>
     <message id="geo.elevation.hgt.present">
         <source>
@@ -10147,8 +10147,8 @@ Missing HGT files:
         <translation>Terrain elevation source</translation>
     </message>
     <message id="settings.geo.elevation.source.description">
-        <source>Source for manual and automatic terrain elevation. Geoportal downloads 1 m data and reports HGT fallback.</source>
-        <translation>Source for manual and automatic terrain elevation. Geoportal downloads 1 m data and reports HGT fallback.</translation>
+        <source>Source for manual and automatic terrain elevation. Downloads elevation data and reports HGT fallback.</source>
+        <translation>Source for manual and automatic terrain elevation. Downloads elevation data and reports HGT fallback.</translation>
     </message>
     <message id="settings.geo.elevation.source.hgt">
         <source>Local HGT files</source>
@@ -10157,6 +10157,14 @@ Missing HGT files:
     <message id="settings.geo.elevation.source.kron86">
         <source>Geoportal NMT 1 m - KRON86 (GeoTIFF)</source>
         <translation>Geoportal NMT 1 m - KRON86 (GeoTIFF)</translation>
+    </message>
+    <message id="settings.geo.elevation.source.dmr5g">
+        <source>Czechia - CUZK DMR 5G (2 m, Bpv)</source>
+        <translation>Czechia - CUZK DMR 5G (2 m, Bpv)</translation>
+    </message>
+    <message id="settings.geo.elevation.source.dmr4g">
+        <source>Czechia - CUZK DMR 4G (5 m, EVRS)</source>
+        <translation>Czechia - CUZK DMR 4G (5 m, EVRS)</translation>
     </message>
     <message id="settings.geo.elevation.source.evrf2007">
         <source>Geoportal NMT 1 m - EVRF2007 (ASCII Grid)</source>

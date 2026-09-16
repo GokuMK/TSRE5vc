@@ -17,9 +17,11 @@ struct Sample {
     bool valid() const { return status == SampleStatus::Valid; }
 };
 
-// Forward horizontal conversion only. EPSG:2180 is restricted to Poland.
-// Geographic input is treated as ETRS89 for CS92; no epoch or vertical shift.
+// Forward horizontal conversion only: CS92 and ETRS89 / UTM 33N.
+// Internal XY is always easting/northing, including EPSG:3045 (N-E axes).
+// Geographic input is treated as ETRS89; no epoch or vertical shift.
 bool project(Point point, int epsg, XY &result);
+bool supportedCrs(int epsg);
 
 struct Raster {
     int width = 0, height = 0, epsg = 0;
@@ -34,6 +36,8 @@ struct Raster {
 
 // Bounded numeric readers; unsupported image encodings are rejected.
 bool readGeoTiff(const QByteArray &bytes, Raster &raster, QString &error);
+// Bare GeoTIFF or a WCS multipart TIFF with its accompanying GML CRS.
+bool readWcsTiff(const QByteArray &bytes, int expectedEpsg, Raster &raster, QString &error);
 bool readAsciiGrid(const QByteArray &bytes, int epsg, Raster &raster, QString &error);
 bool readHgt(const QByteArray &bytes, int latitude, int longitude,
              Raster &raster, QString &error);

@@ -1,0 +1,48 @@
+{
+  "retrieved": "2026-09-17",
+  "encoding": "qCompress: big-endian uint32 uncompressed size followed by zlib",
+  "requests": [
+    {
+      "url": "https://ags.cuzk.gov.cz/arcgis2/rest/services/dmr5g/ImageServer/exportImage?f=image&bbox=456702%2C5545982%2C458754%2C5548034&bboxSR=25833&imageSR=25833&size=1026%2C1026&format=tiff&pixelType=F32&renderingRule=%7B%22rasterFunction%22%3A%22None%22%7D&compression=None&adjustAspectRatio=false&interpolation=RSP_BilinearInterpolation&bandIds=0",
+      "lat": 50.08,
+      "lon": 14.42,
+      "x": 458502.2367393962,
+      "y": 5547686.620297176,
+      "column": 223,
+      "row": -2709,
+      "bytes": 5310222,
+      "seconds": 22.68663569999626,
+      "name": "prague",
+      "rawSha256": "632c329b13b5d72b823b44cccbbdf4e30468b456f2948868542ce86820328b0c",
+      "packedSha256": "37a5a8192e610e95788fa9f09f2557da5058019446011f235779bcd2bb8f9984"
+    },
+    {
+      "url": "https://ags.cuzk.gov.cz/arcgis2/rest/services/dmr5g/ImageServer/exportImage?f=image&bbox=389118%2C5382142%2C391170%2C5384194&bboxSR=25833&imageSR=25833&size=1026%2C1026&format=tiff&pixelType=F32&renderingRule=%7B%22rasterFunction%22%3A%22None%22%7D&compression=None&adjustAspectRatio=false&interpolation=RSP_BilinearInterpolation&bandIds=0",
+      "lat": 48.6,
+      "lon": 13.5,
+      "x": 389411.91263566323,
+      "y": 5384077.203345487,
+      "column": 190,
+      "row": -2629,
+      "bytes": 1806,
+      "seconds": 21.629844600043725,
+      "name": "outside",
+      "rawSha256": "838cfe55e0b37ff043b84a01b36e13ca37952cb5dfb1c5f027a109029527ebb0",
+      "packedSha256": "11093f0652d49f776e0914612612e57c73d2c1a39f33bf216184fad07a18f7e9"
+    },
+    {
+      "url": "https://ags.cuzk.gov.cz/arcgis2/rest/services/dmr5g/ImageServer/exportImage?f=image&bbox=528382%2C5627902%2C530434%2C5629954&bboxSR=25833&imageSR=25833&size=1026%2C1026&format=tiff&pixelType=F32&renderingRule=%7B%22rasterFunction%22%3A%22None%22%7D&compression=None&adjustAspectRatio=false&interpolation=RSP_BilinearInterpolation&bandIds=0",
+      "lat": 50.81,
+      "lon": 15.43,
+      "x": 530295.934170088,
+      "y": 5628784.628276611,
+      "column": 258,
+      "row": -2749,
+      "bytes": 1246990,
+      "seconds": 22.240464000031352,
+      "name": "border",
+      "rawSha256": "a4d6360d641c8ca9f9555004759c8a4f038ca18eaa0122c8d21c04e76aaa8168",
+      "packedSha256": "aadf1241fa3855eab7b57f60d28802ebe4ecc474f4ee591099eacc8ee8384ef1"
+    }
+  ]
+}

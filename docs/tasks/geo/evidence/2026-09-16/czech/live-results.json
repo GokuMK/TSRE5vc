@@ -1,0 +1,59 @@
+{
+  "testedUtc": "2026-09-16T21:08:08.406222+00:00",
+  "results": [
+    {
+      "name": "Prague repeat",
+      "dataset": "cz.cuzk.dmr4g",
+      "latitude": 50.08,
+      "longitude": 14.42,
+      "exitCode": 0,
+      "stdout": "success=1 primary=2 fallback=0 downloads=0 nodata=0 unavailable=0 cache=1 elapsedMs=8\n197.444\n199.154\n",
+      "stderr": "\n\n"
+    },
+    {
+      "name": "Brno",
+      "dataset": "cz.cuzk.dmr4g",
+      "latitude": 49.195,
+      "longitude": 16.607,
+      "exitCode": 0,
+      "stdout": "success=1 primary=2 fallback=0 downloads=1 nodata=0 unavailable=0 cache=0 elapsedMs=1165\n217.138\n216.793\n",
+      "stderr": "\n\n"
+    },
+    {
+      "name": "Ostrava",
+      "dataset": "cz.cuzk.dmr4g",
+      "latitude": 49.835,
+      "longitude": 18.292,
+      "exitCode": 0,
+      "stdout": "success=1 primary=2 fallback=0 downloads=1 nodata=0 unavailable=0 cache=0 elapsedMs=803\n214.57\n214.534\n",
+      "stderr": "\n\n"
+    },
+    {
+      "name": "Plzen",
+      "dataset": "cz.cuzk.dmr4g",
+      "latitude": 49.747,
+      "longitude": 13.377,
+      "exitCode": 0,
+      "stdout": "success=1 primary=2 fallback=0 downloads=1 nodata=0 unavailable=0 cache=0 elapsedMs=764\n313.497\n313.434\n",
+      "stderr": "\n\n"
+    },
+    {
+      "name": "Germany synthetic HGT fallback",
+      "dataset": "cz.cuzk.dmr4g",
+      "latitude": 48.6,
+      "longitude": 13.5,
+      "exitCode": 0,
+      "stdout": "success=1 primary=0 fallback=2 downloads=2 nodata=2 unavailable=0 cache=0 elapsedMs=944\n777\n777\n",
+      "stderr": "\n\n"
+    },
+    {
+      "name": "Poland regression",
+      "dataset": "pl.gugik.nmt1.kron86",
+      "latitude": 52,
+      "longitude": 19,
+      "exitCode": 0,
+      "stdout": "success=1 primary=2 fallback=0 downloads=1 nodata=0 unavailable=0 cache=0 elapsedMs=14811\n105.417\n105.383\n",
+      "stderr": "\n\n"
+    }
+  ]
+}

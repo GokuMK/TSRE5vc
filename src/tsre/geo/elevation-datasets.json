@@ -37,6 +37,41 @@
       "blockPixels": 512,
       "zeroIsNoData": true,
       "attribution": "GUGiK / Geoportal.gov.pl"
+    },
+    {
+      "id": "cz.cuzk.dmr4g",
+      "name": "Czechia - CUZK DMR 4G (5 m, EVRS)",
+      "provider": "wcs-2.0.1",
+      "endpoint": "https://ags.cuzk.gov.cz/arcgis2/services/INSPIRE_Nadmorska_vyska/ImageServer/WCSServer",
+      "coverage": "MD_LAS",
+      "format": "image/tiff",
+      "axisX": "x",
+      "axisY": "y",
+      "crs": 3045,
+      "verticalDatum": "EVRS",
+      "resolution": 5,
+      "origin": [292001.732277163304, 5657998.94293634221],
+      "bounds": [292001.732277163304, 5375998.94293634221, 780001.732277163304, 5657998.94293634221],
+      "blockPixels": 256,
+      "concurrentRequests": 1,
+      "zeroIsNoData": true,
+      "attribution": "CUZK / geoportal.cuzk.cz - INSPIRE Elevation GRID (DMR 4G)"
+    },
+    {
+      "id": "cz.cuzk.dmr5g",
+      "name": "Czechia - CUZK DMR 5G (2 m, Bpv)",
+      "provider": "arcgis-imageserver",
+      "endpoint": "https://ags.cuzk.gov.cz/arcgis2/rest/services/dmr5g/ImageServer",
+      "format": "image/tiff",
+      "crs": 25833,
+      "verticalDatum": "Bpv (Baltic 1957)",
+      "resolution": 2,
+      "origin": [0, 0],
+      "bounds": [284000, 5344000, 792000, 5696000],
+      "blockPixels": 1024,
+      "concurrentRequests": 1,
+      "zeroIsNoData": true,
+      "attribution": "CUZK / geoportal.cuzk.cz - DMR 5G"
     }
   ]
 }

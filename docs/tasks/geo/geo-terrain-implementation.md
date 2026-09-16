@@ -1,5 +1,14 @@
 # Geoportal 1 m elevation: implementation and verification
 
+This records the original Polish milestone. The later
+[Stage A Czech WCS validation](czech-wcs-validation.md) extends the catalogue,
+TIFF reader and supported CRSs. Its validation section supersedes this report's
+test status for the current branch; the main application needs a fresh user build.
+The [Stage B ArcGIS validation](czech-arcgis-validation.md) adds DMR 5G through
+a second generic provider and records the latest standalone checks.
+The [automatic elevation follow-up](automatic-elevation-input-fix.md) suppresses
+automatic progress windows while retaining the existing worker flow.
+
 2026-09-16. Branch: `geo-terrain`. Supersedes the unresolved service assumptions
 in the [initial review](geo-terrain-design-review.md). The original ideas remain
 unchanged. The user authorized implementation after resolving design questions.

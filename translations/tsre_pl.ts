@@ -10049,9 +10049,9 @@ Uzupełnienie z HGT: %1 próbek. Brakujące/zerowe dane: %2; poza zasięgiem: %3
     </message>
     <message id="geo.elevation.report.datum">
         <source>
-Geoportal and HGT heights may use different vertical datums. No vertical datum conversion is applied.</source>
+Source and HGT heights may use different vertical datums. No vertical datum conversion is applied.</source>
         <translation>
-Wysokości Geoportalu i HGT mogą być w różnych układach wysokościowych. Nie jest wykonywana konwersja układu wysokościowego.</translation>
+Wysokości źródła i HGT mogą być w różnych układach wysokościowych. Nie jest wykonywana konwersja układu wysokościowego.</translation>
     </message>
     <message id="geo.elevation.report.cancelled">
         <source>
@@ -10088,8 +10088,8 @@ Anulowano. Nie zastosowano wysokości terenu.</translation>
         <translation>Przesunięcie Y (m):</translation>
     </message>
     <message id="geo.elevation.source.note">
-        <source>Geoportal uses 1 m source data. Output spacing follows this terrain tile. Missing coverage and NoData use HGT fallback.</source>
-        <translation>Geoportal dostarcza dane o rozdzielczości 1 m. Odstęp próbek wyniku zależy od kafla terenu. Brakujące dane są uzupełniane z HGT.</translation>
+        <source>Source resolution depends on the selected dataset. Output spacing follows this terrain tile. Missing coverage and NoData use HGT fallback.</source>
+        <translation>Rozdzielczość źródła zależy od wybranego zbioru danych. Odstęp próbek wyniku zależy od kafla terenu. Brakujące dane są uzupełniane z HGT.</translation>
     </message>
     <message id="geo.elevation.tile.title">
         <source>Terrain elevation - tile %1 %2</source>
@@ -10126,8 +10126,8 @@ Anulowano. Nie zastosowano wysokości terenu.</translation>
         <translation>Sprawdzanie lokalnych plików HGT</translation>
     </message>
     <message id="geo.elevation.hgt.fallback.check">
-        <source>HGT fallback file check. Geoportal blocks are prepared when terrain is loaded.</source>
-        <translation>Sprawdzanie plików HGT do uzupełniania danych. Bloki Geoportalu są przygotowywane podczas wczytywania terenu.</translation>
+        <source>HGT fallback file check. Elevation blocks are prepared when terrain is loaded.</source>
+        <translation>Sprawdzanie plików HGT do uzupełniania danych. Bloki wysokości są przygotowywane podczas wczytywania terenu.</translation>
     </message>
     <message id="geo.elevation.hgt.present">
         <source>
@@ -10152,8 +10152,8 @@ Brakujące pliki HGT:
         <translation>Źródło wysokości terenu</translation>
     </message>
     <message id="settings.geo.elevation.source.description">
-        <source>Source for manual and automatic terrain elevation. Geoportal downloads 1 m data and reports HGT fallback.</source>
-        <translation>Źródło wysokości przy ręcznym i automatycznym tworzeniu terenu. Geoportal pobiera dane 1 m i informuje o uzupełnieniu z HGT.</translation>
+        <source>Source for manual and automatic terrain elevation. Downloads elevation data and reports HGT fallback.</source>
+        <translation>Źródło wysokości przy ręcznym i automatycznym tworzeniu terenu. Pobiera dane wysokościowe i informuje o uzupełnieniu z HGT.</translation>
     </message>
     <message id="settings.geo.elevation.source.hgt">
         <source>Local HGT files</source>
@@ -10162,6 +10162,14 @@ Brakujące pliki HGT:
     <message id="settings.geo.elevation.source.kron86">
         <source>Geoportal NMT 1 m - KRON86 (GeoTIFF)</source>
         <translation>Geoportal NMT 1 m - KRON86 (GeoTIFF)</translation>
+    </message>
+    <message id="settings.geo.elevation.source.dmr5g">
+        <source>Czechia - CUZK DMR 5G (2 m, Bpv)</source>
+        <translation>Czechy - CUZK DMR 5G (2 m, Bpv)</translation>
+    </message>
+    <message id="settings.geo.elevation.source.dmr4g">
+        <source>Czechia - CUZK DMR 4G (5 m, EVRS)</source>
+        <translation>Czechy - CUZK DMR 4G (5 m, EVRS)</translation>
     </message>
     <message id="settings.geo.elevation.source.evrf2007">
         <source>Geoportal NMT 1 m - EVRF2007 (ASCII Grid)</source>

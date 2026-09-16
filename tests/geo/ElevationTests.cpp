@@ -45,13 +45,21 @@ void mutateTag(QByteArray &bytes, quint16 tag, quint32 value) {
 }
 }
 void runDownloadTests(const std::function<void(bool,const char*)> &check);
+void runArcGisImageServerTests(const std::function<void(bool,const char*)> &check);
+void runCzechWcsTests(const std::function<void(bool,const char*)> &check);
 int main(int argc, char **argv) {
     QCoreApplication app(argc,argv);
     const auto args = app.arguments();
-    if (args.size() >= 4 && (args[1] == "--live" || args[1] == "--live-area")) {
+    if (args.size() >= 4 && (args[1] == "--live" || args[1] == "--live-area" || args[1] == "--live-at")) {
         // Explicit opt-in only; normal ctest is fully offline.
         std::atomic_bool cancel{false};
         QVector<Point> points{{52.0,19.0},{52.00005,19.00005}};
+        if (args[1] == "--live-at") {
+            bool latOk = false, lonOk = false;
+            const double lat = args.value(4).toDouble(&latOk), lon = args.value(5).toDouble(&lonOk);
+            if (!latOk || !lonOk || args.size() != 6) return 2;
+            points = {{lat,lon},{lat+.00005,lon+.00005}};
+        }
         if (args[1] == "--live-area") {
             points.clear();
             for (int y=0; y<16; ++y) for (int x=0; x<16; ++x)
@@ -61,8 +69,9 @@ int main(int argc, char **argv) {
         const auto result = generate(args[2],args[3],points,0,cancel);
         std::cout << "success=" << result.success() << " primary=" << result.report.primarySamples
                   << " fallback=" << result.report.fallbackSamples << " downloads=" << result.report.downloads
+                  << " nodata=" << result.report.noDataSamples << " unavailable=" << result.report.unavailableSamples
                   << " cache=" << result.report.cacheHits << " elapsedMs=" << timer.elapsed() << '\n';
-        if (args[1] == "--live") for (float h : result.heights) std::cout << h << '\n';
+        if (args[1] != "--live-area") for (float h : result.heights) std::cout << h << '\n';
         std::cerr << result.error.toStdString() << '\n' << result.report.issues.join('\n').toStdString() << '\n';
         return result.success() ? 0 : 1;
     }
@@ -128,8 +137,9 @@ int main(int argc, char **argv) {
     check(!readHgt(QByteArray(19,'x'),0,0,r,error),"reject malformed HGT dimensions");
     check(readHgt(hgt(3,-32768),0,0,r,error) && sampleLegacyHgt(r,{.5,.5}).status == SampleStatus::NoData,"HGT void detection");
     const auto catalog = datasets(error);
-    check(catalog.size() == 2 && error.isEmpty(),"embedded dataset catalogue");
-    check(catalog[0].resolution == 1 && catalog[1].resolution == 1,"only 1 m datasets offered");
+    check(catalog.size() == 4 && error.isEmpty(),"embedded dataset catalogue");
+    if (catalog.size() != 4) return 1;
+    check(catalog[0].resolution == 1 && catalog[1].resolution == 1 && catalog[2].resolution == 5,"Polish 1 m and Czech 5 m datasets");
     check(catalog[0].blockPixels == 1024 && catalog[0].concurrentRequests == 4
         && catalog[1].blockPixels == 512 && catalog[1].concurrentRequests == 1,
         "TIFF uses four concurrent 1024 m blocks; ASCII keeps verified serial 512 m blocks");
@@ -191,6 +201,8 @@ int main(int argc, char **argv) {
     generated = generate(temp.path(),ascii.id,{{52,19}},0,cancel);
     check(generated.success() && generated.report.noDataSamples == 1 && generated.report.fallbackSamples == 1
           && generated.heights[0] == 20,"cached NoData falls back to organized HGT with provenance");
+    runCzechWcsTests(check);
+    runArcGisImageServerTests(check);
     runDownloadTests(check);
     std::cout << checks << " checks, " << failures << " failures\n";
     return failures ? 1 : 0;

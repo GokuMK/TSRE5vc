@@ -22,7 +22,7 @@ QString summarize(const Elevation::Result &result, const QString &source) {
         //% "\nHGT fallback: %1 samples. Missing/zero data: %2; outside coverage: %3; unavailable blocks: %4."
         text += qtTrId("geo.elevation.report.fallback")
             .arg(r.fallbackSamples).arg(r.noDataSamples).arg(r.outsideSamples).arg(r.unavailableSamples);
-        //% "\nGeoportal and HGT heights may use different vertical datums. No vertical datum conversion is applied."
+        //% "\nSource and HGT heights may use different vertical datums. No vertical datum conversion is applied."
         text += qtTrId("geo.elevation.report.datum");
     }
     //% "\nCancelled. No elevation heights were applied."
@@ -35,6 +35,7 @@ void showAutomaticReport(const QString &text) {
     if (!automaticReport) {
         automaticReport = new QPlainTextEdit;
         automaticReport->setAttribute(Qt::WA_DeleteOnClose);
+        automaticReport->setAttribute(Qt::WA_ShowWithoutActivating);
         //% "Terrain elevation report"
         automaticReport->setWindowTitle(qtTrId("geo.elevation.report.title"));
         automaticReport->setReadOnly(true);
@@ -83,7 +84,7 @@ HeightWindow::HeightWindow() : QDialog() {
     buttons->addWidget(applyButton); buttons->addWidget(closeButton);
     auto *layout = new QVBoxLayout(this);
     layout->addLayout(top); layout->addWidget(imageLabel,1);
-    //% "Geoportal uses 1 m source data. Output spacing follows this terrain tile. Missing coverage and NoData use HGT fallback."
+    //% "Source resolution depends on the selected dataset. Output spacing follows this terrain tile. Missing coverage and NoData use HGT fallback."
     auto *note = new QLabel(qtTrId("geo.elevation.source.note"),this);
     note->setWordWrap(true); layout->addWidget(note);
     layout->addWidget(reportText); layout->addLayout(buttons);
@@ -161,8 +162,9 @@ void HeightWindow::load(bool gui) {
     //% "Preparing terrain elevation"
     QProgressDialog progress(qtTrId("geo.elevation.prepare"),//% "Cancel"
         qtTrId("geo.elevation.cancel"),0,0,this);
-    progress.setWindowModality(Qt::ApplicationModal);
+    progress.setWindowModality(gui ? Qt::ApplicationModal : Qt::NonModal);
     progress.setAutoClose(false); progress.setAutoReset(false);
+    if (!gui) progress.reset(); // Stop any automatic-show timer.
     std::atomic_bool cancel{false};
     QEventLoop loop;
     Elevation::Result result;
@@ -176,6 +178,7 @@ void HeightWindow::load(bool gui) {
     QThread *worker = QThread::create([&] {
         try {
             result = Elevation::generate(root,dataset,points,offset,cancel,[&](int done,int total,const QString &message) {
+                if (!gui) return; // setValue() can otherwise auto-show the dialog.
                 QMetaObject::invokeMethod(&progress,[&,done,total,message] {
                     progress.setLabelText(message); progress.setRange(0,total); progress.setValue(done);
                 },Qt::QueuedConnection);
@@ -186,7 +189,8 @@ void HeightWindow::load(bool gui) {
         }
     });
     connect(worker,&QThread::finished,&loop,&QEventLoop::quit);
-    progress.show(); worker->start(); loop.exec(); worker->wait(); delete worker;
+    if (gui) progress.show();
+    worker->start(); loop.exec(); worker->wait(); delete worker;
     progress.hide();
     if (cancel) { result.cancelled = true; result.heights.clear(); }
     lastElevationCancelled = result.cancelled;
@@ -244,7 +248,7 @@ void HeightWindow::CheckForMissingGeodataFiles(QMap<int,QPair<int,int>*> &tiles)
     QString message = Settings::string(SourceSetting,SettingType::Enum).isEmpty()
         //% "Local HGT file check"
         ? qtTrId("geo.elevation.hgt.check")
-        //% "HGT fallback file check. Geoportal blocks are prepared when terrain is loaded."
+        //% "HGT fallback file check. Elevation blocks are prepared when terrain is loaded."
         : qtTrId("geo.elevation.hgt.fallback.check");
     //% "\nAll checked HGT files are present."
     message += names.isEmpty() ? qtTrId("geo.elevation.hgt.present") : //% "\nMissing HGT files:\n%1"

@@ -10,6 +10,7 @@
 namespace Elevation {
 struct Dataset {
     QString id, name, coverage, format, verticalDatum, axisX, axisY;
+    QString provider = QStringLiteral("wcs-2.0.1");
     QUrl endpoint;
     int epsg = 2180, blockPixels = 512, concurrentRequests = 1;
     double resolution = 1, originX = 0, originY = 0;
@@ -26,6 +27,7 @@ struct Block {
 };
 Block blockFor(const Dataset &dataset, XY point);
 QUrl coverageUrl(const Dataset &dataset, Block block);
+QUrl imageServerUrl(const Dataset &dataset, Block block);
 QString cacheRelativePath(const Dataset &dataset, Block block);
 QString hgtFileName(int latitude, int longitude);
 QString findHgtFile(const QString &root, int latitude, int longitude);

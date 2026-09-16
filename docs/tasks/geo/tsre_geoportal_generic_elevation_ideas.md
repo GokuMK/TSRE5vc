@@ -443,3 +443,34 @@ Before implementation, the next useful step is a detailed review of:
 3. available GeoTIFF decoding/projection support already present or suitable for TSRE,
 4. how raster caching should align with MSTS terrain tiles,
 5. several non-Polish national elevation services to validate that the generic provider/config idea is broad enough.
+
+---
+
+## Open — border coverage, selectable fallback and preserving existing heights
+
+Recorded 2026-09-17 after testing SZKLARSKA. Documentation only; not implemented.
+
+**Observed problem:** a tile crossing the Poland/Czechia border gets Polish data
+plus HGT with Geoportal selected, or Czech data plus HGT with DMR 4G selected.
+The current fixed HGT fallback prevents combining the two national datasets.
+
+- [ ] Add a Height window choice for missing coverage/NoData. Initial options:
+  use HGT or fill with `0`; leave room for future interpolation.
+- [ ] Preferred design to evaluate: select one primary source and one optional
+  fallback source. For example, Geoportal primary + Czech DMR 4G fallback, or
+  either service primary + HGT fallback. Resolve fallback per missing sample,
+  so one terrain tile can contain valid data from both sources.
+- [ ] Allow **only one fallback**. If neither selected source supplies a valid
+  height, use `0`; do not silently add HGT as a third source. Selecting zero
+  directly means no secondary source. Interpolation remains a future option.
+- [ ] Add an Apply option to preserve existing terrain heights instead of
+  overwriting them with zero-filled missing data. Keep missing-data provenance
+  separate from the numeric height, so valid measured zero elevations can be
+  distinguished from missing samples. Exact UI wording/zero semantics remain open.
+- [ ] Validate on a border-crossing SZKLARSKA tile: both source orders, HGT and
+  zero fallback, both sources missing, and Apply with preservation enabled/disabled.
+  Report primary, fallback and unresolved/zero-filled sample counts visibly.
+
+Keep this in shared source composition and sampling logic, with no country-specific
+terrain generation. The final UI/design choice is open; this task records the
+requested behavior and the selectable-fallback proposal.

@@ -41,7 +41,7 @@ int TsreTests::runElevationUiSuite(const QString &capturePath, bool verbose) {
     window.tileX = window.tileZ = 0;
     window.terrainResolution = 16; window.terrainSize = 2048;
     auto *selector = window.findChild<QComboBox*>();
-    check(selector && selector->count() == 3,"HGT and both verified 1 m datasets are selectable");
+    check(selector && selector->count() == 5,"HGT, Polish 1 m and Czech 5 m / 2 m datasets are selectable");
     QPushButton *apply = nullptr;
     for (auto *button : window.findChildren<QPushButton*>())
         if (button->text() == qtTrId("geo.elevation.apply")) apply = button;
