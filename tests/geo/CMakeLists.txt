@@ -18,7 +18,7 @@ qt_add_resources(tsre_elevation_tests elevation_test_catalog PREFIX "/geo"
 add_test(NAME elevation COMMAND tsre_elevation_tests)
 
 # Explicit live-service benchmark; never part of ctest or a normal build.
-add_executable(tsre_elevation_benchmark EXCLUDE_FROM_ALL ElevationBenchmark.cpp
+add_executable(tsre_elevation_benchmark EXCLUDE_FROM_ALL ElevationBenchmark.cpp ElevationConcurrencyBenchmark.cpp
     ../../src/tsre/geo/ElevationRaster.cpp ../../src/tsre/geo/ElevationSource.cpp)
 target_compile_features(tsre_elevation_benchmark PRIVATE cxx_std_17)
 target_include_directories(tsre_elevation_benchmark PRIVATE ../../src)

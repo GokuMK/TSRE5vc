@@ -13,11 +13,14 @@
 #include <cmath>
 #include <iostream>
 
+int runConcurrencyBenchmark(const QString &outputPath, bool freshConnections);
 int main(int argc, char **argv) {
     QCoreApplication app(argc,argv);
     const auto args = app.arguments();
+    if (args.size() == 3 && (args[1] == "--concurrency" || args[1] == "--concurrency-fresh"))
+        return runConcurrencyBenchmark(args[2],args[1] == "--concurrency-fresh");
     if (args.size() != 3 || args[1] != "--live") {
-        std::cerr << "Usage: tsre_elevation_benchmark --live results.json\n";
+        std::cerr << "Usage: tsre_elevation_benchmark --live|--concurrency|--concurrency-fresh results.json\n";
         return 2;
     }
     QString error;

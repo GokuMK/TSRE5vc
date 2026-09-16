@@ -73,3 +73,12 @@ The JSON manifest records sizes and SHA-256 hashes of the retained evidence.
 and 2048 m cores (each with a one-pixel margin), both numeric formats and three
 rounds. It contains URLs, metadata and measurements, not downloaded rasters.
 See [analysis and reproduction](../../geoportal-request-size-benchmark.md).
+
+## Equal-area concurrency benchmark
+
+`concurrency-reused-benchmark.json` and `concurrency-fresh-benchmark.json` compare
+four sequential 1024 m TIFF requests, four simultaneous 1024 m requests, and one
+2048 m request for the same core area. Each records three rounds; the second run
+clears idle connections before each batch. See the
+[full analysis](../../geoportal-concurrency-benchmark.md), including failures in
+the reused-connection run and full-core height comparisons.

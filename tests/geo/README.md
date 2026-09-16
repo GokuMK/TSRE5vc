@@ -37,3 +37,31 @@ timeout is not evidence that the server rejects that raster size.
 No raster downloads are retained and no application settings or dataset sizes
 are changed. Results include public request URLs and timing/grid metadata only.
 The benchmark is excluded from normal builds and from `ctest`.
+
+## Equal-area concurrency comparison
+
+```text
+<build-dir>/tsre_elevation_benchmark --concurrency <results.json>
+```
+
+This compares KRON86 numeric TIFF over one 2048 m core: four neighboring 1024 m
+blocks sequentially, the same four blocks with four outstanding requests, and
+one 2048 m request. Three rounds rotate the strategy order, for 27 HTTP requests
+in total. A single Qt network manager retains connections between groups;
+there is no application disk cache. The same one-pixel margin is used throughout.
+
+Each group records its full network wall time and per-request launch, first-byte
+and completion times, HTTP/2 use, status and bytes. Decoding happens after the
+group finishes, so it cannot block another download. All grids are validated;
+SHA-256 hashes compare every float in the assembled 2048 x 2048 core across
+strategies and rounds. This uses the application's 30-second transfer timeout,
+45-second per-request deadline and 32 MiB per-response cap.
+
+Server cache and network conditions are uncontrolled. This is a bounded
+four-request comparison, not a search for the service's concurrency/rate limit.
+
+Use `--concurrency-fresh` instead of `--concurrency` to clear idle connections
+before each group. This control helps distinguish connection-reuse problems
+from concurrency/size effects, while still permitting connection reuse between
+the four sequential requests within a group. The connection policy is recorded
+in the output JSON. Compare failed attempts as well as successful timings.

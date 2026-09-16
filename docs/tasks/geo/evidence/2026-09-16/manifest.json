@@ -12,6 +12,16 @@
       "sha256": "d5b2adb6f480d68f9f87458e409bcf78389cc07f4da5efaba17fb0536a542b92"
     },
     {
+      "file": "concurrency-fresh-benchmark.json",
+      "bytes": 26561,
+      "sha256": "05ab8f809a93a3168d428578874f3ad68a1349f724c0b783c2c84e84b89136a1"
+    },
+    {
+      "file": "concurrency-reused-benchmark.json",
+      "bytes": 26561,
+      "sha256": "f679cc98260acc08b95e4ee2d372894ef48254b70ffc419acace0698252d5702"
+    },
+    {
       "file": "evrf-sample.asc",
       "bytes": 21645,
       "sha256": "ed3d4c2a2565c71a70f93b7084a6c93beb426c65f1c4f55422bf5c3349a3dab3"

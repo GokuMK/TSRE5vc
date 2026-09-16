@@ -3,6 +3,11 @@
 Measured 2026-09-16, starting 16:32 UTC, from the local development machine.
 Application dataset defaults remain unchanged at 512 m.
 
+Follow-up: the [equal-area concurrency benchmark](geoportal-concurrency-benchmark.md)
+measures four neighboring 1024 m TIFF requests in parallel against sequential
+retrieval and one 2048 m request. The sequential estimates below do not apply to
+that concurrent strategy.
+
 ## Results
 
 Three sequential requests per size/format, with rotated size and format order.

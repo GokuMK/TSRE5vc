@@ -4,3 +4,5 @@
 *.tif -text
 projection-reference.json -text
 request-size-benchmark.json -text
+concurrency-reused-benchmark.json -text
+concurrency-fresh-benchmark.json -text
