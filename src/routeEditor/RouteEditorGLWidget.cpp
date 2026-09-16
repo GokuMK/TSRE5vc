@@ -1726,8 +1726,20 @@ void RouteEditorGLWidget::mousePressEvent(QMouseEvent *event) {
             Game::check_coords(x,z,px,pz);
             Terrain *terrain=Game::terrainLib->getTerrainByXY(x,z);
             QString error;
-            if (terrain && terrain->loaded && !terrain->setProceduralMaterial(toolEnabled == "proceduralTileEnableTool",error,
-                    defaultPaintBrush ? defaultPaintBrush->terrainMaterialUid : 0))
+            const bool enable=toolEnabled == "proceduralTileEnableTool";
+            bool restore=false, cancelled=false;
+            if (terrain && terrain->loaded && enable && !terrain->usesProceduralMaterial()
+                    && terrain->hasSavedProceduralMap()) {
+                const auto answer=QMessageBox::question(this,tr("Restore procedural map"),
+                    tr("An existing procedural material map was found for this tile. Restore it?\n\n"
+                       "Painted regions will be preserved, but random materials may be assigned if the original material mapping is missing.\n\n"
+                       "Choose No to fill the whole tile with the selected material instead."),
+                    QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel,QMessageBox::Yes);
+                restore=answer==QMessageBox::Yes;
+                cancelled=answer==QMessageBox::Cancel;
+            }
+            if (!cancelled && terrain && terrain->loaded && !terrain->setProceduralMaterial(enable,error,
+                    defaultPaintBrush ? defaultPaintBrush->terrainMaterialUid : 0,restore))
                 QMessageBox::warning(this,
                     //% "Procedural terrain"
                     qtTrId("route.editor.route.editor.glwidget.dialog.title.procedural.terrain"),error);

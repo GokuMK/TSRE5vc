@@ -566,6 +566,46 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
         check(dat.open(QIODevice::WriteOnly),"global-fixture-restore-after-thumbnails"); dat.write(original); dat.close();
         check(library->reload(),"global-library-reload-after-thumbnails");
 
+        {
+            TestTerrain recovered; recovered.setup(library->textureDirectory(),16,"recover-map");
+            TerrainMaterialMap originalMap;
+            originalMap.initialize(0);
+            originalMap.ids[12345]=char(255);
+            const QString mapPath=tileDir+"/recover-map_materials.pmap";
+            check(!recovered.hasSavedProceduralMap(),"restore-no-map-no-prompt");
+            check(!recovered.setProceduralMaterial(true,error,redUid,true)
+                  && !recovered.usesProceduralMaterial(),"restore-missing-map-leaves-static-tile");
+            check(originalMap.write(mapPath,error) && recovered.hasSavedProceduralMap(),"restore-detect-orphan-map");
+            const auto before=recovered.captureProceduralUndo();
+            check(recovered.setProceduralMaterial(true,error,redUid,true)
+                  && recovered.descriptor().materialUids==QMap<int,quint32>{{0,redUid},{255,blueUid}},
+                  "restore-assigns-all-used-ids-including-zero-and-255");
+            TerrainMaterialMap diskMap;
+            check(diskMap.read(mapPath,error) && diskMap.ids==originalMap.ids,"restore-does-not-write-map-on-enable");
+            check(recovered.save() && diskMap.read(mapPath,error) && diskMap.ids==originalMap.ids,
+                  "restore-save-preserves-exact-painted-regions");
+            TFile restoredDescriptor;
+            check(restoredDescriptor.readT(tileDir+"/recover-map.t")
+                  && restoredDescriptor.sampleMaterialBuffer=="recover-map_materials.pmap"
+                  && restoredDescriptor.materialUids==recovered.descriptor().materialUids,
+                  "restore-save-recreates-procedural-reference-and-uid-table");
+            check(before && before->restore() && !recovered.usesProceduralMaterial(),"restore-undo-returns-static-tile");
+            recovered.descriptor().materialUidMapPresent=recovered.descriptor().materialUidMapValid=true;
+            recovered.descriptor().materialUids={{0,blueUid},{255,redUid}};
+            check(recovered.setProceduralMaterial(true,error,redUid,true)
+                  && recovered.descriptor().materialUids==QMap<int,quint32>{{0,blueUid},{255,redUid}},
+                  "restore-reuses-surviving-valid-material-mapping");
+            check(before->restore(),"restore-reset-static-fixture");
+            QFile corrupt(mapPath);
+            check(corrupt.open(QIODevice::WriteOnly) && corrupt.write("broken")==6,"restore-corrupt-map-fixture");
+            corrupt.close();
+            check(!recovered.setProceduralMaterial(true,error,redUid,true)
+                  && !recovered.usesProceduralMaterial(),"restore-corrupt-map-not-replaced-with-fresh-map");
+            check(recovered.setProceduralMaterial(true,error,redUid)
+                  && recovered.descriptor().materialUids==QMap<int,quint32>{{1,redUid}},
+                  "restore-declined-keeps-existing-start-fresh-behavior");
+        }
+
         TestTerrain global; global.setup(library->textureDirectory(),16,"global-library");
         check(global.setProceduralMaterial(true,error,redUid),"global-tile-enable-from-uid");
         check(global.descriptor().materialsCount==1 && global.descriptor().materialUids==QMap<int,quint32>{{1,redUid}},"global-tile-only-bake-shader-no-definition-copies");

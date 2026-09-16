@@ -91,7 +91,9 @@ public:
     };
     static void beginProceduralFrame();
     static ProceduralWorkStats proceduralWorkStats();
-    bool setProceduralMaterial(bool enabled, QString &error, quint32 materialUid = 0);
+    bool hasSavedProceduralMap() const;
+    bool setProceduralMaterial(bool enabled, QString &error, quint32 materialUid = 0,
+                               bool restoreSavedMap = false);
     std::shared_ptr<UndoSnapshot> captureProceduralUndo();
     void rememberProceduralSource(Brush *brush, int x, int z, float posx, float posz);
     // operation: TerrainMaterialMap::TexturePaint / FillPatch / FloodFill.

@@ -948,7 +948,11 @@ void Terrain::loadProceduralMaterial(const QString &directory, bool prefetch) {
     if (!procedural->ready) qWarning() << name << procedural->error << "Procedural painting/save refused; static fallback retained";
     procedural->rememberLibrary(*tfile);
 }
-bool Terrain::setProceduralMaterial(bool enabled, QString &error, quint32 materialUid) {
+bool Terrain::hasSavedProceduralMap() const {
+    return QFileInfo::exists(Game::root+"/ROUTES/"+Game::route+"/"+TileDir[int(lowTile)]
+                             +"/"+name+"_materials.pmap");
+}
+bool Terrain::setProceduralMaterial(bool enabled, QString &error, quint32 materialUid, bool restoreSavedMap) {
     if (!TerrainMaterialMap::Enabled) { error="Procedural materials are disabled in settings. Enable them and restart TSRE first."; return false; }
     if (!Game::writeEnabled || !editable || Game::serverClient) { error = "Terrain is not writable/editable in this session"; return false; }
     if (enabled == usesProceduralMaterial()) return true;
@@ -962,13 +966,39 @@ bool Terrain::setProceduralMaterial(bool enabled, QString &error, quint32 materi
             error = "Save the tile's static texture edits before enabling procedural materials"; return false;
         }
         auto state = std::make_shared<TerrainProceduralState>();
+        QMap<int,quint32> restoredUids;
+        if (restoreSavedMap) {
+            const QString path=Game::root+"/ROUTES/"+Game::route+"/"+TileDir[int(lowTile)]
+                    +"/"+name+"_materials.pmap";
+            if (!state->map.read(path,error)) return false;
+            const auto library=TerrainMaterialLibrary::current();
+            auto available=library->materials().keys();
+            if (available.isEmpty()) { error="Choose or create a route material before restoring the map"; return false; }
+            if (materialUid && library->find(materialUid)) {
+                available.removeAll(materialUid); available.prepend(materialUid);
+            }
+            if (!materialUid) materialUid=available.first();
+            auto ids=state->map.usedIds().values();
+            std::sort(ids.begin(),ids.end());
+            int next=0;
+            for (int id : ids) {
+                const quint32 old=tfile->materialUidMapPresent && tfile->materialUidMapValid
+                        ? tfile->materialUids.value(id) : 0;
+                const quint32 uid=library->find(old) ? old : available[next++ % available.size()];
+                QImage source;
+                if (!loadSource(proceduralSourceRoot(),library->find(uid)->texture,source,error,proceduralVariant)) return false;
+                restoredUids.insert(id,uid);
+                state->sources.insert(id,source);
+                state->sourceIds.insert(id);
+            }
+        }
         const int first=tfile->bakedMaterialInfo.isEmpty()?0:1;
         if (materialUid) {
             const auto definition=TerrainMaterialLibrary::current()->find(materialUid);
             QImage source;
             if (!definition) { error="Selected route material UiD does not exist"; return false; }
             if (!loadSource(proceduralSourceRoot(),definition->texture,source,error,proceduralVariant)) return false;
-            state->sources.insert(first,source);
+            if (!restoreSavedMap) state->sources.insert(first,source);
         } else if (tfile->materialUidMapPresent) {
             error="Choose a route material before enabling procedural terrain"; return false;
         } else if (!state->ensureSource(*tfile,first,proceduralSourceRoot(),proceduralVariant)) { error = state->error; return false; }
@@ -985,13 +1015,16 @@ bool Terrain::setProceduralMaterial(bool enabled, QString &error, quint32 materi
             TerrainMaterialSource::restorePalette(*tfile,{bake});
             if (!tfile->bakedMaterialInfo.startsWith("v1:")) tfile->bakedMaterialInfo="v1:pending";
             tfile->materialUidMapPresent=tfile->materialUidMapValid=true;
-            tfile->materialUids={{1,materialUid}};
+            tfile->materialUids=restoreSavedMap ? restoredUids : QMap<int,quint32>{{1,materialUid}};
             for (int p=0;p<gridLayout.patchRecordCount();++p) tfile->tdata[p*13+6]=0;
             clearStaticTextureRefs();
         } else if (!reserveProceduralBake(error)) return false;
-        state->sources.insert(1,state->sources.take(first));
-        state->map.initialize(1); state->ready=true; state->changed=true;
-        state->sourceIds.insert(1);
+        if (!restoreSavedMap) {
+            state->sources.insert(1,state->sources.take(first));
+            state->map.initialize(1);
+            state->sourceIds.insert(1);
+        }
+        state->ready=true; state->changed=true;
         state->detailSourcePath=TerrainSeason::resolve(proceduralSourceRoot(),proceduralVariant,"microtex.ace");
         state->libraryCanRecover=true;
         state->rememberLibrary(*tfile);
