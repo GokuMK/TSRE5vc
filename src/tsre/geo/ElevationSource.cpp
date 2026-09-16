@@ -1,20 +1,18 @@
 #include <tsre/geo/ElevationSource.h>
+#include <tsre/geo/ElevationDownload.h>
 
 #include <QCache>
 #include <QCryptographicHash>
 #include <QDateTime>
 #include <QDir>
-#include <QEventLoop>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
-#include <QNetworkAccessManager>
-#include <QNetworkReply>
 #include <QSaveFile>
 #include <QSet>
-#include <QTimer>
 #include <QUrlQuery>
+#include <algorithm>
 #include <cmath>
 #include <memory>
 
@@ -56,39 +54,6 @@ bool saveFile(const QString &path, const QByteArray &bytes) {
     QSaveFile file(path);
     return file.open(QIODevice::WriteOnly) && file.write(bytes) == bytes.size() && file.commit();
 }
-QByteArray download(QNetworkAccessManager &manager, const QUrl &url,
-                    std::atomic_bool &cancel, QString &error) {
-    if (cancel) return {};
-    QNetworkRequest request(url);
-    request.setRawHeader("User-Agent", "TSRE5vc terrain elevation");
-    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
-    request.setTransferTimeout(30000);
-    std::unique_ptr<QNetworkReply> reply(manager.get(request));
-    reply->setReadBufferSize(1024*1024);
-    QEventLoop loop;
-    QTimer timer, deadline;
-    QByteArray bytes;
-    bool tooLarge = false, timedOut = false;
-    QObject::connect(reply.get(), &QNetworkReply::readyRead, &loop, [&] {
-        bytes += reply->readAll();
-        if (bytes.size() > MaxDownload) { tooLarge = true; reply->abort(); }
-    });
-    QObject::connect(reply.get(), &QNetworkReply::finished, &loop, &QEventLoop::quit);
-    QObject::connect(&timer, &QTimer::timeout, &loop, [&] { if (cancel) reply->abort(); });
-    QObject::connect(&deadline, &QTimer::timeout, &loop, [&] { timedOut = true; reply->abort(); });
-    timer.start(50); deadline.setSingleShot(true); deadline.start(45000);
-    if (!reply->isFinished()) loop.exec();
-    bytes += reply->readAll();
-    const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-    if (cancel) return {};
-    if (tooLarge || bytes.size() > MaxDownload) error = QStringLiteral("Elevation response exceeds 32 MiB");
-    else if (timedOut) error = QStringLiteral("Elevation request timed out");
-    else if (reply->error() != QNetworkReply::NoError || status != 200)
-        error = QStringLiteral("Elevation request failed (HTTP %1): %2").arg(status).arg(reply->errorString());
-    if (!error.isEmpty()) return {};
-    return bytes;
-}
-
 class HgtSource final : public Source {
 public:
     HgtSource(QString path, Report &r) : root(std::move(path)), report(r) { cache.setMaxCost(128*1024); }
@@ -127,34 +92,82 @@ private:
 class RasterProvider {
 public:
     virtual ~RasterProvider() = default;
-    virtual QString acquire(Block b, std::atomic_bool &cancel, QString &error) = 0;
+    virtual QMap<Block,QString> acquire(const QVector<Block> &blocks,
+        std::atomic_bool &cancel, const Progress &progress) = 0;
 };
 class WcsProvider final : public RasterProvider {
 public:
     WcsProvider(QString path, Dataset data, Report &r)
         : root(std::move(path)), dataset(std::move(data)), report(r) {}
-    QString acquire(Block b, std::atomic_bool &cancel, QString &error) override {
+    QMap<Block,QString> acquire(const QVector<Block> &blocks, std::atomic_bool &cancel,
+                               const Progress &progress) override {
+        QMap<Block,QString> prepared;
+        QVector<Block> missing;
+        int done = 0, failures = 0;
+        bool stopNetwork = false;
+        const auto notify = [&](int count, const QString &activity) {
+            if (progress) progress(count,blocks.size(),
+                QStringLiteral("%1 1 m elevation blocks: %2/%3").arg(activity).arg(count).arg(blocks.size()));
+        };
+        notify(0,QStringLiteral("Checking"));
+        // Resolve every cache hit even if later HTTP requests fail.
+        for (const Block b : blocks) {
+            if (cancel) return {};
+            const QString path = cached(b);
+            if (path.isEmpty()) missing.push_back(b);
+            else { prepared.insert(b,path); notify(++done,QStringLiteral("Prepared")); }
+        }
+        for (qsizetype first=0; first<missing.size(); first+=dataset.concurrentRequests) {
+            if (cancel) return {};
+            if (stopNetwork) {
+                report.issue(QStringLiteral("Downloads stopped after three consecutive failures; using available cache and HGT"));
+                notify(blocks.size(),QStringLiteral("Prepared"));
+                break;
+            }
+            QVector<QUrl> urls;
+            const int count = int(std::min(qsizetype(dataset.concurrentRequests),missing.size()-first));
+            for (int i=0; i<count; ++i) urls.push_back(coverageUrl(dataset,missing[first+i]));
+            const auto responses = downloadWave(urls,cancel,[&](int finished) {
+                notify(done+finished,QStringLiteral("Completed"));
+            });
+            if (cancel) return {};
+            // Decode after all replies finish, keeping CPU/cache writes out of
+            // the network event loop. One wave is at most four bounded bodies.
+            for (int i=0; i<count; ++i) {
+                if (cancel) return {};
+                const Block b = missing[first+i];
+                QString error = responses[i].error;
+                QString path;
+                if (error.isEmpty()) path = store(b,responses[i].bytes,error);
+                if (path.isEmpty()) {
+                    ++failures;
+                    if (failures>=3) stopNetwork = true;
+                    report.issue(QStringLiteral("Block %1,%2: %3").arg(b.column).arg(b.row).arg(error));
+                } else { failures = 0; prepared.insert(b,path); }
+                ++done;
+            }
+            notify(done,QStringLiteral("Prepared"));
+        }
+        return prepared;
+    }
+private:
+    QString cached(Block b) {
         const QString path = QDir(root).filePath(cacheRelativePath(dataset,b));
         Raster raster;
+        QString error;
         QByteArray bytes = readFile(path);
-        bool cached = !bytes.isEmpty() && decode(dataset,bytes,raster,error) && validate(dataset,b,raster,error);
-        if (cached) {
+        bool valid = !bytes.isEmpty() && decode(dataset,bytes,raster,error) && validate(dataset,b,raster,error);
+        if (valid) {
             const QJsonObject metadata = QJsonDocument::fromJson(readFile(path+".json",64*1024)).object();
-            cached = metadata.value("sha256").toString().toLatin1() == QCryptographicHash::hash(bytes,QCryptographicHash::Sha256).toHex();
+            valid = metadata.value("sha256").toString().toLatin1() == QCryptographicHash::hash(bytes,QCryptographicHash::Sha256).toHex();
         }
-        if (cached) { ++report.cacheHits; return path; }
-        error.clear();
-        if (failedDownloads >= 3) {
-            error = QStringLiteral("Downloads stopped after three consecutive failures; using available cache and HGT");
-            return {};
-        }
-        bytes = download(network,coverageUrl(dataset,b),cancel,error);
-        if (cancel) return {};
-        if (!error.isEmpty() || !decode(dataset,bytes,raster,error) || !validate(dataset,b,raster,error)) {
-            ++failedDownloads;
-            return {};
-        }
-        failedDownloads = 0;
+        if (valid) { ++report.cacheHits; return path; }
+        return {};
+    }
+    QString store(Block b, const QByteArray &bytes, QString &error) {
+        Raster raster;
+        if (!decode(dataset,bytes,raster,error) || !validate(dataset,b,raster,error)) return {};
+        const QString path = QDir(root).filePath(cacheRelativePath(dataset,b));
         ++report.downloads;
         QJsonObject metadata;
         metadata["dataset"] = dataset.id;
@@ -168,12 +181,9 @@ public:
         }
         return path;
     }
-private:
     QString root;
     Dataset dataset;
     Report &report;
-    QNetworkAccessManager network;
-    int failedDownloads = 0;
 };
 
 class RasterSource final : public Source {
@@ -191,19 +201,8 @@ public:
                 error = QStringLiteral("Requested area exceeds 2048 elevation blocks; generate a smaller area"); return false;
             }
         }
-        int done = 0;
-        for (auto it = blocks.cbegin(); it != blocks.cend(); ++it) {
-            if (cancel) return false;
-            const Block b = it.key();
-            if (progress) progress(done,blocks.size(),QStringLiteral("Preparing 1 m elevation block %1/%2").arg(done+1).arg(blocks.size()));
-            QString problem;
-            const QString path = provider->acquire(b,cancel,problem);
-            if (cancel) return false;
-            if (path.isEmpty()) report.issue(QStringLiteral("Block %1,%2: %3").arg(b.column).arg(b.row).arg(problem));
-            else prepared.insert(b,path);
-            ++done;
-        }
-        return true;
+        prepared = provider->acquire(blocks.keys(),cancel,progress);
+        return !cancel;
     }
     Sample sample(Point p) override {
         XY xy;
@@ -249,6 +248,7 @@ QVector<Dataset> datasets(QString &error) {
         d.format = o.value("format").toString(); d.epsg = o.value("crs").toInt();
         d.verticalDatum = o.value("verticalDatum").toString();
         d.resolution = o.value("resolution").toDouble(); d.blockPixels = o.value("blockPixels").toInt();
+        d.concurrentRequests = o.value("concurrentRequests").toInt(1);
         const auto origin = o.value("origin").toArray(), box = o.value("bounds").toArray();
         if (origin.size() != 2 || box.size() != 4) { error = QStringLiteral("Invalid elevation grid definition"); return {}; }
         d.originX = origin.at(0).toDouble(); d.originY = origin.at(1).toDouble();
@@ -260,6 +260,7 @@ QVector<Dataset> datasets(QString &error) {
                 || d.endpoint.host().isEmpty() || d.coverage.isEmpty() || d.resolution <= 0
                 || d.axisX.isEmpty() || d.axisY.isEmpty() || d.axisX == d.axisY
                 || d.blockPixels < 16 || d.blockPixels > 1024
+                || d.concurrentRequests < 1 || d.concurrentRequests > 4
                 || d.maxX <= d.minX || d.maxY <= d.minY || (d.epsg != 2180 && d.epsg != 4326)
                 || (d.format != "image/tiff" && d.format != "image/x-aaigrid")) {
             error = QStringLiteral("Invalid elevation dataset definition: %1").arg(d.id); return {};

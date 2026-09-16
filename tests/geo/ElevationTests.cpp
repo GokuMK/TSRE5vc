@@ -9,6 +9,7 @@
 #include <QCryptographicHash>
 #include <QUrlQuery>
 #include <QtEndian>
+#include <QElapsedTimer>
 #include <cmath>
 #include <iostream>
 
@@ -43,17 +44,25 @@ void mutateTag(QByteArray &bytes, quint16 tag, quint32 value) {
     }
 }
 }
+void runDownloadTests(const std::function<void(bool,const char*)> &check);
 int main(int argc, char **argv) {
     QCoreApplication app(argc,argv);
     const auto args = app.arguments();
-    if (args.size() >= 4 && args[1] == "--live") {
+    if (args.size() >= 4 && (args[1] == "--live" || args[1] == "--live-area")) {
         // Explicit opt-in only; normal ctest is fully offline.
         std::atomic_bool cancel{false};
-        const auto result = generate(args[2],args[3],{{52.0,19.0},{52.00005,19.00005}},0,cancel);
+        QVector<Point> points{{52.0,19.0},{52.00005,19.00005}};
+        if (args[1] == "--live-area") {
+            points.clear();
+            for (int y=0; y<16; ++y) for (int x=0; x<16; ++x)
+                points.push_back({52.0+y*.0184/15,19.0+x*.0299/15});
+        }
+        QElapsedTimer timer; timer.start();
+        const auto result = generate(args[2],args[3],points,0,cancel);
         std::cout << "success=" << result.success() << " primary=" << result.report.primarySamples
                   << " fallback=" << result.report.fallbackSamples << " downloads=" << result.report.downloads
-                  << " cache=" << result.report.cacheHits << '\n';
-        for (float h : result.heights) std::cout << h << '\n';
+                  << " cache=" << result.report.cacheHits << " elapsedMs=" << timer.elapsed() << '\n';
+        if (args[1] == "--live") for (float h : result.heights) std::cout << h << '\n';
         std::cerr << result.error.toStdString() << '\n' << result.report.issues.join('\n').toStdString() << '\n';
         return result.success() ? 0 : 1;
     }
@@ -121,15 +130,21 @@ int main(int argc, char **argv) {
     const auto catalog = datasets(error);
     check(catalog.size() == 2 && error.isEmpty(),"embedded dataset catalogue");
     check(catalog[0].resolution == 1 && catalog[1].resolution == 1,"only 1 m datasets offered");
+    check(catalog[0].blockPixels == 1024 && catalog[0].concurrentRequests == 4
+        && catalog[1].blockPixels == 512 && catalog[1].concurrentRequests == 1,
+        "TIFF uses four concurrent 1024 m blocks; ASCII keeps verified serial 512 m blocks");
     const auto &d = catalog[0];
     const auto url = coverageUrl(d,{2,3});
     const QUrlQuery query(url);
-    check(query.allQueryItemValues("SUBSET").size() == 2 && query.queryItemValue("SCALESIZE") == "x(514),y(514)","WCS repeated subsets and fixed native-resolution dimensions");
+    check(query.allQueryItemValues("SUBSET").size() == 2 && query.queryItemValue("SCALESIZE") == "x(1026),y(1026)","WCS repeated subsets and fixed native-resolution dimensions");
     check(query.queryItemValue("COVERAGEID") == "DTM_PL-KRON86-NH_TIFF","numeric TIFF coverage selection");
     check(cacheRelativePath(catalog[0],{0,0}) != cacheRelativePath(catalog[1],{0,0}),"dataset-separated cache identity");
     Dataset revised = d; revised.definition["resolution"] = 5;
     check(cacheRelativePath(d,{0,0}) != cacheRelativePath(revised,{0,0}),"configuration changes invalidate cache identity");
-    check(blockFor(d,{d.originX+512,d.originY-100}).column == 1,"consistent adjacent block boundary");
+    check(blockFor(d,{d.originX+1024,d.originY-100}).column == 1,"consistent adjacent block boundary");
+    Dataset oldGrid = d;
+    oldGrid.definition["blockPixels"] = 512; oldGrid.definition.remove("concurrentRequests");
+    check(cacheRelativePath(oldGrid,{0,0}) != cacheRelativePath(d,{0,0}),"old 512 m TIFF cache cannot be reused as 1024 m data");
     check(hgtFileName(-1,-2) == "S01W002.hgt","HGT hemisphere filename");
     QTemporaryDir temp;
     check(write(temp.path()+"/N52E019.hgt",hgt(3,10)),"create local HGT fixture");
@@ -176,6 +191,7 @@ int main(int argc, char **argv) {
     generated = generate(temp.path(),ascii.id,{{52,19}},0,cancel);
     check(generated.success() && generated.report.noDataSamples == 1 && generated.report.fallbackSamples == 1
           && generated.heights[0] == 20,"cached NoData falls back to organized HGT with provenance");
+    runDownloadTests(check);
     std::cout << checks << " checks, " << failures << " failures\n";
     return failures ? 1 : 0;
 }

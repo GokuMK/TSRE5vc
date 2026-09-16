@@ -8,6 +8,9 @@ unchanged. The user authorized implementation after resolving design questions.
 
 - Terrain elevation offers local HGT, Geoportal NMT 1 m KRON86 (numeric GeoTIFF),
   and Geoportal NMT 1 m EVRF2007 (ASCII Grid).
+- KRON86 TIFF uses a 1024 m cache grid and up to four simultaneous requests.
+  EVRF2007 ASCII retains serial 512 m requests after larger requests failed in
+  the size benchmark. Neither source changes its native 1 m sample spacing.
 - HGT remains the default. Choose a source in the elevation dialog for the current
   session, or set `geo.elevation.source` in Settings for a saved default. The same
   selection is used by manual and automatic terrain generation.
@@ -82,6 +85,8 @@ manual Y offset applies once after sampling; it is not a datum transformation.
   raster registration, affine inversion, validity and interpolation.
 - `ElevationSource`: source interface, local HGT implementation, shared raster
   source, provider interface, WCS provider, cache and generation result/report.
+- `ElevationDownload`: bounded batches of up to four Qt network replies, with
+  per-request limits and cancellation of every outstanding reply.
 - `elevation-datasets.json`: versioned built-in dataset catalogue embedded as a
   Qt resource. Endpoint, coverage, format, axes, CRS, grid, block size, datum and
   zero policy are data, not terrain-generation branches. It is not yet a user
@@ -131,18 +136,26 @@ server geographic reprojection step.
 HGT lookup prefers `hgt/`, then the root. No files are automatically moved.
 An empty geoPath produces a clear failure instead of writing into the process
 working directory. Source datasets use a deterministic grid aligned to the
-advertised native origin. Each 512 m block includes a one-pixel sampling margin,
-producing a 514 x 514 raster. Neighboring requests share sample registration.
+advertised native origin. TIFF uses 1024 m blocks with a one-pixel sampling
+margin (1026 x 1026 samples); ASCII uses 512 m blocks (514 x 514 samples).
+Neighboring requests share sample registration. The TIFF configuration hash
+changes with the new grid, so old 512 m TIFF entries cannot be reused incorrectly.
 
 Each request is bounded to 32 MiB, a 30-second transfer timeout and a 45-second
-overall deadline. Cancellation aborts outstanding HTTP. After three consecutive
-failed acquisitions, remaining uncached blocks fall back rather than repeatedly
-waiting for an unavailable service. Valid cached blocks still work.
+overall deadline per request. TIFF requests run in batches of up to four, with
+fresh connections for each batch to avoid carrying idle pooled sockets across
+slow requests or decoding. The next batch starts after responses are validated
+and cached. Cancellation aborts all outstanding replies. No retries are added.
+After three consecutive failed acquisitions, no further batch is launched;
+already completed responses and all valid cache hits remain usable. Other
+missing blocks use reported HGT fallback.
 
 Raw data and metadata use atomic file replacement; hashes and grid validation
 detect incomplete or inconsistent entries. In-memory caches are bounded to
-64 MiB of raster heights and 128 MiB of HGT heights per job. Requests are deduplicated
-within a job; one tile job is active at a time. There is a 2048-block preparation
+64 MiB of raster heights and 128 MiB of HGT heights per job. Network bodies are
+bounded to four times the 32 MiB per-response limit (normally about 16 MiB for a
+full TIFF batch). Requests are deduplicated within a job; one tile job is active
+at a time. There is a 2048-block preparation
 limit. Large/distant tiles may still download substantial data at 1 m resolution.
 
 Disk cache is persistent and has no automatic eviction/expiry in this version.
@@ -151,8 +164,9 @@ are outside that directory. No persistent terrain-result cache is involved.
 
 Follow-up [request-size measurements](geoportal-request-size-benchmark.md) compare
 512, 1024 and 2048 m requests. All tested TIFF sizes worked; larger ASCII requests
-did not complete within the diagnostic deadlines. The production block sizes
-remain 512 m pending a separate tuning change.
+did not complete within the diagnostic deadlines. The subsequent
+[concurrency benchmark](geoportal-concurrency-benchmark.md) informed the TIFF
+change to 1024 m / four requests; ASCII remains 512 m / one request.
 
 ## Verification and practical limits
 
@@ -161,13 +175,19 @@ remain 512 m pending a separate tuning change.
   projection, cache identity/reuse, HGT path precedence, fallback and cancellation.
 - Opt-in live checks successfully fetched both datasets. Repeating the same
   native block used the disk cache without a download.
-- Full MinGW/Qt application build passed. Offline elevation: 189 checks;
+- Full MinGW/Qt application build passed. Offline elevation: 203 checks;
   headless dialog: 15; settings: 196; terrain-edge regression: 52. All passed.
   The dialog suite checks preview versus Apply, Close, offset invalidation,
   failure after a successful load and cancellation. Its populated preview was
   captured and visually inspected. Two existing settings assertions expected
   unfinished Polish strings that were already translated on main; those
   assertions now check the actual translations.
+- New local HTTP checks require all four requests to reach the server before
+  any response is released, verify result association and fresh batches, and
+  exercise HTTP failure isolation, oversize rejection, deadlines and cancellation.
+  A live production-path check over approximately 2 x 2 km fetched nine 1024 m
+  TIFF blocks in 24.819 seconds, supplying all 256 test heights with no fallback.
+  Repeating the area used nine cache hits, no downloads, and took 0.505 seconds.
 - In-editor visual comparison against a real route and undo/save/reload acceptance
   remain manual checks. Automated tests do not establish survey accuracy or
   universal Geoportal coverage. Other countries are architectural reference cases,

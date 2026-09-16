@@ -11,7 +11,7 @@ namespace Elevation {
 struct Dataset {
     QString id, name, coverage, format, verticalDatum, axisX, axisY;
     QUrl endpoint;
-    int epsg = 2180, blockPixels = 512;
+    int epsg = 2180, blockPixels = 512, concurrentRequests = 1;
     double resolution = 1, originX = 0, originY = 0;
     double minX = 0, minY = 0, maxX = 0, maxY = 0;
     bool zeroIsNoData = false;

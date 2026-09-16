@@ -9,6 +9,12 @@ with Qt Core and Network, build, then run `ctest --test-dir <build-dir>`.
 points through the actual production cache/provider pipeline. Repeating it
 checks persistent cache reuse.
 
+`tsre_elevation_tests --live-area <temporary-geodata-dir> <dataset-id>` samples
+a 16 x 16 grid over approximately 2 x 2 km near 52 N, 19 E. It exercises multiple
+production download batches and prints block/cache counts and total elapsed time.
+The offline suite also tests the production download transport against a local
+HTTP server, including four concurrent replies, cancellation and failure limits.
+
 ## WCS request-size benchmark
 
 Build the optional target explicitly:

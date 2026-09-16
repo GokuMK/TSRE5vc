@@ -15,7 +15,8 @@
       "resolution": 1,
       "origin": [160828.34326572, 796521.669409553],
       "bounds": [160828.34326572, 98928.8977745594, 876029.97009323, 796521.669409553],
-      "blockPixels": 512,
+      "blockPixels": 1024,
+      "concurrentRequests": 4,
       "zeroIsNoData": true,
       "attribution": "GUGiK / Geoportal.gov.pl"
     },
