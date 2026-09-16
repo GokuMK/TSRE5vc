@@ -66,3 +66,10 @@ a recognized EPSG code; their raw tiepoints were inspected separately.
 - `signed16-pixel-is-point.tif`: same synthetic data with PixelIsPoint registration.
 
 The JSON manifest records sizes and SHA-256 hashes of the retained evidence.
+
+## Request-size benchmark
+
+`request-size-benchmark.json` records 18 sequential live requests for 512, 1024
+and 2048 m cores (each with a one-pixel margin), both numeric formats and three
+rounds. It contains URLs, metadata and measurements, not downloaded rasters.
+See [analysis and reproduction](../../geoportal-request-size-benchmark.md).

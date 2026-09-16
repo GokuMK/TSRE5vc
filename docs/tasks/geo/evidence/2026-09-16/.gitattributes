@@ -3,3 +3,4 @@
 *.asc -text
 *.tif -text
 projection-reference.json -text
+request-size-benchmark.json -text

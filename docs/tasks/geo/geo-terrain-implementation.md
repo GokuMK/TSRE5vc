@@ -149,6 +149,11 @@ Disk cache is persistent and has no automatic eviction/expiry in this version.
 Deleting the relevant managed cache directory forces a refresh. HGT source files
 are outside that directory. No persistent terrain-result cache is involved.
 
+Follow-up [request-size measurements](geoportal-request-size-benchmark.md) compare
+512, 1024 and 2048 m requests. All tested TIFF sizes worked; larger ASCII requests
+did not complete within the diagnostic deadlines. The production block sizes
+remain 512 m pending a separate tuning change.
+
 ## Verification and practical limits
 
 - Standalone offline tests cover real responses, malformed/unsupported files,

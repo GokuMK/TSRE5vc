@@ -47,6 +47,11 @@
       "sha256": "5ca84ca27348072a522d30d240997d107c91fcc009642581673d47f28c67c96f"
     },
     {
+      "file": "request-size-benchmark.json",
+      "bytes": 21218,
+      "sha256": "192c80e6825c91e80a53b570d6d961f5d1132d804bd3f5c04462b711c332431b"
+    },
+    {
       "file": "sea-sample.asc",
       "bytes": 3438,
       "sha256": "bc23c7426647db1d75c80a332c1cb7dbad33f707a13af2fb1e62027b61739228"
