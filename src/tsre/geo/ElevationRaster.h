@@ -16,8 +16,7 @@ struct Sample {
     SampleStatus status = SampleStatus::Unavailable;
     bool valid() const { return status == SampleStatus::Valid; }
 };
-
-// Forward horizontal conversion only: CS92 and ETRS89 / UTM 33N.
+// Forward horizontal conversion only: CS92, Web Mercator and ETRS89 / UTM 33N.
 // Internal XY is always easting/northing, including EPSG:3045 (N-E axes).
 // Geographic input is treated as ETRS89; no epoch or vertical shift.
 bool project(Point point, int epsg, XY &result);

@@ -69,9 +69,25 @@
       "origin": [0, 0],
       "bounds": [284000, 5344000, 792000, 5696000],
       "blockPixels": 1024,
-      "concurrentRequests": 1,
+      "concurrentRequests": 4,
       "zeroIsNoData": true,
       "attribution": "CUZK / geoportal.cuzk.cz - DMR 5G"
+    },
+    {
+      "id": "us.usgs.3dep.conus",
+      "name": "USA - USGS 3DEP CONUS (2 m request grid)",
+      "provider": "arcgis-imageserver",
+      "endpoint": "https://elevation.nationalmap.gov/arcgis/rest/services/3DEPElevation/ImageServer",
+      "format": "image/tiff",
+      "crs": 3857,
+      "verticalDatum": "NAVD88",
+      "resolution": 2,
+      "origin": [0, 0],
+      "bounds": [-13914936.35, 2753408.10, -7347086.39, 6446275.84],
+      "blockPixels": 1024,
+      "concurrentRequests": 4,
+      "zeroIsNoData": false,
+      "attribution": "USGS / The National Map - 3DEP"
     }
   ]
 }

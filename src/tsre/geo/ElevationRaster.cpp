@@ -77,19 +77,42 @@ bool number(QByteArrayView token, double &value) {
 }
 
 bool supportedCrs(int epsg) {
-    return epsg == 2180 || epsg == 4326 || epsg == 3045 || epsg == 25833;
+    return epsg == 2180 || epsg == 4326 || epsg == 3857
+        || epsg == 3045 || epsg == 25833;
 }
 
 bool project(Point p, int epsg, XY &out) {
     if (!std::isfinite(p.latitude) || !std::isfinite(p.longitude)
             || p.latitude < -90 || p.latitude > 90
-            || p.longitude < -180 || p.longitude > 180) return false;
-    if (epsg == 4326) { out = {p.longitude, p.latitude}; return true; }
+            || p.longitude < -180 || p.longitude > 180) 
+            return false;
+    if (epsg == 4326) { 
+        out = {p.longitude, p.latitude}; 
+        return true; 
+    }
+    if (epsg == 3857) {
+        constexpr double pi = 3.14159265358979323846;
+        constexpr double radius = 6378137.0;
+        constexpr double maxLatitude = 85.0511287798066;
+
+        if (p.latitude < -maxLatitude || p.latitude > maxLatitude)
+            return false;
+
+        const double lon = p.longitude * pi / 180.0;
+        const double lat = p.latitude * pi / 180.0;
+
+        out.x = radius * lon;
+        out.y = radius * std::log(std::tan(pi / 4.0 + lat / 2.0));
+
+        return std::isfinite(out.x) && std::isfinite(out.y);
+    }
     const bool cs92 = epsg == 2180;
     if (cs92) {
-        if (p.latitude < 48 || p.latitude > 57 || p.longitude < 13 || p.longitude > 25) return false;
+        if (p.latitude < 48 || p.latitude > 57 || p.longitude < 13 || p.longitude > 25) 
+        return false;
     } else if ((epsg != 3045 && epsg != 25833) || p.latitude < 0 || p.latitude > 84
-               || p.longitude < 9 || p.longitude > 21) return false;
+               || p.longitude < 9 || p.longitude > 21) 
+               return false;
     const double meridian = cs92 ? 19 : 15, factor = cs92 ? .9993 : .9996;
     const double falseNorth = cs92 ? -5300000 : 0;
     // Fourth-order Krueger series, with analytic conformal latitude.
