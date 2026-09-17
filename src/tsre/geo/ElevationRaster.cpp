@@ -74,11 +74,26 @@ bool number(QByteArrayView token, double &value) {
     const auto parsed = std::from_chars(first, last, value);
     return parsed.ec == std::errc() && parsed.ptr == last;
 }
+int tmZoneForCrs(int epsg) {
+    // ETRS89 / UTM zones 28N..38N.
+    if (epsg >= 25828 && epsg <= 25838)
+        return epsg - 25800;
+
+    // ETRS89 / UTM zone 33N with northing/easting axis declaration.
+    if (epsg == 3045)
+        return 33;
+
+    // EUREF-FIN / TM35FIN uses the same TM parameters as UTM zone 35N.
+    if (epsg == 3067)
+        return 35;
+
+    return 0;
+}
 }
 
 bool supportedCrs(int epsg) {
     return epsg == 2180 || epsg == 4326 || epsg == 3857
-        || epsg == 3045 || epsg == 25833;
+        || tmZoneForCrs(epsg) != 0;
 }
 
 bool project(Point p, int epsg, XY &out) {
@@ -107,14 +122,35 @@ bool project(Point p, int epsg, XY &out) {
         return std::isfinite(out.x) && std::isfinite(out.y);
     }
     const bool cs92 = epsg == 2180;
+    const int tmZone = tmZoneForCrs(epsg);
+
+    double meridian;
+    double factor;
+    double falseNorth;
+
     if (cs92) {
-        if (p.latitude < 48 || p.latitude > 57 || p.longitude < 13 || p.longitude > 25) 
-        return false;
-    } else if ((epsg != 3045 && epsg != 25833) || p.latitude < 0 || p.latitude > 84
-               || p.longitude < 9 || p.longitude > 21) 
-               return false;
-    const double meridian = cs92 ? 19 : 15, factor = cs92 ? .9993 : .9996;
-    const double falseNorth = cs92 ? -5300000 : 0;
+        if (p.latitude < 48 || p.latitude > 57
+                || p.longitude < 13 || p.longitude > 25)
+            return false;
+
+        meridian = 19;
+        factor = .9993;
+        falseNorth = -5300000;
+    } else {
+        if (!tmZone || p.latitude < 0 || p.latitude > 84)
+            return false;
+
+        meridian = tmZone * 6.0 - 183.0;
+
+        // Safety bound for this lightweight TM implementation.
+        // Wider than a nominal UTM zone because national datasets may use
+        // one projected CRS beyond the normal 6-degree zone.
+        if (std::abs(p.longitude - meridian) > 30.0)
+            return false;
+
+        factor = .9996;
+        falseNorth = 0;
+    }
     // Fourth-order Krueger series, with analytic conformal latitude.
     // Equations: PROJ Transverse Mercator documentation, mathematical definition.
     // This bounded forward projection is not a general CRS/datum engine.
