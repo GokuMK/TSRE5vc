@@ -17,7 +17,8 @@ struct Sample {
     bool valid() const { return status == SampleStatus::Valid; }
 };
 // Forward horizontal conversion only: CS92, Web Mercator,
-// ETRS89 / UTM zones 28N-38N and EUREF-FIN / TM35FIN.
+// Slovenia D96/TM, ETRS89 / UTM zones 28N-38N
+// and EUREF-FIN / TM35FIN.
 // Internal XY is always easting/northing, including EPSG:3045 (N-E axes).
 // Geographic input is treated as ETRS89; no epoch or vertical shift.
 bool project(Point point, int epsg, XY &result);

@@ -92,7 +92,8 @@ int tmZoneForCrs(int epsg) {
 }
 
 bool supportedCrs(int epsg) {
-    return epsg == 2180 || epsg == 4326 || epsg == 3857
+    return epsg == 2180 || epsg == 3794
+        || epsg == 4326 || epsg == 3857
         || tmZoneForCrs(epsg) != 0;
 }
 
@@ -122,6 +123,7 @@ bool project(Point p, int epsg, XY &out) {
         return std::isfinite(out.x) && std::isfinite(out.y);
     }
     const bool cs92 = epsg == 2180;
+    const bool sloveniaD96 = epsg == 3794;
     const int tmZone = tmZoneForCrs(epsg);
 
     double meridian;
@@ -136,6 +138,14 @@ bool project(Point p, int epsg, XY &out) {
         meridian = 19;
         factor = .9993;
         falseNorth = -5300000;
+    } else if (sloveniaD96) {
+        if (p.latitude < 45 || p.latitude > 47.5
+                || p.longitude < 13 || p.longitude > 17)
+            return false;
+
+        meridian = 15;
+        factor = .9999;
+        falseNorth = -5000000;
     } else {
         if (!tmZone || p.latitude < 0 || p.latitude > 84)
             return false;

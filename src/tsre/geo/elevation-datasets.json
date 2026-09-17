@@ -88,6 +88,57 @@
       "concurrentRequests": 4,
       "zeroIsNoData": false,
       "attribution": "USGS / The National Map - 3DEP"
+    },
+    {
+      "id": "no.kartverket.nhm.dtm1",
+      "name": "Norway - Kartverket NHM DTM 1 m",
+      "provider": "arcgis-imageserver",
+      "endpoint": "https://hoydedata.no/arcgis/rest/services/NHM_DTM_25833/ImageServer",
+      "format": "image/tiff",
+      "crs": 25833,
+      "verticalDatum": "NN2000",
+      "resolution": 1,
+      "origin": [0, 0],
+      "bounds": [-100275, 6399725, 1150255, 8000275],
+      "blockPixels": 1024,
+      "concurrentRequests": 4,
+      "zeroIsNoData": false,
+      "attribution": "Kartverket / hoydedata.no - Nasjonal hoydemodell"
+    },
+    {
+      "id": "es.ign.mdt05",
+      "name": "Spain - IGN/CNIG MDT05 (5 m)",
+      "provider": "wcs-2.0.1",
+      "endpoint": "https://servicios.idee.es/wcs-inspire/mdt",
+      "coverage": "Elevacion25830_5",
+      "format": "image/tiff",
+      "axisX": "x",
+      "axisY": "y",
+      "crs": 25830,
+      "verticalDatum": "Orthometric heights / REDNAP",
+      "resolution": 5,
+      "origin": [0, 0],
+      "bounds": [-250000, 3790000, 1245000, 4910000],
+      "blockPixels": 512,
+      "concurrentRequests": 1,
+      "zeroIsNoData": false,
+      "attribution": "IGN/CNIG - MDT05, CC BY 4.0"
+    },
+    {
+      "id": "si.gurs.dmr1",
+      "name": "Slovenia - GURS DMR1 (1 m)",
+      "provider": "arcgis-imageserver",
+      "endpoint": "https://geohub.gov.si/image/rest/services/TEMELJNI_RASTRI/DMR1/ImageServer",
+      "format": "image/tiff",
+      "crs": 3794,
+      "verticalDatum": "Slovenian national height system",
+      "resolution": 1,
+      "origin": [374846.96, 193755.93],
+      "bounds": [374846.96, 31291.93, 622607.96, 193755.93],
+      "blockPixels": 1024,
+      "concurrentRequests": 4,
+      "zeroIsNoData": false,
+      "attribution": "GURS / e-Prostor - DMR1"
     }
   ]
 }
