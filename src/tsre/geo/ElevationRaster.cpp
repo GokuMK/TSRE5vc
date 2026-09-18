@@ -244,10 +244,18 @@ static bool readTiff(const QByteArray &bytes, int metadataEpsg, Raster &output, 
     Raster r;
     r.width = int(integer(256, 0)); r.height = int(integer(257, 0));
     const int bits = int(integer(258, 0)), sampleFormat = int(integer(339, 1));
-    if (!dimensions(r.width, r.height)) return fail(error, "Invalid TIFF dimensions");
+
+    if (!dimensions(r.width, r.height))
+        return fail(error, "Invalid TIFF dimensions");
+
+    const bool float32  = bits == 32 && sampleFormat == 3;
+    const bool signed16 = bits == 16 && sampleFormat == 2;
+    const bool unsigned16 = bits == 16 && sampleFormat == 1;
+
     if (integer(277,1) != 1 || integer(262,1) != 1
-            || !((bits == 32 && sampleFormat == 3) || (bits == 16 && sampleFormat == 2)))
-        return fail(error, "TIFF must contain one float32 or signed-int16 height band; RGB is not elevation");
+            || !(float32 || signed16 || unsigned16))
+        return fail(error,
+            "TIFF must contain one float32, int16 or uint16 height band; RGB is not elevation");
     if (integer(259,1) != 1 || integer(317,1) != 1 || integer(274,1) != 1
             || integer(284,1) != 1)
         return fail(error, "Only uncompressed, top-down TIFF is currently supported");
@@ -311,8 +319,16 @@ static bool readTiff(const QByteArray &bytes, int metadataEpsg, Raster &output, 
     }
     const auto valueAt = [&](quint64 offset) {
         float value;
-        if (bits == 32) { const quint32 raw = rd.u32(offset); std::memcpy(&value,&raw,4); }
-        else value = qint16(rd.u16(offset));
+
+        if (bits == 32) {
+            const quint32 raw = rd.u32(offset);
+            std::memcpy(&value, &raw, 4);
+        } else if (sampleFormat == 2) {
+            value = qint16(rd.u16(offset));
+        } else {
+            value = rd.u16(offset);
+        }
+
         return value;
     };
     r.values.fill(std::numeric_limits<float>::quiet_NaN(),qsizetype(r.width)*r.height);
@@ -367,7 +383,7 @@ bool readWcsTiff(const QByteArray &bytes, int expectedEpsg, Raster &output, QStr
     error.clear();
     Raster raster;
     if (!bytes.startsWith("--")) {
-        if (!readGeoTiff(bytes,raster,error)) return false;
+        if (!readTiff(bytes, expectedEpsg, raster, error)) return false;
     } else {
         if (bytes.size() > MaxBytes) return fail(error,"Oversized WCS multipart response");
         const qsizetype line = bytes.indexOf('\n');

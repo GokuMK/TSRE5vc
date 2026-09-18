@@ -280,12 +280,15 @@ QVector<Dataset> datasets(QString &error) {
         d.minX = box.at(0).toDouble(); d.minY = box.at(1).toDouble();
         d.maxX = box.at(2).toDouble(); d.maxY = box.at(3).toDouble();
         d.zeroIsNoData = o.value("zeroIsNoData").toBool();
-        const bool wcs = d.provider == "wcs-2.0.1";
+        const bool wcs2 = d.provider == "wcs-2.0.1";
+        const bool wcs1 = d.provider == "wcs-1.0.0";
+        const bool wcs = wcs1 || wcs2;
         const bool arcgis = d.provider == "arcgis-imageserver";
         if (d.id.isEmpty() || ids.contains(d.id) || d.id.contains('/') || d.id.contains('\\') || d.id.contains("..")
                 || (!wcs && !arcgis) || d.endpoint.scheme() != "https"
                 || d.endpoint.host().isEmpty() || d.resolution <= 0
-                || (wcs && (d.coverage.isEmpty() || d.axisX.isEmpty() || d.axisY.isEmpty() || d.axisX == d.axisY))
+                || (wcs2 && (d.coverage.isEmpty() || d.axisX.isEmpty() || d.axisY.isEmpty() || d.axisX == d.axisY))
+                || (wcs1 && d.coverage.isEmpty())
                 || (arcgis && d.format != "image/tiff")
                 || d.blockPixels < 16 || d.blockPixels > 1024
                 || d.concurrentRequests < 1 || d.concurrentRequests > 4
@@ -305,13 +308,42 @@ QUrl coverageUrl(const Dataset &d, Block b) {
     QUrl url = d.endpoint;
     QUrlQuery query(url);
     const auto box = bounds(d,b);
-    query.addQueryItem("SERVICE","WCS"); query.addQueryItem("VERSION","2.0.1");
-    query.addQueryItem("REQUEST","GetCoverage"); query.addQueryItem("COVERAGEID",d.coverage);
-    query.addQueryItem("SUBSET",QStringLiteral("%1(%2,%3)").arg(d.axisX,decimal(box[0]),decimal(box[2])));
-    query.addQueryItem("SUBSET",QStringLiteral("%1(%2,%3)").arg(d.axisY,decimal(box[1]),decimal(box[3])));
-    query.addQueryItem("SCALESIZE",QStringLiteral("%1(%3),%2(%3)").arg(d.axisX,d.axisY).arg(d.blockPixels+2));
-    query.addQueryItem("FORMAT",d.format);
-    url.setQuery(query); return url;
+
+    query.addQueryItem("SERVICE","WCS");
+    query.addQueryItem("REQUEST","GetCoverage");
+
+    if (d.provider == "wcs-1.0.0") {
+        query.addQueryItem("VERSION","1.0.0");
+        query.addQueryItem("COVERAGE",d.coverage);
+        query.addQueryItem("CRS",QStringLiteral("EPSG:%1").arg(d.epsg));
+        query.addQueryItem("RESPONSE_CRS",QStringLiteral("EPSG:%1").arg(d.epsg));
+        query.addQueryItem("BBOX",
+            QStringLiteral("%1,%2,%3,%4")
+                .arg(decimal(box[0]), decimal(box[1]),
+                     decimal(box[2]), decimal(box[3])));
+        query.addQueryItem("WIDTH",QString::number(d.blockPixels+2));
+        query.addQueryItem("HEIGHT",QString::number(d.blockPixels+2));
+
+        // Known-good value for the LGL WCS 1.0 service.
+        query.addQueryItem("FORMAT",
+            d.format == "image/tiff" ? "GeoTIFF" : d.format);
+    } else {
+        query.addQueryItem("VERSION","2.0.1");
+        query.addQueryItem("COVERAGEID",d.coverage);
+        query.addQueryItem("SUBSET",
+            QStringLiteral("%1(%2,%3)")
+                .arg(d.axisX,decimal(box[0]),decimal(box[2])));
+        query.addQueryItem("SUBSET",
+            QStringLiteral("%1(%2,%3)")
+                .arg(d.axisY,decimal(box[1]),decimal(box[3])));
+        query.addQueryItem("SCALESIZE",
+            QStringLiteral("%1(%3),%2(%3)")
+                .arg(d.axisX,d.axisY).arg(d.blockPixels+2));
+        query.addQueryItem("FORMAT",d.format);
+    }
+
+    url.setQuery(query);
+    return url;
 }
 QUrl imageServerUrl(const Dataset &d, Block b) {
     QUrl url = d.endpoint;
