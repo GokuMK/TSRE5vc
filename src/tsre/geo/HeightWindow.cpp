@@ -177,8 +177,8 @@ void HeightWindow::load(bool gui) {
     const float offset = yOffset;
     QThread *worker = QThread::create([&] {
         try {
-            result = Elevation::generate(root,dataset,points,offset,cancel,[&](int done,int total,const QString &message) {
-                if (!gui) return; // setValue() can otherwise auto-show the dialog.
+            result = Elevation::generate(root,dataset,points,step,offset,cancel,[&](int done,int total,const QString &message) {
+                    if (!gui) return; // setValue() can otherwise auto-show the dialog.
                 QMetaObject::invokeMethod(&progress,[&,done,total,message] {
                     progress.setLabelText(message); progress.setRange(0,total); progress.setValue(done);
                 },Qt::QueuedConnection);

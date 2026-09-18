@@ -212,43 +212,150 @@ private:
 
 class RasterSource final : public Source {
 public:
-    RasterSource(Dataset data, std::unique_ptr<RasterProvider> p, Report &r)
-        : dataset(std::move(data)), provider(std::move(p)), report(r) { cache.setMaxCost(64*1024); }
+    RasterSource(Dataset data, std::unique_ptr<RasterProvider> p,
+                 double spacing, Report &r)
+        : dataset(std::move(data)), provider(std::move(p)),
+          targetSpacing(spacing), report(r) {
+        cache.setMaxCost(64*1024);
+    }
+
     bool prepare(const QVector<Point> &points, std::atomic_bool &cancel,
                  const Progress &progress, QString &error) override {
         QMap<Block,bool> blocks;
+
         for (const Point p : points) {
             if (cancel) return false;
+
             XY xy;
-            if (project(p,dataset.epsg,xy) && inside(dataset,xy)) blocks.insert(blockFor(dataset,xy),true);
+            if (!project(p,dataset.epsg,xy) || !inside(dataset,xy))
+                continue;
+
+            blocks.insert(blockFor(dataset,xy),true);
+
+            const int taps = filterTaps(p);
+            if (taps > 1) {
+                const double span = filterSpan(p);
+                const double radius = span * (double(taps)-1) / (2.0*taps);
+
+                // Filter taps may cross cache-block edges, so prepare footprint corners too.
+                for (double dx : {-radius,radius})
+                    for (double dy : {-radius,radius}) {
+                        const XY q{xy.x+dx,xy.y+dy};
+                        if (inside(dataset,q))
+                            blocks.insert(blockFor(dataset,q),true);
+                    }
+            }
+
             if (blocks.size() > MaxBlocks) {
-                error = QStringLiteral("Requested area exceeds 2048 elevation blocks; generate a smaller area"); return false;
+                error = QStringLiteral(
+                    "Requested area exceeds 2048 elevation blocks; generate a smaller area");
+                return false;
             }
         }
+
         prepared = provider->acquire(blocks.keys(),cancel,progress);
         return !cancel;
     }
+
     Sample sample(Point p) override {
         XY xy;
-        if (!project(p,dataset.epsg,xy) || !inside(dataset,xy)) return {0,SampleStatus::Outside};
+        if (!project(p,dataset.epsg,xy) || !inside(dataset,xy))
+            return {0,SampleStatus::Outside};
+
+        const int taps = filterTaps(p);
+        if (taps == 1)
+            return sampleProjected(xy);
+
+        const double span = filterSpan(p);
+        double height = 0;
+
+        // Box-filter finer source rasters over one terrain-grid footprint.
+        for (int y = 0; y < taps; ++y) {
+            const double dy = ((y+.5)/taps-.5)*span;
+
+            for (int x = 0; x < taps; ++x) {
+                const double dx = ((x+.5)/taps-.5)*span;
+                const Sample value = sampleProjected({xy.x+dx,xy.y+dy});
+
+                // Do not average across NoData, unavailable blocks or coverage edges.
+                if (!value.valid())
+                    return value;
+
+                height += value.height;
+            }
+        }
+
+        return {
+            float(height / double(taps*taps)),
+            SampleStatus::Valid
+        };
+    }
+
+private:
+    double filterSpan(Point p) const {
+        // Geographic raster units cannot be compared directly with terrain metres.
+        if (dataset.epsg == 4326)
+            return 0;
+
+        if (dataset.epsg == 3857) {
+            // Web Mercator map metres are stretched by sec(latitude).
+            constexpr double pi = 3.14159265358979323846;
+            return targetSpacing /
+                std::cos(p.latitude*pi/180.0);
+        }
+
+        return targetSpacing;
+    }
+
+    int filterTaps(Point p) const {
+        const double span = filterSpan(p);
+
+        // Equal-resolution and coarser sources retain the existing sharp bilinear path.
+        if (!std::isfinite(span)
+                || span <= dataset.resolution*1.05)
+            return 1;
+
+        // Bound CPU work while retaining adequate area sampling for fine rasters.
+        return std::clamp(
+            int(std::ceil(span/dataset.resolution)),
+            2,32);
+    }
+
+    Sample sampleProjected(XY xy) {
+        if (!inside(dataset,xy))
+            return {0,SampleStatus::Outside};
+
         const Block b = blockFor(dataset,xy);
         const QString path = prepared.value(b);
-        if (path.isEmpty()) return {0,SampleStatus::Unavailable};
+
+        if (path.isEmpty())
+            return {0,SampleStatus::Unavailable};
+
         Raster *r = cache.object(path);
         if (!r) {
             auto loaded = std::make_unique<Raster>();
             QString error;
-            if (!decode(dataset,readFile(path),*loaded,error) || !validate(dataset,b,*loaded,error)) {
-                report.issue(error); prepared.remove(b); return {};
+
+            if (!decode(dataset,readFile(path),*loaded,error)
+                    || !validate(dataset,b,*loaded,error)) {
+                report.issue(error);
+                prepared.remove(b);
+                return {};
             }
-            const int cost = int((loaded->values.size()*sizeof(float)+1023)/1024);
-            r = loaded.get(); cache.insert(path,loaded.release(),cost);
+
+            const int cost =
+                int((loaded->values.size()*sizeof(float)+1023)/1024);
+
+            r = loaded.get();
+            cache.insert(path,loaded.release(),cost);
         }
+
         return r->sample(xy,dataset.zeroIsNoData);
     }
-private:
+
     Dataset dataset;
     std::unique_ptr<RasterProvider> provider;
+    double targetSpacing;
     Report &report;
     QMap<Block,QString> prepared;
     QCache<QString,Raster> cache;
@@ -388,10 +495,13 @@ void Report::issue(const QString &message) {
     if (!message.isEmpty() && issues.size() < 20 && !issues.contains(message)) issues.push_back(message);
 }
 Result generate(const QString &root, const QString &id, const QVector<Point> &points,
-                float yOffset, std::atomic_bool &cancel, const Progress &progress) {
+                double targetSpacing, float yOffset,
+                std::atomic_bool &cancel, const Progress &progress) {
     Result result;
     if (root.trimmed().isEmpty()) { result.error = QStringLiteral("Set the geodata directory (geoPath) first"); return result; }
-    if (points.isEmpty() || points.size() > 16*1024*1024 || !std::isfinite(yOffset)) {
+    if (points.isEmpty() || points.size() > 16*1024*1024
+            || !std::isfinite(targetSpacing) || targetSpacing <= 0
+            || !std::isfinite(yOffset)) {
         result.error = QStringLiteral("Invalid elevation generation request"); return result;
     }
     HgtSource hgt(root,result.report);
@@ -404,7 +514,7 @@ Result generate(const QString &root, const QString &id, const QVector<Point> &po
             if (d.provider == "arcgis-imageserver")
                 provider = std::make_unique<ArcGisImageServerProvider>(root,d,result.report);
             else provider = std::make_unique<WcsProvider>(root,d,result.report);
-            primary = std::make_unique<RasterSource>(d,std::move(provider),result.report);
+            primary = std::make_unique<RasterSource>(d,std::move(provider),targetSpacing,result.report);
         }
         if (!primary) { result.error = QStringLiteral("Unknown elevation dataset: %1").arg(id); return result; }
         if (!primary->prepare(points,cancel,progress,result.error)) {

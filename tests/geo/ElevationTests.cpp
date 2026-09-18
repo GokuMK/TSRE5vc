@@ -66,7 +66,7 @@ int main(int argc, char **argv) {
                 points.push_back({52.0+y*.0184/15,19.0+x*.0299/15});
         }
         QElapsedTimer timer; timer.start();
-        const auto result = generate(args[2],args[3],points,0,cancel);
+        const auto result = generate(args[2],args[3],points,1.0,0,cancel);
         std::cout << "success=" << result.success() << " primary=" << result.report.primarySamples
                   << " fallback=" << result.report.fallbackSamples << " downloads=" << result.report.downloads
                   << " nodata=" << result.report.noDataSamples << " unavailable=" << result.report.unavailableSamples
@@ -162,18 +162,18 @@ int main(int argc, char **argv) {
     check(write(temp.path()+"/hgt/N52E019.hgt",hgt(3,20)),"create organized HGT fixture");
     check(findHgtFile(temp.path(),52,19) == temp.path()+"/hgt/N52E019.hgt","HGT subdirectory wins conflicts");
     std::atomic_bool cancel{false};
-    auto generated = generate(temp.path(),"",{{52.5,19.5}},2,cancel);
+    auto generated = generate(temp.path(),"",{{52.5,19.5}},1.0,2,cancel);
     check(generated.success() && generated.heights[0] == 22 && generated.report.hgtSamples == 1,"HGT generation and offset");
-    generated = generate(temp.path(),"",{{52.5,19.5},{53.5,19.5}},0,cancel);
+    generated = generate(temp.path(),"",{{52.5,19.5},{53.5,19.5}},1.0,0,cancel);
     check(!generated.success() && generated.heights.isEmpty(),"partial missing tile never returns commit-ready heights");
     cancel = true;
-    generated = generate(temp.path(),d.id,{{52,19}},0,cancel);
+    generated = generate(temp.path(),d.id,{{52,19}},1.0,0,cancel);
     check(generated.cancelled && generated.heights.isEmpty(),"cancel before network work");
     cancel = false;
     write(temp.path()+"/hgt/N40E019.hgt",hgt(3,12));
-    generated = generate(temp.path(),d.id,{{40.5,19.5}},0,cancel);
+    generated = generate(temp.path(),d.id,{{40.5,19.5}},1.0,0,cancel);
     check(generated.success() && generated.report.fallbackSamples == 1 && generated.report.outsideSamples == 1,"outside Poland uses reported HGT fallback without HTTP");
-    check(!generate("","",{{52,19}},0,cancel).success(),"empty geoPath cannot write into working directory");
+    check(!generate("","",{{52,19}},1.0,0,cancel).success(),"empty geoPath cannot write into working directory");
     // Complete prepared block + metadata, so this exercises the production disk
     // cache path without any network service or fake projection implementation.
     const auto &ascii = catalog[1];
@@ -192,13 +192,13 @@ int main(int argc, char **argv) {
         return write(cachePath,grid) && write(cachePath+".json",QJsonDocument(metadata).toJson());
     };
     check(storeGrid(cachedGrid),"prepare offline cache fixture");
-    generated = generate(temp.path(),ascii.id,{{52,19},{52.00005,19.00005}},3,cancel);
+    generated = generate(temp.path(),ascii.id,{{52,19},{52.00005,19.00005}},1.0,3,cancel);
     check(generated.success() && generated.report.cacheHits == 1 && generated.report.downloads == 0
           && generated.report.primarySamples == 2 && generated.heights[0] == 123,"offline cached native grid generation");
     cachedGrid = gridHeader;
     for (int i = 0; i < 514*514; ++i) cachedGrid += "-9999 ";
     check(storeGrid(cachedGrid),"prepare explicit NoData cache fixture");
-    generated = generate(temp.path(),ascii.id,{{52,19}},0,cancel);
+    generated = generate(temp.path(),ascii.id,{{52,19}},1.0,0,cancel);
     check(generated.success() && generated.report.noDataSamples == 1 && generated.report.fallbackSamples == 1
           && generated.heights[0] == 20,"cached NoData falls back to organized HGT with provenance");
     runCzechWcsTests(check);

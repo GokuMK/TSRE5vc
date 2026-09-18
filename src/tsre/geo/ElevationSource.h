@@ -55,7 +55,8 @@ public:
     virtual Sample sample(Point point) = 0;
 };
 // Called on a worker thread. An empty dataset ID selects local HGT only.
+// targetSpacing is the output terrain vertex spacing in metres.
 Result generate(const QString &root, const QString &datasetId,
-                const QVector<Point> &points, float yOffset,
+                const QVector<Point> &points, double targetSpacing, float yOffset,
                 std::atomic_bool &cancel, const Progress &progress = {});
 }
