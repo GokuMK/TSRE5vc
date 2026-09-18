@@ -16,6 +16,7 @@
 #include <unordered_map>
 
 #include <tsre/world/TerrainLod.h>
+#include <tsre/geo/GeoCoordinates.h>
 
 class FileBuffer;
 class QTextStream;
@@ -61,6 +62,7 @@ public:
     int imageLoadId;
     int imageDetailsId;
     double *tsreProjection = NULL;
+    GeoProjectionType geoProjectionType = GeoProjectionType::Undefined;
     int tsreMaxStaticDetailLevel = 10;
     QVector<TerrainLodLevel> terrainLodLevels;
     bool isModified();

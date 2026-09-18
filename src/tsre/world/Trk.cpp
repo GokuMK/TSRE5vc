@@ -90,6 +90,7 @@ void Trk::load(QString path){
 
 void Trk::loadUtf16Data(FileBuffer* data){
     this->milepostUnitsKilometers = false;
+    this->geoProjectionType = GeoProjectionType::Undefined;
     terrainLodLevels.clear();
     
     QString sh = "";
@@ -274,6 +275,16 @@ void Trk::loadUtf16Data(FileBuffer* data){
                     ParserX::SkipToken(data);
                     continue;
                 }
+                if(sh == "tsregeoprojectiontype") {
+                    QString projectionType = ParserX::GetString(data);
+                    geoProjectionType = GeoProjectionTypeFromString(projectionType);
+
+                    if(geoProjectionType == GeoProjectionType::Undefined)
+                        qWarning() << "Unknown TsreGeoProjectionType:" << projectionType;
+
+                    ParserX::SkipToken(data);
+                    continue;
+                }
                 if (sh == ("tsresuperelevation")) {
                     tsreSuperelevation = ParserX::GetNumber(data);
                     ParserX::SkipToken(data);
@@ -338,6 +349,22 @@ void Trk::loadUtf16Data(FileBuffer* data){
         }
         qDebug() << "#TRK - undefined token: " << sh;
         ParserX::SkipToken(data);
+    }
+
+    if (geoProjectionType == GeoProjectionType::Undefined) {
+        geoProjectionType = tsreProjection == NULL
+                ? GeoProjectionType::InterruptedGoodeHomolosine
+                : GeoProjectionType::LocalEllipsoidalEquirectangular;
+    }
+
+    if (geoProjectionType != GeoProjectionType::InterruptedGoodeHomolosine
+            && tsreProjection == NULL) {
+
+        qWarning() << "Geo projection"
+                << GeoProjectionTypeToString(geoProjectionType)
+                << "requires TsreGeoProjection parameters; falling back to IGH.";
+
+        geoProjectionType = GeoProjectionType::InterruptedGoodeHomolosine;
     }
 
     imageLoadId = TexLib::addTex(Game::root+"/ROUTES/"+idName+"/load.ace");
@@ -433,8 +460,15 @@ void Trk::saveToStream(QTextStream &out){
     out << "	TimetableTollerance ( " << this->timetableTollerance << " )" << "\n";
     if(this->forestClearDistance >= 0)
     out << "	ORTSUserPreferenceForestClearDistance ( " << this->forestClearDistance << " )" << "\n";
-    if(this->tsreProjection != NULL)
-    out << "	TsreGeoProjection ( " << this->tsreProjection[0] << " " << this->tsreProjection[1] << " " << this->tsreProjection[2] << " " << this->tsreProjection[3] << " " << " )" << "\n";
+    if(this->tsreProjection != NULL) {
+        out << "	TsreGeoProjection ( " << this->tsreProjection[0] << " " << this->tsreProjection[1] << " " << this->tsreProjection[2] << " " << this->tsreProjection[3] << " " << " )" << "\n";
+        GeoProjectionType projectionType = this->geoProjectionType;
+
+        if(projectionType == GeoProjectionType::Undefined)
+            projectionType = GeoProjectionType::LocalEllipsoidalEquirectangular;
+
+        out << "\tTsreGeoProjectionType ( \"" << GeoProjectionTypeToString(projectionType) << "\" )\n";
+    }
     if(this->tsreMaxStaticDetailLevel != 10)
     out << "	TsreMaxStaticDetailLevel ( " << this->tsreMaxStaticDetailLevel << " )" << "\n";
     if(this->distantTerrainYOffset > 0)
