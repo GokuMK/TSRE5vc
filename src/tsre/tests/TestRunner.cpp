@@ -10,6 +10,7 @@
 
 #include <tsre/tests/TestRunner.h>
 #include <tsre/tests/ElevationUiTestSuite.h>
+#include <tsre/tests/NewRouteTestSuite.h>
 #include <tsre/tests/ContentPathTestSuite.h>
 #include <tsre/tests/SFileComplexTestSuite.h>
 #include <routeEditor/TerrainProfileSelector.h>
@@ -3164,6 +3165,7 @@ QStringList TsreTests::listSuites() {
         "token-shape-gl",
         "settings",
         "elevation-ui",
+        "new-route",
         "tdb-load",
         "terrain-files",
         "terrain-grid",
@@ -3231,6 +3233,9 @@ int TsreTests::run(const TestRunOptions &opts) {
     if (suite == "elevation-ui")
         return runElevationUiSuite(opts.casesFile, opts.verbose);
 
+    if (suite == "new-route")
+        return runNewRouteSuite(opts.verbose);
+
     if (suite == "terrain-grid")
         return runTerrainGridSuite(opts.verbose);
 
@@ -3276,6 +3281,7 @@ int TsreTests::run(const TestRunOptions &opts) {
         rc = std::max(rc, runTokenIdSuite(opts.verbose));
         rc = std::max(rc, runTokenWorldSuite(opts.verbose));
         rc = std::max(rc, runSettingsSuite(opts.verbose));
+        rc = std::max(rc, runNewRouteSuite(opts.verbose));
         rc = std::max(rc, runTdbLoadSuite(opts.verbose));
         rc = std::max(rc, runTerrainGridSuite(opts.verbose));
         rc = std::max(rc, runTerrainEdgeSuite(opts.verbose));

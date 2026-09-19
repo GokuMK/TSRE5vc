@@ -22,6 +22,7 @@
 #include <tsre/Game.h>
 #include <routeEditor/RouteEditorWindow.h>
 #include <routeEditor/LoadWindow.h>
+#include <routeEditor/TrkWindow.h>
 #include <conEditor/CELoadWindow.h>
 #include <shapeViewer/ShapeViewerWindow.h>
 #include <aceConverter/AceConverter.h>
@@ -36,6 +37,8 @@
 #include <settings/SettingsProfile.h>
 #include <settings/SettingsAccess.h>
 #include <TranslationManager.h>
+#include <tsre/world/RouteCreator.h>
+#include <tsre/world/Trk.h>
 
 QFile logFile;
 QTextStream logFileOut;
@@ -73,6 +76,35 @@ void LoadShapeViewer(QString arg){
     shapeWindow->show();
 }
 
+bool prepareConfiguredRoute(bool showTemplateEditor) {
+    if (!Game::checkRoot(Game::root))
+        return false;
+    if (Game::checkRoute(Game::route))
+        return true;
+    if (!Game::createNewRoutes)
+        return false;
+
+    const QString routeDirectory = Game::route.trimmed().toUpper();
+    std::unique_ptr<Trk> routeTemplate =
+            Trk::createNewRouteTemplate(routeDirectory);
+    if (showTemplateEditor && Game::gui) {
+        TrkWindow trkWindow(TrkWindow::Mode::NewRouteTemplate);
+        trkWindow.trk = routeTemplate.get();
+        trkWindow.exec(); // Skip/close intentionally keeps the defaults.
+    }
+
+    QString error;
+    if (!RouteCreator::create(routeDirectory, std::move(routeTemplate), &error)) {
+        qWarning() << "Automatic route creation failed:" << error;
+        return false;
+    }
+    if (!Game::checkRoute(Game::route)) {
+        qWarning() << "Automatic route creation did not produce a readable TRK";
+        return false;
+    }
+    return true;
+}
+
 void LoadRouteEditor(){
     if (!Settings::string("core.network.clientLogin").isEmpty())
         Game::ServerMode = true;
@@ -98,7 +130,7 @@ void LoadRouteEditor(){
         QObject::connect(window, SIGNAL(exitNow()), loadWindow, SLOT(exitNow()));
         QObject::connect(loadWindow, SIGNAL(showMainWindow()), window, SLOT(showRoute()));
 
-        if(Game::checkRoot(Game::root) && (Game::checkRoute(Game::route) || Game::createNewRoutes)){
+        if(prepareConfiguredRoute(true)){
             window->showRoute();
         } else {
             loadWindow->show();
@@ -689,7 +721,11 @@ int main(int argc, char *argv[]){
         qDebug() << "Play" << Game::route << Game::ActivityToPlay;
     }
     if(consoleArgs["SERVER"] == "TRUE"){
-        Game::checkRoute(Game::route);
+        Game::gui = false;
+        if (!prepareConfiguredRoute(false)) {
+            qCritical() << "Server startup aborted: route is unavailable";
+            return 1;
+        }
         qDebug() << "Run server";
         RunRouteEditorServer();
         return app.exec();

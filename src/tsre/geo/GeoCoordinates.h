@@ -29,6 +29,14 @@ enum class GeoProjectionType {
 QString GeoProjectionTypeToString(GeoProjectionType type);
 GeoProjectionType GeoProjectionTypeFromString(const QString &value);
 
+struct GeoProjectionParameters {
+    double originLatitude = 0.0;
+    double originLongitude = 0.0;
+    double offsetX = 0.0;
+    double offsetZ = 0.0;
+    double scaleFactor = 1.0;
+};
+
 /// <summary>
 /// Extends a <see cref="TileCoordinate"/> to contain an object location as <see cref="X"/>, <see cref="Y"/> and <see cref="Z"/> within the tile.
 /// </summary>
@@ -191,7 +199,9 @@ struct LatitudeLongitudeCoordinate {
 
 class GeoWorldCoordinateConverter {
 public:
-    static GeoWorldCoordinateConverter* Create(GeoProjectionType type, double *projection = nullptr);
+    static GeoWorldCoordinateConverter* Create(
+            GeoProjectionType type,
+            const GeoProjectionParameters *projection = nullptr);
     GeoWorldCoordinateConverter(double tileOffsetX = 0.0, double tileOffsetZ = 0.0, int tileZDirection = 1);
     virtual IghCoordinate* ConvertToInternal(PreciseTileCoordinate* coordinates, IghCoordinate* out = 0);
     virtual IghCoordinate* ConvertToInternal(int tilex, int tilez, double x, double z, IghCoordinate* out = 0);
@@ -252,7 +262,7 @@ private:
 
 class GeoTsreCoordinateConverter : public GeoWorldCoordinateConverter {
 public:
-    GeoTsreCoordinateConverter(double *latLonXY);
+    explicit GeoTsreCoordinateConverter(const GeoProjectionParameters &projection);
     using GeoWorldCoordinateConverter::ConvertToInternal;
     LatitudeLongitudeCoordinate* ConvertToLatLon(IghCoordinate* coordinates, LatitudeLongitudeCoordinate* out = 0);
     IghCoordinate* ConvertToInternal(LatitudeLongitudeCoordinate* coordinates, IghCoordinate* out = 0);
@@ -266,7 +276,8 @@ private:
 
 class GeoTsreTransverseMercatorCoordinateConverter : public GeoWorldCoordinateConverter {
 public:
-    GeoTsreTransverseMercatorCoordinateConverter(double *latLonXY);
+    explicit GeoTsreTransverseMercatorCoordinateConverter(
+            const GeoProjectionParameters &projection);
 
     // Keep inherited tile/world overloads visible despite the overloads below.
     using GeoWorldCoordinateConverter::ConvertToInternal;

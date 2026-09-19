@@ -87,8 +87,8 @@ void TerrainLib::loadQuadTree(){
 
 }
 
-void TerrainLib::createNewRouteTerrain(int x, int z){
-
+bool TerrainLib::createNewRouteTerrain(int x, int z){
+    return false;
 }
 
 void TerrainLib::fillTerrainData(Terrain* tTile, float* offsetXYZ){

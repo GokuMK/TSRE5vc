@@ -150,11 +150,11 @@ void TerrainLibQt::loadQuadTreeDistant(FileBuffer *data) {
     if (wasCurrent) setDistantAsCurrent();
 }
 
-void TerrainLibQt::createNewRouteTerrain(int x, int z) {
+bool TerrainLibQt::createNewRouteTerrain(int x, int z) {
     currentQuadTree = new QuadTree();
     currentQuadTree->createNew(x, z);
     QString name = currentQuadTree->getMyName(x, z);
-    Terrain::SaveEmpty(name);
+    return !name.isEmpty() && Terrain::SaveEmpty(name);
 }
 
 void TerrainLibQt::saveEmpty(int x, int z) {

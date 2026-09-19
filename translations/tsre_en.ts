@@ -3427,15 +3427,20 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <source> Paste </source>
         <translation> Paste </translation>
     </message>
-    <message id="route.editor.trk.window.button.bok">
+    <message id="route.editor.trk.window.button.apply">
         <location filename="../src/routeEditor/TrkWindow.cpp" line="203" />
-        <source>OK</source>
-        <translation>OK</translation>
+        <source>Apply</source>
+        <translation>Apply</translation>
     </message>
-    <message id="route.editor.trk.window.button.bcancel">
+    <message id="route.editor.trk.window.button.discard">
         <location filename="../src/routeEditor/TrkWindow.cpp" line="207" />
-        <source>Cancel</source>
-        <translation>Cancel</translation>
+        <source>Discard</source>
+        <translation>Discard</translation>
+    </message>
+    <message id="route.editor.trk.window.button.skip">
+        <location filename="../src/routeEditor/TrkWindow.cpp" line="207" />
+        <source>Skip</source>
+        <translation>Skip</translation>
     </message>
     <message id="route.editor.trk.window.title.route.settings">
         <location filename="../src/routeEditor/TrkWindow.cpp" line="224" />
@@ -10170,5 +10175,47 @@ Missing HGT files:
         <source>Geoportal NMT 1 m - EVRF2007 (ASCII Grid)</source>
         <translation>Geoportal NMT 1 m - EVRF2007 (ASCII Grid)</translation>
     </message>
+</context>
+<context>
+    <name>LoadWindow</name>
+    <message><source>Cannot create route</source><translation>Cannot create route</translation></message>
+    <message><source>The route template is unavailable. %1</source><translation>The route template is unavailable. %1</translation></message>
+    <message><source>Route writing could not be enabled. %1</source><translation>Route writing could not be enabled. %1</translation></message>
+    <message><source>The route was created but its TRK file could not be found.</source><translation>The route was created but its TRK file could not be found.</translation></message>
+</context>
+<context>
+    <name>NewRouteWindow</name>
+    <message><source>Custom origin</source><translation>Custom origin</translation></message>
+    <message><source>Create origin offset using MSTS IGH</source><translation>Create origin offset using MSTS IGH</translation></message>
+    <message><source>New route</source><translation>New route</translation></message>
+    <message><source>Choose Route Starting Point</source><translation>Choose Route Starting Point</translation></message>
+    <message><source>Search for a city or place</source><translation>Search for a city or place</translation></message>
+    <message><source>No place selected</source><translation>No place selected</translation></message>
+    <message><source>Selected place:</source><translation>Selected place:</translation></message>
+    <message><source>Latitude</source><translation>Latitude</translation></message>
+    <message><source>Longitude</source><translation>Longitude</translation></message>
+    <message><source>Latitude:</source><translation>Latitude:</translation></message>
+    <message><source>Longitude:</source><translation>Longitude:</translation></message>
+    <message><source>Route Geographic Projection</source><translation>Route Geographic Projection</translation></message>
+    <message><source>Transverse Mercator</source><translation>Transverse Mercator</translation></message>
+    <message><source>Local Ellipsoidal Equirectangular - Legacy TSRE</source><translation>Local Ellipsoidal Equirectangular - Legacy TSRE</translation></message>
+    <message><source>Interrupted Goode Homolosine - Legacy MSTS</source><translation>Interrupted Goode Homolosine - Legacy MSTS</translation></message>
+    <message><source>Search for a projection origin</source><translation>Search for a projection origin</translation></message>
+    <message><source>No projection origin selected</source><translation>No projection origin selected</translation></message>
+    <message><source>Selected origin:</source><translation>Selected origin:</translation></message>
+    <message><source>Origin latitude</source><translation>Origin latitude</translation></message>
+    <message><source>Origin longitude</source><translation>Origin longitude</translation></message>
+    <message><source>Origin latitude:</source><translation>Origin latitude:</translation></message>
+    <message><source>Origin longitude:</source><translation>Origin longitude:</translation></message>
+    <message><source>Projection tile offset X:</source><translation>Projection tile offset X:</translation></message>
+    <message><source>Projection tile offset Z:</source><translation>Projection tile offset Z:</translation></message>
+    <message><source>Loading places...</source><translation>Loading places...</translation></message>
+    <message><source>Place presets unavailable</source><translation>Place presets unavailable</translation></message>
+    <message><source>Route name must contain at least two characters.</source><translation>Route name must contain at least two characters.</translation></message>
+    <message><source>Route name must not exceed 64 characters.</source><translation>Route name must not exceed 64 characters.</translation></message>
+    <message><source>Use only letters, numbers, spaces, hyphens and underscores.</source><translation>Use only letters, numbers, spaces, hyphens and underscores.</translation></message>
+    <message><source>This route name is reserved by the operating system.</source><translation>This route name is reserved by the operating system.</translation></message>
+    <message><source>A route with this name already exists.</source><translation>A route with this name already exists.</translation></message>
+    <message><source>Some geographic presets could not be loaded. Manual coordinates remain available. %1</source><translation>Some geographic presets could not be loaded. Manual coordinates remain available. %1</translation></message>
 </context>
 </TS>

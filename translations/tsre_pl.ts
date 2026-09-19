@@ -3429,15 +3429,20 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
             <source> Paste </source>
             <translation> Wklej </translation>
         </message>
-        <message id="route.editor.trk.window.button.bok">
+        <message id="route.editor.trk.window.button.apply">
             <location filename="../src/routeEditor/TrkWindow.cpp" line="203" />
-            <source>OK</source>
-            <translation>OK</translation>
+            <source>Apply</source>
+            <translation>Zastosuj</translation>
         </message>
-        <message id="route.editor.trk.window.button.bcancel">
+        <message id="route.editor.trk.window.button.discard">
             <location filename="../src/routeEditor/TrkWindow.cpp" line="207" />
-            <source>Cancel</source>
-            <translation>Anuluj</translation>
+            <source>Discard</source>
+            <translation>Odrzuć</translation>
+        </message>
+        <message id="route.editor.trk.window.button.skip">
+            <location filename="../src/routeEditor/TrkWindow.cpp" line="207" />
+            <source>Skip</source>
+            <translation>Pomiń</translation>
         </message>
         <message id="route.editor.trk.window.title.route.settings">
             <location filename="../src/routeEditor/TrkWindow.cpp" line="224" />
@@ -10175,5 +10180,47 @@ Brakujące pliki HGT:
         <source>Geoportal NMT 1 m - EVRF2007 (ASCII Grid)</source>
         <translation>Geoportal NMT 1 m - EVRF2007 (ASCII Grid)</translation>
     </message>
+</context>
+<context>
+    <name>LoadWindow</name>
+    <message><source>Cannot create route</source><translation>Nie można utworzyć trasy</translation></message>
+    <message><source>The route template is unavailable. %1</source><translation>Szablon trasy jest niedostępny. %1</translation></message>
+    <message><source>Route writing could not be enabled. %1</source><translation>Nie udało się włączyć zapisu trasy. %1</translation></message>
+    <message><source>The route was created but its TRK file could not be found.</source><translation>Trasa została utworzona, ale nie znaleziono jej pliku TRK.</translation></message>
+</context>
+<context>
+    <name>NewRouteWindow</name>
+    <message><source>Custom origin</source><translation>Własny początek układu</translation></message>
+    <message><source>Create origin offset using MSTS IGH</source><translation>Utwórz przesunięcie początku na podstawie MSTS IGH</translation></message>
+    <message><source>New route</source><translation>Nowa trasa</translation></message>
+    <message><source>Choose Route Starting Point</source><translation>Wybierz punkt początkowy trasy</translation></message>
+    <message><source>Search for a city or place</source><translation>Wyszukaj miasto lub miejsce</translation></message>
+    <message><source>No place selected</source><translation>Nie wybrano miejsca</translation></message>
+    <message><source>Selected place:</source><translation>Wybrane miejsce:</translation></message>
+    <message><source>Latitude</source><translation>Szerokość geograficzna</translation></message>
+    <message><source>Longitude</source><translation>Długość geograficzna</translation></message>
+    <message><source>Latitude:</source><translation>Szerokość geograficzna:</translation></message>
+    <message><source>Longitude:</source><translation>Długość geograficzna:</translation></message>
+    <message><source>Route Geographic Projection</source><translation>Odwzorowanie geograficzne trasy</translation></message>
+    <message><source>Transverse Mercator</source><translation>Poprzeczne Mercatora</translation></message>
+    <message><source>Local Ellipsoidal Equirectangular - Legacy TSRE</source><translation>Lokalne elipsoidalne walcowe równoodległościowe - Starszy TSRE</translation></message>
+    <message><source>Interrupted Goode Homolosine - Legacy MSTS</source><translation>Przerwane homolozynowe Goode’a - Starszy MSTS</translation></message>
+    <message><source>Search for a projection origin</source><translation>Wyszukaj początek odwzorowania</translation></message>
+    <message><source>No projection origin selected</source><translation>Nie wybrano początku odwzorowania</translation></message>
+    <message><source>Selected origin:</source><translation>Wybrany początek:</translation></message>
+    <message><source>Origin latitude</source><translation>Szerokość geograficzna początku</translation></message>
+    <message><source>Origin longitude</source><translation>Długość geograficzna początku</translation></message>
+    <message><source>Origin latitude:</source><translation>Szerokość geograficzna początku:</translation></message>
+    <message><source>Origin longitude:</source><translation>Długość geograficzna początku:</translation></message>
+    <message><source>Projection tile offset X:</source><translation>Przesunięcie kafla odwzorowania X:</translation></message>
+    <message><source>Projection tile offset Z:</source><translation>Przesunięcie kafla odwzorowania Z:</translation></message>
+    <message><source>Loading places...</source><translation>Wczytywanie miejsc...</translation></message>
+    <message><source>Place presets unavailable</source><translation>Lista miejsc jest niedostępna</translation></message>
+    <message><source>Route name must contain at least two characters.</source><translation>Nazwa trasy musi zawierać co najmniej dwa znaki.</translation></message>
+    <message><source>Route name must not exceed 64 characters.</source><translation>Nazwa trasy nie może przekraczać 64 znaków.</translation></message>
+    <message><source>Use only letters, numbers, spaces, hyphens and underscores.</source><translation>Użyj wyłącznie liter, cyfr, spacji, łączników i znaków podkreślenia.</translation></message>
+    <message><source>This route name is reserved by the operating system.</source><translation>Ta nazwa trasy jest zastrzeżona przez system operacyjny.</translation></message>
+    <message><source>A route with this name already exists.</source><translation>Trasa o tej nazwie już istnieje.</translation></message>
+    <message><source>Some geographic presets could not be loaded. Manual coordinates remain available. %1</source><translation>Nie udało się wczytać części ustawień geograficznych. Nadal można wpisać współrzędne ręcznie. %1</translation></message>
 </context>
 </TS>

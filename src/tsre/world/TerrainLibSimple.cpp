@@ -62,11 +62,11 @@ void TerrainLibSimple::loadQuadTree(){
     quadTree->load();
 }
 
-void TerrainLibSimple::createNewRouteTerrain(int x, int z){
+bool TerrainLibSimple::createNewRouteTerrain(int x, int z){
     quadTree = new QuadTree();
     quadTree->createNew(x, z);
     QString name = Terrain::getTileName(x, z);
-    Terrain::SaveEmpty(name);
+    return Terrain::SaveEmpty(name);
 }
 
 void TerrainLibSimple::saveEmpty(int x, int z){

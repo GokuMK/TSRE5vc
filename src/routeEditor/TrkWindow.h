@@ -19,7 +19,12 @@ class Trk;
 class TrkWindow : public QDialog {
     Q_OBJECT
 public:
-    TrkWindow();
+    enum class Mode {
+        ExistingRoute,
+        NewRouteTemplate
+    };
+
+    explicit TrkWindow(Mode mode = Mode::ExistingRoute);
     virtual ~TrkWindow();
     Trk *trk = NULL;
     
@@ -34,6 +39,7 @@ public slots:
     void terrainLodEnabled();
     
 private:
+    Mode mode;
     QLabel imageGraphic;
     QLabel imageLoad;
     

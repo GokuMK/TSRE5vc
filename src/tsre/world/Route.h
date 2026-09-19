@@ -80,7 +80,6 @@ public:
     virtual void save();
     //void saveTrk();
     void createNewPaths();
-    void createNew();
     bool checkTrackSectionDatabase();
     void checkRouteDatabase();
     void loadMkrList();

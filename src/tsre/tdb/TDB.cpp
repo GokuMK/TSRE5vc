@@ -3841,18 +3841,20 @@ int TDB::findBiggest() {
         return 1;
     }
 
-void TDB::saveEmpty(bool road) {    
+bool TDB::saveEmpty(bool road, const QString &routeFileStem) {
+    if (!Game::writeEnabled)
+        return false;
     QString sh;
     QString path;
     QString extension = "tdb";
     if(road) extension = "rdb";
-    path = Game::root + "/ROUTES/" + Game::route + "/" + Game::routeName + "." + extension;
+    path = Game::root + "/ROUTES/" + Game::route + "/" + routeFileStem + "." + extension;
     path = ContentPath::normalize(path);
     qDebug() << path;
     QFile file(path);
     if(!file.open(QIODevice::WriteOnly | QIODevice::Text)){
         qDebug() << "Error creating empty TDB file!";
-        return;
+        return false;
     }
     QTextStream out(&file);
     out.setRealNumberPrecision(8);
@@ -3862,9 +3864,13 @@ void TDB::saveEmpty(bool road) {
     out << "TrackDB (\n";
     out << "	Serial ( 0 )\n";
     out << ")";
+    out.flush();
+    const bool saved = out.status() == QTextStream::Ok
+            && file.error() == QFile::NoError;
     file.close();
+    return saved && file.error() == QFile::NoError;
 }
-    
+
 void TDB::updateTrNode(int nid){
     
 }

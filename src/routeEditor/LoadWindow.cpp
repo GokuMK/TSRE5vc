@@ -17,9 +17,11 @@
 #include <tsre/Game.h>
 #include <QDebug>
 #include "NewRouteWindow.h"
+#include <routeEditor/TrkWindow.h>
 #include <settings/SettingsManager.h>
-#include <tsre/geo/GeoCoordinates.h>
 #include <tsre/fileFunctions/TarFile.h>
+#include <tsre/world/RouteCreator.h>
+#include <tsre/world/Trk.h>
 
 LoadWindow::LoadWindow() {
     //this->setWindowFlags( Qt::CustomizeWindowHint );
@@ -200,28 +202,9 @@ void LoadWindow::handleBrowseButton(QString directory){
 }
 
 void LoadWindow::routeLoad(){
-    if(this->newRoute){
-        if(!Game::checkRoot(Game::root)) return;
-        QString settingsError;
-        SettingsManager &settings = SettingsManager::instance();
-        if (!settings.setSessionValue("core.startup.createMissingRoute", true,
-                                      &settingsError)
-                || !settings.setSessionValue("core.route.saving.enabled", true,
-                                              &settingsError)) {
-            qWarning() << "Cannot enable the new-route session:" << settingsError;
-            return;
-        }
-        Game::routeName = Game::route;
-        Game::trkName = Game::route;
-        Game::trkFileName = Game::trkName + ".trk";
-        Game::writeEnabled = true;
-        Game::createNewRoutes = true;
-        Game::writeTDBSessionAllowed = true;
-    }else{
-        if(routeList.currentRow() < 0) return;
-        Game::route = routeList.currentItem()->text();
-        Game::checkRoute(Game::route);
-    }
+    if(routeList.currentRow() < 0) return;
+    Game::route = routeList.currentItem()->text();
+    if (!Game::checkRoute(Game::route)) return;
     qDebug() << Game::route;
     this->hide();
     emit showMainWindow();
@@ -245,7 +228,6 @@ void LoadWindow::setLoadRoute(){
     this->load->setText(
         //% "Load"
         qtTrId("route.editor.load.window.text.load"));
-    this->newRoute = false;
 }
 
 void LoadWindow::cRecentEnabled(QString val){
@@ -257,36 +239,68 @@ void LoadWindow::setNewRoute(){
     //this->load->setText("New");
     
     //Check if template route available.
-    QString path = "./assets/templateRoute_0.6";
-    QFile appFile(path);
-    if (!appFile.exists()){
+    if (!Game::checkRoot(Game::root)) return;
+
+    const QString path = "./assets/templateRoute_0.6";
+    QString templateError;
+    if (!RouteCreator::templateResourcesAvailable(&templateError)) {
         downloadTemplateRoute(path);
+        if (!RouteCreator::templateResourcesAvailable(&templateError)) {
+            QMessageBox::critical(
+                this,
+                tr("Cannot create route"),
+                tr("The route template is unavailable. %1").arg(templateError));
+            return;
+        }
     }
     
     NewRouteWindow newWindow;
-    newWindow.setWindowTitle(
-        //% "New route"
-        qtTrId("route.editor.load.window.title.new.route"));
-    newWindow.name.setText("");
-    newWindow.lat.setText("50.0");
-    newWindow.lon.setText("20.0");
-    newWindow.exec();
-    if(newWindow.changed){
-        if(newWindow.name.text().length() < 2) return;
-        Game::route = newWindow.name.text().toUpper();
-        double lat = newWindow.lat.text().toDouble();
-        double lon = newWindow.lon.text().toDouble();
-        
-        Game::GeoCoordConverter = new GeoMstsCoordinateConverter();
-        
-        igh = Game::GeoCoordConverter->ConvertToInternal(lat, lon, igh);
-        aCoords = Game::GeoCoordConverter->ConvertToTile(igh, aCoords);
-        aCoords->setWxyz();
-        Game::newRouteX = aCoords->TileX;
-        Game::newRouteZ = aCoords->TileZ;
-        qDebug() << Game::newRouteX << " " << Game::newRouteZ;
-        this->newRoute = true;
-        routeLoad();
+    if (newWindow.exec() == QDialog::Accepted) {
+        const NewRouteSelection &selection = newWindow.selection();
+        const QString routeDirectory = selection.name.toUpper();
+        std::unique_ptr<Trk> routeTemplate =
+                Trk::createNewRouteTemplate(routeDirectory);
+        routeTemplate->startTileX = selection.routeTileX;
+        routeTemplate->startTileZ = selection.routeTileZ;
+        routeTemplate->geoProjectionType = selection.projectionType;
+        if (selection.projectionType
+                == GeoProjectionType::InterruptedGoodeHomolosine) {
+            routeTemplate->geoProjection.reset();
+        } else {
+            routeTemplate->geoProjection = selection.projection;
+        }
+
+        TrkWindow trkWindow(TrkWindow::Mode::NewRouteTemplate);
+        trkWindow.trk = routeTemplate.get();
+        trkWindow.exec(); // Skip/close intentionally keeps the prepared values.
+
+        QString settingsError;
+        if (!SettingsManager::instance().setSessionValue(
+                    "core.route.saving.enabled", true, &settingsError)) {
+            QMessageBox::critical(
+                this, tr("Cannot create route"),
+                tr("Route writing could not be enabled. %1").arg(settingsError));
+            return;
+        }
+        Game::writeEnabled = true;
+        Game::writeTDBSessionAllowed = true;
+
+        QString creationError;
+        if (!RouteCreator::create(routeDirectory, std::move(routeTemplate),
+                                  &creationError)) {
+            QMessageBox::critical(
+                this, tr("Cannot create route"), creationError);
+            return;
+        }
+        if (!Game::checkRoute(Game::route)) {
+            QMessageBox::critical(
+                this, tr("Cannot create route"),
+                tr("The route was created but its TRK file could not be found."));
+            return;
+        }
+        qDebug() << "Created route" << Game::route;
+        hide();
+        emit showMainWindow();
     }
 }
 

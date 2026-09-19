@@ -676,18 +676,20 @@ WorldObj* Tile::placeObject(float* p, float* q, Ref::RefItem* itemData, float* t
     return nowy;
 }
 
-void Tile::saveEmpty(int nx, int nz) {
+bool Tile::saveEmpty(int nx, int nz) {
+    if (!Game::writeEnabled)
+        return false;
     QString sh;
     QString path;
     path = Game::root + "/ROUTES/" + Game::route + "/WORLD/w" + getNameXY(nx) + "" + getNameXY(nz) + ".w";
     path = ContentPath::normalize(path);
     qDebug() << path;
     QFile file(path);
-    if(file.exists()) return;
+    if(file.exists()) return true;
     
     if(!file.open(QIODevice::WriteOnly | QIODevice::Text)){
         qDebug() << "Error creating empty W file " << path;
-        return;
+        return false;
     }
     QTextStream out(&file);
     out.setEncoding(QStringConverter::Utf16);
@@ -697,7 +699,11 @@ void Tile::saveEmpty(int nx, int nz) {
     out << "Tr_Worldfile (\n";
     out << ")";
 
-    file.close(); 
+    out.flush();
+    const bool saved = out.status() == QTextStream::Ok
+            && file.error() == QFile::NoError;
+    file.close();
+    return saved && file.error() == QFile::NoError;
 }
 
 void Tile::saveToStream(QTextStream &out){

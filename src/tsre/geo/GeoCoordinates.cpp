@@ -14,6 +14,7 @@
 
 #include <tsre/geo/GeoCoordinates.h>
 #include <QDebug>
+#include <cmath>
 
 QString GeoProjectionTypeToString(GeoProjectionType type) {
     switch(type) {
@@ -46,17 +47,25 @@ constexpr double GeoMstsCoordinateConverter::IghLongitudeCenter[12];
 
 GeoWorldCoordinateConverter* GeoWorldCoordinateConverter::Create(
         GeoProjectionType type,
-        double *projection) {
+        const GeoProjectionParameters *projection) {
 
     switch(type) {
         case GeoProjectionType::InterruptedGoodeHomolosine:
             return new GeoMstsCoordinateConverter();
 
         case GeoProjectionType::LocalEllipsoidalEquirectangular:
-            return new GeoTsreCoordinateConverter(projection);
+            if (projection == nullptr) {
+                qWarning() << "Local TSRE projection requires projection parameters";
+                return nullptr;
+            }
+            return new GeoTsreCoordinateConverter(*projection);
 
         case GeoProjectionType::TransverseMercator:
-            return new GeoTsreTransverseMercatorCoordinateConverter(projection);
+            if (projection == nullptr) {
+                qWarning() << "Transverse Mercator requires projection parameters";
+                return nullptr;
+            }
+            return new GeoTsreTransverseMercatorCoordinateConverter(*projection);
 
         case GeoProjectionType::Undefined:
         default:
@@ -323,10 +332,11 @@ double GeoMstsCoordinateConverter::sign(double a) {
     return 1;
 }
 
-GeoTsreCoordinateConverter::GeoTsreCoordinateConverter(double *latLonXY)
-    : GeoWorldCoordinateConverter(-latLonXY[2], -latLonXY[3], 1) {
-    centerLat = latLonXY[0];
-    centerLon = latLonXY[1];
+GeoTsreCoordinateConverter::GeoTsreCoordinateConverter(
+        const GeoProjectionParameters &projection)
+    : GeoWorldCoordinateConverter(-projection.offsetX, -projection.offsetZ, 1) {
+    centerLat = projection.originLatitude;
+    centerLon = projection.originLongitude;
 
     double centerLatRad = (centerLat*M_PI)/180.0;
     stepLat = 111132.92 - 559.82 * cos( 2 * centerLatRad ) + 1.175 * cos( 4 * centerLatRad) - 0.0023 * cos( 6 * centerLatRad);
@@ -357,10 +367,12 @@ IghCoordinate* GeoTsreCoordinateConverter::ConvertToInternal(double lat, double 
     return out;
 }
 
-GeoTsreTransverseMercatorCoordinateConverter::GeoTsreTransverseMercatorCoordinateConverter(double *latLonXY)
-    : GeoWorldCoordinateConverter(-latLonXY[2], -latLonXY[3], 1)
+GeoTsreTransverseMercatorCoordinateConverter::GeoTsreTransverseMercatorCoordinateConverter(
+        const GeoProjectionParameters &projection)
+    : GeoWorldCoordinateConverter(-projection.offsetX, -projection.offsetZ, 1)
 {
-    // GRS80 ellipsoid. TM scale factor is 1.0 and false easting/northing are 0.
+    // GRS80 ellipsoid. False easting/northing are represented by the TSRE
+    // projection offsets carried by GeoWorldCoordinateConverter.
     constexpr double semiMajorAxis = 6378137.0;
     constexpr double inverseFlattening = 298.257222101;
 
@@ -368,7 +380,7 @@ GeoTsreTransverseMercatorCoordinateConverter::GeoTsreTransverseMercatorCoordinat
     eccentricitySquared = flattening * (2.0 - flattening);
     eccentricity = sqrt(eccentricitySquared);
     const double thirdFlattening = flattening / (2.0 - flattening);
-    centerLongitudeRad = latLonXY[1] * M_PI / 180.0;
+    centerLongitudeRad = projection.originLongitude * M_PI / 180.0;
 
     const double n = thirdFlattening;
     const double n2 = n * n;
@@ -380,6 +392,10 @@ GeoTsreTransverseMercatorCoordinateConverter::GeoTsreTransverseMercatorCoordinat
     // Krueger series, order 6 (Engsager/Poder formulation).
     rectifyingRadius = semiMajorAxis / (1.0 + n)
         * (1.0 + n2 / 4.0 + n4 / 64.0 + n6 / 256.0);
+    const double scaleFactor = std::isfinite(projection.scaleFactor)
+            && projection.scaleFactor > 0.0
+            ? projection.scaleFactor : 1.0;
+    rectifyingRadius *= scaleFactor;
 
     alpha[0] = 0.0;
     alpha[1] = 1.0/2.0 * n - 2.0/3.0 * n2 + 5.0/16.0 * n3
@@ -408,9 +424,12 @@ GeoTsreTransverseMercatorCoordinateConverter::GeoTsreTransverseMercatorCoordinat
     // Raw TM northing is measured from the equator. Subtract the raw
     // northing of the TSRE projection centre so centerLat/centerLon maps to 0,0.
     double unusedEasting = 0.0;
-    forwardRaw(latLonXY[0] * M_PI / 180.0, 0.0, unusedEasting, originNorthing);
+    forwardRaw(projection.originLatitude * M_PI / 180.0, 0.0,
+               unusedEasting, originNorthing);
 
-    qDebug() << "Projection TransverseMercator" << latLonXY[0] << latLonXY[1];
+    qDebug() << "Projection TransverseMercator"
+             << projection.originLatitude << projection.originLongitude
+             << "k0" << scaleFactor;
 }
 
 double GeoTsreTransverseMercatorCoordinateConverter::tauPrime(double tau) const {

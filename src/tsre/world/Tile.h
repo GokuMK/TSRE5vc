@@ -52,7 +52,7 @@ public:
     Tile(int xx, int zz, FileBuffer *data);
     Tile(const Tile& orig);
     virtual ~Tile();
-    static void saveEmpty(int x, int z);
+    static bool saveEmpty(int x, int z);
     static QString getNameXY(int e);
     void load();
     void loadUtf16Data(FileBuffer *data);

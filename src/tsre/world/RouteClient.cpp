@@ -92,7 +92,12 @@ void RouteClient::load(){
             qDebug() << "Geo Projection:" << GeoProjectionTypeToString(trk->geoProjectionType);
             Game::GeoCoordConverter = GeoWorldCoordinateConverter::Create(
                     trk->geoProjectionType,
-                    trk->tsreProjection);
+                    trk->geoProjection.has_value()
+                        ? &*trk->geoProjection : nullptr);
+            if (Game::GeoCoordConverter == nullptr) {
+                qWarning() << "Remote route loading aborted: invalid geographic projection";
+                return;
+            }
 
             env = new Environment(Game::root + "/ROUTES/" + Game::route + "/ENVFILES/editor.env");
             Game::routeName = trk->routeName;

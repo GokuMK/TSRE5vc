@@ -13,6 +13,8 @@
 
 #include <QString>
 #include <QVector>
+#include <memory>
+#include <optional>
 #include <unordered_map>
 
 #include <tsre/world/TerrainLod.h>
@@ -28,6 +30,9 @@ public:
     QString description;
     QString graphic;
     QString loadingScreen;
+    // Physical descriptor filename. This is separate from routeName, which is
+    // the MSTS FileName token and database stem.
+    QString trkFileName;
     QString routeName;
     unsigned int electrified;
     unsigned int mountains;
@@ -59,9 +64,9 @@ public:
     float timetableTollerance;
     float forestClearDistance = 0;
     float derailScale;
-    int imageLoadId;
-    int imageDetailsId;
-    double *tsreProjection = NULL;
+    int imageLoadId = -1;
+    int imageDetailsId = -1;
+    std::optional<GeoProjectionParameters> geoProjection;
     GeoProjectionType geoProjectionType = GeoProjectionType::Undefined;
     int tsreMaxStaticDetailLevel = 10;
     QVector<TerrainLodLevel> terrainLodLevels;
@@ -71,8 +76,10 @@ public:
     void load();
     void loadUtf16Data(FileBuffer *data);
     void load(QString path);
-    void save();
+    bool save();
     void saveToStream(QTextStream &out);
+    static std::unique_ptr<Trk> createNewRouteTemplate(
+            const QString &routeDirectoryName);
     const QVector<TerrainLodLevel> &effectiveTerrainLodLevels() const;
     QString terrainLodSummary() const;
     virtual ~Trk();

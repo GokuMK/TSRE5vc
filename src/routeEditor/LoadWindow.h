@@ -13,10 +13,6 @@
 
 #include <QtWidgets>
 
-class PreciseTileCoordinate;
-class IghCoordinate;
-class LatitudeLongitudeCoordinate;
-
 class LoadWindow : public QWidget {
     Q_OBJECT
 
@@ -42,10 +38,6 @@ private:
     QPushButton *exit;
     QLineEdit *nowaTrasa;
     QWidget* nowa;
-    bool newRoute = false;
-    IghCoordinate* igh = NULL;
-    LatitudeLongitudeCoordinate* latlon = NULL;
-    PreciseTileCoordinate* aCoords = NULL;
     void downloadTemplateRoute(QString path);
     void listRoots();
 };

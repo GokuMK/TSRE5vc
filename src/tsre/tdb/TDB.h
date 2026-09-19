@@ -84,7 +84,7 @@ public:
     void checkDatabase();
     void printVectorParamStats();
     virtual int getNewTRitemId();
-    static void saveEmpty(bool road);
+    static bool saveEmpty(bool road, const QString &routeFileStem);
     void fillTrackAngles(int x, int z, int UiD, QMap<int, float>& angles);
     bool ifTrackExist(int x, int y, int UiD);
     bool removeTrackFromTDB(int x, int y, int UiD);
