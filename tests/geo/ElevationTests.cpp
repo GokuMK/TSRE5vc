@@ -137,18 +137,26 @@ int main(int argc, char **argv) {
     check(!readHgt(QByteArray(19,'x'),0,0,r,error),"reject malformed HGT dimensions");
     check(readHgt(hgt(3,-32768),0,0,r,error) && sampleLegacyHgt(r,{.5,.5}).status == SampleStatus::NoData,"HGT void detection");
     const auto catalog = datasets(error);
-    check(catalog.size() == 4 && error.isEmpty(),"embedded dataset catalogue");
-    if (catalog.size() != 4) return 1;
-    check(catalog[0].resolution == 1 && catalog[1].resolution == 1 && catalog[2].resolution == 5,"Polish 1 m and Czech 5 m datasets");
-    check(catalog[0].blockPixels == 1024 && catalog[0].concurrentRequests == 4
-        && catalog[1].blockPixels == 512 && catalog[1].concurrentRequests == 1,
+    check(!catalog.isEmpty() && error.isEmpty(),"embedded dataset catalogue");
+    QMap<QString,Dataset> byId;
+    for (const auto &entry : catalog) byId.insert(entry.id,entry);
+    bool requiredPresent = true;
+    for (const QString &id : {QString("pl.gugik.nmt1.kron86"),QString("pl.gugik.nmt1.evrf2007"),
+                             QString("cz.cuzk.dmr4g"),QString("cz.cuzk.dmr5g")})
+        requiredPresent &= byId.contains(id);
+    check(requiredPresent && byId.size() == catalog.size(),"required datasets and unique IDs survive catalogue expansion");
+    if (!requiredPresent) return 1;
+    const auto &d = byId["pl.gugik.nmt1.kron86"];
+    const auto &polishAscii = byId["pl.gugik.nmt1.evrf2007"];
+    check(d.resolution == 1 && polishAscii.resolution == 1 && byId["cz.cuzk.dmr4g"].resolution == 5,"Polish 1 m and Czech 5 m datasets");
+    check(d.blockPixels == 1024 && d.concurrentRequests == 4
+        && polishAscii.blockPixels == 512 && polishAscii.concurrentRequests == 1,
         "TIFF uses four concurrent 1024 m blocks; ASCII keeps verified serial 512 m blocks");
-    const auto &d = catalog[0];
     const auto url = coverageUrl(d,{2,3});
     const QUrlQuery query(url);
     check(query.allQueryItemValues("SUBSET").size() == 2 && query.queryItemValue("SCALESIZE") == "x(1026),y(1026)","WCS repeated subsets and fixed native-resolution dimensions");
     check(query.queryItemValue("COVERAGEID") == "DTM_PL-KRON86-NH_TIFF","numeric TIFF coverage selection");
-    check(cacheRelativePath(catalog[0],{0,0}) != cacheRelativePath(catalog[1],{0,0}),"dataset-separated cache identity");
+    check(cacheRelativePath(d,{0,0}) != cacheRelativePath(polishAscii,{0,0}),"dataset-separated cache identity");
     Dataset revised = d; revised.definition["resolution"] = 5;
     check(cacheRelativePath(d,{0,0}) != cacheRelativePath(revised,{0,0}),"configuration changes invalidate cache identity");
     check(blockFor(d,{d.originX+1024,d.originY-100}).column == 1,"consistent adjacent block boundary");
@@ -176,7 +184,7 @@ int main(int argc, char **argv) {
     check(!generate("","",{{52,19}},1.0,0,cancel).success(),"empty geoPath cannot write into working directory");
     // Complete prepared block + metadata, so this exercises the production disk
     // cache path without any network service or fake projection implementation.
-    const auto &ascii = catalog[1];
+    const auto &ascii = polishAscii;
     project({52,19},2180,p);
     const auto block = blockFor(ascii,p);
     const double left = ascii.originX+block.column*512-1;

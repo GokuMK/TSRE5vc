@@ -1,5 +1,8 @@
 # TSRE terrain elevation: Geoportal + generic raster provider ideas
 
+> Implementation status and review: [2026-09-19 elevation update](elevation-current-status.md).
+> The proposal below is historical; the border/fallback issue at the end remains open.
+
 ## Goal
 
 Add a new high-resolution terrain elevation source to TSRE based on the Polish Geoportal / GUGiK NMT service.

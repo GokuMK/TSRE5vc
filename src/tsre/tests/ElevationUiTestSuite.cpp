@@ -41,7 +41,37 @@ int TsreTests::runElevationUiSuite(const QString &capturePath, bool verbose) {
     window.tileX = window.tileZ = 0;
     window.terrainResolution = 16; window.terrainSize = 2048;
     auto *selector = window.findChild<QComboBox*>();
-    check(selector && selector->count() == 5,"HGT, Polish 1 m and Czech 5 m / 2 m datasets are selectable");
+    QString catalogError;
+    const auto catalog = Elevation::datasets(catalogError);
+    check(selector && catalogError.isEmpty() && selector->count() == catalog.size()+1,
+          "height selector follows the current catalogue plus HGT");
+    if (selector) {
+        for (const auto &dataset : catalog) {
+            const int index = selector->findData(dataset.id);
+            check(index >= 0,"every catalogue ID is offered by the height selector");
+            selector->setCurrentIndex(index);
+            check(Settings::string("geo.elevation.source",SettingType::Enum) == dataset.id,
+                  "height selection reaches the setting used by automatic generation");
+        }
+        QTimer::singleShot(0,&window,[&] {
+            check(selector->currentData().toString() == catalog.last().id,
+                  "new source selection survives reopening the height dialog");
+            window.reject();
+        });
+        if (!catalog.isEmpty()) window.exec();
+        check(settings.setSessionValue("geo.elevation.source",QString("future.example.dem")),
+              "unavailable source references are accepted");
+        QTimer::singleShot(0,&window,[&] {
+            check(selector->currentData().toString() == "future.example.dem",
+                  "unavailable source is displayed without switching to HGT");
+            window.load(true);
+            check(!window.ok && window.terrainData == nullptr,
+                  "unavailable source fails explicitly without substituting another dataset");
+            window.reject();
+        });
+        window.exec();
+        selector->setCurrentIndex(selector->findData(QString()));
+    }
     QPushButton *apply = nullptr;
     for (auto *button : window.findChildren<QPushButton*>())
         if (button->text() == qtTrId("geo.elevation.apply")) apply = button;

@@ -1,5 +1,10 @@
 # Elevation checks
 
+> R1/R2 follow-up (2026-09-19): catalogue growth no longer stops the suite.
+> Standalone elevation: 301 passing checks; Settings: 232 passing cases;
+> elevation UI: 44 passing cases. Release build passed. See
+> [current review and remaining validation gaps](../../docs/tasks/geo/elevation-current-status.md).
+
 The normal `tsre_elevation_tests` target is offline. Configure this directory
 with Qt Core and Network, build, then run `ctest --test-dir <build-dir>`.
 
@@ -14,6 +19,22 @@ a 16 x 16 grid over approximately 2 x 2 km near 52 N, 19 E. It exercises multipl
 production download batches and prints block/cache counts and total elapsed time.
 The offline suite also tests the production download transport against a local
 HTTP server, including four concurrent replies, cancellation and failure limits.
+
+## Choosing coordinates and checking downsampling
+
+```text
+tsre_elevation_tests --live-at <temporary-geodata-dir> <dataset-id> <latitude> <longitude>
+```
+
+Use `--live-at` for a national/regional source outside Poland; `--live` and
+`--live-area` use locations near 52 N, 19 E. The current CLI passes output spacing
+`1.0` to `generate()` in every mode. Its Polish/Czech probes therefore do not
+exercise the new fine-to-coarse area filter used by coarser editor terrain grids.
+The `--live-area` point layout is also independent of that spacing argument.
+
+The new WCS 1.0 / uint16 / CRS and filter regression cases still need to be added;
+see the review's validation checklist. Keep any service downloads explicitly
+opt-in, and retain URL, CRS/grid, NoData and cache-hit evidence per dataset.
 
 ## WCS request-size benchmark
 

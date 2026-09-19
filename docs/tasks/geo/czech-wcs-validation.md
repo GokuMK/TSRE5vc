@@ -1,5 +1,9 @@
 # Stage A: Czech DMR 4G through the shared WCS provider
 
+> Historical Stage A report. See [current status and review](elevation-current-status.md)
+> for later source additions and the broader bare-WCS-TIFF CRS inference policy.
+> The verification results below apply to this milestone, not the current catalogue.
+
 2026-09-16, `geo-terrain`. Stage B is recorded separately in
 [the ArcGIS DMR 5G follow-up](czech-arcgis-validation.md).
 

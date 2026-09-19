@@ -1,5 +1,9 @@
 # Stage B: Czech DMR 5G through a generic ArcGIS ImageServer provider
 
+> Historical Stage B report at `2aaae65`. See [current status and review](elevation-current-status.md).
+> DMR 5G now uses four connections, and coarser output grids use area filtering.
+> The 300-check result below predates those changes and the additional datasets.
+
 2026-09-17, branch `geo-terrain`.
 
 ## Implementation

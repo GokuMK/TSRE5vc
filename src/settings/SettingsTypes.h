@@ -6,6 +6,7 @@
 #include <QStringList>
 #include <QVariant>
 #include <QVector>
+#include <functional>
 
 enum class SettingType {
     Bool,
@@ -31,6 +32,8 @@ QVariant settingVariantFromJson(const QJsonValue &value, SettingType type);
 struct SettingOption {
     QVariant value;
     QString nameId;
+    QString label; // Plain display name for runtime catalogue entries.
+    QString displayName() const;
 };
 
 struct SettingsSubgroupDefinition {
@@ -70,6 +73,11 @@ struct SettingsDefinition {
     double maximum = 0.0;
     double step = 0.0;
     QVector<SettingOption> options;
+    // Runtime metadata only: neither callbacks nor their choices go into profiles.
+    std::function<QVector<SettingOption>()> optionsProvider;
+    bool allowUnknownOptions = false; // String references may outlive catalogue entries.
+    QVector<SettingOption> resolvedOptions() const;
+    bool acceptsOption(const QVariant &value) const;
 
     // Transitional audit/integration metadata used by Phase 0 and Part 2.
     QStringList legacyFileKeys;
@@ -94,6 +102,8 @@ struct SettingsDefinition {
     SettingsDefinition &withUnit(const QString &value);
     SettingsDefinition &withRange(double min, double max, double valueStep = 0.0);
     SettingsDefinition &withOptions(const QVector<SettingOption> &value);
+    SettingsDefinition &withOptionsProvider(const std::function<QVector<SettingOption>()> &provider);
+    SettingsDefinition &asReference();
     SettingsDefinition &applies(const QString &value);
     SettingsDefinition &asAdvanced(bool value = true);
     SettingsDefinition &withNullDefault();

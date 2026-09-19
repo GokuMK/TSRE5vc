@@ -76,7 +76,33 @@ Each entry in the `settings` array owns its editable metadata as well as its val
 }
 ```
 
-Supported types are `bool`, `int`, `float`, `string`, `multilineString`, `color`, `enum`, `path`, `directory`, `keySequence`, `stringList`, and `secret`. Numeric settings may contain a `range`; enum settings contain `options`. A setting marked `nullable` may store JSON `null`; the editor exposes this as **Default** for nullable colours. A group may define one level of subgroups, and a setting may select one with `subgroup`. Omitting it places the setting in the implicit General section.
+Supported types are `bool`, `int`, `float`, `string`, `multilineString`, `color`, `enum`, `path`, `directory`, `keySequence`, `stringList`, and `secret`. Numeric settings may contain a `range`; static enum settings contain `options`. Registered runtime-choice settings omit that list (see below). A setting marked `nullable` may store JSON `null`; the editor exposes this as **Default** for nullable colours. A group may define one level of subgroups, and a setting may select one with `subgroup`. Omitting it places the setting in the implicit General section.
+
+### Runtime choices and reference values
+
+A registered enum can use `withOptionsProvider(...)` to supply its current choices
+in code. `resolvedOptions()` is shared by the Settings UI, consumers and strict
+membership checks. An option can carry a translation ID or a plain catalogue label.
+The provider and its returned list are runtime properties of the setting key;
+neither is serialized into the settings profile. Static enums retain their stored
+`options` and existing validation behavior.
+
+`asReference()` additionally allows any string ID, including one currently absent
+from the provider. Type validation still rejects numeric/boolean IDs. Profiles,
+session overrides and CLI assignments preserve unknown references. Dropdowns show
+an unsupported saved ID explicitly rather than selecting the first available item.
+Consumers decide what an unresolved reference means when it is used.
+
+`geo.elevation.source` uses these properties. Both elevation and Settings dropdowns
+read HGT plus the embedded elevation catalogue. Adding a dataset no longer requires
+editing a second list. The profile stores its selected ID and ordinary setting
+metadata, without a copy of the dataset choices. Loading an older profile removes
+its stale `options` field while preserving the selected ID; saving also strips any
+reintroduced runtime option list. This is a targeted metadata migration.
+
+For an unavailable elevation ID, preview/generation reports an unknown dataset and
+applies no heights. It does not silently replace the selection with HGT. Ordinary
+missing coverage from an existing dataset still follows the established HGT fallback.
 
 The controlled `apply` lifecycle is `dynamic`, `routeReload`, `rendererRestart`,
 or `applicationRestart`. A dynamic value is available immediately; a cold
@@ -98,8 +124,9 @@ editor:{secret:network.clientPassword}@localhost:65535
 ```
 
 Registry definitions create missing objects and groups. During ordinary loading
-they never overwrite an existing object's name, description, range, or other
-stored metadata. Existing objects are compared with the registry by stable key
+they preserve an existing object's name, description, range, and other stored
+metadata, apart from explicit compatibility migrations such as removing obsolete
+option lists for runtime-choice keys. Existing objects are compared with the registry by stable key
 and type. Unknown keys and unknown types are retained for fork interoperability
 and remain available through raw JSON editing.
 

@@ -51,10 +51,10 @@ HeightWindow::HeightWindow() : QDialog() {
     //% "Terrain elevation"
     setWindowTitle(qtTrId("geo.elevation.title"));
     sourceBox = new QComboBox(this);
-    //% "Local HGT files"
-    sourceBox->addItem(qtTrId("geo.elevation.source.hgt"),QString());
-    QString catalogError;
-    for (const auto &dataset : Elevation::datasets(catalogError)) sourceBox->addItem(dataset.name,dataset.id);
+    const auto *sourceDefinition = SettingsManager::instance().registry().definition(SourceSetting);
+    if (sourceDefinition)
+        for (const auto &option : sourceDefinition->resolvedOptions())
+            sourceBox->addItem(option.displayName(),option.value);
     offsetEdit = new QLineEdit(QStringLiteral("0"),this);
     offsetEdit->setMaximumWidth(90);
     auto *validator = new QDoubleValidator(-9999,9999,2,offsetEdit);
@@ -73,7 +73,6 @@ HeightWindow::HeightWindow() : QDialog() {
     reportText = new QPlainTextEdit(this);
     reportText->setReadOnly(true);
     reportText->setMaximumHeight(150);
-    if (!catalogError.isEmpty()) reportText->setPlainText(catalogError);
     auto *top = new QHBoxLayout;
     top->addWidget(sourceBox,1);
     //% "Y offset (m):"
@@ -95,7 +94,9 @@ HeightWindow::HeightWindow() : QDialog() {
     connect(offsetEdit,&QLineEdit::textEdited,this,&HeightWindow::hOffsetEnabled);
     connect(sourceBox,&QComboBox::currentIndexChanged,this,[this] {
         prepared = ok = false; applyButton->setEnabled(false);
-        SettingsManager::instance().setSessionValue(QString::fromLatin1(SourceSetting),sourceBox->currentData());
+        QString error;
+        if (!SettingsManager::instance().setSessionValue(QString::fromLatin1(SourceSetting),sourceBox->currentData(),&error))
+            reportText->setPlainText(error);
     });
 }
 void HeightWindow::clearData() {
@@ -115,7 +116,9 @@ int HeightWindow::exec() {
     setWindowTitle(qtTrId("geo.elevation.tile.title").arg(tileX).arg(-tileZ));
     const QString selected = Settings::string(SourceSetting,SettingType::Enum);
     { const QSignalBlocker blocker(sourceBox);
-      sourceBox->setCurrentIndex(std::max(0,sourceBox->findData(selected))); }
+      if (sourceBox->findData(selected) < 0)
+          sourceBox->addItem(qtTrId("settings.dialog.text.widget").arg(selected),selected);
+      sourceBox->setCurrentIndex(sourceBox->findData(selected)); }
     const int result = QDialog::exec();
     if (previousContext && previousSurface) previousContext->makeCurrent(previousSurface);
     return result;
@@ -145,7 +148,8 @@ void HeightWindow::load(bool gui) {
     loadButton->setEnabled(false); sourceBox->setEnabled(false); offsetEdit->setEnabled(false);
     const QString root = Settings::string("core.paths.geoData",SettingType::Directory);
     const QString dataset = gui ? sourceBox->currentData().toString() : Settings::string(SourceSetting,SettingType::Enum);
-    const QString sourceName = sourceBox->itemText(std::max(0,sourceBox->findData(dataset)));
+    const int sourceIndex = sourceBox->findData(dataset);
+    const QString sourceName = sourceIndex < 0 ? dataset : sourceBox->itemText(sourceIndex);
     QVector<Elevation::Point> points;
     points.reserve(qsizetype(terrainResolution)*terrainResolution);
     PreciseTileCoordinate coordinate;

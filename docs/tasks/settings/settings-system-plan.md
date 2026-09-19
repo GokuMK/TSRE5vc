@@ -55,6 +55,10 @@ Status: complete for the agreed foundation.
 - [x] Support bool, numeric, string, multiline, colour, enum, path, directory,
   key-sequence, string-list, and secret types.
 - [x] Support one subgroup level and nullable/default values.
+- [x] Add per-key runtime option providers and optional permissive string-reference
+  values (2026-09-19). Elevation choices come from the dataset catalogue; profiles
+  retain selected IDs without persisting the available list. Static enums remain
+  strict. See [runtime choice semantics](../../settings-system.md#runtime-choices-and-reference-values).
 - [x] Store profile secrets in profile-local `secrets.json`.
 - [x] Support explicit `{secret:ID}` references in ordinary strings.
 - [x] Keep profiles under the effective TSRE project/data root rather than the

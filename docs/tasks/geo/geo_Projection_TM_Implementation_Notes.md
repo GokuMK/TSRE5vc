@@ -1,5 +1,10 @@
 # TSRE5vc Geo Projection Update — Transverse Mercator
 
+> Scope: the committed projection milestone through `a88f7f8`. The
+> [2026-09-19 elevation review](elevation-current-status.md) explains how route
+> projection and raster CRS lookup fit together. Subsequent New Route work is
+> in progress separately; the manual observations below were not rerun in that review.
+
 ## Purpose
 
 This document summarizes the geo-projection work implemented in `TSRE5vc` in September 2026.

@@ -1,5 +1,9 @@
 # Geoportal 1 m elevation: implementation and verification
 
+> Current status (2026-09-19): see [the elevation implementation review](elevation-current-status.md)
+> for the 13-dataset catalogue, WCS 1.0, downsampling, projection changes and
+> open integration findings. This document records the original Polish milestone.
+
 This records the original Polish milestone. The later
 [Stage A Czech WCS validation](czech-wcs-validation.md) extends the catalogue,
 TIFF reader and supported CRSs. Its validation section supersedes this report's

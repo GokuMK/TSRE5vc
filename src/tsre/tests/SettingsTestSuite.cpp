@@ -1,6 +1,7 @@
 #include <tsre/tests/SettingsTestSuite.h>
 
 #include <settings/SettingsRegistration.h>
+#include <tsre/geo/ElevationSource.h>
 #include <settings/SettingsAccess.h>
 #include <settings/SettingsManager.h>
 #include <settings/SettingsProfile.h>
@@ -45,8 +46,22 @@ int TsreTests::runSettingsSuite(bool verbose) {
     const auto *elevationSource = manager.registry().definition("geo.elevation.source");
     check(elevationSource && elevationSource->type == SettingType::Enum
           && elevationSource->defaultValue.toString().isEmpty()
-          && elevationSource->options.size() == 5 && elevationSource->apply == "dynamic",
+          && elevationSource->optionsProvider && elevationSource->allowUnknownOptions
+          && !elevationSource->toJson().contains("options") && elevationSource->apply == "dynamic",
           "elevation-source-defaults-to-hgt-and-applies-on-next-generation");
+    QString elevationError;
+    const auto elevationCatalog = Elevation::datasets(elevationError);
+    const auto elevationOptions = elevationSource ? elevationSource->resolvedOptions() : QVector<SettingOption>();
+    check(elevationError.isEmpty() && !elevationCatalog.isEmpty()
+          && elevationOptions.size() == elevationCatalog.size()+1
+          && elevationOptions.first().value.toString().isEmpty(),
+          "runtime-elevation-options-match-catalogue-plus-hgt");
+    for (const auto &dataset : elevationCatalog) {
+        int matches = 0;
+        for (const auto &option : elevationOptions)
+            if (option.value.toString() == dataset.id && option.displayName() == dataset.name) ++matches;
+        check(matches == 1,"each-elevation-reference-has-one-current-catalogue-label");
+    }
     const SettingsDefinition *language =
             manager.registry().definition("core.interface.language");
     check(language && language->type == SettingType::Enum
@@ -276,6 +291,63 @@ int TsreTests::runSettingsSuite(bool verbose) {
     const QString settingsFile = QDir(temporary.path()).filePath("profile/settings.json");
     QString error;
     check(manager.loadFile(settingsFile, &error), "registry-generates-profile");
+    {
+        const QString key = "geo.elevation.source";
+        for (const auto &dataset : elevationCatalog) {
+            check(manager.setValue(key,dataset.id,&error)
+                  && manager.setSessionValue(key,dataset.id,&error)
+                  && manager.runtimeString(key) == dataset.id,
+                  "catalogue-source-is-accepted-for-profile-and-automatic-generation");
+        }
+        check(!manager.setValue(key,42,&error) && !manager.setSessionValue(key,42,&error),
+              "reference-values-still-require-string-ids");
+        check(!manager.setValue("core.interface.language",QString("invalid-language"),&error)
+              && !manager.setSessionValue("core.interface.language",QString("invalid-language"),&error),
+              "ordinary-enum-membership-remains-strict");
+        const QString missing = "future.example.dem";
+        check(manager.setValue(key,missing,&error) && manager.setSessionValue(key,missing,&error)
+              && manager.runtimeString(key) == missing && manager.save(&error),
+              "unavailable-reference-is-preserved-and-saveable");
+        SettingsManager restored;
+        SettingsRegistration::registerAll(restored.registry());
+        check(restored.loadFile(settingsFile,&error) && restored.value(key).toString() == missing
+              && !restored.settingObject(key).contains("options"),
+              "reference-id-round-trips-without-persisting-runtime-choices");
+        SettingsDialog referenceDialog(&restored);
+        bool foundSelector = false;
+        for (auto *combo : referenceDialog.findChildren<QComboBox*>()) {
+            if (combo->currentData().toString() != missing) continue;
+            foundSelector = combo->count() == elevationCatalog.size()+2;
+            for (const auto &dataset : elevationCatalog)
+                foundSelector &= combo->findData(dataset.id) >= 0;
+        }
+        check(foundSelector,"settings-dropdown-uses-current-options-and-preserves-missing-reference");
+        SettingsProfileSelection selection;
+        selection.settingsFile = settingsFile;
+        selection.commandLineOverrides.insert(key,"future.cli.dem");
+        check(restored.initialize(selection,&error) && restored.runtimeString(key) == "future.cli.dem",
+              "cli-accepts-reference-id-without-catalogue-membership");
+        // Emulate an older profile retaining the original enum choices.
+        auto oldDocument = manager.document();
+        auto oldSettings = oldDocument.value("settings").toArray();
+        for (int i=0; i<oldSettings.size(); ++i) {
+            auto setting = oldSettings[i].toObject();
+            if (setting.value("key").toString() != key) continue;
+            setting["options"] = QJsonArray{QJsonObject{{"value",""},{"nameId","old-hgt"}}};
+            oldSettings[i] = setting;
+        }
+        oldDocument["settings"] = oldSettings;
+        QFile legacy(temporary.filePath("old-elevation-options.json"));
+        check(legacy.open(QIODevice::WriteOnly)
+              && legacy.write(QJsonDocument(oldDocument).toJson()) > 0,"write-old-elevation-options-profile");
+        legacy.close();
+        check(restored.loadFile(legacy.fileName(),&error)
+              && restored.value(key).toString() == missing
+              && !restored.settingObject(key).contains("options") && restored.save(&error),
+              "old-enum-list-is-removed-without-losing-reference");
+        check(manager.setValue(key,QString(),&error),"restore-hgt-profile-default-after-reference-checks");
+        manager.clearSessionValue(key);
+    }
     {
         const auto *season = manager.registry().definition("core.startup.season");
         check(season && season->type==SettingType::Enum && season->options.size()==13
