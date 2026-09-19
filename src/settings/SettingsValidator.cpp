@@ -80,12 +80,8 @@ QVector<SettingsIssue> SettingsValidator::validateSetting(
                          "Value is outside the range supported by this build.");
         }
         if (registered->type == SettingType::Enum && !valueIsNull) {
-            bool found = false;
             const QVariant candidate = setting.value("value").toVariant();
-            for (const SettingOption &option : registered->options) {
-                if (option.value == candidate) { found = true; break; }
-            }
-            if (!found)
+            if (!registered->acceptsOption(candidate))
                 addIssue(issues, SettingsIssue::Error, key,
                          "Enum value is not supported by this build.");
         }
@@ -103,7 +99,9 @@ QVector<SettingsIssue> SettingsValidator::validateSetting(
                 && range.value("minimum").toDouble() > range.value("maximum").toDouble())
             addIssue(issues, SettingsIssue::Error, key, "Range minimum exceeds maximum.");
     }
-    if (type == SettingType::Enum) {
+    // Dynamic choices and reference semantics are owned by this build, not JSON.
+    if (type == SettingType::Enum
+            && !(registered && (registered->optionsProvider || registered->allowUnknownOptions))) {
         if (!setting.value("options").isArray() || setting.value("options").toArray().isEmpty())
             addIssue(issues, SettingsIssue::Error, key, "Enum has no options.");
         else if (!enumContains(setting, setting.value("value")))

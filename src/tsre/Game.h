@@ -30,6 +30,7 @@ class Route;
 class GameObj;
 class TerrainLib;
 class GeoWorldCoordinateConverter;
+enum class GeoProjectionType;
 class Renderer;
 class RouteEditorClient;
 enum class TerrainHeightProfile;
@@ -131,8 +132,6 @@ public:
     static bool viewPointer3d;
     static bool leaveTrackShapeAfterDelete;
     static bool renderTrItems;
-    static int newRouteX;
-    static int newRouteZ;
     static QString geoPath;
     static ShapeLib *currentShapeLib;
     static EngLib *currentEngLib;

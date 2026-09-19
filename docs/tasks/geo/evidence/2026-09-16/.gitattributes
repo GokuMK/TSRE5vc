@@ -1,0 +1,8 @@
+# Preserve response/fixture bytes and their manifest hashes on every platform.
+*.xml -text
+*.asc -text
+*.tif -text
+projection-reference.json -text
+request-size-benchmark.json -text
+concurrency-reused-benchmark.json -text
+concurrency-fresh-benchmark.json -text

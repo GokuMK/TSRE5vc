@@ -30,7 +30,6 @@
 #include <tsre/trains/Path.h>
 #include <tsre/world/Terrain.h>
 #include <tsre/world/TerrainGridLayout.h>
-#include <tsre/fileFunctions/FileFunctions.h>
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/fileFunctions/ReadFile.h>
 #include <tsre/world/objects/DynTrackObj.h>
@@ -64,7 +63,6 @@
 #include <tsre/gui/ActionChooseDialog.h>
 #include <tsre/ErrorMessagesLib.h>
 #include <tsre/ErrorMessage.h>
-#include <tsre/texture/AceLib.h>
 #include <tsre/renderer/Renderer.h>
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/tdb/SpeedPostDAT.h>
@@ -108,13 +106,6 @@ void Route::load(){
     
     qDebug() << "# Load Route";
     
-    if(!Settings::boolean("core.advanced.useQuadTree"))
-        terrainLib = new TerrainLibSimple();
-    else
-        terrainLib = new TerrainLibQt();
-    
-    Game::terrainLib = terrainLib;
-    
     QFile file(Game::root + "/ROUTES");
     if (!file.exists()){ 
         qDebug() << "Route dir not exist " << file.fileName();
@@ -127,37 +118,33 @@ void Route::load(){
     }
 
     const QString routePath = Game::root + "/ROUTES/" + Game::route;
-    file.setFileName(routePath);
-    if (!file.exists()) {
-        qDebug() << "Route does not exist.";
-        if (Settings::boolean("core.startup.createMissingRoute")) {
-            qDebug() << "new Route";
-            Route::createNew();
-        }
-    }
-
-    // Never continue into Trk and route-resource loading unless creation
-    // actually produced a valid route. In particular, do not overwrite or
-    // reinterpret an existing directory which merely has a missing/broken TRK.
     if (!Game::checkRoute(Game::route)) {
-        qWarning() << "Route creation/loading aborted: no valid TRK in"
+        qWarning() << "Route loading aborted: no valid TRK in"
                    << routePath;
         return;
     }
     trkName = Game::trkName;
     trkFileName = Game::trkFileName;
 
+    if(!Settings::boolean("core.advanced.useQuadTree"))
+        terrainLib = new TerrainLibSimple();
+    else
+        terrainLib = new TerrainLibQt();
+    Game::terrainLib = terrainLib;
+
     trk = new Trk();
     trk->load();
     Game::useSuperelevation = trk->tsreSuperelevation;
     
-    if(trk->tsreProjection != NULL){
-        qDebug() << "TSRE Geo Projection";
-        Game::GeoCoordConverter = new GeoTsreCoordinateConverter(trk->tsreProjection);
-    } else {
-        qDebug() << "MSTS Geo Projection";
-        Game::GeoCoordConverter = new GeoMstsCoordinateConverter();
+    qDebug() << "Geo Projection:" << GeoProjectionTypeToString(trk->geoProjectionType);
+    Game::GeoCoordConverter = GeoWorldCoordinateConverter::Create(
+            trk->geoProjectionType,
+            trk->geoProjection.has_value() ? &*trk->geoProjection : nullptr);
+    if (Game::GeoCoordConverter == nullptr) {
+        qWarning() << "Route loading aborted: invalid geographic projection";
+        return;
     }
+
     env = new Environment(Game::root + "/ROUTES/" + Game::route + "/ENVFILES/editor.env");
     Game::routeName = trk->routeName;
     routeName = Game::routeName;
@@ -259,14 +246,6 @@ void Route::load(QString name){
     //Game::useSuperelevation = trk->tsreSuperelevation;
     
     
-    /*if(trk->tsreProjection != NULL){
-        qDebug() << "TSRE Geo Projection";
-        Game::GeoCoordConverter = new GeoTsreCoordinateConverter(trk->tsreProjection);
-    } else {
-        qDebug() << "MSTS Geo Projection";
-        Game::GeoCoordConverter = new GeoMstsCoordinateConverter();
-    }
-    env = new Environment(Game::root + "/ROUTES/" + Game::route + "/ENVFILES/editor.env");*/
     Game::routeName = trk->routeName;
     routeName = Game::routeName;
     qDebug() << Game::routeName;
@@ -2517,77 +2496,6 @@ void Route::paintHeightMap(Brush* brush, int x, int z, float* p){
             ttile->updateTerrainObjects();
         }
     }
-}
-
-void Route::createNew() {
-    if (!Game::writeEnabled) return;
-
-    QString path;
-    Game::route = Game::route.toUpper();
-    Game::trkName = Game::route;
-    Game::trkFileName = Game::trkName + ".trk";
-
-    path = Game::root + "/ROUTES/" + Game::route;
-    if (QDir(path).exists()) {
-        qDebug() << "route folder exist - aborting";
-        return;
-    }
-    QDir().mkdir(path);
-    QDir().mkdir(path + "/ENVFILES");
-    QDir().mkdir(path + "/ENVFILES/TEXTURES");
-    QDir().mkdir(path + "/PATHS");
-    QDir().mkdir(path + "/SHAPES");
-    QDir().mkdir(path + "/SOUND");
-    QDir().mkdir(path + "/TEXTURES");
-    QDir().mkdir(path + "/TERRTEX");
-    QDir().mkdir(path + "/TILES");
-    QDir().mkdir(path + "/TD");
-    QDir().mkdir(path + "/WORLD");
-
-    int x = Game::newRouteX;
-    int z = Game::newRouteZ;
-    
-    Trk * newTrk = new Trk();
-    newTrk->idName = Game::route;
-    newTrk->routeName = Game::route;
-    newTrk->displayName = Game::route;
-    newTrk->startTileX = Game::newRouteX;
-    newTrk->startTileZ = Game::newRouteZ;
-    showTrkEditr(newTrk);
-    Game::routeName = newTrk->routeName;
-    newTrk->save();
-    
-    TDB::saveEmpty(false);
-    TDB::saveEmpty(true);
-    Game::terrainLib->createNewRouteTerrain(x, z);
-    Tile::saveEmpty(x, z);
-    //Terrain::saveEmpty(x, z);
-
-    QString templateDir = "templateroute_0.6/";
-    QString res = QString("assets/templateroute_0.6/");//+templateDir;
-    path += "/";
-
-    QFile::copy(res + "sigcfg.dat", path + "sigcfg.dat");
-    QFile::copy(res + "sigscr.dat", path + "sigscr.dat");
-    QFile::copy(res + "ttype.dat", path + "ttype.dat");
-    QFile::copy(res + "template.ref", path + Game::routeName + ".ref");
-    QFile::copy(res + "carspawn.dat", path + "carspawn.dat");
-    QFile::copy(res + "deer.haz", path + "deer.haz");
-    QFile::copy(res + "forests.dat", path + "forests.dat");
-    QFile::copy(res + "speedpost.dat", path + "speedpost.dat");
-    QFile::copy(res + "spotter.haz", path + "spotter.haz");
-    QFile::copy(res + "ssource.dat", path + "ssource.dat");
-    QFile::copy(res + "telepole.dat", path + "telepole.dat");
-
-    FileFunctions::copyFiles(res + "envfiles", path + "ENVFILES");
-    FileFunctions::copyFiles(res + "envfiles/textures", path + "ENVFILES/TEXTURES");
-    FileFunctions::copyFiles(res + "shapes", path + "SHAPES");
-    FileFunctions::copyFiles(res + "sound", path + "SOUND");
-    FileFunctions::copyFiles(res + "terrtex", path + "TERRTEX");
-    FileFunctions::copyFiles(res + "textures", path + "TEXTURES");
-    
-    Texture *graphicTexture = new Texture(200,150,24);
-    AceLib::save(path + "graphic.ace", graphicTexture);
 }
 
 void Route::reloadTile(int x, int z) {

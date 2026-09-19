@@ -76,7 +76,34 @@ Each entry in the `settings` array owns its editable metadata as well as its val
 }
 ```
 
-Supported types are `bool`, `int`, `float`, `string`, `multilineString`, `color`, `enum`, `path`, `directory`, `keySequence`, `stringList`, and `secret`. Numeric settings may contain a `range`; enum settings contain `options`. A setting marked `nullable` may store JSON `null`; the editor exposes this as **Default** for nullable colours. A group may define one level of subgroups, and a setting may select one with `subgroup`. Omitting it places the setting in the implicit General section.
+Supported types are `bool`, `int`, `float`, `string`, `multilineString`, `color`, `enum`, `path`, `directory`, `keySequence`, `stringList`, and `secret`. Numeric settings may contain a `range`; static enum settings contain `options`. Registered runtime-choice settings omit that list (see below). A setting marked `nullable` may store JSON `null`; the editor exposes this as **Default** for nullable colours. A group may define one level of subgroups, and a setting may select one with `subgroup`. Omitting it places the setting in the implicit General section.
+
+### Runtime choices and reference values
+
+A registered enum can use `withOptionsProvider(...)` to supply its current choices
+in code. `resolvedOptions()` is shared by the Settings UI, consumers and strict
+membership checks. An option can carry a translation ID or a plain catalogue label.
+The provider and its returned list are runtime properties of the setting key;
+neither is serialized into the settings profile. Static enums retain their stored
+`options` and existing validation behavior.
+
+`asReference()` additionally allows any string ID, including one currently absent
+from the provider. Type validation still rejects numeric/boolean IDs. Profiles,
+session overrides and CLI assignments preserve unknown references. Dropdowns show
+an unsupported saved ID explicitly rather than selecting the first available item.
+Consumers decide what an unresolved reference means when it is used.
+
+`geo.elevation.source` uses these properties. Both elevation and Settings dropdowns
+read the embedded elevation catalogue; World HGT is itself a catalogue-defined
+file source. Adding a dataset no longer requires editing a second list. The profile stores its selected ID and ordinary setting
+metadata, without a copy of the dataset choices. Loading an older profile removes
+its stale `options` field while preserving the selected ID; saving also strips any
+reintroduced runtime option list. The former empty HGT value migrates to the
+catalogue's explicit default file-source ID. This is a targeted metadata migration.
+
+For an unavailable elevation ID, preview/generation reports an unknown dataset and
+applies no heights. It does not silently replace the selection. Ordinary missing
+coverage from an existing dataset uses the catalogue's configured file-source fallback.
 
 The controlled `apply` lifecycle is `dynamic`, `routeReload`, `rendererRestart`,
 or `applicationRestart`. A dynamic value is available immediately; a cold
@@ -98,8 +125,9 @@ editor:{secret:network.clientPassword}@localhost:65535
 ```
 
 Registry definitions create missing objects and groups. During ordinary loading
-they never overwrite an existing object's name, description, range, or other
-stored metadata. Existing objects are compared with the registry by stable key
+they preserve an existing object's name, description, range, and other stored
+metadata, apart from explicit compatibility migrations such as removing obsolete
+option lists for runtime-choice keys. Existing objects are compared with the registry by stable key
 and type. Unknown keys and unknown types are retained for fork interoperability
 and remain available through raw JSON editing.
 
@@ -167,6 +195,60 @@ used to start the application is disabled.
 The Route Editor opens the Settings Editor from **Settings > Settings Editor...** or `F12`. It provides group tabs, search, unsupported/advanced filters, type-specific controls, clipboard-based full-object and full-document JSON exchange, custom setting creation, and profile operations. The profile selector lists detected portable profile directories and marks the profile used at application startup. Selecting another entry opens it in an editor-local manager and does not replace the runtime manager's selected profile. Managed portable profiles can be duplicated as complete directories; arbitrary settings files and the single AppData profile cannot.
 
 Writes use `QSaveFile`, retain five timestamped backups, and detect external file changes before overwriting. Recoverable per-setting errors remain loadable for repair, but validation errors prevent saving. Secret values are stored in the profile-local `secrets.json`; dedicated secret settings and inline `{secret:ID}` placeholders store only references.
+
+### Local elevation directories
+
+`core.paths.geoData` / `geoPath` names the parent geodata directory. Place local
+HGT files in `world_hgt/`; lookup falls back to legacy `hgt/` and root files.
+Other user-managed products will have their own readable directories; hashed
+`cache/` paths remain disposable service/derived data. See the
+[local-source design](tasks/geo/local-elevation-sources.md) for the planned provider.
+
+### Elevation service API keys
+
+Elevation catalogue entries can reference a profile secret using:
+
+```json
+"authentication": {
+  "type": "basic-api-key",
+  "secret": "geo.elevation.fi.nls.apiKey"
+}
+```
+
+For Finland NLS, add `"geo.elevation.fi.nls.apiKey": "YOUR_NLS_API_KEY"` to the
+existing `secrets` object in the active profile's `secrets.json`, then reload the
+profile or restart TSRE. The reference comes from the dataset catalogue; no
+additional settings entry is required. Each profile can supply its own key.
+
+`basic-api-key` sends the secret as the HTTP Basic username with an empty
+password, as supported by [NLS](https://www.maanmittauslaitos.fi/en/rajapinnat/api-avaimen-ohje).
+
+Services such as Denmark Datafordeler use a query parameter instead:
+
+```json
+"authentication": {
+  "type": "query-api-key",
+  "secret": "geo.elevation.dk.datafordeler.apiKey",
+  "parameter": "apikey"
+}
+```
+
+Store that reference's value in the same profile-local `secrets` object.
+Only the selected dataset's key is copied into the elevation worker. Query keys
+are percent-encoded and added only when constructing the outgoing HTTP request;
+the public request URL, catalogue JSON, cache identity and cache metadata contain
+no key value. Query-authentication failures omit Qt's URL-bearing error text.
+Authenticated redirects are restricted to the same origin for both methods.
+
+A missing or invalid key stops new requests and names the required secret in the
+elevation report. Existing valid cache blocks and the usual HGT fallback remain
+available. Rotating a key does not invalidate cached elevation data.
+
+An invalid elevation catalogue object is skipped individually. Other valid
+sources remain selectable and usable; diagnostics name rejected entries in the
+application log and height dialog/report. A malformed JSON file or invalid
+top-level catalogue structure still prevents loading the file. Selecting an
+unavailable saved source reports an error rather than silently switching to HGT.
 
 The runtime catalogue contains the approved legacy replacements plus native
 settings added by newer subsystems. Inactive

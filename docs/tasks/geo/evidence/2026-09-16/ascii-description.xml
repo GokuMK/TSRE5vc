@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wcs:CoverageDescriptions xmlns:wcs="http://www.opengis.net/wcs/2.0" xmlns:ows="http://www.opengis.net/ows/2.0" xmlns:ogc="http://www.opengis.net/ogc" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:gml="http://www.opengis.net/gml/3.2" xmlns:gmlcov="http://www.opengis.net/gmlcov/1.0" xmlns:swe="http://www.opengis.net/swe/2.0" xsi:schemaLocation="http://www.opengis.net/wcs/2.0 http://schemas.opengis.net/wcs/2.0/wcsAll.xsd ">
+  <wcs:CoverageDescription gml:id="DTM_PL-EVRF2007-NH">
+    <gml:boundedBy>
+      <gml:Envelope srsName="http://www.opengis.net/def/crs/EPSG/0/2180" axisLabels="y x" uomLabels="m m" srsDimension="2">
+        <gml:lowerCorner>98928.8977745594 160828.34326572</gml:lowerCorner>
+        <gml:upperCorner>796521.669409553 876029.97009323</gml:upperCorner>
+      </gml:Envelope>
+    </gml:boundedBy>
+    <wcs:CoverageId>DTM_PL-EVRF2007-NH</wcs:CoverageId>
+    <gml:domainSet>
+      <gml:RectifiedGrid dimension="2" gml:id="grid_DTM_PL-EVRF2007-NH">
+        <gml:limits>
+          <gml:GridEnvelope>
+            <gml:low>0 0</gml:low>
+            <gml:high>715201 697592</gml:high>
+          </gml:GridEnvelope>
+        </gml:limits>
+        <gml:axisLabels>x y</gml:axisLabels>
+        <gml:origin>
+          <gml:Point gml:id="grid_origin_DTM_PL-EVRF2007-NH" srsName="http://www.opengis.net/def/crs/EPSG/0/2180">
+            <gml:pos>796521.169410 160828.843266</gml:pos>
+          </gml:Point>
+        </gml:origin>
+        <gml:offsetVector srsName="http://www.opengis.net/def/crs/EPSG/0/2180">0 1.000000</gml:offsetVector>
+        <gml:offsetVector srsName="http://www.opengis.net/def/crs/EPSG/0/2180">-1.000000 0</gml:offsetVector>
+      </gml:RectifiedGrid>
+    </gml:domainSet>
+    <gmlcov:rangeType>
+      <swe:DataRecord>
+        <swe:field name="band">
+          <swe:Quantity>
+            <swe:nilValues/>
+            <swe:uom code="W.m-2.Sr-1"/>
+            <swe:constraint>
+              <swe:AllowedValues>
+                <swe:interval>-3.4028e+38 3.4028e+38</swe:interval>
+                <swe:significantFigures>12</swe:significantFigures>
+              </swe:AllowedValues>
+            </swe:constraint>
+          </swe:Quantity>
+        </swe:field>
+      </swe:DataRecord>
+    </gmlcov:rangeType>
+    <wcs:ServiceParameters>
+      <wcs:CoverageSubtype>RectifiedGridCoverage</wcs:CoverageSubtype>
+      <wcs:nativeFormat/>
+    </wcs:ServiceParameters>
+  </wcs:CoverageDescription>
+</wcs:CoverageDescriptions>

@@ -1,0 +1,7 @@
+{
+    "dataset": "cz.cuzk.dmr4g",
+    "retrievedUtc": "2026-09-16T21:07:24Z",
+    "sha256": "e567035f54e62f06855935c8b81389901d5d4ab717bc5d095e03b0ce00559f62",
+    "url": "https://ags.cuzk.gov.cz/arcgis2/services/INSPIRE_Nadmorska_vyska/ImageServer/WCSServer?SERVICE=WCS&VERSION=2.0.1&REQUEST=GetCoverage&COVERAGEID=MD_LAS&SUBSET=x(458396.732277163,459686.732277163)&SUBSET=y(5546633.942936342,5547923.942936342)&SCALESIZE=x(258),y(258)&FORMAT=image/tiff",
+    "verticalDatum": "EVRS"
+}

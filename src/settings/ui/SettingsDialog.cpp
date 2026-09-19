@@ -348,7 +348,11 @@ QWidget *SettingsDialog::createEditor(const QJsonObject &setting, Editor *record
     if (type == SettingType::Enum) {
         auto *widget = new QComboBox;
         widget->setStyleSheet("combobox-popup: 0;");
-        for (const QJsonValue &entry : setting.value("options").toArray()) {
+        const auto *definition = m_manager->registry().definition(setting.value("key").toString());
+        if (definition && definition->optionsProvider) {
+            for (const auto &option : definition->resolvedOptions())
+                widget->addItem(option.displayName(), option.value);
+        } else for (const QJsonValue &entry : setting.value("options").toArray()) {
             const QJsonObject option = entry.toObject();
             const QString fallback = jsonValueText(option.value("value"));
             widget->addItem(translatedField(option, "nameId", fallback),

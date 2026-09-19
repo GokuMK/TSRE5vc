@@ -150,11 +150,11 @@ void TerrainLibQt::loadQuadTreeDistant(FileBuffer *data) {
     if (wasCurrent) setDistantAsCurrent();
 }
 
-void TerrainLibQt::createNewRouteTerrain(int x, int z) {
+bool TerrainLibQt::createNewRouteTerrain(int x, int z) {
     currentQuadTree = new QuadTree();
     currentQuadTree->createNew(x, z);
     QString name = currentQuadTree->getMyName(x, z);
-    Terrain::SaveEmpty(name);
+    return !name.isEmpty() && Terrain::SaveEmpty(name);
 }
 
 void TerrainLibQt::saveEmpty(int x, int z) {
@@ -349,6 +349,9 @@ void TerrainLibQt::setHeightFromGeoGui(int x, int z, float* p) {
     heightWindow->terrainSize = terr->getSampleCount()*terr->getSampleSize();
     heightWindow->exec();
     if(heightWindow->ok){
+        const bool ownUndoState = !Undo::IsStateOpen();
+        Undo::StateBeginIfNotExist();
+        Undo::PushTerrainHeightMap(terr->mojex, terr->mojez, terr->terrainData, samples, terr->lowTile);
         qDebug() << "ok";
         for (int i = 0; i < samples; i++) {
             for (int j = 0; j < samples; j++) {
@@ -366,6 +369,7 @@ void TerrainLibQt::setHeightFromGeoGui(int x, int z, float* p) {
                     tterr->refresh();
             }
         updateTerrainHeightmap(terr);
+        if (ownUndoState) Undo::StateEnd();
     }
 }
 
@@ -392,6 +396,9 @@ void TerrainLibQt::setHeightFromGeo(int x, int z, float* p) {
     heightWindow->terrainSize = terr->getSampleCount()*terr->getSampleSize();
     heightWindow->load(false);
     if(heightWindow->ok){
+        const bool ownUndoState = !Undo::IsStateOpen();
+        Undo::StateBeginIfNotExist();
+        Undo::PushTerrainHeightMap(terr->mojex, terr->mojez, terr->terrainData, samples, terr->lowTile);
         qDebug() << "ok";
         for (int i = 0; i < samples; i++) {
             for (int j = 0; j < samples; j++) {
@@ -420,6 +427,7 @@ void TerrainLibQt::setHeightFromGeo(int x, int z, float* p) {
         if (tterr != NULL) 
             tterr->refresh();
         updateTerrainHeightmap(terr);
+        if (ownUndoState) Undo::StateEnd();
     }
 }
 

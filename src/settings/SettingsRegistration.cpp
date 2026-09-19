@@ -1,6 +1,8 @@
 #include <settings/SettingsRegistration.h>
 
 #include <settings/SettingsRegistry.h>
+#include <tsre/geo/ElevationSource.h>
+#include <QDebug>
 
 #include <QSet>
 #include <QCoreApplication>
@@ -360,11 +362,31 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
         "gameRoot", "Game::root", "Content session", false, "startup-default");
     ADD(SettingsDefinition::string("core.paths.geoData", "", SettingType::Directory)
             .withNameId(
-                //% "HGT and TIFF geodata directory"
+                //% "Geodata and elevation cache directory"
                 QT_TRID_NOOP("settings.core.paths.geo.data.name")).withDescriptionId(
-                //% "Directory read by the HGT and TIFF geographic-data tools."
+                //% "Geodata root: user-managed elevation products in their catalogue directories; downloaded service rasters in cache/."
                 QT_TRID_NOOP("settings.core.paths.geo.data.description")).inGroup("maps").inSubgroup("geodata"),
         "geoPath", "Game::geoPath", "GeoTools", false, "direct");
+    QString elevationCatalogueError;
+    const QString defaultElevationSource = Elevation::defaultFileSourceId(
+        Elevation::datasets(elevationCatalogueError));
+    if (!elevationCatalogueError.isEmpty()) qWarning().noquote() << elevationCatalogueError;
+    ADD(SettingsDefinition::string("geo.elevation.source", defaultElevationSource, SettingType::Enum)
+            .withNameId(
+                //% "Terrain elevation source"
+                QT_TRID_NOOP("settings.geo.elevation.source.name")).withDescriptionId(
+                //% "Source for manual and automatic terrain elevation. Missing coverage uses the configured file-source fallback."
+                QT_TRID_NOOP("settings.geo.elevation.source.description"))
+            .withOptionsProvider([] {
+                QVector<SettingOption> result;
+                QString error;
+                for (const auto &dataset : Elevation::datasets(error))
+                    result.push_back({dataset.id, {}, dataset.name});
+                if (!error.isEmpty()) qWarning().noquote() << error;
+                return result;
+            }).asReference()
+            .inGroup("maps").inSubgroup("geodata"),
+        "", "", "Terrain elevation", false, "generation-time");
     ADD(SettingsDefinition::string("core.startup.route", "")
             .withNameId(
                 //% "Startup route"

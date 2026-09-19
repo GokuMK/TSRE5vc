@@ -62,11 +62,11 @@ void TerrainLibSimple::loadQuadTree(){
     quadTree->load();
 }
 
-void TerrainLibSimple::createNewRouteTerrain(int x, int z){
+bool TerrainLibSimple::createNewRouteTerrain(int x, int z){
     quadTree = new QuadTree();
     quadTree->createNew(x, z);
     QString name = Terrain::getTileName(x, z);
-    Terrain::SaveEmpty(name);
+    return Terrain::SaveEmpty(name);
 }
 
 void TerrainLibSimple::saveEmpty(int x, int z){
@@ -311,6 +311,9 @@ void TerrainLibSimple::setHeightFromGeoGui(int x, int z, float* p){
     heightWindow->terrainSize = 2048;
     heightWindow->exec();
     if(heightWindow->ok){
+        const bool ownUndoState = !Undo::IsStateOpen();
+        Undo::StateBeginIfNotExist();
+        Undo::PushTerrainHeightMap(terr->mojex, terr->mojez, terr->terrainData, terr->getSampleCount(), terr->lowTile);
         qDebug() << "ok";
         for (int i = 0; i < 256; i++) {
             for (int j = 0; j < 256; j++) {
@@ -327,6 +330,7 @@ void TerrainLibSimple::setHeightFromGeoGui(int x, int z, float* p){
         if (terr != NULL) terr->refresh();
         terr = terrain[((x-1) * 10000 + z)];
         if (terr != NULL) terr->refresh();
+        if (ownUndoState) Undo::StateEnd();
     }
 }
 
@@ -352,6 +356,9 @@ void TerrainLibSimple::setHeightFromGeo(int x, int z, float* p){
     heightWindow->terrainSize = 2048;
     heightWindow->load(false);
     if(heightWindow->ok){
+        const bool ownUndoState = !Undo::IsStateOpen();
+        Undo::StateBeginIfNotExist();
+        Undo::PushTerrainHeightMap(terr->mojex, terr->mojez, terr->terrainData, terr->getSampleCount(), terr->lowTile);
         qDebug() << "ok";
         for (int i = 0; i < 256; i++) {
             for (int j = 0; j < 256; j++) {
@@ -368,6 +375,7 @@ void TerrainLibSimple::setHeightFromGeo(int x, int z, float* p){
         if (terr != NULL) terr->refresh();
         terr = terrain[((x-1) * 10000 + z)];
         if (terr != NULL) terr->refresh();
+        if (ownUndoState) Undo::StateEnd();
     }
 }
 

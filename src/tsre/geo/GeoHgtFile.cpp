@@ -10,11 +10,9 @@
 
 #include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/geo/GeoHgtFile.h>
-#include <tsre/fileFunctions/FileBuffer.h>
+#include <tsre/geo/ElevationSource.h>
 #include <math.h>
 #include <QDebug>
-#include <QFile>
-#include <tsre/fileFunctions/ReadFile.h>
 #include <QImage>
 #include <QPainter>
 #include <tsre/Game.h>
@@ -24,54 +22,42 @@ GeoHgtFile::GeoHgtFile() {
 }
 
 GeoHgtFile::~GeoHgtFile() {
+    for (int i=0; i<rowSize; ++i) delete[] terrainData[i];
+    delete[] terrainData;
 }
 
 bool GeoHgtFile::load(int lat, int lon){
-    QString plat = "N";
-    if(lat < 0){
-        plat = "S";
-        lat = -lat;
-    }
-    QString plon = "E";    
-    if(lon < 0){
-        plon = "W";
-        lon = -lon;
-    }
-
-    QString slat = QString::number(lat);
-    QString slon = QString::number(lon);
-    while(slat.length() < 2)
-        slat = "0"+slat;
-    while(slon.length() < 3)
-        slon = "0"+slon;
-    
-    this->pathid = Settings::string("core.paths.geoData", SettingType::Directory)
-            + "/" + plat + slat + plon + slon + ".hgt";
+    loaded = false;
+    QString catalogueError;
+    const auto catalog = Elevation::datasets(catalogueError);
+    const QString sourceId = Elevation::defaultFileSourceId(catalog);
+    const Elevation::Dataset *source = nullptr;
+    for (const auto &dataset : catalog) if (dataset.id == sourceId) { source = &dataset; break; }
+    if (!source) return false;
+    this->pathid = Elevation::findHgtFile(
+        Settings::string("core.paths.geoData", SettingType::Directory),*source,lat,lon);
     this->pathid = ContentPath::normalize(pathid);
     qDebug() << this->pathid;
-    //qDebug() << "Wczytam teren RAW: " << fSfile;
-    QFile file(this->pathid);
-    if (!file.open(QIODevice::ReadOnly)){
-        qDebug() <<"HGT not found: "<< this->pathid;
+    Elevation::Raster raster;
+    QString error;
+    if (!Elevation::readHgtFile(pathid,lat,lon,raster,error)) {
+        qDebug() <<"HGT not found: "<< this->pathid << error;
         return false;
     }
-    FileBuffer* data = ReadFile::readRAW(&file);
-    this->rowSize = sqrt(data->length/2);
+    for (int i=0; i<rowSize; ++i) delete[] terrainData[i];
+    delete[] terrainData;
+    this->rowSize = raster.width;
     qDebug() << this->rowSize;
     terrainData = new short int*[rowSize];
-    //int u = 0;
-    int avg = 0;
-    short int val;
+    qint64 avg = 0;
     for (int i = 0; i < rowSize; i++) {
         terrainData[i] = new short int[rowSize];
         for (int j = 0; j < rowSize; j++) {
-            val = (data->get() << 8) | (data->get());
-            terrainData[i][j] = val;
+            terrainData[i][j] = short(raster.values[i*rowSize+j]);
             avg += terrainData[i][j];
         }
     }
     qDebug() << avg / (rowSize*rowSize);
-    delete data;
     loaded = true;
     return true;
 }

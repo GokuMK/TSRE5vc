@@ -1,266 +1,319 @@
-/*  This file is part of TSRE5.
- *
- *  TSRE5 - train sim game engine and MSTS/OR Editors. 
- *  Copyright (C) 2016 Piotr Gadecki <pgadecki@gmail.com>
- *
- *  Licensed under GNU General Public License 3.0 or later. 
- *
- *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
- */
-
+/* TSRE5 - Copyright (C) 2016 Piotr Gadecki. GPL-3.0-or-later. */
 #include <tsre/geo/HeightWindow.h>
-#include <QDebug>
-#include <QFile>
-#include <QString>
-#include <QGraphicsScene>
-#include <QGraphicsView>
-#include <QGraphicsPixmapItem>
-#include <QNetworkAccessManager>
-#include <QNetworkRequest>
-#include <QNetworkReply>
-#include <QUrl>
-#include <QUrlQuery>
-#include <tsre/coords/CoordsMkr.h>
 #include <tsre/geo/GeoCoordinates.h>
-#include <tsre/geo/GeoHgtFile.h>
-#include <tsre/geo/GeoTiffFile.h>
-#include <tsre/gui/UnsavedDialog.h>
+#include <settings/SettingsAccess.h>
+#include <QThread>
+#include <QPointer>
+#include <QOpenGLContext>
+#include <algorithm>
+#include <cmath>
+#include <exception>
 
-std::unordered_map<int, GeoTerrainFile*> HeightWindow::hqtFiles;
+namespace {
+const char *SourceSetting = "geo.elevation.source";
+QPointer<QPlainTextEdit> automaticReport;
+bool lastElevationCancelled = false;
+QString summarize(const Elevation::Result &result, const QString &source) {
+    const auto &r = result.report;
+    //% "Source: %1\nSource samples: %2; fallback samples: %3\nCached blocks: %4; downloads: %5"
+    QString text = qtTrId("geo.elevation.report.summary")
+        .arg(source).arg(r.primarySamples).arg(r.fallbackSamples).arg(r.cacheHits).arg(r.downloads);
+    if (r.filledPixels) {
+        //% "\nFilled source NoData pixels: %1 (estimated from neighbouring heights)."
+        text += qtTrId("geo.elevation.report.filled").arg(r.filledPixels);
+    }
+    if (r.fallbackSamples || r.noDataSamples || r.outsideSamples || r.unavailableSamples) {
+        //% "\nFallback (%1): %2 samples. Missing/zero data: %3; outside coverage: %4; unavailable data: %5."
+        text += qtTrId("geo.elevation.report.fallback")
+            .arg(r.fallbackSourceName.isEmpty() ? QStringLiteral("none") : r.fallbackSourceName)
+            .arg(r.fallbackSamples).arg(r.noDataSamples).arg(r.outsideSamples).arg(r.unavailableSamples);
+    }
+    if (r.fallbackSamples) {
+        //% "\nSource and fallback heights may use different vertical datums. No vertical datum conversion is applied."
+        text += qtTrId("geo.elevation.report.datum");
+    }
+    //% "\nCancelled. No elevation heights were applied."
+    if (result.cancelled) text += qtTrId("geo.elevation.report.cancelled");
+    if (!result.error.isEmpty()) text += "\n" + result.error;
+    if (!r.issues.isEmpty()) text += "\n" + r.issues.join('\n');
+    return text;
+}
+void showAutomaticReport(const QString &text) {
+    if (!automaticReport) {
+        automaticReport = new QPlainTextEdit;
+        automaticReport->setAttribute(Qt::WA_DeleteOnClose);
+        automaticReport->setAttribute(Qt::WA_ShowWithoutActivating);
+        //% "Terrain elevation report"
+        automaticReport->setWindowTitle(qtTrId("geo.elevation.report.title"));
+        automaticReport->setReadOnly(true);
+        automaticReport->setMaximumBlockCount(1000);
+        automaticReport->resize(680,360);
+    }
+    automaticReport->appendPlainText(text+"\n");
+    automaticReport->show();
+}
+}
 
 HeightWindow::HeightWindow() : QDialog() {
-    QPushButton *loadButton = new QPushButton(
-        //% "Load"
-        qtTrId("tsre.geo.height.window.button.load.button"), this);
-    QImage myImage(800, 800, QImage::Format_RGB888);
-    //myImage->load("F:/2.png");
-    imageLabel = new QLabel("");
-    imageLabel->setContentsMargins(0,0,0,0);
-    imageLabel->setPixmap(QPixmap::fromImage(myImage));
-    
-    QGridLayout *vlist3 = new QGridLayout;
-    vlist3->setSpacing(2);
-    vlist3->setContentsMargins(3,0,1,0);
-    vlist3->addWidget(loadButton,0,0);
-    QLabel *alphaLabel = new QLabel(
-        //% "Y Offset: "
-        qtTrId("tsre.geo.height.window.label.alpha.label"));
-    alphaLabel->setFixedWidth(70);
-    vlist3->addWidget(alphaLabel,0,1);
-    QLineEdit *hOffsetEdit = new QLineEdit();
-    hOffsetEdit->setText("0");
-    hOffsetEdit->setFixedWidth(50);
-    QDoubleValidator* doubleValidator = new QDoubleValidator(-9999, 9999, 2, this); 
-    doubleValidator->setNotation(QDoubleValidator::StandardNotation);
-    hOffsetEdit->setValidator(doubleValidator);
-    vlist3->addWidget(hOffsetEdit,0,2);
-    
-    QVBoxLayout *mainLayout = new QVBoxLayout;
-    mainLayout->addItem(vlist3);
-    mainLayout->addWidget(imageLabel);
-    mainLayout->setContentsMargins(1,1,1,1);
-    this->setLayout(mainLayout);
-    
-    QObject::connect(loadButton, SIGNAL(released()),
-                      this, SLOT(load()));
-    
-    QObject::connect(hOffsetEdit, SIGNAL(textEdited(QString)),
-                      this, SLOT(hOffsetEnabled(QString)));
-    
-    igh = new IghCoordinate();
-    mLatlon = new LatitudeLongitudeCoordinate();
+    //% "Terrain elevation"
+    setWindowTitle(qtTrId("geo.elevation.title"));
+    sourceBox = new QComboBox(this);
+    sourceBox->setStyleSheet(QStringLiteral("combobox-popup: 0;"));
+    //% "Select an elevation source for this location"
+    sourceBox->setPlaceholderText(qtTrId("geo.elevation.source.select.local"));
+    const auto *sourceDefinition = SettingsManager::instance().registry().definition(SourceSetting);
+    if (sourceDefinition)
+        for (const auto &option : sourceDefinition->resolvedOptions())
+            sourceBox->addItem(option.displayName(),option.value);
+    offsetEdit = new QLineEdit(QStringLiteral("0"),this);
+    offsetEdit->setMaximumWidth(90);
+    auto *validator = new QDoubleValidator(-9999,9999,2,offsetEdit);
+    validator->setNotation(QDoubleValidator::StandardNotation);
+    offsetEdit->setValidator(validator);
+    //% "Load preview"
+    loadButton = new QPushButton(qtTrId("geo.elevation.preview"),this);
+    //% "Apply"
+    applyButton = new QPushButton(qtTrId("geo.elevation.apply"),this);
+    applyButton->setEnabled(false);
+    //% "Close"
+    auto *closeButton = new QPushButton(qtTrId("geo.elevation.close"),this);
+    imageLabel = new QLabel(this);
+    imageLabel->setAlignment(Qt::AlignCenter);
+    imageLabel->setMinimumSize(480,360);
+    reportText = new QPlainTextEdit(this);
+    reportText->setReadOnly(true);
+    reportText->setMaximumHeight(150);
+    auto *top = new QHBoxLayout;
+    top->addWidget(sourceBox,1);
+    //% "Y offset (m):"
+    top->addWidget(new QLabel(qtTrId("geo.elevation.offset"),this));
+    top->addWidget(offsetEdit);
+    auto *buttons = new QHBoxLayout;
+    buttons->addWidget(loadButton); buttons->addStretch();
+    buttons->addWidget(applyButton); buttons->addWidget(closeButton);
+    auto *layout = new QVBoxLayout(this);
+    layout->addLayout(top); layout->addWidget(imageLabel,1);
+    //% "Source resolution depends on the selected dataset. Output spacing follows this terrain tile. Missing coverage and NoData use the configured file-source fallback."
+    auto *note = new QLabel(qtTrId("geo.elevation.source.note"),this);
+    note->setWordWrap(true); layout->addWidget(note);
+    layout->addWidget(reportText); layout->addLayout(buttons);
+    resize(820,720);
+    connect(loadButton,&QPushButton::clicked,this,[this] { load(true); });
+    connect(applyButton,&QPushButton::clicked,this,&QDialog::accept);
+    connect(closeButton,&QPushButton::clicked,this,&QDialog::reject);
+    connect(offsetEdit,&QLineEdit::textEdited,this,&HeightWindow::hOffsetEnabled);
+    connect(sourceBox,&QComboBox::currentIndexChanged,this,[this] {
+        prepared = ok = false; applyButton->setEnabled(false);
+        loadButton->setEnabled(sourceBox->currentIndex() >= 0);
+        if (sourceBox->currentIndex() < 0) return;
+        QString error;
+        if (!SettingsManager::instance().setSessionValue(QString::fromLatin1(SourceSetting),sourceBox->currentData(),&error))
+            reportText->setPlainText(error);
+    });
 }
-
+void HeightWindow::clearData() {
+    for (int i = 0; i < allocatedTerrainResolution; ++i) delete[] terrainData[i];
+    delete[] terrainData;
+    terrainData = nullptr; allocatedTerrainResolution = 0;
+}
+HeightWindow::~HeightWindow() { clearData(); }
+bool HeightWindow::lastLoadWasCancelled() { return lastElevationCancelled; }
+void HeightWindow::resetLoadCancellation() { lastElevationCancelled = false; }
 int HeightWindow::exec() {
-    //% "Tile: %1 %2"
-    this->setWindowTitle(qtTrId("geodata.height.tile.title")
-                         .arg(this->tileX).arg(-this->tileZ));
-    return QDialog::exec();
-} 
-
-void HeightWindow::CheckForMissingGeodataFiles(QMap<int,QPair<int,int>*>& tileList){
-    PreciseTileCoordinate *tCoords = new PreciseTileCoordinate();
-    IghCoordinate *tigh = new IghCoordinate();
-    LatitudeLongitudeCoordinate *tLatlon = new LatitudeLongitudeCoordinate();
-    QMapIterator<int, QPair<int, int>*> i(tileList);
-    
-    QMap<QString, bool> missingFiles;
-    bool fail = false;
-    
-    while (i.hasNext()) {
-        i.next();
-        if(i.value() == NULL)
-            continue;
-
-        tCoords->TileX = i.value()->first;
-        tCoords->TileZ = i.value()->second;
-        tCoords->setWxyz(0, 0, 0);
-        tigh = Game::GeoCoordConverter->ConvertToInternal(tCoords, tigh);
-        tLatlon = Game::GeoCoordConverter->ConvertToLatLon(tigh, tLatlon);
-
-        //qDebug() << "lat " << itlat->first << " lon " << itlon->first;
-        if(hqtFiles[(int)floor(tLatlon->Latitude)*1000+(int)floor(tLatlon->Longitude)] == NULL){
-            hqtFiles[(int)floor(tLatlon->Latitude)*1000+(int)floor(tLatlon->Longitude)] = new GeoHgtFile();
-            //hqtFiles[tLatlon->Latitude*1000+tLatlon->Longitude] = new GeoTiffFile();
-            fail = hqtFiles[(int)floor(tLatlon->Latitude)*1000+(int)floor(tLatlon->Longitude)]->load((int)floor(tLatlon->Latitude), (int)floor(tLatlon->Longitude));
-        }
-        if(!hqtFiles[(int)floor(tLatlon->Latitude)*1000+(int)floor(tLatlon->Longitude)]->isLoaded())
-            fail = false;
-        //qDebug() << hqtFiles[tLatlon->Latitude*1000+tLatlon->Longitude]->pathid;
-        if(!fail) {
-            missingFiles[hqtFiles[(int)floor(tLatlon->Latitude)*1000+(int)floor(tLatlon->Longitude)]->pathid] = true;
+    QPointer<QOpenGLContext> previousContext = QOpenGLContext::currentContext();
+    QSurface *previousSurface = previousContext ? previousContext->surface() : nullptr;
+    ok = prepared = false; applyButton->setEnabled(false);
+    imageLabel->clear(); reportText->clear();
+    QString catalogueError;
+    const auto catalog = Elevation::datasets(catalogueError);
+    if (!catalogueError.isEmpty()) reportText->setPlainText(catalogueError);
+    //% "Terrain elevation - tile %1 %2"
+    setWindowTitle(qtTrId("geo.elevation.tile.title").arg(tileX).arg(-tileZ));
+    QString selected = Settings::string(SourceSetting,SettingType::Enum);
+    if (selected.isEmpty()) selected = Elevation::defaultFileSourceId(catalog);
+    QVector<Elevation::Point> area;
+    if (Game::GeoCoordConverter && terrainSize > 0) {
+        PreciseTileCoordinate coordinate;
+        coordinate.TileX = tileX; coordinate.TileZ = tileZ;
+        IghCoordinate internal;
+        LatitudeLongitudeCoordinate geographic;
+        for (int y=0;y<3;++y) for (int x=0;x<3;++x) {
+            coordinate.setWxyzU(float(x*terrainSize*.5),0,float(y*terrainSize*.5));
+            Game::GeoCoordConverter->ConvertToInternal(&coordinate,&internal);
+            Game::GeoCoordConverter->ConvertToLatLon(&internal,&geographic);
+            if (std::isfinite(geographic.Latitude) && std::isfinite(geographic.Longitude)
+                    && std::abs(geographic.Latitude) <= 90 && std::abs(geographic.Longitude) <= 180)
+                area.push_back({geographic.Latitude,geographic.Longitude});
         }
     }
-    
-    if(missingFiles.count() > 0){
-        QMapIterator<QString, bool> i2(missingFiles);
-        UnsavedDialog missingDialog;
-        missingDialog.setWindowTitle(
-            //% "Missing files?"
-            qtTrId("tsre.geo.height.window.title.missing.files"));
-        missingDialog.setMsg(
-            //% "Missing terrain heightmap files. "
-            qtTrId("tsre.geo.height.window.message.missing.terrain.heightmap.files"));
-        missingDialog.hideButtons();
-
-        while (i2.hasNext()) {
-            i2.next();
-            missingDialog.items.addItem(i2.key());
-            qDebug() << i2.key();
-        }
-        missingDialog.exec();
-    }
-    
+    { const QSignalBlocker blocker(sourceBox);
+      sourceBox->clear();
+      bool known = false;
+      for (const auto &dataset : catalog) {
+          known |= dataset.id == selected;
+          if (Elevation::nearDataset(dataset,area)) sourceBox->addItem(dataset.name,dataset.id);
+      }
+      if (!known)
+          sourceBox->addItem(qtTrId("settings.dialog.text.widget").arg(selected),selected);
+      sourceBox->setCurrentIndex(sourceBox->findData(selected)); }
+    loadButton->setEnabled(sourceBox->currentIndex() >= 0);
+    const int result = QDialog::exec();
+    if (previousContext && previousSurface) previousContext->makeCurrent(previousSurface);
+    return result;
 }
-
-void HeightWindow::hOffsetEnabled(QString val){
-    bool ok;
-    yOffset = val.toFloat(&ok);
-    if(ok) 
-        return;
-    yOffset = 0;
+void HeightWindow::done(int result) {
+    if (loading) return;
+    ok = result == QDialog::Accepted && prepared;
+    QDialog::done(result);
 }
-
-void HeightWindow::load(bool gui){
-    if(aCoords == NULL) 
-        aCoords = new PreciseTileCoordinate();
-    aCoords->TileX = this->tileX;
-    aCoords->TileZ = this->tileZ;
-    qDebug() << this->tileX << " " << this->tileZ;;
-    minlat = minlon = 9999;
-    maxlat = maxlon = -9999;
-    
-    std::unordered_map<int, bool> fileLat;
-    std::unordered_map<int, bool> fileLon;
-    
-    for(int i = 0; i <= terrainSize; i+= 0.5*terrainSize)
-        for(int j = 0; j <=terrainSize; j+= 0.5*terrainSize){
-            aCoords->setWxyzU(i, 0, j);
-            igh = Game::GeoCoordConverter->ConvertToInternal(aCoords, igh);
-            mLatlon = Game::GeoCoordConverter->ConvertToLatLon(igh, mLatlon);
-            fileLat[(int)floor(mLatlon->Latitude)] = true;
-            fileLon[(int)floor(mLatlon->Longitude)] = true;
-        }
-    
-    QImage* image = NULL;
-    bool fail;
-    for (auto itlat = fileLat.begin(); itlat != fileLat.end(); ++itlat ){
-        for (auto itlon = fileLon.begin(); itlon != fileLon.end(); ++itlon ){
-            qDebug() << "lat " << itlat->first << " lon " << itlon->first;
-            if(this->hqtFiles[itlat->first*1000+itlon->first] == NULL){
-                this->hqtFiles[itlat->first*1000+itlon->first] = new GeoHgtFile();
-                //this->hqtFiles[itlat->first*1000+itlon->first] = new GeoTiffFile();
-                fail = this->hqtFiles[itlat->first*1000+itlon->first]->load(itlat->first, itlon->first);
-            }
-            if(!this->hqtFiles[itlat->first*1000+itlon->first]->isLoaded())
-                fail = false;
-            if(!fail) {
-                if(gui){
-                    QMessageBox msgBox;
-                    //% "Failed to load %1"
-                    msgBox.setText(qtTrId("geodata.height.load.failed")
-                        .arg(this->hqtFiles[itlat->first*1000+itlon->first]->pathid));
-                    msgBox.exec();
-                }
-                return;
-            }
-        }
-    }
-    
-    drawTile(image, gui);
-    
-    if(gui){
-        imageLabel->setPixmap(QPixmap::fromImage(*image).scaled(800,800,Qt::KeepAspectRatio,Qt::SmoothTransformation));
-    }
-    delete image;
-
-    //qDebug() << "lat " << minLatlon->Latitude << " " << maxLatlon->Latitude;
-    //qDebug() << "lon " << minLatlon->Longitude << " " << maxLatlon->Longitude;
+void HeightWindow::hOffsetEnabled(QString value) {
+    bool valid;
+    yOffset = offsetEdit->locale().toFloat(value,&valid);
+    if (!valid) yOffset = 0;
+    prepared = ok = false; applyButton->setEnabled(false);
 }
-
-void HeightWindow::drawTile(QImage* &image, bool gui){
-    qDebug() << "draw tile";
-    if(gui)
-        image = new QImage(terrainResolution, terrainResolution, QImage::Format_RGB888);
-    const float step = static_cast<float>(terrainSize) / terrainResolution;
-    
-    if(terrainData != NULL){
-        for (int i = 0; i < allocatedTerrainResolution; i++) {
-            delete[] terrainData[i];
-        }
-        delete[] terrainData;
+void HeightWindow::load(bool gui) {
+    if (loading) return;
+    if (gui && sourceBox->currentIndex() < 0) return;
+    resetLoadCancellation();
+    ok = prepared = false; applyButton->setEnabled(false);
+    if (terrainResolution < 1 || terrainResolution > 4096 || terrainSize < 1 || !Game::GeoCoordConverter) {
+        //% "Invalid terrain grid or coordinate converter."
+        reportText->setPlainText(qtTrId("geo.elevation.grid.invalid")); return;
     }
-    /*if(terrainData == NULL){
-        terrainData = new float*[terrainResolution];
-        for (int i = 0; i < terrainResolution; i++) {
-            terrainData[i] = new float[terrainResolution];
+    loading = true;
+    QPointer<QOpenGLContext> previousContext = QOpenGLContext::currentContext();
+    QSurface *previousSurface = previousContext ? previousContext->surface() : nullptr;
+    loadButton->setEnabled(false); sourceBox->setEnabled(false); offsetEdit->setEnabled(false);
+    const QString root = Settings::string("core.paths.geoData",SettingType::Directory);
+    QString dataset = gui ? sourceBox->currentData().toString() : Settings::string(SourceSetting,SettingType::Enum);
+    QString catalogueError;
+    const auto catalog = Elevation::datasets(catalogueError);
+    if (dataset.isEmpty()) dataset = Elevation::defaultFileSourceId(catalog);
+    const int sourceIndex = sourceBox->findData(dataset);
+    QString sourceName = sourceIndex < 0 ? dataset : sourceBox->itemText(sourceIndex);
+    // Snapshot only this dataset's secret on the UI thread, before starting the worker.
+    QMap<QString,QString> secrets;
+    for (const auto &entry : catalog) if (entry.id == dataset) {
+        sourceName = entry.name;
+        if (!entry.apiKeySecret.isEmpty())
+            secrets.insert(entry.apiKeySecret,SettingsManager::instance().secretValue(entry.apiKeySecret));
+    }
+    QVector<Elevation::Point> points;
+    points.reserve(qsizetype(terrainResolution)*terrainResolution);
+    PreciseTileCoordinate coordinate;
+    coordinate.TileX = tileX; coordinate.TileZ = tileZ;
+    IghCoordinate internal;
+    LatitudeLongitudeCoordinate geographic;
+    const double step = double(terrainSize)/terrainResolution;
+    for (int i = 0; i < terrainResolution; ++i) for (int j = 0; j < terrainResolution; ++j) {
+        coordinate.setWxyzU(float(i*step),0,float(j*step));
+        Game::GeoCoordConverter->ConvertToInternal(&coordinate,&internal);
+        Game::GeoCoordConverter->ConvertToLatLon(&internal,&geographic);
+        points.push_back({geographic.Latitude,geographic.Longitude});
+    }
+    //% "Preparing terrain elevation"
+    QProgressDialog progress(qtTrId("geo.elevation.prepare"),//% "Cancel"
+        qtTrId("geo.elevation.cancel"),0,0,this);
+    progress.setWindowModality(gui ? Qt::ApplicationModal : Qt::NonModal);
+    progress.setAutoClose(false); progress.setAutoReset(false);
+    if (!gui) progress.reset(); // Stop any automatic-show timer.
+    std::atomic_bool cancel{false};
+    QEventLoop loop;
+    Elevation::Result result;
+    connect(&progress,&QProgressDialog::canceled,&loop,[&] {
+        cancel = true;
+        //% "Cancelling elevation load"
+        progress.setLabelText(qtTrId("geo.elevation.cancelling"));
+        progress.setCancelButton(nullptr); progress.show();
+    });
+    const float offset = yOffset;
+    QThread *worker = QThread::create([&] {
+        try {
+            result = Elevation::generate(root,dataset,points,step,offset,cancel,[&](int done,int total,const QString &message) {
+                    if (!gui) return; // setValue() can otherwise auto-show the dialog.
+                QMetaObject::invokeMethod(&progress,[&,done,total,message] {
+                    progress.setLabelText(message); progress.setRange(0,total); progress.setValue(done);
+                },Qt::QueuedConnection);
+            },secrets);
+        } catch (const std::exception &e) {
+            //% "Elevation load failed: %1"
+            result.error = qtTrId("geo.elevation.load.failed").arg(QString::fromUtf8(e.what()));
         }
-    }*/
-    
+    });
+    connect(worker,&QThread::finished,&loop,&QEventLoop::quit);
+    if (gui) progress.show();
+    worker->start(); loop.exec(); worker->wait(); delete worker;
+    progress.hide();
+    if (cancel) { result.cancelled = true; result.heights.clear(); }
+    lastElevationCancelled = result.cancelled;
+    if (previousContext && previousSurface) previousContext->makeCurrent(previousSurface);
+    loading = false;
+    loadButton->setEnabled(true); sourceBox->setEnabled(true); offsetEdit->setEnabled(true);
+    const QString report = summarize(result,sourceName);
+    reportText->setPlainText(report);
+    if (!gui && (!result.success() || result.report.fallbackSamples))
+        //% "Tile %1 %2\n%3"
+        showAutomaticReport(qtTrId("geo.elevation.tile.report").arg(tileX).arg(-tileZ).arg(report));
+    if (!result.success()) return;
+    clearData();
     terrainData = new float*[terrainResolution];
-    allocatedTerrainResolution = terrainResolution;
-    minVal = 999;
-    maxVal = -999;
-    for (int i = 0; i < terrainResolution; i++) {
+    for (int i = 0; i < terrainResolution; ++i) {
         terrainData[i] = new float[terrainResolution];
-        for (int j = 0; j < terrainResolution; j++) {
-            aCoords->setWxyzU(i*step, 0, j*step);
-            igh = Game::GeoCoordConverter->ConvertToInternal(aCoords, igh);
-            mLatlon = Game::GeoCoordConverter->ConvertToLatLon(igh, mLatlon);
-            if(hqtFiles[(int)floor(mLatlon->Latitude)*1000+(int)floor(mLatlon->Longitude)] == NULL){
-                qDebug() << "fail";
-                continue;
-            }
-            terrainData[i][j] = hqtFiles[(int)floor(mLatlon->Latitude)*1000+(int)floor(mLatlon->Longitude)]->getHeight(mLatlon->Latitude, mLatlon->Longitude) + yOffset;
-            if(terrainData[i][j] < minVal)
-                minVal = terrainData[i][j];
-            if(terrainData[i][j] > maxVal)
-                maxVal = terrainData[i][j];
-        }
+        ++allocatedTerrainResolution;
+        std::copy_n(result.heights.constData()+qsizetype(i)*terrainResolution,terrainResolution,terrainData[i]);
     }
-    qDebug() << "minmax" << minVal << " "<<maxVal;
-    
-    if(gui){
-        int val;
-        float s = (maxVal - minVal) / 255;
-        for (int i = 0; i < terrainResolution; i++) {
-            for (int j = 0; j < terrainResolution; j++) {
-                val = (this->terrainData[i][j] - minVal)/s;
-                //val = (this->terrainData[i][j])*10+50;
-                if(val < 0) val = 0;
-                if(val > 255) val = 255;
-                image->setPixel(i, j, qRgb(val,val,val));
-            }
-        }
+    prepared = true;
+    if (!gui) { ok = true; return; }
+    const auto extremes = std::minmax_element(result.heights.cbegin(),result.heights.cend());
+    const float low = *extremes.first, span = *extremes.second-low;
+    QImage preview(terrainResolution,terrainResolution,QImage::Format_RGB32);
+    for (int i = 0; i < terrainResolution; ++i) for (int j = 0; j < terrainResolution; ++j) {
+        const int value = span > 0 ? std::clamp(int((terrainData[i][j]-low)*255/span),0,255) : 128;
+        preview.setPixel(i,j,qRgb(value,value,value));
     }
-    this->ok = true;
+    imageLabel->setPixmap(QPixmap::fromImage(preview).scaled(760,480,Qt::KeepAspectRatio,Qt::SmoothTransformation));
+    applyButton->setEnabled(true);
 }
 
-HeightWindow::~HeightWindow() {
-    if (terrainData != NULL) {
-        for (int i = 0; i < allocatedTerrainResolution; ++i)
-            delete[] terrainData[i];
-        delete[] terrainData;
+void HeightWindow::CheckForMissingGeodataFiles(QMap<int,QPair<int,int>*> &tiles) {
+    if (!Game::GeoCoordConverter) return;
+    const QString root = Settings::string("core.paths.geoData",SettingType::Directory);
+    QString catalogueError;
+    const auto catalog = Elevation::datasets(catalogueError);
+    const QString fallbackId = Elevation::defaultFileSourceId(catalog);
+    const Elevation::Dataset *fileSource = nullptr;
+    for (const auto &dataset : catalog) if (dataset.id == fallbackId) { fileSource = &dataset; break; }
+    if (!fileSource) return;
+    QSet<QString> missing;
+    for (auto it = tiles.cbegin(); it != tiles.cend(); ++it) {
+        if (!it.value()) continue;
+        PreciseTileCoordinate coordinate;
+        coordinate.TileX = it.value()->first; coordinate.TileZ = it.value()->second;
+        IghCoordinate internal;
+        LatitudeLongitudeCoordinate geographic;
+        QSet<int> latitudes, longitudes;
+        for (int x : {0,1024,2048}) for (int y : {0,1024,2048}) {
+            coordinate.setWxyzU(x,0,y);
+            Game::GeoCoordConverter->ConvertToInternal(&coordinate,&internal);
+            Game::GeoCoordConverter->ConvertToLatLon(&internal,&geographic);
+            latitudes.insert(int(std::floor(geographic.Latitude)));
+            longitudes.insert(int(std::floor(geographic.Longitude)));
+        }
+        for (int lat : latitudes) for (int lon : longitudes)
+            if (Elevation::findHgtFile(root,*fileSource,lat,lon).isEmpty()) missing.insert(Elevation::hgtFileName(lat,lon));
     }
+    QStringList names = missing.values(); names.sort();
+    QString selected = Settings::string(SourceSetting,SettingType::Enum);
+    if (selected.isEmpty()) selected = fallbackId;
+    QString message = selected == fallbackId
+        //% "Elevation file-source check"
+        ? qtTrId("geo.elevation.hgt.check")
+        //% "Fallback file-source check. Elevation data is prepared when terrain is loaded."
+        : qtTrId("geo.elevation.hgt.fallback.check");
+    //% "\nAll checked elevation files are present."
+    message += names.isEmpty() ? qtTrId("geo.elevation.hgt.present") : //% "\nMissing local elevation files (downloaded automatically when supported):\n%1"
+        qtTrId("geo.elevation.hgt.missing").arg(names.join('\n'));
+    //% "Elevation data"
+    QMessageBox::information(nullptr,qtTrId("geo.elevation.data.title"),message);
 }
-

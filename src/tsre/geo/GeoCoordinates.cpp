@@ -14,19 +14,100 @@
 
 #include <tsre/geo/GeoCoordinates.h>
 #include <QDebug>
+#include <cmath>
+
+QString GeoProjectionTypeToString(GeoProjectionType type) {
+    switch(type) {
+    case GeoProjectionType::InterruptedGoodeHomolosine:
+        return "InterruptedGoodeHomolosine";
+    case GeoProjectionType::LocalEllipsoidalEquirectangular:
+        return "LocalEllipsoidalEquirectangular";
+    case GeoProjectionType::TransverseMercator:
+        return "TransverseMercator";
+    case GeoProjectionType::Undefined:
+    default:
+        return "Undefined";
+    }
+}
+
+GeoProjectionType GeoProjectionTypeFromString(const QString &value) {
+    if(value.compare("InterruptedGoodeHomolosine", Qt::CaseInsensitive) == 0)
+        return GeoProjectionType::InterruptedGoodeHomolosine;
+
+    if(value.compare("LocalEllipsoidalEquirectangular", Qt::CaseInsensitive) == 0)
+        return GeoProjectionType::LocalEllipsoidalEquirectangular;
+
+    if(value.compare("TransverseMercator", Qt::CaseInsensitive) == 0)
+        return GeoProjectionType::TransverseMercator;
+
+    return GeoProjectionType::Undefined;
+}
 
 constexpr double GeoMstsCoordinateConverter::IghLongitudeCenter[12];
 
+GeoWorldCoordinateConverter* GeoWorldCoordinateConverter::Create(
+        GeoProjectionType type,
+        const GeoProjectionParameters *projection) {
+
+    switch(type) {
+        case GeoProjectionType::InterruptedGoodeHomolosine:
+            return new GeoMstsCoordinateConverter();
+
+        case GeoProjectionType::LocalEllipsoidalEquirectangular:
+            if (projection == nullptr) {
+                qWarning() << "Local TSRE projection requires projection parameters";
+                return nullptr;
+            }
+            return new GeoTsreCoordinateConverter(*projection);
+
+        case GeoProjectionType::TransverseMercator:
+            if (projection == nullptr) {
+                qWarning() << "Transverse Mercator requires projection parameters";
+                return nullptr;
+            }
+            return new GeoTsreTransverseMercatorCoordinateConverter(*projection);
+
+        case GeoProjectionType::Undefined:
+        default:
+            qWarning() << "Cannot create undefined geo projection";
+            return nullptr;
+    }
+}
+
+GeoWorldCoordinateConverter::GeoWorldCoordinateConverter(double tileOffsetX, double tileOffsetZ, int tileZDirection)
+    : tileOffsetX(tileOffsetX), tileOffsetZ(tileOffsetZ), tileZDirection(tileZDirection) {
+}
+
 IghCoordinate* GeoWorldCoordinateConverter::ConvertToInternal(PreciseTileCoordinate* coordinates, IghCoordinate* out){
-    return NULL;
+    return ConvertToInternal(coordinates->TileX, coordinates->TileZ, coordinates->X, coordinates->Z, out);
 }
 
 IghCoordinate* GeoWorldCoordinateConverter::ConvertToInternal(int tilex, int tilez, double x, double z, IghCoordinate* out){
-    return NULL;
+    double line = tileZDirection * 2048.0 * (tilez + (1.0 - z)) + tileOffsetZ;
+    double sample = 2048.0 * (tilex + x) + tileOffsetX;
+    if(out == 0)
+        return new IghCoordinate(line, sample);
+    out->set(line, sample);
+    return out;
 }
 
-PreciseTileCoordinate* GeoWorldCoordinateConverter::ConvertToTile(IghCoordinate* coordinates, PreciseTileCoordinate* out){
-    return NULL;
+PreciseTileCoordinate* GeoWorldCoordinateConverter::ConvertToTile(
+        IghCoordinate* coordinates, PreciseTileCoordinate* out) {
+
+    double tileX = (coordinates->Sample - tileOffsetX) / 2048.0;
+    double tileZ = tileZDirection * (coordinates->Line - tileOffsetZ) / 2048.0;
+
+    int tileXi = (int)floor(tileX);
+    double x = tileX - tileXi;
+
+    int tileZi = (int)ceil(tileZ) - 1;
+    double z = (tileZi + 1) - tileZ;
+
+    if(out == 0)
+        return new PreciseTileCoordinate(tileXi, tileZi, x, z);
+
+    out->set(tileXi, tileZi, x, z);
+    return out;
 }
 
 LatitudeLongitudeCoordinate* GeoWorldCoordinateConverter::ConvertToLatLon(IghCoordinate* coordinates, LatitudeLongitudeCoordinate* out){
@@ -41,40 +122,8 @@ IghCoordinate* GeoWorldCoordinateConverter::ConvertToInternal(double lat, double
     return NULL;
 }
 
-IghCoordinate* GeoMstsCoordinateConverter::ConvertToInternal(PreciseTileCoordinate* coordinates, IghCoordinate* out) {
-    return ConvertToInternal(coordinates->TileX, coordinates->TileZ, coordinates->X, coordinates->Z, out);
-}
-
-// MSTS Tile -> IGH
-
-IghCoordinate* GeoMstsCoordinateConverter::ConvertToInternal(int tilex, int tilez, double x, double z, IghCoordinate* out) {
-    //Debug.Assert(z >= 0, "tileZ is off the top");
-    //Debug.Assert(z <= 1, "tileZ is off the bottom");
-    //Debug.Assert(x >= 0, "tileX is off the left");
-    //Debug.Assert(x <= 1, "tileX is off the right");
-    if(out == 0)
-        return new IghCoordinate(2048 * (16384 - tilez - 1 + z), 2048 * (tilex + 16384 + x));
-    out->set(2048 * (16384 - tilez - 1 + z), 2048 * (tilex + 16384 + x));
-    return out;
-}
-
-// IGH -> MSTS Precise Tile
-
-PreciseTileCoordinate* GeoMstsCoordinateConverter::ConvertToTile(IghCoordinate* coordinates, PreciseTileCoordinate* out) {
-    double tileX = coordinates->Sample / 2048;
-    double tileZ = coordinates->Line / 2048;
-    double x = tileX - floor(tileX);
-    double z = tileZ - floor(tileZ);
-    //qDebug() << tileX <<" "<< tileZ;
-    //qDebug() << x <<" "<< z;
-    //Debug.Assert(z >= 0, "tileZ is off the top");
-    //Debug.Assert(z <= 1, "tileZ is off the bottom");
-    //Debug.Assert(x >= 0, "tileX is off the left");
-    //Debug.Assert(x <= 1, "tileX is off the right");
-    if(out == 0)
-        return new PreciseTileCoordinate((int) floor(tileX) - 16384, 16384 - (int) floor(tileZ) - 1, x, z);
-    out->set((int) floor(tileX) - 16384, 16384 - (int) floor(tileZ) - 1, x, z);
-    return out;
+GeoMstsCoordinateConverter::GeoMstsCoordinateConverter()
+    : GeoWorldCoordinateConverter(2048.0 * 16384.0, 2048.0 * 16384.0, -1) {
 }
 
 LatitudeLongitudeCoordinate* GeoMstsCoordinateConverter::ConvertToLatLon(IghCoordinate* coordinates, LatitudeLongitudeCoordinate* out) {
@@ -283,40 +332,17 @@ double GeoMstsCoordinateConverter::sign(double a) {
     return 1;
 }
 
-GeoTsreCoordinateConverter::GeoTsreCoordinateConverter(double *latLonXY){
-    centerLat = latLonXY[0];
-    centerLon = latLonXY[1];
-    centerX = latLonXY[2];
-    centerZ = latLonXY[3];
-    
+GeoTsreCoordinateConverter::GeoTsreCoordinateConverter(
+        const GeoProjectionParameters &projection)
+    : GeoWorldCoordinateConverter(-projection.offsetX, -projection.offsetZ, 1) {
+    centerLat = projection.originLatitude;
+    centerLon = projection.originLongitude;
+
     double centerLatRad = (centerLat*M_PI)/180.0;
     stepLat = 111132.92 - 559.82 * cos( 2 * centerLatRad ) + 1.175 * cos( 4 * centerLatRad) - 0.0023 * cos( 6 * centerLatRad);
     stepLon = 111412.84 * cos ( centerLatRad ) - 93.5 * cos ( 3*centerLatRad ) ;
     qDebug() << "Projection "<<centerLat << centerLon;
     qDebug() << "Projection step "<<stepLat << stepLon;
-}
-
-IghCoordinate* GeoTsreCoordinateConverter::ConvertToInternal(PreciseTileCoordinate* coordinates, IghCoordinate* out){
-    return ConvertToInternal(coordinates->TileX, coordinates->TileZ, coordinates->X, coordinates->Z, out);
-}
-
-IghCoordinate* GeoTsreCoordinateConverter::ConvertToInternal(int tilex, int tilez, double x, double z, IghCoordinate* out){
-    //qDebug() << "tile to internal" <<centerX << centerZ << tilex << tilez << x << z;
-    if(out == 0)
-        return new IghCoordinate(2048.0 * (tilez + (1.0 - z)) - centerZ, 2048.0 * (tilex + x) - centerX);
-    out->set(2048.0 * (tilez + (1.0 - z)) - centerZ, 2048.0 * (tilex + x) - centerX);
-    return out;
-}
-
-PreciseTileCoordinate* GeoTsreCoordinateConverter::ConvertToTile(IghCoordinate* coordinates, PreciseTileCoordinate* out){
-    double tileX = (coordinates->Sample + centerX) / 2048;
-    double tileZ = (coordinates->Line + centerZ) / 2048;
-    double x = tileX - floor(tileX);
-    double z = tileZ - floor(tileZ);
-    if(out == 0)
-        return new PreciseTileCoordinate((int) floor(tileX), (int) floor(tileZ), x, 1.0 - z);
-    out->set((int) floor(tileX), (int) floor(tileZ), x, 1.0 - z);
-    return out;
 }
 
 LatitudeLongitudeCoordinate* GeoTsreCoordinateConverter::ConvertToLatLon(IghCoordinate* coordinates, LatitudeLongitudeCoordinate* out){
@@ -338,6 +364,185 @@ IghCoordinate* GeoTsreCoordinateConverter::ConvertToInternal(double lat, double 
     if(out == 0)
         return new IghCoordinate(line, sample);
     out->set(line, sample);
+    return out;
+}
+
+GeoTsreTransverseMercatorCoordinateConverter::GeoTsreTransverseMercatorCoordinateConverter(
+        const GeoProjectionParameters &projection)
+    : GeoWorldCoordinateConverter(-projection.offsetX, -projection.offsetZ, 1)
+{
+    // GRS80 ellipsoid. False easting/northing are represented by the TSRE
+    // projection offsets carried by GeoWorldCoordinateConverter.
+    constexpr double semiMajorAxis = 6378137.0;
+    constexpr double inverseFlattening = 298.257222101;
+
+    const double flattening = 1.0 / inverseFlattening;
+    eccentricitySquared = flattening * (2.0 - flattening);
+    eccentricity = sqrt(eccentricitySquared);
+    const double thirdFlattening = flattening / (2.0 - flattening);
+    centerLongitudeRad = projection.originLongitude * M_PI / 180.0;
+
+    const double n = thirdFlattening;
+    const double n2 = n * n;
+    const double n3 = n2 * n;
+    const double n4 = n2 * n2;
+    const double n5 = n4 * n;
+    const double n6 = n3 * n3;
+
+    // Krueger series, order 6 (Engsager/Poder formulation).
+    rectifyingRadius = semiMajorAxis / (1.0 + n)
+        * (1.0 + n2 / 4.0 + n4 / 64.0 + n6 / 256.0);
+    const double scaleFactor = std::isfinite(projection.scaleFactor)
+            && projection.scaleFactor > 0.0
+            ? projection.scaleFactor : 1.0;
+    rectifyingRadius *= scaleFactor;
+
+    alpha[0] = 0.0;
+    alpha[1] = 1.0/2.0 * n - 2.0/3.0 * n2 + 5.0/16.0 * n3
+             + 41.0/180.0 * n4 - 127.0/288.0 * n5 + 7891.0/37800.0 * n6;
+    alpha[2] = 13.0/48.0 * n2 - 3.0/5.0 * n3 + 557.0/1440.0 * n4
+             + 281.0/630.0 * n5 - 1983433.0/1935360.0 * n6;
+    alpha[3] = 61.0/240.0 * n3 - 103.0/140.0 * n4
+             + 15061.0/26880.0 * n5 + 167603.0/181440.0 * n6;
+    alpha[4] = 49561.0/161280.0 * n4 - 179.0/168.0 * n5
+             + 6601661.0/7257600.0 * n6;
+    alpha[5] = 34729.0/80640.0 * n5 - 3418889.0/1995840.0 * n6;
+    alpha[6] = 212378941.0/319334400.0 * n6;
+
+    beta[0] = 0.0;
+    beta[1] = 1.0/2.0 * n - 2.0/3.0 * n2 + 37.0/96.0 * n3
+            - 1.0/360.0 * n4 - 81.0/512.0 * n5 + 96199.0/604800.0 * n6;
+    beta[2] = 1.0/48.0 * n2 + 1.0/15.0 * n3 - 437.0/1440.0 * n4
+            + 46.0/105.0 * n5 - 1118711.0/3870720.0 * n6;
+    beta[3] = 17.0/480.0 * n3 - 37.0/840.0 * n4
+            - 209.0/4480.0 * n5 + 5569.0/90720.0 * n6;
+    beta[4] = 4397.0/161280.0 * n4 - 11.0/504.0 * n5
+            - 830251.0/7257600.0 * n6;
+    beta[5] = 4583.0/161280.0 * n5 - 108847.0/3991680.0 * n6;
+    beta[6] = 20648693.0/638668800.0 * n6;
+
+    // Raw TM northing is measured from the equator. Subtract the raw
+    // northing of the TSRE projection centre so centerLat/centerLon maps to 0,0.
+    double unusedEasting = 0.0;
+    forwardRaw(projection.originLatitude * M_PI / 180.0, 0.0,
+               unusedEasting, originNorthing);
+
+    qDebug() << "Projection TransverseMercator"
+             << projection.originLatitude << projection.originLongitude
+             << "k0" << scaleFactor;
+}
+
+double GeoTsreTransverseMercatorCoordinateConverter::tauPrime(double tau) const {
+    const double tauHypot = hypot(1.0, tau);
+    const double sigma = sinh(eccentricity * atanh(eccentricity * tau / tauHypot));
+    return hypot(1.0, sigma) * tau - sigma * tauHypot;
+}
+
+double GeoTsreTransverseMercatorCoordinateConverter::inverseTauPrime(double tauPrimeValue) const {
+    const double oneMinusEccentricitySquared = 1.0 - eccentricitySquared;
+    double tau = tauPrimeValue / oneMinusEccentricitySquared;
+
+    for (int i = 0; i < 10; i++) {
+        const double calculatedTauPrime = tauPrime(tau);
+        const double deltaTau = (tauPrimeValue - calculatedTauPrime)
+            * (1.0 + oneMinusEccentricitySquared * tau * tau)
+            / (oneMinusEccentricitySquared * hypot(1.0, tau) * hypot(1.0, calculatedTauPrime));
+
+        tau += deltaTau;
+        if (fabs(deltaTau) < 1e-14 * fmax(1.0, fabs(tau)))
+            break;
+    }
+
+    return tau;
+}
+
+void GeoTsreTransverseMercatorCoordinateConverter::forwardRaw(
+        double latitudeRad, double longitudeDeltaRad,
+        double &easting, double &northing) const {
+    const double tau = tan(latitudeRad);
+    const double taup = tauPrime(tau);
+    const double cosLambda = cos(longitudeDeltaRad);
+
+    const double xiPrime = atan2(taup, cosLambda);
+    const double etaPrime = asinh(sin(longitudeDeltaRad) / hypot(taup, cosLambda));
+
+    double xi = xiPrime;
+    double eta = etaPrime;
+
+    for (int j = 1; j <= 6; j++) {
+        const double angle = 2.0 * j;
+        xi += alpha[j] * sin(angle * xiPrime) * cosh(angle * etaPrime);
+        eta += alpha[j] * cos(angle * xiPrime) * sinh(angle * etaPrime);
+    }
+
+    easting = rectifyingRadius * eta;
+    northing = rectifyingRadius * xi;
+}
+
+void GeoTsreTransverseMercatorCoordinateConverter::inverseRaw(
+        double easting, double northing,
+        double &latitudeRad, double &longitudeDeltaRad) const {
+    const double eta = easting / rectifyingRadius;
+    const double xi = northing / rectifyingRadius;
+
+    double xiPrime = xi;
+    double etaPrime = eta;
+
+    for (int j = 1; j <= 6; j++) {
+        const double angle = 2.0 * j;
+        xiPrime -= beta[j] * sin(angle * xi) * cosh(angle * eta);
+        etaPrime -= beta[j] * cos(angle * xi) * sinh(angle * eta);
+    }
+
+    const double sinhEtaPrime = sinh(etaPrime);
+    const double taup = sin(xiPrime) / hypot(sinhEtaPrime, cos(xiPrime));
+    const double tau = inverseTauPrime(taup);
+
+    latitudeRad = atan(tau);
+    longitudeDeltaRad = atan2(sinhEtaPrime, cos(xiPrime));
+}
+
+LatitudeLongitudeCoordinate* GeoTsreTransverseMercatorCoordinateConverter::ConvertToLatLon(
+        IghCoordinate* coordinates, LatitudeLongitudeCoordinate* out){
+    double latitudeRad = 0.0;
+    double longitudeDeltaRad = 0.0;
+
+    // TSRE internal convention: Line = northing, Sample = easting.
+    inverseRaw(coordinates->Sample, coordinates->Line + originNorthing,
+               latitudeRad, longitudeDeltaRad);
+
+    double longitudeRad = centerLongitudeRad + longitudeDeltaRad;
+    longitudeRad = remainder(longitudeRad, 2.0 * M_PI);
+
+    const double lat = latitudeRad * 180.0 / M_PI;
+    const double lon = longitudeRad * 180.0 / M_PI;
+
+    if(out == 0)
+        return new LatitudeLongitudeCoordinate(lat, lon);
+    out->set(lat, lon);
+    return out;
+}
+
+IghCoordinate* GeoTsreTransverseMercatorCoordinateConverter::ConvertToInternal(
+        LatitudeLongitudeCoordinate* coordinates, IghCoordinate* out){
+    return ConvertToInternal(coordinates->Latitude, coordinates->Longitude, out);
+}
+
+IghCoordinate* GeoTsreTransverseMercatorCoordinateConverter::ConvertToInternal(
+        double lat, double lon, IghCoordinate* out){
+    const double latitudeRad = lat * M_PI / 180.0;
+    double longitudeDeltaRad = lon * M_PI / 180.0 - centerLongitudeRad;
+    longitudeDeltaRad = remainder(longitudeDeltaRad, 2.0 * M_PI);
+
+    double easting = 0.0;
+    double northing = 0.0;
+    forwardRaw(latitudeRad, longitudeDeltaRad, easting, northing);
+    northing -= originNorthing;
+
+    // TSRE internal convention: Line = northing, Sample = easting.
+    if(out == 0)
+        return new IghCoordinate(northing, easting);
+    out->set(northing, easting);
     return out;
 }
 

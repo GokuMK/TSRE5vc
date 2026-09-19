@@ -77,7 +77,7 @@ public:
     void reloadProceduralBakeMetadata() override;
     bool reload(int x, int z);
     void loadQuadTree();
-    void createNewRouteTerrain(int x, int z);
+    bool createNewRouteTerrain(int x, int z) override;
     void saveEmpty(int x, int z);
     bool saveEmpty(int x, int z, TerrainHeightProfile profile,
                    int patches,

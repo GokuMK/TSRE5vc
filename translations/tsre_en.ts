@@ -3427,15 +3427,20 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <source> Paste </source>
         <translation> Paste </translation>
     </message>
-    <message id="route.editor.trk.window.button.bok">
+    <message id="route.editor.trk.window.button.apply">
         <location filename="../src/routeEditor/TrkWindow.cpp" line="203" />
-        <source>OK</source>
-        <translation>OK</translation>
+        <source>Apply</source>
+        <translation>Apply</translation>
     </message>
-    <message id="route.editor.trk.window.button.bcancel">
+    <message id="route.editor.trk.window.button.discard">
         <location filename="../src/routeEditor/TrkWindow.cpp" line="207" />
-        <source>Cancel</source>
-        <translation>Cancel</translation>
+        <source>Discard</source>
+        <translation>Discard</translation>
+    </message>
+    <message id="route.editor.trk.window.button.skip">
+        <location filename="../src/routeEditor/TrkWindow.cpp" line="207" />
+        <source>Skip</source>
+        <translation>Skip</translation>
     </message>
     <message id="route.editor.trk.window.title.route.settings">
         <location filename="../src/routeEditor/TrkWindow.cpp" line="224" />
@@ -7548,14 +7553,12 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <translation>Root directory containing GLOBAL, ROUTES, and TRAINS. Editors can replace it while selecting content.</translation>
     </message>
     <message id="settings.core.paths.geo.data.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="364" />
-        <source>HGT and TIFF geodata directory</source>
-        <translation>HGT and TIFF geodata directory</translation>
+        <source>Geodata and elevation cache directory</source>
+        <translation>Geodata and elevation cache directory</translation>
     </message>
     <message id="settings.core.paths.geo.data.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="366" />
-        <source>Directory read by the HGT and TIFF geographic-data tools.</source>
-        <translation>Directory read by the HGT and TIFF geographic-data tools.</translation>
+        <source>Geodata root: user-managed elevation products in their catalogue directories; downloaded service rasters in cache/.</source>
+        <translation>Geodata root: user-managed elevation products in their catalogue directories; downloaded service rasters in cache/.</translation>
     </message>
     <message id="settings.core.startup.route.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="371" />
@@ -10029,5 +10032,192 @@ Now TSRE will download app data.</translation>
         <source>Change the Weather.</source>
         <translation>Change the Weather.</translation>
     </message>
+
+    <message id="geo.elevation.report.filled">
+        <source>
+Filled source NoData pixels: %1 (estimated from neighbouring heights).</source>
+        <translation>
+Filled source NoData pixels: %1 (estimated from neighbouring heights).</translation>
+    </message>
+    <message id="geo.elevation.report.summary">
+        <source>Source: %1
+Source samples: %2; fallback samples: %3
+Cached blocks: %4; downloads: %5</source>
+        <translation>Source: %1
+Source samples: %2; fallback samples: %3
+Cached blocks: %4; downloads: %5</translation>
+    </message>
+    <message id="geo.elevation.report.fallback">
+        <source>
+Fallback (%1): %2 samples. Missing/zero data: %3; outside coverage: %4; unavailable data: %5.</source>
+        <translation>
+Fallback (%1): %2 samples. Missing/zero data: %3; outside coverage: %4; unavailable data: %5.</translation>
+    </message>
+    <message id="geo.elevation.report.datum">
+        <source>
+Source and fallback heights may use different vertical datums. No vertical datum conversion is applied.</source>
+        <translation>
+Source and fallback heights may use different vertical datums. No vertical datum conversion is applied.</translation>
+    </message>
+    <message id="geo.elevation.report.cancelled">
+        <source>
+Cancelled. No elevation heights were applied.</source>
+        <translation>
+Cancelled. No elevation heights were applied.</translation>
+    </message>
+    <message id="geo.elevation.report.title">
+        <source>Terrain elevation report</source>
+        <translation>Terrain elevation report</translation>
+    </message>
+    <message id="geo.elevation.title">
+        <source>Terrain elevation</source>
+        <translation>Terrain elevation</translation>
+    </message>
+    <message id="geo.elevation.preview">
+        <source>Load preview</source>
+        <translation>Load preview</translation>
+    </message>
+    <message id="geo.elevation.apply">
+        <source>Apply</source>
+        <translation>Apply</translation>
+    </message>
+    <message id="geo.elevation.close">
+        <source>Close</source>
+        <translation>Close</translation>
+    </message>
+    <message id="geo.elevation.offset">
+        <source>Y offset (m):</source>
+        <translation>Y offset (m):</translation>
+    </message>
+    <message id="geo.elevation.source.select.local">
+        <source>Select an elevation source for this location</source>
+        <translation>Select an elevation source for this location</translation>
+    </message>
+    <message id="geo.elevation.source.note">
+        <source>Source resolution depends on the selected dataset. Output spacing follows this terrain tile. Missing coverage and NoData use the configured file-source fallback.</source>
+        <translation>Source resolution depends on the selected dataset. Output spacing follows this terrain tile. Missing coverage and NoData use the configured file-source fallback.</translation>
+    </message>
+    <message id="geo.elevation.tile.title">
+        <source>Terrain elevation - tile %1 %2</source>
+        <translation>Terrain elevation - tile %1 %2</translation>
+    </message>
+    <message id="geo.elevation.grid.invalid">
+        <source>Invalid terrain grid or coordinate converter.</source>
+        <translation>Invalid terrain grid or coordinate converter.</translation>
+    </message>
+    <message id="geo.elevation.prepare">
+        <source>Preparing terrain elevation</source>
+        <translation>Preparing terrain elevation</translation>
+    </message>
+    <message id="geo.elevation.cancel">
+        <source>Cancel</source>
+        <translation>Cancel</translation>
+    </message>
+    <message id="geo.elevation.cancelling">
+        <source>Cancelling elevation load</source>
+        <translation>Cancelling elevation load</translation>
+    </message>
+    <message id="geo.elevation.load.failed">
+        <source>Elevation load failed: %1</source>
+        <translation>Elevation load failed: %1</translation>
+    </message>
+    <message id="geo.elevation.tile.report">
+        <source>Tile %1 %2
+%3</source>
+        <translation>Tile %1 %2
+%3</translation>
+    </message>
+    <message id="geo.elevation.hgt.check">
+        <source>Elevation file-source check</source>
+        <translation>Elevation file-source check</translation>
+    </message>
+    <message id="geo.elevation.hgt.fallback.check">
+        <source>Fallback file-source check. Elevation data is prepared when terrain is loaded.</source>
+        <translation>Fallback file-source check. Elevation data is prepared when terrain is loaded.</translation>
+    </message>
+    <message id="geo.elevation.hgt.present">
+        <source>
+All checked elevation files are present.</source>
+        <translation>
+All checked elevation files are present.</translation>
+    </message>
+    <message id="geo.elevation.hgt.missing">
+        <source>
+Missing local elevation files (downloaded automatically when supported):
+%1</source>
+        <translation>
+Missing local elevation files (downloaded automatically when supported):
+%1</translation>
+    </message>
+    <message id="geo.elevation.data.title">
+        <source>Elevation data</source>
+        <translation>Elevation data</translation>
+    </message>
+    <message id="settings.geo.elevation.source.name">
+        <source>Terrain elevation source</source>
+        <translation>Terrain elevation source</translation>
+    </message>
+    <message id="settings.geo.elevation.source.description">
+        <source>Source for manual and automatic terrain elevation. Missing coverage uses the configured file-source fallback.</source>
+        <translation>Source for manual and automatic terrain elevation. Missing coverage uses the configured file-source fallback.</translation>
+    </message>
+    <message id="settings.geo.elevation.source.kron86">
+        <source>Geoportal NMT 1 m - KRON86 (GeoTIFF)</source>
+        <translation>Geoportal NMT 1 m - KRON86 (GeoTIFF)</translation>
+    </message>
+    <message id="settings.geo.elevation.source.dmr5g">
+        <source>Czechia - CUZK DMR 5G (2 m, Bpv)</source>
+        <translation>Czechia - CUZK DMR 5G (2 m, Bpv)</translation>
+    </message>
+    <message id="settings.geo.elevation.source.dmr4g">
+        <source>Czechia - CUZK DMR 4G (5 m, EVRS)</source>
+        <translation>Czechia - CUZK DMR 4G (5 m, EVRS)</translation>
+    </message>
+    <message id="settings.geo.elevation.source.evrf2007">
+        <source>Geoportal NMT 1 m - EVRF2007 (ASCII Grid)</source>
+        <translation>Geoportal NMT 1 m - EVRF2007 (ASCII Grid)</translation>
+    </message>
+</context>
+<context>
+    <name>LoadWindow</name>
+    <message><source>Cannot create route</source><translation>Cannot create route</translation></message>
+    <message><source>The route template is unavailable. %1</source><translation>The route template is unavailable. %1</translation></message>
+    <message><source>Route writing could not be enabled. %1</source><translation>Route writing could not be enabled. %1</translation></message>
+    <message><source>The route was created but its TRK file could not be found.</source><translation>The route was created but its TRK file could not be found.</translation></message>
+</context>
+<context>
+    <name>NewRouteWindow</name>
+    <message><source>Custom origin</source><translation>Custom origin</translation></message>
+    <message><source>Create origin offset using MSTS IGH</source><translation>Create origin offset using MSTS IGH</translation></message>
+    <message><source>New route</source><translation>New route</translation></message>
+    <message><source>Choose Route Starting Point</source><translation>Choose Route Starting Point</translation></message>
+    <message><source>Search for a city or place</source><translation>Search for a city or place</translation></message>
+    <message><source>No place selected</source><translation>No place selected</translation></message>
+    <message><source>Selected place:</source><translation>Selected place:</translation></message>
+    <message><source>Latitude</source><translation>Latitude</translation></message>
+    <message><source>Longitude</source><translation>Longitude</translation></message>
+    <message><source>Latitude:</source><translation>Latitude:</translation></message>
+    <message><source>Longitude:</source><translation>Longitude:</translation></message>
+    <message><source>Route Geographic Projection</source><translation>Route Geographic Projection</translation></message>
+    <message><source>Transverse Mercator</source><translation>Transverse Mercator</translation></message>
+    <message><source>Local Ellipsoidal Equirectangular - Legacy TSRE</source><translation>Local Ellipsoidal Equirectangular - Legacy TSRE</translation></message>
+    <message><source>Interrupted Goode Homolosine - Legacy MSTS</source><translation>Interrupted Goode Homolosine - Legacy MSTS</translation></message>
+    <message><source>Search for a projection origin</source><translation>Search for a projection origin</translation></message>
+    <message><source>No projection origin selected</source><translation>No projection origin selected</translation></message>
+    <message><source>Selected origin:</source><translation>Selected origin:</translation></message>
+    <message><source>Origin latitude</source><translation>Origin latitude</translation></message>
+    <message><source>Origin longitude</source><translation>Origin longitude</translation></message>
+    <message><source>Origin latitude:</source><translation>Origin latitude:</translation></message>
+    <message><source>Origin longitude:</source><translation>Origin longitude:</translation></message>
+    <message><source>Projection tile offset X:</source><translation>Projection tile offset X:</translation></message>
+    <message><source>Projection tile offset Z:</source><translation>Projection tile offset Z:</translation></message>
+    <message><source>Loading places...</source><translation>Loading places...</translation></message>
+    <message><source>Place presets unavailable</source><translation>Place presets unavailable</translation></message>
+    <message><source>Route name must contain at least two characters.</source><translation>Route name must contain at least two characters.</translation></message>
+    <message><source>Route name must not exceed 64 characters.</source><translation>Route name must not exceed 64 characters.</translation></message>
+    <message><source>Use only letters, numbers, spaces, hyphens and underscores.</source><translation>Use only letters, numbers, spaces, hyphens and underscores.</translation></message>
+    <message><source>This route name is reserved by the operating system.</source><translation>This route name is reserved by the operating system.</translation></message>
+    <message><source>A route with this name already exists.</source><translation>A route with this name already exists.</translation></message>
+    <message><source>Some geographic presets could not be loaded. Manual coordinates remain available. %1</source><translation>Some geographic presets could not be loaded. Manual coordinates remain available. %1</translation></message>
 </context>
 </TS>

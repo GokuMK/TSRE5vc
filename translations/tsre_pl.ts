@@ -3429,15 +3429,20 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
             <source> Paste </source>
             <translation> Wklej </translation>
         </message>
-        <message id="route.editor.trk.window.button.bok">
+        <message id="route.editor.trk.window.button.apply">
             <location filename="../src/routeEditor/TrkWindow.cpp" line="203" />
-            <source>OK</source>
-            <translation>OK</translation>
+            <source>Apply</source>
+            <translation>Zastosuj</translation>
         </message>
-        <message id="route.editor.trk.window.button.bcancel">
+        <message id="route.editor.trk.window.button.discard">
             <location filename="../src/routeEditor/TrkWindow.cpp" line="207" />
-            <source>Cancel</source>
-            <translation>Anuluj</translation>
+            <source>Discard</source>
+            <translation>Odrzuć</translation>
+        </message>
+        <message id="route.editor.trk.window.button.skip">
+            <location filename="../src/routeEditor/TrkWindow.cpp" line="207" />
+            <source>Skip</source>
+            <translation>Pomiń</translation>
         </message>
         <message id="route.editor.trk.window.title.route.settings">
             <location filename="../src/routeEditor/TrkWindow.cpp" line="224" />
@@ -7553,15 +7558,13 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
             <translation>Katalog główny zawierający GLOBAL, ROUTES i TRAINS. Edytory mogą go zmienić podczas wybierania zawartości.</translation>
         </message>
         <message id="settings.core.paths.geo.data.name">
-            <location filename="../src/settings/SettingsRegistration.cpp" line="364" />
-            <source>HGT and TIFF geodata directory</source>
-            <translation>Katalog geodanych HGT i TIFF</translation>
-        </message>
+        <source>Geodata and elevation cache directory</source>
+        <translation>Katalog geodanych i pamięci podręcznej wysokości</translation>
+    </message>
         <message id="settings.core.paths.geo.data.description">
-            <location filename="../src/settings/SettingsRegistration.cpp" line="366" />
-            <source>Directory read by the HGT and TIFF geographic-data tools.</source>
-            <translation>Katalog odczytywany przez narzędzia danych geograficznych HGT i TIFF.</translation>
-        </message>
+        <source>Geodata root: user-managed elevation products in their catalogue directories; downloaded service rasters in cache/.</source>
+        <translation>Katalog geodanych: produkty wysokościowe użytkownika w katalogach określonych w katalogu źródeł; rastry pobrane z usług w cache/.</translation>
+    </message>
         <message id="settings.core.startup.route.name">
             <location filename="../src/settings/SettingsRegistration.cpp" line="371" />
             <source>Startup route</source>
@@ -10034,5 +10037,192 @@ TSRE pobierze teraz dane aplikacji.</translation>
             <source>Change the Weather.</source>
             <translation>Zmień pogodę.</translation>
         </message>
-    </context>
+
+    <message id="geo.elevation.report.filled">
+        <source>
+Filled source NoData pixels: %1 (estimated from neighbouring heights).</source>
+        <translation>
+Uzupełnione piksele NoData źródła: %1 (wysokości oszacowane z sąsiednich danych).</translation>
+    </message>
+    <message id="geo.elevation.report.summary">
+        <source>Source: %1
+Source samples: %2; fallback samples: %3
+Cached blocks: %4; downloads: %5</source>
+        <translation>Źródło: %1
+Próbki ze źródła: %2; próbki ze źródła zapasowego: %3
+Bloki z pamięci podręcznej: %4; pobrania: %5</translation>
+    </message>
+    <message id="geo.elevation.report.fallback">
+        <source>
+Fallback (%1): %2 samples. Missing/zero data: %3; outside coverage: %4; unavailable data: %5.</source>
+        <translation>
+Źródło zapasowe (%1): %2 próbek. Brakujące/zerowe dane: %3; poza zasięgiem: %4; niedostępne dane: %5.</translation>
+    </message>
+    <message id="geo.elevation.report.datum">
+        <source>
+Source and fallback heights may use different vertical datums. No vertical datum conversion is applied.</source>
+        <translation>
+Wysokości źródła podstawowego i zapasowego mogą być w różnych układach wysokościowych. Nie jest wykonywana konwersja układu wysokościowego.</translation>
+    </message>
+    <message id="geo.elevation.report.cancelled">
+        <source>
+Cancelled. No elevation heights were applied.</source>
+        <translation>
+Anulowano. Nie zastosowano wysokości terenu.</translation>
+    </message>
+    <message id="geo.elevation.report.title">
+        <source>Terrain elevation report</source>
+        <translation>Raport wysokości terenu</translation>
+    </message>
+    <message id="geo.elevation.title">
+        <source>Terrain elevation</source>
+        <translation>Wysokość terenu</translation>
+    </message>
+    <message id="geo.elevation.preview">
+        <source>Load preview</source>
+        <translation>Wczytaj podgląd</translation>
+    </message>
+    <message id="geo.elevation.apply">
+        <source>Apply</source>
+        <translation>Zastosuj</translation>
+    </message>
+    <message id="geo.elevation.close">
+        <source>Close</source>
+        <translation>Zamknij</translation>
+    </message>
+    <message id="geo.elevation.offset">
+        <source>Y offset (m):</source>
+        <translation>Przesunięcie Y (m):</translation>
+    </message>
+    <message id="geo.elevation.source.select.local">
+        <source>Select an elevation source for this location</source>
+        <translation>Wybierz źródło wysokości dla tej lokalizacji</translation>
+    </message>
+    <message id="geo.elevation.source.note">
+        <source>Source resolution depends on the selected dataset. Output spacing follows this terrain tile. Missing coverage and NoData use the configured file-source fallback.</source>
+        <translation>Rozdzielczość źródła zależy od wybranego zbioru danych. Odstęp próbek wyniku zależy od kafla terenu. Brakujące dane uzupełnia skonfigurowane zapasowe źródło plikowe.</translation>
+    </message>
+    <message id="geo.elevation.tile.title">
+        <source>Terrain elevation - tile %1 %2</source>
+        <translation>Wysokość terenu - kafel %1 %2</translation>
+    </message>
+    <message id="geo.elevation.grid.invalid">
+        <source>Invalid terrain grid or coordinate converter.</source>
+        <translation>Nieprawidłowa siatka terenu lub konwerter współrzędnych.</translation>
+    </message>
+    <message id="geo.elevation.prepare">
+        <source>Preparing terrain elevation</source>
+        <translation>Przygotowywanie wysokości terenu</translation>
+    </message>
+    <message id="geo.elevation.cancel">
+        <source>Cancel</source>
+        <translation>Anuluj</translation>
+    </message>
+    <message id="geo.elevation.cancelling">
+        <source>Cancelling elevation load</source>
+        <translation>Anulowanie wczytywania wysokości</translation>
+    </message>
+    <message id="geo.elevation.load.failed">
+        <source>Elevation load failed: %1</source>
+        <translation>Nie udało się wczytać wysokości: %1</translation>
+    </message>
+    <message id="geo.elevation.tile.report">
+        <source>Tile %1 %2
+%3</source>
+        <translation>Kafel %1 %2
+%3</translation>
+    </message>
+    <message id="geo.elevation.hgt.check">
+        <source>Elevation file-source check</source>
+        <translation>Sprawdzanie plikowego źródła wysokości</translation>
+    </message>
+    <message id="geo.elevation.hgt.fallback.check">
+        <source>Fallback file-source check. Elevation data is prepared when terrain is loaded.</source>
+        <translation>Sprawdzanie zapasowego źródła plikowego. Dane wysokościowe są przygotowywane podczas wczytywania terenu.</translation>
+    </message>
+    <message id="geo.elevation.hgt.present">
+        <source>
+All checked elevation files are present.</source>
+        <translation>
+Wszystkie sprawdzane pliki wysokościowe są dostępne.</translation>
+    </message>
+    <message id="geo.elevation.hgt.missing">
+        <source>
+Missing local elevation files (downloaded automatically when supported):
+%1</source>
+        <translation>
+Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródło to obsługuje):
+%1</translation>
+    </message>
+    <message id="geo.elevation.data.title">
+        <source>Elevation data</source>
+        <translation>Dane wysokościowe</translation>
+    </message>
+    <message id="settings.geo.elevation.source.name">
+        <source>Terrain elevation source</source>
+        <translation>Źródło wysokości terenu</translation>
+    </message>
+    <message id="settings.geo.elevation.source.description">
+        <source>Source for manual and automatic terrain elevation. Missing coverage uses the configured file-source fallback.</source>
+        <translation>Źródło wysokości przy ręcznym i automatycznym tworzeniu terenu. Braki pokrycia uzupełnia skonfigurowane zapasowe źródło plikowe.</translation>
+    </message>
+    <message id="settings.geo.elevation.source.kron86">
+        <source>Geoportal NMT 1 m - KRON86 (GeoTIFF)</source>
+        <translation>Geoportal NMT 1 m - KRON86 (GeoTIFF)</translation>
+    </message>
+    <message id="settings.geo.elevation.source.dmr5g">
+        <source>Czechia - CUZK DMR 5G (2 m, Bpv)</source>
+        <translation>Czechy - CUZK DMR 5G (2 m, Bpv)</translation>
+    </message>
+    <message id="settings.geo.elevation.source.dmr4g">
+        <source>Czechia - CUZK DMR 4G (5 m, EVRS)</source>
+        <translation>Czechy - CUZK DMR 4G (5 m, EVRS)</translation>
+    </message>
+    <message id="settings.geo.elevation.source.evrf2007">
+        <source>Geoportal NMT 1 m - EVRF2007 (ASCII Grid)</source>
+        <translation>Geoportal NMT 1 m - EVRF2007 (ASCII Grid)</translation>
+    </message>
+</context>
+<context>
+    <name>LoadWindow</name>
+    <message><source>Cannot create route</source><translation>Nie można utworzyć trasy</translation></message>
+    <message><source>The route template is unavailable. %1</source><translation>Szablon trasy jest niedostępny. %1</translation></message>
+    <message><source>Route writing could not be enabled. %1</source><translation>Nie udało się włączyć zapisu trasy. %1</translation></message>
+    <message><source>The route was created but its TRK file could not be found.</source><translation>Trasa została utworzona, ale nie znaleziono jej pliku TRK.</translation></message>
+</context>
+<context>
+    <name>NewRouteWindow</name>
+    <message><source>Custom origin</source><translation>Własny początek układu</translation></message>
+    <message><source>Create origin offset using MSTS IGH</source><translation>Utwórz przesunięcie początku na podstawie MSTS IGH</translation></message>
+    <message><source>New route</source><translation>Nowa trasa</translation></message>
+    <message><source>Choose Route Starting Point</source><translation>Wybierz punkt początkowy trasy</translation></message>
+    <message><source>Search for a city or place</source><translation>Wyszukaj miasto lub miejsce</translation></message>
+    <message><source>No place selected</source><translation>Nie wybrano miejsca</translation></message>
+    <message><source>Selected place:</source><translation>Wybrane miejsce:</translation></message>
+    <message><source>Latitude</source><translation>Szerokość geograficzna</translation></message>
+    <message><source>Longitude</source><translation>Długość geograficzna</translation></message>
+    <message><source>Latitude:</source><translation>Szerokość geograficzna:</translation></message>
+    <message><source>Longitude:</source><translation>Długość geograficzna:</translation></message>
+    <message><source>Route Geographic Projection</source><translation>Odwzorowanie geograficzne trasy</translation></message>
+    <message><source>Transverse Mercator</source><translation>Poprzeczne Mercatora</translation></message>
+    <message><source>Local Ellipsoidal Equirectangular - Legacy TSRE</source><translation>Lokalne elipsoidalne walcowe równoodległościowe - Starszy TSRE</translation></message>
+    <message><source>Interrupted Goode Homolosine - Legacy MSTS</source><translation>Przerwane homolozynowe Goode’a - Starszy MSTS</translation></message>
+    <message><source>Search for a projection origin</source><translation>Wyszukaj początek odwzorowania</translation></message>
+    <message><source>No projection origin selected</source><translation>Nie wybrano początku odwzorowania</translation></message>
+    <message><source>Selected origin:</source><translation>Wybrany początek:</translation></message>
+    <message><source>Origin latitude</source><translation>Szerokość geograficzna początku</translation></message>
+    <message><source>Origin longitude</source><translation>Długość geograficzna początku</translation></message>
+    <message><source>Origin latitude:</source><translation>Szerokość geograficzna początku:</translation></message>
+    <message><source>Origin longitude:</source><translation>Długość geograficzna początku:</translation></message>
+    <message><source>Projection tile offset X:</source><translation>Przesunięcie kafla odwzorowania X:</translation></message>
+    <message><source>Projection tile offset Z:</source><translation>Przesunięcie kafla odwzorowania Z:</translation></message>
+    <message><source>Loading places...</source><translation>Wczytywanie miejsc...</translation></message>
+    <message><source>Place presets unavailable</source><translation>Lista miejsc jest niedostępna</translation></message>
+    <message><source>Route name must contain at least two characters.</source><translation>Nazwa trasy musi zawierać co najmniej dwa znaki.</translation></message>
+    <message><source>Route name must not exceed 64 characters.</source><translation>Nazwa trasy nie może przekraczać 64 znaków.</translation></message>
+    <message><source>Use only letters, numbers, spaces, hyphens and underscores.</source><translation>Użyj wyłącznie liter, cyfr, spacji, łączników i znaków podkreślenia.</translation></message>
+    <message><source>This route name is reserved by the operating system.</source><translation>Ta nazwa trasy jest zastrzeżona przez system operacyjny.</translation></message>
+    <message><source>A route with this name already exists.</source><translation>Trasa o tej nazwie już istnieje.</translation></message>
+    <message><source>Some geographic presets could not be loaded. Manual coordinates remain available. %1</source><translation>Nie udało się wczytać części ustawień geograficznych. Nadal można wpisać współrzędne ręcznie. %1</translation></message>
+</context>
 </TS>

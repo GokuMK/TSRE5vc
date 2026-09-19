@@ -22,7 +22,7 @@
 #include <tsre/Game.h>
 #include <QImage>
 
-TrkWindow::TrkWindow() : QDialog(){
+TrkWindow::TrkWindow(Mode mode) : QDialog(), mode(mode) {
     setWindowFlags(Qt::WindowStaysOnTopHint);
     //QPushButton *loadButton = new QPushButton("Load", this);
     //QImage myImage(800, 800, QImage::Format_RGB888);
@@ -199,12 +199,15 @@ TrkWindow::TrkWindow() : QDialog(){
     //mainLayout->addWidget(imageLabel);
     ibuttons = new QHBoxLayout;
     QPushButton *bok = new QPushButton(
-        //% "OK"
-        qtTrId("route.editor.trk.window.button.bok"));
+        //% "Apply"
+        qtTrId("route.editor.trk.window.button.apply"));
     QObject::connect(bok, SIGNAL(released()), this, SLOT(bokEnabled()));
     QPushButton *bcancel = new QPushButton(
-        //% "Cancel"
-        qtTrId("route.editor.trk.window.button.bcancel"));
+        mode == Mode::NewRouteTemplate
+            //% "Skip"
+            ? qtTrId("route.editor.trk.window.button.skip")
+            //% "Discard"
+            : qtTrId("route.editor.trk.window.button.discard"));
     QObject::connect(bcancel, SIGNAL(released()), this, SLOT(bcancelEnabled()));
     ibuttons->addWidget(bok);
     ibuttons->addWidget(bcancel);
@@ -260,9 +263,10 @@ int TrkWindow::exec() {
     this->envValue.setText(trk->environment[this->envName.itemText(0).toStdString()]);
     
     Texture * tex1 = NULL;
-    if(TexLib::mtex[trk->imageLoadId] != NULL)
-        if(TexLib::mtex[trk->imageLoadId]->loaded){
-            tex1 = TexLib::mtex[trk->imageLoadId];
+    const auto texture = TexLib::mtex.find(trk->imageLoadId);
+    if(texture != TexLib::mtex.end() && texture->second != NULL)
+        if(texture->second->loaded){
+            tex1 = texture->second;
             unsigned char * out = tex1->getImageData(640,450);
             if(tex1->bytesPerPixel == 3)
                 imageLoad.setPixmap(QPixmap::fromImage(QImage(out,640,450,QImage::Format_RGB888)));
@@ -312,11 +316,11 @@ void TrkWindow::bokEnabled(){
     trk->tempRestrictedSpeed = tempRestrictedSpeed.value()/3.6;
     trk->speedLimit = speedLimit.value()/3.6;
     trk->terrainLodLevels = pendingTerrainLodLevels;
-    close();
+    accept();
 }
 
 void TrkWindow::bcancelEnabled(){
-    close();
+    reject();
 }
 
 TrkWindow::~TrkWindow() {

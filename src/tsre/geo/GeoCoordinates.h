@@ -12,12 +12,30 @@
 #define	IGHCOORDS_H
 
 #include <math.h>
-
+#include <QString>
 #include <tsre/Game.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
+
+enum class GeoProjectionType {
+    Undefined,
+    InterruptedGoodeHomolosine,
+    LocalEllipsoidalEquirectangular,
+    TransverseMercator
+};
+
+QString GeoProjectionTypeToString(GeoProjectionType type);
+GeoProjectionType GeoProjectionTypeFromString(const QString &value);
+
+struct GeoProjectionParameters {
+    double originLatitude = 0.0;
+    double originLongitude = 0.0;
+    double offsetX = 0.0;
+    double offsetZ = 0.0;
+    double scaleFactor = 1.0;
+};
 
 /// <summary>
 /// Extends a <see cref="TileCoordinate"/> to contain an object location as <see cref="X"/>, <see cref="Y"/> and <see cref="Z"/> within the tile.
@@ -181,18 +199,28 @@ struct LatitudeLongitudeCoordinate {
 
 class GeoWorldCoordinateConverter {
 public:
+    static GeoWorldCoordinateConverter* Create(
+            GeoProjectionType type,
+            const GeoProjectionParameters *projection = nullptr);
+    GeoWorldCoordinateConverter(double tileOffsetX = 0.0, double tileOffsetZ = 0.0, int tileZDirection = 1);
     virtual IghCoordinate* ConvertToInternal(PreciseTileCoordinate* coordinates, IghCoordinate* out = 0);
     virtual IghCoordinate* ConvertToInternal(int tilex, int tilez, double x, double z, IghCoordinate* out = 0);
     virtual PreciseTileCoordinate* ConvertToTile(IghCoordinate* coordinates, PreciseTileCoordinate* out = 0);
     virtual LatitudeLongitudeCoordinate* ConvertToLatLon(IghCoordinate* coordinates, LatitudeLongitudeCoordinate* out = 0);
     virtual IghCoordinate* ConvertToInternal(LatitudeLongitudeCoordinate* coordinates, IghCoordinate* out = 0);
     virtual IghCoordinate* ConvertToInternal(double lat, double lon, IghCoordinate* out = 0);
+protected:
+    double tileOffsetX;
+    double tileOffsetZ;
+    int tileZDirection;
 };
 
 class GeoMstsCoordinateConverter : public GeoWorldCoordinateConverter {
 
 public:
-        // Original calculations:
+    GeoMstsCoordinateConverter();
+    using GeoWorldCoordinateConverter::ConvertToInternal;
+    // Original calculations:
     //   r =   6370997
     //   l = -20015500   w = 40031000
     //   t =   8673500   h = 17347000
@@ -222,11 +250,6 @@ public:
     static constexpr double IghMeridian100 = 100.0 / 180 * M_PI; // 100deg
     
     
-    IghCoordinate* ConvertToInternal(PreciseTileCoordinate* coordinates, IghCoordinate* out = 0);
-    // MSTS Tile -> IGH
-    IghCoordinate* ConvertToInternal(int tilex, int tilez, double x, double z, IghCoordinate* out = 0);
-    // IGH -> MSTS Precise Tile
-    PreciseTileCoordinate* ConvertToTile(IghCoordinate* coordinates, PreciseTileCoordinate* out = 0);
     // IGH -> Lat/Lon
     LatitudeLongitudeCoordinate* ConvertToLatLon(IghCoordinate* coordinates, LatitudeLongitudeCoordinate* out = 0);
     // Lat/Lon -> MSTS IGH
@@ -239,20 +262,43 @@ private:
 
 class GeoTsreCoordinateConverter : public GeoWorldCoordinateConverter {
 public:
-    GeoTsreCoordinateConverter(double *latLonXY);
-    IghCoordinate* ConvertToInternal(PreciseTileCoordinate* coordinates, IghCoordinate* out = 0);
-    IghCoordinate* ConvertToInternal(int tilex, int tilez, double x, double z, IghCoordinate* out = 0);
-    PreciseTileCoordinate* ConvertToTile(IghCoordinate* coordinates, PreciseTileCoordinate* out = 0);
+    explicit GeoTsreCoordinateConverter(const GeoProjectionParameters &projection);
+    using GeoWorldCoordinateConverter::ConvertToInternal;
     LatitudeLongitudeCoordinate* ConvertToLatLon(IghCoordinate* coordinates, LatitudeLongitudeCoordinate* out = 0);
     IghCoordinate* ConvertToInternal(LatitudeLongitudeCoordinate* coordinates, IghCoordinate* out = 0);
     IghCoordinate* ConvertToInternal(double lat, double lon, IghCoordinate* out = 0);
 private:
     double centerLat;
     double centerLon;
-    double centerX;
-    double centerZ;
     double stepLat;
     double stepLon;
+};
+
+class GeoTsreTransverseMercatorCoordinateConverter : public GeoWorldCoordinateConverter {
+public:
+    explicit GeoTsreTransverseMercatorCoordinateConverter(
+            const GeoProjectionParameters &projection);
+
+    // Keep inherited tile/world overloads visible despite the overloads below.
+    using GeoWorldCoordinateConverter::ConvertToInternal;
+
+    LatitudeLongitudeCoordinate* ConvertToLatLon(IghCoordinate* coordinates, LatitudeLongitudeCoordinate* out = 0) override;
+    IghCoordinate* ConvertToInternal(LatitudeLongitudeCoordinate* coordinates, IghCoordinate* out = 0) override;
+    IghCoordinate* ConvertToInternal(double lat, double lon, IghCoordinate* out = 0) override;
+
+private:
+    double centerLongitudeRad;
+    double eccentricitySquared;
+    double eccentricity;
+    double rectifyingRadius;
+    double originNorthing;
+    double alpha[7];
+    double beta[7];
+
+    double tauPrime(double tau) const;
+    double inverseTauPrime(double tauPrimeValue) const;
+    void forwardRaw(double latitudeRad, double longitudeDeltaRad, double &easting, double &northing) const;
+    void inverseRaw(double easting, double northing, double &latitudeRad, double &longitudeDeltaRad) const;
 };
 #endif	/* IGHCOORDS_H */
 

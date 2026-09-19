@@ -10,6 +10,7 @@
 
 #include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/Game.h>
+#include <tsre/geo/GeoCoordinates.h>
 #include <TSRE5Version.h>
 #include <QDebug>
 #include <QFile>
@@ -112,8 +113,6 @@ bool Game::viewCompass = false;
 bool Game::warningBox = false;
 bool Game::leaveTrackShapeAfterDelete = false;
 bool Game::renderTrItems = false;
-int Game::newRouteX = -5000;
-int Game::newRouteZ = 15000;
 bool Game::consoleOutput = false;
 bool Game::flexLogEnabled = false;
 bool Game::flexLogCandidates = false;
@@ -296,6 +295,7 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
 
     string("core.paths.gameRoot", root, SettingType::Directory);
     string("core.paths.geoData", geoPath, SettingType::Directory);
+    claim("geo.elevation.source", SettingType::Enum);
     string("core.startup.route", route);
     claim("core.startup.useTilePosition", SettingType::Bool);
     if (appliesNow("core.startup.useTilePosition"))

@@ -100,7 +100,7 @@ public:
     virtual void refresh(int x, int z);
     virtual bool reload(int x, int z);
     virtual void loadQuadTree();
-    virtual void createNewRouteTerrain(int x, int z);
+    virtual bool createNewRouteTerrain(int x, int z);
     virtual void saveEmpty(int x, int z);
     virtual bool saveEmpty(int x, int z, TerrainHeightProfile profile,
                            int patches,

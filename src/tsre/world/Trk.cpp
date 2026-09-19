@@ -12,6 +12,7 @@
 #include <tsre/world/Trk.h>
 #include <tsre/Game.h>
 #include <QFile>
+#include <QFileInfo>
 #include <QDir>
 #include <QTextStream>
 #include <tsre/fileFunctions/ParserX.h>
@@ -70,6 +71,24 @@ Trk::Trk() {
 Trk::~Trk() {
 }
 
+std::unique_ptr<Trk> Trk::createNewRouteTemplate(
+        const QString &routeDirectoryName) {
+    std::unique_ptr<Trk> result(new Trk());
+    result->idName = routeDirectoryName;
+    result->routeName = routeDirectoryName;
+    result->displayName = routeDirectoryName;
+    result->trkFileName = routeDirectoryName + QStringLiteral(".trk");
+    // Avoid 0,0 because MSTS and some legacy tools do not handle that tile
+    // reliably. Automatic creation has no local origin, so IGH is the safe
+    // default projection.
+    result->startTileX = -5000;
+    result->startTileZ = 15000;
+    result->geoProjectionType = GeoProjectionType::InterruptedGoodeHomolosine;
+    result->geoProjection.reset();
+    result->setModified(true);
+    return result;
+}
+
 void Trk::load(){
     QString path = Game::root + "/ROUTES/" + Game::route + "/" + (Game::trkFileName.isEmpty() ? Game::trkName + ".trk" : Game::trkFileName);
     path = ContentPath::normalize(path);
@@ -78,6 +97,7 @@ void Trk::load(){
 }
 
 void Trk::load(QString path){
+    trkFileName = QFileInfo(path).fileName();
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly))
         return;
@@ -90,7 +110,10 @@ void Trk::load(QString path){
 
 void Trk::loadUtf16Data(FileBuffer* data){
     this->milepostUnitsKilometers = false;
+    this->geoProjectionType = GeoProjectionType::Undefined;
+    this->geoProjection.reset();
     terrainLodLevels.clear();
+    double projectionScaleFactor = 1.0;
     
     QString sh = "";
     while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
@@ -266,11 +289,33 @@ void Trk::loadUtf16Data(FileBuffer* data){
                     continue;
                 }
                 if (sh == ("tsregeoprojection")) {
-                    tsreProjection = new double[4];
-                    tsreProjection[0] = ParserX::GetNumber(data);
-                    tsreProjection[1] = ParserX::GetNumber(data);
-                    tsreProjection[2] = ParserX::GetNumber(data);
-                    tsreProjection[3] = ParserX::GetNumber(data);
+                    GeoProjectionParameters projection;
+                    projection.originLatitude = ParserX::GetNumber(data);
+                    projection.originLongitude = ParserX::GetNumber(data);
+                    projection.offsetX = ParserX::GetNumber(data);
+                    projection.offsetZ = ParserX::GetNumber(data);
+                    geoProjection = projection;
+                    ParserX::SkipToken(data);
+                    continue;
+                }
+                if (sh == ("tsregeoprojectionscalefactor")) {
+                    const double value = ParserX::GetNumber(data);
+                    if (std::isfinite(value) && value > 0.0) {
+                        projectionScaleFactor = value;
+                    } else {
+                        qWarning() << "Ignoring invalid TsreGeoProjectionScaleFactor:"
+                                   << value;
+                    }
+                    ParserX::SkipToken(data);
+                    continue;
+                }
+                if(sh == "tsregeoprojectiontype") {
+                    QString projectionType = ParserX::GetString(data);
+                    geoProjectionType = GeoProjectionTypeFromString(projectionType);
+
+                    if(geoProjectionType == GeoProjectionType::Undefined)
+                        qWarning() << "Unknown TsreGeoProjectionType:" << projectionType;
+
                     ParserX::SkipToken(data);
                     continue;
                 }
@@ -340,6 +385,32 @@ void Trk::loadUtf16Data(FileBuffer* data){
         ParserX::SkipToken(data);
     }
 
+    if (geoProjectionType == GeoProjectionType::Undefined) {
+        geoProjectionType = !geoProjection.has_value()
+                ? GeoProjectionType::InterruptedGoodeHomolosine
+                : GeoProjectionType::LocalEllipsoidalEquirectangular;
+    }
+
+    if (geoProjectionType != GeoProjectionType::InterruptedGoodeHomolosine
+            && !geoProjection.has_value()) {
+
+        qWarning() << "Geo projection"
+                << GeoProjectionTypeToString(geoProjectionType)
+                << "requires TsreGeoProjection parameters; falling back to IGH.";
+
+        geoProjectionType = GeoProjectionType::InterruptedGoodeHomolosine;
+    }
+
+    if (geoProjection.has_value()) {
+        geoProjection->scaleFactor = projectionScaleFactor;
+        if (geoProjectionType != GeoProjectionType::TransverseMercator
+                && projectionScaleFactor != 1.0) {
+            qWarning() << "Ignoring non-unit projection scale factor for"
+                       << GeoProjectionTypeToString(geoProjectionType);
+            geoProjection->scaleFactor = 1.0;
+        }
+    }
+
     imageLoadId = TexLib::addTex(Game::root+"/ROUTES/"+idName+"/load.ace");
     imageDetailsId = TexLib::addTex(Game::root+"/ROUTES/"+idName+"/details.ace");
     modified = false;
@@ -353,19 +424,21 @@ void Trk::setModified(bool val){
     modified = val;
 }
 
-void Trk::save() {
-    if (!Game::writeEnabled) return;
-    if (!modified) return;
+bool Trk::save() {
+    if (!Game::writeEnabled) return false;
+    if (!modified) return true;
     QFile file;
     QTextStream out;
     QString filepath;
 
-    filepath = Game::root + "/ROUTES/" + Game::route + "/" + (Game::trkFileName.isEmpty() ? Game::trkName + ".trk" : Game::trkFileName);
+    const QString physicalName = trkFileName.isEmpty()
+            ? idName + QStringLiteral(".trk") : trkFileName;
+    filepath = Game::root + "/ROUTES/" + Game::route + "/" + physicalName;
     file.setFileName(filepath);
     //qDebug() << filepath;
     if(!file.open(QIODevice::WriteOnly | QIODevice::Text)){
         qDebug() << "Cannot save TRK file: " << filepath;
-        return;
+        return false;
     }
     out.setDevice(&file);
     out.setRealNumberPrecision(8);
@@ -375,8 +448,12 @@ void Trk::save() {
     out << "SIMISA@@@@@@@@@@JINX0r1t______" << "\n\n";
     saveToStream(out);
     out.flush();
+    const bool saved = out.status() == QTextStream::Ok
+            && file.error() == QFile::NoError;
     file.close();
-    modified = false;
+    if (saved)
+        modified = false;
+    return saved && file.error() == QFile::NoError;
 }
 
 void Trk::saveToStream(QTextStream &out){
@@ -433,8 +510,25 @@ void Trk::saveToStream(QTextStream &out){
     out << "	TimetableTollerance ( " << this->timetableTollerance << " )" << "\n";
     if(this->forestClearDistance >= 0)
     out << "	ORTSUserPreferenceForestClearDistance ( " << this->forestClearDistance << " )" << "\n";
-    if(this->tsreProjection != NULL)
-    out << "	TsreGeoProjection ( " << this->tsreProjection[0] << " " << this->tsreProjection[1] << " " << this->tsreProjection[2] << " " << this->tsreProjection[3] << " " << " )" << "\n";
+    if(this->geoProjection.has_value()) {
+        const GeoProjectionParameters &projection = *this->geoProjection;
+        out << "	TsreGeoProjection ( "
+            << projection.originLatitude << " "
+            << projection.originLongitude << " "
+            << projection.offsetX << " "
+            << projection.offsetZ << " )\n";
+        GeoProjectionType projectionType = this->geoProjectionType;
+
+        if(projectionType == GeoProjectionType::Undefined)
+            projectionType = GeoProjectionType::LocalEllipsoidalEquirectangular;
+
+        out << "\tTsreGeoProjectionType ( \"" << GeoProjectionTypeToString(projectionType) << "\" )\n";
+        if (projectionType == GeoProjectionType::TransverseMercator
+                && projection.scaleFactor != 1.0) {
+            out << "\tTsreGeoProjectionScaleFactor ( "
+                << projection.scaleFactor << " )\n";
+        }
+    }
     if(this->tsreMaxStaticDetailLevel != 10)
     out << "	TsreMaxStaticDetailLevel ( " << this->tsreMaxStaticDetailLevel << " )" << "\n";
     if(this->distantTerrainYOffset > 0)

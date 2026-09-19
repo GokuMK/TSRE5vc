@@ -1,0 +1,79 @@
+diff --git a/src/tsre/world/Trk.h b/src/tsre/world/Trk.h
+--- a/src/tsre/world/Trk.h
++++ b/src/tsre/world/Trk.h
+@@ -16,6 +16,7 @@
+ #include <unordered_map>
+ 
+ #include <tsre/world/TerrainLod.h>
++#include <tsre/geo/GeoCoordinates.h>
+ 
+ class FileBuffer;
+ class QTextStream;
+@@ -61,6 +62,7 @@
+     int imageLoadId;
+     int imageDetailsId;
+     double *tsreProjection = NULL;
++    GeoProjectionType geoProjectionType = GeoProjectionType::Undefined;
+     int tsreMaxStaticDetailLevel = 10;
+     QVector<TerrainLodLevel> terrainLodLevels;
+     bool isModified();
+diff --git a/src/tsre/world/Trk.cpp b/src/tsre/world/Trk.cpp
+--- a/src/tsre/world/Trk.cpp
++++ b/src/tsre/world/Trk.cpp
+@@ -90,6 +90,7 @@
+ 
+ void Trk::loadUtf16Data(FileBuffer* data){
+     this->milepostUnitsKilometers = false;
++    this->geoProjectionType = GeoProjectionType::Undefined;
+     terrainLodLevels.clear();
+     
+     QString sh = "";
+@@ -271,6 +272,21 @@
+                     tsreProjection[1] = ParserX::GetNumber(data);
+                     tsreProjection[2] = ParserX::GetNumber(data);
+                     tsreProjection[3] = ParserX::GetNumber(data);
++                    ParserX::SkipToken(data);
++                    continue;
++                }
++                if (sh == ("tsregeoprojectiontype")) {
++                    QString projectionType = ParserX::GetString(data);
++                    if (projectionType.compare("InterruptedGoodeHomolosine", Qt::CaseInsensitive) == 0) {
++                        geoProjectionType = GeoProjectionType::InterruptedGoodeHomolosine;
++                    } else if (projectionType.compare("LocalEllipsoidalEquirectangular", Qt::CaseInsensitive) == 0) {
++                        geoProjectionType = GeoProjectionType::LocalEllipsoidalEquirectangular;
++                    } else if (projectionType.compare("TransverseMercator", Qt::CaseInsensitive) == 0) {
++                        geoProjectionType = GeoProjectionType::TransverseMercator;
++                    } else {
++                        geoProjectionType = GeoProjectionType::Undefined;
++                        qWarning() << "Unknown TsreGeoProjectionType:" << projectionType;
++                    }
+                     ParserX::SkipToken(data);
+                     continue;
+                 }
+@@ -338,6 +354,12 @@
+         }
+         qDebug() << "#TRK - undefined token: " << sh;
+         ParserX::SkipToken(data);
++    }
++
++    if (geoProjectionType == GeoProjectionType::Undefined) {
++        geoProjectionType = tsreProjection == NULL
++                ? GeoProjectionType::InterruptedGoodeHomolosine
++                : GeoProjectionType::LocalEllipsoidalEquirectangular;
+     }
+ 
+     imageLoadId = TexLib::addTex(Game::root+"/ROUTES/"+idName+"/load.ace");
+@@ -433,8 +455,11 @@
+     out << "	TimetableTollerance ( " << this->timetableTollerance << " )" << "\n";
+     if(this->forestClearDistance >= 0)
+     out << "	ORTSUserPreferenceForestClearDistance ( " << this->forestClearDistance << " )" << "\n";
+-    if(this->tsreProjection != NULL)
+-    out << "	TsreGeoProjection ( " << this->tsreProjection[0] << " " << this->tsreProjection[1] << " " << this->tsreProjection[2] << " " << this->tsreProjection[3] << " " << " )" << "\n";
++    if(this->tsreProjection != NULL) {
++        out << "	TsreGeoProjection ( " << this->tsreProjection[0] << " " << this->tsreProjection[1] << " " << this->tsreProjection[2] << " " << this->tsreProjection[3] << " " << " )" << "\n";
++        if(this->geoProjectionType == GeoProjectionType::TransverseMercator)
++            out << "	TsreGeoProjectionType ( \"TransverseMercator\" )" << "\n";
++    }
+     if(this->tsreMaxStaticDetailLevel != 10)
+     out << "	TsreMaxStaticDetailLevel ( " << this->tsreMaxStaticDetailLevel << " )" << "\n";
+     if(this->distantTerrainYOffset > 0)

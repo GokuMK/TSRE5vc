@@ -36,6 +36,22 @@ bool fieldsDiffer(const QJsonObject &stored, const QJsonObject &expected,
     return false;
 }
 
+bool stripRuntimeOptions(QJsonObject &document, const SettingsRegistry &registry) {
+    bool changed = false;
+    auto settings = document.value("settings").toArray();
+    for (int i = 0; i < settings.size(); ++i) {
+        auto setting = settings[i].toObject();
+        const auto *definition = registry.definition(setting.value("key").toString());
+        if (definition && definition->optionsProvider && setting.contains("options")) {
+            setting.remove("options");
+            settings[i] = setting;
+            changed = true;
+        }
+    }
+    if (changed) document["settings"] = settings;
+    return changed;
+}
+
 QJsonObject buildIdentity() {
     return QJsonObject{{"application", SettingsManager::currentCatalogApplication()},
                        {"version", SettingsManager::currentCatalogVersion()}};
@@ -53,13 +69,8 @@ bool definitionAcceptsValue(const SettingsDefinition &definition,
         if (number < definition.minimum || number > definition.maximum)
             return false;
     }
-    if (definition.type == SettingType::Enum) {
-        for (const SettingOption &option : definition.options) {
-            if (option.value == value)
-                return true;
-        }
-        return false;
-    }
+    if (definition.type == SettingType::Enum)
+        return definition.acceptsOption(value);
     if (definition.type == SettingType::Color)
         return QColor(value.toString()).isValid();
     return true;
@@ -158,6 +169,7 @@ bool SettingsManager::loadFile(const QString &settingsFile, QString *error) {
         if (!isStructurallyLoadable(candidate, error))
             return false;
         m_document = candidate;
+        m_modified |= stripRuntimeOptions(m_document, m_registry);
         // Explicit migration: upgrade both free strings and the short-name enum
         // to the current TRK-named season choices.
         // Preserve recognized values/aliases (normalizing case); retain unknown
@@ -182,6 +194,21 @@ bool SettingsManager::loadFile(const QString &settingsFile, QString *error) {
                     setting["value"] = QJsonValue::fromVariant(normalized);
                 settings[i] = setting;
                 if (setting != previous) m_modified = true;
+            }
+            m_document["settings"] = settings;
+        }
+        // The former empty elevation-source value meant the hardcoded HGT
+        // backend. It now maps to the catalogue-defined default file source.
+        const auto *elevationDefinition = m_registry.definition("geo.elevation.source");
+        if (elevationDefinition && !elevationDefinition->defaultValue.toString().isEmpty()) {
+            QJsonArray settings = m_document.value("settings").toArray();
+            for (int i=0; i<settings.size(); ++i) {
+                QJsonObject setting = settings[i].toObject();
+                if (setting.value("key").toString() != "geo.elevation.source"
+                        || !setting.value("value").isString()
+                        || !setting.value("value").toString().isEmpty()) continue;
+                setting["value"] = elevationDefinition->defaultValue.toString();
+                settings[i] = setting; m_modified = true;
             }
             m_document["settings"] = settings;
         }
@@ -227,6 +254,7 @@ bool SettingsManager::save(QString *error, bool forceExternalOverwrite) {
         if (error) *error = "Settings file changed outside TSRE after it was loaded.";
         return false;
     }
+    stripRuntimeOptions(m_document, m_registry);
     m_issues = SettingsValidator::validateDocument(m_document, m_registry);
     if (SettingsValidator::hasErrors(m_issues)) {
         if (error) *error = "Settings profile contains validation errors.";
@@ -853,6 +881,10 @@ bool SettingsManager::parseRegisteredValue(const QString &key, const QString &te
         parsed = text.toDouble(&ok);
         break;
     case SettingType::Enum: {
+        if (definition->allowUnknownOptions) {
+            parsed = text;
+            break;
+        }
         QString enumText = text;
         if (key == "core.startup.season") {
             // Read compatibility only: aliases do not belong in the dropdown.
@@ -872,7 +904,7 @@ bool SettingsManager::parseRegisteredValue(const QString &key, const QString &te
             }
         }
         ok = false;
-        for (const SettingOption &option : definition->options) {
+        for (const SettingOption &option : definition->resolvedOptions()) {
             if ((option.value.metaType().id() == QMetaType::QString
                  && option.value.toString().compare(enumText, Qt::CaseInsensitive) == 0)
                     || option.value.toString() == enumText) {

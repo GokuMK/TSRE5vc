@@ -89,13 +89,16 @@ void RouteClient::load(){
         case 1:
             Game::useSuperelevation = trk->tsreSuperelevation;
 
-            if(trk->tsreProjection != NULL){
-                qDebug() << "TSRE Geo Projection";
-                Game::GeoCoordConverter = new GeoTsreCoordinateConverter(trk->tsreProjection);
-            } else {
-                qDebug() << "MSTS Geo Projection";
-                Game::GeoCoordConverter = new GeoMstsCoordinateConverter();
+            qDebug() << "Geo Projection:" << GeoProjectionTypeToString(trk->geoProjectionType);
+            Game::GeoCoordConverter = GeoWorldCoordinateConverter::Create(
+                    trk->geoProjectionType,
+                    trk->geoProjection.has_value()
+                        ? &*trk->geoProjection : nullptr);
+            if (Game::GeoCoordConverter == nullptr) {
+                qWarning() << "Remote route loading aborted: invalid geographic projection";
+                return;
             }
+
             env = new Environment(Game::root + "/ROUTES/" + Game::route + "/ENVFILES/editor.env");
             Game::routeName = trk->routeName;
             routeName = Game::routeName;

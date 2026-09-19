@@ -1,6 +1,24 @@
 #include <settings/SettingsTypes.h>
 
 #include <QJsonArray>
+#include <QCoreApplication>
+
+QString SettingOption::displayName() const {
+    return !nameId.isEmpty() ? qtTrId(nameId.toUtf8().constData())
+                            : (label.isEmpty() ? value.toString() : label);
+}
+
+QVector<SettingOption> SettingsDefinition::resolvedOptions() const {
+    return optionsProvider ? optionsProvider() : options;
+}
+
+bool SettingsDefinition::acceptsOption(const QVariant &value) const {
+    if (allowUnknownOptions)
+        return value.metaType().id() == QMetaType::QString;
+    for (const auto &option : resolvedOptions())
+        if (option.value == value) return true;
+    return false;
+}
 
 QString settingTypeName(SettingType type) {
     switch (type) {
@@ -187,6 +205,11 @@ SettingsDefinition &SettingsDefinition::inSubgroup(const QString &value) { subgr
 SettingsDefinition &SettingsDefinition::withUnit(const QString &value) { unit = value; return *this; }
 SettingsDefinition &SettingsDefinition::withRange(double min, double max, double valueStep) { hasRange = true; minimum = min; maximum = max; step = valueStep; return *this; }
 SettingsDefinition &SettingsDefinition::withOptions(const QVector<SettingOption> &value) { options = value; return *this; }
+SettingsDefinition &SettingsDefinition::withOptionsProvider(const std::function<QVector<SettingOption>()> &provider) {
+    optionsProvider = provider;
+    return *this;
+}
+SettingsDefinition &SettingsDefinition::asReference() { allowUnknownOptions = true; return *this; }
 SettingsDefinition &SettingsDefinition::applies(const QString &value) { apply = value; return *this; }
 SettingsDefinition &SettingsDefinition::asAdvanced(bool value) { advanced = value; return *this; }
 SettingsDefinition &SettingsDefinition::withNullDefault() { nullable = true; defaultValue = QVariant(); return *this; }
@@ -226,7 +249,7 @@ QJsonObject SettingsDefinition::toJson() const {
             range["step"] = step;
         object["range"] = range;
     }
-    if (!options.isEmpty()) {
+    if (!optionsProvider && !options.isEmpty()) {
         QJsonArray optionArray;
         for (const SettingOption &option : options) {
             QJsonObject optionObject;
