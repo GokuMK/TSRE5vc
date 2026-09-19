@@ -5,7 +5,7 @@
     "name": "Afghanistan",
     "lat": 33.0,
     "lon": 65.0,
-    "k0": 1.0
+    "k0": 0.994987
   },
   {
     "countryCode": "AL",
@@ -21,7 +21,7 @@
     "name": "Algeria",
     "lat": 28.0,
     "lon": 3.0,
-    "k0": 1.0
+    "k0": 0.99174
   },
   {
     "countryCode": "AS",
@@ -45,7 +45,7 @@
     "name": "Angola",
     "lat": -12.5,
     "lon": 18.5,
-    "k0": 1.0
+    "k0": 0.996685
   },
   {
     "countryCode": "AI",
@@ -77,7 +77,7 @@
     "name": "Argentina",
     "lat": -34.0,
     "lon": -62.0,
-    "k0": 0.9957
+    "k0": 0.995668
   },
   {
     "countryCode": "AM",
@@ -101,7 +101,7 @@
     "name": "Australia",
     "lat": -25.5,
     "lon": 133.25,
-    "k0": 0.9747
+    "k0": 0.97471
   },
   {
     "countryCode": "AT",
@@ -197,7 +197,7 @@
     "name": "Bolivia",
     "lat": -17.0,
     "lon": -65.0,
-    "k0": 1.0
+    "k0": 0.9961
   },
   {
     "countryCode": "BQ",
@@ -309,7 +309,7 @@
     "name": "Canada East",
     "lat": 50.0,
     "lon": -72.5,
-    "k0": 0.9865
+    "k0": 0.985076
   },
   {
     "countryCode": "CA",
@@ -317,7 +317,7 @@
     "name": "Canada West",
     "lat": 55.0,
     "lon": -113.5,
-    "k0": 0.9865
+    "k0": 0.986554
   },
   {
     "countryCode": "KY",
@@ -333,7 +333,7 @@
     "name": "Central African Republic",
     "lat": 7.0,
     "lon": 21.0,
-    "k0": 1.0
+    "k0": 0.996743
   },
   {
     "countryCode": "TD",
@@ -357,7 +357,7 @@
     "name": "China East",
     "lat": 34.0,
     "lon": 116.25,
-    "k0": 0.9883
+    "k0": 0.98832
   },
   {
     "countryCode": "CN",
@@ -365,7 +365,7 @@
     "name": "China West",
     "lat": 38.0,
     "lon": 89.75,
-    "k0": 0.9883
+    "k0": 0.988249
   },
   {
     "countryCode": "CX",
@@ -389,7 +389,7 @@
     "name": "Colombia",
     "lat": 4.0,
     "lon": -72.0,
-    "k0": 1.0
+    "k0": 0.996247
   },
   {
     "countryCode": "KM",
@@ -469,7 +469,7 @@
     "name": "Democratic Republic of the Congo",
     "lat": 0.0,
     "lon": 25.0,
-    "k0": 1.0
+    "k0": 0.98743
   },
   {
     "countryCode": "DK",
@@ -517,7 +517,7 @@
     "name": "Egypt",
     "lat": 27.0,
     "lon": 30.0,
-    "k0": 1.0
+    "k0": 0.996891
   },
   {
     "countryCode": "SV",
@@ -565,7 +565,7 @@
     "name": "Ethiopia",
     "lat": 8.0,
     "lon": 38.0,
-    "k0": 1.0
+    "k0": 0.992762
   },
   {
     "countryCode": "FK",
@@ -685,7 +685,7 @@
     "name": "Greenland",
     "lat": 72.0,
     "lon": -40.0,
-    "k0": 1.0
+    "k0": 0.996546
   },
   {
     "countryCode": "GD",
@@ -805,7 +805,7 @@
     "name": "India",
     "lat": 20.0,
     "lon": 82.5,
-    "k0": 0.9867
+    "k0": 0.986667
   },
   {
     "countryCode": "ID",
@@ -813,7 +813,7 @@
     "name": "Indonesia",
     "lat": -5.0,
     "lon": 118.25,
-    "k0": 0.9589
+    "k0": 0.958879
   },
   {
     "countryCode": "IR",
@@ -821,7 +821,7 @@
     "name": "Iran",
     "lat": 32.0,
     "lon": 54.5,
-    "k0": 0.995
+    "k0": 0.994988
   },
   {
     "countryCode": "IQ",
@@ -877,7 +877,7 @@
     "name": "Japan",
     "lat": 36.0,
     "lon": 138.0,
-    "k0": 1.0
+    "k0": 0.996053
   },
   {
     "countryCode": "JE",
@@ -901,7 +901,7 @@
     "name": "Kazakhstan",
     "lat": 48.0,
     "lon": 66.75,
-    "k0": 0.9864
+    "k0": 0.986355
   },
   {
     "countryCode": "KE",
@@ -989,7 +989,7 @@
     "name": "Libya",
     "lat": 25.0,
     "lon": 17.0,
-    "k0": 1.0
+    "k0": 0.995662
   },
   {
     "countryCode": "LI",
@@ -1045,7 +1045,7 @@
     "name": "Malaysia",
     "lat": 2.5,
     "lon": 112.5,
-    "k0": 1.0
+    "k0": 0.988245
   },
   {
     "countryCode": "MV",
@@ -1061,7 +1061,7 @@
     "name": "Mali",
     "lat": 17.0,
     "lon": -4.0,
-    "k0": 1.0
+    "k0": 0.995187
   },
   {
     "countryCode": "MT",
@@ -1093,7 +1093,7 @@
     "name": "Mauritania",
     "lat": 20.0,
     "lon": -12.0,
-    "k0": 1.0
+    "k0": 0.996837
   },
   {
     "countryCode": "MU",
@@ -1117,7 +1117,7 @@
     "name": "Mexico",
     "lat": 23.0,
     "lon": -101.25,
-    "k0": 0.986
+    "k0": 0.986025
   },
   {
     "countryCode": "FM",
@@ -1149,7 +1149,7 @@
     "name": "Mongolia",
     "lat": 46.0,
     "lon": 104.25,
-    "k0": 0.9912
+    "k0": 0.99125
   },
   {
     "countryCode": "ME",
@@ -1173,7 +1173,7 @@
     "name": "Morocco",
     "lat": 32.0,
     "lon": -5.0,
-    "k0": 1.0
+    "k0": 0.990366
   },
   {
     "countryCode": "MZ",
@@ -1197,7 +1197,7 @@
     "name": "Namibia",
     "lat": -22.0,
     "lon": 17.0,
-    "k0": 1.0
+    "k0": 0.995442
   },
   {
     "countryCode": "NR",
@@ -1253,7 +1253,7 @@
     "name": "Niger",
     "lat": 16.0,
     "lon": 8.0,
-    "k0": 1.0
+    "k0": 0.995724
   },
   {
     "countryCode": "NG",
@@ -1261,7 +1261,7 @@
     "name": "Nigeria",
     "lat": 10.0,
     "lon": 8.0,
-    "k0": 1.0
+    "k0": 0.996824
   },
   {
     "countryCode": "NU",
@@ -1309,7 +1309,7 @@
     "name": "Norway",
     "lat": 62.0,
     "lon": 10.0,
-    "k0": 1.0
+    "k0": 0.996013
   },
   {
     "countryCode": "OM",
@@ -1325,7 +1325,7 @@
     "name": "Pakistan",
     "lat": 30.0,
     "lon": 70.0,
-    "k0": 1.0
+    "k0": 0.995198
   },
   {
     "countryCode": "PW",
@@ -1357,7 +1357,7 @@
     "name": "Papua New Guinea",
     "lat": -6.0,
     "lon": 147.0,
-    "k0": 1.0
+    "k0": 0.993819
   },
   {
     "countryCode": "PY",
@@ -1373,7 +1373,7 @@
     "name": "Peru",
     "lat": -10.0,
     "lon": -76.0,
-    "k0": 1.0
+    "k0": 0.996062
   },
   {
     "countryCode": "PH",
@@ -1445,7 +1445,7 @@
     "name": "Russia Central",
     "lat": 55.0,
     "lon": 98.25,
-    "k0": 0.9831
+    "k0": 0.982282
   },
   {
     "countryCode": "RU",
@@ -1453,7 +1453,7 @@
     "name": "Russia East",
     "lat": 55.0,
     "lon": 150.5,
-    "k0": 0.9826
+    "k0": 0.981708
   },
   {
     "countryCode": "RU",
@@ -1461,7 +1461,7 @@
     "name": "Russia West",
     "lat": 55.0,
     "lon": 50.25,
-    "k0": 0.9887
+    "k0": 0.988734
   },
   {
     "countryCode": "RW",
@@ -1557,7 +1557,7 @@
     "name": "Saudi Arabia",
     "lat": 25.0,
     "lon": 45.5,
-    "k0": 0.9929
+    "k0": 0.992945
   },
   {
     "countryCode": "SN",
@@ -1637,7 +1637,7 @@
     "name": "Somalia",
     "lat": 10.0,
     "lon": 49.0,
-    "k0": 1.0
+    "k0": 0.995065
   },
   {
     "countryCode": "ZA",
@@ -1645,7 +1645,7 @@
     "name": "South Africa",
     "lat": -29.0,
     "lon": 24.0,
-    "k0": 1.0
+    "k0": 0.995232
   },
   {
     "countryCode": "GS",
@@ -1669,7 +1669,7 @@
     "name": "South Sudan",
     "lat": 7.0,
     "lon": 30.0,
-    "k0": 1.0
+    "k0": 0.997195
   },
   {
     "countryCode": "ES",
@@ -1693,7 +1693,7 @@
     "name": "Sudan",
     "lat": 15.0,
     "lon": 30.0,
-    "k0": 1.0
+    "k0": 0.995085
   },
   {
     "countryCode": "SR",
@@ -1845,7 +1845,7 @@
     "name": "Turkey",
     "lat": 39.0,
     "lon": 35.0,
-    "k0": 1.0
+    "k0": 0.995365
   },
   {
     "countryCode": "TM",
@@ -1885,7 +1885,7 @@
     "name": "Ukraine",
     "lat": 49.0,
     "lon": 32.0,
-    "k0": 1.0
+    "k0": 0.996705
   },
   {
     "countryCode": "AE",
@@ -1909,7 +1909,7 @@
     "name": "Alaska",
     "lat": 64.0,
     "lon": -148.25,
-    "k0": 0.9919
+    "k0": 0.991869
   },
   {
     "countryCode": "US",
@@ -1925,7 +1925,7 @@
     "name": "United States East",
     "lat": 39.0,
     "lon": -83.0,
-    "k0": 0.9901
+    "k0": 0.99008
   },
   {
     "countryCode": "US",
@@ -1933,7 +1933,7 @@
     "name": "United States West",
     "lat": 39.0,
     "lon": -109.25,
-    "k0": 0.9897
+    "k0": 0.989832
   },
   {
     "countryCode": "UM",
@@ -1957,7 +1957,7 @@
     "name": "Uzbekistan",
     "lat": 41.0,
     "lon": 64.0,
-    "k0": 1.0
+    "k0": 0.996419
   },
   {
     "countryCode": "VU",
@@ -1981,7 +1981,7 @@
     "name": "Venezuela",
     "lat": 8.0,
     "lon": -66.0,
-    "k0": 1.0
+    "k0": 0.996003
   },
   {
     "countryCode": "VN",
@@ -2037,7 +2037,7 @@
     "name": "Zambia",
     "lat": -15.0,
     "lon": 30.0,
-    "k0": 1.0
+    "k0": 0.995248
   },
   {
     "countryCode": "ZW",
