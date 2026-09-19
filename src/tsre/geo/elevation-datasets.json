@@ -295,6 +295,122 @@
         "No API key or authentication is required.",
         "Zero and negative elevations are valid NAP heights, so zeroIsNoData must remain false."
       ]
+    },
+    {
+      "id": "gb.ea.lidar.dtm1",
+      "name": "England - Environment Agency LIDAR Composite DTM 1 m (2 m request grid)",
+      "provider": "wcs-2.0.1",
+      "endpoint": "https://environment.data.gov.uk/spatialdata/lidar-composite-digital-terrain-model-dtm-1m/wcs?SUBSETTINGCRS=http://www.opengis.net/def/crs/EPSG/0/3857&OUTPUTCRS=http://www.opengis.net/def/crs/EPSG/0/3857",
+      "coverage": "13787b9a-26a4-4775-8523-806d13af58fc__Lidar_Composite_Elevation_DTM_1m",
+      "format": "image/tiff",
+      "axisX": "X",
+      "axisY": "Y",
+      "scaleAxisX": "i",
+      "scaleAxisY": "j",
+      "allowExpandedGrid": true,
+      "crs": 3857,
+      "verticalDatum": "ODN (Ordnance Datum Newlyn)",
+      "resolution": 2,
+      "origin": [0, 0],
+      "bounds": [-800000, 6420000, 240000, 7540000],
+      "blockPixels": 1024,
+      "concurrentRequests": 1,
+      "zeroIsNoData": false,
+      "attribution": "Environment Agency - LIDAR Composite DTM, Open Government Licence v3.0",
+      "notes": [
+        "Native source is a 1 m DTM in EPSG:27700 (British National Grid). The WCS 2.0.1 service advertises the CRS extension and EPSG:3857 output, so this candidate uses server-side horizontal reprojection rather than requiring local EPSG:27700 support.",
+        "The configured 2 m spacing is a Web Mercator request/cache grid, not native source resolution. Across England this corresponds to approximately 1.1-1.3 m ground spacing.",
+        "WCS metadata reports native coverage bounds [80000, 4000, 656000, 665000], 1 m native spacing, coverage axes E/N and grid axes i/j.",
+        "Live probes on 2026-09-19 require uppercase X/Y subset axes for EPSG:3857 and i/j scaling axes. Native E/N subset names or X/Y scaling names return HTTP 500. TSRE configures subset and scaling axes separately.",
+        "The service's official NoData value is -3.4028235e+38. Zero is a valid terrain elevation and zeroIsNoData must remain false.",
+        "The source covers approximately 99% of England rather than every cell inside the rectangular bounds; normal HGT fallback should remain available for gaps.",
+        "Bounds are conservative EPSG:3857 request bounds. Server reprojection expands requested envelopes: a 1026 x 1026 response had approximately 2.10 map m spacing. allowExpandedGrid validates coverage of requested pixel centres and limits expansion to 10% per edge; sampling uses the actual TIFF transform, never a relabelled 2 m grid."
+      ]
+    },
+    {
+      "id": "ee.maru.dtm1",
+      "name": "Estonia - Maa- ja Ruumiamet DTM 1 m (2 m request grid)",
+      "provider": "wcs-1.0.0",
+      "endpoint": "https://teenus.maaamet.ee/ows/wcs-dtm",
+      "coverage": "dtm-1",
+      "format": "image/tiff",
+      "requestFormat": "image/tiff",
+      "crs": 3857,
+      "verticalDatum": "EH2000 (EVRS)",
+      "resolution": 2,
+      "origin": [0, 0],
+      "bounds": [2410000, 7860000, 3160000, 8340000],
+      "blockPixels": 512,
+      "concurrentRequests": 1,
+      "zeroIsNoData": false,
+      "attribution": "Republic of Estonia Land and Spatial Development Board - Elevation data",
+      "notes": [
+        "Native source is the nationwide 1 m DTM in EPSG:3301 (L-EST97), with heights in EH2000 / EVRS.",
+        "WCS 1.0 server-side reprojection to EPSG:3857 has been independently verified. This avoids requiring local EPSG:3301 Lambert Conformal Conic support.",
+        "The configured 2 m spacing is a Web Mercator request/cache grid. At Estonian latitudes it corresponds to approximately 1.0-1.1 m ground spacing, closely matching the native 1 m DTM.",
+        "Live probes on 2026-09-19 confirmed FORMAT=GeoTIFF returns an XML InvalidParameterValue error with HTTP 200. requestFormat=image/tiff selects the accepted spelling; a 514 x 514 response has exact 2 map m spacing and fractional Float32 heights. Existing WCS 1 services retain their default GeoTIFF alias.",
+        "The official WCS endpoint also supports WCS 2.0.1 with coverage dtm-1; server-side CRS behavior through that path has not yet been verified for TSRE.",
+        "No authentication is required.",
+        "Zero is a legitimate coastal/sea-level elevation and may be returned without a NoData marker, so zeroIsNoData must remain false.",
+        "Bounds are conservative EPSG:3857 bounds covering Estonia; actual coverage follows the national territory."
+      ]
+    },
+    {
+      "id": "dk.datafordeler.dhm.terraen",
+      "name": "Denmark - DHM/Terrain (1 m)",
+      "provider": "wcs-1.0.0",
+      "endpoint": "https://wcs.datafordeler.dk/DHMNedboer/dhm_wcs/1.0.0/WCS",
+      "authentication": {
+        "type": "query-api-key",
+        "secret": "geo.elevation.dk.datafordeler.apiKey",
+        "parameter": "apikey"
+      },
+      "coverage": "dhm_terraen",
+      "format": "image/tiff",
+      "requestFormat": "GTiff",
+      "crs": 25832,
+      "verticalDatum": "DVR90",
+      "resolution": 1,
+      "origin": [0, 0],
+      "bounds": [430000, 6040000, 900000, 6413000],
+      "blockPixels": 1024,
+      "concurrentRequests": 1,
+      "zeroIsNoData": false,
+      "attribution": "Klimadatastyrelsen / Datafordeler - Danmarks Hojdemodel (DHM)",
+      "notes": [
+        "National DHM/Terrain is a LiDAR-derived bare-earth terrain model on a native 0.4 m grid in ETRS89 / UTM zone 32N (EPSG:25832). Heights are DVR90 (EPSG:5799; compound CRS EPSG:7416).",
+        "Datafordeler requires authentication. For API-key access the key is supplied as the query parameter apikey. TSRE resolves geo.elevation.dk.datafordeler.apiKey from profile-local secrets.json and adds it only to the outgoing request. Public URLs and cache metadata omit the key.",
+        "The official WCS examples request FORMAT=GTiff; requestFormat configures that spelling independently of the TIFF decoder. The request/cache grid is 1 m, resampled by the server from native 0.4 m terrain.",
+        "Official WCS examples confirm coverage dhm_terraen, CRS/RESPONSE_CRS EPSG:25832 and numeric GeoTIFF output.",
+        "Authenticated probes on 2026-09-19 confirmed exact 1 m Float32 TIFF grids (32 x 32 and 1026 x 1026). A full 256 x 256 terrain grid produced 65536 source samples with no HGT fallback, using nine downloaded blocks; repeating used cache only. Bounds are conservative and broader national/coverage-edge validation remains open.",
+        "Zero and slightly negative DVR90 elevations are valid in Denmark, so zeroIsNoData must remain false."
+      ]
+    },
+    {
+      "id": "be.vlaanderen.dhmv2.dtm1",
+      "name": "Belgium - Flanders DHMV II DTM 1 m (2 m request grid)",
+      "provider": "wcs-1.0.0",
+      "endpoint": "https://geo.api.vlaanderen.be/el-dtm/wcs",
+      "coverage": "EL.GridCoverage.DTM",
+      "format": "image/tiff",
+      "crs": 3857,
+      "verticalDatum": "TAW",
+      "resolution": 2,
+      "origin": [0, 0],
+      "bounds": [273000, 6555000, 670000, 6721000],
+      "blockPixels": 1024,
+      "concurrentRequests": 1,
+      "zeroIsNoData": false,
+      "attribution": "Digitaal Vlaanderen - DHMV II DTM 1 m",
+      "notes": [
+        "Native DHMV II DTM is a 1 m LiDAR-derived bare-earth terrain model. Heights are expressed in metres TAW (Tweede Algemene Waterpassing).",
+        "This entry uses WCS 1.0 server-side reprojection to EPSG:3857, which TSRE already supports. No Belgian Lambert projection support is required.",
+        "The configured 2 m spacing is a Web Mercator request/cache grid, not the native raster resolution. At Flemish latitudes this corresponds to roughly 1.25 m ground spacing and avoids materially oversampling the native 1 m source.",
+        "WCS 1.0 with FORMAT=GeoTIFF is known to return a direct numeric GeoTIFF. WCS 2.0.1 also exists but commonly returns multipart/related GML + TIFF, so WCS 1.0 is the simpler TSRE path.",
+        "The source NoData value is -9999. Zero is a valid terrain elevation in coastal and polder areas, so zeroIsNoData must remain false.",
+        "Bounds are conservative EPSG:3857 bounds derived from the published Flanders + Brussels coverage envelope; actual coverage is not rectangular.",
+        "DHMV II was surveyed in 2013-2015. The dataset is complete but should be described as historical terrain rather than current-year elevation."
+      ]
     }
   ]
 }

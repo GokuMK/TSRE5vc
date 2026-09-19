@@ -5,8 +5,8 @@ Reviewed 2026-09-16 against main commit `0be6601` and
 Design only; no implementation or build changes.
 
 Follow-up: the user subsequently authorized coding once the design was clear.
-See [implementation and verification](geo-terrain-implementation.md) for the
-current state, confirmed 1 m services and resolved format/projection choices.
+See the [agent handoff](README.md) and [current status](elevation-current-status.md)
+for the implementation, confirmed services and resolved format/projection choices.
 The sections below retain the initial review rather than claiming its open
 questions still describe the implementation.
 

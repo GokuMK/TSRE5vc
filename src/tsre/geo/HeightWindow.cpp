@@ -55,6 +55,9 @@ HeightWindow::HeightWindow() : QDialog() {
     //% "Terrain elevation"
     setWindowTitle(qtTrId("geo.elevation.title"));
     sourceBox = new QComboBox(this);
+    sourceBox->setStyleSheet(QStringLiteral("combobox-popup: 0;"));
+    //% "Select an elevation source for this location"
+    sourceBox->setPlaceholderText(qtTrId("geo.elevation.source.select.local"));
     const auto *sourceDefinition = SettingsManager::instance().registry().definition(SourceSetting);
     if (sourceDefinition)
         for (const auto &option : sourceDefinition->resolvedOptions())
@@ -98,6 +101,8 @@ HeightWindow::HeightWindow() : QDialog() {
     connect(offsetEdit,&QLineEdit::textEdited,this,&HeightWindow::hOffsetEnabled);
     connect(sourceBox,&QComboBox::currentIndexChanged,this,[this] {
         prepared = ok = false; applyButton->setEnabled(false);
+        loadButton->setEnabled(sourceBox->currentIndex() >= 0);
+        if (sourceBox->currentIndex() < 0) return;
         QString error;
         if (!SettingsManager::instance().setSessionValue(QString::fromLatin1(SourceSetting),sourceBox->currentData(),&error))
             reportText->setPlainText(error);
@@ -116,13 +121,39 @@ int HeightWindow::exec() {
     QSurface *previousSurface = previousContext ? previousContext->surface() : nullptr;
     ok = prepared = false; applyButton->setEnabled(false);
     imageLabel->clear(); reportText->clear();
+    QString catalogueError;
+    const auto catalog = Elevation::datasets(catalogueError);
+    if (!catalogueError.isEmpty()) reportText->setPlainText(catalogueError);
     //% "Terrain elevation - tile %1 %2"
     setWindowTitle(qtTrId("geo.elevation.tile.title").arg(tileX).arg(-tileZ));
     const QString selected = Settings::string(SourceSetting,SettingType::Enum);
+    QVector<Elevation::Point> area;
+    if (Game::GeoCoordConverter && terrainSize > 0) {
+        PreciseTileCoordinate coordinate;
+        coordinate.TileX = tileX; coordinate.TileZ = tileZ;
+        IghCoordinate internal;
+        LatitudeLongitudeCoordinate geographic;
+        for (int y=0;y<3;++y) for (int x=0;x<3;++x) {
+            coordinate.setWxyzU(float(x*terrainSize*.5),0,float(y*terrainSize*.5));
+            Game::GeoCoordConverter->ConvertToInternal(&coordinate,&internal);
+            Game::GeoCoordConverter->ConvertToLatLon(&internal,&geographic);
+            if (std::isfinite(geographic.Latitude) && std::isfinite(geographic.Longitude)
+                    && std::abs(geographic.Latitude) <= 90 && std::abs(geographic.Longitude) <= 180)
+                area.push_back({geographic.Latitude,geographic.Longitude});
+        }
+    }
     { const QSignalBlocker blocker(sourceBox);
-      if (sourceBox->findData(selected) < 0)
+      sourceBox->clear();
+      sourceBox->addItem(qtTrId("settings.geo.elevation.source.hgt"),QString());
+      bool known = selected.isEmpty();
+      for (const auto &dataset : catalog) {
+          known |= dataset.id == selected;
+          if (Elevation::nearDataset(dataset,area)) sourceBox->addItem(dataset.name,dataset.id);
+      }
+      if (!known)
           sourceBox->addItem(qtTrId("settings.dialog.text.widget").arg(selected),selected);
       sourceBox->setCurrentIndex(sourceBox->findData(selected)); }
+    loadButton->setEnabled(sourceBox->currentIndex() >= 0);
     const int result = QDialog::exec();
     if (previousContext && previousSurface) previousContext->makeCurrent(previousSurface);
     return result;
@@ -140,6 +171,7 @@ void HeightWindow::hOffsetEnabled(QString value) {
 }
 void HeightWindow::load(bool gui) {
     if (loading) return;
+    if (gui && sourceBox->currentIndex() < 0) return;
     resetLoadCancellation();
     ok = prepared = false; applyButton->setEnabled(false);
     if (terrainResolution < 1 || terrainResolution > 4096 || terrainSize < 1 || !Game::GeoCoordConverter) {

@@ -195,6 +195,14 @@ The Route Editor opens the Settings Editor from **Settings > Settings Editor...*
 
 Writes use `QSaveFile`, retain five timestamped backups, and detect external file changes before overwriting. Recoverable per-setting errors remain loadable for repair, but validation errors prevent saving. Secret values are stored in the profile-local `secrets.json`; dedicated secret settings and inline `{secret:ID}` placeholders store only references.
 
+### Local elevation directories
+
+`core.paths.geoData` / `geoPath` names the parent geodata directory. Place local
+HGT files in `world_hgt/`; lookup falls back to legacy `hgt/` and root files.
+Other user-managed products will have their own readable directories; hashed
+`cache/` paths remain disposable service/derived data. See the
+[local-source design](tasks/geo/local-elevation-sources.md) for the planned provider.
+
 ### Elevation service API keys
 
 Elevation catalogue entries can reference a profile secret using:
@@ -213,13 +221,33 @@ additional settings entry is required. Each profile can supply its own key.
 
 `basic-api-key` sends the secret as the HTTP Basic username with an empty
 password, as supported by [NLS](https://www.maanmittauslaitos.fi/en/rajapinnat/api-avaimen-ohje).
-Only the selected dataset's key is copied into the elevation worker. Secret
-values are absent from request URLs, catalogue JSON, cache identity and cache
-metadata. Authenticated redirects are restricted to the same origin.
+
+Services such as Denmark Datafordeler use a query parameter instead:
+
+```json
+"authentication": {
+  "type": "query-api-key",
+  "secret": "geo.elevation.dk.datafordeler.apiKey",
+  "parameter": "apikey"
+}
+```
+
+Store that reference's value in the same profile-local `secrets` object.
+Only the selected dataset's key is copied into the elevation worker. Query keys
+are percent-encoded and added only when constructing the outgoing HTTP request;
+the public request URL, catalogue JSON, cache identity and cache metadata contain
+no key value. Query-authentication failures omit Qt's URL-bearing error text.
+Authenticated redirects are restricted to the same origin for both methods.
 
 A missing or invalid key stops new requests and names the required secret in the
 elevation report. Existing valid cache blocks and the usual HGT fallback remain
 available. Rotating a key does not invalidate cached elevation data.
+
+An invalid elevation catalogue object is skipped individually. Other valid
+sources remain selectable and usable; diagnostics name rejected entries in the
+application log and height dialog/report. A malformed JSON file or invalid
+top-level catalogue structure still prevents loading the file. Selecting an
+unavailable saved source reports an error rather than silently switching to HGT.
 
 The runtime catalogue contains the approved legacy replacements plus native
 settings added by newer subsystems. Inactive

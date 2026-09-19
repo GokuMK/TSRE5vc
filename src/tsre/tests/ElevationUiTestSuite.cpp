@@ -53,12 +53,25 @@ int TsreTests::runElevationUiSuite(const QString &capturePath, bool verbose) {
             check(Settings::string("geo.elevation.source",SettingType::Enum) == dataset.id,
                   "height selection reaches the setting used by automatic generation");
         }
+        const QString polishId = "pl.gugik.nmt1.kron86";
+        settings.setSessionValue("geo.elevation.source",polishId);
         QTimer::singleShot(0,&window,[&] {
-            check(selector->currentData().toString() == catalog.last().id,
+            check(selector->currentData().toString() == polishId,
                   "new source selection survives reopening the height dialog");
+            check(selector->findData(QString()) >= 0 && selector->findData("fi.nls.dem2") < 0,
+                  "location filter retains HGT and hides distant sources");
+            check(selector->styleSheet().contains("combobox-popup: 0"),"height selector uses the TSRE combo style");
             window.reject();
         });
         if (!catalog.isEmpty()) window.exec();
+        settings.setSessionValue("geo.elevation.source",QString("fi.nls.dem2"));
+        QTimer::singleShot(0,&window,[&] {
+            check(selector->currentIndex() == -1
+                && Settings::string("geo.elevation.source",SettingType::Enum) == "fi.nls.dem2",
+                "hidden saved source requires a local choice without changing the saved setting");
+            window.reject();
+        });
+        window.exec();
         check(settings.setSessionValue("geo.elevation.source",QString("future.example.dem")),
               "unavailable source references are accepted");
         QTimer::singleShot(0,&window,[&] {

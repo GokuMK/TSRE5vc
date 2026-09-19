@@ -139,6 +139,27 @@ int main(int argc, char **argv) {
     check(readHgt(hgt(3,-32768),0,0,r,error) && sampleLegacyHgt(r,{.5,.5}).status == SampleStatus::NoData,"HGT void detection");
     const auto catalog = datasets(error);
     check(!catalog.isEmpty() && error.isEmpty(),"embedded dataset catalogue");
+    QJsonArray entries;
+    for (const auto &entry : catalog) entries.append(entry.definition);
+    const auto parseEntries = [&](const QJsonArray &items) {
+        return parseDatasets(QJsonDocument(QJsonObject{{"version",1},{"datasets",items}}).toJson(),error);
+    };
+    auto invalid = entries.first().toObject(); invalid["id"] = "fixture.invalid-auth";
+    invalid["authentication"] = QJsonObject{{"type","unsupported"},{"secret","fixture.key"}};
+    auto mixed = entries; mixed.insert(1,invalid);
+    auto validEntries = parseEntries(mixed);
+    check(validEntries.size() == catalog.size() && error.contains("fixture.invalid-auth")
+        && validEntries.last().id == catalog.last().id,"invalid authentication rejects only its object and parsing continues");
+    invalid = entries.first().toObject(); invalid["id"] = "fixture.invalid-crs"; invalid["crs"] = 9999;
+    mixed = entries; mixed.prepend(invalid); mixed.append(entries.first()); mixed.append(false);
+    validEntries = parseEntries(mixed);
+    check(validEntries.size() == catalog.size() && error.contains("fixture.invalid-crs")
+        && error.contains(catalog.first().id) && error.contains("entry "),
+        "unsupported CRS, duplicate ID and non-object are individually rejected");
+    invalid["origin"] = QJsonArray{};
+    check(parseEntries({invalid}).isEmpty() && error.contains("grid definition"),"invalid grid is diagnosed");
+    check(parseDatasets("{",error).isEmpty() && error.contains("JSON"),"malformed JSON has a file-level diagnostic");
+    check(parseDatasets("{\"version\":1}",error).isEmpty() && !error.isEmpty(),"missing datasets array is a file-level error");
     QMap<QString,Dataset> byId;
     for (const auto &entry : catalog) byId.insert(entry.id,entry);
     bool requiredPresent = true;
@@ -149,6 +170,55 @@ int main(int argc, char **argv) {
     if (!requiredPresent) return 1;
     const auto finland = byId.value("fi.nls.dem2");
     const auto netherlands = byId.value("nl.pdok.ahn.dtm05");
+    const auto england = byId.value("gb.ea.lidar.dtm1");
+    const auto estonia = byId.value("ee.maru.dtm1");
+    const auto denmark = byId.value("dk.datafordeler.dhm.terraen");
+    check(denmark.apiKeyParameter == "apikey" && denmark.apiKeySecret == "geo.elevation.dk.datafordeler.apiKey"
+        && denmark.resolution == 1 && QUrlQuery(coverageUrl(denmark,{0,0})).queryItemValue("FORMAT") == "GTiff"
+        && !QUrlQuery(coverageUrl(denmark,{0,0})).hasQueryItem("apikey"),
+        "Denmark uses a 1 m grid and secret reference; public request URL contains no key");
+    const QUrlQuery gbQuery(coverageUrl(england,{-8,-3279}));
+    check(gbQuery.allQueryItemValues("SUBSET").value(0).startsWith("X(")
+        && gbQuery.allQueryItemValues("SUBSET").value(1).startsWith("Y(")
+        && gbQuery.queryItemValue("SCALESIZE") == "i(1026),j(1026)",
+        "England uses projected subset axes separately from scaling axes");
+    check(QUrlQuery(coverageUrl(estonia,{2689,-8086})).queryItemValue("FORMAT") == "image/tiff"
+        && QUrlQuery(coverageUrl(byId.value("de.bw.dgm1"),{0,0})).queryItemValue("FORMAT") == "GeoTIFF",
+        "Estonia format override preserves existing WCS 1 TIFF alias");
+    const auto eeFixture = fixture("../2026-09-19/ee-gb/ee-land-32.tif");
+    check(readGeoTiff(eeFixture,r,error) && r.epsg == 3857 && r.transform[1] == 2
+        && near(r.values.value(528),2.690624952316284) && r.values.value(0) == 0,
+        "Estonia live Float32 fixture preserves fractional and zero heights");
+    bad = eeFixture; mutateTag(bad,257,31);
+    check(readGeoTiff(bad,r,error) && r.values.size() == 32*31,
+        "final TIFF strip may include padding rows beyond image height");
+    check(!readGeoTiff(bad.chopped(4),r,error),"truncated padded strip remains rejected");
+    mutateTag(bad,279,4097);
+    check(!readGeoTiff(bad,r,error),"arbitrary extra strip bytes remain rejected");
+    check(readGeoTiff(fixture("../2026-09-19/ee-gb/gb-catalog-32.tif"),r,error)
+        && r.epsg == 3857 && r.hasNoData && near(r.values.value(59),33.3849983215332),
+        "England live big-endian tiled Float32 fixture and NoData decode");
+    check(r.sample({r.transform[0]+r.transform[1]*.5,r.transform[3]+r.transform[5]*.5}).status == SampleStatus::NoData,
+        "England extreme negative sentinel is NoData, never a terrain height");
+    Dataset probeGrid = england;
+    probeGrid.blockPixels = 30; probeGrid.originX = -16384; probeGrid.originY = 6715392;
+    const Raster expanded = r;
+    check(validateRasterGrid(probeGrid,{0,0},r,error),"expanded grid covers all requested sample centres");
+    probeGrid.allowExpandedGrid = false;
+    check(!validateRasterGrid(probeGrid,{0,0},r,error),"strict datasets reject server-expanded grids");
+    probeGrid.allowExpandedGrid = true;
+    r.transform[0] += 4;
+    check(!validateRasterGrid(probeGrid,{0,0},r,error),"expanded grid cannot miss a requested edge");
+    r = expanded; r.transform[1] *= 2;
+    check(!validateRasterGrid(probeGrid,{0,0},r,error),"expanded grid cannot exceed its extent budget");
+    r = expanded; r.epsg = 2180;
+    check(!validateRasterGrid(probeGrid,{0,0},r,error),"expanded grid still requires matching CRS");
+    r = expanded; --r.width;
+    check(!validateRasterGrid(probeGrid,{0,0},r,error),"expanded grid still requires exact dimensions");
+    r = expanded; r.transform[2] = .01;
+    check(!validateRasterGrid(probeGrid,{0,0},r,error),"expanded grid rejects rotation");
+    r = expanded; r.transform[0] = std::numeric_limits<double>::quiet_NaN();
+    check(!validateRasterGrid(probeGrid,{0,0},r,error),"expanded grid rejects non-finite transforms");
     check(finland.epsg == 3067 && supportedCrs(3067) && project({60,27},3067,p)
         && near(p.x,500000),"Finland retains its supported native TM35FIN grid");
     check(finland.apiKeySecret == "geo.elevation.fi.nls.apiKey"
@@ -176,6 +246,17 @@ int main(int argc, char **argv) {
     check(d.noDataPolicy == "fallback" && netherlands.noDataPolicy == "fill",
         "NoData policy defaults to fallback and Netherlands opts into fill");
     check(blockFor(d,{d.originX+1024,d.originY-100}).column == 1,"consistent adjacent block boundary");
+    check(nearDataset(d,{{52,19}}) && !nearDataset(finland,{{52,19}})
+        && nearDataset(finland,{}),"location filter keeps nearby sources and leaves an unknown location unfiltered");
+    Dataset local; local.epsg = 3857;
+    XY centre; project({60,24},3857,centre);
+    local.minX=centre.x+19000; local.maxX=centre.x+19500;
+    local.minY=centre.y-100; local.maxY=centre.y+100;
+    check(nearDataset(local,{{60,24}}),"10 km ground buffer accounts for Mercator scale at 60 degrees");
+    local.minX=centre.x+21000; local.maxX=centre.x+22000;
+    check(!nearDataset(local,{{60,24}}),"sources beyond the buffer are hidden");
+    local.epsg=4326; local.minX=19; local.maxX=20; local.minY=51; local.maxY=52;
+    check(nearDataset(local,{{50.9,18.9},{52.1,20.1}},0),"filter includes a dataset intersecting the tile footprint");
     Dataset oldGrid = d;
     oldGrid.definition["blockPixels"] = 512; oldGrid.definition.remove("concurrentRequests");
     check(cacheRelativePath(oldGrid,{0,0}) != cacheRelativePath(d,{0,0}),"old 512 m TIFF cache cannot be reused as 1024 m data");
@@ -185,6 +266,9 @@ int main(int argc, char **argv) {
     check(findHgtFile(temp.path(),52,19) == temp.path()+"/N52E019.hgt","legacy root HGT lookup");
     check(write(temp.path()+"/hgt/N52E019.hgt",hgt(3,20)),"create organized HGT fixture");
     check(findHgtFile(temp.path(),52,19) == temp.path()+"/hgt/N52E019.hgt","HGT subdirectory wins conflicts");
+    check(write(temp.path()+"/world_hgt/N52E019.hgt",hgt(3,20)),"create user-managed world HGT fixture");
+    check(findHgtFile(temp.path(),52,19) == temp.path()+"/world_hgt/N52E019.hgt",
+        "world_hgt takes precedence over both legacy paths");
     std::atomic_bool cancel{false};
     check(write(temp.path()+"/hgt/N60E027.hgt",hgt(3,15)),"prepare Finland fallback fixture");
     auto withoutKey = generate(temp.path(),finland.id,{{60.1,27.1}},2.0,0,cancel);

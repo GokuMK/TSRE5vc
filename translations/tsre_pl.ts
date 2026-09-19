@@ -7562,8 +7562,8 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
         <translation>Katalog geodanych i pamięci podręcznej wysokości</translation>
     </message>
         <message id="settings.core.paths.geo.data.description">
-        <source>Geodata root: HGT files in hgt/ or the root; downloaded elevation rasters in cache/.</source>
-        <translation>Katalog geodanych: pliki HGT w hgt/ lub katalogu głównym; pobrane rastry wysokości w cache/.</translation>
+        <source>Geodata root: local HGT files in world_hgt/ (legacy hgt/ and root supported); downloaded elevation rasters in cache/.</source>
+        <translation>Katalog geodanych: lokalne pliki HGT w world_hgt/ (obsługiwane też stare hgt/ i katalog główny); pobrane rastry wysokości w cache/.</translation>
     </message>
         <message id="settings.core.startup.route.name">
             <location filename="../src/settings/SettingsRegistration.cpp" line="371" />
@@ -10097,6 +10097,10 @@ Anulowano. Nie zastosowano wysokości terenu.</translation>
     <message id="geo.elevation.offset">
         <source>Y offset (m):</source>
         <translation>Przesunięcie Y (m):</translation>
+    </message>
+    <message id="geo.elevation.source.select.local">
+        <source>Select an elevation source for this location</source>
+        <translation>Wybierz źródło wysokości dla tej lokalizacji</translation>
     </message>
     <message id="geo.elevation.source.note">
         <source>Source resolution depends on the selected dataset. Output spacing follows this terrain tile. Missing coverage and NoData use HGT fallback.</source>

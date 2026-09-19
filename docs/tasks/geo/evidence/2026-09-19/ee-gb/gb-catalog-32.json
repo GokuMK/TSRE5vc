@@ -1,0 +1,93 @@
+{
+  "url": "https://environment.data.gov.uk/spatialdata/lidar-composite-digital-terrain-model-dtm-1m/wcs?SUBSETTINGCRS=http%3A%2F%2Fwww.opengis.net%2Fdef%2Fcrs%2FEPSG%2F0%2F3857&OUTPUTCRS=http%3A%2F%2Fwww.opengis.net%2Fdef%2Fcrs%2FEPSG%2F0%2F3857&SERVICE=WCS&VERSION=2.0.1&REQUEST=GetCoverage&COVERAGEID=13787b9a-26a4-4775-8523-806d13af58fc__Lidar_Composite_Elevation_DTM_1m&SUBSET=X%28-16386%2C-16322%29&SUBSET=Y%286715330%2C6715394%29&FORMAT=image%2Ftiff&SCALESIZE=i%2832%29%2Cj%2832%29",
+  "retrieved": "2026-09-19",
+  "bytes": 4515,
+  "validCount": 960,
+  "maximumIndexAndHeight": [
+    59,
+    33.3849983215332
+  ],
+  "tags": {
+    "256": [
+      32
+    ],
+    "257": [
+      32
+    ],
+    "258": [
+      32
+    ],
+    "259": [
+      1
+    ],
+    "262": [
+      1
+    ],
+    "277": [
+      1
+    ],
+    "282": [
+      1,
+      1
+    ],
+    "283": [
+      1,
+      1
+    ],
+    "296": [
+      1
+    ],
+    "322": [
+      32
+    ],
+    "323": [
+      32
+    ],
+    "324": [
+      419
+    ],
+    "325": [
+      4096
+    ],
+    "339": [
+      3
+    ],
+    "34264": [
+      2.1070394532409296,
+      0.0,
+      0.0,
+      -16388.023134704847,
+      0.0,
+      -2.112520159338601,
+      0.0,
+      6715395.984390048,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ],
+    "34735": [
+      1,
+      1,
+      2,
+      3,
+      1024,
+      0,
+      1,
+      1,
+      1025,
+      0,
+      1,
+      1,
+      3072,
+      0,
+      1,
+      3857
+    ],
+    "42113": "-3.4028234663852886E38\u0000"
+  }
+}

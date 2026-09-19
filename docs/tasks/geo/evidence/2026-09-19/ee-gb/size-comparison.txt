@@ -1,0 +1,15 @@
+run=1 size=512 pass=0 success=1 primary=65536 hgt=0 downloaded=20 cached=0 bytes=21193404 ms=23995 maxDelta=0 meanDelta=0
+
+run=1 size=512 pass=1 success=1 primary=65536 hgt=0 downloaded=0 cached=20 bytes=21193404 ms=728 maxDelta=0 meanDelta=0
+
+run=2 size=1024 pass=0 success=1 primary=65536 hgt=0 downloaded=9 cached=0 bytes=37955475 ms=15497 maxDelta=0.167264 meanDelta=0.000250596
+
+run=2 size=1024 pass=1 success=1 primary=65536 hgt=0 downloaded=0 cached=9 bytes=37955475 ms=1232 maxDelta=0.167264 meanDelta=0.000250596
+
+run=3 size=1024 pass=0 success=1 primary=65536 hgt=0 downloaded=9 cached=0 bytes=37955475 ms=14521 maxDelta=0.167264 meanDelta=0.000250596
+
+run=3 size=1024 pass=1 success=1 primary=65536 hgt=0 downloaded=0 cached=9 bytes=37955475 ms=887 maxDelta=0.167264 meanDelta=0.000250596
+
+run=4 size=512 pass=0 success=1 primary=65536 hgt=0 downloaded=20 cached=0 bytes=21193404 ms=24403 maxDelta=0 meanDelta=0
+
+run=4 size=512 pass=1 success=1 primary=65536 hgt=0 downloaded=0 cached=20 bytes=21193404 ms=725 maxDelta=0 meanDelta=0

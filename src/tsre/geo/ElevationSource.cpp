@@ -43,18 +43,34 @@ bool decode(const Dataset &d, const QByteArray &bytes, Raster &r, QString &error
     }
     return d.format == "image/tiff" ? readWcsTiff(bytes,d.epsg,r,error) : readAsciiGrid(bytes,d.epsg,r,error);
 }
-bool validate(const Dataset &d, Block b, const Raster &r, QString &error) {
+}
+bool validateRasterGrid(const Dataset &d, Block b, const Raster &r, QString &error) {
     const auto box = bounds(d,b);
-    if (r.epsg != d.epsg || r.width != d.blockPixels+2 || r.height != d.blockPixels+2
-            || std::abs(r.transform[0]-box[0]) > 1e-5 || std::abs(r.transform[3]-box[3]) > 1e-5
-            || std::abs(r.transform[1]-d.resolution) > 1e-8
-            || std::abs(r.transform[5]+d.resolution) > 1e-8
-            || r.transform[2] != 0 || r.transform[4] != 0) {
+    const auto &t = r.transform;
+    bool grid = std::abs(t[0]-box[0]) <= 1e-5 && std::abs(t[3]-box[3]) <= 1e-5
+        && std::abs(t[1]-d.resolution) <= 1e-8 && std::abs(t[5]+d.resolution) <= 1e-8;
+    if (d.allowExpandedGrid && t[1] > 0 && t[5] < 0) {
+        // Reprojection may expand the envelope. Require all requested pixel
+        // centres (including halos) to remain sampleable, with at most 10%
+        // excess extent on any edge. Never relabel the returned transform.
+        const double margin = (box[2]-box[0])*.1;
+        const double right = t[0]+r.width*t[1], bottom = t[3]+r.height*t[5];
+        grid = t[0] >= box[0]-margin && right <= box[2]+margin
+            && bottom >= box[1]-margin && t[3] <= box[3]+margin
+            && t[0]+t[1]*.5 <= box[0]+d.resolution*.5+1e-5
+            && right-t[1]*.5 >= box[2]-d.resolution*.5-1e-5
+            && bottom-t[5]*.5 <= box[1]+d.resolution*.5+1e-5
+            && t[3]+t[5]*.5 >= box[3]-d.resolution*.5-1e-5;
+    }
+    if (!grid || r.epsg != d.epsg || r.width != d.blockPixels+2 || r.height != d.blockPixels+2
+            || !std::all_of(t.begin(),t.end(),[](double v) { return std::isfinite(v); })
+            || t[2] != 0 || t[4] != 0) {
         error = QStringLiteral("Service raster does not match the requested elevation grid");
         return false;
     }
     return true;
 }
+namespace {
 QByteArray readFile(const QString &path, qint64 max = MaxDownload) {
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly) || file.size() > max) return {};
@@ -129,13 +145,14 @@ public:
         }
         QByteArray authorization;
         if (!missing.isEmpty() && !dataset.apiKeySecret.isEmpty()) {
-            if (apiKey.isEmpty() || apiKey.contains(':') || apiKey.contains('\r') || apiKey.contains('\n')) {
+            if (apiKey.isEmpty() || (dataset.apiKeyParameter.isEmpty() && apiKey.contains(':'))
+                    || apiKey.contains('\r') || apiKey.contains('\n')) {
                 report.issue(QStringLiteral("Missing or invalid elevation API key: %1 in profile-local secrets.json; using available cache and HGT")
                     .arg(dataset.apiKeySecret));
                 notify(blocks.size(),QStringLiteral("Prepared"));
                 return prepared;
             }
-            authorization = "Basic " + (apiKey.toUtf8()+':').toBase64();
+            if (dataset.apiKeyParameter.isEmpty()) authorization = "Basic " + (apiKey.toUtf8()+':').toBase64();
         }
         for (qsizetype first=0; first<missing.size(); first+=dataset.concurrentRequests) {
             if (cancel) return {};
@@ -149,7 +166,7 @@ public:
             for (int i=0; i<count; ++i) urls.push_back(requestUrl(missing[first+i]));
             const auto responses = downloadWave(urls,cancel,[&](int finished) {
                 notify(done+finished,QStringLiteral("Completed"));
-            },{},authorization);
+            },{},authorization,{dataset.apiKeyParameter,apiKey});
             if (cancel) return {};
             // Decode after all replies finish, keeping CPU/cache writes out of
             // the network event loop. One wave is at most four bounded bodies.
@@ -176,7 +193,7 @@ private:
         Raster raster;
         QString error;
         QByteArray bytes = readFile(path);
-        bool valid = !bytes.isEmpty() && decode(dataset,bytes,raster,error) && validate(dataset,b,raster,error);
+        bool valid = !bytes.isEmpty() && decode(dataset,bytes,raster,error) && validateRasterGrid(dataset,b,raster,error);
         if (valid) {
             const QJsonObject metadata = QJsonDocument::fromJson(readFile(path+".json",64*1024)).object();
             valid = metadata.value("sha256").toString().toLatin1() == QCryptographicHash::hash(bytes,QCryptographicHash::Sha256).toHex();
@@ -186,7 +203,7 @@ private:
     }
     QString store(Block b, const QByteArray &bytes, QString &error) {
         Raster raster;
-        if (!decode(dataset,bytes,raster,error) || !validate(dataset,b,raster,error)) return {};
+        if (!decode(dataset,bytes,raster,error) || !validateRasterGrid(dataset,b,raster,error)) return {};
         const QString path = QDir(root).filePath(cacheRelativePath(dataset,b));
         ++report.downloads;
         QJsonObject metadata;
@@ -329,13 +346,18 @@ private:
         for (auto it=prepared.cbegin(); it!=prepared.cend(); ++it) {
             if (cancel) return false;
             Raster block;
-            if (!decode(dataset,readFile(it.value()),block,error) || !validate(dataset,it.key(),block,error))
+            if (!decode(dataset,readFile(it.value()),block,error) || !validateRasterGrid(dataset,it.key(),block,error))
                 return false;
             const int dx = (it.key().column-minCol)*dataset.blockPixels;
             const int dy = (it.key().row-minRow)*dataset.blockPixels;
             for (int y=0; y<block.height; ++y) for (int x=0; x<block.width; ++x) {
                 const int dst = (dy+y)*filledRaster.width+dx+x;
-                const float h = block.values[y*block.width+x];
+                float h = block.values[y*block.width+x];
+                if (dataset.allowExpandedGrid) {
+                    const auto sample = block.sample({box[0]+(dx+x+.5)*dataset.resolution,
+                        box[3]-(dy+y+.5)*dataset.resolution},dataset.zeroIsNoData);
+                    h = sample.valid() ? sample.height : std::numeric_limits<float>::quiet_NaN();
+                }
                 available.setBit(dst);
                 if (std::isfinite(h) && !(block.hasNoData && h == block.noData)
                         && !(dataset.zeroIsNoData && h == 0)) filledRaster.values[dst] = h;
@@ -391,7 +413,7 @@ private:
             QString error;
 
             if (!decode(dataset,readFile(path),*loaded,error)
-                    || !validate(dataset,b,*loaded,error)) {
+                    || !validateRasterGrid(dataset,b,*loaded,error)) {
                 report.issue(error);
                 prepared.remove(b);
                 return {};
@@ -421,24 +443,47 @@ QVector<Dataset> datasets(QString &error) {
     error.clear();
     QFile file(QStringLiteral(":/geo/elevation-datasets.json"));
     if (!file.open(QIODevice::ReadOnly)) { error = QStringLiteral("Elevation catalogue is missing"); return {}; }
-    const QJsonObject document = QJsonDocument::fromJson(file.readAll()).object();
-    if (document.value("version").toInt() != 1) { error = QStringLiteral("Invalid elevation catalogue"); return {}; }
+    return parseDatasets(file.readAll(),error);
+}
+QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
+    error.clear();
+    QJsonParseError parseError;
+    const QJsonObject document = QJsonDocument::fromJson(json,&parseError).object();
+    if (parseError.error != QJsonParseError::NoError) {
+        error = QStringLiteral("Invalid elevation catalogue JSON at byte %1: %2")
+            .arg(parseError.offset).arg(parseError.errorString()); return {};
+    }
+    if (document.value("version").toInt() != 1 || !document.value("datasets").isArray()) {
+        error = QStringLiteral("Invalid elevation catalogue"); return {};
+    }
     QVector<Dataset> result;
     QSet<QString> ids;
+    QStringList rejected;
+    int index = 0;
     for (const auto entry : document.value("datasets").toArray()) {
+        ++index;
         Dataset d;
         d.definition = entry.toObject(); const auto &o = d.definition;
         d.id = o.value("id").toString(); d.name = o.value("name").toString();
         d.provider = o.value("provider").toString();
         d.endpoint = QUrl(o.value("endpoint").toString()); d.coverage = o.value("coverage").toString();
         d.axisX = o.value("axisX").toString(); d.axisY = o.value("axisY").toString();
+        d.scaleAxisX = o.value("scaleAxisX").toString(d.axisX);
+        d.scaleAxisY = o.value("scaleAxisY").toString(d.axisY);
+        d.requestFormat = o.value("requestFormat").toString();
+        d.allowExpandedGrid = o.value("allowExpandedGrid").toBool();
+        const QString label = d.id.isEmpty() ? QStringLiteral("entry %1").arg(index) : d.id;
         const auto authentication = o.value("authentication").toObject();
         if (o.contains("authentication")) {
             d.apiKeySecret = authentication.value("secret").toString();
             static const QRegularExpression reference(QStringLiteral("^[A-Za-z0-9._-]+$"));
-            if (authentication.value("type").toString() != "basic-api-key"
+            const QString type = authentication.value("type").toString();
+            if (type == "query-api-key") d.apiKeyParameter = authentication.value("parameter").toString();
+            if ((type != "basic-api-key" && type != "query-api-key")
+                    || (type == "query-api-key" && !reference.match(d.apiKeyParameter).hasMatch())
                     || !reference.match(d.apiKeySecret).hasMatch()) {
-                error = QStringLiteral("Invalid elevation authentication definition: %1").arg(d.id); return {};
+                rejected << QStringLiteral("Skipped elevation dataset %1: invalid or unsupported authentication").arg(label);
+                continue;
             }
         }
         d.format = o.value("format").toString(); d.epsg = o.value("crs").toInt();
@@ -446,7 +491,9 @@ QVector<Dataset> datasets(QString &error) {
         d.resolution = o.value("resolution").toDouble(); d.blockPixels = o.value("blockPixels").toInt();
         d.concurrentRequests = o.value("concurrentRequests").toInt(1);
         const auto origin = o.value("origin").toArray(), box = o.value("bounds").toArray();
-        if (origin.size() != 2 || box.size() != 4) { error = QStringLiteral("Invalid elevation grid definition"); return {}; }
+        if (origin.size() != 2 || box.size() != 4) {
+            rejected << QStringLiteral("Skipped elevation dataset %1: invalid grid definition").arg(label); continue;
+        }
         d.originX = origin.at(0).toDouble(); d.originY = origin.at(1).toDouble();
         d.minX = box.at(0).toDouble(); d.minY = box.at(1).toDouble();
         d.maxX = box.at(2).toDouble(); d.maxY = box.at(3).toDouble();
@@ -458,21 +505,45 @@ QVector<Dataset> datasets(QString &error) {
         const bool arcgis = d.provider == "arcgis-imageserver";
         if (d.id.isEmpty() || ids.contains(d.id) || d.id.contains('/') || d.id.contains('\\') || d.id.contains("..")
                 || (!wcs && !arcgis) || d.endpoint.scheme() != "https"
+                || (o.contains("allowExpandedGrid") && !o.value("allowExpandedGrid").isBool())
+                || (o.contains("requestFormat") && (!o.value("requestFormat").isString() || d.requestFormat.isEmpty()))
+                || (o.contains("scaleAxisX") && !o.value("scaleAxisX").isString())
+                || (o.contains("scaleAxisY") && !o.value("scaleAxisY").isString())
                 || (o.contains("noDataPolicy") && !o.value("noDataPolicy").isString())
                 || (d.noDataPolicy != "fallback" && d.noDataPolicy != "fill")
                 || d.endpoint.host().isEmpty() || d.resolution <= 0
                 || (wcs2 && (d.coverage.isEmpty() || d.axisX.isEmpty() || d.axisY.isEmpty() || d.axisX == d.axisY))
+                || (wcs2 && (d.scaleAxisX.isEmpty() || d.scaleAxisY.isEmpty() || d.scaleAxisX == d.scaleAxisY))
                 || (wcs1 && d.coverage.isEmpty())
                 || (arcgis && d.format != "image/tiff")
                 || d.blockPixels < 16 || d.blockPixels > 1024
                 || d.concurrentRequests < 1 || d.concurrentRequests > 4
                 || d.maxX <= d.minX || d.maxY <= d.minY || !supportedCrs(d.epsg)
                 || (d.format != "image/tiff" && d.format != "image/x-aaigrid")) {
-            error = QStringLiteral("Invalid elevation dataset definition: %1").arg(d.id); return {};
+            rejected << QStringLiteral("Skipped elevation dataset %1: invalid or unsupported definition").arg(label); continue;
         }
         ids.insert(d.id); result.push_back(d);
     }
+    error = rejected.join('\n');
     return result;
+}
+bool nearDataset(const Dataset &d, const QVector<Point> &area, double bufferMetres) {
+    if (area.isEmpty()) return true; // No usable route location: do not hide sources.
+    double left = std::numeric_limits<double>::infinity(), right = -left;
+    double bottom = left, top = right, maxLatitude = 0;
+    for (const auto p : area) {
+        XY xy;
+        if (!project(p,d.epsg,xy)) continue;
+        left = std::min(left,xy.x); right = std::max(right,xy.x);
+        bottom = std::min(bottom,xy.y); top = std::max(top,xy.y);
+        maxLatitude = std::max(maxLatitude,std::abs(p.latitude));
+    }
+    if (!std::isfinite(left)) return false;
+    double dx = std::max(0.0,bufferMetres), dy = dx;
+    const double cosine = std::max(.01,std::cos(maxLatitude*3.14159265358979323846/180));
+    if (d.epsg == 3857) dx = dy = dx/cosine;
+    else if (d.epsg == 4326) { dy /= 111320; dx = dy/cosine; }
+    return right+dx >= d.minX && left-dx <= d.maxX && top+dy >= d.minY && bottom-dy <= d.maxY;
 }
 Block blockFor(const Dataset &d, XY p) {
     const double size = d.blockPixels*d.resolution;
@@ -498,9 +569,9 @@ QUrl coverageUrl(const Dataset &d, Block b) {
         query.addQueryItem("WIDTH",QString::number(d.blockPixels+2));
         query.addQueryItem("HEIGHT",QString::number(d.blockPixels+2));
 
-        // Known-good value for the LGL WCS 1.0 service.
+        // Retain the established TIFF alias unless a service specifies its own.
         query.addQueryItem("FORMAT",
-            d.format == "image/tiff" ? "GeoTIFF" : d.format);
+            !d.requestFormat.isEmpty() ? d.requestFormat : d.format == "image/tiff" ? "GeoTIFF" : d.format);
     } else {
         query.addQueryItem("VERSION","2.0.1");
         query.addQueryItem("COVERAGEID",d.coverage);
@@ -512,8 +583,9 @@ QUrl coverageUrl(const Dataset &d, Block b) {
                 .arg(d.axisY,decimal(box[1]),decimal(box[3])));
         query.addQueryItem("SCALESIZE",
             QStringLiteral("%1(%3),%2(%3)")
-                .arg(d.axisX,d.axisY).arg(d.blockPixels+2));
-        query.addQueryItem("FORMAT",d.format);
+                .arg(d.scaleAxisX.isEmpty() ? d.axisX : d.scaleAxisX,
+                     d.scaleAxisY.isEmpty() ? d.axisY : d.scaleAxisY).arg(d.blockPixels+2));
+        query.addQueryItem("FORMAT",d.requestFormat.isEmpty() ? d.format : d.requestFormat);
     }
 
     url.setQuery(query);
@@ -554,7 +626,7 @@ QString hgtFileName(int lat, int lon) {
 QString findHgtFile(const QString &root, int lat, int lon) {
     if (root.trimmed().isEmpty()) return {};
     const QString name = hgtFileName(lat,lon);
-    for (const QString prefix : {QStringLiteral("hgt/"),QString()}) {
+    for (const QString prefix : {QStringLiteral("world_hgt/"),QStringLiteral("hgt/"),QString()}) {
         const QString path = QDir(root).filePath(prefix+name);
         if (QFileInfo(path).isFile()) return path;
     }
@@ -578,8 +650,10 @@ Result generate(const QString &root, const QString &id, const QVector<Point> &po
     std::unique_ptr<Source> primary;
     bool fillPolicy = false;
     if (!id.isEmpty()) {
-        const auto catalog = datasets(result.error);
-        if (!result.error.isEmpty()) return result;
+        QString catalogueError;
+        const auto catalog = datasets(catalogueError);
+        result.report.issue(catalogueError);
+        if (catalog.isEmpty() && !catalogueError.isEmpty()) { result.error = catalogueError; return result; }
         for (const auto &d : catalog) if (d.id == id) {
             fillPolicy = d.noDataPolicy == "fill";
             std::unique_ptr<RasterProvider> provider;

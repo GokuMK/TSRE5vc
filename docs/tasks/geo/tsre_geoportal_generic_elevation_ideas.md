@@ -425,6 +425,10 @@ Instead it should generate terrain from the currently selected elevation source.
 
 ## Suggested direction
 
+**Critical open issue (2026-09-19):** [distant-terrain acquisition and cache resolution](distant-terrain-elevation.md).
+Each service must have a validated coarse profile or be denied in distant mode;
+do not reuse detailed 1 m requests over a full 32 x 32 km distant tile.
+
 The most promising design at this stage is:
 
 - keep TSRE's elevation access point-based: `getHeight(lat, lon)`,

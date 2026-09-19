@@ -1,11 +1,90 @@
 # Elevation: current implementation and review
 
-Reviewed 2026-09-19 on `feature/geo-terrain`, at `a88f7f8`.
-R1/R2 follow-up implemented and verified the same day, on top of `1ee5aaa`.
-This is the current status entry point. The Polish and Czech milestone reports
-retain their historical measurements; they are not validation of every later change.
+Updated 2026-09-19 for the current `feature/geo-terrain` working tree.
+Start with the [agent handoff guide](README.md) for reading order, code map and
+source-addition workflow. These follow-ups are committed together with the guide.
 
-## Review scope and result
+Newest follow-ups appear first. Sections headed as the original review retain
+historical findings from `a88f7f8` and the R1/R2 follow-up on `1ee5aaa`; their
+counts and validation claims are scoped to those milestones. They do not replace
+the newest status or the current source code.
+
+## Critical open issue: distant terrain
+
+[Distant-terrain elevation acquisition](distant-terrain-elevation.md) currently
+reuses the detailed dataset's download resolution for roughly 32 x 32 km tiles.
+Local averaging does not reduce downloads. Each service needs an explicitly
+validated coarse request profile and separate cache identity, or must be denied
+in distant mode. The linked review records current call paths, size estimates,
+late NoData-fill limits and required preflight checks. **Not implemented yet**;
+ordinary country-service validation does not establish distant-terrain suitability.
+
+## Height selector and local-file preparation, 2026-09-19
+
+- Height source combo uses the existing TSRE `combobox-popup: 0` style.
+- On opening, the height dialog filters sources against a projected 3 x 3 sample
+  of the actual tile footprint, with a **10 km ground buffer**. Mercator scale
+  and geographic degree units are accounted for. Bounds are coarse availability
+  hints, not exact coverage masks. HGT remains available; Settings lists all sources.
+- A saved known source outside the filtered area leaves the combo unselected and
+  preview disabled until the user chooses a local source. This does not silently
+  overwrite the saved source or change automatic-generation settings. Unknown
+  saved references remain visible and fail explicitly as before.
+- HGT lookup now prefers `world_hgt/`, then `hgt/`, then the root. The legacy HGT
+  reader uses this same lookup. See the [local-source design](local-elevation-sources.md)
+  for named user-managed directories and regular-grid versus metadata indexing.
+- The catalogue includes **19 valid online datasets**, including Flanders.
+  A production probe at `(51.05,3.72)` returned two primary samples, no fallback,
+  one download (about 1.1 s), then one cache hit/zero downloads (70 ms). Heights
+  were 7.14634 and 7.21656 m. This is a small integration probe, not national
+  coverage or full-tile validation.
+- **353 standalone checks passed**, including the ground-distance filter and
+  HGT directory precedence. Release build passed. Moved 114 existing HGT files
+  into `C:/hgst/world_hgt`, with no overwrites and byte-length verification.
+  Application UI regression assertions were updated; main UI suites were not run.
+  The user subsequently confirmed that source hiding works correctly.
+
+## Denmark and catalogue isolation, 2026-09-19
+
+At this milestone all **18 datasets** loaded. Invalid catalogue objects are skipped individually,
+with named diagnostics, rather than hiding every online source. Valid entries
+remain usable; malformed JSON is still a file-level error.
+
+[Denmark validation](denmark-validation.md) records the new query-key authentication,
+`GTiff` request format and server-resampled **1 m** grid. Full-tile generation
+returned 65,536 primary samples with no fallback (nine downloads); repeating used
+only cache. **347 standalone checks passed**, including catalogue isolation and
+query-key handling without credential exposure in metadata or errors. Release
+application build succeeded; application UI suites were not run.
+
+## England / Estonia integration, 2026-09-19
+
+At this integration the catalogue contained **17 online datasets**. The new entries and the other
+agent's suggestions have been checked with live requests and implemented in the
+shared provider. See [England / Estonia validation](england-estonia-validation.md)
+for reproduced failures, configuration, fixtures and remaining limits.
+
+- England stays on WCS 2.0.1, with EPSG:3857 subset axes `X/Y` and separate scaling
+  axes `i/j`. The server expands output bounds; opt-in `allowExpandedGrid`
+  validates coverage and bounded expansion while retaining actual georeferencing.
+- Estonia stays on WCS 1.0.0, with `requestFormat=image/tiff`. The TIFF decoder
+  now accepts padding of the final strip to its declared RowsPerStrip.
+- Both retain 2 map m request grids, valid zero/negative heights and default HGT
+  fallback. No local EPSG:27700/3301 conversion or dependency was needed.
+- Each generated **65,536 primary samples, zero HGT, zero unavailable samples**
+  across cache-block boundaries near the user's test areas. England downloaded
+  four blocks; Estonia twenty. Repeats used only caches with identical ranges.
+- **337 standalone checks passed**, including live TIFF fixtures, separate axes,
+  format defaults, expanded-grid limits, NoData and padded/truncated strips.
+  The Release application build passed; application UI suites were not run.
+- Follow-up block-size tests: Estonia also accepts 1024 cores. On the same tile,
+  9 requests took 14.5-15.5 s versus 20 requests at 24.0-24.4 s for 512, with
+  79% more downloaded bytes. Recommend 1024; catalogue remains 512 pending the
+  configuration change. See the linked validation report for numeric differences.
+- Distant-terrain suitability remains unvalidated and its restriction remains
+  unimplemented: see the [critical open issue](distant-terrain-elevation.md).
+
+## Original review: scope and result
 
 Read-only source review of the changes after `2aaae65`: additional datasets,
 WCS 1.0, uint16 TIFF, more raster CRSs, downsampling, and the committed route
@@ -233,7 +312,7 @@ or `"noDataPolicy": "fill"`. Netherlands AHN opts into fill.
 
 ### Finland / Netherlands follow-up, 2026-09-19
 
-The catalogue now contains **15 online datasets**. Baden-Wurttemberg's entry
+At that follow-up the catalogue contained **15 online datasets**. Baden-Wurttemberg's entry
 includes the research caveats below using the same `notes` array as the new entries.
 
 - Finland `fi.nls.dem2` keeps native EPSG:3067 and 2 m spacing: the shared local

@@ -364,7 +364,7 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
             .withNameId(
                 //% "Geodata and elevation cache directory"
                 QT_TRID_NOOP("settings.core.paths.geo.data.name")).withDescriptionId(
-                //% "Geodata root: HGT files in hgt/ or the root; downloaded elevation rasters in cache/."
+                //% "Geodata root: local HGT files in world_hgt/ (legacy hgt/ and root supported); downloaded elevation rasters in cache/."
                 QT_TRID_NOOP("settings.core.paths.geo.data.description")).inGroup("maps").inSubgroup("geodata"),
         "geoPath", "Game::geoPath", "GeoTools", false, "direct");
     ADD(SettingsDefinition::string("geo.elevation.source", "", SettingType::Enum)

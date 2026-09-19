@@ -417,7 +417,11 @@ static bool readTiff(const QByteArray &bytes, int metadataEpsg, Raster &output, 
             const quint64 samples = quint64(std::min(rows, quint32(r.height)-s*rows))*r.width;
             const quint64 offset = integer(273, quint32(bytes.size()), s);
             const quint64 size = samples*(bits/8);
-            if (integer(279,0,s) != size || !rd.range(offset,size))
+            const quint64 length = integer(279,0,s);
+            // Some writers pad the final strip to RowsPerStrip. Decode only
+            // image rows, but require the entire declared strip to be present.
+            const bool paddedLast = s+1 == strips && length == quint64(rows)*r.width*(bits/8);
+            if ((length != size && !paddedLast) || !rd.range(offset,length))
                 return fail(error, "Truncated or inconsistent TIFF strip");
             for (quint64 i = 0; i < samples; ++i) {
                 r.values[destination++] = valueAt(offset+i*(bits/8));

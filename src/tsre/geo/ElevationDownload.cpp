@@ -3,12 +3,13 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QTimer>
+#include <QUrlQuery>
 #include <array>
 
 namespace Elevation {
 QVector<DownloadResult> downloadWave(const QVector<QUrl> &urls, std::atomic_bool &cancel,
         const std::function<void(int)> &progress, const DownloadLimits &limits,
-        const QByteArray &authorization) {
+        const QByteArray &authorization, const DownloadQueryKey &queryKey) {
     QVector<DownloadResult> results(urls.size());
     if (urls.isEmpty()) return results;
     if (urls.size()>4 || limits.maxBytes<=0 || limits.transferTimeoutMs<=0 || limits.deadlineMs<=0) {
@@ -28,10 +29,17 @@ QVector<DownloadResult> downloadWave(const QVector<QUrl> &urls, std::atomic_bool
         if (cancel) for (auto &p : pending) if (p.reply && !p.reply->isFinished()) p.reply->abort();
     });
     for (int i=0; i<urls.size(); ++i) {
-        QNetworkRequest request(urls[i]);
+        QUrl url = urls[i];
+        if (!queryKey.parameter.isEmpty()) {
+            QUrlQuery query(url);
+            query.removeAllQueryItems(queryKey.parameter);
+            query.addQueryItem(queryKey.parameter,QString::fromLatin1(QUrl::toPercentEncoding(queryKey.value)));
+            url.setQuery(query);
+        }
+        QNetworkRequest request(url);
         request.setRawHeader("User-Agent","TSRE5vc terrain elevation");
         if (!authorization.isEmpty()) request.setRawHeader("Authorization",authorization);
-        request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,authorization.isEmpty()
+        request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,authorization.isEmpty() && queryKey.parameter.isEmpty()
             ? QNetworkRequest::NoLessSafeRedirectPolicy : QNetworkRequest::SameOriginRedirectPolicy);
         request.setTransferTimeout(limits.transferTimeoutMs);
         auto *reply = pending[i].reply = network.get(request);
@@ -58,7 +66,9 @@ QVector<DownloadResult> downloadWave(const QVector<QUrl> &urls, std::atomic_bool
                 r.error = QStringLiteral("Elevation response exceeds %1 bytes").arg(limits.maxBytes);
             else if (p.timedOut) r.error = QStringLiteral("Elevation request timed out");
             else if (reply->error()!=QNetworkReply::NoError || status!=200)
-                r.error = QStringLiteral("Elevation request failed (HTTP %1): %2").arg(status).arg(reply->errorString());
+                r.error = QStringLiteral("Elevation request failed (HTTP %1): %2").arg(status)
+                    .arg(queryKey.parameter.isEmpty() ? reply->errorString()
+                        : QStringLiteral("network error %1").arg(int(reply->error())));
             else if (reply->header(QNetworkRequest::ContentTypeHeader).toString().startsWith("text/html",Qt::CaseInsensitive))
                 r.error = QStringLiteral("Elevation service returned an HTML page instead of raster data (request may have been rejected)");
             else r.bytes = std::move(p.bytes);

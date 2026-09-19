@@ -10,6 +10,7 @@
 
 #include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/geo/GeoHgtFile.h>
+#include <tsre/geo/ElevationSource.h>
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <math.h>
 #include <QDebug>
@@ -27,26 +28,8 @@ GeoHgtFile::~GeoHgtFile() {
 }
 
 bool GeoHgtFile::load(int lat, int lon){
-    QString plat = "N";
-    if(lat < 0){
-        plat = "S";
-        lat = -lat;
-    }
-    QString plon = "E";    
-    if(lon < 0){
-        plon = "W";
-        lon = -lon;
-    }
-
-    QString slat = QString::number(lat);
-    QString slon = QString::number(lon);
-    while(slat.length() < 2)
-        slat = "0"+slat;
-    while(slon.length() < 3)
-        slon = "0"+slon;
-    
-    this->pathid = Settings::string("core.paths.geoData", SettingType::Directory)
-            + "/" + plat + slat + plon + slon + ".hgt";
+    this->pathid = Elevation::findHgtFile(
+        Settings::string("core.paths.geoData", SettingType::Directory),lat,lon);
     this->pathid = ContentPath::normalize(pathid);
     qDebug() << this->pathid;
     //qDebug() << "Wczytam teren RAW: " << fSfile;

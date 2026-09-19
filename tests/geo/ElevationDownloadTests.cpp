@@ -4,15 +4,17 @@
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QTimer>
+#include <QUrlQuery>
 
 void runDownloadTests(const std::function<void(bool,const char*)> &check) {
     QTcpServer server;
     check(server.listen(QHostAddress::LocalHost),"local download fixture listens");
     if (!server.isListening()) return;
-    enum Mode { Barrier, Mixed, Cancel, Stall, Auth, Redirect, Html };
+    enum Mode { Barrier, Mixed, Cancel, Stall, Auth, Redirect, Html, QueryFailure };
     Mode mode = Barrier;
     int received = 0;
     QByteArray receivedAuthorization;
+    QByteArray receivedPath;
     bool crossOrigin = false;
     QVector<QPair<QPointer<QTcpSocket>,QByteArray>> waiting;
     std::atomic_bool cancel{false};
@@ -29,10 +31,12 @@ void runDownloadTests(const std::function<void(bool,const char*)> &check) {
                 if (handled || !bytes.contains("\r\n\r\n")) return;
                 handled = true; ++received;
                 const QByteArray path = bytes.split(' ').value(1);
+                receivedPath = path;
                 receivedAuthorization.clear();
                 for (const auto &line : bytes.split('\n'))
                     if (line.toLower().startsWith("authorization:")) receivedAuthorization = line.mid(14).trimmed();
-                if (mode==Barrier) {
+                if (mode==QueryFailure) respond(socket,path,503);
+                else if (mode==Barrier) {
                     waiting.push_back({socket,path});
                     // A serial downloader cannot finish this barrier. Reply in
                     // reverse order to check per-request result association.
@@ -109,4 +113,22 @@ void runDownloadTests(const std::function<void(bool,const char*)> &check) {
     results = Elevation::downloadWave({urls[0]},cancel,{},limits,authorization);
     check(results[0].bytes.isEmpty() && results[0].error.contains("HTML"),
         "HTTP 200 HTML rejection is reported as a service response error, not a TIFF decode error");
+    const QString querySecret = "fixture+key/&?=value";
+    const Elevation::DownloadQueryKey queryKey{"apikey",querySecret};
+    mode = Auth;
+    results = Elevation::downloadWave({urls[0]},cancel,{},limits,{},queryKey);
+    check(results[0].bytes == "ok" && receivedAuthorization.isEmpty()
+        && QUrlQuery(QUrl(QString::fromLatin1(receivedPath))).queryItemValue("apikey",QUrl::FullyDecoded) == querySecret
+        && receivedPath.contains("%2B") && !urls[0].hasQuery(),
+        "query API key is percent-encoded only in the network request, without modifying public URLs");
+    results = Elevation::downloadWave({urls[0]},cancel,{},limits);
+    check(!receivedPath.contains("apikey"),"query API key is not retained by the next wave");
+    mode = QueryFailure;
+    results = Elevation::downloadWave({urls[3]},cancel,{},limits,{},queryKey);
+    check(!results[0].error.isEmpty() && !results[0].error.contains(querySecret),"query key is absent from error reporting");
+    mode = Redirect; crossOrigin = true; received = 0;
+    results = Elevation::downloadWave({urls[0]},cancel,{},limits,{},queryKey);
+    check(!results[0].error.isEmpty() && received == 1
+        && !results[0].error.contains("apikey") && !results[0].error.contains(querySecret),
+        "query-key requests reject cross-origin redirects without leaking the URL");
 }
