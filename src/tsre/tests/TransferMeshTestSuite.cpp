@@ -95,6 +95,13 @@ int TsreTests::runTransferMeshSuite(bool verbose) {
         if (ok) ++passed; else ++failed;
         if (!ok || verbose) qInfo() << "[tests:transfer-mesh]" << (ok?"PASS":"FAIL") << name;
     };
+    {
+        TransferObj transfer;
+        transfer.shape.setMaterialTextureId(std::numeric_limits<int>::max());
+        transfer.set("filename", "replacement.ace");
+        check(transfer.texture == "replacement.ace" && transfer.shape.getTexId() == -1,
+              "filename-edit-invalidates-render-texture");
+    }
     QScopedValueRollback<Game::TerrainMeshMode> mode(Game::terrainMeshMode,Game::TERRAIN_MESH_PAGED);
     using V=TransferMesh::Vertex;
     QVector<float> mesh,outline;

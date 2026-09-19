@@ -6597,8 +6597,13 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
         </message>
         <message id="route.editor.properties.transfer.button.copy.f">
             <location filename="../src/routeEditor/properties/PropertiesTransfer.cpp" line="63" />
-            <source>Copy FileName</source>
-            <translation>Kopiuj nazwę pliku</translation>
+            <source>Copy</source>
+            <translation>Kopiuj</translation>
+        </message>
+        <message id="route.editor.properties.transfer.button.edit.f">
+            <location filename="../src/routeEditor/properties/PropertiesTransfer.cpp" line="69" />
+            <source>Edit</source>
+            <translation>Edytuj</translation>
         </message>
         <message id="route.editor.properties.transfer.button.tex.load">
             <location filename="../src/routeEditor/properties/PropertiesTransfer.cpp" line="69" />

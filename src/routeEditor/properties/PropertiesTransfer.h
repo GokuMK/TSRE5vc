@@ -25,6 +25,7 @@ public:
     
 public slots:
     void sizeEnabled(QString val);
+    void editFileNameEnabled();
     
 private:
     TransferObj *transferObj;

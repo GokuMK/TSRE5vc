@@ -54,6 +54,12 @@ void OglObj::setMaterialTextureId(int id) {
     texId = id;
 }
 
+void OglObj::resetTexture() {
+    if (texId >= 0)
+        TexLib::delRef(texId);
+    texId = -1;
+}
+
 void OglObj::deleteVBO(){
     if(loaded){
         VBO.destroy();

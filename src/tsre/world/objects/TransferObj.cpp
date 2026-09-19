@@ -75,10 +75,18 @@ bool TransferObj::allowNew(){
 void TransferObj::set(QString sh, QString val){
     if (sh == ("filename")) {
         texture = val;
+        shape.resetTexture();
+        if (holeShape)
+            holeShape->resetTexture();
+        deleteVBO();
         return;
     }
     if (sh == ("ref_filename")) {
         texture = val;
+        shape.resetTexture();
+        if (holeShape)
+            holeShape->resetTexture();
+        deleteVBO();
         //TexLib::addTex(resPath+"/"+texture);
         return;
     }
