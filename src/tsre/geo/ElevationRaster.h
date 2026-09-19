@@ -1,9 +1,11 @@
 #pragma once
 
 #include <QByteArray>
+#include <QBitArray>
 #include <QString>
 #include <QVector>
 #include <array>
+#include <atomic>
 #include <limits>
 
 namespace Elevation {
@@ -34,6 +36,11 @@ struct Raster {
 
     Sample sample(XY position, bool zeroIsNoData = false) const;
 };
+
+// Grow neighbouring valid heights into NoData in simultaneous layers. An optional
+// availability mask prevents filling missing downloads or crossing their cells.
+int fillNoData(Raster &raster, bool zeroIsNoData, std::atomic_bool &cancel,
+               const QBitArray &available = {});
 
 // Bounded numeric readers; unsupported image encodings are rejected.
 bool readGeoTiff(const QByteArray &bytes, Raster &raster, QString &error);

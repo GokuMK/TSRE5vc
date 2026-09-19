@@ -18,6 +18,10 @@ QString summarize(const Elevation::Result &result, const QString &source) {
     //% "Source: %1\nSource samples: %2; HGT samples: %3\nCache blocks: %4; downloaded blocks: %5"
     QString text = qtTrId("geo.elevation.report.summary")
         .arg(source).arg(r.primarySamples).arg(r.hgtSamples).arg(r.cacheHits).arg(r.downloads);
+    if (r.filledPixels) {
+        //% "\nFilled source NoData pixels: %1 (estimated from neighbouring heights)."
+        text += qtTrId("geo.elevation.report.filled").arg(r.filledPixels);
+    }
     if (r.fallbackSamples || r.noDataSamples || r.outsideSamples || r.unavailableSamples) {
         //% "\nHGT fallback: %1 samples. Missing/zero data: %2; outside coverage: %3; unavailable blocks: %4."
         text += qtTrId("geo.elevation.report.fallback")
@@ -150,6 +154,12 @@ void HeightWindow::load(bool gui) {
     const QString dataset = gui ? sourceBox->currentData().toString() : Settings::string(SourceSetting,SettingType::Enum);
     const int sourceIndex = sourceBox->findData(dataset);
     const QString sourceName = sourceIndex < 0 ? dataset : sourceBox->itemText(sourceIndex);
+    // Snapshot only this dataset's secret on the UI thread, before starting the worker.
+    QMap<QString,QString> secrets;
+    QString catalogueError;
+    for (const auto &entry : Elevation::datasets(catalogueError))
+        if (entry.id == dataset && !entry.apiKeySecret.isEmpty())
+            secrets.insert(entry.apiKeySecret,SettingsManager::instance().secretValue(entry.apiKeySecret));
     QVector<Elevation::Point> points;
     points.reserve(qsizetype(terrainResolution)*terrainResolution);
     PreciseTileCoordinate coordinate;
@@ -186,7 +196,7 @@ void HeightWindow::load(bool gui) {
                 QMetaObject::invokeMethod(&progress,[&,done,total,message] {
                     progress.setLabelText(message); progress.setRange(0,total); progress.setValue(done);
                 },Qt::QueuedConnection);
-            });
+            },secrets);
         } catch (const std::exception &e) {
             //% "Elevation load failed: %1"
             result.error = qtTrId("geo.elevation.load.failed").arg(QString::fromUtf8(e.what()));

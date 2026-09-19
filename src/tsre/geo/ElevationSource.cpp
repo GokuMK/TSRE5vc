@@ -10,6 +10,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QSaveFile>
+#include <QRegularExpression>
 #include <QSet>
 #include <QUrlQuery>
 #include <algorithm>
@@ -106,8 +107,8 @@ public:
 };
 class CachedRasterProvider : public RasterProvider {
 public:
-    CachedRasterProvider(QString path, Dataset data, Report &r)
-        : root(std::move(path)), dataset(std::move(data)), report(r) {}
+    CachedRasterProvider(QString path, Dataset data, Report &r, QString key)
+        : root(std::move(path)), dataset(std::move(data)), report(r), apiKey(std::move(key)) {}
     QMap<Block,QString> acquire(const QVector<Block> &blocks, std::atomic_bool &cancel,
                                const Progress &progress) override {
         QMap<Block,QString> prepared;
@@ -126,6 +127,16 @@ public:
             if (path.isEmpty()) missing.push_back(b);
             else { prepared.insert(b,path); notify(++done,QStringLiteral("Prepared")); }
         }
+        QByteArray authorization;
+        if (!missing.isEmpty() && !dataset.apiKeySecret.isEmpty()) {
+            if (apiKey.isEmpty() || apiKey.contains(':') || apiKey.contains('\r') || apiKey.contains('\n')) {
+                report.issue(QStringLiteral("Missing or invalid elevation API key: %1 in profile-local secrets.json; using available cache and HGT")
+                    .arg(dataset.apiKeySecret));
+                notify(blocks.size(),QStringLiteral("Prepared"));
+                return prepared;
+            }
+            authorization = "Basic " + (apiKey.toUtf8()+':').toBase64();
+        }
         for (qsizetype first=0; first<missing.size(); first+=dataset.concurrentRequests) {
             if (cancel) return {};
             if (stopNetwork) {
@@ -138,7 +149,7 @@ public:
             for (int i=0; i<count; ++i) urls.push_back(requestUrl(missing[first+i]));
             const auto responses = downloadWave(urls,cancel,[&](int finished) {
                 notify(done+finished,QStringLiteral("Completed"));
-            });
+            },{},authorization);
             if (cancel) return {};
             // Decode after all replies finish, keeping CPU/cache writes out of
             // the network event loop. One wave is at most four bounded bodies.
@@ -196,6 +207,7 @@ protected:
     Dataset dataset;
 private:
     Report &report;
+    QString apiKey;
 };
 class WcsProvider final : public CachedRasterProvider {
 public:
@@ -254,6 +266,10 @@ public:
         }
 
         prepared = provider->acquire(blocks.keys(),cancel,progress);
+        if (!cancel && dataset.noDataPolicy == "fill" && !prepared.isEmpty()) {
+            if (progress) progress(0,0,QStringLiteral("Filling elevation NoData from neighbouring heights"));
+            if (!prepareFilled(cancel,error)) return false;
+        }
         return !cancel;
     }
 
@@ -292,6 +308,43 @@ public:
     }
 
 private:
+    bool prepareFilled(std::atomic_bool &cancel, QString &error) {
+        int minCol = prepared.firstKey().column, maxCol = minCol;
+        int minRow = prepared.firstKey().row, maxRow = minRow;
+        for (auto it=prepared.cbegin(); it!=prepared.cend(); ++it) {
+            minCol = std::min(minCol,it.key().column); maxCol = std::max(maxCol,it.key().column);
+            minRow = std::min(minRow,it.key().row); maxRow = std::max(maxRow,it.key().row);
+        }
+        const qint64 width = (qint64(maxCol)-minCol+1)*dataset.blockPixels+2;
+        const qint64 height = (qint64(maxRow)-minRow+1)*dataset.blockPixels+2;
+        if (width > 32*1024*1024 || height > 32*1024*1024 || width*height > 32*1024*1024) {
+            error = QStringLiteral("NoData fill area exceeds 32 million source pixels; generate a smaller area");
+            return false;
+        }
+        filledRaster.width = int(width); filledRaster.height = int(height); filledRaster.epsg = dataset.epsg;
+        const auto box = bounds(dataset,{minCol,minRow});
+        filledRaster.transform = {{box[0],dataset.resolution,0,box[3],0,-dataset.resolution}};
+        filledRaster.values.fill(std::numeric_limits<float>::quiet_NaN(),width*height);
+        QBitArray available(width*height,false);
+        for (auto it=prepared.cbegin(); it!=prepared.cend(); ++it) {
+            if (cancel) return false;
+            Raster block;
+            if (!decode(dataset,readFile(it.value()),block,error) || !validate(dataset,it.key(),block,error))
+                return false;
+            const int dx = (it.key().column-minCol)*dataset.blockPixels;
+            const int dy = (it.key().row-minRow)*dataset.blockPixels;
+            for (int y=0; y<block.height; ++y) for (int x=0; x<block.width; ++x) {
+                const int dst = (dy+y)*filledRaster.width+dx+x;
+                const float h = block.values[y*block.width+x];
+                available.setBit(dst);
+                if (std::isfinite(h) && !(block.hasNoData && h == block.noData)
+                        && !(dataset.zeroIsNoData && h == 0)) filledRaster.values[dst] = h;
+            }
+        }
+        report.filledPixels = fillNoData(filledRaster,false,cancel,available);
+        return !cancel;
+    }
+
     double filterSpan(Point p) const {
         // Geographic raster units cannot be compared directly with terrain metres.
         if (dataset.epsg == 4326)
@@ -330,6 +383,7 @@ private:
 
         if (path.isEmpty())
             return {0,SampleStatus::Unavailable};
+        if (!filledRaster.values.isEmpty()) return filledRaster.sample(xy);
 
         Raster *r = cache.object(path);
         if (!r) {
@@ -354,6 +408,7 @@ private:
     }
 
     Dataset dataset;
+    Raster filledRaster;
     std::unique_ptr<RasterProvider> provider;
     double targetSpacing;
     Report &report;
@@ -377,6 +432,15 @@ QVector<Dataset> datasets(QString &error) {
         d.provider = o.value("provider").toString();
         d.endpoint = QUrl(o.value("endpoint").toString()); d.coverage = o.value("coverage").toString();
         d.axisX = o.value("axisX").toString(); d.axisY = o.value("axisY").toString();
+        const auto authentication = o.value("authentication").toObject();
+        if (o.contains("authentication")) {
+            d.apiKeySecret = authentication.value("secret").toString();
+            static const QRegularExpression reference(QStringLiteral("^[A-Za-z0-9._-]+$"));
+            if (authentication.value("type").toString() != "basic-api-key"
+                    || !reference.match(d.apiKeySecret).hasMatch()) {
+                error = QStringLiteral("Invalid elevation authentication definition: %1").arg(d.id); return {};
+            }
+        }
         d.format = o.value("format").toString(); d.epsg = o.value("crs").toInt();
         d.verticalDatum = o.value("verticalDatum").toString();
         d.resolution = o.value("resolution").toDouble(); d.blockPixels = o.value("blockPixels").toInt();
@@ -387,12 +451,15 @@ QVector<Dataset> datasets(QString &error) {
         d.minX = box.at(0).toDouble(); d.minY = box.at(1).toDouble();
         d.maxX = box.at(2).toDouble(); d.maxY = box.at(3).toDouble();
         d.zeroIsNoData = o.value("zeroIsNoData").toBool();
+        d.noDataPolicy = o.value("noDataPolicy").toString(QStringLiteral("fallback"));
         const bool wcs2 = d.provider == "wcs-2.0.1";
         const bool wcs1 = d.provider == "wcs-1.0.0";
         const bool wcs = wcs1 || wcs2;
         const bool arcgis = d.provider == "arcgis-imageserver";
         if (d.id.isEmpty() || ids.contains(d.id) || d.id.contains('/') || d.id.contains('\\') || d.id.contains("..")
                 || (!wcs && !arcgis) || d.endpoint.scheme() != "https"
+                || (o.contains("noDataPolicy") && !o.value("noDataPolicy").isString())
+                || (d.noDataPolicy != "fallback" && d.noDataPolicy != "fill")
                 || d.endpoint.host().isEmpty() || d.resolution <= 0
                 || (wcs2 && (d.coverage.isEmpty() || d.axisX.isEmpty() || d.axisY.isEmpty() || d.axisX == d.axisY))
                 || (wcs1 && d.coverage.isEmpty())
@@ -474,7 +541,9 @@ QUrl imageServerUrl(const Dataset &d, Block b) {
     url.setQuery(query); return url;
 }
 QString cacheRelativePath(const Dataset &d, Block b) {
-    const QByteArray signature = QCryptographicHash::hash(QJsonDocument(d.definition).toJson(QJsonDocument::Compact),QCryptographicHash::Sha256).toHex();
+    auto downloadDefinition = d.definition;
+    downloadDefinition.remove("noDataPolicy"); // Filling changes sampling, never downloaded bytes.
+    const QByteArray signature = QCryptographicHash::hash(QJsonDocument(downloadDefinition).toJson(QJsonDocument::Compact),QCryptographicHash::Sha256).toHex();
     return QStringLiteral("cache/%1/v1-%2/%3_%4.%5").arg(d.id,QString::fromLatin1(signature))
         .arg(b.column).arg(b.row).arg(d.format == "image/tiff" ? "tif" : "asc");
 }
@@ -496,7 +565,8 @@ void Report::issue(const QString &message) {
 }
 Result generate(const QString &root, const QString &id, const QVector<Point> &points,
                 double targetSpacing, float yOffset,
-                std::atomic_bool &cancel, const Progress &progress) {
+                std::atomic_bool &cancel, const Progress &progress,
+                const QMap<QString,QString> &secrets) {
     Result result;
     if (root.trimmed().isEmpty()) { result.error = QStringLiteral("Set the geodata directory (geoPath) first"); return result; }
     if (points.isEmpty() || points.size() > 16*1024*1024
@@ -506,14 +576,16 @@ Result generate(const QString &root, const QString &id, const QVector<Point> &po
     }
     HgtSource hgt(root,result.report);
     std::unique_ptr<Source> primary;
+    bool fillPolicy = false;
     if (!id.isEmpty()) {
         const auto catalog = datasets(result.error);
         if (!result.error.isEmpty()) return result;
         for (const auto &d : catalog) if (d.id == id) {
+            fillPolicy = d.noDataPolicy == "fill";
             std::unique_ptr<RasterProvider> provider;
             if (d.provider == "arcgis-imageserver")
-                provider = std::make_unique<ArcGisImageServerProvider>(root,d,result.report);
-            else provider = std::make_unique<WcsProvider>(root,d,result.report);
+                provider = std::make_unique<ArcGisImageServerProvider>(root,d,result.report,secrets.value(d.apiKeySecret));
+            else provider = std::make_unique<WcsProvider>(root,d,result.report,secrets.value(d.apiKeySecret));
             primary = std::make_unique<RasterSource>(d,std::move(provider),targetSpacing,result.report);
         }
         if (!primary) { result.error = QStringLiteral("Unknown elevation dataset: %1").arg(id); return result; }
@@ -534,7 +606,8 @@ Result generate(const QString &root, const QString &id, const QVector<Point> &po
                 if (value.status == SampleStatus::Outside) ++result.report.outsideSamples;
                 else if (value.status == SampleStatus::NoData) ++result.report.noDataSamples;
                 else ++result.report.unavailableSamples;
-                value = hgt.sample(points[i]);
+                if (!(fillPolicy && value.status == SampleStatus::NoData))
+                    value = hgt.sample(points[i]);
                 if (value.valid()) { ++result.report.fallbackSamples; ++result.report.hgtSamples; }
             }
         } else if (value.valid()) ++result.report.hgtSamples;
@@ -542,7 +615,9 @@ Result generate(const QString &root, const QString &id, const QVector<Point> &po
         result.heights.push_back(value.height+yOffset);
     }
     if (missing) {
-        result.error = QStringLiteral("%1 samples have no usable elevation, including HGT fallback; no elevation heights were applied").arg(missing);
+        result.error = (fillPolicy
+            ? QStringLiteral("%1 samples have no usable elevation after NoData filling and available fallback; no elevation heights were applied")
+            : QStringLiteral("%1 samples have no usable elevation, including HGT fallback; no elevation heights were applied")).arg(missing);
         result.heights.clear();
     }
     return result;

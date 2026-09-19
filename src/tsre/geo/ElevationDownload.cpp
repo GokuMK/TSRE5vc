@@ -7,7 +7,8 @@
 
 namespace Elevation {
 QVector<DownloadResult> downloadWave(const QVector<QUrl> &urls, std::atomic_bool &cancel,
-        const std::function<void(int)> &progress, const DownloadLimits &limits) {
+        const std::function<void(int)> &progress, const DownloadLimits &limits,
+        const QByteArray &authorization) {
     QVector<DownloadResult> results(urls.size());
     if (urls.isEmpty()) return results;
     if (urls.size()>4 || limits.maxBytes<=0 || limits.transferTimeoutMs<=0 || limits.deadlineMs<=0) {
@@ -29,7 +30,9 @@ QVector<DownloadResult> downloadWave(const QVector<QUrl> &urls, std::atomic_bool
     for (int i=0; i<urls.size(); ++i) {
         QNetworkRequest request(urls[i]);
         request.setRawHeader("User-Agent","TSRE5vc terrain elevation");
-        request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,QNetworkRequest::NoLessSafeRedirectPolicy);
+        if (!authorization.isEmpty()) request.setRawHeader("Authorization",authorization);
+        request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,authorization.isEmpty()
+            ? QNetworkRequest::NoLessSafeRedirectPolicy : QNetworkRequest::SameOriginRedirectPolicy);
         request.setTransferTimeout(limits.transferTimeoutMs);
         auto *reply = pending[i].reply = network.get(request);
         reply->setReadBufferSize(1024*1024);
@@ -56,6 +59,8 @@ QVector<DownloadResult> downloadWave(const QVector<QUrl> &urls, std::atomic_bool
             else if (p.timedOut) r.error = QStringLiteral("Elevation request timed out");
             else if (reply->error()!=QNetworkReply::NoError || status!=200)
                 r.error = QStringLiteral("Elevation request failed (HTTP %1): %2").arg(status).arg(reply->errorString());
+            else if (reply->header(QNetworkRequest::ContentTypeHeader).toString().startsWith("text/html",Qt::CaseInsensitive))
+                r.error = QStringLiteral("Elevation service returned an HTML page instead of raster data (request may have been rejected)");
             else r.bytes = std::move(p.bytes);
             p.bytes.clear();
             ++completed;

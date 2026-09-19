@@ -4,7 +4,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     enable_testing()
     find_package(Qt6 REQUIRED COMPONENTS Core Network)
 endif()
-add_executable(tsre_elevation_tests ElevationTests.cpp ElevationDownloadTests.cpp CzechWcsTests.cpp ArcGisImageServerTests.cpp
+add_executable(tsre_elevation_tests ElevationTests.cpp ElevationDownloadTests.cpp CzechWcsTests.cpp ArcGisImageServerTests.cpp NoDataFillTests.cpp
     ../../src/tsre/geo/ElevationRaster.cpp ../../src/tsre/geo/ElevationSource.cpp
     ../../src/tsre/geo/ElevationDownload.cpp)
 target_compile_features(tsre_elevation_tests PRIVATE cxx_std_17)

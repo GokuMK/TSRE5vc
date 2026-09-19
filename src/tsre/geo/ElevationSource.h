@@ -12,10 +12,13 @@ struct Dataset {
     QString id, name, coverage, format, verticalDatum, axisX, axisY;
     QString provider = QStringLiteral("wcs-2.0.1");
     QUrl endpoint;
+    // HTTP Basic API key (username, empty password); caller resolves this reference.
+    QString apiKeySecret;
     int epsg = 2180, blockPixels = 512, concurrentRequests = 1;
     double resolution = 1, originX = 0, originY = 0;
     double minX = 0, minY = 0, maxX = 0, maxY = 0;
     bool zeroIsNoData = false;
+    QString noDataPolicy = QStringLiteral("fallback");
     QJsonObject definition;
 };
 QVector<Dataset> datasets(QString &error);
@@ -36,6 +39,7 @@ struct Report {
     int primarySamples = 0, hgtSamples = 0, fallbackSamples = 0;
     int noDataSamples = 0, outsideSamples = 0, unavailableSamples = 0;
     int cacheHits = 0, downloads = 0;
+    int filledPixels = 0;
     QStringList issues;
     void issue(const QString &message);
 };
@@ -58,5 +62,6 @@ public:
 // targetSpacing is the output terrain vertex spacing in metres.
 Result generate(const QString &root, const QString &datasetId,
                 const QVector<Point> &points, double targetSpacing, float yOffset,
-                std::atomic_bool &cancel, const Progress &progress = {});
+                std::atomic_bool &cancel, const Progress &progress = {},
+                const QMap<QString,QString> &secrets = {});
 }

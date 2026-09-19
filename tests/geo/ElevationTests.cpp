@@ -47,6 +47,7 @@ void mutateTag(QByteArray &bytes, quint16 tag, quint32 value) {
 void runDownloadTests(const std::function<void(bool,const char*)> &check);
 void runArcGisImageServerTests(const std::function<void(bool,const char*)> &check);
 void runCzechWcsTests(const std::function<void(bool,const char*)> &check);
+void runNoDataFillTests(const std::function<void(bool,const char*)> &check);
 int main(int argc, char **argv) {
     QCoreApplication app(argc,argv);
     const auto args = app.arguments();
@@ -146,6 +147,17 @@ int main(int argc, char **argv) {
         requiredPresent &= byId.contains(id);
     check(requiredPresent && byId.size() == catalog.size(),"required datasets and unique IDs survive catalogue expansion");
     if (!requiredPresent) return 1;
+    const auto finland = byId.value("fi.nls.dem2");
+    const auto netherlands = byId.value("nl.pdok.ahn.dtm05");
+    check(finland.epsg == 3067 && supportedCrs(3067) && project({60,27},3067,p)
+        && near(p.x,500000),"Finland retains its supported native TM35FIN grid");
+    check(finland.apiKeySecret == "geo.elevation.fi.nls.apiKey"
+        && !coverageUrl(finland,{0,0}).toString().contains("api-key"),"Finland catalogue stores a secret reference, not a credential URL");
+    const QUrlQuery nlQuery(coverageUrl(netherlands,{1226,-11337}));
+    check(netherlands.epsg == 25831 && nlQuery.queryItemValue("SUBSETTINGCRS").endsWith("/25831")
+        && nlQuery.queryItemValue("OUTPUTCRS").endsWith("/25831")
+        && nlQuery.queryItemValue("GEOTIFF:COMPRESSION") == "None",
+        "Netherlands uses explicit UTM subsetting/output and uncompressed TIFF");
     const auto &d = byId["pl.gugik.nmt1.kron86"];
     const auto &polishAscii = byId["pl.gugik.nmt1.evrf2007"];
     check(d.resolution == 1 && polishAscii.resolution == 1 && byId["cz.cuzk.dmr4g"].resolution == 5,"Polish 1 m and Czech 5 m datasets");
@@ -159,6 +171,10 @@ int main(int argc, char **argv) {
     check(cacheRelativePath(d,{0,0}) != cacheRelativePath(polishAscii,{0,0}),"dataset-separated cache identity");
     Dataset revised = d; revised.definition["resolution"] = 5;
     check(cacheRelativePath(d,{0,0}) != cacheRelativePath(revised,{0,0}),"configuration changes invalidate cache identity");
+    revised = d; revised.definition["noDataPolicy"] = "fill";
+    check(cacheRelativePath(d,{0,0}) == cacheRelativePath(revised,{0,0}),"NoData policy preserves the original raw-data cache identity");
+    check(d.noDataPolicy == "fallback" && netherlands.noDataPolicy == "fill",
+        "NoData policy defaults to fallback and Netherlands opts into fill");
     check(blockFor(d,{d.originX+1024,d.originY-100}).column == 1,"consistent adjacent block boundary");
     Dataset oldGrid = d;
     oldGrid.definition["blockPixels"] = 512; oldGrid.definition.remove("concurrentRequests");
@@ -170,6 +186,15 @@ int main(int argc, char **argv) {
     check(write(temp.path()+"/hgt/N52E019.hgt",hgt(3,20)),"create organized HGT fixture");
     check(findHgtFile(temp.path(),52,19) == temp.path()+"/hgt/N52E019.hgt","HGT subdirectory wins conflicts");
     std::atomic_bool cancel{false};
+    check(write(temp.path()+"/hgt/N60E027.hgt",hgt(3,15)),"prepare Finland fallback fixture");
+    auto withoutKey = generate(temp.path(),finland.id,{{60.1,27.1}},2.0,0,cancel);
+    check(withoutKey.success() && withoutKey.report.downloads == 0 && withoutKey.report.hgtSamples == 1
+        && withoutKey.report.issues.join('\n').contains(finland.apiKeySecret),
+        "missing API key skips requests and visibly reports the reference with HGT fallback");
+    const QString invalidKey = "invalid:fixture-key";
+    withoutKey = generate(temp.path(),finland.id,{{60.1,27.1}},2.0,0,cancel,{},{{finland.apiKeySecret,invalidKey}});
+    check(withoutKey.success() && withoutKey.report.downloads == 0
+        && !withoutKey.report.issues.join('\n').contains(invalidKey),"invalid Basic username is rejected without exposing its value");
     auto generated = generate(temp.path(),"",{{52.5,19.5}},1.0,2,cancel);
     check(generated.success() && generated.heights[0] == 22 && generated.report.hgtSamples == 1,"HGT generation and offset");
     generated = generate(temp.path(),"",{{52.5,19.5},{53.5,19.5}},1.0,0,cancel);
@@ -212,6 +237,7 @@ int main(int argc, char **argv) {
     runCzechWcsTests(check);
     runArcGisImageServerTests(check);
     runDownloadTests(check);
+    runNoDataFillTests(check);
     std::cout << checks << " checks, " << failures << " failures\n";
     return failures ? 1 : 0;
 }

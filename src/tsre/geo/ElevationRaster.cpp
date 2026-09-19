@@ -189,7 +189,8 @@ bool project(Point p, int epsg, XY &out) {
 }
 
 Sample Raster::sample(XY p, bool zero) const {
-    if (!dimensions(width, height) || values.size() != qsizetype(width)*height)
+    if (width <= 0 || height <= 0 || values.size() > 32*1024*1024
+            || values.size() != qint64(width)*height)
         return {0, SampleStatus::Unavailable};
     const auto &t = transform;
     const double det = t[1]*t[5] - t[2]*t[4];
@@ -206,6 +207,58 @@ Sample Raster::sample(XY p, bool zero) const {
     const int ids[] = {y*width+x, y*width+x1, y1*width+x, y1*width+x1};
     const double weights[] = {(1-dx)*(1-dy), dx*(1-dy), (1-dx)*dy, dx*dy};
     return blend(*this, ids, weights, zero);
+}
+
+int fillNoData(Raster &r, bool zero, std::atomic_bool &cancel, const QBitArray &available) {
+    const qsizetype count = r.values.size();
+    if (r.width <= 0 || r.height <= 0 || count != qint64(r.width)*r.height
+            || count > 32*1024*1024 || (!available.isEmpty() && available.size() != count))
+        return 0;
+    // 0 = hole, 1 = valid, 2 = queued for this layer, 3 = unavailable.
+    QByteArray state(count,0);
+    for (int i=0; i<count; ++i) {
+        if (i%65536 == 0 && cancel) return 0;
+        const float h = r.values[i];
+        if (!available.isEmpty() && !available.testBit(i)) state[i] = 3;
+        else if (std::isfinite(h) && !(r.hasNoData && h == r.noData) && !(zero && h == 0))
+            state[i] = 1;
+        if (state[i] != 1) r.values[i] = std::numeric_limits<float>::quiet_NaN();
+    }
+    const auto neighbours = [&](int i, const auto &visit) {
+        if (i%r.width) visit(i-1);
+        if (i%r.width != r.width-1) visit(i+1);
+        if (i >= r.width) visit(i-r.width);
+        if (i < count-r.width) visit(i+r.width);
+    };
+    QVector<int> frontier, next;
+    for (int i=0; i<count; ++i) {
+        if (i%65536 == 0 && cancel) return 0;
+        if (state[i] != 0) continue;
+        bool adjacent = false;
+        neighbours(i,[&](int j) { adjacent |= state[j] == 1; });
+        if (adjacent) { state[i] = 2; frontier.push_back(i); }
+    }
+    int filled = 0;
+    while (!frontier.isEmpty()) {
+        if (cancel) return filled;
+        // Read only previous layers: results do not depend on scan order.
+        for (int i : frontier) {
+            if (cancel) return filled;
+            double sum = 0; int n = 0;
+            neighbours(i,[&](int j) { if (state[j] == 1) { sum += r.values[j]; ++n; } });
+            r.values[i] = float(sum/n);
+        }
+        for (int i : frontier) state[i] = 1;
+        filled += int(frontier.size());
+        next.clear();
+        for (int i : frontier) neighbours(i,[&](int j) {
+            if (state[j] == 0) { state[j] = 2; next.push_back(j); }
+        });
+        frontier.swap(next);
+    }
+    // Unfilled cells remain NaN; a filled zero is now a valid estimate.
+    r.hasNoData = false;
+    return filled;
 }
 
 static bool readTiff(const QByteArray &bytes, int metadataEpsg, Raster &output, QString &error) {

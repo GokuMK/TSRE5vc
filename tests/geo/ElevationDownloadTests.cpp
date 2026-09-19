@@ -9,9 +9,11 @@ void runDownloadTests(const std::function<void(bool,const char*)> &check) {
     QTcpServer server;
     check(server.listen(QHostAddress::LocalHost),"local download fixture listens");
     if (!server.isListening()) return;
-    enum Mode { Barrier, Mixed, Cancel, Stall };
+    enum Mode { Barrier, Mixed, Cancel, Stall, Auth, Redirect, Html };
     Mode mode = Barrier;
     int received = 0;
+    QByteArray receivedAuthorization;
+    bool crossOrigin = false;
     QVector<QPair<QPointer<QTcpSocket>,QByteArray>> waiting;
     std::atomic_bool cancel{false};
     const auto respond = [](QTcpSocket *socket, const QByteArray &body, int status=200) {
@@ -27,6 +29,9 @@ void runDownloadTests(const std::function<void(bool,const char*)> &check) {
                 if (handled || !bytes.contains("\r\n\r\n")) return;
                 handled = true; ++received;
                 const QByteArray path = bytes.split(' ').value(1);
+                receivedAuthorization.clear();
+                for (const auto &line : bytes.split('\n'))
+                    if (line.toLower().startsWith("authorization:")) receivedAuthorization = line.mid(14).trimmed();
                 if (mode==Barrier) {
                     waiting.push_back({socket,path});
                     // A serial downloader cannot finish this barrier. Reply in
@@ -37,6 +42,15 @@ void runDownloadTests(const std::function<void(bool,const char*)> &check) {
                     if (path=="/1") respond(socket,"unavailable",503);
                     else if (path=="/3") respond(socket,QByteArray(128,'x'));
                     else respond(socket,path);
+                } else if (mode==Html) {
+                    socket->write("HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: 28\r\nConnection: close\r\n\r\n<html>Request rejected</html>");
+                    socket->disconnectFromHost();
+                } else if (mode==Auth || (mode==Redirect && path=="/target")) respond(socket,"ok");
+                else if (mode==Redirect) {
+                    const QByteArray host = crossOrigin ? "localhost" : "127.0.0.1";
+                    socket->write("HTTP/1.1 302 Found\r\nContent-Length: 0\r\nLocation: http://"
+                        +host+':'+QByteArray::number(server.serverPort())+"/target\r\nConnection: close\r\n\r\n");
+                    socket->disconnectFromHost();
                 } else if (mode==Cancel && received==4) cancel = true;
             });
         }
@@ -77,4 +91,22 @@ void runDownloadTests(const std::function<void(bool,const char*)> &check) {
     check(received==0 && !results[0].error.isEmpty(),"transport refuses more than four simultaneous requests");
     results = Elevation::downloadWave({QUrl()},cancel,{},limits);
     check(results[0].bytes.isEmpty() && !results[0].error.isEmpty(),"immediately invalid request completes without hanging");
+    mode = Auth; limits.deadlineMs = 5000;
+    const QByteArray authorization = "Basic " + QByteArray("fixture-api-key:").toBase64();
+    results = Elevation::downloadWave({urls[0]},cancel,{},limits,authorization);
+    check(results[0].bytes=="ok" && receivedAuthorization==authorization,"API key is sent in Authorization header");
+    results = Elevation::downloadWave({urls[0]},cancel,{},limits);
+    check(results[0].bytes=="ok" && receivedAuthorization.isEmpty(),"next unauthenticated wave retains no credentials");
+    mode = Redirect; received = 0;
+    results = Elevation::downloadWave({urls[0]},cancel,{},limits,authorization);
+    check(results[0].bytes=="ok" && received==2 && receivedAuthorization==authorization,
+        "authenticated requests follow same-origin redirects");
+    crossOrigin = true; received = 0;
+    results = Elevation::downloadWave({urls[0]},cancel,{},limits,authorization);
+    check(!results[0].error.isEmpty() && received==1 && !results[0].error.contains(authorization),
+        "authenticated requests reject cross-origin redirects without exposing credentials");
+    mode = Html;
+    results = Elevation::downloadWave({urls[0]},cancel,{},limits,authorization);
+    check(results[0].bytes.isEmpty() && results[0].error.contains("HTML"),
+        "HTTP 200 HTML rejection is reported as a service response error, not a TIFF decode error");
 }

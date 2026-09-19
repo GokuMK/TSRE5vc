@@ -154,7 +154,8 @@ Rectangular catalogue bounds select candidate blocks; they are not coverage mask
   CRS still fails; multipart responses still require matching GML and TIFF parts.
   The plain `readGeoTiff` path used by ArcGIS still requires CRS metadata.
 - Download/cache validation still requires exact dimensions, origin, spacing and
-  CRS. Cache paths hash the complete dataset definition, so changing DMR 5G from
+  CRS. Cache paths hash the dataset definition except the sampling-only
+  `noDataPolicy`, so changing DMR 5G from
   one to four connections also produces a new cache directory. Old directories
   are retained; no cache was deleted during this review.
 
@@ -176,8 +177,8 @@ does not change with output spacing.
 
 Polish and Czech entries keep `zeroIsNoData=true`; the nine new entries preserve
 zero as a valid numeric height unless another NoData indication applies. There
-is still no vertical datum conversion, secondary online source, interpolation
-fallback or zero-fill Apply policy. The
+is still no vertical datum conversion, secondary online source or zero-fill
+Apply policy. Dataset-level NoData filling is described below. The
 [border/fallback issue](tsre_geoportal_generic_elevation_ideas.md) remains open.
 
 ### Two separate projection layers
@@ -197,6 +198,101 @@ TM observations are recorded in the projection notes; this review did not rerun
 them. No new runtime/build GIS dependency is introduced by these changes.
 
 ## Recommended next work
+
+### Dataset NoData policy, 2026-09-19
+
+Catalogue entries accept `"noDataPolicy": "fallback"` (default when omitted)
+or `"noDataPolicy": "fill"`. Netherlands AHN opts into fill.
+
+- `fallback` retains the existing strict sampling and HGT fallback behavior.
+- `fill` joins the available downloaded blocks in memory and fills NoData before
+  bilinear sampling / terrain-footprint averaging. Each simultaneous layer uses
+  the mean of adjacent valid heights, growing inward until no reachable holes
+  remain. Original valid heights, including negative heights and legitimate
+  zero, stay unchanged. Filled heights are estimates; the report counts filled
+  source pixels separately from terrain samples.
+- Joining cache blocks allows holes to fill across their boundaries. Missing
+  downloads are masked out, not filled through. An entirely empty connected area
+  remains NoData and fails generation rather than inventing a level or switching
+  its NoData policy to HGT. Outside coverage / unavailable downloads retain the
+  existing fallback behavior. The result can depend on the available surrounding
+  area; this is local neighbour filling, not a globally interpolated product.
+- Original cached rasters stay unchanged. `noDataPolicy` is excluded from cache
+  identity, so switching policies reuses existing downloads. In-memory fill is
+  bounded to 32 Mi source pixels; larger areas report an error and require a
+  smaller generation area. Filling supports cancellation.
+- A 256 x 256 terrain grid across four of the user's AHN cache blocks produced
+  **65,536 valid primary samples, zero HGT, zero downloads**, after filling
+  **407,119 source pixels**; cached generation took about **540 ms**. This tests
+  a complete 2 km terrain grid and cache-block boundaries, not just two points.
+- Offline standalone: **320 checks, 0 failures**, covering neighbouring means,
+  multi-layer filling, preservation of measurements/zero/negative heights,
+  explicit voids, unavailable barriers, all-empty areas, cancellation and cache
+  identity. Probe source and logs are in ignored `build-fi-nl-research/`.
+  Release application rebuild passed, including English/Polish fill-report text.
+
+### Finland / Netherlands follow-up, 2026-09-19
+
+The catalogue now contains **15 online datasets**. Baden-Wurttemberg's entry
+includes the research caveats below using the same `notes` array as the new entries.
+
+- Finland `fi.nls.dem2` keeps native EPSG:3067 and 2 m spacing: the shared local
+  TM conversion already supports that CRS. Its earlier unsupported-CRS note was
+  incorrect. The catalogue now references `geo.elevation.fi.nls.apiKey` in the
+  active profile's secrets file via `authentication.type=basic-api-key`.
+  [Setup and credential handling](../../settings-system.md#elevation-service-api-keys)
+  use HTTP Basic, with no API key in URLs or cache metadata. Authenticated live
+  validation subsequently passed after removing the uppercase `GEOTIFF:*`
+  endpoint parameters: NLS rejected each tested uppercase compression/predictor/
+  tiling option with an HTTP 200 HTML "Request Rejected" page. Default output is
+  already uncompressed Float32 TIFF. Block `312,-3419` returned 1026 x 1026 at
+  exactly 2 m in EPSG:3067, with heights 94.348..216.098 m. The shared provider
+  generated a full 256 x 256 terrain grid inside that block: **65,536 primary
+  samples, one download, no HGT**, in about 2.5 seconds. This used the profile key
+  only in Authorization; no secret was stored in the probe logs or cache metadata.
+  The downloader now reports HTTP 200 HTML responses as service errors rather
+  than passing them to the TIFF decoder. Release build and **321 standalone
+  checks** passed. Evidence/logs are in ignored `build-fi-nl-research/`.
+- Netherlands `nl.pdok.ahn.dtm05` uses WCS server-side horizontal reprojection
+  from RD New to EPSG:25831 (ETRS89 / UTM 31N), already supported by TSRE. The
+  catalogue's `crs`, conservative bounds and 1 m spacing now describe the
+  request/cache grid; NAP heights remain unchanged. `SUBSETTINGCRS`, `OUTPUTCRS`
+  and uncompressed TIFF options use the existing endpoint-query configuration.
+  No local RD projection/datum implementation or new dependency was added.
+- PDOK capabilities advertise EPSG:25831. Live requests returned exact 32 x 32
+  and 1026 x 1026 grids at 0.5 m spacing. Default TIFF uses Deflate; explicitly
+  disabling compression produces supported Float32 data, including negative
+  heights and explicit NoData. The shared provider successfully generated two
+  samples near `(52.095,5.184)` with heights 1.49769 and 1.54317 m, one download
+  and no HGT fallback; repeating used one cache hit and zero downloads.
+  A city-center probe at `(52.09,5.12)` encountered NoData at both samples and
+  correctly rejected generation without local HGT. Coverage is not assumed complete.
+- Follow-up: verified a 1026 x 1026 uncompressed Float32 response with exact
+  **1 m** spacing (4,217,308 bytes). Changed the Netherlands request/cache grid
+  to 1 m; native AHN coverage remains `dtm_05m`. Each block now covers four times
+  the area at approximately the same file size, reducing data per unit area by
+  about 75% (actual block counts depend on alignment). The changed definition
+  selects a new cache identity; previously cached 0.5 m files are not deleted.
+  Release rebuild and all 311 standalone checks passed with this configuration.
+  Live generation at the same control location returned 1.49218 and 1.53933 m
+  from one downloaded 1 m block, with no fallback.
+- Release application build succeeded. Offline standalone suite: **311 checks,
+  0 failures**, including missing/invalid key reporting, Authorization headers,
+  credential isolation between waves and same-origin/cross-origin redirects.
+  Main application test suites and manual UI testing were not rerun. Live
+  responses and the build log are in ignored `build-fi-nl-research/`.
+
+Sources: [NLS WCS technical description](https://www.maanmittauslaitos.fi/ortokuvien-ja-korkeusmallien-kyselypalvelu/tekninen-kuvaus),
+[NLS API-key instructions](https://www.maanmittauslaitos.fi/en/rajapinnat/api-avaimen-ohje),
+[PDOK WCS capabilities](https://service.pdok.nl/rws/ahn/wcs/v1_0?SERVICE=WCS&REQUEST=GetCapabilities&VERSION=2.0.1).
+
+### Baden-Wurttemberg precision
+
+The subsequent [Baden-Wurttemberg WCS 2 investigation](baden-wurttemberg-wcs-research.md)
+reproduced separate subset/scaling axis names and a native-size rounding problem.
+Both WCS versions returned the same integer-height pixels when their output grids
+matched. Retain WCS 1 for BW; investigate original tile downloads for better
+vertical precision. This was isolated endpoint research, with no application changes.
 
 R1 and R2 are complete. Next validate the new sampling/protocol/CRS behavior
 listed in the open checklist. Keep New Route in its own acceptance scope. Return

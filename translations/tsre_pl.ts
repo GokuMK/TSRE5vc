@@ -10038,6 +10038,12 @@ TSRE pobierze teraz dane aplikacji.</translation>
             <translation>Zmień pogodę.</translation>
         </message>
 
+    <message id="geo.elevation.report.filled">
+        <source>
+Filled source NoData pixels: %1 (estimated from neighbouring heights).</source>
+        <translation>
+Uzupełnione piksele NoData źródła: %1 (wysokości oszacowane z sąsiednich danych).</translation>
+    </message>
     <message id="geo.elevation.report.summary">
         <source>Source: %1
 Source samples: %2; HGT samples: %3

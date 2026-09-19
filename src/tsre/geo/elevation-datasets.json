@@ -212,7 +212,13 @@
       "blockPixels": 1024,
       "concurrentRequests": 1,
       "zeroIsNoData": false,
-      "attribution": "LGL Baden-Wurttemberg"
+      "attribution": "LGL Baden-Wurttemberg",
+      "notes": [
+        "Research 2026-09-19: both WCS 1 and WCS 2 return UInt16 whole-metre heights. The 1 m resolution describes horizontal spacing; switching WCS versions does not recover fractional heights.",
+        "WCS 2 requires E/N subset axes but X/Y scaling axes. At native resolution it also returned 1025 x 1026 for a requested 1026 x 1026 block; retain WCS 1 for its correct output grid.",
+        "Shared downsampling softens quantization but cannot restore source precision. Investigate original DGM1 XYZ or raster tile downloads for better heights; the separate official sample is Float32.",
+        "Reproducible requests and findings: docs/tasks/geo/baden-wurttemberg-wcs-research.md."
+      ]
     },
     {
       "id": "de.st.dgm1",
@@ -232,6 +238,63 @@
       "concurrentRequests": 1,
       "zeroIsNoData": false,
       "attribution": "GeoBasis-DE / LVermGeo Sachsen-Anhalt"
+    },
+    {
+      "id": "fi.nls.dem2",
+      "name": "Finland - NLS Elevation Model 2 m",
+      "provider": "wcs-2.0.1",
+      "endpoint": "https://avoin-karttakuva.maanmittauslaitos.fi/ortokuvat-ja-korkeusmallit/wcs/v2",
+      "authentication": {
+        "type": "basic-api-key",
+        "secret": "geo.elevation.fi.nls.apiKey"
+      },
+      "coverage": "korkeusmalli_2m",
+      "format": "image/tiff",
+      "axisX": "E",
+      "axisY": "N",
+      "crs": 3067,
+      "verticalDatum": "N2000",
+      "resolution": 2,
+      "origin": [0, 0],
+      "bounds": [40000, 6540000, 790000, 7850000],
+      "blockPixels": 1024,
+      "concurrentRequests": 1,
+      "zeroIsNoData": false,
+      "attribution": "National Land Survey of Finland - Elevation Model 2 m, CC BY 4.0",
+      "notes": [
+        "Requires geo.elevation.fi.nls.apiKey in profile-local secrets.json. TSRE sends the key as the HTTP Basic username with an empty password; catalogue and cache metadata contain no key value.",
+        "Native EPSG:3067 (ETRS-TM35FIN) is already supported by the shared local TM conversion. Keep native 2 m spacing; server-side reprojection is unnecessary.",
+        "Authenticated probes confirmed default uncompressed Float32 GeoTIFF at 2 m. Do not add uppercase GEOTIFF:* options: the service gateway rejected each tested option with an HTTP 200 HTML page.",
+        "Elevation requests are limited to 10000 x 10000 m and a maximum scaled width/height of 5000 pixels.",
+        "Bounds are conservative Finland-wide EPSG:3067 bounds. Actual 2 m coverage has some gaps in the outer archipelago and along parts of the eastern border."
+      ]
+    },
+    {
+      "id": "nl.pdok.ahn.dtm05",
+      "name": "Netherlands - AHN DTM (1 m)",
+      "provider": "wcs-2.0.1",
+      "endpoint": "https://service.pdok.nl/rws/ahn/wcs/v1_0?SUBSETTINGCRS=http://www.opengis.net/def/crs/EPSG/0/25831&OUTPUTCRS=http://www.opengis.net/def/crs/EPSG/0/25831&GEOTIFF:COMPRESSION=None&GEOTIFF:PREDICTOR=None&GEOTIFF:TILING=false",
+      "coverage": "dtm_05m",
+      "noDataPolicy": "fill",
+      "format": "image/tiff",
+      "axisX": "x",
+      "axisY": "y",
+      "crs": 25831,
+      "verticalDatum": "NAP",
+      "resolution": 1,
+      "origin": [0, 0],
+      "bounds": [500000, 5600000, 810000, 6000000],
+      "blockPixels": 1024,
+      "concurrentRequests": 1,
+      "zeroIsNoData": false,
+      "attribution": "Rijkswaterstaat / PDOK - Actueel Hoogtebestand Nederland (AHN)",
+      "notes": [
+        "Native horizontal CRS is EPSG:28992 (RD New); heights remain NAP (EPSG:5709). PDOK performs horizontal reprojection to EPSG:25831 (ETRS89 / UTM 31N), already supported locally. No vertical datum conversion is requested.",
+        "The 1 m spacing and conservative bounds describe the EPSG:25831 request/cache grid. PDOK resamples the native 0.5 m RD grid on the server; TSRE downloads and caches 1 m data, using approximately one quarter as many pixels for the same area.",
+        "SUBSETTINGCRS/OUTPUTCRS and uncompressed TIFF options are configured in the endpoint query. Live probes on 2026-09-19 confirmed Float32 output and exact requested UTM grid dimensions.",
+        "No API key or authentication is required.",
+        "Zero and negative elevations are valid NAP heights, so zeroIsNoData must remain false."
+      ]
     }
   ]
 }

@@ -15,5 +15,6 @@ struct DownloadLimits {
 // Worker-thread operation. At most four replies, fresh connections per wave.
 // Results retain input order; completion callbacks may arrive in any order.
 QVector<DownloadResult> downloadWave(const QVector<QUrl> &urls, std::atomic_bool &cancel,
-    const std::function<void(int completed)> &progress = {}, const DownloadLimits &limits = {});
+    const std::function<void(int completed)> &progress = {}, const DownloadLimits &limits = {},
+    const QByteArray &authorization = {});
 }
