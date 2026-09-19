@@ -364,19 +364,21 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
             .withNameId(
                 //% "Geodata and elevation cache directory"
                 QT_TRID_NOOP("settings.core.paths.geo.data.name")).withDescriptionId(
-                //% "Geodata root: local HGT files in world_hgt/ (legacy hgt/ and root supported); downloaded elevation rasters in cache/."
+                //% "Geodata root: user-managed elevation products in their catalogue directories; downloaded service rasters in cache/."
                 QT_TRID_NOOP("settings.core.paths.geo.data.description")).inGroup("maps").inSubgroup("geodata"),
         "geoPath", "Game::geoPath", "GeoTools", false, "direct");
-    ADD(SettingsDefinition::string("geo.elevation.source", "", SettingType::Enum)
+    QString elevationCatalogueError;
+    const QString defaultElevationSource = Elevation::defaultFileSourceId(
+        Elevation::datasets(elevationCatalogueError));
+    if (!elevationCatalogueError.isEmpty()) qWarning().noquote() << elevationCatalogueError;
+    ADD(SettingsDefinition::string("geo.elevation.source", defaultElevationSource, SettingType::Enum)
             .withNameId(
                 //% "Terrain elevation source"
                 QT_TRID_NOOP("settings.geo.elevation.source.name")).withDescriptionId(
-                //% "Source for manual and automatic terrain elevation. Downloads elevation data and reports HGT fallback."
+                //% "Source for manual and automatic terrain elevation. Missing coverage uses the configured file-source fallback."
                 QT_TRID_NOOP("settings.geo.elevation.source.description"))
             .withOptionsProvider([] {
-                QVector<SettingOption> result{{QString(),
-                    //% "Local HGT files"
-                    QT_TRID_NOOP("settings.geo.elevation.source.hgt"), {}}};
+                QVector<SettingOption> result;
                 QString error;
                 for (const auto &dataset : Elevation::datasets(error))
                     result.push_back({dataset.id, {}, dataset.name});

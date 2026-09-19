@@ -1,6 +1,30 @@
 {
   "version": 1,
+  "defaultFileSource": "world-hgt",
   "datasets": [
+    {
+      "id": "world-hgt",
+      "name": "World - HGT terrain (automatic Mapzen Skadi tile download)",
+      "provider": "file",
+      "format": "hgt",
+      "fileGrid": "degree",
+      "directory": "world_hgt",
+      "crs": 4326,
+      "verticalDatum": "EGM96 for Mapzen downloads; user-supplied files may differ",
+      "bounds": [-180, -90, 180, 90],
+      "zeroIsNoData": false,
+      "concurrentRequests": 4,
+      "download": {
+        "urlTemplate": "https://s3.amazonaws.com/elevation-tiles-prod/skadi/{latitudeBand}/{tile}.hgt.gz",
+        "compression": "gzip"
+      },
+      "attribution": "Mapzen Terrain Tiles and contributing data providers",
+      "attributionUrl": "https://github.com/tilezen/joerd/blob/master/docs/attribution.md",
+      "notes": [
+        "Local .hgt files take precedence over downloaded .hgt.gz files.",
+        "Mapzen Skadi is a heterogeneous global composite and should not be treated as a uniform survey or a uniform 30 m product."
+      ]
+    },
     {
       "id": "pl.gugik.nmt1.kron86",
       "name": "Poland - Geoportal NMT 1 m (KRON86, GeoTIFF)",

@@ -9,6 +9,38 @@ historical findings from `a88f7f8` and the R1/R2 follow-up on `1ee5aaa`; their
 counts and validation claims are scoped to those milestones. They do not replace
 the newest status or the current source code.
 
+## Catalogue file source and automatic World HGT, 2026-09-19
+
+- The former empty-ID, hardcoded HGT backend is now the first normal catalogue
+  dataset: `world-hgt`, `provider: "file"`, `format: "hgt"`, `fileGrid: "degree"`.
+  Its bounds are the whole geographic world. `defaultFileSource` selects it by
+  ID; array order is only a fallback when that field is absent or invalid.
+- The entry directly defines `directory: "world_hgt"`. Runtime no longer searches
+  legacy `hgt/` or the geodata root. Users move legacy files explicitly. Raw
+  `.hgt` files take precedence over compressed `.hgt.gz` files.
+- An optional catalogue `download` object makes a file source automatic. World
+  HGT downloads missing Mapzen/Tilezen Skadi tiles anonymously from AWS, up to
+  four at once. Files stay gzip-compressed. Decompressed size, HGT grid, gzip CRC
+  and ISIZE are checked before an atomic write; provenance and SHA-256 are stored
+  in a sidecar. Manual-only file sources omit `download`.
+- Service generation now samples the primary source first and prepares the file
+  fallback only for unresolved points. This avoids downloading global fallback
+  tiles where WCS or ArcGIS supplied all heights. The selected file source has no
+  recursive fallback.
+- Settings and the height window use the catalogue entry directly. Old empty
+  profile values migrate to `world-hgt`; reports and missing-file checks use
+  generic file-source/fallback wording. The legacy `GeoHgtFile` reader shares the
+  same catalogue directory and compressed reader.
+- **359 standalone checks passed**. A live probe at `(50.05,19.05)` downloaded
+  `N50E019.hgt.gz` (5,447,758 bytes), wrote its metadata sidecar and sampled two
+  241 m heights with one download and no fallback. Repeating used the stored
+  compressed file with zero downloads. The Release application build
+  succeeded; Settings passed 246 checks and elevation UI passed 61 checks.
+
+See [local file-source implementation](local-elevation-sources.md) and the
+[global source review](global-sources-review.md). The next provider milestone is
+a concrete degree-grid GeoTIFF product; advanced COG/range support remains later.
+
 ## Critical open issue: distant terrain
 
 [Distant-terrain elevation acquisition](distant-terrain-elevation.md) currently

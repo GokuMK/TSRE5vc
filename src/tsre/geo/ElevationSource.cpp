@@ -1,5 +1,6 @@
 #include <tsre/geo/ElevationSource.h>
 #include <tsre/geo/ElevationDownload.h>
+#include <mzip/miniz/miniz.h>
 
 #include <QCache>
 #include <QCryptographicHash>
@@ -13,6 +14,7 @@
 #include <QRegularExpression>
 #include <QSet>
 #include <QUrlQuery>
+#include <QtEndian>
 #include <algorithm>
 #include <cmath>
 #include <memory>
@@ -20,6 +22,7 @@
 namespace Elevation {
 namespace {
 constexpr qint64 MaxDownload = 32 * 1024 * 1024;
+constexpr qint64 MaxHgtBytes = 64 * 1024 * 1024;
 constexpr int MaxBlocks = 2048;
 QString decimal(double value) { return QString::number(value, 'f', 9); }
 bool inside(const Dataset &d, XY p) {
@@ -76,17 +79,125 @@ QByteArray readFile(const QString &path, qint64 max = MaxDownload) {
     if (!file.open(QIODevice::ReadOnly) || file.size() > max) return {};
     return file.readAll();
 }
+bool gunzip(const QByteArray &input, QByteArray &output, QString &error) {
+    output.clear();
+    if (input.size() < 18 || quint8(input[0]) != 0x1f || quint8(input[1]) != 0x8b
+            || quint8(input[2]) != 8 || (quint8(input[3]) & 0xe0)) {
+        error = QStringLiteral("Invalid gzip header"); return false;
+    }
+    const quint8 flags = quint8(input[3]);
+    qsizetype offset = 10, trailer = input.size()-8;
+    if (flags & 0x04) {
+        if (offset+2 > trailer) { error = QStringLiteral("Truncated gzip extra field"); return false; }
+        const quint16 size = qFromLittleEndian<quint16>(reinterpret_cast<const uchar*>(input.constData()+offset));
+        offset += 2+size;
+    }
+    const auto skipString = [&] {
+        while (offset < trailer && input[offset] != '\0') ++offset;
+        return offset++ < trailer;
+    };
+    if ((flags & 0x08) && !skipString()) { error = QStringLiteral("Truncated gzip file name"); return false; }
+    if ((flags & 0x10) && !skipString()) { error = QStringLiteral("Truncated gzip comment"); return false; }
+    if (flags & 0x02) offset += 2;
+    if (offset >= trailer) { error = QStringLiteral("Truncated gzip stream"); return false; }
+    const auto *tail = reinterpret_cast<const uchar*>(input.constData()+trailer);
+    const quint32 expectedCrc = qFromLittleEndian<quint32>(tail);
+    const quint32 size = qFromLittleEndian<quint32>(tail+4);
+    if (size == 0 || size > MaxHgtBytes) { error = QStringLiteral("Invalid gzip output size"); return false; }
+    output.resize(size);
+    const size_t written = tinfl_decompress_mem_to_mem(output.data(),size,
+        input.constData()+offset,size_t(trailer-offset),0);
+    if (written != size) { output.clear(); error = QStringLiteral("Cannot decompress gzip elevation file"); return false; }
+    const quint32 actualCrc = quint32(mz_crc32(MZ_CRC32_INIT,
+        reinterpret_cast<const unsigned char*>(output.constData()),output.size()));
+    if (actualCrc != expectedCrc) { output.clear(); error = QStringLiteral("Gzip elevation checksum mismatch"); return false; }
+    return true;
+}
+bool decodeHgtFileBytes(const QByteArray &stored, bool compressed, int lat, int lon,
+                        Raster &raster, QString &error) {
+    QByteArray raw;
+    if (compressed) {
+        if (!gunzip(stored,raw,error)) return false;
+    } else raw = stored;
+    return readHgt(raw,lat,lon,raster,error);
+}
 bool saveFile(const QString &path, const QByteArray &bytes) {
     QSaveFile file(path);
     return file.open(QIODevice::WriteOnly) && file.write(bytes) == bytes.size() && file.commit();
 }
-class HgtSource final : public Source {
+class FileHgtSource final : public Source {
 public:
-    HgtSource(QString path, Report &r) : root(std::move(path)), report(r) { cache.setMaxCost(128*1024); }
-    bool prepare(const QVector<Point> &, std::atomic_bool &, const Progress &, QString &) override { return true; }
+    FileHgtSource(QString path, Dataset data, Report &r)
+        : root(std::move(path)), dataset(std::move(data)), report(r) { cache.setMaxCost(128*1024); }
+    bool prepare(const QVector<Point> &points, std::atomic_bool &cancel,
+                 const Progress &progress, QString &error) override {
+        struct Cell { int latitude, longitude; };
+        QMap<QString,Cell> missing;
+        for (const Point p : points) {
+            if (cancel) return false;
+            if (!std::isfinite(p.latitude) || !std::isfinite(p.longitude)
+                    || p.latitude < dataset.minY || p.latitude >= dataset.maxY
+                    || p.longitude < dataset.minX || p.longitude >= dataset.maxX) continue;
+            const int lat = int(std::floor(p.latitude)), lon = int(std::floor(p.longitude));
+            if (findHgtFile(root,dataset,lat,lon).isEmpty())
+                missing.insert(hgtFileName(lat,lon),{lat,lon});
+        }
+        if (missing.size() > MaxBlocks) {
+            error = QStringLiteral("Requested area exceeds 2048 elevation files; generate a smaller area");
+            return false;
+        }
+        if (missing.isEmpty() || dataset.downloadUrlTemplate.isEmpty()) return true;
+        const QVector<Cell> cells = missing.values();
+        int done = 0, failures = 0;
+        for (qsizetype first=0; first<cells.size(); first+=dataset.concurrentRequests) {
+            if (cancel) return false;
+            if (failures >= 3) {
+                report.issue(QStringLiteral("File downloads stopped after three consecutive failures; using available local elevation files"));
+                break;
+            }
+            const int count = int(std::min(qsizetype(dataset.concurrentRequests),cells.size()-first));
+            QVector<QUrl> urls;
+            for (int i=0; i<count; ++i)
+                urls.push_back(fileDownloadUrl(dataset,cells[first+i].latitude,cells[first+i].longitude));
+            const auto responses = downloadWave(urls,cancel,[&](int finished) {
+                if (progress) progress(done+finished,cells.size(),QStringLiteral("Downloading elevation files"));
+            });
+            if (cancel) return false;
+            for (int i=0; i<count; ++i) {
+                const Cell cell = cells[first+i];
+                QString error = responses[i].error;
+                if (error.isEmpty()) {
+                    Raster raster;
+                    const bool compressed = dataset.downloadCompression == "gzip";
+                    if (decodeHgtFileBytes(responses[i].bytes,compressed,cell.latitude,cell.longitude,raster,error)
+                            && findHgtFile(root,dataset,cell.latitude,cell.longitude).isEmpty()) {
+                        const QString suffix = compressed ? QStringLiteral(".gz") : QString();
+                        const QString path = QDir(root).filePath(dataset.directory+'/'+hgtFileName(cell.latitude,cell.longitude)+suffix);
+                        QJsonObject metadata{{"dataset",dataset.id},{"url",urls[i].toString()},
+                            {"retrievedUtc",QDateTime::currentDateTimeUtc().toString(Qt::ISODate)},
+                            {"verticalDatum",dataset.verticalDatum},{"attribution",dataset.attribution},
+                            {"attributionUrl",dataset.definition.value("attributionUrl")},
+                            {"sha256",QString::fromLatin1(QCryptographicHash::hash(responses[i].bytes,QCryptographicHash::Sha256).toHex())}};
+                        if (!QDir().mkpath(QFileInfo(path).absolutePath()) || !saveFile(path,responses[i].bytes)
+                                || !saveFile(path+".json",QJsonDocument(metadata).toJson())) {
+                            QFile::remove(path);
+                            error = QStringLiteral("Cannot write elevation file: %1").arg(path);
+                        } else ++report.downloads;
+                    }
+                }
+                if (!error.isEmpty()) {
+                    ++failures;
+                    report.issue(QStringLiteral("%1: %2").arg(hgtFileName(cell.latitude,cell.longitude),error));
+                } else failures = 0;
+                ++done;
+            }
+        }
+        return !cancel;
+    }
     Sample sample(Point p) override {
         if (!std::isfinite(p.latitude) || !std::isfinite(p.longitude)
-                || p.latitude < -90 || p.latitude >= 90 || p.longitude < -180 || p.longitude >= 180)
+                || p.latitude < dataset.minY || p.latitude >= dataset.maxY
+                || p.longitude < dataset.minX || p.longitude >= dataset.maxX)
             return {0,SampleStatus::Outside};
         const int lat = int(std::floor(p.latitude)), lon = int(std::floor(p.longitude));
         const QString key = hgtFileName(lat,lon);
@@ -95,10 +206,11 @@ public:
             if (failed.contains(key)) return {};
             QString error;
             auto loaded = std::make_unique<Raster>();
-            const QString path = findHgtFile(root,lat,lon);
-            if (path.isEmpty() || !readHgt(readFile(path,64*1024*1024),lat,lon,*loaded,error)) {
+            const QString path = findHgtFile(root,dataset,lat,lon);
+            if (path.isEmpty() || !readHgtFile(path,lat,lon,*loaded,error)) {
                 failed.insert(key);
-                report.issue(QStringLiteral("%1: %2").arg(key,path.isEmpty() ? QStringLiteral("HGT file missing") : error));
+                report.issue(QStringLiteral("%1: %2").arg(key,path.isEmpty()
+                    ? QStringLiteral("Elevation file missing") : error));
                 return {};
             }
             const int cost = int((loaded->values.size()*sizeof(float)+1023)/1024);
@@ -108,6 +220,7 @@ public:
     }
 private:
     QString root;
+    Dataset dataset;
     Report &report;
     QCache<QString,Raster> cache;
     QSet<QString> failed;
@@ -147,7 +260,7 @@ public:
         if (!missing.isEmpty() && !dataset.apiKeySecret.isEmpty()) {
             if (apiKey.isEmpty() || (dataset.apiKeyParameter.isEmpty() && apiKey.contains(':'))
                     || apiKey.contains('\r') || apiKey.contains('\n')) {
-                report.issue(QStringLiteral("Missing or invalid elevation API key: %1 in profile-local secrets.json; using available cache and HGT")
+                report.issue(QStringLiteral("Missing or invalid elevation API key: %1 in profile-local secrets.json; using available cache and configured fallback")
                     .arg(dataset.apiKeySecret));
                 notify(blocks.size(),QStringLiteral("Prepared"));
                 return prepared;
@@ -157,7 +270,7 @@ public:
         for (qsizetype first=0; first<missing.size(); first+=dataset.concurrentRequests) {
             if (cancel) return {};
             if (stopNetwork) {
-                report.issue(QStringLiteral("Downloads stopped after three consecutive failures; using available cache and HGT"));
+                report.issue(QStringLiteral("Downloads stopped after three consecutive failures; using available cache and configured fallback"));
                 notify(blocks.size(),QStringLiteral("Prepared"));
                 break;
             }
@@ -472,6 +585,12 @@ QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
         d.scaleAxisY = o.value("scaleAxisY").toString(d.axisY);
         d.requestFormat = o.value("requestFormat").toString();
         d.allowExpandedGrid = o.value("allowExpandedGrid").toBool();
+        d.directory = o.value("directory").toString();
+        d.fileGrid = o.value("fileGrid").toString();
+        d.attribution = o.value("attribution").toString();
+        const auto download = o.value("download").toObject();
+        d.downloadUrlTemplate = download.value("urlTemplate").toString();
+        d.downloadCompression = download.value("compression").toString();
         const QString label = d.id.isEmpty() ? QStringLiteral("entry %1").arg(index) : d.id;
         const auto authentication = o.value("authentication").toObject();
         if (o.contains("authentication")) {
@@ -491,10 +610,11 @@ QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
         d.resolution = o.value("resolution").toDouble(); d.blockPixels = o.value("blockPixels").toInt();
         d.concurrentRequests = o.value("concurrentRequests").toInt(1);
         const auto origin = o.value("origin").toArray(), box = o.value("bounds").toArray();
-        if (origin.size() != 2 || box.size() != 4) {
+        const bool file = d.provider == "file";
+        if ((!file && origin.size() != 2) || box.size() != 4) {
             rejected << QStringLiteral("Skipped elevation dataset %1: invalid grid definition").arg(label); continue;
         }
-        d.originX = origin.at(0).toDouble(); d.originY = origin.at(1).toDouble();
+        if (!file) { d.originX = origin.at(0).toDouble(); d.originY = origin.at(1).toDouble(); }
         d.minX = box.at(0).toDouble(); d.minY = box.at(1).toDouble();
         d.maxX = box.at(2).toDouble(); d.maxY = box.at(3).toDouble();
         d.zeroIsNoData = o.value("zeroIsNoData").toBool();
@@ -503,29 +623,65 @@ QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
         const bool wcs1 = d.provider == "wcs-1.0.0";
         const bool wcs = wcs1 || wcs2;
         const bool arcgis = d.provider == "arcgis-imageserver";
+        static const QRegularExpression relativeDirectory(
+            QStringLiteral("^[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*$"));
+        QUrl fileProbe;
+        if (!d.downloadUrlTemplate.isEmpty()) {
+            QString probe = d.downloadUrlTemplate;
+            probe.replace("{latitudeBand}","N00").replace("{tile}","N00E000");
+            fileProbe = QUrl(probe);
+        }
+        const bool validFile = file && d.format == "hgt" && d.fileGrid == "degree"
+            && d.epsg == 4326 && relativeDirectory.match(d.directory).hasMatch()
+            && !o.contains("authentication")
+            && (!o.contains("download") || (o.value("download").isObject()
+                && !d.downloadUrlTemplate.isEmpty()
+                && d.downloadUrlTemplate.contains("{latitudeBand}")
+                && d.downloadUrlTemplate.contains("{tile}")
+                && d.downloadCompression == "gzip"
+                && fileProbe.scheme() == "https" && !fileProbe.host().isEmpty()));
         if (d.id.isEmpty() || ids.contains(d.id) || d.id.contains('/') || d.id.contains('\\') || d.id.contains("..")
-                || (!wcs && !arcgis) || d.endpoint.scheme() != "https"
+                || (!wcs && !arcgis && !validFile)
                 || (o.contains("allowExpandedGrid") && !o.value("allowExpandedGrid").isBool())
                 || (o.contains("requestFormat") && (!o.value("requestFormat").isString() || d.requestFormat.isEmpty()))
                 || (o.contains("scaleAxisX") && !o.value("scaleAxisX").isString())
                 || (o.contains("scaleAxisY") && !o.value("scaleAxisY").isString())
                 || (o.contains("noDataPolicy") && !o.value("noDataPolicy").isString())
                 || (d.noDataPolicy != "fallback" && d.noDataPolicy != "fill")
-                || d.endpoint.host().isEmpty() || d.resolution <= 0
+                || (!file && (d.endpoint.scheme() != "https" || d.endpoint.host().isEmpty() || d.resolution <= 0))
                 || (wcs2 && (d.coverage.isEmpty() || d.axisX.isEmpty() || d.axisY.isEmpty() || d.axisX == d.axisY))
                 || (wcs2 && (d.scaleAxisX.isEmpty() || d.scaleAxisY.isEmpty() || d.scaleAxisX == d.scaleAxisY))
                 || (wcs1 && d.coverage.isEmpty())
                 || (arcgis && d.format != "image/tiff")
-                || d.blockPixels < 16 || d.blockPixels > 1024
+                || (!file && (d.blockPixels < 16 || d.blockPixels > 1024))
                 || d.concurrentRequests < 1 || d.concurrentRequests > 4
                 || d.maxX <= d.minX || d.maxY <= d.minY || !supportedCrs(d.epsg)
-                || (d.format != "image/tiff" && d.format != "image/x-aaigrid")) {
+                || (!file && d.format != "image/tiff" && d.format != "image/x-aaigrid")) {
             rejected << QStringLiteral("Skipped elevation dataset %1: invalid or unsupported definition").arg(label); continue;
         }
         ids.insert(d.id); result.push_back(d);
     }
+    const QString configuredDefault = document.value("defaultFileSource").toString();
+    bool markedDefault = false;
+    if (!configuredDefault.isEmpty()) {
+        for (auto &dataset : result) if (dataset.id == configuredDefault && dataset.provider == "file") {
+            dataset.defaultFileSource = markedDefault = true; break;
+        }
+        if (!markedDefault)
+            rejected << QStringLiteral("Default elevation file source is missing or invalid: %1").arg(configuredDefault);
+    } else if (document.contains("defaultFileSource")) {
+        rejected << QStringLiteral("Default elevation file source must be a dataset ID");
+    }
+    if (!markedDefault) for (auto &dataset : result) if (dataset.provider == "file") {
+        dataset.defaultFileSource = true; break;
+    }
     error = rejected.join('\n');
     return result;
+}
+QString defaultFileSourceId(const QVector<Dataset> &catalogue) {
+    for (const auto &dataset : catalogue) if (dataset.defaultFileSource) return dataset.id;
+    for (const auto &dataset : catalogue) if (dataset.provider == "file") return dataset.id;
+    return {};
 }
 bool nearDataset(const Dataset &d, const QVector<Point> &area, double bufferMetres) {
     if (area.isEmpty()) return true; // No usable route location: do not hide sources.
@@ -623,14 +779,29 @@ QString hgtFileName(int lat, int lon) {
     return QStringLiteral("%1%2%3%4.hgt").arg(lat < 0 ? "S" : "N").arg(std::abs(lat),2,10,QChar('0'))
         .arg(lon < 0 ? "W" : "E").arg(std::abs(lon),3,10,QChar('0'));
 }
-QString findHgtFile(const QString &root, int lat, int lon) {
-    if (root.trimmed().isEmpty()) return {};
+QString findHgtFile(const QString &root, const Dataset &dataset, int lat, int lon) {
+    if (root.trimmed().isEmpty() || dataset.provider != "file" || dataset.format != "hgt"
+            || dataset.directory.isEmpty()) return {};
     const QString name = hgtFileName(lat,lon);
-    for (const QString prefix : {QStringLiteral("world_hgt/"),QStringLiteral("hgt/"),QString()}) {
-        const QString path = QDir(root).filePath(prefix+name);
+    const QString directory = QDir(root).filePath(dataset.directory);
+    for (const QString suffix : {QString(),QStringLiteral(".gz")}) {
+        const QString path = QDir(directory).filePath(name+suffix);
         if (QFileInfo(path).isFile()) return path;
     }
     return {};
+}
+QUrl fileDownloadUrl(const Dataset &dataset, int lat, int lon) {
+    QString tile = hgtFileName(lat,lon);
+    tile.chop(4);
+    QString url = dataset.downloadUrlTemplate;
+    url.replace("{latitudeBand}",tile.left(3));
+    url.replace("{tile}",tile);
+    return QUrl(url);
+}
+bool readHgtFile(const QString &path, int lat, int lon, Raster &raster, QString &error) {
+    const QByteArray bytes = readFile(path,MaxHgtBytes);
+    if (bytes.isEmpty()) { error = QStringLiteral("Cannot read elevation file"); return false; }
+    return decodeHgtFileBytes(bytes,path.endsWith(".gz",Qt::CaseInsensitive),lat,lon,raster,error);
 }
 void Report::issue(const QString &message) {
     if (!message.isEmpty() && issues.size() < 20 && !issues.contains(message)) issues.push_back(message);
@@ -646,52 +817,80 @@ Result generate(const QString &root, const QString &id, const QVector<Point> &po
             || !std::isfinite(yOffset)) {
         result.error = QStringLiteral("Invalid elevation generation request"); return result;
     }
-    HgtSource hgt(root,result.report);
+    QString catalogueError;
+    const auto catalog = datasets(catalogueError);
+    result.report.issue(catalogueError);
+    if (catalog.isEmpty()) { result.error = catalogueError.isEmpty()
+        ? QStringLiteral("Elevation catalogue contains no usable datasets") : catalogueError; return result; }
+    const QString fallbackId = defaultFileSourceId(catalog);
+    const QString selectedId = id.isEmpty() ? fallbackId : id;
+    const Dataset *selected = nullptr, *fallbackDataset = nullptr;
+    for (const auto &dataset : catalog) {
+        if (dataset.id == selectedId) selected = &dataset;
+        if (dataset.id == fallbackId) fallbackDataset = &dataset;
+    }
+    if (!selected) { result.error = QStringLiteral("Unknown elevation dataset: %1").arg(selectedId); return result; }
+    const auto createSource = [&](const Dataset &dataset) -> std::unique_ptr<Source> {
+        if (dataset.provider == "file")
+            return std::make_unique<FileHgtSource>(root,dataset,result.report);
+        std::unique_ptr<RasterProvider> provider;
+        if (dataset.provider == "arcgis-imageserver")
+            provider = std::make_unique<ArcGisImageServerProvider>(root,dataset,result.report,secrets.value(dataset.apiKeySecret));
+        else provider = std::make_unique<WcsProvider>(root,dataset,result.report,secrets.value(dataset.apiKeySecret));
+        return std::make_unique<RasterSource>(dataset,std::move(provider),targetSpacing,result.report);
+    };
     std::unique_ptr<Source> primary;
-    bool fillPolicy = false;
-    if (!id.isEmpty()) {
-        QString catalogueError;
-        const auto catalog = datasets(catalogueError);
-        result.report.issue(catalogueError);
-        if (catalog.isEmpty() && !catalogueError.isEmpty()) { result.error = catalogueError; return result; }
-        for (const auto &d : catalog) if (d.id == id) {
-            fillPolicy = d.noDataPolicy == "fill";
-            std::unique_ptr<RasterProvider> provider;
-            if (d.provider == "arcgis-imageserver")
-                provider = std::make_unique<ArcGisImageServerProvider>(root,d,result.report,secrets.value(d.apiKeySecret));
-            else provider = std::make_unique<WcsProvider>(root,d,result.report,secrets.value(d.apiKeySecret));
-            primary = std::make_unique<RasterSource>(d,std::move(provider),targetSpacing,result.report);
-        }
-        if (!primary) { result.error = QStringLiteral("Unknown elevation dataset: %1").arg(id); return result; }
-        if (!primary->prepare(points,cancel,progress,result.error)) {
-            result.cancelled = cancel.load(); return result;
-        }
+    primary = createSource(*selected);
+    if (!primary->prepare(points,cancel,progress,result.error)) {
+        result.cancelled = cancel.load(); return result;
     }
     if (cancel) { result.cancelled = true; return result; }
-    result.heights.reserve(points.size());
-    int missing = 0;
+    const bool fillPolicy = selected->noDataPolicy == "fill";
+    std::unique_ptr<Source> fallback;
+    if (fallbackDataset && fallbackDataset->id != selected->id) {
+        fallback = createSource(*fallbackDataset);
+        result.report.fallbackSourceName = fallbackDataset->name;
+    }
+    QVector<Sample> samples;
+    samples.reserve(points.size());
+    QVector<Point> fallbackPoints;
+    QVector<qsizetype> fallbackIndices;
     for (qsizetype i = 0; i < points.size(); ++i) {
-        if (cancel) { result.cancelled = true; result.heights.clear(); return result; }
+        if (cancel) { result.cancelled = true; return result; }
         if (progress && i%4096 == 0) progress(int(i),int(points.size()),QStringLiteral("Sampling elevation"));
-        Sample value = primary ? primary->sample(points[i]) : hgt.sample(points[i]);
-        if (primary) {
-            if (value.valid()) ++result.report.primarySamples;
-            else {
-                if (value.status == SampleStatus::Outside) ++result.report.outsideSamples;
-                else if (value.status == SampleStatus::NoData) ++result.report.noDataSamples;
-                else ++result.report.unavailableSamples;
-                if (!(fillPolicy && value.status == SampleStatus::NoData))
-                    value = hgt.sample(points[i]);
-                if (value.valid()) { ++result.report.fallbackSamples; ++result.report.hgtSamples; }
+        const Sample value = primary->sample(points[i]);
+        samples.push_back(value);
+        if (value.valid()) ++result.report.primarySamples;
+        else {
+            if (value.status == SampleStatus::Outside) ++result.report.outsideSamples;
+            else if (value.status == SampleStatus::NoData) ++result.report.noDataSamples;
+            else ++result.report.unavailableSamples;
+            if (fallback && !(fillPolicy && value.status == SampleStatus::NoData)) {
+                fallbackPoints.push_back(points[i]); fallbackIndices.push_back(i);
             }
-        } else if (value.valid()) ++result.report.hgtSamples;
+        }
+    }
+    if (fallback && !fallbackPoints.isEmpty()) {
+        if (!fallback->prepare(fallbackPoints,cancel,progress,result.error)) {
+            result.cancelled = cancel.load(); return result;
+        }
+        for (qsizetype i=0; i<fallbackPoints.size(); ++i) {
+            if (cancel) { result.cancelled = true; return result; }
+            const Sample value = fallback->sample(fallbackPoints[i]);
+            if (value.valid()) { samples[fallbackIndices[i]] = value; ++result.report.fallbackSamples; }
+        }
+    }
+    result.heights.reserve(samples.size());
+    int missing = 0;
+    for (const Sample value : samples) {
         if (!value.valid()) ++missing;
         result.heights.push_back(value.height+yOffset);
     }
     if (missing) {
         result.error = (fillPolicy
             ? QStringLiteral("%1 samples have no usable elevation after NoData filling and available fallback; no elevation heights were applied")
-            : QStringLiteral("%1 samples have no usable elevation, including HGT fallback; no elevation heights were applied")).arg(missing);
+            : fallback ? QStringLiteral("%1 samples have no usable elevation, including the configured fallback; no elevation heights were applied")
+                       : QStringLiteral("%1 samples have no usable elevation from the selected source; no elevation heights were applied")).arg(missing);
         result.heights.clear();
     }
     return result;

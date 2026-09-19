@@ -16,8 +16,8 @@ are not a current specification.
      [England/Estonia](england-estonia-validation.md) and
      [Denmark/authentication](denmark-validation.md). These cover recent protocol
      differences; use [Czech ArcGIS](czech-arcgis-validation.md) for that provider.
-   - Downloaded/offline sources: [local-source design](local-elevation-sources.md).
-     This is a direction and staged plan, **not an implemented local-raster schema**.
+   - Downloaded/offline sources: [file-source implementation and next step](local-elevation-sources.md).
+     One-degree HGT is implemented; GeoTIFF collections remain staged work.
 4. Read the relevant source files and tests from the code map. Credentials and
    source-setting behavior are documented in [Settings](../../settings-system.md).
 
@@ -50,13 +50,13 @@ Paths below are relative to the repository root.
 | Area | Files / entry points |
 |---|---|
 | Catalogue | `src/tsre/geo/elevation-datasets.json`; `Dataset`, `datasets()` and `parseDatasets()` in `ElevationSource.h/.cpp` |
-| Providers/cache | `ElevationSource.cpp`: `CachedRasterProvider`, `WcsProvider`, `ArcGisImageServerProvider`, `RasterSource`, `generate()` |
+| Providers/cache | `ElevationSource.cpp`: `FileHgtSource`, `CachedRasterProvider`, `WcsProvider`, `ArcGisImageServerProvider`, `RasterSource`, `generate()` |
 | Requests/grid checks | `coverageUrl()`, `imageServerUrl()`, `validateRasterGrid()`, `cacheRelativePath()` |
 | Numeric raster/CRS | `src/tsre/geo/ElevationRaster.h/.cpp`: `Raster`, readers, `project()`, `supportedCrs()`, `fillNoData()` |
 | HTTP/auth | `src/tsre/geo/ElevationDownload.h/.cpp`: `downloadWave()`; query credentials added only inside transport |
 | Height UI | `src/tsre/geo/HeightWindow.cpp`; 10 km location filter via `nearDataset()` |
 | Settings | `src/settings/SettingsRegistration.cpp`: dynamic source options and reference-valued setting |
-| HGT lookup | `findHgtFile()`; also used by `GeoHgtFile.cpp` and the missing-file checker |
+| File-source lookup | `defaultFileSourceId()`, `findHgtFile()`, `readHgtFile()`; also used by `GeoHgtFile.cpp` and the missing-file checker |
 | Tests | `tests/geo/`; `src/tsre/tests/ElevationUiTestSuite.cpp` |
 | User-facing text | `translations/tsre_en.ts`, `translations/tsre_pl.ts`; use existing translation IDs/style conventions |
 
@@ -80,7 +80,7 @@ JSON/top-level structure rejects the file. Missing selected sources fail explici
 
    | Fields | Meaning |
    |---|---|
-   | `provider`, `endpoint`, `coverage`, `format` | Supported runtime providers: `wcs-2.0.1`, `wcs-1.0.0`, `arcgis-imageserver`; decoder formats TIFF/ASCII as supported by the provider |
+   | `provider`, `endpoint`, `coverage`, `format` | Service providers: `wcs-2.0.1`, `wcs-1.0.0`, `arcgis-imageserver`; decoder formats TIFF/ASCII as supported by the provider. File sources use the separate contract below |
    | `requestFormat` | Optional wire-format spelling, independent of decoder format; WCS 1 defaults TIFF to `GeoTIFF`, Estonia uses `image/tiff`, Denmark `GTiff` |
    | `axisX/Y`, `scaleAxisX/Y` | WCS 2 subset and optional separate scaling axes; scaling defaults to subset axes |
    | `crs`, `resolution`, `origin`, `bounds` | Request/cache grid, not necessarily native source grid; bounds are conservative rectangles, not coverage masks |
@@ -116,8 +116,9 @@ axes and returns expanded envelopes. See individual service notes for evidence.
 - Cache identity hashes the dataset definition except `noDataPolicy`. Changing
   notes or concurrency can therefore also select a new cache directory. Keys are
   resolved separately and never belong in that definition or cached request URLs.
-- User files belong in stable named directories. HGT precedence is `world_hgt/`,
-  `hgt/`, then root. Preserve original files and keep derived indexes disposable.
+- User files belong in stable named directories. World HGT uses only
+  `geoPath/world_hgt/`; no legacy root or `hgt/` search remains. Raw `.hgt` files
+  take precedence over `.hgt.gz`. Preserve originals and keep derived indexes disposable.
 - Selectable secondary-source fallback / retaining existing heights over missing
   areas remains an open task in the original ideas. Do not mistake it for the
   implemented per-dataset NoData fill option.
@@ -147,18 +148,21 @@ or put key-bearing URLs in commands/logs. Ignored `build-*-research/` probes in 
 worktree are conveniences, not evidence guaranteed in another checkout.
 
 After a change, run appropriate standalone checks and the relevant build when
-allowed. The last recorded baseline is **353 standalone checks and a successful
-Release build**. The user confirmed that source hiding works; the main UI test
-suite was not rerun for these changes.
+allowed. The current file-source milestone passes **359 standalone checks**, a
+live Mapzen HGT download/sample probe, 246 Settings checks, 61 elevation-UI checks
+and the Release application build.
 Flanders has only a small download/cache probe; Estonia 1024 was tested but its
 catalogue still uses 512. Consult current source/status rather than treating these
 counts or pending decisions as permanent.
 
-## Offline-source readiness
+## File-source status
 
-The docs are enough to start design and inspect candidate files. Implementation
-still needs one real downloadable product, representative files, an indexing
-scheme and a decision on large/compressed TIFF support. Existing `Source` and
-`Raster` contracts are reusable; current block-based HTTP acquisition must not
-dictate the layout of user-managed files. Adding a `local-raster` JSON entry alone
-will not work: parser validation and provider dispatch also require implementation.
+`provider: "file"`, `format: "hgt"`, `fileGrid: "degree"` is implemented. The
+catalogue defines its directory, global bounds, default/fallback identity and
+optional gzip URL-template downloader. Manual-only sources omit `download`.
+Service sampling now prepares this fallback only for unresolved primary samples.
+
+The next format should be a concrete degree-grid GeoTIFF product. Current TIFF
+limits still prevent treating arbitrary compressed/large/BigTIFF or COG
+collections as supported merely by adding JSON. Extend parser validation,
+provider dispatch and bounded/windowed decoding together.

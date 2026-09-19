@@ -11,6 +11,8 @@ namespace Elevation {
 struct Dataset {
     QString id, name, coverage, format, verticalDatum, axisX, axisY;
     QString requestFormat, scaleAxisX, scaleAxisY;
+    QString directory, fileGrid, downloadUrlTemplate, downloadCompression;
+    QString attribution;
     QString provider = QStringLiteral("wcs-2.0.1");
     QUrl endpoint;
     // Caller resolves this profile-secret reference; transport selects Basic or query auth.
@@ -21,12 +23,14 @@ struct Dataset {
     double minX = 0, minY = 0, maxX = 0, maxY = 0;
     bool zeroIsNoData = false;
     bool allowExpandedGrid = false;
+    bool defaultFileSource = false;
     QString noDataPolicy = QStringLiteral("fallback");
     QJsonObject definition;
 };
 QVector<Dataset> datasets(QString &error);
 // Returns valid entries and reports rejected entries in error. Invalid JSON is fatal.
 QVector<Dataset> parseDatasets(const QByteArray &json, QString &error);
+QString defaultFileSourceId(const QVector<Dataset> &catalogue);
 bool nearDataset(const Dataset &dataset, const QVector<Point> &area, double bufferMetres = 10000);
 struct Block {
     int column = 0, row = 0;
@@ -41,13 +45,18 @@ bool validateRasterGrid(const Dataset &dataset, Block block, const Raster &raste
 QUrl imageServerUrl(const Dataset &dataset, Block block);
 QString cacheRelativePath(const Dataset &dataset, Block block);
 QString hgtFileName(int latitude, int longitude);
-QString findHgtFile(const QString &root, int latitude, int longitude);
+QString findHgtFile(const QString &root, const Dataset &dataset,
+                    int latitude, int longitude);
+QUrl fileDownloadUrl(const Dataset &dataset, int latitude, int longitude);
+bool readHgtFile(const QString &path, int latitude, int longitude,
+                 Raster &raster, QString &error);
 using Progress = std::function<void(int done, int total, const QString &message)>;
 struct Report {
-    int primarySamples = 0, hgtSamples = 0, fallbackSamples = 0;
+    int primarySamples = 0, fallbackSamples = 0;
     int noDataSamples = 0, outsideSamples = 0, unavailableSamples = 0;
     int cacheHits = 0, downloads = 0;
     int filledPixels = 0;
+    QString fallbackSourceName;
     QStringList issues;
     void issue(const QString &message);
 };
@@ -66,7 +75,8 @@ public:
                          const Progress &progress, QString &error) = 0;
     virtual Sample sample(Point point) = 0;
 };
-// Called on a worker thread. An empty dataset ID selects local HGT only.
+// Called on a worker thread. An empty dataset ID is accepted as the legacy
+// alias for the catalogue's default file source.
 // targetSpacing is the output terrain vertex spacing in metres.
 Result generate(const QString &root, const QString &datasetId,
                 const QVector<Point> &points, double targetSpacing, float yOffset,

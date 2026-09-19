@@ -94,15 +94,16 @@ an unsupported saved ID explicitly rather than selecting the first available ite
 Consumers decide what an unresolved reference means when it is used.
 
 `geo.elevation.source` uses these properties. Both elevation and Settings dropdowns
-read HGT plus the embedded elevation catalogue. Adding a dataset no longer requires
-editing a second list. The profile stores its selected ID and ordinary setting
+read the embedded elevation catalogue; World HGT is itself a catalogue-defined
+file source. Adding a dataset no longer requires editing a second list. The profile stores its selected ID and ordinary setting
 metadata, without a copy of the dataset choices. Loading an older profile removes
 its stale `options` field while preserving the selected ID; saving also strips any
-reintroduced runtime option list. This is a targeted metadata migration.
+reintroduced runtime option list. The former empty HGT value migrates to the
+catalogue's explicit default file-source ID. This is a targeted metadata migration.
 
 For an unavailable elevation ID, preview/generation reports an unknown dataset and
-applies no heights. It does not silently replace the selection with HGT. Ordinary
-missing coverage from an existing dataset still follows the established HGT fallback.
+applies no heights. It does not silently replace the selection. Ordinary missing
+coverage from an existing dataset uses the catalogue's configured file-source fallback.
 
 The controlled `apply` lifecycle is `dynamic`, `routeReload`, `rendererRestart`,
 or `applicationRestart`. A dynamic value is available immediately; a cold

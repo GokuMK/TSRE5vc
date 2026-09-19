@@ -15,18 +15,21 @@ QPointer<QPlainTextEdit> automaticReport;
 bool lastElevationCancelled = false;
 QString summarize(const Elevation::Result &result, const QString &source) {
     const auto &r = result.report;
-    //% "Source: %1\nSource samples: %2; HGT samples: %3\nCache blocks: %4; downloaded blocks: %5"
+    //% "Source: %1\nSource samples: %2; fallback samples: %3\nCached blocks: %4; downloads: %5"
     QString text = qtTrId("geo.elevation.report.summary")
-        .arg(source).arg(r.primarySamples).arg(r.hgtSamples).arg(r.cacheHits).arg(r.downloads);
+        .arg(source).arg(r.primarySamples).arg(r.fallbackSamples).arg(r.cacheHits).arg(r.downloads);
     if (r.filledPixels) {
         //% "\nFilled source NoData pixels: %1 (estimated from neighbouring heights)."
         text += qtTrId("geo.elevation.report.filled").arg(r.filledPixels);
     }
     if (r.fallbackSamples || r.noDataSamples || r.outsideSamples || r.unavailableSamples) {
-        //% "\nHGT fallback: %1 samples. Missing/zero data: %2; outside coverage: %3; unavailable blocks: %4."
+        //% "\nFallback (%1): %2 samples. Missing/zero data: %3; outside coverage: %4; unavailable data: %5."
         text += qtTrId("geo.elevation.report.fallback")
+            .arg(r.fallbackSourceName.isEmpty() ? QStringLiteral("none") : r.fallbackSourceName)
             .arg(r.fallbackSamples).arg(r.noDataSamples).arg(r.outsideSamples).arg(r.unavailableSamples);
-        //% "\nSource and HGT heights may use different vertical datums. No vertical datum conversion is applied."
+    }
+    if (r.fallbackSamples) {
+        //% "\nSource and fallback heights may use different vertical datums. No vertical datum conversion is applied."
         text += qtTrId("geo.elevation.report.datum");
     }
     //% "\nCancelled. No elevation heights were applied."
@@ -90,7 +93,7 @@ HeightWindow::HeightWindow() : QDialog() {
     buttons->addWidget(applyButton); buttons->addWidget(closeButton);
     auto *layout = new QVBoxLayout(this);
     layout->addLayout(top); layout->addWidget(imageLabel,1);
-    //% "Source resolution depends on the selected dataset. Output spacing follows this terrain tile. Missing coverage and NoData use HGT fallback."
+    //% "Source resolution depends on the selected dataset. Output spacing follows this terrain tile. Missing coverage and NoData use the configured file-source fallback."
     auto *note = new QLabel(qtTrId("geo.elevation.source.note"),this);
     note->setWordWrap(true); layout->addWidget(note);
     layout->addWidget(reportText); layout->addLayout(buttons);
@@ -126,7 +129,8 @@ int HeightWindow::exec() {
     if (!catalogueError.isEmpty()) reportText->setPlainText(catalogueError);
     //% "Terrain elevation - tile %1 %2"
     setWindowTitle(qtTrId("geo.elevation.tile.title").arg(tileX).arg(-tileZ));
-    const QString selected = Settings::string(SourceSetting,SettingType::Enum);
+    QString selected = Settings::string(SourceSetting,SettingType::Enum);
+    if (selected.isEmpty()) selected = Elevation::defaultFileSourceId(catalog);
     QVector<Elevation::Point> area;
     if (Game::GeoCoordConverter && terrainSize > 0) {
         PreciseTileCoordinate coordinate;
@@ -144,8 +148,7 @@ int HeightWindow::exec() {
     }
     { const QSignalBlocker blocker(sourceBox);
       sourceBox->clear();
-      sourceBox->addItem(qtTrId("settings.geo.elevation.source.hgt"),QString());
-      bool known = selected.isEmpty();
+      bool known = false;
       for (const auto &dataset : catalog) {
           known |= dataset.id == selected;
           if (Elevation::nearDataset(dataset,area)) sourceBox->addItem(dataset.name,dataset.id);
@@ -183,15 +186,19 @@ void HeightWindow::load(bool gui) {
     QSurface *previousSurface = previousContext ? previousContext->surface() : nullptr;
     loadButton->setEnabled(false); sourceBox->setEnabled(false); offsetEdit->setEnabled(false);
     const QString root = Settings::string("core.paths.geoData",SettingType::Directory);
-    const QString dataset = gui ? sourceBox->currentData().toString() : Settings::string(SourceSetting,SettingType::Enum);
+    QString dataset = gui ? sourceBox->currentData().toString() : Settings::string(SourceSetting,SettingType::Enum);
+    QString catalogueError;
+    const auto catalog = Elevation::datasets(catalogueError);
+    if (dataset.isEmpty()) dataset = Elevation::defaultFileSourceId(catalog);
     const int sourceIndex = sourceBox->findData(dataset);
-    const QString sourceName = sourceIndex < 0 ? dataset : sourceBox->itemText(sourceIndex);
+    QString sourceName = sourceIndex < 0 ? dataset : sourceBox->itemText(sourceIndex);
     // Snapshot only this dataset's secret on the UI thread, before starting the worker.
     QMap<QString,QString> secrets;
-    QString catalogueError;
-    for (const auto &entry : Elevation::datasets(catalogueError))
-        if (entry.id == dataset && !entry.apiKeySecret.isEmpty())
+    for (const auto &entry : catalog) if (entry.id == dataset) {
+        sourceName = entry.name;
+        if (!entry.apiKeySecret.isEmpty())
             secrets.insert(entry.apiKeySecret,SettingsManager::instance().secretValue(entry.apiKeySecret));
+    }
     QVector<Elevation::Point> points;
     points.reserve(qsizetype(terrainResolution)*terrainResolution);
     PreciseTileCoordinate coordinate;
@@ -272,6 +279,12 @@ void HeightWindow::load(bool gui) {
 void HeightWindow::CheckForMissingGeodataFiles(QMap<int,QPair<int,int>*> &tiles) {
     if (!Game::GeoCoordConverter) return;
     const QString root = Settings::string("core.paths.geoData",SettingType::Directory);
+    QString catalogueError;
+    const auto catalog = Elevation::datasets(catalogueError);
+    const QString fallbackId = Elevation::defaultFileSourceId(catalog);
+    const Elevation::Dataset *fileSource = nullptr;
+    for (const auto &dataset : catalog) if (dataset.id == fallbackId) { fileSource = &dataset; break; }
+    if (!fileSource) return;
     QSet<QString> missing;
     for (auto it = tiles.cbegin(); it != tiles.cend(); ++it) {
         if (!it.value()) continue;
@@ -288,16 +301,18 @@ void HeightWindow::CheckForMissingGeodataFiles(QMap<int,QPair<int,int>*> &tiles)
             longitudes.insert(int(std::floor(geographic.Longitude)));
         }
         for (int lat : latitudes) for (int lon : longitudes)
-            if (Elevation::findHgtFile(root,lat,lon).isEmpty()) missing.insert(Elevation::hgtFileName(lat,lon));
+            if (Elevation::findHgtFile(root,*fileSource,lat,lon).isEmpty()) missing.insert(Elevation::hgtFileName(lat,lon));
     }
     QStringList names = missing.values(); names.sort();
-    QString message = Settings::string(SourceSetting,SettingType::Enum).isEmpty()
-        //% "Local HGT file check"
+    QString selected = Settings::string(SourceSetting,SettingType::Enum);
+    if (selected.isEmpty()) selected = fallbackId;
+    QString message = selected == fallbackId
+        //% "Elevation file-source check"
         ? qtTrId("geo.elevation.hgt.check")
-        //% "HGT fallback file check. Elevation blocks are prepared when terrain is loaded."
+        //% "Fallback file-source check. Elevation data is prepared when terrain is loaded."
         : qtTrId("geo.elevation.hgt.fallback.check");
-    //% "\nAll checked HGT files are present."
-    message += names.isEmpty() ? qtTrId("geo.elevation.hgt.present") : //% "\nMissing HGT files:\n%1"
+    //% "\nAll checked elevation files are present."
+    message += names.isEmpty() ? qtTrId("geo.elevation.hgt.present") : //% "\nMissing local elevation files (downloaded automatically when supported):\n%1"
         qtTrId("geo.elevation.hgt.missing").arg(names.join('\n'));
     //% "Elevation data"
     QMessageBox::information(nullptr,qtTrId("geo.elevation.data.title"),message);

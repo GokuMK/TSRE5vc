@@ -144,17 +144,17 @@ int main(int argc, char **argv) {
     const auto parseEntries = [&](const QJsonArray &items) {
         return parseDatasets(QJsonDocument(QJsonObject{{"version",1},{"datasets",items}}).toJson(),error);
     };
-    auto invalid = entries.first().toObject(); invalid["id"] = "fixture.invalid-auth";
+    auto invalid = entries.at(1).toObject(); invalid["id"] = "fixture.invalid-auth";
     invalid["authentication"] = QJsonObject{{"type","unsupported"},{"secret","fixture.key"}};
     auto mixed = entries; mixed.insert(1,invalid);
     auto validEntries = parseEntries(mixed);
     check(validEntries.size() == catalog.size() && error.contains("fixture.invalid-auth")
         && validEntries.last().id == catalog.last().id,"invalid authentication rejects only its object and parsing continues");
-    invalid = entries.first().toObject(); invalid["id"] = "fixture.invalid-crs"; invalid["crs"] = 9999;
-    mixed = entries; mixed.prepend(invalid); mixed.append(entries.first()); mixed.append(false);
+    invalid = entries.at(1).toObject(); invalid["id"] = "fixture.invalid-crs"; invalid["crs"] = 9999;
+    mixed = entries; mixed.prepend(invalid); mixed.append(entries.at(1)); mixed.append(false);
     validEntries = parseEntries(mixed);
     check(validEntries.size() == catalog.size() && error.contains("fixture.invalid-crs")
-        && error.contains(catalog.first().id) && error.contains("entry "),
+        && error.contains(catalog.at(1).id) && error.contains("entry "),
         "unsupported CRS, duplicate ID and non-object are individually rejected");
     invalid["origin"] = QJsonArray{};
     check(parseEntries({invalid}).isEmpty() && error.contains("grid definition"),"invalid grid is diagnosed");
@@ -173,6 +173,22 @@ int main(int argc, char **argv) {
     const auto england = byId.value("gb.ea.lidar.dtm1");
     const auto estonia = byId.value("ee.maru.dtm1");
     const auto denmark = byId.value("dk.datafordeler.dhm.terraen");
+    const auto worldHgt = byId.value("world-hgt");
+    check(defaultFileSourceId(catalog) == worldHgt.id && worldHgt.provider == "file"
+        && worldHgt.directory == "world_hgt" && worldHgt.fileGrid == "degree"
+        && worldHgt.minX == -180 && worldHgt.minY == -90 && worldHgt.maxX == 180 && worldHgt.maxY == 90,
+        "catalogue defines the world-wide default HGT file source");
+    check(fileDownloadUrl(worldHgt,-1,-2).toString()
+        == "https://s3.amazonaws.com/elevation-tiles-prod/skadi/S01/S01W002.hgt.gz",
+        "degree-grid download template resolves southern and western cells");
+    auto manualFile = worldHgt.definition;
+    manualFile["id"] = "fixture.manual-hgt"; manualFile["directory"] = "manual_hgt";
+    manualFile.remove("download");
+    auto manualCatalog = parseEntries({manualFile});
+    check(manualCatalog.size() == 1 && manualCatalog.first().downloadUrlTemplate.isEmpty(),
+        "file source without download definition remains manual-only");
+    manualFile["directory"] = "../outside";
+    check(parseEntries({manualFile}).isEmpty(),"file-source directory traversal is rejected");
     check(denmark.apiKeyParameter == "apikey" && denmark.apiKeySecret == "geo.elevation.dk.datafordeler.apiKey"
         && denmark.resolution == 1 && QUrlQuery(coverageUrl(denmark,{0,0})).queryItemValue("FORMAT") == "GTiff"
         && !QUrlQuery(coverageUrl(denmark,{0,0})).hasQueryItem("apikey"),
@@ -262,17 +278,26 @@ int main(int argc, char **argv) {
     check(cacheRelativePath(oldGrid,{0,0}) != cacheRelativePath(d,{0,0}),"old 512 m TIFF cache cannot be reused as 1024 m data");
     check(hgtFileName(-1,-2) == "S01W002.hgt","HGT hemisphere filename");
     QTemporaryDir temp;
-    check(write(temp.path()+"/N52E019.hgt",hgt(3,10)),"create local HGT fixture");
-    check(findHgtFile(temp.path(),52,19) == temp.path()+"/N52E019.hgt","legacy root HGT lookup");
-    check(write(temp.path()+"/hgt/N52E019.hgt",hgt(3,20)),"create organized HGT fixture");
-    check(findHgtFile(temp.path(),52,19) == temp.path()+"/hgt/N52E019.hgt","HGT subdirectory wins conflicts");
+    check(write(temp.path()+"/N52E019.hgt",hgt(3,10)),"create obsolete root HGT fixture");
+    check(write(temp.path()+"/hgt/N52E019.hgt",hgt(3,15)),"create obsolete HGT-subdirectory fixture");
+    check(findHgtFile(temp.path(),worldHgt,52,19).isEmpty(),"file source does not search legacy directories");
     check(write(temp.path()+"/world_hgt/N52E019.hgt",hgt(3,20)),"create user-managed world HGT fixture");
-    check(findHgtFile(temp.path(),52,19) == temp.path()+"/world_hgt/N52E019.hgt",
-        "world_hgt takes precedence over both legacy paths");
+    check(findHgtFile(temp.path(),worldHgt,52,19) == temp.path()+"/world_hgt/N52E019.hgt",
+        "catalogue directory locates user-managed HGT files");
+    const QByteArray compressedHgt = QByteArray::fromBase64("H4sIAAAAAAAEAGNQZECDABCP3aMSAAAA");
+    check(write(temp.path()+"/world_hgt/N53E019.hgt.gz",compressedHgt),"create compressed HGT fixture");
+    Raster compressedRaster;
+    check(readHgtFile(temp.path()+"/world_hgt/N53E019.hgt.gz",53,19,compressedRaster,error)
+        && sampleLegacyHgt(compressedRaster,{53.5,19.5}).height == 33,
+        "compressed downloaded HGT validates and samples without expansion on disk");
+    auto corruptGzip = compressedHgt; corruptGzip[corruptGzip.size()-8] ^= 1;
+    check(write(temp.path()+"/world_hgt/N54E019.hgt.gz",corruptGzip)
+        && !readHgtFile(temp.path()+"/world_hgt/N54E019.hgt.gz",54,19,compressedRaster,error)
+        && error.contains("checksum"),"compressed HGT checksum is enforced");
     std::atomic_bool cancel{false};
-    check(write(temp.path()+"/hgt/N60E027.hgt",hgt(3,15)),"prepare Finland fallback fixture");
+    check(write(temp.path()+"/world_hgt/N60E027.hgt",hgt(3,15)),"prepare Finland fallback fixture");
     auto withoutKey = generate(temp.path(),finland.id,{{60.1,27.1}},2.0,0,cancel);
-    check(withoutKey.success() && withoutKey.report.downloads == 0 && withoutKey.report.hgtSamples == 1
+    check(withoutKey.success() && withoutKey.report.downloads == 0 && withoutKey.report.fallbackSamples == 1
         && withoutKey.report.issues.join('\n').contains(finland.apiKeySecret),
         "missing API key skips requests and visibly reports the reference with HGT fallback");
     const QString invalidKey = "invalid:fixture-key";
@@ -280,14 +305,14 @@ int main(int argc, char **argv) {
     check(withoutKey.success() && withoutKey.report.downloads == 0
         && !withoutKey.report.issues.join('\n').contains(invalidKey),"invalid Basic username is rejected without exposing its value");
     auto generated = generate(temp.path(),"",{{52.5,19.5}},1.0,2,cancel);
-    check(generated.success() && generated.heights[0] == 22 && generated.report.hgtSamples == 1,"HGT generation and offset");
-    generated = generate(temp.path(),"",{{52.5,19.5},{53.5,19.5}},1.0,0,cancel);
+    check(generated.success() && generated.heights[0] == 22 && generated.report.primarySamples == 1,"catalogue HGT generation and offset");
+    generated = generate(temp.path(),"",{{52.5,19.5},{54.5,19.5}},1.0,0,cancel);
     check(!generated.success() && generated.heights.isEmpty(),"partial missing tile never returns commit-ready heights");
     cancel = true;
     generated = generate(temp.path(),d.id,{{52,19}},1.0,0,cancel);
     check(generated.cancelled && generated.heights.isEmpty(),"cancel before network work");
     cancel = false;
-    write(temp.path()+"/hgt/N40E019.hgt",hgt(3,12));
+    write(temp.path()+"/world_hgt/N40E019.hgt",hgt(3,12));
     generated = generate(temp.path(),d.id,{{40.5,19.5}},1.0,0,cancel);
     check(generated.success() && generated.report.fallbackSamples == 1 && generated.report.outsideSamples == 1,"outside Poland uses reported HGT fallback without HTTP");
     check(!generate("","",{{52,19}},1.0,0,cancel).success(),"empty geoPath cannot write into working directory");
@@ -317,7 +342,7 @@ int main(int argc, char **argv) {
     check(storeGrid(cachedGrid),"prepare explicit NoData cache fixture");
     generated = generate(temp.path(),ascii.id,{{52,19}},1.0,0,cancel);
     check(generated.success() && generated.report.noDataSamples == 1 && generated.report.fallbackSamples == 1
-          && generated.heights[0] == 20,"cached NoData falls back to organized HGT with provenance");
+          && generated.heights[0] == 20,"cached NoData falls back to catalogue HGT with provenance");
     runCzechWcsTests(check);
     runArcGisImageServerTests(check);
     runDownloadTests(check);

@@ -102,7 +102,7 @@ void runArcGisImageServerTests(const std::function<void(bool,const char*)> &chec
           "ArcGIS provider shares cache, coordinate conversion, sampling and height offset");
     QByteArray hgt(18,Qt::Uninitialized);
     for (int i=0; i<9; ++i) qToBigEndian<qint16>(777,hgt.data()+i*2);
-    check(write(temp.path()+"/hgt/N48E013.hgt",hgt) && write(temp.path()+"/hgt/N50E015.hgt",hgt),"prepare HGT fallback fixtures");
+    check(write(temp.path()+"/world_hgt/N48E013.hgt",hgt) && write(temp.path()+"/world_hgt/N50E015.hgt",hgt),"prepare HGT fallback fixtures");
     result = generate(temp.path(),d.id,{{48.6,13.5}}, 1.0, 0, cancel);
     check(result.success() && result.report.cacheHits == 1 && result.report.downloads == 0
           && result.report.noDataSamples == 1 && result.report.fallbackSamples == 1 && result.heights[0] == 777,

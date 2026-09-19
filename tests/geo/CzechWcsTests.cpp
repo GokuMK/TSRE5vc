@@ -115,7 +115,7 @@ void runCzechWcsTests(const std::function<void(bool,const char*)> &check) {
           "unchanged production source uses Czech cache and samples native raster");
     QByteArray hgt(18,Qt::Uninitialized);
     for (int i = 0; i < 9; ++i) qToBigEndian<qint16>(777,hgt.data()+i*2);
-    check(write(temp.path()+"/hgt/N48E013.hgt",hgt),"prepare synthetic HGT fallback");
+    check(write(temp.path()+"/world_hgt/N48E013.hgt",hgt),"prepare synthetic HGT fallback");
     result = generate(temp.path(),d.id,{{48.6,13.5},{48.60005,13.50005}},1.0,0,cancel);
     check(result.success() && result.report.cacheHits == 2 && result.report.downloads == 0
           && result.report.noDataSamples == 2 && result.report.fallbackSamples == 2

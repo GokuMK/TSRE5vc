@@ -44,18 +44,19 @@ int TsreTests::runSettingsSuite(bool verbose) {
     check(manager.registry().definitions().size() == 84,
           "catalog-includes-terrain-elevation-source");
     const auto *elevationSource = manager.registry().definition("geo.elevation.source");
-    check(elevationSource && elevationSource->type == SettingType::Enum
-          && elevationSource->defaultValue.toString().isEmpty()
-          && elevationSource->optionsProvider && elevationSource->allowUnknownOptions
-          && !elevationSource->toJson().contains("options") && elevationSource->apply == "dynamic",
-          "elevation-source-defaults-to-hgt-and-applies-on-next-generation");
     QString elevationError;
     const auto elevationCatalog = Elevation::datasets(elevationError);
+    const QString defaultElevation = Elevation::defaultFileSourceId(elevationCatalog);
+    check(elevationSource && elevationSource->type == SettingType::Enum
+          && elevationSource->defaultValue.toString() == defaultElevation
+          && elevationSource->optionsProvider && elevationSource->allowUnknownOptions
+          && !elevationSource->toJson().contains("options") && elevationSource->apply == "dynamic",
+          "elevation-source-defaults-to-catalogue-file-source-and-applies-on-next-generation");
     const auto elevationOptions = elevationSource ? elevationSource->resolvedOptions() : QVector<SettingOption>();
     check(elevationError.isEmpty() && !elevationCatalog.isEmpty()
-          && elevationOptions.size() == elevationCatalog.size()+1
-          && elevationOptions.first().value.toString().isEmpty(),
-          "runtime-elevation-options-match-catalogue-plus-hgt");
+          && elevationOptions.size() == elevationCatalog.size()
+          && elevationOptions.first().value.toString() == defaultElevation,
+          "runtime-elevation-options-match-catalogue");
     for (const auto &dataset : elevationCatalog) {
         int matches = 0;
         for (const auto &option : elevationOptions)
@@ -317,7 +318,7 @@ int TsreTests::runSettingsSuite(bool verbose) {
         bool foundSelector = false;
         for (auto *combo : referenceDialog.findChildren<QComboBox*>()) {
             if (combo->currentData().toString() != missing) continue;
-            foundSelector = combo->count() == elevationCatalog.size()+2;
+            foundSelector = combo->count() == elevationCatalog.size()+1;
             for (const auto &dataset : elevationCatalog)
                 foundSelector &= combo->findData(dataset.id) >= 0;
         }
@@ -345,7 +346,24 @@ int TsreTests::runSettingsSuite(bool verbose) {
               && restored.value(key).toString() == missing
               && !restored.settingObject(key).contains("options") && restored.save(&error),
               "old-enum-list-is-removed-without-losing-reference");
-        check(manager.setValue(key,QString(),&error),"restore-hgt-profile-default-after-reference-checks");
+        auto emptyDocument = oldDocument;
+        auto emptySettings = emptyDocument.value("settings").toArray();
+        for (int i=0; i<emptySettings.size(); ++i) {
+            auto setting = emptySettings[i].toObject();
+            if (setting.value("key").toString() != key) continue;
+            setting["value"] = QString(); emptySettings[i] = setting;
+        }
+        emptyDocument["settings"] = emptySettings;
+        QFile legacyEmpty(temporary.filePath("old-empty-elevation-source.json"));
+        check(legacyEmpty.open(QIODevice::WriteOnly)
+              && legacyEmpty.write(QJsonDocument(emptyDocument).toJson()) > 0,
+              "write-empty-hgt-source-profile");
+        legacyEmpty.close();
+        check(restored.loadFile(legacyEmpty.fileName(),&error)
+              && restored.value(key).toString() == defaultElevation
+              && restored.save(&error),
+              "empty-hgt-source-migrates-to-catalogue-default");
+        check(manager.setValue(key,defaultElevation,&error),"restore-file-source-profile-default-after-reference-checks");
         manager.clearSessionValue(key);
     }
     {

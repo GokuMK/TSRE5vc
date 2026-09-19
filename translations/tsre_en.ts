@@ -7557,8 +7557,8 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <translation>Geodata and elevation cache directory</translation>
     </message>
     <message id="settings.core.paths.geo.data.description">
-        <source>Geodata root: local HGT files in world_hgt/ (legacy hgt/ and root supported); downloaded elevation rasters in cache/.</source>
-        <translation>Geodata root: local HGT files in world_hgt/ (legacy hgt/ and root supported); downloaded elevation rasters in cache/.</translation>
+        <source>Geodata root: user-managed elevation products in their catalogue directories; downloaded service rasters in cache/.</source>
+        <translation>Geodata root: user-managed elevation products in their catalogue directories; downloaded service rasters in cache/.</translation>
     </message>
     <message id="settings.core.startup.route.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="371" />
@@ -10041,23 +10041,23 @@ Filled source NoData pixels: %1 (estimated from neighbouring heights).</translat
     </message>
     <message id="geo.elevation.report.summary">
         <source>Source: %1
-Source samples: %2; HGT samples: %3
-Cache blocks: %4; downloaded blocks: %5</source>
+Source samples: %2; fallback samples: %3
+Cached blocks: %4; downloads: %5</source>
         <translation>Source: %1
-Source samples: %2; HGT samples: %3
-Cache blocks: %4; downloaded blocks: %5</translation>
+Source samples: %2; fallback samples: %3
+Cached blocks: %4; downloads: %5</translation>
     </message>
     <message id="geo.elevation.report.fallback">
         <source>
-HGT fallback: %1 samples. Missing/zero data: %2; outside coverage: %3; unavailable blocks: %4.</source>
+Fallback (%1): %2 samples. Missing/zero data: %3; outside coverage: %4; unavailable data: %5.</source>
         <translation>
-HGT fallback: %1 samples. Missing/zero data: %2; outside coverage: %3; unavailable blocks: %4.</translation>
+Fallback (%1): %2 samples. Missing/zero data: %3; outside coverage: %4; unavailable data: %5.</translation>
     </message>
     <message id="geo.elevation.report.datum">
         <source>
-Source and HGT heights may use different vertical datums. No vertical datum conversion is applied.</source>
+Source and fallback heights may use different vertical datums. No vertical datum conversion is applied.</source>
         <translation>
-Source and HGT heights may use different vertical datums. No vertical datum conversion is applied.</translation>
+Source and fallback heights may use different vertical datums. No vertical datum conversion is applied.</translation>
     </message>
     <message id="geo.elevation.report.cancelled">
         <source>
@@ -10072,10 +10072,6 @@ Cancelled. No elevation heights were applied.</translation>
     <message id="geo.elevation.title">
         <source>Terrain elevation</source>
         <translation>Terrain elevation</translation>
-    </message>
-    <message id="geo.elevation.source.hgt">
-        <source>Local HGT files</source>
-        <translation>Local HGT files</translation>
     </message>
     <message id="geo.elevation.preview">
         <source>Load preview</source>
@@ -10098,8 +10094,8 @@ Cancelled. No elevation heights were applied.</translation>
         <translation>Select an elevation source for this location</translation>
     </message>
     <message id="geo.elevation.source.note">
-        <source>Source resolution depends on the selected dataset. Output spacing follows this terrain tile. Missing coverage and NoData use HGT fallback.</source>
-        <translation>Source resolution depends on the selected dataset. Output spacing follows this terrain tile. Missing coverage and NoData use HGT fallback.</translation>
+        <source>Source resolution depends on the selected dataset. Output spacing follows this terrain tile. Missing coverage and NoData use the configured file-source fallback.</source>
+        <translation>Source resolution depends on the selected dataset. Output spacing follows this terrain tile. Missing coverage and NoData use the configured file-source fallback.</translation>
     </message>
     <message id="geo.elevation.tile.title">
         <source>Terrain elevation - tile %1 %2</source>
@@ -10132,25 +10128,25 @@ Cancelled. No elevation heights were applied.</translation>
 %3</translation>
     </message>
     <message id="geo.elevation.hgt.check">
-        <source>Local HGT file check</source>
-        <translation>Local HGT file check</translation>
+        <source>Elevation file-source check</source>
+        <translation>Elevation file-source check</translation>
     </message>
     <message id="geo.elevation.hgt.fallback.check">
-        <source>HGT fallback file check. Elevation blocks are prepared when terrain is loaded.</source>
-        <translation>HGT fallback file check. Elevation blocks are prepared when terrain is loaded.</translation>
+        <source>Fallback file-source check. Elevation data is prepared when terrain is loaded.</source>
+        <translation>Fallback file-source check. Elevation data is prepared when terrain is loaded.</translation>
     </message>
     <message id="geo.elevation.hgt.present">
         <source>
-All checked HGT files are present.</source>
+All checked elevation files are present.</source>
         <translation>
-All checked HGT files are present.</translation>
+All checked elevation files are present.</translation>
     </message>
     <message id="geo.elevation.hgt.missing">
         <source>
-Missing HGT files:
+Missing local elevation files (downloaded automatically when supported):
 %1</source>
         <translation>
-Missing HGT files:
+Missing local elevation files (downloaded automatically when supported):
 %1</translation>
     </message>
     <message id="geo.elevation.data.title">
@@ -10162,12 +10158,8 @@ Missing HGT files:
         <translation>Terrain elevation source</translation>
     </message>
     <message id="settings.geo.elevation.source.description">
-        <source>Source for manual and automatic terrain elevation. Downloads elevation data and reports HGT fallback.</source>
-        <translation>Source for manual and automatic terrain elevation. Downloads elevation data and reports HGT fallback.</translation>
-    </message>
-    <message id="settings.geo.elevation.source.hgt">
-        <source>Local HGT files</source>
-        <translation>Local HGT files</translation>
+        <source>Source for manual and automatic terrain elevation. Missing coverage uses the configured file-source fallback.</source>
+        <translation>Source for manual and automatic terrain elevation. Missing coverage uses the configured file-source fallback.</translation>
     </message>
     <message id="settings.geo.elevation.source.kron86">
         <source>Geoportal NMT 1 m - KRON86 (GeoTIFF)</source>

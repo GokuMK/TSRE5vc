@@ -197,6 +197,21 @@ bool SettingsManager::loadFile(const QString &settingsFile, QString *error) {
             }
             m_document["settings"] = settings;
         }
+        // The former empty elevation-source value meant the hardcoded HGT
+        // backend. It now maps to the catalogue-defined default file source.
+        const auto *elevationDefinition = m_registry.definition("geo.elevation.source");
+        if (elevationDefinition && !elevationDefinition->defaultValue.toString().isEmpty()) {
+            QJsonArray settings = m_document.value("settings").toArray();
+            for (int i=0; i<settings.size(); ++i) {
+                QJsonObject setting = settings[i].toObject();
+                if (setting.value("key").toString() != "geo.elevation.source"
+                        || !setting.value("value").isString()
+                        || !setting.value("value").toString().isEmpty()) continue;
+                setting["value"] = elevationDefinition->defaultValue.toString();
+                settings[i] = setting; m_modified = true;
+            }
+            m_document["settings"] = settings;
+        }
         rebuildIndex();
         m_issues = SettingsValidator::validateDocument(m_document, m_registry);
         // Per-setting errors remain loadable so the editor can expose and repair them.

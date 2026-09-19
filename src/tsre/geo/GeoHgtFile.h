@@ -22,8 +22,8 @@ public:
     bool isLoaded();
     float getHeight(float lat, float lon);
 private:
-    short int** terrainData;
-    int rowSize;
+    short int** terrainData = nullptr;
+    int rowSize = 0;
     bool loaded = false;
 };
 

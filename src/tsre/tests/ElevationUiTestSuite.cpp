@@ -30,9 +30,13 @@ int TsreTests::runElevationUiSuite(const QString &capturePath, bool verbose) {
     const auto root = Settings::string("core.paths.geoData",SettingType::Directory);
     const auto source = Settings::string("geo.elevation.source",SettingType::Enum);
     QTemporaryDir temp;
+    QString catalogError;
+    const auto catalog = Elevation::datasets(catalogError);
+    const QString worldHgt = Elevation::defaultFileSourceId(catalog);
     check(settings.setSessionValue("core.paths.geoData",temp.path()),"set isolated geodata directory");
-    check(settings.setSessionValue("geo.elevation.source",QString()),"select local HGT");
-    QFile file(temp.filePath("N52E019.hgt"));
+    check(settings.setSessionValue("geo.elevation.source",worldHgt),"select catalogue HGT source");
+    QDir(temp.path()).mkpath("world_hgt");
+    QFile file(temp.filePath("world_hgt/N52E019.hgt"));
     QByteArray bytes(5*5*2,Qt::Uninitialized);
     for (int i = 0; i < 25; ++i) qToBigEndian<qint16>(100+i*5,bytes.data()+2*i);
     check(file.open(QIODevice::WriteOnly) && file.write(bytes) == bytes.size(),"write isolated HGT fixture");
@@ -41,10 +45,8 @@ int TsreTests::runElevationUiSuite(const QString &capturePath, bool verbose) {
     window.tileX = window.tileZ = 0;
     window.terrainResolution = 16; window.terrainSize = 2048;
     auto *selector = window.findChild<QComboBox*>();
-    QString catalogError;
-    const auto catalog = Elevation::datasets(catalogError);
-    check(selector && catalogError.isEmpty() && selector->count() == catalog.size()+1,
-          "height selector follows the current catalogue plus HGT");
+    check(selector && catalogError.isEmpty() && selector->count() == catalog.size(),
+          "height selector follows the current catalogue");
     if (selector) {
         for (const auto &dataset : catalog) {
             const int index = selector->findData(dataset.id);
@@ -58,8 +60,8 @@ int TsreTests::runElevationUiSuite(const QString &capturePath, bool verbose) {
         QTimer::singleShot(0,&window,[&] {
             check(selector->currentData().toString() == polishId,
                   "new source selection survives reopening the height dialog");
-            check(selector->findData(QString()) >= 0 && selector->findData("fi.nls.dem2") < 0,
-                  "location filter retains HGT and hides distant sources");
+            check(selector->findData(worldHgt) >= 0 && selector->findData("fi.nls.dem2") < 0,
+                  "location filter retains the world file source and hides distant sources");
             check(selector->styleSheet().contains("combobox-popup: 0"),"height selector uses the TSRE combo style");
             window.reject();
         });
@@ -83,7 +85,7 @@ int TsreTests::runElevationUiSuite(const QString &capturePath, bool verbose) {
             window.reject();
         });
         window.exec();
-        selector->setCurrentIndex(selector->findData(QString()));
+        selector->setCurrentIndex(selector->findData(worldHgt));
     }
     QPushButton *apply = nullptr;
     for (auto *button : window.findChildren<QPushButton*>())
