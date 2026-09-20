@@ -1,6 +1,6 @@
 # Geo elevation: start here
 
-Agent handoff, updated 2026-09-19. This directory is sufficient introductory
+Agent handoff, updated 2026-09-21. This directory is sufficient introductory
 context **when read in the order below**. The implementation and current service
 responses remain authoritative for code changes; historical milestone reports
 are not a current specification.
@@ -17,7 +17,8 @@ are not a current specification.
      [Denmark/authentication](denmark-validation.md). These cover recent protocol
      differences; use [Czech ArcGIS](czech-arcgis-validation.md) for that provider.
    - Downloaded/offline sources: [file-source implementation and next step](local-elevation-sources.md).
-     One-degree HGT is implemented; GeoTIFF collections remain staged work.
+     One-degree HGT, Austria range-COG tiles and Switzerland STAC/GeoTIFF tiles
+     are implemented; other GeoTIFF families still require profile validation.
 4. Read the relevant source files and tests from the code map. Credentials and
    source-setting behavior are documented in [Settings](../../settings-system.md).
 
@@ -50,10 +51,10 @@ Paths below are relative to the repository root.
 | Area | Files / entry points |
 |---|---|
 | Catalogue | `src/tsre/geo/elevation-datasets.json`; `Dataset`, `datasets()` and `parseDatasets()` in `ElevationSource.h/.cpp` |
-| Providers/cache | `ElevationSource.cpp`: `FileHgtSource`, `CachedRasterProvider`, `WcsProvider`, `ArcGisImageServerProvider`, `RasterSource`, `generate()` |
+| Providers/cache | `ElevationSource.cpp`: `FileHgtSource`, service providers, `RasterSource`, `generate()`; `CogElevationSource.cpp`: projected range-COG and STAC GeoTIFF file sources |
 | Requests/grid checks | `coverageUrl()`, `imageServerUrl()`, `validateRasterGrid()`, `cacheRelativePath()` |
-| Numeric raster/CRS | `src/tsre/geo/ElevationRaster.h/.cpp`: `Raster`, readers, `project()`, `supportedCrs()`, `fillNoData()` |
-| HTTP/auth | `src/tsre/geo/ElevationDownload.h/.cpp`: `downloadWave()`; query credentials added only inside transport |
+| Numeric raster/CRS | `src/tsre/geo/ElevationRaster.h/.cpp`: `Raster`, readers, `project()`, `supportedCrs()`, `fillNoData()`; `ElevationTiffCodec.cpp`: bounded uncompressed/LZW block decoding and predictors |
+| HTTP/auth | `src/tsre/geo/ElevationDownload.h/.cpp`: `downloadWave()`, strict `downloadRangeWave()`; query credentials added only inside transport |
 | Height UI | `src/tsre/geo/HeightWindow.cpp`; 10 km location filter via `nearDataset()` |
 | Settings | `src/settings/SettingsRegistration.cpp`: dynamic source options and reference-valued setting |
 | File-source lookup | `defaultFileSourceId()`, `findHgtFile()`, `readHgtFile()`; also used by `GeoHgtFile.cpp` and the missing-file checker |
@@ -105,9 +106,11 @@ axes and returns expanded envelopes. See individual service notes for evidence.
 
 ## Constraints to preserve
 
-- TIFF support currently covers classic uncompressed single-band Float32, Int16
-  and UInt16, strips/tiles, including padded final strips. No general compressed
-  TIFF, BigTIFF, RGB or large-file windowed reader exists yet.
+- Whole-file TIFF support covers classic single-band Float32, Int16 and UInt16,
+  uncompressed or LZW, strips/tiles and the floating predictor. The range reader
+  additionally understands the verified Austria BigTIFF/COG profile and fetches
+  only needed internal blocks. This remains a narrow numeric elevation profile:
+  DEFLATE, RGB, arbitrary BigTIFF layouts and general TIFF conversion are absent.
 - HTTP responses are bounded to 32 MiB; TIFF dimensions to 16 Mi pixels; requests
   to 2048 blocks; fill mosaics to 32 Mi pixels. These are emergency guards, not
   sufficient distant-terrain budgeting. Check source constants before changing them.
@@ -148,21 +151,29 @@ or put key-bearing URLs in commands/logs. Ignored `build-*-research/` probes in 
 worktree are conveniences, not evidence guaranteed in another checkout.
 
 After a change, run appropriate standalone checks and the relevant build when
-allowed. The current file-source milestone passes **359 standalone checks**, a
-live Mapzen HGT download/sample probe, 246 Settings checks, 61 elevation-UI checks
-and the Release application build.
+allowed. The current COG/STAC milestone passes **371 standalone checks**. Bounded
+live probes returned 171.6 m in Vienna from one Austria internal COG block and
+540.3 m in Bern from one current Swiss 2 m tile; both cache repeats used no data
+download. An exact Swiss 1 km seam probe used both adjacent tiles without HGT
+fallback. Earlier validation includes Mapzen HGT, Settings/UI suites and a Release
+application build; those larger suites were not repeated for this milestone.
 Flanders has only a small download/cache probe; Estonia 1024 was tested but its
 catalogue still uses 512. Consult current source/status rather than treating these
 counts or pending decisions as permanent.
 
 ## File-source status
 
-`provider: "file"`, `format: "hgt"`, `fileGrid: "degree"` is implemented. The
-catalogue defines its directory, global bounds, default/fallback identity and
-optional gzip URL-template downloader. Manual-only sources omit `download`.
-Service sampling now prepares this fallback only for unresolved primary samples.
+Three file-source profiles are implemented:
 
-The next format should be a concrete degree-grid GeoTIFF product. Current TIFF
-limits still prevent treating arbitrary compressed/large/BigTIFF or COG
-collections as supported merely by adding JSON. Extend parser validation,
-provider dispatch and bounded/windowed decoding together.
+- `format: "hgt"`, `fileGrid: "degree"`: local or automatically downloaded
+  Mapzen Skadi cells and the catalogue default/fallback;
+- `format: "geotiff"`, `fileGrid: "projected"`: fixed projected file tiles with
+  an HTTPS name template, explicit revision and strict range-COG reads; Austria
+  is the first verified profile;
+- `format: "geotiff"`, `fileGrid: "stac"`: STAC discovery with resolution/CRS
+  asset selection and preserved complete source TIFFs; Switzerland is the first.
+
+These profiles validate a reusable direction, not arbitrary GeoTIFF compatibility.
+Each new product still needs its real compression, metadata placement, sample
+type, tiling, update/version behavior and request limits checked before catalogue
+enablement. Distant terrain needs explicit overview/coarse acquisition work.

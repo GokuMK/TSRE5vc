@@ -1,4 +1,5 @@
 #include <tsre/geo/ElevationRaster.h>
+#include <tsre/geo/ElevationTiffCodec.h>
 
 #include <QMap>
 #include <QtEndian>
@@ -93,7 +94,7 @@ int tmZoneForCrs(int epsg) {
 
 bool supportedCrs(int epsg) {
     return epsg == 2180 || epsg == 3794
-        || epsg == 4326 || epsg == 3857
+        || epsg == 4326 || epsg == 3857 || epsg == 3035 || epsg == 2056
         || tmZoneForCrs(epsg) != 0;
 }
 
@@ -120,6 +121,50 @@ bool project(Point p, int epsg, XY &out) {
         out.x = radius * lon;
         out.y = radius * std::log(std::tan(pi / 4.0 + lat / 2.0));
 
+        return std::isfinite(out.x) && std::isfinite(out.y);
+    }
+    if (epsg == 2056) {
+        // Official swisstopo WGS84 -> LV95 approximation. Its published
+        // horizontal accuracy is better than one metre throughout Switzerland.
+        if (p.latitude < 45.5 || p.latitude > 48 || p.longitude < 5.5 || p.longitude > 11)
+            return false;
+        const double phi = (p.latitude*3600.0-169028.66)/10000.0;
+        const double lambda = (p.longitude*3600.0-26782.5)/10000.0;
+        out.x = 2600072.37 + 211455.93*lambda - 10938.51*lambda*phi
+            - .36*lambda*phi*phi - 44.54*lambda*lambda*lambda;
+        out.y = 1200147.07 + 308807.95*phi + 3745.25*lambda*lambda
+            + 76.63*phi*phi - 194.56*lambda*lambda*phi + 119.79*phi*phi*phi;
+        return std::isfinite(out.x) && std::isfinite(out.y);
+    }
+    if (epsg == 3035) {
+        // ETRS89 / LAEA Europe (EPSG method 9820), GRS80 ellipsoid.
+        if (p.latitude < 24 || p.latitude > 72 || p.longitude < -35 || p.longitude > 45)
+            return false;
+        constexpr double pi = 3.14159265358979323846;
+        constexpr double a = 6378137.0, invF = 298.257222101;
+        constexpr double flattening = 1.0/invF;
+        constexpr double e2 = flattening*(2-flattening);
+        const double eccentricity = std::sqrt(e2);
+        const auto authalicQ = [&](double latitude) {
+            const double sine = std::sin(latitude);
+            return (1-e2)*(sine/(1-e2*sine*sine)
+                - std::log((1-eccentricity*sine)/(1+eccentricity*sine))/(2*eccentricity));
+        };
+        const double phi0 = 52*pi/180.0, lambda0 = 10*pi/180.0;
+        const double phi = p.latitude*pi/180.0, lambda = p.longitude*pi/180.0;
+        const double qp = authalicQ(pi/2), beta0 = std::asin(authalicQ(phi0)/qp);
+        const double beta = std::asin(std::clamp(authalicQ(phi)/qp,-1.0,1.0));
+        const double rq = a*std::sqrt(qp/2);
+        const double m0 = std::cos(phi0)/std::sqrt(1-e2*std::sin(phi0)*std::sin(phi0));
+        const double d = a*m0/(rq*std::cos(beta0));
+        const double dl = lambda-lambda0;
+        const double denominator = 1+std::sin(beta0)*std::sin(beta)
+            + std::cos(beta0)*std::cos(beta)*std::cos(dl);
+        if (denominator <= 0) return false;
+        const double b = rq*std::sqrt(2/denominator);
+        out.x = 4321000 + b*d*std::cos(beta)*std::sin(dl);
+        out.y = 3210000 + b/d*(std::cos(beta0)*std::sin(beta)
+            - std::sin(beta0)*std::cos(beta)*std::cos(dl));
         return std::isfinite(out.x) && std::isfinite(out.y);
     }
     const bool cs92 = epsg == 2180;
@@ -309,11 +354,11 @@ static bool readTiff(const QByteArray &bytes, int metadataEpsg, Raster &output, 
             || !(float32 || signed16 || unsigned16))
         return fail(error,
             "TIFF must contain one float32, int16 or uint16 height band; RGB is not elevation");
-    if (integer(259,1) != 1 || integer(317,1) != 1 || integer(274,1) != 1
+    const int compression = int(integer(259,1)), predictor = int(integer(317,1));
+    if ((compression != 1 && compression != 5) || (predictor != 1 && predictor != 3)
+            || (predictor == 3 && !float32) || integer(274,1) != 1
             || integer(284,1) != 1)
-        return fail(error, "Only uncompressed, top-down TIFF is currently supported");
-    if (rd.u32(ifd+2+count*12) != 0)
-        return fail(error, "Multiple TIFF directories are not supported");
+        return fail(error, "Unsupported TIFF compression, predictor or orientation");
     const Tag keys = tags.value(34735);
     if (tags.contains(34735) && (keys.type != 3 || keys.count < 4 || integer(34735,0,0) != 1))
         return fail(error, "Invalid GeoTIFF coordinate system");
@@ -370,20 +415,6 @@ static bool readTiff(const QByteArray &bytes, int metadataEpsg, Raster &output, 
         if (!ok) return fail(error, "Invalid TIFF NoData value");
         r.hasNoData = true;
     }
-    const auto valueAt = [&](quint64 offset) {
-        float value;
-
-        if (bits == 32) {
-            const quint32 raw = rd.u32(offset);
-            std::memcpy(&value, &raw, 4);
-        } else if (sampleFormat == 2) {
-            value = qint16(rd.u16(offset));
-        } else {
-            value = rd.u16(offset);
-        }
-
-        return value;
-    };
     r.values.fill(std::numeric_limits<float>::quiet_NaN(),qsizetype(r.width)*r.height);
     if (tags.contains(322) || tags.contains(323) || tags.contains(324) || tags.contains(325)) {
         const quint32 tw = integer(322,0), th = integer(323,0);
@@ -391,7 +422,7 @@ static bool readTiff(const QByteArray &bytes, int metadataEpsg, Raster &output, 
                 || tags.contains(273) || tags.contains(279))
             return fail(error, "Invalid TIFF tile dimensions or mixed storage");
         const quint32 columns = (r.width+tw-1)/tw, rows = (r.height+th-1)/th;
-        const quint64 tiles = quint64(columns)*rows, size = quint64(tw)*th*(bits/8);
+        const quint64 tiles = quint64(columns)*rows;
         if (tags.value(324).count != tiles || tags.value(325).count != tiles
                 || tags.value(324).type != 4 || tags.value(325).type != 4)
             return fail(error, "Invalid TIFF tile table");
@@ -399,12 +430,17 @@ static bool readTiff(const QByteArray &bytes, int metadataEpsg, Raster &output, 
             const quint64 offset = integer(324,0,tile), length = integer(325,0,tile);
             // Sparse service tiles contain no samples. Never treat absent data as sea level.
             if (offset == 0 && length == 0) continue;
-            if (offset < 8 || length != size || !rd.range(offset,size))
+            if (offset < 8 || !length || !rd.range(offset,length))
                 return fail(error, "Truncated or inconsistent TIFF tile");
+            QVector<float> decoded;
+            QString blockError;
+            if (!decodeTiffBlock(bytes.mid(offset,length),compression,predictor,rd.little,
+                                 bits,sampleFormat,tw,th,decoded,blockError))
+                return fail(error,blockError.toLatin1().constData());
             const quint32 x = (tile%columns)*tw, y = (tile/columns)*th;
             for (quint32 row = 0; row < std::min(th,quint32(r.height)-y); ++row)
                 for (quint32 col = 0; col < std::min(tw,quint32(r.width)-x); ++col)
-                    r.values[(y+row)*r.width+x+col] = valueAt(offset+(quint64(row)*tw+col)*(bits/8));
+                    r.values[(y+row)*r.width+x+col] = decoded[row*tw+col];
         }
     } else {
         const quint32 rows = integer(278, quint32(r.height));
@@ -414,18 +450,23 @@ static bool readTiff(const QByteArray &bytes, int metadataEpsg, Raster &output, 
             return fail(error, "Invalid TIFF strip table");
         qsizetype destination = 0;
         for (quint32 s = 0; s < strips; ++s) {
-            const quint64 samples = quint64(std::min(rows, quint32(r.height)-s*rows))*r.width;
+            const quint32 actualRows = std::min(rows, quint32(r.height)-s*rows);
+            const quint64 samples = quint64(actualRows)*r.width;
             const quint64 offset = integer(273, quint32(bytes.size()), s);
             const quint64 size = samples*(bits/8);
             const quint64 length = integer(279,0,s);
             // Some writers pad the final strip to RowsPerStrip. Decode only
             // image rows, but require the entire declared strip to be present.
             const bool paddedLast = s+1 == strips && length == quint64(rows)*r.width*(bits/8);
-            if ((length != size && !paddedLast) || !rd.range(offset,length))
+            if ((compression == 1 && length != size && !paddedLast) || !length || !rd.range(offset,length))
                 return fail(error, "Truncated or inconsistent TIFF strip");
-            for (quint64 i = 0; i < samples; ++i) {
-                r.values[destination++] = valueAt(offset+i*(bits/8));
-            }
+            const quint32 decodedRows = paddedLast ? rows : actualRows;
+            QVector<float> decoded;
+            QString blockError;
+            if (!decodeTiffBlock(bytes.mid(offset,length),compression,predictor,rd.little,
+                                 bits,sampleFormat,r.width,decodedRows,decoded,blockError))
+                return fail(error,blockError.toLatin1().constData());
+            for (quint64 i = 0; i < samples; ++i) r.values[destination++] = decoded[i];
         }
     }
     output = std::move(r);

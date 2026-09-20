@@ -1,6 +1,6 @@
 # Elevation: current implementation and review
 
-Updated 2026-09-19 for the current `feature/geo-terrain` working tree.
+Updated 2026-09-21 for the current `feature/geo-terrain` working tree.
 Start with the [agent handoff guide](README.md) for reading order, code map and
 source-addition workflow. These follow-ups are committed together with the guide.
 
@@ -8,6 +8,35 @@ Newest follow-ups appear first. Sections headed as the original review retain
 historical findings from `a88f7f8` and the R1/R2 follow-up on `1ee5aaa`; their
 counts and validation claims are scoped to those milestones. They do not replace
 the newest status or the current source code.
+
+## Projected COG and STAC GeoTIFF file sources, 2026-09-21
+
+- Austria BEV ALS-DGM 1 m is the first `fileGrid: "projected"` source. Its 2025
+  EPSG:3035 mosaic consists of roughly 6.8 GB, 50 km BigTIFF COG files. TSRE reads
+  a bounded index range and fetches only required LZW internal blocks, up to four
+  concurrently. A complete locally supplied official TIFF is window-read directly.
+- Switzerland swissALTI3D is the first `fileGrid: "stac"` source. TSRE queries the
+  official collection, selects the newest 2 m EPSG:2056 asset for each footprint,
+  skips 0.5 m files, and preserves each roughly 1 MB official TIFF in the named
+  source directory.
+- STAC discovery includes the source-pixel interpolation margin and joins adjacent
+  files on their common grid. An exact 1 km boundary probe used both Swiss source
+  tiles for both samples, with zero HGT fallback; this fixes the visible one-value
+  seam lines found during the first main-application test.
+- Shared raster support now includes LZW Float32 blocks and the floating predictor.
+  HTTP ranges require an exact 206/Content-Range response. EPSG:3035 and EPSG:2056
+  were added locally; there is no new external dependency or country-specific
+  terrain-generation path.
+- **371 standalone checks passed**. Vienna returned about 171.6 m after a 256 KiB
+  index and one 586,993-byte block; Bern returned about 540.3 m after one
+  975,801-byte 2 m tile. Both repeats were cache-only. These are bounded interior
+  probes; the seam was subsequently reproduced and fixed as described above.
+- Distant terrain remains disabled/unapproved for these detailed acquisition
+  profiles until overview/coarse selection and separate cache identity exist.
+
+See [local file sources](local-elevation-sources.md) for the implemented contract
+and the [Europe tracker](tsre_europe_elevation_sources_tracker_v3.md) for source
+status and next candidates.
 
 ## Catalogue file source and automatic World HGT, 2026-09-19
 
@@ -38,8 +67,8 @@ the newest status or the current source code.
   succeeded; Settings passed 246 checks and elevation UI passed 61 checks.
 
 See [local file-source implementation](local-elevation-sources.md) and the
-[global source review](global-sources-review.md). The next provider milestone is
-a concrete degree-grid GeoTIFF product; advanced COG/range support remains later.
+[global source review](global-sources-review.md). This 2026-09-19 milestone was
+subsequently extended by the COG/STAC work recorded above.
 
 ## Critical open issue: distant terrain
 

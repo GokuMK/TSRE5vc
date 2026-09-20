@@ -1,7 +1,7 @@
 # TSRE high-resolution elevation sources — Europe tracker
 
 **Original research date:** 2026-09-17  
-**TSRE implementation sync:** 2026-09-19 — `feature/geo-terrain`, head `c8a952d0`  
+**TSRE implementation sync:** 2026-09-21 — `feature/geo-terrain`; Austria/Switzerland COG milestone after tracker commit `31b9198`
 **Scope:** high-resolution European national/regional terrain models, implemented non-European sources, and world-scale fallback/acquisition options.  
 **World fallback:** automatic catalogue-based HGT download is now implemented.
 
@@ -17,13 +17,13 @@ Current generic pieces include:
 
 - caller-side geographic point sampling (`getHeight(lat, lon)` conceptually);
 - a catalogue-driven source model shared by Settings, the elevation dialog and automatic terrain generation;
-- **20 configured datasets** at the current head: 18 European dataset entries, USGS 3DEP for the contiguous USA, and the world HGT file source;
+- **22 configured datasets**: 20 European dataset entries, USGS 3DEP for the contiguous USA, and the world HGT file source;
 - deterministic persistent raster/service caching and stable user-managed directories for file sources;
-- `provider: "file"` with one-degree HGT grids, local `.hgt` / `.hgt.gz` support and optional automatic gzip download;
+- `provider: "file"` with one-degree HGT grids, projected range-COG tiles, and STAC-discovered GeoTIFF tiles;
 - catalogue-level `defaultFileSource`, currently `world-hgt`, used as the service fallback;
 - primary-source-first preparation: the world fallback is prepared/downloaded only for points unresolved by the selected WCS/ArcGIS source;
 - Arc/Info ASCII Grid decoding;
-- classic uncompressed numeric GeoTIFF decoding for one-band `float32`, signed `int16` and unsigned `uint16` elevation data, including strips, storage tiles and padded final strips;
+- classic numeric GeoTIFF decoding for one-band `float32`, signed `int16` and unsigned `uint16`, now including uncompressed/LZW blocks and the floating predictor; the Austria path also reads its verified BigTIFF COG index and requested internal blocks;
 - WCS 2.0.1 provider with separate subset/scaling axes and bounded opt-in handling of server-expanded grids;
 - WCS 1.0.0 provider with configurable wire-format spelling (`requestFormat`);
 - ArcGIS ImageServer provider with server-side request/output CRS selection through `bboxSR` / `imageSR`;
@@ -42,6 +42,8 @@ Current generic pieces include:
 - EPSG:3794 — Slovenia D96/TM;
 - EPSG:4326 — geographic;
 - EPSG:3857 — Web Mercator;
+- EPSG:2056 — Switzerland LV95, using the official swisstopo approximation;
+- EPSG:3035 — ETRS89 / LAEA Europe;
 - EPSG:3045 — Czech INSPIRE / ETRS89 TM33 variant used by DMR4G;
 - EPSG:3067 — Finland ETRS-TM35FIN;
 - EPSG:25828 … EPSG:25838 — generic ETRS89 / UTM zones 28N–38N.
@@ -52,12 +54,11 @@ The lightweight projection code is intentionally bounded rather than a general P
 
 The earlier WCS/authentication blockers have largely been removed. The main remaining reusable gaps are now:
 
-- a generic **degree-grid GeoTIFF file/download provider** after the successful HGT file-source milestone;
-- bounded/windowed reading of large GeoTIFFs rather than loading an entire raster;
-- general compressed GeoTIFF / COG / BigTIFF support, including DEFLATE/predictors where required;
-- HTTP range/COG access and generic STAC provider support;
+- a generic **degree-grid GeoTIFF file/download provider** after the HGT and projected/STAC milestones;
+- arbitrary georeferenced local-file collection indexing;
+- broader compressed GeoTIFF / COG / BigTIFF support beyond the verified LZW Float32 profiles, including DEFLATE and scale/offset where required;
 - generic ATOM / indexed-download / irregular catalogue acquisition;
-- local support for national projections such as EPSG:28992, EPSG:27700, EPSG:2154, EPSG:2056, EPSG:3301, EPSG:3035, EPSG:2169 and EPSG:3812 when server-side reprojection is unavailable;
+- local support for remaining national projections such as EPSG:28992, EPSG:27700, EPSG:2154, EPSG:3301, EPSG:2169 and EPSG:3812 when server-side reprojection is unavailable;
 - vertical datum conversion;
 - dynamic source-resolution discovery for heterogeneous/multi-resolution mosaics;
 - explicit coarse acquisition profiles and cache identities for distant terrain; detailed-service success does not make a source safe for ~32 km distant tiles;
@@ -84,11 +85,13 @@ A dataset being present in `elevation-datasets.json` means it passes the catalog
 
 # 3. Implemented / tested baseline
 
-Current branch catalogue snapshot at `c8a952d0`:
+Current branch catalogue snapshot, updated 2026-09-21:
 
 | Dataset ID | Area / product | Provider | EPSG / grid | Current status |
 |---|---|---|---:|---|
 | `world-hgt` | World HGT terrain / Mapzen Skadi automatic fallback | file / HGT | 4326 | ✅ implemented + live download/cache probe |
+| `at.bev.als-dgm1` | Austria BEV ALS-DGM 1 m, 2025 mosaic | file / projected range COG | 3035 | ✅ bounded live block + cache probe |
+| `ch.swisstopo.swissalti3d.2m` | Switzerland swissALTI3D 2 m | file / STAC GeoTIFF | 2056 | ✅ bounded live tile + cache probe |
 | `pl.gugik.nmt1.kron86` | Poland NMT 1 m KRON86 | WCS 2.0.1 | 2180 | ✅ |
 | `pl.gugik.nmt1.evrf2007` | Poland NMT 1 m EVRF2007 | WCS 2.0.1 | 2180 | ✅ |
 | `cz.cuzk.dmr4g` | Czech DMR4G 5 m | WCS 2.0.1 | 3045 | ✅ |
@@ -519,13 +522,13 @@ A 1024-core request was also tested and reduced request count/time compared with
 
 ---
 
-# 6. Excellent datasets that need a new download / COG / STAC provider
+# 6. Download / COG / STAC sources
 
 These are strategically interesting because one generic download provider could unlock several countries at once.
 
 ## Austria
 
-**Status: 🟠**
+**Status: ✅ first projected range-COG source implemented and live-probed**
 
 BEV ALS-DGM:
 
@@ -544,16 +547,17 @@ Source:
 
 - https://www.bev.gv.at/Services/Produkte/Digitales-Gelaendehoehenmodell/ALS-Hoehenraster.html
 
-Needs:
-
-- generic file/tile download provider;
-- EPSG:3035 support or later reprojection strategy.
+TSRE uses the dated 2025 50 km file-name template, local EPSG:3035 conversion,
+and strict HTTP byte ranges. The official files are roughly 6.8 GB BigTIFF COGs;
+the Vienna probe fetched only a 256 KiB index plus one 586,993-byte internal LZW
+block and returned about 171.6 m. A repeat was cache-only. Full terrain UI,
+tile-boundary and coverage-edge checks remain useful.
 
 ---
 
 ## Switzerland
 
-**Status: 🟠**
+**Status: ✅ first STAC GeoTIFF source implemented and live-probed**
 
 swissALTI3D:
 
@@ -568,10 +572,12 @@ Source:
 
 - https://www.swisstopo.admin.ch/en/height-model-swissalti3d
 
-Needs:
-
-- STAC/tile/COG provider;
-- EPSG:2056 support or server-side/reprojection strategy.
+TSRE queries the official STAC collection, selects the newest 2 m EPSG:2056
+asset for each footprint and downloads the complete roughly 1 MB source TIFF.
+The Bern probe returned about 540.3 m and repeated from cache. The 0.5 m files
+are deliberately skipped. Adjacent files are joined on their common 2 m grid;
+an exact 1 km boundary probe returned two primary samples with no HGT seam
+fallback. Detailed 1 km assets are not yet approved for distant terrain.
 
 ---
 
@@ -1133,11 +1139,11 @@ This is now the clearest next step after `world-hgt`: predictable filenames, no 
 
 ## Tier C — compressed COG / range / STAC
 
-A generic COG/range layer would unlock several especially valuable datasets:
+A first narrow LZW Float32 COG/range and STAC layer now supports Austria and
+Switzerland. Extending it to additional verified profiles would unlock:
 
 - GEDTM30 global bare-earth ~30 m;
 - official Copernicus GLO-30 AWS COGs;
-- Switzerland swissALTI3D;
 - Sweden 1 m STAC/COG;
 - Luxembourg 0.5 m COG;
 - Wales national LiDAR DTM COG;
@@ -1147,7 +1153,6 @@ A generic COG/range layer would unlock several especially valuable datasets:
 
 Still useful later:
 
-- Austria 1 m 50 km GeoTIFF downloads;
 - Slovakia 1 m TIFF/catalogue;
 - Ireland LiDAR programme/tile catalogues;
 - Romania mixed-resolution tile set;
@@ -1161,7 +1166,7 @@ A second deep WCS search may still find hidden services, especially for fragment
 
 # 12. Architectural observations from the expanded survey
 
-The generic design is holding up well. The current implementation demonstrates five useful acquisition families rather than one country-specific stack:
+The generic design is holding up well. The current implementation demonstrates six useful acquisition/file-discovery paths rather than country-specific terrain code:
 
 ```text
 1. Catalogue file source — implemented
@@ -1190,16 +1195,21 @@ The generic design is holding up well. The current implementation demonstrates f
    Slovenia
    USGS 3DEP CONUS
 
-4. Regular downloaded GeoTIFF / tiled files — next provider milestone
+4. Projected range-COG files — implemented first profile
+   Austria BEV 2025 ALS-DGM 1 m
+
+5. STAC-discovered GeoTIFF files — implemented first profile
+   Switzerland swissALTI3D 2 m
+
+6. Regular downloaded GeoTIFF / tiled files — next provider extension
    global SRTM GL1 / NASADEM / ALOS / Copernicus mirrors
-   Austria and several German Länder
+   several German Länder
    Slovakia and other predictable tile sets
 
-5. STAC / COG / range / indexed catalogue — later provider family
+7. Broader STAC / COG profiles and indexed catalogues — later extensions
    GEDTM30
    official Copernicus AWS COGs
    Sweden
-   Switzerland
    Luxembourg
    Wales
    Ireland and other catalogue-based sources
@@ -1227,7 +1237,10 @@ prepare + sample primary source
 
 This keeps country-specific C++ as an escape hatch rather than the default. National quirks are increasingly represented by small generic catalogue options: request format, authentication mode, separate WCS axes, server reprojection encoded in endpoint parameters, bounded expanded-grid acceptance and NoData policy.
 
-The most important architectural gap is no longer “support more WCS syntax”. It is now **efficient access to downloaded/cloud GeoTIFF families**, especially windowed reading and compression/COG support, plus explicit coarse-source behavior for distant terrain.
+The most important architectural gap is no longer “support more WCS syntax”. It
+is now broadening the first verified COG/STAC profiles safely—additional
+compression and TIFF layouts, arbitrary local collection indexes—and adding
+explicit coarse-source behavior for distant terrain.
 
 ---
 

@@ -85,4 +85,68 @@ QVector<DownloadResult> downloadWave(const QVector<QUrl> &urls, std::atomic_bool
     if (completed<urls.size()) loop.exec();
     return results;
 }
+
+QVector<DownloadResult> downloadRangeWave(const QVector<RangeRequest> &ranges,
+        std::atomic_bool &cancel, const std::function<void(int)> &progress,
+        const DownloadLimits &limits) {
+    QVector<DownloadResult> results(ranges.size());
+    if (ranges.isEmpty()) return results;
+    if (ranges.size()>4 || limits.maxBytes<=0 || limits.transferTimeoutMs<=0 || limits.deadlineMs<=0) {
+        for (auto &r : results) r.error = QStringLiteral("Invalid elevation range batch");
+        return results;
+    }
+    if (cancel) return results;
+    QNetworkAccessManager network;
+    QEventLoop loop;
+    struct Pending { QNetworkReply *reply=nullptr; QByteArray bytes; bool tooLarge=false,timedOut=false,done=false; };
+    std::array<Pending,4> pending;
+    int completed=0;
+    QTimer cancellation;
+    QObject::connect(&cancellation,&QTimer::timeout,&loop,[&] {
+        if (cancel) for (auto &p:pending) if (p.reply && !p.reply->isFinished()) p.reply->abort();
+    });
+    for (int i=0;i<ranges.size();++i) {
+        const auto requested=ranges[i];
+        if (requested.last<requested.first
+                || requested.last-requested.first>=quint64(limits.maxBytes)) {
+            results[i].error=QStringLiteral("Invalid or oversized elevation byte range");
+            ++completed; continue;
+        }
+        QNetworkRequest request(requested.url);
+        request.setRawHeader("User-Agent","TSRE5vc terrain elevation");
+        request.setRawHeader("Range",QStringLiteral("bytes=%1-%2").arg(requested.first).arg(requested.last).toLatin1());
+        request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,QNetworkRequest::NoLessSafeRedirectPolicy);
+        request.setTransferTimeout(limits.transferTimeoutMs);
+        auto *reply=pending[i].reply=network.get(request);
+        reply->setReadBufferSize(1024*1024);
+        auto *deadline=new QTimer(reply); deadline->setSingleShot(true);
+        QObject::connect(deadline,&QTimer::timeout,&loop,[&,i,reply]{pending[i].timedOut=true;reply->abort();});
+        QObject::connect(reply,&QNetworkReply::readyRead,&loop,[&,i,reply]{
+            auto &p=pending[i];p.bytes+=reply->readAll();
+            if(p.bytes.size()>limits.maxBytes){p.tooLarge=true;reply->abort();}
+        });
+        const auto finish=[&,i,reply,deadline,requested]{
+            deadline->stop();auto &p=pending[i];auto &r=results[i];if(p.done)return;p.done=true;
+            p.bytes+=reply->readAll();
+            const int status=reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+            const QByteArray expected=QStringLiteral("bytes %1-%2/").arg(requested.first).arg(requested.last).toLatin1();
+            const QByteArray contentRange=reply->rawHeader("Content-Range");
+            const quint64 wanted=requested.last-requested.first+1;
+            if(cancel)r.error=QStringLiteral("Elevation download cancelled");
+            else if(p.tooLarge || p.bytes.size()>limits.maxBytes)r.error=QStringLiteral("Elevation range exceeds %1 bytes").arg(limits.maxBytes);
+            else if(p.timedOut)r.error=QStringLiteral("Elevation range request timed out");
+            else if(reply->error()!=QNetworkReply::NoError || status!=206)
+                r.error=QStringLiteral("Elevation range request failed (HTTP %1): %2").arg(status).arg(reply->errorString());
+            else if(!contentRange.startsWith(expected) || quint64(p.bytes.size())!=wanted)
+                r.error=QStringLiteral("Elevation server returned an inconsistent byte range");
+            else r.bytes=std::move(p.bytes);
+            p.bytes.clear();++completed;if(progress)progress(completed);if(completed==ranges.size())loop.quit();
+        };
+        QObject::connect(reply,&QNetworkReply::finished,&loop,finish);
+        deadline->start(limits.deadlineMs);if(reply->isFinished())QTimer::singleShot(0,&loop,finish);
+    }
+    cancellation.start(50);
+    if(completed<ranges.size())loop.exec();
+    return results;
+}
 }

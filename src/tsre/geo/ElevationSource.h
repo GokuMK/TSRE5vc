@@ -12,14 +12,15 @@ struct Dataset {
     QString id, name, coverage, format, verticalDatum, axisX, axisY;
     QString requestFormat, scaleAxisX, scaleAxisY;
     QString directory, fileGrid, downloadUrlTemplate, downloadCompression;
+    QString stacCollection, fileRevision;
     QString attribution;
     QString provider = QStringLiteral("wcs-2.0.1");
-    QUrl endpoint;
+    QUrl endpoint, stacEndpoint;
     // Caller resolves this profile-secret reference; transport selects Basic or query auth.
     QString apiKeySecret;
     QString apiKeyParameter; // Nonempty for query-api-key; otherwise HTTP Basic.
     int epsg = 2180, blockPixels = 512, concurrentRequests = 1;
-    double resolution = 1, originX = 0, originY = 0;
+    double resolution = 1, originX = 0, originY = 0, fileTileSize = 0;
     double minX = 0, minY = 0, maxX = 0, maxY = 0;
     bool zeroIsNoData = false;
     bool allowExpandedGrid = false;

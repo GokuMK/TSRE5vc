@@ -26,6 +26,60 @@
       ]
     },
     {
+      "id": "at.bev.als-dgm1",
+      "name": "Austria - BEV ALS DTM 1 m (range COG)",
+      "provider": "file",
+      "format": "geotiff",
+      "fileGrid": "projected",
+      "directory": "at_bev_als_dgm1",
+      "crs": 3035,
+      "verticalDatum": "EVRF2000 Austria orthometric height (EPSG:9274)",
+      "resolution": 1,
+      "bounds": [4200000, 2550000, 4950000, 3100000],
+      "concurrentRequests": 4,
+      "zeroIsNoData": false,
+      "download": {
+        "tileSize": 50000,
+        "revision": "20250915",
+        "urlTemplate": "https://data.bev.gv.at/download/ALS/DTM/20250915/ALS_DTM_CRS3035RES50000mN{northing}E{easting}.tif"
+      },
+      "attribution": "BEV and Austrian public geodata providers - ALS DTM 1 m",
+      "attributionUrl": "https://www.bev.gv.at/Services/Produkte/Digitales-Gelaendehoehenmodell/ALS-Hoehenraster.html",
+      "notes": [
+        "The 2025 national mosaic is distributed as 50 km BigTIFF COG tiles. TSRE downloads only the required internal compressed blocks by HTTP range and can also window-read a complete user-supplied TIFF with the official file name.",
+        "The files are Float32, LZW-compressed, use the floating-point predictor and contain overviews. This first integration uses the native 1 m image; explicit distant-terrain overview selection remains separate work.",
+        "The URL contains the BEV annual publication date. A later annual mosaic should be introduced by updating this catalogue entry so its cache remains version-identifiable.",
+        "BEV documents an older 2021 series using the Adriatic/Trieste height reference. This entry selects the 2025 EVRF2000 Austria series."
+      ]
+    },
+    {
+      "id": "ch.swisstopo.swissalti3d.2m",
+      "name": "Switzerland - swissALTI3D 2 m (swisstopo STAC/COG)",
+      "provider": "file",
+      "format": "geotiff",
+      "fileGrid": "stac",
+      "directory": "ch_swissalti3d_2m",
+      "crs": 2056,
+      "verticalDatum": "LN02 (EPSG:5728)",
+      "resolution": 2,
+      "bounds": [2480000, 1070000, 2840000, 1310000],
+      "concurrentRequests": 4,
+      "zeroIsNoData": false,
+      "download": {
+        "endpoint": "https://data.geo.admin.ch/api/stac/v0.9/",
+        "collection": "ch.swisstopo.swissalti3d"
+      },
+      "attribution": "Federal Office of Topography swisstopo - swissALTI3D",
+      "attributionUrl": "https://www.swisstopo.admin.ch/en/height-model-swissalti3d",
+      "notes": [
+        "STAC exposes 0.5 m and 2 m files. TSRE selects only the 2 m EPSG:2056 COG asset because finer data provide no useful terrain-grid benefit and are much larger.",
+        "The catalogue contains historical items for the same 1 km footprint. TSRE selects the newest item per footprint and preserves each approximately 1 MB source COG under the readable dataset directory.",
+        "The local EPSG:2056 forward conversion uses the official swisstopo approximation with published horizontal accuracy better than one metre across Switzerland.",
+        "STAC discovery includes a small interpolation margin and prepared tiles are joined on their common 2 m grid. Bilinear sampling at a 1 km file boundary therefore uses source pixels from both tiles instead of invoking HGT fallback along the seam.",
+        "The 1 km asset layout is not suitable for 32 km distant terrain and is not enabled for that workflow."
+      ]
+    },
+    {
       "id": "pl.gugik.nmt1.kron86",
       "name": "Poland - Geoportal NMT 1 m (KRON86, GeoTIFF)",
       "provider": "wcs-2.0.1",

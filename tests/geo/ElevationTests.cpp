@@ -1,5 +1,6 @@
 #include <tsre/geo/ElevationRaster.h>
 #include <tsre/geo/ElevationSource.h>
+#include <tsre/geo/ElevationTiffCodec.h>
 #include <QCoreApplication>
 #include <QFile>
 #include <QTemporaryDir>
@@ -91,9 +92,22 @@ int main(int argc, char **argv) {
     auto bad = native; mutateTag(bad,273,0xfffffff0);
     check(!readGeoTiff(bad,r,error),"reject strip offset outside input");
     bad = native; mutateTag(bad,259,5);
-    check(!readGeoTiff(bad,r,error),"reject unsupported compression");
+    check(!readGeoTiff(bad,r,error),"reject data falsely labelled as LZW");
     bad = native; mutateTag(bad,256,65535);
     check(!readGeoTiff(bad,r,error),"reject inconsistent strip dimensions");
+    QVector<float> decodedBlock;
+    const QByteArray lzwFloat = QByteArray::fromBase64("gAAACAH4AAAAIAAABgYAAAApIUBA");
+    check(decodeTiffBlock(lzwFloat,5,1,true,32,3,4,1,decodedBlock,error)
+          && decodedBlock == QVector<float>({1.0f,2.0f,-3.5f,42.25f}),
+          "TIFF LZW Float32 block decoding");
+    const QByteArray predictedLzwFloat = QByteArray::fromBase64("gA/AKAQQ+QBgZLXAAAAAAAAAAEBA");
+    check(decodeTiffBlock(predictedLzwFloat,5,3,true,32,3,4,1,decodedBlock,error)
+          && decodedBlock == QVector<float>({1.0f,2.0f,-3.5f,42.25f}),
+          "TIFF floating-point predictor decoding");
+    check(!decodeTiffBlock(predictedLzwFloat.chopped(1),5,3,true,32,3,4,1,decodedBlock,error),
+          "truncated TIFF LZW block is rejected");
+    check(!decodeTiffBlock(lzwFloat,5,1,true,32,1,4,1,decodedBlock,error),
+          "unsupported UInt32 TIFF samples are rejected instead of reinterpreted as floats");
     check(readGeoTiff(fixture("signed16-big-endian.tif"),r,error),"big-endian signed16 TIFF with two strips");
     check(r.sample({100.5,199.5}).height == -2 && r.sample({101.5,199.5}).height == 0
           && r.sample({100.5,198.5}).height == 10,"signed strips preserve row order and zero height");
@@ -144,20 +158,28 @@ int main(int argc, char **argv) {
     const auto parseEntries = [&](const QJsonArray &items) {
         return parseDatasets(QJsonDocument(QJsonObject{{"version",1},{"datasets",items}}).toJson(),error);
     };
-    auto invalid = entries.at(1).toObject(); invalid["id"] = "fixture.invalid-auth";
+    QJsonObject wcsEntry;
+    for (const auto &dataset : catalog) {
+        if (dataset.id == QStringLiteral("pl.gugik.nmt1.kron86")) {
+            wcsEntry = dataset.definition;
+            break;
+        }
+    }
+    auto invalid = wcsEntry; invalid["id"] = "fixture.invalid-auth";
     invalid["authentication"] = QJsonObject{{"type","unsupported"},{"secret","fixture.key"}};
     auto mixed = entries; mixed.insert(1,invalid);
     auto validEntries = parseEntries(mixed);
     check(validEntries.size() == catalog.size() && error.contains("fixture.invalid-auth")
         && validEntries.last().id == catalog.last().id,"invalid authentication rejects only its object and parsing continues");
-    invalid = entries.at(1).toObject(); invalid["id"] = "fixture.invalid-crs"; invalid["crs"] = 9999;
-    mixed = entries; mixed.prepend(invalid); mixed.append(entries.at(1)); mixed.append(false);
+    invalid = wcsEntry; invalid["id"] = "fixture.invalid-crs"; invalid["crs"] = 9999;
+    mixed = entries; mixed.prepend(invalid); mixed.append(wcsEntry); mixed.append(false);
     validEntries = parseEntries(mixed);
     check(validEntries.size() == catalog.size() && error.contains("fixture.invalid-crs")
-        && error.contains(catalog.at(1).id) && error.contains("entry "),
+        && error.contains(wcsEntry.value("id").toString()) && error.contains("entry "),
         "unsupported CRS, duplicate ID and non-object are individually rejected");
-    invalid["origin"] = QJsonArray{};
-    check(parseEntries({invalid}).isEmpty() && error.contains("grid definition"),"invalid grid is diagnosed");
+    invalid.remove("origin");
+    const auto invalidGrid = parseEntries(QJsonArray{invalid});
+    check(invalidGrid.isEmpty() && error.contains("grid definition"),"invalid grid is diagnosed");
     check(parseDatasets("{",error).isEmpty() && error.contains("JSON"),"malformed JSON has a file-level diagnostic");
     check(parseDatasets("{\"version\":1}",error).isEmpty() && !error.isEmpty(),"missing datasets array is a file-level error");
     QMap<QString,Dataset> byId;
@@ -174,6 +196,8 @@ int main(int argc, char **argv) {
     const auto estonia = byId.value("ee.maru.dtm1");
     const auto denmark = byId.value("dk.datafordeler.dhm.terraen");
     const auto worldHgt = byId.value("world-hgt");
+    const auto austria = byId.value("at.bev.als-dgm1");
+    const auto switzerland = byId.value("ch.swisstopo.swissalti3d.2m");
     check(defaultFileSourceId(catalog) == worldHgt.id && worldHgt.provider == "file"
         && worldHgt.directory == "world_hgt" && worldHgt.fileGrid == "degree"
         && worldHgt.minX == -180 && worldHgt.minY == -90 && worldHgt.maxX == 180 && worldHgt.maxY == 90,
@@ -181,6 +205,18 @@ int main(int argc, char **argv) {
     check(fileDownloadUrl(worldHgt,-1,-2).toString()
         == "https://s3.amazonaws.com/elevation-tiles-prod/skadi/S01/S01W002.hgt.gz",
         "degree-grid download template resolves southern and western cells");
+    check(austria.provider == "file" && austria.format == "geotiff"
+        && austria.fileGrid == "projected" && austria.epsg == 3035
+        && austria.fileTileSize == 50000 && austria.concurrentRequests == 4
+        && austria.fileRevision == "20250915"
+        && austria.downloadUrlTemplate.contains("N{northing}E{easting}"),
+        "Austria catalogue defines a projected 50 km range-COG grid");
+    check(switzerland.provider == "file" && switzerland.format == "geotiff"
+        && switzerland.fileGrid == "stac" && switzerland.epsg == 2056
+        && switzerland.resolution == 2
+        && switzerland.stacEndpoint.host() == "data.geo.admin.ch"
+        && switzerland.stacCollection == "ch.swisstopo.swissalti3d",
+        "Switzerland catalogue defines the generic 2 m STAC/GeoTIFF source");
     auto manualFile = worldHgt.definition;
     manualFile["id"] = "fixture.manual-hgt"; manualFile["directory"] = "manual_hgt";
     manualFile.remove("download");
@@ -237,6 +273,11 @@ int main(int argc, char **argv) {
     check(!validateRasterGrid(probeGrid,{0,0},r,error),"expanded grid rejects non-finite transforms");
     check(finland.epsg == 3067 && supportedCrs(3067) && project({60,27},3067,p)
         && near(p.x,500000),"Finland retains its supported native TM35FIN grid");
+    check(project({52,10},3035,p) && near(p.x,4321000,.001) && near(p.y,3210000,.001),
+        "ETRS89 LAEA Europe projection origin");
+    project({46.9510811111,7.4386372222},2056,p);
+    check(near(p.x,2600000,1) && near(p.y,1200000,1),
+        "official swisstopo Bern reference maps to LV95 origin");
     check(finland.apiKeySecret == "geo.elevation.fi.nls.apiKey"
         && !coverageUrl(finland,{0,0}).toString().contains("api-key"),"Finland catalogue stores a secret reference, not a credential URL");
     const QUrlQuery nlQuery(coverageUrl(netherlands,{1226,-11337}));

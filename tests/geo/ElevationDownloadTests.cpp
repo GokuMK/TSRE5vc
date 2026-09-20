@@ -10,11 +10,13 @@ void runDownloadTests(const std::function<void(bool,const char*)> &check) {
     QTcpServer server;
     check(server.listen(QHostAddress::LocalHost),"local download fixture listens");
     if (!server.isListening()) return;
-    enum Mode { Barrier, Mixed, Cancel, Stall, Auth, Redirect, Html, QueryFailure };
+    enum Mode { Barrier, Mixed, Cancel, Stall, Auth, Redirect, Html, QueryFailure,
+                Range, BadRange, IgnoreRange };
     Mode mode = Barrier;
     int received = 0;
     QByteArray receivedAuthorization;
     QByteArray receivedPath;
+    QByteArray receivedRange;
     bool crossOrigin = false;
     QVector<QPair<QPointer<QTcpSocket>,QByteArray>> waiting;
     std::atomic_bool cancel{false};
@@ -33,8 +35,10 @@ void runDownloadTests(const std::function<void(bool,const char*)> &check) {
                 const QByteArray path = bytes.split(' ').value(1);
                 receivedPath = path;
                 receivedAuthorization.clear();
+                receivedRange.clear();
                 for (const auto &line : bytes.split('\n'))
                     if (line.toLower().startsWith("authorization:")) receivedAuthorization = line.mid(14).trimmed();
+                    else if (line.toLower().startsWith("range:")) receivedRange = line.mid(6).trimmed();
                 if (mode==QueryFailure) respond(socket,path,503);
                 else if (mode==Barrier) {
                     waiting.push_back({socket,path});
@@ -50,6 +54,12 @@ void runDownloadTests(const std::function<void(bool,const char*)> &check) {
                     socket->write("HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: 28\r\nConnection: close\r\n\r\n<html>Request rejected</html>");
                     socket->disconnectFromHost();
                 } else if (mode==Auth || (mode==Redirect && path=="/target")) respond(socket,"ok");
+                else if (mode==Range || mode==BadRange) {
+                    const QByteArray interval = mode==Range ? "bytes 2-5/10" : "bytes 1-4/10";
+                    socket->write("HTTP/1.1 206 Partial Content\r\nContent-Range: "+interval
+                        +"\r\nContent-Length: 4\r\nConnection: close\r\n\r\n2345");
+                    socket->disconnectFromHost();
+                } else if (mode==IgnoreRange) respond(socket,"2345");
                 else if (mode==Redirect) {
                     const QByteArray host = crossOrigin ? "localhost" : "127.0.0.1";
                     socket->write("HTTP/1.1 302 Found\r\nContent-Length: 0\r\nLocation: http://"
@@ -131,4 +141,20 @@ void runDownloadTests(const std::function<void(bool,const char*)> &check) {
     check(!results[0].error.isEmpty() && received == 1
         && !results[0].error.contains("apikey") && !results[0].error.contains(querySecret),
         "query-key requests reject cross-origin redirects without leaking the URL");
+    mode = Range; received = 0;
+    auto rangeResults = Elevation::downloadRangeWave({{urls[0],2,5}},cancel,{},limits);
+    check(received==1 && receivedRange=="bytes=2-5" && rangeResults[0].bytes=="2345"
+        && rangeResults[0].error.isEmpty(),"strict range download accepts an exact HTTP 206 interval");
+    mode = BadRange;
+    rangeResults = Elevation::downloadRangeWave({{urls[0],2,5}},cancel,{},limits);
+    check(rangeResults[0].bytes.isEmpty() && rangeResults[0].error.contains("inconsistent"),
+        "range download rejects a mismatched Content-Range");
+    mode = IgnoreRange;
+    rangeResults = Elevation::downloadRangeWave({{urls[0],2,5}},cancel,{},limits);
+    check(rangeResults[0].bytes.isEmpty() && rangeResults[0].error.contains("HTTP 200"),
+        "range download rejects a server that ignores Range");
+    received = 0;
+    rangeResults = Elevation::downloadRangeWave({{urls[0],5,2}},cancel,{},limits);
+    check(received==0 && rangeResults[0].bytes.isEmpty() && !rangeResults[0].error.isEmpty(),
+        "invalid byte interval starts no request");
 }

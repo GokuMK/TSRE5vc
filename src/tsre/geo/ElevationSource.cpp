@@ -1,4 +1,5 @@
 #include <tsre/geo/ElevationSource.h>
+#include <tsre/geo/CogElevationSource.h>
 #include <tsre/geo/ElevationDownload.h>
 #include <mzip/miniz/miniz.h>
 
@@ -591,6 +592,10 @@ QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
         const auto download = o.value("download").toObject();
         d.downloadUrlTemplate = download.value("urlTemplate").toString();
         d.downloadCompression = download.value("compression").toString();
+        d.fileTileSize = download.value("tileSize").toDouble();
+        d.fileRevision = download.value("revision").toString();
+        d.stacEndpoint = QUrl(download.value("endpoint").toString());
+        d.stacCollection = download.value("collection").toString();
         const QString label = d.id.isEmpty() ? QStringLiteral("entry %1").arg(index) : d.id;
         const auto authentication = o.value("authentication").toObject();
         if (o.contains("authentication")) {
@@ -625,13 +630,15 @@ QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
         const bool arcgis = d.provider == "arcgis-imageserver";
         static const QRegularExpression relativeDirectory(
             QStringLiteral("^[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*$"));
+        static const QRegularExpression safeName(QStringLiteral("^[A-Za-z0-9._-]+$"));
         QUrl fileProbe;
         if (!d.downloadUrlTemplate.isEmpty()) {
             QString probe = d.downloadUrlTemplate;
-            probe.replace("{latitudeBand}","N00").replace("{tile}","N00E000");
+            probe.replace("{latitudeBand}","N00").replace("{tile}","N00E000")
+                .replace("{northing}","0").replace("{easting}","0");
             fileProbe = QUrl(probe);
         }
-        const bool validFile = file && d.format == "hgt" && d.fileGrid == "degree"
+        const bool validHgt = file && d.format == "hgt" && d.fileGrid == "degree"
             && d.epsg == 4326 && relativeDirectory.match(d.directory).hasMatch()
             && !o.contains("authentication")
             && (!o.contains("download") || (o.value("download").isObject()
@@ -640,6 +647,19 @@ QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
                 && d.downloadUrlTemplate.contains("{tile}")
                 && d.downloadCompression == "gzip"
                 && fileProbe.scheme() == "https" && !fileProbe.host().isEmpty()));
+        const bool validProjectedTiff = file && d.format == "geotiff" && d.fileGrid == "projected"
+            && d.resolution > 0 && d.fileTileSize > 0
+            && relativeDirectory.match(d.directory).hasMatch() && !o.contains("authentication")
+            && safeName.match(d.fileRevision).hasMatch()
+            && o.value("download").isObject() && d.downloadUrlTemplate.contains("{northing}")
+            && d.downloadUrlTemplate.contains("{easting}")
+            && fileProbe.scheme() == "https" && !fileProbe.host().isEmpty();
+        const bool validStacTiff = file && d.format == "geotiff" && d.fileGrid == "stac"
+            && d.resolution > 0 && relativeDirectory.match(d.directory).hasMatch()
+            && !o.contains("authentication") && o.value("download").isObject()
+            && d.stacEndpoint.scheme() == "https" && !d.stacEndpoint.host().isEmpty()
+            && !d.stacCollection.isEmpty();
+        const bool validFile = validHgt || validProjectedTiff || validStacTiff;
         if (d.id.isEmpty() || ids.contains(d.id) || d.id.contains('/') || d.id.contains('\\') || d.id.contains("..")
                 || (!wcs && !arcgis && !validFile)
                 || (o.contains("allowExpandedGrid") && !o.value("allowExpandedGrid").isBool())
@@ -831,6 +851,8 @@ Result generate(const QString &root, const QString &id, const QVector<Point> &po
     }
     if (!selected) { result.error = QStringLiteral("Unknown elevation dataset: %1").arg(selectedId); return result; }
     const auto createSource = [&](const Dataset &dataset) -> std::unique_ptr<Source> {
+        if (dataset.provider == "file" && dataset.format == "geotiff")
+            return createCogElevationSource(root,dataset,result.report);
         if (dataset.provider == "file")
             return std::make_unique<FileHgtSource>(root,dataset,result.report);
         std::unique_ptr<RasterProvider> provider;
