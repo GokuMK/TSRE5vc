@@ -2,7 +2,8 @@
 
 Status: Stage 1 baseline preserved; Stage 2A 8-byte layout selected and
 implemented. Interactive gap/map/selection coverage remains to be completed;
-initial performance and memory comparisons are recorded below.
+initial performance and memory comparisons are recorded below. Paged rendering
+of distant terrain has a confirmed unresolved layout issue described below.
 
 Related tasks:
 
@@ -73,6 +74,20 @@ The settings UI names the backends `Precomputed / Legacy` and
 `On GPU / Experimental`. Their persisted values remain `legacy` and `paged`
 for configuration compatibility. New/default configurations select `paged`;
 an existing explicit `terrainMesh = legacy` choice remains respected.
+
+## Open issue: paged distant terrain
+
+The issue is distant terrain: its shader array layout is not supported by the
+paged terrain backend yet. Distant terrain renders with known bugs through the
+legacy mesh backend, but the paged backend can crash while loading/rendering it.
+This was reproduced with the BNSF Scenic demo route; the Windows fault occurred
+inside the AMD OpenGL driver after paged `LO_TILES` meshes were built.
+
+Disabling quadtree terrain avoids the failure because it also avoids the distant
+terrain path. Selecting the legacy mesh backend is another diagnostic workaround.
+Neither is the intended fix: retain quadtree/distant-terrain support and add the
+required paged shader-array layout handling. Do not close this issue by silently
+forcing distant terrain onto the legacy mesh backend.
 
 Keep VBO pages rather than merging a complete terrain tile into one permanent
 mega-buffer. One tile VBO would save only a few ideal VAO binds while making
