@@ -190,7 +190,6 @@ PropertiesRuler::PropertiesRuler() {
     eTemplate.setToolTip(
         //% "NOT SET disables the procedural Ruler shape; DEFAULT explicitly requests the default procedural template."
         qtTrId("route.editor.properties.ruler.tooltip.not.set.disables.procedural.ruler.shape.default"));
-    refreshTemplateList();
     QObject::connect(&eTemplate, SIGNAL(currentTextChanged(QString)),
                       this, SLOT(eTemplateEdited(QString)));
     button = new QPushButton(

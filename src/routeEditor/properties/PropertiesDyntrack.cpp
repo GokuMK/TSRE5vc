@@ -85,7 +85,6 @@ PropertiesDyntrack::PropertiesDyntrack() {
     eTemplate.setToolTip(
         //% "NOT SET uses the hardcoded shape in Enabled mode; DEFAULT explicitly requests the default procedural template."
         qtTrId("route.editor.properties.dyntrack.tooltip.not.set.uses.hardcoded.shape.in.enabled"));
-    refreshTemplateList();
     QObject::connect(&eTemplate, SIGNAL(currentTextChanged(QString)),
                      this, SLOT(eTemplateEdited(QString)));
     

@@ -97,7 +97,6 @@ PropertiesTrackObj::PropertiesTrackObj(){
     eTemplate.setToolTip(
         //% "NOT SET uses the static shape in Enabled mode; DEFAULT explicitly requests the default procedural template."
         qtTrId("route.editor.properties.track.obj.tooltip.not.set.uses.static.shape.in.enabled"));
-    refreshTemplateList();
     QObject::connect(&eTemplate, SIGNAL(currentTextChanged(QString)),
                       this, SLOT(eTemplateEdited(QString)));
     
