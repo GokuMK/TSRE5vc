@@ -126,7 +126,8 @@ OSTN15 shifts. OS reports 0.08 m horizontal RMS against full OSTN15.
 
 Validation on 2026-09-21: **378 focused Release checks passed**. Luxembourg and
 Wales bounded live probes produced valid source heights; both cache repeats used
-zero downloads. Exact byte counts are recorded in `elevation-current-status.md`.
+zero downloads. The user then confirmed Wales in the application. Exact byte
+counts are recorded in `elevation-current-status.md`.
 
 The old empty setting value migrates to the catalogue default. Source lists no
 longer add a hardcoded HGT item, and reports use generic source/fallback wording.

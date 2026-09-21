@@ -31,6 +31,8 @@ the newest status or the current source code.
 - A bounded Wales probe downloaded 262,144 bytes of header, 8,166,204 bytes of
   index tables and one 76,600-byte block, plus the one-time transform archive.
   It returned 132.857 m and 132.837 m; the repeat was cache-only in 20 ms.
+- The user subsequently confirmed the Wales source in the application at
+  `52.1394178, -4.5713131`.
 - **378 focused Release checks pass.** The full application build and main UI
   suites were not run for this milestone.
 - The user confirms Flanders and Sachsen-Anhalt work in the application.

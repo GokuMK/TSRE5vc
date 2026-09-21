@@ -169,9 +169,10 @@ Wales returned 132.857 m from one Deflate block after downloading the official
 OSTN15 Lite grid. Their cache repeats used no downloads. An exact Swiss 1 km seam
 probe used both adjacent tiles without HGT fallback. Earlier validation includes
 Mapzen HGT, Settings/UI suites and a Release application build; those larger suites
-were not repeated for this milestone. Flanders and Sachsen-Anhalt were subsequently
-confirmed working by the user; Sachsen-Anhalt was tested near Magdeburg at
-`52.1310, 11.6390`. Estonia 1024 was tested but its catalogue still uses 512.
+were not repeated for this milestone. Flanders, Sachsen-Anhalt and Wales were
+subsequently confirmed working by the user; Sachsen-Anhalt was tested near
+Magdeburg at `52.1310, 11.6390`, and Wales at `52.1394178, -4.5713131`.
+Estonia 1024 was tested but its catalogue still uses 512.
 
 ## File-source status
 

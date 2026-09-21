@@ -94,7 +94,7 @@ Current branch catalogue snapshot, updated 2026-09-21:
 | `world-hgt` | World HGT terrain / Mapzen Skadi automatic fallback | file / HGT | 4326 | ✅ implemented + live download/cache probe |
 | `at.bev.als-dgm1` | Austria BEV ALS-DGM 1 m, 2025 mosaic | file / projected range COG | 3035 | ✅ bounded live block + cache probe |
 | `lu.act.dtm2024` | Luxembourg ACT DTM 2024, 1 m overview | file / national range COG | 2169 | ✅ bounded live block + cache probe |
-| `gb.wales.lidar.dtm1` | Wales LiDAR DTM 1 m | file / national range COG | 27700 + OSTN15 Lite | ✅ bounded live block + cache probe |
+| `gb.wales.lidar.dtm1` | Wales LiDAR DTM 1 m | file / national range COG | 27700 + OSTN15 Lite | ✅ bounded live/cache probe + user-confirmed application test |
 | `ch.swisstopo.swissalti3d.2m` | Switzerland + Liechtenstein swissALTI3D 2 m | file / STAC GeoTIFF | 2056 | ✅ bounded live tile + cache probe |
 | `pl.gugik.nmt1.kron86` | Poland NMT 1 m KRON86 | WCS 2.0.1 | 2180 | ✅ |
 | `pl.gugik.nmt1.evrf2007` | Poland NMT 1 m EVRF2007 | WCS 2.0.1 | 2180 | ✅ |
@@ -659,7 +659,7 @@ distant terrain until coarse overview policy and separate cache identity exist.
 
 ## Wales
 
-**Status: ✅ implemented and bounded-live-tested**
+**Status: ✅ implemented, bounded-live-tested and user-confirmed**
 
 Welsh Government publishes national LiDAR DTM as direct COG files, including a 32-bit DTM COG.
 
@@ -674,7 +674,8 @@ TSRE range-reads the official Float32 Deflate COG. On first use it downloads the
 official Ordnance Survey OSTN15/OSGM15 Lite developer ZIP, retains only its
 99,959-byte 20 km shift grid under `assets/geo/`, and uses bilinear OSTN15
 corrections for horizontal placement. A two-point probe returned 132.857 m and
-132.837 m; its repeat was cache-only. The source remains disabled for distant terrain.
+132.837 m; its repeat was cache-only. The user then confirmed application use at
+`52.1394178, -4.5713131`. The source remains disabled for distant terrain.
 
 ---
 
