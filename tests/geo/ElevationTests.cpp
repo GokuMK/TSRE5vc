@@ -12,6 +12,7 @@
 #include <QtEndian>
 #include <QElapsedTimer>
 #include <cmath>
+#include <cstring>
 #include <iostream>
 
 using namespace Elevation;
@@ -108,6 +109,27 @@ int main(int argc, char **argv) {
           "truncated TIFF LZW block is rejected");
     check(!decodeTiffBlock(lzwFloat,5,1,true,32,1,4,1,decodedBlock,error),
           "unsupported UInt32 TIFF samples are rejected instead of reinterpreted as floats");
+    QByteArray float64Block(4*8,Qt::Uninitialized);
+    const double float64Values[] = {1.25,-2.5,48.125,399.75};
+    for (int i=0; i<4; ++i) {
+        quint64 raw;
+        std::memcpy(&raw,&float64Values[i],8);
+        qToLittleEndian<quint64>(raw,float64Block.data()+8*i);
+    }
+    check(decodeTiffBlock(float64Block,1,1,true,64,3,4,1,decodedBlock,error)
+          && decodedBlock == QVector<float>({1.25f,-2.5f,48.125f,399.75f}),
+          "TIFF Float64 block conversion to the elevation float buffer");
+    QByteArray float32Block(4*4,Qt::Uninitialized);
+    const float float32Values[] = {1.0f,2.0f,-3.5f,42.25f};
+    for (int i=0; i<4; ++i) {
+        quint32 raw;
+        std::memcpy(&raw,&float32Values[i],4);
+        qToLittleEndian<quint32>(raw,float32Block.data()+4*i);
+    }
+    const QByteArray deflatedFloat = qCompress(float32Block).mid(4);
+    check(decodeTiffBlock(deflatedFloat,8,1,true,32,3,4,1,decodedBlock,error)
+          && decodedBlock == QVector<float>({1.0f,2.0f,-3.5f,42.25f}),
+          "TIFF Deflate Float32 block decoding");
     check(readGeoTiff(fixture("signed16-big-endian.tif"),r,error),"big-endian signed16 TIFF with two strips");
     check(r.sample({100.5,199.5}).height == -2 && r.sample({101.5,199.5}).height == 0
           && r.sample({100.5,198.5}).height == 10,"signed strips preserve row order and zero height");
@@ -200,6 +222,8 @@ int main(int argc, char **argv) {
     const auto denmark = byId.value("dk.datafordeler.dhm.terraen");
     const auto worldHgt = byId.value("world-hgt");
     const auto austria = byId.value("at.bev.als-dgm1");
+    const auto luxembourg = byId.value("lu.act.dtm2024");
+    const auto wales = byId.value("gb.wales.lidar.dtm1");
     const auto switzerland = byId.value("ch.swisstopo.swissalti3d.2m");
     check(defaultFileSourceId(catalog) == worldHgt.id && worldHgt.provider == "file"
         && worldHgt.directory == "world_hgt" && worldHgt.fileGrid == "degree"
@@ -214,6 +238,27 @@ int main(int argc, char **argv) {
         && austria.fileRevision == "20250915"
         && austria.downloadUrlTemplate.contains("N{northing}E{easting}"),
         "Austria catalogue defines a projected 50 km range-COG grid");
+    check(luxembourg.provider == "file" && luxembourg.format == "geotiff"
+        && luxembourg.fileGrid == "cog" && luxembourg.epsg == 2169
+        && luxembourg.resolution == 1 && luxembourg.concurrentRequests == 4
+        && luxembourg.fileRevision == "lidar2024"
+        && luxembourg.downloadUrlTemplate.endsWith("/MNT_Lidar2024.tif"),
+        "Luxembourg catalogue selects the 1 m overview of one national range COG");
+    check(wales.provider == "file" && wales.format == "geotiff"
+        && wales.fileGrid == "cog" && wales.epsg == 27700
+        && wales.resolution == 1 && wales.coordinateTransform == "ostn15-lite"
+        && wales.transformAssetPath == "assets/geo/OSTN15_OSGM15_Lite_DataFile.txt"
+        && wales.transformAssetUrl.host() == "www.ordnancesurvey.co.uk",
+        "Wales catalogue defines a single range COG and on-demand OSTN15 Lite asset");
+    auto invalidTransform = wales.definition;
+    invalidTransform["id"] = "fixture.invalid-transform";
+    auto invalidTransformDefinition = invalidTransform["coordinateTransform"].toObject();
+    invalidTransformDefinition.remove("archiveEntry");
+    invalidTransform["coordinateTransform"] = invalidTransformDefinition;
+    mixed = entries; mixed.prepend(invalidTransform);
+    validEntries = parseEntries(mixed);
+    check(validEntries.size() == catalog.size() && error.contains("fixture.invalid-transform"),
+        "invalid transform asset rejects only its catalogue object");
     check(switzerland.provider == "file" && switzerland.format == "geotiff"
         && switzerland.fileGrid == "stac" && switzerland.epsg == 2056
         && switzerland.resolution == 2
@@ -277,6 +322,7 @@ int main(int argc, char **argv) {
     const Geo::CrsTransform finlandProjection(3067);
     const Geo::CrsTransform europeProjection(3035);
     const Geo::CrsTransform swissProjection(2056);
+    const Geo::CrsTransform luxembourgProjection(2169);
     check(finland.epsg == 3067 && Geo::CrsTransform::supports(3067) && finlandProjection.forward({60,27},p)
         && near(p.x,500000),"Finland retains its supported native TM35FIN grid");
     check(europeProjection.forward({52,10},p) && near(p.x,4321000,.001) && near(p.y,3210000,.001),
@@ -284,6 +330,31 @@ int main(int argc, char **argv) {
     swissProjection.forward({46.9510811111,7.4386372222},p);
     check(near(p.x,2600000,1) && near(p.y,1200000,1),
         "official swisstopo Bern reference maps to LV95 origin");
+    struct LuxembourgReference { double latitude,longitude,easting,northing; };
+    const LuxembourgReference luxembourgReferences[] = {
+        {49.6116,6.1319,77382.1116744523,75219.76194942078},
+        {49.5,5.8,53334.455034026396,62871.688285392534},
+        {50.1,6.45,100166.93650059443,129580.7635124627},
+        {49.8,6.0,67896.05848052897,96187.21516507938}
+    };
+    bool luxembourgMatches = Geo::CrsTransform::supports(2169);
+    for (const auto &reference : luxembourgReferences) {
+        luxembourgMatches &= luxembourgProjection.forward(
+            {reference.latitude,reference.longitude},p)
+            && near(p.x,reference.easting,.02) && near(p.y,reference.northing,.02);
+    }
+    check(luxembourgMatches,
+        "LUREF2020 and Luxembourg TM agree with official ACT converter controls within 2 cm");
+    Geo::CrsTransform britishProjection(27700);
+    std::vector<std::array<double,2>> ostn15(36*63,{0,0});
+    ostn15[443]={93.328,-77.086};
+    ostn15[444]={93.719,-76.984};
+    ostn15[480]={93.602,-76.674};
+    ostn15[479]={93.206,-76.716};
+    check(britishProjection.setHorizontalShiftGrid(0,0,20000,36,63,std::move(ostn15))
+        && britishProjection.forward({52.139417789376,-4.571313103567},p)
+        && near(p.x,224134.49586,.01) && near(p.y,252130.80956,.01),
+        "British National Grid projection and OSTN15 bilinear shifts match an official control");
     check(finland.apiKeySecret == "geo.elevation.fi.nls.apiKey"
         && !coverageUrl(finland,{0,0}).toString().contains("api-key"),"Finland catalogue stores a secret reference, not a credential URL");
     const QUrlQuery nlQuery(coverageUrl(netherlands,{1226,-11337}));

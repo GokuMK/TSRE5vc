@@ -53,6 +53,64 @@
       ]
     },
     {
+      "id": "lu.act.dtm2024",
+      "name": "Luxembourg - ACT DTM 2024 (1 m COG overview)",
+      "provider": "file",
+      "format": "geotiff",
+      "fileGrid": "cog",
+      "directory": "lu_act_dtm2024",
+      "crs": 2169,
+      "verticalDatum": "NG95 (LUREF2020)",
+      "resolution": 1,
+      "bounds": [48880.5, 56965.5, 106189, 138809],
+      "concurrentRequests": 4,
+      "zeroIsNoData": false,
+      "download": {
+        "revision": "lidar2024",
+        "urlTemplate": "https://download.data.public.lu/resources/bd-l-lidar2024-releve-3d-du-territoire-luxembourgeois/20241223-093912/MNT_Lidar2024.tif"
+      },
+      "attribution": "Administration du cadastre et de la topographie Luxembourg - DTM 2024, CC0",
+      "attributionUrl": "https://data.public.lu/en/datasets/inspire-annex-ii-theme-elevation-elevationgridcoverage-dtm-2024/",
+      "notes": [
+        "The published national COG is about 40 GB at 0.5 m. TSRE selects its exact 1 m internal overview and downloads only the required compressed blocks plus the COG index tables; it never downloads the complete file automatically.",
+        "The source overview is LZW-compressed Float64. Samples are converted to TSRE's Float32 elevation buffer after decoding.",
+        "EPSG:2169 conversion uses the official ACT ETRF2000 to LUREF2020 Molodensky-Badekas parameters and Luxembourg TM definition.",
+        "This detailed source is not enabled for distant terrain."
+      ]
+    },
+    {
+      "id": "gb.wales.lidar.dtm1",
+      "name": "Wales - Welsh Government LiDAR DTM 1 m (range COG)",
+      "provider": "file",
+      "format": "geotiff",
+      "fileGrid": "cog",
+      "directory": "gb_wales_lidar_dtm1",
+      "crs": 27700,
+      "verticalDatum": "Ordnance Datum Newlyn (ODN)",
+      "resolution": 1,
+      "bounds": [164993, 164000, 356000, 397000],
+      "concurrentRequests": 4,
+      "zeroIsNoData": false,
+      "coordinateTransform": {
+        "type": "ostn15-lite",
+        "path": "assets/geo/OSTN15_OSGM15_Lite_DataFile.txt",
+        "url": "https://www.ordnancesurvey.co.uk/documents/resources/OSTN15-OSGM15-Lite-DevelopersPack.zip",
+        "archiveEntry": "OSTN15_OSGM15_Lite_DataFile.txt"
+      },
+      "download": {
+        "revision": "20241004",
+        "urlTemplate": "https://dmwproductionblob.blob.core.windows.net/cogs/lidar/wales_dtm_32bit_cog.tif"
+      },
+      "attribution": "Welsh Government LiDAR, Open Government Licence; OSTN15/OSGM15 Lite by Ordnance Survey",
+      "attributionUrl": "https://datamap.gov.wales/maps/lidar-viewer/",
+      "notes": [
+        "The official 32-bit national DTM COG is about 48.6 GB. TSRE downloads only the required Deflate-compressed 256 x 256 blocks and COG index tables.",
+        "The 1 m EPSG:27700 source uses Ordnance Survey's OSTN15/OSGM15 Lite 20 km shift grid. TSRE downloads the small official developer archive on first use and stores only its grid under assets/geo.",
+        "Ordnance Survey reports 0.08 m horizontal RMS for the Lite grid against the full OSTN15 model, which is comfortably below the source raster spacing.",
+        "This detailed source is not enabled for distant terrain."
+      ]
+    },
+    {
       "id": "ch.swisstopo.swissalti3d.2m",
       "name": "Switzerland and Liechtenstein - swissALTI3D 2 m (swisstopo STAC/COG)",
       "provider": "file",

@@ -597,6 +597,11 @@ QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
         d.fileRevision = download.value("revision").toString();
         d.stacEndpoint = QUrl(download.value("endpoint").toString());
         d.stacCollection = download.value("collection").toString();
+        const auto coordinateTransform = o.value("coordinateTransform").toObject();
+        d.coordinateTransform = coordinateTransform.value("type").toString();
+        d.transformAssetPath = coordinateTransform.value("path").toString();
+        d.transformAssetEntry = coordinateTransform.value("archiveEntry").toString();
+        d.transformAssetUrl = QUrl(coordinateTransform.value("url").toString());
         const QString label = d.id.isEmpty() ? QStringLiteral("entry %1").arg(index) : d.id;
         const auto authentication = o.value("authentication").toObject();
         if (o.contains("authentication")) {
@@ -632,6 +637,8 @@ QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
         static const QRegularExpression relativeDirectory(
             QStringLiteral("^[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*$"));
         static const QRegularExpression safeName(QStringLiteral("^[A-Za-z0-9._-]+$"));
+        static const QRegularExpression geoAsset(
+            QStringLiteral("^assets/geo/[A-Za-z0-9._-]+$"));
         QUrl fileProbe;
         if (!d.downloadUrlTemplate.isEmpty()) {
             QString probe = d.downloadUrlTemplate;
@@ -655,14 +662,29 @@ QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
             && o.value("download").isObject() && d.downloadUrlTemplate.contains("{northing}")
             && d.downloadUrlTemplate.contains("{easting}")
             && fileProbe.scheme() == "https" && !fileProbe.host().isEmpty();
+        const bool validSingleCog = file && d.format == "geotiff" && d.fileGrid == "cog"
+            && d.resolution > 0 && relativeDirectory.match(d.directory).hasMatch()
+            && !o.contains("authentication") && safeName.match(d.fileRevision).hasMatch()
+            && o.value("download").isObject() && !d.downloadUrlTemplate.contains('{')
+            && fileProbe.scheme() == "https" && !fileProbe.host().isEmpty()
+            && !QFileInfo(fileProbe.path()).fileName().isEmpty();
         const bool validStacTiff = file && d.format == "geotiff" && d.fileGrid == "stac"
             && d.resolution > 0 && relativeDirectory.match(d.directory).hasMatch()
             && !o.contains("authentication") && o.value("download").isObject()
             && d.stacEndpoint.scheme() == "https" && !d.stacEndpoint.host().isEmpty()
             && !d.stacCollection.isEmpty();
-        const bool validFile = validHgt || validProjectedTiff || validStacTiff;
+        const bool validFile = validHgt || validProjectedTiff || validSingleCog || validStacTiff;
+        const bool validCoordinateTransform = d.coordinateTransform.isEmpty()
+            ? d.epsg != 27700
+            : d.epsg == 27700 && d.coordinateTransform == "ostn15-lite"
+                && o.value("coordinateTransform").isObject()
+                && geoAsset.match(d.transformAssetPath).hasMatch()
+                && safeName.match(d.transformAssetEntry).hasMatch()
+                && d.transformAssetUrl.scheme() == "https"
+                && !d.transformAssetUrl.host().isEmpty();
         if (d.id.isEmpty() || ids.contains(d.id) || d.id.contains('/') || d.id.contains('\\') || d.id.contains("..")
                 || (!wcs && !arcgis && !validFile)
+                || !validCoordinateTransform
                 || (o.contains("allowExpandedGrid") && !o.value("allowExpandedGrid").isBool())
                 || (o.contains("requestFormat") && (!o.value("requestFormat").isString() || d.requestFormat.isEmpty()))
                 || (o.contains("scaleAxisX") && !o.value("scaleAxisX").isString())

@@ -199,7 +199,8 @@ static bool readTiff(const QByteArray &bytes, int metadataEpsg, Raster &output, 
         return fail(error,
             "TIFF must contain one float32, int16 or uint16 height band; RGB is not elevation");
     const int compression = int(integer(259,1)), predictor = int(integer(317,1));
-    if ((compression != 1 && compression != 5) || (predictor != 1 && predictor != 3)
+    if ((compression != 1 && compression != 5 && compression != 8)
+            || (predictor != 1 && predictor != 3)
             || (predictor == 3 && !float32) || integer(274,1) != 1
             || integer(284,1) != 1)
         return fail(error, "Unsupported TIFF compression, predictor or orientation");

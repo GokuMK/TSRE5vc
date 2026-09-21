@@ -76,9 +76,31 @@ CrsTransform::CrsTransform(int epsg)
         return;
     }
 
+    if (epsg == 2169) {
+        // ETRS89 -> LUREF2020 Molodensky-Badekas transformation followed by
+        // Luxembourg TM on the International 1924 ellipsoid. Parameters are
+        // published by Luxembourg ACT (July 2024).
+        useLuref2020 = true;
+        configureTransverseMercator(6378388.0, 297.0,
+                                    49.8333333333333, 6.16666666666667,
+                                    1.0, 80000, 100000,
+                                    49.44, 50.19, 5.73, 6.53);
+        return;
+    }
+
     if (epsg == 2180) {
         configureTransverseMercator(19, .9993, -5300000,
                                     48, 57, 13, 25);
+        return;
+    }
+
+    if (epsg == 27700) {
+        // First project ETRS89 on the GRS80 ellipsoid to the National Grid
+        // pseudo-grid. OSTN15 horizontal shifts are applied when a grid has
+        // been supplied by the caller.
+        configureTransverseMercator(Grs80SemiMajorAxis, Grs80InverseFlattening,
+                                    49, -2, .9996012717, 400000, -100000,
+                                    49, 61.5, -9, 3.5);
         return;
     }
 
@@ -102,28 +124,60 @@ bool CrsTransform::supports(int epsg) {
     return CrsTransform(epsg).valid();
 }
 
+bool CrsTransform::setHorizontalShiftGrid(
+        double originEasting, double originNorthing, double spacing,
+        int width, int height, std::vector<std::array<double,2>> shifts) {
+    if (!(spacing > 0) || width < 2 || height < 2
+            || size_t(width)*size_t(height) != shifts.size())
+        return false;
+    for (const auto &shift : shifts)
+        if (!std::isfinite(shift[0]) || !std::isfinite(shift[1]))
+            return false;
+    gridOriginEasting = originEasting;
+    gridOriginNorthing = originNorthing;
+    gridSpacing = spacing;
+    gridWidth = width;
+    gridHeight = height;
+    horizontalShifts = std::move(shifts);
+    return true;
+}
+
 void CrsTransform::configureTransverseMercator(
         double centralMeridianDegrees, double scaleFactor,
         double northingOffset, double minimumLatitude,
         double maximumLatitude, double minimumLongitude,
         double maximumLongitude) {
+    configureTransverseMercator(Grs80SemiMajorAxis, Grs80InverseFlattening,
+                                0, centralMeridianDegrees, scaleFactor,
+                                500000, northingOffset,
+                                minimumLatitude, maximumLatitude,
+                                minimumLongitude, maximumLongitude);
+}
+
+void CrsTransform::configureTransverseMercator(
+        double axis, double inverseFlattening, double latitudeOriginDegrees,
+        double centralMeridianDegrees, double scaleFactor,
+        double eastingOffset, double northingOffset,
+        double minimumLatitude, double maximumLatitude,
+        double minimumLongitude, double maximumLongitude) {
     method = Method::TransverseMercator;
     minLatitude = minimumLatitude;
     maxLatitude = maximumLatitude;
     minLongitude = minimumLongitude;
     maxLongitude = maximumLongitude;
     centralMeridian = centralMeridianDegrees * DegreesToRadians;
-    falseEasting = 500000;
+    falseEasting = eastingOffset;
     falseNorthing = northingOffset;
 
-    const double flattening = 1.0 / Grs80InverseFlattening;
+    semiMajorAxis = axis;
+    const double flattening = 1.0 / inverseFlattening;
     eccentricitySquared = flattening * (2.0 - flattening);
     eccentricity = std::sqrt(eccentricitySquared);
     const double n = flattening / (2.0 - flattening);
     const double n2 = n * n;
     const double n3 = n2 * n;
     const double n4 = n2 * n2;
-    rectifyingRadius = scaleFactor * Grs80SemiMajorAxis / (1.0 + n)
+    rectifyingRadius = scaleFactor * semiMajorAxis / (1.0 + n)
             * (1.0 + n2 / 4.0 + n4 / 64.0);
     alpha = {{
         n / 2.0 - 2.0 * n2 / 3.0 + 5.0 * n3 / 16.0 + 41.0 * n4 / 180.0,
@@ -131,6 +185,83 @@ void CrsTransform::configureTransverseMercator(
         61.0 * n3 / 240.0 - 103.0 * n4 / 140.0,
         49561.0 * n4 / 161280.0
     }};
+    double unusedEasting = 0;
+    transverseMercatorRaw(latitudeOriginDegrees * DegreesToRadians, 0,
+                          unusedEasting, originNorthing);
+}
+
+void CrsTransform::transverseMercatorRaw(
+        double latitude, double longitude, double &east, double &north) const {
+    const double t = std::sinh(
+            std::asinh(std::tan(latitude))
+            - eccentricity * std::atanh(eccentricity * std::sin(latitude)));
+    const double xi = std::atan2(t, std::cos(longitude));
+    const double eta = std::asinh(
+            std::sin(longitude) / std::hypot(t, std::cos(longitude)));
+    north = xi;
+    east = eta;
+    for (int j = 1; j <= 4; ++j) {
+        north += alpha[j - 1] * std::sin(2.0 * j * xi)
+                * std::cosh(2.0 * j * eta);
+        east += alpha[j - 1] * std::cos(2.0 * j * xi)
+                * std::sinh(2.0 * j * eta);
+    }
+    east *= rectifyingRadius;
+    north *= rectifyingRadius;
+}
+
+bool CrsTransform::etrs89ToLuref(
+        GeographicPoint point, double &latitude, double &longitude) const {
+    constexpr double sourceAxis = Grs80SemiMajorAxis;
+    constexpr double sourceFlattening = 1.0 / Grs80InverseFlattening;
+    constexpr double sourceEccentricitySquared =
+            sourceFlattening * (2.0 - sourceFlattening);
+    const double phi = point.latitude * DegreesToRadians;
+    const double lambda = point.longitude * DegreesToRadians;
+    const double sine = std::sin(phi);
+    const double primeVertical = sourceAxis
+            / std::sqrt(1.0 - sourceEccentricitySquared * sine * sine);
+    double x = primeVertical * std::cos(phi) * std::cos(lambda);
+    double y = primeVertical * std::cos(phi) * std::sin(lambda);
+    double z = primeVertical * (1.0 - sourceEccentricitySquared) * sine;
+
+    // Official ETRF2000 -> LUREF2020 Molodensky-Badekas parameters.
+    // ACT publishes coordinate-frame rotations; their signs are reversed in
+    // the position-vector matrix below.
+    constexpr double x0 = 4101567.0943;
+    constexpr double y0 = 440245.0881;
+    constexpr double z0 = 4848681.4115;
+    constexpr double arcSecondsToRadians = DegreesToRadians / 3600.0;
+    constexpr double rx = 0.48171 * arcSecondsToRadians;
+    constexpr double ry = 3.09948 * arcSecondsToRadians;
+    constexpr double rz = -2.68639 * arcSecondsToRadians;
+    constexpr double scale = 1.0 - 0.46346e-6;
+    x -= x0;
+    y -= y0;
+    z -= z0;
+    const double targetX = x0 + 265.9196 + scale * x - rz * y + ry * z;
+    const double targetY = y0 - 76.9506 + rz * x + scale * y - rx * z;
+    const double targetZ = z0 - 20.2222 - ry * x + rx * y + scale * z;
+
+    longitude = std::atan2(targetY, targetX);
+    const double horizontal = std::hypot(targetX, targetY);
+    latitude = std::atan2(targetZ,
+                          horizontal * (1.0 - eccentricitySquared));
+    for (int i = 0; i < 10; ++i) {
+        const double targetSine = std::sin(latitude);
+        const double radius = semiMajorAxis / std::sqrt(
+                1.0 - eccentricitySquared * targetSine * targetSine);
+        const double height = horizontal / std::cos(latitude) - radius;
+        const double next = std::atan2(
+                targetZ, horizontal * (1.0
+                    - eccentricitySquared * radius / (radius + height)));
+        if (std::abs(next - latitude) < 1e-15) {
+            latitude = next;
+            break;
+        }
+        latitude = next;
+    }
+    return std::isfinite(latitude) && std::isfinite(longitude);
 }
 
 double CrsTransform::authalicQ(double latitude) const {
@@ -201,27 +332,35 @@ bool CrsTransform::forward(GeographicPoint point, ProjectedPoint &out) const {
         return std::isfinite(out.x) && std::isfinite(out.y);
     }
 
-    const double latitude = point.latitude * DegreesToRadians;
-    const double longitude = point.longitude * DegreesToRadians
-            - centralMeridian;
-    const double t = std::sinh(
-            std::asinh(std::tan(latitude))
-            - eccentricity * std::atanh(eccentricity * std::sin(latitude)));
-    const double xi = std::atan2(t, std::cos(longitude));
-    const double eta = std::asinh(
-            std::sin(longitude) / std::hypot(t, std::cos(longitude)));
-    double north = xi;
-    double east = eta;
-    for (int j = 1; j <= 4; ++j) {
-        north += alpha[j - 1] * std::sin(2.0 * j * xi)
-                * std::cosh(2.0 * j * eta);
-        east += alpha[j - 1] * std::cos(2.0 * j * xi)
-                * std::sinh(2.0 * j * eta);
-    }
+    double latitude = point.latitude * DegreesToRadians;
+    double longitude = point.longitude * DegreesToRadians;
+    if (useLuref2020 && !etrs89ToLuref(point, latitude, longitude))
+        return false;
+    double east = 0;
+    double north = 0;
+    transverseMercatorRaw(latitude, longitude - centralMeridian, east, north);
     out = {
-        falseEasting + rectifyingRadius * east,
-        falseNorthing + rectifyingRadius * north
+        falseEasting + east,
+        falseNorthing + north - originNorthing
     };
+    if (!horizontalShifts.empty()) {
+        const double column = (out.x-gridOriginEasting)/gridSpacing;
+        const double row = (out.y-gridOriginNorthing)/gridSpacing;
+        if (column < 0 || row < 0 || column > gridWidth-1 || row > gridHeight-1)
+            return false;
+        const int x = std::min(int(std::floor(column)),gridWidth-2);
+        const int y = std::min(int(std::floor(row)),gridHeight-2);
+        const double fx = column-x, fy = row-y;
+        const auto interpolate = [&](int component) {
+            const double a = horizontalShifts[y*gridWidth+x][component];
+            const double b = horizontalShifts[y*gridWidth+x+1][component];
+            const double c = horizontalShifts[(y+1)*gridWidth+x][component];
+            const double d = horizontalShifts[(y+1)*gridWidth+x+1][component];
+            return (a*(1-fx)+b*fx)*(1-fy)+(c*(1-fx)+d*fx)*fy;
+        };
+        out.x += interpolate(0);
+        out.y += interpolate(1);
+    }
     return std::isfinite(out.x) && std::isfinite(out.y);
 }
 

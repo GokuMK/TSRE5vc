@@ -9,6 +9,36 @@ historical findings from `a88f7f8` and the R1/R2 follow-up on `1ee5aaa`; their
 counts and validation claims are scoped to those milestones. They do not replace
 the newest status or the current source code.
 
+## Luxembourg and Wales single-file range COGs, 2026-09-21
+
+- `fileGrid: "cog"` now represents one direct national COG. It follows linked
+  overview IFDs, selects an exact configured resolution, downloads external tile
+  offset/count tables separately, and caches only required compressed blocks.
+- Luxembourg ACT DTM 2024 uses the exact 1 m overview of the roughly 40 GB,
+  0.5 m EPSG:2169 national COG. The source is LZW Float64; decoded values are
+  converted into the existing Float32 raster buffer. The local converter applies
+  ACT's official ETRF2000-to-LUREF2020 Molodensky-Badekas parameters followed by
+  Luxembourg TM. Four official converter controls agree within 2 cm.
+- Wales uses the official 1 m EPSG:27700 Welsh Government DTM COG, approximately
+  48.6 GB. Its Float32 blocks use Deflate. Accurate placement uses Ordnance
+  Survey's OSTN15/OSGM15 Lite 20 km shift grid, downloaded on first use from the
+  official 1.26 MB developer ZIP. Only the 99,959-byte text grid is retained in
+  `assets/geo/`; the archive is not retained. OSGM15 heights are not applied to
+  the already-orthometric ODN raster values.
+- A bounded Luxembourg probe downloaded 262,144 bytes of header, 3,440,640 bytes
+  of index tables and one 52,805-byte block. It returned 306.786 m and 306.62 m;
+  the repeat was cache-only in 10 ms.
+- A bounded Wales probe downloaded 262,144 bytes of header, 8,166,204 bytes of
+  index tables and one 76,600-byte block, plus the one-time transform archive.
+  It returned 132.857 m and 132.837 m; the repeat was cache-only in 20 ms.
+- **378 focused Release checks pass.** The full application build and main UI
+  suites were not run for this milestone.
+- The user confirms Flanders and Sachsen-Anhalt work in the application.
+  Sachsen-Anhalt was tested near Magdeburg at `52.1310, 11.6390`; no separate
+  quantitative block/cache/coverage-edge report was retained.
+
+These detailed profiles remain unapproved for distant terrain.
+
 ## Projected COG and STAC GeoTIFF file sources, 2026-09-21
 
 - Austria BEV ALS-DGM 1 m is the first `fileGrid: "projected"` source. Its 2025

@@ -35,8 +35,8 @@ points. Construction precomputes ellipsoid and series constants. `forward()` is
 allocation-free, has no Qt dependency and performs no EPSG lookup, file access or
 network access. Catalogue validation uses the same class through `supports()`.
 
-The supported definitions and numeric behavior remain the same as before the
-extraction:
+The initial definitions remain supported, and the source work added two explicit
+national conversions:
 
 - EPSG:4326 geographic longitude/latitude;
 - EPSG:3857 Web Mercator;
@@ -44,6 +44,10 @@ extraction:
 - EPSG:3035 ETRS89 / LAEA Europe;
 - EPSG:2180 Poland CS92 and EPSG:3794 Slovenia D96/TM;
 - EPSG:3045, EPSG:3067 and ETRS89 / UTM zones EPSG:25828..25838.
+- EPSG:2169 Luxembourg TM with the official ETRF2000-to-LUREF2020
+  Molodensky-Badekas conversion;
+- EPSG:27700 British National Grid pseudo-projection plus an injected regular
+  horizontal shift grid, currently the official OSTN15 Lite asset.
 
 Only geographic-to-projected conversion is exposed. Input and output order are
 always explicit TSRE types: latitude/longitude input and easting/northing output,
@@ -110,9 +114,11 @@ inside this small component.
 ## Possible later scope
 
 Additional formulas can be added as small explicit strategies when the source CRS
-and datum relationship are fully understood. Horizontal datum grids, vertical
-datum conversion, operation selection and a broad CRS catalogue remain outside
-this class. Those needs are the decision boundary for the deferred
+and datum relationship are fully understood. The class now accepts one generic
+regular horizontal shift grid, but does not perform file access; the elevation
+provider downloads and parses OSTN15 Lite once, then injects its numeric values.
+Vertical datum conversion, operation selection and a broad CRS catalogue remain
+outside this class. Those needs are the decision boundary for the deferred
 [PROJ integration](proj-integration.md).
 
 If this code later becomes a separate `miniproj`-style project, first stabilize a
@@ -126,6 +132,6 @@ part of the TSRE codebase.
 - [x] Elevation sources reuse a preconstructed transform.
 - [x] Existing supported EPSG set, bounds and axis behavior are preserved.
 - [x] No new runtime or build dependency is introduced.
-- [x] Focused geo tests pass in Release after the extraction (371 checks).
+- [x] Focused geo tests pass in Release after the Luxembourg/Wales extension (378 checks).
 - [ ] Sixth-order shared TM kernel is implemented and benchmarked.
 - [ ] Route projection is migrated to the shared kernel without accuracy loss.

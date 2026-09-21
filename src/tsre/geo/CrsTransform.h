@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <vector>
 
 namespace Geo {
 
@@ -23,6 +24,10 @@ public:
     bool valid() const { return method != Method::Unsupported; }
     int epsg() const { return code; }
     bool forward(GeographicPoint point, ProjectedPoint &result) const;
+    bool setHorizontalShiftGrid(double originEasting, double originNorthing,
+                                double spacing, int width, int height,
+                                std::vector<std::array<double,2>> shifts);
+    bool hasHorizontalShiftGrid() const { return !horizontalShifts.empty(); }
 
     static bool supports(int epsg);
 
@@ -43,6 +48,21 @@ private:
                                      double maximumLatitude,
                                      double minimumLongitude,
                                      double maximumLongitude);
+    void configureTransverseMercator(double semiMajorAxis,
+                                     double inverseFlattening,
+                                     double latitudeOriginDegrees,
+                                     double centralMeridianDegrees,
+                                     double scaleFactor,
+                                     double eastingOffset,
+                                     double northingOffset,
+                                     double minimumLatitude,
+                                     double maximumLatitude,
+                                     double minimumLongitude,
+                                     double maximumLongitude);
+    void transverseMercatorRaw(double latitude, double longitudeDelta,
+                               double &easting, double &northing) const;
+    bool etrs89ToLuref(GeographicPoint point, double &latitude,
+                       double &longitude) const;
     double authalicQ(double latitude) const;
 
     int code = 0;
@@ -57,8 +77,17 @@ private:
     double centralMeridian = 0;
     double falseEasting = 0;
     double falseNorthing = 0;
+    double originNorthing = 0;
+    double semiMajorAxis = 0;
     double rectifyingRadius = 0;
     std::array<double,4> alpha{{0,0,0,0}};
+    bool useLuref2020 = false;
+    double gridOriginEasting = 0;
+    double gridOriginNorthing = 0;
+    double gridSpacing = 0;
+    int gridWidth = 0;
+    int gridHeight = 0;
+    std::vector<std::array<double,2>> horizontalShifts;
 
     double laeaQp = 0;
     double laeaBeta0 = 0;

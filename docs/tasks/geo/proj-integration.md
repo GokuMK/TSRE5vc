@@ -8,12 +8,11 @@ or verified server reprojection.
 
 ## Decision
 
-PROJ appears worthwhile once TSRE resumes sources that require national datum
-transformations or correction grids. A small formula may be added to the internal
-converter when its datum relationship is simple and explicit. Resume this PROJ
-investigation before reproducing a broad set of national datum engines or grid
-pipelines for Luxembourg EPSG:2169, British National Grid/OSTN15 and Slovak
-horizontal or vertical grids.
+PROJ remains worthwhile once TSRE needs a broad set of datum operations or more
+complex correction grids. The internal converter now covers Luxembourg EPSG:2169
+with one published transformation and British National Grid with an injected
+OSTN15 Lite grid. Resume this PROJ investigation before reproducing additional
+national datum engines, especially compound horizontal/vertical pipelines.
 
 The reason is the nature of the remaining work rather than the number of map
 projection formulas. Both EPSG:2169 and EPSG:27700 use Transverse Mercator, but
@@ -41,16 +40,13 @@ geographic coordinates, Web Mercator, Polish CS92, Slovenia D96/TM, ETRS89/UTM
 zones used by the catalogue, Finland TM35FIN, EPSG:3035 and the official Swiss
 EPSG:2056 approximation. It intentionally is not a general CRS or datum engine.
 
-This remains adequate for current services and the Austria/Switzerland file
-sources. Several WCS entries ask the server for a supported output CRS, avoiding
-their native national projection. Direct COGs have no server that can perform
-that step.
+This remains adequate for current services and the Austria, Switzerland,
+Luxembourg and Wales file sources. Several WCS entries ask the server for a
+supported output CRS, avoiding their native national projection. Direct COGs
+have no server that can perform that step.
 
-Candidate sources that make PROJ relevant include:
+Candidate sources that can still make PROJ relevant include:
 
-- Luxembourg DTM COG: declared EPSG:2169, with the modern LUREF/EPSG:9895
-  relationship and exact dataset convention still to be verified;
-- Wales national DTM COG: EPSG:27700, requiring OSTN15 for accurate positioning;
 - Slovakia downloads: verify the product's declared horizontal and vertical
   CRSs and the conversion rasters supplied with the data;
 - later native file sources in Sweden, Ireland, France and other national CRSs;
@@ -121,7 +117,7 @@ Use this policy:
 - install the version-matched `proj.db` with the application, or evaluate the
   newer static resource-embedding option;
 - download optional grids explicitly through TSRE's Qt network layer;
-- store downloaded grids in a stable named directory below `geoPath`, with URL,
+- store downloaded grids in a stable named location such as `assets/geo/`, with URL,
   version, checksum, licence and attribution metadata;
 - give each PROJ context explicit application and downloaded-grid search paths;
 - preflight grid availability before terrain acquisition begins.
@@ -134,10 +130,16 @@ be updated independently when their identity changes.
 The full `proj-data` package must not be bundled or downloaded. Select only the
 grids required by enabled TSRE sources.
 
-## Wales and Slovakia grid examples
+## Wales implementation and Slovakia grid examples
 
-The Welsh elevation publication does not contain OSTN15. Ordnance Survey and
-PROJ-data distribute it separately. PROJ-data currently includes:
+The Welsh elevation publication does not contain OSTN15. The implemented source
+downloads Ordnance Survey's official OSTN15/OSGM15 Lite developer archive and
+retains only its 20 km text grid in `assets/geo/`. The internal converter applies
+bilinear horizontal shifts; OS reports 0.08 m horizontal RMS against full OSTN15.
+This keeps the 1 m source accurately placed without adding PROJ. OSGM15 values are
+not applied to the DTM's existing ODN heights.
+
+PROJ-data also distributes a full-resolution alternative:
 
 ```text
 uk_os_OSTN15_NTv2_OSGBtoETRS.tif
@@ -215,10 +217,10 @@ infer that the PROJ core licence covers third-party transformation data.
 - [ ] Transform 65,536 points as individual and batched calls; measure operation
       construction separately and verify worker-thread contexts.
 - [ ] Compare existing EPSG:3035 and EPSG:2056 results against the current code.
-- [ ] Validate Luxembourg against official reference points and determine whether
-      the COG's declared EPSG:2169 or modern LUREF definition is authoritative.
-- [ ] Validate EPSG:27700 with the PROJ-data OSTN15 grid and confirm that a missing
-      grid is rejected rather than replaced by an approximate Helmert operation.
+- [x] Validate Luxembourg against official reference points and its current
+      LUREF2020 definition; the internal result agrees within 2 cm.
+- [x] Validate EPSG:27700 with official OSTN15 Lite controls and reject terrain
+      acquisition when the declared transform asset cannot be prepared.
 - [ ] Validate the precise Slovak source pipeline against supplied reference data.
 - [ ] Test offline operation, missing/corrupt databases, missing/corrupt grids,
       cache relocation and an application started outside its build directory.

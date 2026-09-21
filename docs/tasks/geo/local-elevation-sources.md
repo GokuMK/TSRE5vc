@@ -1,8 +1,9 @@
 # User-managed elevation sources: directory layout and next provider
 
 Recorded 2026-09-19; updated 2026-09-21. Catalogue-defined file providers now
-cover one-degree HGT plus the first two downloaded GeoTIFF profiles: Austria
-projected range-COG tiles and Switzerland STAC-discovered 2 m tiles.
+cover one-degree HGT plus downloaded GeoTIFF profiles: Austria projected range
+COG tiles, Luxembourg and Wales national range COGs, and Switzerland
+STAC-discovered 2 m tiles.
 
 ## Directory ownership
 
@@ -10,6 +11,8 @@ projected range-COG tiles and Switzerland STAC-discovered 2 m tiles.
 geoPath/
   world_hgt/               N52E019.hgt and/or N52E019.hgt.gz
   at_bev_als_dgm1/         optional official TIFFs and downloaded COG block parts
+  lu_act_dtm2024/           Luxembourg national COG index and 1 m block parts
+  gb_wales_lidar_dtm1/      Wales national COG index and 1 m block parts
   ch_swissalti3d_2m/       preserved official 2 m source TIFFs
   <stable-product-name>/   later downloaded originals, managed by the user
   cache/
@@ -40,13 +43,13 @@ manifest is in ignored `build-ee-gb-research/hgt-migration.json`.
 
 Provider identity remains separate from country. `provider: "file"` returns the
 same `Elevation::Source` samples used by WCS and ArcGIS. Supported combinations
-are HGT/`degree` and GeoTIFF with `projected` or `stac` file discovery.
+are HGT/`degree` and GeoTIFF with `projected`, `cog` or `stac` file discovery.
 
 The current catalogue fields are:
 
 - Direct relative `directory` under `geoPath`; parser validation rejects absolute
   paths and traversal.
-- `format` and `fileGrid`, selecting the validated HGT, projected COG, or STAC
+- `format` and `fileGrid`, selecting the validated HGT, projected COG, single COG, or STAC
   GeoTIFF profile.
 - CRS, coverage bounds, vertical-datum description, zero/NoData behavior,
   attribution and concurrency.
@@ -100,6 +103,30 @@ downloaded a 256 KiB index and one 586,993-byte internal block, returned about
 171.6 m and repeated from cache. A Bern probe downloaded one 975,801-byte current
 2 m TIFF, returned about 540.3 m and repeated from cache. A later exact 1 km
 boundary probe used both adjacent tiles for two primary samples with no fallback.
+
+## Luxembourg and Wales national COG milestone
+
+`fileGrid: "cog"` takes one direct HTTPS COG URL and a revision. The generic
+reader follows its overview directories, requires an image at the configured
+resolution, range-downloads external tile offset/count tables, then retrieves
+only the compressed blocks intersecting requested points. Cached paths include
+the selected overview level.
+
+Luxembourg selects the exact 1 m overview from the published 0.5 m national COG.
+It adds verified Float64 LZW decoding and EPSG:2169 through ACT's published
+LUREF2020 and Luxembourg TM parameters. No auxiliary datum file is needed.
+
+Wales uses the native 1 m image in the official Float32 Deflate national COG.
+Its catalogue entry declares an `ostn15-lite` coordinate-transform asset. If the
+grid is absent, TSRE downloads the official Ordnance Survey developer ZIP through
+the bounded Qt transport, extracts only `OSTN15_OSGM15_Lite_DataFile.txt`, and
+stores it at `assets/geo/OSTN15_OSGM15_Lite_DataFile.txt`. The internal transform
+projects ETRS89 to the National Grid pseudo-grid and bilinearly applies the 20 km
+OSTN15 shifts. OS reports 0.08 m horizontal RMS against full OSTN15.
+
+Validation on 2026-09-21: **378 focused Release checks passed**. Luxembourg and
+Wales bounded live probes produced valid source heights; both cache repeats used
+zero downloads. Exact byte counts are recorded in `elevation-current-status.md`.
 
 The old empty setting value migrates to the catalogue default. Source lists no
 longer add a hardcoded HGT item, and reports use generic source/fallback wording.

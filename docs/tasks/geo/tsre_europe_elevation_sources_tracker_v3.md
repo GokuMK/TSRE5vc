@@ -1,7 +1,7 @@
 # TSRE high-resolution elevation sources — Europe tracker
 
 **Original research date:** 2026-09-17  
-**TSRE implementation sync:** 2026-09-21 — `feature/geo-terrain`; Austria/Switzerland COG milestone after tracker commit `31b9198`
+**TSRE implementation sync:** 2026-09-21 — `feature/geo-terrain`; Austria/Switzerland and Luxembourg/Wales COG milestones after tracker commit `31b9198`
 **Scope:** high-resolution European national/regional terrain models, implemented non-European sources, and world-scale fallback/acquisition options.  
 **World fallback:** automatic catalogue-based HGT download is now implemented.
 
@@ -17,13 +17,13 @@ Current generic pieces include:
 
 - caller-side geographic point sampling (`getHeight(lat, lon)` conceptually);
 - a catalogue-driven source model shared by Settings, the elevation dialog and automatic terrain generation;
-- **22 configured datasets**: 20 European dataset entries, USGS 3DEP for the contiguous USA, and the world HGT file source;
+- **24 configured datasets**, including 22 European entries, USGS 3DEP and the world HGT file source;
 - deterministic persistent raster/service caching and stable user-managed directories for file sources;
-- `provider: "file"` with one-degree HGT grids, projected range-COG tiles, and STAC-discovered GeoTIFF tiles;
+- `provider: "file"` with one-degree HGT grids, projected range COGs, single national range COGs, and STAC-discovered GeoTIFF tiles;
 - catalogue-level `defaultFileSource`, currently `world-hgt`, used as the service fallback;
 - primary-source-first preparation: the world fallback is prepared/downloaded only for points unresolved by the selected WCS/ArcGIS source;
 - Arc/Info ASCII Grid decoding;
-- classic numeric GeoTIFF decoding for one-band `float32`, signed `int16` and unsigned `uint16`, now including uncompressed/LZW blocks and the floating predictor; the Austria path also reads its verified BigTIFF COG index and requested internal blocks;
+- classic numeric GeoTIFF decoding for one-band `float32`, signed `int16` and unsigned `uint16`; range COG blocks additionally support `float64` conversion, LZW, Deflate, linked overviews and external block tables;
 - WCS 2.0.1 provider with separate subset/scaling axes and bounded opt-in handling of server-expanded grids;
 - WCS 1.0.0 provider with configurable wire-format spelling (`requestFormat`);
 - ArcGIS ImageServer provider with server-side request/output CRS selection through `bboxSR` / `imageSR`;
@@ -46,6 +46,8 @@ Current generic pieces include:
 - EPSG:3035 — ETRS89 / LAEA Europe;
 - EPSG:3045 — Czech INSPIRE / ETRS89 TM33 variant used by DMR4G;
 - EPSG:3067 — Finland ETRS-TM35FIN;
+- EPSG:2169 — Luxembourg TM after the official LUREF2020 datum transformation;
+- EPSG:27700 — British National Grid with an injected OSTN15 Lite shift grid;
 - EPSG:25828 … EPSG:25838 — generic ETRS89 / UTM zones 28N–38N.
 
 The lightweight projection code is intentionally bounded rather than a general PROJ replacement. Several recently added services avoid unsupported national projections by asking the server for a TSRE-supported CRS.
@@ -56,9 +58,9 @@ The earlier WCS/authentication blockers have largely been removed. The main rema
 
 - a generic **degree-grid GeoTIFF file/download provider** after the HGT and projected/STAC milestones;
 - arbitrary georeferenced local-file collection indexing;
-- broader compressed GeoTIFF / COG / BigTIFF support beyond the verified LZW Float32 profiles, including DEFLATE and scale/offset where required;
+- broader GeoTIFF / COG / BigTIFF profiles beyond the verified LZW/Deflate Float32 and LZW Float64 cases, including scale/offset where required;
 - generic ATOM / indexed-download / irregular catalogue acquisition;
-- local support for remaining national projections such as EPSG:28992, EPSG:27700, EPSG:2154, EPSG:3301, EPSG:2169 and EPSG:3812 when server-side reprojection is unavailable;
+- local support for remaining national projections such as EPSG:28992, EPSG:2154, EPSG:3301 and EPSG:3812 when server-side reprojection is unavailable;
 - vertical datum conversion;
 - dynamic source-resolution discovery for heterogeneous/multi-resolution mosaics;
 - explicit coarse acquisition profiles and cache identities for distant terrain; detailed-service success does not make a source safe for ~32 km distant tiles;
@@ -91,6 +93,8 @@ Current branch catalogue snapshot, updated 2026-09-21:
 |---|---|---|---:|---|
 | `world-hgt` | World HGT terrain / Mapzen Skadi automatic fallback | file / HGT | 4326 | ✅ implemented + live download/cache probe |
 | `at.bev.als-dgm1` | Austria BEV ALS-DGM 1 m, 2025 mosaic | file / projected range COG | 3035 | ✅ bounded live block + cache probe |
+| `lu.act.dtm2024` | Luxembourg ACT DTM 2024, 1 m overview | file / national range COG | 2169 | ✅ bounded live block + cache probe |
+| `gb.wales.lidar.dtm1` | Wales LiDAR DTM 1 m | file / national range COG | 27700 + OSTN15 Lite | ✅ bounded live block + cache probe |
 | `ch.swisstopo.swissalti3d.2m` | Switzerland + Liechtenstein swissALTI3D 2 m | file / STAC GeoTIFF | 2056 | ✅ bounded live tile + cache probe |
 | `pl.gugik.nmt1.kron86` | Poland NMT 1 m KRON86 | WCS 2.0.1 | 2180 | ✅ |
 | `pl.gugik.nmt1.evrf2007` | Poland NMT 1 m EVRF2007 | WCS 2.0.1 | 2180 | ✅ |
@@ -104,13 +108,13 @@ Current branch catalogue snapshot, updated 2026-09-21:
 | `de.nrw.dgm1` | Nordrhein-Westfalen DGM1 | WCS 2.0.1 | 25832 | ✅ |
 | `de.hessen.dgm1` | Hessen DGM1 | WCS 2.0.1 | 25832 | ✅ |
 | `de.bw.dgm1` | Baden-Württemberg DGM1 | WCS 1.0.0 | 25832 | ✅ with whole-metre precision caveat |
-| `de.st.dgm1` | Sachsen-Anhalt DGM1 | WCS 2.0.1 | 25832 | 🟢 configured; fresh live validation still worth recording |
+| `de.st.dgm1` | Sachsen-Anhalt DGM1 | WCS 2.0.1 | 25832 | ✅ user-confirmed application test near Magdeburg |
 | `fi.nls.dem2` | Finland NLS Elevation Model 2 m | WCS 2.0.1 + Basic API key | 3067 | ✅ live authenticated full-grid test |
 | `nl.pdok.ahn.dtm05` | Netherlands AHN DTM, 1 m request/cache grid | WCS 2.0.1 | 25831 | ✅ live server-reprojection + NoData-fill test |
 | `gb.ea.lidar.dtm1` | England EA LIDAR DTM, 2 map m request grid | WCS 2.0.1 | 3857 | ✅ live full-terrain-grid test |
 | `ee.maru.dtm1` | Estonia DTM, 2 map m request grid | WCS 1.0.0 | 3857 | ✅ live full-terrain-grid test |
 | `dk.datafordeler.dhm.terraen` | Denmark DHM/Terrain, 1 m request grid | WCS 1.0.0 + query API key | 25832 | ✅ live authenticated full-terrain-grid test |
-| `be.vlaanderen.dhmv2.dtm1` | Flanders DHMV II DTM, 2 map m request grid | WCS 1.0.0 | 3857 | ✅ small live integration/cache probe; broader validation pending |
+| `be.vlaanderen.dhmv2.dtm1` | Flanders DHMV II DTM, 2 map m request grid | WCS 1.0.0 | 3857 | ✅ live integration/cache probe and user-confirmed application test |
 
 The branch's own status documents distinguish **configured**, **live point/block tested**, and **full terrain-grid tested**. The statuses below preserve that distinction rather than treating a valid JSON entry as automatic proof of nationwide service quality.
 
@@ -410,7 +414,7 @@ This source drove the addition of generic WCS 1.0.0 support and unsigned-16 TIFF
 
 **Known quality issue:** the WCS 1 path works geometrically, but observed returned elevations are effectively whole-metre/integer values (for example 500, 501 m). The WCS 2 path can preserve better height precision, but testing produced a 1025 × 1026 raster where TSRE requests/validates 1026 × 1026. A future implementation may prefer resampling the one-pixel dimension mismatch over accepting the WCS 1 integer-height precision loss. This is deliberately left as an agent/implementation decision.
 
-### Sachsen-Anhalt — 🟢 configured, live validation pending
+### Sachsen-Anhalt — ✅ working
 
 Current entry: `de.st.dgm1`
 
@@ -421,7 +425,9 @@ Current entry: `de.st.dgm1`
 - endpoint: `https://geodatenportal.sachsen-anhalt.de/ows_INSPIRE_LVermGeo_ATKIS_EL_DGM_WCS`;
 - coverage `Coverage1`.
 
-The entry is accepted by the current catalogue and generic WCS code. Keep a separate live-test note until successful production download/cache/coverage-edge behavior has been recorded.
+The user confirmed successful application use near Magdeburg at
+`52.1310, 11.6390`. A separate quantitative block/cache/coverage-edge report was
+not retained, so this confirms practical operation rather than nationwide coverage.
 
 ### What changed in TSRE because of the German work
 
@@ -625,7 +631,7 @@ Needs:
 
 ## Luxembourg
 
-**Status: 🟠**
+**Status: ✅ implemented and bounded-live-tested**
 
 Very attractive recent dataset:
 
@@ -637,21 +643,23 @@ Very attractive recent dataset:
 - EPSG:2169.
 
 No numeric WCS was identified on the open-data page; WMS + downloadable COG are provided.
+TSRE selects the exact 1 m internal overview, downloads only the required Float64
+LZW blocks plus index tables, and uses ACT's official LUREF2020 transformation.
+A two-point probe returned 306.786 m and 306.62 m; its repeat was cache-only.
 
 Source:
 
 - https://data.public.lu/en/datasets/inspire-annex-ii-theme-elevation-elevationgridcoverage-dtm-2024/
 
-Needs:
-
-- COG/file provider;
-- EPSG:2169 support or reprojection.
+The native 0.5 m image is deliberately skipped because TSRE terrain does not
+benefit from spacing below 1 m. The detailed source remains unsuitable for
+distant terrain until coarse overview policy and separate cache identity exist.
 
 ---
 
 ## Wales
 
-**Status: 🟠**
+**Status: ✅ implemented and bounded-live-tested**
 
 Welsh Government publishes national LiDAR DTM as direct COG files, including a 32-bit DTM COG.
 
@@ -662,7 +670,11 @@ Sources:
 
 Native CRS is EPSG:27700.
 
-This would be an excellent COG-provider test later, but not a current WCS/ImageServer config drop-in.
+TSRE range-reads the official Float32 Deflate COG. On first use it downloads the
+official Ordnance Survey OSTN15/OSGM15 Lite developer ZIP, retains only its
+99,959-byte 20 km shift grid under `assets/geo/`, and uses bilinear OSTN15
+corrections for horizontal placement. A two-point probe returned 132.857 m and
+132.837 m; its repeat was cache-only. The source remains disabled for distant terrain.
 
 ---
 
@@ -869,7 +881,7 @@ Germany is still not one national open-data source, but the current TSRE branch 
 - Nordrhein-Westfalen — ✅ WCS 2.0.1, EPSG:25832;
 - Hessen — ✅ WCS 2.0.1, EPSG:25832;
 - Baden-Württemberg — ✅ WCS 1.0.0, EPSG:25832, with the whole-metre precision caveat described above;
-- Sachsen-Anhalt — 🟢 WCS 2.0.1, EPSG:25832, configured but still worth a recorded live validation pass.
+- Sachsen-Anhalt — ✅ WCS 2.0.1, EPSG:25832, user-confirmed near Magdeburg.
 
 ### National BKG
 
@@ -894,8 +906,9 @@ Treat separately by nation/agency.
 ### England — ✅
 Environment Agency LIDAR Composite DTM is implemented through WCS 2.0.1 with server-side EPSG:3857 output, separate subset/scaling axes and bounded expanded-grid handling. Full 256 × 256 terrain-grid generation and cache reuse were validated.
 
-### Wales — 🟠
-Direct national COG DTM; good future COG-provider target.
+### Wales — ✅
+The direct national 1 m DTM COG is implemented with bounded range reads,
+Deflate Float32 decoding and an on-demand official OSTN15 Lite shift grid.
 
 ### Scotland — 🟠
 Scottish Remote Sensing Portal provides public-sector LiDAR in 10 km tiles and web services, but a single simple national raw numeric DTM WCS comparable to England was not confirmed in this pass.
@@ -1108,18 +1121,12 @@ The original easy-WCS queue is now largely exhausted. Finland, Netherlands, Engl
 
 ## Tier A — finish validation / source-quality decisions with current code
 
-### 1. Sachsen-Anhalt DGM1
-- already configured;
-- WCS 2.0.1 / EPSG:25832;
-- no new provider/projection work expected;
-- record a successful live download, cache repeat and coverage-edge test.
+### 1. Flanders DHMV II
+- generic WCS1 path works;
+- live integration/cache probe passed and the user confirmed it in the application;
+- a retained full-grid/coverage-edge report would still improve the evidence record.
 
-### 2. Flanders DHMV II
-- generic WCS1 path already works;
-- small live integration/cache probe passed;
-- useful remaining acceptance: full terrain grid, block boundary and edge/NoData behavior.
-
-### 3. Baden-Württemberg DGM1 precision follow-up
+### 2. Baden-Württemberg DGM1 precision follow-up
 - WCS1 grid path works reliably;
 - both WCS1 and WCS2 yielded whole-metre `UInt16` heights when comparable;
 - WCS2 also had the 1025 × 1026 native-size rounding problem;
@@ -1127,7 +1134,7 @@ The original easy-WCS queue is now largely exhausted. Finland, Netherlands, Engl
 
 ## Tier B — next reusable file-provider family
 
-### 4. Degree-grid GeoTIFF downloads
+### 3. Degree-grid GeoTIFF downloads
 Pick one concrete global 1° product first, then generalize only as needed:
 
 - SRTM GL1;
@@ -1139,14 +1146,14 @@ This is now the clearest next step after `world-hgt`: predictable filenames, no 
 
 ## Tier C — compressed COG / range / STAC
 
-A first narrow LZW Float32 COG/range and STAC layer now supports Austria and
-Switzerland. Extending it to additional verified profiles would unlock:
+A narrow COG/range and STAC layer now supports Austria, Luxembourg, Wales and
+Switzerland. Verified profiles cover LZW Float32/Float64, Deflate Float32,
+overview selection, external block tables and separate OSTN15 preparation.
+Further extensions could unlock:
 
 - GEDTM30 global bare-earth ~30 m;
 - official Copernicus GLO-30 AWS COGs;
 - Sweden 1 m STAC/COG;
-- Luxembourg 0.5 m COG;
-- Wales national LiDAR DTM COG;
 - other modern cloud-hosted regional datasets.
 
 ## Tier D — irregular download/catalogue workflows
@@ -1201,17 +1208,19 @@ The generic design is holding up well. The current implementation demonstrates s
 5. STAC-discovered GeoTIFF files — implemented first profile
    Switzerland + Liechtenstein swissALTI3D 2 m
 
-6. Regular downloaded GeoTIFF / tiled files — next provider extension
+6. Single national range COG — implemented profiles
+   Luxembourg ACT DTM 2024, exact 1 m overview
+   Wales LiDAR DTM 1 m with OSTN15 Lite
+
+7. Regular downloaded GeoTIFF / tiled files — next provider extension
    global SRTM GL1 / NASADEM / ALOS / Copernicus mirrors
    several German Länder
    Slovakia and other predictable tile sets
 
-7. Broader STAC / COG profiles and indexed catalogues — later extensions
+8. Broader STAC / COG profiles and indexed catalogues — later extensions
    GEDTM30
    official Copernicus AWS COGs
    Sweden
-   Luxembourg
-   Wales
    Ireland and other catalogue-based sources
 ```
 
@@ -1253,13 +1262,12 @@ Work remains intentionally split:
 
 Current short queue after the World HGT milestone:
 
-1. **Sachsen-Anhalt** — record a fresh live block/cache/coverage-edge validation for the existing entry.
-2. **Flanders** — optionally promote the existing small point/cache probe to a full 256 × 256 terrain-grid acceptance test.
-3. **Baden-Württemberg** — decide whether the whole-metre WCS service is sufficient or whether downloadable original DGM1 files should replace/supplement it.
-4. **Choose one global 1° GeoTIFF source** — SRTM GL1 or NASADEM are simple first candidates; inspect real adjacent files, compression, sample type, NoData and edge registration before coding the provider.
-5. **Implement the minimum degree-grid GeoTIFF file provider** needed by that source, preserving originals under a stable dataset directory just like `world_hgt`.
-6. **Then evaluate COG/range support** for GEDTM30, official Copernicus GLO-30 and the high-value European STAC/COG datasets.
-7. **Distant terrain** remains a separate critical issue: detailed sources should not automatically be allowed to download their full native/request resolution for ~32 km distant tiles.
+1. **Flanders** — working and user-confirmed; retain a full-grid/coverage-edge report when convenient.
+2. **Baden-Württemberg** — decide whether the whole-metre WCS service is sufficient or whether downloadable original DGM1 files should replace/supplement it.
+3. **Choose one global 1° GeoTIFF source** — SRTM GL1 or NASADEM are simple first candidates; inspect real adjacent files, compression, sample type, NoData and edge registration before coding the provider.
+4. **Implement the minimum degree-grid GeoTIFF file provider** needed by that source, preserving originals under a stable dataset directory just like `world_hgt`.
+5. **Then evaluate COG/range support** for GEDTM30, official Copernicus GLO-30 and the high-value European STAC/COG datasets.
+6. **Distant terrain** remains a separate critical issue: detailed sources should not automatically be allowed to download their full native/request resolution for ~32 km distant tiles.
 
 If we want another WCS-heavy research pass before switching provider families, it should be a deliberate **deep search for hidden numeric services** (for example Wallonia/other fragmented national portals), because the obvious national WCS shortlist has mostly been exhausted.
 
@@ -1268,7 +1276,7 @@ If we want another WCS-heavy research pass before switching provider families, i
 ## Notes
 
 - Implementation state in this revision was synchronized against `feature/geo-terrain` head `c8a952d0` on 2026-09-19.
-- The current catalogue has **20 datasets**: `world-hgt`, 18 European dataset entries and USGS 3DEP CONUS.
+- The current catalogue has **24 datasets**, including the Luxembourg and Wales file sources.
 - `world-hgt` is both a selectable file source and the configured fallback for unresolved service samples; local files take precedence over automatic Mapzen downloads.
 - Resolution listed here means published/source spacing or TSRE request/cache spacing as explicitly stated; a dense request grid does not imply equivalent native survey accuracy.
 - Web Mercator “metres” are map metres. TSRE compensates footprint size by latitude for sampling, and several catalogue names explicitly say “request grid” to avoid implying uniform native resolution.

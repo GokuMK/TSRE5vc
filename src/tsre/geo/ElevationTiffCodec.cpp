@@ -1,5 +1,8 @@
 #include <tsre/geo/ElevationTiffCodec.h>
 
+#define MINIZ_HEADER_FILE_ONLY
+#include <mzip/miniz/miniz.h>
+
 #include <QtEndian>
 #include <algorithm>
 #include <cmath>
@@ -104,10 +107,10 @@ bool decodeTiffBlock(const QByteArray &encoded, int compression, int predictor,
                      int width, int height, QVector<float> &values, QString &error) {
     error.clear(); values.clear();
     if (width <= 0 || height <= 0 || qint64(width)*height > 32*1024*1024
-            || (bits != 16 && bits != 32)
+            || (bits != 16 && bits != 32 && bits != 64)
             || (sampleFormat != 1 && sampleFormat != 2 && sampleFormat != 3)
-            || (sampleFormat == 3 && bits != 32)
-            || (bits == 32 && sampleFormat != 3)) {
+            || (sampleFormat == 3 && bits != 32 && bits != 64)
+            || ((bits == 32 || bits == 64) && sampleFormat != 3)) {
         error = QStringLiteral("Unsupported TIFF sample block"); return false;
     }
     const int sampleBytes = bits/8;
@@ -121,6 +124,16 @@ bool decodeTiffBlock(const QByteArray &encoded, int compression, int predictor,
     } else if (compression == 5) {
         if (!lzw(encoded,expected,raw)) {
             error = QStringLiteral("Cannot decompress TIFF LZW block"); return false;
+        }
+    } else if (compression == 8) {
+        raw.resize(expected);
+        mz_ulong decoded = mz_ulong(expected);
+        if (mz_uncompress(reinterpret_cast<unsigned char*>(raw.data()),&decoded,
+                          reinterpret_cast<const unsigned char*>(encoded.constData()),
+                          mz_ulong(encoded.size())) != MZ_OK
+                || decoded != mz_ulong(expected)) {
+            raw.clear();
+            error = QStringLiteral("Cannot decompress TIFF Deflate block"); return false;
         }
     } else {
         error = QStringLiteral("Unsupported TIFF compression"); return false;
@@ -136,7 +149,13 @@ bool decodeTiffBlock(const QByteArray &encoded, int compression, int predictor,
     values.resize(qsizetype(width)*height);
     const uchar *data = reinterpret_cast<const uchar*>(raw.constData());
     for (qsizetype i=0; i<values.size(); ++i) {
-        if (bits == 32) {
+        if (bits == 64) {
+            const quint64 bitsValue = little ? qFromLittleEndian<quint64>(data+8*i)
+                                             : qFromBigEndian<quint64>(data+8*i);
+            double value;
+            std::memcpy(&value,&bitsValue,8);
+            values[i] = float(value);
+        } else if (bits == 32) {
             const quint32 bitsValue = little ? qFromLittleEndian<quint32>(data+4*i)
                                              : qFromBigEndian<quint32>(data+4*i);
             std::memcpy(&values[i],&bitsValue,4);

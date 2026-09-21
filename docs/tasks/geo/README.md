@@ -17,14 +17,16 @@ are not a current specification.
      [Denmark/authentication](denmark-validation.md). These cover recent protocol
      differences; use [Czech ArcGIS](czech-arcgis-validation.md) for that provider.
    - Downloaded/offline sources: [file-source implementation and next step](local-elevation-sources.md).
-     One-degree HGT, Austria range-COG tiles and Switzerland/Liechtenstein STAC/GeoTIFF tiles
-     are implemented; other GeoTIFF families still require profile validation.
+     One-degree HGT, Austria projected range-COG tiles, Luxembourg and Wales
+     single national range COGs, and Switzerland/Liechtenstein STAC/GeoTIFF
+     tiles are implemented; other GeoTIFF families still require profile validation.
    - Projection implementation: [CRS transform extraction and shared projection path](crs-transform.md).
      This describes the small internal converter and the planned shared
      sixth-order Transverse Mercator kernel.
    - National datum/grid support: [deferred PROJ integration](proj-integration.md).
-     Read this before implementing another local national datum conversion. The
-     current COG milestone does not depend on PROJ.
+     Luxembourg's explicit LUREF2020 conversion and Wales's small OSTN15 Lite
+     grid are handled by the internal converter. Read the deferred task before
+     expanding this into a broad CRS/datum framework.
 4. Read the relevant source files and tests from the code map. Credentials and
    source-setting behavior are documented in [Settings](../../settings-system.md).
 
@@ -57,10 +59,10 @@ Paths below are relative to the repository root.
 | Area | Files / entry points |
 |---|---|
 | Catalogue | `src/tsre/geo/elevation-datasets.json`; `Dataset`, `datasets()` and `parseDatasets()` in `ElevationSource.h/.cpp` |
-| Providers/cache | `ElevationSource.cpp`: `FileHgtSource`, service providers, `RasterSource`, `generate()`; `CogElevationSource.cpp`: projected range-COG and STAC GeoTIFF file sources |
+| Providers/cache | `ElevationSource.cpp`: `FileHgtSource`, service providers, `RasterSource`, `generate()`; `CogElevationSource.cpp`: projected, single-file range-COG and STAC GeoTIFF sources |
 | Requests/grid checks | `coverageUrl()`, `imageServerUrl()`, `validateRasterGrid()`, `cacheRelativePath()` |
 | CRS conversion | `src/tsre/geo/CrsTransform.h/.cpp`: small compiled-in forward transforms, constructed once per source; see `crs-transform.md` |
-| Numeric raster | `src/tsre/geo/ElevationRaster.h/.cpp`: `Raster`, readers, sampling and `fillNoData()`; `ElevationTiffCodec.cpp`: bounded uncompressed/LZW block decoding and predictors |
+| Numeric raster | `src/tsre/geo/ElevationRaster.h/.cpp`: `Raster`, readers, sampling and `fillNoData()`; `ElevationTiffCodec.cpp`: bounded uncompressed/LZW/Deflate block decoding, Float32/Float64 conversion and predictors |
 | HTTP/auth | `src/tsre/geo/ElevationDownload.h/.cpp`: `downloadWave()`, strict `downloadRangeWave()`; query credentials added only inside transport |
 | Height UI | `src/tsre/geo/HeightWindow.cpp`; 10 km location filter via `nearDataset()` |
 | Settings | `src/settings/SettingsRegistration.cpp`: dynamic source options and reference-valued setting |
@@ -114,10 +116,11 @@ axes and returns expanded envelopes. See individual service notes for evidence.
 ## Constraints to preserve
 
 - Whole-file TIFF support covers classic single-band Float32, Int16 and UInt16,
-  uncompressed or LZW, strips/tiles and the floating predictor. The range reader
-  additionally understands the verified Austria BigTIFF/COG profile and fetches
-  only needed internal blocks. This remains a narrow numeric elevation profile:
-  DEFLATE, RGB, arbitrary BigTIFF layouts and general TIFF conversion are absent.
+  uncompressed, LZW or Deflate, strips/tiles and the floating predictor. The
+  range reader additionally supports the verified BigTIFF/COG profiles used by
+  Austria, Luxembourg and Wales, including Float64-to-Float32 conversion, exact
+  configured-resolution overview selection and external block tables. This is
+  still a narrow numeric elevation profile; RGB and arbitrary TIFF layouts are absent.
 - HTTP responses are bounded to 32 MiB; TIFF dimensions to 16 Mi pixels; requests
   to 2048 blocks; fill mosaics to 32 Mi pixels. These are emergency guards, not
   sufficient distant-terrain budgeting. Check source constants before changing them.
@@ -158,25 +161,30 @@ or put key-bearing URLs in commands/logs. Ignored `build-*-research/` probes in 
 worktree are conveniences, not evidence guaranteed in another checkout.
 
 After a change, run appropriate standalone checks and the relevant build when
-allowed. The current COG/STAC milestone passes **371 standalone checks**. Bounded
+allowed. The current COG/STAC milestone passes **378 standalone checks**. Bounded
 live probes returned 171.6 m in Vienna from one Austria internal COG block and
 540.3 m in Bern from one current Swiss 2 m tile; both cache repeats used no data
-download. An exact Swiss 1 km seam probe used both adjacent tiles without HGT
-fallback. Earlier validation includes Mapzen HGT, Settings/UI suites and a Release
-application build; those larger suites were not repeated for this milestone.
-Flanders has only a small download/cache probe; Estonia 1024 was tested but its
-catalogue still uses 512. Consult current source/status rather than treating these
-counts or pending decisions as permanent.
+download. Luxembourg returned 306.786 m from one 1 m Float64 overview block;
+Wales returned 132.857 m from one Deflate block after downloading the official
+OSTN15 Lite grid. Their cache repeats used no downloads. An exact Swiss 1 km seam
+probe used both adjacent tiles without HGT fallback. Earlier validation includes
+Mapzen HGT, Settings/UI suites and a Release application build; those larger suites
+were not repeated for this milestone. Flanders and Sachsen-Anhalt were subsequently
+confirmed working by the user; Sachsen-Anhalt was tested near Magdeburg at
+`52.1310, 11.6390`. Estonia 1024 was tested but its catalogue still uses 512.
 
 ## File-source status
 
-Three file-source profiles are implemented:
+Four file-source profiles are implemented:
 
 - `format: "hgt"`, `fileGrid: "degree"`: local or automatically downloaded
   Mapzen Skadi cells and the catalogue default/fallback;
 - `format: "geotiff"`, `fileGrid: "projected"`: fixed projected file tiles with
   an HTTPS name template, explicit revision and strict range-COG reads; Austria
   is the first verified profile;
+- `format: "geotiff"`, `fileGrid: "cog"`: one large direct COG URL with exact
+  resolution-overview selection and range-only block caching; Luxembourg and
+  Wales are verified profiles;
 - `format: "geotiff"`, `fileGrid: "stac"`: STAC discovery with resolution/CRS
   asset selection and preserved complete source TIFFs; Switzerland is the first.
 
