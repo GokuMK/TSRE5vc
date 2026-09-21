@@ -10,6 +10,7 @@
 
 #include <tsre/tests/TestRunner.h>
 #include <tsre/tests/TerrainFileTestSuite.h>
+#include <tsre/tests/QuadTreeRecoveryTestSuite.h>
 #include <tsre/tests/ElevationUiTestSuite.h>
 #include <tsre/tests/NewRouteTestSuite.h>
 #include <tsre/tests/ContentPathTestSuite.h>
@@ -3173,6 +3174,7 @@ QStringList TsreTests::listSuites() {
         "tdb-load",
         "terrain-files",
         "terrain-tfile",
+        "quadtree-recovery",
         "terrain-grid",
         "terrain-edges",
         "terrain-raw-benchmark",
@@ -3246,6 +3248,9 @@ int TsreTests::run(const TestRunOptions &opts) {
 
     if (suite == "terrain-edges")
         return runTerrainEdgeSuite(opts.verbose);
+
+    if (suite == "quadtree-recovery")
+        return runQuadTreeRecoverySuite(opts.verbose, opts.casesFile);
 
     if (suite == "terrain-files")
         return runTerrainFilesSuite(opts);

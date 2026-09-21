@@ -15,10 +15,43 @@
 QVector<ErrorMessage*> ErrorMessagesLib::ErrorMessages;
 ErrorMessagesWindow* ErrorMessagesLib::Window = NULL;
 
+namespace {
+struct ShowRequest {
+    ErrorMessage *message;
+    std::function<bool()> isCurrent;
+};
+QVector<ShowRequest> showRequests;
+}
+
 ErrorMessagesWindow* ErrorMessagesLib::GetWindow(QWidget *w){
-    if(Window == NULL)
+    if(Window == NULL) {
         Window = new ErrorMessagesWindow(w);
+        QObject::connect(Window, &QObject::destroyed, [] { Window = nullptr; });
+    }
     return Window;
+}
+
+bool ErrorMessagesLib::ShowMessage(ErrorMessage *message, QWidget *parent) {
+    if (!message || !ErrorMessages.contains(message)) return false;
+    return GetWindow(parent)->showMessage(message);
+}
+
+void ErrorMessagesLib::RequestShowMessage(ErrorMessage *message, std::function<bool()> isCurrent) {
+    if (!message || !ErrorMessages.contains(message)) return;
+    for (const auto &request : showRequests)
+        if (request.message == message) return;
+    showRequests.push_back({message, std::move(isCurrent)});
+}
+
+bool ErrorMessagesLib::ShowRequestedMessage(QWidget *parent) {
+    // One opening per load, selecting the first still-current request. All other
+    // messages remain in the list, without repeated focus stealing.
+    const auto requests = std::move(showRequests);
+    showRequests.clear();
+    for (const auto &request : requests)
+        if ((!request.isCurrent || request.isCurrent()) && ShowMessage(request.message, parent))
+            return true;
+    return false;
 }
 
 QString ErrorMessagesLib::PushErrorMessage(ErrorMessage* e){

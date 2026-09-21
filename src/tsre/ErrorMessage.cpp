@@ -57,6 +57,19 @@ ErrorMessage::ErrorMessage(const ErrorMessage& orig) {
 ErrorMessage::~ErrorMessage() {
 }
 
+bool ErrorMessage::applyFix(QString &result) {
+    if (!fix || !canFix || !canFix()) {
+        //% "This repair is no longer available for the current route."
+        result = qtTrId("route.errors.fix.unavailable");
+        return false;
+    }
+    if (!fix(result)) return false;
+    fix = {}; canFix = {};
+    type = Type_AutoFix;
+    action += "\n" + result;
+    return true;
+}
+
 void ErrorMessage::setLocation(PreciseTileCoordinate* c){
     coords = c;
 }

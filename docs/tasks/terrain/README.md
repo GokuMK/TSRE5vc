@@ -25,7 +25,7 @@ including files on disk that are not registered in the tree.
 | [Adjacent edges](terrain-adjacent-edge-cache.md) | Native edge sections, interpolation and invalidation implemented; consumed by LOD | User confirmed cross-tile behavior. Full seam/normal test matrix is not recorded. Rare missing diagonal-owner corner uses the agreed best-effort fallback; no forced unload broadcast. |
 | [Basic discrete LOD](terrain-basic-discrete-lod.md) | Tile-local and cross-tile milestones implemented and user-tested | Larger-than-2:1 transitions and mixed spacing along one patch edge remain deliberately best effort. No additional ratio templates or E/AS refinement promised. |
 | [Height brushes](terrain-height-brush-performance.md) | Direct tile brush, reusable float area, example, profiling and exact normal optimization implemented and tested | User accepted speed. Populated-route/multiplayer performance coverage is not established by empty-route tests. Old brush remains for comparison/unusual-grid fallback; old paged normal implementation is removed. |
-| [Simple lookup migration](terrain-simple-lookup-migration.md) | Design reviewed; preliminary private-helper cleanup implemented | Synthetic detailed lookup and removal of `TerrainLibSimple` remain to implement. |
+| [QuadTree recovery / simple lookup migration](terrain-simple-lookup-migration.md) | Common backend migration, descriptor-derived temporary trees, E&M Fix and ordinary-save adoption implemented 2026-09-21; `TerrainLibSimple` removed | All existing TD footprint levels supported; reconstruction cannot recover populated-without-payload entries. Interactive acceptance remains. |
 | [Procedural materials](terrain-procedural-materials.md) | Experimental demo; four-worker loading and synchronous painting tested | Compressed ID plane, F2 tools, shader import, BC1/RGB sharing, tile-level cache release and bounded background generation. Nearest-visible-first requests/uploads within each tile; draw order unchanged. Other production features deferred. |
 | [Procedural baked fallback / catalogue](terrain-procedural-baked-fallback.md) | Stage A, DXT1 follow-up and Stage B route catalogue implemented/tested | One 1024-square opaque DXT1 ACE bake on save, incremental saves and independent 2048 m detailed-texture distance. Stage B uses a UTF-16 route material catalogue with stable UiDs; earlier catalogue alternatives are historical. |
 | [Procedural seasons and route-wide baking](terrain-procedural-seasons.md) | Completed 2026-09-11; automated checks and user visual acceptance passed | Per-source seasonal/rain fallback, snow-free Winter, per-variant bake revisions, current-variant saves and CLI/Settings-menu batch baking. Optional extended verification is listed in the task. |
@@ -51,7 +51,7 @@ implement them; deferred designs are not blockers for the working terrain tools.
 - [x] [Procedural settings JSON/editor](../../features/terrain-procedural-settings.md): master enable switch, detail distance, output sizes and optional debug/restore validation. Boundary sampling belongs to material definitions, not global settings.
 - [x] [Procedural seasons and route-wide baking](terrain-procedural-seasons.md): directory fallback, per-variant records, CLI and route-filtered Settings-menu dialog; automated checks passed and user confirmed seasonal visual acceptance.
 - [x] [Shared terrain seasons and startup dropdown](../../features/terrain-procedural-seasons.md#season-setting-and-static-editing): static terrain and transfers use the procedural fallback policy; seasonal painting protects fallback sources. Shape rain support remains deferred; this follow-up awaits interactive acceptance.
-- [ ] [Simple lookup migration](terrain-simple-lookup-migration.md): remove `TerrainLibSimple`, using synthetic no-TD lookup in the common backend.
+- [x] [QuadTree recovery](terrain-simple-lookup-migration.md): remove `TerrainLibSimple`, use descriptor-derived temporary trees, and adopt repairs through E&M Fix/auto-fix before ordinary Save.
 - [x] [Complete T-file structure and parser](terrain-tfile-structure-and-parser.md): binary preservation and direct typed caller migration, including all-set shader edits and external patch flags. See its separate acceptance/future-text checklist.
 - [x] After separate approval, update procedural test/local-route tiles that use
   the three prototype SIMIS token IDs; no runtime compatibility aliases added.
@@ -92,10 +92,9 @@ Deferred production features / testing (not requirements to close Stage A):
 
 ### Other implementation work
 
-- Replace deprecated `TerrainLibSimple` with Qt's common terrain machinery and
-  deterministic 2 km lookup with no TD reads/writes. Explicit QuadTree
-  regeneration is optional repair work, never a side effect of tile creation.
-  Resolve multiplayer behavior as part of migration, not merely a class rename.
+- QuadTree recovery migration is implemented using temporary reconstructed trees,
+  rather than the earlier arithmetic 2 km facade. Remote clients retain the
+  server-supplied index. Interactive recovery acceptance is described in its task.
 - More area tools can adopt `TerrainHeightArea`, but only where useful or
   measured; universal conversion is not required to finish height painting.
 

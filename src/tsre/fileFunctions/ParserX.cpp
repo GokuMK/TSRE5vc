@@ -9,7 +9,6 @@
  */
 
 #include "ParserX.h"
-#include <tsre/shape/SFile.h>
 #include <QDebug>
 #include <math.h>
 
