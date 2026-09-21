@@ -15,7 +15,7 @@ the newest status or the current source code.
   EPSG:3035 mosaic consists of roughly 6.8 GB, 50 km BigTIFF COG files. TSRE reads
   a bounded index range and fetches only required LZW internal blocks, up to four
   concurrently. A complete locally supplied official TIFF is window-read directly.
-- Switzerland swissALTI3D is the first `fileGrid: "stac"` source. TSRE queries the
+- Switzerland and Liechtenstein swissALTI3D is the first `fileGrid: "stac"` source. TSRE queries the
   official collection, selects the newest 2 m EPSG:2056 asset for each footprint,
   skips 0.5 m files, and preserves each roughly 1 MB official TIFF in the named
   source directory.

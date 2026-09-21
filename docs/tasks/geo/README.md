@@ -17,7 +17,7 @@ are not a current specification.
      [Denmark/authentication](denmark-validation.md). These cover recent protocol
      differences; use [Czech ArcGIS](czech-arcgis-validation.md) for that provider.
    - Downloaded/offline sources: [file-source implementation and next step](local-elevation-sources.md).
-     One-degree HGT, Austria range-COG tiles and Switzerland STAC/GeoTIFF tiles
+     One-degree HGT, Austria range-COG tiles and Switzerland/Liechtenstein STAC/GeoTIFF tiles
      are implemented; other GeoTIFF families still require profile validation.
 4. Read the relevant source files and tests from the code map. Credentials and
    source-setting behavior are documented in [Settings](../../settings-system.md).

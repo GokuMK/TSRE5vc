@@ -54,7 +54,7 @@
     },
     {
       "id": "ch.swisstopo.swissalti3d.2m",
-      "name": "Switzerland - swissALTI3D 2 m (swisstopo STAC/COG)",
+      "name": "Switzerland and Liechtenstein - swissALTI3D 2 m (swisstopo STAC/COG)",
       "provider": "file",
       "format": "geotiff",
       "fileGrid": "stac",

@@ -91,7 +91,7 @@ Current branch catalogue snapshot, updated 2026-09-21:
 |---|---|---|---:|---|
 | `world-hgt` | World HGT terrain / Mapzen Skadi automatic fallback | file / HGT | 4326 | ✅ implemented + live download/cache probe |
 | `at.bev.als-dgm1` | Austria BEV ALS-DGM 1 m, 2025 mosaic | file / projected range COG | 3035 | ✅ bounded live block + cache probe |
-| `ch.swisstopo.swissalti3d.2m` | Switzerland swissALTI3D 2 m | file / STAC GeoTIFF | 2056 | ✅ bounded live tile + cache probe |
+| `ch.swisstopo.swissalti3d.2m` | Switzerland + Liechtenstein swissALTI3D 2 m | file / STAC GeoTIFF | 2056 | ✅ bounded live tile + cache probe |
 | `pl.gugik.nmt1.kron86` | Poland NMT 1 m KRON86 | WCS 2.0.1 | 2180 | ✅ |
 | `pl.gugik.nmt1.evrf2007` | Poland NMT 1 m EVRF2007 | WCS 2.0.1 | 2180 | ✅ |
 | `cz.cuzk.dmr4g` | Czech DMR4G 5 m | WCS 2.0.1 | 3045 | ✅ |
@@ -1199,7 +1199,7 @@ The generic design is holding up well. The current implementation demonstrates s
    Austria BEV 2025 ALS-DGM 1 m
 
 5. STAC-discovered GeoTIFF files — implemented first profile
-   Switzerland swissALTI3D 2 m
+   Switzerland + Liechtenstein swissALTI3D 2 m
 
 6. Regular downloaded GeoTIFF / tiled files — next provider extension
    global SRTM GL1 / NASADEM / ALOS / Copernicus mirrors

@@ -82,7 +82,7 @@ name can be supplied locally and is window-read directly. Downloaded block parts
 live under the readable product/file path and an explicit `20250915` revision,
 preventing a later catalogue URL revision from silently reusing old blocks.
 
-Switzerland swissALTI3D is discovered through the official STAC collection. TSRE
+Switzerland and Liechtenstein swissALTI3D is discovered through the official STAC collection. TSRE
 selects EPSG:2056 assets whose declared resolution is 2 m, chooses the newest item
 for each repeated footprint, and preserves the complete roughly 1 MB TIFFs under
 `ch_swissalti3d_2m`. The 0.5 m assets are deliberately skipped. Local EPSG:2056
