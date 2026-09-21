@@ -385,6 +385,7 @@ int main(int argc, char **argv) {
         dark.setColor(QPalette::HighlightedText, Qt::black);
         dark.setColor(QPalette::Disabled, QPalette::Text, QColor(153, 153, 153));
         dark.setColor(QPalette::Disabled, QPalette::WindowText, QColor(153, 153, 153));
+        dark.setColor(QPalette::Disabled, QPalette::ButtonText, QColor(153, 153, 153));
         app.setPalette(dark);
     }
     guiTests(directory.path(), value("--snapshot"));

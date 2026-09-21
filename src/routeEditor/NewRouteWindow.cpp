@@ -194,8 +194,6 @@ NewRouteWindow::NewRouteWindow(QWidget *parent)
             new QIntValidator(projectionTileOffsetZEdit));
     routeTilePanel->setEnabled(false);
     projectionLayout->addWidget(routeTilePanel);
-    ighOffsetButton->setStyleSheet(
-            QStringLiteral("QPushButton:disabled { color: palette(mid); }"));
     ighOffsetButton->setEnabled(false);
     projectionLayout->addWidget(ighOffsetButton);
 
