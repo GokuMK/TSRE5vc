@@ -96,7 +96,8 @@ void runArcGisImageServerTests(const std::function<void(bool,const char*)> &chec
     }
     std::atomic_bool cancel{false};
     auto result = generate(temp.path(),d.id,{{50.08,14.42}},1.0,3,cancel);
-    XY xy; project({50.08,14.42},25833,xy);
+    const Geo::CrsTransform utm33(25833);
+    XY xy; utm33.forward({50.08,14.42},xy);
     check(result.success() && result.report.primarySamples == 1 && result.report.cacheHits == 1
           && result.report.downloads == 0 && std::abs(result.heights[0]-(prague.sample(xy,true).height+3)) < 1e-5,
           "ArcGIS provider shares cache, coordinate conversion, sampling and height offset");

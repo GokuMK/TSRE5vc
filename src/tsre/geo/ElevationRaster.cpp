@@ -75,162 +75,6 @@ bool number(QByteArrayView token, double &value) {
     const auto parsed = std::from_chars(first, last, value);
     return parsed.ec == std::errc() && parsed.ptr == last;
 }
-int tmZoneForCrs(int epsg) {
-    // ETRS89 / UTM zones 28N..38N.
-    if (epsg >= 25828 && epsg <= 25838)
-        return epsg - 25800;
-
-    // ETRS89 / UTM zone 33N with northing/easting axis declaration.
-    if (epsg == 3045)
-        return 33;
-
-    // EUREF-FIN / TM35FIN uses the same TM parameters as UTM zone 35N.
-    if (epsg == 3067)
-        return 35;
-
-    return 0;
-}
-}
-
-bool supportedCrs(int epsg) {
-    return epsg == 2180 || epsg == 3794
-        || epsg == 4326 || epsg == 3857 || epsg == 3035 || epsg == 2056
-        || tmZoneForCrs(epsg) != 0;
-}
-
-bool project(Point p, int epsg, XY &out) {
-    if (!std::isfinite(p.latitude) || !std::isfinite(p.longitude)
-            || p.latitude < -90 || p.latitude > 90
-            || p.longitude < -180 || p.longitude > 180) 
-            return false;
-    if (epsg == 4326) { 
-        out = {p.longitude, p.latitude}; 
-        return true; 
-    }
-    if (epsg == 3857) {
-        constexpr double pi = 3.14159265358979323846;
-        constexpr double radius = 6378137.0;
-        constexpr double maxLatitude = 85.0511287798066;
-
-        if (p.latitude < -maxLatitude || p.latitude > maxLatitude)
-            return false;
-
-        const double lon = p.longitude * pi / 180.0;
-        const double lat = p.latitude * pi / 180.0;
-
-        out.x = radius * lon;
-        out.y = radius * std::log(std::tan(pi / 4.0 + lat / 2.0));
-
-        return std::isfinite(out.x) && std::isfinite(out.y);
-    }
-    if (epsg == 2056) {
-        // Official swisstopo WGS84 -> LV95 approximation. Its published
-        // horizontal accuracy is better than one metre throughout Switzerland.
-        if (p.latitude < 45.5 || p.latitude > 48 || p.longitude < 5.5 || p.longitude > 11)
-            return false;
-        const double phi = (p.latitude*3600.0-169028.66)/10000.0;
-        const double lambda = (p.longitude*3600.0-26782.5)/10000.0;
-        out.x = 2600072.37 + 211455.93*lambda - 10938.51*lambda*phi
-            - .36*lambda*phi*phi - 44.54*lambda*lambda*lambda;
-        out.y = 1200147.07 + 308807.95*phi + 3745.25*lambda*lambda
-            + 76.63*phi*phi - 194.56*lambda*lambda*phi + 119.79*phi*phi*phi;
-        return std::isfinite(out.x) && std::isfinite(out.y);
-    }
-    if (epsg == 3035) {
-        // ETRS89 / LAEA Europe (EPSG method 9820), GRS80 ellipsoid.
-        if (p.latitude < 24 || p.latitude > 72 || p.longitude < -35 || p.longitude > 45)
-            return false;
-        constexpr double pi = 3.14159265358979323846;
-        constexpr double a = 6378137.0, invF = 298.257222101;
-        constexpr double flattening = 1.0/invF;
-        constexpr double e2 = flattening*(2-flattening);
-        const double eccentricity = std::sqrt(e2);
-        const auto authalicQ = [&](double latitude) {
-            const double sine = std::sin(latitude);
-            return (1-e2)*(sine/(1-e2*sine*sine)
-                - std::log((1-eccentricity*sine)/(1+eccentricity*sine))/(2*eccentricity));
-        };
-        const double phi0 = 52*pi/180.0, lambda0 = 10*pi/180.0;
-        const double phi = p.latitude*pi/180.0, lambda = p.longitude*pi/180.0;
-        const double qp = authalicQ(pi/2), beta0 = std::asin(authalicQ(phi0)/qp);
-        const double beta = std::asin(std::clamp(authalicQ(phi)/qp,-1.0,1.0));
-        const double rq = a*std::sqrt(qp/2);
-        const double m0 = std::cos(phi0)/std::sqrt(1-e2*std::sin(phi0)*std::sin(phi0));
-        const double d = a*m0/(rq*std::cos(beta0));
-        const double dl = lambda-lambda0;
-        const double denominator = 1+std::sin(beta0)*std::sin(beta)
-            + std::cos(beta0)*std::cos(beta)*std::cos(dl);
-        if (denominator <= 0) return false;
-        const double b = rq*std::sqrt(2/denominator);
-        out.x = 4321000 + b*d*std::cos(beta)*std::sin(dl);
-        out.y = 3210000 + b/d*(std::cos(beta0)*std::sin(beta)
-            - std::sin(beta0)*std::cos(beta)*std::cos(dl));
-        return std::isfinite(out.x) && std::isfinite(out.y);
-    }
-    const bool cs92 = epsg == 2180;
-    const bool sloveniaD96 = epsg == 3794;
-    const int tmZone = tmZoneForCrs(epsg);
-
-    double meridian;
-    double factor;
-    double falseNorth;
-
-    if (cs92) {
-        if (p.latitude < 48 || p.latitude > 57
-                || p.longitude < 13 || p.longitude > 25)
-            return false;
-
-        meridian = 19;
-        factor = .9993;
-        falseNorth = -5300000;
-    } else if (sloveniaD96) {
-        if (p.latitude < 45 || p.latitude > 47.5
-                || p.longitude < 13 || p.longitude > 17)
-            return false;
-
-        meridian = 15;
-        factor = .9999;
-        falseNorth = -5000000;
-    } else {
-        if (!tmZone || p.latitude < 0 || p.latitude > 84)
-            return false;
-
-        meridian = tmZone * 6.0 - 183.0;
-
-        // Safety bound for this lightweight TM implementation.
-        // Wider than a nominal UTM zone because national datasets may use
-        // one projected CRS beyond the normal 6-degree zone.
-        if (std::abs(p.longitude - meridian) > 30.0)
-            return false;
-
-        factor = .9996;
-        falseNorth = 0;
-    }
-    // Fourth-order Krueger series, with analytic conformal latitude.
-    // Equations: PROJ Transverse Mercator documentation, mathematical definition.
-    // This bounded forward projection is not a general CRS/datum engine.
-    constexpr double pi = 3.14159265358979323846;
-    constexpr double a = 6378137.0, f = 1.0 / 298.257222101;
-    constexpr double n = f / (2 - f), n2 = n*n, n3 = n2*n, n4 = n2*n2;
-    constexpr double A = a / (1+n) * (1 + n2/4 + n4/64);
-    const double alpha[] = {
-        n/2 - 2*n2/3 + 5*n3/16 + 41*n4/180,
-        13*n2/48 - 3*n3/5 + 557*n4/1440,
-        61*n3/240 - 103*n4/140,
-        49561*n4/161280
-    };
-    const double phi = p.latitude*pi/180, lambda = (p.longitude-meridian)*pi/180;
-    const double e = std::sqrt(f*(2-f));
-    const double t = std::sinh(std::asinh(std::tan(phi)) - e*std::atanh(e*std::sin(phi)));
-    const double xi = std::atan2(t, std::cos(lambda));
-    const double eta = std::asinh(std::sin(lambda)/std::hypot(t, std::cos(lambda)));
-    double north = xi, east = eta;
-    for (int j = 1; j <= 4; ++j) {
-        north += alpha[j-1]*std::sin(2*j*xi)*std::cosh(2*j*eta);
-        east += alpha[j-1]*std::cos(2*j*xi)*std::sinh(2*j*eta);
-    }
-    out = {500000 + factor*A*east, falseNorth + factor*A*north};
-    return std::isfinite(out.x) && std::isfinite(out.y);
 }
 
 Sample Raster::sample(XY p, bool zero) const {
@@ -382,7 +226,7 @@ static bool readTiff(const QByteArray &bytes, int metadataEpsg, Raster &output, 
         if (key == 2054) angularUnits = v;
     }
     if (!tags.contains(34735)) r.epsg = metadataEpsg;
-    if (!supportedCrs(r.epsg)) return fail(error, "Unsupported raster CRS");
+    if (!Geo::CrsTransform::supports(r.epsg)) return fail(error, "Unsupported raster CRS");
     if (metadataEpsg && metadataEpsg != r.epsg) return fail(error, "TIFF and WCS metadata CRS disagree");
     if ((r.epsg != 4326 && linearUnits != 9001) || (r.epsg == 4326 && angularUnits != 9102))
         return fail(error, "Raster coordinate units conflict with its CRS");
@@ -549,7 +393,7 @@ bool readWcsTiff(const QByteArray &bytes, int expectedEpsg, Raster &output, QStr
                 reference = reader.readElementText();
             }
         }
-        if (reader.hasError() || envelopes != 1 || !supportedCrs(metadataEpsg)
+        if (reader.hasError() || envelopes != 1 || !Geo::CrsTransform::supports(metadataEpsg)
                 || metadataEpsg != expectedEpsg || contentId.isEmpty()
                 || reference != QStringLiteral("cid:")+QString::fromLatin1(contentId))
             return fail(error,"Invalid or conflicting WCS GML raster reference/CRS");

@@ -323,9 +323,10 @@ Apply policy. Dataset-level NoData filling is described below. The
 
 ### Two separate projection layers
 
-1. `ElevationRaster::project()` converts geographic sample positions into a
-   dataset CRS: EPSG:4326, 2180, 3857, 3794, 3045, 3067 and 25828..25838 are
-   accepted, with bounded geographic domains. These are raster lookup transforms.
+1. `Geo::CrsTransform` converts geographic sample positions into a dataset CRS:
+   EPSG:4326, 2056, 2180, 3035, 3857, 3794, 3045, 3067 and 25828..25838 are
+   accepted, with bounded geographic domains. It is constructed once per source
+   and reused for raster lookups; see `crs-transform.md`.
 2. `GeoCoordinates` maps route/world positions to geographic positions. The
    committed projection milestone adds local GRS80 Transverse Mercator with
    scale 1, alongside IGH and the legacy local equirectangular converter. A shared

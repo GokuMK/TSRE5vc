@@ -1,5 +1,6 @@
 #pragma once
 
+#include <tsre/geo/CrsTransform.h>
 #include <QByteArray>
 #include <QBitArray>
 #include <QString>
@@ -10,22 +11,14 @@
 
 namespace Elevation {
 
-struct Point { double latitude = 0, longitude = 0; };
-struct XY { double x = 0, y = 0; };
+using Point = Geo::GeographicPoint;
+using XY = Geo::ProjectedPoint;
 enum class SampleStatus { Valid, Outside, NoData, Unavailable };
 struct Sample {
     float height = 0;
     SampleStatus status = SampleStatus::Unavailable;
     bool valid() const { return status == SampleStatus::Valid; }
 };
-// Forward horizontal conversion only: CS92, Web Mercator,
-// Slovenia D96/TM, ETRS89 / UTM zones 28N-38N
-// and EUREF-FIN / TM35FIN.
-// Internal XY is always easting/northing, including EPSG:3045 (N-E axes).
-// Geographic input is treated as ETRS89; no epoch or vertical shift.
-bool project(Point point, int epsg, XY &result);
-bool supportedCrs(int epsg);
-
 struct Raster {
     int width = 0, height = 0, epsg = 0;
     // Pixel corner -> projected x/y, including rotation terms.

@@ -156,7 +156,7 @@ struct Asset {
 class CogFileSource final : public Source {
 public:
     CogFileSource(QString path,Dataset data,Report &value)
-        :root(std::move(path)),dataset(std::move(data)),report(value){}
+        :projection(data.epsg),root(std::move(path)),dataset(std::move(data)),report(value){}
 
     bool prepare(const QVector<Point> &points,std::atomic_bool &cancel,
                  const Progress &progress,QString &error) override {
@@ -165,7 +165,7 @@ public:
                                              :prepareStac(points,cancel,progress,error);
     }
     Sample sample(Point point) override {
-        XY xy;if(!project(point,dataset.epsg,xy)||!inside(dataset,xy))return {0,SampleStatus::Outside};
+        XY xy;if(!projection.forward(point,xy)||!inside(dataset,xy))return {0,SampleStatus::Outside};
         if(dataset.fileGrid=="stac"&&!stacMosaic.values.isEmpty()){
             const Sample value=stacMosaic.sample(xy,dataset.zeroIsNoData);
             return value.status==SampleStatus::Outside?Sample{0,SampleStatus::Unavailable}:value;
@@ -201,7 +201,7 @@ private:
     bool prepareProjected(const QVector<Point> &points,std::atomic_bool &cancel,
                           const Progress &progress,QString &error){
         struct Group{qint64 northing=0,easting=0;QVector<XY> points;};QMap<QString,Group> groups;
-        for(Point p:points){if(cancel)return false;XY xy;if(!project(p,dataset.epsg,xy)||!inside(dataset,xy))continue;
+        for(Point p:points){if(cancel)return false;XY xy;if(!projection.forward(p,xy)||!inside(dataset,xy))continue;
             const qint64 e=qint64(std::floor(xy.x/dataset.fileTileSize))*qint64(dataset.fileTileSize);
             const qint64 n=qint64(std::floor(xy.y/dataset.fileTileSize))*qint64(dataset.fileTileSize);
             const QString key=QString::number(n)+'_'+QString::number(e);groups[key].northing=n;groups[key].easting=e;groups[key].points.push_back(xy);
@@ -293,7 +293,7 @@ private:
         stacMosaic=std::move(mosaic);assets.clear();return true;
     }
     bool prepareStac(const QVector<Point> &points,std::atomic_bool &cancel,const Progress &progress,QString &error){
-        double west=180,east=-180,south=90,north=-90;for(Point p:points){XY xy;if(project(p,dataset.epsg,xy)&&inside(dataset,xy)){west=std::min(west,p.longitude);east=std::max(east,p.longitude);south=std::min(south,p.latitude);north=std::max(north,p.latitude);}}
+        double west=180,east=-180,south=90,north=-90;for(Point p:points){XY xy;if(projection.forward(p,xy)&&inside(dataset,xy)){west=std::min(west,p.longitude);east=std::max(east,p.longitude);south=std::min(south,p.latitude);north=std::max(north,p.latitude);}}
         if(east<west)return true;
         constexpr double pi=3.14159265358979323846,metresPerDegree=111320.0;
         const double latitude=(south+north)/2,margin=dataset.resolution*2;
@@ -316,7 +316,7 @@ private:
             for(int i=0;i<count;++i){QString issue=responses[i].error;Raster raster;if(issue.isEmpty()&&!readGeoTiff(responses[i].bytes,raster,issue)){}if(issue.isEmpty()&&!save(remote[first+i].path,responses[i].bytes))issue=QStringLiteral("Cannot store COG file");if(issue.isEmpty()){Asset a;a.name=remote[first+i].name;a.localFile=remote[first+i].path;a.url=remote[first+i].url;a.raster=std::move(raster);assets.push_back(std::move(a));++report.downloads;}else report.issue(QStringLiteral("%1: %2").arg(remote[first+i].name,issue));++done;}}
         return !cancel&&buildStacMosaic(error);
     }
-    QString root;Dataset dataset;Report &report;QVector<Asset> assets;Raster stacMosaic;
+    Geo::CrsTransform projection;QString root;Dataset dataset;Report &report;QVector<Asset> assets;Raster stacMosaic;
 };
 }
 

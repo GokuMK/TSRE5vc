@@ -357,7 +357,7 @@ class RasterSource final : public Source {
 public:
     RasterSource(Dataset data, std::unique_ptr<RasterProvider> p,
                  double spacing, Report &r)
-        : dataset(std::move(data)), provider(std::move(p)),
+        : projection(data.epsg), dataset(std::move(data)), provider(std::move(p)),
           targetSpacing(spacing), report(r) {
         cache.setMaxCost(64*1024);
     }
@@ -370,7 +370,7 @@ public:
             if (cancel) return false;
 
             XY xy;
-            if (!project(p,dataset.epsg,xy) || !inside(dataset,xy))
+            if (!projection.forward(p,xy) || !inside(dataset,xy))
                 continue;
 
             blocks.insert(blockFor(dataset,xy),true);
@@ -406,7 +406,7 @@ public:
 
     Sample sample(Point p) override {
         XY xy;
-        if (!project(p,dataset.epsg,xy) || !inside(dataset,xy))
+        if (!projection.forward(p,xy) || !inside(dataset,xy))
             return {0,SampleStatus::Outside};
 
         const int taps = filterTaps(p);
@@ -543,6 +543,7 @@ private:
         return r->sample(xy,dataset.zeroIsNoData);
     }
 
+    Geo::CrsTransform projection;
     Dataset dataset;
     Raster filledRaster;
     std::unique_ptr<RasterProvider> provider;
@@ -675,7 +676,7 @@ QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
                 || (arcgis && d.format != "image/tiff")
                 || (!file && (d.blockPixels < 16 || d.blockPixels > 1024))
                 || d.concurrentRequests < 1 || d.concurrentRequests > 4
-                || d.maxX <= d.minX || d.maxY <= d.minY || !supportedCrs(d.epsg)
+                || d.maxX <= d.minX || d.maxY <= d.minY || !Geo::CrsTransform::supports(d.epsg)
                 || (!file && d.format != "image/tiff" && d.format != "image/x-aaigrid")) {
             rejected << QStringLiteral("Skipped elevation dataset %1: invalid or unsupported definition").arg(label); continue;
         }
@@ -705,11 +706,12 @@ QString defaultFileSourceId(const QVector<Dataset> &catalogue) {
 }
 bool nearDataset(const Dataset &d, const QVector<Point> &area, double bufferMetres) {
     if (area.isEmpty()) return true; // No usable route location: do not hide sources.
+    const Geo::CrsTransform projection(d.epsg);
     double left = std::numeric_limits<double>::infinity(), right = -left;
     double bottom = left, top = right, maxLatitude = 0;
     for (const auto p : area) {
         XY xy;
-        if (!project(p,d.epsg,xy)) continue;
+        if (!projection.forward(p,xy)) continue;
         left = std::min(left,xy.x); right = std::max(right,xy.x);
         bottom = std::min(bottom,xy.y); top = std::max(top,xy.y);
         maxLatitude = std::max(maxLatitude,std::abs(p.latitude));

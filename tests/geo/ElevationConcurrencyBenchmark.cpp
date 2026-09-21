@@ -22,7 +22,8 @@ int runConcurrencyBenchmark(const QString &outputPath, bool freshConnections) {
     for (const auto &d : Elevation::datasets(error)) if (d.id == "pl.gugik.nmt1.kron86") dataset = d;
     if (dataset.id.isEmpty()) { std::cerr << error.toStdString(); return 2; }
     Elevation::XY point;
-    Elevation::project({52,19},dataset.epsg,point);
+    const Geo::CrsTransform projection(dataset.epsg);
+    projection.forward({52,19},point);
     dataset.blockPixels = 2048;
     const auto parent = Elevation::blockFor(dataset,point);
     QJsonObject document{{"startedUtc",QDateTime::currentDateTimeUtc().toString(Qt::ISODate)},

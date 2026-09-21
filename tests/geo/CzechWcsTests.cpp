@@ -81,10 +81,12 @@ void runCzechWcsTests(const std::function<void(bool,const char*)> &check) {
     const auto controls = QJsonDocument::fromJson(fixture("projection-reference.json")).array();
     check(controls.size() == 40,"independent UTM 33N projection reference grid");
     double maxError = 0;
+    const Geo::CrsTransform northEastAxis(3045);
+    const Geo::CrsTransform eastingNorthingAxis(25833);
     for (const auto &entry : controls) {
         const auto c = entry.toObject(); XY xy, alias;
         const Point p{c["latitude"].toDouble(),c["longitude"].toDouble()};
-        const bool valid = project(p,3045,xy) && project(p,25833,alias);
+        const bool valid = northEastAxis.forward(p,xy) && eastingNorthingAxis.forward(p,alias);
         maxError = std::max(maxError,std::hypot(xy.x-c["easting"].toDouble(),xy.y-c["northing"].toDouble()));
         check(valid && maxError < .001 && xy.x == alias.x && xy.y == alias.y,
               "UTM 33N agrees with independent PROJ within 1 mm and normalizes N-E axis order");

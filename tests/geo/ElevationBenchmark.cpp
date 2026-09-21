@@ -39,7 +39,8 @@ int main(int argc, char **argv) {
             // Alternate format order between rounds to reduce ordering effects.
             auto dataset = catalog[(source+round)%catalog.size()];
             Elevation::XY point;
-            Elevation::project({52.0,19.0},dataset.epsg,point);
+            const Geo::CrsTransform projection(dataset.epsg);
+            projection.forward({52.0,19.0},point);
             dataset.blockPixels = 2048;
             auto block = Elevation::blockFor(dataset,point);
             block.column *= 2048/size; block.row *= 2048/size;

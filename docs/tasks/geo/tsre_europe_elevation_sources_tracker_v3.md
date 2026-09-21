@@ -36,7 +36,7 @@ Current generic pieces include:
 
 ### Raster CRS support
 
-`ElevationRaster::project()` currently accepts:
+`Geo::CrsTransform` currently accepts:
 
 - EPSG:2180 — Poland CS92;
 - EPSG:3794 — Slovenia D96/TM;

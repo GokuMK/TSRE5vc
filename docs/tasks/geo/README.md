@@ -19,6 +19,12 @@ are not a current specification.
    - Downloaded/offline sources: [file-source implementation and next step](local-elevation-sources.md).
      One-degree HGT, Austria range-COG tiles and Switzerland/Liechtenstein STAC/GeoTIFF tiles
      are implemented; other GeoTIFF families still require profile validation.
+   - Projection implementation: [CRS transform extraction and shared projection path](crs-transform.md).
+     This describes the small internal converter and the planned shared
+     sixth-order Transverse Mercator kernel.
+   - National datum/grid support: [deferred PROJ integration](proj-integration.md).
+     Read this before implementing another local national datum conversion. The
+     current COG milestone does not depend on PROJ.
 4. Read the relevant source files and tests from the code map. Credentials and
    source-setting behavior are documented in [Settings](../../settings-system.md).
 
@@ -53,7 +59,8 @@ Paths below are relative to the repository root.
 | Catalogue | `src/tsre/geo/elevation-datasets.json`; `Dataset`, `datasets()` and `parseDatasets()` in `ElevationSource.h/.cpp` |
 | Providers/cache | `ElevationSource.cpp`: `FileHgtSource`, service providers, `RasterSource`, `generate()`; `CogElevationSource.cpp`: projected range-COG and STAC GeoTIFF file sources |
 | Requests/grid checks | `coverageUrl()`, `imageServerUrl()`, `validateRasterGrid()`, `cacheRelativePath()` |
-| Numeric raster/CRS | `src/tsre/geo/ElevationRaster.h/.cpp`: `Raster`, readers, `project()`, `supportedCrs()`, `fillNoData()`; `ElevationTiffCodec.cpp`: bounded uncompressed/LZW block decoding and predictors |
+| CRS conversion | `src/tsre/geo/CrsTransform.h/.cpp`: small compiled-in forward transforms, constructed once per source; see `crs-transform.md` |
+| Numeric raster | `src/tsre/geo/ElevationRaster.h/.cpp`: `Raster`, readers, sampling and `fillNoData()`; `ElevationTiffCodec.cpp`: bounded uncompressed/LZW block decoding and predictors |
 | HTTP/auth | `src/tsre/geo/ElevationDownload.h/.cpp`: `downloadWave()`, strict `downloadRangeWave()`; query credentials added only inside transport |
 | Height UI | `src/tsre/geo/HeightWindow.cpp`; 10 km location filter via `nearDataset()` |
 | Settings | `src/settings/SettingsRegistration.cpp`: dynamic source options and reference-valued setting |

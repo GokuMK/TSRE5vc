@@ -130,7 +130,10 @@ int main(int argc, char **argv) {
     rotated.transform = {{100,0,-2,200,2,0}};
     check(near(rotated.sample({99,201}).height,1),"rotated affine grid");
     XY p;
-    check(project({52,19},2180,p) && near(p.x,500000,1e-5)
+    const Geo::CrsTransform cs92(2180);
+    const Geo::CrsTransform geographic(4326);
+    const Geo::CrsTransform unsupported(9999);
+    check(cs92.forward({52,19},p) && near(p.x,500000,1e-5)
           && near(p.y,459309.20940316166,.001),"CS92 reference from geographic WCS subset");
     check(!readGeoTiff(fixture("projection-west.tif"),r,error),"reject service response with user-defined CRS");
     check(!readGeoTiff(fixture("projection-east.tif"),r,error),"reject unidentifiable CRS without assuming it is CS92");
@@ -139,14 +142,14 @@ int main(int argc, char **argv) {
     double maxProjectionError = 0;
     for (const auto entry : references) {
         const auto point = entry.toObject();
-        const bool valid = project({point["latitude"].toDouble(),point["longitude"].toDouble()},2180,p);
+        const bool valid = cs92.forward({point["latitude"].toDouble(),point["longitude"].toDouble()},p);
         const double delta = std::hypot(p.x-point["x"].toDouble(),p.y-point["y"].toDouble());
         maxProjectionError = std::max(maxProjectionError,delta);
         check(valid && delta < .001,"CS92 forward projection agrees with independent PROJ reference within 1 mm");
     }
     std::cout << "Maximum projection difference: " << maxProjectionError << " m\n";
-    check(project({52,19},4326,p) && p.x == 19 && p.y == 52,"explicit lon/lat raster order");
-    check(!project({52,19},9999,p) && !project({0,0},2180,p),"reject unsupported projection and domain");
+    check(geographic.forward({52,19},p) && p.x == 19 && p.y == 52,"explicit lon/lat raster order");
+    check(!unsupported.forward({52,19},p) && !cs92.forward({0,0},p),"reject unsupported projection and domain");
     check(readHgt(hgt(3,-5),-1,-2,r,error),"read big-endian HGT");
     check(sampleLegacyHgt(r,{-.5,-1.5}).valid() && sampleLegacyHgt(r,{-.5,-1.5}).height == -5,"negative HGT positions and heights");
     check(!readHgt(QByteArray(19,'x'),0,0,r,error),"reject malformed HGT dimensions");
@@ -271,11 +274,14 @@ int main(int argc, char **argv) {
     check(!validateRasterGrid(probeGrid,{0,0},r,error),"expanded grid rejects rotation");
     r = expanded; r.transform[0] = std::numeric_limits<double>::quiet_NaN();
     check(!validateRasterGrid(probeGrid,{0,0},r,error),"expanded grid rejects non-finite transforms");
-    check(finland.epsg == 3067 && supportedCrs(3067) && project({60,27},3067,p)
+    const Geo::CrsTransform finlandProjection(3067);
+    const Geo::CrsTransform europeProjection(3035);
+    const Geo::CrsTransform swissProjection(2056);
+    check(finland.epsg == 3067 && Geo::CrsTransform::supports(3067) && finlandProjection.forward({60,27},p)
         && near(p.x,500000),"Finland retains its supported native TM35FIN grid");
-    check(project({52,10},3035,p) && near(p.x,4321000,.001) && near(p.y,3210000,.001),
+    check(europeProjection.forward({52,10},p) && near(p.x,4321000,.001) && near(p.y,3210000,.001),
         "ETRS89 LAEA Europe projection origin");
-    project({46.9510811111,7.4386372222},2056,p);
+    swissProjection.forward({46.9510811111,7.4386372222},p);
     check(near(p.x,2600000,1) && near(p.y,1200000,1),
         "official swisstopo Bern reference maps to LV95 origin");
     check(finland.apiKeySecret == "geo.elevation.fi.nls.apiKey"
@@ -306,7 +312,8 @@ int main(int argc, char **argv) {
     check(nearDataset(d,{{52,19}}) && !nearDataset(finland,{{52,19}})
         && nearDataset(finland,{}),"location filter keeps nearby sources and leaves an unknown location unfiltered");
     Dataset local; local.epsg = 3857;
-    XY centre; project({60,24},3857,centre);
+    const Geo::CrsTransform webMercator(3857);
+    XY centre; webMercator.forward({60,24},centre);
     local.minX=centre.x+19000; local.maxX=centre.x+19500;
     local.minY=centre.y-100; local.maxY=centre.y+100;
     check(nearDataset(local,{{60,24}}),"10 km ground buffer accounts for Mercator scale at 60 degrees");
@@ -360,7 +367,7 @@ int main(int argc, char **argv) {
     // Complete prepared block + metadata, so this exercises the production disk
     // cache path without any network service or fake projection implementation.
     const auto &ascii = polishAscii;
-    project({52,19},2180,p);
+    cs92.forward({52,19},p);
     const auto block = blockFor(ascii,p);
     const double left = ascii.originX+block.column*512-1;
     const double bottom = ascii.originY-block.row*512+1-514;
