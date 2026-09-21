@@ -112,10 +112,10 @@ void TerrainClient::load(){
             //    return;
             //}
         case 1:
-            if(tfile->sampleYbuffer == NULL)
+            if(tfile->samples.y.has_value() == false)
                 return;
             Game::serverClient->sendUtf16Message("request_terrain_yfile( "+QString::number(mojex)+" "+QString::number(mojez)+" )");
-            if(tfile->sampleFbuffer != NULL){
+            if(tfile->samples.f.has_value()){
                 Game::serverClient->sendUtf16Message("request_terrain_ffile( "+QString::number(mojex)+" "+QString::number(mojez)+" )");
             } else {
                 loadingProgress++;
@@ -128,18 +128,18 @@ void TerrainClient::load(){
             //QString name = this->getTileName(mojex, -mojez);
             QString name2;
             //int samples = 
-            int patches = tfile->patchsetNpatches;
+            int patches = tfile->patchCount();
             for (int u = 0; u < patches; u++){
                 for (int y = 0; y < patches; y++) {
                     name2 = name + "_" + QString::number(y) + "_" + QString::number(u) + ".ace";
-                    //qDebug() << name2 << (int) tfile->tdata[(y * 16 + u)*13 + 0 + 6];
-                    //qDebug() << tfile->materialsCount;
-                    //qDebug() << tfile->materials[(int) tfile->tdata[(y * 16 + u)*13 + 0 + 6]].tex[0];
-                    //qDebug() << name << patches << tfile->materialsCount << (int) tfile->tdata[(y * patches + u)*13 + 0 + 6];
-                    if (tfile->materialsCount <= (int) tfile->tdata[(y * patches + u)*13 + 0 + 6])
+                    //qDebug() << name2 << (int) tfile->patches()[(y * 16 + u)].shaderIndex;
+                    //qDebug() << tfile->materialCount();
+                    //qDebug() << tfile->material((int) tfile->patches()[(y * 16 + u)].shaderIndex).textures[0].filename;
+                    //qDebug() << name << patches << tfile->materialCount() << (int) tfile->patches()[(y * patches + u)].shaderIndex;
+                    if (tfile->materialCount() <= (int) tfile->patches()[(y * patches + u)].shaderIndex)
                         continue;
 
-                    if (name2 == *tfile->materials[(int) tfile->tdata[(y * patches + u)*13 + 0 + 6]].tex[0])
+                    if (name2 == tfile->textureName(tfile->patches()[y*patches+u].shaderIndex))
                         this->uniqueTex[y*patches+u] = true;
                 }
             }

@@ -365,9 +365,10 @@ public:
         if(family=="sd" && n=="shape") {add(job,f,0,"sd-shape-name",{parent(files[job.file].path)});return;}
         if(family=="t") {
             if(n=="terrain_texslot") {texture(job,f,0,route+"/TERRTEX");return;}
-            if(n.startsWith("terrain_sample_") || n=="tsreterrainmaterialbuffer") {
+            if(n.startsWith("terrain_sample_") || n=="terrain_patchset_fbuffer" || n=="tsreterrainmaterialbuffer") {
                 add(job,f,0,"terrain-sample",{parent(files[job.file].path)});return;
             }
+            if(n=="terrain_shape") {add(job,f,0,"shape",{route+"/SHAPES","GLOBAL/SHAPES"});return;}
         }
         if(family=="tsection" && n=="filename" && f.parents.contains("trackshape")) {
             if(route.isEmpty()) {

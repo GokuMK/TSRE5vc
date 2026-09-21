@@ -28,7 +28,8 @@ bool interesting(const QString &name) {
         "lighttex", "signalshape", "speedwarningsignshape", "speedpostsignshape",
         "speedresumesignshape", "milepostshape", "ortssoundfilename", "ortscranesound",
         "terrain_sample_ybuffer", "terrain_sample_ebuffer", "terrain_sample_nbuffer",
-        "terrain_sample_fbuffer", "tsreterrainmaterialbuffer", "world_water_terrain_patch_map"
+        "terrain_sample_fbuffer", "terrain_sample_cbuffer", "terrain_sample_dbuffer",
+        "terrain_patchset_fbuffer", "terrain_shape", "tsreterrainmaterialbuffer", "world_water_terrain_patch_map"
     };
     return names.contains(name);
 }
@@ -194,17 +195,28 @@ void binaryBlock(FileBuffer &data, Document &doc, QStringList &parents, int dept
     } else if (family == "t") {
         if (depth == 0 && name != "terrain") throw FileBuffer::ParseError("Expected binary terrain root");
         children = name == "terrain" || name == "terrain_samples" || name == "terrain_shaders" ||
-                   name == "terrain_shader" || name == "terrain_texslots";
-        if (name == "terrain_shaders" || name == "terrain_texslots") { counted = true; count = data.getInt(); }
+                   name == "terrain_shader" || name == "terrain_texslots" || name == "terrain_patches" ||
+                   name == "terrain_patchsets" || name == "terrain_patchset" ||
+                   name == "terrain_transfers" || name == "terrain_shapes";
+        if (name == "terrain_shaders" || name == "terrain_texslots" || name == "terrain_patchsets" ||
+            name == "terrain_transfers" || name == "terrain_shapes") { counted = true; count = data.getInt(); }
+        if (name == "terrain_transfer") {
+            parents.push_back(name);
+            binaryBlock(data,doc,parents,depth+1,family,lengths); // Shader, then four bounds floats.
+            parents.removeLast();
+            for(int i=0;i<4;++i)data.getFloat();
+        }
         if (name == "terrain_shader") data.readString(); // shader label, not a resource
         if (name == "terrain_texslot" || name == "terrain_sample_ybuffer" ||
             name == "terrain_sample_ebuffer" || name == "terrain_sample_nbuffer" ||
-            name == "terrain_sample_fbuffer" || name == "tsreterrainmaterialbuffer") stringValue(data, f);
+            name == "terrain_sample_fbuffer" || name == "terrain_sample_cbuffer" ||
+            name == "terrain_sample_dbuffer" || name == "terrain_patchset_fbuffer" ||
+            name == "terrain_shape" || name == "tsreterrainmaterialbuffer") stringValue(data, f);
         if (name == "tsreterrainmaterialmap") {
             const quint32 entries=quint32(data.getInt());
             if(entries>256 || quint64(entries)*8!=quint64(block.end-data.off))
                 throw FileBuffer::ParseError("Invalid terrain material UID map bounds");
-            // Numeric slot/UID pairs, not paths (TFile::get139).
+            // Numeric slot/UID pairs, not paths.
             data.off=block.end;
         } else if(name == "tsreterrainbakedmaterials") {
             if(data.getInt()!=2)throw FileBuffer::ParseError("Unsupported terrain bake metadata version");

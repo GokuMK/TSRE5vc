@@ -1,8 +1,7 @@
-#include "TFile.h"
+#include "TerrainFileLegacy.h"
 #include <QDataStream>
 #include <QBuffer>
 #include <QCryptographicHash>
-#include <QSet>
 
 namespace {
 void putString(QDataStream &out,const QString &value) {
@@ -15,50 +14,34 @@ bool getString(QDataStream &in,QString &value) {
     return in.status()==QDataStream::Ok;
 }
 }
-QByteArray TFile::bakeMetadata() const {
+QByteArray TerrainFileLegacy::bakeMetadata() const {
     if (bakedMaterialInfo.isEmpty() && seasonalBakes.isEmpty()) return {};
     QByteArray bytes; QDataStream out(&bytes,QIODevice::WriteOnly);out.setByteOrder(QDataStream::LittleEndian);
-    out<<quint8(bakeLabel.size()/2);out.writeRawData(bakeLabel.constData(),bakeLabel.size());
-    out<<quint32(2)<<materialContentRevision;
-    QSet<QString> written;
-    auto writeRecord=[&](const QString &variant,const QByteArray &label) {
-        const auto it=seasonalBakes.constFind(variant);
-        if(it==seasonalBakes.cend() || written.contains(variant))return;
-        written.insert(variant);
+    out<<quint8(0)<<quint32(2)<<materialContentRevision;
+    for (auto it=seasonalBakes.cbegin();it!=seasonalBakes.cend();++it) {
         QByteArray entry; QDataStream record(&entry,QIODevice::WriteOnly);record.setByteOrder(QDataStream::LittleEndian);
-        record<<quint8(label.size()/2);record.writeRawData(label.constData(),label.size());
-        putString(record,it.key());record<<it->revision<<it->resolution;
+        record<<quint8(0);putString(record,it.key());record<<it->revision<<it->resolution;
         putString(record,it->settings);putString(record,it->sources);putString(record,it->validation);
         out<<quint32(TS::TSRETerrainBakedMaterial)<<quint32(entry.size());out.writeRawData(entry.constData(),entry.size());
-    };
-    for(const auto &block:bakeBlocks) {
-        if(!block.opaque.isEmpty())out.writeRawData(block.opaque.constData(),block.opaque.size());
-        else writeRecord(block.variant,block.label);
     }
-    for(auto it=seasonalBakes.cbegin();it!=seasonalBakes.cend();++it)writeRecord(it.key(),{});
     return bytes;
 }
-bool TFile::readBakeMetadata(const QByteArray &bytes) {
+bool TerrainFileLegacy::readBakeMetadata(const QByteArray &bytes) {
     bakedMaterialsValid=false; seasonalBakes.clear();bakedMaterialInfo=":invalid bake metadata:";
     QDataStream in(bytes);in.setByteOrder(QDataStream::LittleEndian);
     quint8 label=0;quint32 version=0;quint64 revision=0;
     in>>label;
     if (bytes.size()<13+label*2) return false;
-    const auto rootLabel=bytes.mid(1,label*2);
     in.skipRawData(label*2);in>>version>>revision;
     if (version!=2) return false;
     QMap<QString,BakeRecord> records;
-    std::vector<BakeBlock> blocks;
     int count=0;
     while (!in.atEnd()) {
         if (++count>64 || in.device()->bytesAvailable()<8) return false;
-        const auto start=in.device()->pos();
         quint32 token,length;in>>token>>length;
         if (length>quint64(in.device()->bytesAvailable()) || length>65536) return false;
         QByteArray payload(int(length),Qt::Uninitialized);in.readRawData(payload.data(),int(length));
-        if(token!=TS::TSRETerrainBakedMaterial) {
-            blocks.push_back({{}, {}, bytes.mid(start,8+length)});continue;
-        }
+        if(token!=TS::TSRETerrainBakedMaterial) continue;
         QDataStream r(payload);r.setByteOrder(QDataStream::LittleEndian);
         r>>label;if (length<quint32(1+label*2)) return false;r.skipRawData(label*2);
         QString variant;BakeRecord b;
@@ -67,13 +50,11 @@ bool TFile::readBakeMetadata(const QByteArray &bytes) {
         if (!getString(r,b.settings)||!getString(r,b.sources)||!getString(r,b.validation)
                 || r.status()!=QDataStream::Ok || !r.atEnd() || b.resolution<1 || b.resolution>16384) return false;
         records.insert(variant,b);
-        blocks.push_back({variant,payload.mid(1,label*2),{}});
     }
     materialContentRevision=revision;seasonalBakes=records;bakedMaterialsValid=true;
-    bakeLabel=rootLabel;bakeBlocks=std::move(blocks);
     bakedMaterialInfo="v1:pending";selectBakeVariant("Base");return true;
 }
-void TFile::selectBakeVariant(const QString &variant) {
+void TerrainFileLegacy::selectBakeVariant(const QString &variant) {
     if (!bakedMaterialsValid) return;
     if (bakedMaterialInfo.isEmpty() && seasonalBakes.isEmpty()) return;
     const auto it=seasonalBakes.constFind(variant);

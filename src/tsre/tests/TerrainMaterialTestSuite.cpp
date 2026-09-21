@@ -71,11 +71,11 @@ public:
         tfile=new TFile(); tfile->initNew(tileName,samples,sampleSpacing,patches);
         QString error;
         TerrainGridLayout::tryCreate(samples,sampleSpacing,patches,0,gridLayout,error);
-        tfile->materials[0].tex[0]=new QString("red.png");
-        tfile->materials[0].count153=1;
+        tfile->material(0).textures[0].filename="red.png";
+        tfile->material(0).textures.resize(1);
         tfile->newMat();
-        tfile->materials[1].tex[0]=new QString("blue.png");
-        tfile->materials[1].count153=1;
+        tfile->material(1).textures[0].filename="blue.png";
+        tfile->material(1).textures.resize(1);
         texturepath=directory;
         for (int i=0; i<gridLayout.patchRecordCount(); ++i) {
             texModified[i]=texLocked[i]=false; texid[i]=texid2[i]=-1;
@@ -90,8 +90,8 @@ public:
     void lock(int patch, bool value=true) { texLocked[patch]=value; }
     void hide(int patch, bool value) { hidden[patch]=value; }
     void spacing(float value) {
-        *tfile->sampleSize=value; QString error;
-        TerrainGridLayout::tryCreate(*tfile->nsamples,value,gridLayout.patchesPerSide,0,gridLayout,error);
+        *tfile->samples.spacing=value; QString error;
+        TerrainGridLayout::tryCreate(*tfile->samples.count,value,gridLayout.patchesPerSide,0,gridLayout,error);
         initializePatchBounds();
     }
 };
@@ -142,6 +142,26 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
         if (ok) ++passed; else ++failed;
         if (!ok || verbose) qInfo() << "[tests:terrain-material]" << (ok?"PASS":"FAIL") << name;
     };
+    for(int r:{8,16,32,64})for(bool rotated:{false,true}) {
+        Texture texture("crop-fixture");
+        texture.width=texture.height=8;texture.bytesPerPixel=3;texture.bpp=24;
+        texture.imageSize=8*8*3;texture.type=GL_RGB;texture.loaded=texture.editable=true;
+        texture.imageData=new unsigned char[texture.imageSize];
+        for(int y=0;y<8;++y)for(int x=0;x<8;++x) {
+            auto *pixel=texture.imageData+(y*8+x)*3;
+            pixel[0]=x;pixel[1]=y;pixel[2]=77;
+        }
+        const TFile::PatchUv uv=rotated ? TFile::PatchUv{0,0,0,1.0f/r,1.0f/r,0}
+                                      : TFile::PatchUv{0,0,1.0f/r,0,0,1.0f/r};
+        texture.advancedCrop(uv,r);
+        bool correct=true;
+        for(int y=0;y<8;++y)for(int x=0;x<8;++x) {
+            const auto *pixel=texture.imageData+(y*8+x)*3;
+            correct&=pixel[0]==(rotated?y:x)&&pixel[1]==(rotated?x:y)&&pixel[2]==77;
+        }
+        check(correct,"typed-crop-uses-actual-patch-sample-domain");
+        delete[] texture.imageData;texture.imageData=nullptr;
+    }
     {
         QTemporaryDir sources;
         for (const QString &folder:{QString(),QString("SPRING"),QString("SNOW"),QString("AUTUMNRAIN")}) {
@@ -447,6 +467,24 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
     QDir().mkpath(tileDir);
     red.save(temp.path()+"/red.png"); blue.save(temp.path()+"/blue.png");
     {
+        TestTerrain tile;tile.setup(temp.path(),16,"multiple-sets");
+        TFile coarse;coarse.initNew("coarse",256,8,4);
+        auto &descriptor=tile.descriptor();
+        descriptor.patchSets.insert(descriptor.patchSets.begin(),coarse.patchSets[0]);
+        descriptor.patchSets[0].patches[0].averageY=37;
+        descriptor.patches()[0].uv.x=0.375f;
+        check(tile.save()&&descriptor.patchSets[0].patches[0].averageY==37,
+              "uv-only-save-preserves-inactive-height-bounds");
+        // Sample (1,1) lies wholly within the first coarse patch.
+        tile.setHeight(0,0,-1016,-1016,20,false);
+        check(tile.save(),"height-edit-multiple-sets-save");
+        TFile reloaded;reloaded.readT(tileDir+"/multiple-sets.t");
+        const auto &first=reloaded.patchSets[0].patches[0];
+        check(first.averageY==10&&first.rangeY==10&&first.errorBias==0
+              &&reloaded.patchSets[0].patches[1].errorBias==1
+              &&reloaded.patches()[0].uv.x==0.375f,"height-edit-updates-only-overlapping-inactive-bounds");
+    }
+    {
         QDir().mkpath(temp.path()+"/SPRING");blue.save(temp.path()+"/SPRING/red.png");
         TestTerrain seasonalTile;seasonalTile.setup(temp.path(),16,"seasonal-check");
         {
@@ -608,7 +646,7 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
 
         TestTerrain global; global.setup(library->textureDirectory(),16,"global-library");
         check(global.setProceduralMaterial(true,error,redUid),"global-tile-enable-from-uid");
-        check(global.descriptor().materialsCount==1 && global.descriptor().materialUids==QMap<int,quint32>{{1,redUid}},"global-tile-only-bake-shader-no-definition-copies");
+        check(global.descriptor().materialCount()==1 && global.descriptor().materialUids==QMap<int,quint32>{{1,redUid}},"global-tile-only-bake-shader-no-definition-copies");
         const int redOutput=global.proceduralTexture(0);
         auto outputBytes=[&] {
             const int id=global.proceduralTexture(0);
@@ -625,7 +663,7 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
         const int blueOutput=global.proceduralTexture(0);
         const auto bluePixels=outputBytes();
         check(redOutput>=0 && blueOutput>=0 && redOutput!=blueOutput
-              && global.descriptor().materialsCount==1 && global.descriptor().materialUids.value(0)==blueUid,
+              && global.descriptor().materialCount()==1 && global.descriptor().materialUids.value(0)==blueUid,
               "global-paint-imports-byte-id-zero-without-local-shader");
         check(undo && undo->restore() && global.descriptor().materialUids.size()==1
               && !redPixels.isEmpty() && outputBytes()==redPixels,"global-undo-restores-uid-table-and-pixels");
@@ -633,7 +671,7 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
         check(global.save(),"global-tile-bake-map-and-descriptor-save");
         TFile disk; disk.readT(tileDir+"/global-library.t");
         check(disk.materialUidMapPresent && disk.materialUidMapValid && disk.materialUids==global.descriptor().materialUids
-              && disk.materialsCount==1,"global-uid-table-binary-roundtrip");
+              && disk.materialCount()==1,"global-uid-table-binary-roundtrip");
         global.releaseProceduralTextures(); global.loadProceduralMaterial(tileDir);
         check(global.rendersProceduralMaterial() && !bluePixels.isEmpty() && outputBytes()==bluePixels,"global-tile-load-regenerates-identical-output");
         Brush picked; global.rememberProceduralSource(&picked,0,0,-992,-992);
@@ -738,14 +776,14 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
         Undo::UndoLast();
         check(t.captureProceduralUndo()->buffer->bytes()==ids,"undo-previous-segment-restores-original");
         // Import a genuinely different shader definition, not just its filename.
-        other.descriptor().materials[1].atex[0][0]=19;
+        other.descriptor().material(1).textures[0].arg0=19;
         brush.texId=73; other.rememberProceduralSource(&brush,0,0,-992,-992);
         const auto paletteBefore=t.staticDescriptorBytes();
         Undo::StateBegin();
         t.paintProceduralMaterial(&brush,0,0,-992,-992,8);
-        check(t.descriptor().materialsCount==4,"undo-import-adds-source");
+        check(t.descriptor().materialCount()==4,"undo-import-adds-source");
         Undo::StateEnd(); Undo::UndoLast();
-        check(t.descriptor().materialsCount==3 && t.staticDescriptorBytes()==paletteBefore
+        check(t.descriptor().materialCount()==3 && t.staticDescriptorBytes()==paletteBefore
               && t.captureProceduralUndo()->buffer->bytes()==ids,"undo-import-restores-palette-and-ids");
         check(t.save(),"undo-save-restored-material");
         Undo::StateBegin();
@@ -801,11 +839,11 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
         const int n=p==4?128:(p==8?256:(p==16?1024:2048));
         TestTerrain baked; baked.setup(temp.path(),p,QString("baked%1").arg(p),n,2048/n);
         const auto source0=TerrainMaterialSource::capture(baked.descriptor(),0);
-        baked.descriptor().flags[0]=0xc3;
-        baked.descriptor().errorBias[0]=0.73f;
+        baked.descriptor().patches()[0].flags=0xc3;
+        baked.descriptor().patches()[0].errorBias=0.73f;
         check(baked.setProceduralMaterial(true,error),"bake-enable-reserves-material-zero");
         check(TerrainMaterialSource::capture(baked.descriptor(),1)->key()==source0->key()
-              && baked.descriptor().materialsCount==3,"bake-conversion-preserves-complete-source-pair");
+              && baked.descriptor().materialCount()==3,"bake-conversion-preserves-complete-source-pair");
         check(!baked.setProceduralMaterial(false,error),"first-disable-requires-successful-bake");
         QElapsedTimer timer; timer.start();
         check(baked.save(),"bake-save-with-no-resident-near-textures");
@@ -813,13 +851,13 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
         TFile disk; disk.readT(tileDir+"/"+baked.name+".t");
         bool mapping=disk.bakedMaterialInfo.startsWith("v1:") && disk.bakedMaterialInfo!="v1:pending";
         for(int patch=0;patch<p*p;++patch) {
-            const float *d=disk.tdata+13*patch;
-            mapping &= d[6]==0 && d[7]==float(patch%p)/p && d[8]==float(patch/p)/p
-                    && d[9]==1.0f/n && d[12]==1.0f/n && d[10]==0 && d[11]==0;
+            const auto &d=disk.patches()[patch];
+            mapping &= d.shaderIndex==0 && d.uv.x==float(patch%p)/p && d.uv.y==float(patch/p)/p
+                    && d.uv.w==1.0f/n && d.uv.h==1.0f/n && d.uv.b==0 && d.uv.c==0;
         }
-        float detail; memcpy(&detail,&disk.materials[0].itex[1][3],4);
+        float detail; memcpy(&detail,&disk.material(0).uvCalcs[1].scale,4);
         check(mapping && detail==32*p,"baked-descriptor-uv-and-microtex-density-all-patches");
-        check(disk.flags[0]==0xc3 && disk.errorBias[0]==0.73f,"bake-preserves-hidden-hole-water-and-error-bias");
+        check(disk.patches()[0].flags==0xc3 && disk.patches()[0].errorBias==0.73f,"bake-preserves-hidden-hole-water-and-error-bias");
         check(baked.proceduralResidentPatchCount()==0,"baking-does-not-populate-near-output-cache");
         const QString ace=temp.path()+"/"+baked.name+"_procedural.ace";
         QFile savedAce(ace); check(savedAce.open(QIODevice::ReadOnly),"open-saved-tile-bake");
@@ -920,7 +958,7 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
         check(baked.proceduralNearCamera(view),"large-terrain-overlapping-near-region-is-procedural");
         baked.spacing(2048.0f/n);
         check(baked.setProceduralMaterial(false,error) && baked.save(),"disable-saves-baked-appearance");
-        check(baked.setProceduralMaterial(true,error) && baked.descriptor().materialsCount==3,
+        check(baked.setProceduralMaterial(true,error) && baked.descriptor().materialCount()==3,
               "reenable-does-not-reserve-another-bake-slot");
         check(baked.proceduralNearCamera(view),"unsaved-procedural-edits-do-not-use-old-far-bake");
     }
@@ -1129,7 +1167,7 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
         check(AceLib::save(temp.path()+"/procedural-quality.ace",stripes,options,error),
               "write-authored-mip-source-for-procedural-quality-test");
         TestTerrain t; t.setup(temp.path(),16,"ace-quality");
-        *t.descriptor().materials[0].tex[0]="procedural-quality.ace";
+        t.descriptor().material(0).textures[0].filename="procedural-quality.ace";
         check(t.setProceduralMaterial(true,error),"enable-full-resolution-ace-source");
         const int actual=t.proceduralTexture(0);
         TerrainMaterialMap map; map.initialize(1);
@@ -1152,7 +1190,7 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
         const QString sourcePath=temp.path()+"/source-refresh.png";
         red.save(sourcePath);
         TestTerrain t; t.setup(temp.path(),16,"source-refresh");
-        *t.descriptor().materials[0].tex[0]="source-refresh.png";
+        t.descriptor().material(0).textures[0].filename="source-refresh.png";
         check(t.setProceduralMaterial(true,error) && t.save(),"save-initial-source-stamp-bake");
         t.proceduralTexture(0); // Retain an old decoded/generated source deliberately.
         blue.save(sourcePath);
@@ -1168,9 +1206,9 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
     }
     {
         TestTerrain full; full.setup(temp.path(),16,"full-conversion");
-        full.descriptor().materialsCount=256;
+        while (full.descriptor().materialCount()<256) full.descriptor().newMat();
         check(!full.setProceduralMaterial(true,error) && full.descriptor().bakedMaterialInfo.isEmpty()
-              && full.descriptor().materialsCount==256 && !full.usesProceduralMaterial(),
+              && full.descriptor().materialCount()==256 && !full.usesProceduralMaterial(),
               "full-old-palette-conversion-refused-before-mutation");
     }
     {
@@ -1181,15 +1219,15 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
         migrated.descriptor().sampleMaterialBuffer="old-demo.pmap";
         migrated.loadProceduralMaterial(tileDir);
         TerrainMaterialMap onDisk; onDisk.read(tileDir+"/old-demo.pmap",error);
-        check(migrated.rendersProceduralMaterial() && migrated.descriptor().materialsCount==3
+        check(migrated.rendersProceduralMaterial() && migrated.descriptor().materialCount()==3
               && onDisk.ids==before && migrated.isModified(),"old-demo-migration-is-memory-only-until-save");
         check(migrated.save() && onDisk.read(tileDir+"/old-demo_materials.pmap",error),"old-demo-migration-saves");
         bool shifted=onDisk.ids.size()==before.size();
         for (int i=0;i<before.size() && shifted;++i) shifted &= quint8(onDisk.ids[i])==quint8(before[i])+1;
         check(shifted,"old-demo-migration-shifts-every-id-exactly-once");
-        const auto count=migrated.descriptor().materialsCount;
+        const auto count=migrated.descriptor().materialCount();
         migrated.loadProceduralMaterial(tileDir);
-        check(migrated.rendersProceduralMaterial() && migrated.descriptor().materialsCount==count,
+        check(migrated.rendersProceduralMaterial() && migrated.descriptor().materialCount()==count,
               "saved-marker-prevents-second-migration");
     }
     {
@@ -1251,25 +1289,24 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
         lib.paintProceduralTexture(&brush,0,0,point,TerrainMaterialMap::FloodFill);
         check(!filled.isModified(),"procedural-tools-ignore-static-tiles");
         filled.setProceduralMaterial(true,error);
-        neighbour.descriptor().materials[1].atex[0][0]=19; // Distinct complete source shader, picked from ID plane.
+        neighbour.descriptor().material(1).textures[0].arg0=19; // Distinct complete source shader, picked from ID plane.
         brush.texId=73;
         neighbour.rememberProceduralSource(&brush,1,0,-992,-992);
-        const int paletteBefore=filled.descriptor().materialsCount;
+        const int paletteBefore=filled.descriptor().materialCount();
         lib.paintProceduralTexture(&brush,0,0,point,TerrainMaterialMap::FillPatch);
-        check(filled.descriptor().materialsCount==paletteBefore+1
-              && filled.descriptor().materials[paletteBefore].atex[0][0]==19,
+        check(filled.descriptor().materialCount()==paletteBefore+1
+              && filled.descriptor().material(paletteBefore).textures[0].arg0==19,
               "fill-patch-imports-picked-shader-with-white-brush-mask");
         lib.paintProceduralTexture(&brush,0,0,point,TerrainMaterialMap::FillPatch);
-        check(filled.descriptor().materialsCount==paletteBefore+1,"repeated-fill-reuses-imported-shader");
+        check(filled.descriptor().materialCount()==paletteBefore+1,"repeated-fill-reuses-imported-shader");
     }
     {
         TestTerrain a,b;
         a.setup(temp.path(),16,"testa"); b.setup(temp.path(),32,"testb");
         a.descriptor().setPatchValue(0,TFile::PatchField::TextureX,0.123f);
         a.descriptor().setPatchValue(0,TFile::PatchField::TextureB,0.037f);
-        a.descriptor().sampleASbuffer.present=true;
-        a.descriptor().sampleASbuffer.payload="preserved AS payload";
-        const int count=a.descriptor().materialsCount+1; // Reserved bake plus existing source palette.
+        a.descriptor().samples.alwaysSelect="preserved AS payload";
+        const int count=a.descriptor().materialCount()+1; // Reserved bake plus existing source palette.
         const float uv=a.descriptor().patchValue(0,TFile::PatchField::TextureW);
         check(a.setProceduralMaterial(true,error) && b.setProceduralMaterial(true,error),"enable-existing-shader-zero");
         const QByteArray originalStatic=a.staticDescriptorBytes();
@@ -1293,13 +1330,13 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
         a.setModified(false);
         a.paintProceduralMaterial(&brush,0,0,-992,-992,12);
         check(!a.isModified() && a.proceduralTexture(0)==privateTexture,"runtime-no-op-retains-material");
-        check(a.descriptor().materialsCount==count && a.descriptor().patchValue(0,TFile::PatchField::TextureW)==uv
+        check(a.descriptor().materialCount()==count && a.descriptor().patchValue(0,TFile::PatchField::TextureW)==uv
               && a.descriptor().patchValue(0,TFile::PatchField::ShaderIndex)==1,"paint-preserves-converted-descriptor-until-save");
         check(a.staticDescriptorBytes()==originalStatic,"all-static-fields-shaders-uv-and-opaque-buffers-byte-preserved");
         {
             TestTerrain other; other.setup(temp.path(),16,"reordered");
-            other.descriptor().materials[0].tex[0]=new QString("blue.png");
-            other.descriptor().materials[1].tex[0]=new QString("red.png");
+            other.descriptor().material(0).textures[0].filename="blue.png";
+            other.descriptor().material(1).textures[0].filename="red.png";
             check(other.setProceduralMaterial(true,error),"enable-reordered-target-shaders");
             Texture redSource(temp.path()+"/red.png");
             Brush picked; picked.useTexture=true;picked.tex=&redSource;picked.texId=42;picked.brushshape=&mask;
@@ -1319,64 +1356,64 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
             {
                 TestTerrain palette; palette.setup(temp.path(),16,"palette");
                 // Source IDs may exceed 255; only the destination bitmap ID is 8-bit.
-                palette.descriptor().materials[300]=palette.descriptor().materials[1];
-                palette.descriptor().amaterials[300]=palette.descriptor().amaterials[1];
-                palette.descriptor().materialsCount=301;
-                palette.descriptor().materials[300].count153=2;
-                palette.descriptor().materials[300].atex[1][1]=7;
-                palette.descriptor().amaterials[300].itex[0][3]=12345;
+                while (palette.descriptor().materialCount()<301) palette.descriptor().newMat();
+                palette.descriptor().material(300)=palette.descriptor().material(1);
+                palette.descriptor().auxiliary(300)=palette.descriptor().auxiliary(1);
+                palette.descriptor().material(300).textures.resize(2);
+                palette.descriptor().material(300).textures[1].arg1=7;
+                palette.descriptor().auxiliary(300).uvCalcs[0].scale=12345;
                 palette.descriptor().setPatchValue(0,TFile::PatchField::ShaderIndex,300);
                 palette.rememberProceduralSource(&picked,0,0,-992,-992);
                 check(bool(picked.terrainShaderSource),"picked-complete-shader-snapshot");
                 if (picked.terrainShaderSource) pickedKey=picked.terrainShaderSource->key();
-                *palette.descriptor().materials[300].tex[0]="red.png";
+                palette.descriptor().material(300).textures[0].filename="red.png";
             }
-            check(picked.terrainShaderSource && picked.terrainShaderSource->normal.textures[0]=="blue.png",
+            check(picked.terrainShaderSource && picked.terrainShaderSource->normal.textures[0].filename=="blue.png",
                   "snapshot-survives-palette-mutation-and-unload");
             TestTerrain target; target.setup(temp.path(),32,"imported");
-            *target.descriptor().materials[1].tex[0]="red.png";
+            target.descriptor().material(1).textures[0].filename="red.png";
             check(target.setProceduralMaterial(true,error),"enable-import-target");
             target.setModified(false);
             target.paintProceduralMaterial(&picked,0,0,-992,-992,12);
-            check(target.descriptor().materialsCount==3 && !target.isModified(),"white-stroke-does-not-import");
+            check(target.descriptor().materialCount()==3 && !target.isModified(),"white-stroke-does-not-import");
             importMask.fill(0); target.lock(0);
             target.paintProceduralMaterial(&picked,0,0,-992,-992,12);
-            check(target.descriptor().materialsCount==3 && !target.isModified(),"locked-stroke-does-not-import");
+            check(target.descriptor().materialCount()==3 && !target.isModified(),"locked-stroke-does-not-import");
             target.lock(0,false); Game::writeEnabled=false;
             target.paintProceduralMaterial(&picked,0,0,-992,-992,12);
-            check(target.descriptor().materialsCount==3 && !target.isModified(),"read-only-stroke-does-not-import");
+            check(target.descriptor().materialCount()==3 && !target.isModified(),"read-only-stroke-does-not-import");
             Game::writeEnabled=true;
             target.paintProceduralMaterial(&picked,0,0,-992,-992,12);
             const auto imported=TerrainMaterialSource::capture(target.descriptor(),3);
-            check(target.descriptor().materialsCount==4 && imported && imported->key()==pickedKey && target.isModified(),
+            check(target.descriptor().materialCount()==4 && imported && imported->key()==pickedKey && target.isModified(),
                   "paint-appends-full-normal-and-auxiliary-shader-pair");
             check(target.descriptor().patchValue(0,TFile::PatchField::ShaderIndex)==1
-                  && *target.descriptor().materials[1].tex[0]=="red.png", "import-preserves-converted-source-indices-and-shaders");
+                  && target.descriptor().material(1).textures[0].filename=="red.png", "import-preserves-converted-source-indices-and-shaders");
             target.paintProceduralMaterial(&picked,0,0,-960,-992,12);
-            check(target.descriptor().materialsCount==4,"repeated-strokes-reuse-imported-shader");
+            check(target.descriptor().materialCount()==4,"repeated-strokes-reuse-imported-shader");
             check(target.save(),"save-imported-shader-palette");
             TFile importedFile;
             check(importedFile.readT(tileDir+"/imported.t"),"reload-imported-descriptor");
             const auto restored=TerrainMaterialSource::capture(importedFile,3);
-            check(restored && restored->key()==pickedKey && importedFile.materialsCount==4,"imported-shader-pair-round-trip");
+            check(restored && restored->key()==pickedKey && importedFile.materialCount()==4,"imported-shader-pair-round-trip");
             TerrainMaterialMap importedMap;
             check(importedMap.read(tileDir+"/"+importedFile.sampleMaterialBuffer,error) && importedMap.at(worldPoint32,worldPoint32)==3,
                   "imported-local-id-round-trip");
             target.loadProceduralMaterial(tileDir);
             check(target.rendersProceduralMaterial(),"imported-material-generates-after-reload");
-            TFile capacity; capacity.initNew("capacity",256,8,16); capacity.materialsCount=255;
+            TFile capacity; capacity.initNew("capacity",256,8,16); while (capacity.materialCount()<255) capacity.newMat();
             if (picked.terrainShaderSource) {
                 check(picked.terrainShaderSource->appendTo(capacity,error)==255,"last-8-bit-shader-slot-is-usable");
-                check(picked.terrainShaderSource->appendTo(capacity,error)==-1 && capacity.materialsCount==256,
+                check(picked.terrainShaderSource->appendTo(capacity,error)==-1 && capacity.materialCount()==256,
                       "full-palette-refused-without-replacement");
             }
         }
-        check(a.descriptor().materialsCount==count,"shader-renumbering-gated");
+        check(a.descriptor().materialCount()==count,"shader-renumbering-gated");
         check(a.save(),"save-sidecar-and-tfile");
         check(a.proceduralTexture(0)>=0,"save-finalizes-private-material-without-dropping-output");
         TFile roundtrip;
         check(roundtrip.readT(tileDir+"/testa.t") && !roundtrip.sampleMaterialBuffer.isEmpty()
-              && roundtrip.materialsCount==count && roundtrip.patchValue(0,TFile::PatchField::TextureW)==1.0f/256
+              && roundtrip.materialCount()==count && roundtrip.patchValue(0,TFile::PatchField::TextureW)==1.0f/256
               && roundtrip.bakedMaterialInfo.startsWith("v1:"),"tfile-extensions-and-baked-uv-round-trip");
         TerrainMaterialMap saved;
         check(saved.read(tileDir+"/"+roundtrip.sampleMaterialBuffer,error) && saved.at(worldPoint32,worldPoint32)==2,"sidecar-reloads-painted-ids");
@@ -1634,11 +1671,11 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
         view.cameraLocalX=view.cameraLocalZ=64;
         check(t.proceduralRequestOrder(view).first()==0,"nearest-request-order-follows-camera-movement");
         view.cameraLocalX=view.cameraLocalZ=1984;
-        t.descriptor().flags[255]|=1; t.hide(239,true);
+        t.descriptor().patches()[255].flags|=1; t.hide(239,true);
         check(t.proceduralRequestOrder(view).first()==254,"nearest-requests-skip-hidden-and-do-not-draw-patches");
         view.maximumDistance=0;
         check(t.proceduralRequestOrder(view).isEmpty(),"nearest-requests-respect-distance-culling");
-        view.maximumDistance=10000; t.descriptor().flags[255]&=~1; t.hide(239,false);
+        view.maximumDistance=10000; t.descriptor().patches()[255].flags&=~1; t.hide(239,false);
         view.planes[0].x=-1; view.planes[0].w=1024;
         order=t.proceduralRequestOrder(view);
         bool clipped=!order.isEmpty();
@@ -1763,7 +1800,7 @@ int TsreTests::runTerrainMaterialGlSuite() {
         const int painted=a.proceduralTexture(0);
         ok &= painted>=0 && painted!=shared && TexLib::mtex.at(painted)->glLoaded && b.proceduralTexture(0)==shared;
         ok &= snapshot && snapshot->restore() && a.descriptor().materialUids.size()==1;
-        ok &= a.save() && a.proceduralTexture(0)==shared && a.descriptor().materialsCount==1;
+        ok &= a.save() && a.proceduralTexture(0)==shared && a.descriptor().materialCount()==1;
         a.releaseProceduralTextures();
         ok &= b.proceduralTexture(0)==shared && f->glIsTexture(TexLib::mtex.at(shared)->tex[0]);
         b.releaseProceduralTextures(); ok &= finishMaterialJobs();
@@ -1819,9 +1856,9 @@ int TsreTests::runTerrainMaterialGlSuite() {
     {
         TestTerrain a,b; a.setup(temp.path(),16,"gla");b.setup(temp.path(),32,"glb");
         float defaultDetailScale;
-        std::memcpy(&defaultDetailScale, &a.descriptor().materials[0].itex[1][3], sizeof(float));
+        std::memcpy(&defaultDetailScale, &a.descriptor().material(0).uvCalcs[1].scale, sizeof(float));
         if (defaultDetailScale != Terrain::ProceduralDetailScale
-                || *a.descriptor().materials[0].tex[1] != "microtex.ace") ++failed;
+                || a.descriptor().material(0).textures[1].filename != "microtex.ace") ++failed;
         QString error;
         // Seasonal resolution now verifies the file at tile setup, before the
         // synthetic pending TexLib object used by this binding test is installed.

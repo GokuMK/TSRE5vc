@@ -98,8 +98,8 @@ static QString find1024Descriptor(const QString &inputPath) {
     for (const QString &candidate : candidates) {
         TFile descriptor;
         if (descriptor.readT(candidate)
-                && descriptor.nsamples != nullptr
-                && *descriptor.nsamples == 1024)
+                && descriptor.samples.count.has_value()
+                && *descriptor.samples.count == 1024)
             return candidate;
     }
     return QString();

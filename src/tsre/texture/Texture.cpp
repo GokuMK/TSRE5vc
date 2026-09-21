@@ -9,6 +9,7 @@
  */
 
 #include <tsre/texture/Texture.h>
+#include <tsre/world/TerrainFileData.h>
 #include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/texture/Brush.h>
 #include <tsre/Undo.h>
@@ -401,10 +402,10 @@ unsigned char *Texture::getImageData(int width, int height) {
     return out;
 }
 
-void Texture::advancedCrop(float *texCoords, int w, int h) {
+void Texture::advancedCrop(const TerrainFile::PatchUv &uv, int patchSamples, int w, int h) {
     if (!editable)
         setEditable();
-    if (!imageData || !texCoords)
+    if (!imageData || patchSamples<=0)
         return;
     if (w == 0)
         w = width;
@@ -412,17 +413,17 @@ void Texture::advancedCrop(float *texCoords, int w, int h) {
         h = height;
     if (w <= 0 || h <= 0 || qint64(w) * h > 64 * 1024 * 1024)
         return;
-    for (int i = 1; i <= 6; ++i)
-        if (!std::isfinite(texCoords[i]))
+    for (const float value : {uv.x,uv.y,uv.w,uv.b,uv.c,uv.h})
+        if (!std::isfinite(value))
             return;
     unsigned char *next = new unsigned char[qsizetype(w) * h * bytesPerPixel];
-    // Preserve the terrain patch's historical 16-unit UV transformation.
+    // The stored transform consumes patch-local sample coordinates, not meters.
     for (int y = 0; y < h; ++y)
         for (int x = 0; x < w; ++x) {
             const double u =
-                (texCoords[1] * w + 16.0 * (texCoords[3] * x + texCoords[4] * y)) * width / w;
+                (uv.x + double(patchSamples) * (uv.w * x / w + uv.b * y / h)) * width;
             const double v =
-                (texCoords[2] * h + 16.0 * (texCoords[5] * x + texCoords[6] * y)) * height / h;
+                (uv.y + double(patchSamples) * (uv.c * x / w + uv.h * y / h)) * height;
             const int sx = int(std::fmod(std::fmod(u, width) + width, width));
             const int sy = int(std::fmod(std::fmod(v, height) + height, height));
             memcpy(next + (qsizetype(y) * w + x) * bytesPerPixel,

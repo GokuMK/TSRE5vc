@@ -17,6 +17,7 @@ including files on disk that are not registered in the tree.
 
 | Task | Implementation status | Remaining work / qualification |
 |---|---|---|
+| [Complete T-file structure and parser](terrain-tfile-structure-and-parser.md) | Typed binary model/codec and engine/editor migration implemented 2026-09-21; all-set shader edits, effective patch-F resources, procedural extension preservation and CPU/GPU tests | Runtime report records measured overhead and corpus checks. Exhaustive allocation/FPS and interactive external-editor acceptance remain; text codec is a separate milestone. |
 | [World transfer mesh](../world/transfer-terrain-conforming-mesh.md) | Terrain-conforming mesh, surface/LOD cache, decal depth handling and separate hole-cover mesh implemented; 53 CPU and 44 OpenGL checks pass; user visual acceptance recorded | Transfers cover holes by default; optional hole-following UI and route-wide transfer ordering remain possible follow-ups, not requirements of this implementation. |
 | [Heightmap resolution](terrain-heightmap-resolution.md) | Core support, validation, profiles and shared creation UI implemented | KEY_F callers already submit separate continuous paths; explicit breaks are optional future API cleanup, not a confirmed defect. Deprecated simple lookup is a separate migration below. Older defect descriptions are historical, not current code. |
 | [Patch count](terrain-patch-count.md) | Regular grids through P32 load, view, edit and save; picking implemented | Larger/rectangular/custom grids are outside scope, not unfinished P32 work. |
@@ -51,6 +52,7 @@ implement them; deferred designs are not blockers for the working terrain tools.
 - [x] [Procedural seasons and route-wide baking](terrain-procedural-seasons.md): directory fallback, per-variant records, CLI and route-filtered Settings-menu dialog; automated checks passed and user confirmed seasonal visual acceptance.
 - [x] [Shared terrain seasons and startup dropdown](../../features/terrain-procedural-seasons.md#season-setting-and-static-editing): static terrain and transfers use the procedural fallback policy; seasonal painting protects fallback sources. Shape rain support remains deferred; this follow-up awaits interactive acceptance.
 - [ ] [Simple lookup migration](terrain-simple-lookup-migration.md): remove `TerrainLibSimple`, using synthetic no-TD lookup in the common backend.
+- [x] [Complete T-file structure and parser](terrain-tfile-structure-and-parser.md): binary preservation and direct typed caller migration, including all-set shader edits and external patch flags. See its separate acceptance/future-text checklist.
 - [x] After separate approval, update procedural test/local-route tiles that use
   the three prototype SIMIS token IDs; no runtime compatibility aliases added.
 

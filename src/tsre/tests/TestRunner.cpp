@@ -9,6 +9,7 @@
  */
 
 #include <tsre/tests/TestRunner.h>
+#include <tsre/tests/TerrainFileTestSuite.h>
 #include <tsre/tests/ElevationUiTestSuite.h>
 #include <tsre/tests/NewRouteTestSuite.h>
 #include <tsre/tests/ContentPathTestSuite.h>
@@ -2854,10 +2855,10 @@ static int runTerrainGridSuite(bool verbose) {
             TFile descriptor;
             overwriteDescriptorsOk = overwriteDescriptorsOk
                     && descriptor.readT(tilesPath + "/" + name + ".t")
-                    && descriptor.sampleEbuffer != NULL
-                    && *descriptor.sampleEbuffer == name + "_e.raw"
-                    && descriptor.sampleNbuffer != NULL
-                    && *descriptor.sampleNbuffer == name + "_n.raw"
+                    && descriptor.samples.e.has_value()
+                    && *descriptor.samples.e == name + "_e.raw"
+                    && descriptor.samples.n.has_value()
+                    && *descriptor.samples.n == name + "_n.raw"
                     && !QFile::exists(tilesPath + "/" + name + "_e.raw")
                     && !QFile::exists(tilesPath + "/" + name + "_n.raw");
         }
@@ -2869,10 +2870,8 @@ static int runTerrainGridSuite(bool verbose) {
         overwriteDescriptorsOk = overwriteDescriptorsOk
                 && createdDescriptor.readT(
                         tilesPath + "/" + roundTripName + ".t")
-                && createdDescriptor.patchsetNpatches == 32
-                && createdDescriptor.flags != NULL
-                && createdDescriptor.errorBias != NULL
-                && createdDescriptor.tdata != NULL
+                && createdDescriptor.patchCount() == 32
+                && createdDescriptor.activeSet() != nullptr
                 && std::abs(createdDescriptor.patchValue(
                         0, TFile::PatchField::FactorY) - 49.74062729f)
                         < 0.00001f
@@ -2902,15 +2901,15 @@ static int runTerrainGridSuite(bool verbose) {
                     ? 0.0f : 10.25f + static_cast<float>(i);
             createdDescriptor.setPatchValue(17, fields[i], value);
         }
-        createdDescriptor.flags[17] = 0x010000c3;
-        createdDescriptor.errorBias[17] = 4.75f;
+        createdDescriptor.patches()[17].flags = 0x010000c3;
+        createdDescriptor.patches()[17].errorBias = 4.75f;
         const QString fieldRoundTripPath = tilesPath + "/fields-round-trip.t";
         createdDescriptor.save(fieldRoundTripPath);
         TFile fieldRoundTripDescriptor;
         overwriteDescriptorsOk = overwriteDescriptorsOk
                 && fieldRoundTripDescriptor.readT(fieldRoundTripPath)
-                && fieldRoundTripDescriptor.flags[17] == 0x010000c3
-                && std::abs(fieldRoundTripDescriptor.errorBias[17] - 4.75f)
+                && fieldRoundTripDescriptor.patches()[17].flags == 0x010000c3
+                && std::abs(fieldRoundTripDescriptor.patches()[17].errorBias - 4.75f)
                     < 0.000001f;
         for (int i = 0; i < static_cast<int>(fields.size()); ++i) {
             const float expected = fields[i] == TFile::PatchField::ShaderIndex
@@ -2943,11 +2942,10 @@ static int runTerrainGridSuite(bool verbose) {
         overwriteDescriptorsOk = overwriteDescriptorsOk
                 && savedDescriptor.readT(
                         tilesPath + "/" + roundTripName + ".t")
-                && savedDescriptor.patchsetNpatches == 32
-                && savedDescriptor.errorBias != NULL
-                && std::abs(savedDescriptor.errorBias[1023] - 3.5f) < 0.000001f
-                && savedDescriptor.flags != NULL
-                && savedDescriptor.flags[1023] == 7
+                && savedDescriptor.patchCount() == 32
+                && savedDescriptor.activeSet() != nullptr
+                && std::abs(savedDescriptor.patches()[1023].errorBias - 3.5f) < 0.000001f
+                && savedDescriptor.patches()[1023].flags == 7
                 && std::abs(savedDescriptor.patchValue(
                         0, TFile::PatchField::CenterX) - 32.0f) < 0.000001f
                 && std::abs(savedDescriptor.patchValue(
@@ -3001,8 +2999,14 @@ static int runTerrainFilesSuite(const TsreTests::TestRunOptions &opts) {
         const QString path = QDir::cleanPath(iterator.next());
         const QString directoryName = QFileInfo(path).dir().dirName();
         if (directoryName.compare("tiles", Qt::CaseInsensitive) == 0
-                || directoryName.compare("lo_tiles", Qt::CaseInsensitive) == 0)
-            descriptors.append(path);
+                || directoryName.compare("lo_tiles", Qt::CaseInsensitive) == 0) {
+            QDir routes=QFileInfo(path).dir();routes.cdUp();routes.cdUp();
+            // Terrain resolves Game::root/ROUTES/route. Archived snapshots at
+            // arbitrary nesting cannot be loaded through that application API.
+            // The descriptor-only scanner still covers those files separately.
+            if(routes.dirName().compare("routes",Qt::CaseInsensitive)==0)
+                descriptors.append(path);
+        }
     }
     descriptors.sort(Qt::CaseInsensitive);
 
@@ -3168,6 +3172,7 @@ QStringList TsreTests::listSuites() {
         "new-route",
         "tdb-load",
         "terrain-files",
+        "terrain-tfile",
         "terrain-grid",
         "terrain-edges",
         "terrain-raw-benchmark",
@@ -3262,6 +3267,8 @@ int TsreTests::run(const TestRunOptions &opts) {
 
     if (suite == "terrain-material" || suite == "terrain-material-benchmark")
         return runTerrainMaterialSuite(opts.verbose, suite == "terrain-material-benchmark");
+    if (suite == "terrain-tfile")
+        return runTerrainFileSuite(opts.verbose);
     if (suite == "terrain-material-gl")
         return runTerrainMaterialGlSuite();
     if (suite == "transfer-mesh")
@@ -3279,6 +3286,7 @@ int TsreTests::run(const TestRunOptions &opts) {
         rc = std::max(rc, runRouteLoadSuite(opts));
         rc = std::max(rc, runSelectionIdSuite(opts.verbose));
         rc = std::max(rc, runTokenIdSuite(opts.verbose));
+        rc = std::max(rc, runTerrainFileSuite(opts.verbose));
         rc = std::max(rc, runTokenWorldSuite(opts.verbose));
         rc = std::max(rc, runSettingsSuite(opts.verbose));
         rc = std::max(rc, runNewRouteSuite(opts.verbose));

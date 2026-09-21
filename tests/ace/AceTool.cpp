@@ -3,6 +3,7 @@
 #include <tsre/texture/AceLibLegacy.h>
 #include <tsre/texture/Texture.h>
 #include <tsre/texture/DxtCodec.h>
+#include <tsre/world/TerrainFileData.h>
 #include "AceDxt3Diagnostic.h"
 #include <QGuiApplication>
 #include <QTemporaryDir>
@@ -253,8 +254,9 @@ int selfTest() {
     rotated.crop(0, 1, 1, 0);
     for (int i = 0; i < 6; ++i)
         check(rotated.imageData[i * 3] == i + 1, "inverse rectangular crop pixels");
-    float uv[] = {0, 0, 0, 1.0f / 16, 0, 0, 1.0f / 16};
-    rotated.advancedCrop(uv, 6, 4);
+    TerrainFile::PatchUv uv;
+    uv.w = uv.h = 1.0f / 16;
+    rotated.advancedCrop(uv, 16, 6, 4);
     check(rotated.width == 6 && rotated.height == 4 && rotated.imageSize == 72,
           "rectangular advanced crop");
     for (int y = 0; y < 4; ++y)
