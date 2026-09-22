@@ -11,6 +11,8 @@
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QMutex>
+#include <QMutexLocker>
 #include <QSaveFile>
 #include <QRegularExpression>
 #include <QSet>
@@ -114,13 +116,75 @@ bool gunzip(const QByteArray &input, QByteArray &output, QString &error) {
     if (actualCrc != expectedCrc) { output.clear(); error = QStringLiteral("Gzip elevation checksum mismatch"); return false; }
     return true;
 }
-bool decodeHgtFileBytes(const QByteArray &stored, bool compressed, int lat, int lon,
-                        Raster &raster, QString &error) {
-    QByteArray raw;
+bool extractHgtBytes(const QByteArray &stored,bool compressed,int lat,int lon,
+                     QByteArray &raw,int &side,QString &error){
     if (compressed) {
         if (!gunzip(stored,raw,error)) return false;
     } else raw = stored;
+    side=int(std::sqrt(double(raw.size()/2)));
+    if(side<2||qint64(side)*side*2!=raw.size()||lat<-90||lat>=90||lon<-180||lon>=180){
+        raw.clear();error=QStringLiteral("Invalid HGT size or geographic cell");return false;}
+    return true;
+}
+bool decodeHgtFileBytes(const QByteArray &stored, bool compressed, int lat, int lon,
+                        Raster &raster, QString &error) {
+    QByteArray raw;int side=0;
+    if(!extractHgtBytes(stored,compressed,lat,lon,raw,side,error))return false;
     return readHgt(raw,lat,lon,raster,error);
+}
+
+struct HgtTile {
+    QByteArray bytes;
+    int side = 0, latitude = 0, longitude = 0;
+
+    Sample sample(Point point) const {
+        if (side < 2 || bytes.size() != qint64(side)*side*2)
+            return {0,SampleStatus::Unavailable};
+        double column=(point.longitude-longitude)*(side-1);
+        double row=(latitude+1-point.latitude)*(side-1);
+        if(!std::isfinite(column)||!std::isfinite(row)||column<0||row<0
+                ||column>side-1||row>side-1)
+            return {0,SampleStatus::Outside};
+        column=std::clamp(column,0.0,double(side-1));
+        row=std::clamp(row,0.0,double(side-1));
+        const int x=int(column),y=int(row),x1=std::min(x+1,side-1),y1=std::min(y+1,side-1);
+        const double dx=column-x,dy=row-y;
+        const int indices[]={y*side+x,y*side+x1,y1*side+x,y1*side+x1};
+        const double weights[]={(1-dx)*(1-dy),dx*(1-dy),(1-dx)*dy,dx*dy};
+        double height=0;
+        for(int i=0;i<4;++i){if(weights[i]<=0)continue;
+            const qint16 value=qFromBigEndian<qint16>(bytes.constData()+2*indices[i]);
+            if(value==-32768)return {0,SampleStatus::NoData};
+            height+=value*weights[i];}
+        return {float(height),SampleStatus::Valid};
+    }
+};
+
+std::shared_ptr<const HgtTile> loadHgtTile(const QString &path,int lat,int lon,QString &error){
+    const QFileInfo info(path);
+    if(!info.isFile()){error=QStringLiteral("Elevation file missing");return {};}
+    const QString cacheKey=info.absoluteFilePath()+'\n'+QString::number(info.size())+'\n'
+        +QString::number(info.lastModified().toMSecsSinceEpoch());
+    static QCache<QString,std::shared_ptr<const HgtTile>> sharedCache(128*1024);
+    static QMutex cacheMutex;
+    {
+        const QMutexLocker lock(&cacheMutex);
+        if(const auto *cached=sharedCache.object(cacheKey))return *cached;
+    }
+    const QByteArray stored=readFile(path,MaxHgtBytes);
+    if(stored.isEmpty()){error=QStringLiteral("Cannot read elevation file");return {};}
+    QByteArray raw;int side=0;
+    if(!extractHgtBytes(stored,path.endsWith(".gz",Qt::CaseInsensitive),lat,lon,raw,side,error))return {};
+    auto loaded=std::make_shared<HgtTile>();
+    loaded->bytes=std::move(raw);loaded->side=side;loaded->latitude=lat;loaded->longitude=lon;
+    std::shared_ptr<const HgtTile> result=loaded;
+    {
+        const QMutexLocker lock(&cacheMutex);
+        if(const auto *cached=sharedCache.object(cacheKey))return *cached;
+        const int cost=int((loaded->bytes.size()+1023)/1024);
+        sharedCache.insert(cacheKey,new std::shared_ptr<const HgtTile>(result),cost);
+    }
+    return result;
 }
 bool saveFile(const QString &path, const QByteArray &bytes) {
     QSaveFile file(path);
@@ -129,19 +193,27 @@ bool saveFile(const QString &path, const QByteArray &bytes) {
 class FileHgtSource final : public Source {
 public:
     FileHgtSource(QString path, Dataset data, Report &r)
-        : root(std::move(path)), dataset(std::move(data)), report(r) { cache.setMaxCost(128*1024); }
+        : root(std::move(path)), dataset(std::move(data)), report(r) {}
     bool prepare(const QVector<Point> &points, std::atomic_bool &cancel,
                  const Progress &progress, QString &error) override {
         struct Cell { int latitude, longitude; };
         QMap<QString,Cell> missing;
+        QSet<QString> checked;
+        int previousLatitude=std::numeric_limits<int>::min();
+        int previousLongitude=std::numeric_limits<int>::min();
         for (const Point p : points) {
             if (cancel) return false;
             if (!std::isfinite(p.latitude) || !std::isfinite(p.longitude)
                     || p.latitude < dataset.minY || p.latitude >= dataset.maxY
                     || p.longitude < dataset.minX || p.longitude >= dataset.maxX) continue;
             const int lat = int(std::floor(p.latitude)), lon = int(std::floor(p.longitude));
+            if(lat==previousLatitude&&lon==previousLongitude)continue;
+            previousLatitude=lat;previousLongitude=lon;
+            const QString name=hgtFileName(lat,lon);
+            if(checked.contains(name))continue;
+            checked.insert(name);
             if (findHgtFile(root,dataset,lat,lon).isEmpty())
-                missing.insert(hgtFileName(lat,lon),{lat,lon});
+                missing.insert(name,{lat,lon});
         }
         if (missing.size() > MaxBlocks) {
             error = QStringLiteral("Requested area exceeds 2048 elevation files; generate a smaller area");
@@ -168,9 +240,9 @@ public:
                 const Cell cell = cells[first+i];
                 QString error = responses[i].error;
                 if (error.isEmpty()) {
-                    Raster raster;
                     const bool compressed = dataset.downloadCompression == "gzip";
-                    if (decodeHgtFileBytes(responses[i].bytes,compressed,cell.latitude,cell.longitude,raster,error)
+                    QByteArray raw;int side=0;
+                    if (extractHgtBytes(responses[i].bytes,compressed,cell.latitude,cell.longitude,raw,side,error)
                             && findHgtFile(root,dataset,cell.latitude,cell.longitude).isEmpty()) {
                         const QString suffix = compressed ? QStringLiteral(".gz") : QString();
                         const QString path = QDir(root).filePath(dataset.directory+'/'+hgtFileName(cell.latitude,cell.longitude)+suffix);
@@ -201,29 +273,33 @@ public:
                 || p.longitude < dataset.minX || p.longitude >= dataset.maxX)
             return {0,SampleStatus::Outside};
         const int lat = int(std::floor(p.latitude)), lon = int(std::floor(p.longitude));
+        if(lastTile&&lat==lastLatitude&&lon==lastLongitude)
+            return lastTile->sample(p);
         const QString key = hgtFileName(lat,lon);
-        Raster *r = cache.object(key);
-        if (!r) {
+        auto tile = cache.value(key);
+        if (!tile) {
             if (failed.contains(key)) return {};
             QString error;
-            auto loaded = std::make_unique<Raster>();
             const QString path = findHgtFile(root,dataset,lat,lon);
-            if (path.isEmpty() || !readHgtFile(path,lat,lon,*loaded,error)) {
+            if (path.isEmpty() || !(tile=loadHgtTile(path,lat,lon,error))) {
                 failed.insert(key);
                 report.issue(QStringLiteral("%1: %2").arg(key,path.isEmpty()
                     ? QStringLiteral("Elevation file missing") : error));
                 return {};
             }
-            const int cost = int((loaded->values.size()*sizeof(float)+1023)/1024);
-            r = loaded.get(); cache.insert(key,loaded.release(),cost);
+            cache.insert(key,tile);
         }
-        return sampleLegacyHgt(*r,p);
+        lastLatitude=lat;lastLongitude=lon;lastTile=tile;
+        return tile->sample(p);
     }
 private:
     QString root;
     Dataset dataset;
     Report &report;
-    QCache<QString,Raster> cache;
+    QMap<QString,std::shared_ptr<const HgtTile>> cache;
+    int lastLatitude=std::numeric_limits<int>::min();
+    int lastLongitude=std::numeric_limits<int>::min();
+    std::shared_ptr<const HgtTile> lastTile;
     QSet<QString> failed;
 };
 
@@ -352,6 +428,12 @@ public:
 private:
     QUrl requestUrl(Block b) const override { return imageServerUrl(dataset,b); }
 };
+class WmsProvider final : public CachedRasterProvider {
+public:
+    using CachedRasterProvider::CachedRasterProvider;
+private:
+    QUrl requestUrl(Block b) const override { return wmsUrl(dataset,b); }
+};
 
 class RasterSource final : public Source {
 public:
@@ -364,7 +446,10 @@ public:
 
     bool prepare(const QVector<Point> &points, std::atomic_bool &cancel,
                  const Progress &progress, QString &error) override {
+        lastRaster = nullptr;
         QMap<Block,bool> blocks;
+        Block previousBlock;
+        bool hasPreviousBlock=false;
 
         for (const Point p : points) {
             if (cancel) return false;
@@ -373,7 +458,10 @@ public:
             if (!projection.forward(p,xy) || !inside(dataset,xy))
                 continue;
 
-            blocks.insert(blockFor(dataset,xy),true);
+            const Block currentBlock=blockFor(dataset,xy);
+            if(!hasPreviousBlock||currentBlock.column!=previousBlock.column
+                    ||currentBlock.row!=previousBlock.row){
+                blocks.insert(currentBlock,true);previousBlock=currentBlock;hasPreviousBlock=true;}
 
             const int taps = filterTaps(p);
             if (taps > 1) {
@@ -514,12 +602,15 @@ private:
         if (!inside(dataset,xy))
             return {0,SampleStatus::Outside};
 
+        if (!filledRaster.values.isEmpty()) return filledRaster.sample(xy);
+
         const Block b = blockFor(dataset,xy);
+        if(lastRaster&&b.column==lastBlock.column&&b.row==lastBlock.row)
+            return lastRaster->sample(xy,dataset.zeroIsNoData);
         const QString path = prepared.value(b);
 
         if (path.isEmpty())
             return {0,SampleStatus::Unavailable};
-        if (!filledRaster.values.isEmpty()) return filledRaster.sample(xy);
 
         Raster *r = cache.object(path);
         if (!r) {
@@ -540,6 +631,7 @@ private:
             cache.insert(path,loaded.release(),cost);
         }
 
+        lastBlock=b;lastRaster=r;
         return r->sample(xy,dataset.zeroIsNoData);
     }
 
@@ -551,6 +643,8 @@ private:
     Report &report;
     QMap<Block,QString> prepared;
     QCache<QString,Raster> cache;
+    Block lastBlock;
+    Raster *lastRaster=nullptr;
 };
 }
 
@@ -590,6 +684,7 @@ QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
         d.directory = o.value("directory").toString();
         d.fileGrid = o.value("fileGrid").toString();
         d.attribution = o.value("attribution").toString();
+        d.style = o.value("style").toString();
         d.license = o.value("license").toString();
         d.information = o.value("information").toString();
         d.attributionUrl = QUrl(o.value("attributionUrl").toString());
@@ -600,8 +695,13 @@ QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
         d.downloadCompression = download.value("compression").toString();
         d.fileTileSize = download.value("tileSize").toDouble();
         d.fileRevision = download.value("revision").toString();
+        d.cogOverviewFactor = download.value("overviewFactor").toInt();
         d.stacEndpoint = QUrl(download.value("endpoint").toString());
         d.stacCollection = download.value("collection").toString();
+        d.stacResolutionProperty = download.value("resolutionProperty").toString();
+        d.stacAssetEpsg = download.value("assetCrs").toInt();
+        d.stacSearchRoot = download.value("searchRoot").toBool();
+        d.stacRange = download.value("range").toBool();
         const auto coordinateTransform = o.value("coordinateTransform").toObject();
         d.coordinateTransform = coordinateTransform.value("type").toString();
         d.transformAssetPath = coordinateTransform.value("path").toString();
@@ -609,14 +709,27 @@ QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
         d.transformAssetUrl = QUrl(coordinateTransform.value("url").toString());
         const QString label = d.id.isEmpty() ? QStringLiteral("entry %1").arg(index) : d.id;
         const auto authentication = o.value("authentication").toObject();
+        QString authenticationType;
         if (o.contains("authentication")) {
-            d.apiKeySecret = authentication.value("secret").toString();
             static const QRegularExpression reference(QStringLiteral("^[A-Za-z0-9._-]+$"));
-            const QString type = authentication.value("type").toString();
-            if (type == "query-api-key") d.apiKeyParameter = authentication.value("parameter").toString();
-            if ((type != "basic-api-key" && type != "query-api-key")
-                    || (type == "query-api-key" && !reference.match(d.apiKeyParameter).hasMatch())
-                    || !reference.match(d.apiKeySecret).hasMatch()) {
+            authenticationType = authentication.value("type").toString();
+            if (authenticationType == "basic-user-password") {
+                d.basicUsernameSecret = authentication.value("usernameSecret").toString();
+                d.basicPasswordSecret = authentication.value("passwordSecret").toString();
+            } else {
+                d.apiKeySecret = authentication.value("secret").toString();
+                if (authenticationType == "query-api-key")
+                    d.apiKeyParameter = authentication.value("parameter").toString();
+            }
+            if ((authenticationType != "basic-api-key" && authenticationType != "query-api-key"
+                    && authenticationType != "basic-user-password")
+                    || (authenticationType == "query-api-key" && !reference.match(d.apiKeyParameter).hasMatch())
+                    || (authenticationType == "basic-user-password"
+                        && (!reference.match(d.basicUsernameSecret).hasMatch()
+                            || !reference.match(d.basicPasswordSecret).hasMatch()))
+                    || (authenticationType != "basic-user-password"
+                        && !reference.match(d.apiKeySecret).hasMatch())
+                    || (authenticationType == "basic-user-password" && d.provider != "file")) {
                 rejected << QStringLiteral("Skipped elevation dataset %1: invalid or unsupported authentication").arg(label);
                 continue;
             }
@@ -639,9 +752,11 @@ QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
         const bool wcs1 = d.provider == "wcs-1.0.0";
         const bool wcs = wcs1 || wcs2;
         const bool arcgis = d.provider == "arcgis-imageserver";
+        const bool wms = d.provider == "wms-1.3.0";
         static const QRegularExpression relativeDirectory(
             QStringLiteral("^[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*$"));
         static const QRegularExpression safeName(QStringLiteral("^[A-Za-z0-9._-]+$"));
+        static const QRegularExpression safeProperty(QStringLiteral("^[A-Za-z0-9:_-]+$"));
         static const QRegularExpression geoAsset(
             QStringLiteral("^assets/geo/[A-Za-z0-9._-]+$"));
         QUrl fileProbe;
@@ -670,14 +785,27 @@ QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
         const bool validSingleCog = file && d.format == "geotiff" && d.fileGrid == "cog"
             && d.resolution > 0 && relativeDirectory.match(d.directory).hasMatch()
             && !o.contains("authentication") && safeName.match(d.fileRevision).hasMatch()
+            && (d.epsg == 4326
+                ? d.cogOverviewFactor >= 1 && d.cogOverviewFactor <= 1024
+                    && (d.cogOverviewFactor & (d.cogOverviewFactor-1)) == 0
+                : d.cogOverviewFactor == 0)
             && o.value("download").isObject() && !d.downloadUrlTemplate.contains('{')
             && fileProbe.scheme() == "https" && !fileProbe.host().isEmpty()
             && !QFileInfo(fileProbe.path()).fileName().isEmpty();
         const bool validStacTiff = file && d.format == "geotiff" && d.fileGrid == "stac"
             && d.resolution > 0 && relativeDirectory.match(d.directory).hasMatch()
-            && !o.contains("authentication") && o.value("download").isObject()
+            && (!o.contains("authentication") || authenticationType == "basic-user-password")
+            && o.value("download").isObject()
             && d.stacEndpoint.scheme() == "https" && !d.stacEndpoint.host().isEmpty()
-            && !d.stacCollection.isEmpty();
+            && (d.stacSearchRoot || !d.stacCollection.isEmpty())
+            && (!d.stacSearchRoot || d.stacCollection.isEmpty())
+            && (!download.contains("searchRoot") || download.value("searchRoot").isBool())
+            && (!download.contains("range") || download.value("range").isBool())
+            && (!download.contains("assetCrs")
+                || (download.value("assetCrs").isDouble() && d.stacAssetEpsg > 0))
+            && (!download.contains("resolutionProperty")
+                || (download.value("resolutionProperty").isString()
+                    && safeProperty.match(d.stacResolutionProperty).hasMatch()));
         const bool validDirectoryTiff = file && d.format == "geotiff" && d.fileGrid == "directory"
             && d.resolution > 0 && relativeDirectory.match(d.directory).hasMatch()
             && !o.contains("authentication") && !o.contains("download");
@@ -692,10 +820,11 @@ QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
                 && d.transformAssetUrl.scheme() == "https"
                 && !d.transformAssetUrl.host().isEmpty();
         if (d.id.isEmpty() || ids.contains(d.id) || d.id.contains('/') || d.id.contains('\\') || d.id.contains("..")
-                || (!wcs && !arcgis && !validFile)
+                || (!wcs && !arcgis && !wms && !validFile)
                 || !validCoordinateTransform
                 || (o.contains("allowExpandedGrid") && !o.value("allowExpandedGrid").isBool())
                 || (o.contains("requestFormat") && (!o.value("requestFormat").isString() || d.requestFormat.isEmpty()))
+                || (o.contains("style") && !o.value("style").isString())
                 || (o.contains("scaleAxisX") && !o.value("scaleAxisX").isString())
                 || (o.contains("scaleAxisY") && !o.value("scaleAxisY").isString())
                 || (o.contains("noDataPolicy") && !o.value("noDataPolicy").isString())
@@ -710,6 +839,7 @@ QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
                 || (wcs2 && (d.scaleAxisX.isEmpty() || d.scaleAxisY.isEmpty() || d.scaleAxisX == d.scaleAxisY))
                 || (wcs1 && d.coverage.isEmpty())
                 || (arcgis && d.format != "image/tiff")
+                || (wms && (d.coverage.isEmpty() || d.format != "image/tiff"))
                 || (!file && (d.blockPixels < 16 || d.blockPixels > 1024))
                 || d.concurrentRequests < 1 || d.concurrentRequests > 4
                 || d.maxX <= d.minX || d.maxY <= d.minY || !Geo::CrsTransform::supports(d.epsg)
@@ -826,6 +956,25 @@ QUrl imageServerUrl(const Dataset &d, Block b) {
     query.addQueryItem("interpolation","RSP_BilinearInterpolation");
     url.setQuery(query); return url;
 }
+QUrl wmsUrl(const Dataset &d, Block b) {
+    QUrl url = d.endpoint;
+    QUrlQuery query(url);
+    const auto box = bounds(d,b);
+    query.addQueryItem("SERVICE","WMS");
+    query.addQueryItem("REQUEST","GetMap");
+    query.addQueryItem("VERSION","1.3.0");
+    query.addQueryItem("LAYERS",d.coverage);
+    query.addQueryItem("STYLES",d.style);
+    query.addQueryItem("CRS",QStringLiteral("EPSG:%1").arg(d.epsg));
+    query.addQueryItem("BBOX",QStringLiteral("%1,%2,%3,%4")
+        .arg(decimal(box[0]),decimal(box[1]),decimal(box[2]),decimal(box[3])));
+    query.addQueryItem("WIDTH",QString::number(d.blockPixels+2));
+    query.addQueryItem("HEIGHT",QString::number(d.blockPixels+2));
+    query.addQueryItem("FORMAT",d.requestFormat.isEmpty() ? d.format : d.requestFormat);
+    query.addQueryItem("EXCEPTIONS","text/xml");
+    url.setQuery(query);
+    return url;
+}
 QString cacheRelativePath(const Dataset &d, Block b) {
     auto downloadDefinition = d.definition;
     downloadDefinition.remove("noDataPolicy"); // Filling changes sampling, never downloaded bytes.
@@ -890,12 +1039,14 @@ Result generate(const QString &root, const QString &id, const QVector<Point> &po
     if (!selected) { result.error = QStringLiteral("Unknown elevation dataset: %1").arg(selectedId); return result; }
     const auto createSource = [&](const Dataset &dataset) -> std::unique_ptr<Source> {
         if (dataset.provider == "file" && dataset.format == "geotiff")
-            return createCogElevationSource(root,dataset,result.report);
+            return createCogElevationSource(root,dataset,result.report,secrets);
         if (dataset.provider == "file")
             return std::make_unique<FileHgtSource>(root,dataset,result.report);
         std::unique_ptr<RasterProvider> provider;
         if (dataset.provider == "arcgis-imageserver")
             provider = std::make_unique<ArcGisImageServerProvider>(root,dataset,result.report,secrets.value(dataset.apiKeySecret));
+        else if (dataset.provider == "wms-1.3.0")
+            provider = std::make_unique<WmsProvider>(root,dataset,result.report,secrets.value(dataset.apiKeySecret));
         else provider = std::make_unique<WcsProvider>(root,dataset,result.report,secrets.value(dataset.apiKeySecret));
         return std::make_unique<RasterSource>(dataset,std::move(provider),targetSpacing,result.report);
     };

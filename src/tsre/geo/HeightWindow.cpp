@@ -262,6 +262,10 @@ void HeightWindow::load(bool gui) {
         sourceName = entry.name;
         if (!entry.apiKeySecret.isEmpty())
             secrets.insert(entry.apiKeySecret,SettingsManager::instance().secretValue(entry.apiKeySecret));
+        if (!entry.basicUsernameSecret.isEmpty())
+            secrets.insert(entry.basicUsernameSecret,SettingsManager::instance().secretValue(entry.basicUsernameSecret));
+        if (!entry.basicPasswordSecret.isEmpty())
+            secrets.insert(entry.basicPasswordSecret,SettingsManager::instance().secretValue(entry.basicPasswordSecret));
     }
     QVector<Elevation::Point> points;
     points.reserve(qsizetype(terrainResolution)*terrainResolution);

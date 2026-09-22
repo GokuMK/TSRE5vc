@@ -38,6 +38,49 @@ QByteArray hgt(int side, qint16 value) {
     for (int i = 0; i < side*side; ++i) qToBigEndian<qint16>(value,bytes.data()+i*2);
     return bytes;
 }
+QByteArray tinyGeographicCog() {
+    const qint32 values[] = {1000,1010,2147483647,1030,1100,1110,1120,1130,
+                             1200,1210,1220,1230,1300,1310,1320,1330};
+    QByteArray predicted(16*4,Qt::Uninitialized);
+    for(int row=0;row<4;++row)for(int x=0;x<4;++x){
+        const quint32 value=quint32(values[row*4+x]);
+        const quint32 previous=x?quint32(values[row*4+x-1]):0;
+        qToLittleEndian<quint32>(value-previous,predicted.data()+4*(row*4+x));
+    }
+    const QByteArray encoded=qCompress(predicted).mid(4);
+    const QByteArray metadata="<GDALMetadata><Item name=\"OFFSET\" sample=\"0\">0</Item>"
+        "<Item name=\"SCALE\" sample=\"0\">0.1</Item></GDALMetadata>\0";
+    const QByteArray noData("2147483647\0",11);
+    constexpr int entries=17,ifd=8,directoryEnd=ifd+2+entries*12+4;
+    const int scaleAt=directoryEnd,tieAt=scaleAt+24,keysAt=tieAt+48;
+    const int metadataAt=keysAt+40,noDataAt=metadataAt+metadata.size();
+    const int tileAt=noDataAt+noData.size();
+    QByteArray result(tileAt+encoded.size(),'\0');
+    result[0]='I';result[1]='I';qToLittleEndian<quint16>(42,result.data()+2);
+    qToLittleEndian<quint32>(ifd,result.data()+4);qToLittleEndian<quint16>(entries,result.data()+ifd);
+    int position=ifd+2;
+    const auto entry=[&](quint16 tag,quint16 type,quint32 count,quint32 value){
+        qToLittleEndian<quint16>(tag,result.data()+position);
+        qToLittleEndian<quint16>(type,result.data()+position+2);
+        qToLittleEndian<quint32>(count,result.data()+position+4);
+        qToLittleEndian<quint32>(value,result.data()+position+8);position+=12;
+    };
+    entry(256,4,1,4);entry(257,4,1,4);entry(258,3,1,32);entry(259,3,1,8);
+    entry(277,3,1,1);entry(284,3,1,1);entry(317,3,1,2);entry(322,4,1,4);
+    entry(323,4,1,4);entry(324,4,1,tileAt);entry(325,4,1,encoded.size());
+    entry(339,3,1,2);entry(33550,12,3,scaleAt);entry(33922,12,6,tieAt);
+    entry(34735,3,20,keysAt);entry(42112,2,metadata.size(),metadataAt);entry(42113,2,noData.size(),noDataAt);
+    qToLittleEndian<quint32>(0,result.data()+position);
+    const auto number=[&](int at,double value){quint64 raw;std::memcpy(&raw,&value,8);qToLittleEndian<quint64>(raw,result.data()+at);};
+    number(scaleAt,.001);number(scaleAt+8,.001);number(scaleAt+16,0);
+    const double tieValues[]={0,0,0,19,52,0};for(int i=0;i<6;++i)number(tieAt+8*i,tieValues[i]);
+    const quint16 keys[]={1,1,0,4,1024,0,1,2,1025,0,1,1,2048,0,1,4326,2054,0,1,9102};
+    for(int i=0;i<20;++i)qToLittleEndian<quint16>(keys[i],result.data()+keysAt+2*i);
+    std::memcpy(result.data()+metadataAt,metadata.constData(),size_t(metadata.size()));
+    std::memcpy(result.data()+noDataAt,noData.constData(),size_t(noData.size()));
+    std::memcpy(result.data()+tileAt,encoded.constData(),size_t(encoded.size()));
+    return result;
+}
 void mutateTag(QByteArray &bytes, quint16 tag, quint32 value) {
     const auto ifd = qFromLittleEndian<quint32>(bytes.constData()+4);
     const auto count = qFromLittleEndian<quint16>(bytes.constData()+ifd);
@@ -45,6 +88,25 @@ void mutateTag(QByteArray &bytes, quint16 tag, quint32 value) {
         const auto p = ifd+2+12*i;
         if (qFromLittleEndian<quint16>(bytes.constData()+p) == tag) qToLittleEndian<quint32>(value,bytes.data()+p+8);
     }
+}
+bool mutateGeoKey(QByteArray &bytes, quint16 wanted, quint16 value) {
+    if (bytes.size() < 8 || bytes[0] != 'I' || bytes[1] != 'I') return false;
+    const auto ifd=qFromLittleEndian<quint32>(bytes.constData()+4);
+    if(ifd+2>quint32(bytes.size()))return false;
+    const auto count=qFromLittleEndian<quint16>(bytes.constData()+ifd);
+    for(quint16 i=0;i<count;++i){const quint32 entry=ifd+2+i*12;
+        if(entry+12>quint32(bytes.size()))return false;
+        if(qFromLittleEndian<quint16>(bytes.constData()+entry)!=34735)continue;
+        const quint32 keyCount=qFromLittleEndian<quint32>(bytes.constData()+entry+4);
+        const quint32 offset=qFromLittleEndian<quint32>(bytes.constData()+entry+8);
+        if(keyCount<4||offset+keyCount*2>quint32(bytes.size()))return false;
+        const quint16 entries=qFromLittleEndian<quint16>(bytes.constData()+offset+6);
+        for(quint16 k=0;k<entries;++k){const quint32 key=offset+8+k*8;
+            if(key+8>quint32(bytes.size()))return false;
+            if(qFromLittleEndian<quint16>(bytes.constData()+key)==wanted){
+                qToLittleEndian<quint16>(value,bytes.data()+key+6);return true;}}
+    }
+    return false;
 }
 }
 void runDownloadTests(const std::function<void(bool,const char*)> &check);
@@ -54,14 +116,17 @@ void runNoDataFillTests(const std::function<void(bool,const char*)> &check);
 int main(int argc, char **argv) {
     QCoreApplication app(argc,argv);
     const auto args = app.arguments();
-    if (args.size() >= 4 && (args[1] == "--live" || args[1] == "--live-area" || args[1] == "--live-at")) {
+    if (args.size() >= 4 && (args[1] == "--live" || args[1] == "--live-area"
+            || args[1] == "--live-at" || args[1] == "--live-grid"
+            || args[1] == "--live-secrets-at" || args[1] == "--live-secrets-grid")) {
         // Explicit opt-in only; normal ctest is fully offline.
         std::atomic_bool cancel{false};
         QVector<Point> points{{52.0,19.0},{52.00005,19.00005}};
-        if (args[1] == "--live-at") {
+        if (args[1] == "--live-at" || args[1] == "--live-secrets-at") {
             bool latOk = false, lonOk = false;
             const double lat = args.value(4).toDouble(&latOk), lon = args.value(5).toDouble(&lonOk);
-            if (!latOk || !lonOk || args.size() != 6) return 2;
+            const int expected=args[1]=="--live-secrets-at"?7:6;
+            if (!latOk || !lonOk || args.size() != expected) return 2;
             points = {{lat,lon},{lat+.00005,lon+.00005}};
         }
         if (args[1] == "--live-area") {
@@ -69,13 +134,34 @@ int main(int argc, char **argv) {
             for (int y=0; y<16; ++y) for (int x=0; x<16; ++x)
                 points.push_back({52.0+y*.0184/15,19.0+x*.0299/15});
         }
+        if (args[1] == "--live-grid" || args[1] == "--live-secrets-grid") {
+            bool latOk=false,lonOk=false,sideOk=false,latSpanOk=false,lonSpanOk=false;
+            const double lat=args.value(4).toDouble(&latOk),lon=args.value(5).toDouble(&lonOk);
+            const int side=args.value(6).toInt(&sideOk);
+            const double latSpan=args.value(7).toDouble(&latSpanOk),lonSpan=args.value(8).toDouble(&lonSpanOk);
+            const int expected=args[1]=="--live-secrets-grid"?10:9;
+            if(args.size()!=expected||!latOk||!lonOk||!sideOk||!latSpanOk||!lonSpanOk||side<2||side>4096)return 2;
+            points.clear();points.reserve(qsizetype(side)*side);
+            for(int y=0;y<side;++y)for(int x=0;x<side;++x)
+                points.push_back({lat+y*latSpan/(side-1),lon+x*lonSpan/(side-1)});
+        }
+        QMap<QString,QString> secrets;
+        if(args[1]=="--live-secrets-at"||args[1]=="--live-secrets-grid"){
+            const int secretArgument=args[1]=="--live-secrets-at"?6:9;
+            QFile file(args[secretArgument]);if(!file.open(QIODevice::ReadOnly)||file.size()>1024*1024)return 2;
+            QJsonParseError parseError;const auto document=QJsonDocument::fromJson(file.readAll(),&parseError);
+            if(parseError.error!=QJsonParseError::NoError||!document.object().value("secrets").isObject())return 2;
+            const auto object=document.object().value("secrets").toObject();
+            for(auto it=object.begin();it!=object.end();++it)if(it.value().isString())secrets.insert(it.key(),it.value().toString());
+        }
         QElapsedTimer timer; timer.start();
-        const auto result = generate(args[2],args[3],points,1.0,0,cancel);
+        const auto result = generate(args[2],args[3],points,1.0,0,cancel,{},secrets);
         std::cout << "success=" << result.success() << " primary=" << result.report.primarySamples
                   << " fallback=" << result.report.fallbackSamples << " downloads=" << result.report.downloads
                   << " nodata=" << result.report.noDataSamples << " unavailable=" << result.report.unavailableSamples
                   << " cache=" << result.report.cacheHits << " elapsedMs=" << timer.elapsed() << '\n';
-        if (args[1] != "--live-area") for (float h : result.heights) std::cout << h << '\n';
+        if (args[1] == "--live" || args[1] == "--live-at" || args[1] == "--live-secrets-at")
+            for (float h : result.heights) std::cout << h << '\n';
         std::cerr << result.error.toStdString() << '\n' << result.report.issues.join('\n').toStdString() << '\n';
         return result.success() ? 0 : 1;
     }
@@ -91,6 +177,12 @@ int main(int argc, char **argv) {
     check(!readGeoTiff(fixture("evrf-sample.tif"),r,error) && error.contains("RGB"),"reject service RGB TIFF as elevation");
     check(!readGeoTiff(QByteArray("<ExceptionReport/>"),r,error),"reject service XML as TIFF");
     check(!readGeoTiff(native.left(400),r,error),"reject truncated TIFF");
+    QByteArray userDefinedCrs=native;
+    check(mutateGeoKey(userDefinedCrs,3072,32767)
+        && readWcsTiff(userDefinedCrs,2180,r,error) && r.epsg==2180,
+        "service metadata resolves an otherwise user-defined GeoTIFF projected CRS");
+    check(!readGeoTiff(userDefinedCrs,r,error),
+        "standalone user-defined GeoTIFF CRS remains unsupported without service metadata");
     auto bad = native; mutateTag(bad,273,0xfffffff0);
     check(!readGeoTiff(bad,r,error),"reject strip offset outside input");
     bad = native; mutateTag(bad,259,5);
@@ -108,8 +200,6 @@ int main(int argc, char **argv) {
           "TIFF floating-point predictor decoding");
     check(!decodeTiffBlock(predictedLzwFloat.chopped(1),5,3,true,32,3,4,1,decodedBlock,error),
           "truncated TIFF LZW block is rejected");
-    check(!decodeTiffBlock(lzwFloat,5,1,true,32,1,4,1,decodedBlock,error),
-          "unsupported UInt32 TIFF samples are rejected instead of reinterpreted as floats");
     QByteArray float64Block(4*8,Qt::Uninitialized);
     const double float64Values[] = {1.25,-2.5,48.125,399.75};
     for (int i=0; i<4; ++i) {
@@ -131,6 +221,27 @@ int main(int argc, char **argv) {
     check(decodeTiffBlock(deflatedFloat,8,1,true,32,3,4,1,decodedBlock,error)
           && decodedBlock == QVector<float>({1.0f,2.0f,-3.5f,42.25f}),
           "TIFF Deflate Float32 block decoding");
+    QByteArray predictedFloat(4*4,Qt::Uninitialized);
+    for(int x=0;x<4;++x){quint32 value,previous=0;std::memcpy(&value,&float32Values[x],4);
+        if(x)std::memcpy(&previous,&float32Values[x-1],4);
+        qToLittleEndian<quint32>(value-previous,predictedFloat.data()+4*x);}
+    const QByteArray deflatedPredictedFloat=qCompress(predictedFloat).mid(4);
+    check(decodeTiffBlock(deflatedPredictedFloat,8,2,true,32,3,4,1,decodedBlock,error)
+          && decodedBlock == QVector<float>({1.0f,2.0f,-3.5f,42.25f}),
+          "TIFF horizontal predictor decodes Float32 sample words");
+    const qint32 integerValues[] = {1000,1002,-5,250,-20,-18,0,50000};
+    QByteArray predictedInteger(8*4,Qt::Uninitialized);
+    for(int row=0;row<2;++row)for(int x=0;x<4;++x){
+        const quint32 value=quint32(integerValues[row*4+x]);
+        const quint32 previous=x?quint32(integerValues[row*4+x-1]):0;
+        qToLittleEndian<quint32>(value-previous,predictedInteger.data()+4*(row*4+x));
+    }
+    const QByteArray deflatedInteger=qCompress(predictedInteger).mid(4);
+    check(decodeTiffBlock(deflatedInteger,8,2,true,32,2,4,2,decodedBlock,error)
+          && decodedBlock == QVector<float>({1000,1002,-5,250,-20,-18,0,50000}),
+          "TIFF Deflate signed Int32 horizontal-predictor decoding");
+    check(!decodeTiffBlock(deflatedInteger,8,3,true,32,2,4,2,decodedBlock,error),
+          "floating-point TIFF predictor is rejected for integer samples");
     check(readGeoTiff(fixture("signed16-big-endian.tif"),r,error),"big-endian signed16 TIFF with two strips");
     check(r.sample({100.5,199.5}).height == -2 && r.sample({101.5,199.5}).height == 0
           && r.sample({100.5,198.5}).height == 10,"signed strips preserve row order and zero height");
@@ -172,9 +283,20 @@ int main(int argc, char **argv) {
     }
     std::cout << "Maximum projection difference: " << maxProjectionError << " m\n";
     check(geographic.forward({52,19},p) && p.x == 19 && p.y == 52,"explicit lon/lat raster order");
+    const Geo::CrsTransform sweref99Tm(3006),etrs89Utm33(25833);
+    XY swerefPoint,utmPoint;
+    check(sweref99Tm.forward({59.3,18.05},swerefPoint)
+        && etrs89Utm33.forward({59.3,18.05},utmPoint)
+        && near(swerefPoint.x,utmPoint.x,1e-6) && near(swerefPoint.y,utmPoint.y,1e-6),
+        "SWEREF 99 TM uses the ETRS89 UTM zone 33 projection parameters");
     check(!unsupported.forward({52,19},p) && !cs92.forward({0,0},p),"reject unsupported projection and domain");
     check(readHgt(hgt(3,-5),-1,-2,r,error),"read big-endian HGT");
     check(sampleLegacyHgt(r,{-.5,-1.5}).valid() && sampleLegacyHgt(r,{-.5,-1.5}).height == -5,"negative HGT positions and heights");
+    QByteArray gradientHgt(18,Qt::Uninitialized);
+    for(int i=0;i<9;++i)qToBigEndian<qint16>(qint16(i*10),gradientHgt.data()+2*i);
+    check(readHgt(gradientHgt,0,0,r,error)
+        && near(sampleLegacyHgt(r,{.75,.25}).height,20),
+        "HGT interpolation uses side minus one geographic intervals");
     check(!readHgt(QByteArray(19,'x'),0,0,r,error),"reject malformed HGT dimensions");
     check(readHgt(hgt(3,-32768),0,0,r,error) && sampleLegacyHgt(r,{.5,.5}).status == SampleStatus::NoData,"HGT void detection");
     const auto catalog = datasets(error);
@@ -225,8 +347,11 @@ int main(int argc, char **argv) {
     const auto austria = byId.value("at.bev.als-dgm1");
     const auto luxembourg = byId.value("lu.act.dtm2024");
     const auto wales = byId.value("gb.wales.lidar.dtm1");
+    const auto sweden = byId.value("se.lantmateriet.markhojdmodell1");
     const auto switzerland = byId.value("ch.swisstopo.swissalti3d.2m");
     const auto portugal = byId.value("pt.dgt.mdt2m");
+    const auto gedtm = byId.value("world.gedtm30");
+    const auto france = byId.value("fr.ign.lidar-hd.mnt05");
     check(defaultFileSourceId(catalog) == worldHgt.id && worldHgt.provider == "file"
         && worldHgt.directory == "world_hgt" && worldHgt.fileGrid == "degree"
         && worldHgt.minX == -180 && worldHgt.minY == -90 && worldHgt.maxX == 180 && worldHgt.maxY == 90,
@@ -234,6 +359,34 @@ int main(int argc, char **argv) {
     check(fileDownloadUrl(worldHgt,-1,-2).toString()
         == "https://s3.amazonaws.com/elevation-tiles-prod/skadi/S01/S01W002.hgt.gz",
         "degree-grid download template resolves southern and western cells");
+    check(gedtm.provider == "file" && gedtm.format == "geotiff"
+        && gedtm.fileGrid == "cog" && gedtm.epsg == 4326
+        && gedtm.resolution == 30 && gedtm.cogOverviewFactor == 1
+        && gedtm.fileRevision == "v20250619"
+        && gedtm.directory == "world_gedtm30"
+        && gedtm.downloadUrlTemplate.contains("filtered.dtm_edtm_m_30m"),
+        "GEDTM30 catalogue defines a geographic bare-earth range COG");
+    QTemporaryDir geographicCogRoot;
+    Dataset geographicCog=gedtm;
+    geographicCog.id="fixture.geographic-cog";geographicCog.directory="fixture_geographic_cog";
+    geographicCog.downloadUrlTemplate="https://fixture.invalid/gedtm.tif";
+    check(write(QDir(geographicCogRoot.path()).filePath("fixture_geographic_cog/gedtm.tif"),tinyGeographicCog()),
+        "create geographic signed-Int32 COG fixture");
+    Report geographicCogReport;std::atomic_bool geographicCogCancel{false};QString geographicCogError;
+    auto geographicCogSource=createCogElevationSource(geographicCogRoot.path(),geographicCog,geographicCogReport);
+    const QVector<Point> geographicCogPoints{{51.9994999999,19.0005000001},{51.9994999999,19.0025000001}};
+    const bool geographicCogPrepared=geographicCogSource->prepare(geographicCogPoints,geographicCogCancel,{},geographicCogError);
+    const Sample geographicValue=geographicCogSource->sample(geographicCogPoints[0]);
+    const Sample geographicNoData=geographicCogSource->sample(geographicCogPoints[1]);
+    if(!geographicCogPrepared||!geographicCogError.isEmpty()||!near(geographicValue.height,100)
+            ||geographicNoData.status!=SampleStatus::NoData)
+        std::cerr << "geographic COG: " << geographicCogPrepared << ' ' << geographicCogError.toStdString()
+                  << " issues=" << geographicCogReport.issues.join('|').toStdString()
+                  << " value=" << geographicValue.height << '/' << int(geographicValue.status)
+                  << " nodata=" << geographicNoData.height << '/' << int(geographicNoData.status) << '\n';
+    check(geographicCogPrepared && geographicCogError.isEmpty()
+        && near(geographicValue.height,100) && geographicNoData.status==SampleStatus::NoData,
+        "geographic COG applies Int32 predictor, GDAL scale and raw NoData");
     check(austria.provider == "file" && austria.format == "geotiff"
         && austria.fileGrid == "projected" && austria.epsg == 3035
         && austria.fileTileSize == 50000 && austria.concurrentRequests == 4
@@ -252,6 +405,20 @@ int main(int argc, char **argv) {
         && wales.transformAssetPath == "assets/geo/OSTN15_OSGM15_Lite_DataFile.txt"
         && wales.transformAssetUrl.host() == "www.ordnancesurvey.co.uk",
         "Wales catalogue defines a single range COG and on-demand OSTN15 Lite asset");
+    check(sweden.provider == "file" && sweden.format == "geotiff"
+        && sweden.fileGrid == "stac" && sweden.epsg == 3006
+        && sweden.resolution == 1 && sweden.stacSearchRoot && sweden.stacRange
+        && sweden.stacAssetEpsg == 5845
+        && sweden.stacResolutionProperty == "geometriskupplosning"
+        && sweden.basicUsernameSecret == "geo.elevation.se.lantmateriet.username"
+        && sweden.basicPasswordSecret == "geo.elevation.se.lantmateriet.password",
+        "Sweden catalogue defines authenticated root-STAC range COG access");
+    auto invalidSweden=sweden.definition;invalidSweden["id"]="fixture.invalid-sweden-auth";
+    auto invalidSwedenAuth=invalidSweden["authentication"].toObject();
+    invalidSwedenAuth["passwordSecret"]="../outside";invalidSweden["authentication"]=invalidSwedenAuth;
+    mixed=entries;mixed.prepend(invalidSweden);validEntries=parseEntries(mixed);
+    check(validEntries.size()==catalog.size()&&error.contains("fixture.invalid-sweden-auth"),
+        "invalid STAC credential reference rejects only its catalogue object");
     auto invalidTransform = wales.definition;
     invalidTransform["id"] = "fixture.invalid-transform";
     auto invalidTransformDefinition = invalidTransform["coordinateTransform"].toObject();
@@ -273,6 +440,19 @@ int main(int argc, char **argv) {
         && portugal.downloadPage.host() == "cdd.dgterritorio.gov.pt"
         && !portugal.information.isEmpty() && !portugal.license.isEmpty(),
         "Portugal catalogue defines a user-managed indexed GeoTIFF directory");
+    const QUrlQuery franceQuery(wmsUrl(france,{636,-6702}));
+    check(france.provider == "wms-1.3.0" && france.epsg == 2154
+        && france.resolution == 1 && france.blockPixels == 1024
+        && france.concurrentRequests == 4
+        && franceQuery.queryItemValue("SERVICE") == "WMS"
+        && franceQuery.queryItemValue("REQUEST") == "GetMap"
+        && franceQuery.queryItemValue("LAYERS") == france.coverage
+        && franceQuery.queryItemValue("STYLES") == "normal"
+        && franceQuery.queryItemValue("CRS") == "EPSG:2154"
+        && franceQuery.queryItemValue("FORMAT") == "image/geotiff"
+        && franceQuery.queryItemValue("WIDTH") == "1026"
+        && franceQuery.queryItemValue("HEIGHT") == "1026",
+        "France catalogue defines generic 1 m numeric-WMS GeoTIFF blocks");
     auto manualFile = worldHgt.definition;
     manualFile["id"] = "fixture.manual-hgt"; manualFile["directory"] = "manual_hgt";
     manualFile.remove("download");
@@ -365,6 +545,7 @@ int main(int argc, char **argv) {
     const Geo::CrsTransform swissProjection(2056);
     const Geo::CrsTransform luxembourgProjection(2169);
     const Geo::CrsTransform portugalProjection(3763);
+    const Geo::CrsTransform franceProjection(2154);
     check(finland.epsg == 3067 && Geo::CrsTransform::supports(3067) && finlandProjection.forward({60,27},p)
         && near(p.x,500000),"Finland retains its supported native TM35FIN grid");
     check(europeProjection.forward({52,10},p) && near(p.x,4321000,.001) && near(p.y,3210000,.001),
@@ -391,6 +572,13 @@ int main(int argc, char **argv) {
         && portugalProjection.forward({39.4417496,-8.6906939},p)
         && near(p.x,-48000,.05) && near(p.y,-25000,.05),
         "Portugal TM06 agrees with a DGT MDT tile control within 5 cm");
+    check(Geo::CrsTransform::supports(2154)
+        && franceProjection.forward({46.5,3},p)
+        && near(p.x,700000,.001) && near(p.y,6600000,.001),
+        "Lambert-93 false origin maps exactly to its published EPSG:2154 coordinates");
+    check(franceProjection.forward({48,-2},p)
+        && near(p.x,327351.199,.002) && near(p.y,6778425.923,.002),
+        "Lambert-93 agrees with the official IGN numeric control within 2 mm");
     Geo::CrsTransform britishProjection(27700);
     std::vector<std::array<double,2>> ostn15(36*63,{0,0});
     ostn15[443]={93.328,-77.086};

@@ -38,6 +38,7 @@ private:
         WebMercator,
         SwissLv95,
         LambertAzimuthalEqualArea,
+        LambertConformalConic,
         TransverseMercator
     };
 
@@ -61,6 +62,19 @@ private:
                                      double maximumLongitude);
     void transverseMercatorRaw(double latitude, double longitudeDelta,
                                double &easting, double &northing) const;
+    void configureLambertConformalConic(double semiMajorAxis,
+                                        double inverseFlattening,
+                                        double latitudeOriginDegrees,
+                                        double centralMeridianDegrees,
+                                        double firstParallelDegrees,
+                                        double secondParallelDegrees,
+                                        double eastingOffset,
+                                        double northingOffset,
+                                        double minimumLatitude,
+                                        double maximumLatitude,
+                                        double minimumLongitude,
+                                        double maximumLongitude);
+    double conformalT(double latitude) const;
     bool etrs89ToLuref(GeographicPoint point, double &latitude,
                        double &longitude) const;
     double authalicQ(double latitude) const;
@@ -93,6 +107,9 @@ private:
     double laeaBeta0 = 0;
     double laeaRadius = 0;
     double laeaD = 0;
+    double lccExponent = 0;
+    double lccFactor = 0;
+    double lccOriginRadius = 0;
 };
 
 }

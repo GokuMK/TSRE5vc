@@ -26,6 +26,36 @@
       ]
     },
     {
+      "id": "world.gedtm30",
+      "name": "World - GEDTM30 bare-earth terrain (30 m automatic range download)",
+      "provider": "file",
+      "format": "geotiff",
+      "fileGrid": "cog",
+      "directory": "world_gedtm30",
+      "crs": 4326,
+      "verticalDatum": "EGM2008 orthometric height (EPSG:3855)",
+      "resolution": 30,
+      "bounds": [-180, -57, 180, 84],
+      "concurrentRequests": 2,
+      "zeroIsNoData": false,
+      "download": {
+        "revision": "v20250619",
+        "overviewFactor": 1,
+        "urlTemplate": "https://s3.opengeohub.org/global/edtm/filtered.dtm_edtm_m_30m_s_20060101_20151231_go_epsg.4326.3855_v20250619.tif"
+      },
+      "attribution": "GEDTM30 v20250619 by Yu-Feng Ho and Tomislav Hengl, distributed by OpenTopography",
+      "attributionUrl": "https://doi.org/10.7717/peerj.19673",
+      "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+      "information": "GEDTM30 is a machine-learning-derived global bare-earth terrain model. TSRE downloads only the compressed COG blocks needed for the requested area; it does not download the roughly 261 GB source file. Validate the model independently before engineering or other critical use.",
+      "informationUrl": "https://portal.opentopography.org/datasetMetadata?otCollectionID=OT.082025.4326.1",
+      "downloadPage": "https://doi.org/10.5069/G9BV7DT1",
+      "notes": [
+        "The source is a near-global 0.00025 degree Int32 COG with a 0.1 metre value scale. TSRE range-reads its index tables and only the required Deflate-compressed 2048 by 2048 blocks.",
+        "Coverage in this published COG ends near 57 degrees south and excludes Antarctica; the configured world HGT source remains available as fallback outside coverage or at voids.",
+        "The native spacing is appropriate for future distant-terrain use, but that workflow still requires a separate practical validation."
+      ]
+    },
+    {
       "id": "at.bev.als-dgm1",
       "name": "Austria - BEV ALS DTM 1 m (range COG)",
       "provider": "file",
@@ -108,6 +138,44 @@
         "The 1 m EPSG:27700 source uses Ordnance Survey's OSTN15/OSGM15 Lite 20 km shift grid. TSRE downloads the small official developer archive on first use and stores only its grid under assets/geo.",
         "Ordnance Survey reports 0.08 m horizontal RMS for the Lite grid against the full OSTN15 model, which is comfortably below the source raster spacing.",
         "This detailed source is not enabled for distant terrain."
+      ]
+    },
+    {
+      "id": "se.lantmateriet.markhojdmodell1",
+      "name": "Sweden - Lantmäteriet Markhöjdmodell 1 m (authenticated STAC/COG)",
+      "provider": "file",
+      "format": "geotiff",
+      "fileGrid": "stac",
+      "directory": "se_lantmateriet_markhojdmodell1",
+      "crs": 3006,
+      "verticalDatum": "RH 2000 (EPSG:5613)",
+      "resolution": 1,
+      "bounds": [150000, 6100000, 900000, 7700000],
+      "concurrentRequests": 4,
+      "zeroIsNoData": false,
+      "authentication": {
+        "type": "basic-user-password",
+        "usernameSecret": "geo.elevation.se.lantmateriet.username",
+        "passwordSecret": "geo.elevation.se.lantmateriet.password"
+      },
+      "download": {
+        "endpoint": "https://api.lantmateriet.se/stac-hojd/v1",
+        "searchRoot": true,
+        "range": true,
+        "assetCrs": 5845,
+        "resolutionProperty": "geometriskupplosning"
+      },
+      "attribution": "Lantmäteriet - Markhöjdmodell Nedladdning",
+      "attributionUrl": "https://www.lantmateriet.se/",
+      "license": "Swedish valuable datasets terms (CC0 1.0 equivalent open use; retain source attribution)",
+      "information": "This national 1 m terrain model requires a free Lantmäteriet product permission. Store its Basic Authentication username and password in the TSRE secrets profile. TSRE queries the public STAC catalogue and authenticates only the required COG byte-range requests.",
+      "informationUrl": "https://geotorget.lantmateriet.se/dokument/projects/markhoejdmodell-nedladdning/released/1/",
+      "downloadPage": "https://geotorget.lantmateriet.se/geodataprodukter/markhojdmodell-nedladdning-api",
+      "notes": [
+        "The STAC catalogue reports compound EPSG:5845 (SWEREF 99 TM plus RH 2000). TSRE validates that published asset metadata while transforming horizontal coordinates with EPSG:3006.",
+        "Lantmäteriet currently publishes cloud-optimized GeoTIFF assets. TSRE keeps a revision-specific cache of only the compressed internal blocks needed for the requested terrain and never stores credentials in URLs or cache metadata.",
+        "The service documents 10 km by 10 km file coverage; individual STAC assets may use smaller subdivisions. Root STAC search keeps this layout out of terrain-generation code.",
+        "This detailed source is not approved for distant terrain."
       ]
     },
     {
@@ -266,6 +334,36 @@
       "concurrentRequests": 4,
       "zeroIsNoData": false,
       "attribution": "Kartverket / hoydedata.no - Nasjonal hoydemodell"
+    },
+    {
+      "id": "fr.ign.lidar-hd.mnt05",
+      "name": "France - IGN MNT LiDAR HD (1 m request grid)",
+      "provider": "wms-1.3.0",
+      "endpoint": "https://data.geopf.fr/wms-r",
+      "coverage": "IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93",
+      "style": "normal",
+      "format": "image/tiff",
+      "requestFormat": "image/geotiff",
+      "crs": 2154,
+      "verticalDatum": "IGN69",
+      "resolution": 1,
+      "origin": [0, 0],
+      "bounds": [16372.464351552189, 6025185.183145389, 1251078.4590231455, 7140463.040452103],
+      "blockPixels": 1024,
+      "concurrentRequests": 4,
+      "zeroIsNoData": false,
+      "attribution": "IGN - MNT LiDAR HD, Licence Ouverte 2.0",
+      "attributionUrl": "https://cartes.gouv.fr/aide/fr/partenaires/ign/observations-regulieres-territoire/relief/mnt-lidar-hd/",
+      "license": "Licence Ouverte / Open Licence 2.0",
+      "information": "The bare-earth MNT LiDAR HD is natively published at 0.5 m. TSRE requests anonymous numeric GeoTIFF blocks resampled by the official WMS to a 1 m grid. Published coverage is still represented by the service and may contain NoData inside the conservative mainland bounds.",
+      "informationUrl": "https://cartes.gouv.fr/aide/fr/partenaires/ign/observations-regulieres-territoire/relief/mnt-lidar-hd/",
+      "downloadPage": "https://cartes.gouv.fr/telechargement/IGNF_MNT-LIDAR-HD",
+      "notes": [
+        "The wms-r raw elevation layer returns single-band Float32 GeoTIFFs for arbitrary EPSG:2154 bounding boxes; it is not the hillshade layer.",
+        "A live TSRE probe returned a 1026 by 1026 uncompressed Float32 block at 1 m. A four-block probe reused one cached block and downloaded the other three concurrently in 7.1 seconds.",
+        "Lambert-93 uses the shared ellipsoidal Lambert Conformal Conic 2SP conversion on GRS80. Heights remain in IGN69; no vertical datum conversion is applied.",
+        "This first profile is metropolitan France. Overseas LiDAR HD layers use different native CRSs and should be separate catalogue entries."
+      ]
     },
     {
       "id": "es.ign.mdt05",

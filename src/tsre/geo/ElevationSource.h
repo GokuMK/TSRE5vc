@@ -9,10 +9,10 @@
 
 namespace Elevation {
 struct Dataset {
-    QString id, name, coverage, format, verticalDatum, axisX, axisY;
+    QString id, name, coverage, format, verticalDatum, axisX, axisY, style;
     QString requestFormat, scaleAxisX, scaleAxisY;
     QString directory, fileGrid, downloadUrlTemplate, downloadCompression;
-    QString stacCollection, fileRevision;
+    QString stacCollection, stacResolutionProperty, fileRevision;
     QString coordinateTransform, transformAssetPath, transformAssetEntry;
     QString attribution, license, information;
     QString provider = QStringLiteral("wcs-2.0.1");
@@ -21,12 +21,16 @@ struct Dataset {
     // Caller resolves this profile-secret reference; transport selects Basic or query auth.
     QString apiKeySecret;
     QString apiKeyParameter; // Nonempty for query-api-key; otherwise HTTP Basic.
+    QString basicUsernameSecret, basicPasswordSecret;
     int epsg = 2180, blockPixels = 512, concurrentRequests = 1;
+    int stacAssetEpsg = 0;
+    int cogOverviewFactor = 0;
     double resolution = 1, originX = 0, originY = 0, fileTileSize = 0;
     double minX = 0, minY = 0, maxX = 0, maxY = 0;
     bool zeroIsNoData = false;
     bool allowExpandedGrid = false;
     bool defaultFileSource = false;
+    bool stacSearchRoot = false, stacRange = false;
     QString noDataPolicy = QStringLiteral("fallback");
     QJsonObject definition;
 };
@@ -46,6 +50,7 @@ QUrl coverageUrl(const Dataset &dataset, Block block);
 // Validate the returned georeferencing; expanded grids require explicit opt-in.
 bool validateRasterGrid(const Dataset &dataset, Block block, const Raster &raster, QString &error);
 QUrl imageServerUrl(const Dataset &dataset, Block block);
+QUrl wmsUrl(const Dataset &dataset, Block block);
 QString cacheRelativePath(const Dataset &dataset, Block block);
 QString hgtFileName(int latitude, int longitude);
 QString findHgtFile(const QString &root, const Dataset &dataset,

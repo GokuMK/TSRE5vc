@@ -9,6 +9,7 @@
 #include <QDir>
 #include <QDirIterator>
 #include <QDateTime>
+#include <QCryptographicHash>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
@@ -17,6 +18,7 @@
 #include <QSaveFile>
 #include <QSet>
 #include <QUrlQuery>
+#include <QXmlStreamReader>
 #include <QtEndian>
 #include <algorithm>
 #include <cmath>
@@ -26,7 +28,7 @@
 namespace Elevation {
 namespace {
 constexpr quint64 IndexBytes = 256*1024;
-constexpr qint64 MaxCogRange = 4*1024*1024;
+constexpr qint64 MaxCogRange = 8*1024*1024;
 constexpr quint64 MaxCogTable = 16*1024*1024;
 constexpr quint64 MaxWholeTiff = 32*1024*1024;
 constexpr qint64 MaxTransformArchive = 2*1024*1024;
@@ -46,6 +48,24 @@ QByteArray read(const QString &path, quint64 offset=0, quint64 length=std::numer
 bool inside(const Dataset &d, XY p) {
     return p.x>=d.minX && p.y>=d.minY && p.x<d.maxX && p.y<d.maxY;
 }
+
+struct PointBounds {
+    bool valid=false;
+    double minX=0,minY=0,maxX=0,maxY=0;
+    void include(XY point){
+        if(!valid){minX=maxX=point.x;minY=maxY=point.y;valid=true;return;}
+        minX=std::min(minX,point.x);minY=std::min(minY,point.y);
+        maxX=std::max(maxX,point.x);maxY=std::max(maxY,point.y);
+    }
+    void include(const PointBounds &other){
+        if(!other.valid)return;
+        include(XY{other.minX,other.minY});include(XY{other.maxX,other.maxY});
+    }
+    QVector<XY> corners() const {
+        if(!valid)return {};
+        return {{minX,minY},{minX,maxY},{maxX,minY},{maxX,maxY}};
+    }
+};
 
 bool extractZipEntry(const QByteArray &archiveBytes,const QByteArray &entryName,
                      QByteArray &contents,QString &error){
@@ -94,6 +114,8 @@ struct CogIndex {
     int width=0,height=0,bits=0,sampleFormat=0,compression=0,predictor=1;
     int tileWidth=0,tileHeight=0,epsg=0,level=0;
     float noData=std::numeric_limits<float>::quiet_NaN();
+    float rawNoData=std::numeric_limits<float>::quiet_NaN();
+    double valueScale=1,valueOffset=0;
     std::array<double,6> transform{{0,1,0,0,0,-1}};
     Tag offsetTable,byteCountTable;
     QVector<quint64> offsets,byteCounts;
@@ -157,7 +179,25 @@ bool loadCogTables(const QByteArray &offsets,const QByteArray &counts,CogIndex &
     return true;
 }
 
-bool parseCogIndex(const QByteArray &bytes,int expectedEpsg,double requestedResolution,
+bool parseGdalMetadata(const QByteArray &bytes,double &scale,double &offset,QString &error){
+    QXmlStreamReader xml(bytes);
+    while(!xml.atEnd()){
+        xml.readNext();
+        if(!xml.isStartElement()||xml.name()!=QStringLiteral("Item"))continue;
+        const auto attributes=xml.attributes();
+        const QString sample=attributes.value(QStringLiteral("sample")).toString();
+        const QString name=attributes.value(QStringLiteral("name")).toString();
+        const QString value=xml.readElementText(QXmlStreamReader::SkipChildElements).trimmed();
+        if(!sample.isEmpty()&&sample!=QStringLiteral("0"))continue;
+        bool ok=false;const double number=value.toDouble(&ok);
+        if(name==QStringLiteral("SCALE")){if(!ok||!std::isfinite(number)||number==0){error=QStringLiteral("Invalid COG value scale");return false;}scale=number;}
+        if(name==QStringLiteral("OFFSET")){if(!ok||!std::isfinite(number)){error=QStringLiteral("Invalid COG value offset");return false;}offset=number;}
+    }
+    if(xml.hasError()){error=QStringLiteral("Invalid COG GDAL metadata");return false;}
+    return true;
+}
+
+bool parseCogIndex(const QByteArray &bytes,int expectedEpsg,double requestedResolution,int overviewFactor,
                    CogIndex &out,QString &error) {
     error.clear();
     if (bytes.size()<16) { error=QStringLiteral("Truncated COG header"); return false; }
@@ -188,8 +228,10 @@ bool parseCogIndex(const QByteArray &bytes,int expectedEpsg,double requestedReso
     for(int level=0;level<directories.size();++level){const auto &tags=directories[level].tags;
         const int width=int(integer(rd,tags,256,0)),height=int(integer(rd,tags,257,0));
         if(width<=0||height<=0)continue;const int candidate=std::max(1,int(std::llround(double(baseWidth)/width)));
-        if(std::abs(baseSx*candidate-requestedResolution)<=std::max(1e-8,requestedResolution*1e-8)
-                &&std::abs(baseSy*candidate-requestedResolution)<=std::max(1e-8,requestedResolution*1e-8)
+        const bool resolutionMatches=overviewFactor>0?candidate==overviewFactor
+            :std::abs(baseSx*candidate-requestedResolution)<=std::max(1e-8,requestedResolution*1e-8)
+                &&std::abs(baseSy*candidate-requestedResolution)<=std::max(1e-8,requestedResolution*1e-8);
+        if(resolutionMatches
                 &&std::abs(baseWidth-width*candidate)<=candidate
                 &&std::abs(baseHeight-height*candidate)<=candidate){selected=level;factor=candidate;break;}}
     if(selected<0){error=QStringLiteral("COG has no configured-resolution image");return false;}
@@ -197,13 +239,20 @@ bool parseCogIndex(const QByteArray &bytes,int expectedEpsg,double requestedReso
     c.width=int(integer(rd,tags,256,0));c.height=int(integer(rd,tags,257,0));c.bits=int(integer(rd,tags,258,0));
     c.sampleFormat=int(integer(rd,tags,339,1));c.compression=int(integer(rd,tags,259,1));c.predictor=int(integer(rd,tags,317,1));
     c.tileWidth=int(integer(rd,tags,322,0));c.tileHeight=int(integer(rd,tags,323,0));
-    if(c.width<=0||c.height<=0||c.width>1000000||c.height>1000000
-            ||(c.bits!=32&&c.bits!=64)||c.sampleFormat!=3
+    if(c.width<=0||c.height<=0||c.width>2*1024*1024||c.height>2*1024*1024
+            ||(c.bits!=32&&c.bits!=64)||c.sampleFormat<1||c.sampleFormat>3
+            ||(c.bits==64&&c.sampleFormat!=3)
             ||(c.compression!=1&&c.compression!=5&&c.compression!=8)
-            ||(c.predictor!=1&&c.predictor!=3)||c.tileWidth<=0||c.tileHeight<=0
+            ||(c.predictor!=1&&c.predictor!=2&&c.predictor!=3)
+            ||(c.predictor==2&&c.bits!=32)
+            ||(c.predictor==3&&c.sampleFormat!=3)
+            ||c.tileWidth<=0||c.tileHeight<=0
             ||qint64(c.tileWidth)*c.tileHeight>4*1024*1024||integer(rd,tags,277,1)!=1||integer(rd,tags,284,1)!=1) {
-        error=QStringLiteral("Unsupported COG raster profile");return false;}
-    const Tag keys=base.value(34735);bool point=false;int linearUnits=9001;
+        error=QStringLiteral("Unsupported COG raster profile (%1x%2, %3-bit sample format %4, compression %5, predictor %6, tile %7x%8)")
+            .arg(c.width).arg(c.height).arg(c.bits).arg(c.sampleFormat).arg(c.compression)
+            .arg(c.predictor).arg(c.tileWidth).arg(c.tileHeight);return false;}
+    const Tag keys=base.value(34735);bool point=false;int modelType=0,linearUnits=9001,angularUnits=9102;
+    int geographicEpsg=0;
     if(keys.type!=3||keys.count<4||integer(rd,base,34735,0)!=1){error=QStringLiteral("Missing COG coordinate system");return false;}
     const quint64 keyCount=integer(rd,base,34735,0,3);
     if(keyCount>(keys.count-4)/4){error=QStringLiteral("Invalid COG coordinate system");return false;}
@@ -212,18 +261,30 @@ bool parseCogIndex(const QByteArray &bytes,int expectedEpsg,double requestedReso
         if(integer(rd,base,34735,1,5+4*k)!=0||integer(rd,base,34735,0,6+4*k)!=1)continue;
         const int value=int(integer(rd,base,34735,0,7+4*k));
         if(key==1025){if(value!=1&&value!=2){error=QStringLiteral("Unsupported COG raster registration");return false;}point=value==2;}
+        if(key==1024)modelType=value;if(key==2048)geographicEpsg=value;if(key==2054)angularUnits=value;
         if(key==3072)c.epsg=value;if(key==3076)linearUnits=value;
     }
-    if(c.epsg!=expectedEpsg||linearUnits!=9001){error=QStringLiteral("COG coordinate system does not match dataset");return false;}
+    if(expectedEpsg==4326){c.epsg=geographicEpsg;
+        if(modelType!=2||c.epsg!=4326||angularUnits!=9102){error=QStringLiteral("COG coordinate system does not match dataset");return false;}}
+    else if(c.epsg!=expectedEpsg||linearUnits!=9001){error=QStringLiteral("COG coordinate system does not match dataset");return false;}
     const double sx=baseSx*factor,sy=baseSy*factor;
     c.transform={{rd.f64(tie.offset+24)-rd.f64(tie.offset)*baseSx,sx,0,
                   rd.f64(tie.offset+32)+rd.f64(tie.offset+8)*baseSy,0,-sy}};
-    if(point){c.transform[0]-=.5*baseSx;c.transform[3]+=.5*baseSy;}
+    if(point){c.transform[0]-=.5*sx;c.transform[3]+=.5*sy;}
+    const Tag metadata=base.value(42112);
+    if(metadata.count){
+        if(metadata.type!=2||metadata.count>64*1024||!rd.range(metadata.offset,metadata.count)){
+            error=QStringLiteral("Invalid COG GDAL metadata");return false;}
+        QByteArray xml=bytes.mid(metadata.offset,metadata.count);const qsizetype terminator=xml.indexOf('\0');
+        if(terminator>=0)xml.truncate(terminator);
+        if(!parseGdalMetadata(xml,c.valueScale,c.valueOffset,error))return false;
+    }
     const Tag noData=base.value(42113);
     if(noData.count){
         if(noData.type!=2||noData.count>128||!rd.range(noData.offset,noData.count)){error=QStringLiteral("Invalid COG NoData field");return false;}
-        bool ok=false;c.noData=bytes.mid(noData.offset,noData.count).replace('\0',' ').trimmed().toFloat(&ok);
-        if(!ok){error=QStringLiteral("Invalid COG NoData value");return false;}c.hasNoData=true;
+        bool ok=false;const double raw=bytes.mid(noData.offset,noData.count).replace('\0',' ').trimmed().toDouble(&ok);
+        if(!ok||!std::isfinite(raw)){error=QStringLiteral("Invalid COG NoData value");return false;}
+        c.rawNoData=float(raw);c.noData=float(raw*c.valueScale+c.valueOffset);c.hasNoData=true;
     }
     const quint64 columns=(quint64(c.width)+c.tileWidth-1)/c.tileWidth;
     const quint64 rows=(quint64(c.height)+c.tileHeight-1)/c.tileHeight;
@@ -248,8 +309,15 @@ struct Asset {
 
 class CogFileSource final : public Source {
 public:
-    CogFileSource(QString path,Dataset data,Report &value)
-        :projection(data.epsg),root(std::move(path)),dataset(std::move(data)),report(value){}
+    CogFileSource(QString path,Dataset data,Report &value,const QMap<QString,QString> &secrets)
+        :projection(data.epsg),root(std::move(path)),dataset(std::move(data)),report(value){
+        const QString username=secrets.value(dataset.basicUsernameSecret);
+        const QString password=secrets.value(dataset.basicPasswordSecret);
+        if(!dataset.basicUsernameSecret.isEmpty()&&!username.isEmpty()&&!password.isEmpty()
+                &&!username.contains(':')&&!username.contains('\r')&&!username.contains('\n')
+                &&!password.contains('\r')&&!password.contains('\n'))
+            authorization="Basic "+(username+':'+password).toUtf8().toBase64();
+    }
 
     bool prepare(const QVector<Point> &points,std::atomic_bool &cancel,
                  const Progress &progress,QString &error) override {
@@ -287,6 +355,13 @@ public:
         return {0,SampleStatus::Unavailable};
     }
 private:
+    bool authorizeDownload(QString &error) const {
+        if(dataset.basicUsernameSecret.isEmpty())return true;
+        if(!authorization.isEmpty())return true;
+        error=QStringLiteral("Missing or invalid elevation credentials: %1 and %2")
+            .arg(dataset.basicUsernameSecret,dataset.basicPasswordSecret);
+        return false;
+    }
     bool prepareProjection(std::atomic_bool &cancel,QString &error){
         if(dataset.coordinateTransform.isEmpty())return true;
         if(dataset.coordinateTransform!="ostn15-lite"){
@@ -318,15 +393,22 @@ private:
     }
     bool prepareProjected(const QVector<Point> &points,std::atomic_bool &cancel,
                           const Progress &progress,QString &error){
-        struct Group{qint64 northing=0,easting=0;QVector<XY> points;};QMap<QString,Group> groups;
+        struct Group{qint64 northing=0,easting=0;PointBounds bounds;};QMap<Block,Group> groups;
+        Group active;Block activeKey;bool hasActive=false;
+        const auto flush=[&]{if(!hasActive)return;Group &stored=groups[activeKey];
+            stored.northing=active.northing;stored.easting=active.easting;stored.bounds.include(active.bounds);};
         for(Point p:points){if(cancel)return false;XY xy;if(!projection.forward(p,xy)||!inside(dataset,xy))continue;
             const qint64 e=qint64(std::floor(xy.x/dataset.fileTileSize))*qint64(dataset.fileTileSize);
             const qint64 n=qint64(std::floor(xy.y/dataset.fileTileSize))*qint64(dataset.fileTileSize);
-            const QString key=QString::number(n)+'_'+QString::number(e);groups[key].northing=n;groups[key].easting=e;groups[key].points.push_back(xy);
+            const Block key{int(e/dataset.fileTileSize),int(n/dataset.fileTileSize)};
+            if(!hasActive||key.column!=activeKey.column||key.row!=activeKey.row){
+                flush();active={n,e,{}};activeKey=key;hasActive=true;}
+            active.bounds.include(xy);
         }
+        flush();
         int done=0;for(const Group &group:groups){if(cancel)return false;Asset asset;asset.name=projectedName(group.northing,group.easting);asset.url=projectedUrl(group.northing,group.easting);
             asset.localFile=QDir(root).filePath(dataset.directory+'/'+asset.name);asset.parts=asset.localFile+".parts/"+dataset.fileRevision;
-            if(!loadRangeAsset(asset,group.points,cancel,error)){
+            if(!loadRangeAsset(asset,group.bounds.corners(),cancel,error)){
                 report.issue(QStringLiteral("%1: %2").arg(asset.name,error));error.clear();
             }else assets.push_back(std::move(asset));
             if(progress)progress(++done,groups.size(),QStringLiteral("Preparing COG elevation files"));
@@ -334,14 +416,14 @@ private:
     }
     bool prepareSingleCog(const QVector<Point> &points,std::atomic_bool &cancel,
                           const Progress &progress,QString &error){
-        QVector<XY> projected;for(Point point:points){if(cancel)return false;XY xy;
-            if(projection.forward(point,xy)&&inside(dataset,xy))projected.push_back(xy);}
-        if(projected.isEmpty())return true;
+        PointBounds projected;for(Point point:points){if(cancel)return false;XY xy;
+            if(projection.forward(point,xy)&&inside(dataset,xy))projected.include(xy);}
+        if(!projected.valid)return true;
         Asset asset;asset.url=QUrl(dataset.downloadUrlTemplate);
         asset.name=QFileInfo(asset.url.path()).fileName();
         asset.localFile=QDir(root).filePath(dataset.directory+'/'+asset.name);
         asset.parts=asset.localFile+".parts/"+dataset.fileRevision;
-        if(!loadRangeAsset(asset,projected,cancel,error)){
+        if(!loadRangeAsset(asset,projected.corners(),cancel,error)){
             report.issue(QStringLiteral("%1: %2").arg(asset.name,error));error.clear();
         }else assets.push_back(std::move(asset));
         if(progress)progress(1,1,QStringLiteral("Preparing COG elevation file"));
@@ -359,6 +441,7 @@ private:
         QByteArray offsets=tableBytes(asset.index.offsetTable,"tile-offsets.bin");
         QByteArray counts=tableBytes(asset.index.byteCountTable,"tile-byte-counts.bin");
         if((offsets.isEmpty()||counts.isEmpty())&&!QFileInfo(asset.localFile).isFile()){
+            if(!authorizeDownload(error))return false;
             const QVector<RangeRequest> requests{
                 {asset.url,asset.index.offsetTable.offset,
                     asset.index.offsetTable.offset+tagSize(asset.index.offsetTable)-1},
@@ -366,7 +449,7 @@ private:
                     asset.index.byteCountTable.offset+tagSize(asset.index.byteCountTable)-1}
             };
             const auto responses=downloadRangeWave(requests,cancel,{},
-                {qint64(MaxCogTable+1),30000,45000});
+                {qint64(MaxCogTable+1),30000,45000},authorization);
             if(cancel)return false;
             if(responses.size()!=2||!responses[0].error.isEmpty()||!responses[1].error.isEmpty()){
                 error=responses.size()!=2?QStringLiteral("Cannot read COG block tables")
@@ -384,11 +467,13 @@ private:
         if(QFileInfo(asset.localFile).isFile())indexBytes=read(asset.localFile,0,IndexBytes);
         else indexBytes=read(asset.parts+"/index.bin");
         if(indexBytes.isEmpty()){
-            auto response=downloadRangeWave({{asset.url,0,IndexBytes-1}},cancel,{}, {qint64(IndexBytes),30000,45000});
+            if(!authorizeDownload(error))return false;
+            auto response=downloadRangeWave({{asset.url,0,IndexBytes-1}},cancel,{},
+                                            {qint64(IndexBytes),30000,45000},authorization);
             if(cancel)return false;if(response.isEmpty()||!response[0].error.isEmpty()){error=response.isEmpty()?QStringLiteral("Cannot read COG index"):response[0].error;return false;}
             indexBytes=response[0].bytes;if(!save(asset.parts+"/index.bin",indexBytes)){error=QStringLiteral("Cannot store COG index");return false;}
         }
-        if(!parseCogIndex(indexBytes,dataset.epsg,dataset.resolution,asset.index,error)
+        if(!parseCogIndex(indexBytes,dataset.epsg,dataset.resolution,dataset.cogOverviewFactor,asset.index,error)
                 ||!ensureCogTables(asset,indexBytes,cancel,error))return false;
         double minCol=std::numeric_limits<double>::infinity(),maxCol=-minCol,minRow=minCol,maxRow=-minCol;
         for(XY xy:points){const double col=(xy.x-asset.index.transform[0])/asset.index.transform[1]-.5;
@@ -414,8 +499,10 @@ private:
             if(QFileInfo(path).isFile()){++report.cacheHits;}else if(QFileInfo(asset.localFile).isFile()){}
             else missing.push_back({id,br,bc,path,asset.index.offsets[id],asset.index.byteCounts[id]});}
         for(qsizetype first=0;first<missing.size();first+=dataset.concurrentRequests){if(cancel)return false;const int count=int(std::min(qsizetype(dataset.concurrentRequests),missing.size()-first));QVector<RangeRequest> requests;
+            if(!authorizeDownload(error))return false;
             for(int i=0;i<count;++i){const auto &m=missing[first+i];if(!m.offset||!m.length||m.length>quint64(MaxCogRange)){error=QStringLiteral("Invalid COG block range");return false;}requests.push_back({asset.url,m.offset,m.offset+m.length-1});}
-            const auto responses=downloadRangeWave(requests,cancel,{}, {MaxCogRange,30000,45000});if(cancel)return false;
+            const auto responses=downloadRangeWave(requests,cancel,{},
+                                                   {MaxCogRange,30000,45000},authorization);if(cancel)return false;
             for(int i=0;i<count;++i){if(!responses[i].error.isEmpty()){report.issue(QStringLiteral("%1 block %2,%3: %4").arg(asset.name).arg(missing[first+i].column).arg(missing[first+i].row).arg(responses[i].error));continue;}
                 if(!save(missing[first+i].path,responses[i].bytes)){report.issue(QStringLiteral("Cannot store COG block: %1").arg(missing[first+i].path));continue;}++report.downloads;}}
         for(int br=br0;br<=br1;++br)for(int bc=bc0;bc<=bc1;++bc){if(cancel)return false;const int id=br*columns+bc;QByteArray encoded;
@@ -425,6 +512,10 @@ private:
             if(encoded.isEmpty())continue;QVector<float> block;QString blockError;
             if(!decodeTiffBlock(encoded,asset.index.compression,asset.index.predictor,asset.index.little,asset.index.bits,asset.index.sampleFormat,asset.index.tileWidth,asset.index.tileHeight,block,blockError)){
                 report.issue(QStringLiteral("%1 block %2,%3: %4").arg(asset.name).arg(bc).arg(br).arg(blockError));continue;}
+            for(float &value:block){
+                if(asset.index.hasNoData&&value==asset.index.rawNoData)value=asset.index.noData;
+                else value=float(double(value)*asset.index.valueScale+asset.index.valueOffset);
+            }
             asset.availableBlocks.insert(id);const int dx=bc*asset.index.tileWidth-asset.firstColumn,dy=br*asset.index.tileHeight-asset.firstRow;
             for(int y=0;y<asset.index.tileHeight&&dy+y<asset.raster.height;++y)for(int x=0;x<asset.index.tileWidth&&dx+x<asset.raster.width;++x)
                 asset.raster.values[(dy+y)*asset.raster.width+dx+x]=block[y*asset.index.tileWidth+x];}
@@ -610,35 +701,118 @@ private:
         return !cancel&&buildMosaic(error);
     }
     bool prepareStac(const QVector<Point> &points,std::atomic_bool &cancel,const Progress &progress,QString &error){
-        double west=180,east=-180,south=90,north=-90;for(Point p:points){XY xy;if(projection.forward(p,xy)&&inside(dataset,xy)){west=std::min(west,p.longitude);east=std::max(east,p.longitude);south=std::min(south,p.latitude);north=std::max(north,p.latitude);}}
+        double west=180,east=-180,south=90,north=-90;PointBounds requested;
+        for(Point p:points){XY xy;if(projection.forward(p,xy)&&inside(dataset,xy)){
+            requested.include(xy);west=std::min(west,p.longitude);east=std::max(east,p.longitude);
+            south=std::min(south,p.latitude);north=std::max(north,p.latitude);}}
         if(east<west)return true;
         constexpr double pi=3.14159265358979323846,metresPerDegree=111320.0;
         const double latitude=(south+north)/2,margin=dataset.resolution*2;
         const double latitudeMargin=margin/metresPerDegree;
         const double longitudeMargin=margin/(metresPerDegree*std::max(.1,std::cos(latitude*pi/180.0)));
         west-=longitudeMargin;east+=longitudeMargin;south-=latitudeMargin;north+=latitudeMargin;
-        QUrl url=dataset.stacEndpoint;QString path=url.path();if(!path.endsWith('/'))path+='/';path+=QStringLiteral("collections/%1/items").arg(dataset.stacCollection);url.setPath(path);QUrlQuery query;query.addQueryItem("bbox",QStringLiteral("%1,%2,%3,%4").arg(west,0,'f',8).arg(south,0,'f',8).arg(east,0,'f',8).arg(north,0,'f',8));query.addQueryItem("limit","100");url.setQuery(query);
-        QMap<QByteArray,QJsonObject> latest;for(int page=0;page<4&&!url.isEmpty();++page){auto response=downloadWave({url},cancel,{}, {2*1024*1024,30000,45000});if(cancel)return false;if(response.isEmpty()||!response[0].error.isEmpty()){error=response.isEmpty()?QStringLiteral("Cannot query STAC catalogue"):response[0].error;return false;}QJsonParseError pe;const auto doc=QJsonDocument::fromJson(response[0].bytes,&pe);if(pe.error!=QJsonParseError::NoError||!doc.object().value("features").isArray()){error=QStringLiteral("Invalid STAC response");return false;}
-            for(const auto value:doc.object().value("features").toArray()){const auto feature=value.toObject();const QByteArray key=QJsonDocument(feature.value("bbox").toArray()).toJson(QJsonDocument::Compact);if(key.isEmpty())continue;const QString time=feature.value("properties").toObject().value("datetime").toString();if(!latest.contains(key)||time>latest[key].value("properties").toObject().value("datetime").toString())latest[key]=feature;}
-            QUrl next;for(const auto link:doc.object().value("links").toArray()){const auto object=link.toObject();if(object.value("rel").toString()=="next"){next=QUrl(object.value("href").toString());break;}}
-            if(page==3&&!next.isEmpty()){error=QStringLiteral("STAC query exceeds 400 items; generate a smaller area");return false;}url=next;}
-        struct Remote{QString name,path;QUrl url;};QVector<Remote> remote;
-        for(const auto &feature:latest){QJsonObject selected;const auto object=feature.value("assets").toObject();for(auto it=object.begin();it!=object.end();++it){const auto asset=it.value().toObject();if(std::abs(asset.value("eo:gsd").toDouble(-1)-dataset.resolution)<1e-9&&asset.value("proj:epsg").toInt()==dataset.epsg&&asset.value("type").toString().contains("profile=cloud-optimized")){selected=asset;break;}}
-            if(selected.isEmpty())continue;const QUrl assetUrl(selected.value("href").toString());const QString fileName=QFileInfo(assetUrl.path()).fileName();
+        QUrl url=dataset.stacEndpoint;QString path=url.path();if(!path.endsWith('/'))path+='/';
+        path+=dataset.stacSearchRoot?QStringLiteral("search")
+            :QStringLiteral("collections/%1/items").arg(dataset.stacCollection);url.setPath(path);
+        QUrlQuery query;query.addQueryItem("bbox",QStringLiteral("%1,%2,%3,%4")
+            .arg(west,0,'f',8).arg(south,0,'f',8).arg(east,0,'f',8).arg(north,0,'f',8));
+        query.addQueryItem("limit","100");url.setQuery(query);
+        QMap<QByteArray,QJsonObject> latest;
+        const auto revisionTime=[](const QJsonObject &feature){const auto p=feature.value("properties").toObject();
+            const QString created=p.value("created").toString();return created.isEmpty()?p.value("datetime").toString():created;};
+        for(int page=0;page<4&&!url.isEmpty();++page){
+            auto response=downloadWave({url},cancel,{}, {2*1024*1024,30000,45000});if(cancel)return false;
+            if(response.isEmpty()||!response[0].error.isEmpty()){
+                error=response.isEmpty()?QStringLiteral("Cannot query STAC catalogue"):response[0].error;return false;}
+            QJsonParseError pe;const auto doc=QJsonDocument::fromJson(response[0].bytes,&pe);
+            if(pe.error!=QJsonParseError::NoError||!doc.object().value("features").isArray()){
+                error=QStringLiteral("Invalid STAC response");return false;}
+            for(const auto value:doc.object().value("features").toArray()){
+                const auto feature=value.toObject();
+                const QByteArray key=QJsonDocument(feature.value("bbox").toArray()).toJson(QJsonDocument::Compact);
+                if(key.isEmpty())continue;
+                if(!latest.contains(key)||revisionTime(feature)>revisionTime(latest[key]))latest[key]=feature;
+            }
+            QUrl next;for(const auto link:doc.object().value("links").toArray()){
+                const auto object=link.toObject();if(object.value("rel").toString()=="next"){
+                    next=QUrl(object.value("href").toString());break;}}
+            if(page==3&&!next.isEmpty()){
+                error=QStringLiteral("STAC query exceeds 400 items; generate a smaller area");return false;}url=next;
+        }
+        struct Remote{QString name,path;QUrl url;};QVector<Remote> remote;int prepared=0;
+        for(const auto &feature:latest){
+            const auto properties=feature.value("properties").toObject();QJsonObject selected;
+            const auto object=feature.value("assets").toObject();
+            for(auto it=object.begin();it!=object.end();++it){const auto asset=it.value().toObject();
+                const double resolution=dataset.stacResolutionProperty.isEmpty()
+                    ?asset.value("eo:gsd").toDouble(-1)
+                    :properties.value(dataset.stacResolutionProperty).toDouble(-1);
+                const int expected=dataset.stacAssetEpsg?dataset.stacAssetEpsg:dataset.epsg;
+                const int assetEpsg=asset.value("proj:epsg").toInt(properties.value("proj:epsg").toInt());
+                if(std::abs(resolution-dataset.resolution)<1e-9&&assetEpsg==expected
+                        &&asset.value("type").toString().contains("profile=cloud-optimized")){
+                    selected=asset;break;}}
+            if(selected.isEmpty())continue;
+            const QUrl assetUrl(selected.value("href").toString());const QString fileName=QFileInfo(assetUrl.path()).fileName();
             if(assetUrl.scheme()!="https"||assetUrl.host().isEmpty()||fileName.isEmpty())continue;
-            Remote r{fileName,QDir(root).filePath(dataset.directory+'/'+fileName),assetUrl};Raster raster;QString decodeError;
+            const QString localFile=QDir(root).filePath(dataset.directory+'/'+fileName);
+            if(dataset.stacRange){
+                QJsonArray box=selected.value("proj:bbox").toArray();
+                if(box.size()!=4)box=properties.value("proj:bbox").toArray();
+                if(box.size()!=4)continue;
+                const double left=box[0].toDouble(std::numeric_limits<double>::quiet_NaN());
+                const double bottom=box[1].toDouble(std::numeric_limits<double>::quiet_NaN());
+                const double right=box[2].toDouble(std::numeric_limits<double>::quiet_NaN());
+                const double top=box[3].toDouble(std::numeric_limits<double>::quiet_NaN());
+                const double inset=dataset.resolution*.5;
+                PointBounds window;const double x0=std::max(requested.minX-margin,left+inset);
+                const double y0=std::max(requested.minY-margin,bottom+inset);
+                const double x1=std::min(requested.maxX+margin,right-inset);
+                const double y1=std::min(requested.maxY+margin,top-inset);
+                if(!std::isfinite(x0)||!std::isfinite(y0)||!std::isfinite(x1)||!std::isfinite(y1)
+                        ||x1<x0||y1<y0)continue;
+                window.include(XY{x0,y0});window.include(XY{x1,y1});
+                Asset asset;asset.name=fileName;asset.url=assetUrl;asset.localFile=localFile;
+                const QByteArray revisionMaterial=assetUrl.toEncoded()+revisionTime(feature).toUtf8();
+                const QString revision=QString::fromLatin1(QCryptographicHash::hash(
+                    revisionMaterial,QCryptographicHash::Sha256).toHex().left(16));
+                asset.parts=localFile+".parts/"+revision;
+                QString issue;if(!loadRangeAsset(asset,window.corners(),cancel,issue))
+                    report.issue(QStringLiteral("%1: %2").arg(fileName,issue));
+                else assets.push_back(std::move(asset));
+                if(progress)progress(++prepared,latest.size(),QStringLiteral("Preparing STAC COG elevation files"));
+                continue;
+            }
+            Remote r{fileName,localFile,assetUrl};Raster raster;QString decodeError;
             const QByteArray bytes=QFileInfo(r.path).size()<=qint64(MaxWholeTiff)?read(r.path,0,MaxWholeTiff+1):QByteArray();
-            if(!bytes.isEmpty()&&readGeoTiff(bytes,raster,decodeError)){Asset a;a.name=r.name;a.localFile=r.path;a.url=r.url;a.raster=std::move(raster);assets.push_back(std::move(a));++report.cacheHits;}else remote.push_back(r);}
-        int done=assets.size();const int total=done+remote.size();for(qsizetype first=0;first<remote.size();first+=dataset.concurrentRequests){if(cancel)return false;const int count=int(std::min(qsizetype(dataset.concurrentRequests),remote.size()-first));QVector<QUrl> urls;for(int i=0;i<count;++i)urls.push_back(remote[first+i].url);const auto responses=downloadWave(urls,cancel,[&](int finished){if(progress)progress(done+finished,total,QStringLiteral("Downloading COG elevation files"));});if(cancel)return false;
-            for(int i=0;i<count;++i){QString issue=responses[i].error;Raster raster;if(issue.isEmpty()&&!readGeoTiff(responses[i].bytes,raster,issue)){}if(issue.isEmpty()&&!save(remote[first+i].path,responses[i].bytes))issue=QStringLiteral("Cannot store COG file");if(issue.isEmpty()){Asset a;a.name=remote[first+i].name;a.localFile=remote[first+i].path;a.url=remote[first+i].url;a.raster=std::move(raster);assets.push_back(std::move(a));++report.downloads;}else report.issue(QStringLiteral("%1: %2").arg(remote[first+i].name,issue));++done;}}
+            if(!bytes.isEmpty()&&readGeoTiff(bytes,raster,decodeError)){
+                Asset a;a.name=r.name;a.localFile=r.path;a.url=r.url;a.raster=std::move(raster);
+                assets.push_back(std::move(a));++report.cacheHits;
+            }else remote.push_back(r);
+        }
+        if(dataset.stacRange)return !cancel&&buildMosaic(error);
+        int done=assets.size();const int total=done+remote.size();
+        for(qsizetype first=0;first<remote.size();first+=dataset.concurrentRequests){if(cancel)return false;
+            if(!authorizeDownload(error))return false;
+            const int count=int(std::min(qsizetype(dataset.concurrentRequests),remote.size()-first));QVector<QUrl> urls;
+            for(int i=0;i<count;++i)urls.push_back(remote[first+i].url);
+            const auto responses=downloadWave(urls,cancel,[&](int finished){if(progress)progress(done+finished,total,
+                QStringLiteral("Downloading COG elevation files"));},{},authorization);if(cancel)return false;
+            for(int i=0;i<count;++i){QString issue=responses[i].error;Raster raster;
+                if(issue.isEmpty()&&!readGeoTiff(responses[i].bytes,raster,issue)){}
+                if(issue.isEmpty()&&!save(remote[first+i].path,responses[i].bytes))issue=QStringLiteral("Cannot store COG file");
+                if(issue.isEmpty()){Asset a;a.name=remote[first+i].name;a.localFile=remote[first+i].path;
+                    a.url=remote[first+i].url;a.raster=std::move(raster);assets.push_back(std::move(a));++report.downloads;}
+                else report.issue(QStringLiteral("%1: %2").arg(remote[first+i].name,issue));++done;}}
         return !cancel&&buildMosaic(error);
     }
     Geo::CrsTransform projection;QString root;Dataset dataset;Report &report;QVector<Asset> assets;Raster stacMosaic;
+    QByteArray authorization;
 };
 }
 
 std::unique_ptr<Source> createCogElevationSource(const QString &root,
-        const Dataset &dataset,Report &report){
-    return std::make_unique<CogFileSource>(root,dataset,report);
+        const Dataset &dataset,Report &report,const QMap<QString,QString> &secrets){
+    return std::make_unique<CogFileSource>(root,dataset,report,secrets);
 }
 }

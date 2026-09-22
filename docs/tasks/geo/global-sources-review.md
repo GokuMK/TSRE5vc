@@ -1,11 +1,12 @@
 # Global elevation source review
 
-**Implementation status, 2026-09-19:** the recommended first step is now
+**Implementation status, 2026-09-22:** the recommended first step is
 implemented as catalogue dataset `world-hgt`. It reads `.hgt` and `.hgt.gz` from
 `geoPath/world_hgt`, downloads missing Mapzen Skadi tiles through an optional
 file-source `download` definition, validates gzip/HGT data before storing it and
-serves as the configured service fallback. The next staged item is a concrete
-degree-grid GeoTIFF source; COG/range providers remain future work.
+serves as the configured service fallback. GEDTM30 is also implemented as
+`world.gedtm30` through the generic single-COG range provider. A degree-grid
+GeoTIFF source remains optional future work.
 
 Yes. The global situation is actually better than I remembered—not in **resolution**, which is still basically ~30 m for freely available worldwide data, but in **accessibility**. There are now several genuinely no-login sources that are much easier than NASA Earthdata.
 
@@ -19,7 +20,7 @@ For TSRE, I would currently rank the interesting global sources like this:
 | **Mapzen / Tilezen AWS Terrain Tiles** | None                     | `.hgt.gz`, GeoTIFF, Terrarium | usually ~30 m, variable by source | Global             | **Excellent immediate fallback**          |
 | **OpenTopography public mirror**       | None                     | 1° GeoTIFF tiles              | 30 m / 90 m                       | depends on product | **Excellent generic tiled-raster source** |
 | **Copernicus GLO-30 AWS**              | None                     | COG GeoTIFF                   | ~30 m                             | almost global      | Probably best consistent DSM              |
-| **GEDTM30**                            | None for bulk/COG access | COG                           | ~30 m                             | near-global land   | Very interesting **bare-earth DTM**       |
+| **GEDTM30**                            | None for bulk/COG access | COG                           | ~30 m                             | near-global land   | **Implemented bare-earth DTM**            |
 | **Viewfinder Panoramas**               | None                     | HGT                           | global 3″ ≈90 m; selected 1″      | Global             | Very easy/manual fallback                 |
 | **DLR elevation WCS**                  | None                     | WCS                           | ~25 m SRTM X-SAR                  | only ~43% of land  | Useful supplement, not fallback           |
 
@@ -118,7 +119,7 @@ That's conceptually attractive for TSRE because railway terrain generation wants
 
 It is CC BY 4.0, EPSG:4326, ~30 m and covers roughly 134 million km² of land. ([portal.opentopography.org][9])
 
-But technically it isn't the easy first implementation. The distributed global product is a huge range-readable COG; the filtered version is stored as **Int32 decimetres with a 0.1 scale factor**. ([object.cloud.sdsc.edu][10])
+The distributed global product is a huge range-readable COG; the filtered version is stored as **Int32 decimetres with a 0.1 scale factor**. ([object.cloud.sdsc.edu][10])
 
 So supporting it properly means something closer to:
 
@@ -130,7 +131,11 @@ HTTP Range
 + TIFF scale/offset
 ```
 
-That's a substantial reusable provider, but probably very worthwhile later.
+This profile is now implemented. TSRE uses HTTP ranges for the header, external
+block tables and required 2048 x 2048 Deflate blocks. Generic TIFF support covers
+signed Int32, horizontal predictor, scale/offset and raw NoData. The first bounded
+live probe and cache repeat succeeded; distant-terrain use still needs a full
+32 km practical validation.
 
 ### Viewfinder is almost certainly the site you remember
 
@@ -160,13 +165,15 @@ For TSRE's **automatic world fallback**, I would investigate **Mapzen/Tilezen Sk
 
 Then I would treat **anonymous tiled GeoTIFF** as the next generic provider. That immediately opens SRTM GL1, NASADEM, ALOS and Copernicus through the current OpenTopography mirror.
 
-And separately, I would keep **GEDTM30** on the roadmap as potentially the best world-scale *terrain* source once we have proper COG/range support. For railway terrain, its DTM nature is considerably more interesting than merely swapping SRTM DSM for another DSM.
+**GEDTM30** is now the first automatic global COG source and the strongest
+world-scale bare-earth terrain option in the catalogue. Its DTM nature is more
+useful for railway terrain than merely swapping SRTM DSM for another DSM.
 
 So this research actually suggests a nice next split:
 
 **easy provider:** remote `.hgt.gz` / Mapzen → very little code
 **next generic provider:** 1° downloaded GeoTIFF → several global datasets
-**later advanced provider:** COG/range → GEDTM30, Copernicus AWS, Switzerland, Sweden, etc.
+**advanced provider:** COG/range → GEDTM30, Austria, Luxembourg, Wales and authenticated Sweden are implemented; Copernicus AWS remains a candidate
 
 [1]: https://www.viewfinderpanoramas.org/dem3.html?utm_source=chatgpt.com "Digital Elevation Data - with SRTM voids filled using accurate topographic mapping"
 [2]: https://registry.opendata.aws/terrain-tiles/?utm_source=chatgpt.com "Terrain Tiles - Registry of Open Data on AWS"

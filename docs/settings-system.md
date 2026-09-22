@@ -199,12 +199,12 @@ Writes use `QSaveFile`, retain five timestamped backups, and detect external fil
 ### Local elevation directories
 
 `core.paths.geoData` / `geoPath` names the parent geodata directory. Place local
-HGT files in `world_hgt/`; lookup falls back to legacy `hgt/` and root files.
-Other user-managed products will have their own readable directories; hashed
-`cache/` paths remain disposable service/derived data. See the
-[local-source design](tasks/geo/local-elevation-sources.md) for the planned provider.
+HGT files in `world_hgt/`; legacy root and `hgt/` lookup is not retained. Other
+file products use their catalogue-defined readable directories, while hashed
+`cache/` paths remain disposable service data. See the
+[local-source design](tasks/geo/local-elevation-sources.md) for the implemented contract.
 
-### Elevation service API keys
+### Elevation service credentials
 
 Elevation catalogue entries can reference a profile secret using:
 
@@ -223,6 +223,22 @@ additional settings entry is required. Each profile can supply its own key.
 `basic-api-key` sends the secret as the HTTP Basic username with an empty
 password, as supported by [NLS](https://www.maanmittauslaitos.fi/en/rajapinnat/api-avaimen-ohje).
 
+Authenticated file services can reference separate username and password
+secrets. Sweden's Lantmäteriet STAC/COG source uses:
+
+```json
+"authentication": {
+  "type": "basic-user-password",
+  "usernameSecret": "geo.elevation.se.lantmateriet.username",
+  "passwordSecret": "geo.elevation.se.lantmateriet.password"
+}
+```
+
+Add both values to the active profile's `secrets` object. TSRE queries Sweden's
+public STAC catalogue anonymously and sends the Basic header only with COG asset
+requests. The header also applies to strict byte-range requests and same-origin
+redirects.
+
 Services such as Denmark Datafordeler use a query parameter instead:
 
 ```json
@@ -234,13 +250,13 @@ Services such as Denmark Datafordeler use a query parameter instead:
 ```
 
 Store that reference's value in the same profile-local `secrets` object.
-Only the selected dataset's key is copied into the elevation worker. Query keys
+Only the selected dataset's referenced credentials are copied into the elevation worker. Query keys
 are percent-encoded and added only when constructing the outgoing HTTP request;
 the public request URL, catalogue JSON, cache identity and cache metadata contain
 no key value. Query-authentication failures omit Qt's URL-bearing error text.
-Authenticated redirects are restricted to the same origin for both methods.
+Authenticated redirects are restricted to the same origin for every method.
 
-A missing or invalid key stops new requests and names the required secret in the
+A missing or invalid credential stops new requests and names the required secret reference in the
 elevation report. Existing valid cache blocks and the usual HGT fallback remain
 available. Rotating a key does not invalidate cached elevation data.
 

@@ -1,6 +1,6 @@
 # Elevation: current implementation and review
 
-Updated 2026-09-22 for the current `feature/geo-terrain` working tree.
+Updated 2026-09-23 for the current `feature/geo-terrain` working tree.
 Start with the [agent handoff guide](README.md) for reading order, code map and
 source-addition workflow. These follow-ups are committed together with the guide.
 
@@ -8,6 +8,145 @@ Newest follow-ups appear first. Sections headed as the original review retain
 historical findings from `a88f7f8` and the R1/R2 follow-up on `1ee5aaa`; their
 counts and validation claims are scoped to those milestones. They do not replace
 the newest status or the current source code.
+
+## Sweden authenticated STAC/range COG, 2026-09-23
+
+- `se.lantmateriet.markhojdmodell1` provides Lantmäteriet's national 1 m
+  Markhöjdmodell through the generic file/STAC provider. Catalogue discovery is
+  anonymous; COG asset bytes use Basic Authentication resolved from separate
+  username and password secret references.
+- Root-level STAC search supports datasets split across changing regional
+  collections. Configurable STAC fields select Sweden's
+  `geometriskupplosning` property and validate compound asset EPSG:5845 while
+  sampling the horizontal SWEREF 99 TM grid as EPSG:3006.
+- Authenticated range requests use the same strict 206/Content-Range checks as
+  anonymous COGs and restrict authenticated redirects to the same origin.
+  Credentials are absent from URLs, errors, dataset definitions and cache data.
+- The generic COG decoder now supports the verified Float32/Deflate TIFF profile
+  with horizontal predictor 2 and 512 x 512 blocks.
+- A Stockholm probe returned 31.361 m and 31.2604 m entirely from the Swedish
+  source. It downloaded one compressed block; the repeat used one cache block,
+  made zero downloads and returned identical values. A 16 x 16 wider probe then
+  exercised 36 downloaded compressed blocks in four-request waves; its repeat
+  used 37 cached blocks and made zero downloads.
+- **398 focused Release checks pass**, the Release application build succeeds,
+  and the source is user-confirmed in the application. Distant-terrain use
+  remains unapproved.
+
+## France numeric WMS and Lambert-93, 2026-09-22
+
+- `wms-1.3.0` is a generic cached raster provider. Dataset configuration supplies
+  the endpoint, layer, style, wire format, native CRS and the existing service
+  block grid; acquisition reuses WCS cache, concurrency, TIFF validation,
+  reporting and sampling.
+- `fr.ign.lidar-hd.mnt05` selects IGN's anonymous raw MNT LiDAR HD layer. The
+  source is a 0.5 m bare-earth model; TSRE asks the server for a 1 m Float32
+  GeoTIFF grid and avoids storing four times as many native pixels.
+- The shared CRS converter now implements ellipsoidal Lambert Conformal Conic
+  2SP and the GRS80 Lambert-93 definition (EPSG:2154). The published false origin
+  maps exactly to `(700000, 6600000)`, and the official IGN numeric control at
+  48 degrees north, 2 degrees west agrees within 2 mm.
+- IGN's TIFF encodes Lambert-93 as a GeoTIFF user-defined projection. The decoder
+  accepts that marker only when service metadata supplies a supported expected
+  EPSG code. Standalone user-defined rasters and explicit CRS conflicts remain
+  rejected.
+- A Paris probe returned 35.6531 m and 35.3925 m from one primary block, without
+  fallback. The cache repeat completed in 72 ms. A four-block probe reused one
+  cached block, downloaded three blocks concurrently in 7.1 s and returned all
+  1,024 samples from the primary source.
+- **393 focused Release checks pass**, and the Release application build
+  succeeds. The UI suites were not repeated.
+
+## All-provider hot-path audit, 2026-09-22
+
+The HGT problem prompted a review of every `Source::prepare()` and
+`Source::sample()` implementation, plus shared fallback generation.
+
+- HGT was the only source performing filesystem discovery per terrain point.
+  File lookup, gzip expansion and file reads now happen once per required cell;
+  sampling reads the retained in-memory signed 16-bit tile.
+- WCS, WMS and ArcGIS acquisition checks/downloads each distinct service
+  block once. Sampling reads and decodes a cached raster only on first use. A
+  numeric current-block fast path now avoids repeated `QMap`, path-string and
+  `QCache` lookups while consecutive samples remain in that block.
+- Projected and single-file range COG preparation already performs file/range
+  reads per required compressed COG block. It now accumulates only projected
+  min/max bounds instead of retaining and rescanning every projected output
+  point. Sampling uses the completed in-memory raster window.
+- STAC downloads and indexed-directory scanning occur once during preparation.
+  Both build an in-memory mosaic, so their sampling paths contain no filesystem
+  or network access. The directory index avoids rereading GeoTIFF metadata for
+  unchanged user files.
+- Fallback preparation receives only unresolved primary points. Neither primary
+  nor fallback sampling performs HTTP requests.
+
+Full cached 2048 x 2048 probes after these changes produced 4,194,304 samples in
+about **0.36 s for HGT**, **0.66 s for GEDTM30**, and **3.32 s for Austria**.
+Austria's path applies an EPSG:3035 transform to each point and covered 25 native
+COG blocks; its repeat used those cached blocks and made no download. Per-point
+CRS conversion and intentional multi-tap area filtering remain CPU work in the
+generic sampler, but no provider performs repeated disk or network I/O per
+output point.
+
+## HGT sampling and repeated-generation correction, 2026-09-22
+
+- The old HGT-only sampler treated an `N x N` HGT raster as `N` geographic
+  intervals. HGT files have `N - 1` intervals because adjacent one-degree files
+  share border posts. This shifted interpolation within every tile and emphasized
+  the source grid. HGT now uses the raster's actual georeferencing.
+- `FileHgtSource` no longer converts every post in a 3601 x 3601 tile into a
+  52 MB Float32 raster before sampling a small terrain area. It retains the
+  validated signed 16-bit big-endian bytes and decodes only the four posts used
+  by each bilinear sample.
+- A bounded, thread-safe 128 MiB process cache keeps recently expanded HGT tiles
+  across separate terrain-generation calls. Automatic creation of adjacent MSTS
+  tiles therefore does not repeatedly inflate the same `.hgt.gz` file. File size
+  and modification time are part of the cache identity.
+- HGT preparation now checks each unique one-degree cell once. Previously it ran
+  `findHgtFile()` for every requested output point, causing a 2048 x 2048 detailed
+  terrain tile to perform more than four million filesystem searches for the same
+  file. Sampling likewise retains the current numeric cell instead of formatting
+  and looking up its filename for every output point.
+- **388 focused Release checks pass**, including an asymmetric HGT interpolation
+  control that detects the former `N` versus `N - 1` error.
+
+An exact 2048 x 2048 standalone grid probe using cached `N39W009.hgt.gz` generated
+all **4,194,304 HGT samples in about 0.36 s**, including gzip expansion. The
+equivalent cached GEDTM30 source probe took about 0.66 s after its bounds-only
+preparation correction. This confirms the former half-minute
+delay came from repeated filesystem discovery rather than gzip decompression.
+
+This removes TSRE's placement and repeated-decoding costs. It does not invent
+detail absent from HGT: Mapzen Skadi is a heterogeneous integer-metre composite,
+and some regions contain 30–90 m source structure. GEDTM30 remains the stronger
+bare-earth global source where it has coverage.
+
+## GEDTM30 global bare-earth range COG, 2026-09-22
+
+- `world.gedtm30` is a selectable automatic file source using the existing
+  single-COG range provider. It reads the anonymous GEDTM30 v20250619 object and
+  stores only index tables and required compressed blocks under
+  `geoPath/world_gedtm30/`; the roughly 261 GB complete object is never fetched.
+- Geographic single COGs use an explicit `download.overviewFactor`. This keeps
+  angular source pixels separate from the nominal metre resolution shown in the
+  catalogue. GEDTM30 selects factor 1, its 0.00025-degree base image.
+- The generic TIFF block decoder now supports signed/unsigned Int32 and the
+  horizontal integer predictor. The COG reader accepts EPSG:4326 GeoKeys, reads
+  GDAL `SCALE`/`OFFSET`, applies the GEDTM30 0.1 m scale, and recognizes the raw
+  Int32 NoData value before scaling.
+- The source uses EGM2008 orthometric heights and covers approximately 57 degrees
+  south to 84 degrees north. World HGT remains the fallback elsewhere and at
+  voids. GEDTM30 is a machine-learning-derived model and its catalogue text
+  directs users to validate it independently for critical work.
+- A bounded live probe at `(50.05, 19.05)` returned 241.95 m and 242.01 m from one
+  downloaded block. Repeating it made zero terrain downloads, reported one cache
+  hit and completed in 103 ms.
+- **387 focused Release checks pass**, including a self-contained geographic COG
+  fixture covering Int32 predictor, scale and NoData behavior. The incremental
+  Release application build passes; the main UI suites were not run.
+
+GEDTM30's native spacing makes it a strong distant-terrain candidate, but a real
+32 km distant tile and explicit source eligibility/cache policy remain open.
 
 ## Portugal indexed local GeoTIFF source, 2026-09-22
 

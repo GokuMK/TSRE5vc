@@ -1,7 +1,7 @@
 # TSRE high-resolution elevation sources — Europe tracker
 
 **Original research date:** 2026-09-17  
-**TSRE implementation sync:** 2026-09-22 — `feature/geo-terrain`; Portugal indexed-directory milestone follows the COG/STAC work
+**TSRE implementation sync:** 2026-09-23 — `feature/geo-terrain`; Sweden authenticated STAC/range COG follows the France numeric-WMS work
 **Scope:** high-resolution European national/regional terrain models, implemented non-European sources, and world-scale fallback/acquisition options.  
 **World fallback:** automatic catalogue-based HGT download is now implemented.
 
@@ -57,9 +57,9 @@ The lightweight projection code is intentionally bounded rather than a general P
 
 The earlier WCS/authentication blockers have largely been removed. The main remaining reusable gaps are now:
 
-- a generic **degree-grid GeoTIFF file/download provider** after the HGT and projected/STAC milestones;
-- arbitrary georeferenced local-file collection indexing;
-- broader GeoTIFF / COG / BigTIFF profiles beyond the verified LZW/Deflate Float32 and LZW Float64 cases, including scale/offset where required;
+- an optional generic **degree-grid GeoTIFF file/download provider** for tiled global products;
+- broader GeoTIFF / COG / BigTIFF profiles beyond the verified LZW/Deflate
+  Float32/Float64 and Deflate Int32 cases;
 - generic ATOM / indexed-download / irregular catalogue acquisition;
 - local support for remaining national projections such as EPSG:28992, EPSG:2154, EPSG:3301 and EPSG:3812 when server-side reprojection is unavailable;
 - vertical datum conversion;
@@ -88,15 +88,18 @@ A dataset being present in `elevation-datasets.json` means it passes the catalog
 
 # 3. Implemented / tested baseline
 
-Current branch catalogue snapshot, updated 2026-09-21:
+Current branch catalogue snapshot, updated 2026-09-23:
 
 | Dataset ID | Area / product | Provider | EPSG / grid | Current status |
 |---|---|---|---:|---|
-| `world-hgt` | World HGT terrain / Mapzen Skadi automatic fallback | file / HGT | 4326 | ✅ implemented + live download/cache probe |
+| `world-hgt` | World HGT terrain / Mapzen Skadi automatic fallback | file / HGT | 4326 | ✅ implemented + live probe; grid placement/shared decode cache corrected |
+| `world.gedtm30` | World GEDTM30 bare-earth terrain, v20250619 | file / geographic range COG | 4326 | ✅ bounded live block + cache probe |
+| `fr.ign.lidar-hd.mnt05` | France IGN MNT LiDAR HD, 1 m request grid | WMS 1.3 numeric GeoTIFF | 2154 | ✅ primary/cache + four-block concurrency probe |
 | `at.bev.als-dgm1` | Austria BEV ALS-DGM 1 m, 2025 mosaic | file / projected range COG | 3035 | ✅ bounded live block + cache probe |
 | `lu.act.dtm2024` | Luxembourg ACT DTM 2024, 1 m overview | file / national range COG | 2169 | ✅ bounded live block + cache probe |
 | `gb.wales.lidar.dtm1` | Wales LiDAR DTM 1 m | file / national range COG | 27700 + OSTN15 Lite | ✅ bounded live/cache probe + user-confirmed application test |
 | `ch.swisstopo.swissalti3d.2m` | Switzerland + Liechtenstein swissALTI3D 2 m | file / STAC GeoTIFF | 2056 | ✅ bounded live tile + cache probe |
+| `se.lantmateriet.markhojdmodell1` | Sweden Lantmäteriet Markhöjdmodell 1 m | file / authenticated STAC range COG | 3006; asset metadata 5845 | ✅ live/cache probes + user-confirmed application test |
 | `pl.gugik.nmt1.kron86` | Poland NMT 1 m KRON86 | WCS 2.0.1 | 2180 | ✅ |
 | `pl.gugik.nmt1.evrf2007` | Poland NMT 1 m EVRF2007 | WCS 2.0.1 | 2180 | ✅ |
 | `cz.cuzk.dmr4g` | Czech DMR4G 5 m | WCS 2.0.1 | 3045 | ✅ |
@@ -590,9 +593,12 @@ fallback. Detailed 1 km assets are not yet approved for distant terrain.
 
 ## Liechtenstein
 
-**Status: 🟠**
+**Status: ✅ covered by the Switzerland/Liechtenstein catalogue entry**
 
-Liechtenstein uses/distributes swissALTI3D under its cooperation with swisstopo, so the technical path is effectively the Swiss one.
+Liechtenstein uses/distributes swissALTI3D under its cooperation with swisstopo.
+The implemented `ch.swisstopo.swissalti3d.2m` entry includes Liechtenstein in
+its bounds and uses the same official swisstopo STAC collection; no separate
+provider or country entry is required.
 
 Source:
 
@@ -602,7 +608,7 @@ Source:
 
 ## Sweden
 
-**Status: 🟠**
+**Status: ✅ implemented and bounded-live-tested**
 
 Current Lantmäteriet `Markhöjdmodell Nedladdning`:
 
@@ -622,11 +628,25 @@ Sources:
 - https://www.lantmateriet.se/en/geodata/our-products/product-list/elevation-model-download/
 - https://www.lantmateriet.se/sv/geodata/vara-produkter/Produktnyheter/Geografisk-information/markhojdmodell-nedladdning-utokas-med-mer-innehall/
 
-Needs:
+The STAC root and bounded search are anonymously readable. A Stockholm probe
+returned a 2.5 km, 1 m COG item with compound EPSG:5845 (horizontal EPSG:3006),
+while official documentation describes the current file coverage as 10 x 10 km.
+The asset itself returns HTTP 401 without product permission. Basic
+authentication is supported officially and fits TSRE's secret profile.
 
-- STAC/COG provider;
-- auth/permission handling;
-- SWEREF 99 TM CRS support if data are consumed natively.
+The generic STAC/COG provider now supports root search across regional `mhm-*`
+collections, Basic-authenticated strict range requests, configurable item
+resolution properties and separate compound asset/horizontal CRS identifiers.
+EPSG:3006 uses the shared GRS80 Transverse Mercator implementation.
+
+An authorized Stockholm probe verified a 2500 x 2500 Float32/Deflate COG with
+512 x 512 blocks and horizontal predictor 2. The first run downloaded one block
+and returned 31.361 m and 31.2604 m as primary samples; its repeat used the block
+cache with zero downloads. The source is also user-confirmed in the application.
+
+Detailed probe and implementation notes:
+
+- [Sweden, Wallonia and France research](sweden-wallonia-france-research.md)
 
 ---
 
@@ -812,7 +832,7 @@ Likely future path: indexed-tile/catalogue download provider.
 
 ## France
 
-**Status: 🟠**
+**Status: ✅ implemented and bounded-live-tested**
 
 RGE ALTI provides national high-resolution terrain products:
 
@@ -825,12 +845,28 @@ Documentation:
 
 - https://geoservices.ign.fr/sites/default/files/2021-07/DL_RGEALTI_2-0.pdf
 
-A clean current public numeric WCS fitting TSRE was not identified in this research pass. Modern IGN distribution should be reviewed separately before implementation.
+A clean public numeric WCS was not identified. The preferred current source is
+instead **MNT LiDAR HD**: a 0.5 m bare-earth GeoTIFF product published in 1 km
+tiles in Lambert-93/EPSG:2154. The official vector-TMS index reveals that its
+download URLs are bounded requests to an anonymous numeric `wms-r` service.
 
-Main blockers:
+A 10 m square requested as a 10 x 10 grid returned a valid uncompressed,
+single-band Float32 GeoTIFF with plausible terrain values. France therefore has
+a simpler automatic path than an indexed-file provider: add a generic numeric
+WMS GeoTIFF request builder, request 1 m output blocks, and add ellipsoidal
+Lambert Conformal Conic 2SP for EPSG:2154. The same projection family also covers
+Wallonia EPSG:3812. RGE ALTI remains available through the official download
+API, but its department-scale archives and classic ASCII-grid delivery are less
+attractive for selective TSRE acquisition.
 
-- distribution/API discovery;
-- EPSG:2154 Lambert projection if native data are required.
+A full 1026 x 1026, 1 m block also succeeded. The implemented provider returned
+35.6531 m and 35.3925 m near Paris from one primary block; its repeat was
+cache-only in 72 ms. A four-block probe reused one block, downloaded three
+concurrently in 7.1 s and produced 1,024 primary samples with no fallback.
+
+Detailed probe and implementation notes:
+
+- [Sweden, Wallonia and France research](sweden-wallonia-france-research.md)
 
 ---
 
@@ -885,7 +921,7 @@ Sources:
 
 ### Wallonia
 
-**Status: 🟠**
+**Status: 🟠 automatic acquisition deferred**
 
 Current MNT:
 
@@ -900,11 +936,24 @@ Sources:
 - https://geoportail.wallonie.be/catalogue/a004e570-99d6-4fe5-b83d-49b774409278.html
 - https://geoportail.wallonie.be/catalogue/fe13bc84-e371-46ca-9632-8ad4139f1ee5.html
 
-There is a public ArcGIS MapServer, but not a confirmed raw numeric ImageServer:
+There is a public ArcGIS MapServer, but no raw numeric ImageServer:
 
 - https://geoservices.wallonie.be/arcgis/rest/services/RELIEF/WALLONIE_MNT_2021_2022/MapServer
 
-Needs either file/download support and EPSG:3812, or another service route.
+Anonymous direct ZIPs exist, but the predefined packages are about 2.6–11.2 GB
+per province or 40.9 GB for all Wallonia. The tested host ignored a byte-range
+request, the public WCS capabilities contained no coverages, and custom downloads
+are asynchronous/email-based. This is worse for targeted automatic use than the
+small files available from Portugal.
+
+EPSG:3812 itself can use the same future Lambert Conformal Conic 2SP transform as
+France. Defer automatic integration until SPW exposes modest individual tiles,
+COGs/range support, or a numeric service. A user-managed source remains possible
+after its extracted file layout is inspected.
+
+Detailed probe and implementation notes:
+
+- [Sweden, Wallonia and France research](sweden-wallonia-france-research.md)
 
 ---
 
@@ -1131,15 +1180,22 @@ The world-scale resolution ceiling for universally/free/easy data is still rough
 | OpenTopography public mirror — ALOS AW3D30 | anonymous direct | 1° GeoTIFF | ~30 m DSM | 🟠 same future provider family |
 | OpenTopography public mirror — Copernicus GLO-30 | anonymous direct | 1° GeoTIFF | ~30 m DSM | 🟠 same future provider family |
 | Copernicus GLO-30 AWS Open Data | anonymous | tiled COG GeoTIFF | ~30 m DSM | 🟠 needs compressed/COG/range support |
-| GEDTM30 | anonymous OpenTopography COG | huge COG | ~30 m **bare-earth DTM** | 🟠 strategically attractive after COG support |
+| GEDTM30 | anonymous OpenTopography COG | huge COG | ~30 m **bare-earth DTM** | ✅ implemented as `world.gedtm30`; bounded live/cache probe |
 | Viewfinder Panoramas | no login | HGT ZIP/catalogue | global ~90 m; selected ~30 m | 🟢 useful manual/user-supplied HGT source |
 | DLR SRTM X-SAR WCS | no login | WCS | ~25–30 m | 🔴/supplement only: about 43% land coverage |
 
-### Next global provider milestone
+### Implemented global COG milestone
 
-The branch documentation now recommends **one concrete degree-grid GeoTIFF product** as the next file-provider milestone. A single regular 1° GeoTIFF provider could unlock SRTM GL1, NASADEM, ALOS AW3D30 and Copernicus GLO-30 mirrors with mostly catalogue differences.
+GEDTM30 is now the first global geographic range COG. The existing single-COG
+provider gained EPSG:4326 GeoKeys, explicit overview-factor selection, signed
+Int32 horizontal-predictor decoding, GDAL scale/offset and raw NoData handling.
+The v20250619 entry selects the 0.00025-degree base image, applies its 0.1 m
+scale and keeps block parts in `world_gedtm30`.
 
-The current TIFF code is deliberately not enough for arbitrary global downloaded rasters: general compression, BigTIFF, large-file windowed reads and COG/range access remain separate work. GEDTM30 is particularly interesting for railway terrain because it is intended as a bare-earth DTM, but it belongs after that more advanced reader work.
+A bounded live probe near Kraków returned 241.95 m and 242.01 m from one range
+block; its repeat used the cache. A regular 1° GeoTIFF provider could still unlock
+SRTM GL1, NASADEM, ALOS AW3D30 and Copernicus GLO-30 mirrors, but it is no longer
+a prerequisite for a high-quality global DTM option.
 
 References retained in the branch research:
 
@@ -1183,14 +1239,13 @@ This is now the clearest next step after `world-hgt`: predictable filenames, no 
 
 ## Tier C — compressed COG / range / STAC
 
-A narrow COG/range and STAC layer now supports Austria, Luxembourg, Wales and
-Switzerland. Verified profiles cover LZW Float32/Float64, Deflate Float32,
-overview selection, external block tables and separate OSTN15 preparation.
+A narrow COG/range and STAC layer now supports GEDTM30, Austria, Luxembourg,
+Wales, Switzerland and authenticated Swedish assets. Verified profiles cover LZW Float32/Float64, Deflate
+Float32 and signed Int32, projected/geographic overview selection, GDAL
+scale/offset, external block tables and separate OSTN15 preparation.
 Further extensions could unlock:
 
-- GEDTM30 global bare-earth ~30 m;
 - official Copernicus GLO-30 AWS COGs;
-- Sweden 1 m STAC/COG;
 - other modern cloud-hosted regional datasets.
 
 ## Tier D — irregular download/catalogue workflows
@@ -1258,9 +1313,9 @@ The generic design is holding up well. The current implementation demonstrates s
    Slovakia and other predictable tile sets
 
 8. Broader STAC / COG profiles and indexed catalogues — later extensions
-   GEDTM30
    official Copernicus AWS COGs
-   Sweden
+   France MNT LiDAR HD numeric WMS — implemented
+   Sweden authenticated STAC/range COG — implemented
    Ireland and other catalogue-based sources
 ```
 
@@ -1300,14 +1355,14 @@ Work remains intentionally split:
 - this tracker/research thread identifies data sources, records service/file quirks and keeps the acquisition landscape current;
 - implementation agents decide how reusable TSRE capabilities should be added and validated.
 
-Current short queue after the World HGT milestone:
+Current short queue after the GEDTM30 milestone:
 
-1. **Flanders** — working and user-confirmed; retain a full-grid/coverage-edge report when convenient.
-2. **Baden-Württemberg** — decide whether the whole-metre WCS service is sufficient or whether downloadable original DGM1 files should replace/supplement it.
-3. **Choose one global 1° GeoTIFF source** — SRTM GL1 or NASADEM are simple first candidates; inspect real adjacent files, compression, sample type, NoData and edge registration before coding the provider.
-4. **Implement the minimum degree-grid GeoTIFF file provider** needed by that source, preserving originals under a stable dataset directory just like `world_hgt`.
-5. **Then evaluate COG/range support** for GEDTM30, official Copernicus GLO-30 and the high-value European STAC/COG datasets.
-6. **Distant terrain** remains a separate critical issue: detailed sources should not automatically be allowed to download their full native/request resolution for ~32 km distant tiles.
+1. **Sweden** — implemented and user-confirmed in the application.
+2. **France** — implemented; retain a later full-terrain/coverage-edge application report when convenient.
+3. **Flanders** — working and user-confirmed; retain a full-grid/coverage-edge report when convenient.
+4. **Baden-Württemberg** — decide whether the whole-metre WCS service is sufficient or whether downloadable original DGM1 files should replace/supplement it.
+5. **Validate GEDTM30 for distant terrain** — run a representative 32 km tile and define explicit eligibility/cache behavior before relying on it there.
+6. **Distant terrain** remains a separate critical issue: detailed national sources should not automatically download full native/request resolution for ~32 km tiles.
 
 If we want another WCS-heavy research pass before switching provider families, it should be a deliberate **deep search for hidden numeric services** (for example Wallonia/other fragmented national portals), because the obvious national WCS shortlist has mostly been exhausted.
 
@@ -1315,8 +1370,8 @@ If we want another WCS-heavy research pass before switching provider families, i
 
 ## Notes
 
-- Implementation state in this revision was synchronized against `feature/geo-terrain` head `c8a952d0` on 2026-09-19.
-- The current catalogue has **25 datasets**, including the Portugal user-managed file source.
+- Implementation state was synchronized with the `feature/geo-terrain` working tree on 2026-09-23.
+- The current catalogue has **28 datasets**, including Sweden Markhöjdmodell, France MNT LiDAR HD, GEDTM30 and the Portugal user-managed file source.
 - `world-hgt` is both a selectable file source and the configured fallback for unresolved service samples; local files take precedence over automatic Mapzen downloads.
 - Resolution listed here means published/source spacing or TSRE request/cache spacing as explicitly stated; a dense request grid does not imply equivalent native survey accuracy.
 - Web Mercator “metres” are map metres. TSRE compensates footprint size by latitude for sampling, and several catalogue names explicitly say “request grid” to avoid implying uniform native resolution.

@@ -145,6 +145,12 @@ void runDownloadTests(const std::function<void(bool,const char*)> &check) {
     auto rangeResults = Elevation::downloadRangeWave({{urls[0],2,5}},cancel,{},limits);
     check(received==1 && receivedRange=="bytes=2-5" && rangeResults[0].bytes=="2345"
         && rangeResults[0].error.isEmpty(),"strict range download accepts an exact HTTP 206 interval");
+    rangeResults = Elevation::downloadRangeWave({{urls[0],2,5}},cancel,{},limits,authorization);
+    check(rangeResults[0].bytes=="2345" && receivedAuthorization==authorization,
+        "authenticated range download sends the Authorization header");
+    rangeResults = Elevation::downloadRangeWave({{urls[0],2,5}},cancel,{},limits);
+    check(rangeResults[0].bytes=="2345" && receivedAuthorization.isEmpty(),
+        "next unauthenticated range download retains no credentials");
     mode = BadRange;
     rangeResults = Elevation::downloadRangeWave({{urls[0],2,5}},cancel,{},limits);
     check(rangeResults[0].bytes.isEmpty() && rangeResults[0].error.contains("inconsistent"),

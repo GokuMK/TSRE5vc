@@ -23,5 +23,5 @@ QVector<DownloadResult> downloadWave(const QVector<QUrl> &urls, std::atomic_bool
 // must be 206 and describe exactly the requested interval.
 QVector<DownloadResult> downloadRangeWave(const QVector<RangeRequest> &ranges,
     std::atomic_bool &cancel, const std::function<void(int completed)> &progress = {},
-    const DownloadLimits &limits = {});
+    const DownloadLimits &limits = {}, const QByteArray &authorization = {});
 }

@@ -88,7 +88,7 @@ QVector<DownloadResult> downloadWave(const QVector<QUrl> &urls, std::atomic_bool
 
 QVector<DownloadResult> downloadRangeWave(const QVector<RangeRequest> &ranges,
         std::atomic_bool &cancel, const std::function<void(int)> &progress,
-        const DownloadLimits &limits) {
+        const DownloadLimits &limits, const QByteArray &authorization) {
     QVector<DownloadResult> results(ranges.size());
     if (ranges.isEmpty()) return results;
     if (ranges.size()>4 || limits.maxBytes<=0 || limits.transferTimeoutMs<=0 || limits.deadlineMs<=0) {
@@ -115,7 +115,9 @@ QVector<DownloadResult> downloadRangeWave(const QVector<RangeRequest> &ranges,
         QNetworkRequest request(requested.url);
         request.setRawHeader("User-Agent","TSRE5vc terrain elevation");
         request.setRawHeader("Range",QStringLiteral("bytes=%1-%2").arg(requested.first).arg(requested.last).toLatin1());
-        request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,QNetworkRequest::NoLessSafeRedirectPolicy);
+        if(!authorization.isEmpty())request.setRawHeader("Authorization",authorization);
+        request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,authorization.isEmpty()
+            ?QNetworkRequest::NoLessSafeRedirectPolicy:QNetworkRequest::SameOriginRedirectPolicy);
         request.setTransferTimeout(limits.transferTimeoutMs);
         auto *reply=pending[i].reply=network.get(request);
         reply->setReadBufferSize(1024*1024);

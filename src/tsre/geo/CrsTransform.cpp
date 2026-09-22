@@ -23,6 +23,10 @@ int transverseMercatorZone(int epsg) {
     if (epsg == 3067)
         return 35;
 
+    // SWEREF 99 TM uses the UTM zone 33N Transverse Mercator parameters.
+    if (epsg == 3006)
+        return 33;
+
     return 0;
 }
 }
@@ -95,6 +99,16 @@ CrsTransform::CrsTransform(int epsg)
                                     49.8333333333333, 6.16666666666667,
                                     1.0, 80000, 100000,
                                     49.44, 50.19, 5.73, 6.53);
+        return;
+    }
+
+    if (epsg == 2154) {
+        // RGF93 v1 / Lambert-93. RGF93 and ETRS89 use the GRS80 ellipsoid;
+        // no horizontal datum grid is required for this elevation workflow.
+        configureLambertConformalConic(
+            Grs80SemiMajorAxis, Grs80InverseFlattening,
+            46.5, 3.0, 49.0, 44.0, 700000, 6600000,
+            41, 52, -6, 10);
         return;
     }
 
@@ -220,6 +234,51 @@ void CrsTransform::transverseMercatorRaw(
     north *= rectifyingRadius;
 }
 
+double CrsTransform::conformalT(double latitude) const {
+    const double sine = std::sin(latitude);
+    return std::tan(Pi / 4.0 - latitude / 2.0)
+            / std::pow((1.0 - eccentricity * sine)
+                       / (1.0 + eccentricity * sine), eccentricity / 2.0);
+}
+
+void CrsTransform::configureLambertConformalConic(
+        double axis, double inverseFlattening,
+        double latitudeOriginDegrees, double centralMeridianDegrees,
+        double firstParallelDegrees, double secondParallelDegrees,
+        double eastingOffset, double northingOffset,
+        double minimumLatitude, double maximumLatitude,
+        double minimumLongitude, double maximumLongitude) {
+    method = Method::LambertConformalConic;
+    minLatitude = minimumLatitude;
+    maxLatitude = maximumLatitude;
+    minLongitude = minimumLongitude;
+    maxLongitude = maximumLongitude;
+    centralMeridian = centralMeridianDegrees * DegreesToRadians;
+    falseEasting = eastingOffset;
+    falseNorthing = northingOffset;
+    semiMajorAxis = axis;
+
+    const double flattening = 1.0 / inverseFlattening;
+    eccentricitySquared = flattening * (2.0 - flattening);
+    eccentricity = std::sqrt(eccentricitySquared);
+    const double first = firstParallelDegrees * DegreesToRadians;
+    const double second = secondParallelDegrees * DegreesToRadians;
+    const auto m = [&](double latitude) {
+        const double sine = std::sin(latitude);
+        return std::cos(latitude)
+                / std::sqrt(1.0 - eccentricitySquared * sine * sine);
+    };
+    const double firstT = conformalT(first);
+    const double secondT = conformalT(second);
+    lccExponent = (std::log(m(first)) - std::log(m(second)))
+            / (std::log(firstT) - std::log(secondT));
+    lccFactor = m(first)
+            / (lccExponent * std::pow(firstT, lccExponent));
+    lccOriginRadius = semiMajorAxis * lccFactor
+            * std::pow(conformalT(latitudeOriginDegrees * DegreesToRadians),
+                       lccExponent);
+}
+
 bool CrsTransform::etrs89ToLuref(
         GeographicPoint point, double &latitude, double &longitude) const {
     constexpr double sourceAxis = Grs80SemiMajorAxis;
@@ -339,6 +398,17 @@ bool CrsTransform::forward(GeographicPoint point, ProjectedPoint &out) const {
                   * (std::cos(laeaBeta0) * std::sin(beta)
                      - std::sin(laeaBeta0) * std::cos(beta)
                        * std::cos(deltaLongitude));
+        return std::isfinite(out.x) && std::isfinite(out.y);
+    }
+
+    if (method == Method::LambertConformalConic) {
+        const double latitude = point.latitude * DegreesToRadians;
+        const double longitude = point.longitude * DegreesToRadians;
+        const double radius = semiMajorAxis * lccFactor
+                * std::pow(conformalT(latitude), lccExponent);
+        const double theta = lccExponent * (longitude - centralMeridian);
+        out.x = falseEasting + radius * std::sin(theta);
+        out.y = falseNorthing + lccOriginRadius - radius * std::cos(theta);
         return std::isfinite(out.x) && std::isfinite(out.y);
     }
 

@@ -3,18 +3,21 @@
 Recorded 2026-09-19; updated 2026-09-22. Catalogue-defined file providers now
 cover one-degree HGT plus downloaded GeoTIFF profiles: Austria projected range
 COG tiles, Luxembourg and Wales national range COGs, and Switzerland
-STAC-discovered 2 m tiles. Portugal is the first user-managed indexed GeoTIFF
-directory.
+STAC-discovered 2 m tiles. Sweden adds authenticated root-STAC range access to
+1 m COG assets. Portugal is the first user-managed indexed GeoTIFF
+directory. GEDTM30 is the first geographic global range COG.
 
 ## Directory ownership
 
 ```text
 geoPath/
   world_hgt/               N52E019.hgt and/or N52E019.hgt.gz
+  world_gedtm30/           GEDTM30 COG index tables and required block parts
   at_bev_als_dgm1/         optional official TIFFs and downloaded COG block parts
   lu_act_dtm2024/           Luxembourg national COG index and 1 m block parts
   gb_wales_lidar_dtm1/      Wales national COG index and 1 m block parts
   ch_swissalti3d_2m/       preserved official 2 m source TIFFs
+  se_lantmateriet_markhojdmodell1/  Swedish COG indexes and required block parts
   pt_dgt_mdt2m/            user-downloaded DGT MDT-2m GeoTIFF tiles and index
   <stable-product-name>/   later downloaded originals, managed by the user
   cache/
@@ -58,6 +61,8 @@ The current catalogue fields are:
   attribution and concurrency.
 - Optional `download` object. Its absence makes a source manual-only. World HGT
   uses an HTTPS URL template with `{latitudeBand}` and `{tile}`, plus gzip.
+- A geographic single COG declares `download.overviewFactor` because its source
+  pixels are angular while the catalogue's displayed `resolution` is in metres.
 - Catalogue-level `defaultFileSource`. If omitted or invalid, the first valid file
   source is used. The default is both the replacement for the former empty HGT
   selection and the current fallback for service sources.
@@ -73,10 +78,59 @@ HGT dimensions, gzip CRC and ISIZE are validated before an atomic write. A JSON
 sidecar records dataset ID, public URL, retrieval time, datum, attribution and
 SHA-256. Existing files are never replaced. Four downloads may run concurrently.
 
+HGT posts are sampled over the correct `side - 1` intervals of their one-degree
+cell. The file provider retains signed 16-bit source bytes rather than expanding
+every 3601 x 3601 cell into a full Float32 raster. A thread-safe 128 MiB process
+cache reuses recently decompressed cells across automatic generation of adjacent
+terrain tiles. This improves speed and corrects the former within-cell shift;
+the source's original integer height quantization and heterogeneous 30–90 m
+detail remain inherent limitations.
+
+Preparation deduplicates geographic cells before checking the filesystem, and
+sampling keeps a numeric last-cell fast path. A 2048 x 2048 probe produced all
+4,194,304 samples from a cached `.hgt.gz` in about 0.36 seconds, including decompression;
+before this correction the same path spent tens of seconds repeating the same
+file lookup for every output point.
+
+An audit of the other file modes found no per-sample filesystem or network
+access. Range COG modes load required compressed blocks during preparation;
+single/projected COG preparation now retains only the requested min/max bounds
+instead of a second copy of every projected terrain point. STAC and directory
+modes sample their prepared in-memory mosaics. A cached 2048 x 2048 GEDTM30
+probe took about 0.66 seconds; a cached Austria probe spanning 25 internal COG
+blocks took about 3.32 seconds, including per-point EPSG:3035 conversion.
+
 Generation prepares the primary source first, samples it once, and passes only
 unresolved points to the fallback's `prepare()`. This prevents automatic World
 HGT downloads for regions already covered by the selected WCS/ArcGIS source.
 Sampling itself remains local and never performs HTTP.
+
+## GEDTM30 global bare-earth range COG
+
+`world.gedtm30` uses the published GEDTM30 v20250619 filtered global COG through
+the same `fileGrid: "cog"` provider as Luxembourg and Wales. Its catalogue bounds
+match the actual COG, approximately 57 degrees south to 84 degrees north. World
+HGT remains the configured fallback outside that coverage and for source voids.
+
+The source is EPSG:4326 with EGM2008 orthometric heights. Its base image has
+0.00025-degree pixels, signed Int32 decimetres, Deflate compression, horizontal
+integer predictor and raw NoData `2147483647`. Generic COG support now reads GDAL
+`SCALE`/`OFFSET` metadata and converts valid values to metres before sampling.
+`download.overviewFactor: 1` selects the native image without confusing angular
+pixel spacing with the catalogue's nominal 30 m resolution.
+
+The complete object is about 261 GB. TSRE stores only its 256 KiB header, external
+offset/count tables and intersecting compressed 2048 x 2048 blocks under
+`world_gedtm30/<official-name>.tif.parts/v20250619/`. The per-block range limit is
+8 MiB because verified GEDTM30 blocks can exceed the former 4 MiB limit. Two
+ranges may run concurrently.
+
+Validation on 2026-09-22: the focused Release suite passes **387 checks**,
+including a generated offline geographic COG that verifies predictor, scale and
+raw NoData behavior. A bounded live probe at `(50.05, 19.05)` downloaded one
+terrain block and returned 241.95 m and 242.01 m. The repeat used one cached block,
+made no terrain download and completed in 103 ms. The incremental Release
+application build passed; the main UI suites were not run for this milestone.
 
 ## Portugal user-managed GeoTIFF directory
 
@@ -136,6 +190,24 @@ downloaded a 256 KiB index and one 586,993-byte internal block, returned about
 171.6 m and repeated from cache. A Bern probe downloaded one 975,801-byte current
 2 m TIFF, returned about 540.3 m and repeated from cache. A later exact 1 km
 boundary probe used both adjacent tiles for two primary samples with no fallback.
+
+## Sweden authenticated STAC/range milestone
+
+Lantmäteriet splits its national Markhöjdmodell catalogue across regional STAC
+collections. The generic STAC source can therefore search the root endpoint,
+read resolution from a configured item property and distinguish the published
+compound EPSG:5845 asset metadata from its EPSG:3006 horizontal grid.
+
+The catalogue remains anonymous. Asset index, table and raster-block range
+requests use Basic username/password references resolved from the secret profile.
+Authenticated redirects are restricted to the same origin, and credentials are
+never stored in a URL, cache file or dataset definition. Each asset cache uses a
+revision hash derived from its public URL and STAC publication time.
+
+The authorized Stockholm probe verified a Float32 Deflate COG with 512 x 512
+blocks and TIFF horizontal predictor 2. One compressed block supplied two primary
+samples; the repeat used only the cached block. No Sweden-specific sampling or
+terrain-generation branch was added.
 
 ## Luxembourg and Wales national COG milestone
 
@@ -205,15 +277,15 @@ than allowing filesystem enumeration order to determine heights.
 
 ## Next implementation milestone
 
-- Exercise Austria and Switzerland through the main terrain UI, including a tile
-  boundary and a coverage edge; the current live probes cover one interior asset.
+- Exercise GEDTM30 through the main terrain UI and with a representative distant
+  terrain tile before marking it validated for distant-terrain generation.
 - Add another product only after checking its actual compression, predictor,
   BigTIFF/IFD metadata placement, scale/offset, NoData and update identity. The
   present reader is intentionally narrower than a general TIFF library.
 - Validate the indexed-directory profile with real DGT downloads, including
   adjacent files, a missing tile and a changed/replaced file.
-- Implement explicit overview/coarse selection and separate cache identity before
-  enabling these detailed sources for 32 km distant terrain.
+- Add explicit distant-terrain eligibility and cache identity before enabling
+  detailed national sources for 32 km distant terrain.
 
 See [global source review](global-sources-review.md) and the separate Europe source
 tracker for candidate order. A small static TIFF dependency remains an option if

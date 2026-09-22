@@ -1,6 +1,6 @@
 # Geo elevation: start here
 
-Agent handoff, updated 2026-09-21. This directory is sufficient introductory
+Agent handoff, updated 2026-09-23. This directory is sufficient introductory
 context **when read in the order below**. The implementation and current service
 responses remain authoritative for code changes; historical milestone reports
 are not a current specification.
@@ -12,15 +12,20 @@ are not a current specification.
 2. [Distant terrain](distant-terrain-elevation.md): critical acquisition problem;
    detailed-service validation does not approve distant terrain.
 3. Choose the relevant track:
-   - New WCS/ArcGIS service: the workflow below, then
+   - New WCS/WMS/ArcGIS service: the workflow below, then
      [England/Estonia](england-estonia-validation.md) and
      [Denmark/authentication](denmark-validation.md). These cover recent protocol
      differences; use [Czech ArcGIS](czech-arcgis-validation.md) for that provider.
    - Downloaded/offline sources: [file-source implementation and next step](local-elevation-sources.md).
-     One-degree HGT, Austria projected range-COG tiles, Luxembourg and Wales
-     single national range COGs, Switzerland/Liechtenstein STAC/GeoTIFF tiles,
-     and indexed user-managed GeoTIFF directories are implemented; other
+     One-degree HGT, GEDTM30 global range COG, Austria projected range-COG tiles,
+     Luxembourg and Wales single national range COGs,
+     Switzerland/Liechtenstein STAC/GeoTIFF tiles, Sweden authenticated
+     root-STAC/range-COG assets, and indexed user-managed
+     GeoTIFF directories are implemented; other
      GeoTIFF families still require profile validation.
+   - Current national-source research: [Sweden, Wallonia and France](sweden-wallonia-france-research.md).
+     This records the authenticated Swedish STAC path, why Wallonia's current
+     bulk delivery is deferred, and the French MNT LiDAR HD numeric-WMS route.
    - Projection implementation: [CRS transform extraction and shared projection path](crs-transform.md).
      This describes the small internal converter and the planned shared
      sixth-order Transverse Mercator kernel.
@@ -60,11 +65,11 @@ Paths below are relative to the repository root.
 | Area | Files / entry points |
 |---|---|
 | Catalogue | `src/tsre/geo/elevation-datasets.json`; `Dataset`, `datasets()` and `parseDatasets()` in `ElevationSource.h/.cpp` |
-| Providers/cache | `ElevationSource.cpp`: `FileHgtSource`, service providers, `RasterSource`, `generate()`; `CogElevationSource.cpp`: projected, single-file range-COG, STAC and indexed local-directory GeoTIFF sources |
+| Providers/cache | `ElevationSource.cpp`: `FileHgtSource`, WCS/WMS/ArcGIS service providers, `RasterSource`, `generate()`; `CogElevationSource.cpp`: projected, single-file range-COG, STAC and indexed local-directory GeoTIFF sources |
 | Requests/grid checks | `coverageUrl()`, `imageServerUrl()`, `validateRasterGrid()`, `cacheRelativePath()` |
 | CRS conversion | `src/tsre/geo/CrsTransform.h/.cpp`: small compiled-in forward transforms, constructed once per source; see `crs-transform.md` |
-| Numeric raster | `src/tsre/geo/ElevationRaster.h/.cpp`: `Raster`, readers, sampling and `fillNoData()`; `ElevationTiffCodec.cpp`: bounded uncompressed/LZW/Deflate block decoding, Float32/Float64 conversion and predictors |
-| HTTP/auth | `src/tsre/geo/ElevationDownload.h/.cpp`: `downloadWave()`, strict `downloadRangeWave()`; query credentials added only inside transport |
+| Numeric raster | `src/tsre/geo/ElevationRaster.h/.cpp`: `Raster`, readers, sampling and `fillNoData()`; `ElevationTiffCodec.cpp`: bounded uncompressed/LZW/Deflate block decoding, Int16/Int32/Float32/Float64 conversion and predictors; `FileHgtSource`: direct signed-16-bit HGT sampling with a bounded shared tile cache |
+| HTTP/auth | `src/tsre/geo/ElevationDownload.h/.cpp`: `downloadWave()`, strict `downloadRangeWave()`; query and Basic credentials added only inside transport |
 | Height UI | `src/tsre/geo/HeightWindow.cpp`; 10 km location filter via `nearDataset()` |
 | Settings | `src/settings/SettingsRegistration.cpp`: dynamic source options and reference-valued setting |
 | File-source lookup | `defaultFileSourceId()`, `findHgtFile()`, `readHgtFile()`; also used by `GeoHgtFile.cpp` and the missing-file checker |
@@ -91,14 +96,15 @@ JSON/top-level structure rejects the file. Missing selected sources fail explici
 
    | Fields | Meaning |
    |---|---|
-   | `provider`, `endpoint`, `coverage`, `format` | Service providers: `wcs-2.0.1`, `wcs-1.0.0`, `arcgis-imageserver`; decoder formats TIFF/ASCII as supported by the provider. File sources use the separate contract below |
+   | `provider`, `endpoint`, `coverage`, `format` | Service providers: `wcs-2.0.1`, `wcs-1.0.0`, `wms-1.3.0`, `arcgis-imageserver`; decoder formats TIFF/ASCII as supported by the provider. File sources use the separate contract below |
+   | `style` | Optional WMS style. France uses `normal`, the raw numeric style; do not select a hillshade style |
    | `requestFormat` | Optional wire-format spelling, independent of decoder format; WCS 1 defaults TIFF to `GeoTIFF`, Estonia uses `image/tiff`, Denmark `GTiff` |
    | `axisX/Y`, `scaleAxisX/Y` | WCS 2 subset and optional separate scaling axes; scaling defaults to subset axes |
    | `crs`, `resolution`, `origin`, `bounds` | Request/cache grid, not necessarily native source grid; bounds are conservative rectangles, not coverage masks |
    | `blockPixels`, `concurrentRequests` | Core size 16..1024, concurrency 1..4; requests include a one-pixel halo on every side |
    | `allowExpandedGrid` | Opt-in bounded server-expanded envelope; retains exact dimensions/CRS and actual returned transform; do not turn it on to conceal an unexplained mismatch |
    | `zeroIsNoData`, `noDataPolicy` | Default valid zero; policy `fallback` or explicit `fill`; fill does not fabricate wholly empty regions or bridge unavailable downloads |
-   | `authentication` | Secret reference only: `basic-api-key`, or `query-api-key` with `parameter`; see Settings and Denmark notes |
+   | `authentication` | Secret references only: `basic-api-key`, `query-api-key` with `parameter`, or STAC `basic-user-password` with `usernameSecret` and `passwordSecret`; see Settings and Denmark/Sweden notes |
    | `notes`, `attribution` | Product caveats, live findings, unresolved limits and provenance |
 
 5. Probe a full configured block through TSRE, then a full terrain grid crossing
@@ -119,8 +125,10 @@ axes and returns expanded envelopes. See individual service notes for evidence.
 - Whole-file TIFF support covers classic single-band Float32, Int16 and UInt16,
   uncompressed, LZW or Deflate, strips/tiles and the floating predictor. The
   range reader additionally supports the verified BigTIFF/COG profiles used by
-  Austria, Luxembourg and Wales, including Float64-to-Float32 conversion, exact
-  configured-resolution overview selection and external block tables. This is
+  GEDTM30, Austria, Luxembourg, Wales and Sweden, including signed Int32 scale/offset,
+  Float64-to-Float32 conversion, explicit geographic overview factors, exact
+  projected-resolution overview selection, Float32 horizontal predictor 2 and
+  external block tables. This is
   still a narrow numeric elevation profile; RGB and arbitrary TIFF layouts are absent.
 - HTTP responses are bounded to 32 MiB; TIFF dimensions to 16 Mi pixels; requests
   to 2048 blocks; fill mosaics to 32 Mi pixels. These are emergency guards, not
@@ -161,8 +169,17 @@ only the selected secret reference/value. Read secrets locally; do not print the
 or put key-bearing URLs in commands/logs. Ignored `build-*-research/` probes in this
 worktree are conveniences, not evidence guaranteed in another checkout.
 
+For an explicit performance grid, use:
+
+```powershell
+./build/tsre_elevation_tests.exe --live-grid ROOT DATASET_ID LATITUDE LONGITUDE SIDE LATITUDE_SPAN LONGITUDE_SPAN
+```
+
+This remains an opt-in live/cache probe. `SIDE=2048` creates exactly 4,194,304
+points and is useful for detecting work accidentally repeated per output point.
+
 After a change, run appropriate standalone checks and the relevant build when
-allowed. The current elevation milestone passes **382 standalone checks**. Bounded
+allowed. The current elevation milestone passes **393 standalone checks**. Bounded
 live probes returned 171.6 m in Vienna from one Austria internal COG block and
 540.3 m in Bern from one current Swiss 2 m tile; both cache repeats used no data
 download. Luxembourg returned 306.786 m from one 1 m Float64 overview block;
@@ -175,18 +192,34 @@ subsequently confirmed working by the user; Sachsen-Anhalt was tested near
 Magdeburg at `52.1310, 11.6390`, and Wales at `52.1394178, -4.5713131`.
 Estonia 1024 was tested but its catalogue still uses 512.
 
+GEDTM30 returned 241.95 m and 242.01 m near `(50.05, 19.05)` from one signed
+Int32/Deflate COG block with its 0.1 m scale applied. The repeat was cache-only in
+103 ms.
+
+The all-provider hot-path audit found per-output filesystem discovery only in the
+former HGT implementation. Cached 2048 x 2048 probes now take about 0.36 s for
+HGT, 0.66 s for GEDTM30 and 3.32 s for Austria. WCS/ArcGIS sampling has a
+current-block fast path; COG preparation retains compact bounds instead of a
+second projected-point array. See `elevation-current-status.md` for scope.
+
+France MNT LiDAR HD returned 35.6531 m and 35.3925 m near Paris from one
+anonymous 1 m numeric-WMS block. Its repeat was cache-only in 72 ms. A bounded
+four-block probe downloaded three blocks concurrently in 7.1 s and produced
+1,024 primary samples without fallback.
+
 ## File-source status
 
 Five file-source profiles are implemented:
 
 - `format: "hgt"`, `fileGrid: "degree"`: local or automatically downloaded
-  Mapzen Skadi cells and the catalogue default/fallback;
+  Mapzen Skadi cells and the catalogue default/fallback. Sampling uses the
+  correct shared-border grid and reuses decompressed cells across generation calls;
 - `format: "geotiff"`, `fileGrid: "projected"`: fixed projected file tiles with
   an HTTPS name template, explicit revision and strict range-COG reads; Austria
   is the first verified profile;
 - `format: "geotiff"`, `fileGrid: "cog"`: one large direct COG URL with exact
-  resolution-overview selection and range-only block caching; Luxembourg and
-  Wales are verified profiles;
+  projected-resolution or explicit geographic-overview selection and range-only
+  block caching; GEDTM30, Luxembourg and Wales are verified profiles;
 - `format: "geotiff"`, `fileGrid: "stac"`: STAC discovery with resolution/CRS
   asset selection and preserved complete source TIFFs; Switzerland is the first.
 - `format: "geotiff"`, `fileGrid: "directory"`: recursively indexed local

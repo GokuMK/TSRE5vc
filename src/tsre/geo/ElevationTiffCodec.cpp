@@ -100,6 +100,37 @@ bool undoFloatingPredictor(QByteArray &bytes, bool little, int sampleBytes,
     return true;
 }
 
+bool undoIntegerPredictor(QByteArray &bytes, bool little, int sampleBytes,
+                          int width, int height) {
+    const qsizetype rowBytes = qsizetype(width)*sampleBytes;
+    if ((sampleBytes != 2 && sampleBytes != 4) || rowBytes <= 0
+            || bytes.size() != rowBytes*height)
+        return false;
+    for (int y=0; y<height; ++y) {
+        uchar *row = reinterpret_cast<uchar*>(bytes.data()+y*rowBytes);
+        for (int x=1; x<width; ++x) {
+            uchar *current = row+x*sampleBytes;
+            const uchar *previous = current-sampleBytes;
+            if (sampleBytes == 2) {
+                const quint16 delta = little ? qFromLittleEndian<quint16>(current)
+                                             : qFromBigEndian<quint16>(current);
+                const quint16 before = little ? qFromLittleEndian<quint16>(previous)
+                                              : qFromBigEndian<quint16>(previous);
+                if (little) qToLittleEndian<quint16>(quint16(delta+before),current);
+                else qToBigEndian<quint16>(quint16(delta+before),current);
+            } else {
+                const quint32 delta = little ? qFromLittleEndian<quint32>(current)
+                                             : qFromBigEndian<quint32>(current);
+                const quint32 before = little ? qFromLittleEndian<quint32>(previous)
+                                              : qFromBigEndian<quint32>(previous);
+                if (little) qToLittleEndian<quint32>(delta+before,current);
+                else qToBigEndian<quint32>(delta+before,current);
+            }
+        }
+    }
+    return true;
+}
+
 }
 
 bool decodeTiffBlock(const QByteArray &encoded, int compression, int predictor,
@@ -110,7 +141,7 @@ bool decodeTiffBlock(const QByteArray &encoded, int compression, int predictor,
             || (bits != 16 && bits != 32 && bits != 64)
             || (sampleFormat != 1 && sampleFormat != 2 && sampleFormat != 3)
             || (sampleFormat == 3 && bits != 32 && bits != 64)
-            || ((bits == 32 || bits == 64) && sampleFormat != 3)) {
+            || (bits == 64 && sampleFormat != 3)) {
         error = QStringLiteral("Unsupported TIFF sample block"); return false;
     }
     const int sampleBytes = bits/8;
@@ -138,7 +169,13 @@ bool decodeTiffBlock(const QByteArray &encoded, int compression, int predictor,
     } else {
         error = QStringLiteral("Unsupported TIFF compression"); return false;
     }
-    if (predictor == 3) {
+    if (predictor == 2) {
+        // Predictor 2 differences fixed-width sample words. Some valid COGs
+        // use it for Float32 bit patterns rather than predictor 3 byte planes.
+        if (!undoIntegerPredictor(raw,little,sampleBytes,width,height)) {
+            error = QStringLiteral("Invalid TIFF horizontal predictor"); return false;
+        }
+    } else if (predictor == 3) {
         if (sampleFormat != 3 || !undoFloatingPredictor(raw,little,sampleBytes,width,height)) {
             error = QStringLiteral("Invalid TIFF floating-point predictor"); return false;
         }
@@ -158,7 +195,13 @@ bool decodeTiffBlock(const QByteArray &encoded, int compression, int predictor,
         } else if (bits == 32) {
             const quint32 bitsValue = little ? qFromLittleEndian<quint32>(data+4*i)
                                              : qFromBigEndian<quint32>(data+4*i);
-            std::memcpy(&values[i],&bitsValue,4);
+            if (sampleFormat == 3) std::memcpy(&values[i],&bitsValue,4);
+            else if (sampleFormat == 2) {
+                qint32 signedValue;
+                std::memcpy(&signedValue,&bitsValue,4);
+                values[i] = signedValue;
+            }
+            else values[i] = bitsValue;
         } else if (sampleFormat == 2) {
             const quint16 rawValue = little ? qFromLittleEndian<quint16>(data+2*i)
                                             : qFromBigEndian<quint16>(data+2*i);

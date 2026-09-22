@@ -221,8 +221,10 @@ static bool readTiff(const QByteArray &bytes, int metadataEpsg, Raster &output, 
             if (v != 1 && v != 2) return fail(error, "Unsupported GeoTIFF raster registration");
             point = v == 2;
         }
-        if (key == 3072) r.epsg = v;
-        if (key == 2048 && r.epsg == 0) r.epsg = v;
+        if (key == 3072)
+            r.epsg = v == 32767 && metadataEpsg ? metadataEpsg : v;
+        if (key == 2048 && r.epsg == 0)
+            r.epsg = v == 32767 && metadataEpsg ? metadataEpsg : v;
         if (key == 3076) linearUnits = v;
         if (key == 2054) angularUnits = v;
     }
@@ -481,17 +483,6 @@ bool readHgt(const QByteArray &bytes, int lat, int lon, Raster &output, QString 
 }
 
 Sample sampleLegacyHgt(const Raster &r, Point p) {
-    if (r.width < 2 || r.width != r.height || r.values.size() != qsizetype(r.width)*r.height)
-        return {0,SampleStatus::Unavailable};
-    const float lat = float(p.latitude), lon = float(p.longitude);
-    if (!std::isfinite(lat) || !std::isfinite(lon)) return {0,SampleStatus::Outside};
-    const float ly = r.width*(lat-std::floor(lat)), lx = r.width*(lon-std::floor(lon));
-    int y = int(ly), x = int(lx);
-    const float dy = ly-y, dx = lx-x;
-    y = std::clamp(y,1,r.height-1); x = std::clamp(x,0,r.width-2);
-    const int ids[] = {(r.height-y)*r.width+x, (r.height-y)*r.width+x+1,
-                       (r.height-y-1)*r.width+x, (r.height-y-1)*r.width+x+1};
-    const double weights[] = {(1-dy)*(1-dx),(1-dy)*dx,dy*(1-dx),dy*dx};
-    return blend(r,ids,weights,false);
+    return r.sample({p.longitude,p.latitude});
 }
 }
