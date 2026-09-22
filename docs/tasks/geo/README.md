@@ -141,9 +141,12 @@ axes and returns expanded envelopes. See individual service notes for evidence.
 - User files belong in stable named directories. World HGT uses only
   `geoPath/world_hgt/`; no legacy root or `hgt/` search remains. Raw `.hgt` files
   take precedence over `.hgt.gz`. Preserve originals and keep derived indexes disposable.
-- Selectable secondary-source fallback / retaining existing heights over missing
-  areas remains an open task in the original ideas. Do not mistake it for the
-  implemented per-dataset NoData fill option.
+- The Height window and automatic generation use one selected fallback. Only
+  catalogue entries with `fallbackApproved: true` are offered; currently these
+  are World HGT and GEDTM30. A fallback never receives a third recursive source.
+  The main and fallback rows have independent Y offsets, applied according to
+  which source supplied each sample. Retaining existing terrain heights over
+  unresolved samples remains open.
 
 ## Focused validation commands
 

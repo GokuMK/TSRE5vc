@@ -368,20 +368,38 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 QT_TRID_NOOP("settings.core.paths.geo.data.description")).inGroup("maps").inSubgroup("geodata"),
         "geoPath", "Game::geoPath", "GeoTools", false, "direct");
     QString elevationCatalogueError;
-    const QString defaultElevationSource = Elevation::defaultFileSourceId(
-        Elevation::datasets(elevationCatalogueError));
+    const auto elevationCatalogue = Elevation::datasets(elevationCatalogueError);
+    const QString defaultElevationSource = Elevation::defaultFileSourceId(elevationCatalogue);
+    const QString defaultElevationFallback = Elevation::defaultFallbackSourceId(elevationCatalogue);
     if (!elevationCatalogueError.isEmpty()) qWarning().noquote() << elevationCatalogueError;
     ADD(SettingsDefinition::string("geo.elevation.source", defaultElevationSource, SettingType::Enum)
             .withNameId(
                 //% "Terrain elevation source"
                 QT_TRID_NOOP("settings.geo.elevation.source.name")).withDescriptionId(
-                //% "Source for manual and automatic terrain elevation. Missing coverage uses the configured file-source fallback."
+                //% "Source for manual and automatic terrain elevation. Missing coverage uses the selected fallback."
                 QT_TRID_NOOP("settings.geo.elevation.source.description"))
             .withOptionsProvider([] {
                 QVector<SettingOption> result;
                 QString error;
                 for (const auto &dataset : Elevation::datasets(error))
                     result.push_back({dataset.id, {}, dataset.name});
+                if (!error.isEmpty()) qWarning().noquote() << error;
+                return result;
+            }).asReference()
+            .inGroup("maps").inSubgroup("geodata"),
+        "", "", "Terrain elevation", false, "generation-time");
+    ADD(SettingsDefinition::string("geo.elevation.fallback", defaultElevationFallback, SettingType::Enum)
+            .withNameId(
+                //% "Terrain elevation fallback"
+                QT_TRID_NOOP("settings.geo.elevation.fallback.name")).withDescriptionId(
+                //% "Approved secondary source used for missing coverage or NoData. If both sources fail, elevation generation remains unresolved."
+                QT_TRID_NOOP("settings.geo.elevation.fallback.description"))
+            .withOptionsProvider([] {
+                QVector<SettingOption> result;
+                QString error;
+                for (const auto &dataset : Elevation::datasets(error))
+                    if (dataset.fallbackApproved)
+                        result.push_back({dataset.id, {}, dataset.name});
                 if (!error.isEmpty()) qWarning().noquote() << error;
                 return result;
             }).asReference()

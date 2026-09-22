@@ -30,6 +30,7 @@ struct Dataset {
     bool zeroIsNoData = false;
     bool allowExpandedGrid = false;
     bool defaultFileSource = false;
+    bool fallbackApproved = false;
     bool stacSearchRoot = false, stacRange = false;
     QString noDataPolicy = QStringLiteral("fallback");
     QJsonObject definition;
@@ -38,6 +39,7 @@ QVector<Dataset> datasets(QString &error);
 // Returns valid entries and reports rejected entries in error. Invalid JSON is fatal.
 QVector<Dataset> parseDatasets(const QByteArray &json, QString &error);
 QString defaultFileSourceId(const QVector<Dataset> &catalogue);
+QString defaultFallbackSourceId(const QVector<Dataset> &catalogue);
 bool nearDataset(const Dataset &dataset, const QVector<Point> &area, double bufferMetres = 10000);
 struct Block {
     int column = 0, row = 0;
@@ -86,8 +88,11 @@ public:
 // Called on a worker thread. An empty dataset ID is accepted as the legacy
 // alias for the catalogue's default file source.
 // targetSpacing is the output terrain vertex spacing in metres.
+// Each Y offset applies only to valid samples supplied by its corresponding source.
 Result generate(const QString &root, const QString &datasetId,
-                const QVector<Point> &points, double targetSpacing, float yOffset,
+                const QVector<Point> &points, double targetSpacing,
+                float sourceYOffset, float fallbackYOffset,
                 std::atomic_bool &cancel, const Progress &progress = {},
-                const QMap<QString,QString> &secrets = {});
+                const QMap<QString,QString> &secrets = {},
+                const QString &fallbackDatasetId = {});
 }

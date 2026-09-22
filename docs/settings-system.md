@@ -260,6 +260,12 @@ A missing or invalid credential stops new requests and names the required secret
 elevation report. Existing valid cache blocks and the usual HGT fallback remain
 available. Rotating a key does not invalidate cached elevation data.
 
+`geo.elevation.fallback` stores the secondary elevation source used by both the
+Height window and automatic terrain generation. Its runtime dropdown is built
+from catalogue entries marked `fallbackApproved`; World HGT and GEDTM30 are the
+initial choices. The fallback is queried only for unresolved main-source samples
+and does not receive another fallback of its own.
+
 An invalid elevation catalogue object is skipped individually. Other valid
 sources remain selectable and usable; diagnostics name rejected entries in the
 application log and height dialog/report. A malformed JSON file or invalid

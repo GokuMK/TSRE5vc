@@ -23,6 +23,7 @@
 #include <QJsonDocument>
 #include <QLocale>
 #include <QPushButton>
+#include <algorithm>
 #include <QTemporaryDir>
 #include <QTranslator>
 
@@ -41,12 +42,14 @@ int TsreTests::runSettingsSuite(bool verbose) {
 
     SettingsManager manager;
     SettingsRegistration::registerAll(manager.registry());
-    check(manager.registry().definitions().size() == 84,
+    check(manager.registry().definitions().size() == 85,
           "catalog-includes-terrain-elevation-source");
     const auto *elevationSource = manager.registry().definition("geo.elevation.source");
+    const auto *elevationFallback = manager.registry().definition("geo.elevation.fallback");
     QString elevationError;
     const auto elevationCatalog = Elevation::datasets(elevationError);
     const QString defaultElevation = Elevation::defaultFileSourceId(elevationCatalog);
+    const QString defaultFallback = Elevation::defaultFallbackSourceId(elevationCatalog);
     check(elevationSource && elevationSource->type == SettingType::Enum
           && elevationSource->defaultValue.toString() == defaultElevation
           && elevationSource->optionsProvider && elevationSource->allowUnknownOptions
@@ -57,6 +60,17 @@ int TsreTests::runSettingsSuite(bool verbose) {
           && elevationOptions.size() == elevationCatalog.size()
           && elevationOptions.first().value.toString() == defaultElevation,
           "runtime-elevation-options-match-catalogue");
+    const auto fallbackOptions=elevationFallback?elevationFallback->resolvedOptions():QVector<SettingOption>();
+    check(elevationFallback && elevationFallback->type==SettingType::Enum
+          && elevationFallback->defaultValue.toString()==defaultFallback
+          && elevationFallback->optionsProvider && elevationFallback->allowUnknownOptions
+          && fallbackOptions.size()==2
+          && fallbackOptions.first().value.toString()==defaultFallback,
+          "elevation-fallback-options-contain-only-approved-catalogue-sources");
+    for(const auto &option:fallbackOptions)
+        check(std::any_of(elevationCatalog.cbegin(),elevationCatalog.cend(),[&](const Elevation::Dataset &dataset){
+            return dataset.id==option.value.toString()&&dataset.fallbackApproved;}),
+            "every elevation fallback option has catalogue approval");
     for (const auto &dataset : elevationCatalog) {
         int matches = 0;
         for (const auto &option : elevationOptions)

@@ -155,7 +155,7 @@ int main(int argc, char **argv) {
             for(auto it=object.begin();it!=object.end();++it)if(it.value().isString())secrets.insert(it.key(),it.value().toString());
         }
         QElapsedTimer timer; timer.start();
-        const auto result = generate(args[2],args[3],points,1.0,0,cancel,{},secrets);
+        const auto result = generate(args[2],args[3],points,1.0,0,0,cancel,{},secrets);
         std::cout << "success=" << result.success() << " primary=" << result.report.primarySamples
                   << " fallback=" << result.report.fallbackSamples << " downloads=" << result.report.downloads
                   << " nodata=" << result.report.noDataSamples << " unavailable=" << result.report.unavailableSamples
@@ -352,7 +352,9 @@ int main(int argc, char **argv) {
     const auto portugal = byId.value("pt.dgt.mdt2m");
     const auto gedtm = byId.value("world.gedtm30");
     const auto france = byId.value("fr.ign.lidar-hd.mnt05");
-    check(defaultFileSourceId(catalog) == worldHgt.id && worldHgt.provider == "file"
+    check(defaultFileSourceId(catalog) == worldHgt.id
+        && defaultFallbackSourceId(catalog) == worldHgt.id && worldHgt.fallbackApproved
+        && worldHgt.provider == "file"
         && worldHgt.directory == "world_hgt" && worldHgt.fileGrid == "degree"
         && worldHgt.minX == -180 && worldHgt.minY == -90 && worldHgt.maxX == 180 && worldHgt.maxY == 90,
         "catalogue defines the world-wide default HGT file source");
@@ -361,11 +363,14 @@ int main(int argc, char **argv) {
         "degree-grid download template resolves southern and western cells");
     check(gedtm.provider == "file" && gedtm.format == "geotiff"
         && gedtm.fileGrid == "cog" && gedtm.epsg == 4326
+        && gedtm.fallbackApproved
         && gedtm.resolution == 30 && gedtm.cogOverviewFactor == 1
         && gedtm.fileRevision == "v20250619"
         && gedtm.directory == "world_gedtm30"
         && gedtm.downloadUrlTemplate.contains("filtered.dtm_edtm_m_30m"),
         "GEDTM30 catalogue defines a geographic bare-earth range COG");
+    int approvedFallbacks=0;for(const auto &entry:catalog)approvedFallbacks+=entry.fallbackApproved;
+    check(approvedFallbacks==2,"only the two world sources are approved as fallbacks");
     QTemporaryDir geographicCogRoot;
     Dataset geographicCog=gedtm;
     geographicCog.id="fixture.geographic-cog";geographicCog.directory="fixture_geographic_cog";
@@ -649,26 +654,43 @@ int main(int argc, char **argv) {
         && error.contains("checksum"),"compressed HGT checksum is enforced");
     std::atomic_bool cancel{false};
     check(write(temp.path()+"/world_hgt/N60E027.hgt",hgt(3,15)),"prepare Finland fallback fixture");
-    auto withoutKey = generate(temp.path(),finland.id,{{60.1,27.1}},2.0,0,cancel);
+    auto withoutKey = generate(temp.path(),finland.id,{{60.1,27.1}},2.0,0,0,cancel);
     check(withoutKey.success() && withoutKey.report.downloads == 0 && withoutKey.report.fallbackSamples == 1
         && withoutKey.report.issues.join('\n').contains(finland.apiKeySecret),
         "missing API key skips requests and visibly reports the reference with HGT fallback");
     const QString invalidKey = "invalid:fixture-key";
-    withoutKey = generate(temp.path(),finland.id,{{60.1,27.1}},2.0,0,cancel,{},{{finland.apiKeySecret,invalidKey}});
+    withoutKey = generate(temp.path(),finland.id,{{60.1,27.1}},2.0,0,0,cancel,{},{{finland.apiKeySecret,invalidKey}});
     check(withoutKey.success() && withoutKey.report.downloads == 0
         && !withoutKey.report.issues.join('\n').contains(invalidKey),"invalid Basic username is rejected without exposing its value");
-    auto generated = generate(temp.path(),"",{{52.5,19.5}},1.0,2,cancel);
+    auto generated = generate(temp.path(),"",{{52.5,19.5}},1.0,2,2,cancel);
     check(generated.success() && generated.heights[0] == 22 && generated.report.primarySamples == 1,"catalogue HGT generation and offset");
-    generated = generate(temp.path(),"",{{52.5,19.5},{54.5,19.5}},1.0,0,cancel);
+    generated = generate(temp.path(),worldHgt.id,{{52.5,19.5}},1.0,2,-3,cancel,{}, {},gedtm.id);
+    check(generated.success() && generated.report.primarySamples==1 && near(generated.heights[0],22),
+        "primary source receives its own offset without preparing the fallback");
+    generated = generate(temp.path(),worldHgt.id,{{52.5,19.5}},1.0,0,0,cancel,{}, {},d.id);
+    check(!generated.success() && generated.error.contains("unapproved"),
+        "a dataset without fallback approval cannot be selected as fallback");
+    const QString gedtmName=QFileInfo(QUrl(gedtm.downloadUrlTemplate).path()).fileName();
+    check(write(QDir(temp.path()).filePath("world_gedtm30/"+gedtmName),tinyGeographicCog())
+        && write(temp.path()+"/world_hgt/N51E019.hgt",hgt(3,-32768)),
+        "prepare selectable fallback fixtures");
+    generated=generate(temp.path(),worldHgt.id,{{51.9994999999,19.0005000001}},1.0,7,-3,cancel,{}, {},gedtm.id);
+    check(generated.success()&&generated.report.primarySamples==0&&generated.report.fallbackSamples==1
+          && near(generated.heights[0],97),
+        "selected GEDTM30 supplies a missing primary sample with its own offset");
+    generated=generate(temp.path(),worldHgt.id,{{51.9994999999,19.0025000001}},1.0,0,0,cancel,{}, {},gedtm.id);
+    check(!generated.success()&&generated.report.fallbackSamples==0,
+        "missing selected fallback remains unresolved without a third implicit source");
+    generated = generate(temp.path(),"",{{52.5,19.5},{54.5,19.5}},1.0,0,0,cancel);
     check(!generated.success() && generated.heights.isEmpty(),"partial missing tile never returns commit-ready heights");
     cancel = true;
-    generated = generate(temp.path(),d.id,{{52,19}},1.0,0,cancel);
+    generated = generate(temp.path(),d.id,{{52,19}},1.0,0,0,cancel);
     check(generated.cancelled && generated.heights.isEmpty(),"cancel before network work");
     cancel = false;
     write(temp.path()+"/world_hgt/N40E019.hgt",hgt(3,12));
-    generated = generate(temp.path(),d.id,{{40.5,19.5}},1.0,0,cancel);
+    generated = generate(temp.path(),d.id,{{40.5,19.5}},1.0,0,0,cancel);
     check(generated.success() && generated.report.fallbackSamples == 1 && generated.report.outsideSamples == 1,"outside Poland uses reported HGT fallback without HTTP");
-    check(!generate("","",{{52,19}},1.0,0,cancel).success(),"empty geoPath cannot write into working directory");
+    check(!generate("","",{{52,19}},1.0,0,0,cancel).success(),"empty geoPath cannot write into working directory");
     // Complete prepared block + metadata, so this exercises the production disk
     // cache path without any network service or fake projection implementation.
     const auto &ascii = polishAscii;
@@ -687,13 +709,13 @@ int main(int argc, char **argv) {
         return write(cachePath,grid) && write(cachePath+".json",QJsonDocument(metadata).toJson());
     };
     check(storeGrid(cachedGrid),"prepare offline cache fixture");
-    generated = generate(temp.path(),ascii.id,{{52,19},{52.00005,19.00005}},1.0,3,cancel);
+    generated = generate(temp.path(),ascii.id,{{52,19},{52.00005,19.00005}},1.0,3,3,cancel);
     check(generated.success() && generated.report.cacheHits == 1 && generated.report.downloads == 0
           && generated.report.primarySamples == 2 && generated.heights[0] == 123,"offline cached native grid generation");
     cachedGrid = gridHeader;
     for (int i = 0; i < 514*514; ++i) cachedGrid += "-9999 ";
     check(storeGrid(cachedGrid),"prepare explicit NoData cache fixture");
-    generated = generate(temp.path(),ascii.id,{{52,19}},1.0,0,cancel);
+    generated = generate(temp.path(),ascii.id,{{52,19}},1.0,0,0,cancel);
     check(generated.success() && generated.report.noDataSamples == 1 && generated.report.fallbackSamples == 1
           && generated.heights[0] == 20,"cached NoData falls back to catalogue HGT with provenance");
     runCzechWcsTests(check);

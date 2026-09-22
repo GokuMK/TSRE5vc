@@ -111,14 +111,14 @@ void runCzechWcsTests(const std::function<void(bool,const char*)> &check) {
         check(write(path,data) && write(path+".json",QJsonDocument(metadata).toJson()),"prepare real Czech cached response");
     }
     std::atomic_bool cancel{false};
-    auto result = generate(temp.path(),d.id,{{50.08,14.42},{50.08005,14.42005}},1.0,0,cancel);
+    auto result = generate(temp.path(),d.id,{{50.08,14.42},{50.08005,14.42005}},1.0,0,0,cancel);
     check(result.success() && result.report.cacheHits == 1 && result.report.downloads == 0
           && result.report.primarySamples == 2 && std::abs(result.heights[0]-197.444) < .001,
           "unchanged production source uses Czech cache and samples native raster");
     QByteArray hgt(18,Qt::Uninitialized);
     for (int i = 0; i < 9; ++i) qToBigEndian<qint16>(777,hgt.data()+i*2);
     check(write(temp.path()+"/world_hgt/N48E013.hgt",hgt),"prepare synthetic HGT fallback");
-    result = generate(temp.path(),d.id,{{48.6,13.5},{48.60005,13.50005}},1.0,0,cancel);
+    result = generate(temp.path(),d.id,{{48.6,13.5},{48.60005,13.50005}},1.0,0,0,cancel);
     check(result.success() && result.report.cacheHits == 2 && result.report.downloads == 0
           && result.report.noDataSamples == 2 && result.report.fallbackSamples == 2
           && result.heights[0] == 777 && result.heights[1] == 777,

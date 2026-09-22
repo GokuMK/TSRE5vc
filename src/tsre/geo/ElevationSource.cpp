@@ -747,6 +747,7 @@ QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
         d.minX = box.at(0).toDouble(); d.minY = box.at(1).toDouble();
         d.maxX = box.at(2).toDouble(); d.maxY = box.at(3).toDouble();
         d.zeroIsNoData = o.value("zeroIsNoData").toBool();
+        d.fallbackApproved = o.value("fallbackApproved").toBool();
         d.noDataPolicy = o.value("noDataPolicy").toString(QStringLiteral("fallback"));
         const bool wcs2 = d.provider == "wcs-2.0.1";
         const bool wcs1 = d.provider == "wcs-1.0.0";
@@ -828,6 +829,7 @@ QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
                 || (o.contains("scaleAxisX") && !o.value("scaleAxisX").isString())
                 || (o.contains("scaleAxisY") && !o.value("scaleAxisY").isString())
                 || (o.contains("noDataPolicy") && !o.value("noDataPolicy").isString())
+                || (o.contains("fallbackApproved") && !o.value("fallbackApproved").isBool())
                 || (d.noDataPolicy != "fallback" && d.noDataPolicy != "fill")
                 || (o.contains("license") && !o.value("license").isString())
                 || (o.contains("information") && !o.value("information").isString())
@@ -868,6 +870,13 @@ QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
 QString defaultFileSourceId(const QVector<Dataset> &catalogue) {
     for (const auto &dataset : catalogue) if (dataset.defaultFileSource) return dataset.id;
     for (const auto &dataset : catalogue) if (dataset.provider == "file") return dataset.id;
+    return {};
+}
+QString defaultFallbackSourceId(const QVector<Dataset> &catalogue) {
+    for (const auto &dataset : catalogue)
+        if (dataset.defaultFileSource && dataset.fallbackApproved) return dataset.id;
+    for (const auto &dataset : catalogue)
+        if (dataset.fallbackApproved) return dataset.id;
     return {};
 }
 bool nearDataset(const Dataset &d, const QVector<Point> &area, double bufferMetres) {
@@ -1014,14 +1023,15 @@ void Report::issue(const QString &message) {
     if (!message.isEmpty() && issues.size() < 20 && !issues.contains(message)) issues.push_back(message);
 }
 Result generate(const QString &root, const QString &id, const QVector<Point> &points,
-                double targetSpacing, float yOffset,
+                double targetSpacing, float sourceYOffset, float fallbackYOffset,
                 std::atomic_bool &cancel, const Progress &progress,
-                const QMap<QString,QString> &secrets) {
+                const QMap<QString,QString> &secrets,
+                const QString &requestedFallbackId) {
     Result result;
     if (root.trimmed().isEmpty()) { result.error = QStringLiteral("Set the geodata directory (geoPath) first"); return result; }
     if (points.isEmpty() || points.size() > 16*1024*1024
             || !std::isfinite(targetSpacing) || targetSpacing <= 0
-            || !std::isfinite(yOffset)) {
+            || !std::isfinite(sourceYOffset) || !std::isfinite(fallbackYOffset)) {
         result.error = QStringLiteral("Invalid elevation generation request"); return result;
     }
     QString catalogueError;
@@ -1029,14 +1039,20 @@ Result generate(const QString &root, const QString &id, const QVector<Point> &po
     result.report.issue(catalogueError);
     if (catalog.isEmpty()) { result.error = catalogueError.isEmpty()
         ? QStringLiteral("Elevation catalogue contains no usable datasets") : catalogueError; return result; }
-    const QString fallbackId = defaultFileSourceId(catalog);
-    const QString selectedId = id.isEmpty() ? fallbackId : id;
+    const QString defaultSourceId = defaultFileSourceId(catalog);
+    const QString fallbackId = requestedFallbackId.isEmpty()
+        ? defaultFallbackSourceId(catalog) : requestedFallbackId;
+    const QString selectedId = id.isEmpty() ? defaultSourceId : id;
     const Dataset *selected = nullptr, *fallbackDataset = nullptr;
     for (const auto &dataset : catalog) {
         if (dataset.id == selectedId) selected = &dataset;
         if (dataset.id == fallbackId) fallbackDataset = &dataset;
     }
     if (!selected) { result.error = QStringLiteral("Unknown elevation dataset: %1").arg(selectedId); return result; }
+    if (!fallbackDataset || !fallbackDataset->fallbackApproved) {
+        result.error = QStringLiteral("Unknown or unapproved elevation fallback: %1").arg(fallbackId);
+        return result;
+    }
     const auto createSource = [&](const Dataset &dataset) -> std::unique_ptr<Source> {
         if (dataset.provider == "file" && dataset.format == "geotiff")
             return createCogElevationSource(root,dataset,result.report,secrets);
@@ -1069,7 +1085,8 @@ Result generate(const QString &root, const QString &id, const QVector<Point> &po
     for (qsizetype i = 0; i < points.size(); ++i) {
         if (cancel) { result.cancelled = true; return result; }
         if (progress && i%4096 == 0) progress(int(i),int(points.size()),QStringLiteral("Sampling elevation"));
-        const Sample value = primary->sample(points[i]);
+        Sample value = primary->sample(points[i]);
+        if (value.valid()) value.height += sourceYOffset;
         samples.push_back(value);
         if (value.valid()) ++result.report.primarySamples;
         else {
@@ -1087,15 +1104,19 @@ Result generate(const QString &root, const QString &id, const QVector<Point> &po
         }
         for (qsizetype i=0; i<fallbackPoints.size(); ++i) {
             if (cancel) { result.cancelled = true; return result; }
-            const Sample value = fallback->sample(fallbackPoints[i]);
-            if (value.valid()) { samples[fallbackIndices[i]] = value; ++result.report.fallbackSamples; }
+            Sample value = fallback->sample(fallbackPoints[i]);
+            if (value.valid()) {
+                value.height += fallbackYOffset;
+                samples[fallbackIndices[i]] = value;
+                ++result.report.fallbackSamples;
+            }
         }
     }
     result.heights.reserve(samples.size());
     int missing = 0;
     for (const Sample value : samples) {
         if (!value.valid()) ++missing;
-        result.heights.push_back(value.height+yOffset);
+        result.heights.push_back(value.height);
     }
     if (missing) {
         result.error = (fillPolicy

@@ -12,6 +12,7 @@
       "crs": 4326,
       "verticalDatum": "EGM96 for Mapzen downloads; user-supplied files may differ",
       "bounds": [-180, -90, 180, 90],
+      "fallbackApproved": true,
       "zeroIsNoData": false,
       "concurrentRequests": 4,
       "download": {
@@ -36,6 +37,7 @@
       "verticalDatum": "EGM2008 orthometric height (EPSG:3855)",
       "resolution": 30,
       "bounds": [-180, -57, 180, 84],
+      "fallbackApproved": true,
       "concurrentRequests": 2,
       "zeroIsNoData": false,
       "download": {

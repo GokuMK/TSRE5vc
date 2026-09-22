@@ -1,7 +1,8 @@
 # TSRE terrain elevation: Geoportal + generic raster provider ideas
 
 > Implementation status and review: [2026-09-19 elevation update](elevation-current-status.md).
-> The proposal below is historical; the border/fallback issue at the end remains open.
+> The proposal below is historical; selectable approved fallback is implemented,
+> while preservation of existing heights remains open.
 
 ## Goal
 
@@ -453,23 +454,25 @@ Before implementation, the next useful step is a detailed review of:
 
 ---
 
-## Open — border coverage, selectable fallback and preserving existing heights
+## Partial — selectable fallback implemented; preserving existing heights remains open
 
-Recorded 2026-09-17 after testing SZKLARSKA. Documentation only; not implemented.
+Recorded 2026-09-17 after testing SZKLARSKA; updated 2026-09-23.
 
 **Observed problem:** a tile crossing the Poland/Czechia border gets Polish data
 plus HGT with Geoportal selected, or Czech data plus HGT with DMR 4G selected.
-The current fixed HGT fallback prevents combining the two national datasets.
+The former fixed HGT fallback has been replaced by one selected, catalogue-approved
+fallback. The initial approved choices are World HGT and GEDTM30; national sources
+are deliberately excluded until separately approved for fallback use.
 
 - [ ] Add a Height window choice for missing coverage/NoData. Initial options:
   use HGT or fill with `0`; leave room for future interpolation.
-- [ ] Preferred design to evaluate: select one primary source and one optional
-  fallback source. For example, Geoportal primary + Czech DMR 4G fallback, or
-  either service primary + HGT fallback. Resolve fallback per missing sample,
-  so one terrain tile can contain valid data from both sources.
-- [ ] Allow **only one fallback**. If neither selected source supplies a valid
-  height, use `0`; do not silently add HGT as a third source. Selecting zero
-  directly means no secondary source. Interpolation remains a future option.
+- [x] Select one primary source and one approved fallback source in separate
+  Height-window rows. Resolve the fallback per missing primary sample. Each row
+  has an independent Y offset that applies only to samples supplied by that
+  source.
+- [x] Allow **only one fallback** and never silently add HGT as a third source.
+  Current unresolved samples still prevent Apply; zero-fill/interpolation remain
+  future policies.
 - [ ] Add an Apply option to preserve existing terrain heights instead of
   overwriting them with zero-filled missing data. Keep missing-data provenance
   separate from the numeric height, so valid measured zero elevations can be

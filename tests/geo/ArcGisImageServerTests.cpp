@@ -95,7 +95,7 @@ void runArcGisImageServerTests(const std::function<void(bool,const char*)> &chec
               "prepare verified ArcGIS cache fixture");
     }
     std::atomic_bool cancel{false};
-    auto result = generate(temp.path(),d.id,{{50.08,14.42}},1.0,3,cancel);
+    auto result = generate(temp.path(),d.id,{{50.08,14.42}},1.0,3,3,cancel);
     const Geo::CrsTransform utm33(25833);
     XY xy; utm33.forward({50.08,14.42},xy);
     check(result.success() && result.report.primarySamples == 1 && result.report.cacheHits == 1
@@ -104,17 +104,17 @@ void runArcGisImageServerTests(const std::function<void(bool,const char*)> &chec
     QByteArray hgt(18,Qt::Uninitialized);
     for (int i=0; i<9; ++i) qToBigEndian<qint16>(777,hgt.data()+i*2);
     check(write(temp.path()+"/world_hgt/N48E013.hgt",hgt) && write(temp.path()+"/world_hgt/N50E015.hgt",hgt),"prepare HGT fallback fixtures");
-    result = generate(temp.path(),d.id,{{48.6,13.5}}, 1.0, 0, cancel);
+    result = generate(temp.path(),d.id,{{48.6,13.5}}, 1.0, 0, 0, cancel);
     check(result.success() && result.report.cacheHits == 1 && result.report.downloads == 0
           && result.report.noDataSamples == 1 && result.report.fallbackSamples == 1 && result.heights[0] == 777,
           "ArcGIS missing coverage uses shared HGT fallback and report");
-    result = generate(temp.path(),d.id,points, 1.0, 0, cancel);
+    result = generate(temp.path(),d.id,points, 1.0, 0, 0, cancel);
     check(result.success() && result.report.cacheHits == 1 && result.report.downloads == 0
           && result.report.primarySamples == 1 && result.report.noDataSamples == 2
           && result.report.fallbackSamples == 2 && result.heights[0] == 777 && result.heights[1] == 777
           && std::abs(result.heights[2]-899.9236450195312) < .001,
           "one border block combines ArcGIS heights and HGT without Czech-specific terrain logic");
     cancel = true;
-    result = generate(temp.path(),d.id,points, 1.0, 0, cancel);
+    result = generate(temp.path(),d.id,points, 1.0, 0, 0, cancel);
     check(result.cancelled && result.heights.isEmpty() && result.report.downloads == 0,"ArcGIS provider observes shared cancellation");
 }

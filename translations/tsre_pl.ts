@@ -10082,6 +10082,10 @@ Anulowano. Nie zastosowano wysokości terenu.</translation>
         <source>Source</source>
         <translation>Źródło</translation>
     </message>
+    <message id="geo.elevation.info.fallback">
+        <source>Fallback</source>
+        <translation>Źródło zapasowe</translation>
+    </message>
     <message id="geo.elevation.info.resolution">
         <source>Native/request resolution</source>
         <translation>Rozdzielczość źródła/zapytania</translation>
@@ -10134,13 +10138,25 @@ Anulowano. Nie zastosowano wysokości terenu.</translation>
         <source>Y offset (m):</source>
         <translation>Przesunięcie Y (m):</translation>
     </message>
+    <message id="geo.elevation.offset.short">
+        <source>Y (m):</source>
+        <translation>Y (m):</translation>
+    </message>
+    <message id="geo.elevation.source.main">
+        <source>Main:</source>
+        <translation>Główne:</translation>
+    </message>
+    <message id="geo.elevation.source.fallback">
+        <source>Fallback:</source>
+        <translation>Zapasowe:</translation>
+    </message>
     <message id="geo.elevation.source.select.local">
         <source>Select an elevation source for this location</source>
         <translation>Wybierz źródło wysokości dla tej lokalizacji</translation>
     </message>
     <message id="geo.elevation.source.note">
-        <source>Source resolution depends on the selected dataset. Output spacing follows this terrain tile. Missing coverage and NoData use the configured file-source fallback.</source>
-        <translation>Rozdzielczość źródła zależy od wybranego zbioru danych. Odstęp próbek wyniku zależy od kafla terenu. Brakujące dane uzupełnia skonfigurowane zapasowe źródło plikowe.</translation>
+        <source>Source resolution depends on the selected dataset. Output spacing follows this terrain tile. Missing coverage and NoData use the selected fallback.</source>
+        <translation>Rozdzielczość źródła zależy od wybranego zbioru danych. Odstęp próbek wyniku zależy od kafla terenu. Brakujące dane uzupełnia wybrane źródło zapasowe.</translation>
     </message>
     <message id="geo.elevation.tile.title">
         <source>Terrain elevation - tile %1 %2</source>
@@ -10203,8 +10219,16 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <translation>Źródło wysokości terenu</translation>
     </message>
     <message id="settings.geo.elevation.source.description">
-        <source>Source for manual and automatic terrain elevation. Missing coverage uses the configured file-source fallback.</source>
-        <translation>Źródło wysokości przy ręcznym i automatycznym tworzeniu terenu. Braki pokrycia uzupełnia skonfigurowane zapasowe źródło plikowe.</translation>
+        <source>Source for manual and automatic terrain elevation. Missing coverage uses the selected fallback.</source>
+        <translation>Źródło wysokości przy ręcznym i automatycznym tworzeniu terenu. Braki pokrycia uzupełnia wybrane źródło zapasowe.</translation>
+    </message>
+    <message id="settings.geo.elevation.fallback.name">
+        <source>Terrain elevation fallback</source>
+        <translation>Zapasowe źródło wysokości terenu</translation>
+    </message>
+    <message id="settings.geo.elevation.fallback.description">
+        <source>Approved secondary source used for missing coverage or NoData. If both sources fail, elevation generation remains unresolved.</source>
+        <translation>Zatwierdzone źródło dodatkowe używane przy braku pokrycia lub danych. Jeśli oba źródła zawiodą, tworzenie wysokości pozostaje nierozstrzygnięte.</translation>
     </message>
     <message id="settings.geo.elevation.source.kron86">
         <source>Geoportal NMT 1 m - KRON86 (GeoTIFF)</source>

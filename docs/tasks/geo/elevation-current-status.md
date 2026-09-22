@@ -9,6 +9,30 @@ historical findings from `a88f7f8` and the R1/R2 follow-up on `1ee5aaa`; their
 counts and validation claims are scoped to those milestones. They do not replace
 the newest status or the current source code.
 
+## Selectable approved fallback, 2026-09-23
+
+- The Height window has separate rows for the main elevation source and its
+  fallback. Both selections apply to manual previews and automatic terrain
+  generation through dynamic reference-valued Settings entries.
+- Each row has its own Y offset. The generator applies the main offset only to
+  primary samples and the fallback offset only to samples supplied by the
+  fallback, allowing vertical-datum or DTM/DSM alignment without shifting the
+  other source.
+- Catalogue property `fallbackApproved` controls the fallback list. World HGT
+  and GEDTM30 are the first two approved choices; detailed national sources are
+  not offered as fallbacks until explicitly reviewed for that role.
+- The shared generator accepts exactly one fallback source and prepares it only
+  for unresolved primary samples. It never adds HGT or any other third source
+  after the selected fallback.
+- World HGT remains the default for existing profiles. Invalid, unavailable or
+  non-approved fallback IDs fail explicitly rather than silently changing the
+  selection.
+- Preserving existing terrain heights when both sources remain unresolved is a
+  separate open Apply-policy task.
+- **404 focused Release checks pass**, including an offline HGT-void to GEDTM30
+  fallback fixture and proof that a missing fallback does not invoke a third
+  source. The incremental Release application build succeeds.
+
 ## Sweden authenticated STAC/range COG, 2026-09-23
 
 - `se.lantmateriet.markhojdmodell1` provides Lantmäteriet's national 1 m

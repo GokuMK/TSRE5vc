@@ -29,12 +29,15 @@ int TsreTests::runElevationUiSuite(const QString &capturePath, bool verbose) {
     auto &settings = SettingsManager::instance();
     const auto root = Settings::string("core.paths.geoData",SettingType::Directory);
     const auto source = Settings::string("geo.elevation.source",SettingType::Enum);
+    const auto fallback = Settings::string("geo.elevation.fallback",SettingType::Enum);
     QTemporaryDir temp;
     QString catalogError;
     const auto catalog = Elevation::datasets(catalogError);
     const QString worldHgt = Elevation::defaultFileSourceId(catalog);
+    const QString gedtm = QStringLiteral("world.gedtm30");
     check(settings.setSessionValue("core.paths.geoData",temp.path()),"set isolated geodata directory");
     check(settings.setSessionValue("geo.elevation.source",worldHgt),"select catalogue HGT source");
+    check(settings.setSessionValue("geo.elevation.fallback",worldHgt),"select catalogue HGT fallback");
     QDir(temp.path()).mkpath("world_hgt");
     QFile file(temp.filePath("world_hgt/N52E019.hgt"));
     QByteArray bytes(5*5*2,Qt::Uninitialized);
@@ -44,9 +47,22 @@ int TsreTests::runElevationUiSuite(const QString &capturePath, bool verbose) {
     HeightWindow window;
     window.tileX = window.tileZ = 0;
     window.terrainResolution = 16; window.terrainSize = 2048;
-    auto *selector = window.findChild<QComboBox*>();
+    auto *selector = window.findChild<QComboBox*>(QStringLiteral("elevationSourceBox"));
+    auto *fallbackSelector = window.findChild<QComboBox*>(QStringLiteral("elevationFallbackBox"));
+    auto *sourceOffset = window.findChild<QLineEdit*>(QStringLiteral("elevationSourceOffset"));
+    auto *fallbackOffset = window.findChild<QLineEdit*>(QStringLiteral("elevationFallbackOffset"));
     check(selector && catalogError.isEmpty() && selector->count() == catalog.size(),
           "height selector follows the current catalogue");
+    check(fallbackSelector && fallbackSelector->count()==2
+          && fallbackSelector->findData(worldHgt)>=0 && fallbackSelector->findData(gedtm)>=0,
+          "height fallback selector offers only the two approved world sources");
+    check(sourceOffset && fallbackOffset,"main and fallback sources have separate offset fields");
+    if(fallbackSelector){
+        fallbackSelector->setCurrentIndex(fallbackSelector->findData(gedtm));
+        check(Settings::string("geo.elevation.fallback",SettingType::Enum)==gedtm,
+              "height fallback selection reaches automatic generation setting");
+        fallbackSelector->setCurrentIndex(fallbackSelector->findData(worldHgt));
+    }
     if (selector) {
         for (const auto &dataset : catalog) {
             const int index = selector->findData(dataset.id);
@@ -63,6 +79,9 @@ int TsreTests::runElevationUiSuite(const QString &capturePath, bool verbose) {
             check(selector->findData(worldHgt) >= 0 && selector->findData("fi.nls.dem2") < 0,
                   "location filter retains the world file source and hides distant sources");
             check(selector->styleSheet().contains("combobox-popup: 0"),"height selector uses the TSRE combo style");
+            check(fallbackSelector && fallbackSelector->currentData().toString()==worldHgt
+                  && fallbackSelector->styleSheet().contains("combobox-popup: 0"),
+                  "fallback selection survives reopening and uses the TSRE combo style");
             window.reject();
         });
         if (!catalog.isEmpty()) window.exec();
@@ -104,7 +123,9 @@ int TsreTests::runElevationUiSuite(const QString &capturePath, bool verbose) {
     check(window.exec() == QDialog::Rejected && !window.ok,"close after preview does not apply");
     QTimer::singleShot(0,&window,[&] {
         window.load(true);
-        window.hOffsetEnabled(QStringLiteral("10"));
+        sourceOffset->setText(QStringLiteral("10"));
+        fallbackOffset->setText(QStringLiteral("-3"));
+        window.offsetsChanged();
         check(apply && !apply->isEnabled(),"offset change invalidates preview");
         window.load(true);
         window.accept();
@@ -136,6 +157,7 @@ int TsreTests::runElevationUiSuite(const QString &capturePath, bool verbose) {
     window.exec();
     settings.setSessionValue("core.paths.geoData",root);
     settings.setSessionValue("geo.elevation.source",source);
+    settings.setSessionValue("geo.elevation.fallback",fallback);
     qInfo() << "[tests:elevation-ui] cases=" << passed+failed << "passed=" << passed << "failed=" << failed;
     return failed ? 1 : 0;
 }

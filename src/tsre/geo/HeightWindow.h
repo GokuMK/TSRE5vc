@@ -17,15 +17,15 @@ public:
     int exec() override;
 public slots:
     void load(bool gui = true);
-    void hOffsetEnabled(QString value);
+    void offsetsChanged();
     void done(int result) override;
 private:
     int allocatedTerrainResolution = 0;
-    float yOffset = 0;
+    float sourceOffset = 0, fallbackOffset = 0;
     bool prepared = false, loading = false;
     QLabel *imageLabel;
-    QComboBox *sourceBox;
-    QLineEdit *offsetEdit;
+    QComboBox *sourceBox, *fallbackBox;
+    QLineEdit *sourceOffsetEdit, *fallbackOffsetEdit;
     QPushButton *loadButton, *applyButton;
     QTextBrowser *reportText;
     void clearData();

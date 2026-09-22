@@ -11,6 +11,7 @@
 
 namespace {
 const char *SourceSetting = "geo.elevation.source";
+const char *FallbackSetting = "geo.elevation.fallback";
 QPointer<QPlainTextEdit> automaticReport;
 bool lastElevationCancelled = false;
 QString summarize(const Elevation::Result &result, const QString &source) {
@@ -107,6 +108,7 @@ HeightWindow::HeightWindow() : QDialog() {
     //% "Terrain elevation"
     setWindowTitle(qtTrId("geo.elevation.title"));
     sourceBox = new QComboBox(this);
+    sourceBox->setObjectName(QStringLiteral("elevationSourceBox"));
     sourceBox->setStyleSheet(QStringLiteral("combobox-popup: 0;"));
     //% "Select an elevation source for this location"
     sourceBox->setPlaceholderText(qtTrId("geo.elevation.source.select.local"));
@@ -114,11 +116,24 @@ HeightWindow::HeightWindow() : QDialog() {
     if (sourceDefinition)
         for (const auto &option : sourceDefinition->resolvedOptions())
             sourceBox->addItem(option.displayName(),option.value);
-    offsetEdit = new QLineEdit(QStringLiteral("0"),this);
-    offsetEdit->setMaximumWidth(90);
-    auto *validator = new QDoubleValidator(-9999,9999,2,offsetEdit);
-    validator->setNotation(QDoubleValidator::StandardNotation);
-    offsetEdit->setValidator(validator);
+    fallbackBox = new QComboBox(this);
+    fallbackBox->setObjectName(QStringLiteral("elevationFallbackBox"));
+    fallbackBox->setStyleSheet(QStringLiteral("combobox-popup: 0;"));
+    const auto *fallbackDefinition = SettingsManager::instance().registry().definition(FallbackSetting);
+    if (fallbackDefinition)
+        for (const auto &option : fallbackDefinition->resolvedOptions())
+            fallbackBox->addItem(option.displayName(),option.value);
+    sourceOffsetEdit = new QLineEdit(QStringLiteral("0"),this);
+    sourceOffsetEdit->setObjectName(QStringLiteral("elevationSourceOffset"));
+    sourceOffsetEdit->setMaximumWidth(70);
+    fallbackOffsetEdit = new QLineEdit(QStringLiteral("0"),this);
+    fallbackOffsetEdit->setObjectName(QStringLiteral("elevationFallbackOffset"));
+    fallbackOffsetEdit->setMaximumWidth(70);
+    for (auto *edit : {sourceOffsetEdit,fallbackOffsetEdit}) {
+        auto *validator = new QDoubleValidator(-9999,9999,2,edit);
+        validator->setNotation(QDoubleValidator::StandardNotation);
+        edit->setValidator(validator);
+    }
     //% "Load preview"
     loadButton = new QPushButton(qtTrId("geo.elevation.preview"),this);
     //% "Apply"
@@ -133,17 +148,25 @@ HeightWindow::HeightWindow() : QDialog() {
     reportText->setReadOnly(true);
     reportText->setOpenExternalLinks(true);
     reportText->setMaximumHeight(150);
-    auto *top = new QHBoxLayout;
-    top->addWidget(sourceBox,1);
-    //% "Y offset (m):"
-    top->addWidget(new QLabel(qtTrId("geo.elevation.offset"),this));
-    top->addWidget(offsetEdit);
+    auto *top = new QGridLayout;
+    //% "Main:"
+    top->addWidget(new QLabel(qtTrId("geo.elevation.source.main"),this),0,0);
+    top->addWidget(sourceBox,0,1);
+    //% "Y (m):"
+    top->addWidget(new QLabel(qtTrId("geo.elevation.offset.short"),this),0,2);
+    top->addWidget(sourceOffsetEdit,0,3);
+    //% "Fallback:"
+    top->addWidget(new QLabel(qtTrId("geo.elevation.source.fallback"),this),1,0);
+    top->addWidget(fallbackBox,1,1);
+    top->addWidget(new QLabel(qtTrId("geo.elevation.offset.short"),this),1,2);
+    top->addWidget(fallbackOffsetEdit,1,3);
+    top->setColumnStretch(1,1);
     auto *buttons = new QHBoxLayout;
     buttons->addWidget(loadButton); buttons->addStretch();
     buttons->addWidget(applyButton); buttons->addWidget(closeButton);
     auto *layout = new QVBoxLayout(this);
     layout->addLayout(top); layout->addWidget(imageLabel,1);
-    //% "Source resolution depends on the selected dataset. Output spacing follows this terrain tile. Missing coverage and NoData use the configured file-source fallback."
+    //% "Source resolution depends on the selected dataset. Output spacing follows this terrain tile. Missing coverage and NoData use the selected fallback."
     auto *note = new QLabel(qtTrId("geo.elevation.source.note"),this);
     note->setWordWrap(true); layout->addWidget(note);
     layout->addWidget(reportText); layout->addLayout(buttons);
@@ -151,13 +174,23 @@ HeightWindow::HeightWindow() : QDialog() {
     connect(loadButton,&QPushButton::clicked,this,[this] { load(true); });
     connect(applyButton,&QPushButton::clicked,this,&QDialog::accept);
     connect(closeButton,&QPushButton::clicked,this,&QDialog::reject);
-    connect(offsetEdit,&QLineEdit::textEdited,this,&HeightWindow::hOffsetEnabled);
+    connect(sourceOffsetEdit,&QLineEdit::textEdited,this,&HeightWindow::offsetsChanged);
+    connect(fallbackOffsetEdit,&QLineEdit::textEdited,this,&HeightWindow::offsetsChanged);
     connect(sourceBox,&QComboBox::currentIndexChanged,this,[this] {
         prepared = ok = false; applyButton->setEnabled(false);
-        loadButton->setEnabled(sourceBox->currentIndex() >= 0);
+        loadButton->setEnabled(sourceBox->currentIndex() >= 0 && fallbackBox->currentIndex() >= 0);
         if (sourceBox->currentIndex() < 0) return;
         QString error;
         if (!SettingsManager::instance().setSessionValue(QString::fromLatin1(SourceSetting),sourceBox->currentData(),&error))
+            reportText->setPlainText(error);
+        else showSourceInformation();
+    });
+    connect(fallbackBox,&QComboBox::currentIndexChanged,this,[this] {
+        prepared = ok = false; applyButton->setEnabled(false);
+        loadButton->setEnabled(sourceBox->currentIndex() >= 0 && fallbackBox->currentIndex() >= 0);
+        if (fallbackBox->currentIndex() < 0) return;
+        QString error;
+        if (!SettingsManager::instance().setSessionValue(QString::fromLatin1(FallbackSetting),fallbackBox->currentData(),&error))
             reportText->setPlainText(error);
         else showSourceInformation();
     });
@@ -169,6 +202,13 @@ void HeightWindow::showSourceInformation() {
     const QString id=sourceBox->currentData().toString();
     for(const auto &dataset:catalog)if(dataset.id==id){
         QString html=sourceInformation(dataset,Settings::string("core.paths.geoData",SettingType::Directory));
+        const QString fallbackId=fallbackBox->currentData().toString();
+        for(const auto &fallback:catalog)if(fallback.id==fallbackId){
+            //% "Fallback"
+            html+=QStringLiteral("<p><b>%1:</b> %2</p>")
+                .arg(qtTrId("geo.elevation.info.fallback").toHtmlEscaped(),fallback.name.toHtmlEscaped());
+            break;
+        }
         if(!catalogueError.isEmpty())html+=QStringLiteral("<p>%1</p>").arg(catalogueError.toHtmlEscaped());
         reportText->setHtml(html);return;
     }
@@ -194,6 +234,8 @@ int HeightWindow::exec() {
     setWindowTitle(qtTrId("geo.elevation.tile.title").arg(tileX).arg(-tileZ));
     QString selected = Settings::string(SourceSetting,SettingType::Enum);
     if (selected.isEmpty()) selected = Elevation::defaultFileSourceId(catalog);
+    QString selectedFallback = Settings::string(FallbackSetting,SettingType::Enum);
+    if (selectedFallback.isEmpty()) selectedFallback = Elevation::defaultFallbackSourceId(catalog);
     QVector<Elevation::Point> area;
     if (Game::GeoCoordConverter && terrainSize > 0) {
         PreciseTileCoordinate coordinate;
@@ -219,7 +261,13 @@ int HeightWindow::exec() {
       if (!known)
           sourceBox->addItem(qtTrId("settings.dialog.text.widget").arg(selected),selected);
       sourceBox->setCurrentIndex(sourceBox->findData(selected)); }
-    loadButton->setEnabled(sourceBox->currentIndex() >= 0);
+    { const QSignalBlocker blocker(fallbackBox);
+      fallbackBox->clear();
+      for (const auto &dataset : catalog)
+          if (dataset.fallbackApproved && Elevation::nearDataset(dataset,area))
+              fallbackBox->addItem(dataset.name,dataset.id);
+      fallbackBox->setCurrentIndex(fallbackBox->findData(selectedFallback)); }
+    loadButton->setEnabled(sourceBox->currentIndex() >= 0 && fallbackBox->currentIndex() >= 0);
     showSourceInformation();
     const int result = QDialog::exec();
     if (previousContext && previousSurface) previousContext->makeCurrent(previousSurface);
@@ -230,15 +278,17 @@ void HeightWindow::done(int result) {
     ok = result == QDialog::Accepted && prepared;
     QDialog::done(result);
 }
-void HeightWindow::hOffsetEnabled(QString value) {
+void HeightWindow::offsetsChanged() {
     bool valid;
-    yOffset = offsetEdit->locale().toFloat(value,&valid);
-    if (!valid) yOffset = 0;
+    sourceOffset = sourceOffsetEdit->locale().toFloat(sourceOffsetEdit->text(),&valid);
+    if (!valid) sourceOffset = 0;
+    fallbackOffset = fallbackOffsetEdit->locale().toFloat(fallbackOffsetEdit->text(),&valid);
+    if (!valid) fallbackOffset = 0;
     prepared = ok = false; applyButton->setEnabled(false);
 }
 void HeightWindow::load(bool gui) {
     if (loading) return;
-    if (gui && sourceBox->currentIndex() < 0) return;
+    if (gui && (sourceBox->currentIndex() < 0 || fallbackBox->currentIndex() < 0)) return;
     resetLoadCancellation();
     ok = prepared = false; applyButton->setEnabled(false);
     if (terrainResolution < 1 || terrainResolution > 4096 || terrainSize < 1 || !Game::GeoCoordConverter) {
@@ -248,18 +298,21 @@ void HeightWindow::load(bool gui) {
     loading = true;
     QPointer<QOpenGLContext> previousContext = QOpenGLContext::currentContext();
     QSurface *previousSurface = previousContext ? previousContext->surface() : nullptr;
-    loadButton->setEnabled(false); sourceBox->setEnabled(false); offsetEdit->setEnabled(false);
+    loadButton->setEnabled(false); sourceBox->setEnabled(false); fallbackBox->setEnabled(false);
+    sourceOffsetEdit->setEnabled(false); fallbackOffsetEdit->setEnabled(false);
     const QString root = Settings::string("core.paths.geoData",SettingType::Directory);
     QString dataset = gui ? sourceBox->currentData().toString() : Settings::string(SourceSetting,SettingType::Enum);
+    QString fallbackDataset = gui ? fallbackBox->currentData().toString() : Settings::string(FallbackSetting,SettingType::Enum);
     QString catalogueError;
     const auto catalog = Elevation::datasets(catalogueError);
     if (dataset.isEmpty()) dataset = Elevation::defaultFileSourceId(catalog);
+    if (fallbackDataset.isEmpty()) fallbackDataset = Elevation::defaultFallbackSourceId(catalog);
     const int sourceIndex = sourceBox->findData(dataset);
     QString sourceName = sourceIndex < 0 ? dataset : sourceBox->itemText(sourceIndex);
-    // Snapshot only this dataset's secret on the UI thread, before starting the worker.
+    // Snapshot only the selected primary/fallback secrets on the UI thread.
     QMap<QString,QString> secrets;
-    for (const auto &entry : catalog) if (entry.id == dataset) {
-        sourceName = entry.name;
+    for (const auto &entry : catalog) if (entry.id == dataset || entry.id == fallbackDataset) {
+        if (entry.id == dataset) sourceName = entry.name;
         if (!entry.apiKeySecret.isEmpty())
             secrets.insert(entry.apiKeySecret,SettingsManager::instance().secretValue(entry.apiKeySecret));
         if (!entry.basicUsernameSecret.isEmpty())
@@ -295,15 +348,15 @@ void HeightWindow::load(bool gui) {
         progress.setLabelText(qtTrId("geo.elevation.cancelling"));
         progress.setCancelButton(nullptr); progress.show();
     });
-    const float offset = yOffset;
+    const float primaryOffset = sourceOffset, secondaryOffset = fallbackOffset;
     QThread *worker = QThread::create([&] {
         try {
-            result = Elevation::generate(root,dataset,points,step,offset,cancel,[&](int done,int total,const QString &message) {
+            result = Elevation::generate(root,dataset,points,step,primaryOffset,secondaryOffset,cancel,[&](int done,int total,const QString &message) {
                     if (!gui) return; // setValue() can otherwise auto-show the dialog.
                 QMetaObject::invokeMethod(&progress,[&,done,total,message] {
                     progress.setLabelText(message); progress.setRange(0,total); progress.setValue(done);
                 },Qt::QueuedConnection);
-            },secrets);
+            },secrets,fallbackDataset);
         } catch (const std::exception &e) {
             //% "Elevation load failed: %1"
             result.error = qtTrId("geo.elevation.load.failed").arg(QString::fromUtf8(e.what()));
@@ -317,7 +370,8 @@ void HeightWindow::load(bool gui) {
     lastElevationCancelled = result.cancelled;
     if (previousContext && previousSurface) previousContext->makeCurrent(previousSurface);
     loading = false;
-    loadButton->setEnabled(true); sourceBox->setEnabled(true); offsetEdit->setEnabled(true);
+    loadButton->setEnabled(true); sourceBox->setEnabled(true); fallbackBox->setEnabled(true);
+    sourceOffsetEdit->setEnabled(true); fallbackOffsetEdit->setEnabled(true);
     const QString report = summarize(result,sourceName);
     reportText->setPlainText(report);
     if (!gui && (!result.success() || result.report.fallbackSamples))
@@ -349,10 +403,21 @@ void HeightWindow::CheckForMissingGeodataFiles(QMap<int,QPair<int,int>*> &tiles)
     const QString root = Settings::string("core.paths.geoData",SettingType::Directory);
     QString catalogueError;
     const auto catalog = Elevation::datasets(catalogueError);
-    const QString fallbackId = Elevation::defaultFileSourceId(catalog);
+    QString fallbackId = Settings::string(FallbackSetting,SettingType::Enum);
+    if (fallbackId.isEmpty()) fallbackId = Elevation::defaultFallbackSourceId(catalog);
+    QString selected = Settings::string(SourceSetting,SettingType::Enum);
+    if (selected.isEmpty()) selected = Elevation::defaultFileSourceId(catalog);
     const Elevation::Dataset *fileSource = nullptr;
-    for (const auto &dataset : catalog) if (dataset.id == fallbackId) { fileSource = &dataset; break; }
-    if (!fileSource) return;
+    for (const auto &dataset : catalog)
+        if ((dataset.id == selected || dataset.id == fallbackId)
+                && dataset.provider == "file" && dataset.format == "hgt") {
+            fileSource = &dataset;break;
+        }
+    if (!fileSource) {
+        QMessageBox::information(nullptr,qtTrId("geo.elevation.data.title"),
+            qtTrId("geo.elevation.hgt.fallback.check"));
+        return;
+    }
     QSet<QString> missing;
     for (auto it = tiles.cbegin(); it != tiles.cend(); ++it) {
         if (!it.value()) continue;
@@ -372,9 +437,7 @@ void HeightWindow::CheckForMissingGeodataFiles(QMap<int,QPair<int,int>*> &tiles)
             if (Elevation::findHgtFile(root,*fileSource,lat,lon).isEmpty()) missing.insert(Elevation::hgtFileName(lat,lon));
     }
     QStringList names = missing.values(); names.sort();
-    QString selected = Settings::string(SourceSetting,SettingType::Enum);
-    if (selected.isEmpty()) selected = fallbackId;
-    QString message = selected == fallbackId
+    QString message = selected == fileSource->id
         //% "Elevation file-source check"
         ? qtTrId("geo.elevation.hgt.check")
         //% "Fallback file-source check. Elevation data is prepared when terrain is loaded."
