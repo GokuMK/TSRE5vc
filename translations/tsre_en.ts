@@ -10073,6 +10073,46 @@ Cancelled. No elevation heights were applied.</translation>
         <source>Terrain elevation</source>
         <translation>Terrain elevation</translation>
     </message>
+    <message id="geo.elevation.info.source">
+        <source>Source</source>
+        <translation>Source</translation>
+    </message>
+    <message id="geo.elevation.info.resolution">
+        <source>Native/request resolution</source>
+        <translation>Native/request resolution</translation>
+    </message>
+    <message id="geo.elevation.info.datum">
+        <source>Vertical datum</source>
+        <translation>Vertical datum</translation>
+    </message>
+    <message id="geo.elevation.info.attribution">
+        <source>Attribution</source>
+        <translation>Attribution</translation>
+    </message>
+    <message id="geo.elevation.info.license">
+        <source>License</source>
+        <translation>License</translation>
+    </message>
+    <message id="geo.elevation.info.mode">
+        <source>Mode</source>
+        <translation>Mode</translation>
+    </message>
+    <message id="geo.elevation.info.manual">
+        <source>User-managed files</source>
+        <translation>User-managed files</translation>
+    </message>
+    <message id="geo.elevation.info.directory">
+        <source>Local directory</source>
+        <translation>Local directory</translation>
+    </message>
+    <message id="geo.elevation.info.more">
+        <source>More information</source>
+        <translation>More information</translation>
+    </message>
+    <message id="geo.elevation.info.download">
+        <source>Download data</source>
+        <translation>Download data</translation>
+    </message>
     <message id="geo.elevation.preview">
         <source>Load preview</source>
         <translation>Load preview</translation>

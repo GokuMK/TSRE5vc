@@ -590,6 +590,11 @@ QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
         d.directory = o.value("directory").toString();
         d.fileGrid = o.value("fileGrid").toString();
         d.attribution = o.value("attribution").toString();
+        d.license = o.value("license").toString();
+        d.information = o.value("information").toString();
+        d.attributionUrl = QUrl(o.value("attributionUrl").toString());
+        d.informationUrl = QUrl(o.value("informationUrl").toString());
+        d.downloadPage = QUrl(o.value("downloadPage").toString());
         const auto download = o.value("download").toObject();
         d.downloadUrlTemplate = download.value("urlTemplate").toString();
         d.downloadCompression = download.value("compression").toString();
@@ -673,7 +678,11 @@ QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
             && !o.contains("authentication") && o.value("download").isObject()
             && d.stacEndpoint.scheme() == "https" && !d.stacEndpoint.host().isEmpty()
             && !d.stacCollection.isEmpty();
-        const bool validFile = validHgt || validProjectedTiff || validSingleCog || validStacTiff;
+        const bool validDirectoryTiff = file && d.format == "geotiff" && d.fileGrid == "directory"
+            && d.resolution > 0 && relativeDirectory.match(d.directory).hasMatch()
+            && !o.contains("authentication") && !o.contains("download");
+        const bool validFile = validHgt || validProjectedTiff || validSingleCog
+            || validStacTiff || validDirectoryTiff;
         const bool validCoordinateTransform = d.coordinateTransform.isEmpty()
             ? d.epsg != 27700
             : d.epsg == 27700 && d.coordinateTransform == "ostn15-lite"
@@ -691,6 +700,11 @@ QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
                 || (o.contains("scaleAxisY") && !o.value("scaleAxisY").isString())
                 || (o.contains("noDataPolicy") && !o.value("noDataPolicy").isString())
                 || (d.noDataPolicy != "fallback" && d.noDataPolicy != "fill")
+                || (o.contains("license") && !o.value("license").isString())
+                || (o.contains("information") && !o.value("information").isString())
+                || (o.contains("attributionUrl") && (d.attributionUrl.scheme() != "https" || d.attributionUrl.host().isEmpty()))
+                || (o.contains("informationUrl") && (d.informationUrl.scheme() != "https" || d.informationUrl.host().isEmpty()))
+                || (o.contains("downloadPage") && (d.downloadPage.scheme() != "https" || d.downloadPage.host().isEmpty()))
                 || (!file && (d.endpoint.scheme() != "https" || d.endpoint.host().isEmpty() || d.resolution <= 0))
                 || (wcs2 && (d.coverage.isEmpty() || d.axisX.isEmpty() || d.axisY.isEmpty() || d.axisX == d.axisY))
                 || (wcs2 && (d.scaleAxisX.isEmpty() || d.scaleAxisY.isEmpty() || d.scaleAxisX == d.scaleAxisY))

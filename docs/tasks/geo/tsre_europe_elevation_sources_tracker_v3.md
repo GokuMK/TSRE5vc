@@ -1,7 +1,7 @@
 # TSRE high-resolution elevation sources — Europe tracker
 
 **Original research date:** 2026-09-17  
-**TSRE implementation sync:** 2026-09-21 — `feature/geo-terrain`; Austria/Switzerland and Luxembourg/Wales COG milestones after tracker commit `31b9198`
+**TSRE implementation sync:** 2026-09-22 — `feature/geo-terrain`; Portugal indexed-directory milestone follows the COG/STAC work
 **Scope:** high-resolution European national/regional terrain models, implemented non-European sources, and world-scale fallback/acquisition options.  
 **World fallback:** automatic catalogue-based HGT download is now implemented.
 
@@ -17,9 +17,9 @@ Current generic pieces include:
 
 - caller-side geographic point sampling (`getHeight(lat, lon)` conceptually);
 - a catalogue-driven source model shared by Settings, the elevation dialog and automatic terrain generation;
-- **24 configured datasets**, including 22 European entries, USGS 3DEP and the world HGT file source;
+- **25 configured datasets**, including 23 European entries, USGS 3DEP and the world HGT file source;
 - deterministic persistent raster/service caching and stable user-managed directories for file sources;
-- `provider: "file"` with one-degree HGT grids, projected range COGs, single national range COGs, and STAC-discovered GeoTIFF tiles;
+- `provider: "file"` with one-degree HGT grids, projected range COGs, single national range COGs, STAC-discovered GeoTIFF tiles, and indexed user-managed GeoTIFF directories;
 - catalogue-level `defaultFileSource`, currently `world-hgt`, used as the service fallback;
 - primary-source-first preparation: the world fallback is prepared/downloaded only for points unresolved by the selected WCS/ArcGIS source;
 - Arc/Info ASCII Grid decoding;
@@ -48,6 +48,7 @@ Current generic pieces include:
 - EPSG:3067 — Finland ETRS-TM35FIN;
 - EPSG:2169 — Luxembourg TM after the official LUREF2020 datum transformation;
 - EPSG:27700 — British National Grid with an injected OSTN15 Lite shift grid;
+- EPSG:3763 — Portugal PT-TM06 / ETRS89;
 - EPSG:25828 … EPSG:25838 — generic ETRS89 / UTM zones 28N–38N.
 
 The lightweight projection code is intentionally bounded rather than a general PROJ replacement. Several recently added services avoid unsupported national projections by asking the server for a TSRE-supported CRS.
@@ -706,7 +707,7 @@ Distribution is currently much more file/catalogue-oriented than WCS/ImageServer
 
 ## Portugal
 
-**Status: 🟠, high future interest**
+**Status: 🟡 user-managed 2 m source implemented; automatic download is login-gated**
 
 DGT's new mainland LiDAR acquisition is excellent:
 
@@ -720,12 +721,47 @@ DGT's new mainland LiDAR acquisition is excellent:
 - current portal download supports areas up to about 200 km² per access;
 - DGT explicitly states that API access is planned for the infrastructure later.
 
+Endpoint review on 2026-09-21 found that the portal already uses a STAC catalogue:
+
+- collection `MDT-2m` contains 1 km x 1 km GeoTIFF tiles;
+- each tile is 500 x 500 Float32 samples and approximately 1 MB;
+- NoData is `-999`;
+- the CRS is EPSG:3763 (ETRS89 / Portugal TM06), a regular Transverse
+  Mercator projection on GRS80 that does not need a datum-shift grid;
+- anonymous STAC metadata search currently works through both the portal proxy
+  and the underlying STAC service;
+- raster assets remain private. Direct object access returns HTTP 403 and the
+  portal download endpoint redirects an anonymous client to login.
+
+The community QGIS downloader confirms that current automation requires a CDD
+account and works around the missing public download API by reproducing the
+portal's Keycloak web-login session. TSRE should not copy this brittle password
+and HTML-form workflow. Recheck the promised DGT API later. Once downloads are
+public or use a documented token flow, support should need only generic STAC
+asset-selection options and whole-file GeoTIFF download.
+
+The user-managed route is implemented as `pt.dgt.mdt2m`. Users download selected
+MDT-2m tiles in the portal and place them under `geoPath/pt_dgt_mdt2m/`. TSRE
+reads embedded EPSG:3763 georeferencing and keeps a disposable
+`.tsre-elevation-index.json` containing file identity, transform and bounds.
+Unchanged index records are reused, and only files overlapping the requested
+terrain are decoded. Filenames do not need to encode coordinates. The source
+information panel shows the local directory and links to DGT information and
+the download portal. The focused Release suite passes 382 checks and the
+incremental Release application build passes.
+
 Sources:
 
 - https://www.dgterritorio.gov.pt/descarregamento-de-dados-lidar-de-portugal-continental
 - https://www.dgterritorio.gov.pt/atividades/cartografia/cartografia-topografica/modelos-digitais
+- https://www.dgterritorio.gov.pt/atividades/geodesia/sistemas-referencia/portugal-continental/PT-TM06-ETRS89
+- https://cdd.dgterritorio.gov.pt/dgt-be/v1/collections
+- https://plugins.qgis.org/plugins/dgt_cdd_downloader/
+- https://github.com/qgispt/dgtcd_downer
 
-Very promising once a stable programmatic API endpoint appears.
+Do not add automatic downloading until a stable authenticated or public
+programmatic route is available. The selectable local source does not log in or
+make raster requests.
 
 ---
 
@@ -1165,7 +1201,7 @@ Still useful later:
 - Ireland LiDAR programme/tile catalogues;
 - Romania mixed-resolution tile set;
 - Italy regional/portal LiDAR;
-- Portugal as its new LiDAR distribution/API matures;
+- Portugal automatic download, when its promised API matures (local indexed use is implemented);
 - Albania and other ATOM/registered catalogue cases.
 
 A second deep WCS search may still find hidden services, especially for fragmented regions, but the return on effort is now lower than it was before the recent WCS integrations.
@@ -1174,7 +1210,7 @@ A second deep WCS search may still find hidden services, especially for fragment
 
 # 12. Architectural observations from the expanded survey
 
-The generic design is holding up well. The current implementation demonstrates six useful acquisition/file-discovery paths rather than country-specific terrain code:
+The generic design is holding up well. The current implementation demonstrates seven useful acquisition/file-discovery paths rather than country-specific terrain code:
 
 ```text
 1. Catalogue file source — implemented
@@ -1213,7 +1249,10 @@ The generic design is holding up well. The current implementation demonstrates s
    Luxembourg ACT DTM 2024, exact 1 m overview
    Wales LiDAR DTM 1 m with OSTN15 Lite
 
-7. Regular downloaded GeoTIFF / tiled files — next provider extension
+7. Indexed user-managed GeoTIFF directory — implemented first profile
+   Portugal DGT MDT-2m
+
+8. Regular downloaded GeoTIFF / tiled files — next provider extension
    global SRTM GL1 / NASADEM / ALOS / Copernicus mirrors
    several German Länder
    Slovakia and other predictable tile sets
@@ -1249,7 +1288,7 @@ This keeps country-specific C++ as an escape hatch rather than the default. Nati
 
 The most important architectural gap is no longer “support more WCS syntax”. It
 is now broadening the first verified COG/STAC profiles safely—additional
-compression and TIFF layouts, arbitrary local collection indexes—and adding
+compression and TIFF layouts, more catalogue/discovery patterns—and adding
 explicit coarse-source behavior for distant terrain.
 
 ---
@@ -1277,7 +1316,7 @@ If we want another WCS-heavy research pass before switching provider families, i
 ## Notes
 
 - Implementation state in this revision was synchronized against `feature/geo-terrain` head `c8a952d0` on 2026-09-19.
-- The current catalogue has **24 datasets**, including the Luxembourg and Wales file sources.
+- The current catalogue has **25 datasets**, including the Portugal user-managed file source.
 - `world-hgt` is both a selectable file source and the configured fallback for unresolved service samples; local files take precedence over automatic Mapzen downloads.
 - Resolution listed here means published/source spacing or TSRE request/cache spacing as explicitly stated; a dense request grid does not imply equivalent native survey accuracy.
 - Web Mercator “metres” are map metres. TSRE compensates footprint size by latitude for sampling, and several catalogue names explicitly say “request grid” to avoid implying uniform native resolution.

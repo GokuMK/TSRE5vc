@@ -1,6 +1,6 @@
 # Elevation: current implementation and review
 
-Updated 2026-09-21 for the current `feature/geo-terrain` working tree.
+Updated 2026-09-22 for the current `feature/geo-terrain` working tree.
 Start with the [agent handoff guide](README.md) for reading order, code map and
 source-addition workflow. These follow-ups are committed together with the guide.
 
@@ -8,6 +8,31 @@ Newest follow-ups appear first. Sections headed as the original review retain
 historical findings from `a88f7f8` and the R1/R2 follow-up on `1ee5aaa`; their
 counts and validation claims are scoped to those milestones. They do not replace
 the newest status or the current source code.
+
+## Portugal indexed local GeoTIFF source, 2026-09-22
+
+- `fileGrid: "directory"` is a generic user-managed GeoTIFF collection. It
+  recursively discovers TIFFs, reads embedded georeferencing once and stores a
+  disposable `.tsre-elevation-index.json` in the source directory.
+- Index entries contain relative filename, size, modification time, dimensions,
+  transform and bounds. Unchanged files reuse that metadata; only rasters whose
+  bounds overlap the requested terrain are decoded for sampling.
+- Portugal DGT MDT-2m is the first entry. Users download its 1 km, 2 m Float32
+  GeoTIFF tiles through the login-protected DGT Data Centre and copy them below
+  `geoPath/pt_dgt_mdt2m/`. TSRE performs no portal login and stores no DGT
+  credentials.
+- EPSG:3763 support uses the official PT-TM06/ETRS89 GRS80 Transverse Mercator
+  definition. A DGT tile control agrees within 5 cm.
+- Selecting a source in the Height window now displays its available attribution,
+  licence, resolution, vertical datum, explanatory text and official links. A
+  directory source also displays its local path.
+- **382 focused Release checks pass**, including index creation, overlap loading,
+  catalogue validation and the EPSG:3763 control. The incremental Release
+  application build also passes with the source-information UI and translations.
+
+Automatic Portugal downloads remain deferred until DGT exposes a documented
+public or token-based API. The current browser-login form workflow is specific
+to the DGT portal and is unsuitable as a generic authentication provider.
 
 ## Luxembourg and Wales single-file range COGs, 2026-09-21
 
@@ -356,9 +381,9 @@ Apply policy. Dataset-level NoData filling is described below. The
 ### Two separate projection layers
 
 1. `Geo::CrsTransform` converts geographic sample positions into a dataset CRS:
-   EPSG:4326, 2056, 2180, 3035, 3857, 3794, 3045, 3067 and 25828..25838 are
-   accepted, with bounded geographic domains. It is constructed once per source
-   and reused for raster lookups; see `crs-transform.md`.
+   EPSG:4326, 2056, 2169, 2180, 27700, 3035, 3045, 3067, 3763, 3794, 3857 and
+   25828..25838 are accepted, with bounded geographic domains. It is constructed
+   once per source and reused for raster lookups; see `crs-transform.md`.
 2. `GeoCoordinates` maps route/world positions to geographic positions. The
    committed projection milestone adds local GRS80 Transverse Mercator with
    scale 1, alongside IGH and the legacy local equirectangular converter. A shared

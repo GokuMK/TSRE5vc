@@ -18,8 +18,9 @@ are not a current specification.
      differences; use [Czech ArcGIS](czech-arcgis-validation.md) for that provider.
    - Downloaded/offline sources: [file-source implementation and next step](local-elevation-sources.md).
      One-degree HGT, Austria projected range-COG tiles, Luxembourg and Wales
-     single national range COGs, and Switzerland/Liechtenstein STAC/GeoTIFF
-     tiles are implemented; other GeoTIFF families still require profile validation.
+     single national range COGs, Switzerland/Liechtenstein STAC/GeoTIFF tiles,
+     and indexed user-managed GeoTIFF directories are implemented; other
+     GeoTIFF families still require profile validation.
    - Projection implementation: [CRS transform extraction and shared projection path](crs-transform.md).
      This describes the small internal converter and the planned shared
      sixth-order Transverse Mercator kernel.
@@ -59,7 +60,7 @@ Paths below are relative to the repository root.
 | Area | Files / entry points |
 |---|---|
 | Catalogue | `src/tsre/geo/elevation-datasets.json`; `Dataset`, `datasets()` and `parseDatasets()` in `ElevationSource.h/.cpp` |
-| Providers/cache | `ElevationSource.cpp`: `FileHgtSource`, service providers, `RasterSource`, `generate()`; `CogElevationSource.cpp`: projected, single-file range-COG and STAC GeoTIFF sources |
+| Providers/cache | `ElevationSource.cpp`: `FileHgtSource`, service providers, `RasterSource`, `generate()`; `CogElevationSource.cpp`: projected, single-file range-COG, STAC and indexed local-directory GeoTIFF sources |
 | Requests/grid checks | `coverageUrl()`, `imageServerUrl()`, `validateRasterGrid()`, `cacheRelativePath()` |
 | CRS conversion | `src/tsre/geo/CrsTransform.h/.cpp`: small compiled-in forward transforms, constructed once per source; see `crs-transform.md` |
 | Numeric raster | `src/tsre/geo/ElevationRaster.h/.cpp`: `Raster`, readers, sampling and `fillNoData()`; `ElevationTiffCodec.cpp`: bounded uncompressed/LZW/Deflate block decoding, Float32/Float64 conversion and predictors |
@@ -161,7 +162,7 @@ or put key-bearing URLs in commands/logs. Ignored `build-*-research/` probes in 
 worktree are conveniences, not evidence guaranteed in another checkout.
 
 After a change, run appropriate standalone checks and the relevant build when
-allowed. The current COG/STAC milestone passes **378 standalone checks**. Bounded
+allowed. The current elevation milestone passes **382 standalone checks**. Bounded
 live probes returned 171.6 m in Vienna from one Austria internal COG block and
 540.3 m in Bern from one current Swiss 2 m tile; both cache repeats used no data
 download. Luxembourg returned 306.786 m from one 1 m Float64 overview block;
@@ -176,7 +177,7 @@ Estonia 1024 was tested but its catalogue still uses 512.
 
 ## File-source status
 
-Four file-source profiles are implemented:
+Five file-source profiles are implemented:
 
 - `format: "hgt"`, `fileGrid: "degree"`: local or automatically downloaded
   Mapzen Skadi cells and the catalogue default/fallback;
@@ -188,6 +189,10 @@ Four file-source profiles are implemented:
   Wales are verified profiles;
 - `format: "geotiff"`, `fileGrid: "stac"`: STAC discovery with resolution/CRS
   asset selection and preserved complete source TIFFs; Switzerland is the first.
+- `format: "geotiff"`, `fileGrid: "directory"`: recursively indexed local
+  GeoTIFF collections with arbitrary filenames; Portugal DGT MDT-2m is the first.
+  `.tsre-elevation-index.json` caches bounds and georeferencing so only files
+  overlapping the requested terrain are decoded.
 
 These profiles validate a reusable direction, not arbitrary GeoTIFF compatibility.
 Each new product still needs its real compression, metadata placement, sample

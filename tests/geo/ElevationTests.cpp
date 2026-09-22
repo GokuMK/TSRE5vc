@@ -1,6 +1,7 @@
 #include <tsre/geo/ElevationRaster.h>
 #include <tsre/geo/ElevationSource.h>
 #include <tsre/geo/ElevationTiffCodec.h>
+#include <tsre/geo/CogElevationSource.h>
 #include <QCoreApplication>
 #include <QFile>
 #include <QTemporaryDir>
@@ -225,6 +226,7 @@ int main(int argc, char **argv) {
     const auto luxembourg = byId.value("lu.act.dtm2024");
     const auto wales = byId.value("gb.wales.lidar.dtm1");
     const auto switzerland = byId.value("ch.swisstopo.swissalti3d.2m");
+    const auto portugal = byId.value("pt.dgt.mdt2m");
     check(defaultFileSourceId(catalog) == worldHgt.id && worldHgt.provider == "file"
         && worldHgt.directory == "world_hgt" && worldHgt.fileGrid == "degree"
         && worldHgt.minX == -180 && worldHgt.minY == -90 && worldHgt.maxX == 180 && worldHgt.maxY == 90,
@@ -265,6 +267,12 @@ int main(int argc, char **argv) {
         && switzerland.stacEndpoint.host() == "data.geo.admin.ch"
         && switzerland.stacCollection == "ch.swisstopo.swissalti3d",
         "Switzerland catalogue defines the generic 2 m STAC/GeoTIFF source");
+    check(portugal.provider == "file" && portugal.format == "geotiff"
+        && portugal.fileGrid == "directory" && portugal.directory == "pt_dgt_mdt2m"
+        && portugal.epsg == 3763 && portugal.resolution == 2
+        && portugal.downloadPage.host() == "cdd.dgterritorio.gov.pt"
+        && !portugal.information.isEmpty() && !portugal.license.isEmpty(),
+        "Portugal catalogue defines a user-managed indexed GeoTIFF directory");
     auto manualFile = worldHgt.definition;
     manualFile["id"] = "fixture.manual-hgt"; manualFile["directory"] = "manual_hgt";
     manualFile.remove("download");
@@ -289,6 +297,39 @@ int main(int argc, char **argv) {
     check(readGeoTiff(eeFixture,r,error) && r.epsg == 3857 && r.transform[1] == 2
         && near(r.values.value(528),2.690624952316284) && r.values.value(0) == 0,
         "Estonia live Float32 fixture preserves fractional and zero heights");
+    const Raster localFixture=r;
+    QTemporaryDir localRoot;
+    Dataset localDirectory;
+    localDirectory.id="fixture.local-directory";localDirectory.provider="file";
+    localDirectory.format="geotiff";localDirectory.fileGrid="directory";
+    localDirectory.directory="local_tiff";localDirectory.epsg=3857;localDirectory.resolution=2;
+    localDirectory.minX=localFixture.transform[0];
+    localDirectory.maxX=localFixture.transform[0]+localFixture.width*localFixture.transform[1];
+    localDirectory.maxY=localFixture.transform[3];
+    localDirectory.minY=localFixture.transform[3]+localFixture.height*localFixture.transform[5];
+    const QString localFile=QDir(localRoot.path()).filePath("local_tiff/tile.tif");
+    check(localRoot.isValid()&&write(localFile,eeFixture),"create user-managed GeoTIFF directory fixture");
+    constexpr double webRadius=6378137.0,pi=3.14159265358979323846;
+    const double localX=localFixture.transform[0]+10.5*localFixture.transform[1];
+    const double localY=localFixture.transform[3]+10.5*localFixture.transform[5];
+    const Point localPoint{(2*std::atan(std::exp(localY/webRadius))-pi/2)*180/pi,
+                           localX/webRadius*180/pi};
+    Report localReport;std::atomic_bool localCancel{false};QString localError;
+    auto localSource=createCogElevationSource(localRoot.path(),localDirectory,localReport);
+    const bool localPrepared=localSource->prepare({localPoint},localCancel,{},localError);
+    QFile localIndex(QDir(localRoot.path()).filePath("local_tiff/.tsre-elevation-index.json"));
+    const bool localIndexOpen=localIndex.open(QIODevice::ReadOnly);
+    const QJsonObject localIndexRoot=QJsonDocument::fromJson(localIndex.readAll()).object();
+    const QJsonArray localIndexFiles=localIndexRoot.value("files").toArray();
+    const QJsonObject localIndexFile=localIndexFiles.isEmpty()
+        ?QJsonObject():localIndexFiles.first().toObject();
+    check(localPrepared
+        && localError.isEmpty() && localSource->sample(localPoint).valid()
+        && localReport.cacheHits==1
+        && localIndexOpen && localIndexRoot.value("dataset")==localDirectory.id
+        && localIndexFile.value("name")=="tile.tif"
+        && localIndexFile.value("bounds").toArray().size()==4,
+        "user-managed GeoTIFF directory indexes bounds and loads only overlapping local files");
     bad = eeFixture; mutateTag(bad,257,31);
     check(readGeoTiff(bad,r,error) && r.values.size() == 32*31,
         "final TIFF strip may include padding rows beyond image height");
@@ -323,6 +364,7 @@ int main(int argc, char **argv) {
     const Geo::CrsTransform europeProjection(3035);
     const Geo::CrsTransform swissProjection(2056);
     const Geo::CrsTransform luxembourgProjection(2169);
+    const Geo::CrsTransform portugalProjection(3763);
     check(finland.epsg == 3067 && Geo::CrsTransform::supports(3067) && finlandProjection.forward({60,27},p)
         && near(p.x,500000),"Finland retains its supported native TM35FIN grid");
     check(europeProjection.forward({52,10},p) && near(p.x,4321000,.001) && near(p.y,3210000,.001),
@@ -345,6 +387,10 @@ int main(int argc, char **argv) {
     }
     check(luxembourgMatches,
         "LUREF2020 and Luxembourg TM agree with official ACT converter controls within 2 cm");
+    check(Geo::CrsTransform::supports(3763)
+        && portugalProjection.forward({39.4417496,-8.6906939},p)
+        && near(p.x,-48000,.05) && near(p.y,-25000,.05),
+        "Portugal TM06 agrees with a DGT MDT tile control within 5 cm");
     Geo::CrsTransform britishProjection(27700);
     std::vector<std::array<double,2>> ostn15(36*63,{0,0});
     ostn15[443]={93.328,-77.086};

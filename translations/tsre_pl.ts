@@ -10078,6 +10078,46 @@ Anulowano. Nie zastosowano wysokości terenu.</translation>
         <source>Terrain elevation</source>
         <translation>Wysokość terenu</translation>
     </message>
+    <message id="geo.elevation.info.source">
+        <source>Source</source>
+        <translation>Źródło</translation>
+    </message>
+    <message id="geo.elevation.info.resolution">
+        <source>Native/request resolution</source>
+        <translation>Rozdzielczość źródła/zapytania</translation>
+    </message>
+    <message id="geo.elevation.info.datum">
+        <source>Vertical datum</source>
+        <translation>Układ wysokościowy</translation>
+    </message>
+    <message id="geo.elevation.info.attribution">
+        <source>Attribution</source>
+        <translation>Autor danych</translation>
+    </message>
+    <message id="geo.elevation.info.license">
+        <source>License</source>
+        <translation>Licencja</translation>
+    </message>
+    <message id="geo.elevation.info.mode">
+        <source>Mode</source>
+        <translation>Tryb</translation>
+    </message>
+    <message id="geo.elevation.info.manual">
+        <source>User-managed files</source>
+        <translation>Pliki zarządzane przez użytkownika</translation>
+    </message>
+    <message id="geo.elevation.info.directory">
+        <source>Local directory</source>
+        <translation>Katalog lokalny</translation>
+    </message>
+    <message id="geo.elevation.info.more">
+        <source>More information</source>
+        <translation>Więcej informacji</translation>
+    </message>
+    <message id="geo.elevation.info.download">
+        <source>Download data</source>
+        <translation>Pobierz dane</translation>
+    </message>
     <message id="geo.elevation.preview">
         <source>Load preview</source>
         <translation>Wczytaj podgląd</translation>

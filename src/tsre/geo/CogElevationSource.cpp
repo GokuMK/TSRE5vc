@@ -7,6 +7,8 @@
 #include <mzip/miniz/miniz.h>
 
 #include <QDir>
+#include <QDirIterator>
+#include <QDateTime>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
@@ -256,11 +258,12 @@ public:
             if(!error.isEmpty())report.issue(error);error.clear();return !cancel;}
         if(dataset.fileGrid=="projected")return prepareProjected(points,cancel,progress,error);
         if(dataset.fileGrid=="cog")return prepareSingleCog(points,cancel,progress,error);
+        if(dataset.fileGrid=="directory")return prepareDirectory(points,cancel,progress,error);
         return prepareStac(points,cancel,progress,error);
     }
     Sample sample(Point point) override {
         XY xy;if(!projection.forward(point,xy)||!inside(dataset,xy))return {0,SampleStatus::Outside};
-        if(dataset.fileGrid=="stac"&&!stacMosaic.values.isEmpty()){
+        if((dataset.fileGrid=="stac"||dataset.fileGrid=="directory")&&!stacMosaic.values.isEmpty()){
             const Sample value=stacMosaic.sample(xy,dataset.zeroIsNoData);
             return value.status==SampleStatus::Outside?Sample{0,SampleStatus::Unavailable}:value;
         }
@@ -427,22 +430,24 @@ private:
                 asset.raster.values[(dy+y)*asset.raster.width+dx+x]=block[y*asset.index.tileWidth+x];}
         return !asset.availableBlocks.isEmpty();
     }
-    bool buildStacMosaic(QString &error){
+    bool buildMosaic(QString &error){
         stacMosaic={};if(assets.isEmpty())return true;
         const Raster &reference=assets.first().raster;const double sx=reference.transform[1],sy=-reference.transform[5];
-        if(!(sx>0&&sy>0)){error=QStringLiteral("Invalid STAC raster spacing");return false;}
+        if(!(sx>0&&sy>0)||std::abs(sx-dataset.resolution)>std::max(1e-8,dataset.resolution*1e-8)
+                ||std::abs(sy-dataset.resolution)>std::max(1e-8,dataset.resolution*1e-8)){
+            error=QStringLiteral("Invalid elevation raster spacing");return false;}
         double minX=reference.transform[0],maxX=minX+reference.width*sx;
         double maxY=reference.transform[3],minY=maxY-reference.height*sy;
         for(const Asset &asset:assets){const Raster &r=asset.raster;
             if(r.epsg!=dataset.epsg||r.width<=0||r.height<=0||r.transform[2]!=0||r.transform[4]!=0
                     ||std::abs(r.transform[1]-sx)>1e-8||std::abs(r.transform[5]+sy)>1e-8){
-                error=QStringLiteral("STAC rasters do not share one aligned grid");return false;}
+                error=QStringLiteral("Elevation rasters do not share one aligned grid");return false;}
             minX=std::min(minX,r.transform[0]);maxX=std::max(maxX,r.transform[0]+r.width*sx);
             maxY=std::max(maxY,r.transform[3]);minY=std::min(minY,r.transform[3]-r.height*sy);}
         const double wd=(maxX-minX)/sx,hd=(maxY-minY)/sy;const qint64 width=std::llround(wd),height=std::llround(hd);
         if(width<=0||height<=0||std::abs(wd-width)>1e-6||std::abs(hd-height)>1e-6
                 ||width>32*1024*1024||height>32*1024*1024||width*height>32*1024*1024){
-            error=QStringLiteral("STAC raster mosaic exceeds 32 million aligned pixels");return false;}
+            error=QStringLiteral("Elevation raster mosaic exceeds 32 million aligned pixels");return false;}
         Raster mosaic;mosaic.width=int(width);mosaic.height=int(height);mosaic.epsg=dataset.epsg;
         mosaic.transform={{minX,sx,0,maxY,0,-sy}};
         mosaic.values.fill(std::numeric_limits<float>::quiet_NaN(),width*height);
@@ -451,11 +456,158 @@ private:
             const int dy=int(std::llround((maxY-r.transform[3])/sy));
             if(std::abs(r.transform[0]-(minX+dx*sx))>1e-6||std::abs(r.transform[3]-(maxY-dy*sy))>1e-6
                     ||dx<0||dy<0||dx+r.width>mosaic.width||dy+r.height>mosaic.height){
-                error=QStringLiteral("STAC raster origins are not grid-aligned");return false;}
+                error=QStringLiteral("Elevation raster origins are not grid-aligned");return false;}
             for(int y=0;y<r.height;++y)for(int x=0;x<r.width;++x){const float value=r.values[y*r.width+x];
                 if(std::isfinite(value)&&!(r.hasNoData&&value==r.noData)&&!(dataset.zeroIsNoData&&value==0))
                     mosaic.values[(dy+y)*mosaic.width+dx+x]=value;}}
         stacMosaic=std::move(mosaic);assets.clear();return true;
+    }
+    bool prepareDirectory(const QVector<Point> &points,std::atomic_bool &cancel,
+                          const Progress &progress,QString &error){
+        struct Meta {
+            QString name;
+            qint64 size=0,modified=0;
+            int width=0,height=0;
+            double x=0,y=0,sx=0,sy=0;
+        };
+        const QString directoryPath=QDir(root).filePath(dataset.directory);
+        if(!QDir().mkpath(directoryPath)){
+            error=QStringLiteral("Cannot create elevation directory: %1").arg(directoryPath);
+            return false;
+        }
+        QDir directory(directoryPath);
+        QMap<QString,QFileInfo> files;
+        QDirIterator iterator(directoryPath,QDir::Files|QDir::NoSymLinks,
+                              QDirIterator::Subdirectories);
+        while(iterator.hasNext()){
+            if(cancel)return false;
+            const QFileInfo file(iterator.next());
+            const QString suffix=file.suffix().toLower();
+            if(suffix=="tif"||suffix=="tiff")
+                files.insert(directory.relativeFilePath(file.absoluteFilePath()),file);
+        }
+        if(files.isEmpty()){
+            report.issue(QStringLiteral("No GeoTIFF files found in %1").arg(directoryPath));
+            return true;
+        }
+
+        double requestMinX=std::numeric_limits<double>::infinity();
+        double requestMinY=requestMinX,requestMaxX=-requestMinX,requestMaxY=-requestMinX;
+        for(Point point:points){XY xy;if(projection.forward(point,xy)&&inside(dataset,xy)){
+            requestMinX=std::min(requestMinX,xy.x);requestMaxX=std::max(requestMaxX,xy.x);
+            requestMinY=std::min(requestMinY,xy.y);requestMaxY=std::max(requestMaxY,xy.y);
+        }}
+        if(!std::isfinite(requestMinX))return true;
+        const double margin=dataset.resolution*2;
+        requestMinX-=margin;requestMinY-=margin;requestMaxX+=margin;requestMaxY+=margin;
+
+        QMap<QString,Meta> cached;
+        const QString indexPath=directory.filePath(".tsre-elevation-index.json");
+        const QJsonObject oldRoot=QJsonDocument::fromJson(
+            read(indexPath,0,8*1024*1024)).object();
+        if(oldRoot.value("version").toInt()==1
+                &&oldRoot.value("dataset").toString()==dataset.id
+                &&oldRoot.value("epsg").toInt()==dataset.epsg
+                &&std::abs(oldRoot.value("resolution").toDouble()-dataset.resolution)<1e-9){
+            for(const auto value:oldRoot.value("files").toArray()){
+                const auto object=value.toObject();Meta meta;
+                meta.name=object.value("name").toString();
+                meta.size=qint64(object.value("size").toDouble());
+                meta.modified=qint64(object.value("modified").toDouble());
+                meta.width=object.value("width").toInt();
+                meta.height=object.value("height").toInt();
+                const auto transform=object.value("transform").toArray();
+                if(transform.size()==4){meta.x=transform[0].toDouble();meta.y=transform[1].toDouble();
+                    meta.sx=transform[2].toDouble();meta.sy=transform[3].toDouble();}
+                if(!meta.name.isEmpty()&&meta.width>0&&meta.height>0&&meta.sx>0&&meta.sy>0)
+                    cached.insert(meta.name,meta);
+            }
+        }
+
+        const auto rasterMeta=[&](const QString &name,const QFileInfo &file,
+                                  const Raster &raster,Meta &meta){
+            const double sx=raster.transform[1],sy=-raster.transform[5];
+            if(raster.epsg!=dataset.epsg||raster.width<=0||raster.height<=0
+                    ||raster.transform[2]!=0||raster.transform[4]!=0
+                    ||std::abs(sx-dataset.resolution)>std::max(1e-8,dataset.resolution*1e-8)
+                    ||std::abs(sy-dataset.resolution)>std::max(1e-8,dataset.resolution*1e-8))
+                return false;
+            meta={name,file.size(),file.lastModified().toMSecsSinceEpoch(),
+                  raster.width,raster.height,raster.transform[0],raster.transform[3],sx,sy};
+            return true;
+        };
+        QMap<QString,Meta> current;
+        QMap<QString,Raster> decoded;
+        const auto overlapsRequest=[&](const Meta &meta){
+            const double right=meta.x+meta.width*meta.sx;
+            const double bottom=meta.y-meta.height*meta.sy;
+            return right>=requestMinX&&meta.x<=requestMaxX
+                &&meta.y>=requestMinY&&bottom<=requestMaxY;
+        };
+        bool changed=cached.size()!=files.size();
+        int scanned=0;
+        for(auto it=files.cbegin();it!=files.cend();++it){
+            if(cancel)return false;
+            const QFileInfo &file=it.value();
+            const qint64 modified=file.lastModified().toMSecsSinceEpoch();
+            const Meta prior=cached.value(it.key());
+            if(prior.name==it.key()&&prior.size==file.size()&&prior.modified==modified){
+                current.insert(it.key(),prior);
+                continue;
+            }
+            changed=true;
+            if(file.size()<=0||file.size()>qint64(MaxWholeTiff)){
+                report.issue(QStringLiteral("%1: local GeoTIFF exceeds 32 MB").arg(it.key()));
+                continue;
+            }
+            Raster raster;QString issue;
+            const QByteArray bytes=read(file.absoluteFilePath(),0,MaxWholeTiff+1);
+            Meta meta;
+            if(bytes.isEmpty()||!readGeoTiff(bytes,raster,issue)
+                    ||!rasterMeta(it.key(),file,raster,meta)){
+                report.issue(QStringLiteral("%1: %2").arg(it.key(),issue.isEmpty()
+                    ?QStringLiteral("raster CRS or spacing does not match this source"):issue));
+                continue;
+            }
+            current.insert(it.key(),meta);
+            if(overlapsRequest(meta))decoded.insert(it.key(),std::move(raster));
+            if(progress)progress(++scanned,files.size(),QStringLiteral("Indexing local elevation files"));
+        }
+        if(changed){
+            QJsonArray list;
+            for(const Meta &meta:current){
+                const double right=meta.x+meta.width*meta.sx;
+                const double bottom=meta.y-meta.height*meta.sy;
+                list.append(QJsonObject{{"name",meta.name},{"size",double(meta.size)},
+                    {"modified",double(meta.modified)},{"width",meta.width},{"height",meta.height},
+                    {"transform",QJsonArray{meta.x,meta.y,meta.sx,meta.sy}},
+                    {"bounds",QJsonArray{meta.x,bottom,right,meta.y}}});
+            }
+            const QJsonObject rootObject{{"version",1},{"dataset",dataset.id},
+                {"epsg",dataset.epsg},{"resolution",dataset.resolution},{"files",list}};
+            if(!save(indexPath,QJsonDocument(rootObject).toJson(QJsonDocument::Compact)))
+                report.issue(QStringLiteral("Cannot store elevation directory index: %1").arg(indexPath));
+        }
+
+        for(const Meta &meta:current){
+            if(cancel)return false;
+            if(!overlapsRequest(meta))continue;
+            Raster raster;
+            if(decoded.contains(meta.name))raster=std::move(decoded[meta.name]);
+            else {
+                QString issue;
+                const QByteArray bytes=read(directory.filePath(meta.name),0,MaxWholeTiff+1);
+                if(bytes.isEmpty()||!readGeoTiff(bytes,raster,issue)){
+                    report.issue(QStringLiteral("%1: %2").arg(meta.name,issue.isEmpty()
+                        ?QStringLiteral("cannot read local GeoTIFF"):issue));
+                    continue;
+                }
+            }
+            Asset asset;asset.name=meta.name;asset.localFile=directory.filePath(meta.name);
+            asset.raster=std::move(raster);assets.push_back(std::move(asset));++report.cacheHits;
+        }
+        if(assets.isEmpty())report.issue(QStringLiteral("No local GeoTIFF covers the requested terrain"));
+        return !cancel&&buildMosaic(error);
     }
     bool prepareStac(const QVector<Point> &points,std::atomic_bool &cancel,const Progress &progress,QString &error){
         double west=180,east=-180,south=90,north=-90;for(Point p:points){XY xy;if(projection.forward(p,xy)&&inside(dataset,xy)){west=std::min(west,p.longitude);east=std::max(east,p.longitude);south=std::min(south,p.latitude);north=std::max(north,p.latitude);}}
@@ -479,7 +631,7 @@ private:
             if(!bytes.isEmpty()&&readGeoTiff(bytes,raster,decodeError)){Asset a;a.name=r.name;a.localFile=r.path;a.url=r.url;a.raster=std::move(raster);assets.push_back(std::move(a));++report.cacheHits;}else remote.push_back(r);}
         int done=assets.size();const int total=done+remote.size();for(qsizetype first=0;first<remote.size();first+=dataset.concurrentRequests){if(cancel)return false;const int count=int(std::min(qsizetype(dataset.concurrentRequests),remote.size()-first));QVector<QUrl> urls;for(int i=0;i<count;++i)urls.push_back(remote[first+i].url);const auto responses=downloadWave(urls,cancel,[&](int finished){if(progress)progress(done+finished,total,QStringLiteral("Downloading COG elevation files"));});if(cancel)return false;
             for(int i=0;i<count;++i){QString issue=responses[i].error;Raster raster;if(issue.isEmpty()&&!readGeoTiff(responses[i].bytes,raster,issue)){}if(issue.isEmpty()&&!save(remote[first+i].path,responses[i].bytes))issue=QStringLiteral("Cannot store COG file");if(issue.isEmpty()){Asset a;a.name=remote[first+i].name;a.localFile=remote[first+i].path;a.url=remote[first+i].url;a.raster=std::move(raster);assets.push_back(std::move(a));++report.downloads;}else report.issue(QStringLiteral("%1: %2").arg(remote[first+i].name,issue));++done;}}
-        return !cancel&&buildStacMosaic(error);
+        return !cancel&&buildMosaic(error);
     }
     Geo::CrsTransform projection;QString root;Dataset dataset;Report &report;QVector<Asset> assets;Raster stacMosaic;
 };

@@ -76,6 +76,16 @@ CrsTransform::CrsTransform(int epsg)
         return;
     }
 
+    if (epsg == 3763) {
+        // ETRS89 / Portugal TM06. DGT publishes this GRS80 Transverse
+        // Mercator definition for mainland Portuguese mapping.
+        configureTransverseMercator(Grs80SemiMajorAxis, Grs80InverseFlattening,
+                                    39.6682583333333, -8.13310833333333,
+                                    1.0, 0, 0,
+                                    36.5, 42.5, -10, -5.5);
+        return;
+    }
+
     if (epsg == 2169) {
         // ETRS89 -> LUREF2020 Molodensky-Badekas transformation followed by
         // Luxembourg TM on the International 1924 ellipsoid. Parameters are

@@ -14,9 +14,10 @@ struct Dataset {
     QString directory, fileGrid, downloadUrlTemplate, downloadCompression;
     QString stacCollection, fileRevision;
     QString coordinateTransform, transformAssetPath, transformAssetEntry;
-    QString attribution;
+    QString attribution, license, information;
     QString provider = QStringLiteral("wcs-2.0.1");
     QUrl endpoint, stacEndpoint, transformAssetUrl;
+    QUrl attributionUrl, informationUrl, downloadPage;
     // Caller resolves this profile-secret reference; transport selects Basic or query auth.
     QString apiKeySecret;
     QString apiKeyParameter; // Nonempty for query-api-key; otherwise HTTP Basic.

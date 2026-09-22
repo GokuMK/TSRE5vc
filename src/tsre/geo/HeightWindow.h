@@ -27,6 +27,7 @@ private:
     QComboBox *sourceBox;
     QLineEdit *offsetEdit;
     QPushButton *loadButton, *applyButton;
-    QPlainTextEdit *reportText;
+    QTextBrowser *reportText;
     void clearData();
+    void showSourceInformation();
 };

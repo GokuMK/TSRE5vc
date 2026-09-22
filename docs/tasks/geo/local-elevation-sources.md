@@ -1,9 +1,10 @@
 # User-managed elevation sources: directory layout and next provider
 
-Recorded 2026-09-19; updated 2026-09-21. Catalogue-defined file providers now
+Recorded 2026-09-19; updated 2026-09-22. Catalogue-defined file providers now
 cover one-degree HGT plus downloaded GeoTIFF profiles: Austria projected range
 COG tiles, Luxembourg and Wales national range COGs, and Switzerland
-STAC-discovered 2 m tiles.
+STAC-discovered 2 m tiles. Portugal is the first user-managed indexed GeoTIFF
+directory.
 
 ## Directory ownership
 
@@ -14,6 +15,7 @@ geoPath/
   lu_act_dtm2024/           Luxembourg national COG index and 1 m block parts
   gb_wales_lidar_dtm1/      Wales national COG index and 1 m block parts
   ch_swissalti3d_2m/       preserved official 2 m source TIFFs
+  pt_dgt_mdt2m/            user-downloaded DGT MDT-2m GeoTIFF tiles and index
   <stable-product-name>/   later downloaded originals, managed by the user
   cache/
     <dataset-id>/<hash>/   disposable service downloads, managed by TSRE
@@ -43,14 +45,15 @@ manifest is in ignored `build-ee-gb-research/hgt-migration.json`.
 
 Provider identity remains separate from country. `provider: "file"` returns the
 same `Elevation::Source` samples used by WCS and ArcGIS. Supported combinations
-are HGT/`degree` and GeoTIFF with `projected`, `cog` or `stac` file discovery.
+are HGT/`degree` and GeoTIFF with `projected`, `cog`, `stac` or `directory`
+file discovery.
 
 The current catalogue fields are:
 
 - Direct relative `directory` under `geoPath`; parser validation rejects absolute
   paths and traversal.
-- `format` and `fileGrid`, selecting the validated HGT, projected COG, single COG, or STAC
-  GeoTIFF profile.
+- `format` and `fileGrid`, selecting the validated HGT, projected COG, single
+  COG, STAC GeoTIFF or indexed local-directory profile.
 - CRS, coverage bounds, vertical-datum description, zero/NoData behavior,
   attribution and concurrency.
 - Optional `download` object. Its absence makes a source manual-only. World HGT
@@ -74,6 +77,36 @@ Generation prepares the primary source first, samples it once, and passes only
 unresolved points to the fallback's `prepare()`. This prevents automatic World
 HGT downloads for regions already covered by the selected WCS/ArcGIS source.
 Sampling itself remains local and never performs HTTP.
+
+## Portugal user-managed GeoTIFF directory
+
+Portugal DGT MDT-2m is the first `fileGrid: "directory"` source. DGT's portal
+currently requires an account and browser login to download raster assets, so
+TSRE does not automate that site-specific Keycloak form session. The user
+downloads MDT-2m GeoTIFF tiles and copies them anywhere below
+`geoPath/pt_dgt_mdt2m/`; filenames and subdirectory layout are irrelevant.
+
+On first use, TSRE reads each TIFF's embedded EPSG:3763 georeferencing and writes
+`.tsre-elevation-index.json` beside the files. The index records relative path,
+size, modification time, dimensions, pixel transform and bounds. Later requests
+enumerate filenames and file metadata, reuse unchanged index records, and fully
+decode only files whose indexed bounds overlap the requested terrain. New,
+changed and removed files update the index automatically. It is disposable and
+can be deleted to force a complete rebuild; source TIFFs are never modified.
+
+This initial profile accepts north-up 2 m GeoTIFFs in the existing complete-file
+decoder and retains its 32 MiB per-file guard. It validates EPSG and spacing
+against the catalogue entry before indexing. The shared mosaic logic joins
+adjacent files for seam-safe interpolation. EPSG:3763 uses the official
+PT-TM06/ETRS89 GRS80 Transverse Mercator parameters; no datum-shift grid is
+required. Cascais orthometric heights are passed through unchanged.
+
+The Height window now shows available catalogue information when a source is
+selected: attribution, licence, resolution, vertical datum, explanatory text,
+official information/download links and, for directory sources, the local path.
+Existing entries can add these fields incrementally when they are revalidated.
+The focused Release suite passes **382 checks**, and the incremental Release
+application build passes with this source and UI integration.
 
 ## Austria and Switzerland milestone
 
@@ -159,11 +192,11 @@ Two file-indexing schemes should cover the initial work:
    hemisphere-based names; projected products may use fixed kilometre cells.
    Describe the naming convention, grid CRS, origin, tile spans and axis order.
    Do not assume the raster dimensions, halo or pixel registration from names.
-2. **Georeferenced file collection.** GeoTIFFs may have arbitrary names and
-   overlapping extents. Read metadata once into a rebuildable spatial index;
-   select files by intersection with the terrain tile. Invalidate changed files
-   by path/size/modification time and offer an explicit refresh. Avoid scanning
-   every large file on each height lookup.
+2. **Georeferenced file collection.** Implemented as `fileGrid: "directory"`.
+   GeoTIFFs may have arbitrary names and overlapping extents. Metadata is read
+   into a rebuildable spatial index and files are selected by intersection with
+   the terrain tile. Path/size/modification time invalidate changed files. The
+   user can force a complete refresh by deleting the disposable index.
 
 Use the simplest scheme matching the first actual downloadable product. Do not
 invent a general filename-template language or require a regular grid for every
@@ -177,8 +210,8 @@ than allowing filesystem enumeration order to determine heights.
 - Add another product only after checking its actual compression, predictor,
   BigTIFF/IFD metadata placement, scale/offset, NoData and update identity. The
   present reader is intentionally narrower than a general TIFF library.
-- For user-downloaded arbitrary file collections, add a rebuildable spatial index
-  instead of scanning or loading every file. Preserve originals.
+- Validate the indexed-directory profile with real DGT downloads, including
+  adjacent files, a missing tile and a changed/replaced file.
 - Implement explicit overview/coarse selection and separate cache identity before
   enabling these detailed sources for 32 km distant terrain.
 

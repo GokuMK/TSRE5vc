@@ -52,6 +52,55 @@ void showAutomaticReport(const QString &text) {
     automaticReport->appendPlainText(text+"\n");
     automaticReport->show();
 }
+QString sourceInformation(const Elevation::Dataset &dataset,const QString &root) {
+    const auto escaped=[](const QString &value){return value.toHtmlEscaped();};
+    const auto link=[&](const QString &label,const QUrl &url){
+        const QString href=url.toString(QUrl::FullyEncoded).toHtmlEscaped();
+        return QStringLiteral("<b>%1:</b> <a href=\"%2\">%3</a><br>")
+            .arg(label.toHtmlEscaped(),href,escaped(url.toString()));
+    };
+    //% "Source"
+    QString html=QStringLiteral("<b>%1:</b> %2<br>")
+        .arg(qtTrId("geo.elevation.info.source").toHtmlEscaped(),escaped(dataset.name));
+    if(dataset.resolution>0) {
+        //% "Native/request resolution"
+        html+=QStringLiteral("<b>%1:</b> %2 m<br>")
+            .arg(qtTrId("geo.elevation.info.resolution").toHtmlEscaped())
+            .arg(dataset.resolution,0,'g',10);
+    }
+    if(!dataset.verticalDatum.isEmpty()) {
+        //% "Vertical datum"
+        html+=QStringLiteral("<b>%1:</b> %2<br>")
+            .arg(qtTrId("geo.elevation.info.datum").toHtmlEscaped(),escaped(dataset.verticalDatum));
+    }
+    if(!dataset.attribution.isEmpty()) {
+        //% "Attribution"
+        html+=QStringLiteral("<b>%1:</b> %2<br>")
+            .arg(qtTrId("geo.elevation.info.attribution").toHtmlEscaped(),escaped(dataset.attribution));
+    }
+    if(!dataset.license.isEmpty()) {
+        //% "License"
+        html+=QStringLiteral("<b>%1:</b> %2<br>")
+            .arg(qtTrId("geo.elevation.info.license").toHtmlEscaped(),escaped(dataset.license));
+    }
+    if(dataset.fileGrid=="directory") {
+        //% "User-managed files"
+        html+=QStringLiteral("<b>%1:</b> %2<br>")
+            .arg(qtTrId("geo.elevation.info.mode").toHtmlEscaped(),
+                 qtTrId("geo.elevation.info.manual").toHtmlEscaped());
+        //% "Local directory"
+        html+=QStringLiteral("<b>%1:</b> %2<br>")
+            .arg(qtTrId("geo.elevation.info.directory").toHtmlEscaped(),
+                 escaped(QDir::toNativeSeparators(QDir(root).filePath(dataset.directory))));
+    }
+    if(!dataset.information.isEmpty())html+=QStringLiteral("<p>%1</p>").arg(escaped(dataset.information));
+    const QUrl more=dataset.informationUrl.isEmpty()?dataset.attributionUrl:dataset.informationUrl;
+    //% "More information"
+    if(!more.isEmpty())html+=link(qtTrId("geo.elevation.info.more"),more);
+    //% "Download data"
+    if(!dataset.downloadPage.isEmpty())html+=link(qtTrId("geo.elevation.info.download"),dataset.downloadPage);
+    return html;
+}
 }
 
 HeightWindow::HeightWindow() : QDialog() {
@@ -80,8 +129,9 @@ HeightWindow::HeightWindow() : QDialog() {
     imageLabel = new QLabel(this);
     imageLabel->setAlignment(Qt::AlignCenter);
     imageLabel->setMinimumSize(480,360);
-    reportText = new QPlainTextEdit(this);
+    reportText = new QTextBrowser(this);
     reportText->setReadOnly(true);
+    reportText->setOpenExternalLinks(true);
     reportText->setMaximumHeight(150);
     auto *top = new QHBoxLayout;
     top->addWidget(sourceBox,1);
@@ -109,7 +159,20 @@ HeightWindow::HeightWindow() : QDialog() {
         QString error;
         if (!SettingsManager::instance().setSessionValue(QString::fromLatin1(SourceSetting),sourceBox->currentData(),&error))
             reportText->setPlainText(error);
+        else showSourceInformation();
     });
+}
+void HeightWindow::showSourceInformation() {
+    if(sourceBox->currentIndex()<0){reportText->clear();return;}
+    QString catalogueError;
+    const auto catalog=Elevation::datasets(catalogueError);
+    const QString id=sourceBox->currentData().toString();
+    for(const auto &dataset:catalog)if(dataset.id==id){
+        QString html=sourceInformation(dataset,Settings::string("core.paths.geoData",SettingType::Directory));
+        if(!catalogueError.isEmpty())html+=QStringLiteral("<p>%1</p>").arg(catalogueError.toHtmlEscaped());
+        reportText->setHtml(html);return;
+    }
+    reportText->setPlainText(catalogueError);
 }
 void HeightWindow::clearData() {
     for (int i = 0; i < allocatedTerrainResolution; ++i) delete[] terrainData[i];
@@ -157,6 +220,7 @@ int HeightWindow::exec() {
           sourceBox->addItem(qtTrId("settings.dialog.text.widget").arg(selected),selected);
       sourceBox->setCurrentIndex(sourceBox->findData(selected)); }
     loadButton->setEnabled(sourceBox->currentIndex() >= 0);
+    showSourceInformation();
     const int result = QDialog::exec();
     if (previousContext && previousSurface) previousContext->makeCurrent(previousSurface);
     return result;

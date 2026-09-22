@@ -138,6 +138,32 @@
       ]
     },
     {
+      "id": "pt.dgt.mdt2m",
+      "name": "Portugal - DGT LiDAR DTM 2 m (user-managed files)",
+      "provider": "file",
+      "format": "geotiff",
+      "fileGrid": "directory",
+      "directory": "pt_dgt_mdt2m",
+      "crs": 3763,
+      "verticalDatum": "Cascais height datum",
+      "resolution": 2,
+      "bounds": [-150000, -320000, 180000, 300000],
+      "concurrentRequests": 1,
+      "zeroIsNoData": false,
+      "attribution": "Direção-Geral do Território (DGT) - mainland Portugal LiDAR DTM",
+      "license": "DGT open data, CC BY 4.0",
+      "information": "DGT currently requires a registered Data Centre login for raster downloads. Download MDT-2m GeoTIFF tiles in the portal and copy them to the local directory shown above. TSRE indexes their embedded georeferencing and uses every file that overlaps the requested terrain.",
+      "informationUrl": "https://www.dgterritorio.gov.pt/atividades/cartografia/cartografia-topografica/modelos-digitais",
+      "downloadPage": "https://cdd.dgterritorio.gov.pt/",
+      "attributionUrl": "https://www.dgterritorio.gov.pt/dados-abertos",
+      "notes": [
+        "The 2024-2025 DTM is distributed as 1 km x 1 km GeoTIFF tiles. The 2 m product contains 500 x 500 Float32 samples per tile and uses -999 as NoData.",
+        "Raster download remains protected by the CDD web-login session. This entry is fully local after the user downloads files; it never submits or stores DGT credentials and never downloads raster assets automatically.",
+        "EPSG:3763 conversion uses the official PT-TM06/ETRS89 GRS80 Transverse Mercator definition.",
+        "This detailed source is not approved for distant terrain."
+      ]
+    },
+    {
       "id": "pl.gugik.nmt1.kron86",
       "name": "Poland - Geoportal NMT 1 m (KRON86, GeoTIFF)",
       "provider": "wcs-2.0.1",
