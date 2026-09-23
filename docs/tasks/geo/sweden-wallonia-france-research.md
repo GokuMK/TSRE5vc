@@ -12,12 +12,11 @@ downloaded.
 |---|---|---|
 | Implemented | France, IGN MNT LiDAR HD | Generic numeric WMS and EPSG:2154 support are implemented and live-tested at a 1 m request grid. |
 | Implemented | Sweden, Lantmäteriet Markhöjdmodell | Generic authenticated STAC/range-COG support and EPSG:3006 are implemented and live-tested. |
-| Deferred | Wallonia, SPW MNT 2021–2022 | Keep as a future user-managed/bulk-download source. The current public delivery is not suitable for selective automatic acquisition. |
+| Implemented | Wallonia, SPW MNT 2021–2022 | The original bulk TIFF was converted to a range-efficient national COG; generic range-COG acquisition and EPSG:3812 are implemented and live-tested. |
 
-Sweden and France both add reusable provider capabilities and are implemented.
-Wallonia's
-projection is straightforward once Lambert Conformal Conic exists, but its
-current file delivery is the blocker.
+All three sources use reusable provider and projection capabilities. Wallonia's
+official bulk delivery was the original blocker; its converted national COG now
+uses the same generic range reader as other file sources.
 
 ## Sweden: Lantmäteriet Markhöjdmodell
 
@@ -147,15 +146,30 @@ Conic 2SP CRS on ETRS89/GRS80 and does not require a horizontal datum grid for
 TSRE's terrain use. The same generic projection family needed for France can
 cover it.
 
-Keep Wallonia deferred until one of these becomes available:
+At that research stage, Wallonia remained deferred pending one of these routes:
 
 - stable direct URLs for modest individual raster tiles;
 - numeric WCS/ImageServer access;
 - COGs or another server that honors byte ranges.
 
-A future user-managed source is also possible after a user downloads and
-extracts a package. Its actual file layout and TIFF profile still need a bounded
-inspection before designing that entry.
+A user-managed source was also possible after extracting a package. The
+follow-up below records the bounded inspection and the range-COG route that was
+ultimately selected.
+
+### Extracted-file follow-up, 2026-09-23
+
+The user extracted the all-Wallonia TIFF onto a range-capable server. That
+removes the official ZIP host limitation but does not make the raster useful for
+selective access: the 44.0 GB BigTIFF uses five-row, full-country-width strips
+with no overviews. A typical strip is about 1.5 MB, so a 2 km terrain window
+would still retrieve roughly 600 MB.
+
+On 2026-09-23 the source was converted to a 39.7 GB Float32 COG with 1024 x
+1024 Deflate tiles and eight internal overviews. The published file passed
+bounded low- and high-offset range tests and is now configured through TSRE's
+generic range-COG provider. Shared EPSG:3812 support supplies the horizontal
+conversion. See
+[Slovakia and Wallonia BigTIFF review](slovakia-wallonia-bigtiff-review.md).
 
 ## France: IGN MNT LiDAR HD
 
@@ -268,14 +282,13 @@ products, but the RGE ALTI responses observed were department-oriented.
 The provider and projection work are reusable. Numeric WMS services occur
 elsewhere, and Lambert Conformal Conic also unlocks Wallonia's horizontal CRS.
 
-## Recommended implementation sequence
+## Implementation outcome
 
 1. France numeric WMS and Lambert Conformal Conic 2SP are complete. Retain a
    later application/full-terrain coverage-edge test when convenient.
 2. Sweden's authenticated STAC/range-COG extension, asset-profile probe and
    application check are complete.
-3. Recheck Wallonia only if its delivery changes or after a small extracted
-   sample becomes available. Do not download a province archive merely to test
-   the provider.
-4. Treat Slovakia's remote BigTIFF/overlay investigation as a separate track;
-   none of these findings requires local copies of that 180 GB package.
+3. Wallonia's extracted TIFF was inspected, converted to a range-efficient COG,
+   and integrated through the generic range reader with EPSG:3812 support.
+4. Slovakia's extracted BigTIFF and overview were handled as a separate track;
+   the resulting national COG is also integrated and live-tested.

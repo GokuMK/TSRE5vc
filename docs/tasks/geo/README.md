@@ -24,8 +24,12 @@ are not a current specification.
      GeoTIFF directories are implemented; other
      GeoTIFF families still require profile validation.
    - Current national-source research: [Sweden, Wallonia and France](sweden-wallonia-france-research.md).
-     This records the authenticated Swedish STAC path, why Wallonia's current
-     bulk delivery is deferred, and the French MNT LiDAR HD numeric-WMS route.
+     This records the authenticated Swedish STAC path, Wallonia's original bulk
+     delivery limitation and later COG integration, and the French MNT LiDAR HD
+     numeric-WMS route.
+   - Extracted national BigTIFF research: [Slovakia and Wallonia](slovakia-wallonia-bigtiff-review.md).
+     This records bounded server-range and raster-layout probes, the completed
+     COG conversions, and their generic TSRE range-COG integrations.
    - Projection implementation: [CRS transform extraction and shared projection path](crs-transform.md).
      This describes the small internal converter and the planned shared
      sixth-order Transverse Mercator kernel.

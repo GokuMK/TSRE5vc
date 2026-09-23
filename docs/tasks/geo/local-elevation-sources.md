@@ -1,10 +1,10 @@
 # User-managed elevation sources: directory layout and next provider
 
-Recorded 2026-09-19; updated 2026-09-22. Catalogue-defined file providers now
+Recorded 2026-09-19; updated 2026-09-23. Catalogue-defined file providers now
 cover one-degree HGT plus downloaded GeoTIFF profiles: Austria projected range
-COG tiles, Luxembourg and Wales national range COGs, and Switzerland
-STAC-discovered 2 m tiles. Sweden adds authenticated root-STAC range access to
-1 m COG assets. Portugal is the first user-managed indexed GeoTIFF
+COG tiles, Luxembourg, Wales, Slovakia and Wallonia national range COGs, and
+Switzerland STAC-discovered 2 m tiles. Sweden adds authenticated root-STAC range
+access to 1 m COG assets. Portugal is the first user-managed indexed GeoTIFF
 directory. GEDTM30 is the first geographic global range COG.
 
 ## Directory ownership
@@ -14,6 +14,8 @@ geoPath/
   world_hgt/               N52E019.hgt and/or N52E019.hgt.gz
   world_gedtm30/           GEDTM30 COG index tables and required block parts
   at_bev_als_dgm1/         optional official TIFFs and downloaded COG block parts
+  sk_gku_dmr5_etrs89h/     Slovakia national COG index and required block parts
+  be_wallonia_spw_mnt1/    Wallonia national COG index and required block parts
   lu_act_dtm2024/           Luxembourg national COG index and 1 m block parts
   gb_wales_lidar_dtm1/      Wales national COG index and 1 m block parts
   ch_swissalti3d_2m/       preserved official 2 m source TIFFs
@@ -233,6 +235,21 @@ Validation on 2026-09-21: **378 focused Release checks passed**. Luxembourg and
 Wales bounded live probes produced valid source heights; both cache repeats used
 zero downloads. The user then confirmed Wales in the application. Exact byte
 counts are recorded in `elevation-current-status.md`.
+
+## Slovakia and Wallonia national COG milestone
+
+Both large official bulk rasters were inspected with bounded HTTP ranges and
+converted server-side to Float32 national COGs with 1024 x 1024 Deflate blocks
+and eight internal overviews. The existing `fileGrid: "cog"` reader downloads
+only the leading index, required offset/count tables and intersecting compressed
+blocks.
+
+Slovakia adds EPSG:3046 by reusing the GRS80 UTM-zone-34 transform. Its source
+heights are ETRS89 ellipsoidal and remain unconverted. Wallonia adds EPSG:3812
+through the shared Lambert Conformal Conic 2SP implementation; its source uses
+DNG/EPSG:5710 orthometric heights. Small live probes for both sources downloaded
+one block each and repeated entirely from cache. No country-specific acquisition
+or sampling code was added.
 
 The old empty setting value migrates to the catalogue default. Source lists no
 longer add a hardcoded HGT item, and reports use generic source/fallback wording.

@@ -9,6 +9,28 @@ historical findings from `a88f7f8` and the R1/R2 follow-up on `1ee5aaa`; their
 counts and validation claims are scoped to those milestones. They do not replace
 the newest status or the current source code.
 
+## Slovakia and Wallonia national range COGs, 2026-09-23
+
+- `sk.gku.dmr5.etrs89h` exposes the converted 128.3 GB national Slovakia DMR
+  5.0 COG through the generic file/GeoTIFF/range-COG provider. Shared EPSG:3046
+  support reuses the GRS80 UTM-zone-34 transform. Its EPSG:4937 heights are
+  ellipsoidal; no vertical conversion is applied.
+- `be.wallonia.spw.mnt1` exposes the converted 39.7 GB Wallonia MNT COG through
+  the same provider. Shared EPSG:3812 support uses the existing Lambert
+  Conformal Conic 2SP implementation. Its DNG/EPSG:5710 heights are
+  orthometric.
+- Both COGs use Float32 samples, 1024 x 1024 Deflate blocks, floating-point
+  prediction and eight internal overviews. Bounded server checks confirmed
+  exact byte ranges across each file, including offsets beyond 4 GiB.
+- A Bratislava live probe returned 199.628 m and 199.639 m from Slovakia; a
+  Namur probe returned 83.5877 m and 83.5103 m from Wallonia. Each first request
+  downloaded one compressed block, and each repeat used one cache block with no
+  download.
+- **408 focused Release checks pass**, and the incremental Release application
+  build succeeds.
+- Detailed-source distant-terrain use remains unapproved pending explicit
+  overview selection and practical 32 km validation.
+
 ## Selectable approved fallback, 2026-09-23
 
 - The Height window has separate rows for the main elevation source and its

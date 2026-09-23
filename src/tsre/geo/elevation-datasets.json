@@ -85,6 +85,66 @@
       ]
     },
     {
+      "id": "sk.gku.dmr5.etrs89h",
+      "name": "Slovakia - GKÚ DMR 5.0 terrain 1 m (range COG)",
+      "provider": "file",
+      "format": "geotiff",
+      "fileGrid": "cog",
+      "directory": "sk_gku_dmr5_etrs89h",
+      "crs": 3046,
+      "verticalDatum": "ETRS89 ellipsoidal height (EPSG:4937)",
+      "resolution": 1,
+      "bounds": [191148, 5289631, 614666, 5497220],
+      "concurrentRequests": 4,
+      "zeroIsNoData": false,
+      "download": {
+        "revision": "20260923-cog",
+        "urlTemplate": "https://koniec.org/geo/slovakia_dmr5_1m_cog.tif"
+      },
+      "attribution": "Geodesy, Cartography and Cadastre Authority of the Slovak Republic - DMR 5.0",
+      "attributionUrl": "https://www.geoportal.sk/en/zbgis/als/",
+      "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+      "information": "National 1 m LiDAR terrain model. TSRE reads only required blocks from a TSRE-hosted COG conversion of the official national TIFF. Heights are ETRS89 ellipsoidal and are not converted to an orthometric datum.",
+      "informationUrl": "https://www.geoportal.sk/en/zbgis/als/",
+      "downloadPage": "https://www.gku.sk/gku/produkty-sluzby/na-stiahnutie/zbgis.html",
+      "notes": [
+        "The converted national BigTIFF uses 1024 x 1024 Deflate Float32 tiles with floating-point prediction and eight internal overviews. TSRE downloads only the compressed blocks required for the terrain.",
+        "EPSG:3046 uses the same GRS80 Transverse Mercator parameters as ETRS89 / UTM zone 34N; GeoTIFF raster X/Y remains easting/northing despite the formal CRS axis declaration.",
+        "The source's ETRS89 ellipsoidal heights do not match HGT or GEDTM30 orthometric heights. A constant source offset can tune a local area, but a future vertical grid is required for a national conversion.",
+        "Detailed-source distant terrain use remains disabled pending explicit overview selection and validation."
+      ]
+    },
+    {
+      "id": "be.wallonia.spw.mnt1",
+      "name": "Belgium - Wallonia SPW terrain 1 m (range COG)",
+      "provider": "file",
+      "format": "geotiff",
+      "fileGrid": "cog",
+      "directory": "be_wallonia_spw_mnt1",
+      "crs": 3812,
+      "verticalDatum": "Deuxième Nivellement Général / DNG (EPSG:5710)",
+      "resolution": 1,
+      "bounds": [542188, 521074, 795273, 667801],
+      "concurrentRequests": 4,
+      "zeroIsNoData": false,
+      "download": {
+        "revision": "20260923-cog",
+        "urlTemplate": "https://koniec.org/geo/wallonia_mnt_1m_cog.tif"
+      },
+      "attribution": "Service public de Wallonie - MNT 2021-2022",
+      "attributionUrl": "https://geoportail.wallonie.be/catalogue/fe13bc84-e371-46ca-9632-8ad4139f1ee5.html",
+      "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+      "information": "Wallonia's 1 m bare-earth terrain model from the 2021-2022 LiDAR survey. TSRE reads only required blocks from a TSRE-hosted COG conversion of the official national TIFF.",
+      "informationUrl": "https://geoportail.wallonie.be/catalogue/fe13bc84-e371-46ca-9632-8ad4139f1ee5.html",
+      "downloadPage": "https://geoportail.wallonie.be/catalogue/fe13bc84-e371-46ca-9632-8ad4139f1ee5.html",
+      "notes": [
+        "The converted national BigTIFF uses 1024 x 1024 Deflate Float32 tiles with floating-point prediction and eight internal overviews. This replaces the source TIFF's impractical full-country-width strip layout.",
+        "EPSG:3812 uses the GRS80 Lambert Conformal Conic 2SP definition and requires no horizontal datum grid for this terrain workflow.",
+        "The raster stores DNG orthometric heights and -9999 as NoData; zero remains a valid measured elevation.",
+        "Detailed-source distant terrain use remains disabled pending explicit overview selection and validation."
+      ]
+    },
+    {
       "id": "lu.act.dtm2024",
       "name": "Luxembourg - ACT DTM 2024 (1 m COG overview)",
       "provider": "file",

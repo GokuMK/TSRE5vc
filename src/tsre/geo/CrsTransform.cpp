@@ -19,6 +19,11 @@ int transverseMercatorZone(int epsg) {
     if (epsg == 3045)
         return 33;
 
+    // ETRS89 / UTM zone 34N with northing/easting axis declaration.
+    // GeoTIFF raster coordinates retain conventional X=easting, Y=northing.
+    if (epsg == 3046)
+        return 34;
+
     // EUREF-FIN / TM35FIN uses the same TM parameters as UTM zone 35N.
     if (epsg == 3067)
         return 35;
@@ -109,6 +114,18 @@ CrsTransform::CrsTransform(int epsg)
             Grs80SemiMajorAxis, Grs80InverseFlattening,
             46.5, 3.0, 49.0, 44.0, 700000, 6600000,
             41, 52, -6, 10);
+        return;
+    }
+
+    if (epsg == 3812) {
+        // ETRS89 / Belgian Lambert 2008. GeoTIFF raster coordinates retain
+        // conventional X=easting, Y=northing.
+        configureLambertConformalConic(
+            Grs80SemiMajorAxis, Grs80InverseFlattening,
+            50.797815, 4.35921583333333,
+            49.8333333333333, 51.1666666666667,
+            649328, 665262,
+            49.4, 51.6, 2.4, 6.5);
         return;
     }
 

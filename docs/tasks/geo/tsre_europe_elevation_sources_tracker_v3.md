@@ -702,7 +702,7 @@ corrections for horizontal placement. A two-point probe returned 132.857 m and
 
 ## Slovakia
 
-**Status: 🟠**
+**Status: implemented and bounded-live-tested as a generic range COG**
 
 Excellent data:
 
@@ -722,6 +722,18 @@ Sources:
 - https://www.gku.sk/geoportal-en/zbgis/als/provision-als-products/
 
 Distribution is currently much more file/catalogue-oriented than WCS/ImageServer.
+
+Bounded inspection of the extracted national files found a range-capable 156 GB
+tiled BigTIFF plus a 46.6 GB external overview pyramid. They were converted into
+one 128.3 GB Float32 COG with 1024 x 1024 Deflate tiles and eight internal
+overviews. TSRE now reads it through the generic range-COG provider and shared
+EPSG:3046/UTM-zone-34 conversion. The source heights are ETRS89-h, so an
+orthometric fallback still requires a vertical correction grid. Details:
+[Slovakia and Wallonia BigTIFF review](slovakia-wallonia-bigtiff-review.md).
+
+A Bratislava probe returned 199.628 m and 199.639 m from one downloaded source
+block. Its repeat used one cache block, made no downloads and returned the same
+values.
 
 ---
 
@@ -921,7 +933,7 @@ Sources:
 
 ### Wallonia
 
-**Status: 🟠 automatic acquisition deferred**
+**Status: implemented and bounded-live-tested as a generic range COG**
 
 Current MNT:
 
@@ -946,14 +958,20 @@ request, the public WCS capabilities contained no coverages, and custom download
 are asynchronous/email-based. This is worse for targeted automatic use than the
 small files available from Portugal.
 
-EPSG:3812 itself can use the same future Lambert Conformal Conic 2SP transform as
-France. Defer automatic integration until SPW exposes modest individual tiles,
-COGs/range support, or a numeric service. A user-managed source remains possible
-after its extracted file layout is inspected.
+The extracted 44.0 GB national TIFF was unsuitable for selective access because
+it stored five-row strips spanning the full 253 km image width. It was converted
+to a 39.7 GB Float32 COG with 1024 x 1024 Deflate tiles and eight internal
+overviews. TSRE now reads it through the generic range-COG provider. Shared
+EPSG:3812 Lambert Conformal Conic 2SP support supplies the horizontal conversion;
+no datum grid is required.
+
+A Namur probe returned 83.5877 m and 83.5103 m from one downloaded source block.
+Its repeat used one cache block, made no downloads and returned the same values.
 
 Detailed probe and implementation notes:
 
 - [Sweden, Wallonia and France research](sweden-wallonia-france-research.md)
+- [Slovakia and Wallonia BigTIFF review](slovakia-wallonia-bigtiff-review.md)
 
 ---
 
@@ -1252,7 +1270,6 @@ Further extensions could unlock:
 
 Still useful later:
 
-- Slovakia 1 m TIFF/catalogue;
 - Ireland LiDAR programme/tile catalogues;
 - Romania mixed-resolution tile set;
 - Italy regional/portal LiDAR;
@@ -1303,6 +1320,8 @@ The generic design is holding up well. The current implementation demonstrates s
 6. Single national range COG — implemented profiles
    Luxembourg ACT DTM 2024, exact 1 m overview
    Wales LiDAR DTM 1 m with OSTN15 Lite
+   Slovakia DMR 5.0 1 m with EPSG:3046
+   Wallonia SPW MNT 1 m with EPSG:3812
 
 7. Indexed user-managed GeoTIFF directory — implemented first profile
    Portugal DGT MDT-2m
@@ -1310,7 +1329,7 @@ The generic design is holding up well. The current implementation demonstrates s
 8. Regular downloaded GeoTIFF / tiled files — next provider extension
    global SRTM GL1 / NASADEM / ALOS / Copernicus mirrors
    several German Länder
-   Slovakia and other predictable tile sets
+   other predictable tile sets
 
 8. Broader STAC / COG profiles and indexed catalogues — later extensions
    official Copernicus AWS COGs
@@ -1364,14 +1383,19 @@ Current short queue after the GEDTM30 milestone:
 5. **Validate GEDTM30 for distant terrain** — run a representative 32 km tile and define explicit eligibility/cache behavior before relying on it there.
 6. **Distant terrain** remains a separate critical issue: detailed national sources should not automatically download full native/request resolution for ~32 km tiles.
 
-If we want another WCS-heavy research pass before switching provider families, it should be a deliberate **deep search for hidden numeric services** (for example Wallonia/other fragmented national portals), because the obvious national WCS shortlist has mostly been exhausted.
+If we want another WCS-heavy research pass before switching provider families,
+it should be a deliberate **deep search for hidden numeric services** in other
+fragmented national portals, because the obvious national WCS shortlist has
+mostly been exhausted.
 
 ---
 
 ## Notes
 
 - Implementation state was synchronized with the `feature/geo-terrain` working tree on 2026-09-23.
-- The current catalogue has **28 datasets**, including Sweden Markhöjdmodell, France MNT LiDAR HD, GEDTM30 and the Portugal user-managed file source.
+- The current catalogue has **30 datasets**, including Slovakia DMR 5.0,
+  Wallonia MNT, Sweden Markhöjdmodell, France MNT LiDAR HD, GEDTM30 and the
+  Portugal user-managed file source.
 - `world-hgt` is both a selectable file source and the configured fallback for unresolved service samples; local files take precedence over automatic Mapzen downloads.
 - Resolution listed here means published/source spacing or TSRE request/cache spacing as explicitly stated; a dense request grid does not imply equivalent native survey accuracy.
 - Web Mercator “metres” are map metres. TSRE compensates footprint size by latitude for sampling, and several catalogue names explicitly say “request grid” to avoid implying uniform native resolution.

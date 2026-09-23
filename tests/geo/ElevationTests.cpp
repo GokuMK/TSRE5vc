@@ -334,7 +334,8 @@ int main(int argc, char **argv) {
     for (const auto &entry : catalog) byId.insert(entry.id,entry);
     bool requiredPresent = true;
     for (const QString &id : {QString("pl.gugik.nmt1.kron86"),QString("pl.gugik.nmt1.evrf2007"),
-                             QString("cz.cuzk.dmr4g"),QString("cz.cuzk.dmr5g")})
+                             QString("cz.cuzk.dmr4g"),QString("cz.cuzk.dmr5g"),
+                             QString("sk.gku.dmr5.etrs89h"),QString("be.wallonia.spw.mnt1")})
         requiredPresent &= byId.contains(id);
     check(requiredPresent && byId.size() == catalog.size(),"required datasets and unique IDs survive catalogue expansion");
     if (!requiredPresent) return 1;
@@ -345,6 +346,8 @@ int main(int argc, char **argv) {
     const auto denmark = byId.value("dk.datafordeler.dhm.terraen");
     const auto worldHgt = byId.value("world-hgt");
     const auto austria = byId.value("at.bev.als-dgm1");
+    const auto slovakia = byId.value("sk.gku.dmr5.etrs89h");
+    const auto wallonia = byId.value("be.wallonia.spw.mnt1");
     const auto luxembourg = byId.value("lu.act.dtm2024");
     const auto wales = byId.value("gb.wales.lidar.dtm1");
     const auto sweden = byId.value("se.lantmateriet.markhojdmodell1");
@@ -398,6 +401,20 @@ int main(int argc, char **argv) {
         && austria.fileRevision == "20250915"
         && austria.downloadUrlTemplate.contains("N{northing}E{easting}"),
         "Austria catalogue defines a projected 50 km range-COG grid");
+    check(slovakia.provider == "file" && slovakia.format == "geotiff"
+        && slovakia.fileGrid == "cog" && slovakia.epsg == 3046
+        && slovakia.resolution == 1 && slovakia.concurrentRequests == 4
+        && slovakia.fileRevision == "20260923-cog"
+        && slovakia.downloadUrlTemplate.endsWith("/slovakia_dmr5_1m_cog.tif")
+        && slovakia.verticalDatum.contains("4937"),
+        "Slovakia catalogue defines the national 1 m ellipsoidal-height range COG");
+    check(wallonia.provider == "file" && wallonia.format == "geotiff"
+        && wallonia.fileGrid == "cog" && wallonia.epsg == 3812
+        && wallonia.resolution == 1 && wallonia.concurrentRequests == 4
+        && wallonia.fileRevision == "20260923-cog"
+        && wallonia.downloadUrlTemplate.endsWith("/wallonia_mnt_1m_cog.tif")
+        && wallonia.verticalDatum.contains("5710"),
+        "Wallonia catalogue defines the national 1 m DNG range COG");
     check(luxembourg.provider == "file" && luxembourg.format == "geotiff"
         && luxembourg.fileGrid == "cog" && luxembourg.epsg == 2169
         && luxembourg.resolution == 1 && luxembourg.concurrentRequests == 4
@@ -551,6 +568,8 @@ int main(int argc, char **argv) {
     const Geo::CrsTransform luxembourgProjection(2169);
     const Geo::CrsTransform portugalProjection(3763);
     const Geo::CrsTransform franceProjection(2154);
+    const Geo::CrsTransform slovakiaProjection(3046);
+    const Geo::CrsTransform walloniaProjection(3812);
     check(finland.epsg == 3067 && Geo::CrsTransform::supports(3067) && finlandProjection.forward({60,27},p)
         && near(p.x,500000),"Finland retains its supported native TM35FIN grid");
     check(europeProjection.forward({52,10},p) && near(p.x,4321000,.001) && near(p.y,3210000,.001),
@@ -584,6 +603,16 @@ int main(int argc, char **argv) {
     check(franceProjection.forward({48,-2},p)
         && near(p.x,327351.199,.002) && near(p.y,6778425.923,.002),
         "Lambert-93 agrees with the official IGN numeric control within 2 mm");
+    XY slovakiaPoint,utm34Point;
+    const Geo::CrsTransform etrs89Utm34(25834);
+    check(slovakiaProjection.forward({48.15,17.1},slovakiaPoint)
+        && etrs89Utm34.forward({48.15,17.1},utm34Point)
+        && near(slovakiaPoint.x,utm34Point.x,1e-6)
+        && near(slovakiaPoint.y,utm34Point.y,1e-6),
+        "EPSG:3046 raster coordinates use ETRS89 UTM zone 34 easting/northing values");
+    check(walloniaProjection.forward({50.797815,4.35921583333333},p)
+        && near(p.x,649328,.001) && near(p.y,665262,.001),
+        "Belgian Lambert 2008 false origin maps to its published EPSG:3812 coordinates");
     Geo::CrsTransform britishProjection(27700);
     std::vector<std::array<double,2>> ostn15(36*63,{0,0});
     ostn15[443]={93.328,-77.086};
