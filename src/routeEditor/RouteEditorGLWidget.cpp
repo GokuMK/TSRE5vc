@@ -1258,6 +1258,28 @@ void RouteEditorGLWidget::keyPressEvent(QKeyEvent * event) {
 
     if (route == NULL) return;
     if (!route->loaded) return;
+
+    if(liveFlexActive && event->key() == Qt::Key_F) {
+        // Grade terrain to the exact section currently visible in the live
+        // preview. Keep it in the segment transaction so accepting produces
+        // one undo item and cancelling can restore the captured height maps.
+        if(!event->isAutoRepeat()
+                && updateLiveFlex(
+                    (int)camera->pozT[0],
+                    (int)camera->pozT[1],
+                    aktPointerPos,
+                    true)
+                && liveFlexObj != NULL) {
+            Undo::StateBeginIfNotExist();
+            route->setTerrainToTrackObj(liveFlexObj, defaultPaintBrush);
+            liveFlexTerrainAdjusted = true;
+            flexYOffset = 0.0f;
+            update();
+        }
+        event->accept();
+        return;
+    }
+
     camera->keyDown(event);
 
     Undo::StateBeginIfNotExist();
@@ -2124,6 +2146,7 @@ bool RouteEditorGLWidget::startLiveFlex(bool reuseUndoState, bool deleteOnCancel
     liveFlexDeleteOnCancel = deleteOnCancel;
     liveFlexInitialDirectionFromMouse = initialDirectionFromMouse;
     liveFlexSolutionValid = false;
+    liveFlexTerrainAdjusted = false;
     liveFlexCompanionsValid = true;
 
     if(continuousFlexMode && !createLiveFlexCompanions())
@@ -2763,12 +2786,14 @@ void RouteEditorGLWidget::finishLiveFlex(bool accept, bool keepContinuousTool) {
         }
     }
     const bool deleteOnCancel = liveFlexDeleteOnCancel;
+    const bool restoreTerrainOnCancel = liveFlexTerrainAdjusted;
     const QVector<DynTrackObj*> acceptedCompanions = liveFlexCompanions;
     liveFlexActive = false;
     liveFlexObj = NULL;
     liveFlexDeleteOnCancel = false;
     liveFlexInitialDirectionFromMouse = false;
     liveFlexSolutionValid = false;
+    liveFlexTerrainAdjusted = false;
     liveFlexHasLastTarget = false;
     liveFlexLastEndpointId = -2;
     liveFlexLastUpdateTime = 0;
@@ -2785,7 +2810,7 @@ void RouteEditorGLWidget::finishLiveFlex(bool accept, bool keepContinuousTool) {
             dynTrack->setMartix();
             dynTrack->setModified();
         }
-        Undo::StateCancel();
+        Undo::StateCancel(restoreTerrainOnCancel);
     }
 
     int nextTileX = 0;

@@ -64,7 +64,7 @@ public:
     static void StateBegin();
     static void StateBeginIfNotExist();
     static void StateEnd();
-    static void StateCancel();
+    static void StateCancel(bool restoreTerrain = false);
     static void StateEndIfLongTime();
     static void PushTerrainHeightMap(int x, int z, float **data, int samples,
                                      bool low = false);

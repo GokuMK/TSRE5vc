@@ -16,17 +16,19 @@ Implemented; GUI acceptance testing pending.
 3. The first left click places a new Dynamic Track and immediately starts its
    live Flex preview.
 4. Moving the pointer updates the preview using Task 02 behavior.
-5. A left click accepts the segment and adds it to TDB, matching `Z`.
-6. The next Dynamic Track is created at the committed segment's calculated end
+5. Pressing `F` adjusts terrain to the currently previewed main segment without
+   accepting or adding it to TDB/RDB.
+6. A left click accepts the segment and adds it to TDB, matching `Z`.
+7. The next Dynamic Track is created at the committed segment's calculated end
    pose and immediately starts its own live preview.
-7. Repeat steps 4-6 for continuous construction.
-8. Escape removes the unfinished segment and its companions, but keeps the
+8. Repeat steps 4-7 for continuous construction.
+9. Escape removes the unfinished segment and its companions, but keeps the
    current Flex tool armed so the next click starts a separate line.
-9. If the user clicks a target for which the Flex solver cannot produce valid
+10. If the user clicks a target for which the Flex solver cannot produce valid
    geometry, the unfinished segment is discarded and that click becomes the
    starting point of a new line.
-10. `E`, changing tools, or toggling **FLEX TRACK** off removes the unfinished
-    segment and exits continuous placement.
+11. `E`, changing tools, or toggling **FLEX TRACK** off removes the unfinished
+   segment and exits continuous placement.
 
 Each accepted segment is immediately represented in TDB and creates one undo
 item containing the main object, companion objects, TDB/RDB topology, and any
@@ -67,6 +69,10 @@ next pose from the mouse target.
   discards the draft and starts a new line at the clicked point.
 - Right-drag rotates the camera without rebuilding the live shape during the
   drag.
+- `F` grades terrain to the latest valid main-segment preview and resets the
+  mouse-wheel vertical offset to zero. Accepting groups the terrain snapshots
+  with that segment's undo item; cancelling restores the affected terrain
+  before discarding the transaction.
 - Non-finite preview data is rejected, elevation trigonometry is clamped, and
   segments shorter than `0.1m` cannot be accepted into TDB.
 - Rail and road minimum radii are remembered independently and are applied to
