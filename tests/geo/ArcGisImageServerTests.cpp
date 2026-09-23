@@ -28,7 +28,7 @@ bool write(const QString &path, const QByteArray &bytes) {
 
 void runArcGisImageServerTests(const std::function<void(bool,const char*)> &check) {
     QString error;
-    const auto catalog = datasets(error);
+    const auto catalog = builtInDatasets(error);
     const auto found = std::find_if(catalog.begin(),catalog.end(),[](const Dataset &d) { return d.id == "cz.cuzk.dmr5g"; });
     check(found != catalog.end(),"ArcGIS dataset is selectable through the common catalogue");
     if (found == catalog.end()) return;

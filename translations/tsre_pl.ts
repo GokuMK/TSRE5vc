@@ -10090,6 +10090,18 @@ Anulowano. Nie zastosowano wysokości terenu.</translation>
         <source>Native/request resolution</source>
         <translation>Rozdzielczość źródła/zapytania</translation>
     </message>
+    <message id="geo.elevation.info.catalogue">
+        <source>Catalogue</source>
+        <translation>Katalog</translation>
+    </message>
+    <message id="geo.elevation.info.user.defined">
+        <source>User-defined</source>
+        <translation>Zdefiniowane przez użytkownika</translation>
+    </message>
+    <message id="geo.elevation.info.built.in">
+        <source>Built-in</source>
+        <translation>Wbudowane</translation>
+    </message>
     <message id="geo.elevation.info.datum">
         <source>Vertical datum</source>
         <translation>Układ wysokościowy</translation>

@@ -106,6 +106,25 @@ int TsreTests::runElevationUiSuite(const QString &capturePath, bool verbose) {
         window.exec();
         selector->setCurrentIndex(selector->findData(worldHgt));
     }
+    check(settings.setSessionValue("geo.elevation.source",QString("fi.nls.dem2")),
+          "select an unapproved detailed source before distant editing");
+    HeightWindow distantWindow;
+    distantWindow.distantTerrain=true;
+    distantWindow.tileX=distantWindow.tileZ=0;
+    distantWindow.terrainResolution=16;distantWindow.terrainSize=32768;
+    QTimer::singleShot(0,&distantWindow,[&] {
+        auto *distantSource=distantWindow.findChild<QComboBox*>(QStringLiteral("elevationSourceBox"));
+        auto *distantFallback=distantWindow.findChild<QComboBox*>(QStringLiteral("elevationFallbackBox"));
+        check(distantSource&&distantSource->count()==2
+            &&distantSource->findData(worldHgt)>=0&&distantSource->findData(gedtm)>=0
+            &&distantSource->findData("fi.nls.dem2")<0,
+            "distant terrain offers only its two approved world sources");
+        check(distantFallback&&distantFallback->count()==2,
+            "distant terrain fallback also follows distant approval");
+        distantWindow.reject();
+    });
+    distantWindow.exec();
+    settings.setSessionValue("geo.elevation.source",worldHgt);
     QPushButton *apply = nullptr;
     for (auto *button : window.findChildren<QPushButton*>())
         if (button->text() == qtTrId("geo.elevation.apply")) apply = button;

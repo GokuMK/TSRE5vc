@@ -344,6 +344,7 @@ void TerrainLibQt::setHeightFromGeoGui(int x, int z, float* p) {
     heightWindow->tileX = X;
     heightWindow->tileZ = -Y;
     heightWindow->ok = false;
+    heightWindow->distantTerrain = terr->lowTile;
     int samples = terr->getSampleCount();
     heightWindow->terrainResolution = samples;
     heightWindow->terrainSize = terr->getSampleCount()*terr->getSampleSize();
@@ -391,6 +392,7 @@ void TerrainLibQt::setHeightFromGeo(int x, int z, float* p) {
     heightWindow->tileX = X;
     heightWindow->tileZ = -Y;
     heightWindow->ok = false;
+    heightWindow->distantTerrain = terr->lowTile;
     int samples = terr->getSampleCount();
     heightWindow->terrainResolution = samples;
     heightWindow->terrainSize = terr->getSampleCount()*terr->getSampleSize();

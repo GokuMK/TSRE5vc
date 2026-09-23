@@ -8,7 +8,6 @@
 #include <QDir>
 #include <QJsonDocument>
 #include <QJsonArray>
-#include <QCryptographicHash>
 #include <QUrlQuery>
 #include <QtEndian>
 #include <QElapsedTimer>
@@ -254,6 +253,21 @@ int main(int argc, char **argv) {
     check(!readAsciiGrid("ncols 9999999999 nrows 2 cellsize 1 xllcorner 0 yllcorner 0",2180,r,error),"reject excessive ASCII allocation");
     check(!readAsciiGrid("ncols 2 nrows 2 cellsize 1 xllcorner 0 yllcorner 0 1 2",2180,r,error),"reject truncated ASCII");
     check(readAsciiGrid("ncols 2 nrows 2 xllcenter 0 yllcenter 0 cellsize 1 NODATA_value -9999\n0 -2 4 -9999",4326,r,error),"ASCII center origin and NoData");
+    Raster swapped;
+    check(readAsciiGrid("ncols 2 nrows 3 xllcenter 100 yllcenter 200 cellsize 1 NODATA_value -9999\n1 2 3 4 5 6",2180,swapped,error)
+        && swapRasterAxes(swapped,error) && swapped.width==3 && swapped.height==2
+        && swapped.transform[0]==199.5 && swapped.transform[3]==101.5
+        && swapped.values==QVector<float>({6,4,2,5,3,1}),
+        "formal northing/easting ASCII axes normalize to easting/northing");
+    Raster xyz;
+    check(readXyzGrid("100 200 1\n101 200 2\n100 201 3\n101 201 4\n",2180,1,true,xyz,error)
+        && xyz.width==2 && xyz.height==2 && xyz.values==QVector<float>({2,4,1,3}),
+        "formal northing/easting XYZ points normalize to a regular raster");
+    QByteArray localTiff;Raster localRoundTrip;
+    check(encodeGeoTiff(xyz,localTiff,error)&&readGeoTiff(localTiff,localRoundTrip,error)
+        && localRoundTrip.epsg==2180&&localRoundTrip.width==2&&localRoundTrip.height==2
+        && localRoundTrip.values==xyz.values&&localRoundTrip.transform==xyz.transform,
+        "local tiled Deflate GeoTIFF cache round trip");
     check(r.sample({0,1}).valid() && r.sample({0,1}).height == 0,"zero is valid in generic raster");
     check(r.sample({0,1},true).status == SampleStatus::NoData,"dataset-specific zero policy");
     check(r.sample({1,1}).height == -2,"negative elevation preserved");
@@ -299,7 +313,7 @@ int main(int argc, char **argv) {
         "HGT interpolation uses side minus one geographic intervals");
     check(!readHgt(QByteArray(19,'x'),0,0,r,error),"reject malformed HGT dimensions");
     check(readHgt(hgt(3,-32768),0,0,r,error) && sampleLegacyHgt(r,{.5,.5}).status == SampleStatus::NoData,"HGT void detection");
-    const auto catalog = datasets(error);
+    const auto catalog = builtInDatasets(error);
     check(!catalog.isEmpty() && error.isEmpty(),"embedded dataset catalogue");
     QJsonArray entries;
     for (const auto &entry : catalog) entries.append(entry.definition);
@@ -332,6 +346,12 @@ int main(int argc, char **argv) {
     check(parseDatasets("{\"version\":1}",error).isEmpty() && !error.isEmpty(),"missing datasets array is a file-level error");
     QMap<QString,Dataset> byId;
     for (const auto &entry : catalog) byId.insert(entry.id,entry);
+    invalid=byId.value("pl.gugik.nmt1.evrf2007").definition;
+    invalid["id"]="fixture.invalid-wfs-catalog";
+    auto invalidCatalog=invalid.value("catalog").toObject();
+    invalidCatalog["acceptedFormats"]=QJsonArray{1};invalid["catalog"]=invalidCatalog;
+    check(parseEntries(QJsonArray{invalid}).isEmpty()&&error.contains("fixture.invalid-wfs-catalog"),
+        "invalid WFS asset catalogue rejects only its dataset definition");
     bool requiredPresent = true;
     for (const QString &id : {QString("pl.gugik.nmt1.kron86"),QString("pl.gugik.nmt1.evrf2007"),
                              QString("cz.cuzk.dmr4g"),QString("cz.cuzk.dmr5g"),
@@ -355,6 +375,50 @@ int main(int argc, char **argv) {
     const auto portugal = byId.value("pt.dgt.mdt2m");
     const auto gedtm = byId.value("world.gedtm30");
     const auto france = byId.value("fr.ign.lidar-hd.mnt05");
+    const QByteArray builtInCatalogueJson=QJsonDocument(QJsonObject{
+        {"version",1},{"defaultFileSource",worldHgt.id},{"datasets",entries}
+    }).toJson(QJsonDocument::Compact);
+    check(userDatasetCataloguePath()=="assets/geo/elevation-datasets.json",
+        "user elevation catalogue has a stable non-versioned assets path");
+    auto userOverride=wcsEntry;userOverride["name"]="User override";
+    auto userAddition=wcsEntry;userAddition["id"]="fixture.user-wcs";userAddition["name"]="User addition";
+    const QByteArray userCatalogueJson=QJsonDocument(QJsonObject{
+        {"version",1},{"defaultFileSource",worldHgt.id},
+        {"datasets",QJsonArray{userOverride,userAddition}}
+    }).toJson(QJsonDocument::Compact);
+    QString mergeError;
+    auto mergedCatalogue=mergeDatasets(builtInCatalogueJson,userCatalogueJson,mergeError);
+    QMap<QString,Dataset> mergedById;
+    for(const auto &entry:mergedCatalogue)mergedById.insert(entry.id,entry);
+    check(mergeError.isEmpty()&&mergedCatalogue.size()==catalog.size()+1
+        &&mergedById.value(wcsEntry.value("id").toString()).name=="User override"
+        &&mergedById.value(wcsEntry.value("id").toString()).userDefined
+        &&mergedById.value("fixture.user-wcs").userDefined
+        &&!mergedById.value(worldHgt.id).userDefined
+        &&defaultFileSourceId(mergedCatalogue)==worldHgt.id,
+        "valid user definitions replace by ID, append new IDs and may select a built-in default");
+    auto invalidOverride=wcsEntry;invalidOverride["crs"]=9999;
+    mergedCatalogue=mergeDatasets(builtInCatalogueJson,QJsonDocument(QJsonObject{
+        {"version",1},{"datasets",QJsonArray{invalidOverride}}
+    }).toJson(QJsonDocument::Compact),mergeError);
+    mergedById.clear();for(const auto &entry:mergedCatalogue)mergedById.insert(entry.id,entry);
+    check(mergedCatalogue.size()==catalog.size()&&mergeError.contains(wcsEntry.value("id").toString())
+        &&mergedById.value(wcsEntry.value("id").toString()).name==byId.value(wcsEntry.value("id").toString()).name
+        &&!mergedById.value(wcsEntry.value("id").toString()).userDefined,
+        "invalid user override leaves its built-in definition available");
+    mergedCatalogue=mergeDatasets(builtInCatalogueJson,"{",mergeError);
+    check(mergedCatalogue.size()==catalog.size()&&mergeError.contains("User elevation catalogue"),
+        "malformed user catalogue leaves the complete built-in catalogue available");
+    auto userFile=worldHgt.definition;userFile["id"]="fixture.user-hgt";
+    userFile["name"]="User HGT";userFile["directory"]="fixture_user_hgt";
+    mergedCatalogue=mergeDatasets(builtInCatalogueJson,QJsonDocument(QJsonObject{
+        {"version",1},{"defaultFileSource","fixture.user-hgt"},
+        {"datasets",QJsonArray{userFile}}
+    }).toJson(QJsonDocument::Compact),mergeError);
+    mergedById.clear();for(const auto &entry:mergedCatalogue)mergedById.insert(entry.id,entry);
+    check(mergeError.isEmpty()&&defaultFileSourceId(mergedCatalogue)=="fixture.user-hgt"
+        &&mergedById.value("fixture.user-hgt").userDefined,
+        "a user file source can become the default file source");
     check(defaultFileSourceId(catalog) == worldHgt.id
         && defaultFallbackSourceId(catalog) == worldHgt.id && worldHgt.fallbackApproved
         && worldHgt.provider == "file"
@@ -366,14 +430,27 @@ int main(int argc, char **argv) {
         "degree-grid download template resolves southern and western cells");
     check(gedtm.provider == "file" && gedtm.format == "geotiff"
         && gedtm.fileGrid == "cog" && gedtm.epsg == 4326
-        && gedtm.fallbackApproved
+        && gedtm.fallbackApproved && gedtm.distantTerrainApproved
         && gedtm.resolution == 30 && gedtm.cogOverviewFactor == 1
         && gedtm.fileRevision == "v20250619"
         && gedtm.directory == "world_gedtm30"
         && gedtm.downloadUrlTemplate.contains("filtered.dtm_edtm_m_30m"),
         "GEDTM30 catalogue defines a geographic bare-earth range COG");
-    int approvedFallbacks=0;for(const auto &entry:catalog)approvedFallbacks+=entry.fallbackApproved;
+    int approvedFallbacks=0,approvedDistant=0;
+    for(const auto &entry:catalog){
+        approvedFallbacks+=entry.fallbackApproved;
+        approvedDistant+=entry.distantTerrainApproved;
+    }
     check(approvedFallbacks==2,"only the two world sources are approved as fallbacks");
+    check(worldHgt.distantTerrainApproved&&approvedDistant==2
+        &&defaultDistantTerrainSourceId(catalog)==worldHgt.id
+        &&defaultDistantTerrainFallbackSourceId(catalog)==worldHgt.id,
+        "only the two world sources are approved for distant terrain");
+    auto invalidDistant=wcsEntry;invalidDistant["id"]="fixture.invalid-distant-approval";
+    invalidDistant["distantTerrainApproved"]="yes";
+    check(parseEntries(QJsonArray{invalidDistant}).isEmpty()
+        &&error.contains("fixture.invalid-distant-approval"),
+        "non-boolean distant-terrain approval rejects only its dataset definition");
     QTemporaryDir geographicCogRoot;
     Dataset geographicCog=gedtm;
     geographicCog.id="fixture.geographic-cog";geographicCog.directory="fixture_geographic_cog";
@@ -634,8 +711,10 @@ int main(int argc, char **argv) {
     const auto &polishAscii = byId["pl.gugik.nmt1.evrf2007"];
     check(d.resolution == 1 && polishAscii.resolution == 1 && byId["cz.cuzk.dmr4g"].resolution == 5,"Polish 1 m and Czech 5 m datasets");
     check(d.blockPixels == 1024 && d.concurrentRequests == 4
-        && polishAscii.blockPixels == 512 && polishAscii.concurrentRequests == 1,
-        "TIFF uses four concurrent 1024 m blocks; ASCII keeps verified serial 512 m blocks");
+        && polishAscii.provider == "wfs-file-catalog"
+        && polishAscii.directory == "pl_gugik_nmt1_evrf2007"
+        && polishAscii.concurrentRequests == 4,
+        "KRON86 WCS and EVRF2007 source-sheet downloads both use four connections");
     const auto url = coverageUrl(d,{2,3});
     const QUrlQuery query(url);
     check(query.allQueryItemValues("SUBSET").size() == 2 && query.queryItemValue("SCALESIZE") == "x(1026),y(1026)","WCS repeated subsets and fixed native-resolution dimensions");
@@ -720,30 +799,36 @@ int main(int argc, char **argv) {
     generated = generate(temp.path(),d.id,{{40.5,19.5}},1.0,0,0,cancel);
     check(generated.success() && generated.report.fallbackSamples == 1 && generated.report.outsideSamples == 1,"outside Poland uses reported HGT fallback without HTTP");
     check(!generate("","",{{52,19}},1.0,0,0,cancel).success(),"empty geoPath cannot write into working directory");
-    // Complete prepared block + metadata, so this exercises the production disk
-    // cache path without any network service or fake projection implementation.
+    // Complete WFS catalogue index + converted GeoTIFF, so this exercises the
+    // production source-sheet cache offline without a network service.
     const auto &ascii = polishAscii;
     cs92.forward({52,19},p);
-    const auto block = blockFor(ascii,p);
-    const double left = ascii.originX+block.column*512-1;
-    const double bottom = ascii.originY-block.row*512+1-514;
-    QByteArray cachedGrid = QString("ncols 514\nnrows 514\nxllcorner %1\nyllcorner %2\ncellsize 1\nNODATA_value -9999\n")
-        .arg(left,0,'f',9).arg(bottom,0,'f',9).toLatin1();
-    const QByteArray gridHeader = cachedGrid;
-    for (int i = 0; i < 514*514; ++i) cachedGrid += "120 ";
-    const QString cachePath = QDir(temp.path()).filePath(cacheRelativePath(ascii,block));
-    const auto storeGrid = [&](const QByteArray &grid) {
-        QJsonObject metadata;
-        metadata["sha256"] = QString::fromLatin1(QCryptographicHash::hash(grid,QCryptographicHash::Sha256).toHex());
-        return write(cachePath,grid) && write(cachePath+".json",QJsonDocument(metadata).toJson());
+    Raster cachedRaster;cachedRaster.width=cachedRaster.height=16;cachedRaster.epsg=2180;
+    cachedRaster.transform={{std::floor(p.x)-8,1,0,std::floor(p.y)+8,0,-1}};
+    cachedRaster.hasNoData=true;cachedRaster.noData=-9999;
+    cachedRaster.values.fill(120,256);
+    const QString cacheDirectory=QDir(temp.path()).filePath(ascii.directory);
+    const QString cacheFile="2026_fixture.tif";
+    const auto storeGrid = [&](float value) {
+        cachedRaster.values.fill(value,256);QByteArray tiff;
+        if(!encodeGeoTiff(cachedRaster,tiff,error)||!write(QDir(cacheDirectory).filePath(cacheFile),tiff))return false;
+        const QJsonArray bounds{cachedRaster.transform[0],cachedRaster.transform[3]-16,
+                                cachedRaster.transform[0]+16,cachedRaster.transform[3]};
+        const QJsonObject asset{{"key","fixture"},{"sheet","fixture"},{"year",2026},
+            {"format","ARC/INFO ASCII GRID"},{"url","https://example.invalid/fixture.asc"},
+            {"file",cacheFile},{"bounds",bounds}};
+        const QJsonObject query{{"bounds",QJsonArray{p.x-100,p.y-100,p.x+100,p.y+100}},
+                                {"assets",QJsonArray{"fixture"}}};
+        const QJsonObject index{{"version",1},{"dataset",ascii.id},{"epsg",2180},
+            {"resolution",1},{"assets",QJsonArray{asset}},{"queries",QJsonArray{query}}};
+        return write(QDir(cacheDirectory).filePath(".tsre-elevation-catalog.json"),
+                     QJsonDocument(index).toJson());
     };
-    check(storeGrid(cachedGrid),"prepare offline cache fixture");
+    check(storeGrid(120),"prepare offline converted source-sheet cache fixture");
     generated = generate(temp.path(),ascii.id,{{52,19},{52.00005,19.00005}},1.0,3,3,cancel);
     check(generated.success() && generated.report.cacheHits == 1 && generated.report.downloads == 0
           && generated.report.primarySamples == 2 && generated.heights[0] == 123,"offline cached native grid generation");
-    cachedGrid = gridHeader;
-    for (int i = 0; i < 514*514; ++i) cachedGrid += "-9999 ";
-    check(storeGrid(cachedGrid),"prepare explicit NoData cache fixture");
+    check(storeGrid(-9999),"prepare explicit NoData cache fixture");
     generated = generate(temp.path(),ascii.id,{{52,19}},1.0,0,0,cancel);
     check(generated.success() && generated.report.noDataSamples == 1 && generated.report.fallbackSamples == 1
           && generated.heights[0] == 20,"cached NoData falls back to catalogue HGT with provenance");

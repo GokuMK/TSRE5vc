@@ -24,12 +24,14 @@ int main(int argc, char **argv) {
         return 2;
     }
     QString error;
-    auto catalog = Elevation::datasets(error);
-    catalog.removeIf([](const Elevation::Dataset &d) { return !d.id.startsWith("pl.gugik."); });
-    if (catalog.size() != 2) { std::cerr << error.toStdString(); return 2; }
+    auto catalog = Elevation::builtInDatasets(error);
+    catalog.removeIf([](const Elevation::Dataset &d) {
+        return !d.id.startsWith("pl.gugik.") || !d.provider.startsWith("wcs-");
+    });
+    if (catalog.size() != 1) { std::cerr << error.toStdString(); return 2; }
     QJsonObject document{{"startedUtc",QDateTime::currentDateTimeUtc().toString(Qt::ISODate)},
         {"latitude",52.0},{"longitude",19.0},
-        {"description","Three sequential rounds, rotated size order, identical nested native-grid bounds; no local cache"}};
+        {"description","Three sequential rounds for the remaining Polish WCS GeoTIFF source; no local cache"}};
     QJsonArray results;
     QNetworkAccessManager network;
     const int orders[3][3] = {{512,1024,2048},{2048,512,1024},{1024,2048,512}};

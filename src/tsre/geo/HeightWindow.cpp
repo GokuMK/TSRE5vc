@@ -14,6 +14,12 @@ const char *SourceSetting = "geo.elevation.source";
 const char *FallbackSetting = "geo.elevation.fallback";
 QPointer<QPlainTextEdit> automaticReport;
 bool lastElevationCancelled = false;
+bool distantSourceApproved(const QVector<Elevation::Dataset> &catalogue,
+                           const QString &id,bool fallback) {
+    for(const auto &dataset:catalogue)if(dataset.id==id)
+        return dataset.distantTerrainApproved&&(!fallback||dataset.fallbackApproved);
+    return false;
+}
 QString summarize(const Elevation::Result &result, const QString &source) {
     const auto &r = result.report;
     //% "Source: %1\nSource samples: %2; fallback samples: %3\nCached blocks: %4; downloads: %5"
@@ -63,6 +69,14 @@ QString sourceInformation(const Elevation::Dataset &dataset,const QString &root)
     //% "Source"
     QString html=QStringLiteral("<b>%1:</b> %2<br>")
         .arg(qtTrId("geo.elevation.info.source").toHtmlEscaped(),escaped(dataset.name));
+    //% "Catalogue"
+    const QString catalogueLabel=qtTrId("geo.elevation.info.catalogue").toHtmlEscaped();
+    //% "User-defined"
+    const QString catalogueOrigin=dataset.userDefined
+        ?qtTrId("geo.elevation.info.user.defined").toHtmlEscaped()
+        //% "Built-in"
+        :qtTrId("geo.elevation.info.built.in").toHtmlEscaped();
+    html+=QStringLiteral("<b>%1:</b> %2<br>").arg(catalogueLabel,catalogueOrigin);
     if(dataset.resolution>0) {
         //% "Native/request resolution"
         html+=QStringLiteral("<b>%1:</b> %2 m<br>")
@@ -236,6 +250,12 @@ int HeightWindow::exec() {
     if (selected.isEmpty()) selected = Elevation::defaultFileSourceId(catalog);
     QString selectedFallback = Settings::string(FallbackSetting,SettingType::Enum);
     if (selectedFallback.isEmpty()) selectedFallback = Elevation::defaultFallbackSourceId(catalog);
+    if(distantTerrain){
+        if(!distantSourceApproved(catalog,selected,false))
+            selected=Elevation::defaultDistantTerrainSourceId(catalog);
+        if(!distantSourceApproved(catalog,selectedFallback,true))
+            selectedFallback=Elevation::defaultDistantTerrainFallbackSourceId(catalog);
+    }
     QVector<Elevation::Point> area;
     if (Game::GeoCoordConverter && terrainSize > 0) {
         PreciseTileCoordinate coordinate;
@@ -255,16 +275,18 @@ int HeightWindow::exec() {
       sourceBox->clear();
       bool known = false;
       for (const auto &dataset : catalog) {
+          if(distantTerrain&&!dataset.distantTerrainApproved)continue;
           known |= dataset.id == selected;
           if (Elevation::nearDataset(dataset,area)) sourceBox->addItem(dataset.name,dataset.id);
       }
-      if (!known)
+      if (!known&&!distantTerrain)
           sourceBox->addItem(qtTrId("settings.dialog.text.widget").arg(selected),selected);
       sourceBox->setCurrentIndex(sourceBox->findData(selected)); }
     { const QSignalBlocker blocker(fallbackBox);
       fallbackBox->clear();
       for (const auto &dataset : catalog)
-          if (dataset.fallbackApproved && Elevation::nearDataset(dataset,area))
+          if (dataset.fallbackApproved&&(!distantTerrain||dataset.distantTerrainApproved)
+                  &&Elevation::nearDataset(dataset,area))
               fallbackBox->addItem(dataset.name,dataset.id);
       fallbackBox->setCurrentIndex(fallbackBox->findData(selectedFallback)); }
     loadButton->setEnabled(sourceBox->currentIndex() >= 0 && fallbackBox->currentIndex() >= 0);
@@ -307,6 +329,12 @@ void HeightWindow::load(bool gui) {
     const auto catalog = Elevation::datasets(catalogueError);
     if (dataset.isEmpty()) dataset = Elevation::defaultFileSourceId(catalog);
     if (fallbackDataset.isEmpty()) fallbackDataset = Elevation::defaultFallbackSourceId(catalog);
+    if(distantTerrain){
+        if(!distantSourceApproved(catalog,dataset,false))
+            dataset=Elevation::defaultDistantTerrainSourceId(catalog);
+        if(!distantSourceApproved(catalog,fallbackDataset,true))
+            fallbackDataset=Elevation::defaultDistantTerrainFallbackSourceId(catalog);
+    }
     const int sourceIndex = sourceBox->findData(dataset);
     QString sourceName = sourceIndex < 0 ? dataset : sourceBox->itemText(sourceIndex);
     // Snapshot only the selected primary/fallback secrets on the UI thread.

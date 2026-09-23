@@ -13,6 +13,7 @@
       "verticalDatum": "EGM96 for Mapzen downloads; user-supplied files may differ",
       "bounds": [-180, -90, 180, 90],
       "fallbackApproved": true,
+      "distantTerrainApproved": true,
       "zeroIsNoData": false,
       "concurrentRequests": 4,
       "download": {
@@ -38,6 +39,7 @@
       "resolution": 30,
       "bounds": [-180, -57, 180, 84],
       "fallbackApproved": true,
+      "distantTerrainApproved": true,
       "concurrentRequests": 2,
       "zeroIsNoData": false,
       "download": {
@@ -314,21 +316,32 @@
     },
     {
       "id": "pl.gugik.nmt1.evrf2007",
-      "name": "Poland - Geoportal NMT 1 m (EVRF2007, ASCII Grid)",
-      "provider": "wcs-2.0.1",
-      "endpoint": "https://mapy.geoportal.gov.pl/wss/service/PZGIK/NMT/GRID1/WCS/DigitalTerrainModel",
-      "coverage": "DTM_PL-EVRF2007-NH",
-      "format": "image/x-aaigrid",
-      "axisX": "x",
-      "axisY": "y",
+      "name": "Poland - GUGiK NMT 1 m (EVRF2007, source sheets)",
+      "provider": "wfs-file-catalog",
+      "endpoint": "https://mapy.geoportal.gov.pl/wss/service/PZGIK/NumerycznyModelTerenuEVRF2007/WFS/Skorowidze",
+      "format": "image/tiff",
       "crs": 2180,
       "verticalDatum": "PL-EVRF2007-NH",
       "resolution": 1,
-      "origin": [160828.34326572, 796521.669409553],
       "bounds": [160828.34326572, 98928.8977745594, 876029.97009323, 796521.669409553],
-      "blockPixels": 512,
+      "directory": "pl_gugik_nmt1_evrf2007",
+      "concurrentRequests": 4,
       "zeroIsNoData": true,
-      "attribution": "GUGiK / Geoportal.gov.pl"
+      "attribution": "GUGiK / Geoportal.gov.pl",
+      "information": "TSRE searches the official GUGiK WFS sheet catalogue, downloads the newest available 1 m EVRF2007 source sheets for the requested terrain and converts them once to local tiled GeoTIFF cache files.",
+      "informationUrl": "https://www.geoportal.gov.pl/pl/dane/numeryczny-model-terenu-nmt/",
+      "downloadPage": "https://www.geoportal.gov.pl/pl/usluga/uslugi-pobierania-wfs/",
+      "catalog": {
+        "featureTypePattern": "^gugik:SkorowidzNMT(\\d{4})$",
+        "sheetField": "godlo",
+        "yearField": "akt_rok",
+        "formatField": "format",
+        "resolutionField": "modul_archiwizacji",
+        "urlField": "url_do_pobrania",
+        "acceptedFormats": ["ARC/INFO ASCII GRID", "ASCII XYZ GRID", "ASCII TBD"],
+        "wfsAxisOrder": "northing-easting",
+        "sourceAxisOrder": "catalog-detected"
+      }
     },
     {
       "id": "cz.cuzk.dmr4g",

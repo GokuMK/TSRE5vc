@@ -9,6 +9,7 @@ public:
     HeightWindow();
     ~HeightWindow() override;
     int tileX = 0, tileZ = 0, terrainResolution = 0, terrainSize = 0;
+    bool distantTerrain = false;
     bool ok = false;
     float **terrainData = nullptr;
     static void CheckForMissingGeodataFiles(QMap<int,QPair<int,int>*> &tileList);

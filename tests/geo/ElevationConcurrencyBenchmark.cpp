@@ -19,7 +19,7 @@
 int runConcurrencyBenchmark(const QString &outputPath, bool freshConnections) {
     QString error;
     Elevation::Dataset dataset;
-    for (const auto &d : Elevation::datasets(error)) if (d.id == "pl.gugik.nmt1.kron86") dataset = d;
+    for (const auto &d : Elevation::builtInDatasets(error)) if (d.id == "pl.gugik.nmt1.kron86") dataset = d;
     if (dataset.id.isEmpty()) { std::cerr << error.toStdString(); return 2; }
     Elevation::XY point;
     const Geo::CrsTransform projection(dataset.epsg);

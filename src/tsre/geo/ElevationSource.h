@@ -31,15 +31,25 @@ struct Dataset {
     bool allowExpandedGrid = false;
     bool defaultFileSource = false;
     bool fallbackApproved = false;
+    bool distantTerrainApproved = false;
+    bool userDefined = false;
     bool stacSearchRoot = false, stacRange = false;
     QString noDataPolicy = QStringLiteral("fallback");
     QJsonObject definition;
 };
 QVector<Dataset> datasets(QString &error);
+QVector<Dataset> builtInDatasets(QString &error);
+QString userDatasetCataloguePath();
 // Returns valid entries and reports rejected entries in error. Invalid JSON is fatal.
 QVector<Dataset> parseDatasets(const QByteArray &json, QString &error);
+// Valid user entries replace matching built-in IDs or append new IDs. Invalid
+// user entries retain the corresponding built-in definitions.
+QVector<Dataset> mergeDatasets(const QByteArray &builtInJson,
+                               const QByteArray &userJson, QString &error);
 QString defaultFileSourceId(const QVector<Dataset> &catalogue);
 QString defaultFallbackSourceId(const QVector<Dataset> &catalogue);
+QString defaultDistantTerrainSourceId(const QVector<Dataset> &catalogue);
+QString defaultDistantTerrainFallbackSourceId(const QVector<Dataset> &catalogue);
 bool nearDataset(const Dataset &dataset, const QVector<Point> &area, double bufferMetres = 10000);
 struct Block {
     int column = 0, row = 0;

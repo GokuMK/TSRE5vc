@@ -101,7 +101,7 @@ Current branch catalogue snapshot, updated 2026-09-23:
 | `ch.swisstopo.swissalti3d.2m` | Switzerland + Liechtenstein swissALTI3D 2 m | file / STAC GeoTIFF | 2056 | ✅ bounded live tile + cache probe |
 | `se.lantmateriet.markhojdmodell1` | Sweden Lantmäteriet Markhöjdmodell 1 m | file / authenticated STAC range COG | 3006; asset metadata 5845 | ✅ live/cache probes + user-confirmed application test |
 | `pl.gugik.nmt1.kron86` | Poland NMT 1 m KRON86 | WCS 2.0.1 | 2180 | ✅ |
-| `pl.gugik.nmt1.evrf2007` | Poland NMT 1 m EVRF2007 | WCS 2.0.1 | 2180 | ✅ |
+| `pl.gugik.nmt1.evrf2007` | Poland NMT 1 m EVRF2007 | WFS source-sheet catalogue | 2180 | ✅ live acquisition + offline cache probe |
 | `cz.cuzk.dmr4g` | Czech DMR4G 5 m | WCS 2.0.1 | 3045 | ✅ |
 | `cz.cuzk.dmr5g` | Czech DMR5G 2 m request grid | ArcGIS ImageServer | 25833 | ✅ |
 | `us.usgs.3dep.conus` | USGS 3DEP CONUS 2 map m request grid | ArcGIS ImageServer | 3857 | ✅ architecture/live validation source |
@@ -126,7 +126,9 @@ The branch's own status documents distinguish **configured**, **live point/block
 
 **Status: ✅ working**
 
-National NMT, 1 m. This was the first implementation and validates both GeoTIFF and ASCII Grid WCS paths.
+National NMT, 1 m. KRON86 remains the original numeric GeoTIFF WCS path.
+EVRF2007 now validates the generic WFS asset-catalogue and one-time local
+GeoTIFF-conversion path.
 
 ### GeoTIFF / KRON86
 
@@ -152,28 +154,33 @@ National NMT, 1 m. This was the first implementation and validates both GeoTIFF 
 }
 ```
 
-### ASCII Grid / EVRF2007
+### WFS source sheets / EVRF2007
 
 ```json
 {
   "id": "pl.gugik.nmt1.evrf2007",
-  "name": "Poland - Geoportal NMT 1 m (EVRF2007, ASCII Grid)",
-  "provider": "wcs-2.0.1",
-  "endpoint": "https://mapy.geoportal.gov.pl/wss/service/PZGIK/NMT/GRID1/WCS/DigitalTerrainModel",
-  "coverage": "DTM_PL-EVRF2007-NH",
-  "format": "image/x-aaigrid",
-  "axisX": "x",
-  "axisY": "y",
+  "name": "Poland - GUGiK NMT 1 m (EVRF2007, source sheets)",
+  "provider": "wfs-file-catalog",
+  "endpoint": "https://mapy.geoportal.gov.pl/wss/service/PZGIK/NumerycznyModelTerenuEVRF2007/WFS/Skorowidze",
+  "format": "image/tiff",
   "crs": 2180,
   "verticalDatum": "PL-EVRF2007-NH",
   "resolution": 1,
-  "origin": [160828.34326572, 796521.669409553],
   "bounds": [160828.34326572, 98928.8977745594, 876029.97009323, 796521.669409553],
-  "blockPixels": 512,
+  "directory": "pl_gugik_nmt1_evrf2007",
+  "concurrentRequests": 4,
   "zeroIsNoData": true,
   "attribution": "GUGiK / Geoportal.gov.pl"
 }
 ```
+
+The catalogue entry additionally maps WFS sheet/year/format/resolution/URL
+fields, accepted source formats and formal WFS axis order. Source-grid axis
+orientation is checked against each WFS footprint. Current Arc/Info ASCII and
+historical nested ZIP/XYZ inputs become persistent tiled Deflate Float32
+GeoTIFFs. A four-sheet junction probe completed first acquisition and conversion
+in about 54.6 s; its offline repeat took 546 ms with no fallback. See
+[the detailed implementation report](poland-gugik-source-sheets.md).
 
 Sources:
 

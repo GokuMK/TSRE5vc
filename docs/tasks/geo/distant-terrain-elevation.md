@@ -1,7 +1,7 @@
 # Critical open issue: distant-terrain elevation acquisition
 
-Recorded 2026-09-19 after user testing. Brief source review at `b5fe6f1`.
-Documentation only: no runtime changes, service audit, downloads, builds or tests.
+Recorded 2026-09-19 after user testing; safety gate implemented 2026-09-23.
+Dataset-specific coarse acquisition and practical service review remain deferred.
 
 ## Problem
 
@@ -22,10 +22,11 @@ detailed-terrain validation as distant-terrain approval.
   creates distant tiles with 256 samples at 128 m
   spacing: **32,768 m per side**. Loaded tile layouts can differ; use actual
   sample spacing rather than assuming all distant terrain needs 32 m or 128 m.
-- Both `TerrainLibQt::setHeightFromGeoGui()` and `setHeightFromGeo()` pass sample
-  count and physical size to the same HeightWindow. `HeightWindow::load()` sends
-  the resulting output spacing to `Elevation::generate()`, but no explicit
-  detailed/distant purpose accompanies it.
+- Both terrain-library implementations pass the tile's low-detail domain, sample
+  count and physical size to the same HeightWindow. The domain controls source
+  eligibility, while `HeightWindow::load()` sends the resulting output spacing
+  to `Elevation::generate()`. The provider layer does not yet receive a separate
+  detailed/distant acquisition profile.
 - `ElevationSource.cpp` computes download block bounds from catalogue
   `resolution` and `blockPixels`. WCS and ArcGIS requests retain that grid.
   `targetSpacing` controls subsequent local averaging only; it does **not**
@@ -50,11 +51,13 @@ detailed-terrain validation as distant-terrain approval.
 
 ## Required follow-up
 
-- [ ] Pass explicit detailed/distant purpose through the common generation path,
-  preserving actual terrain sample spacing as a separate value.
-- [ ] Add per-dataset distant eligibility and acquisition configuration. Default
-  unreviewed entries to disabled in distant mode. Show a clear reason before HTTP;
-  do not silently use the expensive detailed profile.
+- [x] Pass the detailed/distant terrain domain into the Height window and enforce
+  source eligibility before acquisition. Actual terrain sample spacing remains a
+  separate value.
+- [x] Add per-dataset distant eligibility, defaulting to false. Distant source and
+  fallback lists show only approved entries; automatic generation selects the
+  approved default when the detailed source is not eligible. World HGT and
+  GEDTM30 are the first approved sources.
 - [ ] For enabled entries, record a validated coarse resolution, block dimensions,
   concurrency and any distinct overview/coverage needed by the service. Prefer
   server-side resampling or an appropriate coarse product over fine downloads.
@@ -71,5 +74,9 @@ detailed-terrain validation as distant-terrain approval.
   cancellation, cache reuse/isolation, missing coverage and NoData filling. Verify
   that unsupported entries fail before downloads and detailed terrain is unchanged.
 
-No distant restriction is implemented yet. This remains a critical open issue
-while work continues on additional country services.
+The eligibility restriction is implemented. Coarse acquisition profiles, cache
+isolation, request budgeting and practical validation remain open before any
+detailed national source is approved.
+
+The focused Release suite passes 419 checks and the incremental Release
+application build succeeds. The application UI suite was compiled but not run.

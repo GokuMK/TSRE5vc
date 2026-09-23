@@ -307,6 +307,7 @@ void TerrainLibSimple::setHeightFromGeoGui(int x, int z, float* p){
     heightWindow->tileX = x;
     heightWindow->tileZ = -z;
     heightWindow->ok = false;
+    heightWindow->distantTerrain = terr->lowTile;
     heightWindow->terrainResolution = 256;
     heightWindow->terrainSize = 2048;
     heightWindow->exec();
@@ -352,6 +353,7 @@ void TerrainLibSimple::setHeightFromGeo(int x, int z, float* p){
     heightWindow->tileX = x;
     heightWindow->tileZ = -z;
     heightWindow->ok = false;
+    heightWindow->distantTerrain = terr->lowTile;
     heightWindow->terrainResolution = 256;
     heightWindow->terrainSize = 2048;
     heightWindow->load(false);

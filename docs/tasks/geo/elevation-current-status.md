@@ -9,6 +9,62 @@ historical findings from `a88f7f8` and the R1/R2 follow-up on `1ee5aaa`; their
 counts and validation claims are scoped to those milestones. They do not replace
 the newest status or the current source code.
 
+## Distant-terrain source gate, 2026-09-23
+
+- Catalogue property `distantTerrainApproved` defaults to false. World HGT and
+  GEDTM30 are the only currently approved entries.
+- The Height window receives the current terrain domain from both terrain-library
+  implementations. Distant editing filters both the main and fallback source
+  rows to approved entries. Automatic distant generation also substitutes the
+  approved default before acquisition when the detailed-terrain setting points
+  to an unapproved source.
+- This is the immediate request-safety gate. Dataset-specific coarse resolution,
+  overview choice, cache identity, request budgets and full 32 km validation
+  remain in the dedicated later task.
+- **419 focused Release checks pass**, including approval defaulting and schema
+  validation. The incremental Release application build succeeds; the embedded
+  UI suite was compiled but not run.
+
+## Optional persistent user catalogue, 2026-09-23
+
+- TSRE loads the embedded elevation catalogue first, then optionally reads
+  `assets/geo/elevation-datasets.json`. The location is independent of
+  `Game::AppDataVersion`, is not packaged, and remains under user control.
+- Valid user entries replace built-ins with the same ID without moving their
+  list position; new IDs append. The optional user `defaultFileSource` may name
+  either a built-in or user-defined file source.
+- Invalid user objects are diagnosed independently. An invalid override leaves
+  the built-in entry available, and malformed, unreadable, empty or oversized
+  user catalogue files leave all built-ins available.
+- The Height window source information identifies whether the effective entry
+  came from the built-in or user catalogue. Authentication continues to use
+  secret-key references rather than credentials stored in catalogue JSON.
+- Stable tests parse the built-in catalogue directly, while focused merge tests
+  cover replacement, append, default selection and failure isolation.
+- **417 focused Release checks pass.** The main application build/UI check is
+  left for the user.
+
+## Poland EVRF2007 WFS source sheets, 2026-09-23
+
+- `pl.gugik.nmt1.evrf2007` retains its ID and vertical datum but now uses the
+  generic `wfs-file-catalog` provider. It discovers current 1 m records through
+  the official GUGiK WFS index and downloads up to four original sheets at once.
+- Arc/Info ASCII and bounded nested ZIP/XYZ inputs are normalized to conventional
+  easting/northing and converted once to tiled Deflate Float32 GeoTIFFs under
+  `pl_gugik_nmt1_evrf2007`. Per-file sidecars retain URL, sheet, year, source
+  byte count, hash and bounds; a catalogue index enables offline cache use.
+- Source axes are matched to the WFS footprint. This is necessary because the
+  inspected files did not use one consistent apparent X/Y convention.
+- Request-aligned mosaics provide interpolation neighbours across official sheet
+  boundaries. An exact four-sheet junction returned two primary samples with no
+  fallback after this fix.
+- The four live 2025 source files totalled 132.7 MiB and completed discovery,
+  parallel transfer and conversion in about 54.6 s. An offline repeat used four
+  cache files in 546 ms; a nearby one-sheet repeat took 120 ms.
+- **412 focused Release checks pass.** The main application build/UI check is
+  left for the user. Full details are in
+  [the source-sheet report](poland-gugik-source-sheets.md).
+
 ## Slovakia and Wallonia national range COGs, 2026-09-23
 
 - `sk.gku.dmr5.etrs89h` exposes the converted 128.3 GB national Slovakia DMR
@@ -314,13 +370,13 @@ subsequently extended by the COG/STAC work recorded above.
 
 ## Critical open issue: distant terrain
 
-[Distant-terrain elevation acquisition](distant-terrain-elevation.md) currently
-reuses the detailed dataset's download resolution for roughly 32 x 32 km tiles.
-Local averaging does not reduce downloads. Each service needs an explicitly
-validated coarse request profile and separate cache identity, or must be denied
-in distant mode. The linked review records current call paths, size estimates,
-late NoData-fill limits and required preflight checks. **Not implemented yet**;
-ordinary country-service validation does not establish distant-terrain suitability.
+[Distant-terrain elevation acquisition](distant-terrain-elevation.md) still
+reuses each approved dataset's ordinary download profile for roughly 32 x 32 km
+tiles. Local averaging does not reduce downloads. An explicit eligibility gate
+now denies unreviewed sources; only World HGT and GEDTM30 are approved. The
+remaining task is to validate and configure any source-specific coarse request
+profile, cache identity and preflight budget. Ordinary detailed-tile validation
+does not establish distant-terrain suitability.
 
 ## Height selector and local-file preparation, 2026-09-19
 
@@ -384,8 +440,8 @@ for reproduced failures, configuration, fixtures and remaining limits.
   9 requests took 14.5-15.5 s versus 20 requests at 24.0-24.4 s for 512, with
   79% more downloaded bytes. Recommend 1024; catalogue remains 512 pending the
   configuration change. See the linked validation report for numeric differences.
-- Distant-terrain suitability remains unvalidated and its restriction remains
-  unimplemented: see the [critical open issue](distant-terrain-elevation.md).
+- Distant-terrain suitability remained unvalidated and unrestricted at this
+  historical milestone. The current eligibility gate is described above.
 
 ## Original review: scope and result
 
@@ -493,12 +549,13 @@ claim that filtering is broken.
 These values describe `src/tsre/geo/elevation-datasets.json` at the reviewed
 revision. Resolution means configured raster/output spacing; this review did
 not independently re-establish native source resolution or service coverage.
-All entries use TIFF except Polish EVRF2007, which uses ASCII Grid.
+Normal service providers return TIFF except where older sections say otherwise.
+Polish EVRF2007 imports original ASCII or ZIP/XYZ sheets and stores local TIFF.
 
 | Dataset ID | Area / product | Provider | EPSG | Spacing | Core pixels | Connections |
 |---|---|---|---:|---:|---:|---:|
 | `pl.gugik.nmt1.kron86` | Poland NMT, KRON86 | WCS 2.0.1 | 2180 | 1 m | 1024 | 4 |
-| `pl.gugik.nmt1.evrf2007` | Poland NMT, EVRF2007 | WCS 2.0.1 | 2180 | 1 m | 512 | 1 |
+| `pl.gugik.nmt1.evrf2007` | Poland NMT, EVRF2007 | WFS source catalogue | 2180 | 1 m | source sheets | 4 |
 | `cz.cuzk.dmr4g` | Czech DMR 4G, EVRS | WCS 2.0.1 | 3045 | 5 m | 256 | 1 |
 | `cz.cuzk.dmr5g` | Czech DMR 5G, Bpv | ArcGIS | 25833 | 2 m | 1024 | 4 |
 | `us.usgs.3dep.conus` | US 3DEP CONUS, NAVD88 | ArcGIS | 3857 | 2 map m | 1024 | 4 |

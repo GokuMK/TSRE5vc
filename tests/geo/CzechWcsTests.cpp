@@ -91,7 +91,7 @@ void runCzechWcsTests(const std::function<void(bool,const char*)> &check) {
         check(valid && maxError < .001 && xy.x == alias.x && xy.y == alias.y,
               "UTM 33N agrees with independent PROJ within 1 mm and normalizes N-E axis order");
     }
-    const auto catalog = datasets(error);
+    const auto catalog = builtInDatasets(error);
     const auto found = std::find_if(catalog.begin(),catalog.end(),[](const Dataset &d) { return d.id == "cz.cuzk.dmr4g"; });
     check(found != catalog.end(),"Czech source is supplied by the common catalogue");
     if (found == catalog.end()) return;

@@ -6,6 +6,9 @@
 > this milestone rather than the entire current implementation.
 
 This records the original Polish milestone. The later
+[GUGiK source-sheet provider](poland-gugik-source-sheets.md) supersedes the
+EVRF2007 ASCII-WCS acquisition described below while retaining the dataset ID.
+The KRON86 WCS path remains current. The later
 [Stage A Czech WCS validation](czech-wcs-validation.md) extends the catalogue,
 TIFF reader and supported CRSs. Its validation section supersedes this report's
 test status for the current branch; the main application needs a fresh user build.
@@ -102,9 +105,11 @@ manual Y offset applies once after sampling; it is not a datum transformation.
 - `ElevationDownload`: bounded batches of up to four Qt network replies, with
   per-request limits and cancellation of every outstanding reply.
 - `elevation-datasets.json`: versioned built-in dataset catalogue embedded as a
-  Qt resource. Endpoint, coverage, format, axes, CRS, grid, block size, datum and
-  zero policy are data, not terrain-generation branches. It is not yet a user
-  catalogue editor or a promise of universal WCS compatibility.
+  Qt resource, with optional user additions and overrides loaded from
+  `assets/geo/elevation-datasets.json`. Endpoint, coverage, format, axes, CRS,
+  grid, block size, datum and zero policy are data, not terrain-generation
+  branches. There is no catalogue editor or promise of universal provider
+  compatibility.
 - `HeightWindow`: prepares target geographic points with TSRE's existing route
   converter, runs loading/sampling in a worker, previews the result and exposes
   only complete heights to the terrain library. Sampling never performs HTTP.

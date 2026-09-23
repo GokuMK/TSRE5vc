@@ -23,6 +23,9 @@ are not a current specification.
      root-STAC/range-COG assets, and indexed user-managed
      GeoTIFF directories are implemented; other
      GeoTIFF families still require profile validation.
+   - Indexed online source sheets: [Poland GUGiK EVRF2007](poland-gugik-source-sheets.md).
+     This describes the generic WFS asset catalogue, direct ASCII/ZIP acquisition,
+     one-time local GeoTIFF conversion and cache behavior.
    - Current national-source research: [Sweden, Wallonia and France](sweden-wallonia-france-research.md).
      This records the authenticated Swedish STAC path, Wallonia's original bulk
      delivery limitation and later COG integration, and the French MNT LiDAR HD
@@ -68,11 +71,11 @@ Paths below are relative to the repository root.
 
 | Area | Files / entry points |
 |---|---|
-| Catalogue | `src/tsre/geo/elevation-datasets.json`; `Dataset`, `datasets()` and `parseDatasets()` in `ElevationSource.h/.cpp` |
-| Providers/cache | `ElevationSource.cpp`: `FileHgtSource`, WCS/WMS/ArcGIS service providers, `RasterSource`, `generate()`; `CogElevationSource.cpp`: projected, single-file range-COG, STAC and indexed local-directory GeoTIFF sources |
+| Catalogue | Built-in `src/tsre/geo/elevation-datasets.json`, optional user `assets/geo/elevation-datasets.json`; `Dataset`, `datasets()`, `builtInDatasets()`, `parseDatasets()` and `mergeDatasets()` in `ElevationSource.h/.cpp` |
+| Providers/cache | `ElevationSource.cpp`: `FileHgtSource`, WCS/WMS/ArcGIS service providers, `RasterSource`, `generate()`; `CogElevationSource.cpp`: projected, single-file range-COG, STAC and indexed local-directory GeoTIFF sources; `WfsElevationSource.cpp`: WFS sheet discovery, ASCII/XYZ import and persistent converted GeoTIFF cache |
 | Requests/grid checks | `coverageUrl()`, `imageServerUrl()`, `validateRasterGrid()`, `cacheRelativePath()` |
 | CRS conversion | `src/tsre/geo/CrsTransform.h/.cpp`: small compiled-in forward transforms, constructed once per source; see `crs-transform.md` |
-| Numeric raster | `src/tsre/geo/ElevationRaster.h/.cpp`: `Raster`, readers, sampling and `fillNoData()`; `ElevationTiffCodec.cpp`: bounded uncompressed/LZW/Deflate block decoding, Int16/Int32/Float32/Float64 conversion and predictors; `FileHgtSource`: direct signed-16-bit HGT sampling with a bounded shared tile cache |
+| Numeric raster | `src/tsre/geo/ElevationRaster.h/.cpp`: `Raster`, ASCII/XYZ/HGT readers, axis normalization, sampling and `fillNoData()`; `ElevationTiffCodec.cpp`: bounded uncompressed/LZW/Deflate block decoding, Int16/Int32/Float32/Float64 conversion, predictors and the narrow local tiled-GeoTIFF writer; `FileHgtSource`: direct signed-16-bit HGT sampling with a bounded shared tile cache |
 | HTTP/auth | `src/tsre/geo/ElevationDownload.h/.cpp`: `downloadWave()`, strict `downloadRangeWave()`; query and Basic credentials added only inside transport |
 | Height UI | `src/tsre/geo/HeightWindow.cpp`; 10 km location filter via `nearDataset()` |
 | Settings | `src/settings/SettingsRegistration.cpp`: dynamic source options and reference-valued setting |
@@ -83,8 +86,45 @@ Paths below are relative to the repository root.
 Actual C++ common type is `Elevation::Raster` (called ElevationRaster in design
 diagrams). Acquisition prepares local data; height sampling does not perform HTTP.
 Source IDs are dynamic Settings reference values, so new entries need no hardcoded
-Settings enum changes. Invalid objects are skipped with diagnostics, while invalid
-JSON/top-level structure rejects the file. Missing selected sources fail explicitly.
+Settings enum changes. Invalid objects are skipped with diagnostics. Missing
+selected sources fail explicitly.
+
+## User elevation catalogue
+
+Users may add or override elevation sources in
+`assets/geo/elevation-datasets.json`. This stable local path is deliberately
+outside `appdata/<Game::AppDataVersion>` so a TSRE data-version update does not
+move or replace it. The file is optional and is not shipped or tracked by TSRE.
+
+It uses the same top-level format and dataset schema as the built-in catalogue:
+
+```json
+{
+  "version": 1,
+  "datasets": [
+    {
+      "id": "example.my-source",
+      "name": "My elevation source"
+    }
+  ]
+}
+```
+
+Copy a similar complete built-in entry and change its ID, service details,
+bounds and notes. The short example above only illustrates the enclosing shape;
+it is not a valid source by itself. An optional `defaultFileSource` may name a
+valid built-in or user-defined file source.
+
+Built-ins load first. A valid user entry with the same ID replaces that entry at
+the same list position; a new ID is appended. Invalid user objects are reported
+and skipped, so an invalid override leaves the built-in entry available. A
+malformed or unreadable user file also leaves the complete built-in catalogue
+available. The Height window information panel identifies the selected entry as
+`Built-in` or `User-defined`.
+
+Authentication values remain in the secret profile. User catalogue entries may
+refer to secret keys through the normal `authentication` fields, but must not
+contain API keys, usernames or passwords directly.
 
 ## Adding a WCS source
 
@@ -108,6 +148,7 @@ JSON/top-level structure rejects the file. Missing selected sources fail explici
    | `blockPixels`, `concurrentRequests` | Core size 16..1024, concurrency 1..4; requests include a one-pixel halo on every side |
    | `allowExpandedGrid` | Opt-in bounded server-expanded envelope; retains exact dimensions/CRS and actual returned transform; do not turn it on to conceal an unexplained mismatch |
    | `zeroIsNoData`, `noDataPolicy` | Default valid zero; policy `fallback` or explicit `fill`; fill does not fabricate wholly empty regions or bridge unavailable downloads |
+   | `fallbackApproved`, `distantTerrainApproved` | Explicit UI eligibility flags; both default to false. Distant terrain currently offers only World HGT and GEDTM30 |
    | `authentication` | Secret references only: `basic-api-key`, `query-api-key` with `parameter`, or STAC `basic-user-password` with `usernameSecret` and `passwordSecret`; see Settings and Denmark/Sweden notes |
    | `notes`, `attribution` | Product caveats, live findings, unresolved limits and provenance |
 
@@ -134,11 +175,14 @@ axes and returns expanded envelopes. See individual service notes for evidence.
   projected-resolution overview selection, Float32 horizontal predictor 2 and
   external block tables. This is
   still a narrow numeric elevation profile; RGB and arbitrary TIFF layouts are absent.
-- HTTP responses are bounded to 32 MiB; TIFF dimensions to 16 Mi pixels; requests
+- Ordinary service responses are bounded to 32 MiB. WFS-discovered source sheets
+  allow 96 MiB compressed downloads and 256 MiB bounded ZIP expansion. TIFF dimensions remain limited to 16 Mi pixels; requests
   to 2048 blocks; fill mosaics to 32 Mi pixels. These are emergency guards, not
   sufficient distant-terrain budgeting. Check source constants before changing them.
 - Coarser output-vertex sampling currently reduces neither acquisition resolution
-  nor download volume. No distant-specific profile/restriction is implemented.
+  nor download volume. Distant editing is restricted to entries with
+  `distantTerrainApproved: true`; per-source coarse acquisition profiles remain
+  future work.
 - Cache identity hashes the dataset definition except `noDataPolicy`. Changing
   notes or concurrency can therefore also select a new cache directory. Keys are
   resolved separately and never belong in that definition or cached request URLs.
@@ -186,7 +230,7 @@ This remains an opt-in live/cache probe. `SIDE=2048` creates exactly 4,194,304
 points and is useful for detecting work accidentally repeated per output point.
 
 After a change, run appropriate standalone checks and the relevant build when
-allowed. The current elevation milestone passes **393 standalone checks**. Bounded
+allowed. The current elevation milestone passes **419 standalone checks**. Bounded
 live probes returned 171.6 m in Vienna from one Austria internal COG block and
 540.3 m in Bern from one current Swiss 2 m tile; both cache repeats used no data
 download. Luxembourg returned 306.786 m from one 1 m Float64 overview block;
@@ -213,6 +257,11 @@ France MNT LiDAR HD returned 35.6531 m and 35.3925 m near Paris from one
 anonymous 1 m numeric-WMS block. Its repeat was cache-only in 72 ms. A bounded
 four-block probe downloaded three blocks concurrently in 7.1 s and produced
 1,024 primary samples without fallback.
+
+Poland EVRF2007 now uses the official WFS source-sheet catalogue instead of the
+slow ASCII WCS. A four-sheet junction probe downloaded and converted 132.7 MiB
+in about 54.6 s. Its offline repeat returned two primary heights with no fallback
+in 546 ms; a one-sheet repeat took 120 ms. See the dedicated source-sheet report.
 
 ## File-source status
 

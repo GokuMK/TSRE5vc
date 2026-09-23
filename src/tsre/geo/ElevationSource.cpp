@@ -1,5 +1,6 @@
 #include <tsre/geo/ElevationSource.h>
 #include <tsre/geo/CogElevationSource.h>
+#include <tsre/geo/WfsElevationSource.h>
 #include <tsre/geo/ElevationDownload.h>
 #include <mzip/miniz/miniz.h>
 
@@ -648,11 +649,43 @@ private:
 };
 }
 
-QVector<Dataset> datasets(QString &error) {
+QVector<Dataset> builtInDatasets(QString &error) {
     error.clear();
     QFile file(QStringLiteral(":/geo/elevation-datasets.json"));
     if (!file.open(QIODevice::ReadOnly)) { error = QStringLiteral("Elevation catalogue is missing"); return {}; }
     return parseDatasets(file.readAll(),error);
+}
+QString userDatasetCataloguePath() {
+    return QStringLiteral("assets/geo/elevation-datasets.json");
+}
+QVector<Dataset> datasets(QString &error) {
+    error.clear();
+    QFile builtIn(QStringLiteral(":/geo/elevation-datasets.json"));
+    if (!builtIn.open(QIODevice::ReadOnly)) {
+        error = QStringLiteral("Elevation catalogue is missing"); return {};
+    }
+    const QByteArray builtInJson=builtIn.readAll();
+    const QString path=userDatasetCataloguePath();
+    const QFileInfo info(path);
+    if(!info.exists())return parseDatasets(builtInJson,error);
+    if(!info.isFile()||info.size()<=0||info.size()>8*1024*1024){
+        QString builtInError;auto result=parseDatasets(builtInJson,builtInError);
+        error=QStringLiteral("User elevation catalogue %1 has an invalid file size or type")
+            .arg(QDir::toNativeSeparators(path));
+        if(!builtInError.isEmpty())error=QStringLiteral("Built-in elevation catalogue: %1\n%2")
+            .arg(builtInError,error);
+        return result;
+    }
+    QFile user(path);
+    if(!user.open(QIODevice::ReadOnly)){
+        QString builtInError;auto result=parseDatasets(builtInJson,builtInError);
+        error=QStringLiteral("Cannot read user elevation catalogue: %1")
+            .arg(QDir::toNativeSeparators(path));
+        if(!builtInError.isEmpty())error=QStringLiteral("Built-in elevation catalogue: %1\n%2")
+            .arg(builtInError,error);
+        return result;
+    }
+    return mergeDatasets(builtInJson,user.readAll(),error);
 }
 QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
     error.clear();
@@ -740,14 +773,16 @@ QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
         d.concurrentRequests = o.value("concurrentRequests").toInt(1);
         const auto origin = o.value("origin").toArray(), box = o.value("bounds").toArray();
         const bool file = d.provider == "file";
-        if ((!file && origin.size() != 2) || box.size() != 4) {
+        const bool wfsCatalog = d.provider == "wfs-file-catalog";
+        if ((!file && !wfsCatalog && origin.size() != 2) || box.size() != 4) {
             rejected << QStringLiteral("Skipped elevation dataset %1: invalid grid definition").arg(label); continue;
         }
-        if (!file) { d.originX = origin.at(0).toDouble(); d.originY = origin.at(1).toDouble(); }
+        if (!file && !wfsCatalog) { d.originX = origin.at(0).toDouble(); d.originY = origin.at(1).toDouble(); }
         d.minX = box.at(0).toDouble(); d.minY = box.at(1).toDouble();
         d.maxX = box.at(2).toDouble(); d.maxY = box.at(3).toDouble();
         d.zeroIsNoData = o.value("zeroIsNoData").toBool();
         d.fallbackApproved = o.value("fallbackApproved").toBool();
+        d.distantTerrainApproved = o.value("distantTerrainApproved").toBool();
         d.noDataPolicy = o.value("noDataPolicy").toString(QStringLiteral("fallback"));
         const bool wcs2 = d.provider == "wcs-2.0.1";
         const bool wcs1 = d.provider == "wcs-1.0.0";
@@ -812,6 +847,28 @@ QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
             && !o.contains("authentication") && !o.contains("download");
         const bool validFile = validHgt || validProjectedTiff || validSingleCog
             || validStacTiff || validDirectoryTiff;
+        const auto catalog=o.value("catalog").toObject();
+        const QRegularExpression featureTypePattern(catalog.value("featureTypePattern").toString());
+        bool acceptedFormats=true;
+        for(const auto value:catalog.value("acceptedFormats").toArray())
+            acceptedFormats&=value.isString()&&!value.toString().trimmed().isEmpty();
+        const bool validWfsCatalog=wfsCatalog&&d.format=="image/tiff"
+            &&d.resolution>0&&relativeDirectory.match(d.directory).hasMatch()
+            &&!o.contains("authentication")&&catalog.value("featureTypePattern").isString()
+            &&featureTypePattern.isValid()&&!featureTypePattern.pattern().isEmpty()
+            &&featureTypePattern.pattern().size()<=256
+            &&safeProperty.match(catalog.value("sheetField").toString()).hasMatch()
+            &&safeProperty.match(catalog.value("yearField").toString()).hasMatch()
+            &&safeProperty.match(catalog.value("formatField").toString()).hasMatch()
+            &&safeProperty.match(catalog.value("resolutionField").toString()).hasMatch()
+            &&safeProperty.match(catalog.value("urlField").toString()).hasMatch()
+            &&catalog.value("acceptedFormats").isArray()
+            &&!catalog.value("acceptedFormats").toArray().isEmpty()
+            &&acceptedFormats
+            &&(catalog.value("sourceAxisOrder").toString()=="northing-easting"
+                ||catalog.value("sourceAxisOrder").toString()=="easting-northing"
+                ||catalog.value("sourceAxisOrder").toString()=="catalog-detected")
+            &&catalog.value("wfsAxisOrder").toString()=="northing-easting";
         const bool validCoordinateTransform = d.coordinateTransform.isEmpty()
             ? d.epsg != 27700
             : d.epsg == 27700 && d.coordinateTransform == "ostn15-lite"
@@ -821,7 +878,7 @@ QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
                 && d.transformAssetUrl.scheme() == "https"
                 && !d.transformAssetUrl.host().isEmpty();
         if (d.id.isEmpty() || ids.contains(d.id) || d.id.contains('/') || d.id.contains('\\') || d.id.contains("..")
-                || (!wcs && !arcgis && !wms && !validFile)
+                || (!wcs && !arcgis && !wms && !validFile && !validWfsCatalog)
                 || !validCoordinateTransform
                 || (o.contains("allowExpandedGrid") && !o.value("allowExpandedGrid").isBool())
                 || (o.contains("requestFormat") && (!o.value("requestFormat").isString() || d.requestFormat.isEmpty()))
@@ -830,6 +887,7 @@ QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
                 || (o.contains("scaleAxisY") && !o.value("scaleAxisY").isString())
                 || (o.contains("noDataPolicy") && !o.value("noDataPolicy").isString())
                 || (o.contains("fallbackApproved") && !o.value("fallbackApproved").isBool())
+                || (o.contains("distantTerrainApproved") && !o.value("distantTerrainApproved").isBool())
                 || (d.noDataPolicy != "fallback" && d.noDataPolicy != "fill")
                 || (o.contains("license") && !o.value("license").isString())
                 || (o.contains("information") && !o.value("information").isString())
@@ -842,7 +900,7 @@ QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
                 || (wcs1 && d.coverage.isEmpty())
                 || (arcgis && d.format != "image/tiff")
                 || (wms && (d.coverage.isEmpty() || d.format != "image/tiff"))
-                || (!file && (d.blockPixels < 16 || d.blockPixels > 1024))
+                || (!file && !wfsCatalog && (d.blockPixels < 16 || d.blockPixels > 1024))
                 || d.concurrentRequests < 1 || d.concurrentRequests > 4
                 || d.maxX <= d.minX || d.maxY <= d.minY || !Geo::CrsTransform::supports(d.epsg)
                 || (!file && d.format != "image/tiff" && d.format != "image/x-aaigrid")) {
@@ -867,6 +925,65 @@ QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
     error = rejected.join('\n');
     return result;
 }
+QVector<Dataset> mergeDatasets(const QByteArray &builtInJson,
+                               const QByteArray &userJson,QString &error){
+    error.clear();QString builtInError,userError;
+    QVector<Dataset> merged=parseDatasets(builtInJson,builtInError);
+    if(merged.isEmpty()&&!builtInError.isEmpty()){
+        error=QStringLiteral("Built-in elevation catalogue: %1").arg(builtInError);return {};
+    }
+
+    QJsonParseError documentError;
+    QJsonDocument userDocument=QJsonDocument::fromJson(userJson,&documentError);
+    bool hasUserDefault=false;QString userDefault;
+    QByteArray definitions=userJson;
+    if(documentError.error==QJsonParseError::NoError&&userDocument.isObject()){
+        QJsonObject object=userDocument.object();
+        hasUserDefault=object.contains("defaultFileSource");
+        if(hasUserDefault&&object.value("defaultFileSource").isString())
+            userDefault=object.value("defaultFileSource").toString();
+        object.remove("defaultFileSource");
+        definitions=QJsonDocument(object).toJson(QJsonDocument::Compact);
+    }
+    QVector<Dataset> user=parseDatasets(definitions,userError);
+    for(Dataset &dataset:user){dataset.userDefined=true;dataset.defaultFileSource=false;}
+
+    QMap<QString,int> positions;
+    for(int i=0;i<merged.size();++i)positions.insert(merged[i].id,i);
+    for(Dataset dataset:user){
+        const auto existing=positions.constFind(dataset.id);
+        if(existing==positions.cend()){
+            positions.insert(dataset.id,merged.size());merged.push_back(std::move(dataset));
+        }else{
+            const bool wasDefault=merged[*existing].defaultFileSource;
+            dataset.defaultFileSource=wasDefault&&dataset.provider=="file";
+            merged[*existing]=std::move(dataset);
+        }
+    }
+
+    QString defaultError;
+    if(hasUserDefault){
+        const auto selected=positions.constFind(userDefault);
+        if(userDefault.isEmpty()||selected==positions.cend()||merged[*selected].provider!="file")
+            defaultError=QStringLiteral("User default elevation file source is missing or invalid: %1")
+                .arg(userDefault);
+        else{
+            for(Dataset &dataset:merged)dataset.defaultFileSource=false;
+            merged[*selected].defaultFileSource=true;
+        }
+    }
+    if(std::none_of(merged.cbegin(),merged.cend(),[](const Dataset &dataset){return dataset.defaultFileSource;}))
+        for(Dataset &dataset:merged)if(dataset.provider=="file"){
+            dataset.defaultFileSource=true;break;
+        }
+
+    QStringList errors;
+    if(!builtInError.isEmpty())errors<<QStringLiteral("Built-in elevation catalogue: %1").arg(builtInError);
+    if(!userError.isEmpty())errors<<QStringLiteral("User elevation catalogue %1: %2")
+        .arg(QDir::toNativeSeparators(userDatasetCataloguePath()),userError);
+    if(!defaultError.isEmpty())errors<<defaultError;
+    error=errors.join('\n');return merged;
+}
 QString defaultFileSourceId(const QVector<Dataset> &catalogue) {
     for (const auto &dataset : catalogue) if (dataset.defaultFileSource) return dataset.id;
     for (const auto &dataset : catalogue) if (dataset.provider == "file") return dataset.id;
@@ -877,6 +994,21 @@ QString defaultFallbackSourceId(const QVector<Dataset> &catalogue) {
         if (dataset.defaultFileSource && dataset.fallbackApproved) return dataset.id;
     for (const auto &dataset : catalogue)
         if (dataset.fallbackApproved) return dataset.id;
+    return {};
+}
+QString defaultDistantTerrainSourceId(const QVector<Dataset> &catalogue) {
+    for (const auto &dataset : catalogue)
+        if (dataset.defaultFileSource && dataset.distantTerrainApproved) return dataset.id;
+    for (const auto &dataset : catalogue)
+        if (dataset.distantTerrainApproved) return dataset.id;
+    return {};
+}
+QString defaultDistantTerrainFallbackSourceId(const QVector<Dataset> &catalogue) {
+    for (const auto &dataset : catalogue)
+        if (dataset.defaultFileSource && dataset.fallbackApproved
+                && dataset.distantTerrainApproved) return dataset.id;
+    for (const auto &dataset : catalogue)
+        if (dataset.fallbackApproved && dataset.distantTerrainApproved) return dataset.id;
     return {};
 }
 bool nearDataset(const Dataset &d, const QVector<Point> &area, double bufferMetres) {
@@ -1054,6 +1186,8 @@ Result generate(const QString &root, const QString &id, const QVector<Point> &po
         return result;
     }
     const auto createSource = [&](const Dataset &dataset) -> std::unique_ptr<Source> {
+        if (dataset.provider == "wfs-file-catalog")
+            return createWfsElevationSource(root,dataset,targetSpacing,result.report);
         if (dataset.provider == "file" && dataset.format == "geotiff")
             return createCogElevationSource(root,dataset,result.report,secrets);
         if (dataset.provider == "file")

@@ -464,6 +464,86 @@ bool readAsciiGrid(const QByteArray &bytes, int epsg, Raster &output, QString &e
     return true;
 }
 
+bool swapRasterAxes(Raster &raster, QString &error) {
+    error.clear();
+    if (!dimensions(raster.width,raster.height)
+            || raster.values.size()!=qint64(raster.width)*raster.height
+            || raster.transform[1]<=0 || raster.transform[5]>=0
+            || raster.transform[2]!=0 || raster.transform[4]!=0
+            || std::abs(raster.transform[1]+raster.transform[5])>1e-8)
+        return fail(error,"Cannot swap axes of a non-square regular raster grid");
+    Raster converted;
+    converted.width=raster.height;converted.height=raster.width;
+    converted.epsg=raster.epsg;converted.hasNoData=raster.hasNoData;
+    converted.noData=raster.noData;
+    const double step=raster.transform[1];
+    converted.transform={{raster.transform[3]+raster.height*raster.transform[5],
+                          step,0,
+                          raster.transform[0]+raster.width*step,0,-step}};
+    converted.values.resize(raster.values.size());
+    for(int sourceRow=0;sourceRow<raster.height;++sourceRow)
+        for(int sourceColumn=0;sourceColumn<raster.width;++sourceColumn){
+            const int destinationRow=raster.width-1-sourceColumn;
+            const int destinationColumn=raster.height-1-sourceRow;
+            converted.values[destinationRow*converted.width+destinationColumn]
+                =raster.values[sourceRow*raster.width+sourceColumn];
+        }
+    raster=std::move(converted);
+    return true;
+}
+
+bool readXyzGrid(const QByteArray &bytes, int epsg, double resolution,
+                 bool axisSwap, Raster &output, QString &error) {
+    error.clear();
+    if(bytes.isEmpty()||bytes.size()>256*1024*1024||!std::isfinite(resolution)
+            ||resolution<=0)
+        return fail(error,"Invalid XYZ grid size or resolution");
+    Tokens tokens{bytes};double minX=std::numeric_limits<double>::infinity();
+    double minY=minX,maxX=-minX,maxY=-minX;qint64 count=0;
+    for(;;){
+        const auto first=tokens.next();if(first.empty())break;
+        const auto second=tokens.next(),third=tokens.next();double a,b,z;
+        if(!number(first,a)||!number(second,b)||!number(third,z)
+                ||!std::isfinite(a)||!std::isfinite(b)
+                ||(std::isfinite(z)&&std::abs(z)>std::numeric_limits<float>::max()))
+            return fail(error,"Invalid XYZ height data");
+        const double x=axisSwap?b:a,y=axisSwap?a:b;
+        minX=std::min(minX,x);maxX=std::max(maxX,x);
+        minY=std::min(minY,y);maxY=std::max(maxY,y);++count;
+        if(count>MaxPixels)return fail(error,"XYZ grid exceeds 16 million points");
+    }
+    if(count<1)return fail(error,"Empty XYZ height grid");
+    const qint64 width=std::llround((maxX-minX)/resolution)+1;
+    const qint64 height=std::llround((maxY-minY)/resolution)+1;
+    if(width<=0||height<=0||width>std::numeric_limits<int>::max()
+            ||height>std::numeric_limits<int>::max()
+            ||!dimensions(int(width),int(height))||count>width*height)
+        return fail(error,"Invalid XYZ grid dimensions");
+    Raster raster;raster.width=int(width);raster.height=int(height);raster.epsg=epsg;
+    raster.transform={{minX-resolution/2,resolution,0,maxY+resolution/2,0,-resolution}};
+    raster.hasNoData=true;raster.noData=-9999;
+    raster.values.fill(std::numeric_limits<float>::quiet_NaN(),width*height);
+    Tokens secondPass{bytes};qint64 stored=0;
+    for(;;){
+        const auto first=secondPass.next();if(first.empty())break;
+        const auto second=secondPass.next(),third=secondPass.next();double a,b,z;
+        if(!number(first,a)||!number(second,b)||!number(third,z))
+            return fail(error,"Invalid XYZ height data");
+        const double x=axisSwap?b:a,y=axisSwap?a:b;
+        const qint64 column=std::llround((x-minX)/resolution);
+        const qint64 row=std::llround((maxY-y)/resolution);
+        if(column<0||row<0||column>=raster.width||row>=raster.height
+                ||std::abs(x-(minX+column*resolution))>resolution*1e-5
+                ||std::abs(y-(maxY-row*resolution))>resolution*1e-5)
+            return fail(error,"XYZ points do not follow the configured regular grid");
+        float &cell=raster.values[row*raster.width+column];
+        if(std::isfinite(cell))return fail(error,"Duplicate XYZ grid point");
+        cell=float(z);++stored;
+    }
+    if(stored!=count)return fail(error,"Truncated XYZ height data");
+    output=std::move(raster);return true;
+}
+
 bool readHgt(const QByteArray &bytes, int lat, int lon, Raster &output, QString &error) {
     error.clear();
     const int side = int(std::sqrt(double(bytes.size()/2)));

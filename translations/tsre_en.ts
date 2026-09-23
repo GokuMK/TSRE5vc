@@ -10085,6 +10085,18 @@ Cancelled. No elevation heights were applied.</translation>
         <source>Native/request resolution</source>
         <translation>Native/request resolution</translation>
     </message>
+    <message id="geo.elevation.info.catalogue">
+        <source>Catalogue</source>
+        <translation>Catalogue</translation>
+    </message>
+    <message id="geo.elevation.info.user.defined">
+        <source>User-defined</source>
+        <translation>User-defined</translation>
+    </message>
+    <message id="geo.elevation.info.built.in">
+        <source>Built-in</source>
+        <translation>Built-in</translation>
+    </message>
     <message id="geo.elevation.info.datum">
         <source>Vertical datum</source>
         <translation>Vertical datum</translation>

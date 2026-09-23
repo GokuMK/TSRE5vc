@@ -40,6 +40,13 @@ bool readGeoTiff(const QByteArray &bytes, Raster &raster, QString &error);
 // Bare GeoTIFF or a WCS multipart TIFF with its accompanying GML CRS.
 bool readWcsTiff(const QByteArray &bytes, int expectedEpsg, Raster &raster, QString &error);
 bool readAsciiGrid(const QByteArray &bytes, int epsg, Raster &raster, QString &error);
+// Convert a regular grid whose file X/Y axes are the CRS's second/first axes
+// into TSRE's conventional projected X=easting, Y=northing layout.
+bool swapRasterAxes(Raster &raster, QString &error);
+// Read an unheaded regular XYZ point grid. axisSwap accepts formal CRS axis
+// order (northing, easting, height) used by some national download products.
+bool readXyzGrid(const QByteArray &bytes, int epsg, double resolution,
+                 bool axisSwap, Raster &raster, QString &error);
 bool readHgt(const QByteArray &bytes, int latitude, int longitude,
              Raster &raster, QString &error);
 // Preserve the existing HGT interpolation for valid samples while detecting voids.
