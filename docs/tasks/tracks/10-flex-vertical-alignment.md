@@ -19,12 +19,12 @@ system-wide full-frame correction and headless placement/reversal regression
 coverage. A preliminary author check looked correct, but this is not visual
 acceptance: independent route testing is still required, especially for
 joined/reversed vectors and existing MSTS routes with nonzero third-angle
-values. Milestone 2 exact endpoint alignment remains enabled for separated rail
-companions. Contiguous road lanes share the main road grade instead, keeping
-their wide profiles on one rigid plane. Visual testing accepted the resulting
-continuous lateral lane surface. Successive curved, elevated road objects do
-not join perfectly, but this matches the known limitation of rigid MSTS static
-road shapes and is not treated as a regression or milestone blocker.
+values. Milestone 2 exact endpoint alignment is enabled for both rail and road
+companions. The former road-only shared-grade compromise was removed by
+Task 11: procedurally rendered DynTracks now bake their complete non-yaw
+orientation into the generated path and rebuild cross-sections without
+rigid-plane bank. This lets adjacent lanes retain exact, equal-height
+persisted endpoints.
 
 Implementation notes:
 
@@ -285,25 +285,12 @@ editor. Headless coverage checks both sides of a rotated 60-degree curve at
 100 promille, including a tile crossing, exact endpoint height, and the
 expected inner/outer grade ordering.
 
-That exact-height rule is appropriate for separated railway tracks, but it is
-visually harmful for contiguous road lanes: the different radii produce
-slightly different pitches, putting adjacent lane meshes on different rigid
-planes. Road companions therefore copy the main road's grade. Their centerline
-end heights may differ slightly on a curved grade, which is an intentional
-milestone compromise to preserve the joined road surface without introducing a
-new swept-road elevation generator.
-
-Visual acceptance confirmed that left, middle, and right road lanes form one
-consistent surface with this policy. A small mismatch can remain where one
-curved, elevated road object ends and the next begins because each object is a
-separately transformed rigid shape. Existing MSTS static road shapes exhibit
-the same limitation. As a small visual mitigation, elevated curved road
-DynTracks rendered from ORTS profiles add a 25 cm end-only mesh apron, lowered
-2 mm at its extra row. This does not alter the RDB endpoint, snapping, or saved
-track geometry. It merely underlaps the next road surface while avoiding a
-coplanar overlap. Removing the underlying limitation requires the deferred
-roll-free swept-road model or finer shape subdivision and is outside this
-milestone.
+The same exact-height rule now applies to road lanes. Different companion
+radii still require different stored rigid pitches, but procedural renderers
+no longer apply those quaternions as one banked rigid mesh. They bake the
+residual rotation into the path, reconstruct every lateral/up frame against
+world up, and draw through a yaw-only object matrix. The temporary 25 cm
+road-end apron is no longer used by DynTrack rendering.
 
 ## Tests
 
@@ -335,9 +322,9 @@ directions.
 ### Milestone 2
 
 - Every rail companion meets its independently offset endpoint in XYZ.
-- Road companions share the main road grade so adjacent lane profiles remain
-  coplanar; small curved-grade centerline endpoint-height differences are
-  accepted for this milestone.
+- Road companions meet the same offset endpoint height as the main road;
+  procedural rendering, rather than persisted endpoint distortion, keeps their
+  generated lateral frames aligned.
 - Inner and outer curves use the correct height sign and do not exhibit the
   reported apparent Z-axis flip.
 - Main and companion section boundaries remain aligned.

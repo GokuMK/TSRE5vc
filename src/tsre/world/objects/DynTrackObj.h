@@ -60,6 +60,7 @@ private:
     int tex2;
     bool init;
     bool shapeOwned = false;
+    bool shapeUsesBakedPath = false;
     QVector<OglObj*> deferredOwnedShape;
     float elevation;
     float* jNodePosn = NULL;

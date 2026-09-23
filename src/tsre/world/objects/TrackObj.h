@@ -58,6 +58,7 @@ private:
     bool proceduralShapeInit = false;
     QVector<OglObj*> procShape;
     bool procShapeOwned = false;
+    bool proceduralShapeUsesBakedPath = false;
     bool roadShape = false;
     bool proceduralFallback = false;
 };

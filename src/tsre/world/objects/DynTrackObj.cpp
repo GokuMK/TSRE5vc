@@ -15,6 +15,7 @@
 #include <QElapsedTimer>
 #include <QSet>
 #include <tsre/math3d/GLMatrix.h>
+#include <tsre/math3d/Flex.h>
 #include <tsre/texture/TexLib.h>
 #include <tsre/math3d/Vector2f.h>
 
@@ -45,6 +46,20 @@
 namespace {
 constexpr float kCurveAngleEpsilon = 1e-6f;
 constexpr qint64 kSlowShapeOperationMs = 50;
+
+void fillYawOnlyDynTrackMatrix(const float *qDirection,
+        const float *position, float *matrix, float *yawQuaternion = nullptr) {
+    float q[4];
+    Quat::fill(q);
+    Quat::rotateY(q, q,
+            -Flex::TdbYawFromTrackQuaternion(qDirection));
+    if(yawQuaternion != nullptr)
+        Quat::copy(yawQuaternion, q);
+    Mat4::fromRotationTranslation(matrix, q,
+            const_cast<float*>(position));
+    Mat4::rotate(matrix, matrix, (float)M_PI, 0, -1, 0);
+}
+
 }
 
 DynTrackObj::DynTrackObj() {
@@ -146,13 +161,17 @@ void DynTrackObj::rotate(float x, float y, float z){
     this->position[0] = this->placedAtPosition[0] + vect[0];
     this->position[1] = this->placedAtPosition[1] - vect[1];
     this->position[2] = this->placedAtPosition[2] + vect[2];
-    
+
+    if(x != 0 || y != 0 || z != 0)
+        deleteVBO();
+
     setModified();
     setMartix();
 }
 
 void DynTrackObj::deleteVBO(){
     this->init = false;
+    shapeUsesBakedPath = false;
     if(shapeOwned){
         // Shape edits also arrive from mouse and wheel event handlers, where
         // the QOpenGLWidget context is not guaranteed to be current. Queue
@@ -229,28 +248,16 @@ void DynTrackObj::generateShape(){
             OrtsTrackProfileCatalog::find(resolution.templateName);
     if(resolution.backend == ProceduralTrackBackend::Procedural
             && routeProfile != nullptr){
-        bool hasCurve = false;
-        for(const TSection &section : tsections){
-            if(section.type == 1 && std::abs(section.angle) > kCurveAngleEpsilon){
-                hasCurve = true;
-                break;
-            }
-        }
-        const bool needsRoadEndApron = isRoad() && hasCurve
-                && std::abs(getElevation()) > kCurveAngleEpsilon;
-        // A pitched curve is still one rigid DynTrack object, so its wide road
-        // surface can leave a small visual gap before the next independently
-        // pitched object. Extend only the rendered ORTS-profile mesh slightly
-        // under its neighbour; the RDB endpoint and snapping geometry remain
-        // exact. The tiny drop prevents coplanar overlap from flickering.
-        const float roadEndExtension = needsRoadEndApron ? 0.25f : 0.0f;
-        const float roadEndDrop = needsRoadEndApron ? 0.002f : 0.0f;
+        const ProceduralPathTransform pathTransform =
+                ProceduralPath::bakedObjectTransform(
+                    qDirection,
+                    Flex::TdbYawFromTrackQuaternion(qDirection));
         QStringList diagnostics;
         QElapsedTimer generationTimer;
         generationTimer.start();
         const bool generated = OrtsTrackProfileRenderer::generate(
                 *routeProfile, tsections, shape, routePath, &diagnostics,
-                roadEndExtension, roadEndDrop);
+                0, 0, &pathTransform);
         const qint64 generationMs = generationTimer.elapsed();
         if(generationMs >= kSlowShapeOperationMs){
             qWarning() << "ORTS track profile generation took"
@@ -259,6 +266,7 @@ void DynTrackObj::generateShape(){
         }
         if(generated){
             shapeOwned = true;
+            shapeUsesBakedPath = true;
             init = true;
             static QSet<QString> warnedDiagnostics;
             for(const QString &diagnostic : diagnostics){
@@ -276,6 +284,10 @@ void DynTrackObj::generateShape(){
                        << diagnostic;
         ProceduralTrackPolicy::warnGenerationFailureOnce(resolution.templateName);
     } else if(resolution.backend == ProceduralTrackBackend::Procedural){
+        const ProceduralPathTransform pathTransform =
+                ProceduralPath::bakedObjectTransform(
+                    qDirection,
+                    Flex::TdbYawFromTrackQuaternion(qDirection));
         TrackShape *tsh = NULL;
         if(Game::trackDB != NULL && Game::trackDB->tsection != NULL){
             const auto shapeIterator =
@@ -299,18 +311,21 @@ void DynTrackObj::generateShape(){
                         angles[key] = -angles[key];
                 }
             }
-            ProceduralShape::GetShape(
-                    resolution.templateName, shape, tsh, angles);
+            ProceduralShape::GenerateShape(
+                    resolution.templateName, shape, tsh, angles,
+                    pathTransform);
         } else {
             // Live Flex DynTracks do not receive a TDB TrackShape/sectionIdx
             // until placement is finalized. Generate their one local path
             // directly from the same section list so the selected native
             // TSRE template is visible during preview.
-            ProceduralShape::GetShape(
-                    resolution.templateName, shape, tsections);
+            ProceduralShape::GenerateShape(
+                    resolution.templateName, shape, tsections,
+                    pathTransform);
         }
         if(!shape.isEmpty()){
-            shapeOwned = false;
+            shapeOwned = true;
+            shapeUsesBakedPath = true;
             init = true;
             return;
         }
@@ -319,6 +334,7 @@ void DynTrackObj::generateShape(){
 
     ProceduralMstsDyntrack::GenShape(shape, tsections);
     shapeOwned = true;
+    shapeUsesBakedPath = false;
     init = true;
 }
 
@@ -542,10 +558,18 @@ void DynTrackObj::set(QString sh, float* val) {
 }
 
 void DynTrackObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos, float* target, float fov, quint32 selectionId, int renderMode) {
-    if (!loaded) 
+    if (!loaded)
         return;
 
-    Mat4::multiply(gluu->mvMatrix, gluu->mvMatrix, matrix);
+    generateShape();
+    float bakedMatrix[16];
+    float *renderMatrix = matrix;
+    if(shapeUsesBakedPath) {
+        fillYawOnlyDynTrackMatrix(
+                qDirection, position, bakedMatrix);
+        renderMatrix = bakedMatrix;
+    }
+    Mat4::multiply(gluu->mvMatrix, gluu->mvMatrix, renderMatrix);
 
     gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
     
@@ -557,7 +581,6 @@ void DynTrackObj::render(GLUU* gluu, float lod, float posx, float posz, float* p
         pointer3d->render(selectionId);
     }
 
-    generateShape();
     // A generated shape is ready immediately. Draw it in this pass instead
     // of leaving the DynTrack absent for one complete frame.
     for(int i = 0; i < shape.size(); i++){
@@ -575,7 +598,16 @@ void DynTrackObj::pushRenderItems(float lod, float posx, float posz, float* play
     if (Game::currentRenderer == NULL)
         return;
 
-    Mat4::multiply(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, matrix);
+    generateShape();
+    float bakedMatrix[16];
+    float *renderMatrix = matrix;
+    if(shapeUsesBakedPath) {
+        fillYawOnlyDynTrackMatrix(
+                qDirection, position, bakedMatrix);
+        renderMatrix = bakedMatrix;
+    }
+    Mat4::multiply(Game::currentRenderer->mvMatrix,
+            Game::currentRenderer->mvMatrix, renderMatrix);
 
     if(Game::showWorldObjPivotPoints){
         if(pointer3d == NULL){
@@ -584,8 +616,6 @@ void DynTrackObj::pushRenderItems(float lod, float posx, float posz, float* play
         }
         pointer3d->pushRenderItem(selectionId);
     }
-
-    generateShape();
 
     for(int i = 0; i < shape.size(); i++){
         shape[i]->pushRenderItem(selectionId, lod);

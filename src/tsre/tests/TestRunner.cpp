@@ -43,6 +43,7 @@
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/math3d/Vector2f.h>
 #include <tsre/math3d/Vector3f.h>
+#include <tsre/procedural/ProceduralPath.h>
 #include <tsre/procedural/ProceduralTrackPolicy.h>
 #include <tsre/procedural/OrtsTrackProfile.h>
 #include <tsre/procedural/OrtsTrackProfileRenderer.h>
@@ -2157,6 +2158,108 @@ static int runOrtsProfileSuite(bool verbose) {
             constantCurveSides = outerEndpointFound && innerEndpointFound;
         }
         check(constantCurveSides, "curve-cross-section-handedness");
+
+        // DynTrack objects carry their complete MSTS orientation in the
+        // world quaternion. Procedural profiles draw with yaw only and bake
+        // the residual rotation into the path. The cross-section must then
+        // be rebuilt against global up instead of inheriting the bank of the
+        // object's original rigid X/Z plane.
+        ProceduralPathTransform pitchedPath;
+        pitchedPath.enabled = true;
+        pitchedPath.uprightCrossSections = true;
+        Quat::rotateX(pitchedPath.rotation, pitchedPath.rotation, 0.12f);
+        QVector<OrtsGeneratedProfileMesh> pitchedCurveMeshes;
+        const bool pitchedCurveBuilt = OrtsTrackProfileRenderer::buildMeshes(
+                *xmlProfile, curves, pitchedCurveMeshes,
+                nullptr, 0, 0, &pitchedPath)
+                && pitchedCurveMeshes.size() == 1;
+        bool pitchedCurveUpright = false;
+        if(pitchedCurveBuilt) {
+            const QVector<float> &vertices = pitchedCurveMeshes[0].vertices;
+            const float endpointV = 0.2f * curves[0].getDlugosc();
+            float left[3] = {0, 0, 0};
+            float right[3] = {0, 0, 0};
+            bool leftFound = false;
+            bool rightFound = false;
+            for(int i = 0; i < vertices.size(); i += 9) {
+                if(std::abs(vertices[i + 7] - endpointV) > 0.001f)
+                    continue;
+                if(!leftFound && std::abs(vertices[i + 6]) < 0.001f) {
+                    Vec3::copy(left, vertices.constData() + i);
+                    leftFound = true;
+                }
+                if(!rightFound
+                        && std::abs(vertices[i + 6] - 1.0f) < 0.001f) {
+                    Vec3::copy(right, vertices.constData() + i);
+                    rightFound = true;
+                }
+            }
+            float expectedCenter[3] = {-100.0f, 0.0f, 100.0f};
+            Vec3::transformQuat(expectedCenter, expectedCenter,
+                    pitchedPath.rotation);
+            pitchedCurveUpright = leftFound && rightFound
+                    && std::abs(left[1] - right[1]) < 0.001f
+                    && std::abs(0.5f * (left[0] + right[0])
+                                - expectedCenter[0]) < 0.01f
+                    && std::abs(0.5f * (left[1] + right[1])
+                                - expectedCenter[1] - 0.2f) < 0.01f
+                    && std::abs(0.5f * (left[2] + right[2])
+                                - expectedCenter[2]) < 0.01f;
+        }
+        check(pitchedCurveUpright,
+              "baked-pitch-keeps-curve-cross-section-upright");
+
+        float dynTrackQuaternion[4] = {0, 0, 0, 1};
+        constexpr float bakedTestYaw = 0.73f;
+        Quat::rotateY(dynTrackQuaternion, dynTrackQuaternion,
+                -bakedTestYaw);
+        Quat::rotateX(dynTrackQuaternion, dynTrackQuaternion, 0.12f);
+        const ProceduralPathTransform dynTrackTransform =
+                ProceduralPath::bakedObjectTransform(
+                    dynTrackQuaternion, bakedTestYaw);
+        float basisFlip[4] = {0, 0, 0, 1};
+        Quat::rotateY(basisFlip, basisFlip, -(float)M_PI);
+        float fullFinal[4];
+        Quat::multiply(fullFinal, dynTrackQuaternion, basisFlip);
+        float yawOnly[4] = {0, 0, 0, 1};
+        Quat::rotateY(yawOnly, yawOnly, -bakedTestYaw);
+        float yawFinal[4];
+        Quat::multiply(yawFinal, yawOnly, basisFlip);
+        float fullResult[3] = {3.0f, 1.0f, 7.0f};
+        float bakedResult[3] = {3.0f, 1.0f, 7.0f};
+        Vec3::transformQuat(fullResult, fullResult, fullFinal);
+        Vec3::transformQuat(bakedResult, bakedResult,
+                const_cast<float*>(dynTrackTransform.rotation));
+        Vec3::transformQuat(bakedResult, bakedResult, yawFinal);
+        check(dynTrackTransform.enabled
+              && Vec3::distance(fullResult, bakedResult) < 0.0001f,
+              "baked-dyntrack-transform-preserves-world-position");
+
+        // Native TSRE templates convert their rebuilt right/up/forward frame
+        // back to a quaternion before transforming source ObjFile vertices.
+        // A transposed basis reverses curve yaw while remaining difficult to
+        // spot on a straight, so verify both lateral and forward axes here.
+        float nativeAngles[3] = {(float)M_PI, -0.67f, 0};
+        float nativeFrame[4];
+        Quat::fromRotationXYZ(nativeFrame, nativeAngles);
+        float nativeRight[3] = {1, 0, 0};
+        float nativeUp[3] = {0, 1, 0};
+        float nativeForward[3] = {0, 0, 1};
+        Vec3::transformQuat(nativeRight, nativeRight, nativeFrame);
+        Vec3::transformQuat(nativeUp, nativeUp, nativeFrame);
+        Vec3::transformQuat(nativeForward, nativeForward, nativeFrame);
+        float rebuiltNativeFrame[4];
+        const bool nativeFrameBuilt = ProceduralPath::quaternionFromBasis(
+                rebuiltNativeFrame, nativeRight, nativeUp, nativeForward);
+        float rebuiltRight[3] = {1, 0, 0};
+        float rebuiltForward[3] = {0, 0, 1};
+        Vec3::transformQuat(rebuiltRight, rebuiltRight, rebuiltNativeFrame);
+        Vec3::transformQuat(rebuiltForward, rebuiltForward,
+                rebuiltNativeFrame);
+        check(nativeFrameBuilt
+              && Vec3::distance(nativeRight, rebuiltRight) < 0.0001f
+              && Vec3::distance(nativeForward, rebuiltForward) < 0.0001f,
+              "native-procedural-basis-keeps-curve-handedness");
 
         QVector<OrtsGeneratedProfileMesh> apronMeshes;
         bool endApron = OrtsTrackProfileRenderer::buildMeshes(

@@ -11,6 +11,7 @@
 #include <QStringList>
 #include <QMap>
 #include <QVector>
+#include <tsre/procedural/ProceduralPath.h>
 #include <tsre/tdb/TSection.h>
 
 class OglObj;
@@ -39,20 +40,23 @@ public:
             QVector<OrtsGeneratedProfileMesh> &meshes,
             QStringList *diagnostics = nullptr,
             float endExtension = 0,
-            float endDrop = 0);
+            float endDrop = 0,
+            const ProceduralPathTransform *pathTransform = nullptr);
     static bool generate(const OrtsTrackProfile &profile,
             const QVector<TSection> &sections,
             QVector<OglObj*> &shape,
             const QString &routePath,
             QStringList *diagnostics = nullptr,
             float endExtension = 0,
-            float endDrop = 0);
+            float endDrop = 0,
+            const ProceduralPathTransform *pathTransform = nullptr);
     static bool generate(const OrtsTrackProfile &profile,
             const TrackShape &trackShape,
             const QMap<int, float> &angles,
             QVector<OglObj*> &shape,
             const QString &routePath,
-            QStringList *diagnostics = nullptr);
+            QStringList *diagnostics = nullptr,
+            const ProceduralPathTransform *pathTransform = nullptr);
 };
 
 #endif

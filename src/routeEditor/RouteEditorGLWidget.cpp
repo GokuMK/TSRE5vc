@@ -2387,13 +2387,6 @@ bool RouteEditorGLWidget::updateLiveFlexCompanions(const float *mainSections) {
     };
     QVector<CompanionPreview> previews;
     previews.reserve(liveFlexCompanions.size());
-    const bool shareMainRoadPlane = liveFlexObj->isRoad();
-    const float mainElevationPromille = shareMainRoadPlane
-            ? 1000.0f * std::sin(liveFlexObj->getElevation())
-            : 0.0f;
-    if(!std::isfinite(mainElevationPromille))
-        return liveFlexCompanionsValid = false;
-
     for(int i = 0; i < liveFlexCompanions.size(); i++) {
         DynTrackObj *track = liveFlexCompanions[i];
         if(track == NULL)
@@ -2427,13 +2420,11 @@ bool RouteEditorGLWidget::updateLiveFlexCompanions(const float *mainSections) {
                 preview.sections))
             return liveFlexCompanionsValid = false;
 
-        if(shareMainRoadPlane) {
-            // Adjacent road profiles form one visible surface. Giving each
-            // lane a slightly different pitch to force equal centerline end
-            // heights puts them on different rigid planes and opens seams.
-            // Keep every lane coplanar with the main road for this milestone.
-            preview.elevation = mainElevationPromille;
-        } else if(!Flex::RigidElevationForEndpointHeight(
+        // Keep every companion's persisted endpoint on the same cross-road
+        // plane. ORTS-profile rendering removes the rigid-object bank from
+        // the generated cross-sections, so visual lane continuity no longer
+        // requires corrupting inner/outer endpoint heights.
+        if(!Flex::RigidElevationForEndpointHeight(
                     preview.sections,
                     endPosition[1] - track->position[1],
                     preview.elevation)) {

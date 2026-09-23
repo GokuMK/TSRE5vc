@@ -12,6 +12,7 @@
 #include <tsre/shape/SFile.h>
 #include <tsre/shape/ShapeLib.h>
 #include <tsre/math3d/GLMatrix.h>
+#include <tsre/math3d/Flex.h>
 #include <math.h>
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/fileFunctions/TS.h>
@@ -33,6 +34,21 @@
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
+
+namespace {
+
+void fillYawOnlyTrackMatrix(const float *qDirection,
+        const float *position, float *matrix) {
+    float q[4];
+    Quat::fill(q);
+    Quat::rotateY(q, q,
+            -Flex::TdbYawFromTrackQuaternion(qDirection));
+    Mat4::fromRotationTranslation(matrix, q,
+            const_cast<float*>(position));
+    Mat4::rotate(matrix, matrix, (float)M_PI, 0, -1, 0);
+}
+
+}
 
 TrackObj::TrackObj() {
     // An absent ShapeTemplate is distinct from explicit DEFAULT in Enabled mode.
@@ -147,6 +163,7 @@ void TrackObj::clearProceduralShape(){
             delete object;
     procShape.clear();
     procShapeOwned = false;
+    proceduralShapeUsesBakedPath = false;
 }
 
 bool TrackObj::useProceduralShape(){
@@ -185,13 +202,20 @@ bool TrackObj::useProceduralShape(){
     if(Game::useSuperelevation)
         Game::trackDB->fillTrackAngles(x, -y, UiD, angles);
 
+    const ProceduralPathTransform pathTransform =
+            ProceduralPath::bakedObjectTransform(
+                qDirection,
+                Flex::TdbYawFromTrackQuaternion(qDirection));
+
     const QSharedPointer<const OrtsTrackProfile> routeProfile =
             OrtsTrackProfileCatalog::find(resolution.templateName);
     if(routeProfile != nullptr){
         QStringList diagnostics;
         if(OrtsTrackProfileRenderer::generate(
-                *routeProfile, *tsh, angles, procShape, routePath, &diagnostics)){
+                *routeProfile, *tsh, angles, procShape, routePath,
+                &diagnostics, &pathTransform)){
             procShapeOwned = true;
+            proceduralShapeUsesBakedPath = true;
             static QSet<QString> warnedDiagnostics;
             for(const QString &diagnostic : diagnostics){
                 const QString key = routeProfile->id.toLower() + ":" + diagnostic;
@@ -203,8 +227,21 @@ bool TrackObj::useProceduralShape(){
             }
         }
     } else {
-        ProceduralShape::GetShape(
-                resolution.templateName, procShape, tsh, angles);
+        // The advanced crossing tie generator combines paths after their
+        // individual frames are built. Keep its legacy transform until that
+        // specialized generator can consume the shared baked-path frame.
+        const bool usesAdvancedTies = tsh->numpaths == 2
+                && (tsh->xoverpts > 0 || tsh->mainroute > -1);
+        if(!usesAdvancedTies){
+            ProceduralShape::GenerateShape(
+                    resolution.templateName, procShape, tsh, angles,
+                    pathTransform);
+            procShapeOwned = true;
+            proceduralShapeUsesBakedPath = !procShape.isEmpty();
+        } else {
+            ProceduralShape::GetShape(
+                    resolution.templateName, procShape, tsh, angles);
+        }
     }
     if(procShape.isEmpty()){
         ProceduralTrackPolicy::warnGenerationFailureOnce(resolution.templateName);
@@ -263,7 +300,13 @@ void TrackObj::rotate(float x, float y, float z){
     this->position[0] = this->placedAtPosition[0] + vect[0];
     this->position[1] = this->placedAtPosition[1] - vect[1];
     this->position[2] = this->placedAtPosition[2] + vect[2];
-    
+
+    if(x != 0 || y != 0 || z != 0){
+        proceduralShapeInit = false;
+        proceduralFallback = false;
+        clearProceduralShape();
+    }
+
     setModified();
     setMartix();
 }
@@ -411,7 +454,15 @@ void TrackObj::pushRenderItems(float lod, float posx, float posz, float* playerW
     //    if(snapablePoints.size() == 6)
     //        renderSnapableEndpoints(gluu);  
     
-    Mat4::multiply(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, matrix);
+    const bool procedural = useProceduralShape();
+    float bakedMatrix[16];
+    float *renderMatrix = matrix;
+    if(procedural && proceduralShapeUsesBakedPath){
+        fillYawOnlyTrackMatrix(qDirection, position, bakedMatrix);
+        renderMatrix = bakedMatrix;
+    }
+    Mat4::multiply(Game::currentRenderer->mvMatrix,
+            Game::currentRenderer->mvMatrix, renderMatrix);
     
     if(Game::showWorldObjPivotPoints){
         if(pointer3d == NULL){
@@ -426,7 +477,7 @@ void TrackObj::pushRenderItems(float lod, float posx, float posz, float* playerW
     } else {
         gluu->enableTextures();
     }*/
-    if(!useProceduralShape()) {
+    if(!procedural) {
         if(shapePointer != NULL){
             shapePointer->pushRenderItem(selectionId, 0);
         }
@@ -484,7 +535,14 @@ void TrackObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos,
             }
     }
 
-    Mat4::multiply(gluu->mvMatrix, gluu->mvMatrix, matrix);
+    const bool procedural = useProceduralShape();
+    float bakedMatrix[16];
+    float *renderMatrix = matrix;
+    if(procedural && proceduralShapeUsesBakedPath){
+        fillYawOnlyTrackMatrix(qDirection, position, bakedMatrix);
+        renderMatrix = bakedMatrix;
+    }
+    Mat4::multiply(gluu->mvMatrix, gluu->mvMatrix, renderMatrix);
     gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
     
     if(Game::showWorldObjPivotPoints){
@@ -500,7 +558,7 @@ void TrackObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos,
         gluu->enableTextures();
     }
     
-    if(!useProceduralShape()) {
+    if(!procedural) {
         if(shapePointer != NULL)
             shapePointer->render(selectionId, 0);
     } else {
