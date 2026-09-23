@@ -241,8 +241,8 @@ private:
     bool liveFlexDeleteOnCancel = false;
     bool liveFlexInitialDirectionFromMouse = false;
     bool liveFlexSolutionValid = false;
-    bool liveFlexTerrainAdjusted = false;
     DynTrackObj *liveFlexObj = NULL;
+    DynTrackObj *lastAcceptedFlexObj = NULL;
     int liveFlexStartTileX = 0;
     int liveFlexStartTileZ = 0;
     float liveFlexStartPosition[3] = {0, 0, 0};

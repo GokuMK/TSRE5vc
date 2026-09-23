@@ -16,8 +16,9 @@ Implemented; GUI acceptance testing pending.
 3. The first left click places a new Dynamic Track and immediately starts its
    live Flex preview.
 4. Moving the pointer updates the preview using Task 02 behavior.
-5. Pressing `F` adjusts terrain to the currently previewed main segment without
-   accepting or adding it to TDB/RDB.
+5. After accepting at least one segment, pressing `F` adjusts terrain to the
+   main segment ending at the most recent click. It never grades against the
+   mouse-following preview.
 6. A left click accepts the segment and adds it to TDB, matching `Z`.
 7. The next Dynamic Track is created at the committed segment's calculated end
    pose and immediately starts its own live preview.
@@ -69,10 +70,11 @@ next pose from the mouse target.
   discards the draft and starts a new line at the clicked point.
 - Right-drag rotates the camera without rebuilding the live shape during the
   drag.
-- `F` grades terrain to the latest valid main-segment preview and resets the
-  mouse-wheel vertical offset to zero. Accepting groups the terrain snapshots
-  with that segment's undo item; cancelling restores the affected terrain
-  before discarding the transaction.
+- `F` grades terrain to the most recently accepted main segment while
+  preserving the current mouse-wheel vertical offset. It creates a separate
+  undo item, so cancelling the current mouse-following preview does not revert
+  the completed terrain edit. Before the first segment endpoint is accepted,
+  `F` performs no terrain operation and leaves the offset unchanged.
 - Non-finite preview data is rejected, elevation trigonometry is clamped, and
   segments shorter than `0.1m` cannot be accepted into TDB.
 - Rail and road minimum radii are remembered independently and are applied to

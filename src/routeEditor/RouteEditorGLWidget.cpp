@@ -1260,20 +1260,18 @@ void RouteEditorGLWidget::keyPressEvent(QKeyEvent * event) {
     if (!route->loaded) return;
 
     if(liveFlexActive && event->key() == Qt::Key_F) {
-        // Grade terrain to the exact section currently visible in the live
-        // preview. Keep it in the segment transaction so accepting produces
-        // one undo item and cancelling can restore the captured height maps.
-        if(!event->isAutoRepeat()
-                && updateLiveFlex(
-                    (int)camera->pozT[0],
-                    (int)camera->pozT[1],
-                    aktPointerPos,
-                    true)
-                && liveFlexObj != NULL) {
-            Undo::StateBeginIfNotExist();
-            route->setTerrainToTrackObj(liveFlexObj, defaultPaintBrush);
-            liveFlexTerrainAdjusted = true;
-            flexYOffset = 0.0f;
+        // The mouse-following preview can move while its own terrain edit is
+        // being applied. Grade only the last section whose endpoint was
+        // accepted by a click. Do not alter the vertical offset or rebuild
+        // the unfinished mouse-following preview.
+        if(!event->isAutoRepeat()) {
+            if(continuousFlexMode && lastAcceptedFlexObj != NULL) {
+                const bool independentUndo = Undo::StateBeginIndependent();
+                route->setTerrainToTrackObj(
+                        lastAcceptedFlexObj, defaultPaintBrush);
+                if(independentUndo)
+                    Undo::StateEndIndependent();
+            }
             update();
         }
         event->accept();
@@ -2146,7 +2144,6 @@ bool RouteEditorGLWidget::startLiveFlex(bool reuseUndoState, bool deleteOnCancel
     liveFlexDeleteOnCancel = deleteOnCancel;
     liveFlexInitialDirectionFromMouse = initialDirectionFromMouse;
     liveFlexSolutionValid = false;
-    liveFlexTerrainAdjusted = false;
     liveFlexCompanionsValid = true;
 
     if(continuousFlexMode && !createLiveFlexCompanions())
@@ -2172,6 +2169,9 @@ bool RouteEditorGLWidget::placeContinuousFlexTrack(
         bool initialMousePlacement) {
     if(route == NULL || position == NULL || quaternion == NULL)
         return false;
+
+    if(initialMousePlacement)
+        lastAcceptedFlexObj = NULL;
 
     Ref::RefItem dynTrackRef;
     dynTrackRef.type = "dyntrack";
@@ -2786,14 +2786,12 @@ void RouteEditorGLWidget::finishLiveFlex(bool accept, bool keepContinuousTool) {
         }
     }
     const bool deleteOnCancel = liveFlexDeleteOnCancel;
-    const bool restoreTerrainOnCancel = liveFlexTerrainAdjusted;
     const QVector<DynTrackObj*> acceptedCompanions = liveFlexCompanions;
     liveFlexActive = false;
     liveFlexObj = NULL;
     liveFlexDeleteOnCancel = false;
     liveFlexInitialDirectionFromMouse = false;
     liveFlexSolutionValid = false;
-    liveFlexTerrainAdjusted = false;
     liveFlexHasLastTarget = false;
     liveFlexLastEndpointId = -2;
     liveFlexLastUpdateTime = 0;
@@ -2810,7 +2808,7 @@ void RouteEditorGLWidget::finishLiveFlex(bool accept, bool keepContinuousTool) {
             dynTrack->setMartix();
             dynTrack->setModified();
         }
-        Undo::StateCancel(restoreTerrainOnCancel);
+        Undo::StateCancel();
     }
 
     int nextTileX = 0;
@@ -2826,6 +2824,7 @@ void RouteEditorGLWidget::finishLiveFlex(bool accept, bool keepContinuousTool) {
             if(track != NULL)
                 route->addToTDB(track);
         Undo::StateEnd();
+        lastAcceptedFlexObj = dynTrack;
         liveFlexCompanions.clear();
         liveFlexCompanionOffsets.clear();
         liveFlexCompanionsValid = true;
