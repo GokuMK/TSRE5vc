@@ -35,6 +35,10 @@ struct OrtsGeneratedProfileMesh {
 
 class OrtsTrackProfileRenderer {
 public:
+    // Temporary seam mitigation. Future procedural-template stitching should
+    // generate continuous joints and remove this terminal mesh overlap.
+    static constexpr float GeneratedTrackEndOverlap = 0.10f;
+
     static bool buildMeshes(const OrtsTrackProfile &profile,
             const QVector<TSection> &sections,
             QVector<OrtsGeneratedProfileMesh> &meshes,
@@ -56,6 +60,8 @@ public:
             QVector<OglObj*> &shape,
             const QString &routePath,
             QStringList *diagnostics = nullptr,
+            float endExtension = 0,
+            float endDrop = 0,
             const ProceduralPathTransform *pathTransform = nullptr);
 };
 

@@ -213,7 +213,11 @@ bool TrackObj::useProceduralShape(){
         QStringList diagnostics;
         if(OrtsTrackProfileRenderer::generate(
                 *routeProfile, *tsh, angles, procShape, routePath,
-                &diagnostics, &pathTransform)){
+                &diagnostics,
+                // Keep independently generated high profiles visually joined
+                // without moving their stored track-path endpoints.
+                OrtsTrackProfileRenderer::GeneratedTrackEndOverlap, 0,
+                &pathTransform)){
             procShapeOwned = true;
             proceduralShapeUsesBakedPath = true;
             static QSet<QString> warnedDiagnostics;

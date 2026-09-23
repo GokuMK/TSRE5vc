@@ -257,7 +257,10 @@ void DynTrackObj::generateShape(){
         generationTimer.start();
         const bool generated = OrtsTrackProfileRenderer::generate(
                 *routeProfile, tsections, shape, routePath, &diagnostics,
-                0, 0, &pathTransform);
+                // A small mesh-only overlap hides joints when adjoining
+                // objects change grade; the TDB/RDB endpoint stays exact.
+                OrtsTrackProfileRenderer::GeneratedTrackEndOverlap, 0,
+                &pathTransform);
         const qint64 generationMs = generationTimer.elapsed();
         if(generationMs >= kSlowShapeOperationMs){
             qWarning() << "ORTS track profile generation took"

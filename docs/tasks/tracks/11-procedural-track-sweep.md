@@ -73,8 +73,13 @@ bank does not disable intentional profile deformation.
 
 - Road companions no longer copy the main road's grade.
 - Procedural DynTrack generation no longer requests the 25 cm lowered road
-  end apron. The generic renderer option remains covered because it is not
-  part of the persisted road geometry contract.
+  end apron. Instead, ORTS-profile DynTracks and procedural static TrackObjs
+  use a universal 10 cm, zero-drop terminal mesh overlap. It follows the final
+  tangent and grade, masks cracks between independently generated high
+  profiles, and does not alter persisted track or database endpoints.
+  This is a temporary compatibility mitigation, not the intended final seam
+  model. Future procedural-template work should generate continuous joints
+  and remove the overlap.
 - The experimental Open Rails `PreserveRigidPlane` road override is reverted;
   ORTS again removes roll from generated cross-sections for roads as it does
   for other non-superelevated procedural sections.
@@ -84,6 +89,8 @@ bank does not disable intentional profile deformation.
 The `orts-profile` suite checks:
 
 - existing straight, curve, material, LOD, handedness, and end-apron cases;
+- the universal generated-track overlap extends the terminal mesh by exactly
+  10 cm without lowering it;
 - a pitched 90-degree curve receives the baked centerline transform;
 - its left and right profile edges remain at the same height;
 - yaw-only rendering composed with the baked rotation reproduces the original
@@ -94,7 +101,7 @@ The `orts-profile` suite checks:
 Current automated result:
 
 ```text
-[tests:orts-profile] cases=24 passed=24 failed=0
+[tests:orts-profile] cases=25 passed=25 failed=0
 ```
 
 The incremental application build succeeds. The `dyntrack-road` suite passes

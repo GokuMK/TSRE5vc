@@ -290,7 +290,11 @@ radii still require different stored rigid pitches, but procedural renderers
 no longer apply those quaternions as one banked rigid mesh. They bake the
 residual rotation into the path, reconstruct every lateral/up frame against
 world up, and draw through a yaw-only object matrix. The temporary 25 cm
-road-end apron is no longer used by DynTrack rendering.
+lowered road-end apron is no longer used by DynTrack rendering. ORTS-profile
+tracks instead use a universal 10 cm, zero-drop terminal mesh overlap to mask
+small seams without changing the stored track geometry. This is temporary;
+future procedural-template stitching should replace the overlap with properly
+continuous generated joints.
 
 ## Tests
 

@@ -2284,6 +2284,27 @@ static int runOrtsProfileSuite(bool verbose) {
               && loweredApronEndpointFound,
               "road-end-apron-render-only-extension");
 
+        QVector<OrtsGeneratedProfileMesh> overlapMeshes;
+        bool generatedTrackOverlap = OrtsTrackProfileRenderer::buildMeshes(
+                *xmlProfile, curves, overlapMeshes, nullptr,
+                OrtsTrackProfileRenderer::GeneratedTrackEndOverlap, 0)
+                && overlapMeshes.size() == 1;
+        bool overlapEndpointFound = false;
+        if(generatedTrackOverlap){
+            const QVector<float> &vertices = overlapMeshes[0].vertices;
+            for(int i = 0; i < vertices.size(); i += 9){
+                const float x = vertices[i];
+                const float y = vertices[i + 1];
+                overlapEndpointFound = overlapEndpointFound
+                        || (std::abs(x + 100.0f
+                            + OrtsTrackProfileRenderer::GeneratedTrackEndOverlap)
+                            < 0.001f
+                            && std::abs(y - 0.2f) < 0.0001f);
+            }
+        }
+        check(generatedTrackOverlap && overlapEndpointFound,
+              "generated-track-ten-centimetre-end-overlap");
+
         QVector<TSection> reverseCurves;
         reverseCurves.append(TSection(0, 1, -(float)M_PI / 2.0f, 100.0f));
         QVector<OrtsGeneratedProfileMesh> reverseCurveMeshes;
