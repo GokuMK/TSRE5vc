@@ -596,7 +596,7 @@ Sources:
 
 ## Slovakia — GKÚ Orthophotomosaic
 
-**Status: 🟢**
+**Status: ✅ implemented through the generic ArcGIS MapServer export provider**
 
 Imagery distribution is substantially easier for TSRE than the Slovak elevation package because rendered WMS/WMTS is perfectly usable.
 
@@ -622,12 +622,21 @@ WMTS S-JTSK:
 https://zbgisws.skgeodesy.sk/zbgis_ortofoto_wmts_sjtsk/service.svc/get
 ```
 
-Huge RGB/RGBN ZIPs are also downloadable, but TSRE should use the map services first.
+TSRE uses the official cached Web Mercator ArcGIS MapServer export. The UI
+offers 4096, 2048 and 1024 total sizes. The 4096 mode uses four concurrent 2048
+blocks: a Bratislava comparison took 3.9 seconds, versus 11.0 seconds for one
+4096 export. The official WMS took 8.3 seconds for one 4096 request and did not
+benefit from four-way parallelism. The rolling cache expires after 30 days.
+
+Huge RGB/RGBN ZIPs are also downloadable, but the bounded export is much more
+appropriate for an interactive terrain preview.
 
 Sources:
 
 - https://www.gku.sk/geoportal-en/zbgis/orthophotomosaic/3rd-cycle/
 - https://www.gku.sk/gku/produkty-sluzby/zbgis/wms.html
+- https://zbgis.skgeodesy.sk/zbgis/rest/services/Ortofoto/MapServer
+- https://www.skgeodesy.sk/gku/produkty-sluzby/na-stiahnutie/zbgis.html
 
 ## Lithuania — ORT10LT
 

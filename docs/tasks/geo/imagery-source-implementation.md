@@ -274,10 +274,28 @@ https://ags.cuzk.gov.cz/arcgis1/rest/services/ORTOFOTO_WM/MapServer/export
 
 The initial WMTS entry needed roughly 400--500 individual 256-pixel requests
 for one detailed terrain tile. The MapServer export produces the same cached
-imagery in one bounded image. Live Prague results were approximately 2.4
-seconds at 1024, 3.6 seconds at 2048, and 11.9 seconds at 4096. The UI exposes
-all three sizes, corresponding to approximately 2, 1, and 0.5 m terrain grids.
-The source is detailed-terrain only, CC BY 4.0, and uses a 30-day rolling cache.
+imagery as bounded images. The UI exposes 1024, 2048 and 4096 total sizes,
+corresponding to approximately 2, 1 and 0.5 m terrain grids. At 4096, four
+parallel 2048 blocks took 5.1 seconds versus 7.8 seconds for one export. The
+source is detailed-terrain only, CC BY 4.0, and uses a 30-day rolling cache.
+
+### Slovakia
+
+The Slovak source uses the export operation of the official cached national
+Ortofoto service:
+
+```text
+https://zbgis.skgeodesy.sk/zbgis/rest/services/Ortofoto/MapServer/export
+```
+
+The current third-cycle mosaic has 15 cm source pixels, acquired in 2023 in
+western, 2024 in central and 2025 in eastern Slovakia. Its ArcGIS service
+supports 4096-pixel Web Mercator exports. At a Bratislava test area, one 4096
+export took 11.0 seconds and four concurrent 2048 blocks took 3.9 seconds; the
+official WMS took 8.3 and 8.6 seconds respectively. TSRE therefore uses the
+ArcGIS path with selectable 4096, 2048 and 1024 total sizes and 2048-pixel
+blocks. The service declares CC BY 4.0 and identifies GKU and NLC as the data
+providers. It is detailed-terrain only and uses a 30-day rolling cache.
 
 ### Netherlands
 

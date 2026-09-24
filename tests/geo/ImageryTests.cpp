@@ -11,9 +11,9 @@
 void runImageryTests(const std::function<void(bool,const char*)> &check) {
     QString error;
     const auto catalogue=Imagery::builtInDatasets(error);
-    check(error.isEmpty()&&catalogue.size()==6,"imagery built-in catalogue parses");
+    check(error.isEmpty()&&catalogue.size()==7,"imagery built-in catalogue parses");
     const Imagery::Dataset *poland=nullptr,*world=nullptr,*usa=nullptr,*usaHigh=nullptr;
-    const Imagery::Dataset *czechia=nullptr,*netherlands=nullptr;
+    const Imagery::Dataset *czechia=nullptr,*netherlands=nullptr,*slovakia=nullptr;
     for(const auto &dataset:catalogue){
         if(dataset.id=="pl.gugik.orto.standard")poland=&dataset;
         if(dataset.id=="world.esa.worldcover-s2-2021")world=&dataset;
@@ -21,15 +21,17 @@ void runImageryTests(const std::function<void(bool,const char*)> &check) {
         if(dataset.id=="us.usgs.naip-plus")usaHigh=&dataset;
         if(dataset.id=="cz.cuzk.ortofoto")czechia=&dataset;
         if(dataset.id=="nl.pdok.luchtfoto-rgb-25cm")netherlands=&dataset;
+        if(dataset.id=="sk.gku.ortofotomozaika")slovakia=&dataset;
     }
-    check(poland&&world&&usa&&usaHigh&&czechia&&netherlands
+    check(poland&&world&&usa&&usaHigh&&czechia&&netherlands&&slovakia
           &&poland->detailedTerrainApproved&&!poland->distantTerrainApproved
           &&world->distantTerrainApproved&&usa->detailedTerrainApproved
           &&!usa->distantTerrainApproved&&usaHigh->detailedTerrainApproved
           &&!usaHigh->distantTerrainApproved&&czechia->detailedTerrainApproved
           &&!czechia->distantTerrainApproved&&netherlands->detailedTerrainApproved
-          &&!netherlands->distantTerrainApproved,"imagery terrain-domain approvals");
-    if(!poland||!world||!usa||!usaHigh||!czechia||!netherlands)return;
+          &&!netherlands->distantTerrainApproved&&slovakia->detailedTerrainApproved
+          &&!slovakia->distantTerrainApproved,"imagery terrain-domain approvals");
+    if(!poland||!world||!usa||!usaHigh||!czechia||!netherlands||!slovakia)return;
     check(poland->requestSizes==QVector<int>({4096,2048,1024})
           &&poland->defaultRequestSize==4096&&world->requestSizes.isEmpty()
           &&czechia->requestSizes==QVector<int>({4096,2048,1024})
@@ -37,7 +39,10 @@ void runImageryTests(const std::function<void(bool,const char*)> &check) {
           &&poland->requestBlockPixels==2048&&czechia->requestBlockPixels==2048
           &&usaHigh->requestBlockPixels==2048
           &&netherlands->maxRequestPixels==2500
-          &&netherlands->requestBlockPixels==2048,
+          &&netherlands->requestBlockPixels==2048
+          &&slovakia->requestSizes==QVector<int>({4096,2048,1024})
+          &&slovakia->defaultRequestSize==4096
+          &&slovakia->requestBlockPixels==2048,
           "imagery source-specific request sizes and default");
 
     const QUrl polandUrl=Imagery::arcGisMapUrl(*poland,637000,486000,639048,488048,
@@ -96,6 +101,16 @@ void runImageryTests(const std::function<void(bool,const char*)> &check) {
           &&Imagery::nearDataset(*netherlands,{{52.0907,5.1214}},0)
           &&!Imagery::nearDataset(*netherlands,{{50.0755,14.4378}},0),
           "Czech and Dutch imagery bounds filter unrelated locations");
+    const QUrl slovakiaUrl=Imagery::arcGisMapUrl(*slovakia,1903000,6129976,
+                                                 1904024,6131000,2048,2048);
+    const QUrlQuery slovakiaQuery(slovakiaUrl);
+    check(slovakiaQuery.queryItemValue("bboxSR")=="3857"
+          &&slovakiaQuery.queryItemValue("bbox")=="1903000.000,6129976.000,1904024.000,6131000.000"
+          &&slovakiaQuery.queryItemValue("size")=="2048,2048"
+          &&!slovakiaQuery.hasQueryItem("layers")
+          &&Imagery::nearDataset(*slovakia,{{48.1486,17.1077}},0)
+          &&!Imagery::nearDataset(*slovakia,{{52.0907,5.1214}},0),
+          "Slovak Ortofotomozaika export and national bounds");
     const QPointF origin=Imagery::webMercatorPixel({0,0},0,256);
     check(std::abs(origin.x()-128)<1e-9&&std::abs(origin.y()-128)<1e-9,
           "Web Mercator origin pixel");
