@@ -1,6 +1,7 @@
 SIMISA@@@@@@@@@@JINX0p0t______
 
 TrProfile (
+    ObjectType ( ROAD )
     Name ( "Default Road - Left Lane" )
     LODMethod ( CompleteReplacement )
     ChordSpan ( 1 )

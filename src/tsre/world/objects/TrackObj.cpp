@@ -177,11 +177,15 @@ bool TrackObj::useProceduralShape(){
     ProceduralShape::Load();
     const QString routePath = Game::root + "/ROUTES/" + Game::route;
     OrtsTrackProfileCatalog::load(routePath);
-    QStringList availableTemplates = OrtsTrackProfileCatalog::selectionNames();
+    const OrtsTrackProfile::ObjectType profileType = roadShape
+            ? OrtsTrackProfile::ObjectType::Road
+            : OrtsTrackProfile::ObjectType::Track;
+    QStringList availableTemplates =
+            OrtsTrackProfileCatalog::selectionNames(profileType);
     if(ProceduralShape::ShapeTemplateFile != NULL){
         for(const QString &globalName
                 : ProceduralShape::ShapeTemplateFile->templates.keys()){
-            if(OrtsTrackProfileCatalog::find(globalName) == nullptr)
+            if(OrtsTrackProfileCatalog::find(globalName, profileType) == nullptr)
                 availableTemplates.append(globalName);
         }
     }
@@ -208,8 +212,16 @@ bool TrackObj::useProceduralShape(){
                 Flex::TdbYawFromTrackQuaternion(qDirection));
 
     const QSharedPointer<const OrtsTrackProfile> routeProfile =
-            OrtsTrackProfileCatalog::find(resolution.templateName);
+            OrtsTrackProfileCatalog::find(
+                resolution.templateName, profileType);
     if(routeProfile != nullptr){
+        QVector<float> pathRotations;
+        pathRotations.reserve(tsh->numpaths);
+        for(int pathIndex = 0; pathIndex < tsh->numpaths; pathIndex++)
+            pathRotations.append(tsh->path[pathIndex].rotDeg);
+        const QVector<QSharedPointer<const OrtsTrackProfile>> pathProfiles =
+                OrtsTrackProfileCatalog::profilesForPaths(
+                    resolution.templateName, profileType, pathRotations);
         QStringList diagnostics;
         if(OrtsTrackProfileRenderer::generate(
                 *routeProfile, *tsh, angles, procShape, routePath,
@@ -217,7 +229,7 @@ bool TrackObj::useProceduralShape(){
                 // Keep independently generated high profiles visually joined
                 // without moving their stored track-path endpoints.
                 OrtsTrackProfileRenderer::GeneratedTrackEndOverlap, 0,
-                &pathTransform)){
+                &pathTransform, &pathProfiles)){
             procShapeOwned = true;
             proceduralShapeUsesBakedPath = true;
             static QSet<QString> warnedDiagnostics;

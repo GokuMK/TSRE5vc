@@ -52,6 +52,18 @@ struct OrtsProfileLod {
 };
 
 struct OrtsTrackProfile {
+    enum class ObjectType {
+        Track,
+        Road,
+        Static
+    };
+    enum class ObjectRole {
+        Main,
+        Single,
+        Left,
+        Middle,
+        Right
+    };
     enum class LodMethod {
         ComponentAdditive,
         CompleteReplacement
@@ -69,8 +81,13 @@ struct OrtsTrackProfile {
     };
 
     QString id;
+    QString familyId;
     QString name;
     QString sourcePath;
+    ObjectType objectType = ObjectType::Track;
+    ObjectRole objectRole = ObjectRole::Main;
+    bool objectTypeExplicit = false;
+    bool objectTypeValid = true;
     LodMethod lodMethod = LodMethod::ComponentAdditive;
     float chordSpanDegrees = 1.0f;
     PitchControl pitchControl = PitchControl::None;
@@ -88,6 +105,14 @@ struct OrtsTrackProfile {
 
 class OrtsTrackProfileParser {
 public:
+    static QVector<QSharedPointer<OrtsTrackProfile>> parseFileProfiles(
+            const QString &path, QStringList *diagnostics = nullptr);
+    static QVector<QSharedPointer<OrtsTrackProfile>> parseStfProfiles(
+            const QString &text, const QString &id = QString(),
+            QStringList *diagnostics = nullptr);
+    static QVector<QSharedPointer<OrtsTrackProfile>> parseXmlProfiles(
+            const QString &text, const QString &id = QString(),
+            QStringList *diagnostics = nullptr);
     static QSharedPointer<OrtsTrackProfile> parseFile(
             const QString &path, QStringList *diagnostics = nullptr);
     static QSharedPointer<OrtsTrackProfile> parseStf(
@@ -102,15 +127,37 @@ class OrtsTrackProfileCatalog {
 public:
     static void load(const QString &routePath, bool forceReload = false);
     static QStringList profileIds();
+    static QStringList profileIds(OrtsTrackProfile::ObjectType objectType,
+            bool selectableOnly = false);
+    static QStringList familyIds(OrtsTrackProfile::ObjectType objectType);
+    static QVector<OrtsTrackProfile::ObjectRole> familyRoles(
+            const QString &familyId,
+            OrtsTrackProfile::ObjectType objectType);
+    static bool hasFamily(const QString &familyId,
+            OrtsTrackProfile::ObjectType objectType);
     static QStringList selectionNames();
+    static QStringList selectionNames(OrtsTrackProfile::ObjectType objectType,
+            bool selectableOnly = false);
     static QStringList diagnostics();
-    static QSharedPointer<const OrtsTrackProfile> find(const QString &nameOrAlias);
+    static QSharedPointer<const OrtsTrackProfile> find(const QString &name);
+    static QSharedPointer<const OrtsTrackProfile> find(
+            const QString &name,
+            OrtsTrackProfile::ObjectType objectType);
+    static QSharedPointer<const OrtsTrackProfile> findRole(
+            const QString &name,
+            OrtsTrackProfile::ObjectType objectType,
+            OrtsTrackProfile::ObjectRole role);
+    static QVector<QSharedPointer<const OrtsTrackProfile>> profilesForPaths(
+            const QString &name,
+            OrtsTrackProfile::ObjectType objectType,
+            const QVector<float> &pathRotations);
+    static QString profileId(const QString &familyId,
+            OrtsTrackProfile::ObjectRole role);
     static QString routePath();
 
 private:
     static QString loadedRoutePath;
     static QMap<QString, QSharedPointer<OrtsTrackProfile>> profiles;
-    static QMap<QString, QString> aliases;
     static QStringList loadDiagnostics;
 };
 

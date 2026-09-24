@@ -72,7 +72,13 @@ PropertiesDyntrack::PropertiesDyntrack() {
     templateLabel->setContentsMargins(3,0,0,0);
     vbox->addWidget(templateLabel);
     vbox->addWidget(&eTemplate);
+    vbox->addWidget(&eTemplateSubtype);
     eTemplate.setStyleSheet("combobox-popup: 0;");
+    eTemplateSubtype.setStyleSheet("combobox-popup: 0;");
+    eTemplateSubtype.setEnabled(false);
+    eTemplateSubtype.setToolTip(
+        //% "Select a route profile subtype."
+        qtTrId("route.editor.properties.profile.tooltip.route.profile.subtype"));
     eTemplate.addItem(
         //% "NOT SET"
         qtTrId("common.value.not.set"), QString());
@@ -87,6 +93,8 @@ PropertiesDyntrack::PropertiesDyntrack() {
         qtTrId("route.editor.properties.dyntrack.tooltip.not.set.uses.hardcoded.shape.in.enabled"));
     QObject::connect(&eTemplate, SIGNAL(currentTextChanged(QString)),
                      this, SLOT(eTemplateEdited(QString)));
+    QObject::connect(&eTemplateSubtype, SIGNAL(currentTextChanged(QString)),
+                     this, SLOT(eTemplateSubtypeEdited(QString)));
     
     QLabel * label2 = new QLabel(
         //% "Sections:"
@@ -401,7 +409,8 @@ void PropertiesDyntrack::updateObj(GameObj* obj){
 
 void PropertiesDyntrack::refreshTemplateList(){
     const QSignalBlocker blocker(&eTemplate);
-    const QString previousValue = eTemplate.currentData().toString();
+    const QString previousValue = dobj != NULL
+            ? dobj->getTemplate() : selectedTemplateValue();
 
     eTemplate.clear();
     eTemplate.addItem(
@@ -416,12 +425,14 @@ void PropertiesDyntrack::refreshTemplateList(){
 
     ProceduralShape::Load();
     OrtsTrackProfileCatalog::load(Game::root + "/ROUTES/" + Game::route);
+    const OrtsTrackProfile::ObjectType profileType = dobj != NULL && dobj->isRoad()
+            ? OrtsTrackProfile::ObjectType::Road
+            : OrtsTrackProfile::ObjectType::Track;
 
-    // Route-local ORTS profiles are the most specific definitions, so show
-    // them before application-level TSRE templates.
-    for(const QString &profileId : OrtsTrackProfileCatalog::profileIds())
-        if(eTemplate.findData(profileId) < 0)
-            eTemplate.addItem(profileId, profileId);
+    // Route-local ORTS profile families are the most specific definitions, so
+    // show them before application-level TSRE templates. Their exact role is
+    // selected in the subtype combo below.
+    addRouteProfileFamilies(profileType);
 
     if(ProceduralShape::ShapeTemplateFile != NULL){
         QMapIterator<QString, ShapeTemplate*> iterator(
@@ -430,41 +441,55 @@ void PropertiesDyntrack::refreshTemplateList(){
             iterator.next();
             if(iterator.value() == NULL)
                 continue;
+            const ShapeTemplate::TemplateType expectedType =
+                    profileType == OrtsTrackProfile::ObjectType::Road
+                    ? ShapeTemplate::ROAD : ShapeTemplate::TRACK;
+            if(iterator.value()->type != expectedType)
+                continue;
             const QString name = iterator.value()->name;
-            // A route profile may match either by file ID or by its unique
-            // declared-name alias. In both cases it overrides the global
-            // template and only the route definition remains selectable.
-            if(OrtsTrackProfileCatalog::find(name) != nullptr)
+            // A route profile with the same ID overrides the global template.
+            if(OrtsTrackProfileCatalog::hasFamily(name, profileType)
+                    || OrtsTrackProfileCatalog::find(
+                        name, profileType) != nullptr)
                 continue;
             if(eTemplate.findData(name) < 0)
                 eTemplate.addItem(name, name);
         }
     }
 
-    if(!previousValue.isEmpty()
-            && eTemplate.findData(previousValue) < 0)
-        eTemplate.addItem(previousValue, previousValue);
-    if(!previousValue.isEmpty())
-        eTemplate.setCurrentIndex(eTemplate.findData(previousValue));
+    selectTemplateValue(previousValue, profileType);
 }
 
 void PropertiesDyntrack::updateTemplateValue(){
     if(dobj == NULL)
         return;
-    QString name = dobj->getTemplate();
-    const QSignalBlocker blocker(&eTemplate);
-    if(eTemplate.findData(name) < 0)
-        eTemplate.addItem(name, name);
-    eTemplate.setCurrentIndex(eTemplate.findData(name));
+    if(selectedTemplateValue() == dobj->getTemplate())
+        return;
+    const OrtsTrackProfile::ObjectType profileType = dobj->isRoad()
+            ? OrtsTrackProfile::ObjectType::Road
+            : OrtsTrackProfile::ObjectType::Track;
+    selectTemplateValue(dobj->getTemplate(), profileType);
 }
 
 void PropertiesDyntrack::eTemplateEdited(QString val){
     if(dobj == NULL)
         return;
     Q_UNUSED(val);
-    val = eTemplate.currentData().toString();
+    const OrtsTrackProfile::ObjectType profileType = dobj->isRoad()
+            ? OrtsTrackProfile::ObjectType::Road
+            : OrtsTrackProfile::ObjectType::Track;
+    refreshTemplateSubtype(profileType);
+    val = selectedTemplateValue();
     Undo::SinglePushWorldObjData(worldObj);
     dobj->setTemplate(val);
+}
+
+void PropertiesDyntrack::eTemplateSubtypeEdited(QString val){
+    if(dobj == NULL)
+        return;
+    Q_UNUSED(val);
+    Undo::SinglePushWorldObjData(worldObj);
+    dobj->setTemplate(selectedTemplateValue());
 }
 
 void PropertiesDyntrack::updateSectionValues(){

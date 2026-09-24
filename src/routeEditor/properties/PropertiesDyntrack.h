@@ -31,6 +31,7 @@ public slots:
     void sSectEnabled(int idx);
     void msg(QString name, QString val);
     void eTemplateEdited(QString val);
+    void eTemplateSubtypeEdited(QString val);
     
     void elevPromEnabled(QString val);
     void elevProgEnabled(QString val);
@@ -54,8 +55,6 @@ private:
     QSignalMapper dyntrackSect;
     QLineEdit eSectionIdx;
     QLineEdit eDatabase;
-    QComboBox eTemplate;
-    
     QComboBox elevType;
     QLineEdit elevStep;
     QLineEdit elevProm;

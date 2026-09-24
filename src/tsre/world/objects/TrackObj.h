@@ -48,6 +48,7 @@ public:
     void setElevation(float prom);
     float getElevation();
     int getCollisionType();
+    bool isRoad() const { return roadShape; }
 private:
     float elevation;
     //unsigned int collideFunction;

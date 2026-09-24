@@ -577,7 +577,8 @@ bool OrtsTrackProfileRenderer::generate(const OrtsTrackProfile &profile,
         const TrackShape &trackShape, const QMap<int, float> &angles,
         QVector<OglObj*> &shape, const QString &routePath,
         QStringList *diagnostics, float endExtension, float endDrop,
-        const ProceduralPathTransform *pathTransform) {
+        const ProceduralPathTransform *pathTransform,
+        const QVector<QSharedPointer<const OrtsTrackProfile>> *pathProfiles) {
     if(Game::currentRoute == nullptr || Game::currentRoute->tsection == nullptr)
         return false;
 
@@ -611,7 +612,11 @@ bool OrtsTrackProfileRenderer::generate(const OrtsTrackProfile &profile,
         }
 
         QVector<OrtsGeneratedProfileMesh> pathMeshes;
-        if(!buildMeshesForPath(profile, sections, pathMeshes,
+        const OrtsTrackProfile *activeProfile = &profile;
+        if(pathProfiles != nullptr && pathIndex < pathProfiles->size()
+                && pathProfiles->at(pathIndex) != nullptr)
+            activeProfile = pathProfiles->at(pathIndex).data();
+        if(!buildMeshesForPath(*activeProfile, sections, pathMeshes,
                 angles.value(pathIndex * 2, 0),
                 angles.value(pathIndex * 2 + 1, 0), diagnostics,
                 endExtension, endDrop, activeTransform))

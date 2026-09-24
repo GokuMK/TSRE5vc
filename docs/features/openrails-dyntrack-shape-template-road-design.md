@@ -1,5 +1,10 @@
 # Open Rails ShapeTemplate And Road Design/Implementation
 
+> This document describes the earlier Open Rails demonstration patch. TSRE's
+> newer profile-family format and `ObjectType` rules are specified in
+> [Task 12](../tasks/tracks/12-trprofile-improvements.md) and still need a
+> corresponding Open Rails implementation.
+
 ## Purpose
 
 This document describes and records a minimal Open Rails implementation for

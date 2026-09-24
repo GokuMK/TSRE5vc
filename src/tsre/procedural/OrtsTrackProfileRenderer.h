@@ -10,6 +10,7 @@
 #include <QString>
 #include <QStringList>
 #include <QMap>
+#include <QSharedPointer>
 #include <QVector>
 #include <tsre/procedural/ProceduralPath.h>
 #include <tsre/tdb/TSection.h>
@@ -62,7 +63,9 @@ public:
             QStringList *diagnostics = nullptr,
             float endExtension = 0,
             float endDrop = 0,
-            const ProceduralPathTransform *pathTransform = nullptr);
+            const ProceduralPathTransform *pathTransform = nullptr,
+            const QVector<QSharedPointer<const OrtsTrackProfile>>
+                *pathProfiles = nullptr);
 };
 
 #endif

@@ -30,6 +30,7 @@ public slots:
     void addShapeEdited();
     void elevTypeEdited(QString val);
     void eTemplateEdited(QString val);
+    void eTemplateSubtypeEdited(QString val);
     void hideElevBoxes();
     void showElevBox(QString val);
     

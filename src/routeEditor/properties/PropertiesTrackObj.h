@@ -41,6 +41,7 @@ public slots:
     void haxElevTDBVectorEnabled();
     void haxRemoveTDBTreeEnabled();
     void eTemplateEdited(QString val);
+    void eTemplateSubtypeEdited(QString val);
         
 signals:
     void setMoveStep(float val);

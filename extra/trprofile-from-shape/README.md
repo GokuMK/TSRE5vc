@@ -21,8 +21,13 @@ open cross-section swept along a path.
 Create one file under:
 
 ```text
-<route>/TrackProfiles/TrProfile_<profile-id>.stf
+<route>/TrackProfiles/<profile-family>.stf
 ```
+
+TSRE reads every `.stf` and `.xml` file in this directory. Open Rails builds
+without the TrProfile-family improvements may still require a `TrProfile*`
+filename, so retain that prefix when compatibility with an older build is
+required.
 
 Also report:
 
@@ -170,6 +175,7 @@ A minimal profile is:
 SIMISA@@@@@@@@@@JINX0p0t______
 
 TrProfile (
+    ObjectType ( TRACK MAIN )
     Name ( "Example" )
     IncludedShapes ( "Example_*" )
     LODMethod ( "CompleteReplacement" )
@@ -229,9 +235,17 @@ When cloning:
 Rebuild the complete profile when the source has a substantially different rail
 cross-section or material layout.
 
-A filename should normally begin with `TrProfile`. TSRE also accepts its
-reserved `default_*` profiles, but traditional Open Rails discovery expects
-`TrProfile*.stf` or `TrProfile*.xml`.
+The file stem is the profile-family identity. `Name` is descriptive and does
+not replace that identity. Use `ObjectType ( TRACK MAIN )`, `ROAD MAIN`, or
+`STATIC MAIN` to restrict the profile to the correct consumer. If omitted, the
+compatible default is `TRACK MAIN`.
+
+An STF file may contain several top-level `TrProfile` blocks. Role variants
+use `LEFT`, `MIDDLE`, `RIGHT`, or `SINGLE` as the second ObjectType value and
+are identified externally as `<family>_left`, `<family>_middle`,
+`<family>_right`, and `<family>_single`. Keep all members of such a family in
+the same file. See `docs/tasks/tracks/12-trprofile-improvements.md` for the
+complete resolution rules. XML remains one profile per file.
 
 Use a distinct identity, for example:
 

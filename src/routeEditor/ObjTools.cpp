@@ -768,8 +768,12 @@ void ObjTools::refreshContinuousFlexProfiles(){
 
     // Route-local ORTS profiles have the same precedence as the object
     // properties selectors. Role variants are assigned automatically when a
-    // road group is created and would only clutter this base-profile list.
-    for(const QString &profileId : OrtsTrackProfileCatalog::profileIds()){
+    // track or road group is created and would only clutter this base list.
+    const OrtsTrackProfile::ObjectType profileType = continuousFlexRoadOptions
+            ? OrtsTrackProfile::ObjectType::Road
+            : OrtsTrackProfile::ObjectType::Track;
+    for(const QString &profileId
+            : OrtsTrackProfileCatalog::profileIds(profileType, true)){
         if(isContinuousFlexRoleProfile(profileId))
             continue;
         if(continuousFlexProfile.findText(profileId, Qt::MatchFixedString) < 0)
@@ -792,7 +796,7 @@ void ObjTools::refreshContinuousFlexProfiles(){
             const QString name = iterator.value()->name;
             if(isContinuousFlexRoleProfile(name))
                 continue;
-            if(OrtsTrackProfileCatalog::find(name) != nullptr)
+            if(OrtsTrackProfileCatalog::find(name, profileType) != nullptr)
                 continue;
             if(continuousFlexProfile.findText(name, Qt::MatchFixedString) < 0)
                 continuousFlexProfile.addItem(name, name);
@@ -809,7 +813,7 @@ void ObjTools::refreshContinuousFlexProfiles(){
     }
     if(selectedIndex < 0 && continuousFlexRoadOptions)
         selectedIndex = continuousFlexProfile.findText(
-                "default_road", Qt::MatchFixedString);
+                "RdProfile", Qt::MatchFixedString);
     if(selectedIndex < 0 && continuousFlexProfile.count() > 0)
         selectedIndex = 0;
     continuousFlexProfile.setCurrentIndex(selectedIndex);

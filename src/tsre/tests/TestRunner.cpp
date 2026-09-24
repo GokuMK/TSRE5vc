@@ -2008,6 +2008,25 @@ static int runOrtsProfileSuite(bool verbose) {
           && stfProfile->lods[0].items[0].polylines[0].vertices.size()
              == xmlProfile->lods[0].items[0].polylines[0].vertices.size(),
           "stf-xml-equivalence");
+    check(stfProfile != nullptr
+          && stfProfile->objectType == OrtsTrackProfile::ObjectType::Track
+          && stfProfile->objectRole == OrtsTrackProfile::ObjectRole::Main
+          && !stfProfile->objectTypeExplicit,
+          "missing-object-type-defaults-to-track-main");
+
+    QString roadSingleXml = xml;
+    roadSingleXml.replace("<TrProfile ",
+                          "<TrProfile ObjectType=\"ROAD SINGLE\" ");
+    const QSharedPointer<OrtsTrackProfile> roadSingleXmlProfile =
+            OrtsTrackProfileParser::parseXml(
+                roadSingleXml, "RdXml", &xmlDiagnostics);
+    check(roadSingleXmlProfile != nullptr && roadSingleXmlProfile->valid
+          && roadSingleXmlProfile->id == "RdXml_single"
+          && roadSingleXmlProfile->objectType
+                == OrtsTrackProfile::ObjectType::Road
+          && roadSingleXmlProfile->objectRole
+                == OrtsTrackProfile::ObjectRole::Single,
+          "parse-xml-object-type");
 
     const QSharedPointer<OrtsTrackProfile> badSignature =
             OrtsTrackProfileParser::parseStf("TrProfile ( )", "Bad");
@@ -2337,14 +2356,21 @@ static int runOrtsProfileSuite(bool verbose) {
     QTemporaryDir temporaryDirectory;
     bool precedenceOk = temporaryDirectory.isValid();
     bool routeOverrideOk = false;
+    bool familyCatalogOk = false;
+    bool familyResolutionOk = false;
+    bool familyDiagnosticsOk = false;
     if(precedenceOk){
         QDir().mkpath(temporaryDirectory.path() + "/TRACKPROFILES");
         QFile stfFile(temporaryDirectory.path()
                       + "/TRACKPROFILES/TrProfileDual.stf");
         QFile xmlFile(temporaryDirectory.path()
                       + "/TRACKPROFILES/TrProfileDual.xml");
-        QFile defaultFile(temporaryDirectory.path()
-                          + "/TRACKPROFILES/default_road.stf");
+        QFile roadFile(temporaryDirectory.path()
+                       + "/TRACKPROFILES/RdProfile.stf");
+        QFile sparseRoadFile(temporaryDirectory.path()
+                             + "/TRACKPROFILES/AnyRoadName.stf");
+        QFile staticFile(temporaryDirectory.path()
+                         + "/TRACKPROFILES/FenceFamily.stf");
         precedenceOk = stfFile.open(QIODevice::WriteOnly)
                 && stfFile.write(stf.toUtf8()) > 0;
         stfFile.close();
@@ -2353,51 +2379,166 @@ static int runOrtsProfileSuite(bool verbose) {
         precedenceOk = precedenceOk && xmlFile.open(QIODevice::WriteOnly)
                 && xmlFile.write(precedenceXml.toUtf8()) > 0;
         xmlFile.close();
-        QString defaultRoadStf = stf;
-        defaultRoadStf.replace("Test profile", "Default Road");
-        precedenceOk = precedenceOk && defaultFile.open(QIODevice::WriteOnly)
-                && defaultFile.write(defaultRoadStf.toUtf8()) > 0;
-        defaultFile.close();
+
+        auto typedStfBlock = [&](const QString &name,
+                                 const QString &objectType) {
+            QString block = stf.mid(stf.indexOf("TrProfile"));
+            block.replace("TrProfile (\n", "TrProfile (\n ObjectType ( "
+                          + objectType + " )\n");
+            block.replace("Test profile", name);
+            return block;
+        };
+        const QString signature = "SIMISA@@@@@@@@@@JINX0p0t______\n";
+        const QString roadFamily = signature
+                + typedStfBlock("Road Main", "ROAD MAIN")
+                + typedStfBlock("Road Single", "ROAD SINGLE")
+                + typedStfBlock("Road Right", "ROAD RIGHT")
+                + typedStfBlock("Road Middle", "ROAD MIDDLE")
+                + typedStfBlock("Road Left", "ROAD LEFT")
+                + typedStfBlock("Ignored duplicate right", "ROAD RIGHT");
+        precedenceOk = precedenceOk && roadFile.open(QIODevice::WriteOnly)
+                && roadFile.write(roadFamily.toUtf8()) > 0;
+        roadFile.close();
+
+        const QString sparseRoad = signature
+                + typedStfBlock("Sparse Road", "ROAD");
+        precedenceOk = precedenceOk
+                && sparseRoadFile.open(QIODevice::WriteOnly)
+                && sparseRoadFile.write(sparseRoad.toUtf8()) > 0;
+        sparseRoadFile.close();
+
+        const QString staticProfile = signature
+                + typedStfBlock("Fence", "STATIC SINGLE");
+        precedenceOk = precedenceOk && staticFile.open(QIODevice::WriteOnly)
+                && staticFile.write(staticProfile.toUtf8()) > 0;
+        staticFile.close();
+
         OrtsTrackProfileCatalog::load(temporaryDirectory.path(), true);
         const QSharedPointer<const OrtsTrackProfile> selected =
-                OrtsTrackProfileCatalog::find("TrProfileDual");
-        const QSharedPointer<const OrtsTrackProfile> alias =
-                OrtsTrackProfileCatalog::find("XML wins");
+                OrtsTrackProfileCatalog::find(
+                    "TrProfileDual", OrtsTrackProfile::ObjectType::Track);
         precedenceOk = precedenceOk && selected != nullptr
                 && selected->name == "XML wins"
-                && alias != nullptr && alias->id == "TrProfileDual";
-        const QSharedPointer<const OrtsTrackProfile> defaultRoad =
-                OrtsTrackProfileCatalog::find("default_road");
-        check(defaultRoad != nullptr
-              && defaultRoad->name == "Default Road",
-              "default-profile-filename");
+                && OrtsTrackProfileCatalog::find(
+                    "XML wins", OrtsTrackProfile::ObjectType::Track) == nullptr;
 
-        QStringList availableNames = OrtsTrackProfileCatalog::selectionNames();
+        const QStringList roadSelections =
+                OrtsTrackProfileCatalog::profileIds(
+                    OrtsTrackProfile::ObjectType::Road, true);
+        const QStringList trackSelections =
+                OrtsTrackProfileCatalog::profileIds(
+                    OrtsTrackProfile::ObjectType::Track, true);
+        const QStringList staticSelections =
+                OrtsTrackProfileCatalog::profileIds(
+                    OrtsTrackProfile::ObjectType::Static, true);
+        const QStringList roadFamilies =
+                OrtsTrackProfileCatalog::familyIds(
+                    OrtsTrackProfile::ObjectType::Road);
+        const QVector<OrtsTrackProfile::ObjectRole> roadRoles =
+                OrtsTrackProfileCatalog::familyRoles(
+                    "RdProfile", OrtsTrackProfile::ObjectType::Road);
+        const QVector<OrtsTrackProfile::ObjectRole> staticRoles =
+                OrtsTrackProfileCatalog::familyRoles(
+                    "FenceFamily", OrtsTrackProfile::ObjectType::Static);
+        familyCatalogOk = roadSelections.contains("RdProfile")
+                && roadSelections.contains("RdProfile_single")
+                && !roadSelections.contains("RdProfile_left")
+                && trackSelections.contains("TrProfileDual")
+                && !trackSelections.contains("RdProfile")
+                && staticSelections.contains("FenceFamily_single")
+                && roadFamilies.contains("RdProfile")
+                && roadFamilies.contains("AnyRoadName")
+                && !roadFamilies.contains("RdProfile_left")
+                && roadRoles == QVector<OrtsTrackProfile::ObjectRole>({
+                    OrtsTrackProfile::ObjectRole::Main,
+                    OrtsTrackProfile::ObjectRole::Single,
+                    OrtsTrackProfile::ObjectRole::Left,
+                    OrtsTrackProfile::ObjectRole::Middle,
+                    OrtsTrackProfile::ObjectRole::Right
+                })
+                && staticRoles == QVector<OrtsTrackProfile::ObjectRole>({
+                    OrtsTrackProfile::ObjectRole::Single
+                })
+                && OrtsTrackProfileCatalog::hasFamily(
+                    "RdProfile", OrtsTrackProfile::ObjectType::Road)
+                && !OrtsTrackProfileCatalog::hasFamily(
+                    "RdProfile", OrtsTrackProfile::ObjectType::Track)
+                && OrtsTrackProfileCatalog::find(
+                    "RdProfile_right",
+                    OrtsTrackProfile::ObjectType::Road) != nullptr;
+
+        const QVector<QSharedPointer<const OrtsTrackProfile>> roadPaths =
+                OrtsTrackProfileCatalog::profilesForPaths(
+                    "RdProfile", OrtsTrackProfile::ObjectType::Road,
+                    {0, 0, 0, 0});
+        const QVector<QSharedPointer<const OrtsTrackProfile>> crossingPaths =
+                OrtsTrackProfileCatalog::profilesForPaths(
+                    "RdProfile", OrtsTrackProfile::ObjectType::Road,
+                    {0, 0, 90, 90});
+        const QVector<QSharedPointer<const OrtsTrackProfile>> reversedPaths =
+                OrtsTrackProfileCatalog::profilesForPaths(
+                    "RdProfile", OrtsTrackProfile::ObjectType::Road,
+                    {0, 0, 180, 180});
+        const QVector<QSharedPointer<const OrtsTrackProfile>> singlePaths =
+                OrtsTrackProfileCatalog::profilesForPaths(
+                    "RdProfile_single", OrtsTrackProfile::ObjectType::Road,
+                    {0, 0, 90});
+        const QVector<QSharedPointer<const OrtsTrackProfile>> sparsePaths =
+                OrtsTrackProfileCatalog::profilesForPaths(
+                    "AnyRoadName", OrtsTrackProfile::ObjectType::Road,
+                    {0, 0});
+        familyResolutionOk = roadPaths.size() == 4
+                && roadPaths[0]->id == "RdProfile_left"
+                && roadPaths[1]->id == "RdProfile_middle"
+                && roadPaths[2]->id == "RdProfile_middle"
+                && roadPaths[3]->id == "RdProfile_right"
+                && crossingPaths.size() == 4
+                && crossingPaths[0]->id == "RdProfile_left"
+                && crossingPaths[1]->id == "RdProfile_right"
+                && crossingPaths[2]->id == "RdProfile_left"
+                && crossingPaths[3]->id == "RdProfile_right"
+                && reversedPaths.size() == 4
+                && reversedPaths[0]->id == "RdProfile_left"
+                && reversedPaths[1]->id == "RdProfile_right"
+                && reversedPaths[2]->id == "RdProfile_left"
+                && reversedPaths[3]->id == "RdProfile_right"
+                && singlePaths.size() == 3
+                && singlePaths[0]->id == "RdProfile_single"
+                && singlePaths[1]->id == "RdProfile_single"
+                && singlePaths[2]->id == "RdProfile_single"
+                && sparsePaths.size() == 2
+                && sparsePaths[0]->id == "AnyRoadName"
+                && sparsePaths[1]->id == "AnyRoadName";
+        familyDiagnosticsOk = OrtsTrackProfileCatalog::diagnostics().join(' ')
+                .contains("Duplicate ObjectType", Qt::CaseInsensitive);
+
+        QStringList availableNames =
+                OrtsTrackProfileCatalog::selectionNames(
+                    OrtsTrackProfile::ObjectType::Track, true);
         const QStringList globalNames = {
-            "TrProfileDual", "XML wins", "GlobalOnly"
+            "TrProfileDual", "GlobalOnly"
         };
         for(const QString &globalName : globalNames){
-            if(OrtsTrackProfileCatalog::find(globalName) == nullptr)
+            if(OrtsTrackProfileCatalog::find(
+                    globalName, OrtsTrackProfile::ObjectType::Track) == nullptr)
                 availableNames.append(globalName);
         }
         const ProceduralTrackResolution idCollision =
                 ProceduralTrackPolicy::resolve(
                     ProceduralTracksMode::Forced,
                     "TrProfileDual", availableNames);
-        const ProceduralTrackResolution aliasCollision =
-                ProceduralTrackPolicy::resolve(
-                    ProceduralTracksMode::Forced,
-                    "XML wins", availableNames);
         routeOverrideOk = availableNames.indexOf("TrProfileDual")
                         < availableNames.indexOf("GlobalOnly")
                 && availableNames.count("TrProfileDual") == 1
-                && availableNames.count("XML wins") == 1
-                && OrtsTrackProfileCatalog::find(idCollision.templateName)
-                        != nullptr
-                && OrtsTrackProfileCatalog::find(aliasCollision.templateName)
-                        != nullptr;
+                && OrtsTrackProfileCatalog::find(
+                    idCollision.templateName,
+                    OrtsTrackProfile::ObjectType::Track) != nullptr;
     }
-    check(precedenceOk, "xml-precedence-and-alias");
+    check(precedenceOk, "xml-precedence-with-filename-identity");
+    check(familyCatalogOk, "typed-multi-profile-catalog");
+    check(familyResolutionOk,
+          "static-path-left-middle-right-resolution-and-fallback");
+    check(familyDiagnosticsOk, "duplicate-object-type-first-wins");
     check(routeOverrideOk, "route-profile-overrides-global-template");
 
     qInfo() << "[tests:orts-profile] cases=" << (passed + failed)

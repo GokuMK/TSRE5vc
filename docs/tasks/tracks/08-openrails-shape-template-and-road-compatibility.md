@@ -1,5 +1,10 @@
 # Task 08 - Open Rails ShapeTemplate And Road DynTrack Compatibility
 
+> The profile naming and discovery rules recorded here describe the first
+> experimental patch. [Task 12](12-trprofile-improvements.md) defines the
+> current TSRE design: all TrackProfiles files are discoverable, typed family
+> members use `ObjectType`, and the default road family is `RdProfile`.
+
 ## Objective
 
 First, make Open Rails honor the `ShapeTemplate` name saved by TSRE on

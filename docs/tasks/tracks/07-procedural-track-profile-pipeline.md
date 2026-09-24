@@ -1,5 +1,11 @@
 # Task 07 - Procedural Track Profile Pipeline
 
+> Profile discovery, identity, and road/default conventions in this historical
+> task were superseded by
+> [Task 12](12-trprofile-improvements.md). The current catalog reads all files,
+> uses filename plus `ObjectType`, supports STF profile families, and uses
+> `RdProfile` as the default road family.
+
 ## Objective
 
 Create one profile-driven DynTrack rendering pipeline which supports:

@@ -1,6 +1,7 @@
 SIMISA@@@@@@@@@@JINX0p0t______
 
 TrProfile (
+    ObjectType ( ROAD MAIN )
     Name ( "Default Marked Road - Main Lane" )
     LODMethod ( CompleteReplacement )
     ChordSpan ( 1 )

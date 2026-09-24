@@ -230,13 +230,16 @@ void DynTrackObj::generateShape(){
     ProceduralShape::Load();
     const QString routePath = Game::root + "/ROUTES/" + Game::route;
     OrtsTrackProfileCatalog::load(routePath);
-    QStringList availableTemplates = OrtsTrackProfileCatalog::selectionNames();
+    const OrtsTrackProfile::ObjectType profileType = isRoad()
+            ? OrtsTrackProfile::ObjectType::Road
+            : OrtsTrackProfile::ObjectType::Track;
+    QStringList availableTemplates =
+            OrtsTrackProfileCatalog::selectionNames(profileType);
     if(ProceduralShape::ShapeTemplateFile != NULL){
         for(const QString &globalName
                 : ProceduralShape::ShapeTemplateFile->templates.keys()){
-            // Route profiles are more specific and win both direct ID and
-            // unique declared-name alias collisions.
-            if(OrtsTrackProfileCatalog::find(globalName) == nullptr)
+            // Route profiles are more specific and win direct ID collisions.
+            if(OrtsTrackProfileCatalog::find(globalName, profileType) == nullptr)
                 availableTemplates.append(globalName);
         }
     }
@@ -245,7 +248,7 @@ void DynTrackObj::generateShape(){
     ProceduralTrackPolicy::warnOnce(resolution);
 
     const QSharedPointer<const OrtsTrackProfile> routeProfile =
-            OrtsTrackProfileCatalog::find(resolution.templateName);
+            OrtsTrackProfileCatalog::find(resolution.templateName, profileType);
     if(resolution.backend == ProceduralTrackBackend::Procedural
             && routeProfile != nullptr){
         const ProceduralPathTransform pathTransform =

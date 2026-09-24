@@ -2302,19 +2302,35 @@ QString RouteEditorGLWidget::continuousFlexProfileForRole(
         const QString &role) const {
     QString base = continuousFlexProfile.trimmed();
     const bool road = liveFlexObj != NULL && liveFlexObj->isRoad();
-    if(base.isEmpty() || !road || role.isEmpty())
+    if(base.isEmpty() || role.isEmpty())
         return base;
+
+    const OrtsTrackProfile::ObjectType profileType = road
+            ? OrtsTrackProfile::ObjectType::Road
+            : OrtsTrackProfile::ObjectType::Track;
+    OrtsTrackProfileCatalog::load(Game::root + "/ROUTES/" + Game::route);
+    const QSharedPointer<const OrtsTrackProfile> selectedProfile =
+            OrtsTrackProfileCatalog::find(base, profileType);
+    if(selectedProfile != nullptr){
+        OrtsTrackProfile::ObjectRole objectRole =
+                OrtsTrackProfile::ObjectRole::Main;
+        if(role.compare("left", Qt::CaseInsensitive) == 0)
+            objectRole = OrtsTrackProfile::ObjectRole::Left;
+        else if(role.compare("middle", Qt::CaseInsensitive) == 0)
+            objectRole = OrtsTrackProfile::ObjectRole::Middle;
+        else if(role.compare("right", Qt::CaseInsensitive) == 0)
+            objectRole = OrtsTrackProfile::ObjectRole::Right;
+        const QSharedPointer<const OrtsTrackProfile> resolvedProfile =
+                OrtsTrackProfileCatalog::findRole(
+                    base, profileType, objectRole);
+        return resolvedProfile == nullptr ? selectedProfile->id
+                                          : resolvedProfile->id;
+    }
 
     QString groupBase = base;
     if(groupBase.endsWith("_single", Qt::CaseInsensitive))
         groupBase.chop(QString("_single").size());
     const QString candidate = groupBase + "_" + role;
-
-    OrtsTrackProfileCatalog::load(Game::root + "/ROUTES/" + Game::route);
-    const QSharedPointer<const OrtsTrackProfile> routeProfile =
-            OrtsTrackProfileCatalog::find(candidate);
-    if(routeProfile != nullptr)
-        return routeProfile->id;
 
     ProceduralShape::Load();
     if(ProceduralShape::ShapeTemplateFile != NULL){
@@ -2339,14 +2355,12 @@ void RouteEditorGLWidget::applyContinuousFlexProfiles() {
         return;
 
     QString mainRole;
-    if(liveFlexObj->isRoad()){
-        if(continuousFlexLeftEnabled && continuousFlexRightEnabled)
-            mainRole = "middle";
-        else if(continuousFlexLeftEnabled)
-            mainRole = "right";
-        else if(continuousFlexRightEnabled)
-            mainRole = "left";
-    }
+    if(continuousFlexLeftEnabled && continuousFlexRightEnabled)
+        mainRole = "middle";
+    else if(continuousFlexLeftEnabled)
+        mainRole = "right";
+    else if(continuousFlexRightEnabled)
+        mainRole = "left";
     liveFlexObj->setTemplate(continuousFlexProfileForRole(mainRole));
 
     for(int i = 0; i < liveFlexCompanions.size(); i++){
@@ -2354,7 +2368,7 @@ void RouteEditorGLWidget::applyContinuousFlexProfiles() {
         if(companion == NULL)
             continue;
         QString role;
-        if(liveFlexObj->isRoad() && i < liveFlexCompanionOffsets.size())
+        if(i < liveFlexCompanionOffsets.size())
             role = liveFlexCompanionOffsets[i] < 0 ? "left" : "right";
         companion->setTemplate(continuousFlexProfileForRole(role));
     }
