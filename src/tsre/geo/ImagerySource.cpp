@@ -1,5 +1,6 @@
 /* TSRE5 - Copyright (C) 2016 Piotr Gadecki. GPL-3.0-or-later. */
 #include <tsre/geo/ImagerySource.h>
+#include <tsre/geo/CogImagerySource.h>
 #include <tsre/geo/CrsTransform.h>
 
 #include <QCryptographicHash>
@@ -377,7 +378,8 @@ QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
         const bool wms=dataset.provider=="wms-kvp";
         const bool arcGis=dataset.provider=="arcgis-mapserver-export";
         const bool arcGisImage=dataset.provider=="arcgis-imageserver-export";
-        const bool projected=wms || arcGis || arcGisImage;
+        const bool cog=dataset.provider=="stac-cog-image";
+        const bool projected=wms || arcGis || arcGisImage || cog;
         const bool requestBlockValid=object.value("requestBlockPixels").isUndefined()
             || (object.value("requestBlockPixels").isDouble()
                 && dataset.requestBlockPixels>=256
@@ -397,6 +399,8 @@ QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
                 || (arcGis && Geo::CrsTransform::supports(dataset.crs)
                     && dataset.maxRequestPixels>=256 && dataset.maxRequestPixels<=8192)
                 || (arcGisImage && Geo::CrsTransform::supports(dataset.crs)
+                    && dataset.maxRequestPixels>=256 && dataset.maxRequestPixels<=8192)
+                || (cog && Geo::CrsTransform::supports(dataset.crs)
                     && dataset.maxRequestPixels>=256 && dataset.maxRequestPixels<=8192);
         if (!dataset.requestSizes.isEmpty()) {
             requestSizesValid=requestSizesValid
@@ -406,8 +410,9 @@ QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
         if (!idPattern.match(dataset.id).hasMatch() || ids.contains(dataset.id)
                 || dataset.name.trimmed().isEmpty()
                 || !providerValid
-                || !urlsValid || ((wmts || wms) && dataset.layer.isEmpty())
-                || (dataset.format != "image/jpeg" && dataset.format != "image/png")
+                || !urlsValid || ((wmts || wms || cog) && dataset.layer.isEmpty())
+                || (cog ? dataset.format!="image/tiff"
+                        : (dataset.format!="image/jpeg" && dataset.format!="image/png"))
                 || !directoryPattern.match(dataset.directory).hasMatch()
                 || !idPattern.match(dataset.revision).hasMatch()
                 || dataset.nativeResolution <= 0
@@ -672,7 +677,8 @@ Result generate(const Request &request, std::atomic_bool &cancel,
     result.report.targetMetresPerPixel = request.terrainSizeMetres
         / std::max(request.width,request.height);
     if (dataset->provider=="wms-kvp" || dataset->provider=="arcgis-mapserver-export"
-            || dataset->provider=="arcgis-imageserver-export") {
+            || dataset->provider=="arcgis-imageserver-export"
+            || dataset->provider=="stac-cog-image") {
         Geo::CrsTransform transform(dataset->crs);
         QVector<QPointF> projected;
         projected.reserve(request.controlPoints.size());
@@ -722,6 +728,15 @@ Result generate(const Request &request, std::atomic_bool &cancel,
         }
         result.report.sourceMetresPerPixel=std::max(extentWidth/sourceWidth,
                                                      extentHeight/sourceHeight);
+        QImage source;
+        if(dataset->provider=="stac-cog-image"){
+            if(!loadStacCogImage(request.root,*dataset,request.controlPoints,
+                    minX,minY,maxX,maxY,sourceWidth,sourceHeight,cancel,progress,
+                    result.report,source,result.error)){
+                if(cancel)result.cancelled=true;
+                return result;
+            }
+        } else {
         struct ImageBlock {
             int x=0,y=0,width=0,height=0;
             QUrl url;
@@ -760,7 +775,7 @@ Result generate(const Request &request, std::atomic_bool &cancel,
             blocks.push_back(std::move(block));
         }
         result.report.tiles=blocks.size();
-        QImage source(sourceWidth,sourceHeight,QImage::Format_RGB888);
+        source=QImage(sourceWidth,sourceHeight,QImage::Format_RGB888);
         if(source.isNull()){
             result.error=QStringLiteral("Cannot allocate imagery source mosaic");
             return result;
@@ -823,6 +838,7 @@ Result generate(const Request &request, std::atomic_bool &cancel,
             }
         }
         sourcePainter.end();
+        }
         if(cancel){result.cancelled=true;return result;}
         QVector<QPointF> sourcePoints;
         sourcePoints.reserve(projected.size());

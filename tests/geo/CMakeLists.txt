@@ -5,7 +5,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     find_package(Qt6 REQUIRED COMPONENTS Core Gui Network)
 endif()
 add_executable(tsre_elevation_tests ElevationTests.cpp ElevationDownloadTests.cpp CzechWcsTests.cpp ArcGisImageServerTests.cpp NoDataFillTests.cpp
-    ImageryTests.cpp ../../src/tsre/geo/ImagerySource.cpp
+    ImageryTests.cpp ../../src/tsre/geo/ImagerySource.cpp ../../src/tsre/geo/CogImagerySource.cpp
     ../../src/tsre/geo/CrsTransform.cpp ../../src/tsre/geo/ElevationRaster.cpp ../../src/tsre/geo/ElevationTiffCodec.cpp ../../src/tsre/geo/CogElevationSource.cpp ../../src/tsre/geo/WfsElevationSource.cpp ../../src/tsre/geo/ElevationSource.cpp
     ../../src/tsre/geo/ElevationDownload.cpp)
 target_compile_features(tsre_elevation_tests PRIVATE cxx_std_17)
@@ -32,3 +32,13 @@ target_link_libraries(tsre_elevation_benchmark PRIVATE Qt6::Core Qt6::Network)
 qt_add_resources(tsre_elevation_benchmark elevation_benchmark_catalog PREFIX "/geo"
     BASE "${TSRE_GEO_ROOT}/src/tsre/geo"
     FILES "${TSRE_GEO_ROOT}/src/tsre/geo/elevation-datasets.json")
+
+add_executable(tsre_imagery_benchmark EXCLUDE_FROM_ALL ImageryBenchmark.cpp
+    ../../src/tsre/geo/ImagerySource.cpp ../../src/tsre/geo/CogImagerySource.cpp
+    ../../src/tsre/geo/CrsTransform.cpp ../../src/tsre/geo/ElevationDownload.cpp)
+target_compile_features(tsre_imagery_benchmark PRIVATE cxx_std_17)
+target_include_directories(tsre_imagery_benchmark PRIVATE ../../src)
+target_link_libraries(tsre_imagery_benchmark PRIVATE Qt6::Core Qt6::Gui Qt6::Network)
+qt_add_resources(tsre_imagery_benchmark imagery_benchmark_catalog PREFIX "/geo"
+    BASE "${TSRE_GEO_ROOT}/src/tsre/geo"
+    FILES "${TSRE_GEO_ROOT}/src/tsre/geo/imagery-datasets.json")

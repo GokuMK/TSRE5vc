@@ -11,11 +11,12 @@
 void runImageryTests(const std::function<void(bool,const char*)> &check) {
     QString error;
     const auto catalogue=Imagery::builtInDatasets(error);
-    check(error.isEmpty()&&catalogue.size()==16,"imagery built-in catalogue parses");
+    check(error.isEmpty()&&catalogue.size()==18,"imagery built-in catalogue parses");
     const Imagery::Dataset *poland=nullptr,*world=nullptr,*usa=nullptr,*usaHigh=nullptr;
     const Imagery::Dataset *czechia=nullptr,*netherlands=nullptr,*slovakia=nullptr,*france=nullptr;
     const Imagery::Dataset *flanders=nullptr,*wallonia=nullptr,*spain=nullptr,*lithuania=nullptr;
     const Imagery::Dataset *estonia=nullptr,*croatia=nullptr,*slovenia=nullptr,*luxembourg=nullptr;
+    const Imagery::Dataset *portugal=nullptr,*switzerland=nullptr;
     for(const auto &dataset:catalogue){
         if(dataset.id=="pl.gugik.orto.standard")poland=&dataset;
         if(dataset.id=="world.esa.worldcover-s2-2021")world=&dataset;
@@ -33,10 +34,12 @@ void runImageryTests(const std::function<void(bool,const char*)> &check) {
         if(dataset.id=="hr.dgu.orthophoto-2023-2024")croatia=&dataset;
         if(dataset.id=="si.gurs.dof-latest")slovenia=&dataset;
         if(dataset.id=="lu.geoportail.ortho-2025-summer")luxembourg=&dataset;
+        if(dataset.id=="pt.dgt.orthophoto-2025")portugal=&dataset;
+        if(dataset.id=="ch.swisstopo.swissimage-dop10")switzerland=&dataset;
     }
     check(poland&&world&&usa&&usaHigh&&czechia&&netherlands&&slovakia&&france
           &&flanders&&wallonia&&spain&&lithuania
-          &&estonia&&croatia&&slovenia&&luxembourg
+          &&estonia&&croatia&&slovenia&&luxembourg&&portugal&&switzerland
           &&poland->detailedTerrainApproved&&!poland->distantTerrainApproved
           &&world->distantTerrainApproved&&usa->detailedTerrainApproved
           &&!usa->distantTerrainApproved&&usaHigh->detailedTerrainApproved
@@ -52,10 +55,12 @@ void runImageryTests(const std::function<void(bool,const char*)> &check) {
           &&!estonia->distantTerrainApproved&&croatia->detailedTerrainApproved
           &&!croatia->distantTerrainApproved&&slovenia->detailedTerrainApproved
           &&!slovenia->distantTerrainApproved&&luxembourg->detailedTerrainApproved
-          &&!luxembourg->distantTerrainApproved,"imagery terrain-domain approvals");
+          &&!luxembourg->distantTerrainApproved&&portugal->detailedTerrainApproved
+          &&!portugal->distantTerrainApproved&&switzerland->detailedTerrainApproved
+          &&!switzerland->distantTerrainApproved,"imagery terrain-domain approvals");
     if(!poland||!world||!usa||!usaHigh||!czechia||!netherlands||!slovakia||!france
        ||!flanders||!wallonia||!spain||!lithuania
-       ||!estonia||!croatia||!slovenia||!luxembourg)return;
+       ||!estonia||!croatia||!slovenia||!luxembourg||!portugal||!switzerland)return;
     check(poland->requestSizes==QVector<int>({4096,2048,1024})
           &&poland->defaultRequestSize==4096&&world->requestSizes.isEmpty()
           &&czechia->requestSizes==QVector<int>({4096,2048,1024})
@@ -82,7 +87,11 @@ void runImageryTests(const std::function<void(bool,const char*)> &check) {
           &&estonia->defaultRequestSize==4096&&estonia->requestBlockPixels==2048
           &&croatia->defaultRequestSize==4096&&croatia->requestBlockPixels==2048
           &&slovenia->defaultRequestSize==4096&&slovenia->requestBlockPixels==2048
-          &&luxembourg->defaultRequestSize==4096&&luxembourg->requestBlockPixels==2048,
+          &&luxembourg->defaultRequestSize==4096&&luxembourg->requestBlockPixels==2048
+          &&portugal->requestSizes==QVector<int>({4096})
+          &&portugal->defaultRequestSize==4096&&portugal->requestBlockPixels==0
+          &&switzerland->requestSizes==QVector<int>({4096,2048,1024})
+          &&switzerland->defaultRequestSize==4096&&switzerland->requestBlockPixels==0,
           "imagery source-specific request sizes and default");
 
     const QUrl polandUrl=Imagery::arcGisMapUrl(*poland,637000,486000,639048,488048,
@@ -226,6 +235,24 @@ void runImageryTests(const std::function<void(bool,const char*)> &check) {
           &&Imagery::nearDataset(*luxembourg,{{49.6116,6.1319}},0)
           &&!Imagery::nearDataset(*luxembourg,{{50.4674,4.8718}},0),
           "Luxembourg summer 2025 orthophoto WMS request and bounds");
+    const QUrl portugalUrl=Imagery::wmsUrl(*portugal,-90000,-106000,
+                                           -87952,-103952,4096,4096);
+    const QUrlQuery portugalQuery(portugalUrl);
+    check(portugalQuery.queryItemValue("LAYERS")=="Ortos2025-RGB"
+          &&portugalQuery.queryItemValue("CRS")=="EPSG:3763"
+          &&portugalQuery.queryItemValue("BBOX")=="-90000.000,-106000.000,-87952.000,-103952.000"
+          &&portugalQuery.queryItemValue("WIDTH")=="4096"
+          &&Imagery::nearDataset(*portugal,{{38.7223,-9.1393}},0)
+          &&!Imagery::nearDataset(*portugal,{{40.4168,-3.7038}},0),
+          "Portugal 2025 orthophoto native PT-TM06 WMS request and bounds");
+    check(switzerland->provider=="stac-cog-image"
+          &&switzerland->endpoint==QUrl("https://data.geo.admin.ch/api/stac/v1/")
+          &&switzerland->layer=="ch.swisstopo.swissimage-dop10"
+          &&switzerland->format=="image/tiff"&&switzerland->crs==2056
+          &&Imagery::nearDataset(*switzerland,{{46.9480,7.4474}},0)
+          &&Imagery::nearDataset(*switzerland,{{47.1410,9.5210}},0)
+          &&!Imagery::nearDataset(*switzerland,{{48.2082,16.3738}},0),
+          "Switzerland and Liechtenstein STAC COG source and bounds");
     const QPointF origin=Imagery::webMercatorPixel({0,0},0,256);
     check(std::abs(origin.x()-128)<1e-9&&std::abs(origin.y()-128)<1e-9,
           "Web Mercator origin pixel");

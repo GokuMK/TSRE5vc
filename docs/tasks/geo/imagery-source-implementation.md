@@ -44,6 +44,8 @@ Milestone one was implemented on 2026-09-24:
   after live capability, zoom-limit, tile-format and bounded export checks;
 - Czech CUZK Ortofoto uses one ArcGIS export, while Netherlands PDOK current
   25 cm imagery validates four-request WMS mosaics for size-limited services;
+- Portugal uses DGT's 2025 WMS, and Switzerland plus Liechtenstein use the
+  generic STAC/JPEG-COG range provider with selectable source resolution;
 - the focused geo suite covers catalogue merging, KVP requests, Web Mercator
   addressing, zoom choice, cache paths and offline cached composition.
 
@@ -62,8 +64,9 @@ texture generation remain separate.
   from Load Map in this milestone.
 - Do not generate final ACE terrain textures automatically. The existing
   "Make Tile Texture from Map" action remains a separate user action.
-- Do not add static-map URL templates, image COGs, STAC, authentication,
-  cloud-scene selection or automatic imagery during tile generation yet.
+- Do not add static-map URL templates, authentication, cloud-scene selection
+  or automatic imagery during tile generation yet. The later SWISSIMAGE step
+  added only the narrow RGB/JPEG STAC/COG profile described below.
 
 ## Existing implementation relevant to the task
 
@@ -414,6 +417,35 @@ ground pixels. One 4096 request took 8.3 seconds; four concurrent 2048 blocks
 took 2.6 seconds. TSRE uses that parallel 4096 default and also offers 2048 and
 1024. The dated edition is cached without expiry.
 
+### Portugal
+
+The Portugal entry uses DGT's official `Ortos2025-RGB` WMS layer in native
+EPSG:3763 PT-TM06/ETRS89, already supported by `CrsTransform`. DGT's newer
+catalogue confirms that the 25 cm 2025 edition covers mainland Portugal and is
+distributed under CC BY 4.0. A Lisbon-area request took about 1.2 seconds at
+1024, 1.4 seconds at 2048 and 3.0 seconds at 4096. Since one 4096 response is
+already fast and minimizes server request count, this entry exposes only that
+approximately 0.5 m terrain-image mode. The dated source is cached without
+expiry.
+
+### Switzerland and Liechtenstein
+
+The SWISSIMAGE entry validates the generic `stac-cog-image` provider. TSRE
+queries swisstopo's official STAC collection, keeps the latest item for each
+exact 1 km footprint, and chooses the coarsest published asset that still
+meets the selected terrain-image quality. It reads only the required internal
+JPEG COG tiles through strict HTTP ranges. Nearby byte ranges are coalesced up
+to 8 MiB, retaining four concurrent connections without issuing hundreds of
+tiny requests. Compressed JPEG parts are cached by source filename, published
+revision, overview level, row and column.
+
+SWISSIMAGE provides 0.1/0.25 m RGB COGs with internal overviews and separate
+2 m COGs in EPSG:2056. For a 2 km Bern-area tile, TSRE selected 0.4 m for the
+4096 mode, 0.8 m for 2048, and the 2 m asset for 1024. The first 4096 load
+transferred 13.2 MB in nine coalesced range requests and took about 10 seconds;
+the cached repeat performed no downloads and took about 1.2 seconds. A separate
+Liechtenstein probe confirmed that it is covered by the same collection.
+
 ## First milestone design
 
 ### 1. Catalogue
@@ -425,8 +457,9 @@ elevation catalogue: built-ins first, valid same-ID user entries replace in
 place, new IDs append, and an invalid user object cannot remove a built-in.
 
 Use deliberately narrow provider names. The implemented catalogue supports
-`wmts-kvp-webmercator`, projected `wms-kvp`, `arcgis-mapserver-export`, and
-`arcgis-imageserver-export`; it does not claim arbitrary capability discovery.
+`wmts-kvp-webmercator`, projected `wms-kvp`, `arcgis-mapserver-export`,
+`arcgis-imageserver-export`, and `stac-cog-image`; it does not claim arbitrary
+capability discovery.
 The Polish entry uses:
 
 ```json
@@ -654,8 +687,9 @@ tests remain opt-in and bounded.
    the strongest next public national candidates.
 3. **Poland high-resolution mode.** Revisit after measuring its coverage and
    practical request limits.
-4. **Image COG/STAC.** Add multiband UInt8/UInt16 and JPEG-in-TIFF support for
-   WorldCover direct COG, SWISSIMAGE and later sources.
+4. **Additional image COG profiles.** The current provider supports tiled RGB
+   8-bit JPEG COGs with internal overviews. Add other band layouts, data types,
+   compressions and masks only when a useful source requires them.
 5. **Fallback and NoData composition.** Define transparent/missing coverage,
    source priority, acquisition-period consistency and attribution for mixed
    imagery.

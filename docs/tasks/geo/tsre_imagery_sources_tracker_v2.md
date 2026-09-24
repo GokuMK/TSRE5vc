@@ -697,7 +697,7 @@ Sources:
 
 ## Switzerland + Liechtenstein — SWISSIMAGE
 
-**Status: 🟢 strongest European direct-COG imagery candidate**
+**Status: ✅ implemented through the generic STAC/COG image provider**
 
 SWISSIMAGE is exceptionally attractive for validating image COG support:
 
@@ -710,11 +710,19 @@ SWISSIMAGE is exceptionally attractive for validating image COG support:
 - JPEG95 compression;
 - Liechtenstein included in the same product/update stream.
 
-This requires **JPEG-compressed RGB TIFF** support, which is a different raster profile from the numeric LZW/Deflate COGs already used for elevation.
+TSRE queries the official STAC collection and reads only required internal
+JPEG tiles from the selected COG asset and overview. The 4096, 2048 and 1024
+choices produce approximately 0.4 m, 0.8 m and 2 m source grids for a 2 km
+terrain tile. Nearby TIFF block ranges are combined, then downloaded over four
+connections and cached as readable per-source parts. A Bern-area 4096 probe
+transferred 13.2 MB in nine requests in about 10 seconds; its cached repeat
+took about 1.2 seconds with no network traffic. Liechtenstein coverage was
+also verified through the same collection.
 
 Source:
 
 - https://www.swisstopo.admin.ch/en/orthoimage-swissimage-10
+- https://data.geo.admin.ch/api/stac/v1/collections/ch.swisstopo.swissimage-dop10
 
 ## Austria — BEV Orthophoto
 
@@ -907,18 +915,22 @@ Source:
 
 ## Portugal
 
-**Status: 🟢 / 🟡 pending exact current WMTS endpoint validation**
+**Status: ✅ implemented through the generic WMS provider**
 
-The new 2025 mainland orthophoto is an excellent dataset:
+The 2025 mainland orthophoto is an excellent dataset:
 
 - 25 cm;
 - RGB + NIR;
 - PT-TM06 / ETRS89;
 - 8 × 5 km files;
 - open/high-value dataset;
-- WMTS distribution is listed by DGT.
+- public WMS distribution.
 
-The imagery side may be easier than the current login-gated elevation download workflow because the official orthophoto catalogue explicitly exposes viewing distribution.
+TSRE uses the official `Ortos2025-RGB` layer in native EPSG:3763. The current
+DGT catalogue confirms complete mainland coverage and CC BY 4.0 distribution.
+A Lisbon-area 4096 request took about 3.0 seconds, so the entry uses one request
+and exposes only that approximately 0.5 m terrain-image mode. The dated edition
+is cached without expiry.
 
 Source:
 
@@ -1413,6 +1425,10 @@ Add generic WMS `GetMap` for sources without ideal tile services:
 
 ## Phase D — image COG profiles
 
+**Status: partially implemented.** SWISSIMAGE now validates tiled RGB UInt8
+JPEG COGs, internal overview selection, STAC discovery and coalesced HTTP range
+downloads. The other profiles below still require source-specific validation.
+
 High-value targets:
 
 - SWISSIMAGE JPEG95 COG;
@@ -1475,6 +1491,7 @@ Implementing both would test that the imagery code is not ArcGIS-specific.
 ## First image COG source
 
 **SWISSIMAGE**
+- implemented;
 - public;
 - high resolution;
 - actual RGB COG;
@@ -1503,8 +1520,10 @@ Implementing both would test that the imagery code is not ArcGIS-specific.
 
 5. **WMS remains important for exact resolution/bounds and services without useful WMTS.**
 
-6. **COG/STAC work from elevation remains valuable.**  
-   It can be reused for WorldCover, SWISSIMAGE, Sweden and OpenAerialMap, but image COGs require RGB/JPEG/multiband extensions.
+6. **The generic STAC/COG path is now proven by SWISSIMAGE.**
+   Its RGB/JPEG profile can be reused directly; WorldCover, Sweden and
+   OpenAerialMap still need their actual band, compression and access profiles
+   checked before configuration.
 
 7. **Detailed and distant imagery must have separate acquisition policy.**  
    Never download 10–20 cm national orthophoto over tens/hundreds of square kilometres by default merely because it is available.
