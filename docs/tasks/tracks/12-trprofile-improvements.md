@@ -175,10 +175,27 @@ The former `_lft`/`_rgt` world references were migrated to the standardized
 `default_road` duplicate were removed after references were migrated to
 `RdProfile`.
 
+### Repository examples
+
+`docs/examples/track-profiles/` contains complete family files copied from
+the visually tested `bbb` route:
+
+- `RdProfile.stf` - compact default road family;
+- `default_road_marked.stf` - marked-road family with role-specific UVs;
+- `TrProfile_NR_Bridge.stf` - realistic multi-material, multi-LOD rail family
+  whose side roles retain only the outer sidewalk and railing.
+
+The former one-file-per-role road examples were deleted. Their filenames no
+longer represented one family after identity changed to filename plus
+`ObjectType`.
+
 ## Follow-up
 
-- Implement the same family discovery, ObjectType parsing, and multi-path
-  resolution in Open Rails.
+- Open Rails family discovery, `ObjectType` parsing, repeated STF profile
+  blocks, `RdProfile` default selection, and directed-yaw multi-path role
+  resolution are implemented in local commit `608f288df`. The incremental
+  build and `bbb` route smoke load pass; visual acceptance of consolidated
+  families and static multi-path assignment remains pending.
 - Agree on a wrapper before allowing multiple profiles in one XML file.
 - Add a future per-profile name/ID field only if families need more than one
   member with the same object type and role.

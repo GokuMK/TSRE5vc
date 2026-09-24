@@ -478,9 +478,10 @@ Read these files in this order when more context is needed:
 | File | Knowledge supplied |
 |---|---|
 | `extra/trprofile-from-shape/extract_shape_trprofile_reference.ps1` | Shape export and cross-section analysis |
-| `docs/examples/track-profiles/default_road.stf` | Small, readable STF profile |
+| `docs/examples/track-profiles/RdProfile.stf` | Small, readable multi-role STF family |
+| `docs/examples/track-profiles/TrProfile_NR_Bridge.stf` | Real multi-material and multi-LOD family extracted from an MSTS shape |
 | `src/tsre/procedural/OrtsTrackProfile.h` | Profile, LOD, material, polyline, and vertex model |
-| `src/tsre/procedural/OrtsTrackProfile.cpp` | Parsing, validation, discovery, and aliases |
+| `src/tsre/procedural/OrtsTrackProfile.cpp` | Parsing, validation, discovery, family identity, and role resolution |
 | `src/tsre/procedural/OrtsTrackProfileRenderer.cpp` | Sweep math, coordinate conversion, UV distance, LOD and materials |
 | `tests/shapes/ShapeParserBenchmark.cpp` | `--export-text` for compressed/binary shapes |
 | `src/tsre/shape/SFileDocument.h` and `.cpp` | Shape document parser and text serialization |
