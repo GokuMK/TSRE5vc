@@ -3,13 +3,16 @@
 
 #include <QCoreApplication>
 #include <QElapsedTimer>
+#include <QFile>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <cmath>
 #include <iostream>
 
 int main(int argc,char **argv){
     QCoreApplication app(argc,argv);const auto args=app.arguments();
-    if(args.size()!=8||args[1]!="--live"){
-        std::cerr<<"Usage: tsre_imagery_benchmark --live cache-root dataset-id latitude longitude source-pixels output.png\n";
+    if((args.size()!=8&&args.size()!=9)||args[1]!="--live"){
+        std::cerr<<"Usage: tsre_imagery_benchmark --live cache-root dataset-id latitude longitude source-pixels output.png [secrets.json]\n";
         return 2;
     }
     bool latOk=false,lonOk=false,sizeOk=false;
@@ -20,6 +23,17 @@ int main(int argc,char **argv){
     const double dy=half/111320.0;
     const double dx=half/(111320.0*std::cos(latitude*3.14159265358979323846/180.0));
     Imagery::Request request;request.root=args[2];request.datasetId=args[3];
+    if(args.size()==9){
+        QFile file(args[8]);
+        if(!file.open(QIODevice::ReadOnly)||file.size()>1024*1024)return 2;
+        QJsonParseError parseError;
+        const auto document=QJsonDocument::fromJson(file.readAll(),&parseError);
+        if(parseError.error!=QJsonParseError::NoError
+                ||!document.object().value("secrets").isObject())return 2;
+        const auto secrets=document.object().value("secrets").toObject();
+        for(auto it=secrets.begin();it!=secrets.end();++it)
+            if(it.value().isString())request.secrets.insert(it.key(),it.value().toString());
+    }
     request.width=request.height=512;request.sourcePixels=sourcePixels;
     request.controlColumns=request.controlRows=2;request.terrainSizeMetres=terrainSize;
     request.controlPoints={{latitude+dy,longitude-dx},{latitude+dy,longitude+dx},

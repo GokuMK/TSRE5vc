@@ -19,6 +19,8 @@ struct GeographicPoint {
 struct Dataset {
     QString id, name, provider, layer, style, format;
     QString tileMatrixSet, tileMatrixTemplate, directory, revision;
+    QString urlTemplate;
+    QString downloadUrlTemplate, apiKeySecret, apiKeyParameter;
     QString wmsVersion, bboxAxisOrder;
     QString attribution, license, information;
     QUrl endpoint, attributionUrl, informationUrl;
@@ -27,12 +29,13 @@ struct Dataset {
     int tilePixels = 256, minZoom = 0, maxZoom = 0;
     int crs = 0, maxRequestPixels = 0, requestBlockPixels = 0;
     int defaultRequestSize = 0;
-    double nativeResolution = 0;
+    double nativeResolution = 0, fileTileSize = 0;
     double minLongitude = -180, minLatitude = -85.05112878;
     double maxLongitude = 180, maxLatitude = 85.05112878;
     int cacheMaxAgeDays = 0;
     bool detailedTerrainApproved = false;
     bool distantTerrainApproved = false;
+    bool persistentCache = true;
     bool defaultDetailedSource = false;
     bool defaultDistantSource = false;
     bool userDefined = false;
@@ -55,6 +58,7 @@ struct TileAddress {
 };
 
 QUrl tileUrl(const Dataset &dataset, TileAddress tile);
+QUrl staticMapUrl(const Dataset &dataset, GeographicPoint centre, int zoom);
 QUrl wmsUrl(const Dataset &dataset, double minX, double minY,
             double maxX, double maxY, int width, int height);
 QUrl arcGisMapUrl(const Dataset &dataset, double minX, double minY,
@@ -76,6 +80,7 @@ struct Request {
     QVector<GeographicPoint> controlPoints;
     double terrainSizeMetres = 0;
     int sourcePixels = 0;
+    QMap<QString,QString> secrets;
 };
 
 struct Report {

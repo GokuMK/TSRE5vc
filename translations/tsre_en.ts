@@ -10261,11 +10261,13 @@ Missing local elevation files (downloaded automatically when supported):
     <message id="geo.imagery.info.user.defined"><source>User-defined</source><translation>User-defined</translation></message>
     <message id="geo.imagery.info.built.in"><source>Built-in</source><translation>Built-in</translation></message>
     <message id="geo.imagery.info.resolution"><source>Native resolution</source><translation>Native resolution</translation></message>
+    <message id="geo.imagery.info.cache"><source>Cache</source><translation>Cache</translation></message>
+    <message id="geo.imagery.info.cache.disabled"><source>Disabled by source definition</source><translation>Disabled by source definition</translation></message>
     <message id="geo.imagery.info.attribution"><source>Attribution</source><translation>Attribution</translation></message>
     <message id="geo.imagery.info.license"><source>License</source><translation>License</translation></message>
     <message id="geo.imagery.info.attribution.link"><source>Attribution information</source><translation>Attribution information</translation></message>
     <message id="geo.imagery.info.more"><source>More information</source><translation>More information</translation></message>
-    <message id="geo.imagery.report.summary"><source>WMTS level: %1; required tiles: %2; cache hits: %3; downloads: %4 (%5 MiB)</source><translation>WMTS level: %1; required tiles: %2; cache hits: %3; downloads: %4 (%5 MiB)</translation></message>
+    <message id="geo.imagery.report.summary"><source>Zoom level: %1; required images: %2; cache hits: %3; downloads: %4 (%5 MiB)</source><translation>Zoom level: %1; required images: %2; cache hits: %3; downloads: %4 (%5 MiB)</translation></message>
     <message id="geo.imagery.report.image.summary"><source>Source images: %1; cache hits: %2; downloads: %3 (%4 MiB)</source><translation>Source images: %1; cache hits: %2; downloads: %3 (%4 MiB)</translation></message>
     <message id="geo.imagery.report.resolution"><source>Output spacing: %1 m/pixel; selected source spacing: %2 m/pixel.</source><translation>Output spacing: %1 m/pixel; selected source spacing: %2 m/pixel.</translation></message>
     <message id="geo.imagery.report.cancelled"><source>Cancelled. No imagery was applied.</source><translation>Cancelled. No imagery was applied.</translation></message>

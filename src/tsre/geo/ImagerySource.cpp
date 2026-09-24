@@ -60,7 +60,8 @@ bool validImage(const QByteArray &bytes, const Dataset &dataset, QImage &image,
 }
 
 QVector<DownloadResult> downloadWave(const QVector<QUrl> &urls,
-        std::atomic_bool &cancel, const std::function<void()> &completed) {
+        std::atomic_bool &cancel, const std::function<void()> &completed,
+        const QString &queryParameter={},const QString &queryValue={}) {
     QVector<DownloadResult> results(urls.size());
     if (urls.isEmpty() || cancel) return results;
     if (urls.size() > 4) {
@@ -82,7 +83,12 @@ QVector<DownloadResult> downloadWave(const QVector<QUrl> &urls,
             if (item.reply && !item.reply->isFinished()) item.reply->abort();
     });
     for (int i=0;i<urls.size();++i) {
-        QNetworkRequest request(urls[i]);
+        QUrl requestUrl=urls[i];
+        if(!queryParameter.isEmpty()){
+            QUrlQuery query(requestUrl);query.addQueryItem(queryParameter,queryValue);
+            requestUrl.setQuery(query);
+        }
+        QNetworkRequest request(requestUrl);
         request.setRawHeader("User-Agent","TSRE5vc terrain imagery");
         request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                              QNetworkRequest::NoLessSafeRedirectPolicy);
@@ -116,8 +122,11 @@ QVector<DownloadResult> downloadWave(const QVector<QUrl> &urls,
                 result.error = QStringLiteral("Imagery response exceeds %1 bytes").arg(MaxTileBytes);
             else if (item.timedOut) result.error = QStringLiteral("Imagery request timed out");
             else if (reply->error() != QNetworkReply::NoError || status != 200)
-                result.error = QStringLiteral("Imagery request failed (HTTP %1): %2")
-                    .arg(status).arg(reply->errorString());
+                result.error = queryParameter.isEmpty()
+                    ?QStringLiteral("Imagery request failed (HTTP %1): %2")
+                        .arg(status).arg(reply->errorString())
+                    :QStringLiteral("Imagery request failed (HTTP %1, network error %2)")
+                        .arg(status).arg(int(reply->error()));
             else result.bytes = std::move(item.bytes);
             ++finished;
             if (completed) completed();
@@ -133,7 +142,8 @@ QVector<DownloadResult> downloadWave(const QVector<QUrl> &urls,
 }
 
 QVector<DownloadResult> downloadWaveWithRetries(const QVector<QUrl> &urls,
-        std::atomic_bool &cancel, const std::function<void()> &completed) {
+        std::atomic_bool &cancel, const std::function<void()> &completed,
+        const QString &queryParameter={},const QString &queryValue={}) {
     QVector<DownloadResult> results(urls.size());
     QVector<int> pending;
     pending.reserve(urls.size());
@@ -143,7 +153,7 @@ QVector<DownloadResult> downloadWaveWithRetries(const QVector<QUrl> &urls,
         QVector<QUrl> retryUrls;
         retryUrls.reserve(pending.size());
         for (const int index:pending) retryUrls.push_back(urls[index]);
-        const auto retryResults=downloadWave(retryUrls,cancel,{});
+        const auto retryResults=downloadWave(retryUrls,cancel,{},queryParameter,queryValue);
         QVector<int> failed;
         for (int i=0;i<pending.size();++i) {
             const int original=pending[i];
@@ -160,6 +170,15 @@ QVector<DownloadResult> downloadWaveWithRetries(const QVector<QUrl> &urls,
 
 double groundResolution(double latitude, int zoom) {
     return 156543.03392804097 * std::cos(latitude*Pi/180.0) / std::ldexp(1.0,zoom);
+}
+
+GeographicPoint webMercatorGeographic(double x, double y, int zoom) {
+    const double world=std::ldexp(256.0,zoom);
+    x=std::fmod(x,world);
+    if(x<0)x+=world;
+    const double longitude=x/world*360.0-180.0;
+    const double latitude=std::atan(std::sinh(Pi-2.0*Pi*y/world))*180.0/Pi;
+    return {latitude,longitude};
 }
 
 bool isFresh(const QFileInfo &file, const Dataset &dataset) {
@@ -309,10 +328,14 @@ QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
         dataset.format = object.value("format").toString();
         dataset.tileMatrixSet = object.value("tileMatrixSet").toString();
         dataset.tileMatrixTemplate = object.value("tileMatrixTemplate").toString();
+        dataset.urlTemplate = object.value("urlTemplate").toString();
         dataset.wmsVersion = object.value("version").toString(QStringLiteral("1.3.0"));
         dataset.bboxAxisOrder = object.value("bboxAxisOrder").toString(QStringLiteral("xy"));
         dataset.directory = object.value("directory").toString();
         dataset.revision = object.value("revision").toString(QStringLiteral("current"));
+        const auto download=object.value("download").toObject();
+        dataset.downloadUrlTemplate=download.value("urlTemplate").toString();
+        dataset.fileTileSize=download.value("tileSize").toDouble();
         dataset.tilePixels = object.value("tilePixels").toInt();
         dataset.minZoom = object.value("minZoom").toInt();
         dataset.maxZoom = object.value("maxZoom").toInt();
@@ -324,6 +347,8 @@ QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
         dataset.cacheMaxAgeDays = object.value("cacheMaxAgeDays").toInt();
         dataset.detailedTerrainApproved = object.value("detailedTerrainApproved").toBool();
         dataset.distantTerrainApproved = object.value("distantTerrainApproved").toBool();
+        dataset.persistentCache = !object.contains("persistentCache")
+            || object.value("persistentCache").toBool();
         dataset.defaultDetailedSource = dataset.id == detailedDefault;
         dataset.defaultDistantSource = dataset.id == distantDefault;
         dataset.attribution = object.value("attribution").toString();
@@ -331,6 +356,13 @@ QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
         dataset.information = object.value("information").toString();
         dataset.attributionUrl = QUrl(object.value("attributionUrl").toString());
         dataset.informationUrl = QUrl(object.value("informationUrl").toString());
+        QString authenticationType;
+        const auto authentication=object.value("authentication").toObject();
+        if(object.contains("authentication")){
+            authenticationType=authentication.value("type").toString();
+            dataset.apiKeySecret=authentication.value("secret").toString();
+            dataset.apiKeyParameter=authentication.value("parameter").toString();
+        }
         const auto bounds = object.value("boundsWgs84").toArray();
         if (bounds.size() == 4) {
             dataset.minLongitude = bounds[0].toDouble();
@@ -371,15 +403,46 @@ QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
             && dataset.minLatitude >= -MercatorLimit && dataset.maxLatitude <= MercatorLimit
             && dataset.minLongitude < dataset.maxLongitude
             && dataset.minLatitude < dataset.maxLatitude;
-        const bool urlsValid = dataset.endpoint.scheme() == "https" && !dataset.endpoint.host().isEmpty()
-            && (dataset.attributionUrl.isEmpty() || dataset.attributionUrl.scheme() == "https")
-            && (dataset.informationUrl.isEmpty() || dataset.informationUrl.scheme() == "https");
         const bool wmts=dataset.provider=="wmts-kvp-webmercator";
         const bool wms=dataset.provider=="wms-kvp";
         const bool arcGis=dataset.provider=="arcgis-mapserver-export";
         const bool arcGisImage=dataset.provider=="arcgis-imageserver-export";
-        const bool cog=dataset.provider=="stac-cog-image";
+        const bool stacCog=dataset.provider=="stac-cog-image";
+        const bool projectedCog=dataset.provider=="projected-cog-image";
+        const bool staticMap=dataset.provider=="static-map-url";
+        const bool cog=stacCog||projectedCog;
         const bool projected=wms || arcGis || arcGisImage || cog;
+        QString downloadProbe=dataset.downloadUrlTemplate;
+        downloadProbe.replace(QStringLiteral("{northing}"),QStringLiteral("0"));
+        downloadProbe.replace(QStringLiteral("{easting}"),QStringLiteral("0"));
+        const QUrl downloadUrl(downloadProbe);
+        QString staticProbe=dataset.urlTemplate;
+        staticProbe.replace(QStringLiteral("{lat}"),QStringLiteral("0"));
+        staticProbe.replace(QStringLiteral("{lon}"),QStringLiteral("0"));
+        staticProbe.replace(QStringLiteral("{zoom}"),QStringLiteral("0"));
+        staticProbe.replace(QStringLiteral("{res}"),QStringLiteral("640"));
+        staticProbe.replace(QStringLiteral("{width}"),QStringLiteral("640"));
+        staticProbe.replace(QStringLiteral("{height}"),QStringLiteral("640"));
+        const QUrl staticUrl(staticProbe);
+        const bool staticTemplateValid=dataset.urlTemplate.contains("{lat}")
+            &&dataset.urlTemplate.contains("{lon}")
+            &&dataset.urlTemplate.contains("{zoom}")
+            &&(dataset.urlTemplate.contains("{res}")
+               ||(dataset.urlTemplate.contains("{width}")
+                  &&dataset.urlTemplate.contains("{height}")))
+            &&!staticProbe.contains('{')&&!staticProbe.contains('}')
+            &&staticUrl.scheme()=="https"&&!staticUrl.host().isEmpty();
+        const bool urlsValid = (projectedCog
+                ?downloadUrl.scheme()=="https"&&!downloadUrl.host().isEmpty()
+                :staticMap?staticTemplateValid
+                :dataset.endpoint.scheme()=="https"&&!dataset.endpoint.host().isEmpty())
+            && (dataset.attributionUrl.isEmpty() || dataset.attributionUrl.scheme() == "https")
+            && (dataset.informationUrl.isEmpty() || dataset.informationUrl.scheme() == "https");
+        const bool authenticationValid=!object.contains("authentication")
+            || ((wmts||staticMap)&&object.value("authentication").isObject()
+                &&authenticationType=="query-api-key"
+                &&idPattern.match(dataset.apiKeySecret).hasMatch()
+                &&idPattern.match(dataset.apiKeyParameter).hasMatch());
         const bool requestBlockValid=object.value("requestBlockPixels").isUndefined()
             || (object.value("requestBlockPixels").isDouble()
                 && dataset.requestBlockPixels>=256
@@ -391,7 +454,10 @@ QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
                     && !dataset.tileMatrixSet.isEmpty()
                     && matrixPattern.match(dataset.tileMatrixTemplate).hasMatch()
                     && powerOfTwo && dataset.minZoom>=0
-                    && dataset.maxZoom>=dataset.minZoom && dataset.maxZoom<=24)
+                     && dataset.maxZoom>=dataset.minZoom && dataset.maxZoom<=24)
+                || (staticMap && dataset.tilePixels>=64 && dataset.tilePixels<=1024
+                    && dataset.minZoom>=0 && dataset.maxZoom>=dataset.minZoom
+                    && dataset.maxZoom<=24)
                 || (wms && Geo::CrsTransform::supports(dataset.crs)
                     && dataset.wmsVersion=="1.3.0"
                     && (dataset.bboxAxisOrder=="xy" || dataset.bboxAxisOrder=="yx")
@@ -400,24 +466,33 @@ QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
                     && dataset.maxRequestPixels>=256 && dataset.maxRequestPixels<=8192)
                 || (arcGisImage && Geo::CrsTransform::supports(dataset.crs)
                     && dataset.maxRequestPixels>=256 && dataset.maxRequestPixels<=8192)
-                || (cog && Geo::CrsTransform::supports(dataset.crs)
-                    && dataset.maxRequestPixels>=256 && dataset.maxRequestPixels<=8192);
+                || (stacCog && Geo::CrsTransform::supports(dataset.crs)
+                    && dataset.maxRequestPixels>=256 && dataset.maxRequestPixels<=8192)
+                || (projectedCog && Geo::CrsTransform::supports(dataset.crs)
+                    && dataset.maxRequestPixels>=256 && dataset.maxRequestPixels<=8192
+                    && object.value("download").isObject()
+                    && dataset.fileTileSize>0
+                    && dataset.downloadUrlTemplate.contains("{northing}")
+                    && dataset.downloadUrlTemplate.contains("{easting}"));
         if (!dataset.requestSizes.isEmpty()) {
             requestSizesValid=requestSizesValid
-                && projected
+                && (projected||wmts||staticMap)
                 && requestSizeSet.contains(dataset.defaultRequestSize);
         } else requestSizesValid=requestSizesValid && dataset.defaultRequestSize==0;
         if (!idPattern.match(dataset.id).hasMatch() || ids.contains(dataset.id)
                 || dataset.name.trimmed().isEmpty()
                 || !providerValid
-                || !urlsValid || ((wmts || wms || cog) && dataset.layer.isEmpty())
+                || !urlsValid || !authenticationValid
+                || ((wmts || wms || stacCog) && dataset.layer.isEmpty())
                 || (cog ? dataset.format!="image/tiff"
                         : (dataset.format!="image/jpeg" && dataset.format!="image/png"))
                 || !directoryPattern.match(dataset.directory).hasMatch()
                 || !idPattern.match(dataset.revision).hasMatch()
                 || dataset.nativeResolution <= 0
                 || dataset.cacheMaxAgeDays < 0 || !boundsValid || !dimensionsValid
-                || !requestSizesValid || !requestBlockValid) {
+                 || (object.contains("persistentCache")
+                     && !object.value("persistentCache").isBool())
+                 || !requestSizesValid || !requestBlockValid) {
             rejected << QStringLiteral("Skipped imagery dataset %1: invalid or unsupported definition").arg(label);
             continue;
         }
@@ -531,6 +606,17 @@ QUrl tileUrl(const Dataset &dataset, TileAddress tile) {
         query.addQueryItem(it.key(),it.value());
     url.setQuery(query);
     return url;
+}
+
+QUrl staticMapUrl(const Dataset &dataset, GeographicPoint centre, int zoom) {
+    QString value=dataset.urlTemplate;
+    value.replace(QStringLiteral("{lat}"),QString::number(centre.latitude,'f',8));
+    value.replace(QStringLiteral("{lon}"),QString::number(centre.longitude,'f',8));
+    value.replace(QStringLiteral("{zoom}"),QString::number(zoom));
+    value.replace(QStringLiteral("{res}"),QString::number(dataset.tilePixels));
+    value.replace(QStringLiteral("{width}"),QString::number(dataset.tilePixels));
+    value.replace(QStringLiteral("{height}"),QString::number(dataset.tilePixels));
+    return QUrl(value);
 }
 
 QUrl wmsUrl(const Dataset &dataset, double minX, double minY,
@@ -678,7 +764,8 @@ Result generate(const Request &request, std::atomic_bool &cancel,
         / std::max(request.width,request.height);
     if (dataset->provider=="wms-kvp" || dataset->provider=="arcgis-mapserver-export"
             || dataset->provider=="arcgis-imageserver-export"
-            || dataset->provider=="stac-cog-image") {
+            || dataset->provider=="stac-cog-image"
+            || dataset->provider=="projected-cog-image") {
         Geo::CrsTransform transform(dataset->crs);
         QVector<QPointF> projected;
         projected.reserve(request.controlPoints.size());
@@ -736,6 +823,13 @@ Result generate(const Request &request, std::atomic_bool &cancel,
                 if(cancel)result.cancelled=true;
                 return result;
             }
+        }else if(dataset->provider=="projected-cog-image"){
+            if(!loadProjectedCogImage(request.root,*dataset,minX,minY,maxX,maxY,
+                    sourceWidth,sourceHeight,cancel,progress,result.report,
+                    source,result.error)){
+                if(cancel)result.cancelled=true;
+                return result;
+            }
         } else {
         struct ImageBlock {
             int x=0,y=0,width=0,height=0;
@@ -788,7 +882,7 @@ Result generate(const Request &request, std::atomic_bool &cancel,
             const QFileInfo cached(block.path);
             QImage image;
             QString imageError;
-            if(isFresh(cached,*dataset)){
+            if(dataset->persistentCache&&isFresh(cached,*dataset)){
                 QFile file(block.path);
                 QByteArray bytes;
                 if(file.open(QIODevice::ReadOnly))bytes=file.readAll();
@@ -825,13 +919,15 @@ Result generate(const Request &request, std::atomic_bool &cancel,
                     result.error=imageError;
                     return result;
                 }
-                QDir().mkpath(QFileInfo(block.path).absolutePath());
-                QSaveFile file(block.path);
-                if(!file.open(QIODevice::WriteOnly)
-                        || file.write(downloads[i].bytes)!=downloads[i].bytes.size()
-                        || !file.commit())
-                    result.report.issues<<QStringLiteral("Cannot write imagery cache image %1")
-                        .arg(QDir::toNativeSeparators(block.path));
+                if(dataset->persistentCache){
+                    QDir().mkpath(QFileInfo(block.path).absolutePath());
+                    QSaveFile file(block.path);
+                    if(!file.open(QIODevice::WriteOnly)
+                            || file.write(downloads[i].bytes)!=downloads[i].bytes.size()
+                            || !file.commit())
+                        result.report.issues<<QStringLiteral("Cannot write imagery cache image %1")
+                            .arg(QDir::toNativeSeparators(block.path));
+                }
                 sourcePainter.drawImage(block.x,block.y,image);
                 ++result.report.downloads;
                 result.report.downloadedBytes+=downloads[i].bytes.size();
@@ -853,17 +949,28 @@ Result generate(const Request &request, std::atomic_bool &cancel,
         if (!catalogueError.isEmpty()) result.report.issues << catalogueError;
         return result;
     }
-    result.report.zoom = chooseZoom(*dataset,centreLatitude,
-                                    result.report.targetMetresPerPixel);
+    const bool staticMap=dataset->provider=="static-map-url";
+    double requestedTileSpacing=result.report.targetMetresPerPixel;
+    if(request.sourcePixels>0){
+        if(!dataset->requestSizes.contains(request.sourcePixels)){
+            result.error=QStringLiteral("Unsupported imagery request size %1 for %2")
+                .arg(request.sourcePixels).arg(dataset->name);
+            return result;
+        }
+        requestedTileSpacing=request.terrainSizeMetres/request.sourcePixels;
+    }else if(!dataset->requestSizes.isEmpty())
+        requestedTileSpacing=request.terrainSizeMetres/dataset->defaultRequestSize;
+    result.report.zoom = chooseZoom(*dataset,centreLatitude,requestedTileSpacing);
     result.report.sourceMetresPerPixel = groundResolution(centreLatitude,result.report.zoom);
     const int matrixTiles = 1 << result.report.zoom;
-    const double worldPixels = double(dataset->tilePixels)*matrixTiles;
+    const int projectionTilePixels=staticMap?256:dataset->tilePixels;
+    const double worldPixels = double(projectionTilePixels)*matrixTiles;
     QVector<QPointF> projected;
     projected.reserve(request.controlPoints.size());
     double referenceX = 0;
     for (int i=0;i<request.controlPoints.size();++i) {
         QPointF pixel = webMercatorPixel(request.controlPoints[i],result.report.zoom,
-                                         dataset->tilePixels);
+                                         projectionTilePixels);
         if (i==0) referenceX = pixel.x();
         while (pixel.x()-referenceX > worldPixels*.5) pixel.rx() -= worldPixels;
         while (pixel.x()-referenceX < -worldPixels*.5) pixel.rx() += worldPixels;
@@ -877,7 +984,8 @@ Result generate(const Request &request, std::atomic_bool &cancel,
     int minColumn=int(std::floor((minX-1)/dataset->tilePixels));
     int maxColumn=int(std::floor((maxX+1)/dataset->tilePixels));
     int minRow=std::max(0,int(std::floor((minY-1)/dataset->tilePixels)));
-    int maxRow=std::min(matrixTiles-1,int(std::floor((maxY+1)/dataset->tilePixels)));
+    const int matrixRows=staticMap?int(std::ceil(worldPixels/dataset->tilePixels)):matrixTiles;
+    int maxRow=std::min(matrixRows-1,int(std::floor((maxY+1)/dataset->tilePixels)));
     const int tileColumns=maxColumn-minColumn+1,tileRows=maxRow-minRow+1;
     const qint64 tileCount=qint64(tileColumns)*tileRows;
     const qint64 mosaicWidth=qint64(tileColumns)*dataset->tilePixels;
@@ -897,14 +1005,23 @@ Result generate(const Request &request, std::atomic_bool &cancel,
     QPainter painter(&mosaic);
     QVector<LocalTile> missing;
     const QDir root(request.root);
+    const auto staticUrlForCell=[&](int column,int row){
+        const double centreX=(column+.5)*dataset->tilePixels;
+        const double centreY=(row+.5)*dataset->tilePixels;
+        return staticMapUrl(*dataset,
+                            webMercatorGeographic(centreX,centreY,result.report.zoom),
+                            result.report.zoom);
+    };
     for (int row=minRow;row<=maxRow;++row) for (int column=minColumn;column<=maxColumn;++column) {
-        const int normalized=(column%matrixTiles+matrixTiles)%matrixTiles;
+        const int normalized=staticMap?column:(column%matrixTiles+matrixTiles)%matrixTiles;
         const TileAddress address{result.report.zoom,normalized,row};
-        const QString path=root.filePath(cacheRelativePath(*dataset,address));
+        const QString path=root.filePath(staticMap
+            ?imageCacheRelativePath(*dataset,staticUrlForCell(column,row))
+            :cacheRelativePath(*dataset,address));
         QFileInfo file(path);
         QImage image;
         QString imageError;
-        if (isFresh(file,*dataset)) {
+        if (dataset->persistentCache&&isFresh(file,*dataset)) {
             QFile cached(path);
             QByteArray bytes;
             if (cached.open(QIODevice::ReadOnly)) bytes=cached.readAll();
@@ -920,17 +1037,25 @@ Result generate(const Request &request, std::atomic_bool &cancel,
     }
     int completed=0;
     bool requiredTileMissing=false;
+    const QString apiKey=request.secrets.value(dataset->apiKeySecret);
+    if(!missing.isEmpty()&&!dataset->apiKeySecret.isEmpty()
+            &&(apiKey.isEmpty()||apiKey.contains('\r')||apiKey.contains('\n'))){
+        result.error=QStringLiteral("Missing or invalid imagery API key: %1 in profile-local secrets.json")
+            .arg(dataset->apiKeySecret);
+        return result;
+    }
     for (int offset=0;offset<missing.size() && !cancel;offset+=4) {
         const int count=std::min(4,int(missing.size())-offset);
         QVector<QUrl> urls;
         for (int i=0;i<count;++i) {
             const auto tile=missing[offset+i];
-            urls.push_back(tileUrl(*dataset,{result.report.zoom,tile.normalizedColumn,tile.row}));
+            urls.push_back(staticMap?staticUrlForCell(tile.column,tile.row)
+                :tileUrl(*dataset,{result.report.zoom,tile.normalizedColumn,tile.row}));
         }
         const auto downloads=downloadWaveWithRetries(urls,cancel,[&] {
             ++completed;
             if (progress) progress(completed,missing.size(),QStringLiteral("Downloading imagery tiles"));
-        });
+        },dataset->apiKeyParameter,apiKey);
         for (int i=0;i<count;++i) {
             const auto tile=missing[offset+i];
             if (!downloads[i].error.isEmpty()) {
@@ -949,14 +1074,18 @@ Result generate(const Request &request, std::atomic_bool &cancel,
                 continue;
             }
             const TileAddress address{result.report.zoom,tile.normalizedColumn,tile.row};
-            const QString path=root.filePath(cacheRelativePath(*dataset,address));
-            QDir().mkpath(QFileInfo(path).absolutePath());
-            QSaveFile output(path);
-            if (!output.open(QIODevice::WriteOnly)
-                    || output.write(downloads[i].bytes)!=downloads[i].bytes.size()
-                    || !output.commit()) {
-                result.report.issues << QStringLiteral("Cannot write imagery cache tile %1")
-                    .arg(QDir::toNativeSeparators(path));
+            const QString path=root.filePath(staticMap
+                ?imageCacheRelativePath(*dataset,urls[i])
+                :cacheRelativePath(*dataset,address));
+            if(dataset->persistentCache){
+                QDir().mkpath(QFileInfo(path).absolutePath());
+                QSaveFile output(path);
+                if (!output.open(QIODevice::WriteOnly)
+                        || output.write(downloads[i].bytes)!=downloads[i].bytes.size()
+                        || !output.commit()) {
+                    result.report.issues << QStringLiteral("Cannot write imagery cache tile %1")
+                        .arg(QDir::toNativeSeparators(path));
+                }
             }
             painter.drawImage((tile.column-minColumn)*dataset->tilePixels,
                               (tile.row-minRow)*dataset->tilePixels,image);

@@ -135,8 +135,7 @@ limits discovered in the old parser.
 
 | Legacy key | Candidate key | Subgroup | Actual meaning / timing | Owner and Phase 2B direction |
 |---|---|---|---|---|
-| `imageMapsUrl` | `core.maps.imageryUrl` | Online imagery | HTTP template with `{lat}`, `{lon}`, `{zoom}`, `{res}`, and `{apikey}` | MapDataUrlImage; resolve `{apikey}` from the separate secret at request time |
-| — | `core.maps.imageryApiKey` | Online imagery | Native secret reference; its secret value replaces `{apikey}` | MapDataUrlImage; direct request-time lookup, no legacy plaintext field |
+| `imageMapsUrl` | removed | Online imagery | Migrated to user entries in `assets/geo/imagery-datasets.json` using the generic `static-map-url` provider | Load Imagery; credentials are referenced directly from profile-local `secrets.json` |
 | `mapImageResolution` | `core.maps.imageResolution` | Online imagery | Width/height of assembled map output, not each provider request | MapWindow; Move at generation time |
 | `ortsEngEnable` | `core.content.loading.preferOpenRailsEng` | Loading | Tries ENG/include files in each trainset OpenRails subdirectory | Shared Eng loader; Move at rolling-stock load |
 | `serverLogin` | `core.network.clientLogin` | Route Editor client | Visible `username[:password]@host[:port]` template with protected parts referenced as `{secret:ID}` | Client bootstrap; resolve secrets only at connection time; later split structured fields if useful |

@@ -171,7 +171,6 @@ public:
     static QString StyleYellowButton;
     static QString StyleGreenText;
     static QString StyleRedText;
-    static QString imageMapsUrl;
     static int mapImageResolution;
     static bool autoNewTiles;
     static bool autoGeoTerrain;

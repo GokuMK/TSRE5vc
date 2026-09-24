@@ -14,4 +14,14 @@ bool loadStacCogImage(const QString &root, const Dataset &dataset,
                       const Progress &progress, Report &report,
                       QImage &image, QString &error);
 
+QUrl projectedCogUrl(const Dataset &dataset, qint64 northing, qint64 easting);
+
+// Loads fixed-size projected COG files addressed by a URL template. The
+// returned image exactly covers minX,minY,maxX,maxY in dataset.crs.
+bool loadProjectedCogImage(const QString &root, const Dataset &dataset,
+                           double minX, double minY, double maxX, double maxY,
+                           int width, int height, std::atomic_bool &cancel,
+                           const Progress &progress, Report &report,
+                           QImage &image, QString &error);
+
 }

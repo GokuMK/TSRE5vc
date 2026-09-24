@@ -178,7 +178,24 @@ For imagery, STAC selection policy must additionally consider:
 - overlapping scenes;
 - preference for prepared mosaics over individual scenes.
 
-## 3.5 Cache identity
+## 3.5 User-configured static-map URLs
+
+TSRE now supports a generic `static-map-url` provider in the user catalogue at
+`assets/geo/imagery-datasets.json`. It accepts validated HTTPS centre/zoom URL
+templates, derives zoom from the selected imagery resolution, downloads up to
+four request-sized images concurrently and reuses the normal imagery cache and
+composition path. API keys are named through an authentication object and read
+from profile-local `secrets.json`; they are not embedded in the URL template.
+The optional `persistentCache: false` policy supports services whose terms do
+not permit storing returned map images.
+
+No static-map source is shipped in the built-in catalogue. Google Static Maps
+is documented in the implementation task as an example for users who supply
+their own credentials and accept the provider's terms. This replaces the old
+single `imageMapsUrl` setting and the Load Map Z17/Z18 raster choices; Load Map
+now remains focused on OSM.
+
+## 3.6 Cache identity
 
 Imagery cache identity should include at least:
 
@@ -726,7 +743,7 @@ Source:
 
 ## Austria — BEV Orthophoto
 
-**Status: 🟡**
+**Status: ✅ implemented through the generic projected-grid COG provider**
 
 BEV publishes nationwide current orthophotos:
 
@@ -736,9 +753,17 @@ BEV publishes nationwide current orthophotos:
 - raster delivery including TIFF/JPEG;
 - some current digital products are available as free downloads.
 
-The viewing-service side has registration/access considerations, so the exact automatic TSRE route needs another endpoint-level pass.
+The free national RGB product consists of 57 BigTIFF COG files on a fixed
+50 x 50 km EPSG:3035 grid. Despite individual files reaching about 12 GB, the
+server correctly supports byte ranges and the TIFF directories precede raster
+data. TSRE therefore downloads only the JPEG-compressed blocks needed for the
+terrain area and selected 4096, 2048 or 1024 request size.
 
-A direct downloadable-file/index provider may be more appropriate than relying on the BEV WMS.
+The 2022 edition has predictable filenames containing the projected grid
+origin and the fixed `20220128` publication date. The built-in entry constructs
+those URLs directly. BEV's ATOM download catalogue remains documented as a
+future way to detect a replacement edition automatically; it is not required
+for this dated mosaic.
 
 Sources:
 
@@ -803,7 +828,7 @@ Sources:
 
 ## Denmark — GeoDanmark spring orthophoto
 
-**Status: 🟡**
+**Status: ✅ implemented through authenticated generic Web Mercator WMTS**
 
 Technically excellent:
 
@@ -816,7 +841,16 @@ Technically excellent:
 - WMS and WMTS;
 - dedicated Web Mercator WMTS exists.
 
-Access uses API key or OAuth.
+Access uses API key or OAuth. TSRE uses query-key authentication and references
+the already configured `geo.elevation.dk.datafordeler.apiKey` secret. The
+credential is appended only to outgoing requests and is excluded from the
+catalogue, cache identity and error reports. The verified capabilities expose
+`orto_foraar_webm`, `DFD_GoogleMapsCompatible`, 256-pixel JPEG tiles and zooms
+0 through 20. The entry offers 4096, 2048 and 1024 quality choices. A bounded
+Copenhagen probe fetched four low-resolution tiles in about 0.9 s, while the
+4096 mode needed about 28.5 s for 144 first-use tiles. It therefore defaults to
+2048, which took about 8.0 s for 42 first-use tiles and 0.1 s from cache, and
+retains 4096 as an explicit high-quality choice.
 
 Web Mercator WMTS:
 

@@ -13,7 +13,6 @@
 
 #include <QtWidgets>
 #include <unordered_map>
-#include <vector>
 
 class QNetworkReply;
 class QImage;
@@ -49,7 +48,6 @@ public slots:
     void isStatusInfo(QString val);
 
 private:
-    QVector<MapData*> mapServices;
     MapData *dane = NULL;
     QLabel* imageLabel;
     float minlat, minlon, maxlat, maxlon;
@@ -60,7 +58,6 @@ private:
     PreciseTileCoordinate* aCoords = NULL;
     QPushButton *loadButton = NULL;
     QSpinBox alphaBox;
-    QComboBox mapServicesCombo;
 };
 
 #endif	/* MAPWINDOW_H */

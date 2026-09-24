@@ -10266,11 +10266,13 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
     <message id="geo.imagery.info.user.defined"><source>User-defined</source><translation>Zdefiniowane przez użytkownika</translation></message>
     <message id="geo.imagery.info.built.in"><source>Built-in</source><translation>Wbudowane</translation></message>
     <message id="geo.imagery.info.resolution"><source>Native resolution</source><translation>Rozdzielczość źródłowa</translation></message>
+    <message id="geo.imagery.info.cache"><source>Cache</source><translation>Pamięć podręczna</translation></message>
+    <message id="geo.imagery.info.cache.disabled"><source>Disabled by source definition</source><translation>Wyłączona w definicji źródła</translation></message>
     <message id="geo.imagery.info.attribution"><source>Attribution</source><translation>Autor danych</translation></message>
     <message id="geo.imagery.info.license"><source>License</source><translation>Licencja</translation></message>
     <message id="geo.imagery.info.attribution.link"><source>Attribution information</source><translation>Informacje o autorstwie</translation></message>
     <message id="geo.imagery.info.more"><source>More information</source><translation>Więcej informacji</translation></message>
-    <message id="geo.imagery.report.summary"><source>WMTS level: %1; required tiles: %2; cache hits: %3; downloads: %4 (%5 MiB)</source><translation>Poziom WMTS: %1; wymagane kafle: %2; trafienia pamięci podręcznej: %3; pobrania: %4 (%5 MiB)</translation></message>
+    <message id="geo.imagery.report.summary"><source>Zoom level: %1; required images: %2; cache hits: %3; downloads: %4 (%5 MiB)</source><translation>Poziom powiększenia: %1; wymagane obrazy: %2; trafienia pamięci podręcznej: %3; pobrania: %4 (%5 MiB)</translation></message>
     <message id="geo.imagery.report.image.summary"><source>Source images: %1; cache hits: %2; downloads: %3 (%4 MiB)</source><translation>Obrazy źródłowe: %1; trafienia pamięci podręcznej: %2; pobrania: %3 (%4 MiB)</translation></message>
     <message id="geo.imagery.report.resolution"><source>Output spacing: %1 m/pixel; selected source spacing: %2 m/pixel.</source><translation>Rozdzielczość wyjściowa: %1 m/piksel; rozdzielczość wybranego źródła: %2 m/piksel.</translation></message>
     <message id="geo.imagery.report.cancelled"><source>Cancelled. No imagery was applied.</source><translation>Anulowano. Zobrazowanie nie zostało zastosowane.</translation></message>

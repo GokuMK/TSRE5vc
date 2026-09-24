@@ -50,6 +50,11 @@ QString sourceInformation(const Imagery::Dataset &dataset) {
         //% "Native resolution"
         .arg(qtTrId("geo.imagery.info.resolution").toHtmlEscaped())
         .arg(dataset.nativeResolution,0,'g',8);
+    if(!dataset.persistentCache) html+=QStringLiteral("<b>%1:</b> %2<br>")
+        //% "Cache"
+        .arg(qtTrId("geo.imagery.info.cache").toHtmlEscaped(),
+             //% "Disabled by source definition"
+             qtTrId("geo.imagery.info.cache.disabled").toHtmlEscaped());
     if(!dataset.attribution.isEmpty()) html+=QStringLiteral("<b>%1:</b> %2<br>")
         //% "Attribution"
         .arg(qtTrId("geo.imagery.info.attribution").toHtmlEscaped(),dataset.attribution.toHtmlEscaped());
@@ -67,7 +72,7 @@ QString sourceInformation(const Imagery::Dataset &dataset) {
 QString summary(const Imagery::Result &result) {
     QString text;
     if(result.report.zoom>=0) {
-        //% "WMTS level: %1; required tiles: %2; cache hits: %3; downloads: %4 (%5 MiB)"
+        //% "Zoom level: %1; required images: %2; cache hits: %3; downloads: %4 (%5 MiB)"
         text=qtTrId("geo.imagery.report.summary")
             .arg(result.report.zoom).arg(result.report.tiles).arg(result.report.cacheHits)
             .arg(result.report.downloads).arg(result.report.downloadedBytes/1024.0/1024.0,0,'f',2);
@@ -281,6 +286,13 @@ void ImageryWindow::loadPreview() {
     request.root=Settings::string("core.paths.geoData",SettingType::Directory);
     request.datasetId=sourceBox->currentData().toString();
     request.sourcePixels=resolutionBox->currentData().toInt();
+    QString secretCatalogueError;
+    for(const auto &dataset:Imagery::datasets(secretCatalogueError))
+        if(dataset.id==request.datasetId&&!dataset.apiKeySecret.isEmpty()){
+            request.secrets.insert(dataset.apiKeySecret,
+                SettingsManager::instance().secretValue(dataset.apiKeySecret));
+            break;
+        }
     request.width=request.height=outputSize;
     request.controlColumns=request.controlRows=33;
     request.terrainSizeMetres=terrainSize;

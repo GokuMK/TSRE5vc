@@ -42,7 +42,6 @@ shadowsEnabled = 1
 #textureQuality = 4
 ignoreMissingGlobalShapes = true
 snapableOnlyRot = false
-imageMapsUrl = 
 #AASamples = 16
 #mapImageResolution = 2048
 #cameraStickToTerrain = true

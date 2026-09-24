@@ -1,4 +1,5 @@
 #include <tsre/geo/ImagerySource.h>
+#include <tsre/geo/CogImagerySource.h>
 
 #include <QBuffer>
 #include <QDir>
@@ -11,12 +12,12 @@
 void runImageryTests(const std::function<void(bool,const char*)> &check) {
     QString error;
     const auto catalogue=Imagery::builtInDatasets(error);
-    check(error.isEmpty()&&catalogue.size()==18,"imagery built-in catalogue parses");
+    check(error.isEmpty()&&catalogue.size()==20,"imagery built-in catalogue parses");
     const Imagery::Dataset *poland=nullptr,*world=nullptr,*usa=nullptr,*usaHigh=nullptr;
     const Imagery::Dataset *czechia=nullptr,*netherlands=nullptr,*slovakia=nullptr,*france=nullptr;
     const Imagery::Dataset *flanders=nullptr,*wallonia=nullptr,*spain=nullptr,*lithuania=nullptr;
     const Imagery::Dataset *estonia=nullptr,*croatia=nullptr,*slovenia=nullptr,*luxembourg=nullptr;
-    const Imagery::Dataset *portugal=nullptr,*switzerland=nullptr;
+    const Imagery::Dataset *portugal=nullptr,*denmark=nullptr,*austria=nullptr,*switzerland=nullptr;
     for(const auto &dataset:catalogue){
         if(dataset.id=="pl.gugik.orto.standard")poland=&dataset;
         if(dataset.id=="world.esa.worldcover-s2-2021")world=&dataset;
@@ -35,11 +36,13 @@ void runImageryTests(const std::function<void(bool,const char*)> &check) {
         if(dataset.id=="si.gurs.dof-latest")slovenia=&dataset;
         if(dataset.id=="lu.geoportail.ortho-2025-summer")luxembourg=&dataset;
         if(dataset.id=="pt.dgt.orthophoto-2025")portugal=&dataset;
+        if(dataset.id=="dk.datafordeler.ortofoto-foraar")denmark=&dataset;
+        if(dataset.id=="at.bev.dop-20220128")austria=&dataset;
         if(dataset.id=="ch.swisstopo.swissimage-dop10")switzerland=&dataset;
     }
     check(poland&&world&&usa&&usaHigh&&czechia&&netherlands&&slovakia&&france
           &&flanders&&wallonia&&spain&&lithuania
-          &&estonia&&croatia&&slovenia&&luxembourg&&portugal&&switzerland
+          &&estonia&&croatia&&slovenia&&luxembourg&&portugal&&denmark&&austria&&switzerland
           &&poland->detailedTerrainApproved&&!poland->distantTerrainApproved
           &&world->distantTerrainApproved&&usa->detailedTerrainApproved
           &&!usa->distantTerrainApproved&&usaHigh->detailedTerrainApproved
@@ -56,11 +59,13 @@ void runImageryTests(const std::function<void(bool,const char*)> &check) {
           &&!croatia->distantTerrainApproved&&slovenia->detailedTerrainApproved
           &&!slovenia->distantTerrainApproved&&luxembourg->detailedTerrainApproved
           &&!luxembourg->distantTerrainApproved&&portugal->detailedTerrainApproved
-          &&!portugal->distantTerrainApproved&&switzerland->detailedTerrainApproved
+          &&!portugal->distantTerrainApproved&&denmark->detailedTerrainApproved
+          &&!denmark->distantTerrainApproved&&austria->detailedTerrainApproved
+          &&!austria->distantTerrainApproved&&switzerland->detailedTerrainApproved
           &&!switzerland->distantTerrainApproved,"imagery terrain-domain approvals");
     if(!poland||!world||!usa||!usaHigh||!czechia||!netherlands||!slovakia||!france
        ||!flanders||!wallonia||!spain||!lithuania
-       ||!estonia||!croatia||!slovenia||!luxembourg||!portugal||!switzerland)return;
+       ||!estonia||!croatia||!slovenia||!luxembourg||!portugal||!denmark||!austria||!switzerland)return;
     check(poland->requestSizes==QVector<int>({4096,2048,1024})
           &&poland->defaultRequestSize==4096&&world->requestSizes.isEmpty()
           &&czechia->requestSizes==QVector<int>({4096,2048,1024})
@@ -90,6 +95,10 @@ void runImageryTests(const std::function<void(bool,const char*)> &check) {
           &&luxembourg->defaultRequestSize==4096&&luxembourg->requestBlockPixels==2048
           &&portugal->requestSizes==QVector<int>({4096})
           &&portugal->defaultRequestSize==4096&&portugal->requestBlockPixels==0
+          &&denmark->requestSizes==QVector<int>({4096,2048,1024})
+          &&denmark->defaultRequestSize==2048
+          &&austria->requestSizes==QVector<int>({4096,2048,1024})
+          &&austria->defaultRequestSize==4096&&austria->requestBlockPixels==0
           &&switzerland->requestSizes==QVector<int>({4096,2048,1024})
           &&switzerland->defaultRequestSize==4096&&switzerland->requestBlockPixels==0,
           "imagery source-specific request sizes and default");
@@ -245,6 +254,22 @@ void runImageryTests(const std::function<void(bool,const char*)> &check) {
           &&Imagery::nearDataset(*portugal,{{38.7223,-9.1393}},0)
           &&!Imagery::nearDataset(*portugal,{{40.4168,-3.7038}},0),
           "Portugal 2025 orthophoto native PT-TM06 WMS request and bounds");
+    const QUrl denmarkUrl=Imagery::tileUrl(*denmark,{18,135019,80639});
+    const QUrlQuery denmarkQuery(denmarkUrl);
+    check(denmark->apiKeySecret=="geo.elevation.dk.datafordeler.apiKey"
+          &&denmark->apiKeyParameter=="apikey"
+          &&denmarkQuery.queryItemValue("LAYER")=="orto_foraar_webm"
+          &&denmarkQuery.queryItemValue("TILEMATRIXSET")=="DFD_GoogleMapsCompatible"
+          &&denmarkQuery.queryItemValue("TILEMATRIX")=="18"
+          &&!denmarkQuery.hasQueryItem("apikey")
+          &&Imagery::nearDataset(*denmark,{{55.6761,12.5683}},0),
+          "Denmark WMTS uses a secret reference without exposing the key");
+    check(austria->provider=="projected-cog-image"&&austria->crs==3035
+          &&std::abs(austria->fileTileSize-50000)<1e-9
+          &&Imagery::projectedCogUrl(*austria,2800000,4750000)
+            ==QUrl("https://data.bev.gv.at/download/DOP/20220128/DOP_CRS3035RES50000mN2800000E4750000_20220128.tif")
+          &&Imagery::nearDataset(*austria,{{48.2082,16.3738}},0),
+          "Austria uses the predictable 50 km projected COG grid");
     check(switzerland->provider=="stac-cog-image"
           &&switzerland->endpoint==QUrl("https://data.geo.admin.ch/api/stac/v1/")
           &&switzerland->layer=="ch.swisstopo.swissimage-dop10"
@@ -268,17 +293,39 @@ void runImageryTests(const std::function<void(bool,const char*)> &check) {
        "endpoint":"https://example.invalid/wmts","layer":"ortho","style":"default","format":"image/jpeg",
        "tileMatrixSet":"EPSG:3857","tileMatrixTemplate":"{zoom}","tilePixels":256,
        "minZoom":0,"maxZoom":19,"nativeResolution":1,"boundsWgs84":[14,49,24,55],
-       "detailedTerrainApproved":true,"directory":"custom_poland","revision":"v1"}
+       "detailedTerrainApproved":true,"directory":"custom_poland","revision":"v1"},
+      {"id":"user.google.satellite","name":"Google satellite","provider":"static-map-url",
+       "urlTemplate":"https://maps.googleapis.com/maps/api/staticmap?center={lat},{lon}&zoom={zoom}&size={res}x{res}&maptype=satellite&format=png",
+       "format":"image/png","tilePixels":640,"minZoom":0,"maxZoom":21,"nativeResolution":0.1,
+       "requestSizes":[4096,2048,1024],"defaultRequestSize":4096,
+       "boundsWgs84":[-180,-85,180,85],"detailedTerrainApproved":true,
+       "persistentCache":false,"directory":"google_static_satellite","revision":"current",
+       "authentication":{"type":"query-api-key","secret":"maps.imageryApiKey","parameter":"key"}}
     ]})json";
     const auto merged=Imagery::mergeDatasets(builtIn.readAll(),user,error);
     bool custom=false,broken=false,worldRetained=false;
+    const Imagery::Dataset *google=nullptr;
     for(const auto &dataset:merged){
         custom|=dataset.id=="pl.gugik.orto.standard"&&dataset.name=="Custom Poland"&&dataset.userDefined;
         broken|=dataset.id=="broken";
         worldRetained|=dataset.id==world->id;
+        if(dataset.id=="user.google.satellite")google=&dataset;
     }
-    check(custom&&!broken&&worldRetained&&error.contains("broken"),
+    check(custom&&!broken&&worldRetained&&google&&google->userDefined
+          &&google->provider=="static-map-url"&&google->tilePixels==640
+          &&!google->persistentCache&&google->apiKeySecret=="maps.imageryApiKey"
+          &&error.contains("broken"),
           "invalid user imagery object is isolated while valid override merges");
+    if(google){
+        const QUrl googleUrl=Imagery::staticMapUrl(*google,{52.2297,21.0122},18);
+        const QUrlQuery googleQuery(googleUrl);
+        check(googleQuery.queryItemValue("center")=="52.22970000,21.01220000"
+              &&googleQuery.queryItemValue("zoom")=="18"
+              &&googleQuery.queryItemValue("size")=="640x640"
+              &&!googleQuery.hasQueryItem("key")
+              &&Imagery::chooseZoom(*google,52.2297,.5)==18,
+              "static-map URL placeholders and source resolution are generic");
+    }
 
     QTemporaryDir temporary;
     Imagery::Request unsupported;
@@ -292,6 +339,16 @@ void runImageryTests(const std::function<void(bool,const char*)> &check) {
     const auto unsupportedResult=Imagery::generate(unsupported,unsupportedCancel);
     check(!unsupportedResult.success()&&unsupportedResult.error.contains("Unsupported imagery request size"),
           "imagery provider rejects request sizes outside the dataset set");
+
+    Imagery::Request missingKey=unsupported;
+    missingKey.datasetId=denmark->id;missingKey.sourcePixels=0;
+    missingKey.controlPoints={{55.6761,12.5683},{55.6761,12.5693},
+                              {55.6755,12.5683},{55.6755,12.5693}};
+    std::atomic_bool missingKeyCancel{false};
+    const auto missingKeyResult=Imagery::generate(missingKey,missingKeyCancel);
+    check(!missingKeyResult.success()
+          &&missingKeyResult.error.contains("geo.elevation.dk.datafordeler.apiKey"),
+          "authenticated imagery reports a missing secret before network access");
 
     Imagery::Request request;
     request.root=temporary.path();request.datasetId=world->id;

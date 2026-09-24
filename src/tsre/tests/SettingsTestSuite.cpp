@@ -43,7 +43,7 @@ int TsreTests::runSettingsSuite(bool verbose) {
 
     SettingsManager manager;
     SettingsRegistration::registerAll(manager.registry());
-    check(manager.registry().definitions().size() == 86,
+    check(manager.registry().definitions().size() == 84,
           "catalog-includes-terrain-elevation-and-imagery-sources");
     const auto *elevationSource = manager.registry().definition("geo.elevation.source");
     const auto *elevationFallback = manager.registry().definition("geo.elevation.fallback");
@@ -223,11 +223,9 @@ int TsreTests::runSettingsSuite(bool verbose) {
           && clientLogin->descriptionId
              == "settings.core.network.client.login.description",
           "phase2a-client-login-supports-inline-secret-reference");
-    const SettingsDefinition *mapApiKey =
-            manager.registry().definition("core.maps.imageryApiKey");
-    check(mapApiKey && mapApiKey->type == SettingType::Secret
-          && mapApiKey->legacyFileKeys.isEmpty(),
-          "phase2a-map-api-key-is-native-secret");
+    check(!manager.registry().definition("core.maps.imageryUrl")
+          && !manager.registry().definition("core.maps.imageryApiKey"),
+          "legacy-static-imagery-settings-removed");
     const SettingsDefinition *accent =
             manager.registry().definition("core.interface.accentColor");
     const SettingsDefinition *systemTheme =
@@ -447,7 +445,7 @@ int TsreTests::runSettingsSuite(bool verbose) {
             }
         }
     }
-    check(QFile::exists(settingsFile) && manager.settingsArray().size() == 86,
+    check(QFile::exists(settingsFile) && manager.settingsArray().size() == 84,
           "generated-profile-has-catalogue");
     check(manager.document().value("createdBy").toObject().value("application").toString()
               == SettingsManager::currentCatalogApplication()

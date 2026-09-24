@@ -19,7 +19,6 @@
 #include <tsre/geo/GeoCoordinates.h>
 #include <tsre/geo/OSMFeatures.h>
 #include <tsre/geo/MapDataOSM.h>
-#include <tsre/geo/MapDataUrlImage.h>
 #include <tsre/texture/TexLib.h>
 #include <QTime>
 #include <tsre/Game.h>
@@ -30,21 +29,7 @@ std::unordered_map<int, QImage*> MapWindow::mapTileImages;
 int MapWindow::isAlpha = 0;
 
 MapWindow::MapWindow() : QDialog() {
-
-    mapServicesCombo.setMaximumWidth(130);
-    mapServicesCombo.setStyleSheet("combobox-popup: 0;");
-    mapServicesCombo.addItem(
-        //% "OSM Vector"
-        qtTrId("tsre.geo.map.window.item.osm.vector"), 0);
-    mapServices.push_back(new MapDataOSM());
-    mapServicesCombo.addItem(
-        //% "Raster Images Z17"
-        qtTrId("tsre.geo.map.window.item.raster.images.z17"), 1);
-    mapServices.push_back(new MapDataUrlImage(17));
-    mapServicesCombo.addItem(
-        //% "Raster Images Z18"
-        qtTrId("tsre.geo.map.window.item.raster.images.z18"), 2);
-    mapServices.push_back(new MapDataUrlImage(18));
+    dane = new MapDataOSM();
     
     loadButton = new QPushButton(
         //% "Load"
@@ -85,13 +70,12 @@ MapWindow::MapWindow() : QDialog() {
     QGridLayout *vlist3 = new QGridLayout;
     vlist3->setSpacing(2);
     vlist3->setContentsMargins(3,0,1,0);
-    vlist3->addWidget(&mapServicesCombo,0,0);
-    vlist3->addWidget(alphaLabel,0,1);
-    vlist3->addWidget(&alphaBox,0,2);
-    vlist3->addWidget(loadButton,0,3);
-    vlist3->addWidget(colorLabel,0,4);
-    vlist3->addWidget(colorCombo,0,5);
-    vlist3->addWidget(saveButton,0,6);
+    vlist3->addWidget(alphaLabel,0,0);
+    vlist3->addWidget(&alphaBox,0,1);
+    vlist3->addWidget(loadButton,0,2);
+    vlist3->addWidget(colorLabel,0,3);
+    vlist3->addWidget(colorCombo,0,4);
+    vlist3->addWidget(saveButton,0,5);
     mainLayout->addItem(vlist3);
     mainLayout->addWidget(imageLabel);
     mainLayout->setContentsMargins(1,1,1,1);
@@ -176,8 +160,6 @@ void MapWindow::load(){
         if(llpoint[i].Longitude > maxLatlon->Longitude)
             maxLatlon->Longitude = llpoint[i].Longitude;
     }
-    
-    dane = mapServices[mapServicesCombo.currentIndex()];
     
     dane->tileX = this->tileX;
     dane->tileZ = -this->tileZ;
@@ -279,5 +261,6 @@ bool MapWindow::LoadMapFromDisk(int x, int z){
 }
 
 MapWindow::~MapWindow() {
+    delete dane;
 }
 

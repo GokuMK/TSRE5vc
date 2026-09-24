@@ -113,12 +113,28 @@ bool parseIndex(const QByteArray &bytes,int expectedEpsg,double desiredSpacing,
     if(directories.isEmpty()||position){error=QStringLiteral("Invalid imagery COG overview directories");return false;}
     const auto &base=directories.first().tags;
     const int baseWidth=int(integer(rd,base,256,0)),baseHeight=int(integer(rd,base,257,0));
-    const Tag scale=base.value(33550),tie=base.value(33922);
-    if(baseWidth<=0||baseHeight<=0||scale.type!=12||scale.count!=3||tie.type!=12||tie.count!=6
-            ||!rd.range(scale.offset,24)||!rd.range(tie.offset,48)){
+    const Tag scale=base.value(33550),tie=base.value(33922),matrix=base.value(34264);
+    const bool scaleTie=scale.type==12&&scale.count==3&&tie.type==12&&tie.count==6
+        &&rd.range(scale.offset,24)&&rd.range(tie.offset,48);
+    const bool transformation=matrix.type==12&&matrix.count==16&&rd.range(matrix.offset,128);
+    if(baseWidth<=0||baseHeight<=0||(!scaleTie&&!transformation)){
         error=QStringLiteral("Missing imagery COG grid transform");return false;}
-    const double baseSx=rd.f64(scale.offset),baseSy=rd.f64(scale.offset+8);
-    if(!(baseSx>0&&baseSy>0)){error=QStringLiteral("Invalid imagery COG grid transform");return false;}
+    double baseSx=0,baseStepY=0,originX=0,originY=0;
+    if(scaleTie){
+        baseSx=rd.f64(scale.offset);const double baseSy=rd.f64(scale.offset+8);
+        baseStepY=-baseSy;
+        originX=rd.f64(tie.offset+24)-rd.f64(tie.offset)*baseSx;
+        originY=rd.f64(tie.offset+32)+rd.f64(tie.offset+8)*baseSy;
+    }else{
+        baseSx=rd.f64(matrix.offset);baseStepY=rd.f64(matrix.offset+5*8);
+        originX=rd.f64(matrix.offset+3*8);originY=rd.f64(matrix.offset+7*8);
+        const double m01=rd.f64(matrix.offset+8),m10=rd.f64(matrix.offset+4*8);
+        if(std::abs(m01)>1e-12||std::abs(m10)>1e-12){
+            error=QStringLiteral("Rotated imagery COG grids are unsupported");return false;}
+    }
+    if(!(baseSx>0)||!std::isfinite(baseStepY)||baseStepY==0
+            ||!std::isfinite(originX)||!std::isfinite(originY)){
+        error=QStringLiteral("Invalid imagery COG grid transform");return false;}
     int selected=0,selectedFactor=1;
     for(int level=0;level<directories.size();++level){
         const auto &tags=directories[level].tags;
@@ -157,9 +173,8 @@ bool parseIndex(const QByteArray &bytes,int expectedEpsg,double desiredSpacing,
     if(modelType!=1||c.epsg!=expectedEpsg||linearUnits!=9001){
         error=QStringLiteral("Imagery COG coordinate system does not match dataset");return false;}
     c.spacing=baseSx*selectedFactor;
-    c.transform={{rd.f64(tie.offset+24)-rd.f64(tie.offset)*baseSx,c.spacing,0,
-                  rd.f64(tie.offset+32)+rd.f64(tie.offset+8)*baseSy,0,-baseSy*selectedFactor}};
-    if(point){c.transform[0]-=.5*c.spacing;c.transform[3]+=.5*baseSy*selectedFactor;}
+    c.transform={{originX,c.spacing,0,originY,0,baseStepY*selectedFactor}};
+    if(point){c.transform[0]-=.5*c.spacing;c.transform[3]-=.5*c.transform[5];}
     const quint64 columns=(quint64(c.width)+c.tileWidth-1)/c.tileWidth;
     const quint64 rows=(quint64(c.height)+c.tileHeight-1)/c.tileHeight;
     const quint64 tiles=columns*rows;
@@ -234,6 +249,15 @@ bool decodeTile(const QByteArray &bytes,const Index &index,QImage &image,QString
         error=QStringLiteral("Cannot decode imagery COG JPEG tile");image={};return false;}
     image=image.convertToFormat(QImage::Format_RGB888);return true;
 }
+void flipVertical(QImage &image){
+    QByteArray row(image.bytesPerLine(),'\0');
+    for(int y=0;y<image.height()/2;++y){
+        uchar *top=image.scanLine(y),*bottom=image.scanLine(image.height()-1-y);
+        std::memcpy(row.data(),top,row.size());
+        std::memcpy(top,bottom,row.size());
+        std::memcpy(bottom,row.constData(),row.size());
+    }
+}
 QString revisionTime(const QJsonObject &feature){const auto p=feature.value("properties").toObject();
     QString result=p.value("updated").toString();if(result.isEmpty())result=p.value("created").toString();
     if(result.isEmpty())result=p.value("datetime").toString();return result;}
@@ -254,9 +278,11 @@ bool loadAsset(Asset &asset,int expectedEpsg,double minX,double minY,double maxX
     }
     if(!parseIndex(indexBytes,expectedEpsg,desiredSpacing,asset.index,error)
             ||!ensureFields(asset,indexBytes,cancel,error))return false;
-    const double sx=asset.index.transform[1],sy=-asset.index.transform[5];
+    const double sx=asset.index.transform[1],stepY=asset.index.transform[5],sy=std::abs(stepY);
     const double assetMinX=asset.index.transform[0],assetMaxX=assetMinX+asset.index.width*sx;
-    const double assetMaxY=asset.index.transform[3],assetMinY=assetMaxY-asset.index.height*sy;
+    const double edgeY=asset.index.transform[3]+asset.index.height*stepY;
+    const double assetMinY=std::min(asset.index.transform[3],edgeY);
+    const double assetMaxY=std::max(asset.index.transform[3],edgeY);
     const double x0=std::max(minX,assetMinX),x1=std::min(maxX,assetMaxX);
     const double y0=std::max(minY,assetMinY),y1=std::min(maxY,assetMaxY);
     if(x1<=x0||y1<=y0)return true;
@@ -264,10 +290,16 @@ bool loadAsset(Asset &asset,int expectedEpsg,double minX,double minY,double maxX
                              (asset.index.width-1)/asset.index.tileWidth);
     const int bc1=std::clamp(int(std::floor((x1-assetMinX)/sx))/asset.index.tileWidth,0,
                              (asset.index.width-1)/asset.index.tileWidth);
-    const int br0=std::clamp(int(std::floor((assetMaxY-y1)/sy))/asset.index.tileHeight,0,
-                             (asset.index.height-1)/asset.index.tileHeight);
-    const int br1=std::clamp(int(std::floor((assetMaxY-y0)/sy))/asset.index.tileHeight,0,
-                             (asset.index.height-1)/asset.index.tileHeight);
+    const int br0=stepY<0
+        ?std::clamp(int(std::floor((assetMaxY-y1)/sy))/asset.index.tileHeight,0,
+                    (asset.index.height-1)/asset.index.tileHeight)
+        :std::clamp(int(std::floor((y0-assetMinY)/sy))/asset.index.tileHeight,0,
+                    (asset.index.height-1)/asset.index.tileHeight);
+    const int br1=stepY<0
+        ?std::clamp(int(std::floor((assetMaxY-y0)/sy))/asset.index.tileHeight,0,
+                    (asset.index.height-1)/asset.index.tileHeight)
+        :std::clamp(int(std::floor((y1-assetMinY)/sy))/asset.index.tileHeight,0,
+                    (asset.index.height-1)/asset.index.tileHeight);
     const int columns=(asset.index.width+asset.index.tileWidth-1)/asset.index.tileWidth;
     struct Missing{int id=0,row=0,column=0;QString path;quint64 offset=0,length=0;};
     QVector<Missing> missing;
@@ -305,11 +337,86 @@ bool loadAsset(Asset &asset,int expectedEpsg,double minX,double minY,double maxX
         QImage tile;QString issue;if(!decodeTile(readFile(path),asset.index,tile,issue)){error=issue;return false;}
         const int validWidth=std::min(asset.index.tileWidth,asset.index.width-bc*asset.index.tileWidth);
         const int validHeight=std::min(asset.index.tileHeight,asset.index.height-br*asset.index.tileHeight);
+        if(stepY>0){tile=tile.copy(0,0,validWidth,validHeight);flipVertical(tile);}
         asset.tiles.push_back({std::move(tile),assetMinX+bc*asset.index.tileWidth*sx,
-                               assetMaxY-br*asset.index.tileHeight*sy,validWidth,validHeight});
+                               stepY<0?assetMaxY-br*asset.index.tileHeight*sy
+                                      :assetMinY+(br*asset.index.tileHeight+validHeight)*sy,
+                               validWidth,validHeight});
     }
     return true;
 }
+
+bool composeAssets(const QVector<Asset> &assets,int width,int height,
+                   double minX,double minY,double maxX,double maxY,
+                   Report &report,QImage &image,QString &error){
+    if(assets.isEmpty()){error=QStringLiteral("No imagery COG asset covers the requested terrain");return false;}
+    const double sx=assets.first().index.spacing,sy=std::abs(assets.first().index.transform[5]);
+    double mosaicMinX=std::numeric_limits<double>::infinity(),mosaicMaxX=-mosaicMinX;
+    double mosaicMinY=mosaicMinX,mosaicMaxY=-mosaicMinX;
+    int tileCount=0;
+    for(const auto &asset:assets){if(std::abs(asset.index.spacing-sx)>1e-9||std::abs(std::abs(asset.index.transform[5])-sy)>1e-9){
+            error=QStringLiteral("Imagery COG assets use inconsistent overview spacing");return false;}
+        for(const auto &tile:asset.tiles){mosaicMinX=std::min(mosaicMinX,tile.left);mosaicMaxX=std::max(mosaicMaxX,tile.left+tile.validWidth*sx);
+            mosaicMaxY=std::max(mosaicMaxY,tile.top);mosaicMinY=std::min(mosaicMinY,tile.top-tile.validHeight*sy);++tileCount;}}
+    const qint64 mosaicWidth=std::llround((mosaicMaxX-mosaicMinX)/sx);
+    const qint64 mosaicHeight=std::llround((mosaicMaxY-mosaicMinY)/sy);
+    if(mosaicWidth<=0||mosaicHeight<=0||mosaicWidth*mosaicHeight>MaxDecodedPixels){
+        error=QStringLiteral("Decoded imagery COG mosaic is too large");return false;}
+    QImage mosaic(int(mosaicWidth),int(mosaicHeight),QImage::Format_RGB888);mosaic.fill(Qt::black);
+    QPainter painter(&mosaic);
+    for(const auto &asset:assets)for(const auto &tile:asset.tiles){
+        const int x=int(std::llround((tile.left-mosaicMinX)/sx));
+        const int y=int(std::llround((mosaicMaxY-tile.top)/sy));
+        painter.drawImage(QPoint(x,y),tile.image,QRect(0,0,tile.validWidth,tile.validHeight));}
+    painter.end();
+    image=QImage(width,height,QImage::Format_RGB888);if(image.isNull()){error=QStringLiteral("Cannot allocate COG imagery output");return false;}
+    image.fill(Qt::black);QPainter output(&image);output.setRenderHint(QPainter::SmoothPixmapTransform,true);
+    const QRectF source((minX-mosaicMinX)/sx,(mosaicMaxY-maxY)/sy,(maxX-minX)/sx,(maxY-minY)/sy);
+    output.drawImage(QRectF(0,0,width,height),mosaic,source);output.end();
+    report.tiles+=tileCount;report.sourceMetresPerPixel=std::max(sx,sy);return true;
+}
+}
+
+QUrl projectedCogUrl(const Dataset &dataset,qint64 northing,qint64 easting){
+    QString value=dataset.downloadUrlTemplate;
+    value.replace(QStringLiteral("{northing}"),QString::number(northing));
+    value.replace(QStringLiteral("{easting}"),QString::number(easting));
+    return QUrl(value);
+}
+
+bool loadProjectedCogImage(const QString &root,const Dataset &dataset,
+        double minX,double minY,double maxX,double maxY,int width,int height,
+        std::atomic_bool &cancel,const Progress &progress,Report &report,
+        QImage &image,QString &error){
+    const qint64 tileSize=std::llround(dataset.fileTileSize);
+    if(tileSize<=0||std::abs(dataset.fileTileSize-tileSize)>1e-9){
+        error=QStringLiteral("Invalid projected imagery COG tile size");return false;}
+    const qint64 firstEasting=qint64(std::floor(minX/tileSize))*tileSize;
+    const qint64 lastEasting=qint64(std::floor(std::nextafter(maxX,minX)/tileSize))*tileSize;
+    const qint64 firstNorthing=qint64(std::floor(minY/tileSize))*tileSize;
+    const qint64 lastNorthing=qint64(std::floor(std::nextafter(maxY,minY)/tileSize))*tileSize;
+    const qint64 columns=(lastEasting-firstEasting)/tileSize+1;
+    const qint64 rows=(lastNorthing-firstNorthing)/tileSize+1;
+    if(columns<=0||rows<=0||columns*rows>64){
+        error=QStringLiteral("Projected imagery request covers too many COG files");return false;}
+    const double desiredSpacing=std::max((maxX-minX)/width,(maxY-minY)/height);
+    QVector<Asset> assets;int done=0;const int total=int(columns*rows);
+    for(qint64 northing=firstNorthing;northing<=lastNorthing;northing+=tileSize)
+        for(qint64 easting=firstEasting;easting<=lastEasting;easting+=tileSize){
+            if(cancel)return false;
+            Asset asset;asset.url=projectedCogUrl(dataset,northing,easting);
+            asset.name=QFileInfo(asset.url.path()).fileName();
+            asset.parts=QDir(root).filePath(QStringLiteral("cache/imagery/")
+                +dataset.directory+'/'+asset.name+QStringLiteral(".parts/")+dataset.revision);
+            QString issue;
+            if(!loadAsset(asset,dataset.crs,minX,minY,maxX,maxY,desiredSpacing,
+                          cancel,progress,report,issue)){
+                if(cancel)return false;
+                report.issues<<QStringLiteral("%1: %2").arg(asset.name,issue);
+            }else if(!asset.tiles.isEmpty())assets.push_back(std::move(asset));
+            if(progress)progress(++done,total,QStringLiteral("Preparing projected COG imagery"));
+        }
+    return composeAssets(assets,width,height,minX,minY,maxX,maxY,report,image,error);
 }
 
 bool loadStacCogImage(const QString &root,const Dataset &dataset,
@@ -366,30 +473,6 @@ bool loadStacCogImage(const QString &root,const Dataset &dataset,
             if(cancel)return false;report.issues<<QStringLiteral("%1: %2").arg(fileName,issue);continue;}
         if(!asset.tiles.isEmpty())assets.push_back(std::move(asset));
     }
-    if(assets.isEmpty()){error=QStringLiteral("No imagery COG asset covers the requested terrain");return false;}
-    const double sx=assets.first().index.spacing,sy=-assets.first().index.transform[5];
-    double mosaicMinX=std::numeric_limits<double>::infinity(),mosaicMaxX=-mosaicMinX;
-    double mosaicMinY=mosaicMinX,mosaicMaxY=-mosaicMinX;
-    int tileCount=0;
-    for(const auto &asset:assets){if(std::abs(asset.index.spacing-sx)>1e-9||std::abs(-asset.index.transform[5]-sy)>1e-9){
-            error=QStringLiteral("Imagery COG assets use inconsistent overview spacing");return false;}
-        for(const auto &tile:asset.tiles){mosaicMinX=std::min(mosaicMinX,tile.left);mosaicMaxX=std::max(mosaicMaxX,tile.left+tile.validWidth*sx);
-            mosaicMaxY=std::max(mosaicMaxY,tile.top);mosaicMinY=std::min(mosaicMinY,tile.top-tile.validHeight*sy);++tileCount;}}
-    const qint64 mosaicWidth=std::llround((mosaicMaxX-mosaicMinX)/sx);
-    const qint64 mosaicHeight=std::llround((mosaicMaxY-mosaicMinY)/sy);
-    if(mosaicWidth<=0||mosaicHeight<=0||mosaicWidth*mosaicHeight>MaxDecodedPixels){
-        error=QStringLiteral("Decoded imagery COG mosaic is too large");return false;}
-    QImage mosaic(int(mosaicWidth),int(mosaicHeight),QImage::Format_RGB888);mosaic.fill(Qt::black);
-    QPainter painter(&mosaic);
-    for(const auto &asset:assets)for(const auto &tile:asset.tiles){
-        const int x=int(std::llround((tile.left-mosaicMinX)/sx));
-        const int y=int(std::llround((mosaicMaxY-tile.top)/sy));
-        painter.drawImage(QPoint(x,y),tile.image,QRect(0,0,tile.validWidth,tile.validHeight));}
-    painter.end();
-    image=QImage(width,height,QImage::Format_RGB888);if(image.isNull()){error=QStringLiteral("Cannot allocate COG imagery output");return false;}
-    image.fill(Qt::black);QPainter output(&image);output.setRenderHint(QPainter::SmoothPixmapTransform,true);
-    const QRectF source((minX-mosaicMinX)/sx,(mosaicMaxY-maxY)/sy,(maxX-minX)/sx,(maxY-minY)/sy);
-    output.drawImage(QRectF(0,0,width,height),mosaic,source);output.end();
-    report.tiles+=tileCount;report.sourceMetresPerPixel=std::max(sx,sy);return true;
+    return composeAssets(assets,width,height,minX,minY,maxX,maxY,report,image,error);
 }
 }

@@ -165,7 +165,6 @@ QString Game::StyleYellowButton = "#FFFF55";
 QString Game::StyleGreenText = "#009900";
 QString Game::StyleRedText = "#990000";
 
-QString Game::imageMapsUrl;
 int Game::mapImageResolution = 4096;
 
 bool Game::autoNewTiles = false;
@@ -433,8 +432,6 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
     boolean("core.route.loading.preloadAllWorldFiles", loadAllWFiles);
     boolean("core.geometry.positiveQuaternionsOnly", useOnlyPositiveQuaternions);
 
-    string("core.maps.imageryUrl", imageMapsUrl);
-    claim("core.maps.imageryApiKey", SettingType::Secret);
     integer("core.maps.imageResolution", mapImageResolution);
     boolean("core.content.loading.preferOpenRailsEng", ortsEngEnable);
     string("core.interface.accentColor", StyleMainLabel, SettingType::Color);
@@ -774,9 +771,6 @@ void Game::loadLegacySettings() {
         }
         if(val == "textureQuality"){
             textureQuality = args[1].trimmed().toInt();
-        }
-        if(val == "imageMapsUrl"){
-            imageMapsUrl = args[1].trimmed();
         }
         if(val == "mapImageResolution"){
             mapImageResolution = args[1].trimmed().toInt();
@@ -1135,7 +1129,6 @@ void Game::CreateNewSettingsFile(){
     out << "#textureQuality = 4\n";
     out << "ignoreMissingGlobalShapes = true\n";
     out << "snapableOnlyRot = false\n";
-    out << "imageMapsUrl = \n";
     out << "#AASamples = 16\n";
     out << "#mapImageResolution = 2048\n";
     out << "#cameraStickToTerrain = true\n";

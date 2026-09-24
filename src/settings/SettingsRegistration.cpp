@@ -1016,20 +1016,6 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
         "useOnlyPositiveQuaternions", "Game::useOnlyPositiveQuaternions", "WorldObj", false, "route-load-and-save-time");
 
     order = 0;
-    ADD(SettingsDefinition::string("core.maps.imageryUrl", "")
-            .withNameId(
-                //% "Imagery URL template"
-                QT_TRID_NOOP("settings.core.maps.imagery.url.name")).withDescriptionId(
-                //% "HTTP URL template used by map tools. Supported placeholders are {lat}, {lon}, {zoom}, {res}, and {apikey}. The API key is resolved from the separate secret setting; advanced templates may reference another secret directly as {secret:ID}."
-                QT_TRID_NOOP("settings.core.maps.imagery.url.description")).inGroup("maps").inSubgroup("imagery"),
-        "imageMapsUrl", "Game::imageMapsUrl", "MapDataUrlImage", false, "request-time");
-    ADD(SettingsDefinition::string("core.maps.imageryApiKey", "maps.imageryApiKey", SettingType::Secret)
-            .withNameId(
-                //% "Imagery API key"
-                QT_TRID_NOOP("settings.core.maps.imagery.api.key.name")).withDescriptionId(
-                //% "Reference to the provider API key in profile-local secrets.json. Its secret value replaces {apikey} in the imagery URL template."
-                QT_TRID_NOOP("settings.core.maps.imagery.api.key.description")).inGroup("maps").inSubgroup("imagery"),
-        "", "", "MapDataUrlImage", false, "request-time");
     ADD(SettingsDefinition::integer("core.maps.imageResolution", 4096)
             .withNameId(
                 //% "Generated map resolution"

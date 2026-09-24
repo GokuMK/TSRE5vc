@@ -49,24 +49,21 @@ Milestone one was implemented on 2026-09-24:
 - the focused geo suite covers catalogue merging, KVP requests, Web Mercator
   addressing, zoom choice, cache paths and offline cached composition.
 
-The existing Load Map workflow, optional overlay PNG save and final terrain
-texture generation remain separate.
+The optional overlay PNG save and final terrain texture generation remain
+separate. Load Map now contains only its OSM workflow; catalogue-based raster
+imagery belongs to Load Imagery.
 
 ## Scope boundaries
 
 - Add a separate **Load Imagery** button, tool mode and window.
-- Leave the existing **Load Map** window and its OSM/static-image choices
-  operational and behaviorally unchanged.
+- Keep the existing **Load Map** OSM workflow operational.
 - Reuse the existing in-memory tile overlay as the first output sink. A small
   ownership-safe setter may be added to `MapWindow`; the new acquisition code
-  must not be added to `MapWindow` or `MapDataUrlImage`.
-- Do not remove `core.maps.imageryUrl`, `MapDataUrlImage`, or the raster entries
-  from Load Map in this milestone.
+  must not be added to `MapWindow`.
 - Do not generate final ACE terrain textures automatically. The existing
   "Make Tile Texture from Map" action remains a separate user action.
-- Do not add static-map URL templates, authentication, cloud-scene selection
-  or automatic imagery during tile generation yet. The later SWISSIMAGE step
-  added only the narrow RGB/JPEG STAC/COG profile described below.
+- Do not add cloud-scene selection or automatic imagery during tile generation
+  yet.
 
 ## Existing implementation relevant to the task
 
@@ -83,15 +80,21 @@ callers. Prefer a small `MapWindow::setTileImage(x, z, QImage)` helper that take
 or copies a complete image, replaces the previous image safely and becomes the
 handoff used by both windows. Do not otherwise reorganize Load Map now.
 
-### Old static imagery path
+### Migrated static imagery path
 
-`MapDataUrlImage` downloads many centre-based static-map requests from
-`core.maps.imageryUrl`, estimates each response's geographic extent and samples
-them into the target image. It is coupled to MapWindow, uses retry timers and
-does not have a source catalogue or persistent source-tile cache. It should not
-be the base class for the new provider.
+The old `MapDataUrlImage` path downloaded many centre-based requests from the
+single `core.maps.imageryUrl` setting. It was coupled to MapWindow, used retry
+timers and had neither a source catalogue nor a persistent source-image cache.
 
-Its useful compatibility requirements are:
+It has now been replaced by the generic `static-map-url` imagery provider.
+Definitions live in the optional user catalogue at
+`assets/geo/imagery-datasets.json`; TSRE supplies no built-in static-map source.
+The provider uses the shared four-request downloader, deterministic cache,
+control-grid reprojection, preview and Apply path. Load Map now contains OSM
+only. The obsolete URL/API-key settings and `MapDataUrlImage` classes were
+removed.
+
+The retained compatibility requirements are:
 
 - output size currently comes from `core.maps.imageResolution` (default 4096);
 - the result can be RGB or RGBA according to the overlay alpha;
@@ -446,6 +449,41 @@ transferred 13.2 MB in nine coalesced range requests and took about 10 seconds;
 the cached repeat performed no downloads and took about 1.2 seconds. A separate
 Liechtenstein probe confirmed that it is covered by the same collection.
 
+### Denmark
+
+The GeoDanmark spring orthophoto entry extends the generic Web Mercator WMTS
+path with query-key authentication. It uses the official
+`orto_foraar_webm` layer, `DFD_GoogleMapsCompatible` matrix set and zoom levels
+0 through 20. The rolling service currently contains the 2025 edition and uses
+a 30-day cache expiry. The same 4096, 2048 and 1024 selector used by projected
+sources controls WMTS zoom selection. The 4096 mode took about 28.5 seconds
+for 144 first-use tiles near Copenhagen, so the entry defaults to 2048. That
+default fetched 42 tiles in about 8.0 seconds; its cached repeat took 0.1 s.
+
+The catalogue refers to the existing
+`geo.elevation.dk.datafordeler.apiKey` profile secret. Load Imagery snapshots
+that value on the UI thread before starting its worker. The downloader adds it
+as the `apikey` query parameter only to the outgoing request. Public tile URLs,
+cache paths and errors contain no credential. A bounded Copenhagen probe
+successfully fetched and composed four JPEG tiles in about 0.9 seconds.
+
+### Austria
+
+The BEV DOP entry validates a generic `projected-cog-image` provider. It
+converts the requested terrain bounds to EPSG:3035, rounds them to BEV's fixed
+50 km grid and constructs the dated 2022 COG filenames directly. It offers
+4096, 2048 and 1024 source sizes and range-reads only the necessary JPEG blocks
+and index tables from the approximately 12 GB source files.
+
+BEV COGs use a GeoTIFF ModelTransformation matrix and store raster rows from
+south to north. The shared reader now accepts either ModelTransformation or
+pixel-scale/tie-point georeferencing and normalizes both row orientations while
+composing blocks. A Vienna probe selected the 1.6 m overview for the 1024 mode,
+transferred about 0.84 MB in seven range requests and completed in about 2.3
+seconds. Its cached repeat took about 0.1 seconds. BEV's ATOM catalogue remains
+the documented future mechanism for discovering replacement editions; the
+current fixed edition does not query it.
+
 ## First milestone design
 
 ### 1. Catalogue
@@ -458,8 +496,9 @@ place, new IDs append, and an invalid user object cannot remove a built-in.
 
 Use deliberately narrow provider names. The implemented catalogue supports
 `wmts-kvp-webmercator`, projected `wms-kvp`, `arcgis-mapserver-export`,
-`arcgis-imageserver-export`, and `stac-cog-image`; it does not claim arbitrary
-capability discovery.
+`arcgis-imageserver-export`, `stac-cog-image`, `projected-cog-image`, and the
+user-configured `static-map-url`; it does not claim arbitrary capability
+discovery.
 The Polish entry uses:
 
 ```json
@@ -525,6 +564,60 @@ Build standard WMTS 1.0.0 KVP `GetTile` URLs entirely from validated dataset
 configuration. Support HTTPS, JPEG and PNG only. Validate decoded images as
 exactly the configured tile dimensions; XML, JSON, HTML, empty and oversized
 responses are failures even when the HTTP status is 200.
+
+### 2a. Generic static-map URL provider
+
+`static-map-url` is intended for user-configured centre/zoom image services.
+Its validated HTTPS `urlTemplate` supports `{lat}`, `{lon}`, `{zoom}`, `{res}`,
+`{width}` and `{height}`. `{res}` expands to the configured square request size;
+alternatively both width and height placeholders may be used. Credentials stay
+outside the template through the same `query-api-key` authentication object as
+authenticated WMTS sources.
+
+The provider derives a Web Mercator zoom from the selected Load Imagery source
+resolution, lays deterministic request-sized cells over the terrain extent,
+downloads up to four cells concurrently, caches responses under the source's
+readable directory, and feeds the shared control-grid composition path. The
+current Google Static Maps example uses 640-pixel requests and references
+`maps.imageryApiKey` from profile-local `secrets.json`:
+
+```json
+{
+  "version": 1,
+  "datasets": [
+    {
+      "id": "user.google.satellite",
+      "name": "Google Maps satellite (user API key)",
+      "provider": "static-map-url",
+      "urlTemplate": "https://maps.googleapis.com/maps/api/staticmap?center={lat},{lon}&zoom={zoom}&size={res}x{res}&maptype=satellite&format=png",
+      "format": "image/png",
+      "tilePixels": 640,
+      "minZoom": 0,
+      "maxZoom": 21,
+      "nativeResolution": 0.1,
+      "requestSizes": [4096, 2048, 1024],
+      "defaultRequestSize": 4096,
+      "boundsWgs84": [-180, -85, 180, 85],
+      "detailedTerrainApproved": true,
+      "distantTerrainApproved": false,
+      "persistentCache": false,
+      "directory": "google_static_satellite",
+      "revision": "current",
+      "authentication": {
+        "type": "query-api-key",
+        "secret": "maps.imageryApiKey",
+        "parameter": "key"
+      }
+    }
+  ]
+}
+```
+
+No Google URL, source or credential is present in the built-in catalogue. The
+example disables persistent caching because Google Maps Platform terms prohibit
+caching Google Maps content except where a service-specific exception permits
+it. Users must also assess whether their intended display, export and derived
+texture workflow is permitted by the selected service's current terms.
 
 Choose zoom using ground resolution at the terrain centre:
 
@@ -675,25 +768,21 @@ tests remain opt-in and bounded.
 - applying a replacement does not leak or leave a stale texture;
 - neighbouring tiles have no one-pixel seam;
 - cached repeat performs zero downloads;
-- existing Load Map OSM and static-image choices still work unchanged.
+- existing Load Map OSM loading still works.
 
 ## Later milestones
 
-1. **Generic static-map URL source.** Move the capability represented by
-   `core.maps.imageryUrl` into an imagery catalogue provider with secret
-   references. After migration and compatibility testing, remove the image
-   choices from Load Map and focus that window on OSM.
-2. **Additional European services.** France, Lithuania, Flanders and Spain are
+1. **Additional European services.** France, Lithuania, Flanders and Spain are
    the strongest next public national candidates.
-3. **Poland high-resolution mode.** Revisit after measuring its coverage and
+2. **Poland high-resolution mode.** Revisit after measuring its coverage and
    practical request limits.
-4. **Additional image COG profiles.** The current provider supports tiled RGB
+3. **Additional image COG profiles.** The current provider supports tiled RGB
    8-bit JPEG COGs with internal overviews. Add other band layouts, data types,
    compressions and masks only when a useful source requires them.
-5. **Fallback and NoData composition.** Define transparent/missing coverage,
+4. **Fallback and NoData composition.** Define transparent/missing coverage,
    source priority, acquisition-period consistency and attribution for mixed
    imagery.
-6. **Automatic tile-generation integration.** Add only after manual preview,
+5. **Automatic tile-generation integration.** Add only after manual preview,
    cancellation, cache limits and source-domain policy are proven.
 
 ## Current decisions
