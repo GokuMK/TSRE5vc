@@ -32,6 +32,9 @@ GeoTools::GeoTools(QString name)
     buttonTools["mapTileLoadTool"] = new QPushButton(
         //% "Load Map"
         qtTrId("route.editor.geo.tools.button.load.map"), this);
+    buttonTools["imageryTileLoadTool"] = new QPushButton(
+        //% "Load Imagery"
+        qtTrId("route.editor.geo.tools.button.load.imagery"), this);
     buttonTools["heightTileLoadTool"] = new QPushButton(
         //% "Load Height"
         qtTrId("route.editor.geo.tools.button.load.height"), this);
@@ -60,6 +63,7 @@ GeoTools::GeoTools(QString name)
     vbox->addWidget(label0);
     vbox->addWidget(buttonTools["mapTileShowTool"]);
     vbox->addWidget(buttonTools["mapTileLoadTool"]);
+    vbox->addWidget(buttonTools["imageryTileLoadTool"]);
     vbox->addWidget(buttonTools["makeTileTextureTool"]);
     vbox->addWidget(buttonTools["removeTileTextureTool"]);
     
@@ -173,6 +177,9 @@ GeoTools::GeoTools(QString name)
     
     QObject::connect(buttonTools["mapTileLoadTool"], SIGNAL(toggled(bool)),
                       this, SLOT(mapTileLoadToolEnabled(bool)));
+
+    QObject::connect(buttonTools["imageryTileLoadTool"], SIGNAL(toggled(bool)),
+                      this, SLOT(imageryTileLoadToolEnabled(bool)));
     
     QObject::connect(buttonTools["heightTileLoadTool"], SIGNAL(toggled(bool)),
                       this, SLOT(heightTileLoadToolEnabled(bool)));
@@ -346,6 +353,14 @@ void GeoTools::msg(QString text, QString val){
                 continue;
             i.value()->blockSignals(false);
         }
+    }
+}
+
+void GeoTools::imageryTileLoadToolEnabled(bool val){
+    if(val){
+        emit enableTool("imageryTileLoadTool");
+    } else {
+        emit enableTool("");
     }
 }
 

@@ -2,6 +2,7 @@
 
 #include <settings/SettingsRegistration.h>
 #include <tsre/geo/ElevationSource.h>
+#include <tsre/geo/ImagerySource.h>
 #include <settings/SettingsAccess.h>
 #include <settings/SettingsManager.h>
 #include <settings/SettingsProfile.h>
@@ -42,8 +43,8 @@ int TsreTests::runSettingsSuite(bool verbose) {
 
     SettingsManager manager;
     SettingsRegistration::registerAll(manager.registry());
-    check(manager.registry().definitions().size() == 85,
-          "catalog-includes-terrain-elevation-source");
+    check(manager.registry().definitions().size() == 86,
+          "catalog-includes-terrain-elevation-and-imagery-sources");
     const auto *elevationSource = manager.registry().definition("geo.elevation.source");
     const auto *elevationFallback = manager.registry().definition("geo.elevation.fallback");
     QString elevationError;
@@ -77,6 +78,15 @@ int TsreTests::runSettingsSuite(bool verbose) {
             if (option.value.toString() == dataset.id && option.displayName() == dataset.name) ++matches;
         check(matches == 1,"each-elevation-reference-has-one-current-catalogue-label");
     }
+    const auto *imagerySource=manager.registry().definition("geo.imagery.source");
+    QString imageryError;
+    const auto imageryCatalog=Imagery::datasets(imageryError);
+    const auto imageryOptions=imagerySource?imagerySource->resolvedOptions():QVector<SettingOption>();
+    check(imagerySource&&imagerySource->type==SettingType::Enum
+          &&imagerySource->defaultValue.toString()==Imagery::defaultDetailedSourceId(imageryCatalog)
+          &&imagerySource->optionsProvider&&imagerySource->allowUnknownOptions
+          &&imageryOptions.size()==imageryCatalog.size()&&imageryError.isEmpty(),
+          "runtime-imagery-options-match-catalogue");
     const SettingsDefinition *language =
             manager.registry().definition("core.interface.language");
     check(language && language->type == SettingType::Enum
@@ -102,6 +112,8 @@ int TsreTests::runSettingsSuite(bool verbose) {
           "translation-english-catalogue-is-embedded");
     check(qtTrId("settings.core.interface.language.name") == "Interface language",
           "translation-english-catalogue-is-complete");
+    check(qtTrId("geo.imagery.title") == "Terrain imagery",
+          "imagery-english-translation-is-embedded");
     qApp->removeTranslator(&englishTranslations);
 
     TranslationManager polishTranslations;
@@ -120,6 +132,8 @@ int TsreTests::runSettingsSuite(bool verbose) {
     check(qtTrId("ace.converter.ace.converter.window.button.open")
               == QString::fromUtf8("Otwórz obraz…"),
           "translation-polish-open-image-entry-is-complete");
+    check(qtTrId("geo.imagery.title") == QString::fromUtf8("Zobrazowanie terenu"),
+          "imagery-polish-translation-is-embedded");
     check(qtTrId("settings.dialog.tooltip.name").arg("core.test")
               == QString::fromUtf8("Klucz: core.test"),
           "translation-polish-formatted-entry-retains-value");
@@ -433,7 +447,7 @@ int TsreTests::runSettingsSuite(bool verbose) {
             }
         }
     }
-    check(QFile::exists(settingsFile) && manager.settingsArray().size() == 84,
+    check(QFile::exists(settingsFile) && manager.settingsArray().size() == 86,
           "generated-profile-has-catalogue");
     check(manager.document().value("createdBy").toObject().value("application").toString()
               == SettingsManager::currentCatalogApplication()

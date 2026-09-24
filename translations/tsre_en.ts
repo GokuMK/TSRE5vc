@@ -7557,8 +7557,8 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <translation>Geodata and elevation cache directory</translation>
     </message>
     <message id="settings.core.paths.geo.data.description">
-        <source>Geodata root: user-managed elevation products in their catalogue directories; downloaded service rasters in cache/.</source>
-        <translation>Geodata root: user-managed elevation products in their catalogue directories; downloaded service rasters in cache/.</translation>
+        <source>Geodata root: user-managed elevation products in their catalogue directories; downloaded elevation and imagery data in cache/.</source>
+        <translation>Geodata root: user-managed elevation products in their catalogue directories; downloaded elevation and imagery data in cache/.</translation>
     </message>
     <message id="settings.core.startup.route.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="371" />
@@ -10253,6 +10253,37 @@ Missing local elevation files (downloaded automatically when supported):
         <source>Geoportal NMT 1 m - EVRF2007 (ASCII Grid)</source>
         <translation>Geoportal NMT 1 m - EVRF2007 (ASCII Grid)</translation>
     </message>
+    <message id="route.editor.geo.tools.button.load.imagery"><source>Load Imagery</source><translation>Load Imagery</translation></message>
+    <message id="settings.geo.imagery.source.name"><source>Terrain imagery source</source><translation>Terrain imagery source</translation></message>
+    <message id="settings.geo.imagery.source.description"><source>Source used by Load Imagery for detailed terrain. Distant terrain uses an approved source without replacing this saved choice.</source><translation>Source used by Load Imagery for detailed terrain. Distant terrain uses an approved source without replacing this saved choice.</translation></message>
+    <message id="geo.imagery.info.source"><source>Source</source><translation>Source</translation></message>
+    <message id="geo.imagery.info.catalogue"><source>Catalogue</source><translation>Catalogue</translation></message>
+    <message id="geo.imagery.info.user.defined"><source>User-defined</source><translation>User-defined</translation></message>
+    <message id="geo.imagery.info.built.in"><source>Built-in</source><translation>Built-in</translation></message>
+    <message id="geo.imagery.info.resolution"><source>Native resolution</source><translation>Native resolution</translation></message>
+    <message id="geo.imagery.info.attribution"><source>Attribution</source><translation>Attribution</translation></message>
+    <message id="geo.imagery.info.license"><source>License</source><translation>License</translation></message>
+    <message id="geo.imagery.info.attribution.link"><source>Attribution information</source><translation>Attribution information</translation></message>
+    <message id="geo.imagery.info.more"><source>More information</source><translation>More information</translation></message>
+    <message id="geo.imagery.report.summary"><source>WMTS level: %1; required tiles: %2; cache hits: %3; downloads: %4 (%5 MiB)</source><translation>WMTS level: %1; required tiles: %2; cache hits: %3; downloads: %4 (%5 MiB)</translation></message>
+    <message id="geo.imagery.report.image.summary"><source>Source images: %1; cache hits: %2; downloads: %3 (%4 MiB)</source><translation>Source images: %1; cache hits: %2; downloads: %3 (%4 MiB)</translation></message>
+    <message id="geo.imagery.report.resolution"><source>Output spacing: %1 m/pixel; selected source spacing: %2 m/pixel.</source><translation>Output spacing: %1 m/pixel; selected source spacing: %2 m/pixel.</translation></message>
+    <message id="geo.imagery.report.cancelled"><source>Cancelled. No imagery was applied.</source><translation>Cancelled. No imagery was applied.</translation></message>
+    <message id="geo.imagery.title"><source>Terrain imagery</source><translation>Terrain imagery</translation></message>
+    <message id="geo.imagery.source.select.local"><source>Select an imagery source for this location</source><translation>Select an imagery source for this location</translation></message>
+    <message id="geo.imagery.preview"><source>Load preview</source><translation>Load preview</translation></message>
+    <message id="geo.imagery.apply"><source>Apply</source><translation>Apply</translation></message>
+    <message id="geo.imagery.close"><source>Close</source><translation>Close</translation></message>
+    <message id="geo.imagery.source"><source>Source:</source><translation>Source:</translation></message>
+    <message id="geo.imagery.resolution.short"><source>Res.:</source><translation>Res.:</translation></message>
+    <message id="geo.imagery.resolution.auto"><source>Auto</source><translation>Auto</translation></message>
+    <message id="geo.imagery.tile.title"><source>Terrain imagery - tile %1 %2</source><translation>Terrain imagery - tile %1 %2</translation></message>
+    <message id="geo.imagery.output.summary"><source>Output: %1 x %1 pixels, approximately %2 m/pixel for this tile.</source><translation>Output: %1 x %1 pixels, approximately %2 m/pixel for this tile.</translation></message>
+    <message id="geo.imagery.grid.invalid"><source>Invalid imagery output size or terrain tile.</source><translation>Invalid imagery output size or terrain tile.</translation></message>
+    <message id="geo.imagery.prepare"><source>Preparing terrain imagery</source><translation>Preparing terrain imagery</translation></message>
+    <message id="geo.imagery.cancel"><source>Cancel</source><translation>Cancel</translation></message>
+    <message id="geo.imagery.cancelling"><source>Cancelling imagery load</source><translation>Cancelling imagery load</translation></message>
+    <message id="geo.imagery.load.failed"><source>Imagery load failed: %1</source><translation>Imagery load failed: %1</translation></message>
 </context>
 <context>
     <name>LoadWindow</name>

@@ -7562,8 +7562,8 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
         <translation>Katalog geodanych i pamięci podręcznej wysokości</translation>
     </message>
         <message id="settings.core.paths.geo.data.description">
-        <source>Geodata root: user-managed elevation products in their catalogue directories; downloaded service rasters in cache/.</source>
-        <translation>Katalog geodanych: produkty wysokościowe użytkownika w katalogach określonych w katalogu źródeł; rastry pobrane z usług w cache/.</translation>
+        <source>Geodata root: user-managed elevation products in their catalogue directories; downloaded elevation and imagery data in cache/.</source>
+        <translation>Katalog geodanych: produkty wysokościowe użytkownika w katalogach określonych w katalogu źródeł; pobrane dane wysokościowe i zobrazowania w cache/.</translation>
     </message>
         <message id="settings.core.startup.route.name">
             <location filename="../src/settings/SettingsRegistration.cpp" line="371" />
@@ -10258,6 +10258,37 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <source>Geoportal NMT 1 m - EVRF2007 (ASCII Grid)</source>
         <translation>Geoportal NMT 1 m - EVRF2007 (ASCII Grid)</translation>
     </message>
+    <message id="route.editor.geo.tools.button.load.imagery"><source>Load Imagery</source><translation>Wczytaj zobrazowanie</translation></message>
+    <message id="settings.geo.imagery.source.name"><source>Terrain imagery source</source><translation>Źródło zobrazowania terenu</translation></message>
+    <message id="settings.geo.imagery.source.description"><source>Source used by Load Imagery for detailed terrain. Distant terrain uses an approved source without replacing this saved choice.</source><translation>Źródło używane przez Wczytaj zobrazowanie dla terenu szczegółowego. Teren odległy używa zatwierdzonego źródła bez zmiany tego zapisanego wyboru.</translation></message>
+    <message id="geo.imagery.info.source"><source>Source</source><translation>Źródło</translation></message>
+    <message id="geo.imagery.info.catalogue"><source>Catalogue</source><translation>Katalog</translation></message>
+    <message id="geo.imagery.info.user.defined"><source>User-defined</source><translation>Zdefiniowane przez użytkownika</translation></message>
+    <message id="geo.imagery.info.built.in"><source>Built-in</source><translation>Wbudowane</translation></message>
+    <message id="geo.imagery.info.resolution"><source>Native resolution</source><translation>Rozdzielczość źródłowa</translation></message>
+    <message id="geo.imagery.info.attribution"><source>Attribution</source><translation>Autor danych</translation></message>
+    <message id="geo.imagery.info.license"><source>License</source><translation>Licencja</translation></message>
+    <message id="geo.imagery.info.attribution.link"><source>Attribution information</source><translation>Informacje o autorstwie</translation></message>
+    <message id="geo.imagery.info.more"><source>More information</source><translation>Więcej informacji</translation></message>
+    <message id="geo.imagery.report.summary"><source>WMTS level: %1; required tiles: %2; cache hits: %3; downloads: %4 (%5 MiB)</source><translation>Poziom WMTS: %1; wymagane kafle: %2; trafienia pamięci podręcznej: %3; pobrania: %4 (%5 MiB)</translation></message>
+    <message id="geo.imagery.report.image.summary"><source>Source images: %1; cache hits: %2; downloads: %3 (%4 MiB)</source><translation>Obrazy źródłowe: %1; trafienia pamięci podręcznej: %2; pobrania: %3 (%4 MiB)</translation></message>
+    <message id="geo.imagery.report.resolution"><source>Output spacing: %1 m/pixel; selected source spacing: %2 m/pixel.</source><translation>Rozdzielczość wyjściowa: %1 m/piksel; rozdzielczość wybranego źródła: %2 m/piksel.</translation></message>
+    <message id="geo.imagery.report.cancelled"><source>Cancelled. No imagery was applied.</source><translation>Anulowano. Zobrazowanie nie zostało zastosowane.</translation></message>
+    <message id="geo.imagery.title"><source>Terrain imagery</source><translation>Zobrazowanie terenu</translation></message>
+    <message id="geo.imagery.source.select.local"><source>Select an imagery source for this location</source><translation>Wybierz źródło zobrazowania dla tej lokalizacji</translation></message>
+    <message id="geo.imagery.preview"><source>Load preview</source><translation>Wczytaj podgląd</translation></message>
+    <message id="geo.imagery.apply"><source>Apply</source><translation>Zastosuj</translation></message>
+    <message id="geo.imagery.close"><source>Close</source><translation>Zamknij</translation></message>
+    <message id="geo.imagery.source"><source>Source:</source><translation>Źródło:</translation></message>
+    <message id="geo.imagery.resolution.short"><source>Res.:</source><translation>Rozdz.:</translation></message>
+    <message id="geo.imagery.resolution.auto"><source>Auto</source><translation>Automat.</translation></message>
+    <message id="geo.imagery.tile.title"><source>Terrain imagery - tile %1 %2</source><translation>Zobrazowanie terenu — kafel %1 %2</translation></message>
+    <message id="geo.imagery.output.summary"><source>Output: %1 x %1 pixels, approximately %2 m/pixel for this tile.</source><translation>Wynik: %1 × %1 pikseli, około %2 m/piksel dla tego kafla.</translation></message>
+    <message id="geo.imagery.grid.invalid"><source>Invalid imagery output size or terrain tile.</source><translation>Nieprawidłowy rozmiar obrazu wyjściowego lub kafla terenu.</translation></message>
+    <message id="geo.imagery.prepare"><source>Preparing terrain imagery</source><translation>Przygotowywanie zobrazowania terenu</translation></message>
+    <message id="geo.imagery.cancel"><source>Cancel</source><translation>Anuluj</translation></message>
+    <message id="geo.imagery.cancelling"><source>Cancelling imagery load</source><translation>Anulowanie wczytywania zobrazowania</translation></message>
+    <message id="geo.imagery.load.failed"><source>Imagery load failed: %1</source><translation>Wczytywanie zobrazowania nie powiodło się: %1</translation></message>
 </context>
 <context>
     <name>LoadWindow</name>

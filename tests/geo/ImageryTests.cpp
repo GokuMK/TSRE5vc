@@ -1,0 +1,111 @@
+#include <tsre/geo/ImagerySource.h>
+
+#include <QBuffer>
+#include <QDir>
+#include <QFile>
+#include <QTemporaryDir>
+#include <QUrlQuery>
+#include <cmath>
+#include <functional>
+
+void runImageryTests(const std::function<void(bool,const char*)> &check) {
+    QString error;
+    const auto catalogue=Imagery::builtInDatasets(error);
+    check(error.isEmpty()&&catalogue.size()==2,"imagery built-in catalogue parses");
+    const Imagery::Dataset *poland=nullptr,*world=nullptr;
+    for(const auto &dataset:catalogue){
+        if(dataset.id=="pl.gugik.orto.standard")poland=&dataset;
+        if(dataset.id=="world.esa.worldcover-s2-2021")world=&dataset;
+    }
+    check(poland&&world&&poland->detailedTerrainApproved&&!poland->distantTerrainApproved
+          &&world->distantTerrainApproved,"imagery terrain-domain approvals");
+    if(!poland||!world)return;
+    check(poland->requestSizes==QVector<int>({4096,2048,1024})
+          &&poland->defaultRequestSize==4096&&world->requestSizes.isEmpty(),
+          "imagery source-specific request sizes and default");
+
+    const QUrl polandUrl=Imagery::arcGisMapUrl(*poland,637000,486000,639048,488048,
+                                               2048,2048);
+    const QUrlQuery polandQuery(polandUrl);
+    check(polandQuery.queryItemValue("bboxSR")=="2180"
+          &&polandQuery.queryItemValue("bbox")=="637000.000,486000.000,639048.000,488048.000"
+          &&polandQuery.queryItemValue("size")=="2048,2048"
+          &&polandQuery.queryItemValue("layers")=="show:3",
+          "Poland MapServer projected export request");
+    const QUrl worldUrl=Imagery::tileUrl(*world,{14,9148,5394});
+    const QUrlQuery worldQuery(worldUrl);
+    check(worldQuery.queryItemValue("TILEMATRIX")=="14"
+          &&worldQuery.queryItemValue("TIME")=="2021-01-01",
+          "WorldCover WMTS matrix and time dimension");
+    check(Imagery::chooseZoom(*world,52.0,.5)==13,
+          "imagery zoom selection observes native resolution");
+    const QPointF origin=Imagery::webMercatorPixel({0,0},0,256);
+    check(std::abs(origin.x()-128)<1e-9&&std::abs(origin.y()-128)<1e-9,
+          "Web Mercator origin pixel");
+    check(Imagery::cacheRelativePath(*world,{13,1,2})
+              .endsWith("world_esa_worldcover_s2_2021/2021_v2/EPSG_3857/13/1/2.png"),
+          "imagery cache path is readable and Windows-safe");
+
+    QFile builtIn(":/geo/imagery-datasets.json");
+    check(builtIn.open(QIODevice::ReadOnly),"open built-in imagery catalogue fixture");
+    const QByteArray user=R"json({"version":1,"datasets":[
+      {"id":"broken","name":"Broken","provider":"unknown"},
+      {"id":"pl.gugik.orto.standard","name":"Custom Poland","provider":"wmts-kvp-webmercator",
+       "endpoint":"https://example.invalid/wmts","layer":"ortho","style":"default","format":"image/jpeg",
+       "tileMatrixSet":"EPSG:3857","tileMatrixTemplate":"{zoom}","tilePixels":256,
+       "minZoom":0,"maxZoom":19,"nativeResolution":1,"boundsWgs84":[14,49,24,55],
+       "detailedTerrainApproved":true,"directory":"custom_poland","revision":"v1"}
+    ]})json";
+    const auto merged=Imagery::mergeDatasets(builtIn.readAll(),user,error);
+    bool custom=false,broken=false,worldRetained=false;
+    for(const auto &dataset:merged){
+        custom|=dataset.id=="pl.gugik.orto.standard"&&dataset.name=="Custom Poland"&&dataset.userDefined;
+        broken|=dataset.id=="broken";
+        worldRetained|=dataset.id==world->id;
+    }
+    check(custom&&!broken&&worldRetained&&error.contains("broken"),
+          "invalid user imagery object is isolated while valid override merges");
+
+    QTemporaryDir temporary;
+    Imagery::Request unsupported;
+    unsupported.root=temporary.path();unsupported.datasetId=poland->id;
+    unsupported.width=unsupported.height=64;
+    unsupported.controlColumns=unsupported.controlRows=2;
+    unsupported.terrainSizeMetres=64;unsupported.sourcePixels=3072;
+    unsupported.controlPoints={{52.0000,21.0000},{52.0000,21.0002},
+                               {51.9998,21.0000},{51.9998,21.0002}};
+    std::atomic_bool unsupportedCancel{false};
+    const auto unsupportedResult=Imagery::generate(unsupported,unsupportedCancel);
+    check(!unsupportedResult.success()&&unsupportedResult.error.contains("Unsupported imagery request size"),
+          "imagery provider rejects request sizes outside the dataset set");
+
+    Imagery::Request request;
+    request.root=temporary.path();request.datasetId=world->id;
+    request.width=request.height=64;request.controlColumns=request.controlRows=2;
+    request.terrainSizeMetres=64;
+    request.controlPoints={{52.0000,21.0000},{52.0000,21.0002},
+                           {51.9998,21.0000},{51.9998,21.0002}};
+    const int zoom=Imagery::chooseZoom(*world,52,1);
+    int minColumn=INT_MAX,maxColumn=INT_MIN,minRow=INT_MAX,maxRow=INT_MIN;
+    for(const auto point:request.controlPoints){
+        const QPointF pixel=Imagery::webMercatorPixel(point,zoom,world->tilePixels);
+        minColumn=std::min(minColumn,int(std::floor((pixel.x()-1)/world->tilePixels)));
+        maxColumn=std::max(maxColumn,int(std::floor((pixel.x()+1)/world->tilePixels)));
+        minRow=std::min(minRow,int(std::floor((pixel.y()-1)/world->tilePixels)));
+        maxRow=std::max(maxRow,int(std::floor((pixel.y()+1)/world->tilePixels)));
+    }
+    QImage tile(world->tilePixels,world->tilePixels,QImage::Format_RGB888);
+    tile.fill(QColor(20,40,60));
+    bool cacheReady=true;
+    for(int row=minRow;row<=maxRow;++row)for(int column=minColumn;column<=maxColumn;++column){
+        const QString path=QDir(temporary.path()).filePath(
+            Imagery::cacheRelativePath(*world,{zoom,column,row}));
+        cacheReady&=QDir().mkpath(QFileInfo(path).absolutePath())&&tile.save(path,"PNG");
+    }
+    std::atomic_bool cancel{false};
+    const auto generated=Imagery::generate(request,cancel);
+    const QColor centre=generated.image.isNull()?QColor():generated.image.pixelColor(32,32);
+    check(cacheReady&&generated.success()&&generated.report.downloads==0
+          &&generated.report.cacheHits>0&&centre==QColor(20,40,60),
+          "cached WMTS tiles compose into terrain imagery without network");
+}

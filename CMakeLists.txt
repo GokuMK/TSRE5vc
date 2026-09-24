@@ -98,6 +98,8 @@ file(GLOB TSRE5vc_SRC CONFIGURE_DEPENDS
 qt_add_executable(TSRE5vc ${TSRE5vc_SRC})
 qt_add_resources(TSRE5vc elevation_catalog PREFIX "/geo"
     BASE "src/tsre/geo" FILES "src/tsre/geo/elevation-datasets.json")
+qt_add_resources(TSRE5vc imagery_catalog PREFIX "/geo"
+    BASE "src/tsre/geo" FILES "src/tsre/geo/imagery-datasets.json")
 target_include_directories(TSRE5vc PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")

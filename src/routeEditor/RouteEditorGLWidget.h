@@ -35,6 +35,7 @@ class Brush;
 class PreciseTileCoordinate;
 class Coords;
 class MapWindow;
+class ImageryWindow;
 class ShapeLib;
 class EngLib;
 class QOpenGLFunctions_3_3_Core;
@@ -280,6 +281,7 @@ private:
     int distantShadowMapSize = 1024;
     Brush* defaultPaintBrush;
     MapWindow* mapWindow;
+    ImageryWindow* imageryWindow;
     ShapeLib *currentShapeLib = NULL;
     EngLib *engLib = NULL;
     

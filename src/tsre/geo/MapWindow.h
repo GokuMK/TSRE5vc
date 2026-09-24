@@ -33,6 +33,7 @@ public:
     static std::unordered_map<int, QImage*> mapTileImages;
     static int isAlpha;
     static bool LoadMapFromDisk(int x, int z);
+    static void setTileImage(int x, int z, QImage image);
     MapWindow();
     virtual ~MapWindow();
     bool ok = false;

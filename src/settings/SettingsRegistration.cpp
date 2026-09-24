@@ -2,6 +2,7 @@
 
 #include <settings/SettingsRegistry.h>
 #include <tsre/geo/ElevationSource.h>
+#include <tsre/geo/ImagerySource.h>
 #include <QDebug>
 
 #include <QSet>
@@ -364,7 +365,7 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
             .withNameId(
                 //% "Geodata and elevation cache directory"
                 QT_TRID_NOOP("settings.core.paths.geo.data.name")).withDescriptionId(
-                //% "Geodata root: user-managed elevation products in their catalogue directories; downloaded service rasters in cache/."
+                //% "Geodata root: user-managed elevation products in their catalogue directories; downloaded elevation and imagery data in cache/."
                 QT_TRID_NOOP("settings.core.paths.geo.data.description")).inGroup("maps").inSubgroup("geodata"),
         "geoPath", "Game::geoPath", "GeoTools", false, "direct");
     QString elevationCatalogueError;
@@ -405,6 +406,26 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
             }).asReference()
             .inGroup("maps").inSubgroup("geodata"),
         "", "", "Terrain elevation", false, "generation-time");
+    QString imageryCatalogueError;
+    const auto imageryCatalogue = Imagery::datasets(imageryCatalogueError);
+    const QString defaultImagerySource = Imagery::defaultDetailedSourceId(imageryCatalogue);
+    if (!imageryCatalogueError.isEmpty()) qWarning().noquote() << imageryCatalogueError;
+    ADD(SettingsDefinition::string("geo.imagery.source", defaultImagerySource, SettingType::Enum)
+            .withNameId(
+                //% "Terrain imagery source"
+                QT_TRID_NOOP("settings.geo.imagery.source.name")).withDescriptionId(
+                //% "Source used by Load Imagery for detailed terrain. Distant terrain uses an approved source without replacing this saved choice."
+                QT_TRID_NOOP("settings.geo.imagery.source.description"))
+            .withOptionsProvider([] {
+                QVector<SettingOption> result;
+                QString error;
+                for (const auto &dataset : Imagery::datasets(error))
+                    result.push_back({dataset.id, {}, dataset.name});
+                if (!error.isEmpty()) qWarning().noquote() << error;
+                return result;
+            }).asReference()
+            .inGroup("maps").inSubgroup("imagery"),
+        "", "", "Terrain imagery", false, "generation-time");
     ADD(SettingsDefinition::string("core.startup.route", "")
             .withNameId(
                 //% "Startup route"

@@ -27,6 +27,7 @@ public:
 public slots:
     void mapTileShowToolEnabled(bool val);
     void mapTileLoadToolEnabled(bool val);
+    void imageryTileLoadToolEnabled(bool val);
     void heightTileLoadToolEnabled(bool val);
     void makeTileTextureToolEnabled(bool val);
     void removeTileTextureToolEnabled(bool val);

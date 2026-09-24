@@ -24,17 +24,21 @@ void MapLib::run(){
     QString hashName = texture->pathid.split(".")[0];
     int hash = hashName.toInt();
     qDebug() << hash;
-    QImage *img;
-    if(MapWindow::mapTileImages[hash] == NULL){
-        img = new QImage(16, 16, QImage::Format_RGB888);    
-        img->fill(QColor(255,0,0));
-    }else{
-        img = MapWindow::mapTileImages[hash];
-    }
-    
-    texture->width = img->width();
-    texture->height = img->height();
-    if(img->format() == QImage::Format_RGBA8888){
+    QImage image;
+    const auto found=MapWindow::mapTileImages.find(hash);
+    if(found==MapWindow::mapTileImages.end() || found->second==nullptr){
+        image=QImage(16,16,QImage::Format_RGB888);
+        image.fill(QColor(255,0,0));
+    }else image=*found->second;
+
+    texture->loaded=false;
+    delete[] texture->imageData;
+    texture->imageData=nullptr;
+    texture->compressedData.clear();
+    texture->sourceMipmaps.clear();
+    texture->width = image.width();
+    texture->height = image.height();
+    if(image.format() == QImage::Format_RGBA8888){
         texture->bytesPerPixel = 4;
         texture->type = GL_RGBA;
     }else{
@@ -42,16 +46,12 @@ void MapLib::run(){
         texture->type = GL_RGB;
     }
 
-    texture->imageData = new unsigned char[texture->width*texture->height*texture->bytesPerPixel];//img.bits();
-    int lineWidth = (texture->width*texture->bytesPerPixel);
-    if( lineWidth%4 == 0){
-        memcpy(texture->imageData, img->bits(), texture->width*texture->height*texture->bytesPerPixel);
-    } 
-    else if( lineWidth%4 != 0){
-        lineWidth = lineWidth + 4 - lineWidth%4;
-        for(int i = 0; i < texture->height; i++)
-            memcpy(texture->imageData + i*texture->width*texture->bytesPerPixel, img->bits() + i*lineWidth, texture->width*texture->bytesPerPixel);
-    }
+    const int lineWidth=texture->width*texture->bytesPerPixel;
+    texture->imageSize=lineWidth*texture->height;
+    texture->bpp=texture->bytesPerPixel*8;
+    texture->imageData=new unsigned char[texture->imageSize];
+    for(int i=0;i<texture->height;++i)
+        memcpy(texture->imageData+i*lineWidth,image.constScanLine(i),lineWidth);
     texture->loaded = true;
     texture->editable = true;
     return;

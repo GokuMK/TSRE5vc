@@ -379,10 +379,24 @@ int TexLib::addTex(QString pathid, bool reload) {
         MapLib* t = new MapLib();
         t->texture = newFile;
         t->start();
+        if(reload) {
+            t->wait();
+            delete t;
+        } else {
+            QObject::connect(t,&QThread::finished,t,&QObject::deleteLater);
+        }
     }
     //AceLib::LoadACE(newFile);
     //tConcurrent::run();
     return texId;
+}
+
+bool TexLib::reloadTexIfPresent(QString pathid) {
+    pathid=ContentPath::normalize(pathid);
+    const int id=findTexture(ContentPath::key(pathid));
+    if(id<0 || mtex[id]==nullptr)return false;
+    addTex(mtex[id]->pathid,true);
+    return true;
 }
 
 int TexLib::cloneTex(int id) {

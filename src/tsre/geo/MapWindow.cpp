@@ -20,9 +20,11 @@
 #include <tsre/geo/OSMFeatures.h>
 #include <tsre/geo/MapDataOSM.h>
 #include <tsre/geo/MapDataUrlImage.h>
+#include <tsre/texture/TexLib.h>
 #include <QTime>
 #include <tsre/Game.h>
 #include <settings/SettingsAccess.h>
+#include <utility>
 
 std::unordered_map<int, QImage*> MapWindow::mapTileImages;
 int MapWindow::isAlpha = 0;
@@ -224,10 +226,16 @@ void MapWindow::reload(){
     //myImage->save(QString::number(dane.tileX)+"_"+QString::number(dane.tileZ)+"_i.png");
     
     imageLabel->setPixmap(QPixmap::fromImage(*myImage).scaled(800,800,Qt::KeepAspectRatio,Qt::SmoothTransformation));
-    int hash = (int)(this->tileX)*10000+(int)(this->tileZ);
-    if(MapWindow::mapTileImages[hash] != NULL)
-        delete MapWindow::mapTileImages[hash];
-    MapWindow::mapTileImages[hash] = myImage;
+    setTileImage(this->tileX,this->tileZ,std::move(*myImage));
+    delete myImage;
+}
+
+void MapWindow::setTileImage(int x,int z,QImage image){
+    const int hash=x*10000+z;
+    auto found=mapTileImages.find(hash);
+    if(found!=mapTileImages.end())delete found->second;
+    mapTileImages[hash]=new QImage(std::move(image));
+    TexLib::reloadTexIfPresent(QString::number(hash)+QStringLiteral(".:maptex"));
 }
 
 void MapWindow::saveToDisk(){
@@ -265,7 +273,8 @@ bool MapWindow::LoadMapFromDisk(int x, int z){
                 img->setPixel(i, j, pix);
         }
     }
-    MapWindow::mapTileImages[hash] = img;
+    setTileImage(x,z,std::move(*img));
+    delete img;
     return true;
 }
 

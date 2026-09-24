@@ -196,7 +196,7 @@ Changing from a 2021 annual Sentinel composite to a 2026 quarterly mosaic must n
 
 ## ESA WorldCover Sentinel-2 annual composites
 
-**Status: 🟢 strongest first global/distant-terrain target**
+**Status: ✅ implemented as the first global/distant-terrain WMTS source**
 
 WorldCover publishes Sentinel-2 annual RGBNIR composites for **2020 and 2021**.
 
@@ -331,7 +331,9 @@ Sources:
 
 # 5. Status legend for local sources
 
-No imagery source is implemented in TSRE yet, so these statuses describe **research/implementation attractiveness**, not current runtime support.
+The tracker statuses primarily describe research and implementation
+attractiveness. Runtime support is stated explicitly on implemented entries;
+WorldCover and Poland are the first implemented sources.
 
 | Status | Meaning |
 |---|---|
@@ -347,7 +349,7 @@ No imagery source is implemented in TSRE yet, so these statuses describe **resea
 
 ## Poland — GUGiK Geoportal
 
-**Status: 🟢**
+**Status: ✅ implemented through the generic projected ArcGIS MapServer export provider**
 
 One of the strongest candidates.
 
@@ -382,10 +384,14 @@ https://mapy.geoportal.gov.pl/wss/service/PZGIK/ORTO/WMS/TrueOrtho
 
 Provider documentation explicitly notes an important tradeoff: WMTS uses prepared tiles and can appear blurred at extreme zoom, while WMS renders from the original orthophoto files.
 
-Likely TSRE policy:
+Current TSRE policy:
 
-- WMTS for ordinary fast texture acquisition;
-- WMS for highest detailed-terrain quality when the user requests it.
+- MapServer export for detailed terrain because one bounded image is much
+  faster than hundreds of 256-pixel EPSG:3857 WMTS requests and proved more
+  reliable than the WMS front end;
+- bounded retries because the service occasionally returns transient empty 404
+  responses;
+- original-sheet WFS downloads remain a future offline/import option.
 
 Sources:
 

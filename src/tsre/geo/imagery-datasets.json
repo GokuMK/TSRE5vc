@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "defaultDetailedSource": "world.esa.worldcover-s2-2021",
+  "defaultDistantSource": "world.esa.worldcover-s2-2021",
+  "datasets": [
+    {
+      "id": "pl.gugik.orto.standard",
+      "name": "Poland - Geoportal standard orthophoto",
+      "provider": "arcgis-mapserver-export",
+      "endpoint": "https://mapy.geoportal.gov.pl/wss/service/PZGIK/ORTO/REST/StandardResolution/export",
+      "layer": "3",
+      "style": "",
+      "format": "image/jpeg",
+      "crs": 2180,
+      "maxRequestPixels": 4096,
+      "requestSizes": [4096, 2048, 1024],
+      "defaultRequestSize": 4096,
+      "nativeResolution": 0.25,
+      "boundsWgs84": [13.8, 48.7, 24.5, 55.2],
+      "detailedTerrainApproved": true,
+      "distantTerrainApproved": false,
+      "directory": "pl_gugik_orto_standard",
+      "revision": "mapserver_current",
+      "cacheMaxAgeDays": 30,
+      "attribution": "Glowny Urzad Geodezji i Kartografii (GUGiK), Geoportal.gov.pl",
+      "license": "Use according to the terms published by Geoportal.gov.pl",
+      "information": "Current standard-resolution Polish orthophoto mosaic. The official map service exports one image for the requested terrain area. Cached images expire after 30 days because the service is updated over time.",
+      "attributionUrl": "https://www.geoportal.gov.pl/",
+      "informationUrl": "https://www.geoportal.gov.pl/pl/usluga/uslugi-przegladania-wms-i-wmts/"
+    },
+    {
+      "id": "world.esa.worldcover-s2-2021",
+      "name": "World - ESA WorldCover Sentinel-2 RGB 2021",
+      "provider": "wmts-kvp-webmercator",
+      "endpoint": "https://wmts.terrascope.be/",
+      "layer": "esa-worldcover-s2rgbnir-10m-2021-v2_tcc",
+      "style": "default",
+      "format": "image/png",
+      "tileMatrixSet": "EPSG:3857",
+      "tileMatrixTemplate": "{zoom}",
+      "dimensions": {
+        "TIME": "2021-01-01"
+      },
+      "tilePixels": 256,
+      "minZoom": 0,
+      "maxZoom": 24,
+      "nativeResolution": 10.0,
+      "boundsWgs84": [-180.0, -85.0, 180.0, 85.0],
+      "detailedTerrainApproved": true,
+      "distantTerrainApproved": true,
+      "directory": "world_esa_worldcover_s2_2021",
+      "revision": "2021_v2",
+      "attribution": "ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data (2021) processed by the ESA WorldCover consortium",
+      "license": "CC BY 4.0",
+      "information": "Global display-ready true-colour Sentinel-2 mosaic. Acquisition is capped near the product's useful 10 m resolution.",
+      "attributionUrl": "https://esa-worldcover.org/en/data-access",
+      "informationUrl": "https://terrascope.be/en/viewer/configurations/esa-worldcover"
+    }
+  ]
+}

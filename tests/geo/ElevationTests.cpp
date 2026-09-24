@@ -112,6 +112,7 @@ void runDownloadTests(const std::function<void(bool,const char*)> &check);
 void runArcGisImageServerTests(const std::function<void(bool,const char*)> &check);
 void runCzechWcsTests(const std::function<void(bool,const char*)> &check);
 void runNoDataFillTests(const std::function<void(bool,const char*)> &check);
+void runImageryTests(const std::function<void(bool,const char*)> &check);
 int main(int argc, char **argv) {
     QCoreApplication app(argc,argv);
     const auto args = app.arguments();
@@ -836,6 +837,7 @@ int main(int argc, char **argv) {
     runArcGisImageServerTests(check);
     runDownloadTests(check);
     runNoDataFillTests(check);
+    runImageryTests(check);
     std::cout << checks << " checks, " << failures << " failures\n";
     return failures ? 1 : 0;
 }
