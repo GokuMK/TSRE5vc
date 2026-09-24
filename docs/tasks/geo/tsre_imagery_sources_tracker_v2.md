@@ -524,7 +524,7 @@ Sources:
 
 ## Belgium — Flanders
 
-**Status: 🟢**
+**Status: ✅ implemented through the generic WMS provider**
 
 Digitaal Vlaanderen produces annual winter orthophotos covering Flanders and Brussels.
 
@@ -544,13 +544,18 @@ https://geo.api.vlaanderen.be/OFW/wmts?layers=ofw
 
 The stable/latest final mosaic should be preferred over the interim work mosaic for normal users when available, because Digitaal Vlaanderen notes that the interim product has lower geometric/visual quality.
 
+TSRE uses that stable latest 15 cm winter mosaic in EPSG:3812. The service
+limits responses to 2048 pixels, so the default 4096 mode downloads four 2048
+blocks concurrently. This took 2.4 seconds in an Antwerp-area test, versus 2.3
+seconds for a single 2048 request. Selectable 2048 and 1024 modes are retained.
+
 Source:
 
 - https://www.vlaanderen.be/datavindplaats/catalogus/orthofotowerkbestand-middenschalig-winteropnamen-kleur-202601-vlaanderen
 
 ## Belgium — Wallonia
 
-**Status: 🟢**
+**Status: ✅ implemented through the generic WMS provider**
 
 SPW publishes public orthophotos.
 
@@ -571,9 +576,14 @@ Catalogue:
 
 ArcGIS/WMS service should be preferred initially over downloading full RGB raster products.
 
+TSRE uses the complete spring 2025 layer in EPSG:3812. The WMS returned one
+4096 image in 8.1 seconds, substantially faster than the ArcGIS export at the
+same size and faster than four concurrent WMS blocks. It therefore defaults to
+one 4096 request, with 2048 and 1024 alternatives.
+
 ## Spain — IGN/CNIG PNOA
 
-**Status: 🟢**
+**Status: ✅ implemented through the generic WMS provider**
 
 PNOA is an excellent national orthophoto source.
 
@@ -596,6 +606,11 @@ https://www.ign.es/wmts/pnoa-ma
 ```
 
 This is useful both as a WMTS provider and later as another image-COG case.
+
+TSRE uses the maximum-current WMS layer in EPSG:3857. Four concurrent 2048
+blocks completed a 4096 Madrid-area request in 4.5 seconds, compared with 14.0
+seconds for one 4096 response. The default is therefore 4096 through four
+blocks, with selectable 2048 and 1024 modes.
 
 Sources:
 
@@ -648,7 +663,7 @@ Sources:
 
 ## Lithuania — ORT10LT
 
-**Status: 🟢**
+**Status: ✅ implemented through the generic ArcGIS MapServer export provider**
 
 Lithuania has a particularly convenient public cached Web Mercator service:
 
@@ -665,6 +680,11 @@ Properties:
 - current ORT10LT includes 2022–2025 aerial imagery plus some satellite imagery.
 
 This is another strong generic ArcGIS cached-tile case.
+
+TSRE uses bounded exports from the same cached Web Mercator service. Four
+concurrent 2048 blocks completed the default 4096 Vilnius-area request in 3.5
+seconds, compared with 10.8 seconds for one 4096 export. Selectable 2048 and
+1024 modes are also available.
 
 Sources:
 
@@ -719,7 +739,7 @@ Sources:
 
 ## Estonia
 
-**Status: 🟢**
+**Status: ✅ implemented through the generic WMS provider**
 
 Estonia is attractive in both web-service and file forms.
 
@@ -740,6 +760,11 @@ Downloads:
 - https://geoportaal.maaruum.ee/eng/spatial-data/orthophotos/download-orthophotos-p662.html
 
 This could start as WMS and later gain indexed-file support.
+
+TSRE uses the latest `EESTIFOTO` layer in native EPSG:3301, with the small
+L-EST97 Lambert Conformal Conic definition added to `CrsTransform`. Four
+concurrent 2048 blocks reduced the default 4096 Tallinn-area request from 16.5
+to 4.9 seconds. Selectable 2048 and 1024 modes are also available.
 
 ---
 
@@ -904,7 +929,7 @@ Interesting extra: Portugal has also experimented with national Sentinel-2 cloud
 
 ## Croatia
 
-**Status: 🟢**
+**Status: ✅ implemented using the complete 2023/2024 WMS cycle**
 
 DGU exposes current orthophotos to anonymous users through WMS.
 
@@ -918,13 +943,19 @@ Older yearly/cycle services remain available as well.
 
 This is a strong simple WMS-provider case.
 
+The newer 2025/2026 service currently contains only one half of the national
+acquisition cycle. TSRE therefore uses the complete 2023/2024 combined endpoint
+and caches that dated edition without expiry. EPSG:3765 Croatia TM was added to
+`CrsTransform`. Four concurrent 2048 blocks produced the 4096 result in 4.5
+seconds, versus 12.2 seconds for one response.
+
 Source:
 
 - https://geoportal.dgu.hr/cms/en/data-and-services/
 
 ## Slovenia
 
-**Status: 🟢 / 🟡**
+**Status: ✅ implemented through the generic WMS provider**
 
 GURS orthophoto products include:
 
@@ -943,13 +974,18 @@ https://ipi.eprostor.gov.si/wms-si-gurs-ins/ows?service=wms&version=1.1.1&reques
 
 Before automatic persistent caching, recheck the exact current reuse/download terms and preferred current layer.
 
+TSRE uses the INSPIRE `OI.OrthoimageCoverage` layer in native EPSG:3794; its
+large-scale rendering returned detailed DOF025 imagery. Four concurrent 2048
+blocks reduced a Ljubljana-area 4096 request from 25.5 to 6.5 seconds. The
+rolling cache expires after 30 days.
+
 Source:
 
 - https://podatki.gov.si/dataset/ortofoto
 
 ## Luxembourg
 
-**Status: 🟢**
+**Status: ✅ implemented through the generic WMS provider**
 
 Luxembourg's 2025 official orthophotos are very high quality:
 
@@ -960,6 +996,11 @@ Luxembourg's 2025 official orthophotos are very high quality:
 - country-wide coverage.
 
 The WMS route is much easier for TSRE than implementing JPEG2000 solely to consume the large downloadable country mosaics.
+
+TSRE uses the country-wide summer 2025 RGB layer in EPSG:3857. Four concurrent
+2048 blocks returned the default 4096 result in 2.6 seconds, versus 8.3 seconds
+for one image. The dated source is cached without expiry; 2048 and 1024 choices
+remain available.
 
 Public map WMS infrastructure:
 

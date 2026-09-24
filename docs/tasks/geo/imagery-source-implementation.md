@@ -341,6 +341,79 @@ keeping 4096 available as an explicit maximum-quality choice.
 The source covers metropolitan France, is detailed-terrain only, uses the
 Licence Ouverte 2.0, and has a 30-day rolling cache.
 
+### Belgium: Flanders
+
+The Flanders entry uses the official Digitaal Vlaanderen WMS for the latest
+completed winter orthophoto mosaic. The source mosaic is 15 cm and the WMS
+limits each response to 2048 pixels. In an Antwerp-area test, one 1024 request
+took 1.1 seconds, one 2048 request took 2.3 seconds, and four concurrent 2048
+requests produced the 4096 result in 2.4 seconds. TSRE therefore exposes 4096,
+2048 and 1024 and defaults to the four-block 4096 mode. The rolling source uses
+a 30-day cache expiry and is detailed-terrain only.
+
+### Belgium: Wallonia
+
+The Wallonia entry uses SPW's complete spring 2025 orthophoto WMS in native
+EPSG:3812. The source resolution is 25 cm. ArcGIS export tests took 1.5, 3.8
+and 21.0 seconds at 1024, 2048 and 4096 respectively; four concurrent 2048
+exports still took 11.9 seconds. The alternate WMS returned one 4096 image in
+8.1 seconds and outperformed its own parallel requests, so TSRE uses a single
+WMS request by default. The dated CC BY 4.0 edition is cached without expiry.
+
+### Spain
+
+The Spain entry uses IGN's official PNOA maximum-current WMS layer. Source
+resolution is normally 25 or 50 cm depending on the area. In a Madrid test,
+one 1024 request took 2.4 seconds, one 2048 request 5.5 seconds and one 4096
+request 14.0 seconds. Four concurrent 2048 requests completed in 4.5 seconds,
+so the 4096 default uses that block layout. The 2048 and 1024 alternatives
+remain available. The CC BY 4.0 rolling source uses a 30-day cache expiry.
+
+### Lithuania
+
+The Lithuania entry uses the official cached ORT10LT ArcGIS MapServer in Web
+Mercator. It currently combines 2022--2025 acquisitions. In a Vilnius test,
+one 1024 export took 1.7 seconds, one 2048 export 5.2 seconds and one 4096
+export 10.8 seconds. Four concurrent 2048 exports completed in 3.5 seconds,
+so TSRE defaults to that 4096 arrangement and also offers 2048 and 1024. The
+rolling source is detailed-terrain only and uses a 30-day cache expiry.
+
+### Estonia
+
+The Estonia entry uses the official latest `EESTIFOTO` WMS layer in EPSG:3301
+(L-EST97). This required adding the published L-EST97 Lambert Conformal Conic
+definition to `CrsTransform`; WMS 1.3 declares its bounding-box axes as
+northing/easting, represented by `bboxAxisOrder: yx`. One 4096 request took
+16.5 seconds near Tallinn, while four concurrent 2048 requests took 4.9
+seconds. TSRE therefore uses the four-block 4096 default and offers 2048 and
+1024 alternatives. The latest mosaic rolls forward and uses 30-day expiry.
+
+### Croatia
+
+The Croatia entry uses DGU's anonymous WMS for the complete 2023/2024 DOF5
+cycle. The newer 2025/2026 endpoint currently covers only its first half-cycle,
+so using it alone would leave large national gaps. EPSG:3765 HTRS96/Croatia TM
+was added to `CrsTransform` from its published GRS80 Transverse Mercator
+definition. At Zagreb, one 4096 request took 12.2 seconds and four concurrent
+2048 requests took 4.5 seconds. The dated complete edition is cached without
+expiry and includes selectable 4096, 2048 and 1024 modes.
+
+### Slovenia
+
+The Slovenia entry uses GURS's public INSPIRE WMS orthophoto coverage in its
+native EPSG:3794 D96/TM grid, which `CrsTransform` already supported. The layer
+serves the detailed DOF025 product at terrain scales. A Ljubljana-area 4096
+request took 25.5 seconds, while four concurrent 2048 blocks took 6.5 seconds.
+TSRE uses the parallel 4096 default and retains 2048 and 1024 alternatives.
+
+### Luxembourg
+
+The Luxembourg entry uses the official country-wide summer 2025 orthophoto
+layer through the public map WMS in EPSG:3857. The source has at most 10 cm
+ground pixels. One 4096 request took 8.3 seconds; four concurrent 2048 blocks
+took 2.6 seconds. TSRE uses that parallel 4096 default and also offers 2048 and
+1024. The dated edition is cached without expiry.
+
 ## First milestone design
 
 ### 1. Catalogue

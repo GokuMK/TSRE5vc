@@ -648,6 +648,8 @@ int main(int argc, char **argv) {
     const Geo::CrsTransform franceProjection(2154);
     const Geo::CrsTransform slovakiaProjection(3046);
     const Geo::CrsTransform walloniaProjection(3812);
+    const Geo::CrsTransform estoniaProjection(3301);
+    const Geo::CrsTransform croatiaProjection(3765);
     check(finland.epsg == 3067 && Geo::CrsTransform::supports(3067) && finlandProjection.forward({60,27},p)
         && near(p.x,500000),"Finland retains its supported native TM35FIN grid");
     check(europeProjection.forward({52,10},p) && near(p.x,4321000,.001) && near(p.y,3210000,.001),
@@ -691,6 +693,12 @@ int main(int argc, char **argv) {
     check(walloniaProjection.forward({50.797815,4.35921583333333},p)
         && near(p.x,649328,.001) && near(p.y,665262,.001),
         "Belgian Lambert 2008 false origin maps to its published EPSG:3812 coordinates");
+    check(estoniaProjection.forward({57.5175539305556,24},p)
+        && near(p.x,500000,.001) && near(p.y,6375000,.001),
+        "L-EST97 false origin maps to its published EPSG:3301 coordinates");
+    check(croatiaProjection.forward({45,16.5},p)
+        && near(p.x,500000,.001),
+        "Croatia TM central meridian maps to its published EPSG:3765 false easting");
     Geo::CrsTransform britishProjection(27700);
     std::vector<std::array<double,2>> ostn15(36*63,{0,0});
     ostn15[443]={93.328,-77.086};

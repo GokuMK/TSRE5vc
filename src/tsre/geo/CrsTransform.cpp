@@ -95,6 +95,15 @@ CrsTransform::CrsTransform(int epsg)
         return;
     }
 
+    if (epsg == 3765) {
+        // HTRS96 / Croatia TM. HTRS96 is aligned with ETRS89 for this
+        // imagery workflow and uses the GRS80 ellipsoid.
+        configureTransverseMercator(Grs80SemiMajorAxis, Grs80InverseFlattening,
+                                    0, 16.5, .9999, 500000, 0,
+                                    42, 47, 13, 20);
+        return;
+    }
+
     if (epsg == 2169) {
         // ETRS89 -> LUREF2020 Molodensky-Badekas transformation followed by
         // Luxembourg TM on the International 1924 ellipsoid. Parameters are
@@ -126,6 +135,17 @@ CrsTransform::CrsTransform(int epsg)
             49.8333333333333, 51.1666666666667,
             649328, 665262,
             49.4, 51.6, 2.4, 6.5);
+        return;
+    }
+
+    if (epsg == 3301) {
+        // ETRS89 / Estonian Coordinate System of 1997 (L-EST97).
+        configureLambertConformalConic(
+            Grs80SemiMajorAxis, Grs80InverseFlattening,
+            57.5175539305556, 24.0,
+            59.3333333333333, 58.0,
+            500000, 6375000,
+            55.5, 61.5, 20, 33.5);
         return;
     }
 

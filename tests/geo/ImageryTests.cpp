@@ -11,9 +11,11 @@
 void runImageryTests(const std::function<void(bool,const char*)> &check) {
     QString error;
     const auto catalogue=Imagery::builtInDatasets(error);
-    check(error.isEmpty()&&catalogue.size()==8,"imagery built-in catalogue parses");
+    check(error.isEmpty()&&catalogue.size()==16,"imagery built-in catalogue parses");
     const Imagery::Dataset *poland=nullptr,*world=nullptr,*usa=nullptr,*usaHigh=nullptr;
     const Imagery::Dataset *czechia=nullptr,*netherlands=nullptr,*slovakia=nullptr,*france=nullptr;
+    const Imagery::Dataset *flanders=nullptr,*wallonia=nullptr,*spain=nullptr,*lithuania=nullptr;
+    const Imagery::Dataset *estonia=nullptr,*croatia=nullptr,*slovenia=nullptr,*luxembourg=nullptr;
     for(const auto &dataset:catalogue){
         if(dataset.id=="pl.gugik.orto.standard")poland=&dataset;
         if(dataset.id=="world.esa.worldcover-s2-2021")world=&dataset;
@@ -23,8 +25,18 @@ void runImageryTests(const std::function<void(bool,const char*)> &check) {
         if(dataset.id=="nl.pdok.luchtfoto-rgb-25cm")netherlands=&dataset;
         if(dataset.id=="sk.gku.ortofotomozaika")slovakia=&dataset;
         if(dataset.id=="fr.ign.bd-ortho")france=&dataset;
+        if(dataset.id=="be.vlaanderen.ortho-winter-latest")flanders=&dataset;
+        if(dataset.id=="be.wallonia.ortho-2025-spring")wallonia=&dataset;
+        if(dataset.id=="es.ign.pnoa-latest")spain=&dataset;
+        if(dataset.id=="lt.geoportal.ort10lt")lithuania=&dataset;
+        if(dataset.id=="ee.maaamet.orthophoto-latest")estonia=&dataset;
+        if(dataset.id=="hr.dgu.orthophoto-2023-2024")croatia=&dataset;
+        if(dataset.id=="si.gurs.dof-latest")slovenia=&dataset;
+        if(dataset.id=="lu.geoportail.ortho-2025-summer")luxembourg=&dataset;
     }
     check(poland&&world&&usa&&usaHigh&&czechia&&netherlands&&slovakia&&france
+          &&flanders&&wallonia&&spain&&lithuania
+          &&estonia&&croatia&&slovenia&&luxembourg
           &&poland->detailedTerrainApproved&&!poland->distantTerrainApproved
           &&world->distantTerrainApproved&&usa->detailedTerrainApproved
           &&!usa->distantTerrainApproved&&usaHigh->detailedTerrainApproved
@@ -32,8 +44,18 @@ void runImageryTests(const std::function<void(bool,const char*)> &check) {
           &&!czechia->distantTerrainApproved&&netherlands->detailedTerrainApproved
           &&!netherlands->distantTerrainApproved&&slovakia->detailedTerrainApproved
           &&!slovakia->distantTerrainApproved&&france->detailedTerrainApproved
-          &&!france->distantTerrainApproved,"imagery terrain-domain approvals");
-    if(!poland||!world||!usa||!usaHigh||!czechia||!netherlands||!slovakia||!france)return;
+          &&!france->distantTerrainApproved&&flanders->detailedTerrainApproved
+          &&!flanders->distantTerrainApproved&&wallonia->detailedTerrainApproved
+          &&!wallonia->distantTerrainApproved&&spain->detailedTerrainApproved
+          &&!spain->distantTerrainApproved&&lithuania->detailedTerrainApproved
+          &&!lithuania->distantTerrainApproved&&estonia->detailedTerrainApproved
+          &&!estonia->distantTerrainApproved&&croatia->detailedTerrainApproved
+          &&!croatia->distantTerrainApproved&&slovenia->detailedTerrainApproved
+          &&!slovenia->distantTerrainApproved&&luxembourg->detailedTerrainApproved
+          &&!luxembourg->distantTerrainApproved,"imagery terrain-domain approvals");
+    if(!poland||!world||!usa||!usaHigh||!czechia||!netherlands||!slovakia||!france
+       ||!flanders||!wallonia||!spain||!lithuania
+       ||!estonia||!croatia||!slovenia||!luxembourg)return;
     check(poland->requestSizes==QVector<int>({4096,2048,1024})
           &&poland->defaultRequestSize==4096&&world->requestSizes.isEmpty()
           &&czechia->requestSizes==QVector<int>({4096,2048,1024})
@@ -47,7 +69,20 @@ void runImageryTests(const std::function<void(bool,const char*)> &check) {
           &&slovakia->requestBlockPixels==2048
           &&france->requestSizes==QVector<int>({4096,2048,1024})
           &&france->defaultRequestSize==2048
-          &&france->requestBlockPixels==0,
+          &&france->requestBlockPixels==0
+          &&flanders->requestSizes==QVector<int>({4096,2048,1024})
+          &&flanders->defaultRequestSize==4096&&flanders->maxRequestPixels==2048
+          &&flanders->requestBlockPixels==2048
+          &&wallonia->requestSizes==QVector<int>({4096,2048,1024})
+          &&wallonia->defaultRequestSize==4096&&wallonia->requestBlockPixels==0
+          &&spain->requestSizes==QVector<int>({4096,2048,1024})
+          &&spain->defaultRequestSize==4096&&spain->requestBlockPixels==2048
+          &&lithuania->requestSizes==QVector<int>({4096,2048,1024})
+          &&lithuania->defaultRequestSize==4096&&lithuania->requestBlockPixels==2048
+          &&estonia->defaultRequestSize==4096&&estonia->requestBlockPixels==2048
+          &&croatia->defaultRequestSize==4096&&croatia->requestBlockPixels==2048
+          &&slovenia->defaultRequestSize==4096&&slovenia->requestBlockPixels==2048
+          &&luxembourg->defaultRequestSize==4096&&luxembourg->requestBlockPixels==2048,
           "imagery source-specific request sizes and default");
 
     const QUrl polandUrl=Imagery::arcGisMapUrl(*poland,637000,486000,639048,488048,
@@ -127,6 +162,70 @@ void runImageryTests(const std::function<void(bool,const char*)> &check) {
           &&Imagery::nearDataset(*france,{{48.8566,2.3522}},0)
           &&!Imagery::nearDataset(*france,{{52.0907,5.1214}},0),
           "French BD ORTHO native Lambert-93 WMS request and bounds");
+    const QUrl flandersUrl=Imagery::wmsUrl(*flanders,648304,664238,
+                                            650352,666286,2048,2048);
+    const QUrlQuery flandersQuery(flandersUrl);
+    check(flandersQuery.queryItemValue("LAYERS")=="Ortho"
+          &&flandersQuery.queryItemValue("CRS")=="EPSG:3812"
+          &&flandersQuery.queryItemValue("WIDTH")=="2048"
+          &&Imagery::nearDataset(*flanders,{{51.2194,4.4025}},0),
+          "Flanders orthophoto WMS request and bounds");
+    const QUrl walloniaUrl=Imagery::wmsUrl(*wallonia,667700,593400,
+                                           669748,595448,4096,4096);
+    const QUrlQuery walloniaQuery(walloniaUrl);
+    check(walloniaQuery.queryItemValue("LAYERS")=="0"
+          &&walloniaQuery.queryItemValue("CRS")=="EPSG:3812"
+          &&walloniaQuery.queryItemValue("WIDTH")=="4096"
+          &&Imagery::nearDataset(*wallonia,{{50.4674,4.8718}},0),
+          "Wallonia 2025 orthophoto WMS request and bounds");
+    const QUrl spainUrl=Imagery::wmsUrl(*spain,-413024,4925976,
+                                        -410976,4928024,2048,2048);
+    const QUrlQuery spainQuery(spainUrl);
+    check(spainQuery.queryItemValue("LAYERS")=="OI.OrthoimageCoverage"
+          &&spainQuery.queryItemValue("CRS")=="EPSG:3857"
+          &&spainQuery.queryItemValue("WIDTH")=="2048"
+          &&Imagery::nearDataset(*spain,{{40.4168,-3.7038}},0),
+          "Spain PNOA WMS request and bounds");
+    const QUrl lithuaniaUrl=Imagery::arcGisMapUrl(*lithuania,2812000,7306000,
+                                                  2814048,7308048,2048,2048);
+    const QUrlQuery lithuaniaQuery(lithuaniaUrl);
+    check(lithuaniaQuery.queryItemValue("bboxSR")=="3857"
+          &&lithuaniaQuery.queryItemValue("size")=="2048,2048"
+          &&!lithuaniaQuery.hasQueryItem("layers")
+          &&Imagery::nearDataset(*lithuania,{{54.6872,25.2797}},0)
+          &&!Imagery::nearDataset(*lithuania,{{40.4168,-3.7038}},0),
+          "Lithuania ORT10LT export and bounds");
+    const QUrl estoniaUrl=Imagery::wmsUrl(*estonia,541500,6588000,
+                                          543548,6590048,2048,2048);
+    const QUrlQuery estoniaQuery(estoniaUrl);
+    check(estoniaQuery.queryItemValue("LAYERS")=="EESTIFOTO"
+          &&estoniaQuery.queryItemValue("CRS")=="EPSG:3301"
+          &&estoniaQuery.queryItemValue("BBOX")=="6588000.000,541500.000,6590048.000,543548.000"
+          &&Imagery::nearDataset(*estonia,{{59.437,24.7536}},0),
+          "Estonia orthophoto WMS native axis order and bounds");
+    const QUrl croatiaUrl=Imagery::wmsUrl(*croatia,457000,5073000,
+                                          459048,5075048,2048,2048);
+    const QUrlQuery croatiaQuery(croatiaUrl);
+    check(croatiaQuery.queryItemValue("LAYERS")=="OI.OrthoimageCoverage"
+          &&croatiaQuery.queryItemValue("CRS")=="EPSG:3765"
+          &&croatiaQuery.queryItemValue("BBOX")=="457000.000,5073000.000,459048.000,5075048.000"
+          &&Imagery::nearDataset(*croatia,{{45.815,15.9819}},0),
+          "Croatia complete-cycle orthophoto WMS request and bounds");
+    const QUrl sloveniaUrl=Imagery::wmsUrl(*slovenia,460000,99000,
+                                           462048,101048,2048,2048);
+    const QUrlQuery sloveniaQuery(sloveniaUrl);
+    check(sloveniaQuery.queryItemValue("LAYERS")=="SI.GURS.ZPDZ:OI.OrthoimageCoverage"
+          &&sloveniaQuery.queryItemValue("CRS")=="EPSG:3794"
+          &&Imagery::nearDataset(*slovenia,{{46.0569,14.5058}},0),
+          "Slovenia DOF native D96/TM WMS request and bounds");
+    const QUrl luxembourgUrl=Imagery::wmsUrl(*luxembourg,680000,6370000,
+                                             682048,6372048,2048,2048);
+    const QUrlQuery luxembourgQuery(luxembourgUrl);
+    check(luxembourgQuery.queryItemValue("LAYERS")=="3207"
+          &&luxembourgQuery.queryItemValue("CRS")=="EPSG:3857"
+          &&Imagery::nearDataset(*luxembourg,{{49.6116,6.1319}},0)
+          &&!Imagery::nearDataset(*luxembourg,{{50.4674,4.8718}},0),
+          "Luxembourg summer 2025 orthophoto WMS request and bounds");
     const QPointF origin=Imagery::webMercatorPixel({0,0},0,256);
     check(std::abs(origin.x()-128)<1e-9&&std::abs(origin.y()-128)<1e-9,
           "Web Mercator origin pixel");
