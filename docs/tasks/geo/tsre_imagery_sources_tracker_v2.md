@@ -488,7 +488,7 @@ Sources:
 
 ## France — IGN / Géoplateforme orthophotos
 
-**Status: 🟢**
+**Status: ✅ implemented through the generic native-projection WMS provider**
 
 France has public national aerial imagery through the current Géoplateforme services.
 
@@ -507,12 +507,20 @@ Current map catalogue:
 - https://cartes.gouv.fr/
 - WMTS infrastructure: https://data.geopf.fr/wmts
 
-This is an attractive generic WMTS target and avoids adding Lambert-93 support merely to obtain imagery.
+TSRE uses `HR.ORTHOIMAGERY.ORTHOPHOTOS` through WMS-Raster in its native
+EPSG:2154 Lambert-93 projection. The existing projection implementation makes
+this faster than asking the server for Web Mercator. The source offers 4096,
+2048 and 1024 total sizes, but defaults to 2048: a Paris test took about 2.1,
+7.5 and 47.8 seconds respectively. Four parallel 2048 requests were slower
+because the service queued some concurrent work, so France deliberately uses
+one request per selection. The cache expires after 30 days.
 
 Sources:
 
 - https://cartes.gouv.fr/
 - https://cartes.gouv.fr/aide/fr/partenaires/ign/generalites-ign/actualites/
+- https://cartes.gouv.fr/aide/fr/guides-utilisateur/utiliser-les-services-de-la-geoplateforme/diffusion/wms-raster/
+- https://cartes.gouv.fr/rechercher-une-donnee/dataset/IGNF_BD-ORTHO
 
 ## Belgium — Flanders
 

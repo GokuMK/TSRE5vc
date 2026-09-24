@@ -11,9 +11,9 @@
 void runImageryTests(const std::function<void(bool,const char*)> &check) {
     QString error;
     const auto catalogue=Imagery::builtInDatasets(error);
-    check(error.isEmpty()&&catalogue.size()==7,"imagery built-in catalogue parses");
+    check(error.isEmpty()&&catalogue.size()==8,"imagery built-in catalogue parses");
     const Imagery::Dataset *poland=nullptr,*world=nullptr,*usa=nullptr,*usaHigh=nullptr;
-    const Imagery::Dataset *czechia=nullptr,*netherlands=nullptr,*slovakia=nullptr;
+    const Imagery::Dataset *czechia=nullptr,*netherlands=nullptr,*slovakia=nullptr,*france=nullptr;
     for(const auto &dataset:catalogue){
         if(dataset.id=="pl.gugik.orto.standard")poland=&dataset;
         if(dataset.id=="world.esa.worldcover-s2-2021")world=&dataset;
@@ -22,16 +22,18 @@ void runImageryTests(const std::function<void(bool,const char*)> &check) {
         if(dataset.id=="cz.cuzk.ortofoto")czechia=&dataset;
         if(dataset.id=="nl.pdok.luchtfoto-rgb-25cm")netherlands=&dataset;
         if(dataset.id=="sk.gku.ortofotomozaika")slovakia=&dataset;
+        if(dataset.id=="fr.ign.bd-ortho")france=&dataset;
     }
-    check(poland&&world&&usa&&usaHigh&&czechia&&netherlands&&slovakia
+    check(poland&&world&&usa&&usaHigh&&czechia&&netherlands&&slovakia&&france
           &&poland->detailedTerrainApproved&&!poland->distantTerrainApproved
           &&world->distantTerrainApproved&&usa->detailedTerrainApproved
           &&!usa->distantTerrainApproved&&usaHigh->detailedTerrainApproved
           &&!usaHigh->distantTerrainApproved&&czechia->detailedTerrainApproved
           &&!czechia->distantTerrainApproved&&netherlands->detailedTerrainApproved
           &&!netherlands->distantTerrainApproved&&slovakia->detailedTerrainApproved
-          &&!slovakia->distantTerrainApproved,"imagery terrain-domain approvals");
-    if(!poland||!world||!usa||!usaHigh||!czechia||!netherlands||!slovakia)return;
+          &&!slovakia->distantTerrainApproved&&france->detailedTerrainApproved
+          &&!france->distantTerrainApproved,"imagery terrain-domain approvals");
+    if(!poland||!world||!usa||!usaHigh||!czechia||!netherlands||!slovakia||!france)return;
     check(poland->requestSizes==QVector<int>({4096,2048,1024})
           &&poland->defaultRequestSize==4096&&world->requestSizes.isEmpty()
           &&czechia->requestSizes==QVector<int>({4096,2048,1024})
@@ -42,7 +44,10 @@ void runImageryTests(const std::function<void(bool,const char*)> &check) {
           &&netherlands->requestBlockPixels==2048
           &&slovakia->requestSizes==QVector<int>({4096,2048,1024})
           &&slovakia->defaultRequestSize==4096
-          &&slovakia->requestBlockPixels==2048,
+          &&slovakia->requestBlockPixels==2048
+          &&france->requestSizes==QVector<int>({4096,2048,1024})
+          &&france->defaultRequestSize==2048
+          &&france->requestBlockPixels==0,
           "imagery source-specific request sizes and default");
 
     const QUrl polandUrl=Imagery::arcGisMapUrl(*poland,637000,486000,639048,488048,
@@ -111,6 +116,17 @@ void runImageryTests(const std::function<void(bool,const char*)> &check) {
           &&Imagery::nearDataset(*slovakia,{{48.1486,17.1077}},0)
           &&!Imagery::nearDataset(*slovakia,{{52.0907,5.1214}},0),
           "Slovak Ortofotomozaika export and national bounds");
+    const QUrl franceUrl=Imagery::wmsUrl(*france,651445,6861011,
+                                         653493,6863059,2048,2048);
+    const QUrlQuery franceQuery(franceUrl);
+    check(franceQuery.queryItemValue("LAYERS")=="HR.ORTHOIMAGERY.ORTHOPHOTOS"
+          &&franceQuery.queryItemValue("CRS")=="EPSG:2154"
+          &&franceQuery.queryItemValue("BBOX")=="651445.000,6861011.000,653493.000,6863059.000"
+          &&franceQuery.queryItemValue("WIDTH")=="2048"
+          &&franceQuery.queryItemValue("HEIGHT")=="2048"
+          &&Imagery::nearDataset(*france,{{48.8566,2.3522}},0)
+          &&!Imagery::nearDataset(*france,{{52.0907,5.1214}},0),
+          "French BD ORTHO native Lambert-93 WMS request and bounds");
     const QPointF origin=Imagery::webMercatorPixel({0,0},0,256);
     check(std::abs(origin.x()-128)<1e-9&&std::abs(origin.y()-128)<1e-9,
           "Web Mercator origin pixel");

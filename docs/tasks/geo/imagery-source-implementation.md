@@ -320,6 +320,27 @@ is approximately 0.5 m/pixel and cannot retain that additional detail. The
 more suitable vegetation for route textures. The rolling CC BY 4.0 source is
 detailed-terrain only and uses a 30-day cache expiry.
 
+### France
+
+The French source uses the official Geoplateforme WMS-Raster layer for the
+20 cm BD ORTHO product:
+
+```text
+https://data.geopf.fr/wms-r
+layer: HR.ORTHOIMAGERY.ORTHOPHOTOS
+```
+
+TSRE requests EPSG:2154 Lambert-93, which is already supported by
+`CrsTransform`, and avoids server-side Web Mercator reprojection. At a Paris
+test area, native-projection requests took approximately 2.1 seconds at 1024,
+7.5 seconds at 2048, and 47.8 seconds at 4096. Four parallel 2048 requests were
+not an improvement: two were queued for 42--59 seconds. This source therefore
+does not enable `requestBlockPixels`; it defaults to one 2048 request while
+keeping 4096 available as an explicit maximum-quality choice.
+
+The source covers metropolitan France, is detailed-terrain only, uses the
+Licence Ouverte 2.0, and has a 30-day rolling cache.
+
 ## First milestone design
 
 ### 1. Catalogue
