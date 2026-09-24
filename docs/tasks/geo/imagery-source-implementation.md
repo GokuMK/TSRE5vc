@@ -42,6 +42,8 @@ Milestone one was implemented on 2026-09-24:
 - Poland and WorldCover sample tiles were rechecked with bounded live requests;
 - fast cached and high-resolution contiguous-US USGS/USDA sources were added
   after live capability, zoom-limit, tile-format and bounded export checks;
+- Czech CUZK Ortofoto uses one ArcGIS export, while Netherlands PDOK current
+  25 cm imagery validates four-request WMS mosaics for size-limited services;
 - the focused geo suite covers catalogue merging, KVP requests, Web Mercator
   addressing, zoom choice, cache paths and offline cached composition.
 
@@ -60,7 +62,7 @@ texture generation remain separate.
   from Load Map in this milestone.
 - Do not generate final ACE terrain textures automatically. The existing
   "Make Tile Texture from Map" action remains a separate user action.
-- Do not add WMS, static-map URL templates, image COGs, STAC, authentication,
+- Do not add static-map URL templates, image COGs, STAC, authentication,
   cloud-scene selection or automatic imagery during tile generation yet.
 
 ## Existing implementation relevant to the task
@@ -261,6 +263,45 @@ a rolling mosaic. Its bounds deliberately cover the contiguous United States:
 the same service contains other regional and licensed imagery whose coverage
 and terms should be represented by separate entries after validation.
 
+### Czechia
+
+The built-in Czech source uses the export operation of the official cached
+Ortofoto CR service:
+
+```text
+https://ags.cuzk.gov.cz/arcgis1/rest/services/ORTOFOTO_WM/MapServer/export
+```
+
+The initial WMTS entry needed roughly 400--500 individual 256-pixel requests
+for one detailed terrain tile. The MapServer export produces the same cached
+imagery in one bounded image. Live Prague results were approximately 2.4
+seconds at 1024, 3.6 seconds at 2048, and 11.9 seconds at 4096. The UI exposes
+all three sizes, corresponding to approximately 2, 1, and 0.5 m terrain grids.
+The source is detailed-terrain only, CC BY 4.0, and uses a 30-day rolling cache.
+
+### Netherlands
+
+The built-in Dutch source uses the WMS form of PDOK's current complete 25 cm
+RGB layer:
+
+```text
+https://service.pdok.nl/hwh/luchtfotorgb/wms/v1_0
+```
+
+The `Actueel_ortho25` layer always follows the latest complete nationwide year.
+PDOK limits each WMS response to 2500 pixels per side. TSRE therefore makes one
+request for the 1024 and 2048 modes, and splits 4096 into four balanced 2048
+blocks downloaded in parallel. A bounded Utrecht test took about 1.5 seconds
+at 1024, 3.3 seconds at 2048, and 2.8 seconds for all four parallel blocks at
+4096. This replaces roughly 500 individual WMTS calls at maximum output detail.
+
+PDOK also provides current 8 cm, and in places 5 cm, winter imagery. It is not
+a separate built-in source yet because the current 4096-pixel terrain overlay
+is approximately 0.5 m/pixel and cannot retain that additional detail. The
+25 cm late-spring/summer product is already finer than the output and provides
+more suitable vegetation for route textures. The rolling CC BY 4.0 source is
+detailed-terrain only and uses a 30-day cache expiry.
+
 ## First milestone design
 
 ### 1. Catalogue
@@ -326,6 +367,13 @@ the `core.maps.imageResolution` overlay dimensions. Poland offers 4096, 2048
 and 1024 and defaults to 4096. Sources without configured sizes show disabled
 automatic selection.
 
+`requestBlockPixels` is an optional per-source performance setting. If the
+selected total image is larger, TSRE divides it into balanced blocks, downloads
+up to four blocks concurrently and joins them before terrain reprojection. It
+must not exceed the service's `maxRequestPixels`. Poland, Czechia, Netherlands
+and USGS NAIP Plus use 2048-pixel blocks: their highest quality mode takes four
+parallel requests, while the 2048 and 1024 choices remain single requests.
+
 ### 2. Generic Web Mercator WMTS provider
 
 Build standard WMTS 1.0.0 KVP `GetTile` URLs entirely from validated dataset
@@ -357,9 +405,10 @@ Build a WMS 1.3 `GetMap` request from catalogue fields, transform the control
 lattice through `CrsTransform`, request its projected bounding rectangle and
 resample that north-up image into the route tile. `bboxAxisOrder` is explicit
 because WMS 1.3 EPSG:2180 uses northing/easting (`yx`) in `BBOX`. Bound each
-source image by `maxRequestPixels`; the Polish entry uses 4096.
+server response by `maxRequestPixels`. The same configurable block acquisition
+is shared by WMS and ArcGIS MapServer/ImageServer exports.
 
-Cache the complete response by source revision and a digest of the canonical
+Cache each response block by source revision and a digest of its canonical
 request URL. Apply the same expiry, atomic-write, decode-size, memory,
 cancellation and bounded-retry rules as WMTS.
 
@@ -367,6 +416,19 @@ The same projected-image path supports ArcGIS MapServer `export`. It uses
 ordinary easting/northing bounds plus `bboxSR`, `imageSR`, `size`, output format
 and an optional visible layer from configuration. Poland uses this path because
 its live endpoint was consistently more reliable than WMS.
+
+Live comparisons for the highest quality setting showed similar total response
+bytes and these elapsed times:
+
+| Source | One large export | Four parallel blocks |
+|---|---:|---:|
+| Poland Geoportal | 23.2 s at 4096 | 8.0 s at 4 x 2048 |
+| Czechia CUZK | 7.8 s at 4096 | 5.1 s at 4 x 2048 |
+| USGS NAIP Plus | 18.5 s at 4000 | 7.3 s at 4 x 2000 |
+
+The trade-off is four service requests instead of one. A failed block fails the
+whole preview and may consume more request quota, so blocking remains an
+explicit dataset choice rather than a global rule.
 
 ### 4. Persistent cache
 
@@ -476,11 +538,10 @@ tests remain opt-in and bounded.
    `core.maps.imageryUrl` into an imagery catalogue provider with secret
    references. After migration and compatibility testing, remove the image
    choices from Load Map and focus that window on OSM.
-2. **Additional WMS validation.** Reuse the implemented projected WMS provider
-   for another national service and consider a separate Poland high-resolution
-   entry after measuring its coverage and practical request limits.
-3. **Additional WMTS/ArcGIS cached countries.** Czechia and Netherlands are the
-   strongest generic-design checks after Poland.
+2. **Additional European services.** France, Lithuania, Flanders and Spain are
+   the strongest next public national candidates.
+3. **Poland high-resolution mode.** Revisit after measuring its coverage and
+   practical request limits.
 4. **Image COG/STAC.** Add multiband UInt8/UInt16 and JPEG-in-TIFF support for
    WorldCover direct COG, SWISSIMAGE and later sources.
 5. **Fallback and NoData composition.** Define transparent/missing coverage,
@@ -495,8 +556,8 @@ Recommended for milestone one:
 
 - generic Web Mercator WMTS KVP, projected WMS and ArcGIS MapServer export
   providers;
-- Poland through one MapServer export image; WorldCover through reusable WMTS
-  tiles;
+- Poland and Czechia through one MapServer export image, Netherlands through
+  one or four WMS blocks, and WorldCover through reusable WMTS tiles;
 - one selected imagery source, without fallback;
 - Preview then Apply to the in-memory overlay only;
 - 4096 output through the existing setting, while source zoom follows useful

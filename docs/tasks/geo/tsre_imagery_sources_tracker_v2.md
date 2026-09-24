@@ -386,9 +386,12 @@ Provider documentation explicitly notes an important tradeoff: WMTS uses prepare
 
 Current TSRE policy:
 
-- MapServer export for detailed terrain because one bounded image is much
-  faster than hundreds of 256-pixel EPSG:3857 WMTS requests and proved more
-  reliable than the WMS front end;
+- MapServer export for detailed terrain because bounded images are much faster
+  than hundreds of 256-pixel EPSG:3857 WMTS requests and proved more reliable
+  than the WMS front end;
+- selectable 4096, 2048 and 1024 total sizes; the 4096 mode uses four parallel
+  2048 exports and took 8.0 seconds versus 23.2 seconds for one 4096 export in
+  a direct comparison;
 - bounded retries because the service occasionally returns transient empty 404
   responses;
 - original-sheet WFS downloads remain a future offline/import option.
@@ -400,7 +403,14 @@ Sources:
 
 ## Czechia — ČÚZK Ortofoto
 
-**Status: 🟢 exceptionally convenient Web Mercator source**
+**Status: ✅ implemented through the generic ArcGIS MapServer export provider**
+
+The initial WMTS entry required roughly 400--500 requests for one detailed
+terrain tile. TSRE now uses bounded MapServer exports, with selectable 4096,
+2048 and 1024 total sizes. The 4096 mode is composed from four concurrent 2048
+blocks; a direct comparison took 5.1 seconds instead of 7.8 seconds for one
+4096 export. The lower modes use one request. The 12.5 cm source is
+detailed-terrain approved; the rolling cache expires after 30 days.
 
 Current national orthophoto:
 
@@ -440,7 +450,14 @@ Sources:
 
 ## Netherlands — PDOK Luchtfoto RGB Open
 
-**Status: 🟢**
+**Status: ✅ implemented through the generic tiled-WMS provider**
+
+TSRE uses `Actueel_ortho25`, the latest complete nationwide 25 cm RGB layer,
+through WMS in EPSG:3857. PDOK limits one image to 2500 pixels, so the 4096
+quality setting is composed from four parallel 2048 requests; a live run took
+about 2.8 seconds. The 2048 and 1024 modes use one request. The 8/5 cm winter
+layer remains optional future work because it exceeds the useful detail of the
+current 0.5 m terrain overlay. The rolling cache expires after 30 days.
 
 Excellent open national source.
 
@@ -1036,10 +1053,11 @@ configured bounds, despite the primarily 0.6 m underlying NAIP mosaic. Finer
 WMTS requests return HTTP 400.
 
 The high-resolution source uses the dynamic `USGSNAIPPlus` ImageServer. It
-offers 4000, 2048 and 1024-pixel requests, corresponding to approximately 0.5,
-1 and 2 m terrain grids for a detailed tile. A bounded Denver test took about
-20 seconds at 4000 and 7 seconds at 2048. Both rolling sources use a 30-day
-local expiry. Alaska, Hawaii and US territories remain separate future entries
+offers 4000, 2048 and 1024-pixel total images, corresponding to approximately
+0.5, 1 and 2 m terrain grids for a detailed tile. The 4000 mode is composed
+from four parallel 2000-pixel exports. A bounded comparison took 7.3 seconds,
+versus 18.5 seconds for one 4000 export. Both rolling sources use a 30-day local
+expiry. Alaska, Hawaii and US territories remain separate future entries
 because their source imagery and licensing differ from contiguous-US NAIP.
 
 ### The National Map cached imagery service

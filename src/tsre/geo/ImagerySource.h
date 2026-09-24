@@ -25,7 +25,7 @@ struct Dataset {
     QMap<QString,QString> dimensions;
     QVector<int> requestSizes;
     int tilePixels = 256, minZoom = 0, maxZoom = 0;
-    int crs = 0, maxRequestPixels = 0;
+    int crs = 0, maxRequestPixels = 0, requestBlockPixels = 0;
     int defaultRequestSize = 0;
     double nativeResolution = 0;
     double minLongitude = -180, minLatitude = -85.05112878;

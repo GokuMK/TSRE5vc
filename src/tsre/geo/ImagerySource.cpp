@@ -317,6 +317,7 @@ QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
         dataset.maxZoom = object.value("maxZoom").toInt();
         dataset.crs = object.value("crs").toInt();
         dataset.maxRequestPixels = object.value("maxRequestPixels").toInt();
+        dataset.requestBlockPixels = object.value("requestBlockPixels").toInt();
         dataset.defaultRequestSize = object.value("defaultRequestSize").toInt();
         dataset.nativeResolution = object.value("nativeResolution").toDouble();
         dataset.cacheMaxAgeDays = object.value("cacheMaxAgeDays").toInt();
@@ -376,6 +377,13 @@ QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
         const bool wms=dataset.provider=="wms-kvp";
         const bool arcGis=dataset.provider=="arcgis-mapserver-export";
         const bool arcGisImage=dataset.provider=="arcgis-imageserver-export";
+        const bool projected=wms || arcGis || arcGisImage;
+        const bool requestBlockValid=object.value("requestBlockPixels").isUndefined()
+            || (object.value("requestBlockPixels").isDouble()
+                && dataset.requestBlockPixels>=256
+                && dataset.requestBlockPixels<=dataset.maxRequestPixels
+                && double(dataset.requestBlockPixels)
+                    ==object.value("requestBlockPixels").toDouble());
         const bool providerValid=(wmts
                     && !dataset.style.isEmpty()
                     && !dataset.tileMatrixSet.isEmpty()
@@ -392,21 +400,19 @@ QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
                     && dataset.maxRequestPixels>=256 && dataset.maxRequestPixels<=8192);
         if (!dataset.requestSizes.isEmpty()) {
             requestSizesValid=requestSizesValid
-                && (wms || arcGis || arcGisImage)
+                && projected
                 && requestSizeSet.contains(dataset.defaultRequestSize);
-            for (const int size:dataset.requestSizes)
-                requestSizesValid=requestSizesValid && size<=dataset.maxRequestPixels;
         } else requestSizesValid=requestSizesValid && dataset.defaultRequestSize==0;
         if (!idPattern.match(dataset.id).hasMatch() || ids.contains(dataset.id)
                 || dataset.name.trimmed().isEmpty()
                 || !providerValid
-                || !urlsValid || ((!arcGisImage) && dataset.layer.isEmpty())
+                || !urlsValid || ((wmts || wms) && dataset.layer.isEmpty())
                 || (dataset.format != "image/jpeg" && dataset.format != "image/png")
                 || !directoryPattern.match(dataset.directory).hasMatch()
                 || !idPattern.match(dataset.revision).hasMatch()
                 || dataset.nativeResolution <= 0
                 || dataset.cacheMaxAgeDays < 0 || !boundsValid || !dimensionsValid
-                || !requestSizesValid) {
+                || !requestSizesValid || !requestBlockValid) {
             rejected << QStringLiteral("Skipped imagery dataset %1: invalid or unsupported definition").arg(label);
             continue;
         }
@@ -689,7 +695,7 @@ Result generate(const Request &request, std::atomic_bool &cancel,
             result.error=QStringLiteral("Invalid projected imagery bounds");
             return result;
         }
-        int requestLimit=dataset->maxRequestPixels;
+        int sourceLimit=dataset->maxRequestPixels;
         double requestedSpacing=result.report.targetMetresPerPixel;
         if (request.sourcePixels>0) {
             if (!dataset->requestSizes.contains(request.sourcePixels)) {
@@ -697,18 +703,18 @@ Result generate(const Request &request, std::atomic_bool &cancel,
                     .arg(request.sourcePixels).arg(dataset->name);
                 return result;
             }
-            requestLimit=std::min(requestLimit,request.sourcePixels);
+            sourceLimit=request.sourcePixels;
             requestedSpacing=request.terrainSizeMetres/request.sourcePixels;
         } else if (!dataset->requestSizes.isEmpty()) {
-            requestLimit=std::min(requestLimit,dataset->defaultRequestSize);
+            sourceLimit=dataset->defaultRequestSize;
             requestedSpacing=request.terrainSizeMetres/dataset->defaultRequestSize;
         }
         const double desired=std::max(requestedSpacing,dataset->nativeResolution);
         const double desiredWidth=extentWidth/desired;
         const double desiredHeight=extentHeight/desired;
-        const double scale=std::min(1.0,requestLimit/std::max(desiredWidth,desiredHeight));
-        const int sourceWidth=std::clamp(int(std::ceil(desiredWidth*scale)),64,requestLimit);
-        const int sourceHeight=std::clamp(int(std::ceil(desiredHeight*scale)),64,requestLimit);
+        const double scale=std::min(1.0,sourceLimit/std::max(desiredWidth,desiredHeight));
+        const int sourceWidth=std::clamp(int(std::ceil(desiredWidth*scale)),64,sourceLimit);
+        const int sourceHeight=std::clamp(int(std::ceil(desiredHeight*scale)),64,sourceLimit);
         if (qint64(sourceWidth)*sourceHeight*3
                 +qint64(request.width)*request.height*3 > 384ll*1024*1024) {
             result.error=QStringLiteral("Imagery request requires too much decoded memory");
@@ -716,48 +722,108 @@ Result generate(const Request &request, std::atomic_bool &cancel,
         }
         result.report.sourceMetresPerPixel=std::max(extentWidth/sourceWidth,
                                                      extentHeight/sourceHeight);
-        result.report.tiles=1;
-        const QUrl url=dataset->provider=="wms-kvp"
-            ?wmsUrl(*dataset,minX,minY,maxX,maxY,sourceWidth,sourceHeight)
-            :dataset->provider=="arcgis-imageserver-export"
-                ?arcGisImageUrl(*dataset,minX,minY,maxX,maxY,sourceWidth,sourceHeight)
-                :arcGisMapUrl(*dataset,minX,minY,maxX,maxY,sourceWidth,sourceHeight);
-        const QString path=QDir(request.root).filePath(imageCacheRelativePath(*dataset,url));
-        QImage source;
-        QString imageError;
-        const QFileInfo cached(path);
-        if (isFresh(cached,*dataset)) {
-            QFile file(path);
-            QByteArray bytes;
-            if (file.open(QIODevice::ReadOnly)) bytes=file.readAll();
-            if (decodeImage(bytes,sourceWidth,sourceHeight,source,imageError))
-                ++result.report.cacheHits;
-            else QFile::remove(path);
+        struct ImageBlock {
+            int x=0,y=0,width=0,height=0;
+            QUrl url;
+            QString path;
+        };
+        const int blockLimit=dataset->requestBlockPixels>0
+            ?dataset->requestBlockPixels:dataset->maxRequestPixels;
+        const int blockColumns=std::max(1,(sourceWidth+blockLimit-1)/blockLimit);
+        const int blockRows=std::max(1,(sourceHeight+blockLimit-1)/blockLimit);
+        if(qint64(blockColumns)*blockRows>MaxTiles){
+            result.error=QStringLiteral("Imagery request requires too many image blocks");
+            return result;
         }
-        if (source.isNull()) {
-            const auto downloads=downloadWaveWithRetries({url},cancel,[&] {
-                if (progress) progress(1,1,QStringLiteral("Downloading terrain imagery"));
+        QVector<ImageBlock> blocks;
+        for(int row=0;row<blockRows;++row)for(int column=0;column<blockColumns;++column){
+            ImageBlock block;
+            block.x=sourceWidth*column/blockColumns;
+            block.y=sourceHeight*row/blockRows;
+            const int right=sourceWidth*(column+1)/blockColumns;
+            const int bottom=sourceHeight*(row+1)/blockRows;
+            block.width=right-block.x;
+            block.height=bottom-block.y;
+            const double blockMinX=minX+extentWidth*block.x/sourceWidth;
+            const double blockMaxX=minX+extentWidth*right/sourceWidth;
+            const double blockMaxY=maxY-extentHeight*block.y/sourceHeight;
+            const double blockMinY=maxY-extentHeight*bottom/sourceHeight;
+            block.url=dataset->provider=="wms-kvp"
+                ?wmsUrl(*dataset,blockMinX,blockMinY,blockMaxX,blockMaxY,
+                        block.width,block.height)
+                :dataset->provider=="arcgis-imageserver-export"
+                    ?arcGisImageUrl(*dataset,blockMinX,blockMinY,blockMaxX,blockMaxY,
+                                    block.width,block.height)
+                    :arcGisMapUrl(*dataset,blockMinX,blockMinY,blockMaxX,blockMaxY,
+                                  block.width,block.height);
+            block.path=QDir(request.root).filePath(imageCacheRelativePath(*dataset,block.url));
+            blocks.push_back(std::move(block));
+        }
+        result.report.tiles=blocks.size();
+        QImage source(sourceWidth,sourceHeight,QImage::Format_RGB888);
+        if(source.isNull()){
+            result.error=QStringLiteral("Cannot allocate imagery source mosaic");
+            return result;
+        }
+        source.fill(Qt::black);
+        QPainter sourcePainter(&source);
+        QVector<int> missing;
+        for(int i=0;i<blocks.size();++i){
+            const auto &block=blocks[i];
+            const QFileInfo cached(block.path);
+            QImage image;
+            QString imageError;
+            if(isFresh(cached,*dataset)){
+                QFile file(block.path);
+                QByteArray bytes;
+                if(file.open(QIODevice::ReadOnly))bytes=file.readAll();
+                if(decodeImage(bytes,block.width,block.height,image,imageError)){
+                    sourcePainter.drawImage(block.x,block.y,image);
+                    ++result.report.cacheHits;
+                    continue;
+                }
+                QFile::remove(block.path);
+            }
+            missing.push_back(i);
+        }
+        int completed=0;
+        for(int offset=0;offset<missing.size()&&!cancel;offset+=4){
+            const int count=std::min(4,int(missing.size())-offset);
+            QVector<QUrl> urls;
+            for(int i=0;i<count;++i)urls.push_back(blocks[missing[offset+i]].url);
+            const auto downloads=downloadWaveWithRetries(urls,cancel,[&]{
+                ++completed;
+                if(progress)progress(completed,missing.size(),
+                                     QStringLiteral("Downloading terrain imagery"));
             });
-            if (cancel) {result.cancelled=true;return result;}
-            if (downloads.isEmpty() || !downloads[0].error.isEmpty()) {
-                result.error=downloads.isEmpty()?QStringLiteral("Imagery request failed")
-                    : downloads[0].error;
-                return result;
+            for(int i=0;i<count&&!cancel;++i){
+                const auto &block=blocks[missing[offset+i]];
+                if(!downloads[i].error.isEmpty()){
+                    sourcePainter.end();
+                    result.error=downloads[i].error;
+                    return result;
+                }
+                QImage image;
+                QString imageError;
+                if(!decodeImage(downloads[i].bytes,block.width,block.height,image,imageError)){
+                    sourcePainter.end();
+                    result.error=imageError;
+                    return result;
+                }
+                QDir().mkpath(QFileInfo(block.path).absolutePath());
+                QSaveFile file(block.path);
+                if(!file.open(QIODevice::WriteOnly)
+                        || file.write(downloads[i].bytes)!=downloads[i].bytes.size()
+                        || !file.commit())
+                    result.report.issues<<QStringLiteral("Cannot write imagery cache image %1")
+                        .arg(QDir::toNativeSeparators(block.path));
+                sourcePainter.drawImage(block.x,block.y,image);
+                ++result.report.downloads;
+                result.report.downloadedBytes+=downloads[i].bytes.size();
             }
-            if (!decodeImage(downloads[0].bytes,sourceWidth,sourceHeight,source,imageError)) {
-                result.error=imageError;
-                return result;
-            }
-            QDir().mkpath(QFileInfo(path).absolutePath());
-            QSaveFile file(path);
-            if (!file.open(QIODevice::WriteOnly)
-                    || file.write(downloads[0].bytes)!=downloads[0].bytes.size()
-                    || !file.commit())
-                result.report.issues << QStringLiteral("Cannot write imagery cache image %1")
-                    .arg(QDir::toNativeSeparators(path));
-            ++result.report.downloads;
-            result.report.downloadedBytes+=downloads[0].bytes.size();
         }
+        sourcePainter.end();
+        if(cancel){result.cancelled=true;return result;}
         QVector<QPointF> sourcePoints;
         sourcePoints.reserve(projected.size());
         for (const auto point:projected)
