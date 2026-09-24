@@ -40,6 +40,12 @@ ErrorMessageProperties::ErrorMessageProperties(QWidget* parent) : QWidget(parent
     vlist->addWidget(&lMessage,row,0);
     vlist->addWidget(&eMessage,row,1);
     vlist->addWidget(&bSelect,row++,2);
+    //% "Fix"
+    bFix.setText(qtTrId("route.errors.fix"));
+    bFix.setObjectName("errorMessageFix");
+    vlist->addWidget(&bFix, 0, 3);
+    bFix.hide();
+    connect(&bFix, &QPushButton::released, this, &ErrorMessageProperties::fixReleased);
     vlist->addWidget(&lAction,row,0);
     vlist->addWidget(&eAction,row++,1,1,2);
     vlist->addWidget(&lLocation,row,0);
@@ -79,14 +85,20 @@ ErrorMessageProperties::~ErrorMessageProperties() {
 void ErrorMessageProperties::showMessage(ErrorMessage* msg){
     currentMessage = msg;
     lMessage.hide();
+    eMessage.hide();
     lAction.hide();
     eAction.hide();
     lLocation.hide();
     bLocation.hide();
     eLocation.hide();
     bSelect.hide();
+    bFix.hide();
     if(currentMessage == NULL){
         return;
+    }
+    if (msg->fix) {
+        bFix.show();
+        bFix.setEnabled(msg->canFix && msg->canFix());
     }
 
     bSelect.show();
@@ -136,4 +148,13 @@ void ErrorMessageProperties::jumpToLocation(){
 
 void ErrorMessageProperties::bSelectReleased(){
     emit selectObject(currentMessage->obj);
+}
+
+void ErrorMessageProperties::fixReleased() {
+    if (!currentMessage) return;
+    QString result;
+    if (!currentMessage->applyFix(result))
+        currentMessage->action += "\n" + result;
+    showMessage(currentMessage);
+    emit messageChanged();
 }

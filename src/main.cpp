@@ -608,6 +608,7 @@ int main(int argc, char *argv[]){
         darkPalette.setColor(QPalette::HighlightedText, Qt::black);
         darkPalette.setColor(QPalette::Disabled, QPalette::Text , QColor(153,153,153));
         darkPalette.setColor(QPalette::Disabled, QPalette::WindowText , QColor(153,153,153));
+        darkPalette.setColor(QPalette::Disabled, QPalette::ButtonText , QColor(153,153,153));
         app.setPalette(darkPalette);
         app.setStyleSheet("QPushButton:checked { background-color: #666666; }");
         // Keep the established TSRE dark theme independent from the optional

@@ -41,7 +41,7 @@ public:
         initializePatchBounds();
     }
     void lod(int step,quint8 mask=0) { renderedSurfaceLod.fill({step,step*gridLayout.sampleSpacing,mask},gridLayout.patchRecordCount()); }
-    void hide(bool value) { for (int i=0;i<gridLayout.patchRecordCount();++i) tfile->flags[i]=value?1:0; }
+    void hide(bool value) { for (int i=0;i<gridLayout.patchRecordCount();++i) tfile->patches()[i].flags=value?1:0; }
     void gap(int x,int z,bool enabled=true) { if (!jestF) newF(); fData[z][x]=enabled?4:0; invalidatePatch(0,TerrainDirtyGaps); }
 };
 class Library : public TerrainLib {
@@ -95,6 +95,13 @@ int TsreTests::runTransferMeshSuite(bool verbose) {
         if (ok) ++passed; else ++failed;
         if (!ok || verbose) qInfo() << "[tests:transfer-mesh]" << (ok?"PASS":"FAIL") << name;
     };
+    {
+        TransferObj transfer;
+        transfer.shape.setMaterialTextureId(std::numeric_limits<int>::max());
+        transfer.set("filename", "replacement.ace");
+        check(transfer.texture == "replacement.ace" && transfer.shape.getTexId() == -1,
+              "filename-edit-invalidates-render-texture");
+    }
     QScopedValueRollback<Game::TerrainMeshMode> mode(Game::terrainMeshMode,Game::TERRAIN_MESH_PAGED);
     using V=TransferMesh::Vertex;
     QVector<float> mesh,outline;

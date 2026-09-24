@@ -27,6 +27,7 @@ struct TextureMip {
     QByteArray data;
 };
 
+namespace TerrainFile { struct PatchUv; }
 class Texture {
   public:
     Texture();
@@ -75,7 +76,7 @@ class Texture {
     qint64 estimatedVramBytes() const;
     bool gpuIsCompressed() const;
     void update();
-    void advancedCrop(float *texCoords, int w = 0, int h = 0);
+    void advancedCrop(const TerrainFile::PatchUv &uv, int patchSamples, int w = 0, int h = 0);
     void crop(float x1, float y1, float x2, float y2);
     void paint(Brush *brush, float x, float z);
     void sendToUndo(int id);

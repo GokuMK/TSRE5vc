@@ -8,7 +8,6 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 #include <tsre/world/TerrainInfo.h>
-#include <tsre/world/Terrain.h>
 
 TerrainInfo::TerrainInfo() {
 }

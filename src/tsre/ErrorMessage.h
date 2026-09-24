@@ -13,6 +13,7 @@
 
 #include <QString>
 #include <QHash>
+#include <functional>
 
 class PreciseTileCoordinate;
 class GameObj;
@@ -44,6 +45,10 @@ public:
     QString action;
     PreciseTileCoordinate *coords = NULL;
     GameObj* obj = NULL;
+    // Optional explicit repair; action above remains descriptive text.
+    std::function<bool()> canFix;
+    std::function<bool(QString&)> fix;
+    bool applyFix(QString &result);
     ErrorMessage();
     ErrorMessage(MsgType type, SourceType source, QString description );
     ErrorMessage(MsgType type, SourceType source, QString description, QString action );

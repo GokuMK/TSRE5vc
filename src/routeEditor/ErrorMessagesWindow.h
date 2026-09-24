@@ -18,6 +18,7 @@
 class ErrorMessageProperties;
 class PreciseTileCoordinate;
 class GameObj;
+class ErrorMessage;
 
 class ErrorMessagesWindow : public QWidget {
     Q_OBJECT
@@ -25,6 +26,7 @@ public:
     ErrorMessagesWindow(QWidget* parent);
     virtual ~ErrorMessagesWindow();
     void refreshErrorList();
+    bool showMessage(ErrorMessage *message);
     
 public slots:
     void show();
@@ -35,10 +37,13 @@ public slots:
     
 signals:
     void windowClosed();
+    void windowShown();
     void jumpTo(PreciseTileCoordinate *c);
     void selectObject(GameObj *o);
     
 private:
+    void showEvent(QShowEvent *event) override;
+    bool selectMessage(ErrorMessage *message);
     QHash<int, QBrush> brushes;
     QTreeWidget errorList;
     ErrorMessageProperties *properties;

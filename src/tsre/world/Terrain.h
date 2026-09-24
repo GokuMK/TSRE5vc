@@ -91,7 +91,9 @@ public:
     };
     static void beginProceduralFrame();
     static ProceduralWorkStats proceduralWorkStats();
-    bool setProceduralMaterial(bool enabled, QString &error, quint32 materialUid = 0);
+    bool hasSavedProceduralMap() const;
+    bool setProceduralMaterial(bool enabled, QString &error, quint32 materialUid = 0,
+                               bool restoreSavedMap = false);
     std::shared_ptr<UndoSnapshot> captureProceduralUndo();
     void rememberProceduralSource(Brush *brush, int x, int z, float posx, float posz);
     // operation: TerrainMaterialMap::TexturePaint / FillPatch / FloodFill.
@@ -308,6 +310,9 @@ protected:
     void synchronizeMaterialLibrary();
     QVector<PatchBounds> patchBounds;
     QVector<quint8> patchBoundsDirty;
+    // Inclusive native-sample rectangle pending propagation to inactive sets.
+    std::array<int,4> sharedHeightDirty{{0,0,-1,-1}};
+    void refreshInactivePatchSets();
     QVector<quint8> patchGapState;
     bool lodProfileWarningShown = false;
     //int selectedPathId = -1;

@@ -222,7 +222,7 @@ bool RouteCreator::create(const QString &routeDirectoryName,
 
         {
             // New routes always use the quadtree terrain format. The legacy
-            // simple backend remains only for loading/debugging existing data.
+            // recovery setting is for existing routes, not creation of damaged ones.
             std::unique_ptr<TerrainLibQt> terrain(new TerrainLibQt());
             if (!terrain->createNewRouteTerrain(routeTemplate->startTileX,
                                                 routeTemplate->startTileZ)) {

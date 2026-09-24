@@ -10,6 +10,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QRegularExpression>
+#include <QSet>
 #include <QTextStream>
 #include <QXmlStreamReader>
 #include <algorithm>
@@ -17,7 +18,6 @@
 
 QString OrtsTrackProfileCatalog::loadedRoutePath;
 QMap<QString, QSharedPointer<OrtsTrackProfile>> OrtsTrackProfileCatalog::profiles;
-QMap<QString, QString> OrtsTrackProfileCatalog::aliases;
 QStringList OrtsTrackProfileCatalog::loadDiagnostics;
 
 namespace {
@@ -178,6 +178,92 @@ QStringList splitFilters(const QString &value) {
     return result;
 }
 
+QString profileRoleSuffix(OrtsTrackProfile::ObjectRole role) {
+    switch(role){
+        case OrtsTrackProfile::ObjectRole::Single:
+            return "_single";
+        case OrtsTrackProfile::ObjectRole::Left:
+            return "_left";
+        case OrtsTrackProfile::ObjectRole::Middle:
+            return "_middle";
+        case OrtsTrackProfile::ObjectRole::Right:
+            return "_right";
+        case OrtsTrackProfile::ObjectRole::Main:
+        default:
+            return QString();
+    }
+}
+
+QString objectRoleKey(OrtsTrackProfile::ObjectRole role) {
+    if(role == OrtsTrackProfile::ObjectRole::Main)
+        return "main";
+    return profileRoleSuffix(role).mid(1);
+}
+
+QString objectTypeKey(OrtsTrackProfile::ObjectType objectType) {
+    switch(objectType){
+        case OrtsTrackProfile::ObjectType::Road:
+            return "road";
+        case OrtsTrackProfile::ObjectType::Static:
+            return "static";
+        case OrtsTrackProfile::ObjectType::Track:
+        default:
+            return "track";
+    }
+}
+
+QString catalogKey(OrtsTrackProfile::ObjectType objectType,
+        const QString &profileId) {
+    return objectTypeKey(objectType) + ":" + profileId.trimmed().toLower();
+}
+
+bool parseObjectTypeValues(const QStringList &values,
+        OrtsTrackProfile &profile) {
+    if(values.isEmpty()){
+        profile.objectType = OrtsTrackProfile::ObjectType::Track;
+        profile.objectRole = OrtsTrackProfile::ObjectRole::Main;
+        profile.objectTypeExplicit = false;
+        return true;
+    }
+
+    profile.objectTypeExplicit = true;
+    const QString object = values[0].trimmed();
+    if(object.compare("TRACK", Qt::CaseInsensitive) == 0)
+        profile.objectType = OrtsTrackProfile::ObjectType::Track;
+    else if(object.compare("ROAD", Qt::CaseInsensitive) == 0)
+        profile.objectType = OrtsTrackProfile::ObjectType::Road;
+    else if(object.compare("STATIC", Qt::CaseInsensitive) == 0)
+        profile.objectType = OrtsTrackProfile::ObjectType::Static;
+    else {
+        profile.diagnostics.append("Invalid ObjectType object: " + object);
+        return false;
+    }
+
+    profile.objectRole = OrtsTrackProfile::ObjectRole::Main;
+    if(values.size() >= 2){
+        const QString role = values[1].trimmed();
+        if(role.compare("MAIN", Qt::CaseInsensitive) == 0)
+            profile.objectRole = OrtsTrackProfile::ObjectRole::Main;
+        else if(role.compare("SINGLE", Qt::CaseInsensitive) == 0)
+            profile.objectRole = OrtsTrackProfile::ObjectRole::Single;
+        else if(role.compare("LEFT", Qt::CaseInsensitive) == 0)
+            profile.objectRole = OrtsTrackProfile::ObjectRole::Left;
+        else if(role.compare("MIDDLE", Qt::CaseInsensitive) == 0)
+            profile.objectRole = OrtsTrackProfile::ObjectRole::Middle;
+        else if(role.compare("RIGHT", Qt::CaseInsensitive) == 0)
+            profile.objectRole = OrtsTrackProfile::ObjectRole::Right;
+        else {
+            profile.diagnostics.append("Invalid ObjectType role: " + role);
+            return false;
+        }
+    }
+    if(values.size() > 2){
+        profile.diagnostics.append("ObjectType accepts an object and optional role");
+        return false;
+    }
+    return true;
+}
+
 OrtsTrackProfile::LodMethod lodMethod(const QString &value) {
     if(value.compare("CompleteReplacement", Qt::CaseInsensitive) == 0)
         return OrtsTrackProfile::LodMethod::CompleteReplacement;
@@ -286,73 +372,19 @@ void validateProfile(OrtsTrackProfile &profile) {
         profile.trackGauge = 1.435f;
     if(profile.lods.isEmpty())
         profile.diagnostics.append("Profile has no LOD");
-    profile.valid = renderable && structureValid;
+    profile.valid = renderable && structureValid && profile.objectTypeValid;
 }
 
-}
-
-QSharedPointer<OrtsTrackProfile> OrtsTrackProfileParser::parseFile(
-        const QString &path, QStringList *diagnostics) {
-    QFile file(path);
-    if(!file.open(QIODevice::ReadOnly)){
-        if(diagnostics != nullptr)
-            diagnostics->append("Unable to open " + path);
-        return {};
-    }
-    QTextStream stream(&file);
-    stream.setAutoDetectUnicode(true);
-    const QString text = stream.readAll();
-    const QString id = QFileInfo(path).completeBaseName();
-    QSharedPointer<OrtsTrackProfile> profile;
-    if(QFileInfo(path).suffix().compare("xml", Qt::CaseInsensitive) == 0)
-        profile = parseXml(text, id, diagnostics);
-    else
-        profile = parseStf(text, id, diagnostics);
-    if(profile != nullptr)
-        profile->sourcePath = path;
-    return profile;
-}
-
-QSharedPointer<OrtsTrackProfile> OrtsTrackProfileParser::parseStf(
-        const QString &text, const QString &id, QStringList *diagnostics) {
-    QStringList localDiagnostics;
-    QString normalized = text;
-    if(normalized.startsWith(QChar(0xfeff)))
-        normalized.remove(0, 1);
-    if(!normalized.startsWith("SIMISA@@@@@@@@@@JINX0p0t______")){
-        localDiagnostics.append("Invalid STF SIMISA signature");
-        if(diagnostics != nullptr)
-            diagnostics->append(localDiagnostics);
-        return {};
-    }
-
-    const QStringList tokens = tokenizeStf(normalized, localDiagnostics);
-    int rootIndex = -1;
-    for(int i = 0; i + 1 < tokens.size(); i++){
-        if(tokens[i].compare("TrProfile", Qt::CaseInsensitive) == 0
-                && tokens[i + 1] == "("){
-            rootIndex = i;
-            break;
-        }
-    }
-    if(rootIndex < 0){
-        localDiagnostics.append("Missing TrProfile block");
-        if(diagnostics != nullptr)
-            diagnostics->append(localDiagnostics);
-        return {};
-    }
-
-    int index = rootIndex + 1;
-    StfNode root;
-    if(!parseStfNode(tokens, index, tokens[rootIndex], root, localDiagnostics)){
-        if(diagnostics != nullptr)
-            diagnostics->append(localDiagnostics);
-        return {};
-    }
-
+QSharedPointer<OrtsTrackProfile> profileFromStfNode(
+        const StfNode &root, const QString &familyId) {
     QSharedPointer<OrtsTrackProfile> profile(new OrtsTrackProfile());
-    profile->id = id;
-    profile->name = firstValue(root, "Name", id);
+    profile->familyId = familyId;
+    profile->name = firstValue(root, "Name", familyId);
+    const StfNode *objectTypeNode = child(root, "ObjectType");
+    profile->objectTypeValid = parseObjectTypeValues(
+            objectTypeNode == nullptr ? QStringList() : objectTypeNode->values,
+            *profile);
+    profile->id = familyId + profileRoleSuffix(profile->objectRole);
     profile->lodMethod = lodMethod(firstValue(root, "LODMethod"));
     profile->chordSpanDegrees = floatValue(root, "ChordSpan", 1.0f);
     profile->pitchControl = pitchControl(firstValue(root, "PitchControl"));
@@ -362,8 +394,8 @@ QSharedPointer<OrtsTrackProfile> OrtsTrackProfileParser::parseStf(
     profile->includedTextures = splitFilters(firstValue(root, "IncludedTextures"));
     profile->excludedTextures = splitFilters(firstValue(root, "ExcludedTextures"));
     profile->trackGauge = floatValue(root, "TrackGauge", 1.435f);
-    profile->superElevationMethod =
-            elevationMethod(firstValue(root, "SuperElevationMethod", "Outside"));
+    profile->superElevationMethod = elevationMethod(
+            firstValue(root, "SuperElevationMethod", "Outside"));
 
     for(const StfNode *lodNode : children(root, "LOD")){
         OrtsProfileLod lod;
@@ -376,8 +408,10 @@ QSharedPointer<OrtsTrackProfile> OrtsTrackProfileParser::parseStf(
             item.lightModelName = firstValue(*itemNode, "LightModelName");
             item.alphaTestMode = intValue(*itemNode, "AlphaTestMode", 0);
             item.textureAddressMode = firstValue(*itemNode, "TexAddrModeName");
-            item.alternativeTexture = intValue(*itemNode, "ESD_Alternative_Texture", 0);
-            item.mipMapLodBias = floatValue(*itemNode, "MipMapLevelOfDetailBias", 0);
+            item.alternativeTexture = intValue(
+                    *itemNode, "ESD_Alternative_Texture", 0);
+            item.mipMapLodBias = floatValue(
+                    *itemNode, "MipMapLevelOfDetailBias", 0);
             for(const StfNode *polylineNode : children(*itemNode, "Polyline")){
                 OrtsProfilePolyline polyline;
                 polyline.name = firstValue(*polylineNode, "Name");
@@ -392,7 +426,8 @@ QSharedPointer<OrtsTrackProfile> OrtsTrackProfileParser::parseStf(
                     const bool positionValid = positionNode != nullptr
                             && values(positionNode->values, vertex.position, 2);
                     if(positionValid && positionNode->values.size() >= 3)
-                        vertex.valid = values(positionNode->values, vertex.position, 3);
+                        vertex.valid = values(
+                                positionNode->values, vertex.position, 3);
                     const bool normalValid = normalNode != nullptr
                             && values(normalNode->values, vertex.normal, 3)
                             && (std::abs(vertex.normal[0]) > 0.000001f
@@ -412,16 +447,113 @@ QSharedPointer<OrtsTrackProfile> OrtsTrackProfileParser::parseStf(
         }
         profile->lods.append(lod);
     }
-    profile->diagnostics.append(localDiagnostics);
     validateProfile(*profile);
-    if(diagnostics != nullptr)
-        diagnostics->append(profile->diagnostics);
     return profile;
+}
+
+}
+
+QVector<QSharedPointer<OrtsTrackProfile>>
+OrtsTrackProfileParser::parseFileProfiles(
+        const QString &path, QStringList *diagnostics) {
+    QFile file(path);
+    if(!file.open(QIODevice::ReadOnly)){
+        if(diagnostics != nullptr)
+            diagnostics->append("Unable to open " + path);
+        return {};
+    }
+    QTextStream stream(&file);
+    stream.setAutoDetectUnicode(true);
+    const QString text = stream.readAll();
+    const QString id = QFileInfo(path).completeBaseName();
+    QVector<QSharedPointer<OrtsTrackProfile>> parsedProfiles;
+    if(QFileInfo(path).suffix().compare("xml", Qt::CaseInsensitive) == 0)
+        parsedProfiles = parseXmlProfiles(text, id, diagnostics);
+    else
+        parsedProfiles = parseStfProfiles(text, id, diagnostics);
+    for(const QSharedPointer<OrtsTrackProfile> &profile : parsedProfiles)
+        profile->sourcePath = path;
+    return parsedProfiles;
+}
+
+QSharedPointer<OrtsTrackProfile> OrtsTrackProfileParser::parseFile(
+        const QString &path, QStringList *diagnostics) {
+    const QVector<QSharedPointer<OrtsTrackProfile>> parsedProfiles =
+            parseFileProfiles(path, diagnostics);
+    return parsedProfiles.isEmpty() ? QSharedPointer<OrtsTrackProfile>()
+                                    : parsedProfiles.first();
+}
+
+QVector<QSharedPointer<OrtsTrackProfile>>
+OrtsTrackProfileParser::parseStfProfiles(
+        const QString &text, const QString &id, QStringList *diagnostics) {
+    QStringList localDiagnostics;
+    QString normalized = text;
+    if(normalized.startsWith(QChar(0xfeff)))
+        normalized.remove(0, 1);
+    if(!normalized.startsWith("SIMISA@@@@@@@@@@JINX0p0t______")){
+        localDiagnostics.append("Invalid STF SIMISA signature");
+        if(diagnostics != nullptr)
+            diagnostics->append(localDiagnostics);
+        return {};
+    }
+
+    const QStringList tokens = tokenizeStf(normalized, localDiagnostics);
+    QVector<QSharedPointer<OrtsTrackProfile>> parsedProfiles;
+    QSet<QString> memberKeys;
+    for(int rootIndex = 0; rootIndex + 1 < tokens.size(); rootIndex++){
+        if(tokens[rootIndex].compare("TrProfile", Qt::CaseInsensitive) != 0
+                || tokens[rootIndex + 1] != "(")
+            continue;
+
+        int index = rootIndex + 1;
+        StfNode root;
+        if(!parseStfNode(tokens, index, tokens[rootIndex], root,
+                         localDiagnostics))
+            break;
+        rootIndex = index - 1;
+
+        QSharedPointer<OrtsTrackProfile> profile =
+                profileFromStfNode(root, id);
+        const QString memberKey = objectTypeKey(profile->objectType) + ":"
+                + QString::number((int)profile->objectRole);
+        if(profile->objectTypeValid && memberKeys.contains(memberKey)){
+            localDiagnostics.append(
+                    "Duplicate ObjectType in one profile family ignored: "
+                    + objectTypeKey(profile->objectType) + " "
+                    + objectRoleKey(profile->objectRole));
+            continue;
+        }
+        if(profile->objectTypeValid)
+            memberKeys.insert(memberKey);
+        parsedProfiles.append(profile);
+    }
+    if(parsedProfiles.isEmpty()){
+        localDiagnostics.append("Missing TrProfile block");
+        if(diagnostics != nullptr)
+            diagnostics->append(localDiagnostics);
+        return {};
+    }
+    if(diagnostics != nullptr){
+        diagnostics->append(localDiagnostics);
+        for(const QSharedPointer<OrtsTrackProfile> &profile : parsedProfiles)
+            diagnostics->append(profile->diagnostics);
+    }
+    return parsedProfiles;
+}
+
+QSharedPointer<OrtsTrackProfile> OrtsTrackProfileParser::parseStf(
+        const QString &text, const QString &id, QStringList *diagnostics) {
+    const QVector<QSharedPointer<OrtsTrackProfile>> parsedProfiles =
+            parseStfProfiles(text, id, diagnostics);
+    return parsedProfiles.isEmpty() ? QSharedPointer<OrtsTrackProfile>()
+                                    : parsedProfiles.first();
 }
 
 QSharedPointer<OrtsTrackProfile> OrtsTrackProfileParser::parseXml(
         const QString &text, const QString &id, QStringList *diagnostics) {
     QSharedPointer<OrtsTrackProfile> profile(new OrtsTrackProfile());
+    profile->familyId = id;
     profile->id = id;
     QXmlStreamReader xml(text);
     bool sawRoot = false;
@@ -438,6 +570,12 @@ QSharedPointer<OrtsTrackProfile> OrtsTrackProfileParser::parseXml(
         if(element.compare("TrProfile", Qt::CaseInsensitive) == 0){
             sawRoot = true;
             profile->name = attribute(attributes, "Name", id);
+            const QString objectTypeValue = attribute(attributes, "ObjectType");
+            profile->objectTypeValid = parseObjectTypeValues(
+                    objectTypeValue.split(
+                        QRegularExpression("\\s+"), Qt::SkipEmptyParts),
+                    *profile);
+            profile->id = id + profileRoleSuffix(profile->objectRole);
             profile->lodMethod = lodMethod(attribute(attributes, "LODMethod"));
             profile->chordSpanDegrees =
                     numberValue(attribute(attributes, "ChordSpan", "1"));
@@ -508,6 +646,16 @@ QSharedPointer<OrtsTrackProfile> OrtsTrackProfileParser::parseXml(
     return profile;
 }
 
+QVector<QSharedPointer<OrtsTrackProfile>>
+OrtsTrackProfileParser::parseXmlProfiles(
+        const QString &text, const QString &id, QStringList *diagnostics) {
+    const QSharedPointer<OrtsTrackProfile> profile =
+            parseXml(text, id, diagnostics);
+    if(profile == nullptr)
+        return {};
+    return {profile};
+}
+
 void OrtsTrackProfileCatalog::load(const QString &routePath, bool forceReload) {
     const QString normalizedPath = QDir::cleanPath(routePath);
     if(!forceReload && loadedRoutePath == normalizedPath)
@@ -515,7 +663,6 @@ void OrtsTrackProfileCatalog::load(const QString &routePath, bool forceReload) {
 
     loadedRoutePath = normalizedPath;
     profiles.clear();
-    aliases.clear();
     loadDiagnostics.clear();
 
     QDir directory(normalizedPath + "/TRACKPROFILES");
@@ -528,9 +675,7 @@ void OrtsTrackProfileCatalog::load(const QString &routePath, bool forceReload) {
     for(const QFileInfo &entry : entries){
         const QString suffix = entry.suffix().toLower();
         const QString stem = entry.completeBaseName();
-        if((!stem.startsWith("TrProfile", Qt::CaseInsensitive)
-                && !stem.startsWith("default_", Qt::CaseInsensitive))
-                || (suffix != "stf" && suffix != "xml"))
+        if(suffix != "stf" && suffix != "xml")
             continue;
         const QString key = stem.toLower();
         if(!selectedFiles.contains(key) || suffix == "xml")
@@ -548,43 +693,117 @@ void OrtsTrackProfileCatalog::load(const QString &routePath, bool forceReload) {
         return left < right;
     });
 
-    QMap<QString, int> aliasCounts;
-    for(const QString &key : keys){
+    for(const QString &sourceKey : keys){
+        const QString sourceFile = selectedFiles[sourceKey];
         QStringList diagnostics;
-        QSharedPointer<OrtsTrackProfile> profile =
-                OrtsTrackProfileParser::parseFile(selectedFiles[key], &diagnostics);
+        const QVector<QSharedPointer<OrtsTrackProfile>> parsedProfiles =
+                OrtsTrackProfileParser::parseFileProfiles(
+                    sourceFile, &diagnostics);
         for(const QString &diagnostic : diagnostics)
-            loadDiagnostics.append(QFileInfo(selectedFiles[key]).fileName() + ": " + diagnostic);
-        if(profile == nullptr || !profile->valid)
-            continue;
-        profiles.insert(profile->id.toLower(), profile);
-        if(!profile->name.trimmed().isEmpty())
-            aliasCounts[profile->name.trimmed().toLower()]++;
-    }
-
-    for(auto iterator = profiles.cbegin(); iterator != profiles.cend(); ++iterator){
-        const QString alias = iterator.value()->name.trimmed().toLower();
-        if(!alias.isEmpty() && aliasCounts.value(alias) == 1
-                && !profiles.contains(alias))
-            aliases.insert(alias, iterator.key());
+            loadDiagnostics.append(
+                    QFileInfo(sourceFile).fileName() + ": " + diagnostic);
+        for(const QSharedPointer<OrtsTrackProfile> &profile : parsedProfiles){
+            if(profile == nullptr || !profile->valid)
+                continue;
+            const QString profileKey = catalogKey(
+                    profile->objectType, profile->id);
+            if(profiles.contains(profileKey)){
+                loadDiagnostics.append(
+                        QFileInfo(sourceFile).fileName()
+                        + ": duplicate profile identity ignored: "
+                        + profile->id);
+                continue;
+            }
+            profiles.insert(profileKey, profile);
+        }
     }
 }
 
 QStringList OrtsTrackProfileCatalog::profileIds() {
     QStringList result;
-    for(const QSharedPointer<OrtsTrackProfile> &profile : profiles)
-        result.append(profile->id);
+    for(const QSharedPointer<OrtsTrackProfile> &profile : profiles){
+        if(!result.contains(profile->id, Qt::CaseInsensitive))
+            result.append(profile->id);
+    }
     return result;
 }
 
-QStringList OrtsTrackProfileCatalog::selectionNames() {
-    QStringList result = profileIds();
-    for(auto iterator = aliases.cbegin(); iterator != aliases.cend(); ++iterator){
-        const QSharedPointer<OrtsTrackProfile> profile = profiles.value(iterator.value());
-        if(profile != nullptr && !result.contains(profile->name, Qt::CaseInsensitive))
-            result.append(profile->name);
+QStringList OrtsTrackProfileCatalog::profileIds(
+        OrtsTrackProfile::ObjectType objectType, bool selectableOnly) {
+    QStringList result;
+    for(const QSharedPointer<OrtsTrackProfile> &profile : profiles){
+        if(profile->objectType != objectType)
+            continue;
+        if(selectableOnly
+                && profile->objectRole != OrtsTrackProfile::ObjectRole::Main
+                && profile->objectRole != OrtsTrackProfile::ObjectRole::Single)
+            continue;
+        if(!result.contains(profile->id, Qt::CaseInsensitive))
+            result.append(profile->id);
+    }
+    std::sort(result.begin(), result.end(), [](const QString &left,
+            const QString &right){
+        return left.compare(right, Qt::CaseInsensitive) < 0;
+    });
+    return result;
+}
+
+QStringList OrtsTrackProfileCatalog::familyIds(
+        OrtsTrackProfile::ObjectType objectType) {
+    QStringList result;
+    for(const QSharedPointer<OrtsTrackProfile> &profile : profiles){
+        if(profile->objectType == objectType
+                && !result.contains(profile->familyId, Qt::CaseInsensitive))
+            result.append(profile->familyId);
+    }
+    std::sort(result.begin(), result.end(), [](const QString &left,
+            const QString &right){
+        return left.compare(right, Qt::CaseInsensitive) < 0;
+    });
+    return result;
+}
+
+QVector<OrtsTrackProfile::ObjectRole>
+OrtsTrackProfileCatalog::familyRoles(
+        const QString &familyId,
+        OrtsTrackProfile::ObjectType objectType) {
+    const OrtsTrackProfile::ObjectRole roles[] = {
+        OrtsTrackProfile::ObjectRole::Main,
+        OrtsTrackProfile::ObjectRole::Single,
+        OrtsTrackProfile::ObjectRole::Left,
+        OrtsTrackProfile::ObjectRole::Middle,
+        OrtsTrackProfile::ObjectRole::Right
+    };
+    QVector<OrtsTrackProfile::ObjectRole> result;
+    for(OrtsTrackProfile::ObjectRole role : roles){
+        const QSharedPointer<const OrtsTrackProfile> profile = find(
+                profileId(familyId, role), objectType);
+        if(profile != nullptr && profile->familyId.compare(
+                familyId, Qt::CaseInsensitive) == 0)
+            result.append(role);
     }
     return result;
+}
+
+bool OrtsTrackProfileCatalog::hasFamily(
+        const QString &familyId,
+        OrtsTrackProfile::ObjectType objectType) {
+    for(const QSharedPointer<OrtsTrackProfile> &profile : profiles){
+        if(profile->objectType == objectType
+                && profile->familyId.compare(
+                    familyId, Qt::CaseInsensitive) == 0)
+            return true;
+    }
+    return false;
+}
+
+QStringList OrtsTrackProfileCatalog::selectionNames() {
+    return profileIds();
+}
+
+QStringList OrtsTrackProfileCatalog::selectionNames(
+        OrtsTrackProfile::ObjectType objectType, bool selectableOnly) {
+    return profileIds(objectType, selectableOnly);
 }
 
 QStringList OrtsTrackProfileCatalog::diagnostics() {
@@ -592,11 +811,88 @@ QStringList OrtsTrackProfileCatalog::diagnostics() {
 }
 
 QSharedPointer<const OrtsTrackProfile> OrtsTrackProfileCatalog::find(
-        const QString &nameOrAlias) {
-    QString key = nameOrAlias.trimmed().toLower();
-    if(aliases.contains(key))
-        key = aliases.value(key);
-    return profiles.value(key);
+        const QString &name) {
+    const OrtsTrackProfile::ObjectType types[] = {
+        OrtsTrackProfile::ObjectType::Track,
+        OrtsTrackProfile::ObjectType::Road,
+        OrtsTrackProfile::ObjectType::Static
+    };
+    for(OrtsTrackProfile::ObjectType objectType : types){
+        const QSharedPointer<const OrtsTrackProfile> profile =
+                find(name, objectType);
+        if(profile != nullptr)
+            return profile;
+    }
+    return {};
+}
+
+QSharedPointer<const OrtsTrackProfile> OrtsTrackProfileCatalog::find(
+        const QString &name, OrtsTrackProfile::ObjectType objectType) {
+    return profiles.value(catalogKey(objectType, name));
+}
+
+QSharedPointer<const OrtsTrackProfile> OrtsTrackProfileCatalog::findRole(
+        const QString &name, OrtsTrackProfile::ObjectType objectType,
+        OrtsTrackProfile::ObjectRole role) {
+    const QSharedPointer<const OrtsTrackProfile> selected =
+            find(name, objectType);
+    if(selected == nullptr)
+        return {};
+    if(selected->objectRole == OrtsTrackProfile::ObjectRole::Single)
+        return selected;
+    if(selected->objectRole != OrtsTrackProfile::ObjectRole::Main)
+        return selected;
+
+    const QSharedPointer<const OrtsTrackProfile> requested = find(
+            profileId(selected->familyId, role), objectType);
+    return requested == nullptr ? selected : requested;
+}
+
+QVector<QSharedPointer<const OrtsTrackProfile>>
+OrtsTrackProfileCatalog::profilesForPaths(
+        const QString &name, OrtsTrackProfile::ObjectType objectType,
+        const QVector<float> &pathRotations) {
+    QVector<QSharedPointer<const OrtsTrackProfile>> result;
+    const int pathCount = pathRotations.size();
+    if(pathCount <= 0)
+        return result;
+    const QSharedPointer<const OrtsTrackProfile> selected =
+            find(name, objectType);
+    if(selected == nullptr)
+        return result;
+    result.reserve(pathCount);
+
+    int groupStart = 0;
+    while(groupStart < pathCount){
+        int groupEnd = groupStart + 1;
+        while(groupEnd < pathCount
+                && std::abs(std::remainder(
+                    pathRotations[groupEnd] - pathRotations[groupStart],
+                    360.0f)) <= 0.1f)
+            groupEnd++;
+
+        for(int pathIndex = groupStart; pathIndex < groupEnd; pathIndex++){
+            OrtsTrackProfile::ObjectRole role =
+                    OrtsTrackProfile::ObjectRole::Main;
+            if(selected->objectRole == OrtsTrackProfile::ObjectRole::Main
+                    && groupEnd - groupStart > 1){
+                if(pathIndex == groupStart)
+                    role = OrtsTrackProfile::ObjectRole::Left;
+                else if(pathIndex == groupEnd - 1)
+                    role = OrtsTrackProfile::ObjectRole::Right;
+                else
+                    role = OrtsTrackProfile::ObjectRole::Middle;
+            }
+            result.append(findRole(name, objectType, role));
+        }
+        groupStart = groupEnd;
+    }
+    return result;
+}
+
+QString OrtsTrackProfileCatalog::profileId(
+        const QString &familyId, OrtsTrackProfile::ObjectRole role) {
+    return familyId + profileRoleSuffix(role);
 }
 
 QString OrtsTrackProfileCatalog::routePath() {

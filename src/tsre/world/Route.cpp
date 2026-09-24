@@ -22,7 +22,6 @@
 #include <tsre/world/Tile.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/world/TerrainLib.h>
-#include <tsre/world/TerrainLibSimple.h>
 #include <tsre/world/TerrainLibQt.h>
 #include <tsre/Game.h>
 #include <settings/SettingsAccess.h>
@@ -126,10 +125,7 @@ void Route::load(){
     trkName = Game::trkName;
     trkFileName = Game::trkFileName;
 
-    if(!Settings::boolean("core.advanced.useQuadTree"))
-        terrainLib = new TerrainLibSimple();
-    else
-        terrainLib = new TerrainLibQt();
+    terrainLib = new TerrainLibQt();
     Game::terrainLib = terrainLib;
 
     trk = new Trk();
@@ -215,10 +211,7 @@ void Route::load(){
 
 void Route::load(QString name){
     snapshotRouteSettings();
-    if(!Settings::boolean("core.advanced.useQuadTree"))
-        terrainLib = new TerrainLibSimple();
-    else
-        terrainLib = new TerrainLibQt();
+    terrainLib = new TerrainLibQt();
     
     QFile file(Game::root + "/ROUTES");
     if (!file.exists()){ 

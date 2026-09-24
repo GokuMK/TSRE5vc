@@ -26,8 +26,43 @@
 
 bool Undo::UndoEnabled = true;
 UndoState* Undo::currentState = NULL;
+UndoState* Undo::independentParentState = NULL;
+bool Undo::independentStateOpen = false;
+unsigned long long int Undo::independentParentUndoTime = 0;
 QVector<UndoState*> Undo::undoStates;
 unsigned long long int Undo::undoTime;
+
+namespace {
+
+void restoreTerrainHeightMaps(UndoState *state) {
+    if(state == NULL || Game::terrainLib == NULL)
+        return;
+
+    QMapIterator<int, UndoState::TerrainData*> iterator(state->terrainData);
+    while(iterator.hasNext()) {
+        iterator.next();
+        UndoState::TerrainData *terrainData = iterator.value();
+        if(terrainData == NULL)
+            continue;
+        if(terrainData->low)
+            Game::terrainLib->setDistantAsCurrent();
+        else
+            Game::terrainLib->setDetailedAsCurrent();
+        Terrain *terrain = Game::terrainLib->getTerrainByXY(
+                terrainData->x, terrainData->z, true);
+        if(terrain != NULL && terrain->loaded
+                && terrain->getSampleCount() == terrainData->samples) {
+            terrain->fillHeightMap(terrainData->data.data());
+        } else {
+            qWarning() << "Skipping incompatible terrain undo snapshot"
+                       << terrainData->x << terrainData->z
+                       << "samples" << terrainData->samples;
+        }
+    }
+    Game::terrainLib->setDetailedAsCurrent();
+}
+
+}
 
 UndoState::~UndoState(){
     QMapIterator<int, UndoState::TerrainData*> i(terrainData);
@@ -67,6 +102,12 @@ UndoState::~UndoState(){
 void Undo::Clear(){
     delete currentState;
     currentState = NULL;
+    if(independentStateOpen) {
+        delete independentParentState;
+        independentParentState = NULL;
+        independentStateOpen = false;
+        independentParentUndoTime = 0;
+    }
     for(int i = 0; i < undoStates.size();){
         delete undoStates.last();
         undoStates.removeLast();
@@ -92,24 +133,7 @@ void Undo::UndoLast(){
     for (const auto &snapshot : state->terrainMaterials)
         if (!snapshot->restore()) qWarning() << "Skipping unavailable/incompatible procedural terrain undo";
     
-    QMapIterator<int, UndoState::TerrainData*> i(state->terrainData);
-    while (i.hasNext()) {
-        i.next();
-        UndoState::TerrainData* tdata = i.value();
-        if(tdata != NULL){
-            if(tdata->low)
-                Game::terrainLib->setDistantAsCurrent();
-            else
-                Game::terrainLib->setDetailedAsCurrent();
-            Terrain *terrain = Game::terrainLib->getTerrainByXY(tdata->x, tdata->z, true);
-            if(terrain != NULL && terrain->loaded
-                    && terrain->getSampleCount() == tdata->samples)
-                terrain->fillHeightMap(tdata->data.data());
-            else
-                qWarning() << "Skipping incompatible terrain undo snapshot"
-                           << tdata->x << tdata->z << "samples" << tdata->samples;
-        }
-    }
+    restoreTerrainHeightMaps(state);
     QMapIterator<int, unsigned char *> i1(state->texData);
     while (i1.hasNext()) {
         i1.next();
@@ -159,8 +183,6 @@ void Undo::UndoLast(){
             state->roadDB = NULL;
         }
     }
-    if (Game::terrainLib) Game::terrainLib->setDetailedAsCurrent();
-
     if(state->tsectionData.data != NULL
             && Game::currentRoute != NULL
             && Game::currentRoute->tsection == state->tsectionData.data){
@@ -233,6 +255,32 @@ void Undo::StateEnd(){
     }
     currentState = NULL;
     //qDebug() << "undo end";
+}
+
+bool Undo::StateBeginIndependent(){
+    if(!Undo::UndoEnabled || independentStateOpen)
+        return false;
+
+    // Continuous tools keep their draft transaction open. Temporarily detach
+    // it so a completed action can receive its own chronological undo item.
+    independentParentState = currentState;
+    independentParentUndoTime = undoTime;
+    currentState = NULL;
+    independentStateOpen = true;
+    StateBegin();
+    return true;
+}
+
+void Undo::StateEndIndependent(){
+    if(!independentStateOpen)
+        return;
+
+    StateEnd();
+    currentState = independentParentState;
+    undoTime = independentParentUndoTime;
+    independentParentState = NULL;
+    independentStateOpen = false;
+    independentParentUndoTime = 0;
 }
 
 bool Undo::IsStateOpen(){

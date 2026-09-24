@@ -117,11 +117,10 @@ void TerrainLibQt::saveQtLoToStream(QTextStream &out){
 
 void TerrainLibQt::loadQuadTree() {
     const bool distantWasCurrent = currentQuadTree != nullptr && currentQuadTree == quadTreeLo;
-    quadTree = new QuadTree();
-    quadTree->load();
-
-    quadTreeLo = new QuadTree(true);
-    quadTreeLo->load();
+    recoverySession = std::make_shared<int>(0);
+    recoveryRoutePath = Game::root + "/ROUTES/" + Game::route;
+    loadRecoveryTree(false);
+    loadRecoveryTree(true);
 
     if (distantWasCurrent) setDistantAsCurrent(); else setDetailedAsCurrent();
     for (const auto *map : {&terrainQt, &terrainQtLo})
@@ -135,6 +134,8 @@ void TerrainLibQt::loadQuadTreeDetailed(FileBuffer *data) {
         if (info != nullptr && info->t != nullptr)
             terrainAvailabilityChanged(info->t);
     const bool wasCurrent = currentQuadTree == quadTree;
+    recoverySession = std::make_shared<int>(0);
+    delete quadTree;
     quadTree = new QuadTree();
     quadTree->load(data, false);
     if (wasCurrent) setDetailedAsCurrent();
@@ -145,16 +146,25 @@ void TerrainLibQt::loadQuadTreeDistant(FileBuffer *data) {
         if (info != nullptr && info->t != nullptr)
             terrainAvailabilityChanged(info->t);
     const bool wasCurrent = currentQuadTree == quadTreeLo;
-    quadTreeLo = new QuadTree();
+    recoverySession = std::make_shared<int>(0);
+    delete quadTreeLo;
+    quadTreeLo = new QuadTree(true);
     quadTreeLo->load(data, false);
     if (wasCurrent) setDistantAsCurrent();
 }
 
 bool TerrainLibQt::createNewRouteTerrain(int x, int z) {
-    currentQuadTree = new QuadTree();
-    currentQuadTree->createNew(x, z);
+    if (!Game::writeEnabled) return false;
+    quadTree = new QuadTree();
+    setDetailedAsCurrent();
+    currentQuadTree->createNew(x, z, QuadTree::SavePolicy::Deferred);
     QString name = currentQuadTree->getMyName(x, z);
-    return !name.isEmpty() && Terrain::SaveEmpty(name);
+    if (name.isEmpty() || !Terrain::SaveEmpty(name)) return false;
+    QString error;
+    if (!quadTree->saveChecked(Game::root + "/ROUTES/" + Game::route + "/TD", error)) {
+        qWarning() << error; return false;
+    }
+    return true;
 }
 
 void TerrainLibQt::saveEmpty(int x, int z) {
@@ -165,14 +175,20 @@ void TerrainLibQt::saveEmpty(int x, int z) {
     qDebug() << "#new tile get name ";
     QString name = currentQuadTree->getMyName(x, z);
     qDebug() << "#new tile Gen "<<name;
-    if(currentQuadTree->isLow())
-        Terrain::SaveEmpty(name, 256, 128, 16, true);
-    else
+    if(currentQuadTree->isLow()) {
+        const bool created = Terrain::SaveEmpty(name, 256, 128, 16, true);
+        if (created && currentQuadTree->isTemporary() && !recoveryMessages[1]) {
+            loadRecoveryTree(true); // First distant payload in disabled saved-lookup mode.
+            setDistantAsCurrent();
+        }
+    } else
         Terrain::SaveEmpty(name);
 }
 
 bool TerrainLibQt::isLoaded(int x, int z) {
-    unsigned int terrainNameId = quadTree->getMyNameId((int) x, -z);
+    if (!currentQuadTree || !currentQt) setDetailedAsCurrent();
+    if (!currentQuadTree) return false;
+    unsigned int terrainNameId = currentQuadTree->getMyNameId((int) x, -z);
     if (terrainNameId == 0)
         return false;
     if ((*currentQt)[terrainNameId] == NULL)
@@ -195,6 +211,12 @@ bool TerrainLibQt::load(int x, int z) {
 
 void TerrainLibQt::getUnsavedInfo(QVector<QString> &items) {
     if (!Game::writeEnabled) return;
+    if (quadTree && quadTree->isRecovery() && quadTree->isModified())
+        //% "[QT] Reconstructed detailed QuadTree"
+        items.push_back(qtTrId("route.errors.qt.unsaved.detailed"));
+    if (quadTreeLo && quadTreeLo->isRecovery() && quadTreeLo->isModified())
+        //% "[QT] Reconstructed distant QuadTree"
+        items.push_back(qtTrId("route.errors.qt.unsaved.distant"));
     QHashIterator<unsigned int, TerrainInfo*> i(terrainQt);
     while (i.hasNext()) {
         i.next();
@@ -219,6 +241,7 @@ void TerrainLibQt::getUnsavedInfo(QVector<QString> &items) {
 
 void TerrainLibQt::save() {
     if (!Game::writeEnabled) return;
+    saveRecoveredTrees();
     qDebug() << "save terrain";
     QHashIterator<unsigned int, TerrainInfo*> i(terrainQt);
     while (i.hasNext()) {

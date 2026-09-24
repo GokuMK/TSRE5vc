@@ -12,6 +12,7 @@
 #include <tsre/world/objects/WorldObj.h>
 #include <tsre/texture/TexLib.h>
 #include <tsre/world/objects/TransferObj.h>
+#include <routeEditor/properties/EditFileNameDialog.h>
 #include <tsre/Game.h>
 
 PropertiesTransfer::PropertiesTransfer() {
@@ -59,9 +60,21 @@ PropertiesTransfer::PropertiesTransfer() {
     this->fileName.setAlignment(Qt::AlignCenter);
     vbox->addWidget(&this->fileName);
     QPushButton *copyF = new QPushButton(
-        //% "Copy FileName"
+        //% "Copy"
         qtTrId("route.editor.properties.transfer.button.copy.f"), this);
-    vbox->addWidget(copyF);
+    QObject::connect(copyF, SIGNAL(released()),
+                      this, SLOT(copyFileNameEnabled()));
+    QPushButton *editF = new QPushButton(
+        //% "Edit"
+        qtTrId("route.editor.properties.transfer.button.edit.f"), this);
+    QObject::connect(editF, SIGNAL(released()),
+                      this, SLOT(editFileNameEnabled()));
+    QGridLayout *filenameList = new QGridLayout;
+    filenameList->setSpacing(2);
+    filenameList->setContentsMargins(0,0,0,0);
+    filenameList->addWidget(copyF, 0, 0);
+    filenameList->addWidget(editF, 0, 1);
+    vbox->addItem(filenameList);
     vbox->addWidget(texPreviewLabel);
     vbox->setAlignment(texPreviewLabel, Qt::AlignHCenter);
     QPushButton *texLoad = new QPushButton(
@@ -73,6 +86,9 @@ PropertiesTransfer::PropertiesTransfer() {
     QPushButton *texPut = new QPushButton(
         //% "Put Here"
         qtTrId("route.editor.properties.transfer.button.tex.put"), this);
+    texLoad->setDisabled(true);
+    texPick->setDisabled(true);
+    texPut->setDisabled(true);
     vbox->addWidget(texLoad);
     vbox->addWidget(texPick);
     vbox->addWidget(texPut);
@@ -252,6 +268,20 @@ void PropertiesTransfer::sizeEnabled(QString val){
     transferObj->set("height", sizeY.text().toFloat());
     transferObj->modified = true;
     transferObj->deleteVBO();
+}
+
+void PropertiesTransfer::editFileNameEnabled(){
+    if(transferObj == NULL)
+        return;
+    EditFileNameDialog eWindow;
+    eWindow.name.setText(transferObj->texture);
+    eWindow.exec();
+    if(eWindow.isOk){
+        Undo::SinglePushWorldObjData(worldObj);
+        transferObj->set("filename", eWindow.name.text());
+        transferObj->modified = true;
+        fileName.setText(transferObj->texture);
+    }
 }
 
 bool PropertiesTransfer::support(GameObj* obj){

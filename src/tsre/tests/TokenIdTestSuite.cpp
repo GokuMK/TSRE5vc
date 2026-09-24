@@ -132,16 +132,20 @@ int TsreTests::runTokenIdSuite(bool verbose) {
     terrain.materialUidMapPresent = true;
     terrain.materialUids.insert(0, 17);
     terrain.materialUids.insert(255, 0xF1234567u);
-    terrain.sampleASbuffer = {true, "AS label", QByteArray::fromHex("001122ff")};
-    terrain.sampleUSbuffer = {true, "US label", QByteArray::fromHex("abcdef")};
-    terrain.opaqueSampleBufferOrder = {TS::terrain_sample_usbuffer, TS::terrain_sample_asbuffer};
+    terrain.samples.alwaysSelect = QByteArray::fromHex("001122ff");
+    terrain.samples.unknownSelect = QByteArray::fromHex("abcdef");
+    auto &sampleExtras=terrain.extras.children[quint64(TS::terrain_samples)<<32];
+    sampleExtras.order={{TS::terrain_sample_usbuffer,0},{TS::terrain_sample_asbuffer,0}};
+    sampleExtras.children[quint64(TS::terrain_sample_asbuffer)<<32].label=string("AS label").mid(2);
+    sampleExtras.children[quint64(TS::terrain_sample_usbuffer)<<32].label=string("US label").mid(2);
     const QByteArray full = saveTerrain(terrain);
     {
         auto data = buffer(full);
         TFile decoded;
         test.check(decoded.load(data.get()) && saveTerrain(decoded) == full
                    && decoded.materialUids == terrain.materialUids
-                   && decoded.opaqueSampleBufferOrder == terrain.opaqueSampleBufferOrder,
+                   && decoded.samples.alwaysSelect == terrain.samples.alwaysSelect
+                   && decoded.samples.unknownSelect == terrain.samples.unknownSelect,
                    "all three new terrain blocks and AS/US round-trip byte-for-byte");
     }
     {
@@ -155,7 +159,7 @@ int TsreTests::runTokenIdSuite(bool verbose) {
                 + block(TS::pack(6, TS::localId(TS::terrain_nsamples)), uints({777}));
         auto data = buffer(extraSamples(full, unknown));
         TFile decoded;
-        test.check(decoded.load(data.get()) && decoded.nsamples && *decoded.nsamples == 128
+        test.check(decoded.load(data.get()) && decoded.samples.count && *decoded.samples.count == 128
                    && decoded.sampleMaterialBuffer == terrain.sampleMaterialBuffer,
                    "mixed namespaces do not alias Core/TSRE terrain children");
     }
@@ -187,8 +191,8 @@ int TsreTests::runTokenIdSuite(bool verbose) {
                 block(TS::terrain_samples, block(TS::terrain_nsamples, uints({128})), "samples")
                 + block(TS::terrain_alwaysselect_maxdist, floats({22}), "field"), "root")));
         TFile decoded;
-        test.check(decoded.load(data.get()) && decoded.nsamples && *decoded.nsamples == 128
-                   && decoded.alwaysselectMaxdist && *decoded.alwaysselectMaxdist == 22,
+        test.check(decoded.load(data.get()) && decoded.samples.count && *decoded.samples.count == 128
+                   && decoded.alwaysSelectMaxDistance && *decoded.alwaysSelectMaxDistance == 22,
                    "terrain root, container and scalar nonempty labels");
     }
     {
@@ -204,12 +208,12 @@ int TsreTests::runTokenIdSuite(bool verbose) {
                     block(TS::terrain_water_height_offset, heights, label)
                     + block(TS::terrain_alwaysselect_maxdist, floats({22})))));
             TFile decoded;
-            test.check(decoded.load(data.get()) && decoded.waterLevel
-                       && decoded.WSW == (count == 1 ? 60 : 1125)
-                       && decoded.WSE == (count == 1 ? 60 : 1065)
-                       && decoded.WNE == (count == 1 ? 60 : 1140)
-                       && decoded.WNW == (count == 1 ? 60 : 1141)
-                       && decoded.alwaysselectMaxdist && *decoded.alwaysselectMaxdist == 22,
+            test.check(decoded.load(data.get()) && decoded.water
+                       && decoded.water->sw == (count == 1 ? 60 : 1125)
+                       && decoded.water->se == (count == 1 ? 60 : 1065)
+                       && decoded.water->ne == (count == 1 ? 60 : 1140)
+                       && decoded.water->nw == (count == 1 ? 60 : 1141)
+                       && decoded.alwaysSelectMaxDistance && *decoded.alwaysSelectMaxDistance == 22,
                        QString("water height: %1 float(s), label '%2', following sibling intact")
                            .arg(count).arg(label));
         }
@@ -218,7 +222,7 @@ int TsreTests::runTokenIdSuite(bool verbose) {
                     block(TS::terrain_water_height_offset, QByteArray(bytes, '\0'), label)
                     + block(TS::terrain_alwaysselect_maxdist, floats({22})))));
             TFile decoded;
-            test.check(!decoded.load(data.get()) && !decoded.loaded && !decoded.waterLevel,
+            test.check(!decoded.load(data.get()) && !decoded.loaded && !decoded.water,
                        QString("reject malformed water payload: %1 bytes, label '%2'")
                            .arg(bytes).arg(label));
         }

@@ -18,7 +18,6 @@
 #include <tsre/world/Tile.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/world/TerrainLib.h>
-#include <tsre/world/TerrainLibSimple.h>
 #include "TerrainLibQtClient.h"
 #include <tsre/Game.h>
 #include <settings/SettingsAccess.h>
@@ -77,10 +76,8 @@ void RouteClient::load(){
 
             qDebug() << "# Load Remote Route";
 
-            if(!Settings::boolean("core.advanced.useQuadTree"))
-                terrainLib = new TerrainLibSimple();
-            else
-                terrainLib = new TerrainLibQtClient();
+            // Remote routes use the server's terrain index, never local disk recovery.
+            terrainLib = new TerrainLibQtClient();
             Game::terrainLib = terrainLib;
 
             Game::serverClient->sendUtf16Message("request_trk ( ) \n");

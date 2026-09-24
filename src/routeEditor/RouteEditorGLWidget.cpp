@@ -1260,6 +1260,26 @@ void RouteEditorGLWidget::keyPressEvent(QKeyEvent * event) {
 
     if (route == NULL) return;
     if (!route->loaded) return;
+
+    if(liveFlexActive && event->key() == Qt::Key_F) {
+        // The mouse-following preview can move while its own terrain edit is
+        // being applied. Grade only the last section whose endpoint was
+        // accepted by a click. Do not alter the vertical offset or rebuild
+        // the unfinished mouse-following preview.
+        if(!event->isAutoRepeat()) {
+            if(continuousFlexMode && lastAcceptedFlexObj != NULL) {
+                const bool independentUndo = Undo::StateBeginIndependent();
+                route->setTerrainToTrackObj(
+                        lastAcceptedFlexObj, defaultPaintBrush);
+                if(independentUndo)
+                    Undo::StateEndIndependent();
+            }
+            update();
+        }
+        event->accept();
+        return;
+    }
+
     camera->keyDown(event);
 
     Undo::StateBeginIfNotExist();
@@ -1729,8 +1749,20 @@ void RouteEditorGLWidget::mousePressEvent(QMouseEvent *event) {
             Game::check_coords(x,z,px,pz);
             Terrain *terrain=Game::terrainLib->getTerrainByXY(x,z);
             QString error;
-            if (terrain && terrain->loaded && !terrain->setProceduralMaterial(toolEnabled == "proceduralTileEnableTool",error,
-                    defaultPaintBrush ? defaultPaintBrush->terrainMaterialUid : 0))
+            const bool enable=toolEnabled == "proceduralTileEnableTool";
+            bool restore=false, cancelled=false;
+            if (terrain && terrain->loaded && enable && !terrain->usesProceduralMaterial()
+                    && terrain->hasSavedProceduralMap()) {
+                const auto answer=QMessageBox::question(this,tr("Restore procedural map"),
+                    tr("An existing procedural material map was found for this tile. Restore it?\n\n"
+                       "Painted regions will be preserved, but random materials may be assigned if the original material mapping is missing.\n\n"
+                       "Choose No to fill the whole tile with the selected material instead."),
+                    QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel,QMessageBox::Yes);
+                restore=answer==QMessageBox::Yes;
+                cancelled=answer==QMessageBox::Cancel;
+            }
+            if (!cancelled && terrain && terrain->loaded && !terrain->setProceduralMaterial(enable,error,
+                    defaultPaintBrush ? defaultPaintBrush->terrainMaterialUid : 0,restore))
                 QMessageBox::warning(this,
                     //% "Procedural terrain"
                     qtTrId("route.editor.route.editor.glwidget.dialog.title.procedural.terrain"),error);
@@ -2154,6 +2186,9 @@ bool RouteEditorGLWidget::placeContinuousFlexTrack(
     if(route == NULL || position == NULL || quaternion == NULL)
         return false;
 
+    if(initialMousePlacement)
+        lastAcceptedFlexObj = NULL;
+
     Ref::RefItem dynTrackRef;
     dynTrackRef.type = "dyntrack";
     dynTrackRef.value = -1;
@@ -2283,19 +2318,35 @@ QString RouteEditorGLWidget::continuousFlexProfileForRole(
         const QString &role) const {
     QString base = continuousFlexProfile.trimmed();
     const bool road = liveFlexObj != NULL && liveFlexObj->isRoad();
-    if(base.isEmpty() || !road || role.isEmpty())
+    if(base.isEmpty() || role.isEmpty())
         return base;
+
+    const OrtsTrackProfile::ObjectType profileType = road
+            ? OrtsTrackProfile::ObjectType::Road
+            : OrtsTrackProfile::ObjectType::Track;
+    OrtsTrackProfileCatalog::load(Game::root + "/ROUTES/" + Game::route);
+    const QSharedPointer<const OrtsTrackProfile> selectedProfile =
+            OrtsTrackProfileCatalog::find(base, profileType);
+    if(selectedProfile != nullptr){
+        OrtsTrackProfile::ObjectRole objectRole =
+                OrtsTrackProfile::ObjectRole::Main;
+        if(role.compare("left", Qt::CaseInsensitive) == 0)
+            objectRole = OrtsTrackProfile::ObjectRole::Left;
+        else if(role.compare("middle", Qt::CaseInsensitive) == 0)
+            objectRole = OrtsTrackProfile::ObjectRole::Middle;
+        else if(role.compare("right", Qt::CaseInsensitive) == 0)
+            objectRole = OrtsTrackProfile::ObjectRole::Right;
+        const QSharedPointer<const OrtsTrackProfile> resolvedProfile =
+                OrtsTrackProfileCatalog::findRole(
+                    base, profileType, objectRole);
+        return resolvedProfile == nullptr ? selectedProfile->id
+                                          : resolvedProfile->id;
+    }
 
     QString groupBase = base;
     if(groupBase.endsWith("_single", Qt::CaseInsensitive))
         groupBase.chop(QString("_single").size());
     const QString candidate = groupBase + "_" + role;
-
-    OrtsTrackProfileCatalog::load(Game::root + "/ROUTES/" + Game::route);
-    const QSharedPointer<const OrtsTrackProfile> routeProfile =
-            OrtsTrackProfileCatalog::find(candidate);
-    if(routeProfile != nullptr)
-        return routeProfile->id;
 
     ProceduralShape::Load();
     if(ProceduralShape::ShapeTemplateFile != NULL){
@@ -2320,14 +2371,12 @@ void RouteEditorGLWidget::applyContinuousFlexProfiles() {
         return;
 
     QString mainRole;
-    if(liveFlexObj->isRoad()){
-        if(continuousFlexLeftEnabled && continuousFlexRightEnabled)
-            mainRole = "middle";
-        else if(continuousFlexLeftEnabled)
-            mainRole = "right";
-        else if(continuousFlexRightEnabled)
-            mainRole = "left";
-    }
+    if(continuousFlexLeftEnabled && continuousFlexRightEnabled)
+        mainRole = "middle";
+    else if(continuousFlexLeftEnabled)
+        mainRole = "right";
+    else if(continuousFlexRightEnabled)
+        mainRole = "left";
     liveFlexObj->setTemplate(continuousFlexProfileForRole(mainRole));
 
     for(int i = 0; i < liveFlexCompanions.size(); i++){
@@ -2335,7 +2384,7 @@ void RouteEditorGLWidget::applyContinuousFlexProfiles() {
         if(companion == NULL)
             continue;
         QString role;
-        if(liveFlexObj->isRoad() && i < liveFlexCompanionOffsets.size())
+        if(i < liveFlexCompanionOffsets.size())
             role = liveFlexCompanionOffsets[i] < 0 ? "left" : "right";
         companion->setTemplate(continuousFlexProfileForRole(role));
     }
@@ -2391,13 +2440,6 @@ bool RouteEditorGLWidget::updateLiveFlexCompanions(const float *mainSections) {
     };
     QVector<CompanionPreview> previews;
     previews.reserve(liveFlexCompanions.size());
-    const bool shareMainRoadPlane = liveFlexObj->isRoad();
-    const float mainElevationPromille = shareMainRoadPlane
-            ? 1000.0f * std::sin(liveFlexObj->getElevation())
-            : 0.0f;
-    if(!std::isfinite(mainElevationPromille))
-        return liveFlexCompanionsValid = false;
-
     for(int i = 0; i < liveFlexCompanions.size(); i++) {
         DynTrackObj *track = liveFlexCompanions[i];
         if(track == NULL)
@@ -2431,13 +2473,11 @@ bool RouteEditorGLWidget::updateLiveFlexCompanions(const float *mainSections) {
                 preview.sections))
             return liveFlexCompanionsValid = false;
 
-        if(shareMainRoadPlane) {
-            // Adjacent road profiles form one visible surface. Giving each
-            // lane a slightly different pitch to force equal centerline end
-            // heights puts them on different rigid planes and opens seams.
-            // Keep every lane coplanar with the main road for this milestone.
-            preview.elevation = mainElevationPromille;
-        } else if(!Flex::RigidElevationForEndpointHeight(
+        // Keep every companion's persisted endpoint on the same cross-road
+        // plane. ORTS-profile rendering removes the rigid-object bank from
+        // the generated cross-sections, so visual lane continuity no longer
+        // requires corrupting inner/outer endpoint heights.
+        if(!Flex::RigidElevationForEndpointHeight(
                     preview.sections,
                     endPosition[1] - track->position[1],
                     preview.elevation)) {
@@ -2814,6 +2854,7 @@ void RouteEditorGLWidget::finishLiveFlex(bool accept, bool keepContinuousTool) {
             if(track != NULL)
                 route->addToTDB(track);
         Undo::StateEnd();
+        lastAcceptedFlexObj = dynTrack;
         liveFlexCompanions.clear();
         liveFlexCompanionOffsets.clear();
         liveFlexCompanionsValid = true;

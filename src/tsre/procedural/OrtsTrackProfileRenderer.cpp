@@ -140,15 +140,46 @@ struct GeneratedVertex {
 
 struct GeneratedPathFrame {
     float position[3] = {0, 0, 0};
-    float cosine = 1;
-    float sine = 0;
+    float right[3] = {1, 0, 0};
+    float up[3] = {0, 1, 0};
+    float forward[3] = {0, 0, 1};
     float rollCosine = 1;
     float rollSine = 0;
     float distance = 0;
 };
 
+bool normalizeVector(float *vector) {
+    const float length = std::sqrt(
+            vector[0] * vector[0]
+            + vector[1] * vector[1]
+            + vector[2] * vector[2]);
+    if(!std::isfinite(length) || length < 1e-6f)
+        return false;
+    vector[0] /= length;
+    vector[1] /= length;
+    vector[2] /= length;
+    return true;
+}
+
+void crossVector(float *result, const float *a, const float *b) {
+    result[0] = a[1] * b[2] - a[2] * b[1];
+    result[1] = a[2] * b[0] - a[0] * b[2];
+    result[2] = a[0] * b[1] - a[1] * b[0];
+}
+
+void applyPathRotation(float *vector,
+        const ProceduralPathTransform *pathTransform) {
+    if(pathTransform == nullptr || !pathTransform->enabled)
+        return;
+    float rotated[3] = {vector[0], vector[1], vector[2]};
+    Vec3::transformQuat(rotated, rotated,
+            const_cast<float*>(pathTransform->rotation));
+    Vec3::copy(vector, rotated);
+}
+
 GeneratedPathFrame samplePathFrame(ComplexLine &line, float distance,
-        float startRoll, float endRoll, float endExtension, float endDrop) {
+        float startRoll, float endRoll, float endExtension, float endDrop,
+        const ProceduralPathTransform *pathTransform) {
     float frame[6] = {0, 0, 0, 0, 0, 0};
     const float sampledDistance = std::min(distance, line.length);
     line.getDrawPosition(frame, sampledDistance);
@@ -167,8 +198,37 @@ GeneratedPathFrame samplePathFrame(ComplexLine &line, float distance,
     result.position[0] = frame[0];
     result.position[1] = frame[1];
     result.position[2] = frame[2];
-    result.cosine = std::cos(yaw);
-    result.sine = std::sin(yaw);
+    result.right[0] = std::cos(yaw);
+    result.right[2] = -std::sin(yaw);
+    result.forward[0] = std::sin(yaw);
+    result.forward[2] = std::cos(yaw);
+
+    applyPathRotation(result.position, pathTransform);
+    applyPathRotation(result.right, pathTransform);
+    applyPathRotation(result.up, pathTransform);
+    applyPathRotation(result.forward, pathTransform);
+    normalizeVector(result.forward);
+
+    if(pathTransform != nullptr && pathTransform->enabled
+            && pathTransform->uprightCrossSections) {
+        // Match Open Rails' generated-track frame: bake the complete object
+        // orientation into the centerline, then remove bank from the profile
+        // by rebuilding its lateral vector against world up. Pitch remains
+        // in the tangent, but a curved pitched object no longer rolls a wide
+        // road surface around its original rigid X/Z plane.
+        const float worldUp[3] = {0, 1, 0};
+        crossVector(result.right, worldUp, result.forward);
+        if(!normalizeVector(result.right)) {
+            result.right[0] = 1;
+            result.right[1] = 0;
+            result.right[2] = 0;
+        }
+        crossVector(result.up, result.forward, result.right);
+        normalizeVector(result.up);
+    } else {
+        normalizeVector(result.right);
+        normalizeVector(result.up);
+    }
     result.rollCosine = std::cos(roll);
     result.rollSine = std::sin(roll);
     result.distance = distance;
@@ -197,23 +257,31 @@ GeneratedVertex transformVertex(const OrtsProfileVertex &source,
     const float profileNormalZ = -source.normal[2];
 
     GeneratedVertex result;
-    // ComplexLine exposes the TSRE object yaw: its sign is opposite to the
-    // mathematical Y rotation used below. This boundary is easy to miss
-    // because ORTS/MSTS profiles are generated in the DirectX -Z-forward
-    // space while TSRE sweeps them along its OpenGL +Z-forward path. Applying
-    // yaw directly twists a cross-section on curves, moving an outside X
-    // vertex progressively to the inside. Rotate by the inverse yaw so each
-    // profile side keeps a constant curve radius.
-    result.values[0] = frame.position[0] + profileX * frame.cosine
-            + profileZ * frame.sine;
-    result.values[1] = frame.position[1] + rolledY;
-    result.values[2] = frame.position[2] - profileX * frame.sine
-            + profileZ * frame.cosine;
-    result.values[3] = profileNormalX * frame.cosine
-            + profileNormalZ * frame.sine;
-    result.values[4] = rolledNormalY;
-    result.values[5] = -profileNormalX * frame.sine
-            + profileNormalZ * frame.cosine;
+    // The frame basis already contains the inverse ComplexLine yaw required
+    // at the ORTS/MSTS -Z-forward to TSRE +Z-forward boundary. Expressing the
+    // vertex through right/up/forward also lets a baked 3D path replace only
+    // that frame construction without duplicating profile/UV conversion.
+    result.values[0] = frame.position[0]
+            + profileX * frame.right[0]
+            + rolledY * frame.up[0]
+            + profileZ * frame.forward[0];
+    result.values[1] = frame.position[1]
+            + profileX * frame.right[1]
+            + rolledY * frame.up[1]
+            + profileZ * frame.forward[1];
+    result.values[2] = frame.position[2]
+            + profileX * frame.right[2]
+            + rolledY * frame.up[2]
+            + profileZ * frame.forward[2];
+    result.values[3] = profileNormalX * frame.right[0]
+            + rolledNormalY * frame.up[0]
+            + profileNormalZ * frame.forward[0];
+    result.values[4] = profileNormalX * frame.right[1]
+            + rolledNormalY * frame.up[1]
+            + profileNormalZ * frame.forward[1];
+    result.values[5] = profileNormalX * frame.right[2]
+            + rolledNormalY * frame.up[2]
+            + profileNormalZ * frame.forward[2];
     result.values[6] = source.texCoord[0]
             + polyline.deltaTexCoord[0] * frame.distance;
     result.values[7] = source.texCoord[1]
@@ -265,6 +333,20 @@ void transformStaticPath(OrtsGeneratedProfileMesh &mesh,
         mesh.vertices[i + 3] = normal[0];
         mesh.vertices[i + 4] = normal[1];
         mesh.vertices[i + 5] = normal[2];
+    }
+    updateBounds(mesh);
+}
+
+void translateBakedStaticPath(OrtsGeneratedProfileMesh &mesh,
+        const TrackShape::SectionIdx &path,
+        const ProceduralPathTransform &objectTransform) {
+    float translation[3] = {-path.pos[0], path.pos[1], path.pos[2]};
+    Vec3::transformQuat(translation, translation,
+            const_cast<float*>(objectTransform.rotation));
+    for(int i = 0; i < mesh.vertices.size(); i += 9){
+        mesh.vertices[i] += translation[0];
+        mesh.vertices[i + 1] += translation[1];
+        mesh.vertices[i + 2] += translation[2];
     }
     updateBounds(mesh);
 }
@@ -331,7 +413,8 @@ static bool buildMeshesForPath(const OrtsTrackProfile &profile,
         const QVector<TSection> &sections,
         QVector<OrtsGeneratedProfileMesh> &meshes,
         float startRoll, float endRoll, QStringList *diagnostics,
-        float endExtension = 0, float endDrop = 0) {
+        float endExtension = 0, float endDrop = 0,
+        const ProceduralPathTransform *pathTransform = nullptr) {
     meshes.clear();
     if(!profile.valid || sections.isEmpty()){
         if(diagnostics != nullptr)
@@ -354,7 +437,7 @@ static bool buildMeshesForPath(const OrtsTrackProfile &profile,
     for(float distance : distances)
         pathFrames.append(samplePathFrame(
                 line, distance, startRoll, endRoll,
-                endExtension, endDrop));
+                endExtension, endDrop, pathTransform));
 
     float previousCutoff = -1;
     bool hasPositionControl = false;
@@ -446,19 +529,21 @@ static bool buildMeshesForPath(const OrtsTrackProfile &profile,
 bool OrtsTrackProfileRenderer::buildMeshes(const OrtsTrackProfile &profile,
         const QVector<TSection> &sections,
         QVector<OrtsGeneratedProfileMesh> &meshes,
-        QStringList *diagnostics, float endExtension, float endDrop) {
+        QStringList *diagnostics, float endExtension, float endDrop,
+        const ProceduralPathTransform *pathTransform) {
     return buildMeshesForPath(
             profile, sections, meshes, 0, 0, diagnostics,
-            endExtension, endDrop);
+            endExtension, endDrop, pathTransform);
 }
 
 bool OrtsTrackProfileRenderer::generate(const OrtsTrackProfile &profile,
         const QVector<TSection> &sections, QVector<OglObj*> &shape,
         const QString &routePath, QStringList *diagnostics,
-        float endExtension, float endDrop) {
+        float endExtension, float endDrop,
+        const ProceduralPathTransform *pathTransform) {
     QVector<OrtsGeneratedProfileMesh> meshes;
     if(!buildMeshes(profile, sections, meshes, diagnostics,
-            endExtension, endDrop))
+            endExtension, endDrop, pathTransform))
         return false;
 
     QVector<OglObj*> generated;
@@ -491,7 +576,9 @@ bool OrtsTrackProfileRenderer::generate(const OrtsTrackProfile &profile,
 bool OrtsTrackProfileRenderer::generate(const OrtsTrackProfile &profile,
         const TrackShape &trackShape, const QMap<int, float> &angles,
         QVector<OglObj*> &shape, const QString &routePath,
-        QStringList *diagnostics) {
+        QStringList *diagnostics, float endExtension, float endDrop,
+        const ProceduralPathTransform *pathTransform,
+        const QVector<QSharedPointer<const OrtsTrackProfile>> *pathProfiles) {
     if(Game::currentRoute == nullptr || Game::currentRoute->tsection == nullptr)
         return false;
 
@@ -509,13 +596,36 @@ bool OrtsTrackProfileRenderer::generate(const OrtsTrackProfile &profile,
         if(sections.isEmpty())
             continue;
 
+        ProceduralPathTransform combinedTransform;
+        const ProceduralPathTransform *activeTransform = nullptr;
+        if(pathTransform != nullptr && pathTransform->enabled){
+            float pathRotation[4];
+            Quat::fill(pathRotation);
+            Quat::rotateY(pathRotation, pathRotation,
+                    qDegreesToRadians(-path.rotDeg));
+            Quat::multiply(combinedTransform.rotation,
+                    const_cast<float*>(pathTransform->rotation), pathRotation);
+            combinedTransform.enabled = true;
+            combinedTransform.uprightCrossSections =
+                    pathTransform->uprightCrossSections;
+            activeTransform = &combinedTransform;
+        }
+
         QVector<OrtsGeneratedProfileMesh> pathMeshes;
-        if(!buildMeshesForPath(profile, sections, pathMeshes,
+        const OrtsTrackProfile *activeProfile = &profile;
+        if(pathProfiles != nullptr && pathIndex < pathProfiles->size()
+                && pathProfiles->at(pathIndex) != nullptr)
+            activeProfile = pathProfiles->at(pathIndex).data();
+        if(!buildMeshesForPath(*activeProfile, sections, pathMeshes,
                 angles.value(pathIndex * 2, 0),
-                angles.value(pathIndex * 2 + 1, 0), diagnostics))
+                angles.value(pathIndex * 2 + 1, 0), diagnostics,
+                endExtension, endDrop, activeTransform))
             continue;
         for(OrtsGeneratedProfileMesh &mesh : pathMeshes){
-            transformStaticPath(mesh, path);
+            if(activeTransform != nullptr)
+                translateBakedStaticPath(mesh, path, *pathTransform);
+            else
+                transformStaticPath(mesh, path);
             meshes.append(mesh);
         }
     }

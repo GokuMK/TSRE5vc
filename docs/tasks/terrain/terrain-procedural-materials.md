@@ -1,5 +1,21 @@
 # Terrain procedural materials from a painted ID map
 
+## Restoring a map after external editor saves
+
+Enabling procedural terrain checks for `<tile>_materials.pmap` in the tile's
+terrain directory. If present, the editor asks whether to restore it (Yes),
+start fresh with the selected material (No), or cancel. The prompt warns that
+random materials may be assigned when the original mapping is missing, for
+example after MSRE removes TSRE tokens from the `.t` file.
+
+Restore preserves every map byte. Surviving valid ID-to-UiD assignments are
+reused; otherwise used IDs in ascending order are assigned available route
+materials, selected material first, cycling if necessary. This is deterministic,
+not reconstruction of the lost palette. Invalid maps or unavailable sources
+report an error without replacing the map with a blank one. Restore is undoable
+and writes nothing until ordinary save, which rebuilds the bake and metadata.
+No sidecar metadata or extra backups are introduced.
+
 Seasonal implementation and verification:
 [procedural seasons and route-wide baking](terrain-procedural-seasons.md).
 It supersedes the earlier seasonal deferrals below. See

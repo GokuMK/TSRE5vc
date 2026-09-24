@@ -205,19 +205,14 @@ TerrainPatchGpuParams TerrainMeshPaged::terrainParams(const Terrain &terrain,
         return params;
     const int column = terrain.gridLayout.patchColumn(patchId);
     const int row = terrain.gridLayout.patchRow(patchId);
-    params.uvAndOriginX[0] = terrain.tfile->patchValue(
-                patchId, TFile::PatchField::TextureW);
-    params.uvAndOriginX[1] = terrain.tfile->patchValue(
-                patchId, TFile::PatchField::TextureB);
-    params.uvAndOriginX[2] = terrain.tfile->patchValue(
-                patchId, TFile::PatchField::TextureX);
+    const auto &uv=terrain.tfile->patches()[patchId].uv;
+    params.uvAndOriginX[0] = uv.w;
+    params.uvAndOriginX[1] = uv.b;
+    params.uvAndOriginX[2] = uv.x;
     params.uvAndOriginX[3] = column * terrain.gridLayout.patchWorldSize;
-    params.uvAndOriginZ[0] = terrain.tfile->patchValue(
-                patchId, TFile::PatchField::TextureC);
-    params.uvAndOriginZ[1] = terrain.tfile->patchValue(
-                patchId, TFile::PatchField::TextureH);
-    params.uvAndOriginZ[2] = terrain.tfile->patchValue(
-                patchId, TFile::PatchField::TextureY);
+    params.uvAndOriginZ[0] = uv.c;
+    params.uvAndOriginZ[1] = uv.h;
+    params.uvAndOriginZ[2] = uv.y;
     params.uvAndOriginZ[3] = row * terrain.gridLayout.patchWorldSize;
     if (terrain.rendersProceduralMaterial()) {
         params.uvAndOriginX[0] = params.uvAndOriginZ[1] = 1.0f/terrain.gridLayout.patchResolution;

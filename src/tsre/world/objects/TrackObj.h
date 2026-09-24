@@ -48,6 +48,7 @@ public:
     void setElevation(float prom);
     float getElevation();
     int getCollisionType();
+    bool isRoad() const { return roadShape; }
 private:
     float elevation;
     //unsigned int collideFunction;
@@ -58,6 +59,7 @@ private:
     bool proceduralShapeInit = false;
     QVector<OglObj*> procShape;
     bool procShapeOwned = false;
+    bool proceduralShapeUsesBakedPath = false;
     bool roadShape = false;
     bool proceduralFallback = false;
 };

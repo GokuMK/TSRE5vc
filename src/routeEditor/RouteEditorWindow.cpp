@@ -629,6 +629,10 @@ RouteEditorWindow::RouteEditorWindow() {
     
     QObject::connect(errorMessagesWindow, SIGNAL(windowClosed()),
                       this, SLOT(errorMessagesWindowClosed())); 
+    connect(errorMessagesWindow, &ErrorMessagesWindow::windowShown, this, [this] {
+        const QSignalBlocker blocker(errorViewAction);
+        errorViewAction->setChecked(true);
+    });
 
     QObject::connect(shapeViewWindow, SIGNAL(windowClosed()),
                       this, SLOT(shapeVeiwWindowClosed())); 
@@ -1076,6 +1080,10 @@ void RouteEditorWindow::show(){
     }
     
     QMainWindow::show();
+    if (!Game::playerMode) {
+        // Loading has finished; let the editor appear before raising the tool window.
+        QTimer::singleShot(0, this, [this] { ErrorMessagesLib::ShowRequestedMessage(this); });
+    }
 }
 
 void RouteEditorWindow::naviWindowClosed(){

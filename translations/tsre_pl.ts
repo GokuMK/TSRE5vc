@@ -6597,8 +6597,13 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
         </message>
         <message id="route.editor.properties.transfer.button.copy.f">
             <location filename="../src/routeEditor/properties/PropertiesTransfer.cpp" line="63" />
-            <source>Copy FileName</source>
-            <translation>Kopiuj nazwę pliku</translation>
+            <source>Copy</source>
+            <translation>Kopiuj</translation>
+        </message>
+        <message id="route.editor.properties.transfer.button.edit.f">
+            <location filename="../src/routeEditor/properties/PropertiesTransfer.cpp" line="69" />
+            <source>Edit</source>
+            <translation>Edytuj</translation>
         </message>
         <message id="route.editor.properties.transfer.button.tex.load">
             <location filename="../src/routeEditor/properties/PropertiesTransfer.cpp" line="69" />
@@ -8585,16 +8590,18 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
             <source>Experimental integration that reads locomotive speed from TrainNetworkEng and publishes elevation, path distance, and geographic position during simulation updates.</source>
             <translation>Eksperymentalna integracja odczytująca prędkość lokomotywy z TrainNetworkEng i udostępniająca wysokość, odległość na drodze przejazdu oraz położenie geograficzne podczas aktualizacji symulacji.</translation>
         </message>
-        <message id="settings.core.advanced.use.quad.tree.name">
-            <location filename="../src/settings/SettingsRegistration.cpp" line="1028" />
-            <source>Use quadtree terrain library</source>
-            <translation>Używaj biblioteki terenu QuadTree</translation>
-        </message>
-        <message id="settings.core.advanced.use.quad.tree.description">
-            <location filename="../src/settings/SettingsRegistration.cpp" line="1030" />
-            <source>Construct TerrainLibQt instead of the legacy TerrainLibSimple implementation when loading a route; remote-client mode forces this on.</source>
-            <translation>Podczas wczytywania trasy twórz TerrainLibQt zamiast starszej implementacji TerrainLibSimple; tryb klienta zdalnego wymusza tę opcję.</translation>
-        </message>
+    <message id="settings.core.advanced.use.quad.tree.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1050"/>
+        <source>Use saved terrain QuadTree</source>
+        <oldsource>Use quadtree terrain library</oldsource>
+        <translation>Używaj zapisanego QuadTree terenu</translation>
+    </message>
+    <message id="settings.core.advanced.use.quad.tree.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="1052"/>
+        <source>Use the route&apos;s saved terrain index. When disabled, reconstruct a temporary index from terrain descriptors; use Errors and Messages &gt; Fix to adopt it for ordinary saving. Remote clients always use the server&apos;s index.</source>
+        <oldsource>Construct TerrainLibQt instead of the legacy TerrainLibSimple implementation when loading a route; remote-client mode forces this on.</oldsource>
+        <translation>Używaj zapisanego indeksu terenu trasy. Po wyłączeniu odtwórz tymczasowy indeks z deskryptorów terenu; wybierz Błędy i komunikaty &gt; Napraw, aby przyjąć go do zwykłego zapisu. Klienci zdalni zawsze używają indeksu serwera.</translation>
+    </message>
         <message id="settings.core.advanced.use.empty.track.items.name">
             <location filename="../src/settings/SettingsRegistration.cpp" line="1035" />
             <source>Reuse empty TrackDB item slots</source>
@@ -10291,6 +10298,86 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
     <message id="geo.imagery.cancel"><source>Cancel</source><translation>Anuluj</translation></message>
     <message id="geo.imagery.cancelling"><source>Cancelling imagery load</source><translation>Anulowanie wczytywania zobrazowania</translation></message>
     <message id="geo.imagery.load.failed"><source>Imagery load failed: %1</source><translation>Wczytywanie zobrazowania nie powiodło się: %1</translation></message>
+    <message id="route.errors.fix">
+        <location filename="../src/routeEditor/ErrorMessageProperties.cpp" line="44"/>
+        <source>Fix</source>
+        <translation>Napraw</translation>
+    </message>
+    <message id="route.errors.qt.distant">
+        <location filename="../src/tsre/world/TerrainQuadTreeRecovery.cpp" line="40"/>
+        <source>Distant terrain</source>
+        <translation>Teren odległy</translation>
+    </message>
+    <message id="route.errors.qt.detailed">
+        <location filename="../src/tsre/world/TerrainQuadTreeRecovery.cpp" line="43"/>
+        <source>Detailed terrain</source>
+        <translation>Teren szczegółowy</translation>
+    </message>
+    <message id="route.errors.qt.recovery">
+        <location filename="../src/tsre/world/TerrainQuadTreeRecovery.cpp" line="48"/>
+        <source>%1: QuadTree recovery</source>
+        <translation>%1: odzyskiwanie QuadTree</translation>
+    </message>
+    <message id="route.errors.qt.temporary">
+        <location filename="../src/tsre/world/TerrainQuadTreeRecovery.cpp" line="51"/>
+        <source>Using a temporary QuadTree reconstructed from %1 terrain descriptors. Fix adopts it as modified route content; the ordinary Save dialog is still required to write it.</source>
+        <translation>Używany jest tymczasowy QuadTree odtworzony z %1 deskryptorów terenu. Napraw przyjmuje go jako zmodyfikowaną zawartość trasy; zapis wymaga potwierdzenia w zwykłym oknie zapisu.</translation>
+    </message>
+    <message id="route.errors.qt.ignored">
+        <location filename="../src/tsre/world/TerrainQuadTreeRecovery.cpp" line="54"/>
+        <source>The saved QuadTree was deliberately ignored, not validated.</source>
+        <translation>Zapisany QuadTree został celowo pominięty i nie został zweryfikowany.</translation>
+    </message>
+    <message id="route.errors.qt.invalid">
+        <location filename="../src/tsre/world/TerrainQuadTreeRecovery.cpp" line="58"/>
+        <source>Existing QuadTree metadata could not be loaded. Fix reconstructs it from terrain descriptors. Rendering is not switched to reconstructed data until Fix is chosen.</source>
+        <translation>Nie można wczytać istniejących metadanych QuadTree. Napraw odtwarza je z deskryptorów terenu. Renderowanie przełączy się na odtworzone dane dopiero po wybraniu Napraw.</translation>
+    </message>
+    <message id="route.errors.qt.limitations">
+        <location filename="../src/tsre/world/TerrainQuadTreeRecovery.cpp" line="61"/>
+        <source>Reconstruction cannot recover populated entries without terrain files. Existing metadata will be backed up when the adopted tree is saved.</source>
+        <translation>Odtwarzanie nie odzyska wpisów oznaczonych jako zajęte bez plików terenu. Podczas zapisu przyjętego drzewa zostanie utworzona kopia zapasowa istniejących metadanych.</translation>
+    </message>
+    <message id="route.errors.qt.write.disabled">
+        <location filename="../src/tsre/world/TerrainQuadTreeRecovery.cpp" line="84"/>
+        <source>Route writing is disabled.</source>
+        <translation>Zapis trasy jest wyłączony.</translation>
+    </message>
+    <message id="route.errors.qt.no.descriptors">
+        <location filename="../src/tsre/world/TerrainQuadTreeRecovery.cpp" line="93"/>
+        <source>No valid terrain descriptors found. %1</source>
+        <translation>Nie znaleziono prawidłowych deskryptorów terenu. %1</translation>
+    </message>
+    <message id="route.errors.qt.save.failed">
+        <location filename="../src/tsre/world/TerrainQuadTreeRecovery.cpp" line="124"/>
+        <source>Could not save reconstructed QuadTree. It remains modified for retry.</source>
+        <translation>Nie można zapisać odtworzonego QuadTree. Pozostaje zmodyfikowany; można ponowić zapis.</translation>
+    </message>
+    <message id="route.errors.qt.adopted">
+        <location filename="../src/tsre/world/TerrainQuadTreeRecovery.cpp" line="107"/>
+        <source>QuadTree adopted in memory and marked modified. Confirm the ordinary Save dialog to write it; no metadata has been written yet.</source>
+        <translation>QuadTree został przyjęty w pamięci i oznaczony jako zmodyfikowany. Aby go zapisać, potwierdź zwykłe okno zapisu; żadne metadane nie zostały jeszcze zapisane.</translation>
+    </message>
+    <message id="route.errors.qt.saved">
+        <location filename="../src/tsre/world/TerrainQuadTreeRecovery.cpp" line="121"/>
+        <source>Reconstructed QuadTree saved.</source>
+        <translation>Odtworzony QuadTree został zapisany.</translation>
+    </message>
+    <message id="route.errors.fix.unavailable">
+        <location filename="../src/tsre/ErrorMessage.cpp" line="63"/>
+        <source>This repair is no longer available for the current route.</source>
+        <translation>Ta naprawa nie jest już dostępna dla bieżącej trasy.</translation>
+    </message>
+    <message id="route.errors.qt.unsaved.detailed">
+        <location filename="../src/tsre/world/TerrainLibQt.cpp" line="202"/>
+        <source>[QT] Reconstructed detailed QuadTree</source>
+        <translation>[QT] Odtworzony QuadTree terenu szczegółowego</translation>
+    </message>
+    <message id="route.errors.qt.unsaved.distant">
+        <location filename="../src/tsre/world/TerrainLibQt.cpp" line="205"/>
+        <source>[QT] Reconstructed distant QuadTree</source>
+        <translation>[QT] Odtworzony QuadTree terenu odległego</translation>
+    </message>
 </context>
 <context>
     <name>LoadWindow</name>

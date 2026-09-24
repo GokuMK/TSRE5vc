@@ -84,7 +84,13 @@ PropertiesTrackObj::PropertiesTrackObj(){
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     vbox->addWidget(&eTemplate);
+    vbox->addWidget(&eTemplateSubtype);
     eTemplate.setStyleSheet("combobox-popup: 0;");
+    eTemplateSubtype.setStyleSheet("combobox-popup: 0;");
+    eTemplateSubtype.setEnabled(false);
+    eTemplateSubtype.setToolTip(
+        //% "Select a route profile subtype."
+        qtTrId("route.editor.properties.profile.tooltip.route.profile.subtype"));
     eTemplate.addItem(
         //% "NOT SET"
         qtTrId("common.value.not.set"), QString());
@@ -97,9 +103,10 @@ PropertiesTrackObj::PropertiesTrackObj(){
     eTemplate.setToolTip(
         //% "NOT SET uses the static shape in Enabled mode; DEFAULT explicitly requests the default procedural template."
         qtTrId("route.editor.properties.track.obj.tooltip.not.set.uses.static.shape.in.enabled"));
-    refreshTemplateList();
     QObject::connect(&eTemplate, SIGNAL(currentTextChanged(QString)),
                       this, SLOT(eTemplateEdited(QString)));
+    QObject::connect(&eTemplateSubtype, SIGNAL(currentTextChanged(QString)),
+                      this, SLOT(eTemplateSubtypeEdited(QString)));
     
     label = new QLabel(
         //% "Position & Rotation:"
@@ -364,9 +371,22 @@ void PropertiesTrackObj::eTemplateEdited(QString val){
         return;
     }
     Q_UNUSED(val);
-    val = eTemplate.currentData().toString();
+    const OrtsTrackProfile::ObjectType profileType = trackObj->isRoad()
+            ? OrtsTrackProfile::ObjectType::Road
+            : OrtsTrackProfile::ObjectType::Track;
+    refreshTemplateSubtype(profileType);
+    val = selectedTemplateValue();
     Undo::SinglePushWorldObjData(worldObj);
     trackObj->setTemplate(val);
+    Undo::StateEnd();
+}
+
+void PropertiesTrackObj::eTemplateSubtypeEdited(QString val){
+    if(trackObj == NULL)
+        return;
+    Q_UNUSED(val);
+    Undo::SinglePushWorldObjData(worldObj);
+    trackObj->setTemplate(selectedTemplateValue());
     Undo::StateEnd();
 }
 
@@ -589,7 +609,8 @@ void PropertiesTrackObj::showObj(GameObj* obj){
 
 void PropertiesTrackObj::refreshTemplateList(){
     const QSignalBlocker blocker(&eTemplate);
-    const QString previousValue = eTemplate.currentData().toString();
+    const QString previousValue = trackObj != NULL
+            ? trackObj->getTemplate() : selectedTemplateValue();
 
     eTemplate.clear();
     eTemplate.addItem(
@@ -604,12 +625,14 @@ void PropertiesTrackObj::refreshTemplateList(){
 
     ProceduralShape::Load();
     OrtsTrackProfileCatalog::load(Game::root + "/ROUTES/" + Game::route);
+    const OrtsTrackProfile::ObjectType profileType =
+            trackObj != NULL && trackObj->isRoad()
+            ? OrtsTrackProfile::ObjectType::Road
+            : OrtsTrackProfile::ObjectType::Track;
 
-    // Route-local ORTS profiles override application-level TSRE templates and
-    // are shown first so the most relevant choices are easiest to find.
-    for(const QString &profileId : OrtsTrackProfileCatalog::profileIds())
-        if(eTemplate.findData(profileId) < 0)
-            eTemplate.addItem(profileId, profileId);
+    // Route-local ORTS profile families override application-level TSRE
+    // templates. Their exact role is selected in the subtype combo below.
+    addRouteProfileFamilies(profileType);
 
     if(ProceduralShape::ShapeTemplateFile != NULL){
         QMapIterator<QString, ShapeTemplate*> iterator(
@@ -618,29 +641,33 @@ void PropertiesTrackObj::refreshTemplateList(){
             iterator.next();
             if(iterator.value() == NULL)
                 continue;
+            const ShapeTemplate::TemplateType expectedType =
+                    profileType == OrtsTrackProfile::ObjectType::Road
+                    ? ShapeTemplate::ROAD : ShapeTemplate::TRACK;
+            if(iterator.value()->type != expectedType)
+                continue;
             const QString name = iterator.value()->name;
-            if(OrtsTrackProfileCatalog::find(name) != nullptr)
+            if(OrtsTrackProfileCatalog::hasFamily(name, profileType)
+                    || OrtsTrackProfileCatalog::find(
+                        name, profileType) != nullptr)
                 continue;
             if(eTemplate.findData(name) < 0)
                 eTemplate.addItem(name, name);
         }
     }
 
-    if(!previousValue.isEmpty()
-            && eTemplate.findData(previousValue) < 0)
-        eTemplate.addItem(previousValue, previousValue);
-    if(!previousValue.isEmpty())
-        eTemplate.setCurrentIndex(eTemplate.findData(previousValue));
+    selectTemplateValue(previousValue, profileType);
 }
 
 void PropertiesTrackObj::updateTemplateValue(){
     if(trackObj == NULL)
         return;
-    QString name = trackObj->getTemplate();
-    const QSignalBlocker blocker(&eTemplate);
-    if(eTemplate.findData(name) < 0)
-        eTemplate.addItem(name, name);
-    eTemplate.setCurrentIndex(eTemplate.findData(name));
+    if(selectedTemplateValue() == trackObj->getTemplate())
+        return;
+    const OrtsTrackProfile::ObjectType profileType = trackObj->isRoad()
+            ? OrtsTrackProfile::ObjectType::Road
+            : OrtsTrackProfile::ObjectType::Track;
+    selectTemplateValue(trackObj->getTemplate(), profileType);
 }
 
 void PropertiesTrackObj::setStepValue(float step){

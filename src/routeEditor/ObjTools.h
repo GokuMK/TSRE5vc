@@ -104,7 +104,7 @@ private:
     double continuousFlexTrackMinimumRadius = 15.0;
     double continuousFlexRoadMinimumRadius = 6.0;
     QString continuousFlexTrackProfile;
-    QString continuousFlexRoadProfile = "default_road";
+    QString continuousFlexRoadProfile = "RdProfile";
     QLineEdit autoPlacementPosX;
     QLineEdit autoPlacementPosY;
     QLineEdit autoPlacementPosZ;

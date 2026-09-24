@@ -1071,9 +1071,9 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
     order = 0;
     ADD(SettingsDefinition::boolean("core.advanced.useQuadTree", true)
             .withNameId(
-                //% "Use quadtree terrain library"
+                //% "Use saved terrain QuadTree"
                 QT_TRID_NOOP("settings.core.advanced.use.quad.tree.name")).withDescriptionId(
-                //% "Construct TerrainLibQt instead of the legacy TerrainLibSimple implementation when loading a route; remote-client mode forces this on."
+                //% "Use the route's saved terrain index. When disabled, reconstruct a temporary index from terrain descriptors; use Errors and Messages > Fix to adopt it for ordinary saving. Remote clients always use the server's index."
                 QT_TRID_NOOP("settings.core.advanced.use.quad.tree.description")).inGroup("advanced").inSubgroup("routeStorage").asAdvanced(),
         "useQuadTree", "Game::useQuadTree", "Route", false, "route-construction");
     ADD(SettingsDefinition::boolean("core.advanced.useEmptyTrackItems", true)

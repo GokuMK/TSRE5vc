@@ -29,10 +29,12 @@ public slots:
     void jumpToLocation();
     
     void bSelectReleased();
+    void fixReleased();
     
 signals:
     void jumpTo(PreciseTileCoordinate *c);
     void selectObject(GameObj *o);
+    void messageChanged();
     
 protected:
     ErrorMessage *currentMessage = NULL;
@@ -45,6 +47,7 @@ protected:
     QPlainTextEdit eAction;
     
     QPushButton bSelect;
+    QPushButton bFix;
 
 };
 

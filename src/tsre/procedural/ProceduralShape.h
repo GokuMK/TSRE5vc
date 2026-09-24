@@ -14,6 +14,7 @@
 #include <QMap>
 #include <QString>
 #include <tsre/ogl/OglObj.h>
+#include <tsre/procedural/ProceduralPath.h>
 #include <tsre/tdb/TSection.h>
 
 class ObjFile;
@@ -51,6 +52,15 @@ public:
     static void GetShape(QString templateName, QVector<OglObj*> &shape, QVector<TSection> &sections, int shapeOffset = 0);
     static void GetShape(QString templateName, QVector<OglObj*> &shape, TrackShape* tsh, QMap<int, float> &angles);
     static void GetShape(QString templateName, QVector<OglObj*> &shape, ComplexLine &line, int shapeOffset = 0);
+    // Baked DynTrack geometry depends on the object's pitch/roll, so it must
+    // be generated as owned geometry instead of entering the shared cache.
+    static void GenerateShape(QString templateName, QVector<OglObj*> &shape,
+            QVector<TSection> &sections,
+            const ProceduralPathTransform &pathTransform,
+            int shapeOffset = 0);
+    static void GenerateShape(QString templateName, QVector<OglObj*> &shape,
+            TrackShape *trackShape, QMap<int, float> &angles,
+            const ProceduralPathTransform &pathTransform);
 
 private:
     static float Alpha;
@@ -62,21 +72,46 @@ private:
     static QString GetShapeHash(QString templateName, QVector<TSection> &sections, int shapeOffset);
     static QString GetShapeHash(QString templateName, ComplexLine &line, int shapeOffset);
     
-    static void GenShape(QString templateName, QVector<OglObj*> &shape, QVector<TSection> &sections, int shapeOffset);
-    static void GenShape(QString templateName, QVector<OglObj*> &shape, TrackShape* tsh, QMap<int, float> &angles);
-    static void GenShape(QString templateName, QVector<OglObj*> &shape, ComplexLine &line, int shapeOffset);
+    static void GenShape(QString templateName, QVector<OglObj*> &shape,
+            QVector<TSection> &sections, int shapeOffset,
+            const ProceduralPathTransform *pathTransform);
+    static void GenShape(QString templateName, QVector<OglObj*> &shape,
+            TrackShape* tsh, QMap<int, float> &angles,
+            const ProceduralPathTransform *pathTransform = nullptr);
+    static void GenShape(QString templateName, QVector<OglObj*> &shape,
+            ComplexLine &line, int shapeOffset,
+            const ProceduralPathTransform *pathTransform);
     
-    static void GenRails(ShapeTemplateElement *stemplate, QVector<OglObj*> &shape, ComplexLine &line);
-    static void GenRails(ShapeTemplateElement *stemplate, QVector<OglObj*> &shape, ComplexLine &line, float *sPos, float sAngle, float angleB, float angleE);
+    static void GenRails(ShapeTemplateElement *stemplate,
+            QVector<OglObj*> &shape, ComplexLine &line,
+            const ProceduralPathTransform *pathTransform);
+    static void GenRails(ShapeTemplateElement *stemplate,
+            QVector<OglObj*> &shape, ComplexLine &line, float *sPos,
+            float sAngle, float angleB, float angleE,
+            const ProceduralPathTransform *pathTransform = nullptr);
     
-    static void GenBallast(ShapeTemplateElement *stemplate, QVector<OglObj*> &shape, ComplexLine &line);
-    static void GenBallast(ShapeTemplateElement *stemplate, QVector<OglObj*> &shape, ComplexLine &line, float *sPos, float sAngle, float angleB, float angleE);
+    static void GenBallast(ShapeTemplateElement *stemplate,
+            QVector<OglObj*> &shape, ComplexLine &line,
+            const ProceduralPathTransform *pathTransform);
+    static void GenBallast(ShapeTemplateElement *stemplate,
+            QVector<OglObj*> &shape, ComplexLine &line, float *sPos,
+            float sAngle, float angleB, float angleE,
+            const ProceduralPathTransform *pathTransform = nullptr);
     
-    static void GenTie(ShapeTemplateElement *stemplate, QVector<OglObj*> &shape, ComplexLine &line);
-    static void GenTie(ShapeTemplateElement *stemplate, QVector<OglObj*> &shape, ComplexLine &line, float *sPos, float sAngle, float angleB, float angleE);
+    static void GenTie(ShapeTemplateElement *stemplate,
+            QVector<OglObj*> &shape, ComplexLine &line,
+            const ProceduralPathTransform *pathTransform);
+    static void GenTie(ShapeTemplateElement *stemplate,
+            QVector<OglObj*> &shape, ComplexLine &line, float *sPos,
+            float sAngle, float angleB, float angleE,
+            const ProceduralPathTransform *pathTransform = nullptr);
     
-    static void GenStretch(ShapeTemplateElement *stemplate, QVector<OglObj*> &shape, ComplexLine &line, int shapeOffset = 0);
-    static void GenPointShape(ShapeTemplateElement *stemplate, QVector<OglObj*> &shape, ComplexLine &line, int shapeOffset = 0);
+    static void GenStretch(ShapeTemplateElement *stemplate,
+            QVector<OglObj*> &shape, ComplexLine &line, int shapeOffset,
+            const ProceduralPathTransform *pathTransform);
+    static void GenPointShape(ShapeTemplateElement *stemplate,
+            QVector<OglObj*> &shape, ComplexLine &line, int shapeOffset,
+            const ProceduralPathTransform *pathTransform);
     
     static void GenAdvancedTie(ShapeTemplateElement *stemplate, QVector<OglObj*> &shape, TrackShape* tsh, QMap<int, float> &angles);
     

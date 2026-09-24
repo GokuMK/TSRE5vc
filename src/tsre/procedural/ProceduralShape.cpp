@@ -35,6 +35,102 @@ QMap<QString, ObjFile*> ProceduralShape::Files;
 float ProceduralShape::Alpha = 0;
 unsigned int ProceduralShape::ShapeCount = 0;
 
+namespace {
+
+bool normalizeProceduralVector(float *vector) {
+    const float length = std::sqrt(
+            vector[0] * vector[0]
+            + vector[1] * vector[1]
+            + vector[2] * vector[2]);
+    if(!std::isfinite(length) || length < 1e-6f)
+        return false;
+    vector[0] /= length;
+    vector[1] /= length;
+    vector[2] /= length;
+    return true;
+}
+
+void crossProceduralVector(float *result, const float *a, const float *b) {
+    result[0] = a[1] * b[2] - a[2] * b[1];
+    result[1] = a[2] * b[0] - a[0] * b[2];
+    result[2] = a[0] * b[1] - a[1] * b[0];
+}
+
+void prepareProceduralQuaternionFrame(float *position, float *rotation,
+        float *matrix, const ProceduralPathTransform *pathTransform,
+        float offsetX, float offsetY, float roll = 0) {
+    float right[3] = {1, 0, 0};
+    float up[3] = {0, 1, 0};
+    float forward[3] = {0, 0, 1};
+    Vec3::transformQuat(right, right, rotation);
+    Vec3::transformQuat(up, up, rotation);
+    Vec3::transformQuat(forward, forward, rotation);
+    Vec3::transformQuat(position, position,
+            const_cast<float*>(pathTransform->rotation));
+    Vec3::transformQuat(right, right,
+            const_cast<float*>(pathTransform->rotation));
+    Vec3::transformQuat(up, up,
+            const_cast<float*>(pathTransform->rotation));
+    Vec3::transformQuat(forward, forward,
+            const_cast<float*>(pathTransform->rotation));
+
+    normalizeProceduralVector(forward);
+    if(pathTransform->uprightCrossSections) {
+        const float originalRight[3] = {right[0], right[1], right[2]};
+        const float worldUp[3] = {0, 1, 0};
+        crossProceduralVector(right, worldUp, forward);
+        if(!normalizeProceduralVector(right)) {
+            Vec3::copy(right, originalRight);
+            normalizeProceduralVector(right);
+        } else if(Vec3::dot(right,
+                const_cast<float*>(originalRight)) < 0) {
+            right[0] = -right[0];
+            right[1] = -right[1];
+            right[2] = -right[2];
+        }
+        crossProceduralVector(up, forward, right);
+        normalizeProceduralVector(up);
+    } else {
+        normalizeProceduralVector(right);
+        normalizeProceduralVector(up);
+    }
+
+    ProceduralPath::quaternionFromBasis(rotation, right, up, forward);
+    if(roll != 0)
+        Quat::rotateZ(rotation, rotation, roll);
+
+    float offset[3] = {offsetX, offsetY, 0};
+    Vec3::transformQuat(offset, offset, rotation);
+    Vec3::add(position, position, offset);
+    Mat4::fromRotationTranslation(matrix, rotation, position);
+}
+
+void prepareProceduralFrame(float *positionRotation, float *rotation,
+        float *matrix, const ProceduralPathTransform *pathTransform,
+        float offsetX = 0, float offsetY = 0) {
+    Quat::fromRotationXYZ(rotation, positionRotation + 3);
+
+    if(pathTransform == nullptr || !pathTransform->enabled) {
+        if(offsetX != 0) {
+            float offset[3] = {offsetX, 0, 0};
+            Vec3::transformQuat(offset, offset, rotation);
+            Vec3::add(positionRotation, positionRotation, offset);
+        }
+        Mat4::fromRotationTranslation(matrix, rotation, positionRotation);
+        return;
+    }
+
+    prepareProceduralQuaternionFrame(positionRotation, rotation, matrix,
+            pathTransform, offsetX, offsetY);
+}
+
+float deferredProceduralYOffset(float offset,
+        const ProceduralPathTransform *pathTransform) {
+    return pathTransform != nullptr && pathTransform->enabled ? 0 : offset;
+}
+
+}
+
 ObjFile* ProceduralShape::GetObjFile(QString name) {
     
     QString pathRoute = Game::root + "/ROUTES/" + Game::route + "/PROCEDURAL/" + name;
@@ -111,12 +207,23 @@ void ProceduralShape::GetShape(QString templateName, QVector<OglObj*>& shape, Tr
     QString hash = ProceduralShape::GetShapeHash(templateName, tsh, angles, 0);
     if(ProceduralShape::Shapes[hash].size() == 0){
         qDebug() << "New Procedural Shape: "<< ShapeCount++ << hash;
-        ProceduralShape::GenShape(templateName, ProceduralShape::Shapes[hash], tsh, angles);
+        ProceduralShape::GenShape(templateName, ProceduralShape::Shapes[hash],
+                tsh, angles);
     }
     shape.append(ProceduralShape::Shapes[hash]);
 }
 
-void ProceduralShape::GenShape(QString templateName, QVector<OglObj*>& shape, TrackShape* tsh, QMap<int, float> &angles) {
+void ProceduralShape::GenerateShape(QString templateName,
+        QVector<OglObj*> &shape, TrackShape *trackShape,
+        QMap<int, float> &angles,
+        const ProceduralPathTransform &pathTransform) {
+    Load();
+    GenShape(templateName, shape, trackShape, angles, &pathTransform);
+}
+
+void ProceduralShape::GenShape(QString templateName, QVector<OglObj*>& shape,
+        TrackShape* tsh, QMap<int, float> &angles,
+        const ProceduralPathTransform *pathTransform) {
     if (!Loaded)
         Load();
 
@@ -161,18 +268,24 @@ void ProceduralShape::GenShape(QString templateName, QVector<OglObj*>& shape, Tr
                 GenAdvancedTie(i.value(), shape, tsh, angles);
             } else {
                 for (int j = 0; j < tsh->numpaths; j++) {
-                    GenTie(i.value(), shape, line[j], tsh->path[j].pos, -tsh->path[j].rotDeg, angles[j * 2], angles[j * 2 + 1]);
+                    GenTie(i.value(), shape, line[j], tsh->path[j].pos,
+                            -tsh->path[j].rotDeg, angles[j * 2],
+                            angles[j * 2 + 1], pathTransform);
                 }
             }
         }
 
         if(i.value()->type == ShapeTemplateElement::RAIL)
             for (int j = 0; j < tsh->numpaths; j++)
-                GenRails(i.value(), shape, line[j], tsh->path[j].pos, -tsh->path[j].rotDeg, angles[j * 2], angles[j * 2 + 1]);
+                GenRails(i.value(), shape, line[j], tsh->path[j].pos,
+                        -tsh->path[j].rotDeg, angles[j * 2],
+                        angles[j * 2 + 1], pathTransform);
 
         if(i.value()->type == ShapeTemplateElement::BALLAST)
             for (int j = 0; j < tsh->numpaths; j++)
-                GenBallast(i.value(), shape, line[j], tsh->path[j].pos, -tsh->path[j].rotDeg, angles[j * 2], angles[j * 2 + 1]);
+                GenBallast(i.value(), shape, line[j], tsh->path[j].pos,
+                        -tsh->path[j].rotDeg, angles[j * 2],
+                        angles[j * 2 + 1], pathTransform);
     }
 
     
@@ -186,19 +299,30 @@ void ProceduralShape::GetShape(QString templateName, QVector<OglObj*>& shape, QV
     QString hash = ProceduralShape::GetShapeHash(templateName, sections, shapeOffset);
     if(ProceduralShape::Shapes[hash].size() == 0){
         qDebug() << "New Procedural Shape: "<< ShapeCount++ << hash;
-        ProceduralShape::GenShape(templateName, ProceduralShape::Shapes[hash], sections, shapeOffset);
+        ProceduralShape::GenShape(templateName, ProceduralShape::Shapes[hash],
+                sections, shapeOffset, nullptr);
     }
     shape.append(ProceduralShape::Shapes[hash]);
 }
 
-void ProceduralShape::GenShape(QString templateName, QVector<OglObj*>& shape, QVector<TSection> &sections, int shapeOffset) {
+void ProceduralShape::GenerateShape(QString templateName,
+        QVector<OglObj*> &shape, QVector<TSection> &sections,
+        const ProceduralPathTransform &pathTransform, int shapeOffset) {
+    Load();
+    GenShape(templateName, shape, sections, shapeOffset, &pathTransform);
+}
+
+void ProceduralShape::GenShape(QString templateName, QVector<OglObj*>& shape,
+        QVector<TSection> &sections, int shapeOffset,
+        const ProceduralPathTransform *pathTransform) {
     if (!Loaded)
         Load();
 
     ComplexLine line;
     line.init(sections);
 
-    ProceduralShape::GenShape(templateName, shape, line, shapeOffset);
+    ProceduralShape::GenShape(templateName, shape, line, shapeOffset,
+            pathTransform);
 }
     
 
@@ -207,12 +331,15 @@ void ProceduralShape::GetShape(QString templateName, QVector<OglObj*>& shape, Co
     QString hash = ProceduralShape::GetShapeHash(templateName, line, shapeOffset);
     if(ProceduralShape::Shapes[hash].size() == 0){
         qDebug() << "New Procedural Shape: "<< ShapeCount++ << hash;
-        ProceduralShape::GenShape(templateName, ProceduralShape::Shapes[hash], line, shapeOffset);
+        ProceduralShape::GenShape(templateName, ProceduralShape::Shapes[hash],
+                line, shapeOffset, nullptr);
     }
     shape.append(ProceduralShape::Shapes[hash]);
 }
 
-void ProceduralShape::GenShape(QString templateName, QVector<OglObj*>& shape, ComplexLine& line, int shapeOffset){
+void ProceduralShape::GenShape(QString templateName, QVector<OglObj*>& shape,
+        ComplexLine& line, int shapeOffset,
+        const ProceduralPathTransform *pathTransform){
     //unsigned long long int timeNow = QDateTime::currentMSecsSinceEpoch();
     Alpha = -0.3;
     
@@ -232,24 +359,26 @@ void ProceduralShape::GenShape(QString templateName, QVector<OglObj*>& shape, Co
         if(i.value()->type == ShapeTemplateElement::NONE)
             continue;
         if(i.value()->type == ShapeTemplateElement::TIE)
-            GenTie(i.value(), shape, line);
+            GenTie(i.value(), shape, line, pathTransform);
 
         if(i.value()->type == ShapeTemplateElement::RAIL)
-            GenRails(i.value(), shape, line);
+            GenRails(i.value(), shape, line, pathTransform);
 
         if(i.value()->type == ShapeTemplateElement::BALLAST)
-            GenBallast(i.value(), shape, line);
+            GenBallast(i.value(), shape, line, pathTransform);
         
         if(i.value()->type == ShapeTemplateElement::STRETCH)
-            GenStretch(i.value(), shape, line, shapeOffset);
+            GenStretch(i.value(), shape, line, shapeOffset, pathTransform);
         
         if(i.value()->type == ShapeTemplateElement::POINT)
-            GenPointShape(i.value(), shape, line, shapeOffset);
+            GenPointShape(i.value(), shape, line, shapeOffset, pathTransform);
     }
 
 }
 
-void ProceduralShape::GenRails(ShapeTemplateElement *stemplate, QVector<OglObj*> &shape, ComplexLine &line) {
+void ProceduralShape::GenRails(ShapeTemplateElement *stemplate,
+        QVector<OglObj*> &shape, ComplexLine &line,
+        const ProceduralPathTransform *pathTransform) {
     float* p = new float[2000000];
     float* ptr = p;
 
@@ -257,7 +386,6 @@ void ProceduralShape::GenRails(ShapeTemplateElement *stemplate, QVector<OglObj*>
     float posRot[6];
     float matrix1[16];
     float matrix2[16];
-    float vOffset[3];
     ObjFile *tFile;
 
     QString* texturePath;
@@ -265,19 +393,15 @@ void ProceduralShape::GenRails(ShapeTemplateElement *stemplate, QVector<OglObj*>
     tFile = GetObjFile(stemplate->shape.first());
     float step = 3;
     for (float i = 0; i < line.length; i += step) {
-        line.getDrawPosition(posRot, i, stemplate->xOffset);
-        Quat::fromRotationXYZ(q, (float*) (posRot + 3));
-        Vec3::set(vOffset, stemplate->xOffset, 0.0, 0.0);
-        Vec3::transformQuat(vOffset, vOffset, q);
-        Vec3::add(posRot, vOffset, posRot);
-        Mat4::fromRotationTranslation(matrix1, q, posRot);
-        line.getDrawPosition(posRot, i + step, stemplate->xOffset);
-        Quat::fromRotationXYZ(q, (float*) (posRot + 3));
-        Vec3::set(vOffset, stemplate->xOffset, 0.0, 0.0);
-        Vec3::transformQuat(vOffset, vOffset, q);
-        Vec3::add(posRot, vOffset, posRot);
-        Mat4::fromRotationTranslation(matrix2, q, posRot);
-        PushShapePartExpand(ptr, tFile, stemplate->yOffset, matrix1, matrix2, q, i, i + step);
+        line.getDrawPosition(posRot, i);
+        prepareProceduralFrame(posRot, q, matrix1, pathTransform,
+                stemplate->xOffset, stemplate->yOffset);
+        line.getDrawPosition(posRot, i + step);
+        prepareProceduralFrame(posRot, q, matrix2, pathTransform,
+                stemplate->xOffset, stemplate->yOffset);
+        PushShapePartExpand(ptr, tFile,
+                deferredProceduralYOffset(stemplate->yOffset, pathTransform),
+                matrix1, matrix2, q, i, i + step);
     }
 
     texturePath = new QString(ProceduralShape::GetTexturePath(stemplate->texture));
@@ -289,13 +413,17 @@ void ProceduralShape::GenRails(ShapeTemplateElement *stemplate, QVector<OglObj*>
     delete[] p;
 }
 
-void ProceduralShape::GenRails(ShapeTemplateElement *stemplate, QVector<OglObj*>& shape, ComplexLine& line, float* sPos, float sAngle, float angleB, float angleE) {
+void ProceduralShape::GenRails(ShapeTemplateElement *stemplate,
+        QVector<OglObj*>& shape, ComplexLine& line, float* sPos,
+        float sAngle, float angleB, float angleE,
+        const ProceduralPathTransform *pathTransform) {
     float matrixS[16];
     float* p = new float[4000000];
     float* ptr = p;
 
     float q[4];
     float qr[4];
+    float pathRotation[4];
     float posRot[6];
     float matrix1[16];
     float matrix2[16];
@@ -310,6 +438,7 @@ void ProceduralShape::GenRails(ShapeTemplateElement *stemplate, QVector<OglObj*>
 
     Quat::fill(q);
     Quat::rotateY(q, q, sAngle * M_PI / 180.0);
+    Quat::copy(pathRotation, q);
     Vec3::set(pp, -sPos[0], sPos[1], sPos[2]);
     Mat4::fromRotationTranslation(matrixS, q, pp);
 
@@ -317,27 +446,45 @@ void ProceduralShape::GenRails(ShapeTemplateElement *stemplate, QVector<OglObj*>
     float step = 3;
     for (float i = 0; i < line.length; i += step) {
         line.getDrawPosition(posRot, i, stemplate->xOffset);
-        Quat::fill(qr);
-        Quat::rotateY(qr, qr, sAngle * M_PI / 180.0);
         Quat::fromRotationXYZ(q, (float*) (posRot + 3));
         zangle = angleB*(1.0 - i / line.length) + angleE*(i / line.length);
-        Quat::rotateZ(q, q, zangle);
-        Vec3::set(vOffset, stemplate->xOffset, 0.0, 0.0);
-        Vec3::transformQuat(vOffset, vOffset, q);
-        Vec3::add(posRot, vOffset, posRot);
-        Mat4::fromRotationTranslation(matrix1, q, posRot);
-        Mat4::multiply(matrix1, matrixS, matrix1);
+        if(pathTransform != nullptr && pathTransform->enabled){
+            Vec3::transformMat4(posRot, posRot, matrixS);
+            Quat::multiply(qr, pathRotation, q);
+            prepareProceduralQuaternionFrame(posRot, qr, matrix1,
+                    pathTransform, stemplate->xOffset,
+                    stemplate->yOffset, zangle);
+        } else {
+            Quat::rotateZ(q, q, zangle);
+            Vec3::set(vOffset, stemplate->xOffset, 0.0, 0.0);
+            Vec3::transformQuat(vOffset, vOffset, q);
+            Vec3::add(posRot, vOffset, posRot);
+            Mat4::fromRotationTranslation(matrix1, q, posRot);
+            Mat4::multiply(matrix1, matrixS, matrix1);
+        }
         line.getDrawPosition(posRot, i + step, stemplate->xOffset);
         Quat::fromRotationXYZ(q, (float*) (posRot + 3));
         zangle = angleB*(1.0 - (i + step) / line.length) + angleE*((i + step) / line.length);
-        Quat::rotateZ(q, q, zangle);
-        Vec3::set(vOffset, stemplate->xOffset, 0.0, 0.0);
-        Vec3::transformQuat(vOffset, vOffset, q);
-        Vec3::add(posRot, vOffset, posRot);
-        Mat4::fromRotationTranslation(matrix2, q, posRot);
-        Mat4::multiply(matrix2, matrixS, matrix2);
-        Quat::multiply(qr, qr, q);
-        PushShapePartExpand(ptr, tFile, stemplate->yOffset, matrix1, matrix2, qr, i, i + step);
+        if(pathTransform != nullptr && pathTransform->enabled){
+            Vec3::transformMat4(posRot, posRot, matrixS);
+            Quat::multiply(qr, pathRotation, q);
+            prepareProceduralQuaternionFrame(posRot, qr, matrix2,
+                    pathTransform, stemplate->xOffset,
+                    stemplate->yOffset, zangle);
+        } else {
+            Quat::rotateZ(q, q, zangle);
+            Vec3::set(vOffset, stemplate->xOffset, 0.0, 0.0);
+            Vec3::transformQuat(vOffset, vOffset, q);
+            Vec3::add(posRot, vOffset, posRot);
+            Mat4::fromRotationTranslation(matrix2, q, posRot);
+            Mat4::multiply(matrix2, matrixS, matrix2);
+            Quat::fill(qr);
+            Quat::rotateY(qr, qr, sAngle * M_PI / 180.0);
+            Quat::multiply(qr, qr, q);
+        }
+        PushShapePartExpand(ptr, tFile,
+                deferredProceduralYOffset(stemplate->yOffset, pathTransform),
+                matrix1, matrix2, qr, i, i + step);
     }
 
     texturePath = new QString(ProceduralShape::GetTexturePath(stemplate->texture));
@@ -349,7 +496,9 @@ void ProceduralShape::GenRails(ShapeTemplateElement *stemplate, QVector<OglObj*>
     delete[] p;
 }
 
-void ProceduralShape::GenPointShape(ShapeTemplateElement *stemplate, QVector<OglObj*> &shape, ComplexLine &line, int shapeOffset) {
+void ProceduralShape::GenPointShape(ShapeTemplateElement *stemplate,
+        QVector<OglObj*> &shape, ComplexLine &line, int shapeOffset,
+        const ProceduralPathTransform *pathTransform) {
     float* p = new float[2000000];
     float* ptr = p;
 
@@ -365,8 +514,7 @@ void ProceduralShape::GenPointShape(ShapeTemplateElement *stemplate, QVector<Ogl
     tFile = GetObjFile(stemplate->shape[shapeOffset]);
 
     line.getDrawPosition(posRot, 0);
-    Quat::fromRotationXYZ(q, (float*) (posRot + 3));
-    Mat4::fromRotationTranslation(matrix1, q, posRot);
+    prepareProceduralFrame(posRot, q, matrix1, pathTransform);
     //PushShapePart(ptr, tFile, 0.0, matrix1, q, line.length);
     PushShapePart(ptr, tFile, 0.0, matrix1, q);
     texturePath = new QString(ProceduralShape::GetTexturePath(stemplate->texture));
@@ -380,7 +528,9 @@ void ProceduralShape::GenPointShape(ShapeTemplateElement *stemplate, QVector<Ogl
     delete[] p;
 }
 
-void ProceduralShape::GenStretch(ShapeTemplateElement *stemplate, QVector<OglObj*> &shape, ComplexLine &line, int shapeOffset) {
+void ProceduralShape::GenStretch(ShapeTemplateElement *stemplate,
+        QVector<OglObj*> &shape, ComplexLine &line, int shapeOffset,
+        const ProceduralPathTransform *pathTransform) {
     float* p = new float[2000000];
     float* ptr = p;
 
@@ -396,8 +546,7 @@ void ProceduralShape::GenStretch(ShapeTemplateElement *stemplate, QVector<OglObj
     tFile = GetObjFile(stemplate->shape[shapeOffset]);
 
     line.getDrawPosition(posRot, 0);
-    Quat::fromRotationXYZ(q, (float*) (posRot + 3));
-    Mat4::fromRotationTranslation(matrix1, q, posRot);
+    prepareProceduralFrame(posRot, q, matrix1, pathTransform);
     PushShapePartStretch(ptr, tFile, 0.0, matrix1, q, line.length);
 
     texturePath = new QString(ProceduralShape::GetTexturePath(stemplate->texture));
@@ -411,7 +560,9 @@ void ProceduralShape::GenStretch(ShapeTemplateElement *stemplate, QVector<OglObj
     delete[] p;
 }
 
-void ProceduralShape::GenBallast(ShapeTemplateElement *stemplate, QVector<OglObj*> &shape, ComplexLine &line) {
+void ProceduralShape::GenBallast(ShapeTemplateElement *stemplate,
+        QVector<OglObj*> &shape, ComplexLine &line,
+        const ProceduralPathTransform *pathTransform) {
     float* p = new float[2000000];
     float* ptr = p;
 
@@ -427,12 +578,14 @@ void ProceduralShape::GenBallast(ShapeTemplateElement *stemplate, QVector<OglObj
     float step = 4;
     for (float i = 0; i < line.length; i += step) {
         line.getDrawPosition(posRot, i);
-        Quat::fromRotationXYZ(q, (float*) (posRot + 3));
-        Mat4::fromRotationTranslation(matrix1, q, posRot);
+        prepareProceduralFrame(posRot, q, matrix1, pathTransform,
+                0, stemplate->yOffset);
         line.getDrawPosition(posRot, i + step);
-        Quat::fromRotationXYZ(q, (float*) (posRot + 3));
-        Mat4::fromRotationTranslation(matrix2, q, posRot);
-        PushShapePartExpand(ptr, tFile, stemplate->yOffset, matrix1, matrix2, q, i, i + step);
+        prepareProceduralFrame(posRot, q, matrix2, pathTransform,
+                0, stemplate->yOffset);
+        PushShapePartExpand(ptr, tFile,
+                deferredProceduralYOffset(stemplate->yOffset, pathTransform),
+                matrix1, matrix2, q, i, i + step);
     }
 
     texturePath = new QString(ProceduralShape::GetTexturePath(stemplate->texture));
@@ -446,13 +599,17 @@ void ProceduralShape::GenBallast(ShapeTemplateElement *stemplate, QVector<OglObj
     delete[] p;
 }
 
-void ProceduralShape::GenBallast(ShapeTemplateElement *stemplate, QVector<OglObj*>& shape, ComplexLine& line, float* sPos, float sAngle, float angleB, float angleE) {
+void ProceduralShape::GenBallast(ShapeTemplateElement *stemplate,
+        QVector<OglObj*>& shape, ComplexLine& line, float* sPos,
+        float sAngle, float angleB, float angleE,
+        const ProceduralPathTransform *pathTransform) {
     float matrixS[16];
     float* p = new float[4000000];
     float* ptr = p;
 
     float q[4];
     float qr[4];
+    float pathRotation[4];
     float posRot[6];
     float matrix1[16];
     float matrix2[16];
@@ -465,6 +622,7 @@ void ProceduralShape::GenBallast(ShapeTemplateElement *stemplate, QVector<OglObj
 
     Quat::fill(q);
     Quat::rotateY(q, q, sAngle * M_PI / 180.0);
+    Quat::copy(pathRotation, q);
     Vec3::set(pp, -sPos[0], sPos[1], sPos[2]);
     Mat4::fromRotationTranslation(matrixS, q, pp);
 
@@ -472,21 +630,37 @@ void ProceduralShape::GenBallast(ShapeTemplateElement *stemplate, QVector<OglObj
     float step = 4;
     for (float i = 0; i < line.length; i += step) {
         line.getDrawPosition(posRot, i);
-        Quat::fill(qr);
-        Quat::rotateY(qr, qr, sAngle * M_PI / 180.0);
         Quat::fromRotationXYZ(q, (float*) (posRot + 3));
         zangle = angleB*(1.0 - i / line.length) + angleE*(i / line.length);
-        Quat::rotateZ(q, q, zangle);
-        Mat4::fromRotationTranslation(matrix1, q, posRot);
-        Mat4::multiply(matrix1, matrixS, matrix1);
+        if(pathTransform != nullptr && pathTransform->enabled){
+            Vec3::transformMat4(posRot, posRot, matrixS);
+            Quat::multiply(qr, pathRotation, q);
+            prepareProceduralQuaternionFrame(posRot, qr, matrix1,
+                    pathTransform, 0, stemplate->yOffset, zangle);
+        } else {
+            Quat::rotateZ(q, q, zangle);
+            Mat4::fromRotationTranslation(matrix1, q, posRot);
+            Mat4::multiply(matrix1, matrixS, matrix1);
+        }
         line.getDrawPosition(posRot, i + step);
         Quat::fromRotationXYZ(q, (float*) (posRot + 3));
         zangle = angleB*(1.0 - (i + step) / line.length) + angleE*((i + step) / line.length);
-        Quat::rotateZ(q, q, zangle);
-        Mat4::fromRotationTranslation(matrix2, q, posRot);
-        Mat4::multiply(matrix2, matrixS, matrix2);
-        Quat::multiply(qr, qr, q);
-        PushShapePartExpand(ptr, tFile, stemplate->yOffset, matrix1, matrix2, qr, i, i + step);
+        if(pathTransform != nullptr && pathTransform->enabled){
+            Vec3::transformMat4(posRot, posRot, matrixS);
+            Quat::multiply(qr, pathRotation, q);
+            prepareProceduralQuaternionFrame(posRot, qr, matrix2,
+                    pathTransform, 0, stemplate->yOffset, zangle);
+        } else {
+            Quat::rotateZ(q, q, zangle);
+            Mat4::fromRotationTranslation(matrix2, q, posRot);
+            Mat4::multiply(matrix2, matrixS, matrix2);
+            Quat::fill(qr);
+            Quat::rotateY(qr, qr, sAngle * M_PI / 180.0);
+            Quat::multiply(qr, qr, q);
+        }
+        PushShapePartExpand(ptr, tFile,
+                deferredProceduralYOffset(stemplate->yOffset, pathTransform),
+                matrix1, matrix2, qr, i, i + step);
     }
 
     texturePath = new QString(ProceduralShape::GetTexturePath(stemplate->texture));
@@ -498,7 +672,9 @@ void ProceduralShape::GenBallast(ShapeTemplateElement *stemplate, QVector<OglObj
     delete[] p;
 }
 
-void ProceduralShape::GenTie(ShapeTemplateElement *stemplate, QVector<OglObj*> &shape, ComplexLine &line) {
+void ProceduralShape::GenTie(ShapeTemplateElement *stemplate,
+        QVector<OglObj*> &shape, ComplexLine &line,
+        const ProceduralPathTransform *pathTransform) {
     float* p = new float[2000000];
     float* ptr = p;
 
@@ -513,9 +689,11 @@ void ProceduralShape::GenTie(ShapeTemplateElement *stemplate, QVector<OglObj*> &
     tFile = GetObjFile(stemplate->shape.first());
     for (float i = 0; i < line.length; i += 0.65) {
         line.getDrawPosition(posRot, i);
-        Quat::fromRotationXYZ(q, (float*) (posRot + 3));
-        Mat4::fromRotationTranslation(matrix1, q, posRot);
-        PushShapePart(ptr, tFile, 0.155, matrix1, q);
+        prepareProceduralFrame(posRot, q, matrix1, pathTransform,
+                0, 0.155f);
+        PushShapePart(ptr, tFile,
+                deferredProceduralYOffset(0.155f, pathTransform),
+                matrix1, q);
     }
 
     texturePath = new QString(ProceduralShape::GetTexturePath(stemplate->texture));
@@ -527,13 +705,17 @@ void ProceduralShape::GenTie(ShapeTemplateElement *stemplate, QVector<OglObj*> &
     delete[] p;
 }
 
-void ProceduralShape::GenTie(ShapeTemplateElement *stemplate, QVector<OglObj*> &shape, ComplexLine &line, float *sPos, float sAngle, float angleB, float angleE) {
+void ProceduralShape::GenTie(ShapeTemplateElement *stemplate,
+        QVector<OglObj*> &shape, ComplexLine &line, float *sPos,
+        float sAngle, float angleB, float angleE,
+        const ProceduralPathTransform *pathTransform) {
     float matrixS[16];
     float* p = new float[4000000];
     float* ptr = p;
 
     float q[4];
     float qr[4];
+    float pathRotation[4];
     float posRot[6];
     float matrix1[16];
     float matrix2[16];
@@ -547,6 +729,7 @@ void ProceduralShape::GenTie(ShapeTemplateElement *stemplate, QVector<OglObj*> &
 
     Quat::fill(q);
     Quat::rotateY(q, q, sAngle * M_PI / 180.0);
+    Quat::copy(pathRotation, q);
     Vec3::set(pp, -sPos[0], sPos[1], sPos[2]);
     Mat4::fromRotationTranslation(matrixS, q, pp);
 
@@ -554,15 +737,23 @@ void ProceduralShape::GenTie(ShapeTemplateElement *stemplate, QVector<OglObj*> &
     tFile = GetObjFile(stemplate->shape.first());
     for (float i = 0; i < line.length; i += 0.65) {
         line.getDrawPosition(posRot, i);
-        Quat::fill(qr);
-        Quat::rotateY(qr, qr, sAngle * M_PI / 180.0);
         Quat::fromRotationXYZ(q, (float*) (posRot + 3));
         zangle = angleB * (1.0 - i / line.length) + angleE * (i / line.length);
-        Quat::rotateZ(q, q, zangle);
-        Mat4::fromRotationTranslation(matrix1, q, posRot);
-        Quat::multiply(qr, qr, q);
-        Mat4::multiply(matrix1, matrixS, matrix1);
-        PushShapePart(ptr, tFile, 0.155, matrix1, qr);
+        if(pathTransform != nullptr && pathTransform->enabled){
+            Vec3::transformMat4(posRot, posRot, matrixS);
+            Quat::multiply(qr, pathRotation, q);
+            prepareProceduralQuaternionFrame(posRot, qr, matrix1,
+                    pathTransform, 0, 0.155f, zangle);
+        } else {
+            Quat::rotateZ(q, q, zangle);
+            Mat4::fromRotationTranslation(matrix1, q, posRot);
+            Quat::copy(qr, pathRotation);
+            Quat::multiply(qr, qr, q);
+            Mat4::multiply(matrix1, matrixS, matrix1);
+        }
+        PushShapePart(ptr, tFile,
+                deferredProceduralYOffset(0.155f, pathTransform),
+                matrix1, qr);
     }
 
     texturePath = new QString(ProceduralShape::GetTexturePath(stemplate->texture));

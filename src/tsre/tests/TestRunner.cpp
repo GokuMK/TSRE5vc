@@ -9,6 +9,8 @@
  */
 
 #include <tsre/tests/TestRunner.h>
+#include <tsre/tests/TerrainFileTestSuite.h>
+#include <tsre/tests/QuadTreeRecoveryTestSuite.h>
 #include <tsre/tests/ElevationUiTestSuite.h>
 #include <tsre/tests/NewRouteTestSuite.h>
 #include <tsre/tests/ContentPathTestSuite.h>
@@ -41,6 +43,7 @@
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/math3d/Vector2f.h>
 #include <tsre/math3d/Vector3f.h>
+#include <tsre/procedural/ProceduralPath.h>
 #include <tsre/procedural/ProceduralTrackPolicy.h>
 #include <tsre/procedural/OrtsTrackProfile.h>
 #include <tsre/procedural/OrtsTrackProfileRenderer.h>
@@ -2005,6 +2008,25 @@ static int runOrtsProfileSuite(bool verbose) {
           && stfProfile->lods[0].items[0].polylines[0].vertices.size()
              == xmlProfile->lods[0].items[0].polylines[0].vertices.size(),
           "stf-xml-equivalence");
+    check(stfProfile != nullptr
+          && stfProfile->objectType == OrtsTrackProfile::ObjectType::Track
+          && stfProfile->objectRole == OrtsTrackProfile::ObjectRole::Main
+          && !stfProfile->objectTypeExplicit,
+          "missing-object-type-defaults-to-track-main");
+
+    QString roadSingleXml = xml;
+    roadSingleXml.replace("<TrProfile ",
+                          "<TrProfile ObjectType=\"ROAD SINGLE\" ");
+    const QSharedPointer<OrtsTrackProfile> roadSingleXmlProfile =
+            OrtsTrackProfileParser::parseXml(
+                roadSingleXml, "RdXml", &xmlDiagnostics);
+    check(roadSingleXmlProfile != nullptr && roadSingleXmlProfile->valid
+          && roadSingleXmlProfile->id == "RdXml_single"
+          && roadSingleXmlProfile->objectType
+                == OrtsTrackProfile::ObjectType::Road
+          && roadSingleXmlProfile->objectRole
+                == OrtsTrackProfile::ObjectRole::Single,
+          "parse-xml-object-type");
 
     const QSharedPointer<OrtsTrackProfile> badSignature =
             OrtsTrackProfileParser::parseStf("TrProfile ( )", "Bad");
@@ -2156,6 +2178,108 @@ static int runOrtsProfileSuite(bool verbose) {
         }
         check(constantCurveSides, "curve-cross-section-handedness");
 
+        // DynTrack objects carry their complete MSTS orientation in the
+        // world quaternion. Procedural profiles draw with yaw only and bake
+        // the residual rotation into the path. The cross-section must then
+        // be rebuilt against global up instead of inheriting the bank of the
+        // object's original rigid X/Z plane.
+        ProceduralPathTransform pitchedPath;
+        pitchedPath.enabled = true;
+        pitchedPath.uprightCrossSections = true;
+        Quat::rotateX(pitchedPath.rotation, pitchedPath.rotation, 0.12f);
+        QVector<OrtsGeneratedProfileMesh> pitchedCurveMeshes;
+        const bool pitchedCurveBuilt = OrtsTrackProfileRenderer::buildMeshes(
+                *xmlProfile, curves, pitchedCurveMeshes,
+                nullptr, 0, 0, &pitchedPath)
+                && pitchedCurveMeshes.size() == 1;
+        bool pitchedCurveUpright = false;
+        if(pitchedCurveBuilt) {
+            const QVector<float> &vertices = pitchedCurveMeshes[0].vertices;
+            const float endpointV = 0.2f * curves[0].getDlugosc();
+            float left[3] = {0, 0, 0};
+            float right[3] = {0, 0, 0};
+            bool leftFound = false;
+            bool rightFound = false;
+            for(int i = 0; i < vertices.size(); i += 9) {
+                if(std::abs(vertices[i + 7] - endpointV) > 0.001f)
+                    continue;
+                if(!leftFound && std::abs(vertices[i + 6]) < 0.001f) {
+                    Vec3::copy(left, vertices.constData() + i);
+                    leftFound = true;
+                }
+                if(!rightFound
+                        && std::abs(vertices[i + 6] - 1.0f) < 0.001f) {
+                    Vec3::copy(right, vertices.constData() + i);
+                    rightFound = true;
+                }
+            }
+            float expectedCenter[3] = {-100.0f, 0.0f, 100.0f};
+            Vec3::transformQuat(expectedCenter, expectedCenter,
+                    pitchedPath.rotation);
+            pitchedCurveUpright = leftFound && rightFound
+                    && std::abs(left[1] - right[1]) < 0.001f
+                    && std::abs(0.5f * (left[0] + right[0])
+                                - expectedCenter[0]) < 0.01f
+                    && std::abs(0.5f * (left[1] + right[1])
+                                - expectedCenter[1] - 0.2f) < 0.01f
+                    && std::abs(0.5f * (left[2] + right[2])
+                                - expectedCenter[2]) < 0.01f;
+        }
+        check(pitchedCurveUpright,
+              "baked-pitch-keeps-curve-cross-section-upright");
+
+        float dynTrackQuaternion[4] = {0, 0, 0, 1};
+        constexpr float bakedTestYaw = 0.73f;
+        Quat::rotateY(dynTrackQuaternion, dynTrackQuaternion,
+                -bakedTestYaw);
+        Quat::rotateX(dynTrackQuaternion, dynTrackQuaternion, 0.12f);
+        const ProceduralPathTransform dynTrackTransform =
+                ProceduralPath::bakedObjectTransform(
+                    dynTrackQuaternion, bakedTestYaw);
+        float basisFlip[4] = {0, 0, 0, 1};
+        Quat::rotateY(basisFlip, basisFlip, -(float)M_PI);
+        float fullFinal[4];
+        Quat::multiply(fullFinal, dynTrackQuaternion, basisFlip);
+        float yawOnly[4] = {0, 0, 0, 1};
+        Quat::rotateY(yawOnly, yawOnly, -bakedTestYaw);
+        float yawFinal[4];
+        Quat::multiply(yawFinal, yawOnly, basisFlip);
+        float fullResult[3] = {3.0f, 1.0f, 7.0f};
+        float bakedResult[3] = {3.0f, 1.0f, 7.0f};
+        Vec3::transformQuat(fullResult, fullResult, fullFinal);
+        Vec3::transformQuat(bakedResult, bakedResult,
+                const_cast<float*>(dynTrackTransform.rotation));
+        Vec3::transformQuat(bakedResult, bakedResult, yawFinal);
+        check(dynTrackTransform.enabled
+              && Vec3::distance(fullResult, bakedResult) < 0.0001f,
+              "baked-dyntrack-transform-preserves-world-position");
+
+        // Native TSRE templates convert their rebuilt right/up/forward frame
+        // back to a quaternion before transforming source ObjFile vertices.
+        // A transposed basis reverses curve yaw while remaining difficult to
+        // spot on a straight, so verify both lateral and forward axes here.
+        float nativeAngles[3] = {(float)M_PI, -0.67f, 0};
+        float nativeFrame[4];
+        Quat::fromRotationXYZ(nativeFrame, nativeAngles);
+        float nativeRight[3] = {1, 0, 0};
+        float nativeUp[3] = {0, 1, 0};
+        float nativeForward[3] = {0, 0, 1};
+        Vec3::transformQuat(nativeRight, nativeRight, nativeFrame);
+        Vec3::transformQuat(nativeUp, nativeUp, nativeFrame);
+        Vec3::transformQuat(nativeForward, nativeForward, nativeFrame);
+        float rebuiltNativeFrame[4];
+        const bool nativeFrameBuilt = ProceduralPath::quaternionFromBasis(
+                rebuiltNativeFrame, nativeRight, nativeUp, nativeForward);
+        float rebuiltRight[3] = {1, 0, 0};
+        float rebuiltForward[3] = {0, 0, 1};
+        Vec3::transformQuat(rebuiltRight, rebuiltRight, rebuiltNativeFrame);
+        Vec3::transformQuat(rebuiltForward, rebuiltForward,
+                rebuiltNativeFrame);
+        check(nativeFrameBuilt
+              && Vec3::distance(nativeRight, rebuiltRight) < 0.0001f
+              && Vec3::distance(nativeForward, rebuiltForward) < 0.0001f,
+              "native-procedural-basis-keeps-curve-handedness");
+
         QVector<OrtsGeneratedProfileMesh> apronMeshes;
         bool endApron = OrtsTrackProfileRenderer::buildMeshes(
                 *xmlProfile, curves, apronMeshes, nullptr, 0.25f, 0.002f)
@@ -2178,6 +2302,27 @@ static int runOrtsProfileSuite(bool verbose) {
         check(endApron && exactApronEndpointFound
               && loweredApronEndpointFound,
               "road-end-apron-render-only-extension");
+
+        QVector<OrtsGeneratedProfileMesh> overlapMeshes;
+        bool generatedTrackOverlap = OrtsTrackProfileRenderer::buildMeshes(
+                *xmlProfile, curves, overlapMeshes, nullptr,
+                OrtsTrackProfileRenderer::GeneratedTrackEndOverlap, 0)
+                && overlapMeshes.size() == 1;
+        bool overlapEndpointFound = false;
+        if(generatedTrackOverlap){
+            const QVector<float> &vertices = overlapMeshes[0].vertices;
+            for(int i = 0; i < vertices.size(); i += 9){
+                const float x = vertices[i];
+                const float y = vertices[i + 1];
+                overlapEndpointFound = overlapEndpointFound
+                        || (std::abs(x + 100.0f
+                            + OrtsTrackProfileRenderer::GeneratedTrackEndOverlap)
+                            < 0.001f
+                            && std::abs(y - 0.2f) < 0.0001f);
+            }
+        }
+        check(generatedTrackOverlap && overlapEndpointFound,
+              "generated-track-ten-centimetre-end-overlap");
 
         QVector<TSection> reverseCurves;
         reverseCurves.append(TSection(0, 1, -(float)M_PI / 2.0f, 100.0f));
@@ -2211,14 +2356,21 @@ static int runOrtsProfileSuite(bool verbose) {
     QTemporaryDir temporaryDirectory;
     bool precedenceOk = temporaryDirectory.isValid();
     bool routeOverrideOk = false;
+    bool familyCatalogOk = false;
+    bool familyResolutionOk = false;
+    bool familyDiagnosticsOk = false;
     if(precedenceOk){
         QDir().mkpath(temporaryDirectory.path() + "/TRACKPROFILES");
         QFile stfFile(temporaryDirectory.path()
                       + "/TRACKPROFILES/TrProfileDual.stf");
         QFile xmlFile(temporaryDirectory.path()
                       + "/TRACKPROFILES/TrProfileDual.xml");
-        QFile defaultFile(temporaryDirectory.path()
-                          + "/TRACKPROFILES/default_road.stf");
+        QFile roadFile(temporaryDirectory.path()
+                       + "/TRACKPROFILES/RdProfile.stf");
+        QFile sparseRoadFile(temporaryDirectory.path()
+                             + "/TRACKPROFILES/AnyRoadName.stf");
+        QFile staticFile(temporaryDirectory.path()
+                         + "/TRACKPROFILES/FenceFamily.stf");
         precedenceOk = stfFile.open(QIODevice::WriteOnly)
                 && stfFile.write(stf.toUtf8()) > 0;
         stfFile.close();
@@ -2227,51 +2379,166 @@ static int runOrtsProfileSuite(bool verbose) {
         precedenceOk = precedenceOk && xmlFile.open(QIODevice::WriteOnly)
                 && xmlFile.write(precedenceXml.toUtf8()) > 0;
         xmlFile.close();
-        QString defaultRoadStf = stf;
-        defaultRoadStf.replace("Test profile", "Default Road");
-        precedenceOk = precedenceOk && defaultFile.open(QIODevice::WriteOnly)
-                && defaultFile.write(defaultRoadStf.toUtf8()) > 0;
-        defaultFile.close();
+
+        auto typedStfBlock = [&](const QString &name,
+                                 const QString &objectType) {
+            QString block = stf.mid(stf.indexOf("TrProfile"));
+            block.replace("TrProfile (\n", "TrProfile (\n ObjectType ( "
+                          + objectType + " )\n");
+            block.replace("Test profile", name);
+            return block;
+        };
+        const QString signature = "SIMISA@@@@@@@@@@JINX0p0t______\n";
+        const QString roadFamily = signature
+                + typedStfBlock("Road Main", "ROAD MAIN")
+                + typedStfBlock("Road Single", "ROAD SINGLE")
+                + typedStfBlock("Road Right", "ROAD RIGHT")
+                + typedStfBlock("Road Middle", "ROAD MIDDLE")
+                + typedStfBlock("Road Left", "ROAD LEFT")
+                + typedStfBlock("Ignored duplicate right", "ROAD RIGHT");
+        precedenceOk = precedenceOk && roadFile.open(QIODevice::WriteOnly)
+                && roadFile.write(roadFamily.toUtf8()) > 0;
+        roadFile.close();
+
+        const QString sparseRoad = signature
+                + typedStfBlock("Sparse Road", "ROAD");
+        precedenceOk = precedenceOk
+                && sparseRoadFile.open(QIODevice::WriteOnly)
+                && sparseRoadFile.write(sparseRoad.toUtf8()) > 0;
+        sparseRoadFile.close();
+
+        const QString staticProfile = signature
+                + typedStfBlock("Fence", "STATIC SINGLE");
+        precedenceOk = precedenceOk && staticFile.open(QIODevice::WriteOnly)
+                && staticFile.write(staticProfile.toUtf8()) > 0;
+        staticFile.close();
+
         OrtsTrackProfileCatalog::load(temporaryDirectory.path(), true);
         const QSharedPointer<const OrtsTrackProfile> selected =
-                OrtsTrackProfileCatalog::find("TrProfileDual");
-        const QSharedPointer<const OrtsTrackProfile> alias =
-                OrtsTrackProfileCatalog::find("XML wins");
+                OrtsTrackProfileCatalog::find(
+                    "TrProfileDual", OrtsTrackProfile::ObjectType::Track);
         precedenceOk = precedenceOk && selected != nullptr
                 && selected->name == "XML wins"
-                && alias != nullptr && alias->id == "TrProfileDual";
-        const QSharedPointer<const OrtsTrackProfile> defaultRoad =
-                OrtsTrackProfileCatalog::find("default_road");
-        check(defaultRoad != nullptr
-              && defaultRoad->name == "Default Road",
-              "default-profile-filename");
+                && OrtsTrackProfileCatalog::find(
+                    "XML wins", OrtsTrackProfile::ObjectType::Track) == nullptr;
 
-        QStringList availableNames = OrtsTrackProfileCatalog::selectionNames();
+        const QStringList roadSelections =
+                OrtsTrackProfileCatalog::profileIds(
+                    OrtsTrackProfile::ObjectType::Road, true);
+        const QStringList trackSelections =
+                OrtsTrackProfileCatalog::profileIds(
+                    OrtsTrackProfile::ObjectType::Track, true);
+        const QStringList staticSelections =
+                OrtsTrackProfileCatalog::profileIds(
+                    OrtsTrackProfile::ObjectType::Static, true);
+        const QStringList roadFamilies =
+                OrtsTrackProfileCatalog::familyIds(
+                    OrtsTrackProfile::ObjectType::Road);
+        const QVector<OrtsTrackProfile::ObjectRole> roadRoles =
+                OrtsTrackProfileCatalog::familyRoles(
+                    "RdProfile", OrtsTrackProfile::ObjectType::Road);
+        const QVector<OrtsTrackProfile::ObjectRole> staticRoles =
+                OrtsTrackProfileCatalog::familyRoles(
+                    "FenceFamily", OrtsTrackProfile::ObjectType::Static);
+        familyCatalogOk = roadSelections.contains("RdProfile")
+                && roadSelections.contains("RdProfile_single")
+                && !roadSelections.contains("RdProfile_left")
+                && trackSelections.contains("TrProfileDual")
+                && !trackSelections.contains("RdProfile")
+                && staticSelections.contains("FenceFamily_single")
+                && roadFamilies.contains("RdProfile")
+                && roadFamilies.contains("AnyRoadName")
+                && !roadFamilies.contains("RdProfile_left")
+                && roadRoles == QVector<OrtsTrackProfile::ObjectRole>({
+                    OrtsTrackProfile::ObjectRole::Main,
+                    OrtsTrackProfile::ObjectRole::Single,
+                    OrtsTrackProfile::ObjectRole::Left,
+                    OrtsTrackProfile::ObjectRole::Middle,
+                    OrtsTrackProfile::ObjectRole::Right
+                })
+                && staticRoles == QVector<OrtsTrackProfile::ObjectRole>({
+                    OrtsTrackProfile::ObjectRole::Single
+                })
+                && OrtsTrackProfileCatalog::hasFamily(
+                    "RdProfile", OrtsTrackProfile::ObjectType::Road)
+                && !OrtsTrackProfileCatalog::hasFamily(
+                    "RdProfile", OrtsTrackProfile::ObjectType::Track)
+                && OrtsTrackProfileCatalog::find(
+                    "RdProfile_right",
+                    OrtsTrackProfile::ObjectType::Road) != nullptr;
+
+        const QVector<QSharedPointer<const OrtsTrackProfile>> roadPaths =
+                OrtsTrackProfileCatalog::profilesForPaths(
+                    "RdProfile", OrtsTrackProfile::ObjectType::Road,
+                    {0, 0, 0, 0});
+        const QVector<QSharedPointer<const OrtsTrackProfile>> crossingPaths =
+                OrtsTrackProfileCatalog::profilesForPaths(
+                    "RdProfile", OrtsTrackProfile::ObjectType::Road,
+                    {0, 0, 90, 90});
+        const QVector<QSharedPointer<const OrtsTrackProfile>> reversedPaths =
+                OrtsTrackProfileCatalog::profilesForPaths(
+                    "RdProfile", OrtsTrackProfile::ObjectType::Road,
+                    {0, 0, 180, 180});
+        const QVector<QSharedPointer<const OrtsTrackProfile>> singlePaths =
+                OrtsTrackProfileCatalog::profilesForPaths(
+                    "RdProfile_single", OrtsTrackProfile::ObjectType::Road,
+                    {0, 0, 90});
+        const QVector<QSharedPointer<const OrtsTrackProfile>> sparsePaths =
+                OrtsTrackProfileCatalog::profilesForPaths(
+                    "AnyRoadName", OrtsTrackProfile::ObjectType::Road,
+                    {0, 0});
+        familyResolutionOk = roadPaths.size() == 4
+                && roadPaths[0]->id == "RdProfile_left"
+                && roadPaths[1]->id == "RdProfile_middle"
+                && roadPaths[2]->id == "RdProfile_middle"
+                && roadPaths[3]->id == "RdProfile_right"
+                && crossingPaths.size() == 4
+                && crossingPaths[0]->id == "RdProfile_left"
+                && crossingPaths[1]->id == "RdProfile_right"
+                && crossingPaths[2]->id == "RdProfile_left"
+                && crossingPaths[3]->id == "RdProfile_right"
+                && reversedPaths.size() == 4
+                && reversedPaths[0]->id == "RdProfile_left"
+                && reversedPaths[1]->id == "RdProfile_right"
+                && reversedPaths[2]->id == "RdProfile_left"
+                && reversedPaths[3]->id == "RdProfile_right"
+                && singlePaths.size() == 3
+                && singlePaths[0]->id == "RdProfile_single"
+                && singlePaths[1]->id == "RdProfile_single"
+                && singlePaths[2]->id == "RdProfile_single"
+                && sparsePaths.size() == 2
+                && sparsePaths[0]->id == "AnyRoadName"
+                && sparsePaths[1]->id == "AnyRoadName";
+        familyDiagnosticsOk = OrtsTrackProfileCatalog::diagnostics().join(' ')
+                .contains("Duplicate ObjectType", Qt::CaseInsensitive);
+
+        QStringList availableNames =
+                OrtsTrackProfileCatalog::selectionNames(
+                    OrtsTrackProfile::ObjectType::Track, true);
         const QStringList globalNames = {
-            "TrProfileDual", "XML wins", "GlobalOnly"
+            "TrProfileDual", "GlobalOnly"
         };
         for(const QString &globalName : globalNames){
-            if(OrtsTrackProfileCatalog::find(globalName) == nullptr)
+            if(OrtsTrackProfileCatalog::find(
+                    globalName, OrtsTrackProfile::ObjectType::Track) == nullptr)
                 availableNames.append(globalName);
         }
         const ProceduralTrackResolution idCollision =
                 ProceduralTrackPolicy::resolve(
                     ProceduralTracksMode::Forced,
                     "TrProfileDual", availableNames);
-        const ProceduralTrackResolution aliasCollision =
-                ProceduralTrackPolicy::resolve(
-                    ProceduralTracksMode::Forced,
-                    "XML wins", availableNames);
         routeOverrideOk = availableNames.indexOf("TrProfileDual")
                         < availableNames.indexOf("GlobalOnly")
                 && availableNames.count("TrProfileDual") == 1
-                && availableNames.count("XML wins") == 1
-                && OrtsTrackProfileCatalog::find(idCollision.templateName)
-                        != nullptr
-                && OrtsTrackProfileCatalog::find(aliasCollision.templateName)
-                        != nullptr;
+                && OrtsTrackProfileCatalog::find(
+                    idCollision.templateName,
+                    OrtsTrackProfile::ObjectType::Track) != nullptr;
     }
-    check(precedenceOk, "xml-precedence-and-alias");
+    check(precedenceOk, "xml-precedence-with-filename-identity");
+    check(familyCatalogOk, "typed-multi-profile-catalog");
+    check(familyResolutionOk,
+          "static-path-left-middle-right-resolution-and-fallback");
+    check(familyDiagnosticsOk, "duplicate-object-type-first-wins");
     check(routeOverrideOk, "route-profile-overrides-global-template");
 
     qInfo() << "[tests:orts-profile] cases=" << (passed + failed)
@@ -2854,10 +3121,10 @@ static int runTerrainGridSuite(bool verbose) {
             TFile descriptor;
             overwriteDescriptorsOk = overwriteDescriptorsOk
                     && descriptor.readT(tilesPath + "/" + name + ".t")
-                    && descriptor.sampleEbuffer != NULL
-                    && *descriptor.sampleEbuffer == name + "_e.raw"
-                    && descriptor.sampleNbuffer != NULL
-                    && *descriptor.sampleNbuffer == name + "_n.raw"
+                    && descriptor.samples.e.has_value()
+                    && *descriptor.samples.e == name + "_e.raw"
+                    && descriptor.samples.n.has_value()
+                    && *descriptor.samples.n == name + "_n.raw"
                     && !QFile::exists(tilesPath + "/" + name + "_e.raw")
                     && !QFile::exists(tilesPath + "/" + name + "_n.raw");
         }
@@ -2869,10 +3136,8 @@ static int runTerrainGridSuite(bool verbose) {
         overwriteDescriptorsOk = overwriteDescriptorsOk
                 && createdDescriptor.readT(
                         tilesPath + "/" + roundTripName + ".t")
-                && createdDescriptor.patchsetNpatches == 32
-                && createdDescriptor.flags != NULL
-                && createdDescriptor.errorBias != NULL
-                && createdDescriptor.tdata != NULL
+                && createdDescriptor.patchCount() == 32
+                && createdDescriptor.activeSet() != nullptr
                 && std::abs(createdDescriptor.patchValue(
                         0, TFile::PatchField::FactorY) - 49.74062729f)
                         < 0.00001f
@@ -2902,15 +3167,15 @@ static int runTerrainGridSuite(bool verbose) {
                     ? 0.0f : 10.25f + static_cast<float>(i);
             createdDescriptor.setPatchValue(17, fields[i], value);
         }
-        createdDescriptor.flags[17] = 0x010000c3;
-        createdDescriptor.errorBias[17] = 4.75f;
+        createdDescriptor.patches()[17].flags = 0x010000c3;
+        createdDescriptor.patches()[17].errorBias = 4.75f;
         const QString fieldRoundTripPath = tilesPath + "/fields-round-trip.t";
         createdDescriptor.save(fieldRoundTripPath);
         TFile fieldRoundTripDescriptor;
         overwriteDescriptorsOk = overwriteDescriptorsOk
                 && fieldRoundTripDescriptor.readT(fieldRoundTripPath)
-                && fieldRoundTripDescriptor.flags[17] == 0x010000c3
-                && std::abs(fieldRoundTripDescriptor.errorBias[17] - 4.75f)
+                && fieldRoundTripDescriptor.patches()[17].flags == 0x010000c3
+                && std::abs(fieldRoundTripDescriptor.patches()[17].errorBias - 4.75f)
                     < 0.000001f;
         for (int i = 0; i < static_cast<int>(fields.size()); ++i) {
             const float expected = fields[i] == TFile::PatchField::ShaderIndex
@@ -2943,11 +3208,10 @@ static int runTerrainGridSuite(bool verbose) {
         overwriteDescriptorsOk = overwriteDescriptorsOk
                 && savedDescriptor.readT(
                         tilesPath + "/" + roundTripName + ".t")
-                && savedDescriptor.patchsetNpatches == 32
-                && savedDescriptor.errorBias != NULL
-                && std::abs(savedDescriptor.errorBias[1023] - 3.5f) < 0.000001f
-                && savedDescriptor.flags != NULL
-                && savedDescriptor.flags[1023] == 7
+                && savedDescriptor.patchCount() == 32
+                && savedDescriptor.activeSet() != nullptr
+                && std::abs(savedDescriptor.patches()[1023].errorBias - 3.5f) < 0.000001f
+                && savedDescriptor.patches()[1023].flags == 7
                 && std::abs(savedDescriptor.patchValue(
                         0, TFile::PatchField::CenterX) - 32.0f) < 0.000001f
                 && std::abs(savedDescriptor.patchValue(
@@ -3001,8 +3265,14 @@ static int runTerrainFilesSuite(const TsreTests::TestRunOptions &opts) {
         const QString path = QDir::cleanPath(iterator.next());
         const QString directoryName = QFileInfo(path).dir().dirName();
         if (directoryName.compare("tiles", Qt::CaseInsensitive) == 0
-                || directoryName.compare("lo_tiles", Qt::CaseInsensitive) == 0)
-            descriptors.append(path);
+                || directoryName.compare("lo_tiles", Qt::CaseInsensitive) == 0) {
+            QDir routes=QFileInfo(path).dir();routes.cdUp();routes.cdUp();
+            // Terrain resolves Game::root/ROUTES/route. Archived snapshots at
+            // arbitrary nesting cannot be loaded through that application API.
+            // The descriptor-only scanner still covers those files separately.
+            if(routes.dirName().compare("routes",Qt::CaseInsensitive)==0)
+                descriptors.append(path);
+        }
     }
     descriptors.sort(Qt::CaseInsensitive);
 
@@ -3168,6 +3438,8 @@ QStringList TsreTests::listSuites() {
         "new-route",
         "tdb-load",
         "terrain-files",
+        "terrain-tfile",
+        "quadtree-recovery",
         "terrain-grid",
         "terrain-edges",
         "terrain-raw-benchmark",
@@ -3242,6 +3514,9 @@ int TsreTests::run(const TestRunOptions &opts) {
     if (suite == "terrain-edges")
         return runTerrainEdgeSuite(opts.verbose);
 
+    if (suite == "quadtree-recovery")
+        return runQuadTreeRecoverySuite(opts.verbose, opts.casesFile);
+
     if (suite == "terrain-files")
         return runTerrainFilesSuite(opts);
 
@@ -3262,6 +3537,8 @@ int TsreTests::run(const TestRunOptions &opts) {
 
     if (suite == "terrain-material" || suite == "terrain-material-benchmark")
         return runTerrainMaterialSuite(opts.verbose, suite == "terrain-material-benchmark");
+    if (suite == "terrain-tfile")
+        return runTerrainFileSuite(opts.verbose);
     if (suite == "terrain-material-gl")
         return runTerrainMaterialGlSuite();
     if (suite == "transfer-mesh")
@@ -3279,6 +3556,7 @@ int TsreTests::run(const TestRunOptions &opts) {
         rc = std::max(rc, runRouteLoadSuite(opts));
         rc = std::max(rc, runSelectionIdSuite(opts.verbose));
         rc = std::max(rc, runTokenIdSuite(opts.verbose));
+        rc = std::max(rc, runTerrainFileSuite(opts.verbose));
         rc = std::max(rc, runTokenWorldSuite(opts.verbose));
         rc = std::max(rc, runSettingsSuite(opts.verbose));
         rc = std::max(rc, runNewRouteSuite(opts.verbose));

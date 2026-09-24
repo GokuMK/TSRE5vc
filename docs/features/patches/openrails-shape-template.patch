@@ -126,31 +126,104 @@ index e7415cc25..c12c24a6b 100644
  
  }
 diff --git a/Source/RunActivity/Viewer3D/DynamicTrack.cs b/Source/RunActivity/Viewer3D/DynamicTrack.cs
-index d6a402db9..eeaa878bc 100644
+index d6a402db9..8c539b777 100644
 --- a/Source/RunActivity/Viewer3D/DynamicTrack.cs
 +++ b/Source/RunActivity/Viewer3D/DynamicTrack.cs
-@@ -334,8 +334,148 @@ public static int GetBestTrackProfile(Viewer viewer, SharedShape shape)
+@@ -201,6 +201,14 @@ public static int GetBestTrackProfile(Viewer viewer, SharedShape shape)
+ 
+             for (int i = 0; i < viewer.TRPs.Count; i++)
+             {
++                // Legacy shape/texture matching applies only to the selectable
++                // main member of a rail profile family. Road, scenery and
++                // companion profiles are selected explicitly through
++                // ShapeTemplate and must not accidentally win this heuristic.
++                if (viewer.TRPs[i].TrackProfile.ObjectType != TrProfile.ProfileObjectType.Track ||
++                    viewer.TRPs[i].TrackProfile.ObjectRole != TrProfile.ProfileObjectRole.Main)
++                    continue;
++
+                 float bestScore = score;
+                 score = 0;
+                 if (viewer.TRPs[i].TrackProfile.IncludeImages == null && viewer.TRPs[i].TrackProfile.ExcludeImages == null
+@@ -334,8 +342,257 @@ public static int GetBestTrackProfile(Viewer viewer, SharedShape shape)
      public class TRPFile
      {
          public TrProfile TrackProfile; // Represents the track profile
 +        public string FileNameStem { get; private set; }
++        public string ProfileId
++        {
++            get { return FileNameStem + RoleSuffix(TrackProfile.ObjectRole); }
++        }
 +        static readonly HashSet<string> ProfileWarnings =
 +            new HashSet<string>(StringComparer.OrdinalIgnoreCase);
          //public RenderProcess RenderProcess; // TODO: Pass this along in function calls
  
-+        static TRPFile FindNamedProfile(List<TRPFile> profiles, string name)
++        static string RoleSuffix(TrProfile.ProfileObjectRole role)
 +        {
-+            TRPFile fileMatch = profiles.FirstOrDefault(profile =>
-+                string.Equals(profile.FileNameStem, name,
-+                    StringComparison.OrdinalIgnoreCase));
-+            if (fileMatch != null)
-+                return fileMatch;
++            switch (role)
++            {
++                case TrProfile.ProfileObjectRole.Single: return "_single";
++                case TrProfile.ProfileObjectRole.Left: return "_left";
++                case TrProfile.ProfileObjectRole.Middle: return "_middle";
++                case TrProfile.ProfileObjectRole.Right: return "_right";
++                default: return "";
++            }
++        }
 +
-+            List<TRPFile> declaredNameMatches = profiles.Where(profile =>
++        static TRPFile FindNamedProfile(List<TRPFile> profiles, string name,
++            TrProfile.ProfileObjectType objectType)
++        {
++            return profiles.FirstOrDefault(profile =>
 +                profile.TrackProfile != null &&
-+                string.Equals(profile.TrackProfile.Name, name,
-+                    StringComparison.OrdinalIgnoreCase)).ToList();
-+            return declaredNameMatches.Count == 1 ? declaredNameMatches[0] : null;
++                profile.TrackProfile.ObjectType == objectType &&
++                string.Equals(profile.ProfileId, name,
++                    StringComparison.OrdinalIgnoreCase));
++        }
++
++        static TRPFile FindFirstMainProfile(List<TRPFile> profiles,
++            TrProfile.ProfileObjectType objectType)
++        {
++            return profiles.FirstOrDefault(profile =>
++                profile.TrackProfile != null &&
++                profile.TrackProfile.ObjectType == objectType &&
++                profile.TrackProfile.ObjectRole ==
++                    TrProfile.ProfileObjectRole.Main);
++        }
++
++        static TRPFile FindFamilyRole(List<TRPFile> profiles,
++            TRPFile selectedProfile, TrProfile.ProfileObjectRole role)
++        {
++            if (selectedProfile == null || selectedProfile.TrackProfile == null)
++                return null;
++
++            // Explicit subtypes are literal selections. Only MAIN enables
++            // automatic selection of companion members from the same family.
++            if (selectedProfile.TrackProfile.ObjectRole !=
++                    TrProfile.ProfileObjectRole.Main)
++                return selectedProfile;
++
++            TRPFile roleProfile = FindNamedProfile(profiles,
++                selectedProfile.FileNameStem + RoleSuffix(role),
++                selectedProfile.TrackProfile.ObjectType);
++            return roleProfile ?? selectedProfile;
++        }
++
++        static TrProfile DefaultProfile(List<TRPFile> profiles,
++            TrProfile.ProfileObjectType objectType)
++        {
++            if (profiles == null || profiles.Count == 0)
++                return null;
++
++            if (objectType == TrProfile.ProfileObjectType.Road)
++            {
++                TRPFile roadProfile = FindNamedProfile(profiles, "RdProfile",
++                    TrProfile.ProfileObjectType.Road);
++                if (roadProfile != null)
++                    return roadProfile.TrackProfile;
++            }
++
++            TRPFile mainProfile = FindFirstMainProfile(profiles, objectType);
++            return mainProfile == null ? profiles[0].TrackProfile
++                                       : mainProfile.TrackProfile;
 +        }
 +
 +        static void WarnProfileOnce(string key, string message)
@@ -168,50 +241,56 @@ index d6a402db9..eeaa878bc 100644
 +            if (profiles == null || profiles.Count == 0)
 +                return null;
 +
-+            TrProfile defaultProfile = profiles[0].TrackProfile;
++            TrProfile.ProfileObjectType objectType = isRoad
++                ? TrProfile.ProfileObjectType.Road
++                : TrProfile.ProfileObjectType.Track;
++            TrProfile defaultProfile = DefaultProfile(profiles, objectType);
 +            string requestedName = shapeTemplate == null
 +                ? null : shapeTemplate.Trim();
 +
-+            if (string.IsNullOrEmpty(requestedName))
-+            {
-+                if (!isRoad)
-+                    return defaultProfile;
-+
-+                TRPFile roadProfile = FindNamedProfile(profiles, "default_road")
-+                    ?? FindNamedProfile(profiles, "TrProfileRoad");
-+                if (roadProfile != null)
-+                    return roadProfile.TrackProfile;
-+
-+                WarnProfileOnce("missing-road-profile",
-+                    "Road DynTrack profile default_road or TrProfileRoad was " +
-+                    "not found; using the default track profile.");
-+                return defaultProfile;
-+            }
-+
-+            if (string.Equals(requestedName, "DEFAULT",
++            if (string.IsNullOrEmpty(requestedName) ||
++                string.Equals(requestedName, "DEFAULT",
 +                    StringComparison.OrdinalIgnoreCase) ||
 +                string.Equals(requestedName, "DISABLED",
 +                    StringComparison.OrdinalIgnoreCase))
++            {
++                if (isRoad && FindNamedProfile(profiles, "RdProfile",
++                        TrProfile.ProfileObjectType.Road) == null)
++                {
++                    defaultProfile = profiles[0].TrackProfile;
++                    WarnProfileOnce("missing-road-profile",
++                        "Road DynTrack profile RdProfile was " +
++                        "not found; using the default track profile.");
++                }
 +                return defaultProfile;
++            }
 +
-+            TRPFile selectedProfile = FindNamedProfile(profiles, requestedName);
++            TRPFile selectedProfile = FindNamedProfile(profiles, requestedName,
++                objectType);
 +            if (selectedProfile != null)
 +                return selectedProfile.TrackProfile;
 +
-+            WarnProfileOnce("missing-profile:" + requestedName,
++            WarnProfileOnce("missing-profile:" + objectType + ":" +
++                requestedName,
 +                "DynTrack ShapeTemplate '" + requestedName +
-+                "' was not found or its declared profile name is ambiguous; " +
-+                "using the default track profile.");
++                "' was not found for " + objectType +
++                "; using the default profile.");
++            if (isRoad && FindNamedProfile(profiles, "RdProfile",
++                    TrProfile.ProfileObjectType.Road) == null)
++                return profiles[0].TrackProfile;
 +            return defaultProfile;
 +        }
 +
 +        public static bool TryResolveStaticTrackProfile(List<TRPFile> profiles,
-+            string shapeTemplate, out TrProfile trackProfile)
++            string shapeTemplate, bool isRoad, out TRPFile profileFile)
 +        {
-+            trackProfile = null;
++            profileFile = null;
 +            if (profiles == null || profiles.Count == 0)
 +                return false;
 +
++            TrProfile.ProfileObjectType objectType = isRoad
++                ? TrProfile.ProfileObjectType.Road
++                : TrProfile.ProfileObjectType.Track;
 +            string requestedName = shapeTemplate == null
 +                ? null : shapeTemplate.Trim();
 +            if (string.IsNullOrEmpty(requestedName) ||
@@ -222,22 +301,63 @@ index d6a402db9..eeaa878bc 100644
 +            if (string.Equals(requestedName, "DEFAULT",
 +                    StringComparison.OrdinalIgnoreCase))
 +            {
-+                trackProfile = profiles[0].TrackProfile;
-+                return trackProfile != null;
++                profileFile = isRoad
++                    ? FindNamedProfile(profiles, "RdProfile", objectType)
++                    : FindFirstMainProfile(profiles, objectType);
++                return profileFile != null;
 +            }
 +
-+            TRPFile selectedProfile = FindNamedProfile(profiles, requestedName);
-+            if (selectedProfile != null)
-+            {
-+                trackProfile = selectedProfile.TrackProfile;
-+                return trackProfile != null;
-+            }
++            profileFile = FindNamedProfile(profiles, requestedName, objectType);
++            if (profileFile != null)
++                return profileFile.TrackProfile != null;
 +
-+            WarnProfileOnce("missing-static-profile:" + requestedName,
++            WarnProfileOnce("missing-static-profile:" + objectType + ":" +
++                requestedName,
 +                "TrackObj ShapeTemplate '" + requestedName +
-+                "' was not found or its declared profile name is ambiguous; " +
++                "' was not found for " + objectType + "; " +
 +                "using the original static shape.");
 +            return false;
++        }
++
++        public static TrProfile[] ResolveStaticPathProfiles(
++            List<TRPFile> profiles, TRPFile selectedProfile,
++            SectionIdx[] sectionPaths)
++        {
++            if (selectedProfile == null || sectionPaths == null)
++                return new TrProfile[0];
++
++            TrProfile[] result = new TrProfile[sectionPaths.Length];
++            int groupStart = 0;
++            while (groupStart < sectionPaths.Length)
++            {
++                int groupEnd = groupStart + 1;
++                while (groupEnd < sectionPaths.Length &&
++                    Math.Abs(Math.IEEERemainder(
++                        sectionPaths[groupEnd].A - sectionPaths[groupStart].A,
++                        360.0)) <= 0.1)
++                    groupEnd++;
++
++                for (int pathIndex = groupStart;
++                    pathIndex < groupEnd; pathIndex++)
++                {
++                    TrProfile.ProfileObjectRole role =
++                        TrProfile.ProfileObjectRole.Main;
++                    if (groupEnd - groupStart > 1)
++                    {
++                        if (pathIndex == groupStart)
++                            role = TrProfile.ProfileObjectRole.Left;
++                        else if (pathIndex == groupEnd - 1)
++                            role = TrProfile.ProfileObjectRole.Right;
++                        else
++                            role = TrProfile.ProfileObjectRole.Middle;
++                    }
++                    TRPFile roleProfile = FindFamilyRole(
++                        profiles, selectedProfile, role);
++                    result[pathIndex] = roleProfile.TrackProfile;
++                }
++                groupStart = groupEnd;
++            }
++            return result;
 +        }
 +
 +        public static bool TryResolveRulerProfile(List<TRPFile> profiles,
@@ -257,11 +377,15 @@ index d6a402db9..eeaa878bc 100644
 +            if (string.Equals(requestedName, "DEFAULT",
 +                    StringComparison.OrdinalIgnoreCase))
 +            {
-+                trackProfile = profiles[0].TrackProfile;
++                TRPFile defaultStatic = FindFirstMainProfile(profiles,
++                    TrProfile.ProfileObjectType.Static);
++                trackProfile = defaultStatic == null
++                    ? null : defaultStatic.TrackProfile;
 +                return trackProfile != null;
 +            }
 +
-+            TRPFile selectedProfile = FindNamedProfile(profiles, requestedName);
++            TRPFile selectedProfile = FindNamedProfile(profiles, requestedName,
++                TrProfile.ProfileObjectType.Static);
 +            if (selectedProfile != null)
 +            {
 +                trackProfile = selectedProfile.TrackProfile;
@@ -270,7 +394,7 @@ index d6a402db9..eeaa878bc 100644
 +
 +            WarnProfileOnce("missing-ruler-profile:" + requestedName,
 +                "Ruler ShapeTemplate '" + requestedName +
-+                "' was not found or its declared profile name is ambiguous; " +
++                "' was not found as a STATIC profile; " +
 +                "the Ruler will not be rendered.");
 +            return false;
 +        }
@@ -278,23 +402,181 @@ index d6a402db9..eeaa878bc 100644
          /// <summary>
          /// Creates a List<TRPFile></TRPFile> instance from a set of track profile file(s)
          /// (XML or STF) or canned. (Precedence is XML [.XML], STF [.STF], default [canned]).
-@@ -369,9 +509,12 @@ public static bool CreateTrackProfile(Viewer viewer, string routePath, out List<
-                 else // Add the canned (Kuju) track profile if no default is given
-                     trpFiles.Add(new TRPFile(viewer, ""));
+@@ -347,67 +604,130 @@ public class TRPFile
+         public static bool CreateTrackProfile(Viewer viewer, string routePath, out List<TRPFile> trpFiles)
+         {
+             string path = routePath + @"\TrackProfiles";
+-            List<string> profileNames = new List<string>();
+-            trpFiles = new List<TRPFile>();
++            List<TRPFile> loadedProfiles = new List<TRPFile>();
  
+             if (Directory.Exists(path))
+             {
+-                // The file called "TrProfile" should be used as the default track profile, if present
+-                string xmlDefault = path + @"\TrProfile.xml";
+-                string stfDefault = path + @"\TrProfile.stf";
+-
+-                if (File.Exists(xmlDefault))
+-                {
+-                    trpFiles.Add(new TRPFile(viewer, xmlDefault));
+-                    profileNames.Add(Path.GetFileNameWithoutExtension(xmlDefault));
+-                }
+-                else if (File.Exists(stfDefault))
++                // Every STF/XML file in TrackProfiles is a profile family.
++                // For equal filename stems XML retains the historical priority.
++                Dictionary<string, string> selectedFiles =
++                    new Dictionary<string, string>(
++                        StringComparer.OrdinalIgnoreCase);
++                foreach (string profilePath in Directory.GetFiles(path))
+                 {
+-                    trpFiles.Add(new TRPFile(viewer, stfDefault));
+-                    profileNames.Add(Path.GetFileNameWithoutExtension(stfDefault));
+-                }
+-                else // Add the canned (Kuju) track profile if no default is given
+-                    trpFiles.Add(new TRPFile(viewer, ""));
+-
 -                // Get all .xml/.stf files that start with "TrProfile"
 -                string[] xmlProfiles = Directory.GetFiles(path, "TrProfile*.xml");
 -                string[] stfProfiles = Directory.GetFiles(path, "TrProfile*.stf");
-+                // ORTS profiles traditionally start with "TrProfile".
-+                // TSRE reserves "default_*" for portable built-in profile IDs.
-+                string[] xmlProfiles = Directory.GetFiles(path, "TrProfile*.xml")
-+                    .Concat(Directory.GetFiles(path, "default_*.xml")).ToArray();
-+                string[] stfProfiles = Directory.GetFiles(path, "TrProfile*.stf")
-+                    .Concat(Directory.GetFiles(path, "default_*.stf")).ToArray();
++                    string extension = Path.GetExtension(profilePath);
++                    if (!string.Equals(extension, ".stf",
++                            StringComparison.OrdinalIgnoreCase) &&
++                        !string.Equals(extension, ".xml",
++                            StringComparison.OrdinalIgnoreCase))
++                        continue;
  
-                 foreach (string xmlProfile in xmlProfiles)
+-                foreach (string xmlProfile in xmlProfiles)
+-                {
+-                    string xmlName = Path.GetFileNameWithoutExtension(xmlProfile);
+-                    // Don't try to add the default track profile twice
+-                    if (!profileNames.Contains(xmlName))
+-                    {
+-                        trpFiles.Add(new TRPFile(viewer, xmlProfile));
+-                        profileNames.Add(xmlName);
+-                    }
++                    string stem = Path.GetFileNameWithoutExtension(profilePath);
++                    string selectedPath;
++                    if (!selectedFiles.TryGetValue(stem, out selectedPath) ||
++                        string.Equals(extension, ".xml",
++                            StringComparison.OrdinalIgnoreCase))
++                        selectedFiles[stem] = profilePath;
+                 }
+-                foreach (string stfProfile in stfProfiles)
++
++                foreach (KeyValuePair<string, string> selectedFile in
++                    selectedFiles.OrderBy(file =>
++                        string.Equals(file.Key, "TrProfile",
++                            StringComparison.OrdinalIgnoreCase) ? "" : file.Key,
++                        StringComparer.OrdinalIgnoreCase))
                  {
-@@ -416,6 +559,8 @@ public static bool CreateTrackProfile(Viewer viewer, string routePath, out List<
+-                    string stfName = Path.GetFileNameWithoutExtension(stfProfile);
+-                    // If an .stf profile and .xml profile have the same name, prefer the xml profile
+-                    if (!profileNames.Contains(stfName))
++                    foreach (TRPFile profile in LoadProfileFile(
++                        viewer, selectedFile.Value))
+                     {
+-                        trpFiles.Add(new TRPFile(viewer, stfProfile));
+-                        profileNames.Add(stfName);
++                        if (profile.TrackProfile == null ||
++                            !profile.TrackProfile.ObjectTypeValid)
++                            continue;
++                        bool duplicate = loadedProfiles.Any(existing =>
++                            existing.TrackProfile.ObjectType ==
++                                profile.TrackProfile.ObjectType &&
++                            string.Equals(existing.ProfileId,
++                                profile.ProfileId,
++                                StringComparison.OrdinalIgnoreCase));
++                        if (duplicate)
++                        {
++                            Trace.TraceWarning(
++                                "Duplicate TrackProfile identity {0} {1} " +
++                                "in {2} ignored; the first definition is used.",
++                                profile.TrackProfile.ObjectType,
++                                profile.ProfileId,
++                                Path.GetFileName(selectedFile.Value));
++                            continue;
++                        }
++                        loadedProfiles.Add(profile);
+                     }
+                 }
+             }
+ 
+-            // Add canned profile if no profiles were found
+-            if (trpFiles.Count <= 0)
+-            {
+-                trpFiles.Add(new TRPFile(viewer, ""));
+-                return false;
+-            }
++            // viewer.TRPs[0] is a long-standing invariant. Put the route's
++            // TrProfile TRACK MAIN there, or supply the canned Kuju profile.
++            TRPFile defaultTrack = loadedProfiles.FirstOrDefault(profile =>
++                string.Equals(profile.FileNameStem, "TrProfile",
++                    StringComparison.OrdinalIgnoreCase) &&
++                profile.TrackProfile.ObjectType ==
++                    TrProfile.ProfileObjectType.Track &&
++                profile.TrackProfile.ObjectRole ==
++                    TrProfile.ProfileObjectRole.Main);
++            trpFiles = new List<TRPFile>();
++            if (defaultTrack != null)
++                trpFiles.Add(defaultTrack);
+             else
+-                return true;
++                trpFiles.Add(new TRPFile(viewer, ""));
++            trpFiles.AddRange(loadedProfiles.Where(profile =>
++                !object.ReferenceEquals(profile, defaultTrack)));
++            return loadedProfiles.Count > 0;
+ 
+             // FOR DEBUGGING: Writes XML file from current TRP
+             //TRP.TrackProfile.SaveAsXML(@"C:/Users/Walt/Desktop/TrProfile.xml");
+         }
+ 
++        static List<TRPFile> LoadProfileFile(Viewer viewer, string filespec)
++        {
++            if (!string.Equals(Path.GetExtension(filespec), ".stf",
++                    StringComparison.OrdinalIgnoreCase))
++                return new List<TRPFile> { new TRPFile(viewer, filespec) };
++
++            List<TRPFile> profiles = new List<TRPFile>();
++            string familyName = Path.GetFileNameWithoutExtension(filespec);
++            using (STFReader stf = new STFReader(filespec, false))
++            {
++                if (stf.SimisSignature != "SIMISA@@@@@@@@@@JINX0p0t______")
++                {
++                    STFException.TraceWarning(stf,
++                        "Invalid header - TrackProfile file will not be processed.");
++                    return profiles;
++                }
++
++                try
++                {
++                    stf.ParseBlock(new STFReader.TokenProcessor[] {
++                        new STFReader.TokenProcessor("trprofile", () => {
++                            TrProfile profile = new TrProfile(viewer, stf);
++                            if (profile.ObjectTypeValid)
++                                profiles.Add(new TRPFile(familyName, profile));
++                        }),
++                    });
++                }
++                catch (Exception e)
++                {
++                    STFException.TraceWarning(stf,
++                        "Track profile STF constructor failed because " +
++                        e.Message + ".");
++                }
++            }
++            return profiles;
++        }
++
++        TRPFile(string fileNameStem, TrProfile trackProfile)
++        {
++            FileNameStem = fileNameStem;
++            TrackProfile = trackProfile;
++        }
++
+         /// <summary>
+         /// Create TrackProfile from a track profile file.  
+         /// (Defaults on empty or nonexistent filespec.)
+@@ -416,6 +736,8 @@ public static bool CreateTrackProfile(Viewer viewer, string routePath, out List<
          /// <param name="filespec">Complete filepath string to track profile file.</param>
          public TRPFile(Viewer viewer, string filespec)
          {
@@ -303,6 +585,117 @@ index d6a402db9..eeaa878bc 100644
              if (filespec == "")
              {
                  // No track profile provided, use default
+@@ -527,7 +849,26 @@ void ValidationCallback(object sender, ValidationEventArgs args)
+     // Dynamic track profile class
+     public class TrProfile
+     {
++        public enum ProfileObjectType
++        {
++            Track,
++            Road,
++            Static,
++        }
++
++        public enum ProfileObjectRole
++        {
++            Main,
++            Single,
++            Left,
++            Middle,
++            Right,
++        }
++
+         public string Name; // e.g., "Default track profile"
++        public ProfileObjectType ObjectType = ProfileObjectType.Track;
++        public ProfileObjectRole ObjectRole = ProfileObjectRole.Main;
++        public bool ObjectTypeValid = true;
+         public int ReplicationPitch; //TBD: Replication pitch alternative
+         public LODMethods LODMethod = LODMethods.None; // LOD method of control
+         public float ChordSpan; // Base method: No. of profiles generated such that span is ChordSpan degrees
+@@ -613,6 +954,60 @@ public enum PitchControls
+             ChordDisplacement
+         }
+ 
++        void ReadObjectType(STFReader stf)
++        {
++            stf.MustMatch("(");
++            List<string> values = new List<string>();
++            while (!stf.EndOfBlock())
++                values.Add(stf.ReadString());
++            string error;
++            if (!SetObjectType(values.ToArray(), out error))
++                STFException.TraceWarning(stf, error);
++        }
++
++        bool SetObjectType(string[] values, out string error)
++        {
++            error = null;
++            if (values == null || values.Length == 0 || values.Length > 2)
++            {
++                ObjectTypeValid = false;
++                error = "ObjectType requires an object and optional role.";
++                return false;
++            }
++
++            switch (values[0].ToUpperInvariant())
++            {
++                case "TRACK": ObjectType = ProfileObjectType.Track; break;
++                case "ROAD": ObjectType = ProfileObjectType.Road; break;
++                case "STATIC": ObjectType = ProfileObjectType.Static; break;
++                default:
++                    ObjectTypeValid = false;
++                    error = "Invalid TrackProfile ObjectType object '" +
++                        values[0] + "'.";
++                    return false;
++            }
++
++            ObjectRole = ProfileObjectRole.Main;
++            if (values.Length == 2)
++            {
++                switch (values[1].ToUpperInvariant())
++                {
++                    case "MAIN": ObjectRole = ProfileObjectRole.Main; break;
++                    case "SINGLE": ObjectRole = ProfileObjectRole.Single; break;
++                    case "LEFT": ObjectRole = ProfileObjectRole.Left; break;
++                    case "MIDDLE": ObjectRole = ProfileObjectRole.Middle; break;
++                    case "RIGHT": ObjectRole = ProfileObjectRole.Right; break;
++                    default:
++                        ObjectTypeValid = false;
++                        error = "Invalid TrackProfile ObjectType role '" +
++                            values[1] + "'.";
++                        return false;
++                }
++            }
++            ObjectTypeValid = true;
++            return true;
++        }
++
+         /// <summary>
+         /// TrProfile constructor (default - builds from self-contained data)
+         /// <param name="viewer">Viewer.</param>
+@@ -755,6 +1150,7 @@ public TrProfile(Viewer viewer, STFReader stf)
+ 
+             stf.MustMatch("(");
+             stf.ParseBlock(new STFReader.TokenProcessor[] {
++                new STFReader.TokenProcessor("objecttype", ()=>{ ReadObjectType(stf); }),
+                 new STFReader.TokenProcessor("name", ()=>{ Name = stf.ReadStringBlock(null); }),
+                 new STFReader.TokenProcessor("lodmethod", ()=> { LODMethod = GetLODMethod(stf.ReadStringBlock(null)); }),
+                 new STFReader.TokenProcessor("chordspan", ()=>{ ChordSpan = stf.ReadFloatBlock(STFReader.UNITS.Distance, null); }),
+@@ -799,6 +1195,14 @@ public TrProfile(Viewer viewer, XmlReader reader)
+                 {
+                     // root
+                     Name = reader.GetAttribute("Name");
++                    string objectType = reader.GetAttribute("ObjectType");
++                    if (!string.IsNullOrWhiteSpace(objectType))
++                    {
++                        string error;
++                        if (!SetObjectType(Regex.Split(objectType.Trim(),
++                                @"\s+"), out error))
++                            Trace.TraceWarning(error);
++                    }
+                     LODMethod = GetLODMethod(reader.GetAttribute("LODMethod"));
+                     ChordSpan = float.Parse(reader.GetAttribute("ChordSpan"));
+                     PitchControl = GetPitchControl(reader.GetAttribute("PitchControl"));
 diff --git a/Source/RunActivity/Viewer3D/Ruler.cs b/Source/RunActivity/Viewer3D/Ruler.cs
 new file mode 100644
 index 000000000..9499d09e0
@@ -438,10 +831,10 @@ index f9432a94b..5ffa94e40 100644
                      else if (worldObject.GetType() == typeof(ForestObj))
                      {
 diff --git a/Source/RunActivity/Viewer3D/SuperElevation.cs b/Source/RunActivity/Viewer3D/SuperElevation.cs
-index 8e7041f3c..22499140b 100644
+index 8e7041f3c..07f04eb9c 100644
 --- a/Source/RunActivity/Viewer3D/SuperElevation.cs
 +++ b/Source/RunActivity/Viewer3D/SuperElevation.cs
-@@ -61,6 +61,11 @@ public static bool DecomposeStaticSuperElevation(Viewer viewer, TrackObj trackOb
+@@ -61,14 +61,22 @@ public static bool DecomposeStaticSuperElevation(Viewer viewer, TrackObj trackOb
  
              bool dontRender = false; // Should this shape be left as a static object?
              bool removePhys = false; // Should superelevation physics be removed from this object?
@@ -450,10 +843,23 @@ index 8e7041f3c..22499140b 100644
 +            bool templateDisabled = string.Equals(requestedTemplate, "DISABLED",
 +                StringComparison.OrdinalIgnoreCase);
 +            bool explicitProcedural = false;
++            bool isRoadShape = false;
              SectionIdx[] SectionIdxs;
  
              // Using the track object, determine the track sections
-@@ -90,37 +95,46 @@ public static bool DecomposeStaticSuperElevation(Viewer viewer, TrackObj trackOb
+             // Most track sections can be recovered directly from a TrackShape object
+             if (viewer.Simulator.TSectionDat.TrackShapes.TryGetValue(trackObj.SectionIdx, out TrackShape shape))
+             {
+-                if (shape.RoadShape)
+-                    return false; // Roads don't use superelevation, no use in processing them.
++                isRoadShape = shape.RoadShape;
++                if (isRoadShape && (string.IsNullOrEmpty(requestedTemplate) ||
++                    templateDisabled))
++                    return false; // Ordinary roads retain their original static shape.
+ 
+                 // Can't render superelevation on tunnel shapes
+                 dontRender = shape.TunnelShape;
+@@ -90,46 +98,67 @@ public static bool DecomposeStaticSuperElevation(Viewer viewer, TrackObj trackOb
              // 0 = centered, positive = rotation axis moves to inside of curve, negative = moves to outside of curve
              float rollOffsetM = 0.0f;
  
@@ -463,6 +869,7 @@ index 8e7041f3c..22499140b 100644
              TrProfile trProfile = null;
 -            // If a track profile is found (index exists), continue processing
 -            if (trpIndex >= 0 && trpIndex < viewer.TRPs.Count)
++            TRPFile selectedProfileFile = null;
 +            if (templateDisabled)
 +                dontRender = true;
 +            else if (!string.IsNullOrEmpty(requestedTemplate))
@@ -472,7 +879,10 @@ index 8e7041f3c..22499140b 100644
 -                // If this track profile has superelevation disabled, don't bother rendering anything
 -                if (trProfile.ElevationType == TrProfile.SuperElevationMethod.None)
 +                explicitProcedural = TRPFile.TryResolveStaticTrackProfile(
-+                    viewer.TRPs, requestedTemplate, out trProfile);
++                    viewer.TRPs, requestedTemplate, isRoadShape,
++                    out selectedProfileFile);
++                if (explicitProcedural)
++                    trProfile = selectedProfileFile.TrackProfile;
 +                if (!explicitProcedural)
                      dontRender = true;
 -                else // Superelevation enabled, check the roll offset
@@ -525,7 +935,35 @@ index 8e7041f3c..22499140b 100644
  
              // Right now it's not confirmed if superelevation viewers are actually needed, so they are added to a temporary list
              List<DynamicTrackViewer> tempViewers = new List<DynamicTrackViewer>();
-@@ -165,13 +179,15 @@ public static bool DecomposeStaticSuperElevation(Viewer viewer, TrackObj trackOb
+             // Also keep track of which sections are superelevated
+             List<TrVectorSection> superElevationSections = new List<TrVectorSection>();
++            TrProfile[] pathProfiles = explicitProcedural
++                ? TRPFile.ResolveStaticPathProfiles(
++                    viewer.TRPs, selectedProfileFile, SectionIdxs)
++                : null;
+ 
+             // Iterate through all subsections
+-            foreach (SectionIdx id in SectionIdxs)
++            for (int pathIndex = 0; pathIndex < SectionIdxs.Length; pathIndex++)
+             {
++                SectionIdx id = SectionIdxs[pathIndex];
++                TrProfile pathProfile = pathProfiles != null &&
++                    pathIndex < pathProfiles.Length
++                    ? pathProfiles[pathIndex] : trProfile;
+                 // The following vectors represent local positioning relative to root of original section:
+                 Vector3 offset = new Vector3((float)id.X, (float)id.Y, -(float)id.Z); // Offset from section origin for this series of sections
+                 Vector3 localV = Vector3.Zero; // Local position of subsection (in x-z plane)
+@@ -159,22 +188,27 @@ public static bool DecomposeStaticSuperElevation(Viewer viewer, TrackObj trackOb
+                     localV = localProjectedV; // Move position to next subsection
+ 
+                     // To determine if this section needs superelevation, search for it in the global superelevation dictionary
+-                    TrVectorSection tmp = FindSuperElevationSection(viewer, section, trackObj.UID, root, nextRoot, out bool reversed);
++                    bool reversed = false;
++                    TrVectorSection tmp = isRoadShape ? null :
++                        FindSuperElevationSection(viewer, section,
++                            trackObj.UID, root, nextRoot, out reversed);
+ 
+                     if (tmp != null) // Section does have superelevation, prepare to generate it with superelevation
                      {
                          superElevationSections.Add(tmp);
  
@@ -535,14 +973,19 @@ index 8e7041f3c..22499140b 100644
                              tmp.ElevOffsetM = rollOffsetM;
  
                              // Processing done, prepare to generate section with superelevation
-                             tempViewers.Add(new SuperElevationViewer(viewer, root, nextRoot, radius, length, trProfile, tmp.VisElevTable, tmp.ElevOffsetM, reversed));
+-                            tempViewers.Add(new SuperElevationViewer(viewer, root, nextRoot, radius, length, trProfile, tmp.VisElevTable, tmp.ElevOffsetM, reversed));
++                            tempViewers.Add(new SuperElevationViewer(viewer, root, nextRoot, radius, length, pathProfile, tmp.VisElevTable, tmp.ElevOffsetM, reversed));
                          }
 +                        else if (!dontRender)
-+                            tempViewers.Add(new SuperElevationViewer(viewer, root, nextRoot, radius, length, trProfile));
++                            tempViewers.Add(new SuperElevationViewer(viewer, root, nextRoot, radius, length, pathProfile));
                      }
                      else if (!dontRender) // Section doesn't have superelevation, prepare to generate it without superelevation
-                         tempViewers.Add(new SuperElevationViewer(viewer, root, nextRoot, radius, length, trProfile));
-@@ -187,11 +203,11 @@ public static bool DecomposeStaticSuperElevation(Viewer viewer, TrackObj trackOb
+-                        tempViewers.Add(new SuperElevationViewer(viewer, root, nextRoot, radius, length, trProfile));
++                        tempViewers.Add(new SuperElevationViewer(viewer, root, nextRoot, radius, length, pathProfile));
+                 }
+             }
+ 
+@@ -187,11 +221,11 @@ public static bool DecomposeStaticSuperElevation(Viewer viewer, TrackObj trackOb
                  return false;
              }
              // We are rendering superelevation, add all superelevation viewers to the global list to be rendered
@@ -557,7 +1000,7 @@ index 8e7041f3c..22499140b 100644
          }
  
          /// <summary>
-@@ -519,6 +535,8 @@ public static void DecomposeDynamicSuperElevation(Viewer viewer, List<DynamicTra
+@@ -519,6 +553,8 @@ public static void DecomposeDynamicSuperElevation(Viewer viewer, List<DynamicTra
  
              // Right now it's not confirmed if superelevation viewers are actually needed, so they are added to a temporary list
              List<DynamicTrackViewer> tempViewers = new List<DynamicTrackViewer>();
@@ -566,7 +1009,7 @@ index 8e7041f3c..22499140b 100644
  
              // Iterate through all subsections
              foreach (DyntrackObj.TrackSection dSection in dTrackObj.trackSections)
-@@ -554,13 +572,13 @@ public static void DecomposeDynamicSuperElevation(Viewer viewer, List<DynamicTra
+@@ -554,13 +590,13 @@ public static void DecomposeDynamicSuperElevation(Viewer viewer, List<DynamicTra
                  localV = localProjectedV; // Move position to next subsection
  
                  // To determine if this section needs superelevation, search for it in the global superelevation dictionary
@@ -584,7 +1027,7 @@ index 8e7041f3c..22499140b 100644
                      // Superelevation is enabled, generate track section with superelevation
                      if (viewer.Simulator.UseSuperElevation)
                      {
-@@ -592,7 +610,8 @@ public static void DecomposeDynamicSuperElevation(Viewer viewer, List<DynamicTra
+@@ -592,7 +628,8 @@ public static void DecomposeDynamicSuperElevation(Viewer viewer, List<DynamicTra
                          tempViewers.Add(new SuperElevationViewer(viewer, root, nextRoot, radius, length, trProfile));
                  }
                  else // Section doesn't have superelevation, prepare to generate it without superelevation

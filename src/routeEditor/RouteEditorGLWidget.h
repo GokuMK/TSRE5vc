@@ -243,6 +243,7 @@ private:
     bool liveFlexInitialDirectionFromMouse = false;
     bool liveFlexSolutionValid = false;
     DynTrackObj *liveFlexObj = NULL;
+    DynTrackObj *lastAcceptedFlexObj = NULL;
     int liveFlexStartTileX = 0;
     int liveFlexStartTileZ = 0;
     float liveFlexStartPosition[3] = {0, 0, 0};

@@ -177,7 +177,13 @@ PropertiesRuler::PropertiesRuler() {
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
     vbox->addWidget(&eTemplate);
+    vbox->addWidget(&eTemplateSubtype);
     eTemplate.setStyleSheet("combobox-popup: 0;");
+    eTemplateSubtype.setStyleSheet("combobox-popup: 0;");
+    eTemplateSubtype.setEnabled(false);
+    eTemplateSubtype.setToolTip(
+        //% "Select a route profile subtype."
+        qtTrId("route.editor.properties.profile.tooltip.route.profile.subtype"));
     eTemplate.addItem(
         //% "NOT SET"
         qtTrId("common.value.not.set"), QString());
@@ -190,9 +196,10 @@ PropertiesRuler::PropertiesRuler() {
     eTemplate.setToolTip(
         //% "NOT SET disables the procedural Ruler shape; DEFAULT explicitly requests the default procedural template."
         qtTrId("route.editor.properties.ruler.tooltip.not.set.disables.procedural.ruler.shape.default"));
-    refreshTemplateList();
     QObject::connect(&eTemplate, SIGNAL(currentTextChanged(QString)),
                       this, SLOT(eTemplateEdited(QString)));
+    QObject::connect(&eTemplateSubtype, SIGNAL(currentTextChanged(QString)),
+                      this, SLOT(eTemplateSubtypeEdited(QString)));
     button = new QPushButton(
         //% "Add Shape"
         qtTrId("route.editor.properties.ruler.button.button.3"));
@@ -219,15 +226,26 @@ void PropertiesRuler::eTemplateEdited(QString val){
         return;
     }
     Q_UNUSED(val);
-    val = eTemplate.currentData().toString();
+    refreshTemplateSubtype(OrtsTrackProfile::ObjectType::Static);
+    val = selectedTemplateValue();
     Undo::SinglePushWorldObjData(worldObj);
     worldObj->setTemplate(val);
     Undo::StateEnd();
 }
 
+void PropertiesRuler::eTemplateSubtypeEdited(QString val){
+    if(worldObj == NULL)
+        return;
+    Q_UNUSED(val);
+    Undo::SinglePushWorldObjData(worldObj);
+    worldObj->setTemplate(selectedTemplateValue());
+    Undo::StateEnd();
+}
+
 void PropertiesRuler::refreshTemplateList(){
     const QSignalBlocker blocker(&eTemplate);
-    const QString previousValue = eTemplate.currentData().toString();
+    const QString previousValue = worldObj != NULL
+            ? worldObj->getTemplate() : selectedTemplateValue();
 
     eTemplate.clear();
     eTemplate.addItem(
@@ -243,11 +261,10 @@ void PropertiesRuler::refreshTemplateList(){
     ProceduralShape::Load();
     OrtsTrackProfileCatalog::load(Game::root + "/ROUTES/" + Game::route);
 
-    // Route-local ORTS profiles are the most specific definitions, so show
-    // them before application-level TSRE templates.
-    for(const QString &profileId : OrtsTrackProfileCatalog::profileIds())
-        if(eTemplate.findData(profileId) < 0)
-            eTemplate.addItem(profileId, profileId);
+    // Route-local ORTS profile families are the most specific definitions, so
+    // show them before application-level TSRE templates. Their exact role is
+    // selected in the subtype combo below.
+    addRouteProfileFamilies(OrtsTrackProfile::ObjectType::Static);
 
     if(ProceduralShape::ShapeTemplateFile != NULL){
         QMapIterator<QString, ShapeTemplate*> iterator(
@@ -256,29 +273,30 @@ void PropertiesRuler::refreshTemplateList(){
             iterator.next();
             if(iterator.value() == NULL)
                 continue;
+            if(iterator.value()->type != ShapeTemplate::RULER)
+                continue;
             const QString name = iterator.value()->name;
-            if(OrtsTrackProfileCatalog::find(name) != nullptr)
+            if(OrtsTrackProfileCatalog::hasFamily(
+                    name, OrtsTrackProfile::ObjectType::Static)
+                    || OrtsTrackProfileCatalog::find(
+                        name, OrtsTrackProfile::ObjectType::Static) != nullptr)
                 continue;
             if(eTemplate.findData(name) < 0)
                 eTemplate.addItem(name, name);
         }
     }
 
-    if(!previousValue.isEmpty()
-            && eTemplate.findData(previousValue) < 0)
-        eTemplate.addItem(previousValue, previousValue);
-    if(!previousValue.isEmpty())
-        eTemplate.setCurrentIndex(eTemplate.findData(previousValue));
+    selectTemplateValue(previousValue,
+                        OrtsTrackProfile::ObjectType::Static);
 }
 
 void PropertiesRuler::updateTemplateValue(){
     if(worldObj == NULL)
         return;
-    QString name = worldObj->getTemplate();
-    const QSignalBlocker blocker(&eTemplate);
-    if(eTemplate.findData(name) < 0)
-        eTemplate.addItem(name, name);
-    eTemplate.setCurrentIndex(eTemplate.findData(name));
+    if(selectedTemplateValue() == worldObj->getTemplate())
+        return;
+    selectTemplateValue(worldObj->getTemplate(),
+                        OrtsTrackProfile::ObjectType::Static);
 }
 
 void PropertiesRuler::showObj(GameObj* obj){

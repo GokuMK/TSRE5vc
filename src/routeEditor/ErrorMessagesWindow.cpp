@@ -31,6 +31,8 @@ ErrorMessagesWindow::ErrorMessagesWindow(QWidget* parent) : QWidget(parent) {
         qtTrId("route.editor.error.messages.window.title.errors.messages"));
     
     properties = new ErrorMessageProperties(this);
+    connect(properties, &ErrorMessageProperties::messageChanged,
+            this, &ErrorMessagesWindow::refreshErrorList);
     
     QVBoxLayout *errorListLayout = new QVBoxLayout;
     errorListLayout->setContentsMargins(0,0,0,0);
@@ -74,8 +76,8 @@ ErrorMessagesWindow::ErrorMessagesWindow(QWidget* parent) : QWidget(parent) {
     //v->addWidget(serviceProperties);
     this->setLayout(errorListLayout);
     
-    QObject::connect(&errorList, SIGNAL(itemClicked(QTreeWidgetItem*, int)),
-                      this, SLOT(errorListSelected(QTreeWidgetItem*, int)));
+    connect(&errorList, &QTreeWidget::currentItemChanged, this,
+            [this](QTreeWidgetItem *item, QTreeWidgetItem *) { errorListSelected(item, 0); });
     QObject::connect(properties, SIGNAL(jumpTo(PreciseTileCoordinate*)),
                       this, SLOT(jumpRequestReceived(PreciseTileCoordinate*)));
     QObject::connect(properties, SIGNAL(selectObject(GameObj*)),
@@ -92,10 +94,12 @@ void ErrorMessagesWindow::jumpRequestReceived(PreciseTileCoordinate* c){
 }
 
 void ErrorMessagesWindow::errorListSelected(QTreeWidgetItem* item, int column){
-    properties->showMessage(ErrorMessagesLib::ErrorMessages[item->type()]);
+    properties->showMessage(item ? ErrorMessagesLib::ErrorMessages.value(item->type(), nullptr) : nullptr);
 }
 
 void ErrorMessagesWindow::refreshErrorList(){
+    auto *selected = errorList.currentItem()
+        ? ErrorMessagesLib::ErrorMessages.value(errorList.currentItem()->type(), nullptr) : nullptr;
     errorList.clear();
     QList<QTreeWidgetItem *> items;
     QStringList list;
@@ -126,6 +130,36 @@ void ErrorMessagesWindow::refreshErrorList(){
         items.append(item);
     }
     errorList.insertTopLevelItems(0, items);
+    selectMessage(selected);
+}
+
+bool ErrorMessagesWindow::selectMessage(ErrorMessage *message) {
+    if (!message) return false;
+    const int index = ErrorMessagesLib::ErrorMessages.indexOf(message);
+    if (index < 0) return false;
+    for (int row = 0; row < errorList.topLevelItemCount(); ++row) {
+        auto *item = errorList.topLevelItem(row);
+        if (item->type() != index) continue;
+        errorList.setCurrentItem(item);
+        errorList.scrollToItem(item, QAbstractItemView::PositionAtCenter);
+        return true;
+    }
+    return false;
+}
+
+bool ErrorMessagesWindow::showMessage(ErrorMessage *message) {
+    if (!message || !ErrorMessagesLib::ErrorMessages.contains(message)) return false;
+    show();
+    selectMessage(message);
+    raise();
+    activateWindow();
+    errorList.setFocus();
+    return true;
+}
+
+void ErrorMessagesWindow::showEvent(QShowEvent *event) {
+    QWidget::showEvent(event);
+    emit windowShown();
 }
 
 void ErrorMessagesWindow::show(){

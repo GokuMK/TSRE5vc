@@ -14,6 +14,29 @@
 #include "RandomTransformWorldObjDialog.h"
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/Undo.h>
+#include <QSignalBlocker>
+
+namespace {
+
+constexpr int RouteProfileFamilyRole = Qt::UserRole + 1;
+
+QString profileRoleLabel(OrtsTrackProfile::ObjectRole role) {
+    switch(role){
+        case OrtsTrackProfile::ObjectRole::Single:
+            return "SINGLE";
+        case OrtsTrackProfile::ObjectRole::Left:
+            return "LEFT";
+        case OrtsTrackProfile::ObjectRole::Middle:
+            return "MIDDLE";
+        case OrtsTrackProfile::ObjectRole::Right:
+            return "RIGHT";
+        case OrtsTrackProfile::ObjectRole::Main:
+        default:
+            return "MAIN";
+    }
+}
+
+}
 
 QString PropertiesAbstract::ElevTypeName = "permille";
 
@@ -26,6 +49,83 @@ PropertiesAbstract::PropertiesAbstract() : QWidget() {
 }
 
 PropertiesAbstract::~PropertiesAbstract() {
+}
+
+void PropertiesAbstract::addRouteProfileFamilies(
+        OrtsTrackProfile::ObjectType objectType) {
+    for(const QString &familyId
+            : OrtsTrackProfileCatalog::familyIds(objectType)){
+        if(eTemplate.findData(familyId) >= 0)
+            continue;
+        eTemplate.addItem(familyId, familyId);
+        eTemplate.setItemData(
+                eTemplate.count() - 1, true, RouteProfileFamilyRole);
+    }
+}
+
+void PropertiesAbstract::refreshTemplateSubtype(
+        OrtsTrackProfile::ObjectType objectType,
+        const QString &preferredProfileId) {
+    const QSignalBlocker blocker(&eTemplateSubtype);
+    eTemplateSubtype.clear();
+    eTemplateSubtype.setEnabled(false);
+    if(eTemplate.currentIndex() < 0
+            || !eTemplate.currentData(RouteProfileFamilyRole).toBool())
+        return;
+
+    const QString familyId = eTemplate.currentData().toString();
+    const QVector<OrtsTrackProfile::ObjectRole> roles =
+            OrtsTrackProfileCatalog::familyRoles(familyId, objectType);
+    for(OrtsTrackProfile::ObjectRole role : roles){
+        const QString profileId =
+                OrtsTrackProfileCatalog::profileId(familyId, role);
+        eTemplateSubtype.addItem(profileRoleLabel(role), profileId);
+    }
+    if(eTemplateSubtype.count() == 0)
+        return;
+
+    int index = eTemplateSubtype.findData(preferredProfileId);
+    if(index < 0)
+        index = eTemplateSubtype.findData(familyId);
+    if(index < 0)
+        index = 0;
+    eTemplateSubtype.setCurrentIndex(index);
+    eTemplateSubtype.setEnabled(true);
+}
+
+void PropertiesAbstract::selectTemplateValue(
+        const QString &templateName,
+        OrtsTrackProfile::ObjectType objectType) {
+    const QSignalBlocker templateBlocker(&eTemplate);
+    const QSharedPointer<const OrtsTrackProfile> profile =
+            OrtsTrackProfileCatalog::find(templateName, objectType);
+    if(profile != nullptr){
+        int index = eTemplate.findData(profile->familyId);
+        if(index < 0){
+            eTemplate.addItem(profile->familyId, profile->familyId);
+            index = eTemplate.count() - 1;
+            eTemplate.setItemData(index, true, RouteProfileFamilyRole);
+        }
+        eTemplate.setCurrentIndex(index);
+        refreshTemplateSubtype(objectType, profile->id);
+        return;
+    }
+
+    int index = eTemplate.findData(templateName);
+    if(index < 0){
+        eTemplate.addItem(templateName, templateName);
+        index = eTemplate.count() - 1;
+    }
+    eTemplate.setCurrentIndex(index);
+    refreshTemplateSubtype(objectType);
+}
+
+QString PropertiesAbstract::selectedTemplateValue() const {
+    if(eTemplate.currentIndex() >= 0
+            && eTemplate.currentData(RouteProfileFamilyRole).toBool()
+            && eTemplateSubtype.currentIndex() >= 0)
+        return eTemplateSubtype.currentData().toString();
+    return eTemplate.currentData().toString();
 }
 
 void PropertiesAbstract::showObj(GameObj* obj){

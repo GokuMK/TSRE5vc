@@ -153,7 +153,8 @@ void RulerObj::ensureProceduralShape(){
     const QString routePath = Game::root + "/ROUTES/" + Game::route;
     OrtsTrackProfileCatalog::load(routePath);
     const QSharedPointer<const OrtsTrackProfile> routeProfile =
-            OrtsTrackProfileCatalog::find(templateName);
+            OrtsTrackProfileCatalog::find(
+                templateName, OrtsTrackProfile::ObjectType::Static);
 
     for(int i = 0; i < points.size() - 1; i++){
         const float tlength = Vec3::distance(

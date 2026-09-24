@@ -10,7 +10,9 @@
 #include <QString>
 #include <QStringList>
 #include <QMap>
+#include <QSharedPointer>
 #include <QVector>
+#include <tsre/procedural/ProceduralPath.h>
 #include <tsre/tdb/TSection.h>
 
 class OglObj;
@@ -34,25 +36,36 @@ struct OrtsGeneratedProfileMesh {
 
 class OrtsTrackProfileRenderer {
 public:
+    // Temporary seam mitigation. Future procedural-template stitching should
+    // generate continuous joints and remove this terminal mesh overlap.
+    static constexpr float GeneratedTrackEndOverlap = 0.10f;
+
     static bool buildMeshes(const OrtsTrackProfile &profile,
             const QVector<TSection> &sections,
             QVector<OrtsGeneratedProfileMesh> &meshes,
             QStringList *diagnostics = nullptr,
             float endExtension = 0,
-            float endDrop = 0);
+            float endDrop = 0,
+            const ProceduralPathTransform *pathTransform = nullptr);
     static bool generate(const OrtsTrackProfile &profile,
             const QVector<TSection> &sections,
             QVector<OglObj*> &shape,
             const QString &routePath,
             QStringList *diagnostics = nullptr,
             float endExtension = 0,
-            float endDrop = 0);
+            float endDrop = 0,
+            const ProceduralPathTransform *pathTransform = nullptr);
     static bool generate(const OrtsTrackProfile &profile,
             const TrackShape &trackShape,
             const QMap<int, float> &angles,
             QVector<OglObj*> &shape,
             const QString &routePath,
-            QStringList *diagnostics = nullptr);
+            QStringList *diagnostics = nullptr,
+            float endExtension = 0,
+            float endDrop = 0,
+            const ProceduralPathTransform *pathTransform = nullptr,
+            const QVector<QSharedPointer<const OrtsTrackProfile>>
+                *pathProfiles = nullptr);
 };
 
 #endif

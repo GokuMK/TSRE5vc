@@ -63,6 +63,8 @@ public:
     static void Clear();
     static void StateBegin();
     static void StateBeginIfNotExist();
+    static bool StateBeginIndependent();
+    static void StateEndIndependent();
     static void StateEnd();
     static void StateCancel();
     static void StateEndIfLongTime();
@@ -84,6 +86,9 @@ public:
 private:
     static QVector<UndoState*> undoStates;
     static UndoState* currentState;
+    static UndoState* independentParentState;
+    static bool independentStateOpen;
+    static unsigned long long int independentParentUndoTime;
     static unsigned long long int undoTime;
     
     static void PushWorldObjDataInfo(WorldObj* obj);

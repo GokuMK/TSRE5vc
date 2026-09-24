@@ -11,9 +11,11 @@
 #define	TERRAINLIBQT_H
 
 #include <tsre/world/TerrainLib.h>
+#include <memory>
 
 class FileBuffer;
 class QTextStream;
+class ErrorMessage;
 
 class TerrainLibQt : public TerrainLib {
 public:
@@ -92,6 +94,13 @@ public:
     void renderEmpty(GLUU *gluu, float* playerT, float* playerW, float* target, float fov);
     void renderShadowMap(GLUU *gluu, float* playerT, float* playerW, float* target, float fov);
 protected:
+    void loadRecoveryTree(bool low);
+    bool adoptRecoveredTree(bool low, QString &result);
+    void saveRecoveredTrees();
+    std::shared_ptr<int> recoverySession = std::make_shared<int>(0);
+    QString recoveryRoutePath;
+    ErrorMessage *recoveryMessages[2] = {nullptr, nullptr};
+    bool recoveryNeedsScan[2] = {false, false};
     void prepareTerrainLod(float *playerT, float *playerW);
     Terrain *edgeTerrainAt(int worldX, int worldZ, bool low, bool load) override;
     QuadTree* quadTree = NULL;

@@ -20,6 +20,7 @@ public:
         tfile=new ScopedBakeTFile();
         if (!tfile->readT(file)) {error="Cannot read "+file;return false;}
         if (tfile->sampleMaterialBuffer.isEmpty()) return true;
+        if (!tfile->preflight(error)) return false;
         if (!validateGridLayout(file)) {error="Unsupported terrain layout: "+file;return false;}
         texturepath=rootTexturepath=root;
         for (int i=0;i<TerrainGridLayout::SupportedPatchRecordCount;++i) {

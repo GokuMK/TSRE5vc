@@ -13,6 +13,7 @@
 
 #include <QHash>
 #include <QString>
+#include <functional>
 
 class QWidget;
 class ErrorMessage;
@@ -24,6 +25,12 @@ public:
     static QVector<ErrorMessage*> ErrorMessages;
     static ErrorMessagesWindow* GetWindow(QWidget *w);
     static QString PushErrorMessage(ErrorMessage* e);
+    // GUI-thread APIs. The message must already be in ErrorMessages.
+    static bool ShowMessage(ErrorMessage *message, QWidget *parent);
+    // Loading code can request attention without opening UI mid-load. A validity
+    // guard prevents an abandoned route/session from opening a stale message.
+    static void RequestShowMessage(ErrorMessage *message, std::function<bool()> isCurrent = {});
+    static bool ShowRequestedMessage(QWidget *parent);
     
     ErrorMessagesLib();
     virtual ~ErrorMessagesLib();

@@ -13,6 +13,7 @@
 
 #include <QtWidgets>
 #include <tsre/Undo.h>
+#include <tsre/procedural/OrtsTrackProfile.h>
 
 class GameObj;
 class WorldObj;
@@ -61,9 +62,16 @@ protected:
     QLineEdit defaultDetailLevel;
     QLineEdit customDetailLevel;
     QComboBox eTemplate;
+    QComboBox eTemplateSubtype;
     QCheckBox enableCustomDetailLevel;
     WorldObj *worldObj;
     QMap<QString, QPushButton*> buttonTools;
+    void addRouteProfileFamilies(OrtsTrackProfile::ObjectType objectType);
+    void selectTemplateValue(const QString &templateName,
+            OrtsTrackProfile::ObjectType objectType);
+    void refreshTemplateSubtype(OrtsTrackProfile::ObjectType objectType,
+            const QString &preferredProfileId = QString());
+    QString selectedTemplateValue() const;
 private:
 
 };

@@ -13,6 +13,13 @@ only when the user accepts the action. Cancelling a preview restores or removes
 the draft object and calls `Undo::StateCancel()` so pointer movement does not
 create undo entries.
 
+Continuous Flex may also modify terrain while its next preview transaction is
+open. Pressing `F` grades terrain to the most recently accepted main segment,
+not the mouse-following preview. The preview transaction is temporarily
+suspended so the terrain edit receives its own chronological undo item.
+Cancelling the unfinished next segment therefore leaves the completed terrain
+grading in place; a subsequent Undo restores that terrain independently.
+
 ## Dynamic Track and Flex transactions
 
 Accepting a Dynamic Track can change three related kinds of data:

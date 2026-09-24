@@ -1,5 +1,11 @@
 # Task 08 - Open Rails ShapeTemplate And Road DynTrack Compatibility
 
+> [Task 12](12-trprofile-improvements.md) defines the current shared design:
+> all TrackProfiles files are discoverable, typed family members use
+> `ObjectType`, and the default road family is `RdProfile`. The corresponding
+> Open Rails implementation is now included in the shareable patch. Historical
+> investigation sections below may still mention the earlier split profiles.
+
 ## Objective
 
 First, make Open Rails honor the `ShapeTemplate` name saved by TSRE on
@@ -14,7 +20,8 @@ cross-source review has already been completed and is recorded here.
 
 ## Status
 
-Milestones A, B, and the Ruler extension are implemented in the local Open Rails worktree.
+Milestones A, B, the Ruler extension, and typed profile families are
+implemented in the local Open Rails worktree.
 Rail DynTrack and static TrackObj profile selection have been visually
 accepted. Road DynTrack rendering received basic visual acceptance against
 route `bbb`; detailed road-banking and overhead-wire checks remain deferred.
@@ -22,10 +29,11 @@ route `bbb`; detailed road-banking and overhead-wire checks remain deferred.
 The road implementation:
 
 - parses `ShapeTemplate` and the DynTrack road bit;
-- loads traditional `TrProfile*` files and TSRE's reserved `default_*`
-  profile IDs;
-- resolves an explicit template by filename stem, then unique declared name;
-- uses `default_road`, then `TrProfileRoad`, for an unlabelled road DynTrack;
+- discovers all route STF/XML profiles and parses repeated STF family members;
+- resolves filename-based IDs within `TRACK`, `ROAD`, or `STATIC` types;
+- uses `RdProfile` for an unlabelled road DynTrack;
+- assigns `LEFT/MIDDLE/RIGHT` members to directed-yaw path groups on explicit
+  multi-path static TrackObjs;
 - skips rail superelevation lookup and dynamic overhead wire for roads;
 - retains a visible profile-0 fallback with a warning.
 

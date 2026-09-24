@@ -71,6 +71,20 @@ int main(int argc,char **argv) {
             block(TS::terrain_shaders,word(1)+block(TS::terrain_shader,string("shader")+
                 block(TS::terrain_texslots,word(1)+block(TS::terrain_texslot,string("Grass.ace")+word(0)+word(0)))))));
         check(ContentCase::inspectDocument(t,"t").fields.size()==2,"terrain strings without terrain/editor construction");
+        const auto rareTerrain=binary(block(TS::terrain,
+            block(TS::terrain_samples,block(TS::terrain_sample_cbuffer,string("Colour.ace"))
+                +block(TS::terrain_sample_dbuffer,string("Flags_D.raw")))
+            +block(TS::terrain_patches,block(TS::terrain_patchsets,word(1)
+                +block(TS::terrain_patchset,block(TS::terrain_patchset_fbuffer,string("Patch_F.raw")))))
+            +block(TS::terrain_transfers,word(1)+block(TS::terrain_transfer,
+                block(TS::terrain_shader,string("TexDiff")+block(TS::terrain_texslots,word(1)
+                    +block(TS::terrain_texslot,string("Transfer.ace")+word(1)+word(0))))
+                +word(0)+word(0)+word(0)+word(0)))
+            +block(TS::terrain_shapes,word(1)+block(TS::terrain_shape,string("TerrainShape.s")
+                +word(0)+word(0)+word(0)+word(0)+word(0)+word(0)+word(0)))));
+        const auto rareDocument=ContentCase::inspectDocument(rareTerrain,"t");
+        check(rareDocument.referenceScanComplete&&rareDocument.fields.size()==5,
+              "all-native-terrain-resource-paths-including-nested-transfer");
         const auto bakeRecord=block(TS::TSRETerrainBakedMaterial,string("Winter")+word(0)+word(0)+word(1024)+string("settingshash")+string("sourceshash")+string("validationhash"));
         const auto terrainMetadata=binary(block(TS::terrain,block(TS::terrain_samples,
             block(TS::TSRETerrainMaterialMap,word(1)+word(2)+word(42))+

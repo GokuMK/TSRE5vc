@@ -1,5 +1,11 @@
 # Open Rails ShapeTemplate And Road Design/Implementation
 
+> This document and its shareable patch include the newer profile-family
+> format and `ObjectType` rules specified in
+> [Task 12](../tasks/tracks/12-trprofile-improvements.md). Current examples
+> use complete `RdProfile`, marked-road, and rail/bridge family files under
+> `docs/examples/track-profiles/`.
+
 ## Purpose
 
 This document describes and records a minimal Open Rails implementation for
@@ -19,6 +25,10 @@ materially unchanged between those revisions. The implementation and visual
 acceptance described below were made against the local commit. Before an
 upstream submission, the six runtime-file changes should be rebased onto the
 current Open Rails branch and rebuilt there.
+
+The current local implementation ends at Open Rails commit
+`608f288df` (`Support typed TrackProfile families`). The shareable patch is a
+clean six-file diff from `91414172d` through that commit.
 
 ## Required Behavior
 
@@ -51,49 +61,70 @@ DynTrack may contain both the legacy DynTrack bit and the road bit.
 
 ### Profile identity and lookup
 
-`TRPFile` must retain the source filename stem in addition to the declared
-`TrProfile.Name`:
+Every readable `.stf` and `.xml` file in the route's `TrackProfiles` directory
+is discoverable. When both formats have the same filename stem, XML wins.
+`TrProfile` remains the route default rail family and the built-in Kuju
+profile remains profile zero when no valid `TrProfile TRACK MAIN` exists.
+
+The filename stem is the family identity. `Name` remains descriptive rather
+than acting as another identifier:
 
 ```text
-TrackProfiles/TrProfileRoad.stf -> TrProfileRoad
-TrackProfiles/default_road.stf -> default_road
+TrackProfiles/RdProfile.stf -> RdProfile
+TrackProfiles/TrProfile_NR_Bridge.stf -> TrProfile_NR_Bridge
 ```
 
-Resolve an explicit `ShapeTemplate` case-insensitively in this order:
+STF files may contain multiple top-level profile blocks:
 
-1. exact profile filename stem;
-2. unique declared `TrProfile.Name`;
-3. unresolved.
+```text
+TrProfile ( ObjectType ( ROAD MAIN ) ... )
+TrProfile ( ObjectType ( ROAD LEFT ) ... )
+TrProfile ( ObjectType ( ROAD MIDDLE ) ... )
+TrProfile ( ObjectType ( ROAD RIGHT ) ... )
+```
 
-The filename stem wins because it is unique, follows Open Rails profile-file
-precedence, and is the stable identifier already stored by TSRE. A declared
-name is only an alias when it identifies exactly one loaded profile.
+`ObjectType` accepts `TRACK`, `ROAD`, or `STATIC`, followed by an optional
+`MAIN`, `SINGLE`, `LEFT`, `MIDDLE`, or `RIGHT` role. Missing metadata means
+`TRACK MAIN`; an object without an explicit role also means `MAIN`. XML still
+contains one profile per file but may carry the same metadata as an
+`ObjectType` attribute.
+
+Member IDs are synthesized from the family stem:
+
+```text
+RdProfile          -> ROAD MAIN
+RdProfile_single   -> ROAD SINGLE
+RdProfile_left     -> ROAD LEFT
+RdProfile_middle   -> ROAD MIDDLE
+RdProfile_right    -> ROAD RIGHT
+```
+
+The first duplicate object-type/role member in a family wins and produces a
+warning. Exact profile IDs are resolved case-insensitively and within the
+required object type, so road, rail, Ruler, and companion profiles cannot
+accidentally substitute for one another.
 
 Do not use the static-track texture and shape-filter scoring code for an
-explicit DynTrack name.
+explicit `ShapeTemplate`. Legacy shape/texture matching considers only
+`TRACK MAIN` profiles.
 
 ## Selection Table
 
 | DynTrack state | Selected Open Rails profile |
 | --- | --- |
 | Rail, no `ShapeTemplate` | Existing profile index 0 |
-| Valid explicit name | Named profile |
-| Invalid explicit name | Profile 0 and one useful warning |
+| Valid explicit family/member ID | Matching profile of the required object type |
+| Invalid rail name | Profile 0 and one useful warning |
 | `ShapeTemplate DEFAULT` | Profile 0 |
 | `ShapeTemplate DISABLED` | Profile 0 |
-| Road, no `ShapeTemplate` | `default_road`, then legacy `TrProfileRoad` |
-| Road, missing both road defaults | Profile 0 and one useful warning |
+| Road, no `ShapeTemplate` | `RdProfile` `ROAD MAIN` |
+| Road, missing `RdProfile` | Profile 0 and one useful warning |
 
-An invalid explicit road name also falls back to profile 0. It must not
-silently select either implicit road default, because an explicit but invalid
-choice should have one deterministic compatibility fallback.
+An invalid explicit road name falls back to `RdProfile`; when that family is
+also missing, it falls back to profile zero. This keeps the object visible.
 
-The initial patch should not add a canned road cross-section to Open Rails.
-Falling back to profile 0 keeps the object visible and retains existing
-behavior. The profile loader accepts traditional `TrProfile*` files plus
-TSRE's reserved `default_*` IDs. Routes that need an implicit road default
-provide `TrackProfiles/default_road.stf`; `TrProfileRoad.stf` or `.xml`
-remains a compatibility fallback.
+The patch does not add a canned road cross-section to Open Rails. Routes that
+need the road default provide `TrackProfiles/RdProfile.stf`.
 
 ## Rendering Integration
 
@@ -120,7 +151,7 @@ Skipping the rail lookup prevents a road subsection from accidentally
 receiving rail superelevation when TDB and RDB records share a world-object
 `UiD`.
 
-### Static rail TrackObj integration
+### Static TrackObj integration
 
 Open Rails' existing static superelevation path already decomposes a safe
 static TrackObj and generates procedural geometry for all of its subsections.
@@ -134,18 +165,26 @@ approximately to TSRE `ProceduralTracks = Enabled`:
 | --- | --- |
 | Superelevation disabled globally | Render the original static shape |
 | Superelevation enabled, no `ShapeTemplate` | Preserve existing Open Rails profile guessing and replacement behavior |
-| Valid explicit name | Use the named profile and retain the complete procedural replacement |
-| `ShapeTemplate DEFAULT` | Use profile 0 and retain the complete procedural replacement |
+| Valid explicit rail name | Use the matching `TRACK` profile and retain the complete procedural replacement |
+| Valid explicit road name | Use the matching `ROAD` profile without superelevation |
+| `ShapeTemplate DEFAULT` | Use profile 0 for rail or `RdProfile` for road |
 | `ShapeTemplate DISABLED` | Render the original static shape |
-| Missing or ambiguous explicit name | Warn once and render the original static shape |
+| Missing explicit name | Warn once and render the original static shape |
 
 An explicitly selected profile whose `SuperElevationMethod` is `None` still
 generates the procedural shape, but without visual banking.
 
-Preserve all existing safety exclusions. Roads, tunnels, junctions,
-crossovers, moving tables, and objects whose section data cannot be resolved
-must continue to use their existing static rendering path. This milestone does
-not add procedural static-road rendering.
+When the selected family member is `MAIN`, resolve one member per path. Group
+consecutive paths whose directed starting yaw differs by at most `0.1` degree.
+A one-path group uses `MAIN`; larger groups use `LEFT`, zero or more `MIDDLE`,
+then `RIGHT`. Missing role members fall back to `MAIN`. Therefore
+`Road2LCross.s` resolves as `LEFT/RIGHT, LEFT/RIGHT`, not as one four-path
+group. Selecting `SINGLE` or an explicit side member applies that member to
+every path.
+
+Preserve all existing safety exclusions for tunnels, junctions, crossovers,
+moving tables, and objects whose section data cannot be resolved. Ordinary
+roads without an explicit template retain their original static shape.
 
 ### TSRE Ruler integration
 
@@ -164,7 +203,7 @@ Ruler profile selection is intentionally explicit:
 | Ruler state | Behavior |
 | --- | --- |
 | Valid explicit name | Render with the named profile |
-| `ShapeTemplate DEFAULT` | Render with profile 0 |
+| `ShapeTemplate DEFAULT` | Render with the first `STATIC MAIN` profile |
 | No value or `ShapeTemplate DISABLED` | Do not generate a Ruler shape |
 | Missing or ambiguous name | Warn and do not generate a Ruler shape |
 
@@ -174,7 +213,8 @@ profile shapes remain available when global superelevation is disabled.
 
 ## Recommended Upstream Patch Organization
 
-Prepare one small pull request with four reviewable commits:
+For an upstream pull request, keep the final family change separate from the
+earlier ShapeTemplate work. The functional areas are:
 
 1. **Honor DynTrack ShapeTemplate**
    - add the text token and parsed property;
@@ -185,8 +225,7 @@ Prepare one small pull request with four reviewable commits:
 
 2. **Add road DynTrack rendering behavior**
    - classify DynTrack road identity with `0x00000100`;
-   - load TSRE `default_*` profile IDs alongside traditional `TrProfile*`;
-   - use `default_road`, then `TrProfileRoad`, as the implicit road profile;
+   - use an explicit road profile when requested;
    - suppress rail superelevation lookup and overhead wire for roads;
    - retain a visible profile-0 fallback.
 
@@ -202,6 +241,14 @@ Prepare one small pull request with four reviewable commits:
    - resolve its explicit profile through the shared profile catalog;
    - generate local straight segments between adjacent stored points;
    - keep Rulers independent of TDB/RDB, wire, and superelevation.
+
+5. **Support typed TrackProfile families**
+   - discover all STF/XML profile files and retain XML precedence;
+   - parse `ObjectType` and multiple STF `TrProfile` blocks;
+   - resolve typed family/member IDs and use `RdProfile` as the road default;
+   - select `LEFT/MIDDLE/RIGHT` members for directed-yaw path groups;
+   - allow explicitly templated static road TrackObjs while retaining all
+     other safety exclusions.
 
 A general TDB/RDB resolver is not required for this first rendering patch.
 Open Rails road traffic follows RDB independently. The DynTrack road
@@ -219,11 +266,12 @@ rail-only visual processing.
 | Straight and curved rail subsections | Visually accepted | Examined in route `bbb` |
 | `ShapeTemplate DISABLED` fallback | Visually accepted | `bbb` contains a `DISABLED` DynTrack |
 | `ShapeTemplate DEFAULT` fallback | Implemented, not separately examined | Resolves directly to profile 0 |
-| Selection by unique declared `TrProfile.Name` | Implemented, not visually tested | Requires a profile whose declared name differs from its filename |
 | Missing explicit name | Implemented, not visually tested | Falls back to profile 0 and warns once per name |
-| Ambiguous declared name | Implemented, not visually tested | Falls back to profile 0 and warns once per name |
-| Road DynTrack with explicit `default_road*` | Visually accepted | Route `bbb` contains straight/curved plain and marked road objects |
-| Road DynTrack without an explicit template | Implemented, not visually tested | Uses `default_road`, then `TrProfileRoad`, then visible profile-0 fallback |
+| All-file profile discovery | Runtime-loaded | `bbb` loads `RdProfile.stf` and `default_road_marked.stf`, neither of which depends on a `TrProfile*` filter |
+| Multiple STF profiles per family | Runtime-loaded, visual check pending | Consolidated `bbb` family member IDs resolve without missing-profile warnings |
+| `ObjectType` isolation | Implemented | Legacy guessing sees only `TRACK MAIN`; explicit lookup requires the matching type |
+| Road DynTrack with consolidated family member | Runtime-loaded, visual check pending | Existing `RdProfile_*` and `default_road_marked_*` world references resolve from family files |
+| Road DynTrack without an explicit template | Implemented, not visually tested | Uses `RdProfile`, then visible profile-0 fallback |
 | Mixed rail and road DynTracks | Visually accepted | Rail and road profiles render together in route `bbb` |
 | Road DynTrack on an electrified route | Pending visual test | Must confirm no dynamic wire is generated |
 | Road and rail records sharing a `UiD` | Pending visual test | Must confirm the road skips TDB superelevation lookup |
@@ -234,7 +282,9 @@ rail-only visual processing.
 | Static rail TrackObj with `DEFAULT` | Implemented, pending visual test | Procedurally replaces the shape with profile 0 |
 | Static rail TrackObj with `DISABLED` | Implemented, pending visual test | Retains the original static shape |
 | Static rail TrackObj with missing name | Implemented, pending visual test | Retains the original shape and warns once |
-| Excluded static shapes | Preserved by implementation, pending regression test | Roads, tunnels, junctions, crossovers, moving tables, and unresolved sections remain static |
+| Static multi-path family roles | Implemented, pending visual test | Consecutive directed-yaw groups resolve `LEFT/MIDDLE/RIGHT` with `MAIN` fallback |
+| Static road TrackObj with explicit template | Implemented, pending visual test | Uses typed road members and skips superelevation |
+| Excluded static shapes | Preserved by implementation, pending regression test | Tunnels, junctions, crossovers, moving tables, unresolved sections, and ordinary untemplated roads remain static |
 | Ruler with named profile | Visually accepted | Profile-driven Ruler geometry renders in route `bbb` |
 | Ruler while superelevation is disabled | Implemented | Ruler generation is independent of the superelevation option |
 | Multi-point Ruler | Implemented, basic visual acceptance | Each adjacent point pair creates an independent straight profile segment |
@@ -245,21 +295,28 @@ wire, no road superelevation, and deterministic fallback behavior.
 ## Implementation Status
 
 Implemented and incrementally rebuilt in the local Open Rails worktree through
-2026-08-03:
+2026-09-24:
 
 - `ShapeTemplate` is appended to `TokenID` and parsed by `DyntrackObj`;
 - subsection copies retain the template name;
-- `TRPFile` retains its source filename stem and resolves explicit DynTrack
-  templates by filename stem, then by a unique declared profile name;
-- `DEFAULT`, `DISABLED`, missing names, and missing road defaults fall back
-  deterministically to profile 0 with warnings for missing selections;
+- every route STF/XML profile file is discoverable, with XML winning an equal
+  filename stem;
+- repeated top-level STF `TrProfile` blocks and typed `ObjectType` roles are
+  parsed into filename-based family member IDs;
+- missing metadata remains compatible as `TRACK MAIN`, while invalid and
+  duplicate members are diagnosed and ignored;
+- `DEFAULT`, `DISABLED`, missing names, and missing `RdProfile` fall back
+  deterministically, with warnings for missing selections;
 - the selected profile is passed through both elevated and ordinary DynTrack
   subsection construction;
 - road DynTracks skip TDB superelevation lookup and dynamic overhead wire;
 - `ShapeTemplate` is also parsed on ordinary static `TrackObj` objects;
-- when superelevation is enabled, a valid explicit static-rail template
-  selects its named profile and retains the complete procedural replacement,
+- when superelevation is enabled, a valid explicit static TrackObj template
+  selects its typed profile and retains the complete procedural replacement,
   including shapes with no actually superelevated subsection;
+- static multi-path TrackObjs select family side members within consecutive
+  directed-yaw groups; explicitly templated roads use the same mechanism but
+  never receive rail superelevation;
 - absent static templates preserve the existing Open Rails behavior, while
   `DISABLED` and unresolved names retain the original static shape;
 - all existing static-track safety exclusions remain in force;
@@ -278,11 +335,12 @@ Explicit named-profile replacement of ordinary static rail TrackObjs was also
 visually accepted in both TSRE and Open Rails on route `bbb`.
 
 Road profile rendering received basic visual acceptance. Route `bbb`
-contains `default_road*` profiles and road DynTracks with `StaticFlags (
-00100100 )` selecting plain, marked, and role templates. The compatibility
-loader now discovers those TSRE profile IDs directly. Missing road defaults
-still use the documented visible profile-0 fallback. A closer examination of
-road banking and a dedicated overhead-wire check remain deferred.
+contains `RdProfile*` and `default_road_marked*` role IDs on road DynTracks
+with `StaticFlags ( 00100100 )`. Those roles now reside in consolidated family
+files and loaded without missing-profile warnings during the 2026-09-24 route
+smoke test. Visual acceptance of the consolidated loader and static
+multi-path role assignment remains pending. A closer examination of road
+banking and a dedicated overhead-wire check remain deferred.
 
 Cross-engine testing later exposed that the first road examples reversed U
 across profile X to compensate for an incomplete TSRE coordinate conversion.
@@ -306,7 +364,7 @@ The functional patch is isolated to these six Open Rails runtime files:
 - `Source/RunActivity/Viewer3D/SuperElevation.cs`;
 - `Source/RunActivity/Viewer3D/Scenery.cs`.
 
-At the current local revision, this is 346 inserted lines and 43 deleted lines.
+At the current local revision, this is 669 inserted lines and 89 deleted lines.
 VS Code support files, project-file conversions, generated output, and other
 local worktree changes are not part of the feature patch.
 
