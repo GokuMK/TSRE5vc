@@ -59,6 +59,8 @@ QUrl wmsUrl(const Dataset &dataset, double minX, double minY,
             double maxX, double maxY, int width, int height);
 QUrl arcGisMapUrl(const Dataset &dataset, double minX, double minY,
                   double maxX, double maxY, int width, int height);
+QUrl arcGisImageUrl(const Dataset &dataset, double minX, double minY,
+                    double maxX, double maxY, int width, int height);
 int chooseZoom(const Dataset &dataset, double latitude,
                double targetMetresPerPixel);
 QPointF webMercatorPixel(GeographicPoint point, int zoom, int tilePixels = 256);

@@ -32,7 +32,7 @@ Milestone one was implemented on 2026-09-24:
 
 - `ImagerySource` loads and safely merges the built-in and optional
   `assets/geo/imagery-datasets.json` catalogues;
-- the generic `wmts-kvp-webmercator` path supports both configured sources,
+- the generic `wmts-kvp-webmercator` path supports WorldCover and USGS imagery,
   four concurrent downloads, strict JPEG/PNG validation and an atomic,
   readable tile cache under `cache/imagery/`;
 - a 33 x 33 geographic control lattice keeps route coordinate conversion on
@@ -40,6 +40,8 @@ Milestone one was implemented on 2026-09-24:
 - `Load Imagery` filters sources by location and detailed/distant approval,
   previews the result and applies it only to the existing in-memory overlay;
 - Poland and WorldCover sample tiles were rechecked with bounded live requests;
+- fast cached and high-resolution contiguous-US USGS/USDA sources were added
+  after live capability, zoom-limit, tile-format and bounded export checks;
 - the focused geo suite covers catalogue merging, KVP requests, Web Mercator
   addressing, zoom choice, cache paths and offline cached composition.
 
@@ -207,6 +209,58 @@ data (2021) processed by ESA WorldCover consortium
 Recheck the final exact attribution and service terms immediately before
 shipping the catalogue entry.
 
+### United States
+
+The built-in contiguous-US source uses the official cached USGS Imagery Only
+service:
+
+```text
+https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/WMTS
+```
+
+Verified configuration:
+
+| Property | Value |
+|---|---|
+| Layer | `USGSImageryOnly` |
+| Style | `default` |
+| Requested format | `image/jpeg` (accepted by the live KVP endpoint) |
+| Matrix set | `GoogleMapsCompatible` |
+| Matrix IDs | `{zoom}` |
+| Tile size | 256 x 256 |
+| Usable levels | 0 through 16; finer requests return HTTP 400 |
+| Source mosaic | primarily 0.6 m USDA NAIP in the contiguous USA |
+| Effective cache resolution | about 1.5--2.2 m/px across the configured bounds |
+
+A Denver level-16 request returned a valid 256 x 256 JPEG. The MapServer export
+operation also returned valid 1024 and 2048 images in about 1.8 and 3.4 seconds,
+respectively. TSRE uses the WMTS path because its source tiles persist and are
+reused across neighbouring terrain tiles.
+
+The second source uses the official dynamic NAIP Plus ImageServer:
+
+```text
+https://imagery.nationalmap.gov/arcgis/rest/services/USGSNAIPPlus/ImageServer
+```
+
+It validates the generic `arcgis-imageserver-export` imagery provider. The
+service advertises 0.3 m dataset pixels, natural-colour rendering and a maximum
+4000 x 4000 export. A correctly bounded Denver terrain-sized test returned:
+
+| Request | Approximate terrain grid | Time | JPEG size |
+|---|---:|---:|---:|
+| 2048 x 2048 | 1.0 m | 7.1 s | 870 KB |
+| 4000 x 4000 | 0.51 m | 20.2 s | 2.50 MB |
+
+Both images contained real detailed imagery. The selectable 4000, 2048 and
+1024 modes therefore complement rather than replace the faster reusable WMTS
+cache.
+
+The entry is detailed-terrain only and uses 30-day cache expiry because this is
+a rolling mosaic. Its bounds deliberately cover the contiguous United States:
+the same service contains other regional and licensed imagery whose coverage
+and terms should be represented by separate entries after validation.
+
 ## First milestone design
 
 ### 1. Catalogue
@@ -218,8 +272,8 @@ elevation catalogue: built-ins first, valid same-ID user entries replace in
 place, new IDs append, and an invalid user object cannot remove a built-in.
 
 Use deliberately narrow provider names. The implemented catalogue supports
-`wmts-kvp-webmercator`, projected `wms-kvp`, and
-`arcgis-mapserver-export`; it does not claim arbitrary capability discovery.
+`wmts-kvp-webmercator`, projected `wms-kvp`, `arcgis-mapserver-export`, and
+`arcgis-imageserver-export`; it does not claim arbitrary capability discovery.
 The Polish entry uses:
 
 ```json

@@ -11,15 +11,19 @@
 void runImageryTests(const std::function<void(bool,const char*)> &check) {
     QString error;
     const auto catalogue=Imagery::builtInDatasets(error);
-    check(error.isEmpty()&&catalogue.size()==2,"imagery built-in catalogue parses");
-    const Imagery::Dataset *poland=nullptr,*world=nullptr;
+    check(error.isEmpty()&&catalogue.size()==4,"imagery built-in catalogue parses");
+    const Imagery::Dataset *poland=nullptr,*world=nullptr,*usa=nullptr,*usaHigh=nullptr;
     for(const auto &dataset:catalogue){
         if(dataset.id=="pl.gugik.orto.standard")poland=&dataset;
         if(dataset.id=="world.esa.worldcover-s2-2021")world=&dataset;
+        if(dataset.id=="us.usgs.imagery-only")usa=&dataset;
+        if(dataset.id=="us.usgs.naip-plus")usaHigh=&dataset;
     }
-    check(poland&&world&&poland->detailedTerrainApproved&&!poland->distantTerrainApproved
-          &&world->distantTerrainApproved,"imagery terrain-domain approvals");
-    if(!poland||!world)return;
+    check(poland&&world&&usa&&usaHigh&&poland->detailedTerrainApproved&&!poland->distantTerrainApproved
+          &&world->distantTerrainApproved&&usa->detailedTerrainApproved
+          &&!usa->distantTerrainApproved&&usaHigh->detailedTerrainApproved
+          &&!usaHigh->distantTerrainApproved,"imagery terrain-domain approvals");
+    if(!poland||!world||!usa||!usaHigh)return;
     check(poland->requestSizes==QVector<int>({4096,2048,1024})
           &&poland->defaultRequestSize==4096&&world->requestSizes.isEmpty(),
           "imagery source-specific request sizes and default");
@@ -39,6 +43,28 @@ void runImageryTests(const std::function<void(bool,const char*)> &check) {
           "WorldCover WMTS matrix and time dimension");
     check(Imagery::chooseZoom(*world,52.0,.5)==13,
           "imagery zoom selection observes native resolution");
+    const QUrl usaUrl=Imagery::tileUrl(*usa,{16,13655,24872});
+    const QUrlQuery usaQuery(usaUrl);
+    check(usaQuery.queryItemValue("LAYER")=="USGSImageryOnly"
+          &&usaQuery.queryItemValue("TILEMATRIXSET")=="GoogleMapsCompatible"
+          &&usaQuery.queryItemValue("TILEMATRIX")=="16"
+          &&usaQuery.queryItemValue("FORMAT")=="image/jpeg"
+          &&Imagery::chooseZoom(*usa,39.7392,.5)==16,
+          "USGS WMTS request and published zoom ceiling");
+    const QUrl usaHighUrl=Imagery::arcGisImageUrl(*usaHigh,-11688798.399,4826783.931,
+                                                  -11686135.070,4829447.261,4000,4000);
+    const QUrlQuery usaHighQuery(usaHighUrl);
+    check(usaHighUrl.path().endsWith("/ImageServer/exportImage")
+          &&usaHighQuery.queryItemValue("bboxSR")=="3857"
+          &&usaHighQuery.queryItemValue("size")=="4000,4000"
+          &&usaHighQuery.queryItemValue("adjustAspectRatio")=="false"
+          &&usaHighQuery.queryItemValue("renderingRule").contains("NaturalColor")
+          &&usaHigh->requestSizes==QVector<int>({4000,2048,1024})
+          &&usaHigh->defaultRequestSize==4000,
+          "USGS NAIP Plus ImageServer request and selectable resolutions");
+    check(Imagery::nearDataset(*usa,{{39.7392,-104.9903}},0)
+          &&!Imagery::nearDataset(*usa,{{52.2297,21.0122}},0),
+          "US imagery source is limited to contiguous-US locations");
     const QPointF origin=Imagery::webMercatorPixel({0,0},0,256);
     check(std::abs(origin.x()-128)<1e-9&&std::abs(origin.y()-128)<1e-9,
           "Web Mercator origin pixel");

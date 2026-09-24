@@ -1025,9 +1025,22 @@ This section records non-European countries only where the result is important t
 
 ## United States — USGS / USDA NAIP
 
-**Status: 🟢 exceptionally strong automatic imagery source**
+**Status: ✅ implemented for the contiguous United States through generic WMTS and ArcGIS ImageServer providers**
 
 The United States is one of the easiest high-resolution non-European imagery targets.
+
+TSRE now includes two contiguous-US detailed-terrain choices. The fast source
+uses reusable cached WMTS tiles. Live validation found that this cache stops at
+zoom 16: the delivered ground pixel is therefore roughly 1.5--2.2 m across the
+configured bounds, despite the primarily 0.6 m underlying NAIP mosaic. Finer
+WMTS requests return HTTP 400.
+
+The high-resolution source uses the dynamic `USGSNAIPPlus` ImageServer. It
+offers 4000, 2048 and 1024-pixel requests, corresponding to approximately 0.5,
+1 and 2 m terrain grids for a detailed tile. A bounded Denver test took about
+20 seconds at 4000 and 7 seconds at 2048. Both rolling sources use a 30-day
+local expiry. Alaska, Hawaii and US territories remain separate future entries
+because their source imagery and licensing differ from contiguous-US NAIP.
 
 ### The National Map cached imagery service
 
@@ -1053,7 +1066,18 @@ The current National Map imagery service metadata still contains some older sour
 
 For TSRE this is architecturally excellent: it can use the same generic Web-Mercator cached-tile provider planned for Czechia and Lithuania.
 
-### NAIP source data
+### NAIP Plus dynamic ImageServer and source data
+
+USGS also exposes the current dynamic mosaic directly:
+
+```text
+https://imagery.nationalmap.gov/arcgis/rest/services/USGSNAIPPlus/ImageServer
+```
+
+The service advertises 0.3 m pixels, natural-colour rendering, 4-band UInt8
+data, and exports up to 4000 x 4000 pixels. This makes approximately 0.5 m the
+useful maximum for one 2 km TSRE terrain image without splitting it into
+multiple requests.
 
 NAIP itself is also an excellent downloadable product:
 
@@ -1071,7 +1095,9 @@ Recommended TSRE route:
 
 ```text
 detailed terrain:
-USGSImageryOnly Web Mercator cache
+USGSNAIPPlus ImageServer for maximum detail
+        |
+        +-- USGSImageryOnly Web Mercator cache for speed/reuse
         |
         +-- WorldCover global fallback
 
@@ -1086,6 +1112,7 @@ There is little reason to download 0.6 m NAIP over a 32 km distant-terrain footp
 Sources:
 
 - https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer
+- https://imagery.nationalmap.gov/arcgis/rest/services/USGSNAIPPlus/ImageServer
 - https://www.usgs.gov/media/images/tnmcorps-naip-imagery-layer
 - https://www.usgs.gov/centers/eros/science/usgs-eros-archive-aerial-photography-national-agriculture-imagery-program-naip
 - https://apps.nationalmap.gov/services/

@@ -375,6 +375,7 @@ QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
         const bool wmts=dataset.provider=="wmts-kvp-webmercator";
         const bool wms=dataset.provider=="wms-kvp";
         const bool arcGis=dataset.provider=="arcgis-mapserver-export";
+        const bool arcGisImage=dataset.provider=="arcgis-imageserver-export";
         const bool providerValid=(wmts
                     && !dataset.style.isEmpty()
                     && !dataset.tileMatrixSet.isEmpty()
@@ -386,10 +387,12 @@ QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
                     && (dataset.bboxAxisOrder=="xy" || dataset.bboxAxisOrder=="yx")
                     && dataset.maxRequestPixels>=256 && dataset.maxRequestPixels<=8192)
                 || (arcGis && Geo::CrsTransform::supports(dataset.crs)
+                    && dataset.maxRequestPixels>=256 && dataset.maxRequestPixels<=8192)
+                || (arcGisImage && Geo::CrsTransform::supports(dataset.crs)
                     && dataset.maxRequestPixels>=256 && dataset.maxRequestPixels<=8192);
         if (!dataset.requestSizes.isEmpty()) {
             requestSizesValid=requestSizesValid
-                && (wms || arcGis)
+                && (wms || arcGis || arcGisImage)
                 && requestSizeSet.contains(dataset.defaultRequestSize);
             for (const int size:dataset.requestSizes)
                 requestSizesValid=requestSizesValid && size<=dataset.maxRequestPixels;
@@ -397,7 +400,7 @@ QVector<Dataset> parseDatasets(const QByteArray &json, QString &error) {
         if (!idPattern.match(dataset.id).hasMatch() || ids.contains(dataset.id)
                 || dataset.name.trimmed().isEmpty()
                 || !providerValid
-                || !urlsValid || dataset.layer.isEmpty()
+                || !urlsValid || ((!arcGisImage) && dataset.layer.isEmpty())
                 || (dataset.format != "image/jpeg" && dataset.format != "image/png")
                 || !directoryPattern.match(dataset.directory).hasMatch()
                 || !idPattern.match(dataset.revision).hasMatch()
@@ -568,6 +571,31 @@ QUrl arcGisMapUrl(const Dataset &dataset, double minX, double minY,
     return url;
 }
 
+QUrl arcGisImageUrl(const Dataset &dataset, double minX, double minY,
+                    double maxX, double maxY, int width, int height) {
+    QUrl url=dataset.endpoint;
+    QString path=url.path();
+    while(path.endsWith('/'))path.chop(1);
+    if(!path.endsWith(QStringLiteral("/exportImage"),Qt::CaseInsensitive))
+        path+=QStringLiteral("/exportImage");
+    url.setPath(path);
+    QUrlQuery query(url);
+    const auto number=[](double value){return QString::number(value,'f',3);};
+    query.addQueryItem(QStringLiteral("bbox"),QStringLiteral("%1,%2,%3,%4")
+        .arg(number(minX),number(minY),number(maxX),number(maxY)));
+    query.addQueryItem(QStringLiteral("bboxSR"),QString::number(dataset.crs));
+    query.addQueryItem(QStringLiteral("imageSR"),QString::number(dataset.crs));
+    query.addQueryItem(QStringLiteral("size"),QStringLiteral("%1,%2").arg(width).arg(height));
+    query.addQueryItem(QStringLiteral("format"),dataset.format=="image/png"
+                       ?QStringLiteral("png"):QStringLiteral("jpg"));
+    query.addQueryItem(QStringLiteral("adjustAspectRatio"),QStringLiteral("false"));
+    query.addQueryItem(QStringLiteral("f"),QStringLiteral("image"));
+    for (auto it=dataset.dimensions.cbegin();it!=dataset.dimensions.cend();++it)
+        query.addQueryItem(it.key(),it.value());
+    url.setQuery(query);
+    return url;
+}
+
 int chooseZoom(const Dataset &dataset, double latitude,
                double targetMetresPerPixel) {
     const double target = std::max(targetMetresPerPixel,dataset.nativeResolution);
@@ -637,7 +665,8 @@ Result generate(const Request &request, std::atomic_bool &cancel,
     centreLatitude /= request.controlPoints.size();
     result.report.targetMetresPerPixel = request.terrainSizeMetres
         / std::max(request.width,request.height);
-    if (dataset->provider=="wms-kvp" || dataset->provider=="arcgis-mapserver-export") {
+    if (dataset->provider=="wms-kvp" || dataset->provider=="arcgis-mapserver-export"
+            || dataset->provider=="arcgis-imageserver-export") {
         Geo::CrsTransform transform(dataset->crs);
         QVector<QPointF> projected;
         projected.reserve(request.controlPoints.size());
@@ -690,7 +719,9 @@ Result generate(const Request &request, std::atomic_bool &cancel,
         result.report.tiles=1;
         const QUrl url=dataset->provider=="wms-kvp"
             ?wmsUrl(*dataset,minX,minY,maxX,maxY,sourceWidth,sourceHeight)
-            :arcGisMapUrl(*dataset,minX,minY,maxX,maxY,sourceWidth,sourceHeight);
+            :dataset->provider=="arcgis-imageserver-export"
+                ?arcGisImageUrl(*dataset,minX,minY,maxX,maxY,sourceWidth,sourceHeight)
+                :arcGisMapUrl(*dataset,minX,minY,maxX,maxY,sourceWidth,sourceHeight);
         const QString path=QDir(request.root).filePath(imageCacheRelativePath(*dataset,url));
         QImage source;
         QString imageError;
