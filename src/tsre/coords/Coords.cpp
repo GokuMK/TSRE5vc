@@ -42,6 +42,34 @@ Coords::Coords(QString path) {
 Coords::~Coords() {
 }
 
+QVector<int> Coords::search(const QString &text, int maximumResults) const {
+    QVector<int> result;
+    const QString query = text.simplified().toCaseFolded();
+    if (query.isEmpty() || maximumResults <= 0) return result;
+
+    for (int index = 0; index < markerList.size()
+            && result.size() < maximumResults; ++index) {
+        const Marker &marker = markerList[index];
+        bool matches = marker.name.simplified().toCaseFolded().startsWith(query)
+                || marker.asciiName.simplified().toCaseFolded().startsWith(query);
+        if (!matches) {
+            for (const QString &alias : marker.aliases) {
+                if (alias.simplified().toCaseFolded().startsWith(query)) {
+                    matches = true;
+                    break;
+                }
+            }
+        }
+        if (matches) result.append(index);
+    }
+    return result;
+}
+
+const Coords::Marker *Coords::markerAt(int index) const {
+    if (index < 0 || index >= markerList.size()) return nullptr;
+    return &markerList[index];
+}
+
 void Coords::render(GLUU* gluu, float * playerT, float* playerW, float playerRot) {
     if (!loaded) return;
 

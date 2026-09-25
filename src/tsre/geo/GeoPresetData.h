@@ -15,6 +15,7 @@ struct GeoPlacePreset {
     qint64 id = 0;
     QString name;
     QString asciiName;
+    QStringList aliases;
     QString countryCode;
     double latitude = 0.0;
     double longitude = 0.0;
@@ -36,9 +37,16 @@ public:
     bool load(const QString &path, QString *error = nullptr);
     bool load(const QString &path, const QString &fallbackZipPath,
               QString *error = nullptr);
+    bool loadDefault(QString *error = nullptr);
     QVector<int> search(const QString &text, int maximumResults = 20) const;
+    QVector<int> countryPlaces(const QString &countryCode) const;
+    QStringList countryCodes() const;
+    QString nearestCountry(double latitude, double longitude) const;
     const GeoPlacePreset &place(int index) const;
     int placeCount() const { return places.size(); }
+
+    static QString defaultPlacesPath();
+    static QString defaultArchivePath();
 
 private:
     static QString normalized(const QString &text);
@@ -46,6 +54,7 @@ private:
 
     QVector<GeoPlacePreset> places;
     QHash<QString, QVector<int>> names;
+    QHash<QString, QVector<int>> countries;
     QStringList sortedNames;
 };
 

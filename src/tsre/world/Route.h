@@ -83,6 +83,8 @@ public:
     bool checkTrackSectionDatabase();
     void checkRouteDatabase();
     void loadMkrList();
+    bool reloadCountryPlaces(const QString &countryCode,
+                             QString *error = nullptr);
     void createMkrPlaces();
     void loadActivities();
     void loadServices();

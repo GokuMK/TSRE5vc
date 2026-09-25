@@ -35,6 +35,8 @@ public slots:
     void mkrList(QMap<QString, Coords*> list);
     void mkrFilesSelected(QString item);
     void mkrListSelected(QString item);
+    void updateMarkerSearch(const QString &text);
+    void selectMarkerCompletion(const QModelIndex &index);
 
 signals:
     void jumpTo(PreciseTileCoordinate*);
@@ -51,6 +53,9 @@ protected:
 private:
     QComboBox markerFiles;
     QComboBox markerList;
+    QLineEdit markerSearch;
+    QCompleter *markerCompleter = nullptr;
+    QStandardItemModel *markerSearchModel = nullptr;
     QLineEdit txBox;
     QLineEdit tyBox;
     QLineEdit latBox;
@@ -62,7 +67,7 @@ private:
     QLineEdit pyBox;
     QLineEdit pzBox;
     QLabel tileInfo;
-    QString lastEdit = "";
+    bool changingLatLon = false;
     
     int lastTX = 0; 
     int lastTZ = 0;
@@ -76,7 +81,7 @@ private:
     LatitudeLongitudeCoordinate* latlon = NULL;
     PreciseTileCoordinate* aCoords = NULL;
     QMap<QString, Coords*> mkrFiles;
-    QMap<QString, LatitudeLongitudeCoordinate*> mkrPlaces;
+    Coords *activeCoords = NULL;
     QString jumpType = "";
 };
 

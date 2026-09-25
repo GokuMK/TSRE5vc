@@ -256,14 +256,11 @@ NewRouteWindow::NewRouteWindow(QWidget *parent)
     showAssetStatus(assetErrors);
     placeSearch->setEnabled(false);
     placeSearch->setPlaceholderText(tr("Loading places..."));
-    const QString placesPath = QStringLiteral("assets/geo/geo_cities_presets.txt");
-    const QString placesArchivePath = geoPath
-            + QStringLiteral("geo_cities_presets.zip");
     auto loadedPlaces = std::make_shared<GeoPlacePresetIndex>();
     auto placeError = std::make_shared<QString>();
     QThread *loader = QThread::create(
-            [placesPath, placesArchivePath, loadedPlaces, placeError] {
-        loadedPlaces->load(placesPath, placesArchivePath, placeError.get());
+            [loadedPlaces, placeError] {
+        loadedPlaces->loadDefault(placeError.get());
     });
     connect(loader, &QThread::finished, this,
             [this, loadedPlaces, placeError] {
@@ -548,6 +545,13 @@ void NewRouteWindow::createRoute() {
     result.startLatitude = startLatitude;
     result.startLongitude = startLongitude;
     result.projectionType = selectedProjection();
+    result.countryCode = selectedCountryCode;
+    if (result.countryCode.isEmpty())
+        result.countryCode = placeIndex.nearestCountry(
+                startLatitude, startLongitude);
+    if (result.countryCode.isEmpty() && selectedOriginIndex >= 0)
+        result.countryCode = projectionPresets.preset(
+                selectedOriginIndex).countryCode;
 
     if (result.projectionType == GeoProjectionType::InterruptedGoodeHomolosine) {
         GeoMstsCoordinateConverter converter;

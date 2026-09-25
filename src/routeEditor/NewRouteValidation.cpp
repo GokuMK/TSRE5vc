@@ -7,7 +7,7 @@
 
 #include <QDir>
 #include <QRegularExpression>
-#include <cmath>
+#include <tsre/geo/GeoCoordinateText.h>
 
 NewRouteValidation::NameError NewRouteValidation::validateName(
         const QString &name, const QString &simulatorRoot) {
@@ -39,17 +39,6 @@ NewRouteValidation::NameError NewRouteValidation::validateName(
 
 bool NewRouteValidation::coordinatePair(const QString &text,
                                         double &latitude, double &longitude) {
-    static const QRegularExpression expression(QStringLiteral(
-        "^\\s*([+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+))\\s*[,;]\\s*"
-        "([+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+))\\s*$"));
-    const QRegularExpressionMatch match = expression.match(text);
-    if (!match.hasMatch()) return false;
-    bool latitudeOk = false;
-    bool longitudeOk = false;
-    latitude = match.captured(1).toDouble(&latitudeOk);
-    longitude = match.captured(2).toDouble(&longitudeOk);
-    return latitudeOk && longitudeOk && std::isfinite(latitude)
-            && std::isfinite(longitude) && latitude >= -90.0
-            && latitude <= 90.0 && longitude >= -180.0
-            && longitude <= 180.0;
+    return GeoCoordinateText::parseLatitudeLongitude(
+            text, latitude, longitude);
 }

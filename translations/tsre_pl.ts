@@ -1716,6 +1716,16 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
             <source>Load</source>
             <translation>Wczytaj</translation>
         </message>
+        <message id="route.editor.load.window.route.created.warnings">
+            <location filename="../src/routeEditor/LoadWindow.cpp" line="303" />
+            <source>Route created with warnings</source>
+            <translation>Trasa utworzona z ostrzeżeniami</translation>
+        </message>
+        <message id="route.editor.load.window.country.places.warning">
+            <location filename="../src/routeEditor/LoadWindow.cpp" line="305" />
+            <source>The route was created without country places: %1</source>
+            <translation>Trasa została utworzona bez miejscowości kraju: %1</translation>
+        </message>
         <message id="route.editor.load.window.title.new.route">
             <location filename="../src/routeEditor/LoadWindow.cpp" line="269" />
             <source>New route</source>
@@ -1740,6 +1750,11 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
             <location filename="../src/routeEditor/NaviWindow.cpp" line="27" />
             <source>Navi Window</source>
             <translation>Okno nawigacji</translation>
+        </message>
+        <message id="route.editor.navi.window.search.places">
+            <location filename="../src/routeEditor/NaviWindow.cpp" line="35" />
+            <source>Search places</source>
+            <translation>Szukaj miejscowości</translation>
         </message>
         <message id="route.editor.navi.window.button.jump.button">
             <location filename="../src/routeEditor/NaviWindow.cpp" line="35" />
@@ -2356,6 +2371,11 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
             <source>&amp;Create Debug Paths</source>
             <translation>Utwórz &amp;testowe drogi przejazdu</translation>
         </message>
+        <message id="route.editor.route.editor.window.action.generate.country.places">
+            <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="250" />
+            <source>&amp;Generate country places...</source>
+            <translation>&amp;Generuj miejscowości kraju...</translation>
+        </message>
         <message id="route.editor.route.editor.window.action.reload.ref.action">
             <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="209" />
             <source>&amp;Reload Ref File</source>
@@ -2605,6 +2625,41 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
             <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="761" />
             <source>This action will delete all your existing activity paths and create new simple paths! Continue?</source>
             <translation>Ta operacja usunie wszystkie istniejące drogi przejazdu scenariuszy i utworzy nowe, proste drogi. Kontynuować?</translation>
+        </message>
+        <message id="route.editor.country.places.title">
+            <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="834" />
+            <source>Generate country places</source>
+            <translation>Generuj miejscowości kraju</translation>
+        </message>
+        <message id="route.editor.country.places.writing.disabled">
+            <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="836" />
+            <source>Route writing is disabled.</source>
+            <translation>Zapis trasy jest wyłączony.</translation>
+        </message>
+        <message id="route.editor.country.places.loading">
+            <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="848" />
+            <source>Loading country place presets...</source>
+            <translation>Wczytywanie listy miejscowości...</translation>
+        </message>
+        <message id="route.editor.country.places.no.countries">
+            <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="905" />
+            <source>No countries were found in the place presets.</source>
+            <translation>Nie znaleziono krajów w danych miejscowości.</translation>
+        </message>
+        <message id="route.editor.country.places.country">
+            <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="928" />
+            <source>Country:</source>
+            <translation>Kraj:</translation>
+        </message>
+        <message id="route.editor.country.places.generating">
+            <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="942" />
+            <source>Generating country places...</source>
+            <translation>Generowanie miejscowości kraju...</translation>
+        </message>
+        <message id="route.editor.country.places.generated">
+            <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="980" />
+            <source>Country places for %1 were generated successfully.</source>
+            <translation>Pomyślnie wygenerowano miejscowości dla kraju %1.</translation>
         </message>
         <message id="route.editor.shape.view.window.title.shape.preview">
             <location filename="../src/routeEditor/ShapeViewWindow.cpp" line="23" />

@@ -8,16 +8,26 @@
 #define ROUTECREATOR_H
 
 #include <QString>
+#include <QStringList>
 #include <memory>
 
 class Trk;
+
+struct RouteCreationOptions {
+    QString countryCode;
+    bool generateCountryPlaces = false;
+    double startLatitude = 0.0;
+    double startLongitude = 0.0;
+};
 
 class RouteCreator {
 public:
     static bool templateResourcesAvailable(QString *error = nullptr);
     static bool create(const QString &routeDirectoryName,
                        std::unique_ptr<Trk> routeTemplate,
-                       QString *error = nullptr);
+                       QString *error = nullptr,
+                       const RouteCreationOptions &options = {},
+                       QStringList *warnings = nullptr);
 
 private:
     static QString templateDirectory();

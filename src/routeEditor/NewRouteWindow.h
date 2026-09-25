@@ -26,6 +26,7 @@ class QWidget;
 
 struct NewRouteSelection {
     QString name;
+    QString countryCode;
     double startLatitude = 0.0;
     double startLongitude = 0.0;
     GeoProjectionType projectionType = GeoProjectionType::TransverseMercator;

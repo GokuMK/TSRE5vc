@@ -16,12 +16,14 @@
 #include <tsre/coords/CoordsMkr.h>
 #include <tsre/coords/CoordsKml.h>
 #include <tsre/Game.h>
+#include <tsre/geo/GeoCoordinateText.h>
+#include <algorithm>
 
 NaviWindow::NaviWindow(QWidget* parent) : QWidget(parent) {
     this->setWindowFlags(Qt::WindowType::Tool);
     //this->setWindowFlags(Qt::WindowStaysOnTopHint);
-    this->setFixedWidth(300);
-    this->setFixedHeight(180);
+    this->setFixedWidth(320);
+    this->setFixedHeight(210);
     this->setWindowTitle(
         //% "Navi Window"
         qtTrId("route.editor.navi.window.title.navi.window"));
@@ -29,6 +31,17 @@ NaviWindow::NaviWindow(QWidget* parent) : QWidget(parent) {
     markerFiles.view()->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     markerList.setStyleSheet("combobox-popup: 0;");
     markerList.view()->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    markerSearch.setPlaceholderText(
+        //% "Search places"
+        qtTrId("route.editor.navi.window.search.places"));
+    markerSearch.setEnabled(false);
+    markerCompleter = new QCompleter(this);
+    markerSearchModel = new QStandardItemModel(this);
+    markerCompleter->setModel(markerSearchModel);
+    markerCompleter->setCompletionMode(QCompleter::UnfilteredPopupCompletion);
+    markerCompleter->setCaseSensitivity(Qt::CaseInsensitive);
+    markerCompleter->setMaxVisibleItems(12);
+    markerSearch.setCompleter(markerCompleter);
     
     QPushButton *jumpButton = new QPushButton(
         //% "Jump"
@@ -61,6 +74,7 @@ NaviWindow::NaviWindow(QWidget* parent) : QWidget(parent) {
     v->setSpacing(2);
     v->setContentsMargins(0,1,1,1);
     v->addWidget(&markerFiles);
+    v->addWidget(&markerSearch);
     v->addWidget(&markerList);
     
     QGridLayout *vbox = new QGridLayout;
@@ -128,12 +142,27 @@ NaviWindow::NaviWindow(QWidget* parent) : QWidget(parent) {
                       this, SLOT(mkrFilesSelected(QString)));
     QObject::connect(&markerList, SIGNAL(textActivated(QString)),
                       this, SLOT(mkrListSelected(QString)));
+    QObject::connect(&markerSearch, &QLineEdit::textEdited,
+                     this, &NaviWindow::updateMarkerSearch);
+    QObject::connect(markerCompleter,
+            QOverload<const QModelIndex &>::of(&QCompleter::activated),
+            this, &NaviWindow::selectMarkerCompletion);
     
 
     tileInfo.setText(" ");
 }
 
 void NaviWindow::latLonChanged(QString val){
+    if (changingLatLon) return;
+    double latitude = 0.0;
+    double longitude = 0.0;
+    if (GeoCoordinateText::parseLatitudeLongitude(
+                val, latitude, longitude)) {
+        changingLatLon = true;
+        latBox.setText(QString::number(latitude, 'g', 12));
+        lonBox.setText(QString::number(longitude, 'g', 12));
+        changingLatLon = false;
+    }
     this->jumpType = "latlon";
 }
 void NaviWindow::xyChanged(QString val){
@@ -158,8 +187,12 @@ void NaviWindow::jumpTileSelected(){
         emit jumpTo(aCoords);
     }
     if(this->jumpType == "marker"){
-        if(mkrPlaces[markerList.currentText()] == NULL) return;
-        igh = Game::GeoCoordConverter->ConvertToInternal(mkrPlaces[markerList.currentText()]->Latitude, mkrPlaces[markerList.currentText()]->Longitude, igh);
+        if (activeCoords == NULL) return;
+        const Coords::Marker *marker = activeCoords->markerAt(
+                markerList.currentData().toInt());
+        if (marker == NULL) return;
+        igh = Game::GeoCoordConverter->ConvertToInternal(
+                marker->lat, marker->lon, igh);
         aCoords = Game::GeoCoordConverter->ConvertToTile(igh, aCoords);
         aCoords->setWxyz();
         aCoords->wZ = -aCoords->wZ;
@@ -205,7 +238,10 @@ void NaviWindow::posInfo(PreciseTileCoordinate* coords){
 }
 
 void NaviWindow::mkrList(QMap<QString, Coords*> list){
+    const QString previousSource = markerFiles.currentText();
     mkrFiles = list;
+    markerFiles.blockSignals(true);
+    markerFiles.clear();
     for (auto it = list.begin(); it != list.end(); ++it ){
         if(it.value() == NULL)
             continue;
@@ -213,36 +249,92 @@ void NaviWindow::mkrList(QMap<QString, Coords*> list){
             continue;
         markerFiles.addItem(it.key());
     }
-    if(markerFiles.count() > 0)
-        mkrFilesSelected(markerFiles.itemText(0));
+    markerFiles.blockSignals(false);
+    if(markerFiles.count() > 0) {
+        int selectedSource = markerFiles.findText(previousSource);
+        if (selectedSource < 0) selectedSource = 0;
+        markerFiles.setCurrentIndex(selectedSource);
+        mkrFilesSelected(markerFiles.itemText(selectedSource));
+    }
+    else {
+        activeCoords = NULL;
+        markerList.clear();
+        markerSearch.clear();
+        markerSearch.setEnabled(false);
+    }
 }
 
 void NaviWindow::mkrFilesSelected(QString item){
-    Coords* c = mkrFiles[item];
+    Coords* c = mkrFiles.value(item, NULL);
     if(c == NULL) return;
+    activeCoords = c;
     this->sendMsg("mkrFile", item);
-    this->mkrPlaces.clear();
-    
-    QStringList hash;
-
-    for(int i = 0; i < c->markerList.size(); i++){
-        if(this->mkrPlaces[c->markerList[i].name] == NULL)
-            this->mkrPlaces[c->markerList[i].name] = new LatitudeLongitudeCoordinate();
-        this->mkrPlaces[c->markerList[i].name]->Latitude = c->markerList[i].lat;
-        this->mkrPlaces[c->markerList[i].name]->Longitude = c->markerList[i].lon;
-        hash.append(c->markerList[i].name);
-    }
-    hash.sort(Qt::CaseInsensitive);
-    hash.removeDuplicates();
+    markerSearch.clear();
+    markerSearch.setEnabled(true);
+    markerSearchModel->clear();
     markerList.clear();
-    markerList.addItems(hash);
+    QVector<int> order;
+    order.reserve(c->markerList.size());
+    for (int i = 0; i < c->markerList.size(); ++i) order.append(i);
+    std::sort(order.begin(), order.end(), [c](int left, int right) {
+        return c->markerList[left].name.compare(
+                c->markerList[right].name, Qt::CaseInsensitive) < 0;
+    });
+    for (int index : order)
+        markerList.addItem(c->markerList[index].name, index);
     markerList.setMaxVisibleItems(25);
 }
 
 void NaviWindow::mkrListSelected(QString item){
-        this->jumpType = "marker";
+    Q_UNUSED(item)
+    this->jumpType = "marker";
+    if (activeCoords == NULL) return;
+    const Coords::Marker *marker = activeCoords->markerAt(
+            markerList.currentData().toInt());
+    if (marker == NULL) return;
+    latBox.setText(QString::number(marker->lat, 'g', 12));
+    lonBox.setText(QString::number(marker->lon, 'g', 12));
+}
+
+void NaviWindow::updateMarkerSearch(const QString &text) {
+    markerSearchModel->clear();
+    if (activeCoords == NULL || text.trimmed().isEmpty()) {
+        markerCompleter->popup()->hide();
+        return;
+    }
+    for (int index : activeCoords->search(text, 20)) {
+        const Coords::Marker *marker = activeCoords->markerAt(index);
+        if (marker == NULL) continue;
+        QString display = marker->name;
+        if (!marker->countryCode.isEmpty())
+            display += QStringLiteral(" (%1)").arg(marker->countryCode);
+        display += QStringLiteral("  %1, %2")
+                .arg(QString::number(marker->lat, 'f', 6),
+                     QString::number(marker->lon, 'f', 6));
+        QStandardItem *item = new QStandardItem(display);
+        item->setData(index, Qt::UserRole);
+        markerSearchModel->appendRow(item);
+    }
+    if (markerSearchModel->rowCount() > 0)
+        markerCompleter->complete();
+    else
+        markerCompleter->popup()->hide();
+}
+
+void NaviWindow::selectMarkerCompletion(const QModelIndex &index) {
+    if (!index.isValid() || activeCoords == NULL) return;
+    const int markerIndex = index.data(Qt::UserRole).toInt();
+    const int comboIndex = markerList.findData(markerIndex);
+    if (comboIndex < 0) return;
+    markerList.setCurrentIndex(comboIndex);
+    const Coords::Marker *marker = activeCoords->markerAt(markerIndex);
+    if (marker != NULL) markerSearch.setText(marker->name);
+    mkrListSelected(markerList.currentText());
 }
 NaviWindow::~NaviWindow() {
+    delete igh;
+    delete latlon;
+    delete aCoords;
 }
 
 void NaviWindow::hideEvent(QHideEvent *e){

@@ -7,6 +7,8 @@
 
 #include <routeEditor/NewRouteValidation.h>
 #include <tsre/Game.h>
+#include <tsre/coords/CoordsCountryPlaces.h>
+#include <tsre/geo/GeoCoordinateText.h>
 #include <tsre/geo/GeoCoordinates.h>
 #include <tsre/geo/GeoPresetData.h>
 #include <tsre/world/Trk.h>
@@ -91,6 +93,39 @@ int TsreTests::runNewRouteSuite(bool verbose) {
     check(aliasMatches.size() == 1
                   && placeIndex.place(aliasMatches.first()).name == QStringLiteral("Paris"),
           "normalized alias prefix lookup");
+    check(placeIndex.countryPlaces(QStringLiteral("fr")).size() == 1
+                  && placeIndex.countryCodes().contains(QStringLiteral("PL")),
+          "index places by country code");
+    check(placeIndex.nearestCountry(52.2, 21.0) == QStringLiteral("PL"),
+          "infer country from nearest place");
+
+    const QString countryKmlPath = temporary.filePath(
+            QStringLiteral("tsre-country-FR.kml"));
+    error.clear();
+    check(CoordsCountryPlaces::write(
+                  countryKmlPath, QStringLiteral("FR"), placeIndex, &error),
+          "write country places KML");
+    QFile countryKmlFile(countryKmlPath);
+    const bool countryKmlReadable = countryKmlFile.open(QIODevice::ReadOnly);
+    const QByteArray countryKml = countryKmlReadable
+            ? countryKmlFile.readAll() : QByteArray();
+    check(countryKmlReadable
+                  && countryKml.contains("urn:tsre5:geo-places:1")
+                  && countryKml.contains("<tsre:alias>Lutetia</tsre:alias>")
+                  && !countryKml.contains("<value>"),
+          "country KML uses namespaced metadata without value wrappers");
+    GeoMstsCoordinateConverter countryKmlConverter;
+    GeoWorldCoordinateConverter *previousConverter = Game::GeoCoordConverter;
+    Game::GeoCoordConverter = &countryKmlConverter;
+    CoordsCountryPlaces countryPlaces(countryKmlPath);
+    Game::GeoCoordConverter = previousConverter;
+    const Coords::Marker *countryMarker = countryPlaces.markerAt(0);
+    check(countryPlaces.loaded && countryPlaces.countryCode() == QStringLiteral("FR")
+                  && countryMarker != nullptr
+                  && countryMarker->sourceId == 1
+                  && countryMarker->aliases.contains(QStringLiteral("Lutetia"))
+                  && countryPlaces.search(QStringLiteral("lute")).value(0, -1) == 0,
+          "reload country KML metadata and alias search");
 
     const QString extractedPath = temporary.filePath("assets/geo/geo_cities_presets.txt");
     const QString zipPath = temporary.filePath("geo_cities_presets.zip");
@@ -147,6 +182,11 @@ int TsreTests::runNewRouteSuite(bool verbose) {
                   && std::abs(latitude - 48.8566) < 1e-12
                   && std::abs(longitude - 2.3522) < 1e-12,
           "parse pasted coordinate pair");
+    check(GeoCoordinateText::parseLatitudeLongitude(
+                  QStringLiteral("52.2297; 21.0122"), latitude, longitude)
+                  && std::abs(latitude - 52.2297) < 1e-12
+                  && std::abs(longitude - 21.0122) < 1e-12,
+          "shared coordinate parser accepts semicolon pair");
     check(!NewRouteValidation::coordinatePair(QStringLiteral("91, 2"),
                                                latitude, longitude),
           "reject out-of-range coordinate pair");

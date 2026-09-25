@@ -286,11 +286,27 @@ void LoadWindow::setNewRoute(){
         Game::writeTDBSessionAllowed = true;
 
         QString creationError;
+        QStringList creationWarnings;
+        RouteCreationOptions creationOptions;
+        creationOptions.countryCode = selection.countryCode;
+        creationOptions.generateCountryPlaces = true;
+        creationOptions.startLatitude = selection.startLatitude;
+        creationOptions.startLongitude = selection.startLongitude;
         if (!RouteCreator::create(routeDirectory, std::move(routeTemplate),
-                                  &creationError)) {
+                                  &creationError, creationOptions,
+                                  &creationWarnings)) {
             QMessageBox::critical(
                 this, tr("Cannot create route"), creationError);
             return;
+        }
+        if (!creationWarnings.isEmpty()) {
+            QMessageBox::warning(
+                this,
+                //% "Route created with warnings"
+                qtTrId("route.editor.load.window.route.created.warnings"),
+                //% "The route was created without country places: %1"
+                qtTrId("route.editor.load.window.country.places.warning")
+                    .arg(creationWarnings.join(QStringLiteral("\n"))));
         }
         if (!Game::checkRoute(Game::route)) {
             QMessageBox::critical(
