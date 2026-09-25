@@ -486,6 +486,18 @@ void RouteEditorGLWidget::paintGL(){
         lastRenderedPipeline = requestedPipeline;
     }
 
+    const bool selectionPass = selection;
+    paintActiveRendererPipelinePass();
+
+    if(selectionPass && !selection){
+        // QOpenGLWidget does not preserve its color buffer by default. Finish
+        // every selection callback with a visible frame before returning to Qt.
+        restoreDefaultGlState();
+        paintActiveRendererPipelinePass();
+    }
+}
+
+void RouteEditorGLWidget::paintActiveRendererPipelinePass(){
     Game::activeRendererPipeline = Game::requestedRendererPipeline;
     if(Game::activeRendererPipeline == Game::RENDER_PIPELINE_LEGACY){
         paintGL2();
@@ -1127,7 +1139,6 @@ void RouteEditorGLWidget::handleSelection() {
 
         //qDebug() << "selection" << selection;
         selection = false;// !selection;
-        update();
     }
 }
 

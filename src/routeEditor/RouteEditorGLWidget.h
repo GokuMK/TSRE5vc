@@ -180,6 +180,7 @@ private:
     static void quantizeLiveFlexPoint(int &tileX, int &tileZ, float *position, float step);
     bool paintGLGather(bool drawToScreen);
     bool paintGLValidation();
+    void paintActiveRendererPipelinePass();
     bool canRenderFrame() const;
     void restoreDefaultGlState();
     void fallbackToLegacyRendererPipeline(const QString& reason);
