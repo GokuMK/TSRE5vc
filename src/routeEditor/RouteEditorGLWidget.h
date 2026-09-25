@@ -62,6 +62,7 @@ public:
     void playInit();
     
     void getUnsavedInfo(QVector<QString> &items);
+    Route *currentRoute() const { return route; }
 
 public slots:
     void cleanup();
@@ -108,6 +109,7 @@ public slots:
     void placeToolStickTerrain();
     void placeToolStickAll();
     void reloadRefFile();
+    void refreshMarkerList();
     void setCameraObject(GameObj* obj);
     void setMoveStep(float val);
     void paintToolObj();

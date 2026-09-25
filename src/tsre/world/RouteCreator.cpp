@@ -12,6 +12,8 @@
 #include <QTemporaryDir>
 #include <QStringList>
 #include <tsre/Game.h>
+#include <tsre/coords/CoordsCountryPlaces.h>
+#include <tsre/geo/GeoPresetData.h>
 #include <tsre/tdb/TDB.h>
 #include <tsre/texture/AceLib.h>
 #include <tsre/texture/Texture.h>
@@ -129,7 +131,10 @@ bool RouteCreator::templateResourcesAvailable(QString *error) {
 
 bool RouteCreator::create(const QString &routeDirectoryName,
                           std::unique_ptr<Trk> routeTemplate,
-                          QString *error) {
+                          QString *error,
+                          const RouteCreationOptions &options,
+                          QStringList *warnings) {
+    if (warnings != nullptr) warnings->clear();
     if (!Game::writeEnabled) {
         setError(error, QStringLiteral("Route writing is disabled."));
         return false;
@@ -303,6 +308,30 @@ bool RouteCreator::create(const QString &routeDirectoryName,
                           &graphicTexture)) {
             setError(error, QStringLiteral("Unable to create graphic.ace."));
             return false;
+        }
+
+        if (options.generateCountryPlaces) {
+            GeoPlacePresetIndex placePresets;
+            QString placesError;
+            QString countryCode = options.countryCode.trimmed().toUpper();
+            const bool presetsLoaded = placePresets.loadDefault(&placesError);
+            if (presetsLoaded && countryCode.isEmpty())
+                countryCode = placePresets.nearestCountry(
+                        options.startLatitude, options.startLongitude);
+            const QString countryFile = CoordsCountryPlaces::fileNameForCountry(
+                    countryCode);
+            if (!presetsLoaded
+                    || countryFile.isEmpty()
+                    || !CoordsCountryPlaces::write(
+                        QDir(staging.path()).filePath(countryFile),
+                        countryCode, placePresets, &placesError)) {
+                if (placesError.isEmpty())
+                    placesError = QStringLiteral(
+                            "No country could be inferred from the route start.");
+                if (warnings != nullptr) warnings->append(placesError);
+                else qWarning() << "The route was created without country places:"
+                                << placesError;
+            }
         }
     }
 

@@ -64,6 +64,48 @@
 #include <settings/SettingsManager.h>
 #include <settings/SettingsAccess.h>
 #include <settings/ui/SettingsDialog.h>
+#include <QDir>
+#include <QThread>
+#include <cmath>
+#include <memory>
+#include <tsre/coords/CoordsCountryPlaces.h>
+#include <tsre/geo/GeoCoordinates.h>
+#include <tsre/geo/GeoPresetData.h>
+#include <tsre/world/Route.h>
+#include <tsre/world/Trk.h>
+
+namespace {
+bool routeStartLatitudeLongitude(Route *route,
+                                 double &latitude, double &longitude) {
+    if (route == NULL || Game::GeoCoordConverter == NULL) return false;
+    PreciseTileCoordinate start;
+    start.TileX = route->getStartTileX();
+    start.TileZ = route->getStartTileZ();
+    start.setWxyz(route->getStartpX(), 0, -route->getStartpZ());
+    IghCoordinate internal;
+    LatitudeLongitudeCoordinate geographic;
+    if (Game::GeoCoordConverter->ConvertToInternal(&start, &internal) == NULL
+            || Game::GeoCoordConverter->ConvertToLatLon(
+                &internal, &geographic) == NULL
+            || !std::isfinite(geographic.Latitude)
+            || !std::isfinite(geographic.Longitude))
+        return false;
+    latitude = geographic.Latitude;
+    longitude = geographic.Longitude;
+    return true;
+}
+
+QString projectionCountry(Route *route,
+                          const GeoProjectionPresetList &projections) {
+    if (route == NULL || route->getTrk() == NULL
+            || !route->getTrk()->geoProjection.has_value())
+        return QString();
+    const GeoProjectionParameters &origin = *route->getTrk()->geoProjection;
+    const int index = projections.nearest(
+            origin.originLatitude, origin.originLongitude);
+    return index >= 0 ? projections.preset(index).countryCode : QString();
+}
+}
 
 RouteEditorWindow::RouteEditorWindow() {
 
@@ -204,6 +246,12 @@ RouteEditorWindow::RouteEditorWindow() {
         //% "&Create Debug Paths"
         qtTrId("route.editor.route.editor.window.action.create.paths.action"), this);
     QObject::connect(createPathsAction, SIGNAL(triggered()), this, SLOT(createPaths()));
+    generateCountryPlacesAction = new QAction(
+        //% "&Generate country places..."
+        qtTrId("route.editor.route.editor.window.action.generate.country.places"),
+        this);
+    QObject::connect(generateCountryPlacesAction, &QAction::triggered,
+                     this, &RouteEditorWindow::generateCountryPlaces);
     reloadRefAction = new QAction(
         //% "&Reload Ref File"
         qtTrId("route.editor.route.editor.window.action.reload.ref.action"), this);
@@ -224,6 +272,7 @@ RouteEditorWindow::RouteEditorWindow() {
         routeMenu->addAction(saveAction);
         routeMenu->addAction(reloadRefAction);
         routeMenu->addAction(createPathsAction);
+        routeMenu->addAction(generateCountryPlacesAction);
         routeMenu->addAction(trkEditr);
         routeMenu->addAction(exitAction);
     } else {
@@ -774,6 +823,167 @@ void RouteEditorWindow::createPaths(){
       default:
           break;
     }
+}
+
+void RouteEditorWindow::generateCountryPlaces() {
+    Route *route = glWidget->currentRoute();
+    if (route == NULL || !route->loaded) return;
+    if (!Game::writeEnabled) {
+        QMessageBox::warning(
+            this,
+            //% "Generate country places"
+            qtTrId("route.editor.country.places.title"),
+            //% "Route writing is disabled."
+            qtTrId("route.editor.country.places.writing.disabled"));
+        return;
+    }
+
+    double startLatitude = 0.0;
+    double startLongitude = 0.0;
+    const bool hasStart = routeStartLatitudeLongitude(
+            route, startLatitude, startLongitude);
+    generateCountryPlacesAction->setEnabled(false);
+
+    QProgressDialog *loading = new QProgressDialog(
+        //% "Loading country place presets..."
+        qtTrId("route.editor.country.places.loading"), QString(), 0, 0, this);
+    loading->setWindowTitle(
+        qtTrId("route.editor.country.places.title"));
+    loading->setWindowModality(Qt::WindowModal);
+    loading->setCancelButton(NULL);
+    loading->setMinimumDuration(0);
+    loading->show();
+
+    auto places = std::make_shared<GeoPlacePresetIndex>();
+    auto projections = std::make_shared<GeoProjectionPresetList>();
+    auto loadError = std::make_shared<QString>();
+    QThread *loader = QThread::create(
+            [places, projections, loadError] {
+        if (!places->loadDefault(loadError.get())) return;
+        QString ignoredError;
+        projections->load(
+                QStringLiteral("appdata/") + Game::AppDataVersion
+                + QStringLiteral("/geo/geo_projection_presets_countries.json"),
+                &ignoredError);
+    });
+    connect(loader, &QThread::finished, loader, &QObject::deleteLater);
+    connect(loader, &QThread::finished, this,
+            [this, route, hasStart, startLatitude, startLongitude,
+             places, projections, loadError, loading] {
+        loading->deleteLater();
+        if (!loadError->isEmpty()) {
+            generateCountryPlacesAction->setEnabled(true);
+            QMessageBox::critical(
+                this, qtTrId("route.editor.country.places.title"),
+                *loadError);
+            return;
+        }
+
+        QMap<QString, QString> countryNames;
+        for (int index = 0; index < projections->count(); ++index) {
+            const GeoProjectionPreset &preset = projections->preset(index);
+            if (!preset.countryCode.isEmpty()
+                    && !preset.countryName.isEmpty()
+                    && !countryNames.contains(preset.countryCode))
+                countryNames.insert(preset.countryCode, preset.countryName);
+        }
+
+        QStringList labels;
+        QMap<QString, QString> labelCountries;
+        for (const QString &code : places->countryCodes()) {
+            const QString countryName = countryNames.value(code);
+            const QString label = countryName.isEmpty()
+                    ? code : QStringLiteral("%1 (%2)").arg(countryName, code);
+            labels.append(label);
+            labelCountries.insert(label, code);
+        }
+        labels.sort(Qt::CaseInsensitive);
+        if (labels.isEmpty()) {
+            generateCountryPlacesAction->setEnabled(true);
+            QMessageBox::critical(
+                this, qtTrId("route.editor.country.places.title"),
+                //% "No countries were found in the place presets."
+                qtTrId("route.editor.country.places.no.countries"));
+            return;
+        }
+
+        QString suggestedCountry;
+        if (hasStart)
+            suggestedCountry = places->nearestCountry(
+                    startLatitude, startLongitude);
+        if (suggestedCountry.isEmpty())
+            suggestedCountry = projectionCountry(route, *projections);
+        int suggestedIndex = 0;
+        for (int index = 0; index < labels.size(); ++index) {
+            if (labelCountries.value(labels[index]) == suggestedCountry) {
+                suggestedIndex = index;
+                break;
+            }
+        }
+
+        bool accepted = false;
+        const QString selectedLabel = QInputDialog::getItem(
+                this,
+                qtTrId("route.editor.country.places.title"),
+                //% "Country:"
+                qtTrId("route.editor.country.places.country"),
+                labels, suggestedIndex, false, &accepted);
+        if (!accepted) {
+            generateCountryPlacesAction->setEnabled(true);
+            return;
+        }
+        const QString countryCode = labelCountries.value(selectedLabel);
+        const QString fileName = CoordsCountryPlaces::fileNameForCountry(
+                countryCode);
+        const QString destination = QDir(Game::root).filePath(
+                QStringLiteral("ROUTES/%1/%2").arg(Game::route, fileName));
+
+        QProgressDialog *generating = new QProgressDialog(
+            //% "Generating country places..."
+            qtTrId("route.editor.country.places.generating"),
+            QString(), 0, 0, this);
+        generating->setWindowTitle(
+                qtTrId("route.editor.country.places.title"));
+        generating->setWindowModality(Qt::WindowModal);
+        generating->setCancelButton(NULL);
+        generating->setMinimumDuration(0);
+        generating->show();
+
+        auto writeError = std::make_shared<QString>();
+        auto writeOk = std::make_shared<bool>(false);
+        QThread *writer = QThread::create(
+                [places, countryCode, destination, writeError, writeOk] {
+            *writeOk = CoordsCountryPlaces::write(
+                    destination, countryCode, *places, writeError.get());
+        });
+        connect(writer, &QThread::finished, writer, &QObject::deleteLater);
+        connect(writer, &QThread::finished, this,
+                [this, route, countryCode, writeError, writeOk, generating] {
+            generating->deleteLater();
+            generateCountryPlacesAction->setEnabled(true);
+            if (!*writeOk) {
+                QMessageBox::critical(
+                    this, qtTrId("route.editor.country.places.title"),
+                    *writeError);
+                return;
+            }
+            QString reloadError;
+            if (!route->reloadCountryPlaces(countryCode, &reloadError)) {
+                QMessageBox::critical(
+                    this, qtTrId("route.editor.country.places.title"),
+                    reloadError);
+                return;
+            }
+            glWidget->refreshMarkerList();
+            QMessageBox::information(
+                this, qtTrId("route.editor.country.places.title"),
+                //% "Country places for %1 were generated successfully."
+                qtTrId("route.editor.country.places.generated")
+                    .arg(countryCode));
+        });
+        writer->start();
+    });
+    loader->start();
 }
 
 void RouteEditorWindow::terrainCamera(bool val){

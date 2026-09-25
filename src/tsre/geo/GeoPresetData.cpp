@@ -17,6 +17,7 @@
 #include <cmath>
 #include <limits>
 #include <mzip/miniz/miniz.h>
+#include <tsre/Game.h>
 
 namespace {
 constexpr qint64 maximumPlacesArchiveSize = 32LL * 1024LL * 1024LL;
@@ -108,6 +109,7 @@ void GeoPlacePresetIndex::addName(const QString &name, int placeIndex) {
 bool GeoPlacePresetIndex::load(const QString &path, QString *error) {
     places.clear();
     names.clear();
+    countries.clear();
     sortedNames.clear();
 
     QFile file(path);
@@ -143,8 +145,17 @@ bool GeoPlacePresetIndex::load(const QString &path, QString *error) {
         addName(value.name, placeIndex);
         addName(value.asciiName, placeIndex);
         const QList<QByteArray> aliases = columns[3].split(',');
-        for (const QByteArray &alias : aliases)
-            addName(QString::fromUtf8(alias), placeIndex);
+        QSet<QString> seenAliases;
+        for (const QByteArray &alias : aliases) {
+            const QString decoded = QString::fromUtf8(alias).trimmed();
+            const QString key = normalized(decoded);
+            if (key.isEmpty() || seenAliases.contains(key)) continue;
+            seenAliases.insert(key);
+            places[placeIndex].aliases.append(decoded);
+            addName(decoded, placeIndex);
+        }
+        if (!value.countryCode.isEmpty())
+            countries[value.countryCode].append(placeIndex);
     }
 
     sortedNames = names.keys();
@@ -165,6 +176,19 @@ bool GeoPlacePresetIndex::load(const QString &path,
     return load(path, error);
 }
 
+QString GeoPlacePresetIndex::defaultPlacesPath() {
+    return QStringLiteral("assets/geo/geo_cities_presets.txt");
+}
+
+QString GeoPlacePresetIndex::defaultArchivePath() {
+    return QStringLiteral("appdata/") + Game::AppDataVersion
+            + QStringLiteral("/geo/geo_cities_presets.zip");
+}
+
+bool GeoPlacePresetIndex::loadDefault(QString *error) {
+    return load(defaultPlacesPath(), defaultArchivePath(), error);
+}
+
 QVector<int> GeoPlacePresetIndex::search(const QString &text,
                                          int maximumResults) const {
     QVector<int> result;
@@ -182,6 +206,43 @@ QVector<int> GeoPlacePresetIndex::search(const QString &text,
                 result.append(placeIndex);
                 if (result.size() == maximumResults) break;
             }
+        }
+    }
+    return result;
+}
+
+QVector<int> GeoPlacePresetIndex::countryPlaces(
+        const QString &countryCode) const {
+    return countries.value(countryCode.trimmed().toUpper());
+}
+
+QStringList GeoPlacePresetIndex::countryCodes() const {
+    QStringList result = countries.keys();
+    result.sort(Qt::CaseInsensitive);
+    return result;
+}
+
+QString GeoPlacePresetIndex::nearestCountry(
+        double latitude, double longitude) const {
+    if (!std::isfinite(latitude) || !std::isfinite(longitude)
+            || latitude < -90.0 || latitude > 90.0
+            || longitude < -180.0 || longitude > 180.0)
+        return QString();
+
+    constexpr double pi = 3.14159265358979323846;
+    QString result;
+    double bestDistance = std::numeric_limits<double>::infinity();
+    for (const GeoPlacePreset &value : places) {
+        if (value.countryCode.isEmpty()) continue;
+        const double latitudeDelta = latitude - value.latitude;
+        const double longitudeDelta = std::remainder(
+                longitude - value.longitude, 360.0)
+                * std::cos((latitude + value.latitude) * pi / 360.0);
+        const double distance = latitudeDelta * latitudeDelta
+                + longitudeDelta * longitudeDelta;
+        if (distance < bestDistance) {
+            bestDistance = distance;
+            result = value.countryCode;
         }
     }
     return result;

@@ -12,6 +12,7 @@
 #define	COORDS_H
 
 #include <QString>
+#include <QStringList>
 #include <unordered_map>
 #include <QMap>
 #include <QHash>
@@ -29,11 +30,15 @@ public:
     };
     
     struct Marker {
+        qint64 sourceId = 0;
         QString name;
+        QString asciiName;
+        QStringList aliases;
+        QString countryCode;
         QString style;
-        float lat;
-        float lon;
-        int type;
+        double lat = 0.0;
+        double lon = 0.0;
+        int type = 0;
         OglObj* oglObj = NULL;
         OglObj* line3d = NULL;
         QVector<int> tileX;
@@ -61,6 +66,9 @@ public:
     virtual void render(GLUU* gluu, float * playerT, float* playerW, float playerRot);
     virtual void pushRenderItems(float *playerT, float* playerW, float playerRot);
     virtual void getTileList(QMap<int, QPair<int, int>*> &tileList, int radius = 0, int step = 1);
+    virtual QVector<int> search(const QString &text,
+                                int maximumResults = 20) const;
+    const Marker *markerAt(int index) const;
 protected:
     OglObj* simpleMarkerObjP = NULL;
     OglObj* simpleMarkerObjL = NULL;

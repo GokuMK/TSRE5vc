@@ -13,6 +13,7 @@
 #include <QDir>
 #include <QSet>
 #include <algorithm>
+#include <memory>
 #include <tsre/world/Route.h>
 #include <tsre/world/TerrainBrushProfiler.h>
 #include <tsre/texture/Brush.h>
@@ -40,6 +41,7 @@
 #include <tsre/coords/CoordsMkr.h>
 #include <tsre/coords/CoordsKml.h>
 #include <tsre/coords/CoordsGpx.h>
+#include <tsre/coords/CoordsCountryPlaces.h>
 #include <tsre/coords/CoordsRoutePlaces.h>
 #include <tsre/world/SoundList.h>
 #include <tsre/trains/ActLib.h>
@@ -643,17 +645,24 @@ void Route::loadMkrList(){
     QDir dir(Game::root + "/ROUTES/" + Game::route);
     dir.setFilter(QDir::Files);
     foreach(QString dirFile, dir.entryList()){
-        if(dirFile.endsWith(".mkr", Qt::CaseInsensitive))
+        QString countryCode;
+        if (CoordsCountryPlaces::isCountryPlacesFile(
+                    dirFile, &countryCode)) {
+            const QString key = QStringLiteral("| Country places: %1")
+                    .arg(countryCode);
+            mkrList[key] = new CoordsCountryPlaces(dir.filePath(dirFile));
+        } else if(dirFile.endsWith(".mkr", Qt::CaseInsensitive))
             mkrList[(dirFile).toLower()] = new CoordsMkr(Game::root + "/ROUTES/" + Game::route + "/" + dirFile);
-        if(dirFile.endsWith(".kml", Qt::CaseInsensitive))
+        else if(dirFile.endsWith(".kml", Qt::CaseInsensitive))
             mkrList[(dirFile).toLower()] = new CoordsKml(Game::root + "/ROUTES/" + Game::route + "/" + dirFile);
-        if(dirFile.endsWith(".gpx", Qt::CaseInsensitive))
+        else if(dirFile.endsWith(".gpx", Qt::CaseInsensitive))
             mkrList[(dirFile).toLower()] = new CoordsGpx(Game::root + "/ROUTES/" + Game::route + "/" + dirFile);
     }
     if(mkrList.size() > 0){
-        if(mkrList[(Game::routeName+".mkr").toLower()] != NULL){
-            if(mkrList[(Game::routeName+".mkr").toLower()]->loaded)
-                mkr = mkrList[(Game::routeName+".mkr").toLower()];
+        const QString defaultKey = (Game::routeName + ".mkr").toLower();
+        if(mkrList.contains(defaultKey) && mkrList.value(defaultKey) != NULL){
+            if(mkrList.value(defaultKey)->loaded)
+                mkr = mkrList.value(defaultKey);
             else
                 mkr = mkrList.begin().value();
                 //mkr = mkrList[(Game::routeName+".mkr").toLower().toStdString()];
@@ -663,9 +672,36 @@ void Route::loadMkrList(){
     }
 }
 
+bool Route::reloadCountryPlaces(const QString &countryCode, QString *error) {
+    const QString fileName = CoordsCountryPlaces::fileNameForCountry(countryCode);
+    if (fileName.isEmpty()) {
+        if (error) *error = QStringLiteral("Invalid country code: %1")
+                .arg(countryCode);
+        return false;
+    }
+    std::unique_ptr<CoordsCountryPlaces> replacement(
+            new CoordsCountryPlaces(QDir(Game::root).filePath(
+                QStringLiteral("ROUTES/%1/%2").arg(Game::route, fileName))));
+    if (!replacement->loaded) {
+        if (error) *error = replacement->errorString();
+        return false;
+    }
+
+    const QString key = QStringLiteral("| Country places: %1")
+            .arg(countryCode.trimmed().toUpper());
+    Coords *previous = mkrList.value(key, NULL);
+    const bool wasSelected = previous != NULL && mkr == previous;
+    mkrList.insert(key, replacement.release());
+    if (wasSelected || mkr == NULL) mkr = mkrList.value(key);
+    delete previous;
+    if (error) error->clear();
+    return true;
+}
+
 void Route::setMkrFile(QString name){
-    if(mkrList[name] != NULL)
-        this->mkr = mkrList[name];
+    Coords *selected = mkrList.value(name, NULL);
+    if(selected != NULL)
+        this->mkr = selected;
 }
 
 void Route::loadActivities(){

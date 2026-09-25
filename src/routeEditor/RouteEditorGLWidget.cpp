@@ -379,6 +379,10 @@ void RouteEditorGLWidget::reloadRefFile(){
     emit refreshObjLists();
 }
 
+void RouteEditorGLWidget::refreshMarkerList() {
+    if (route != NULL) emit mkrList(route->getMkrList());
+}
+
 void RouteEditorGLWidget::setCameraObject(GameObj* obj){
     camera->setCameraObject(obj);
 }

@@ -49,6 +49,7 @@ public slots:
     void showRoute();
     void show();
     void createPaths();
+    void generateCountryPlaces();
     void reloadRef();
     void about();
     void terrainCamera(bool val);
@@ -127,6 +128,7 @@ private:
     
     QAction *saveAction;
     QAction *createPathsAction;
+    QAction *generateCountryPlacesAction;
     QAction *reloadRefAction;
     QAction *exitAction;
     QAction *copyAction;
