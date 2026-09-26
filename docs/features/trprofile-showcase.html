@@ -209,6 +209,9 @@ group B →  <span class="v">LEFT</span>, <span class="v">RIGHT</span></code></p
     <tr><td><code>Repeat</code></td><td>Rigid copies by distance</td><td>Authored UV preserved</td><td>Yes</td></tr>
     <tr><td><code>Place</code></td><td>Rigid copies at anchors</td><td>Authored UV preserved</td><td>Yes</td></tr>
   </tbody></table>
+  <h3>TSRE rendering chunks</h3>
+  <p>This is a renderer policy, not additional TrProfile syntax. Generated paths up to 120 m retain their previous layout. Longer paths use balanced rendering chunks of approximately 100 m so each part can select LOD from its own transformed bounds rather than the world-object origin.</p>
+  <ul><li>Polyline geometry is divided exactly at chunk boundaries.</li><li>Sweep tiles and rigid Repeat/Place occurrences remain whole and are assigned to one chunk.</li><li>Stretch remains one mesh per original semantic span.</li><li>Shared Repeat/Place geometry remains shared and evaluates distance per transform.</li><li>Chunking does not add path nodes or modify TSection, TDB, RDB, Ruler, or route data.</li></ul>
 </section>
 
 <section id="placement" class="doc-section">
@@ -372,11 +375,12 @@ group B →  <span class="v">LEFT</span>, <span class="v">RIGHT</span></code></p
   <h2><a class="anchor" href="#implementation">15. TSRE reference implementation and evidence</a></h2>
   <p class="intro">Template3D is not yet an ORTS implementation. TSRE implements the proposed syntax and behavior so the format can be reviewed against working geometry, route examples and automated regressions before the ORTS port is prepared.</p>
   <table><thead><tr><th>Area</th><th>Result</th></tr></thead><tbody>
-    <tr><td>TrProfile parser/renderer suite</td><td>49 / 49 cases passing</td></tr>
+    <tr><td>TrProfile parser/renderer suite</td><td>57 / 57 cases passing, including long-path chunk ownership and unsplit Stretch regressions.</td></tr>
     <tr><td>Existing procedural-policy regression suite</td><td>12 / 12 cases passing; the extension did not change TSRE's editor policy behavior.</td></tr>
     <tr><td>Migrated route profiles</td><td>22 / 22 generate successfully in the benchmark</td></tr>
     <tr><td>Multiline Nodes regression</td><td>Three points produce exactly three baked/shared placements; the 90° corner uses a 45° frame.</td></tr>
     <tr><td>Electric50mh regression</td><td>Twenty spans produce twenty-one unique pole transforms, including the final node.</td></tr>
+    <tr><td>Long-path benchmark</td><td>The 274.5 m workload produces three parts per LOD/material. Generation cost increases most on small profiles with many LOD objects, but the recorded three-companion stress run remained below 50 ms.</td></tr>
   </tbody></table>
   <h3>Reference consumers</h3>
   <table><thead><tr><th>TSRE consumer</th><th>Profile type</th><th>Reference coverage</th></tr></thead><tbody>

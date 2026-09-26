@@ -734,6 +734,41 @@ void appendSharedTemplateGeometry(const OrtsTrackProfile &profile,
     }
 }
 
+QVector<float> generatedChunkEnds(float pathLength) {
+    QVector<float> ends;
+    if(pathLength <= OrtsTrackProfileRenderer::GeneratedChunkingThreshold)
+        return ends;
+    const int count = std::max(2, (int)std::ceil(
+            pathLength
+            / OrtsTrackProfileRenderer::GeneratedChunkTargetLength));
+    const float balancedLength = pathLength / count;
+    ends.reserve(count);
+    for(int chunk = 1; chunk <= count; chunk++)
+        ends.append(chunk == count
+                ? pathLength : balancedLength * chunk);
+    return ends;
+}
+
+int chunkIndexForDistance(const QVector<float> &chunkEnds,
+        float distance) {
+    if(chunkEnds.isEmpty())
+        return 0;
+    const auto next = std::upper_bound(
+            chunkEnds.cbegin(), chunkEnds.cend(), distance);
+    return std::min((int)(next - chunkEnds.cbegin()),
+                    (int)chunkEnds.size() - 1);
+}
+
+QVector<float> &verticesForDistance(QVector<float> &fallback,
+        QVector<OrtsGeneratedProfileMesh> *chunkMeshes,
+        const QVector<float> *chunkEnds, float distance) {
+    if(chunkMeshes == nullptr || chunkEnds == nullptr
+            || chunkMeshes->isEmpty() || chunkEnds->isEmpty())
+        return fallback;
+    return (*chunkMeshes)[chunkIndexForDistance(
+            *chunkEnds, distance)].vertices;
+}
+
 int appendTemplateGeometry(const OrtsTrackProfile &profile,
         const OrtsProfileLodItem &item,
         const OrtsProfileTemplate3D &source, ComplexLine &line,
@@ -744,7 +779,9 @@ int appendTemplateGeometry(const OrtsTrackProfile &profile,
         QStringList *diagnostics,
         QVector<OrtsGeneratedProfileSharedMesh> *sharedMeshes,
         float minimumDistance, float maximumDistance,
-        int copyIndexBase = 0) {
+        int copyIndexBase = 0,
+        QVector<OrtsGeneratedProfileMesh> *chunkMeshes = nullptr,
+        const QVector<float> *chunkEnds = nullptr) {
     if(source.geometryMode
             == OrtsProfileTemplate3D::GeometryMode::Shared
             && sharedMeshes != nullptr){
@@ -783,7 +820,10 @@ int appendTemplateGeometry(const OrtsTrackProfile &profile,
                     break;
                 }
                 const float end = std::min(spanEnd, start + depth);
-                appendDeformedTemplate(target, *mesh, line,
+                QVector<float> &output = verticesForDistance(
+                        target, chunkMeshes, chunkEnds,
+                        0.5f * (start + end));
+                appendDeformedTemplate(output, *mesh, line,
                         start, end,
                         startRoll, endRoll, endExtension, endDrop,
                         pathTransform, item.pathFrameMode,
@@ -848,7 +888,9 @@ int appendTemplateGeometry(const OrtsTrackProfile &profile,
                     line, distance, startRoll, endRoll,
                     endExtension, endDrop, pathTransform);
             frame = frameForMode(frame, item.pathFrameMode);
-            appendRigidTemplate(target, *mesh, frame, source.offset,
+            QVector<float> &output = verticesForDistance(
+                    target, chunkMeshes, chunkEnds, distance);
+            appendRigidTemplate(output, *mesh, frame, source.offset,
                                 alpha, false);
         }
         return copyIndex;
@@ -878,7 +920,9 @@ int appendTemplateGeometry(const OrtsTrackProfile &profile,
                             startRoll, endRoll, endExtension, endDrop,
                             pathTransform);
                     frame = frameForMode(frame, item.pathFrameMode);
-                    appendRigidTemplate(target, *startMesh, frame,
+                    QVector<float> &output = verticesForDistance(
+                            target, chunkMeshes, chunkEnds, spanStart);
+                    appendRigidTemplate(output, *startMesh, frame,
                             source.offset, alpha, reverseFacing);
                 }
                 const bool finalNode = !line.isPointPath()
@@ -892,7 +936,9 @@ int appendTemplateGeometry(const OrtsTrackProfile &profile,
                                 startRoll, endRoll, endExtension, endDrop,
                                 pathTransform);
                         frame = frameForMode(frame, item.pathFrameMode);
-                        appendRigidTemplate(target, *endMesh, frame,
+                        QVector<float> &output = verticesForDistance(
+                                target, chunkMeshes, chunkEnds, spanEnd);
+                        appendRigidTemplate(output, *endMesh, frame,
                                 source.offset, alpha, reverseFacing);
                     }
                 }
@@ -920,7 +966,9 @@ int appendTemplateGeometry(const OrtsTrackProfile &profile,
                     startRoll, endRoll, endExtension, endDrop,
                     pathTransform);
             frame = frameForMode(frame, item.pathFrameMode);
-            appendRigidTemplate(target, *mesh, frame, source.offset,
+            QVector<float> &output = verticesForDistance(
+                    target, chunkMeshes, chunkEnds, distance);
+            appendRigidTemplate(output, *mesh, frame, source.offset,
                                 alpha, reverseFacing);
         }
     }
@@ -1046,6 +1094,37 @@ int profileTextureId(const QString &routePath, const QString &textureName) {
 
 }
 
+float OrtsTrackProfileRenderer::generatedPartLod(OglObj *object,
+        const float *objectRotation, float objectX, float objectZ) {
+    if(object == nullptr)
+        return 0;
+    float bounds[6];
+    if(!object->getSimpleBorder(bounds))
+        return std::hypot(objectX, objectZ);
+    const float localCenter[3] = {
+        (bounds[0] + bounds[1]) * 0.5f,
+        (bounds[2] + bounds[3]) * 0.5f,
+        (bounds[4] + bounds[5]) * 0.5f
+    };
+    float centerX = localCenter[0];
+    float centerZ = localCenter[2];
+    if(objectRotation != nullptr){
+        centerX = objectRotation[0] * localCenter[0]
+                + objectRotation[4] * localCenter[1]
+                + objectRotation[8] * localCenter[2];
+        centerZ = objectRotation[2] * localCenter[0]
+                + objectRotation[6] * localCenter[1]
+                + objectRotation[10] * localCenter[2];
+    }
+    const float halfX = (bounds[0] - bounds[1]) * 0.5f;
+    const float halfY = (bounds[2] - bounds[3]) * 0.5f;
+    const float halfZ = (bounds[4] - bounds[5]) * 0.5f;
+    const float radius = std::sqrt(
+            halfX * halfX + halfY * halfY + halfZ * halfZ);
+    return std::max(0.0f,
+            std::hypot(objectX + centerX, objectZ + centerZ) - radius);
+}
+
 static bool buildMeshesForLine(const OrtsTrackProfile &profile,
         ComplexLine &line, const QVector<float> &distances,
         QVector<OrtsGeneratedProfileMesh> &meshes,
@@ -1072,6 +1151,9 @@ static bool buildMeshesForLine(const OrtsTrackProfile &profile,
         pathFrames.append(samplePathFrame(
                 line, distance, startRoll, endRoll,
                 endExtension, endDrop, pathTransform));
+    const float chunkableLength = std::min(
+            line.length, pathFrames.last().distance);
+    const QVector<float> chunkEnds = generatedChunkEnds(chunkableLength);
 
     float previousCutoff = -1;
     bool hasPositionControl = false;
@@ -1110,6 +1192,33 @@ static bool buildMeshesForLine(const OrtsTrackProfile &profile,
             for(GeneratedPathFrame &frame : itemPathFrames)
                 frame = frameForMode(frame, item.pathFrameMode);
 
+            QVector<GeneratedPathFrame> polylineFrames;
+            if(!chunkEnds.isEmpty()){
+                polylineFrames = itemPathFrames;
+                for(int chunk = 0; chunk + 1 < chunkEnds.size(); chunk++){
+                    const float boundary = chunkEnds[chunk];
+                    bool exists = false;
+                    for(const GeneratedPathFrame &frame : polylineFrames){
+                        if(std::abs(frame.distance - boundary) < 0.0001f){
+                            exists = true;
+                            break;
+                        }
+                    }
+                    if(exists)
+                        continue;
+                    GeneratedPathFrame frame = samplePathFrame(
+                            line, boundary, startRoll, endRoll,
+                            endExtension, endDrop, pathTransform);
+                    polylineFrames.append(frameForMode(
+                            frame, item.pathFrameMode));
+                }
+                std::sort(polylineFrames.begin(), polylineFrames.end(),
+                        [](const GeneratedPathFrame &left,
+                           const GeneratedPathFrame &right) {
+                    return left.distance < right.distance;
+                });
+            }
+
             auto appendPolylineSpan = [&](OrtsGeneratedProfileMesh &target,
                     const OrtsProfilePolyline &polyline,
                     const GeneratedPathFrame &previousFrame,
@@ -1143,7 +1252,150 @@ static bool buildMeshesForLine(const OrtsTrackProfile &profile,
                 }
             };
 
-            if(line.isPointPath()){
+            if(!chunkEnds.isEmpty()){
+                // Chunking is a render-storage policy, not path editing.
+                // Continuous polylines receive exact boundary frames, while
+                // complete template occurrences are assigned to one part.
+                // Stretch is emitted separately below so its authored span
+                // and UV mapping are never changed by the LOD policy.
+                QVector<OrtsGeneratedProfileMesh> chunkMeshes;
+                chunkMeshes.resize(chunkEnds.size());
+                for(OrtsGeneratedProfileMesh &chunkMesh : chunkMeshes){
+                    chunkMesh.textureName = mesh.textureName;
+                    chunkMesh.materialPass = mesh.materialPass;
+                    chunkMesh.minimumDistance = mesh.minimumDistance;
+                    chunkMesh.maximumDistance = mesh.maximumDistance;
+                }
+                for(int frameIndex = 1;
+                        frameIndex < polylineFrames.size(); frameIndex++){
+                    const GeneratedPathFrame &previousFrame =
+                            polylineFrames[frameIndex - 1];
+                    const GeneratedPathFrame &currentFrame =
+                            polylineFrames[frameIndex];
+                    OrtsGeneratedProfileMesh &chunkMesh = chunkMeshes[
+                            chunkIndexForDistance(chunkEnds,
+                                0.5f * (previousFrame.distance
+                                        + currentFrame.distance))];
+                    for(const OrtsProfilePolyline &polyline : item.polylines)
+                        appendPolylineSpan(chunkMesh, polyline,
+                                previousFrame, currentFrame);
+                }
+
+                QVector<OrtsGeneratedProfileMesh> stretchMeshes;
+                auto initializeStretchMeshes = [&]() {
+                    if(!stretchMeshes.isEmpty())
+                        return;
+                    stretchMeshes.resize(line.isPointPath()
+                            ? std::max(0,
+                                (int)itemPathFrames.size() - 1)
+                            : 1);
+                    for(OrtsGeneratedProfileMesh &stretchMesh
+                            : stretchMeshes){
+                        stretchMesh.textureName = mesh.textureName;
+                        stretchMesh.materialPass = mesh.materialPass;
+                        stretchMesh.minimumDistance = mesh.minimumDistance;
+                        stretchMesh.maximumDistance = mesh.maximumDistance;
+                    }
+                };
+
+                for(const OrtsProfileTemplate3D &template3D
+                        : item.templates3D){
+                    if(template3D.geometryMode
+                            == OrtsProfileTemplate3D::GeometryMode::Shared
+                            && sharedMeshes != nullptr){
+                        appendTemplateGeometry(profile, item, template3D, line,
+                                itemPathFrames, mesh.vertices, alpha,
+                                startRoll, endRoll, endExtension, endDrop,
+                                pathTransform, objectIndex, diagnostics,
+                                sharedMeshes, mesh.minimumDistance,
+                                mesh.maximumDistance);
+                        continue;
+                    }
+                    if(template3D.generationMode
+                            == OrtsProfileTemplate3D::GenerationMode::Stretch){
+                        initializeStretchMeshes();
+                        if(line.isPointPath()){
+                            int copyIndex = 0;
+                            for(int span = 0;
+                                    span < stretchMeshes.size(); span++){
+                                const QVector<GeneratedPathFrame> spanFrames = {
+                                    itemPathFrames[span],
+                                    itemPathFrames[span + 1]
+                                };
+                                copyIndex = appendTemplateGeometry(
+                                        profile, item, template3D, line,
+                                        spanFrames,
+                                        stretchMeshes[span].vertices, alpha,
+                                        startRoll, endRoll,
+                                        endExtension, endDrop,
+                                        pathTransform, objectIndex + span,
+                                        diagnostics, nullptr,
+                                        mesh.minimumDistance,
+                                        mesh.maximumDistance, copyIndex);
+                            }
+                        } else {
+                            appendTemplateGeometry(
+                                    profile, item, template3D, line,
+                                    itemPathFrames,
+                                    stretchMeshes[0].vertices, alpha,
+                                    startRoll, endRoll,
+                                    endExtension, endDrop,
+                                    pathTransform, objectIndex,
+                                    diagnostics, nullptr,
+                                    mesh.minimumDistance,
+                                    mesh.maximumDistance);
+                        }
+                        continue;
+                    }
+
+                    if(line.isPointPath()){
+                        int copyIndex = 0;
+                        for(int span = 0;
+                                span + 1 < itemPathFrames.size(); span++){
+                            QVector<GeneratedPathFrame> spanFrames = {
+                                itemPathFrames[span], itemPathFrames[span + 1]
+                            };
+                            if(template3D.generationMode
+                                    == OrtsProfileTemplate3D::GenerationMode::Repeat
+                                    && span + 2 < itemPathFrames.size())
+                                spanFrames[1].distance -= 0.0002f;
+                            copyIndex = appendTemplateGeometry(
+                                    profile, item, template3D, line,
+                                    spanFrames, mesh.vertices, alpha,
+                                    startRoll, endRoll,
+                                    endExtension, endDrop,
+                                    pathTransform, objectIndex + span,
+                                    diagnostics, nullptr,
+                                    mesh.minimumDistance,
+                                    mesh.maximumDistance, copyIndex,
+                                    &chunkMeshes, &chunkEnds);
+                        }
+                    } else {
+                        appendTemplateGeometry(
+                                profile, item, template3D, line,
+                                itemPathFrames, mesh.vertices, alpha,
+                                startRoll, endRoll, endExtension, endDrop,
+                                pathTransform, objectIndex,
+                                diagnostics, nullptr,
+                                mesh.minimumDistance,
+                                mesh.maximumDistance, 0,
+                                &chunkMeshes, &chunkEnds);
+                    }
+                }
+
+                for(OrtsGeneratedProfileMesh &chunkMesh : chunkMeshes){
+                    if(chunkMesh.vertices.isEmpty())
+                        continue;
+                    updateBounds(chunkMesh);
+                    meshes.append(chunkMesh);
+                }
+                for(OrtsGeneratedProfileMesh &stretchMesh : stretchMeshes){
+                    if(stretchMesh.vertices.isEmpty())
+                        continue;
+                    updateBounds(stretchMesh);
+                    meshes.append(stretchMesh);
+                }
+            } else if(line.isPointPath()){
                 QVector<OrtsGeneratedProfileMesh> spanMeshes;
                 spanMeshes.resize(std::max(
                         0, (int)itemPathFrames.size() - 1));

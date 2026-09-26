@@ -57,6 +57,14 @@ public:
     // Temporary seam mitigation. Future procedural-template stitching should
     // generate continuous joints and remove this terminal mesh overlap.
     static constexpr float GeneratedTrackEndOverlap = 0.10f;
+    // Rendering chunks are an output detail: they do not add path nodes or
+    // split Stretch templates. Keep the two values together so experiments
+    // can tune the policy without changing profile data.
+    static constexpr float GeneratedChunkTargetLength = 100.0f;
+    static constexpr float GeneratedChunkingThreshold = 120.0f;
+
+    static float generatedPartLod(OglObj *object,
+            const float *objectRotation, float objectX, float objectZ);
 
     static bool buildMeshes(const OrtsTrackProfile &profile,
             const QVector<TSection> &sections,

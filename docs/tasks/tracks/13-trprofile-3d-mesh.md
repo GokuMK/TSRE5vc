@@ -72,6 +72,24 @@ rejects the complete mesh. Parsed meshes are cached by normalized source path.
 - Polyline and Template3D geometry in one LOD item is additive and shares one
   generated material mesh.
 
+## Rendering chunks
+
+- Paths no longer than `GeneratedChunkingThreshold` (initially 120 m) retain
+  the existing single-part generation path.
+- Longer paths use balanced rendering chunks no longer than approximately
+  `GeneratedChunkTargetLength` (initially 100 m). These constants are kept
+  together in `OrtsTrackProfileRenderer.h`; they are not profile syntax.
+- Chunk boundaries are measured along the generated path. They do not create
+  TSections, Ruler points, TDB/RDB nodes, or saved route data.
+- Polyline strips are divided exactly at chunk boundaries. A complete Sweep
+  tile or rigid Repeat/Place occurrence is assigned to one chunk and is never
+  cut. Exact-boundary occurrences have one owner.
+- Stretch remains one mesh per original semantic span. Shared Repeat/Place
+  geometry remains one source mesh with independently evaluated transforms.
+- Each chunk selects LOD from its transformed bounding sphere instead of the
+  containing world object's origin. Static TrackObj, DynTrackObj, and Ruler
+  output use the same rule.
+
 ## Ruler spatial units and LOD
 
 - Every original point-to-point Ruler span is one semantic procedural section.
@@ -80,8 +98,10 @@ rejects the complete mesh. Parsed meshes are cached by normalized source path.
 - The complete Ruler point list supplies both endpoint frames. In particular,
   the end frame of a span can match the following span rather than copying the
   start orientation.
-- Baked output is retained as one render part per original Ruler span and LOD
-  item. No artificial Ruler points are created.
+- For paths above the threshold, chunkable baked output is regrouped into
+  balanced path-distance parts. Short Rulers retain the previous per-span
+  output. Stretch always retains one render part per original Ruler span. No
+  artificial Ruler points are created.
 - Each baked part and each shared occurrence evaluates its profile cutoff from
   its own transformed bounding sphere instead of the parent Ruler origin.
 - A single very long `Stretch` span intentionally remains one LOD unit. Authors
@@ -140,12 +160,14 @@ rejects the complete mesh. Parsed meshes are cached by normalized source path.
 - `GeometryMode ( Shared )` is enabled for migrated point objects by the
   migration helper; the `bbb` `Electric50mh` profile uses it for its complex
   tower while retaining baked stretched wire geometry.
-- The `orts-profile` suite passes 49/49 cases, including Full/NoRoll/Upright
+- The `orts-profile` suite passes 57/57 cases, including Full/NoRoll/Upright
   frame behavior, every Template3D generation mode, multiline Ruler frames,
   joined Stretch endpoints, per-span rendering parts, invalid shared/deformed
   combinations, shared placement geometry equivalence, unique ownership of
   `Repeat` occurrences on Ruler-span boundaries, and unique averaged `Nodes`
-  placement in baked and shared modes.
+  placement in baked and shared modes. The added cases cover the 120 m
+  threshold, balanced Polyline/Sweep/Repeat/Place chunks, mixed chunked and
+  unsplit Stretch output, and a single long Ruler span.
 - The Release benchmark loads and generates all 22 migrated profiles. On the
   100 m straight plus 1000 m radius/10 degree curve case, median complete
   generation times were approximately 5.9 ms for both legacy and migrated
@@ -159,3 +181,15 @@ rejects the complete mesh. Parsed meshes are cached by normalized source path.
   Release run fell from approximately 29.9 ms to 13.2 ms. Shared mode
   deliberately retains one transformed draw per tower; it is a
   geometry-storage optimization, not GPU instancing.
+- A benchmark was recorded immediately before and after rendering chunking on
+  the existing 274.5 m straight-plus-curve workload. It produces three chunks
+  per LOD/material. Median complete generation changed from 6.007 to 6.870 ms
+  for `DefaultTrack`, 8.584 to 7.932 ms for `DefaultTrack3`, 2.934 to 4.550 ms
+  for the 21-LOD `TrProfile_DB1`, and 0.984 to 1.745 ms for the 12-LOD
+  `TrProfile_SR_w`. This is the expected cost of creating three independently
+  selectable VBO sets; relative cost is largest for small profiles with many
+  LOD objects. The 400-run, three-companion DB1 stress median was 8.233 ms,
+  maximum 18.956 ms, with no sample above 50 ms. Chunking therefore has a
+  measurable generation regression on long many-LOD profiles, but remains
+  within the current interactive budget. Short paths stay on the old path and
+  do not create additional objects.

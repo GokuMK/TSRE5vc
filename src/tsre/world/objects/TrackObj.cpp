@@ -499,7 +499,10 @@ void TrackObj::pushRenderItems(float lod, float posx, float posz, float* playerW
         }
     } else {
         for(int i = 0; i < procShape.size(); i++){
-            procShape[i]->pushRenderItem(selectionId, 0);
+            const float partLod =
+                    OrtsTrackProfileRenderer::generatedPartLod(
+                        procShape[i], renderMatrix, posx, posz);
+            procShape[i]->pushRenderItem(selectionId, partLod);
         }
     }
 
@@ -579,7 +582,10 @@ void TrackObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos,
             shapePointer->render(selectionId, 0);
     } else {
         for(int i = 0; i < procShape.size(); i++){
-            procShape[i]->render(selectionId, 0);
+            const float partLod =
+                    OrtsTrackProfileRenderer::generatedPartLod(
+                        procShape[i], renderMatrix, posx, posz);
+            procShape[i]->render(selectionId, partLod);
         }
     }
     

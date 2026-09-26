@@ -1995,6 +1995,13 @@ static int runOrtsProfileSuite(bool verbose) {
             qWarning() << "[tests:orts-profile] FAIL" << name;
         }
     };
+    auto generatedFloatCount = [](
+            const QVector<OrtsGeneratedProfileMesh> &meshes) {
+        int count = 0;
+        for(const OrtsGeneratedProfileMesh &mesh : meshes)
+            count += mesh.vertices.size();
+        return count;
+    };
 
     QStringList stfDiagnostics;
     QStringList xmlDiagnostics;
@@ -2196,6 +2203,61 @@ static int runOrtsProfileSuite(bool verbose) {
               && placeMeshes.size() == 1
               && placeMeshes[0].vertices.size() == 108,
               "placed-template3d-endpoints");
+
+        QVector<TSection> thresholdStraight;
+        thresholdStraight.append(TSection(
+                0, 0,
+                OrtsTrackProfileRenderer::GeneratedChunkingThreshold, 0));
+        QVector<OrtsGeneratedProfileMesh> thresholdMeshes;
+        check(OrtsTrackProfileRenderer::buildMeshes(
+                    *templateProfile, thresholdStraight, thresholdMeshes)
+              && thresholdMeshes.size() == 1,
+              "generated-chunk-threshold-remains-single");
+
+        QVector<TSection> longStraight;
+        longStraight.append(TSection(0, 0, 250.0f, 0));
+        QVector<OrtsGeneratedProfileMesh> longMixedMeshes;
+        check(OrtsTrackProfileRenderer::buildMeshes(
+                    *templateProfile, longStraight, longMixedMeshes)
+              && longMixedMeshes.size() == 3
+              && generatedFloatCount(longMixedMeshes) == 13662,
+              "generated-polyline-and-sweep-balanced-chunks");
+
+        QVector<OrtsGeneratedProfileMesh> longStretchMeshes;
+        check(OrtsTrackProfileRenderer::buildMeshes(
+                    stretchProfile, longStraight, longStretchMeshes)
+              && longStretchMeshes.size() == 1
+              && longStretchMeshes[0].vertices.size() == 54,
+              "generated-stretch-remains-unsplit");
+
+        QVector<OrtsGeneratedProfileMesh> longRepeatMeshes;
+        check(OrtsTrackProfileRenderer::buildMeshes(
+                    repeatProfile, longStraight, longRepeatMeshes)
+              && longRepeatMeshes.size() == 3
+              && generatedFloatCount(longRepeatMeshes) == 6750,
+              "generated-repeat-chunks-without-duplicates");
+
+        QVector<OrtsGeneratedProfileMesh> longPlaceMeshes;
+        check(OrtsTrackProfileRenderer::buildMeshes(
+                    placeProfile, longStraight, longPlaceMeshes)
+              && longPlaceMeshes.size() == 2
+              && generatedFloatCount(longPlaceMeshes) == 108,
+              "generated-place-boundaries-have-one-owner");
+
+        OrtsTrackProfile mixedStretchProfile = *templateProfile;
+        mixedStretchProfile.lods[0].items[0].polylines.clear();
+        OrtsProfileTemplate3D mixedStretch =
+                mixedStretchProfile.lods[0].items[0].templates3D[0];
+        mixedStretch.generationMode =
+                OrtsProfileTemplate3D::GenerationMode::Stretch;
+        mixedStretchProfile.lods[0].items[0].templates3D.append(
+                mixedStretch);
+        QVector<OrtsGeneratedProfileMesh> mixedStretchMeshes;
+        check(OrtsTrackProfileRenderer::buildMeshes(
+                    mixedStretchProfile, longStraight, mixedStretchMeshes)
+              && mixedStretchMeshes.size() == 4
+              && generatedFloatCount(mixedStretchMeshes) == 13554,
+              "generated-mixed-sweep-chunks-and-unsplit-stretch");
 
         auto verticalRange = [](const QVector<OrtsGeneratedProfileMesh> &meshes) {
             float minimum = std::numeric_limits<float>::max();
@@ -2452,6 +2514,26 @@ static int runOrtsProfileSuite(bool verbose) {
               && rulerRepeatMeshes[0].vertices.size() == 108
               && rulerRepeatMeshes[1].vertices.size() == 162,
               "ruler-repeat-boundary-has-one-owner");
+
+        QVector<ComplexLinePoint> longRulerPoints(2);
+        Vec3::set(longRulerPoints[0].position, 0, 0, 0);
+        Vec3::set(longRulerPoints[1].position, 0, 0, 250);
+        ComplexLine longRulerLine;
+        longRulerLine.init(longRulerPoints);
+        QVector<OrtsGeneratedProfileMesh> longRulerMixedMeshes;
+        check(OrtsTrackProfileRenderer::buildMeshes(
+                    *templateProfile, longRulerLine,
+                    longRulerMixedMeshes)
+              && longRulerMixedMeshes.size() == 3
+              && generatedFloatCount(longRulerMixedMeshes) == 13662,
+              "ruler-long-span-chunks-non-stretch-geometry");
+        QVector<OrtsGeneratedProfileMesh> longRulerStretchMeshes;
+        check(OrtsTrackProfileRenderer::buildMeshes(
+                    rulerStretchProfile, longRulerLine,
+                    longRulerStretchMeshes)
+              && longRulerStretchMeshes.size() == 1
+              && longRulerStretchMeshes[0].vertices.size() == 54,
+              "ruler-long-stretch-span-remains-unsplit");
     }
 
     if(templateDirectory.isValid()){
@@ -2559,19 +2641,22 @@ static int runOrtsProfileSuite(bool verbose) {
         bool finite = OrtsTrackProfileRenderer::buildMeshes(
                 *xmlProfile, curves, curveMeshes) && !curveMeshes.isEmpty();
         if(finite){
-            for(float value : curveMeshes[0].vertices)
-                finite = finite && std::isfinite(value);
+            for(const OrtsGeneratedProfileMesh &mesh : curveMeshes)
+                for(float value : mesh.vertices)
+                    finite = finite && std::isfinite(value);
         }
-        check(finite && curveMeshes[0].vertices.size() > 54,
+        check(finite && generatedFloatCount(curveMeshes) > 54,
               "curve-subdivision");
         bool endpointFound = false;
         if(finite){
-            const QVector<float> &vertices = curveMeshes[0].vertices;
-            for(int i = 0; i < vertices.size(); i += 9){
-                if(std::abs(vertices[i] + 100.0f) < 0.01f
-                        && std::abs(vertices[i + 2] - 100.0f) < 1.01f){
-                    endpointFound = true;
-                    break;
+            for(const OrtsGeneratedProfileMesh &mesh : curveMeshes){
+                const QVector<float> &vertices = mesh.vertices;
+                for(int i = 0; i < vertices.size(); i += 9){
+                    if(std::abs(vertices[i] + 100.0f) < 0.01f
+                            && std::abs(vertices[i + 2] - 100.0f) < 1.01f){
+                        endpointFound = true;
+                        break;
+                    }
                 }
             }
         }
@@ -2583,21 +2668,23 @@ static int runOrtsProfileSuite(bool verbose) {
         // to the inside.
         bool constantCurveSides = false;
         if(finite){
-            const QVector<float> &vertices = curveMeshes[0].vertices;
             bool outerEndpointFound = false;
             bool innerEndpointFound = false;
-            for(int i = 0; i < vertices.size(); i += 9){
-                const float x = vertices[i];
-                const float z = vertices[i + 2];
-                const float textureU = vertices[i + 6];
-                outerEndpointFound = outerEndpointFound
-                        || (std::abs(x + 100.0f) < 0.01f
-                            && std::abs(z - 101.0f) < 0.01f
-                            && std::abs(textureU) < 0.01f);
-                innerEndpointFound = innerEndpointFound
-                        || (std::abs(x + 100.0f) < 0.01f
-                            && std::abs(z - 99.0f) < 0.01f
-                            && std::abs(textureU - 1.0f) < 0.01f);
+            for(const OrtsGeneratedProfileMesh &mesh : curveMeshes){
+                const QVector<float> &vertices = mesh.vertices;
+                for(int i = 0; i < vertices.size(); i += 9){
+                    const float x = vertices[i];
+                    const float z = vertices[i + 2];
+                    const float textureU = vertices[i + 6];
+                    outerEndpointFound = outerEndpointFound
+                            || (std::abs(x + 100.0f) < 0.01f
+                                && std::abs(z - 101.0f) < 0.01f
+                                && std::abs(textureU) < 0.01f);
+                    innerEndpointFound = innerEndpointFound
+                            || (std::abs(x + 100.0f) < 0.01f
+                                && std::abs(z - 99.0f) < 0.01f
+                                && std::abs(textureU - 1.0f) < 0.01f);
+                }
             }
             constantCurveSides = outerEndpointFound && innerEndpointFound;
         }
@@ -2616,26 +2703,28 @@ static int runOrtsProfileSuite(bool verbose) {
         const bool pitchedCurveBuilt = OrtsTrackProfileRenderer::buildMeshes(
                 *xmlProfile, curves, pitchedCurveMeshes,
                 nullptr, 0, 0, &pitchedPath)
-                && pitchedCurveMeshes.size() == 1;
+                && !pitchedCurveMeshes.isEmpty();
         bool pitchedCurveUpright = false;
         if(pitchedCurveBuilt) {
-            const QVector<float> &vertices = pitchedCurveMeshes[0].vertices;
             const float endpointV = 0.2f * curves[0].getDlugosc();
             float left[3] = {0, 0, 0};
             float right[3] = {0, 0, 0};
             bool leftFound = false;
             bool rightFound = false;
-            for(int i = 0; i < vertices.size(); i += 9) {
-                if(std::abs(vertices[i + 7] - endpointV) > 0.001f)
-                    continue;
-                if(!leftFound && std::abs(vertices[i + 6]) < 0.001f) {
-                    Vec3::copy(left, vertices.constData() + i);
-                    leftFound = true;
-                }
-                if(!rightFound
-                        && std::abs(vertices[i + 6] - 1.0f) < 0.001f) {
-                    Vec3::copy(right, vertices.constData() + i);
-                    rightFound = true;
+            for(const OrtsGeneratedProfileMesh &mesh : pitchedCurveMeshes){
+                const QVector<float> &vertices = mesh.vertices;
+                for(int i = 0; i < vertices.size(); i += 9) {
+                    if(std::abs(vertices[i + 7] - endpointV) > 0.001f)
+                        continue;
+                    if(!leftFound && std::abs(vertices[i + 6]) < 0.001f) {
+                        Vec3::copy(left, vertices.constData() + i);
+                        leftFound = true;
+                    }
+                    if(!rightFound
+                            && std::abs(vertices[i + 6] - 1.0f) < 0.001f) {
+                        Vec3::copy(right, vertices.constData() + i);
+                        rightFound = true;
+                    }
                 }
             }
             float expectedCenter[3] = {-100.0f, 0.0f, 100.0f};
@@ -2708,20 +2797,22 @@ static int runOrtsProfileSuite(bool verbose) {
         QVector<OrtsGeneratedProfileMesh> apronMeshes;
         bool endApron = OrtsTrackProfileRenderer::buildMeshes(
                 *xmlProfile, curves, apronMeshes, nullptr, 0.25f, 0.002f)
-                && apronMeshes.size() == 1;
+                && !apronMeshes.isEmpty();
         bool exactApronEndpointFound = false;
         bool loweredApronEndpointFound = false;
         if(endApron){
-            const QVector<float> &vertices = apronMeshes[0].vertices;
-            for(int i = 0; i < vertices.size(); i += 9){
-                const float x = vertices[i];
-                const float y = vertices[i + 1];
-                exactApronEndpointFound = exactApronEndpointFound
-                        || (std::abs(x + 100.0f) < 0.001f
-                            && std::abs(y - 0.2f) < 0.0001f);
-                loweredApronEndpointFound = loweredApronEndpointFound
-                        || (std::abs(x + 100.25f) < 0.001f
-                            && std::abs(y - 0.198f) < 0.0001f);
+            for(const OrtsGeneratedProfileMesh &mesh : apronMeshes){
+                const QVector<float> &vertices = mesh.vertices;
+                for(int i = 0; i < vertices.size(); i += 9){
+                    const float x = vertices[i];
+                    const float y = vertices[i + 1];
+                    exactApronEndpointFound = exactApronEndpointFound
+                            || (std::abs(x + 100.0f) < 0.001f
+                                && std::abs(y - 0.2f) < 0.0001f);
+                    loweredApronEndpointFound = loweredApronEndpointFound
+                            || (std::abs(x + 100.25f) < 0.001f
+                                && std::abs(y - 0.198f) < 0.0001f);
+                }
             }
         }
         check(endApron && exactApronEndpointFound
@@ -2732,18 +2823,20 @@ static int runOrtsProfileSuite(bool verbose) {
         bool generatedTrackOverlap = OrtsTrackProfileRenderer::buildMeshes(
                 *xmlProfile, curves, overlapMeshes, nullptr,
                 OrtsTrackProfileRenderer::GeneratedTrackEndOverlap, 0)
-                && overlapMeshes.size() == 1;
+                && !overlapMeshes.isEmpty();
         bool overlapEndpointFound = false;
         if(generatedTrackOverlap){
-            const QVector<float> &vertices = overlapMeshes[0].vertices;
-            for(int i = 0; i < vertices.size(); i += 9){
-                const float x = vertices[i];
-                const float y = vertices[i + 1];
-                overlapEndpointFound = overlapEndpointFound
-                        || (std::abs(x + 100.0f
-                            + OrtsTrackProfileRenderer::GeneratedTrackEndOverlap)
-                            < 0.001f
-                            && std::abs(y - 0.2f) < 0.0001f);
+            for(const OrtsGeneratedProfileMesh &mesh : overlapMeshes){
+                const QVector<float> &vertices = mesh.vertices;
+                for(int i = 0; i < vertices.size(); i += 9){
+                    const float x = vertices[i];
+                    const float y = vertices[i + 1];
+                    overlapEndpointFound = overlapEndpointFound
+                            || (std::abs(x + 100.0f
+                                + OrtsTrackProfileRenderer::GeneratedTrackEndOverlap)
+                                < 0.001f
+                                && std::abs(y - 0.2f) < 0.0001f);
+                }
             }
         }
         check(generatedTrackOverlap && overlapEndpointFound,
@@ -2758,19 +2851,21 @@ static int runOrtsProfileSuite(bool verbose) {
         bool reverseInnerEndpointFound = false;
         bool reverseOuterEndpointFound = false;
         if(reverseCurveSides){
-            const QVector<float> &vertices = reverseCurveMeshes[0].vertices;
-            for(int i = 0; i < vertices.size(); i += 9){
-                const float x = vertices[i];
-                const float z = vertices[i + 2];
-                const float textureU = vertices[i + 6];
-                reverseInnerEndpointFound = reverseInnerEndpointFound
-                        || (std::abs(x - 100.0f) < 0.01f
-                            && std::abs(z - 99.0f) < 0.01f
-                            && std::abs(textureU) < 0.01f);
-                reverseOuterEndpointFound = reverseOuterEndpointFound
-                        || (std::abs(x - 100.0f) < 0.01f
-                            && std::abs(z - 101.0f) < 0.01f
-                            && std::abs(textureU - 1.0f) < 0.01f);
+            for(const OrtsGeneratedProfileMesh &mesh : reverseCurveMeshes){
+                const QVector<float> &vertices = mesh.vertices;
+                for(int i = 0; i < vertices.size(); i += 9){
+                    const float x = vertices[i];
+                    const float z = vertices[i + 2];
+                    const float textureU = vertices[i + 6];
+                    reverseInnerEndpointFound = reverseInnerEndpointFound
+                            || (std::abs(x - 100.0f) < 0.01f
+                                && std::abs(z - 99.0f) < 0.01f
+                                && std::abs(textureU) < 0.01f);
+                    reverseOuterEndpointFound = reverseOuterEndpointFound
+                            || (std::abs(x - 100.0f) < 0.01f
+                                && std::abs(z - 101.0f) < 0.01f
+                                && std::abs(textureU - 1.0f) < 0.01f);
+                }
             }
         }
         check(reverseCurveSides && reverseInnerEndpointFound

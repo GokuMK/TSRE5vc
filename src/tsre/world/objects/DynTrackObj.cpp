@@ -590,7 +590,10 @@ void DynTrackObj::render(GLUU* gluu, float lod, float posx, float posz, float* p
     // A generated shape is ready immediately. Draw it in this pass instead
     // of leaving the DynTrack absent for one complete frame.
     for(int i = 0; i < shape.size(); i++){
-        shape[i]->render(selectionId, lod);
+        const float partLod =
+                OrtsTrackProfileRenderer::generatedPartLod(
+                    shape[i], renderMatrix, posx, posz);
+        shape[i]->render(selectionId, partLod);
     }
     
     if(selected){
@@ -624,7 +627,10 @@ void DynTrackObj::pushRenderItems(float lod, float posx, float posz, float* play
     }
 
     for(int i = 0; i < shape.size(); i++){
-        shape[i]->pushRenderItem(selectionId, lod);
+        const float partLod =
+                OrtsTrackProfileRenderer::generatedPartLod(
+                    shape[i], renderMatrix, posx, posz);
+        shape[i]->pushRenderItem(selectionId, partLod);
     }
 }
 
