@@ -43,10 +43,12 @@
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/math3d/Vector2f.h>
 #include <tsre/math3d/Vector3f.h>
+#include <tsre/procedural/ComplexLine.h>
 #include <tsre/procedural/ProceduralPath.h>
 #include <tsre/procedural/ProceduralTrackPolicy.h>
 #include <tsre/procedural/OrtsTrackProfile.h>
 #include <tsre/procedural/OrtsTrackProfileRenderer.h>
+#include <tsre/shape/ObjFile.h>
 #include <tsre/tdb/TDB.h>
 #include <tsre/tdb/TRnode.h>
 #include <tsre/tdb/TrackShape.h>
@@ -2040,6 +2042,429 @@ static int runOrtsProfileSuite(bool verbose) {
     check(missingLod != nullptr && !missingLod->valid, "reject-missing-lod");
     check(invalidVertex != nullptr && !invalidVertex->valid,
           "reject-invalid-vertex");
+
+    QTemporaryDir templateDirectory;
+    const QString templateObj =
+            "# whitespace and unknown directives are accepted\n"
+            "o test\n"
+            "v  -1 0 0\n"
+            "v\t1\t0\t0\n"
+            "v -1 0 -1\n"
+            "v 1 0 -1\n"
+            "vt 0 0\nvt 1 0\nvt 0 1\nvt 1 1\n"
+            "vn 0 1 0\n"
+            "f 1/1/1 2/2/1 3/3/1\n"
+            "f 2/2/1 4/4/1 3/3/1\n";
+    const QString templateStf =
+            "SIMISA@@@@@@@@@@JINX0p0t______\n"
+            "TrProfile ( Name ( MeshTest ) LODMethod ( ComponentAdditive )\n"
+            " LOD ( CutoffRadius ( 1000 ) LODItem ( Name ( Mixed )\n"
+            "  TexName ( test.ace ) PathFrameMode ( NoRoll )\n"
+            "  Polyline ( DeltaTexCoord ( 0 1 )\n"
+            "   Vertex ( Position ( -1 0 ) Normal ( 0 1 0 ) TexCoord ( 0 0 ) )\n"
+            "   Vertex ( Position ( 1 0 ) Normal ( 0 1 0 ) TexCoord ( 1 0 ) ) )\n"
+            "  Template3D ( GenerationMode ( Sweep )\n"
+            "   ShapeSelectionMode ( DeterministicRandom )\n"
+            "   Shape ( mesh.obj ) Offset ( 0 0 0 ) )\n"
+            " ) ) )\n";
+    QSharedPointer<OrtsTrackProfile> templateProfile;
+    if(templateDirectory.isValid()){
+        QFile objFile(templateDirectory.path() + "/mesh.obj");
+        QFile profileFile(templateDirectory.path() + "/MeshProfile.stf");
+        if(objFile.open(QIODevice::WriteOnly | QIODevice::Text)){
+            objFile.write(templateObj.toUtf8());
+            objFile.close();
+        }
+        if(profileFile.open(QIODevice::WriteOnly | QIODevice::Text)){
+            profileFile.write(templateStf.toUtf8());
+            profileFile.close();
+        }
+        templateProfile = OrtsTrackProfileParser::parseFile(
+                profileFile.fileName());
+    }
+    check(templateProfile != nullptr && templateProfile->valid
+          && templateProfile->lods[0].items[0].pathFrameMode
+                == OrtsProfileLodItem::PathFrameMode::NoRoll
+          && templateProfile->lods[0].items[0].templates3D.size() == 1
+          && templateProfile->lods[0].items[0].templates3D[0].generationMode
+                == OrtsProfileTemplate3D::GenerationMode::Sweep
+          && templateProfile->lods[0].items[0].templates3D[0].geometryMode
+                == OrtsProfileTemplate3D::GeometryMode::Baked,
+          "parse-template3d-and-frame-mode");
+    QString invalidRepeatStf = templateStf;
+    invalidRepeatStf.replace("GenerationMode ( Sweep )",
+                             "GenerationMode ( Repeat )");
+    const QSharedPointer<OrtsTrackProfile> invalidRepeat =
+            OrtsTrackProfileParser::parseStf(invalidRepeatStf, "BadRepeat");
+    check(invalidRepeat != nullptr && !invalidRepeat->valid,
+          "reject-repeat-without-spacing");
+    QString invalidSharedSweepStf = templateStf;
+    invalidSharedSweepStf.replace("GenerationMode ( Sweep )",
+            "GenerationMode ( Sweep ) GeometryMode ( Shared )");
+    const QSharedPointer<OrtsTrackProfile> invalidSharedSweep =
+            OrtsTrackProfileParser::parseStf(
+                invalidSharedSweepStf, "BadSharedSweep");
+    check(invalidSharedSweep != nullptr && !invalidSharedSweep->valid,
+          "reject-shared-deformed-template3d");
+    QString nodesPlacementStf = templateStf;
+    nodesPlacementStf.replace("GenerationMode ( Sweep )",
+            "GenerationMode ( Place ) Placement ( Nodes AlongPath )");
+    const QSharedPointer<OrtsTrackProfile> nodesPlacementProfile =
+            OrtsTrackProfileParser::parseStf(
+                nodesPlacementStf, "NodesPlacement");
+    check(nodesPlacementProfile != nullptr && nodesPlacementProfile->valid
+          && nodesPlacementProfile->lods[0].items[0]
+                .templates3D[0].placements.size() == 1
+          && nodesPlacementProfile->lods[0].items[0]
+                .templates3D[0].placements[0].location
+                == OrtsProfileTemplate3D::PlacementLocation::Nodes,
+          "parse-nodes-placement");
+    QString invalidNodesFacingStf = nodesPlacementStf;
+    invalidNodesFacingStf.replace("Nodes AlongPath", "Nodes Outward");
+    const QSharedPointer<OrtsTrackProfile> invalidNodesFacing =
+            OrtsTrackProfileParser::parseStf(
+                invalidNodesFacingStf, "BadNodesFacing");
+    check(invalidNodesFacing != nullptr && !invalidNodesFacing->valid,
+          "reject-ambiguous-nodes-facing");
+
+    if(templateProfile != nullptr && templateProfile->valid){
+        QVector<TSection> templateStraight;
+        templateStraight.append(TSection(0, 0, 10.0f, 0));
+        QVector<OrtsGeneratedProfileMesh> templateMeshes;
+        check(OrtsTrackProfileRenderer::buildMeshes(
+                    *templateProfile, templateStraight, templateMeshes)
+              && templateMeshes.size() == 1
+              && templateMeshes[0].vertices.size() == 594,
+              "mixed-polyline-and-swept-template3d");
+
+        OrtsTrackProfile stretchProfile = *templateProfile;
+        stretchProfile.lods[0].items[0].polylines.clear();
+        OrtsProfileTemplate3D &stretch =
+                stretchProfile.lods[0].items[0].templates3D[0];
+        QVector<OrtsGeneratedProfileMesh> sweptTextureMeshes;
+        check(OrtsTrackProfileRenderer::buildMeshes(
+                    stretchProfile, templateStraight, sweptTextureMeshes)
+              && sweptTextureMeshes.size() == 1
+              && sweptTextureMeshes[0].vertices.size() == 540
+              && std::abs(sweptTextureMeshes[0].vertices[25] - 1.0f)
+                    < 0.001f
+              && std::abs(sweptTextureMeshes[0].vertices[511] - 10.0f)
+                    < 0.001f,
+              "swept-template3d-path-length-texture");
+
+        stretch.generationMode = OrtsProfileTemplate3D::GenerationMode::Stretch;
+        QVector<OrtsGeneratedProfileMesh> stretchMeshes;
+        check(OrtsTrackProfileRenderer::buildMeshes(
+                    stretchProfile, templateStraight, stretchMeshes)
+              && stretchMeshes.size() == 1
+              && stretchMeshes[0].vertices.size() == 54
+              && std::abs(stretchMeshes[0].vertices[7]) < 0.001f
+              && std::abs(stretchMeshes[0].vertices[16]) < 0.001f
+              && std::abs(stretchMeshes[0].vertices[25] - 1.0f) < 0.001f,
+              "stretched-template3d-preserved-texture");
+
+        OrtsTrackProfile repeatProfile = stretchProfile;
+        OrtsProfileTemplate3D &repeat =
+                repeatProfile.lods[0].items[0].templates3D[0];
+        repeat.generationMode = OrtsProfileTemplate3D::GenerationMode::Repeat;
+        repeat.spacing = 2;
+        repeat.phase = 1;
+        QVector<OrtsGeneratedProfileMesh> repeatMeshes;
+        check(OrtsTrackProfileRenderer::buildMeshes(
+                    repeatProfile, templateStraight, repeatMeshes)
+              && repeatMeshes.size() == 1
+              && repeatMeshes[0].vertices.size() == 270,
+              "repeated-template3d-spacing-and-phase");
+
+        OrtsTrackProfile placeProfile = stretchProfile;
+        OrtsProfileTemplate3D &place =
+                placeProfile.lods[0].items[0].templates3D[0];
+        place.generationMode = OrtsProfileTemplate3D::GenerationMode::Place;
+        place.placements.clear();
+        OrtsProfileTemplate3D::Placement startPlacement;
+        startPlacement.location =
+                OrtsProfileTemplate3D::PlacementLocation::Start;
+        startPlacement.facing =
+                OrtsProfileTemplate3D::PlacementFacing::Outward;
+        OrtsProfileTemplate3D::Placement endPlacement = startPlacement;
+        endPlacement.location =
+                OrtsProfileTemplate3D::PlacementLocation::End;
+        place.placements = {startPlacement, endPlacement};
+        QVector<OrtsGeneratedProfileMesh> placeMeshes;
+        check(OrtsTrackProfileRenderer::buildMeshes(
+                    placeProfile, templateStraight, placeMeshes)
+              && placeMeshes.size() == 1
+              && placeMeshes[0].vertices.size() == 108,
+              "placed-template3d-endpoints");
+
+        auto verticalRange = [](const QVector<OrtsGeneratedProfileMesh> &meshes) {
+            float minimum = std::numeric_limits<float>::max();
+            float maximum = -std::numeric_limits<float>::max();
+            for(const OrtsGeneratedProfileMesh &mesh : meshes){
+                for(int index = 1; index < mesh.vertices.size(); index += 9){
+                    minimum = std::min(minimum, mesh.vertices[index]);
+                    maximum = std::max(maximum, mesh.vertices[index]);
+                }
+            }
+            return maximum - minimum;
+        };
+        ProceduralPathTransform bankedPath;
+        bankedPath.enabled = true;
+        Quat::rotateZ(bankedPath.rotation, bankedPath.rotation, 0.3f);
+        OrtsTrackProfile fullFrameProfile = repeatProfile;
+        fullFrameProfile.lods[0].items[0].pathFrameMode =
+                OrtsProfileLodItem::PathFrameMode::Full;
+        OrtsTrackProfile noRollFrameProfile = fullFrameProfile;
+        noRollFrameProfile.lods[0].items[0].pathFrameMode =
+                OrtsProfileLodItem::PathFrameMode::NoRoll;
+        QVector<OrtsGeneratedProfileMesh> fullFrameMeshes;
+        QVector<OrtsGeneratedProfileMesh> noRollFrameMeshes;
+        const bool frameModesBuilt = OrtsTrackProfileRenderer::buildMeshes(
+                    fullFrameProfile, templateStraight, fullFrameMeshes,
+                    nullptr, 0, 0, &bankedPath)
+                && OrtsTrackProfileRenderer::buildMeshes(
+                    noRollFrameProfile, templateStraight, noRollFrameMeshes,
+                    nullptr, 0, 0, &bankedPath);
+        check(frameModesBuilt
+              && verticalRange(fullFrameMeshes) > 0.5f
+              && verticalRange(noRollFrameMeshes) < 0.001f,
+              "template3d-no-roll-frame");
+
+        ProceduralPathTransform pitchedPathForMesh;
+        pitchedPathForMesh.enabled = true;
+        Quat::rotateX(pitchedPathForMesh.rotation,
+                      pitchedPathForMesh.rotation, 0.3f);
+        OrtsTrackProfile pitchedMeshProfile = placeProfile;
+        pitchedMeshProfile.lods[0].items[0].templates3D[0].placements = {
+            startPlacement
+        };
+        pitchedMeshProfile.lods[0].items[0].pathFrameMode =
+                OrtsProfileLodItem::PathFrameMode::NoRoll;
+        OrtsTrackProfile uprightMeshProfile = pitchedMeshProfile;
+        uprightMeshProfile.lods[0].items[0].pathFrameMode =
+                OrtsProfileLodItem::PathFrameMode::Upright;
+        QVector<OrtsGeneratedProfileMesh> pitchedMeshMeshes;
+        QVector<OrtsGeneratedProfileMesh> uprightMeshMeshes;
+        const bool uprightModesBuilt = OrtsTrackProfileRenderer::buildMeshes(
+                    pitchedMeshProfile, templateStraight, pitchedMeshMeshes,
+                    nullptr, 0, 0, &pitchedPathForMesh)
+                && OrtsTrackProfileRenderer::buildMeshes(
+                    uprightMeshProfile, templateStraight, uprightMeshMeshes,
+                    nullptr, 0, 0, &pitchedPathForMesh);
+        check(uprightModesBuilt
+              && verticalRange(pitchedMeshMeshes) > 0.2f
+              && verticalRange(uprightMeshMeshes) < 0.001f,
+              "template3d-upright-frame");
+
+        QVector<TSection> templateCurve;
+        templateCurve.append(TSection(
+                0, 1, (float)M_PI / 2.0f, 10.0f));
+        QVector<OrtsGeneratedProfileMesh> curvedTemplateMeshes;
+        bool curvedTemplateFinite = OrtsTrackProfileRenderer::buildMeshes(
+                *templateProfile, templateCurve, curvedTemplateMeshes)
+                && !curvedTemplateMeshes.isEmpty();
+        for(const OrtsGeneratedProfileMesh &mesh : curvedTemplateMeshes){
+            for(float value : mesh.vertices)
+                curvedTemplateFinite = curvedTemplateFinite
+                        && std::isfinite(value);
+        }
+        check(curvedTemplateFinite, "curved-template3d-finite");
+
+        QVector<ComplexLinePoint> rulerPoints(3);
+        Vec3::set(rulerPoints[0].position, 100, 5, 200);
+        Vec3::set(rulerPoints[1].position, 100, 5, 210);
+        Vec3::set(rulerPoints[2].position, 110, 5, 210);
+        ComplexLine rulerLine;
+        rulerLine.init(rulerPoints);
+        ComplexLineFrame rulerStart;
+        ComplexLineFrame rulerCorner;
+        ComplexLineFrame rulerEnd;
+        ComplexLineFrame firstSpanEnd;
+        ComplexLineFrame averagedCorner;
+        ComplexLineFrame secondSpanStart;
+        const bool rulerFramesBuilt = rulerLine.getFrame(rulerStart, 0)
+                && rulerLine.getFrame(rulerCorner, 10, 2)
+                && rulerLine.getFrame(rulerEnd, 20)
+                && rulerLine.getSpanFrame(firstSpanEnd, 0, true)
+                && rulerLine.getNodeFrame(averagedCorner, 1)
+                && rulerLine.getSpanFrame(secondSpanStart, 1, false);
+        check(rulerFramesBuilt
+              && std::abs(rulerLine.getLength() - 20) < 0.001f
+              && rulerLine.getNodeDistances().size() == 3
+              && std::abs(rulerLine.getNodeDistances()[1] - 10) < 0.001f
+              && std::abs(rulerStart.position[0]) < 0.001f
+              && std::abs(rulerStart.position[2]) < 0.001f
+              && std::abs(rulerStart.forward[2] - 1) < 0.001f
+              && std::abs(rulerCorner.position[0]) < 0.001f
+              && std::abs(rulerCorner.position[2] - 8) < 0.001f
+              && std::abs(rulerCorner.forward[0] - 1) < 0.001f
+              && std::abs(rulerEnd.position[0] - 10) < 0.001f
+              && std::abs(rulerEnd.position[2] - 10) < 0.001f
+              && std::abs(firstSpanEnd.forward[2] - 1) < 0.001f
+              && std::abs(firstSpanEnd.forward[0]) < 0.001f
+              && std::abs(averagedCorner.forward[0]
+                    - std::sqrt(0.5f)) < 0.001f
+              && std::abs(averagedCorner.forward[2]
+                    - std::sqrt(0.5f)) < 0.001f
+              && std::abs(secondSpanStart.forward[0] - 1) < 0.001f
+              && std::abs(secondSpanStart.forward[2]) < 0.001f,
+              "complex-line-multispan-frames");
+
+        OrtsTrackProfile rulerStretchProfile = stretchProfile;
+        rulerStretchProfile.lods[0].items[0].templates3D[0].generationMode =
+                OrtsProfileTemplate3D::GenerationMode::Stretch;
+        QVector<OrtsGeneratedProfileMesh> rulerStretchMeshes;
+        bool rulerStretchFinite = OrtsTrackProfileRenderer::buildMeshes(
+                rulerStretchProfile, rulerLine, rulerStretchMeshes)
+                && rulerStretchMeshes.size() == 2
+                && rulerStretchMeshes[0].vertices.size() == 54
+                && rulerStretchMeshes[1].vertices.size() == 54;
+        bool rulerStretchCornerJoined = rulerStretchFinite;
+        for(const OrtsGeneratedProfileMesh &mesh : rulerStretchMeshes){
+            for(float value : mesh.vertices)
+                rulerStretchFinite = rulerStretchFinite
+                        && std::isfinite(value);
+        }
+        if(rulerStretchCornerJoined){
+            for(int axis = 0; axis < 3; axis++)
+                rulerStretchCornerJoined = rulerStretchCornerJoined
+                        && std::abs(
+                            rulerStretchMeshes[0].vertices[18 + axis]
+                            - rulerStretchMeshes[1].vertices[axis]) < 0.001f;
+            rulerStretchCornerJoined = rulerStretchCornerJoined
+                    && std::abs(rulerStretchMeshes[0].vertices[18]
+                        - std::sqrt(0.5f)) < 0.001f
+                    && std::abs(rulerStretchMeshes[0].vertices[20]
+                        - (10.0f - std::sqrt(0.5f))) < 0.001f;
+        }
+        check(rulerStretchFinite && rulerStretchCornerJoined,
+              "ruler-multispan-stretched-template3d");
+
+        OrtsTrackProfile rulerPlaceProfile = rulerStretchProfile;
+        OrtsProfileTemplate3D &rulerPlace =
+                rulerPlaceProfile.lods[0].items[0].templates3D[0];
+        rulerPlace.generationMode =
+                OrtsProfileTemplate3D::GenerationMode::Place;
+        rulerPlace.placements = {startPlacement};
+        QVector<OrtsGeneratedProfileMesh> rulerPlaceMeshes;
+        check(OrtsTrackProfileRenderer::buildMeshes(
+                    rulerPlaceProfile, rulerLine, rulerPlaceMeshes)
+              && rulerPlaceMeshes.size() == 2
+              && rulerPlaceMeshes[0].vertices.size() == 54
+              && rulerPlaceMeshes[1].vertices.size() == 54,
+              "ruler-multispan-placed-template3d");
+
+        rulerPlace.geometryMode =
+                OrtsProfileTemplate3D::GeometryMode::Shared;
+        QVector<OrtsGeneratedProfileMesh> sharedPlaceBakedMeshes;
+        QVector<OrtsGeneratedProfileSharedMesh> sharedPlaceMeshes;
+        const bool sharedPlaceBuilt = OrtsTrackProfileRenderer::buildMeshes(
+                    rulerPlaceProfile, rulerLine, sharedPlaceBakedMeshes,
+                    nullptr, 0, &sharedPlaceMeshes)
+              && sharedPlaceBakedMeshes.isEmpty()
+              && sharedPlaceMeshes.size() == 1
+              && sharedPlaceMeshes[0].vertices.size() == 54
+              && sharedPlaceMeshes[0].transforms.size() == 2;
+        bool sharedPlaceMatchesBaked = sharedPlaceBuilt;
+        if(sharedPlaceMatchesBaked){
+            const OrtsGeneratedProfileSharedMesh &shared =
+                    sharedPlaceMeshes[0];
+            for(int span = 0; span < 2; span++){
+                const std::array<float, 16> &matrix =
+                        shared.transforms[span];
+                const float *source = shared.vertices.constData();
+                const float transformed[3] = {
+                    matrix[0] * source[0] + matrix[4] * source[1]
+                            + matrix[8] * source[2] + matrix[12],
+                    matrix[1] * source[0] + matrix[5] * source[1]
+                            + matrix[9] * source[2] + matrix[13],
+                    matrix[2] * source[0] + matrix[6] * source[1]
+                            + matrix[10] * source[2] + matrix[14]
+                };
+                for(int axis = 0; axis < 3; axis++)
+                    sharedPlaceMatchesBaked = sharedPlaceMatchesBaked
+                            && std::abs(transformed[axis]
+                                - rulerPlaceMeshes[span].vertices[axis])
+                                    < 0.001f;
+            }
+        }
+        check(sharedPlaceBuilt && sharedPlaceMatchesBaked,
+              "ruler-shared-place-reuses-source-mesh");
+
+        OrtsProfileTemplate3D::Placement nodesPlacement;
+        nodesPlacement.location =
+                OrtsProfileTemplate3D::PlacementLocation::Nodes;
+        nodesPlacement.facing =
+                OrtsProfileTemplate3D::PlacementFacing::AlongPath;
+        rulerPlace.placements = {nodesPlacement};
+        QVector<OrtsGeneratedProfileMesh> nodesBakedMeshes;
+        rulerPlace.geometryMode =
+                OrtsProfileTemplate3D::GeometryMode::Baked;
+        const bool nodesBakedBuilt = OrtsTrackProfileRenderer::buildMeshes(
+                    rulerPlaceProfile, rulerLine, nodesBakedMeshes)
+              && nodesBakedMeshes.size() == 2
+              && nodesBakedMeshes[0].vertices.size() == 54
+              && nodesBakedMeshes[1].vertices.size() == 108;
+        rulerPlace.geometryMode =
+                OrtsProfileTemplate3D::GeometryMode::Shared;
+        QVector<OrtsGeneratedProfileMesh> nodesSharedBakedMeshes;
+        QVector<OrtsGeneratedProfileSharedMesh> nodesSharedMeshes;
+        const bool nodesSharedBuilt = OrtsTrackProfileRenderer::buildMeshes(
+                    rulerPlaceProfile, rulerLine, nodesSharedBakedMeshes,
+                    nullptr, 0, &nodesSharedMeshes)
+              && nodesSharedBakedMeshes.isEmpty()
+              && nodesSharedMeshes.size() == 1
+              && nodesSharedMeshes[0].transforms.size() == 3;
+        bool nodesFramesCorrect = nodesSharedBuilt;
+        if(nodesFramesCorrect){
+            const QVector<std::array<float, 16>> &transforms =
+                    nodesSharedMeshes[0].transforms;
+            nodesFramesCorrect =
+                    std::abs(transforms[0][12]) < 0.001f
+                    && std::abs(transforms[0][14]) < 0.001f
+                    && std::abs(transforms[0][8]) < 0.001f
+                    && std::abs(transforms[0][10] - 1) < 0.001f
+                    && std::abs(transforms[1][12]) < 0.001f
+                    && std::abs(transforms[1][14] - 10) < 0.001f
+                    && std::abs(transforms[1][8]
+                        - std::sqrt(0.5f)) < 0.001f
+                    && std::abs(transforms[1][10]
+                        - std::sqrt(0.5f)) < 0.001f
+                    && std::abs(transforms[2][12] - 10) < 0.001f
+                    && std::abs(transforms[2][14] - 10) < 0.001f
+                    && std::abs(transforms[2][8] - 1) < 0.001f
+                    && std::abs(transforms[2][10]) < 0.001f;
+        }
+        check(nodesBakedBuilt && nodesSharedBuilt && nodesFramesCorrect,
+              "ruler-nodes-place-once-with-averaged-corner-frame");
+
+        OrtsTrackProfile rulerRepeatProfile = rulerStretchProfile;
+        OrtsProfileTemplate3D &rulerRepeat =
+                rulerRepeatProfile.lods[0].items[0].templates3D[0];
+        rulerRepeat.generationMode =
+                OrtsProfileTemplate3D::GenerationMode::Repeat;
+        rulerRepeat.spacing = 5;
+        rulerRepeat.phase = 0;
+        QVector<OrtsGeneratedProfileMesh> rulerRepeatMeshes;
+        check(OrtsTrackProfileRenderer::buildMeshes(
+                    rulerRepeatProfile, rulerLine, rulerRepeatMeshes)
+              && rulerRepeatMeshes.size() == 2
+              && rulerRepeatMeshes[0].vertices.size() == 108
+              && rulerRepeatMeshes[1].vertices.size() == 162,
+              "ruler-repeat-boundary-has-one-owner");
+    }
+
+    if(templateDirectory.isValid()){
+        QFile malformedFile(templateDirectory.path() + "/malformed.obj");
+        if(malformedFile.open(QIODevice::WriteOnly | QIODevice::Text)){
+            malformedFile.write("v 0 0 0\nvt 0 0\nvn 0 1 0\n"
+                                "f 1/1/1 2/1/1 1/1/1\n");
+            malformedFile.close();
+        }
+        const ObjFile malformed(malformedFile.fileName());
+        check(!malformed.valid && malformed.points.isEmpty(),
+              "reject-malformed-template-obj");
+    }
 
     if(xmlProfile != nullptr){
         QVector<TSection> straight;

@@ -263,7 +263,7 @@ void DynTrackObj::generateShape(){
                 // A small mesh-only overlap hides joints when adjoining
                 // objects change grade; the TDB/RDB endpoint stays exact.
                 OrtsTrackProfileRenderer::GeneratedTrackEndOverlap, 0,
-                &pathTransform);
+                &pathTransform, UiD);
         const qint64 generationMs = generationTimer.elapsed();
         if(generationMs >= kSlowShapeOperationMs){
             qWarning() << "ORTS track profile generation took"

@@ -125,6 +125,64 @@ A standard TrProfile cannot exactly represent:
 - discrete signs, poles, or other objects that occur only once;
 - arbitrary animated or hierarchical geometry.
 
+### Preserve full 3D geometry with Template3D
+
+TSRE also supports route-local OBJ geometry inside a TrProfile `LODItem`.
+Use this when the complete cross-section cannot be reduced to polylines, or
+for discrete ties, poles, wires, and endpoint objects:
+
+```text
+LODItem (
+    TexName ( "material.png" )
+    PathFrameMode ( NoRoll )
+      Template3D (
+          GenerationMode ( Repeat )
+          GeometryMode ( Baked )
+          ShapeSelectionMode ( Cycle )
+        Shape ( "meshes/object-a.obj" )
+        Shape ( "meshes/object-b.obj" )
+        Offset ( 0 0 0 )
+        Spacing ( 30 )
+        Phase ( 0 )
+    )
+)
+```
+
+`GenerationMode` is `Sweep`, `Stretch`, `Repeat`, or `Place`. `Sweep`
+advances longitudinal V with travelled path distance. `Stretch`, `Repeat`,
+and `Place` preserve the OBJ's authored UVs.
+`GeometryMode` defaults to `Baked`. Use `Shared` for rigid `Repeat` or `Place`
+objects whose source geometry should be uploaded once and rendered at multiple
+transforms, such as complex poles. Keep frequent simple objects such as ties
+`Baked`; `Shared` is not valid for deforming `Sweep` or `Stretch` templates.
+`PathFrameMode` is `Full`, `NoRoll`, or `Upright`. Place entries combine the
+location and orientation, for example `Placement ( Both Outward )`. Use
+`Placement ( Nodes AlongPath )` for one object at every unique authored Ruler
+node. Internal node objects use the angular bisector between the incoming and
+outgoing spans; the first and last objects use their only adjacent span.
+`Start` and `End` remain aligned to their individual span rather than this
+averaged node frame. `Nodes` accepts `AlongPath` or `AgainstPath` only.
+
+The minimal OBJ subset is `v`, `vt`, `vn`, and triangular `f v/vt/vn` with
+positive indices. OBJ materials are ignored; the parent LOD item supplies the
+texture and material. Mesh coordinates are metres, +X right, +Y up, and -Z
+forward. Sweep/Stretch sources begin at Z=0 and extend toward negative Z.
+
+For the old line-oriented TSRE draft template file, the migration helper can
+create TrProfiles and self-contained OBJ copies:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File .\extra\trprofile-from-shape\migrate-shape-templates.ps1 `
+  -Source "C:\route\PROCEDURAL\shapetemplates.dat" `
+  -Destination "C:\route\TrackProfiles" `
+  -MeshDestination "C:\route\TrackProfiles\meshes"
+```
+
+The helper preserves the old 3 m rail and 4 m ballast sweep spans and supplies
+a neutral UV to legacy OBJ faces which used `v//vn`. It does not modify the
+source `PROCEDURAL` directory.
+
 Do not mistake a mesh subdivision for a taper. A 100 m shape may be divided at
 an arbitrary Z value while retaining identical X/Y coordinates. If the
 cross-section is unchanged and the UV delta per metre is consistent, it is

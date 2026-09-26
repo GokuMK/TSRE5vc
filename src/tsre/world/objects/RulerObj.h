@@ -15,6 +15,7 @@
 #include <QString>
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <tsre/procedural/ComplexLine.h>
+#include <array>
 
 class OglObj;
 
@@ -58,8 +59,13 @@ private:
         float quat[4];
         float matrix[16];
     };
+    struct ProceduralInstance {
+        OglObj *object = nullptr;
+        QVector<std::array<float, 16>> transforms;
+    };
     
     QVector<Point> points;
+    QVector<ProceduralInstance> proceduralInstances;
     OglObj* point3d = NULL;
     OglObj* line3d = NULL;
     OglObj* point3dSelected = NULL;

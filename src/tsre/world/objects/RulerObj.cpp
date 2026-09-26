@@ -29,9 +29,50 @@
 #include <tsre/renderer/Renderer.h>
 #include <tsre/renderer/SelectionId.h>
 #include <QSet>
+#include <algorithm>
+#include <cmath>
+#include <utility>
 
 bool RulerObj::TwoPointRuler = false;
 bool RulerObj::DrawPoints = false;
+
+namespace {
+
+float proceduralPartLod(OglObj *object, const float *transform,
+        float baseX, float baseZ, float objectOffsetX, float objectOffsetZ) {
+    if(object == nullptr)
+        return 0;
+    float bounds[6];
+    if(!object->getSimpleBorder(bounds))
+        return std::hypot(baseX + objectOffsetX,
+                          baseZ + objectOffsetZ);
+    const float localCenter[3] = {
+        (bounds[0] + bounds[1]) * 0.5f,
+        (bounds[2] + bounds[3]) * 0.5f,
+        (bounds[4] + bounds[5]) * 0.5f
+    };
+    float centerX = localCenter[0];
+    float centerZ = localCenter[2];
+    if(transform != nullptr){
+        centerX = transform[0] * localCenter[0]
+                + transform[4] * localCenter[1]
+                + transform[8] * localCenter[2] + transform[12];
+        centerZ = transform[2] * localCenter[0]
+                + transform[6] * localCenter[1]
+                + transform[10] * localCenter[2] + transform[14];
+    }
+    const float halfX = (bounds[0] - bounds[1]) * 0.5f;
+    const float halfY = (bounds[2] - bounds[3]) * 0.5f;
+    const float halfZ = (bounds[4] - bounds[5]) * 0.5f;
+    const float radius = std::sqrt(
+            halfX * halfX + halfY * halfY + halfZ * halfZ);
+    const float centerDistance = std::hypot(
+            baseX + objectOffsetX + centerX,
+            baseZ + objectOffsetZ + centerZ);
+    return std::max(0.0f, centerDistance - radius);
+}
+
+}
 
 RulerObj::RulerObj() {
     this->internalLodControl = true;
@@ -141,6 +182,14 @@ void RulerObj::clearProceduralShape(){
         point.procShape.clear();
         point.procShapeOwned = false;
     }
+    for(ProceduralInstance &instance : proceduralInstances){
+        if(instance.object != nullptr){
+            instance.object->deleteVBO();
+            delete instance.object;
+            instance.object = nullptr;
+        }
+    }
+    proceduralInstances.clear();
     proceduralShapeInit = false;
 }
 
@@ -155,6 +204,58 @@ void RulerObj::ensureProceduralShape(){
     const QSharedPointer<const OrtsTrackProfile> routeProfile =
             OrtsTrackProfileCatalog::find(
                 templateName, OrtsTrackProfile::ObjectType::Static);
+
+    if(routeProfile != nullptr){
+        QVector<ComplexLinePoint> linePoints;
+        linePoints.reserve(points.size());
+        for(const Point &point : points){
+            ComplexLinePoint linePoint;
+            linePoint.position[0] = point.position[0];
+            linePoint.position[1] = point.position[1];
+            linePoint.position[2] = point.position[2];
+            linePoints.append(linePoint);
+        }
+        ComplexLine line;
+        line.init(linePoints);
+
+        // The point-backed ComplexLine is local to the first ruler point and
+        // carries every following position and node frame. Render the single
+        // generated multiline mesh with translation only; its span frames
+        // already contain heading and elevation.
+        Quat::fill(points[0].quat);
+        Mat4::fromRotationTranslation(
+                points[0].matrix, points[0].quat, points[0].position);
+
+        QStringList diagnostics;
+        QVector<OrtsGeneratedProfileInstanceObject> generatedInstances;
+        OrtsTrackProfileRenderer::generateWithInstances(
+                *routeProfile, line, points[0].procShape,
+                generatedInstances,
+                routePath, &diagnostics, 0);
+        proceduralInstances.reserve(generatedInstances.size());
+        for(OrtsGeneratedProfileInstanceObject &generated
+                : generatedInstances){
+            ProceduralInstance instance;
+            instance.object = generated.object;
+            instance.transforms = std::move(generated.transforms);
+            proceduralInstances.append(std::move(instance));
+            generated.object = nullptr;
+        }
+        points[0].procShapeOwned = !points[0].procShape.isEmpty();
+
+        static QSet<QString> warnedDiagnostics;
+        for(const QString &diagnostic : diagnostics){
+            const QString key = routeProfile->id.toLower()
+                    + ":ruler:" + diagnostic;
+            if(!warnedDiagnostics.contains(key)){
+                warnedDiagnostics.insert(key);
+                qWarning() << "ORTS Ruler profile" << routeProfile->id
+                           << diagnostic;
+            }
+        }
+        proceduralShapeInit = true;
+        return;
+    }
 
     for(int i = 0; i < points.size() - 1; i++){
         const float tlength = Vec3::distance(
@@ -180,27 +281,8 @@ void RulerObj::ensureProceduralShape(){
         sections.push_back(TSection());
         sections.back().size = floor((tlength * 10) + 0.5) / 10;
 
-        if(routeProfile != nullptr){
-            QStringList diagnostics;
-            OrtsTrackProfileRenderer::generate(
-                    *routeProfile, sections, points[i].procShape,
-                    routePath, &diagnostics);
-            points[i].procShapeOwned = !points[i].procShape.isEmpty();
-
-            static QSet<QString> warnedDiagnostics;
-            for(const QString &diagnostic : diagnostics){
-                const QString key = routeProfile->id.toLower()
-                        + ":ruler:" + diagnostic;
-                if(!warnedDiagnostics.contains(key)){
-                    warnedDiagnostics.insert(key);
-                    qWarning() << "ORTS Ruler profile" << routeProfile->id
-                               << diagnostic;
-                }
-            }
-        } else {
-            ProceduralShape::GetShape(
-                    templateName, points[i].procShape, sections, i);
-        }
+        ProceduralShape::GetShape(
+                templateName, points[i].procShape, sections, i);
     }
     proceduralShapeInit = true;
 }
@@ -332,7 +414,40 @@ void RulerObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos,
             Mat4::multiply(gluu->mvMatrix, gluu->mvMatrix, points[j].matrix);
             gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
             for(int i = 0; i < points[j].procShape.size(); i++){
-                points[j].procShape[i]->render(SelectionIdCodec::withPart(selectionId, i));
+                const float partLod = proceduralPartLod(
+                        points[j].procShape[i], nullptr, posx, posz,
+                        points[j].position[0] - position[0],
+                        points[j].position[2] - position[2]);
+                points[j].procShape[i]->render(
+                        SelectionIdCodec::withPart(selectionId, i), partLod);
+            }
+            gluu->mvPopMatrix();
+        }
+        if(!proceduralInstances.isEmpty()){
+            gluu->mvPushMatrix();
+            Mat4::multiply(gluu->mvMatrix, gluu->mvMatrix, points[0].matrix);
+            int part = points[0].procShape.size();
+            for(const ProceduralInstance &instance
+                    : proceduralInstances){
+                if(instance.object == nullptr)
+                    continue;
+                for(const std::array<float, 16> &transform
+                        : instance.transforms){
+                    gluu->mvPushMatrix();
+                    Mat4::multiply(gluu->mvMatrix, gluu->mvMatrix,
+                                   const_cast<float*>(transform.data()));
+                    gluu->currentShader->setUniformValue(
+                            gluu->currentShader->mvMatrixUniform,
+                            *reinterpret_cast<float(*)[4][4]>(gluu->mvMatrix));
+                    const float partLod = proceduralPartLod(
+                            instance.object, transform.data(), posx, posz,
+                            points[0].position[0] - position[0],
+                            points[0].position[2] - position[2]);
+                    instance.object->render(
+                            SelectionIdCodec::withPart(selectionId, part++),
+                            partLod);
+                    gluu->mvPopMatrix();
+                }
             }
             gluu->mvPopMatrix();
         }
@@ -431,7 +546,39 @@ void RulerObj::pushRenderItems(float lod, float posx, float posz, float* playerW
             Game::currentRenderer->mvPushMatrix();
             Mat4::multiply(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, points[j].matrix);
             for(int i = 0; i < points[j].procShape.size(); i++){
-                points[j].procShape[i]->pushRenderItem(SelectionIdCodec::withPart(selectionId, i));
+                const float partLod = proceduralPartLod(
+                        points[j].procShape[i], nullptr, posx, posz,
+                        points[j].position[0] - position[0],
+                        points[j].position[2] - position[2]);
+                points[j].procShape[i]->pushRenderItem(
+                        SelectionIdCodec::withPart(selectionId, i), partLod);
+            }
+            Game::currentRenderer->mvPopMatrix();
+        }
+        if(!proceduralInstances.isEmpty()){
+            Game::currentRenderer->mvPushMatrix();
+            Mat4::multiply(Game::currentRenderer->mvMatrix,
+                    Game::currentRenderer->mvMatrix, points[0].matrix);
+            int part = points[0].procShape.size();
+            for(const ProceduralInstance &instance
+                    : proceduralInstances){
+                if(instance.object == nullptr)
+                    continue;
+                for(const std::array<float, 16> &transform
+                        : instance.transforms){
+                    Game::currentRenderer->mvPushMatrix();
+                    Mat4::multiply(Game::currentRenderer->mvMatrix,
+                            Game::currentRenderer->mvMatrix,
+                            const_cast<float*>(transform.data()));
+                    const float partLod = proceduralPartLod(
+                            instance.object, transform.data(), posx, posz,
+                            points[0].position[0] - position[0],
+                            points[0].position[2] - position[2]);
+                    instance.object->pushRenderItem(
+                            SelectionIdCodec::withPart(selectionId, part++),
+                            partLod);
+                    Game::currentRenderer->mvPopMatrix();
+                }
             }
             Game::currentRenderer->mvPopMatrix();
         }

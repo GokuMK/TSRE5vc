@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Open Rails review proposal for compatible TrProfile extensions, with a tested TSRE reference implementation.">
+<title>Open Rails TrProfile extension proposal</title>
+<style>
+:root {
+  color-scheme: light;
+  --bg:#fff; --paper:#fff; --text:#000; --muted:#4f5b55; --line:#d8dfda;
+  --accent:#087a5b; --accent-soft:#e3f4ed; --note:#fff8df; --note-line:#d9a928;
+  --code:#f6f8f7; --code-text:#17211d; --key:#006b50; --str:#8a4b08;
+  --val:#125c9b; --num:#7544a3; --comment:#66746e; --punct:#53615b;
+}
+*{box-sizing:border-box} html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.62 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+a{color:var(--accent)} code{font-family:ui-monospace,"Cascadia Code",Consolas,monospace}
+.header{border-bottom:1px solid var(--line);background:var(--paper)}
+.header-inner{width:min(1180px,calc(100% - 36px));margin:auto;padding:34px 0 30px}
+.overline{color:var(--accent);font:700 11px/1.2 ui-monospace,monospace;letter-spacing:.13em;text-transform:uppercase}
+h1{margin:9px 0 8px;font-size:clamp(34px,5vw,54px);line-height:1.05;letter-spacing:-.04em}
+.subtitle{max-width:760px;margin:0;color:var(--muted);font-size:17px}.meta{margin-top:18px;color:var(--muted);font:12px/1.4 ui-monospace,monospace}
+.layout{width:min(1180px,calc(100% - 36px));margin:0 auto;display:grid;grid-template-columns:230px minmax(0,1fr);gap:48px;align-items:start}
+.toc{position:sticky;top:24px;padding:42px 0}.toc b{display:block;margin-bottom:10px;font-size:12px}.toc a{display:block;padding:5px 0;color:var(--muted);text-decoration:none;font-size:13px}.toc a:hover{color:var(--accent)}
+main{min-width:0;padding:44px 0 90px}.doc-section{padding:0 0 54px;scroll-margin-top:24px}.doc-section+.doc-section{padding-top:48px;border-top:1px solid var(--line)}
+h2{margin:0 0 14px;font-size:30px;line-height:1.2;letter-spacing:-.025em}h3{margin:30px 0 9px;font-size:20px;line-height:1.3}h4{margin:22px 0 7px;font-size:15px}
+p{margin:9px 0 15px}.intro{color:var(--muted);font-size:16px}.anchor{color:inherit;text-decoration:none}.anchor:hover{color:var(--accent)}
+.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:24px 0}.summary div{padding:17px;border:1px solid var(--line);border-radius:8px;background:var(--paper)}.summary b{display:block;margin-bottom:5px}.summary span{color:var(--muted);font-size:13px}
+.callout{margin:20px 0;padding:15px 17px;border-left:3px solid var(--note-line);background:var(--note);color:#4e4528}.callout.info{border-color:var(--accent);background:var(--accent-soft);color:#21473b}
+pre{margin:16px 0 22px;padding:18px 20px;overflow:auto;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;background:var(--code);color:var(--code-text);font:13px/1.62 ui-monospace,"Cascadia Code",Consolas,monospace;tab-size:4}
+pre code{font:inherit}.k{color:var(--key);font-weight:650}.s{color:var(--str)}.v{color:var(--val)}.n{color:var(--num)}.c{color:var(--comment);font-style:italic}.p{color:var(--punct)}
+table{width:100%;margin:16px 0 25px;border-collapse:separate;border-spacing:0;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--paper);font-size:13px}
+th,td{padding:11px 13px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}th{background:#edf1ee;font-size:12px}tr:last-child td{border-bottom:0}td+td,th+th{border-left:1px solid var(--line)}td code{color:var(--accent);font-size:12px}.nowrap{white-space:nowrap}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14px}.card{padding:17px 18px;border:1px solid var(--line);border-radius:8px;background:var(--paper)}.card h3{margin:0 0 7px;font-size:17px}.card p{margin:0;color:var(--muted);font-size:13px}.card code{color:var(--accent)}
+.syntax{margin:19px 0;padding:14px 17px;border:1px solid var(--line);border-radius:8px;background:var(--paper)}.syntax b{display:block;margin-bottom:5px;font-size:12px}.syntax code{color:var(--accent);font-size:13px}
+.steps{counter-reset:step;list-style:none;padding:0;margin:18px 0}.steps li{position:relative;padding:0 0 18px 42px}.steps li::before{counter-increment:step;content:counter(step);position:absolute;left:0;top:1px;width:25px;height:25px;display:grid;place-items:center;border-radius:50%;color:white;background:var(--accent);font:700 11px/1 ui-monospace,monospace}.steps li+li::after{content:"";position:absolute;left:12px;top:-15px;height:15px;border-left:1px solid var(--line)}
+.small{color:var(--muted);font-size:12px}.pill{display:inline-block;padding:2px 7px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font:700 10px/1.6 ui-monospace,monospace}
+.files{display:grid;grid-template-columns:1fr 1fr;gap:8px}.files a{padding:11px 13px;border:1px solid var(--line);border-radius:7px;background:var(--paper);text-decoration:none;font:11px/1.35 ui-monospace,monospace}.files a:hover{border-color:var(--accent)}
+footer{border-top:1px solid var(--line);padding:24px 0 45px;color:var(--muted);font-size:12px}.footer-inner{width:min(1180px,calc(100% - 36px));margin:auto}
+@media(max-width:850px){.layout{grid-template-columns:1fr}.toc{position:static;padding:25px 0 0;columns:2}.toc b{column-span:all}.summary{grid-template-columns:1fr}.two,.files{grid-template-columns:1fr}main{padding-top:24px}}
+@media(max-width:520px){.header-inner,.layout,.footer-inner{width:min(100% - 24px,1180px)}.toc{columns:1}table{display:block;overflow-x:auto}.nowrap{white-space:normal}}
+@media print{.toc{display:none}.layout{display:block;width:100%}.header-inner,.footer-inner{width:100%}body{background:white}.doc-section{break-inside:auto}pre,table,.card{break-inside:avoid}}
+</style>
+</head>
+<body>
+<header class="header"><div class="header-inner">
+  <div class="overline">Open Rails feature review</div>
+  <h1>TrProfile extension proposal</h1>
+  <p class="subtitle">A backward-compatible format proposal for profile families, object roles, path-frame control and minimal OBJ-based 3D template geometry. TSRE provides the working reference implementation.</p>
+  <div class="meta">Audience: Open Rails maintainers · Reference branch: feature/trprofile-3d-mesh · September 2026</div>
+</div></header>
+
+<div class="layout">
+<aside class="toc" aria-label="Contents"><b>Contents</b>
+  <a href="#overview">1. Review summary</a><a href="#scope">2. Scope and status</a><a href="#files">3. Files and families</a><a href="#object-type">4. ObjectType</a><a href="#roles">5. Role selection</a><a href="#frame-mode">6. PathFrameMode</a><a href="#template3d">7. Template3D</a><a href="#generation">8. Generation modes</a><a href="#placement">9. Placement</a><a href="#geometry-mode">10. GeometryMode</a><a href="#examples">11. Complete examples</a><a href="#consumers">12. ORTS implementation</a><a href="#coordinates">13. Coordinates and UVs</a><a href="#compatibility">14. Compatibility</a><a href="#implementation">15. Reference evidence</a>
+</aside>
+
+<main>
+<section id="overview" class="doc-section">
+  <h2><a class="anchor" href="#overview">1. Review summary</a></h2>
+  <p class="intro">This proposal extends the existing Open Rails TrProfile format instead of introducing a TSRE-only procedural format. Existing polyline profiles and material rules remain the baseline. New attributes describe profile families and complete 3D geometry that cannot be represented as a cross-section alone.</p>
+  <div class="summary"><div><b>No replacement format</b><span>LOD, LODItem, Polyline, Vertex, materials, chord controls and matching filters remain valid.</span></div><div><b>Small data-model additions</b><span>ObjectType, role variants, PathFrameMode and Template3D are added to the existing hierarchy.</span></div><div><b>Working reference</b><span>TSRE parses, selects and renders the proposal for static track, dynamic track, roads and Ruler paths.</span></div></div>
+  <div class="callout info"><b>Requested decision:</b> accept the file-format direction and semantics. The TSRE implementation is evidence that the model is practical; its OpenGL/OglObj details are not proposed as ORTS architecture.</div>
+</section>
+
+<section id="scope" class="doc-section">
+  <h2><a class="anchor" href="#scope">2. Scope and review status</a></h2>
+  <p>The proposal is intentionally divided into the already discussed profile-family work and the new 3D geometry extension.</p>
+  <table><thead><tr><th>Area</th><th>Status for ORTS discussion</th><th>Purpose</th></tr></thead><tbody>
+    <tr><td>Read all supported files in <code>TrackProfiles</code></td><td><span class="pill">AGREED DIRECTION</span></td><td>Remove the historical filename-prefix restriction.</td></tr>
+    <tr><td><code>RdProfile</code> as the default road family</td><td><span class="pill">AGREED DIRECTION</span></td><td>Give procedural roads an explicit default profile.</td></tr>
+    <tr><td>Multiple <code>TrProfile</code> roots in STF</td><td><span class="pill">AGREED DIRECTION</span></td><td>Keep role variants in one family file.</td></tr>
+    <tr><td><code>ObjectType</code> and family roles</td><td><span class="pill">AGREED DIRECTION</span></td><td>Type profiles and resolve multi-path left/middle/right members.</td></tr>
+    <tr><td><code>PathFrameMode</code></td><td>Proposed here</td><td>Control roll/pitch treatment per material item.</td></tr>
+    <tr><td><code>Template3D</code> and child attributes</td><td>Proposed here</td><td>Reuse the TrProfile pipeline for longitudinal 3D geometry.</td></tr>
+  </tbody></table>
+  <h3>Deliberately outside this proposal</h3>
+  <ul><li>A general OBJ shape format or replacement for MSTS <code>.s</code> files.</li><li>OBJ materials, scene hierarchy, animation or arbitrary polygon support.</li><li>TSRE’s <code>Disabled / Enabled / Forced</code> editor preference.</li><li>TSRE’s renderer-specific VBO layout, OglObj ownership and temporary seam overlap.</li><li>A new world-coordinate mesh format. Generated geometry remains object-local.</li></ul>
+</section>
+
+<section id="files" class="doc-section">
+  <h2><a class="anchor" href="#files">3. Files, discovery and profile families</a></h2>
+  <p>Profiles are loaded from the active route’s <code>TRACKPROFILES</code> directory. Files with the same stem and both <code>.stf</code> and <code>.xml</code> extensions resolve to XML; other files are read in case-insensitive filename order.</p>
+  <p>The filename stem is the <strong>family identity</strong>. <code>Name</code> is descriptive text and does not change lookup identity.</p>
+  <div class="syntax"><b>Identity example</b><code>RdProfile.stf → family “RdProfile” → RdProfile, RdProfile_left, RdProfile_middle, RdProfile_right, RdProfile_single</code></div>
+
+  <h3>Multiple profiles in one STF file <span class="pill">NEW</span></h3>
+  <p>An STF file may contain several top-level <code>TrProfile</code> blocks. This keeps all role variants of one family together.</p>
+  <pre><code><span class="c"># RdProfile.stf</span>
+<span class="k">TrProfile</span> <span class="p">(</span>
+    <span class="k">ObjectType</span> <span class="p">(</span> <span class="v">ROAD MAIN</span> <span class="p">)</span>
+    <span class="k">Name</span> <span class="p">(</span> <span class="s">"Default road"</span> <span class="p">)</span>
+    <span class="c"># ...</span>
+<span class="p">)</span>
+
+<span class="k">TrProfile</span> <span class="p">(</span>
+    <span class="k">ObjectType</span> <span class="p">(</span> <span class="v">ROAD LEFT</span> <span class="p">)</span>
+    <span class="k">Name</span> <span class="p">(</span> <span class="s">"Default road — left lane"</span> <span class="p">)</span>
+    <span class="c"># ...</span>
+<span class="p">)</span></code></pre>
+  <table><thead><tr><th>Rule</th><th>Behavior</th></tr></thead><tbody>
+    <tr><td>STF roots</td><td>One or more <code>TrProfile ( ... )</code> blocks.</td></tr>
+    <tr><td>XML</td><td>One profile per file. There is no multi-root XML wrapper yet.</td></tr>
+    <tr><td>Catalog key</td><td><code>ObjectType + filename family + role</code>, compared case-insensitively.</td></tr>
+    <tr><td>Duplicate identity</td><td>The later profile is ignored and a diagnostic is recorded.</td></tr>
+    <tr><td>Invalid profile</td><td>Not inserted into the catalog; parser diagnostics remain available.</td></tr>
+  </tbody></table>
+</section>
+
+<section id="object-type" class="doc-section">
+  <h2><a class="anchor" href="#object-type">4. ObjectType</a> <span class="pill">NEW</span></h2>
+  <p><code>ObjectType</code> identifies the consumer and, optionally, the member’s role in a family.</p>
+  <div class="syntax"><b>Syntax</b><code>ObjectType ( TRACK|ROAD|STATIC [MAIN|SINGLE|LEFT|MIDDLE|RIGHT] )</code></div>
+  <pre><code><span class="k">ObjectType</span> <span class="p">(</span> <span class="v">TRACK MAIN</span> <span class="p">)</span>
+<span class="k">ObjectType</span> <span class="p">(</span> <span class="v">ROAD LEFT</span> <span class="p">)</span>
+<span class="k">ObjectType</span> <span class="p">(</span> <span class="v">STATIC</span> <span class="p">)</span>       <span class="c"># STATIC MAIN</span></code></pre>
+  <table><thead><tr><th>Object</th><th>Used by</th><th>Typical content</th></tr></thead><tbody>
+    <tr><td><code>TRACK</code></td><td>Rail TrackObj and DynTrackObj</td><td>Rails, ballast, sleepers, bridges and tunnels.</td></tr>
+    <tr><td><code>ROAD</code></td><td>Road TrackObj and road DynTrackObj</td><td>Road surfaces, markings, shoulders and multilane variants.</td></tr>
+    <tr><td><code>STATIC</code></td><td>RulerObj</td><td>Fences, wires, poles and other geometry following authored points.</td></tr>
+  </tbody></table>
+  <table><thead><tr><th>Role</th><th>Meaning</th></tr></thead><tbody>
+    <tr><td><code>MAIN</code></td><td>Selectable family member. It may resolve to LEFT/MIDDLE/RIGHT for multi-path shapes.</td></tr>
+    <tr><td><code>SINGLE</code></td><td>Selectable opt-out from role expansion. The same member is used for every path.</td></tr>
+    <tr><td><code>LEFT</code></td><td>First path in one same-direction path group.</td></tr>
+    <tr><td><code>MIDDLE</code></td><td>Paths between the first and last member of a group.</td></tr>
+    <tr><td><code>RIGHT</code></td><td>Last path in one same-direction path group.</td></tr>
+  </tbody></table>
+  <div class="callout"><b>Compatibility default:</b> if <code>ObjectType</code> is absent, the profile is <code>TRACK MAIN</code>.</div>
+</section>
+
+<section id="roles" class="doc-section">
+  <h2><a class="anchor" href="#roles">5. Multi-path role selection</a> <span class="pill">NEW</span></h2>
+  <p>Static TrackObj shapes may contain several paths. When the selected profile is MAIN, TSRE assigns family roles per group of paths facing the same direction.</p>
+  <ol class="steps"><li>Group consecutive paths whose rotation differs by no more than 0.1°.</li><li>For a group containing more than one path, assign LEFT to the first, RIGHT to the last and MIDDLE to every path between them.</li><li>If the requested role is missing, fall back to MAIN.</li><li>If the user selected SINGLE, use it unchanged for every path.</li></ol>
+  <pre><code><span class="c"># Three parallel paths:</span>
+path 0  →  <span class="v">LEFT</span>
+path 1  →  <span class="v">MIDDLE</span>
+path 2  →  <span class="v">RIGHT</span>
+
+<span class="c"># Two crossing two-path roads:</span>
+group A →  <span class="v">LEFT</span>, <span class="v">RIGHT</span>
+group B →  <span class="v">LEFT</span>, <span class="v">RIGHT</span></code></pre>
+</section>
+
+<section id="frame-mode" class="doc-section">
+  <h2><a class="anchor" href="#frame-mode">6. PathFrameMode</a> <span class="pill">NEW</span></h2>
+  <p><code>PathFrameMode</code> belongs to <code>LODItem</code> and therefore applies to all polylines and Template3D entries inside that material item.</p>
+  <div class="syntax"><b>Syntax and default</b><code>PathFrameMode ( Full|NoRoll|Upright ) &nbsp; # default: Full</code></div>
+  <table><thead><tr><th>Value</th><th>Yaw</th><th>Pitch</th><th>Roll</th><th>Use</th></tr></thead><tbody>
+    <tr><td><code>Full</code></td><td>Yes</td><td>Yes</td><td>Yes</td><td>Rail and geometry that must follow the complete track frame.</td></tr>
+    <tr><td><code>NoRoll</code></td><td>Yes</td><td>Yes</td><td>No</td><td>Poles, wires or other geometry that follows grade but not banking.</td></tr>
+    <tr><td><code>Upright</code></td><td>Yes</td><td>No</td><td>No</td><td>Objects that must retain world up.</td></tr>
+  </tbody></table>
+  <pre><code><span class="k">LODItem</span> <span class="p">(</span>
+    <span class="k">TexName</span> <span class="p">(</span> <span class="s">"siec.png"</span> <span class="p">)</span>
+    <span class="k">PathFrameMode</span> <span class="p">(</span> <span class="v">NoRoll</span> <span class="p">)</span>
+    <span class="c"># Polyline and Template3D children use this frame policy.</span>
+<span class="p">)</span></code></pre>
+</section>
+
+<section id="template3d" class="doc-section">
+  <h2><a class="anchor" href="#template3d">7. Template3D</a> <span class="pill">NEW</span></h2>
+  <p>A <code>Template3D</code> entry loads one or more route-local OBJ meshes and either deforms or places them along the same path used by polylines. It is a child of <code>LODItem</code>, so the LOD item supplies texture, shader, alpha-test and texture-address settings.</p>
+  <pre><code><span class="k">Template3D</span> <span class="p">(</span>
+    <span class="k">GenerationMode</span>   <span class="p">(</span> <span class="v">Repeat</span> <span class="p">)</span>
+    <span class="k">GeometryMode</span>     <span class="p">(</span> <span class="v">Baked</span> <span class="p">)</span>
+    <span class="k">ShapeSelectionMode</span> <span class="p">(</span> <span class="v">Cycle</span> <span class="p">)</span>
+    <span class="k">Shape</span> <span class="p">(</span> <span class="s">"meshes/tie-a.obj"</span> <span class="p">)</span>
+    <span class="k">Shape</span> <span class="p">(</span> <span class="s">"meshes/tie-b.obj"</span> <span class="p">)</span>
+    <span class="k">Offset</span>  <span class="p">(</span> <span class="n">0 0 0</span> <span class="p">)</span>
+    <span class="k">Spacing</span> <span class="p">(</span> <span class="n">0.65</span> <span class="p">)</span>
+    <span class="k">Phase</span>   <span class="p">(</span> <span class="n">0</span> <span class="p">)</span>
+<span class="p">)</span></code></pre>
+  <h3>Attribute reference</h3>
+  <table><thead><tr><th>Attribute</th><th>Required</th><th>Default</th><th>Description</th></tr></thead><tbody>
+    <tr><td><code>GenerationMode</code></td><td>Yes</td><td>—</td><td><code>Sweep</code>, <code>Stretch</code>, <code>Repeat</code> or <code>Place</code>.</td></tr>
+    <tr><td><code>GeometryMode</code></td><td>No</td><td><code>Baked</code></td><td>Store occurrences in generated meshes or retain a shared source mesh plus transforms.</td></tr>
+    <tr><td><code>ShapeSelectionMode</code></td><td>No</td><td><code>First</code></td><td>How one OBJ is selected when several <code>Shape</code> entries exist.</td></tr>
+    <tr><td><code>Shape</code></td><td>One or more</td><td>—</td><td>OBJ path relative to the profile file’s directory.</td></tr>
+    <tr><td><code>Offset</code></td><td>No</td><td><code>0 0 0</code></td><td>Local X/Y/Z offset applied before path transformation.</td></tr>
+    <tr><td><code>Spacing</code></td><td>Repeat only</td><td>—</td><td>Distance between repeated rigid objects. Must be positive.</td></tr>
+    <tr><td><code>Phase</code></td><td>No</td><td><code>0</code></td><td>Initial distance offset for Repeat.</td></tr>
+    <tr><td><code>Placement</code></td><td>Place only</td><td>—</td><td>May occur more than once. Combines a location and facing rule.</td></tr>
+  </tbody></table>
+
+  <h3>ShapeSelectionMode</h3>
+  <table><thead><tr><th>Value</th><th>Behavior</th></tr></thead><tbody>
+    <tr><td><code>First</code></td><td>Always use the first valid Shape.</td></tr>
+    <tr><td><code>ByObject</code></td><td>Select by object/span/node index. Useful when source meshes alternate with authored Ruler points.</td></tr>
+    <tr><td><code>Cycle</code></td><td>Advance through Shape entries for successive generated copies.</td></tr>
+    <tr><td><code>DeterministicRandom</code></td><td>Stable hash selection based on profile, object and copy indices.</td></tr>
+  </tbody></table>
+  <div class="callout"><b>Supported OBJ subset:</b> <code>v</code>, <code>vt</code>, <code>vn</code> and triangular <code>f v/vt/vn</code> records with positive indices. OBJ materials are ignored. Unknown directives and ordinary whitespace are accepted.</div>
+</section>
+
+<section id="generation" class="doc-section">
+  <h2><a class="anchor" href="#generation">8. Generation modes</a></h2>
+  <div class="two">
+    <div class="card"><h3><code>Sweep</code></h3><p>Tiles an OBJ’s authored Z depth along every path span, trims the last copy, deforms all vertices through sampled path frames and advances longitudinal V with path distance.</p></div>
+    <div class="card"><h3><code>Stretch</code></h3><p>Maps one complete OBJ between two authored endpoints. On Rulers this means one copy per original span; averaged node frames keep offset geometry joined at corners.</p></div>
+    <div class="card"><h3><code>Repeat</code></h3><p>Places rigid copies at <code>Phase + n × Spacing</code>. Best for simple frequent objects such as sleepers.</p></div>
+    <div class="card"><h3><code>Place</code></h3><p>Places rigid copies at semantic path locations. Requires at least one Placement entry.</p></div>
+  </div>
+  <table><thead><tr><th>Mode</th><th>Geometry</th><th>Longitudinal UV</th><th>Shared allowed</th></tr></thead><tbody>
+    <tr><td><code>Sweep</code></td><td>Deformed and tiled</td><td>Advanced by travelled path length</td><td>No</td></tr>
+    <tr><td><code>Stretch</code></td><td>Deformed once per path/span</td><td>Authored UV preserved</td><td>No</td></tr>
+    <tr><td><code>Repeat</code></td><td>Rigid copies by distance</td><td>Authored UV preserved</td><td>Yes</td></tr>
+    <tr><td><code>Place</code></td><td>Rigid copies at anchors</td><td>Authored UV preserved</td><td>Yes</td></tr>
+  </tbody></table>
+</section>
+
+<section id="placement" class="doc-section">
+  <h2><a class="anchor" href="#placement">9. Placement</a> <span class="pill">NEW</span></h2>
+  <div class="syntax"><b>Syntax</b><code>Placement ( Start|End|Both|Nodes AlongPath|AgainstPath|Outward|Inward )</code></div>
+  <p>Location chooses where the object is placed and which base frame is used. Facing optionally reverses that frame.</p>
+  <table><thead><tr><th>Location</th><th>Point ownership</th><th>Orientation</th></tr></thead><tbody>
+    <tr><td><code>Start</code></td><td>Once at every span start.</td><td>Direction of that span.</td></tr>
+    <tr><td><code>End</code></td><td>Once at every span end.</td><td>Direction of that span.</td></tr>
+    <tr><td><code>Both</code></td><td>Expands to Start and End for every span.</td><td>Each endpoint remains aligned with its span.</td></tr>
+    <tr><td><code>Nodes</code></td><td>Once at every unique authored Ruler node.</td><td>First/last use their only adjacent span. Internal nodes use the angular bisector of incoming and outgoing directions.</td></tr>
+  </tbody></table>
+  <table><thead><tr><th>Facing</th><th>Behavior</th><th>Valid with Nodes</th></tr></thead><tbody>
+    <tr><td><code>AlongPath</code></td><td>Use the selected frame as-is.</td><td>Yes</td></tr>
+    <tr><td><code>AgainstPath</code></td><td>Rotate the rigid object 180° around its up axis.</td><td>Yes</td></tr>
+    <tr><td><code>Outward</code></td><td>Start faces backward; End faces forward.</td><td>No—ambiguous at internal nodes</td></tr>
+    <tr><td><code>Inward</code></td><td>Start faces forward; End faces backward.</td><td>No—ambiguous at internal nodes</td></tr>
+  </tbody></table>
+  <pre><code><span class="k">Template3D</span> <span class="p">(</span>
+    <span class="k">GenerationMode</span> <span class="p">(</span> <span class="v">Place</span> <span class="p">)</span>
+    <span class="k">GeometryMode</span>   <span class="p">(</span> <span class="v">Shared</span> <span class="p">)</span>
+    <span class="k">Shape</span>          <span class="p">(</span> <span class="s">"meshes/pole.obj"</span> <span class="p">)</span>
+    <span class="k">Placement</span>      <span class="p">(</span> <span class="v">Nodes AlongPath</span> <span class="p">)</span>
+<span class="p">)</span></code></pre>
+  <div class="callout info"><b>Stretch and Nodes match:</b> multiline Stretch interpolates the same averaged node frames. Wires and other offset geometry therefore arrive at the same orientation used by a pole placed with <code>Nodes</code>.</div>
+</section>
+
+<section id="geometry-mode" class="doc-section">
+  <h2><a class="anchor" href="#geometry-mode">10. GeometryMode</a> <span class="pill">NEW</span></h2>
+  <table><thead><tr><th>Value</th><th>Storage</th><th>Recommended use</th></tr></thead><tbody>
+    <tr><td><code>Baked</code></td><td>Every generated occurrence is copied into a material vertex buffer.</td><td>Default. Dense, simple and frequent geometry such as sleepers.</td></tr>
+    <tr><td><code>Shared</code></td><td>One source mesh plus a transform matrix for every occurrence.</td><td>Complex rigid objects such as catenary poles.</td></tr>
+  </tbody></table>
+  <p><code>Shared</code> is rejected for Sweep and Stretch because those modes deform the source mesh. The current shared-instance render path is implemented for RulerObj. TrackObj and DynTrackObj generation remains baked.</p>
+  <div class="callout"><b>Not GPU instancing yet:</b> shared mode reduces generated vertices and CPU mesh construction, but TSRE currently submits an ordinary transformed draw for each occurrence.</div>
+</section>
+
+<section id="examples" class="doc-section">
+  <h2><a class="anchor" href="#examples">11. Complete examples</a></h2>
+  <h3>Swept rail and repeated sleepers</h3>
+  <pre><code><span class="k">TrProfile</span> <span class="p">(</span>
+    <span class="k">ObjectType</span> <span class="p">(</span> <span class="v">TRACK MAIN</span> <span class="p">)</span>
+    <span class="k">Name</span> <span class="p">(</span> <span class="s">"Example track"</span> <span class="p">)</span>
+    <span class="k">LODMethod</span> <span class="p">(</span> <span class="v">ComponentAdditive</span> <span class="p">)</span>
+    <span class="k">ChordSpan</span> <span class="p">(</span> <span class="n">1</span> <span class="p">)</span>
+
+    <span class="k">LOD</span> <span class="p">(</span>
+        <span class="k">CutoffRadius</span> <span class="p">(</span> <span class="n">1500</span> <span class="p">)</span>
+        <span class="k">LODItem</span> <span class="p">(</span>
+            <span class="k">Name</span> <span class="p">(</span> <span class="s">"Track geometry"</span> <span class="p">)</span>
+            <span class="k">TexName</span> <span class="p">(</span> <span class="s">"track.png"</span> <span class="p">)</span>
+            <span class="k">ShaderName</span> <span class="p">(</span> <span class="v">TexDiff</span> <span class="p">)</span>
+            <span class="k">PathFrameMode</span> <span class="p">(</span> <span class="v">Full</span> <span class="p">)</span>
+
+            <span class="k">Template3D</span> <span class="p">(</span>
+                <span class="k">GenerationMode</span> <span class="p">(</span> <span class="v">Sweep</span> <span class="p">)</span>
+                <span class="k">Shape</span> <span class="p">(</span> <span class="s">"meshes/rail.obj"</span> <span class="p">)</span>
+            <span class="p">)</span>
+            <span class="k">Template3D</span> <span class="p">(</span>
+                <span class="k">GenerationMode</span> <span class="p">(</span> <span class="v">Repeat</span> <span class="p">)</span>
+                <span class="k">Shape</span> <span class="p">(</span> <span class="s">"meshes/sleeper.obj"</span> <span class="p">)</span>
+                <span class="k">Spacing</span> <span class="p">(</span> <span class="n">0.65</span> <span class="p">)</span>
+                <span class="k">Phase</span> <span class="p">(</span> <span class="n">0</span> <span class="p">)</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+    <span class="p">)</span>
+<span class="p">)</span></code></pre>
+
+  <h3>Multiline wire and shared poles</h3>
+  <pre><code><span class="k">TrProfile</span> <span class="p">(</span>
+    <span class="k">ObjectType</span> <span class="p">(</span> <span class="v">STATIC MAIN</span> <span class="p">)</span>
+    <span class="k">Name</span> <span class="p">(</span> <span class="s">"50 m catenary"</span> <span class="p">)</span>
+    <span class="k">LODMethod</span> <span class="p">(</span> <span class="v">ComponentAdditive</span> <span class="p">)</span>
+
+    <span class="k">LOD</span> <span class="p">(</span>
+        <span class="k">CutoffRadius</span> <span class="p">(</span> <span class="n">3000</span> <span class="p">)</span>
+        <span class="k">LODItem</span> <span class="p">(</span>
+            <span class="k">TexName</span> <span class="p">(</span> <span class="s">"wire.png"</span> <span class="p">)</span>
+            <span class="k">PathFrameMode</span> <span class="p">(</span> <span class="v">NoRoll</span> <span class="p">)</span>
+
+            <span class="c"># One wire mesh is stretched across every authored Ruler span.</span>
+            <span class="k">Template3D</span> <span class="p">(</span>
+                <span class="k">GenerationMode</span> <span class="p">(</span> <span class="v">Stretch</span> <span class="p">)</span>
+                <span class="k">ShapeSelectionMode</span> <span class="p">(</span> <span class="v">ByObject</span> <span class="p">)</span>
+                <span class="k">Shape</span> <span class="p">(</span> <span class="s">"meshes/wire.obj"</span> <span class="p">)</span>
+            <span class="p">)</span>
+
+            <span class="c"># Every unique node receives one pole in the matching node frame.</span>
+            <span class="k">Template3D</span> <span class="p">(</span>
+                <span class="k">GenerationMode</span> <span class="p">(</span> <span class="v">Place</span> <span class="p">)</span>
+                <span class="k">GeometryMode</span> <span class="p">(</span> <span class="v">Shared</span> <span class="p">)</span>
+                <span class="k">Shape</span> <span class="p">(</span> <span class="s">"meshes/pole.obj"</span> <span class="p">)</span>
+                <span class="k">Placement</span> <span class="p">(</span> <span class="v">Nodes AlongPath</span> <span class="p">)</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+    <span class="p">)</span>
+<span class="p">)</span></code></pre>
+</section>
+
+<section id="consumers" class="doc-section">
+  <h2><a class="anchor" href="#consumers">12. Minimal ORTS implementation</a></h2>
+  <p class="intro">The proposal can be implemented by extending the existing TrProfile loader and procedural-track path. It does not require a general OBJ renderer, a replacement shape system or world-space generated meshes.</p>
+  <ol class="steps">
+    <li><strong>Extend profile discovery.</strong> Enumerate supported files in <code>TrackProfiles</code>, recognize <code>RdProfile</code> as the default road family and allow multiple top-level STF <code>TrProfile</code> blocks.</li>
+    <li><strong>Extend the parsed model.</strong> Add <code>ObjectType</code> and role, <code>PathFrameMode</code> on <code>LODItem</code>, and a collection of <code>Template3D</code> children beside <code>Polyline</code>.</li>
+    <li><strong>Resolve family roles before generation.</strong> Split TrackShape paths into consecutive same-direction groups, then select LEFT/MIDDLE/RIGHT with MAIN fallback. SINGLE bypasses expansion.</li>
+    <li><strong>Load only the required OBJ subset.</strong> Parse positions, UVs, normals and positive-index triangular faces. Ignore materials and unrelated directives because the parent LODItem remains the material authority.</li>
+    <li><strong>Generate through existing path frames.</strong> Polyline and Template3D consume the same sampled track or Ruler path. Apply <code>PathFrameMode</code> before emitting vertices or rigid transforms.</li>
+    <li><strong>Preserve the current path.</strong> A LODItem containing only Polyline data must continue through the existing ORTS implementation without changed output.</li>
+  </ol>
+
+  <h3>Suggested ownership</h3>
+  <table><thead><tr><th>Concern</th><th>Minimal ORTS change</th><th>What should remain unchanged</th></tr></thead><tbody>
+    <tr><td>Parsing</td><td>Add fields and child records to the current TrackProfile data model.</td><td>Existing Polyline, Vertex, LOD and material parsing.</td></tr>
+    <tr><td>Catalog</td><td>Index by object type, filename family and role.</td><td><code>Name</code> remains descriptive text.</td></tr>
+    <tr><td>Geometry</td><td>Add Template3D emitters beside the polyline emitter.</td><td>Existing path sampling and section/subsection qualification.</td></tr>
+    <tr><td>Rendering</td><td>Baked output may use current dynamic vertex buffers; Shared may use the existing shared-shape-plus-transform representation.</td><td>Renderer architecture and batching policy are ORTS implementation choices.</td></tr>
+    <tr><td>Roads</td><td>Select ROAD families and keep road banking disabled where existing road rules require it.</td><td>Existing road, tunnel, junction and superelevation exclusions.</td></tr>
+  </tbody></table>
+
+  <div class="callout info"><b>Porting boundary:</b> copy the file-format semantics and generated result, not TSRE's OpenGL classes. In particular, ORTS should use its native MSTS coordinate convention and its existing procedural-track frames.</div>
+
+  <h3>Acceptance tests for an ORTS port</h3>
+  <ul>
+    <li>An unchanged legacy polyline profile produces the same geometry as before.</li>
+    <li>One STF file loads MAIN, LEFT, MIDDLE, RIGHT and SINGLE family members.</li>
+    <li>A two-path group resolves LEFT/RIGHT; a three-path group resolves LEFT/MIDDLE/RIGHT; two crossing pairs resolve LEFT/RIGHT twice.</li>
+    <li>Sweep follows a curved and graded section with continuous longitudinal UVs.</li>
+    <li>Repeat respects Spacing and Phase; Place respects endpoint facing.</li>
+    <li>A three-node Ruler places three <code>Nodes</code> objects and uses the direction bisector at the middle node.</li>
+    <li><code>NoRoll</code> and <code>Upright</code> change only the requested frame components.</li>
+  </ul>
+</section>
+
+<section id="coordinates" class="doc-section">
+  <h2><a class="anchor" href="#coordinates">13. Coordinates, frames and UVs</a></h2>
+  <h3>Profile coordinate convention</h3>
+  <ul><li>Units are metres.</li><li><strong>+X</strong> is right.</li><li><strong>+Y</strong> is up.</li><li><strong>−Z</strong> is forward in MSTS/ORTS profile and OBJ data.</li></ul>
+  <p>This is already the native authored convention for MSTS/ORTS data. An ORTS implementation should keep it. The TSRE reference converts the complete basis only because its renderer uses OpenGL-style local +Z; that conversion must not be copied into ORTS.</p>
+  <h3>Template3D source convention</h3>
+  <ul><li>Sweep and Stretch meshes begin at Z=0 and extend toward negative Z.</li><li><code>Offset</code> is expressed in the authored OBJ basis.</li><li>Normals and UV indices are mandatory for every triangular face.</li></ul>
+  <h3>Texture behavior</h3>
+  <table><thead><tr><th>Geometry</th><th>UV behavior</th></tr></thead><tbody>
+    <tr><td>Polyline</td><td>Base UV plus <code>DeltaTexCoord × path distance</code>.</td></tr>
+    <tr><td>Template3D Sweep</td><td>U is preserved; V advances continuously with travelled path distance.</td></tr>
+    <tr><td>Stretch / Repeat / Place</td><td>Authored OBJ UVs are preserved.</td></tr>
+  </tbody></table>
+</section>
+
+<section id="compatibility" class="doc-section">
+  <h2><a class="anchor" href="#compatibility">14. Compatibility and limitations</a></h2>
+  <h3>Compatibility</h3>
+  <ul><li>Existing Polyline-only STF and XML profiles retain their behavior.</li><li>Missing <code>ObjectType</code> means <code>TRACK MAIN</code>.</li><li>Missing <code>PathFrameMode</code> means <code>Full</code>.</li><li>Missing <code>GeometryMode</code> means <code>Baked</code>.</li><li>Role variants are optional; a missing requested role falls back to MAIN.</li><li>A profile containing no Template3D follows the existing Polyline path.</li></ul>
+  <h3>Proposed format limits</h3>
+  <ul><li>Multiple top-level profiles and Template3D are initially STF-only. XML remains one profile per file until a wrapper representation is agreed.</li><li>The OBJ subset accepts only positive-index triangular <code>v/vt/vn</code> faces and deliberately ignores materials.</li><li>Sweep and Stretch require baked/deformed output; Shared is valid only for Repeat and Place.</li><li>One Stretch entry spans exactly one semantic input span. It is not automatically subdivided for LOD because subdivision would change its defined result.</li></ul>
+  <h3>TSRE reference limitations, not format requirements</h3>
+  <ul><li>Shared output currently benefits RulerObj; TSRE TrackObj and DynTrackObj remain baked.</li><li>TSRE shared rendering reuses geometry but does not issue a hardware-instanced draw call.</li><li>TSRE uses a temporary 10 cm mesh overlap to conceal sharp grade seams without changing database endpoints.</li><li>The older experimental <code>shapetemplates.dat</code> reader is disabled in the reference branch but has not yet been removed.</li></ul>
+</section>
+
+<section id="implementation" class="doc-section">
+  <h2><a class="anchor" href="#implementation">15. TSRE reference implementation and evidence</a></h2>
+  <p class="intro">Template3D is not yet an ORTS implementation. TSRE implements the proposed syntax and behavior so the format can be reviewed against working geometry, route examples and automated regressions before the ORTS port is prepared.</p>
+  <table><thead><tr><th>Area</th><th>Result</th></tr></thead><tbody>
+    <tr><td>TrProfile parser/renderer suite</td><td>49 / 49 cases passing</td></tr>
+    <tr><td>Existing procedural-policy regression suite</td><td>12 / 12 cases passing; the extension did not change TSRE's editor policy behavior.</td></tr>
+    <tr><td>Migrated route profiles</td><td>22 / 22 generate successfully in the benchmark</td></tr>
+    <tr><td>Multiline Nodes regression</td><td>Three points produce exactly three baked/shared placements; the 90° corner uses a 45° frame.</td></tr>
+    <tr><td>Electric50mh regression</td><td>Twenty spans produce twenty-one unique pole transforms, including the final node.</td></tr>
+  </tbody></table>
+  <h3>Reference consumers</h3>
+  <table><thead><tr><th>TSRE consumer</th><th>Profile type</th><th>Reference coverage</th></tr></thead><tbody>
+    <tr><td><code>TrackObj</code></td><td>TRACK or ROAD</td><td>Static TrackShape paths, multi-path family roles, curved and graded generation.</td></tr>
+    <tr><td><code>DynTrackObj</code></td><td>TRACK or ROAD</td><td>Dynamic section arrays with exact TDB/RDB endpoints.</td></tr>
+    <tr><td><code>RulerObj</code></td><td>STATIC</td><td>Multiline Stretch, averaged Nodes frames and shared rigid occurrences.</td></tr>
+  </tbody></table>
+  <h3>Relevant source files</h3>
+  <div class="files">
+    <a href="../../src/tsre/procedural/OrtsTrackProfile.h">src/tsre/procedural/OrtsTrackProfile.h</a>
+    <a href="../../src/tsre/procedural/OrtsTrackProfile.cpp">src/tsre/procedural/OrtsTrackProfile.cpp</a>
+    <a href="../../src/tsre/procedural/OrtsTrackProfileRenderer.h">src/tsre/procedural/OrtsTrackProfileRenderer.h</a>
+    <a href="../../src/tsre/procedural/OrtsTrackProfileRenderer.cpp">src/tsre/procedural/OrtsTrackProfileRenderer.cpp</a>
+    <a href="../../src/tsre/procedural/ComplexLine.cpp">src/tsre/procedural/ComplexLine.cpp</a>
+    <a href="../tasks/tracks/13-trprofile-3d-mesh.md">docs/tasks/tracks/13-trprofile-3d-mesh.md</a>
+  </div>
+</section>
+</main>
+</div>
+
+<footer><div class="footer-inner">Open Rails TrProfile extension proposal &middot; TSRE reference implementation</div></footer>
+</body>
+</html>

@@ -22,6 +22,8 @@ public:
     int count = 0;
     float texYmin = 999;
     float texYmax = -1;
+    bool valid = false;
+    QString error;
 private:
 
 };

@@ -298,6 +298,105 @@ OrtsProfileVertex::PositionControl positionControl(const QString &value) {
     return OrtsProfileVertex::PositionControl::All;
 }
 
+OrtsProfileLodItem::PathFrameMode pathFrameMode(const QString &value) {
+    if(value.compare("NoRoll", Qt::CaseInsensitive) == 0)
+        return OrtsProfileLodItem::PathFrameMode::NoRoll;
+    if(value.compare("Upright", Qt::CaseInsensitive) == 0)
+        return OrtsProfileLodItem::PathFrameMode::Upright;
+    return OrtsProfileLodItem::PathFrameMode::Full;
+}
+
+OrtsProfileTemplate3D::GenerationMode generationMode(const QString &value,
+        bool &valid) {
+    valid = true;
+    if(value.compare("Sweep", Qt::CaseInsensitive) == 0)
+        return OrtsProfileTemplate3D::GenerationMode::Sweep;
+    if(value.compare("Stretch", Qt::CaseInsensitive) == 0)
+        return OrtsProfileTemplate3D::GenerationMode::Stretch;
+    if(value.compare("Repeat", Qt::CaseInsensitive) == 0)
+        return OrtsProfileTemplate3D::GenerationMode::Repeat;
+    if(value.compare("Place", Qt::CaseInsensitive) == 0)
+        return OrtsProfileTemplate3D::GenerationMode::Place;
+    valid = false;
+    return OrtsProfileTemplate3D::GenerationMode::Sweep;
+}
+
+OrtsProfileTemplate3D::ShapeSelectionMode shapeSelectionMode(
+        const QString &value, bool &valid) {
+    valid = true;
+    if(value.isEmpty() || value.compare("First", Qt::CaseInsensitive) == 0)
+        return OrtsProfileTemplate3D::ShapeSelectionMode::First;
+    if(value.compare("ByObject", Qt::CaseInsensitive) == 0)
+        return OrtsProfileTemplate3D::ShapeSelectionMode::ByObject;
+    if(value.compare("Cycle", Qt::CaseInsensitive) == 0)
+        return OrtsProfileTemplate3D::ShapeSelectionMode::Cycle;
+    if(value.compare("DeterministicRandom", Qt::CaseInsensitive) == 0)
+        return OrtsProfileTemplate3D::ShapeSelectionMode::DeterministicRandom;
+    valid = false;
+    return OrtsProfileTemplate3D::ShapeSelectionMode::First;
+}
+
+OrtsProfileTemplate3D::GeometryMode geometryMode(
+        const QString &value, bool &valid) {
+    valid = true;
+    if(value.isEmpty() || value.compare("Baked", Qt::CaseInsensitive) == 0)
+        return OrtsProfileTemplate3D::GeometryMode::Baked;
+    if(value.compare("Shared", Qt::CaseInsensitive) == 0)
+        return OrtsProfileTemplate3D::GeometryMode::Shared;
+    valid = false;
+    return OrtsProfileTemplate3D::GeometryMode::Baked;
+}
+
+bool placementFacing(const QString &value,
+        OrtsProfileTemplate3D::PlacementFacing &facing) {
+    if(value.compare("AlongPath", Qt::CaseInsensitive) == 0)
+        facing = OrtsProfileTemplate3D::PlacementFacing::AlongPath;
+    else if(value.compare("AgainstPath", Qt::CaseInsensitive) == 0)
+        facing = OrtsProfileTemplate3D::PlacementFacing::AgainstPath;
+    else if(value.compare("Outward", Qt::CaseInsensitive) == 0)
+        facing = OrtsProfileTemplate3D::PlacementFacing::Outward;
+    else if(value.compare("Inward", Qt::CaseInsensitive) == 0)
+        facing = OrtsProfileTemplate3D::PlacementFacing::Inward;
+    else
+        return false;
+    return true;
+}
+
+void appendPlacements(const StfNode &node, OrtsProfileTemplate3D &mesh) {
+    if(node.values.size() != 2){
+        mesh.valid = false;
+        return;
+    }
+    OrtsProfileTemplate3D::PlacementFacing facing;
+    if(!placementFacing(node.values[1], facing)){
+        mesh.valid = false;
+        return;
+    }
+    auto append = [&](OrtsProfileTemplate3D::PlacementLocation location) {
+        OrtsProfileTemplate3D::Placement placement;
+        placement.location = location;
+        placement.facing = facing;
+        mesh.placements.append(placement);
+    };
+    if(node.values[0].compare("Start", Qt::CaseInsensitive) == 0)
+        append(OrtsProfileTemplate3D::PlacementLocation::Start);
+    else if(node.values[0].compare("End", Qt::CaseInsensitive) == 0)
+        append(OrtsProfileTemplate3D::PlacementLocation::End);
+    else if(node.values[0].compare("Nodes", Qt::CaseInsensitive) == 0){
+        if(facing == OrtsProfileTemplate3D::PlacementFacing::Outward
+                || facing == OrtsProfileTemplate3D::PlacementFacing::Inward){
+            mesh.valid = false;
+            return;
+        }
+        append(OrtsProfileTemplate3D::PlacementLocation::Nodes);
+    }
+    else if(node.values[0].compare("Both", Qt::CaseInsensitive) == 0){
+        append(OrtsProfileTemplate3D::PlacementLocation::Start);
+        append(OrtsProfileTemplate3D::PlacementLocation::End);
+    } else
+        mesh.valid = false;
+}
+
 bool values(const QStringList &input, float *output, int count) {
     if(input.size() < count)
         return false;
@@ -345,8 +444,9 @@ void validateProfile(OrtsTrackProfile &profile) {
             structureValid = false;
         }
         for(const OrtsProfileLodItem &item : lod.items){
-            if(item.polylines.isEmpty()){
-                profile.diagnostics.append("LODItem has no Polyline: " + item.name);
+            if(item.polylines.isEmpty() && item.templates3D.isEmpty()){
+                profile.diagnostics.append(
+                        "LODItem has no Polyline or Template3D: " + item.name);
                 structureValid = false;
             }
             for(const OrtsProfilePolyline &polyline : item.polylines){
@@ -363,6 +463,30 @@ void validateProfile(OrtsTrackProfile &profile) {
                         structureValid = false;
                     }
                 }
+            }
+            for(const OrtsProfileTemplate3D &mesh : item.templates3D){
+                bool meshValid = mesh.valid && !mesh.shapes.isEmpty();
+                if(mesh.generationMode
+                        == OrtsProfileTemplate3D::GenerationMode::Repeat
+                        && mesh.spacing <= 0)
+                    meshValid = false;
+                if(mesh.generationMode
+                        == OrtsProfileTemplate3D::GenerationMode::Place
+                        && mesh.placements.isEmpty())
+                    meshValid = false;
+                if(mesh.geometryMode
+                        == OrtsProfileTemplate3D::GeometryMode::Shared
+                        && mesh.generationMode
+                            != OrtsProfileTemplate3D::GenerationMode::Repeat
+                        && mesh.generationMode
+                            != OrtsProfileTemplate3D::GenerationMode::Place)
+                    meshValid = false;
+                if(!meshValid){
+                    profile.diagnostics.append(
+                            "Invalid Template3D in LODItem: " + item.name);
+                    structureValid = false;
+                } else
+                    renderable = true;
             }
         }
     }
@@ -412,6 +536,8 @@ QSharedPointer<OrtsTrackProfile> profileFromStfNode(
                     *itemNode, "ESD_Alternative_Texture", 0);
             item.mipMapLodBias = floatValue(
                     *itemNode, "MipMapLevelOfDetailBias", 0);
+            item.pathFrameMode = pathFrameMode(
+                    firstValue(*itemNode, "PathFrameMode", "Full"));
             for(const StfNode *polylineNode : children(*itemNode, "Polyline")){
                 OrtsProfilePolyline polyline;
                 polyline.name = firstValue(*polylineNode, "Name");
@@ -442,6 +568,39 @@ QSharedPointer<OrtsTrackProfile> profileFromStfNode(
                     polyline.vertices.append(vertex);
                 }
                 item.polylines.append(polyline);
+            }
+            for(const StfNode *meshNode : children(*itemNode, "Template3D")){
+                OrtsProfileTemplate3D mesh;
+                bool modeValid = false;
+                mesh.generationMode = generationMode(
+                        firstValue(*meshNode, "GenerationMode"), modeValid);
+                mesh.valid = modeValid;
+                bool selectionValid = false;
+                mesh.shapeSelectionMode = shapeSelectionMode(
+                        firstValue(*meshNode, "ShapeSelectionMode", "First"),
+                        selectionValid);
+                mesh.valid = mesh.valid && selectionValid;
+                bool geometryValid = false;
+                mesh.geometryMode = geometryMode(
+                        firstValue(*meshNode, "GeometryMode", "Baked"),
+                        geometryValid);
+                mesh.valid = mesh.valid && geometryValid;
+                for(const StfNode *shapeNode : children(*meshNode, "Shape")){
+                    if(shapeNode->values.size() == 1)
+                        mesh.shapes.append(shapeNode->values.first());
+                    else
+                        mesh.valid = false;
+                }
+                const StfNode *offsetNode = child(*meshNode, "Offset");
+                if(offsetNode != nullptr)
+                    mesh.valid = values(offsetNode->values, mesh.offset, 3)
+                            && mesh.valid;
+                mesh.spacing = floatValue(*meshNode, "Spacing", 0);
+                mesh.phase = floatValue(*meshNode, "Phase", 0);
+                for(const StfNode *placementNode
+                        : children(*meshNode, "Placement"))
+                    appendPlacements(*placementNode, mesh);
+                item.templates3D.append(mesh);
             }
             lod.items.append(item);
         }

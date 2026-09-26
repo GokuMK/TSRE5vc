@@ -22,7 +22,9 @@
 #include <QVector>
 
 #include <tsre/Game.h>
+#include <tsre/math3d/GLMatrix.h>
 #include <tsre/ogl/OglObj.h>
+#include <tsre/procedural/ComplexLine.h>
 #include <tsre/procedural/OrtsTrackProfile.h>
 #include <tsre/procedural/OrtsTrackProfileRenderer.h>
 #include <tsre/procedural/ProceduralShape.h>
@@ -185,6 +187,14 @@ int TsreTests::runProceduralProfileBenchmark(const TestRunOptions &opts) {
 
     ProceduralShape::Load();
     OrtsTrackProfileCatalog::load(routePath, true);
+    const QString legacyTemplatePath =
+            QDir::cleanPath(routePath + "/PROCEDURAL/shapetemplates.dat");
+    const bool loadedLegacyForBenchmark =
+            ProceduralShape::ShapeTemplateFile == nullptr
+            && QFileInfo::exists(legacyTemplatePath);
+    if(loadedLegacyForBenchmark)
+        ProceduralShape::ShapeTemplateFile =
+                new ShapeTemplates(legacyTemplatePath);
 
     QVector<TSection> sections;
     sections.append(TSection(0, 0, 100.0f, 0));
@@ -195,15 +205,40 @@ int TsreTests::runProceduralProfileBenchmark(const TestRunOptions &opts) {
             .arg(routePath);
 
     const QStringList nativeNames = {"DefaultTrack", "DefaultTrack3"};
-    const QStringList ortsNames = {"TrProfile_DB1", "TrProfile_SR_w"};
+    const QStringList ortsNames = {
+        "DefaultTrack", "DefaultTrack3", "TrProfile_DB1", "TrProfile_SR_w"
+    };
+    const QStringList migratedNames = {
+        "DefaultTrack", "NoBallast", "DefaultTrack2", "DefaultTrack3",
+        "Siec0", "Electric30mh", "Electric50mh", "Siec1", "Siec1l",
+        "Siec1r_wires2", "Siec1l_wires2", "Siec1r_wires3",
+        "Siec1l_wires3", "Siec1rx2", "Siec1lx2", "Siec0l", "Siecbl",
+        "Siec0r", "Siecbr", "Siec1lp7m", "Siec1lp11m", "Siec1lx2p7m"
+    };
     bool complete = true;
+
+    int migratedProfilesBuilt = 0;
+    for(const QString &name : migratedNames){
+        const QSharedPointer<const OrtsTrackProfile> profile =
+                OrtsTrackProfileCatalog::find(name);
+        QVector<OrtsGeneratedProfileMesh> validationMeshes;
+        QStringList diagnostics;
+        if(profile == nullptr || !OrtsTrackProfileRenderer::buildMeshes(
+                *profile, sections, validationMeshes, &diagnostics)){
+            qWarning() << "[benchmark:procedural-profile] migrated profile invalid:"
+                       << name << diagnostics;
+            complete = false;
+        } else
+            migratedProfilesBuilt++;
+    }
+    qInfo() << "[benchmark:procedural-profile] migrated profiles built:"
+            << migratedProfilesBuilt << "/" << migratedNames.size();
 
     for(const QString &name : nativeNames){
         if(ProceduralShape::ShapeTemplateFile == nullptr
                 || !ProceduralShape::ShapeTemplateFile->templates.contains(name)){
-            qWarning() << "[benchmark:procedural-profile] native template missing:"
-                       << name;
-            complete = false;
+            qInfo() << "[benchmark:procedural-profile] legacy native template disabled:"
+                    << name;
             continue;
         }
         if(ProceduralShape::ShapeTemplateFile->templates.value(name)->type
@@ -304,8 +339,10 @@ int TsreTests::runProceduralProfileBenchmark(const TestRunOptions &opts) {
                 .arg(cacheHits);
         discardProceduralCache();
     };
-    testNativeWheelCache(1.2f, "1.2m");
-    testNativeWheelCache(0.12f, "0.12m");
+    if(ProceduralShape::ShapeTemplateFile != nullptr){
+        testNativeWheelCache(1.2f, "1.2m");
+        testNativeWheelCache(0.12f, "0.12m");
+    }
 
     for(const QString &name : ortsNames){
         const QSharedPointer<const OrtsTrackProfile> profile =
@@ -449,7 +486,75 @@ int TsreTests::runProceduralProfileBenchmark(const TestRunOptions &opts) {
         }
     }
 
+    const QSharedPointer<const OrtsTrackProfile> electricProfile =
+            OrtsTrackProfileCatalog::find(
+                "Electric50mh", OrtsTrackProfile::ObjectType::Static);
+    if(electricProfile != nullptr){
+        QVector<ComplexLinePoint> rulerPoints(21);
+        for(int point = 0; point < rulerPoints.size(); point++)
+            Vec3::set(rulerPoints[point].position,
+                      0, 0, point * 50.0f);
+        ComplexLine rulerLine;
+        rulerLine.init(rulerPoints);
+        OrtsTrackProfile bakedElectric = *electricProfile;
+        for(OrtsProfileLod &lod : bakedElectric.lods)
+            for(OrtsProfileLodItem &item : lod.items)
+                for(OrtsProfileTemplate3D &template3D : item.templates3D)
+                    template3D.geometryMode =
+                            OrtsProfileTemplate3D::GeometryMode::Baked;
+
+        auto benchmarkElectric = [&](const OrtsTrackProfile &profile,
+                bool shared, const QString &mode) {
+            QVector<double> samples;
+            int bakedVertices = 0;
+            int sharedVertices = 0;
+            int occurrences = 0;
+            for(int run = 0; run < BenchmarkRuns; run++){
+                QVector<OrtsGeneratedProfileMesh> meshes;
+                QVector<OrtsGeneratedProfileSharedMesh> sharedMeshes;
+                QElapsedTimer timer;
+                timer.start();
+                OrtsTrackProfileRenderer::buildMeshes(
+                        profile, rulerLine, meshes, nullptr, 0,
+                        shared ? &sharedMeshes : nullptr);
+                samples.append(timer.nsecsElapsed() / 1000000.0);
+                if(run == 0){
+                    for(const OrtsGeneratedProfileMesh &mesh : meshes)
+                        bakedVertices += mesh.vertices.size() / 9;
+                    for(const OrtsGeneratedProfileSharedMesh &mesh
+                            : sharedMeshes){
+                        sharedVertices += mesh.vertices.size() / 9;
+                        occurrences += mesh.transforms.size();
+                    }
+                }
+            }
+            const TimingSummary timing = summarize(
+                    samples, samples.first(), 0,
+                    bakedVertices + sharedVertices);
+            qInfo().noquote() << QString(
+                    "[benchmark:procedural-profile-ruler] profile=Electric50mh "
+                    "mode=%1 median_ms=%2 baked_vertices=%3 "
+                    "shared_vertices=%4 occurrences=%5")
+                    .arg(mode)
+                    .arg(timing.medianMs, 0, 'f', 3)
+                    .arg(bakedVertices)
+                    .arg(sharedVertices)
+                    .arg(occurrences);
+        };
+        benchmarkElectric(bakedElectric, false, "baked");
+        benchmarkElectric(*electricProfile, true, "shared");
+    } else {
+        qWarning() << "[benchmark:procedural-profile-ruler]"
+                      " Electric50mh profile missing";
+        complete = false;
+    }
+
     context.doneCurrent();
+    if(loadedLegacyForBenchmark){
+        discardProceduralCache();
+        delete ProceduralShape::ShapeTemplateFile;
+        ProceduralShape::ShapeTemplateFile = nullptr;
+    }
     Game::root = originalRoot;
     Game::route = originalRoute;
     return complete ? 0 : 1;

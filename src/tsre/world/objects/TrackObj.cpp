@@ -229,7 +229,7 @@ bool TrackObj::useProceduralShape(){
                 // Keep independently generated high profiles visually joined
                 // without moving their stored track-path endpoints.
                 OrtsTrackProfileRenderer::GeneratedTrackEndOverlap, 0,
-                &pathTransform, &pathProfiles)){
+                &pathTransform, &pathProfiles, UiD)){
             procShapeOwned = true;
             proceduralShapeUsesBakedPath = true;
             static QSet<QString> warnedDiagnostics;
