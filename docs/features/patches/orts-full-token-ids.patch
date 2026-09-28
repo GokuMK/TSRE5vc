@@ -1,0 +1,669 @@
+diff --git a/Docs/SIMIS Token IDs.md b/Docs/SIMIS Token IDs.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..002b69ace412772c66fb7dbc42c07027b2d67131
+--- /dev/null
++++ b/Docs/SIMIS Token IDs.md	
+@@ -0,0 +1,93 @@
++# SIMIS binary token IDs (proposal)
++
++Binary blocks start with a little-endian `uint32` token ID, followed by a
++`uint32` body length and the existing label/payload framing. The ID is
++conventionally `(namespace << 16) | localId`, with 16 bits for each component.
++The namespace is not a separate flags field. Payload flags read by `ReadFlags()`
++are unrelated and remain unchanged.
++
++`TokenID` represents the complete ID in both binary and Unicode readers. No
++file-dependent offset is applied. Unicode still resolves the same symbolic
++names; enum values need not be consecutive across namespaces.
++
++## Namespace allocation
++
++| Namespace | Owner | File-token allocation |
++| --- | --- | --- |
++| 0 | Kuju Core, including terrain and shapes | Existing IDs unchanged |
++| 1-3 | Previously assigned Kuju applications | Not reassigned |
++| 4 | MSTS Train, including world objects | Existing native IDs |
++| 5 | ORTS (proposed) | Local IDs 2048-65535 |
++| 6 | TSRE (proposed) | Local IDs 2048-65535 |
++
++Namespaces 5 and 6 are a proposed interoperability agreement, not an existing
++MSTS assignment or a claim of upstream approval. Each has 63,488 file-token
++slots. Local IDs 0-2047 are reserved against **file-token allocation**, not
++forbidden to the binary reader. An application's internal/server messages may
++use that range in its own namespace, but must not be emitted as route-file
++extensions. Server protocol negotiation and message handling are outside this
++change.
++
++The reader preserves unknown IDs, including namespaces other than those listed.
++It does not enforce this allocation policy or reject reserved IDs. The consuming
++format decides whether an unfamiliar block can be skipped.
++
++Existing ORTS extension names are assigned explicit IDs starting with
++`ORTSListName = 0x00050800`. The existing TSRE name in this master baseline is
++`Ruler = 0x00060800`. The allocation `ShapeTemplate = 0x00060801` is reserved
++for compatibility with TSRE and the separate unstable extension; this patch
++does not introduce that absent enum member or its consumer into master.
++Keep each assigned value stable when adding future members. Do not insert implicitly numbered
++members into an established run. Avoid duplicate-value enum aliases: Unicode
++lookup is built from `Enum.GetValues()` and member names.
++
++## Compatibility
++
++- Standard MSTS binary IDs are unchanged on disk. Train enum values now match
++  those native IDs instead of using the old `localId + 300` convention.
++- The former arbitrary `CarSpawner`, `Siding`, `Dyntrack`, `Transfer`, `Gantry`,
++  `Pickup`, `Wagon`, and `Engine` enum values become their canonical Train IDs.
++  World dispatch consequently needs only the symbolic cases.
++- The supplied `loadstr.hdr` and former enum misplaced
++  `EngineBrakesControllerGraduatedSelfLapLimitedHoldingStart` in the train-brake
++  run. Moving it after `EngineBrakesControllerGraduatedSelfLapLimitedStart`
++  matches its native ID `0x0004020E` and corrects 33 intervening IDs. This is an
++  existing table-ordering discrepancy, not a namespace offset. No brake physics
++  or Unicode spelling changes are included.
++- Unicode token names do not change. New namespace support does not implement
++  the feature represented by a token: an unknown TSRE object may still be skipped.
++- ORTS does not provide a route-file binary writer in this change. The TSRE
++  author reports no existing binary TSRE extension files requiring migration.
++  No speculative aliases for the former arbitrary extension numbers are added.
++  Any third-party binary format relying on those numbers would need a separately
++  documented migration. Nonstandard files with incorrect/zeroed namespaces are
++  not silently reinterpreted through the former per-file offsets.
++- Numeric enum values change, so assemblies consuming them must be rebuilt
++  together. External callers of the former three-argument `BinaryFileReader`
++  constructor must use the two-argument constructor. The former header `Flags`
++  field is removed; actual payload-flag methods are retained.
++
++Older ORTS readers discard the namespace and interpret local IDs directly in
++terrain/shape files, or add 300 in world files. Starting file extensions at 2048
++avoids collisions with the enum in the reviewed master baseline (maximum 1563), but
++does not guarantee all older/future forks will skip them safely. In particular,
++the existing `terrain_samples` reader throws on unknown child IDs; that policy
++is deliberately not changed here. Counted collections and positional records
++also have their own rules. Add extension blocks only at compatible child-block
++boundaries, retaining required legacy fields and correct counts.
++
++Two new namespaces may intentionally use the same local ID: old readers cannot
++distinguish them, but namespace-aware readers can. The low-ID reservation helps
++older readers **ignore** extensions; it cannot make them understand extensions.
++
++## Tests
++
++`SbrTokenNamespaceTests` uses generated fixtures to cover complete IDs in
++terrain, world and shape headers; compressed and uncompressed streams; mixed
++namespaces; high-bit IDs; Unicode/binary name agreement; unique enum values;
++the extension reservation; labels, lengths and payload flags; canonical world
++object dispatch; and unchanged unknown-child policies in terrain.
++
++No proprietary route, MSTS executable, graphics device, or Windows registry is
++needed by these tests. A complete simulator build and representative route-load
++checks remain appropriate before release.
+diff --git a/Source/Orts.Formats.Msts/WorldFile.cs b/Source/Orts.Formats.Msts/WorldFile.cs
+index feeaa93b340cf456acded785f2969089c6043b09..0ed74709f39d3ca652f9a2599b95acfc558cde10 100644
+--- a/Source/Orts.Formats.Msts/WorldFile.cs
++++ b/Source/Orts.Formats.Msts/WorldFile.cs
+@@ -120,11 +120,9 @@ void LoadObject(SBR subBlock, ref int currentWatermark, string filename)
+                     Add(new TrackObj(subBlock, currentWatermark));
+                     break;
+                 case TokenID.CarSpawner:
+-                case (TokenID)357:
+                     Add(new CarSpawnerObj(subBlock, currentWatermark));
+                     break;
+                 case TokenID.Siding:
+-                case (TokenID)361:
+                     Add(new SidingObj(subBlock, currentWatermark));
+                     break;
+                 case TokenID.Platform:
+@@ -137,24 +135,19 @@ void LoadObject(SBR subBlock, ref int currentWatermark, string filename)
+                     Add(new LevelCrossingObj(subBlock, currentWatermark));
+                     break;
+                 case TokenID.Dyntrack:
+-                case (TokenID)306:
+                     Add(new DyntrackObj(subBlock, currentWatermark));
+                     break;
+                 case TokenID.Transfer:
+-                case (TokenID)363:
+                     Add(new TransferObj(subBlock, currentWatermark));
+                     break;
+                 case TokenID.Gantry:
+-                case (TokenID)356:
+                     // TODO: Add real handling for gantry objects.
+                     Add(new BaseObj(subBlock, currentWatermark));
+                     break;
+                 case TokenID.Pickup:
+-                case (TokenID)359:
+                     Add(new PickupObj(subBlock, currentWatermark));
+                     break;
+                 case TokenID.Hazard:
+-                    //case (TokenID)359:
+                     Add(new HazardObj(subBlock, currentWatermark));
+                     break;
+                 case TokenID.Signal:
+diff --git a/Source/Orts.Parsers.Msts/SBR.cs b/Source/Orts.Parsers.Msts/SBR.cs
+index f5363dfae0be2ebfb21ee9022ab9e4ed99056f0b..f846cbb9308deb8c1a578dae976bfd9c82e63352 100644
+--- a/Source/Orts.Parsers.Msts/SBR.cs
++++ b/Source/Orts.Parsers.Msts/SBR.cs
+@@ -98,15 +98,8 @@ public static SBR Open(string filename)
+                 throw new System.Exception("Unrecognized subHeader \"" + subHeader + "\" in " + filename);
+             }
+ 
+-            // And for binary types, select where their tokens will appear in our TokenID enum
+-            if (subHeader[5] == 'w')  // and [7] must be 'b'
+-            {
+-                return new BinaryFileReader(fb, filename, 300);
+-            }
+-            else
+-            {
+-                return new BinaryFileReader(fb, filename, 0);
+-            }
++            // Binary block IDs already contain their namespace, independent of file type.
++            return new BinaryFileReader(fb, filename);
+         }
+ 
+         public abstract SBR ReadSubBlock();
+@@ -387,16 +380,14 @@ public class BinaryFileReader : BinaryBlockReader
+         /// <summary>
+         /// Assumes that fb is positioned just after the SIMISA@F header
+         /// filename is provided for error reporting purposes
+-        /// Each block has a token ID.  It's value corresponds to the value of
+-        /// the TokenID enum.  For some file types, ie .W files, the token value's 
+-        /// will be offset into the TokenID table by the specified tokenOffset.
++        /// Each block has a complete 32-bit token ID matching the TokenID enum:
++        /// the high word is the namespace and the low word is the local ID.
+         /// </summary>
+         /// <param name="fb"></param>
+-        public BinaryFileReader(Stream inputStream, string filename, int tokenOffset)
++        public BinaryFileReader(Stream inputStream, string filename)
+         {
+             Filename = filename;
+             InputStream = new BinaryReader(inputStream);
+-            TokenOffset = tokenOffset;
+         }
+ 
+         public override void Skip()
+@@ -426,8 +417,6 @@ public class BinaryBlockReader : SBR
+         public string Filename;  // for error reporting
+         public BinaryReader InputStream;
+         public uint RemainingBytes;  // number of bytes in this block not yet read from the stream
+-        public uint Flags;
+-        protected int TokenOffset;     // the binaryTokens are offset by this amount, ie for binary world files 
+ 
+         public override SBR ReadSubBlock()
+         {
+@@ -435,11 +424,8 @@ public override SBR ReadSubBlock()
+ 
+             block.Filename = Filename;
+             block.InputStream = InputStream;
+-            block.TokenOffset = TokenOffset;
+ 
+-            int MSTSToken = InputStream.ReadUInt16();
+-            block.ID = (TokenID)(MSTSToken + TokenOffset);
+-            block.Flags = InputStream.ReadUInt16();
++            block.ID = (TokenID)InputStream.ReadUInt32();
+             block.RemainingBytes = InputStream.ReadUInt32(); // record length
+ 
+             uint blockSize = block.RemainingBytes + 8; //for the header
+diff --git a/Source/Orts.Parsers.Msts/TokenID.cs b/Source/Orts.Parsers.Msts/TokenID.cs
+index e7415cc25c8b5d78df189e55006e2bb1fef84390..ccc92ee2f49238874e619688b9c9f84ba7f8fdd4 100644
+--- a/Source/Orts.Parsers.Msts/TokenID.cs
++++ b/Source/Orts.Parsers.Msts/TokenID.cs
+@@ -19,9 +19,11 @@
+ namespace Orts.Parsers.Msts
+ {
+     /// <summary>
+-    /// Provides an enum for all the binary tokens used
+-    /// in the header record in the Kuju compressed
+-    /// binary file format.
++    /// Complete binary block IDs: (namespace &lt;&lt; 16) | local ID.
++    /// Namespace 0 is Kuju Core; 4 is MSTS Train. Proposed extension namespaces
++    /// are 5 for ORTS and 6 for TSRE. In extension namespaces, local IDs 0-2047
++    /// are reserved for internal/non-file use; file tokens start at 2048.
++    /// Preserve assigned IDs when adding tokens; Unicode uses the member names.
+     /// </summary>
+     public enum TokenID : uint
+     {
+@@ -284,22 +286,21 @@ public enum TokenID : uint
+         terrain_sample_asbuffer = 281,
+ 
+         /// //////////////////////////////////////////////////////
+-        // To avoid duplicates, the rest of these offset up 300 from their actual values
+-        // as stored in the binary files 
++        // MSTS Train namespace (4). Values match the complete IDs in binary files.
+         /// //////////////////////////////////////////////////////
+ 
+         ///////////////////////////////////////////////////////////
+-        // These ones were made up by reading values in binary world files
++        // Object/form IDs from the MSTS forms table and binary world files.
+         /// //////////////////////////////////////////////////////
+-        Static = 303,
+-        TrackObj = 305,
+-        Forest = 308,
+-        CollideObject = 311,
+-        Signal = 317,
+-        Platform = 360,
+-        LevelCr = 362,
+-        Speedpost = 364,
+-        Hazard=365,
++        Static = 0x00040003,
++        TrackObj = 0x00040005,
++        Forest = 0x00040008,
++        CollideObject = 0x0004000B,
++        Signal = 0x00040011,
++        Platform = 0x0004003C,
++        LevelCr = 0x0004003E,
++        Speedpost = 0x00040040,
++        Hazard = 0x00040041,
+ 
+ 
+ 
+@@ -307,7 +308,7 @@ public enum TokenID : uint
+         // These were taken from the loadstr.hdr file - file encapsulation for ffedit compression
+         ///////////////////////////////////////////////////////////
+ 
+-        Tr_Worldfile = 375,   // ie in the binary file this has a token value of 75
++        Tr_Worldfile = 0x0004004B,   // Train namespace, local ID 75
+         Tr_Watermark,
+         Tr_DataFile,
+         Tr_ConfigFile,
+@@ -786,7 +787,6 @@ public enum TokenID : uint
+         TrainBrakesControllerGraduatedSelfLapStart,
+         TrainBrakesControllerGraduatedSelfLapLimitedStart,
+         TrainBrakesControllerGraduatedSelfLapLimitedHoldingStart,
+-        EngineBrakesControllerGraduatedSelfLapLimitedHoldingStart,
+         TrainBrakesControllerGraduatedSelfLapLimitedKeepPsiStart,
+ 
+         TrainBrakesControllerNeutralhandleOffStart,
+@@ -824,6 +824,9 @@ public enum TokenID : uint
+         EngineBrakesControllerSelfLapStart,
+         EngineBrakesControllerGraduatedSelfLapStart,
+         EngineBrakesControllerGraduatedSelfLapLimitedStart,
++        // The supplied loadstr.hdr misplaced this entry among TrainBrakesController
++        // tokens. Its native MSTS ID is 0x0004020E, here in the engine-brake run.
++        EngineBrakesControllerGraduatedSelfLapLimitedHoldingStart,
+         EngineBrakesControllerGraduatedSelfLapLimitedKeepPsiStart,
+ 
+         EngineBrakesControllerNeutralHandleOffStart,
+@@ -1689,38 +1692,36 @@ public enum TokenID : uint
+ 
+         DEMPath,
+ 
+-        // these assigned ID's are arbitrary - I haven't seen them in a compressed MSTS W file yet
+-        // TODO determine proper ID from a compressed world file
+-        CarSpawner, 
+-        Siding, 
+-        Dyntrack,
+-        Transfer,
+-        Gantry,
+-        Pickup,  
+-
+-        Wagon,
+-        Engine,
+-
+-        // ORTS specific
+-        ORTSListName, // ORTS specific for multi-carspawnerlists
+-        ORTSSoundFileName, // ORTS specific for individual level crossing sounds
+-        ORTSPantographToggle3,
+-        ORTSPantographToggle4,
+-        // ORTS Specific for container stations
+-        ORTSCraneSound, 
+-        ORTSMaxStackedContainers,
+-        ORTSStackLocations,
+-        ORTSStackLocationsLength,
+-        ORTSPickingSurfaceYOffset,
+-        ORTSPickingSurfaceRelativeTopStartPosition,
+-        ORTSGrabberArmsParts,
+-        StackLocation,
+-        MaxStackedContainers,
+-        Length,
+-        Flipped,
+-
+-        // TSRE specific
+-        Ruler
++        // Additional MSTS forms: canonical IDs replace the former arbitrary values.
++        CarSpawner = 0x00040039,
++        Siding = 0x0004003D,
++        Dyntrack = 0x00040006,
++        Transfer = 0x0004003F,
++        Gantry = 0x00040038,
++        Pickup = 0x0004003B,
++        Wagon = 0x0004000D,
++        Engine = 0x0004000E,
++
++        // Proposed ORTS namespace (5), file-token range starting at local ID 2048.
++        // Keep explicit assignments stable; append new IDs without renumbering.
++        ORTSListName = 0x00050800, // Multi-carspawner lists
++        ORTSSoundFileName = 0x00050801, // Individual level crossing sounds
++        ORTSPantographToggle3 = 0x00050802,
++        ORTSPantographToggle4 = 0x00050803,
++        ORTSCraneSound = 0x00050804,
++        ORTSMaxStackedContainers = 0x00050805,
++        ORTSStackLocations = 0x00050806,
++        ORTSStackLocationsLength = 0x00050807,
++        ORTSPickingSurfaceYOffset = 0x00050808,
++        ORTSPickingSurfaceRelativeTopStartPosition = 0x00050809,
++        ORTSGrabberArmsParts = 0x0005080A,
++        StackLocation = 0x0005080B,
++        MaxStackedContainers = 0x0005080C,
++        Length = 0x0005080D,
++        Flipped = 0x0005080E,
++
++        // Proposed TSRE namespace (6), with the same reserved local range.
++        Ruler = 0x00060800
+     }
+ 
+ }
+diff --git a/Source/Tests/Orts.Parsers.Msts/SbrTokenNamespaceTests.cs b/Source/Tests/Orts.Parsers.Msts/SbrTokenNamespaceTests.cs
+new file mode 100644
+index 0000000000000000000000000000000000000000..fab72c2010a6f7fb3a99fac28d009532fc0ac792
+--- /dev/null
++++ b/Source/Tests/Orts.Parsers.Msts/SbrTokenNamespaceTests.cs
+@@ -0,0 +1,291 @@
++// Licensed under the GNU General Public License, version 3 or later.
++
++using Orts.Formats.Msts;
++using Orts.Parsers.Msts;
++using System;
++using System.Collections.Generic;
++using System.IO;
++using System.IO.Compression;
++using System.Linq;
++using System.Text;
++using Xunit;
++
++namespace Tests.Orts.Parsers.Msts
++{
++    public class SbrTokenNamespaceTests
++    {
++        // Synthetic fixtures only: no route installation or proprietary files required.
++        static byte[] Block(uint id, Action<BinaryWriter> payload = null, string label = "")
++        {
++            using (var body = new MemoryStream())
++            using (var bodyWriter = new BinaryWriter(body, Encoding.Unicode, true))
++            using (var result = new MemoryStream())
++            using (var writer = new BinaryWriter(result, Encoding.Unicode, true))
++            {
++                bodyWriter.Write(checked((byte)label.Length));
++                bodyWriter.Write(Encoding.Unicode.GetBytes(label));
++                payload?.Invoke(bodyWriter);
++                bodyWriter.Flush();
++                writer.Write(id);
++                writer.Write(checked((uint)body.Length));
++                writer.Write(body.ToArray());
++                writer.Flush();
++                return result.ToArray();
++            }
++        }
++
++        sealed class Fixture : IDisposable
++        {
++            public readonly string FileName = Path.GetTempFileName();
++
++            public Fixture(char fileType, byte[] blocks, bool compressed)
++            {
++                byte[] content = Encoding.ASCII.GetBytes("JINX0" + fileType + "0b________")
++                    .Concat(blocks).ToArray();
++                using (var file = File.Create(FileName))
++                {
++                    byte[] header = Encoding.ASCII.GetBytes(compressed ? "SIMISA@F@@@@@@@@" : "SIMISA@@@@@@@@@@");
++                    file.Write(header, 0, header.Length);
++                    if (compressed)
++                    {
++                        // SBR skips the zlib header and uses a raw DEFLATE reader.
++                        file.WriteByte(0x78);
++                        file.WriteByte(0x9C);
++                        using (var deflate = new DeflateStream(file, CompressionMode.Compress, true))
++                            deflate.Write(content, 0, content.Length);
++                        uint a = 1, b = 0;
++                        foreach (byte value in content)
++                        {
++                            a = (a + value) % 65521;
++                            b = (b + a) % 65521;
++                        }
++                        uint adler = (b << 16) | a;
++                        for (int shift = 24; shift >= 0; shift -= 8)
++                            file.WriteByte((byte)(adler >> shift));
++                    }
++                    else
++                        file.Write(content, 0, content.Length);
++                }
++            }
++
++            public Fixture(char fileType, string text, bool utf16)
++            {
++                string content = "SIMISA@@@@@@@@@@JINX0" + fileType + "0t________" + text;
++                using (var writer = new StreamWriter(FileName, false, utf16 ? Encoding.Unicode : Encoding.ASCII))
++                    writer.Write(content);
++            }
++
++            public void Dispose() { File.Delete(FileName); }
++        }
++
++        [Theory]
++        [InlineData('t', false)]
++        [InlineData('t', true)]
++        [InlineData('w', false)]
++        [InlineData('w', true)]
++        [InlineData('s', false)]
++        [InlineData('s', true)]
++        public void BinaryIdsDoNotDependOnFileType(char fileType, bool compressed)
++        {
++            uint[] ids = { 0x00000003, 0x00040003, 0x00050003, 0x00060003,
++                0x00050800, 0x00060800, 0x0006FFFF, 0x80000800, 0xFFFF0800 };
++            using (var fixture = new Fixture(fileType, ids.SelectMany(id => Block(id)).ToArray(), compressed))
++            using (var reader = SBR.Open(fixture.FileName))
++            {
++                foreach (uint id in ids)
++                    using (var block = reader.ReadSubBlock())
++                    {
++                        Assert.Equal(id, (uint)block.ID);
++                        Assert.True(block.EndOfBlock());
++                    }
++                Assert.True(reader.EndOfBlock());
++            }
++        }
++
++        [Fact]
++        public void AssignedValuesAreUniqueAndExtensionFileIdsAvoidReservedRange()
++        {
++            uint[] ids = Enum.GetValues(typeof(TokenID)).Cast<TokenID>().Select(id => (uint)id).ToArray();
++            Assert.Equal(ids.Length, ids.Distinct().Count());
++            foreach (uint id in ids.Where(id => (id >> 16) == 5 || (id >> 16) == 6))
++                Assert.InRange(id & 0xFFFF, 2048u, 65535u);
++            Assert.Equal(0x00050800u, (uint)TokenID.ORTSListName);
++            Assert.Equal(0x0005080Eu, (uint)TokenID.Flipped);
++            Assert.Equal(0x00060800u, (uint)TokenID.Ruler);
++            Assert.Equal(0x0004000Du, (uint)TokenID.Wagon);
++            Assert.Equal(0x0004000Eu, (uint)TokenID.Engine);
++            Assert.Equal(0x000404D7u, (uint)TokenID.DEMPath);
++            Assert.Equal(0x000401EDu, (uint)TokenID.TrainBrakesControllerGraduatedSelfLapLimitedKeepPsiStart);
++            Assert.Equal(0x0004020Du, (uint)TokenID.EngineBrakesControllerGraduatedSelfLapLimitedStart);
++            Assert.Equal(0x0004020Eu, (uint)TokenID.EngineBrakesControllerGraduatedSelfLapLimitedHoldingStart);
++            Assert.Equal(0x0004020Fu, (uint)TokenID.EngineBrakesControllerGraduatedSelfLapLimitedKeepPsiStart);
++        }
++
++        [Theory]
++        [InlineData(false)]
++        [InlineData(true)]
++        public void EveryUnicodeNameMatchesItsBinaryId(bool utf16)
++        {
++            TokenID[] ids = Enum.GetValues(typeof(TokenID)).Cast<TokenID>().ToArray();
++            // "comment" is intentionally skipped by the Unicode parser.
++            ids = ids.Where(id => id != TokenID.comment).ToArray();
++            string text = string.Join("\n", ids.Select(id => id + " ( )"));
++            using (var unicode = new Fixture('w', text, utf16))
++            using (var binary = new Fixture('w', ids.SelectMany(id => Block((uint)id)).ToArray(), false))
++            using (var textReader = SBR.Open(unicode.FileName))
++            using (var binaryReader = SBR.Open(binary.FileName))
++            {
++                foreach (TokenID id in ids)
++                {
++                    using (var textBlock = textReader.ReadSubBlock())
++                    using (var binaryBlock = binaryReader.ReadSubBlock())
++                    {
++                        Assert.Equal(id, textBlock.ID);
++                        Assert.Equal(id, binaryBlock.ID);
++                        textBlock.Skip();
++                        binaryBlock.Skip();
++                    }
++                }
++                Assert.True(textReader.EndOfBlock());
++                Assert.True(binaryReader.EndOfBlock());
++            }
++        }
++
++        [Theory]
++        [InlineData(false)]
++        [InlineData(true)]
++        public void LabelsPayloadFlagsAndUnknownNestedBlocksRemainAligned(bool compressed)
++        {
++            byte[] root = Block((uint)TokenID.terrain, writer =>
++            {
++                writer.Write(Block(0x00060800, unknown => unknown.Write(new byte[] { 1, 2, 3, 4, 5 }), "extension"));
++                writer.Write(Block((uint)TokenID.terrain_nsamples, known => known.Write(512)));
++                writer.Write(Block((uint)TokenID.flags, flags => flags.Write(0xDEADBEEFu)));
++            }, "tile");
++            using (var fixture = new Fixture('t', root, compressed))
++            using (var reader = SBR.Open(fixture.FileName))
++            using (var parent = reader.ReadSubBlock())
++            {
++                Assert.Equal("tile", parent.Label);
++                using (var unknown = parent.ReadSubBlock())
++                {
++                    Assert.Equal(0x00060800u, (uint)unknown.ID);
++                    Assert.Equal("extension", unknown.Label);
++                    unknown.Skip();
++                }
++                using (var samples = parent.ReadSubBlock())
++                {
++                    Assert.Equal(TokenID.terrain_nsamples, samples.ID);
++                    Assert.Equal(512, samples.ReadInt());
++                }
++                using (var flags = parent.ReadSubBlock())
++                    Assert.Equal(0xDEADBEEFu, flags.ReadFlags());
++                Assert.True(parent.EndOfBlock());
++                Assert.True(reader.EndOfBlock());
++            }
++        }
++
++        public static IEnumerable<object[]> WorldForms()
++        {
++            yield return new object[] { TokenID.Static, 0x00040003u, typeof(StaticObj) };
++            yield return new object[] { TokenID.TrackObj, 0x00040005u, typeof(TrackObj) };
++            yield return new object[] { TokenID.CarSpawner, 0x00040039u, typeof(CarSpawnerObj) };
++            yield return new object[] { TokenID.Siding, 0x0004003Du, typeof(SidingObj) };
++            yield return new object[] { TokenID.Dyntrack, 0x00040006u, typeof(DyntrackObj) };
++            yield return new object[] { TokenID.Transfer, 0x0004003Fu, typeof(TransferObj) };
++            yield return new object[] { TokenID.Gantry, 0x00040038u, typeof(BaseObj) };
++            yield return new object[] { TokenID.Pickup, 0x0004003Bu, typeof(PickupObj) };
++        }
++
++        [Theory]
++        [MemberData(nameof(WorldForms))]
++        public void CanonicalWorldFormsLoadInBinaryAndUnicode(TokenID id, uint packedId, Type objectType)
++        {
++            Assert.Equal(packedId, (uint)id);
++            byte[] bytes = Block(0x0004004B, writer => writer.Write(Block(packedId,
++                obj => obj.Write(Block((uint)TokenID.UiD, uid => uid.Write(123u))))));
++            string text = "Tr_Worldfile ( " + id + " ( UiD ( 123 ) ) )";
++            using (var binary = new Fixture('w', bytes, false))
++            using (var unicode = new Fixture('w', text, true))
++            {
++                foreach (var fixture in new[] { binary, unicode })
++                    using (var reader = SBR.Open(fixture.FileName))
++                    using (var root = reader.ReadSubBlock())
++                    {
++                        var world = new Tr_Worldfile(root, fixture.FileName, null);
++                        var obj = Assert.Single(world);
++                        Assert.Equal(objectType, obj.GetType());
++                        Assert.Equal(123u, obj.UID);
++                    }
++            }
++        }
++
++        [Fact]
++        public void UnknownNamespaceWorldObjectIsNotStaticAndDoesNotHideNextObject()
++        {
++            AssertWarnings.Expected();
++            byte[] bytes = Block(0x0004004B, writer =>
++            {
++                writer.Write(Block(0x00060003, unknown => unknown.Write(1234)));
++                writer.Write(Block(0x00040003, obj => obj.Write(Block((uint)TokenID.UiD, uid => uid.Write(456u)))));
++            });
++            using (var fixture = new Fixture('w', bytes, true))
++            using (var reader = SBR.Open(fixture.FileName))
++            using (var root = reader.ReadSubBlock())
++            {
++                var obj = Assert.Single(new Tr_Worldfile(root, fixture.FileName, null));
++                Assert.IsType<StaticObj>(obj);
++                Assert.Equal(456u, obj.UID);
++            }
++        }
++
++        [Theory]
++        [InlineData(false)]
++        [InlineData(true)]
++        public void OrtsExtensionInsideMstsObjectLoadsInBinaryAndUnicode(bool compressed)
++        {
++            byte[] bytes = Block(0x0004004B, writer => writer.Write(Block(0x00040039,
++                obj => obj.Write(Block(0x00050800, list =>
++                {
++                    list.Write((ushort)5);
++                    list.Write(Encoding.Unicode.GetBytes("urban"));
++                })))));
++            using (var binary = new Fixture('w', bytes, compressed))
++            using (var unicode = new Fixture('w', "Tr_Worldfile ( CarSpawner ( ORTSListName ( urban ) ) )", true))
++            {
++                foreach (var fixture in new[] { binary, unicode })
++                    using (var reader = SBR.Open(fixture.FileName))
++                    using (var root = reader.ReadSubBlock())
++                    {
++                        var obj = Assert.Single(new Tr_Worldfile(root, fixture.FileName, null));
++                        Assert.Equal("urban", Assert.IsType<CarSpawnerObj>(obj).ListName);
++                    }
++            }
++        }
++
++        [Fact]
++        public void UnknownTerrainRootChildIsSkippedAndSamplesStillLoad()
++        {
++            AssertWarnings.Expected();
++            byte[] bytes = Block((uint)TokenID.terrain, writer =>
++            {
++                writer.Write(Block(0x0006008B, unknown => unknown.Write(1234)));
++                writer.Write(Block((uint)TokenID.terrain_samples,
++                    samples => samples.Write(Block((uint)TokenID.terrain_nsamples, n => n.Write(1024)))));
++            });
++            using (var fixture = new Fixture('t', bytes, false))
++                Assert.Equal(1024, new TerrainFile(fixture.FileName).terrain.terrain_samples.terrain_nsamples);
++        }
++
++        [Fact]
++        public void UnknownTerrainSamplesChildStillUsesTheExistingStrictPolicy()
++        {
++            AssertWarnings.Expected();
++            byte[] bytes = Block((uint)TokenID.terrain, writer => writer.Write(
++                Block((uint)TokenID.terrain_samples, samples => samples.Write(
++                    Block(0x00060800)))));
++            using (var fixture = new Fixture('t', bytes, false))
++                Assert.Throws<InvalidDataException>(() => new TerrainFile(fixture.FileName));
++        }
++    }
++}
+diff --git a/Source/Tests/Tests.csproj b/Source/Tests/Tests.csproj
+index f0fe6b9970423e90a743e4e2b8597214d016d805..85d0ce47f729417e8f74725bdf4c73f12887ffde 100644
+--- a/Source/Tests/Tests.csproj
++++ b/Source/Tests/Tests.csproj
+@@ -29,6 +29,7 @@
+     <ProjectReference Include="..\Orts.Parsers.Msts\Orts.Parsers.Msts.csproj" />
+     <ProjectReference Include="..\Orts.Common\Orts.Common.csproj" />
+     <ProjectReference Include="..\Orts.Parsers.OR\Orts.Parsers.OR.csproj" />
++    <ProjectReference Include="..\Orts.Formats.Msts\Orts.Formats.Msts.csproj" />
+   </ItemGroup>
+   <ItemGroup>
+     <Service Include="{82A7F48D-3B50-4B1E-B82E-3ADA8210C358}" />
+@@ -48,4 +49,4 @@
+       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+     </PackageReference>
+   </ItemGroup>
+-</Project>
+\ No newline at end of file
++</Project>
