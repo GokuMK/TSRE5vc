@@ -12,6 +12,7 @@
 #define	REF_H
 
 #include <QString>
+#include <QStringList>
 #include <QVector>
 #include <QMap>
 
@@ -65,6 +66,7 @@ public:
     void loadUtf16Data(FileBuffer *data, QString path);
     void expandTemplates();
     void ensureDynTrackItems();
+    QStringList routeShapeNames() const;
     void saveToStream(QTextStream *out);
     bool loaded;
     RefItem *selected = NULL;

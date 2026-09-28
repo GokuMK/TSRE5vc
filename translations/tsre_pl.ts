@@ -1826,6 +1826,11 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
             <source>FLEX ROAD</source>
             <translation>DROGA FLEX</translation>
         </message>
+        <message id="route.editor.obj.tools.button.ruler">
+            <location filename="../src/routeEditor/ObjTools.cpp" line="60" />
+            <source>RULER</source>
+            <translation>LINIJKA</translation>
+        </message>
         <message id="route.editor.obj.tools.button.auto.placement">
             <location filename="../src/routeEditor/ObjTools.cpp" line="60" />
             <source>Auto Placement</source>
@@ -1871,10 +1876,22 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
             <source>Search:</source>
             <translation>Szukaj:</translation>
         </message>
-        <message id="route.editor.obj.tools.tooltip.procedural.profile.used.for.new.flex.objects">
-            <location filename="../src/routeEditor/ObjTools.cpp" line="145" />
-            <source>Procedural profile used for new Flex objects. Road lane role profiles are selected automatically.</source>
-            <translation>Profil proceduralny używany dla nowych obiektów Flex. Profile ról pasów drogowych są wybierane automatycznie.</translation>
+        <message id="route.editor.obj.tools.tooltip.procedural.profile.used.for.new.continuous.objects">
+            <location filename="../src/routeEditor/ObjTools.cpp" line="136" />
+            <source>Procedural profile used for newly placed continuous objects.</source>
+            <translation>Profil proceduralny używany dla nowo umieszczanych obiektów ciągłych.</translation>
+        </message>
+        <message id="route.editor.ruler.node.shape.tooltip">
+            <location filename="../src/routeEditor/ObjTools.cpp" line="142" />
+            <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="216" />
+            <source>Optional route shape rendered at every Ruler node. Template node geometry remains available and is additive.</source>
+            <translation>Opcjonalny model trasy renderowany w każdym węźle linijki. Geometria węzłów szablonu pozostaje dostępna i jest dodawana niezależnie.</translation>
+        </message>
+        <message id="route.editor.ruler.node.shape.none">
+            <location filename="../src/routeEditor/ObjTools.cpp" line="919" />
+            <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="296" />
+            <source>No node shape</source>
+            <translation>Bez modelu węzła</translation>
         </message>
         <message id="route.editor.obj.tools.text.track.on.left">
             <location filename="../src/routeEditor/ObjTools.cpp" line="149" />
@@ -2070,6 +2087,11 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
             <location filename="../src/routeEditor/ObjTools.cpp" line="764" />
             <source>Built-in dynamic track</source>
             <translation>Wbudowany tor dynamiczny</translation>
+        </message>
+        <message id="route.editor.obj.tools.item.plain.ruler">
+            <location filename="../src/routeEditor/ObjTools.cpp" line="803" />
+            <source>Plain ruler</source>
+            <translation>Zwykła linijka</translation>
         </message>
         <message id="route.editor.obj.tools.action.find.similar">
             <location filename="../src/routeEditor/ObjTools.cpp" line="1016" />
@@ -4274,6 +4296,18 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
             <source>Shape Template:</source>
             <translation>Szablon geometrii:</translation>
         </message>
+        <message id="route.editor.properties.profile.tooltip.route.profile.subtype">
+            <location filename="../src/routeEditor/properties/PropertiesDyntrack.cpp" line="81" />
+            <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="186" />
+            <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="93" />
+            <source>Select a route profile subtype.</source>
+            <translation>Wybierz podtyp profilu trasy.</translation>
+        </message>
+        <message id="route.editor.properties.ruler.label.node.shape">
+            <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="207" />
+            <source>Node shape:</source>
+            <translation>Model węzła:</translation>
+        </message>
         <message id="common.value.not.set">
             <location filename="../src/routeEditor/properties/PropertiesDyntrack.cpp" line="78" />
             <location filename="../src/routeEditor/properties/PropertiesDyntrack.cpp" line="410" />
@@ -5321,10 +5355,10 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
             <source>NOT SET disables the procedural Ruler shape; DEFAULT explicitly requests the default procedural template.</source>
             <translation>NIE USTAWIONO wyłącza proceduralny model linijki; DOMYŚLNE jawnie wybiera domyślny szablon proceduralny.</translation>
         </message>
-        <message id="route.editor.properties.ruler.button.button.3">
-            <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="198" />
-            <source>Add Shape</source>
-            <translation>Dodaj model 3D</translation>
+        <message id="route.editor.properties.ruler.button.remove.node.shape">
+            <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="221" />
+            <source>Remove Node Shape</source>
+            <translation>Usuń model węzła</translation>
         </message>
         <message id="route.editor.properties.ruler.text.null">
             <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="288" />

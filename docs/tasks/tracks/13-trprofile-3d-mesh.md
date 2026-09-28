@@ -12,6 +12,9 @@ TSRE before a corresponding Open Rails patch is prepared.
 
 ## Format
 
+The self-contained authoring tutorial and small source assets are maintained
+in [`extra/trprofile-3d/README.md`](../../../extra/trprofile-3d/README.md).
+
 `PathFrameMode` belongs to `LODItem` and defaults to `Full`:
 
 - `Full` follows yaw, pitch, and roll.
@@ -107,6 +110,20 @@ rejects the complete mesh. Parsed meshes are cached by normalized source path.
 - A single very long `Stretch` span intentionally remains one LOD unit. Authors
   wanting independently culled pieces use `Sweep`, `Repeat`, or explicitly
   authored Ruler spans.
+
+## Optional ordinary Ruler node shape
+
+A Ruler can additionally store an ordinary route `.s` shape in `FileName`.
+TSRE resolves it through the shared shape library and renders one instance at
+every authored Ruler node. End nodes follow their only adjacent span; internal
+nodes use the incoming/outgoing angular bisector. This provides a lightweight
+alternative for complex existing objects such as poles and also supplies a
+future backend for MSTS Telepole-style content.
+
+The ordinary shape and profile geometry are deliberately additive. Selecting
+a node shape does not suppress a profile's `Template3D` `Nodes` placement.
+The object-properties and continuous-Ruler selectors can set or clear the
+shape, and the value participates in the ordinary Ruler save and undo paths.
 
 ## Migration and compatibility
 

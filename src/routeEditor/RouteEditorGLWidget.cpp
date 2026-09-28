@@ -30,6 +30,7 @@
 #include <tsre/math3d/Vector2f.h>
 #include <tsre/math3d/Flex.h>
 #include <tsre/world/objects/DynTrackObj.h>
+#include <tsre/world/objects/RulerObj.h>
 #include <tsre/procedural/ProceduralShape.h>
 #include <tsre/procedural/ShapeTemplates.h>
 #include <tsre/procedural/OrtsTrackProfile.h>
@@ -72,7 +73,7 @@
 // StandardFogStoredCoords is retained as the Stage 1 shader reference, but it
 // requires reverting the paged vertex layout to TerrainVertex12 before use.
 static const QString MainRenderShaderName = "StandardFog";
-static constexpr unsigned long long LiveFlexUpdateIntervalMs = 50;
+static constexpr unsigned long long LiveContinuousUpdateIntervalMs = 50;
 
 RouteEditorGLWidget::RouteEditorGLWidget(QWidget *parent)
 : QOpenGLWidget(parent),
@@ -147,7 +148,7 @@ void RouteEditorGLWidget::timerEvent(QTimerEvent * event) {
         //qDebug() << "new second" << timeNow;
         if (selectedObj != NULL)
             emit updateProperties(selectedObj);
-        if(!liveFlexActive)
+        if(!liveFlexActive && !liveRulerActive)
             Undo::StateEndIfLongTime();
     }
     
@@ -1209,10 +1210,14 @@ void RouteEditorGLWidget::drawPointer() {
             aktPointerPos);
     if(liveFlexActive && !mouseRPressed)
         updateLiveFlex((int)camera->pozT[0], (int)camera->pozT[1], aktPointerPos);
+    else if(liveRulerActive && !mouseRPressed)
+        updateLiveRuler((int)camera->pozT[0], (int)camera->pozT[1], aktPointerPos);
     //qDebug()<<aktPointerPos[0]<< aktPointerPos[1]<< aktPointerPos[2];
     if (Game::viewPointer3d) {
         const float displayedPointerY = aktPointerPos[1]
-                + ((continuousFlexMode || liveFlexActive) ? flexYOffset : 0.0f);
+                + ((continuousFlexMode || liveFlexActive
+                    || continuousRulerMode || liveRulerActive)
+                    ? continuousPlacementYOffset : 0.0f);
         gluu->mvPushMatrix();
         Mat4::translate(gluu->mvMatrix, gluu->mvMatrix,
                 aktPointerPos[0], displayedPointerY, aktPointerPos[2]);
@@ -1269,6 +1274,14 @@ void RouteEditorGLWidget::keyPressEvent(QKeyEvent * event) {
         // Escape cancels only the unfinished continuous segment. Keep the
         // Flex tool armed so the next click can begin a separate line.
         finishLiveFlex(false, continuousFlexMode);
+        event->accept();
+        return;
+    }
+
+    if (liveRulerActive && event->key() == Qt::Key_Escape) {
+        // Finish the accepted polyline, discard only its mouse-following
+        // endpoint, and keep Ruler placement armed for a new line.
+        finishLiveRuler(continuousRulerMode);
         event->accept();
         return;
     }
@@ -1633,6 +1646,18 @@ void RouteEditorGLWidget::mousePressEvent(QMouseEvent *event) {
             setFocus();
             return;
         }
+        if(liveRulerActive) {
+            if(updateLiveRuler(
+                    (int)camera->pozT[0],
+                    (int)camera->pozT[1],
+                    aktPointerPos,
+                    true))
+                acceptLiveRulerPoint();
+            mouseLPressed = false;
+            mouseClick = false;
+            setFocus();
+            return;
+        }
         Undo::StateBegin();
         mouseLPressed = true;
         lastMousePressTime = QDateTime::currentMSecsSinceEpoch();
@@ -1646,6 +1671,20 @@ void RouteEditorGLWidget::mousePressEvent(QMouseEvent *event) {
                     aktPointerPos,
                     q,
                     true))
+                Undo::StateCancel();
+            mouseLPressed = false;
+            mouseClick = false;
+            setFocus();
+            return;
+        }
+        if(toolEnabled == "continuousRulerTool") {
+            float q[4];
+            Quat::copy(q, placeRot);
+            if(!placeContinuousRuler(
+                    (int)camera->pozT[0],
+                    (int)camera->pozT[1],
+                    aktPointerPos,
+                    q))
                 Undo::StateCancel();
             mouseLPressed = false;
             mouseClick = false;
@@ -1869,16 +1908,24 @@ void RouteEditorGLWidget::mousePressEvent(QMouseEvent *event) {
 void RouteEditorGLWidget::wheelEvent(QWheelEvent *event) {
     float numDegrees = 0.01 * event->angleDelta().y();
 
-    if(continuousFlexMode || liveFlexActive) {
+    if(continuousFlexMode || liveFlexActive
+            || continuousRulerMode || liveRulerActive) {
         const float step = (event->modifiers() & Qt::ControlModifier)
                 ? moveMaxStep / 10.0f
                 : moveMaxStep;
-        flexYOffset += numDegrees * step;
+        continuousPlacementYOffset += numDegrees * step;
         if(liveFlexActive) {
             // Wheel elevation is an explicit edit, so apply every step. GPU
             // cleanup remains safe because DynTrack defers it to rendering.
             liveFlexHasLastTarget = false;
             updateLiveFlex(
+                    (int)camera->pozT[0],
+                    (int)camera->pozT[1],
+                    aktPointerPos,
+                    true);
+        } else if(liveRulerActive) {
+            liveRulerHasLastTarget = false;
+            updateLiveRuler(
                     (int)camera->pozT[0],
                     (int)camera->pozT[1],
                     aktPointerPos,
@@ -1912,7 +1959,8 @@ void RouteEditorGLWidget::mouseReleaseEvent(QMouseEvent* event) {
     }
     if ((event->button()) == Qt::LeftButton) {
         mouseLPressed = false;
-        Undo::StateEnd();
+        if(!liveRulerActive)
+            Undo::StateEnd();
     }
     mouseClick = false;
     bolckContextMenu = false;
@@ -1934,7 +1982,7 @@ void RouteEditorGLWidget::mouseMoveEvent(QMouseEvent *event) {
     mousex = event->position().x() * Game::PixelRatio;
     mousey = event->position().y() * Game::PixelRatio;
 
-    if(liveFlexActive) {
+    if(liveFlexActive || liveRulerActive) {
         if((event->buttons() & Qt::RightButton) == Qt::RightButton)
             camera->MouseMove(event);
         m_lastPos = event->position();
@@ -2033,24 +2081,38 @@ void RouteEditorGLWidget::enableTool(QString name) {
             && name != "liveFlexTool"
             && name != toolEnabled)
         finishLiveFlex(false);
-    const bool wasFlexTool = continuousFlexMode
+    if(liveRulerActive
+            && name != "continuousRulerTool"
+            && name != toolEnabled)
+        finishLiveRuler(false);
+    const bool wasContinuousTool = continuousFlexMode
             || liveFlexActive
-            || toolEnabled == "liveFlexTool";
+            || toolEnabled == "liveFlexTool"
+            || continuousRulerMode
+            || liveRulerActive;
     if(name == "continuousFlexTool") {
         continuousFlexMode = true;
         continuousFlexRoadMode = false;
+        continuousRulerMode = false;
     } else if(name == "continuousFlexRoadTool") {
         continuousFlexMode = true;
         continuousFlexRoadMode = true;
+        continuousRulerMode = false;
+    } else if(name == "continuousRulerTool") {
+        continuousFlexMode = false;
+        continuousFlexRoadMode = false;
+        continuousRulerMode = true;
     } else if(name != "liveFlexTool") {
         continuousFlexMode = false;
         continuousFlexRoadMode = false;
+        continuousRulerMode = false;
     }
-    if(wasFlexTool
+    if(wasContinuousTool
             && name != "continuousFlexTool"
             && name != "continuousFlexRoadTool"
+            && name != "continuousRulerTool"
             && name != "liveFlexTool")
-        flexYOffset = 0.0f;
+        continuousPlacementYOffset = 0.0f;
     qDebug() << name;
     toolEnabled = name;
     //if(toolEnabled == "placeTool" || toolEnabled == "selectTool" || toolEnabled == "autoPlaceSimpleTool"){
@@ -2124,6 +2186,8 @@ void RouteEditorGLWidget::setPaintBrush(Brush* brush) {
 void RouteEditorGLWidget::setSelectedObj(GameObj* o) {
     if(liveFlexActive && o != liveFlexObj)
         finishLiveFlex(false);
+    if(liveRulerActive && o != liveRulerObj)
+        finishLiveRuler(false);
     selectedObj = o;
     Game::currentSelectedGameObj = selectedObj;
     emit showProperties(selectedObj);
@@ -2218,7 +2282,7 @@ bool RouteEditorGLWidget::placeContinuousFlexTrack(
     float q[4];
     Vec3::copy(p, position);
     if(initialMousePlacement)
-        p[1] += flexYOffset;
+        p[1] += continuousPlacementYOffset;
     Quat::copy(q, quaternion);
     DynTrackObj *dynTrack = (DynTrackObj*)route->placeObject(
             tileX, tileZ, p, q, 0, &dynTrackRef);
@@ -2512,7 +2576,186 @@ bool RouteEditorGLWidget::updateLiveFlexCompanions(const float *mainSections) {
     return true;
 }
 
-void RouteEditorGLWidget::quantizeLiveFlexPoint(int &tileX, int &tileZ, float *position, float step) {
+bool RouteEditorGLWidget::placeContinuousRuler(
+        int tileX,
+        int tileZ,
+        const float *position,
+        const float *quaternion) {
+    if(route == NULL || position == NULL || quaternion == NULL)
+        return false;
+
+    Ref::RefItem rulerRef;
+    rulerRef.type = "ruler";
+    rulerRef.value = -1;
+    rulerRef.description = "Ruler";
+    if(!continuousRulerNodeShape.isEmpty())
+        rulerRef.filename.push_back(continuousRulerNodeShape);
+
+    int placedTileX = tileX;
+    int placedTileZ = tileZ;
+    float placedPosition[3] = {
+        position[0],
+        position[1] + continuousPlacementYOffset,
+        position[2]
+    };
+    quantizeContinuousPoint(placedTileX, placedTileZ, placedPosition,
+            Game::DefaultMoveStep);
+    float placedQuaternion[4] = {
+        quaternion[0], quaternion[1], quaternion[2], quaternion[3]
+    };
+    RulerObj *ruler = (RulerObj*)route->placeObject(
+            placedTileX, placedTileZ, placedPosition, placedQuaternion,
+            0, &rulerRef);
+    if(ruler == NULL)
+        return false;
+
+    ruler->setTemplate(continuousRulerProfile);
+    ruler->setNodeShape(continuousRulerNodeShape);
+    if(!ruler->duplicateLastPoint()) {
+        route->undoPlaceObj(ruler->x, ruler->y, ruler->UiD);
+        return false;
+    }
+
+    if(selectedObj != NULL)
+        selectedObj->unselect();
+    setSelectedObj(ruler);
+    ruler->select(ruler->pointCount() - 1);
+
+    liveRulerObj = ruler;
+    liveRulerActive = true;
+    liveRulerHasCommittedSegment = false;
+    liveRulerSolutionValid = false;
+    liveRulerHasLastTarget = false;
+    liveRulerLastUpdateTime = 0;
+    liveRulerDraftTemplate = ruler->getTemplate();
+    liveRulerDraftNodeShape = ruler->getNodeShape();
+    updateLiveRuler(tileX, tileZ, position, true);
+    return true;
+}
+
+bool RouteEditorGLWidget::updateLiveRuler(
+        int pointerTileX,
+        int pointerTileZ,
+        const float *pointerPosition,
+        bool force) {
+    if(!liveRulerActive || liveRulerObj == NULL || pointerPosition == NULL)
+        return false;
+    for(int i = 0; i < 3; i++)
+        if(!std::isfinite(pointerPosition[i])) {
+            liveRulerSolutionValid = false;
+            return false;
+        }
+
+    const unsigned long long now = QDateTime::currentMSecsSinceEpoch();
+    if(!force && liveRulerLastUpdateTime != 0
+            && now - liveRulerLastUpdateTime
+                < LiveContinuousUpdateIntervalMs)
+        return liveRulerSolutionValid;
+    liveRulerLastUpdateTime = now;
+
+    int targetTileX = pointerTileX;
+    int targetTileZ = pointerTileZ;
+    float targetPosition[3] = {
+        pointerPosition[0],
+        pointerPosition[1] + continuousPlacementYOffset,
+        pointerPosition[2]
+    };
+    quantizeContinuousPoint(targetTileX, targetTileZ, targetPosition,
+            Game::DefaultMoveStep);
+
+    const bool sameTarget = liveRulerHasLastTarget
+            && targetTileX == liveRulerLastTargetTileX
+            && targetTileZ == liveRulerLastTargetTileZ
+            && std::fabs(targetPosition[0]
+                - liveRulerLastTargetPosition[0]) < 0.001f
+            && std::fabs(targetPosition[1]
+                - liveRulerLastTargetPosition[1]) < 0.001f
+            && std::fabs(targetPosition[2]
+                - liveRulerLastTargetPosition[2]) < 0.001f;
+    if(sameTarget)
+        return liveRulerSolutionValid;
+
+    liveRulerHasLastTarget = true;
+    liveRulerLastTargetTileX = targetTileX;
+    liveRulerLastTargetTileZ = targetTileZ;
+    Vec3::copy(liveRulerLastTargetPosition, targetPosition);
+    if(!liveRulerObj->updateLastPoint(
+            targetTileX, targetTileZ, targetPosition)) {
+        liveRulerSolutionValid = false;
+        return false;
+    }
+
+    constexpr float kMinimumRulerSegmentLength = 0.1f;
+    const float segmentLength = liveRulerObj->lastSegmentLength();
+    liveRulerSolutionValid = std::isfinite(segmentLength)
+            && segmentLength >= kMinimumRulerSegmentLength;
+    return liveRulerSolutionValid;
+}
+
+bool RouteEditorGLWidget::acceptLiveRulerPoint() {
+    if(!liveRulerActive || liveRulerObj == NULL
+            || !liveRulerSolutionValid)
+        return false;
+
+    // The current provisional endpoint is now committed. Close the undo
+    // action for this segment, then snapshot the committed polyline before
+    // appending the next mouse-following endpoint.
+    liveRulerHasCommittedSegment = true;
+    Undo::StateEnd();
+    Undo::StateBegin();
+    Undo::PushGameObjData(liveRulerObj);
+    if(!liveRulerObj->duplicateLastPoint()) {
+        Undo::StateCancel();
+        return false;
+    }
+    liveRulerObj->select(liveRulerObj->pointCount() - 1);
+    liveRulerDraftTemplate = liveRulerObj->getTemplate();
+    liveRulerDraftNodeShape = liveRulerObj->getNodeShape();
+
+    liveRulerSolutionValid = false;
+    liveRulerHasLastTarget = false;
+    liveRulerLastUpdateTime = 0;
+    return true;
+}
+
+void RouteEditorGLWidget::finishLiveRuler(bool keepContinuousTool) {
+    if(!liveRulerActive)
+        return;
+
+    RulerObj *ruler = liveRulerObj;
+    const bool keepRuler = liveRulerHasCommittedSegment
+            && ruler != NULL && ruler->pointCount() >= 2;
+    const bool settingsChanged = keepRuler
+            && (ruler->getTemplate() != liveRulerDraftTemplate
+                || ruler->getNodeShape() != liveRulerDraftNodeShape);
+    liveRulerActive = false;
+    liveRulerObj = NULL;
+    liveRulerHasCommittedSegment = false;
+    liveRulerSolutionValid = false;
+    liveRulerHasLastTarget = false;
+    liveRulerLastUpdateTime = 0;
+    liveRulerDraftTemplate.clear();
+    liveRulerDraftNodeShape.clear();
+
+    // The last point exists only for the mouse preview. Undo::StateCancel()
+    // discards its snapshot but does not restore object data, so remove the
+    // point explicitly before closing the draft transaction.
+    if(ruler != NULL)
+        ruler->removeLastPoint();
+    if(!keepRuler && ruler != NULL) {
+        route->undoPlaceObj(ruler->x, ruler->y, ruler->UiD);
+        setSelectedObj(NULL);
+    }
+    if(settingsChanged)
+        Undo::StateEnd();
+    else
+        Undo::StateCancel();
+
+    if(keepContinuousTool && continuousRulerMode)
+        enableTool("continuousRulerTool");
+}
+
+void RouteEditorGLWidget::quantizeContinuousPoint(int &tileX, int &tileZ, float *position, float step) {
     if(position == NULL)
         return;
     step = std::max(0.01f, std::fabs(step));
@@ -2558,19 +2801,19 @@ bool RouteEditorGLWidget::updateLiveFlex(
     constexpr float kLiveFlexSnapRadius = 1.0f;
     const unsigned long long now = QDateTime::currentMSecsSinceEpoch();
     if(!force && liveFlexLastUpdateTime != 0
-            && now - liveFlexLastUpdateTime < LiveFlexUpdateIntervalMs)
+            && now - liveFlexLastUpdateTime < LiveContinuousUpdateIntervalMs)
         return liveFlexSolutionValid;
     liveFlexLastUpdateTime = now;
 
     const int rawTargetTileX = pointerTileX;
     const int rawTargetTileZ = pointerTileZ;
     float rawTargetPosition[3] = {
-        pointerPosition[0], pointerPosition[1] + flexYOffset, pointerPosition[2]
+        pointerPosition[0], pointerPosition[1] + continuousPlacementYOffset, pointerPosition[2]
     };
     int targetTileX = pointerTileX;
     int targetTileZ = pointerTileZ;
     float targetPosition[3] = {
-        pointerPosition[0], pointerPosition[1] + flexYOffset, pointerPosition[2]
+        pointerPosition[0], pointerPosition[1] + continuousPlacementYOffset, pointerPosition[2]
     };
     float endpointQ[4] = {0, 0, 0, 1};
     int endpointId = -1;
@@ -2605,7 +2848,7 @@ bool RouteEditorGLWidget::updateLiveFlex(
     }
 
     if(endpointId < 0)
-        quantizeLiveFlexPoint(targetTileX, targetTileZ, targetPosition, Game::DefaultMoveStep);
+        quantizeContinuousPoint(targetTileX, targetTileZ, targetPosition, Game::DefaultMoveStep);
 
     const bool sameHorizontalTarget = liveFlexHasLastTarget
             && endpointId == liveFlexLastEndpointId
@@ -3088,6 +3331,10 @@ void RouteEditorGLWidget::editFind(int radius) {
 void RouteEditorGLWidget::editUndo() {
     if(liveFlexActive)
         finishLiveFlex(false, continuousFlexMode);
+    if(liveRulerActive) {
+        finishLiveRuler(continuousRulerMode);
+        setSelectedObj(NULL);
+    }
     Undo::UndoLast();
 }
 
@@ -3623,6 +3870,18 @@ void RouteEditorGLWidget::msg(QString text, QString val) {
         continuousFlexProfile = val;
         if(liveFlexActive)
             applyContinuousFlexProfiles();
+        return;
+    }
+    if (text == "continuousRulerProfile") {
+        continuousRulerProfile = val;
+        if(liveRulerActive && liveRulerObj != NULL)
+            liveRulerObj->setTemplate(continuousRulerProfile);
+        return;
+    }
+    if (text == "continuousRulerNodeShape") {
+        continuousRulerNodeShape = val.trimmed();
+        if(liveRulerActive && liveRulerObj != NULL)
+            liveRulerObj->setNodeShape(continuousRulerNodeShape);
         return;
     }
     if (text == "mkrFile") {

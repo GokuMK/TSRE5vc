@@ -28,6 +28,8 @@
 #include <tsre/procedural/ProceduralShape.h>
 #include <tsre/renderer/Renderer.h>
 #include <tsre/renderer/SelectionId.h>
+#include <tsre/shape/ComplexShape.h>
+#include <tsre/shape/ShapeLib.h>
 #include <QSet>
 #include <algorithm>
 #include <cmath>
@@ -72,6 +74,25 @@ float proceduralPartLod(OglObj *object, const float *transform,
     return std::max(0.0f, centerDistance - radius);
 }
 
+bool normalizeDirection(float *direction) {
+    const float length = std::sqrt(
+            direction[0] * direction[0]
+            + direction[1] * direction[1]
+            + direction[2] * direction[2]);
+    if(!std::isfinite(length) || length < 0.000001f)
+        return false;
+    direction[0] /= length;
+    direction[1] /= length;
+    direction[2] /= length;
+    return true;
+}
+
+void crossDirection(float *result, const float *left, const float *right) {
+    result[0] = left[1] * right[2] - left[2] * right[1];
+    result[1] = left[2] * right[0] - left[0] * right[2];
+    result[2] = left[0] * right[1] - left[1] * right[0];
+}
+
 }
 
 RulerObj::RulerObj() {
@@ -99,6 +120,8 @@ RulerObj::RulerObj(const RulerObj& o) : WorldObj(o){
     internalLodControl = o.internalLodControl;
     shapeEnabled = o.shapeEnabled;
     proceduralShapeInit = false;
+    resetNodeShape();
+    nodeTransformsInit = false;
 }
 
 WorldObj* RulerObj::clone(){
@@ -118,6 +141,8 @@ void RulerObj::load(int x, int y) {
     this->size = -1;
     this->skipLevel = 1;
     this->box.loaded = false;
+    resetNodeShape();
+    nodeTransformsInit = false;
     setMartix();
     //this->point3d = new TrackItemObj();
     //this->point3d->setMaterial(1,1,1);
@@ -138,13 +163,34 @@ void RulerObj::load(int x, int y) {
     }
 }
 
+void RulerObj::set(TS::TokenId sh, FileBuffer* data) {
+    if(sh == TS::FileName){
+        data->skipLabel();
+        const int length = data->getShort() * 2;
+        fileName = *data->getString(data->off, data->off + length);
+        data->off += length;
+        resetNodeShape();
+        return;
+    }
+    WorldObj::set(sh, data);
+}
+
 void RulerObj::set(QString sh, QString val){
-    
+    if(sh == "filename" || sh == "ref_filename"){
+        fileName = val.trimmed();
+        resetNodeShape();
+        return;
+    }
     WorldObj::set(sh, val);
     return;
 }
 
 void RulerObj::set(QString sh, FileBuffer* data) {
+    if(sh == "filename"){
+        fileName = ParserX::GetString(data).trimmed();
+        resetNodeShape();
+        return;
+    }
     if (sh == ("points")) {
         int pointCount = ParserX::GetNumber(data);
         for(int i=0; i< pointCount; i++){
@@ -191,6 +237,92 @@ void RulerObj::clearProceduralShape(){
     }
     proceduralInstances.clear();
     proceduralShapeInit = false;
+}
+
+void RulerObj::resetNodeShape(){
+    nodeShapePointer = NULL;
+    nodeShapeState = 0;
+}
+
+void RulerObj::ensureNodeShape(){
+    if(nodeShapePointer != NULL || fileName.isEmpty()
+            || Game::currentShapeLib == NULL)
+        return;
+    const int nodeShape = Game::currentShapeLib->addShape(
+            resPath + "/" + fileName);
+    auto found = Game::currentShapeLib->shape.find(nodeShape);
+    if(found == Game::currentShapeLib->shape.end()
+            || found->second == NULL)
+        return;
+    nodeShapePointer = found->second;
+    nodeShapeState = nodeShapePointer->newState();
+    nodeShapePointer->setAnimated(nodeShapeState, isAnimated());
+}
+
+void RulerObj::ensureNodeTransforms(){
+    if(nodeTransformsInit)
+        return;
+    nodeTransforms.clear();
+    nodeTransforms.reserve(points.size());
+    const float worldUp[3] = {0, 1, 0};
+    for(int index = 0; index < points.size(); index++){
+        int previous = index - 1;
+        while(previous >= 0 && Vec3::distance(
+                points[index].position, points[previous].position)
+                < 0.000001f)
+            previous--;
+        int next = index + 1;
+        while(next < points.size() && Vec3::distance(
+                points[index].position, points[next].position)
+                < 0.000001f)
+            next++;
+
+        float forward[3] = {0, 0, 1};
+        if(previous >= 0 && next < points.size()){
+            float incoming[3];
+            float outgoing[3];
+            Vec3::sub(incoming, points[index].position,
+                      points[previous].position);
+            Vec3::sub(outgoing, points[next].position,
+                      points[index].position);
+            normalizeDirection(incoming);
+            normalizeDirection(outgoing);
+            Vec3::add(forward, incoming, outgoing);
+            if(!normalizeDirection(forward))
+                Vec3::copy(forward, outgoing);
+        } else if(next < points.size()){
+            Vec3::sub(forward, points[next].position,
+                      points[index].position);
+            normalizeDirection(forward);
+        } else if(previous >= 0){
+            Vec3::sub(forward, points[index].position,
+                      points[previous].position);
+            normalizeDirection(forward);
+        }
+
+        float right[3];
+        crossDirection(right, worldUp, forward);
+        if(!normalizeDirection(right))
+            Vec3::set(right, 1, 0, 0);
+        float up[3];
+        crossDirection(up, forward, right);
+        if(!normalizeDirection(up))
+            Vec3::set(up, 0, 1, 0);
+
+        std::array<float, 16> transform = {
+            right[0], right[1], right[2], 0,
+            up[0], up[1], up[2], 0,
+            forward[0], forward[1], forward[2], 0,
+            points[index].position[0], points[index].position[1],
+            points[index].position[2], 1
+        };
+        // Match the coordinate conversion applied by an ordinary StaticObj.
+        // This keeps an authored MSTS shape's local forward/side orientation
+        // unchanged when the same asset is used as a Ruler node shape.
+        Mat4::rotate(transform.data(), transform.data(), M_PI, 0, -1, 0);
+        nodeTransforms.append(transform);
+    }
+    nodeTransformsInit = true;
 }
 
 void RulerObj::ensureProceduralShape(){
@@ -296,6 +428,25 @@ void RulerObj::setTemplate(QString name){
     reload();
 }
 
+void RulerObj::setNodeShape(QString name){
+    name = name.trimmed();
+    if(fileName == name)
+        return;
+    fileName = name;
+    resetNodeShape();
+    setModified();
+}
+
+QString RulerObj::getNodeShape() const {
+    return fileName;
+}
+
+void RulerObj::updateSim(float deltaTime){
+    if(!loaded || nodeShapePointer == NULL)
+        return;
+    nodeShapePointer->updateSim(deltaTime, nodeShapeState);
+}
+
 void RulerObj::setPosition(int x, int z, float* p){
     if(selectionValue > 0){
         points[selectionValue].position[0] = -2048*(this->x-x) + p[0];
@@ -312,8 +463,86 @@ void RulerObj::setPosition(int x, int z, float* p){
     setModified();
     if(line3d != NULL)
         line3d->deleteVBO();
+    nodeTransformsInit = false;
     if(shapeEnabled)
         reload();
+}
+
+void RulerObj::pointFromTilePosition(Point &point, int tileX, int tileZ,
+        const float *sourcePosition) const {
+    if(sourcePosition == NULL)
+        return;
+
+    // Keep the MSTS tile coordinate separate from the local position. Only
+    // the small tile delta is converted before the Ruler's float point is
+    // stored; combining a complete world coordinate in float loses precision.
+    point.position[0] = (float)(((double)tileX - (double)x) * 2048.0
+            + (double)sourcePosition[0]);
+    point.position[1] = sourcePosition[1];
+    point.position[2] = (float)(((double)tileZ - (double)y) * 2048.0
+            + (double)sourcePosition[2]);
+}
+
+void RulerObj::invalidatePathGeometry(){
+    setModified();
+    if(line3d != NULL)
+        line3d->deleteVBO();
+    nodeTransformsInit = false;
+    if(shapeEnabled)
+        reload();
+}
+
+void RulerObj::appendPoint(int tileX, int tileZ, const float* sourcePosition){
+    if(sourcePosition == NULL)
+        return;
+    Point point;
+    pointFromTilePosition(point, tileX, tileZ, sourcePosition);
+    points.push_back(point);
+    invalidatePathGeometry();
+}
+
+bool RulerObj::updateLastPoint(int tileX, int tileZ,
+        const float* sourcePosition){
+    if(points.isEmpty() || sourcePosition == NULL)
+        return false;
+    pointFromTilePosition(points.last(), tileX, tileZ, sourcePosition);
+    invalidatePathGeometry();
+    return true;
+}
+
+bool RulerObj::duplicateLastPoint(){
+    if(points.isEmpty())
+        return false;
+    Point point;
+    Vec3::copy(point.position, points.last().position);
+    points.push_back(point);
+    invalidatePathGeometry();
+    return true;
+}
+
+bool RulerObj::removeLastPoint(){
+    if(points.isEmpty())
+        return false;
+    points.removeLast();
+    selectionValue = points.isEmpty()
+            ? 0 : std::min(selectionValue, (int)points.size() - 1);
+    invalidatePathGeometry();
+    return true;
+}
+
+int RulerObj::pointCount() const {
+    return points.size();
+}
+
+float RulerObj::lastSegmentLength() const {
+    if(points.size() < 2)
+        return 0.0f;
+    const Point &start = points[points.size() - 2];
+    const Point &end = points.last();
+    const float dx = end.position[0] - start.position[0];
+    const float dy = end.position[1] - start.position[1];
+    const float dz = end.position[2] - start.position[2];
+    return std::sqrt(dx * dx + dy * dy + dz * dz);
 }
 
 void RulerObj::refreshLength(){
@@ -342,6 +571,8 @@ void RulerObj::refreshLength(){
 
 float RulerObj::getElevation(){
     if(points.size() < 2)
+        return 0;
+    if(length <= 0.0001f)
         return 0;
     float height = points[points.size()-1].position[1] - points[0].position[1];
     return asin(height/length);
@@ -383,15 +614,6 @@ void RulerObj::removeRoadPaths(){
     bool ok;
     ok = Game::roadDB->removeTrackFromTDB(x, y, UiD);
     //if(ok)
-}
-
-void RulerObj::enableShape(){
-    if(points.size() < 2)
-        return;
-    
-    shapeEnabled = true;
-    setModified();
-
 }
 
 void RulerObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos, float* target, float fov, quint32 selectionId, int renderMode) {
@@ -452,7 +674,29 @@ void RulerObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos,
             gluu->mvPopMatrix();
         }
     }
-    
+
+    if(!fileName.isEmpty()){
+        ensureNodeShape();
+        ensureNodeTransforms();
+        if(nodeShapePointer != NULL){
+            for(int index = 0; index < nodeTransforms.size(); index++){
+                gluu->mvPushMatrix();
+                Mat4::multiply(gluu->mvMatrix, gluu->mvMatrix,
+                        nodeTransforms[index].data());
+                gluu->currentShader->setUniformValue(
+                        gluu->currentShader->mvMatrixUniform,
+                        *reinterpret_cast<float(*)[4][4]>(gluu->mvMatrix));
+                const quint32 nodeSelection = SelectionIdCodec::withPart(
+                        selectionId, index);
+                gluu->setSelectionId(nodeSelection);
+                if(nodeSelection == 0)
+                    gluu->enableTextures();
+                nodeShapePointer->render(nodeSelection, nodeShapeState);
+                gluu->mvPopMatrix();
+            }
+        }
+    }
+
     if (renderMode == GLUU::RENDER_SHADOWMAP) return;
     if(!Game::viewInteractives) 
         return;
@@ -584,6 +828,23 @@ void RulerObj::pushRenderItems(float lod, float posx, float posz, float* playerW
         }
     }
 
+    if(!fileName.isEmpty()){
+        ensureNodeShape();
+        ensureNodeTransforms();
+        if(nodeShapePointer != NULL){
+            for(int index = 0; index < nodeTransforms.size(); index++){
+                Game::currentRenderer->mvPushMatrix();
+                Mat4::multiply(Game::currentRenderer->mvMatrix,
+                        Game::currentRenderer->mvMatrix,
+                        nodeTransforms[index].data());
+                nodeShapePointer->pushRenderItem(
+                        SelectionIdCodec::withPart(selectionId, index),
+                        nodeShapeState);
+                Game::currentRenderer->mvPopMatrix();
+            }
+        }
+    }
+
     if(!Game::viewInteractives)
         return;
 
@@ -711,6 +972,8 @@ void RulerObj::save(QTextStream* out){
 *(out) << "		UiD ( "<<this->UiD<<" )\n";
 *(out) << "		Position ( "<<this->position[0]<<" "<<this->position[1]<<" "<<-this->position[2]<<" )\n";
 *(out) << "		QDirection ( "<<this->qDirection[0]<<" "<<this->qDirection[1]<<" "<<-this->qDirection[2]<<" "<<this->qDirection[3]<<" )\n";
+if(!fileName.isEmpty())
+*(out) << "		FileName ( "<<ParserX::AddComIfReq(fileName)<<" )\n";
 *(out) << "		Points ( " << points.size()<<" \n";
 for(int i = 0; i < points.size(); i++)
 *(out) << "			Point ( "<<points[i].position[0]<<" "<<points[i].position[1]<<" "<<-points[i].position[2]<<" )\n";

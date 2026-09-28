@@ -131,6 +131,10 @@ TSRE also supports route-local OBJ geometry inside a TrProfile `LODItem`.
 Use this when the complete cross-section cannot be reduced to polylines, or
 for discrete ties, poles, wires, and endpoint objects:
 
+For the complete authoring workflow, supported OBJ contract, mode-selection
+guide, small example profiles, and acceptance checklist, read
+[`../trprofile-3d/README.md`](../trprofile-3d/README.md).
+
 ```text
 LODItem (
     TexName ( "material.png" )

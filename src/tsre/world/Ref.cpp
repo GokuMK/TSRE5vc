@@ -331,6 +331,29 @@ void Ref::ensureDynTrackItems(){
         appendDynTrack("Road Dynamic Track", DynTrackObj::RoadStaticFlags);
 }
 
+QStringList Ref::routeShapeNames() const {
+    // Ruler node shapes are ordinary route shapes. TrackObj references point
+    // at GLOBAL/SHAPES, while DynTrack has no shape file, so neither belongs
+    // in this route-local selector.
+    QMap<QString, QString> namesByCaseFoldedPath;
+    for(auto classIt = refItems.cbegin(); classIt != refItems.cend(); ++classIt){
+        for(const RefItem &item : classIt.value()){
+            if(item.type.compare("trackobj", Qt::CaseInsensitive) == 0
+                    || item.type.compare("dyntrack", Qt::CaseInsensitive) == 0)
+                continue;
+            for(QString name : item.filename){
+                name = NormalizeRefRelativePath(name);
+                if(!name.endsWith(".s", Qt::CaseInsensitive))
+                    continue;
+                const QString key = name.toCaseFolded();
+                if(!namesByCaseFoldedPath.contains(key))
+                    namesByCaseFoldedPath.insert(key, name);
+            }
+        }
+    }
+    return namesByCaseFoldedPath.values();
+}
+
 void Ref::saveToStream(QTextStream* out){
     
     foreach (QVector<RefItem> items, refItems){

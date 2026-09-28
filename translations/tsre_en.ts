@@ -1824,6 +1824,11 @@ Consist with this file name already exist. Overwrite?
         <source>FLEX ROAD</source>
         <translation>FLEX ROAD</translation>
     </message>
+    <message id="route.editor.obj.tools.button.ruler">
+        <location filename="../src/routeEditor/ObjTools.cpp" line="60" />
+        <source>RULER</source>
+        <translation>RULER</translation>
+    </message>
     <message id="route.editor.obj.tools.button.auto.placement">
         <location filename="../src/routeEditor/ObjTools.cpp" line="60" />
         <source>Auto Placement</source>
@@ -1869,10 +1874,22 @@ Consist with this file name already exist. Overwrite?
         <source>Search:</source>
         <translation>Search:</translation>
     </message>
-    <message id="route.editor.obj.tools.tooltip.procedural.profile.used.for.new.flex.objects">
-        <location filename="../src/routeEditor/ObjTools.cpp" line="145" />
-        <source>Procedural profile used for new Flex objects. Road lane role profiles are selected automatically.</source>
-        <translation>Procedural profile used for new Flex objects. Road lane role profiles are selected automatically.</translation>
+    <message id="route.editor.obj.tools.tooltip.procedural.profile.used.for.new.continuous.objects">
+        <location filename="../src/routeEditor/ObjTools.cpp" line="136" />
+        <source>Procedural profile used for newly placed continuous objects.</source>
+        <translation>Procedural profile used for newly placed continuous objects.</translation>
+    </message>
+    <message id="route.editor.ruler.node.shape.tooltip">
+        <location filename="../src/routeEditor/ObjTools.cpp" line="142" />
+        <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="216" />
+        <source>Optional route shape rendered at every Ruler node. Template node geometry remains available and is additive.</source>
+        <translation>Optional route shape rendered at every Ruler node. Template node geometry remains available and is additive.</translation>
+    </message>
+    <message id="route.editor.ruler.node.shape.none">
+        <location filename="../src/routeEditor/ObjTools.cpp" line="919" />
+        <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="296" />
+        <source>No node shape</source>
+        <translation>No node shape</translation>
     </message>
     <message id="route.editor.obj.tools.text.track.on.left">
         <location filename="../src/routeEditor/ObjTools.cpp" line="149" />
@@ -2068,6 +2085,11 @@ Consist with this file name already exist. Overwrite?
         <location filename="../src/routeEditor/ObjTools.cpp" line="764" />
         <source>Built-in dynamic track</source>
         <translation>Built-in dynamic track</translation>
+    </message>
+    <message id="route.editor.obj.tools.item.plain.ruler">
+        <location filename="../src/routeEditor/ObjTools.cpp" line="803" />
+        <source>Plain ruler</source>
+        <translation>Plain ruler</translation>
     </message>
     <message id="route.editor.obj.tools.action.find.similar">
         <location filename="../src/routeEditor/ObjTools.cpp" line="1016" />
@@ -4272,6 +4294,18 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <source>Shape Template:</source>
         <translation>Shape Template:</translation>
     </message>
+    <message id="route.editor.properties.profile.tooltip.route.profile.subtype">
+        <location filename="../src/routeEditor/properties/PropertiesDyntrack.cpp" line="81" />
+        <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="186" />
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="93" />
+        <source>Select a route profile subtype.</source>
+        <translation>Select a route profile subtype.</translation>
+    </message>
+    <message id="route.editor.properties.ruler.label.node.shape">
+        <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="207" />
+        <source>Node shape:</source>
+        <translation>Node shape:</translation>
+    </message>
     <message id="common.value.not.set">
         <location filename="../src/routeEditor/properties/PropertiesDyntrack.cpp" line="78" />
         <location filename="../src/routeEditor/properties/PropertiesDyntrack.cpp" line="410" />
@@ -5317,10 +5351,10 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <source>NOT SET disables the procedural Ruler shape; DEFAULT explicitly requests the default procedural template.</source>
         <translation>NOT SET disables the procedural Ruler shape; DEFAULT explicitly requests the default procedural template.</translation>
     </message>
-    <message id="route.editor.properties.ruler.button.button.3">
-        <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="198" />
-        <source>Add Shape</source>
-        <translation>Add Shape</translation>
+    <message id="route.editor.properties.ruler.button.remove.node.shape">
+        <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="221" />
+        <source>Remove Node Shape</source>
+        <translation>Remove Node Shape</translation>
     </message>
     <message id="route.editor.properties.ruler.text.null">
         <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="288" />

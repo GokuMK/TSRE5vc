@@ -42,6 +42,7 @@ class QOpenGLFunctions_3_3_Core;
 class QAction;
 class GuiGlCompass;
 class DynTrackObj;
+class RulerObj;
 class SelectionRenderer;
 
 QT_FORWARD_DECLARE_CLASS(QOpenGLShaderProgram)
@@ -179,7 +180,14 @@ private:
     void discardLiveFlexCompanions();
     bool updateLiveFlexCompanions(const float *mainSections);
     float effectiveContinuousFlexMinimumRadius() const;
-    static void quantizeLiveFlexPoint(int &tileX, int &tileZ, float *position, float step);
+    bool placeContinuousRuler(int tileX, int tileZ,
+            const float *position, const float *quaternion);
+    bool updateLiveRuler(int pointerTileX, int pointerTileZ,
+            const float *pointerPosition, bool force = false);
+    bool acceptLiveRulerPoint();
+    void finishLiveRuler(bool keepContinuousTool = false);
+    static void quantizeContinuousPoint(int &tileX, int &tileZ,
+            float *position, float step);
     bool paintGLGather(bool drawToScreen);
     bool paintGLValidation();
     void paintActiveRendererPipelinePass();
@@ -266,7 +274,21 @@ private:
     float continuousFlexSeparation = 4.0f;
     float continuousFlexMinimumRadius = 15.0f;
     QString continuousFlexProfile;
-    float flexYOffset = 0.0f;
+    bool continuousRulerMode = false;
+    bool liveRulerActive = false;
+    bool liveRulerHasCommittedSegment = false;
+    bool liveRulerSolutionValid = false;
+    RulerObj *liveRulerObj = NULL;
+    bool liveRulerHasLastTarget = false;
+    int liveRulerLastTargetTileX = 0;
+    int liveRulerLastTargetTileZ = 0;
+    float liveRulerLastTargetPosition[3] = {0, 0, 0};
+    unsigned long long liveRulerLastUpdateTime = 0;
+    QString liveRulerDraftTemplate;
+    QString liveRulerDraftNodeShape;
+    QString continuousRulerProfile;
+    QString continuousRulerNodeShape;
+    float continuousPlacementYOffset = 0.0f;
     bool stickPointerToTerrain = true;
     bool autoAddToTDB = true;
     float lastNewObjPos[3];

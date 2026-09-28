@@ -10,6 +10,8 @@
 
 #include "PropertiesRuler.h"
 #include <tsre/world/objects/RulerObj.h>
+#include <tsre/world/Route.h>
+#include <tsre/world/Ref.h>
 #include <tsre/Undo.h>
 #include <tsre/Game.h>
 #include <settings/SettingsAccess.h>
@@ -200,12 +202,29 @@ PropertiesRuler::PropertiesRuler() {
                       this, SLOT(eTemplateEdited(QString)));
     QObject::connect(&eTemplateSubtype, SIGNAL(currentTextChanged(QString)),
                       this, SLOT(eTemplateSubtypeEdited(QString)));
-    button = new QPushButton(
-        //% "Add Shape"
-        qtTrId("route.editor.properties.ruler.button.button.3"));
-    vbox->addWidget(button);
-    QObject::connect(button, SIGNAL(released()),
-                      this, SLOT(addShapeEdited()));
+    label = new QLabel(
+        //% "Node shape:"
+        qtTrId("route.editor.properties.ruler.label.node.shape"));
+    label->setContentsMargins(3,0,0,0);
+    vbox->addWidget(label);
+    eNodeShape.setEditable(true);
+    eNodeShape.setInsertPolicy(QComboBox::NoInsert);
+    eNodeShape.setStyleSheet("combobox-popup: 0;");
+    eNodeShape.setToolTip(
+        //% "Optional route shape rendered at every Ruler node. Template node geometry remains available and is additive."
+        qtTrId("route.editor.ruler.node.shape.tooltip"));
+    vbox->addWidget(&eNodeShape);
+    QObject::connect(&eNodeShape, SIGNAL(activated(int)),
+                      this, SLOT(eNodeShapeActivated(int)));
+    QObject::connect(eNodeShape.lineEdit(), SIGNAL(editingFinished()),
+                      this, SLOT(eNodeShapeEditingFinished()));
+    removeNodeShapeButton = new QPushButton(
+        //% "Remove Node Shape"
+        qtTrId("route.editor.properties.ruler.button.remove.node.shape"));
+    removeNodeShapeButton->setEnabled(false);
+    vbox->addWidget(removeNodeShapeButton);
+    QObject::connect(removeNodeShapeButton, SIGNAL(released()),
+                      this, SLOT(removeNodeShapeEdited()));
     vbox->addStretch(1);
     this->setLayout(vbox);
 }
@@ -240,6 +259,93 @@ void PropertiesRuler::eTemplateSubtypeEdited(QString val){
     Undo::SinglePushWorldObjData(worldObj);
     worldObj->setTemplate(selectedTemplateValue());
     Undo::StateEnd();
+}
+
+void PropertiesRuler::eNodeShapeActivated(int index){
+    Q_UNUSED(index);
+    applyNodeShapeValue();
+}
+
+void PropertiesRuler::eNodeShapeEditingFinished(){
+    applyNodeShapeValue();
+}
+
+QString PropertiesRuler::selectedNodeShapeValue() const {
+    const int index = eNodeShape.currentIndex();
+    if(index >= 0 && eNodeShape.currentText() == eNodeShape.itemText(index))
+        return eNodeShape.itemData(index).toString();
+    return eNodeShape.currentText().trimmed();
+}
+
+void PropertiesRuler::applyNodeShapeValue(){
+    if(worldObj == NULL)
+        return;
+    RulerObj *ruler = static_cast<RulerObj*>(worldObj);
+    const QString value = selectedNodeShapeValue();
+    if(value == ruler->getNodeShape())
+        return;
+    Undo::SinglePushWorldObjData(worldObj);
+    ruler->setNodeShape(value);
+    Undo::StateEnd();
+    removeNodeShapeButton->setEnabled(!value.isEmpty());
+}
+
+void PropertiesRuler::refreshNodeShapeList(){
+    const QString current = worldObj != NULL
+            ? static_cast<RulerObj*>(worldObj)->getNodeShape()
+            : selectedNodeShapeValue();
+    const Ref *currentRef = Game::currentRoute != NULL
+            ? Game::currentRoute->ref : nullptr;
+    if(currentRef != nodeShapeListRef
+            || nodeShapeListRoute != Game::route
+            || nodeShapeCatalogCount == 0){
+        const QSignalBlocker blocker(&eNodeShape);
+        eNodeShape.clear();
+        eNodeShape.addItem(
+            //% "No node shape"
+            qtTrId("route.editor.ruler.node.shape.none"), QString());
+        if(currentRef != nullptr){
+            for(const QString &name : currentRef->routeShapeNames())
+                eNodeShape.addItem(name, name);
+        }
+        nodeShapeListRef = currentRef;
+        nodeShapeListRoute = Game::route;
+        nodeShapeCatalogCount = eNodeShape.count();
+    }
+    selectNodeShapeValue(current);
+}
+
+void PropertiesRuler::selectNodeShapeValue(const QString &value){
+    const QSignalBlocker blocker(&eNodeShape);
+    while(eNodeShape.count() > nodeShapeCatalogCount)
+        eNodeShape.removeItem(eNodeShape.count() - 1);
+    int selected = -1;
+    for(int index = 0; index < eNodeShape.count(); index++){
+        if(eNodeShape.itemData(index).toString().compare(
+                value, Qt::CaseInsensitive) == 0){
+            selected = index;
+            break;
+        }
+    }
+    if(selected < 0 && !value.isEmpty()){
+        eNodeShape.addItem(value, value);
+        selected = eNodeShape.count() - 1;
+    }
+    eNodeShape.setCurrentIndex(qMax(0, selected));
+    if(removeNodeShapeButton != nullptr)
+        removeNodeShapeButton->setEnabled(!value.isEmpty());
+}
+
+void PropertiesRuler::updateNodeShapeValue(){
+    if(worldObj == NULL || eNodeShape.hasFocus()
+            || eNodeShape.lineEdit()->hasFocus())
+        return;
+    const QString value = static_cast<RulerObj*>(worldObj)->getNodeShape();
+    if(removeNodeShapeButton != nullptr)
+        removeNodeShapeButton->setEnabled(!value.isEmpty());
+    if(selectedNodeShapeValue().compare(value, Qt::CaseSensitive) == 0)
+        return;
+    selectNodeShapeValue(value);
 }
 
 void PropertiesRuler::refreshTemplateList(){
@@ -309,6 +415,7 @@ void PropertiesRuler::showObj(GameObj* obj){
     worldObj = (WorldObj*)obj;
     RulerObj* robj = (RulerObj*)obj;
     refreshTemplateList();
+    refreshNodeShapeList();
     this->uid.setText(QString::number(robj->UiD, 10));
     this->tX.setText(QString::number(robj->x, 10));
     this->tY.setText(QString::number(-robj->y, 10));
@@ -335,6 +442,8 @@ void PropertiesRuler::updateObj(GameObj* obj){
     }
     worldObj = (WorldObj*)obj;
     RulerObj* robj = (RulerObj*)obj;
+
+    updateNodeShapeValue();
 
     if(!lengthM.hasFocus())
         lengthM.setText(QString::number(robj->getLength(), 'G', 4));
@@ -385,12 +494,16 @@ void PropertiesRuler::createRoadPathsEdited(){
     robj->createRoadPaths();
 }
 
-void PropertiesRuler::addShapeEdited(){
+void PropertiesRuler::removeNodeShapeEdited(){
     if(worldObj == NULL)
         return;
     RulerObj* robj = (RulerObj*)worldObj;
-    //Undo::SinglePushWorldObjData(worldObj);
-    robj->enableShape();
+    if(robj->getNodeShape().isEmpty())
+        return;
+    Undo::SinglePushWorldObjData(worldObj);
+    robj->setNodeShape(QString());
+    Undo::StateEnd();
+    selectNodeShapeValue(QString());
 }
 
 void PropertiesRuler::removeRoadPathsEdited(){
