@@ -76,6 +76,13 @@ SFileComplex::Retention SFileComplex::retention() const { return d->retention; }
 SFileComplex::Health SFileComplex::health() const { return d->health; }
 SFileComplex::GpuState SFileComplex::gpuState() const { return d->gpuState; }
 QStringList SFileComplex::diagnostics() const { return d->diagnostics; }
+bool SFileComplex::storageFormat(Format &format, bool &compressed) const {
+    if (d->retention != Retention::Complete || !d->document)
+        return false;
+    format = d->document->binary ? Format::Binary : Format::Text;
+    compressed = d->document->compressed;
+    return true;
+}
 bool SFileComplex::setLoadOptions(const ShapeLoadOptions &options) {
     if (d->attempted)
         return false;
@@ -233,13 +240,19 @@ bool SFileComplex::compact() {
     d->retention = Retention::Compact;
     return true;
 }
-bool SFileComplex::save(const QString &path, Format f, bool compressed, QString *error) const {
+bool SFileComplex::save(const QString &path, Format f, bool compressed, QString *error) {
     QString e;
     bool ok = false;
     if (d->retention != Retention::Complete || !d->document)
         e = "Saving requires a full reload into Complete mode";
-    else
+    else {
         ok = d->document->save(path, f == Format::Binary, compressed, e);
+        if (ok) {
+            d->document->binary = f == Format::Binary;
+            d->document->compressed = compressed;
+            d->edited = false;
+        }
+    }
     if (error)
         *error = e;
     return ok;

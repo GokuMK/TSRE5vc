@@ -56,6 +56,11 @@ Providing `--output` converts one file and exits without creating a window:
 .\build\TSRE5vc.exe --aceconv --help
 ```
 
+Console options also have conventional short forms: `-i`/`--file`,
+`-o`/`--output`, `-f`/`--ace-format`, `-m`/`--mipmaps`, `-z`/`--zlib` and
+`-w`/`--overwrite`. The `--aceconv` mode name deliberately has no short or
+single-dash spelling.
+
 Relative paths use the caller's working directory. A console `--aceconv --output` launch
 bypasses TSRE settings/profile initialization, startup-args.txt and asset loading.
 The older startup-args.txt `--aceconv --file ...` selection also opens the GUI

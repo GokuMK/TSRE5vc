@@ -25,6 +25,7 @@
 #include <routeEditor/TrkWindow.h>
 #include <conEditor/CELoadWindow.h>
 #include <shapeViewer/ShapeViewerWindow.h>
+#include <shapeConverter/ShapeConverter.h>
 #include <aceConverter/AceConverter.h>
 #include <aceConverter/AceConverterWindow.h>
 #include <tsre/geo/MapWindow.h>
@@ -183,6 +184,8 @@ CommandLineParseResult parseCommandLineArgs(QCommandLineParser &parser,
     parser.addOption(RouteMergeOption);
     const QCommandLineOption AceConvOption("aceconv", "Run Ace Converter.");
     parser.addOption(AceConvOption);
+    const QCommandLineOption ShapeConvOption("shapeconv", "Convert an MSTS shape and exit.");
+    parser.addOption(ShapeConvOption);
     const QCommandLineOption ConEditOption("conedit", "Run Consist Editor.");
     parser.addOption(ConEditOption);
     const QCommandLineOption PlayOption("play", "Play Activity.");
@@ -231,6 +234,12 @@ CommandLineParseResult parseCommandLineArgs(QCommandLineParser &parser,
         combinedArguments.append(commandLineArguments.takeFirst());
     combinedArguments.append(startupArguments);
     combinedArguments.append(commandLineArguments);
+    if (combinedArguments.contains("-aceconv") || combinedArguments.contains("-shapeconv")) {
+        const bool shape = combinedArguments.contains("-shapeconv");
+        fprintf(stderr, "Unknown option -%s; use --%s.\n",
+                shape ? "shapeconv" : "aceconv", shape ? "shapeconv" : "aceconv");
+        return CommandLineError;
+    }
     if (!parser.parse(combinedArguments)) {
         return CommandLineError;
     }
@@ -411,12 +420,26 @@ int main(int argc, char *argv[]){
         if (QByteArray(argv[i])=="--") break;
         if (QByteArray(argv[i])=="--refreshpmaptextures") return TerrainBakeCommand::run(argc,argv);
     }
+    for (int i = 1; i < argc; ++i) {
+        const QByteArray argument(argv[i]);
+        if (argument == "--") break;
+        if (argument == "-aceconv") {
+            fprintf(stderr, "Unknown option -aceconv; use --aceconv.\n");
+            return 2;
+        }
+        if (argument == "-shapeconv") {
+            fprintf(stderr, "Unknown option -shapeconv; use --shapeconv.\n");
+            return 2;
+        }
+        if (argument == "--shapeconv")
+            return ShapeConverter::run(argc, argv);
+    }
     bool aceGuiRequested = false;
     QString aceGuiInput;
     for (int i = 1; i < argc; ++i) {
         const QByteArray argument(argv[i]);
         if (argument == "--") break;
-        if (argument == "--aceconv" || argument == "-aceconv") {
+        if (argument == "--aceconv") {
             const int result = AceConverter::run(argc, argv, [&](const QString &input) {
                 // Continue through the same settings and palette setup as the
                 // other TSRE windows, while retaining the caller-relative input.

@@ -592,9 +592,13 @@ int TsreTests::runSFileComplexSuite(bool verbose, bool gl) {
     {
         const bool hadBackend = qEnvironmentVariableIsSet("TSRE_MSTS_SHAPE_BACKEND");
         const QByteArray previousBackend = qgetenv("TSRE_MSTS_SHAPE_BACKEND");
+        const bool hadFirstLod = qEnvironmentVariableIsSet("TSRE_MSTS_FIRST_LOD_ONLY");
+        const QByteArray previousFirstLod = qgetenv("TSRE_MSTS_FIRST_LOD_ONLY");
         const auto restoreBackend = qScopeGuard([&] {
             if (hadBackend) qputenv("TSRE_MSTS_SHAPE_BACKEND", previousBackend);
             else qunsetenv("TSRE_MSTS_SHAPE_BACKEND");
+            if (hadFirstLod) qputenv("TSRE_MSTS_FIRST_LOD_ONLY", previousFirstLod);
+            else qunsetenv("TSRE_MSTS_FIRST_LOD_ONLY");
         });
         qunsetenv("TSRE_MSTS_SHAPE_BACKEND");
         QScopedValueRollback<bool> caseSensitivePaths(Game::caseInsensitiveFS, false);
@@ -607,6 +611,16 @@ int TsreTests::runSFileComplexSuite(bool verbose, bool gl) {
         t.check(factoryFixtureWritten && legacy && legacy->loadData() && legacy->isLoaded() && !legacy->isGLReady(),
                 "default factory loads SFileLegacy before GL initialization");
         library.shape.clear();
+        qputenv("TSRE_MSTS_FIRST_LOD_ONLY", "1");
+        ShapeLib editingLibrary(ShapeLib::MstsBackend::Complex);
+        const int editingId = editingLibrary.addShape(factoryPath, tmp.path());
+        std::unique_ptr<ComplexShape> editingAsset(editingLibrary.shape.at(editingId));
+        auto *editingShape = dynamic_cast<SFileComplex *>(editingAsset.get());
+        t.check(editingShape && editingShape->loadData() &&
+                    editingShape->retention() == SFileComplex::Retention::Complete,
+                "explicit editing factory loads Complete SFileComplex independent of environment");
+        editingLibrary.shape.clear();
+        qunsetenv("TSRE_MSTS_FIRST_LOD_ONLY");
         qputenv("TSRE_MSTS_SHAPE_BACKEND", "old");
         ShapeLib fallback;
         const int oldId = fallback.addShape(path, tmp.path());

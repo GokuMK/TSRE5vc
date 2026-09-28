@@ -89,6 +89,8 @@ file(GLOB TSRE5vc_SRC CONFIGURE_DEPENDS
     "./src/conEditor/*.cpp"
     "./src/shapeViewer/*.h"
     "./src/shapeViewer/*.cpp"
+    "./src/shapeConverter/*.h"
+    "./src/shapeConverter/*.cpp"
     "./src/aceConverter/*.h"
     "./src/aceConverter/*.cpp"
     "./src/contentCase/*.h"

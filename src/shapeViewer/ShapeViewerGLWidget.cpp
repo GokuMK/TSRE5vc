@@ -36,13 +36,13 @@
 #include <tsre/texture/TexLib.h>
 #include <shapeViewer/ShapeTextureInfo.h>
 
-ShapeViewerGLWidget::ShapeViewerGLWidget(QWidget *parent)
+ShapeViewerGLWidget::ShapeViewerGLWidget(QWidget *parent, ShapeLib::MstsBackend backend)
 : QOpenGLWidget(parent),
 m_xRot(0),
 m_yRot(0),
 m_zRot(0) {
     backgroundGlColor[0] = -2;
-    currentShapeLib = new ShapeLib();
+    currentShapeLib = new ShapeLib(backend);
 }
 
 ShapeViewerGLWidget::~ShapeViewerGLWidget() {

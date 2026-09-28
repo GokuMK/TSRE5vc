@@ -1375,6 +1375,28 @@ bool Document::save(const QString &path, bool bin, bool zip, QString &error) con
     auto bytes = encode(bin, zip, error);
     if (!error.isEmpty())
         return false;
+
+    // Validate the complete encoded envelope before QSaveFile is allowed to
+    // replace an existing file. Compare an uncompressed target-format encoding
+    // so compressed and plain outputs receive the same semantic check.
+    Document verification;
+    if (!verification.readBytes(bytes) || verification.damaged) {
+        error = "Encoded shape failed validation";
+        if (!verification.diagnostics.isEmpty())
+            error += ": " + verification.diagnostics.join("; ");
+        return false;
+    }
+    QString expectedError, actualError;
+    const auto expected = encode(bin, false, expectedError);
+    const auto actual = verification.encode(bin, false, actualError);
+    if (!expectedError.isEmpty() || !actualError.isEmpty() || expected != actual) {
+        error = "Encoded shape changed during validation";
+        const QString detail = !expectedError.isEmpty() ? expectedError : actualError;
+        if (!detail.isEmpty())
+            error += ": " + detail;
+        return false;
+    }
+
     QSaveFile f(path);
     if (!f.open(QIODevice::WriteOnly) || f.write(bytes) != bytes.size() || !f.commit()) {
         error = f.errorString();

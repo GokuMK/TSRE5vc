@@ -10,18 +10,17 @@
 namespace AceConverter {
 int run(int argc, char **argv, const std::function<int(const QString &)> &launchGui) {
     QCommandLineParser parser;
-    parser.setSingleDashWordOptionMode(QCommandLineParser::ParseAsLongOptions);
     parser.setApplicationDescription("Ace Converter: preview images or convert one file without opening a window.");
     parser.addHelpOption();
     parser.addOption({"aceconv", "Run Ace Converter."});
-    parser.addOption({"file", "Input ACE, DDS or image file.", "path"});
-    parser.addOption({"output", "Output file; runs a console conversion and exits.", "path"});
+    parser.addOption({{"i", "file"}, "Input ACE, DDS or image file.", "path"});
+    parser.addOption({{"o", "output"}, "Output file; runs a console conversion and exits.", "path"});
     QStringList names;
     for (const auto &entry : encodings()) names << QLatin1String(entry.key);
-    parser.addOption({"ace-format", "ACE pixel format: " + names.join(", ") + ". Default: rgba for transparency, otherwise rgb.", "format"});
-    parser.addOption({"mipmaps", "Generate ACE mipmaps (square, power-of-two images only)."});
-    parser.addOption({"zlib", "Compress the ACE file envelope with zlib."});
-    parser.addOption({"overwrite", "Allow a console conversion to replace an existing output file."});
+    parser.addOption({{"f", "ace-format"}, "ACE pixel format: " + names.join(", ") + ". Default: rgba for transparency, otherwise rgb.", "format"});
+    parser.addOption({{"m", "mipmaps"}, "Generate ACE mipmaps (square, power-of-two images only)."});
+    parser.addOption({{"z", "zlib"}, "Compress the ACE file envelope with zlib."});
+    parser.addOption({{"w", "overwrite"}, "Allow a console conversion to replace an existing output file."});
     parser.addOption({"profile", "TSRE settings profile for the GUI.", "name"});
     parser.addOption({"settings", "TSRE settings JSON file for the GUI.", "file"});
     parser.addOption({"appdata-profile", "Use the TSRE user-application-data settings profile for the GUI."});
@@ -42,7 +41,7 @@ int run(int argc, char **argv, const std::function<int(const QString &)> &launch
     }
     const QStringList positional = parser.positionalArguments();
     if (positional.size() > 1 || (parser.isSet("file") && !positional.isEmpty()))
-        return usageError("Supply one input path, using --file or a positional argument.");
+        return usageError("Supply one input path, using --file/-i or a positional argument.");
     const QString input = parser.isSet("file") ? parser.value("file") : positional.value(0);
     if (parser.isSet("file") && input.isEmpty()) return usageError("The input path is empty.");
     const bool console = parser.isSet("output");

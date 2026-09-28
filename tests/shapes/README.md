@@ -32,6 +32,11 @@ The subsequent [UTF-16 report](../../docs/tasks/shapes/reports/sfile-utf16-optim
 
 Configure normally with CMake. `TSRE_BUILD_SHAPE_TESTS=ON` (default) builds the CPU-only `tsre_shape_document_tests` target. Run it through `ctest --test-dir build --output-on-failure`. The target requires only Qt Core and the bundled codec; it does not create GL resources. Passing a local corpus directory additionally repeats semantic round trips three times for every `.s` file and compares re-encoded binary payloads byte-for-byte with the original input (inflated independently through Qt/zlib where needed).
 
+The same target exercises the `--shapeconv` subprocess with an intentionally
+invalid GUI platform to prove that conversion is headless. It covers short and
+long input/output arguments, Unicode/binary and compressed/uncompressed output,
+preserve mode, overwrite protection and usage errors.
+
 Application suites:
 
 ```sh
@@ -116,6 +121,11 @@ Set `TSRE_MSTS_SHAPE_BACKEND=legacy` for SFileLegacy, `complex` for Complete, or
 `complex-compact` for Compact before launching the application. Unset uses SFileLegacy; `old` explicitly selects original
 SFile/C/X. `TSRE_MSTS_FIRST_LOD_ONLY=1` affects only the Complex backends. Selection
 is fixed per ShapeLib and does not affect glTF loading.
+
+The standalone Shape Viewer explicitly creates a Complete `SFileComplex`
+library so its open document can be edited and saved. Route Editor, Consist
+Editor and other embedded preview widgets retain the configured/default
+backend.
 
 ### Resuming compatibility runs
 

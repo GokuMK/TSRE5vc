@@ -35,6 +35,91 @@
 #include <shapeViewer/ShapeHierarchyInfo.h>
 #include <shapeViewer/ContentHierarchyInfo.h>
 #include <tsre/shape/ComplexShape.h>
+#include <tsre/shape/SFileComplex.h>
+
+namespace {
+struct ShapeSaveSelection {
+    QString path;
+    int format = -1;      // -1 preserve, 0 Unicode, 1 binary
+    int compression = -1; // -1 preserve, 0 uncompressed, 1 compressed
+};
+
+bool chooseShapeSave(QWidget *parent, const QString &sourcePath,
+                     SFileComplex::Format sourceFormat, bool sourceCompressed,
+                     ShapeSaveSelection &selection) {
+    QDialog dialog(parent);
+    dialog.setWindowTitle(QObject::tr("Save Shape As"));
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *form = new QFormLayout;
+    auto *pathLayout = new QHBoxLayout;
+    auto *path = new QLineEdit(QDir::toNativeSeparators(sourcePath), &dialog);
+    auto *browse = new QPushButton(QObject::tr("Browse…"), &dialog);
+    pathLayout->addWidget(path, 1);
+    pathLayout->addWidget(browse);
+    form->addRow(QObject::tr("Output file:"), pathLayout);
+
+    auto *format = new QComboBox(&dialog);
+    format->addItem(QObject::tr("Preserve (%1)")
+                        .arg(sourceFormat == SFileComplex::Format::Binary
+                                 ? QObject::tr("Binary") : QObject::tr("Unicode")), -1);
+    format->addItem(QObject::tr("Unicode text"), 0);
+    format->addItem(QObject::tr("Binary"), 1);
+    form->addRow(QObject::tr("Format:"), format);
+
+    auto *compression = new QComboBox(&dialog);
+    compression->addItem(QObject::tr("Preserve (%1)")
+                             .arg(sourceCompressed ? QObject::tr("Compressed")
+                                                   : QObject::tr("Uncompressed")), -1);
+    compression->addItem(QObject::tr("Uncompressed"), 0);
+    compression->addItem(QObject::tr("Compressed"), 1);
+    form->addRow(QObject::tr("Compression:"), compression);
+    layout->addLayout(form);
+
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel,
+                                         Qt::Horizontal, &dialog);
+    layout->addWidget(buttons);
+    QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    QObject::connect(browse, &QPushButton::clicked, &dialog, [&dialog, path] {
+        QFileDialog picker(&dialog, QObject::tr("Save Shape As"), path->text(),
+                           QObject::tr("MSTS shapes (*.s)"));
+        picker.setAcceptMode(QFileDialog::AcceptSave);
+        picker.setDefaultSuffix("s");
+        picker.setFileMode(QFileDialog::AnyFile);
+        picker.setOption(QFileDialog::DontConfirmOverwrite, true);
+        if (picker.exec() == QDialog::Accepted && !picker.selectedFiles().isEmpty())
+            path->setText(QDir::toNativeSeparators(picker.selectedFiles().front()));
+    });
+    path->selectAll();
+    path->setFocus();
+    if (dialog.exec() != QDialog::Accepted)
+        return false;
+
+    selection.path = QDir::fromNativeSeparators(path->text().trimmed());
+    if (selection.path.isEmpty()) {
+        QMessageBox::warning(parent, QObject::tr("Save Shape"),
+                             QObject::tr("Choose an output filename."));
+        return false;
+    }
+    if (QFileInfo(selection.path).suffix().isEmpty())
+        selection.path += ".s";
+    if (QFileInfo(selection.path).suffix().compare("s", Qt::CaseInsensitive) != 0) {
+        QMessageBox::warning(parent, QObject::tr("Save Shape"),
+                             QObject::tr("MSTS shape files must use the .s extension."));
+        return false;
+    }
+    if (QFileInfo::exists(selection.path) &&
+        QMessageBox::question(parent, QObject::tr("Replace Shape"),
+                              QObject::tr("%1 already exists. Replace it?")
+                                  .arg(QDir::toNativeSeparators(selection.path)),
+                              QMessageBox::Yes | QMessageBox::No, QMessageBox::No) !=
+            QMessageBox::Yes)
+        return false;
+    selection.format = format->currentData().toInt();
+    selection.compression = compression->currentData().toInt();
+    return true;
+}
+} // namespace
 
 ShapeViewerWindow::ShapeViewerWindow() : QMainWindow() {
     Game::shadowsEnabled = 0;
@@ -45,7 +130,9 @@ ShapeViewerWindow::ShapeViewerWindow() : QMainWindow() {
     Game::currentEngLib = englib;
 
     navigatorWidget = new ShapeViewerNavigatorWidget(this);
-    glShapeWidget = new ShapeViewerGLWidget(this);
+    // The standalone viewer owns an editable, preservation-complete document.
+    // Embedded preview widgets retain the configured/default backend.
+    glShapeWidget = new ShapeViewerGLWidget(this, ShapeLib::MstsBackend::Complex);
     const QVariant shapeBackground = Settings::variant(
                 "core.interface.shapeBackground", SettingType::Color);
     if (shapeBackground.isValid()) {
@@ -100,6 +187,16 @@ ShapeViewerWindow::ShapeViewerWindow() : QMainWindow() {
         qtTrId("shape.viewer.shape.viewer.window.action.f.new"), this);
     fileMenu->addAction(fNew);
     QObject::connect(fNew, SIGNAL(triggered(bool)), this, SLOT(openFileEnabled()));
+    fSave = new QAction(tr("&Save"), this);
+    fSave->setShortcut(QKeySequence::Save);
+    fSave->setEnabled(false);
+    fileMenu->addAction(fSave);
+    QObject::connect(fSave, SIGNAL(triggered(bool)), this, SLOT(saveFileEnabled()));
+    fSaveAs = new QAction(tr("Save &As…"), this);
+    fSaveAs->setShortcut(QKeySequence::SaveAs);
+    fSaveAs->setEnabled(false);
+    fileMenu->addAction(fSaveAs);
+    QObject::connect(fSaveAs, SIGNAL(triggered(bool)), this, SLOT(saveFileAsEnabled()));
     fReload = new QAction(
         //% "&Reload"
         qtTrId("shape.viewer.shape.viewer.window.action.f.reload"), this);
@@ -262,6 +359,80 @@ void ShapeViewerWindow::reloadFileEnabled(){
     }
 }
 
+void ShapeViewerWindow::updateShapeSaveActions() {
+    const bool editable = currentItemType == "shape" &&
+                          dynamic_cast<SFileComplex *>(currentShape) != nullptr;
+    fSave->setEnabled(editable);
+    fSaveAs->setEnabled(editable);
+}
+
+void ShapeViewerWindow::saveFileEnabled() {
+    auto *shape = dynamic_cast<SFileComplex *>(currentShape);
+    if (!shape)
+        return;
+    if (!shape->isLoaded() && !shape->loadData()) {
+        QMessageBox::critical(this, tr("Save Shape"),
+                              tr("The shape could not be loaded completely:\n%1")
+                                  .arg(shape->diagnostics().join("\n")));
+        return;
+    }
+    SFileComplex::Format format;
+    bool compressed = false;
+    if (!shape->storageFormat(format, compressed)) {
+        QMessageBox::critical(this, tr("Save Shape"),
+                              tr("Saving requires a complete shape document."));
+        return;
+    }
+    QString error;
+    if (!shape->save(shape->getPathId(), format, compressed, &error)) {
+        QMessageBox::critical(this, tr("Save Shape"), error);
+        return;
+    }
+    statusBar()->showMessage(tr("Saved %1").arg(QDir::toNativeSeparators(shape->getPathId())),
+                             5000);
+}
+
+void ShapeViewerWindow::saveFileAsEnabled() {
+    auto *shape = dynamic_cast<SFileComplex *>(currentShape);
+    if (!shape)
+        return;
+    if (!shape->isLoaded() && !shape->loadData()) {
+        QMessageBox::critical(this, tr("Save Shape As"),
+                              tr("The shape could not be loaded completely:\n%1")
+                                  .arg(shape->diagnostics().join("\n")));
+        return;
+    }
+    SFileComplex::Format sourceFormat;
+    bool sourceCompressed = false;
+    if (!shape->storageFormat(sourceFormat, sourceCompressed)) {
+        QMessageBox::critical(this, tr("Save Shape As"),
+                              tr("Saving requires a complete shape document."));
+        return;
+    }
+    ShapeSaveSelection selection;
+    if (!chooseShapeSave(this, shape->getPathId(), sourceFormat, sourceCompressed, selection))
+        return;
+    const auto format = selection.format < 0
+                            ? sourceFormat
+                            : (selection.format == 1 ? SFileComplex::Format::Binary
+                                                     : SFileComplex::Format::Text);
+    const bool compressed = selection.compression < 0
+                                ? sourceCompressed : selection.compression == 1;
+    QString error;
+    if (!shape->save(selection.path, format, compressed, &error)) {
+        QMessageBox::critical(this, tr("Save Shape As"), error);
+        return;
+    }
+
+    // Rebind the viewer to the saved document. If the target was already in
+    // this viewer's cache, reload it so the cache observes the replacement.
+    loadFile(selection.path);
+    if (auto *saved = dynamic_cast<SFileComplex *>(currentShape))
+        saved->reload();
+    statusBar()->showMessage(tr("Saved %1").arg(QDir::toNativeSeparators(selection.path)),
+                             5000);
+}
+
 void ShapeViewerWindow::openFileEnabled(){
     QFileDialog fd;
     QString path = "";
@@ -287,6 +458,8 @@ void ShapeViewerWindow::openFileEnabled(){
 void ShapeViewerWindow::loadFile(QString path){
     path.replace("\\", "/");
     path = ContentPath::normalize(path);
+    currentShape = NULL;
+    updateShapeSaveActions();
     QString dir = path.section("/",0,-2);
     qDebug() << dir;
     QString filename = path.section("/",-1,-1);
@@ -339,6 +512,7 @@ void ShapeViewerWindow::loadFile(QString path){
         glShapeWidget->showConSimple(cid);
         currentCon = con;
     }
+    updateShapeSaveActions();
     
     //List textures:
     QTimer *timer = new QTimer(this);
@@ -369,6 +543,7 @@ void ShapeViewerWindow::contentHierarchySelected(int id){
         glShapeWidget->showShape(currentShape);
     }
     if(currentItemType == "eng"){
+        currentShape = NULL;
         Eng *eng = currentContent[id]->eng;
         float pos = -eng->sizez-1;
         if(pos > -15) pos = -15;
@@ -379,6 +554,8 @@ void ShapeViewerWindow::contentHierarchySelected(int id){
         currentEng = eng;
     }
     if(currentItemType == "con"){
+        currentShape = NULL;
+        updateShapeSaveActions();
         Consist* con = currentContent[id]->con;
         if(con == NULL)
             return;
@@ -393,6 +570,7 @@ void ShapeViewerWindow::contentHierarchySelected(int id){
         currentCon = con;
     }
 
+    updateShapeSaveActions();
     updateTextureInfo(false);
 }
 

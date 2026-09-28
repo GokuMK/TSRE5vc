@@ -41,6 +41,8 @@ public:
 public slots:
     void about();
     void openFileEnabled();
+    void saveFileEnabled();
+    void saveFileAsEnabled();
     void reloadFileEnabled();
     void updateTextureInfo();
     void contentHierarchySelected(int id);
@@ -75,6 +77,7 @@ private:
     QMenu *helpMenu;
 
     QAction *fSave;
+    QAction *fSaveAs;
     QAction *fNew;
     QAction *fReload;
     QAction *fExit;
@@ -96,7 +99,8 @@ private:
     Eng *currentEng = NULL;
     ComplexShape *currentShape = NULL;
     QVector<ContentHierarchyInfo*> currentContent;
-    
+
+    void updateShapeSaveActions();
     void updateTextureInfo(bool refreshContentList);
 };
 

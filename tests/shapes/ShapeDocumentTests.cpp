@@ -2,17 +2,23 @@
 #include <QDebug>
 #include <QDirIterator>
 #include <QFile>
+#include <QProcess>
+#include <QProcessEnvironment>
 #include <QTemporaryDir>
 #include <QtEndian>
 #include <iostream>
 #include <limits>
 #include <tsre/fileFunctions/SimisTextReader.h>
+#include <shapeConverter/ShapeConverter.h>
 #include <tsre/shape/SFileDocument.h>
 // Supply the same bundled codec used by TSRE, without linking the GL
 // application.
 #define MINIZ_NO_ZLIB_COMPATIBLE_NAMES
 #include <mzip/miniz/miniz.h>
 int main(int argc, char **argv) {
+    for (int i = 1; i < argc; ++i)
+        if (QByteArray(argv[i]) == "--shapeconv")
+            return ShapeConverter::run(argc, argv);
     QCoreApplication app(argc, argv);
     using SFileDetail::Document;
     int checks = 0, failures = 0;
@@ -23,8 +29,14 @@ int main(int argc, char **argv) {
             std::cerr << message.toStdString() << std::endl;
         }
     };
-    if (argc > 1) {
-        QDirIterator files(QString::fromLocal8Bit(argv[1]), QDir::Files,
+    QString corpusPath;
+    const QStringList arguments = QCoreApplication::arguments();
+    for (int i = 1; i < arguments.size(); ++i) {
+        if (!arguments[i].startsWith('-') && corpusPath.isEmpty())
+            corpusPath = arguments[i];
+    }
+    if (!corpusPath.isEmpty()) {
+        QDirIterator files(corpusPath, QDir::Files,
                            QDirIterator::Subdirectories);
         while (files.hasNext()) {
             const auto path = files.next();
@@ -86,6 +98,80 @@ int main(int argc, char **argv) {
                   "round trip: " +
                       error);
         }
+
+    QTemporaryDir conversionDirectory;
+    check(conversionDirectory.isValid(), "shape converter temporary directory");
+    const QString conversionSource = QString(SHAPE_FIXTURE_DIR) + "/coverage.s";
+    ShapeConverter::Options conversion;
+    ShapeConverter::Result conversionResult;
+    conversion.inputPath = conversionSource;
+    conversion.outputPath = conversionDirectory.filePath("binary-compressed.s");
+    conversion.format = ShapeConverter::Format::Binary;
+    conversion.compression = ShapeConverter::Compression::Compressed;
+    check(ShapeConverter::convert(conversion, conversionResult, error),
+          "shape converter writes compressed binary: " + error);
+    Document converted;
+    check(converted.read(conversion.outputPath) && !converted.damaged && converted.binary &&
+              converted.compressed,
+          "shape converter output has requested binary/compressed storage");
+    QFile savedOutput(conversion.outputPath);
+    check(savedOutput.open(QIODevice::ReadOnly), "open converted output for overwrite check");
+    const QByteArray protectedOutput = savedOutput.readAll();
+    savedOutput.close();
+    check(!ShapeConverter::convert(conversion, conversionResult, error) &&
+              error.contains("already exists"),
+          "shape converter protects an existing output");
+    QFile protectedFile(conversion.outputPath);
+    check(protectedFile.open(QIODevice::ReadOnly) && protectedFile.readAll() == protectedOutput,
+          "failed overwrite leaves shape output unchanged");
+    protectedFile.close();
+    conversion.overwrite = true;
+    conversion.format = ShapeConverter::Format::Unicode;
+    conversion.compression = ShapeConverter::Compression::Uncompressed;
+    const bool convertedToUnicode = ShapeConverter::convert(conversion, conversionResult, error);
+    check(convertedToUnicode, "shape converter overwrites with Unicode: " + error);
+    check(converted.read(conversion.outputPath) && !converted.damaged && !converted.binary &&
+              !converted.compressed,
+          "shape converter output has requested Unicode/uncompressed storage");
+    conversion.inputPath = conversion.outputPath;
+    conversion.outputPath = conversionDirectory.filePath("preserved.s");
+    conversion.overwrite = false;
+    conversion.format = ShapeConverter::Format::Preserve;
+    conversion.compression = ShapeConverter::Compression::Preserve;
+    const bool preservedStorage = ShapeConverter::convert(conversion, conversionResult, error);
+    check(preservedStorage &&
+              conversionResult.format == ShapeConverter::Format::Unicode &&
+              conversionResult.compression == ShapeConverter::Compression::Uncompressed,
+          "shape converter preserve options retain source storage: " + error);
+
+    {
+        const QString applicationPath = QCoreApplication::applicationFilePath();
+        auto runConverter = [&](const QStringList &args, int expected) {
+            QProcess process;
+            auto environment = QProcessEnvironment::systemEnvironment();
+            environment.insert("QT_QPA_PLATFORM", "intentionally-invalid-for-headless-test");
+            process.setProcessEnvironment(environment);
+            process.setWorkingDirectory(conversionDirectory.path());
+            process.start(applicationPath, QStringList{"--shapeconv"} + args);
+            const bool finished = process.waitForFinished(30000);
+            if (!finished) {
+                process.kill();
+                process.waitForFinished();
+            }
+            check(finished && process.exitStatus() == QProcess::NormalExit &&
+                      process.exitCode() == expected,
+                  "shape converter CLI " + args.join(' ') + " exit=" +
+                      QString::number(process.exitCode()) + " stderr=" +
+                      QString::fromLocal8Bit(process.readAllStandardError()));
+        };
+        runConverter({conversionSource, "-o", "cli-binary.s", "-f", "binary", "-c",
+                      "compressed"}, 0);
+        runConverter({"-i", "cli-binary.s", "-o", "cli-text.s", "-f", "unicode", "-c",
+                      "uncompressed"}, 0);
+        runConverter({"cli-binary.s", "-o", "cli-text.s"}, 1);
+        runConverter({conversionSource, "-o", "bad.s", "-f", "unknown"}, 2);
+        runConverter({"-o", "missing.s"}, 2);
+    }
     QString exportedText, textError;
     check(SimisTextReader::decode(source.encode(false, false, error), exportedText, textError) &&
               exportedText.startsWith("SIMISA@@@@@@@@@@JINX0s1t______\r\n"),

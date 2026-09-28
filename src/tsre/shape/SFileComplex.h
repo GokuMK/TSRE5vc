@@ -34,13 +34,14 @@ class SFileComplex final : public ComplexShape {
     GpuState gpuState() const;
     QStringList diagnostics() const;
     Statistics statistics() const;
+    bool storageFormat(Format &format, bool &compressed) const;
     bool setLoadOptions(const ShapeLoadOptions &options) override; // Only before CPU load.
     bool loadData(); // CPU only; retained broken documents remain inspectable.
     bool initGL();
     void releaseGL();
     bool compact(); // Requires successful GL initialization.
     bool reloadComplete();
-    bool save(const QString &path, Format format, bool compressed, QString *error = nullptr) const;
+    bool save(const QString &path, Format format, bool compressed, QString *error = nullptr);
     bool saveMetadata(const QString &path, bool compressed, QString *error = nullptr) const;
     // Complete-mode editing without exposing mutable document storage.
     // Paths: "points/point[0]"; prefix "sd/" selects metadata.

@@ -18,13 +18,13 @@
 #include <QMatrix4x4>
 #include <QBasicTimer>
 #include <math.h>
+#include <tsre/shape/ShapeLib.h>
 
 class ComplexShape;
 class Eng;
 class Consist;
 class GLUU;
 class Camera;
-class ShapeLib;
 class EngLib;
 class QImage;
 class ShapeTextureInfo;
@@ -36,7 +36,8 @@ QT_FORWARD_DECLARE_CLASS(QOpenGLShaderProgram)
 class ShapeViewerGLWidget : public QOpenGLWidget, protected QOpenGLFunctions {
     Q_OBJECT
 public:
-    ShapeViewerGLWidget(QWidget *parent = 0);
+    ShapeViewerGLWidget(QWidget *parent = 0,
+                        ShapeLib::MstsBackend backend = ShapeLib::MstsBackend::ConfiguredDefault);
     virtual ~ShapeViewerGLWidget();
     
     QSize minimumSizeHint() const Q_DECL_OVERRIDE;

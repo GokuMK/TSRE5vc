@@ -21,13 +21,23 @@
 //int ShapeLib::jestshape;
 //std::unordered_map<int, SFile*> ShapeLib::shape;
 
-ShapeLib::ShapeLib() {
-    mstsBackend = qEnvironmentVariable("TSRE_MSTS_SHAPE_BACKEND");
-    firstMstsLodOnly = qEnvironmentVariableIntValue("TSRE_MSTS_FIRST_LOD_ONLY") == 1;
+ShapeLib::ShapeLib(MstsBackend backend) {
+    if (backend == MstsBackend::ConfiguredDefault) {
+        mstsBackend = qEnvironmentVariable("TSRE_MSTS_SHAPE_BACKEND");
+        firstMstsLodOnly = qEnvironmentVariableIntValue("TSRE_MSTS_FIRST_LOD_ONLY") == 1;
+        return;
+    }
+    switch (backend) {
+    case MstsBackend::Legacy: mstsBackend = "legacy"; break;
+    case MstsBackend::Complex: mstsBackend = "complex"; break;
+    case MstsBackend::ComplexCompact: mstsBackend = "complex-compact"; break;
+    case MstsBackend::Old: mstsBackend = "old"; break;
+    case MstsBackend::ConfiguredDefault: break;
+    }
 }
 
-ShapeLib::ShapeLib(const ShapeLib& orig) {
-}
+ShapeLib::ShapeLib(const ShapeLib& orig)
+    : mstsBackend(orig.mstsBackend), firstMstsLodOnly(orig.firstMstsLodOnly) {}
 
 ShapeLib::~ShapeLib() {
 }

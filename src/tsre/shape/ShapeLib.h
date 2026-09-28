@@ -8,9 +8,17 @@ class ComplexShape;
 
 class ShapeLib {
 public:
+    enum class MstsBackend {
+        ConfiguredDefault,
+        Legacy,
+        Complex,
+        ComplexCompact,
+        Old
+    };
+
     int jestshape = 0;
     std::unordered_map<int, ComplexShape*> shape;
-    ShapeLib();
+    explicit ShapeLib(MstsBackend backend = MstsBackend::ConfiguredDefault);
     ShapeLib(const ShapeLib& orig);
     virtual ~ShapeLib();
     void reset();

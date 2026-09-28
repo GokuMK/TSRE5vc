@@ -1,5 +1,6 @@
 qt_add_executable(tsre_shape_document_tests
     ShapeDocumentTests.cpp
+    "${PROJECT_SOURCE_DIR}/src/shapeConverter/ShapeConverter.cpp"
     "${PROJECT_SOURCE_DIR}/src/tsre/shape/SFileDocument.cpp"
     "${PROJECT_SOURCE_DIR}/src/tsre/fileFunctions/SimisTextReader.cpp"
     "${PROJECT_SOURCE_DIR}/src/tsre/fileFunctions/TS.cpp"

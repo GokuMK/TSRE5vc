@@ -197,7 +197,7 @@ void commandTests(const QString &dir, const QString &app) {
               "CLI " + args.join(' ') + " exit=" + QString::number(process.exitCode()) + ' ' + QString::fromLocal8Bit(output));
     };
     run({"--help"}, 0);
-    run({"--file", "odd width.png", "--output", "cli.ace", "--ace-format", "rgba", "--zlib"}, 0);
+    run({"-i", "odd width.png", "-o", "cli.ace", "-f", "rgba", "-z"}, 0);
     run({"cli.ace", "--output", "cli.png"}, 0);
     check(QImage(dir + "/cli.png").convertToFormat(QImage::Format_RGBA8888) == pattern(9, 3), "CLI image round trip");
     const QByteArray before = read(dir + "/cli.ace");
@@ -212,6 +212,18 @@ void commandTests(const QString &dir, const QString &app) {
     run({"--file", "missing.png", "--output", "missing.ace"}, 1);
     run({"--nonsense"}, 2);
     run({"--file", "odd width.png", "extra.png"}, 2);
+    {
+        QProcess process;
+        auto env = QProcessEnvironment::systemEnvironment();
+        env.insert("QT_QPA_PLATFORM", "intentionally-invalid-for-headless-test");
+        process.setProcessEnvironment(env);
+        process.start(app, {"-aceconv"});
+        const bool finished = process.waitForFinished(30000);
+        if (!finished) { process.kill(); process.waitForFinished(); }
+        check(finished && process.exitStatus() == QProcess::NormalExit && process.exitCode() == 2 &&
+                  process.readAllStandardError().contains("use --aceconv"),
+              "single-dash ACE mode is rejected with the clear spelling");
+    }
     if (QImageReader::supportedImageFormats().contains("svg")) {
         check(write(dir + "/vector.svg", "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"32\" height=\"32\"><rect width=\"32\" height=\"32\" fill=\"red\"/><text x=\"2\" y=\"20\">A</text></svg>"),
               "write Qt SVG fixture");
