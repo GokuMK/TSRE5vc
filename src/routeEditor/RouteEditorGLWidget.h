@@ -43,6 +43,7 @@ class QAction;
 class GuiGlCompass;
 class DynTrackObj;
 class RulerObj;
+class TelepoleObj;
 class SelectionRenderer;
 
 QT_FORWARD_DECLARE_CLASS(QOpenGLShaderProgram)
@@ -186,6 +187,10 @@ private:
             const float *pointerPosition, bool force = false);
     bool acceptLiveRulerPoint();
     void finishLiveRuler(bool keepContinuousTool = false);
+    bool beginLiveTelepole(TelepoleObj *telepole);
+    bool updateLiveTelepole(int pointerTileX, int pointerTileZ,
+            const float *pointerPosition, bool force = false);
+    void finishLiveTelepole(bool accept);
     static void quantizeContinuousPoint(int &tileX, int &tileZ,
             float *position, float step);
     bool paintGLGather(bool drawToScreen);
@@ -288,6 +293,14 @@ private:
     QString liveRulerDraftNodeShape;
     QString continuousRulerProfile;
     QString continuousRulerNodeShape;
+    bool liveTelepoleActive = false;
+    bool liveTelepoleSolutionValid = false;
+    TelepoleObj *liveTelepoleObj = NULL;
+    bool liveTelepoleHasLastTarget = false;
+    int liveTelepoleLastTargetTileX = 0;
+    int liveTelepoleLastTargetTileZ = 0;
+    float liveTelepoleLastTargetPosition[3] = {0, 0, 0};
+    unsigned long long liveTelepoleLastUpdateTime = 0;
     float continuousPlacementYOffset = 0.0f;
     bool stickPointerToTerrain = true;
     bool autoAddToTDB = true;

@@ -1882,14 +1882,14 @@ Consist with this file name already exist. Overwrite?
     <message id="route.editor.ruler.node.shape.tooltip">
         <location filename="../src/routeEditor/ObjTools.cpp" line="142" />
         <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="216" />
-        <source>Optional route shape rendered at every Ruler node. Template node geometry remains available and is additive.</source>
-        <translation>Optional route shape rendered at every Ruler node. Template node geometry remains available and is additive.</translation>
+        <source>Optional additional route shape rendered at every Ruler node. Template node geometry remains available and is additive.</source>
+        <translation>Optional additional route shape rendered at every Ruler node. Template node geometry remains available and is additive.</translation>
     </message>
     <message id="route.editor.ruler.node.shape.none">
         <location filename="../src/routeEditor/ObjTools.cpp" line="919" />
         <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="296" />
-        <source>No node shape</source>
-        <translation>No node shape</translation>
+        <source>No additional node shape</source>
+        <translation>No additional node shape</translation>
     </message>
     <message id="route.editor.obj.tools.text.track.on.left">
         <location filename="../src/routeEditor/ObjTools.cpp" line="149" />
@@ -4303,8 +4303,8 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
     </message>
     <message id="route.editor.properties.ruler.label.node.shape">
         <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="207" />
-        <source>Node shape:</source>
-        <translation>Node shape:</translation>
+        <source>Additional node shape:</source>
+        <translation>Additional node shape:</translation>
     </message>
     <message id="common.value.not.set">
         <location filename="../src/routeEditor/properties/PropertiesDyntrack.cpp" line="78" />
@@ -5353,8 +5353,8 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
     </message>
     <message id="route.editor.properties.ruler.button.remove.node.shape">
         <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="221" />
-        <source>Remove Node Shape</source>
-        <translation>Remove Node Shape</translation>
+        <source>Remove Additional Node Shape</source>
+        <translation>Remove Additional Node Shape</translation>
     </message>
     <message id="route.editor.properties.ruler.text.null">
         <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="288" />
@@ -10462,6 +10462,18 @@ Missing local elevation files (downloaded automatically when supported):
         <source>[QT] Reconstructed distant QuadTree</source>
         <translation>[QT] Reconstructed distant QuadTree</translation>
     </message>
+    <message id="route.editor.obj.tools.item.telepoles"><source>Telepoles</source><translation>Telepoles</translation></message>
+    <message id="route.editor.obj.tools.item.no.telepole.configuration"><source>No telepole.dat configuration</source><translation>No telepole.dat configuration</translation></message>
+    <message id="route.editor.properties.telepole.label.title"><source>Telepole:</source><translation>Telepole:</translation></message>
+    <message id="route.editor.properties.telepole.label.uid"><source>UiD:</source><translation>UiD:</translation></message>
+    <message id="route.editor.properties.telepole.label.tile.x"><source>Tile X:</source><translation>Tile X:</translation></message>
+    <message id="route.editor.properties.telepole.label.tile.z"><source>Tile Z:</source><translation>Tile Z:</translation></message>
+    <message id="route.editor.properties.telepole.label.length"><source>Length:</source><translation>Length:</translation></message>
+    <message id="route.editor.properties.telepole.label.population"><source>Pole count:</source><translation>Pole count:</translation></message>
+    <message id="route.editor.properties.telepole.label.separation"><source>Separation:</source><translation>Separation:</translation></message>
+    <message id="route.editor.properties.telepole.label.configuration"><source>Configuration:</source><translation>Configuration:</translation></message>
+    <message id="route.editor.properties.telepole.label.span"><source>Span:</source><translation>Span:</translation></message>
+    <message id="route.properties.telepole.object.type"><source>Object: %1</source><translation>Object: %1</translation></message>
 </context>
 <context>
     <name>LoadWindow</name>

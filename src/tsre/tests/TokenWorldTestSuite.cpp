@@ -1,16 +1,20 @@
 #include <tsre/tests/TokenIdTestSuite.h>
+#include <tsre/Game.h>
 #include <tsre/tests/TokenTestSupport.h>
 #include <tsre/fileFunctions/SimisReader.h>
 #include <tsre/fileFunctions/ReadFile.h>
 #include <tsre/world/Tile.h>
 #include <tsre/world/objects/WorldObj.h>
 #include <tsre/world/objects/TelepoleObj.h>
+#include <tsre/world/TelepoleData.h>
+#include <tsre/world/Ref.h>
 #include <tsre/world/objects/TrWatermarkObj.h>
 #include <tsre/world/objects/DynTrackObj.h>
 #include <tsre/world/objects/SignalObj.h>
 #include <tsre/shape/SFile.h>
 #include <tsre/shape/SFileC.h>
 #include <QTemporaryDir>
+#include <QDir>
 #include <QFile>
 #include <QOffscreenSurface>
 #include <QOpenGLContext>
@@ -98,6 +102,89 @@ int TsreTests::runTokenWorldSuite(bool verbose, bool withGl) {
                    "binary/Unicode object dispatch: " + QString::fromLatin1(TS::name(id)));
     }
     {
+        QTemporaryDir directory;
+        const QString path = directory.filePath("telepole.dat");
+        QFile file(path);
+        const bool opened = file.open(QIODevice::WriteOnly);
+        if(opened){
+            file.write(
+                "SIMISA@@@@@@@@@@JINX0r1t______\n\n"
+                "TPoleConfigData ( 2\n"
+                " TPoleConfig ( 2 Filename ( pole.s ) Shadow ( shadow.s ) "
+                "Separation ( 10 ) Wire ( 0 6.7 .4 ) Wire ( 0 6.2 -.2 ) )\n"
+                " TPoleConfig ( 0 Filename ( other.s ) Separation ( 25 ) )\n"
+                ")\n");
+            file.close();
+        }
+        TelepoleData catalog;
+        const bool loaded = opened && catalog.load(path);
+        const TelepoleData::Config *first = catalog.config(0);
+        const TelepoleData::Config *second = catalog.config(1);
+        test.check(loaded && catalog.configCount() == 2
+                   && first != nullptr && first->valid
+                   && first->fileName == "pole.s"
+                   && first->shadowName == "shadow.s"
+                   && std::abs(first->separation - 10.0f) < 0.0001f
+                   && first->wires.size() == 2
+                   && std::abs(first->wires[0][1] - 6.7f) < 0.0001f
+                   && second != nullptr && second->valid
+                   && second->fileName == "other.s"
+                   && second->wires.isEmpty()
+                   && catalog.diagnostics().isEmpty(),
+                   "Telepole route catalog parses configurations and wires");
+
+        Ref generatedRefs;
+        generatedRefs.ensureTelepoleItems(catalog);
+        generatedRefs.ensureTelepoleItems(catalog);
+        const QVector<Ref::RefItem> generatedItems =
+                generatedRefs.refItems.value("#TSRE#telepoles");
+        QString generatedText;
+        QTextStream generatedStream(&generatedText);
+        generatedRefs.saveToStream(&generatedStream);
+        generatedStream.flush();
+        test.check(generatedItems.size() == 2
+                   && generatedItems[0].type == "telepole"
+                   && generatedItems[0].value == 0
+                   && generatedItems[0].filename.value(0) == "pole.s"
+                   && generatedItems[1].value == 1
+                   && generatedItems[1].filename.value(0) == "other.s"
+                   && generatedItems[0].editorGenerated
+                   && generatedText.trimmed().isEmpty(),
+                   "Telepole configurations become transient REF items once");
+
+        const QString oldRoot = Game::root;
+        const QString oldRoute = Game::route;
+        Game::root = directory.path();
+        Game::route = "TEST";
+        QDir().mkpath(directory.filePath("ROUTES/TEST"));
+        QFile::copy(path, directory.filePath("ROUTES/TEST/telepole.dat"));
+        TelepoleData::routeData(directory.filePath("ROUTES/TEST"), true);
+        TelepoleObj placed;
+        placed.set("ref_class", QString());
+        placed.set("ref_value", (long long)0);
+        float start[3] = {0, 2, 0};
+        float rotation[4] = {0, 0, 0, 1};
+        placed.initPQ(start, rotation);
+        placed.UiD = 99;
+        placed.load(100, -200);
+        float end[3] = {0, 2, 20};
+        placed.setEndPosition(100, -200, end);
+        const bool exactSpacing = placed.populationValue() == 3
+                && std::abs(placed.spanLength() - 20.0f) < 0.0001f;
+        end[2] = 20.01f;
+        placed.setEndPosition(100, -200, end);
+        const QString placedText = saveObject(placed);
+        std::unique_ptr<WorldObj> placedCopy(placed.clone());
+        placedCopy->load(100, -200);
+        test.check(exactSpacing && placed.populationValue() == 4
+                   && placedText.contains("Population ( 4 )")
+                   && placedText.contains("Config ( 0 )")
+                   && saveObject(*placedCopy) == placedText,
+                   "Telepole placement derives population and remains stable after clone/load");
+        Game::root = oldRoot;
+        Game::route = oldRoute;
+    }
+    {
         const std::pair<TS::TokenId, QByteArray> properties[] = {
             {TS::UiD, uints({35})}, {TS::Population, uints({3})},
             {TS::StartPosition, floats({-101.123456f, 22.9824f, 500.1234f})},
@@ -140,8 +227,21 @@ int TsreTests::runTokenWorldSuite(bool verbose, bool withGl) {
             }
             std::unique_ptr<WorldObj> copy(object.clone());
             copy->load(12, -34);
-            test.check(saveObject(*copy) == saved && !copy->allowNew(),
-                       "Telepole clone/repeated load retains fields without a second Z flip");
+            test.check(saveObject(*copy) == saved && copy->allowNew(),
+                       "Telepole clone/repeated load retains fields without a second Z flip and allows placement");
+            TelepoleObj *moved = static_cast<TelepoleObj*>(copy.get());
+            const float originalLength = moved->spanLength();
+            float movedPosition[3] = {
+                moved->position[0] + 5.0f,
+                moved->position[1],
+                moved->position[2]
+            };
+            moved->select(0);
+            moved->setPosition(12, -34, movedPosition);
+            test.check(moved->populationValue() == 3
+                       && std::abs(moved->spanLength() - originalLength)
+                           < 0.0001f,
+                       "Telepole body translation preserves authored population and span length");
         }
         // Every schema field must remain bounded by its own binary block.
         for (const auto& property : properties) {

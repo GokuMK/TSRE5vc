@@ -117,8 +117,9 @@ A Ruler can additionally store an ordinary route `.s` shape in `FileName`.
 TSRE resolves it through the shared shape library and renders one instance at
 every authored Ruler node. End nodes follow their only adjacent span; internal
 nodes use the incoming/outgoing angular bisector. This provides a lightweight
-alternative for complex existing objects such as poles and also supplies a
-future backend for MSTS Telepole-style content.
+alternative for complex existing objects such as poles. Native MSTS Telepole
+objects use their own `telepole.dat` catalog and two-endpoint editor; see
+`docs/features/msts-world-telepole.md`.
 
 The ordinary shape and profile geometry are deliberately additive. Selecting
 a node shape does not suppress a profile's `Template3D` `Nodes` placement.

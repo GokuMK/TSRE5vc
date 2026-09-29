@@ -102,6 +102,7 @@ private:
 
     QWidget advancedPlacementWidget;
     QWidget continuousFlexOptionsWidget;
+    QWidget continuousFlexTrackOptionsWidget;
     QPushButton *continuousFlexOptionsButton = NULL;
     QComboBox continuousProfile;
     QComboBox continuousRulerNodeShape;

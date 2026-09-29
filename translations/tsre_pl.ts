@@ -1884,14 +1884,14 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
         <message id="route.editor.ruler.node.shape.tooltip">
             <location filename="../src/routeEditor/ObjTools.cpp" line="142" />
             <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="216" />
-            <source>Optional route shape rendered at every Ruler node. Template node geometry remains available and is additive.</source>
-            <translation>Opcjonalny model trasy renderowany w każdym węźle linijki. Geometria węzłów szablonu pozostaje dostępna i jest dodawana niezależnie.</translation>
+            <source>Optional additional route shape rendered at every Ruler node. Template node geometry remains available and is additive.</source>
+            <translation>Opcjonalny dodatkowy model trasy renderowany w każdym węźle linijki. Geometria węzłów szablonu pozostaje dostępna i jest dodawana niezależnie.</translation>
         </message>
         <message id="route.editor.ruler.node.shape.none">
             <location filename="../src/routeEditor/ObjTools.cpp" line="919" />
             <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="296" />
-            <source>No node shape</source>
-            <translation>Bez modelu węzła</translation>
+            <source>No additional node shape</source>
+            <translation>Bez dodatkowego modelu węzła</translation>
         </message>
         <message id="route.editor.obj.tools.text.track.on.left">
             <location filename="../src/routeEditor/ObjTools.cpp" line="149" />
@@ -4305,8 +4305,8 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
         </message>
         <message id="route.editor.properties.ruler.label.node.shape">
             <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="207" />
-            <source>Node shape:</source>
-            <translation>Model węzła:</translation>
+            <source>Additional node shape:</source>
+            <translation>Dodatkowy model węzła:</translation>
         </message>
         <message id="common.value.not.set">
             <location filename="../src/routeEditor/properties/PropertiesDyntrack.cpp" line="78" />
@@ -5357,8 +5357,8 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
         </message>
         <message id="route.editor.properties.ruler.button.remove.node.shape">
             <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="221" />
-            <source>Remove Node Shape</source>
-            <translation>Usuń model węzła</translation>
+            <source>Remove Additional Node Shape</source>
+            <translation>Usuń dodatkowy model węzła</translation>
         </message>
         <message id="route.editor.properties.ruler.text.null">
             <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="288" />
@@ -10467,6 +10467,18 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <source>[QT] Reconstructed distant QuadTree</source>
         <translation>[QT] Odtworzony QuadTree terenu odległego</translation>
     </message>
+    <message id="route.editor.obj.tools.item.telepoles"><source>Telepoles</source><translation>Słupy telegraficzne</translation></message>
+    <message id="route.editor.obj.tools.item.no.telepole.configuration"><source>No telepole.dat configuration</source><translation>Brak konfiguracji telepole.dat</translation></message>
+    <message id="route.editor.properties.telepole.label.title"><source>Telepole:</source><translation>Słupy telegraficzne:</translation></message>
+    <message id="route.editor.properties.telepole.label.uid"><source>UiD:</source><translation>UiD:</translation></message>
+    <message id="route.editor.properties.telepole.label.tile.x"><source>Tile X:</source><translation>Kafel X:</translation></message>
+    <message id="route.editor.properties.telepole.label.tile.z"><source>Tile Z:</source><translation>Kafel Z:</translation></message>
+    <message id="route.editor.properties.telepole.label.length"><source>Length:</source><translation>Długość:</translation></message>
+    <message id="route.editor.properties.telepole.label.population"><source>Pole count:</source><translation>Liczba słupów:</translation></message>
+    <message id="route.editor.properties.telepole.label.separation"><source>Separation:</source><translation>Odstęp:</translation></message>
+    <message id="route.editor.properties.telepole.label.configuration"><source>Configuration:</source><translation>Konfiguracja:</translation></message>
+    <message id="route.editor.properties.telepole.label.span"><source>Span:</source><translation>Odcinek:</translation></message>
+    <message id="route.properties.telepole.object.type"><source>Object: %1</source><translation>Obiekt: %1</translation></message>
 </context>
 <context>
     <name>LoadWindow</name>

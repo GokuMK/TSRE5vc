@@ -31,6 +31,7 @@
 #include <tsre/math3d/Flex.h>
 #include <tsre/world/objects/DynTrackObj.h>
 #include <tsre/world/objects/RulerObj.h>
+#include <tsre/world/objects/TelepoleObj.h>
 #include <tsre/procedural/ProceduralShape.h>
 #include <tsre/procedural/ShapeTemplates.h>
 #include <tsre/procedural/OrtsTrackProfile.h>
@@ -148,7 +149,7 @@ void RouteEditorGLWidget::timerEvent(QTimerEvent * event) {
         //qDebug() << "new second" << timeNow;
         if (selectedObj != NULL)
             emit updateProperties(selectedObj);
-        if(!liveFlexActive && !liveRulerActive)
+        if(!liveFlexActive && !liveRulerActive && !liveTelepoleActive)
             Undo::StateEndIfLongTime();
     }
     
@@ -1212,11 +1213,14 @@ void RouteEditorGLWidget::drawPointer() {
         updateLiveFlex((int)camera->pozT[0], (int)camera->pozT[1], aktPointerPos);
     else if(liveRulerActive && !mouseRPressed)
         updateLiveRuler((int)camera->pozT[0], (int)camera->pozT[1], aktPointerPos);
+    else if(liveTelepoleActive && !mouseRPressed)
+        updateLiveTelepole((int)camera->pozT[0], (int)camera->pozT[1], aktPointerPos);
     //qDebug()<<aktPointerPos[0]<< aktPointerPos[1]<< aktPointerPos[2];
     if (Game::viewPointer3d) {
         const float displayedPointerY = aktPointerPos[1]
                 + ((continuousFlexMode || liveFlexActive
-                    || continuousRulerMode || liveRulerActive)
+                    || continuousRulerMode || liveRulerActive
+                    || liveTelepoleActive)
                     ? continuousPlacementYOffset : 0.0f);
         gluu->mvPushMatrix();
         Mat4::translate(gluu->mvMatrix, gluu->mvMatrix,
@@ -1282,6 +1286,14 @@ void RouteEditorGLWidget::keyPressEvent(QKeyEvent * event) {
         // Finish the accepted polyline, discard only its mouse-following
         // endpoint, and keep Ruler placement armed for a new line.
         finishLiveRuler(continuousRulerMode);
+        event->accept();
+        return;
+    }
+
+    if (liveTelepoleActive && event->key() == Qt::Key_Escape) {
+        // Discard only the unfinished two-point span. The ordinary PLACE tool
+        // and selected Telepole REF item remain active for another attempt.
+        finishLiveTelepole(false);
         event->accept();
         return;
     }
@@ -1658,6 +1670,17 @@ void RouteEditorGLWidget::mousePressEvent(QMouseEvent *event) {
             setFocus();
             return;
         }
+        if(liveTelepoleActive) {
+            const bool solutionValid = updateLiveTelepole(
+                    (int)camera->pozT[0],
+                    (int)camera->pozT[1],
+                    aktPointerPos, true);
+            finishLiveTelepole(solutionValid);
+            mouseLPressed = false;
+            mouseClick = false;
+            setFocus();
+            return;
+        }
         Undo::StateBegin();
         mouseLPressed = true;
         lastMousePressTime = QDateTime::currentMSecsSinceEpoch();
@@ -1706,9 +1729,16 @@ void RouteEditorGLWidget::mousePressEvent(QMouseEvent *event) {
             lastNewObjPos[2] = aktPointerPos[2];
             float *q = Quat::create();
             Quat::copy(q, this->placeRot);
-            setSelectedObj(route->placeObject((int) camera->pozT[0], (int) camera->pozT[1], aktPointerPos, q, placeElev));
-            if (selectedObj != NULL)
-                selectedObj->select();
+            WorldObj *placed = route->placeObject(
+                    (int)camera->pozT[0], (int)camera->pozT[1],
+                    aktPointerPos, q, placeElev);
+            setSelectedObj(placed);
+            if(placed != NULL){
+                if(placed->typeID == WorldObj::telepole)
+                    beginLiveTelepole(static_cast<TelepoleObj*>(placed));
+                else
+                    placed->select();
+            }
         }
         if (toolEnabled == "autoPlaceSimpleTool") {
             if (selectedObj != NULL) {
@@ -1909,7 +1939,8 @@ void RouteEditorGLWidget::wheelEvent(QWheelEvent *event) {
     float numDegrees = 0.01 * event->angleDelta().y();
 
     if(continuousFlexMode || liveFlexActive
-            || continuousRulerMode || liveRulerActive) {
+            || continuousRulerMode || liveRulerActive
+            || liveTelepoleActive) {
         const float step = (event->modifiers() & Qt::ControlModifier)
                 ? moveMaxStep / 10.0f
                 : moveMaxStep;
@@ -1926,6 +1957,13 @@ void RouteEditorGLWidget::wheelEvent(QWheelEvent *event) {
         } else if(liveRulerActive) {
             liveRulerHasLastTarget = false;
             updateLiveRuler(
+                    (int)camera->pozT[0],
+                    (int)camera->pozT[1],
+                    aktPointerPos,
+                    true);
+        } else if(liveTelepoleActive) {
+            liveTelepoleHasLastTarget = false;
+            updateLiveTelepole(
                     (int)camera->pozT[0],
                     (int)camera->pozT[1],
                     aktPointerPos,
@@ -1959,7 +1997,7 @@ void RouteEditorGLWidget::mouseReleaseEvent(QMouseEvent* event) {
     }
     if ((event->button()) == Qt::LeftButton) {
         mouseLPressed = false;
-        if(!liveRulerActive)
+        if(!liveRulerActive && !liveTelepoleActive)
             Undo::StateEnd();
     }
     mouseClick = false;
@@ -1982,7 +2020,7 @@ void RouteEditorGLWidget::mouseMoveEvent(QMouseEvent *event) {
     mousex = event->position().x() * Game::PixelRatio;
     mousey = event->position().y() * Game::PixelRatio;
 
-    if(liveFlexActive || liveRulerActive) {
+    if(liveFlexActive || liveRulerActive || liveTelepoleActive) {
         if((event->buttons() & Qt::RightButton) == Qt::RightButton)
             camera->MouseMove(event);
         m_lastPos = event->position();
@@ -2085,6 +2123,10 @@ void RouteEditorGLWidget::enableTool(QString name) {
             && name != "continuousRulerTool"
             && name != toolEnabled)
         finishLiveRuler(false);
+    if(liveTelepoleActive
+            && name != "placeTool"
+            && name != toolEnabled)
+        finishLiveTelepole(false);
     const bool wasContinuousTool = continuousFlexMode
             || liveFlexActive
             || toolEnabled == "liveFlexTool"
@@ -2188,6 +2230,8 @@ void RouteEditorGLWidget::setSelectedObj(GameObj* o) {
         finishLiveFlex(false);
     if(liveRulerActive && o != liveRulerObj)
         finishLiveRuler(false);
+    if(liveTelepoleActive && o != liveTelepoleObj)
+        finishLiveTelepole(false);
     selectedObj = o;
     Game::currentSelectedGameObj = selectedObj;
     emit showProperties(selectedObj);
@@ -2753,6 +2797,98 @@ void RouteEditorGLWidget::finishLiveRuler(bool keepContinuousTool) {
 
     if(keepContinuousTool && continuousRulerMode)
         enableTool("continuousRulerTool");
+}
+
+bool RouteEditorGLWidget::beginLiveTelepole(TelepoleObj *telepole) {
+    if(telepole == NULL)
+        return false;
+    continuousPlacementYOffset = 0.0f;
+    telepole->select(2);
+
+    liveTelepoleObj = telepole;
+    liveTelepoleActive = true;
+    liveTelepoleSolutionValid = false;
+    liveTelepoleHasLastTarget = false;
+    liveTelepoleLastUpdateTime = 0;
+    return true;
+}
+
+bool RouteEditorGLWidget::updateLiveTelepole(
+        int pointerTileX, int pointerTileZ,
+        const float *pointerPosition, bool force) {
+    if(!liveTelepoleActive || liveTelepoleObj == NULL
+            || pointerPosition == NULL)
+        return false;
+    for(int axis = 0; axis < 3; axis++){
+        if(!std::isfinite(pointerPosition[axis])){
+            liveTelepoleSolutionValid = false;
+            return false;
+        }
+    }
+
+    const unsigned long long now = QDateTime::currentMSecsSinceEpoch();
+    if(!force && liveTelepoleLastUpdateTime != 0
+            && now - liveTelepoleLastUpdateTime
+                < LiveContinuousUpdateIntervalMs)
+        return liveTelepoleSolutionValid;
+    liveTelepoleLastUpdateTime = now;
+
+    int targetTileX = pointerTileX;
+    int targetTileZ = pointerTileZ;
+    float targetPosition[3] = {
+        pointerPosition[0],
+        pointerPosition[1] + continuousPlacementYOffset,
+        pointerPosition[2]
+    };
+    quantizeContinuousPoint(targetTileX, targetTileZ, targetPosition,
+            Game::DefaultMoveStep);
+    const bool sameTarget = liveTelepoleHasLastTarget
+            && targetTileX == liveTelepoleLastTargetTileX
+            && targetTileZ == liveTelepoleLastTargetTileZ
+            && std::fabs(targetPosition[0]
+                - liveTelepoleLastTargetPosition[0]) < 0.001f
+            && std::fabs(targetPosition[1]
+                - liveTelepoleLastTargetPosition[1]) < 0.001f
+            && std::fabs(targetPosition[2]
+                - liveTelepoleLastTargetPosition[2]) < 0.001f;
+    if(sameTarget)
+        return liveTelepoleSolutionValid;
+
+    liveTelepoleHasLastTarget = true;
+    liveTelepoleLastTargetTileX = targetTileX;
+    liveTelepoleLastTargetTileZ = targetTileZ;
+    Vec3::copy(liveTelepoleLastTargetPosition, targetPosition);
+    if(!liveTelepoleObj->setEndPosition(
+            targetTileX, targetTileZ, targetPosition)){
+        liveTelepoleSolutionValid = false;
+        return false;
+    }
+    liveTelepoleSolutionValid = liveTelepoleObj->spanLength() >= 0.1f;
+    return liveTelepoleSolutionValid;
+}
+
+void RouteEditorGLWidget::finishLiveTelepole(bool accept) {
+    if(!liveTelepoleActive)
+        return;
+    TelepoleObj *telepole = liveTelepoleObj;
+    liveTelepoleActive = false;
+    liveTelepoleObj = NULL;
+    liveTelepoleSolutionValid = false;
+    liveTelepoleHasLastTarget = false;
+    liveTelepoleLastUpdateTime = 0;
+
+    if(accept && telepole != NULL){
+        telepole->select(0);
+        Undo::StateEnd();
+    } else {
+        if(telepole != NULL){
+            route->undoPlaceObj(telepole->x, telepole->y, telepole->UiD);
+            if(selectedObj == telepole)
+                setSelectedObj(NULL);
+        }
+        Undo::StateCancel();
+    }
+
 }
 
 void RouteEditorGLWidget::quantizeContinuousPoint(int &tileX, int &tileZ, float *position, float step) {
@@ -3335,6 +3471,10 @@ void RouteEditorGLWidget::editUndo() {
         finishLiveRuler(continuousRulerMode);
         setSelectedObj(NULL);
     }
+    if(liveTelepoleActive) {
+        finishLiveTelepole(false);
+        setSelectedObj(NULL);
+    }
     Undo::UndoLast();
 }
 
@@ -3844,6 +3984,8 @@ void RouteEditorGLWidget::msg(QString text, bool val) {
 }
 
 void RouteEditorGLWidget::msg(QString text, int val) {
+    Q_UNUSED(text);
+    Q_UNUSED(val);
 }
 
 void RouteEditorGLWidget::msg(QString text, float val) {
@@ -3878,6 +4020,7 @@ void RouteEditorGLWidget::msg(QString text, QString val) {
             liveRulerObj->setTemplate(continuousRulerProfile);
         return;
     }
+
     if (text == "continuousRulerNodeShape") {
         continuousRulerNodeShape = val.trimmed();
         if(liveRulerActive && liveRulerObj != NULL)

@@ -1672,7 +1672,8 @@ void Route::dragWorldObject(WorldObj* obj, int x, int z, float* pos){
         return;
     }
 
-    if(obj->isTrackItem() || obj->typeID == obj->ruler ){
+    if(obj->isTrackItem() || obj->typeID == obj->ruler
+            || obj->typeID == obj->telepole){
         obj->setPosition(x, z, tpos);
         obj->setMartix();
         return;
@@ -1851,6 +1852,10 @@ float *fromtwovectors(float* out, float* u, float* v){
 
 WorldObj* Route::autoPlaceObject(int x, int z, float* p, int mode) {
     if(ref->selected == NULL) return NULL;
+    if(ref->selected->type.compare("telepole", Qt::CaseInsensitive) == 0){
+        qWarning() << "Telepole requires two-point PLACE placement";
+        return NULL;
+    }
     Game::check_coords(x, z, p);
     
     autoPlacementLastPlaced = new GroupObj();

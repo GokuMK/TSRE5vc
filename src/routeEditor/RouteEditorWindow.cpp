@@ -40,6 +40,7 @@
 #include <routeEditor/properties/PropertiesTrackObj.h>
 #include <routeEditor/properties/PropertiesGroup.h>
 #include <routeEditor/properties/PropertiesRuler.h>
+#include <routeEditor/properties/PropertiesTelepole.h>
 #include <routeEditor/properties/PropertiesLevelCr.h>
 #include <routeEditor/properties/PropertiesSoundRegion.h>
 #include <routeEditor/properties/PropertiesTerrain.h>
@@ -140,6 +141,7 @@ RouteEditorWindow::RouteEditorWindow() {
     objProperties["Group"] = new PropertiesGroup;
     groupProperties = (PropertiesGroup*)objProperties["Group"];
     objProperties["Ruler"] = new PropertiesRuler;
+    objProperties["Telepole"] = new PropertiesTelepole;
     objProperties["SoundRegion"] = new PropertiesSoundRegion;
     objProperties["LevelCr"] = new PropertiesLevelCr;
     objProperties["Terrain"] = new PropertiesTerrain;

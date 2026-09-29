@@ -24,6 +24,7 @@
 #include <tsre/procedural/ProceduralShape.h>
 #include <tsre/procedural/ShapeTemplates.h>
 #include <tsre/procedural/OrtsTrackProfile.h>
+#include <tsre/world/TelepoleData.h>
 #include <QMapIterator>
 
 namespace {
@@ -140,10 +141,9 @@ ObjTools::ObjTools(QString name)
     continuousRulerNodeShape.setInsertPolicy(QComboBox::NoInsert);
     continuousRulerNodeShape.setStyleSheet("combobox-popup: 0;");
     continuousRulerNodeShape.setToolTip(
-            //% "Optional route shape rendered at every Ruler node. Template node geometry remains available and is additive."
+            //% "Optional additional route shape rendered at every Ruler node. Template node geometry remains available and is additive."
             qtTrId("route.editor.ruler.node.shape.tooltip"));
     continuousRulerNodeShape.hide();
-    vlist3->addWidget(&continuousRulerNodeShape,row++,0,1,4);
     vlist3->addWidget(&continuousFlexOptionsWidget,row++,0,1,4);
     vlist3->addWidget(&stickToTDB,row,0,1,2);
     vlist3->addWidget(resetRotationButton,row++,2,1,2);
@@ -160,9 +160,13 @@ ObjTools::ObjTools(QString name)
     vlist3->addWidget(advancedPlacenentButton,row++,3);
     vbox->addItem(vlist3);
 
+    QVBoxLayout *continuousOptionsLayout = new QVBoxLayout;
+    continuousOptionsLayout->setSpacing(2);
+    continuousOptionsLayout->setContentsMargins(3,0,3,0);
+    continuousOptionsLayout->addWidget(&continuousRulerNodeShape);
     QGridLayout *continuousFlexOptionsLayout = new QGridLayout;
     continuousFlexOptionsLayout->setSpacing(2);
-    continuousFlexOptionsLayout->setContentsMargins(3,0,3,0);
+    continuousFlexOptionsLayout->setContentsMargins(0,0,0,0);
     continuousFlexLeft.setText(
         //% "Track on left"
         qtTrId("route.editor.obj.tools.text.track.on.left"));
@@ -193,7 +197,9 @@ ObjTools::ObjTools(QString name)
             //% "Raised when necessary to keep inner companion tracks or lanes valid."
             qtTrId("route.editor.obj.tools.tooltip.raised.when.necessary.keep.inner.companion.tracks"));
     continuousFlexOptionsLayout->addWidget(&continuousFlexMinimumRadius, 2, 1);
-    continuousFlexOptionsWidget.setLayout(continuousFlexOptionsLayout);
+    continuousFlexTrackOptionsWidget.setLayout(continuousFlexOptionsLayout);
+    continuousOptionsLayout->addWidget(&continuousFlexTrackOptionsWidget);
+    continuousFlexOptionsWidget.setLayout(continuousOptionsLayout);
     continuousFlexOptionsWidget.hide();
 
     QObject::connect(&continuousProfile, SIGNAL(textActivated(QString)),
@@ -418,6 +424,8 @@ void ObjTools::refreshObjLists(){
 
 void ObjTools::routeLoaded(Route* a){
     this->route = a;
+    const QString routePath = Game::root + "/ROUTES/" + Game::route;
+    route->ref->ensureTelepoleItems(TelepoleData::routeData(routePath));
     continuousRulerNodeShapeRef = nullptr;
     refreshContinuousProfiles();
     refreshContinuousRulerNodeShapes();
@@ -435,6 +443,8 @@ void ObjTools::routeLoaded(Route* a){
     QMapIterator<QString, QVector<Ref::RefItem>> i(route->ref->refItems);
     while (i.hasNext()) {
         i.next();
+        if(i.key().startsWith("#"))
+            continue;
         hash.append(i.key());
     }
     hash.sort(Qt::CaseInsensitive);
@@ -620,6 +630,10 @@ void ObjTools::routeLoaded(Route* a){
     refOther.addItem(
         //% "Milepost"
         qtTrId("route.editor.obj.tools.item.milepost"), "milepost");
+    if(!route->ref->refItems["#TSRE#telepoles"].isEmpty())
+        refOther.addItem(
+            //% "Telepoles"
+            qtTrId("route.editor.obj.tools.item.telepoles"), "telepoles");
     refOther.addItem(
         //% "TSRE Tools"
         qtTrId("route.editor.obj.tools.item.tsre.tools"), "tsre tools");
@@ -698,6 +712,7 @@ void ObjTools::lastItemsListSelected(QListWidgetItem * item){
     refList.clearSelection();
     qDebug() << item->type() << " " << item->text();
     route->ref->selected = lastItemsPtr[item->type()];
+    itemSelected(route->ref->selected);
 }
 
 void ObjTools::selectToolEnabled(bool val){
@@ -756,15 +771,12 @@ void ObjTools::enableContinuousTool(ContinuousToolMode mode, bool enabled){
     }
     refreshContinuousProfiles();
     continuousRulerNodeShape.setVisible(ruler);
+    continuousFlexTrackOptionsWidget.setVisible(!ruler);
     if(ruler)
         refreshContinuousRulerNodeShapes();
 
-    continuousFlexOptionsButton->setEnabled(!ruler);
-    if(ruler) {
-        const QSignalBlocker blocker(continuousFlexOptionsButton);
-        continuousFlexOptionsButton->setChecked(false);
-        continuousFlexOptionsWidget.hide();
-    } else {
+    continuousFlexOptionsButton->setEnabled(true);
+    if(!ruler) {
         continuousFlexLeft.setText(road
             ?
               //% "Lane on left"
@@ -811,6 +823,7 @@ void ObjTools::refreshContinuousProfiles(){
 
     const bool road = continuousToolMode == ContinuousToolMode::Road;
     const bool ruler = continuousToolMode == ContinuousToolMode::Ruler;
+    continuousProfile.setEnabled(true);
     const QString preferred = ruler
             ? continuousRulerProfile
             : (road ? continuousFlexRoadProfile : continuousFlexTrackProfile);
@@ -919,7 +932,7 @@ void ObjTools::refreshContinuousRulerNodeShapes(){
     const QString previous = continuousRulerNodeShapeName;
     continuousRulerNodeShape.clear();
     continuousRulerNodeShape.addItem(
-        //% "No node shape"
+        //% "No additional node shape"
         qtTrId("route.editor.ruler.node.shape.none"), QString());
     for(const QString &name : route->ref->routeShapeNames())
         continuousRulerNodeShape.addItem(name, name);
@@ -991,6 +1004,9 @@ void ObjTools::autoPlacementDeleteLastEnabled(){
 }
 
 void ObjTools::itemSelected(Ref::RefItem* item){
+    buttonTools["autoPlaceSimpleTool"]->setEnabled(
+            item != nullptr
+            && item->type.compare("telepole", Qt::CaseInsensitive) != 0);
     QString text;
     if(item->description.length() > 1) 
         text = item->description;

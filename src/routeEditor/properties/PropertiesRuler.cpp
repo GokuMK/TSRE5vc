@@ -203,7 +203,7 @@ PropertiesRuler::PropertiesRuler() {
     QObject::connect(&eTemplateSubtype, SIGNAL(currentTextChanged(QString)),
                       this, SLOT(eTemplateSubtypeEdited(QString)));
     label = new QLabel(
-        //% "Node shape:"
+        //% "Additional node shape:"
         qtTrId("route.editor.properties.ruler.label.node.shape"));
     label->setContentsMargins(3,0,0,0);
     vbox->addWidget(label);
@@ -211,7 +211,7 @@ PropertiesRuler::PropertiesRuler() {
     eNodeShape.setInsertPolicy(QComboBox::NoInsert);
     eNodeShape.setStyleSheet("combobox-popup: 0;");
     eNodeShape.setToolTip(
-        //% "Optional route shape rendered at every Ruler node. Template node geometry remains available and is additive."
+        //% "Optional additional route shape rendered at every Ruler node. Template node geometry remains available and is additive."
         qtTrId("route.editor.ruler.node.shape.tooltip"));
     vbox->addWidget(&eNodeShape);
     QObject::connect(&eNodeShape, SIGNAL(activated(int)),
@@ -219,7 +219,7 @@ PropertiesRuler::PropertiesRuler() {
     QObject::connect(eNodeShape.lineEdit(), SIGNAL(editingFinished()),
                       this, SLOT(eNodeShapeEditingFinished()));
     removeNodeShapeButton = new QPushButton(
-        //% "Remove Node Shape"
+        //% "Remove Additional Node Shape"
         qtTrId("route.editor.properties.ruler.button.remove.node.shape"));
     removeNodeShapeButton->setEnabled(false);
     vbox->addWidget(removeNodeShapeButton);
@@ -302,7 +302,7 @@ void PropertiesRuler::refreshNodeShapeList(){
         const QSignalBlocker blocker(&eNodeShape);
         eNodeShape.clear();
         eNodeShape.addItem(
-            //% "No node shape"
+            //% "No additional node shape"
             qtTrId("route.editor.ruler.node.shape.none"), QString());
         if(currentRef != nullptr){
             for(const QString &name : currentRef->routeShapeNames())

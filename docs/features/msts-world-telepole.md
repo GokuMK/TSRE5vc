@@ -1,90 +1,148 @@
 # MSTS world-file Telepole object
 
-`Telepole` describes a run of telephone poles and wires between two endpoints.
-Its full binary token ID is **`0x00040009` (262153)**: namespace 4, local ID 9.
-The world form holds numeric placement/configuration data; resource filenames
-are supplied separately by the route's `telepole.dat`.
+`Telepole` describes a native MSTS run of poles and sagging wires between two
+endpoints. Its full binary token ID is **`0x00040009` (262153)**: namespace 4,
+local ID 9. Pole resources and wire attachment points come from the route's
+`telepole.dat`, while each world object selects a configuration by index.
 
-## Structure
+## World structure
 
 `Telepole ( ... )` is a child of `Tr_Worldfile`. The original FFEDIT grammar
-allows the following child blocks in any order. Each block contains the listed
-values, without an additional count. Binary integers are unsigned 32-bit;
+allows these child blocks in any order. Binary integers are unsigned 32-bit;
 floats are IEEE-754 binary32, stored little-endian.
 
-| Block | Values | Meaning / remaining uncertainty |
+| Block | Values | TSRE behavior |
 | --- | --- | --- |
 | `UiD` | uint | World-object identifier. |
-| `Population` | uint | Pole count; the stock examples contain 2 and 3. |
-| `StartPosition` | float × 3 | Start endpoint, XYZ. |
-| `EndPosition` | float × 3 | End endpoint, XYZ. |
-| `StartType` | uint | Start endpoint type. Enum meanings remain unknown; both examples use 0. |
-| `EndType` | uint | End endpoint type. Enum meanings remain unknown; both examples use 0. |
-| `StartDirection` | float | Start endpoint direction. Both examples use 90; exact axis, units and sign convention need confirmation. |
-| `EndDirection` | float | End endpoint direction. Same uncertainty as `StartDirection`. |
-| `Config` | uint | Configuration selector, apparently indexing `TPoleConfigData`; exact lookup and invalid-index behavior remain unverified. Both examples use 0 with one configuration. |
-| `Quality` | uint | Quality setting; enum/behavior unknown. Absent in both examples. |
-| `Position` | float × 3 | World-object position. In both examples it is the midpoint between the endpoints. |
-| `Direction` | float × 3 | Legacy rotation components (`Rx Ry Rz` in the grammar). Rotation order and units remain unverified; both examples use zeroes. This is not a quaternion. |
-| `MaxVisDistance` | float | Maximum visibility distance by grammar name; default and runtime application unverified. Absent in both examples. |
-| `VDbId` | uint | Visibility database identifier; both examples use `4294967295` (`0xFFFFFFFF`). |
+| `Population` | uint | Number of poles, including both endpoints. Preserved for an untouched existing object. |
+| `StartPosition` | float × 3 | First endpoint in MSTS source coordinates. |
+| `EndPosition` | float × 3 | Last endpoint in MSTS source coordinates. |
+| `StartType` | uint | Preserved. Endpoint-type semantics remain unknown. |
+| `EndType` | uint | Preserved. Endpoint-type semantics remain unknown. |
+| `StartDirection` | float | Preserved. Native direction semantics remain unverified. |
+| `EndDirection` | float | Preserved. Native direction semantics remain unverified. |
+| `Config` | uint | Zero-based `TPoleConfigData` entry. |
+| `Quality` | uint | Preserved when present; runtime semantics remain unknown. |
+| `Position` | float × 3 | Object midpoint. TSRE updates it after endpoint edits. |
+| `Direction` | float × 3 | Preserved legacy rotation components. They are not a quaternion. |
+| `MaxVisDistance` | float | Preserved when present; not yet applied to rendering. |
+| `VDbId` | uint | Visibility-database identifier. New objects use `0xFFFFFFFF`. |
 
-The grammar permits repetition and does not establish mandatory fields or
-runtime defaults. TSRE retains the last value of each recognized property and
-preserves absence, including the distinction between a missing property and an
-explicit zero. These are TSRE reader rules, not a claim about native defaults.
+The parser retains the last occurrence of every recognized field and preserves
+whether an optional field was absent. Unknown child blocks follow the existing
+world-parser skip behavior and are not retained for lossless rewriting.
 
-## Resource configuration
+## `telepole.dat`
 
-The inspected USA1 `telepole.dat` contains one `TPoleConfig` inside
-`TPoleConfigData`. Its `FileName` is `telepole.s`, its `Shadow` is `teleshad.s`,
-its `Separation` is 10, and it supplies four `Wire` XYZ attachment positions.
-The configuration's leading value is 4, matching those four wire entries.
-The two world spans are 10 and 20 units long, with populations 2 and 3. This
-supports interpreting `Population` as the number of poles, including endpoints.
-Wire interpolation, endpoint type behavior and configuration defaults still
-need native behavior research before implementing rendering.
+`TelepoleData` reads the route-level `TPoleConfigData` catalog. Each
+`TPoleConfig` currently supports:
 
-A filename-discovery tool cannot resolve Telepole resources solely by looking
-for `FileName` inside the world object. It must also inspect the route's
-configuration file. TSRE's new world handler preserves the selector; it does
-not implement this indirect dependency traversal.
+- its declared wire count;
+- `Filename`, resolved in the route `SHAPES` directory;
+- `Shadow`, retained in the catalog but not rendered separately;
+- positive `Separation` in metres;
+- any number of `Wire ( X Y Z )` attachment records.
 
-## TSRE support
+The world object's `Config` value is the original catalog index. Invalid
+entries remain addressable for diagnostics and existing data, but the placement
+selector offers only entries with a usable filename and separation.
 
-`TelepoleObj` is registered in both binary and UTF-16 world-object factories.
-It reads all 14 grammar fields and saves normalized UTF-16 text through the
-existing world-file save path. Binary child lengths/labels use the existing
-bounded reader. There is no new binary world writer.
+## Rendering
 
-Finite floats use nine significant digits and checked text conversion so
-binary-to-text-to-text round trips retain their values. The surrounding world
-parser still uses ParserX. Telepole numeric conversion is local because
-ParserX's float accumulation loses precision and mishandles `e+...` exponents.
-Unknown blocks follow the existing world parser's skip behavior and are not
-retained for lossless rewriting.
+TSRE loads the configured MSTS pole shape through the shared shape library and
+instances it at every derived pole point. X/Z positions are linearly
+interpolated, and every pole—including both endpoints—is grounded using the
+terrain-height query. Authored endpoint heights remain unchanged in the world
+data and population calculation. Existing `Population` is authoritative until
+the user changes an endpoint or configuration.
 
-Only the shared `WorldObj::position` receives TSRE's Z-coordinate conversion on
-load, reversed on save. Private endpoints and direction fields remain in source
-coordinates. Loading does not generate poles, wires or GL resources; this
-implementation provides persistence, without rendering or new-object placement.
+Wires use the existing ORTS-profile mesh backend with an in-code square
+cross-section. Each span is sampled at no more than one metre, with at least
+four subdivisions. The vertical sag is a simple parabola:
+
+```text
+y(t) = lerp(y0, y1, t) - 4 * (spanLength * 0.02) * t * (1 - t)
+```
+
+The wire frame is upright, so terrain slope does not roll the attachment
+layout. Generated sample spans are combined into one draw object per
+LOD/material instead of producing a draw call for every metre. Rendering is
+limited to 10,000 derived poles as protection against corrupt data; the stored
+world value is not truncated.
+
+Current rendering limitations:
+
+- `StartType`, `EndType`, the direction fields, `Quality`, `Shadow`, and
+  `MaxVisDistance` are preserved but do not alter the generated result;
+- the first `Wire` coordinate, interpreted as a longitudinal attachment
+  offset, is retained by the catalog but not yet applied; stock examples use
+  zero;
+- wire radius, colour, sag ratio, and sampling distance are code defaults, not
+  editable route settings.
+
+## Placement and editing
+
+Each valid configuration in the current route's `telepole.dat` is exposed as
+an editor-generated REF item under **Other > Telepoles**. These transient items
+carry the configuration index in `RefItem::value`; they neither extend nor get
+written to the route's MSTS REF file. Select an item and use the ordinary
+**PLACE** tool.
+
+1. The first click places the first endpoint and starts a live preview.
+2. Mouse movement updates the second endpoint. The mouse wheel applies the
+   shared continuous-placement height offset; holding Ctrl uses the fine step.
+3. The second click accepts the native Telepole object. Escape discards only
+   the unfinished span; PLACE and the selected Telepole REF item remain active.
+
+Generic automatic placement is disabled for these REF items because it cannot
+define the required second endpoint.
+
+Only the two endpoint handles are selectable. Moving an endpoint or changing
+configuration recalculates population as:
+
+```text
+max(2, ceil(threeDimensionalEndpointDistance / Separation) + 1)
+```
+
+Moving the object body translates both endpoints without changing their
+spacing. The properties panel shows UID, tile, 3D length, pole count,
+separation, and configuration, and configuration changes participate in undo.
+Normal object placement and endpoint editing use the existing world-object undo
+flow.
+
+Coordinates deliberately remain split into tile indices and tile-local floats.
+Only the small tile delta is combined when converting an edited endpoint. This
+avoids the precision loss which occurs when the complete MSTS world coordinate
+is collapsed into one float.
+
+## Persistence
+
+`TelepoleObj` is registered in both binary and UTF-16 world-object factories
+and saves normalized UTF-16 text through the existing world-file path. There is
+no new binary world writer. Private endpoints and direction values remain in
+MSTS source coordinates; conversion to TSRE's OpenGL Z convention happens only
+at the rendering/editing boundary.
+
+Finite floats use nine significant digits and checked text conversion so a
+binary-to-text-to-text round trip retains binary32 values. Telepole parsing uses
+local checked numeric conversion because the legacy `ParserX::GetNumber`
+accumulator loses precision and mishandles positive exponent signs.
 
 ## Evidence and validation
 
-- Original FFEDIT `forms.hdr` and `worldfile.bnf` establish the token and schema.
-- Original disc 2 `USA1.CAB`, `Routes/Usa1/World/w-011055+014282.w`:
-  compressed file SHA-256
-  `c15bbc5e81effa6a2e1e7c762675f468532795974bde43fade1a74f0f9f68e5d`.
-  The two Telepole blocks start at offsets **3144** and **3341** in the
-  decompressed SIMIS file (including its 32-byte header), with UiDs 1796 and
-  1797. The first exactly matches the reported unclassified-token failure.
-- The same cabinet's `Routes/Usa1/telepole.dat` supplies the resource evidence.
-- `token-world` tests cover all fields, labels, missing properties, unsigned
-  limits, float round trips, coordinate conversion, cloning and each truncated
-  binary property. The optional `TSRE_TEST_TELEPOLE_WORLD` environment variable
-  adds a read-only native world parse and per-Telepole text round-trip check.
+- Original FFEDIT `forms.hdr` and `worldfile.bnf` establish the token and
+  schema.
+- Original disc 2 `USA1.CAB`,
+  `Routes/Usa1/World/w-011055+014282.w`, contains two native Telepole blocks;
+  its `Routes/Usa1/telepole.dat` supplies the configuration evidence.
+- `token-world` covers every world field, labels, missing properties, unsigned
+  limits, float round trips, coordinate conversion, cloning, truncated binary
+  fields, route-catalog parsing, and placement population calculation.
+- A smoke run loaded the real `procedural` route, its native Telepole world
+  objects, `telepole.dat`, and `telepole.s` without parser or rendering errors.
 
-Original assets stay outside the repository. Example private-corpus invocation:
+The optional `TSRE_TEST_TELEPOLE_WORLD` environment variable adds a read-only
+native world parse and per-object text round-trip check:
 
 ```sh
 QT_QPA_PLATFORM=offscreen \
@@ -92,8 +150,6 @@ TSRE_TEST_TELEPOLE_WORLD=/path/to/w-011055+014282.w \
 ./build/TSRE5vc --test --test-suite token-world
 ```
 
-Validated on 2026-09-13: the application and standalone token-test target built
-successfully; `simis_tokens` passed, and `token-world` passed **63 checks, zero
-failures**, including both native Telepole round trips. The source file's hash
-remained unchanged. No rendering validation applies to this persistence-only
-implementation.
+Implementation validation was refreshed on 2026-09-28. Visual acceptance of
+pole orientation, wire attachment alignment, and terrain grounding remains a
+manual route-editor test rather than an automated claim.
