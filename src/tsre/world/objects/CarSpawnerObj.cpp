@@ -180,7 +180,7 @@ void CarSpawnerObj::load(int x, int y) {
     carListId = 0;
     if(carspawnerListName.length() > 0){
         for(int i = 0; i < this->carSpawnerList.size(); i++){
-            if(carspawnerListName == this->carSpawnerList[i].name ){
+            if(carspawnerListName.compare(this->carSpawnerList[i].name, Qt::CaseInsensitive) == 0){
                 carListId = i;
                 break;
             }
@@ -817,7 +817,7 @@ void CarSpawnerObj::setCarListName(QString val){
     carspawnerListName = val;
     carListId = 0;
     for(int i = 0; i < this->carSpawnerList.size(); i++)
-        if(carspawnerListName == this->carSpawnerList[i].name ){
+        if(carspawnerListName.compare(this->carSpawnerList[i].name, Qt::CaseInsensitive) == 0){
             carListId = i;
             break;
         }
