@@ -9,6 +9,8 @@ v5 renderer capacities, including 160,000-entry clipping buffers, are retained.
 
 Optional switches add the validated native ``-editroute:ROUTE_FOLDER`` command
 and an editor-guarded 1280x800 Route Editor window/render/mouse configuration.
+``--telepole-wires`` restores procedural wire initialization and drawing;
+``--full`` includes all three optional features.
 
 This file is self-contained and uses only the Python standard library.  It is
 hash locked to the unmodified, non-widescreen MSTS Bin 1.8.052113 train.exe,
@@ -78,6 +80,19 @@ EXPECTED_OUTPUTS: dict[tuple[bool, bool], tuple[int, str]] = {
         4_366_336,
         "97b4ceda684b447a69878dcdc13e37af8783e2e35103ab6ed48cba8f4a1cfaf0",
     ),
+}
+
+# Generated from the independently written, adjacent telepole_wires.S.
+# The payload is position independent within its section; native calls are
+# fixed to the verified executable VAs. No assembler is needed by this script.
+TELEPOLE_PAYLOAD_B85 = 'c-jjM4hwHR$=|}r$iUFO@eBh4L+dyGmd`-Cd*>A(+5Df0zv&5((fMOH50Lu)xb+f$>t!H|@dJO;X^=X{lI9;kMf-tlkM5awKt|l=Z`lB(t!Lf<lKibp;2LLvj6A@|-!u_q<WbA_{7vm(!woNe|Jr(~w6@tcLbry2p`@hQHUZ4YUKj(Un}0ADCE5ZlWhjrbWX%AI6bE@Q9<XFh0Wyo+7v_M}9AGN4wFZlnn|8kL{J0Bf^8XzVRt7QrztDV)$KM+!RKE%?RQkI0f9a(iK;JXGW->ew9~T{ac)|z*3C(YKj=QLEFo2?n)nsxL1Bh8t(QPZkRKw8vza($rnS0d?tp`d{yJa~Vn}Bg!65Yw70@TC842pdgm2QpJw<T)br3{wuO5|I=l}LBHadh(>ZarDTYiU`^`C{hZ|Nl9GR&<-azT3>A!tving{Aa(a}Cha5`kvh9B?$V@A$X^94SY55<@$m0$sI3meZ5r{{tHPA822<?~mr49iRXx;cc!gVJc$ZQKl6Dbjyx5y#PWk==Oc#7<ijS<yI-j%@;Qw-aC22_s@+3K$s)I(tLzvXPhq3h=%}IjF9s'
+TELEPOLE_PAYLOAD_SHA256 = 'ee43b719af84e2d0a3939dac147ca29f2ac0514837e464b6d461d95f41aca715'
+TELEPOLE_PAYLOAD_SIZE = 870
+EXPECTED_WIRE_OUTPUTS: dict[tuple[bool, bool], tuple[int, str]] = {
+    (False, False): (4_362_240, "7520419d950d99e8ebbbc2220eec317bbec936ba9e448ea8b62ce51564dae0c8"),
+    (False, True): (4_366_336, "a2233a4761784cd9e8e1556538c2ac37f24add97c8c933417f76325aef8a42dc"),
+    (True, False): (4_366_336, "2138023568d01accdceb88e36d733b9a8d74b26072c01a7fd7c4a1e3adf495ca"),
+    (True, True): (4_370_432, "3586692bb7bcb1c8e5672ee32244d139a3ddd77e254a6666478465cc84938ff7"),
 }
 
 
@@ -566,7 +581,52 @@ def add_guarded_editor_window(source: bytes) -> bytes:
     return output
 
 
-def build(source: bytes, direct_route: bool, window_1280x800: bool) -> bytes:
+def telepole_payload() -> bytes:
+    payload = zlib.decompress(base64.b85decode(TELEPOLE_PAYLOAD_B85))
+    if (len(payload), sha256(payload)) != (TELEPOLE_PAYLOAD_SIZE, TELEPOLE_PAYLOAD_SHA256):
+        raise ValueError("embedded Telepole payload failed verification")
+    return payload
+
+
+def telepole_hooks(section_va: int) -> tuple[Patch, ...]:
+    return (
+        Patch("Telepole draw callback", 0x0050129F,
+              bytes.fromhex("55 8b ec 83 ec 14"),
+              relative_jump(0x0050129F, section_va, 6)),
+        Patch("Telepole scene pass in editor and simulator", 0x00490917,
+              bytes.fromhex("55 8b ec 83 ec 0c"),
+              relative_jump(0x00490917, section_va + 0x200, 6)),
+        Patch("initialize newly allocated wire points", 0x00502E7D,
+              bytes.fromhex("83 c4 0c eb 04"),
+              relative_jump(0x00502E7D, section_va + 0x300, 5)),
+        Patch("avoid duplicate Telepole submission in old editor pass", 0x004909A7,
+              bytes.fromhex("74 1a"), bytes.fromhex("74 27")),
+        Patch("seven segments per Telepole wire gap", 0x00502890,
+              bytes.fromhex("c7 82 d8 00 00 00 03 00 00 00"),
+              bytes.fromhex("c7 82 d8 00 00 00 07 00 00 00")),
+        Patch("seven segments for newly placed Telepoles", 0x00503ACE,
+              bytes.fromhex("c7 81 d8 00 00 00 03 00 00 00"),
+              bytes.fromhex("c7 81 d8 00 00 00 07 00 00 00")),
+        Patch("parabolic wire sag instead of a constant interior drop", 0x00502D57,
+              bytes.fromhex("d9 44 10 04 d8 65 fc"),
+              relative_jump(0x00502D57, section_va + 0x340, 7)),
+    )
+
+
+def add_telepole_wires(source: bytes) -> bytes:
+    section_rva = PELayout(source).size_of_image
+    output, _ = apply_patches(source, telepole_hooks(IMAGE_BASE + section_rva))
+    output, actual_rva, _ = append_section(
+        output, b".tpwire", telepole_payload().ljust(0x1000, b"\0"), 0x60000020,
+        count_as_code=True, count_as_initialized_data=False,
+    )
+    if actual_rva != section_rva:
+        raise ValueError("Telepole section was placed at an unexpected RVA")
+    return output
+
+
+def build(source: bytes, direct_route: bool, window_1280x800: bool,
+          telepole_wires: bool = False) -> bytes:
     output, _ = apply_patches(
         source,
         RENDER_N512_PATCHES + N512_EDITOR_PATCHES + N512_STRIDE_PATCHES,
@@ -601,6 +661,8 @@ def build(source: bytes, direct_route: bool, window_1280x800: bool) -> bytes:
     if window_1280x800:
         output = add_guarded_editor_window(output)
     output, _ = apply_patches(output, R64_V5_UPGRADE_PATCHES)
+    if telepole_wires:
+        output = add_telepole_wires(output)
     return output
 
 
@@ -645,9 +707,13 @@ def parse_args() -> argparse.Namespace:
         help="set Route Editor window, render target, and mouse map to 1280x800",
     )
     parser.add_argument(
+        "--telepole-wires", action="store_true",
+        help="restore procedural Telepole wire initialization and rendering",
+    )
+    parser.add_argument(
         "--full",
         action="store_true",
-        help="enable both --direct-route and --window-1280x800",
+        help="enable --direct-route, --window-1280x800 and --telepole-wires",
     )
     parser.add_argument(
         "--force", action="store_true", help="replace an existing output file"
@@ -659,6 +725,7 @@ def main() -> int:
     args = parse_args()
     direct_route = args.direct_route or args.full
     window_1280x800 = args.window_1280x800 or args.full
+    telepole_wires = args.telepole_wires or args.full
     output_path = args.output
     if output_path is None:
         output_path = args.source.with_name(
@@ -683,9 +750,10 @@ def main() -> int:
             f"unexpected source SizeOfImage 0x{initial_layout.size_of_image:x}"
         )
 
-    output = build(source, direct_route, window_1280x800)
+    output = build(source, direct_route, window_1280x800, telepole_wires)
     output_hash = sha256(output)
-    expected_size, expected_hash = EXPECTED_OUTPUTS[
+    expected_outputs = EXPECTED_WIRE_OUTPUTS if telepole_wires else EXPECTED_OUTPUTS
+    expected_size, expected_hash = expected_outputs[
         (direct_route, window_1280x800)
     ]
     if len(output) != expected_size or output_hash != expected_hash:
@@ -701,6 +769,8 @@ def main() -> int:
         features.append("direct route launch")
     if window_1280x800:
         features.append("1280x800 editor")
+    if telepole_wires:
+        features.append("procedural Telepole wires")
     print(f"source={args.source}")
     print(f"source_sha256={source_hash}")
     print(f"output={output_path}")
