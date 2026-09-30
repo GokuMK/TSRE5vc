@@ -165,6 +165,9 @@ public:
     virtual void updateSim(float deltaTime);
     virtual bool isSimilar(WorldObj * obj);
     virtual void reload();
+    // Invalidates only geometry derived from route TrackProfiles. This is
+    // separate from reload(), which may also reload an ordinary MSTS shape.
+    virtual void reloadProceduralProfile();
     virtual QString getTemplate();
     virtual void setTemplate(QString name);
     virtual bool isInternalLodControl();

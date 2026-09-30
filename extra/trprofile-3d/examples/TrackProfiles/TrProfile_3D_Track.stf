@@ -1,0 +1,46 @@
+SIMISA@@@@@@@@@@JINX0p0t______
+
+TrProfile (
+ ObjectType ( TRACK MAIN )
+ Name ( "Template3D track example" )
+ LODMethod ( ComponentAdditive )
+ ChordSpan ( 1 )
+ PitchControl ( ChordLength )
+ PitchControlScalar ( 10 )
+ SuperElevationMethod ( Outside )
+ LOD (
+  CutoffRadius ( 1500 )
+  LODItem (
+   Name ( "rails and sleepers" )
+   TexName ( "example-3d.png" )
+   ShaderName ( TexDiff )
+   LightModelName ( OptSpecular0 )
+   AlphaTestMode ( 0 )
+   TexAddrModeName ( Wrap )
+   PathFrameMode ( Full )
+   Template3D (
+    GenerationMode ( Sweep )
+    GeometryMode ( Baked )
+    ShapeSelectionMode ( First )
+    Shape ( "meshes/rail-sweep.obj" )
+    Offset ( 0.72 0.20 0 )
+   )
+   Template3D (
+    GenerationMode ( Sweep )
+    GeometryMode ( Baked )
+    ShapeSelectionMode ( First )
+    Shape ( "meshes/rail-sweep.obj" )
+    Offset ( -0.72 0.20 0 )
+   )
+   Template3D (
+    GenerationMode ( Repeat )
+    GeometryMode ( Baked )
+    ShapeSelectionMode ( First )
+    Shape ( "meshes/sleeper-repeat.obj" )
+    Offset ( 0 0.15 0 )
+    Spacing ( 0.65 )
+    Phase ( 0 )
+   )
+  )
+ )
+)

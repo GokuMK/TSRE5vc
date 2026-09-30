@@ -18,6 +18,7 @@
 #include <tsre/fileFunctions/ReadFile.h>
 #include <tsre/world/objects/WorldObj.h>
 #include <tsre/world/objects/DynTrackObj.h>
+#include <tsre/world/TelepoleData.h>
 
 Ref::Ref(QString path) {
     loaded = false;
@@ -329,6 +330,54 @@ void Ref::ensureDynTrackItems(){
         appendDynTrack("Dynamic Track", DynTrackObj::DefaultStaticFlags);
     if(!hasRoad)
         appendDynTrack("Road Dynamic Track", DynTrackObj::RoadStaticFlags);
+}
+
+void Ref::ensureTelepoleItems(const TelepoleData &catalog){
+    // Telepole configurations are route data rather than REF-file records.
+    // Expose them through the ordinary object browser without extending the
+    // MSTS REF grammar or persisting synthetic entries back to the route.
+    const QString key = "#TSRE#telepoles";
+    QVector<RefItem> &items = refItems[key];
+    items.clear();
+    for(int index = 0; index < catalog.configCount(); index++){
+        const TelepoleData::Config *entry = catalog.config(index);
+        if(entry == nullptr || !entry->valid)
+            continue;
+        RefItem item;
+        item.type = "telepole";
+        item.clas = key;
+        item.filename.push_back(entry->fileName);
+        item.description = QString("%1: %2 (%3 m)")
+                .arg(index)
+                .arg(entry->fileName)
+                .arg(entry->separation, 0, 'g', 6);
+        item.value = index;
+        item.editorGenerated = true;
+        items.push_back(item);
+    }
+}
+
+QStringList Ref::routeShapeNames() const {
+    // Ruler node shapes are ordinary route shapes. TrackObj references point
+    // at GLOBAL/SHAPES, while DynTrack has no shape file, so neither belongs
+    // in this route-local selector.
+    QMap<QString, QString> namesByCaseFoldedPath;
+    for(auto classIt = refItems.cbegin(); classIt != refItems.cend(); ++classIt){
+        for(const RefItem &item : classIt.value()){
+            if(item.type.compare("trackobj", Qt::CaseInsensitive) == 0
+                    || item.type.compare("dyntrack", Qt::CaseInsensitive) == 0)
+                continue;
+            for(QString name : item.filename){
+                name = NormalizeRefRelativePath(name);
+                if(!name.endsWith(".s", Qt::CaseInsensitive))
+                    continue;
+                const QString key = name.toCaseFolded();
+                if(!namesByCaseFoldedPath.contains(key))
+                    namesByCaseFoldedPath.insert(key, name);
+            }
+        }
+    }
+    return namesByCaseFoldedPath.values();
 }
 
 void Ref::saveToStream(QTextStream* out){

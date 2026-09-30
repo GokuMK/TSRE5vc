@@ -1,0 +1,47 @@
+SIMISA@@@@@@@@@@JINX0p0t______
+
+TrProfile (
+ ObjectType ( STATIC MAIN )
+ Name ( "Template3D Ruler example" )
+ LODMethod ( ComponentAdditive )
+ ChordSpan ( 1 )
+ PitchControl ( ChordLength )
+ PitchControlScalar ( 10 )
+ SuperElevationMethod ( None )
+ LOD (
+  CutoffRadius ( 2500 )
+  LODItem (
+   Name ( "wire" )
+   TexName ( "example-3d.png" )
+   ShaderName ( TexDiff )
+   LightModelName ( OptSpecular0 )
+   AlphaTestMode ( 0 )
+   TexAddrModeName ( Wrap )
+   PathFrameMode ( Upright )
+   Template3D (
+    GenerationMode ( Stretch )
+    GeometryMode ( Baked )
+    ShapeSelectionMode ( First )
+    Shape ( "meshes/wire-stretch.obj" )
+    Offset ( 0 0 0 )
+   )
+  )
+  LODItem (
+   Name ( "poles" )
+   TexName ( "example-3d.png" )
+   ShaderName ( TexDiff )
+   LightModelName ( OptSpecular0 )
+   AlphaTestMode ( 0 )
+   TexAddrModeName ( Wrap )
+   PathFrameMode ( Upright )
+   Template3D (
+    GenerationMode ( Place )
+    GeometryMode ( Shared )
+    ShapeSelectionMode ( First )
+    Shape ( "meshes/pole-place.obj" )
+    Offset ( 0 0 0 )
+    Placement ( Nodes AlongPath )
+   )
+  )
+ )
+)

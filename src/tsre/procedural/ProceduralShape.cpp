@@ -166,8 +166,16 @@ void ProceduralShape::Load() {
         return;
 
     delete ShapeTemplateFile;
-    ShapeTemplateFile = new ShapeTemplates(
-            routePath + "/PROCEDURAL/shapetemplates.dat");
+    ShapeTemplateFile = nullptr;
+
+    // The experimental native template backend is intentionally dormant.
+    // Its parser and generator remain available while route content migrates
+    // to TrProfile Template3D, which shares one profile catalog and renderer
+    // with Open Rails-compatible polylines.
+    constexpr bool LoadLegacyShapeTemplates = false;
+    if(LoadLegacyShapeTemplates)
+        ShapeTemplateFile = new ShapeTemplates(
+                routePath + "/PROCEDURAL/shapetemplates.dat");
 
     Alpha = -0.3;
     LoadedRoutePath = routePath;
@@ -239,7 +247,8 @@ void ProceduralShape::GenShape(QString templateName, QVector<OglObj*>& shape,
     if(templateName == "" || templateName == "DEFAULT")
         templateName = "DefaultTrack";
     
-    if(ShapeTemplateFile->templates[templateName] == NULL)
+    if(ShapeTemplateFile == nullptr
+            || ShapeTemplateFile->templates[templateName] == NULL)
         return;
     
     ShapeTemplate *sTemplate = ShapeTemplateFile->templates[templateName];
@@ -346,7 +355,8 @@ void ProceduralShape::GenShape(QString templateName, QVector<OglObj*>& shape,
     if(templateName == "" || templateName == "DEFAULT")
         templateName = "DefaultTrack";
     
-    if(ShapeTemplateFile->templates[templateName] == NULL)
+    if(ShapeTemplateFile == nullptr
+            || ShapeTemplateFile->templates[templateName] == NULL)
         return;
     
     ShapeTemplate *sTemplate = ShapeTemplateFile->templates[templateName];

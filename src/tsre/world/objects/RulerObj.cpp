@@ -28,10 +28,72 @@
 #include <tsre/procedural/ProceduralShape.h>
 #include <tsre/renderer/Renderer.h>
 #include <tsre/renderer/SelectionId.h>
+#include <tsre/shape/ComplexShape.h>
+#include <tsre/shape/ShapeLib.h>
 #include <QSet>
+#include <algorithm>
+#include <cmath>
+#include <utility>
 
 bool RulerObj::TwoPointRuler = false;
 bool RulerObj::DrawPoints = false;
+
+namespace {
+
+float proceduralPartLod(OglObj *object, const float *transform,
+        float baseX, float baseZ, float objectOffsetX, float objectOffsetZ) {
+    if(object == nullptr)
+        return 0;
+    float bounds[6];
+    if(!object->getSimpleBorder(bounds))
+        return std::hypot(baseX + objectOffsetX,
+                          baseZ + objectOffsetZ);
+    const float localCenter[3] = {
+        (bounds[0] + bounds[1]) * 0.5f,
+        (bounds[2] + bounds[3]) * 0.5f,
+        (bounds[4] + bounds[5]) * 0.5f
+    };
+    float centerX = localCenter[0];
+    float centerZ = localCenter[2];
+    if(transform != nullptr){
+        centerX = transform[0] * localCenter[0]
+                + transform[4] * localCenter[1]
+                + transform[8] * localCenter[2] + transform[12];
+        centerZ = transform[2] * localCenter[0]
+                + transform[6] * localCenter[1]
+                + transform[10] * localCenter[2] + transform[14];
+    }
+    const float halfX = (bounds[0] - bounds[1]) * 0.5f;
+    const float halfY = (bounds[2] - bounds[3]) * 0.5f;
+    const float halfZ = (bounds[4] - bounds[5]) * 0.5f;
+    const float radius = std::sqrt(
+            halfX * halfX + halfY * halfY + halfZ * halfZ);
+    const float centerDistance = std::hypot(
+            baseX + objectOffsetX + centerX,
+            baseZ + objectOffsetZ + centerZ);
+    return std::max(0.0f, centerDistance - radius);
+}
+
+bool normalizeDirection(float *direction) {
+    const float length = std::sqrt(
+            direction[0] * direction[0]
+            + direction[1] * direction[1]
+            + direction[2] * direction[2]);
+    if(!std::isfinite(length) || length < 0.000001f)
+        return false;
+    direction[0] /= length;
+    direction[1] /= length;
+    direction[2] /= length;
+    return true;
+}
+
+void crossDirection(float *result, const float *left, const float *right) {
+    result[0] = left[1] * right[2] - left[2] * right[1];
+    result[1] = left[2] * right[0] - left[0] * right[2];
+    result[2] = left[0] * right[1] - left[1] * right[0];
+}
+
+}
 
 RulerObj::RulerObj() {
     this->internalLodControl = true;
@@ -58,6 +120,8 @@ RulerObj::RulerObj(const RulerObj& o) : WorldObj(o){
     internalLodControl = o.internalLodControl;
     shapeEnabled = o.shapeEnabled;
     proceduralShapeInit = false;
+    resetNodeShape();
+    nodeTransformsInit = false;
 }
 
 WorldObj* RulerObj::clone(){
@@ -77,6 +141,8 @@ void RulerObj::load(int x, int y) {
     this->size = -1;
     this->skipLevel = 1;
     this->box.loaded = false;
+    resetNodeShape();
+    nodeTransformsInit = false;
     setMartix();
     //this->point3d = new TrackItemObj();
     //this->point3d->setMaterial(1,1,1);
@@ -97,13 +163,34 @@ void RulerObj::load(int x, int y) {
     }
 }
 
+void RulerObj::set(TS::TokenId sh, FileBuffer* data) {
+    if(sh == TS::FileName){
+        data->skipLabel();
+        const int length = data->getShort() * 2;
+        fileName = *data->getString(data->off, data->off + length);
+        data->off += length;
+        resetNodeShape();
+        return;
+    }
+    WorldObj::set(sh, data);
+}
+
 void RulerObj::set(QString sh, QString val){
-    
+    if(sh == "filename" || sh == "ref_filename"){
+        fileName = val.trimmed();
+        resetNodeShape();
+        return;
+    }
     WorldObj::set(sh, val);
     return;
 }
 
 void RulerObj::set(QString sh, FileBuffer* data) {
+    if(sh == "filename"){
+        fileName = ParserX::GetString(data).trimmed();
+        resetNodeShape();
+        return;
+    }
     if (sh == ("points")) {
         int pointCount = ParserX::GetNumber(data);
         for(int i=0; i< pointCount; i++){
@@ -127,6 +214,10 @@ void RulerObj::set(QString sh, FileBuffer* data) {
 }
 
 void RulerObj::reload(){
+    reloadProceduralProfile();
+}
+
+void RulerObj::reloadProceduralProfile(){
     clearProceduralShape();
 }
 
@@ -141,7 +232,107 @@ void RulerObj::clearProceduralShape(){
         point.procShape.clear();
         point.procShapeOwned = false;
     }
+    for(ProceduralInstance &instance : proceduralInstances){
+        if(instance.object != nullptr){
+            instance.object->deleteVBO();
+            delete instance.object;
+            instance.object = nullptr;
+        }
+    }
+    proceduralInstances.clear();
     proceduralShapeInit = false;
+}
+
+void RulerObj::resetNodeShape(){
+    nodeShapePointer = NULL;
+    nodeShapeState = 0;
+}
+
+void RulerObj::ensureNodeShape(){
+    if(nodeShapePointer != NULL || fileName.isEmpty()
+            || Game::currentShapeLib == NULL)
+        return;
+    const int nodeShape = Game::currentShapeLib->addShape(
+            resPath + "/" + fileName);
+    auto found = Game::currentShapeLib->shape.find(nodeShape);
+    if(found == Game::currentShapeLib->shape.end()
+            || found->second == NULL)
+        return;
+    nodeShapePointer = found->second;
+    nodeShapeState = nodeShapePointer->newState();
+    nodeShapePointer->setAnimated(nodeShapeState, isAnimated());
+}
+
+void RulerObj::ensureNodeTransforms(){
+    if(nodeTransformsInit)
+        return;
+    nodeTransforms.clear();
+    nodeTransforms.reserve(points.size());
+    const float worldUp[3] = {0, 1, 0};
+    for(int index = 0; index < points.size(); index++){
+        int previous = index - 1;
+        while(previous >= 0 && Vec3::distance(
+                points[index].position, points[previous].position)
+                < 0.000001f)
+            previous--;
+        int next = index + 1;
+        while(next < points.size() && Vec3::distance(
+                points[index].position, points[next].position)
+                < 0.000001f)
+            next++;
+
+        float forward[3] = {0, 0, 1};
+        if(previous >= 0 && next < points.size()){
+            float incoming[3];
+            float outgoing[3];
+            Vec3::sub(incoming, points[index].position,
+                      points[previous].position);
+            Vec3::sub(outgoing, points[next].position,
+                      points[index].position);
+            incoming[1] = 0;
+            outgoing[1] = 0;
+            normalizeDirection(incoming);
+            normalizeDirection(outgoing);
+            Vec3::add(forward, incoming, outgoing);
+            if(!normalizeDirection(forward))
+                Vec3::copy(forward, outgoing);
+        } else if(next < points.size()){
+            Vec3::sub(forward, points[next].position,
+                      points[index].position);
+            forward[1] = 0;
+            normalizeDirection(forward);
+        } else if(previous >= 0){
+            Vec3::sub(forward, points[index].position,
+                      points[previous].position);
+            forward[1] = 0;
+            normalizeDirection(forward);
+        }
+        if(!normalizeDirection(forward))
+            Vec3::set(forward, 0, 0, 1);
+
+        float right[3];
+        crossDirection(right, worldUp, forward);
+        if(!normalizeDirection(right))
+            Vec3::set(right, 1, 0, 0);
+        // Ordinary Ruler node shapes are primarily poles and other grounded
+        // assets. Keep their local up axis vertical; an explicit saved mode
+        // can be added later if slope-following ordinary shapes are needed.
+        float up[3] = {0, 1, 0};
+
+        std::array<float, 16> transform = {
+            right[0], right[1], right[2], 0,
+            up[0], up[1], up[2], 0,
+            forward[0], forward[1], forward[2], 0,
+            points[index].position[0], points[index].position[1],
+            points[index].position[2], 1
+        };
+        // Match the coordinate conversion applied by an ordinary StaticObj.
+        // This keeps an authored MSTS shape's local forward/side orientation
+        // unchanged when the same asset is used as a Ruler node shape.
+        Mat4::rotate(transform.data(), transform.data(), M_PI, 0, -1, 0);
+        nodeTransforms.append(transform);
+    }
+    nodeTransformsInit = true;
 }
 
 void RulerObj::ensureProceduralShape(){
@@ -155,6 +346,58 @@ void RulerObj::ensureProceduralShape(){
     const QSharedPointer<const OrtsTrackProfile> routeProfile =
             OrtsTrackProfileCatalog::find(
                 templateName, OrtsTrackProfile::ObjectType::Static);
+
+    if(routeProfile != nullptr){
+        QVector<ComplexLinePoint> linePoints;
+        linePoints.reserve(points.size());
+        for(const Point &point : points){
+            ComplexLinePoint linePoint;
+            linePoint.position[0] = point.position[0];
+            linePoint.position[1] = point.position[1];
+            linePoint.position[2] = point.position[2];
+            linePoints.append(linePoint);
+        }
+        ComplexLine line;
+        line.init(linePoints);
+
+        // The point-backed ComplexLine is local to the first ruler point and
+        // carries every following position and node frame. Render the single
+        // generated multiline mesh with translation only; its span frames
+        // already contain heading and elevation.
+        Quat::fill(points[0].quat);
+        Mat4::fromRotationTranslation(
+                points[0].matrix, points[0].quat, points[0].position);
+
+        QStringList diagnostics;
+        QVector<OrtsGeneratedProfileInstanceObject> generatedInstances;
+        OrtsTrackProfileRenderer::generateWithInstances(
+                *routeProfile, line, points[0].procShape,
+                generatedInstances,
+                routePath, &diagnostics, 0);
+        proceduralInstances.reserve(generatedInstances.size());
+        for(OrtsGeneratedProfileInstanceObject &generated
+                : generatedInstances){
+            ProceduralInstance instance;
+            instance.object = generated.object;
+            instance.transforms = std::move(generated.transforms);
+            proceduralInstances.append(std::move(instance));
+            generated.object = nullptr;
+        }
+        points[0].procShapeOwned = !points[0].procShape.isEmpty();
+
+        static QSet<QString> warnedDiagnostics;
+        for(const QString &diagnostic : diagnostics){
+            const QString key = routeProfile->id.toLower()
+                    + ":ruler:" + diagnostic;
+            if(!warnedDiagnostics.contains(key)){
+                warnedDiagnostics.insert(key);
+                qWarning() << "ORTS Ruler profile" << routeProfile->id
+                           << diagnostic;
+            }
+        }
+        proceduralShapeInit = true;
+        return;
+    }
 
     for(int i = 0; i < points.size() - 1; i++){
         const float tlength = Vec3::distance(
@@ -180,27 +423,8 @@ void RulerObj::ensureProceduralShape(){
         sections.push_back(TSection());
         sections.back().size = floor((tlength * 10) + 0.5) / 10;
 
-        if(routeProfile != nullptr){
-            QStringList diagnostics;
-            OrtsTrackProfileRenderer::generate(
-                    *routeProfile, sections, points[i].procShape,
-                    routePath, &diagnostics);
-            points[i].procShapeOwned = !points[i].procShape.isEmpty();
-
-            static QSet<QString> warnedDiagnostics;
-            for(const QString &diagnostic : diagnostics){
-                const QString key = routeProfile->id.toLower()
-                        + ":ruler:" + diagnostic;
-                if(!warnedDiagnostics.contains(key)){
-                    warnedDiagnostics.insert(key);
-                    qWarning() << "ORTS Ruler profile" << routeProfile->id
-                               << diagnostic;
-                }
-            }
-        } else {
-            ProceduralShape::GetShape(
-                    templateName, points[i].procShape, sections, i);
-        }
+        ProceduralShape::GetShape(
+                templateName, points[i].procShape, sections, i);
     }
     proceduralShapeInit = true;
 }
@@ -212,6 +436,25 @@ void RulerObj::setTemplate(QString name){
     shapeEnabled = !name.isEmpty();
     setModified();
     reload();
+}
+
+void RulerObj::setNodeShape(QString name){
+    name = name.trimmed();
+    if(fileName == name)
+        return;
+    fileName = name;
+    resetNodeShape();
+    setModified();
+}
+
+QString RulerObj::getNodeShape() const {
+    return fileName;
+}
+
+void RulerObj::updateSim(float deltaTime){
+    if(!loaded || nodeShapePointer == NULL)
+        return;
+    nodeShapePointer->updateSim(deltaTime, nodeShapeState);
 }
 
 void RulerObj::setPosition(int x, int z, float* p){
@@ -230,8 +473,86 @@ void RulerObj::setPosition(int x, int z, float* p){
     setModified();
     if(line3d != NULL)
         line3d->deleteVBO();
+    nodeTransformsInit = false;
     if(shapeEnabled)
         reload();
+}
+
+void RulerObj::pointFromTilePosition(Point &point, int tileX, int tileZ,
+        const float *sourcePosition) const {
+    if(sourcePosition == NULL)
+        return;
+
+    // Keep the MSTS tile coordinate separate from the local position. Only
+    // the small tile delta is converted before the Ruler's float point is
+    // stored; combining a complete world coordinate in float loses precision.
+    point.position[0] = (float)(((double)tileX - (double)x) * 2048.0
+            + (double)sourcePosition[0]);
+    point.position[1] = sourcePosition[1];
+    point.position[2] = (float)(((double)tileZ - (double)y) * 2048.0
+            + (double)sourcePosition[2]);
+}
+
+void RulerObj::invalidatePathGeometry(){
+    setModified();
+    if(line3d != NULL)
+        line3d->deleteVBO();
+    nodeTransformsInit = false;
+    if(shapeEnabled)
+        reload();
+}
+
+void RulerObj::appendPoint(int tileX, int tileZ, const float* sourcePosition){
+    if(sourcePosition == NULL)
+        return;
+    Point point;
+    pointFromTilePosition(point, tileX, tileZ, sourcePosition);
+    points.push_back(point);
+    invalidatePathGeometry();
+}
+
+bool RulerObj::updateLastPoint(int tileX, int tileZ,
+        const float* sourcePosition){
+    if(points.isEmpty() || sourcePosition == NULL)
+        return false;
+    pointFromTilePosition(points.last(), tileX, tileZ, sourcePosition);
+    invalidatePathGeometry();
+    return true;
+}
+
+bool RulerObj::duplicateLastPoint(){
+    if(points.isEmpty())
+        return false;
+    Point point;
+    Vec3::copy(point.position, points.last().position);
+    points.push_back(point);
+    invalidatePathGeometry();
+    return true;
+}
+
+bool RulerObj::removeLastPoint(){
+    if(points.isEmpty())
+        return false;
+    points.removeLast();
+    selectionValue = points.isEmpty()
+            ? 0 : std::min(selectionValue, (int)points.size() - 1);
+    invalidatePathGeometry();
+    return true;
+}
+
+int RulerObj::pointCount() const {
+    return points.size();
+}
+
+float RulerObj::lastSegmentLength() const {
+    if(points.size() < 2)
+        return 0.0f;
+    const Point &start = points[points.size() - 2];
+    const Point &end = points.last();
+    const float dx = end.position[0] - start.position[0];
+    const float dy = end.position[1] - start.position[1];
+    const float dz = end.position[2] - start.position[2];
+    return std::sqrt(dx * dx + dy * dy + dz * dz);
 }
 
 void RulerObj::refreshLength(){
@@ -260,6 +581,8 @@ void RulerObj::refreshLength(){
 
 float RulerObj::getElevation(){
     if(points.size() < 2)
+        return 0;
+    if(length <= 0.0001f)
         return 0;
     float height = points[points.size()-1].position[1] - points[0].position[1];
     return asin(height/length);
@@ -303,15 +626,6 @@ void RulerObj::removeRoadPaths(){
     //if(ok)
 }
 
-void RulerObj::enableShape(){
-    if(points.size() < 2)
-        return;
-    
-    shapeEnabled = true;
-    setModified();
-
-}
-
 void RulerObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos, float* target, float fov, quint32 selectionId, int renderMode) {
     if (!loaded) return;
     if (jestPQ < 2) return;
@@ -332,12 +646,67 @@ void RulerObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos,
             Mat4::multiply(gluu->mvMatrix, gluu->mvMatrix, points[j].matrix);
             gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
             for(int i = 0; i < points[j].procShape.size(); i++){
-                points[j].procShape[i]->render(SelectionIdCodec::withPart(selectionId, i));
+                const float partLod = proceduralPartLod(
+                        points[j].procShape[i], nullptr, posx, posz,
+                        points[j].position[0] - position[0],
+                        points[j].position[2] - position[2]);
+                points[j].procShape[i]->render(
+                        SelectionIdCodec::withPart(selectionId, i), partLod);
+            }
+            gluu->mvPopMatrix();
+        }
+        if(!proceduralInstances.isEmpty()){
+            gluu->mvPushMatrix();
+            Mat4::multiply(gluu->mvMatrix, gluu->mvMatrix, points[0].matrix);
+            int part = points[0].procShape.size();
+            for(const ProceduralInstance &instance
+                    : proceduralInstances){
+                if(instance.object == nullptr)
+                    continue;
+                for(const std::array<float, 16> &transform
+                        : instance.transforms){
+                    gluu->mvPushMatrix();
+                    Mat4::multiply(gluu->mvMatrix, gluu->mvMatrix,
+                                   const_cast<float*>(transform.data()));
+                    gluu->currentShader->setUniformValue(
+                            gluu->currentShader->mvMatrixUniform,
+                            *reinterpret_cast<float(*)[4][4]>(gluu->mvMatrix));
+                    const float partLod = proceduralPartLod(
+                            instance.object, transform.data(), posx, posz,
+                            points[0].position[0] - position[0],
+                            points[0].position[2] - position[2]);
+                    instance.object->render(
+                            SelectionIdCodec::withPart(selectionId, part++),
+                            partLod);
+                    gluu->mvPopMatrix();
+                }
             }
             gluu->mvPopMatrix();
         }
     }
-    
+
+    if(!fileName.isEmpty()){
+        ensureNodeShape();
+        ensureNodeTransforms();
+        if(nodeShapePointer != NULL){
+            for(int index = 0; index < nodeTransforms.size(); index++){
+                gluu->mvPushMatrix();
+                Mat4::multiply(gluu->mvMatrix, gluu->mvMatrix,
+                        nodeTransforms[index].data());
+                gluu->currentShader->setUniformValue(
+                        gluu->currentShader->mvMatrixUniform,
+                        *reinterpret_cast<float(*)[4][4]>(gluu->mvMatrix));
+                const quint32 nodeSelection = SelectionIdCodec::withPart(
+                        selectionId, index);
+                gluu->setSelectionId(nodeSelection);
+                if(nodeSelection == 0)
+                    gluu->enableTextures();
+                nodeShapePointer->render(nodeSelection, nodeShapeState);
+                gluu->mvPopMatrix();
+            }
+        }
+    }
+
     if (renderMode == GLUU::RENDER_SHADOWMAP) return;
     if(!Game::viewInteractives) 
         return;
@@ -431,9 +800,58 @@ void RulerObj::pushRenderItems(float lod, float posx, float posz, float* playerW
             Game::currentRenderer->mvPushMatrix();
             Mat4::multiply(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, points[j].matrix);
             for(int i = 0; i < points[j].procShape.size(); i++){
-                points[j].procShape[i]->pushRenderItem(SelectionIdCodec::withPart(selectionId, i));
+                const float partLod = proceduralPartLod(
+                        points[j].procShape[i], nullptr, posx, posz,
+                        points[j].position[0] - position[0],
+                        points[j].position[2] - position[2]);
+                points[j].procShape[i]->pushRenderItem(
+                        SelectionIdCodec::withPart(selectionId, i), partLod);
             }
             Game::currentRenderer->mvPopMatrix();
+        }
+        if(!proceduralInstances.isEmpty()){
+            Game::currentRenderer->mvPushMatrix();
+            Mat4::multiply(Game::currentRenderer->mvMatrix,
+                    Game::currentRenderer->mvMatrix, points[0].matrix);
+            int part = points[0].procShape.size();
+            for(const ProceduralInstance &instance
+                    : proceduralInstances){
+                if(instance.object == nullptr)
+                    continue;
+                for(const std::array<float, 16> &transform
+                        : instance.transforms){
+                    Game::currentRenderer->mvPushMatrix();
+                    Mat4::multiply(Game::currentRenderer->mvMatrix,
+                            Game::currentRenderer->mvMatrix,
+                            const_cast<float*>(transform.data()));
+                    const float partLod = proceduralPartLod(
+                            instance.object, transform.data(), posx, posz,
+                            points[0].position[0] - position[0],
+                            points[0].position[2] - position[2]);
+                    instance.object->pushRenderItem(
+                            SelectionIdCodec::withPart(selectionId, part++),
+                            partLod);
+                    Game::currentRenderer->mvPopMatrix();
+                }
+            }
+            Game::currentRenderer->mvPopMatrix();
+        }
+    }
+
+    if(!fileName.isEmpty()){
+        ensureNodeShape();
+        ensureNodeTransforms();
+        if(nodeShapePointer != NULL){
+            for(int index = 0; index < nodeTransforms.size(); index++){
+                Game::currentRenderer->mvPushMatrix();
+                Mat4::multiply(Game::currentRenderer->mvMatrix,
+                        Game::currentRenderer->mvMatrix,
+                        nodeTransforms[index].data());
+                nodeShapePointer->pushRenderItem(
+                        SelectionIdCodec::withPart(selectionId, index),
+                        nodeShapeState);
+                Game::currentRenderer->mvPopMatrix();
+            }
         }
     }
 
@@ -564,6 +982,8 @@ void RulerObj::save(QTextStream* out){
 *(out) << "		UiD ( "<<this->UiD<<" )\n";
 *(out) << "		Position ( "<<this->position[0]<<" "<<this->position[1]<<" "<<-this->position[2]<<" )\n";
 *(out) << "		QDirection ( "<<this->qDirection[0]<<" "<<this->qDirection[1]<<" "<<-this->qDirection[2]<<" "<<this->qDirection[3]<<" )\n";
+if(!fileName.isEmpty())
+*(out) << "		FileName ( "<<ParserX::AddComIfReq(fileName)<<" )\n";
 *(out) << "		Points ( " << points.size()<<" \n";
 for(int i = 0; i < points.size(); i++)
 *(out) << "			Point ( "<<points[i].position[0]<<" "<<points[i].position[1]<<" "<<-points[i].position[2]<<" )\n";

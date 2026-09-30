@@ -12,11 +12,13 @@
 #define	REF_H
 
 #include <QString>
+#include <QStringList>
 #include <QVector>
 #include <QMap>
 
 class FileBuffer;
 class QTextStream;
+class TelepoleData;
 
 class Ref {
 public:
@@ -65,6 +67,8 @@ public:
     void loadUtf16Data(FileBuffer *data, QString path);
     void expandTemplates();
     void ensureDynTrackItems();
+    void ensureTelepoleItems(const TelepoleData &catalog);
+    QStringList routeShapeNames() const;
     void saveToStream(QTextStream *out);
     bool loaded;
     RefItem *selected = NULL;

@@ -13,6 +13,8 @@
 
 #include <routeEditor/properties/PropertiesAbstract.h>
 
+class Ref;
+
 class PropertiesRuler: public PropertiesAbstract{
     Q_OBJECT
 public:
@@ -27,10 +29,12 @@ public slots:
     void checkboxDrawPointsEdited(int val);
     void createRoadPathsEdited();
     void removeRoadPathsEdited();
-    void addShapeEdited();
+    void removeNodeShapeEdited();
     void elevTypeEdited(QString val);
     void eTemplateEdited(QString val);
     void eTemplateSubtypeEdited(QString val);
+    void eNodeShapeActivated(int index);
+    void eNodeShapeEditingFinished();
     void hideElevBoxes();
     void showElevBox(QString val);
     
@@ -39,10 +43,20 @@ signals:
 private:
     void refreshTemplateList();
     void updateTemplateValue();
+    void refreshNodeShapeList();
+    void updateNodeShapeValue();
+    QString selectedNodeShapeValue() const;
+    void applyNodeShapeValue();
+    void selectNodeShapeValue(const QString &value);
     QLineEdit lengthM;
     QLineEdit lengthGM;
     QCheckBox checkboxTwoPoint;
     QCheckBox checkboxDrawPoints;
+    QComboBox eNodeShape;
+    QPushButton *removeNodeShapeButton = nullptr;
+    const Ref *nodeShapeListRef = nullptr;
+    QString nodeShapeListRoute;
+    int nodeShapeCatalogCount = 0;
     
     QComboBox elevType;
     QLineEdit elevProm;

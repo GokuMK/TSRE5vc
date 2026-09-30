@@ -1826,6 +1826,11 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
             <source>FLEX ROAD</source>
             <translation>DROGA FLEX</translation>
         </message>
+        <message id="route.editor.obj.tools.button.ruler">
+            <location filename="../src/routeEditor/ObjTools.cpp" line="60" />
+            <source>RULER</source>
+            <translation>LINIJKA</translation>
+        </message>
         <message id="route.editor.obj.tools.button.auto.placement">
             <location filename="../src/routeEditor/ObjTools.cpp" line="60" />
             <source>Auto Placement</source>
@@ -1871,10 +1876,22 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
             <source>Search:</source>
             <translation>Szukaj:</translation>
         </message>
-        <message id="route.editor.obj.tools.tooltip.procedural.profile.used.for.new.flex.objects">
-            <location filename="../src/routeEditor/ObjTools.cpp" line="145" />
-            <source>Procedural profile used for new Flex objects. Road lane role profiles are selected automatically.</source>
-            <translation>Profil proceduralny używany dla nowych obiektów Flex. Profile ról pasów drogowych są wybierane automatycznie.</translation>
+        <message id="route.editor.obj.tools.tooltip.procedural.profile.used.for.new.continuous.objects">
+            <location filename="../src/routeEditor/ObjTools.cpp" line="136" />
+            <source>Procedural profile used for newly placed continuous objects.</source>
+            <translation>Profil proceduralny używany dla nowo umieszczanych obiektów ciągłych.</translation>
+        </message>
+        <message id="route.editor.ruler.node.shape.tooltip">
+            <location filename="../src/routeEditor/ObjTools.cpp" line="142" />
+            <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="216" />
+            <source>Optional additional route shape rendered at every Ruler node. Template node geometry remains available and is additive.</source>
+            <translation>Opcjonalny dodatkowy model trasy renderowany w każdym węźle linijki. Geometria węzłów szablonu pozostaje dostępna i jest dodawana niezależnie.</translation>
+        </message>
+        <message id="route.editor.ruler.node.shape.none">
+            <location filename="../src/routeEditor/ObjTools.cpp" line="919" />
+            <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="296" />
+            <source>No additional node shape</source>
+            <translation>Bez dodatkowego modelu węzła</translation>
         </message>
         <message id="route.editor.obj.tools.text.track.on.left">
             <location filename="../src/routeEditor/ObjTools.cpp" line="149" />
@@ -2070,6 +2087,11 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
             <location filename="../src/routeEditor/ObjTools.cpp" line="764" />
             <source>Built-in dynamic track</source>
             <translation>Wbudowany tor dynamiczny</translation>
+        </message>
+        <message id="route.editor.obj.tools.item.plain.ruler">
+            <location filename="../src/routeEditor/ObjTools.cpp" line="803" />
+            <source>Plain ruler</source>
+            <translation>Zwykła linijka</translation>
         </message>
         <message id="route.editor.obj.tools.action.find.similar">
             <location filename="../src/routeEditor/ObjTools.cpp" line="1016" />
@@ -2380,6 +2402,11 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
             <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="209" />
             <source>&amp;Reload Ref File</source>
             <translation>Wczytaj ponownie plik &amp;REF</translation>
+        </message>
+        <message id="route.editor.route.editor.window.action.reload.track.profiles">
+            <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="263" />
+            <source>Reload &amp;Track Profiles</source>
+            <translation>Wczytaj ponownie profile &amp;torów</translation>
         </message>
         <message id="route.editor.route.editor.window.action.exit.action">
             <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="213" />
@@ -4274,6 +4301,18 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
             <source>Shape Template:</source>
             <translation>Szablon geometrii:</translation>
         </message>
+        <message id="route.editor.properties.profile.tooltip.route.profile.subtype">
+            <location filename="../src/routeEditor/properties/PropertiesDyntrack.cpp" line="81" />
+            <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="186" />
+            <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="93" />
+            <source>Select a route profile subtype.</source>
+            <translation>Wybierz podtyp profilu trasy.</translation>
+        </message>
+        <message id="route.editor.properties.ruler.label.node.shape">
+            <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="207" />
+            <source>Additional node shape:</source>
+            <translation>Dodatkowy model węzła:</translation>
+        </message>
         <message id="common.value.not.set">
             <location filename="../src/routeEditor/properties/PropertiesDyntrack.cpp" line="78" />
             <location filename="../src/routeEditor/properties/PropertiesDyntrack.cpp" line="410" />
@@ -5321,10 +5360,10 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
             <source>NOT SET disables the procedural Ruler shape; DEFAULT explicitly requests the default procedural template.</source>
             <translation>NIE USTAWIONO wyłącza proceduralny model linijki; DOMYŚLNE jawnie wybiera domyślny szablon proceduralny.</translation>
         </message>
-        <message id="route.editor.properties.ruler.button.button.3">
-            <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="198" />
-            <source>Add Shape</source>
-            <translation>Dodaj model 3D</translation>
+        <message id="route.editor.properties.ruler.button.remove.node.shape">
+            <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="221" />
+            <source>Remove shape</source>
+            <translation>Usuń model</translation>
         </message>
         <message id="route.editor.properties.ruler.text.null">
             <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="288" />
@@ -10433,6 +10472,18 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <source>[QT] Reconstructed distant QuadTree</source>
         <translation>[QT] Odtworzony QuadTree terenu odległego</translation>
     </message>
+    <message id="route.editor.obj.tools.item.telepoles"><source>Telepoles</source><translation>Słupy telegraficzne</translation></message>
+    <message id="route.editor.obj.tools.item.no.telepole.configuration"><source>No telepole.dat configuration</source><translation>Brak konfiguracji telepole.dat</translation></message>
+    <message id="route.editor.properties.telepole.label.title"><source>Telepole:</source><translation>Słupy telegraficzne:</translation></message>
+    <message id="route.editor.properties.telepole.label.uid"><source>UiD:</source><translation>UiD:</translation></message>
+    <message id="route.editor.properties.telepole.label.tile.x"><source>Tile X:</source><translation>Kafel X:</translation></message>
+    <message id="route.editor.properties.telepole.label.tile.z"><source>Tile Z:</source><translation>Kafel Z:</translation></message>
+    <message id="route.editor.properties.telepole.label.length"><source>Length:</source><translation>Długość:</translation></message>
+    <message id="route.editor.properties.telepole.label.population"><source>Pole count:</source><translation>Liczba słupów:</translation></message>
+    <message id="route.editor.properties.telepole.label.separation"><source>Separation:</source><translation>Odstęp:</translation></message>
+    <message id="route.editor.properties.telepole.label.configuration"><source>Configuration:</source><translation>Konfiguracja:</translation></message>
+    <message id="route.editor.properties.telepole.label.span"><source>Span:</source><translation>Odcinek:</translation></message>
+    <message id="route.properties.telepole.object.type"><source>Object: %1</source><translation>Obiekt: %1</translation></message>
 </context>
 <context>
     <name>LoadWindow</name>

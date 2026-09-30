@@ -114,6 +114,10 @@ int TsreTests::runSettingsSuite(bool verbose) {
           "translation-english-catalogue-is-complete");
     check(qtTrId("geo.imagery.title") == "Terrain imagery",
           "imagery-english-translation-is-embedded");
+    check(qtTrId("route.editor.properties.telepole.label.length") == "Length:"
+          && qtTrId("route.properties.telepole.object.type").arg("telepole")
+             == "Object: telepole",
+          "telepole-english-id-translations-are-embedded");
     qApp->removeTranslator(&englishTranslations);
 
     TranslationManager polishTranslations;
@@ -134,6 +138,11 @@ int TsreTests::runSettingsSuite(bool verbose) {
           "translation-polish-open-image-entry-is-complete");
     check(qtTrId("geo.imagery.title") == QString::fromUtf8("Zobrazowanie terenu"),
           "imagery-polish-translation-is-embedded");
+    check(qtTrId("route.editor.properties.telepole.label.configuration")
+              == QStringLiteral("Konfiguracja:")
+          && qtTrId("route.properties.telepole.object.type").arg("telepole")
+             == QStringLiteral("Obiekt: telepole"),
+          "telepole-polish-id-translations-are-embedded");
     check(qtTrId("settings.dialog.tooltip.name").arg("core.test")
               == QString::fromUtf8("Klucz: core.test"),
           "translation-polish-formatted-entry-retains-value");

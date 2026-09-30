@@ -36,8 +36,10 @@ public slots:
     void placeToolEnabled(bool val);
     void continuousFlexToolEnabled(bool val);
     void continuousFlexRoadToolEnabled(bool val);
+    void continuousRulerToolEnabled(bool val);
     void continuousFlexOptionsButtonEnabled(bool val);
-    void continuousFlexProfileChanged(const QString &value);
+    void continuousProfileChanged(const QString &value);
+    void continuousRulerNodeShapeChanged();
     void continuousFlexOptionsChanged();
     void autoPlacementButtonEnabled(bool val);
     void itemSelected(Ref::RefItem* item);
@@ -73,6 +75,12 @@ signals:
     void sendMsg(QString name, QString val);
     
 private:
+    enum class ContinuousToolMode {
+        Track,
+        Road,
+        Ruler
+    };
+
     Route* route = NULL;
     QListWidget refList;
     QListWidget lastItems;
@@ -91,20 +99,26 @@ private:
     //QPushButton *placeTool;
     //QPushButton *autoPlacementButton;
     QMap<QString, QPushButton*> buttonTools;
-    
+
     QWidget advancedPlacementWidget;
     QWidget continuousFlexOptionsWidget;
-    QComboBox continuousFlexProfile;
+    QWidget continuousFlexTrackOptionsWidget;
+    QPushButton *continuousFlexOptionsButton = NULL;
+    QComboBox continuousProfile;
+    QComboBox continuousRulerNodeShape;
     QCheckBox continuousFlexLeft;
     QCheckBox continuousFlexRight;
     QDoubleSpinBox continuousFlexSeparation;
     QDoubleSpinBox continuousFlexMinimumRadius;
-    bool continuousFlexRoadOptions = false;
+    ContinuousToolMode continuousToolMode = ContinuousToolMode::Track;
     double continuousFlexTrackSeparation = 4.0;
     double continuousFlexTrackMinimumRadius = 15.0;
     double continuousFlexRoadMinimumRadius = 6.0;
     QString continuousFlexTrackProfile;
     QString continuousFlexRoadProfile = "RdProfile";
+    QString continuousRulerProfile;
+    QString continuousRulerNodeShapeName;
+    const Ref *continuousRulerNodeShapeRef = nullptr;
     QLineEdit autoPlacementPosX;
     QLineEdit autoPlacementPosY;
     QLineEdit autoPlacementPosZ;
@@ -116,8 +130,10 @@ private:
     QComboBox autoPlacementRotType;
     QComboBox autoPlacementTarget;
 
-    void enableContinuousFlexTool(bool road, bool enabled);
-    void refreshContinuousFlexProfiles();
+    void enableContinuousTool(ContinuousToolMode mode, bool enabled);
+    void refreshContinuousProfiles();
+    void refreshContinuousRulerNodeShapes();
+    QString selectedContinuousRulerNodeShape() const;
 
 };
 

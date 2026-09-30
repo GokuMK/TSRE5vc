@@ -25,6 +25,15 @@ public:
     ComplexLinePoint(const ComplexLinePoint& o);
 };
 
+struct ComplexLineFrame {
+    float position[3] = {0, 0, 0};
+    float right[3] = {1, 0, 0};
+    float up[3] = {0, 1, 0};
+    float forward[3] = {0, 0, 1};
+    float distance = 0;
+    int spanIndex = -1;
+};
+
 class ComplexLine {
 public:
     float length;
@@ -37,9 +46,21 @@ public:
     float getLength();
     QString getHash();
     void getDrawPosition(float* posRot, float distance, float xOffset = 0);
+    bool getFrame(ComplexLineFrame &frame, float distance,
+            float xOffset = 0) const;
+    bool getSpanFrame(ComplexLineFrame &frame, int spanIndex,
+            bool atEnd, float xOffset = 0) const;
+    bool getNodeFrame(ComplexLineFrame &frame, int nodeIndex,
+            float xOffset = 0) const;
+    bool getNodeInterpolatedFrame(ComplexLineFrame &frame, float distance,
+            float xOffset = 0) const;
+    bool isPointPath() const;
+    const QVector<float> &getNodeDistances() const;
 private:
     QVector<TSection> sections;
     QVector<ComplexLinePoint> points;
+    QVector<float> nodeDistances;
+    QVector<ComplexLineFrame> nodeFrames;
     void getDrawPositionFromTSection(float* posRot, float distance, float xOffset = 0);
     void getDrawPositionFromPoints(float* posRot, float distance, float xOffset = 0);
 };

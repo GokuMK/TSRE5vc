@@ -50,6 +50,7 @@ public:
     void resize(float x, float y, float z);
     void removedFromTDB();
     void deleteVBO();
+    void reloadProceduralProfile() override;
     void setTemplate(QString name);
     int getDefaultDetailLevel();
     int updateTrackSectionInfo(QHash<unsigned int, unsigned int> shapes, QHash<unsigned int, unsigned int> sect);

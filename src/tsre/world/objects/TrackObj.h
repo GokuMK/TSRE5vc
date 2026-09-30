@@ -27,6 +27,7 @@ public:
     bool allowNew();
     void setTemplate(QString val);
     void reload();
+    void reloadProceduralProfile() override;
     void loadingFixes();
     void load(int x, int y);
     void loadInit();

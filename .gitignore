@@ -10,6 +10,8 @@
 *.moc
 *.o
 *.obj
+# Hand-authored Template3D tutorial fixtures are source assets, not compiler output.
+!/extra/trprofile-3d/examples/TrackProfiles/meshes/*.obj
 *.orig
 *.rej
 *.so

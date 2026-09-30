@@ -285,6 +285,8 @@ QString WorldObj::getResPath(Ref::RefItem* sh) {
         return Game::root + "/ROUTES/" + Game::route + "/SHAPES/"+sh->getShapeName();
     } else if (sh->type == "collideobject") {
         return Game::root + "/ROUTES/" + Game::route + "/SHAPES/"+sh->getShapeName();
+    } else if (sh->type == "telepole") {
+        return Game::root + "/ROUTES/" + Game::route + "/SHAPES/"+sh->getShapeName();
     } else {
         return "";
     }
@@ -579,6 +581,10 @@ void WorldObj::updateSim(float deltaTime){
 
 void WorldObj::reload(){
     
+}
+
+void WorldObj::reloadProceduralProfile(){
+
 }
 
 QString WorldObj::getTemplate(){

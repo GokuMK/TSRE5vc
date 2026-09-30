@@ -184,6 +184,10 @@ void DynTrackObj::deleteVBO(){
     shapeOwned = false;
 }
 
+void DynTrackObj::reloadProceduralProfile(){
+    deleteVBO();
+}
+
 void DynTrackObj::releaseDeferredOwnedShape(){
     if(deferredOwnedShape.isEmpty())
         return;
@@ -263,7 +267,7 @@ void DynTrackObj::generateShape(){
                 // A small mesh-only overlap hides joints when adjoining
                 // objects change grade; the TDB/RDB endpoint stays exact.
                 OrtsTrackProfileRenderer::GeneratedTrackEndOverlap, 0,
-                &pathTransform);
+                &pathTransform, UiD);
         const qint64 generationMs = generationTimer.elapsed();
         if(generationMs >= kSlowShapeOperationMs){
             qWarning() << "ORTS track profile generation took"
@@ -590,7 +594,10 @@ void DynTrackObj::render(GLUU* gluu, float lod, float posx, float posz, float* p
     // A generated shape is ready immediately. Draw it in this pass instead
     // of leaving the DynTrack absent for one complete frame.
     for(int i = 0; i < shape.size(); i++){
-        shape[i]->render(selectionId, lod);
+        const float partLod =
+                OrtsTrackProfileRenderer::generatedPartLod(
+                    shape[i], renderMatrix, posx, posz);
+        shape[i]->render(selectionId, partLod);
     }
     
     if(selected){
@@ -624,7 +631,10 @@ void DynTrackObj::pushRenderItems(float lod, float posx, float posz, float* play
     }
 
     for(int i = 0; i < shape.size(); i++){
-        shape[i]->pushRenderItem(selectionId, lod);
+        const float partLod =
+                OrtsTrackProfileRenderer::generatedPartLod(
+                    shape[i], renderMatrix, posx, posz);
+        shape[i]->pushRenderItem(selectionId, partLod);
     }
 }
 

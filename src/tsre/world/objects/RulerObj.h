@@ -15,6 +15,7 @@
 #include <QString>
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <tsre/procedural/ComplexLine.h>
+#include <array>
 
 class OglObj;
 
@@ -29,11 +30,22 @@ public:
     virtual ~RulerObj();
     bool allowNew();
     void reload();
+    void reloadProceduralProfile() override;
     void setTemplate(QString name);
+    void setNodeShape(QString name);
+    QString getNodeShape() const;
     void load(int x, int y);
-    void set(QString sh, QString val);
-    void set(QString sh, FileBuffer* data);
+    void set(TS::TokenId sh, FileBuffer* data) override;
+    void set(QString sh, QString val) override;
+    void set(QString sh, FileBuffer* data) override;
     void setPosition(int x, int z, float* p);
+    void updateSim(float deltaTime) override;
+    void appendPoint(int tileX, int tileZ, const float* position);
+    bool updateLastPoint(int tileX, int tileZ, const float* position);
+    bool duplicateLastPoint();
+    bool removeLastPoint();
+    int pointCount() const;
+    float lastSegmentLength() const;
     bool select(int value);
     void save(QTextStream* out);
     bool hasLinePoints();
@@ -44,7 +56,6 @@ public:
     float getElevation();
     void createRoadPaths();
     void removeRoadPaths();
-    void enableShape();
     void pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
     void render(GLUU* gluu, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId, int renderMode);
 
@@ -58,8 +69,16 @@ private:
         float quat[4];
         float matrix[16];
     };
+    struct ProceduralInstance {
+        OglObj *object = nullptr;
+        QVector<std::array<float, 16>> transforms;
+    };
     
     QVector<Point> points;
+    QVector<ProceduralInstance> proceduralInstances;
+    QVector<std::array<float, 16>> nodeTransforms;
+    ComplexShape *nodeShapePointer = NULL;
+    unsigned int nodeShapeState = 0;
     OglObj* point3d = NULL;
     OglObj* line3d = NULL;
     OglObj* point3dSelected = NULL;
@@ -68,10 +87,17 @@ private:
     float geoLength = 0;
 
     void refreshLength();
+    void invalidatePathGeometry();
+    void pointFromTilePosition(Point &point, int tileX, int tileZ,
+            const float *position) const;
     void ensureProceduralShape();
     void clearProceduralShape();
+    void ensureNodeShape();
+    void resetNodeShape();
+    void ensureNodeTransforms();
     bool shapeEnabled = false;
     bool proceduralShapeInit = false;
+    bool nodeTransformsInit = false;
 
 };
 

@@ -40,6 +40,7 @@
 #include <routeEditor/properties/PropertiesTrackObj.h>
 #include <routeEditor/properties/PropertiesGroup.h>
 #include <routeEditor/properties/PropertiesRuler.h>
+#include <routeEditor/properties/PropertiesTelepole.h>
 #include <routeEditor/properties/PropertiesLevelCr.h>
 #include <routeEditor/properties/PropertiesSoundRegion.h>
 #include <routeEditor/properties/PropertiesTerrain.h>
@@ -140,6 +141,7 @@ RouteEditorWindow::RouteEditorWindow() {
     objProperties["Group"] = new PropertiesGroup;
     groupProperties = (PropertiesGroup*)objProperties["Group"];
     objProperties["Ruler"] = new PropertiesRuler;
+    objProperties["Telepole"] = new PropertiesTelepole;
     objProperties["SoundRegion"] = new PropertiesSoundRegion;
     objProperties["LevelCr"] = new PropertiesLevelCr;
     objProperties["Terrain"] = new PropertiesTerrain;
@@ -256,6 +258,12 @@ RouteEditorWindow::RouteEditorWindow() {
         //% "&Reload Ref File"
         qtTrId("route.editor.route.editor.window.action.reload.ref.action"), this);
     QObject::connect(reloadRefAction, SIGNAL(triggered()), this, SLOT(reloadRef()));
+    reloadTrackProfilesAction = new QAction(
+        //% "Reload &Track Profiles"
+        qtTrId("route.editor.route.editor.window.action.reload.track.profiles"),
+        this);
+    QObject::connect(reloadTrackProfilesAction, &QAction::triggered,
+                     glWidget, &RouteEditorGLWidget::reloadTrackProfiles);
     exitAction = new QAction(
         //% "&Exit"
         qtTrId("route.editor.route.editor.window.action.exit.action"), this);
@@ -271,6 +279,7 @@ RouteEditorWindow::RouteEditorWindow() {
             qtTrId("route.editor.route.editor.window.menu.route.menu"));
         routeMenu->addAction(saveAction);
         routeMenu->addAction(reloadRefAction);
+        routeMenu->addAction(reloadTrackProfilesAction);
         routeMenu->addAction(createPathsAction);
         routeMenu->addAction(generateCountryPlacesAction);
         routeMenu->addAction(trkEditr);

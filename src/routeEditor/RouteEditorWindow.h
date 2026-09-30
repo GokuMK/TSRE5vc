@@ -130,6 +130,7 @@ private:
     QAction *createPathsAction;
     QAction *generateCountryPlacesAction;
     QAction *reloadRefAction;
+    QAction *reloadTrackProfilesAction;
     QAction *exitAction;
     QAction *copyAction;
     QAction *undoAction;

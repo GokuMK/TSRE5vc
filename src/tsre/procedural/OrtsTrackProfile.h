@@ -34,7 +34,59 @@ struct OrtsProfilePolyline {
     QVector<OrtsProfileVertex> vertices;
 };
 
+struct OrtsProfileTemplate3D {
+    enum class GenerationMode {
+        Sweep,
+        Stretch,
+        Repeat,
+        Place
+    };
+    enum class ShapeSelectionMode {
+        First,
+        ByObject,
+        Cycle,
+        DeterministicRandom
+    };
+    enum class GeometryMode {
+        Baked,
+        Shared
+    };
+    enum class PlacementLocation {
+        SpanStart,
+        SpanEnd,
+        PathStart,
+        PathEnd,
+        Nodes
+    };
+    enum class PlacementFacing {
+        AlongPath,
+        AgainstPath,
+        Outward,
+        Inward
+    };
+    struct Placement {
+        PlacementLocation location = PlacementLocation::SpanStart;
+        PlacementFacing facing = PlacementFacing::AlongPath;
+    };
+
+    GenerationMode generationMode = GenerationMode::Sweep;
+    ShapeSelectionMode shapeSelectionMode = ShapeSelectionMode::First;
+    GeometryMode geometryMode = GeometryMode::Baked;
+    QStringList shapes;
+    float offset[3] = {0, 0, 0};
+    float spacing = 0;
+    float phase = 0;
+    QVector<Placement> placements;
+    bool valid = true;
+};
+
 struct OrtsProfileLodItem {
+    enum class PathFrameMode {
+        Full,
+        NoRoll,
+        Upright
+    };
+
     QString name;
     QString textureName;
     QString shaderName;
@@ -43,7 +95,9 @@ struct OrtsProfileLodItem {
     QString textureAddressMode;
     int alternativeTexture = 0;
     float mipMapLodBias = 0;
+    PathFrameMode pathFrameMode = PathFrameMode::Full;
     QVector<OrtsProfilePolyline> polylines;
+    QVector<OrtsProfileTemplate3D> templates3D;
 };
 
 struct OrtsProfileLod {
