@@ -13,6 +13,7 @@
 #include <QOpenGLShaderProgram>
 #include <QCoreApplication>
 #include <QDateTime>
+#include <QMetaObject>
 #include <QPainter>
 #include <math.h>
 #include <tsre/ogl/GLUU.h>
@@ -1013,168 +1014,182 @@ void RouteEditorGLWidget::renderShadowMaps() {
 }
 
 void RouteEditorGLWidget::handleSelection() {
-    if (selection) {
-        if(selectionRenderer == NULL || !selectionRenderer->isActive()){
-            qWarning() << "Selection read requested without an active selection target";
-            selection = false;
-            update();
-            return;
-        }
-        int x = mousex;
-        int realy = selectionRenderer->height() - (int)mousey - 1;
-        quint32 selectionId = selectionRenderer->readPixel(x, realy);
-        const SelectionIdCodec::DecodedSelection decoded =
-                SelectionIdCodec::decode(selectionId);
-        qDebug() << selectionId;
-        qDebug() << "selector" << static_cast<int>(decoded.selector);
+    if (!selection)
+        return;
+    if(selectionRenderer == NULL || !selectionRenderer->isActive()){
+        qWarning() << "Selection read requested without an active selection target";
+        selection = false;
+        update();
+        return;
+    }
 
-        // WorldObj Selected
-        if(decoded.valid && decoded.kind == SelectionIdCodec::Kind::None){
-            if (selectedObj != NULL) {
-                selectedObj->unselect();
-                if (autoAddToTDB)
-                    route->addToTDBIfNotExist((WorldObj*)selectedObj);
-                setSelectedObj(NULL);
+    const int x = mousex;
+    const int realy = selectionRenderer->height() - (int)mousey - 1;
+    const quint32 selectionId = selectionRenderer->readPixel(x, realy);
+    const int cameraTileX = static_cast<int>(camera->pozT[0]);
+    const int cameraTileZ = static_cast<int>(camera->pozT[1]);
+
+    // Object/property/preview updates can synchronously repolish widgets and
+    // re-enter QOpenGLWidget painting. Defer them until the caller has ended
+    // the integer selection target and paintGL has restored a visible frame.
+    // TODO: Capture Ctrl/Shift here if queued modifier timing becomes observable.
+    selection = false;
+    QMetaObject::invokeMethod(this, [this, selectionId, cameraTileX, cameraTileZ] {
+        applySelection(selectionId, cameraTileX, cameraTileZ);
+    }, Qt::QueuedConnection);
+}
+
+void RouteEditorGLWidget::applySelection(quint32 selectionId,
+        int cameraTileX, int cameraTileZ) {
+    if(route == NULL || !route->loaded)
+        return;
+
+    const SelectionIdCodec::DecodedSelection decoded =
+            SelectionIdCodec::decode(selectionId);
+    qDebug() << selectionId;
+    qDebug() << "selector" << static_cast<int>(decoded.selector);
+
+    // WorldObj Selected
+    if(decoded.valid && decoded.kind == SelectionIdCodec::Kind::None){
+        if (selectedObj != NULL) {
+            selectedObj->unselect();
+            if (autoAddToTDB)
+                route->addToTDBIfNotExist((WorldObj*)selectedObj);
+            setSelectedObj(NULL);
+        }
+    } else if(decoded.valid
+              && decoded.kind == SelectionIdCodec::Kind::WorldObject){
+        const int objectIndex = static_cast<int>(decoded.primaryId);
+        const int part = decoded.part;
+        const int wx = cameraTileX + decoded.tileXOffset;
+        const int wz = cameraTileZ + decoded.tileZOffset;
+        qDebug() << "part:" << part;
+        qDebug() << wx << " " << wz << " " << objectIndex;
+        WorldObj *selectedWorldObj = (WorldObj*) selectedObj;
+        if (keyControlEnabled) {
+            if (selectedWorldObj == NULL){
+                setSelectedObj(groupObj);
+                selectedWorldObj = (WorldObj*) selectedObj;
+            } else if (selectedWorldObj->typeObj != GameObj::worldobj){
+                selectedWorldObj->unselect();
+                setSelectedObj(groupObj);
+            } else if (selectedWorldObj->typeObj == GameObj::worldobj) {
+                groupObj->addObject(selectedWorldObj);
+                setSelectedObj(groupObj);
             }
-        } else if(decoded.valid
-                  && decoded.kind == SelectionIdCodec::Kind::WorldObject){
-            const int objectIndex = static_cast<int>(decoded.primaryId);
-            const int part = decoded.part;
-            const int wx = static_cast<int>(camera->pozT[0])
-                    + decoded.tileXOffset;
-            const int wz = static_cast<int>(camera->pozT[1])
-                    + decoded.tileZOffset;
-            qDebug() << "part:" << part;
-            qDebug() << wx << " " << wz << " " << objectIndex;
-            WorldObj *selectedWorldObj = (WorldObj*) selectedObj;
-            if (keyControlEnabled) {
-                if (selectedWorldObj == NULL){
-                    setSelectedObj(groupObj);
-                    selectedWorldObj = (WorldObj*) selectedObj;
-                } else if (selectedWorldObj->typeObj != GameObj::worldobj){
-                    selectedWorldObj->unselect();
-                    setSelectedObj(groupObj);
-                } else if (selectedWorldObj->typeObj == GameObj::worldobj) {
-                    groupObj->addObject(selectedWorldObj);
-                    setSelectedObj(groupObj);
-                }
-                groupObj->addObject(route->getObj(wx, wz, objectIndex));
-                if (groupObj->count() == 0) {
-                    qDebug() << "brak obiektu";
-                    groupObj->unselect();
-                    setSelectedObj(NULL);
-                }
-            } else { 
-                WorldObj* twobj = route->getObj(wx, wz, objectIndex);
-                if (selectedWorldObj != NULL && twobj != selectedWorldObj) {
-                    selectedWorldObj->unselect();
-                    if (autoAddToTDB) {
-                        route->addToTDBIfNotExist(selectedWorldObj);
-                    }
-                }
-                lastSelectedObj = selectedObj;
-                setSelectedObj(twobj);
-                if (selectedObj == NULL) {
-                    qDebug() << "brak obiektu";
-                } else {
-                    selectedObj->select(part);
-                } 
-            }
-        } else if(decoded.valid
-                  && decoded.kind == SelectionIdCodec::Kind::Terrain){
-            const int wx = static_cast<int>(camera->pozT[0])
-                    + decoded.tileXOffset;
-            const int wz = static_cast<int>(camera->pozT[1])
-                    + decoded.tileZOffset;
-            qDebug() << wx << wz << decoded.patchId << decoded.feature;
-            if (selectedObj != NULL) {
-                if ((keyControlEnabled || keyShiftEnabled) && selectedObj->typeObj == GameObj::terrainobj ) {
-                    Terrain * tt = (Terrain*) selectedObj;
-                    if(!tt->isXYinside(wx, wz)){// >mojex != wx || tt->mojez != wz){
-                        selectedObj->unselect();
-                        setSelectedObj(NULL);
-                    }
-                } else {
-                    selectedObj->unselect();
-                    if (autoAddToTDB)
-                        route->addToTDBIfNotExist((WorldObj*)selectedObj);
-                    setSelectedObj(NULL);
-                }
-            }
-            Terrain *t = Game::terrainLib->getTerrainByXY(wx, wz);
-            if (t == NULL) {
+            groupObj->addObject(route->getObj(wx, wz, objectIndex));
+            if (groupObj->count() == 0) {
                 qDebug() << "brak obiektu";
-            } else {
-                t->select(decoded.patchId, keyControlEnabled);
-            }
-            setSelectedObj((GameObj*)t);
-        } else if(decoded.valid
-                  && decoded.kind == SelectionIdCodec::Kind::ActivityObject){
-            if (selectedObj != NULL) {
-                selectedObj->unselect();
-                if (autoAddToTDB)
-                    route->addToTDBIfNotExist((WorldObj*)selectedObj);
+                groupObj->unselect();
                 setSelectedObj(NULL);
-            }
-            const int CID = static_cast<int>(decoded.primaryId);
-            const int EID = decoded.part;
-            qDebug() << CID << EID;
-            setSelectedObj((GameObj*)route->getActivityObject(CID));
-            if (selectedObj == NULL) {
-                qDebug() << "brak obiektu";
-            } else {
-                //qDebug() << "eid"<<EID;
-                selectedObj->select(EID);
-                setSelectedObj(selectedObj);
-            }
-        } else if(decoded.valid
-                  && decoded.kind == SelectionIdCodec::Kind::DatabaseItem){
-            if (selectedObj != NULL) {
-                selectedObj->unselect();
-                if (autoAddToTDB)
-                    route->addToTDBIfNotExist((WorldObj*)selectedObj);
-                setSelectedObj(NULL);
-            }
-            const int TID = static_cast<int>(decoded.databaseKind);
-            const int UID = static_cast<int>(decoded.databaseItemId);
-            qDebug() << TID << UID;
-            setSelectedObj((GameObj*)route->getTrackItem(TID, UID));
-            if (selectedObj == NULL) {
-                qDebug() << "brak obiektu";
-            } else {
-                selectedObj->select();
-            }
-        } else if(decoded.valid
-                  && decoded.kind == SelectionIdCodec::Kind::ActivityService){
-            if (selectedObj != NULL) {
-                selectedObj->unselect();
-                if (autoAddToTDB)
-                    route->addToTDBIfNotExist((WorldObj*)selectedObj);
-                setSelectedObj(NULL);
-            }
-            const int CID = static_cast<int>(decoded.primaryId);
-            const int EID = decoded.part;
-            qDebug() << CID << EID;
-            setSelectedObj((GameObj*)route->getActivityConsist(CID));
-            if (selectedObj == NULL) {
-                qDebug() << "brak obiektu";
-            } else {
-                //qDebug() << "eid"<<EID;
-                selectedObj->select(EID);
-                setSelectedObj(selectedObj);
             }
         } else {
-            if (selectedObj != NULL) {
+            WorldObj* twobj = route->getObj(wx, wz, objectIndex);
+            if (selectedWorldObj != NULL && twobj != selectedWorldObj) {
+                selectedWorldObj->unselect();
+                if (autoAddToTDB) {
+                    route->addToTDBIfNotExist(selectedWorldObj);
+                }
+            }
+            lastSelectedObj = selectedObj;
+            setSelectedObj(twobj);
+            if (selectedObj == NULL) {
+                qDebug() << "brak obiektu";
+            } else {
+                selectedObj->select(part);
+            }
+        }
+    } else if(decoded.valid
+              && decoded.kind == SelectionIdCodec::Kind::Terrain){
+        const int wx = cameraTileX + decoded.tileXOffset;
+        const int wz = cameraTileZ + decoded.tileZOffset;
+        qDebug() << wx << wz << decoded.patchId << decoded.feature;
+        if (selectedObj != NULL) {
+            if ((keyControlEnabled || keyShiftEnabled) && selectedObj->typeObj == GameObj::terrainobj ) {
+                Terrain * tt = (Terrain*) selectedObj;
+                if(!tt->isXYinside(wx, wz)){// >mojex != wx || tt->mojez != wz){
+                    selectedObj->unselect();
+                    setSelectedObj(NULL);
+                }
+            } else {
                 selectedObj->unselect();
                 if (autoAddToTDB)
                     route->addToTDBIfNotExist((WorldObj*)selectedObj);
                 setSelectedObj(NULL);
             }
         }
-
-        //qDebug() << "selection" << selection;
-        selection = false;// !selection;
+        Terrain *t = Game::terrainLib->getTerrainByXY(wx, wz);
+        if (t == NULL) {
+            qDebug() << "brak obiektu";
+        } else {
+            t->select(decoded.patchId, keyControlEnabled);
+        }
+        setSelectedObj((GameObj*)t);
+    } else if(decoded.valid
+              && decoded.kind == SelectionIdCodec::Kind::ActivityObject){
+        if (selectedObj != NULL) {
+            selectedObj->unselect();
+            if (autoAddToTDB)
+                route->addToTDBIfNotExist((WorldObj*)selectedObj);
+            setSelectedObj(NULL);
+        }
+        const int CID = static_cast<int>(decoded.primaryId);
+        const int EID = decoded.part;
+        qDebug() << CID << EID;
+        setSelectedObj((GameObj*)route->getActivityObject(CID));
+        if (selectedObj == NULL) {
+            qDebug() << "brak obiektu";
+        } else {
+            //qDebug() << "eid"<<EID;
+            selectedObj->select(EID);
+            setSelectedObj(selectedObj);
+        }
+    } else if(decoded.valid
+              && decoded.kind == SelectionIdCodec::Kind::DatabaseItem){
+        if (selectedObj != NULL) {
+            selectedObj->unselect();
+            if (autoAddToTDB)
+                route->addToTDBIfNotExist((WorldObj*)selectedObj);
+            setSelectedObj(NULL);
+        }
+        const int TID = static_cast<int>(decoded.databaseKind);
+        const int UID = static_cast<int>(decoded.databaseItemId);
+        qDebug() << TID << UID;
+        setSelectedObj((GameObj*)route->getTrackItem(TID, UID));
+        if (selectedObj == NULL) {
+            qDebug() << "brak obiektu";
+        } else {
+            selectedObj->select();
+        }
+    } else if(decoded.valid
+              && decoded.kind == SelectionIdCodec::Kind::ActivityService){
+        if (selectedObj != NULL) {
+            selectedObj->unselect();
+            if (autoAddToTDB)
+                route->addToTDBIfNotExist((WorldObj*)selectedObj);
+            setSelectedObj(NULL);
+        }
+        const int CID = static_cast<int>(decoded.primaryId);
+        const int EID = decoded.part;
+        qDebug() << CID << EID;
+        setSelectedObj((GameObj*)route->getActivityConsist(CID));
+        if (selectedObj == NULL) {
+            qDebug() << "brak obiektu";
+        } else {
+            //qDebug() << "eid"<<EID;
+            selectedObj->select(EID);
+            setSelectedObj(selectedObj);
+        }
+    } else {
+        if (selectedObj != NULL) {
+            selectedObj->unselect();
+            if (autoAddToTDB)
+                route->addToTDBIfNotExist((WorldObj*)selectedObj);
+            setSelectedObj(NULL);
+        }
     }
+
+    update();
 }
 
 void RouteEditorGLWidget::pushRenderPointer() {

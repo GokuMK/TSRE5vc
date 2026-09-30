@@ -157,6 +157,7 @@ protected:
     void paintGL2();
     void renderShadowMaps();
     void handleSelection();
+    void applySelection(quint32 selectionId, int cameraTileX, int cameraTileZ);
     void resizeGL(int width, int height) Q_DECL_OVERRIDE;
     void mousePressEvent(QMouseEvent *event) Q_DECL_OVERRIDE;
     void mouseReleaseEvent(QMouseEvent* event) Q_DECL_OVERRIDE;
