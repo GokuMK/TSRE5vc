@@ -98,7 +98,8 @@ Per-tile ACE/map/descriptor failure recovery reuses ordinary save backups.
 
 ## File metadata and performance
 
-The new `TSRETerrainBakedMaterials` token (`0x00061003`) contains a version-2
+Inside the terrain-level `TSRETerrainMaterials` container (`0x00061004`),
+`TSRETerrainBakedMaterials` (`0x00061003`) contains a version-2
 header and a uint64 shared content revision. Each nested
 `TSRETerrainBakedMaterial` (`0x00061001`) stores the canonical variant, baked
 revision, resolution, settings signature, source signature and optional

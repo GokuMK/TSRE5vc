@@ -30,6 +30,7 @@ including files on disk that are not registered in the tree.
 | [Procedural baked fallback / catalogue](terrain-procedural-baked-fallback.md) | Stage A, DXT1 follow-up and Stage B route catalogue implemented/tested | One 1024-square opaque DXT1 ACE bake on save, incremental saves and independent 2048 m detailed-texture distance. Stage B uses a UTF-16 route material catalogue with stable UiDs; earlier catalogue alternatives are historical. |
 | [Procedural seasons and route-wide baking](terrain-procedural-seasons.md) | Completed 2026-09-11; automated checks and user visual acceptance passed | Per-source seasonal/rain fallback, snow-free Winter, per-variant bake revisions, current-variant saves and CLI/Settings-menu batch baking. Optional extended verification is listed in the task. |
 | [Procedural token tile migration](procedural-token-tile-migration.md) | Completed 2026-09-09; automated validation and visual Route Editor acceptance passed | Migration backup retained for manual removal when no longer wanted. |
+| [Procedural material container](terrain-procedural-material-container.md) | Terrain-level container relocation, 2026-09-29 | Avoid ORTS strict sample-block rejection; read both parents, save only the new container. Runtime interoperability verification pending. |
 
 ## Tracked milestone and sub-task checklist
 

@@ -151,7 +151,7 @@ void Terrain::load(){
 }
 
 bool Terrain::isModified() {
-    return this->modified;
+    return modified || (editable && !Game::serverClient && tfile && tfile->needsMaterialContainerSave());
 }
 
 void Terrain::setModified(bool value) {
@@ -3749,9 +3749,13 @@ bool Terrain::save() {
         qWarning()<<"Terrain save refused before writing resources"<<name<<descriptorError;
         return false;
     }
+    QString path = Game::root + "/ROUTES/" + Game::route + "/" + TileDir[(int)lowTile] + "/";
+    // A format-only repair participates in the ordinary Save dialog, but does
+    // not rewrite heights, update bounds, regenerate maps or bake textures.
+    if (!modified && tfile->needsMaterialContainerSave())
+        return tfile->save(path + name + ".t");
     refreshPatchBounds(true);
     refreshInactivePatchSets();
-    QString path = Game::root + "/ROUTES/" + Game::route + "/" + TileDir[(int)lowTile] + "/";
     QString filename = name;
     QString previousMaterialReference;
     if (!saveProceduralBake()) return false;

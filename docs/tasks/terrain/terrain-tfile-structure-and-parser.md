@@ -219,6 +219,7 @@ terrain (136)
     terrain_sample_fbuffer/ybuffer/ebuffer/nbuffer/cbuffer/dbuffer
       (145/146/147/148/149/150): UTF-16 filename each
     terrain_sample_asbuffer/usbuffer (281/282): separate raw byte payloads
+  TSRETerrainMaterials (0x00061004): procedural extension container
     TSRETerrainMaterialBuffer: UTF-16 .pmap reference
     TSRETerrainMaterialMap: counted (uint32 byte-ID, uint32 UiD) pairs
     TSRETerrainBakedMaterials: version + content revision + seasonal records

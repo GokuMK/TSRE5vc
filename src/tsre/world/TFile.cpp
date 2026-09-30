@@ -34,15 +34,17 @@ bool TFile::canRemapMaterials(QString &error) const {
     // Known TSRE extensions are excluded here; unknown extensions may contain
     // native shader indices. Do not guess how to renumber them.
     auto root=extras;
-    auto samplesMeta=root.children.find(quint64(TS::terrain_samples)<<32);
-    if(samplesMeta!=root.children.end()) {
-        auto &unknown=samplesMeta->unknown;
-        unknown.erase(std::remove_if(unknown.begin(),unknown.end(),[](const QByteArray &b) {
-            if(b.size()<4)return false;
-            const auto token=qFromLittleEndian<quint32>(b.constData());
-            return token==TS::TSRETerrainMaterialBuffer||token==TS::TSRETerrainMaterialMap
-                ||token==TS::TSRETerrainBakedMaterial||token==TS::TSRETerrainBakedMaterials;
-        }),unknown.end());
+    for(auto parent:{TS::terrain_samples,TS::TSRETerrainMaterials}) {
+        auto samplesMeta=root.children.find(quint64(parent)<<32);
+        if(samplesMeta!=root.children.end()) {
+            auto &unknown=samplesMeta->unknown;
+            unknown.erase(std::remove_if(unknown.begin(),unknown.end(),[](const QByteArray &b) {
+                if(b.size()<4)return false;
+                const auto token=qFromLittleEndian<quint32>(b.constData());
+                return token==TS::TSRETerrainMaterialBuffer||token==TS::TSRETerrainMaterialMap
+                    ||token==TS::TSRETerrainBakedMaterial||token==TS::TSRETerrainBakedMaterials;
+            }),unknown.end());
+        }
     }
     bool unsafe=opaque(root);
     for(const auto &s:shaders)unsafe|=opaque(s.extras);

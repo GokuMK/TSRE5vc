@@ -100,10 +100,15 @@ is implemented without adding per-season filenames to material definitions.
 
 ## Tile mapping and compatibility
 
-Binary `.t` token `TSRETerrainMaterialMap` (`0x00061002`), inside `terrain_samples`,
+Binary `.t` token `TSRETerrainMaterialMap` (`0x00061002`), inside the terrain-level
+`TSRETerrainMaterials` container (`0x00061004`),
 contains the standard label byte, uint32 pair count and `(uint32 localID, uint32
 UiD)` pairs. At most 256 pairs; local IDs are 0..255 and UiDs must be nonzero.
 The 8-bit compressed `.pmap` still contains **local IDs**, never UiDs.
+
+The former placement inside `terrain_samples` remains readable; saving relocates
+the recognized blocks into the new container. No material-ID or payload change
+is involved. This avoids the legacy ORTS strict sample-block exception.
 
 The namespace migration deliberately does not recognize prototype token 100011
 or the earlier 100009/100010 reference tokens. There is no token-number

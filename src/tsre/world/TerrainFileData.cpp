@@ -221,6 +221,7 @@ struct Reader {
             case TS::terrain_shaders:
             case TS::terrain_patches:
             case TS::terrain_transfers:
+            case TS::TSRETerrainMaterials:
             case TS::terrain_shapes:break;
             default:return false;
             }
@@ -228,6 +229,8 @@ struct Reader {
             auto extra=payload(block,[&](Extras &m) {
                 switch(block.id) {
                 case TS::terrain_samples:samples(out.samples,m);break;
+                // Preserve extension children verbatim; TFile decodes their payloads.
+                case TS::TSRETerrainMaterials:children(m,[](const auto &,int,Extras &){return false;});break;
                 case TS::terrain_shaders:collection(m,TS::terrain_shader,out.shaders,[&](Shader &s,Extras &e){shader(s,e);});break;
                 case TS::terrain_patches:children(m,[&](const auto &sets,int n,Extras &p) {
                     if(sets.id!=TS::terrain_patchsets)return false;
@@ -383,9 +386,13 @@ struct Writer {
         const auto &meta=d.extras;
         children(meta,{{TS::terrain_errthreshold_scale,0},{TS::terrain_water_height_offset,0},
             {TS::terrain_alwaysselect_maxdist,0},{TS::terrain_samples,0},{TS::terrain_shaders,0},
-            {TS::terrain_patches,0},{TS::terrain_transfers,0},{TS::terrain_shapes,0}},[&](TS::TokenId id,int) {
+            {TS::terrain_patches,0},{TS::terrain_transfers,0},{TS::terrain_shapes,0},
+            {TS::TSRETerrainMaterials,0}},[&](TS::TokenId id,int) {
             const auto &m=childExtras(meta,id);
             switch(id) {
+            case TS::TSRETerrainMaterials:
+                if(meta.children.contains(key(id)))block(id,m,[&]{children(m,{},[](TS::TokenId,int){});});
+                break;
             case TS::terrain_errthreshold_scale:if(d.errorThresholdScale)block(id,m,[&]{floating(*d.errorThresholdScale);});break;
             case TS::terrain_alwaysselect_maxdist:if(d.alwaysSelectMaxDistance)block(id,m,[&]{floating(*d.alwaysSelectMaxDistance);});break;
             case TS::terrain_water_height_offset:if(d.water)block(id,m,[&] {

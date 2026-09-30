@@ -55,6 +55,7 @@ high-bit namespaces; this table is not a decoding whitelist.
 | `TSRETerrainBakedMaterial` | `0x00061001` |
 | `TSRETerrainMaterialMap` | `0x00061002` |
 | `TSRETerrainBakedMaterials` | `0x00061003` |
+| `TSRETerrainMaterials` | `0x00061004` |
 
 Network names intentionally retain underscores; new file blocks use the
 `TSRETerrain...` spelling. Existing native names/case conventions are unchanged.
@@ -122,7 +123,10 @@ for allocation/inspection; ordinary dispatch uses full enum names directly.
 
 ## Terrain compatibility
 
-Current top-level TSRE terrain blocks are children of `terrain_samples` (139):
+`TSRETerrainMaterials` (`0x00061004`) is a direct child of `terrain` (136).
+It has standard block/label framing followed by these child blocks, with no
+additional outer version or count. `terrain_samples` contains standard sample
+metadata only when TSRE creates a new tile:
 
 | Block | Payload after label | Purpose |
 | --- | --- | --- |
@@ -133,7 +137,8 @@ Current top-level TSRE terrain blocks are children of `terrain_samples` (139):
 Inside the plural version-2 container, `TSRETerrainBakedMaterial` entries contain
 a UTF-16 variant, uint64 baked revision, uint32 resolution and three UTF-16
 signature strings. Each string has a uint16 character count. The old root-level
-string marker is no longer written; its existing reader is retained. See
+string marker is not generated for new metadata; compatibility read/save retains
+an existing marker under the new material container. See
 [procedural seasons](terrain-procedural-seasons.md) for current semantics.
 
 The bitmap's 8-bit material IDs, library UiDs, `.pmap`, bake logic, ACE textures,
@@ -146,11 +151,26 @@ blocks are unknown and skipped, not converted. Recreate the three experimental
 tiles. No old-ID aliases, dual writes or migration tool exist. Existing test
 tiles were not modified by this implementation.
 
-Legacy ORTS's strict `terrain_samples` reader can still reject these children.
-The separate ORTS full-ID patch does not itself change that policy. MSTS's
-reviewed unknown-child skipping is different. Namespace allocation avoids
-misidentification; it does not implement procedural rendering or universal
-legacy fallback.
+Legacy ORTS's strict `terrain_samples` reader rejects unknown children. Moving
+the procedural blocks to the terrain-level container lets its binary reader
+skip the whole extension (a skip warning is acceptable). Standard shaders and
+patch UVs still provide the baked fallback. This does not relax other ORTS
+terrain-layout limitations or implement procedural rendering in ORTS.
+
+TSRE reads the current IDs from either the new container or their former
+`terrain_samples` location, using the same payload decoder. Runtime saving
+moves recognized old-location blocks into the new container, with no dual
+write, map repaint, image regeneration or revision change required by the
+relocation itself. Valid legacy-location metadata marks an editable loaded
+local-route tile pending for the normal Save dialog. A format-only save writes
+the descriptor without RAW/map/bake
+updates; actual terrain edits retain the full save path. Successful file save
+clears the pending flag; failed saves and stream serialization do not.
+Unrelated unknown sample blocks are retained, not deleted;
+they can still be incompatible with a strict consumer. Conflicting locations
+and duplicate containers/fields refuse rewriting. The low-level preservation
+codec alone does not migrate blocks. Prototype numeric IDs remain unsupported.
+See [container relocation](../tasks/terrain/terrain-procedural-material-container.md).
 
 ## World extension inventory and codec limits
 

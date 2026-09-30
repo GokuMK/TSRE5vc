@@ -1,4 +1,5 @@
 #include "TerrainMaterialTestSuite.h"
+#include "TokenTestSupport.h"
 #include <tsre/world/TerrainMaterialMap.h>
 #include <tsre/world/TerrainSeason.h>
 #include <tsre/world/TerrainBakeCommand.h>
@@ -466,6 +467,32 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
     const QString tileDir=temp.path()+"/ROUTES/proc-test/TILES";
     QDir().mkpath(tileDir);
     red.save(temp.path()+"/red.png"); blue.save(temp.path()+"/blue.png");
+    {
+        TestTerrain tile;tile.setup(temp.path(),16,"container-repair");
+        auto &descriptor=tile.descriptor();
+        auto &samples=descriptor.extras.children[quint64(TS::terrain_samples)<<32];
+        samples.order.push_back({TS::TSRETerrainMaterialBuffer,-1});
+        samples.unknown.push_back(TokenTest::block(TS::TSRETerrainMaterialBuffer,
+            TokenTest::string("existing.pmap")));
+        QString error;
+        auto old=TokenTest::buffer(descriptor.encode(error));
+        check(descriptor.load(old.get())&&tile.isModified(),"legacy-container-load-enrolls-normal-save");
+        tile.setModified(false);
+        check(tile.isModified(),"ordinary-edit-flag-does-not-clear-pending-container-repair");
+        Game::writeEnabled=false;
+        check(!tile.save()&&tile.isModified(),"container-repair-respects-write-disable");
+        Game::writeEnabled=true;
+        const QString rawPath=tileDir+"/container-repair_y.raw";
+        QFile raw(rawPath);check(raw.open(QIODevice::WriteOnly),"container-repair-resource-fixture");
+        raw.write("untouched RAW sentinel");raw.close();
+        check(tile.save()&&!tile.isModified(),"descriptor-only-container-repair-clears-pending-state");
+        check(raw.open(QIODevice::ReadOnly)&&raw.readAll()=="untouched RAW sentinel"
+            &&!QFile::exists(tileDir+"/existing.pmap"),"container-repair-does-not-write-RAW-or-generate-map");
+        raw.close();
+        TFile restored;
+        check(restored.readT(tileDir+"/container-repair.t")&&!restored.needsMaterialContainerSave()
+            &&restored.sampleMaterialBuffer=="existing.pmap","repaired-tile-reloads-without-dirty-flag");
+    }
     {
         TestTerrain tile;tile.setup(temp.path(),16,"multiple-sets");
         TFile coarse;coarse.initNew("coarse",256,8,4);

@@ -1590,7 +1590,8 @@ public:
         TSRETerrainMaterialBuffer = 0x00061000,
         TSRETerrainBakedMaterial = 0x00061001,
         TSRETerrainMaterialMap = 0x00061002,
-        TSRETerrainBakedMaterials = 0x00061003
+        TSRETerrainBakedMaterials = 0x00061003,
+        TSRETerrainMaterials = 0x00061004
     };
     static const std::unordered_map<TokenId, const char*> IdName;
     static const char* name(TokenId id); // Never inserts unknown IDs.

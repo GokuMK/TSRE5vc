@@ -61,14 +61,15 @@ int TsreTests::runTokenIdSuite(bool verbose) {
         {TS::TSRETerrainMaterialBuffer, 0x00061000u, "TSRETerrainMaterialBuffer"},
         {TS::TSRETerrainBakedMaterial, 0x00061001u, "TSRETerrainBakedMaterial"},
         {TS::TSRETerrainMaterialMap, 0x00061002u, "TSRETerrainMaterialMap"},
-        {TS::TSRETerrainBakedMaterials, 0x00061003u, "TSRETerrainBakedMaterials"}
+        {TS::TSRETerrainBakedMaterials, 0x00061003u, "TSRETerrainBakedMaterials"},
+        {TS::TSRETerrainMaterials, 0x00061004u, "TSRETerrainMaterials"}
     };
     for (const Golden& entry : extensions)
         test.check(entry.actual == entry.expected && QString::fromLatin1(TS::name(entry.actual)) == entry.name,
                    QString::fromLatin1(entry.name));
     QSet<QString> names;
     for (const auto& entry : TS::IdName) names.insert(QString::fromLatin1(entry.second).toLower());
-    test.check(TS::IdName.size() == 1552 && names.size() == 1552, "unique canonical IDs and case-insensitive names");
+    test.check(TS::IdName.size() == 1553 && names.size() == 1553, "unique canonical IDs and case-insensitive names");
     const auto registrySize = TS::IdName.size();
     test.check(QString::fromLatin1(TS::name(0xFFFF0800u)) == "<unknown>"
                && TS::describe(0xFFFF0800u).contains("ffff0800")

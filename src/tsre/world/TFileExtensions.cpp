@@ -35,42 +35,56 @@ QByteArray TFile::extensionPayload(TS::TokenId token) const {
     return bytes;
 }
 void TFile::readExtensions() {
-    const auto &meta=extras.children.value(quint64(TS::terrain_samples)<<32);
     QSet<TS::TokenId> seen;
-    for(const auto &raw:meta.unknown) {
-        if(raw.size()<9)continue;
-        const auto token=qFromLittleEndian<quint32>(raw.constData());if(!known(token))continue;
-        if(seen.contains(token)) {
-            ambiguous=true;diagnostics<<"Duplicate procedural terrain extension";continue;
-        }
-        seen.insert(token);
-        if(token==TS::TSRETerrainBakedMaterials){readBakeMetadata(raw.mid(8));continue;}
-        auto memory=new unsigned char[raw.size()];std::memcpy(memory,raw.constData(),raw.size());
-        FileBuffer in(memory,raw.size());
-        if(token==TS::TSRETerrainMaterialMap){materialUidMapPresent=true;materialUidMapValid=false;}
-        QString *text=token==TS::TSRETerrainMaterialBuffer?&sampleMaterialBuffer:&bakedMaterialInfo;
-        try {
-            const auto block=in.readBlock();FileBuffer::ScopedLimit limit(in,block.end);in.off=block.payload;
-            if(token==TS::TSRETerrainMaterialMap) {
-                const auto count=in.getUint();
-                if(count>256||quint64(count)*8!=quint64(in.readEnd()-in.off))continue;
-                bool valid=true;
-                for(quint32 i=0;i<count;++i){const auto id=in.getUint(),uid=in.getUint();
-                    if(id>255||!uid||materialUids.contains(int(id))){valid=false;break;}
-                    materialUids.insert(int(id),uid);
-                }
-                materialUidMapValid=valid;
-            } else {
-                *text=":invalid procedural material reference:";
-                const auto value=in.readString();if(!value.isEmpty())*text=value;
+    bool priorLocation=false;
+    bool legacyLocation=false;
+    for(auto parent:{TS::TSRETerrainMaterials,TS::terrain_samples}) {
+        const auto &meta=extras.children.value(quint64(parent)<<32);
+        bool thisLocation=false;
+        for(const auto &raw:meta.unknown) {
+            if(raw.size()<9)continue;
+            const auto token=qFromLittleEndian<quint32>(raw.constData());if(!known(token))continue;
+            thisLocation=true;
+            if(seen.contains(token)) {
+                ambiguous=true;diagnostics<<"Duplicate procedural terrain extension";continue;
             }
-        } catch(const FileBuffer::ParseError &) {
-            if(token!=TS::TSRETerrainMaterialMap)*text=":invalid procedural material reference:";
+            seen.insert(token);
+            if(token==TS::TSRETerrainBakedMaterials){readBakeMetadata(raw.mid(8));continue;}
+            auto memory=new unsigned char[raw.size()];std::memcpy(memory,raw.constData(),raw.size());
+            FileBuffer in(memory,raw.size());
+            if(token==TS::TSRETerrainMaterialMap){materialUidMapPresent=true;materialUidMapValid=false;}
+            QString *text=token==TS::TSRETerrainMaterialBuffer?&sampleMaterialBuffer:&bakedMaterialInfo;
+            try {
+                const auto block=in.readBlock();FileBuffer::ScopedLimit limit(in,block.end);in.off=block.payload;
+                if(token==TS::TSRETerrainMaterialMap) {
+                    const auto count=in.getUint();
+                    if(count>256||quint64(count)*8!=quint64(in.readEnd()-in.off))continue;
+                    bool valid=true;
+                    for(quint32 i=0;i<count;++i){const auto id=in.getUint(),uid=in.getUint();
+                        if(id>255||!uid||materialUids.contains(int(id))){valid=false;break;}
+                        materialUids.insert(int(id),uid);
+                    }
+                    materialUidMapValid=valid;
+                } else {
+                    *text=":invalid procedural material reference:";
+                    const auto value=in.readString();if(!value.isEmpty())*text=value;
+                }
+            } catch(const FileBuffer::ParseError &) {
+                if(token!=TS::TSRETerrainMaterialMap)*text=":invalid procedural material reference:";
+            }
         }
+        if(priorLocation&&thisLocation) {
+            ambiguous=true;diagnostics<<"Procedural terrain extensions occur in both locations";
+        }
+        priorLocation|=thisLocation;
+        if(parent==TS::terrain_samples)legacyLocation=thisLocation;
     }
     // Presence must be known before constructing the legacy/plural baseline.
     for(auto token:seen)extensionBaseline.insert(token,{});
     for(auto token:seen)extensionBaseline[token]=extensionPayload(token);
+    materialContainerSavePending=legacyLocation&&!ambiguous&&bakedMaterialsValid
+        &&(!materialUidMapPresent||materialUidMapValid)
+        &&!sampleMaterialBuffer.startsWith(":invalid")&&!bakedMaterialInfo.startsWith(":invalid");
 }
 bool TFile::prepare(TerrainFile::Data &out,QString &error) const {
     if(sampleMaterialBuffer.size()>65535 || bakedMaterialInfo.size()>65535) {
@@ -111,9 +125,27 @@ bool TFile::prepare(TerrainFile::Data &out,QString &error) const {
         }
     }
     const quint64 sampleKey=quint64(TS::terrain_samples)<<32;
+    const quint64 materialKey=quint64(TS::TSRETerrainMaterials)<<32;
     bool any=false;for(auto token:tokens)any|=!extensionPayload(token).isEmpty();
-    if(!any&&!out.extras.children.contains(sampleKey))return true;
-    auto &meta=out.extras.children[sampleKey];
+    if(!any&&!out.extras.children.contains(sampleKey)&&!out.extras.children.contains(materialKey))return true;
+    auto meta=out.extras.children.value(materialKey);
+    // Old sample-level blocks feed the same decoder and writer. Move their raw
+    // records (including labels/tails) so no incompatible copies survive a save.
+    auto samples=out.extras.children.find(sampleKey);
+    if(samples!=out.extras.children.end()) {
+        std::vector<QByteArray> retained;
+        for(auto it=samples->order.begin();it!=samples->order.end();) {
+            if(it->index>=0){++it;continue;}
+            const auto &raw=samples->unknown[-it->index-1];
+            if(known(it->token)) {
+                meta.order.push_back({it->token,-int(meta.unknown.size())-1});
+                meta.unknown.push_back(raw);it=samples->order.erase(it);
+            } else {
+                retained.push_back(raw);it->index=-int(retained.size());++it;
+            }
+        }
+        samples->unknown=std::move(retained);
+    }
     QSet<TS::TokenId> found;
     for(auto it=meta.order.begin();it!=meta.order.end();) {
         if(it->index>=0||!known(it->token)){++it;continue;}
@@ -138,6 +170,20 @@ bool TFile::prepare(TerrainFile::Data &out,QString &error) const {
     for(auto token:tokens)if(!found.contains(token)) {
         const auto payload=extensionPayload(token);if(payload.isEmpty())continue;
         meta.order.push_back({token,-int(meta.unknown.size())-1});meta.unknown.push_back(framed(token,payload));
+    }
+    // Discard unreferenced removed records, retaining unknown future children.
+    std::vector<QByteArray> retained;
+    for(auto &entry:meta.order)if(entry.index<0) {
+        retained.push_back(meta.unknown[-entry.index-1]);entry.index=-int(retained.size());
+    }
+    meta.unknown=std::move(retained);
+    if(!meta.empty())out.extras.children[materialKey]=std::move(meta);
+    else {
+        out.extras.children.remove(materialKey);
+        auto &order=out.extras.order;
+        order.erase(std::remove_if(order.begin(),order.end(),[](const auto &entry) {
+            return entry.token==TS::TSRETerrainMaterials;
+        }),order.end());
     }
     return true;
 }

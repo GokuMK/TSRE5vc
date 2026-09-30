@@ -58,6 +58,7 @@ public:
     bool save(QString path);
     void save(QDataStream &stream);
     bool preflight(QString &error) const;
+    bool needsMaterialContainerSave() const { return materialContainerSavePending; }
     bool validateRuntime(QString &error) const;
     bool loadPatchFlags(const QString &directory,QString &error);
     bool patchFlagsWritable() const;
@@ -77,6 +78,7 @@ public:
     QMap<int,quint32> materialUids;
 
 private:
+    bool materialContainerSavePending=false;
     struct PatchFlagsResource {
         QString path;QByteArray original;
         std::vector<quint32> inlineFlags;

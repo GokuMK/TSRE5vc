@@ -79,6 +79,7 @@ bool TFile::save(QString path) {
         ++committed;
     }
     if(!descriptor.commit()){rollback();return false;}
+    materialContainerSavePending=false;
     for(auto &resource:patchFlagsResources)if(resource.valid)
         resource.original=sidecarValues.value(QFileInfo(resource.path).absoluteFilePath(),resource.original);
     for(size_t i=0;i<patchFlagsResources.size();++i)if(patchFlagsResources[i].valid) {

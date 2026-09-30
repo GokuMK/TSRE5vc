@@ -147,13 +147,82 @@ int runTerrainFileSuite(bool verbose) {
     auto runtimeBytes=[](TFile &f){return fields([&](QDataStream &out){f.save(out);});};
     TFile runtime;
     auto runtimeInput=buffer(rare);
-    test.check(runtime.load(runtimeInput.get())&&runtimeBytes(runtime)==rare,
-               "runtime-preserves-native-rare-records-and-TSRE-extension");
+    test.check(runtime.load(runtimeInput.get())&&runtime.sampleMaterialBuffer=="map.pmap",
+               "runtime-reads-legacy-sample-extension");
     test.check(!runtime.canRemapMaterials(error),"opaque-future-fields-block-renumbering-only");
     runtime.sampleMaterialBuffer="renamed.pmap";
     Data retained;auto edited=buffer(runtimeBytes(runtime));
     test.check(retained.read(*edited,error)&&retained.transfers.size()==1&&retained.shapes.size()==1
                &&retained.extras.unknown==runtime.extras.unknown,"extension-edit-retains-unrelated-cold-records");
+    // A single outer extension block is skipped by legacy ORTS. Its strict
+    // terrain_samples reader must not encounter even one old procedural child.
+    const quint64 sampleKey=quint64(TS::terrain_samples)<<32;
+    const quint64 materialKey=quint64(TS::TSRETerrainMaterials)<<32;
+    const auto reference=block(TS::TSRETerrainMaterialBuffer,string("preserved.pmap")+uints({0xfeed}),"reference");
+    const auto uidMap=block(TS::TSRETerrainMaterialMap,uints({2,0,17,255,1234}),"mapping");
+    TFile relocationBake;
+    relocationBake.materialContentRevision=42;
+    relocationBake.seasonalBakes.insert("SpringClear",{42,1024,"settings","sources","validation"});
+    relocationBake.seasonalBakes.insert("snow",{39,512,"older-settings","older-sources",""});
+    const auto bakes=block(TS::TSRETerrainBakedMaterials,relocationBake.bakeMetadata().mid(1));
+    const auto extensions=reference+uidMap+bakes;
+    const auto standard=block(TS::terrain_nsamples,uints({256}))+block(TS::terrain_sample_ybuffer,string("same_y.raw"));
+    const auto oldLocation=file(block(TS::terrain,block(TS::terrain_samples,standard+extensions)));
+    const auto newLocation=file(block(TS::terrain,block(TS::terrain_samples,standard)
+        +block(TS::TSRETerrainMaterials,extensions)));
+    roundTrip(oldLocation,"low-level-codec-preserves-old-location");
+    roundTrip(newLocation,"low-level-codec-preserves-new-container");
+    for(const auto &bytes:{oldLocation,newLocation}) {
+        auto input=buffer(bytes);TFile material;
+        test.check(material.load(input.get())&&material.sampleMaterialBuffer=="preserved.pmap"
+            &&material.materialUids.value(255)==1234&&material.materialContentRevision==42
+            &&material.seasonalBakes.value("snow").revision==39,"both-locations-use-same-decoder");
+        test.check(runtimeBytes(material)==newLocation,"save-only-new-location-preserves-child-bytes");
+        test.check(material.needsMaterialContainerSave()==(bytes==oldLocation),"only-legacy-location-enrolls-format-repair");
+        if(bytes==oldLocation) {
+            test.check(!material.save(temporary.filePath("missing-directory/repair.t"))
+                &&material.needsMaterialContainerSave(),"failed-format-save-remains-pending");
+            test.check(material.save(temporary.filePath("repair.t"))&&!material.needsMaterialContainerSave(),
+                "successful-file-save-clears-format-repair");
+        }
+        test.check(material.canRemapMaterials(error),"known-material-container-allows-shader-remapping");
+        material.sampleMaterialBuffer="edited.pmap";
+        auto saved=buffer(runtimeBytes(material));TFile reloaded;
+        test.check(reloaded.load(saved.get())&&reloaded.sampleMaterialBuffer=="edited.pmap"
+            &&reloaded.materialUids==material.materialUids&&reloaded.materialContentRevision==42
+            &&reloaded.seasonalBakes.value("SpringClear").resolution==1024,"edit-preserves-IDs-and-bakes");
+        test.check(reloaded.extras.children.value(sampleKey).unknown.empty()
+            &&reloaded.extras.children.contains(materialKey),"no-procedural-blocks-left-in-samples");
+        const auto &raw=reloaded.extras.children.value(materialKey).unknown;
+        test.check(!raw.empty()&&raw[0]==block(TS::TSRETerrainMaterialBuffer,string("edited.pmap")+uints({0xfeed}),"reference"),
+            "relocated-reference-keeps-label-and-tail");
+        material.sampleMaterialBuffer.clear();material.materialUidMapPresent=false;
+        material.seasonalBakes.clear();material.bakedMaterialInfo.clear();
+        auto cleared=buffer(runtimeBytes(material));Data clean;
+        test.check(clean.read(*cleared,error)&&!clean.extras.children.contains(materialKey)
+            &&clean.extras.children.value(sampleKey).unknown.empty(),"disable-removes-both-extension-locations");
+    }
+    const auto withFuture=file(block(TS::terrain,block(TS::terrain_samples,standard)
+        +block(TS::TSRETerrainMaterials,unknown+extensions,"materials")));
+    roundTrip(withFuture,"new-container-unknown-children-label-exact");
+    auto futureInput=buffer(withFuture);TFile futureMaterial;
+    test.check(futureMaterial.load(futureInput.get())&&runtimeBytes(futureMaterial)==withFuture
+        &&!futureMaterial.canRemapMaterials(error),"future-child-preserved-and-blocks-remapping");
+    futureMaterial.sampleMaterialBuffer="future-edited.pmap";
+    auto futureEdited=buffer(runtimeBytes(futureMaterial));Data futureResult;
+    test.check(futureResult.read(*futureEdited,error)
+        &&futureResult.extras.children.value(materialKey).unknown.front()==unknown,"future-child-survives-known-field-edit");
+    for(const auto &bad:{
+        block(TS::TSRETerrainMaterials,reference)+block(TS::TSRETerrainMaterials,reference),
+        block(TS::TSRETerrainMaterials,reference+reference),
+        block(TS::terrain_samples,reference)+block(TS::TSRETerrainMaterials,uidMap)}) {
+        auto input=buffer(file(block(TS::terrain,bad)));TFile material;
+        test.check(material.load(input.get())&&material.ambiguous&&!material.preflight(error)
+            &&!material.needsMaterialContainerSave(),"conflicting-extension-containers-refuse-rewrite");
+    }
+    auto malformed=buffer(file(block(TS::terrain,block(TS::TSRETerrainMaterials,reference.left(reference.size()-1)))));
+    TFile invalidMaterial;
+    test.check(!invalidMaterial.load(malformed.get()),"truncated-material-container-rejected");
     runtimeInput=buffer(terrain(pair,2,set(1,0,0x300)+set(0),2));
     test.check(runtime.load(runtimeInput.get())&&runtime.paired&&runtime.materialCount()==1
                &&runtime.patchSets[0].patches[0].shaderIndex==0,"runtime-repairs-auxiliary-before-editing");

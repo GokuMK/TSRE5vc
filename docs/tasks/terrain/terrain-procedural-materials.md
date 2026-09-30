@@ -568,7 +568,9 @@ reload are outside this demo; source images are refreshed by reloading terrain.
 ### Prototype storage and safety
 
 `TSRETerrainMaterialBuffer = 0x00061000` is registered in `TS.h`/`TS.cpp` and
-serialized as an optional filename block inside `terrain_samples`. Empty/absent
+serialized as an optional filename block inside terrain-level `TSRETerrainMaterials`.
+The former `terrain_samples` location remains readable and relocates on save;
+see [container compatibility](terrain-procedural-material-container.md). Empty/absent
 means static mode; there is no second serialized enable flag. Existing AS/US and
 E/N/Y/F buffers are untouched by this extension.
 

@@ -1562,7 +1562,8 @@ const std::unordered_map<TS::TokenId, const char*> TS::IdName = {
     { TSRETerrainMaterialBuffer, "TSRETerrainMaterialBuffer"},
     { TSRETerrainBakedMaterial, "TSRETerrainBakedMaterial"},
     { TSRETerrainBakedMaterials, "TSRETerrainBakedMaterials"},
-    { TSRETerrainMaterialMap, "TSRETerrainMaterialMap"}
+    { TSRETerrainMaterialMap, "TSRETerrainMaterialMap"},
+    { TSRETerrainMaterials, "TSRETerrainMaterials"}
 };
 
 const char* TS::name(TokenId id) {
