@@ -16,6 +16,7 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QMenu>
+#include <QtMath>
 #include <math.h>
 #include <tsre/ogl/GLUU.h>
 #include <tsre/shape/ComplexShape.h>
@@ -46,13 +47,14 @@ m_zRot(0) {
 }
 
 ShapeViewerGLWidget::~ShapeViewerGLWidget() {
-
+    cleanup();
 }
 
 void ShapeViewerGLWidget::cleanup() {
     makeCurrent();
-    //delete gluu->m_program;
-    //gluu->m_program = 0;
+    selectionRenderer.release();
+    if(context() != nullptr)
+        disconnect(context(), nullptr, this, nullptr);
     doneCurrent();
 }
 
@@ -181,9 +183,32 @@ void ShapeViewerGLWidget::fillCurrentContentHierarchyInfo(QVector<ContentHierarc
 }
 
 void ShapeViewerGLWidget::paintGL() {
+    if(selection){
+        selection = false;
+        if(renderItem == 3 && con != nullptr)
+            renderFrame(true);
+    }
+    // Always finish a pick with a visible frame in the widget framebuffer.
+    renderFrame(false);
+}
+
+void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
     Game::currentShapeLib = currentShapeLib;
-    //Game::currentEngLib = currentEngLib;
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    Shader *shader = gluu->shaders.value(selectionPass ? "Selection" : "StandardBloom", nullptr);
+    if(shader == nullptr)
+        return;
+    if(selectionPass){
+        const qreal pixelRatio = devicePixelRatioF();
+        if(!selectionRenderer.begin(qRound(width() * pixelRatio),
+                                    qRound(height() * pixelRatio)))
+            return;
+    } else {
+        glClearColor(backgroundGlColor[0], backgroundGlColor[1], backgroundGlColor[2], 1);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    }
+    gluu->currentShader = shader;
+    // Zero is the background; wagon indices start at one.
+    const quint32 selectionId = selectionPass ? 1 : 0;
 
     // disable shadows temporaily
     int shadowsState = Game::shadowsEnabled;
@@ -213,18 +238,18 @@ void ShapeViewerGLWidget::paintGL() {
     gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
     
     if(renderItem == 2 && eng != NULL){
-        eng->render((int)selection*65536);
+        eng->render(selectionId);
     }
     if(renderItem == 3 && con != NULL){
-        con->render((int)selection*65536, true);
+        con->render(selectionId, true);
     }
     if(renderItem == 5 && con != NULL){
-        con->render((int)selection*65536, false);
+        con->render(selectionId, false);
     }
     if(renderItem == 2 && con != NULL){
         Mat4::rotate(gluu->mvMatrix, gluu->mvMatrix, M_PI, 0,1,0);
         Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 0, 0, -con->conLength/2);
-        con->render((int)selection*65536);
+        con->render(selectionId);
     }
     if(renderItem == 4 && complexShape != NULL){
         GLUU *gluu = GLUU::get();
@@ -252,37 +277,20 @@ void ShapeViewerGLWidget::paintGL() {
         }
     }
 
-    if (selection) {
-        int x = mousex;
-        int y = mousey;
-
-        float winZ[4];
-
-        int* viewport = new int[4];
-        float* mvmatrix = new float[16];
-        float* projmatrix = new float[16];
-        float* wcoord = new float[4];
-
-        glGetIntegerv(GL_VIEWPORT, viewport);
-        glGetFloatv(GL_MODELVIEW_MATRIX, mvmatrix);
-        glGetFloatv(GL_PROJECTION_MATRIX, projmatrix);
-        int realy = viewport[3] - (int) y - 1;
-        glReadPixels(x, realy, 1, 1, GL_RGBA, GL_FLOAT, &winZ);
-        
-        qDebug() << winZ[0] << " " << winZ[1] << " " << winZ[2] << " " << winZ[3];
-        //int colorHash = (int)(winZ[0]*255)*256*256 + (int)(winZ[1]*255)*256 + (int)(winZ[2]*255);
-        //qDebug() << colorHash;
-        int isSelection = (int)(winZ[0]*255);
-        if(isSelection == 1 && renderItem == 3 && con != NULL){
-            con->select((int)(winZ[1]*255)*256 + (int)(winZ[2]*255));
-            emit selected((int)(winZ[1]*255)*256 + (int)(winZ[2]*255));
+    if (selectionPass) {
+        const qreal pixelRatio = devicePixelRatioF();
+        const quint32 id = selectionRenderer.readPixel(
+            qFloor(selectionPosition.x() * pixelRatio),
+            selectionRenderer.height() - qFloor(selectionPosition.y() * pixelRatio) - 1);
+        selectionRenderer.end();
+        if(id > 0 && id <= static_cast<quint32>(con->engItems.size())){
+            const int index = static_cast<int>(id - 1);
+            con->select(index);
+            emit selected(index);
         }
-        
-        selection = !selection;
-        paintGL();
     }
     
-    if(getImage){
+    if(getImage && !selectionPass){
         qDebug() << "get image";
         if(screenShot != NULL)
             delete screenShot;
@@ -356,7 +364,9 @@ void ShapeViewerGLWidget::mousePressEvent(QMouseEvent *event) {
     m_lastPos = event->position();
     m_lastPos *= Game::PixelRatio;
     mousePressed = true;
-    selection = true;
+    selectionPosition = event->position();
+    selection = renderItem == 3 && con != nullptr;
+    update();
     if(event->button() == Qt::RightButton)
         mouseRPressed = true;
     if(event->button() == Qt::LeftButton)

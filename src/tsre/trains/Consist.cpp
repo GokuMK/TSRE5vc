@@ -565,7 +565,7 @@ QString Consist::getFirstEngName(){
 }
 
 void Consist::render(int aktwx, int aktwz, quint32 selectionId, bool renderText) {
-    // Shape Viewer owns the RGB value used by this overload. Route-editor
+    // Shape Viewer owns the integer ID range used by this overload. Route-editor
     // picking uses renderOnTrack() and the SelectionIdCodec below.
     //gl.glTranslatef(0, 0.2f, 0);
     //qDebug() << loaded;
@@ -581,7 +581,7 @@ void Consist::render(int aktwx, int aktwz, quint32 selectionId, bool renderText)
         gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
         if(selectionId != 0)
             scolor = selectionId + static_cast<quint32>(i);
-        if(selectedIdx == i)
+        if(selectionId == 0 && selectedIdx == i)
             Game::currentEngLib->eng[engItems[i].eng]->drawBorder();
         Game::currentEngLib->eng[engItems[i].eng]->render(aktwx, aktwz, scolor);
         gluu->mvPopMatrix();

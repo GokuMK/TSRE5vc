@@ -19,6 +19,7 @@
 #include <QBasicTimer>
 #include <math.h>
 #include <tsre/shape/ShapeLib.h>
+#include <tsre/renderer/SelectionRenderer.h>
 
 class ComplexShape;
 class Eng;
@@ -92,6 +93,9 @@ protected:
     void timerEvent(QTimerEvent *event) Q_DECL_OVERRIDE;
 
 private:
+    void renderFrame(bool selectionPass);
+    SelectionRenderer selectionRenderer;
+    QPointF selectionPosition;
     void setupVertexAttribs();
     QBasicTimer timer;
     unsigned long long int lastTime;
