@@ -75,6 +75,7 @@ void GLUU::initShader() {
     };
     QVector<ShaderDefinition> shaderDefinitions;
     shaderDefinitions.push_back({"StandardFog", "StandardFog", "StandardFog"});
+    shaderDefinitions.push_back({"StandardFast", "StandardFog", "StandardFast"});
     shaderDefinitions.push_back({"StandardFogStoredCoords", "StandardFogStoredCoords", "StandardFogStoredCoords"});
     shaderDefinitions.push_back({"StandardBloom", "StandardBloom", "StandardBloom"});
     shaderDefinitions.push_back({"Shadows", "Shadows", "Shadows"});
