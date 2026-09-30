@@ -38,14 +38,15 @@ private:
     int currentSubObjLinkInfo = 0;
     QLineEdit name;
     QLineEdit description;
+    // Parents must outlive member widgets/layouts during reverse destruction.
+    QWidget wSub[maxSubObj];
+    QGridLayout vSub[maxSubObj];
     QCheckBox chSub[maxSubObj];
     QPushButton bSub[maxSubObj];
     QLineEdit dSub[maxSubObj];
-    QGridLayout vSub[maxSubObj];
-    QWidget wSub[maxSubObj];
     QSignalMapper signalsChSect;
     QSignalMapper signalsLinkButton;
-    SignalObj* sobj;
+    SignalObj* sobj = nullptr;
     QPushButton* setLinkButton;
     QLineEdit eLink1;
     QLineEdit eLink2;

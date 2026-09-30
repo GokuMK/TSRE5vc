@@ -93,7 +93,7 @@ void SignalObj::load(int x, int y) {
     this->modified = false;
     
     if(Game::trackDB != NULL)
-        this->signalShape = Game::trackDB->sigCfg->signalShape[fileName];
+        this->signalShape = Game::trackDB->sigCfg->findSignalShape(fileName);
     setMartix();
     
     if(shapePointer != NULL && signalShape != NULL){
@@ -111,7 +111,7 @@ void SignalObj::load(int x, int y) {
 
 void SignalObj::loadInit(){
     if(Game::trackDB != NULL)
-        this->signalShape = Game::trackDB->sigCfg->signalShape[fileName];
+        this->signalShape = Game::trackDB->sigCfg->findSignalShape(fileName);
 }
 
 bool SignalObj::allowNew(){
@@ -127,7 +127,7 @@ ErrorMessage* SignalObj::checkForErrors(){
     TDB* tdb = Game::trackDB;
     //Get track items
     
-    SignalShape* sShape = tdb->sigCfg->signalShape[this->fileName];
+    SignalShape* sShape = tdb->sigCfg->findSignalShape(this->fileName);
     if(sShape == NULL){
             ErrorMessage *e = new ErrorMessage(
                 ErrorMessage::Type_Error, 

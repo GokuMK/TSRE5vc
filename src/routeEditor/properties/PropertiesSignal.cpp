@@ -262,14 +262,17 @@ void PropertiesSignal::msg(QString name, QString val){
 }
 
 void PropertiesSignal::showObj(GameObj* obj){
+    worldObj = (WorldObj*)obj;
+    sobj = (SignalObj*)obj;
+    signalWindow->showObj(sobj);
+    name.setText(sobj != nullptr ? sobj->fileName : QString());
+    description.clear();
     if(obj == NULL){
         infoLabel->setText(
             //% "NULL"
             qtTrId("route.editor.properties.signal.text.null"));
         return;
     }
-    worldObj = (WorldObj*)obj;
-    sobj = (SignalObj*)obj;
     //% "Object: %1"
     this->infoLabel->setText(qtTrId("route.properties.signal.object.type")
                              .arg(sobj->type));
@@ -295,7 +298,8 @@ void PropertiesSignal::showObj(GameObj* obj){
     }*/
     
     TDB* tdb = Game::trackDB;
-    SignalShape* signalShape = tdb->sigCfg->signalShape[sobj->fileName];
+    SignalShape* signalShape = tdb != nullptr && tdb->sigCfg != nullptr
+            ? tdb->sigCfg->findSignalShape(sobj->fileName) : nullptr;
     /*for(auto kv : tdb->sigCfg->signalShape) {
         qDebug() << "shape "<< QString::fromStdString(kv.first);
     } 
@@ -311,8 +315,6 @@ void PropertiesSignal::showObj(GameObj* obj){
     this->name.setText(sobj->fileName);
     this->description.setText(signalShape->desc);
 
-    signalWindow->showObj(sobj);
-    
     QRect rec = QApplication::primaryScreen()->geometry();
     signalWindow->move(rec.width()/2-signalWindow->width()/2 ,rec.height()/2-signalWindow->height()/2);
     
@@ -329,6 +331,10 @@ void PropertiesSignal::showObj(GameObj* obj){
 }
 
 void PropertiesSignal::updateObj(GameObj* obj){
+    if(obj == nullptr){
+        showObj(nullptr);
+        return;
+    }
     if(sobj == NULL){
         return;
     }

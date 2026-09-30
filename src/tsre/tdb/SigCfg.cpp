@@ -21,6 +21,11 @@
 #include <tsre/ErrorMessagesLib.h>
 #include <tsre/Game.h>
 
+SignalShape* SigCfg::findSignalShape(const QString &fileName) const {
+    // Signal names are logical references; retain authored spelling for I/O.
+    return signalShape.value(fileName.toLower(), nullptr);
+}
+
 SigCfg::SigCfg() {
     QString sh;
     QString path = Game::root + "/ROUTES/" + Game::route + "/sigcfg.dat";
@@ -195,7 +200,7 @@ SigCfg::SigCfg() {
                     //    }
                     //}
                     nowySs->listId = iSignalShape;
-                    this->signalShape[nowySs->name] = nowySs;
+                    this->signalShape[nowySs->name.toLower()] = nowySs;
                     this->signalShapeById[iSignalShape] = nowySs;
                     iSignalShape++;
                     ParserX::SkipToken(bufor);

@@ -58,6 +58,7 @@
 #include <tsre/tests/SelectionIdTestSuite.h>
 #include <tsre/tests/ConsistPreviewTestSuite.h>
 #include <tsre/tests/PaintTexTestSuite.h>
+#include <tsre/tests/SignalSelectionTestSuite.h>
 #include <tsre/tests/ProceduralProfileBenchmark.h>
 #include <tsre/tests/TokenIdTestSuite.h>
 #include <tsre/tests/SettingsTestSuite.h>
@@ -4080,6 +4081,7 @@ QStringList TsreTests::listSuites() {
         "selection-id",
         "consist-preview-gl",
         "paint-text",
+        "signal-selection",
         "tokens",
         "content-path",
         "shape-complex",
@@ -4132,6 +4134,9 @@ int TsreTests::run(const TestRunOptions &opts) {
 
     if (suite == "paint-text")
         return runPaintTexSuite(opts.verbose);
+
+    if (suite == "signal-selection")
+        return runSignalSelectionSuite(opts.casesFile, opts.verbose);
 
     if (suite == "shape-complex" || suite == "shape-complex-gl")
         return runSFileComplexSuite(opts.verbose, suite == "shape-complex-gl");

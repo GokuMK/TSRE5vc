@@ -30,6 +30,7 @@ public:
     bool sourceFileExists = false;
     SigCfg();
     virtual ~SigCfg();
+    SignalShape* findSignalShape(const QString &fileName) const;
 private:
 };
 

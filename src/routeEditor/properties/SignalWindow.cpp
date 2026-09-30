@@ -104,11 +104,9 @@ void SignalWindow::chSubEnabled(int i) {
 }
 
 void SignalWindow::bLinkEnabled(int i) {
-    if (sobj == NULL)
-        return;
-    
     currentSubObjLinkInfo = i;
-    if(currentSubObjLinkInfo < 0){
+    if(currentSubObjLinkInfo < 0 || sobj == nullptr){
+        currentSubObjLinkInfo = -1;
         setLinkButton->setDisabled(true);
         setLinkButton->setText(
             //% "Set Link"
@@ -164,7 +162,11 @@ void SignalWindow::showObj(SignalObj* obj) {
     }
 
     TDB* tdb = Game::trackDB;
-    SignalShape* signalShape = tdb->sigCfg->signalShape[sobj->fileName];
+    bLinkEnabled(-1);
+    SignalShape* signalShape = sobj != nullptr && tdb != nullptr && tdb->sigCfg != nullptr
+            ? tdb->sigCfg->findSignalShape(sobj->fileName) : nullptr;
+    if(signalShape == nullptr)
+        return;
 
     int iSubObj = signalShape->iSubObj;
     if (iSubObj > maxSubObj) iSubObj = maxSubObj;
@@ -212,16 +214,17 @@ void SignalWindow::showObj(SignalObj* obj) {
         }
     }
     this->resize(this->width(), this->minimumHeight());
-    bLinkEnabled(-1);
 }
 
 void SignalWindow::updateObj(SignalObj* obj) {
     this->sobj = obj;
-    if(sobj == NULL)
-        return;
-    
     TDB* tdb = Game::trackDB;
-    SignalShape* signalShape = tdb->sigCfg->signalShape[sobj->fileName];
+    SignalShape* signalShape = sobj != nullptr && tdb != nullptr && tdb->sigCfg != nullptr
+            ? tdb->sigCfg->findSignalShape(sobj->fileName) : nullptr;
+    if(signalShape == nullptr){
+        showObj(obj);
+        return;
+    }
     int iSubObj = signalShape->iSubObj;
     if (iSubObj > maxSubObj) iSubObj = maxSubObj;
     int linkPtr;

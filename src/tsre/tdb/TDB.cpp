@@ -3279,7 +3279,7 @@ void TDB::newPlatformObject(int* itemId, int trNodeId, float metry, int type){
 void TDB::newSignalObject(QString filename, SignalObj::SignalUnit* units, int &signalUnits, int trNodeId, float metry, int type){
     if(type != WorldObj::signal) 
         return;
-    SignalShape* sShape = this->sigCfg->signalShape[filename];
+    SignalShape* sShape = this->sigCfg->findSignalShape(filename);
     if(sShape == NULL)
         return;
     
@@ -3367,7 +3367,7 @@ void TDB::newSignalObject(QString filename, SignalObj::SignalUnit* units, int &s
 }
 
 void TDB::enableSignalSubObj(QString filename, SignalObj::SignalUnit &unit, int i, int tritemid){
-    SignalShape* sShape = this->sigCfg->signalShape[filename];
+    SignalShape* sShape = this->sigCfg->findSignalShape(filename);
     if(sShape == NULL)
         return;
 

@@ -44,7 +44,7 @@ private:
     QLineEdit name;
     QLineEdit description;
     QCheckBox chFlipShape;
-    SignalObj* sobj;
+    SignalObj* sobj = nullptr;
     SignalWindow* signalWindow;
     
     QCheckBox checkboxAnim;
