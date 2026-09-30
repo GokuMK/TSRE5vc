@@ -219,7 +219,7 @@ PropertiesRuler::PropertiesRuler() {
     QObject::connect(eNodeShape.lineEdit(), SIGNAL(editingFinished()),
                       this, SLOT(eNodeShapeEditingFinished()));
     removeNodeShapeButton = new QPushButton(
-        //% "Remove Additional Node Shape"
+        //% "Remove shape"
         qtTrId("route.editor.properties.ruler.button.remove.node.shape"));
     removeNodeShapeButton->setEnabled(false);
     vbox->addWidget(removeNodeShapeButton);

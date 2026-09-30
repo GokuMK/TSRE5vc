@@ -583,6 +583,10 @@ void WorldObj::reload(){
     
 }
 
+void WorldObj::reloadProceduralProfile(){
+
+}
+
 QString WorldObj::getTemplate(){
     return templateName;
 }

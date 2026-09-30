@@ -184,6 +184,10 @@ void DynTrackObj::deleteVBO(){
     shapeOwned = false;
 }
 
+void DynTrackObj::reloadProceduralProfile(){
+    deleteVBO();
+}
+
 void DynTrackObj::releaseDeferredOwnedShape(){
     if(deferredOwnedShape.isEmpty())
         return;

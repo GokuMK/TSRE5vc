@@ -2403,6 +2403,11 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
             <source>&amp;Reload Ref File</source>
             <translation>Wczytaj ponownie plik &amp;REF</translation>
         </message>
+        <message id="route.editor.route.editor.window.action.reload.track.profiles">
+            <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="263" />
+            <source>Reload &amp;Track Profiles</source>
+            <translation>Wczytaj ponownie profile &amp;torów</translation>
+        </message>
         <message id="route.editor.route.editor.window.action.exit.action">
             <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="213" />
             <source>&amp;Exit</source>
@@ -5357,8 +5362,8 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
         </message>
         <message id="route.editor.properties.ruler.button.remove.node.shape">
             <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="221" />
-            <source>Remove Additional Node Shape</source>
-            <translation>Usuń dodatkowy model węzła</translation>
+            <source>Remove shape</source>
+            <translation>Usuń model</translation>
         </message>
         <message id="route.editor.properties.ruler.text.null">
             <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="288" />

@@ -566,12 +566,15 @@ void TelepoleObj::ensureWireGeometry() {
             continue;
         }
         found->vertices += mesh.vertices;
-        found->bounds[0] = std::min(found->bounds[0], mesh.bounds[0]);
-        found->bounds[1] = std::max(found->bounds[1], mesh.bounds[1]);
-        found->bounds[2] = std::min(found->bounds[2], mesh.bounds[2]);
-        found->bounds[3] = std::max(found->bounds[3], mesh.bounds[3]);
-        found->bounds[4] = std::min(found->bounds[4], mesh.bounds[4]);
-        found->bounds[5] = std::max(found->bounds[5], mesh.bounds[5]);
+        // Generated bounds use [maximum, minimum] pairs. Merge by union;
+        // reversing these operations computes the intersection and can put a
+        // future LOD/culling center inside only one span of a long Telepole.
+        found->bounds[0] = std::max(found->bounds[0], mesh.bounds[0]);
+        found->bounds[1] = std::min(found->bounds[1], mesh.bounds[1]);
+        found->bounds[2] = std::max(found->bounds[2], mesh.bounds[2]);
+        found->bounds[3] = std::min(found->bounds[3], mesh.bounds[3]);
+        found->bounds[4] = std::max(found->bounds[4], mesh.bounds[4]);
+        found->bounds[5] = std::min(found->bounds[5], mesh.bounds[5]);
     }
     for(const OrtsGeneratedProfileMesh &mesh : combined){
         if(mesh.vertices.isEmpty())

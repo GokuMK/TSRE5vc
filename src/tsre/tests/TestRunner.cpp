@@ -2133,6 +2133,39 @@ static int runOrtsProfileSuite(bool verbose) {
                 invalidNodesFacingStf, "BadNodesFacing");
     check(invalidNodesFacing != nullptr && !invalidNodesFacing->valid,
           "reject-ambiguous-nodes-facing");
+    QString endpointPlacementStf = templateStf;
+    endpointPlacementStf.replace("GenerationMode ( Sweep )",
+            "GenerationMode ( Place )"
+            " Placement ( SpanBoth Outward )"
+            " Placement ( PathBoth Inward )");
+    const QSharedPointer<OrtsTrackProfile> endpointPlacementProfile =
+            OrtsTrackProfileParser::parseStf(
+                endpointPlacementStf, "EndpointPlacement");
+    check(endpointPlacementProfile != nullptr
+          && endpointPlacementProfile->valid
+          && endpointPlacementProfile->lods[0].items[0]
+                .templates3D[0].placements.size() == 4
+          && endpointPlacementProfile->lods[0].items[0]
+                .templates3D[0].placements[0].location
+                == OrtsProfileTemplate3D::PlacementLocation::SpanStart
+          && endpointPlacementProfile->lods[0].items[0]
+                .templates3D[0].placements[1].location
+                == OrtsProfileTemplate3D::PlacementLocation::SpanEnd
+          && endpointPlacementProfile->lods[0].items[0]
+                .templates3D[0].placements[2].location
+                == OrtsProfileTemplate3D::PlacementLocation::PathStart
+          && endpointPlacementProfile->lods[0].items[0]
+                .templates3D[0].placements[3].location
+                == OrtsProfileTemplate3D::PlacementLocation::PathEnd,
+          "parse-span-and-path-endpoint-placement");
+    QString legacyPlacementStf = templateStf;
+    legacyPlacementStf.replace("GenerationMode ( Sweep )",
+            "GenerationMode ( Place ) Placement ( Start AlongPath )");
+    const QSharedPointer<OrtsTrackProfile> legacyPlacementProfile =
+            OrtsTrackProfileParser::parseStf(
+                legacyPlacementStf, "LegacyPlacement");
+    check(legacyPlacementProfile != nullptr && !legacyPlacementProfile->valid,
+          "reject-ambiguous-legacy-endpoint-placement");
 
     if(templateProfile != nullptr && templateProfile->valid){
         QVector<TSection> templateStraight;
@@ -2190,12 +2223,12 @@ static int runOrtsProfileSuite(bool verbose) {
         place.placements.clear();
         OrtsProfileTemplate3D::Placement startPlacement;
         startPlacement.location =
-                OrtsProfileTemplate3D::PlacementLocation::Start;
+                OrtsProfileTemplate3D::PlacementLocation::SpanStart;
         startPlacement.facing =
                 OrtsProfileTemplate3D::PlacementFacing::Outward;
         OrtsProfileTemplate3D::Placement endPlacement = startPlacement;
         endPlacement.location =
-                OrtsProfileTemplate3D::PlacementLocation::End;
+                OrtsProfileTemplate3D::PlacementLocation::SpanEnd;
         place.placements = {startPlacement, endPlacement};
         QVector<OrtsGeneratedProfileMesh> placeMeshes;
         check(OrtsTrackProfileRenderer::buildMeshes(
@@ -2453,6 +2486,54 @@ static int runOrtsProfileSuite(bool verbose) {
         check(sharedPlaceBuilt && sharedPlaceMatchesBaked,
               "ruler-shared-place-reuses-source-mesh");
 
+        OrtsProfileTemplate3D::Placement pathStartPlacement;
+        pathStartPlacement.location =
+                OrtsProfileTemplate3D::PlacementLocation::PathStart;
+        pathStartPlacement.facing =
+                OrtsProfileTemplate3D::PlacementFacing::AlongPath;
+        OrtsProfileTemplate3D::Placement pathEndPlacement =
+                pathStartPlacement;
+        pathEndPlacement.location =
+                OrtsProfileTemplate3D::PlacementLocation::PathEnd;
+        rulerPlace.placements = {pathStartPlacement, pathEndPlacement};
+        rulerPlace.geometryMode =
+                OrtsProfileTemplate3D::GeometryMode::Baked;
+        QVector<OrtsGeneratedProfileMesh> pathEndpointBakedMeshes;
+        const bool pathEndpointBakedBuilt =
+                OrtsTrackProfileRenderer::buildMeshes(
+                    rulerPlaceProfile, rulerLine, pathEndpointBakedMeshes)
+              && pathEndpointBakedMeshes.size() == 2
+              && generatedFloatCount(pathEndpointBakedMeshes) == 108;
+        rulerPlace.geometryMode =
+                OrtsProfileTemplate3D::GeometryMode::Shared;
+        QVector<OrtsGeneratedProfileMesh> pathEndpointSharedBakedMeshes;
+        QVector<OrtsGeneratedProfileSharedMesh> pathEndpointSharedMeshes;
+        const bool pathEndpointSharedBuilt =
+                OrtsTrackProfileRenderer::buildMeshes(
+                    rulerPlaceProfile, rulerLine,
+                    pathEndpointSharedBakedMeshes, nullptr, 0,
+                    &pathEndpointSharedMeshes)
+              && pathEndpointSharedBakedMeshes.isEmpty()
+              && pathEndpointSharedMeshes.size() == 1
+              && pathEndpointSharedMeshes[0].transforms.size() == 2;
+        bool pathEndpointFramesCorrect = pathEndpointSharedBuilt;
+        if(pathEndpointFramesCorrect){
+            const QVector<std::array<float, 16>> &transforms =
+                    pathEndpointSharedMeshes[0].transforms;
+            pathEndpointFramesCorrect =
+                    std::abs(transforms[0][12]) < 0.001f
+                    && std::abs(transforms[0][14]) < 0.001f
+                    && std::abs(transforms[0][8]) < 0.001f
+                    && std::abs(transforms[0][10] - 1) < 0.001f
+                    && std::abs(transforms[1][12] - 10) < 0.001f
+                    && std::abs(transforms[1][14] - 10) < 0.001f
+                    && std::abs(transforms[1][8] - 1) < 0.001f
+                    && std::abs(transforms[1][10]) < 0.001f;
+        }
+        check(pathEndpointBakedBuilt && pathEndpointSharedBuilt
+                && pathEndpointFramesCorrect,
+              "ruler-path-endpoints-place-once-on-complete-multiline");
+
         OrtsProfileTemplate3D::Placement nodesPlacement;
         nodesPlacement.location =
                 OrtsProfileTemplate3D::PlacementLocation::Nodes;
@@ -2534,6 +2615,56 @@ static int runOrtsProfileSuite(bool verbose) {
               && longRulerStretchMeshes.size() == 1
               && longRulerStretchMeshes[0].vertices.size() == 54,
               "ruler-long-stretch-span-remains-unsplit");
+
+        QVector<ComplexLinePoint> longMultispanRulerPoints(3);
+        Vec3::set(longMultispanRulerPoints[0].position, 0, 0, 0);
+        Vec3::set(longMultispanRulerPoints[1].position, 0, 0, 125);
+        Vec3::set(longMultispanRulerPoints[2].position, 125, 0, 125);
+        ComplexLine longMultispanRulerLine;
+        longMultispanRulerLine.init(longMultispanRulerPoints);
+        rulerPlace.placements = {pathStartPlacement, pathEndPlacement};
+        rulerPlace.geometryMode =
+                OrtsProfileTemplate3D::GeometryMode::Baked;
+        QVector<OrtsGeneratedProfileMesh> longPathEndpointMeshes;
+        check(OrtsTrackProfileRenderer::buildMeshes(
+                    rulerPlaceProfile, longMultispanRulerLine,
+                    longPathEndpointMeshes)
+              && longPathEndpointMeshes.size() == 2
+              && generatedFloatCount(longPathEndpointMeshes) == 108,
+              "ruler-long-chunked-path-endpoints-remain-unique");
+
+        QVector<TSection> overLimitTrack;
+        overLimitTrack.append(TSection(
+                0, 0,
+                OrtsTrackProfileRenderer::MaximumGeneratedPathLength + 1,
+                0));
+        QVector<OrtsGeneratedProfileMesh> overLimitTrackMeshes;
+        QStringList overLimitTrackDiagnostics;
+        check(OrtsTrackProfileRenderer::buildMeshes(
+                    rulerPlaceProfile, overLimitTrack,
+                    overLimitTrackMeshes, &overLimitTrackDiagnostics)
+              && !overLimitTrackMeshes.isEmpty()
+              && generatedFloatCount(overLimitTrackMeshes) == 54
+              && overLimitTrackDiagnostics.join(' ').contains(
+                    "truncated to the 2048 m safety limit"),
+              "truncate-over-limit-track-without-false-path-end");
+
+        QVector<ComplexLinePoint> overLimitRulerPoints(2);
+        Vec3::set(overLimitRulerPoints[0].position, 0, 0, 0);
+        Vec3::set(overLimitRulerPoints[1].position, 0, 0,
+                OrtsTrackProfileRenderer::MaximumGeneratedPathLength + 1);
+        ComplexLine overLimitRulerLine;
+        overLimitRulerLine.init(overLimitRulerPoints);
+        QVector<OrtsGeneratedProfileMesh> overLimitRulerMeshes;
+        QStringList overLimitRulerDiagnostics;
+        check(OrtsTrackProfileRenderer::buildMeshes(
+                    rulerPlaceProfile, overLimitRulerLine,
+                    overLimitRulerMeshes, &overLimitRulerDiagnostics)
+              && !overLimitRulerMeshes.isEmpty()
+              && generatedFloatCount(overLimitRulerMeshes) == 54
+              && overLimitRulerDiagnostics.join(' ').contains(
+                    "truncated to the 2048 m safety limit"),
+              "truncate-over-limit-ruler-without-false-path-end");
     }
 
     if(templateDirectory.isValid()){

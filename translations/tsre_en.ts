@@ -2401,6 +2401,11 @@ Consist with this file name already exist. Overwrite?
         <source>&amp;Reload Ref File</source>
         <translation>&amp;Reload Ref File</translation>
     </message>
+    <message id="route.editor.route.editor.window.action.reload.track.profiles">
+        <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="263" />
+        <source>Reload &amp;Track Profiles</source>
+        <translation>Reload &amp;Track Profiles</translation>
+    </message>
     <message id="route.editor.route.editor.window.action.exit.action">
         <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="213" />
         <source>&amp;Exit</source>
@@ -5353,8 +5358,8 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
     </message>
     <message id="route.editor.properties.ruler.button.remove.node.shape">
         <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="221" />
-        <source>Remove Additional Node Shape</source>
-        <translation>Remove Additional Node Shape</translation>
+        <source>Remove shape</source>
+        <translation>Remove shape</translation>
     </message>
     <message id="route.editor.properties.ruler.text.null">
         <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="288" />

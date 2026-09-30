@@ -52,8 +52,10 @@ struct OrtsProfileTemplate3D {
         Shared
     };
     enum class PlacementLocation {
-        Start,
-        End,
+        SpanStart,
+        SpanEnd,
+        PathStart,
+        PathEnd,
         Nodes
     };
     enum class PlacementFacing {
@@ -63,7 +65,7 @@ struct OrtsProfileTemplate3D {
         Inward
     };
     struct Placement {
-        PlacementLocation location = PlacementLocation::Start;
+        PlacementLocation location = PlacementLocation::SpanStart;
         PlacementFacing facing = PlacementFacing::AlongPath;
     };
 

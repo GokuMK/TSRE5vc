@@ -17,7 +17,7 @@ TrProfile (
    LightModelName ( OptSpecular0 )
    AlphaTestMode ( 0 )
    TexAddrModeName ( Wrap )
-   PathFrameMode ( NoRoll )
+   PathFrameMode ( Upright )
    Template3D (
     GenerationMode ( Stretch )
     GeometryMode ( Baked )

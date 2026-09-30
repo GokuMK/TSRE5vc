@@ -150,11 +150,15 @@ void TrackObj::setTemplate(QString name){
 }
 
 void TrackObj::reload(){
+    reloadProceduralProfile();
+    if(shapePointer != NULL)
+        shapePointer->reload();
+}
+
+void TrackObj::reloadProceduralProfile(){
     proceduralShapeInit = false;
     proceduralFallback = false;
     clearProceduralShape();
-    if(shapePointer != NULL)
-        shapePointer->reload();
 }
 
 void TrackObj::clearProceduralShape(){

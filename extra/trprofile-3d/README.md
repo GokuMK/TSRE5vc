@@ -201,12 +201,29 @@ Supported locations and facing rules are:
 
 | Placement | Result |
 |---|---|
-| `Start AlongPath` | At each span start, facing along that span |
-| `End AlongPath` | At each span end, facing along that span |
-| `Both Outward` | Start faces backward and end faces forward |
-| `Both Inward` | Start faces forward and end faces backward |
+| `SpanStart AlongPath` | At each span start, facing along that span |
+| `SpanEnd AlongPath` | At each span end, facing along that span |
+| `SpanBoth Outward` | Each span start faces backward and each span end faces forward |
+| `SpanBoth Inward` | Each span start faces forward and each span end faces backward |
+| `PathStart AlongPath` | Once at the complete requested path start, facing along its first span |
+| `PathEnd AlongPath` | Once at the complete requested path end, facing along its last span |
+| `PathBoth Outward` | Once at both complete-path endpoints, facing away from the path |
+| `PathBoth Inward` | Once at both complete-path endpoints, facing into the path |
 | `Nodes AlongPath` | Once at every unique authored Ruler node |
 | `Nodes AgainstPath` | Same node ownership, rotated 180 degrees |
+
+`SpanBoth` intentionally creates two objects at every internal join: the end
+object of the preceding span and the start object of the following span.
+`PathStart`, `PathEnd`, and `PathBoth` refer to the complete path passed to the
+generator, not its rendering chunks. Long-path chunking therefore does not
+create extra endpoint objects.
+
+TSRE's reference implementation enforces a 2048 m safety limit for one
+generated request. An over-limit request keeps its geometry through the limit
+and reports truncation. `PathEnd`, the last `SpanEnd`, and the final `Nodes`
+copy are suppressed at the artificial boundary. Split a longer Ruler into
+multiple objects. This is a TSRE authoring/runtime guard, not a proposed
+file-format limit.
 
 `Nodes` is meaningful only for point-backed Ruler paths. The first and last
 node use their only adjacent span. An internal node uses the angular bisector
@@ -231,6 +248,14 @@ single GPU-instanced draw call. Each occurrence still submits a transformed
 draw. Measure both choices when an object is neither clearly small nor clearly
 complex.
 
+## Reload after editing
+
+Use **Route > Reload Track Profiles** after changing a route-local profile or
+one of its Template3D OBJ files. TSRE reparses `TRACKPROFILES`, drops the OBJ
+source cache, refreshes profile selectors, and lazily rebuilds generated track,
+DynTrack, and Ruler geometry. Texture files and ordinary MSTS `.s` shapes keep
+their existing reload paths.
+
 ## ShapeSelectionMode
 
 When a block contains several `Shape` entries:
@@ -254,11 +279,17 @@ Template3D child in that item:
 | Value | Behavior | Typical use |
 |---|---|---|
 | `Full` | Follow yaw, pitch, and roll | rails, ballast, road surfaces |
-| `NoRoll` | Follow yaw and pitch, ignore banking | wires and objects that should not bank |
-| `Upright` | Follow horizontal direction and retain world up | vertical signs and poles |
+| `NoRoll` | Follow yaw and pitch, ignore banking | objects that follow grade but should not bank |
+| `Upright` | Follow horizontal direction and retain world up | vertical signs, poles, and wires anchored to them |
 
 If components require different frame modes, put them in separate `LODItem`
 blocks even if they share a texture.
+
+Components which meet away from the path origin must use the same frame mode.
+For example, an upright pole placed at `Nodes` and a stretched wire attached to
+its arm must both use `Upright`. The wire still follows the elevation of the
+sampled path and retains sag authored in the OBJ; `Upright` changes its local
+cross-section basis, not the path positions.
 
 ## Offset and pivot design
 
@@ -394,7 +425,7 @@ correct.
 | Thousands of simple objects are slow | Small dense source was made Shared instead of Baked |
 | Pole appears at both sides of a corner | Start/End placement was used instead of Nodes |
 | Pole is absent at the last Ruler point | Placement does not include Nodes or End |
-| Wire misses a pole arm at a corner | Sources do not share a pivot/offset or use inconsistent frame modes |
+| Wire misses an upright pole arm | Stretch and Nodes use different frame modes, or the sources do not share a pivot/offset |
 | Vertical pole banks with track | Use `NoRoll` or `Upright` in a separate LODItem |
 | Mesh disappears after an LOD cutoff | CompleteReplacement LOD omitted that component |
 

@@ -29,8 +29,9 @@ in [`extra/trprofile-3d/README.md`](../../../extra/trprofile-3d/README.md).
 - `ShapeSelectionMode ( First | ByObject | Cycle | DeterministicRandom )`;
 - `Offset ( x y z )`;
 - `Spacing` and optional `Phase` for `Repeat`;
-- repeated `Placement ( Start|End|Both AlongPath|AgainstPath|Outward|Inward )`
-  values for `Place`, plus `Placement ( Nodes AlongPath|AgainstPath )`.
+- repeated `Placement ( SpanStart|SpanEnd|SpanBoth|PathStart|PathEnd|PathBoth
+  AlongPath|AgainstPath|Outward|Inward )` values for `Place`, plus
+  `Placement ( Nodes AlongPath|AgainstPath )`.
 
 The fixed source convention is metres, +X right, +Y up, and -Z forward.
 Sweep and Stretch source meshes begin at Z=0 and extend toward negative Z.
@@ -56,13 +57,15 @@ rejects the complete mesh. Parsed meshes are cached by normalized source path.
   point-defined Ruler it maps one copy per explicitly authored Ruler span,
   interpolating between the averaged frames of its authored nodes. Wires and
   other offset geometry therefore meet both adjacent spans and a `Nodes`
-  support at the same orientation. `Stretch` is an
+  support at the same orientation when both LOD items use the same
+  `PathFrameMode`. An `Upright` wire still follows sampled path elevations;
+  only its local cross-section basis stays world-up. `Stretch` is an
   atomic placement feature: the renderer does not insert synthetic path
   points or subdivide it into additional source copies for LOD. Authored UVs
   and source topology are preserved.
 - `Repeat` places rigid copies at `Phase + n * Spacing`.
 - `Place` places rigid copies at requested endpoints and facing modes.
-  `Start` and `End` align with their individual span. `Nodes` places one copy
+  `SpanStart` and `SpanEnd` align with their individual span. `Nodes` places one copy
   at every unique authored Ruler node; internal nodes use the angular bisector
   of the incoming and outgoing spans, while the first and last nodes follow
   their sole adjacent span.
@@ -115,8 +118,9 @@ rejects the complete mesh. Parsed meshes are cached by normalized source path.
 
 A Ruler can additionally store an ordinary route `.s` shape in `FileName`.
 TSRE resolves it through the shared shape library and renders one instance at
-every authored Ruler node. End nodes follow their only adjacent span; internal
-nodes use the incoming/outgoing angular bisector. This provides a lightweight
+every authored Ruler node. Ordinary node shapes remain upright: end nodes use
+their adjacent horizontal span heading, while internal nodes use the
+incoming/outgoing horizontal angular bisector. This provides a lightweight
 alternative for complex existing objects such as poles. Native MSTS Telepole
 objects use their own `telepole.dat` catalog and two-endpoint editor; see
 `docs/features/msts-world-telepole.md`.
@@ -135,6 +139,14 @@ shape, and the value participates in the ordinary Ruler save and undo paths.
 - Disable loading legacy `shapetemplates.dat` in TSRE after migration, but keep
   its parser/generator code and the route `PROCEDURAL` directory for now.
 - Existing polyline-only STF and XML profiles retain their current behavior.
+- The Route menu's `Reload Track Profiles` action reparses route-local STF/XML,
+  clears cached Template3D OBJ sources, refreshes profile selectors, and
+  invalidates only profile-derived TrackObj, DynTrackObj, and Ruler geometry.
+  It deliberately does not reload ordinary static `.s` shapes or textures.
+- TSRE limits one generated request to 2048 m. Geometry through the boundary
+  remains visible and a diagnostic reports truncation, but complete-path and
+  final-span/node endpoint objects are suppressed at the artificial boundary.
+  Authors split longer Rulers into separate objects.
 
 ## Acceptance
 
@@ -150,7 +162,7 @@ shape, and the value participates in the ordinary Ruler save and undo paths.
 
 ## Deferred
 
-- Open Rails implementation and patch.
+- Upstream review and integration of the experimental Open Rails implementation.
 - True GPU-instanced draw submission; `Shared` currently optimizes geometry
   storage and generation while retaining one transformed draw per occurrence.
 - General-purpose OBJ loading/rendering.
@@ -173,19 +185,22 @@ shape, and the value participates in the ordinary Ruler save and undo paths.
   `ComplexLine`, rather than generating each point pair independently. The
   line stores cumulative node distances and stable 3D node frames. `Stretch`
   interpolates the averaged node frames shared by adjacent spans. `Place` can
-  use section-aligned `Start`/`End` frames or one averaged frame per unique
-  `Nodes` point; `ByObject` advances by the corresponding span or node.
+  use section-aligned `SpanStart`/`SpanEnd` frames, complete-request
+  `PathStart`/`PathEnd` frames, or one averaged frame per unique `Nodes` point;
+  `ByObject` advances by the corresponding span or node.
 - `GeometryMode ( Shared )` is enabled for migrated point objects by the
   migration helper; the `bbb` `Electric50mh` profile uses it for its complex
   tower while retaining baked stretched wire geometry.
-- The `orts-profile` suite passes 57/57 cases, including Full/NoRoll/Upright
+- The `orts-profile` suite passes 63/63 cases, including Full/NoRoll/Upright
   frame behavior, every Template3D generation mode, multiline Ruler frames,
   joined Stretch endpoints, per-span rendering parts, invalid shared/deformed
   combinations, shared placement geometry equivalence, unique ownership of
   `Repeat` occurrences on Ruler-span boundaries, and unique averaged `Nodes`
   placement in baked and shared modes. The added cases cover the 120 m
   threshold, balanced Polyline/Sweep/Repeat/Place chunks, mixed chunked and
-  unsplit Stretch output, and a single long Ruler span.
+  unsplit Stretch output, a single long Ruler span, unique complete-path
+  endpoints, and capped over-limit track and Ruler geometry without false
+  endpoint placement.
 - The Release benchmark loads and generates all 22 migrated profiles. On the
   100 m straight plus 1000 m radius/10 degree curve case, median complete
   generation times were approximately 5.9 ms for both legacy and migrated

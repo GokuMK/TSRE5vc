@@ -378,10 +378,14 @@ void appendPlacements(const StfNode &node, OrtsProfileTemplate3D &mesh) {
         placement.facing = facing;
         mesh.placements.append(placement);
     };
-    if(node.values[0].compare("Start", Qt::CaseInsensitive) == 0)
-        append(OrtsProfileTemplate3D::PlacementLocation::Start);
-    else if(node.values[0].compare("End", Qt::CaseInsensitive) == 0)
-        append(OrtsProfileTemplate3D::PlacementLocation::End);
+    if(node.values[0].compare("SpanStart", Qt::CaseInsensitive) == 0)
+        append(OrtsProfileTemplate3D::PlacementLocation::SpanStart);
+    else if(node.values[0].compare("SpanEnd", Qt::CaseInsensitive) == 0)
+        append(OrtsProfileTemplate3D::PlacementLocation::SpanEnd);
+    else if(node.values[0].compare("PathStart", Qt::CaseInsensitive) == 0)
+        append(OrtsProfileTemplate3D::PlacementLocation::PathStart);
+    else if(node.values[0].compare("PathEnd", Qt::CaseInsensitive) == 0)
+        append(OrtsProfileTemplate3D::PlacementLocation::PathEnd);
     else if(node.values[0].compare("Nodes", Qt::CaseInsensitive) == 0){
         if(facing == OrtsProfileTemplate3D::PlacementFacing::Outward
                 || facing == OrtsProfileTemplate3D::PlacementFacing::Inward){
@@ -390,9 +394,13 @@ void appendPlacements(const StfNode &node, OrtsProfileTemplate3D &mesh) {
         }
         append(OrtsProfileTemplate3D::PlacementLocation::Nodes);
     }
-    else if(node.values[0].compare("Both", Qt::CaseInsensitive) == 0){
-        append(OrtsProfileTemplate3D::PlacementLocation::Start);
-        append(OrtsProfileTemplate3D::PlacementLocation::End);
+    else if(node.values[0].compare("SpanBoth", Qt::CaseInsensitive) == 0){
+        append(OrtsProfileTemplate3D::PlacementLocation::SpanStart);
+        append(OrtsProfileTemplate3D::PlacementLocation::SpanEnd);
+    }
+    else if(node.values[0].compare("PathBoth", Qt::CaseInsensitive) == 0){
+        append(OrtsProfileTemplate3D::PlacementLocation::PathStart);
+        append(OrtsProfileTemplate3D::PlacementLocation::PathEnd);
     } else
         mesh.valid = false;
 }

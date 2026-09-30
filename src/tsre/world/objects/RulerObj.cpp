@@ -214,6 +214,10 @@ void RulerObj::set(QString sh, FileBuffer* data) {
 }
 
 void RulerObj::reload(){
+    reloadProceduralProfile();
+}
+
+void RulerObj::reloadProceduralProfile(){
     clearProceduralShape();
 }
 
@@ -285,6 +289,8 @@ void RulerObj::ensureNodeTransforms(){
                       points[previous].position);
             Vec3::sub(outgoing, points[next].position,
                       points[index].position);
+            incoming[1] = 0;
+            outgoing[1] = 0;
             normalizeDirection(incoming);
             normalizeDirection(outgoing);
             Vec3::add(forward, incoming, outgoing);
@@ -293,21 +299,25 @@ void RulerObj::ensureNodeTransforms(){
         } else if(next < points.size()){
             Vec3::sub(forward, points[next].position,
                       points[index].position);
+            forward[1] = 0;
             normalizeDirection(forward);
         } else if(previous >= 0){
             Vec3::sub(forward, points[index].position,
                       points[previous].position);
+            forward[1] = 0;
             normalizeDirection(forward);
         }
+        if(!normalizeDirection(forward))
+            Vec3::set(forward, 0, 0, 1);
 
         float right[3];
         crossDirection(right, worldUp, forward);
         if(!normalizeDirection(right))
             Vec3::set(right, 1, 0, 0);
-        float up[3];
-        crossDirection(up, forward, right);
-        if(!normalizeDirection(up))
-            Vec3::set(up, 0, 1, 0);
+        // Ordinary Ruler node shapes are primarily poles and other grounded
+        // assets. Keep their local up axis vertical; an explicit saved mode
+        // can be added later if slope-following ordinary shapes are needed.
+        float up[3] = {0, 1, 0};
 
         std::array<float, 16> transform = {
             right[0], right[1], right[2], 0,

@@ -31,7 +31,6 @@
 
 namespace {
 
-constexpr float MaximumPathLength = 2048.0f;
 constexpr int MaximumFrames = 4096;
 constexpr float OpaqueAlpha = 1.0f;
 constexpr float BlendedTransparentCutoff = -1.0f / 255.0f;
@@ -99,11 +98,13 @@ int curveSegments(const OrtsTrackProfile &profile, const TSection &section) {
 
 QVector<float> frameDistances(const OrtsTrackProfile &profile,
         const QVector<TSection> &sections, float endExtension,
-        QStringList *diagnostics) {
+        QStringList *diagnostics, bool *truncated) {
+    if(truncated != nullptr)
+        *truncated = false;
     QVector<float> distances;
     distances.append(0);
     float offset = 0;
-    bool truncated = false;
+    bool limitReached = false;
     for(TSection section : sections){
         const float length = section.getDlugosc();
         if(length <= 0)
@@ -112,49 +113,67 @@ QVector<float> frameDistances(const OrtsTrackProfile &profile,
                 ? curveSegments(profile, section) : 1;
         for(int i = 1; i <= segments; i++){
             const float distance = offset + length * (float)i / segments;
-            if(distance > MaximumPathLength){
-                if(distances.last() < MaximumPathLength)
-                    distances.append(MaximumPathLength);
-                truncated = true;
+            if(distance > OrtsTrackProfileRenderer::MaximumGeneratedPathLength){
+                if(distances.last()
+                        < OrtsTrackProfileRenderer::MaximumGeneratedPathLength)
+                    distances.append(
+                            OrtsTrackProfileRenderer::MaximumGeneratedPathLength);
+                limitReached = true;
                 break;
             }
             distances.append(distance);
             if(distances.size() >= MaximumFrames){
-                truncated = true;
+                limitReached = true;
                 break;
             }
         }
         offset += length;
-        if(truncated)
+        if(limitReached)
             break;
     }
-    if(!truncated && endExtension > 0 && distances.size() < MaximumFrames
-            && distances.last() + endExtension <= MaximumPathLength)
+    if(!limitReached && endExtension > 0
+            && distances.last() + endExtension
+                <= OrtsTrackProfileRenderer::MaximumGeneratedPathLength)
         distances.append(distances.last() + endExtension);
-    if(truncated && diagnostics != nullptr)
-        diagnostics->append("ORTS profile geometry truncated to safety budget");
+    if(limitReached){
+        if(truncated != nullptr)
+            *truncated = true;
+        if(diagnostics != nullptr)
+            diagnostics->append(
+                    "ORTS profile geometry truncated to the 2048 m safety limit");
+    }
     return distances;
 }
 
 QVector<float> frameDistances(const ComplexLine &line,
-        QStringList *diagnostics) {
+        QStringList *diagnostics, bool *truncated) {
+    if(truncated != nullptr)
+        *truncated = false;
     QVector<float> distances;
-    bool truncated = false;
     for(float distance : line.getNodeDistances()){
-        if(distance > MaximumPathLength){
-            if(distances.isEmpty() || distances.last() < MaximumPathLength)
-                distances.append(MaximumPathLength);
-            truncated = true;
+        if(distance > OrtsTrackProfileRenderer::MaximumGeneratedPathLength){
+            if(distances.isEmpty()
+                    || distances.last()
+                        < OrtsTrackProfileRenderer::MaximumGeneratedPathLength)
+                distances.append(
+                        OrtsTrackProfileRenderer::MaximumGeneratedPathLength);
+            if(truncated != nullptr)
+                *truncated = true;
+            if(diagnostics != nullptr)
+                diagnostics->append(
+                        "ORTS profile point path truncated to the 2048 m safety limit");
             break;
         }
         distances.append(distance);
         if(distances.size() >= MaximumFrames){
-            truncated = true;
+            if(truncated != nullptr)
+                *truncated = true;
+            if(diagnostics != nullptr)
+                diagnostics->append(
+                        "ORTS profile point path truncated to the frame safety limit");
             break;
         }
     }
-    if(truncated && diagnostics != nullptr)
-        diagnostics->append("ORTS profile point path truncated to safety budget");
     return distances;
 }
 
@@ -366,9 +385,14 @@ QString templateMeshPath(const OrtsTrackProfile &profile,
     return QDir::cleanPath(source.absoluteDir().absoluteFilePath(shapeName));
 }
 
+QHash<QString, QSharedPointer<const ObjFile>> &templateMeshCache() {
+    static QHash<QString, QSharedPointer<const ObjFile>> cache;
+    return cache;
+}
+
 QSharedPointer<const ObjFile> templateMesh(const OrtsTrackProfile &profile,
         const QString &shapeName, QStringList *diagnostics) {
-    static QHash<QString, QSharedPointer<const ObjFile>> cache;
+    QHash<QString, QSharedPointer<const ObjFile>> &cache = templateMeshCache();
     const QString path = templateMeshPath(profile, shapeName);
     const QString key = ContentPath::key(path);
     if(!cache.contains(key))
@@ -631,7 +655,8 @@ void appendSharedTemplateGeometry(const OrtsTrackProfile &profile,
         float minimumDistance, float maximumDistance,
         float startRoll, float endRoll, float endExtension, float endDrop,
         const ProceduralPathTransform *pathTransform, int objectIndex,
-        QStringList *diagnostics) {
+        QStringList *diagnostics, bool includesPathStart,
+        bool includesPathEnd) {
     QVector<QSharedPointer<const ObjFile>> sourceMeshes;
     sourceMeshes.reserve(source.shapes.size());
     for(const QString &shape : source.shapes)
@@ -709,14 +734,27 @@ void appendSharedTemplateGeometry(const OrtsTrackProfile &profile,
                 appendOccurrence(spanStart, copyIndex++,
                         objectIndex + span, reverseFacing,
                         span, false, true);
-                if(span + 1 == placementSpanCount)
+                if(span + 1 == placementSpanCount && includesPathEnd)
                     appendOccurrence(spanEnd, copyIndex++,
                             objectIndex + span + 1, reverseFacing,
                             span, true, true);
                 continue;
             }
+            const bool pathStart = placement.location
+                    == OrtsProfileTemplate3D::PlacementLocation::PathStart;
+            const bool pathEnd = placement.location
+                    == OrtsProfileTemplate3D::PlacementLocation::PathEnd;
+            const bool spanEndPlacement = placement.location
+                    == OrtsProfileTemplate3D::PlacementLocation::SpanEnd;
+            if((pathStart && (!includesPathStart || span != 0))
+                    || (pathEnd && (!includesPathEnd
+                        || span + 1 != placementSpanCount))
+                    || (spanEndPlacement && !includesPathEnd
+                        && span + 1 == placementSpanCount))
+                continue;
             const bool atEnd = placement.location
-                    == OrtsProfileTemplate3D::PlacementLocation::End;
+                    == OrtsProfileTemplate3D::PlacementLocation::SpanEnd
+                    || pathEnd;
             bool reverseFacing = false;
             if(placement.facing
                     == OrtsProfileTemplate3D::PlacementFacing::AgainstPath)
@@ -781,7 +819,11 @@ int appendTemplateGeometry(const OrtsTrackProfile &profile,
         float minimumDistance, float maximumDistance,
         int copyIndexBase = 0,
         QVector<OrtsGeneratedProfileMesh> *chunkMeshes = nullptr,
-        const QVector<float> *chunkEnds = nullptr) {
+        const QVector<float> *chunkEnds = nullptr,
+        // Baked point paths may arrive one span at a time. These flags retain
+        // ownership of the complete requested path endpoints in that case.
+        bool includesPathStart = true,
+        bool includesPathEnd = true) {
     if(source.geometryMode
             == OrtsProfileTemplate3D::GeometryMode::Shared
             && sharedMeshes != nullptr){
@@ -789,7 +831,8 @@ int appendTemplateGeometry(const OrtsTrackProfile &profile,
                 pathFrames, *sharedMeshes, alpha,
                 minimumDistance, maximumDistance,
                 startRoll, endRoll, endExtension, endDrop,
-                pathTransform, objectIndex, diagnostics);
+                pathTransform, objectIndex, diagnostics,
+                includesPathStart, includesPathEnd);
         return copyIndexBase;
     }
     QVector<QSharedPointer<const ObjFile>> sourceMeshes;
@@ -944,8 +987,21 @@ int appendTemplateGeometry(const OrtsTrackProfile &profile,
                 }
                 continue;
             }
+            const bool pathStart = placement.location
+                    == OrtsProfileTemplate3D::PlacementLocation::PathStart;
+            const bool pathEnd = placement.location
+                    == OrtsProfileTemplate3D::PlacementLocation::PathEnd;
+            const bool spanEndPlacement = placement.location
+                    == OrtsProfileTemplate3D::PlacementLocation::SpanEnd;
+            if((pathStart && (!includesPathStart || span != 0))
+                    || (pathEnd && (!includesPathEnd
+                        || span + 1 != placementSpanCount))
+                    || (spanEndPlacement && !includesPathEnd
+                        && span + 1 == placementSpanCount))
+                continue;
             const bool atEnd = placement.location
-                    == OrtsProfileTemplate3D::PlacementLocation::End;
+                    == OrtsProfileTemplate3D::PlacementLocation::SpanEnd
+                    || pathEnd;
             const float distance = atEnd ? spanEnd : spanStart;
             bool reverseFacing = false;
             if(placement.facing
@@ -1094,6 +1150,10 @@ int profileTextureId(const QString &routePath, const QString &textureName) {
 
 }
 
+void OrtsTrackProfileRenderer::clearTemplateMeshCache() {
+    templateMeshCache().clear();
+}
+
 float OrtsTrackProfileRenderer::generatedPartLod(OglObj *object,
         const float *objectRotation, float objectX, float objectZ) {
     if(object == nullptr)
@@ -1132,7 +1192,8 @@ static bool buildMeshesForLine(const OrtsTrackProfile &profile,
         float endExtension = 0, float endDrop = 0,
         const ProceduralPathTransform *pathTransform = nullptr,
         int objectIndex = 0,
-        QVector<OrtsGeneratedProfileSharedMesh> *sharedMeshes = nullptr) {
+        QVector<OrtsGeneratedProfileSharedMesh> *sharedMeshes = nullptr,
+        bool includesPathEnd = true) {
     meshes.clear();
     if(sharedMeshes != nullptr)
         sharedMeshes->clear();
@@ -1308,7 +1369,8 @@ static bool buildMeshesForLine(const OrtsTrackProfile &profile,
                                 startRoll, endRoll, endExtension, endDrop,
                                 pathTransform, objectIndex, diagnostics,
                                 sharedMeshes, mesh.minimumDistance,
-                                mesh.maximumDistance);
+                                mesh.maximumDistance, 0,
+                                nullptr, nullptr, true, includesPathEnd);
                         continue;
                     }
                     if(template3D.generationMode
@@ -1368,7 +1430,10 @@ static bool buildMeshesForLine(const OrtsTrackProfile &profile,
                                     diagnostics, nullptr,
                                     mesh.minimumDistance,
                                     mesh.maximumDistance, copyIndex,
-                                    &chunkMeshes, &chunkEnds);
+                                    &chunkMeshes, &chunkEnds,
+                                    span == 0,
+                                    includesPathEnd
+                                        && span + 2 == itemPathFrames.size());
                         }
                     } else {
                         appendTemplateGeometry(
@@ -1379,7 +1444,8 @@ static bool buildMeshesForLine(const OrtsTrackProfile &profile,
                                 diagnostics, nullptr,
                                 mesh.minimumDistance,
                                 mesh.maximumDistance, 0,
-                                &chunkMeshes, &chunkEnds);
+                                &chunkMeshes, &chunkEnds,
+                                true, includesPathEnd);
                     }
                 }
 
@@ -1421,7 +1487,8 @@ static bool buildMeshesForLine(const OrtsTrackProfile &profile,
                                 startRoll, endRoll, endExtension, endDrop,
                                 pathTransform, objectIndex, diagnostics,
                                 sharedMeshes, mesh.minimumDistance,
-                                mesh.maximumDistance);
+                                mesh.maximumDistance, 0,
+                                nullptr, nullptr, true, includesPathEnd);
                         continue;
                     }
                     int copyIndex = 0;
@@ -1439,7 +1506,11 @@ static bool buildMeshesForLine(const OrtsTrackProfile &profile,
                                 startRoll, endRoll, endExtension, endDrop,
                                 pathTransform, objectIndex + span, diagnostics,
                                 nullptr, mesh.minimumDistance,
-                                mesh.maximumDistance, copyIndex);
+                                mesh.maximumDistance, copyIndex,
+                                nullptr, nullptr,
+                                span == 0,
+                                includesPathEnd
+                                    && span + 1 == spanMeshes.size());
                     }
                 }
                 for(OrtsGeneratedProfileMesh &spanMesh : spanMeshes){
@@ -1463,7 +1534,8 @@ static bool buildMeshesForLine(const OrtsTrackProfile &profile,
                             startRoll, endRoll, endExtension, endDrop,
                             pathTransform, objectIndex, diagnostics,
                             sharedMeshes, mesh.minimumDistance,
-                            mesh.maximumDistance);
+                            mesh.maximumDistance, 0,
+                            nullptr, nullptr, true, includesPathEnd);
                 if(!mesh.vertices.isEmpty()){
                     updateBounds(mesh);
                     meshes.append(mesh);
@@ -1502,11 +1574,12 @@ static bool buildMeshesForPath(const OrtsTrackProfile &profile,
     }
     ComplexLine line;
     line.init(sections);
+    bool truncated = false;
     const QVector<float> distances = frameDistances(
-            profile, sections, endExtension, diagnostics);
+            profile, sections, endExtension, diagnostics, &truncated);
     return buildMeshesForLine(profile, line, distances, meshes,
             startRoll, endRoll, diagnostics, endExtension, endDrop,
-            pathTransform, objectIndex);
+            pathTransform, objectIndex, nullptr, !truncated);
 }
 
 bool OrtsTrackProfileRenderer::buildMeshes(const OrtsTrackProfile &profile,
@@ -1529,9 +1602,12 @@ bool OrtsTrackProfileRenderer::buildMeshes(const OrtsTrackProfile &profile,
             diagnostics->append("ORTS profile point path is empty");
         return false;
     }
-    const QVector<float> distances = frameDistances(line, diagnostics);
+    bool truncated = false;
+    const QVector<float> distances = frameDistances(
+            line, diagnostics, &truncated);
     return buildMeshesForLine(profile, line, distances, meshes,
-            0, 0, diagnostics, 0, 0, nullptr, objectIndex, sharedMeshes);
+            0, 0, diagnostics, 0, 0, nullptr, objectIndex, sharedMeshes,
+            !truncated);
 }
 
 bool OrtsTrackProfileRenderer::generate(const OrtsTrackProfile &profile,

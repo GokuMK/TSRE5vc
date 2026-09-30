@@ -33,6 +33,7 @@ struct OrtsGeneratedProfileMesh {
     float minimumDistance = -1;
     float maximumDistance = 999999;
     QVector<float> vertices;
+    // TSRE shape convention: maxX, minX, maxY, minY, maxZ, minZ.
     float bounds[6] = {0, 0, 0, 0, 0, 0};
 };
 
@@ -43,6 +44,7 @@ struct OrtsGeneratedProfileSharedMesh {
     float minimumDistance = -1;
     float maximumDistance = 999999;
     QVector<float> vertices;
+    // TSRE shape convention: maxX, minX, maxY, minY, maxZ, minZ.
     float bounds[6] = {0, 0, 0, 0, 0, 0};
     QVector<std::array<float, 16>> transforms;
 };
@@ -62,6 +64,13 @@ public:
     // can tune the policy without changing profile data.
     static constexpr float GeneratedChunkTargetLength = 100.0f;
     static constexpr float GeneratedChunkingThreshold = 120.0f;
+    // Authoring safety limit. Requests above this length are rejected as a
+    // whole so PathStart/PathEnd never acquire misleading truncated meaning.
+    static constexpr float MaximumGeneratedPathLength = 2048.0f;
+
+    // Drop cached route-local OBJ sources after an author edits a profile or
+    // mesh on disk. Generated render objects remain owned by their consumers.
+    static void clearTemplateMeshCache();
 
     static float generatedPartLod(OglObj *object,
             const float *objectRotation, float objectX, float objectZ);

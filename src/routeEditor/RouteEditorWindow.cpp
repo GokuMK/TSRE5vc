@@ -258,6 +258,12 @@ RouteEditorWindow::RouteEditorWindow() {
         //% "&Reload Ref File"
         qtTrId("route.editor.route.editor.window.action.reload.ref.action"), this);
     QObject::connect(reloadRefAction, SIGNAL(triggered()), this, SLOT(reloadRef()));
+    reloadTrackProfilesAction = new QAction(
+        //% "Reload &Track Profiles"
+        qtTrId("route.editor.route.editor.window.action.reload.track.profiles"),
+        this);
+    QObject::connect(reloadTrackProfilesAction, &QAction::triggered,
+                     glWidget, &RouteEditorGLWidget::reloadTrackProfiles);
     exitAction = new QAction(
         //% "&Exit"
         qtTrId("route.editor.route.editor.window.action.exit.action"), this);
@@ -273,6 +279,7 @@ RouteEditorWindow::RouteEditorWindow() {
             qtTrId("route.editor.route.editor.window.menu.route.menu"));
         routeMenu->addAction(saveAction);
         routeMenu->addAction(reloadRefAction);
+        routeMenu->addAction(reloadTrackProfilesAction);
         routeMenu->addAction(createPathsAction);
         routeMenu->addAction(generateCountryPlacesAction);
         routeMenu->addAction(trkEditr);

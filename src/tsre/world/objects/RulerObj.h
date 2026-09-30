@@ -30,6 +30,7 @@ public:
     virtual ~RulerObj();
     bool allowNew();
     void reload();
+    void reloadProceduralProfile() override;
     void setTemplate(QString name);
     void setNodeShape(QString name);
     QString getNodeShape() const;

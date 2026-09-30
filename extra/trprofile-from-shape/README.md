@@ -160,12 +160,14 @@ objects whose source geometry should be uploaded once and rendered at multiple
 transforms, such as complex poles. Keep frequent simple objects such as ties
 `Baked`; `Shared` is not valid for deforming `Sweep` or `Stretch` templates.
 `PathFrameMode` is `Full`, `NoRoll`, or `Upright`. Place entries combine the
-location and orientation, for example `Placement ( Both Outward )`. Use
+location and orientation, for example `Placement ( SpanBoth Outward )`. Use
 `Placement ( Nodes AlongPath )` for one object at every unique authored Ruler
 node. Internal node objects use the angular bisector between the incoming and
 outgoing spans; the first and last objects use their only adjacent span.
-`Start` and `End` remain aligned to their individual span rather than this
-averaged node frame. `Nodes` accepts `AlongPath` or `AgainstPath` only.
+`SpanStart` and `SpanEnd` remain aligned to their individual span rather than
+this averaged node frame. `PathStart`, `PathEnd`, and `PathBoth` place objects
+only at the complete requested path endpoints and are unaffected by rendering
+chunk boundaries. `Nodes` accepts `AlongPath` or `AgainstPath` only.
 
 The minimal OBJ subset is `v`, `vt`, `vn`, and triangular `f v/vt/vn` with
 positive indices. OBJ materials are ignored; the parent LOD item supplies the

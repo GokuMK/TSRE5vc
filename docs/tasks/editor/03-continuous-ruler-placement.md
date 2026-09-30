@@ -27,8 +27,10 @@ Road without coupling Ruler geometry to the Flex solver or TDB/RDB placement.
 
 A Ruler may store one ordinary route shape in its existing `FileName` field.
 The shared shape asset is rendered once at every explicitly authored Ruler
-node. The first and last shapes follow their adjacent span; an internal shape
-uses the bisector of the incoming and outgoing span directions. The same
+node. These ordinary node shapes are upright by default: their local up axis
+remains world-up, the first and last use the horizontal heading of their
+adjacent span, and an internal shape uses the horizontal bisector of the
+incoming and outgoing span headings. The same
 ordinary static-shape coordinate conversion, animation state, materials, and
 LOD data remain in effect.
 
@@ -51,6 +53,12 @@ to one float.
 
 Preview geometry is invalidated at no more than 20 Hz. The current complete
 Ruler procedural shape is regenerated lazily by the renderer.
+
+Profile-backed generation has a 2048 m per-request authoring safety limit.
+Longer requests render through that boundary and report truncation; geometry
+beyond it is omitted. Endpoint objects are not placed at the artificial
+boundary, so `PathEnd`, the final `SpanEnd`, and a final `Nodes` object never
+claim that it is the real path end. Split a longer Ruler into separate objects.
 
 ## Undo model
 
@@ -80,3 +88,5 @@ pending snapshot; it does not restore mutated object data.
 - Switch between all three continuous tool buttons during preview.
 - Undo several points and finally the complete Ruler.
 - Confirm legacy Ruler placement and point editing still work.
+- Confirm a Ruler longer than 2048 m renders to the limit without a false
+  endpoint object at the truncation boundary.

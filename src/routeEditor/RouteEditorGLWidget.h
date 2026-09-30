@@ -111,6 +111,7 @@ public slots:
     void placeToolStickTerrain();
     void placeToolStickAll();
     void reloadRefFile();
+    void reloadTrackProfiles();
     void refreshMarkerList();
     void setCameraObject(GameObj* obj);
     void setMoveStep(float val);

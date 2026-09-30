@@ -35,6 +35,7 @@
 #include <tsre/procedural/ProceduralShape.h>
 #include <tsre/procedural/ShapeTemplates.h>
 #include <tsre/procedural/OrtsTrackProfile.h>
+#include <tsre/procedural/OrtsTrackProfileRenderer.h>
 
 #include <tsre/world/TerrainLib.h>
 #include <tsre/texture/Brush.h>
@@ -379,6 +380,34 @@ void RouteEditorGLWidget::reloadRefFile(){
     route->loadAddons();
     //route->ref = new Ref((Game::root + "/ROUTES/" + Game::route + "/" + Game::routeName + ".ref"));
     emit refreshObjLists();
+}
+
+void RouteEditorGLWidget::reloadTrackProfiles(){
+    if(route == NULL)
+        return;
+
+    const QString routePath = Game::root + "/ROUTES/" + Game::route;
+    OrtsTrackProfileRenderer::clearTemplateMeshCache();
+    OrtsTrackProfileCatalog::load(routePath, true);
+
+    // Ruler and static-track generated objects own OpenGL resources, so
+    // invalidate them while this widget's context is current. DynTracks defer
+    // their deletion until the next render pass as usual.
+    makeCurrent();
+    for(Tile *tile : route->tile){
+        if(tile == NULL || tile->loaded != 1)
+            continue;
+        for(const auto &entry : tile->obiekty){
+            if(entry.second != NULL)
+                entry.second->reloadProceduralProfile();
+        }
+    }
+    doneCurrent();
+
+    emit refreshObjLists();
+    if(selectedObj != NULL)
+        emit updateProperties(selectedObj);
+    update();
 }
 
 void RouteEditorGLWidget::refreshMarkerList() {
