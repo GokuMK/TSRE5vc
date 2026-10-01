@@ -907,6 +907,10 @@ float WorldObj::getElevation(){
     return asin(-vect[1]/1000.0);
 }
 
+bool WorldObj::castsShadows(){
+    return true;
+}
+
 WorldObj::ShadowType WorldObj::getShadowType(){
     if((staticFlags & 0xFF000) == 0x0)
         return WorldObj::ShadowNone;

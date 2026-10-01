@@ -208,3 +208,11 @@ legacy in every view.
 
 Draw counts rose because distant terrain and water are now counted as
 renderer draws.
+
+### With the gather shadow pass
+
+Shadows-off results are unchanged from the table above. With shadows on
+(`parity-views-shadows.json`) gather matches legacy within RMSE 3.49 and 1.02%
+of pixels, with no picking mismatches and shadow-pass primitives within
+0.15%; see task 10. Gather frames still create no render items and clone no
+matrices with shadows on.

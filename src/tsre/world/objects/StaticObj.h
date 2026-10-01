@@ -42,6 +42,7 @@ public:
     void loadingFixes();
     ErrorMessage* checkForErrors();
     void pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
+    bool castsShadows() override;
     void render(GLUU* gluu, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId, int renderMode);
     void updateSim(float deltaTime);
     void pushContextMenuActions(QMenu *menu);

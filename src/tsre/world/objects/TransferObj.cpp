@@ -260,6 +260,11 @@ void TransferObj::render(GLUU* gluu, float lod, float posx, float posz, float* p
     }
 };
 
+// Transfers are ground decals.
+bool TransferObj::castsShadows(){
+    return false;
+}
+
 void TransferObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId){
     if (!loaded)
         return;

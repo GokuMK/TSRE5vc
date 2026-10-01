@@ -262,6 +262,28 @@ Renderer::RenderPass OpenGL3Renderer::routePass(const RenderItem *packet,
     return PASS_OPAQUE;
 }
 
+bool OpenGL3Renderer::castsShadow(const RenderItem *packet) const{
+    if(!shadowCasting)
+        return false;
+    if(currentLayer != LAYER_SCENE && currentLayer != LAYER_OVERLAY)
+        return false;
+    if(packet->surface == RenderItem::SURFACE_TERRAIN || packet->terrainDecal)
+        return false;
+    if(packet->vertexAttr != RenderItem::VNT && packet->vertexAttr != RenderItem::VNTA)
+        return false;
+    return getItemDrawType(packet) == GL_TRIANGLES;
+}
+
+// Position of the packet origin in submission space.
+void OpenGL3Renderer::instanceOrigin(const DrawInstance &instance, float *origin) const{
+    const float *matrix = frameMatrix(instance.matrix);
+    const float *ms = instance.packet->msMatrix;
+    const float local[3] = {ms ? ms[12] : 0.0f, ms ? ms[13] : 0.0f, ms ? ms[14] : 0.0f};
+    for(int i = 0; i < 3; ++i)
+        origin[i] = matrix[i] * local[0] + matrix[4 + i] * local[1]
+                + matrix[8 + i] * local[2] + matrix[12 + i];
+}
+
 void OpenGL3Renderer::queueInstance(RenderItem *packet, const float *matrix,
                                     quint32 selectionId, SubmitOrder order, bool owned){
     const RenderPass pass = routePass(packet, order);
@@ -272,15 +294,15 @@ void OpenGL3Renderer::queueInstance(RenderItem *packet, const float *matrix,
     instance.order = nextOrder++;
     instance.category = RenderStats::category();
     instance.owned = owned;
+    instance.castsShadow = castsShadow(packet);
     if(pass == PASS_BLENDED && order == SUBMIT_GROUPED){
         // Distance from the camera to the packet origin, for back-to-front order.
-        const float *ms = packet->msMatrix;
-        const float local[3] = {ms ? ms[12] : 0.0f, ms ? ms[13] : 0.0f, ms ? ms[14] : 0.0f};
-        float delta[3];
+        float origin[3];
+        instanceOrigin(instance, origin);
+        float distance = 0.0f;
         for(int i = 0; i < 3; ++i)
-            delta[i] = matrix[i] * local[0] + matrix[4 + i] * local[1]
-                    + matrix[8 + i] * local[2] + matrix[12 + i] - viewPosition[i];
-        instance.distance = delta[0] * delta[0] + delta[1] * delta[1] + delta[2] * delta[2];
+            distance += (origin[i] - viewPosition[i]) * (origin[i] - viewPosition[i]);
+        instance.distance = distance;
     }
     if(order == SUBMIT_ORDERED)
         passes[pass].ordered.push_back(instance);
@@ -522,6 +544,61 @@ void OpenGL3Renderer::renderPasses(RenderPass first, RenderPass last){
     gluu->enableNormals();
     gluu->currentShader->setUniformValue(gluu->currentShader->terrainPaged, 0);
     context->extraFunctions()->glBindBufferBase(GL_UNIFORM_BUFFER, 0, 0);
+}
+
+void OpenGL3Renderer::renderShadowCasters(float range, int statsSlot){
+    GLUU *gluu = GLUU::get();
+    QOpenGLContext *context = QOpenGLContext::currentContext();
+    f = context != NULL ? context->functions() : NULL;
+    if(gluu == NULL || f == NULL || gluu->currentShader == NULL)
+        return;
+    f->glActiveTexture(GL_TEXTURE0);
+    TerrainStateCache terrainState;
+    DetailStateCache detailState;
+    const float rangeSquared = range * range;
+    RenderItem *current = NULL;
+    for(PassQueue &queue : passes){
+        for(const std::vector<DrawInstance> *list : {&queue.ordered, &queue.grouped}){
+            for(const DrawInstance &instance : *list){
+                RenderItem *item = instance.packet;
+                if(!instance.castsShadow || item->VAO == NULL)
+                    continue;
+                float origin[3];
+                instanceOrigin(instance, origin);
+                const float dx = origin[0] - viewPosition[0];
+                const float dz = origin[2] - viewPosition[2];
+                if(dx * dx + dz * dz > rangeSquared)
+                    continue;
+                if(item != current){
+                    if(current != NULL)
+                        current->VAO->release();
+                    applyItemState(gluu, f, item, 0, detailState);
+                    applyTerrainState(gluu, item, terrainState);
+                    setModelMatrix(gluu, item->msMatrix);
+                    item->VAO->bind();
+                    current = item;
+                }
+                setMatrixUniform(gluu, gluu->currentShader->mvMatrixUniform,
+                                 frameMatrix(instance.matrix));
+                RenderStats::countPassDraw(statsSlot);
+                if(item->indexed){
+                    context->extraFunctions()->glDrawElementsBaseVertex(
+                                getItemDrawType(item), item->vertCount, item->indexType,
+                                reinterpret_cast<void*>(static_cast<quintptr>(item->indexOffset)),
+                                item->baseVertex);
+                } else {
+                    f->glDrawArrays(getItemDrawType(item), item->vertOffset, item->vertCount);
+                }
+            }
+        }
+    }
+    if(current != NULL)
+        current->VAO->release();
+    gluu->currentShader->setUniformValue(gluu->currentShader->shaderSecondTexEnabled, 0.0f);
+    gluu->currentShader->setUniformValue(gluu->currentShader->terrainTextureRemap, QVector3D());
+    gluu->setBrightness(1.0f);
+    gluu->enableTextures();
+    gluu->enableNormals();
 }
 
 void OpenGL3Renderer::renderFrame(){

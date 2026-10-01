@@ -12,7 +12,7 @@ This folder contains ordered tasks for migrating the TSRE renderer from legacy i
 - [x] `07-world-objects-procedural-and-helpers.md`
 - [x] `08-overlays-tdb-activity-markers.md`
 - [x] `09-hud-compass-pointer.md` (gather draws pointer, compass and HUD through the renderer)
-- [ ] `10-shadows-gather-pass.md` (not implemented: gather renders no shadow pass)
+- [x] `10-shadows-gather-pass.md` (gather draws both shadow maps from the gathered queue; three-map review in the task)
 - [ ] `11-shader-pass-buckets-and-custom-shaders.md` (pass buckets implemented; per-pass shaders pending)
 - [ ] `13-selection-renderer-and-id-redesign.md`
 - [ ] `12-parity-automation-and-performance-gate.md` (measurement harness implemented; gate pending)

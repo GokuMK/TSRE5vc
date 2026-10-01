@@ -168,6 +168,8 @@ protected:
     void paintGL() Q_DECL_OVERRIDE;
     void paintGL2();
     void renderShadowMaps();
+    void computeShadowMatrices();
+    void renderShadowMapsGather();
     void handleSelection();
     void applySelection(quint32 selectionId, int cameraTileX, int cameraTileZ);
     void resizeGL(int width, int height) Q_DECL_OVERRIDE;

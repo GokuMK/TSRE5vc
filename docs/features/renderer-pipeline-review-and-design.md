@@ -12,7 +12,7 @@ is out of date. Current state:
 
 - The gather frame draws everything through the renderer: sky, distant
   terrain and water, high-res terrain, world objects, overlays, water, pointer,
-  compass and HUD. Only shadows are missing (task 10).
+  compass and HUD, and both shadow maps from the gathered queue (task 10).
 - Producers own persistent packets; the renderer queues per-frame instances
   and routes them into explicit passes (task 02, task 11).
 - Picking uses the integer selection target and 32-bit IDs (task 13).

@@ -431,6 +431,13 @@ bool TrackObj::isSimilar(WorldObj* obj){
     return false;
 }
 
+// Roads do not cast shadows unless marked dynamic.
+bool TrackObj::castsShadows(){
+    if (getShadowType() == WorldObj::ShadowDynamic)
+        return true;
+    return !Game::mstsShadows && !roadShape;
+}
+
 void TrackObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId){
     if (!loaded) return;
     if (shape < 0) return;

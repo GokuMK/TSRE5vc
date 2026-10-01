@@ -585,10 +585,39 @@ bool RouteEditorGLWidget::paintGLGather(bool drawToScreen){
     // Drop anything left from an interrupted frame and rebalance the matrix stack.
     Game::currentRenderer->resetFrame();
     Game::currentRenderer->setViewPosition(camera->getPos());
-    
+    Renderer *renderer = Game::currentRenderer;
+
+    // Gather the scene before drawing anything: the shadow maps are drawn
+    // from the same queue before the main passes sample them.
+    const int gatherMode = selectionPass ? GLUU::RENDER_SELECTION : GLUU::RENDER_DEFAULT;
+    Mat4::identity(renderer->mvMatrix);
+    Mat4::perspective(gluu->fMatrix, Game::cameraFov * M_PI / 180, float(this->width()) / this->height(), 0.2f, Game::objectLod);
+    Mat4::multiply(gluu->fMatrix, gluu->fMatrix, camera->getMatrix());
+    // Terrain patch culling tests against the current projection.
+    Mat4::perspective(gluu->pMatrix, Game::cameraFov * M_PI / 180, float(this->width()) / this->height(), 0.2f, Game::objectLod);
+    Mat4::multiply(gluu->pMatrix, gluu->pMatrix, camera->getMatrix());
+    RenderStats::setCategory(RenderStats::CategoryTerrain);
+    // Terrain receives shadows but does not cast them, as in legacy.
+    renderer->setShadowCasting(false);
+    Game::terrainLib->pushRenderItems(camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3, gatherMode);
+    renderer->setShadowCasting(true);
+    RenderStats::setCategory(RenderStats::CategoryWorld);
+    route->pushRenderItems(camera->pozT, camera->getPos(), camera->getTarget(), camera->getRotX(), 3.14f / 3, gatherMode);
+    RenderStats::setCategory(RenderStats::CategoryOverlay);
+    renderer->setLayer(Renderer::LAYER_OVERLAY);
+    route->pushRenderOverlays(camera->pozT, camera->getPos(), camera->getRotX(), gatherMode);
+    RenderStats::setCategory(RenderStats::CategoryOther);
+    renderer->setLayer(Renderer::LAYER_WATER);
+    for(int i = 0; i < route->env->waterCount; i++)
+        Game::terrainLib->pushRenderItemsWater(camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3, gatherMode, i);
+    renderer->setLayer(Renderer::LAYER_SCENE);
+
     // Render Shadows
-    //if (Game::shadowsEnabled > 0)
-    //    renderShadowMaps();
+    if (drawToScreen && !selectionPass && Game::shadowsEnabled > 0){
+        RenderStats::beginPhase(RenderStats::PhaseShadow);
+        renderShadowMapsGather();
+        RenderStats::endPhase(RenderStats::PhaseShadow);
+    }
 
     // Render Scene
     //gluu->currentShader = gluu->shaders["StandardBloom"];
@@ -637,9 +666,7 @@ bool RouteEditorGLWidget::paintGLGather(bool drawToScreen){
     Mat4::perspective(gluu->fMatrix, Game::cameraFov * M_PI / 180, float(this->width()) / this->height(), 0.2f, Game::objectLod);
     Mat4::multiply(gluu->fMatrix, gluu->fMatrix, camera->getMatrix());
     
-    // Each phase submits its items, then draws them with its own projection.
-    Renderer *renderer = Game::currentRenderer;
-
+    // Sky and distant terrain submit and draw with their own projections.
     // Render Skydome
     Mat4::perspective(gluu->pMatrix, Game::cameraFov * M_PI / 180, float(this->width()) / this->height(), 100.0f, 10000.0f);
     Mat4::multiply(gluu->pMatrix, gluu->pMatrix, camera->getMatrix());
@@ -680,9 +707,6 @@ bool RouteEditorGLWidget::paintGLGather(bool drawToScreen){
     Mat4::multiply(gluu->pMatrix, gluu->pMatrix, camera->getMatrix());
     gluu->setMatrixUniforms();
     RenderStats::beginPhase(RenderStats::PhaseScene);
-    RenderStats::setCategory(RenderStats::CategoryTerrain);
-    Game::terrainLib->pushRenderItems(camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3, renderMode);
-    RenderStats::setCategory(RenderStats::CategoryOther);
 
     const bool drawPointerEnabled = drawToScreen && !selectionPass && !Game::playerMode;
     const bool drawPointerOnTerrain = drawPointerEnabled && stickPointerToTerrain && Game::viewTerrainShape;
@@ -694,16 +718,6 @@ bool RouteEditorGLWidget::paintGLGather(bool drawToScreen){
         pushRenderPointer();
     }
 
-    RenderStats::setCategory(RenderStats::CategoryWorld);
-    route->pushRenderItems(camera->pozT, camera->getPos(), camera->getTarget(), camera->getRotX(), 3.14f / 3, renderMode);
-    RenderStats::setCategory(RenderStats::CategoryOverlay);
-    renderer->setLayer(Renderer::LAYER_OVERLAY);
-    route->pushRenderOverlays(camera->pozT, camera->getPos(), camera->getRotX(), renderMode);
-    RenderStats::setCategory(RenderStats::CategoryOther);
-    renderer->setLayer(Renderer::LAYER_WATER);
-    for(int i = 0; i < route->env->waterCount; i++)
-        Game::terrainLib->pushRenderItemsWater(camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3, renderMode, i);
-    renderer->setLayer(Renderer::LAYER_SCENE);
     renderer->renderPasses(Renderer::PASS_TERRAIN, Renderer::PASS_WATER);
 
     if (drawPointerAfterWorld) {
@@ -989,27 +1003,54 @@ void RouteEditorGLWidget::drawEditorFpsHud(){
     restoreDefaultGlState();
 }
 
-void RouteEditorGLWidget::renderShadowMaps() {
+// Light-space matrices of the two shadow maps, centred on the camera.
+void RouteEditorGLWidget::computeShadowMatrices() {
     float* lookAt = Mat4::create();
     float* out1 = Vec3::create();
     Vec3::set(out1, 0, 1, 0);
     float *ld = Vec3::create();
     Vec3::set(ld, -1.0, 1.5, 1.0);
     float *aaa = camera->getPos();
-    //float *lt = camera->getTarget();
-    //Vec3::sub(lt, lt, aaa);
-    //lt[0] = lt[0]*100;
-    //lt[1] = 0;
-    //lt[2] = lt[2]*100;
-    //Vec3::add(aaa, aaa, lt);
-    //aaa[2] = -aaa[2];
-    //aaa[0] = -aaa[0];
     Vec3::add(ld, ld, aaa);
     Mat4::ortho(gluu->pShadowMatrix, -150, 150, -150, 150, -200, 200);
     Mat4::ortho(gluu->pShadowMatrix2, -700, 700, -700, 700, -700, 700);
     Mat4::lookAt(lookAt, ld, aaa, out1);
     Mat4::multiply(gluu->pShadowMatrix, gluu->pShadowMatrix, lookAt);
     Mat4::multiply(gluu->pShadowMatrix2, gluu->pShadowMatrix2, lookAt);
+    delete[] lookAt;
+    delete[] out1;
+    delete[] ld;
+}
+
+// Draws both shadow maps from the gathered queue. The caster ranges match
+// the object distances legacy uses for each map (600 and 1000).
+void RouteEditorGLWidget::renderShadowMapsGather() {
+    computeShadowMatrices();
+    gluu->currentShader = gluu->shaders["Shadows"];
+    gluu->currentShader->bind();
+    Mat4::identity(gluu->mvMatrix);
+    Mat4::identity(gluu->objStrMatrix);
+    gluu->setMatrixUniforms();
+    glBindFramebuffer(GL_FRAMEBUFFER, FramebufferName1);
+    glActiveTexture(GL_TEXTURE0);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glViewport(0, 0, shadowMapSize, shadowMapSize);
+    Game::currentRenderer->renderShadowCasters(600.0f, RenderStats::FrameStats::PassSlots - 3);
+
+    // The shadow shader reads uShadowPMatrix; swap in the second map's matrix.
+    std::swap(gluu->pShadowMatrix, gluu->pShadowMatrix2);
+    gluu->setMatrixUniforms();
+    glBindFramebuffer(GL_FRAMEBUFFER, FramebufferName2);
+    glActiveTexture(GL_TEXTURE0);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glViewport(0, 0, distantShadowMapSize, distantShadowMapSize);
+    Game::currentRenderer->renderShadowCasters(1000.0f, RenderStats::FrameStats::PassSlots - 2);
+    std::swap(gluu->pShadowMatrix, gluu->pShadowMatrix2);
+    gluu->currentShader->release();
+}
+
+void RouteEditorGLWidget::renderShadowMaps() {
+    computeShadowMatrices();
 
     gluu->currentShader = gluu->shaders["Shadows"];
     gluu->currentShader->bind();

@@ -149,6 +149,9 @@ public:
     virtual bool isAnimated();
     virtual bool isTerrainObj();
     virtual ShadowType getShadowType();
+    // Whether gathered geometry of this object goes into shadow maps; mirrors
+    // the RENDER_SHADOWMAP checks of the legacy render() functions.
+    virtual bool castsShadows();
     virtual float getElevation();
     virtual void setAnimated(bool val);
     virtual void setTerrainObj(bool val);

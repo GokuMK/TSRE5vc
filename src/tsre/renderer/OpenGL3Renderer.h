@@ -23,6 +23,7 @@ public:
     OpenGL3Renderer();
     virtual ~OpenGL3Renderer();
     void renderPasses(RenderPass first, RenderPass last) override;
+    void renderShadowCasters(float range, int statsSlot) override;
     void renderFrame() override;
     void resetFrame() override;
     void pushItem(RenderItem *r, float* mvmatrix) override;
@@ -58,6 +59,7 @@ public:
         float distance = 0.0f;
         quint8 category = 0;
         bool owned = false;
+        bool castsShadow = false;
     };
 
 private:
@@ -70,6 +72,8 @@ private:
     quint32 captureMatrix(const float *matrix);
     const float *frameMatrix(quint32 index) const;
     RenderPass routePass(const RenderItem *packet, SubmitOrder order) const;
+    bool castsShadow(const RenderItem *packet) const;
+    void instanceOrigin(const DrawInstance &instance, float *origin) const;
     void queueInstance(RenderItem *packet, const float *matrix, quint32 selectionId,
                        SubmitOrder order, bool owned);
     void sortByTexture(std::vector<DrawInstance> &instances);

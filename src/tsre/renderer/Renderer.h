@@ -98,8 +98,17 @@ public:
     // Layer for following submissions; resetFrame() returns to LAYER_SCENE.
     void setLayer(Layer layer);
     Layer layer() const;
-    // Camera position in the submission space, for back-to-front sorting.
+    // Camera position in the submission space, for back-to-front sorting and
+    // shadow caster range.
     void setViewPosition(const float *position);
+    // Whether following scene submissions may cast shadows; resetFrame()
+    // turns it back on. Only lit triangle meshes in the scene and overlay
+    // layers cast, excluding terrain and terrain decals.
+    void setShadowCasting(bool cast);
+    // Draws queued shadow casters with the bound shader without consuming
+    // them, skipping instances whose origin lies farther than range from the
+    // view position on the ground plane. statsSlot labels the draws.
+    virtual void renderShadowCasters(float range, int statsSlot);
     // Draws and consumes queued work of passes first..last; later passes stay
     // queued. Use it where direct drawing must happen between passes.
     virtual void renderPasses(RenderPass first, RenderPass last);
@@ -122,6 +131,7 @@ protected:
     void deleteFrameMatrices();
     void resetMatrixStack();
     Layer currentLayer = LAYER_SCENE;
+    bool shadowCasting = true;
     float viewPosition[3] = {0, 0, 0};
 
 private:

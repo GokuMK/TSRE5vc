@@ -118,6 +118,15 @@ void Renderer::setViewPosition(const float *position){
     std::copy(position, position + 3, viewPosition);
 }
 
+void Renderer::setShadowCasting(bool cast){
+    shadowCasting = cast;
+}
+
+void Renderer::renderShadowCasters(float range, int statsSlot){
+    Q_UNUSED(range);
+    Q_UNUSED(statsSlot);
+}
+
 void Renderer::renderPasses(RenderPass first, RenderPass last){
     Q_UNUSED(first);
     Q_UNUSED(last);
@@ -126,6 +135,7 @@ void Renderer::renderPasses(RenderPass first, RenderPass last){
 void Renderer::resetFrame(){
     currentFrame++;
     currentLayer = LAYER_SCENE;
+    shadowCasting = true;
     resetMatrixStack();
     deleteFrameMatrices();
     releaseRetiredPackets();

@@ -142,6 +142,10 @@ void StaticObj::updateSim(float deltaTime){
         shapePointer->updateSim(deltaTime, shapeState);
 }
 
+bool StaticObj::castsShadows(){
+    return !Game::mstsShadows || getShadowType() == WorldObj::ShadowDynamic;
+}
+
 void StaticObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId){
     if (!loaded) return;
     if (shape < 0) return;
