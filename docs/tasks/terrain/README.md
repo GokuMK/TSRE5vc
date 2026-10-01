@@ -1,5 +1,9 @@
 # Terrain task status
 
+The [procedural terrain format and renderer reference](../../features/procedural-terrain-showcase.html)
+summarizes the implemented TSRE data model, compatibility fallback, seasons and
+the corresponding Open Rails feature branch in one shareable HTML document.
+
 Reviewed against the source and recorded/user-reported tests on 2026-09-08.
 This is a status review, not a fresh exhaustive interactive acceptance run.
 The long task files retain historical proposals and rejected alternatives;

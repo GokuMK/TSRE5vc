@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Format and implementation reference for TSRE procedural terrain materials and the compatible Open Rails renderer.">
+<title>Procedural terrain materials for TSRE and Open Rails</title>
+<style>
+:root {
+  color-scheme: light;
+  --bg:#fff; --paper:#fff; --text:#000; --muted:#4f5b55; --line:#d8dfda;
+  --accent:#087a5b; --accent-soft:#e3f4ed; --note:#fff8df; --note-line:#d9a928;
+  --code:#f6f8f7; --code-text:#17211d; --key:#006b50; --str:#8a4b08;
+  --val:#125c9b; --num:#7544a3; --comment:#66746e; --punct:#53615b;
+}
+*{box-sizing:border-box} html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.62 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+a{color:var(--accent)} code{font-family:ui-monospace,"Cascadia Code",Consolas,monospace}
+.header{border-bottom:1px solid var(--line);background:var(--paper)}
+.header-inner{width:min(1180px,calc(100% - 36px));margin:auto;padding:34px 0 30px}
+.overline{color:var(--accent);font:700 11px/1.2 ui-monospace,monospace;letter-spacing:.13em;text-transform:uppercase}
+h1{margin:9px 0 8px;font-size:clamp(34px,5vw,54px);line-height:1.05;letter-spacing:-.04em}
+.subtitle{max-width:820px;margin:0;color:var(--muted);font-size:17px}.meta{margin-top:18px;color:var(--muted);font:12px/1.4 ui-monospace,monospace}
+.layout{width:min(1180px,calc(100% - 36px));margin:0 auto;display:grid;grid-template-columns:230px minmax(0,1fr);gap:48px;align-items:start}
+.toc{position:sticky;top:24px;padding:42px 0}.toc b{display:block;margin-bottom:10px;font-size:12px}.toc a{display:block;padding:5px 0;color:var(--muted);text-decoration:none;font-size:13px}.toc a:hover{color:var(--accent)}
+main{min-width:0;padding:44px 0 90px}.doc-section{padding:0 0 54px;scroll-margin-top:24px}.doc-section+.doc-section{padding-top:48px;border-top:1px solid var(--line)}
+h2{margin:0 0 14px;font-size:30px;line-height:1.2;letter-spacing:-.025em}h3{margin:30px 0 9px;font-size:20px;line-height:1.3}h4{margin:22px 0 7px;font-size:15px}
+p{margin:9px 0 15px}.intro{color:var(--muted);font-size:16px}.anchor{color:inherit;text-decoration:none}.anchor:hover{color:var(--accent)}
+.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:24px 0}.summary div{padding:17px;border:1px solid var(--line);border-radius:8px;background:var(--paper)}.summary b{display:block;margin-bottom:5px}.summary span{color:var(--muted);font-size:13px}
+.callout{margin:20px 0;padding:15px 17px;border-left:3px solid var(--note-line);background:var(--note);color:#4e4528}.callout.info{border-color:var(--accent);background:var(--accent-soft);color:#21473b}
+pre{margin:16px 0 22px;padding:18px 20px;overflow:auto;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;background:var(--code);color:var(--code-text);font:13px/1.62 ui-monospace,"Cascadia Code",Consolas,monospace;tab-size:4}
+pre code{font:inherit}.k{color:var(--key);font-weight:650}.s{color:var(--str)}.v{color:var(--val)}.n{color:var(--num)}.c{color:var(--comment);font-style:italic}.p{color:var(--punct)}
+table{width:100%;margin:16px 0 25px;border-collapse:separate;border-spacing:0;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--paper);font-size:13px}
+th,td{padding:11px 13px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}th{background:#edf1ee;font-size:12px}tr:last-child td{border-bottom:0}td+td,th+th{border-left:1px solid var(--line)}td code{color:var(--accent);font-size:12px}.nowrap{white-space:nowrap}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:14px}.card{padding:17px 18px;border:1px solid var(--line);border-radius:8px;background:var(--paper)}.card h3{margin:0 0 7px;font-size:17px}.card p{margin:0;color:var(--muted);font-size:13px}.card code{color:var(--accent)}
+.syntax{margin:19px 0;padding:14px 17px;border:1px solid var(--line);border-radius:8px;background:var(--paper)}.syntax b{display:block;margin-bottom:5px;font-size:12px}.syntax code{color:var(--accent);font-size:13px}
+.steps{counter-reset:step;list-style:none;padding:0;margin:18px 0}.steps li{position:relative;padding:0 0 18px 42px}.steps li::before{counter-increment:step;content:counter(step);position:absolute;left:0;top:1px;width:25px;height:25px;display:grid;place-items:center;border-radius:50%;color:white;background:var(--accent);font:700 11px/1 ui-monospace,monospace}.steps li+li::after{content:"";position:absolute;left:12px;top:-15px;height:15px;border-left:1px solid var(--line)}
+.small{color:var(--muted);font-size:12px}.pill{display:inline-block;padding:2px 7px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font:700 10px/1.6 ui-monospace,monospace}
+.files{display:grid;grid-template-columns:1fr 1fr;gap:8px}.files a{padding:11px 13px;border:1px solid var(--line);border-radius:7px;background:var(--paper);text-decoration:none;font:11px/1.35 ui-monospace,monospace}.files a:hover{border-color:var(--accent)}
+footer{border-top:1px solid var(--line);padding:24px 0 45px;color:var(--muted);font-size:12px}.footer-inner{width:min(1180px,calc(100% - 36px));margin:auto}
+@media(max-width:850px){.layout{grid-template-columns:1fr}.toc{position:static;padding:25px 0 0;columns:2}.toc b{column-span:all}.summary{grid-template-columns:1fr}.two,.files{grid-template-columns:1fr}main{padding-top:24px}}
+@media(max-width:520px){.header-inner,.layout,.footer-inner{width:min(100% - 24px,1180px)}.toc{columns:1}table{display:block;overflow-x:auto}.nowrap{white-space:normal}}
+@media print{.toc{display:none}.layout{display:block;width:100%}.header-inner,.footer-inner{width:100%}body{background:white}.doc-section{break-inside:auto}pre,table,.card{break-inside:avoid}}
+</style>
+</head>
+<body>
+<header class="header"><div class="header-inner">
+  <div class="overline">TSRE format and Open Rails implementation reference</div>
+  <h1>Procedural terrain materials</h1>
+  <p class="subtitle">An editable categorical material map for each terrain tile, route-wide source definitions, seasonal textures and a conventional baked fallback for legacy applications.</p>
+  <div class="meta">Audience: Open Rails maintainers and route authors &middot; Updated October 2026</div>
+</div></header>
+
+<div class="layout">
+<aside class="toc" aria-label="Contents"><b>Contents</b>
+  <a href="#overview">1. Format summary</a><a href="#layout">2. Route data layout</a><a href="#catalogue">3. Material catalogue</a><a href="#tile">4. Tile extension</a><a href="#pmap">5. Material map</a><a href="#rendering">6. Rendering model</a><a href="#seasons">7. Seasons</a><a href="#authoring">8. TSRE workflow</a><a href="#compatibility">9. Compatibility</a><a href="#openrails">10. Open Rails implementation</a><a href="#limits">11. Limits and fallback</a><a href="#status">12. Status and validation</a><a href="#references">13. References</a>
+</aside>
+
+<main>
+<section id="overview" class="doc-section">
+  <h2><a class="anchor" href="#overview">1. Format summary</a></h2>
+  <p class="intro">Procedural terrain stores <em>which material</em> covers every location, not a pre-composed color image. TSRE keeps that categorical data editable and generates detailed patch textures. A normal MSTS terrain texture remains saved beside it for applications that do not understand the extension.</p>
+  <div class="summary"><div><b>Route-wide materials</b><span><code>terrainmaterials.dat</code> assigns stable UiDs to source textures and display names.</span></div><div><b>Tile-local IDs</b><span>A compressed 4096 x 4096 <code>.pmap</code> stores one byte per sample; the tile maps those bytes to route UiDs.</span></div><div><b>Compatible fallback</b><span>Ordinary terrain shaders, patch UVs and baked ACE textures continue to render in MSTS and older tools.</span></div></div>
+  <div class="callout info"><b>Design rule:</b> procedural data is optional. Missing, malformed or unsupported extension data must never prevent the conventional baked terrain from rendering.</div>
+</section>
+
+<section id="layout" class="doc-section">
+  <h2><a class="anchor" href="#layout">2. Route data layout</a></h2>
+  <pre><code><span class="v">ROUTES/&lt;route&gt;/</span>
+  <span class="k">terrainmaterials.dat</span>             <span class="c"># route material catalogue</span>
+  <span class="v">TERRTEX/</span>
+    <span class="s">grass.ace</span>                        <span class="c"># base source</span>
+    <span class="s">tile_procedural.ace</span>              <span class="c"># conventional baked fallback</span>
+    <span class="v">SPRING/</span><span class="s">grass.ace</span>                 <span class="c"># optional seasonal source</span>
+    <span class="v">AUTUMN/</span><span class="s">grass.ace</span>
+    <span class="v">SNOW/</span><span class="s">grass.ace</span>
+  <span class="v">TILES/</span>
+    <span class="s">-7ffffffc+7ffffffc.t</span>             <span class="c"># tile descriptor and extension</span>
+    <span class="s">-7ffffffc+7ffffffc_materials.pmap</span> <span class="c"># compressed categorical IDs</span></code></pre>
+  <table><thead><tr><th>Data</th><th>Scope</th><th>Purpose</th></tr></thead><tbody>
+    <tr><td><code>terrainmaterials.dat</code></td><td>Route</td><td>Stable material identity, author-facing name and source filename.</td></tr>
+    <tr><td><code>.pmap</code></td><td>Terrain tile</td><td>Dense byte IDs used for editing and procedural rendering.</td></tr>
+    <tr><td><code>TSRETerrainMaterials</code></td><td>Terrain descriptor</td><td>References the map and translates its local IDs to route UiDs.</td></tr>
+    <tr><td>Ordinary shader and ACE</td><td>Terrain tile</td><td>Static fallback understood by existing MSTS-compatible applications.</td></tr>
+  </tbody></table>
+</section>
+
+<section id="catalogue" class="doc-section">
+  <h2><a class="anchor" href="#catalogue">3. Material catalogue</a></h2>
+  <p><code>terrainmaterials.dat</code> is UTF-16 text with a BOM and MSTS-style blocks. Version 1 deliberately contains only stable identity, a display name and a texture path.</p>
+  <pre><code><span class="v">SIMISA@@@@@@@@@@JINX0t1t______</span>
+
+<span class="k">TSRE_Terrain_Materials</span> <span class="p">(</span>
+    <span class="k">Version</span> <span class="p">(</span> <span class="n">1</span> <span class="p">)</span>
+    <span class="k">NextUiD</span> <span class="p">(</span> <span class="n">3</span> <span class="p">)</span>
+    <span class="k">Material</span> <span class="p">(</span>
+        <span class="k">UiD</span> <span class="p">(</span> <span class="n">1</span> <span class="p">)</span>
+        <span class="k">Name</span> <span class="p">(</span> <span class="s">"Grass"</span> <span class="p">)</span>
+        <span class="k">Texture</span> <span class="p">(</span> <span class="s">"grass.ace"</span> <span class="p">)</span>
+    <span class="p">)</span>
+    <span class="k">Material</span> <span class="p">(</span>
+        <span class="k">UiD</span> <span class="p">(</span> <span class="n">2</span> <span class="p">)</span>
+        <span class="k">Name</span> <span class="p">(</span> <span class="s">"Gravel"</span> <span class="p">)</span>
+        <span class="k">Texture</span> <span class="p">(</span> <span class="s">"gravel.ace"</span> <span class="p">)</span>
+    <span class="p">)</span>
+<span class="p">)</span></code></pre>
+  <table><thead><tr><th>Field</th><th>Rule</th></tr></thead><tbody>
+    <tr><td><code>Version</code></td><td>Required; currently exactly <code>1</code>.</td></tr>
+    <tr><td><code>NextUiD</code></td><td>Required, nonzero and greater than every allocated UiD. Deleted identities are not reused.</td></tr>
+    <tr><td><code>UiD</code></td><td>Positive uint32 route identity, independent of list order and tile-local IDs.</td></tr>
+    <tr><td><code>Name</code></td><td>Nonempty author-facing text; never used as lookup identity.</td></tr>
+    <tr><td><code>Texture</code></td><td>Safe relative path below route <code>TERRTEX</code>. Absolute paths and parent traversal are rejected.</td></tr>
+  </tbody></table>
+  <div class="callout"><b>Not encoded here:</b> scale, rotation, mixing policy and per-season filenames. Version 1 keeps those future questions out of the stable material identity.</div>
+</section>
+
+<section id="tile" class="doc-section">
+  <h2><a class="anchor" href="#tile">4. Terrain-tile extension</a></h2>
+  <p>The binary <code>.t</code> descriptor keeps the normal MSTS children and adds one terrain-level container. The extension was moved out of <code>terrain_samples</code> because older Open Rails readers reject unknown children there but safely skip an unknown terrain-level block.</p>
+  <pre><code><span class="k">terrain</span>
+  <span class="v">terrain_samples</span>                  <span class="c"># unchanged MSTS data</span>
+  <span class="v">terrain_shaders</span>                  <span class="c"># baked-fallback material</span>
+  <span class="v">terrain_patches</span>                  <span class="c"># unchanged patch records</span>
+  <span class="k">TSRETerrainMaterials</span>             <span class="n">0x00061004</span>
+    <span class="v">TSRETerrainMaterialBuffer</span>       <span class="n">0x00061000</span>
+    <span class="v">TSRETerrainMaterialMap</span>          <span class="n">0x00061002</span>
+    <span class="v">TSRETerrainBakedMaterials</span>      <span class="n">0x00061003</span></code></pre>
+  <table><thead><tr><th>Token</th><th>Payload</th><th>Meaning</th></tr></thead><tbody>
+    <tr><td><code>TSRETerrainMaterials</code></td><td>Child blocks</td><td>Outer extension container; no extra version or count.</td></tr>
+    <tr><td><code>TSRETerrainMaterialBuffer</code></td><td>UTF-16 string</td><td>Safe tile-relative <code>.pmap</code> filename.</td></tr>
+    <tr><td><code>TSRETerrainMaterialMap</code></td><td>Count and uint32 pairs</td><td>Maps each local byte ID to a nonzero route material UiD; at most 256 entries.</td></tr>
+    <tr><td><code>TSRETerrainBakedMaterials</code></td><td>Versioned metadata</td><td>Tracks bake revisions and seasonal variants. It is not required to render the detailed Open Rails implementation.</td></tr>
+  </tbody></table>
+  <p>Older sample-level placement remains readable by TSRE for migration. Saving emits only the terrain-level container. Mixed or duplicate known definitions are refused rather than guessed.</p>
+</section>
+
+<section id="pmap" class="doc-section">
+  <h2><a class="anchor" href="#pmap">5. The <code>.pmap</code> material plane</a></h2>
+  <p>Version 1 is a zlib-compressed 4096 x 4096 byte image. Every decoded byte is a tile-local material ID. It is categorical data: values must never be linearly interpolated as colors.</p>
+  <table><thead><tr><th>Offset</th><th>Size</th><th>Value</th></tr></thead><tbody>
+    <tr><td><code>0</code></td><td>8 bytes</td><td>ASCII magic <code>TSREPMAP</code>.</td></tr>
+    <tr><td><code>8</code></td><td>uint32 LE</td><td>Format version, currently <code>1</code>.</td></tr>
+    <tr><td><code>12</code></td><td>uint32 LE</td><td>Width, currently <code>4096</code>.</td></tr>
+    <tr><td><code>16</code></td><td>uint32 LE</td><td>Height, currently <code>4096</code>.</td></tr>
+    <tr><td><code>20</code></td><td>Remaining bytes</td><td>zlib stream expanding to exactly 16,777,216 bytes.</td></tr>
+  </tbody></table>
+  <pre><code><span class="c"># Conceptual decoded data</span>
+<span class="v">byte localMaterialId</span><span class="p">[</span><span class="n">4096</span><span class="p">][</span><span class="n">4096</span><span class="p">]</span>
+
+<span class="c"># Tile-local to route-wide identity</span>
+<span class="n">0</span> <span class="p">-&gt;</span> <span class="n">UiD 7</span>  <span class="c"># ploughed field</span>
+<span class="n">1</span> <span class="p">-&gt;</span> <span class="n">UiD 2</span>  <span class="c"># grass</span>
+<span class="n">2</span> <span class="p">-&gt;</span> <span class="n">UiD 4</span>  <span class="c"># city ground</span></code></pre>
+  <div class="two"><div class="card"><h3>Why local bytes?</h3><p>The dense editable plane remains 16 MiB regardless of route catalogue size. A tile normally uses only a small subset of route materials.</p></div><div class="card"><h3>Why stable UiDs?</h3><p>Renaming or reordering the route catalogue cannot silently reinterpret painted terrain. Cross-route copying must explicitly reconcile identities.</p></div></div>
+</section>
+
+<section id="rendering" class="doc-section">
+  <h2><a class="anchor" href="#rendering">6. Rendering model</a></h2>
+  <h3>TSRE editor</h3>
+  <p>TSRE keeps the ID map available for painting. Worker jobs sample source images and generate detailed patch textures; save also produces an opaque 1024-square DXT1 baked tile texture. Identical outputs are content-deduplicated, and unchanged patches can reuse cached recipes.</p>
+  <ol class="steps"><li>Resolve local ID through the tile table to a route material UiD.</li><li>Resolve the material source for the selected season or weather variant.</li><li>Use deterministic categorical scattering at boundaries; never blend numeric IDs.</li><li>Generate detailed patch output near the camera.</li><li>Use the saved baked terrain outside the detailed distance and in legacy applications.</li></ol>
+  <h3>Boundary sampling</h3>
+  <p>At a transition, four neighboring categorical samples contribute weights. A deterministic position-derived value chooses one material according to those weights. This produces a scattered edge without inventing an invalid material ID between two integers.</p>
+  <div class="callout info"><b>The ID map and the color texture have different jobs:</b> the map preserves editable identity; generated and baked images are disposable rendering products.</div>
+</section>
+
+<section id="seasons" class="doc-section">
+  <h2><a class="anchor" href="#seasons">7. Seasonal source selection</a></h2>
+  <p>One painted map is shared by every season. Material filenames do not change; the active implementation selects a directory for each source independently and falls back when that individual file is missing.</p>
+  <table><thead><tr><th>Open Rails condition</th><th>First directory</th><th>Fallback</th></tr></thead><tbody>
+    <tr><td>Summer / base</td><td><code>TERRTEX</code></td><td>&mdash;</td></tr>
+    <tr><td>Clear spring</td><td><code>TERRTEX/SPRING</code></td><td><code>TERRTEX</code></td></tr>
+    <tr><td>Clear autumn</td><td><code>TERRTEX/AUTUMN</code></td><td><code>TERRTEX</code></td></tr>
+    <tr><td>Winter or snowy spring/autumn</td><td><code>TERRTEX/SNOW</code></td><td><code>TERRTEX</code></td></tr>
+  </tbody></table>
+  <p>The Open Rails branch applies this feature-scoped policy consistently to detailed sources, the baked fallback, microtexture and mapped tiles outside the detailed area. Ordinary non-procedural MSTS terrain keeps the existing Open Rails resolver.</p>
+  <div class="callout"><b>TSRE supports more authored variants:</b> clear, rain and snow directories for all four seasons, plus route-wide batch baking. Those additional precipitation variants are deliberately outside the first Open Rails patch.</div>
+</section>
+
+<section id="authoring" class="doc-section">
+  <h2><a class="anchor" href="#authoring">8. TSRE authoring workflow</a></h2>
+  <ol class="steps"><li>Add or choose a route material in the F2 procedural material list. Importing an image copies it to route <code>TERRTEX</code> when required and immediately saves a stable catalogue entry.</li><li>Enable procedural materials on a tile. The selected route material initializes the complete map.</li><li>Paint material IDs, fill a patch or flood-fill a connected region. Picking restores the route material identity.</li><li>Save the route. TSRE atomically writes the map, descriptor metadata and current baked fallback, retaining recovery backups on failure.</li><li>Optionally batch-bake all saved procedural tiles for available seasonal variants.</li></ol>
+  <pre><code><span class="c"># CPU-only route-wide seasonal bake</span>
+<span class="v">TSRE5vc.exe</span> <span class="k">--refreshpmaptextures</span>
+  <span class="k">--route</span> <span class="s">"C:\MSTS\ROUTES\procedural"</span>
+  <span class="k">--season</span> <span class="v">all</span>
+  <span class="k">--res</span> <span class="n">1024</span>
+  <span class="k">--patch-res</span> <span class="n">512</span></code></pre>
+  <p>Undo snapshots the tile's ID map and mapping state once per terrain action. Route catalogue additions and renames are reusable route-data changes, not terrain brush undo records.</p>
+</section>
+
+<section id="compatibility" class="doc-section">
+  <h2><a class="anchor" href="#compatibility">9. Compatibility contract</a></h2>
+  <table><thead><tr><th>Consumer</th><th>Behavior</th></tr></thead><tbody>
+    <tr><td>MSTS / extension-unaware editor</td><td>Ignores the terrain-level extension and displays the conventional baked shader and ACE texture.</td></tr>
+    <tr><td>Unmodified Open Rails</td><td>Skips the unknown terrain-level container and renders the baked fallback. Keeping the extension outside <code>terrain_samples</code> is essential.</td></tr>
+    <tr><td>TSRE</td><td>Loads, edits and saves the map, catalogue mapping and bake metadata; generates detailed and compatibility textures.</td></tr>
+    <tr><td>Procedural Open Rails branch</td><td>Reads the extension and route catalogue, directly renders selected source textures nearby, and retains the baked texture everywhere else.</td></tr>
+  </tbody></table>
+  <p>Unsupported versions, unsafe paths, duplicate mappings, truncated zlib streams and unresolved UiDs disable procedural detail for the affected data. They do not erase or replace the saved fallback.</p>
+  <div class="callout info"><b>Binary-token prerequisite:</b> the assigned tokens use full namespaced SIMIS IDs. The Open Rails implementation is stacked on the native-token-ID parser work; low-16-bit aliases are intentionally not used.</div>
+</section>
+
+<section id="openrails" class="doc-section">
+  <h2><a class="anchor" href="#openrails">10. Open Rails direct renderer</a></h2>
+  <p>The Open Rails implementation does not port TSRE's CPU image generator. It uploads the categorical map and draws bounded masked material passes. This preserves full source-texture resolution and avoids adding an editor-oriented decode, composition and BC1-writing pipeline to the simulator.</p>
+  <ol class="steps"><li>Parse <code>terrainmaterials.dat</code> once for the route and validate the tile extension.</li><li>Bounded-decompress the <code>.pmap</code> and count material coverage per terrain patch, including a one-texel boundary halo.</li><li>Sort materials by covered area and load no more than 32 source textures for the tile.</li><li>Upload the 4096-square map as an Alpha8 GPU texture and share one deterministic 2048-square Alpha8 noise texture.</li><li>For every patch, draw no more than five detailed material passes. If anything is missing or omitted, draw the baked patch first so no pixels become holes.</li></ol>
+  <pre><code><span class="c">// Simplified per-patch decision</span>
+<span class="v">candidates</span> <span class="p">=</span> <span class="k">sortByCoveredArea</span><span class="p">(</span><span class="v">mapIds</span><span class="p">);</span>
+<span class="v">layers</span> <span class="p">=</span> <span class="v">availableSources</span><span class="p">(</span><span class="v">candidates</span><span class="p">).</span><span class="k">take</span><span class="p">(</span><span class="n">5</span><span class="p">);</span>
+<span class="v">useBakedBase</span> <span class="p">=</span> <span class="v">layers.count</span> <span class="p">!=</span> <span class="v">candidates.count</span><span class="p">;</span></code></pre>
+  <p>Detailed procedural maps are currently restricted to mapped high-resolution tiles in the camera's 3 x 3 tile neighborhood. Mapped outer tiles, low-resolution terrain and distant mountains use the saved fallback. Generated map and noise textures participate in the existing texture manager's mark/sweep lifetime.</p>
+  <h3>Shader behavior</h3>
+  <p>Level 9.3 uses four-neighbor stochastic categorical selection. Level 9.1 uses a point-selected fallback and omits procedural microtexture to stay within its instruction limit. Every surviving opaque material pixel writes terrain depth; this prevents terrain submitted later from showing through mountains.</p>
+</section>
+
+<section id="limits" class="doc-section">
+  <h2><a class="anchor" href="#limits">11. Explicit limits and fallback</a></h2>
+  <table><thead><tr><th>Limit</th><th>Current value</th><th>Fallback behavior</th></tr></thead><tbody>
+    <tr><td>Detailed neighborhood</td><td>3 x 3 high-resolution tiles</td><td>Outer mapped tiles render their saved baked textures.</td></tr>
+    <tr><td>Detailed source textures</td><td>32 per tile</td><td>Materials beyond the limit remain represented by the baked base.</td></tr>
+    <tr><td>Detailed materials</td><td>5 per patch</td><td>Largest available areas render directly; omitted areas retain the bake.</td></tr>
+    <tr><td>Decoded map</td><td>Exactly 4096 x 4096 bytes</td><td>Wrong headers, dimensions, expansion length or oversized files disable procedural detail.</td></tr>
+    <tr><td>Noise texture</td><td>One shared 2048 x 2048 Alpha8 texture</td><td>Deterministic and managed with other generated textures.</td></tr>
+  </tbody></table>
+  <p>A pathological patch may reference 20 or all 256 byte IDs. Rendering cost remains bounded: material areas are sorted, only configured detailed layers are drawn, and the remaining pixels keep the bake. The renderer never assigns omitted pixels to an unrelated source.</p>
+</section>
+
+<section id="status" class="doc-section">
+  <h2><a class="anchor" href="#status">12. Implementation status and evidence</a></h2>
+  <table><thead><tr><th>Area</th><th>Status</th><th>Evidence</th></tr></thead><tbody>
+    <tr><td>TSRE authoring, map storage and bake</td><td><span class="pill">IMPLEMENTED</span></td><td>Painting, fills, undo, route catalogue, background generation and compatibility bake are in TSRE <code>main</code>.</td></tr>
+    <tr><td>TSRE seasons and batch bake</td><td><span class="pill">IMPLEMENTED</span></td><td>Automated checks and visual acceptance cover seasonal source resolution and saved variants.</td></tr>
+    <tr><td>Open Rails parsing and direct rendering</td><td><span class="pill">LOCAL FEATURE BRANCH</span></td><td>Debug build and all 246 Open Rails tests pass.</td></tr>
+    <tr><td>Open Rails visual validation</td><td><span class="pill">ACCEPTED SPIKE</span></td><td>Source orientation, microtexture scale, scatter, distant fallback, camera transitions, five-material fallback, depth, summer, winter, spring and autumn were visually checked.</td></tr>
+    <tr><td>Remaining Open Rails validation</td><td><span class="pill">FOLLOW-UP</span></td><td>Sustained-travel map disposal, Level 9.1 hardware output and representative frame/load measurements.</td></tr>
+  </tbody></table>
+  <div class="callout"><b>Upstream status:</b> this page describes a working local Open Rails implementation, not a feature already present in official Open Rails releases.</div>
+</section>
+
+<section id="references" class="doc-section">
+  <h2><a class="anchor" href="#references">13. Detailed references</a></h2>
+  <p>The focused Markdown documents retain implementation history, editor behavior and verification detail that would make this format overview unnecessarily long.</p>
+  <div class="files">
+    <a href="terrain-material-library.md">terrain-material-library.md<br>Catalogue, editor chooser and tile mapping</a>
+    <a href="terrain-procedural-seasons.md">terrain-procedural-seasons.md<br>TSRE season matrix and batch baking</a>
+    <a href="terrain-procedural-settings.md">terrain-procedural-settings.md<br>Editor preferences and limits</a>
+    <a href="../tasks/terrain/terrain-procedural-materials.md">terrain-procedural-materials.md<br>Generation, painting, undo and performance</a>
+    <a href="../tasks/terrain/terrain-procedural-baked-fallback.md">terrain-procedural-baked-fallback.md<br>Compatibility bake design</a>
+    <a href="../tasks/terrain/terrain-procedural-material-container.md">terrain-procedural-material-container.md<br>Terrain-level binary container</a>
+    <a href="native-token-ids.md">native-token-ids.md<br>Namespaced SIMIS token allocation</a>
+    <a href="../../src/tsre/world/TerrainMaterialMap.h">TerrainMaterialMap.h<br>Current TSRE map constants and API</a>
+  </div>
+</section>
+</main>
+</div>
+
+<footer><div class="footer-inner">TSRE5vc procedural terrain format reference &middot; Generated from the implemented format and current Open Rails feature branch.</div></footer>
+</body>
+</html>
