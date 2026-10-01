@@ -49,21 +49,30 @@ public:
         SUBMIT_ORDERED = 1
     };
     // Passes draw in this order. The renderer routes each submission from the
-    // packet surface, the submission order and the current layer: terrain
-    // packets go to PASS_TERRAIN; ordered scene work to PASS_OPAQUE before its
-    // batched packets; grouped packets by surface; the overlay layer to
-    // PASS_OVERLAY.
+    // current layer, the packet surface and the submission order. In the
+    // scene layer terrain packets go to PASS_TERRAIN, ordered work to
+    // PASS_OPAQUE before its batched packets, and grouped packets by surface.
+    // Every other layer maps to its own pass. The frame sets the projection
+    // and clears depth between sky, distant and scene passes.
     enum RenderPass {
-        PASS_TERRAIN = 0,
+        PASS_SKY = 0,
+        PASS_DISTANT,
+        PASS_TERRAIN,
         PASS_OPAQUE,
         PASS_ALPHA_TEST,
         PASS_BLENDED,
         PASS_OVERLAY,
+        PASS_WATER,
+        PASS_UI,
         PASS_COUNT
     };
     enum Layer {
         LAYER_SCENE = 0,
-        LAYER_OVERLAY = 1
+        LAYER_SKY,
+        LAYER_DISTANT,
+        LAYER_OVERLAY,
+        LAYER_WATER,
+        LAYER_UI
     };
     float* objStrMatrix = NULL;
     // Current model-view matrix. Producers transform it in place; the pointer

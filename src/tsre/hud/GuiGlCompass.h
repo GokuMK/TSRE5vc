@@ -19,8 +19,10 @@ public:
     virtual ~GuiGlCompass();
     void render();
     void render(float a);
+    void pushRenderItem(float a);
 
 private:
+    void setHeading(float a);
     float angle = 0;
 };
 

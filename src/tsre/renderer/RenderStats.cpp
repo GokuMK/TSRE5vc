@@ -312,7 +312,8 @@ QJsonObject toJson(const FrameStats &stats) {
     json["flushes"] = double(stats.flushes);
     static_assert(Renderer::PASS_COUNT <= FrameStats::PassSlots, "pass slots");
     static const char *passNames[Renderer::PASS_COUNT] = {
-        "terrain", "opaque", "alphaTest", "blended", "overlay"};
+        "sky", "distant", "terrain", "opaque", "alphaTest", "blended",
+        "overlay", "water", "ui"};
     QJsonObject passDraws;
     for (int i = 0; i < Renderer::PASS_COUNT; ++i)
         passDraws[passNames[i]] = double(stats.passDraws[i]);

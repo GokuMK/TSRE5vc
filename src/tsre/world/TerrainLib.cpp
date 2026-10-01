@@ -377,6 +377,15 @@ void TerrainLib::pushRenderItems(float* playerT, float* playerW, float* target, 
     
 }
 
+void TerrainLib::pushRenderItemsLo(float* playerT, float* playerW, float* target, float fov, int renderMode){
+}
+
+void TerrainLib::pushRenderItemsWater(float* playerT, float* playerW, float* target, float fov, int renderMode, int layer){
+}
+
+void TerrainLib::pushRenderItemsWaterLo(float* playerT, float* playerW, float* target, float fov, int renderMode, int layer){
+}
+
 void TerrainLib::render(GLUU *gluu, float * playerT, float* playerW, float* target, float fov, int renderMode) {
 
 }

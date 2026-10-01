@@ -24,6 +24,18 @@ ClientInfo::~ClientInfo() {
 }
 
 void ClientInfo::render(float playerRot) {
+    initMarker();
+    stick->render();
+    name->render(playerRot);
+}
+
+void ClientInfo::pushRenderItem(float playerRot) {
+    initMarker();
+    stick->pushRenderItem();
+    name->pushRenderItem(playerRot);
+}
+
+void ClientInfo::initMarker() {
 
     if (stick == NULL) {
         stick = new OglObj();
@@ -46,7 +58,5 @@ void ClientInfo::render(float playerRot) {
         name = new TextObj(this->username, 16, 2.0);
         name->setColor(0,0,0);
         name->pos[1] = 20;
-    } 
-    stick->render();
-    name->render(playerRot);
-};
+    }
+}

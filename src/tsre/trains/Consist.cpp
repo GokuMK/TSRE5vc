@@ -771,6 +771,14 @@ void Consist::renderHud(){
     hud->render();
 }
 
+void Consist::pushRenderHud(){
+    if(hud == NULL)
+        hud = new SimpleHud();
+    hud->setAttribute("speed", trainSpeed);
+    hud->setAttribute("dist", trainTotalDistance);
+    hud->pushRenderItems();
+}
+
 void Consist::getCameraPosition(float *out){
     if (loaded != 1) 
         return;

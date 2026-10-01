@@ -5,6 +5,19 @@
 - Request: design review only, no runtime code changes
 - Goal: document current old/new pipelines, renderable types, and propose a realistic modernization path
 
+## Current Status (2026-10-02)
+
+Sections 1-3 describe the pipeline when this review was written; much of it
+is out of date. Current state:
+
+- The gather frame draws everything through the renderer: sky, distant
+  terrain and water, high-res terrain, world objects, overlays, water, pointer,
+  compass and HUD. Only shadows are missing (task 10).
+- Producers own persistent packets; the renderer queues per-frame instances
+  and routes them into explicit passes (task 02, task 11).
+- Picking uses the integer selection target and 32-bit IDs (task 13).
+- Legacy/gather parity is measured with separate-process captures (task 12).
+
 ## Evidence Base (Code Anchors)
 - Old and new frame entry points: `src/routeEditor/RouteEditorGLWidget.cpp:328`, `src/routeEditor/RouteEditorGLWidget.cpp:453`
 - Shadow path: `src/routeEditor/RouteEditorGLWidget.cpp:565`

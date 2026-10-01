@@ -104,6 +104,7 @@ public:
     bool getWagonWorldPosition(int id, float *posTW);
     void updateSim(float deltaTime);
     void renderHud();
+    void pushRenderHud();
     void getCameraPosition(float *out);
     void renderOnTrack(GLUU* gluu, float * playerT, quint32 selectionId);
     void pushRenderItemsOnTrack(float *playerT, quint32 selectionId);

@@ -54,6 +54,7 @@ public:
     virtual void keyUp(QKeyEvent * e);
     virtual void update(float fps);
     virtual void renderHud(GLUU *gluu);
+    virtual void pushRenderHud();
     virtual void setCameraObject(GameObj* o);
     virtual PreciseTileCoordinate* getCurrentPos();
     float * pozT = NULL;

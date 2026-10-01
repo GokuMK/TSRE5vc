@@ -192,3 +192,19 @@ Worst view per route; counts per gather frame. Every view settled.
 
 Before the simulation was paused, EUROPE1 `down` differed by a car-spawner
 bus at another position in each process (RMSE 5.03, one pick mismatch).
+
+### After moving sky, distant terrain, water, pointer and UI to the renderer
+
+The gather frame no longer draws anything directly. Worst view per route;
+counts per gather frame. Every view settled; distant-phase primitives equal
+legacy in every view.
+
+| Route | Max RMSE | Max diff px | Pick mismatches | Items created | Matrix clones | Draws |
+|---|---|---|---|---|---|---|
+| EUROPE1 | 2.19 | 0.18% | 0/864 | 0 | 0 | 877-2503 |
+| JAPAN1 | 1.91 | 0.04% | 0/864 | 0 | 0 | 2016-4618 |
+| USA1 | 2.89 | 0.24% | 0/864 | 0 | 0 | 1868-3780 |
+| BNSF_SCENIC | 3.64 | 0.74% | 0/864 | 0 | 0 | 1250-6543 |
+
+Draw counts rose because distant terrain and water are now counted as
+renderer draws.

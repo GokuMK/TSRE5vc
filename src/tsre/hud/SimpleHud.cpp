@@ -13,6 +13,8 @@
 #include <tsre/ogl/GLUU.h>
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <tsre/ogl/TextObj.h>
+#include <tsre/renderer/Renderer.h>
+#include <tsre/Game.h>
 
 SimpleHud::SimpleHud() {
 
@@ -127,6 +129,53 @@ void SimpleHud::setAttribute(QString name, float val){
     attributes[name] = val;
 }
 
+// Digits for the speed (km/h) and distance (0.1 km) readouts.
+void SimpleHud::readoutDigits(int *digits){
+    int speed = attributes["speed"] * 3.6;
+    int distance = attributes["dist"] / 100;
+    digits[0] = speed % 10;
+    speed /= 10;
+    digits[1] = speed % 10;
+    speed /= 10;
+    digits[2] = speed % 10;
+    digits[3] = distance % 10;
+    distance /= 10;
+    digits[4] = distance % 10;
+    distance /= 10;
+    digits[5] = distance % 10;
+}
+
+void SimpleHud::pushRenderItems(){
+    float *mv = Game::currentRenderer->mvMatrix;
+    gradientObj->pushRenderItem();
+    speedText->pushRenderItem();
+    distanceText->pushRenderItem();
+
+    int d[6];
+    readoutDigits(d);
+    Game::currentRenderer->mvPushMatrix();
+    Mat4::translate(mv, mv, -0.96, 0.85, 0);
+    numberText[d[2]]->pushRenderItem();
+    Mat4::translate(mv, mv, 0.07, 0.0, 0);
+    numberText[d[1]]->pushRenderItem();
+    Mat4::translate(mv, mv, 0.07, 0.0, 0);
+    numberText[d[0]]->pushRenderItem();
+    Mat4::translate(mv, mv, 0.12, 0.0, 0);
+    kmsText->pushRenderItem();
+
+    Mat4::translate(mv, mv, -0.26, -0.15, 0);
+    numberText[d[5]]->pushRenderItem();
+    Mat4::translate(mv, mv, 0.07, 0.0, 0);
+    numberText[d[4]]->pushRenderItem();
+    Mat4::translate(mv, mv, 0.05, 0.0, 0);
+    numberText[10]->pushRenderItem();
+    Mat4::translate(mv, mv, 0.05, 0.0, 0);
+    numberText[d[3]]->pushRenderItem();
+    Mat4::translate(mv, mv, 0.08, 0.0, 0);
+    kmText->pushRenderItem();
+    Game::currentRenderer->mvPopMatrix();
+}
+
 void SimpleHud::render(){
     GLUU* gluu = GLUU::get();
     
@@ -135,18 +184,10 @@ void SimpleHud::render(){
     speedText->render();
     distanceText->render();
     
-    int speed = attributes["speed"] * 3.6;
-    int distance = attributes["dist"] / 100;
-    int s1 = speed % 10;
-    speed /=10;
-    int s2 = speed % 10;
-    speed /=10;
-    int s3 = speed % 10;
-    int d1 = distance % 10;
-    distance /=10;
-    int d2 = distance % 10;
-    distance /=10;
-    int d3 = distance % 10;
+    int digits[6];
+    readoutDigits(digits);
+    const int s1 = digits[0], s2 = digits[1], s3 = digits[2];
+    const int d1 = digits[3], d2 = digits[4], d3 = digits[5];
     
     gluu->mvPushMatrix();
     Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, -0.96, 0.85, 0);

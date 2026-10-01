@@ -637,19 +637,24 @@ bool RouteEditorGLWidget::paintGLGather(bool drawToScreen){
     Mat4::perspective(gluu->fMatrix, Game::cameraFov * M_PI / 180, float(this->width()) / this->height(), 0.2f, Game::objectLod);
     Mat4::multiply(gluu->fMatrix, gluu->fMatrix, camera->getMatrix());
     
+    // Each phase submits its items, then draws them with its own projection.
+    Renderer *renderer = Game::currentRenderer;
+
     // Render Skydome
     Mat4::perspective(gluu->pMatrix, Game::cameraFov * M_PI / 180, float(this->width()) / this->height(), 100.0f, 10000.0f);
     Mat4::multiply(gluu->pMatrix, gluu->pMatrix, camera->getMatrix());
-    Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, camera->getPos());
-    Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 0, -50, 0);
-    Mat4::rotate(gluu->mvMatrix, gluu->mvMatrix, 2.0, 0, 1, 0);
+    Mat4::translate(renderer->mvMatrix, renderer->mvMatrix, camera->getPos());
+    Mat4::translate(renderer->mvMatrix, renderer->mvMatrix, 0, -50, 0);
+    Mat4::rotate(renderer->mvMatrix, renderer->mvMatrix, 2.0, 0, 1, 0);
     gluu->setMatrixUniforms();
     gluu->currentShader->setUniformValue(gluu->currentShader->lod, 0.0f);
+    renderer->setLayer(Renderer::LAYER_SKY);
+    route->skydome->pushRenderItems(renderMode);
+    renderer->setLayer(Renderer::LAYER_SCENE);
     RenderStats::beginPhase(RenderStats::PhaseSky);
-    route->skydome->render(gluu, renderMode);
+    renderer->renderPasses(Renderer::PASS_SKY, Renderer::PASS_SKY);
     RenderStats::endPhase(RenderStats::PhaseSky);
-    Mat4::identity(gluu->mvMatrix);
-    Mat4::identity(Game::currentRenderer->mvMatrix);
+    Mat4::identity(renderer->mvMatrix);
     if(drawToScreen)
         glClear(GL_DEPTH_BUFFER_BIT); 
     
@@ -657,19 +662,20 @@ bool RouteEditorGLWidget::paintGLGather(bool drawToScreen){
     Mat4::perspective(gluu->pMatrix, Game::cameraFov * M_PI / 180, float(this->width()) / this->height(), 600.0f, Game::distantLod);
     Mat4::multiply(gluu->pMatrix, gluu->pMatrix, camera->getMatrix());
     gluu->setMatrixUniforms();
-    //gluu->currentShader->setUniformValue(gluu->currentShader->lod, -0.5f);
-    Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 0, route->getDistantTerrainYOffset(), 0);
-    RenderStats::beginPhase(RenderStats::PhaseDistant);
-    Game::terrainLib->renderLo(gluu, camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3, renderMode);
+    Mat4::translate(renderer->mvMatrix, renderer->mvMatrix, 0, route->getDistantTerrainYOffset(), 0);
+    renderer->setLayer(Renderer::LAYER_DISTANT);
+    Game::terrainLib->pushRenderItemsLo(camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3, renderMode);
     for(int i = 0; i < route->env->waterCount; i++)
-        Game::terrainLib->renderWaterLo(gluu, camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3, renderMode, i);
+        Game::terrainLib->pushRenderItemsWaterLo(camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3, renderMode, i);
+    renderer->setLayer(Renderer::LAYER_SCENE);
+    RenderStats::beginPhase(RenderStats::PhaseDistant);
+    renderer->renderPasses(Renderer::PASS_DISTANT, Renderer::PASS_DISTANT);
     RenderStats::endPhase(RenderStats::PhaseDistant);
-    Mat4::identity(gluu->mvMatrix);
-    Mat4::identity(Game::currentRenderer->mvMatrix);
+    Mat4::identity(renderer->mvMatrix);
     if(drawToScreen)
         glClear(GL_DEPTH_BUFFER_BIT);
 
-    // Render High Resolution Terrain
+    // Render High Resolution Terrain and World
     Mat4::perspective(gluu->pMatrix, Game::cameraFov * M_PI / 180, float(this->width()) / this->height(), 0.2f, Game::objectLod);
     Mat4::multiply(gluu->pMatrix, gluu->pMatrix, camera->getMatrix());
     gluu->setMatrixUniforms();
@@ -677,54 +683,33 @@ bool RouteEditorGLWidget::paintGLGather(bool drawToScreen){
     RenderStats::setCategory(RenderStats::CategoryTerrain);
     Game::terrainLib->pushRenderItems(camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3, renderMode);
     RenderStats::setCategory(RenderStats::CategoryOther);
-    
-    // Render World
-    Mat4::perspective(gluu->pMatrix, Game::cameraFov * M_PI / 180,
-                      float(this->width()) / this->height(), 0.2f,
-                      Game::objectLod);
-    Mat4::multiply(gluu->pMatrix, gluu->pMatrix, camera->getMatrix());
-    gluu->setMatrixUniforms();
 
     const bool drawPointerEnabled = drawToScreen && !selectionPass && !Game::playerMode;
     const bool drawPointerOnTerrain = drawPointerEnabled && stickPointerToTerrain && Game::viewTerrainShape;
     const bool drawPointerAfterWorld = drawPointerEnabled && (!stickPointerToTerrain || !Game::viewTerrainShape);
 
     if (drawPointerOnTerrain) {
-        // The pointer sticks to terrain depth, so terrain must be drawn first.
-        Game::currentRenderer->renderPasses(Renderer::PASS_TERRAIN, Renderer::PASS_TERRAIN);
-        Mat4::identity(Game::currentRenderer->mvMatrix);
-        Mat4::identity(gluu->objStrMatrix);
-        if(Game::currentRenderer->objStrMatrix != NULL)
-            Mat4::identity(Game::currentRenderer->objStrMatrix);
-        drawPointer();
+        // The pointer reads terrain depth, so terrain must be drawn first.
+        renderer->renderPasses(Renderer::PASS_TERRAIN, Renderer::PASS_TERRAIN);
+        pushRenderPointer();
     }
 
     RenderStats::setCategory(RenderStats::CategoryWorld);
     route->pushRenderItems(camera->pozT, camera->getPos(), camera->getTarget(), camera->getRotX(), 3.14f / 3, renderMode);
-    RenderStats::setCategory(RenderStats::CategoryOther);
-
-    // Scene passes before the directly drawn water, as in legacy.
-    Game::currentRenderer->renderPasses(Renderer::PASS_TERRAIN, Renderer::PASS_BLENDED);
-    for(int i = 0; i < route->env->waterCount; i++)
-        Game::terrainLib->renderWater(gluu, camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3, renderMode, i);
-
-    Mat4::identity(Game::currentRenderer->mvMatrix);
-    Mat4::identity(gluu->objStrMatrix);
-    if(Game::currentRenderer->objStrMatrix != NULL)
-        Mat4::identity(Game::currentRenderer->objStrMatrix);
     RenderStats::setCategory(RenderStats::CategoryOverlay);
-    Game::currentRenderer->setLayer(Renderer::LAYER_OVERLAY);
+    renderer->setLayer(Renderer::LAYER_OVERLAY);
     route->pushRenderOverlays(camera->pozT, camera->getPos(), camera->getRotX(), renderMode);
-    Game::currentRenderer->setLayer(Renderer::LAYER_SCENE);
     RenderStats::setCategory(RenderStats::CategoryOther);
+    renderer->setLayer(Renderer::LAYER_WATER);
+    for(int i = 0; i < route->env->waterCount; i++)
+        Game::terrainLib->pushRenderItemsWater(camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3, renderMode, i);
+    renderer->setLayer(Renderer::LAYER_SCENE);
+    renderer->renderPasses(Renderer::PASS_TERRAIN, Renderer::PASS_WATER);
 
-    Game::currentRenderer->renderFrame();
-    Mat4::identity(gluu->mvMatrix);
-    Mat4::identity(gluu->objStrMatrix);
-    gluu->setMatrixUniforms();
-    
-    if (drawPointerAfterWorld)
-        drawPointer();
+    if (drawPointerAfterWorld) {
+        pushRenderPointer();
+        renderer->renderPasses(Renderer::PASS_TERRAIN, Renderer::PASS_WATER);
+    }
     RenderStats::endPhase(RenderStats::PhaseScene);
 
     // render compass
@@ -736,8 +721,11 @@ bool RouteEditorGLWidget::paintGLGather(bool drawToScreen){
         gluu->setMatrixUniforms();
         gluu->currentShader->setUniformValue(gluu->currentShader->lod, 0.0f);
 
-        compass->render(camera->getRotX()+M_PI);
-        compassPointer->render();
+        renderer->setLayer(Renderer::LAYER_UI);
+        compass->pushRenderItem(camera->getRotX()+M_PI);
+        compassPointer->pushRenderItem();
+        renderer->setLayer(Renderer::LAYER_SCENE);
+        renderer->renderPasses(Renderer::PASS_UI, Renderer::PASS_UI);
     }
     
     
@@ -751,10 +739,14 @@ bool RouteEditorGLWidget::paintGLGather(bool drawToScreen){
         Mat4::identity(gluu->objStrMatrix);
         gluu->setMatrixUniforms();
         gluu->currentShader->setUniformValue(gluu->currentShader->lod, 0.0f);
-        camera->renderHud(gluu);
+        renderer->setLayer(Renderer::LAYER_UI);
+        camera->pushRenderHud();
+        renderer->setLayer(Renderer::LAYER_SCENE);
+        renderer->renderPasses(Renderer::PASS_UI, Renderer::PASS_UI);
         Game::shadowsEnabled = shadowsState;
         gluu->currentShader->release();
     }
+    renderer->renderFrame();
     RenderStats::endPhase(RenderStats::PhaseUi);
 
     if(!drawToScreen){
@@ -1238,8 +1230,9 @@ void RouteEditorGLWidget::applySelection(quint32 selectionId,
     update();
 }
 
-void RouteEditorGLWidget::pushRenderPointer() {
-    
+// Reads the scene depth under the mouse, updates the pointer position and
+// feeds the live placement tools. Needs the scene drawn up to this point.
+void RouteEditorGLWidget::updatePointerPosition() {
     int x = mousex;
     int y = mousey;
 
@@ -1247,48 +1240,8 @@ void RouteEditorGLWidget::pushRenderPointer() {
     unsigned long long int newTime = QDateTime::currentMSecsSinceEpoch();
     static float winZ[4];
     int viewport[4];
-    //float wcoord[4];
 
     glGetIntegerv(GL_VIEWPORT, viewport);
-    //glGetFloatv(GL_MODELVIEW_MATRIX, mvmatrix);
-    //glGetFloatv(GL_PROJECTION_MATRIX, projmatrix);
-    int realy = viewport[3] - (int) y - 1;
-    if(newTime - oldTime > 200){
-        glReadPixels(x, realy, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &winZ);
-        oldTime = newTime;
-    }
-    GLH::glhUnProjectf((float) x, (float) realy, winZ[0], // 
-            gluu->mvMatrix,
-            gluu->pMatrix,
-            viewport,
-            aktPointerPos);
-    return;
-    //qDebug()<<aktPointerPos[0]<< aktPointerPos[1]<< aktPointerPos[2];
-    /*if (Game::viewPointer3d) {
-        gluu->mvPushMatrix();
-        Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, aktPointerPos[0], aktPointerPos[1], aktPointerPos[2]);
-        Mat4::identity(gluu->objStrMatrix);
-        gluu->setMatrixUniforms();
-        //gluu->m_program->setUniformValue(gluu->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-        pointer3d->render();
-        gluu->mvPopMatrix();
-    }*/
-}
-
-void RouteEditorGLWidget::drawPointer() {
-    int x = mousex;
-    int y = mousey;
-
-    static unsigned long long int oldTime = 0;
-    unsigned long long int newTime = QDateTime::currentMSecsSinceEpoch();
-    static float winZ[4];
-    int viewport[4];
-    //float wcoord[4];
-
-    
-    glGetIntegerv(GL_VIEWPORT, viewport);
-    //glGetFloatv(GL_MODELVIEW_MATRIX, mvmatrix);
-    //glGetFloatv(GL_PROJECTION_MATRIX, projmatrix);
     int realy = viewport[3] - (int) y - 1;
     if(newTime - oldTime > 50){
         glReadPixels(x, realy, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &winZ);
@@ -1305,19 +1258,24 @@ void RouteEditorGLWidget::drawPointer() {
         updateLiveRuler((int)camera->pozT[0], (int)camera->pozT[1], aktPointerPos);
     else if(liveTelepoleActive && !mouseRPressed)
         updateLiveTelepole((int)camera->pozT[0], (int)camera->pozT[1], aktPointerPos);
-    //qDebug()<<aktPointerPos[0]<< aktPointerPos[1]<< aktPointerPos[2];
+}
+
+float RouteEditorGLWidget::pointerDisplayY() const {
+    return aktPointerPos[1]
+            + ((continuousFlexMode || liveFlexActive
+                || continuousRulerMode || liveRulerActive
+                || liveTelepoleActive)
+                ? continuousPlacementYOffset : 0.0f);
+}
+
+void RouteEditorGLWidget::drawPointer() {
+    updatePointerPosition();
     if (Game::viewPointer3d) {
-        const float displayedPointerY = aktPointerPos[1]
-                + ((continuousFlexMode || liveFlexActive
-                    || continuousRulerMode || liveRulerActive
-                    || liveTelepoleActive)
-                    ? continuousPlacementYOffset : 0.0f);
         gluu->mvPushMatrix();
         Mat4::translate(gluu->mvMatrix, gluu->mvMatrix,
-                aktPointerPos[0], displayedPointerY, aktPointerPos[2]);
+                aktPointerPos[0], pointerDisplayY(), aktPointerPos[2]);
         Mat4::identity(gluu->objStrMatrix);
         gluu->setMatrixUniforms();
-        //gluu->m_program->setUniformValue(gluu->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
         pointer3d->render();
         gluu->mvPopMatrix();
 
@@ -1328,14 +1286,37 @@ void RouteEditorGLWidget::drawPointer() {
                 if(info->username == Game::serverClient->username)
                     continue;
                 gluu->mvPushMatrix();
-                //qDebug() << camera->pozT[0] << info->X;
                 Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 2048*(info->X-camera->pozT[0])+info->x, info->y, 2048*(info->Z-camera->pozT[1])+info->z);
                 Mat4::identity(gluu->objStrMatrix);
                 gluu->setMatrixUniforms();
-                //gluu->m_program->setUniformValue(gluu->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
                 info->render(camera->getRotX());
                 gluu->mvPopMatrix();
             }
+        }
+    }
+}
+
+// Gather counterpart of drawPointer(); the caller draws the submitted items.
+void RouteEditorGLWidget::pushRenderPointer() {
+    updatePointerPosition();
+    if (!Game::viewPointer3d)
+        return;
+    float *mv = Game::currentRenderer->mvMatrix;
+    Game::currentRenderer->mvPushMatrix();
+    Mat4::translate(mv, mv, aktPointerPos[0], pointerDisplayY(), aktPointerPos[2]);
+    pointer3d->pushRenderItem();
+    Game::currentRenderer->mvPopMatrix();
+
+    if(Game::serverClient != NULL){
+        foreach(ClientInfo *info, Game::serverClient->clientUsersList){
+            if(info == NULL)
+                continue;
+            if(info->username == Game::serverClient->username)
+                continue;
+            Game::currentRenderer->mvPushMatrix();
+            Mat4::translate(mv, mv, 2048*(info->X-camera->pozT[0])+info->x, info->y, 2048*(info->Z-camera->pozT[1])+info->z);
+            info->pushRenderItem(camera->getRotX());
+            Game::currentRenderer->mvPopMatrix();
         }
     }
 }

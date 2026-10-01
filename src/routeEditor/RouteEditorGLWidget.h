@@ -180,6 +180,8 @@ protected:
     void timerEvent(QTimerEvent *event) Q_DECL_OVERRIDE;
     void drawPointer();
     void pushRenderPointer();
+    void updatePointerPosition();
+    float pointerDisplayY() const;
 private:
     bool startLiveFlex(bool reuseUndoState = false, bool deleteOnCancel = false,
             bool initialDirectionFromMouse = false);

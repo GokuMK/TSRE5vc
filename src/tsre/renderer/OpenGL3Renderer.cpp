@@ -243,8 +243,14 @@ const float *OpenGL3Renderer::frameMatrix(quint32 index) const{
 
 Renderer::RenderPass OpenGL3Renderer::routePass(const RenderItem *packet,
                                                 SubmitOrder order) const{
-    if(currentLayer == LAYER_OVERLAY)
-        return PASS_OVERLAY;
+    switch(currentLayer){
+    case LAYER_SKY: return PASS_SKY;
+    case LAYER_DISTANT: return PASS_DISTANT;
+    case LAYER_OVERLAY: return PASS_OVERLAY;
+    case LAYER_WATER: return PASS_WATER;
+    case LAYER_UI: return PASS_UI;
+    case LAYER_SCENE: break;
+    }
     if(packet->surface == RenderItem::SURFACE_TERRAIN)
         return PASS_TERRAIN;
     if(order == SUBMIT_ORDERED)
@@ -519,7 +525,7 @@ void OpenGL3Renderer::renderPasses(RenderPass first, RenderPass last){
 }
 
 void OpenGL3Renderer::renderFrame(){
-    renderPasses(PASS_TERRAIN, PASS_OVERLAY);
+    renderPasses(PASS_SKY, PASS_UI);
     clearQueues();
     Renderer::renderFrame();
 }

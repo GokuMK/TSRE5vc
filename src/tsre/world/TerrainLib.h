@@ -110,6 +110,10 @@ public:
     virtual void updateTerrainHeightmap(Terrain *t);
     virtual void updateTerrainTFile(Terrain *t);
     virtual void pushRenderItems(float* playerT, float* playerW, float* target, float fov, int renderMode);
+    // Gather counterparts of renderLo(), renderWater() and renderWaterLo().
+    virtual void pushRenderItemsLo(float* playerT, float* playerW, float* target, float fov, int renderMode);
+    virtual void pushRenderItemsWater(float* playerT, float* playerW, float* target, float fov, int renderMode, int layer);
+    virtual void pushRenderItemsWaterLo(float* playerT, float* playerW, float* target, float fov, int renderMode, int layer);
     virtual void render(GLUU *gluu, float* playerT, float* playerW, float* target, float fov, int renderMode);
     virtual void renderLo(GLUU *gluu, float* playerT, float* playerW, float* target, float fov, int renderMode);
     virtual void renderWater(GLUU *gluu, float* playerT, float* playerW, float* target, float fov, int renderMode, int layer);

@@ -99,6 +99,11 @@ void Camera::renderHud(GLUU *gluu){
         cameraObject->renderHud();
 }
 
+void Camera::pushRenderHud(){
+    if(cameraObject != NULL)
+        cameraObject->pushRenderHud();
+}
+
 void Camera::setCameraObject(GameObj* o){
     cameraObject = o;
     playerRot[0] = M_PI;

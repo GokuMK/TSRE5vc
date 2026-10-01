@@ -24,9 +24,12 @@ public:
     SimpleHud(const SimpleHud& orig);
     virtual ~SimpleHud();
     void render();
+    // Submits the HUD under the renderer's current transform.
+    void pushRenderItems();
     void setAttribute(QString name, float val);
     
 private:
+    void readoutDigits(int *digits);
     TextObj *speedText = NULL;
     TextObj *distanceText = NULL;
     TextObj *kmText = NULL;
