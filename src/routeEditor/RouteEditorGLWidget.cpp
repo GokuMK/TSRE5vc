@@ -466,11 +466,7 @@ void RouteEditorGLWidget::handleRendererPipelineSwitch(int oldPipeline, int newP
              << Game::RendererPipelineName((Game::RendererPipeline)newPipeline);
 
     if(Game::currentRenderer != NULL){
-        Game::currentRenderer->items.clear();
-        Game::currentRenderer->itemsVNTA.clear();
-        Game::currentRenderer->mvMatrixs.clear();
-        Game::currentRenderer->mvMatrixDelete.clear();
-        Game::currentRenderer->imvMatrixStack = 0;
+        Game::currentRenderer->resetFrame();
         if(Game::currentRenderer->mvMatrix != NULL)
             Mat4::identity(Game::currentRenderer->mvMatrix);
         if(Game::currentRenderer->objStrMatrix != NULL)
@@ -585,6 +581,8 @@ bool RouteEditorGLWidget::paintGLGather(bool drawToScreen){
         return false;
     }
     RenderStats::ScopedFrame statsFrame(Game::RENDER_PIPELINE_GATHER, !selectionPass);
+    // Drop anything left from an interrupted frame and rebalance the matrix stack.
+    Game::currentRenderer->resetFrame();
     
     // Render Shadows
     //if (Game::shadowsEnabled > 0)

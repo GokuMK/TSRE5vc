@@ -150,13 +150,9 @@ struct MatrixProbe : Renderer {
     std::vector<std::array<float, 16>> transforms;
     std::vector<std::vector<float>> buffers;
     bool captureGeometry = false;
-    QVector<QWeakPointer<RenderItem>> packetOwners;
-    ~MatrixProbe() override {
-        for (auto *matrix : mvMatrixDelete)
-            delete[] matrix;
-    }
+    QVector<RenderItem *> packets;
     void pushItem(RenderItem *item, float *) override {
-        packetOwners.push_back(item->cacheOwner);
+        packets.push_back(item);
         std::array<float, 16> matrix{};
         if (item->msMatrix)
             std::copy_n(item->msMatrix, 16, matrix.begin());
@@ -184,9 +180,7 @@ struct MatrixProbe : Renderer {
 struct RenderProbe {
     QOpenGLFramebufferObject fbo{192, 192, QOpenGLFramebufferObject::CombinedDepthStencil};
     struct OrderedRenderer : OpenGL3Renderer {
-        void pushItemsVNTA(QVector<RenderItem *> &items, float *matrix) override {
-            for (auto *item : items) pushItem(item, matrix);
-        }
+        OrderedRenderer() { groupByTexture = false; }
     } orderedRenderer;
     bool orderedGather = false;
     OpenGL3Renderer renderer;
@@ -893,19 +887,21 @@ int TsreTests::runSFileComplexSuite(bool verbose, bool gl) {
                 auto *previous = Game::currentRenderer;
                 Game::currentRenderer = &probe;
                 legacy.pushRenderItem(0, 0);
-                auto owner = probe.packetOwners.value(0);
-                t.check(!owner.isNull(), "legacy cache owns packets");
+                t.check(!probe.packets.isEmpty() && probe.packets[0]->shared,
+                        "legacy cache submits shared packets");
                 Game::currentRenderer = &packetRenderer.renderer;
                 legacy.pushRenderItem(0, 0);
                 legacy.invalidateRenderState();
-                t.check(!owner.isNull(), "queued packet survives cache invalidation");
+                t.check(Renderer::pendingRetiredPackets() > 0,
+                        "queued packets are retired, not deleted, on cache invalidation");
                 packetRenderer.renderer.renderFrame();
-                t.check(owner.isNull(), "queued packet released after frame");
+                t.check(Renderer::pendingRetiredPackets() == 0,
+                        "retired packets released after the frame");
                 Game::currentRenderer = &probe;
                 legacy.pushRenderItem(0, 0);
-                auto unqueued = probe.packetOwners.back();
                 legacy.invalidateRenderState();
-                t.check(unqueued.isNull(), "unqueued cache packets released immediately");
+                t.check(Renderer::pendingRetiredPackets() == 0,
+                        "unqueued cache packets released immediately");
                 Game::currentRenderer = previous;
             }
             if (binaryFormat) {

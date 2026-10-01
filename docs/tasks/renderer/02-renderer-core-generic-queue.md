@@ -28,50 +28,51 @@ Make the new renderer submit generic render items, not only VNTA grouped shape i
 ## Out Of Scope
 - Selection parity logic and pass restoration (next task).
 
-## Temporary cached-item lifetime protection
+## Packet ownership contract (implemented)
 
-`RenderItem::cacheOwner` and `OpenGL3Renderer::retainedPackets` are an interim
-compatibility mechanism introduced with SFileLegacy cache cleanup, not the final
-renderer ownership design.
+The renderer separates persistent packets from per-frame draw instances.
 
-The existing submission paths have different ownership rules:
+- **Packets** are `RenderItem`s owned by a producer and reused across frames.
+  `Renderer::pushPackets(packets, selectionId)` queues one instance per packet
+  with a copy of the current `mvMatrix` and the selection ID. The renderer never
+  modifies a packet, so one packet can be queued any number of times per frame,
+  including by the selection pass.
+- **Retirement**: producers release packets with `Renderer::retirePacket()`,
+  never `delete`. A packet is deleted at once when no renderer has queued
+  packets, otherwise after the next flush. This replaces the earlier
+  `cacheOwner` / `retainedPackets` protection.
+- **Frame-owned items**: `pushItem()` remains for producers that still build
+  items every frame. The renderer takes ownership (a shared item is copied),
+  draws them in submission order before packets, and deletes them after the
+  flush. `pushItemsVNTA()` is a wrapper for `pushPackets()`.
+- **Matrices**: `mvPushMatrix()`/`mvPopMatrix()` copy into a reused stack, and
+  `mvMatrix` is a stable pointer. Submitted model-view matrices are copied into
+  a per-frame arena. A packet's `msMatrix` pointer must stay valid while the
+  packet lives. Frame storage is cleared, not freed, between frames.
+- **Order**: instances are drawn grouped by the first submission of their
+  texture, then of their packet, then in submission order. The order no longer
+  depends on pointer values or hash iteration. `OpenGL3Renderer::groupByTexture
+  = false` draws in submission order.
+- **Reset**: `Renderer::resetFrame()` drops queued work and rebalances the
+  matrix stack. The gather frame calls it first; a pipeline switch also uses it.
 
-- `pushItem` takes ownership of non-shared items. For shared items it creates a
-  frame-owned copy. Frame cleanup deletes the queued objects.
-- `pushItemsVNTA` borrows shape-cached items for batching. Clearing its frame queue
-  does not delete those cached objects.
+A packet's VAO, VBO and textures are still owned by the producer. Retirement
+protects the `RenderItem` only; releasing GPU resources while instances are
+queued is still unsafe.
 
-SFileLegacy now owns its cached items and releases them on invalidation. Some may
-already be queued for the current frame. The optional weak `cacheOwner` lets the
-renderer retain a strong reference in `retainedPackets` until frame cleanup, avoiding
-use-after-free when the shape releases its cache. This retains the RenderItem only:
-its referenced matrices, VAO and VBO still require their owners to remain valid
-through drawing. Producers without `cacheOwner` receive no additional protection.
+### Status
 
-GltfShape currently clears raw-pointer caches without deleting their RenderItems;
-its borrowed VNTA submission does not transfer ownership to the renderer. That cache
-leak is an outstanding issue, not an alternative lifetime solution.
-
-### Ownership follow-up
-
-User direction: keep the `pushItemsVNTA` model of borrowing persistent, reusable
-shape-owned items as the target, to preserve batching and avoid per-frame item
-allocation/copying. The renderer task must define safe update, invalidation and
-retirement boundaries around that model. This redesign is outside the current
-shape task; keep the interim protection until the renderer work replaces it safely.
-
-- [ ] Define a consistent ownership and invalidation contract for cached and
-  frame-owned submissions, including referenced matrix and GPU-resource lifetimes.
-- [ ] Migrate shape producers, including glTF, so cache replacement and destruction
-  neither leak items nor invalidate queued work. Preserve the preferred borrowed,
-  reusable-item model; determine its cache handles or frame-boundary retirement
-  rules within the renderer task.
-- [ ] Replace the temporary `cacheOwner` / `retainedPackets` mechanism once the new
-  contract provides equivalent protection; do not simply remove it while queues
-  still borrow items that can be deleted mid-frame.
-- [ ] Verify invalidation after submission, multiple instances/states, reload and
-  destruction boundaries, and steady-state allocation overhead.
+- [x] Ownership and invalidation contract for borrowed packets and frame-owned
+  items, including matrix lifetimes.
+- [x] Shape producers (`SFileLegacy`, `SFile`, `GltfShape`) submit packets with
+  `pushPackets()`, retire them on cache rebuild and destruction, and select
+  through the instance ID instead of copying packets. This removes the `SFile`
+  and glTF cache leaks.
+- [x] `cacheOwner` / `retainedPackets` removed.
+- [ ] Animated shapes still build frame-owned items with cloned matrices
+  every frame; they need persistent per-state animation matrices.
+- [ ] `OglObj`, terrain and `SFileComplex` still build items every frame.
+- [ ] Texture addresses are still stored in packets, so texture streaming
+  rebuilds shape caches.
 
 Related: [SFileLegacy matrix-reuse and ownership follow-up](../shapes/05-sfile-legacy-load-gl.md).
-Animation matrices should use persistent per-state storage updated before submission;
-that allocation improvement is separate from cached RenderItem ownership.

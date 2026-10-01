@@ -47,10 +47,23 @@ SFile::SFile(QString pathid, QString name, QString texp ) {
     state.push_back(State());
 }
 
+namespace {
+
+// Cached packets may still be queued; the renderer deletes them when safe.
+void retireRenderItems(QVector<RenderItem *> &items) {
+    for (RenderItem *item : items)
+        Renderer::retirePacket(item);
+    items.clear();
+}
+
+}
+
 SFile::SFile(const SFile& orig) {
 }
 
 SFile::~SFile() {
+    for (auto it = renderItems.begin(); it != renderItems.end(); ++it)
+        retireRenderItems(it.value());
 }
 
 void SFile::load() {
@@ -868,7 +881,7 @@ unsigned long long SFile::getTextureStateHash() const{
 void SFile::invalidateRenderState(bool invalidateMatrixCache){
     requiresUpdate = true;
     for(auto it = renderItems.begin(); it != renderItems.end(); ++it){
-        it.value().clear();
+        retireRenderItems(it.value());
     }
     renderItemsTextureHash.clear();
 
@@ -1010,7 +1023,7 @@ void SFile::pushRenderItem(quint32 selectionId, unsigned int stateId){
             // Render cache is keyed by stateId. If one state gets refreshed texture ids,
             // all other cached states for this shape must be rebuilt as well.
             for(auto it = renderItems.begin(); it != renderItems.end(); ++it){
-                it.value().clear();
+                retireRenderItems(it.value());
             }
             renderItemsTextureHash.clear();
         }
@@ -1100,7 +1113,7 @@ void SFile::pushRenderItem(quint32 selectionId, unsigned int stateId){
         bool globalInvalidateRequested = requiresUpdate;
         requiresUpdate = false;
         renderItemsTextureHash.remove(stateId);
-        renderItems[stateId].clear();
+        retireRenderItems(renderItems[stateId]);
         
         RenderItem * r;// = new RenderItem();
         float m[16];
@@ -1192,41 +1205,15 @@ void SFile::pushRenderItem(quint32 selectionId, unsigned int stateId){
             for(auto it = renderItems.begin(); it != renderItems.end(); ++it){
                 if(it.key() == stateId)
                     continue;
-                it.value().clear();
+                retireRenderItems(it.value());
                 renderItemsTextureHash.remove(it.key());
             }
         }
         renderItemsTextureHash[stateId] = getTextureStateHash();
     }
 
-    if(selectionId != 0){
-        for(int i = 0; i < renderItems[stateId].size(); i++){
-            RenderItem *baseItem = renderItems[stateId][i];
-            if(baseItem == NULL)
-                continue;
-
-            RenderItem *selectionItem = new RenderItem(*baseItem);
-            selectionItem->shared = false;
-            selectionItem->setSelectionId(selectionId);
-            selectionItem->lineWidth = 0;
-            Game::currentRenderer->pushItem(selectionItem, Game::currentRenderer->mvMatrix);
-        }
-        return;
-    }
-    
-    if(renderItems[stateId].size() > 0){
-        //for(int i = 0; i < renderItems[stateId].size(); i++){
-        //    Mat4::identity(renderItems[stateId][i]->mvMatrix);
-        //    RenderItem *r;
-            
-            //renderItems[stateId][i]->mvMatrix = 
-        //            Mat4::copy(renderItems[stateId][i]->mvMatrix, Game::currentRenderer->mvMatrix);
-        //    Game::currentRenderer->pushItemVNTA(r);
-        //}
-        //     Mat4::copy(Game::currentRenderer->mvMatrix, renderItems[stateId][i]->mvMatrix);
-        
-        Game::currentRenderer->pushItemsVNTA(renderItems[stateId], Game::currentRenderer->mvMatrix);
-    }
+    if(renderItems[stateId].size() > 0)
+        Game::currentRenderer->pushPackets(renderItems[stateId], selectionId);
 }
 
 void SFile::render(quint32 selectionId, unsigned int stateId) {

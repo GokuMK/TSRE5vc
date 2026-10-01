@@ -1,9 +1,9 @@
 /*  This file is part of TSRE5.
  *
- *  TSRE5 - train sim game engine and MSTS/OR Editors. 
+ *  TSRE5 - train sim game engine and MSTS/OR Editors.
  *  Copyright (C) 2016 Piotr Gadecki <pgadecki@gmail.com>
  *
- *  Licensed under GNU General Public License 3.0 or later. 
+ *  Licensed under GNU General Public License 3.0 or later.
  *
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
@@ -13,26 +13,55 @@
 #define OPENGL3RENDERER_H
 
 #include <tsre/renderer/Renderer.h>
-#include <QOpenGLVertexArrayObject>
-#include <QOpenGLBuffer>
-#include <QSharedPointer>
+#include <vector>
 
 class QOpenGLFunctions;
 
 class OpenGL3Renderer : public Renderer {
 public:
     OpenGL3Renderer();
-    OpenGL3Renderer(const OpenGL3Renderer& orig);
     virtual ~OpenGL3Renderer();
-    void renderFrame();
-    void pushItem(RenderItem *r, float* mvmatrix);
-    void pushItemsVNTA(QVector<RenderItem*>& r, float* mvmatrix);
-    void pushItemVNTA(RenderItem *r, float* mvmatrix);
+    void renderFrame() override;
+    void resetFrame() override;
+    void pushItem(RenderItem *r, float* mvmatrix) override;
+    void pushPackets(const QVector<RenderItem*> &packets, quint32 selectionId = 0) override;
+    void pushItemsVNTA(QVector<RenderItem*>& r, float* mvmatrix) override;
+    void pushItemVNTA(RenderItem *r, float* mvmatrix) override;
+
+    // Packets are grouped by texture and packet for fewer state changes;
+    // false draws them in submission order.
+    bool groupByTexture = true;
+
+    // Frame-owned items queued since the last flush, in submission order.
+    int queuedItemCount() const { return static_cast<int>(orderedItems.size()); }
+    const RenderItem *queuedItem(int index) const { return orderedItems[index].packet; }
+
+    // One queued draw of a packet for this frame.
+    struct DrawInstance {
+        RenderItem *packet = nullptr;
+        quint32 matrix = 0;
+        quint32 selectionId = 0;
+        quint32 order = 0;
+        quint32 textureRank = 0;
+        quint32 packetRank = 0;
+        quint8 category = 0;
+    };
+
 private:
-    QVector<QSharedPointer<RenderItem>> retainedPackets;
-    QOpenGLVertexArrayObject VAO;
-    QOpenGLFunctions *f;
+    quint32 captureMatrix(const float *matrix);
+    const float *frameMatrix(quint32 index) const;
+    void queuePacket(RenderItem *packet, const float *matrix, quint32 selectionId);
+    void sortPackets();
+    void clearQueues();
+
+    // Frame storage is cleared, not freed, so steady frames do not allocate.
+    std::vector<float> frameMatrices;
+    std::vector<DrawInstance> orderedItems;
+    std::vector<DrawInstance> packets;
+    std::vector<quint32> packetOrder;
+    std::vector<RenderItem*> ownedItems;
+    quint32 nextOrder = 0;
+    QOpenGLFunctions *f = nullptr;
 };
 
 #endif /* OPENGL3RENDERER_H */
-

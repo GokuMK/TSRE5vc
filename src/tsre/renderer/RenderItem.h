@@ -11,8 +11,6 @@
 #ifndef RENDERITEM_H
 #define RENDERITEM_H
 
-#include <QSharedPointer>
-#include <QWeakPointer>
 #include <QVector>
 #include <QVector3D>
 
@@ -29,12 +27,7 @@ public:
     QOpenGLBuffer *VBO = 0;    
     QOpenGLVertexArrayObject *VAO = 0;    
     bool shared = false;
-    // Optional owner for cached packets retained by the gathered renderer.
-    QWeakPointer<RenderItem> cacheOwner;
     float *msMatrix = 0;
-    float *mvMatrix = 0;
-    QVector<float*> mvMatrixList;
-    unsigned int mvMatrixId = -1;
     unsigned char normalsEnabled = 0;
     unsigned char texturesEnabled = 0;
     float brightness = 1.0;

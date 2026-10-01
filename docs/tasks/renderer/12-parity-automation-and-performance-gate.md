@@ -43,10 +43,12 @@ while enabled. Selection passes are not recorded.
   `scene` and `ui`. The phases are marked in `paintGL2` and `paintGLGather`
   around code that runs in the same order in both pipelines. `scene` covers
   high-res terrain, world objects, near water, overlays and the pointer.
+  Legacy records the scene as `sceneTerrain`, `sceneWorld` (objects, overlays,
+  pointer) and `sceneWater`; `sceneTotal` sums the scene phases for both.
 - Heap churn (both pipelines): `RenderItem` constructions and `Mat4::clone`
   calls during the frame. The counters are process-wide and always active.
-- Gather queue (gather only): queued frame-owned items, grouped shape packets
-  and instances, texture groups, draw calls, `renderFrame` flushes, and items,
+- Gather queue (gather only): queued frame-owned items, packet instances,
+  packet and texture runs in the draw loop, draw calls, `renderFrame` flushes, and items,
   draws and CPU-side primitives per producer category (`terrain`, `world`,
   `overlay`, `other`). `paintGLGather` sets the category around each producer.
 
@@ -140,3 +142,18 @@ Findings:
 An earlier version of this harness compared the pipelines in one process by
 switching at runtime. That produced false results (magenta textures in gather,
 gather shadows borrowed from the legacy frame) and is no longer used.
+
+### After the packet/instance split (task 02 contract)
+
+Same routes and views. Worst view per route; counts per gather frame.
+
+| Route | Max RMSE | Max diff px | Pick mismatches | Matrix clones | Items created |
+|---|---|---|---|---|---|
+| EUROPE1 | 4.35 -> 3.23 | 0.35% -> 0.18% | 0/864 | 2512-2836 -> 210 | 204-546 (unchanged) |
+| JAPAN1 | 1.95 -> 1.76 | 0.05% -> 0.01% | 0/864 | 5467-5904 -> 718 | 796-1208 (unchanged) |
+| USA1 | 3.34 -> 3.06 | 0.37% -> 0.24% | 0/864 | 4061-4382 -> 677 | 813-1149 (unchanged) |
+| BNSF_SCENIC | 3.68 -> 3.64 | 0.78% -> 0.75% | 0/864 | 3031-3537 -> 287 | 159-900 (unchanged) |
+
+The remaining matrix clones are constant per route and come from `OglObj`
+and animated shapes; the items created are the producers that still build
+frame-owned items (terrain, `OglObj`, animated shapes).

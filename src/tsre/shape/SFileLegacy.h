@@ -19,7 +19,6 @@
 #include <QMatrix4x4>
 #include <QString>
 #include <QPointer>
-#include <QSharedPointer>
 #include <vector>
 #include <QVector>
 #include <tsre/shape/ComplexShape.h>
@@ -256,8 +255,8 @@ public:
 private:
     bool glReady = false;
     QPointer<QOpenGLContext> glContext;
+    // Retires the state's cached packets through the renderer.
     void clearRenderItems(unsigned int stateId);
-    QHash<unsigned int, QVector<QSharedPointer<RenderItem>>> renderItemOwners;
     void clearData();
     static void odczytajshadersc(FileBuffer* bufor, SFileLegacy* pliks);
     static void odczytajpunktyc(FileBuffer* bufor, SFileLegacy* pliks);

@@ -881,8 +881,9 @@ unsigned long long SFileLegacy::getTextureStateHash() const{
 }
 
 void SFileLegacy::clearRenderItems(unsigned int id) {
+    for (RenderItem *item : renderItems[id])
+        Renderer::retirePacket(item);
     renderItems[id].clear();
-    renderItemOwners.remove(id);
 }
 
 void SFileLegacy::invalidateRenderState(bool invalidateMatrixCache){
@@ -1204,9 +1205,6 @@ void SFileLegacy::pushRenderItem(quint32 selectionId, unsigned int stateId){
                 r->itemType = GL_TRIANGLES;
                 r->vertexAttr = RenderItem::VNTA;
                 r->shared = true;
-                QSharedPointer<RenderItem> owner(r);
-                r->cacheOwner = owner.toWeakRef();
-                renderItemOwners[stateId].push_back(owner);
                 renderItems[stateId].push_back(r);
                 //Game::currentRenderer->pushItemVNTA(r);
             }
@@ -1223,34 +1221,8 @@ void SFileLegacy::pushRenderItem(quint32 selectionId, unsigned int stateId){
         renderItemsTextureHash[stateId] = getTextureStateHash();
     }
 
-    if(selectionId != 0){
-        for(int i = 0; i < renderItems[stateId].size(); i++){
-            RenderItem *baseItem = renderItems[stateId][i];
-            if(baseItem == NULL)
-                continue;
-
-            RenderItem *selectionItem = new RenderItem(*baseItem);
-            selectionItem->shared = false;
-            selectionItem->setSelectionId(selectionId);
-            selectionItem->lineWidth = 0;
-            Game::currentRenderer->pushItem(selectionItem, Game::currentRenderer->mvMatrix);
-        }
-        return;
-    }
-
-    if(renderItems[stateId].size() > 0){
-        //for(int i = 0; i < renderItems[stateId].size(); i++){
-        //    Mat4::identity(renderItems[stateId][i]->mvMatrix);
-        //    RenderItem *r;
-
-            //renderItems[stateId][i]->mvMatrix =
-        //            Mat4::copy(renderItems[stateId][i]->mvMatrix, Game::currentRenderer->mvMatrix);
-        //    Game::currentRenderer->pushItemVNTA(r);
-        //}
-        //     Mat4::copy(Game::currentRenderer->mvMatrix, renderItems[stateId][i]->mvMatrix);
-
-        Game::currentRenderer->pushItemsVNTA(renderItems[stateId], Game::currentRenderer->mvMatrix);
-    }
+    if(renderItems[stateId].size() > 0)
+        Game::currentRenderer->pushPackets(renderItems[stateId], selectionId);
 }
 
 void SFileLegacy::render(quint32 selectionId, unsigned int stateId) {

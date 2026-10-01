@@ -354,9 +354,9 @@ int TsreTests::runTransferDepthGlSuite() {
                 float origin[]={0,0,0};
                 auto submit=[&](int count,bool firstIsGround,quint32 selection,const char *name) {
                     transfer.pushRenderItems(0,0,0,origin,origin,1,selection);
-                    bool ok=renderer.items.size()==count;
-                    for (int i=0;i<renderer.items.size();++i) {
-                        const auto *item=renderer.items[i];
+                    bool ok=renderer.queuedItemCount()==count;
+                    for (int i=0;i<renderer.queuedItemCount();++i) {
+                        const auto *item=renderer.queuedItem(i);
                         ok &= item->vertCount>0 && item->selectionId==selection;
                         ok &= item->terrainDecal==(selection==0 && i==0 && firstIsGround);
                         if (!selection) ok &= texture->glLoaded && texture->tex && item->texAddr==texture->tex[0];
@@ -387,8 +387,6 @@ int TsreTests::runTransferDepthGlSuite() {
             texture->delVBO(); TexLib::mtex.erase(textureId); delete texture;
         }
         shape.deleteVBO(); f->glDepthMask(GL_TRUE); target.release();
-        delete[] renderer.mvMatrix;
-        delete[] renderer.objStrMatrix;
     }
     extra->glDeleteBuffers(1,&ubo);
     qInfo() << "[tests:transfer-depth-gl] cases 44 failed" << failed;

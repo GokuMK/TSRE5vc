@@ -1,23 +1,26 @@
 /*  This file is part of TSRE5.
  *
- *  TSRE5 - train sim game engine and MSTS/OR Editors. 
+ *  TSRE5 - train sim game engine and MSTS/OR Editors.
  *  Copyright (C) 2016 Piotr Gadecki <pgadecki@gmail.com>
  *
- *  Licensed under GNU General Public License 3.0 or later. 
+ *  Licensed under GNU General Public License 3.0 or later.
  *
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
 
 #include <cmath>
+#include <algorithm>
 
 #include <tsre/renderer/OpenGL3Renderer.h>
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/renderer/RenderStats.h>
 #include <tsre/math3d/GLMatrix.h>
+#include <QOpenGLBuffer>
 #include <QOpenGLFunctions>
 #include <QOpenGLContext>
 #include <QOpenGLExtraFunctions>
+#include <QOpenGLVertexArrayObject>
 #include <tsre/ogl/GLUU.h>
 #include <tsre/ogl/ScopedTerrainDecal.h>
 #include <tsre/Game.h>
@@ -29,23 +32,6 @@
 
 namespace {
 
-void cleanupMatrixList(QVector<float*> &matrixList){
-    for(int i = 0; i < matrixList.size(); i++){
-        delete[] matrixList[i];
-    }
-    matrixList.clear();
-}
-
-void cleanupRenderItems(QVector<RenderItem*> &items){
-    for(int i = 0; i < items.size(); i++){
-        if(items[i] == NULL)
-            continue;
-        if(!items[i]->shared)
-            delete items[i];
-    }
-    items.clear();
-}
-
 struct DetailStateCache {
     QVector3D remap;
     float scale = -1.0f;
@@ -53,10 +39,7 @@ struct DetailStateCache {
 };
 
 void applyItemState(GLUU *gluu, QOpenGLFunctions *f, RenderItem *item,
-                    DetailStateCache &detail){
-    if(item == NULL)
-        return;
-
+                    quint32 selectionId, DetailStateCache &detail){
     if(item->normalsEnabled)
         gluu->enableNormals();
     else
@@ -64,12 +47,12 @@ void applyItemState(GLUU *gluu, QOpenGLFunctions *f, RenderItem *item,
 
     gluu->setBrightness(item->brightness);
 
-    gluu->setSelectionId(item->selectionId);
+    gluu->setSelectionId(selectionId);
     if (detail.remap != item->terrainTextureRemap) {
         gluu->currentShader->setUniformValue(gluu->currentShader->terrainTextureRemap, item->terrainTextureRemap);
         detail.remap=item->terrainTextureRemap;
     }
-    const float detailScale = item->texturesEnabled && !item->selectionId
+    const float detailScale = item->texturesEnabled && !selectionId
             ? item->secondTexScale : 0.0f;
     if (detailScale != 0.0f && detail.texture != item->secondTexAddr) {
         f->glActiveTexture(GL_TEXTURE1);
@@ -90,19 +73,11 @@ void applyItemState(GLUU *gluu, QOpenGLFunctions *f, RenderItem *item,
 }
 
 unsigned int getItemDrawType(const RenderItem *item){
-    if(item == NULL)
-        return GL_TRIANGLES;
     if(item->itemType == RenderItem::Points)
         return GL_POINTS;
     if(item->itemType == 0)
         return GL_TRIANGLES;
     return item->itemType;
-}
-
-bool requiresWireframe(const RenderItem *item){
-    if(item == NULL)
-        return false;
-    return item->polygonMode != 0;
 }
 
 struct TerrainStateCache {
@@ -162,10 +137,15 @@ void applyTerrainState(GLUU *gluu, RenderItem *item,
     cache.mapPass = item->terrainMapPass;
 }
 
-void drawItem(QOpenGLFunctions *f, RenderItem *item){
-    RenderStats::countDraw(static_cast<RenderStats::Category>(item->statsCategory),
-                           getItemDrawType(item), item->vertCount);
-    ScopedTerrainDecal decalState(f, item->terrainDecal && item->selectionId == 0);
+void setMatrixUniform(GLUU *gluu, int uniform, const float *matrix){
+    gluu->currentShader->setUniformValue(
+                uniform, *reinterpret_cast<const float(*)[4][4]>(matrix));
+}
+
+void drawItem(QOpenGLFunctions *f, RenderItem *item, quint32 selectionId,
+              RenderStats::Category category){
+    RenderStats::countDraw(category, getItemDrawType(item), item->vertCount);
+    ScopedTerrainDecal decalState(f, item->terrainDecal && selectionId == 0);
     if(item->indexed){
         QOpenGLContext::currentContext()->extraFunctions()->glDrawElementsBaseVertex(
                     getItemDrawType(item), item->vertCount, item->indexType,
@@ -176,31 +156,50 @@ void drawItem(QOpenGLFunctions *f, RenderItem *item){
     }
 }
 
+// Line width and polygon mode set for one packet and restored afterwards.
+class PacketRasterState {
+public:
+    PacketRasterState(QOpenGLFunctions *f, const RenderItem *item)
+        : f(f),
+          lineWidth(item->lineWidth > 0 && item->lineWidth != Game::oglDefaultLineWidth),
+          wireframe(item->polygonMode != 0) {
+        if(lineWidth)
+            f->glLineWidth(item->lineWidth);
+        if(wireframe)
+            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    }
+    ~PacketRasterState() {
+        if(wireframe)
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        if(lineWidth)
+            f->glLineWidth(Game::oglDefaultLineWidth);
+    }
+private:
+    QOpenGLFunctions *f;
+    bool lineWidth;
+    bool wireframe;
+};
+
 }
 
 OpenGL3Renderer::OpenGL3Renderer() {
-    mvMatrix = new float[16];
     objStrMatrix = new float[16];
     Mat4::identity(objStrMatrix);
-
-    //VAO.create();
-    //QOpenGLVertexArrayObject::Binder vaoBinder(&VAO);
-    //f = QOpenGLContext::currentContext()->functions();
-    /*f->glEnableVertexAttribArray(0);
-    f->glEnableVertexAttribArray(1);
-    f->glEnableVertexAttribArray(2);
-    f->glEnableVertexAttribArray(3);
-    f->glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(GLfloat), 0);
-    f->glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(GLfloat), reinterpret_cast<void *>(3 * sizeof(GLfloat)));
-    f->glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 9 * sizeof(GLfloat), reinterpret_cast<void *>(6 * sizeof(GLfloat)));
-    f->glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, 9 * sizeof(GLfloat), reinterpret_cast<void *>(8 * sizeof(GLfloat)));
-*/
-}
-
-OpenGL3Renderer::OpenGL3Renderer(const OpenGL3Renderer& orig) {
 }
 
 OpenGL3Renderer::~OpenGL3Renderer() {
+    clearQueues();
+    delete[] objStrMatrix;
+}
+
+quint32 OpenGL3Renderer::captureMatrix(const float *matrix){
+    const quint32 index = static_cast<quint32>(frameMatrices.size() / 16);
+    frameMatrices.insert(frameMatrices.end(), matrix, matrix + 16);
+    return index;
+}
+
+const float *OpenGL3Renderer::frameMatrix(quint32 index) const{
+    return frameMatrices.data() + index * 16;
 }
 
 void OpenGL3Renderer::pushItem(RenderItem* r, float* mvmatrix){
@@ -209,196 +208,213 @@ void OpenGL3Renderer::pushItem(RenderItem* r, float* mvmatrix){
 
     RenderItem *queuedItem = r;
     if(r->shared){
-        queuedItem = new RenderItem();
-        *queuedItem = *r;
+        queuedItem = new RenderItem(*r);
         queuedItem->shared = false;
     }
+    ownedItems.push_back(queuedItem);
 
-    if(mvmatrix == NULL)
-        mvmatrix = mvMatrix;
+    DrawInstance instance;
+    instance.packet = queuedItem;
+    instance.matrix = captureMatrix(mvmatrix != NULL ? mvmatrix : mvMatrix);
+    instance.selectionId = queuedItem->selectionId;
+    instance.order = nextOrder++;
+    instance.category = RenderStats::category();
+    orderedItems.push_back(instance);
 
-    if(mvmatrix != NULL){
-        queuedItem->mvMatrix = Mat4::clone(mvmatrix);
-        mvMatrixs.push_back(queuedItem->mvMatrix);
-    } else {
-        queuedItem->mvMatrix = NULL;
-    }
-
-    queuedItem->statsCategory = RenderStats::category();
     if(RenderStats::inFrame()){
         RenderStats::current().queuedItems++;
-        RenderStats::current().categories[queuedItem->statsCategory].items++;
+        RenderStats::current().categories[instance.category].items++;
     }
-    items.push_back(queuedItem);
+}
+
+void OpenGL3Renderer::queuePacket(RenderItem *packet, const float *matrix,
+                                  quint32 selectionId){
+    DrawInstance instance;
+    instance.packet = packet;
+    instance.matrix = captureMatrix(matrix);
+    instance.selectionId = selectionId != 0 ? selectionId : packet->selectionId;
+    instance.order = nextOrder++;
+    instance.category = RenderStats::category();
+    packets.push_back(instance);
+    queuedPackets++;
+    if(RenderStats::inFrame()){
+        RenderStats::current().groupedInstances++;
+        RenderStats::current().categories[instance.category].items++;
+    }
+}
+
+void OpenGL3Renderer::pushPackets(const QVector<RenderItem*> &items, quint32 selectionId){
+    for(RenderItem *packet : items){
+        if(packet != NULL)
+            queuePacket(packet, mvMatrix, selectionId);
+    }
 }
 
 void OpenGL3Renderer::pushItemsVNTA(QVector<RenderItem*>& r, float* mvmatrix){
-    for(int i = 0; i < r.size(); i++){
-        //r[i]->mvMatrix = Mat4::clone(mvmatrix);
-        //itemsVNTA[r[i]->texAddr].push_back(r[i]);
-        if(itemsVNTA[r[i]->texAddr][(unsigned long long int)r[i]] == NULL){
-            itemsVNTA[r[i]->texAddr][(unsigned long long int)r[i]] = r[i];
-            if (auto owner = r[i]->cacheOwner.toStrongRef())
-                retainedPackets.push_back(owner);
-            r[i]->mvMatrixList.clear();
-            r[i]->statsCategory = RenderStats::category();
-            if(RenderStats::inFrame()){
-                RenderStats::current().groupedPackets++;
-                RenderStats::current().categories[r[i]->statsCategory].items++;
-            }
-        }
-        r[i]->mvMatrixList.push_back(mvmatrix);
-        if(RenderStats::inFrame())
-            RenderStats::current().groupedInstances++;
-        /*RenderItem *rr = new RenderItem();
-        rr->VBO = r[i]->VBO;
-        rr->VAO = r[i]->VAO;
-        rr->mvMatrix = Mat4::clone(mvmatrix);
-        rr->vertOffset = r[i]->vertOffset;
-        rr->vertCount = r[i]->vertCount;
-        rr->itemType = r[i]->itemType;
-        rr->vertexAttr = r[i]->vertexAttr;
-        rr->msMatrix = r[i]->msMatrix;
-        rr->texAddr = r[i]->texAddr;
-        rr->texturesEnabled = r[i]->texturesEnabled;
-        rr->shared = false;
-        itemsVNTA[r[i]->texAddr].push_back(rr);*/
+    for(RenderItem *packet : r){
+        if(packet != NULL)
+            queuePacket(packet, mvmatrix != NULL ? mvmatrix : mvMatrix, 0);
     }
 }
 
 void OpenGL3Renderer::pushItemVNTA(RenderItem* r, float* mvmatrix){
-    //r->mvMatrix = Mat4::clone(mvmatrix);
-    //if(itemsVNTA[r->texAddr][(unsigned long long int)r] == NULL){
-    //    itemsVNTA[r->texAddr][(unsigned long long int)r] = r;
-    //    r->mvMatrixList.clear();
-    //}
-    //r->mvMatrixList.push_back(mvmatrix);
-    //itemsVNTA[r->texAddr].push_back(r);
+    if(r != NULL)
+        queuePacket(r, mvmatrix != NULL ? mvmatrix : mvMatrix, 0);
+}
+
+// Orders packet instances by the first submission of their texture, then of
+// their packet, then by submission. The order is stable across runs, unlike
+// ordering by pointer or hash.
+void OpenGL3Renderer::sortPackets(){
+    if(!groupByTexture || packets.size() < 2)
+        return;
+    const size_t count = packets.size();
+    packetOrder.resize(count);
+    for(size_t i = 0; i < count; ++i)
+        packetOrder[i] = static_cast<quint32>(i);
+
+    std::sort(packetOrder.begin(), packetOrder.end(), [this](quint32 a, quint32 b){
+        if(packets[a].packet != packets[b].packet)
+            return packets[a].packet < packets[b].packet;
+        return packets[a].order < packets[b].order;
+    });
+    for(size_t i = 0; i < count; ){
+        const quint32 first = packets[packetOrder[i]].order;
+        size_t j = i;
+        for(; j < count && packets[packetOrder[j]].packet == packets[packetOrder[i]].packet; ++j)
+            packets[packetOrder[j]].packetRank = first;
+        i = j;
+    }
+
+    std::sort(packetOrder.begin(), packetOrder.end(), [this](quint32 a, quint32 b){
+        if(packets[a].packet->texAddr != packets[b].packet->texAddr)
+            return packets[a].packet->texAddr < packets[b].packet->texAddr;
+        return packets[a].order < packets[b].order;
+    });
+    for(size_t i = 0; i < count; ){
+        const quint32 first = packets[packetOrder[i]].order;
+        const unsigned int texture = packets[packetOrder[i]].packet->texAddr;
+        size_t j = i;
+        for(; j < count && packets[packetOrder[j]].packet->texAddr == texture; ++j)
+            packets[packetOrder[j]].textureRank = first;
+        i = j;
+    }
+
+    std::sort(packets.begin(), packets.end(), [](const DrawInstance &a, const DrawInstance &b){
+        if(a.textureRank != b.textureRank)
+            return a.textureRank < b.textureRank;
+        if(a.packetRank != b.packetRank)
+            return a.packetRank < b.packetRank;
+        return a.order < b.order;
+    });
+}
+
+void OpenGL3Renderer::clearQueues(){
+    for(RenderItem *item : ownedItems)
+        delete item;
+    ownedItems.clear();
+    orderedItems.clear();
+    queuedPackets -= static_cast<int>(packets.size());
+    packets.clear();
+    frameMatrices.clear();
+    nextOrder = 0;
+}
+
+void OpenGL3Renderer::resetFrame(){
+    clearQueues();
+    Renderer::resetFrame();
 }
 
 void OpenGL3Renderer::renderFrame(){
     GLUU *gluu = GLUU::get();
-    f = QOpenGLContext::currentContext()->functions();
+    QOpenGLContext *context = QOpenGLContext::currentContext();
+    f = context != NULL ? context->functions() : NULL;
 
-    if(gluu == NULL || f == NULL){
-        cleanupRenderItems(items);
-        itemsVNTA.clear();
-        retainedPackets.clear();
-        cleanupMatrixList(mvMatrixs);
-        cleanupMatrixList(mvMatrixDelete);
+    if(gluu == NULL || f == NULL || gluu->currentShader == NULL){
+        clearQueues();
+        Renderer::renderFrame();
         return;
     }
     TerrainStateCache terrainState;
     DetailStateCache detailState;
     f->glActiveTexture(GL_TEXTURE0);
 
-    if(RenderStats::inFrame() && (!items.isEmpty() || !itemsVNTA.isEmpty())){
+    if(RenderStats::inFrame() && (!orderedItems.empty() || !packets.empty()))
         RenderStats::current().flushes++;
-        RenderStats::current().textureGroups += itemsVNTA.size();
-    }
 
-    // Generic frame-owned queue.
-    for(int i = 0; i < items.size(); i++){
-        RenderItem *item = items[i];
-        if(item == NULL)
-            continue;
+    // Frame-owned items keep their submission order.
+    for(const DrawInstance &instance : orderedItems){
+        RenderItem *item = instance.packet;
         if(item->VAO == NULL)
             continue;
-
-        applyItemState(gluu, f, item, detailState);
+        applyItemState(gluu, f, item, instance.selectionId, detailState);
         applyTerrainState(gluu, item, terrainState);
-
-        if(item->msMatrix != NULL){
-            gluu->currentShader->setUniformValue(gluu->currentShader->msMatrixUniform, *reinterpret_cast<float(*)[4][4]>(item->msMatrix));
-        }
-        if(item->mvMatrix != NULL){
-            gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]>(item->mvMatrix));
-        }
-
-        bool customLineWidth = item->lineWidth > 0 && item->lineWidth != Game::oglDefaultLineWidth;
-        if(customLineWidth)
-            f->glLineWidth(item->lineWidth);
-
-        bool wireframe = requiresWireframe(item);
-        if(wireframe)
-            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-
+        if(item->msMatrix != NULL)
+            setMatrixUniform(gluu, gluu->currentShader->msMatrixUniform, item->msMatrix);
+        setMatrixUniform(gluu, gluu->currentShader->mvMatrixUniform, frameMatrix(instance.matrix));
+        PacketRasterState raster(f, item);
         QOpenGLVertexArrayObject::Binder vaoBinder(item->VAO);
-        drawItem(f, item);
-
-        if(wireframe)
-            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-
-        if(customLineWidth)
-            f->glLineWidth(Game::oglDefaultLineWidth);
+        drawItem(f, item, instance.selectionId,
+                 static_cast<RenderStats::Category>(instance.category));
     }
 
-    // Keep defaults predictable for the grouped VNTA pass.
+    // Keep defaults predictable for the packet pass.
     gluu->setBrightness(1.0f);
     gluu->enableTextures();
     gluu->enableNormals();
 
-    QHashIterator<unsigned int, QHash<unsigned long long int, RenderItem*>> it(itemsVNTA);
-    while (it.hasNext()) {
-        it.next();
-        gluu->bindTexture(f, it.key());
-
-        QHashIterator<unsigned long long int, RenderItem*> it2(itemsVNTA[it.key()]);
-        while (it2.hasNext()) {
-            it2.next();
-            RenderItem *item = it2.value();
-            if(item == NULL)
-                continue;
-            if(item->VAO == NULL)
-                continue;
-
-            applyItemState(gluu, f, item, detailState);
-            applyTerrainState(gluu, item, terrainState);
-            QOpenGLVertexArrayObject::Binder vaoBinder(item->VAO);
-
-            if(item->msMatrix != NULL){
-                gluu->currentShader->setUniformValue(gluu->currentShader->msMatrixUniform, *reinterpret_cast<float(*)[4][4]>(item->msMatrix));
-            }
-
-            bool customLineWidth = item->lineWidth > 0 && item->lineWidth != Game::oglDefaultLineWidth;
-            if(customLineWidth)
-                f->glLineWidth(item->lineWidth);
-
-            bool wireframe = requiresWireframe(item);
-            if(wireframe)
-                glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-
-            for(int i = 0; i < item->mvMatrixList.size(); i++){
-                if(item->mvMatrixList[i] != NULL){
-                    gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]>(item->mvMatrixList[i]));
-                }
-                drawItem(f, item);
-            }
-
-            if(wireframe)
-                glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-
-            if(customLineWidth)
-                f->glLineWidth(Game::oglDefaultLineWidth);
+    sortPackets();
+    RenderItem *currentPacket = NULL;
+    quint32 currentSelection = 0;
+    unsigned int currentTexture = 0;
+    bool textureGroupOpen = false;
+    for(size_t i = 0; i < packets.size(); ){
+        RenderItem *item = packets[i].packet;
+        size_t end = i;
+        while(end < packets.size() && packets[end].packet == item)
+            ++end;
+        if(item->VAO == NULL){
+            i = end;
+            continue;
         }
-        itemsVNTA[it.key()].clear();
+        if(!textureGroupOpen || item->texAddr != currentTexture){
+            currentTexture = item->texAddr;
+            textureGroupOpen = true;
+            if(RenderStats::inFrame())
+                RenderStats::current().textureGroups++;
+        }
+        if(RenderStats::inFrame())
+            RenderStats::current().groupedPackets++;
+
+        applyItemState(gluu, f, item, packets[i].selectionId, detailState);
+        currentPacket = item;
+        currentSelection = packets[i].selectionId;
+        applyTerrainState(gluu, item, terrainState);
+        if(item->msMatrix != NULL)
+            setMatrixUniform(gluu, gluu->currentShader->msMatrixUniform, item->msMatrix);
+        PacketRasterState raster(f, item);
+        QOpenGLVertexArrayObject::Binder vaoBinder(item->VAO);
+        for(; i < end; ++i){
+            const DrawInstance &instance = packets[i];
+            if(instance.selectionId != currentSelection){
+                gluu->setSelectionId(instance.selectionId);
+                currentSelection = instance.selectionId;
+            }
+            setMatrixUniform(gluu, gluu->currentShader->mvMatrixUniform,
+                             frameMatrix(instance.matrix));
+            drawItem(f, currentPacket, instance.selectionId,
+                     static_cast<RenderStats::Category>(instance.category));
+        }
     }
 
     gluu->currentShader->setUniformValue(gluu->currentShader->shaderSecondTexEnabled, 0.0f);
     gluu->currentShader->setUniformValue(gluu->currentShader->terrainTextureRemap, QVector3D());
-    itemsVNTA.clear();
-    retainedPackets.clear();
-    cleanupRenderItems(items);
-    cleanupMatrixList(mvMatrixs);
-    cleanupMatrixList(mvMatrixDelete);
+    clearQueues();
+    Renderer::renderFrame();
 
     gluu->setBrightness(1.0f);
     gluu->enableTextures();
     gluu->enableNormals();
-    if(gluu->currentShader != NULL)
-        gluu->currentShader->setUniformValue(
-                    gluu->currentShader->terrainPaged, 0);
-    QOpenGLContext::currentContext()->extraFunctions()->glBindBufferBase(
-                GL_UNIFORM_BUFFER, 0, 0);
+    gluu->currentShader->setUniformValue(gluu->currentShader->terrainPaged, 0);
+    context->extraFunctions()->glBindBufferBase(GL_UNIFORM_BUFFER, 0, 0);
 }
-
