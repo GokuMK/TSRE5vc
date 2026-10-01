@@ -314,6 +314,7 @@ public:
         Static = 0x00040003,
         PathObj = 0x00040004,
         TrackObj = 0x00040005,
+        Dyntrack = 0x00040006,
 
         Collection = 0x00040007,
         Forest = 0x00040008,
@@ -321,6 +322,8 @@ public:
         Simple = 0x0004000A,
         CollideObject = 0x0004000B,
         PhysicsObject = 0x0004000C,
+        Wagon = 0x0004000D,
+        Engine = 0x0004000E,
         Train = 0x0004000F,
         Itemmark = 0x00040010,
         Signal = 0x00040011,
@@ -363,11 +366,14 @@ public:
         TrGUI_GuiAnim = 0x00040035,
         TrGUI_CabViewScreen = 0x00040036,
         TrGUI_Notebook = 0x00040037,
+        Gantry = 0x00040038,
+        CarSpawner = 0x00040039,
         SignalGantry = 0x0004003A,
+        Pickup = 0x0004003B,
         Platform = 0x0004003C,
-
+        Siding = 0x0004003D,
         LevelCr = 0x0004003E,
-
+        Transfer = 0x0004003F,
         Speedpost = 0x00040040,
         Hazard = 0x00040041,
         // Native sound forms absent from the old ORTS-derived enum.
@@ -1545,14 +1551,6 @@ public:
         DerailScale = 0x000404D5,
         TimetableTollerance = 0x000404D6,
         DEMPath = 0x000404D7,
-        CarSpawner = 0x00040039,
-        Siding = 0x0004003D,
-        Dyntrack = 0x00040006,
-        Transfer = 0x0004003F,
-        Gantry = 0x00040038,
-        Pickup = 0x0004003B,
-        Wagon = 0x0004000D,
-        Engine = 0x0004000E,
         // Proposed ORTS file IDs, matching the audited ORTS namespace draft.
         Loadstring_last = 0x000404D8,
         ORTSListName = 0x00050800,
