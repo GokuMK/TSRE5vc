@@ -64,6 +64,15 @@ public:
     void playInit();
     
     void getUnsavedInfo(QVector<QString> &items);
+
+    // Renderer parity harness hooks; not used by the editor UI.
+    void setDiagnosticView(int tileX, int tileZ, float x, float y, float z,
+                           float rotX, float rotY);
+    void diagnosticView(int &tileX, int &tileZ, float *pos,
+                        float &rotX, float &rotY) const;
+    // Renders one selection pass and reads the IDs at device-pixel points
+    // without applying a selection.
+    QVector<quint32> probeSelectionIds(const QVector<QPoint> &devicePoints);
     Route *currentRoute() const { return route; }
 
 public slots:
@@ -234,6 +243,8 @@ private:
     CameraConsist* cameraObj = NULL;
     bool selection = false;
     float mousex, mousey;
+    QVector<QPoint> selectionProbePoints;
+    QVector<quint32> selectionProbeResults;
     GameObj* selectedObj = NULL;
     GameObj* lastSelectedObj = NULL;
     WorldObj* copyPasteObj = NULL;

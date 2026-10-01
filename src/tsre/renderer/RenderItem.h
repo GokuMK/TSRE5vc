@@ -64,6 +64,8 @@ public:
     float secondTexScale = 0.0f;
     QVector3D terrainTextureRemap;
     int lineWidth = 0;
+    // RenderStats::Category of the producer that queued this item.
+    unsigned char statsCategory = 0;
     
     RenderItem();
     RenderItem(const RenderItem& orig);

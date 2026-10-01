@@ -15,7 +15,7 @@ This folder contains ordered tasks for migrating the TSRE renderer from legacy i
 - [x] `10-shadows-gather-pass.md`
 - [ ] `11-shader-pass-buckets-and-custom-shaders.md`
 - [ ] `13-selection-renderer-and-id-redesign.md`
-- [ ] `12-parity-automation-and-performance-gate.md`
+- [ ] `12-parity-automation-and-performance-gate.md` (measurement harness implemented; gate pending)
 
 ## Ground Rules For All Tasks
 - Keep a runtime fallback to legacy pipeline until Task 12 sign-off.

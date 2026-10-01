@@ -70,6 +70,7 @@
 #include <routeEditor/TerrainTileCreationDialog.h>
 #include <tsre/world/RouteClient.h>
 #include <tsre/ClientInfo.h>
+#include <tsre/renderer/RenderStats.h>
 #include <QMessageBox>
 
 // The active 8-byte paged layout derives local X/Z in StandardFog.
@@ -583,6 +584,7 @@ bool RouteEditorGLWidget::paintGLGather(bool drawToScreen){
         update();
         return false;
     }
+    RenderStats::ScopedFrame statsFrame(Game::RENDER_PIPELINE_GATHER, !selectionPass);
     
     // Render Shadows
     //if (Game::shadowsEnabled > 0)
@@ -643,7 +645,9 @@ bool RouteEditorGLWidget::paintGLGather(bool drawToScreen){
     Mat4::rotate(gluu->mvMatrix, gluu->mvMatrix, 2.0, 0, 1, 0);
     gluu->setMatrixUniforms();
     gluu->currentShader->setUniformValue(gluu->currentShader->lod, 0.0f);
+    RenderStats::beginPhase(RenderStats::PhaseSky);
     route->skydome->render(gluu, renderMode);
+    RenderStats::endPhase(RenderStats::PhaseSky);
     Mat4::identity(gluu->mvMatrix);
     Mat4::identity(Game::currentRenderer->mvMatrix);
     if(drawToScreen)
@@ -655,9 +659,11 @@ bool RouteEditorGLWidget::paintGLGather(bool drawToScreen){
     gluu->setMatrixUniforms();
     //gluu->currentShader->setUniformValue(gluu->currentShader->lod, -0.5f);
     Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 0, route->getDistantTerrainYOffset(), 0);
+    RenderStats::beginPhase(RenderStats::PhaseDistant);
     Game::terrainLib->renderLo(gluu, camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3, renderMode);
     for(int i = 0; i < route->env->waterCount; i++)
         Game::terrainLib->renderWaterLo(gluu, camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3, renderMode, i);
+    RenderStats::endPhase(RenderStats::PhaseDistant);
     Mat4::identity(gluu->mvMatrix);
     Mat4::identity(Game::currentRenderer->mvMatrix);
     if(drawToScreen)
@@ -667,7 +673,10 @@ bool RouteEditorGLWidget::paintGLGather(bool drawToScreen){
     Mat4::perspective(gluu->pMatrix, Game::cameraFov * M_PI / 180, float(this->width()) / this->height(), 0.2f, Game::objectLod);
     Mat4::multiply(gluu->pMatrix, gluu->pMatrix, camera->getMatrix());
     gluu->setMatrixUniforms();
+    RenderStats::beginPhase(RenderStats::PhaseScene);
+    RenderStats::setCategory(RenderStats::CategoryTerrain);
     Game::terrainLib->pushRenderItems(camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3, renderMode);
+    RenderStats::setCategory(RenderStats::CategoryOther);
     
     // Render World
     Mat4::perspective(gluu->pMatrix, Game::cameraFov * M_PI / 180,
@@ -689,7 +698,9 @@ bool RouteEditorGLWidget::paintGLGather(bool drawToScreen){
         drawPointer();
     }
 
+    RenderStats::setCategory(RenderStats::CategoryWorld);
     route->pushRenderItems(camera->pozT, camera->getPos(), camera->getTarget(), camera->getRotX(), 3.14f / 3, renderMode);
+    RenderStats::setCategory(RenderStats::CategoryOther);
     for(int i = 0; i < route->env->waterCount; i++)
         Game::terrainLib->renderWater(gluu, camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3, renderMode, i);
 
@@ -700,7 +711,9 @@ bool RouteEditorGLWidget::paintGLGather(bool drawToScreen){
     Mat4::identity(gluu->objStrMatrix);
     if(Game::currentRenderer->objStrMatrix != NULL)
         Mat4::identity(Game::currentRenderer->objStrMatrix);
+    RenderStats::setCategory(RenderStats::CategoryOverlay);
     route->pushRenderOverlays(camera->pozT, camera->getPos(), camera->getRotX(), renderMode);
+    RenderStats::setCategory(RenderStats::CategoryOther);
 
     Game::currentRenderer->renderFrame();
     Mat4::identity(gluu->mvMatrix);
@@ -709,8 +722,10 @@ bool RouteEditorGLWidget::paintGLGather(bool drawToScreen){
     
     if (drawPointerAfterWorld)
         drawPointer();
+    RenderStats::endPhase(RenderStats::PhaseScene);
 
     // render compass
+    RenderStats::beginPhase(RenderStats::PhaseUi);
     if (drawToScreen && !selectionPass && Game::viewCompass){
         Mat4::identity(gluu->mvMatrix);
         Mat4::ortho(gluu->pMatrix, -1.0, 1.0, 1.0 - 2*(float(this->height()) / this->width()), 1.0, 0.0, 1.0);
@@ -737,6 +752,7 @@ bool RouteEditorGLWidget::paintGLGather(bool drawToScreen){
         Game::shadowsEnabled = shadowsState;
         gluu->currentShader->release();
     }
+    RenderStats::endPhase(RenderStats::PhaseUi);
 
     if(!drawToScreen){
         glColorMask(oldColorMask[0], oldColorMask[1], oldColorMask[2], oldColorMask[3]);
@@ -786,10 +802,14 @@ void RouteEditorGLWidget::paintGL2() {
     if (!route->loaded) return;
 
     const bool selectionPass = selection;
+    RenderStats::ScopedFrame statsFrame(Game::RENDER_PIPELINE_LEGACY, !selectionPass);
 
     // Render Shadows
-    if (!selectionPass && Game::shadowsEnabled > 0)
-       renderShadowMaps();
+    if (!selectionPass && Game::shadowsEnabled > 0){
+        RenderStats::beginPhase(RenderStats::PhaseShadow);
+        renderShadowMaps();
+        RenderStats::endPhase(RenderStats::PhaseShadow);
+    }
 
     // Render Scene
     //gluu->currentShader = gluu->shaders["StandardBloom"];
@@ -849,7 +869,9 @@ void RouteEditorGLWidget::paintGL2() {
     Mat4::rotate(gluu->mvMatrix, gluu->mvMatrix, 2.0, 0, 1, 0);
     gluu->setMatrixUniforms();
     gluu->currentShader->setUniformValue(gluu->currentShader->lod, 0.0f);
+    RenderStats::beginPhase(RenderStats::PhaseSky);
     route->skydome->render(gluu, renderMode);
+    RenderStats::endPhase(RenderStats::PhaseSky);
     Mat4::identity(gluu->mvMatrix);
     glClear(GL_DEPTH_BUFFER_BIT);
     
@@ -859,9 +881,11 @@ void RouteEditorGLWidget::paintGL2() {
     gluu->setMatrixUniforms();
     //gluu->currentShader->setUniformValue(gluu->currentShader->lod, -0.5f);
     Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 0, route->getDistantTerrainYOffset(), 0);
+    RenderStats::beginPhase(RenderStats::PhaseDistant);
     Game::terrainLib->renderLo(gluu, camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3, renderMode);
     for(int i = 0; i < route->env->waterCount; i++)
         Game::terrainLib->renderWaterLo(gluu, camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3, renderMode, i);
+    RenderStats::endPhase(RenderStats::PhaseDistant);
     Mat4::identity(gluu->mvMatrix);
     glClear(GL_DEPTH_BUFFER_BIT);
 
@@ -869,7 +893,10 @@ void RouteEditorGLWidget::paintGL2() {
     Mat4::perspective(gluu->pMatrix, Game::cameraFov * M_PI / 180, float(this->width()) / this->height(), 0.2f, Game::objectLod);
     Mat4::multiply(gluu->pMatrix, gluu->pMatrix, camera->getMatrix());
     gluu->setMatrixUniforms();
+    RenderStats::beginPhase(RenderStats::PhaseSceneTerrain);
     Game::terrainLib->render(gluu, camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3, renderMode);
+    RenderStats::endPhase(RenderStats::PhaseSceneTerrain);
+    RenderStats::beginPhase(RenderStats::PhaseSceneWorld);
     //glClear(GL_DEPTH_BUFFER_BIT);
     // Render World
     Mat4::perspective(gluu->pMatrix, Game::cameraFov * M_PI / 180, float(this->width()) / this->height(), 0.2f, Game::objectLod);
@@ -880,15 +907,21 @@ void RouteEditorGLWidget::paintGL2() {
         if (!selectionPass && !Game::playerMode) drawPointer();
     
     route->render(gluu, camera->pozT, camera->getPos(), camera->getTarget(), camera->getRotX(), 3.14f / 3, renderMode);
+    RenderStats::endPhase(RenderStats::PhaseSceneWorld);
 
     //if (!selection)
+    RenderStats::beginPhase(RenderStats::PhaseSceneWater);
     for(int i = 0; i < route->env->waterCount; i++)
         Game::terrainLib->renderWater(gluu, camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3, renderMode, i);
+    RenderStats::endPhase(RenderStats::PhaseSceneWater);
 
+    RenderStats::beginPhase(RenderStats::PhaseSceneWorld);
     if (!stickPointerToTerrain || !Game::viewTerrainShape)
         if (!selectionPass && !Game::playerMode) drawPointer();
+    RenderStats::endPhase(RenderStats::PhaseSceneWorld);
     
     // render compass
+    RenderStats::beginPhase(RenderStats::PhaseUi);
     if (!selectionPass && Game::viewCompass){
         Mat4::identity(gluu->mvMatrix);
         Mat4::ortho(gluu->pMatrix, -1.0, 1.0, 1.0 - 2*(float(this->height()) / this->width()), 1.0, 0.0, 1.0);
@@ -915,6 +948,7 @@ void RouteEditorGLWidget::paintGL2() {
         Game::shadowsEnabled = shadowsState;
         gluu->currentShader->release();
     }
+    RenderStats::endPhase(RenderStats::PhaseUi);
     // Handle Selection
     if (blendingWasEnabled)
         glEnable(GL_BLEND);
@@ -1020,6 +1054,15 @@ void RouteEditorGLWidget::handleSelection() {
         qWarning() << "Selection read requested without an active selection target";
         selection = false;
         update();
+        return;
+    }
+
+    if(!selectionProbePoints.isEmpty()){
+        for(const QPoint &point : selectionProbePoints){
+            const int probeY = selectionRenderer->height() - point.y() - 1;
+            selectionProbeResults.push_back(selectionRenderer->readPixel(point.x(), probeY));
+        }
+        selection = false;
         return;
     }
 
@@ -2234,6 +2277,40 @@ void RouteEditorGLWidget::jumpTo(int X, int Z, float x, float y, float z) {
     camera->setPozT(X, Z);
     camera->setPos(x, y, z);
 
+}
+
+void RouteEditorGLWidget::setDiagnosticView(int tileX, int tileZ,
+        float x, float y, float z, float rotX, float rotY) {
+    Game::terrainLib->load(tileX, tileZ);
+    camera->setPozT(tileX, tileZ);
+    camera->setPos(x, y, z);
+    camera->setPlayerRot(rotX, rotY);
+}
+
+void RouteEditorGLWidget::diagnosticView(int &tileX, int &tileZ, float *pos,
+        float &rotX, float &rotY) const {
+    tileX = static_cast<int>(camera->pozT[0]);
+    tileZ = static_cast<int>(camera->pozT[1]);
+    const float *cameraPos = camera->getPos();
+    pos[0] = cameraPos[0];
+    pos[1] = cameraPos[1];
+    pos[2] = cameraPos[2];
+    rotX = camera->getRotX();
+    rotY = camera->getRotY();
+}
+
+QVector<quint32> RouteEditorGLWidget::probeSelectionIds(
+        const QVector<QPoint> &devicePoints) {
+    selectionProbePoints = devicePoints;
+    selectionProbeResults.clear();
+    selection = true;
+    grabFramebuffer();
+    // A failed selection pass leaves no results; never leave picking armed.
+    selection = false;
+    selectionProbePoints.clear();
+    QVector<quint32> results;
+    results.swap(selectionProbeResults);
+    return results;
 }
 
 void RouteEditorGLWidget::objectSelected(GameObj* obj){

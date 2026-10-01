@@ -9,10 +9,12 @@
  */
 
 #include <tsre/renderer/RenderItem.h>
+#include <tsre/renderer/RenderStats.h>
 #include <tsre/math3d/Vector3f.h>
 #include <tsre/math3d/Vector4f.h>
 
 RenderItem::RenderItem() {
+    RenderStats::countRenderItem();
     colorX = 1.0f;
     colorY = 1.0f;
     colorZ = 1.0f;
@@ -20,6 +22,7 @@ RenderItem::RenderItem() {
 }
 
 RenderItem::RenderItem(const RenderItem& orig) {
+    RenderStats::countRenderItem();
     *this = orig;
 }
 

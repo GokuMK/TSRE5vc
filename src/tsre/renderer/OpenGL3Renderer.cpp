@@ -13,6 +13,7 @@
 
 #include <tsre/renderer/OpenGL3Renderer.h>
 #include <tsre/renderer/RenderItem.h>
+#include <tsre/renderer/RenderStats.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <QOpenGLFunctions>
 #include <QOpenGLContext>
@@ -162,6 +163,8 @@ void applyTerrainState(GLUU *gluu, RenderItem *item,
 }
 
 void drawItem(QOpenGLFunctions *f, RenderItem *item){
+    RenderStats::countDraw(static_cast<RenderStats::Category>(item->statsCategory),
+                           getItemDrawType(item), item->vertCount);
     ScopedTerrainDecal decalState(f, item->terrainDecal && item->selectionId == 0);
     if(item->indexed){
         QOpenGLContext::currentContext()->extraFunctions()->glDrawElementsBaseVertex(
@@ -221,6 +224,11 @@ void OpenGL3Renderer::pushItem(RenderItem* r, float* mvmatrix){
         queuedItem->mvMatrix = NULL;
     }
 
+    queuedItem->statsCategory = RenderStats::category();
+    if(RenderStats::inFrame()){
+        RenderStats::current().queuedItems++;
+        RenderStats::current().categories[queuedItem->statsCategory].items++;
+    }
     items.push_back(queuedItem);
 }
 
@@ -233,8 +241,15 @@ void OpenGL3Renderer::pushItemsVNTA(QVector<RenderItem*>& r, float* mvmatrix){
             if (auto owner = r[i]->cacheOwner.toStrongRef())
                 retainedPackets.push_back(owner);
             r[i]->mvMatrixList.clear();
+            r[i]->statsCategory = RenderStats::category();
+            if(RenderStats::inFrame()){
+                RenderStats::current().groupedPackets++;
+                RenderStats::current().categories[r[i]->statsCategory].items++;
+            }
         }
         r[i]->mvMatrixList.push_back(mvmatrix);
+        if(RenderStats::inFrame())
+            RenderStats::current().groupedInstances++;
         /*RenderItem *rr = new RenderItem();
         rr->VBO = r[i]->VBO;
         rr->VAO = r[i]->VAO;
@@ -276,6 +291,11 @@ void OpenGL3Renderer::renderFrame(){
     TerrainStateCache terrainState;
     DetailStateCache detailState;
     f->glActiveTexture(GL_TEXTURE0);
+
+    if(RenderStats::inFrame() && (!items.isEmpty() || !itemsVNTA.isEmpty())){
+        RenderStats::current().flushes++;
+        RenderStats::current().textureGroups += itemsVNTA.size();
+    }
 
     // Generic frame-owned queue.
     for(int i = 0; i < items.size(); i++){
