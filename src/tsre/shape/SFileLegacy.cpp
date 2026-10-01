@@ -15,6 +15,7 @@
 #include <tsre/fileFunctions/ReadFile.h>
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/texture/TexLib.h>
+#include <tsre/texture/Texture.h>
 #include <QDebug>
 #include <QtCore>
 #include <iostream>
@@ -1007,7 +1008,9 @@ void SFileLegacy::pushRenderItem(quint32 selectionId, unsigned int stateId){
                 continue;
             }
             if(!TexLib::mtex[image[i].tex]->loaded){
-                requiresUpdate = true;
+                // A texture that failed to load will not change; keep the cache.
+                if(!TexLib::mtex[image[i].tex]->missing && !TexLib::mtex[image[i].tex]->error)
+                    requiresUpdate = true;
                 continue;
             }
             if(!TexLib::mtex[image[i].tex]->glLoaded){
@@ -1038,9 +1041,17 @@ void SFileLegacy::pushRenderItem(quint32 selectionId, unsigned int stateId){
         }
     }
 
-    // Animated sub-object matrices are frame-local. Avoid caching shared render items
-    // with dangling matrix pointers by submitting per-frame owned packets instead.
+    // Animated sub-object matrices change every frame. Each state refills its
+    // own packets and matrices once per frame; a state submitted again in the
+    // same frame falls back to frame-owned items.
     if(animated){
+        static const RenderItem blank;
+        AnimatedPackets &pool = animatedPackets[stateId];
+        const quint64 frame = Renderer::frameNumber();
+        const bool reusePool = !pool.used || pool.frame != frame;
+        pool.frame = frame;
+        pool.used = true;
+        int slot = 0;
         RenderItem *r;
         float m[16];
         int currentDlevel = state[stateId].distanceLevel;
@@ -1049,8 +1060,6 @@ void SFileLegacy::pushRenderItem(quint32 selectionId, unsigned int stateId){
                 continue;
 
             for (int j = 0; j < distancelevel[currentDlevel].subobiekty[i].iloscc; j++) {
-                r = new RenderItem();
-
                 int prim_state = distancelevel[currentDlevel].subobiekty[i].czesci[j].prim_state_idx;
                 int vtx_state = primstate[prim_state].vtx_state;
                 int matrix = vtxstate[vtx_state].matrix;
@@ -1058,8 +1067,21 @@ void SFileLegacy::pushRenderItem(quint32 selectionId, unsigned int stateId){
 
                 Mat4::identity(m);
                 getPmatrixAnimated(currentDlevel, m, matrix, state[stateId].frameCount);
-                r->msMatrix = Mat4::clone(m);
-                Game::currentRenderer->mvMatrixDelete.push_back(r->msMatrix);
+                if(reusePool){
+                    if(slot == pool.items.size()){
+                        pool.items.push_back(new RenderItem());
+                        pool.matrices.emplace_back();
+                    }
+                    r = pool.items[slot];
+                    *r = blank;
+                    std::copy(m, m + 16, pool.matrices[slot].begin());
+                    r->msMatrix = pool.matrices[slot].data();
+                    slot++;
+                } else {
+                    r = new RenderItem();
+                    r->msMatrix = Mat4::clone(m);
+                    Game::currentRenderer->mvMatrixDelete.push_back(r->msMatrix);
+                }
 
                 if( vtxstate[vtx_state].arg2 < -7 )
                     r->normalsEnabled = 0;
@@ -1109,8 +1131,13 @@ void SFileLegacy::pushRenderItem(quint32 selectionId, unsigned int stateId){
                 r->vertCount = distancelevel[currentDlevel].subobiekty[i].czesci[j].iloscv;
                 r->itemType = GL_TRIANGLES;
                 r->vertexAttr = RenderItem::VNTA;
-                r->shared = false;
-                Game::currentRenderer->pushItem(r, Game::currentRenderer->mvMatrix);
+                if(reusePool){
+                    r->shared = true;
+                    Game::currentRenderer->pushPacket(r, 0, Renderer::SUBMIT_ORDERED);
+                } else {
+                    r->shared = false;
+                    Game::currentRenderer->pushItem(r, Game::currentRenderer->mvMatrix);
+                }
             }
         }
         return;
@@ -1193,7 +1220,9 @@ void SFileLegacy::pushRenderItem(quint32 selectionId, unsigned int stateId){
                     requiresUpdate = true;
                     r->disableTextures(1.0, 0.0, 1.0, 1.0);
                 } else {
-                    requiresUpdate = true;
+                    const Texture *pending = TexLib::mtex[image[texture[primstate[prim_state].arg4].image].tex];
+                    if (!pending->missing && !pending->error)
+                        requiresUpdate = true;
                     r->disableTextures(1.0, 0.0, 1.0, 1.0);
                 }
 
@@ -2376,8 +2405,16 @@ bool SFileLegacy::initGL() {
     return true;
 }
 
+void SFileLegacy::clearAnimatedPackets() {
+    for (auto it = animatedPackets.begin(); it != animatedPackets.end(); ++it)
+        for (RenderItem *item : it.value().items)
+            Renderer::retirePacket(item);
+    animatedPackets.clear();
+}
+
 void SFileLegacy::clearData() {
     invalidateRenderState();
+    clearAnimatedPackets();
     for (int j = 0; distancelevel && j < iloscd; ++j) {
         auto &level = distancelevel[j];
         for (int i = 0; level.subobiekty && i < level.iloscs; ++i) {

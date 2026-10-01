@@ -41,6 +41,16 @@ The renderer separates persistent packets from per-frame draw instances.
   never `delete`. A packet is deleted at once when no renderer has queued
   packets, otherwise after the next flush. This replaces the earlier
   `cacheOwner` / `retainedPackets` protection.
+- **Single packets and order**: `pushPacket(packet, selectionId, order)`
+  queues one packet. `SUBMIT_GROUPED` packets are batched by texture;
+  `SUBMIT_ORDERED` packets keep submission order together with frame-owned
+  items, for overlays, decals and helper geometry. A null `msMatrix` means
+  identity.
+- **Refreshing packets**: a producer may refresh a packet's fields when it
+  submits it (for example a texture that finished loading), but must not
+  change them between submissions in one frame. `Renderer::frameNumber()`
+  increments at every `resetFrame()` so producers can tell when a new frame
+  starts.
 - **Frame-owned items**: `pushItem()` remains for producers that still build
   items every frame. The renderer takes ownership (a shared item is copied),
   draws them in submission order before packets, and deletes them after the
@@ -69,9 +79,18 @@ queued is still unsafe.
   through the instance ID instead of copying packets. This removes the `SFile`
   and glTF cache leaks.
 - [x] `cacheOwner` / `retainedPackets` removed.
-- [ ] Animated shapes still build frame-owned items with cloned matrices
-  every frame; they need persistent per-state animation matrices.
-- [ ] `OglObj`, terrain and `SFileComplex` still build items every frame.
+- [x] `OglObj` keeps a small packet pool per object. Each frame a submission
+  reuses a packet already queued with the same material or takes the next
+  pool entry, so one object can still be drawn with several materials in a
+  frame. Packets are submitted ordered, as before.
+- [x] Terrain keeps one packet per patch for the surface, wireframe grid and
+  map layers, refilled every frame and submitted ordered.
+- [x] `SFileLegacy` animated shapes reuse per-state packets and matrix storage;
+  a state submitted twice in one frame falls back to frame-owned items.
+- [x] `SFileComplex` submits its persistent packets instead of copies, with
+  selection on the instance, and retires them through its packet deleter.
+- [ ] Animated shapes of the opt-in `old` backend (`SFile`) still build
+  frame-owned items.
 - [ ] Texture addresses are still stored in packets, so texture streaming
   rebuilds shape caches.
 

@@ -29,13 +29,24 @@ class RenderItem;
 //   producers that still build items every frame.
 // - mvMatrix values are copied at submission; producers may change or reuse
 //   their matrices immediately afterwards. A packet's msMatrix pointer must
-//   stay valid while the packet is alive.
+//   stay valid while the packet is alive; a null msMatrix means identity.
+// - A packet's fields may be refreshed when it is submitted (for example a
+//   texture that finished loading), but must not change between submissions
+//   in the same frame. Producers that draw one object with different
+//   materials in a frame use one packet per material; frameNumber() tells
+//   them when a new frame starts.
 class Renderer {
 public:
     enum RenderMode {
         RENDER_DEFAULT = 0,
         RENDER_SELECTION = 1,
         RENDER_SHADOWMAP = 2
+    };
+    // Grouped packets are batched by texture; ordered ones keep submission
+    // order with frame-owned items (overlays, decals, helper geometry).
+    enum SubmitOrder {
+        SUBMIT_GROUPED = 0,
+        SUBMIT_ORDERED = 1
     };
     float* objStrMatrix = NULL;
     // Current model-view matrix. Producers transform it in place; the pointer
@@ -49,6 +60,8 @@ public:
     virtual ~Renderer();
 
     virtual void pushItem(RenderItem *r, float* mvmatrix);
+    virtual void pushPacket(RenderItem *packet, quint32 selectionId = 0,
+                            SubmitOrder order = SUBMIT_GROUPED);
     virtual void pushPackets(const QVector<RenderItem*> &packets, quint32 selectionId = 0);
     // Compatibility wrappers for pushPackets().
     virtual void pushItemVNTA(RenderItem *r, float* mvmatrix);
@@ -57,8 +70,10 @@ public:
     void mvPushMatrix();
     void mvPopMatrix();
     virtual void renderFrame();
-    // Drops queued work without drawing it.
+    // Starts a frame: drops queued work and rebalances the matrix stack.
     virtual void resetFrame();
+    // Increments at every resetFrame() of any renderer.
+    static quint64 frameNumber();
 
     // Deletes a producer-owned packet once no renderer can still draw it.
     static void retirePacket(RenderItem *packet);
@@ -67,6 +82,7 @@ public:
 protected:
     // Borrowed packets queued in all renderers; retirement waits for zero.
     static int queuedPackets;
+    static quint64 currentFrame;
     static void releaseRetiredPackets();
     void deleteFrameMatrices();
     void resetMatrixStack();

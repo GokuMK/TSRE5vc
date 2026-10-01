@@ -225,7 +225,7 @@ void SFileComplex::pushRenderItem(quint32 selection, unsigned int id) {
     for (auto &m : lod.meshes)
         count += m.parts.size();
     while (s.packets.size() < count)
-        s.packets.push_back(std::make_unique<RenderItem>());
+        s.packets.emplace_back(new RenderItem());
     size_t at = 0;
     for (auto &m : lod.meshes)
         for (auto &p : m.parts) {
@@ -251,8 +251,9 @@ void SFileComplex::pushRenderItem(quint32 selection, unsigned int id) {
                 item->enableTextures(addr);
             else
                 item->disableTextures(1, 0, 1, 1);
-            item->setSelectionId(selection);
-            Game::currentRenderer->pushItem(item, Game::currentRenderer->mvMatrix);
+            // Persistent packet: selection goes on the queued instance.
+            item->setSelectionId(0);
+            Game::currentRenderer->pushPacket(item, selection);
         }
 }
 void SFileComplex::fillShapeTextureInfo(QHash<int, ShapeTextureInfo *> &out, unsigned int id) {

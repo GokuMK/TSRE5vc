@@ -142,6 +142,13 @@ void setMatrixUniform(GLUU *gluu, int uniform, const float *matrix){
                 uniform, *reinterpret_cast<const float(*)[4][4]>(matrix));
 }
 
+// A null model-space matrix means identity.
+void setModelMatrix(GLUU *gluu, const float *matrix){
+    static const float identity[16] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
+    setMatrixUniform(gluu, gluu->currentShader->msMatrixUniform,
+                     matrix != NULL ? matrix : identity);
+}
+
 void drawItem(QOpenGLFunctions *f, RenderItem *item, quint32 selectionId,
               RenderStats::Category category){
     RenderStats::countDraw(category, getItemDrawType(item), item->vertCount);
@@ -228,19 +235,29 @@ void OpenGL3Renderer::pushItem(RenderItem* r, float* mvmatrix){
 }
 
 void OpenGL3Renderer::queuePacket(RenderItem *packet, const float *matrix,
-                                  quint32 selectionId){
+                                  quint32 selectionId, SubmitOrder order){
     DrawInstance instance;
     instance.packet = packet;
     instance.matrix = captureMatrix(matrix);
     instance.selectionId = selectionId != 0 ? selectionId : packet->selectionId;
     instance.order = nextOrder++;
     instance.category = RenderStats::category();
-    packets.push_back(instance);
+    if(order == SUBMIT_ORDERED){
+        orderedItems.push_back(instance);
+        orderedPackets++;
+    } else {
+        packets.push_back(instance);
+    }
     queuedPackets++;
     if(RenderStats::inFrame()){
         RenderStats::current().groupedInstances++;
         RenderStats::current().categories[instance.category].items++;
     }
+}
+
+void OpenGL3Renderer::pushPacket(RenderItem *packet, quint32 selectionId, SubmitOrder order){
+    if(packet != NULL)
+        queuePacket(packet, mvMatrix, selectionId, order);
 }
 
 void OpenGL3Renderer::pushPackets(const QVector<RenderItem*> &items, quint32 selectionId){
@@ -314,7 +331,8 @@ void OpenGL3Renderer::clearQueues(){
         delete item;
     ownedItems.clear();
     orderedItems.clear();
-    queuedPackets -= static_cast<int>(packets.size());
+    queuedPackets -= static_cast<int>(packets.size()) + orderedPackets;
+    orderedPackets = 0;
     packets.clear();
     frameMatrices.clear();
     nextOrder = 0;
@@ -349,8 +367,7 @@ void OpenGL3Renderer::renderFrame(){
             continue;
         applyItemState(gluu, f, item, instance.selectionId, detailState);
         applyTerrainState(gluu, item, terrainState);
-        if(item->msMatrix != NULL)
-            setMatrixUniform(gluu, gluu->currentShader->msMatrixUniform, item->msMatrix);
+        setModelMatrix(gluu, item->msMatrix);
         setMatrixUniform(gluu, gluu->currentShader->mvMatrixUniform, frameMatrix(instance.matrix));
         PacketRasterState raster(f, item);
         QOpenGLVertexArrayObject::Binder vaoBinder(item->VAO);
@@ -390,8 +407,7 @@ void OpenGL3Renderer::renderFrame(){
         currentPacket = item;
         currentSelection = packets[i].selectionId;
         applyTerrainState(gluu, item, terrainState);
-        if(item->msMatrix != NULL)
-            setMatrixUniform(gluu, gluu->currentShader->msMatrixUniform, item->msMatrix);
+        setModelMatrix(gluu, item->msMatrix);
         PacketRasterState raster(f, item);
         QOpenGLVertexArrayObject::Binder vaoBinder(item->VAO);
         for(; i < end; ++i){

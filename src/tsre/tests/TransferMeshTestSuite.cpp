@@ -357,7 +357,7 @@ int TsreTests::runTransferDepthGlSuite() {
                     bool ok=renderer.queuedItemCount()==count;
                     for (int i=0;i<renderer.queuedItemCount();++i) {
                         const auto *item=renderer.queuedItem(i);
-                        ok &= item->vertCount>0 && item->selectionId==selection;
+                        ok &= item->vertCount>0 && renderer.queuedSelectionId(i)==selection;
                         ok &= item->terrainDecal==(selection==0 && i==0 && firstIsGround);
                         if (!selection) ok &= texture->glLoaded && texture->tex && item->texAddr==texture->tex[0];
                     }

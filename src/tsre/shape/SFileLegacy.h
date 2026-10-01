@@ -19,6 +19,8 @@
 #include <QMatrix4x4>
 #include <QString>
 #include <QPointer>
+#include <array>
+#include <deque>
 #include <vector>
 #include <QVector>
 #include <tsre/shape/ComplexShape.h>
@@ -257,6 +259,17 @@ private:
     QPointer<QOpenGLContext> glContext;
     // Retires the state's cached packets through the renderer.
     void clearRenderItems(unsigned int stateId);
+    // Animated parts are refilled every frame into packets and matrices
+    // reused per state.
+    struct AnimatedPackets {
+        QVector<RenderItem*> items;
+        // A deque keeps matrix addresses stable as the pool grows.
+        std::deque<std::array<float, 16>> matrices;
+        quint64 frame = 0;
+        bool used = false;
+    };
+    QHash<unsigned int, AnimatedPackets> animatedPackets;
+    void clearAnimatedPackets();
     void clearData();
     static void odczytajshadersc(FileBuffer* bufor, SFileLegacy* pliks);
     static void odczytajpunktyc(FileBuffer* bufor, SFileLegacy* pliks);

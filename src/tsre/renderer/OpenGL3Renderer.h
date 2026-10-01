@@ -24,6 +24,8 @@ public:
     void renderFrame() override;
     void resetFrame() override;
     void pushItem(RenderItem *r, float* mvmatrix) override;
+    void pushPacket(RenderItem *packet, quint32 selectionId = 0,
+                    SubmitOrder order = SUBMIT_GROUPED) override;
     void pushPackets(const QVector<RenderItem*> &packets, quint32 selectionId = 0) override;
     void pushItemsVNTA(QVector<RenderItem*>& r, float* mvmatrix) override;
     void pushItemVNTA(RenderItem *r, float* mvmatrix) override;
@@ -32,9 +34,10 @@ public:
     // false draws them in submission order.
     bool groupByTexture = true;
 
-    // Frame-owned items queued since the last flush, in submission order.
+    // Ordered work queued since the last flush, in submission order.
     int queuedItemCount() const { return static_cast<int>(orderedItems.size()); }
     const RenderItem *queuedItem(int index) const { return orderedItems[index].packet; }
+    quint32 queuedSelectionId(int index) const { return orderedItems[index].selectionId; }
 
     // One queued draw of a packet for this frame.
     struct DrawInstance {
@@ -50,7 +53,8 @@ public:
 private:
     quint32 captureMatrix(const float *matrix);
     const float *frameMatrix(quint32 index) const;
-    void queuePacket(RenderItem *packet, const float *matrix, quint32 selectionId);
+    void queuePacket(RenderItem *packet, const float *matrix, quint32 selectionId,
+                     SubmitOrder order = SUBMIT_GROUPED);
     void sortPackets();
     void clearQueues();
 
@@ -60,6 +64,8 @@ private:
     std::vector<DrawInstance> packets;
     std::vector<quint32> packetOrder;
     std::vector<RenderItem*> ownedItems;
+    // Borrowed packets in orderedItems, for retirement accounting.
+    int orderedPackets = 0;
     quint32 nextOrder = 0;
     QOpenGLFunctions *f = nullptr;
 };

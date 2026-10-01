@@ -349,6 +349,9 @@ void Terrain::loadFFile(FileBuffer *data){
 }
 
 Terrain::~Terrain() {
+    for (QVector<RenderItem*> *pool : {&surfacePackets, &gridPackets, &mapPackets})
+        for (RenderItem *packet : *pool)
+            Renderer::retirePacket(packet);
     procedural.reset();
     long timeNow1 = QDateTime::currentMSecsSinceEpoch();
     releaseHeightData();
@@ -2204,6 +2207,17 @@ void Terrain::paintTextureOnTile(Brush* brush, int y, int u, float x, float z) {
     this->modified = true;
 }
 
+// Returns the patch packet reset to defaults; it is refilled every frame.
+RenderItem *Terrain::framePacket(QVector<RenderItem*> &pool, int patchId){
+    static const RenderItem blank;
+    if (pool.size() <= patchId)
+        pool.resize(patchId + 1);
+    if (pool[patchId] == NULL)
+        pool[patchId] = new RenderItem();
+    *pool[patchId] = blank;
+    return pool[patchId];
+}
+
 void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float* playerW, float* target, float fov, quint32 selectionId){
     if (!loaded)
         return;
@@ -2278,7 +2292,7 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
                     if ((ccos > 0) && (xxx > size)) continue;
                 }*/
                 
-                r = new RenderItem();
+                r = framePacket(surfacePackets, patchId);
                 if(selectionId != 0){
                     r->setSelectionId(SelectionIdCodec::withTerrainPatch(
                                           selectionId, patchId));
@@ -2359,7 +2373,7 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
                                              lodState.edgeMask);
                 r->msMatrix = Game::currentRenderer->objStrMatrix;
                 r->setVertexAttributes(r->VNT);
-                Game::currentRenderer->pushItem(r, Game::currentRenderer->mvMatrix);
+                Game::currentRenderer->pushPacket(r, 0, Renderer::SUBMIT_ORDERED);
             }
         }
     }
@@ -2385,7 +2399,7 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
                 lod = sqrt(lodxx * lodxx + lodzz * lodzz);
                 if(Game::viewTerrainShape)
                     if (lod > 300) continue;
-                r = new RenderItem();
+                r = framePacket(gridPackets, patchId);
                 r->disableTextures(0.7,0.7,0.7,1.0);
                 r->itemType = GL_TRIANGLES;
                 const TerrainPatchLodState lodState = patchId < patchLod.size()
@@ -2397,7 +2411,7 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
                 r->setVertexAttributes(r->VNT);
                 r->polygonMode = 1;
                 r->msMatrix = Game::currentRenderer->objStrMatrix;
-                Game::currentRenderer->pushItem(r, Game::currentRenderer->mvMatrix);
+                Game::currentRenderer->pushPacket(r, 0, Renderer::SUBMIT_ORDERED);
             }
         }
         Game::currentRenderer->mvPopMatrix();
@@ -2416,7 +2430,7 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
                 for (int patchId = 0; patchId < gridLayout.patchRecordCount(); ++patchId) {
                     if (!isPatchVisible(patchId, patchVisibility))
                         continue;
-                    r = new RenderItem();
+                    r = framePacket(mapPackets, patchId);
                     r->enableTextures(static_cast<unsigned int>(mapTexture));
                     r->itemType = GL_TRIANGLES;
                     r->msMatrix = Game::currentRenderer->objStrMatrix;
@@ -2426,8 +2440,7 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
                     backend->configureRenderItem(*r, patchId, true, false,
                                                  lodState.sourceStep,
                                                  lodState.edgeMask);
-                    Game::currentRenderer->pushItem(r,
-                                                    Game::currentRenderer->mvMatrix);
+                    Game::currentRenderer->pushPacket(r, 0, Renderer::SUBMIT_ORDERED);
                 }
                 if(MapWindow::isAlpha != 0)
                     Game::currentRenderer->mvPopMatrix();

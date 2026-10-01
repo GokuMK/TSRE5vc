@@ -24,6 +24,7 @@ QVector<RenderItem*> &retiredPackets() {
 }
 
 int Renderer::queuedPackets = 0;
+quint64 Renderer::currentFrame = 0;
 
 Renderer::Renderer() {
     Mat4::identity(ownMvMatrix);
@@ -41,6 +42,22 @@ void Renderer::pushItem(RenderItem* r, float* mvmatrix){
 }
 
 // Renderers without native packet support receive the older calls.
+void Renderer::pushPacket(RenderItem *packet, quint32 selectionId, SubmitOrder order){
+    if(packet == NULL)
+        return;
+    if(selectionId == 0 && order == SUBMIT_GROUPED){
+        pushItemVNTA(packet, mvMatrix);
+        return;
+    }
+    RenderItem *item = new RenderItem(*packet);
+    item->shared = false;
+    if(selectionId != 0){
+        item->setSelectionId(selectionId);
+        item->lineWidth = 0;
+    }
+    pushItem(item, mvMatrix);
+}
+
 void Renderer::pushPackets(const QVector<RenderItem*> &packets, quint32 selectionId){
     if(selectionId == 0){
         QVector<RenderItem*> borrowed = packets;
@@ -90,6 +107,7 @@ void Renderer::renderFrame(){
 }
 
 void Renderer::resetFrame(){
+    currentFrame++;
     resetMatrixStack();
     deleteFrameMatrices();
     releaseRetiredPackets();
@@ -113,6 +131,10 @@ void Renderer::retirePacket(RenderItem *packet){
         return;
     }
     retiredPackets().push_back(packet);
+}
+
+quint64 Renderer::frameNumber(){
+    return currentFrame;
 }
 
 int Renderer::pendingRetiredPackets(){

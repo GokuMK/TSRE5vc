@@ -157,3 +157,22 @@ Same routes and views. Worst view per route; counts per gather frame.
 The remaining matrix clones are constant per route and come from `OglObj`
 and animated shapes; the items created are the producers that still build
 frame-owned items (terrain, `OglObj`, animated shapes).
+
+### After moving producers to persistent packets
+
+`OglObj`, terrain patches, animated shapes and `SFileComplex` submit reused
+packets. Worst view per route; counts per gather frame.
+
+| Route | Max RMSE | Max diff px | Pick mismatches | Items created | Matrix clones |
+|---|---|---|---|---|---|
+| EUROPE1 | 3.29 | 0.18% | 0/864 | 204-546 -> 0 | 210 -> 22 |
+| JAPAN1 | 1.76 | 0.01% | 0/864 | 796-1208 -> 0 | 718 -> 25 |
+| USA1 | 3.06 | 0.24% | 0/864 | 813-1149 -> 0 | 677 -> 46 |
+| BNSF_SCENIC | 3.64 | 0.75% | 0/864 | 159-900 -> 16-266 | 287 -> 183 |
+
+Gathered producers no longer allocate in steady frames. What remains comes
+from passes that the gather frame still draws directly: on BNSF_SCENIC the
+paged distant terrain (`TerrainLibQt::renderLo` -> `Terrain::render` ->
+`TerrainMeshPaged::drawPatch`) builds a temporary `RenderItem` per patch, as it
+does in legacy, and the direct passes (sky, water, pointer) clone matrices
+through `GLUU::mvPushMatrix`.

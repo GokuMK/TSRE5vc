@@ -274,6 +274,11 @@ protected:
     
     
     OglObj terrainBlob;
+    // Gather packets per patch, reused across frames and refilled each frame.
+    QVector<RenderItem*> surfacePackets;
+    QVector<RenderItem*> gridPackets;
+    QVector<RenderItem*> mapPackets;
+    static RenderItem *framePacket(QVector<RenderItem*> &pool, int patchId);
     //QOpenGLBuffer wVBO[256];
     //QOpenGLVertexArrayObject wVAO[256];
     //bool jestW[256];
