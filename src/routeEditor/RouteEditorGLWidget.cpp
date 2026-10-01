@@ -174,7 +174,8 @@ void RouteEditorGLWidget::timerEvent(QTimerEvent * event) {
         }
     }
 
-    route->updateSim(camera->pozT, (float) (timeNow - lastTime) / 1000.0);
+    if (!simulationPaused)
+        route->updateSim(camera->pozT, (float) (timeNow - lastTime) / 1000.0);
 
     lastTime = timeNow;
 
@@ -583,6 +584,7 @@ bool RouteEditorGLWidget::paintGLGather(bool drawToScreen){
     RenderStats::ScopedFrame statsFrame(Game::RENDER_PIPELINE_GATHER, !selectionPass);
     // Drop anything left from an interrupted frame and rebalance the matrix stack.
     Game::currentRenderer->resetFrame();
+    Game::currentRenderer->setViewPosition(camera->getPos());
     
     // Render Shadows
     //if (Game::shadowsEnabled > 0)
@@ -688,7 +690,8 @@ bool RouteEditorGLWidget::paintGLGather(bool drawToScreen){
     const bool drawPointerAfterWorld = drawPointerEnabled && (!stickPointerToTerrain || !Game::viewTerrainShape);
 
     if (drawPointerOnTerrain) {
-        Game::currentRenderer->renderFrame();
+        // The pointer sticks to terrain depth, so terrain must be drawn first.
+        Game::currentRenderer->renderPasses(Renderer::PASS_TERRAIN, Renderer::PASS_TERRAIN);
         Mat4::identity(Game::currentRenderer->mvMatrix);
         Mat4::identity(gluu->objStrMatrix);
         if(Game::currentRenderer->objStrMatrix != NULL)
@@ -699,18 +702,20 @@ bool RouteEditorGLWidget::paintGLGather(bool drawToScreen){
     RenderStats::setCategory(RenderStats::CategoryWorld);
     route->pushRenderItems(camera->pozT, camera->getPos(), camera->getTarget(), camera->getRotX(), 3.14f / 3, renderMode);
     RenderStats::setCategory(RenderStats::CategoryOther);
+
+    // Scene passes before the directly drawn water, as in legacy.
+    Game::currentRenderer->renderPasses(Renderer::PASS_TERRAIN, Renderer::PASS_BLENDED);
     for(int i = 0; i < route->env->waterCount; i++)
         Game::terrainLib->renderWater(gluu, camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3, renderMode, i);
-
-    // Flush world queue first; grouped VNTA rendering can otherwise overdraw overlay helpers.
-    Game::currentRenderer->renderFrame();
 
     Mat4::identity(Game::currentRenderer->mvMatrix);
     Mat4::identity(gluu->objStrMatrix);
     if(Game::currentRenderer->objStrMatrix != NULL)
         Mat4::identity(Game::currentRenderer->objStrMatrix);
     RenderStats::setCategory(RenderStats::CategoryOverlay);
+    Game::currentRenderer->setLayer(Renderer::LAYER_OVERLAY);
     route->pushRenderOverlays(camera->pozT, camera->getPos(), camera->getRotX(), renderMode);
+    Game::currentRenderer->setLayer(Renderer::LAYER_SCENE);
     RenderStats::setCategory(RenderStats::CategoryOther);
 
     Game::currentRenderer->renderFrame();
@@ -2295,6 +2300,10 @@ void RouteEditorGLWidget::diagnosticView(int &tileX, int &tileZ, float *pos,
     pos[2] = cameraPos[2];
     rotX = camera->getRotX();
     rotY = camera->getRotY();
+}
+
+void RouteEditorGLWidget::setSimulationPaused(bool paused) {
+    simulationPaused = paused;
 }
 
 QVector<quint32> RouteEditorGLWidget::probeSelectionIds(

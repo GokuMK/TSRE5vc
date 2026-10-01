@@ -9,6 +9,7 @@
  */
 
 #include <tsre/renderer/RenderStats.h>
+#include <tsre/renderer/Renderer.h>
 
 #include <QElapsedTimer>
 #include <QJsonArray>
@@ -244,6 +245,13 @@ PhaseCounters sceneTotal(const FrameStats &stats) {
     return total;
 }
 
+void countPassDraw(int pass) {
+    State &s = state();
+    if (!s.inFrame || pass < 0 || pass >= FrameStats::PassSlots)
+        return;
+    s.current.passDraws[pass]++;
+}
+
 const char *phaseName(Phase phase) {
     switch (phase) {
     case PhaseShadow: return "shadow";
@@ -302,6 +310,13 @@ QJsonObject toJson(const FrameStats &stats) {
     json["textureGroups"] = double(stats.textureGroups);
     json["drawCalls"] = double(stats.drawCalls);
     json["flushes"] = double(stats.flushes);
+    static_assert(Renderer::PASS_COUNT <= FrameStats::PassSlots, "pass slots");
+    static const char *passNames[Renderer::PASS_COUNT] = {
+        "terrain", "opaque", "alphaTest", "blended", "overlay"};
+    QJsonObject passDraws;
+    for (int i = 0; i < Renderer::PASS_COUNT; ++i)
+        passDraws[passNames[i]] = double(stats.passDraws[i]);
+    json["passDraws"] = passDraws;
     return json;
 }
 

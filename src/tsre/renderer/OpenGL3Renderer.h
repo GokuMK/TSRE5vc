@@ -16,11 +16,13 @@
 #include <vector>
 
 class QOpenGLFunctions;
+class GLUU;
 
 class OpenGL3Renderer : public Renderer {
 public:
     OpenGL3Renderer();
     virtual ~OpenGL3Renderer();
+    void renderPasses(RenderPass first, RenderPass last) override;
     void renderFrame() override;
     void resetFrame() override;
     void pushItem(RenderItem *r, float* mvmatrix) override;
@@ -30,14 +32,20 @@ public:
     void pushItemsVNTA(QVector<RenderItem*>& r, float* mvmatrix) override;
     void pushItemVNTA(RenderItem *r, float* mvmatrix) override;
 
-    // Packets are grouped by texture and packet for fewer state changes;
-    // false draws them in submission order.
+    // Opaque, alpha-test and overlay packets are grouped by texture and
+    // packet for fewer state changes; false draws them in submission order.
     bool groupByTexture = true;
 
-    // Ordered work queued since the last flush, in submission order.
-    int queuedItemCount() const { return static_cast<int>(orderedItems.size()); }
-    const RenderItem *queuedItem(int index) const { return orderedItems[index].packet; }
-    quint32 queuedSelectionId(int index) const { return orderedItems[index].selectionId; }
+    // Ordered work queued in a pass since it was last drawn.
+    int queuedItemCount(RenderPass pass = PASS_OPAQUE) const {
+        return static_cast<int>(passes[pass].ordered.size());
+    }
+    const RenderItem *queuedItem(int index, RenderPass pass = PASS_OPAQUE) const {
+        return passes[pass].ordered[index].packet;
+    }
+    quint32 queuedSelectionId(int index, RenderPass pass = PASS_OPAQUE) const {
+        return passes[pass].ordered[index].selectionId;
+    }
 
     // One queued draw of a packet for this frame.
     struct DrawInstance {
@@ -47,25 +55,35 @@ public:
         quint32 order = 0;
         quint32 textureRank = 0;
         quint32 packetRank = 0;
+        float distance = 0.0f;
         quint8 category = 0;
+        bool owned = false;
     };
 
 private:
+    // Ordered work is drawn first, in submission order; grouped packets after.
+    struct PassQueue {
+        std::vector<DrawInstance> ordered;
+        std::vector<DrawInstance> grouped;
+    };
+
     quint32 captureMatrix(const float *matrix);
     const float *frameMatrix(quint32 index) const;
-    void queuePacket(RenderItem *packet, const float *matrix, quint32 selectionId,
-                     SubmitOrder order = SUBMIT_GROUPED);
-    void sortPackets();
+    RenderPass routePass(const RenderItem *packet, SubmitOrder order) const;
+    void queueInstance(RenderItem *packet, const float *matrix, quint32 selectionId,
+                       SubmitOrder order, bool owned);
+    void sortByTexture(std::vector<DrawInstance> &instances);
+    void sortBackToFront(std::vector<DrawInstance> &instances);
+    void drawOrdered(GLUU *gluu, const std::vector<DrawInstance> &instances, int pass);
+    void drawGrouped(GLUU *gluu, const std::vector<DrawInstance> &instances, int pass);
+    void consumePass(PassQueue &queue);
     void clearQueues();
 
     // Frame storage is cleared, not freed, so steady frames do not allocate.
+    PassQueue passes[PASS_COUNT];
     std::vector<float> frameMatrices;
-    std::vector<DrawInstance> orderedItems;
-    std::vector<DrawInstance> packets;
-    std::vector<quint32> packetOrder;
+    std::vector<quint32> sortOrder;
     std::vector<RenderItem*> ownedItems;
-    // Borrowed packets in orderedItems, for retirement accounting.
-    int orderedPackets = 0;
     quint32 nextOrder = 0;
     QOpenGLFunctions *f = nullptr;
 };

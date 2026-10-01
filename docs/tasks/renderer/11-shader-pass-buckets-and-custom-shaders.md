@@ -44,3 +44,38 @@ Split gather rendering into shader-specific passes so we do not run one large sh
 - Deferred renderer implementation (this task should remain forward-compatible).
 - Legacy pipeline removal.
 - Final parity/performance gate (Task 12).
+
+## Pass buckets (implemented)
+
+Status: explicit passes, surface classes, texture handles and per-pass
+counters are implemented. All passes still use the main shader
+(`StandardFog`); per-pass shaders are not started.
+
+- `Renderer::RenderPass` defines the order: `PASS_TERRAIN`, `PASS_OPAQUE`,
+  `PASS_ALPHA_TEST`, `PASS_BLENDED`, `PASS_OVERLAY`. Each pass draws its
+  ordered work in submission order, then its grouped packets.
+- The renderer routes submissions; producers do not name passes:
+  - the overlay layer (`setLayer(LAYER_OVERLAY)` around
+    `Route::pushRenderOverlays`) goes to `PASS_OVERLAY`;
+  - `SURFACE_TERRAIN` packets go to `PASS_TERRAIN`;
+  - other ordered work (helpers, decals, animated shapes) to `PASS_OPAQUE`;
+  - grouped packets by `RenderItem::surface`.
+- Grouped opaque, alpha-test and overlay packets are batched by texture with
+  a deterministic order; blended packets are sorted back to front from the
+  camera position (`setViewPosition`), measured at the packet origin.
+- `SFileLegacy` sets the surface from the material, matching the per-vertex
+  alpha mode it already writes: `texdiff` is opaque, alpha-test mode 1 is
+  alpha test, other materials blend. glTF, `SFileComplex` and `SFile` packets
+  are opaque until they classify their materials.
+- `renderPasses(first, last)` replaces the mid-frame `renderFrame()` flushes.
+  The gather frame draws `PASS_TERRAIN` before the terrain-attached pointer,
+  the scene passes before the directly drawn water (legacy order; water was
+  previously drawn before the world), and the overlay pass in `renderFrame()`.
+- Packets can reference a TexLib texture (`textureId`), resolved and uploaded
+  when drawn; a texture that is not ready draws in the missing-texture
+  colour. `SFileLegacy` packets use it, so texture loading no longer rebuilds
+  shape caches.
+- `RenderStats` counts draws per pass (`passDraws`).
+
+Remaining for this task: dedicated shader variants per pass (terrain,
+lines/helpers), and surface classification for glTF and `SFileComplex`.

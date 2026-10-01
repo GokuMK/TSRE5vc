@@ -357,6 +357,9 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, bool verbose) {
         qWarning() << CaptureLog << "route failed to load:" << Game::route;
         return 2;
     }
+    // Traffic and animation advance with wall-clock time, which separate
+    // processes do not share.
+    widget.setSimulationPaused(true);
     widget.show();
     QApplication::processEvents();
     if (!widget.isValid()) {

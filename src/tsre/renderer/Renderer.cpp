@@ -106,8 +106,26 @@ void Renderer::renderFrame(){
     releaseRetiredPackets();
 }
 
+void Renderer::setLayer(Layer layer){
+    currentLayer = layer;
+}
+
+Renderer::Layer Renderer::layer() const{
+    return currentLayer;
+}
+
+void Renderer::setViewPosition(const float *position){
+    std::copy(position, position + 3, viewPosition);
+}
+
+void Renderer::renderPasses(RenderPass first, RenderPass last){
+    Q_UNUSED(first);
+    Q_UNUSED(last);
+}
+
 void Renderer::resetFrame(){
     currentFrame++;
+    currentLayer = LAYER_SCENE;
     resetMatrixStack();
     deleteFrameMatrices();
     releaseRetiredPackets();

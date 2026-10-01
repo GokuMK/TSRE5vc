@@ -75,3 +75,8 @@ void RenderItem::enableTextures(unsigned int addr){
     texturesEnabled = 1;
     texAddr = addr;
 }
+
+void RenderItem::enableTextureId(int id){
+    texturesEnabled = 1;
+    textureId = id;
+}

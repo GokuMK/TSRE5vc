@@ -2215,6 +2215,7 @@ RenderItem *Terrain::framePacket(QVector<RenderItem*> &pool, int patchId){
     if (pool[patchId] == NULL)
         pool[patchId] = new RenderItem();
     *pool[patchId] = blank;
+    pool[patchId]->surface = RenderItem::SURFACE_TERRAIN;
     return pool[patchId];
 }
 

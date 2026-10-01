@@ -73,6 +73,9 @@ struct FrameStats {
     quint64 textureGroups = 0;
     quint64 drawCalls = 0;
     quint64 flushes = 0;
+    // Draw calls per Renderer::RenderPass.
+    static constexpr int PassSlots = 8;
+    quint64 passDraws[PassSlots] = {};
 };
 
 bool enabled();
@@ -97,6 +100,7 @@ void countRenderItem();
 void countMatrixClone();
 
 void countDraw(Category category, unsigned int glPrimitive, unsigned int vertexCount);
+void countPassDraw(int pass);
 
 PhaseCounters sceneTotal(const FrameStats &stats);
 const char *phaseName(Phase phase);

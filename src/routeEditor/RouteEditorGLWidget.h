@@ -73,6 +73,9 @@ public:
     // Renders one selection pass and reads the IDs at device-pixel points
     // without applying a selection.
     QVector<quint32> probeSelectionIds(const QVector<QPoint> &devicePoints);
+    // Stops simulation updates (traffic, animation) so separate processes
+    // render the same scene. Content loading continues.
+    void setSimulationPaused(bool paused);
     Route *currentRoute() const { return route; }
 
 public slots:
@@ -244,6 +247,7 @@ private:
     bool selection = false;
     float mousex, mousey;
     QVector<QPoint> selectionProbePoints;
+    bool simulationPaused = false;
     QVector<quint32> selectionProbeResults;
     GameObj* selectedObj = NULL;
     GameObj* lastSelectedObj = NULL;

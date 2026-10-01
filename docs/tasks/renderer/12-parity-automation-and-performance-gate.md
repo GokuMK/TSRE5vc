@@ -83,8 +83,10 @@ mismatches (a difference in part only counts as `sameTargetOtherPart`), and
 both pipelines' counters. The exit code is 1 only when a configured threshold
 (`maxRmse`, `maxDiffPixelRatio`, `maxPickMismatches`) is exceeded.
 
-The two processes do not share simulation time, so animated content can differ;
-the report notes views that did not settle or changed during capture.
+The capture pauses the simulation (`RouteEditorGLWidget::setSimulationPaused`),
+because traffic and animation advance with wall-clock time that separate
+processes do not share. Content loading continues. The report still notes
+views that did not settle or changed during capture.
 
 Run both captures and the comparison with:
 
@@ -176,3 +178,17 @@ paged distant terrain (`TerrainLibQt::renderLo` -> `Terrain::render` ->
 `TerrainMeshPaged::drawPatch`) builds a temporary `RenderItem` per patch, as it
 does in legacy, and the direct passes (sky, water, pointer) clone matrices
 through `GLUU::mvPushMatrix`.
+
+### After pass buckets and texture handles (task 11), simulation paused
+
+Worst view per route; counts per gather frame. Every view settled.
+
+| Route | Max RMSE | Max diff px | Pick mismatches | Items created | Matrix clones | Draws |
+|---|---|---|---|---|---|---|
+| EUROPE1 | 2.19 | 0.18% | 0/864 | 0 | 22 | 581-2207 |
+| JAPAN1 | 1.91 | 0.04% | 0/864 | 0 | 25 | 2014-4616 |
+| USA1 | 2.89 | 0.24% | 0/864 | 0 | 46 | 1752-3664 |
+| BNSF_SCENIC | 3.64 | 0.74% | 0/864 | 16-266 | 183 | 895-6028 |
+
+Before the simulation was paused, EUROPE1 `down` differed by a car-spawner
+bus at another position in each process (RMSE 5.03, one pick mismatch).

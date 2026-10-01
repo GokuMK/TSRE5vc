@@ -48,6 +48,23 @@ public:
         SUBMIT_GROUPED = 0,
         SUBMIT_ORDERED = 1
     };
+    // Passes draw in this order. The renderer routes each submission from the
+    // packet surface, the submission order and the current layer: terrain
+    // packets go to PASS_TERRAIN; ordered scene work to PASS_OPAQUE before its
+    // batched packets; grouped packets by surface; the overlay layer to
+    // PASS_OVERLAY.
+    enum RenderPass {
+        PASS_TERRAIN = 0,
+        PASS_OPAQUE,
+        PASS_ALPHA_TEST,
+        PASS_BLENDED,
+        PASS_OVERLAY,
+        PASS_COUNT
+    };
+    enum Layer {
+        LAYER_SCENE = 0,
+        LAYER_OVERLAY = 1
+    };
     float* objStrMatrix = NULL;
     // Current model-view matrix. Producers transform it in place; the pointer
     // stays stable across mvPushMatrix()/mvPopMatrix().
@@ -69,6 +86,15 @@ public:
 
     void mvPushMatrix();
     void mvPopMatrix();
+    // Layer for following submissions; resetFrame() returns to LAYER_SCENE.
+    void setLayer(Layer layer);
+    Layer layer() const;
+    // Camera position in the submission space, for back-to-front sorting.
+    void setViewPosition(const float *position);
+    // Draws and consumes queued work of passes first..last; later passes stay
+    // queued. Use it where direct drawing must happen between passes.
+    virtual void renderPasses(RenderPass first, RenderPass last);
+    // Draws all remaining passes and ends the frame's submissions.
     virtual void renderFrame();
     // Starts a frame: drops queued work and rebalances the matrix stack.
     virtual void resetFrame();
@@ -86,6 +112,8 @@ protected:
     static void releaseRetiredPackets();
     void deleteFrameMatrices();
     void resetMatrixStack();
+    Layer currentLayer = LAYER_SCENE;
+    float viewPosition[3] = {0, 0, 0};
 
 private:
     float ownMvMatrix[16];

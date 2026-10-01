@@ -91,7 +91,8 @@ queued is still unsafe.
   selection on the instance, and retires them through its packet deleter.
 - [ ] Animated shapes of the opt-in `old` backend (`SFile`) still build
   frame-owned items.
-- [ ] Texture addresses are still stored in packets, so texture streaming
-  rebuilds shape caches.
+- [x] Packets can reference a TexLib texture resolved at draw time
+  (`textureId`); `SFileLegacy` uses it, so texture streaming no longer
+  rebuilds shape caches. See task 11 for passes and surfaces.
 
 Related: [SFileLegacy matrix-reuse and ownership follow-up](../shapes/05-sfile-legacy-load-gl.md).
