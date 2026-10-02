@@ -21,7 +21,11 @@ opens the route material list, regardless of the last selected tool. Pick and
 Lock are duplicated controls for the same underlying tools and share checked
 state. **From image...** validates
 an image, copies it into route `TERRTEX` if necessary, and adds a definition.
-Existing filenames are not overwritten; colliding external names get a suffix.
+Selecting a file already in the active route's `TERRTEX` reuses it. When a
+candidate filename already exists, byte-identical content is reused too,
+including an existing suffixed candidate from an earlier import. Only genuinely
+different content receives the next `_1`, `_2`, and so on suffix; existing files
+are never overwritten.
 The chooser is a row-selection table: **UiD**, **Texture** thumbnail and **Name**.
 New names use the original image filename without its extension, even if copying
 the file required a collision suffix. Double-click the name or press F2 to rename
@@ -198,6 +202,12 @@ inspected. Logs: `build/terrain-material-undo-material-table-cpu.log` and
 `build/terrain-material-undo-material-table-gl.log` (not tracked).
 The user subsequently confirmed that the mixed recent-material selection works
 and approved committing this implementation and its UI follow-ups.
+
+Import-reuse follow-up (2026-10-02): selecting an image already in route
+`TERRTEX`, importing identical bytes through another path, and repeating an
+import after a genuine filename collision are covered by the production test
+suite. The incremental build succeeds and the `terrain-material` suite passes
+584 checks with zero failures.
 
 ```text
 build\TSRE5vc.exe --test --test-suite terrain-material

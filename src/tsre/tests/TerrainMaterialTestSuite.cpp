@@ -537,6 +537,26 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
               "season-paint-advances-shared-revision-but-preserves-stale-other-bake");
     }
     {
+        QTemporaryDir imports;
+        const QString route=imports.path()+"/route", sources=imports.path()+"/sources";
+        QDir().mkpath(route+"/TERRTEX"); QDir().mkpath(sources+"/a"); QDir().mkpath(sources+"/b");
+        red.save(route+"/TERRTEX/shared.png"); red.save(sources+"/a/shared.png");
+        blue.save(sources+"/b/shared.png");
+        TerrainMaterialLibrary imported(route);
+        const auto direct=imported.addImage(route+"/TERRTEX/shared.png",error);
+        const auto same=imported.addImage(sources+"/a/shared.png",error);
+        const auto different=imported.addImage(sources+"/b/shared.png",error);
+        const auto repeated=imported.addImage(sources+"/b/shared.png",error);
+        check(direct && same && imported.find(direct)->texture=="shared.png"
+              && imported.find(same)->texture=="shared.png"
+              && !QFileInfo::exists(route+"/TERRTEX/shared_2.png"),
+              "global-library-route-and-identical-import-reuse-existing-file");
+        check(different && repeated && imported.find(different)->texture=="shared_1.png"
+              && imported.find(repeated)->texture=="shared_1.png"
+              && QFileInfo::exists(route+"/TERRTEX/shared_1.png"),
+              "global-library-different-collision-suffixed-once-and-reused");
+    }
+    {
         const auto library=TerrainMaterialLibrary::current();
         check(library->error().isEmpty() && library->materials().isEmpty(),"global-library-missing-starts-empty");
         const auto redUid=library->addImage(temp.path()+"/red.png",error);

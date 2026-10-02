@@ -19,6 +19,21 @@ namespace {
 QString quote(QString text) {
     return '"'+text.replace('\\',"\\\\").replace('"',"\\\"")+ '"';
 }
+bool sameFileContents(const QFileInfo &a,const QFileInfo &b) {
+    const QString first=a.canonicalFilePath(),second=b.canonicalFilePath();
+    if (!first.isEmpty() && !second.isEmpty()
+#ifdef Q_OS_WIN
+            && !first.compare(second,Qt::CaseInsensitive)) return true;
+#else
+            && first==second) return true;
+#endif
+    if (!a.isFile() || !b.isFile() || a.size()!=b.size()) return false;
+    QFile left(a.filePath()),right(b.filePath());
+    if (!left.open(QIODevice::ReadOnly) || !right.open(QIODevice::ReadOnly)) return false;
+    constexpr qint64 chunk=64*1024;
+    while (!left.atEnd()) if (left.read(chunk)!=right.read(chunk)) return false;
+    return right.atEnd();
+}
 // Small strict MSTS-style block reader. No dependence on permissive binary parsers.
 struct Tokens {
     QStringList values;
@@ -179,16 +194,22 @@ quint32 TerrainMaterialLibrary::addImage(const QString &source, QString &error) 
     } else valid=!QImage(source).isNull();
     if (!valid) { error="Cannot decode material source: "+source+"\n"+error; return 0; }
     if (!QDir().mkpath(textureDirectory())) { error="Cannot create route TERRTEX directory"; return 0; }
-    QString relative=image.fileName(), target=QDir(textureDirectory()).filePath(relative);
+    QString relative,target;
     bool copied=false;
-    if (QFileInfo(target).canonicalFilePath()!=image.canonicalFilePath()) {
-        int suffix=1;
-        while (QFileInfo::exists(target)) {
-            relative=image.completeBaseName()+"_"+QString::number(suffix++)+"."+image.suffix();
-            target=QDir(textureDirectory()).filePath(relative);
+    for (int suffix=0;;++suffix) {
+        relative=suffix ? image.completeBaseName()+"_"+QString::number(suffix)+"."+image.suffix()
+                        : image.fileName();
+        target=QDir(textureDirectory()).filePath(relative);
+        const QFileInfo candidate(target);
+        // Selecting an existing route texture, selecting it through an
+        // equivalent path, or importing the same bytes again must reuse the
+        // existing file. Only genuinely different content needs a suffix.
+        if (candidate.exists()) {
+            if (sameFileContents(image,candidate)) break;
+            continue;
         }
         if (!QFile::copy(source,target)) { error="Cannot copy source image into route TERRTEX"; return 0; }
-        copied=true;
+        copied=true; break;
     }
     TerrainMaterialDefinition definition{quint32(nextUid),image.completeBaseName(),relative};
     definitions.insert(definition.uid,definition); ++nextUid;
