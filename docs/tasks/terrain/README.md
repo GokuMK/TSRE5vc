@@ -35,7 +35,7 @@ including files on disk that are not registered in the tree.
 | [Procedural seasons and route-wide baking](terrain-procedural-seasons.md) | Completed 2026-09-11; automated checks and user visual acceptance passed | Per-source seasonal/rain fallback, snow-free Winter, per-variant bake revisions, current-variant saves and CLI/Settings-menu batch baking. Optional extended verification is listed in the task. |
 | [Procedural token tile migration](procedural-token-tile-migration.md) | Completed 2026-09-09; automated validation and visual Route Editor acceptance passed | Migration backup retained for manual removal when no longer wanted. |
 | [Procedural material container](terrain-procedural-material-container.md) | Terrain-level container relocation, 2026-09-29 | Avoid ORTS strict sample-block rejection; read both parents, save only the new container. Runtime interoperability verification pending. |
-| [Procedural map resolution and bake sampling](terrain-procedural-map-resolution.md) | Reviewed design; implementation not started | Accept 2048-8192 source maps, cap/downscale the runtime ID texture categorically, use dirty GPU uploads and replace fixed 512-square bake intermediates with 2 x 2 final-size sampling. Coordinate renderer-facing work with `feature/gather-renderer`. |
+| [Procedural map resolution and bake sampling](terrain-procedural-map-resolution.md) | Backend implemented/tested; direct TSRE renderer deferred | TSRE and the Open Rails branch accept 2048-8192 maps. TSRE preserves native authoring size and uses a 2 x output bake intermediate while retaining the full-output path; direct GPU map upload/dirty rectangles wait for `feature/gather-renderer`. |
 
 ## Tracked milestone and sub-task checklist
 
@@ -65,7 +65,7 @@ implement them; deferred designs are not blockers for the working terrain tools.
 Deferred production features / testing (not requirements to close Stage A):
 
 - [ ] Richer material/UV/detail/mixing properties, source alpha and physical-scale policy.
-- [ ] [Dynamic procedural-map resolution and smaller bake intermediates](terrain-procedural-map-resolution.md).
+- [x] [Dynamic procedural-map resolution and smaller bake intermediates](terrain-procedural-map-resolution.md) backend: native-size load/edit/undo/save and optimized 2 x bake cache misses. Direct TSRE GPU-map rendering remains renderer-dependent.
 - [ ] Live source reload (seasonal implementation now has its own agreed task above).
 - [ ] Procedural route merge, portable export/sidecar cleanup and multiplayer support.
 - [ ] Broader Gather, gap/seam/shadow and populated-route/multiplayer acceptance coverage.
@@ -91,11 +91,10 @@ Deferred production features / testing (not requirements to close Stage A):
 - Optional advanced validation hashes the entire ID map plus generation/source
   metadata. A mismatch requests rebaking but does not hide the existing fallback.
   Default remains off; its purpose and cost must be clear in the editor.
-- Map dimensions are a separate implementation issue, not a file-format obstacle:
-  `.pmap` v1 already contains width and height. The runtime currently insists on
-  compile-time `4096 x 4096`. Supporting per-map dimensions requires updating
-  allocation, addressing, painting, generation and undo consumers. A future
-  creation-size default must not change interpretation of existing maps.
+- `.pmap` v1 dimensions are now honored for square power-of-two maps from 2048
+  through 8192. Loading, addressing, painting, generation, undo and saving retain
+  the native authoring size. Newly created maps still default to 4096, so existing
+  route creation behavior is unchanged.
 
 ### Other implementation work
 

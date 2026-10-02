@@ -131,10 +131,11 @@ QList<int> sourceSlots(const TFile &file) {
     for (int i=1;i<file.materialCount();++i) ids.push_back(i);
     return ids;
 }
-QString bakeOptionsKey(int patches,const QString &variant) {
+QString bakeOptionsKey(int patches,const QString &variant,int mapSide) {
     QByteArray bytes; QDataStream out(&bytes,QIODevice::WriteOnly);
-    out << variant << TerrainMaterialMap::Side << TerrainMaterialMap::BakedSide << TerrainMaterialMap::OutputSide
-        << TerrainMaterialMap::SamplingMode << patches << qint32(AceEncoding::Dxt1);
+    out << variant << mapSide << TerrainMaterialMap::BakedSide << TerrainMaterialMap::OutputSide
+        << TerrainMaterialMap::SamplingMode << qint32(TerrainMaterialMap::BakeSamplingMode)
+        << patches << qint32(AceEncoding::Dxt1);
     return QString::fromLatin1(QCryptographicHash::hash(bytes,QCryptographicHash::Sha256).toHex());
 }
 QString bakeSourcesKey(const TFile &file,const QString &directory,const QString &variant) {
@@ -148,8 +149,8 @@ QString bakeSourcesKey(const TFile &file,const QString &directory,const QString 
     }
     return QString::fromLatin1(QCryptographicHash::hash(bytes,QCryptographicHash::Sha256).toHex());
 }
-QString bakeSettingsKey(const TFile &file,const QString &directory,int patches,const QString &variant) {
-    return QString::fromLatin1(QCryptographicHash::hash((bakeOptionsKey(patches,variant)
+QString bakeSettingsKey(const TFile &file,const QString &directory,int patches,const QString &variant,int mapSide) {
+    return QString::fromLatin1(QCryptographicHash::hash((bakeOptionsKey(patches,variant,mapSide)
             +bakeSourcesKey(file,directory,variant)).toUtf8(),QCryptographicHash::Sha256).toHex());
 }
 QString storedBakeSettings(const QString &marker) {
@@ -609,8 +610,7 @@ struct TerrainMaterialUndo : UndoSnapshot {
             samePalette = current && current->key() == palette[i]->key();
         }
         if (!reference.isEmpty()) {
-            next->map.ids = buffer->bytes();
-            if (!next->map.valid()) return false;
+            if (!next->map.setIds(buffer->bytes())) return false;
             next->sourceIds = next->map.usedIds();
             // Validate sources before changing either the map or its palette.
             for (int id : next->sourceIds) {
@@ -823,8 +823,9 @@ QString Terrain::proceduralBakeSignature() const {
     hash.addData(procedural->map.ids);
     QByteArray settings;
     QDataStream out(&settings,QIODevice::WriteOnly);
-    out << qint32(1) << TerrainMaterialMap::BakedSide << TerrainMaterialMap::OutputSide
-        << TerrainMaterialMap::SamplingMode << gridLayout.patchesPerSide;
+    out << qint32(1) << procedural->map.side() << TerrainMaterialMap::BakedSide
+        << TerrainMaterialMap::OutputSide << TerrainMaterialMap::SamplingMode
+        << qint32(TerrainMaterialMap::BakeSamplingMode) << gridLayout.patchesPerSide;
     for (int i : sourceSlots(*tfile)) {
         if (tfile->materialUidMapPresent) out << i;
         out << sourceKey(*tfile,i);
@@ -912,9 +913,8 @@ void Terrain::loadProceduralMaterial(const QString &directory, bool prefetch) {
     const QString ref = tfile->sampleMaterialBuffer;
     if (QFileInfo(ref).fileName() != ref || ref.contains('\\') || ref.contains(':'))
         procedural->error = "Unsafe procedural material bitmap reference";
-    else if (TerrainMaterialMap::Side % gridLayout.patchesPerSide != 0)
-        procedural->error = "Procedural bitmap is not divisible by this patch count";
-    else if (procedural->map.read(QDir(directory).filePath(ref),procedural->error)) {
+    else if (procedural->map.read(QDir(directory).filePath(ref),procedural->error)
+             && procedural->map.side()%gridLayout.patchesPerSide==0) {
         procedural->ready = reserveProceduralBake(procedural->error);
         procedural->libraryCanRecover=procedural->ready;
         procedural->sourceIds = procedural->map.usedIds();
@@ -930,7 +930,8 @@ void Terrain::loadProceduralMaterial(const QString &directory, bool prefetch) {
                 && (!TerrainMaterialMap::ValidateBakeOnLoad
                     || storedBakeValidation(tfile->bakedMaterialInfo)==proceduralBakeSignature());
         procedural->bakeSettings=storedBakeSettings(tfile->bakedMaterialInfo);
-        procedural->loadedSourcesKey=bakeSettingsKey(*tfile,proceduralSourceRoot(),gridLayout.patchesPerSide,proceduralVariant);
+        procedural->loadedSourcesKey=bakeSettingsKey(*tfile,proceduralSourceRoot(),gridLayout.patchesPerSide,
+                                                     proceduralVariant,procedural->map.side());
         procedural->fullBakeRequired=!procedural->bakeCurrent || procedural->bakeSettings.isEmpty()
                 || procedural->bakeSettings!=procedural->loadedSourcesKey;
         procedural->bakeCurrent &= !procedural->fullBakeRequired;
@@ -942,7 +943,8 @@ void Terrain::loadProceduralMaterial(const QString &directory, bool prefetch) {
             procedural->prefetchBakePath=QDir(texturepath).filePath(primaryName(*tfile,0));
             if (prefetch) procedural->requestBake(); // CPU only: tile loading need not own a GL context.
         }
-    }
+    } else if (procedural->map.valid())
+        procedural->error="Procedural bitmap is not divisible by this patch count";
     if (!procedural->ready) qWarning() << name << procedural->error << "Procedural painting/save refused; static fallback retained";
     procedural->rememberLibrary(*tfile);
 }
@@ -958,7 +960,9 @@ bool Terrain::setProceduralMaterial(bool enabled, QString &error, quint32 materi
         QScopedValueRollback<QString> previousPath(texturepath),previousRoot(rootTexturepath),
                 previousVariant(proceduralVariant),previousIdentity(tfile->bakedMaterialInfo);
         configureProceduralSeason();
-        if (TerrainMaterialMap::Side % gridLayout.patchesPerSide != 0) { error = "Bitmap size must divide evenly into patches"; return false; }
+        if (!restoreSavedMap && TerrainMaterialMap::Side%gridLayout.patchesPerSide!=0) {
+            error="Bitmap size must divide evenly into patches"; return false;
+        }
         // Save outstanding static paint first, so switching cannot redirect ACE writes.
         for (int i=0; i<gridLayout.patchRecordCount(); ++i) if (texModified[i]) {
             error = "Save the tile's static texture edits before enabling procedural materials"; return false;
@@ -969,6 +973,9 @@ bool Terrain::setProceduralMaterial(bool enabled, QString &error, quint32 materi
             const QString path=Game::root+"/ROUTES/"+Game::route+"/"+TileDir[int(lowTile)]
                     +"/"+name+"_materials.pmap";
             if (!state->map.read(path,error)) return false;
+            if (state->map.side()%gridLayout.patchesPerSide!=0) {
+                error="Bitmap size must divide evenly into patches"; return false;
+            }
             const auto library=TerrainMaterialLibrary::current();
             auto available=library->materials().keys();
             if (available.isEmpty()) { error="Choose or create a route material before restoring the map"; return false; }
@@ -1211,8 +1218,8 @@ int Terrain::proceduralSourceTexture(int x, int z, float posx, float posz) {
     if (!TerrainMaterialMap::Enabled) return -1;
     if (!procedural || !procedural->ready) return -1;
     getLocalCoords(x,z,posx,posz);
-    const int id = procedural->map.at(int(posx*TerrainMaterialMap::Side/gridLayout.terrainWorldSize),
-                                     int(posz*TerrainMaterialMap::Side/gridLayout.terrainWorldSize));
+    const int id=procedural->map.at(int(posx*procedural->map.side()/gridLayout.terrainWorldSize),
+                                    int(posz*procedural->map.side()/gridLayout.terrainWorldSize));
     const QString source=TerrainSeason::resolve(proceduralSourceRoot(),proceduralVariant,sourceName(*tfile,id));
     return source.isEmpty()?-1:TexLib::addTex(QFileInfo(source).path(),QFileInfo(source).fileName());
 }
@@ -1222,7 +1229,8 @@ void Terrain::rememberProceduralSource(Brush *brush, int x, int z, float posx, f
     getPatchCoords(x,z,posx,posz);
     int id = int(tfile->patchValue(z*gridLayout.patchesPerSide+x,TFile::PatchField::ShaderIndex));
     if (usesProceduralMaterial() && procedural && procedural->ready)
-        id = procedural->map.at(int(posx*TerrainMaterialMap::Side/gridLayout.terrainWorldSize),int(posz*TerrainMaterialMap::Side/gridLayout.terrainWorldSize));
+        id=procedural->map.at(int(posx*procedural->map.side()/gridLayout.terrainWorldSize),
+                              int(posz*procedural->map.side()/gridLayout.terrainWorldSize));
     brush->terrainShaderKey = shaderKey(*tfile,id);
     brush->terrainMaterialUid=usesProceduralMaterial() && tfile->materialUidMapPresent ? tfile->materialUids.value(id) : 0;
     brush->terrainMaterialRoute=TerrainMaterialLibrary::current()->path();
@@ -1290,7 +1298,7 @@ void Terrain::paintProceduralMaterial(Brush *brush, int x, int z, float posx, fl
         id = tfile->materialCount();
     }
     getLocalCoords(x,z,posx,posz);
-    const double scale = double(TerrainMaterialMap::Side)/gridLayout.terrainWorldSize;
+    const double scale=double(procedural->map.side())/gridLayout.terrainWorldSize;
     QSet<int> locked;
     for (int i=0; i<gridLayout.patchRecordCount(); ++i) if (texLocked[i]) locked.insert(i);
     auto apply=[&](bool dryRun) {
@@ -1389,7 +1397,8 @@ bool Terrain::saveProceduralBake() {
     if (!procedural->savedBakePath.isEmpty() || !procedural->savedMapPath.isEmpty()) {
         qWarning() << "Previous procedural save needs recovery before another save"; return false;
     }
-    const QString settings=bakeSettingsKey(*tfile,proceduralSourceRoot(),gridLayout.patchesPerSide,proceduralVariant);
+    const QString settings=bakeSettingsKey(*tfile,proceduralSourceRoot(),gridLayout.patchesPerSide,
+                                           proceduralVariant,procedural->map.side());
     const QString signature=TerrainMaterialMap::ValidateBakeOnLoad ? proceduralBakeSignature() : QString();
     const QString target=QDir(texturepath).filePath(primaryName(*tfile,0));
     bool fullBake=procedural->fullBakeRequired || settings!=procedural->bakeSettings
@@ -1518,7 +1527,7 @@ bool Terrain::saveProceduralBake() {
     if (procedural->changed || !tfile->materialContentRevision) ++tfile->materialContentRevision;
     TFile::BakeRecord record;
     record.revision=tfile->materialContentRevision;record.resolution=TerrainMaterialMap::BakedSide;
-    record.settings=bakeOptionsKey(gridLayout.patchesPerSide,proceduralVariant);
+    record.settings=bakeOptionsKey(gridLayout.patchesPerSide,proceduralVariant,procedural->map.side());
     record.sources=bakeSourcesKey(*tfile,proceduralSourceRoot(),proceduralVariant);record.validation=signature.mid(3);
     tfile->seasonalBakes.insert(proceduralVariant,record);
     tfile->selectBakeVariant(proceduralVariant);

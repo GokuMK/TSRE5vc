@@ -60,7 +60,7 @@ footer{border-top:1px solid var(--line);padding:24px 0 45px;color:var(--muted);f
 <section id="overview" class="doc-section">
   <h2><a class="anchor" href="#overview">1. Format summary</a></h2>
   <p class="intro">Procedural terrain stores <em>which material</em> covers every location, not a pre-composed color image. TSRE keeps that categorical data editable and generates detailed patch textures. A normal MSTS terrain texture remains saved beside it for applications that do not understand the extension.</p>
-  <div class="summary"><div><b>Route-wide materials</b><span><code>terrainmaterials.dat</code> assigns stable UiDs to source textures and display names.</span></div><div><b>Tile-local IDs</b><span>A compressed square <code>.pmap</code> stores one byte per sample; current TSRE authoring uses 4096 while the Open Rails reader accepts 2048-8192.</span></div><div><b>Compatible fallback</b><span>Ordinary terrain shaders, patch UVs and baked ACE textures continue to render in MSTS and older tools.</span></div></div>
+  <div class="summary"><div><b>Route-wide materials</b><span><code>terrainmaterials.dat</code> assigns stable UiDs to source textures and display names.</span></div><div><b>Tile-local IDs</b><span>A compressed square <code>.pmap</code> stores one byte per sample; TSRE and the Open Rails branch accept 2048-8192, while new TSRE maps default to 4096.</span></div><div><b>Compatible fallback</b><span>Ordinary terrain shaders, patch UVs and baked ACE textures continue to render in MSTS and older tools.</span></div></div>
   <div class="callout info"><b>Design rule:</b> procedural data is optional. Missing, malformed or unsupported extension data must never prevent the conventional baked terrain from rendering.</div>
 </section>
 
@@ -142,11 +142,11 @@ footer{border-top:1px solid var(--line);padding:24px 0 45px;color:var(--muted);f
 
 <section id="pmap" class="doc-section">
   <h2><a class="anchor" href="#pmap">5. The <code>.pmap</code> material plane</a></h2>
-  <p>Version 1 is a zlib-compressed square byte image. Every decoded byte is a tile-local material ID. It is categorical data: values must never be linearly interpolated as colors. Current TSRE authoring uses 4096 square; the experimental Open Rails reader accepts square powers of two from 2048 through 8192 and may reduce them categorically for the active feature level.</p>
+  <p>Version 1 is a zlib-compressed square byte image. Every decoded byte is a tile-local material ID. It is categorical data: values must never be linearly interpolated as colors. TSRE and the experimental Open Rails reader accept square powers of two from 2048 through 8192. TSRE preserves the loaded authoring size; new maps default to 4096. Open Rails may reduce the effective runtime map categorically for the active feature level.</p>
   <table><thead><tr><th>Offset</th><th>Size</th><th>Value</th></tr></thead><tbody>
     <tr><td><code>0</code></td><td>8 bytes</td><td>ASCII magic <code>TSREPMAP</code>.</td></tr>
     <tr><td><code>8</code></td><td>uint32 LE</td><td>Format version, currently <code>1</code>.</td></tr>
-    <tr><td><code>12</code></td><td>uint32 LE</td><td>Width; current TSRE output is <code>4096</code>.</td></tr>
+    <tr><td><code>12</code></td><td>uint32 LE</td><td>Width: <code>2048</code>, <code>4096</code> or <code>8192</code>.</td></tr>
     <tr><td><code>16</code></td><td>uint32 LE</td><td>Height, equal to width.</td></tr>
     <tr><td><code>20</code></td><td>Remaining bytes</td><td>zlib stream expanding to exactly width &times; height bytes.</td></tr>
   </tbody></table>
@@ -157,13 +157,13 @@ footer{border-top:1px solid var(--line);padding:24px 0 45px;color:var(--muted);f
 <span class="n">0</span> <span class="p">-&gt;</span> <span class="n">UiD 7</span>  <span class="c"># ploughed field</span>
 <span class="n">1</span> <span class="p">-&gt;</span> <span class="n">UiD 2</span>  <span class="c"># grass</span>
 <span class="n">2</span> <span class="p">-&gt;</span> <span class="n">UiD 4</span>  <span class="c"># city ground</span></code></pre>
-  <div class="two"><div class="card"><h3>Why local bytes?</h3><p>The dense editable plane remains 16 MiB regardless of route catalogue size. A tile normally uses only a small subset of route materials.</p></div><div class="card"><h3>Why stable UiDs?</h3><p>Renaming or reordering the route catalogue cannot silently reinterpret painted terrain. Cross-route copying must explicitly reconcile identities.</p></div></div>
+  <div class="two"><div class="card"><h3>Why local bytes?</h3><p>The dense editable plane uses one byte per sample: 4 MiB at 2048, 16 MiB at 4096 and 64 MiB at 8192, independently of route catalogue size. A tile normally uses only a small subset of route materials.</p></div><div class="card"><h3>Why stable UiDs?</h3><p>Renaming or reordering the route catalogue cannot silently reinterpret painted terrain. Cross-route copying must explicitly reconcile identities.</p></div></div>
 </section>
 
 <section id="rendering" class="doc-section">
   <h2><a class="anchor" href="#rendering">6. Rendering model</a></h2>
   <h3>TSRE editor</h3>
-  <p>TSRE keeps the ID map available for painting. Worker jobs sample source images and generate detailed patch textures; save also produces an opaque 1024-square DXT1 baked tile texture. Identical outputs are content-deduplicated, and unchanged patches can reuse cached recipes.</p>
+  <p>TSRE keeps the native-resolution ID map available for painting. Worker jobs sample source images and generate detailed patch textures; save also produces an opaque 1024-square DXT1 baked tile texture. Identical outputs are content-deduplicated, and unchanged patches can reuse cached recipes. A missing bake recipe is normally generated at twice its final patch-region size and reduced with one 2 x 2 color average. The former full detailed-output regeneration remains selectable in code for quality comparisons and recovery tests.</p>
   <ol class="steps"><li>Resolve local ID through the tile table to a route material UiD.</li><li>Resolve the material source for the selected season or weather variant.</li><li>Use deterministic categorical scattering at boundaries; never blend numeric IDs.</li><li>Generate detailed patch output near the camera.</li><li>Use the saved baked terrain outside the detailed distance and in legacy applications.</li></ol>
   <h3>Boundary sampling</h3>
   <p>At a transition, four neighboring categorical samples contribute weights. A deterministic position-derived value chooses one material according to those weights. This produces a scattered edge without inventing an invalid material ID between two integers.</p>
@@ -226,7 +226,7 @@ footer{border-top:1px solid var(--line);padding:24px 0 45px;color:var(--muted);f
     <tr><td>Detailed neighborhood</td><td>3 x 3 high-resolution tiles</td><td>Outer mapped tiles render their saved baked textures.</td></tr>
     <tr><td>Detailed source textures</td><td>32 per tile</td><td>Materials beyond the limit remain represented by the baked base.</td></tr>
     <tr><td>Detailed materials</td><td>5 per patch</td><td>Largest available areas render directly; omitted areas retain the bake.</td></tr>
-    <tr><td>Decoded map</td><td>Square power of two, 2048-8192 in Open Rails; current TSRE requires 4096</td><td>Wrong headers, dimensions, expansion length or oversized files disable procedural detail.</td></tr>
+    <tr><td>Decoded map</td><td>Square power of two, 2048-8192 in TSRE and Open Rails</td><td>Wrong headers, dimensions, expansion length or oversized files disable procedural detail.</td></tr>
     <tr><td>Noise texture</td><td>One shared 2048 x 2048 Alpha8 texture</td><td>Deterministic and managed with other generated textures.</td></tr>
   </tbody></table>
   <p>A pathological patch may reference 20 or all 256 byte IDs. Rendering cost remains bounded: material areas are sorted, only configured detailed layers are drawn, and the remaining pixels keep the bake. The renderer never assigns omitted pixels to an unrelated source.</p>
@@ -235,11 +235,11 @@ footer{border-top:1px solid var(--line);padding:24px 0 45px;color:var(--muted);f
 <section id="status" class="doc-section">
   <h2><a class="anchor" href="#status">12. Implementation status and evidence</a></h2>
   <table><thead><tr><th>Area</th><th>Status</th><th>Evidence</th></tr></thead><tbody>
-    <tr><td>TSRE authoring, map storage and bake</td><td><span class="pill">IMPLEMENTED</span></td><td>Painting, fills, undo, route catalogue, background generation and compatibility bake are in TSRE <code>main</code>.</td></tr>
+    <tr><td>TSRE authoring, map storage and bake</td><td><span class="pill">IMPLEMENTED</span></td><td>Painting, fills, undo, route catalogue, native 2048/4096/8192 map round-trip, background generation and optimized compatibility bake are in TSRE <code>main</code>.</td></tr>
     <tr><td>TSRE seasons and batch bake</td><td><span class="pill">IMPLEMENTED</span></td><td>Automated checks and visual acceptance cover seasonal source resolution and saved variants.</td></tr>
-    <tr><td>Open Rails parsing and direct rendering</td><td><span class="pill">LOCAL FEATURE BRANCH</span></td><td>The accepted fixed-resolution spike passed its Debug build and all 246 tests. The dynamic-map/detail follow-up passes 16 focused tests, the current compile target and both shader techniques.</td></tr>
+    <tr><td>Open Rails parsing and direct rendering</td><td><span class="pill">LOCAL FEATURE BRANCH</span></td><td>The dynamic-map/detail branch passes its prescribed Debug build and all 252 tests. Native 8192 tile-boundary testing showed no perceptible loading hitch.</td></tr>
     <tr><td>Open Rails visual validation</td><td><span class="pill">ACCEPTED SPIKE</span></td><td>Source orientation, microtexture scale, scatter, distant fallback, camera transitions, five-material fallback, depth, summer, winter, spring and autumn were visually checked.</td></tr>
-    <tr><td>Remaining Open Rails validation</td><td><span class="pill">FOLLOW-UP</span></td><td>2048/4096/8192 cold and warm tile-boundary measurements, sustained-travel map disposal, per-material detail visuals and Level 9.1 hardware output.</td></tr>
+    <tr><td>Remaining Open Rails validation</td><td><span class="pill">FOLLOW-UP</span></td><td>Quantitative boundary P95/P99 capture, sustained-travel map disposal, per-material detail visuals and Level 9.1 hardware output.</td></tr>
   </tbody></table>
   <div class="callout"><b>Upstream status:</b> this page describes a working local Open Rails implementation, not a feature already present in official Open Rails releases.</div>
 </section>

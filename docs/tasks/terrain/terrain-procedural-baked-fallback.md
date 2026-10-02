@@ -77,8 +77,9 @@ Keep original source assets; A does not authorize deleting a route's old ACEs.
 
 The texture covers a terrain tile, not a 2048 m World-file cell. Larger terrain
 tiles still receive one image; W-file ownership and coordinates remain unchanged.
-Keep the existing 4096-square ID map and 512-square near-patch output settings
-independent from the now 1024-square baked output setting. The bake was initially
+Keep the native 2048/4096/8192-square ID map and 512-square near-patch output
+settings independent from the now 1024-square baked output setting. New maps
+default to 4096, while loaded maps retain their source dimensions. The bake was initially
 2048-square; it was reduced to 512 after isolated non-mipmapped uploads took
 30–53 ms, then increased to 1024 after DXT1 baking was implemented.
 Old 512/2048 bakes are not resampled or used: the loader requires the current size.
@@ -225,8 +226,10 @@ At the current bake size, distinct miniatures for all patches total at most
 Save first drains this tile's edit queue, then takes the ready miniatures and
 updates only dirty regions of the existing baked image in the same worker pool.
 The dirty set includes sampling-halo neighbours. Unvisited unchanged patches do
-not need near images or miniatures. Only missing/mismatched dirty recipes
-generate/reduce a scratch near image. The
+not need near images or miniatures. Only missing/mismatched dirty recipes are
+generated. The normal path uses a twice-final-size intermediate and one 2 x 2
+color reduction; the former full near-output regeneration remains selectable in
+code for quality/regression comparisons. The
 save operation still waits for completion. It queues at most one save assembly
 job in addition to bounded automatic work, without increasing worker concurrency.
 The UI thread blocks without pumping editing events: this is not asynchronous
@@ -235,7 +238,7 @@ map still compresses as a whole, now using zlib level 1 instead of 6; the format
 and bounded decoder are unchanged.
 
 The CPU bake image is retained after asynchronous loading or successful save
-(0.75 MiB of RGB pixels at 512 square), and released with GPU residency. If it is
+(3 MiB of RGB pixels at 1024 square), and released with GPU residency. If it is
 absent at save, the worker loads the saved ACE. Missing/invalid/wrong-size base,
 new conversion, changed source/settings, or explicit repair require a full bake.
 Recipe hashes are cached independently of GPU residency and invalidated only for
@@ -500,7 +503,9 @@ to the baked draw entry/pair alone. Legacy fallback must not depend on the catal
 
 - `TerrainMaterialMap::bake()` updates dirty regions of a correctly sized saved
   bake, using cached recipe hashes and valid worker-generated miniatures. Dirty
-  cache misses generate the same near output and minify it into a `BakedSide/P` region.
+  cache misses normally generate a 2 x `BakedSide/P` image and reduce each four
+  RGB samples into the `BakedSide/P` region. `BakeSampling::FullOutput` retains
+  the former near-output generation/minification path.
   A cache retains
   only reduced recipes, bounded by one tile image; no all-patch full-resolution
   intermediate, GPU readback or near-output residency is required.

@@ -11,7 +11,10 @@
 // No heightmap resolution, OpenGL, TFile ownership or texture-library dependency.
 class TerrainMaterialMap {
 public:
-    static constexpr int Side = 4096;
+    static constexpr int MinimumSide = 2048;
+    static constexpr int Side = 4096; // Default for newly created maps.
+    static constexpr int MaximumSide = 8192;
+    enum class BakeSampling { Optimized2x, FullOutput };
     // Startup-cached settings: immutable while generation workers are running.
     static inline bool Enabled = true;
     static inline int OutputSide = 512;
@@ -26,14 +29,21 @@ public:
     // 3 = original nearest-neighbour, 4 = strongest support (ID only breaks ties).
     // Only generated output changes, not stored IDs.
     static constexpr int SamplingMode = 2;
+    // Startup/debug choice. FullOutput preserves the former 512-square path;
+    // Optimized2x only uses a 2x intermediate for bake cache misses.
+    static inline BakeSampling BakeSamplingMode = BakeSampling::Optimized2x;
     enum EditOperation { TexturePaint = 0, FillPatch = 1, FloodFill = 2 };
     QByteArray ids;
 
-    void initialize(quint8 id = 0);
+    bool initialize(quint8 id = 0, int requestedSide = Side);
+    bool setIds(const QByteArray &values);
+    int side() const { return mapSide; }
+    static bool supportedSide(int value);
     bool valid() const;
     bool read(const QString &path, QString &error);
     bool write(const QString &path, QString &error) const;
-    static bool decode(const QByteArray &file, QByteArray &ids, QString &error);
+    static bool decode(const QByteArray &file, QByteArray &ids, QString &error,
+                       int *decodedSide = nullptr);
     QByteArray encode() const;
     quint8 at(int x, int z) const;
     QSet<int> usedIds() const;
@@ -52,6 +62,8 @@ public:
     QByteArray patchKey(int patch, int patches, int mode = SamplingMode) const;
     QImage generate(int patch, int patches, const QHash<int, QImage> &sources,
                     int mode = SamplingMode) const;
+    QImage generateAtSize(int patch, int patches, const QHash<int, QImage> &sources,
+                          int outputSide, int mode = SamplingMode) const;
     // Caller supplies miniatures from the same source-image revision. Dimensions
     // are checked here too; a changed baked size must never reuse old-size data.
     QImage bake(int patches, const QHash<int, QImage> &sources,
@@ -63,4 +75,7 @@ public:
     // keys belong to this exact ID-map revision; invalidate affected keys on edits.
     static QString textureKey(const QImage &rgb, bool bc1);
     static QByteArray encodeBC1(const QImage &rgb);
+
+private:
+    int mapSide = Side;
 };

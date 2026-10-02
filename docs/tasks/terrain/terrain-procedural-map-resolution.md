@@ -1,8 +1,9 @@
 # Procedural terrain map resolution and bake sampling
 
 Status: Open Rails dynamic-resolution/detail prototype and runtime validation
-complete; shared catalogue fields implemented; TSRE map/backend and renderer
-work remain.
+complete. TSRE native-resolution map/backend and optimized bake sampling are
+implemented and tested; the direct TSRE GPU renderer remains deferred until the
+Gather terrain contract is available.
 
 ## Objective
 
@@ -21,8 +22,9 @@ the material catalogue, procedural brush semantics or terrain mesh layout.
 
 - The version-1 `.pmap` header already stores width and height. The fixed size is
   an implementation restriction, not a file-format restriction.
-- `TerrainMaterialMap` currently assumes `Side == 4096` in allocation,
-  addressing, painting, generation and undo-related paths.
+- `TerrainMaterialMap` formerly assumed `Side == 4096` in allocation,
+  addressing, painting, generation and undo-related paths. It now retains a
+  validated per-map side while keeping 4096 as the new-map default.
 - TSRE currently generates CPU RGB patch textures and uploads those results. It
   does not yet upload the `.pmap` itself as the terrain material-selection
   texture. GPU map caps and dirty map uploads below belong to the planned direct
@@ -203,32 +205,49 @@ If the full near image is already valid and resident on the CPU, it may still be
 reused. Otherwise, do not create a 512-square temporary merely to produce the
 distant miniature.
 
+The former full-`OutputSide` regeneration remains available through
+`TerrainMaterialMap::BakeSampling::FullOutput`. The optimized 2 x mode is the
+default for missing bake recipes; it does not remove the full path used for
+quality comparison, regression diagnosis or deliberately high-quality rebakes.
+
 The 2 x 2 reduction must evaluate four categorical material samples, sample the
 corresponding material colors/detail inputs, and average the resulting colors.
 It must not average IDs. This retains basic antialiasing while reducing generated
 sample counts by 16 times for P16 and 64 times for P32 relative to a fixed
 512-square intermediate.
 
+Local Debug microbenchmark (2026-10-03, 20 warm cache-miss runs per case):
+
+| Patch layout | Full `OutputSide` path | Optimized 2 x path | Speed-up |
+|---|---:|---:|---:|
+| P16 | 16.23 ms | 2.33 ms | 7.0 x |
+| P32 | 15.20 ms | 1.67 ms | 9.1 x |
+
+Each run rebuilt one dirty patch region into an existing 1024-square bake and
+therefore includes recipe hashing, output allocation/copy and reduction, not
+only the categorical sampler. These are local comparative measurements, not a
+promise for route-save latency on every machine.
+
 ## Implementation stages
 
 Backend stages, independent of the Gather renderer:
 
-1. Replace compile-time map-side assumptions with validated instance dimensions
+1. [x] Replace compile-time map-side assumptions with validated instance dimensions
    in loading, addressing, painting, CPU generation, undo and save code.
-2. Add tests for 2048, 4096 and 8192 maps, invalid/non-square dimensions and
+2. [x] Add tests for 2048, 4096 and 8192 maps, invalid/non-square dimensions and
    bounded decompression.
-3. Make bake-only generation accept the required target/oversampling size and
+3. [x] Make bake-only generation accept the required target/oversampling size and
    use the 2 x 2 path when no reusable near image exists.
 
 Renderer-dependent stages, after the Gather terrain-shader contract is settled:
 
-4. Add an effective GPU-resolution cap and deterministic categorical reduction.
-5. Add direct terrain material-ID rendering with material-specific base/detail
+4. [ ] Add an effective GPU-resolution cap and deterministic categorical reduction.
+5. [ ] Add direct terrain material-ID rendering with material-specific base/detail
    inputs. Upload complete maps only on load/reconfiguration and use dirty
    rectangles for ordinary painting.
-6. Retain the saved distant bake and compatibility path; the direct renderer is
+6. [ ] Retain the saved distant bake and compatibility path; the direct renderer is
    the detailed path, not a reason to remove the MSTS-compatible fallback.
-7. Benchmark loading, paint latency, undo memory, full save and incremental save
+7. [ ] Benchmark loading, paint latency, undo memory, full save and incremental save
    at every supported size before exposing the maximum-resolution setting.
 
 ## Acceptance checks
@@ -244,6 +263,10 @@ Renderer-dependent stages, after the Gather terrain-shader contract is settled:
   shows a material regression.
 - Peak CPU and GPU memory, initial load time and tile-boundary hitch time are
   recorded for 2048, 4096 and 8192 inputs.
+
+Automated checkpoint (2026-10-03): the normal terrain-material suite passed 604
+checks. The benchmark form passed 610 checks and recorded the comparison above.
+The complete CTest set remained green after the implementation.
 
 ## Renderer-branch coordination
 
