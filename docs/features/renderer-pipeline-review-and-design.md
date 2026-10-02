@@ -17,6 +17,74 @@ is out of date. Current state:
   and routes them into explicit passes (task 02, task 11).
 - Picking uses the integer selection target and 32-bit IDs (task 13).
 - Legacy/gather parity is measured with separate-process captures (task 12).
+- Hardware validation on Windows is pending (task 14); legacy removal waits
+  for it.
+
+## Stage 1 Review (2026-10-02)
+
+### Verdict
+
+The gather approach is the right structure for TSRE. Producers own persistent
+packets, the renderer queues cheap per-frame instances, and explicit passes
+order them. On llvmpipe, with shadows on and off, gather matches legacy within
+about 1% of pixels on four routes with no picking mismatches. Gather frames
+allocate no render items or matrices, both shadow maps come from one scene
+traversal instead of three, and draw order is deterministic. Every step stayed
+behind the pipeline setting, and the parity captures check each change.
+
+Stage 1 settled the queue and passes, not the data model. The weaknesses
+below matter for stage 2 and the new renderer.
+
+### Weaknesses
+
+1. **`RenderItem` is still OpenGL-shaped.** It carries VAO/VBO pointers, GL
+   enums, raw texture addresses and terrain-only fields. A deferred or non-GL
+   backend cannot consume it as is. It should become a mesh handle, a material
+   (textures, surface class, alpha mode) and draw parameters. Surface classes
+   and texture handles (task 11) are the first part of this.
+2. **Producers still contain render logic.** Each producer has a legacy
+   `render()` and a gather twin (`render()`/`pushRenderItems()`,
+   `renderWater()`/`pushRenderItemWater()`, and so on). Producers use the
+   global `Game::currentRenderer`, push and pop its matrix stack, and choose
+   ordered or grouped submission. Removing legacy deletes the `render()`
+   half, but removing renderer references from data code also needs a
+   narrower submission interface than `Renderer`.
+3. **The frame is orchestrated in the widget.** `paintGLGather()` sets each
+   phase's projection, clears depth, sets layers and decides where passes are
+   drawn. The renderer should own pass views (projection, target, clear) as a
+   small render graph before a deferred backend is added; otherwise that
+   backend needs a second copy of this orchestration.
+4. **Packets have no bounds.** Culling still happens per tile and per object
+   in producers; shadow maps cull casters by origin distance only; blended
+   packets sort by origin. Bounding spheres on packets would allow
+   renderer-side frustum culling, per-shadow-map caster culling (45-65% fewer
+   near-map casters measured in task 10) and better sorting.
+5. **Every instance is one draw call.** Batching reduced state changes, not
+   draws. With packets separate from instances, GPU instancing (one draw per
+   packet with a matrix buffer) is a small change and likely the largest
+   remaining CPU saving.
+6. **GL state goes through the `GLUU` singleton.** The current shader and its
+   uniforms live there, and selection swaps shaders. Acceptable inside the GL3
+   backend, but a new renderer should not depend on it.
+
+Measurement lesson: the first harness compared both pipelines in one process
+by switching at runtime and reported false defects. Captures now run one
+process per pipeline. Frame times from llvmpipe remain meaningless; task 14
+measures them on hardware.
+
+### Next stages
+
+1. Hardware validation (task 14).
+2. Remove legacy: delete the `render()` twins and narrow producers to a
+   submission interface without GL types.
+3. Packet rework: mesh, material, bounds and draw parameters; pass views and
+   culling owned by the renderer.
+4. Instanced drawing in the GL3 backend.
+5. A deferred renderer next to GL3 on the same packets and passes: opaque and
+   alpha-test into the G-buffer, blended forward. The three-map shadow split
+   from task 10 fits here.
+
+Steps 2 and 3 are stage 2. The stage 1 queue and passes carry over unchanged.
 
 ## Evidence Base (Code Anchors)
 - Old and new frame entry points: `src/routeEditor/RouteEditorGLWidget.cpp:328`, `src/routeEditor/RouteEditorGLWidget.cpp:453`
