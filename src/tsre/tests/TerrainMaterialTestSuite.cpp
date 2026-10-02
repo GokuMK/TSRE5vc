@@ -564,6 +564,9 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
         check(redUid==1 && blueUid==2 && library->find(redUid)->texture=="red.png","global-library-add-images-stable-uids");
         check(library->find(redUid)->displayName=="red" && library->find(blueUid)->displayName=="blue",
               "global-library-initial-name-from-image-basename");
+        check(library->find(redUid)->detailTexture=="microtex.ace"
+              && library->find(redUid)->detailScale==32.0f,
+              "global-library-new-material-detail-defaults");
         QFile dat(library->path()); check(dat.open(QIODevice::ReadOnly),"global-fixture-open-library"); const auto original=dat.readAll(); dat.close();
         check(original.startsWith("\xff\xfe") && library->reload() && library->find(blueUid),"global-library-utf16-bom-roundtrip");
         check(!TerrainMaterialLibrary::validTextureName("../escape.ace")
@@ -577,10 +580,22 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
         };
         const QString prefix="TSRE_Terrain_Materials ( Version ( 1 ) NextUiD ( 10 ) ";
         writeText(prefix+"Material ( UiD ( 2 ) Name ( \"Żwir\" ) Texture ( \"blue.png\" ) ) )");
-        check(library->reload() && !library->find(1) && library->find(2)->displayName=="Żwir","global-library-removal-does-not-renumber");
+        check(library->reload() && !library->find(1) && library->find(2)->displayName=="Żwir"
+              && library->find(2)->detailTexture=="microtex.ace"
+              && library->find(2)->detailScale==32.0f,
+              "global-library-removal-does-not-renumber-and-missing-detail-defaults");
         check(library->addImage(temp.path()+"/red.png",error)==10,"global-library-nextuid-never-reuses-deleted-slot");
+        writeText(prefix+"Material ( UiD ( 2 ) Name ( a ) Texture ( blue.png ) DetailTexture ( detail.ace ) DetailScale ( 48.5 ) ) )");
+        check(library->reload() && library->find(2)->detailTexture=="detail.ace"
+              && library->find(2)->detailScale==48.5f && library->save(error) && library->reload()
+              && library->find(2)->detailTexture=="detail.ace" && library->find(2)->detailScale==48.5f,
+              "global-library-explicit-detail-roundtrip");
         writeText(prefix+"Material ( UiD ( 2 ) Name ( a ) Texture ( blue.png ) ) Material ( UiD ( 2 ) Name ( b ) Texture ( red.png ) ) )");
         check(!library->reload() && !library->find(2) && !library->save(error),"global-library-duplicate-uid-refuses-overwrite");
+        writeText(prefix+"Material ( UiD ( 2 ) Name ( a ) Texture ( blue.png ) DetailTexture ( ../escape.ace ) ) )");
+        check(!library->reload(),"global-library-unsafe-detail-texture-refused");
+        writeText(prefix+"Material ( UiD ( 2 ) Name ( a ) Texture ( blue.png ) DetailScale ( 0 ) ) )");
+        check(!library->reload(),"global-library-invalid-detail-scale-refused");
         check(dat.open(QIODevice::WriteOnly),"global-fixture-restore-library"); dat.write(original); dat.close();
         check(library->reload(),"global-library-repair-recovers");
         { QScopedValueRollback<bool> writable(Game::writeEnabled,false);

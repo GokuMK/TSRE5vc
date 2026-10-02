@@ -78,11 +78,15 @@ TSRE_Terrain_Materials (
         UiD ( 1 )
         Name ( "Grass" )
         Texture ( "grass.ace" )
+        DetailTexture ( "microtex.ace" )
+        DetailScale ( 32 )
     )
     Material (
         UiD ( 2 )
         Name ( "Gravel" )
         Texture ( "gravel.png" )
+        DetailTexture ( "microtex.ace" )
+        DetailScale ( 32 )
     )
 )
 ```
@@ -95,12 +99,21 @@ Quotes and backslashes in quoted text can be escaped. Unknown fields/versions,
 duplicate UiDs, invalid NextUiD and malformed text are refused, not overwritten.
 There is no arbitrary comment syntax in this initial reader.
 
-`TerrainMaterialDefinition` contains only UiD, display name and primary source
-texture. It does not inherit `TFile::Mat`. Generation retains today's repeated
-source-image behavior and fixed microtex detail. Rotation, physical scale,
-importance, mixing types, per-material seasonal overrides and source alpha remain
-future work. Shared directory-based [seasonal lookup](terrain-procedural-seasons.md)
-is implemented without adding per-season filenames to material definitions.
+`DetailTexture` and `DetailScale` are optional Version-1 material fields.
+Missing values mean `microtex.ace` and 32, exactly matching the earlier fixed
+behavior. New TSRE definitions write those defaults explicitly. Detail texture
+paths follow the same safe route-relative and directory-based
+[seasonal lookup](terrain-procedural-seasons.md) rules as the primary source;
+scale must be finite and positive.
+
+TSRE currently loads, preserves and saves these properties, but its existing
+CPU-generated near renderer intentionally continues to use fixed
+`microtex.ace`/32 until the Gather terrain renderer is merged. Open Rails'
+experimental direct material renderer uses the per-material values already.
+Changing them does not alter the tile's `.pmap`, which stores material IDs only.
+`TerrainMaterialDefinition` does not inherit `TFile::Mat`. Rotation, physical
+scale, importance, mixing types, per-material seasonal filename overrides and
+source alpha remain future work.
 
 ## Tile mapping and compatibility
 
@@ -208,6 +221,12 @@ Import-reuse follow-up (2026-10-02): selecting an image already in route
 import after a genuine filename collision are covered by the production test
 suite. The incremental build succeeds and the `terrain-material` suite passes
 584 checks with zero failures.
+
+Detail-field follow-up (2026-10-02): missing/default and explicit
+`DetailTexture`/`DetailScale` values, unsafe filenames, invalid scales and
+save/reload preservation are covered. The incremental build succeeds and the
+`terrain-material` suite passes 588 checks with zero failures. Renderer use of
+these fields remains deferred to the Gather terrain path as documented above.
 
 ```text
 build\TSRE5vc.exe --test --test-suite terrain-material
