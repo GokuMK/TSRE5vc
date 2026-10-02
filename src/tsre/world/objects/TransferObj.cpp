@@ -273,6 +273,8 @@ void TransferObj::pushRenderItems(float lod, float posx, float posz, float* play
 
     Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, position[0], 0, position[2]);
     drawShape(true, selectionId);
+    if(selected)
+        pushRenderBox();
 }
 
 void TransferObj::drawShape(bool pushToQueue, quint32 selectionId) {

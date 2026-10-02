@@ -133,6 +133,10 @@ public:
     virtual void getLinePoints(float *&punkty);
     virtual Ref::RefItem* getRefInfo();
     virtual void drawBox();
+    // Gather counterpart of drawBox(): submits the selection box under the
+    // renderer's current transform.
+    void pushRenderBox();
+    bool ensureBox();
     virtual bool select();
     virtual bool select(int value);
     virtual bool unselect();

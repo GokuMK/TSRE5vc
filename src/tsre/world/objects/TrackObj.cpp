@@ -519,7 +519,7 @@ void TrackObj::pushRenderItems(float lod, float posx, float posz, float* playerW
 
 
     if(selected){
-        //drawBox();
+        pushRenderBox();
     }
 }
 

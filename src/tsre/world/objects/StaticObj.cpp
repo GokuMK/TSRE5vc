@@ -209,7 +209,7 @@ void StaticObj::pushRenderItems(float lod, float posx, float posz, float* player
     }
 
     if(selected){
-        //drawBox();
+        pushRenderBox();
     }
 }
 

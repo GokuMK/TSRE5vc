@@ -183,6 +183,8 @@ protected:
     void drawPointer();
     void pushRenderPointer();
     void updatePointerPosition();
+    void readPointerPosition();
+    void applyPointerToLiveTools();
     float pointerDisplayY() const;
 private:
     bool startLiveFlex(bool reuseUndoState = false, bool deleteOnCancel = false,

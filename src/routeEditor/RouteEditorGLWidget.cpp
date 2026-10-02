@@ -592,6 +592,13 @@ bool RouteEditorGLWidget::paintGLGather(bool drawToScreen){
     Game::currentRenderer->setViewPosition(camera->getPos());
     Renderer *renderer = Game::currentRenderer;
 
+    // Live placement tools rebuild their geometry from the pointer position.
+    // Apply the position read in the previous frame now, before that geometry
+    // is gathered; queued packets must not lose their buffers mid-frame.
+    const bool drawPointerEnabled = drawToScreen && !selectionPass && !Game::playerMode;
+    if (drawPointerEnabled)
+        applyPointerToLiveTools();
+
     // Gather the scene before drawing anything: the shadow maps are drawn
     // from the same queue before the main passes sample them.
     const int gatherMode = selectionPass ? GLUU::RENDER_SELECTION : GLUU::RENDER_DEFAULT;
@@ -713,7 +720,6 @@ bool RouteEditorGLWidget::paintGLGather(bool drawToScreen){
     gluu->setMatrixUniforms();
     RenderStats::beginPhase(RenderStats::PhaseScene);
 
-    const bool drawPointerEnabled = drawToScreen && !selectionPass && !Game::playerMode;
     const bool drawPointerOnTerrain = drawPointerEnabled && stickPointerToTerrain && Game::viewTerrainShape;
     const bool drawPointerAfterWorld = drawPointerEnabled && (!stickPointerToTerrain || !Game::viewTerrainShape);
 
@@ -1276,9 +1282,14 @@ void RouteEditorGLWidget::applySelection(quint32 selectionId,
     update();
 }
 
-// Reads the scene depth under the mouse, updates the pointer position and
-// feeds the live placement tools. Needs the scene drawn up to this point.
 void RouteEditorGLWidget::updatePointerPosition() {
+    readPointerPosition();
+    applyPointerToLiveTools();
+}
+
+// Reads the scene depth under the mouse and updates the pointer position.
+// Needs the scene drawn up to this point.
+void RouteEditorGLWidget::readPointerPosition() {
     int x = mousex;
     int y = mousey;
 
@@ -1298,6 +1309,11 @@ void RouteEditorGLWidget::updatePointerPosition() {
             gluu->pMatrix,
             viewport,
             aktPointerPos);
+}
+
+// Moves the live flex, ruler and telepole tools to the pointer; this rebuilds
+// their geometry.
+void RouteEditorGLWidget::applyPointerToLiveTools() {
     if(liveFlexActive && !mouseRPressed)
         updateLiveFlex((int)camera->pozT[0], (int)camera->pozT[1], aktPointerPos);
     else if(liveRulerActive && !mouseRPressed)
@@ -1343,8 +1359,10 @@ void RouteEditorGLWidget::drawPointer() {
 }
 
 // Gather counterpart of drawPointer(); the caller draws the submitted items.
+// The live tools were already moved at the start of the frame, before their
+// geometry was gathered, so only the pointer position is read here.
 void RouteEditorGLWidget::pushRenderPointer() {
-    updatePointerPosition();
+    readPointerPosition();
     if (!Game::viewPointer3d)
         return;
     float *mv = Game::currentRenderer->mvMatrix;

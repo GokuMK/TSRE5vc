@@ -636,6 +636,8 @@ void DynTrackObj::pushRenderItems(float lod, float posx, float posz, float* play
                     shape[i], renderMatrix, posx, posz);
         shape[i]->pushRenderItem(selectionId, partLod);
     }
+    if(selected)
+        pushRenderBox();
 }
 
 bool DynTrackObj::getSimpleBorder(float* border){
