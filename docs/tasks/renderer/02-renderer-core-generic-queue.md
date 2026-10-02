@@ -67,8 +67,12 @@ The renderer separates persistent packets from per-frame draw instances.
   matrix stack. The gather frame calls it first; a pipeline switch also uses it.
 
 A packet's VAO, VBO and textures are still owned by the producer. Retirement
-protects the `RenderItem` only; releasing GPU resources while instances are
-queued is still unsafe.
+protects the `RenderItem` only; releasing or rebuilding GPU resources while
+instances are queued is unsafe. Producers must change geometry before they
+submit it. This happened in practice: after the gather frame started
+gathering the scene before the shadow pass, the live ruler rebuilt its
+profile meshes in the pointer step, after its packets were queued, and its
+line stopped drawing. Live tools now move at the start of the frame.
 
 ### Status
 

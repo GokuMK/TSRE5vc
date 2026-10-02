@@ -35,6 +35,10 @@ class RenderItem;
 //   in the same frame. Producers that draw one object with different
 //   materials in a frame use one packet per material; frameNumber() tells
 //   them when a new frame starts.
+// - Retirement protects the RenderItem only. A producer must not destroy or
+//   rebuild a queued packet's VAO, VBO or textures before the frame ends;
+//   change geometry before submitting it (for example, live placement tools
+//   move at the start of the gather frame).
 class Renderer {
 public:
     enum RenderMode {
