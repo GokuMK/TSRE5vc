@@ -98,6 +98,11 @@ bool RouteEditorGLWidget::eventFilter(QObject *object, QEvent *event){
 }
 
 RouteEditorGLWidget::~RouteEditorGLWidget() {
+    // QOpenGLWidget destroys the context after this destructor has run; its
+    // aboutToBeDestroyed signal must not call cleanup() on a destroyed object.
+    if (context() != NULL)
+        disconnect(context(), &QOpenGLContext::aboutToBeDestroyed,
+                   this, &RouteEditorGLWidget::cleanup);
     cleanup();
 }
 
