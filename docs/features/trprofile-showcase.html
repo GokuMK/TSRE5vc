@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Open Rails review proposal for compatible TrProfile extensions, with a tested TSRE reference implementation.">
-<title>Open Rails TrProfile extension proposal</title>
+<meta name="description" content="Format reference for compatible TrProfile extensions implemented in TSRE and the Open Rails procedural-shapes branch.">
+<title>TrProfile extensions for Open Rails and TSRE</title>
 <style>
 :root {
   color-scheme: light;
@@ -45,37 +45,37 @@ footer{border-top:1px solid var(--line);padding:24px 0 45px;color:var(--muted);f
 </head>
 <body>
 <header class="header"><div class="header-inner">
-  <div class="overline">Open Rails feature review</div>
-  <h1>TrProfile extension proposal</h1>
-  <p class="subtitle">A backward-compatible format proposal for profile families, object roles, path-frame control and minimal OBJ-based 3D template geometry. TSRE provides the working reference implementation.</p>
-  <div class="meta">Audience: Open Rails maintainers · Reference branch: feature/trprofile-3d-mesh · September 2026</div>
+  <div class="overline">Open Rails and TSRE format reference</div>
+  <h1>TrProfile extensions</h1>
+  <p class="subtitle">Backward-compatible profile families, object roles, path-frame control and minimal OBJ-based 3D template geometry, with working TSRE and Open Rails implementations.</p>
+  <div class="meta">Audience: Open Rails maintainers and route authors · Updated October 2026</div>
 </div></header>
 
 <div class="layout">
 <aside class="toc" aria-label="Contents"><b>Contents</b>
-  <a href="#overview">1. Review summary</a><a href="#scope">2. Scope and status</a><a href="#files">3. Files and families</a><a href="#object-type">4. ObjectType</a><a href="#roles">5. Role selection</a><a href="#frame-mode">6. PathFrameMode</a><a href="#template3d">7. Template3D</a><a href="#generation">8. Generation modes</a><a href="#placement">9. Placement</a><a href="#geometry-mode">10. GeometryMode</a><a href="#examples">11. Complete examples</a><a href="#consumers">12. ORTS implementation</a><a href="#coordinates">13. Coordinates and UVs</a><a href="#compatibility">14. Compatibility</a><a href="#implementation">15. Reference evidence</a>
+  <a href="#overview">1. Format summary</a><a href="#scope">2. Scope and status</a><a href="#files">3. Files and families</a><a href="#object-type">4. ObjectType</a><a href="#roles">5. Role selection</a><a href="#frame-mode">6. PathFrameMode</a><a href="#template3d">7. Template3D</a><a href="#generation">8. Generation modes</a><a href="#placement">9. Placement</a><a href="#geometry-mode">10. GeometryMode</a><a href="#examples">11. Complete examples</a><a href="#consumers">12. Open Rails implementation</a><a href="#coordinates">13. Coordinates and UVs</a><a href="#compatibility">14. Compatibility</a><a href="#implementation">15. Implementations and evidence</a>
 </aside>
 
 <main>
 <section id="overview" class="doc-section">
-  <h2><a class="anchor" href="#overview">1. Review summary</a></h2>
-  <p class="intro">This proposal extends the existing Open Rails TrProfile format instead of introducing a TSRE-only procedural format. Existing polyline profiles and material rules remain the baseline. New attributes describe profile families and complete 3D geometry that cannot be represented as a cross-section alone.</p>
-  <div class="summary"><div><b>No replacement format</b><span>LOD, LODItem, Polyline, Vertex, materials, chord controls and matching filters remain valid.</span></div><div><b>Small data-model additions</b><span>ObjectType, role variants, PathFrameMode and Template3D are added to the existing hierarchy.</span></div><div><b>Working reference</b><span>TSRE parses, selects and renders the proposal for static track, dynamic track, roads and Ruler paths.</span></div></div>
-  <div class="callout info"><b>Requested decision:</b> accept the file-format direction and semantics. The TSRE implementation is evidence that the model is practical; its OpenGL/OglObj details are not proposed as ORTS architecture.</div>
+  <h2><a class="anchor" href="#overview">1. Format summary</a></h2>
+  <p class="intro">These additions extend the existing Open Rails TrProfile format instead of introducing a TSRE-only procedural format. Existing polyline profiles and material rules remain the baseline. New attributes describe profile families and complete 3D geometry that cannot be represented as a cross-section alone.</p>
+  <div class="summary"><div><b>No replacement format</b><span>LOD, LODItem, Polyline, Vertex, materials, chord controls and matching filters remain valid.</span></div><div><b>Small data-model additions</b><span>ObjectType, role variants, PathFrameMode and Template3D are added to the existing hierarchy.</span></div><div><b>Cross-engine implementation</b><span>TSRE and the Open Rails procedural-shapes branch parse and render the same extended profile data.</span></div></div>
+  <div class="callout info"><b>Review focus:</b> file-format semantics, compatibility and generated results. TSRE OpenGL/OglObj details are not part of the Open Rails implementation.</div>
 </section>
 
 <section id="scope" class="doc-section">
-  <h2><a class="anchor" href="#scope">2. Scope and review status</a></h2>
-  <p>The proposal is intentionally divided into the already discussed profile-family work and the new 3D geometry extension.</p>
-  <table><thead><tr><th>Area</th><th>Status for ORTS discussion</th><th>Purpose</th></tr></thead><tbody>
+  <h2><a class="anchor" href="#scope">2. Scope and implementation status</a></h2>
+  <p>The extension combines the previously discussed profile-family work with the newer 3D geometry additions.</p>
+  <table><thead><tr><th>Area</th><th>Status</th><th>Purpose</th></tr></thead><tbody>
     <tr><td>Read all supported files in <code>TrackProfiles</code></td><td><span class="pill">AGREED DIRECTION</span></td><td>Remove the historical filename-prefix restriction.</td></tr>
     <tr><td><code>RdProfile</code> as the default road family</td><td><span class="pill">AGREED DIRECTION</span></td><td>Give procedural roads an explicit default profile.</td></tr>
     <tr><td>Multiple <code>TrProfile</code> roots in STF</td><td><span class="pill">AGREED DIRECTION</span></td><td>Keep role variants in one family file.</td></tr>
     <tr><td><code>ObjectType</code> and family roles</td><td><span class="pill">AGREED DIRECTION</span></td><td>Type profiles and resolve multi-path left/middle/right members.</td></tr>
-    <tr><td><code>PathFrameMode</code></td><td>Proposed here</td><td>Control roll/pitch treatment per material item.</td></tr>
-    <tr><td><code>Template3D</code> and child attributes</td><td>Proposed here</td><td>Reuse the TrProfile pipeline for longitudinal 3D geometry.</td></tr>
+    <tr><td><code>PathFrameMode</code></td><td><span class="pill">DRAFT IMPLEMENTATION</span></td><td>Control roll/pitch treatment per material item.</td></tr>
+    <tr><td><code>Template3D</code> and child attributes</td><td><span class="pill">DRAFT IMPLEMENTATION</span></td><td>Reuse the TrProfile pipeline for longitudinal 3D geometry.</td></tr>
   </tbody></table>
-  <h3>Deliberately outside this proposal</h3>
+  <h3>Deliberately outside this format extension</h3>
   <ul><li>A general OBJ shape format or replacement for MSTS <code>.s</code> files.</li><li>OBJ materials, scene hierarchy, animation or arbitrary polygon support.</li><li>TSRE’s <code>Disabled / Enabled / Forced</code> editor preference.</li><li>TSRE’s renderer-specific VBO layout, OglObj ownership and temporary seam overlap.</li><li>A new world-coordinate mesh format. Generated geometry remains object-local.</li></ul>
 </section>
 
@@ -317,29 +317,29 @@ group B →  <span class="v">LEFT</span>, <span class="v">RIGHT</span></code></p
 </section>
 
 <section id="consumers" class="doc-section">
-  <h2><a class="anchor" href="#consumers">12. Minimal ORTS implementation</a></h2>
-  <p class="intro">The proposal can be implemented by extending the existing TrProfile loader and procedural-track path. It does not require a general OBJ renderer, a replacement shape system or world-space generated meshes.</p>
+  <h2><a class="anchor" href="#consumers">12. Current Open Rails implementation</a></h2>
+  <p class="intro">The <a href="https://github.com/openrails/openrails/pull/1269">Open Rails procedural-shapes pull request</a> extends the existing TrProfile loader and procedural-track path. It does not add a general OBJ renderer, replace the shape system or generate meshes in world space.</p>
   <ol class="steps">
-    <li><strong>Extend profile discovery.</strong> Enumerate supported files in <code>TrackProfiles</code>, recognize <code>RdProfile</code> as the default road family and allow multiple top-level STF <code>TrProfile</code> blocks.</li>
-    <li><strong>Extend the parsed model.</strong> Add <code>ObjectType</code> and role, <code>PathFrameMode</code> on <code>LODItem</code>, and a collection of <code>Template3D</code> children beside <code>Polyline</code>.</li>
-    <li><strong>Resolve family roles before generation.</strong> Split TrackShape paths into consecutive same-direction groups, then select LEFT/MIDDLE/RIGHT with MAIN fallback. SINGLE bypasses expansion.</li>
-    <li><strong>Load only the required OBJ subset.</strong> Parse positions, UVs, normals and positive-index triangular faces. Ignore materials and unrelated directives because the parent LODItem remains the material authority.</li>
-    <li><strong>Generate through existing path frames.</strong> Polyline and Template3D consume the same sampled track or Ruler path. Apply <code>PathFrameMode</code> before emitting vertices or rigid transforms.</li>
-    <li><strong>Preserve the current path.</strong> A LODItem containing only Polyline data must continue through the existing ORTS implementation without changed output.</li>
+    <li><strong>Profile discovery.</strong> The loader enumerates supported files in <code>TrackProfiles</code>, recognizes <code>RdProfile</code> as the default road family and allows multiple top-level STF <code>TrProfile</code> blocks.</li>
+    <li><strong>Parsed model.</strong> The model adds <code>ObjectType</code> and role, <code>PathFrameMode</code> on <code>LODItem</code>, and a collection of <code>Template3D</code> children beside <code>Polyline</code>.</li>
+    <li><strong>Family resolution.</strong> TrackShape paths are split into consecutive same-direction groups, then LEFT/MIDDLE/RIGHT is selected with MAIN fallback. SINGLE bypasses expansion.</li>
+    <li><strong>Minimal OBJ subset.</strong> The loader parses positions, UVs, normals and positive-index triangular faces. Materials and unrelated directives are ignored because the parent LODItem remains the material authority.</li>
+    <li><strong>Existing path frames.</strong> Polyline and Template3D consume the same sampled track or Ruler path. <code>PathFrameMode</code> is applied before emitting vertices or rigid transforms.</li>
+    <li><strong>Legacy path preserved.</strong> A LODItem containing only Polyline data continues through the existing Open Rails implementation without changed output.</li>
   </ol>
 
-  <h3>Suggested ownership</h3>
-  <table><thead><tr><th>Concern</th><th>Minimal ORTS change</th><th>What should remain unchanged</th></tr></thead><tbody>
-    <tr><td>Parsing</td><td>Add fields and child records to the current TrackProfile data model.</td><td>Existing Polyline, Vertex, LOD and material parsing.</td></tr>
-    <tr><td>Catalog</td><td>Index by object type, filename family and role.</td><td><code>Name</code> remains descriptive text.</td></tr>
-    <tr><td>Geometry</td><td>Add Template3D emitters beside the polyline emitter.</td><td>Existing path sampling and section/subsection qualification.</td></tr>
-    <tr><td>Rendering</td><td>Baked output may use current dynamic vertex buffers; Shared may use the existing shared-shape-plus-transform representation.</td><td>Renderer architecture and batching policy are ORTS implementation choices.</td></tr>
-    <tr><td>Roads</td><td>Select ROAD families and keep road banking disabled where existing road rules require it.</td><td>Existing road, tunnel, junction and superelevation exclusions.</td></tr>
+  <h3>Implementation boundaries</h3>
+  <table><thead><tr><th>Concern</th><th>Open Rails implementation</th><th>Preserved behavior</th></tr></thead><tbody>
+    <tr><td>Parsing</td><td>Fields and child records extend the current TrackProfile data model.</td><td>Existing Polyline, Vertex, LOD and material parsing.</td></tr>
+    <tr><td>Catalog</td><td>Profiles are indexed by object type, filename family and role.</td><td><code>Name</code> remains descriptive text.</td></tr>
+    <tr><td>Geometry</td><td>Template3D emitters run beside the polyline emitter.</td><td>Existing path sampling and section/subsection qualification.</td></tr>
+    <tr><td>Rendering</td><td>Baked output uses dynamic vertex buffers; Shared uses shared geometry with per-occurrence transforms.</td><td>Existing renderer ownership and material behavior.</td></tr>
+    <tr><td>Roads</td><td>ROAD families are selected and road banking remains disabled.</td><td>Existing road, tunnel, junction and superelevation exclusions.</td></tr>
   </tbody></table>
 
-  <div class="callout info"><b>Porting boundary:</b> copy the file-format semantics and generated result, not TSRE's OpenGL classes. In particular, ORTS should use its native MSTS coordinate convention and its existing procedural-track frames.</div>
+  <div class="callout info"><b>Implementation boundary:</b> Open Rails uses its native MSTS coordinate convention, procedural-track frames and renderer. It shares the file-format semantics and generated result with TSRE, not TSRE's OpenGL classes.</div>
 
-  <h3>Acceptance tests for an ORTS port</h3>
+  <h3>Cross-engine acceptance checks</h3>
   <ul>
     <li>An unchanged legacy polyline profile produces the same geometry as before.</li>
     <li>One STF file loads MAIN, LEFT, MIDDLE, RIGHT and SINGLE family members.</li>
@@ -371,15 +371,15 @@ group B →  <span class="v">LEFT</span>, <span class="v">RIGHT</span></code></p
   <h2><a class="anchor" href="#compatibility">14. Compatibility and limitations</a></h2>
   <h3>Compatibility</h3>
   <ul><li>Existing Polyline-only STF and XML profiles retain their behavior.</li><li>Missing <code>ObjectType</code> means <code>TRACK MAIN</code>.</li><li>Missing <code>PathFrameMode</code> means <code>Full</code>.</li><li>Missing <code>GeometryMode</code> means <code>Baked</code>.</li><li>Role variants are optional; a missing requested role falls back to MAIN.</li><li>A profile containing no Template3D follows the existing Polyline path.</li></ul>
-  <h3>Proposed format limits</h3>
+  <h3>Current format limits</h3>
   <ul><li>Multiple top-level profiles and Template3D are initially STF-only. XML remains one profile per file until a wrapper representation is agreed.</li><li>The OBJ subset accepts only positive-index triangular <code>v/vt/vn</code> faces and deliberately ignores materials.</li><li>Sweep and Stretch require baked/deformed output; Shared is valid only for Repeat and Place.</li><li>One Stretch entry spans exactly one semantic input span. It is not automatically subdivided for LOD because subdivision would change its defined result.</li></ul>
   <h3>TSRE reference limitations, not format requirements</h3>
   <ul><li>Shared output currently benefits RulerObj; TSRE TrackObj and DynTrackObj remain baked.</li><li>TSRE shared rendering reuses geometry but does not issue a hardware-instanced draw call.</li><li>TSRE caps one generated request at 2048 m. Geometry through the limit remains visible, while complete-path and final span/node endpoint objects are suppressed at the artificial boundary.</li><li>TSRE uses a temporary 10 cm mesh overlap to conceal sharp grade seams without changing database endpoints.</li><li>The older experimental <code>shapetemplates.dat</code> reader is disabled in the reference branch but has not yet been removed.</li></ul>
 </section>
 
 <section id="implementation" class="doc-section">
-  <h2><a class="anchor" href="#implementation">15. TSRE reference implementation and evidence</a></h2>
-  <p class="intro">TSRE is the reference authoring implementation. An experimental Open Rails procedural-shapes branch implements the same proposal for cross-engine visual testing; upstream format review remains pending.</p>
+  <h2><a class="anchor" href="#implementation">15. Implementations and evidence</a></h2>
+  <p class="intro">TSRE is the reference authoring implementation. Open Rails PR <a href="https://github.com/openrails/openrails/pull/1269">#1269</a> implements the same format and generated results in the Open Rails profile and renderer architecture; upstream review remains pending.</p>
   <table><thead><tr><th>Area</th><th>Result</th></tr></thead><tbody>
     <tr><td>TrProfile parser/renderer suite</td><td>63 / 63 cases passing, including long-path chunk ownership, unsplit Stretch, complete-path endpoints, and capped path-limit regressions without false endpoint placement.</td></tr>
     <tr><td>Existing procedural-policy regression suite</td><td>12 / 12 cases passing; the extension did not change TSRE's editor policy behavior.</td></tr>
@@ -407,6 +407,6 @@ group B →  <span class="v">LEFT</span>, <span class="v">RIGHT</span></code></p
 </main>
 </div>
 
-<footer><div class="footer-inner">Open Rails TrProfile extension proposal &middot; TSRE reference implementation</div></footer>
+<footer><div class="footer-inner">TrProfile extensions &middot; TSRE and Open Rails implementations</div></footer>
 </body>
 </html>
