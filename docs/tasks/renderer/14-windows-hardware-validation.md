@@ -225,3 +225,22 @@ Do not commit `build\` output.
 This task is done when at least one dedicated GPU and, if available, one
 integrated GPU have a complete report. The decision to remove the legacy
 pipeline (task 12) uses these reports.
+
+## Status (2026-10-03)
+
+One synthetic run on an integrated AMD GPU (route CMK) is recorded in
+`reports/windows-hardware-validation-amd-custom-gpu-0932-2026-10-03.md`, and
+the user checked the interactive items manually: no gather defects found.
+
+Further remote hardware runs are deferred until hardware results block other
+work. Before running again, improve the harness:
+
+- Time CPU submission before the GPU query readback, time the GPU with a
+  `GL_TIME_ELAPSED` query, keep every frame, and report median and p90
+  instead of the minimum.
+- Alternate the pipeline order between runs, repeat each at least five times,
+  and use a High performance power plan.
+- Read depth at each pick point; report differing IDs at equal depth as
+  coplanar ties, not mismatches.
+- Choose views that face dense content.
+- Commit only the Markdown report, not images, logs or capture data.
