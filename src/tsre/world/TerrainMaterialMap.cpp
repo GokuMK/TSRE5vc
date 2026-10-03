@@ -13,7 +13,8 @@
 
 namespace {
 constexpr int HeaderSize = 20;
-bool layoutValid(int patches) { return patches > 0 && patches <= 32 && TerrainMaterialMap::Side % patches == 0; }
+constexpr int FileSizeSlack = 256 * 1024;
+bool layoutValid(int patches, int side) { return patches > 0 && patches <= 32 && side % patches == 0; }
 static_assert(TerrainMaterialMap::SamplingMode >= 1 && TerrainMaterialMap::SamplingMode <= 4);
 // Future shader importance belongs here; IDs themselves are never interpolated.
 double materialImportance(quint8 id) { return double(id) + 1.0; }
@@ -24,10 +25,28 @@ quint32 scatterHash(quint32 value) {
 }
 }
 
-void TerrainMaterialMap::initialize(quint8 id) { ids = QByteArray(Side * Side, char(id)); }
-bool TerrainMaterialMap::valid() const { return ids.size() == Side * Side; }
+bool TerrainMaterialMap::supportedSide(int value) {
+    return value >= MinimumSide && value <= MaximumSide && (value & (value-1)) == 0;
+}
+bool TerrainMaterialMap::initialize(quint8 id, int requestedSide) {
+    if (!supportedSide(requestedSide)) { ids.clear(); return false; }
+    mapSide=requestedSide;
+    ids=QByteArray(mapSide*mapSide,char(id));
+    return true;
+}
+bool TerrainMaterialMap::setIds(const QByteArray &values) {
+    const qsizetype count=values.size();
+    const int inferred=int(std::sqrt(double(count)));
+    if (!supportedSide(inferred) || qsizetype(inferred)*inferred!=count) return false;
+    mapSide=inferred;
+    ids=values;
+    return true;
+}
+bool TerrainMaterialMap::valid() const {
+    return supportedSide(mapSide) && ids.size()==qsizetype(mapSide)*mapSide;
+}
 quint8 TerrainMaterialMap::at(int x, int z) const {
-    return valid() ? quint8(ids[std::clamp(z, 0, Side-1)*Side + std::clamp(x, 0, Side-1)]) : 0;
+    return valid() ? quint8(ids[std::clamp(z,0,mapSide-1)*mapSide+std::clamp(x,0,mapSide-1)]) : 0;
 }
 QSet<int> TerrainMaterialMap::usedIds() const {
     QSet<int> result;
@@ -41,22 +60,26 @@ QByteArray TerrainMaterialMap::encode() const {
     QByteArray result(HeaderSize, '\0');
     memcpy(result.data(), "TSREPMAP", 8);
     qToLittleEndian<quint32>(1, result.data()+8);
-    qToLittleEndian<quint32>(Side, result.data()+12);
-    qToLittleEndian<quint32>(Side, result.data()+16);
+    qToLittleEndian<quint32>(mapSide, result.data()+12);
+    qToLittleEndian<quint32>(mapSide, result.data()+16);
     // qCompress's four-byte length is redundant: the versioned header fixes it.
     // Same zlib/file format, favor interactive saves over maximum compression.
     result += qCompress(ids, 1).mid(4);
     return result;
 }
-bool TerrainMaterialMap::decode(const QByteArray &file, QByteArray &out, QString &error) {
-    if (file.size() <= HeaderSize || file.size() > Side*Side + 65536
+bool TerrainMaterialMap::decode(const QByteArray &file, QByteArray &out, QString &error, int *decodedSide) {
+    if (file.size() <= HeaderSize || file.size() > MaximumSide*MaximumSide+FileSizeSlack
         || memcmp(file.constData(), "TSREPMAP", 8) != 0
-        || qFromLittleEndian<quint32>(file.constData()+8) != 1
-        || qFromLittleEndian<quint32>(file.constData()+12) != Side
-        || qFromLittleEndian<quint32>(file.constData()+16) != Side) {
+        || qFromLittleEndian<quint32>(file.constData()+8) != 1) {
         error = "Unsupported procedural material bitmap header/size"; return false;
     }
-    QByteArray decoded(Side*Side, '\0');
+    const quint32 width=qFromLittleEndian<quint32>(file.constData()+12);
+    const quint32 height=qFromLittleEndian<quint32>(file.constData()+16);
+    if (width!=height || width>quint32(std::numeric_limits<int>::max()) || !supportedSide(int(width))) {
+        error="Unsupported procedural material bitmap dimensions"; return false;
+    }
+    const int side=int(width);
+    QByteArray decoded(side*side,'\0');
     mz_stream stream{};
     stream.next_in = reinterpret_cast<const unsigned char*>(file.constData()+HeaderSize);
     stream.avail_in = file.size()-HeaderSize;
@@ -64,18 +87,24 @@ bool TerrainMaterialMap::decode(const QByteArray &file, QByteArray &out, QString
     stream.avail_out = decoded.size();
     if (mz_inflateInit(&stream) != MZ_OK) { error = "Cannot initialize bitmap decompressor"; return false; }
     const int status = mz_inflate(&stream, MZ_FINISH);
-    const bool ok = status == MZ_STREAM_END && stream.total_out == Side*Side && stream.avail_in == 0;
+    const bool ok=status==MZ_STREAM_END && stream.total_out==mz_ulong(side)*side && stream.avail_in==0;
     mz_inflateEnd(&stream);
     if (!ok) { error = "Damaged procedural material bitmap (bounded decompression failed)"; return false; }
     out = std::move(decoded);
+    if (decodedSide) *decodedSide=side;
     return true;
 }
 bool TerrainMaterialMap::read(const QString &path, QString &error) {
     QFile file(path);
-    if (!file.open(QIODevice::ReadOnly) || file.size() > Side*Side+65536) {
+    if (!file.open(QIODevice::ReadOnly) || file.size()>qint64(MaximumSide)*MaximumSide+FileSizeSlack) {
         error = "Cannot read procedural material bitmap: " + path; return false;
     }
-    return decode(file.readAll(), ids, error);
+    QByteArray decoded;
+    int decodedSide=0;
+    if (!decode(file.readAll(),decoded,error,&decodedSide)) return false;
+    mapSide=decodedSide;
+    ids=std::move(decoded);
+    return true;
 }
 bool TerrainMaterialMap::write(const QString &path, QString &error) const {
     const QByteArray bytes = encode();
@@ -89,23 +118,23 @@ bool TerrainMaterialMap::write(const QString &path, QString &error) const {
 QSet<int> TerrainMaterialMap::paint(double x, double z, double radius, int id,
                                     int patches, const QImage &mask, const QSet<int> &locked, bool dryRun, int mode) {
     QSet<int> changed;
-    if (!valid() || !layoutValid(patches) || id < 0 || id > 255 || radius <= 0
+    if (!valid() || !layoutValid(patches,mapSide) || id < 0 || id > 255 || radius <= 0
         || !std::isfinite(x) || !std::isfinite(z) || !std::isfinite(radius)) return changed;
-    const int loX = int(std::clamp(std::floor(x-radius), 0., double(Side)));
-    const int loZ = int(std::clamp(std::floor(z-radius), 0., double(Side)));
-    const int hiX = int(std::clamp(std::ceil(x+radius), 0., double(Side)));
-    const int hiZ = int(std::clamp(std::ceil(z+radius), 0., double(Side)));
-    const int side = Side/patches;
+    const int loX=int(std::clamp(std::floor(x-radius),0.,double(mapSide)));
+    const int loZ=int(std::clamp(std::floor(z-radius),0.,double(mapSide)));
+    const int hiX=int(std::clamp(std::ceil(x+radius),0.,double(mapSide)));
+    const int hiZ=int(std::clamp(std::ceil(z+radius),0.,double(mapSide)));
+    const int side=mapSide/patches;
     for (int iz = loZ; iz < hiZ; ++iz) {
         const int my = mask.isNull() ? 0 : std::clamp(int((iz+.5-z+radius)*mask.height()/(2*radius)), 0, mask.height()-1);
         for (int ix = loX; ix < hiX; ++ix) {
             const int patch = (iz/side)*patches + ix/side;
-            if (locked.contains(patch) || quint8(ids.at(iz*Side+ix)) == id) continue;
+            if (locked.contains(patch) || quint8(ids.at(iz*mapSide+ix)) == id) continue;
             if (!mask.isNull()) {
                 const int mx = std::clamp(int((ix+.5-x+radius)*mask.width()/(2*radius)), 0, mask.width()-1);
                 if (qGray(mask.pixel(mx, my)) == 255) continue;
             }
-            if (!dryRun) ids[iz*Side+ix] = char(id);
+            if (!dryRun) ids[iz*mapSide+ix] = char(id);
             if (mode == 3) changed.insert(patch);
             else {
                 // A changed border texel also influences the next patch's
@@ -121,26 +150,26 @@ QSet<int> TerrainMaterialMap::paint(double x, double z, double radius, int id,
 QSet<int> TerrainMaterialMap::fill(int x, int z, int id, int patches, bool patchOnly,
                                   const QSet<int> &locked, bool dryRun, int mode) {
     QSet<int> changed;
-    if (!valid() || !layoutValid(patches) || id<0 || id>255 || x<0 || z<0 || x>=Side || z>=Side)
+    if (!valid() || !layoutValid(patches,mapSide) || id<0 || id>255 || x<0 || z<0 || x>=mapSide || z>=mapSide)
         return changed;
-    const int side=Side/patches, patch=(z/side)*patches+x/side;
+    const int side=mapSide/patches, patch=(z/side)*patches+x/side;
     if (locked.contains(patch)) return changed;
-    const char replacement=char(id), original=ids.at(z*Side+x);
+    const char replacement=char(id), original=ids.at(z*mapSide+x);
     if (!patchOnly && original==replacement) return changed;
     if (!patchOnly && dryRun) { changed.insert(patch); return changed; }
     const int halo=mode==3 ? 0 : 1;
     auto dirtySpan=[&](int left,int right,int row) {
-        for (int pz=std::max(0,row-halo)/side; pz<=std::min(Side-1,row+halo)/side; ++pz)
-            for (int px=std::max(0,left-halo)/side; px<=std::min(Side-1,right+halo)/side; ++px)
+        for (int pz=std::max(0,row-halo)/side; pz<=std::min(mapSide-1,row+halo)/side; ++pz)
+            for (int px=std::max(0,left-halo)/side; px<=std::min(mapSide-1,right+halo)/side; ++px)
                 changed.insert(pz*patches+px);
     };
     if (patchOnly) {
         const int startX=(x/side)*side, startZ=(z/side)*side;
         for (int row=startZ; row<startZ+side; ++row) {
             int first=startX+side,last=-1;
-            for (int col=startX; col<startX+side; ++col) if (ids.at(row*Side+col)!=replacement) {
+            for (int col=startX; col<startX+side; ++col) if (ids.at(row*mapSide+col)!=replacement) {
                 if (dryRun) { changed.insert(patch); return changed; }
-                ids[row*Side+col]=replacement;
+                ids[row*mapSide+col]=replacement;
                 first=std::min(first,col); last=col;
             }
             if (last>=first) dirtySpan(first,last,row);
@@ -153,15 +182,15 @@ QSet<int> TerrainMaterialMap::fill(int x, int z, int id, int patches, bool patch
     for (int p : locked) if (p>=0 && p<patches*patches) blocked[p]=true;
     char *pixels=ids.data();
     auto matches=[&](int col,int row) {
-        return pixels[row*Side+col]==original && !blocked[(row/side)*patches+col/side];
+        return pixels[row*mapSide+col]==original && !blocked[(row/side)*patches+col/side];
     };
     struct Span { int left,right,row; };
     QVector<Span> pending;
     auto schedule=[&](int col,int row) {
         int left=col,right=col;
         while (left>0 && matches(left-1,row)) --left;
-        while (right+1<Side && matches(right+1,row)) ++right;
-        std::fill(pixels+row*Side+left,pixels+row*Side+right+1,replacement);
+        while (right+1<mapSide && matches(right+1,row)) ++right;
+        std::fill(pixels+row*mapSide+left,pixels+row*mapSide+right+1,replacement);
         dirtySpan(left,right,row);
         pending.push_back({left,right,row});
         return right;
@@ -170,7 +199,7 @@ QSet<int> TerrainMaterialMap::fill(int x, int z, int id, int patches, bool patch
     while (!pending.isEmpty()) {
         const Span span=pending.takeLast();
         for (int row : {span.row-1,span.row+1}) {
-            if (row<0 || row>=Side) continue;
+            if (row<0 || row>=mapSide) continue;
             for (int col=span.left;col<=span.right;++col)
                 if (matches(col,row)) col=schedule(col,row);
         }
@@ -179,7 +208,7 @@ QSet<int> TerrainMaterialMap::fill(int x, int z, int id, int patches, bool patch
 }
 quint8 TerrainMaterialMap::sampleId(double x, double z, int mode, quint32 seed) const {
     if (!valid() || !std::isfinite(x) || !std::isfinite(z)) return 0;
-    x = std::clamp(x,0.0,double(Side)); z = std::clamp(z,0.0,double(Side));
+    x=std::clamp(x,0.0,double(mapSide)); z=std::clamp(z,0.0,double(mapSide));
     if (mode == 3) return at(int(x),int(z));
     const int ix = int(std::floor(x-.5)), iz = int(std::floor(z-.5));
     const double fx = x-.5-ix, fz = z-.5-iz;
@@ -213,48 +242,53 @@ quint8 TerrainMaterialMap::sampleId(double x, double z, int mode, quint32 seed) 
     return ids[best];
 }
 QByteArray TerrainMaterialMap::patchKey(int patch, int patches, int mode) const {
-    if (!valid() || !layoutValid(patches) || patch < 0 || patch >= patches*patches) return {};
+    if (!valid() || !layoutValid(patches,mapSide) || patch < 0 || patch >= patches*patches) return {};
     QCryptographicHash hash(QCryptographicHash::Sha256);
-    const int side = Side/patches, x = (patch%patches)*side, z = (patch/patches)*side;
+    const int side=mapSide/patches, x=(patch%patches)*side, z=(patch/patches)*side;
     QByteArray settings(12,'\0');
     qToLittleEndian<quint32>(mode,settings.data());
     qToLittleEndian<quint32>(side,settings.data()+4);
     qToLittleEndian<quint32>(OutputSide,settings.data()+8);
     hash.addData(settings);
     if (mode == 3) {
-        for (int row=0;row<side;++row) hash.addData(QByteArrayView(ids.constData()+(z+row)*Side+x,side));
+        for (int row=0;row<side;++row) hash.addData(QByteArrayView(ids.constData()+(z+row)*mapSide+x,side));
     } else {
         // Hash exactly the dependencies read by sampleId, with tile-edge clamp.
         QByteArray row(side+2,'\0');
         for (int rz=-1;rz<=side;++rz) {
-            const char *src=ids.constData()+std::clamp(z+rz,0,Side-1)*Side;
+            const char *src=ids.constData()+std::clamp(z+rz,0,mapSide-1)*mapSide;
             row[0]=src[std::max(0,x-1)];
             memcpy(row.data()+1,src+x,side);
-            row[side+1]=src[std::min(Side-1,x+side)];
+            row[side+1]=src[std::min(mapSide-1,x+side)];
             hash.addData(row);
         }
     }
     return hash.result();
 }
 QImage TerrainMaterialMap::generate(int patch, int patches, const QHash<int, QImage> &sources, int mode) const {
-    if (!valid() || !layoutValid(patches) || patch < 0 || patch >= patches*patches) return {};
-    QImage output(OutputSide, OutputSide, QImage::Format_RGB888);
-    const int side = Side/patches, x = (patch%patches)*side, z = (patch/patches)*side;
+    return generateAtSize(patch,patches,sources,OutputSide,mode);
+}
+QImage TerrainMaterialMap::generateAtSize(int patch, int patches, const QHash<int,QImage> &sources,
+                                          int outputSide, int mode) const {
+    if (!valid() || !layoutValid(patches,mapSide) || patch<0 || patch>=patches*patches
+            || outputSide<=0) return {};
+    QImage output(outputSide,outputSide,QImage::Format_RGB888);
+    const int side=mapSide/patches, x=(patch%patches)*side, z=(patch/patches)*side;
     const QImage *images[256]{};
     for (auto it = sources.constBegin(); it != sources.constEnd(); ++it)
         if (it.key() >= 0 && it.key() <= 255 && !it.value().isNull()) images[it.key()] = &it.value();
-    for (int row = 0; row < OutputSide; ++row) {
+    for (int row=0;row<outputSide;++row) {
         unsigned char *dst = output.scanLine(row);
-        const double sampleZ = z + (row+.5)*side/OutputSide;
-        for (int col = 0; col < OutputSide; ++col) {
-            const double sampleX = x + (col+.5)*side/OutputSide;
+        const double sampleZ=z+(row+.5)*side/outputSide;
+        for (int col=0;col<outputSide;++col) {
+            const double sampleX=x+(col+.5)*side/outputSide;
             // Patch-local pattern intentionally repeats for identical recipes,
             // preserving cache sharing across patches and tiles.
             const quint32 seed=quint32(col)*0x9e3779b9u ^ quint32(row)*0x85ebca6bu ^ 0x73518u;
             const QImage *source = images[sampleId(sampleX,sampleZ,mode,seed)];
             if (!source) return {};
-            const QRgb color = source->pixel(((2*col+1)*source->width())/(2*OutputSide),
-                                            ((2*row+1)*source->height())/(2*OutputSide));
+            const QRgb color=source->pixel(((2*col+1)*source->width())/(2*outputSide),
+                                           ((2*row+1)*source->height())/(2*outputSide));
             *dst++ = qRed(color); *dst++ = qGreen(color); *dst++ = qBlue(color);
         }
     }
@@ -264,7 +298,7 @@ QImage TerrainMaterialMap::bake(int patches, const QHash<int,QImage> &sources,
                               const QHash<QByteArray,QImage> &miniatures,
                               const QImage &previous, const QSet<int> &dirtyPatches,
                               QVector<QByteArray> *recipeKeys) const {
-    if (!valid() || patches<=0 || BakedSide%patches || Side%patches) return {};
+    if (!valid() || patches<=0 || BakedSide%patches || mapSide%patches) return {};
     const bool incremental=previous.size()==QSize(BakedSide,BakedSide)
             && previous.format()==QImage::Format_RGB888;
     QImage tile=incremental ? previous : QImage(BakedSide,BakedSide,QImage::Format_RGB888);
@@ -285,10 +319,24 @@ QImage TerrainMaterialMap::bake(int patches, const QHash<int,QImage> &sources,
         if (found!=reduced.constEnd() && found->size()==QSize(side,side)
                 && found->format()==QImage::Format_RGB888) image=*found;
         else {
-            image=generate(patch,patches,sources);
-            if (image.isNull()) return {};
-            image=image.scaled(side,side,Qt::IgnoreAspectRatio,Qt::SmoothTransformation)
-                    .convertToFormat(QImage::Format_RGB888);
+            if (BakeSamplingMode==BakeSampling::FullOutput) {
+                image=generate(patch,patches,sources);
+                if (image.isNull()) return {};
+                image=image.scaled(side,side,Qt::IgnoreAspectRatio,Qt::SmoothTransformation)
+                        .convertToFormat(QImage::Format_RGB888);
+            } else {
+                const QImage supersampled=generateAtSize(patch,patches,sources,side*2);
+                if (supersampled.isNull()) return {};
+                image=QImage(side,side,QImage::Format_RGB888);
+                for (int y=0;y<side;++y) {
+                    auto *dst=image.scanLine(y);
+                    const auto *a=supersampled.constScanLine(y*2);
+                    const auto *b=supersampled.constScanLine(y*2+1);
+                    for (int x=0;x<side;++x) for (int channel=0;channel<3;++channel)
+                        *dst++=uchar((int(a[x*6+channel])+a[x*6+3+channel]
+                                    +b[x*6+channel]+b[x*6+3+channel]+2)/4);
+                }
+            }
             reduced.insert(key,image);
         }
         for (int y=0;y<side;++y)

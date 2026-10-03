@@ -138,6 +138,8 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
     QScopedValueRollback<bool> enabledSetting(TerrainMaterialMap::Enabled,true);
     QScopedValueRollback<int> patchSizeSetting(TerrainMaterialMap::OutputSide,512);
     QScopedValueRollback<int> bakeSizeSetting(TerrainMaterialMap::BakedSide,1024);
+    QScopedValueRollback<TerrainMaterialMap::BakeSampling> bakeSamplingSetting(
+            TerrainMaterialMap::BakeSamplingMode,TerrainMaterialMap::BakeSampling::Optimized2x);
     int passed=0,failed=0;
     auto check=[&](bool ok,const char *name) {
         if (ok) ++passed; else ++failed;
@@ -285,10 +287,35 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
     QByteArray decoded;
     const auto encoded=map.encode();
     check(TerrainMaterialMap::decode(encoded,decoded,error) && decoded==map.ids,"compressed-round-trip-including-255");
+    for (int side : {2048,4096,8192}) {
+        TerrainMaterialMap sized;
+        check(sized.initialize(17,side) && sized.side()==side && sized.valid(),
+              "supported-map-resolution-initializes");
+        sized.ids[0]=char(1); sized.ids[sized.ids.size()-1]=char(255);
+        int decodedSide=0;
+        QByteArray decodedSized;
+        check(TerrainMaterialMap::decode(sized.encode(),decodedSized,error,&decodedSide)
+              && decodedSide==side && decodedSized==sized.ids,
+              "supported-map-resolution-compressed-round-trip");
+    }
+    TerrainMaterialMap restoredSize;
+    check(restoredSize.setIds(QByteArray(2048*2048,char(9))) && restoredSize.side()==2048
+          && restoredSize.at(2047,2047)==9,"undo-id-buffer-restores-map-resolution");
+    TerrainMaterialMap unsupportedSize;
+    check(!unsupportedSize.initialize(0,1024) && !unsupportedSize.valid(),
+          "unsupported-map-resolution-cannot-initialize");
     QByteArray bad=encoded; bad[8]=2;
     check(!TerrainMaterialMap::decode(bad,decoded,error),"reject-version");
     bad=encoded; bad[12]=1;
     check(!TerrainMaterialMap::decode(bad,decoded,error),"reject-dimensions");
+    bad=encoded; qToLittleEndian<quint32>(2048,bad.data()+16);
+    check(!TerrainMaterialMap::decode(bad,decoded,error),"reject-nonsquare-map");
+    bad=encoded; qToLittleEndian<quint32>(3072,bad.data()+12); qToLittleEndian<quint32>(3072,bad.data()+16);
+    check(!TerrainMaterialMap::decode(bad,decoded,error),"reject-non-power-of-two-map");
+    bad=encoded; qToLittleEndian<quint32>(1024,bad.data()+12); qToLittleEndian<quint32>(1024,bad.data()+16);
+    check(!TerrainMaterialMap::decode(bad,decoded,error),"reject-map-below-supported-range");
+    bad=encoded; qToLittleEndian<quint32>(16384,bad.data()+12); qToLittleEndian<quint32>(16384,bad.data()+16);
+    check(!TerrainMaterialMap::decode(bad,decoded,error),"reject-map-above-supported-range");
     check(!TerrainMaterialMap::decode(encoded.chopped(4),decoded,error),"reject-truncated-stream");
     check(!TerrainMaterialMap::decode(encoded+"garbage",decoded,error),"reject-trailing-stream-data");
     bad=encoded.left(20)+qCompress(QByteArray(TerrainMaterialMap::Side*TerrainMaterialMap::Side+1,'x')).mid(4);
@@ -309,6 +336,14 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
     QImage red(256,256,QImage::Format_RGB888); red.fill(Qt::red);
     QImage blue(256,256,QImage::Format_RGB888); blue.fill(Qt::blue);
     QHash<int,QImage> sources{{0,red},{1,blue},{255,blue}};
+    for (int side : {2048,4096,8192}) {
+        TerrainMaterialMap sized; sized.initialize(0,side);
+        const auto changed=sized.fill(side-1,side-1,1,32,true);
+        const auto generated=sized.generate(32*32-1,32,sources);
+        check(changed.contains(32*32-1) && sized.at(side-1,side-1)==1
+              && !generated.isNull() && generated.pixelColor(generated.width()/2,generated.height()/2)==QColor(Qt::blue),
+              "supported-map-resolution-addresses-fills-and-generates");
+    }
     for (int p : {4,8,16,32}) {
         map.initialize();
         const int k=TerrainMaterialMap::Side/p;
@@ -564,6 +599,9 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
         check(redUid==1 && blueUid==2 && library->find(redUid)->texture=="red.png","global-library-add-images-stable-uids");
         check(library->find(redUid)->displayName=="red" && library->find(blueUid)->displayName=="blue",
               "global-library-initial-name-from-image-basename");
+        check(library->find(redUid)->detailTexture=="microtex.ace"
+              && library->find(redUid)->detailScale==32.0f,
+              "global-library-new-material-detail-defaults");
         QFile dat(library->path()); check(dat.open(QIODevice::ReadOnly),"global-fixture-open-library"); const auto original=dat.readAll(); dat.close();
         check(original.startsWith("\xff\xfe") && library->reload() && library->find(blueUid),"global-library-utf16-bom-roundtrip");
         check(!TerrainMaterialLibrary::validTextureName("../escape.ace")
@@ -577,10 +615,22 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
         };
         const QString prefix="TSRE_Terrain_Materials ( Version ( 1 ) NextUiD ( 10 ) ";
         writeText(prefix+"Material ( UiD ( 2 ) Name ( \"Żwir\" ) Texture ( \"blue.png\" ) ) )");
-        check(library->reload() && !library->find(1) && library->find(2)->displayName=="Żwir","global-library-removal-does-not-renumber");
+        check(library->reload() && !library->find(1) && library->find(2)->displayName=="Żwir"
+              && library->find(2)->detailTexture=="microtex.ace"
+              && library->find(2)->detailScale==32.0f,
+              "global-library-removal-does-not-renumber-and-missing-detail-defaults");
         check(library->addImage(temp.path()+"/red.png",error)==10,"global-library-nextuid-never-reuses-deleted-slot");
+        writeText(prefix+"Material ( UiD ( 2 ) Name ( a ) Texture ( blue.png ) DetailTexture ( detail.ace ) DetailScale ( 48.5 ) ) )");
+        check(library->reload() && library->find(2)->detailTexture=="detail.ace"
+              && library->find(2)->detailScale==48.5f && library->save(error) && library->reload()
+              && library->find(2)->detailTexture=="detail.ace" && library->find(2)->detailScale==48.5f,
+              "global-library-explicit-detail-roundtrip");
         writeText(prefix+"Material ( UiD ( 2 ) Name ( a ) Texture ( blue.png ) ) Material ( UiD ( 2 ) Name ( b ) Texture ( red.png ) ) )");
         check(!library->reload() && !library->find(2) && !library->save(error),"global-library-duplicate-uid-refuses-overwrite");
+        writeText(prefix+"Material ( UiD ( 2 ) Name ( a ) Texture ( blue.png ) DetailTexture ( ../escape.ace ) ) )");
+        check(!library->reload(),"global-library-unsafe-detail-texture-refused");
+        writeText(prefix+"Material ( UiD ( 2 ) Name ( a ) Texture ( blue.png ) DetailScale ( 0 ) ) )");
+        check(!library->reload(),"global-library-invalid-detail-scale-refused");
         check(dat.open(QIODevice::WriteOnly),"global-fixture-restore-library"); dat.write(original); dat.close();
         check(library->reload(),"global-library-repair-recovers");
         { QScopedValueRollback<bool> writable(Game::writeEnabled,false);
@@ -654,7 +704,7 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
         {
             TestTerrain recovered; recovered.setup(library->textureDirectory(),16,"recover-map");
             TerrainMaterialMap originalMap;
-            originalMap.initialize(0);
+            originalMap.initialize(0,2048);
             originalMap.ids[12345]=char(255);
             const QString mapPath=tileDir+"/recover-map_materials.pmap";
             check(!recovered.hasSavedProceduralMap(),"restore-no-map-no-prompt");
@@ -666,7 +716,8 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
                   && recovered.descriptor().materialUids==QMap<int,quint32>{{0,redUid},{255,blueUid}},
                   "restore-assigns-all-used-ids-including-zero-and-255");
             TerrainMaterialMap diskMap;
-            check(diskMap.read(mapPath,error) && diskMap.ids==originalMap.ids,"restore-does-not-write-map-on-enable");
+            check(diskMap.read(mapPath,error) && diskMap.side()==2048 && diskMap.ids==originalMap.ids,
+                  "restore-does-not-write-or-resize-map-on-enable");
             check(recovered.save() && diskMap.read(mapPath,error) && diskMap.ids==originalMap.ids,
                   "restore-save-preserves-exact-painted-regions");
             TFile restoredDescriptor;
@@ -1287,9 +1338,19 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
         QImage checker(512,512,QImage::Format_RGB888);
         for(int y=0;y<512;++y) for(int x=0;x<512;++x) checker.setPixelColor(x,y,((x+y)&1)?Qt::white:Qt::black);
         plane.initialize();
-        const auto reduced=plane.bake(16,{{0,checker}});
-        check(!reduced.isNull() && abs(reduced.pixelColor(32,32).red()-128)<=1,
-              "bake-minifies-near-rgb-instead-of-selecting-one-id-or-colour");
+        {
+            QScopedValueRollback<TerrainMaterialMap::BakeSampling> fullSampling(
+                    TerrainMaterialMap::BakeSamplingMode,TerrainMaterialMap::BakeSampling::FullOutput);
+            const auto reduced=plane.bake(16,{{0,checker}});
+            check(!reduced.isNull() && abs(reduced.pixelColor(32,32).red()-128)<=1,
+                  "full-output-bake-path-remains-available");
+        }
+        QImage optimizedChecker(128,128,QImage::Format_RGB888);
+        for(int y=0;y<128;++y) for(int x=0;x<128;++x)
+            optimizedChecker.setPixelColor(x,y,((x+y)&1)?Qt::white:Qt::black);
+        const auto optimized=plane.bake(16,{{0,optimizedChecker}});
+        check(!optimized.isNull() && abs(optimized.pixelColor(32,32).red()-128)<=1,
+              "optimized-bake-averages-four-colour-samples");
     }
     {
         TestTerrain filled,neighbour;
@@ -1804,6 +1865,21 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
                 qInfo() << "[bench:terrain-material] all unique P" << p << "load+request-all ms" << firstMs << "shared second tile ms" << secondMs
                         << "generated texture CPU payload bytes" << payload << "ID plane bytes per tile" << map.ids.size();
             }
+        }
+        QImage existingBake(TerrainMaterialMap::BakedSide,TerrainMaterialMap::BakedSide,QImage::Format_RGB888);
+        existingBake.fill(Qt::black);
+        constexpr int BakeRuns=20;
+        for (int p : {16,32}) for (auto sampling : {TerrainMaterialMap::BakeSampling::FullOutput,
+                                                    TerrainMaterialMap::BakeSampling::Optimized2x}) {
+            QScopedValueRollback<TerrainMaterialMap::BakeSampling> mode(TerrainMaterialMap::BakeSamplingMode,sampling);
+            QElapsedTimer timer; timer.start();
+            bool valid=true;
+            for (int run=0;run<BakeRuns;++run)
+                valid &= !map.bake(p,sources,{},existingBake,{run%(p*p)}).isNull();
+            check(valid,"benchmark-bake-sampling-path-produces-output");
+            qInfo() << "[bench:terrain-material] bake cache miss P" << p
+                    << (sampling==TerrainMaterialMap::BakeSampling::FullOutput ? "full-output" : "optimized-2x")
+                    << "mean ms" << timer.nsecsElapsed()/1e6/BakeRuns;
         }
     }
     qInfo() << "[tests:terrain-material] passed" << passed << "failed" << failed;

@@ -5,9 +5,13 @@
 
 // Route-wide procedural source. Independent of the MSTS TFile::Mat record.
 struct TerrainMaterialDefinition {
+    static constexpr const char *DefaultDetailTexture = "microtex.ace";
+    static constexpr float DefaultDetailScale = 32.0f;
     quint32 uid = 0;
     QString displayName;
     QString texture; // Relative to the route's TERRTEX directory.
+    QString detailTexture = DefaultDetailTexture;
+    float detailScale = DefaultDetailScale;
 };
 
 class TerrainMaterialLibrary {

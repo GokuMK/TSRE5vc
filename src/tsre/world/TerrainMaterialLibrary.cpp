@@ -13,6 +13,7 @@
 #include <QDateTime>
 #include <QRegularExpression>
 #include <QSet>
+#include <cmath>
 #include <limits>
 
 namespace {
@@ -42,6 +43,7 @@ struct Tokens {
     QString take() { if (at>=values.size()) { ok=false; return {}; } return values[at++]; }
     bool expect(const QString &value) { if (take().compare(value,Qt::CaseInsensitive)) ok=false; return ok; }
     quint64 number() { bool valid=false; auto value=take().toULongLong(&valid); ok &= valid; return value; }
+    double real() { bool valid=false; auto value=take().toDouble(&valid); ok &= valid && std::isfinite(value); return value; }
 };
 Tokens tokenize(const QString &text) {
     Tokens out;
@@ -130,10 +132,14 @@ bool TerrainMaterialLibrary::reload() {
                 if (field=="uid") { auto uid=t.number(); if (!uid || uid>UINT32_MAX) t.ok=false; definition.uid=quint32(uid); }
                 else if (field=="name") definition.displayName=t.take();
                 else if (field=="texture") definition.texture=t.take();
+                else if (field=="detailtexture") definition.detailTexture=t.take();
+                else if (field=="detailscale") definition.detailScale=float(t.real());
                 else t.ok=false;
                 t.expect(")");
             }
             if (!definition.uid || definition.displayName.isEmpty() || !validTextureName(definition.texture)
+                    || !validTextureName(definition.detailTexture) || !std::isfinite(definition.detailScale)
+                    || definition.detailScale<=0
                     || parsed.contains(definition.uid)) t.ok=false;
             parsed.insert(definition.uid,definition);
         } else t.ok=false;
@@ -156,7 +162,9 @@ bool TerrainMaterialLibrary::save(QString &error) {
     out << "SIMISA@@@@@@@@@@JINX0t1t______\n\nTSRE_Terrain_Materials (\n    Version ( 1 )\n    NextUiD ( " << nextUid << " )\n";
     for (const auto &m : definitions)
         out << "    Material (\n        UiD ( " << m.uid << " )\n        Name ( " << quote(m.displayName)
-            << " )\n        Texture ( " << quote(m.texture) << " )\n    )\n";
+            << " )\n        Texture ( " << quote(m.texture)
+            << " )\n        DetailTexture ( " << quote(m.detailTexture)
+            << " )\n        DetailScale ( " << QString::number(m.detailScale,'g',9) << " )\n    )\n";
     out << ")\n"; out.flush();
     if (out.status()!=QTextStream::Ok || !file.commit()) { error=file.errorString(); return false; }
     stamp=QFileInfo(path()).lastModified().toMSecsSinceEpoch(); fileSize=QFileInfo(path()).size(); ++generation;
@@ -211,7 +219,10 @@ quint32 TerrainMaterialLibrary::addImage(const QString &source, QString &error) 
         if (!QFile::copy(source,target)) { error="Cannot copy source image into route TERRTEX"; return 0; }
         copied=true; break;
     }
-    TerrainMaterialDefinition definition{quint32(nextUid),image.completeBaseName(),relative};
+    TerrainMaterialDefinition definition;
+    definition.uid=quint32(nextUid);
+    definition.displayName=image.completeBaseName();
+    definition.texture=relative;
     definitions.insert(definition.uid,definition); ++nextUid;
     if (!save(error)) {
         definitions.remove(definition.uid); --nextUid;
