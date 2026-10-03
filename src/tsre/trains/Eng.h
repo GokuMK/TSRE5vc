@@ -91,7 +91,7 @@ public:
     void initOnTrack(float *tpos, int direction, QMap<int, int>* junctionDirections);
     void getCameraPosition(float *out = NULL);
     void renderOnTrack(GLUU* gluu, float* playerT, quint32 selectionId);
-    void pushRenderItemOnTrack(float* playerT, quint32 selectionId);
+    void pushRenderItemOnTrack(float* playerT, quint32 selectionId, bool selected = false);
     void move(float m);
     float getCurrentElevation();
     float getTotalDistanceDownPath();

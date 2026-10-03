@@ -62,3 +62,25 @@ With `--set core.rendering.pipeline=gather`:
 3. Engine preview in the Consist Editor, including wagons with freight
    animations.
 4. A route editor window open at the same time keeps rendering correctly.
+
+## Review: drawing only legacy did (2026-10-03)
+
+Prompted by the missing selection border on activity consists, every legacy
+draw function was compared with its gather counterpart: the draw calls each
+makes, the `Game::view*`/`show*` toggles each tests, and any legacy drawing or
+GLUU draw state called from gather functions. Fixed:
+
+- Activity consists on track: the selected wagon's border. Legacy draws it
+  after `Eng::renderOnTrack()` returns, relying on the wagon matrix left in
+  the shader; `Eng::pushRenderItemOnTrack()` now submits it inside the wagon
+  transform.
+- World-object pivot points (`showWorldObjPivotPoints`) for static and track
+  objects; the gather calls had been commented out.
+- Snapable endpoints (`viewSnapable`) for static objects.
+
+The remaining differences the comparison reports are naming only
+(`pushRenderBox()` for `drawBox()`, shapes pushed by the base
+`WorldObj::pushRenderItems()`, terrain patches configured instead of drawn).
+No gather function calls legacy drawing. The capture cases accept
+`pivotPoints` and `snapable` to turn those toggles on; with both on, EUROPE1
+legacy and gather differ by 0.06% of pixels with no picking mismatches.

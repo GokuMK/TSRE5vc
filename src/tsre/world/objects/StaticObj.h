@@ -55,6 +55,8 @@ private:
     bool getSimpleBorder(float* border);
     bool getBoxPoints(QVector<float> &points);
     void renderSnapableEndpoints(GLUU* gluu);
+    void pushRenderSnapableEndpoints();
+    void initSnapableEndPoint();
     QVector<float> snapablePoints;
 };
 

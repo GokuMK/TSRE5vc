@@ -86,6 +86,9 @@ struct Options {
     bool pointer = false;
     // -1 keeps the profile setting.
     int shadows = -1;
+    // Editor view toggles that have no profile setting.
+    bool pivotPoints = false;
+    bool snapable = false;
     Thresholds thresholds;
     QVector<ViewSpec> views;
 };
@@ -151,6 +154,8 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
     options.pointer = root.value("pointer").toBool(options.pointer);
     if (root.contains("shadows"))
         options.shadows = root.value("shadows").toBool() ? 1 : 0;
+    options.pivotPoints = root.value("pivotPoints").toBool(options.pivotPoints);
+    options.snapable = root.value("snapable").toBool(options.snapable);
 
     const QJsonObject settle = root.value("settle").toObject();
     options.settle.minFrames = settle.value("minFrames").toInt(options.settle.minFrames);
@@ -351,6 +356,8 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, bool verbose) {
     QScopedValueRollback<int> restoreShadows(Game::shadowsEnabled);
     if (options.shadows >= 0)
         Game::shadowsEnabled = options.shadows > 0 ? std::max(1, Game::shadowsEnabled) : 0;
+    QScopedValueRollback<bool> restorePivots(Game::showWorldObjPivotPoints, options.pivotPoints);
+    QScopedValueRollback<bool> restoreSnapable(Game::viewSnapable, options.snapable);
     RenderStats::setEnabled(true);
 
     RouteEditorGLWidget widget;

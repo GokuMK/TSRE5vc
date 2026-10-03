@@ -496,7 +496,7 @@ void TrackObj::pushRenderItems(float lod, float posx, float posz, float* playerW
             pointer3d = new TrackItemObj(1);
             pointer3d->setMaterial(0.9,0.9,0.7);
         }
-        //pointer3d->pushRenderItem(selectionId);
+        pointer3d->pushRenderItem(selectionId);
     }
     
     /*if(selectionId != 0){

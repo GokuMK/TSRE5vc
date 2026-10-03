@@ -974,7 +974,10 @@ void Eng::renderOnTrack(GLUU* gluu, float* playerT, quint32 selectionId) {
     
 }
 
-void Eng::pushRenderItemOnTrack(float* playerT, quint32 selectionId) {
+// Gather counterpart of renderOnTrack(). Legacy draws the selection border
+// after renderOnTrack() returns and relies on the wagon matrix it left in the
+// shader; here the border is submitted inside the wagon transform.
+void Eng::pushRenderItemOnTrack(float* playerT, quint32 selectionId, bool selected) {
     if (loaded != 1) return;
 
     const long long int shapeLibId = resolveShapeIds();
@@ -1016,6 +1019,8 @@ void Eng::pushRenderItemOnTrack(float* playerT, quint32 selectionId) {
             Game::currentRenderer->mvPopMatrix();
         }
     }
+    if (selected)
+        pushDrawBorder3d();
     Game::currentRenderer->mvPopMatrix();
 }
 

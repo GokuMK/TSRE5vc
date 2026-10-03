@@ -838,9 +838,7 @@ void Consist::pushRenderItemsOnTrack(float* playerT, quint32 selectionId) {
         if (selectionId != 0) {
             scolor = SelectionIdCodec::withPart(selectionId, i);
         }
-        engItems[i].engPointer->pushRenderItemOnTrack(playerT, scolor);
-        if (selectedIdx == i)
-            engItems[i].engPointer->pushDrawBorder3d();
+        engItems[i].engPointer->pushRenderItemOnTrack(playerT, scolor, selectedIdx == i);
         Game::currentRenderer->mvPopMatrix();
     }
 }
