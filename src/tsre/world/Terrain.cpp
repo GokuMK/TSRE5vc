@@ -349,7 +349,8 @@ void Terrain::loadFFile(FileBuffer *data){
 }
 
 Terrain::~Terrain() {
-    for (QVector<RenderItem*> *pool : {&surfacePackets, &gridPackets, &mapPackets})
+    for (QVector<RenderItem*> *pool : {&surfacePackets, &proceduralSurfacePackets,
+                                      &gridPackets, &mapPackets})
         for (RenderItem *packet : *pool)
             Renderer::retirePacket(packet);
     procedural.reset();
@@ -2262,6 +2263,7 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
     RenderItem *r;
     if(Game::viewTerrainShape && (!(showBlob && MapWindow::isAlpha == 0) || selectionId != 0)){
         if (selectionId==0) prepareVisibleProceduralTextures(patchVisibility);
+        int proceduralPacketIndex=0;
         float shaderSecondTexUV = 0;
         for (int yy = 0; yy < patches; yy++) {
             for (int uu = 0; uu < patches; uu++) {
@@ -2293,6 +2295,22 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
                     if ((ccos > 0) && (xxx > size)) continue;
                 }*/
                 
+                QVector<int> gpuMaterials;
+                if (selectionId==0 && prepareProceduralGpuPatch(patchId,gpuMaterials)) {
+                    const TerrainPatchLodState lodState = patchId < patchLod.size()
+                            ? patchLod[patchId] : TerrainPatchLodState{};
+                    for (int material : std::as_const(gpuMaterials)) {
+                        r=framePacket(proceduralSurfacePackets,proceduralPacketIndex++);
+                        configureProceduralGpuPacket(*r,patchId,material);
+                        r->itemType=GL_TRIANGLES;
+                        backend->configureRenderItem(*r,patchId,false,true,
+                                                     lodState.sourceStep,lodState.edgeMask);
+                        r->msMatrix=Game::currentRenderer->objStrMatrix;
+                        r->setVertexAttributes(r->VNT);
+                        Game::currentRenderer->pushPacket(r,0,Renderer::SUBMIT_ORDERED);
+                    }
+                    continue;
+                }
                 r = framePacket(surfacePackets, patchId);
                 if(selectionId != 0){
                     r->setSelectionId(SelectionIdCodec::withTerrainPatch(

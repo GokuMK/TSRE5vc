@@ -64,6 +64,14 @@ public:
     unsigned int secondTexAddr = 0;
     float secondTexScale = 0.0f;
     QVector3D terrainTextureRemap;
+    // Direct procedural-terrain pass. The same mesh is submitted once for
+    // every material used by its patch; the fragment shader selects exactly
+    // one pass from the categorical map.
+    unsigned int terrainMaterialMapAddr = 0;
+    int terrainMaterialId = -1;
+    QVector3D terrainMaterialMapRemap;
+    int terrainMaterialMapSide = 0;
+    float terrainMaterialNoiseScale = 0.0f;
     int lineWidth = 0;
     // RenderStats::Category of the producer that queued this item.
     unsigned char statsCategory = 0;

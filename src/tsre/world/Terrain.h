@@ -274,6 +274,7 @@ protected:
     OglObj terrainBlob;
     // Gather packets per patch, reused across frames and refilled each frame.
     QVector<RenderItem*> surfacePackets;
+    QVector<RenderItem*> proceduralSurfacePackets;
     QVector<RenderItem*> gridPackets;
     QVector<RenderItem*> mapPackets;
     static RenderItem *framePacket(QVector<RenderItem*> &pool, int patchId);
@@ -310,6 +311,8 @@ protected:
     QVector<int> proceduralRequestOrder(const PatchVisibility &visibility) const;
     bool proceduralNearCamera(const PatchVisibility &visibility) const;
     void prepareVisibleProceduralTextures(const PatchVisibility &visibility);
+    bool prepareProceduralGpuPatch(int patch, QVector<int> &materials);
+    void configureProceduralGpuPacket(RenderItem &item, int patch, int material);
     void synchronizeMaterialLibrary();
     QVector<PatchBounds> patchBounds;
     QVector<quint8> patchBoundsDirty;

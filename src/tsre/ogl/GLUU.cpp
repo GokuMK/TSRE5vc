@@ -144,6 +144,12 @@ void GLUU::initShader() {
         currentShader->terrainSampleSpacing = currentShader->uniformLocation("terrainSampleSpacing");
         currentShader->terrainApplyGaps = currentShader->uniformLocation("terrainApplyGaps");
         currentShader->terrainMapPass = currentShader->uniformLocation("terrainMapPass");
+        currentShader->terrainMaterialEnabled = currentShader->uniformLocation("terrainMaterialEnabled");
+        currentShader->terrainMaterialMap = currentShader->uniformLocation("terrainMaterialMap");
+        currentShader->terrainMaterialId = currentShader->uniformLocation("terrainMaterialId");
+        currentShader->terrainMaterialMapRemap = currentShader->uniformLocation("terrainMaterialMapRemap");
+        currentShader->terrainMaterialMapSide = currentShader->uniformLocation("terrainMaterialMapSide");
+        currentShader->terrainMaterialNoiseScale = currentShader->uniformLocation("terrainMaterialNoiseScale");
 
         const GLuint terrainBlock = extra->glGetUniformBlockIndex(
                     currentShader->programId(), "TerrainPatchBlock");
@@ -171,6 +177,10 @@ void GLUU::initShader() {
         currentShader->setUniformValue(tex3, 2);
         unsigned int tex4 = currentShader->uniformLocation("shadow2");
         currentShader->setUniformValue(tex4, 3);
+        if (currentShader->terrainMaterialMap >= 0)
+            currentShader->setUniformValue(currentShader->terrainMaterialMap, 4);
+        if (currentShader->terrainMaterialEnabled >= 0)
+            currentShader->setUniformValue(currentShader->terrainMaterialEnabled, 0);
         currentShader->release();
     }
     

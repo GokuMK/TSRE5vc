@@ -57,6 +57,12 @@ public:
     int terrainSampleSpacing;
     int terrainApplyGaps;
     int terrainMapPass;
+    int terrainMaterialEnabled;
+    int terrainMaterialMap;
+    int terrainMaterialId;
+    int terrainMaterialMapRemap;
+    int terrainMaterialMapSide;
+    int terrainMaterialNoiseScale;
 private:
 
 };

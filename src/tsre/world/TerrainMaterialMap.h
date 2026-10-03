@@ -19,12 +19,19 @@ public:
     static inline bool Enabled = true;
     static inline int OutputSide = 512;
     static inline int BakedSide = 1024;
+    // Patch-local virtual scatter grid used only by direct GPU rendering.
+    // This changes edge detail without allocating a noise texture or changing
+    // the retained CPU/baked output resolution.
+    static constexpr int DirectNoiseSide = 2048;
     // Horizontal camera-to-patch-center distance for detailed procedural output.
     // Independent of object/geometry LOD; farther patches use the saved bake.
     static inline float DetailDistanceMeters = 2048.0f;
     // Advanced debug/restore setting, applied on application restart.
     // Full input validation/hashing on load/save is opt-in, never a normal save cost.
     static inline bool ValidateBakeOnLoad = false;
+    // Internal rollout switch. False restores the complete CPU-generated
+    // patch path; it is deliberately not a route or user preference.
+    static inline bool DirectGpuRendering = true;
     // Rebuild/reload to compare: 1 = strongest, 2 = deterministic scattering,
     // 3 = original nearest-neighbour, 4 = strongest support (ID only breaks ties).
     // Only generated output changes, not stored IDs.

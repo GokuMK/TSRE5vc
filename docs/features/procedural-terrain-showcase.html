@@ -117,7 +117,7 @@ footer{border-top:1px solid var(--line);padding:24px 0 45px;color:var(--muted);f
     <tr><td><code>DetailTexture</code></td><td>Optional safe relative detail texture. Missing means <code>microtex.ace</code>.</td></tr>
     <tr><td><code>DetailScale</code></td><td>Optional finite positive repeat scale. Missing means <code>32</code>.</td></tr>
   </tbody></table>
-  <div class="callout"><b>Renderer status:</b> the Open Rails direct renderer uses these detail fields. TSRE reads and writes them but retains fixed <code>microtex.ace</code>/32 rendering until its Gather terrain path is available. Rotation, base-texture physical scale, mixing policy and per-season filenames remain outside this definition.</div>
+  <div class="callout"><b>Renderer status:</b> the TSRE Gather renderer and the Open Rails direct renderer use these per-material detail fields. TSRE's retained CPU near path still uses fixed <code>microtex.ace</code>/32 when selected through the internal recovery switch. Rotation, base-texture physical scale, mixing policy and per-season filenames remain outside this definition.</div>
 </section>
 
 <section id="tile" class="doc-section">
@@ -163,8 +163,9 @@ footer{border-top:1px solid var(--line);padding:24px 0 45px;color:var(--muted);f
 <section id="rendering" class="doc-section">
   <h2><a class="anchor" href="#rendering">6. Rendering model</a></h2>
   <h3>TSRE editor</h3>
-  <p>TSRE keeps the native-resolution ID map available for painting. Worker jobs sample source images and generate detailed patch textures; save also produces an opaque 1024-square DXT1 baked tile texture. Identical outputs are content-deduplicated, and unchanged patches can reuse cached recipes. A missing bake recipe is normally generated at twice its final patch-region size and reduced with one 2 x 2 color average. The former full detailed-output regeneration remains selectable in code for quality comparisons and recovery tests.</p>
-  <ol class="steps"><li>Resolve local ID through the tile table to a route material UiD.</li><li>Resolve the material source for the selected season or weather variant.</li><li>Use deterministic categorical scattering at boundaries; never blend numeric IDs.</li><li>Generate detailed patch output near the camera.</li><li>Use the saved baked terrain outside the detailed distance and in legacy applications.</li></ol>
+  <p>TSRE keeps the native-resolution ID map available for painting and uploads it as an 8-bit categorical texture. Near patches draw the referenced source materials directly; save also produces an opaque 1024-square DXT1 baked tile texture. A missing bake recipe is normally generated at twice its final patch-region size and reduced with one 2 x 2 color average. The former CPU near renderer and full detailed-output regeneration remain selectable in code for comparison and recovery tests.</p>
+  <ol class="steps"><li>Resolve local ID through the tile table to a route material UiD.</li><li>Resolve the material source for the selected season or weather variant.</li><li>Use deterministic categorical scattering at boundaries; never blend numeric IDs.</li><li>Draw every distinct material referenced by a near patch and its sampling halo.</li><li>Use the saved baked terrain outside the detailed distance and in legacy applications.</li></ol>
+  <div class="callout"><b>Authoring accuracy is intentionally uncapped:</b> TSRE imposes no artificial material-pass limit per patch. A pathological patch can therefore be slower, but the editor continues to show every authored material. The byte map's natural upper bound is 256 IDs.</div>
   <h3>Boundary sampling</h3>
   <p>At a transition, four neighboring categorical samples contribute weights. A deterministic position-derived value chooses one material according to those weights. This produces a scattered edge without inventing an invalid material ID between two integers.</p>
   <div class="callout info"><b>The ID map and the color texture have different jobs:</b> the map preserves editable identity; generated and baked images are disposable rendering products.</div>
@@ -230,6 +231,7 @@ footer{border-top:1px solid var(--line);padding:24px 0 45px;color:var(--muted);f
     <tr><td>Noise texture</td><td>One shared 2048 x 2048 Alpha8 texture</td><td>Deterministic and managed with other generated textures.</td></tr>
   </tbody></table>
   <p>A pathological patch may reference 20 or all 256 byte IDs. Rendering cost remains bounded: material areas are sorted, only configured detailed layers are drawn, and the remaining pixels keep the bake. The renderer never assigns omitted pixels to an unrelated source.</p>
+  <div class="callout info"><b>TSRE differs deliberately:</b> the five-material patch cap and 32-source tile cap above belong to the Open Rails runtime renderer. TSRE renders all available materials referenced by each patch so route authors can inspect the true result, accepting lower editor frame rate for extreme content.</div>
 </section>
 
 <section id="status" class="doc-section">

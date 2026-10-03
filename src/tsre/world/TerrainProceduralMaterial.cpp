@@ -125,6 +125,13 @@ QString sourceName(const TFile &file, int id) {
 QString sourceKey(const TFile &file, int id) {
     return file.materialUidMapPresent ? sourceName(file,id) : shaderKey(file,id);
 }
+QString sourceRenderKey(const TFile &file,int id) {
+    if (!file.materialUidMapPresent) return shaderKey(file,id);
+    if (!file.materialUidMapValid) return {};
+    const auto material=TerrainMaterialLibrary::current()->find(file.materialUids.value(id));
+    return material ? material->texture+'\n'+material->detailTexture+'\n'
+                      +QString::number(material->detailScale,'g',9) : QString();
+}
 QList<int> sourceSlots(const TFile &file) {
     if (file.materialUidMapPresent) return file.materialUids.keys();
     QList<int> ids;
@@ -329,7 +336,7 @@ struct TerrainProceduralState {
         if (!file.materialUidMapPresent) return;
         libraryRevision=TerrainMaterialLibrary::current()->revision();
         resolvedSources.clear();
-        for (int id : sourceIds) resolvedSources[id]=sourceName(file,id);
+        for (int id : sourceIds) resolvedSources[id]=sourceRenderKey(file,id);
     }
     TerrainMaterialMap map;
     QHash<int,QImage> sources;
@@ -371,6 +378,15 @@ struct TerrainProceduralState {
     int detailTextureId = -1;
     bool detailSourceAttempted=false;
     QString detailSourcePath;
+    unsigned int gpuMapTexture=0;
+    QPointer<QOpenGLContextGroup> gpuMapGroup;
+    int gpuMapSide=0;
+    QSet<int> gpuDirtyPatches;
+    QVector<QVector<int>> gpuPatchMaterials;
+    QVector<quint8> gpuPatchMaterialsValid;
+    QHash<int,int> gpuBaseTextures;
+    QHash<int,int> gpuDetailTextures;
+    QHash<int,float> gpuDetailScales;
     QString savedMapPath, oldMapPath, backupMapPath;
     bool mapWritten = false;
     bool rollbackMapSave() {
@@ -386,6 +402,16 @@ struct TerrainProceduralState {
     ~TerrainProceduralState() {
         cancelPending();
         if (detailTextureId >= 0) TexLib::delRef(detailTextureId);
+        releaseGpu();
+    }
+    void releaseGpu() {
+        if (gpuMapTexture && !gpuMapGroup.isNull())
+            pendingDeletes.push_back({gpuMapGroup,gpuMapTexture});
+        gpuMapTexture=0; gpuMapSide=0; gpuMapGroup.clear();
+        for (int id : gpuBaseTextures) if (id>=0) TexLib::delRef(id);
+        for (int id : gpuDetailTextures) if (id>=0) TexLib::delRef(id);
+        gpuBaseTextures.clear(); gpuDetailTextures.clear(); gpuDetailScales.clear();
+        gpuPatchMaterials.clear(); gpuPatchMaterialsValid.clear(); gpuDirtyPatches.clear();
     }
     void cancelPending(bool includeMiniatures=true) {
         for (const auto &job : pending) job->cancelled.store(true);
@@ -706,7 +732,7 @@ void Terrain::synchronizeMaterialLibrary() {
     QMap<int,QString> names;
     bool valid=tfile->materialUidMapValid && procedural->map.valid();
     for (int id : procedural->sourceIds) {
-        names[id]=sourceName(*tfile,id);
+        names[id]=sourceRenderKey(*tfile,id);
         valid &= !names[id].isEmpty();
     }
     if (names==procedural->resolvedSources && valid==procedural->ready) return;
@@ -868,6 +894,7 @@ void Terrain::releaseProceduralTextures() {
     procedural->cache.clear();
     procedural->bakeImage=QImage();
     procedural->sources.clear();
+    procedural->releaseGpu();
     procedural->detailSourceAttempted=false;
     if (procedural->detailTextureId >= 0) {
         TexLib::delRef(procedural->detailTextureId);
@@ -1106,11 +1133,198 @@ void Terrain::prepareVisibleProceduralTextures(const PatchVisibility &visibility
         f->glGetIntegerv(GL_TEXTURE_BINDING_2D,&binding);
     }
     proceduralFallbackTexture(); // One bounded file job before near-image jobs.
-    for(int patch : order) proceduralTexture(patch,true);
+    if (!TerrainMaterialMap::DirectGpuRendering)
+        for(int patch : order) proceduralTexture(patch,true);
     if (f) {
         f->glBindTexture(GL_TEXTURE_2D,binding);
         f->glActiveTexture(activeUnit);
     }
+}
+
+namespace {
+QByteArray reducedMaterialMap(const TerrainMaterialMap &map,int side) {
+    if (!map.valid() || side<=0 || side>map.side()) return {};
+    if (side==map.side()) return map.ids;
+    QByteArray out(side*side,'\0');
+    for (int z=0;z<side;++z) {
+        const int sourceZ=((2*z+1)*map.side())/(2*side);
+        char *dst=out.data()+z*side;
+        for (int x=0;x<side;++x)
+            dst[x]=char(map.at(((2*x+1)*map.side())/(2*side),sourceZ));
+    }
+    return out;
+}
+QByteArray reducedMaterialPatch(const TerrainMaterialMap &map,int outputSide,
+                                int patch,int patches) {
+    if (!map.valid() || outputSide<=0 || outputSide%patches) return {};
+    const int side=outputSide/patches;
+    const int ox=(patch%patches)*side,oz=(patch/patches)*side;
+    QByteArray out(side*side,'\0');
+    for (int z=0;z<side;++z) {
+        const int sourceZ=((2*(oz+z)+1)*map.side())/(2*outputSide);
+        char *dst=out.data()+z*side;
+        for (int x=0;x<side;++x)
+            dst[x]=char(map.at(((2*(ox+x)+1)*map.side())/(2*outputSide),sourceZ));
+    }
+    return out;
+}
+bool uploadOrdinaryTexture(int id,int unit,unsigned int &address) {
+    auto found=TexLib::mtex.find(id);
+    if (found==TexLib::mtex.end() || !found->second || !found->second->loaded
+            || found->second->error || found->second->missing) return false;
+    Texture *texture=found->second;
+    auto *context=QOpenGLContext::currentContext();
+    if (!context) return false;
+    auto *f=context->functions();
+    GLint active=GL_TEXTURE0,binding=0;
+    f->glGetIntegerv(GL_ACTIVE_TEXTURE,&active);
+    f->glActiveTexture(GL_TEXTURE0+unit);
+    f->glGetIntegerv(GL_TEXTURE_BINDING_2D,&binding);
+    if (!texture->glLoaded) texture->GLTextures(true);
+    f->glBindTexture(GL_TEXTURE_2D,binding);
+    f->glActiveTexture(active);
+    if (!texture->glLoaded || !texture->tex) return false;
+    address=texture->tex[0];
+    return true;
+}
+}
+
+bool Terrain::prepareProceduralGpuPatch(int patch,QVector<int> &materials) {
+    materials.clear();
+    if (!TerrainMaterialMap::DirectGpuRendering || !rendersProceduralMaterial()
+            || !procedural || !QOpenGLContext::currentContext()
+            || patch<0 || patch>=gridLayout.patchRecordCount()
+            || !procedural->detailedPatch(patch,gridLayout,procedural->detailCameraX,
+                                          procedural->detailCameraZ,procedural->detailViewValid))
+        return false;
+    auto *context=QOpenGLContext::currentContext();
+    auto *f=context->functions();
+    // A renderer/context restart invalidates the numeric GL name even when the
+    // terrain object survives. Rebuild both the map and its source references
+    // in the new share group instead of binding an unrelated recycled name.
+    if (procedural->gpuMapTexture
+            && procedural->gpuMapGroup.data()!=context->shareGroup())
+        procedural->releaseGpu();
+    if (!procedural->gpuMapTexture) {
+        GLint maximum=0,active=GL_TEXTURE0,binding=0,alignment=4;
+        f->glGetIntegerv(GL_MAX_TEXTURE_SIZE,&maximum);
+        int side=std::min(procedural->map.side(),maximum);
+        while (side>0 && (side%gridLayout.patchesPerSide || (side&(side-1)))) --side;
+        if (side<=0) return false;
+        const QByteArray bytes=reducedMaterialMap(procedural->map,side);
+        if (bytes.size()!=side*side) return false;
+        f->glGetIntegerv(GL_ACTIVE_TEXTURE,&active);
+        f->glActiveTexture(GL_TEXTURE4);
+        f->glGetIntegerv(GL_TEXTURE_BINDING_2D,&binding);
+        f->glGetIntegerv(GL_UNPACK_ALIGNMENT,&alignment);
+        f->glPixelStorei(GL_UNPACK_ALIGNMENT,1);
+        f->glGenTextures(1,&procedural->gpuMapTexture);
+        f->glBindTexture(GL_TEXTURE_2D,procedural->gpuMapTexture);
+        f->glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST);
+        f->glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
+        f->glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);
+        f->glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
+        f->glTexImage2D(GL_TEXTURE_2D,0,GL_R8,side,side,0,GL_RED,GL_UNSIGNED_BYTE,bytes.constData());
+        f->glPixelStorei(GL_UNPACK_ALIGNMENT,alignment);
+        f->glBindTexture(GL_TEXTURE_2D,binding);
+        f->glActiveTexture(active);
+        procedural->gpuMapSide=side;
+        procedural->gpuMapGroup=context->shareGroup();
+        procedural->gpuDirtyPatches.clear();
+    } else if (!procedural->gpuDirtyPatches.isEmpty()) {
+        GLint active=GL_TEXTURE0,binding=0,alignment=4;
+        f->glGetIntegerv(GL_ACTIVE_TEXTURE,&active);
+        f->glActiveTexture(GL_TEXTURE4);
+        f->glGetIntegerv(GL_TEXTURE_BINDING_2D,&binding);
+        f->glGetIntegerv(GL_UNPACK_ALIGNMENT,&alignment);
+        f->glPixelStorei(GL_UNPACK_ALIGNMENT,1);
+        f->glBindTexture(GL_TEXTURE_2D,procedural->gpuMapTexture);
+        const int side=procedural->gpuMapSide/gridLayout.patchesPerSide;
+        for (int dirty : std::as_const(procedural->gpuDirtyPatches)) {
+            const QByteArray bytes=reducedMaterialPatch(procedural->map,procedural->gpuMapSide,
+                                                        dirty,gridLayout.patchesPerSide);
+            if (bytes.size()==side*side)
+                f->glTexSubImage2D(GL_TEXTURE_2D,0,(dirty%gridLayout.patchesPerSide)*side,
+                                   (dirty/gridLayout.patchesPerSide)*side,side,side,
+                                   GL_RED,GL_UNSIGNED_BYTE,bytes.constData());
+        }
+        f->glPixelStorei(GL_UNPACK_ALIGNMENT,alignment);
+        f->glBindTexture(GL_TEXTURE_2D,binding);
+        f->glActiveTexture(active);
+        procedural->gpuDirtyPatches.clear();
+    }
+    const int count=gridLayout.patchRecordCount();
+    if (procedural->gpuPatchMaterials.size()!=count) {
+        procedural->gpuPatchMaterials.resize(count);
+        procedural->gpuPatchMaterialsValid.fill(0,count);
+    }
+    if (!procedural->gpuPatchMaterialsValid[patch]) {
+        QSet<int> found;
+        const int gpuPatchSide=procedural->gpuMapSide/gridLayout.patchesPerSide;
+        const int x=(patch%gridLayout.patchesPerSide)*gpuPatchSide;
+        const int z=(patch/gridLayout.patchesPerSide)*gpuPatchSide;
+        for (int row=std::max(0,z-1);row<std::min(procedural->gpuMapSide,z+gpuPatchSide+1);++row)
+            for (int col=std::max(0,x-1);col<std::min(procedural->gpuMapSide,x+gpuPatchSide+1);++col)
+                found.insert(procedural->map.at(((2*col+1)*procedural->map.side())/(2*procedural->gpuMapSide),
+                                                ((2*row+1)*procedural->map.side())/(2*procedural->gpuMapSide)));
+        materials=found.values().toVector();
+        // The editor intentionally keeps every referenced material. Unlike the
+        // simulator's bounded runtime renderer, authoring preview must not hide
+        // rare painted IDs behind the baked fallback.
+        std::sort(materials.begin(),materials.end());
+        procedural->gpuPatchMaterials[patch]=materials;
+        procedural->gpuPatchMaterialsValid[patch]=1;
+    } else materials=procedural->gpuPatchMaterials[patch];
+
+    for (int id : materials) {
+        QString base,detail=TerrainMaterialDefinition::DefaultDetailTexture;
+        float detailScale=TerrainMaterialDefinition::DefaultDetailScale;
+        if (tfile->materialUidMapPresent) {
+            const auto definition=TerrainMaterialLibrary::current()->find(tfile->materialUids.value(id));
+            if (!definition) return false;
+            base=definition->texture; detail=definition->detailTexture; detailScale=definition->detailScale;
+        } else {
+            base=sourceName(*tfile,id);
+            const QString stored=tfile->textureName(id,1);
+            if (!stored.isEmpty()) detail=stored;
+            detailScale=tfile->detailScale(id);
+        }
+        if (!procedural->gpuBaseTextures.contains(id)) {
+            const QString path=TerrainSeason::resolve(proceduralSourceRoot(),proceduralVariant,base);
+            procedural->gpuBaseTextures[id]=path.isEmpty() ? -1
+                    : TexLib::addTex(QFileInfo(path).path(),QFileInfo(path).fileName());
+        }
+        if (!procedural->gpuDetailTextures.contains(id)) {
+            const QString path=TerrainSeason::resolve(proceduralSourceRoot(),proceduralVariant,detail);
+            procedural->gpuDetailTextures[id]=path.isEmpty() ? -1
+                    : TexLib::addTex(QFileInfo(path).path(),QFileInfo(path).fileName());
+            procedural->gpuDetailScales[id]=detailScale;
+        }
+        unsigned int unused=0;
+        if (!uploadOrdinaryTexture(procedural->gpuBaseTextures.value(id,-1),0,unused))
+            return false;
+        const int detailId=procedural->gpuDetailTextures.value(id,-1);
+        if (detailId>=0 && !uploadOrdinaryTexture(detailId,1,unused)) return false;
+    }
+    return !materials.isEmpty();
+}
+
+void Terrain::configureProceduralGpuPacket(RenderItem &item,int patch,int material) {
+    unsigned int base=0,detail=0;
+    uploadOrdinaryTexture(procedural->gpuBaseTextures.value(material,-1),0,base);
+    const int detailId=procedural->gpuDetailTextures.value(material,-1);
+    if (detailId>=0) uploadOrdinaryTexture(detailId,1,detail);
+    item.enableTextures(base);
+    item.secondTexAddr=detail;
+    item.secondTexScale=detail ? procedural->gpuDetailScales.value(
+            material,TerrainMaterialDefinition::DefaultDetailScale) : 0.0f;
+    item.terrainMaterialMapAddr=procedural->gpuMapTexture;
+    item.terrainMaterialId=material;
+    const float count=gridLayout.patchesPerSide;
+    item.terrainMaterialMapRemap=QVector3D(1.0f/count,(patch%gridLayout.patchesPerSide)/count,
+                                          (patch/gridLayout.patchesPerSide)/count);
+    item.terrainMaterialMapSide=procedural->gpuMapSide;
+    item.terrainMaterialNoiseScale=TerrainMaterialMap::DirectNoiseSide;
 }
 int Terrain::proceduralTexture(int patch, bool background) {
     if (!TerrainMaterialMap::Enabled) return -1;
@@ -1359,14 +1573,25 @@ void Terrain::paintProceduralMaterial(Brush *brush, int x, int z, float posx, fl
     QElapsedTimer timer; timer.start();
     for (int patch : changed) {
         procedural->editedPatches.insert(patch);
+        procedural->gpuDirtyPatches.insert(patch);
+        if (patch<procedural->gpuPatchMaterialsValid.size())
+            procedural->gpuPatchMaterialsValid[patch]=0;
         if (!procedural->patchKeys.isEmpty()) procedural->patchKeys[patch].clear();
         if (!procedural->recipeKeys.isEmpty()) procedural->recipeKeys[patch].clear();
-        procedural->patches[patch]=procedural->sharedPatch(patch,gridLayout.patchesPerSide,true);
-        if (procedural->patches[patch]) {
-            procedural->patches[patch]->immediateUpload=true;
-            // Upload immediately if the edit already owns a GL context; otherwise
-            // the next draw uploads this result without the two-upload frame cap.
-            if (QOpenGLContext::currentContext()) proceduralTexture(patch);
+        if (!TerrainMaterialMap::DirectGpuRendering) {
+            procedural->patches[patch]=procedural->sharedPatch(
+                    patch,gridLayout.patchesPerSide,true);
+            if (procedural->patches[patch]) {
+                procedural->patches[patch]->immediateUpload=true;
+                // Upload immediately if the edit already owns a GL context; otherwise
+                // the next draw uploads this result without the two-upload frame cap.
+                if (QOpenGLContext::currentContext()) proceduralTexture(patch);
+            }
+        } else {
+            // The native ID texture is authoritative in the direct renderer.
+            // Keep CPU generation available for fallback, but do not pay for it
+            // on every brush stamp while the direct path is selected.
+            procedural->patches[patch].reset();
         }
     }
     procedural->pruneCache();

@@ -122,6 +122,48 @@ struct TerrainStateCache {
     bool mapPass = false;
 };
 
+struct ProceduralTerrainStateCache {
+    bool valid = false;
+    bool enabled = false;
+    unsigned int map = 0;
+    int material = -1;
+    QVector3D remap;
+    int side = 0;
+    float noiseScale = 0.0f;
+};
+
+void applyProceduralTerrainState(GLUU *gluu, QOpenGLFunctions *f,
+                                 RenderItem *item,
+                                 ProceduralTerrainStateCache &cache){
+    Shader *shader=gluu ? gluu->currentShader : NULL;
+    if(shader==NULL || item==NULL) return;
+    const bool enabled=item->terrainMaterialMapAddr!=0 && item->terrainMaterialId>=0;
+    if(!cache.valid || cache.enabled!=enabled)
+        shader->setUniformValue(shader->terrainMaterialEnabled,enabled ? 1 : 0);
+    if(enabled){
+        if(!cache.valid || !cache.enabled || cache.map!=item->terrainMaterialMapAddr){
+            f->glActiveTexture(GL_TEXTURE4);
+            f->glBindTexture(GL_TEXTURE_2D,item->terrainMaterialMapAddr);
+            f->glActiveTexture(GL_TEXTURE0);
+        }
+        if(!cache.valid || !cache.enabled || cache.material!=item->terrainMaterialId)
+            shader->setUniformValue(shader->terrainMaterialId,item->terrainMaterialId);
+        if(!cache.valid || !cache.enabled || cache.remap!=item->terrainMaterialMapRemap)
+            shader->setUniformValue(shader->terrainMaterialMapRemap,item->terrainMaterialMapRemap);
+        if(!cache.valid || !cache.enabled || cache.side!=item->terrainMaterialMapSide)
+            shader->setUniformValue(shader->terrainMaterialMapSide,item->terrainMaterialMapSide);
+        if(!cache.valid || !cache.enabled || cache.noiseScale!=item->terrainMaterialNoiseScale)
+            shader->setUniformValue(shader->terrainMaterialNoiseScale,item->terrainMaterialNoiseScale);
+    }
+    cache.valid=true;
+    cache.enabled=enabled;
+    cache.map=item->terrainMaterialMapAddr;
+    cache.material=item->terrainMaterialId;
+    cache.remap=item->terrainMaterialMapRemap;
+    cache.side=item->terrainMaterialMapSide;
+    cache.noiseScale=item->terrainMaterialNoiseScale;
+}
+
 void applyTerrainState(GLUU *gluu, RenderItem *item,
                        TerrainStateCache &cache){
     if(gluu == NULL || gluu->currentShader == NULL || item == NULL)
@@ -417,6 +459,7 @@ void OpenGL3Renderer::sortBackToFront(std::vector<DrawInstance> &instances){
 void OpenGL3Renderer::drawOrdered(GLUU *gluu, const std::vector<DrawInstance> &instances,
                                   int pass){
     TerrainStateCache terrainState;
+    ProceduralTerrainStateCache proceduralState;
     DetailStateCache detailState;
     for(const DrawInstance &instance : instances){
         RenderItem *item = instance.packet;
@@ -424,6 +467,7 @@ void OpenGL3Renderer::drawOrdered(GLUU *gluu, const std::vector<DrawInstance> &i
             continue;
         applyItemState(gluu, f, item, instance.selectionId, detailState);
         applyTerrainState(gluu, item, terrainState);
+        applyProceduralTerrainState(gluu,f,item,proceduralState);
         setModelMatrix(gluu, item->msMatrix);
         setMatrixUniform(gluu, gluu->currentShader->mvMatrixUniform, frameMatrix(instance.matrix));
         PacketRasterState raster(f, item);
@@ -436,6 +480,7 @@ void OpenGL3Renderer::drawOrdered(GLUU *gluu, const std::vector<DrawInstance> &i
 void OpenGL3Renderer::drawGrouped(GLUU *gluu, const std::vector<DrawInstance> &instances,
                                   int pass){
     TerrainStateCache terrainState;
+    ProceduralTerrainStateCache proceduralState;
     DetailStateCache detailState;
     quint32 currentSelection = 0;
     quint64 currentTexture = 0;
@@ -462,6 +507,7 @@ void OpenGL3Renderer::drawGrouped(GLUU *gluu, const std::vector<DrawInstance> &i
         applyItemState(gluu, f, item, instances[i].selectionId, detailState);
         currentSelection = instances[i].selectionId;
         applyTerrainState(gluu, item, terrainState);
+        applyProceduralTerrainState(gluu,f,item,proceduralState);
         setModelMatrix(gluu, item->msMatrix);
         PacketRasterState raster(f, item);
         QOpenGLVertexArrayObject::Binder vaoBinder(item->VAO);
@@ -543,6 +589,7 @@ void OpenGL3Renderer::renderPasses(RenderPass first, RenderPass last){
     gluu->enableTextures();
     gluu->enableNormals();
     gluu->currentShader->setUniformValue(gluu->currentShader->terrainPaged, 0);
+    gluu->currentShader->setUniformValue(gluu->currentShader->terrainMaterialEnabled, 0);
     context->extraFunctions()->glBindBufferBase(GL_UNIFORM_BUFFER, 0, 0);
 }
 

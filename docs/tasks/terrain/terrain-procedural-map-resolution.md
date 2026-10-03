@@ -1,9 +1,9 @@
 # Procedural terrain map resolution and bake sampling
 
-Status: Open Rails dynamic-resolution/detail prototype and runtime validation
-complete. TSRE native-resolution map/backend and optimized bake sampling are
-implemented and tested; the direct TSRE GPU renderer remains deferred until the
-Gather terrain contract is available.
+Status: TSRE direct GPU material-ID rendering is implemented on the Gather
+renderer. Dynamic map resolution, optimized CPU bake sampling and the saved
+distant compatibility fallback remain in place; interactive route acceptance
+and final performance measurements are pending.
 
 ## Objective
 
@@ -25,10 +25,11 @@ the material catalogue, procedural brush semantics or terrain mesh layout.
 - `TerrainMaterialMap` formerly assumed `Side == 4096` in allocation,
   addressing, painting, generation and undo-related paths. It now retains a
   validated per-map side while keeping 4096 as the new-map default.
-- TSRE currently generates CPU RGB patch textures and uploads those results. It
-  does not yet upload the `.pmap` itself as the terrain material-selection
-  texture. GPU map caps and dirty map uploads below belong to the planned direct
-  renderer, not the current CPU patch generator.
+- TSRE now uploads the `.pmap` as an 8-bit nearest-filtered categorical texture.
+  Near patches are submitted once per material actually referenced by the patch
+  (including the one-texel sampling halo), and the fragment shader selects one
+  unblended material pass. The former CPU RGB patch generator remains intact
+  behind the internal `TerrainMaterialMap::DirectGpuRendering` switch.
 - An 8-bit material-ID texture consumes 4 MiB at 2048 square, 16 MiB at 4096
   square and 64 MiB at 8192 square. Nine simultaneously resident maps would
   therefore consume approximately 36, 144 or 576 MiB respectively, before
@@ -46,6 +47,13 @@ the material catalogue, procedural brush semantics or terrain mesh layout.
   67-68 ms per tile. A deliberately overloaded test patch reached six material
   passes and exercised the five-pass fallback; it is evidence that the cap and
   fallback work, not evidence that five is the universally optimal cap.
+- TSRE's direct editor renderer deliberately has no equivalent per-patch pass
+  cap: it draws every distinct material referenced by the patch and its
+  one-texel sampling halo (up to the byte map's natural 256-ID limit). This is
+  an intentional editor/simulator difference. TSRE favors an exact preview of
+  authored data even when a pathological patch is slow; Open Rails limits a
+  patch to its five largest available detailed materials and leaves omitted
+  areas represented by the saved bake.
 - In Open Rails this loading work runs on its loader thread during initial load
   and when a new 2048 m terrain tile enters after a tile-boundary crossing. It
   is not executed every frame or for movement within one tile. Runtime updater
@@ -128,11 +136,9 @@ Material (
   implicitly in this step; it needs an explicit future representation if wanted.
 
 Open Rails loads and renders the effective per-material detail texture and scale.
-TSRE loads, preserves and saves both fields, but its current CPU-generated
-near renderer intentionally continues to bind the hardcoded `microtex.ace` and
-scale 32. This prevents a second temporary renderer implementation immediately
-before Gather. TSRE's direct material-ID renderer will begin using the catalogue
-fields after the Gather terrain pass is available.
+TSRE loads, preserves, saves and directly renders both fields. The retained CPU
+near path still uses its historical common `microtex.ace`/32 behavior when the
+internal direct-renderer switch is disabled.
 
 Changing a detail property must participate in catalogue revision/cache
 invalidation in both programs. It must not require repainting the `.pmap`, whose
@@ -148,8 +154,8 @@ materials and preserve their effective values on later saves.
 Implementation status (2026-10-02): both readers accept and validate these
 optional Version-1 fields. TSRE writes their effective values on save and gives
 new materials the documented defaults. Open Rails uses them in its direct
-procedural terrain pass. TSRE renderer consumption remains intentionally
-deferred to the Gather renderer integration.
+procedural terrain pass. TSRE renderer consumption is implemented by the Gather
+renderer integration.
 
 ### Native and effective resolution
 
@@ -186,12 +192,13 @@ and required editor state have been established. Streaming decompression or
 row-wise reduction is a later optimization if 8192 load-time memory or latency
 requires it.
 
-The future direct TSRE renderer needs a deliberate distinction between the
-authoring map and the GPU map. Painting and saving operate on the native
-authoring resolution. The renderer may upload a capped representation. Dirty
-authoring rectangles must be converted to the corresponding
-effective-resolution rectangles before GPU updates. Until that renderer exists,
-the current CPU generator samples the native authoring map directly.
+The direct TSRE renderer keeps a deliberate distinction between the authoring
+map and the GPU map. Painting and saving operate on the native authoring
+resolution. The renderer uploads a representation capped by the OpenGL texture
+limit and uses deterministic center-nearest categorical reduction when needed.
+Dirty authoring patches are converted to effective-resolution rectangles for
+GPU updates. The retained CPU generator continues to sample the native map when
+the internal recovery switch selects it.
 
 ### Distant bake sampling
 
@@ -241,14 +248,23 @@ Backend stages, independent of the Gather renderer:
 
 Renderer-dependent stages, after the Gather terrain-shader contract is settled:
 
-4. [ ] Add an effective GPU-resolution cap and deterministic categorical reduction.
-5. [ ] Add direct terrain material-ID rendering with material-specific base/detail
+4. [x] Add an effective GPU-resolution cap and deterministic categorical reduction.
+5. [x] Add direct terrain material-ID rendering with material-specific base/detail
    inputs. Upload complete maps only on load/reconfiguration and use dirty
    rectangles for ordinary painting.
-6. [ ] Retain the saved distant bake and compatibility path; the direct renderer is
+6. [x] Retain the saved distant bake and compatibility path; the direct renderer is
    the detailed path, not a reason to remove the MSTS-compatible fallback.
 7. [ ] Benchmark loading, paint latency, undo memory, full save and incremental save
    at every supported size before exposing the maximum-resolution setting.
+
+Implementation checkpoint (2026-10-03): the direct path queries the OpenGL
+texture limit, applies center-nearest categorical reduction when necessary,
+uploads one `GL_R8` map per resident tile, and updates painted patch rectangles
+with `glTexSubImage2D`. Gather packets bind material-specific base/detail inputs
+and submit only the effective-map IDs used by each patch plus its sampling halo.
+The saved bake remains the distance fallback. The internal
+`TerrainMaterialMap::DirectGpuRendering` boolean switches the detailed renderer
+back to the unmodified CPU-generated patch path without a user setting.
 
 ## Acceptance checks
 
@@ -257,6 +273,8 @@ Renderer-dependent stages, after the Gather terrain-shader contract is settled:
 - Capped maps show only valid source material IDs and stable tie behavior.
 - A low hardware/configuration cap never requests an oversized GPU texture.
 - Small paint strokes do not trigger a full-map GPU upload.
+- Setting the internal `DirectGpuRendering` switch to false restores CPU near
+  patch generation without changing route data or the saved distant bake.
 - P16/P32 bake miniatures match the established orientation and patch boundaries.
 - High-frequency detail textures are compared for moire against the previous
   512-square-intermediate path; 2 x 2 supersampling is retained unless that test

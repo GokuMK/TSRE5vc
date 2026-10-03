@@ -67,6 +67,8 @@ public:
     using Terrain::proceduralTextureRemap;
     using Terrain::proceduralFallbackTexture;
     using Terrain::proceduralBakeMiniatures;
+    using Terrain::prepareProceduralGpuPatch;
+    using Terrain::configureProceduralGpuPacket;
     void setup(const QString &directory, int patches, const QString &tileName, int samples=256, int sampleSpacing=8) {
         name=tileName;
         tfile=new TFile(); tfile->initNew(tileName,samples,sampleSpacing,patches);
@@ -136,6 +138,8 @@ void variedMaterialMap(TerrainMaterialMap &map) {
 int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
     QScopedValueRollback<QString> baseSeason(Game::season,QString());
     QScopedValueRollback<bool> enabledSetting(TerrainMaterialMap::Enabled,true);
+    // This suite remains the regression contract for the retained CPU path.
+    QScopedValueRollback<bool> directRenderer(TerrainMaterialMap::DirectGpuRendering,false);
     QScopedValueRollback<int> patchSizeSetting(TerrainMaterialMap::OutputSide,512);
     QScopedValueRollback<int> bakeSizeSetting(TerrainMaterialMap::BakedSide,1024);
     QScopedValueRollback<TerrainMaterialMap::BakeSampling> bakeSamplingSetting(
@@ -1104,14 +1108,18 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
         }
         check(finishMaterialJobs(),"latest-edit-queue-eventually-drains-without-another-stroke");
         auto minis=t.proceduralBakeMiniatures();
-        bool same=true;
-        for (int p=0;p<16;++p) {
-            const auto wanted=expected.generate(p,16,{{1,red},{2,blue}})
-                    .scaled(TerrainMaterialMap::BakedSide/16,TerrainMaterialMap::BakedSide/16,
-                            Qt::IgnoreAspectRatio,Qt::SmoothTransformation).convertToFormat(QImage::Format_RGB888);
-            same &= minis.value(expected.patchKey(p,16))==wanted;
+        if (TerrainMaterialMap::DirectGpuRendering) {
+            check(minis.isEmpty(),"direct-paint-does-not-build-cpu-near-patch-miniatures");
+        } else {
+            bool same=true;
+            for (int p=0;p<16;++p) {
+                const auto wanted=expected.generate(p,16,{{1,red},{2,blue}})
+                        .scaled(TerrainMaterialMap::BakedSide/16,TerrainMaterialMap::BakedSide/16,
+                                Qt::IgnoreAspectRatio,Qt::SmoothTransformation).convertToFormat(QImage::Format_RGB888);
+                same &= minis.value(expected.patchKey(p,16))==wanted;
+            }
+            check(same,"every-final-edited-recipe-has-worker-miniature-before-save");
         }
-        check(same,"every-final-edited-recipe-has-worker-miniature-before-save");
         // Save immediately after the final edit; it must wait for pending
         // reduction and promote the existing material, not synthesize it again.
         t.paintProceduralMaterial(&brush,0,0,-964,-955,9);
@@ -1888,6 +1896,9 @@ int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
 
 int TsreTests::runTerrainMaterialGlSuite() {
     QScopedValueRollback<QString> baseSeason(Game::season,QString());
+    // Existing upload/cache tests deliberately exercise the retained CPU path;
+    // shader compilation below covers the direct renderer variants.
+    QScopedValueRollback<bool> directRenderer(TerrainMaterialMap::DirectGpuRendering,false);
     QOpenGLContext context;
     QSurfaceFormat format; format.setVersion(3,3); format.setProfile(QSurfaceFormat::CompatibilityProfile);
     context.setFormat(format);
@@ -1906,11 +1917,12 @@ int TsreTests::runTerrainMaterialGlSuite() {
     QImage red(256,256,QImage::Format_RGB888);red.fill(Qt::red);red.save(temp.path()+"/red.png");
     QImage blue(256,256,QImage::Format_RGB888);blue.fill(Qt::blue);blue.save(temp.path()+"/blue.png");
     int failed=0;
+    quint32 redUid=0,blueUid=0;
     {
         const auto library=TerrainMaterialLibrary::current();
         QString error;
-        const auto redUid=library->addImage(temp.path()+"/red.png",error);
-        const auto blueUid=library->addImage(temp.path()+"/blue.png",error);
+        redUid=library->addImage(temp.path()+"/red.png",error);
+        blueUid=library->addImage(temp.path()+"/blue.png",error);
         TestTerrain a,b; a.setup(library->textureDirectory(),16,"global-gl-a"); b.setup(library->textureDirectory(),16,"global-gl-b");
         bool ok=redUid && blueUid && a.setProceduralMaterial(true,error,redUid) && b.setProceduralMaterial(true,error,redUid);
         const int shared=a.proceduralTexture(0);
@@ -1930,13 +1942,53 @@ int TsreTests::runTerrainMaterialGlSuite() {
         if (!ok) ++failed;
         qInfo() << "[tests:terrain-material-gl] global UiD sharing, synchronous paint, undo/save and independent release" << ok << error;
     }
+    {
+        QScopedValueRollback<bool> direct(TerrainMaterialMap::DirectGpuRendering,true);
+        const auto library=TerrainMaterialLibrary::current();
+        TestTerrain terrain; terrain.setup(library->textureDirectory(),16,"direct-gpu");
+        QString error;
+        bool ok=redUid && blueUid && terrain.setProceduralMaterial(true,error,redUid);
+        QVector<int> materials;
+        QElapsedTimer wait; wait.start();
+        while (ok && !terrain.prepareProceduralGpuPatch(0,materials) && wait.elapsed()<3000) {
+            QApplication::processEvents(); QThread::msleep(1);
+        }
+        ok &= materials==QVector<int>{1};
+        RenderItem packet;
+        if (ok) {
+            terrain.configureProceduralGpuPacket(packet,0,1);
+            ok &= packet.terrainMaterialMapAddr!=0 && f->glIsTexture(packet.terrainMaterialMapAddr)
+                    && packet.terrainMaterialMapSide==TerrainMaterialMap::Side
+                    && packet.terrainMaterialId==1
+                    && packet.terrainMaterialNoiseScale==TerrainMaterialMap::DirectNoiseSide
+                    && packet.texAddr!=0;
+        }
+        Texture source(library->textureDirectory()+"/"+library->find(blueUid)->texture);
+        Brush brush; brush.tex=&source; brush.useTexture=true;
+        brush.terrainMaterialUid=blueUid; brush.terrainMaterialRoute=library->path();
+        terrain.paintProceduralMaterial(&brush,0,0,-992,-992,8,TerrainMaterialMap::FillPatch);
+        wait.restart(); materials.clear();
+        while (ok && !terrain.prepareProceduralGpuPatch(0,materials) && wait.elapsed()<3000) {
+            QApplication::processEvents(); QThread::msleep(1);
+        }
+        ok &= materials.contains(0) && materials.contains(1);
+        terrain.releaseProceduralTextures(); Terrain::beginProceduralFrame();
+        const GLenum directError=f->glGetError();
+        ok &= directError==GL_NO_ERROR;
+        if (!ok) ++failed;
+        qInfo() << "[tests:terrain-material-gl] direct pmap upload, material packets and dirty patch refresh"
+                << ok << error << "GL error" << directError;
+    }
     for (const QString &directory : {QStringLiteral("shaders"),QStringLiteral("shaders330")}) {
-        for (const QString &shaderName : {QStringLiteral("StandardFog"),QStringLiteral("StandardFogStoredCoords"),QStringLiteral("StandardBloom")}) {
+        for (const QString &shaderName : {QStringLiteral("StandardFog"),QStringLiteral("StandardFogStoredCoords"),
+                                          QStringLiteral("StandardBloom"),QStringLiteral("StandardFast")}) {
             const QString base="appdata/"+Game::AppDataVersion+"/"+directory+"/"+shaderName;
+            const QString vertexBase=shaderName=="StandardFast"
+                    ? "appdata/"+Game::AppDataVersion+"/"+directory+"/StandardFog" : base;
             QOpenGLShaderProgram program;
-            if (!program.addShaderFromSourceFile(QOpenGLShader::Vertex,base+".vs")
+            if (!program.addShaderFromSourceFile(QOpenGLShader::Vertex,vertexBase+".vs")
                     || !program.addShaderFromSourceFile(QOpenGLShader::Fragment,base+".fs") || !program.link()) {
-                qWarning() << "Baked terrain shader compile/link failed" << base << program.log(); ++failed;
+                qWarning() << "Terrain shader compile/link failed" << base << program.log(); ++failed;
             }
         }
     }

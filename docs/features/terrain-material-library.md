@@ -106,10 +106,16 @@ paths follow the same safe route-relative and directory-based
 [seasonal lookup](terrain-procedural-seasons.md) rules as the primary source;
 scale must be finite and positive.
 
-TSRE currently loads, preserves and saves these properties, but its existing
-CPU-generated near renderer intentionally continues to use fixed
-`microtex.ace`/32 until the Gather terrain renderer is merged. Open Rails'
-experimental direct material renderer uses the per-material values already.
+TSRE loads, preserves, saves and directly renders these properties through the
+Gather terrain renderer. Near patches sample the categorical `.pmap` in the
+fragment shader; distant patches retain the saved MSTS-compatible bake. The
+former CPU-generated near path remains available behind an internal code switch
+and retains its historical fixed `microtex.ace`/32 behavior. Open Rails'
+experimental direct material renderer uses the same per-material values.
+TSRE does not cap direct material passes per patch: every distinct material in
+the patch and its sampling halo is shown so the editor remains an authoritative
+preview. The Open Rails branch instead renders at most five detailed materials
+per patch and uses the baked base for omitted areas to bound simulator cost.
 Changing them does not alter the tile's `.pmap`, which stores material IDs only.
 `TerrainMaterialDefinition` does not inherit `TFile::Mat`. Rotation, physical
 scale, importance, mixing types, per-material seasonal filename overrides and
@@ -225,8 +231,14 @@ suite. The incremental build succeeds and the `terrain-material` suite passes
 Detail-field follow-up (2026-10-02): missing/default and explicit
 `DetailTexture`/`DetailScale` values, unsafe filenames, invalid scales and
 save/reload preservation are covered. The incremental build succeeds and the
-`terrain-material` suite passes 588 checks with zero failures. Renderer use of
-these fields remains deferred to the Gather terrain path as documented above.
+`terrain-material` suite passes 588 checks with zero failures. Renderer use is
+now implemented by the Gather direct material-ID path documented above.
+
+Direct-renderer follow-up (2026-10-03): the incremental build succeeds, the
+retained CPU suite passes 604 checks, and the AMD/OpenGL suite reports zero
+failures. GL coverage now compiles every affected 1.40/3.30 shader variant and
+exercises native pmap upload, per-material packet setup and a painted dirty-patch
+upload. Interactive route inspection and final performance measurements remain.
 
 ```text
 build\TSRE5vc.exe --test --test-suite terrain-material
