@@ -16,6 +16,8 @@
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <QVector>
 
+class RenderQueue;
+
 class TrackItemObj;
 class OglObj;
 
@@ -62,7 +64,7 @@ public:
     int getDefaultDetailLevel();
     bool isNumberDot();
     void setNumberDot(bool val);
-    void pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
+    void pushRenderItems(RenderQueue &queue, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
 private:
     int speedPostId = -1;
     int speedPostType = -1;
@@ -78,7 +80,7 @@ private:
     float* drawPosition = NULL;
     OglObj* drawLine = NULL;
     
-    void pushRenderTritems(quint32 selectionId);
+    void pushRenderTritems(RenderQueue &queue, quint32 selectionId);
     int selectionValue = 0;
     bool getSimpleBorder(float* border);
     bool getBoxPoints(QVector<float> &points);

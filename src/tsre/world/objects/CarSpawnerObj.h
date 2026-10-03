@@ -15,6 +15,8 @@
 #include <QString>
 #include <tsre/fileFunctions/FileBuffer.h>
 
+class RenderQueue;
+
 class TrackItemObj;
 class OglObj;
 class ComplexShape;
@@ -48,7 +50,7 @@ public:
         SimpleCar(QString name);
         ~SimpleCar();
         void updateSim(float deltaTime);
-        void pushRenderItems(quint32 selectionId);
+        void pushRenderItems(RenderQueue &queue, quint32 selectionId);
     };
     
     static void LoadCarSpawnerList();
@@ -82,7 +84,7 @@ public:
     void expand();
     int getDefaultDetailLevel();
     void updateSim(float deltaTime);
-    void pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
+    void pushRenderItems(RenderQueue &queue, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
 private:
     int trItemId[4];
     int trItemIdCount = 0;
@@ -101,7 +103,7 @@ private:
     float carsNewTime = 0;
     float carFreq = 1;
     QVector<SimpleCar> cars;
-    void pushRenderTritems(quint32 selectionId);
+    void pushRenderTritems(RenderQueue &queue, quint32 selectionId);
     void makelineShape();
     static void parseCarList(FileBuffer* data);
 };

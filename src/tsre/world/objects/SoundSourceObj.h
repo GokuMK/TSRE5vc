@@ -15,6 +15,8 @@
 #include <QString>
 #include <tsre/fileFunctions/FileBuffer.h>
 
+class RenderQueue;
+
 class PoleObj;
 
 class SoundSourceObj : public WorldObj {
@@ -32,7 +34,7 @@ public:
     void set(QString sh, FileBuffer* data);
     void save(QTextStream* out);
     int getDefaultDetailLevel();
-    void pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
+    void pushRenderItems(RenderQueue &queue, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
 private:
     PoleObj* pointer3d = NULL;
     PoleObj* pointer3dSelected = NULL;

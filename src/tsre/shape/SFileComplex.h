@@ -3,6 +3,8 @@
 #include <memory>
 #include <tsre/shape/ComplexShape.h>
 
+class RenderQueue;
+
 class SFileComplex final : public ComplexShape {
   public:
     enum class Retention { Unloaded, Complete, Partial, Compact };
@@ -58,8 +60,8 @@ class SFileComplex final : public ComplexShape {
     void enableSubObjByName(unsigned int, const QString &, bool) override;
     void enableSubObjByNameQueue(unsigned int, const QString &, bool) override;
     void updateSim(float, unsigned int = 0) override;
-    void pushRenderItem() override;
-    void pushRenderItem(quint32, unsigned int) override;
+    void pushRenderItem(RenderQueue &queue) override;
+    void pushRenderItem(RenderQueue &queue, quint32, unsigned int) override;
     void invalidateRenderState(bool = true) override;
     void enablePart(unsigned int, unsigned int = 0) override;
     void disablePart(unsigned int, unsigned int = 0) override;

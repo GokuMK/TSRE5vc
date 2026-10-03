@@ -17,6 +17,8 @@
 #include <tsre/trains/ActivityObject.h>
 #include <tsre/trains/ActivityTimetable.h>
 
+class RenderQueue;
+
 class FileBuffer;
 class Consist;
 class Path;
@@ -47,7 +49,7 @@ public:
     void calculateTimetable();
     void setTimetableEfficiency(int id, float val);
     void updateSim(float *playerT, float deltaTime);
-    void pushRenderItems(float* playerT, int renderMode);
+    void pushRenderItems(RenderQueue &queue, float* playerT, int renderMode);
     QMap<int, QString> getStationStopNameList();
 private:
     bool modified = false;
@@ -120,7 +122,7 @@ public:
     bool isInitActivityObjects = false;
     //void initActivityObjects();
     void updateSim(float *playerT, float deltaTime);
-    void pushRenderItems(float * playerT, float playerRot, int renderMode);
+    void pushRenderItems(RenderQueue &queue, float * playerT, float playerRot, int renderMode);
 
     QString editorConListSelected;
     ActivityEvent *currentEventSelected = NULL;

@@ -33,7 +33,6 @@
 #include <QtWidgets>
 #include <QColor>
 #include <tsre/fileFunctions/TarFile.h>
-#include <tsre/renderer/Renderer.h>
 #include <tsre/texture/AceLib.h>
 #include <tsre/texture/DdsLib.h>
 #include <tsre/world/TerrainGridLayout.h>
@@ -66,7 +65,6 @@ QString Game::season = "";
 QString Game::mainWindowLayout = "PWT";
 QString Game::ceWindowLayout = "C1";
 QString Game::ActivityToPlay = "";
-Renderer *Game::currentRenderer = NULL;
 bool Game::playerMode = false;
 bool Game::useNetworkEng = false;
 bool Game::useQuadTree = true;

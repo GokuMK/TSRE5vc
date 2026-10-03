@@ -823,15 +823,12 @@ void GltfShape::updateSim(float deltaTime, unsigned int stateId) {
     (void)stateId;
 }
 
-void GltfShape::pushRenderItem() {
-    pushRenderItem(0, 0);
+void GltfShape::pushRenderItem(RenderQueue &queue) {
+    pushRenderItem(queue, 0, 0);
 }
 
-void GltfShape::pushRenderItem(quint32 selectionId, unsigned int stateId) {
+void GltfShape::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned int stateId) {
     if (isinit != 1 || loaded == 2) {
-        return;
-    }
-    if (Game::currentRenderer == nullptr) {
         return;
     }
     if (stateId >= (unsigned int)state.size()) {
@@ -909,7 +906,7 @@ void GltfShape::pushRenderItem(quint32 selectionId, unsigned int stateId) {
     }
 
     if (renderItems[stateId].size() > 0) {
-        Game::currentRenderer->pushPackets(renderItems[stateId], selectionId);
+        queue.submit(renderItems[stateId], selectionId);
     }
 }
 

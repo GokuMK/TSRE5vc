@@ -10,6 +10,7 @@
 
 #include <tsre/GameObj.h>
 #include <QMenu>
+#include <tsre/renderer/RenderQueue.h>
 
 QMap<GameObj::TypeObj, QString> GameObj::Names = {
     { GameObj::none , "None" },
@@ -57,7 +58,7 @@ void GameObj::updateSim(float deltaTime){
     return;
 }
 
-void GameObj::pushRenderHud(){
+void GameObj::pushRenderHud(RenderQueue &queue){
 }
 
 void GameObj::translate(float px, float py, float pz){

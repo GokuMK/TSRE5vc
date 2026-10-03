@@ -13,11 +13,13 @@
 
 #include <tsre/ogl/OglObj.h>
 
+class RenderQueue;
+
 class GuiGlCompass : public OglObj { 
 public:
     GuiGlCompass();
     virtual ~GuiGlCompass();
-    void pushRenderItem(float a);
+    void pushRenderItem(RenderQueue &queue, float a);
 
 private:
     void setHeading(float a);

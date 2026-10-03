@@ -17,6 +17,8 @@
 #include <tsre/GameObj.h>
 #include <tsre/tdb/TDB.h>
 
+class RenderQueue;
+
 class OglObj;
 
 class Path : public GameObj {
@@ -73,7 +75,7 @@ public:
     void initRoute();
     void init3dShapes(bool initShapes = true);
     bool isModified();
-    void pushRenderItems(float * playerT, quint32 selectionId);
+    void pushRenderItems(RenderQueue &queue, float * playerT, quint32 selectionId);
 private:
     bool modified = false;
     bool isinit1 = false;

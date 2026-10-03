@@ -2220,7 +2220,7 @@ RenderItem *Terrain::framePacket(QVector<RenderItem*> &pool, int patchId){
     return pool[patchId];
 }
 
-void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float* playerW, float* target, float fov, quint32 selectionId){
+void Terrain::pushRenderItem(RenderQueue &queue, float lodx, float lodz, int tileX, int tileY, float* playerW, float* target, float fov, quint32 selectionId){
     if (!loaded)
         return;
     synchronizeMaterialLibrary();
@@ -2238,23 +2238,23 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
     int patchRes = samples/patches;
     
     if(mojex-tileX != 0 || mojez-tileY != 0){
-        Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, 2048 * (mojex-tileX) , 0, 2048 * (mojez-tileY) );
+        Mat4::translate(queue.transform(), queue.transform(), 2048 * (mojex-tileX) , 0, 2048 * (mojez-tileY) );
     }
-    Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, -1024, 0, 1024-sampleSize*samples);
+    Mat4::translate(queue.transform(), queue.transform(), -1024, 0, 1024-sampleSize*samples);
     refreshPatchBounds(true);
     const PatchVisibility patchVisibility = buildPatchVisibility(
-                Game::currentRenderer->mvMatrix, playerW);
+                queue.transform(), playerW);
     const QVector<TerrainPatchLodState> patchLod = backend->isPaged()
             ? buildPatchLodState(patchVisibility)
             : QVector<TerrainPatchLodState>();
     renderedSurfaceLod = patchLod;
     if(Game::viewWorldGrid && selectionId == 0)
-        lines.pushRenderItem();
+        lines.pushRenderItem(queue);
     if(Game::viewTileGrid && selectionId == 0){
-        slines.pushRenderItem();
-        ulines.pushRenderItem();
-        lockedlines.pushRenderItem();
-        selectedlines.pushRenderItem();
+        slines.pushRenderItem(queue);
+        ulines.pushRenderItem(queue);
+        lockedlines.pushRenderItem(queue);
+        selectedlines.pushRenderItem(queue);
     }
     
     float lod = 0;
@@ -2305,9 +2305,9 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
                         r->itemType=GL_TRIANGLES;
                         backend->configureRenderItem(*r,patchId,false,true,
                                                      lodState.sourceStep,lodState.edgeMask);
-                        r->msMatrix=Game::currentRenderer->objStrMatrix;
+                        r->msMatrix=nullptr;
                         r->setVertexAttributes(r->VNT);
-                        Game::currentRenderer->pushPacket(r,0,Renderer::SUBMIT_ORDERED);
+                        queue.submit(r,0,RenderQueue::SUBMIT_ORDERED);
                     }
                     continue;
                 }
@@ -2390,15 +2390,15 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
                                              false, true,
                                              lodState.sourceStep,
                                              lodState.edgeMask);
-                r->msMatrix = Game::currentRenderer->objStrMatrix;
+                r->msMatrix = nullptr;
                 r->setVertexAttributes(r->VNT);
-                Game::currentRenderer->pushPacket(r, 0, Renderer::SUBMIT_ORDERED);
+                queue.submit(r, 0, RenderQueue::SUBMIT_ORDERED);
             }
         }
     }
     if(Game::viewTerrainGrid || !Game::viewTerrainShape){
-        Game::currentRenderer->mvPushMatrix();
-        Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, 0, 0.05, 0);
+        queue.pushTransform();
+        Mat4::translate(queue.transform(), queue.transform(), 0, 0.05, 0);
 
         for (int yy = 0; yy < patches; yy++) {
             for (int uu = 0; uu < patches; uu++) {
@@ -2429,11 +2429,11 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
                                              lodState.edgeMask);
                 r->setVertexAttributes(r->VNT);
                 r->polygonMode = 1;
-                r->msMatrix = Game::currentRenderer->objStrMatrix;
-                Game::currentRenderer->pushPacket(r, 0, Renderer::SUBMIT_ORDERED);
+                r->msMatrix = nullptr;
+                queue.submit(r, 0, RenderQueue::SUBMIT_ORDERED);
             }
         }
-        Game::currentRenderer->mvPopMatrix();
+        queue.popTransform();
     }
     
     if(showBlob && selectionId == 0){
@@ -2441,9 +2441,9 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
             const int mapTexture = ensureMapTexture();
             if (mapTexture >= 0) {
                 if(MapWindow::isAlpha != 0){
-                    Game::currentRenderer->mvPushMatrix();
-                    Mat4::translate(Game::currentRenderer->mvMatrix,
-                                    Game::currentRenderer->mvMatrix,
+                    queue.pushTransform();
+                    Mat4::translate(queue.transform(),
+                                    queue.transform(),
                                     0, 0.35, 0);
                 }
                 for (int patchId = 0; patchId < gridLayout.patchRecordCount(); ++patchId) {
@@ -2452,30 +2452,30 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
                     r = framePacket(mapPackets, patchId);
                     r->enableTextures(static_cast<unsigned int>(mapTexture));
                     r->itemType = GL_TRIANGLES;
-                    r->msMatrix = Game::currentRenderer->objStrMatrix;
+                    r->msMatrix = nullptr;
                     r->setVertexAttributes(r->VNTA);
                     const TerrainPatchLodState lodState = patchId < patchLod.size()
                             ? patchLod[patchId] : TerrainPatchLodState{};
                     backend->configureRenderItem(*r, patchId, true, false,
                                                  lodState.sourceStep,
                                                  lodState.edgeMask);
-                    Game::currentRenderer->pushPacket(r, 0, Renderer::SUBMIT_ORDERED);
+                    queue.submit(r, 0, RenderQueue::SUBMIT_ORDERED);
                 }
                 if(MapWindow::isAlpha != 0)
-                    Game::currentRenderer->mvPopMatrix();
+                    queue.popTransform();
             }
         } else if(MapWindow::isAlpha == 0){
-            terrainBlob.pushRenderItem();
+            terrainBlob.pushRenderItem(queue);
         }else{
-            Game::currentRenderer->mvPushMatrix();
-            Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, 0, 0.35, 0);
-            terrainBlob.pushRenderItem();
-            Game::currentRenderer->mvPopMatrix();
+            queue.pushTransform();
+            Mat4::translate(queue.transform(), queue.transform(), 0, 0.35, 0);
+            terrainBlob.pushRenderItem(queue);
+            queue.popTransform();
         }
     }
 }
 
-void Terrain::pushRenderItemWater(float lodx, float lodz, float tileX, float tileY, float* playerW, float* target, float fov, int layer, quint32 selectionId){
+void Terrain::pushRenderItemWater(RenderQueue &queue, float lodx, float lodz, float tileX, float tileY, float* playerW, float* target, float fov, int layer, quint32 selectionId){
     if(showBlob)
         return;
     float alpha = 0;
@@ -2486,9 +2486,9 @@ void Terrain::pushRenderItemWater(float lodx, float lodz, float tileX, float til
     int patchSize = tileSize/patches;
     
     if(mojex-tileX != 0 || mojez-tileY != 0){
-        Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, 2048 * (mojex-tileX) , 0, 2048 * (mojez-tileY) );
+        Mat4::translate(queue.transform(), queue.transform(), 2048 * (mojex-tileX) , 0, 2048 * (mojez-tileY) );
     }
-    Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, -1024, 0, 1024-sampleSize*samples);
+    Mat4::translate(queue.transform(), queue.transform(), -1024, 0, 1024-sampleSize*samples);
     
     if(water[layer] == NULL)
         water[layer] = new WaterTile();
@@ -2593,7 +2593,7 @@ void Terrain::pushRenderItemWater(float lodx, float lodz, float tileX, float til
                 if(selectionId != 0)
                     tselectionId = SelectionIdCodec::withTerrainPatch(
                                 selectionId, yy * patches + uu);
-                w[uu * patches + yy].pushRenderItem(tselectionId);
+                w[uu * patches + yy].pushRenderItem(queue, tselectionId);
             }
         }
     }

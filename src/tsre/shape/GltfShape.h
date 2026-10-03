@@ -19,6 +19,8 @@
 #include <QOpenGLVertexArrayObject>
 #include <tsre/shape/ComplexShape.h>
 
+class RenderQueue;
+
 class ContentHierarchyInfo;
 class RenderItem;
 class ShapeHierarchyInfo;
@@ -45,8 +47,8 @@ public:
     void setAnimated(unsigned int stateId, bool animated) override;
     void updateSim(float deltaTime, unsigned int stateId = 0) override;
 
-    void pushRenderItem() override;
-    void pushRenderItem(quint32 selectionId, unsigned int stateId) override;
+    void pushRenderItem(RenderQueue &queue) override;
+    void pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned int stateId) override;
 
     void invalidateRenderState(bool invalidateMatrixCache = true) override;
     void enablePart(unsigned int uid, unsigned int stateId = 0) override;

@@ -355,18 +355,16 @@ void SoundRegionObj::set(QString sh, FileBuffer* data) {
     return;
 }
 
-void SoundRegionObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId){
+void SoundRegionObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId){
     if (!loaded)
         return;
     if(!Game::viewInteractives)
         return;
-    if(Game::currentRenderer == NULL)
-        return;
 
-    this->pushRenderTritems(selectionId);
+    this->pushRenderTritems(queue, selectionId);
 }
 
-void SoundRegionObj::pushRenderTritems(quint32 selectionId){
+void SoundRegionObj::pushRenderTritems(RenderQueue &queue, quint32 selectionId){
     
     ///////////////////////////////
     TDB* tdb = Game::trackDB;
@@ -443,18 +441,18 @@ void SoundRegionObj::pushRenderTritems(quint32 selectionId){
     }
 
     if(selectionId == 0)
-        drawLine->pushRenderItem();
+        drawLine->pushRenderItem(queue);
 
     for(int i = 0; i < drawPositions.size(); i++){
         drawPosition = drawPositions[i];
-        Game::currentRenderer->mvPushMatrix();
-        Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPosition[0] + 0 * (drawPosition[4] - this->x), drawPosition[1] + 1, -drawPosition[2] + 0 * (-drawPosition[5] - this->y));
-        Mat4::rotateY(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, -drawPosition[7]+M_PI);
+        queue.pushTransform();
+        Mat4::translate(queue.transform(), queue.transform(), drawPosition[0] + 0 * (drawPosition[4] - this->x), drawPosition[1] + 1, -drawPosition[2] + 0 * (-drawPosition[5] - this->y));
+        Mat4::rotateY(queue.transform(), queue.transform(), -drawPosition[7]+M_PI);
         if(this->selected && this->selectionValue == i+1)
-            pointer3dSelected->pushRenderItem(SelectionIdCodec::withPart(selectionId, i + 1));
+            pointer3dSelected->pushRenderItem(queue, SelectionIdCodec::withPart(selectionId, i + 1));
         else
-            pointer3d->pushRenderItem(SelectionIdCodec::withPart(selectionId, i + 1));
-        Game::currentRenderer->mvPopMatrix();
+            pointer3d->pushRenderItem(queue, SelectionIdCodec::withPart(selectionId, i + 1));
+        queue.popTransform();
     }
 
 };

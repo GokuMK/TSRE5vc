@@ -12,6 +12,7 @@
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/ogl/GLUU.h>
 #include <tsre/fileFunctions/FileBuffer.h>
+#include <tsre/renderer/RenderQueue.h>
 
 GuiGlCompass::GuiGlCompass() {
     
@@ -90,7 +91,7 @@ void GuiGlCompass::setHeading(float a){
     unmapBuffer();
 }
 
-void GuiGlCompass::pushRenderItem(float a){
+void GuiGlCompass::pushRenderItem(RenderQueue &queue, float a){
     setHeading(a);
-    OglObj::pushRenderItem();
+    OglObj::pushRenderItem(queue);
 }

@@ -131,8 +131,8 @@ void OglObj::setLineWidth(int val){
     lineWidth = val;
 }
 
-void OglObj::pushRenderItem() {
-    pushRenderItem(0);
+void OglObj::pushRenderItem(RenderQueue &queue) {
+    pushRenderItem(queue, 0);
 }
 
 void OglObj::setDistanceRange(float min, float max){
@@ -140,12 +140,10 @@ void OglObj::setDistanceRange(float min, float max){
     maxDistance = max;
 }
 
-void OglObj::pushRenderItem(quint32 selectionId, float lod){
+void OglObj::pushRenderItem(RenderQueue &queue, quint32 selectionId, float lod){
     if(!loaded)
         return;
     if(lod > maxDistance || lod < minDistance)
-        return;
-    if(Game::currentRenderer == NULL)
         return;
     if(vAttribures == RenderItem::NO_ATTR)
         return;
@@ -186,7 +184,7 @@ void OglObj::pushRenderItem(quint32 selectionId, float lod){
 
     RenderItem *packet = framePacket(textured, texAddr, materialColor,
                                      terrainDecal && selectionId == 0);
-    Game::currentRenderer->pushPacket(packet, selectionId, Renderer::SUBMIT_ORDERED);
+    queue.submit(packet, selectionId, RenderQueue::SUBMIT_ORDERED);
 }
 
 RenderItem *OglObj::framePacket(bool textured, unsigned int texAddr,

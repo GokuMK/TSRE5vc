@@ -21,6 +21,8 @@
 #include <QVector>
 #include <tsre/shape/ComplexShape.h>
 
+
+class RenderQueue;
 class FileBuffer;
 class ShapeTextureInfo;
 class ShapeHierarchyInfo;
@@ -215,8 +217,8 @@ public:
     void enablePart(unsigned int uid, unsigned int stateId = 0) override;
     void disablePart(unsigned int uid, unsigned int stateId = 0) override;
     void updateSim(float deltaTime, unsigned int stateId = 0) override;
-    void pushRenderItem() override;
-    void pushRenderItem(quint32 selectionId, unsigned int stateId) override;
+    void pushRenderItem(RenderQueue &queue) override;
+    void pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned int stateId) override;
     void invalidateRenderState(bool invalidateMatrixCache = true) override;
     void getSize();
     bool getBoxPoints(QVector<float> &points) override;

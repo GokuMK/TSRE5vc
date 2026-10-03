@@ -15,6 +15,8 @@
 #include <QString>
 #include <tsre/fileFunctions/FileBuffer.h>
 
+class RenderQueue;
+
 class TrackItemObj;
 
 class LevelCrObj : public WorldObj {
@@ -61,7 +63,7 @@ public:
     bool select(int value);
     void deleteSelectedTrItem();
     void translate(float px, float py, float pz);
-    void pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
+    void pushRenderItems(RenderQueue &queue, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
 private:
     int selectionValue = 0;
     int levelCrParameters[2];
@@ -76,7 +78,7 @@ private:
     QVector<float*> drawPositions;
     float* drawPosition = NULL;
     QString ORTSSoundFileName;
-    void pushRenderTritems(quint32 selectionId);
+    void pushRenderTritems(RenderQueue &queue, quint32 selectionId);
     bool getSimpleBorder(float* border);
     bool getBoxPoints(QVector<float> &points);
 };

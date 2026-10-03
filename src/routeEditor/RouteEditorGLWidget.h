@@ -45,6 +45,8 @@ class DynTrackObj;
 class RulerObj;
 class TelepoleObj;
 class SelectionRenderer;
+class OpenGL3Renderer;
+class RenderQueue;
 
 QT_FORWARD_DECLARE_CLASS(QOpenGLShaderProgram)
 
@@ -178,7 +180,7 @@ protected:
     void keyPressEvent(QKeyEvent * event) Q_DECL_OVERRIDE;
     void keyReleaseEvent(QKeyEvent * event) Q_DECL_OVERRIDE;
     void timerEvent(QTimerEvent *event) Q_DECL_OVERRIDE;
-    void pushRenderPointer();
+    void pushRenderPointer(RenderQueue &queue);
     void updatePointerPosition();
     void readPointerPosition();
     void applyPointerToLiveTools();
@@ -351,6 +353,8 @@ private:
     QMap<QString, QAction*> defaultMenuActions;
     bool bolckContextMenu = false;
     
+    // Owned; draws this widget's frames.
+    OpenGL3Renderer *renderer = NULL;
     GuiGlCompass * compass = NULL;
     OglObj * compassPointer = NULL;
     

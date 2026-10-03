@@ -15,6 +15,8 @@
 #include <QMap>
 #include <QObject>
 
+class RenderQueue;
+
 class QMenu;
 class QAction;
 
@@ -50,7 +52,7 @@ public:
     virtual void setPosition(int x, int z, float* p);
     virtual void setPosition(float* p);
     virtual void setMartix();
-    virtual void pushRenderHud();
+    virtual void pushRenderHud(RenderQueue &queue);
     virtual void getCameraPosition(float* out = NULL);
     virtual void pushContextMenuActions(QMenu *menu);
     virtual QString getName();

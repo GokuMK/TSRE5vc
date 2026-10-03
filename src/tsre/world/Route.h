@@ -18,6 +18,8 @@
 #include <tsre/world/objects/WorldObj.h>
 #include <tsre/world/Ref.h>
 
+class RenderQueue;
+
 class Tile;
 class Brush;
 class Coords;
@@ -151,8 +153,8 @@ public:
     float getDistantTerrainYOffset();
     void setAsCurrentGameRoute();
     void selectObjectsByXYRange(int mojex, int mojez, int minx, int maxx, int minz, int maxz);
-    void pushRenderItems(float* playerT, float* playerW, float* target, float playerRot, float fov, int renderMode);
-    void pushRenderOverlays(float* playerT, float* playerW, float playerRot, int renderMode);
+    void pushRenderItems(RenderQueue &queue, float* playerT, float* playerW, float* target, float playerRot, float fov, int renderMode);
+    void pushRenderOverlays(RenderQueue &queue, float* playerT, float* playerW, float playerRot, int renderMode);
 
 signals:
     void objectSelected(GameObj* obj);

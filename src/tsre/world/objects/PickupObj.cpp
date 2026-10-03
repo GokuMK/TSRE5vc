@@ -276,21 +276,19 @@ void PickupObj::set(QString sh, FileBuffer* data) {
     return;
 }
 
-void PickupObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId){
+void PickupObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId){
     if (!loaded)
         return;
-    if (Game::currentRenderer == NULL)
-        return;
 
-    Game::currentRenderer->mvPushMatrix();
-    WorldObj::pushRenderItems(lod, posx, posz, playerW, target, fov, selectionId);
-    Game::currentRenderer->mvPopMatrix();
+    queue.pushTransform();
+    WorldObj::pushRenderItems(queue, lod, posx, posz, playerW, target, fov, selectionId);
+    queue.popTransform();
 
     if (Game::viewInteractives)
-        this->pushRenderTritems(selectionId);
+        this->pushRenderTritems(queue, selectionId);
 }
 
-void PickupObj::pushRenderTritems(quint32 selectionId){
+void PickupObj::pushRenderTritems(RenderQueue &queue, quint32 selectionId){
     
     ///////////////////////////////
     TDB* tdb = Game::trackDB;
@@ -322,11 +320,11 @@ void PickupObj::pushRenderTritems(quint32 selectionId){
     }
 
 
-    Game::currentRenderer->mvPushMatrix();
-    Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPosition[0] + 0 * (drawPosition[5] - this->x), drawPosition[1] + 1, -drawPosition[2] + 0 * (-drawPosition[6] - this->y));
-    Mat4::rotateY(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPosition[3]);
-    pointer3d->pushRenderItem(SelectionIdCodec::withPart(selectionId, 1));
-    Game::currentRenderer->mvPopMatrix();
+    queue.pushTransform();
+    Mat4::translate(queue.transform(), queue.transform(), drawPosition[0] + 0 * (drawPosition[5] - this->x), drawPosition[1] + 1, -drawPosition[2] + 0 * (-drawPosition[6] - this->y));
+    Mat4::rotateY(queue.transform(), queue.transform(), drawPosition[3]);
+    pointer3d->pushRenderItem(queue, SelectionIdCodec::withPart(selectionId, 1));
+    queue.popTransform();
 
 };
 

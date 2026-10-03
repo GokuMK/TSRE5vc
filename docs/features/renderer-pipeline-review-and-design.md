@@ -12,8 +12,10 @@ is out of date. Current state:
 
 - The legacy pipeline is removed (stage 2a): the gather renderer is the only
   pipeline, the pipeline settings are gone, and producers no longer have a
-  legacy `render()` twin. Weakness 2 below is resolved except for the global
-  `Game::currentRenderer` and its matrix stack.
+  legacy `render()` twin.
+- Stage 4 step 1: producers receive a `RenderQueue &` in every
+  `pushRenderItems()`; the global `Game::currentRenderer` is gone. Weakness 2
+  below is resolved.
 
 - The gather frame draws everything through the renderer: sky, distant
   terrain and water, high-res terrain, world objects, overlays, water, pointer,

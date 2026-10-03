@@ -11,6 +11,7 @@
 #include <tsre/ClientInfo.h>
 #include <tsre/ogl/OglObj.h>
 #include <tsre/ogl/TextObj.h>
+#include <tsre/renderer/RenderQueue.h>
 
 ClientInfo::ClientInfo() {
     username = "UNDEFINED";
@@ -23,10 +24,10 @@ ClientInfo::ClientInfo(const ClientInfo& orig) {
 ClientInfo::~ClientInfo() {
 }
 
-void ClientInfo::pushRenderItem(float playerRot) {
+void ClientInfo::pushRenderItem(RenderQueue &queue, float playerRot) {
     initMarker();
-    stick->pushRenderItem();
-    name->pushRenderItem(playerRot);
+    stick->pushRenderItem(queue);
+    name->pushRenderItem(queue, playerRot);
 }
 
 void ClientInfo::initMarker() {

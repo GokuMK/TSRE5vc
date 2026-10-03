@@ -14,6 +14,8 @@
 #include <tsre/world/objects/WorldObj.h>
 #include <QString>
 
+class RenderQueue;
+
 class OglObj;
 
 class DynTrackObj : public WorldObj {
@@ -54,7 +56,7 @@ public:
     void setTemplate(QString name);
     int getDefaultDetailLevel();
     int updateTrackSectionInfo(QHash<unsigned int, unsigned int> shapes, QHash<unsigned int, unsigned int> sect);
-    void pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
+    void pushRenderItems(RenderQueue &queue, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
 private:
     int tex1;
     int tex2;

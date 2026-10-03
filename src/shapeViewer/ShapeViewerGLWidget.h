@@ -97,7 +97,7 @@ private:
     void renderFrame(bool selectionPass);
     // Draws the current item through this widget's renderer.
     void renderGathered(quint32 selectionId);
-    // Owned; installed as Game::currentRenderer only while this widget draws.
+    // Owned; draws this widget's frames.
     OpenGL3Renderer *renderer = nullptr;
     SelectionRenderer selectionRenderer;
     QPointF selectionPosition;

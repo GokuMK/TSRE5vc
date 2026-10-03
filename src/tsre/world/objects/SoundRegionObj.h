@@ -16,6 +16,8 @@
 #include <QVector>
 #include <tsre/fileFunctions/FileBuffer.h>
 
+class RenderQueue;
+
 class TrackItemObj;
 
 class SoundRegionObj : public WorldObj{
@@ -46,7 +48,7 @@ public:
     void deleteSelectedTrItem();
     int getDefaultDetailLevel();
     int getSoundregionTrackType();
-    void pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
+    void pushRenderItems(RenderQueue &queue, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
 private:
     float soundregionRoty;
     int soundregionTrackType;
@@ -57,7 +59,7 @@ private:
     
     float* drawPosition = NULL;
     OglObj* drawLine = NULL;
-    void pushRenderTritems(quint32 selectionId);
+    void pushRenderTritems(RenderQueue &queue, quint32 selectionId);
     QVector<float*> drawPositions;
     int selectionValue = 0;
     float angle;

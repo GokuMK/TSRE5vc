@@ -974,15 +974,13 @@ void SFileLegacy::setGatherTexture(RenderItem *item, int primState, bool texEnab
         item->enableTextureId(img.tex);
 }
 
-void SFileLegacy::pushRenderItem(){
-    pushRenderItem(0,0);
+void SFileLegacy::pushRenderItem(RenderQueue &queue){
+    pushRenderItem(queue, 0,0);
 }
 
-void SFileLegacy::pushRenderItem(quint32 selectionId, unsigned int stateId){
+void SFileLegacy::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned int stateId){
     if (loaded == 1 && !isGLReady() && !initGL()) return;
     if (isinit != 1 || loaded == 2)
-        return;
-    if(Game::currentRenderer == NULL)
         return;
     if (loaded == 0) {
         if(Game::objectLoadingTokens < 1) return;
@@ -1038,8 +1036,7 @@ void SFileLegacy::pushRenderItem(quint32 selectionId, unsigned int stateId){
                     slot++;
                 } else {
                     r = new RenderItem();
-                    r->msMatrix = Mat4::clone(m);
-                    Game::currentRenderer->mvMatrixDelete.push_back(r->msMatrix);
+                    r->msMatrix = queue.frameMatrix(m);
                 }
 
                 if( vtxstate[vtx_state].arg2 < -7 )
@@ -1065,10 +1062,10 @@ void SFileLegacy::pushRenderItem(quint32 selectionId, unsigned int stateId){
                 r->vertexAttr = RenderItem::VNTA;
                 if(reusePool){
                     r->shared = true;
-                    Game::currentRenderer->pushPacket(r, 0, Renderer::SUBMIT_ORDERED);
+                    queue.submit(r, 0, RenderQueue::SUBMIT_ORDERED);
                 } else {
                     r->shared = false;
-                    Game::currentRenderer->pushItem(r, Game::currentRenderer->mvMatrix);
+                    queue.submitFrameItem(r);
                 }
             }
         }
@@ -1126,14 +1123,13 @@ void SFileLegacy::pushRenderItem(quint32 selectionId, unsigned int stateId){
 
                 r->VBO = &distancelevel[currentDlevel].subobiekty[i].VBO;
                 r->VAO = &distancelevel[currentDlevel].subobiekty[i].VAO;
-                //r->mvMatrix = Mat4::clone(Game::currentRenderer->mvMatrix);
+                //r->mvMatrix = Mat4::clone(queue.transform());
                 r->vertOffset = distancelevel[currentDlevel].subobiekty[i].czesci[j].offset;
                 r->vertCount = distancelevel[currentDlevel].subobiekty[i].czesci[j].iloscv;
                 r->itemType = GL_TRIANGLES;
                 r->vertexAttr = RenderItem::VNTA;
                 r->shared = true;
                 renderItems[stateId].push_back(r);
-                //Game::currentRenderer->pushItemVNTA(r);
             }
         }
         if(globalInvalidateRequested){
@@ -1147,7 +1143,7 @@ void SFileLegacy::pushRenderItem(quint32 selectionId, unsigned int stateId){
     }
 
     if(renderItems[stateId].size() > 0)
-        Game::currentRenderer->pushPackets(renderItems[stateId], selectionId);
+        queue.submit(renderItems[stateId], selectionId);
 }
 
 void SFileLegacy::fillContentHierarchyInfo(QVector<ContentHierarchyInfo*>& list, int parent){

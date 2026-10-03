@@ -14,6 +14,8 @@
 #include <QVector>
 #include <QHash>
 
+class RenderQueue;
+
 class OglObj;
 class GLUU;
 class Ruch;
@@ -81,14 +83,14 @@ public:
     void select();
     void unselect();
     bool isSelected();
-    void pushDrawBorder();
-    void pushDrawBorder3d();
+    void pushDrawBorder(RenderQueue &queue);
+    void pushDrawBorder3d(RenderQueue &queue);
     bool engFilter(QString q);
     bool couplingFilter(QString q);
     bool searchFilter(QString q);
     void initOnTrack(float *tpos, int direction, QMap<int, int>* junctionDirections);
     void getCameraPosition(float *out = NULL);
-    void pushRenderItemOnTrack(float* playerT, quint32 selectionId, bool selected = false);
+    void pushRenderItemOnTrack(RenderQueue &queue, float* playerT, quint32 selectionId, bool selected = false);
     void move(float m);
     float getCurrentElevation();
     float getTotalDistanceDownPath();
@@ -96,7 +98,7 @@ public:
     bool isBroken();
     void updateSim(float deltaTime);
     float getCurrentSpeed();
-    void pushRenderItems(quint32 selectionId = 0);
+    void pushRenderItems(RenderQueue &queue, quint32 selectionId = 0);
     float *getCurrentPositionOnTrack();
     void fillContentHierarchyInfo(QVector<ContentHierarchyInfo*>& list, int parent);
 private:

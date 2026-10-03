@@ -15,6 +15,8 @@
 #include <QString>
 #include <tsre/fileFunctions/FileBuffer.h>
 
+class RenderQueue;
+
 class TrackItemObj;
 
 class HazardObj : public WorldObj {
@@ -37,14 +39,14 @@ public:
     void set(QString sh, FileBuffer* data);
     void save(QTextStream* out);
     int getDefaultDetailLevel();
-    void pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
+    void pushRenderItems(RenderQueue &queue, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
 
 private:
     int trItemIdCount = 0;
     int *trItemId = NULL;
     TrackItemObj* pointer3d = NULL;
     float* drawPosition = NULL;
-    void pushRenderTritems(quint32 selectionId);
+    void pushRenderTritems(RenderQueue &queue, quint32 selectionId);
     bool getSimpleBorder(float* border);
     bool getBoxPoints(QVector<float> &points);
 };

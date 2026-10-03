@@ -10,7 +10,6 @@
 
 #include <tsre/renderer/Renderer.h>
 #include <tsre/renderer/RenderItem.h>
-#include <tsre/math3d/GLMatrix.h>
 
 #include <algorithm>
 
@@ -27,128 +26,26 @@ int Renderer::queuedPackets = 0;
 quint64 Renderer::currentFrame = 0;
 
 Renderer::Renderer() {
-    Mat4::identity(ownMvMatrix);
-    mvMatrix = ownMvMatrix;
 }
 
 Renderer::~Renderer() {
-    deleteFrameMatrices();
 }
 
-void Renderer::pushItem(RenderItem* r, float* mvmatrix){
-    Q_UNUSED(mvmatrix);
-    if(r != NULL && !r->shared)
-        delete r;
-}
-
-// Renderers without native packet support receive the older calls.
-void Renderer::pushPacket(RenderItem *packet, quint32 selectionId, SubmitOrder order){
-    if(packet == NULL)
-        return;
-    if(selectionId == 0 && order == SUBMIT_GROUPED){
-        pushItemVNTA(packet, mvMatrix);
-        return;
-    }
-    RenderItem *item = new RenderItem(*packet);
-    item->shared = false;
-    if(selectionId != 0){
-        item->setSelectionId(selectionId);
-        item->lineWidth = 0;
-    }
-    pushItem(item, mvMatrix);
-}
-
-void Renderer::pushPackets(const QVector<RenderItem*> &packets, quint32 selectionId){
-    if(selectionId == 0){
-        QVector<RenderItem*> borrowed = packets;
-        pushItemsVNTA(borrowed, mvMatrix);
-        return;
-    }
-    for(RenderItem *packet : packets){
-        if(packet == NULL)
-            continue;
-        RenderItem *selectionItem = new RenderItem(*packet);
-        selectionItem->shared = false;
-        selectionItem->setSelectionId(selectionId);
-        selectionItem->lineWidth = 0;
-        pushItem(selectionItem, mvMatrix);
-    }
-}
-
-void Renderer::pushItemsVNTA(QVector<RenderItem*>& r, float* mvmatrix){
-    Q_UNUSED(r);
-    Q_UNUSED(mvmatrix);
-}
-
-void Renderer::pushItemVNTA(RenderItem* r, float* mvmatrix){
-    Q_UNUSED(r);
-    Q_UNUSED(mvmatrix);
-}
-
-void Renderer::mvPushMatrix() {
-    if (matrixStackDepth == matrixStack.size())
-        matrixStack.push_back({});
-    std::copy(mvMatrix, mvMatrix + 16, matrixStack[matrixStackDepth].begin());
-    matrixStackDepth++;
-}
-
-void Renderer::mvPopMatrix() {
-    if (matrixStackDepth == 0)
-        return;
-    matrixStackDepth--;
-    std::copy(matrixStack[matrixStackDepth].begin(),
-              matrixStack[matrixStackDepth].end(), mvMatrix);
-}
-
-// A frame may flush several times; the matrix stack carries across flushes.
+// A frame may flush several times; the transform stack carries across flushes.
 void Renderer::renderFrame(){
     deleteFrameMatrices();
     releaseRetiredPackets();
-}
-
-void Renderer::setLayer(Layer layer){
-    currentLayer = layer;
-}
-
-Renderer::Layer Renderer::layer() const{
-    return currentLayer;
 }
 
 void Renderer::setViewPosition(const float *position){
     std::copy(position, position + 3, viewPosition);
 }
 
-void Renderer::setShadowCasting(bool cast){
-    shadowCasting = cast;
-}
-
-void Renderer::renderShadowCasters(float range, int statsSlot){
-    Q_UNUSED(range);
-    Q_UNUSED(statsSlot);
-}
-
-void Renderer::renderPasses(RenderPass first, RenderPass last){
-    Q_UNUSED(first);
-    Q_UNUSED(last);
-}
-
 void Renderer::resetFrame(){
     currentFrame++;
-    currentLayer = LAYER_SCENE;
-    shadowCasting = true;
-    resetMatrixStack();
+    resetQueueState();
     deleteFrameMatrices();
     releaseRetiredPackets();
-}
-
-void Renderer::resetMatrixStack(){
-    matrixStackDepth = 0;
-}
-
-void Renderer::deleteFrameMatrices(){
-    for(float *matrix : mvMatrixDelete)
-        delete[] matrix;
-    mvMatrixDelete.clear();
 }
 
 void Renderer::retirePacket(RenderItem *packet){

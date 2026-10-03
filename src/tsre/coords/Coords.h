@@ -19,6 +19,8 @@
 #include <QPair>
 #include <QVector>
 
+class RenderQueue;
+
 class OglObj;
 class GLUU;
 class TextObj;
@@ -62,7 +64,7 @@ public:
     Coords();
     Coords(QString path);
     virtual ~Coords();
-    virtual void pushRenderItems(float *playerT, float* playerW, float playerRot);
+    virtual void pushRenderItems(RenderQueue &queue, float *playerT, float* playerW, float playerRot);
     virtual void getTileList(QMap<int, QPair<int, int>*> &tileList, int radius = 0, int step = 1);
     virtual QVector<int> search(const QString &text,
                                 int maximumResults = 20) const;

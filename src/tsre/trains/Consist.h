@@ -16,6 +16,8 @@
 #include <QVector>
 #include <tsre/GameObj.h>
 
+class RenderQueue;
+
 class Eng;
 class TextObj;
 class FileBuffer;
@@ -103,10 +105,10 @@ public:
     void initOnTrack(float *posTXZ, int direction, QMap<int, int> *junctionDirections = NULL);
     bool getWagonWorldPosition(int id, float *posTW);
     void updateSim(float deltaTime);
-    void pushRenderHud();
+    void pushRenderHud(RenderQueue &queue);
     void getCameraPosition(float *out);
-    void pushRenderItemsOnTrack(float *playerT, quint32 selectionId);
-    void pushRenderItems(quint32 selectionId = 0, bool renderText = false);
+    void pushRenderItemsOnTrack(RenderQueue &queue, float *playerT, quint32 selectionId);
+    void pushRenderItems(RenderQueue &queue, quint32 selectionId = 0, bool renderText = false);
     void initPos();
     void setMaxVelocityFixed(bool val);
     bool isMaxVelocityFixed();

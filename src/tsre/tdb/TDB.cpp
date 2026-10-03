@@ -2124,7 +2124,7 @@ void TDB::refresh() {
     collisionLineHash = 0;
 }
 
-void TDB::pushRenderAll(float* playerT, float playerRot) {
+void TDB::pushRenderAll(RenderQueue &queue, float* playerT, float playerRot) {
 
     if (!loaded) return;
     int hash = (int)playerT[0] * 10000 + (int)playerT[1];
@@ -2247,18 +2247,18 @@ void TDB::pushRenderAll(float* playerT, float playerRot) {
         delete[] punkty;
     }
 
-    linieSieci.pushRenderItem();
-    konceSieci.pushRenderItem();
-    punktySieci.pushRenderItem();
+    linieSieci.pushRenderItem(queue);
+    konceSieci.pushRenderItem(queue);
+    punktySieci.pushRenderItem(queue);
 
     if (!road) {
         for (auto it = endIdObj.begin(); it != endIdObj.end(); ++it) {
             TextObj* obj = (TextObj*) it->second;
-            if (obj->inUse) obj->pushRenderItem(playerRot);
+            if (obj->inUse) obj->pushRenderItem(queue, playerRot);
         }
         for (auto it = junctIdObj.begin(); it != junctIdObj.end(); ++it) {
             TextObj* obj = (TextObj*) it->second;
-            if (obj->inUse) obj->pushRenderItem(playerRot);
+            if (obj->inUse) obj->pushRenderItem(queue, playerRot);
         }
     }
 }
@@ -2358,7 +2358,7 @@ void TDB::getVectorSectionLine(float * &buffer, int &len, int x, int y, int uid,
     //qDebug() << "len" << len;
 }
 
-void TDB::pushRenderLines(float* playerT, float playerRot) {
+void TDB::pushRenderLines(RenderQueue &queue, float* playerT, float playerRot) {
 
     if (!loaded) return;
     int hash = (int)playerT[0] * 10000 + (int)playerT[1];
@@ -2414,7 +2414,7 @@ void TDB::pushRenderLines(float* playerT, float playerRot) {
         delete[] punkty;
     }
 
-    sectionLines.pushRenderItem();
+    sectionLines.pushRenderItem(queue);
 }
 
 bool TDB::getDrawPositionOnTrNode(float* out, int id, float metry, float *sElev){
@@ -2534,7 +2534,7 @@ int TDB::getEndpointType(int trid, int endp){
     return n->typ;
 }
 
-void TDB::pushRenderItems(float* playerT, float playerRot, int renderMode) {
+void TDB::pushRenderItems(RenderQueue &queue, float* playerT, float playerRot, int renderMode) {
 
     quint32 selectionId = 0;
     for (auto it = this->trackItems.begin(); it != this->trackItems.end(); ++it) {
@@ -2542,14 +2542,14 @@ void TDB::pushRenderItems(float* playerT, float playerRot, int renderMode) {
         if (obj != NULL) {
             if (!isInitTrItemsDraw)
                 obj->refresh();
-            if (renderMode == Game::currentRenderer->RENDER_SELECTION) {
+            if (renderMode == RenderQueue::RENDER_SELECTION) {
                 selectionId = SelectionIdCodec::databaseItem(
                             this->road
                             ? SelectionIdCodec::DatabaseKind::Road
                             : SelectionIdCodec::DatabaseKind::Track,
                             obj->trItemId);
             }
-            obj->pushRenderItem(this, playerT, playerRot, selectionId);
+            obj->pushRenderItem(queue, this, playerT, playerRot, selectionId);
         }
     }
     isInitTrItemsDraw = true;

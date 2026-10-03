@@ -23,6 +23,8 @@
 #include <tsre/math3d/Vector4f.h>
 #include <tsre/ErrorMessage.h>
 
+class RenderQueue;
+
 class TRnode;
 class TRitem;
 class TSectionDAT;
@@ -124,9 +126,9 @@ public:
     bool findPosition(int &x, int &z, float* p, float* q, float* endp, int sectionIdx);
     bool findPosition(int &x, int &z, float* p, float* q, float* endp, TrackShape* shape);
     void getLines(float * &lineBuffer, int &length, float* playerT);
-    void pushRenderAll(float * playerT, float playerRot);
-    void pushRenderLines(float* playerT, float playerRot);
-    void pushRenderItems(float* playerT, float playerRot, int renderMode);
+    void pushRenderAll(RenderQueue &queue, float * playerT, float playerRot);
+    void pushRenderLines(RenderQueue &queue, float* playerT, float playerRot);
+    void pushRenderItems(RenderQueue &queue, float* playerT, float playerRot, int renderMode);
     bool getDrawPositionOnTrNode(float* out, int id, float metry, float *sElev = NULL);
     int findTrItemNodeId(int id);
     int findTrItemNodeIds(int id, QVector<int> &ids);

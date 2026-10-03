@@ -145,34 +145,34 @@ void SimpleHud::readoutDigits(int *digits){
     digits[5] = distance % 10;
 }
 
-void SimpleHud::pushRenderItems(){
-    float *mv = Game::currentRenderer->mvMatrix;
-    gradientObj->pushRenderItem();
-    speedText->pushRenderItem();
-    distanceText->pushRenderItem();
+void SimpleHud::pushRenderItems(RenderQueue &queue){
+    float *mv = queue.transform();
+    gradientObj->pushRenderItem(queue);
+    speedText->pushRenderItem(queue);
+    distanceText->pushRenderItem(queue);
 
     int d[6];
     readoutDigits(d);
-    Game::currentRenderer->mvPushMatrix();
+    queue.pushTransform();
     Mat4::translate(mv, mv, -0.96, 0.85, 0);
-    numberText[d[2]]->pushRenderItem();
+    numberText[d[2]]->pushRenderItem(queue);
     Mat4::translate(mv, mv, 0.07, 0.0, 0);
-    numberText[d[1]]->pushRenderItem();
+    numberText[d[1]]->pushRenderItem(queue);
     Mat4::translate(mv, mv, 0.07, 0.0, 0);
-    numberText[d[0]]->pushRenderItem();
+    numberText[d[0]]->pushRenderItem(queue);
     Mat4::translate(mv, mv, 0.12, 0.0, 0);
-    kmsText->pushRenderItem();
+    kmsText->pushRenderItem(queue);
 
     Mat4::translate(mv, mv, -0.26, -0.15, 0);
-    numberText[d[5]]->pushRenderItem();
+    numberText[d[5]]->pushRenderItem(queue);
     Mat4::translate(mv, mv, 0.07, 0.0, 0);
-    numberText[d[4]]->pushRenderItem();
+    numberText[d[4]]->pushRenderItem(queue);
     Mat4::translate(mv, mv, 0.05, 0.0, 0);
-    numberText[10]->pushRenderItem();
+    numberText[10]->pushRenderItem(queue);
     Mat4::translate(mv, mv, 0.05, 0.0, 0);
-    numberText[d[3]]->pushRenderItem();
+    numberText[d[3]]->pushRenderItem(queue);
     Mat4::translate(mv, mv, 0.08, 0.0, 0);
-    kmText->pushRenderItem();
-    Game::currentRenderer->mvPopMatrix();
+    kmText->pushRenderItem(queue);
+    queue.popTransform();
 }
 

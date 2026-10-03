@@ -268,20 +268,18 @@ void ForestObj::resize(float x, float y, float z){
     deleteVBO();
 }
 
-void ForestObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId){
+void ForestObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId){
     if (!loaded)
         return;
-    if (Game::currentRenderer == NULL)
-        return;
 
-    Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, position[0], 0, position[2]);
+    Mat4::translate(queue.transform(), queue.transform(), position[0], 0, position[2]);
 
     shape.setMaterial(texturePath);
 
-    pushRenderShape(selectionId);
+    pushRenderShape(queue, selectionId);
 }
 
-void ForestObj::pushRenderShape(quint32 selectionId){
+void ForestObj::pushRenderShape(RenderQueue &queue, quint32 selectionId){
     QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
     /*if (tex == -2) {
         f->glDisable(GL_TEXTURE_2D);
@@ -440,9 +438,9 @@ void ForestObj::pushRenderShape(quint32 selectionId){
         delete[] punkty;
         init = true;
     }
-    shape.pushRenderItem(selectionId);
+    shape.pushRenderItem(queue, selectionId);
     if(selected){
-        pushRenderBox();
+        pushRenderBox(queue);
     }
 }
 

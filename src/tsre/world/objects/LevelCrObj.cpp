@@ -328,21 +328,19 @@ void LevelCrObj::set(QString sh, FileBuffer* data) {
     return;
 }
 
-void LevelCrObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId){
+void LevelCrObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId){
     if (!loaded)
         return;
-    if (Game::currentRenderer == NULL)
-        return;
 
-    Game::currentRenderer->mvPushMatrix();
-    WorldObj::pushRenderItems(lod, posx, posz, playerW, target, fov, selectionId);
-    Game::currentRenderer->mvPopMatrix();
+    queue.pushTransform();
+    WorldObj::pushRenderItems(queue, lod, posx, posz, playerW, target, fov, selectionId);
+    queue.popTransform();
 
     if (Game::viewInteractives)
-        this->pushRenderTritems(selectionId);
+        this->pushRenderTritems(queue, selectionId);
 }
 
-void LevelCrObj::pushRenderTritems(quint32 selectionId){
+void LevelCrObj::pushRenderTritems(RenderQueue &queue, quint32 selectionId){
 
     ///////////////////////////////
     TDB* tdb = Game::trackDB;
@@ -387,14 +385,14 @@ void LevelCrObj::pushRenderTritems(quint32 selectionId){
 
     for(int i = 0; i < drawPositions.size(); i++){
         drawPosition = drawPositions[i];
-        Game::currentRenderer->mvPushMatrix();
-        Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPosition[0] + 0 * (drawPosition[4] - this->x), drawPosition[1] + 1, -drawPosition[2] + 0 * (-drawPosition[5] - this->y));
-        Mat4::rotateY(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPosition[3]);
+        queue.pushTransform();
+        Mat4::translate(queue.transform(), queue.transform(), drawPosition[0] + 0 * (drawPosition[4] - this->x), drawPosition[1] + 1, -drawPosition[2] + 0 * (-drawPosition[5] - this->y));
+        Mat4::rotateY(queue.transform(), queue.transform(), drawPosition[3]);
         if(this->selected && this->selectionValue == i+1)
-            pointer3dSelected->pushRenderItem(SelectionIdCodec::withPart(selectionId, i + 1));
+            pointer3dSelected->pushRenderItem(queue, SelectionIdCodec::withPart(selectionId, i + 1));
         else
-            pointer3d->pushRenderItem(SelectionIdCodec::withPart(selectionId, i + 1));
-        Game::currentRenderer->mvPopMatrix();
+            pointer3d->pushRenderItem(queue, SelectionIdCodec::withPart(selectionId, i + 1));
+        queue.popTransform();
     }
 
 };

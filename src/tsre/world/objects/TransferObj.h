@@ -17,6 +17,8 @@
 #include <memory>
 #include "TransferMesh.h"
 
+
+class RenderQueue;
 class TransferObj : public WorldObj {
 public:
     /*struct Shape{
@@ -52,12 +54,12 @@ public:
     void rotate(float x, float y, float z);
     void resize(float x, float y, float z);
     int getDefaultDetailLevel();
-    void pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
+    void pushRenderItems(RenderQueue &queue, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
     bool castsShadows() override;
 private:
     // Created only after a hole is encountered; release its GPU mesh when empty.
     std::unique_ptr<OglObj> holeShape;
-    void pushRenderShape(quint32 selectionId);
+    void pushRenderShape(RenderQueue &queue, quint32 selectionId);
     int tex = -1;
     bool init = false;
     TransferMesh terrainMesh;

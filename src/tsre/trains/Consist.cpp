@@ -675,47 +675,46 @@ void Consist::updateSim(float deltaTime){
 
 // Submits the consist for the Shape Viewer and Consist Editor; wagon i is
 // picked as selectionId + i.
-void Consist::pushRenderItems(quint32 selectionId, bool renderText) {
+void Consist::pushRenderItems(RenderQueue &queue, quint32 selectionId, bool renderText) {
     if (loaded != 1) return;
 
-    Renderer *renderer = Game::currentRenderer;
-    float *mv = renderer->mvMatrix;
+    float *mv = queue.transform();
     for(int i = 0; i < engItems.size(); i++){
         Eng *eng = Game::currentEngLib->eng[engItems[i].eng];
-        renderer->mvPushMatrix();
+        queue.pushTransform();
         Mat4::translate(mv, mv, 0, 0, engItems[i].pos);
         if(!engItems[i].flip)
             Mat4::rotate(mv, mv, M_PI, 0, 1, 0);
         if(selectionId == 0 && selectedIdx == i)
-            eng->pushDrawBorder();
-        eng->pushRenderItems(selectionId != 0 ? selectionId + static_cast<quint32>(i) : 0);
-        renderer->mvPopMatrix();
+            eng->pushDrawBorder(queue);
+        eng->pushRenderItems(queue, selectionId != 0 ? selectionId + static_cast<quint32>(i) : 0);
+        queue.popTransform();
 
         if(selectionId != 0 || !renderText)
             continue;
-        renderer->mvPushMatrix();
+        queue.pushTransform();
         Mat4::translate(mv, mv, 0, -1, engItems[i].pos);
         Mat4::rotate(mv, mv, M_PI/2, 0, 1, 0);
-        nameLabel(i)->pushRenderItem();
-        renderer->mvPopMatrix();
+        nameLabel(i)->pushRenderItem(queue);
+        queue.popTransform();
 
-        renderer->mvPushMatrix();
+        queue.pushTransform();
         Mat4::translate(mv, mv, 0, 5, engItems[i].pos);
-        numberLabel(i)->pushRenderItem(M_PI/2);
+        numberLabel(i)->pushRenderItem(queue, M_PI/2);
         Mat4::translate(mv, mv, 0, 0, -1);
         TextObj *type = typeLabel(eng->wagonTypeId);
         if(type != NULL)
-            type->pushRenderItem(M_PI/2);
-        renderer->mvPopMatrix();
+            type->pushRenderItem(queue, M_PI/2);
+        queue.popTransform();
     }
 }
 
-void Consist::pushRenderHud(){
+void Consist::pushRenderHud(RenderQueue &queue){
     if(hud == NULL)
         hud = new SimpleHud();
     hud->setAttribute("speed", trainSpeed);
     hud->setAttribute("dist", trainTotalDistance);
-    hud->pushRenderItems();
+    hud->pushRenderItems(queue);
 }
 
 void Consist::getCameraPosition(float *out){
@@ -727,17 +726,17 @@ void Consist::getCameraPosition(float *out){
     engItems[0].engPointer->getCameraPosition(out);
 }
 
-void Consist::pushRenderItemsOnTrack(float* playerT, quint32 selectionId) {
+void Consist::pushRenderItemsOnTrack(RenderQueue &queue, float* playerT, quint32 selectionId) {
     if (loaded != 1) return;
 
     quint32 scolor = 0;
     for (int i = 0; i < engItems.size(); i++) {
-        Game::currentRenderer->mvPushMatrix();
+        queue.pushTransform();
         if (selectionId != 0) {
             scolor = SelectionIdCodec::withPart(selectionId, i);
         }
-        engItems[i].engPointer->pushRenderItemOnTrack(playerT, scolor, selectedIdx == i);
-        Game::currentRenderer->mvPopMatrix();
+        engItems[i].engPointer->pushRenderItemOnTrack(queue, playerT, scolor, selectedIdx == i);
+        queue.popTransform();
     }
 }
 

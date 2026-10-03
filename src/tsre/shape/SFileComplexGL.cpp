@@ -173,9 +173,9 @@ bool SFileComplex::prepare(unsigned int id) {
     syncTextures();
     return true;
 }
-void SFileComplex::pushRenderItem() { pushRenderItem(0, 0); }
-void SFileComplex::pushRenderItem(quint32 selection, unsigned int id) {
-    if (!Game::currentRenderer || !prepare(id))
+void SFileComplex::pushRenderItem(RenderQueue &queue) { pushRenderItem(queue, 0, 0); }
+void SFileComplex::pushRenderItem(RenderQueue &queue, quint32 selection, unsigned int id) {
+    if (!prepare(id))
         return;
     auto &s = d->states[id];
     auto &lod = d->lods[s.lod];
@@ -211,7 +211,7 @@ void SFileComplex::pushRenderItem(quint32 selection, unsigned int id) {
                 item->disableTextures(1, 0, 1, 1);
             // Persistent packet: selection goes on the queued instance.
             item->setSelectionId(0);
-            Game::currentRenderer->pushPacket(item, selection);
+            queue.submit(item, selection);
         }
 }
 void SFileComplex::fillShapeTextureInfo(QHash<int, ShapeTextureInfo *> &out, unsigned int id) {

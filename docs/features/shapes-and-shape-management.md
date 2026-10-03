@@ -109,11 +109,11 @@ Each placed world object typically stores:
 See `src/tsre/world/objects/WorldObj.h:82`.
 
 ### 3.2 Common Render Submission Path
-The base implementation `WorldObj::pushRenderItems(...)` targets the `ComplexShape` contract:
+The base implementation `WorldObj::pushRenderItems(queue, ...)` targets the `ComplexShape` contract:
 1) resolve `shapePointer` or lookup `Game::currentShapeLib->shape[shape]`
 2) compute size/LOD cull
-3) multiply instance transform into `Game::currentRenderer->mvMatrix`
-4) call `shapeToRender->pushRenderItem(selectionColor, shapeState)`
+3) multiply instance transform into `queue.transform()`
+4) call `shapeToRender->pushRenderItem(queue, selectionId, shapeState)`
 
 See `src/tsre/world/objects/WorldObj.cpp:590`.
 

@@ -626,12 +626,10 @@ void RulerObj::removeRoadPaths(){
     //if(ok)
 }
 
-void RulerObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId) {
+void RulerObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId) {
     if (!loaded)
         return;
     if (jestPQ < 2)
-        return;
-    if (Game::currentRenderer == NULL)
         return;
 
     if(Game::showWorldObjPivotPoints){
@@ -639,29 +637,29 @@ void RulerObj::pushRenderItems(float lod, float posx, float posz, float* playerW
             pointer3d = new TrackItemObj(1);
             pointer3d->setMaterial(0.9,0.9,0.7);
         }
-        pointer3d->pushRenderItem(selectionId);
+        pointer3d->pushRenderItem(queue, selectionId);
     }
 
 
     if(shapeEnabled){
         ensureProceduralShape();
         for(int j = 0; j < points.size() - 1; j++){
-            Game::currentRenderer->mvPushMatrix();
-            Mat4::multiply(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, points[j].matrix);
+            queue.pushTransform();
+            Mat4::multiply(queue.transform(), queue.transform(), points[j].matrix);
             for(int i = 0; i < points[j].procShape.size(); i++){
                 const float partLod = proceduralPartLod(
                         points[j].procShape[i], nullptr, posx, posz,
                         points[j].position[0] - position[0],
                         points[j].position[2] - position[2]);
-                points[j].procShape[i]->pushRenderItem(
+                points[j].procShape[i]->pushRenderItem(queue, 
                         SelectionIdCodec::withPart(selectionId, i), partLod);
             }
-            Game::currentRenderer->mvPopMatrix();
+            queue.popTransform();
         }
         if(!proceduralInstances.isEmpty()){
-            Game::currentRenderer->mvPushMatrix();
-            Mat4::multiply(Game::currentRenderer->mvMatrix,
-                    Game::currentRenderer->mvMatrix, points[0].matrix);
+            queue.pushTransform();
+            Mat4::multiply(queue.transform(),
+                    queue.transform(), points[0].matrix);
             int part = points[0].procShape.size();
             for(const ProceduralInstance &instance
                     : proceduralInstances){
@@ -669,21 +667,21 @@ void RulerObj::pushRenderItems(float lod, float posx, float posz, float* playerW
                     continue;
                 for(const std::array<float, 16> &transform
                         : instance.transforms){
-                    Game::currentRenderer->mvPushMatrix();
-                    Mat4::multiply(Game::currentRenderer->mvMatrix,
-                            Game::currentRenderer->mvMatrix,
+                    queue.pushTransform();
+                    Mat4::multiply(queue.transform(),
+                            queue.transform(),
                             const_cast<float*>(transform.data()));
                     const float partLod = proceduralPartLod(
                             instance.object, transform.data(), posx, posz,
                             points[0].position[0] - position[0],
                             points[0].position[2] - position[2]);
-                    instance.object->pushRenderItem(
+                    instance.object->pushRenderItem(queue, 
                             SelectionIdCodec::withPart(selectionId, part++),
                             partLod);
-                    Game::currentRenderer->mvPopMatrix();
+                    queue.popTransform();
                 }
             }
-            Game::currentRenderer->mvPopMatrix();
+            queue.popTransform();
         }
     }
 
@@ -692,14 +690,14 @@ void RulerObj::pushRenderItems(float lod, float posx, float posz, float* playerW
         ensureNodeTransforms();
         if(nodeShapePointer != NULL){
             for(int index = 0; index < nodeTransforms.size(); index++){
-                Game::currentRenderer->mvPushMatrix();
-                Mat4::multiply(Game::currentRenderer->mvMatrix,
-                        Game::currentRenderer->mvMatrix,
+                queue.pushTransform();
+                Mat4::multiply(queue.transform(),
+                        queue.transform(),
                         nodeTransforms[index].data());
-                nodeShapePointer->pushRenderItem(
+                nodeShapePointer->pushRenderItem(queue, 
                         SelectionIdCodec::withPart(selectionId, index),
                         nodeShapeState);
-                Game::currentRenderer->mvPopMatrix();
+                queue.popTransform();
             }
         }
     }
@@ -756,18 +754,18 @@ void RulerObj::pushRenderItems(float lod, float posx, float posz, float* playerW
         refreshLength();
     }
 
-    line3d->pushRenderItem(selectionId);
+    line3d->pushRenderItem(queue, selectionId);
 
     for(int i = 0; i < points.size(); i++){
-        Game::currentRenderer->mvPushMatrix();
-        Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, points[i].position[0], points[i].position[1], points[i].position[2]);
+        queue.pushTransform();
+        Mat4::translate(queue.transform(), queue.transform(), points[i].position[0], points[i].position[1], points[i].position[2]);
         if(i == 0 || i == points.size() - 1 || DrawPoints){
             if(this->selected && this->selectionValue == i)
-                point3dSelected->pushRenderItem(SelectionIdCodec::withPart(selectionId, i));
+                point3dSelected->pushRenderItem(queue, SelectionIdCodec::withPart(selectionId, i));
             else
-                point3d->pushRenderItem(SelectionIdCodec::withPart(selectionId, i));
+                point3d->pushRenderItem(queue, SelectionIdCodec::withPart(selectionId, i));
         }
-        Game::currentRenderer->mvPopMatrix();
+        queue.popTransform();
     }
 }
 

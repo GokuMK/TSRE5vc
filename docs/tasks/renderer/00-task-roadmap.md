@@ -26,9 +26,9 @@ runtime switching, the `core.rendering.pipeline` and `pipelineHotSwap`
 settings, and every object's immediate `render()` draw are removed. Profiles
 that still store the pipeline setting drop it on load.
 
-Objects draw by submitting persistent `RenderItem`s to `Game::currentRenderer`
-from their `pushRenderItems()` functions; see `Renderer.h` for the contract.
-New drawing code implements only that path.
+Objects draw by submitting persistent `RenderItem`s to the `RenderQueue`
+passed to their `pushRenderItems(RenderQueue &queue, ...)` functions; see
+`RenderQueue.h` for the contract. New drawing code implements only that path.
 
 ## Checking Renderer Changes
 

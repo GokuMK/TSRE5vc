@@ -7,6 +7,8 @@
 #include <optional>
 #include <QVector>
 
+class RenderQueue;
+
 class ComplexShape;
 class OglObj;
 
@@ -26,7 +28,7 @@ public:
     void set(QString token, long long value) override;
     void save(QTextStream* out) override;
     bool allowNew() override { return true; }
-    void pushRenderItems(float lod, float posx, float posz, float*, float*,
+    void pushRenderItems(RenderQueue &queue, float lod, float posx, float posz, float*, float*,
             float, quint32 selectionId) override;
     void updateSim(float deltaTime) override;
     void deleteVBO() override;

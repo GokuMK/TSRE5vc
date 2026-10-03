@@ -957,14 +957,12 @@ void SFile::updateSim(float deltaTime, unsigned int stateId){
     }
 }
 
-void SFile::pushRenderItem(){
-    pushRenderItem(0,0);
+void SFile::pushRenderItem(RenderQueue &queue){
+    pushRenderItem(queue, 0,0);
 }
 
-void SFile::pushRenderItem(quint32 selectionId, unsigned int stateId){
+void SFile::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned int stateId){
     if (isinit != 1 || loaded == 2)
-        return;
-    if(Game::currentRenderer == NULL)
         return;
     if (loaded == 0) {
         if(Game::objectLoadingTokens < 1) return;
@@ -1045,8 +1043,7 @@ void SFile::pushRenderItem(quint32 selectionId, unsigned int stateId){
 
                 Mat4::identity(m);
                 getPmatrixAnimated(currentDlevel, m, matrix, state[stateId].frameCount);
-                r->msMatrix = Mat4::clone(m);
-                Game::currentRenderer->mvMatrixDelete.push_back(r->msMatrix);
+                r->msMatrix = queue.frameMatrix(m);
 
                 if( vtxstate[vtx_state].arg2 < -7 )
                     r->normalsEnabled = 0;
@@ -1097,7 +1094,7 @@ void SFile::pushRenderItem(quint32 selectionId, unsigned int stateId){
                 r->itemType = GL_TRIANGLES;
                 r->vertexAttr = RenderItem::VNTA;
                 r->shared = false;
-                Game::currentRenderer->pushItem(r, Game::currentRenderer->mvMatrix);
+                queue.submitFrameItem(r);
             }
         }
         return;
@@ -1186,14 +1183,13 @@ void SFile::pushRenderItem(quint32 selectionId, unsigned int stateId){
 
                 r->VBO = &distancelevel[currentDlevel].subobiekty[i].VBO;
                 r->VAO = &distancelevel[currentDlevel].subobiekty[i].VAO;
-                //r->mvMatrix = Mat4::clone(Game::currentRenderer->mvMatrix);
+                //r->mvMatrix = Mat4::clone(queue.transform());
                 r->vertOffset = distancelevel[currentDlevel].subobiekty[i].czesci[j].offset;
                 r->vertCount = distancelevel[currentDlevel].subobiekty[i].czesci[j].iloscv;
                 r->itemType = GL_TRIANGLES;
                 r->vertexAttr = RenderItem::VNTA;
                 r->shared = true;
                 renderItems[stateId].push_back(r);
-                //Game::currentRenderer->pushItemVNTA(r);
             }
         }
         if(globalInvalidateRequested || textureAddressChangedDuringBuild){
@@ -1209,7 +1205,7 @@ void SFile::pushRenderItem(quint32 selectionId, unsigned int stateId){
     }
 
     if(renderItems[stateId].size() > 0)
-        Game::currentRenderer->pushPackets(renderItems[stateId], selectionId);
+        queue.submit(renderItems[stateId], selectionId);
 }
 
 void SFile::fillContentHierarchyInfo(QVector<ContentHierarchyInfo*>& list, int parent){

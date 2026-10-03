@@ -13,6 +13,8 @@
 #include <tsre/world/TerrainLib.h>
 #include <memory>
 
+
+class RenderQueue;
 class FileBuffer;
 class QTextStream;
 class ErrorMessage;
@@ -86,10 +88,10 @@ public:
                    bool overwrite = false);
     bool hasDetailedTerrain(int x, int z);
     void fillTerrainData(Terrain *tTile, float *offsetXYZ);
-    void pushRenderItems(float* playerT, float* playerW, float* target, float fov, int renderMode);
-    void pushRenderItemsLo(float* playerT, float* playerW, float* target, float fov, int renderMode) override;
-    void pushRenderItemsWater(float* playerT, float* playerW, float* target, float fov, int renderMode, int layer) override;
-    void pushRenderItemsWaterLo(float* playerT, float* playerW, float* target, float fov, int renderMode, int layer) override;
+    void pushRenderItems(RenderQueue &queue, float* playerT, float* playerW, float* target, float fov, int renderMode);
+    void pushRenderItemsLo(RenderQueue &queue, float* playerT, float* playerW, float* target, float fov, int renderMode) override;
+    void pushRenderItemsWater(RenderQueue &queue, float* playerT, float* playerW, float* target, float fov, int renderMode, int layer) override;
+    void pushRenderItemsWaterLo(RenderQueue &queue, float* playerT, float* playerW, float* target, float fov, int renderMode, int layer) override;
 protected:
     void loadRecoveryTree(bool low);
     bool adoptRecoveredTree(bool low, QString &result);

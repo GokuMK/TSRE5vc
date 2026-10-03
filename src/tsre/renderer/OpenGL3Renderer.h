@@ -26,12 +26,11 @@ public:
     void renderShadowCasters(float range, int statsSlot) override;
     void renderFrame() override;
     void resetFrame() override;
-    void pushItem(RenderItem *r, float* mvmatrix) override;
-    void pushPacket(RenderItem *packet, quint32 selectionId = 0,
-                    SubmitOrder order = SUBMIT_GROUPED) override;
-    void pushPackets(const QVector<RenderItem*> &packets, quint32 selectionId = 0) override;
-    void pushItemsVNTA(QVector<RenderItem*>& r, float* mvmatrix) override;
-    void pushItemVNTA(RenderItem *r, float* mvmatrix) override;
+    using RenderQueue::submit;
+    void submit(RenderItem *packet, quint32 selectionId = 0,
+                SubmitOrder order = SUBMIT_GROUPED) override;
+    void submit(const QVector<RenderItem*> &packets, quint32 selectionId = 0) override;
+    void submitFrameItem(RenderItem *item) override;
 
     // Opaque, alpha-test and overlay packets are grouped by texture and
     // packet for fewer state changes; false draws them in submission order.
@@ -70,7 +69,7 @@ private:
     };
 
     quint32 captureMatrix(const float *matrix);
-    const float *frameMatrix(quint32 index) const;
+    const float *instanceMatrix(quint32 index) const;
     RenderPass routePass(const RenderItem *packet, SubmitOrder order) const;
     bool castsShadow(const RenderItem *packet) const;
     void instanceOrigin(const DrawInstance &instance, float *origin) const;
@@ -85,7 +84,7 @@ private:
 
     // Frame storage is cleared, not freed, so steady frames do not allocate.
     PassQueue passes[PASS_COUNT];
-    std::vector<float> frameMatrices;
+    std::vector<float> instanceMatrices;
     std::vector<quint32> sortOrder;
     std::vector<RenderItem*> ownedItems;
     quint32 nextOrder = 0;

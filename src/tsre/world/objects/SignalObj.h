@@ -15,6 +15,8 @@
 #include <QString>
 #include <tsre/fileFunctions/FileBuffer.h>
 
+class RenderQueue;
+
 class TrackItemObj;
 class SignalShape;
 
@@ -65,7 +67,7 @@ public:
     void checkFlags(QStringList &list);
     void fixFlags();
     bool isSimilar(WorldObj* obj);
-    void pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
+    void pushRenderItems(RenderQueue &queue, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
     bool castsShadows() override;
     int subObjSelected = 0;
 private:
@@ -77,7 +79,7 @@ private:
     TrackItemObj* spointer3dSelected = NULL;
     float** drawPositions = NULL;
     int selectionValue = 0;
-    void pushRenderTritems(quint32 selectionId);
+    void pushRenderTritems(RenderQueue &queue, quint32 selectionId);
     bool getSimpleBorder(float* border);
     bool getBoxPoints(QVector<float> &points);
     SignalShape* signalShape = NULL;

@@ -146,12 +146,27 @@ QJsonObject legacyStorage(SFile &shape) {
             {"legacy_gpu_bytes", queried ? QJsonValue(double(gpu)) : QJsonValue()},
             {"legacy_gpu_size_valid", queried && gpu == expectedGpu}};
 }
-struct MatrixProbe : Renderer {
+// Records submissions instead of drawing them: a second RenderQueue
+// implementation that keeps producers independent of the GL renderer.
+struct MatrixProbe : RenderQueue {
     std::vector<std::array<float, 16>> transforms;
     std::vector<std::vector<float>> buffers;
     bool captureGeometry = false;
     QVector<RenderItem *> packets;
-    void pushItem(RenderItem *item, float *) override {
+    using RenderQueue::submit;
+    void submit(RenderItem *item, quint32 = 0, SubmitOrder = SUBMIT_GROUPED) override {
+        record(item);
+    }
+    void submit(const QVector<RenderItem *> &items, quint32 = 0) override {
+        for (auto *item : items)
+            record(item);
+    }
+    void submitFrameItem(RenderItem *item) override {
+        record(item);
+        if (!item->shared)
+            delete item;
+    }
+    void record(RenderItem *item) {
         packets.push_back(item);
         std::array<float, 16> matrix{};
         if (item->msMatrix)
@@ -168,13 +183,6 @@ struct MatrixProbe : Renderer {
                 vertices.clear();
             buffers.push_back(std::move(vertices));
         }
-        if (!item->shared)
-            delete item;
-    }
-    void pushItemVNTA(RenderItem *item, float *mv) override { pushItem(item, mv); }
-    void pushItemsVNTA(QVector<RenderItem *> &items, float *mv) override {
-        for (auto *item : items)
-            pushItem(item, mv);
     }
 };
 struct RenderProbe {
@@ -215,8 +223,8 @@ struct RenderProbe {
         for (auto *m : {gl->fMatrix, gl->objStrMatrix, gl->pShadowMatrix, gl->pShadowMatrix2})
             std::memcpy(m, identity.constData(), 64);
         gl->setMatrixUniforms();
-        renderer.mvMatrix = gl->mvMatrix;
-        orderedRenderer.mvMatrix = gl->mvMatrix;
+        std::memcpy(renderer.transform(), gl->mvMatrix, 64);
+        std::memcpy(orderedRenderer.transform(), gl->mvMatrix, 64);
     }
     // ordered: draw in submission order instead of grouping by texture.
     QImage image(ComplexShape &shape, bool ordered, bool readback = true, unsigned int state = 0) {
@@ -238,12 +246,9 @@ struct RenderProbe {
         return fbo.toImage();
     }
     void draw(ComplexShape &shape, bool ordered, quint32 selectionId, unsigned int state) {
-        auto *saved = Game::currentRenderer;
         auto &active = ordered ? static_cast<OpenGL3Renderer &>(orderedRenderer) : renderer;
-        Game::currentRenderer = &active;
-        shape.pushRenderItem(selectionId, state);
+        shape.pushRenderItem(active, selectionId, state);
         active.renderFrame();
-        Game::currentRenderer = saved;
     }
     QJsonObject submission(ComplexShape &shape, bool ordered) {
         std::vector<double> samples;
@@ -492,8 +497,7 @@ template<class Shape> int threeCompatSnapshot(const QString &path, bool compact 
         for(auto &n:h.matrices)names.append(n);
         for(auto &p:h.parts)parts.append(QJsonObject{{"matrix",p.matrixId},{"triangles",p.polyCount},{"texture",p.textureName.toLower()},{"enabled",p.enabled}});
         MatrixProbe probe;probe.captureGeometry=true;
-        auto *previous=Game::currentRenderer;Game::currentRenderer=&probe;
-        shape.pushRenderItem(0,0);Game::currentRenderer=previous;
+        shape.pushRenderItem(probe, 0,0);
         if (!dump.isEmpty()) {
             QDir().mkpath(dump);
             for (size_t part=0; part<probe.buffers.size(); ++part) {
@@ -874,25 +878,20 @@ int TsreTests::runSFileComplexSuite(bool verbose, bool gl) {
                 RenderProbe packetRenderer;
                 packetRenderer.setup(legacy);
                 MatrixProbe probe;
-                auto *previous = Game::currentRenderer;
-                Game::currentRenderer = &probe;
-                legacy.pushRenderItem(0, 0);
+                legacy.pushRenderItem(probe, 0, 0);
                 t.check(!probe.packets.isEmpty() && probe.packets[0]->shared,
                         "legacy cache submits shared packets");
-                Game::currentRenderer = &packetRenderer.renderer;
-                legacy.pushRenderItem(0, 0);
+                legacy.pushRenderItem(packetRenderer.renderer, 0, 0);
                 legacy.invalidateRenderState();
                 t.check(Renderer::pendingRetiredPackets() > 0,
                         "queued packets are retired, not deleted, on cache invalidation");
                 packetRenderer.renderer.renderFrame();
                 t.check(Renderer::pendingRetiredPackets() == 0,
                         "retired packets released after the frame");
-                Game::currentRenderer = &probe;
-                legacy.pushRenderItem(0, 0);
+                legacy.pushRenderItem(probe, 0, 0);
                 legacy.invalidateRenderState();
                 t.check(Renderer::pendingRetiredPackets() == 0,
                         "unqueued cache packets released immediately");
-                Game::currentRenderer = previous;
             }
             if (binaryFormat) {
                 // One valid list followed by an incomplete list: first indices must
@@ -1122,12 +1121,8 @@ int TsreTests::runSFileComplexCorpus(const QString &input, bool gl) {
                 }
                 MatrixProbe baseline, candidate;
                 baseline.captureGeometry = candidate.captureGeometry = true;
-                auto *previous = Game::currentRenderer;
-                Game::currentRenderer = &baseline;
-                old.pushRenderItem(0, 0);
-                Game::currentRenderer = &candidate;
-                joined.pushRenderItem(0, 0);
-                Game::currentRenderer = previous;
+                old.pushRenderItem(baseline, 0, 0);
+                joined.pushRenderItem(candidate, 0, 0);
                 bool geometry = baseline.buffers == candidate.buffers &&
                                 baseline.transforms == candidate.transforms;
                 result["joined_geometry_equal"] = geometry;
@@ -1228,12 +1223,8 @@ int TsreTests::runSFileComplexCorpus(const QString &input, bool gl) {
                 }
                 MatrixProbe oldStatic, newStatic;
                 oldStatic.captureGeometry = newStatic.captureGeometry = true;
-                auto *savedRenderer = Game::currentRenderer;
-                Game::currentRenderer = &oldStatic;
-                old.pushRenderItem(0, 0);
-                Game::currentRenderer = &newStatic;
-                shape.pushRenderItem(0, 0);
-                Game::currentRenderer = savedRenderer;
+                old.pushRenderItem(oldStatic, 0, 0);
+                shape.pushRenderItem(newStatic, 0, 0);
                 double matrixError = 0, geometryError = 0;
                 if (oldStatic.transforms.size() != newStatic.transforms.size())
                     matrixError = geometryError = -1;
@@ -1338,12 +1329,8 @@ int TsreTests::runSFileComplexCorpus(const QString &input, bool gl) {
                 old.updateSim(.17f);
                 shape.updateSim(.17f);
                 MatrixProbe oldMatrices, newMatrices;
-                auto *previousRenderer = Game::currentRenderer;
-                Game::currentRenderer = &oldMatrices;
-                old.pushRenderItem(0, 0);
-                Game::currentRenderer = &newMatrices;
-                shape.pushRenderItem(0, 0);
-                Game::currentRenderer = previousRenderer;
+                old.pushRenderItem(oldMatrices, 0, 0);
+                shape.pushRenderItem(newMatrices, 0, 0);
                 double maxMatrixError = 0;
                 if (oldMatrices.transforms.size() == newMatrices.transforms.size())
                     for (size_t part = 0; part < oldMatrices.transforms.size(); ++part)

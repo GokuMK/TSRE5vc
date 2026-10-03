@@ -600,10 +600,9 @@ bool WorldObj::isSimilar(WorldObj* obj){
     return false;
 }
 
-void WorldObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId){
+void WorldObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId){
     if (!loaded) return;
     if (jestPQ < 2) return;
-    if (Game::currentRenderer == NULL) return;
 
     ComplexShape* shapeToRender = shapePointer;
     if (shapeToRender == NULL) {
@@ -635,10 +634,10 @@ void WorldObj::pushRenderItems(float lod, float posx, float posz, float* playerW
         size = shapeToRender->getSize();
     }
 
-    Mat4::multiply(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, matrix);
-    shapeToRender->pushRenderItem(selectionId, shapeState);
+    Mat4::multiply(queue.transform(), queue.transform(), matrix);
+    shapeToRender->pushRenderItem(queue, selectionId, shapeState);
     if (selected)
-        pushRenderBox();
+        pushRenderBox(queue);
 }
 
 void WorldObj::deleteVBO(){
@@ -815,9 +814,9 @@ bool WorldObj::ensureBox(){
     return true;
 }
 
-void WorldObj::pushRenderBox(){
+void WorldObj::pushRenderBox(RenderQueue &queue){
     if (ensureBox())
-        box.pushRenderItem();
+        box.pushRenderItem(queue);
 }
 
 bool WorldObj::getBoxPoints(QVector<float>& points){

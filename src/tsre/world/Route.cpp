@@ -1050,13 +1050,13 @@ void Route::preloadWFilesInit(){
     }*/
 }
 
-void Route::pushRenderItems(float * playerT, float* playerW, float* target, float playerRot, float fov, int renderMode) {
+void Route::pushRenderItems(RenderQueue &queue, float * playerT, float* playerW, float* target, float playerRot, float fov, int renderMode) {
     if(!loaded) return;
     
     int mintile = -Game::tileLod;
     int maxtile = Game::tileLod;
 
-    if(renderMode == Game::currentRenderer->RENDER_SELECTION){
+    if(renderMode == RenderQueue::RENDER_SELECTION){
         mintile = -1;
         maxtile = 1;
     }
@@ -1075,10 +1075,10 @@ void Route::pushRenderItems(float * playerT, float* playerW, float* target, floa
                         tTile = tile[((int)playerT[0] + i)*10000 + (int)playerT[1] + j];
                     }
             if (tTile->loaded == 1) {
-                Game::currentRenderer->mvPushMatrix();
-                Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, 2048 * i, 0, 2048 * j);
-                tTile->pushRenderItems(playerT, playerW, target, fov, renderMode);
-                Game::currentRenderer->mvPopMatrix();
+                queue.pushTransform();
+                Mat4::translate(queue.transform(), queue.transform(), 2048 * i, 0, 2048 * j);
+                tTile->pushRenderItems(queue, playerT, playerW, target, fov, renderMode);
+                queue.popTransform();
             }
         }
     }
@@ -1086,35 +1086,35 @@ void Route::pushRenderItems(float * playerT, float* playerW, float* target, floa
     Game::ignoreLoadLimits = false;
 }
 
-void Route::pushRenderOverlays(float* playerT, float* playerW, float playerRot, int renderMode) {
-    if (renderMode == Game::currentRenderer->RENDER_DEFAULT) {
+void Route::pushRenderOverlays(RenderQueue &queue, float* playerT, float* playerW, float playerRot, int renderMode) {
+    if (renderMode == RenderQueue::RENDER_DEFAULT) {
         if (Game::viewTrackDbLines && trackDB != NULL)
-            trackDB->pushRenderAll(playerT, playerRot);
+            trackDB->pushRenderAll(queue, playerT, playerRot);
         if (Game::viewTsectionLines && trackDB != NULL)
-            trackDB->pushRenderLines(playerT, playerRot);
+            trackDB->pushRenderLines(queue, playerT, playerRot);
         if (Game::viewTrackDbLines && roadDB != NULL)
-            roadDB->pushRenderAll(playerT, playerRot);
+            roadDB->pushRenderAll(queue, playerT, playerRot);
         if (Game::viewTsectionLines && roadDB != NULL)
-            roadDB->pushRenderLines(playerT, playerRot);
+            roadDB->pushRenderLines(queue, playerT, playerRot);
         if (Game::viewMarkers)
             if (this->mkr != NULL)
-                this->mkr->pushRenderItems(playerT, playerW, playerRot);
+                this->mkr->pushRenderItems(queue, playerT, playerW, playerRot);
     }
 
     if (Game::renderTrItems) {
         if (trackDB != NULL)
-            trackDB->pushRenderItems(playerT, playerRot, renderMode);
+            trackDB->pushRenderItems(queue, playerT, playerRot, renderMode);
         if (roadDB != NULL)
-            roadDB->pushRenderItems(playerT, playerRot, renderMode);
+            roadDB->pushRenderItems(queue, playerT, playerRot, renderMode);
     }
 
     if (currentActivity != NULL) {
-        currentActivity->pushRenderItems(playerT, playerRot, renderMode);
+        currentActivity->pushRenderItems(queue, playerT, playerRot, renderMode);
     }
 
     for (int i = 0; i < path.size(); i++) {
         if (path[i]->isSelected())
-            path[i]->pushRenderItems(playerT, renderMode);
+            path[i]->pushRenderItems(queue, playerT, renderMode);
     }
 }
 

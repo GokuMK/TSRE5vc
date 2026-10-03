@@ -264,23 +264,20 @@ private:
 }
 
 OpenGL3Renderer::OpenGL3Renderer() {
-    objStrMatrix = new float[16];
-    Mat4::identity(objStrMatrix);
 }
 
 OpenGL3Renderer::~OpenGL3Renderer() {
     clearQueues();
-    delete[] objStrMatrix;
 }
 
 quint32 OpenGL3Renderer::captureMatrix(const float *matrix){
-    const quint32 index = static_cast<quint32>(frameMatrices.size() / 16);
-    frameMatrices.insert(frameMatrices.end(), matrix, matrix + 16);
+    const quint32 index = static_cast<quint32>(instanceMatrices.size() / 16);
+    instanceMatrices.insert(instanceMatrices.end(), matrix, matrix + 16);
     return index;
 }
 
-const float *OpenGL3Renderer::frameMatrix(quint32 index) const{
-    return frameMatrices.data() + index * 16;
+const float *OpenGL3Renderer::instanceMatrix(quint32 index) const{
+    return instanceMatrices.data() + index * 16;
 }
 
 Renderer::RenderPass OpenGL3Renderer::routePass(const RenderItem *packet,
@@ -318,7 +315,7 @@ bool OpenGL3Renderer::castsShadow(const RenderItem *packet) const{
 
 // Position of the packet origin in submission space.
 void OpenGL3Renderer::instanceOrigin(const DrawInstance &instance, float *origin) const{
-    const float *matrix = frameMatrix(instance.matrix);
+    const float *matrix = instanceMatrix(instance.matrix);
     const float *ms = instance.packet->msMatrix;
     const float local[3] = {ms ? ms[12] : 0.0f, ms ? ms[13] : 0.0f, ms ? ms[14] : 0.0f};
     for(int i = 0; i < 3; ++i)
@@ -361,7 +358,7 @@ void OpenGL3Renderer::queueInstance(RenderItem *packet, const float *matrix,
     }
 }
 
-void OpenGL3Renderer::pushItem(RenderItem* r, float* mvmatrix){
+void OpenGL3Renderer::submitFrameItem(RenderItem* r){
     if(r == NULL)
         return;
     RenderItem *queuedItem = r;
@@ -370,33 +367,19 @@ void OpenGL3Renderer::pushItem(RenderItem* r, float* mvmatrix){
         queuedItem->shared = false;
     }
     ownedItems.push_back(queuedItem);
-    queueInstance(queuedItem, mvmatrix != NULL ? mvmatrix : mvMatrix,
-                  queuedItem->selectionId, SUBMIT_ORDERED, true);
+    queueInstance(queuedItem, mvMatrix, queuedItem->selectionId, SUBMIT_ORDERED, true);
 }
 
-void OpenGL3Renderer::pushPacket(RenderItem *packet, quint32 selectionId, SubmitOrder order){
+void OpenGL3Renderer::submit(RenderItem *packet, quint32 selectionId, SubmitOrder order){
     if(packet != NULL)
         queueInstance(packet, mvMatrix, selectionId, order, false);
 }
 
-void OpenGL3Renderer::pushPackets(const QVector<RenderItem*> &items, quint32 selectionId){
+void OpenGL3Renderer::submit(const QVector<RenderItem*> &items, quint32 selectionId){
     for(RenderItem *packet : items){
         if(packet != NULL)
             queueInstance(packet, mvMatrix, selectionId, SUBMIT_GROUPED, false);
     }
-}
-
-void OpenGL3Renderer::pushItemsVNTA(QVector<RenderItem*>& r, float* mvmatrix){
-    for(RenderItem *packet : r){
-        if(packet != NULL)
-            queueInstance(packet, mvmatrix != NULL ? mvmatrix : mvMatrix, 0,
-                          SUBMIT_GROUPED, false);
-    }
-}
-
-void OpenGL3Renderer::pushItemVNTA(RenderItem* r, float* mvmatrix){
-    if(r != NULL)
-        queueInstance(r, mvmatrix != NULL ? mvmatrix : mvMatrix, 0, SUBMIT_GROUPED, false);
 }
 
 // Orders instances by the first submission of their texture, then of their
@@ -469,7 +452,7 @@ void OpenGL3Renderer::drawOrdered(GLUU *gluu, const std::vector<DrawInstance> &i
         applyTerrainState(gluu, item, terrainState);
         applyProceduralTerrainState(gluu,f,item,proceduralState);
         setModelMatrix(gluu, item->msMatrix);
-        setMatrixUniform(gluu, gluu->currentShader->mvMatrixUniform, frameMatrix(instance.matrix));
+        setMatrixUniform(gluu, gluu->currentShader->mvMatrixUniform, instanceMatrix(instance.matrix));
         PacketRasterState raster(f, item);
         QOpenGLVertexArrayObject::Binder vaoBinder(item->VAO);
         drawItem(f, item, instance.selectionId,
@@ -518,7 +501,7 @@ void OpenGL3Renderer::drawGrouped(GLUU *gluu, const std::vector<DrawInstance> &i
                 currentSelection = instance.selectionId;
             }
             setMatrixUniform(gluu, gluu->currentShader->mvMatrixUniform,
-                             frameMatrix(instance.matrix));
+                             instanceMatrix(instance.matrix));
             drawItem(f, item, instance.selectionId,
                      static_cast<RenderStats::Category>(instance.category), pass);
         }
@@ -540,7 +523,7 @@ void OpenGL3Renderer::clearQueues(){
     for(RenderItem *item : ownedItems)
         delete item;
     ownedItems.clear();
-    frameMatrices.clear();
+    instanceMatrices.clear();
     nextOrder = 0;
 }
 
@@ -626,7 +609,7 @@ void OpenGL3Renderer::renderShadowCasters(float range, int statsSlot){
                     current = item;
                 }
                 setMatrixUniform(gluu, gluu->currentShader->mvMatrixUniform,
-                                 frameMatrix(instance.matrix));
+                                 instanceMatrix(instance.matrix));
                 RenderStats::countPassDraw(statsSlot);
                 if(item->indexed){
                     context->extraFunctions()->glDrawElementsBaseVertex(

@@ -15,6 +15,8 @@
 #include <QString>
 #include <tsre/fileFunctions/FileBuffer.h>
 
+class RenderQueue;
+
 class TrackItemObj;
 class OglObj;
 
@@ -56,7 +58,7 @@ public:
     void deleteTrItems();
     int getTrackBegItemId();
     int getDefaultDetailLevel();
-    void pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
+    void pushRenderItems(RenderQueue &queue, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
 private:
     unsigned int platformData = 0;
     int trItemId[4];
@@ -69,7 +71,7 @@ private:
     int rotB = 0;
     int rotE = 0;
     int selectionValue = 0;
-    void pushRenderTritems(quint32 selectionId);
+    void pushRenderTritems(RenderQueue &queue, quint32 selectionId);
     void makelineShape();
 };
 

@@ -31,7 +31,6 @@ class GameObj;
 class TerrainLib;
 class GeoWorldCoordinateConverter;
 enum class GeoProjectionType;
-class Renderer;
 class RouteEditorClient;
 enum class TerrainHeightProfile;
 
@@ -53,7 +52,6 @@ public:
     static TDB *roadDB;
     static SoundList *soundList;
     static TerrainLib *terrainLib;
-    static Renderer *currentRenderer;
     
     static bool UseWorkingDir;
     static QString AppVersion;

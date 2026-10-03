@@ -15,6 +15,8 @@
 #include <QString>
 #include <tsre/fileFunctions/FileBuffer.h>
 
+class RenderQueue;
+
 class StaticObj : public WorldObj  {
     Q_OBJECT
 public:
@@ -41,7 +43,7 @@ public:
     bool isSimilar(WorldObj *obj);
     void loadingFixes();
     ErrorMessage* checkForErrors();
-    void pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
+    void pushRenderItems(RenderQueue &queue, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
     bool castsShadows() override;
     void updateSim(float deltaTime);
     void pushContextMenuActions(QMenu *menu);
@@ -53,7 +55,7 @@ private:
     void loadSnapablePoints();
     bool getSimpleBorder(float* border);
     bool getBoxPoints(QVector<float> &points);
-    void pushRenderSnapableEndpoints();
+    void pushRenderSnapableEndpoints(RenderQueue &queue);
     void initSnapableEndPoint();
     QVector<float> snapablePoints;
 };

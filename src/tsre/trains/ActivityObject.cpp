@@ -258,9 +258,9 @@ void ActivityObject::setModified(bool val){
         con->setModified(val);
 }
 
-void ActivityObject::pushRenderItems(float* playerT, int renderMode, int index) {
+void ActivityObject::pushRenderItems(RenderQueue &queue, float* playerT, int renderMode, int index) {
     quint32 selectionId = 0;
-    if (renderMode == Game::currentRenderer->RENDER_SELECTION) {
+    if (renderMode == RenderQueue::RENDER_SELECTION) {
         selectionId = SelectionIdCodec::activityObject(index);
     }
 
@@ -268,22 +268,22 @@ void ActivityObject::pushRenderItems(float* playerT, int renderMode, int index) 
         if (con != NULL) {
             if (!con->isOnTrack)
                 con->initOnTrack(tile, direction);
-            con->pushRenderItemsOnTrack(playerT, selectionId);
+            con->pushRenderItemsOnTrack(queue, playerT, selectionId);
         }
     }
 
     if (objectTypeId == ActivityObject::RESTRICTEDSPEEDZONE) {
         if (speedZoneData != NULL)
-            speedZoneData->pushRenderItems(playerT, selectionId, selected);
+            speedZoneData->pushRenderItems(queue, playerT, selectionId, selected);
     }
 
     if (objectTypeId == ActivityObject::FAILEDSIGNAL) {
         if (failedSignalData != NULL)
-            failedSignalData->pushRenderItems(playerT, selectionId, selected);
+            failedSignalData->pushRenderItems(queue, playerT, selectionId, selected);
     }
 }
 
-void ActivityObject::SpeedZone::pushRenderItems(float* playerT, quint32 selectionId, bool selected) {
+void ActivityObject::SpeedZone::pushRenderItems(RenderQueue &queue, float* playerT, quint32 selectionId, bool selected) {
     if (init < 0)
         return;
     float posT[2], pos[3];
@@ -344,28 +344,28 @@ void ActivityObject::SpeedZone::pushRenderItems(float* playerT, quint32 selectio
         pointer3d->setMaterial(1.0, 0.0, 0.4);
         pointer3dSelected->setMaterial(1.0, 0.3, 0.7);
     }
-    Game::currentRenderer->mvPushMatrix();
-    Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPositionB[0] + 2048 * (start[0] - playerT[0]), drawPositionB[1] + 1, -drawPositionB[2] + 2048 * (-start[1] - playerT[1]));
-    Mat4::rotateY(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPositionB[3] + rotB*M_PI);
+    queue.pushTransform();
+    Mat4::translate(queue.transform(), queue.transform(), drawPositionB[0] + 2048 * (start[0] - playerT[0]), drawPositionB[1] + 1, -drawPositionB[2] + 2048 * (-start[1] - playerT[1]));
+    Mat4::rotateY(queue.transform(), queue.transform(), drawPositionB[3] + rotB*M_PI);
     if (selected && selectionValue == 1)
-        pointer3dSelected->pushRenderItem(SelectionIdCodec::withPart(selectionId, 1));
+        pointer3dSelected->pushRenderItem(queue, SelectionIdCodec::withPart(selectionId, 1));
     else
-        pointer3d->pushRenderItem(SelectionIdCodec::withPart(selectionId, 1));
-    Game::currentRenderer->mvPopMatrix();
+        pointer3d->pushRenderItem(queue, SelectionIdCodec::withPart(selectionId, 1));
+    queue.popTransform();
 
-    Game::currentRenderer->mvPushMatrix();
-    Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPositionE[0] + 2048 * (start[0] - playerT[0]), drawPositionE[1] + 1, -drawPositionE[2] + 2048 * (-start[1] - playerT[1]));
-    Mat4::rotateY(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPositionE[3] + rotE*M_PI);
+    queue.pushTransform();
+    Mat4::translate(queue.transform(), queue.transform(), drawPositionE[0] + 2048 * (start[0] - playerT[0]), drawPositionE[1] + 1, -drawPositionE[2] + 2048 * (-start[1] - playerT[1]));
+    Mat4::rotateY(queue.transform(), queue.transform(), drawPositionE[3] + rotE*M_PI);
     if (selected && selectionValue == 3)
-        pointer3dSelected->pushRenderItem(SelectionIdCodec::withPart(selectionId, 3));
+        pointer3dSelected->pushRenderItem(queue, SelectionIdCodec::withPart(selectionId, 3));
     else
-        pointer3d->pushRenderItem(SelectionIdCodec::withPart(selectionId, 3));
-    Game::currentRenderer->mvPopMatrix();
+        pointer3d->pushRenderItem(queue, SelectionIdCodec::withPart(selectionId, 3));
+    queue.popTransform();
 
-    Game::currentRenderer->mvPushMatrix();
-    Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, 2048 * (start[0] - playerT[0]), 0, 2048 * (-start[1] - playerT[1]));
-    lineShape->pushRenderItem();
-    Game::currentRenderer->mvPopMatrix();
+    queue.pushTransform();
+    Mat4::translate(queue.transform(), queue.transform(), 2048 * (start[0] - playerT[0]), 0, 2048 * (-start[1] - playerT[1]));
+    lineShape->pushRenderItem(queue);
+    queue.popTransform();
 }
 
 void ActivityObject::SpeedZone::makelineShape(){
@@ -470,7 +470,7 @@ bool ActivityObject::FailedSignalData::getWorldPosition(float *posTW){
     return true;
 }
 
-void ActivityObject::FailedSignalData::pushRenderItems(float* playerT, quint32 selectionId, bool selected) {
+void ActivityObject::FailedSignalData::pushRenderItems(RenderQueue &queue, float* playerT, quint32 selectionId, bool selected) {
     if (init < 0)
         return;
     if (init == 0) {
@@ -499,14 +499,14 @@ void ActivityObject::FailedSignalData::pushRenderItems(float* playerT, quint32 s
         init = 1;
     }
 
-    Game::currentRenderer->mvPushMatrix();
-    Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPosition[0] + 2048 * (drawPosition[5] - playerT[0]), drawPosition[1] + 1, -drawPosition[2] + 2048 * (-drawPosition[6] - playerT[1]));
-    Mat4::rotateY(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPosition[3]);
+    queue.pushTransform();
+    Mat4::translate(queue.transform(), queue.transform(), drawPosition[0] + 2048 * (drawPosition[5] - playerT[0]), drawPosition[1] + 1, -drawPosition[2] + 2048 * (-drawPosition[6] - playerT[1]));
+    Mat4::rotateY(queue.transform(), queue.transform(), drawPosition[3]);
     if (selected)
-        pointer3dSelected->pushRenderItem(selectionId);
+        pointer3dSelected->pushRenderItem(queue, selectionId);
     else
-        pointer3d->pushRenderItem(selectionId);
-    Game::currentRenderer->mvPopMatrix();
+        pointer3d->pushRenderItem(queue, selectionId);
+    queue.popTransform();
 }
 
 void ActivityObject::pushContextMenuActions(QMenu *menu){

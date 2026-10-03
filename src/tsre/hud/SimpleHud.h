@@ -15,6 +15,8 @@
 #include <QVector>
 #include <QMap>
 
+class RenderQueue;
+
 class TextObj;
 class OglObj;
 
@@ -24,7 +26,7 @@ public:
     SimpleHud(const SimpleHud& orig);
     virtual ~SimpleHud();
     // Submits the HUD under the renderer's current transform.
-    void pushRenderItems();
+    void pushRenderItems(RenderQueue &queue);
     void setAttribute(QString name, float val);
     
 private:
