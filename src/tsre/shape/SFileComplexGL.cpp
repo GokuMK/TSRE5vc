@@ -173,48 +173,6 @@ bool SFileComplex::prepare(unsigned int id) {
     syncTextures();
     return true;
 }
-void SFileComplex::render() { render(0, 0); }
-void SFileComplex::render(quint32 selection, unsigned int id) {
-    if (!prepare(id))
-        return;
-    auto &s = d->states[id];
-    auto *gluu = GLUU::get();
-    auto *f = QOpenGLContext::currentContext()->functions();
-    if (!gluu->currentShader)
-        return;
-    gluu->setSelectionId(selection);
-    for (auto &m : d->lods[s.lod].meshes) {
-        if ((m.subobject < 32 && !(s.enabled & (quint32(1) << m.subobject))) ||
-            s.disabledSubs.contains(m.subobject))
-            continue;
-        QOpenGLVertexArrayObject::Binder binder(&m.gpu->vao);
-        for (auto &p : m.parts) {
-            auto &mat = d->materials[p.material];
-            const auto &matrix = s.matrices[mat.matrix];
-            gluu->currentMsMatrinxHash = 0;
-            gluu->currentShader->setUniformValue(
-                gluu->currentShader->msMatrixUniform,
-                *reinterpret_cast<const float (*)[4][4]>(matrix.constData()));
-            if (mat.light < -7)
-                gluu->disableNormals();
-            else
-                gluu->enableNormals();
-            gluu->setBrightness(mat.light == -12 ? 0.5f : 1.0f);
-            int addr = mat.image >= 0 ? d->images[mat.image].address : -1;
-            if (selection == 0) {
-                if (addr >= 0 && !s.disabledParts.contains(p.uid) &&
-                    TexLib::disabledTextures.value(addr) != 1)
-                    gluu->bindTexture(f, addr);
-                else
-                    gluu->disableTextures(1, 0, 1, 1);
-            }
-            f->glDrawArrays(p.mode, p.offset, p.count);
-            if (selection == 0)
-                gluu->enableTextures();
-        }
-    }
-    gluu->setBrightness(1);
-}
 void SFileComplex::pushRenderItem() { pushRenderItem(0, 0); }
 void SFileComplex::pushRenderItem(quint32 selection, unsigned int id) {
     if (!Game::currentRenderer || !prepare(id))

@@ -28,8 +28,6 @@ public:
     bool allowNew() override { return true; }
     void pushRenderItems(float lod, float posx, float posz, float*, float*,
             float, quint32 selectionId) override;
-    void render(GLUU*, float lod, float posx, float posz, float*, float*,
-            float, quint32 selectionId, int renderMode) override;
     void updateSim(float deltaTime) override;
     void deleteVBO() override;
     bool select(int value) override;

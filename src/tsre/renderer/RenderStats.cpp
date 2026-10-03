@@ -29,8 +29,6 @@
 namespace RenderStats {
 namespace {
 
-constexpr int PipelineSlots = 4;
-
 struct PendingQuery {
     Phase phase;
     GLuint primitives;
@@ -43,8 +41,8 @@ struct State {
     Category category = CategoryOther;
     int activePhase = -1;
     FrameStats current;
-    FrameStats last[PipelineSlots];
-    quint64 frameCounter[PipelineSlots] = {};
+    FrameStats last;
+    quint64 frameCounter = 0;
     quint64 renderItemsAtStart = 0;
     quint64 matrixClonesAtStart = 0;
     QElapsedTimer timer;
@@ -100,15 +98,12 @@ void setEnabled(bool enabled) {
     state().enabled = enabled;
 }
 
-void beginFrame(int pipeline) {
+void beginFrame() {
     State &s = state();
     if (!s.enabled)
         return;
-    if (pipeline < 0 || pipeline >= PipelineSlots)
-        return;
     s.current = FrameStats();
-    s.current.pipeline = pipeline;
-    s.current.frameIndex = ++s.frameCounter[pipeline];
+    s.current.frameIndex = ++s.frameCounter;
     s.renderItemsAtStart = renderItemCounter.load(std::memory_order_relaxed);
     s.matrixClonesAtStart = matrixCloneCounter.load(std::memory_order_relaxed);
     s.activePhase = -1;
@@ -147,7 +142,7 @@ void endFrame() {
     }
     s.pending.clear();
     frame.cpuMs = s.timer.nsecsElapsed() / 1000000.0;
-    s.last[frame.pipeline] = frame;
+    s.last = frame;
 }
 
 bool inFrame() {
@@ -202,10 +197,8 @@ FrameStats &current() {
     return state().current;
 }
 
-FrameStats lastFrame(int pipeline) {
-    if (pipeline < 0 || pipeline >= PipelineSlots)
-        return FrameStats();
-    return state().last[pipeline];
+FrameStats lastFrame() {
+    return state().last;
 }
 
 void countRenderItem() {
@@ -236,15 +229,6 @@ void countDraw(Category category, unsigned int glPrimitive, unsigned int vertexC
     s.current.categories[category].primitives += primitives;
 }
 
-PhaseCounters sceneTotal(const FrameStats &stats) {
-    PhaseCounters total;
-    for (Phase phase : {PhaseScene, PhaseSceneTerrain, PhaseSceneWorld, PhaseSceneWater}) {
-        total.primitives += stats.phases[phase].primitives;
-        total.samples += stats.phases[phase].samples;
-    }
-    return total;
-}
-
 void countPassDraw(int pass) {
     State &s = state();
     if (!s.inFrame || pass < 0 || pass >= FrameStats::PassSlots)
@@ -259,9 +243,6 @@ const char *phaseName(Phase phase) {
     case PhaseDistant: return "distant";
     case PhaseScene: return "scene";
     case PhaseUi: return "ui";
-    case PhaseSceneTerrain: return "sceneTerrain";
-    case PhaseSceneWorld: return "sceneWorld";
-    case PhaseSceneWater: return "sceneWater";
     default: return "unknown";
     }
 }
@@ -293,13 +274,9 @@ QJsonObject toJson(const FrameStats &stats) {
         categories[categoryName(static_cast<Category>(i))] = category;
     }
     QJsonObject json;
-    json["pipeline"] = stats.pipeline;
     json["frameIndex"] = double(stats.frameIndex);
     json["cpuMs"] = stats.cpuMs;
     json["gpuQueriesValid"] = stats.gpuQueriesValid;
-    const PhaseCounters scene = sceneTotal(stats);
-    phases["sceneTotal"] = QJsonObject{{"primitives", double(scene.primitives)},
-                                       {"samples", double(scene.samples)}};
     json["phases"] = phases;
     json["categories"] = categories;
     json["renderItemsCreated"] = double(stats.renderItemsCreated);

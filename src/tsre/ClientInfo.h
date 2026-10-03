@@ -31,7 +31,6 @@ public:
     ClientInfo();
     ClientInfo(const ClientInfo& orig);
     virtual ~ClientInfo();
-    void render(float playerRot);
     void pushRenderItem(float playerRot);
 private:
     void initMarker();

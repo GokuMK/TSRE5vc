@@ -1311,102 +1311,6 @@ void TerrainLibQt::terrainSamplesChanged(Terrain *source,
     currentQt = savedTerrainQt;
 }
 
-void TerrainLibQt::renderWater(GLUU* gluu, float* playerT, float* playerW, float* target, float fov, int renderMode, int layer) {
-    int renderCount = (Game::tileLod * 2 + 1)
-            * (Game::tileLod * 2 + 1);
-    if (renderMode == gluu->RENDER_SELECTION)
-        renderCount = 9;
-
-    gluu->currentShader->setUniformValue(gluu->currentShader->shaderAlpha, 0.0f);
-    gluu->enableNormals();
-
-    Terrain *tTile;
-    quint32 selectionId = 0;
-    int i = 0, j = 0;
-    QHash<QString, bool> rendered;
-    for (int n = -1; n < renderCount - 1; n++) {
-        if (n != -1)
-            spiralLoop(n, i, j);
-
-        tTile = getTerrainByXY((int) playerT[0] + i, (int) playerT[1] + j, true);
-        if(tTile == NULL)
-            continue;
-        if (tTile->loaded == false)
-            continue;
-        if (rendered[tTile->name])
-            continue;
-        rendered[tTile->name] = true;
-
-        if (tTile->loaded) {
-            float lodx = 2048 * i - playerW[0];
-            float lodz = 2048 * j - playerW[2];
-            gluu->mvPushMatrix();
-            Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 2048 * i, Game::currentRoute->env->water[layer].height, 2048 * j);
-            gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-            if (renderMode == gluu->RENDER_SELECTION) {
-                selectionId = SelectionIdCodec::terrain(i, j, 0);
-            }
-            tTile->renderWater(lodx, lodz, playerT[0] + i, playerT[1] + j, playerW, target, fov, layer, selectionId);
-            gluu->mvPopMatrix();
-        }
-    }
-}
-
-void TerrainLibQt::renderWaterLo(GLUU* gluu, float* playerT, float* playerW, float* target, float fov, int renderMode, int layer) {
-    int renderCount = 90*90 ;
-    if (renderMode == gluu->RENDER_SELECTION) {
-        renderCount = 9;
-    }
-
-    gluu->currentShader->setUniformValue(gluu->currentShader->shaderAlpha, 0.0f);
-    gluu->enableNormals();
-
-    Terrain *tTile;
-    quint32 selectionId = 0;
-    unsigned int terrainNameId;
-    for (int n = -1, i = 0, j = 0; n < renderCount; n+=16) {
-        if (n != -1)
-            spiralLoop(n, i, j);
-
-            terrainNameId = quadTreeLo->getMyNameId((int) playerT[0] + i, -(int) playerT[1] - j);
-            if (terrainNameId == 0)
-                continue;
-            if (terrainQtLo[terrainNameId] == NULL) {
-                terrainQtLo[terrainNameId] = new TerrainInfo();
-                quadTreeLo->fillTerrainInfo((int) playerT[0] + i, -(int) playerT[1] - j, terrainQtLo[terrainNameId]);
-                qDebug() << terrainNameId;
-                terrainQtLo[terrainNameId]->t = new Terrain(terrainQtLo[terrainNameId]);
-            }
-            if (terrainQtLo[terrainNameId]->rendered)
-                continue;
-            terrainQtLo[terrainNameId]->rendered = true;
-            tTile = terrainQtLo[terrainNameId]->t;
-
-            if (tTile->loaded == false)
-                continue;
-
-            if (tTile->loaded) {
-                float lodx = 2048 * i - playerW[0];
-                float lodz = 2048 * j - playerW[2];
-                gluu->mvPushMatrix();
-                Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 2048 * i, Game::currentRoute->env->water[layer].height, 2048 * j);
-                gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-                if (renderMode == gluu->RENDER_SELECTION) {
-                selectionId = SelectionIdCodec::terrain(i, j, 0);
-                }
-                tTile->renderWater(lodx, lodz, playerT[0] + i, playerT[1] + j, playerW, target, fov, layer, selectionId);
-                gluu->mvPopMatrix();
-            }
-        }
-
-    QHashIterator<unsigned int, TerrainInfo*> i(terrainQtLo);
-    while (i.hasNext()) {
-        i.next();
-        if (i.value() == NULL) continue;
-        i.value()->rendered = false;
-    }
-}
-
 void TerrainLibQt::prepareTerrainLod(float *playerT, float *playerW) {
     clearPreparedTerrainLod();
     if (Game::terrainMeshMode != Game::TERRAIN_MESH_PAGED) return;
@@ -1430,49 +1334,6 @@ void TerrainLibQt::prepareTerrainLod(float *playerT, float *playerW) {
     TerrainLib::prepareTerrainLod(tiles, levels,
                                   double(playerT[0]) * 2048 + playerW[0],
                                   double(playerT[1]) * 2048 + playerW[2]);
-}
-
-void TerrainLibQt::renderShadowMap(GLUU *gluu, float * playerT, float* playerW, float* target, float fov) {
-    prepareTerrainLod(playerT, playerW);
-    const auto lodScope = qScopeGuard([this] { clearPreparedTerrainLod(); });
-    gluu->currentShader->setUniformValue(gluu->currentShader->shaderAlpha, 0.0f);
-    gluu->enableNormals();
-
-    Terrain *tTile;
-    int i = 0, j = 0;
-    QHash<QString, bool> rendered;
-    for (int n = -1; n < 9 - 1; n++) {
-        if (n != -1)
-            spiralLoop(n, i, j);
-
-        tTile = getTerrainByXY((int) playerT[0] + i, (int) playerT[1] + j, true);
-        if(tTile == NULL)
-            continue;
-        if (tTile->loaded == false)
-            continue;
-        if (rendered[tTile->name])
-            continue;
-        rendered[tTile->name] = true;
-        
-        if (tTile->loaded) {
-            float lodx = 2048 * i - playerW[0];
-            float lodz = 2048 * j - playerW[2];
-            gluu->mvPushMatrix();
-            Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 2048 * i, 0, 2048 * j);
-            gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-            tTile->render(lodx, lodz, playerT[0]+i, playerT[1]+j, playerW, target, fov, 1);
-            gluu->mvPopMatrix();
-        }
-    }
-}
-
-void TerrainLibQt::renderEmpty(GLUU *gluu, float * playerT, float* playerW, float* target, float fov) {
-    int i = 0, j = 0;
-    for (int n = -1; n < 9 - 1; n++) {
-        if (n != -1)
-            spiralLoop(n, i, j);
-        getTerrainByXY((int) playerT[0] + i, (int) playerT[1] + j, true);
-    }
 }
 
 void TerrainLibQt::pushRenderItems(float * playerT, float* playerW, float* target, float fov, int renderMode) {
@@ -1533,7 +1394,6 @@ void TerrainLibQt::pushRenderItems(float * playerT, float* playerW, float* targe
     }
 }
 
-// Gather counterpart of renderLo().
 void TerrainLibQt::pushRenderItemsLo(float * playerT, float* playerW, float* target, float fov, int renderMode) {
     int distantCount = Game::distantLod/1000 - 10;
     int renderCount = distantCount*distantCount ;
@@ -1582,7 +1442,6 @@ void TerrainLibQt::pushRenderItemsLo(float * playerT, float* playerW, float* tar
     }
 }
 
-// Gather counterpart of renderWater().
 void TerrainLibQt::pushRenderItemsWater(float* playerT, float* playerW, float* target, float fov, int renderMode, int layer) {
     int renderCount = (Game::tileLod * 2 + 1)
             * (Game::tileLod * 2 + 1);
@@ -1616,7 +1475,6 @@ void TerrainLibQt::pushRenderItemsWater(float* playerT, float* playerW, float* t
     }
 }
 
-// Gather counterpart of renderWaterLo().
 void TerrainLibQt::pushRenderItemsWaterLo(float* playerT, float* playerW, float* target, float fov, int renderMode, int layer) {
     int renderCount = 90*90 ;
     if (renderMode == Renderer::RENDER_SELECTION)
@@ -1660,126 +1518,6 @@ void TerrainLibQt::pushRenderItemsWaterLo(float* playerT, float* playerW, float*
         it.next();
         if (it.value() == NULL) continue;
         it.value()->rendered = false;
-    }
-}
-
-void TerrainLibQt::render(GLUU *gluu, float * playerT, float* playerW, float* target, float fov, int renderMode) {
-    prepareTerrainLod(playerT, playerW);
-    const auto lodScope = qScopeGuard([this] { clearPreparedTerrainLod(); });
-    int renderCount = (Game::tileLod * 2 + 1)*(Game::tileLod * 2 + 1);
-    if (renderMode == gluu->RENDER_SELECTION)
-        renderCount = 9;
-
-    gluu->currentShader->setUniformValue(gluu->currentShader->shaderAlpha, 0.0f);
-    gluu->enableNormals();
-
-    Terrain *tTile;
-    quint32 selectionId = 0;
-    QHash<QString, bool> rendered;
-    
-    for (int n = -1, i = 0, j = 0; n < renderCount - 1; n++) {
-        if (n != -1)
-            spiralLoop(n, i, j);
-
-        tTile = getTerrainByXY((int) playerT[0] + i, (int) playerT[1] + j, true);
-        if(tTile == NULL)
-            continue;
-        
-        tTile->inUse = true;
-        if (tTile->loaded == false)
-            continue;
-        if (rendered[tTile->name])
-            continue;
-        rendered[tTile->name] = true;
-
-        if (tTile->loaded) {
-            float lodx = 2048 * i - playerW[0];
-            float lodz = 2048 * j - playerW[2];
-            gluu->mvPushMatrix();
-            Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 2048 * i, 0, 2048 * j);
-            if (renderMode == gluu->RENDER_SELECTION) {
-                selectionId = SelectionIdCodec::terrain(i, j, 0);
-            }
-            tTile->render(lodx, lodz, playerT[0] + i, playerT[1] + j, playerW, target, fov, selectionId);
-            gluu->mvPopMatrix();
-        }
-    }
-    
-    if(renderMode == gluu->RENDER_SELECTION)
-        return;
-    
-    QHashIterator<unsigned int, TerrainInfo*> i(terrainQt);
-    while (i.hasNext()) {
-        i.next();
-        if (i.value() == NULL) continue;
-        Terrain* obj = (Terrain*) i.value()->t;
-        if(obj == NULL) continue;
-        // Dirty/selected tiles keep edit data, not their derived texture cache.
-        if (!rendered.contains(obj->name)) obj->releaseProceduralTextures();
-        if(!obj->inUse && obj->loaded && !obj->isModified() && !obj->isSelected()){
-           delete obj;
-           i.value()->t = NULL;
-       } else {
-           obj->inUse = false;
-       }
-    }
-
-}
-
-void TerrainLibQt::renderLo(GLUU *gluu, float * playerT, float* playerW, float* target, float fov, int renderMode) {
-    int distantCount = Game::distantLod/1000 - 10;
-    int renderCount = distantCount*distantCount ;
-    if (renderMode == gluu->RENDER_SELECTION) {
-        renderCount = 9;
-    }
-
-    gluu->currentShader->setUniformValue(gluu->currentShader->shaderAlpha, 0.0f);
-    gluu->enableNormals();
-
-    Terrain *tTile;
-    quint32 selectionId = 0;
-    unsigned int terrainNameId;
-    for (int n = -1, i = 0, j = 0; n < renderCount; n+=16) {
-        if (n != -1)
-            spiralLoop(n, i, j);
-
-            terrainNameId = quadTreeLo->getMyNameId((int) playerT[0] + i, -(int) playerT[1] - j);
-            if (terrainNameId == 0)
-                continue;
-            if (terrainQtLo[terrainNameId] == NULL) {
-                terrainQtLo[terrainNameId] = new TerrainInfo();
-                quadTreeLo->fillTerrainInfo((int) playerT[0] + i, -(int) playerT[1] - j, terrainQtLo[terrainNameId]);
-                qDebug() << terrainNameId;
-                terrainQtLo[terrainNameId]->t = new Terrain(terrainQtLo[terrainNameId]);
-            }
-            if (terrainQtLo[terrainNameId]->rendered)
-                continue;
-            terrainQtLo[terrainNameId]->rendered = true;
-            tTile = terrainQtLo[terrainNameId]->t;
-
-            if (tTile->loaded == false)
-                continue;
-
-            if (tTile->loaded) {
-                float lodx = 2048 * i - playerW[0];
-                float lodz = 2048 * j - playerW[2];
-                gluu->mvPushMatrix();
-                Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 2048 * i, 0, 2048 * j);
-                if (renderMode == gluu->RENDER_SELECTION) {
-                selectionId = SelectionIdCodec::terrain(i, j, 0);
-                }
-                tTile->render(lodx, lodz, playerT[0] + i, playerT[1] + j, playerW, target, fov, selectionId);
-                gluu->mvPopMatrix();
-            }
-        }
-
-    QHashIterator<unsigned int, TerrainInfo*> i(terrainQtLo);
-    while (i.hasNext()) {
-        i.next();
-        if (i.value() == NULL) continue;
-        if (renderMode != gluu->RENDER_SELECTION && !i.value()->rendered && i.value()->t)
-            i.value()->t->releaseProceduralTextures();
-        i.value()->rendered = false;
     }
 }
 

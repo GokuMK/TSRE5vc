@@ -43,7 +43,6 @@ public:
     ErrorMessage* checkForErrors();
     void pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
     bool castsShadows() override;
-    void render(GLUU* gluu, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId, int renderMode);
     void updateSim(float deltaTime);
     void pushContextMenuActions(QMenu *menu);
     
@@ -54,7 +53,6 @@ private:
     void loadSnapablePoints();
     bool getSimpleBorder(float* border);
     bool getBoxPoints(QVector<float> &points);
-    void renderSnapableEndpoints(GLUU* gluu);
     void pushRenderSnapableEndpoints();
     void initSnapableEndPoint();
     QVector<float> snapablePoints;

@@ -511,10 +511,6 @@ void  Consist::setDisplayName(QString n){
     modified = true;
 }
 
-void Consist::render(quint32 selectionId, bool renderText) {
-    render(0, 0, selectionId, renderText);
-}
-
 void Consist::setTextColor(float* bgColor) {
     //qDebug() << "new color";
     if(bgColor[0]< 30.0/255.0 && bgColor[1] < 30.0/255.0 && bgColor[2] < 30.0/255.0){
@@ -605,76 +601,6 @@ TextObj *Consist::typeLabel(int wagonType) {
     return *label;
 }
 
-void Consist::render(int aktwx, int aktwz, quint32 selectionId, bool renderText) {
-    // Shape Viewer owns the integer ID range used by this overload. Route-editor
-    // picking uses renderOnTrack() and the SelectionIdCodec below.
-    if (loaded != 1) return;
-
-    GLUU *gluu = GLUU::get();
-    quint32 scolor = 0;
-    for(int i = 0; i < engItems.size(); i++){
-        gluu->mvPushMatrix();
-        Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 0, 0, engItems[i].pos);
-        if(!engItems[i].flip)
-            Mat4::rotate(gluu->mvMatrix, gluu->mvMatrix, M_PI, 0, 1, 0);
-        gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-        if(selectionId != 0)
-            scolor = selectionId + static_cast<quint32>(i);
-        if(selectionId == 0 && selectedIdx == i)
-            Game::currentEngLib->eng[engItems[i].eng]->drawBorder();
-        Game::currentEngLib->eng[engItems[i].eng]->render(aktwx, aktwz, scolor);
-        gluu->mvPopMatrix();
-        
-        if(selectionId != 0 || !renderText)
-            continue;
-        gluu->mvPushMatrix();
-        Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 0, -1, engItems[i].pos);
-        Mat4::rotate(gluu->mvMatrix, gluu->mvMatrix, M_PI/2, 0, 1, 0);
-        gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-        gluu->currentShader->setUniformValue(gluu->currentShader->msMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->objStrMatrix));
-        gluu->currentMsMatrinxHash = gluu->getMatrixHash(gluu->objStrMatrix);
-        nameLabel(i)->render();
-        gluu->mvPopMatrix();
-        
-        gluu->mvPushMatrix();
-        Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 0, 5, engItems[i].pos);
-        gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-        numberLabel(i)->render(M_PI/2);
-        Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 0, 0, -1);
-        gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-        TextObj *type = typeLabel(Game::currentEngLib->eng[engItems[i].eng]->wagonTypeId);
-        if(type != NULL)
-            type->render(M_PI/2);
-        gluu->mvPopMatrix();
-    }
-    //loaded = -1;
-    //ruchy[0].renderCon(gl, aktwx, aktwz);
-    //ruchy[1].renderCon(gl, aktwx, aktwz);
-
-    /*Vector3f pos1 = ruchy[0].getPosition(aktwx, aktwz);
-     Vector3f pos2 = ruchy[1].getPosition(aktwx, aktwz);
-     Vector3f pos = Vector3f.add(pos1, pos2);
-     float dlugosc = (float) Math.sqrt(Math.pow(pos1.z-pos2.z, 2) + Math.pow(pos1.x-pos2.x, 2));
-     pos.div(2); 
-     
-     
-     gl.glTranslatef(pos.x, pos.y+0.25f, pos.z);
-     
-     gl.glRotatef((Math.signum(pos2.z-pos1.z)+1)*90+
-     (float)(Math.atan((pos1.x-pos2.x)/(pos1.z-pos2.z))*180/Math.PI),0,1,0); 
-     gl.glRotatef(-(float)(Math.atan((pos1.y-pos2.y)/(dlugosc))*180/Math.PI),1,0,0); 
-     
-     //linie
-     //tu sobie byly xD
-     
-     gl.glColor3f(1.0f, 1.0f, 1.0f);  */
-     //gluu.mvPushMatrix();
-     //if(sfile[0] != -1) ShapeLib::shape[sfile[0]]->render();
-     //if(sfile[1] != -1) ShapeLib::shape[sfile[1]]->render();
-     //gluu.mvPopMatrix();
-     //
-}
-
 void Consist::initOnTrack(float *posTXZ, int direction, QMap<int, int> *junctionDirections){
     if(direction > 0)
         direction = 1;
@@ -747,8 +673,8 @@ void Consist::updateSim(float deltaTime){
     
 }
 
-// Gather counterpart of render() for the Shape Viewer and Consist Editor;
-// wagon i is picked as selectionId + i.
+// Submits the consist for the Shape Viewer and Consist Editor; wagon i is
+// picked as selectionId + i.
 void Consist::pushRenderItems(quint32 selectionId, bool renderText) {
     if (loaded != 1) return;
 
@@ -784,14 +710,6 @@ void Consist::pushRenderItems(quint32 selectionId, bool renderText) {
     }
 }
 
-void Consist::renderHud(){
-    if(hud == NULL)
-        hud = new SimpleHud();
-    hud->setAttribute("speed", trainSpeed);
-    hud->setAttribute("dist", trainTotalDistance);
-    hud->render();
-}
-
 void Consist::pushRenderHud(){
     if(hud == NULL)
         hud = new SimpleHud();
@@ -807,26 +725,6 @@ void Consist::getCameraPosition(float *out){
         return;
     
     engItems[0].engPointer->getCameraPosition(out);
-}
-
-void Consist::renderOnTrack(GLUU* gluu, float* playerT, quint32 selectionId) {
-    if (loaded != 1) return;
-
-    quint32 scolor = 0;
-    for(int i = 0; i < engItems.size(); i++){
-        gluu->mvPushMatrix();
-        //Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 0, 0, engItems[i].pos);
-        //if(!engItems[i].flip)
-        //    Mat4::rotate(gluu->mvMatrix, gluu->mvMatrix, M_PI, 0, 1, 0);
-        //gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-        if(selectionId != 0){
-            scolor = SelectionIdCodec::withPart(selectionId, i);
-        }
-        engItems[i].engPointer->renderOnTrack(gluu, playerT, scolor);
-        if(selectedIdx == i)
-            engItems[i].engPointer->drawBorder3d();
-        gluu->mvPopMatrix();
-    }
 }
 
 void Consist::pushRenderItemsOnTrack(float* playerT, quint32 selectionId) {

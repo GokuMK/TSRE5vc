@@ -386,26 +386,3 @@ void TerrainLib::pushRenderItemsWater(float* playerT, float* playerW, float* tar
 void TerrainLib::pushRenderItemsWaterLo(float* playerT, float* playerW, float* target, float fov, int renderMode, int layer){
 }
 
-void TerrainLib::render(GLUU *gluu, float * playerT, float* playerW, float* target, float fov, int renderMode) {
-
-}
-
-void TerrainLib::renderLo(GLUU *gluu, float * playerT, float* playerW, float* target, float fov, int renderMode) {
-
-}
-
-void TerrainLib::renderWater(GLUU *gluu, float * playerT, float* playerW, float* target, float fov, int renderMode, int layer) {
-
-}
-
-void TerrainLib::renderWaterLo(GLUU *gluu, float * playerT, float* playerW, float* target, float fov, int renderMode, int layer) {
-
-}
-
-void TerrainLib::renderShadowMap(GLUU *gluu, float * playerT, float* playerW, float* target, float fov) {
-
-}
-
-void TerrainLib::renderEmpty(GLUU *gluu, float * playerT, float* playerW, float* target, float fov) {
-
-}

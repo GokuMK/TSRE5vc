@@ -14,23 +14,17 @@
 #include <QtGlobal>
 #include <QJsonObject>
 
-// Per-frame renderer measurements used to compare the legacy and gather
-// pipelines. GPU phase counters come from GL queries and work for both
-// pipelines; queue counters describe the gather renderer only.
+// Per-frame renderer measurements. GPU phase counters come from GL queries;
+// queue counters describe the renderer's gathered items and draw calls.
 namespace RenderStats {
 
-// Phases that run in the same order in both pipelines.
+// Frame phases, in draw order.
 enum Phase {
     PhaseShadow = 0,
     PhaseSky,
     PhaseDistant,
     PhaseScene,
     PhaseUi,
-    // Legacy draws the scene in sequential sections; it records these instead
-    // of PhaseScene. sceneTotal() sums them for comparison with gather.
-    PhaseSceneTerrain,
-    PhaseSceneWorld,
-    PhaseSceneWater,
     PhaseCount
 };
 
@@ -55,7 +49,6 @@ struct CategoryCounters {
 };
 
 struct FrameStats {
-    int pipeline = -1;
     quint64 frameIndex = 0;
     double cpuMs = 0.0;
     bool gpuQueriesValid = false;
@@ -81,8 +74,7 @@ struct FrameStats {
 bool enabled();
 void setEnabled(bool enabled);
 
-// Frames are recorded per pipeline; a validation frame records both.
-void beginFrame(int pipeline);
+void beginFrame();
 void endFrame();
 bool inFrame();
 
@@ -93,7 +85,7 @@ void setCategory(Category category);
 Category category();
 
 FrameStats &current();
-FrameStats lastFrame(int pipeline);
+FrameStats lastFrame();
 
 // Cheap process-wide allocation counters, always active.
 void countRenderItem();
@@ -102,7 +94,6 @@ void countMatrixClone();
 void countDraw(Category category, unsigned int glPrimitive, unsigned int vertexCount);
 void countPassDraw(int pass);
 
-PhaseCounters sceneTotal(const FrameStats &stats);
 const char *phaseName(Phase phase);
 const char *categoryName(Category category);
 QJsonObject toJson(const FrameStats &stats);
@@ -110,9 +101,9 @@ QJsonObject toJson(const FrameStats &stats);
 // Scoped helpers keep begin/end pairs balanced across early returns.
 class ScopedFrame {
 public:
-    ScopedFrame(int pipeline, bool record) : active(record && enabled() && !inFrame()) {
+    explicit ScopedFrame(bool record) : active(record && enabled() && !inFrame()) {
         if (active)
-            beginFrame(pipeline);
+            beginFrame();
     }
     ~ScopedFrame() {
         if (active)

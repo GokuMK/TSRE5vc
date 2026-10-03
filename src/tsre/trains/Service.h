@@ -62,7 +62,6 @@ public:
     void save();
     Consist *getConsistPointer();
     void updateSim(float *playerT, float deltaTime);
-    void render(GLUU* gluu, float* playerT, quint32 selectionId);
     void pushRenderItems(float* playerT, quint32 selectionId);
     void initToPlay();
 private:

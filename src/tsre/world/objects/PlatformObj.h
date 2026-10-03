@@ -57,7 +57,6 @@ public:
     int getTrackBegItemId();
     int getDefaultDetailLevel();
     void pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
-    void render(GLUU* gluu, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId, int renderMode);
 private:
     unsigned int platformData = 0;
     int trItemId[4];
@@ -70,7 +69,7 @@ private:
     int rotB = 0;
     int rotE = 0;
     int selectionValue = 0;
-    void renderTritems(GLUU* gluu, quint32 selectionId, bool pushToQueue = false);
+    void pushRenderTritems(quint32 selectionId);
     void makelineShape();
 };
 

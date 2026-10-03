@@ -150,12 +150,6 @@ void StaticObj::pushRenderItems(float lod, float posx, float posz, float* player
     if (!loaded) return;
     if (shape < 0) return;
     if (jestPQ < 2) return;
-    //if (renderMode == gluu->RENDER_SHADOWMAP && Game::mstsShadows) {
-    //    if(this->getShadowType() != WorldObj::ShadowDynamic )
-    //        return;
-    //}
-    //GLUU* gluu = GLUU::get();
-    //if((this.position===undefined)||this.qDirection===undefined) return;
     
     if (size > 0) {
         if ((lod > size + 150)) {
@@ -212,73 +206,6 @@ void StaticObj::pushRenderItems(float lod, float posx, float posz, float* player
         pushRenderBox();
     }
 }
-
-void StaticObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos, float* target, float fov, quint32 selectionId, int renderMode) {
-    if (!loaded) return;
-    if (shape < 0) return;
-    if (jestPQ < 2) return;
-    if (renderMode == gluu->RENDER_SHADOWMAP && Game::mstsShadows) {
-        if(this->getShadowType() != WorldObj::ShadowDynamic )
-            return;
-    }
-    //GLUU* gluu = GLUU::get();
-    //if((this.position===undefined)||this.qDirection===undefined) return;
-    
-    if (size > 0) {
-        if ((lod > size + 150)) {
-            float v1[2];
-            v1[0] = pos[0] - (target[0]);
-            v1[1] = pos[2] - (target[2]);
-            float v2[2];
-            v2[0] = posx;
-            v2[1] = posz;
-            float iloczyn = v1[0] * v2[0] + v1[1] * v2[1];
-            float d1 = sqrt(v1[0] * v1[0] + v1[1] * v1[1]);
-            float d2 = sqrt(v2[0] * v2[0] + v2[1] * v2[1]);
-            float zz = iloczyn / (d1 * d2);
-            if (zz > 0) return;
-
-            float ccos = cos(fov) + zz;
-            float xxx = sqrt(2 * d2 * d2 * (1 - ccos));
-            //if((ccos > 0) && (xxx > 200+50)) return;
-            if ((ccos > 0) && (xxx > size) && (skipLevel == 1)) return;
-        }
-    } else {
-        ComplexShape* shapeAsset = Game::currentShapeLib->shape[shape];
-        if (shapeAsset != NULL && shapeAsset->isLoaded()) {
-            size = shapeAsset->getSize();
-            loadSnapablePoints();
-        }
-    }
-
-    if(Game::viewSnapable)
-        if(snapablePoints.size() == 6)
-            renderSnapableEndpoints(gluu);  
-    
-    Mat4::multiply(gluu->mvMatrix, gluu->mvMatrix, matrix);
-    gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-    
-    if(Game::showWorldObjPivotPoints){
-        if(pointer3d == NULL){
-            pointer3d = new TrackItemObj(1);
-            pointer3d->setMaterial(0.9,0.9,0.7);
-        }
-        pointer3d->render(selectionId);
-    }
-    
-    gluu->setSelectionId(selectionId);
-    if(selectionId == 0){
-        gluu->enableTextures();
-    }
-    
-    if(shapePointer != NULL)
-        shapePointer->render(selectionId, shapeState);
-    //Game::currentShapeLib->shape[shape]->render(isAnimated());
-    
-    if(selected){
-        drawBox();
-    }
-};
 
 void StaticObj::snapped(int side){
     if(side > -1){
@@ -342,7 +269,7 @@ void StaticObj::initSnapableEndPoint() {
     }
 }
 
-// Gather counterpart of renderSnapableEndpoints(); submitted in tile space.
+// Submits the snapable endpoint markers in tile space.
 void StaticObj::pushRenderSnapableEndpoints() {
     initSnapableEndPoint();
     float *mv = Game::currentRenderer->mvMatrix;
@@ -354,20 +281,6 @@ void StaticObj::pushRenderSnapableEndpoints() {
         Mat4::translate(mv, mv, vec);
         snapableEndPoint->pushRenderItem();
         Game::currentRenderer->mvPopMatrix();
-    }
-}
-
-void StaticObj::renderSnapableEndpoints(GLUU* gluu) {
-    initSnapableEndPoint();
-    float vec[3];
-    for(int i = 0; i < 6; i+=3){
-        Vec3::transformQuat(vec, (float*)&snapablePoints[i], qDirection);
-        Vec3::add(vec, vec, position);
-        gluu->mvPushMatrix();
-        Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, vec);
-        gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-        snapableEndPoint->render();
-        gluu->mvPopMatrix();
     }
 }
 

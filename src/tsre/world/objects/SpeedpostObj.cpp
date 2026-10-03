@@ -691,67 +691,6 @@ bool SpeedpostObj::select(int value){
     return true;
 }
 
-void SpeedpostObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos, float* target, float fov, quint32 selectionId, int renderMode) {
-    if (!loaded) return;
-
-    if (shape < 0) return;
-    if (jestPQ < 2) return;
-    //GLUU* gluu = GLUU::get();
-    //if((this.position===undefined)||this.qDirection===undefined) return;
-    //
-    if (size > 0) {
-        if ((lod > size + 150)) {
-            float v1[2];
-            v1[0] = pos[0] - (target[0]);
-            v1[1] = pos[2] - (target[2]);
-            float v2[2];
-            v2[0] = posx;
-            v2[1] = posz;
-            float iloczyn = v1[0] * v2[0] + v1[1] * v2[1];
-            float d1 = sqrt(v1[0] * v1[0] + v1[1] * v1[1]);
-            float d2 = sqrt(v2[0] * v2[0] + v2[1] * v2[1]);
-            float zz = iloczyn / (d1 * d2);
-            if (zz > 0) return;
-
-            float ccos = cos(fov) + zz;
-            float xxx = sqrt(2 * d2 * d2 * (1 - ccos));
-            //if((ccos > 0) && (xxx > 200+50)) return;
-            if ((ccos > 0) && (xxx > size) && (skipLevel == 1)) return;
-        }
-    } else {
-        ComplexShape* shapeAsset = Game::currentShapeLib->shape[shape];
-        if (shapeAsset != NULL && shapeAsset->isLoaded())
-            size = shapeAsset->getSize();
-    }
-    
-    gluu->mvPushMatrix();
-    Mat4::multiply(gluu->mvMatrix, gluu->mvMatrix, matrix);
-    gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-    
-    if(Game::showWorldObjPivotPoints){
-        if(pointer3d == NULL){
-            pointer3d = new TrackItemObj(1);
-            pointer3d->setMaterial(0.9,0.9,0.7);
-        }
-        pointer3d->render(selectionId);
-    }
-    
-    gluu->setSelectionId(selectionId);
-    if(selectionId == 0){
-        gluu->enableTextures();
-    }
-        
-    Game::currentShapeLib->shape[shape]->render(selectionId, 0);
-    
-    if(selected){
-        drawBox();
-    }
-    gluu->mvPopMatrix();
-    
-    if(Game::viewInteractives && renderMode != gluu->RENDER_SHADOWMAP) 
-        this->renderTritems(gluu, selectionId);
-};
-
 void SpeedpostObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId){
     if (!loaded)
         return;
@@ -774,10 +713,10 @@ void SpeedpostObj::pushRenderItems(float lod, float posx, float posz, float* pla
     }
 
     if(Game::viewInteractives)
-        this->renderTritems(NULL, selectionId, true);
+        this->pushRenderTritems(selectionId);
 }
 
-void SpeedpostObj::renderTritems(GLUU* gluu, quint32 selectionId, bool pushToQueue){
+void SpeedpostObj::pushRenderTritems(quint32 selectionId){
     
     ///////////////////////////////
     TDB* tdb = Game::trackDB;
@@ -857,39 +796,19 @@ void SpeedpostObj::renderTritems(GLUU* gluu, quint32 selectionId, bool pushToQue
     
     //int aaa = drawPosition[0];
     //if(pos == NULL) return;
-    if (pushToQueue) {
-        if(selectionId == 0 && drawLine != NULL)
-            drawLine->pushRenderItem();
-    } else {
-        gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-        if(selectionId == 0 && drawLine != NULL)
-            drawLine->render();
-    }
+    if(selectionId == 0 && drawLine != NULL)
+        drawLine->pushRenderItem();
     
     for(int i = 0; i < drawPositions.size(); i++){
         drawPosition = drawPositions[i];
-        if (pushToQueue) {
-            Game::currentRenderer->mvPushMatrix();
-            Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPosition[0] + 0 * (drawPosition[4] - this->x), drawPosition[1] + 1, -drawPosition[2] + 0 * (-drawPosition[5] - this->y));
-            Mat4::rotateY(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPosition[7]-M_PI/2);
-            if(this->selected && this->selectionValue == i+1)
-                pointer3dSelected->pushRenderItem(SelectionIdCodec::withPart(selectionId, i + 1));
-            else
-                pointer3d->pushRenderItem(SelectionIdCodec::withPart(selectionId, i + 1));
-            Game::currentRenderer->mvPopMatrix();
-        } else {
-            gluu->mvPushMatrix();
-            Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, drawPosition[0] + 0 * (drawPosition[4] - this->x), drawPosition[1] + 1, -drawPosition[2] + 0 * (-drawPosition[5] - this->y));
-            Mat4::rotateY(gluu->mvMatrix, gluu->mvMatrix, drawPosition[7]-M_PI/2);
-            //Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, this->trItemRData[0] + 2048*(this->trItemRData[3] - playerT[0] ), this->trItemRData[1]+2, -this->trItemRData[2] + 2048*(-this->trItemRData[4] - playerT[1]));
-            //Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, this->trItemRData[0] + 0, this->trItemRData[1]+0, -this->trItemRData[2] + 0);
-            gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-            if(this->selected && this->selectionValue == i+1)
-                pointer3dSelected->render(SelectionIdCodec::withPart(selectionId, i + 1));
-            else
-                pointer3d->render(SelectionIdCodec::withPart(selectionId, i + 1));
-            gluu->mvPopMatrix();
-        }
+        Game::currentRenderer->mvPushMatrix();
+        Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPosition[0] + 0 * (drawPosition[4] - this->x), drawPosition[1] + 1, -drawPosition[2] + 0 * (-drawPosition[5] - this->y));
+        Mat4::rotateY(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPosition[7]-M_PI/2);
+        if(this->selected && this->selectionValue == i+1)
+            pointer3dSelected->pushRenderItem(SelectionIdCodec::withPart(selectionId, i + 1));
+        else
+            pointer3d->pushRenderItem(SelectionIdCodec::withPart(selectionId, i + 1));
+        Game::currentRenderer->mvPopMatrix();
     }
 };
 

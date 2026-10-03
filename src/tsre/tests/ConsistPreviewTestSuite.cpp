@@ -35,11 +35,6 @@ public:
         mesh.pushRenderItem(id);
     }
     void invalidateRenderState(bool) override {}
-    void render() override { render(0, 0); }
-    void render(quint32 id, unsigned int) override {
-        initMesh();
-        mesh.render(id);
-    }
     void initMesh() {
         if(!mesh.loaded){
             float vertices[] = {0,-1,-1, 0,1,-1, 0,1,1,

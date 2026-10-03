@@ -412,10 +412,6 @@ void GroupObj::setMartix(){
     }
 }
 
-void GroupObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos, float* target, float fov, quint32 selectionId, int renderMode) {
-    
-}
-
 void GroupObj::adjustPositionToTerrain(){
     for(int i = 0; i < this->objects.size(); i++){
         this->objects[i]->adjustPositionToTerrain();

@@ -19,6 +19,9 @@ namespace TsreTests {
 struct TestRunOptions {
     QString suite;
     QString casesFile;
+    // Capture names for suites that write and compare captures.
+    QString label = "current";
+    QString baseline = "baseline";
     bool verbose = false;
 };
 

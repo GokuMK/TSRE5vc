@@ -896,10 +896,6 @@ void Tile::findSimilar(WorldObj* obj, GroupObj* group){
     }
 }
 
-void Tile::render() {
-    //render(0, 0);
-}
-
 void Tile::updateTerrainObjects(){
     for (int i = 0; i < jestObiektow; i++) {
         if(obiekty[i] == NULL) continue;
@@ -994,42 +990,6 @@ void Tile::pushRenderItems(float* playerT, float* playerW, float* target, float 
     }
 }
 
-void Tile::render(float * playerT, float* playerW, float* target, float fov, int renderMode) {
-    if (loaded != 1) return;
-    GLUU* gluu = GLUU::get();
-    //gl.activeTexture(gl.TEXTURE0);
-    //gluu->setMatrixUniforms();
-    //this.obiekty.forEach(function(obj) {
-    quint32 selectionId = 0;
-    float lodx, lodz, lod;
-    // Same ordering as the queued renderer, without duplicating draw logic.
-    for (int pass = 0; pass < 2; ++pass)
-    for (int i = 0; i < jestObiektow; i++) {
-        const auto found = obiekty.find(i);
-        if (found == obiekty.end() || !found->second) continue;
-        WorldObj *obj = found->second;
-        if ((obj->typeID == WorldObj::transfer) != (pass == 0)) continue;
-        if (obj->loaded) {
-            lodx = (x - playerT[0])*2048 + obj->position[0] - playerW[0];
-            lodz = (z - playerT[1])*2048 + obj->position[2] - playerW[2];
-            //console.log(this.x);
-            lod = (float) sqrt(lodx * lodx + lodz * lodz);
-            if (lod < Game::objectLod || obj->isInternalLodControl()) {
-                gluu->mvPushMatrix();
-                //obiekty[i]->render(gluu, lod, x-playerT[0]*2048, z-playerT[1]*2048);
-                if (renderMode == gluu->RENDER_SELECTION) {
-                    selectionId = SelectionIdCodec::worldObject(
-                                x - static_cast<int>(playerT[0]),
-                                z - static_cast<int>(playerT[1]), i);
-                }
-                obj->render(gluu, lod, lodx, lodz, playerW, target, fov, selectionId, renderMode);
-                //obiekty[i]->render(gluu);
-                gluu->mvPopMatrix();
-            }
-        }
-    }
-    
-}
 /*
 Tile.prototype.getObjHash = function(UiD) {
     for(int objK : obiekty.keySet()){

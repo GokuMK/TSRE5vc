@@ -61,12 +61,11 @@ public:
     void resize(float x, float y, float z);
     int getDefaultDetailLevel();
     void pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
-    void render(GLUU* gluu, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId, int renderMode);
     static void LoadForestList();
     static int GetListIdByTexture(QString texture);
     virtual ~ForestObj();
 private:
-    void drawShape(bool pushToQueue = false, quint32 selectionId = 0);
+    void pushRenderShape(quint32 selectionId);
     bool getBoxPoints(QVector<float>& points);
     int tex;
     bool init;

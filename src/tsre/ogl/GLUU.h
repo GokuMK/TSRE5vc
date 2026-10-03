@@ -27,8 +27,7 @@ class GLUU {
 public:
     enum RenderMode {
         RENDER_DEFAULT = 0,
-        RENDER_SELECTION = 1,
-        RENDER_SHADOWMAP = 2
+        RENDER_SELECTION = 1
     };
     
     Shader *currentShader;
@@ -38,7 +37,6 @@ public:
     float alphaTest;
     float currentAlphaTest;
     float currentBrightness = 1.0;
-    long long int currentMsMatrinxHash = 0;
     
     float fogDensity = Game::fogDensity;
     float shadow1Res = Game::shadow1Res;
@@ -51,12 +49,6 @@ public:
     //float skyc[4]{200.0/255.0,218.0/255,225.0/255.0, 1.0};
     float sky[3]{1.0, 1.0, 1.0};
     
-    float* mvMatrixStack[1000];
-    int imvMatrixStack;
-    int m_projMatrixLoc;
-    int m_mvMatrixLoc;
-    int m_normalMatrixLoc;
-    int m_lightPosLoc;
     //QMatrix4x4 m_proj;
     //QMatrix4x4 m_camera;
     //QMatrix4x4 m_world;
@@ -71,9 +63,6 @@ public:
     virtual ~GLUU();
     void initShader();
     void setMatrixUniforms();
-    void mvPushMatrix();
-    void mvPopMatrix();
-    float degToRad(float degrees);
     void disableTextures(Vector4f* color);
     void disableTextures(Vector3f* color);
     void disableTextures(float x, float y, float z, float a);

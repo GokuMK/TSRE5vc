@@ -156,6 +156,3 @@ void Environment::loadWaterLayer(FileBuffer* data){
 Environment::~Environment() {
 }
 
-void Environment::renderWater(){
-    
-}

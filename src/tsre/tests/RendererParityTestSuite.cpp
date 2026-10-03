@@ -202,19 +202,21 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
     return true;
 }
 
-// Captures for one route live under <output>/<route>/<pipeline>/.
+// Captures for one route live under <output>/<route>/<label>/.
 QString routeOutputDir(const Options &options) {
     return QDir(options.outputDir).absoluteFilePath(Game::route);
 }
 
-QString pipelineDirName(Game::RendererPipeline pipeline) {
-    return pipeline == Game::RENDER_PIPELINE_GATHER ? "gather" : "legacy";
+// A label names a capture directory, so it must be a single path component.
+bool validLabel(const QString &label) {
+    return !label.isEmpty() && label != "." && label != ".."
+            && !label.contains('/') && !label.contains('\\');
 }
 
-ImageDiff compareImages(const QImage &legacyImage, const QImage &gatherImage, int tolerance) {
+ImageDiff compareImages(const QImage &baselineImage, const QImage &currentImage, int tolerance) {
     ImageDiff diff;
-    const QImage a = legacyImage.convertToFormat(QImage::Format_RGB32);
-    const QImage b = gatherImage.convertToFormat(QImage::Format_RGB32);
+    const QImage a = baselineImage.convertToFormat(QImage::Format_RGB32);
+    const QImage b = currentImage.convertToFormat(QImage::Format_RGB32);
     if (a.size() != b.size() || a.isNull())
         return diff;
     diff.valid = true;
@@ -233,10 +235,10 @@ ImageDiff compareImages(const QImage &legacyImage, const QImage &gatherImage, in
             diff.maxChannelDiff = std::max(diff.maxChannelDiff, maxDiff);
             if (maxDiff > tolerance) {
                 diff.diffPixels++;
-                // Red: gather differs; brightness follows the difference.
+                // Red: the current capture differs; brightness follows the difference.
                 out[x] = qRgb(128 + maxDiff / 2, 0, 0);
             } else {
-                // Dimmed legacy image keeps the context readable.
+                // Dimmed baseline image keeps the context readable.
                 const int gray = qGray(rowA[x]) / 4;
                 out[x] = qRgb(gray, gray, gray);
             }
@@ -318,7 +320,8 @@ quint64 jsonCount(const QJsonObject &stats, const QString &phase, const QString 
 
 } // namespace
 
-int TsreTests::runRendererCaptureSuite(const QString &casesFile, bool verbose) {
+int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &label,
+                                        bool verbose) {
     Q_UNUSED(verbose);
     Options options;
     QString error;
@@ -326,10 +329,8 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, bool verbose) {
         qWarning() << CaptureLog << error;
         return 2;
     }
-    const Game::RendererPipeline pipeline = Game::requestedRendererPipeline;
-    if (pipeline != Game::RENDER_PIPELINE_LEGACY && pipeline != Game::RENDER_PIPELINE_GATHER) {
-        qWarning() << CaptureLog << "set core.rendering.pipeline to legacy or gather, not"
-                   << Game::RendererPipelineName(pipeline);
+    if (!validLabel(label)) {
+        qWarning() << CaptureLog << "invalid capture label:" << label;
         return 2;
     }
     if (!Game::checkRoot(Game::root)) {
@@ -341,8 +342,7 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, bool verbose) {
         return 2;
     }
 
-    const QString outputDir = QDir(routeOutputDir(options)).absoluteFilePath(
-                pipelineDirName(pipeline));
+    const QString outputDir = QDir(routeOutputDir(options)).absoluteFilePath(label);
     if (!QDir().mkpath(outputDir)) {
         qWarning() << CaptureLog << "cannot create output directory" << outputDir;
         return 2;
@@ -352,7 +352,6 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, bool verbose) {
     QScopedValueRollback<bool> restoreHud(Game::hudEnabled, options.hud);
     QScopedValueRollback<bool> restoreCompass(Game::viewCompass, options.compass);
     QScopedValueRollback<bool> restorePointer(Game::viewPointer3d, options.pointer);
-    QScopedValueRollback<bool> restoreHotSwap(Game::rendererPipelineHotSwap, false);
     QScopedValueRollback<int> restoreShadows(Game::shadowsEnabled);
     if (options.shadows >= 0)
         Game::shadowsEnabled = options.shadows > 0 ? std::max(1, Game::shadowsEnabled) : 0;
@@ -379,14 +378,8 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, bool verbose) {
         return 2;
     }
     Game::PixelRatio = widget.devicePixelRatioF();
-    qInfo() << CaptureLog << Game::RendererPipelineName(pipeline) << "route" << Game::route
+    qInfo() << CaptureLog << label << "route" << Game::route
             << "loaded in" << loadTimer.elapsed() << "ms";
-
-    // The pipeline must stay as started; a fallback to legacy invalidates the run.
-    const auto pipelineUnchanged = [&]() {
-        return Game::requestedRendererPipeline == pipeline
-                && Game::activeRendererPipeline == pipeline;
-    };
 
     int startTileX = 0, startTileZ = 0;
     float startPos[3];
@@ -439,7 +432,7 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, bool verbose) {
             if (i > 0 && hash != previousHash)
                 stable = false;
             previousHash = hash;
-            stats = RenderStats::lastFrame(pipeline);
+            stats = RenderStats::lastFrame();
             if (minCpuMs < 0.0 || stats.cpuMs < minCpuMs)
                 minCpuMs = stats.cpuMs;
         }
@@ -450,12 +443,6 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, bool verbose) {
                 points.push_back(QPoint((2 * column + 1) * image.width() / (2 * options.pickColumns),
                                         (2 * row + 1) * image.height() / (2 * options.pickRows)));
         const QVector<quint32> picks = widget.probeSelectionIds(points);
-
-        if (!pipelineUnchanged()) {
-            qWarning() << CaptureLog << "pipeline changed during capture to"
-                       << Game::RendererPipelineName(Game::activeRendererPipeline);
-            return 2;
-        }
 
         const QString imageName = spec.name + ".png";
         image.save(QDir(outputDir).filePath(imageName));
@@ -498,7 +485,7 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, bool verbose) {
     QJsonObject report;
     report["route"] = Game::route;
     report["root"] = Game::root;
-    report["pipeline"] = Game::RendererPipelineName(pipeline);
+    report["label"] = label;
     report["generated"] = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
     report["glRenderer"] = QString::fromLatin1(reinterpret_cast<const char *>(
                                                    widget.context()->functions()->glGetString(GL_RENDERER)));
@@ -517,54 +504,57 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, bool verbose) {
     return 0;
 }
 
-int TsreTests::runRendererCompareSuite(const QString &casesFile, bool verbose) {
+int TsreTests::runRendererCompareSuite(const QString &casesFile, const QString &baselineLabel,
+                                        const QString &label, bool verbose) {
     Options options;
     QString error;
     if (!loadOptions(casesFile, options, error)) {
         qWarning() << CompareLog << error;
         return 2;
     }
+    if (!validLabel(baselineLabel) || !validLabel(label) || baselineLabel == label) {
+        qWarning() << CompareLog << "need two different capture labels, not"
+                   << baselineLabel << "and" << label;
+        return 2;
+    }
     const QDir routeDir(routeOutputDir(options));
-    const QJsonObject legacy = readJsonObject(routeDir.filePath("legacy/capture.json"), error);
-    if (legacy.isEmpty()) {
+    const QJsonObject baseline = readJsonObject(
+                routeDir.filePath(baselineLabel + "/capture.json"), error);
+    if (baseline.isEmpty()) {
         qWarning() << CompareLog << error;
         return 2;
     }
-    const QJsonObject gather = readJsonObject(routeDir.filePath("gather/capture.json"), error);
-    if (gather.isEmpty()) {
+    const QJsonObject current = readJsonObject(routeDir.filePath(label + "/capture.json"), error);
+    if (current.isEmpty()) {
         qWarning() << CompareLog << error;
-        return 2;
-    }
-    if (legacy["pipeline"].toString() != "legacy" || gather["pipeline"].toString() != "gather") {
-        qWarning() << CompareLog << "captures were not made with the legacy and gather pipelines";
         return 2;
     }
 
-    QHash<QString, QJsonObject> gatherViews;
-    for (const QJsonValue &value : gather["views"].toArray())
-        gatherViews[value.toObject()["name"].toString()] = value.toObject();
+    QHash<QString, QJsonObject> currentViews;
+    for (const QJsonValue &value : current["views"].toArray())
+        currentViews[value.toObject()["name"].toString()] = value.toObject();
 
     QJsonArray viewReports;
     QStringList markdownRows;
     QStringList notes;
     bool thresholdsFailed = false;
-    if (legacy["shadowsEnabled"].toInt() != gather["shadowsEnabled"].toInt())
+    if (baseline["shadowsEnabled"].toInt() != current["shadowsEnabled"].toInt())
         notes << "Shadow settings differ between the two captures.";
 
-    for (const QJsonValue &legacyValue : legacy["views"].toArray()) {
-        const QJsonObject l = legacyValue.toObject();
+    for (const QJsonValue &baselineValue : baseline["views"].toArray()) {
+        const QJsonObject l = baselineValue.toObject();
         const QString name = l["name"].toString();
-        if (!gatherViews.contains(name)) {
-            notes << QString("%1: missing from the gather capture.").arg(name);
+        if (!currentViews.contains(name)) {
+            notes << QString("%1: missing from capture %2.").arg(name, label);
             continue;
         }
-        const QJsonObject g = gatherViews[name];
+        const QJsonObject g = currentViews[name];
         if (l["tile"] != g["tile"] || l["pos"] != g["pos"] || l["rot"] != g["rot"])
             notes << QString("%1: camera differs between captures.").arg(name);
 
-        const QImage legacyImage(routeDir.filePath("legacy/" + l["image"].toString()));
-        const QImage gatherImage(routeDir.filePath("gather/" + g["image"].toString()));
-        const ImageDiff diff = compareImages(legacyImage, gatherImage, options.diffTolerance);
+        const QImage baselineImage(routeDir.filePath(baselineLabel + "/" + l["image"].toString()));
+        const QImage currentImage(routeDir.filePath(label + "/" + g["image"].toString()));
+        const ImageDiff diff = compareImages(baselineImage, currentImage, options.diffTolerance);
         if (!diff.valid)
             notes << QString("%1: images are missing or differ in size.").arg(name);
         if (diff.valid)
@@ -594,8 +584,8 @@ int TsreTests::runRendererCompareSuite(const QString &casesFile, bool verbose) {
                     targetMatches++;
                 QJsonObject mismatch;
                 mismatch["point"] = points[i];
-                mismatch["legacy"] = describeSelection(a);
-                mismatch["gather"] = describeSelection(b);
+                mismatch["baseline"] = describeSelection(a);
+                mismatch["current"] = describeSelection(b);
                 mismatch["sameTarget"] = sameTarget;
                 mismatches.append(mismatch);
             }
@@ -618,14 +608,14 @@ int TsreTests::runRendererCompareSuite(const QString &casesFile, bool verbose) {
         const QJsonObject ls = l["stats"].toObject();
         const QJsonObject gs = g["stats"].toObject();
         if (!l["settled"].toBool() || !g["settled"].toBool())
-            notes << QString("%1: did not settle (legacy: %2, gather: %3); streaming or "
+            notes << QString("%1: did not settle (%2: %3, %4: %5); streaming or "
                              "animation may affect the comparison.")
-                     .arg(name).arg(l["settled"].toBool() ? "yes" : "no")
+                     .arg(name, baselineLabel).arg(l["settled"].toBool() ? "yes" : "no").arg(label)
                      .arg(g["settled"].toBool() ? "yes" : "no");
         if (!l["stableAcrossTimingFrames"].toBool() || !g["stableAcrossTimingFrames"].toBool())
             notes << QString("%1: consecutive frames differed during capture.").arg(name);
         if (jsonCount(ls, "shadow", "primitives") > 0 && jsonCount(gs, "shadow", "primitives") == 0)
-            notes << QString("%1: gather renders no shadow pass.").arg(name);
+            notes << QString("%1: %2 renders no shadow pass.").arg(name, label);
 
         QJsonObject image;
         image["valid"] = diff.valid;
@@ -645,24 +635,25 @@ int TsreTests::runRendererCompareSuite(const QString &casesFile, bool verbose) {
         view["name"] = name;
         view["image"] = image;
         view["picking"] = picking;
-        view["stats"] = QJsonObject{{"legacy", ls}, {"gather", gs}};
+        view["stats"] = QJsonObject{{"baseline", ls}, {"current", gs}};
         QJsonArray failureList;
         for (const QString &failure : failures)
             failureList.append(failure);
         view["thresholdFailures"] = failureList;
         viewReports.append(view);
 
-        markdownRows << QString("| %1 | %2 / %3 | %4 | %5% | %6/%7 | %8 / %9 | %10 / %11 | %12 | %13 / %14 | %15 / %16 | %17 |")
+        markdownRows << QString("| %1 | %2 / %3 | %4 | %5% | %6/%7 | %8 / %9 | %10 / %11 | %12 / %13 | %14 / %15 | %16 / %17 | %18 |")
                         .arg(name)
                         .arg(l["settled"].toBool() ? "yes" : "no")
                         .arg(g["settled"].toBool() ? "yes" : "no")
                         .arg(number(diff.rmse))
                         .arg(number(diffRatio * 100.0))
                         .arg(pickMismatches).arg(lIds.size())
-                        .arg(jsonCount(ls, "sceneTotal", "primitives"))
-                        .arg(jsonCount(gs, "sceneTotal", "primitives"))
-                        .arg(jsonCount(ls, "sceneTotal", "samples"))
-                        .arg(jsonCount(gs, "sceneTotal", "samples"))
+                        .arg(jsonCount(ls, "scene", "primitives"))
+                        .arg(jsonCount(gs, "scene", "primitives"))
+                        .arg(jsonCount(ls, "scene", "samples"))
+                        .arg(jsonCount(gs, "scene", "samples"))
+                        .arg(ls["drawCalls"].toDouble())
                         .arg(gs["drawCalls"].toDouble())
                         .arg(ls["renderItemsCreated"].toDouble())
                         .arg(gs["renderItemsCreated"].toDouble())
@@ -678,16 +669,19 @@ int TsreTests::runRendererCompareSuite(const QString &casesFile, bool verbose) {
                 const QJsonObject m = value.toObject();
                 const QJsonArray point = m["point"].toArray();
                 qInfo().noquote() << CompareLog << "  pick" << point[0].toInt() << point[1].toInt()
-                                  << "legacy:" << m["legacy"].toString()
-                                  << "gather:" << m["gather"].toString();
+                                  << baselineLabel + ":" << m["baseline"].toString()
+                                  << label + ":" << m["current"].toString();
             }
         }
     }
 
     QJsonObject report;
-    report["route"] = legacy["route"];
+    report["route"] = baseline["route"];
+    report["baseline"] = baselineLabel;
+    report["current"] = label;
     report["generated"] = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
-    report["glRenderer"] = QJsonObject{{"legacy", legacy["glRenderer"]}, {"gather", gather["glRenderer"]}};
+    report["glRenderer"] = QJsonObject{{"baseline", baseline["glRenderer"]},
+                                       {"current", current["glRenderer"]}};
     report["views"] = viewReports;
     report["notes"] = QJsonArray::fromStringList(notes);
     QFile jsonFile(routeDir.filePath("report.json"));
@@ -697,15 +691,14 @@ int TsreTests::runRendererCompareSuite(const QString &casesFile, bool verbose) {
     QFile markdownFile(routeDir.filePath("report.md"));
     if (markdownFile.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
         QTextStream out(&markdownFile);
-        out << "# Renderer parity: " << legacy["route"].toString() << "\n\n";
-        out << "Legacy and gather were captured in separate processes, each started with "
-               "its pipeline; neither switched pipelines at runtime.\n\n";
-        out << "GL renderer: " << legacy["glRenderer"].toString() << "\n\n";
+        out << "# Renderer comparison: " << baseline["route"].toString() << "\n\n";
+        out << "Baseline (B): " << baselineLabel << "; current (C): " << label << ".\n\n";
+        out << "GL renderer: " << current["glRenderer"].toString() << "\n\n";
         out << "Scene primitives and samples are GPU query totals for the scene phase "
                "(terrain, world, water, overlays, pointer).\n\n";
-        out << "| View | Settled L / G | RMSE | Diff px | Pick mismatches "
-               "| Scene prims L / G | Scene samples L / G | Gather draws "
-               "| Items created L / G | Matrix clones L / G | Thresholds |\n";
+        out << "| View | Settled B / C | RMSE | Diff px | Pick mismatches "
+               "| Scene prims B / C | Scene samples B / C | Draws B / C "
+               "| Items created B / C | Matrix clones B / C | Thresholds |\n";
         out << "|---|---|---|---|---|---|---|---|---|---|---|\n";
         for (const QString &row : markdownRows)
             out << row << "\n";
@@ -782,7 +775,8 @@ bool loadViewerOptions(const QString &casesFile, ViewerOptions &options, QString
 
 } // namespace
 
-int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, bool verbose) {
+int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, const QString &label,
+                                           bool verbose) {
     Q_UNUSED(verbose);
     ViewerOptions options;
     QString error;
@@ -790,22 +784,20 @@ int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, bool verbose
         qWarning() << ViewerCaptureLog << error;
         return 2;
     }
-    const Game::RendererPipeline pipeline = Game::requestedRendererPipeline;
-    if (pipeline != Game::RENDER_PIPELINE_LEGACY && pipeline != Game::RENDER_PIPELINE_GATHER) {
-        qWarning() << ViewerCaptureLog << "set core.rendering.pipeline to legacy or gather";
+    if (!validLabel(label)) {
+        qWarning() << ViewerCaptureLog << "invalid capture label:" << label;
         return 2;
     }
     if (!Game::checkRoot(Game::root)) {
         qWarning() << ViewerCaptureLog << "invalid MSTS root:" << Game::root;
         return 2;
     }
-    const QString outputDir = QDir(options.outputDir).absoluteFilePath(pipelineDirName(pipeline));
+    const QString outputDir = QDir(options.outputDir).absoluteFilePath(label);
     if (!QDir().mkpath(outputDir)) {
         qWarning() << ViewerCaptureLog << "cannot create" << outputDir;
         return 2;
     }
 
-    QScopedValueRollback<bool> restoreHotSwap(Game::rendererPipelineHotSwap, false);
     EngLib engines;
     QScopedValueRollback<EngLib*> restoreEngines(Game::currentEngLib, &engines);
     QScopedValueRollback<ShapeLib*> restoreShapes(Game::currentShapeLib);
@@ -885,7 +877,7 @@ int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, bool verbose
                           << (settled ? "settled" : "did not settle") << "after" << frames << "frames";
     }
 
-    QJsonObject report{{"pipeline", Game::RendererPipelineName(pipeline)}, {"items", items}};
+    QJsonObject report{{"label", label}, {"items", items}};
     QFile json(QDir(outputDir).filePath("capture.json"));
     if (json.open(QIODevice::WriteOnly | QIODevice::Truncate))
         json.write(QJsonDocument(report).toJson(QJsonDocument::Indented));
@@ -893,7 +885,9 @@ int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, bool verbose
     return 0;
 }
 
-int TsreTests::runShapeViewerCompareSuite(const QString &casesFile, bool verbose) {
+int TsreTests::runShapeViewerCompareSuite(const QString &casesFile,
+                                           const QString &baselineLabel,
+                                           const QString &label, bool verbose) {
     Q_UNUSED(verbose);
     ViewerOptions options;
     QString error;
@@ -901,12 +895,17 @@ int TsreTests::runShapeViewerCompareSuite(const QString &casesFile, bool verbose
         qWarning() << ViewerCompareLog << error;
         return 2;
     }
+    if (!validLabel(baselineLabel) || !validLabel(label) || baselineLabel == label) {
+        qWarning() << ViewerCompareLog << "need two different capture labels, not"
+                   << baselineLabel << "and" << label;
+        return 2;
+    }
     const QDir dir(QDir(options.outputDir).absolutePath());
     QStringList rows;
     for (const ViewerItem &item : options.items) {
-        const QImage legacy(dir.filePath("legacy/" + item.name + ".png"));
-        const QImage gather(dir.filePath("gather/" + item.name + ".png"));
-        const ImageDiff diff = compareImages(legacy, gather, options.diffTolerance);
+        const QImage baseline(dir.filePath(baselineLabel + "/" + item.name + ".png"));
+        const QImage current(dir.filePath(label + "/" + item.name + ".png"));
+        const ImageDiff diff = compareImages(baseline, current, options.diffTolerance);
         if (!diff.valid) {
             rows << QString("| %1 | missing | | |").arg(item.name);
             continue;
@@ -921,7 +920,8 @@ int TsreTests::runShapeViewerCompareSuite(const QString &casesFile, bool verbose
     QFile markdown(dir.filePath("report.md"));
     if (markdown.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
         QTextStream out(&markdown);
-        out << "# Shape Viewer parity\n\n| Item | RMSE | Diff px | Max channel diff |\n|---|---|---|---|\n";
+        out << "# Shape Viewer comparison\n\nBaseline: " << baselineLabel << "; current: "
+            << label << ".\n\n| Item | RMSE | Diff px | Max channel diff |\n|---|---|---|---|\n";
         for (const QString &row : rows)
             out << row << "\n";
     }

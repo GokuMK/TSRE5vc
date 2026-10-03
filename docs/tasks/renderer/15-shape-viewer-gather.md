@@ -1,5 +1,10 @@
 # Task 15 - Shape Viewer And Consist Editor On The Renderer
 
+> **Legacy pipeline removed (2026-10-03).** The gather renderer is the only
+> pipeline and `core.rendering.pipeline` no longer exists, so commands below
+> that select a pipeline do not apply. To check a renderer change, capture a
+> baseline and compare against it; see `00-task-roadmap.md`.
+
 ## Objective
 
 Draw the Shape Viewer and Consist Editor (`ShapeViewerGLWidget`) through the

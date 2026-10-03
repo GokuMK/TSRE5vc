@@ -131,10 +131,6 @@ void OglObj::setLineWidth(int val){
     lineWidth = val;
 }
 
-void OglObj::render() {
-    render(0);
-}
-
 void OglObj::pushRenderItem() {
     pushRenderItem(0);
 }
@@ -243,62 +239,6 @@ void OglObj::retirePackets(){
         Renderer::retirePacket(packet);
     packets.clear();
     packetsUsed = 0;
-}
-
-void OglObj::render(quint32 selectionId, float lod) {
-    if(!loaded)
-        return;
-    if(lod > maxDistance || lod < minDistance)
-        return;
-    QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
-    GLUU *gluu = GLUU::get();
-    
-    if(vAttribures == RenderItem::NO_ATTR){
-        return;
-    } else if(vAttribures == RenderItem::V){
-        gluu->disableNormals();
-    } else if(vAttribures == RenderItem::VT){
-        gluu->disableNormals();
-    } else if(vAttribures == RenderItem::VNT){
-        gluu->enableNormals();
-    }   else if(vAttribures == RenderItem::VNTA){
-        gluu->enableNormals();
-    }  
-    
-    gluu->setSelectionId(selectionId);
-    if(selectionId == 0 && materialType == TEXTURE){
-        gluu->enableTextures();
-        if (texId == -2) {
-            return;
-        } else {
-            if (texId == -1) {
-                texId = TexLib::addTex(*res);
-                //qDebug() << texId << " "<< *res;
-            }
-            if (TexLib::mtex[texId]->loaded) {
-                if (!TexLib::mtex[texId]->glLoaded)
-                    TexLib::mtex[texId]->GLTextures();
-                gluu->bindTexture(f, TexLib::mtex[texId]->tex[0]);
-                //f->glBindTexture(GL_TEXTURE_2D, TexLib::mtex[texId]->tex[0]);
-            } else {
-            }
-        }
-    } else if(selectionId == 0 && materialType == COLOR){
-        gluu->disableTextures(color);
-    } else if(materialType == NONE){
-        return;
-    }
-
-    if(lineWidth > 0 && lineWidth != Game::oglDefaultLineWidth)
-        f->glLineWidth(lineWidth);
-    gluu->currentShader->setUniformValue(gluu->currentShader->msMatrixUniform, *reinterpret_cast<float(*)[4][4]>(gluu->objStrMatrix));
-    gluu->currentMsMatrinxHash = 0;//gluu->getMatrixHash(gluu->objStrMatrix);
-    QOpenGLVertexArrayObject::Binder vaoBinder(&VAO);
-    ScopedTerrainDecal decalState(f, terrainDecal && selectionId == 0);
-    f->glDrawArrays(shapeType, 0, length); /**/
-    
-    if(lineWidth > 0 && lineWidth != Game::oglDefaultLineWidth)
-        f->glLineWidth(Game::oglDefaultLineWidth);
 }
 
 int OglObj::getTexId(){

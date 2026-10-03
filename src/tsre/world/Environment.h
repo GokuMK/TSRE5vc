@@ -27,7 +27,6 @@ public:
     int waterCount = 0;
     Environment(QString path);
     virtual ~Environment();
-    void renderWater();
 private:
     bool loaded;
     QString texturePath;

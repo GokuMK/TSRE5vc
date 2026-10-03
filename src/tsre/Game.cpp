@@ -122,10 +122,6 @@ bool Game::ortsEngEnable = true;
 bool Game::sortTileObjects = true;
 int Game::oglDefaultLineWidth = 1;
 bool Game::showWorldObjPivotPoints = false;
-Game::RendererPipeline Game::requestedRendererPipeline = Game::RENDER_PIPELINE_GATHER;
-Game::RendererPipeline Game::activeRendererPipeline = Game::RENDER_PIPELINE_GATHER;
-bool Game::rendererPipelineHotSwap = true;
-bool Game::gatherLegacyOverlays = false;
 Game::TerrainMeshMode Game::terrainMeshMode = Game::TERRAIN_MESH_PAGED;
 bool Game::textureLoaderThreaded = true;
 int Game::shadowMapSize = 2048;
@@ -213,29 +209,6 @@ QHash<QString, int> Game::TextureFlags {
         {"Night", 0x100},
         {"Underground", 0x40000000}
     };
-
-Game::RendererPipeline Game::ParseRendererPipeline(QString value, RendererPipeline fallback){
-    QString mode = value.trimmed().toLower();
-    if(mode == "legacy")
-        return RENDER_PIPELINE_LEGACY;
-    if(mode == "gather")
-        return RENDER_PIPELINE_GATHER;
-    if(mode == "validation")
-        return RENDER_PIPELINE_VALIDATION;
-    return fallback;
-}
-
-QString Game::RendererPipelineName(RendererPipeline value){
-    switch(value){
-        case RENDER_PIPELINE_GATHER:
-            return "gather";
-        case RENDER_PIPELINE_VALIDATION:
-            return "validation";
-        case RENDER_PIPELINE_LEGACY:
-        default:
-            return "legacy";
-    }
-}
 
 Game::TerrainMeshMode Game::ParseTerrainMeshMode(QString value, TerrainMeshMode fallback){
     const QString mode = value.trimmed().toLower();
@@ -336,13 +309,6 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
         allowObjLag = settings.runtimeInt("core.rendering.objectLoading.initialTokens");
         objectLoadingTokens = allowObjLag;
     }
-    claim("core.rendering.pipeline", SettingType::Enum);
-    if (appliesNow("core.rendering.pipeline")) {
-        requestedRendererPipeline = ParseRendererPipeline(
-                    settings.runtimeString("core.rendering.pipeline"));
-        activeRendererPipeline = requestedRendererPipeline;
-    }
-    boolean("core.rendering.pipelineHotSwap", rendererPipelineHotSwap);
     claim("core.rendering.terrainMesh", SettingType::Enum);
     if (appliesNow("core.rendering.terrainMesh"))
         terrainMeshMode = ParseTerrainMeshMode(
@@ -686,26 +652,6 @@ void Game::loadLegacySettings() {
                 renderTrItems = true;
             else
                 renderTrItems = false;
-        }
-        if(val == "rendererPipeline"){
-            RendererPipeline parsedMode = ParseRendererPipeline(args[1], RENDER_PIPELINE_LEGACY);
-            if(parsedMode == RENDER_PIPELINE_LEGACY && args[1].trimmed().toLower() != "legacy"){
-                qDebug() << "Unknown rendererPipeline value:" << args[1].trimmed() << "falling back to legacy";
-            }
-            requestedRendererPipeline = parsedMode;
-            activeRendererPipeline = parsedMode;
-        }
-        if(val == "rendererPipelineHotSwap"){
-            if(args[1].trimmed().toLower() == "true")
-                rendererPipelineHotSwap = true;
-            else
-                rendererPipelineHotSwap = false;
-        }
-        if(val == "gatherLegacyOverlays"){
-            if(args[1].trimmed().toLower() == "true")
-                gatherLegacyOverlays = true;
-            else
-                gatherLegacyOverlays = false;
         }
         if(val == "textureLoaderThreaded"){
             if(args[1].trimmed().toLower() == "true")
@@ -1117,9 +1063,6 @@ void Game::CreateNewSettingsFile(){
     out << "#cameraFov = 20.0\n";
     out << "leaveTrackShapeAfterDelete = false\n";
     out << "#renderTrItems = true\n";
-    out << "rendererPipeline = legacy\n";
-    out << "#rendererPipelineHotSwap = false\n";
-    out << "#gatherLegacyOverlays = false\n";
     out << "#textureLoaderThreaded = false\n";
     out << "#useImperial = false\n";
     out << "#ortsEngEnable = false\n";

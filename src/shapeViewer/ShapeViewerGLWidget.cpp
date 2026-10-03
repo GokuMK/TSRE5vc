@@ -234,38 +234,9 @@ void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
     
     gluu->currentShader->bind();
     gluu->setMatrixUniforms();
-    // The legacy body below stays selectable until the legacy pipeline is removed.
-    const bool gather = renderer != nullptr
-            && Game::requestedRendererPipeline == Game::RENDER_PIPELINE_GATHER;
-    if(gather)
+    if(renderer != nullptr)
         renderGathered(selectionId);
-    //sFile->render();
-    if(!gather && mode == "rot"){
-        Mat4::rotate(gluu->mvMatrix, gluu->mvMatrix, rotY, 0,1,0);
-        Mat4::rotate(gluu->mvMatrix, gluu->mvMatrix, rotZ, 0,0,1);
-    }
-    gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-    
-    if(!gather && renderItem == 2 && eng != NULL){
-        eng->render(selectionId);
-    }
-    if(!gather && renderItem == 3 && con != NULL){
-        con->render(selectionId, true);
-    }
-    if(!gather && renderItem == 5 && con != NULL){
-        con->render(selectionId, false);
-    }
-    if(!gather && renderItem == 2 && con != NULL){
-        Mat4::rotate(gluu->mvMatrix, gluu->mvMatrix, M_PI, 0,1,0);
-        Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 0, 0, -con->conLength/2);
-        con->render(selectionId);
-    }
     if(renderItem == 4 && complexShape != NULL){
-        if(!gather){
-            GLUU *gluu = GLUU::get();
-            gluu->enableTextures();
-            complexShape->render();
-        }
         if(cameraInit && complexShape->isLoaded()){
             cameraInit = false;
             const float* bound = complexShape->getBound();

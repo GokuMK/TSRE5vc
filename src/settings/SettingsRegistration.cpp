@@ -646,27 +646,6 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Initial value of the separate runtime token counter consumed while shapes load. Changing this setting at runtime resets the counter; normal counter consumption and refilling never modify the saved setting."
                 QT_TRID_NOOP("settings.core.rendering.object.loading.initial.tokens.description")).withRange(0, 100000, 2).inGroup("rendering").inSubgroup("visibility").applies("dynamic").asAdvanced(),
         "allowObjLag", "Game::allowObjLag", "Shape loading scheduler", true, "session-state");
-    ADD(SettingsDefinition::string("core.rendering.pipeline", "gather", SettingType::Enum)
-            .withNameId(
-                //% "Renderer pipeline"
-                QT_TRID_NOOP("settings.core.rendering.pipeline.name")).withDescriptionId(
-                //% "Select the renderer implementation used when the Route Editor starts."
-                QT_TRID_NOOP("settings.core.rendering.pipeline.description"))
-            .withOptions(choices({{"legacy",
-                //% "Legacy"
-                QT_TRID_NOOP("settings.core.rendering.pipeline.option.legacy")}, {"gather",
-                //% "Gather"
-                QT_TRID_NOOP("settings.core.rendering.pipeline.option.gather")}, {"validation",
-                //% "Validation"
-                QT_TRID_NOOP("settings.core.rendering.pipeline.option.validation")}})).inGroup("rendering").inSubgroup("pipeline"),
-        "rendererPipeline", "Game::requestedRendererPipeline", "Renderer", true, "renderer-restart");
-    ADD(SettingsDefinition::boolean("core.rendering.pipelineHotSwap", true)
-            .withNameId(
-                //% "Allow renderer hot swap"
-                QT_TRID_NOOP("settings.core.rendering.pipeline.hot.swap.name")).withDescriptionId(
-                //% "Allow the Route Editor pipeline command to switch renderer implementations while running."
-                QT_TRID_NOOP("settings.core.rendering.pipeline.hot.swap.description")).inGroup("rendering").inSubgroup("pipeline").asAdvanced(),
-        "rendererPipelineHotSwap", "Game::rendererPipelineHotSwap", "Renderer", true, "cached");
     ADD(SettingsDefinition::string("core.rendering.terrainMesh", "paged", SettingType::Enum)
             .withNameId(
                 //% "Terrain mesh backend"

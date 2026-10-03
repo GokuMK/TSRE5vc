@@ -442,12 +442,6 @@ void TrackObj::pushRenderItems(float lod, float posx, float posz, float* playerW
     if (!loaded) return;
     if (shape < 0) return;
     if (jestPQ < 2) return;
-    //if (renderMode == gluu->RENDER_SHADOWMAP && Game::mstsShadows) {
-    //    if(this->getShadowType() != WorldObj::ShadowDynamic )
-    //        return;
-    //}
-    //GLUU* gluu = GLUU::get();
-    //if((this.position===undefined)||this.qDirection===undefined) return;
     
     if (size > 0) {
         if ((lod > size + 150)) {
@@ -477,9 +471,6 @@ void TrackObj::pushRenderItems(float lod, float posx, float posz, float* playerW
             }
     }
     
-    //if(Game::viewSnapable)
-    //    if(snapablePoints.size() == 6)
-    //        renderSnapableEndpoints(gluu);  
     
     const bool procedural = useProceduralShape();
     float bakedMatrix[16];
@@ -522,88 +513,6 @@ void TrackObj::pushRenderItems(float lod, float posx, float posz, float* playerW
         pushRenderBox();
     }
 }
-
-void TrackObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos, float* target, float fov, quint32 selectionId, int renderMode) {
-    if (!loaded) return;
-    if (shape < 0) return;
-    if (jestPQ < 2) return;
-    if (renderMode == gluu->RENDER_SHADOWMAP && Game::mstsShadows) {
-        if(this->getShadowType() != WorldObj::ShadowDynamic )
-            return;
-    }
-    // Skip road shadows
-    if (renderMode == gluu->RENDER_SHADOWMAP && this->roadShape) {
-        if(this->getShadowType() != WorldObj::ShadowDynamic )
-            return;
-    }
-
-    if (size > 0) {
-        if ((lod > size + 150)) {
-            float v1[2];
-            v1[0] = pos[0] - (target[0]);
-            v1[1] = pos[2] - (target[2]);
-            float v2[2];
-            v2[0] = posx;
-            v2[1] = posz;
-            float iloczyn = v1[0] * v2[0] + v1[1] * v2[1];
-            float d1 = sqrt(v1[0] * v1[0] + v1[1] * v1[1]);
-            float d2 = sqrt(v2[0] * v2[0] + v2[1] * v2[1]);
-            float zz = iloczyn / (d1 * d2);
-            if (zz > 0) return;
-
-            float ccos = cos(fov) + zz;
-            float xxx = sqrt(2 * d2 * d2 * (1 - ccos));
-            //if((ccos > 0) && (xxx > 200+50)) return;
-            if ((ccos > 0) && (xxx > size) && (skipLevel == 1)) return;
-        }
-    } else {
-        //if (!Game::proceduralTracks)
-            {
-                ComplexShape* shapeAsset = Game::currentShapeLib->shape[shape];
-                if (shapeAsset != NULL && shapeAsset->isLoaded())
-                    size = shapeAsset->getSize();
-            }
-    }
-
-    const bool procedural = useProceduralShape();
-    float bakedMatrix[16];
-    float *renderMatrix = matrix;
-    if(procedural && proceduralShapeUsesBakedPath){
-        fillYawOnlyTrackMatrix(qDirection, position, bakedMatrix);
-        renderMatrix = bakedMatrix;
-    }
-    Mat4::multiply(gluu->mvMatrix, gluu->mvMatrix, renderMatrix);
-    gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-    
-    if(Game::showWorldObjPivotPoints){
-        if(pointer3d == NULL){
-            pointer3d = new TrackItemObj(1);
-            pointer3d->setMaterial(0.9,0.9,0.7);
-        }
-        pointer3d->render(selectionId);
-    }
-    
-    gluu->setSelectionId(selectionId);
-    if(selectionId == 0){
-        gluu->enableTextures();
-    }
-    
-    if(!procedural) {
-        if(shapePointer != NULL)
-            shapePointer->render(selectionId, 0);
-    } else {
-        for(int i = 0; i < procShape.size(); i++){
-            const float partLod =
-                    OrtsTrackProfileRenderer::generatedPartLod(
-                        procShape[i], renderMatrix, posx, posz);
-            procShape[i]->render(selectionId, partLod);
-        }
-    }
-    
-    if(selected){
-        drawBox();
-    }
-};
 
 void TrackObj::fillJNodePosn(){
     TDB* tdb = Game::trackDB;

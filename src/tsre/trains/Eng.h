@@ -81,16 +81,13 @@ public:
     void select();
     void unselect();
     bool isSelected();
-    void drawBorder();
     void pushDrawBorder();
-    void drawBorder3d();
     void pushDrawBorder3d();
     bool engFilter(QString q);
     bool couplingFilter(QString q);
     bool searchFilter(QString q);
     void initOnTrack(float *tpos, int direction, QMap<int, int>* junctionDirections);
     void getCameraPosition(float *out = NULL);
-    void renderOnTrack(GLUU* gluu, float* playerT, quint32 selectionId);
     void pushRenderItemOnTrack(float* playerT, quint32 selectionId, bool selected = false);
     void move(float m);
     float getCurrentElevation();
@@ -99,9 +96,7 @@ public:
     bool isBroken();
     void updateSim(float deltaTime);
     float getCurrentSpeed();
-    void render(quint32 selectionId = 0);
     void pushRenderItems(quint32 selectionId = 0);
-    void render(int aktwx, int aktwz, quint32 selectionId);
     float *getCurrentPositionOnTrack();
     void fillContentHierarchyInfo(QVector<ContentHierarchyInfo*>& list, int parent);
 private:
@@ -110,7 +105,6 @@ private:
     bool selected = false;
     OglObj *borderObj = NULL;
     OglObj *borderObj3d = NULL;
-    OglObj *ruchPoint = NULL;
     Ruch *ruch1 = NULL;
     Ruch *ruch2 = NULL;
     void addToFileList(QString val);

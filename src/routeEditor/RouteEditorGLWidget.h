@@ -166,10 +166,8 @@ protected:
     bool eventFilter(QObject *object, QEvent *event);
     void initializeGL() Q_DECL_OVERRIDE;
     void paintGL() Q_DECL_OVERRIDE;
-    void paintGL2();
     void renderShadowMaps();
     void computeShadowMatrices();
-    void renderShadowMapsGather();
     void handleSelection();
     void applySelection(quint32 selectionId, int cameraTileX, int cameraTileZ);
     void resizeGL(int width, int height) Q_DECL_OVERRIDE;
@@ -180,7 +178,6 @@ protected:
     void keyPressEvent(QKeyEvent * event) Q_DECL_OVERRIDE;
     void keyReleaseEvent(QKeyEvent * event) Q_DECL_OVERRIDE;
     void timerEvent(QTimerEvent *event) Q_DECL_OVERRIDE;
-    void drawPointer();
     void pushRenderPointer();
     void updatePointerPosition();
     void readPointerPosition();
@@ -213,15 +210,9 @@ private:
     void finishLiveTelepole(bool accept);
     static void quantizeContinuousPoint(int &tileX, int &tileZ,
             float *position, float step);
-    bool paintGLGather(bool drawToScreen);
-    bool paintGLValidation();
-    void paintActiveRendererPipelinePass();
+    void paintScene();
     bool canRenderFrame() const;
     void restoreDefaultGlState();
-    void fallbackToLegacyRendererPipeline(const QString& reason);
-    void handleRendererPipelineSwitch(int oldPipeline, int newPipeline);
-    void announceRendererPipeline();
-    void cycleRendererPipelineMode();
     void drawEditorFpsHud();
     void setupVertexAttribs();
     void setSelectedObj(GameObj* o);
@@ -362,8 +353,6 @@ private:
     
     GuiGlCompass * compass = NULL;
     OglObj * compassPointer = NULL;
-    bool rendererPipelineInitialized = false;
-    int lastRenderedPipeline = -1;
     
     
     

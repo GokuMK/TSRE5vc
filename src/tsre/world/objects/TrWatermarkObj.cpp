@@ -62,10 +62,6 @@ void TrWatermarkObj::set(QString sh, FileBuffer* data) {
     return;
 }
 
-void TrWatermarkObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos, float* target, float fov, quint32 selectionId, int renderMode) {
-    return;
-};
-
 int TrWatermarkObj::getDefaultDetailLevel(){
     // object is deprecated when sorting is enabled
     return -99;

@@ -67,7 +67,6 @@ public:
     bool isSimilar(WorldObj* obj);
     void pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
     bool castsShadows() override;
-    void render(GLUU* gluu, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId, int renderMode);
     int subObjSelected = 0;
 private:
     unsigned int signalSubObj;
@@ -78,7 +77,7 @@ private:
     TrackItemObj* spointer3dSelected = NULL;
     float** drawPositions = NULL;
     int selectionValue = 0;
-    void renderTritems(GLUU* gluu, quint32 selectionId, bool pushToQueue = false);
+    void pushRenderTritems(quint32 selectionId);
     bool getSimpleBorder(float* border);
     bool getBoxPoints(QVector<float> &points);
     SignalShape* signalShape = NULL;

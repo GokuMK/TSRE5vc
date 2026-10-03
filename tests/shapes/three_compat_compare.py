@@ -44,7 +44,7 @@ def run_case(row):
   la,lb=a.get('levels',[]),b.get('levels',[])
   if len(la)!=len(lb):differences.append('level_count')
   for i,(x,y) in enumerate(zip(la,lb)):
-   for key in ['parents','matrices','parts','buffers','direct','gather','pick']:
+   for key in ['parents','matrices','parts','buffers','gather','pick']:
     if x.get(key)!=y.get(key):differences.append(f'lod{i}.{key}')
    ta,tb=x.get('transforms',[]),y.get('transforms',[])
    if len(ta)!=len(tb) or any(len(u)!=len(v) or any(abs(p-q)>1e-5 for p,q in zip(u,v)) for u,v in zip(ta,tb)):

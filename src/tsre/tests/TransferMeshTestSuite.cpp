@@ -289,7 +289,7 @@ int TsreTests::runTransferDepthGlSuite() {
         OglObj shape; shape.setMaterial(1,0,0);
         float vertices[]={-1,-1,0, 3,-1,0, -1,3,0};
         shape.init(vertices,9,RenderItem::V,GL_TRIANGLES);
-        for (bool queued : {false,true}) for (bool decalEnabled : {false,true})
+        for (bool decalEnabled : {false,true})
             for (quint32 selection : {0u,123u}) for (bool initialMask : {false,true})
             for (bool initialOffset : {false,true}) {
                 f->glDepthMask(GL_TRUE); f->glClearDepthf(1); f->glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
@@ -299,8 +299,7 @@ int TsreTests::runTransferDepthGlSuite() {
                 else f->glDisable(GL_POLYGON_OFFSET_FILL);
                 extra->glBindBufferBase(GL_UNIFORM_BUFFER,0,ubo);
                 shape.terrainDecal=decalEnabled;
-                if (queued) { shape.pushRenderItem(selection); renderer.renderFrame(); }
-                else shape.render(selection);
+                shape.pushRenderItem(selection); renderer.renderFrame();
                 GLboolean restored; f->glGetBooleanv(GL_DEPTH_WRITEMASK,&restored);
                 GLfloat factor,units;
                 f->glGetFloatv(GL_POLYGON_OFFSET_FACTOR,&factor);
@@ -313,18 +312,17 @@ int TsreTests::runTransferDepthGlSuite() {
                         && factor==1.25f && units==3.5f
                         && colour[3]==255 && f->glGetError()==GL_NO_ERROR;
                 if (!ok) ++failed;
-                qInfo() << "[tests:transfer-depth-gl] queued/decal/selection/initialMask/initialOffset"
-                        << queued << decalEnabled << selection << initialMask << initialOffset << "depth" << depth << "OK" << ok;
+                qInfo() << "[tests:transfer-depth-gl] decal/selection/initialMask/initialOffset"
+                        << decalEnabled << selection << initialMask << initialOffset << "depth" << depth << "OK" << ok;
             }
         // Reproduce equal-depth rejection, then verify that the production decal
-        // draw wins without changing the ground depth, in both rendering paths.
-        for (bool queued : {false,true}) for (bool decal : {false,true}) {
+        // draw wins without changing the ground depth.
+        for (bool decal : {false,true}) {
             f->glDisable(GL_POLYGON_OFFSET_FILL); f->glDepthMask(GL_TRUE);
             f->glClearDepthf(1); f->glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
             auto draw=[&]() {
                 extra->glBindBufferBase(GL_UNIFORM_BUFFER,0,ubo);
-                if (queued) { shape.pushRenderItem(0); renderer.renderFrame(); }
-                else shape.render(0);
+                shape.pushRenderItem(0); renderer.renderFrame();
             };
             shape.terrainDecal=false; shape.setMaterial(0,1,0); draw();
             shape.terrainDecal=decal; shape.setMaterial(1,0,0); draw();
@@ -333,7 +331,7 @@ int TsreTests::runTransferDepthGlSuite() {
             const bool ok=colour[decal?0:1]>200 && colour[decal?1:0]<20
                     && std::abs(depth-0.5f)<0.000001f && f->glGetError()==GL_NO_ERROR;
             if (!ok) ++failed;
-            qInfo() << "[tests:transfer-depth-gl] coplanar ground, queued/decal" << queued << decal << "OK" << ok;
+            qInfo() << "[tests:transfer-depth-gl] coplanar ground, decal" << decal << "OK" << ok;
         }
         {
             TestTerrain ground(0,0); Library lib; lib.tiles={&ground};

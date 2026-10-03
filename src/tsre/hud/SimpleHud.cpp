@@ -176,39 +176,3 @@ void SimpleHud::pushRenderItems(){
     Game::currentRenderer->mvPopMatrix();
 }
 
-void SimpleHud::render(){
-    GLUU* gluu = GLUU::get();
-    
-    gradientObj->render();
-    
-    speedText->render();
-    distanceText->render();
-    
-    int digits[6];
-    readoutDigits(digits);
-    const int s1 = digits[0], s2 = digits[1], s3 = digits[2];
-    const int d1 = digits[3], d2 = digits[4], d3 = digits[5];
-    
-    gluu->mvPushMatrix();
-    Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, -0.96, 0.85, 0);
-    numberText[s3]->render();
-    Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 0.07, 0.0, 0);
-    numberText[s2]->render();
-    Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 0.07, 0.0, 0);
-    numberText[s1]->render();
-    Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 0.12, 0.0, 0);
-    kmsText->render();
-    
-    Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, -0.26, -0.15, 0);
-    numberText[d3]->render();
-    Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 0.07, 0.0, 0);
-    numberText[d2]->render();
-    Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 0.05, 0.0, 0);
-    numberText[10]->render();
-    Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 0.05, 0.0, 0);
-    numberText[d1]->render();
-    Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 0.08, 0.0, 0);
-    kmText->render();
-    gluu->mvPopMatrix();
-    
-}

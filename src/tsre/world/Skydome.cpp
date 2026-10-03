@@ -30,23 +30,8 @@ Skydome::Skydome(const Skydome& orig) {
 Skydome::~Skydome() {
 }
 
-void Skydome::render(GLUU* gluu, int renderMode) {
-    if (!loaded) return;
-    if (renderMode == gluu->RENDER_SHADOWMAP) {
-        return;
-    }
-    
-    gluu->enableTextures();
-    gluu->mvPushMatrix();
-    if(shapePointer != NULL)
-        shapePointer->render();
-    gluu->mvPopMatrix();
-};
-
-void Skydome::pushRenderItems(int renderMode) {
+void Skydome::pushRenderItems() {
     if (!loaded || shapePointer == NULL || Game::currentRenderer == NULL)
-        return;
-    if (renderMode == Renderer::RENDER_SHADOWMAP)
         return;
     shapePointer->pushRenderItem(0, 0);
 }

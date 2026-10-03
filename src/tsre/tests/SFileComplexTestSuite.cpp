@@ -182,7 +182,6 @@ struct RenderProbe {
     struct OrderedRenderer : OpenGL3Renderer {
         OrderedRenderer() { groupByTexture = false; }
     } orderedRenderer;
-    bool orderedGather = false;
     OpenGL3Renderer renderer;
     GLUU *gl = GLUU::get();
     ComplexShape *cameraReference = nullptr;
@@ -219,7 +218,8 @@ struct RenderProbe {
         renderer.mvMatrix = gl->mvMatrix;
         orderedRenderer.mvMatrix = gl->mvMatrix;
     }
-    QImage image(ComplexShape &shape, bool gather, bool readback = true, unsigned int state = 0) {
+    // ordered: draw in submission order instead of grouping by texture.
+    QImage image(ComplexShape &shape, bool ordered, bool readback = true, unsigned int state = 0) {
         fbo.bind();
         auto *f = QOpenGLContext::currentContext()->functions();
         f->glViewport(0, 0, 192, 192);
@@ -231,49 +231,41 @@ struct RenderProbe {
         f->glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         gl->currentShader = gl->shaders["StandardFog"];
         setup(shape);
-        if (gather) {
-            auto *saved = Game::currentRenderer;
-            auto &active = orderedGather ? static_cast<OpenGL3Renderer &>(orderedRenderer) : renderer;
-            Game::currentRenderer = &active;
-            shape.pushRenderItem(0, state);
-            active.renderFrame();
-            Game::currentRenderer = saved;
-        } else
-            shape.render(0, state);
+        draw(shape, ordered, 0, state);
         if (!readback)
             return {};
         f->glFinish();
         return fbo.toImage();
     }
-    QJsonObject submission(ComplexShape &shape, bool gather) {
+    void draw(ComplexShape &shape, bool ordered, quint32 selectionId, unsigned int state) {
+        auto *saved = Game::currentRenderer;
+        auto &active = ordered ? static_cast<OpenGL3Renderer &>(orderedRenderer) : renderer;
+        Game::currentRenderer = &active;
+        shape.pushRenderItem(selectionId, state);
+        active.renderFrame();
+        Game::currentRenderer = saved;
+    }
+    QJsonObject submission(ComplexShape &shape, bool ordered) {
         std::vector<double> samples;
         auto *f = QOpenGLContext::currentContext()->functions();
         for (int i = 0; i < 24; ++i) {
             f->glFinish();
             QElapsedTimer timer;
             timer.start();
-            image(shape, gather, false);
+            image(shape, ordered, false);
             samples.push_back(timer.nsecsElapsed() / 1e6);
         }
         f->glFinish();
         std::sort(samples.begin(), samples.end());
         return {{"median_ms", samples[12]}, {"p95_ms", samples[22]}, {"samples", 24}};
     }
-    QByteArray selection(ComplexShape &shape, bool gather) {
+    QByteArray selection(ComplexShape &shape, bool ordered) {
         SelectionRenderer target;
         if (!target.begin(192, 192))
             return {};
         gl->currentShader = gl->shaders["Selection"];
         setup(shape);
-        if (gather) {
-            auto *saved = Game::currentRenderer;
-            auto &active = orderedGather ? static_cast<OpenGL3Renderer &>(orderedRenderer) : renderer;
-            Game::currentRenderer = &active;
-            shape.pushRenderItem(0x12345678, 0);
-            active.renderFrame();
-            Game::currentRenderer = saved;
-        } else
-            shape.render(0x12345678, 0);
+        draw(shape, ordered, 0x12345678, 0);
         QByteArray pixels(192 * 192 * 4, 0);
         auto *f = QOpenGLContext::currentContext()->functions();
         f->glReadPixels(0, 0, 192, 192, GL_RED_INTEGER, GL_UNSIGNED_INT, pixels.data());
@@ -311,7 +303,6 @@ template<class Shape> int legacyCompatSnapshot(const QString &path) {
     QOpenGLContext context; context.setFormat(surface.format());
     if (!context.create() || !context.makeCurrent(&surface)) return 3;
     RenderProbe render;
-    render.orderedGather = true;
     Shape shape(path, QFileInfo(path).fileName(), QFileInfo(path).absolutePath());
     QJsonObject result{{"path", path}, {"stage", "loading"}};
     compatEmit(result);
@@ -399,20 +390,19 @@ template<class Shape> int legacyCompatSnapshot(const QString &path) {
     if(qEnvironmentVariableIsSet("TSRE_LEGACY_COMPAT_GEOMETRY_ONLY")) return 0;
     render.cameraReference=&shape;
     QJsonArray pictures;
-    auto picture=[&](bool gather,unsigned state=0) {
-        auto img=render.image(shape,gather,true,state).convertToFormat(QImage::Format_RGBA8888);
+    auto picture=[&](unsigned state=0) {
+        auto img=render.image(shape,true,true,state).convertToFormat(QImage::Format_RGBA8888);
         return compatHash(QByteArray::fromRawData(reinterpret_cast<const char*>(img.constBits()),img.sizeInBytes()));
     };
     for(int l=0;l<shape.iloscd;++l) {
         shape.setCurrentDistanceLevel(0,l);
-        // Both legacy implementations cache matrices independent of LOD.
-        // Recompute after changing LOD, and prime direct hashes before gathering.
+        // Both shape implementations cache matrices independent of LOD.
+        // Recompute after changing LOD and draw twice before capturing.
         shape.invalidateRenderState();
-        render.image(shape,false,false);
-        render.image(shape,false,false);
+        render.image(shape,true,false);
+        render.image(shape,true,false);
         QCoreApplication::processEvents();
-        QJsonObject row{{"direct",picture(false)}, {"gather",picture(true)},
-                        {"pick",compatHash(render.selection(shape,false))}};
+        QJsonObject row{{"gather",picture()}, {"pick",compatHash(render.selection(shape,true))}};
         pictures.append(row);
         result["render"]=pictures; result["stage"]="render"; compatEmit(result);
     }
@@ -422,7 +412,7 @@ template<class Shape> int legacyCompatSnapshot(const QString &path) {
         QJsonArray frames;
         for(float delta:{0.0f,duration*.25f,duration*.5f}) {
             shape.updateSim(delta,state);
-            frames.append(picture(false,state));
+            frames.append(picture(state));
         }
         result["animation"]=frames;
     }
@@ -448,7 +438,7 @@ template<class Shape> int threeCompatSnapshot(const QString &path, bool compact 
     QOffscreenSurface surface; surface.create();
     QOpenGLContext context; context.setFormat(surface.format());
     if (!context.create() || !context.makeCurrent(&surface)) return 3;
-    RenderProbe render; render.orderedGather = true;
+    RenderProbe render;
     Shape shape(path, QFileInfo(path).fileName(), QFileInfo(path).absolutePath());
     if constexpr (std::is_same_v<Shape, SFileComplex>)
         shape.setLoadOptions(shapeLoadOptions(false, compact));
@@ -486,15 +476,15 @@ template<class Shape> int threeCompatSnapshot(const QString &path, bool compact 
     result["bounds"]=bounds; result["size"]=static_cast<const ComplexShape &>(shape).getSize();
     result["detail"]=shape.getEsdDetailLevel(); result["snap"]=shape.isSnapable();
     const auto dump=qEnvironmentVariable("TSRE_COMPAT_DUMP");
-    auto picture=[&](bool gather,unsigned state,const QString &name) {
-        auto img=render.image(shape,gather,true,state).convertToFormat(QImage::Format_RGBA8888);
+    auto picture=[&](unsigned state,const QString &name) {
+        auto img=render.image(shape,true,true,state).convertToFormat(QImage::Format_RGBA8888);
         if(!dump.isEmpty()) {QDir().mkpath(dump);img.save(dump+"/"+name+".png");}
         return compatHash(QByteArray::fromRawData(reinterpret_cast<const char*>(img.constBits()),img.sizeInBytes()));
     };
     QJsonArray levels;
     for(int l=0;l<count;++l) {
         shape.setCurrentDistanceLevel(0,l); shape.invalidateRenderState();
-        render.image(shape,false,false);render.image(shape,false,false);
+        render.image(shape,true,false);render.image(shape,true,false);
         QCoreApplication::processEvents();
         ShapeHierarchyInfo h;shape.fillShapeHierarchyInfo(&h,0);
         QJsonArray parents,names,parts;
@@ -518,14 +508,14 @@ template<class Shape> int threeCompatSnapshot(const QString &path, bool compact 
         for(auto &m:probe.transforms){QJsonArray values;for(float v:m)values.append(v);transforms.append(values);}
         const auto prefix=QString::number(l);
         levels.append(QJsonObject{{"parents",parents},{"matrices",names},{"parts",parts},{"buffers",buffers},{"transforms",transforms},
-            {"direct",picture(false,0,prefix+"-direct")},{"gather",picture(true,0,prefix+"-gather")},{"pick",compatHash(render.selection(shape,false))}});
+            {"gather",picture(0,prefix+"-gather")},{"pick",compatHash(render.selection(shape,true))}});
         result["levels"]=levels;result["stage"]="render";compatEmit(result);
     }
     if(duration>0) {
         auto state=shape.newState();shape.setAnimated(state,true);QJsonArray frames;
         int index=0;
         for(float delta:{0.f,float(duration*.25),float(duration*.5)}) {
-            shape.updateSim(delta,state);frames.append(picture(false,state,"animation-"+QString::number(index++)));
+            shape.updateSim(delta,state);frames.append(picture(state,"animation-"+QString::number(index++)));
         }
         result["animation"]=frames;
     }
@@ -943,7 +933,7 @@ int TsreTests::runSFileComplexSuite(bool verbose, bool gl) {
                 "visibility is isolated per instance");
         t.check(difference(base, renderer.image(visible, true)) == 0 &&
                     renderer.selection(visible, false) == renderer.selection(visible, true),
-                "synthetic direct/gather and integer picking");
+                "synthetic grouped/ordered draws and integer picking");
         for (bool points : {false, true}) {
             auto primitive = triangle;
             primitive.replace("indexed_trilist ( vertex_idxs ( 3 0 1 2 ) normal_idxs ( 1 0 3 ) "
@@ -1146,12 +1136,8 @@ int TsreTests::runSFileComplexCorpus(const QString &input, bool gl) {
                 result["joined_different_pixels"] = pixels;
                 bool picking = render->selection(old, false) == render->selection(joined, false);
                 result["joined_selection_equal"] = picking;
-                result["joined_gather_different_pixels"] =
-                    difference(render->image(old, true), render->image(joined, true));
-                render->orderedGather = true;
                 int orderedPixels = difference(render->image(old, true), render->image(joined, true));
                 result["joined_ordered_gather_different_pixels"] = orderedPixels;
-                render->orderedGather = false;
                 joinedEqual &= geometry && pixels == 0 && picking && orderedPixels == 0;
                 bool allLods = old.iloscd == joined.iloscd;
                 for (int l = 0; allLods && l < old.iloscd; ++l) {

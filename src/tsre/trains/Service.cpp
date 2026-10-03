@@ -223,14 +223,6 @@ void Service::save(){
     modified = false;
 }
 
-void Service::render(GLUU* gluu, float* playerT, quint32 selectionId){
-    initToPlay();
-    
-    pathPointer->render(gluu, playerT, selectionId);
-    
-    conPointer->renderOnTrack(gluu, playerT, selectionId);
-}
-
 void Service::pushRenderItems(float* playerT, quint32 selectionId) {
     initToPlay();
     if (pathPointer != NULL)
