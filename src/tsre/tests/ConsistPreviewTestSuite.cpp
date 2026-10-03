@@ -29,18 +29,24 @@ public:
     unsigned int newState() override { return 0; }
     void setAnimated(unsigned int, bool) override {}
     void updateSim(float, unsigned int) override {}
-    void pushRenderItem() override {}
-    void pushRenderItem(quint32, unsigned int) override {}
+    void pushRenderItem() override { pushRenderItem(0, 0); }
+    void pushRenderItem(quint32 id, unsigned int) override {
+        initMesh();
+        mesh.pushRenderItem(id);
+    }
     void invalidateRenderState(bool) override {}
     void render() override { render(0, 0); }
     void render(quint32 id, unsigned int) override {
+        initMesh();
+        mesh.render(id);
+    }
+    void initMesh() {
         if(!mesh.loaded){
             float vertices[] = {0,-1,-1, 0,1,-1, 0,1,1,
                                 0,-1,-1, 0,1,1, 0,-1,1};
             mesh.init(vertices, 18, RenderItem::V, GL_TRIANGLES);
             mesh.setMaterial(0.2f, 0.7f, 0.3f);
         }
-        mesh.render(id);
     }
 };
 }

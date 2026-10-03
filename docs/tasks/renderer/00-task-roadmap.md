@@ -15,6 +15,7 @@ This folder contains ordered tasks for migrating the TSRE renderer from legacy i
 - [x] `10-shadows-gather-pass.md` (gather draws both shadow maps from the gathered queue; three-map review in the task)
 - [ ] `11-shader-pass-buckets-and-custom-shaders.md` (pass buckets implemented; per-pass shaders pending)
 - [ ] `13-selection-renderer-and-id-redesign.md`
+- [ ] `15-shape-viewer-gather.md` (implemented; Windows manual check pending)
 - [ ] `14-windows-hardware-validation.md` (hardware parity, performance and interactive checks on Windows)
 - [ ] `12-parity-automation-and-performance-gate.md` (measurement harness implemented; gate pending on task 14)
 

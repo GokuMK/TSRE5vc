@@ -30,6 +30,11 @@
 #include <cmath>
 
 #include <routeEditor/RouteEditorGLWidget.h>
+#include <shapeViewer/ShapeViewerGLWidget.h>
+#include <tsre/camera/CameraConsist.h>
+#include <tsre/camera/CameraRot.h>
+#include <tsre/trains/ConLib.h>
+#include <tsre/trains/EngLib.h>
 #include <tsre/Game.h>
 #include <tsre/renderer/RenderStats.h>
 #include <tsre/renderer/SelectionId.h>
@@ -705,4 +710,213 @@ int TsreTests::runRendererCompareSuite(const QString &casesFile, bool verbose) {
     }
     qInfo() << CompareLog << "report written to" << routeDir.absolutePath();
     return thresholdsFailed ? 1 : 0;
+}
+
+namespace {
+
+const char *ViewerCaptureLog = "[tests:shape-viewer-capture]";
+const char *ViewerCompareLog = "[tests:shape-viewer-compare]";
+
+// One item shown in the Shape Viewer: a shape, an engine or a consist.
+// Paths are relative to the game root.
+struct ViewerItem {
+    QString name;
+    QString type;
+    QString path;
+    QString file;
+    QString textures;
+};
+
+struct ViewerOptions {
+    int width = 800;
+    int height = 500;
+    QString outputDir = "build/shape-viewer-parity";
+    int diffTolerance = 16;
+    SettleOptions settle;
+    QVector<ViewerItem> items;
+};
+
+bool loadViewerOptions(const QString &casesFile, ViewerOptions &options, QString &error) {
+    QFile file(casesFile);
+    if (casesFile.isEmpty() || !file.open(QIODevice::ReadOnly)) {
+        error = QString("cannot open cases file %1").arg(casesFile);
+        return false;
+    }
+    const QJsonObject root = QJsonDocument::fromJson(file.readAll()).object();
+    options.width = root.value("width").toInt(options.width);
+    options.height = root.value("height").toInt(options.height);
+    options.outputDir = root.value("output").toString(options.outputDir);
+    options.diffTolerance = root.value("diffTolerance").toInt(options.diffTolerance);
+    const QJsonObject settle = root.value("settle").toObject();
+    options.settle.minFrames = settle.value("minFrames").toInt(10);
+    options.settle.stableFrames = settle.value("stableFrames").toInt(3);
+    options.settle.maxFrames = settle.value("maxFrames").toInt(200);
+    options.settle.maxSeconds = settle.value("maxSeconds").toInt(120);
+    for (const QJsonValue &value : root.value("items").toArray()) {
+        const QJsonObject object = value.toObject();
+        ViewerItem item;
+        item.name = object.value("name").toString();
+        item.type = object.value("type").toString();
+        item.path = object.value("path").toString();
+        item.file = object.value("file").toString();
+        item.textures = object.value("textures").toString();
+        if (item.name.isEmpty() || item.path.isEmpty()) {
+            error = "every item needs a name and a path";
+            return false;
+        }
+        options.items.push_back(item);
+    }
+    if (options.items.isEmpty()) {
+        error = "no items in cases file";
+        return false;
+    }
+    return true;
+}
+
+} // namespace
+
+int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, bool verbose) {
+    Q_UNUSED(verbose);
+    ViewerOptions options;
+    QString error;
+    if (!loadViewerOptions(casesFile, options, error)) {
+        qWarning() << ViewerCaptureLog << error;
+        return 2;
+    }
+    const Game::RendererPipeline pipeline = Game::requestedRendererPipeline;
+    if (pipeline != Game::RENDER_PIPELINE_LEGACY && pipeline != Game::RENDER_PIPELINE_GATHER) {
+        qWarning() << ViewerCaptureLog << "set core.rendering.pipeline to legacy or gather";
+        return 2;
+    }
+    if (!Game::checkRoot(Game::root)) {
+        qWarning() << ViewerCaptureLog << "invalid MSTS root:" << Game::root;
+        return 2;
+    }
+    const QString outputDir = QDir(options.outputDir).absoluteFilePath(pipelineDirName(pipeline));
+    if (!QDir().mkpath(outputDir)) {
+        qWarning() << ViewerCaptureLog << "cannot create" << outputDir;
+        return 2;
+    }
+
+    QScopedValueRollback<bool> restoreHotSwap(Game::rendererPipelineHotSwap, false);
+    EngLib engines;
+    QScopedValueRollback<EngLib*> restoreEngines(Game::currentEngLib, &engines);
+    QScopedValueRollback<ShapeLib*> restoreShapes(Game::currentShapeLib);
+
+    // The same cameras as the Shape Viewer and Consist Editor windows.
+    CameraRot shapeCamera;
+    shapeCamera.setPos(0, 2.5, 0);
+    shapeCamera.setPlayerRot(M_PI / 2.0, 0);
+    CameraConsist consistCamera;
+    consistCamera.setPos(-100, 2.5, 42);
+    consistCamera.setPlayerRot(M_PI / 2.0, 0);
+
+    ShapeViewerGLWidget widget;
+    widget.setAttribute(Qt::WA_DontShowOnScreen);
+    widget.resize(options.width, options.height);
+    widget.setCamera(&shapeCamera);
+    widget.show();
+    QApplication::processEvents();
+    if (!widget.isValid()) {
+        qWarning() << ViewerCaptureLog << "no valid OpenGL context";
+        return 2;
+    }
+
+    QJsonArray items;
+    for (const ViewerItem &item : options.items) {
+        const QString path = QDir(Game::root).absoluteFilePath(item.path);
+        bool shown = true;
+        if (item.type == "shape") {
+            widget.setCamera(&shapeCamera);
+            widget.setMode("rot");
+            const QString textures = item.textures.isEmpty()
+                    ? QString() : QDir(Game::root).absoluteFilePath(item.textures);
+            widget.showShape(path, textures);
+        } else if (item.type == "eng") {
+            widget.setCamera(&shapeCamera);
+            widget.setMode("rot");
+            widget.showEng(path, item.file);
+        } else if (item.type == "consist") {
+            const int id = ConLib::addCon(path, item.file);
+            if (id < 0) {
+                shown = false;
+            } else {
+                widget.setCamera(&consistCamera);
+                widget.setMode("");
+                widget.showCon(id);
+            }
+        } else {
+            shown = false;
+        }
+        if (!shown) {
+            qWarning() << ViewerCaptureLog << item.name << "could not be shown";
+            continue;
+        }
+
+        QElapsedTimer settleTimer;
+        settleTimer.start();
+        QByteArray lastHash;
+        int stableCount = 0, frames = 0;
+        bool settled = false;
+        QImage image;
+        while (frames < options.settle.maxFrames
+               && settleTimer.elapsed() < qint64(options.settle.maxSeconds) * 1000) {
+            pumpEvents(options.settle.frameIntervalMs);
+            image = widget.grabFramebuffer();
+            const QByteArray hash = imageHash(image);
+            frames++;
+            stableCount = hash == lastHash ? stableCount + 1 : 0;
+            lastHash = hash;
+            if (frames >= options.settle.minFrames && stableCount >= options.settle.stableFrames) {
+                settled = true;
+                break;
+            }
+        }
+        image.save(QDir(outputDir).filePath(item.name + ".png"));
+        items.append(QJsonObject{{"name", item.name}, {"settled", settled}, {"frames", frames}});
+        qInfo().noquote() << ViewerCaptureLog << item.name
+                          << (settled ? "settled" : "did not settle") << "after" << frames << "frames";
+    }
+
+    QJsonObject report{{"pipeline", Game::RendererPipelineName(pipeline)}, {"items", items}};
+    QFile json(QDir(outputDir).filePath("capture.json"));
+    if (json.open(QIODevice::WriteOnly | QIODevice::Truncate))
+        json.write(QJsonDocument(report).toJson(QJsonDocument::Indented));
+    widget.makeCurrent();
+    return 0;
+}
+
+int TsreTests::runShapeViewerCompareSuite(const QString &casesFile, bool verbose) {
+    Q_UNUSED(verbose);
+    ViewerOptions options;
+    QString error;
+    if (!loadViewerOptions(casesFile, options, error)) {
+        qWarning() << ViewerCompareLog << error;
+        return 2;
+    }
+    const QDir dir(QDir(options.outputDir).absolutePath());
+    QStringList rows;
+    for (const ViewerItem &item : options.items) {
+        const QImage legacy(dir.filePath("legacy/" + item.name + ".png"));
+        const QImage gather(dir.filePath("gather/" + item.name + ".png"));
+        const ImageDiff diff = compareImages(legacy, gather, options.diffTolerance);
+        if (!diff.valid) {
+            rows << QString("| %1 | missing | | |").arg(item.name);
+            continue;
+        }
+        diff.heatmap.save(dir.filePath(item.name + "-diff.png"));
+        const double ratio = double(diff.diffPixels) / diff.pixels;
+        rows << QString("| %1 | %2 | %3% | %4 |").arg(item.name).arg(number(diff.rmse))
+                .arg(number(ratio * 100.0)).arg(diff.maxChannelDiff);
+        qInfo().noquote() << ViewerCompareLog << item.name << "rmse" << number(diff.rmse)
+                          << "diff" << number(ratio * 100.0) + "%";
+    }
+    QFile markdown(dir.filePath("report.md"));
+    if (markdown.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
+        QTextStream out(&markdown);
+        out << "# Shape Viewer parity\n\n| Item | RMSE | Diff px | Max channel diff |\n|---|---|---|---|\n";
+        for (const QString &row : rows)
+            out << row << "\n";
+    }
+    return 0;
 }

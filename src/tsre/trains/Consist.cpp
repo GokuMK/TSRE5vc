@@ -564,11 +564,50 @@ QString Consist::getFirstEngName(){
     return engItems[0].ename.toLower();
 }
 
+// Lazily created labels, shared by render() and pushRenderItems().
+TextObj *Consist::nameLabel(int i) {
+    if(engItems[i].txt == NULL){
+        engItems[i].txt = new TextObj(Game::currentEngLib->eng[engItems[i].eng]->displayName, 16, 1.0);
+        engItems[i].txt->setColor(textColor[0],textColor[1],textColor[2]);
+    }
+    return engItems[i].txt;
+}
+
+TextObj *Consist::numberLabel(int i) {
+    if(txtNumbers[i] == NULL){
+        txtNumbers[i] = new TextObj(i+1);
+        txtNumbers[i]->setColor(textColor[0],textColor[1],textColor[2]);
+    }
+    return txtNumbers[i];
+}
+
+// Letter shown for a wagon type; NULL for types without one.
+TextObj *Consist::typeLabel(int wagonType) {
+    TextObj **label = NULL;
+    QString text;
+    bool warning = false;
+    switch(wagonType){
+    case 1: label = &txtEngineW; text = "C"; break;
+    case 2: label = &txtEngineF; text = "F"; break;
+    case 3: label = &txtEngineT; text = "T"; break;
+    case 4: label = &txtEngineE; text = "E"; warning = true; break;
+    case 5: label = &txtEngineD; text = "D"; warning = true; break;
+    case 6: label = &txtEngineS; text = "S"; warning = true; break;
+    default: return NULL;
+    }
+    if(*label == NULL){
+        *label = new TextObj(text);
+        if(warning)
+            (*label)->setColor(255,0,0);
+        else
+            (*label)->setColor(textColor[0],textColor[1],textColor[2]);
+    }
+    return *label;
+}
+
 void Consist::render(int aktwx, int aktwz, quint32 selectionId, bool renderText) {
     // Shape Viewer owns the integer ID range used by this overload. Route-editor
     // picking uses renderOnTrack() and the SelectionIdCodec below.
-    //gl.glTranslatef(0, 0.2f, 0);
-    //qDebug() << loaded;
     if (loaded != 1) return;
 
     GLUU *gluu = GLUU::get();
@@ -591,77 +630,22 @@ void Consist::render(int aktwx, int aktwz, quint32 selectionId, bool renderText)
         gluu->mvPushMatrix();
         Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 0, -1, engItems[i].pos);
         Mat4::rotate(gluu->mvMatrix, gluu->mvMatrix, M_PI/2, 0, 1, 0);
-
         gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
         gluu->currentShader->setUniformValue(gluu->currentShader->msMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->objStrMatrix));
         gluu->currentMsMatrinxHash = gluu->getMatrixHash(gluu->objStrMatrix);
-        if(engItems[i].txt == NULL){
-            engItems[i].txt = new TextObj(Game::currentEngLib->eng[engItems[i].eng]->displayName, 16, 1.0);
-            //engItems[i].txt->setColor(255,255,0);
-            //if(Game::systemTheme)
-            //    engItems[i].txt->setColor(0,0,0);
-            engItems[i].txt->setColor(textColor[0],textColor[1],textColor[2]);
-        }        
-        engItems[i].txt->render();
+        nameLabel(i)->render();
         gluu->mvPopMatrix();
         
         gluu->mvPushMatrix();
         Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 0, 5, engItems[i].pos);
-        //Mat4::rotate(gluu->mvMatrix, gluu->mvMatrix, M_PI/2, 0, 1, 0);
         gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-        if(txtNumbers[i] == NULL){
-            txtNumbers[i] = new TextObj(i+1);
-            txtNumbers[i]->setColor(textColor[0],textColor[1],textColor[2]);
-        }
-        txtNumbers[i]->render(M_PI/2);
+        numberLabel(i)->render(M_PI/2);
         Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 0, 0, -1);
         gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-        int wt = Game::currentEngLib->eng[engItems[i].eng]->wagonTypeId;
-        if(wt == 1){
-            if(txtEngineW == NULL){
-                txtEngineW = new TextObj("C");
-                txtEngineW->setColor(textColor[0],textColor[1],textColor[2]);
-            }
-            txtEngineW->render(M_PI/2);
-        }
-        if(wt == 2){
-            if(txtEngineF == NULL){
-                txtEngineF = new TextObj("F");
-                txtEngineF->setColor(textColor[0],textColor[1],textColor[2]);
-            }
-            txtEngineF->render(M_PI/2);
-        }
-        if(wt == 3){
-            if(txtEngineT == NULL){
-                txtEngineT = new TextObj("T");
-                txtEngineT->setColor(textColor[0],textColor[1],textColor[2]);
-            }
-            txtEngineT->render(M_PI/2);
-        }
-        if(wt == 4){
-            if(txtEngineE == NULL){
-                txtEngineE = new TextObj("E");
-                txtEngineE->setColor(255,0,0);
-            }
-            txtEngineE->render(M_PI/2);
-        }
-        if(wt == 5){
-            if(txtEngineD == NULL){
-                txtEngineD = new TextObj("D");
-                txtEngineD->setColor(255,0,0);
-            }
-            txtEngineD->render(M_PI/2);
-        }
-        if(wt == 6){
-            if(txtEngineS == NULL){
-                txtEngineS = new TextObj("S");
-                txtEngineS->setColor(255,0,0);
-            }
-            txtEngineS->render(M_PI/2);
-        }
-        
+        TextObj *type = typeLabel(Game::currentEngLib->eng[engItems[i].eng]->wagonTypeId);
+        if(type != NULL)
+            type->render(M_PI/2);
         gluu->mvPopMatrix();
-
     }
     //loaded = -1;
     //ruchy[0].renderCon(gl, aktwx, aktwz);
@@ -761,6 +745,43 @@ void Consist::updateSim(float deltaTime){
         engItems[i].engPointer->move(deltaMove);
     }
     
+}
+
+// Gather counterpart of render() for the Shape Viewer and Consist Editor;
+// wagon i is picked as selectionId + i.
+void Consist::pushRenderItems(quint32 selectionId, bool renderText) {
+    if (loaded != 1) return;
+
+    Renderer *renderer = Game::currentRenderer;
+    float *mv = renderer->mvMatrix;
+    for(int i = 0; i < engItems.size(); i++){
+        Eng *eng = Game::currentEngLib->eng[engItems[i].eng];
+        renderer->mvPushMatrix();
+        Mat4::translate(mv, mv, 0, 0, engItems[i].pos);
+        if(!engItems[i].flip)
+            Mat4::rotate(mv, mv, M_PI, 0, 1, 0);
+        if(selectionId == 0 && selectedIdx == i)
+            eng->pushDrawBorder();
+        eng->pushRenderItems(selectionId != 0 ? selectionId + static_cast<quint32>(i) : 0);
+        renderer->mvPopMatrix();
+
+        if(selectionId != 0 || !renderText)
+            continue;
+        renderer->mvPushMatrix();
+        Mat4::translate(mv, mv, 0, -1, engItems[i].pos);
+        Mat4::rotate(mv, mv, M_PI/2, 0, 1, 0);
+        nameLabel(i)->pushRenderItem();
+        renderer->mvPopMatrix();
+
+        renderer->mvPushMatrix();
+        Mat4::translate(mv, mv, 0, 5, engItems[i].pos);
+        numberLabel(i)->pushRenderItem(M_PI/2);
+        Mat4::translate(mv, mv, 0, 0, -1);
+        TextObj *type = typeLabel(eng->wagonTypeId);
+        if(type != NULL)
+            type->pushRenderItem(M_PI/2);
+        renderer->mvPopMatrix();
+    }
 }
 
 void Consist::renderHud(){

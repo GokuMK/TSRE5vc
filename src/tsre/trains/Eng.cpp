@@ -478,8 +478,7 @@ bool Eng::isSelected(){
     return selected;
 }
 
-void Eng::drawBorder(){
-
+void Eng::initBorder(){
     if (borderObj == NULL) {
         borderObj = new OglObj();
         
@@ -517,9 +516,17 @@ void Eng::drawBorder(){
         borderObj->init(punkty, ptr-punkty, RenderItem::V, GL_LINES);
         delete[] punkty;
     }
+}
 
+void Eng::drawBorder(){
+    initBorder();
     borderObj->render();
-};
+}
+
+void Eng::pushDrawBorder(){
+    initBorder();
+    borderObj->pushRenderItem();
+}
 
 void Eng::drawBorder3d(){
 
@@ -710,6 +717,46 @@ float Eng::getCurrentSpeed(){
     return currentSpeed;
 }
 
+// Adds this engine's shapes to the current shape library once and returns
+// the library key of the shape ids.
+long long int Eng::resolveShapeIds() {
+    long long int shapeLibId = reinterpret_cast<long long int>(Game::currentShapeLib);
+    if (!shape.id.keys().contains(shapeLibId)) {
+        if (shape.name.length() > 1)
+            shape.id[shapeLibId] = Game::currentShapeLib->addShape(path + "/" + shape.name, path);
+        else
+            shape.id[shapeLibId] = -1;
+    }
+
+    for (int i = 0; i < freightanimShape.size(); i++) {
+        if (!freightanimShape[i].id.keys().contains(shapeLibId)) {
+            if (freightanimShape[i].name.length() > 1)
+                freightanimShape[i].id[shapeLibId] = Game::currentShapeLib->addShape(path + "/" + freightanimShape[i].name, path);
+            else
+                freightanimShape[i].id[shapeLibId] = -1;
+        }
+    }
+    return shapeLibId;
+}
+
+// Gather counterpart of render() for the Shape Viewer and Consist Editor.
+void Eng::pushRenderItems(quint32 selectionId) {
+    if (loaded != 1) return;
+    const long long int shapeLibId = resolveShapeIds();
+    if (shape.id[shapeLibId] >= 0)
+        Game::currentShapeLib->shape[shape.id[shapeLibId]]->pushRenderItem(selectionId, 0);
+
+    float *mv = Game::currentRenderer->mvMatrix;
+    for (int i = 0; i < freightanimShape.size(); i++) {
+        if (freightanimShape[i].id[shapeLibId] < 0)
+            continue;
+        Game::currentRenderer->mvPushMatrix();
+        Mat4::translate(mv, mv, -freightanimShape[i].x, freightanimShape[i].y, -freightanimShape[i].z);
+        Game::currentShapeLib->shape[freightanimShape[i].id[shapeLibId]]->pushRenderItem(selectionId, 0);
+        Game::currentRenderer->mvPopMatrix();
+    }
+}
+
 void Eng::render(quint32 selectionId) {
     render(0, 0, selectionId);
 }
@@ -726,22 +773,7 @@ void Eng::render(int aktwx, int aktwz, quint32 selectionId) {
         gluu->enableTextures();
     }
     
-    long long int shapeLibId = reinterpret_cast<long long int>(Game::currentShapeLib);
-    if(!shape.id.keys().contains(shapeLibId)){
-        if(shape.name.length() > 1)
-            shape.id[shapeLibId] = Game::currentShapeLib->addShape(path +"/"+ shape.name, path);
-        else 
-            shape.id[shapeLibId] = -1;
-    }
-
-    for(int i = 0; i < freightanimShape.size(); i++){
-        if(!freightanimShape[i].id.keys().contains(shapeLibId)){
-            if(freightanimShape[i].name.length() > 1)
-                freightanimShape[i].id[shapeLibId] = Game::currentShapeLib->addShape(path +"/"+ freightanimShape[i].name, path);
-            else 
-                freightanimShape[i].id[shapeLibId] = -1;
-        }
-    }
+    const long long int shapeLibId = resolveShapeIds();
 
     //ruchy[0].renderCon(gl, aktwx, aktwz);
     //ruchy[1].renderCon(gl, aktwx, aktwz);
@@ -866,22 +898,7 @@ void Eng::getCameraPosition(float* out){
 void Eng::renderOnTrack(GLUU* gluu, float* playerT, quint32 selectionId) {
     if (loaded != 1) return;
 
-    long long int shapeLibId = reinterpret_cast<long long int>(Game::currentShapeLib);
-    if(!shape.id.keys().contains(shapeLibId)){
-        if(shape.name.length() > 1)
-            shape.id[shapeLibId] = Game::currentShapeLib->addShape(path +"/"+ shape.name, path);
-        else 
-            shape.id[shapeLibId] = -1;
-    }
-
-    for(int i = 0; i < freightanimShape.size(); i++){
-        if(!freightanimShape[i].id.keys().contains(shapeLibId)){
-            if(freightanimShape[i].name.length() > 1)
-                freightanimShape[i].id[shapeLibId] = Game::currentShapeLib->addShape(path +"/"+ freightanimShape[i].name, path);
-            else 
-                freightanimShape[i].id[shapeLibId] = -1;
-        }
-    }
+    const long long int shapeLibId = resolveShapeIds();
     
     if (ruchPoint == NULL) {
         ruchPoint = new OglObj();
@@ -960,22 +977,7 @@ void Eng::renderOnTrack(GLUU* gluu, float* playerT, quint32 selectionId) {
 void Eng::pushRenderItemOnTrack(float* playerT, quint32 selectionId) {
     if (loaded != 1) return;
 
-    long long int shapeLibId = reinterpret_cast<long long int>(Game::currentShapeLib);
-    if (!shape.id.keys().contains(shapeLibId)) {
-        if (shape.name.length() > 1)
-            shape.id[shapeLibId] = Game::currentShapeLib->addShape(path + "/" + shape.name, path);
-        else
-            shape.id[shapeLibId] = -1;
-    }
-
-    for (int i = 0; i < freightanimShape.size(); i++) {
-        if (!freightanimShape[i].id.keys().contains(shapeLibId)) {
-            if (freightanimShape[i].name.length() > 1)
-                freightanimShape[i].id[shapeLibId] = Game::currentShapeLib->addShape(path + "/" + freightanimShape[i].name, path);
-            else
-                freightanimShape[i].id[shapeLibId] = -1;
-        }
-    }
+    const long long int shapeLibId = resolveShapeIds();
 
     float selev1, selev2;
     float *drawPosition1 = ruch1->getCurrentPosition(&selev1);

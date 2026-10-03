@@ -4083,6 +4083,8 @@ QStringList TsreTests::listSuites() {
         "consist-preview-gl",
         "renderer-capture",
         "renderer-compare",
+        "shape-viewer-capture",
+        "shape-viewer-compare",
         "paint-text",
         "signal-selection",
         "tokens",
@@ -4140,6 +4142,12 @@ int TsreTests::run(const TestRunOptions &opts) {
 
     if (suite == "renderer-compare")
         return runRendererCompareSuite(opts.casesFile, opts.verbose);
+
+    if (suite == "shape-viewer-capture")
+        return runShapeViewerCaptureSuite(opts.casesFile, opts.verbose);
+
+    if (suite == "shape-viewer-compare")
+        return runShapeViewerCompareSuite(opts.casesFile, opts.verbose);
 
     if (suite == "paint-text")
         return runPaintTexSuite(opts.verbose);

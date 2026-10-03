@@ -36,6 +36,7 @@
 #include <tsre/trains/Activity.h>
 #include <tsre/texture/TexLib.h>
 #include <shapeViewer/ShapeTextureInfo.h>
+#include <tsre/renderer/OpenGL3Renderer.h>
 
 ShapeViewerGLWidget::ShapeViewerGLWidget(QWidget *parent, ShapeLib::MstsBackend backend)
 : QOpenGLWidget(parent),
@@ -53,6 +54,8 @@ ShapeViewerGLWidget::~ShapeViewerGLWidget() {
 void ShapeViewerGLWidget::cleanup() {
     makeCurrent();
     selectionRenderer.release();
+    delete renderer;
+    renderer = nullptr;
     if(context() != nullptr)
         disconnect(context(), nullptr, this, nullptr);
     doneCurrent();
@@ -114,6 +117,7 @@ void ShapeViewerGLWidget::initializeGL() {
     glClearColor(backgroundGlColor[0], backgroundGlColor[1], backgroundGlColor[2], 1);
 
     gluu->initShader();
+    renderer = new OpenGL3Renderer();
 
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
@@ -230,31 +234,38 @@ void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
     
     gluu->currentShader->bind();
     gluu->setMatrixUniforms();
+    // The legacy body below stays selectable until the legacy pipeline is removed.
+    const bool gather = renderer != nullptr
+            && Game::requestedRendererPipeline == Game::RENDER_PIPELINE_GATHER;
+    if(gather)
+        renderGathered(selectionId);
     //sFile->render();
-    if(mode == "rot"){
+    if(!gather && mode == "rot"){
         Mat4::rotate(gluu->mvMatrix, gluu->mvMatrix, rotY, 0,1,0);
         Mat4::rotate(gluu->mvMatrix, gluu->mvMatrix, rotZ, 0,0,1);
     }
     gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
     
-    if(renderItem == 2 && eng != NULL){
+    if(!gather && renderItem == 2 && eng != NULL){
         eng->render(selectionId);
     }
-    if(renderItem == 3 && con != NULL){
+    if(!gather && renderItem == 3 && con != NULL){
         con->render(selectionId, true);
     }
-    if(renderItem == 5 && con != NULL){
+    if(!gather && renderItem == 5 && con != NULL){
         con->render(selectionId, false);
     }
-    if(renderItem == 2 && con != NULL){
+    if(!gather && renderItem == 2 && con != NULL){
         Mat4::rotate(gluu->mvMatrix, gluu->mvMatrix, M_PI, 0,1,0);
         Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 0, 0, -con->conLength/2);
         con->render(selectionId);
     }
     if(renderItem == 4 && complexShape != NULL){
-        GLUU *gluu = GLUU::get();
-        gluu->enableTextures();
-        complexShape->render();
+        if(!gather){
+            GLUU *gluu = GLUU::get();
+            gluu->enableTextures();
+            complexShape->render();
+        }
         if(cameraInit && complexShape->isLoaded()){
             cameraInit = false;
             const float* bound = complexShape->getBound();
@@ -307,6 +318,34 @@ void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
     
     gluu->currentShader->release();
     Game::shadowsEnabled = shadowsState;
+}
+
+void ShapeViewerGLWidget::renderGathered(quint32 selectionId) {
+    Renderer *previous = Game::currentRenderer;
+    Game::currentRenderer = renderer;
+    renderer->resetFrame();
+    renderer->setViewPosition(camera->getPos());
+    float *mv = renderer->mvMatrix;
+    Mat4::identity(mv);
+    if(mode == "rot"){
+        Mat4::rotate(mv, mv, rotY, 0,1,0);
+        Mat4::rotate(mv, mv, rotZ, 0,0,1);
+    }
+    if(renderItem == 2 && eng != NULL)
+        eng->pushRenderItems(selectionId);
+    if(renderItem == 3 && con != NULL)
+        con->pushRenderItems(selectionId, true);
+    if(renderItem == 5 && con != NULL)
+        con->pushRenderItems(selectionId, false);
+    if(renderItem == 2 && con != NULL){
+        Mat4::rotate(mv, mv, M_PI, 0,1,0);
+        Mat4::translate(mv, mv, 0, 0, -con->conLength/2);
+        con->pushRenderItems(selectionId);
+    }
+    if(renderItem == 4 && complexShape != NULL)
+        complexShape->pushRenderItem();
+    renderer->renderFrame();
+    Game::currentRenderer = previous;
 }
 
 void ShapeViewerGLWidget::getImg() {
