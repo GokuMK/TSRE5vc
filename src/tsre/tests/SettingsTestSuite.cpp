@@ -43,7 +43,7 @@ int TsreTests::runSettingsSuite(bool verbose) {
 
     SettingsManager manager;
     SettingsRegistration::registerAll(manager.registry());
-    check(manager.registry().definitions().size() == 84,
+    check(manager.registry().definitions().size() == 82,
           "catalog-includes-terrain-elevation-and-imagery-sources");
     const auto *elevationSource = manager.registry().definition("geo.elevation.source");
     const auto *elevationFallback = manager.registry().definition("geo.elevation.fallback");
@@ -402,6 +402,25 @@ int TsreTests::runSettingsSuite(bool verbose) {
         manager.clearSessionValue(key);
     }
     {
+        // Profiles written while the renderer pipeline was selectable still
+        // store that setting; loading drops it.
+        QJsonObject oldProfile = manager.document();
+        QJsonArray array = oldProfile.value("settings").toArray();
+        array.append(QJsonObject{{"key", "core.rendering.pipeline"}, {"type", "enum"},
+                                 {"value", "legacy"},
+                                 {"options", QJsonArray{QJsonObject{{"value", "legacy"}},
+                                                        QJsonObject{{"value", "gather"}}}}});
+        oldProfile["settings"] = array;
+        QFile oldFile(temporary.filePath("old-pipeline.json"));
+        check(oldFile.open(QIODevice::WriteOnly), "old-pipeline-profile-open");
+        oldFile.write(QJsonDocument(oldProfile).toJson()); oldFile.close();
+        SettingsManager upgraded; SettingsRegistration::registerAll(upgraded.registry());
+        check(upgraded.loadFile(oldFile.fileName(), &error)
+              && upgraded.settingObject("core.rendering.pipeline").isEmpty()
+              && upgraded.settingsArray().size() == manager.settingsArray().size(),
+              "retired-renderer-pipeline-setting-is-dropped-on-load");
+    }
+    {
         const auto *season = manager.registry().definition("core.startup.season");
         check(season && season->type==SettingType::Enum && season->options.size()==13
               && season->defaultValue.toString().isEmpty() && season->apply=="routeReload",
@@ -454,7 +473,7 @@ int TsreTests::runSettingsSuite(bool verbose) {
             }
         }
     }
-    check(QFile::exists(settingsFile) && manager.settingsArray().size() == 84,
+    check(QFile::exists(settingsFile) && manager.settingsArray().size() == 82,
           "generated-profile-has-catalogue");
     check(manager.document().value("createdBy").toObject().value("application").toString()
               == SettingsManager::currentCatalogApplication()

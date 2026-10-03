@@ -287,10 +287,6 @@ void RouteEditorGLWidget::initializeGL() {
     initializeOpenGLFunctions();
 
     Game::currentRenderer = new OpenGL3Renderer();
-    Game::activeRendererPipeline = Game::requestedRendererPipeline;
-    rendererPipelineInitialized = false;
-    lastRenderedPipeline = -1;
-    qDebug() << "rendererPipeline requested =" << Game::RendererPipelineName(Game::requestedRendererPipeline);
     
     //funcs = QOpenGLContext::currentContext()->versionFunctions<QOpenGLFunctions_3_3_Core>();
     //if (!funcs) {
@@ -451,125 +447,28 @@ void RouteEditorGLWidget::restoreDefaultGlState(){
     glDisable(GL_SCISSOR_TEST);
 }
 
-void RouteEditorGLWidget::fallbackToLegacyRendererPipeline(const QString& reason){
-    Game::RendererPipeline previousPipeline = Game::activeRendererPipeline;
-    qWarning() << "Renderer pipeline fallback to legacy:" << reason;
-    Game::requestedRendererPipeline = Game::RENDER_PIPELINE_LEGACY;
-    Game::activeRendererPipeline = Game::RENDER_PIPELINE_LEGACY;
-    handleRendererPipelineSwitch((int)previousPipeline, (int)Game::RENDER_PIPELINE_LEGACY);
-    rendererPipelineInitialized = true;
-    lastRenderedPipeline = (int)Game::RENDER_PIPELINE_LEGACY;
-    emit sendMsg("rendererPipeline", Game::RendererPipelineName(Game::activeRendererPipeline));
-}
-
-void RouteEditorGLWidget::handleRendererPipelineSwitch(int oldPipeline, int newPipeline){
-    if(oldPipeline == newPipeline)
-        return;
-
-    qDebug() << "rendererPipeline switch:"
-             << Game::RendererPipelineName((Game::RendererPipeline)oldPipeline)
-             << "->"
-             << Game::RendererPipelineName((Game::RendererPipeline)newPipeline);
-
-    if(Game::currentRenderer != NULL){
-        Game::currentRenderer->resetFrame();
-        if(Game::currentRenderer->mvMatrix != NULL)
-            Mat4::identity(Game::currentRenderer->mvMatrix);
-        if(Game::currentRenderer->objStrMatrix != NULL)
-            Mat4::identity(Game::currentRenderer->objStrMatrix);
-    }
-
-    if(gluu != NULL){
-        gluu->currentMsMatrinxHash = 0;
-    }
-
-    if(currentShapeLib != NULL){
-        currentShapeLib->invalidateRendererCaches(true);
-    }
-
-    if(route != NULL){
-        route->rebuildWorldMatrices();
-    }
-}
-
-void RouteEditorGLWidget::announceRendererPipeline(){
-    emit sendMsg("rendererPipeline", Game::RendererPipelineName(Game::activeRendererPipeline));
-    qDebug() << "rendererPipeline active =" << Game::RendererPipelineName(Game::activeRendererPipeline)
-             << "requested =" << Game::RendererPipelineName(Game::requestedRendererPipeline);
-}
-
-void RouteEditorGLWidget::cycleRendererPipelineMode(){
-    if(Game::requestedRendererPipeline == Game::RENDER_PIPELINE_LEGACY){
-        Game::requestedRendererPipeline = Game::RENDER_PIPELINE_GATHER;
-    } else if(Game::requestedRendererPipeline == Game::RENDER_PIPELINE_GATHER){
-        Game::requestedRendererPipeline = Game::RENDER_PIPELINE_VALIDATION;
-    } else {
-        Game::requestedRendererPipeline = Game::RENDER_PIPELINE_LEGACY;
-    }
-    Game::activeRendererPipeline = Game::requestedRendererPipeline;
-    announceRendererPipeline();
-}
-
 void RouteEditorGLWidget::paintGL(){
     Game::currentShapeLib = currentShapeLib;
     if (!canRenderFrame()) return;
     Terrain::beginProceduralFrame();
     restoreDefaultGlState();
 
-    int requestedPipeline = (int)Game::requestedRendererPipeline;
-    if(!rendererPipelineInitialized){
-        rendererPipelineInitialized = true;
-        lastRenderedPipeline = requestedPipeline;
-    } else if(lastRenderedPipeline != requestedPipeline){
-        handleRendererPipelineSwitch(lastRenderedPipeline, requestedPipeline);
-        lastRenderedPipeline = requestedPipeline;
-    }
-
     const bool selectionPass = selection;
-    paintActiveRendererPipelinePass();
+    paintScene();
 
     if(selectionPass && !selection){
         // QOpenGLWidget does not preserve its color buffer by default. Finish
         // every selection callback with a visible frame before returning to Qt.
         restoreDefaultGlState();
-        paintActiveRendererPipelinePass();
+        paintScene();
     }
 }
 
-void RouteEditorGLWidget::paintActiveRendererPipelinePass(){
-    Game::activeRendererPipeline = Game::requestedRendererPipeline;
-    if(Game::activeRendererPipeline == Game::RENDER_PIPELINE_LEGACY){
-        paintGL2();
-        return;
-    }
-    
-    if(Game::activeRendererPipeline == Game::RENDER_PIPELINE_GATHER){
-        if(paintGLGather(true))
-            return;
-        
-        fallbackToLegacyRendererPipeline("gather pipeline failed during frame render");
-        paintGL2();
-        return;
-    }
-    
-    if(Game::activeRendererPipeline == Game::RENDER_PIPELINE_VALIDATION){
-        if(paintGLValidation())
-            return;
-        
-        fallbackToLegacyRendererPipeline("validation pipeline failed during frame render");
-        paintGL2();
-        return;
-    }
-    
-    fallbackToLegacyRendererPipeline("unknown pipeline mode");
-    paintGL2();
-}
-
-bool RouteEditorGLWidget::paintGLGather(bool drawToScreen){
+void RouteEditorGLWidget::paintScene(){
     Game::currentShapeLib = currentShapeLib;
-    if (!canRenderFrame()) return false;
-    if (Game::currentRenderer == NULL) return false;
-    if (Game::currentRenderer->mvMatrix == NULL) return false;
+    if (!canRenderFrame()) return;
+    if (Game::currentRenderer == NULL) return;
+    if (Game::currentRenderer->mvMatrix == NULL) return;
     const bool selectionPass = selection;
     const QString shaderName = selectionPass ? "Selection" : MainRenderShaderName;
     if (gluu->shaders[shaderName] == NULL){
@@ -578,15 +477,15 @@ bool RouteEditorGLWidget::paintGLGather(bool drawToScreen){
             selection = false;
             update();
         }
-        return false;
+        return;
     }
     if(selectionPass && selectionRenderer == NULL){
         qWarning() << "Selection renderer is unavailable";
         selection = false;
         update();
-        return false;
+        return;
     }
-    RenderStats::ScopedFrame statsFrame(Game::RENDER_PIPELINE_GATHER, !selectionPass);
+    RenderStats::ScopedFrame statsFrame(!selectionPass);
     // Drop anything left from an interrupted frame and rebalance the matrix stack.
     Game::currentRenderer->resetFrame();
     Game::currentRenderer->setViewPosition(camera->getPos());
@@ -595,7 +494,7 @@ bool RouteEditorGLWidget::paintGLGather(bool drawToScreen){
     // Live placement tools rebuild their geometry from the pointer position.
     // Apply the position read in the previous frame now, before that geometry
     // is gathered; queued packets must not lose their buffers mid-frame.
-    const bool drawPointerEnabled = drawToScreen && !selectionPass && !Game::playerMode;
+    const bool drawPointerEnabled = !selectionPass && !Game::playerMode;
     if (drawPointerEnabled)
         applyPointerToLiveTools();
 
@@ -625,206 +524,6 @@ bool RouteEditorGLWidget::paintGLGather(bool drawToScreen){
     renderer->setLayer(Renderer::LAYER_SCENE);
 
     // Render Shadows
-    if (drawToScreen && !selectionPass && Game::shadowsEnabled > 0){
-        RenderStats::beginPhase(RenderStats::PhaseShadow);
-        renderShadowMapsGather();
-        RenderStats::endPhase(RenderStats::PhaseShadow);
-    }
-
-    // Render Scene
-    //gluu->currentShader = gluu->shaders["StandardBloom"];
-    if(drawToScreen){
-        if(selectionPass){
-            const int selectionWidth = qRound((float)this->width() * Game::PixelRatio);
-            const int selectionHeight = qRound((float)this->height() * Game::PixelRatio);
-            if(!selectionRenderer->begin(selectionWidth, selectionHeight)){
-                qWarning() << "Could not start the integer selection pass";
-                selection = false;
-                update();
-                return false;
-            }
-        } else {
-            glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
-            glActiveTexture(GL_TEXTURE0);
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        }
-    }
-    gluu->currentShader = gluu->shaders[shaderName];
-    gluu->currentShader->bind();
-
-    int renderMode = GLUU::RENDER_DEFAULT;
-    const GLboolean blendingWasEnabled = glIsEnabled(GL_BLEND);
-    if (selectionPass){
-        renderMode = GLUU::RENDER_SELECTION;
-        glDisable(GL_BLEND);
-    }
-    
-    GLboolean oldColorMask[4];
-    GLboolean oldDepthMask;
-    if(!drawToScreen){
-        glGetBooleanv(GL_COLOR_WRITEMASK, oldColorMask);
-        glGetBooleanv(GL_DEPTH_WRITEMASK, &oldDepthMask);
-        glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
-        glDepthMask(GL_FALSE);
-    }
-
-    glClearColor(gluu->skyColor[0], gluu->skyColor[1], gluu->skyColor[2], 1.0);
-    if(drawToScreen && !selectionPass)
-        glViewport(0, 0, qRound((float)this->width() * Game::PixelRatio),
-                   qRound((float)this->height() * Game::PixelRatio));
-    Mat4::identity(gluu->mvMatrix);
-    Mat4::identity(Game::currentRenderer->mvMatrix);
-    
-    Mat4::perspective(gluu->fMatrix, Game::cameraFov * M_PI / 180, float(this->width()) / this->height(), 0.2f, Game::objectLod);
-    Mat4::multiply(gluu->fMatrix, gluu->fMatrix, camera->getMatrix());
-    
-    // Sky and distant terrain submit and draw with their own projections.
-    // Render Skydome
-    Mat4::perspective(gluu->pMatrix, Game::cameraFov * M_PI / 180, float(this->width()) / this->height(), 100.0f, 10000.0f);
-    Mat4::multiply(gluu->pMatrix, gluu->pMatrix, camera->getMatrix());
-    Mat4::translate(renderer->mvMatrix, renderer->mvMatrix, camera->getPos());
-    Mat4::translate(renderer->mvMatrix, renderer->mvMatrix, 0, -50, 0);
-    Mat4::rotate(renderer->mvMatrix, renderer->mvMatrix, 2.0, 0, 1, 0);
-    gluu->setMatrixUniforms();
-    gluu->currentShader->setUniformValue(gluu->currentShader->lod, 0.0f);
-    renderer->setLayer(Renderer::LAYER_SKY);
-    route->skydome->pushRenderItems(renderMode);
-    renderer->setLayer(Renderer::LAYER_SCENE);
-    RenderStats::beginPhase(RenderStats::PhaseSky);
-    renderer->renderPasses(Renderer::PASS_SKY, Renderer::PASS_SKY);
-    RenderStats::endPhase(RenderStats::PhaseSky);
-    Mat4::identity(renderer->mvMatrix);
-    if(drawToScreen)
-        glClear(GL_DEPTH_BUFFER_BIT); 
-    
-    // Render Low Resolution Terrain
-    Mat4::perspective(gluu->pMatrix, Game::cameraFov * M_PI / 180, float(this->width()) / this->height(), 600.0f, Game::distantLod);
-    Mat4::multiply(gluu->pMatrix, gluu->pMatrix, camera->getMatrix());
-    gluu->setMatrixUniforms();
-    Mat4::translate(renderer->mvMatrix, renderer->mvMatrix, 0, route->getDistantTerrainYOffset(), 0);
-    renderer->setLayer(Renderer::LAYER_DISTANT);
-    Game::terrainLib->pushRenderItemsLo(camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3, renderMode);
-    for(int i = 0; i < route->env->waterCount; i++)
-        Game::terrainLib->pushRenderItemsWaterLo(camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3, renderMode, i);
-    renderer->setLayer(Renderer::LAYER_SCENE);
-    RenderStats::beginPhase(RenderStats::PhaseDistant);
-    renderer->renderPasses(Renderer::PASS_DISTANT, Renderer::PASS_DISTANT);
-    RenderStats::endPhase(RenderStats::PhaseDistant);
-    Mat4::identity(renderer->mvMatrix);
-    if(drawToScreen)
-        glClear(GL_DEPTH_BUFFER_BIT);
-
-    // Render High Resolution Terrain and World
-    Mat4::perspective(gluu->pMatrix, Game::cameraFov * M_PI / 180, float(this->width()) / this->height(), 0.2f, Game::objectLod);
-    Mat4::multiply(gluu->pMatrix, gluu->pMatrix, camera->getMatrix());
-    gluu->setMatrixUniforms();
-    RenderStats::beginPhase(RenderStats::PhaseScene);
-
-    const bool drawPointerOnTerrain = drawPointerEnabled && stickPointerToTerrain && Game::viewTerrainShape;
-    const bool drawPointerAfterWorld = drawPointerEnabled && (!stickPointerToTerrain || !Game::viewTerrainShape);
-
-    if (drawPointerOnTerrain) {
-        // The pointer reads terrain depth, so terrain must be drawn first.
-        renderer->renderPasses(Renderer::PASS_TERRAIN, Renderer::PASS_TERRAIN);
-        pushRenderPointer();
-    }
-
-    renderer->renderPasses(Renderer::PASS_TERRAIN, Renderer::PASS_WATER);
-
-    if (drawPointerAfterWorld) {
-        pushRenderPointer();
-        renderer->renderPasses(Renderer::PASS_TERRAIN, Renderer::PASS_WATER);
-    }
-    RenderStats::endPhase(RenderStats::PhaseScene);
-
-    // render compass
-    RenderStats::beginPhase(RenderStats::PhaseUi);
-    if (drawToScreen && !selectionPass && Game::viewCompass){
-        Mat4::identity(gluu->mvMatrix);
-        Mat4::ortho(gluu->pMatrix, -1.0, 1.0, 1.0 - 2*(float(this->height()) / this->width()), 1.0, 0.0, 1.0);
-        Mat4::identity(gluu->objStrMatrix);
-        gluu->setMatrixUniforms();
-        gluu->currentShader->setUniformValue(gluu->currentShader->lod, 0.0f);
-
-        renderer->setLayer(Renderer::LAYER_UI);
-        compass->pushRenderItem(camera->getRotX()+M_PI);
-        compassPointer->pushRenderItem();
-        renderer->setLayer(Renderer::LAYER_SCENE);
-        renderer->renderPasses(Renderer::PASS_UI, Renderer::PASS_UI);
-    }
-    
-    
-    // HUD
-    if(drawToScreen && !selectionPass && Game::hudEnabled){
-        int shadowsState = Game::shadowsEnabled;
-        Game::shadowsEnabled = 0;
-        float hudScale = Game::hudScale;
-        Mat4::identity(gluu->mvMatrix);
-        Mat4::ortho(gluu->pMatrix, -1.0, -1.0+2.0*hudScale, 1.0 - 2*(float(this->height()) / this->width())*hudScale, 1.0, 0.0, 1.0);
-        Mat4::identity(gluu->objStrMatrix);
-        gluu->setMatrixUniforms();
-        gluu->currentShader->setUniformValue(gluu->currentShader->lod, 0.0f);
-        renderer->setLayer(Renderer::LAYER_UI);
-        camera->pushRenderHud();
-        renderer->setLayer(Renderer::LAYER_SCENE);
-        renderer->renderPasses(Renderer::PASS_UI, Renderer::PASS_UI);
-        Game::shadowsEnabled = shadowsState;
-        gluu->currentShader->release();
-    }
-    renderer->renderFrame();
-    RenderStats::endPhase(RenderStats::PhaseUi);
-
-    if(!drawToScreen){
-        glColorMask(oldColorMask[0], oldColorMask[1], oldColorMask[2], oldColorMask[3]);
-        glDepthMask(oldDepthMask);
-    }
-    // Handle Selection
-    if (blendingWasEnabled)
-        glEnable(GL_BLEND);
-    if(drawToScreen && selectionPass){
-        handleSelection();
-        selectionRenderer->end();
-        gluu->currentShader->release();
-        return true;
-    }
-
-    
-    // Set Info
-    if (drawToScreen && this->isActiveWindow()) {
-        emit this->naviInfo(route->getTileObjCount((int) camera->pozT[0], (int) camera->pozT[1]), route->getTileHiddenObjCount((int) camera->pozT[0], (int) camera->pozT[1]));
-        emit this->posInfo(camera->getCurrentPos());
-        emit this->pointerInfo(aktPointerPos);
-    }
-    if(drawToScreen)
-        drawEditorFpsHud();
-    return true;
-}
-
-bool RouteEditorGLWidget::paintGLValidation(){
-    if(!canRenderFrame()) return false;
-    if(Game::currentRenderer == NULL) return false;
-
-    const bool selectionPass = selection;
-
-    // Keep legacy output authoritative for user interaction.
-    paintGL2();
-
-    if(selectionPass)
-        return true;
-
-    // Run gather path in parallel for parity/debug validation.
-    return paintGLGather(false);
-}
-
-void RouteEditorGLWidget::paintGL2() {
-    Game::currentShapeLib = currentShapeLib;
-    if (route == NULL) return;
-    if (!route->loaded) return;
-
-    const bool selectionPass = selection;
-    RenderStats::ScopedFrame statsFrame(Game::RENDER_PIPELINE_LEGACY, !selectionPass);
-
-    // Render Shadows
     if (!selectionPass && Game::shadowsEnabled > 0){
         RenderStats::beginPhase(RenderStats::PhaseShadow);
         renderShadowMaps();
@@ -833,22 +532,7 @@ void RouteEditorGLWidget::paintGL2() {
 
     // Render Scene
     //gluu->currentShader = gluu->shaders["StandardBloom"];
-    const QString shaderName = selectionPass ? "Selection" : MainRenderShaderName;
-    if(gluu->shaders[shaderName] == NULL){
-        if(selectionPass){
-            qWarning() << "Selection shader is unavailable";
-            selection = false;
-            update();
-        }
-        return;
-    }
     if(selectionPass){
-        if(selectionRenderer == NULL){
-            qWarning() << "Selection renderer is unavailable";
-            selection = false;
-            update();
-            return;
-        }
         const int selectionWidth = qRound((float)this->width() * Game::PixelRatio);
         const int selectionHeight = qRound((float)this->height() * Game::PixelRatio);
         if(!selectionRenderer->begin(selectionWidth, selectionHeight)){
@@ -877,69 +561,68 @@ void RouteEditorGLWidget::paintGL2() {
         glViewport(0, 0, qRound((float)this->width() * Game::PixelRatio),
                    qRound((float)this->height() * Game::PixelRatio));
     Mat4::identity(gluu->mvMatrix);
+    Mat4::identity(Game::currentRenderer->mvMatrix);
     
     Mat4::perspective(gluu->fMatrix, Game::cameraFov * M_PI / 180, float(this->width()) / this->height(), 0.2f, Game::objectLod);
     Mat4::multiply(gluu->fMatrix, gluu->fMatrix, camera->getMatrix());
     
+    // Sky and distant terrain submit and draw with their own projections.
     // Render Skydome
     Mat4::perspective(gluu->pMatrix, Game::cameraFov * M_PI / 180, float(this->width()) / this->height(), 100.0f, 10000.0f);
     Mat4::multiply(gluu->pMatrix, gluu->pMatrix, camera->getMatrix());
-    Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, camera->getPos());
-    Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 0, -50, 0);
-    Mat4::rotate(gluu->mvMatrix, gluu->mvMatrix, 2.0, 0, 1, 0);
+    Mat4::translate(renderer->mvMatrix, renderer->mvMatrix, camera->getPos());
+    Mat4::translate(renderer->mvMatrix, renderer->mvMatrix, 0, -50, 0);
+    Mat4::rotate(renderer->mvMatrix, renderer->mvMatrix, 2.0, 0, 1, 0);
     gluu->setMatrixUniforms();
     gluu->currentShader->setUniformValue(gluu->currentShader->lod, 0.0f);
+    renderer->setLayer(Renderer::LAYER_SKY);
+    route->skydome->pushRenderItems(renderMode);
+    renderer->setLayer(Renderer::LAYER_SCENE);
     RenderStats::beginPhase(RenderStats::PhaseSky);
-    route->skydome->render(gluu, renderMode);
+    renderer->renderPasses(Renderer::PASS_SKY, Renderer::PASS_SKY);
     RenderStats::endPhase(RenderStats::PhaseSky);
-    Mat4::identity(gluu->mvMatrix);
+    Mat4::identity(renderer->mvMatrix);
     glClear(GL_DEPTH_BUFFER_BIT);
     
     // Render Low Resolution Terrain
     Mat4::perspective(gluu->pMatrix, Game::cameraFov * M_PI / 180, float(this->width()) / this->height(), 600.0f, Game::distantLod);
     Mat4::multiply(gluu->pMatrix, gluu->pMatrix, camera->getMatrix());
     gluu->setMatrixUniforms();
-    //gluu->currentShader->setUniformValue(gluu->currentShader->lod, -0.5f);
-    Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 0, route->getDistantTerrainYOffset(), 0);
-    RenderStats::beginPhase(RenderStats::PhaseDistant);
-    Game::terrainLib->renderLo(gluu, camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3, renderMode);
+    Mat4::translate(renderer->mvMatrix, renderer->mvMatrix, 0, route->getDistantTerrainYOffset(), 0);
+    renderer->setLayer(Renderer::LAYER_DISTANT);
+    Game::terrainLib->pushRenderItemsLo(camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3, renderMode);
     for(int i = 0; i < route->env->waterCount; i++)
-        Game::terrainLib->renderWaterLo(gluu, camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3, renderMode, i);
+        Game::terrainLib->pushRenderItemsWaterLo(camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3, renderMode, i);
+    renderer->setLayer(Renderer::LAYER_SCENE);
+    RenderStats::beginPhase(RenderStats::PhaseDistant);
+    renderer->renderPasses(Renderer::PASS_DISTANT, Renderer::PASS_DISTANT);
     RenderStats::endPhase(RenderStats::PhaseDistant);
-    Mat4::identity(gluu->mvMatrix);
+    Mat4::identity(renderer->mvMatrix);
     glClear(GL_DEPTH_BUFFER_BIT);
 
-    // Render High Resolution Terrain
+    // Render High Resolution Terrain and World
     Mat4::perspective(gluu->pMatrix, Game::cameraFov * M_PI / 180, float(this->width()) / this->height(), 0.2f, Game::objectLod);
     Mat4::multiply(gluu->pMatrix, gluu->pMatrix, camera->getMatrix());
     gluu->setMatrixUniforms();
-    RenderStats::beginPhase(RenderStats::PhaseSceneTerrain);
-    Game::terrainLib->render(gluu, camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3, renderMode);
-    RenderStats::endPhase(RenderStats::PhaseSceneTerrain);
-    RenderStats::beginPhase(RenderStats::PhaseSceneWorld);
-    //glClear(GL_DEPTH_BUFFER_BIT);
-    // Render World
-    Mat4::perspective(gluu->pMatrix, Game::cameraFov * M_PI / 180, float(this->width()) / this->height(), 0.2f, Game::objectLod);
-    Mat4::multiply(gluu->pMatrix, gluu->pMatrix, camera->getMatrix());
-    gluu->setMatrixUniforms();
+    RenderStats::beginPhase(RenderStats::PhaseScene);
 
-    if (stickPointerToTerrain && Game::viewTerrainShape)
-        if (!selectionPass && !Game::playerMode) drawPointer();
-    
-    route->render(gluu, camera->pozT, camera->getPos(), camera->getTarget(), camera->getRotX(), 3.14f / 3, renderMode);
-    RenderStats::endPhase(RenderStats::PhaseSceneWorld);
+    const bool drawPointerOnTerrain = drawPointerEnabled && stickPointerToTerrain && Game::viewTerrainShape;
+    const bool drawPointerAfterWorld = drawPointerEnabled && (!stickPointerToTerrain || !Game::viewTerrainShape);
 
-    //if (!selection)
-    RenderStats::beginPhase(RenderStats::PhaseSceneWater);
-    for(int i = 0; i < route->env->waterCount; i++)
-        Game::terrainLib->renderWater(gluu, camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3, renderMode, i);
-    RenderStats::endPhase(RenderStats::PhaseSceneWater);
+    if (drawPointerOnTerrain) {
+        // The pointer reads terrain depth, so terrain must be drawn first.
+        renderer->renderPasses(Renderer::PASS_TERRAIN, Renderer::PASS_TERRAIN);
+        pushRenderPointer();
+    }
 
-    RenderStats::beginPhase(RenderStats::PhaseSceneWorld);
-    if (!stickPointerToTerrain || !Game::viewTerrainShape)
-        if (!selectionPass && !Game::playerMode) drawPointer();
-    RenderStats::endPhase(RenderStats::PhaseSceneWorld);
-    
+    renderer->renderPasses(Renderer::PASS_TERRAIN, Renderer::PASS_WATER);
+
+    if (drawPointerAfterWorld) {
+        pushRenderPointer();
+        renderer->renderPasses(Renderer::PASS_TERRAIN, Renderer::PASS_WATER);
+    }
+    RenderStats::endPhase(RenderStats::PhaseScene);
+
     // render compass
     RenderStats::beginPhase(RenderStats::PhaseUi);
     if (!selectionPass && Game::viewCompass){
@@ -949,8 +632,11 @@ void RouteEditorGLWidget::paintGL2() {
         gluu->setMatrixUniforms();
         gluu->currentShader->setUniformValue(gluu->currentShader->lod, 0.0f);
 
-        compass->render(camera->getRotX()+M_PI);
-        compassPointer->render();
+        renderer->setLayer(Renderer::LAYER_UI);
+        compass->pushRenderItem(camera->getRotX()+M_PI);
+        compassPointer->pushRenderItem();
+        renderer->setLayer(Renderer::LAYER_SCENE);
+        renderer->renderPasses(Renderer::PASS_UI, Renderer::PASS_UI);
     }
     
     
@@ -964,11 +650,16 @@ void RouteEditorGLWidget::paintGL2() {
         Mat4::identity(gluu->objStrMatrix);
         gluu->setMatrixUniforms();
         gluu->currentShader->setUniformValue(gluu->currentShader->lod, 0.0f);
-        camera->renderHud(gluu);
+        renderer->setLayer(Renderer::LAYER_UI);
+        camera->pushRenderHud();
+        renderer->setLayer(Renderer::LAYER_SCENE);
+        renderer->renderPasses(Renderer::PASS_UI, Renderer::PASS_UI);
         Game::shadowsEnabled = shadowsState;
         gluu->currentShader->release();
     }
+    renderer->renderFrame();
     RenderStats::endPhase(RenderStats::PhaseUi);
+
     // Handle Selection
     if (blendingWasEnabled)
         glEnable(GL_BLEND);
@@ -979,6 +670,7 @@ void RouteEditorGLWidget::paintGL2() {
         return;
     }
 
+    
     // Set Info
     if (this->isActiveWindow()) {
         emit this->naviInfo(route->getTileObjCount((int) camera->pozT[0], (int) camera->pozT[1]), route->getTileHiddenObjCount((int) camera->pozT[0], (int) camera->pozT[1]));
@@ -1033,9 +725,9 @@ void RouteEditorGLWidget::computeShadowMatrices() {
     delete[] ld;
 }
 
-// Draws both shadow maps from the gathered queue. The caster ranges match
-// the object distances legacy uses for each map (600 and 1000).
-void RouteEditorGLWidget::renderShadowMapsGather() {
+// Draws both shadow maps from the gathered queue, with casters up to 600 m
+// and 1000 m away.
+void RouteEditorGLWidget::renderShadowMaps() {
     computeShadowMatrices();
     gluu->currentShader = gluu->shaders["Shadows"];
     gluu->currentShader->bind();
@@ -1057,40 +749,6 @@ void RouteEditorGLWidget::renderShadowMapsGather() {
     glViewport(0, 0, distantShadowMapSize, distantShadowMapSize);
     Game::currentRenderer->renderShadowCasters(1000.0f, RenderStats::FrameStats::PassSlots - 2);
     std::swap(gluu->pShadowMatrix, gluu->pShadowMatrix2);
-    gluu->currentShader->release();
-}
-
-void RouteEditorGLWidget::renderShadowMaps() {
-    computeShadowMatrices();
-
-    gluu->currentShader = gluu->shaders["Shadows"];
-    gluu->currentShader->bind();
-    Mat4::identity(gluu->mvMatrix);
-    Mat4::identity(gluu->objStrMatrix);
-    gluu->setMatrixUniforms();
-    glBindFramebuffer(GL_FRAMEBUFFER, FramebufferName1);
-    glActiveTexture(GL_TEXTURE0);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glViewport(0, 0, shadowMapSize, shadowMapSize);
-    int tempLod = Game::objectLod;
-    Game::objectLod = 600;
-    Game::terrainLib->renderEmpty(gluu, camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3);
-    route->renderShadowMap(gluu, camera->pozT, camera->getPos(), camera->getTarget(), camera->getRotX(), 3.14f / 3, selection);
-
-    Mat4::identity(gluu->mvMatrix);
-    Mat4::identity(gluu->objStrMatrix);
-    float *tmatrix = gluu->pShadowMatrix;
-    gluu->pShadowMatrix = gluu->pShadowMatrix2;
-    gluu->setMatrixUniforms();
-    glBindFramebuffer(GL_FRAMEBUFFER, FramebufferName2);
-    glActiveTexture(GL_TEXTURE0);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glViewport(0, 0, distantShadowMapSize, distantShadowMapSize);
-    Game::objectLod = 1000;
-    route->renderShadowMap(gluu, camera->pozT, camera->getPos(), camera->getTarget(), camera->getRotX(), 3.14f / 3, selection);
-    gluu->pShadowMatrix2 = gluu->pShadowMatrix;
-    gluu->pShadowMatrix = tmatrix;
-    Game::objectLod = tempLod;
     gluu->currentShader->release();
 }
 
@@ -1330,34 +988,6 @@ float RouteEditorGLWidget::pointerDisplayY() const {
                 ? continuousPlacementYOffset : 0.0f);
 }
 
-void RouteEditorGLWidget::drawPointer() {
-    updatePointerPosition();
-    if (Game::viewPointer3d) {
-        gluu->mvPushMatrix();
-        Mat4::translate(gluu->mvMatrix, gluu->mvMatrix,
-                aktPointerPos[0], pointerDisplayY(), aktPointerPos[2]);
-        Mat4::identity(gluu->objStrMatrix);
-        gluu->setMatrixUniforms();
-        pointer3d->render();
-        gluu->mvPopMatrix();
-
-        if(Game::serverClient != NULL){
-            foreach(ClientInfo *info, Game::serverClient->clientUsersList){
-                if(info == NULL)
-                    continue;
-                if(info->username == Game::serverClient->username)
-                    continue;
-                gluu->mvPushMatrix();
-                Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 2048*(info->X-camera->pozT[0])+info->x, info->y, 2048*(info->Z-camera->pozT[1])+info->z);
-                Mat4::identity(gluu->objStrMatrix);
-                gluu->setMatrixUniforms();
-                info->render(camera->getRotX());
-                gluu->mvPopMatrix();
-            }
-        }
-    }
-}
-
 // Gather counterpart of drawPointer(); the caller draws the submitted items.
 // The live tools were already moved at the start of the frame, before their
 // geometry was gathered, so only the pointer position is read here.
@@ -1393,15 +1023,6 @@ void RouteEditorGLWidget::resizeGL(int w, int h) {
 void RouteEditorGLWidget::keyPressEvent(QKeyEvent * event) {
     Game::currentShapeLib = currentShapeLib;
     
-    if (Game::rendererPipelineHotSwap
-            && event->key() == Qt::Key_F12
-            && (event->modifiers() & Qt::ControlModifier)
-            && (event->modifiers() & Qt::ShiftModifier)) {
-        cycleRendererPipelineMode();
-        update();
-        return;
-    }
-
     if (event->key() == Qt::Key_F10
             && (event->modifiers() & Qt::ControlModifier)
             && (event->modifiers() & Qt::ShiftModifier)) {

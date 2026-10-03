@@ -4138,16 +4138,16 @@ int TsreTests::run(const TestRunOptions &opts) {
         return runConsistPreviewSuite(opts.verbose);
 
     if (suite == "renderer-capture")
-        return runRendererCaptureSuite(opts.casesFile, opts.verbose);
+        return runRendererCaptureSuite(opts.casesFile, opts.label, opts.verbose);
 
     if (suite == "renderer-compare")
-        return runRendererCompareSuite(opts.casesFile, opts.verbose);
+        return runRendererCompareSuite(opts.casesFile, opts.baseline, opts.label, opts.verbose);
 
     if (suite == "shape-viewer-capture")
-        return runShapeViewerCaptureSuite(opts.casesFile, opts.verbose);
+        return runShapeViewerCaptureSuite(opts.casesFile, opts.label, opts.verbose);
 
     if (suite == "shape-viewer-compare")
-        return runShapeViewerCompareSuite(opts.casesFile, opts.verbose);
+        return runShapeViewerCompareSuite(opts.casesFile, opts.baseline, opts.label, opts.verbose);
 
     if (suite == "paint-text")
         return runPaintTexSuite(opts.verbose);

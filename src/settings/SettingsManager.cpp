@@ -52,6 +52,25 @@ bool stripRuntimeOptions(QJsonObject &document, const SettingsRegistry &registry
     return changed;
 }
 
+// Settings removed from the catalogue; their stored entries are dropped on load.
+const QStringList RetiredKeys = {
+    "core.rendering.pipeline",
+    "core.rendering.pipelineHotSwap",
+};
+
+bool stripRetiredSettings(QJsonObject &document) {
+    QJsonArray settings = document.value("settings").toArray();
+    QJsonArray kept;
+    for (const QJsonValue &value : settings) {
+        if (!RetiredKeys.contains(value.toObject().value("key").toString()))
+            kept.append(value);
+    }
+    if (kept.size() == settings.size())
+        return false;
+    document["settings"] = kept;
+    return true;
+}
+
 QJsonObject buildIdentity() {
     return QJsonObject{{"application", SettingsManager::currentCatalogApplication()},
                        {"version", SettingsManager::currentCatalogVersion()}};
@@ -170,6 +189,7 @@ bool SettingsManager::loadFile(const QString &settingsFile, QString *error) {
             return false;
         m_document = candidate;
         m_modified |= stripRuntimeOptions(m_document, m_registry);
+        m_modified |= stripRetiredSettings(m_document);
         // Explicit migration: upgrade both free strings and the short-name enum
         // to the current TRK-named season choices.
         // Preserve recognized values/aliases (normalizing case); retain unknown

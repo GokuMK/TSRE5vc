@@ -202,10 +202,6 @@ CommandLineParseResult parseCommandLineArgs(QCommandLineParser &parser,
                 "set", "Override one profile value for this launch (key=value).",
                 "key=value");
     parser.addOption(SettingsOverrideOption);
-    const QCommandLineOption GatherLegacyOverlaysOption(
-                "gather-legacy-overlays",
-                "Disabled renderer diagnostic retained for launch compatibility; has no effect.");
-    parser.addOption(GatherLegacyOverlaysOption);
 
     // Tests (headless)
     const QCommandLineOption TestOption("test", "Run TSRE test runner and exit.");
@@ -217,6 +213,12 @@ CommandLineParseResult parseCommandLineArgs(QCommandLineParser &parser,
     const QCommandLineOption TestCasesOption(
                 "test-cases", "Path to suite-specific test input.", "path");
     parser.addOption(TestCasesOption);
+    const QCommandLineOption TestLabelOption(
+                "test-label", "Name of the capture a suite writes or checks (default: current).", "name");
+    parser.addOption(TestLabelOption);
+    const QCommandLineOption TestBaselineOption(
+                "test-baseline", "Name of the capture a suite compares against (default: baseline).", "name");
+    parser.addOption(TestBaselineOption);
     const QCommandLineOption TestVerboseOption("test-verbose", "Verbose test output.");
     parser.addOption(TestVerboseOption);
 
@@ -322,9 +324,6 @@ CommandLineParseResult parseCommandLineArgs(QCommandLineParser &parser,
             consoleArgs.remove("SETTINGS_FILE");
         }
     }
-    if (parser.isSet(GatherLegacyOverlaysOption)) {
-        consoleArgs["GATHER_LEGACY_OVERLAYS"] = "TRUE";
-    }
 
     if (parser.isSet(TestOption)) {
         consoleArgs["TEST"] = "TRUE";
@@ -337,6 +336,12 @@ CommandLineParseResult parseCommandLineArgs(QCommandLineParser &parser,
     }
     if (parser.isSet(TestCasesOption)) {
         consoleArgs["TEST_CASES"] = parser.value(TestCasesOption);
+    }
+    if (parser.isSet(TestLabelOption)) {
+        consoleArgs["TEST_LABEL"] = parser.value(TestLabelOption);
+    }
+    if (parser.isSet(TestBaselineOption)) {
+        consoleArgs["TEST_BASELINE"] = parser.value(TestBaselineOption);
     }
     if (parser.isSet(TestVerboseOption)) {
         consoleArgs["TEST_VERBOSE"] = "TRUE";
@@ -574,10 +579,6 @@ int main(int argc, char *argv[]){
     if (consoleArgs["FLEX_LOG_FILE"].length() > 0) {
         Game::flexLogFile = consoleArgs["FLEX_LOG_FILE"];
     }
-    if (consoleArgs["GATHER_LEGACY_OVERLAYS"] == "TRUE") {
-        qWarning() << "--gather-legacy-overlays is a disabled renderer-test command "
-                      "and currently has no effect.";
-    }
 
     if(consoleArgs["ROUTE"].length() > 0){
         Game::route = consoleArgs["ROUTE"];
@@ -605,6 +606,10 @@ int main(int argc, char *argv[]){
         TsreTests::TestRunOptions opts;
         opts.suite = consoleArgs["TEST_SUITE"];
         opts.casesFile = consoleArgs["TEST_CASES"];
+        if (!consoleArgs["TEST_LABEL"].isEmpty())
+            opts.label = consoleArgs["TEST_LABEL"];
+        if (!consoleArgs["TEST_BASELINE"].isEmpty())
+            opts.baseline = consoleArgs["TEST_BASELINE"];
         opts.verbose = (consoleArgs["TEST_VERBOSE"] == "TRUE");
         return TsreTests::run(opts);
     }
