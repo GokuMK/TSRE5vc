@@ -124,11 +124,8 @@ public:
     bool findPosition(int &x, int &z, float* p, float* q, float* endp, int sectionIdx);
     bool findPosition(int &x, int &z, float* p, float* q, float* endp, TrackShape* shape);
     void getLines(float * &lineBuffer, int &length, float* playerT);
-    void renderAll(GLUU *gluu, float * playerT, float playerRot);
     void pushRenderAll(float * playerT, float playerRot);
-    void renderLines(GLUU *gluu, float* playerT, float playerRot);
     void pushRenderLines(float* playerT, float playerRot);
-    void renderItems(GLUU *gluu, float* playerT, float playerRot, int renderMode);
     void pushRenderItems(float* playerT, float playerRot, int renderMode);
     bool getDrawPositionOnTrNode(float* out, int id, float metry, float *sElev = NULL);
     int findTrItemNodeId(int id);

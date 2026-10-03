@@ -23,12 +23,6 @@ ClientInfo::ClientInfo(const ClientInfo& orig) {
 ClientInfo::~ClientInfo() {
 }
 
-void ClientInfo::render(float playerRot) {
-    initMarker();
-    stick->render();
-    name->render(playerRot);
-}
-
 void ClientInfo::pushRenderItem(float playerRot) {
     initMarker();
     stick->pushRenderItem();

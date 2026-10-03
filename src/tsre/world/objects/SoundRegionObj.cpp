@@ -355,13 +355,6 @@ void SoundRegionObj::set(QString sh, FileBuffer* data) {
     return;
 }
 
-void SoundRegionObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos, float* target, float fov, quint32 selectionId, int renderMode) {
-    if (!loaded) return;
-
-    if(Game::viewInteractives && renderMode != gluu->RENDER_SHADOWMAP) 
-        this->renderTritems(gluu, selectionId, false);
-};
-
 void SoundRegionObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId){
     if (!loaded)
         return;
@@ -370,10 +363,10 @@ void SoundRegionObj::pushRenderItems(float lod, float posx, float posz, float* p
     if(Game::currentRenderer == NULL)
         return;
 
-    this->renderTritems(NULL, selectionId, true);
+    this->pushRenderTritems(selectionId);
 }
 
-void SoundRegionObj::renderTritems(GLUU* gluu, quint32 selectionId, bool pushToQueue){
+void SoundRegionObj::pushRenderTritems(quint32 selectionId){
     
     ///////////////////////////////
     TDB* tdb = Game::trackDB;
@@ -449,38 +442,19 @@ void SoundRegionObj::renderTritems(GLUU* gluu, quint32 selectionId, bool pushToQ
         }
     }
 
-    if(pushToQueue){
-        if(selectionId == 0)
-            drawLine->pushRenderItem();
+    if(selectionId == 0)
+        drawLine->pushRenderItem();
 
-        for(int i = 0; i < drawPositions.size(); i++){
-            drawPosition = drawPositions[i];
-            Game::currentRenderer->mvPushMatrix();
-            Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPosition[0] + 0 * (drawPosition[4] - this->x), drawPosition[1] + 1, -drawPosition[2] + 0 * (-drawPosition[5] - this->y));
-            Mat4::rotateY(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, -drawPosition[7]+M_PI);
-            if(this->selected && this->selectionValue == i+1)
-                pointer3dSelected->pushRenderItem(SelectionIdCodec::withPart(selectionId, i + 1));
-            else
-                pointer3d->pushRenderItem(SelectionIdCodec::withPart(selectionId, i + 1));
-            Game::currentRenderer->mvPopMatrix();
-        }
-    } else {
-        gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-        if(selectionId == 0)
-            drawLine->render();
-
-        for(int i = 0; i < drawPositions.size(); i++){
-            drawPosition = drawPositions[i];
-            gluu->mvPushMatrix();
-            Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, drawPosition[0] + 0 * (drawPosition[4] - this->x), drawPosition[1] + 1, -drawPosition[2] + 0 * (-drawPosition[5] - this->y));
-            Mat4::rotateY(gluu->mvMatrix, gluu->mvMatrix, -drawPosition[7]+M_PI);
-            gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-            if(this->selected && this->selectionValue == i+1)
-                pointer3dSelected->render(SelectionIdCodec::withPart(selectionId, i + 1));
-            else
-                pointer3d->render(SelectionIdCodec::withPart(selectionId, i + 1));
-            gluu->mvPopMatrix();
-        }
+    for(int i = 0; i < drawPositions.size(); i++){
+        drawPosition = drawPositions[i];
+        Game::currentRenderer->mvPushMatrix();
+        Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPosition[0] + 0 * (drawPosition[4] - this->x), drawPosition[1] + 1, -drawPosition[2] + 0 * (-drawPosition[5] - this->y));
+        Mat4::rotateY(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, -drawPosition[7]+M_PI);
+        if(this->selected && this->selectionValue == i+1)
+            pointer3dSelected->pushRenderItem(SelectionIdCodec::withPart(selectionId, i + 1));
+        else
+            pointer3d->pushRenderItem(SelectionIdCodec::withPart(selectionId, i + 1));
+        Game::currentRenderer->mvPopMatrix();
     }
 
 };

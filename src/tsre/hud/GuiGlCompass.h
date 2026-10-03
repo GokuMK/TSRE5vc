@@ -17,8 +17,6 @@ class GuiGlCompass : public OglObj {
 public:
     GuiGlCompass();
     virtual ~GuiGlCompass();
-    void render();
-    void render(float a);
     void pushRenderItem(float a);
 
 private:

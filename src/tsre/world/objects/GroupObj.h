@@ -69,7 +69,6 @@ public:
     unsigned int count();
     void randomTransform(Ref::RandomTransformation * transformation);
     void fromNewObjects(GroupObj *objList, Route *route, int x, int z, float *p);
-    void render(GLUU* gluu, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId, int renderMode);
     virtual ~GroupObj();
 private:
     Pivot pivot;

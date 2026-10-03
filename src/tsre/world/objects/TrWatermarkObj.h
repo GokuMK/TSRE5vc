@@ -26,7 +26,6 @@ public:
     void set(QString sh, FileBuffer* data);
     void save(QTextStream* out);
     int getDefaultDetailLevel();
-    void render(GLUU* gluu, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId, int renderMode);
 private:
     int dstLevel = 0;
 };

@@ -35,7 +35,6 @@ GLUU* GLUU::get() {
 }
 
 GLUU::GLUU() {
-    imvMatrixStack = 0;
     alphaTest = 0.3;
     currentAlphaTest = 0.3;
     pMatrix = new float[16];
@@ -179,16 +178,6 @@ void GLUU::initShader() {
     currentShader = shaders["StandardBloom"];
 }
 
-void GLUU::mvPushMatrix() {
-    mvMatrixStack[imvMatrixStack++] = Mat4::clone(mvMatrix);
-}
-
-void GLUU::mvPopMatrix() {
-    if (--imvMatrixStack < 0) return;
-    delete[] mvMatrix;
-    mvMatrix = mvMatrixStack[imvMatrixStack];
-}
-
 void GLUU::setMatrixUniforms() {
     currentShader->setUniformValue(currentShader->pMatrixUniform, *reinterpret_cast<float(*)[4][4]> (pMatrix));
     currentShader->setUniformValue(currentShader->fMatrixUniform, *reinterpret_cast<float(*)[4][4]> (fMatrix));
@@ -196,7 +185,6 @@ void GLUU::setMatrixUniforms() {
     currentShader->setUniformValue(currentShader->pShadow2MatrixUniform, *reinterpret_cast<float(*)[4][4]> (pShadowMatrix2));
     currentShader->setUniformValue(currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (mvMatrix));
     currentShader->setUniformValue(currentShader->msMatrixUniform, *reinterpret_cast<float(*)[4][4]> (objStrMatrix));
-    currentMsMatrinxHash = 0;
     currentTexture = -1;
     
     currentShader->setUniformValue(currentShader->lod, Game::objectLod);
@@ -224,10 +212,6 @@ void GLUU::setMatrixUniforms() {
     currentShader->setUniformValue(currentShader->shadow2Res, shadow2Res);
     currentShader->setUniformValue(currentShader->shadow2Bias, shadow2Bias);
 };
-
-float GLUU::degToRad(float degrees) {
-    return degrees * M_PI / 180.0;
-}
 
 void GLUU::disableTextures(Vector4f* color){
     currentShader->setUniformValue(currentShader->shaderShapeColor, color->x, color->y, color->z, color->c);

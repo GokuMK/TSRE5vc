@@ -23,7 +23,6 @@ public:
     SimpleHud();
     SimpleHud(const SimpleHud& orig);
     virtual ~SimpleHud();
-    void render();
     // Submits the HUD under the renderer's current transform.
     void pushRenderItems();
     void setAttribute(QString name, float val);

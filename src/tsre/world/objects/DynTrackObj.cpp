@@ -567,44 +567,6 @@ void DynTrackObj::set(QString sh, float* val) {
     deleteVBO();
 }
 
-void DynTrackObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos, float* target, float fov, quint32 selectionId, int renderMode) {
-    if (!loaded)
-        return;
-
-    generateShape();
-    float bakedMatrix[16];
-    float *renderMatrix = matrix;
-    if(shapeUsesBakedPath) {
-        fillYawOnlyDynTrackMatrix(
-                qDirection, position, bakedMatrix);
-        renderMatrix = bakedMatrix;
-    }
-    Mat4::multiply(gluu->mvMatrix, gluu->mvMatrix, renderMatrix);
-
-    gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-    
-    if(Game::showWorldObjPivotPoints){
-        if(pointer3d == NULL){
-            pointer3d = new TrackItemObj(1);
-            pointer3d->setMaterial(0.9,0.9,0.7);
-        }
-        pointer3d->render(selectionId);
-    }
-
-    // A generated shape is ready immediately. Draw it in this pass instead
-    // of leaving the DynTrack absent for one complete frame.
-    for(int i = 0; i < shape.size(); i++){
-        const float partLod =
-                OrtsTrackProfileRenderer::generatedPartLod(
-                    shape[i], renderMatrix, posx, posz);
-        shape[i]->render(selectionId, partLod);
-    }
-    
-    if(selected){
-        drawBox();
-    }   
-};
-
 void DynTrackObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId) {
     if (!loaded)
         return;

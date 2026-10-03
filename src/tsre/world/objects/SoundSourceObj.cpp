@@ -113,32 +113,6 @@ void SoundSourceObj::set(QString sh, FileBuffer* data) {
     return;
 }
 
-void SoundSourceObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos, float* target, float fov, quint32 selectionId, int renderMode) {
-    if (!loaded) return;
-    if(!Game::viewInteractives || renderMode == gluu->RENDER_SHADOWMAP) 
-        return;
-        
-    Mat4::multiply(gluu->mvMatrix, gluu->mvMatrix, matrix);
-    gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-    
-    gluu->setSelectionId(selectionId);
-    if(selectionId == 0){
-        gluu->enableTextures();
-    }
-    
-    if(pointer3d == NULL)
-        pointer3d = new PoleObj();
-    if(pointer3dSelected == NULL){
-        pointer3dSelected = new PoleObj();
-        pointer3dSelected->setMaterial(1.0,1.0,0.5);
-    }
-    
-    if(this->selected) 
-        pointer3dSelected->render(selectionId);
-    else
-        pointer3d->render(selectionId);
-};
-
 void SoundSourceObj::pushRenderItems(float lod, float posx, float posz, float* pos, float* target, float fov, quint32 selectionId){
     if (!loaded) return;
     if(!Game::viewInteractives)

@@ -43,8 +43,7 @@ class Renderer {
 public:
     enum RenderMode {
         RENDER_DEFAULT = 0,
-        RENDER_SELECTION = 1,
-        RENDER_SHADOWMAP = 2
+        RENDER_SELECTION = 1
     };
     // Grouped packets are batched by texture; ordered ones keep submission
     // order with frame-owned items (overlays, decals, helper geometry).

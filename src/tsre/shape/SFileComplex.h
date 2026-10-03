@@ -58,8 +58,6 @@ class SFileComplex final : public ComplexShape {
     void enableSubObjByName(unsigned int, const QString &, bool) override;
     void enableSubObjByNameQueue(unsigned int, const QString &, bool) override;
     void updateSim(float, unsigned int = 0) override;
-    void render() override;
-    void render(quint32, unsigned int) override;
     void pushRenderItem() override;
     void pushRenderItem(quint32, unsigned int) override;
     void invalidateRenderState(bool = true) override;

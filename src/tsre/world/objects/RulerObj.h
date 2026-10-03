@@ -57,7 +57,6 @@ public:
     void createRoadPaths();
     void removeRoadPaths();
     void pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
-    void render(GLUU* gluu, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId, int renderMode);
 
 private:
     struct Point {

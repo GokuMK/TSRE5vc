@@ -45,8 +45,6 @@ public:
     void setAnimated(unsigned int stateId, bool animated) override;
     void updateSim(float deltaTime, unsigned int stateId = 0) override;
 
-    void render() override;
-    void render(quint32 selectionId, unsigned int stateId) override;
     void pushRenderItem() override;
     void pushRenderItem(quint32 selectionId, unsigned int stateId) override;
 

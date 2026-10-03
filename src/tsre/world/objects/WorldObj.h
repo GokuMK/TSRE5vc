@@ -132,9 +132,7 @@ public:
     virtual bool hasLinePoints();
     virtual void getLinePoints(float *&punkty);
     virtual Ref::RefItem* getRefInfo();
-    virtual void drawBox();
-    // Gather counterpart of drawBox(): submits the selection box under the
-    // renderer's current transform.
+    // Submits the selection box under the renderer's current transform.
     void pushRenderBox();
     bool ensureBox();
     virtual bool select();
@@ -153,8 +151,7 @@ public:
     virtual bool isAnimated();
     virtual bool isTerrainObj();
     virtual ShadowType getShadowType();
-    // Whether gathered geometry of this object goes into shadow maps; mirrors
-    // the RENDER_SHADOWMAP checks of the legacy render() functions.
+    // Whether gathered geometry of this object goes into shadow maps.
     virtual bool castsShadows();
     virtual float getElevation();
     virtual void setAnimated(bool val);
@@ -184,7 +181,6 @@ public:
     virtual void randomTransform(Ref::RandomTransformation * transformation);
     virtual int updateTrackSectionInfo(QHash<unsigned int, unsigned int> shapes, QHash<unsigned int, unsigned int> sections);
     virtual void pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
-    virtual void render(GLUU* gluu, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId, int renderMode);
 protected:
     virtual void loadSnapablePoints();
     virtual bool getSimpleBorder(float* border);

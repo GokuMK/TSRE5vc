@@ -73,7 +73,6 @@ public:
     void initRoute();
     void init3dShapes(bool initShapes = true);
     bool isModified();
-    void render(GLUU* gluu, float * playerT, quint32 selectionId);
     void pushRenderItems(float * playerT, quint32 selectionId);
 private:
     bool modified = false;

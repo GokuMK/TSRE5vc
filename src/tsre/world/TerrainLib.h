@@ -110,16 +110,10 @@ public:
     virtual void updateTerrainHeightmap(Terrain *t);
     virtual void updateTerrainTFile(Terrain *t);
     virtual void pushRenderItems(float* playerT, float* playerW, float* target, float fov, int renderMode);
-    // Gather counterparts of renderLo(), renderWater() and renderWaterLo().
+    // Distant terrain, water and distant water.
     virtual void pushRenderItemsLo(float* playerT, float* playerW, float* target, float fov, int renderMode);
     virtual void pushRenderItemsWater(float* playerT, float* playerW, float* target, float fov, int renderMode, int layer);
     virtual void pushRenderItemsWaterLo(float* playerT, float* playerW, float* target, float fov, int renderMode, int layer);
-    virtual void render(GLUU *gluu, float* playerT, float* playerW, float* target, float fov, int renderMode);
-    virtual void renderLo(GLUU *gluu, float* playerT, float* playerW, float* target, float fov, int renderMode);
-    virtual void renderWater(GLUU *gluu, float* playerT, float* playerW, float* target, float fov, int renderMode, int layer);
-    virtual void renderWaterLo(GLUU *gluu, float* playerT, float* playerW, float* target, float fov, int renderMode, int layer);
-    virtual void renderEmpty(GLUU *gluu, float* playerT, float* playerW, float* target, float fov);
-    virtual void renderShadowMap(GLUU *gluu, float* playerT, float* playerW, float* target, float fov);
     
 protected:
     QHash<Terrain*, QVector<TerrainPatchLodState>> preparedTerrainLod;

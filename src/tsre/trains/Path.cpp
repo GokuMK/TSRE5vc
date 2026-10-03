@@ -426,38 +426,6 @@ void Path::init3dShapes(bool initShapes){
         isinit2 = true;
 }
 
-void Path::render(GLUU* gluu, float * playerT, quint32 selectionId){
-    if(pointer3d == NULL){
-        pointer3d = new TrackItemObj(1);
-        pointer3d->setMaterial(0.0,1.0,0.0);
-    }
-    
-    if(!isinit2){
-        init3dShapes();
-    }
-    
-    if(!Game::viewInteractives)
-        return;
-
-    for(int i = 0; i < node.size(); i++){
-        gluu->mvPushMatrix();
-        //Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, node[i].pos[0], node[i].pos[1]+10.0, -node[i].pos[2]);
-        Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, node[i].pos[0] + 2048 * (node[i].tilex - playerT[0]), node[i].pos[1]+2.2, node[i].pos[2] + 2048 * (node[i].tilez - playerT[1]));
-        gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-    
-        pointer3d->render();
-        gluu->mvPopMatrix();
-    }
-    
-    for(int i = 0; i < lines.size(); i++){
-        gluu->mvPushMatrix();
-        Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 2048 * (linesX[i] - playerT[0]), 2.2, 2048 * (linesZ[i] - playerT[1]));
-        gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-        lines[i]->render();
-        gluu->mvPopMatrix();
-    }
-}
-
 void Path::pushRenderItems(float *playerT, quint32 selectionId) {
     if (pointer3d == NULL) {
         pointer3d = new TrackItemObj(1);

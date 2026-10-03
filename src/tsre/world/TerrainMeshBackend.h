@@ -40,10 +40,6 @@ public:
                                      bool mapPass, bool applyGaps,
                                      int sourceStep = 1,
                                      quint8 edgeMask = 0) = 0;
-    virtual void drawPatch(int patchId, bool mapPass, bool applyGaps,
-                           int sourceStep = 1,
-                           quint8 edgeMask = 0) = 0;
-    virtual void endDirectRender() = 0;
     virtual void invalidateAll(unsigned int reasons = TerrainDirtyAll) = 0;
     virtual void invalidatePatch(int patchId, unsigned int reasons) = 0;
     virtual void invalidateSamples(int minX, int minZ, int maxX, int maxZ,
@@ -63,10 +59,6 @@ public:
                              bool mapPass, bool applyGaps,
                              int sourceStep = 1,
                              quint8 edgeMask = 0) override;
-    void drawPatch(int patchId, bool mapPass, bool applyGaps,
-                   int sourceStep = 1,
-                   quint8 edgeMask = 0) override;
-    void endDirectRender() override;
     void invalidateAll(unsigned int reasons = TerrainDirtyAll) override;
     void invalidatePatch(int patchId, unsigned int reasons) override;
     void invalidateSamples(int minX, int minZ, int maxX, int maxZ,
@@ -99,10 +91,6 @@ public:
                              bool mapPass, bool applyGaps,
                              int sourceStep = 1,
                              quint8 edgeMask = 0) override;
-    void drawPatch(int patchId, bool mapPass, bool applyGaps,
-                   int sourceStep = 1,
-                   quint8 edgeMask = 0) override;
-    void endDirectRender() override;
     void invalidateAll(unsigned int reasons = TerrainDirtyAll) override;
     void invalidatePatch(int patchId, unsigned int reasons) override;
     void invalidateSamples(int minX, int minZ, int maxX, int maxZ,
@@ -143,15 +131,6 @@ private:
     bool initialized = false;
     bool uniformNormalGrid = false;
     bool needsEdgeFill = true;
-    Shader *directShader = nullptr;
-    unsigned int directParamsBuffer = 0;
-    int directVerticesPerPatch = 0;
-    int directPatchSide = 0;
-    float directSampleSpacing = 0.0f;
-    bool directApplyGaps = false;
-    bool directMapPass = false;
-    bool directStateValid = false;
-    QOpenGLVertexArrayObject *directVertexArray = nullptr;
 
     Page *pageForPatch(int patchId) const;
     void buildPage(Page &page);
@@ -159,7 +138,6 @@ private:
     QVector<TerrainVertex8Derived> buildPatchVertices(int patchId) const;
     void calculateNormal(int sampleX, int sampleZ,
                          float &normalX, float &normalY, float &normalZ) const;
-    void bindDrawState(const RenderItem &item);
     static int indexTemplateKey(int sourceStep, quint8 edgeMask);
 };
 

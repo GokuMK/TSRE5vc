@@ -22,9 +22,8 @@ public:
     Skydome(const Skydome& orig);
     virtual ~Skydome();
     
-    void render(GLUU* gluu, int renderMode);
     // Submits the sky shape with the renderer's current transform.
-    void pushRenderItems(int renderMode);
+    void pushRenderItems();
 
 private:
     bool loaded = false;

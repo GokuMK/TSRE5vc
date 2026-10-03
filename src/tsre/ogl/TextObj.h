@@ -26,8 +26,6 @@ public:
     virtual ~TextObj();
     void pushRenderItem();
     void pushRenderItem(float rot);
-    void render();
-    void render(float rot);
     void setColor(int r, int g, int b);
     void setOColor(int r, int g, int b);
     void setFontName(QString val);

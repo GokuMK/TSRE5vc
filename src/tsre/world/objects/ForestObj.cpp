@@ -268,58 +268,6 @@ void ForestObj::resize(float x, float y, float z){
     deleteVBO();
 }
 
-void ForestObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos, float* target, float fov, quint32 selectionId, int renderMode) {
-    if (!loaded) return;
-    //if (jestPQ < 2) return;
-    //GLUU* gluu = GLUU::get();
-    //if((this.position===undefined)||this.qDirection===undefined) return;
-
-    /*if (size > 0) {
-        if ((lod > size)) {
-            float v1[2];
-            v1[0] = pos[0] - (target[0]);
-            v1[1] = pos[2] - (target[2]);
-            float v2[2];
-            v2[0] = posx;
-            v2[1] = posz;
-            float iloczyn = v1[0] * v2[0] + v1[1] * v2[1];
-            float d1 = sqrt(v1[0] * v1[0] + v1[1] * v1[1]);
-            float d2 = sqrt(v2[0] * v2[0] + v2[1] * v2[1]);
-            float zz = iloczyn / (d1 * d2);
-            if (zz > 0) return;
-
-            float ccos = cos(fov) + zz;
-            float xxx = sqrt(2 * d2 * d2 * (1 - ccos));
-            //if((ccos > 0) && (xxx > 200+50)) return;
-            if ((ccos > 0) && (xxx > size + 150) && (skipLevel == 1)) return;
-        }
-    } else {
-        if (ShapeLib::shape[shape]->loaded)
-            size = ShapeLib::shape[shape]->size;
-    }
-*/
-    Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, position[0], 0, position[2]);
-    //float scale = sqrt(qDirection[0] * qDirection[0] + qDirection[1] * qDirection[1] + qDirection[2] * qDirection[2]);
-    //float angle = ((acos(qDirection[3])*360) / M_PI);
-    //Mat4::rotate(gluu->mvMatrix, gluu->mvMatrix, gluu->degToRad(-angle), -qDirection[0] * scale, -qDirection[1] * scale, qDirection[2] * scale);
-    //Mat4::rotate(gluu->mvMatrix, gluu->mvMatrix, gluu->degToRad(180), 0, -1, 0);
-
-    //if(selected){
-    //    selected = !selected;
-    //    selectionId = 155;
-    //}
-    //gluu.setMatrixUniforms();
-
-    //
-    //var z = this.position[0]*mmm[9] + this.position[1]*mmm[7] + this.position[2]*mmm[9];
-
-    gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-   
-    shape.setMaterial(texturePath);
-    
-    drawShape(false, selectionId);
-};
-
 void ForestObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId){
     if (!loaded)
         return;
@@ -330,10 +278,10 @@ void ForestObj::pushRenderItems(float lod, float posx, float posz, float* player
 
     shape.setMaterial(texturePath);
 
-    drawShape(true, selectionId);
+    pushRenderShape(selectionId);
 }
 
-void ForestObj::drawShape(bool pushToQueue, quint32 selectionId){
+void ForestObj::pushRenderShape(quint32 selectionId){
     QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
     /*if (tex == -2) {
         f->glDisable(GL_TEXTURE_2D);
@@ -492,16 +440,9 @@ void ForestObj::drawShape(bool pushToQueue, quint32 selectionId){
         delete[] punkty;
         init = true;
     }
-    if(pushToQueue){
-        shape.pushRenderItem(selectionId);
-    } else {
-        shape.render(selectionId);
-    }
+    shape.pushRenderItem(selectionId);
     if(selected){
-        if(pushToQueue)
-            pushRenderBox();
-        else
-            drawBox();
+        pushRenderBox();
     }
 }
 

@@ -47,7 +47,6 @@ public:
     void calculateTimetable();
     void setTimetableEfficiency(int id, float val);
     void updateSim(float *playerT, float deltaTime);
-    void render(GLUU *gluu, float* playerT, int renderMode);
     void pushRenderItems(float* playerT, int renderMode);
     QMap<int, QString> getStationStopNameList();
 private:
@@ -121,7 +120,6 @@ public:
     bool isInitActivityObjects = false;
     //void initActivityObjects();
     void updateSim(float *playerT, float deltaTime);
-    void render(GLUU* gluu, float * playerT, float playerRot, int renderMode);
     void pushRenderItems(float * playerT, float playerRot, int renderMode);
 
     QString editorConListSelected;

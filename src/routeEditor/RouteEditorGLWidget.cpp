@@ -508,7 +508,7 @@ void RouteEditorGLWidget::paintScene(){
     Mat4::perspective(gluu->pMatrix, Game::cameraFov * M_PI / 180, float(this->width()) / this->height(), 0.2f, Game::objectLod);
     Mat4::multiply(gluu->pMatrix, gluu->pMatrix, camera->getMatrix());
     RenderStats::setCategory(RenderStats::CategoryTerrain);
-    // Terrain receives shadows but does not cast them, as in legacy.
+    // Terrain receives shadows but does not cast them.
     renderer->setShadowCasting(false);
     Game::terrainLib->pushRenderItems(camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3, gatherMode);
     renderer->setShadowCasting(true);
@@ -576,7 +576,7 @@ void RouteEditorGLWidget::paintScene(){
     gluu->setMatrixUniforms();
     gluu->currentShader->setUniformValue(gluu->currentShader->lod, 0.0f);
     renderer->setLayer(Renderer::LAYER_SKY);
-    route->skydome->pushRenderItems(renderMode);
+    route->skydome->pushRenderItems();
     renderer->setLayer(Renderer::LAYER_SCENE);
     RenderStats::beginPhase(RenderStats::PhaseSky);
     renderer->renderPasses(Renderer::PASS_SKY, Renderer::PASS_SKY);
@@ -988,7 +988,7 @@ float RouteEditorGLWidget::pointerDisplayY() const {
                 ? continuousPlacementYOffset : 0.0f);
 }
 
-// Gather counterpart of drawPointer(); the caller draws the submitted items.
+// Submits the 3D pointer and other users' markers; the caller draws them.
 // The live tools were already moved at the start of the frame, before their
 // geometry was gathered, so only the pointer position is read here.
 void RouteEditorGLWidget::pushRenderPointer() {

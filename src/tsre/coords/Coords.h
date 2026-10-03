@@ -39,7 +39,6 @@ public:
         double lat = 0.0;
         double lon = 0.0;
         int type = 0;
-        OglObj* oglObj = NULL;
         OglObj* line3d = NULL;
         QVector<int> tileX;
         QVector<int> tileZ;
@@ -63,7 +62,6 @@ public:
     Coords();
     Coords(QString path);
     virtual ~Coords();
-    virtual void render(GLUU* gluu, float * playerT, float* playerW, float playerRot);
     virtual void pushRenderItems(float *playerT, float* playerW, float playerRot);
     virtual void getTileList(QMap<int, QPair<int, int>*> &tileList, int radius = 0, int step = 1);
     virtual QVector<int> search(const QString &text,

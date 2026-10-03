@@ -615,17 +615,6 @@ void ActivityServiceDefinition::save(QTextStream* out) {
     modified = false;
 }
 
-void ActivityServiceDefinition::render(GLUU* gluu, float* playerT, int renderMode){
-    quint32 selectionId = 0;
-    if(renderMode == gluu->RENDER_SELECTION){
-        selectionId = SelectionIdCodec::activityService(0);
-    }
-    if(servicePointer == NULL)
-        return;
-    servicePointer->render(gluu, playerT, selectionId);
-
-}
-
 void ActivityServiceDefinition::pushRenderItems(float* playerT, int renderMode) {
     quint32 selectionId = 0;
     if (renderMode == Game::currentRenderer->RENDER_SELECTION) {
@@ -907,28 +896,6 @@ void Activity::setWeather(int val){
 void Activity::updateSim(float* playerT, float deltaTime){
     if(playerServiceDefinition != NULL ){
         playerServiceDefinition->updateSim(playerT, deltaTime);
-    }
-}
-
-void Activity::render(GLUU* gluu, float * playerT, float playerRot, int renderMode){
-    for (int i = 0; i < activityObjects.size(); i++){
-        activityObjects[i]->render(gluu, playerT, renderMode, i);
-    }
-    
-    for (int i = 0; i < activityFailedSignal.size(); i++){
-        activityFailedSignal[i]->render(gluu, playerT, renderMode, i+3500);
-    }
-    
-    for (int i = 0; i < restrictedSpeedZone.size(); i++){
-        restrictedSpeedZone[i]->render(gluu, playerT, renderMode, i+3000);
-    }
-    
-    for (int i = 0; i < event.size(); i++){
-        event[i].render(gluu, playerT, playerRot, renderMode);
-    }
-    
-    if(playerServiceDefinition != NULL ){
-        playerServiceDefinition->render(gluu, playerT, renderMode);
     }
 }
 

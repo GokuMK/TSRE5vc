@@ -258,31 +258,6 @@ void ActivityObject::setModified(bool val){
         con->setModified(val);
 }
 
-void ActivityObject::render(GLUU* gluu, float* playerT, int renderMode, int index){
-    quint32 selectionId = 0;
-    if(renderMode == gluu->RENDER_SELECTION){
-        selectionId = SelectionIdCodec::activityObject(index);
-    }
-    
-    if(objectTypeId == ActivityObject::WAGONLIST ){
-        if(con != NULL){
-            if (!con->isOnTrack)
-                con->initOnTrack(tile, direction);
-            con->renderOnTrack(gluu, playerT, selectionId);
-        }
-    }
-    
-    if(objectTypeId == ActivityObject::RESTRICTEDSPEEDZONE ){
-        if(speedZoneData != NULL)
-            speedZoneData->render(gluu, playerT, selectionId, selected);
-    }
-    
-    if(objectTypeId == ActivityObject::FAILEDSIGNAL ){
-        if(failedSignalData != NULL)
-            failedSignalData->render(gluu, playerT, selectionId, selected);
-    }
-}
-
 void ActivityObject::pushRenderItems(float* playerT, int renderMode, int index) {
     quint32 selectionId = 0;
     if (renderMode == Game::currentRenderer->RENDER_SELECTION) {
@@ -307,107 +282,6 @@ void ActivityObject::pushRenderItems(float* playerT, int renderMode, int index) 
             failedSignalData->pushRenderItems(playerT, selectionId, selected);
     }
 }
-
-void ActivityObject::SpeedZone::render(GLUU* gluu, float* playerT, quint32 selectionId, bool selected){
-    if(init < 0)
-        return;
-    float posT[2], pos[3];
-    if (drawPositionB == NULL) {
-        TDB* tdb = Game::trackDB;
-        Vec2::set(posT, start[0], -start[1]);
-        float h = Game::terrainLib->getHeight(start[0], -start[1], start[2], start[3]);
-        Vec3::set(pos, start[2], h, -start[3]);
-        qDebug() << posT[0]<< posT[1];
-        qDebug() << pos[0]<< pos[1]<< pos[2];
-        int ok = Game::trackDB->findNearestPositionOnTDB(posT, pos, NULL, trid);
-        if(ok < 0) {
-            qDebug() << "SpeedZone fail";
-            init = -1;
-            return;
-        }
-        if (trid[0] < 1) {
-            qDebug() << "SpeedZone fail id "<<trid[0];
-            init = -1;
-            return;
-        }
-        drawPositionB = new float[7];
-        bool ok1 = tdb->getDrawPositionOnTrNode(drawPositionB, trid[0], trid[1]);
-        if(!ok1){
-            qDebug() << "SpeedZone fail tdb "<<trid[0];
-            init = -1;
-            return;
-        }
-        drawPositionB[0] += 2048 * (drawPositionB[5] - start[0]);
-        drawPositionB[2] -= 2048 * (-drawPositionB[6] - -start[1]);
-    }
-    if (drawPositionE == NULL) {
-        TDB* tdb = Game::trackDB;
-        Vec2::set(posT, end[0], -end[1]);
-        float h = Game::terrainLib->getHeight(end[0], -end[1], end[2], end[3]);
-        Vec3::set(pos, end[2], h, -end[3]);
-
-        qDebug() << posT[0]<< posT[1];
-        qDebug() << pos[0]<< pos[1]<< pos[2];
-
-        int ok = Game::trackDB->findNearestPositionOnTDB(posT, pos, NULL, trid+3);
-        if(ok < 0) {
-            qDebug() << "SpeedZone fail";
-            init = -1;
-            return;
-        }
-        if (trid[3] < 1) {
-            qDebug() << "SpeedZone fail id "<<trid[3];
-            init = -1;
-            return;
-        }
-        drawPositionE = new float[7];
-        bool ok1 = tdb->getDrawPositionOnTrNode(drawPositionE, trid[3], trid[4]);
-        if(!ok1){
-            qDebug() << "SpeedZone fail tdb "<<trid[3];
-            init = -1;
-            return;
-        }
-        drawPositionE[0] += 2048 * (drawPositionE[5] - start[0]);
-        drawPositionE[2] -= 2048 * (-drawPositionE[6] - -start[1]);
-    }
-    
-    if(pointer3d == NULL) pointer3d = new TrackItemObj();
-    if(pointer3dSelected == NULL) pointer3dSelected = new TrackItemObj();
-    
-    if(lineShape == NULL){
-        makelineShape();
-        lineShape->setMaterial(1.0, 0.0, 0.4);
-        pointer3d->setMaterial(1.0, 0.0, 0.4);
-        pointer3dSelected->setMaterial(1.0, 0.3, 0.7);
-    }
-    float aa = (drawPositionE[2]-drawPositionB[2]);
-    if(aa != 0) aa = (aa/fabs(aa));
-    gluu->mvPushMatrix();
-    Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, drawPositionB[0] + 2048 * (start[0] - playerT[0]), drawPositionB[1] + 1, -drawPositionB[2] + 2048 * (-start[1] - playerT[1]));
-    Mat4::rotateY(gluu->mvMatrix, gluu->mvMatrix, drawPositionB[3] + rotB*M_PI);
-    gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-    if(selected && selectionValue == 1) 
-        pointer3dSelected->render(SelectionIdCodec::withPart(selectionId, 1));
-    else
-        pointer3d->render(SelectionIdCodec::withPart(selectionId, 1));
-    gluu->mvPopMatrix();
-    
-    gluu->mvPushMatrix();
-    Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, drawPositionE[0] + 2048 * (start[0] - playerT[0]), drawPositionE[1] + 1, -drawPositionE[2] + 2048 * (-start[1] - playerT[1]));
-    Mat4::rotateY(gluu->mvMatrix, gluu->mvMatrix, drawPositionE[3] + rotE*M_PI);
-    gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-    if(selected && selectionValue == 3) 
-        pointer3dSelected->render(SelectionIdCodec::withPart(selectionId, 3));
-    else
-        pointer3d->render(SelectionIdCodec::withPart(selectionId, 3));
-    gluu->mvPopMatrix();
-    
-    gluu->mvPushMatrix();
-    Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, 2048 * (start[0] - playerT[0]), 0, 2048 * (-start[1] - playerT[1]));
-    gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-    lineShape->render();
-    gluu->mvPopMatrix();
-};
 
 void ActivityObject::SpeedZone::pushRenderItems(float* playerT, quint32 selectionId, bool selected) {
     if (init < 0)
@@ -594,51 +468,6 @@ bool ActivityObject::FailedSignalData::getWorldPosition(float *posTW){
     posTW[3] = drawPosition[1];
     posTW[4] = drawPosition[2];
     return true;
-}
-
-void ActivityObject::FailedSignalData::render(GLUU* gluu, float* playerT, quint32 selectionId, bool selected){
-    if(init < 0)
-        return;
-    if(init == 0){
-        TDB* tdb = Game::trackDB;
-        if(drawPosition == NULL){
-            qDebug() << "ss";
-            int id = tdb->findTrItemNodeId(failedSignal);
-            if (id < 0) {
-                qDebug() << "fail id";
-                return;
-            }
-
-            drawPosition = new float[7];
-            bool ok = tdb->getDrawPositionOnTrNode(drawPosition, id, tdb->trackItems[failedSignal]->getTrackPosition());
-            if(!ok){
-                qDebug() << "fail id";
-                init = -1;
-                return;
-            }
-            if(pointer3d == NULL){
-                pointer3d = new TrackItemObj(1);
-                pointer3d->setMaterial(0.8,0.2,0.8);
-            }
-            if(pointer3dSelected == NULL){
-                pointer3dSelected = new TrackItemObj(1);
-                pointer3dSelected->setMaterial(0.9,0.5,0.9);
-            }
-        }
-        init = 1;
-    }
-    
-    gluu->mvPushMatrix();
-    Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, drawPosition[0] + 2048 * (drawPosition[5]-playerT[0]), drawPosition[1] + 1, -drawPosition[2] + 2048 * (-drawPosition[6]-playerT[1]));
-    Mat4::rotateY(gluu->mvMatrix, gluu->mvMatrix, drawPosition[3]);
-    //Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, this->trItemRData[0] + 2048*(this->trItemRData[3] - playerT[0] ), this->trItemRData[1]+2, -this->trItemRData[2] + 2048*(-this->trItemRData[4] - playerT[1]));
-    //Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, this->trItemRData[0] + 0, this->trItemRData[1]+0, -this->trItemRData[2] + 0);
-    gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-    if(selected)
-        pointer3dSelected->render(selectionId);
-    else
-        pointer3d->render(selectionId);
-    gluu->mvPopMatrix();
 }
 
 void ActivityObject::FailedSignalData::pushRenderItems(float* playerT, quint32 selectionId, bool selected) {

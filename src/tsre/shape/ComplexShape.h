@@ -56,8 +56,6 @@ public:
     virtual void enableSubObjByNameQueue(unsigned int stateId, const QString& name, bool val);
     virtual void updateSim(float deltaTime, unsigned int stateId = 0) = 0;
 
-    virtual void render() = 0;
-    virtual void render(quint32 selectionId, unsigned int stateId) = 0;
     virtual void pushRenderItem() = 0;
     virtual void pushRenderItem(quint32 selectionId, unsigned int stateId) = 0;
 

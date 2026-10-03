@@ -131,10 +131,6 @@ TextObj::TextObj(const TextObj& orig) {
 TextObj::~TextObj() {
 }
 
-void TextObj::render() {
-    render(0.0);
-}
-
 void TextObj::pushRenderItem() {
     pushRenderItem(0);
 }
@@ -152,17 +148,3 @@ void TextObj::pushRenderItem(float rot) {
     Game::currentRenderer->mvPopMatrix();
 }
 
-void TextObj::render(float rot) {
-    if(!isInit)
-        init();
-
-    GLUU* gluu = GLUU::get();
-    gluu->mvPushMatrix();
-    Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, pos[0], pos[1], pos[2]);
-    Mat4::rotateY(gluu->mvMatrix, gluu->mvMatrix, rot+rotOffset);
-    gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-
-    OglObj::render();
-
-    gluu->mvPopMatrix();
-}

@@ -82,20 +82,6 @@ void TerrainMeshLegacy::configureRenderItem(RenderItem &item, int patchId,
     item.vertCount = terrain.gridLayout.pagedIndicesPerPatch();
 }
 
-void TerrainMeshLegacy::drawPatch(int patchId, bool, bool, int, quint8) {
-    const int patches = terrain.gridLayout.patchesPerSide;
-    const int row = patchId / patches;
-    const int column = patchId % patches;
-    QOpenGLFunctions *functions = QOpenGLContext::currentContext()->functions();
-    functions->glDrawArrays(GL_TRIANGLES,
-                            (column * patches + row)
-                            * terrain.gridLayout.pagedIndicesPerPatch(),
-                            terrain.gridLayout.pagedIndicesPerPatch());
-}
-
-void TerrainMeshLegacy::endDirectRender() {
-}
-
 void TerrainMeshLegacy::invalidateAll(unsigned int) {
     terrain.isOgl = false;
 }
@@ -472,79 +458,6 @@ void TerrainMeshPaged::configureRenderItem(RenderItem &item, int patchId,
     item.terrainSampleSpacing = terrain.gridLayout.sampleSpacing;
     item.terrainApplyGaps = applyGaps;
     item.terrainMapPass = mapPass;
-}
-
-void TerrainMeshPaged::bindDrawState(const RenderItem &item) {
-    GLUU *gluu = GLUU::get();
-    if (gluu == nullptr || gluu->currentShader == nullptr)
-        return;
-    Shader *shader = gluu->currentShader;
-    const unsigned int paramsBuffer = item.terrainParamsBuffer == nullptr ? 0
-            : item.terrainParamsBuffer->bufferId();
-    const bool shaderChanged = !directStateValid || directShader != shader;
-    if (shaderChanged)
-        shader->setUniformValue(shader->terrainPaged, 1);
-    if (shaderChanged || directVerticesPerPatch != item.terrainVerticesPerPatch)
-        shader->setUniformValue(shader->terrainVerticesPerPatch,
-                                item.terrainVerticesPerPatch);
-    if (shaderChanged || directPatchSide != item.terrainPatchSide)
-        shader->setUniformValue(shader->terrainPatchSide,
-                                item.terrainPatchSide);
-    if (shaderChanged || directSampleSpacing != item.terrainSampleSpacing)
-        shader->setUniformValue(shader->terrainSampleSpacing,
-                                item.terrainSampleSpacing);
-    if (shaderChanged || directApplyGaps != item.terrainApplyGaps)
-        shader->setUniformValue(shader->terrainApplyGaps,
-                                item.terrainApplyGaps ? 1 : 0);
-    if (shaderChanged || directMapPass != item.terrainMapPass)
-        shader->setUniformValue(shader->terrainMapPass,
-                                item.terrainMapPass ? 1 : 0);
-    if (shaderChanged || directParamsBuffer != paramsBuffer)
-        QOpenGLContext::currentContext()->extraFunctions()->glBindBufferBase(
-                    GL_UNIFORM_BUFFER, 0, paramsBuffer);
-    directShader = shader;
-    directParamsBuffer = paramsBuffer;
-    directVerticesPerPatch = item.terrainVerticesPerPatch;
-    directPatchSide = item.terrainPatchSide;
-    directSampleSpacing = item.terrainSampleSpacing;
-    directApplyGaps = item.terrainApplyGaps;
-    directMapPass = item.terrainMapPass;
-    directStateValid = true;
-}
-
-void TerrainMeshPaged::drawPatch(int patchId, bool mapPass, bool applyGaps,
-                                 int sourceStep, quint8 edgeMask) {
-    RenderItem item;
-    configureRenderItem(item, patchId, mapPass, applyGaps,
-                        sourceStep, edgeMask);
-    if (item.VAO == nullptr)
-        return;
-    bindDrawState(item);
-    if (directVertexArray != item.VAO) {
-        if (directVertexArray != nullptr)
-            directVertexArray->release();
-        item.VAO->bind();
-        directVertexArray = item.VAO;
-    }
-    QOpenGLContext::currentContext()->extraFunctions()->glDrawElementsBaseVertex(
-                GL_TRIANGLES, item.vertCount, item.indexType,
-                reinterpret_cast<void*>(static_cast<quintptr>(item.indexOffset)),
-                item.baseVertex);
-}
-
-void TerrainMeshPaged::endDirectRender() {
-    if (directVertexArray != nullptr) {
-        directVertexArray->release();
-        directVertexArray = nullptr;
-    }
-    if (directStateValid && directShader != nullptr)
-        directShader->setUniformValue(directShader->terrainPaged, 0);
-    if (directStateValid && QOpenGLContext::currentContext() != nullptr)
-        QOpenGLContext::currentContext()->extraFunctions()->glBindBufferBase(
-                    GL_UNIFORM_BUFFER, 0, 0);
-    directShader = nullptr;
-    directParamsBuffer = 0;
-    directStateValid = false;
 }
 
 void TerrainMeshPaged::invalidateAll(unsigned int reasons) {

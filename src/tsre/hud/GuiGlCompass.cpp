@@ -77,10 +77,6 @@ GuiGlCompass::GuiGlCompass() {
 GuiGlCompass::~GuiGlCompass() {
 }
 
-void GuiGlCompass::render(){
-    render(0);
-}
-
 // The heading scrolls the texture coordinates of the strip.
 void GuiGlCompass::setHeading(float a){
     float *data = mapBuffer();
@@ -92,11 +88,6 @@ void GuiGlCompass::setHeading(float a){
     data[3+24] = a-0.2;
     data[3+30] = a+0.2;
     unmapBuffer();
-}
-
-void GuiGlCompass::render(float a){
-    setHeading(a);
-    OglObj::render();
 }
 
 void GuiGlCompass::pushRenderItem(float a){

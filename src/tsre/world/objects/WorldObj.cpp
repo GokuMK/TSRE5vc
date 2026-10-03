@@ -641,10 +641,6 @@ void WorldObj::pushRenderItems(float lod, float posx, float posz, float* playerW
         pushRenderBox();
 }
 
-void WorldObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos, float* target, float fov, quint32 selectionId, int renderMode) {
-
-}
-
 void WorldObj::deleteVBO(){
     
 }
@@ -818,11 +814,6 @@ bool WorldObj::ensureBox(){
     }
     return true;
 }
-
-void WorldObj::drawBox(){
-    if (ensureBox())
-        box.render();
-};
 
 void WorldObj::pushRenderBox(){
     if (ensureBox())

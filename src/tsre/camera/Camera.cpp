@@ -93,12 +93,6 @@ float Camera::getRotY() {
 void Camera::update(float fps) {
 }
 
-void Camera::renderHud(GLUU *gluu){
-    
-    if(cameraObject != NULL)
-        cameraObject->renderHud();
-}
-
 void Camera::pushRenderHud(){
     if(cameraObject != NULL)
         cameraObject->pushRenderHud();

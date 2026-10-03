@@ -518,61 +518,10 @@ void Eng::initBorder(){
     }
 }
 
-void Eng::drawBorder(){
-    initBorder();
-    borderObj->render();
-}
-
 void Eng::pushDrawBorder(){
     initBorder();
     borderObj->pushRenderItem();
 }
-
-void Eng::drawBorder3d(){
-
-    if (borderObj3d == NULL) {
-        borderObj3d = new OglObj();
-        
-        float width = this->getFullWidth() / 2;
-        
-        float* punkty = new float[96];
-        float* ptr = punkty;
-        
-        float sizexx = sizex / 2.0;
-        for(int j = 0; j <= 1; j++)
-            for(int i = -1; i <= 1; i+=2){
-                *ptr++ = sizexx*i;
-                *ptr++ = sizey*j;
-                *ptr++ = -width;
-                *ptr++ = sizexx*i;
-                *ptr++ = sizey*j;
-                *ptr++ = width;
-            }
-        for(int j = 0; j <=1; j++)
-            for(int i = -1; i <= 1; i+=2){
-                *ptr++ = sizexx;
-                *ptr++ = sizey*j;
-                *ptr++ = width*i;
-                *ptr++ = -sizexx;
-                *ptr++ = sizey*j;
-                *ptr++ = width*i;
-        }
-        for(int j = -1; j <=1; j+=2)
-            for(int i = -1; i <= 1; i+=2){
-                *ptr++ = sizexx*j;
-                *ptr++ = 0;
-                *ptr++ = width*i;
-                *ptr++ = sizexx*j;
-                *ptr++ = sizey;
-                *ptr++ = width*i;
-        }
-        borderObj3d->setMaterial(1.0, 0.0, 0.0);
-        borderObj3d->init(punkty, ptr-punkty, RenderItem::V, GL_LINES);
-        delete[] punkty;
-    }
-
-    borderObj3d->render();
-};
 
 void Eng::pushDrawBorder3d() {
     if (borderObj3d == NULL) {
@@ -739,7 +688,7 @@ long long int Eng::resolveShapeIds() {
     return shapeLibId;
 }
 
-// Gather counterpart of render() for the Shape Viewer and Consist Editor.
+// Submits the engine for the Shape Viewer and Consist Editor.
 void Eng::pushRenderItems(quint32 selectionId) {
     if (loaded != 1) return;
     const long long int shapeLibId = resolveShapeIds();
@@ -757,63 +706,6 @@ void Eng::pushRenderItems(quint32 selectionId) {
     }
 }
 
-void Eng::render(quint32 selectionId) {
-    render(0, 0, selectionId);
-}
-
-void Eng::render(int aktwx, int aktwz, quint32 selectionId) {
-    //gl.glTranslatef(0, 0.2f, 0);
-    //qDebug() << loaded;
-    if (loaded != 1) return;
-
-    GLUU *gluu = GLUU::get();
-    
-    gluu->setSelectionId(selectionId);
-    if(selectionId == 0){
-        gluu->enableTextures();
-    }
-    
-    const long long int shapeLibId = resolveShapeIds();
-
-    //ruchy[0].renderCon(gl, aktwx, aktwz);
-    //ruchy[1].renderCon(gl, aktwx, aktwz);
-
-    /*Vector3f pos1 = ruchy[0].getPosition(aktwx, aktwz);
-     Vector3f pos2 = ruchy[1].getPosition(aktwx, aktwz);
-     Vector3f pos = Vector3f.add(pos1, pos2);
-     float dlugosc = (float) Math.sqrt(Math.pow(pos1.z-pos2.z, 2) + Math.pow(pos1.x-pos2.x, 2));
-     pos.div(2); 
-     
-     
-     gl.glTranslatef(pos.x, pos.y+0.25f, pos.z);
-     
-     gl.glRotatef((Math.signum(pos2.z-pos1.z)+1)*90+
-     (float)(Math.atan((pos1.x-pos2.x)/(pos1.z-pos2.z))*180/Math.PI),0,1,0); 
-     gl.glRotatef(-(float)(Math.atan((pos1.y-pos2.y)/(dlugosc))*180/Math.PI),1,0,0); 
-     
-     //linie
-     //tu sobie byly xD
-     
-     gl.glColor3f(1.0f, 1.0f, 1.0f);  */
-     //gluu.mvPushMatrix();
-    if(shape.id[shapeLibId] >= 0) 
-        Game::currentShapeLib->shape[shape.id[shapeLibId]]->render(selectionId, 0);
-
-    for(int i = 0; i < freightanimShape.size(); i++){
-        if(freightanimShape[i].id[shapeLibId] >= 0) {
-            gluu->mvPushMatrix();
-            Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, -freightanimShape[i].x, freightanimShape[i].y, -freightanimShape[i].z);
-            gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-            Game::currentShapeLib->shape[freightanimShape[i].id[shapeLibId]]->render(selectionId, 0);
-            gluu->mvPopMatrix();
-        }
-    }
-     
-
-     //gluu.mvPopMatrix();
-     //
-
-}
 void Eng::reload(){
     long long int shapeLibId = reinterpret_cast<long long int>(Game::currentShapeLib);
     if(shape.id[shapeLibId] >= 0) 
@@ -895,88 +787,8 @@ void Eng::getCameraPosition(float* out){
     //Mat4::rotateY(gluu->mvMatrix, gluu->mvMatrix, flip*M_PI /*+ M_PI*/);
 }
 
-void Eng::renderOnTrack(GLUU* gluu, float* playerT, quint32 selectionId) {
-    if (loaded != 1) return;
-
-    const long long int shapeLibId = resolveShapeIds();
-    
-    if (ruchPoint == NULL) {
-        ruchPoint = new OglObj();
-        float *punkty = new float[3 * 2];
-        int ptr = 0;
-        punkty[ptr++] = 0;
-        punkty[ptr++] = 0;
-        punkty[ptr++] = 0;
-        punkty[ptr++] = 0;
-        punkty[ptr++] = 30;
-        punkty[ptr++] = 0;
-        ruchPoint->setMaterial(0.0, 1.0, 0.0);
-        ruchPoint->init(punkty, ptr, RenderItem::V, GL_LINES);
-        delete[] punkty;
-    }
-    
-    float selev1, selev2;
-    float *drawPosition1 = ruch1->getCurrentPosition(&selev1);
-    float *drawPosition2 = ruch2->getCurrentPosition(&selev2);
-    selev1 = (selev1 + selev2) / 2.0;
-    /*gluu->mvPushMatrix();
-    Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, drawPosition2[0] + 2048 * (drawPosition2[5] - playerT[0]), drawPosition2[1], -drawPosition2[2] + 2048 * (-drawPosition2[6] - playerT[1]));
-    gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-    ruchPoint->render();
-    gluu->mvPopMatrix();
-    gluu->mvPushMatrix();
-    Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, drawPosition1[0] + 2048 * (drawPosition1[5] - playerT[0]), drawPosition1[1], -drawPosition1[2] + 2048 * (-drawPosition1[6] - playerT[1]));
-    gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-    ruchPoint->render();
-    gluu->mvPopMatrix();*/
-
-    float pos[5];
-    pos[3] = drawPosition1[5];
-    pos[4] = drawPosition1[6];
-    drawPosition2[0] += 2048*(drawPosition2[5]-drawPosition1[5]);
-    drawPosition2[2] += 2048*(drawPosition2[6]-drawPosition1[6]);
-    Vec3::add(pos, drawPosition1, drawPosition2);
-    Vec3::scale(pos, pos, 0.5);
-    float dlugosc = Vec3::distance(drawPosition1, drawPosition2);
-    
-    int someval = (((drawPosition1[2]-drawPosition2[2])+0.00001f)/fabs((drawPosition1[2]-drawPosition2[2])+0.00001f));
-    float rotY = ((float)someval+1.0)*(M_PI/2.0)+(float)(atan((drawPosition1[0]-drawPosition2[0])/(drawPosition1[2]-drawPosition2[2]))); 
-    float rotX = -(float)(asin((drawPosition1[1]-drawPosition2[1])/(dlugosc))); 
-
-    gluu->setSelectionId(selectionId);
-    if(selectionId == 0){
-        gluu->enableTextures();
-    }
-        
-    gluu->mvPushMatrix();
- 
-    Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, pos[0] + 2048 * (pos[3] - playerT[0]), pos[1]+0.28, -pos[2] + 2048 * (-pos[4] - playerT[1]));
-    Mat4::rotateY(gluu->mvMatrix, gluu->mvMatrix, -rotY /* + flip*M_PI+ M_PI*/);
-    Mat4::rotateX(gluu->mvMatrix, gluu->mvMatrix, rotX );
-    Mat4::rotate(gluu->mvMatrix, gluu->mvMatrix, -selev1, 0, 0, 1 );
-    Mat4::rotateY(gluu->mvMatrix, gluu->mvMatrix, flip*M_PI /*+ M_PI*/);
-    gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-
-    if(shape.id[shapeLibId] >= 0) 
-        Game::currentShapeLib->shape[shape.id[shapeLibId]]->render(selectionId, 0);
-    
-    
-    for(int i = 0; i < freightanimShape.size(); i++){
-        if(freightanimShape[i].id[shapeLibId] >= 0) {
-            gluu->mvPushMatrix();
-            Mat4::translate(gluu->mvMatrix, gluu->mvMatrix, freightanimShape[i].x, freightanimShape[i].y, -freightanimShape[i].z);
-            gluu->currentShader->setUniformValue(gluu->currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (gluu->mvMatrix));
-            Game::currentShapeLib->shape[freightanimShape[i].id[shapeLibId]]->render(selectionId, 0);
-            gluu->mvPopMatrix();
-        }
-    }
-    gluu->mvPopMatrix();
-    
-}
-
-// Gather counterpart of renderOnTrack(). Legacy draws the selection border
-// after renderOnTrack() returns and relies on the wagon matrix it left in the
-// shader; here the border is submitted inside the wagon transform.
+// Submits the wagon at its track position; the selection border is submitted
+// inside the wagon transform.
 void Eng::pushRenderItemOnTrack(float* playerT, quint32 selectionId, bool selected) {
     if (loaded != 1) return;
 
