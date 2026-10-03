@@ -57,6 +57,7 @@
 #include <tsre/tests/RouteLoadTestSuite.h>
 #include <tsre/tests/SelectionIdTestSuite.h>
 #include <tsre/tests/ConsistPreviewTestSuite.h>
+#include <tsre/tests/RendererParityTestSuite.h>
 #include <tsre/tests/PaintTexTestSuite.h>
 #include <tsre/tests/SignalSelectionTestSuite.h>
 #include <tsre/tests/ProceduralProfileBenchmark.h>
@@ -4080,6 +4081,10 @@ QStringList TsreTests::listSuites() {
         "route-load",
         "selection-id",
         "consist-preview-gl",
+        "renderer-capture",
+        "renderer-compare",
+        "shape-viewer-capture",
+        "shape-viewer-compare",
         "paint-text",
         "signal-selection",
         "tokens",
@@ -4131,6 +4136,18 @@ int TsreTests::run(const TestRunOptions &opts) {
 
     if (suite == "consist-preview-gl")
         return runConsistPreviewSuite(opts.verbose);
+
+    if (suite == "renderer-capture")
+        return runRendererCaptureSuite(opts.casesFile, opts.verbose);
+
+    if (suite == "renderer-compare")
+        return runRendererCompareSuite(opts.casesFile, opts.verbose);
+
+    if (suite == "shape-viewer-capture")
+        return runShapeViewerCaptureSuite(opts.casesFile, opts.verbose);
+
+    if (suite == "shape-viewer-compare")
+        return runShapeViewerCompareSuite(opts.casesFile, opts.verbose);
 
     if (suite == "paint-text")
         return runPaintTexSuite(opts.verbose);

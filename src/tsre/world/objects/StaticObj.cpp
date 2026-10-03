@@ -142,6 +142,10 @@ void StaticObj::updateSim(float deltaTime){
         shapePointer->updateSim(deltaTime, shapeState);
 }
 
+bool StaticObj::castsShadows(){
+    return !Game::mstsShadows || getShadowType() == WorldObj::ShadowDynamic;
+}
+
 void StaticObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId){
     if (!loaded) return;
     if (shape < 0) return;
@@ -180,9 +184,9 @@ void StaticObj::pushRenderItems(float lod, float posx, float posz, float* player
         }
     }
 
-    //if(Game::viewSnapable)
-    //    if(snapablePoints.size() == 6)
-    //        renderSnapableEndpoints(gluu);  
+    if(Game::viewSnapable)
+        if(snapablePoints.size() == 6)
+            pushRenderSnapableEndpoints();
     
     Mat4::multiply(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, matrix);
     
@@ -191,7 +195,7 @@ void StaticObj::pushRenderItems(float lod, float posx, float posz, float* player
             pointer3d = new TrackItemObj(1);
             pointer3d->setMaterial(0.9,0.9,0.7);
         }
-        //pointer3d->pushRenderItem(selectionId);
+        pointer3d->pushRenderItem(selectionId);
     }
     
     /*if(selectionId != 0){
@@ -205,7 +209,7 @@ void StaticObj::pushRenderItems(float lod, float posx, float posz, float* player
     }
 
     if(selected){
-        //drawBox();
+        pushRenderBox();
     }
 }
 
@@ -321,7 +325,7 @@ void StaticObj::loadSnapablePoints() {
         shapePointer->addSnapablePoints(this->snapablePoints);
 }
 
-void StaticObj::renderSnapableEndpoints(GLUU* gluu) {
+void StaticObj::initSnapableEndPoint() {
     if (snapableEndPoint == NULL) {
         snapableEndPoint = new OglObj();
         float *punkty = new float[3 * 2];
@@ -336,7 +340,25 @@ void StaticObj::renderSnapableEndpoints(GLUU* gluu) {
         snapableEndPoint->init(punkty, ptr, RenderItem::V, GL_LINES);
         delete[] punkty;
     }
-    
+}
+
+// Gather counterpart of renderSnapableEndpoints(); submitted in tile space.
+void StaticObj::pushRenderSnapableEndpoints() {
+    initSnapableEndPoint();
+    float *mv = Game::currentRenderer->mvMatrix;
+    float vec[3];
+    for(int i = 0; i < 6; i+=3){
+        Vec3::transformQuat(vec, (float*)&snapablePoints[i], qDirection);
+        Vec3::add(vec, vec, position);
+        Game::currentRenderer->mvPushMatrix();
+        Mat4::translate(mv, mv, vec);
+        snapableEndPoint->pushRenderItem();
+        Game::currentRenderer->mvPopMatrix();
+    }
+}
+
+void StaticObj::renderSnapableEndpoints(GLUU* gluu) {
+    initSnapableEndPoint();
     float vec[3];
     for(int i = 0; i < 6; i+=3){
         Vec3::transformQuat(vec, (float*)&snapablePoints[i], qDirection);

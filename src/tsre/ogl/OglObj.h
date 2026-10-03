@@ -56,6 +56,15 @@ private:
     QString *res;
     Vector4f *color = NULL;
     RenderItem::VertexAttr vAttribures = RenderItem::NO_ATTR;
+    // Gather packets reused across frames. One object can be submitted
+    // several times per frame with different materials, so each frame takes
+    // a matching or unused packet from this pool.
+    QVector<RenderItem*> packets;
+    quint64 packetFrame = 0;
+    int packetsUsed = 0;
+    RenderItem *framePacket(bool textured, unsigned int texAddr,
+                            const float *color, bool decal);
+    void retirePackets();
 };
 
 #endif	/* OGLOBJ_H */

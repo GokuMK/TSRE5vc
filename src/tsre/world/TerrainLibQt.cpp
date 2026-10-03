@@ -1533,6 +1533,136 @@ void TerrainLibQt::pushRenderItems(float * playerT, float* playerW, float* targe
     }
 }
 
+// Gather counterpart of renderLo().
+void TerrainLibQt::pushRenderItemsLo(float * playerT, float* playerW, float* target, float fov, int renderMode) {
+    int distantCount = Game::distantLod/1000 - 10;
+    int renderCount = distantCount*distantCount ;
+    if (renderMode == Renderer::RENDER_SELECTION)
+        renderCount = 9;
+
+    Terrain *tTile;
+    quint32 selectionId = 0;
+    unsigned int terrainNameId;
+    for (int n = -1, i = 0, j = 0; n < renderCount; n+=16) {
+        if (n != -1)
+            spiralLoop(n, i, j);
+
+        terrainNameId = quadTreeLo->getMyNameId((int) playerT[0] + i, -(int) playerT[1] - j);
+        if (terrainNameId == 0)
+            continue;
+        if (terrainQtLo[terrainNameId] == NULL) {
+            terrainQtLo[terrainNameId] = new TerrainInfo();
+            quadTreeLo->fillTerrainInfo((int) playerT[0] + i, -(int) playerT[1] - j, terrainQtLo[terrainNameId]);
+            terrainQtLo[terrainNameId]->t = new Terrain(terrainQtLo[terrainNameId]);
+        }
+        if (terrainQtLo[terrainNameId]->rendered)
+            continue;
+        terrainQtLo[terrainNameId]->rendered = true;
+        tTile = terrainQtLo[terrainNameId]->t;
+        if (!tTile->loaded)
+            continue;
+
+        float lodx = 2048 * i - playerW[0];
+        float lodz = 2048 * j - playerW[2];
+        Game::currentRenderer->mvPushMatrix();
+        Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, 2048 * i, 0, 2048 * j);
+        if (renderMode == Renderer::RENDER_SELECTION)
+            selectionId = SelectionIdCodec::terrain(i, j, 0);
+        tTile->pushRenderItem(lodx, lodz, playerT[0] + i, playerT[1] + j, playerW, target, fov, selectionId);
+        Game::currentRenderer->mvPopMatrix();
+    }
+
+    QHashIterator<unsigned int, TerrainInfo*> it(terrainQtLo);
+    while (it.hasNext()) {
+        it.next();
+        if (it.value() == NULL) continue;
+        if (renderMode != Renderer::RENDER_SELECTION && !it.value()->rendered && it.value()->t)
+            it.value()->t->releaseProceduralTextures();
+        it.value()->rendered = false;
+    }
+}
+
+// Gather counterpart of renderWater().
+void TerrainLibQt::pushRenderItemsWater(float* playerT, float* playerW, float* target, float fov, int renderMode, int layer) {
+    int renderCount = (Game::tileLod * 2 + 1)
+            * (Game::tileLod * 2 + 1);
+    if (renderMode == Renderer::RENDER_SELECTION)
+        renderCount = 9;
+
+    Terrain *tTile;
+    quint32 selectionId = 0;
+    int i = 0, j = 0;
+    QHash<QString, bool> rendered;
+    for (int n = -1; n < renderCount - 1; n++) {
+        if (n != -1)
+            spiralLoop(n, i, j);
+
+        tTile = getTerrainByXY((int) playerT[0] + i, (int) playerT[1] + j, true);
+        if(tTile == NULL || !tTile->loaded)
+            continue;
+        if (rendered[tTile->name])
+            continue;
+        rendered[tTile->name] = true;
+
+        float lodx = 2048 * i - playerW[0];
+        float lodz = 2048 * j - playerW[2];
+        Game::currentRenderer->mvPushMatrix();
+        Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix,
+                        2048 * i, Game::currentRoute->env->water[layer].height, 2048 * j);
+        if (renderMode == Renderer::RENDER_SELECTION)
+            selectionId = SelectionIdCodec::terrain(i, j, 0);
+        tTile->pushRenderItemWater(lodx, lodz, playerT[0] + i, playerT[1] + j, playerW, target, fov, layer, selectionId);
+        Game::currentRenderer->mvPopMatrix();
+    }
+}
+
+// Gather counterpart of renderWaterLo().
+void TerrainLibQt::pushRenderItemsWaterLo(float* playerT, float* playerW, float* target, float fov, int renderMode, int layer) {
+    int renderCount = 90*90 ;
+    if (renderMode == Renderer::RENDER_SELECTION)
+        renderCount = 9;
+
+    Terrain *tTile;
+    quint32 selectionId = 0;
+    unsigned int terrainNameId;
+    for (int n = -1, i = 0, j = 0; n < renderCount; n+=16) {
+        if (n != -1)
+            spiralLoop(n, i, j);
+
+        terrainNameId = quadTreeLo->getMyNameId((int) playerT[0] + i, -(int) playerT[1] - j);
+        if (terrainNameId == 0)
+            continue;
+        if (terrainQtLo[terrainNameId] == NULL) {
+            terrainQtLo[terrainNameId] = new TerrainInfo();
+            quadTreeLo->fillTerrainInfo((int) playerT[0] + i, -(int) playerT[1] - j, terrainQtLo[terrainNameId]);
+            terrainQtLo[terrainNameId]->t = new Terrain(terrainQtLo[terrainNameId]);
+        }
+        if (terrainQtLo[terrainNameId]->rendered)
+            continue;
+        terrainQtLo[terrainNameId]->rendered = true;
+        tTile = terrainQtLo[terrainNameId]->t;
+        if (!tTile->loaded)
+            continue;
+
+        float lodx = 2048 * i - playerW[0];
+        float lodz = 2048 * j - playerW[2];
+        Game::currentRenderer->mvPushMatrix();
+        Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix,
+                        2048 * i, Game::currentRoute->env->water[layer].height, 2048 * j);
+        if (renderMode == Renderer::RENDER_SELECTION)
+            selectionId = SelectionIdCodec::terrain(i, j, 0);
+        tTile->pushRenderItemWater(lodx, lodz, playerT[0] + i, playerT[1] + j, playerW, target, fov, layer, selectionId);
+        Game::currentRenderer->mvPopMatrix();
+    }
+
+    QHashIterator<unsigned int, TerrainInfo*> it(terrainQtLo);
+    while (it.hasNext()) {
+        it.next();
+        if (it.value() == NULL) continue;
+        it.value()->rendered = false;
+    }
+}
+
 void TerrainLibQt::render(GLUU *gluu, float * playerT, float* playerW, float* target, float fov, int renderMode) {
     prepareTerrainLod(playerT, playerW);
     const auto lodScope = qScopeGuard([this] { clearPreparedTerrainLod(); });

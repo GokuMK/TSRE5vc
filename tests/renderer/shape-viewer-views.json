@@ -1,0 +1,20 @@
+{
+  "output": "build/shape-viewer-parity",
+  "width": 800,
+  "height": 500,
+  "diffTolerance": 16,
+  "settle": {
+    "minFrames": 10,
+    "stableFrames": 3,
+    "maxFrames": 200,
+    "maxSeconds": 120
+  },
+  "items": [
+    { "name": "shape-kirkgate", "type": "shape", "path": "ROUTES/EUROPE1/SHAPES/Kirkgate.s", "textures": "ROUTES/EUROPE1/TEXTURES" },
+    { "name": "shape-bush", "type": "shape", "path": "ROUTES/EUROPE1/SHAPES/bushLn1.s", "textures": "ROUTES/EUROPE1/TEXTURES" },
+    { "name": "eng-class50", "type": "eng", "path": "TRAINS/TRAINSET/CLASS50", "file": "Class50.eng" },
+    { "name": "eng-sd40", "type": "eng", "path": "TRAINS/TRAINSET/SD40", "file": "SD40.eng" },
+    { "name": "wag-310-tender", "type": "eng", "path": "TRAINS/TRAINSET/310", "file": "310Tender.wag" },
+    { "name": "consist-class50", "type": "consist", "path": "TRAINS/CONSISTS", "file": "class 50, 8 carriages.con" }
+  ]
+}

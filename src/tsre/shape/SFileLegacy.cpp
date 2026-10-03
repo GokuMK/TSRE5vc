@@ -15,6 +15,7 @@
 #include <tsre/fileFunctions/ReadFile.h>
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/texture/TexLib.h>
+#include <tsre/texture/Texture.h>
 #include <QDebug>
 #include <QtCore>
 #include <iostream>
@@ -861,28 +862,10 @@ void SFileLegacy::setCurrentDistanceLevel(unsigned int stateId, int level){
     state[stateId].distanceLevel = level;
 }
 
-unsigned long long SFileLegacy::getTextureStateHash() const{
-    // Keep the cache fingerprint lightweight: texture slot id + resolved GL id per image.
-    unsigned long long hash = 1469598103934665603ULL; // FNV-1a offset basis
-    hash ^= (unsigned long long)(unsigned int)ilosci;
-    hash *= 1099511628211ULL; // FNV-1a prime
-
-    if(ilosci <= 0 || image == NULL)
-        return hash;
-
-    for(int i = 0; i < ilosci; i++){
-        hash ^= (unsigned long long)(unsigned int)(image[i].tex + 0x9e3779b9);
-        hash *= 1099511628211ULL;
-        hash ^= (unsigned long long)(unsigned int)(image[i].texAddr + 0x9e3779b9);
-        hash *= 1099511628211ULL;
-    }
-
-    return hash;
-}
-
 void SFileLegacy::clearRenderItems(unsigned int id) {
+    for (RenderItem *item : renderItems[id])
+        Renderer::retirePacket(item);
     renderItems[id].clear();
-    renderItemOwners.remove(id);
 }
 
 void SFileLegacy::invalidateRenderState(bool invalidateMatrixCache){
@@ -890,7 +873,6 @@ void SFileLegacy::invalidateRenderState(bool invalidateMatrixCache){
     for(auto it = renderItems.begin(); it != renderItems.end(); ++it){
         clearRenderItems(it.key());
     }
-    renderItemsTextureHash.clear();
 
     if(!invalidateMatrixCache)
         return;
@@ -968,6 +950,34 @@ void SFileLegacy::render() {
     render(0,0);
 }
 
+// Mirrors the per-vertex alpha mode written in initGL(): texdiff is opaque,
+// alpha test mode 1 cuts out below 0.51, other materials blend.
+unsigned char SFileLegacy::gatherSurface(int primState) const {
+    const primst &material = primstate[primState];
+    if (material.arg2 >= 0 && material.arg2 < ishaders && shader[material.arg2].alpha == 1)
+        return RenderItem::SURFACE_OPAQUE;
+    if (material.arg6 == 1)
+        return RenderItem::SURFACE_ALPHA_TEST;
+    return RenderItem::SURFACE_BLENDED;
+}
+
+// Gather packets reference the TexLib texture; the renderer resolves it when
+// drawing, so packets survive asynchronous texture loading unchanged.
+void SFileLegacy::setGatherTexture(RenderItem *item, int primState, bool texEnabled) {
+    const int textureIndex = primstate[primState].arg4;
+    if (textureIndex == -1 || !texEnabled) {
+        item->disableTextures(1.0, 0.0, 1.0, 1.0);
+        return;
+    }
+    auto &img = image[texture[textureIndex].image];
+    if (img.tex == -1)
+        img.tex = TexLib::addTex(texPath, img.name);
+    if (img.tex < 0)
+        item->disableTextures(1.0, 0.0, 1.0, 1.0);
+    else
+        item->enableTextureId(img.tex);
+}
+
 void SFileLegacy::pushRenderItem(){
     pushRenderItem(0,0);
 }
@@ -994,52 +1004,17 @@ void SFileLegacy::pushRenderItem(quint32 selectionId, unsigned int stateId){
         }
     }
 
-    if(!animated && selectionId == 0 && renderItems[stateId].size() > 0){
-        // Keep cached packets in sync with asynchronous texture loading.
-        // Without this, some instances can stay on fallback material.
-        bool textureAddressChanged = false;
-        for(int i = 0; i < ilosci; i++){
-            if(image[i].tex < 0)
-                continue;
-            if(TexLib::mtex[image[i].tex] == NULL){
-                requiresUpdate = true;
-                continue;
-            }
-            if(!TexLib::mtex[image[i].tex]->loaded){
-                requiresUpdate = true;
-                continue;
-            }
-            if(!TexLib::mtex[image[i].tex]->glLoaded){
-                TexLib::mtex[image[i].tex]->GLTextures();
-                requiresUpdate = true;
-                continue;
-            }
-            unsigned int newTexAddr = TexLib::mtex[image[i].tex]->tex[0];
-            if(image[i].texAddr != (int)newTexAddr){
-                image[i].texAddr = (int)newTexAddr;
-                requiresUpdate = true;
-                textureAddressChanged = true;
-            }
-        }
-
-        unsigned long long textureStateHash = getTextureStateHash();
-        if(renderItemsTextureHash.value(stateId, 0ULL) != textureStateHash){
-            requiresUpdate = true;
-        }
-
-        if(textureAddressChanged){
-            // Render cache is keyed by stateId. If one state gets refreshed texture ids,
-            // all other cached states for this shape must be rebuilt as well.
-            for(auto it = renderItems.begin(); it != renderItems.end(); ++it){
-                clearRenderItems(it.key());
-            }
-            renderItemsTextureHash.clear();
-        }
-    }
-
-    // Animated sub-object matrices are frame-local. Avoid caching shared render items
-    // with dangling matrix pointers by submitting per-frame owned packets instead.
+    // Animated sub-object matrices change every frame. Each state refills its
+    // own packets and matrices once per frame; a state submitted again in the
+    // same frame falls back to frame-owned items.
     if(animated){
+        static const RenderItem blank;
+        AnimatedPackets &pool = animatedPackets[stateId];
+        const quint64 frame = Renderer::frameNumber();
+        const bool reusePool = !pool.used || pool.frame != frame;
+        pool.frame = frame;
+        pool.used = true;
+        int slot = 0;
         RenderItem *r;
         float m[16];
         int currentDlevel = state[stateId].distanceLevel;
@@ -1048,8 +1023,6 @@ void SFileLegacy::pushRenderItem(quint32 selectionId, unsigned int stateId){
                 continue;
 
             for (int j = 0; j < distancelevel[currentDlevel].subobiekty[i].iloscc; j++) {
-                r = new RenderItem();
-
                 int prim_state = distancelevel[currentDlevel].subobiekty[i].czesci[j].prim_state_idx;
                 int vtx_state = primstate[prim_state].vtx_state;
                 int matrix = vtxstate[vtx_state].matrix;
@@ -1057,8 +1030,21 @@ void SFileLegacy::pushRenderItem(quint32 selectionId, unsigned int stateId){
 
                 Mat4::identity(m);
                 getPmatrixAnimated(currentDlevel, m, matrix, state[stateId].frameCount);
-                r->msMatrix = Mat4::clone(m);
-                Game::currentRenderer->mvMatrixDelete.push_back(r->msMatrix);
+                if(reusePool){
+                    if(slot == pool.items.size()){
+                        pool.items.push_back(new RenderItem());
+                        pool.matrices.emplace_back();
+                    }
+                    r = pool.items[slot];
+                    *r = blank;
+                    std::copy(m, m + 16, pool.matrices[slot].begin());
+                    r->msMatrix = pool.matrices[slot].data();
+                    slot++;
+                } else {
+                    r = new RenderItem();
+                    r->msMatrix = Mat4::clone(m);
+                    Game::currentRenderer->mvMatrixDelete.push_back(r->msMatrix);
+                }
 
                 if( vtxstate[vtx_state].arg2 < -7 )
                     r->normalsEnabled = 0;
@@ -1071,36 +1057,9 @@ void SFileLegacy::pushRenderItem(quint32 selectionId, unsigned int stateId){
                     r->brightness = 1.0;
 
                 r->setSelectionId(selectionId);
-                if (selectionId == 0) {
-                    if(primstate[prim_state].arg4 == -1 || !texEnabled || TexLib::disabledTextures[image[texture[primstate[prim_state].arg4].image].texAddr] == 1){
-                        r->disableTextures(1.0, 0.0, 1.0, 1.0);
-                    } else if (image[texture[primstate[prim_state].arg4].image].texAddr >= 0) {
-                        r->enableTextures(image[texture[primstate[prim_state].arg4].image].texAddr);
-                    } else if (image[texture[primstate[prim_state].arg4].image].tex == -2) {
-                        r->disableTextures(1.0, 0.0, 1.0, 1.0);
-                    } else if (image[texture[primstate[prim_state].arg4].image].tex == -1) {
-                        image[texture[primstate[prim_state].arg4].image].tex = TexLib::addTex(
-                                texPath,
-                                image[texture[primstate[prim_state].arg4].image].name
-                                );
-                        r->disableTextures(1.0, 0.0, 1.0, 1.0);
-                    } else if (TexLib::mtex[image[texture[primstate[prim_state].arg4].image].tex] == NULL) {
-                        r->disableTextures(1.0, 0.0, 1.0, 1.0);
-                    } else if (TexLib::mtex[image[texture[primstate[prim_state].arg4].image].tex]->glLoaded) {
-                        image[texture[primstate[prim_state].arg4].image].texAddr = TexLib::mtex[image[texture[primstate[prim_state].arg4].image].tex]->tex[0];
-                        r->enableTextures(image[texture[primstate[prim_state].arg4].image].texAddr);
-                    } else if (TexLib::mtex[image[texture[primstate[prim_state].arg4].image].tex]->loaded) {
-                        TexLib::mtex[image[texture[primstate[prim_state].arg4].image].tex]->GLTextures();
-                        if (TexLib::mtex[image[texture[primstate[prim_state].arg4].image].tex]->glLoaded) {
-                            image[texture[primstate[prim_state].arg4].image].texAddr = TexLib::mtex[image[texture[primstate[prim_state].arg4].image].tex]->tex[0];
-                            r->enableTextures(image[texture[primstate[prim_state].arg4].image].texAddr);
-                        } else {
-                            r->disableTextures(1.0, 0.0, 1.0, 1.0);
-                        }
-                    } else {
-                        r->disableTextures(1.0, 0.0, 1.0, 1.0);
-                    }
-                }
+                r->surface = gatherSurface(prim_state);
+                if (selectionId == 0)
+                    setGatherTexture(r, prim_state, texEnabled);
 
                 r->VBO = &distancelevel[currentDlevel].subobiekty[i].VBO;
                 r->VAO = &distancelevel[currentDlevel].subobiekty[i].VAO;
@@ -1108,8 +1067,13 @@ void SFileLegacy::pushRenderItem(quint32 selectionId, unsigned int stateId){
                 r->vertCount = distancelevel[currentDlevel].subobiekty[i].czesci[j].iloscv;
                 r->itemType = GL_TRIANGLES;
                 r->vertexAttr = RenderItem::VNTA;
-                r->shared = false;
-                Game::currentRenderer->pushItem(r, Game::currentRenderer->mvMatrix);
+                if(reusePool){
+                    r->shared = true;
+                    Game::currentRenderer->pushPacket(r, 0, Renderer::SUBMIT_ORDERED);
+                } else {
+                    r->shared = false;
+                    Game::currentRenderer->pushItem(r, Game::currentRenderer->mvMatrix);
+                }
             }
         }
         return;
@@ -1120,13 +1084,11 @@ void SFileLegacy::pushRenderItem(quint32 selectionId, unsigned int stateId){
         // If any state requested refresh, invalidate other cached states too.
         bool globalInvalidateRequested = requiresUpdate;
         requiresUpdate = false;
-        renderItemsTextureHash.remove(stateId);
         clearRenderItems(stateId);
 
         RenderItem * r;// = new RenderItem();
         float m[16];
         int currentDlevel = state[stateId].distanceLevel;
-        bool textureAddressChangedDuringBuild = false;
         for (int i = 0; i < distancelevel[currentDlevel].iloscs; i++) {
 
             if(((state[stateId].enabledSubObjs >> i) & 1) == 0)
@@ -1163,38 +1125,8 @@ void SFileLegacy::pushRenderItem(quint32 selectionId, unsigned int stateId){
                 else
                     r->brightness = 1.0;
 
-                if(primstate[prim_state].arg4 == -1 || !texEnabled || TexLib::disabledTextures[image[texture[primstate[prim_state].arg4].image].texAddr] == 1){
-                    r->disableTextures(1.0, 0.0, 1.0, 1.0);
-                } else if (image[texture[primstate[prim_state].arg4].image].texAddr >= 0) {
-                    r->enableTextures(image[texture[primstate[prim_state].arg4].image].texAddr);
-                } else if (image[texture[primstate[prim_state].arg4].image].tex == -2) {
-                    r->disableTextures(1.0, 0.0, 1.0, 1.0);
-                } else if (image[texture[primstate[prim_state].arg4].image].tex == -1) {
-                    image[texture[primstate[prim_state].arg4].image].tex = TexLib::addTex(
-                            texPath,
-                            image[texture[primstate[prim_state].arg4].image].name
-                            );
-                    requiresUpdate = true;
-                    r->disableTextures(1.0, 0.0, 1.0, 1.0);
-                } else if (TexLib::mtex[image[texture[primstate[prim_state].arg4].image].tex] == NULL) {
-                    requiresUpdate = true;
-                    r->disableTextures(1.0, 0.0, 1.0, 1.0);
-                } else if (TexLib::mtex[image[texture[primstate[prim_state].arg4].image].tex]->glLoaded) {
-                    unsigned int newTexAddr = TexLib::mtex[image[texture[primstate[prim_state].arg4].image].tex]->tex[0];
-                    if(image[texture[primstate[prim_state].arg4].image].texAddr != (int)newTexAddr){
-                        image[texture[primstate[prim_state].arg4].image].texAddr = (int)newTexAddr;
-                        textureAddressChangedDuringBuild = true;
-                    }
-                    requiresUpdate = true;
-                    r->enableTextures(image[texture[primstate[prim_state].arg4].image].texAddr);
-                } else if (TexLib::mtex[image[texture[primstate[prim_state].arg4].image].tex]->loaded) {
-                    TexLib::mtex[image[texture[primstate[prim_state].arg4].image].tex]->GLTextures();
-                    requiresUpdate = true;
-                    r->disableTextures(1.0, 0.0, 1.0, 1.0);
-                } else {
-                    requiresUpdate = true;
-                    r->disableTextures(1.0, 0.0, 1.0, 1.0);
-                }
+                r->surface = gatherSurface(prim_state);
+                setGatherTexture(r, prim_state, texEnabled);
 
                 r->VBO = &distancelevel[currentDlevel].subobiekty[i].VBO;
                 r->VAO = &distancelevel[currentDlevel].subobiekty[i].VAO;
@@ -1204,53 +1136,22 @@ void SFileLegacy::pushRenderItem(quint32 selectionId, unsigned int stateId){
                 r->itemType = GL_TRIANGLES;
                 r->vertexAttr = RenderItem::VNTA;
                 r->shared = true;
-                QSharedPointer<RenderItem> owner(r);
-                r->cacheOwner = owner.toWeakRef();
-                renderItemOwners[stateId].push_back(owner);
                 renderItems[stateId].push_back(r);
                 //Game::currentRenderer->pushItemVNTA(r);
             }
         }
-        if(globalInvalidateRequested || textureAddressChangedDuringBuild){
+        if(globalInvalidateRequested){
             // Keep current state items, but force rebuild of other cached states.
             for(auto it = renderItems.begin(); it != renderItems.end(); ++it){
                 if(it.key() == stateId)
                     continue;
                 clearRenderItems(it.key());
-                renderItemsTextureHash.remove(it.key());
             }
         }
-        renderItemsTextureHash[stateId] = getTextureStateHash();
     }
 
-    if(selectionId != 0){
-        for(int i = 0; i < renderItems[stateId].size(); i++){
-            RenderItem *baseItem = renderItems[stateId][i];
-            if(baseItem == NULL)
-                continue;
-
-            RenderItem *selectionItem = new RenderItem(*baseItem);
-            selectionItem->shared = false;
-            selectionItem->setSelectionId(selectionId);
-            selectionItem->lineWidth = 0;
-            Game::currentRenderer->pushItem(selectionItem, Game::currentRenderer->mvMatrix);
-        }
-        return;
-    }
-
-    if(renderItems[stateId].size() > 0){
-        //for(int i = 0; i < renderItems[stateId].size(); i++){
-        //    Mat4::identity(renderItems[stateId][i]->mvMatrix);
-        //    RenderItem *r;
-
-            //renderItems[stateId][i]->mvMatrix =
-        //            Mat4::copy(renderItems[stateId][i]->mvMatrix, Game::currentRenderer->mvMatrix);
-        //    Game::currentRenderer->pushItemVNTA(r);
-        //}
-        //     Mat4::copy(Game::currentRenderer->mvMatrix, renderItems[stateId][i]->mvMatrix);
-
-        Game::currentRenderer->pushItemsVNTA(renderItems[stateId], Game::currentRenderer->mvMatrix);
-    }
+    if(renderItems[stateId].size() > 0)
+        Game::currentRenderer->pushPackets(renderItems[stateId], selectionId);
 }
 
 void SFileLegacy::render(quint32 selectionId, unsigned int stateId) {
@@ -2404,8 +2305,16 @@ bool SFileLegacy::initGL() {
     return true;
 }
 
+void SFileLegacy::clearAnimatedPackets() {
+    for (auto it = animatedPackets.begin(); it != animatedPackets.end(); ++it)
+        for (RenderItem *item : it.value().items)
+            Renderer::retirePacket(item);
+    animatedPackets.clear();
+}
+
 void SFileLegacy::clearData() {
     invalidateRenderState();
+    clearAnimatedPackets();
     for (int j = 0; distancelevel && j < iloscd; ++j) {
         auto &level = distancelevel[j];
         for (int i = 0; level.subobiekty && i < level.iloscs; ++i) {

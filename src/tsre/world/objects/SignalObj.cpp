@@ -680,6 +680,10 @@ bool SignalObj::isSimilar(WorldObj* obj){
     return false;
 }
 
+bool SignalObj::castsShadows(){
+    return !Game::mstsShadows || getShadowType() == WorldObj::ShadowDynamic;
+}
+
 void SignalObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId){
     if (!loaded) return;
     if (shape < 0) return;

@@ -19,7 +19,8 @@
 #include <QMatrix4x4>
 #include <QString>
 #include <QPointer>
-#include <QSharedPointer>
+#include <array>
+#include <deque>
 #include <vector>
 #include <QVector>
 #include <tsre/shape/ComplexShape.h>
@@ -256,8 +257,21 @@ public:
 private:
     bool glReady = false;
     QPointer<QOpenGLContext> glContext;
+    // Retires the state's cached packets through the renderer.
     void clearRenderItems(unsigned int stateId);
-    QHash<unsigned int, QVector<QSharedPointer<RenderItem>>> renderItemOwners;
+    // Animated parts are refilled every frame into packets and matrices
+    // reused per state.
+    struct AnimatedPackets {
+        QVector<RenderItem*> items;
+        // A deque keeps matrix addresses stable as the pool grows.
+        std::deque<std::array<float, 16>> matrices;
+        quint64 frame = 0;
+        bool used = false;
+    };
+    QHash<unsigned int, AnimatedPackets> animatedPackets;
+    void clearAnimatedPackets();
+    unsigned char gatherSurface(int primState) const;
+    void setGatherTexture(RenderItem *item, int primState, bool texEnabled);
     void clearData();
     static void odczytajshadersc(FileBuffer* bufor, SFileLegacy* pliks);
     static void odczytajpunktyc(FileBuffer* bufor, SFileLegacy* pliks);
@@ -293,12 +307,10 @@ private:
     float* getPmatrix(int currentDlevel, float* pmatrix, int matrix);
     float* getPmatrixAnimated(int currentDlevel, float* pmatrix, int matrix, float frame);
     void buildFrameIds();
-    unsigned long long getTextureStateHash() const;
     bool snapable = false;
     //float *mvMatrix = NULL;
     bool requiresUpdate = false;
     QHash<unsigned int, QVector<RenderItem *>> renderItems;
-    QHash<unsigned int, unsigned long long> renderItemsTextureHash;
 };
 
 #endif	/* SFILELEGACY_H */

@@ -985,7 +985,9 @@ void Tile::pushRenderItems(float* playerT, float* playerW, float* target, float 
                                 x - static_cast<int>(playerT[0]),
                                 z - static_cast<int>(playerT[1]), i);
                 }
+                Game::currentRenderer->setShadowCasting(obj->castsShadows());
                 obj->pushRenderItems(lod, lodx, lodz, playerW, target, fov, selectionId);
+                Game::currentRenderer->setShadowCasting(true);
                 Game::currentRenderer->mvPopMatrix();
             }
         }

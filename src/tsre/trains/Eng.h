@@ -82,6 +82,7 @@ public:
     void unselect();
     bool isSelected();
     void drawBorder();
+    void pushDrawBorder();
     void drawBorder3d();
     void pushDrawBorder3d();
     bool engFilter(QString q);
@@ -90,7 +91,7 @@ public:
     void initOnTrack(float *tpos, int direction, QMap<int, int>* junctionDirections);
     void getCameraPosition(float *out = NULL);
     void renderOnTrack(GLUU* gluu, float* playerT, quint32 selectionId);
-    void pushRenderItemOnTrack(float* playerT, quint32 selectionId);
+    void pushRenderItemOnTrack(float* playerT, quint32 selectionId, bool selected = false);
     void move(float m);
     float getCurrentElevation();
     float getTotalDistanceDownPath();
@@ -99,10 +100,13 @@ public:
     void updateSim(float deltaTime);
     float getCurrentSpeed();
     void render(quint32 selectionId = 0);
+    void pushRenderItems(quint32 selectionId = 0);
     void render(int aktwx, int aktwz, quint32 selectionId);
     float *getCurrentPositionOnTrack();
     void fillContentHierarchyInfo(QVector<ContentHierarchyInfo*>& list, int parent);
 private:
+    long long int resolveShapeIds();
+    void initBorder();
     bool selected = false;
     OglObj *borderObj = NULL;
     OglObj *borderObj3d = NULL;

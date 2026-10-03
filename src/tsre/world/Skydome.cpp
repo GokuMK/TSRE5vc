@@ -12,6 +12,8 @@
 #include <tsre/ogl/GLUU.h>
 #include <tsre/shape/ComplexShape.h>
 #include <tsre/shape/ShapeLib.h>
+#include <tsre/renderer/Renderer.h>
+#include <tsre/Game.h>
 
 Skydome::Skydome() {
     QString resPath = Game::root + "/ROUTES/" + Game::route + "/SHAPES";
@@ -40,3 +42,11 @@ void Skydome::render(GLUU* gluu, int renderMode) {
         shapePointer->render();
     gluu->mvPopMatrix();
 };
+
+void Skydome::pushRenderItems(int renderMode) {
+    if (!loaded || shapePointer == NULL || Game::currentRenderer == NULL)
+        return;
+    if (renderMode == Renderer::RENDER_SHADOWMAP)
+        return;
+    shapePointer->pushRenderItem(0, 0);
+}

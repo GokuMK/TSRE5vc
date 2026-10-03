@@ -11,8 +11,6 @@
 #ifndef RENDERITEM_H
 #define RENDERITEM_H
 
-#include <QSharedPointer>
-#include <QWeakPointer>
 #include <QVector>
 #include <QVector3D>
 
@@ -24,17 +22,16 @@ class QOpenGLVertexArrayObject;
 class RenderItem {
 public:
     enum VertexAttr {NO_ATTR = 0, V = 3, VT = 6, VNT = 8, VNTA = 9};
+    // How the renderer routes a packet: opaque and alpha-tested packets are
+    // batched by texture, blended packets are drawn back to front.
+    enum Surface {SURFACE_OPAQUE = 0, SURFACE_ALPHA_TEST = 1, SURFACE_BLENDED = 2,
+                  SURFACE_TERRAIN = 3};
     
     VertexAttr vertexAttr = NO_ATTR;
     QOpenGLBuffer *VBO = 0;    
     QOpenGLVertexArrayObject *VAO = 0;    
     bool shared = false;
-    // Optional owner for cached packets retained by the gathered renderer.
-    QWeakPointer<RenderItem> cacheOwner;
     float *msMatrix = 0;
-    float *mvMatrix = 0;
-    QVector<float*> mvMatrixList;
-    unsigned int mvMatrixId = -1;
     unsigned char normalsEnabled = 0;
     unsigned char texturesEnabled = 0;
     float brightness = 1.0;
@@ -60,10 +57,16 @@ public:
     float colorX, colorY, colorZ, colorA;
     quint32 selectionId = 0;
     unsigned int texAddr = 0;
+    // TexLib texture resolved when drawing; -1 uses texAddr. A texture that
+    // is not uploaded yet draws in the missing-texture colour.
+    int textureId = -1;
+    unsigned char surface = SURFACE_OPAQUE;
     unsigned int secondTexAddr = 0;
     float secondTexScale = 0.0f;
     QVector3D terrainTextureRemap;
     int lineWidth = 0;
+    // RenderStats::Category of the producer that queued this item.
+    unsigned char statsCategory = 0;
     
     RenderItem();
     RenderItem(const RenderItem& orig);
@@ -74,6 +77,7 @@ public:
     void disableTextures(float x, float y, float z, float a);
     void setSelectionId(quint32 selectionId);
     void enableTextures(unsigned int addr);
+    void enableTextureId(int id);
 private:
 
     

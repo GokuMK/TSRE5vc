@@ -14,6 +14,7 @@
 #include <QVector3D>
 #include <array>
 #include <tsre/renderer/RenderItem.h>
+#include <tsre/renderer/Renderer.h>
 #include <vector>
 struct SFileComplex::Data {
     struct Options {
@@ -84,7 +85,11 @@ struct SFileComplex::Data {
         QSet<unsigned int> disabledParts;
         QSet<int> disabledSubs;
         std::vector<QMatrix4x4> matrices;
-        std::vector<std::unique_ptr<RenderItem>> packets;
+        // Packets can still be queued when a state is cleared; retire them.
+        struct PacketRetirer {
+            void operator()(RenderItem *packet) const { Renderer::retirePacket(packet); }
+        };
+        std::vector<std::unique_ptr<RenderItem, PacketRetirer>> packets;
     };
     QString path, name, textureRoot, texturePath;
     Options options;

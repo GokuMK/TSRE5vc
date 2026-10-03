@@ -27,6 +27,7 @@ class Consist;
 class GLUU;
 class Camera;
 class EngLib;
+class OpenGL3Renderer;
 class QImage;
 class ShapeTextureInfo;
 class ShapeHierarchyInfo;
@@ -94,6 +95,10 @@ protected:
 
 private:
     void renderFrame(bool selectionPass);
+    // Draws the current item through this widget's renderer.
+    void renderGathered(quint32 selectionId);
+    // Owned; installed as Game::currentRenderer only while this widget draws.
+    OpenGL3Renderer *renderer = nullptr;
     SelectionRenderer selectionRenderer;
     QPointF selectionPosition;
     void setupVertexAttribs();

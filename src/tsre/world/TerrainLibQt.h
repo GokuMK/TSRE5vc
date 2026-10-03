@@ -87,6 +87,9 @@ public:
     bool hasDetailedTerrain(int x, int z);
     void fillTerrainData(Terrain *tTile, float *offsetXYZ);
     void pushRenderItems(float* playerT, float* playerW, float* target, float fov, int renderMode);
+    void pushRenderItemsLo(float* playerT, float* playerW, float* target, float fov, int renderMode) override;
+    void pushRenderItemsWater(float* playerT, float* playerW, float* target, float fov, int renderMode, int layer) override;
+    void pushRenderItemsWaterLo(float* playerT, float* playerW, float* target, float fov, int renderMode, int layer) override;
     void render(GLUU *gluu, float* playerT, float* playerW, float* target, float fov, int renderMode);
     void renderLo(GLUU *gluu, float* playerT, float* playerW, float* target, float fov, int renderMode);
     void renderWater(GLUU *gluu, float* playerT, float* playerW, float* target, float fov, int renderMode, int layer);

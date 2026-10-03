@@ -61,6 +61,9 @@ void GameObj::renderHud(){
     return;
 }
 
+void GameObj::pushRenderHud(){
+}
+
 void GameObj::translate(float px, float py, float pz){
 
 }

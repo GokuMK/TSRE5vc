@@ -13,6 +13,7 @@
  */
 
 #include <tsre/math3d/GLMatrix.h>
+#include <tsre/renderer/RenderStats.h>
 #include <math.h>
 #include <iostream>
 
@@ -1137,6 +1138,7 @@ float* Quat::rotateZ(float *out, float *a, float rad){
 float Mat4::GLMAT_EPSILON = 0.000001f;
 
 float* Mat4::clone(float* a) {
+    RenderStats::countMatrixClone();
     float* out = new float[16];
     std::copy(a, a + 16, out);
     return out;

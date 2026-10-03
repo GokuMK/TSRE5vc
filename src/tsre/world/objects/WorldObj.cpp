@@ -637,6 +637,8 @@ void WorldObj::pushRenderItems(float lod, float posx, float posz, float* playerW
 
     Mat4::multiply(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, matrix);
     shapeToRender->pushRenderItem(selectionId, shapeState);
+    if (selected)
+        pushRenderBox();
 }
 
 void WorldObj::render(GLUU* gluu, float lod, float posx, float posz, float* pos, float* target, float fov, quint32 selectionId, int renderMode) {
@@ -804,18 +806,28 @@ bool WorldObj::getSimpleBorder(float* border){
     return false;
 }
 
-void WorldObj::drawBox(){
+// Builds the selection box from the object bounds; false if it has none.
+bool WorldObj::ensureBox(){
     if (!box.loaded) {
         QVector<float> punkty;
-        if (!this->getBoxPoints(punkty)) return;
+        if (!this->getBoxPoints(punkty)) return false;
 
         box.setMaterial(0.0, 0.0, 1.0);
         box.init((float*)&punkty[0], punkty.size(), RenderItem::V, GL_LINES);
         //box.setLineWidth(3);
     }
-    
-    box.render();
+    return true;
+}
+
+void WorldObj::drawBox(){
+    if (ensureBox())
+        box.render();
 };
+
+void WorldObj::pushRenderBox(){
+    if (ensureBox())
+        box.pushRenderItem();
+}
 
 bool WorldObj::getBoxPoints(QVector<float>& points){
     return false;
@@ -905,6 +917,10 @@ float WorldObj::getElevation(){
     vect[0] = 0; vect[1] = 0; vect [2] = 1000;
     Vec3::transformQuat(vect, vect, qDirection);
     return asin(-vect[1]/1000.0);
+}
+
+bool WorldObj::castsShadows(){
+    return true;
 }
 
 WorldObj::ShadowType WorldObj::getShadowType(){

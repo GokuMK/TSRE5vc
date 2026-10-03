@@ -29,7 +29,7 @@ OglObj::OglObj(const OglObj& orig) {
 }
 
 OglObj::~OglObj() {
-
+    retirePackets();
 }
 
 void OglObj::setMaterial(float r, float g, float b) {
@@ -157,46 +157,92 @@ void OglObj::pushRenderItem(quint32 selectionId, float lod){
         return;
     if(materialType == NONE)
         return;
-    
-    RenderItem *r = new RenderItem();
-    r->terrainDecal = terrainDecal && selectionId == 0;
-    r->setVertexAttributes(vAttribures);
 
-    r->setSelectionId(selectionId);
+    // Selection draws untextured; otherwise resolve the material now so a
+    // texture that finished loading is used without rebuilding anything.
+    static const float white[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+    static const float missing[4] = {1.0f, 0.0f, 1.0f, 1.0f};
+    bool textured = false;
+    unsigned int texAddr = 0;
+    const float *materialColor = white;
+    float colorValues[4];
     if(selectionId == 0 && materialType == TEXTURE){
         if (texId == -1) {
             texId = TexLib::addTex(*res);
         }
+        materialColor = missing;
         if (TexLib::mtex[texId]->loaded) {
             if (!TexLib::mtex[texId]->glLoaded)
                 TexLib::mtex[texId]->GLTextures();
             if(TexLib::mtex[texId]->glLoaded){
-                r->enableTextures(TexLib::mtex[texId]->tex[0]);
-            } else {
-                r->disableTextures(1.0f, 0.0f, 1.0f, 1.0f);
+                textured = true;
+                texAddr = TexLib::mtex[texId]->tex[0];
+                materialColor = white;
             }
-        } else {
-            r->disableTextures(1.0f, 0.0f, 1.0f, 1.0f);
         }
-
     } else if(selectionId == 0 && materialType == COLOR){
-        r->disableTextures(color);
-    }  
-
-    r->lineWidth = lineWidth;
-    r->VBO = &VBO;
-    r->VAO = &VAO;
-    if(Game::currentRenderer->objStrMatrix != NULL){
-        r->msMatrix = Mat4::clone(Game::currentRenderer->objStrMatrix);
-        Game::currentRenderer->mvMatrixDelete.push_back(r->msMatrix);
-    } else {
-        r->msMatrix = NULL;
+        colorValues[0] = color->x;
+        colorValues[1] = color->y;
+        colorValues[2] = color->z;
+        colorValues[3] = color->c;
+        materialColor = colorValues;
     }
-    r->itemType = shapeType;
-    r->vertOffset = 0;
-    r->vertCount = length;
-    
-    Game::currentRenderer->pushItem(r, Game::currentRenderer->mvMatrix);
+
+    RenderItem *packet = framePacket(textured, texAddr, materialColor,
+                                     terrainDecal && selectionId == 0);
+    Game::currentRenderer->pushPacket(packet, selectionId, Renderer::SUBMIT_ORDERED);
+}
+
+RenderItem *OglObj::framePacket(bool textured, unsigned int texAddr,
+                                const float *materialColor, bool decal){
+    const quint64 frame = Renderer::frameNumber();
+    if(packetFrame != frame){
+        packetFrame = frame;
+        packetsUsed = 0;
+    }
+    const auto matches = [&](const RenderItem *packet){
+        return packet->texturesEnabled == (textured ? 1 : 0)
+                && (!textured || packet->texAddr == texAddr)
+                && packet->colorX == materialColor[0] && packet->colorY == materialColor[1]
+                && packet->colorZ == materialColor[2] && packet->colorA == materialColor[3]
+                && packet->terrainDecal == decal
+                && packet->vertCount == static_cast<unsigned int>(length)
+                && packet->itemType == static_cast<unsigned int>(shapeType)
+                && packet->lineWidth == lineWidth;
+    };
+    for(int i = 0; i < packetsUsed; ++i){
+        if(matches(packets[i]))
+            return packets[i];
+    }
+    if(packetsUsed == packets.size())
+        packets.push_back(new RenderItem());
+    RenderItem *packet = packets[packetsUsed++];
+    packet->setVertexAttributes(vAttribures);
+    packet->terrainDecal = decal;
+    if(textured)
+        packet->enableTextures(texAddr);
+    else
+        packet->disableTextures(materialColor[0], materialColor[1],
+                                materialColor[2], materialColor[3]);
+    packet->colorX = materialColor[0];
+    packet->colorY = materialColor[1];
+    packet->colorZ = materialColor[2];
+    packet->colorA = materialColor[3];
+    packet->lineWidth = lineWidth;
+    packet->VBO = &VBO;
+    packet->VAO = &VAO;
+    packet->msMatrix = NULL;
+    packet->itemType = shapeType;
+    packet->vertOffset = 0;
+    packet->vertCount = length;
+    return packet;
+}
+
+void OglObj::retirePackets(){
+    for(RenderItem *packet : packets)
+        Renderer::retirePacket(packet);
+    packets.clear();
+    packetsUsed = 0;
 }
 
 void OglObj::render(quint32 selectionId, float lod) {

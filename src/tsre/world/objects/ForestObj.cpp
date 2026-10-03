@@ -497,8 +497,11 @@ void ForestObj::drawShape(bool pushToQueue, quint32 selectionId){
     } else {
         shape.render(selectionId);
     }
-    if(selected && !pushToQueue){
-        drawBox();
+    if(selected){
+        if(pushToQueue)
+            pushRenderBox();
+        else
+            drawBox();
     }
 }
 

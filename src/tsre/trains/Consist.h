@@ -104,11 +104,13 @@ public:
     bool getWagonWorldPosition(int id, float *posTW);
     void updateSim(float deltaTime);
     void renderHud();
+    void pushRenderHud();
     void getCameraPosition(float *out);
     void renderOnTrack(GLUU* gluu, float * playerT, quint32 selectionId);
     void pushRenderItemsOnTrack(float *playerT, quint32 selectionId);
     void render(quint32 selectionId = 0, bool renderText = false);
     void render(int aktwx, int aktwz, quint32 selectionId, bool renderText);
+    void pushRenderItems(quint32 selectionId = 0, bool renderText = false);
     void initPos();
     void setMaxVelocityFixed(bool val);
     bool isMaxVelocityFixed();
@@ -119,6 +121,9 @@ public:
     void fillContentHierarchyInfo(QVector<ContentHierarchyInfo*>& list, int parent);
     
 private:
+    TextObj *nameLabel(int i);
+    TextObj *numberLabel(int i);
+    TextObj *typeLabel(int wagonType);
     bool newConsist = false;
     bool modified = false;
     bool defaultValue = false;

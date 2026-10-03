@@ -133,6 +133,10 @@ public:
     virtual void getLinePoints(float *&punkty);
     virtual Ref::RefItem* getRefInfo();
     virtual void drawBox();
+    // Gather counterpart of drawBox(): submits the selection box under the
+    // renderer's current transform.
+    void pushRenderBox();
+    bool ensureBox();
     virtual bool select();
     virtual bool select(int value);
     virtual bool unselect();
@@ -149,6 +153,9 @@ public:
     virtual bool isAnimated();
     virtual bool isTerrainObj();
     virtual ShadowType getShadowType();
+    // Whether gathered geometry of this object goes into shadow maps; mirrors
+    // the RENDER_SHADOWMAP checks of the legacy render() functions.
+    virtual bool castsShadows();
     virtual float getElevation();
     virtual void setAnimated(bool val);
     virtual void setTerrainObj(bool val);

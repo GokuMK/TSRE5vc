@@ -48,6 +48,13 @@
 
 namespace {
 
+// Cached packets may still be queued; the renderer deletes them when safe.
+void retireRenderItems(QVector<RenderItem*>& items) {
+    for (RenderItem* item : items)
+        Renderer::retirePacket(item);
+    items.clear();
+}
+
 static QString normalizePathId(QString pathid) {
     pathid.replace("\\", "/");
     pathid = ContentPath::normalize(pathid);
@@ -936,7 +943,7 @@ void GltfShape::pushRenderItem(quint32 selectionId, unsigned int stateId) {
         const bool globalInvalidateRequested = requiresUpdate;
         requiresUpdate = false;
         renderItemsTextureHash.remove(stateId);
-        renderItems[stateId].clear();
+        retireRenderItems(renderItems[stateId]);
 
         for (int u = 0; u < drawUnits.size(); u++) {
             const DrawUnit& unit = drawUnits[u];
@@ -979,29 +986,15 @@ void GltfShape::pushRenderItem(quint32 selectionId, unsigned int stateId) {
         if (globalInvalidateRequested) {
             for (auto it = renderItems.begin(); it != renderItems.end(); ++it) {
                 if (it.key() == stateId) continue;
-                it.value().clear();
+                retireRenderItems(it.value());
                 renderItemsTextureHash.remove(it.key());
             }
         }
         renderItemsTextureHash[stateId] = getTextureStateHash();
     }
 
-    if (selectionId != 0) {
-        for (int i = 0; i < renderItems[stateId].size(); i++) {
-            RenderItem* baseItem = renderItems[stateId][i];
-            if (baseItem == nullptr) continue;
-
-            RenderItem* selectionItem = new RenderItem(*baseItem);
-            selectionItem->shared = false;
-            selectionItem->setSelectionId(selectionId);
-            selectionItem->lineWidth = 0;
-            Game::currentRenderer->pushItem(selectionItem, Game::currentRenderer->mvMatrix);
-        }
-        return;
-    }
-
     if (renderItems[stateId].size() > 0) {
-        Game::currentRenderer->pushItemsVNTA(renderItems[stateId], Game::currentRenderer->mvMatrix);
+        Game::currentRenderer->pushPackets(renderItems[stateId], selectionId);
     }
 }
 
@@ -1184,6 +1177,8 @@ void GltfShape::cleanupNodeMatrices() {
 }
 
 void GltfShape::cleanupRenderItems() {
+    for (auto it = renderItems.begin(); it != renderItems.end(); ++it)
+        retireRenderItems(it.value());
     renderItems.clear();
     renderItemsTextureHash.clear();
 }

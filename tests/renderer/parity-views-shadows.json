@@ -1,0 +1,41 @@
+{
+  "output": "build/renderer-parity-shadows",
+  "width": 960,
+  "height": 540,
+  "pickGrid": [16, 9],
+  "timingFrames": 3,
+  "diffTolerance": 16,
+  "shadows": true,
+  "settle": {
+    "minFrames": 12,
+    "stableFrames": 3,
+    "maxFrames": 120,
+    "maxSeconds": 180
+  },
+  "views": [
+    {
+      "name": "start"
+    },
+    {
+      "name": "yaw90",
+      "rot": [1.5708, 0]
+    },
+    {
+      "name": "yaw180",
+      "rot": [3.1416, 0]
+    },
+    {
+      "name": "yaw270",
+      "rot": [4.7124, 0]
+    },
+    {
+      "name": "down",
+      "rot": [0, -0.45]
+    },
+    {
+      "name": "aerial",
+      "offset": [0, 250, 0],
+      "rot": [0, -0.7]
+    }
+  ]
+}

@@ -53,6 +53,7 @@ public:
     void resize(float x, float y, float z);
     int getDefaultDetailLevel();
     void pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
+    bool castsShadows() override;
     void render(GLUU* gluu, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId, int renderMode);
 private:
     // Created only after a hole is encountered; release its GPU mesh when empty.

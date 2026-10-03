@@ -431,6 +431,13 @@ bool TrackObj::isSimilar(WorldObj* obj){
     return false;
 }
 
+// Roads do not cast shadows unless marked dynamic.
+bool TrackObj::castsShadows(){
+    if (getShadowType() == WorldObj::ShadowDynamic)
+        return true;
+    return !Game::mstsShadows && !roadShape;
+}
+
 void TrackObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId){
     if (!loaded) return;
     if (shape < 0) return;
@@ -489,7 +496,7 @@ void TrackObj::pushRenderItems(float lod, float posx, float posz, float* playerW
             pointer3d = new TrackItemObj(1);
             pointer3d->setMaterial(0.9,0.9,0.7);
         }
-        //pointer3d->pushRenderItem(selectionId);
+        pointer3d->pushRenderItem(selectionId);
     }
     
     /*if(selectionId != 0){
@@ -512,7 +519,7 @@ void TrackObj::pushRenderItems(float lod, float posx, float posz, float* playerW
 
 
     if(selected){
-        //drawBox();
+        pushRenderBox();
     }
 }
 
