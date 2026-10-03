@@ -646,7 +646,7 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Initial value of the separate runtime token counter consumed while shapes load. Changing this setting at runtime resets the counter; normal counter consumption and refilling never modify the saved setting."
                 QT_TRID_NOOP("settings.core.rendering.object.loading.initial.tokens.description")).withRange(0, 100000, 2).inGroup("rendering").inSubgroup("visibility").applies("dynamic").asAdvanced(),
         "allowObjLag", "Game::allowObjLag", "Shape loading scheduler", true, "session-state");
-    ADD(SettingsDefinition::string("core.rendering.pipeline", "legacy", SettingType::Enum)
+    ADD(SettingsDefinition::string("core.rendering.pipeline", "gather", SettingType::Enum)
             .withNameId(
                 //% "Renderer pipeline"
                 QT_TRID_NOOP("settings.core.rendering.pipeline.name")).withDescriptionId(
