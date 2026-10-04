@@ -1,5 +1,6 @@
 #include <tsre/fileFunctions/ContentPath.h>
 #include "SFileComplexData.h"
+#include <QDataStream>
 #include <QElapsedTimer>
 #include <QFileInfo>
 #include <QRegularExpression>
@@ -573,6 +574,7 @@ bool SFileComplex::extract() {
         if (s.lod >= int(d->lods.size()))
             s.lod = 0;
     }
+    clearSharedPackets();
     return d->health != Health::Broken;
 }
 void SFileComplex::loadMetadata(bool readFile) {
@@ -676,25 +678,54 @@ void SFileComplex::updateSim(float dt, unsigned int id) {
 void SFileComplex::invalidateRenderState(bool) {
     for (auto &s : d->states)
         s.dirty = true;
+    clearSharedPackets();
+}
+void SFileComplex::clearSharedPackets() {
+    d->staticMatrices.clear();
+    d->sharedPackets.clear();
+}
+const std::vector<QMatrix4x4> &SFileComplex::staticMatrices(int lod) {
+    if (d->staticMatrices.size() != d->lods.size())
+        d->staticMatrices.assign(d->lods.size(), {});
+    auto &matrices = d->staticMatrices[lod];
+    if (matrices.empty())
+        fillMatrices(lod, false, 0.0f, matrices);
+    return matrices;
+}
+QByteArray SFileComplex::packetKey(unsigned int id) const {
+    const auto &s = d->states[id];
+    QList<int> subs(s.disabledSubs.begin(), s.disabledSubs.end());
+    QList<unsigned int> parts(s.disabledParts.begin(), s.disabledParts.end());
+    std::sort(subs.begin(), subs.end());
+    std::sort(parts.begin(), parts.end());
+    QByteArray key;
+    QDataStream out(&key, QIODevice::WriteOnly);
+    out << qint32(s.lod) << quint32(s.enabled) << subs << parts;
+    return key;
 }
 void SFileComplex::updateMatrices(unsigned int id) {
     auto &s = d->states[id];
     if (!s.dirty)
         return;
-    s.matrices.resize(d->matrices.size());
-    const auto &lod = d->lods[s.lod];
+    fillMatrices(s.lod, s.animated, s.frame, s.matrices);
+    s.dirty = false;
+}
+void SFileComplex::fillMatrices(int lodIndex, bool animated, float frame,
+                                std::vector<QMatrix4x4> &matrices) const {
+    matrices.resize(d->matrices.size());
+    const auto &lod = d->lods[lodIndex];
     auto sample = [&](const std::vector<Data::Key> &keys) {
-        auto next = std::upper_bound(keys.begin(), keys.end(), s.frame,
+        auto next = std::upper_bound(keys.begin(), keys.end(), frame,
                                      [](float f, const Data::Key &k) { return f < k.frame; });
         int b = next == keys.end() ? int(keys.size()) - 1 : int(next - keys.begin());
         int a = std::max(0, b - 1);
         float span = keys[b].frame - keys[a].frame;
         return std::tuple<int, int, float>(
-            a, b, span > 0 ? std::clamp((s.frame - keys[a].frame) / span, 0.0f, 1.0f) : 0);
+            a, b, span > 0 ? std::clamp((frame - keys[a].frame) / span, 0.0f, 1.0f) : 0);
     };
     for (int i : lod.matrixOrder) {
         QMatrix4x4 m = d->matrices[i].transform;
-        if (s.animated && !d->animations.empty() && i < int(d->animations[0].channels.size())) {
+        if (animated && !d->animations.empty() && i < int(d->animations[0].channels.size())) {
             auto &c = d->animations[0].channels[i];
             if (!c.rotation.empty()) {
                 auto [a, b, t] = sample(c.rotation);
@@ -711,14 +742,13 @@ void SFileComplex::updateMatrices(unsigned int id) {
         // Legacy MSTS convention: matrix 0 is the mirrored asset root.
         int parent = lod.parents[i];
         if (i == 0 || parent < 0) {
-            s.matrices[i].setToIdentity();
-            s.matrices[i].scale(-1, 1, 1);
+            matrices[i].setToIdentity();
+            matrices[i].scale(-1, 1, 1);
             if (i != 0)
-                s.matrices[i] *= m;
+                matrices[i] *= m;
         } else
-            s.matrices[i] = s.matrices[parent] * m;
+            matrices[i] = matrices[parent] * m;
     }
-    s.dirty = false;
 }
 bool SFileComplex::getBoxPoints(QVector<float> &out) {
     if (!d->loaded)

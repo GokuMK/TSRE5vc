@@ -71,14 +71,26 @@ This is handled by an internal vector of `State` entries keyed by `stateId`:
 
 This is a critical design point to preserve when adding new model formats: shared GPU asset + per-instance state.
 
-### 1.5 Rendering Paths
-`SFile` supports both:
-- **legacy immediate draw** (`render(selectionColor, stateId)`), and
-- **gather-then-render submission** (`pushRenderItem(selectionColor, stateId)`).
+### 1.5 Rendering
+Shapes draw only through the gather renderer:
+`pushRenderItem(queue, selectionId, stateId)` submits persistent `RenderItem`
+packets to the `RenderQueue` (see `src/tsre/renderer/RenderQueue.h`).
 
-The gather path builds `RenderItem` packets, and caches them per `stateId` when not animated:
-- caching is invalidated when texture addresses change or when `invalidateRenderState()` is called.
-- animated shapes avoid caching shared packets to prevent dangling matrix pointers.
+- **Static states share packets.** A non-animated state submits the packet set
+  of every state that draws the same parts. `SFileLegacy` keys the sets by
+  distance level and enabled sub-objects; `SFileComplex` by LOD, enabled and
+  disabled sub-objects and disabled parts, and also shares the static pose
+  matrices of each LOD. Repeated objects of one shape therefore submit the
+  same packets, which the renderer draws as one instanced draw call.
+- **Shared packets carry bounds.** Each part's bounding sphere, computed when
+  the part is uploaded and moved by its static matrix, lets the renderer cull
+  it against the camera and each shadow map.
+- **Animated states keep their own packets** with per-frame matrices; they are
+  neither shared nor culled.
+- `GltfShape` and the original `SFile` still cache packets per state, so their
+  objects are neither instanced nor culled.
+- Caches are rebuilt when `invalidateRenderState()` is called or the shape is
+  reloaded; `SFileComplex` also drops them when its GL data is released.
 
 ---
 
@@ -94,7 +106,6 @@ The gather path builds `RenderItem` packets, and caches them per `stateId` when 
 Notable characteristics:
 - **The cache is keyed by pathid string**, but stored by int id.
 - `ShapeLib::delRef/addRef` are currently stubs (shape lifetime is effectively "process lifetime" today).
-- `invalidateRendererCaches()` is a bulk hook to tell all shapes to rebuild cached packets/matrices.
 
 ---
 

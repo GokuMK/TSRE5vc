@@ -290,3 +290,14 @@ The [UTF-16 results](reports/sfile-utf16-optimization-results.md) record the com
 On original SD402, paired application Compact CPU loading decreases from 39.87 to 28.24 ms and Complete from 67.49 to 57.75 ms. Compact CPU + GL is 29.25 ms against the same-run SFileX 16.22 ms. Document-only Compact parsing decreases from 26.99 to 15.81 ms. Large generated CD text files also improve; the report separates those document-only results from application timing and includes the tiny wiper's non-improving Compact sample. Host activity remained 10–23%, so timings are qualified rather than described as fully idle-host validation.
 
 Both CTest suites, 56 application shape/GL checks, all 129 stock render/picking comparisons, and 12 paired application runs pass. ASan/UBSan passes 2,131 stock-inclusive checks and 251 checks over the large generated UTF-16 shapes. Old/new Complete exports are byte-identical for SD402 and all three CD text files. No legacy parser/backend or animation behavior was changed, and default adoption remains separate.
+
+## Renderer sharing and instancing
+
+Non-animated states share the static pose matrices of their LOD and, when they
+draw the same parts (LOD, enabled and disabled sub-objects, disabled parts), one
+packet set, like SFileLegacy. Each part keeps a bounding sphere computed during
+GL upload, so shared packets are culled against the camera and shadow views.
+With `TSRE_MSTS_SHAPE_BACKEND=complex-compact`, renderer captures on EUROPE1
+and BNSF_SCENIC (shadows off and on) and the Shape Viewer set are
+pixel-identical to SFileLegacy, with the same draw, instancing and culling
+counts.
