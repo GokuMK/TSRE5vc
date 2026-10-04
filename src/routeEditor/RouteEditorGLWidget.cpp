@@ -605,6 +605,7 @@ void RouteEditorGLWidget::paintScene(){
     Mat4::perspective(gluu->pMatrix, Game::cameraFov * M_PI / 180, float(this->width()) / this->height(), 0.2f, Game::objectLod);
     Mat4::multiply(gluu->pMatrix, gluu->pMatrix, camera->getMatrix());
     gluu->setMatrixUniforms();
+    renderer->setCullView(gluu->pMatrix);
     RenderStats::beginPhase(RenderStats::PhaseScene);
 
     const bool drawPointerOnTerrain = drawPointerEnabled && stickPointerToTerrain && Game::viewTerrainShape;
@@ -624,6 +625,7 @@ void RouteEditorGLWidget::paintScene(){
     }
     RenderStats::endPhase(RenderStats::PhaseScene);
 
+    renderer->setCullView(NULL);
     // render compass
     RenderStats::beginPhase(RenderStats::PhaseUi);
     if (!selectionPass && Game::viewCompass){
@@ -739,7 +741,8 @@ void RouteEditorGLWidget::renderShadowMaps() {
     glActiveTexture(GL_TEXTURE0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glViewport(0, 0, shadowMapSize, shadowMapSize);
-    renderer->renderShadowCasters(600.0f, RenderStats::FrameStats::PassSlots - 3);
+    renderer->renderShadowCasters(600.0f, RenderStats::FrameStats::PassSlots - 3,
+                                  gluu->pShadowMatrix);
 
     // The shadow shader reads uShadowPMatrix; swap in the second map's matrix.
     std::swap(gluu->pShadowMatrix, gluu->pShadowMatrix2);
@@ -748,7 +751,8 @@ void RouteEditorGLWidget::renderShadowMaps() {
     glActiveTexture(GL_TEXTURE0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glViewport(0, 0, distantShadowMapSize, distantShadowMapSize);
-    renderer->renderShadowCasters(1000.0f, RenderStats::FrameStats::PassSlots - 2);
+    renderer->renderShadowCasters(1000.0f, RenderStats::FrameStats::PassSlots - 2,
+                                  gluu->pShadowMatrix);
     std::swap(gluu->pShadowMatrix, gluu->pShadowMatrix2);
     gluu->currentShader->release();
 }

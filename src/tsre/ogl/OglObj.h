@@ -47,6 +47,9 @@ private:
     QOpenGLVertexArrayObject VAO;
     int length; 
     int shapeType;
+    // Sphere around the vertices given to init().
+    float boundCenter[3] = {0.0f, 0.0f, 0.0f};
+    float boundRadius = -1.0f;
     int texId;
     int materialType;
     int lineWidth = 0;

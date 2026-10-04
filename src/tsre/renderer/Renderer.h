@@ -42,10 +42,17 @@ public:
     // Camera position in the submission space, for back-to-front sorting and
     // shadow caster range.
     void setViewPosition(const float *position);
+    // View-projection the following passes are culled against: an instance
+    // whose bounds lie outside it is skipped (clip position = viewProjection
+    // * transform * msMatrix * vertex). Null draws everything; a new frame
+    // starts without culling. Packets without bounds are never culled.
+    void setCullView(const float *viewProjection);
     // Draws queued shadow casters with the bound shader without consuming
     // them, skipping instances whose origin lies farther than range from the
-    // view position on the ground plane. statsSlot labels the draws.
-    virtual void renderShadowCasters(float range, int statsSlot) = 0;
+    // view position on the ground plane, and, with a light view-projection,
+    // instances outside it. statsSlot labels the draws.
+    virtual void renderShadowCasters(float range, int statsSlot,
+                                     const float *viewProjection = nullptr) = 0;
     // Draws and consumes queued work of passes first..last; later passes stay
     // queued. Use it where direct drawing must happen between passes.
     virtual void renderPasses(RenderPass first, RenderPass last) = 0;
@@ -66,6 +73,16 @@ protected:
     static quint64 currentFrame;
     static void releaseRetiredPackets();
     float viewPosition[3] = {0, 0, 0};
+
+    // Normalised clip planes of a view-projection; disabled draws everything.
+    struct Frustum {
+        float planes[6][4];
+        bool enabled = false;
+    };
+    static Frustum frustumOf(const float *viewProjection);
+    // Whether a sphere in submission space can be inside the frustum.
+    static bool intersects(const Frustum &frustum, const float *center, float radius);
+    Frustum cullFrustum;
 };
 
 #endif /* RENDERER_H */

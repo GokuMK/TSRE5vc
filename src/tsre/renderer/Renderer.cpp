@@ -12,6 +12,7 @@
 #include <tsre/renderer/RenderItem.h>
 
 #include <algorithm>
+#include <cmath>
 
 namespace {
 
@@ -41,8 +42,48 @@ void Renderer::setViewPosition(const float *position){
     std::copy(position, position + 3, viewPosition);
 }
 
+void Renderer::setCullView(const float *viewProjection){
+    cullFrustum = frustumOf(viewProjection);
+}
+
+Renderer::Frustum Renderer::frustumOf(const float *m){
+    Frustum frustum;
+    if(m == nullptr)
+        return frustum;
+    // Rows of the column-major matrix; planes are row 3 +/- rows 0..2.
+    const float r[4][4] = {{m[0], m[4], m[8], m[12]}, {m[1], m[5], m[9], m[13]},
+                           {m[2], m[6], m[10], m[14]}, {m[3], m[7], m[11], m[15]}};
+    for(int i = 0; i < 6; ++i){
+        const float sign = (i % 2) == 0 ? 1.0f : -1.0f;
+        float *plane = frustum.planes[i];
+        float length = 0.0f;
+        for(int c = 0; c < 4; ++c)
+            plane[c] = r[3][c] + sign * r[i / 2][c];
+        for(int c = 0; c < 3; ++c)
+            length += plane[c] * plane[c];
+        length = std::sqrt(length);
+        if(length <= 0.0f)
+            return Frustum();
+        for(int c = 0; c < 4; ++c)
+            plane[c] /= length;
+    }
+    frustum.enabled = true;
+    return frustum;
+}
+
+bool Renderer::intersects(const Frustum &frustum, const float *center, float radius){
+    if(!frustum.enabled)
+        return true;
+    for(const auto &plane : frustum.planes){
+        if(plane[0] * center[0] + plane[1] * center[1] + plane[2] * center[2] + plane[3] < -radius)
+            return false;
+    }
+    return true;
+}
+
 void Renderer::resetFrame(){
     currentFrame++;
+    cullFrustum = Frustum();
     resetQueueState();
     deleteFrameMatrices();
     releaseRetiredPackets();

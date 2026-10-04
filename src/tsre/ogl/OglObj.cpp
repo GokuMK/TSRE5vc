@@ -126,6 +126,28 @@ void OglObj::init(float* punkty, int ptr, enum RenderItem::VertexAttr v, int typ
     VBO.release();
     length = ptr / v;
     loaded = true;
+    boundRadius = -1.0f;
+    if (length > 0 && v >= 3) {
+        float low[3] = {punkty[0], punkty[1], punkty[2]};
+        float high[3] = {punkty[0], punkty[1], punkty[2]};
+        for (int i = 1; i < length; ++i)
+            for (int c = 0; c < 3; ++c) {
+                low[c] = std::min(low[c], punkty[i * v + c]);
+                high[c] = std::max(high[c], punkty[i * v + c]);
+            }
+        float radius = 0.0f;
+        for (int c = 0; c < 3; ++c)
+            boundCenter[c] = 0.5f * (low[c] + high[c]);
+        for (int i = 0; i < length; ++i) {
+            float distance = 0.0f;
+            for (int c = 0; c < 3; ++c) {
+                const float d = punkty[i * v + c] - boundCenter[c];
+                distance += d * d;
+            }
+            radius = std::max(radius, distance);
+        }
+        boundRadius = std::sqrt(radius);
+    }
 }
 
 void OglObj::setLineWidth(int val){
@@ -228,6 +250,7 @@ RenderItem *OglObj::framePacket(bool textured, unsigned int texAddr,
     packet->mesh.primitive = RenderItem::primitiveFromGl(shapeType);
     packet->mesh.first = 0;
     packet->mesh.count = length;
+    packet->setBounds(boundCenter, boundRadius);
     return packet;
 }
 

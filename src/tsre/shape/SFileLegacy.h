@@ -53,6 +53,10 @@ public:
         int offset = 0;
         int* idx = nullptr;
         bool enabled = true;
+        // Sphere around the part's vertices in its own space; radius -1 until
+        // the part is uploaded.
+        float boundCenter[3] = {0.0f, 0.0f, 0.0f};
+        float boundRadius = -1.0f;
     };
 
     struct fvertex {

@@ -375,6 +375,27 @@ void OpenGL3Renderer::instanceOrigin(const DrawInstance &instance, float *origin
                 + matrix[8 + i] * local[2] + matrix[12 + i];
 }
 
+bool OpenGL3Renderer::visible(const DrawInstance &instance, const Frustum &frustum) const{
+    const RenderItem::Bounds &bounds = instance.packet->bounds;
+    if(!frustum.enabled || !bounds.valid())
+        return true;
+    const float *m = instanceMatrix(instance.matrix);
+    float center[3];
+    for(int i = 0; i < 3; ++i)
+        center[i] = m[i] * bounds.center[0] + m[4 + i] * bounds.center[1]
+                + m[8 + i] * bounds.center[2] + m[12 + i];
+    float scale = 0.0f;
+    for(int column = 0; column < 3; ++column){
+        const float *axis = m + column * 4;
+        scale = std::max(scale, axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2]);
+    }
+    if(intersects(frustum, center, bounds.radius * std::sqrt(scale)))
+        return true;
+    if(RenderStats::inFrame())
+        RenderStats::current().culledInstances++;
+    return false;
+}
+
 void OpenGL3Renderer::queueInstance(RenderItem *packet, const float *matrix,
                                     quint32 selectionId, SubmitOrder order, bool owned){
     const RenderPass pass = routePass(packet, order);
@@ -496,7 +517,7 @@ void OpenGL3Renderer::drawOrdered(GLUU *gluu, Shader *base,
     ProgramCaches caches;
     for(const DrawInstance &instance : instances){
         RenderItem *item = instance.packet;
-        if(item->mesh.vao == NULL)
+        if(item->mesh.vao == NULL || !visible(instance, cullFrustum))
             continue;
         useProgram(gluu, base, item, caches);
         applyItemState(gluu, f, item, instance.selectionId, caches.detail);
@@ -526,6 +547,11 @@ void OpenGL3Renderer::drawGrouped(GLUU *gluu, Shader *base,
             i = end;
             continue;
         }
+        // Skip leading culled instances; a fully culled packet changes no state.
+        while(i < end && !visible(instances[i], cullFrustum))
+            ++i;
+        if(i == end)
+            continue;
         const quint64 texture = textureKey(item);
         if(!textureGroupOpen || texture != currentTexture){
             currentTexture = texture;
@@ -546,6 +572,8 @@ void OpenGL3Renderer::drawGrouped(GLUU *gluu, Shader *base,
         QOpenGLVertexArrayObject::Binder vaoBinder(item->mesh.vao);
         for(; i < end; ++i){
             const DrawInstance &instance = instances[i];
+            if(!visible(instance, cullFrustum))
+                continue;
             if(instance.selectionId != currentSelection){
                 gluu->setSelectionId(instance.selectionId);
                 currentSelection = instance.selectionId;
@@ -633,7 +661,8 @@ void OpenGL3Renderer::renderPasses(RenderPass first, RenderPass last){
     context->extraFunctions()->glBindBufferBase(GL_UNIFORM_BUFFER, 0, 0);
 }
 
-void OpenGL3Renderer::renderShadowCasters(float range, int statsSlot){
+void OpenGL3Renderer::renderShadowCasters(float range, int statsSlot,
+                                          const float *viewProjection){
     GLUU *gluu = GLUU::get();
     QOpenGLContext *context = QOpenGLContext::currentContext();
     f = context != NULL ? context->functions() : NULL;
@@ -643,6 +672,7 @@ void OpenGL3Renderer::renderShadowCasters(float range, int statsSlot){
     TerrainStateCache terrainState;
     DetailStateCache detailState;
     const float rangeSquared = range * range;
+    const Frustum lightFrustum = frustumOf(viewProjection);
     RenderItem *current = NULL;
     for(PassQueue &queue : passes){
         for(const std::vector<DrawInstance> *list : {&queue.ordered, &queue.grouped}){
@@ -654,7 +684,7 @@ void OpenGL3Renderer::renderShadowCasters(float range, int statsSlot){
                 instanceOrigin(instance, origin);
                 const float dx = origin[0] - viewPosition[0];
                 const float dz = origin[2] - viewPosition[2];
-                if(dx * dx + dz * dz > rangeSquared)
+                if(dx * dx + dz * dz > rangeSquared || !visible(instance, lightFrustum))
                     continue;
                 if(item != current){
                     if(current != NULL)

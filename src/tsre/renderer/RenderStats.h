@@ -66,6 +66,8 @@ struct FrameStats {
     quint64 textureGroups = 0;
     quint64 drawCalls = 0;
     quint64 flushes = 0;
+    // Instances skipped because their bounds lie outside the view.
+    quint64 culledInstances = 0;
     // Draw calls per Renderer::RenderPass.
     static constexpr int PassSlots = 12;
     quint64 passDraws[PassSlots] = {};

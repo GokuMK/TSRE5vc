@@ -13,6 +13,8 @@
 #include <tsre/math3d/Vector3f.h>
 #include <tsre/math3d/Vector4f.h>
 #include <QOpenGLFunctions>
+#include <algorithm>
+#include <cmath>
 
 RenderItem::RenderItem() {
     RenderStats::countRenderItem();
@@ -59,6 +61,27 @@ void RenderItem::enableTextures(unsigned int textureObject){
 void RenderItem::enableTextureId(int id){
     material.textured = true;
     material.textureId = id;
+}
+
+void RenderItem::setBounds(const float *center, float radius, const float *transform){
+    if(radius < 0.0f){
+        bounds = Bounds();
+        return;
+    }
+    if(transform == nullptr){
+        std::copy(center, center + 3, bounds.center);
+        bounds.radius = radius;
+        return;
+    }
+    float scale = 0.0f;
+    for(int column = 0; column < 3; ++column){
+        const float *axis = transform + column * 4;
+        scale = std::max(scale, axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2]);
+    }
+    for(int i = 0; i < 3; ++i)
+        bounds.center[i] = transform[i] * center[0] + transform[4 + i] * center[1]
+                + transform[8 + i] * center[2] + transform[12 + i];
+    bounds.radius = radius * std::sqrt(scale);
 }
 
 RenderItem::Primitive RenderItem::primitiveFromGl(unsigned int mode){

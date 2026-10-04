@@ -138,6 +138,10 @@ public:
     void setSelectionId(quint32 selectionId);
     void enableTextures(unsigned int textureObject);
     void enableTextureId(int id);
+    // Sets the bounds from a sphere in mesh space, moved into the submission
+    // space by transform (normally msMatrix; null is identity). A negative
+    // radius clears them.
+    void setBounds(const float *center, float radius, const float *transform = nullptr);
 
     // Conversions from the GL constants some loaders still use.
     static Primitive primitiveFromGl(unsigned int mode);

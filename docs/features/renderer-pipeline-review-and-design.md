@@ -22,6 +22,16 @@ is out of date. Current state:
   wireframe), a terrain block and model bounds, plus the draw parameters.
   GL constants no longer appear in packets; the mesh still holds the
   producer's GL buffer objects.
+- Stage 4 step 3: terrain packets draw with `<name>Terrain` shader variants;
+  object programs carry no terrain code.
+- Stage 4 step 4: procedural terrain patches draw in one pass from per-tile
+  material and detail texture arrays.
+- Stage 4 step 5: the renderer culls instances against the view-projection
+  of the scene passes (`Renderer::setCullView`) and of each shadow map.
+  Packets carry bounds where exact: static `SFileLegacy` parts and
+  `OglObj` meshes; others are never culled. On EUROPE1 and BNSF_SCENIC this
+  removes 6-80% of scene draws and 20-50% of shadow draws with identical
+  images.
 
 - The gather frame draws everything through the renderer: sky, distant
   terrain and water, high-res terrain, world objects, overlays, water, pointer,

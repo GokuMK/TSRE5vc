@@ -24,7 +24,8 @@ public:
     OpenGL3Renderer();
     virtual ~OpenGL3Renderer();
     void renderPasses(RenderPass first, RenderPass last) override;
-    void renderShadowCasters(float range, int statsSlot) override;
+    void renderShadowCasters(float range, int statsSlot,
+                             const float *viewProjection = nullptr) override;
     void renderFrame() override;
     void resetFrame() override;
     using RenderQueue::submit;
@@ -74,6 +75,8 @@ private:
     RenderPass routePass(const RenderItem *packet, SubmitOrder order) const;
     bool castsShadow(const RenderItem *packet) const;
     void instanceOrigin(const DrawInstance &instance, float *origin) const;
+    // Whether an instance's bounds can be inside the frustum; counts culls.
+    bool visible(const DrawInstance &instance, const Frustum &frustum) const;
     void queueInstance(RenderItem *packet, const float *matrix, quint32 selectionId,
                        SubmitOrder order, bool owned);
     void sortByTexture(std::vector<DrawInstance> &instances);

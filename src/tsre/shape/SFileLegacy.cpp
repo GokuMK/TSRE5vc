@@ -22,6 +22,7 @@
 #include <QOpenGLShaderProgram>
 #include <tsre/ogl/GLUU.h>
 #include <tsre/math3d/GLMatrix.h>
+#include <algorithm>
 #include <cmath>
 #include <QString>
 #include <tsre/Game.h>
@@ -1129,6 +1130,11 @@ void SFileLegacy::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsign
                 r->mesh.primitive = RenderItem::PRIMITIVE_TRIANGLES;
                 r->mesh.layout = RenderItem::VNTA;
                 r->shared = true;
+                // Static packets keep their part matrix, so their bounds hold.
+                if(!animated){
+                    const auto &part = distancelevel[currentDlevel].subobiekty[i].czesci[j];
+                    r->setBounds(part.boundCenter, part.boundRadius, r->msMatrix);
+                }
                 renderItems[stateId].push_back(r);
             }
         }
@@ -2012,6 +2018,33 @@ bool SFileLegacy::isGLReady() const {
     return glReady && glContext && glContext == QOpenGLContext::currentContext();
 }
 
+// Sphere around a part's uploaded positions (9 floats per vertex).
+static void partBounds(SFileLegacy::czes &part, const float *vertices) {
+    if (part.iloscv <= 0) {
+        part.boundRadius = -1.0f;
+        return;
+    }
+    float low[3] = {vertices[0], vertices[1], vertices[2]};
+    float high[3] = {vertices[0], vertices[1], vertices[2]};
+    for (int v = 1; v < part.iloscv; ++v)
+        for (int i = 0; i < 3; ++i) {
+            low[i] = std::min(low[i], vertices[v * 9 + i]);
+            high[i] = std::max(high[i], vertices[v * 9 + i]);
+        }
+    float radius = 0.0f;
+    for (int i = 0; i < 3; ++i)
+        part.boundCenter[i] = 0.5f * (low[i] + high[i]);
+    for (int v = 0; v < part.iloscv; ++v) {
+        float distance = 0.0f;
+        for (int i = 0; i < 3; ++i) {
+            const float d = vertices[v * 9 + i] - part.boundCenter[i];
+            distance += d * d;
+        }
+        radius = std::max(radius, distance);
+    }
+    part.boundRadius = std::sqrt(radius);
+}
+
 bool SFileLegacy::initGL() {
     // Uploaded source has been released. Another/lost context requires reload().
     if (glReady) return isGLReady();
@@ -2127,6 +2160,7 @@ bool SFileLegacy::initGL() {
                             //if(directxSmierdzi<-2) directxSmierdzi = 2;
                     }
                     pliks->distancelevel[j].subobiekty[ii].VBO.write(offset * 9 * sizeof(GLfloat), wierzcholki, pliks->distancelevel[j].subobiekty[ii].czesci[jj].iloscv * 9 * sizeof(GLfloat));
+                    partBounds(object.czesci[jj], wierzcholki);
 
                     pliks->distancelevel[j].subobiekty[ii].czesci[jj].offset = offset;
                     offset += pliks->distancelevel[j].subobiekty[ii].czesci[jj].iloscv;
