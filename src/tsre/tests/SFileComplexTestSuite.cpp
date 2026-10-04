@@ -786,7 +786,12 @@ int TsreTests::runSFileComplexSuite(bool verbose, bool gl) {
         t.check(shape.initGL() && shape.statistics().sourceGeometryBytes > 0,
                 "Complete keeps indices after initGL");
         t.check(!bad.initGL(), "Broken rejects unsafe upload");
-        t.check(!shape.compact(), "unsaved edits block compaction");
+        // The earlier edit was saved. A new edit releases GL; uploaded again
+        // with unsaved edits, the shape must refuse compaction for that reason.
+        t.check(shape.setField("points/point[0]", 0, "-3", &error) && shape.initGL()
+                    && shape.gpuState() == SFileComplex::GpuState::Ready && !shape.compact()
+                    && shape.diagnostics().join("\n").contains("unsaved edits"),
+                "unsaved edits block compaction");
         t.check(edited.initGL(), "saved fixture upload");
         t.check(edited.compact() && edited.retention() == SFileComplex::Retention::Compact &&
                     edited.statistics().documentBytes == 0 &&
