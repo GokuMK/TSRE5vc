@@ -22,6 +22,7 @@ public:
     unsigned int textureCoordAttribute;
     unsigned int pShadowMatrixUniform;
     unsigned int pShadow2MatrixUniform;
+    unsigned int pShadow0MatrixUniform;
     unsigned int pMatrixUniform;
     unsigned int fMatrixUniform;
     unsigned int mvMatrixUniform;

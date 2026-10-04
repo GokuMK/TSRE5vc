@@ -220,7 +220,7 @@ struct RenderProbe {
                     {0, 1, 0});
         std::memcpy(gl->pMatrix, projection.constData(), 64);
         std::memcpy(gl->mvMatrix, view.constData(), 64);
-        for (auto *m : {gl->fMatrix, gl->objStrMatrix, gl->pShadowMatrix, gl->pShadowMatrix2})
+        for (auto *m : {gl->fMatrix, gl->objStrMatrix, gl->pShadowMatrix, gl->pShadowMatrix2, gl->pShadowMatrix0})
             std::memcpy(m, identity.constData(), 64);
         gl->setMatrixUniforms();
         std::memcpy(renderer.transform(), gl->mvMatrix, 64);

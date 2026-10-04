@@ -5,6 +5,7 @@ varying float fogFactor;
 varying vec3 vNormal;
 varying vec4 shadowPos;
 varying vec4 shadow2Pos;
+varying vec4 shadow0Pos;
 varying float vAlpha;
 varying float vTerrainGap;
 varying vec2 vTerrainMapCoord;
@@ -27,6 +28,7 @@ uniform sampler2D uSampler;
 uniform sampler2D uSampler2;
 uniform sampler2DShadow shadow1;
 uniform sampler2DShadow shadow2;
+uniform sampler2DShadow shadow0;
 uniform float secondTexEnabled;
 uniform mat4 uMVMatrix;
 flat in mat4 vModelView;
@@ -118,31 +120,55 @@ void main() {
             camdist = clamp(camdist, 0, 1.0);
             float camdist2 = length(shadow2Pos.xyz);
             camdist2 = clamp(camdist2, 0, 1.0);
-            float t = 1.0 - floor(camdist);
+            // The near map (shadow0) covers the camera's surroundings in more
+            // detail; shadow1 takes over outside it and shadow2 beyond that.
+            vec4 shadow0Pos2 = shadow0Pos*0.5+0.5;
+            float t0 = 1.0 - floor(clamp(length(shadow0Pos.xyz), 0, 1.0));
+            float tMid = 1.0 - floor(camdist);
+            float t = tMid*(1.0 - t0);
             float t2 = 1.0 - floor(camdist2);
 
             float shadowsEnabled2 = shadowsEnabled;
             float bias2 = shadow2Bias;//0.001; // 0.002;
-            visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[0]/shadow1Res, (shadowPos2.z-bias)) ));
-            visibility -= shadowsEnabled2*(1.0-t)*t2*0.4*(1.0-texture( shadow2, vec3(shadow2Pos2.xy + poissonDisk[0]/shadow2Res, (shadow2Pos2.z-bias2)) ));
-
-            visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[1]/shadow1Res, (shadowPos2.z-bias)) ));
-            visibility -= shadowsEnabled2*(1.0-t)*t2*0.4*(1.0-texture( shadow2, vec3(shadow2Pos2.xy + poissonDisk[1]/shadow2Res, (shadow2Pos2.z-bias2)) ));
- 
-            visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[2]/shadow1Res, (shadowPos2.z-bias)) ));
-            visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[3]/shadow1Res, (shadowPos2.z-bias)) ));
-            visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[4]/shadow1Res, (shadowPos2.z-bias)) ));
-            visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[5]/shadow1Res, (shadowPos2.z-bias)) ));
-            visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[6]/shadow1Res, (shadowPos2.z-bias)) ));
-            visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[7]/shadow1Res, (shadowPos2.z-bias)) ));
-            visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[8]/shadow1Res, (shadowPos2.z-bias)) ));
-            visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[9]/shadow1Res, (shadowPos2.z-bias)) ));
-            visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[10]/shadow1Res, (shadowPos2.z-bias)) ));
-            visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[11]/shadow1Res, (shadowPos2.z-bias)) ));
-            visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[12]/shadow1Res, (shadowPos2.z-bias)) ));
-            visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[13]/shadow1Res, (shadowPos2.z-bias)) ));
-            visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[14]/shadow1Res, (shadowPos2.z-bias)) ));
-            visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[15]/shadow1Res, (shadowPos2.z-bias)) ));
+            // One map per fragment: the weights below are 0 or 1.
+            if (t0 > 0.0) {
+                visibility -= shadowsEnabled2*t0*shadowIntensity*(1.0-texture( shadow0, vec3(shadow0Pos2.xy + poissonDisk[0]/shadow1Res, (shadow0Pos2.z-bias)) ));
+                visibility -= shadowsEnabled2*t0*shadowIntensity*(1.0-texture( shadow0, vec3(shadow0Pos2.xy + poissonDisk[1]/shadow1Res, (shadow0Pos2.z-bias)) ));
+                visibility -= shadowsEnabled2*t0*shadowIntensity*(1.0-texture( shadow0, vec3(shadow0Pos2.xy + poissonDisk[2]/shadow1Res, (shadow0Pos2.z-bias)) ));
+                visibility -= shadowsEnabled2*t0*shadowIntensity*(1.0-texture( shadow0, vec3(shadow0Pos2.xy + poissonDisk[3]/shadow1Res, (shadow0Pos2.z-bias)) ));
+                visibility -= shadowsEnabled2*t0*shadowIntensity*(1.0-texture( shadow0, vec3(shadow0Pos2.xy + poissonDisk[4]/shadow1Res, (shadow0Pos2.z-bias)) ));
+                visibility -= shadowsEnabled2*t0*shadowIntensity*(1.0-texture( shadow0, vec3(shadow0Pos2.xy + poissonDisk[5]/shadow1Res, (shadow0Pos2.z-bias)) ));
+                visibility -= shadowsEnabled2*t0*shadowIntensity*(1.0-texture( shadow0, vec3(shadow0Pos2.xy + poissonDisk[6]/shadow1Res, (shadow0Pos2.z-bias)) ));
+                visibility -= shadowsEnabled2*t0*shadowIntensity*(1.0-texture( shadow0, vec3(shadow0Pos2.xy + poissonDisk[7]/shadow1Res, (shadow0Pos2.z-bias)) ));
+                visibility -= shadowsEnabled2*t0*shadowIntensity*(1.0-texture( shadow0, vec3(shadow0Pos2.xy + poissonDisk[8]/shadow1Res, (shadow0Pos2.z-bias)) ));
+                visibility -= shadowsEnabled2*t0*shadowIntensity*(1.0-texture( shadow0, vec3(shadow0Pos2.xy + poissonDisk[9]/shadow1Res, (shadow0Pos2.z-bias)) ));
+                visibility -= shadowsEnabled2*t0*shadowIntensity*(1.0-texture( shadow0, vec3(shadow0Pos2.xy + poissonDisk[10]/shadow1Res, (shadow0Pos2.z-bias)) ));
+                visibility -= shadowsEnabled2*t0*shadowIntensity*(1.0-texture( shadow0, vec3(shadow0Pos2.xy + poissonDisk[11]/shadow1Res, (shadow0Pos2.z-bias)) ));
+                visibility -= shadowsEnabled2*t0*shadowIntensity*(1.0-texture( shadow0, vec3(shadow0Pos2.xy + poissonDisk[12]/shadow1Res, (shadow0Pos2.z-bias)) ));
+                visibility -= shadowsEnabled2*t0*shadowIntensity*(1.0-texture( shadow0, vec3(shadow0Pos2.xy + poissonDisk[13]/shadow1Res, (shadow0Pos2.z-bias)) ));
+                visibility -= shadowsEnabled2*t0*shadowIntensity*(1.0-texture( shadow0, vec3(shadow0Pos2.xy + poissonDisk[14]/shadow1Res, (shadow0Pos2.z-bias)) ));
+                visibility -= shadowsEnabled2*t0*shadowIntensity*(1.0-texture( shadow0, vec3(shadow0Pos2.xy + poissonDisk[15]/shadow1Res, (shadow0Pos2.z-bias)) ));
+            } else if (t > 0.0) {
+                visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[0]/shadow1Res, (shadowPos2.z-bias)) ));
+                visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[1]/shadow1Res, (shadowPos2.z-bias)) ));
+                visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[2]/shadow1Res, (shadowPos2.z-bias)) ));
+                visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[3]/shadow1Res, (shadowPos2.z-bias)) ));
+                visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[4]/shadow1Res, (shadowPos2.z-bias)) ));
+                visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[5]/shadow1Res, (shadowPos2.z-bias)) ));
+                visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[6]/shadow1Res, (shadowPos2.z-bias)) ));
+                visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[7]/shadow1Res, (shadowPos2.z-bias)) ));
+                visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[8]/shadow1Res, (shadowPos2.z-bias)) ));
+                visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[9]/shadow1Res, (shadowPos2.z-bias)) ));
+                visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[10]/shadow1Res, (shadowPos2.z-bias)) ));
+                visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[11]/shadow1Res, (shadowPos2.z-bias)) ));
+                visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[12]/shadow1Res, (shadowPos2.z-bias)) ));
+                visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[13]/shadow1Res, (shadowPos2.z-bias)) ));
+                visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[14]/shadow1Res, (shadowPos2.z-bias)) ));
+                visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[15]/shadow1Res, (shadowPos2.z-bias)) ));
+            } else {
+                visibility -= shadowsEnabled2*(1.0-tMid)*t2*0.4*(1.0-texture( shadow2, vec3(shadow2Pos2.xy + poissonDisk[0]/shadow2Res, (shadow2Pos2.z-bias2)) ));
+                visibility -= shadowsEnabled2*(1.0-tMid)*t2*0.4*(1.0-texture( shadow2, vec3(shadow2Pos2.xy + poissonDisk[1]/shadow2Res, (shadow2Pos2.z-bias2)) ));
+            }
 
             // calculate light color
             vec3 color = diffuseColor.xyz;

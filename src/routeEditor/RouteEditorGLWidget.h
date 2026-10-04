@@ -328,6 +328,9 @@ private:
     bool keyControlEnabled = false;
     bool keyShiftEnabled = false;
     bool keyAltEnabled = false;
+    // Near, mid and far shadow maps.
+    GLuint FramebufferName0 = 0;
+    GLuint depthTexture0 = 0;
     GLuint FramebufferName1 = 0;
     GLuint depthTexture1 = 0;
     GLuint FramebufferName2 = 0;

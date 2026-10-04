@@ -116,3 +116,18 @@ needs a third depth target (texture unit 4), a third light matrix and
 resolution/bias uniforms, shader changes in both shader sets, and a map size
 setting. Shadows much beyond 1 km stay expensive because nearly the whole
 scene casts into them.
+
+## Three shadow maps (implemented, stage 4 step 7)
+
+- Near map (`shadow0`, texture unit 9): +-50 m around the camera, casters
+  within 250 m, primary map size. Mid map (`shadow1`): +-150 m, casters
+  within 600 m. Far map (`shadow2`): +-700 m, casters within 1000 m. All
+  share the light direction; the near and mid maps share the depth range, so
+  the existing resolution and bias settings apply to both.
+- Each map culls its casters to its own light frustum (stage 4 step 5).
+- The fragment shaders sample one map per fragment: near inside the near
+  map, mid inside the mid map, far beyond. The map weights are 0 or 1, so
+  this matches the weighted sum exactly while sampling at most 16 taps.
+- Shadows near the camera have three times the texel density. On EUROPE1
+  and BNSF_SCENIC only shadow edges near the camera change (RMSE up to 3.1,
+  at most 1.3% of pixels); views without shadows are unchanged.

@@ -8,6 +8,7 @@ attribute float alpha;
 uniform float lod;
 uniform mat4 uShadowPMatrix;
 uniform mat4 uShadow2PMatrix;
+uniform mat4 uShadow0PMatrix;
 uniform mat4 uPMatrix;
 uniform mat4 uFMatrix;
 uniform mat4 uMVMatrix;
@@ -41,6 +42,7 @@ varying float fogFactor;
 varying vec3 vNormal;
 varying vec4 shadowPos;
 varying vec4 shadow2Pos;
+varying vec4 shadow0Pos;
 varying float vAlpha;
 varying float vTerrainGap;
 varying vec2 vTerrainMapCoord;
@@ -72,6 +74,7 @@ void main() {
 #endif
     shadowPos = uShadowPMatrix * modelView * uMSMatrix * renderVertex;
     shadow2Pos = uShadow2PMatrix * modelView * uMSMatrix * renderVertex;
+    shadow0Pos = uShadow0PMatrix * modelView * uMSMatrix * renderVertex;
     gl_Position = uPMatrix * modelView * uMSMatrix * renderVertex;
     vec4 fogPosition = uFMatrix * modelView * uMSMatrix * renderVertex;
 #ifdef TSRE_TERRAIN

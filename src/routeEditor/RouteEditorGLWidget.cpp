@@ -369,6 +369,8 @@ void RouteEditorGLWidget::initializeGL() {
                 "core.rendering.shadow.primaryMapSize", SettingType::Enum).toInt();
     distantShadowMapSize = Settings::variant(
                 "core.rendering.shadow.distantMapSize", SettingType::Enum).toInt();
+    gluu->makeShadowFramebuffer(FramebufferName0, depthTexture0,
+            shadowMapSize, GL_TEXTURE9);
     gluu->makeShadowFramebuffer(FramebufferName1, depthTexture1,
             shadowMapSize, GL_TEXTURE2);
     gluu->makeShadowFramebuffer(FramebufferName2, depthTexture2,
@@ -709,7 +711,9 @@ void RouteEditorGLWidget::drawEditorFpsHud(){
     restoreDefaultGlState();
 }
 
-// Light-space matrices of the two shadow maps, centred on the camera.
+// Light-space matrices of the near, mid and far shadow maps, centred on the
+// camera. The near map has the mid map's size and depth range over a third
+// of its width, so shadows close to the camera get three times the detail.
 void RouteEditorGLWidget::computeShadowMatrices() {
     float* lookAt = Mat4::create();
     float* out1 = Vec3::create();
@@ -718,9 +722,11 @@ void RouteEditorGLWidget::computeShadowMatrices() {
     Vec3::set(ld, -1.0, 1.5, 1.0);
     float *aaa = camera->getPos();
     Vec3::add(ld, ld, aaa);
+    Mat4::ortho(gluu->pShadowMatrix0, -50, 50, -50, 50, -200, 200);
     Mat4::ortho(gluu->pShadowMatrix, -150, 150, -150, 150, -200, 200);
     Mat4::ortho(gluu->pShadowMatrix2, -700, 700, -700, 700, -700, 700);
     Mat4::lookAt(lookAt, ld, aaa, out1);
+    Mat4::multiply(gluu->pShadowMatrix0, gluu->pShadowMatrix0, lookAt);
     Mat4::multiply(gluu->pShadowMatrix, gluu->pShadowMatrix, lookAt);
     Mat4::multiply(gluu->pShadowMatrix2, gluu->pShadowMatrix2, lookAt);
     delete[] lookAt;
@@ -736,22 +742,33 @@ void RouteEditorGLWidget::renderShadowMaps() {
     gluu->currentShader->bind();
     Mat4::identity(gluu->mvMatrix);
     Mat4::identity(gluu->objStrMatrix);
+
+    // The shadow shader reads uShadowPMatrix; swap in the near map's matrix.
+    std::swap(gluu->pShadowMatrix, gluu->pShadowMatrix0);
+    gluu->setMatrixUniforms();
+    glBindFramebuffer(GL_FRAMEBUFFER, FramebufferName0);
+    glActiveTexture(GL_TEXTURE0);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glViewport(0, 0, shadowMapSize, shadowMapSize);
+    renderer->renderShadowCasters(250.0f, RenderStats::FrameStats::PassSlots - 3,
+                                  gluu->pShadowMatrix);
+    std::swap(gluu->pShadowMatrix, gluu->pShadowMatrix0);
+
     gluu->setMatrixUniforms();
     glBindFramebuffer(GL_FRAMEBUFFER, FramebufferName1);
     glActiveTexture(GL_TEXTURE0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glViewport(0, 0, shadowMapSize, shadowMapSize);
-    renderer->renderShadowCasters(600.0f, RenderStats::FrameStats::PassSlots - 3,
+    renderer->renderShadowCasters(600.0f, RenderStats::FrameStats::PassSlots - 2,
                                   gluu->pShadowMatrix);
 
-    // The shadow shader reads uShadowPMatrix; swap in the second map's matrix.
     std::swap(gluu->pShadowMatrix, gluu->pShadowMatrix2);
     gluu->setMatrixUniforms();
     glBindFramebuffer(GL_FRAMEBUFFER, FramebufferName2);
     glActiveTexture(GL_TEXTURE0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glViewport(0, 0, distantShadowMapSize, distantShadowMapSize);
-    renderer->renderShadowCasters(1000.0f, RenderStats::FrameStats::PassSlots - 2,
+    renderer->renderShadowCasters(1000.0f, RenderStats::FrameStats::PassSlots - 1,
                                   gluu->pShadowMatrix);
     std::swap(gluu->pShadowMatrix, gluu->pShadowMatrix2);
     gluu->currentShader->release();

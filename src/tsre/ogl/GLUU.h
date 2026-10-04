@@ -58,6 +58,8 @@ public:
     float* fMatrix;
     float* pShadowMatrix;
     float* pShadowMatrix2;
+    // Near shadow map, covering the camera's surroundings in more detail.
+    float* pShadowMatrix0;
     float* mvMatrix;
     float* objStrMatrix;
     static GLUU *get();

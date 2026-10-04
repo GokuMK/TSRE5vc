@@ -37,6 +37,8 @@ is out of date. Current state:
   between object states with the same distance level and enabled
   sub-objects, so repeated objects submit one packet set; together this
   removes a further 19-82% of scene draws on EUROPE1 and BNSF_SCENIC.
+- Stage 4 step 7: three shadow maps (+-50, +-150 and +-700 m), each culled
+  to its light frustum, sampled one map per fragment (task 10).
 
 - The gather frame draws everything through the renderer: sky, distant
   terrain and water, high-res terrain, world objects, overlays, water, pointer,

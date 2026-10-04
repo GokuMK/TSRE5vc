@@ -41,6 +41,8 @@ GLUU::GLUU() {
     fMatrix = new float[16];
     pShadowMatrix = new float[16];
     pShadowMatrix2 = new float[16];
+    pShadowMatrix0 = new float[16];
+    Mat4::identity(pShadowMatrix0);
     mvMatrix = new float[16];
     objStrMatrix = new float[16];
 }
@@ -177,6 +179,7 @@ void GLUU::initShader() {
         currentShader->fMatrixUniform = currentShader->uniformLocation("uFMatrix");
         currentShader->pShadowMatrixUniform = currentShader->uniformLocation("uShadowPMatrix");
         currentShader->pShadow2MatrixUniform = currentShader->uniformLocation("uShadow2PMatrix");
+        currentShader->pShadow0MatrixUniform = currentShader->uniformLocation("uShadow0PMatrix");
         currentShader->mvMatrixUniform = currentShader->uniformLocation("uMVMatrix");
         currentShader->msMatrixUniform = currentShader->uniformLocation("uMSMatrix");
         currentShader->lod = currentShader->uniformLocation("lod");
@@ -247,6 +250,9 @@ void GLUU::initShader() {
         currentShader->setUniformValue(tex3, 2);
         unsigned int tex4 = currentShader->uniformLocation("shadow2");
         currentShader->setUniformValue(tex4, 3);
+        // Unit 9 holds the near shadow map.
+        unsigned int tex0 = currentShader->uniformLocation("shadow0");
+        currentShader->setUniformValue(tex0, 9);
         // Units 4-7 hold the procedural terrain map, material and detail
         // arrays and the per-material parameters.
         if (currentShader->terrainMaterialMap >= 0)
@@ -279,6 +285,7 @@ void GLUU::setMatrixUniforms() {
     currentShader->setUniformValue(currentShader->fMatrixUniform, *reinterpret_cast<float(*)[4][4]> (fMatrix));
     currentShader->setUniformValue(currentShader->pShadowMatrixUniform, *reinterpret_cast<float(*)[4][4]> (pShadowMatrix));
     currentShader->setUniformValue(currentShader->pShadow2MatrixUniform, *reinterpret_cast<float(*)[4][4]> (pShadowMatrix2));
+    currentShader->setUniformValue(currentShader->pShadow0MatrixUniform, *reinterpret_cast<float(*)[4][4]> (pShadowMatrix0));
     currentShader->setUniformValue(currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (mvMatrix));
     currentShader->setUniformValue(currentShader->msMatrixUniform, *reinterpret_cast<float(*)[4][4]> (objStrMatrix));
     currentTexture = -1;

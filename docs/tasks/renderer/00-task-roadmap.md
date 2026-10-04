@@ -30,6 +30,45 @@ Objects draw by submitting persistent `RenderItem`s to the `RenderQueue`
 passed to their `pushRenderItems(RenderQueue &queue, ...)` functions; see
 `RenderQueue.h` for the contract. New drawing code implements only that path.
 
+## Stage 4: Modern Renderer
+
+Each step was checked against baseline captures on EUROPE1, BNSF_SCENIC and
+PROCEDURAL (shadows off and on) and the Shape Viewer set.
+
+1. Submission interface: producers receive a `RenderQueue &` in
+   `pushRenderItems()`; `Game::currentRenderer` is gone. Pixel-identical.
+2. Packet rework: `RenderItem` holds a mesh, a material, a terrain block and
+   bounds; no GL constants. glTF and `SFileComplex` classify surfaces.
+   Pixel-identical.
+3. Shader variants: terrain code behind `TSRE_TERRAIN`, `<name>Terrain`
+   programs, shared includes. Pixel-identical.
+4. Procedural terrain in one pass from per-tile texture arrays. Filtering
+   differences only.
+5. Renderer-owned culling against the scene and shadow views; bounds for
+   `SFileLegacy` parts and `OglObj`. Pixel-identical; 6-80% fewer scene draws.
+6. Instancing of repeated packets, with `SFileLegacy` packets shared between
+   object states. A further 19-82% fewer scene draws; isolated foliage pixels
+   differ through draw order.
+7. Three shadow maps, one sampled per fragment. Sharper shadows near the
+   camera.
+8. Deferred renderer: not started; decide after reviewing steps 1-7 against
+   the checklist below.
+
+Deferred-readiness checklist for new renderer work:
+
+- Materials describe what a G-buffer needs (surface, lighting, textures), not
+  shader uniforms.
+- Forward-only work (blended surfaces, lines, overlays, UI, pointer) is an
+  explicit class, not implied by pass order.
+- Views are data (`setCullView`, light view-projections).
+- Producers use no GL types; the test `MatrixProbe` implements `RenderQueue`
+  and must keep compiling.
+
+Optional after stage 4, never blocking: GPU timing in the harness
+(`GL_TIME_ELAPSED`, median and p90), in-shader hash noise vs cached noise
+texture for procedural terrain, and instancing and shadow-map cost on
+hardware GPUs.
+
 ## Checking Renderer Changes
 
 The parity harness compares two captures made with the same renderer:
