@@ -90,6 +90,8 @@ private:
     void clearQueues();
     // Uploads instanceUpload to the instance buffer texture on unit 8.
     bool uploadInstances();
+    // Whether instance rows first..first+count fit the buffer texture.
+    bool instanceRowsFit(int first, int count);
     void releaseInstanceBuffer();
 
     // A run of instances of one packet in a grouped pass. base >= 0 marks an
@@ -101,6 +103,7 @@ private:
         int base = -1;
     };
     std::vector<GroupPlan> groupPlans;
+    std::vector<const DrawInstance *> shadowCasters;
     std::vector<char> instanceVisible;
     std::vector<float> instanceUpload;
     unsigned int instanceBuffer = 0;

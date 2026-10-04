@@ -368,6 +368,16 @@ void OpenGL3Renderer::releaseInstanceBuffer(){
     instanceContext = NULL;
 }
 
+bool OpenGL3Renderer::instanceRowsFit(int first, int count){
+    if(maxInstanceTexels == 0){
+        QOpenGLContext *context = QOpenGLContext::currentContext();
+        if(context == NULL)
+            return false;
+        context->extraFunctions()->glGetIntegerv(GL_MAX_TEXTURE_BUFFER_SIZE, &maxInstanceTexels);
+    }
+    return (first + count) * 4 <= maxInstanceTexels;
+}
+
 bool OpenGL3Renderer::uploadInstances(){
     QOpenGLContext *context = QOpenGLContext::currentContext();
     if(context == NULL)
@@ -377,7 +387,6 @@ bool OpenGL3Renderer::uploadInstances(){
         // Names from another context are not ours to delete here.
         instanceTexture = instanceBuffer = 0;
         instanceContext = context;
-        e->glGetIntegerv(GL_MAX_TEXTURE_BUFFER_SIZE, &maxInstanceTexels);
         e->glGenBuffers(1, &instanceBuffer);
         e->glGenTextures(1, &instanceTexture);
         e->glBindBuffer(GL_TEXTURE_BUFFER, instanceBuffer);
@@ -641,8 +650,7 @@ void OpenGL3Renderer::drawGrouped(GLUU *gluu, Shader *base,
             plan.visible++;
         }
         const int rows = static_cast<int>(instanceUpload.size() / 16);
-        if(plan.visible >= 2 && oneSelection
-                && (maxInstanceTexels == 0 || (rows + plan.visible) * 4 <= maxInstanceTexels)){
+        if(plan.visible >= 2 && oneSelection && instanceRowsFit(rows, plan.visible)){
             plan.base = rows;
             for(size_t k = plan.begin; k < plan.end; ++k)
                 if(instanceVisible[k]){
@@ -796,12 +804,13 @@ void OpenGL3Renderer::renderShadowCasters(float range, int statsSlot,
     DetailStateCache detailState;
     const float rangeSquared = range * range;
     const Frustum lightFrustum = frustumOf(viewProjection);
-    RenderItem *current = NULL;
+    // Casters in range and inside the light view, grouped by packet. Depth
+    // does not depend on draw order, so repeated packets draw instanced.
+    shadowCasters.clear();
     for(PassQueue &queue : passes){
         for(const std::vector<DrawInstance> *list : {&queue.ordered, &queue.grouped}){
             for(const DrawInstance &instance : *list){
-                RenderItem *item = instance.packet;
-                if(!instance.castsShadow || item->mesh.vao == NULL)
+                if(!instance.castsShadow || instance.packet->mesh.vao == NULL)
                     continue;
                 float origin[3];
                 instanceOrigin(instance, origin);
@@ -809,31 +818,68 @@ void OpenGL3Renderer::renderShadowCasters(float range, int statsSlot,
                 const float dz = origin[2] - viewPosition[2];
                 if(dx * dx + dz * dz > rangeSquared || !visible(instance, lightFrustum))
                     continue;
-                if(item != current){
-                    if(current != NULL)
-                        current->mesh.vao->release();
-                    applyItemState(gluu, f, item, 0, detailState);
-                    applyTerrainState(gluu, item, terrainState);
-                    setModelMatrix(gluu, item->msMatrix);
-                    item->mesh.vao->bind();
-                    current = item;
-                }
-                setMatrixUniform(gluu, gluu->currentShader->mvMatrixUniform,
-                                 instanceMatrix(instance.matrix));
-                RenderStats::countPassDraw(statsSlot);
-                if(item->mesh.indexed){
-                    context->extraFunctions()->glDrawElementsBaseVertex(
-                                getItemDrawType(item), item->mesh.count, getIndexType(item),
-                                reinterpret_cast<void*>(static_cast<quintptr>(item->mesh.indexOffset)),
-                                item->mesh.baseVertex);
-                } else {
-                    f->glDrawArrays(getItemDrawType(item), item->mesh.first, item->mesh.count);
-                }
+                shadowCasters.push_back(&instance);
             }
         }
     }
-    if(current != NULL)
-        current->mesh.vao->release();
+    std::stable_sort(shadowCasters.begin(), shadowCasters.end(),
+                     [](const DrawInstance *a, const DrawInstance *b){
+        return std::less<const RenderItem *>()(a->packet, b->packet);
+    });
+    groupPlans.clear();
+    instanceUpload.clear();
+    for(size_t i = 0; i < shadowCasters.size(); ){
+        GroupPlan plan;
+        plan.begin = i;
+        while(i < shadowCasters.size() && shadowCasters[i]->packet == shadowCasters[plan.begin]->packet)
+            ++i;
+        plan.end = i;
+        plan.visible = static_cast<int>(plan.end - plan.begin);
+        const int rows = static_cast<int>(instanceUpload.size() / 16);
+        if(plan.visible >= 2 && instanceRowsFit(rows, plan.visible)){
+            plan.base = rows;
+            for(size_t k = plan.begin; k < plan.end; ++k){
+                const float *m = instanceMatrix(shadowCasters[k]->matrix);
+                instanceUpload.insert(instanceUpload.end(), m, m + 16);
+            }
+        }
+        groupPlans.push_back(plan);
+    }
+    const bool instancing = !instanceUpload.empty() && uploadInstances();
+    Shader *shader = gluu->currentShader;
+    QOpenGLExtraFunctions *e = context->extraFunctions();
+    for(const GroupPlan &plan : groupPlans){
+        RenderItem *item = shadowCasters[plan.begin]->packet;
+        applyItemState(gluu, f, item, 0, detailState);
+        applyTerrainState(gluu, item, terrainState);
+        setModelMatrix(gluu, item->msMatrix);
+        QOpenGLVertexArrayObject::Binder vaoBinder(item->mesh.vao);
+        const bool instanced = instancing && plan.base >= 0 && shader->instanced >= 0;
+        if(instanced){
+            shader->setUniformValue(shader->instanced, 1);
+            shader->setUniformValue(shader->instanceBase, plan.base);
+        }
+        for(size_t k = plan.begin; k < plan.end; ++k){
+            const int count = instanced ? plan.visible : 1;
+            if(!instanced)
+                setMatrixUniform(gluu, gluu->currentShader->mvMatrixUniform,
+                                 instanceMatrix(shadowCasters[k]->matrix));
+            RenderStats::countPassDraw(statsSlot);
+            if(item->mesh.indexed){
+                e->glDrawElementsInstancedBaseVertex(
+                            getItemDrawType(item), item->mesh.count, getIndexType(item),
+                            reinterpret_cast<void*>(static_cast<quintptr>(item->mesh.indexOffset)),
+                            count, item->mesh.baseVertex);
+            } else {
+                e->glDrawArraysInstanced(getItemDrawType(item), item->mesh.first,
+                                         item->mesh.count, count);
+            }
+            if(instanced)
+                break;
+        }
+        if(instanced)
+            shader->setUniformValue(shader->instanced, 0);
+    }
     gluu->currentShader->setUniformValue(gluu->currentShader->shaderSecondTexEnabled, 0.0f);
     gluu->currentShader->setUniformValue(gluu->currentShader->terrainTextureRemap, QVector3D());
     gluu->setBrightness(1.0f);
