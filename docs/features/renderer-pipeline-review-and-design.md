@@ -32,6 +32,11 @@ is out of date. Current state:
   `OglObj` meshes; others are never culled. On EUROPE1 and BNSF_SCENIC this
   removes 6-80% of scene draws and 20-50% of shadow draws with identical
   images.
+- Stage 4 step 6: grouped passes draw repeated packets instanced, reading
+  matrices from a buffer texture. `SFileLegacy` shares static packets
+  between object states with the same distance level and enabled
+  sub-objects, so repeated objects submit one packet set; together this
+  removes a further 19-82% of scene draws on EUROPE1 and BNSF_SCENIC.
 
 - The gather frame draws everything through the renderer: sky, distant
   terrain and water, high-res terrain, world objects, overlays, water, pointer,

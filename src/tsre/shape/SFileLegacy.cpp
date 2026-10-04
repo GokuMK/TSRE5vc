@@ -863,10 +863,15 @@ void SFileLegacy::setCurrentDistanceLevel(unsigned int stateId, int level){
     state[stateId].distanceLevel = level;
 }
 
-void SFileLegacy::clearRenderItems(unsigned int id) {
-    for (RenderItem *item : renderItems[id])
+void SFileLegacy::clearRenderItems(quint64 key) {
+    for (RenderItem *item : renderItems[key])
         Renderer::retirePacket(item);
-    renderItems[id].clear();
+    renderItems[key].clear();
+}
+
+quint64 SFileLegacy::packetKey(unsigned int stateId) const {
+    return (quint64(quint32(state[stateId].distanceLevel)) << 32)
+            | quint32(state[stateId].enabledSubObjs);
 }
 
 void SFileLegacy::invalidateRenderState(bool invalidateMatrixCache){
@@ -1073,12 +1078,13 @@ void SFileLegacy::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsign
         return;
     }
 
-    if(renderItems[stateId].size() == 0 || requiresUpdate){
-        // `requiresUpdate` is shape-wide (all stateIds).
-        // If any state requested refresh, invalidate other cached states too.
+    const quint64 key = packetKey(stateId);
+    if(renderItems[key].size() == 0 || requiresUpdate){
+        // `requiresUpdate` is shape-wide (all keys).
+        // If any state requested refresh, invalidate other cached keys too.
         bool globalInvalidateRequested = requiresUpdate;
         requiresUpdate = false;
-        clearRenderItems(stateId);
+        clearRenderItems(key);
 
         RenderItem * r;// = new RenderItem();
         float m[16];
@@ -1135,21 +1141,21 @@ void SFileLegacy::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsign
                     const auto &part = distancelevel[currentDlevel].subobiekty[i].czesci[j];
                     r->setBounds(part.boundCenter, part.boundRadius, r->msMatrix);
                 }
-                renderItems[stateId].push_back(r);
+                renderItems[key].push_back(r);
             }
         }
         if(globalInvalidateRequested){
-            // Keep current state items, but force rebuild of other cached states.
+            // Keep this key's items, but force rebuild of the other keys.
             for(auto it = renderItems.begin(); it != renderItems.end(); ++it){
-                if(it.key() == stateId)
+                if(it.key() == key)
                     continue;
                 clearRenderItems(it.key());
             }
         }
     }
 
-    if(renderItems[stateId].size() > 0)
-        queue.submit(renderItems[stateId], selectionId);
+    if(renderItems[key].size() > 0)
+        queue.submit(renderItems[key], selectionId);
 }
 
 void SFileLegacy::fillContentHierarchyInfo(QVector<ContentHierarchyInfo*>& list, int parent){

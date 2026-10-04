@@ -261,8 +261,11 @@ public:
 private:
     bool glReady = false;
     QPointer<QOpenGLContext> glContext;
-    // Retires the state's cached packets through the renderer.
-    void clearRenderItems(unsigned int stateId);
+    // Retires a set of cached packets through the renderer.
+    void clearRenderItems(quint64 key);
+    // Static packets depend only on the distance level and the enabled
+    // sub-objects, so states that agree on both share them.
+    quint64 packetKey(unsigned int stateId) const;
     // Animated parts are refilled every frame into packets and matrices
     // reused per state.
     struct AnimatedPackets {
@@ -314,7 +317,9 @@ private:
     bool snapable = false;
     //float *mvMatrix = NULL;
     bool requiresUpdate = false;
-    QHash<unsigned int, QVector<RenderItem *>> renderItems;
+    // Static packets by packetKey(); repeated objects submit the same packets,
+    // which lets the renderer draw them instanced.
+    QHash<quint64, QVector<RenderItem *>> renderItems;
 };
 
 #endif	/* SFILELEGACY_H */
