@@ -137,9 +137,12 @@ scene casts into them.
   and the fragment shaders use a one-texel depth bias instead of the tuned
   slope bias. Self-shadowing is avoided with a far smaller depth bias, so
   contact shadows survive in both maps. Surfaces without normals and the
-  far map keep the constant bias. The two factors are
+  far map keep the constant bias. The factors are
   `ShadowNormalOffsetTexels` and `ShadowDepthBiasTexels` in
-  `RouteEditorGLWidget.cpp`; they need tuning on hardware.
+  `RouteEditorGLWidget.cpp`, one per map; they need tuning on hardware.
+  Both maps share the filter radius (about 0.15 m at 2048); the near map's
+  texels are smaller than it, so with one shared factor its taps reached
+  sloped surfaces and showed acne. It starts at twice the offset.
 - Each map culls its casters to its own light frustum (stage 4 step 5) and
   draws repeated casters instanced: depth does not depend on draw order, so
   casters are grouped by packet. This removes 78-90% of shadow map draws on

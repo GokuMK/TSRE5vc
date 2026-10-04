@@ -722,9 +722,11 @@ constexpr float TunedShadowHalfDepth = 200.0f;
 // Direction towards the shadow-casting sun.
 constexpr float ShadowLightDirection[3] = {-1.0f, 1.5f, 1.0f};
 // Normal offset and depth bias of the near and middle maps for surfaces with
-// normals, in texels or filter radii, whichever is larger.
-constexpr float ShadowNormalOffsetTexels = 1.0f;
-constexpr float ShadowDepthBiasTexels = 1.0f;
+// normals, in texels or filter radii, whichever is larger. Both maps share
+// the filter radius in world space; the near map's texels are smaller than
+// it, so its taps need a larger offset to clear sloped surfaces.
+constexpr float ShadowNormalOffsetTexels[2] = {2.0f, 1.0f};
+constexpr float ShadowDepthBiasTexels[2] = {1.0f, 1.0f};
 }
 
 // Light-space matrices of the near, mid and far shadow maps, centred on the
@@ -758,8 +760,8 @@ void RouteEditorGLWidget::computeShadowMatrices() {
     for (int map = 0; map < 2; map++) {
         const float texel = 2.0f * ShadowHalfExtent[map] / shadowMapSize;
         const float filter = std::max(texel, tapSpread);
-        gluu->shadowNormalOffset[map] = ShadowNormalOffsetTexels * filter;
-        gluu->shadowDepthBias[map] = ShadowDepthBiasTexels * filter / (2.0f * ShadowHalfDepth[map]);
+        gluu->shadowNormalOffset[map] = ShadowNormalOffsetTexels[map] * filter;
+        gluu->shadowDepthBias[map] = ShadowDepthBiasTexels[map] * filter / (2.0f * ShadowHalfDepth[map]);
     }
     gluu->shadowNormalOffset[2] = 0.0f;
     float lightDirection[3] = {ShadowLightDirection[0], ShadowLightDirection[1], ShadowLightDirection[2]};
