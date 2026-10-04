@@ -2357,28 +2357,20 @@ void Terrain::pushRenderItem(RenderQueue &queue, float lodx, float lodz, int til
                             r->material.detailTextureObject=detail->second->tex[0];
                             r->material.detailScale=ProceduralDetailScale*patches;
                         }
+                    } else if (outputId < 0 && !bakedFallback && shaderId >= 0
+                               && texid2[patchId] != -2) {
+                        // MSTS detail texture: the shader's second texture,
+                        // scaled by its UV multiplier.
+                        if (texid2[patchId] == -1)
+                            texid2[patchId] = tfile->material(shaderId).textures.size() < 2 ? -2
+                                    : loadTerrainTexture(tfile->material(shaderId).textures[1].filename);
+                        const auto detail = TexLib::mtex.find(texid2[patchId]);
+                        if (detail != TexLib::mtex.end() && detail->second && detail->second->loaded) {
+                            if (!detail->second->glLoaded) detail->second->GLTextures(true);
+                            r->material.detailTextureObject = detail->second->tex[0];
+                            r->material.detailScale = tfile->detailScale(shaderId);
+                        }
                     }
-                    /*if (texid2[yy * patches + uu] == -2) {
-                    } else if (tfile->material(shaderId).textures.size() < 2){
-                            texid2[yy * patches + uu] = -2;
-                    } else {
-                        if (texid2[yy * patches + uu] == -1) {
-                            if (shaderId < 0)
-                                texid[yy * patches + uu] = -2;
-                            else
-                                texid2[yy * patches + uu] = loadTerrainTexture(tfile->material(shaderId).textures[1].filename);
-                        }
-                        if (TexLib::mtex[texid2[yy * patches + uu]]->loaded) {
-                            if (!TexLib::mtex[texid2[yy * patches + uu]]->glLoaded)
-                                TexLib::mtex[texid2[yy * patches + uu]]->GLTextures(true);
-                            r->enableTextures(TexLib::mtex[texid2[yy * patches + uu]]->tex[0]);
-                            if(shaderSecondTexUV != tfile->detailScale(shaderId)){
-                                shaderSecondTexUV = tfile->detailScale(shaderId);
-                                gluu->currentShader->setUniformValue(gluu->currentShader->shaderSecondTexEnabled, shaderSecondTexUV);
-                            }
-                        } else {
-                        }
-                    }*/
                 }
                 r->mesh.primitive = RenderItem::PRIMITIVE_TRIANGLES;
                 const TerrainPatchLodState lodState = patchId < patchLod.size()
