@@ -62,6 +62,9 @@ public:
     int terrainMaterialTextures;
     int terrainMaterialDetails;
     int terrainMaterialParams;
+    int instanced;
+    int instanceBase;
+    int instanceMatrices;
     int terrainMaterialMapRemap;
     int terrainMaterialMapSide;
     int terrainMaterialNoiseScale;

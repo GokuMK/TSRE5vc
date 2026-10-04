@@ -12,6 +12,7 @@ uniform mat4 uPMatrix;
 uniform mat4 uFMatrix;
 uniform mat4 uMVMatrix;
 uniform mat4 uMSMatrix;
+#include "Instancing.glsl"
 uniform float fogDensity;
 #ifdef TSRE_TERRAIN
 uniform int terrainPaged;
@@ -34,6 +35,8 @@ layout(std140) uniform TerrainPatchBlock {
 #endif
 
 out vec2 vTextureCoord;
+// Model-view of this vertex's instance, for the fragment lighting.
+flat out mat4 vModelView;
 out float fogFactor;
 out vec3 vNormal;
 out vec4 shadowPos;
@@ -43,6 +46,8 @@ out float vTerrainGap;
 out vec2 vTerrainMapCoord;
 
 void main() {
+    mat4 modelView = instanceModelView();
+    vModelView = modelView;
     vec4 renderVertex = vertex;
     vec2 renderUv = aTextureCoord;
 #ifdef TSRE_TERRAIN
@@ -65,10 +70,10 @@ void main() {
                         + params.uvAndOriginZ.z);
     }
 #endif
-    shadowPos = uShadowPMatrix * uMVMatrix * uMSMatrix * renderVertex;
-    shadow2Pos = uShadow2PMatrix * uMVMatrix * uMSMatrix * renderVertex;
-    gl_Position = uPMatrix * uMVMatrix * uMSMatrix * renderVertex;
-    vec4 fogPosition = uFMatrix * uMVMatrix * uMSMatrix * renderVertex;
+    shadowPos = uShadowPMatrix * modelView * uMSMatrix * renderVertex;
+    shadow2Pos = uShadow2PMatrix * modelView * uMSMatrix * renderVertex;
+    gl_Position = uPMatrix * modelView * uMSMatrix * renderVertex;
+    vec4 fogPosition = uFMatrix * modelView * uMSMatrix * renderVertex;
 #ifdef TSRE_TERRAIN
     vTextureCoord = renderUv * (1.0 + terrainTextureRemap.x) + terrainTextureRemap.yz;
     vTerrainMapCoord = renderUv * terrainMaterialMapRemap.x + terrainMaterialMapRemap.yz;

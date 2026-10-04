@@ -288,6 +288,8 @@ QJsonObject toJson(const FrameStats &stats) {
     json["drawCalls"] = double(stats.drawCalls);
     json["flushes"] = double(stats.flushes);
     json["culledInstances"] = double(stats.culledInstances);
+    json["instancedDraws"] = double(stats.instancedDraws);
+    json["instancedInstances"] = double(stats.instancedInstances);
     static_assert(Renderer::PASS_COUNT <= FrameStats::PassSlots, "pass slots");
     // Shadow cascades follow the render passes.
     static const char *passNames[FrameStats::PassSlots] = {

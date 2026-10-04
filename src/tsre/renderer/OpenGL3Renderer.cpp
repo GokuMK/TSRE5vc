@@ -289,6 +289,28 @@ void useProgram(GLUU *gluu, Shader *base, const RenderItem *item, ProgramCaches 
     caches = ProgramCaches();
 }
 
+// One draw of instanceCount instances whose matrices the shader reads.
+void drawItemInstanced(QOpenGLFunctions *f, RenderItem *item, quint32 selectionId,
+                       int instanceCount, RenderStats::Category category, int pass){
+    RenderStats::countDraw(category, getItemDrawType(item), item->mesh.count * instanceCount);
+    RenderStats::countPassDraw(pass);
+    if(RenderStats::inFrame()){
+        RenderStats::current().instancedDraws++;
+        RenderStats::current().instancedInstances += instanceCount;
+    }
+    ScopedTerrainDecal decalState(f, item->material.decal && selectionId == 0);
+    QOpenGLExtraFunctions *e = QOpenGLContext::currentContext()->extraFunctions();
+    if(item->mesh.indexed){
+        e->glDrawElementsInstancedBaseVertex(
+                    getItemDrawType(item), item->mesh.count, getIndexType(item),
+                    reinterpret_cast<void*>(static_cast<quintptr>(item->mesh.indexOffset)),
+                    instanceCount, item->mesh.baseVertex);
+    } else {
+        e->glDrawArraysInstanced(getItemDrawType(item), item->mesh.first, item->mesh.count,
+                                 instanceCount);
+    }
+}
+
 // Line width and polygon mode set for one packet and restored afterwards.
 class PacketRasterState {
 public:
@@ -320,6 +342,62 @@ OpenGL3Renderer::OpenGL3Renderer() {
 
 OpenGL3Renderer::~OpenGL3Renderer() {
     clearQueues();
+    releaseInstanceBuffer();
+}
+
+#ifndef GL_TEXTURE_BUFFER
+#define GL_TEXTURE_BUFFER 0x8C2A
+#endif
+#ifndef GL_MAX_TEXTURE_BUFFER_SIZE
+#define GL_MAX_TEXTURE_BUFFER_SIZE 0x8C2B
+#endif
+#ifndef GL_RGBA32F
+#define GL_RGBA32F 0x8814
+#endif
+
+void OpenGL3Renderer::releaseInstanceBuffer(){
+    QOpenGLContext *context = QOpenGLContext::currentContext();
+    if(context != NULL && context == instanceContext){
+        QOpenGLExtraFunctions *e = context->extraFunctions();
+        if(instanceTexture)
+            e->glDeleteTextures(1, &instanceTexture);
+        if(instanceBuffer)
+            e->glDeleteBuffers(1, &instanceBuffer);
+    }
+    instanceTexture = instanceBuffer = 0;
+    instanceContext = NULL;
+}
+
+bool OpenGL3Renderer::uploadInstances(){
+    QOpenGLContext *context = QOpenGLContext::currentContext();
+    if(context == NULL)
+        return false;
+    QOpenGLExtraFunctions *e = context->extraFunctions();
+    if(instanceContext != context){
+        // Names from another context are not ours to delete here.
+        instanceTexture = instanceBuffer = 0;
+        instanceContext = context;
+        e->glGetIntegerv(GL_MAX_TEXTURE_BUFFER_SIZE, &maxInstanceTexels);
+        e->glGenBuffers(1, &instanceBuffer);
+        e->glGenTextures(1, &instanceTexture);
+        e->glBindBuffer(GL_TEXTURE_BUFFER, instanceBuffer);
+        e->glBufferData(GL_TEXTURE_BUFFER, 16 * sizeof(float), NULL, GL_STREAM_DRAW);
+        e->glActiveTexture(GL_TEXTURE8);
+        e->glBindTexture(GL_TEXTURE_BUFFER, instanceTexture);
+        e->glTexBuffer(GL_TEXTURE_BUFFER, GL_RGBA32F, instanceBuffer);
+        e->glActiveTexture(GL_TEXTURE0);
+        e->glBindBuffer(GL_TEXTURE_BUFFER, 0);
+    }
+    if(instanceBuffer == 0 || instanceTexture == 0)
+        return false;
+    e->glBindBuffer(GL_TEXTURE_BUFFER, instanceBuffer);
+    e->glBufferData(GL_TEXTURE_BUFFER, instanceUpload.size() * sizeof(float),
+                    instanceUpload.data(), GL_STREAM_DRAW);
+    e->glBindBuffer(GL_TEXTURE_BUFFER, 0);
+    e->glActiveTexture(GL_TEXTURE8);
+    e->glBindTexture(GL_TEXTURE_BUFFER, instanceTexture);
+    e->glActiveTexture(GL_TEXTURE0);
+    return true;
 }
 
 quint32 OpenGL3Renderer::captureMatrix(const float *matrix){
@@ -534,24 +612,60 @@ void OpenGL3Renderer::drawOrdered(GLUU *gluu, Shader *base,
 
 void OpenGL3Renderer::drawGrouped(GLUU *gluu, Shader *base,
                                   const std::vector<DrawInstance> &instances, int pass){
+    // Plan the pass: cull each instance once, and give runs of two or more
+    // visible instances of a packet with one selection ID an instanced draw.
+    groupPlans.clear();
+    instanceUpload.clear();
+    instanceVisible.assign(instances.size(), 0);
+    for(size_t i = 0; i < instances.size(); ){
+        GroupPlan plan;
+        plan.begin = i;
+        RenderItem *item = instances[i].packet;
+        while(i < instances.size() && instances[i].packet == item)
+            ++i;
+        plan.end = i;
+        if(item->mesh.vao == NULL){
+            groupPlans.push_back(plan);
+            continue;
+        }
+        bool oneSelection = true;
+        quint32 selection = 0;
+        for(size_t k = plan.begin; k < plan.end; ++k){
+            if(!visible(instances[k], cullFrustum))
+                continue;
+            instanceVisible[k] = 1;
+            if(plan.visible == 0)
+                selection = instances[k].selectionId;
+            else if(instances[k].selectionId != selection)
+                oneSelection = false;
+            plan.visible++;
+        }
+        const int rows = static_cast<int>(instanceUpload.size() / 16);
+        if(plan.visible >= 2 && oneSelection
+                && (maxInstanceTexels == 0 || (rows + plan.visible) * 4 <= maxInstanceTexels)){
+            plan.base = rows;
+            for(size_t k = plan.begin; k < plan.end; ++k)
+                if(instanceVisible[k]){
+                    const float *m = instanceMatrix(instances[k].matrix);
+                    instanceUpload.insert(instanceUpload.end(), m, m + 16);
+                }
+        }
+        groupPlans.push_back(plan);
+    }
+    const bool instancing = !instanceUpload.empty() && uploadInstances();
+
     ProgramCaches caches;
     quint32 currentSelection = 0;
     quint64 currentTexture = 0;
     bool textureGroupOpen = false;
-    for(size_t i = 0; i < instances.size(); ){
+    for(const GroupPlan &plan : groupPlans){
+        size_t i = plan.begin;
+        const size_t end = plan.end;
         RenderItem *item = instances[i].packet;
-        size_t end = i;
-        while(end < instances.size() && instances[end].packet == item)
-            ++end;
-        if(item->mesh.vao == NULL){
-            i = end;
+        if(item->mesh.vao == NULL || plan.visible == 0)
             continue;
-        }
-        // Skip leading culled instances; a fully culled packet changes no state.
-        while(i < end && !visible(instances[i], cullFrustum))
+        while(i < end && !instanceVisible[i])
             ++i;
-        if(i == end)
-            continue;
         const quint64 texture = textureKey(item);
         if(!textureGroupOpen || texture != currentTexture){
             currentTexture = texture;
@@ -570,9 +684,18 @@ void OpenGL3Renderer::drawGrouped(GLUU *gluu, Shader *base,
         setModelMatrix(gluu, item->msMatrix);
         PacketRasterState raster(f, item);
         QOpenGLVertexArrayObject::Binder vaoBinder(item->mesh.vao);
+        Shader *shader = gluu->currentShader;
+        if(instancing && plan.base >= 0 && shader->instanced >= 0){
+            shader->setUniformValue(shader->instanced, 1);
+            shader->setUniformValue(shader->instanceBase, plan.base);
+            drawItemInstanced(f, item, instances[i].selectionId, plan.visible,
+                              static_cast<RenderStats::Category>(instances[i].category), pass);
+            shader->setUniformValue(shader->instanced, 0);
+            continue;
+        }
         for(; i < end; ++i){
             const DrawInstance &instance = instances[i];
-            if(!visible(instance, cullFrustum))
+            if(!instanceVisible[i])
                 continue;
             if(instance.selectionId != currentSelection){
                 gluu->setSelectionId(instance.selectionId);

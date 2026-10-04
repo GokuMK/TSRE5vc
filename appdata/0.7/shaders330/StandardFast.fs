@@ -18,6 +18,7 @@ uniform sampler2D uSampler;
 uniform sampler2D uSampler2;
 uniform float secondTexEnabled;
 uniform mat4 uMVMatrix;
+flat in mat4 vModelView;
 uniform mat4 uMSMatrix;
 uniform float enableNormals;
 uniform float colorBrightness;
@@ -50,7 +51,7 @@ void main() {
     if (fragColor.a < -vAlpha)
         discard;
 
-    vec3 normal = normalize(mat3(uMVMatrix) * mat3(uMSMatrix) * vNormal);
+    vec3 normal = normalize(mat3(vModelView) * mat3(uMSMatrix) * vNormal);
     float cosTheta = clamp(dot(normal, normalize(lightDirection)), 0.0, 1.0);
     float visibility = (1.0 - enableNormals) + cosTheta * enableNormals;
     fragColor.rgb *= (diffuseColor.rgb * clamp(visibility, 0.0, 1.0)

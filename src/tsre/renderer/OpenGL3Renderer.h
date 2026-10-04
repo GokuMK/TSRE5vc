@@ -16,6 +16,7 @@
 #include <vector>
 
 class QOpenGLFunctions;
+class QOpenGLContext;
 class GLUU;
 class Shader;
 
@@ -87,6 +88,25 @@ private:
                      int pass);
     void consumePass(PassQueue &queue);
     void clearQueues();
+    // Uploads instanceUpload to the instance buffer texture on unit 8.
+    bool uploadInstances();
+    void releaseInstanceBuffer();
+
+    // A run of instances of one packet in a grouped pass. base >= 0 marks an
+    // instanced draw of count instances starting at that buffer row.
+    struct GroupPlan {
+        size_t begin = 0;
+        size_t end = 0;
+        int visible = 0;
+        int base = -1;
+    };
+    std::vector<GroupPlan> groupPlans;
+    std::vector<char> instanceVisible;
+    std::vector<float> instanceUpload;
+    unsigned int instanceBuffer = 0;
+    unsigned int instanceTexture = 0;
+    QOpenGLContext *instanceContext = nullptr;
+    int maxInstanceTexels = 0;
 
     // Frame storage is cleared, not freed, so steady frames do not allocate.
     PassQueue passes[PASS_COUNT];

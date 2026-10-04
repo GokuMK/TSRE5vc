@@ -214,6 +214,9 @@ void GLUU::initShader() {
         currentShader->terrainMaterialTextures = currentShader->uniformLocation("terrainMaterialTextures");
         currentShader->terrainMaterialDetails = currentShader->uniformLocation("terrainMaterialDetails");
         currentShader->terrainMaterialParams = currentShader->uniformLocation("terrainMaterialParams");
+        currentShader->instanced = currentShader->uniformLocation("instanced");
+        currentShader->instanceBase = currentShader->uniformLocation("instanceBase");
+        currentShader->instanceMatrices = currentShader->uniformLocation("instanceMatrices");
         currentShader->terrainMaterialMapRemap = currentShader->uniformLocation("terrainMaterialMapRemap");
         currentShader->terrainMaterialMapSide = currentShader->uniformLocation("terrainMaterialMapSide");
         currentShader->terrainMaterialNoiseScale = currentShader->uniformLocation("terrainMaterialNoiseScale");
@@ -254,6 +257,11 @@ void GLUU::initShader() {
             currentShader->setUniformValue(currentShader->terrainMaterialDetails, 6);
         if (currentShader->terrainMaterialParams >= 0)
             currentShader->setUniformValue(currentShader->terrainMaterialParams, 7);
+        // Unit 8 holds the instance matrix buffer.
+        if (currentShader->instanceMatrices >= 0)
+            currentShader->setUniformValue(currentShader->instanceMatrices, 8);
+        if (currentShader->instanced >= 0)
+            currentShader->setUniformValue(currentShader->instanced, 0);
         if (currentShader->terrainMaterialEnabled >= 0)
             currentShader->setUniformValue(currentShader->terrainMaterialEnabled, 0);
         currentShader->release();

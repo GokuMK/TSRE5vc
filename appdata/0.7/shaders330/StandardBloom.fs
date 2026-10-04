@@ -30,6 +30,7 @@ uniform sampler2DShadow shadow1;
 uniform sampler2DShadow shadow2;
 uniform float secondTexEnabled;
 uniform mat4 uMVMatrix;
+flat in mat4 vModelView;
 uniform mat4 uMSMatrix;
 uniform float enableNormals;
 uniform float colorBrightness;
@@ -99,7 +100,7 @@ void main() {
             //gl_FragColor.a = 1.0;
 
             // calculate normals
-            vec3 normal = normalize(mat3(uMVMatrix) * mat3(uMSMatrix) * vNormal);
+            vec3 normal = normalize(mat3(vModelView) * mat3(uMSMatrix) * vNormal);
             vec3 lights = normalize(lightDirection);
             float cosTheta = clamp(dot( normal, lights ), 0, 1);
             float visibility = (1.0-enableNormals) + cosTheta*enableNormals;
