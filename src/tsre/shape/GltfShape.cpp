@@ -35,6 +35,7 @@
 #include <tsre/texture/TexLib.h>
 #include <tsre/texture/Texture.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -843,19 +844,20 @@ void GltfShape::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned
         return;
     }
 
+    const unsigned int key = 0;
     if (selectionId == 0) {
         syncTextureAddresses();
         const unsigned long long textureStateHash = getTextureStateHash();
-        if (renderItemsTextureHash.value(stateId, 0ULL) != textureStateHash) {
+        if (renderItemsTextureHash.value(key, 0ULL) != textureStateHash) {
             requiresUpdate = true;
         }
     }
 
-    if (renderItems[stateId].size() == 0 || requiresUpdate) {
+    if (renderItems[key].size() == 0 || requiresUpdate) {
         const bool globalInvalidateRequested = requiresUpdate;
         requiresUpdate = false;
-        renderItemsTextureHash.remove(stateId);
-        retireRenderItems(renderItems[stateId]);
+        renderItemsTextureHash.remove(key);
+        retireRenderItems(renderItems[key]);
 
         for (int u = 0; u < drawUnits.size(); u++) {
             const DrawUnit& unit = drawUnits[u];
@@ -883,6 +885,8 @@ void GltfShape::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned
             r->material.lit = 1;
             r->material.brightness = 1.0f;
             r->material.surface = prim->material.surface;
+            // Node world matrices are fixed at load, so the bounds hold.
+            r->setBounds(prim->boundCenter, prim->boundRadius, r->msMatrix);
 
             r->setSelectionId(0);
             if (!prim->material.hasTexture || prim->material.texId < 0) {
@@ -893,21 +897,21 @@ void GltfShape::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned
                 r->disableTextures(1.0f, 0.0f, 1.0f, 1.0f);
             }
 
-            renderItems[stateId].push_back(r);
+            renderItems[key].push_back(r);
         }
 
         if (globalInvalidateRequested) {
             for (auto it = renderItems.begin(); it != renderItems.end(); ++it) {
-                if (it.key() == stateId) continue;
+                if (it.key() == key) continue;
                 retireRenderItems(it.value());
                 renderItemsTextureHash.remove(it.key());
             }
         }
-        renderItemsTextureHash[stateId] = getTextureStateHash();
+        renderItemsTextureHash[key] = getTextureStateHash();
     }
 
-    if (renderItems[stateId].size() > 0) {
-        queue.submit(renderItems[stateId], selectionId);
+    if (renderItems[key].size() > 0) {
+        queue.submit(renderItems[key], selectionId);
     }
 }
 
@@ -1532,6 +1536,27 @@ bool GltfShape::parseAndBuild() {
             MeshPrimitiveGpu* gpuPrim = new MeshPrimitiveGpu();
             gpuPrim->material = mat;
             gpuPrim->vertCount = outVertCount;
+            if (outVertCount > 0) {
+                float low[3] = {vertices[0], vertices[1], vertices[2]};
+                float high[3] = {low[0], low[1], low[2]};
+                for (int i = 1; i < outVertCount; ++i)
+                    for (int c = 0; c < 3; ++c) {
+                        low[c] = std::min(low[c], vertices[i * 9 + c]);
+                        high[c] = std::max(high[c], vertices[i * 9 + c]);
+                    }
+                float radius = 0.0f;
+                for (int c = 0; c < 3; ++c)
+                    gpuPrim->boundCenter[c] = 0.5f * (low[c] + high[c]);
+                for (int i = 0; i < outVertCount; ++i) {
+                    float distance = 0.0f;
+                    for (int c = 0; c < 3; ++c) {
+                        const float delta = vertices[i * 9 + c] - gpuPrim->boundCenter[c];
+                        distance += delta * delta;
+                    }
+                    radius = std::max(radius, distance);
+                }
+                gpuPrim->boundRadius = std::sqrt(radius);
+            }
 
             gpuPrim->VAO.create();
             QOpenGLVertexArrayObject::Binder vaoBinder(&gpuPrim->VAO);

@@ -80,6 +80,9 @@ private:
         QOpenGLVertexArrayObject VAO;
         int vertCount = 0;
         MaterialRuntime material;
+        // Sphere around the primitive's vertices, for view culling.
+        float boundCenter[3] = {0.0f, 0.0f, 0.0f};
+        float boundRadius = -1.0f;
     };
 
     struct MeshGpu {
@@ -115,6 +118,8 @@ private:
     QVector<int> nodeParents;
 
     bool requiresUpdate = false;
+    // Packets do not depend on the instance state, so every state submits
+    // the set under key 0 and repeated objects draw instanced.
     QHash<unsigned int, QVector<RenderItem *>> renderItems;
     QHash<unsigned int, unsigned long long> renderItemsTextureHash;
 

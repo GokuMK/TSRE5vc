@@ -87,8 +87,12 @@ packets to the `RenderQueue` (see `src/tsre/renderer/RenderQueue.h`).
   it against the camera and each shadow map.
 - **Animated states keep their own packets** with per-frame matrices; they are
   neither shared nor culled.
-- `GltfShape` and the original `SFile` still cache packets per state, so their
-  objects are neither instanced nor culled.
+- `GltfShape` packets do not depend on the instance state (glTF animation is
+  not drawn yet), so every state submits one shared set; each primitive's
+  bounds are computed when it is uploaded. glTF materials are drawn
+  single-sided: `doubleSided` is not applied yet.
+- The original `SFile` still caches packets per state, so its objects are
+  neither instanced nor culled.
 - Caches are rebuilt when `invalidateRenderState()` is called or the shape is
   reloaded; `SFileComplex` also drops them when its GL data is released.
 
