@@ -14,7 +14,7 @@
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <tsre/fileFunctions/ReadFile.h>
 #include <tsre/shape/ShapeLib.h>
-#include <tsre/shape/SFile.h>
+#include <tsre/shape/ComplexShape.h>
 #include <QDebug>
 #include <QFile>
 #include <tsre/Game.h>

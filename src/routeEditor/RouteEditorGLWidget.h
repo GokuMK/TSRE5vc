@@ -27,7 +27,6 @@
 #include <unordered_map>
 
 class Tile;
-class SFile;
 class Eng;
 class GLUU;
 class Route;
@@ -231,7 +230,6 @@ private:
     int fpsDisplayAccumFrames = 0;
     unsigned long long int fpsDisplayLastUpdate = 0;
     QPointF m_lastPos;
-    SFile* sFile;
     Eng* eng;
     Tile* tile;
     Route* route = NULL;

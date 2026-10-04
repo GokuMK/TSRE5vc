@@ -280,6 +280,8 @@ private:
     unsigned char gatherSurface(int primState) const;
     void setGatherTexture(RenderItem *item, int primState, bool texEnabled);
     void clearData();
+public:
+    // Section readers; public so the token tests can drive them directly.
     static void odczytajshadersc(FileBuffer* bufor, SFileLegacy* pliks);
     static void odczytajpunktyc(FileBuffer* bufor, SFileLegacy* pliks);
     static void odczytajuvpunktyc(FileBuffer* bufor, SFileLegacy* pliks);
@@ -300,6 +302,7 @@ private:
     static void odczytajvtx_states(FileBuffer* bufor, SFileLegacy* pliks);
     static void odczytajprim_states(FileBuffer* bufor, SFileLegacy* pliks);
     static void odczytajlodd(FileBuffer* bufor, SFileLegacy* pliks);
+private:
     struct State {
         bool animated = false;
         int enabledSubObjs = 0xFFFFFFFF;

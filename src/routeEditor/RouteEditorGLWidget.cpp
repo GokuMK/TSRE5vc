@@ -17,7 +17,6 @@
 #include <QPainter>
 #include <math.h>
 #include <tsre/ogl/GLUU.h>
-#include <tsre/shape/SFile.h>
 #include <tsre/fileFunctions/ReadFile.h>
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <tsre/world/Route.h>

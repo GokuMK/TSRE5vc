@@ -33,7 +33,6 @@
 #include <tsre/renderer/OpenGL3Renderer.h>
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/renderer/SelectionRenderer.h>
-#include <tsre/shape/SFile.h>
 #include <tsre/shape/SFileLegacy.h>
 #include <tsre/shape/SFileComplex.h>
 #include <tsre/shape/SFileDocument.h>
@@ -78,8 +77,8 @@ bool write(const QString &p, const QByteArray &b) {
 // In particular, tpoints and czes::idx are dangling after upload; never read them.
 // Private state allocations, unknown spare primitive slots, Qt/allocator/driver
 // overhead and shared textures are excluded. This is not a peak-memory counter.
-QJsonObject legacyStorage(SFile &shape) {
-    quint64 cpu = sizeof(SFile);
+QJsonObject legacyStorage(SFileLegacy &shape) {
+    quint64 cpu = sizeof(SFileLegacy);
     auto arrayBytes = [](int count, size_t element) {
         return quint64(std::max(0, count)) * element;
     };
@@ -90,13 +89,13 @@ QJsonObject legacyStorage(SFile &shape) {
     for (const auto *s : {&shape.pathid, &shape.sciezka, &shape.nazwa, &shape.texPath,
                           &shape.sdName})
         cpu += stringBytes(*s);
-    cpu += arrayBytes(shape.ishaders, sizeof(SFile::fshader));
-    cpu += arrayBytes(shape.iloscm + 1, sizeof(SFile::matrt));
-    cpu += arrayBytes(shape.ilosci + 1, sizeof(SFile::imgs));
-    cpu += arrayBytes(shape.ilosct, sizeof(SFile::text));
-    cpu += arrayBytes(shape.iloscv, sizeof(SFile::vtxs));
-    cpu += arrayBytes(shape.iloscps, sizeof(SFile::primst));
-    cpu += arrayBytes(shape.iloscd, sizeof(SFile::dist));
+    cpu += arrayBytes(shape.ishaders, sizeof(SFileLegacy::fshader));
+    cpu += arrayBytes(shape.iloscm + 1, sizeof(SFileLegacy::matrt));
+    cpu += arrayBytes(shape.ilosci + 1, sizeof(SFileLegacy::imgs));
+    cpu += arrayBytes(shape.ilosct, sizeof(SFileLegacy::text));
+    cpu += arrayBytes(shape.iloscv, sizeof(SFileLegacy::vtxs));
+    cpu += arrayBytes(shape.iloscps, sizeof(SFileLegacy::primst));
+    cpu += arrayBytes(shape.iloscd, sizeof(SFileLegacy::dist));
     for (int i = 0; i < shape.ishaders; ++i)
         cpu += stringBytes(shape.shader[i].name);
     for (int i = 0; i < shape.iloscm; ++i)
@@ -121,13 +120,13 @@ QJsonObject legacyStorage(SFile &shape) {
     for (int l = 0; l < shape.iloscd; ++l) {
         auto &level = shape.distancelevel[l];
         cpu += arrayBytes(level.ilosch + 1, sizeof(int));
-        cpu += arrayBytes(level.iloscs + 1, sizeof(SFile::sub));
+        cpu += arrayBytes(level.iloscs + 1, sizeof(SFileLegacy::sub));
         for (int m = 0; m < level.iloscs; ++m) {
             auto &mesh = level.subobiekty[m];
             cpu += vectorBytes(mesh.header.geometryNodeMap);
             // Allocation uses the source primitive count, which includes state
             // changes. Only the number of populated triangle parts survives.
-            cpu += arrayBytes(mesh.iloscc + 1, sizeof(SFile::czes));
+            cpu += arrayBytes(mesh.iloscc + 1, sizeof(SFileLegacy::czes));
             for (int p = 0; p < mesh.iloscc; ++p)
                 expectedGpu += arrayBytes(mesh.czesci[p].iloscv, 9 * sizeof(GLfloat));
             if (!mesh.VBO.isCreated() || !mesh.VBO.bind()) {
@@ -613,8 +612,8 @@ int TsreTests::runSFileComplexSuite(bool verbose, bool gl) {
         ShapeLib fallback;
         const int oldId = fallback.addShape(path, tmp.path());
         std::unique_ptr<ComplexShape> oldAsset(fallback.shape.at(oldId));
-        t.check(dynamic_cast<SFile *>(oldAsset.get()) != nullptr,
-                "explicit old factory fallback remains available");
+        t.check(dynamic_cast<SFileLegacy *>(oldAsset.get()) != nullptr,
+                "retired old backend name falls back to SFileLegacy");
         fallback.shape.clear();
         qputenv("TSRE_MSTS_SHAPE_BACKEND", "complex-compact");
         ShapeLib compactFactory;
@@ -962,7 +961,6 @@ int TsreTests::runSFileComplexCorpus(const QString &input, bool gl) {
     if (three == "legacy") return threeCompatSnapshot<SFileLegacy>(input);
     if (three == "compact" || three == "complete") return threeCompatSnapshot<SFileComplex>(input, three == "compact");
     const auto compatibility = qEnvironmentVariable("TSRE_LEGACY_COMPAT");
-    if (compatibility == "old") return legacyCompatSnapshot<SFile>(input);
     if (compatibility == "new") return legacyCompatSnapshot<SFileLegacy>(input);
     QScopedValueRollback<bool> filesystem(Game::caseInsensitiveFS, false);
     QScopedValueRollback<bool> aceThreads(AceLib::IsThread, false);
@@ -1080,7 +1078,8 @@ int TsreTests::runSFileComplexCorpus(const QString &input, bool gl) {
             result["init_gl_ms"] = timer.nsecsElapsed() / 1e6;
             result["gpu_ready"] = ready;
             result["gpu_bytes"] = double(shape.statistics().gpuBytes);
-            SFile old(path, QFileInfo(path).fileName(), textures);
+            // Load and upload together; "joined" below loads on the CPU first.
+            SFileLegacy old(path, QFileInfo(path).fileName(), textures);
             timer.restart();
             old.load();
             result["legacy_load_gl_ms"] = timer.nsecsElapsed() / 1e6;

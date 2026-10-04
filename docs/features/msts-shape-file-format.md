@@ -327,7 +327,7 @@ This section records how the reviewed applications interpret or produce the form
 
 ### TSRE
 
-SFileLegacy is the default rendering loader; original SFile/C/X remains an explicit fallback. SFileComplex Complete retains editable source data, including unsupported fields. Compact omits data not required for rendering and requires a full Complete reload before saving. Retention, source health and GL readiness are application states, not serialized shape fields.
+SFileLegacy is the default rendering loader; the original SFile/C/X classes have been removed. SFileComplex Complete retains editable source data, including unsupported fields. Compact omits data not required for rendering and requires a full Complete reload before saving. Retention, source health and GL readiness are application states, not serialized shape fields.
 
 SFileComplex uses typed numeric storage. Known text numbers normalize to native 32-bit types; comments, spacing and original numeric spelling are not retained. Binary float bits are preserved. Same-encoding unknown records and extra payloads are retained where their boundaries are known. Cross-encoding conversion fails when an unknown layout cannot be converted losslessly. Partial or structurally damaged documents refuse saving; normalized serialization is not a repair operation.
 

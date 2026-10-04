@@ -14,12 +14,10 @@
 #include <QDebug>
 #include <tsre/shape/ComplexShape.h>
 #include <tsre/shape/GltfShape.h>
-#include <tsre/shape/SFile.h>
 #include <tsre/shape/SFileComplex.h>
 #include <tsre/shape/SFileLegacy.h>
 
 //int ShapeLib::jestshape;
-//std::unordered_map<int, SFile*> ShapeLib::shape;
 
 ShapeLib::ShapeLib(MstsBackend backend) {
     if (backend == MstsBackend::ConfiguredDefault) {
@@ -31,7 +29,6 @@ ShapeLib::ShapeLib(MstsBackend backend) {
     case MstsBackend::Legacy: mstsBackend = "legacy"; break;
     case MstsBackend::Complex: mstsBackend = "complex"; break;
     case MstsBackend::ComplexCompact: mstsBackend = "complex-compact"; break;
-    case MstsBackend::Old: mstsBackend = "old"; break;
     case MstsBackend::ConfiguredDefault: break;
     }
 }
@@ -94,8 +91,6 @@ int ShapeLib::addShape(QString path, QString texPath) {
     if(asset == nullptr) {
         if(mstsBackend == "complex" || mstsBackend == "complex-compact")
             asset = new SFileComplex(pathid, path.split("/").last(), texPath);
-        else if(mstsBackend == "old")
-            asset = new SFile(pathid, path.split("/").last(), texPath);
         else
             asset = new SFileLegacy(pathid, path.split("/").last(), texPath);
     }

@@ -9,7 +9,7 @@
  */
 
 #include <tsre/world/objects/PickupObj.h>
-#include <tsre/shape/SFile.h>
+#include <tsre/shape/ComplexShape.h>
 #include <tsre/shape/ShapeLib.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <math.h>

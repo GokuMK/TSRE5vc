@@ -77,7 +77,7 @@ Most loaders are `QThread`-based (`AceLib`, `DdsLib`, `ImageLib`) and write into
 
 ### 3.2 OpenGL Upload Happens Later
 OpenGL upload is not performed in the loader threads.
-Instead, render code checks `Texture::loaded` and calls `Texture::GLTextures()` on demand (e.g. `SFile::pushRenderItem`, `OglObj::pushRenderItem`, terrain gather) to upload to GPU on the GL context thread.
+Instead, render code checks `Texture::loaded` and calls `Texture::GLTextures()` on demand (e.g. `SFileLegacy::pushRenderItem`, `OglObj::pushRenderItem`, terrain gather) to upload to GPU on the GL context thread.
 
 ---
 

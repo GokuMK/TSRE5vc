@@ -12,8 +12,7 @@ public:
         ConfiguredDefault,
         Legacy,
         Complex,
-        ComplexCompact,
-        Old
+        ComplexCompact
     };
 
     int jestshape = 0;
