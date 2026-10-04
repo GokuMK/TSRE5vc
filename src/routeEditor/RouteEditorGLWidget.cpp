@@ -710,20 +710,43 @@ void RouteEditorGLWidget::drawEditorFpsHud(){
     restoreDefaultGlState();
 }
 
+namespace {
+// Half-widths and half depth ranges in metres of the near, middle and far
+// shadow maps.
+constexpr float ShadowHalfExtent[3] = {100.0f, 300.0f, 700.0f};
+constexpr float ShadowHalfDepth[3] = {200.0f, 600.0f, 700.0f};
+// The shadow resolution and bias settings were tuned for one 150 m map
+// with a 200 m half depth range.
+constexpr float TunedShadowHalfExtent = 150.0f;
+constexpr float TunedShadowHalfDepth = 200.0f;
+// Direction towards the shadow-casting sun.
+constexpr float ShadowLightDirection[3] = {-1.0f, 1.5f, 1.0f};
+}
+
 // Light-space matrices of the near, mid and far shadow maps, centred on the
-// camera. The near map has the mid map's size and depth range over a third
-// of its width, so shadows close to the camera get three times the detail.
+// camera. The near and mid maps share the primary map size; the near map
+// covers a third of the mid map's width, so shadows close to the camera get
+// three times the detail.
 void RouteEditorGLWidget::computeShadowMatrices() {
     float* lookAt = Mat4::create();
     float* out1 = Vec3::create();
     Vec3::set(out1, 0, 1, 0);
     float *ld = Vec3::create();
-    Vec3::set(ld, -1.0, 1.5, 1.0);
+    Vec3::set(ld, ShadowLightDirection[0], ShadowLightDirection[1], ShadowLightDirection[2]);
     float *aaa = camera->getPos();
     Vec3::add(ld, ld, aaa);
-    Mat4::ortho(gluu->pShadowMatrix0, -50, 50, -50, 50, -200, 200);
-    Mat4::ortho(gluu->pShadowMatrix, -150, 150, -150, 150, -200, 200);
-    Mat4::ortho(gluu->pShadowMatrix2, -700, 700, -700, 700, -700, 700);
+    float *matrices[3] = {gluu->pShadowMatrix0, gluu->pShadowMatrix, gluu->pShadowMatrix2};
+    for (int map = 0; map < 3; map++)
+        Mat4::ortho(matrices[map], -ShadowHalfExtent[map], ShadowHalfExtent[map],
+                    -ShadowHalfExtent[map], ShadowHalfExtent[map],
+                    -ShadowHalfDepth[map], ShadowHalfDepth[map]);
+    // Keep the tuned tap spread and bias in world space: texels grow with the
+    // map width, depth units with the depth range.
+    for (int map = 0; map < 2; map++) {
+        const float texelScale = ShadowHalfExtent[map] / TunedShadowHalfExtent;
+        gluu->shadowMapScale[map] = texelScale;
+        gluu->shadowMapScale[2 + map] = texelScale * TunedShadowHalfDepth / ShadowHalfDepth[map];
+    }
     Mat4::lookAt(lookAt, ld, aaa, out1);
     Mat4::multiply(gluu->pShadowMatrix0, gluu->pShadowMatrix0, lookAt);
     Mat4::multiply(gluu->pShadowMatrix, gluu->pShadowMatrix, lookAt);
@@ -733,8 +756,8 @@ void RouteEditorGLWidget::computeShadowMatrices() {
     delete[] ld;
 }
 
-// Draws both shadow maps from the gathered queue, with casters up to 600 m
-// and 1000 m away.
+// Draws the near, middle and far shadow maps from the gathered queue, with
+// casters up to 250 m, 600 m and 1000 m away.
 void RouteEditorGLWidget::renderShadowMaps() {
     computeShadowMatrices();
     gluu->currentShader = gluu->shaders["Shadows"];

@@ -37,7 +37,7 @@ is out of date. Current state:
   between object states with the same distance level and enabled
   sub-objects, so repeated objects submit one packet set; together this
   removes a further 19-82% of scene draws on EUROPE1 and BNSF_SCENIC.
-- Stage 4 step 7: three shadow maps (+-50, +-150 and +-700 m), each culled
+- Stage 4 step 7: three shadow maps (+-100, +-300 and +-700 m), each culled
   to its light frustum, sampled one map per fragment (task 10).
 - OpenGL 3.3 is the minimum on every platform. All platforms load the
   GLSL 3.30 shaders from `appdata/0.7/shaders330`; the GLSL 1.40 `shaders`

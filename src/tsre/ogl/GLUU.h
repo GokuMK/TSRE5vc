@@ -45,6 +45,10 @@ public:
     float shadow1Bias = Game::shadow1Bias;
     float shadow2Res = Game::shadow2Res;
     float shadow2Bias = Game::shadow2Bias;
+    // Tap spread (x near, y middle) and depth-bias (z near, w middle) scales
+    // of the near and middle shadow maps, relative to the 150 m map the
+    // shadow resolution and bias settings were tuned for.
+    float shadowMapScale[4] = {1.0f, 1.0f, 1.0f, 1.0f};
     //float fogColor[4]{0.5, 0.75, 1.0, 1.0};
     float fogColor[4] = {Game::fogColor[0], Game::fogColor[1], Game::fogColor[2], Game::fogColor[3]};
     float skyColor[4] = {Game::skyColor[0], Game::skyColor[1], Game::skyColor[2], Game::skyColor[3]};
