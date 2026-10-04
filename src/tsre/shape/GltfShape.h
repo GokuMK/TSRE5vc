@@ -69,6 +69,8 @@ private:
         bool hasTexture = false;
         float color[4] = {1.0f, 1.0f, 1.0f, 1.0f};
         float alphaAttr = 1.0f;
+        // RenderItem::Surface from the glTF alpha mode.
+        unsigned char surface = 0;
         bool doubleSided = false;
         QString debugName;
     };

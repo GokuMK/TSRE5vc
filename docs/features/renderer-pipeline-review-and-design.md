@@ -16,6 +16,12 @@ is out of date. Current state:
 - Stage 4 step 1: producers receive a `RenderQueue &` in every
   `pushRenderItems()`; the global `Game::currentRenderer` is gone. Weakness 2
   below is resolved.
+- Stage 4 step 2: `RenderItem` is grouped into a mesh (buffers, layout,
+  backend-neutral primitive and index types, range), a material (surface,
+  lighting, texture handle, colour, detail texture, decal, line width,
+  wireframe), a terrain block and model bounds, plus the draw parameters.
+  GL constants no longer appear in packets; the mesh still holds the
+  producer's GL buffer objects.
 
 - The gather frame draws everything through the renderer: sky, distant
   terrain and water, high-res terrain, world objects, overlays, water, pointer,

@@ -1040,26 +1040,26 @@ void SFileLegacy::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsign
                 }
 
                 if( vtxstate[vtx_state].arg2 < -7 )
-                    r->normalsEnabled = 0;
+                    r->material.lit = 0;
                 else
-                    r->normalsEnabled = 1;
+                    r->material.lit = 1;
 
                 if( vtxstate[vtx_state].arg2 == -12 )
-                    r->brightness = 0.5;
+                    r->material.brightness = 0.5;
                 else
-                    r->brightness = 1.0;
+                    r->material.brightness = 1.0;
 
                 r->setSelectionId(selectionId);
-                r->surface = gatherSurface(prim_state);
+                r->material.surface = gatherSurface(prim_state);
                 if (selectionId == 0)
                     setGatherTexture(r, prim_state, texEnabled);
 
-                r->VBO = &distancelevel[currentDlevel].subobiekty[i].VBO;
-                r->VAO = &distancelevel[currentDlevel].subobiekty[i].VAO;
-                r->vertOffset = distancelevel[currentDlevel].subobiekty[i].czesci[j].offset;
-                r->vertCount = distancelevel[currentDlevel].subobiekty[i].czesci[j].iloscv;
-                r->itemType = GL_TRIANGLES;
-                r->vertexAttr = RenderItem::VNTA;
+                r->mesh.vbo = &distancelevel[currentDlevel].subobiekty[i].VBO;
+                r->mesh.vao = &distancelevel[currentDlevel].subobiekty[i].VAO;
+                r->mesh.first = distancelevel[currentDlevel].subobiekty[i].czesci[j].offset;
+                r->mesh.count = distancelevel[currentDlevel].subobiekty[i].czesci[j].iloscv;
+                r->mesh.primitive = RenderItem::PRIMITIVE_TRIANGLES;
+                r->mesh.layout = RenderItem::VNTA;
                 if(reusePool){
                     r->shared = true;
                     queue.submit(r, 0, RenderQueue::SUBMIT_ORDERED);
@@ -1109,25 +1109,25 @@ void SFileLegacy::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsign
                 }
 
                 if( vtxstate[vtx_state].arg2 < -7 )
-                    r->normalsEnabled = 0;
+                    r->material.lit = 0;
                 else
-                    r->normalsEnabled = 1;
+                    r->material.lit = 1;
 
                 if( vtxstate[vtx_state].arg2 == -12 )
-                    r->brightness = 0.5;
+                    r->material.brightness = 0.5;
                 else
-                    r->brightness = 1.0;
+                    r->material.brightness = 1.0;
 
-                r->surface = gatherSurface(prim_state);
+                r->material.surface = gatherSurface(prim_state);
                 setGatherTexture(r, prim_state, texEnabled);
 
-                r->VBO = &distancelevel[currentDlevel].subobiekty[i].VBO;
-                r->VAO = &distancelevel[currentDlevel].subobiekty[i].VAO;
+                r->mesh.vbo = &distancelevel[currentDlevel].subobiekty[i].VBO;
+                r->mesh.vao = &distancelevel[currentDlevel].subobiekty[i].VAO;
                 //r->mvMatrix = Mat4::clone(queue.transform());
-                r->vertOffset = distancelevel[currentDlevel].subobiekty[i].czesci[j].offset;
-                r->vertCount = distancelevel[currentDlevel].subobiekty[i].czesci[j].iloscv;
-                r->itemType = GL_TRIANGLES;
-                r->vertexAttr = RenderItem::VNTA;
+                r->mesh.first = distancelevel[currentDlevel].subobiekty[i].czesci[j].offset;
+                r->mesh.count = distancelevel[currentDlevel].subobiekty[i].czesci[j].iloscv;
+                r->mesh.primitive = RenderItem::PRIMITIVE_TRIANGLES;
+                r->mesh.layout = RenderItem::VNTA;
                 r->shared = true;
                 renderItems[stateId].push_back(r);
             }

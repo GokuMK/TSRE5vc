@@ -873,15 +873,16 @@ void GltfShape::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned
 
             RenderItem* r = new RenderItem();
             r->msMatrix = nodeWorldMatrices[unit.nodeIndex];
-            r->VBO = &prim->VBO;
-            r->VAO = &prim->VAO;
-            r->vertOffset = 0;
-            r->vertCount = prim->vertCount;
-            r->itemType = GL_TRIANGLES;
-            r->vertexAttr = RenderItem::VNTA;
+            r->mesh.vbo = &prim->VBO;
+            r->mesh.vao = &prim->VAO;
+            r->mesh.first = 0;
+            r->mesh.count = prim->vertCount;
+            r->mesh.primitive = RenderItem::PRIMITIVE_TRIANGLES;
+            r->mesh.layout = RenderItem::VNTA;
             r->shared = true;
-            r->normalsEnabled = 1;
-            r->brightness = 1.0f;
+            r->material.lit = 1;
+            r->material.brightness = 1.0f;
+            r->material.surface = prim->material.surface;
 
             r->setSelectionId(0);
             if (!prim->material.hasTexture || prim->material.texId < 0) {
@@ -1389,15 +1390,19 @@ bool GltfShape::parseAndBuild() {
                 const QString alphaMode = srcMat.alphaMode.toUpper();
                 if (alphaMode == "OPAQUE") {
                     mat.alphaAttr = 1.0f;
+                    mat.surface = RenderItem::SURFACE_OPAQUE;
                 } else if (alphaMode == "MASK") {
                     float cutoff = srcMat.alphaCutoff;
                     if (cutoff < 0.0f) cutoff = 0.0f;
                     if (cutoff > 1.0f) cutoff = 1.0f;
                     mat.alphaAttr = -cutoff;
+                    mat.surface = RenderItem::SURFACE_ALPHA_TEST;
                 } else if (alphaMode == "BLEND") {
                     mat.alphaAttr = -defaultAlphaTest;
+                    mat.surface = RenderItem::SURFACE_BLENDED;
                 } else {
                     mat.alphaAttr = 1.0f;
+                    mat.surface = RenderItem::SURFACE_OPAQUE;
                 }
 
                 if (srcMat.baseColorTexture >= 0) {

@@ -65,8 +65,9 @@ counters are implemented. All passes still use the main shader
   camera position (`setViewPosition`), measured at the packet origin.
 - `SFileLegacy` sets the surface from the material, matching the per-vertex
   alpha mode it already writes: `texdiff` is opaque, alpha-test mode 1 is
-  alpha test, other materials blend. glTF, `SFileComplex` and `SFile` packets
-  are opaque until they classify their materials.
+  alpha test, other materials blend. `SFileComplex` uses the same classes
+  and glTF maps its alpha mode (OPAQUE, MASK, BLEND); `SFile` packets are
+  opaque until it classifies its materials.
 - `renderPasses(first, last)` replaces the mid-frame `renderFrame()` flushes.
   The gather frame draws `PASS_TERRAIN` before the terrain-attached pointer,
   the scene passes before the directly drawn water (legacy order; water was
@@ -78,4 +79,4 @@ counters are implemented. All passes still use the main shader
 - `RenderStats` counts draws per pass (`passDraws`).
 
 Remaining for this task: dedicated shader variants per pass (terrain,
-lines/helpers), and surface classification for glTF and `SFileComplex`.
+lines/helpers).

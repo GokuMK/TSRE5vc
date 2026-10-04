@@ -194,15 +194,19 @@ void SFileComplex::pushRenderItem(RenderQueue &queue, quint32 selection, unsigne
             auto &mat = d->materials[p.material];
             item->shared = true;
             item->setVertexAttributes(RenderItem::VNTA);
-            item->VBO = &m.gpu->vbo;
-            item->VAO = &m.gpu->vao;
+            item->mesh.vbo = &m.gpu->vbo;
+            item->mesh.vao = &m.gpu->vao;
             item->msMatrix = s.matrices[mat.matrix].data();
-            item->vertOffset = p.offset;
-            item->vertCount = p.count;
-            item->itemType = p.mode == GL_POINTS ? RenderItem::Points : p.mode;
-            item->polygonMode = 0;
-            item->normalsEnabled = mat.light >= -7;
-            item->brightness = mat.light == -12 ? 0.5f : 1.0f;
+            item->mesh.first = p.offset;
+            item->mesh.count = p.count;
+            item->mesh.primitive = RenderItem::primitiveFromGl(p.mode);
+            item->material.wireframe = false;
+            item->material.lit = mat.light >= -7;
+            item->material.brightness = mat.light == -12 ? 0.5f : 1.0f;
+            // Same classes as the alpha written into the vertices.
+            item->material.surface = mat.alpha == 1 ? RenderItem::SURFACE_OPAQUE
+                    : mat.alphaTest ? RenderItem::SURFACE_ALPHA_TEST
+                                    : RenderItem::SURFACE_BLENDED;
             int addr = mat.image >= 0 ? d->images[mat.image].address : -1;
             if (addr >= 0 && !s.disabledParts.contains(p.uid) &&
                 TexLib::disabledTextures.value(addr) != 1)

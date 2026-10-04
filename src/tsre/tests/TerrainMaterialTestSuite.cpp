@@ -1957,11 +1957,11 @@ int TsreTests::runTerrainMaterialGlSuite() {
         RenderItem packet;
         if (ok) {
             terrain.configureProceduralGpuPacket(packet,0,1);
-            ok &= packet.terrainMaterialMapAddr!=0 && f->glIsTexture(packet.terrainMaterialMapAddr)
-                    && packet.terrainMaterialMapSide==TerrainMaterialMap::Side
-                    && packet.terrainMaterialId==1
-                    && packet.terrainMaterialNoiseScale==TerrainMaterialMap::DirectNoiseSide
-                    && packet.texAddr!=0;
+            ok &= packet.terrain.materialMap!=0 && f->glIsTexture(packet.terrain.materialMap)
+                    && packet.terrain.materialMapSide==TerrainMaterialMap::Side
+                    && packet.terrain.materialId==1
+                    && packet.terrain.materialNoiseScale==TerrainMaterialMap::DirectNoiseSide
+                    && packet.material.textureObject!=0;
         }
         Texture source(library->textureDirectory()+"/"+library->find(blueUid)->texture);
         Brush brush; brush.tex=&source; brush.useTexture=true;
@@ -2077,10 +2077,10 @@ int TsreTests::runTerrainMaterialGlSuite() {
         if (filter!=GL_LINEAR_MIPMAP_LINEAR || wrap!=GL_REPEAT) ++failed;
         f->glActiveTexture(GL_TEXTURE0);
         RenderItem item;
-        if (item.secondTexScale!=0.0f) ++failed;
-        item.secondTexAddr=detail->tex[0]; item.secondTexScale=Terrain::ProceduralDetailScale;
+        if (item.material.detailScale!=0.0f) ++failed;
+        item.material.detailTextureObject=detail->tex[0]; item.material.detailScale=Terrain::ProceduralDetailScale;
         RenderItem copied(item);
-        if (copied.secondTexAddr!=detail->tex[0] || copied.secondTexScale!=32.0f) ++failed;
+        if (copied.material.detailTextureObject!=detail->tex[0] || copied.material.detailScale!=32.0f) ++failed;
         const int detailRefs=detail->ref;
         a.proceduralDetailTexture();
         if (detail->ref!=detailRefs) ++failed;

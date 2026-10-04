@@ -2216,7 +2216,7 @@ RenderItem *Terrain::framePacket(QVector<RenderItem*> &pool, int patchId){
     if (pool[patchId] == NULL)
         pool[patchId] = new RenderItem();
     *pool[patchId] = blank;
-    pool[patchId]->surface = RenderItem::SURFACE_TERRAIN;
+    pool[patchId]->material.surface = RenderItem::SURFACE_TERRAIN;
     return pool[patchId];
 }
 
@@ -2302,7 +2302,7 @@ void Terrain::pushRenderItem(RenderQueue &queue, float lodx, float lodz, int til
                     for (int material : std::as_const(gpuMaterials)) {
                         r=framePacket(proceduralSurfacePackets,proceduralPacketIndex++);
                         configureProceduralGpuPacket(*r,patchId,material);
-                        r->itemType=GL_TRIANGLES;
+                        r->mesh.primitive = RenderItem::PRIMITIVE_TRIANGLES;
                         backend->configureRenderItem(*r,patchId,false,true,
                                                      lodState.sourceStep,lodState.edgeMask);
                         r->msMatrix=nullptr;
@@ -2318,7 +2318,7 @@ void Terrain::pushRenderItem(RenderQueue &queue, float lodx, float lodz, int til
                 } else {
                     const int proceduralId = proceduralTexture(patchId, true);
                     const int shaderId = validTerrainShader(tfile,patchId);
-                    r->terrainTextureRemap=proceduralTextureRemap(patchId,proceduralId);
+                    r->terrain.textureRemap=proceduralTextureRemap(patchId,proceduralId);
                     const bool bakedFallback=proceduralId<0 && rendersProceduralMaterial()
                             && shaderId==0 && !tfile->bakedMaterialInfo.isEmpty();
                     const int outputId=bakedFallback?proceduralFallbackTexture():proceduralId;
@@ -2326,8 +2326,8 @@ void Terrain::pushRenderItem(RenderQueue &queue, float lodx, float lodz, int til
                         r->enableTextures(TexLib::mtex.at(outputId)->tex[0]);
                         const int detailId = proceduralDetailTexture();
                         if (detailId >= 0) {
-                            r->secondTexAddr = TexLib::mtex.at(detailId)->tex[0];
-                            r->secondTexScale = ProceduralDetailScale*(bakedFallback?patches:1);
+                            r->material.detailTextureObject = TexLib::mtex.at(detailId)->tex[0];
+                            r->material.detailScale = ProceduralDetailScale*(bakedFallback?patches:1);
                         }
                     } else if (bakedFallback || texid[yy * patches + uu] == -2) {
                     } else {
@@ -2357,8 +2357,8 @@ void Terrain::pushRenderItem(RenderQueue &queue, float lodx, float lodz, int til
                         const auto detail=TexLib::mtex.find(texid2[patchId]);
                         if (detail!=TexLib::mtex.end() && detail->second && detail->second->loaded) {
                             if (!detail->second->glLoaded) detail->second->GLTextures(true);
-                            r->secondTexAddr=detail->second->tex[0];
-                            r->secondTexScale=ProceduralDetailScale*patches;
+                            r->material.detailTextureObject=detail->second->tex[0];
+                            r->material.detailScale=ProceduralDetailScale*patches;
                         }
                     }
                     /*if (texid2[yy * patches + uu] == -2) {
@@ -2383,7 +2383,7 @@ void Terrain::pushRenderItem(RenderQueue &queue, float lodx, float lodz, int til
                         }
                     }*/
                 }
-                r->itemType = GL_TRIANGLES;
+                r->mesh.primitive = RenderItem::PRIMITIVE_TRIANGLES;
                 const TerrainPatchLodState lodState = patchId < patchLod.size()
                         ? patchLod[patchId] : TerrainPatchLodState{};
                 backend->configureRenderItem(*r, patchId,
@@ -2420,7 +2420,7 @@ void Terrain::pushRenderItem(RenderQueue &queue, float lodx, float lodz, int til
                     if (lod > 300) continue;
                 r = framePacket(gridPackets, patchId);
                 r->disableTextures(0.7,0.7,0.7,1.0);
-                r->itemType = GL_TRIANGLES;
+                r->mesh.primitive = RenderItem::PRIMITIVE_TRIANGLES;
                 const TerrainPatchLodState lodState = patchId < patchLod.size()
                         ? patchLod[patchId] : TerrainPatchLodState{};
                 backend->configureRenderItem(*r, patchId,
@@ -2428,7 +2428,7 @@ void Terrain::pushRenderItem(RenderQueue &queue, float lodx, float lodz, int til
                                              lodState.sourceStep,
                                              lodState.edgeMask);
                 r->setVertexAttributes(r->VNT);
-                r->polygonMode = 1;
+                r->material.wireframe = true;
                 r->msMatrix = nullptr;
                 queue.submit(r, 0, RenderQueue::SUBMIT_ORDERED);
             }
@@ -2451,7 +2451,7 @@ void Terrain::pushRenderItem(RenderQueue &queue, float lodx, float lodz, int til
                         continue;
                     r = framePacket(mapPackets, patchId);
                     r->enableTextures(static_cast<unsigned int>(mapTexture));
-                    r->itemType = GL_TRIANGLES;
+                    r->mesh.primitive = RenderItem::PRIMITIVE_TRIANGLES;
                     r->msMatrix = nullptr;
                     r->setVertexAttributes(r->VNTA);
                     const TerrainPatchLodState lodState = patchId < patchLod.size()

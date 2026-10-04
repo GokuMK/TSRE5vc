@@ -1315,16 +1315,16 @@ void Terrain::configureProceduralGpuPacket(RenderItem &item,int patch,int materi
     const int detailId=procedural->gpuDetailTextures.value(material,-1);
     if (detailId>=0) uploadOrdinaryTexture(detailId,1,detail);
     item.enableTextures(base);
-    item.secondTexAddr=detail;
-    item.secondTexScale=detail ? procedural->gpuDetailScales.value(
+    item.material.detailTextureObject=detail;
+    item.material.detailScale=detail ? procedural->gpuDetailScales.value(
             material,TerrainMaterialDefinition::DefaultDetailScale) : 0.0f;
-    item.terrainMaterialMapAddr=procedural->gpuMapTexture;
-    item.terrainMaterialId=material;
+    item.terrain.materialMap=procedural->gpuMapTexture;
+    item.terrain.materialId=material;
     const float count=gridLayout.patchesPerSide;
-    item.terrainMaterialMapRemap=QVector3D(1.0f/count,(patch%gridLayout.patchesPerSide)/count,
+    item.terrain.materialMapRemap=QVector3D(1.0f/count,(patch%gridLayout.patchesPerSide)/count,
                                           (patch/gridLayout.patchesPerSide)/count);
-    item.terrainMaterialMapSide=procedural->gpuMapSide;
-    item.terrainMaterialNoiseScale=TerrainMaterialMap::DirectNoiseSide;
+    item.terrain.materialMapSide=procedural->gpuMapSide;
+    item.terrain.materialNoiseScale=TerrainMaterialMap::DirectNoiseSide;
 }
 int Terrain::proceduralTexture(int patch, bool background) {
     if (!TerrainMaterialMap::Enabled) return -1;

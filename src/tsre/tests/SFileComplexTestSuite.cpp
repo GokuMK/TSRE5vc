@@ -173,12 +173,12 @@ struct MatrixProbe : RenderQueue {
             std::copy_n(item->msMatrix, 16, matrix.begin());
         transforms.push_back(matrix);
         if (captureGeometry) {
-            std::vector<float> vertices(item->vertCount * 9);
-            if (item->VBO && item->VBO->bind()) {
-                if (!item->VBO->read(item->vertOffset * 9 * sizeof(float), vertices.data(),
+            std::vector<float> vertices(item->mesh.count * 9);
+            if (item->mesh.vbo && item->mesh.vbo->bind()) {
+                if (!item->mesh.vbo->read(item->mesh.first * 9 * sizeof(float), vertices.data(),
                                      vertices.size() * sizeof(float)))
                     vertices.clear();
-                item->VBO->release();
+                item->mesh.vbo->release();
             } else
                 vertices.clear();
             buffers.push_back(std::move(vertices));
