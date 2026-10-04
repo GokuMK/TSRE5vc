@@ -17,6 +17,7 @@
 
 class QOpenGLFunctions;
 class GLUU;
+class Shader;
 
 class OpenGL3Renderer : public Renderer {
 public:
@@ -77,8 +78,10 @@ private:
                        SubmitOrder order, bool owned);
     void sortByTexture(std::vector<DrawInstance> &instances);
     void sortBackToFront(std::vector<DrawInstance> &instances);
-    void drawOrdered(GLUU *gluu, const std::vector<DrawInstance> &instances, int pass);
-    void drawGrouped(GLUU *gluu, const std::vector<DrawInstance> &instances, int pass);
+    void drawOrdered(GLUU *gluu, Shader *base, const std::vector<DrawInstance> &instances,
+                     int pass);
+    void drawGrouped(GLUU *gluu, Shader *base, const std::vector<DrawInstance> &instances,
+                     int pass);
     void consumePass(PassQueue &queue);
     void clearQueues();
 

@@ -78,5 +78,19 @@ counters are implemented. All passes still use the main shader
   shape caches.
 - `RenderStats` counts draws per pass (`passDraws`).
 
-Remaining for this task: dedicated shader variants per pass (terrain,
-lines/helpers).
+## Terrain shader variants (implemented)
+
+- Shader sources support `#include "file"` (resolved from the same
+  directory) and defines inserted after `#version`
+  (`GLUU::shaderSource()`).
+- Terrain-only code (paged terrain vertices, tile bake remap, terrain gaps
+  and the procedural material block in `TerrainMaterial.glsl`) is behind
+  `TSRE_TERRAIN`. Each standard program has a `<name>Terrain` variant built
+  with it; the plain programs draw objects without terrain code. Selection
+  is built with it, since it draws terrain and objects with one program.
+- The renderer draws terrain packets (`SURFACE_TERRAIN`, paged, remapped or
+  procedural) with the terrain variant of the bound program
+  (`GLUU::terrainVariant()`), reapplies the frame uniforms on each switch,
+  and restores the bound program after the passes.
+
+Remaining for this task: an unlit lines/helpers variant for overlays.

@@ -13,6 +13,7 @@ uniform mat4 uFMatrix;
 uniform mat4 uMVMatrix;
 uniform mat4 uMSMatrix;
 uniform float fogDensity;
+#ifdef TSRE_TERRAIN
 uniform int terrainPaged;
 // Zero is identity. A procedural patch can sample its tile bake without a mesh rebuild.
 uniform vec3 terrainTextureRemap;
@@ -30,6 +31,7 @@ struct TerrainPatchParams {
 layout(std140) uniform TerrainPatchBlock {
     TerrainPatchParams terrainPatch[256];
 };
+#endif
 
 out vec2 vTextureCoord;
 out float fogFactor;
@@ -43,6 +45,7 @@ out vec2 vTerrainMapCoord;
 void main() {
     vec4 renderVertex = vertex;
     vec2 renderUv = aTextureCoord;
+#ifdef TSRE_TERRAIN
     if (terrainPaged != 0) {
         int patchSlot = gl_VertexID / terrainVerticesPerPatch;
         int localVertexId = gl_VertexID - patchSlot * terrainVerticesPerPatch;
@@ -61,12 +64,18 @@ void main() {
                         + terrainLocalSample.y * params.uvAndOriginZ.y
                         + params.uvAndOriginZ.z);
     }
+#endif
     shadowPos = uShadowPMatrix * uMVMatrix * uMSMatrix * renderVertex;
     shadow2Pos = uShadow2PMatrix * uMVMatrix * uMSMatrix * renderVertex;
     gl_Position = uPMatrix * uMVMatrix * uMSMatrix * renderVertex;
     vec4 fogPosition = uFMatrix * uMVMatrix * uMSMatrix * renderVertex;
+#ifdef TSRE_TERRAIN
     vTextureCoord = renderUv * (1.0 + terrainTextureRemap.x) + terrainTextureRemap.yz;
     vTerrainMapCoord = renderUv * terrainMaterialMapRemap.x + terrainMaterialMapRemap.yz;
+#else
+    vTextureCoord = renderUv;
+    vTerrainMapCoord = vec2(0.0);
+#endif
 
     fogFactor = sqrt((fogPosition.x)*(fogPosition.x) + (fogPosition.z)*(fogPosition.z))/(lod*1.4);
     fogFactor = clamp(fogFactor, 0.0, fogDensity);
@@ -75,8 +84,13 @@ void main() {
 
 
     vNormal = normal.xyz;
+#ifdef TSRE_TERRAIN
     vAlpha = terrainPaged != 0
             ? (terrainMapPass != 0 ? -0.01 : 0.0) : alpha;
     vTerrainGap = terrainPaged != 0 && terrainApplyGaps != 0 ? normal.w : 0.0;
+#else
+    vAlpha = alpha;
+    vTerrainGap = 0.0;
+#endif
 
 }

@@ -20,6 +20,7 @@
 #include <tsre/Undo.h>
 #include <tsre/UndoBuffer.h>
 #include <tsre/renderer/RenderItem.h>
+#include <tsre/ogl/GLUU.h>
 #include <QTemporaryDir>
 #include <QDir>
 #include <QFile>
@@ -1980,15 +1981,21 @@ int TsreTests::runTerrainMaterialGlSuite() {
                 << ok << error << "GL error" << directError;
     }
     for (const QString &directory : {QStringLiteral("shaders"),QStringLiteral("shaders330")}) {
+        const QString path="appdata/"+Game::AppDataVersion+"/"+directory;
         for (const QString &shaderName : {QStringLiteral("StandardFog"),QStringLiteral("StandardFogStoredCoords"),
                                           QStringLiteral("StandardBloom"),QStringLiteral("StandardFast")}) {
-            const QString base="appdata/"+Game::AppDataVersion+"/"+directory+"/"+shaderName;
-            const QString vertexBase=shaderName=="StandardFast"
-                    ? "appdata/"+Game::AppDataVersion+"/"+directory+"/StandardFog" : base;
-            QOpenGLShaderProgram program;
-            if (!program.addShaderFromSourceFile(QOpenGLShader::Vertex,vertexBase+".vs")
-                    || !program.addShaderFromSourceFile(QOpenGLShader::Fragment,base+".fs") || !program.link()) {
-                qWarning() << "Terrain shader compile/link failed" << base << program.log(); ++failed;
+            const QString vertexName=shaderName=="StandardFast" ? QStringLiteral("StandardFog") : shaderName;
+            // Both the object program and its terrain variant must build.
+            for (const QStringList &defines : {QStringList(),QStringList{"TSRE_TERRAIN"}}) {
+                QOpenGLShaderProgram program;
+                if (!program.addShaderFromSourceCode(QOpenGLShader::Vertex,
+                            GLUU::shaderSource(path,vertexName,"vs",defines))
+                        || !program.addShaderFromSourceCode(QOpenGLShader::Fragment,
+                            GLUU::shaderSource(path,shaderName,"fs",defines))
+                        || !program.link()) {
+                    qWarning() << "Terrain shader compile/link failed" << path << shaderName << defines
+                               << program.log(); ++failed;
+                }
             }
         }
     }
@@ -1996,7 +2003,8 @@ int TsreTests::runTerrainMaterialGlSuite() {
         // Render actual vertex-shader UV remapping. The same post-transform is
         // used for precomputed attributes and paged UBO-derived coordinates.
         QOpenGLShaderProgram program;
-        bool ok=program.addShaderFromSourceFile(QOpenGLShader::Vertex,"appdata/"+Game::AppDataVersion+"/shaders330/StandardFog.vs")
+        bool ok=program.addShaderFromSourceCode(QOpenGLShader::Vertex,
+                    GLUU::shaderSource("appdata/"+Game::AppDataVersion+"/shaders330","StandardFog","vs",{"TSRE_TERRAIN"}))
                 && program.addShaderFromSourceCode(QOpenGLShader::Fragment,
                     "#version 330 core\nin vec2 vTextureCoord; out vec4 fragColor; void main(){fragColor=vec4(vTextureCoord,0,1);}")
                 && program.link() && program.bind();

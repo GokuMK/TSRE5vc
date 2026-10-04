@@ -16,6 +16,8 @@
 #include <QOpenGLBuffer>
 #include <QMatrix4x4>
 #include <QOpenGLShaderProgram>
+#include <QHash>
+#include <QStringList>
 #include <tsre/math3d/Vector4f.h>
 #include <tsre/math3d/Vector3f.h>
 #include "Shader.h"
@@ -74,10 +76,19 @@ public:
     void bindTexture(QOpenGLFunctions *f, unsigned int texAddr);
     long long int getMatrixHash(float *matrix);
     void makeShadowFramebuffer(unsigned int &frameBuffer, unsigned int &texture, int texSize, GLenum ATEX );
+    // Program that draws terrain packets in place of the given one: its
+    // terrain variant, or the program itself when it has none.
+    Shader *terrainVariant(Shader *shader) const;
+    // Shader source with #include "file" lines expanded from the same
+    // directory and the given names defined after the #version line.
+    static QByteArray shaderSource(const QString &directory, const QString &name,
+                                   const QString &type, const QStringList &defines = {});
+    // Directory the shader sources are loaded from on this platform.
+    static QString shaderDirectory();
     bool textureEnabled;
     bool normalsEnabled;
 private:
-    const char* getShader(QString shaderScript, QString type);
+    QHash<Shader*, Shader*> terrainVariants;
 
     int currentTexture = -1;
     Vector4f shapeColor;

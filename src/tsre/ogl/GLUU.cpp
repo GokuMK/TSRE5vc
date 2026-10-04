@@ -49,17 +49,70 @@ GLUU::~GLUU() {
 
 }
 
-const char* GLUU::getShader(QString shaderScript, QString type) {
+QString GLUU::shaderDirectory() {
 #ifdef __APPLE__
-    QFile* shaderData = new QFile(QString("appdata/")+Game::AppDataVersion+"/shaders330/"+shaderScript+"."+type);
+    return QString("appdata/")+Game::AppDataVersion+"/shaders330";
 #else
-    QFile* shaderData = new QFile(QString("appdata/")+Game::AppDataVersion+"/shaders/"+shaderScript+"."+type);
+    return QString("appdata/")+Game::AppDataVersion+"/shaders";
 #endif
-    if (!shaderData->open(QIODevice::ReadOnly)){
-        qDebug() << "Shader file not found " << shaderData->fileName();
-        return "";
+}
+
+namespace {
+
+QByteArray readShaderFile(const QString &path) {
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        qWarning() << "Shader file not found" << path;
+        return QByteArray();
     }
-    return (const char*) ReadFile::readRAW(shaderData)->data;
+    return file.readAll();
+}
+
+QByteArray expandIncludes(const QString &directory, const QByteArray &source, int depth) {
+    if (depth > 8) {
+        qWarning() << "Shader includes nested too deeply in" << directory;
+        return source;
+    }
+    QByteArray out;
+    for (const QByteArray &line : source.split('\n')) {
+        const QByteArray trimmed = line.trimmed();
+        if (trimmed.startsWith("#include")) {
+            const int open = trimmed.indexOf('"');
+            const int close = trimmed.lastIndexOf('"');
+            if (open >= 0 && close > open) {
+                const QString name = QString::fromUtf8(trimmed.mid(open + 1, close - open - 1));
+                out += expandIncludes(directory, readShaderFile(directory + "/" + name), depth + 1);
+                out += '\n';
+                continue;
+            }
+        }
+        out += line;
+        out += '\n';
+    }
+    return out;
+}
+
+}
+
+QByteArray GLUU::shaderSource(const QString &directory, const QString &name,
+                              const QString &type, const QStringList &defines) {
+    QByteArray source = expandIncludes(directory,
+                                       readShaderFile(directory + "/" + name + "." + type), 0);
+    if (defines.isEmpty())
+        return source;
+    // Defines go right after #version, which must stay the first statement.
+    QByteArray defineLines;
+    for (const QString &define : defines)
+        defineLines += "#define " + define.toUtf8() + " 1\n";
+    const int version = source.indexOf("#version");
+    const int lineEnd = version >= 0 ? source.indexOf('\n', version) : -1;
+    if (lineEnd < 0)
+        return defineLines + source;
+    return source.left(lineEnd + 1) + defineLines + source.mid(lineEnd + 1);
+}
+
+Shader *GLUU::terrainVariant(Shader *shader) const {
+    return terrainVariants.value(shader, shader);
 }
 
 void GLUU::initShader() {
@@ -71,22 +124,34 @@ void GLUU::initShader() {
         QString name;
         QString vertexSource;
         QString fragmentSource;
+        QStringList defines;
     };
+    // Standard programs leave out terrain code; each has a "<name>Terrain"
+    // variant built with TSRE_TERRAIN that draws terrain packets. Selection
+    // draws terrain and objects with one program, so it always has it.
+    const QStringList terrain{"TSRE_TERRAIN"};
     QVector<ShaderDefinition> shaderDefinitions;
-    shaderDefinitions.push_back({"StandardFog", "StandardFog", "StandardFog"});
-    shaderDefinitions.push_back({"StandardFast", "StandardFog", "StandardFast"});
-    shaderDefinitions.push_back({"StandardFogStoredCoords", "StandardFogStoredCoords", "StandardFogStoredCoords"});
-    shaderDefinitions.push_back({"StandardBloom", "StandardBloom", "StandardBloom"});
-    shaderDefinitions.push_back({"Shadows", "Shadows", "Shadows"});
-    shaderDefinitions.push_back({"Selection", "StandardFog", "Selection"});
+    shaderDefinitions.push_back({"StandardFog", "StandardFog", "StandardFog", {}});
+    shaderDefinitions.push_back({"StandardFast", "StandardFog", "StandardFast", {}});
+    shaderDefinitions.push_back({"StandardFogStoredCoords", "StandardFogStoredCoords", "StandardFogStoredCoords", {}});
+    shaderDefinitions.push_back({"StandardBloom", "StandardBloom", "StandardBloom", {}});
+    shaderDefinitions.push_back({"StandardFogTerrain", "StandardFog", "StandardFog", terrain});
+    shaderDefinitions.push_back({"StandardFastTerrain", "StandardFog", "StandardFast", terrain});
+    shaderDefinitions.push_back({"StandardFogStoredCoordsTerrain", "StandardFogStoredCoords", "StandardFogStoredCoords", terrain});
+    shaderDefinitions.push_back({"StandardBloomTerrain", "StandardBloom", "StandardBloom", terrain});
+    shaderDefinitions.push_back({"Shadows", "Shadows", "Shadows", {}});
+    shaderDefinitions.push_back({"Selection", "StandardFog", "Selection", terrain});
 
+    const QString directory = shaderDirectory();
     for(int i = 0; i < shaderDefinitions.size(); i++ ){
         const ShaderDefinition &definition = shaderDefinitions[i];
         shaders[definition.name] = new Shader();
-        if(!shaders[definition.name]->addShaderFromSourceCode(QOpenGLShader::Vertex, getShader(definition.vertexSource, "vs"))){
+        if(!shaders[definition.name]->addShaderFromSourceCode(QOpenGLShader::Vertex,
+                shaderSource(directory, definition.vertexSource, "vs", definition.defines))){
             qDebug() << "Loading shader .vs file failed.";
         }
-        if(!shaders[definition.name]->addShaderFromSourceCode(QOpenGLShader::Fragment, getShader(definition.fragmentSource, "fs"))){
+        if(!shaders[definition.name]->addShaderFromSourceCode(QOpenGLShader::Fragment,
+                shaderSource(directory, definition.fragmentSource, "fs", definition.defines))){
             qDebug() << "Loading shader .fs file failed.";
         }
         currentShader = shaders[definition.name];
@@ -184,6 +249,9 @@ void GLUU::initShader() {
         currentShader->release();
     }
     
+    for (const QString &name : {QString("StandardFog"), QString("StandardFast"),
+                                QString("StandardFogStoredCoords"), QString("StandardBloom")})
+        terrainVariants[shaders[name]] = shaders[name + "Terrain"];
     //currentShader = shaders["StandardFog"];
     currentShader = shaders["StandardBloom"];
 }

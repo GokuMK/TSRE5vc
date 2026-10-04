@@ -246,6 +246,31 @@ void drawItem(QOpenGLFunctions *f, RenderItem *item, quint32 selectionId,
     }
 }
 
+// Terrain packets draw with the terrain variant of the bound program.
+bool usesTerrainProgram(const RenderItem *item){
+    return item->material.surface == RenderItem::SURFACE_TERRAIN || item->terrain.paged
+            || item->terrain.materialMap != 0 || !item->terrain.textureRemap.isNull();
+}
+
+// Draw-time state that belongs to the bound program.
+struct ProgramCaches {
+    TerrainStateCache terrain;
+    ProceduralTerrainStateCache procedural;
+    DetailStateCache detail;
+};
+
+// Binds the program a packet needs. A newly bound program receives the frame
+// uniforms again and starts with empty caches.
+void useProgram(GLUU *gluu, Shader *base, const RenderItem *item, ProgramCaches &caches){
+    Shader *wanted = usesTerrainProgram(item) ? gluu->terrainVariant(base) : base;
+    if(wanted == gluu->currentShader)
+        return;
+    gluu->currentShader = wanted;
+    wanted->bind();
+    gluu->setMatrixUniforms();
+    caches = ProgramCaches();
+}
+
 // Line width and polygon mode set for one packet and restored afterwards.
 class PacketRasterState {
 public:
@@ -448,18 +473,17 @@ void OpenGL3Renderer::sortBackToFront(std::vector<DrawInstance> &instances){
     });
 }
 
-void OpenGL3Renderer::drawOrdered(GLUU *gluu, const std::vector<DrawInstance> &instances,
-                                  int pass){
-    TerrainStateCache terrainState;
-    ProceduralTerrainStateCache proceduralState;
-    DetailStateCache detailState;
+void OpenGL3Renderer::drawOrdered(GLUU *gluu, Shader *base,
+                                  const std::vector<DrawInstance> &instances, int pass){
+    ProgramCaches caches;
     for(const DrawInstance &instance : instances){
         RenderItem *item = instance.packet;
         if(item->mesh.vao == NULL)
             continue;
-        applyItemState(gluu, f, item, instance.selectionId, detailState);
-        applyTerrainState(gluu, item, terrainState);
-        applyProceduralTerrainState(gluu,f,item,proceduralState);
+        useProgram(gluu, base, item, caches);
+        applyItemState(gluu, f, item, instance.selectionId, caches.detail);
+        applyTerrainState(gluu, item, caches.terrain);
+        applyProceduralTerrainState(gluu,f,item,caches.procedural);
         setModelMatrix(gluu, item->msMatrix);
         setMatrixUniform(gluu, gluu->currentShader->mvMatrixUniform, instanceMatrix(instance.matrix));
         PacketRasterState raster(f, item);
@@ -469,11 +493,9 @@ void OpenGL3Renderer::drawOrdered(GLUU *gluu, const std::vector<DrawInstance> &i
     }
 }
 
-void OpenGL3Renderer::drawGrouped(GLUU *gluu, const std::vector<DrawInstance> &instances,
-                                  int pass){
-    TerrainStateCache terrainState;
-    ProceduralTerrainStateCache proceduralState;
-    DetailStateCache detailState;
+void OpenGL3Renderer::drawGrouped(GLUU *gluu, Shader *base,
+                                  const std::vector<DrawInstance> &instances, int pass){
+    ProgramCaches caches;
     quint32 currentSelection = 0;
     quint64 currentTexture = 0;
     bool textureGroupOpen = false;
@@ -496,10 +518,11 @@ void OpenGL3Renderer::drawGrouped(GLUU *gluu, const std::vector<DrawInstance> &i
         if(RenderStats::inFrame())
             RenderStats::current().groupedPackets++;
 
-        applyItemState(gluu, f, item, instances[i].selectionId, detailState);
+        useProgram(gluu, base, item, caches);
+        applyItemState(gluu, f, item, instances[i].selectionId, caches.detail);
         currentSelection = instances[i].selectionId;
-        applyTerrainState(gluu, item, terrainState);
-        applyProceduralTerrainState(gluu,f,item,proceduralState);
+        applyTerrainState(gluu, item, caches.terrain);
+        applyProceduralTerrainState(gluu,f,item,caches.procedural);
         setModelMatrix(gluu, item->msMatrix);
         PacketRasterState raster(f, item);
         QOpenGLVertexArrayObject::Binder vaoBinder(item->mesh.vao);
@@ -546,6 +569,8 @@ void OpenGL3Renderer::renderPasses(RenderPass first, RenderPass last){
     QOpenGLContext *context = QOpenGLContext::currentContext();
     f = context != NULL ? context->functions() : NULL;
     const bool canDraw = gluu != NULL && f != NULL && gluu->currentShader != NULL;
+    // Program the frame bound; terrain packets may switch to its variant.
+    Shader *base = canDraw ? gluu->currentShader : NULL;
 
     bool drew = false;
     for(int pass = first; pass <= last; ++pass){
@@ -558,7 +583,7 @@ void OpenGL3Renderer::renderPasses(RenderPass first, RenderPass last){
                 if(RenderStats::inFrame())
                     RenderStats::current().flushes++;
             }
-            drawOrdered(gluu, queue.ordered, pass);
+            drawOrdered(gluu, base, queue.ordered, pass);
             // Keep defaults predictable for the packet loop.
             gluu->setBrightness(1.0f);
             gluu->enableTextures();
@@ -567,7 +592,7 @@ void OpenGL3Renderer::renderPasses(RenderPass first, RenderPass last){
                 sortBackToFront(queue.grouped);
             else
                 sortByTexture(queue.grouped);
-            drawGrouped(gluu, queue.grouped, pass);
+            drawGrouped(gluu, base, queue.grouped, pass);
             drew = true;
         }
         consumePass(queue);
@@ -575,6 +600,11 @@ void OpenGL3Renderer::renderPasses(RenderPass first, RenderPass last){
     if(!drew)
         return;
 
+    if(gluu->currentShader != base){
+        gluu->currentShader = base;
+        base->bind();
+        gluu->setMatrixUniforms();
+    }
     gluu->currentShader->setUniformValue(gluu->currentShader->shaderSecondTexEnabled, 0.0f);
     gluu->currentShader->setUniformValue(gluu->currentShader->terrainTextureRemap, QVector3D());
     gluu->setBrightness(1.0f);
