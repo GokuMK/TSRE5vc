@@ -5,7 +5,7 @@
 - Request: design review only, no runtime code changes
 - Goal: document current old/new pipelines, renderable types, and propose a realistic modernization path
 
-## Current Status (2026-10-03)
+## Current Status (2026-10-04)
 
 Sections 1-3 describe the pipeline when this review was written; much of it
 is out of date. Current state:
@@ -39,6 +39,9 @@ is out of date. Current state:
   removes a further 19-82% of scene draws on EUROPE1 and BNSF_SCENIC.
 - Stage 4 step 7: three shadow maps (+-50, +-150 and +-700 m), each culled
   to its light frustum, sampled one map per fragment (task 10).
+- OpenGL 3.3 is the minimum on every platform. All platforms load the
+  GLSL 3.30 shaders from `appdata/0.7/shaders330`; the GLSL 1.40 `shaders`
+  set is removed, so shader changes are made once.
 
 - The gather frame draws everything through the renderer: sky, distant
   terrain and water, high-res terrain, world objects, overlays, water, pointer,

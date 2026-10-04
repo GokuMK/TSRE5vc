@@ -51,12 +51,9 @@ GLUU::~GLUU() {
 
 }
 
+// GLSL 3.30 sources; OpenGL 3.3 is the minimum on every platform.
 QString GLUU::shaderDirectory() {
-#ifdef __APPLE__
     return QString("appdata/")+Game::AppDataVersion+"/shaders330";
-#else
-    return QString("appdata/")+Game::AppDataVersion+"/shaders";
-#endif
 }
 
 namespace {

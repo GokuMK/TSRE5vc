@@ -1981,7 +1981,7 @@ int TsreTests::runTerrainMaterialGlSuite() {
         qInfo() << "[tests:terrain-material-gl] direct pmap upload, material packets and dirty patch refresh"
                 << ok << error << "GL error" << directError;
     }
-    for (const QString &directory : {QStringLiteral("shaders"),QStringLiteral("shaders330")}) {
+    for (const QString &directory : {QStringLiteral("shaders330")}) {
         const QString path="appdata/"+Game::AppDataVersion+"/"+directory;
         for (const QString &shaderName : {QStringLiteral("StandardFog"),QStringLiteral("StandardFogStoredCoords"),
                                           QStringLiteral("StandardBloom"),QStringLiteral("StandardFast")}) {
