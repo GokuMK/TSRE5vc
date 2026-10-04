@@ -22,6 +22,8 @@
 #include <QUuid>
 #include <QOpenGLContext>
 #include <QOpenGLFunctions>
+#include <QOpenGLExtraFunctions>
+#include <QImage>
 #include <QPointer>
 #include <QScopedValueRollback>
 #include <QThreadPool>
@@ -382,8 +384,13 @@ struct TerrainProceduralState {
     QPointer<QOpenGLContextGroup> gpuMapGroup;
     int gpuMapSide=0;
     QSet<int> gpuDirtyPatches;
-    QVector<QVector<int>> gpuPatchMaterials;
-    QVector<quint8> gpuPatchMaterialsValid;
+    // Material ids present in the tile map, and the arrays built for them.
+    QVector<int> gpuTileMaterials;
+    QVector<int> gpuArrayMaterials;
+    bool gpuArraysValid=false;
+    unsigned int gpuMaterialArray=0;
+    unsigned int gpuDetailArray=0;
+    unsigned int gpuMaterialParams=0;
     QHash<int,int> gpuBaseTextures;
     QHash<int,int> gpuDetailTextures;
     QHash<int,float> gpuDetailScales;
@@ -405,13 +412,16 @@ struct TerrainProceduralState {
         releaseGpu();
     }
     void releaseGpu() {
-        if (gpuMapTexture && !gpuMapGroup.isNull())
-            pendingDeletes.push_back({gpuMapGroup,gpuMapTexture});
+        if (!gpuMapGroup.isNull())
+            for (unsigned int texture : {gpuMapTexture,gpuMaterialArray,gpuDetailArray,gpuMaterialParams})
+                if (texture) pendingDeletes.push_back({gpuMapGroup,texture});
         gpuMapTexture=0; gpuMapSide=0; gpuMapGroup.clear();
+        gpuMaterialArray=gpuDetailArray=gpuMaterialParams=0;
+        gpuTileMaterials.clear(); gpuArrayMaterials.clear(); gpuArraysValid=false;
         for (int id : gpuBaseTextures) if (id>=0) TexLib::delRef(id);
         for (int id : gpuDetailTextures) if (id>=0) TexLib::delRef(id);
         gpuBaseTextures.clear(); gpuDetailTextures.clear(); gpuDetailScales.clear();
-        gpuPatchMaterials.clear(); gpuPatchMaterialsValid.clear(); gpuDirtyPatches.clear();
+        gpuDirtyPatches.clear();
     }
     void cancelPending(bool includeMiniatures=true) {
         for (const auto &job : pending) job->cancelled.store(true);
@@ -1187,6 +1197,124 @@ bool uploadOrdinaryTexture(int id,int unit,unsigned int &address) {
     address=texture->tex[0];
     return true;
 }
+
+#ifndef GL_TEXTURE_2D_ARRAY
+#define GL_TEXTURE_2D_ARRAY 0x8C1A
+#endif
+#ifndef GL_TEXTURE_BINDING_2D_ARRAY
+#define GL_TEXTURE_BINDING_2D_ARRAY 0x8C1D
+#endif
+#ifndef GL_RGBA32F
+#define GL_RGBA32F 0x8814
+#endif
+#ifndef GL_TEXTURE_WIDTH
+#define GL_TEXTURE_WIDTH 0x1000
+#endif
+#ifndef GL_TEXTURE_HEIGHT
+#define GL_TEXTURE_HEIGHT 0x1001
+#endif
+
+// Sorted material ids in a reduced material map.
+QVector<int> materialIdsIn(const QByteArray &map) {
+    bool present[256]={};
+    for (char id : map) present[quint8(id)]=true;
+    QVector<int> ids;
+    for (int id=0;id<256;++id) if (present[id]) ids.push_back(id);
+    return ids;
+}
+
+// Level 0 of an uploaded 2D texture as RGBA8. Compressed textures are
+// decompressed by the driver; their CPU copies are gone after upload.
+QImage readTexture(QOpenGLContext *context,unsigned int texture) {
+    using GetTexImage=void (QOPENGLF_APIENTRYP)(GLenum,GLint,GLenum,GLenum,void*);
+    const auto getTexImage=reinterpret_cast<GetTexImage>(context->getProcAddress("glGetTexImage"));
+    if (!getTexImage || !texture) return QImage();
+    auto *f=context->extraFunctions();
+    GLint active=GL_TEXTURE0,binding=0,pack=4;
+    f->glGetIntegerv(GL_ACTIVE_TEXTURE,&active);
+    f->glActiveTexture(GL_TEXTURE5);
+    f->glGetIntegerv(GL_TEXTURE_BINDING_2D,&binding);
+    f->glBindTexture(GL_TEXTURE_2D,texture);
+    GLint width=0,height=0;
+    f->glGetTexLevelParameteriv(GL_TEXTURE_2D,0,GL_TEXTURE_WIDTH,&width);
+    f->glGetTexLevelParameteriv(GL_TEXTURE_2D,0,GL_TEXTURE_HEIGHT,&height);
+    QImage image;
+    if (width>0 && height>0 && width<=8192 && height<=8192) {
+        image=QImage(width,height,QImage::Format_RGBA8888);
+        f->glGetIntegerv(GL_PACK_ALIGNMENT,&pack);
+        f->glPixelStorei(GL_PACK_ALIGNMENT,4);
+        getTexImage(GL_TEXTURE_2D,0,GL_RGBA,GL_UNSIGNED_BYTE,image.bits());
+        f->glPixelStorei(GL_PACK_ALIGNMENT,pack);
+    }
+    f->glBindTexture(GL_TEXTURE_2D,binding);
+    f->glActiveTexture(active);
+    return image;
+}
+
+// Smallest power of two holding the largest image, at most 1024.
+int arraySide(const QVector<QImage> &images) {
+    int largest=4;
+    for (const QImage &image : images)
+        largest=std::max({largest,image.width(),image.height()});
+    int side=4;
+    while (side<largest && side<1024) side*=2;
+    return side;
+}
+
+// Uploads the images as the layers of a new mipmapped 2D texture array.
+unsigned int uploadArray(QOpenGLContext *context,const QVector<QImage> &images) {
+    if (images.isEmpty()) return 0;
+    auto *f=context->extraFunctions();
+    const int side=arraySide(images);
+    GLint active=GL_TEXTURE0,binding=0,unpack=4;
+    f->glGetIntegerv(GL_ACTIVE_TEXTURE,&active);
+    f->glActiveTexture(GL_TEXTURE5);
+    f->glGetIntegerv(GL_TEXTURE_BINDING_2D_ARRAY,&binding);
+    f->glGetIntegerv(GL_UNPACK_ALIGNMENT,&unpack);
+    f->glPixelStorei(GL_UNPACK_ALIGNMENT,4);
+    unsigned int texture=0;
+    f->glGenTextures(1,&texture);
+    f->glBindTexture(GL_TEXTURE_2D_ARRAY,texture);
+    f->glTexImage3D(GL_TEXTURE_2D_ARRAY,0,GL_RGBA8,side,side,images.size(),0,
+                    GL_RGBA,GL_UNSIGNED_BYTE,nullptr);
+    for (int layer=0;layer<images.size();++layer) {
+        const QImage &source=images[layer];
+        const QImage scaled=source.width()==side && source.height()==side ? source
+                : source.scaled(side,side,Qt::IgnoreAspectRatio,Qt::SmoothTransformation);
+        f->glTexSubImage3D(GL_TEXTURE_2D_ARRAY,0,0,0,layer,side,side,1,
+                           GL_RGBA,GL_UNSIGNED_BYTE,scaled.constBits());
+    }
+    f->glTexParameteri(GL_TEXTURE_2D_ARRAY,GL_TEXTURE_MIN_FILTER,GL_LINEAR_MIPMAP_LINEAR);
+    f->glTexParameteri(GL_TEXTURE_2D_ARRAY,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
+    f->glTexParameteri(GL_TEXTURE_2D_ARRAY,GL_TEXTURE_WRAP_S,GL_REPEAT);
+    f->glTexParameteri(GL_TEXTURE_2D_ARRAY,GL_TEXTURE_WRAP_T,GL_REPEAT);
+    f->glGenerateMipmap(GL_TEXTURE_2D_ARRAY);
+    f->glPixelStorei(GL_UNPACK_ALIGNMENT,unpack);
+    f->glBindTexture(GL_TEXTURE_2D_ARRAY,binding);
+    f->glActiveTexture(active);
+    return texture;
+}
+
+// Per material id: base layer, detail layer (-1 for none), detail scale.
+unsigned int uploadMaterialParams(QOpenGLContext *context,const QVector<float> &params) {
+    auto *f=context->functions();
+    GLint active=GL_TEXTURE0,binding=0,unpack=4;
+    f->glGetIntegerv(GL_ACTIVE_TEXTURE,&active);
+    f->glActiveTexture(GL_TEXTURE7);
+    f->glGetIntegerv(GL_TEXTURE_BINDING_2D,&binding);
+    f->glGetIntegerv(GL_UNPACK_ALIGNMENT,&unpack);
+    f->glPixelStorei(GL_UNPACK_ALIGNMENT,4);
+    unsigned int texture=0;
+    f->glGenTextures(1,&texture);
+    f->glBindTexture(GL_TEXTURE_2D,texture);
+    f->glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST);
+    f->glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
+    f->glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA32F,256,1,0,GL_RGBA,GL_FLOAT,params.constData());
+    f->glPixelStorei(GL_UNPACK_ALIGNMENT,unpack);
+    f->glBindTexture(GL_TEXTURE_2D,binding);
+    f->glActiveTexture(active);
+    return texture;
+}
 }
 
 bool Terrain::prepareProceduralGpuPatch(int patch,QVector<int> &materials) {
@@ -1231,6 +1359,7 @@ bool Terrain::prepareProceduralGpuPatch(int patch,QVector<int> &materials) {
         procedural->gpuMapSide=side;
         procedural->gpuMapGroup=context->shareGroup();
         procedural->gpuDirtyPatches.clear();
+        procedural->gpuTileMaterials=materialIdsIn(bytes);
     } else if (!procedural->gpuDirtyPatches.isEmpty()) {
         GLint active=GL_TEXTURE0,binding=0,alignment=4;
         f->glGetIntegerv(GL_ACTIVE_TEXTURE,&active);
@@ -1252,29 +1381,16 @@ bool Terrain::prepareProceduralGpuPatch(int patch,QVector<int> &materials) {
         f->glBindTexture(GL_TEXTURE_2D,binding);
         f->glActiveTexture(active);
         procedural->gpuDirtyPatches.clear();
+        // Painting may add or remove materials anywhere in the tile.
+        procedural->gpuTileMaterials=materialIdsIn(
+                    reducedMaterialMap(procedural->map,procedural->gpuMapSide));
     }
-    const int count=gridLayout.patchRecordCount();
-    if (procedural->gpuPatchMaterials.size()!=count) {
-        procedural->gpuPatchMaterials.resize(count);
-        procedural->gpuPatchMaterialsValid.fill(0,count);
-    }
-    if (!procedural->gpuPatchMaterialsValid[patch]) {
-        QSet<int> found;
-        const int gpuPatchSide=procedural->gpuMapSide/gridLayout.patchesPerSide;
-        const int x=(patch%gridLayout.patchesPerSide)*gpuPatchSide;
-        const int z=(patch/gridLayout.patchesPerSide)*gpuPatchSide;
-        for (int row=std::max(0,z-1);row<std::min(procedural->gpuMapSide,z+gpuPatchSide+1);++row)
-            for (int col=std::max(0,x-1);col<std::min(procedural->gpuMapSide,x+gpuPatchSide+1);++col)
-                found.insert(procedural->map.at(((2*col+1)*procedural->map.side())/(2*procedural->gpuMapSide),
-                                                ((2*row+1)*procedural->map.side())/(2*procedural->gpuMapSide)));
-        materials=found.values().toVector();
-        // The editor intentionally keeps every referenced material. Unlike the
-        // simulator's bounded runtime renderer, authoring preview must not hide
-        // rare painted IDs behind the baked fallback.
-        std::sort(materials.begin(),materials.end());
-        procedural->gpuPatchMaterials[patch]=materials;
-        procedural->gpuPatchMaterialsValid[patch]=1;
-    } else materials=procedural->gpuPatchMaterials[patch];
+    // Every material of the tile gets a layer, so one draw covers a patch.
+    // The editor keeps every referenced material; unlike the simulator's
+    // bounded runtime renderer it must not hide rare painted IDs.
+    materials=procedural->gpuTileMaterials;
+    if (materials!=procedural->gpuArrayMaterials)
+        procedural->gpuArraysValid=false;
 
     for (int id : materials) {
         QString base,detail=TerrainMaterialDefinition::DefaultDetailTexture;
@@ -1306,20 +1422,59 @@ bool Terrain::prepareProceduralGpuPatch(int patch,QVector<int> &materials) {
         const int detailId=procedural->gpuDetailTextures.value(id,-1);
         if (detailId>=0 && !uploadOrdinaryTexture(detailId,1,unused)) return false;
     }
-    return !materials.isEmpty();
+    if (materials.isEmpty())
+        return false;
+    if (!procedural->gpuArraysValid) {
+        // Layers in material order; detail textures shared between materials
+        // get one layer.
+        QVector<QImage> bases,details;
+        QHash<int,int> detailLayers;
+        QVector<float> params(256*4,0.0f);
+        for (int i=0;i<256;++i) params[i*4]=params[i*4+1]=-1.0f;
+        for (int id : std::as_const(materials)) {
+            unsigned int address=0;
+            uploadOrdinaryTexture(procedural->gpuBaseTextures.value(id,-1),0,address);
+            const QImage base=readTexture(context,address);
+            if (base.isNull()) return false;
+            params[id*4]=bases.size();
+            bases.push_back(base);
+            const int detailId=procedural->gpuDetailTextures.value(id,-1);
+            if (detailId<0) continue;
+            if (!detailLayers.contains(detailId)) {
+                unsigned int detailAddress=0;
+                uploadOrdinaryTexture(detailId,1,detailAddress);
+                const QImage detail=readTexture(context,detailAddress);
+                if (detail.isNull()) return false;
+                detailLayers[detailId]=details.size();
+                details.push_back(detail);
+            }
+            params[id*4+1]=detailLayers[detailId];
+            params[id*4+2]=procedural->gpuDetailScales.value(
+                        id,TerrainMaterialDefinition::DefaultDetailScale);
+        }
+        for (unsigned int texture : {procedural->gpuMaterialArray,procedural->gpuDetailArray,
+                                     procedural->gpuMaterialParams})
+            if (texture) pendingDeletes.push_back({procedural->gpuMapGroup,texture});
+        procedural->gpuMaterialArray=uploadArray(context,bases);
+        procedural->gpuDetailArray=uploadArray(context,details);
+        procedural->gpuMaterialParams=uploadMaterialParams(context,params);
+        procedural->gpuArrayMaterials=materials;
+        procedural->gpuArraysValid=procedural->gpuMaterialArray!=0
+                && procedural->gpuMaterialParams!=0;
+    }
+    return procedural->gpuArraysValid;
 }
 
-void Terrain::configureProceduralGpuPacket(RenderItem &item,int patch,int material) {
-    unsigned int base=0,detail=0;
-    uploadOrdinaryTexture(procedural->gpuBaseTextures.value(material,-1),0,base);
-    const int detailId=procedural->gpuDetailTextures.value(material,-1);
-    if (detailId>=0) uploadOrdinaryTexture(detailId,1,detail);
-    item.enableTextures(base);
-    item.material.detailTextureObject=detail;
-    item.material.detailScale=detail ? procedural->gpuDetailScales.value(
-            material,TerrainMaterialDefinition::DefaultDetailScale) : 0.0f;
+void Terrain::configureProceduralGpuPacket(RenderItem &item,int patch) {
+    // Colour and detail come from the material arrays; the base texture slot
+    // only selects the shader's textured path.
+    item.enableTextures(0);
+    item.material.detailTextureObject=0;
+    item.material.detailScale=0.0f;
     item.terrain.materialMap=procedural->gpuMapTexture;
-    item.terrain.materialId=material;
+    item.terrain.materialTextures=procedural->gpuMaterialArray;
+    item.terrain.materialDetails=procedural->gpuDetailArray;
+    item.terrain.materialParams=procedural->gpuMaterialParams;
     const float count=gridLayout.patchesPerSide;
     item.terrain.materialMapRemap=QVector3D(1.0f/count,(patch%gridLayout.patchesPerSide)/count,
                                           (patch/gridLayout.patchesPerSide)/count);
@@ -1574,8 +1729,6 @@ void Terrain::paintProceduralMaterial(Brush *brush, int x, int z, float posx, fl
     for (int patch : changed) {
         procedural->editedPatches.insert(patch);
         procedural->gpuDirtyPatches.insert(patch);
-        if (patch<procedural->gpuPatchMaterialsValid.size())
-            procedural->gpuPatchMaterialsValid[patch]=0;
         if (!procedural->patchKeys.isEmpty()) procedural->patchKeys[patch].clear();
         if (!procedural->recipeKeys.isEmpty()) procedural->recipeKeys[patch].clear();
         if (!TerrainMaterialMap::DirectGpuRendering) {

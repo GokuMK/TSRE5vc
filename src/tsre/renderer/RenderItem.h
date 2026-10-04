@@ -91,11 +91,15 @@ public:
         bool mapPass = false;
         // Maps tile texture coordinates into a shared bake; zero is identity.
         QVector3D textureRemap;
-        // Direct procedural terrain: the same mesh is submitted once for every
-        // material its patch uses; the shader keeps the pixels of materialId
-        // in the categorical material map.
+        // Direct procedural terrain, drawn in one pass: the shader picks each
+        // pixel's material from the categorical material map and samples its
+        // layer of the material and detail texture arrays. materialParams
+        // holds per material id: base layer, detail layer (-1 for none) and
+        // detail scale.
         unsigned int materialMap = 0;
-        int materialId = -1;
+        unsigned int materialTextures = 0;
+        unsigned int materialDetails = 0;
+        unsigned int materialParams = 0;
         QVector3D materialMapRemap;
         int materialMapSide = 0;
         float materialNoiseScale = 0.0f;

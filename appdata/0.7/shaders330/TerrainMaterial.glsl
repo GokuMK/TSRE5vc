@@ -1,8 +1,12 @@
-// Direct procedural terrain: picks this pixel's material from the
-// categorical material map. Included by terrain shader variants.
+// Direct procedural terrain, drawn in one pass: picks this pixel's material
+// from the categorical material map and samples its layer of the material
+// arrays. Included by terrain shader variants.
 uniform int terrainMaterialEnabled;
 uniform sampler2D terrainMaterialMap;
-uniform int terrainMaterialId;
+// Per material id: base layer, detail layer (-1 for none), detail scale.
+uniform sampler2D terrainMaterialParams;
+uniform sampler2DArray terrainMaterialTextures;
+uniform sampler2DArray terrainMaterialDetails;
 uniform vec3 terrainMaterialMapRemap;
 uniform int terrainMaterialMapSide;
 uniform float terrainMaterialNoiseScale;
@@ -37,4 +41,13 @@ int selectedTerrainMaterial() {
         probability-=weights[i];
     }
     return ids[3];
+}
+
+// Colour of this pixel's material, with its detail texture.
+vec4 terrainMaterialColor() {
+    vec4 params = texelFetch(terrainMaterialParams, ivec2(selectedTerrainMaterial(), 0), 0);
+    vec4 color = texture(terrainMaterialTextures, vec3(vTextureCoord, params.x));
+    if (params.y >= 0.0 && params.z != 0.0)
+        color *= texture(terrainMaterialDetails, vec3(vTextureCoord * params.z, params.y)) * 2.0;
+    return color;
 }

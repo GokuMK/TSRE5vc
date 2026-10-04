@@ -1957,12 +1957,13 @@ int TsreTests::runTerrainMaterialGlSuite() {
         ok &= materials==QVector<int>{1};
         RenderItem packet;
         if (ok) {
-            terrain.configureProceduralGpuPacket(packet,0,1);
+            terrain.configureProceduralGpuPacket(packet,0);
             ok &= packet.terrain.materialMap!=0 && f->glIsTexture(packet.terrain.materialMap)
+                    && packet.terrain.materialTextures!=0 && f->glIsTexture(packet.terrain.materialTextures)
+                    && packet.terrain.materialParams!=0 && f->glIsTexture(packet.terrain.materialParams)
                     && packet.terrain.materialMapSide==TerrainMaterialMap::Side
-                    && packet.terrain.materialId==1
                     && packet.terrain.materialNoiseScale==TerrainMaterialMap::DirectNoiseSide
-                    && packet.material.textureObject!=0;
+                    && packet.material.textured;
         }
         Texture source(library->textureDirectory()+"/"+library->find(blueUid)->texture);
         Brush brush; brush.tex=&source; brush.useTexture=true;

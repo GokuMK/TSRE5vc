@@ -26,9 +26,10 @@ the material catalogue, procedural brush semantics or terrain mesh layout.
   addressing, painting, generation and undo-related paths. It now retains a
   validated per-map side while keeping 4096 as the new-map default.
 - TSRE now uploads the `.pmap` as an 8-bit nearest-filtered categorical texture.
-  Near patches are submitted once per material actually referenced by the patch
-  (including the one-texel sampling halo), and the fragment shader selects one
-  unblended material pass. The former CPU RGB patch generator remains intact
+  Near patches are drawn once: the fragment shader picks the material from the
+  map and samples its layer of the tile's material and detail texture arrays
+  (layers up to 1024 square, mipmapped; one RGBA32F row holds each material's
+  layers and detail scale). The former CPU RGB patch generator remains intact
   behind the internal `TerrainMaterialMap::DirectGpuRendering` switch.
 - An 8-bit material-ID texture consumes 4 MiB at 2048 square, 16 MiB at 4096
   square and 64 MiB at 8192 square. Nine simultaneously resident maps would

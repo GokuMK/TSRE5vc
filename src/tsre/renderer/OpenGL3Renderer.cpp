@@ -135,28 +135,44 @@ struct ProceduralTerrainStateCache {
     bool valid = false;
     bool enabled = false;
     unsigned int map = 0;
-    int material = -1;
+    unsigned int textures = 0;
+    unsigned int details = 0;
+    unsigned int params = 0;
     QVector3D remap;
     int side = 0;
     float noiseScale = 0.0f;
 };
+
+#ifndef GL_TEXTURE_2D_ARRAY
+#define GL_TEXTURE_2D_ARRAY 0x8C1A
+#endif
 
 void applyProceduralTerrainState(GLUU *gluu, QOpenGLFunctions *f,
                                  RenderItem *item,
                                  ProceduralTerrainStateCache &cache){
     Shader *shader=gluu ? gluu->currentShader : NULL;
     if(shader==NULL || item==NULL) return;
-    const bool enabled=item->terrain.materialMap!=0 && item->terrain.materialId>=0;
+    const RenderItem::Terrain &terrain=item->terrain;
+    const bool enabled=terrain.materialMap!=0 && terrain.materialTextures!=0
+            && terrain.materialParams!=0;
     if(!cache.valid || cache.enabled!=enabled)
         shader->setUniformValue(shader->terrainMaterialEnabled,enabled ? 1 : 0);
     if(enabled){
-        if(!cache.valid || !cache.enabled || cache.map!=item->terrain.materialMap){
+        const bool rebind=!cache.valid || !cache.enabled;
+        if(rebind || cache.map!=terrain.materialMap
+                || cache.textures!=terrain.materialTextures
+                || cache.details!=terrain.materialDetails
+                || cache.params!=terrain.materialParams){
             f->glActiveTexture(GL_TEXTURE4);
-            f->glBindTexture(GL_TEXTURE_2D,item->terrain.materialMap);
+            f->glBindTexture(GL_TEXTURE_2D,terrain.materialMap);
+            f->glActiveTexture(GL_TEXTURE5);
+            f->glBindTexture(GL_TEXTURE_2D_ARRAY,terrain.materialTextures);
+            f->glActiveTexture(GL_TEXTURE6);
+            f->glBindTexture(GL_TEXTURE_2D_ARRAY,terrain.materialDetails);
+            f->glActiveTexture(GL_TEXTURE7);
+            f->glBindTexture(GL_TEXTURE_2D,terrain.materialParams);
             f->glActiveTexture(GL_TEXTURE0);
         }
-        if(!cache.valid || !cache.enabled || cache.material!=item->terrain.materialId)
-            shader->setUniformValue(shader->terrainMaterialId,item->terrain.materialId);
         if(!cache.valid || !cache.enabled || cache.remap!=item->terrain.materialMapRemap)
             shader->setUniformValue(shader->terrainMaterialMapRemap,item->terrain.materialMapRemap);
         if(!cache.valid || !cache.enabled || cache.side!=item->terrain.materialMapSide)
@@ -166,8 +182,10 @@ void applyProceduralTerrainState(GLUU *gluu, QOpenGLFunctions *f,
     }
     cache.valid=true;
     cache.enabled=enabled;
-    cache.map=item->terrain.materialMap;
-    cache.material=item->terrain.materialId;
+    cache.map=terrain.materialMap;
+    cache.textures=terrain.materialTextures;
+    cache.details=terrain.materialDetails;
+    cache.params=terrain.materialParams;
     cache.remap=item->terrain.materialMapRemap;
     cache.side=item->terrain.materialMapSide;
     cache.noiseScale=item->terrain.materialNoiseScale;

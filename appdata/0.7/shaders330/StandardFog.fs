@@ -72,8 +72,6 @@ void main() {
 #ifdef TSRE_TERRAIN
         if(vTerrainGap > 0.0)
             discard;
-        if(terrainMaterialEnabled != 0 && selectedTerrainMaterial() != terrainMaterialId)
-            discard;
 #endif
         if(textureEnabled == 0) {
             fragColor = shapeColor;
@@ -82,6 +80,10 @@ void main() {
             vec4 tex2 = texture(uSampler2, vec2(vTextureCoord.s*secondTexEnabled, vTextureCoord.t*secondTexEnabled));
             float isSecondTexEnabled = sign(secondTexEnabled);
             fragColor = fragColor*(1-isSecondTexEnabled) + fragColor*tex2*2.0*isSecondTexEnabled;
+#ifdef TSRE_TERRAIN
+            if(terrainMaterialEnabled != 0)
+                fragColor = terrainMaterialColor();
+#endif
             // discard if transparent
             //if(gl_FragColor.a < alphaTest)
             //    discard;    

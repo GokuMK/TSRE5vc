@@ -72,8 +72,6 @@ void main() {
 #ifdef TSRE_TERRAIN
         if(vTerrainGap > 0.0)
             discard;
-        if(terrainMaterialEnabled != 0 && selectedTerrainMaterial() != terrainMaterialId)
-            discard;
 #endif
         if(textureEnabled == 0) {
             fragColor = shapeColor;
@@ -85,6 +83,10 @@ void main() {
             //}
             float isSecondTexEnabled = sign(secondTexEnabled);
             fragColor = fragColor*(1-isSecondTexEnabled) + fragColor*tex2*2.0*isSecondTexEnabled;
+#ifdef TSRE_TERRAIN
+            if(terrainMaterialEnabled != 0)
+                fragColor = terrainMaterialColor();
+#endif
             //gl_FragColor.a = max(fragColor.a, isAlpha);  
 
             // discard if transparent

@@ -30,8 +30,6 @@ void main() {
 #ifdef TSRE_TERRAIN
     if (vTerrainGap > 0.0)
         discard;
-    if (terrainMaterialEnabled != 0 && selectedTerrainMaterial() != terrainMaterialId)
-        discard;
 #endif
 
     if (textureEnabled == 0.0) {
@@ -44,6 +42,10 @@ void main() {
         vec4 detail = texture(uSampler2, vTextureCoord * secondTexEnabled);
         fragColor *= detail * 2.0;
     }
+#ifdef TSRE_TERRAIN
+    if (terrainMaterialEnabled != 0)
+        fragColor = terrainMaterialColor();
+#endif
     fragColor.a = max(fragColor.a, vAlpha);
     if (fragColor.a < -vAlpha)
         discard;

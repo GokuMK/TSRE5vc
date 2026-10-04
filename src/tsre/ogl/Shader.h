@@ -59,7 +59,9 @@ public:
     int terrainMapPass;
     int terrainMaterialEnabled;
     int terrainMaterialMap;
-    int terrainMaterialId;
+    int terrainMaterialTextures;
+    int terrainMaterialDetails;
+    int terrainMaterialParams;
     int terrainMaterialMapRemap;
     int terrainMaterialMapSide;
     int terrainMaterialNoiseScale;

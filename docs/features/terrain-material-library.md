@@ -112,10 +112,12 @@ fragment shader; distant patches retain the saved MSTS-compatible bake. The
 former CPU-generated near path remains available behind an internal code switch
 and retains its historical fixed `microtex.ace`/32 behavior. Open Rails'
 experimental direct material renderer uses the same per-material values.
-TSRE does not cap direct material passes per patch: every distinct material in
-the patch and its sampling halo is shown so the editor remains an authoritative
-preview. The Open Rails branch instead renders at most five detailed materials
-per patch and uses the baked base for omitted areas to bound simulator cost.
+TSRE draws a near patch in one pass: each tile's material and detail textures
+are layers of two texture arrays, and the shader samples the layer of the
+material it picks from the map. Every material of the tile has a layer, so the
+editor remains an authoritative preview. The Open Rails branch instead renders
+at most five detailed material passes per patch and uses the baked base for
+omitted areas to bound simulator cost.
 Changing them does not alter the tile's `.pmap`, which stores material IDs only.
 `TerrainMaterialDefinition` does not inherit `TFile::Mat`. Rotation, physical
 scale, importance, mixing types, per-material seasonal filename overrides and

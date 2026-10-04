@@ -211,7 +211,9 @@ void GLUU::initShader() {
         currentShader->terrainMapPass = currentShader->uniformLocation("terrainMapPass");
         currentShader->terrainMaterialEnabled = currentShader->uniformLocation("terrainMaterialEnabled");
         currentShader->terrainMaterialMap = currentShader->uniformLocation("terrainMaterialMap");
-        currentShader->terrainMaterialId = currentShader->uniformLocation("terrainMaterialId");
+        currentShader->terrainMaterialTextures = currentShader->uniformLocation("terrainMaterialTextures");
+        currentShader->terrainMaterialDetails = currentShader->uniformLocation("terrainMaterialDetails");
+        currentShader->terrainMaterialParams = currentShader->uniformLocation("terrainMaterialParams");
         currentShader->terrainMaterialMapRemap = currentShader->uniformLocation("terrainMaterialMapRemap");
         currentShader->terrainMaterialMapSide = currentShader->uniformLocation("terrainMaterialMapSide");
         currentShader->terrainMaterialNoiseScale = currentShader->uniformLocation("terrainMaterialNoiseScale");
@@ -242,8 +244,16 @@ void GLUU::initShader() {
         currentShader->setUniformValue(tex3, 2);
         unsigned int tex4 = currentShader->uniformLocation("shadow2");
         currentShader->setUniformValue(tex4, 3);
+        // Units 4-7 hold the procedural terrain map, material and detail
+        // arrays and the per-material parameters.
         if (currentShader->terrainMaterialMap >= 0)
             currentShader->setUniformValue(currentShader->terrainMaterialMap, 4);
+        if (currentShader->terrainMaterialTextures >= 0)
+            currentShader->setUniformValue(currentShader->terrainMaterialTextures, 5);
+        if (currentShader->terrainMaterialDetails >= 0)
+            currentShader->setUniformValue(currentShader->terrainMaterialDetails, 6);
+        if (currentShader->terrainMaterialParams >= 0)
+            currentShader->setUniformValue(currentShader->terrainMaterialParams, 7);
         if (currentShader->terrainMaterialEnabled >= 0)
             currentShader->setUniformValue(currentShader->terrainMaterialEnabled, 0);
         currentShader->release();

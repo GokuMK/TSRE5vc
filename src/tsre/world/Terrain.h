@@ -313,8 +313,10 @@ protected:
     QVector<int> proceduralRequestOrder(const PatchVisibility &visibility) const;
     bool proceduralNearCamera(const PatchVisibility &visibility) const;
     void prepareVisibleProceduralTextures(const PatchVisibility &visibility);
+    // Prepares the direct procedural draw of a patch; materials receives the
+    // tile's material ids, which all have a layer in the material arrays.
     bool prepareProceduralGpuPatch(int patch, QVector<int> &materials);
-    void configureProceduralGpuPacket(RenderItem &item, int patch, int material);
+    void configureProceduralGpuPacket(RenderItem &item, int patch);
     void synchronizeMaterialLibrary();
     QVector<PatchBounds> patchBounds;
     QVector<quint8> patchBoundsDirty;

@@ -2263,7 +2263,6 @@ void Terrain::pushRenderItem(RenderQueue &queue, float lodx, float lodz, int til
     RenderItem *r;
     if(Game::viewTerrainShape && (!(showBlob && MapWindow::isAlpha == 0) || selectionId != 0)){
         if (selectionId==0) prepareVisibleProceduralTextures(patchVisibility);
-        int proceduralPacketIndex=0;
         float shaderSecondTexUV = 0;
         for (int yy = 0; yy < patches; yy++) {
             for (int uu = 0; uu < patches; uu++) {
@@ -2299,16 +2298,14 @@ void Terrain::pushRenderItem(RenderQueue &queue, float lodx, float lodz, int til
                 if (selectionId==0 && prepareProceduralGpuPatch(patchId,gpuMaterials)) {
                     const TerrainPatchLodState lodState = patchId < patchLod.size()
                             ? patchLod[patchId] : TerrainPatchLodState{};
-                    for (int material : std::as_const(gpuMaterials)) {
-                        r=framePacket(proceduralSurfacePackets,proceduralPacketIndex++);
-                        configureProceduralGpuPacket(*r,patchId,material);
-                        r->mesh.primitive = RenderItem::PRIMITIVE_TRIANGLES;
-                        backend->configureRenderItem(*r,patchId,false,true,
-                                                     lodState.sourceStep,lodState.edgeMask);
-                        r->msMatrix=nullptr;
-                        r->setVertexAttributes(r->VNT);
-                        queue.submit(r,0,RenderQueue::SUBMIT_ORDERED);
-                    }
+                    r=framePacket(proceduralSurfacePackets,patchId);
+                    configureProceduralGpuPacket(*r,patchId);
+                    r->mesh.primitive = RenderItem::PRIMITIVE_TRIANGLES;
+                    backend->configureRenderItem(*r,patchId,false,true,
+                                                 lodState.sourceStep,lodState.edgeMask);
+                    r->msMatrix=nullptr;
+                    r->setVertexAttributes(r->VNT);
+                    queue.submit(r,0,RenderQueue::SUBMIT_ORDERED);
                     continue;
                 }
                 r = framePacket(surfacePackets, patchId);
