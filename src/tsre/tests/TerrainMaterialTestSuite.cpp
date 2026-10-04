@@ -2038,10 +2038,18 @@ int TsreTests::runTerrainMaterialGlSuite() {
     }
     {
         TestTerrain a,b; a.setup(temp.path(),16,"gla");b.setup(temp.path(),32,"glb");
-        float defaultDetailScale;
-        std::memcpy(&defaultDetailScale, &a.descriptor().material(0).uvCalcs[1].scale, sizeof(float));
-        if (defaultDetailScale != Terrain::ProceduralDetailScale
-                || a.descriptor().material(0).textures[1].filename != "microtex.ace") ++failed;
+        // New terrain files start with the default detail slot; the test tiles
+        // above trim theirs to one texture.
+        TFile fresh; fresh.initNew("detail-defaults",256,8,16);
+        const auto &defaults=fresh.material(0);
+        float defaultDetailScale=0.0f;
+        if (defaults.uvCalcs.size()>1)
+            std::memcpy(&defaultDetailScale, &defaults.uvCalcs[1].scale, sizeof(float));
+        if (defaultDetailScale != Terrain::ProceduralDetailScale || defaults.textures.size()<2
+                || defaults.textures[1].filename != "microtex.ace") {
+            ++failed;
+            qWarning() << "[tests:terrain-material-gl] default detail slot missing or wrong";
+        }
         QString error;
         // Seasonal resolution now verifies the file at tile setup, before the
         // synthetic pending TexLib object used by this binding test is installed.
