@@ -1986,8 +1986,9 @@ int TsreTests::runTerrainMaterialGlSuite() {
         for (const QString &shaderName : {QStringLiteral("StandardFog"),QStringLiteral("StandardFogStoredCoords"),
                                           QStringLiteral("StandardBloom"),QStringLiteral("StandardFast")}) {
             const QString vertexName=shaderName=="StandardFast" ? QStringLiteral("StandardFog") : shaderName;
-            // Both the object program and its terrain variant must build.
-            for (const QStringList &defines : {QStringList(),QStringList{"TSRE_TERRAIN"}}) {
+            // The object program and its terrain and unlit variants must build.
+            for (const QStringList &defines : {QStringList(),QStringList{"TSRE_TERRAIN"},
+                                               QStringList{"TSRE_UNLIT"}}) {
                 QOpenGLShaderProgram program;
                 if (!program.addShaderFromSourceCode(QOpenGLShader::Vertex,
                             GLUU::shaderSource(path,vertexName,"vs",defines))

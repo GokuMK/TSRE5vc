@@ -50,6 +50,10 @@ void main() {
     if (gl_FragColor.a < -vAlpha)
         discard;
 
+#ifdef TSRE_UNLIT
+    // Overlays: no sun lighting, shadows or fog.
+    gl_FragColor.xyz *= colorBrightness;
+#else
     vec3 normal = normalize(mat3(vModelView) * mat3(uMSMatrix) * vNormal);
     float cosTheta = clamp(dot(normal, normalize(lightDirection)), 0.0, 1.0);
     float visibility = (1.0 - enableNormals) + cosTheta * enableNormals;
@@ -57,4 +61,5 @@ void main() {
             + ambientColor.rgb)
             * colorBrightness;
     gl_FragColor = mix(gl_FragColor, skyColor, fogFactor);
+#endif
 }

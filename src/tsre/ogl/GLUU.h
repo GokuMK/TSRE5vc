@@ -81,6 +81,9 @@ public:
     // Program that draws terrain packets in place of the given one: its
     // terrain variant, or the program itself when it has none.
     Shader *terrainVariant(Shader *shader) const;
+    // Program that draws overlay and UI packets in place of the given one:
+    // its unlit variant (no lighting, shadows or fog), or the program itself.
+    Shader *unlitVariant(Shader *shader) const;
     // Shader source with #include "file" lines expanded from the same
     // directory and the given names defined after the #version line.
     static QByteArray shaderSource(const QString &directory, const QString &name,
@@ -91,6 +94,7 @@ public:
     bool normalsEnabled;
 private:
     QHash<Shader*, Shader*> terrainVariants;
+    QHash<Shader*, Shader*> unlitVariants;
 
     int currentTexture = -1;
     Vector4f shapeColor;

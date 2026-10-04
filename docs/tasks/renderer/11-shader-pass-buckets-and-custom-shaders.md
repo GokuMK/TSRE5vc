@@ -93,4 +93,17 @@ counters are implemented. All passes still use the main shader
   (`GLUU::terrainVariant()`), reapplies the frame uniforms on each switch,
   and restores the bound program after the passes.
 
-Remaining for this task: an unlit lines/helpers variant for overlays.
+## Unlit overlay variant (implemented)
+
+- Each standard program also has a `<name>Unlit` variant built with
+  `TSRE_UNLIT`: texture or colour, alpha test and brightness, without sun
+  lighting, shadows or fog (`GLUU::unlitVariant()`).
+- The renderer draws the overlay and UI passes with it, so track database
+  lines and labels, markers, activity and path overlays, the pointer, compass
+  and HUD do not depend on shadow, light or fog settings. Untextured overlays
+  already skipped those; textured labels (`TextObj`) no longer fade into fog
+  or darken in shadows. World objects with unlit MSTS materials keep the
+  object program and still receive shadows.
+- Selection and shadow passes keep their own programs.
+
+All shader variants planned in this task are implemented.

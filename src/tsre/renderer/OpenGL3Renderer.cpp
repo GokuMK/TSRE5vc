@@ -277,10 +277,17 @@ struct ProgramCaches {
     DetailStateCache detail;
 };
 
+// Overlay and UI passes draw without lighting, shadows and fog.
+bool usesUnlitProgram(int pass){
+    return pass == Renderer::PASS_OVERLAY || pass == Renderer::PASS_UI;
+}
+
 // Binds the program a packet needs. A newly bound program receives the frame
 // uniforms again and starts with empty caches.
-void useProgram(GLUU *gluu, Shader *base, const RenderItem *item, ProgramCaches &caches){
-    Shader *wanted = usesTerrainProgram(item) ? gluu->terrainVariant(base) : base;
+void useProgram(GLUU *gluu, Shader *base, const RenderItem *item, int pass,
+                ProgramCaches &caches){
+    Shader *wanted = usesTerrainProgram(item) ? gluu->terrainVariant(base)
+            : usesUnlitProgram(pass) ? gluu->unlitVariant(base) : base;
     if(wanted == gluu->currentShader)
         return;
     gluu->currentShader = wanted;
@@ -606,7 +613,7 @@ void OpenGL3Renderer::drawOrdered(GLUU *gluu, Shader *base,
         RenderItem *item = instance.packet;
         if(item->mesh.vao == NULL || !visible(instance, cullFrustum))
             continue;
-        useProgram(gluu, base, item, caches);
+        useProgram(gluu, base, item, pass, caches);
         applyItemState(gluu, f, item, instance.selectionId, caches.detail);
         applyTerrainState(gluu, item, caches.terrain);
         applyProceduralTerrainState(gluu,f,item,caches.procedural);
@@ -684,7 +691,7 @@ void OpenGL3Renderer::drawGrouped(GLUU *gluu, Shader *base,
         if(RenderStats::inFrame())
             RenderStats::current().groupedPackets++;
 
-        useProgram(gluu, base, item, caches);
+        useProgram(gluu, base, item, pass, caches);
         applyItemState(gluu, f, item, instances[i].selectionId, caches.detail);
         currentSelection = instances[i].selectionId;
         applyTerrainState(gluu, item, caches.terrain);

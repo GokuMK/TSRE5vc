@@ -117,6 +117,10 @@ Shader *GLUU::terrainVariant(Shader *shader) const {
     return terrainVariants.value(shader, shader);
 }
 
+Shader *GLUU::unlitVariant(Shader *shader) const {
+    return unlitVariants.value(shader, shader);
+}
+
 void GLUU::initShader() {
     QOpenGLContext *context = QOpenGLContext::currentContext();
     QOpenGLExtraFunctions *extra = context->extraFunctions();
@@ -129,9 +133,12 @@ void GLUU::initShader() {
         QStringList defines;
     };
     // Standard programs leave out terrain code; each has a "<name>Terrain"
-    // variant built with TSRE_TERRAIN that draws terrain packets. Selection
-    // draws terrain and objects with one program, so it always has it.
+    // variant built with TSRE_TERRAIN that draws terrain packets, and a
+    // "<name>Unlit" variant built with TSRE_UNLIT for overlays and UI.
+    // Selection draws terrain and objects with one program, so it always has
+    // the terrain code.
     const QStringList terrain{"TSRE_TERRAIN"};
+    const QStringList unlit{"TSRE_UNLIT"};
     QVector<ShaderDefinition> shaderDefinitions;
     shaderDefinitions.push_back({"StandardFog", "StandardFog", "StandardFog", {}});
     shaderDefinitions.push_back({"StandardFast", "StandardFog", "StandardFast", {}});
@@ -141,6 +148,10 @@ void GLUU::initShader() {
     shaderDefinitions.push_back({"StandardFastTerrain", "StandardFog", "StandardFast", terrain});
     shaderDefinitions.push_back({"StandardFogStoredCoordsTerrain", "StandardFogStoredCoords", "StandardFogStoredCoords", terrain});
     shaderDefinitions.push_back({"StandardBloomTerrain", "StandardBloom", "StandardBloom", terrain});
+    shaderDefinitions.push_back({"StandardFogUnlit", "StandardFog", "StandardFog", unlit});
+    shaderDefinitions.push_back({"StandardFastUnlit", "StandardFog", "StandardFast", unlit});
+    shaderDefinitions.push_back({"StandardFogStoredCoordsUnlit", "StandardFogStoredCoords", "StandardFogStoredCoords", unlit});
+    shaderDefinitions.push_back({"StandardBloomUnlit", "StandardBloom", "StandardBloom", unlit});
     shaderDefinitions.push_back({"Shadows", "Shadows", "Shadows", {}});
     shaderDefinitions.push_back({"Selection", "StandardFog", "Selection", terrain});
 
@@ -275,7 +286,10 @@ void GLUU::initShader() {
     
     for (const QString &name : {QString("StandardFog"), QString("StandardFast"),
                                 QString("StandardFogStoredCoords"), QString("StandardBloom")})
+    {
         terrainVariants[shaders[name]] = shaders[name + "Terrain"];
+        unlitVariants[shaders[name]] = shaders[name + "Unlit"];
+    }
     //currentShader = shaders["StandardFog"];
     currentShader = shaders["StandardBloom"];
 }

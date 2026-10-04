@@ -101,6 +101,10 @@ void main() {
                 discard;    
             //gl_FragColor.a = 1.0;
 
+#ifdef TSRE_UNLIT
+            // Overlays: no sun lighting, shadows or fog.
+            fragColor.xyz *= colorBrightness;
+#else
             // calculate normals
             vec3 normal = normalize(mat3(vModelView) * mat3(uMSMatrix) * vNormal);
             vec3 lights = normalize(lightDirection);
@@ -187,5 +191,6 @@ void main() {
                 FragColor2.b = max(skyColor.z, fragColor.b);
 
             fragColor = FragColor2;
+#endif
         }
 }
