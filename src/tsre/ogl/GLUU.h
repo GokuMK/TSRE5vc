@@ -49,6 +49,13 @@ public:
     // of the near and middle shadow maps, relative to the 150 m map the
     // shadow resolution and bias settings were tuned for.
     float shadowMapScale[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+    // Normal offset in metres of the near, middle and far shadow lookups, the
+    // depth bias of the near and middle maps for surfaces with normals, and
+    // the direction towards the shadow-casting sun. A zero offset keeps the
+    // tuned slope bias.
+    float shadowNormalOffset[3] = {0.0f, 0.0f, 0.0f};
+    float shadowDepthBias[2] = {0.0f, 0.0f};
+    float shadowLightDirection[3] = {0.0f, 1.0f, 0.0f};
     //float fogColor[4]{0.5, 0.75, 1.0, 1.0};
     float fogColor[4] = {Game::fogColor[0], Game::fogColor[1], Game::fogColor[2], Game::fogColor[3]};
     float skyColor[4] = {Game::skyColor[0], Game::skyColor[1], Game::skyColor[2], Game::skyColor[3]};

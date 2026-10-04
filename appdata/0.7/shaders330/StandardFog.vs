@@ -9,6 +9,11 @@ uniform float lod;
 uniform mat4 uShadowPMatrix;
 uniform mat4 uShadow2PMatrix;
 uniform mat4 uShadow0PMatrix;
+// Normal offset in metres of the near, middle and far shadow lookups and
+// the direction towards the shadow-casting sun.
+uniform vec3 shadowNormalOffset;
+uniform vec3 shadowLightDirection;
+uniform float enableNormals;
 uniform mat4 uPMatrix;
 uniform mat4 uFMatrix;
 uniform mat4 uMVMatrix;
@@ -72,9 +77,18 @@ void main() {
                         + params.uvAndOriginZ.z);
     }
 #endif
-    shadowPos = uShadowPMatrix * modelView * uMSMatrix * renderVertex;
-    shadow2Pos = uShadow2PMatrix * modelView * uMSMatrix * renderVertex;
-    shadow0Pos = uShadow0PMatrix * modelView * uMSMatrix * renderVertex;
+    // Look up the shadow maps from a point moved along the normal, further
+    // where the surface turns from the sun, so a small depth bias is enough.
+    vec4 shadowVertex = modelView * uMSMatrix * renderVertex;
+    vec3 shadowNormal = mat3(modelView) * mat3(uMSMatrix) * normal.xyz;
+    float shadowNormalLength = length(shadowNormal);
+    shadowNormal = shadowNormalLength > 1e-6
+            ? shadowNormal/shadowNormalLength*enableNormals : vec3(0.0);
+    float sunCos = max(dot(shadowNormal, shadowLightDirection), 0.0);
+    vec3 shadowOffset = shadowNormal*sqrt(1.0 - sunCos*sunCos);
+    shadowPos = uShadowPMatrix * (shadowVertex + vec4(shadowOffset*shadowNormalOffset.y, 0.0));
+    shadow2Pos = uShadow2PMatrix * (shadowVertex + vec4(shadowOffset*shadowNormalOffset.z, 0.0));
+    shadow0Pos = uShadow0PMatrix * (shadowVertex + vec4(shadowOffset*shadowNormalOffset.x, 0.0));
     gl_Position = uPMatrix * modelView * uMSMatrix * renderVertex;
     vec4 fogPosition = uFMatrix * modelView * uMSMatrix * renderVertex;
 #ifdef TSRE_TERRAIN

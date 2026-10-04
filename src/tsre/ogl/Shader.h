@@ -53,6 +53,9 @@ public:
     unsigned int shadow2Res;
     unsigned int shadow2Bias;
     int shadowMapScale = -1;
+    int shadowNormalOffset = -1;
+    int shadowDepthBias = -1;
+    int shadowLightDirection = -1;
     int terrainPaged;
     int terrainVerticesPerPatch;
     int terrainPatchSide;

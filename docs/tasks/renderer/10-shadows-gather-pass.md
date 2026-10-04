@@ -131,6 +131,15 @@ scene casts into them.
   the camera: the change in contact shading at 50 m was easy to see. With
   the default 2048 maps the near map now has 9.8 cm texels, close to the
   7.3 cm of the former single 4096 map at +-150 m, at half the texels.
+- Normal-offset lookups: for surfaces with normals the vertex shaders move
+  the near and mid map lookups along the normal by one texel or filter
+  radius (whichever is larger), scaled by the sine of the angle to the sun,
+  and the fragment shaders use a one-texel depth bias instead of the tuned
+  slope bias. Self-shadowing is avoided with a far smaller depth bias, so
+  contact shadows survive in both maps. Surfaces without normals and the
+  far map keep the constant bias. The two factors are
+  `ShadowNormalOffsetTexels` and `ShadowDepthBiasTexels` in
+  `RouteEditorGLWidget.cpp`; they need tuning on hardware.
 - Each map culls its casters to its own light frustum (stage 4 step 5) and
   draws repeated casters instanced: depth does not depend on draw order, so
   casters are grouped by packet. This removes 78-90% of shadow map draws on

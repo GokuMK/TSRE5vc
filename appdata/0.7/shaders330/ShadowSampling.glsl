@@ -8,6 +8,9 @@
 // the near and middle maps relative to the map the shadow resolution and
 // bias settings were tuned for; they keep both in world space.
 uniform vec4 shadowMapScale;
+// Depth bias of the near and middle maps for surfaces with normals, whose
+// lookups the vertex shader moves along the normal.
+uniform vec2 shadowDepthBias;
 
 float shadowedVisibility(float cosTheta) {
     float visibility = (1.0-enableNormals) + cosTheta*enableNormals;
@@ -25,8 +28,9 @@ float shadowedVisibility(float cosTheta) {
     float t0 = 1.0 - floor(clamp(length(shadow0Pos.xyz), 0, 1.0));
     float shadow0Res = shadow1Res*shadowMapScale.x;
     float shadowMidRes = shadow1Res*shadowMapScale.y;
-    float bias0 = bias*shadowMapScale.z;
-    float biasMid = bias*shadowMapScale.w;
+    // Without normals keep the tuned bias.
+    float bias0 = mix(bias*shadowMapScale.z, shadowDepthBias.x, enableNormals);
+    float biasMid = mix(bias*shadowMapScale.w, shadowDepthBias.y, enableNormals);
     float tMid = 1.0 - floor(camdist);
     float t = tMid*(1.0 - t0);
     float t2 = 1.0 - floor(camdist2);

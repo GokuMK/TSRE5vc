@@ -215,6 +215,9 @@ void GLUU::initShader() {
         currentShader->shadow2Res = currentShader->uniformLocation("shadow2Res");
         currentShader->shadow2Bias = currentShader->uniformLocation("shadow2Bias");
         currentShader->shadowMapScale = currentShader->uniformLocation("shadowMapScale");
+        currentShader->shadowNormalOffset = currentShader->uniformLocation("shadowNormalOffset");
+        currentShader->shadowDepthBias = currentShader->uniformLocation("shadowDepthBias");
+        currentShader->shadowLightDirection = currentShader->uniformLocation("shadowLightDirection");
         currentShader->terrainPaged = currentShader->uniformLocation("terrainPaged");
         currentShader->terrainVerticesPerPatch = currentShader->uniformLocation("terrainVerticesPerPatch");
         currentShader->terrainPatchSide = currentShader->uniformLocation("terrainPatchSide");
@@ -328,6 +331,12 @@ void GLUU::setMatrixUniforms() {
     currentShader->setUniformValue(currentShader->shadow2Bias, shadow2Bias);
     currentShader->setUniformValue(currentShader->shadowMapScale, shadowMapScale[0],
             shadowMapScale[1], shadowMapScale[2], shadowMapScale[3]);
+    currentShader->setUniformValue(currentShader->shadowNormalOffset, shadowNormalOffset[0],
+            shadowNormalOffset[1], shadowNormalOffset[2]);
+    currentShader->setUniformValue(currentShader->shadowDepthBias, shadowDepthBias[0],
+            shadowDepthBias[1]);
+    currentShader->setUniformValue(currentShader->shadowLightDirection, shadowLightDirection[0],
+            shadowLightDirection[1], shadowLightDirection[2]);
 };
 
 void GLUU::disableTextures(Vector4f* color){

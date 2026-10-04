@@ -721,6 +721,10 @@ constexpr float TunedShadowHalfExtent = 150.0f;
 constexpr float TunedShadowHalfDepth = 200.0f;
 // Direction towards the shadow-casting sun.
 constexpr float ShadowLightDirection[3] = {-1.0f, 1.5f, 1.0f};
+// Normal offset and depth bias of the near and middle maps for surfaces with
+// normals, in texels or filter radii, whichever is larger.
+constexpr float ShadowNormalOffsetTexels = 1.0f;
+constexpr float ShadowDepthBiasTexels = 1.0f;
 }
 
 // Light-space matrices of the near, mid and far shadow maps, centred on the
@@ -747,6 +751,19 @@ void RouteEditorGLWidget::computeShadowMatrices() {
         gluu->shadowMapScale[map] = texelScale;
         gluu->shadowMapScale[2 + map] = texelScale * TunedShadowHalfDepth / ShadowHalfDepth[map];
     }
+    // Surfaces with normals look up the near and middle maps from a point moved
+    // along the normal, which needs only a small depth bias. The far map keeps
+    // its constant bias.
+    const float tapSpread = 2.0f * TunedShadowHalfExtent / gluu->shadow1Res;
+    for (int map = 0; map < 2; map++) {
+        const float texel = 2.0f * ShadowHalfExtent[map] / shadowMapSize;
+        const float filter = std::max(texel, tapSpread);
+        gluu->shadowNormalOffset[map] = ShadowNormalOffsetTexels * filter;
+        gluu->shadowDepthBias[map] = ShadowDepthBiasTexels * filter / (2.0f * ShadowHalfDepth[map]);
+    }
+    gluu->shadowNormalOffset[2] = 0.0f;
+    float lightDirection[3] = {ShadowLightDirection[0], ShadowLightDirection[1], ShadowLightDirection[2]};
+    Vec3::normalize(gluu->shadowLightDirection, lightDirection);
     Mat4::lookAt(lookAt, ld, aaa, out1);
     Mat4::multiply(gluu->pShadowMatrix0, gluu->pShadowMatrix0, lookAt);
     Mat4::multiply(gluu->pShadowMatrix, gluu->pShadowMatrix, lookAt);
