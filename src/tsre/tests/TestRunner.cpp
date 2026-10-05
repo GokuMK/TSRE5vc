@@ -58,6 +58,7 @@
 #include <tsre/tests/SelectionIdTestSuite.h>
 #include <tsre/tests/MeshStoreTestSuite.h>
 #include <tsre/tests/EnvironmentMapTestSuite.h>
+#include <tsre/tests/WaterTestSuite.h>
 #include <tsre/tests/GltfPbrTestSuite.h>
 #include <tsre/tests/ConsistPreviewTestSuite.h>
 #include <tsre/tests/RendererParityTestSuite.h>
@@ -4085,6 +4086,7 @@ QStringList TsreTests::listSuites() {
         "selection-id",
         "mesh-store",
         "environment-map-gl",
+        "water-gl",
         "gltf-pbr-gl",
         "consist-preview-gl",
         "renderer-capture",
@@ -4144,6 +4146,8 @@ int TsreTests::run(const TestRunOptions &opts) {
         return runMeshStoreSuite(opts.verbose);
     if (suite == "environment-map-gl")
         return runEnvironmentMapGlSuite(opts.verbose);
+    if (suite == "water-gl")
+        return runWaterGlSuite(opts.verbose);
     if (suite == "gltf-pbr-gl")
         return runGltfPbrGlSuite(opts.verbose);
 

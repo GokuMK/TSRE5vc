@@ -349,6 +349,8 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
     }
 
     QScopedValueRollback<bool> restoreFpsHud(Game::editorFpsHudEnabled, false);
+    // Animated shading (water waves) must stand still to settle.
+    QScopedValueRollback<bool> restoreAnimation(Game::animationFrozen, true);
     QScopedValueRollback<bool> restoreHud(Game::hudEnabled, options.hud);
     QScopedValueRollback<bool> restoreCompass(Game::viewCompass, options.compass);
     QScopedValueRollback<bool> restorePointer(Game::viewPointer3d, options.pointer);
@@ -818,6 +820,7 @@ int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, const QStrin
 
     EngLib engines;
     QScopedValueRollback<EngLib*> restoreEngines(Game::currentEngLib, &engines);
+    QScopedValueRollback<bool> restoreAnimation(Game::animationFrozen, true);
     QScopedValueRollback<ShapeLib*> restoreShapes(Game::currentShapeLib);
 
     // The same cameras as the Shape Viewer and Consist Editor windows.

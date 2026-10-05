@@ -73,10 +73,15 @@ float insideBox(vec2 v, vec2 bottomLeft, vec2 topRight) {
 #ifdef TSRE_PBR
 #include "PbrShading.glsl"
 #endif
+#ifdef TSRE_WATER
+#include "WaterShading.glsl"
+#endif
 
 void main() {
-#ifdef TSRE_PBR
+#if defined(TSRE_PBR)
         fragColor = pbrShade();
+#elif defined(TSRE_WATER)
+        fragColor = textureEnabled != 0.0 ? waterShade() : shapeColor;
 #else
 #ifdef TSRE_TERRAIN
         if(vTerrainGap > 0.0)

@@ -46,6 +46,7 @@ class TelepoleObj;
 class SelectionRenderer;
 class OpenGL3Renderer;
 class EnvironmentMap;
+class PlanarReflection;
 class RenderQueue;
 
 QT_FORWARD_DECLARE_CLASS(QOpenGLShaderProgram)
@@ -171,6 +172,11 @@ protected:
     void renderShadowMaps();
     // Renders the scheduled environment map faces from the camera position.
     void renderEnvironmentMap();
+    // Draws the mirrored scene for shaded water; false when none is needed.
+    bool renderWaterReflection();
+    // Draws the water pass, counting its samples when the reflection needs
+    // to know whether water was on screen.
+    void renderWaterPass(bool measure);
     void computeShadowMatrices();
     void handleSelection();
     void applySelection(quint32 selectionId, int cameraTileX, int cameraTileZ);
@@ -360,6 +366,13 @@ private:
     // Owned; draws this widget's frames.
     OpenGL3Renderer *renderer = NULL;
     EnvironmentMap *environmentMap = NULL;
+    PlanarReflection *waterReflection = NULL;
+    float waterReflectionHeight = 0.0f;
+    // Samples of the last measured water pass: the reflection is drawn only
+    // when the previous frame showed water.
+    unsigned int waterQuery = 0;
+    bool waterQueryPending = false;
+    bool waterOnScreen = true;
     GuiGlCompass * compass = NULL;
     OglObj * compassPointer = NULL;
     

@@ -124,6 +124,16 @@ public:
         unsigned short wrap[MAP_COUNT][2] = {};
     };
 
+    // Shaded water surface, drawn by the water program variant. Its colour
+    // is the route's water layers stacked: the material texture is the top
+    // layer, over the middle and bottom layers given here.
+    struct Water {
+        bool enabled = false;
+        enum Layer {LAYER_BOTTOM = 0, LAYER_MIDDLE, LAYER_COUNT};
+        // Backend texture objects; 0 for none.
+        unsigned int layers[LAYER_COUNT] = {0, 0};
+    };
+
     // Terrain-only parameters; unused by other packets.
     struct Terrain {
         // Paged terrain meshes: vertices are generated from patch parameters.
@@ -162,6 +172,7 @@ public:
     Mesh mesh;
     Material material;
     Pbr pbr;
+    Water water;
     Terrain terrain;
     Bounds bounds;
     // Model-space transform applied before the submission transform; null

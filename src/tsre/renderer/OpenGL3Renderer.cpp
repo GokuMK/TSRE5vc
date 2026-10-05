@@ -341,7 +341,8 @@ void useProgram(GLUU *gluu, Shader *base, const RenderItem *item, int pass,
                 ProgramCaches &caches){
     Shader *wanted = usesTerrainProgram(item) ? gluu->terrainVariant(base)
             : usesUnlitProgram(pass) ? gluu->unlitVariant(base)
-            : item->pbr.enabled ? gluu->pbrVariant(base) : base;
+            : item->pbr.enabled ? gluu->pbrVariant(base)
+            : item->water.enabled ? gluu->waterVariant(base) : base;
     if(wanted == gluu->currentShader)
         return;
     gluu->currentShader = wanted;
@@ -513,6 +514,25 @@ void OpenGL3Renderer::applyWrapSamplers(const RenderItem *item){
         if(wrap != 0 || boundSamplers[units[map]] != 0)
             bindWrapSampler(units[map], wrap);
     }
+}
+
+// Lower water layers on units 4 and 5 (terrain-only elsewhere) and the
+// wave map on unit 15.
+void OpenGL3Renderer::applyWaterState(GLUU *gluu, const RenderItem *item){
+    Shader *s = gluu->currentShader;
+    if(!item->water.enabled || s->waterLayers < 0)
+        return;
+    int present = 0;
+    for(int layer = 0; layer < RenderItem::Water::LAYER_COUNT; ++layer){
+        if(item->water.layers[layer] == 0)
+            continue;
+        f->glActiveTexture(GL_TEXTURE4 + layer);
+        f->glBindTexture(GL_TEXTURE_2D, item->water.layers[layer]);
+        present |= 1 << layer;
+    }
+    f->glActiveTexture(GL_TEXTURE0);
+    s->setUniformValue(s->waterLayers, present);
+    waterNormals.bind(f, 15);
 }
 
 void OpenGL3Renderer::releaseWrapSamplers(){
@@ -693,6 +713,27 @@ bool OpenGL3Renderer::instanceBounds(const DrawInstance &instance, float *center
     return true;
 }
 
+bool OpenGL3Renderer::nearestVisible(RenderPass pass, const float *viewProjection,
+                                     float *center) const{
+    const Frustum frustum = frustumOf(viewProjection);
+    float nearest = -1.0f;
+    for(const std::vector<DrawInstance> *list : {&passes[pass].ordered, &passes[pass].grouped})
+        for(const DrawInstance &instance : *list){
+            float c[3];
+            float radius = 0.0f;
+            if(!instanceBounds(instance, c, radius) || !intersects(frustum, c, radius))
+                continue;
+            float distance = 0.0f;
+            for(int i = 0; i < 3; ++i)
+                distance += (c[i] - viewPosition[i]) * (c[i] - viewPosition[i]);
+            if(nearest >= 0.0f && distance >= nearest)
+                continue;
+            nearest = distance;
+            std::copy(c, c + 3, center);
+        }
+    return nearest >= 0.0f;
+}
+
 bool OpenGL3Renderer::visible(const DrawInstance &instance, const Frustum &frustum) const{
     float center[3];
     float radius = 0.0f;
@@ -841,6 +882,7 @@ void OpenGL3Renderer::drawOrdered(GLUU *gluu, Shader *base,
         useProgram(gluu, base, item, pass, caches);
         applyItemState(gluu, f, item, instance.selectionId, caches.detail);
         applyPbrState(gluu, f, item);
+        applyWaterState(gluu, item);
         applyWrapSamplers(item);
         applyTerrainState(gluu, item, caches.terrain);
         applyProceduralTerrainState(gluu,f,item,caches.procedural);
@@ -923,6 +965,7 @@ void OpenGL3Renderer::drawGrouped(GLUU *gluu, Shader *base,
         useProgram(gluu, base, item, pass, caches);
         applyItemState(gluu, f, item, instances[i].selectionId, caches.detail);
         applyPbrState(gluu, f, item);
+        applyWaterState(gluu, item);
         applyWrapSamplers(item);
         currentSelection = instances[i].selectionId;
         applyTerrainState(gluu, item, caches.terrain);

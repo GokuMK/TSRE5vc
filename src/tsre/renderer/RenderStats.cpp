@@ -31,6 +31,7 @@ namespace {
 
 struct PendingQuery {
     Phase phase;
+    // 0 when the query counts samples only.
     GLuint primitives;
     GLuint samples;
 };
@@ -40,6 +41,7 @@ struct State {
     bool inFrame = false;
     Category category = CategoryOther;
     int activePhase = -1;
+    bool samplesPaused = false;
     FrameStats current;
     FrameStats last;
     quint64 frameCounter = 0;
@@ -107,6 +109,7 @@ void beginFrame() {
     s.renderItemsAtStart = renderItemCounter.load(std::memory_order_relaxed);
     s.matrixClonesAtStart = matrixCloneCounter.load(std::memory_order_relaxed);
     s.activePhase = -1;
+    s.samplesPaused = false;
     s.queryPoolUsed = 0;
     s.pending.clear();
     s.queriesFailed = false;
@@ -134,7 +137,8 @@ void endFrame() {
         for (const PendingQuery &query : s.pending) {
             GLuint primitives = 0;
             GLuint samples = 0;
-            f->glGetQueryObjectuiv(query.primitives, GL_QUERY_RESULT, &primitives);
+            if (query.primitives != 0)
+                f->glGetQueryObjectuiv(query.primitives, GL_QUERY_RESULT, &primitives);
             f->glGetQueryObjectuiv(query.samples, GL_QUERY_RESULT, &samples);
             frame.phases[query.phase].primitives += primitives;
             frame.phases[query.phase].samples += samples;
@@ -179,10 +183,39 @@ void endPhase(Phase phase) {
     if (f == nullptr) {
         s.queriesFailed = true;
     } else {
-        f->glEndQuery(GL_SAMPLES_PASSED);
+        if (!s.samplesPaused)
+            f->glEndQuery(GL_SAMPLES_PASSED);
         f->glEndQuery(GL_PRIMITIVES_GENERATED);
     }
     s.activePhase = -1;
+    s.samplesPaused = false;
+}
+
+void pauseSamples() {
+    State &s = state();
+    if (!s.inFrame || s.activePhase < 0 || s.samplesPaused)
+        return;
+    QOpenGLExtraFunctions *f = queryFunctions();
+    if (f == nullptr)
+        return;
+    f->glEndQuery(GL_SAMPLES_PASSED);
+    s.samplesPaused = true;
+}
+
+void resumeSamples(unsigned int callerQuery) {
+    State &s = state();
+    if (!s.inFrame || s.activePhase < 0 || !s.samplesPaused)
+        return;
+    QOpenGLExtraFunctions *f = queryFunctions();
+    if (f == nullptr)
+        return;
+    const Phase phase = static_cast<Phase>(s.activePhase);
+    if (callerQuery != 0)
+        s.pending.push_back({phase, 0, callerQuery});
+    const GLuint samples = takeQuery(f);
+    f->glBeginQuery(GL_SAMPLES_PASSED, samples);
+    s.pending.push_back({phase, 0, samples});
+    s.samplesPaused = false;
 }
 
 void setCategory(Category category) {
@@ -244,6 +277,7 @@ const char *phaseName(Phase phase) {
     case PhaseScene: return "scene";
     case PhaseUi: return "ui";
     case PhaseEnvironment: return "environment";
+    case PhaseReflection: return "reflection";
     default: return "unknown";
     }
 }

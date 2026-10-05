@@ -16,6 +16,7 @@
 #include <tsre/Game.h>
 #include <QDebug>
 #include <QFile>
+#include <algorithm>
 #include <tsre/ogl/GLUU.h>
 
 Environment::Environment(QString path) {
@@ -156,3 +157,22 @@ void Environment::loadWaterLayer(FileBuffer* data){
 Environment::~Environment() {
 }
 
+int Environment::surfaceWaterLayer() const {
+    int surface = -1;
+    for (int i = 0; i < waterCount && i < water.size(); i++)
+        if (surface < 0 || water[i].height >= water[surface].height)
+            surface = i;
+    return surface;
+}
+
+QVector<int> Environment::lowerWaterLayers(int count) const {
+    const int surface = surfaceWaterLayer();
+    QVector<int> layers;
+    for (int i = 0; i < waterCount && i < water.size(); i++)
+        if (i != surface)
+            layers.push_back(i);
+    std::stable_sort(layers.begin(), layers.end(), [this](int a, int b) {
+        return water[a].height < water[b].height;
+    });
+    return layers.mid(0, count);
+}

@@ -7344,6 +7344,16 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <source>Environment cube map rendered around the camera for reflections.</source>
         <translation>Environment cube map rendered around the camera for reflections.</translation>
     </message>
+    <message id="settings.group.rendering.subgroup.water.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="188" />
+        <source>Water</source>
+        <translation>Water</translation>
+    </message>
+    <message id="settings.group.rendering.subgroup.water.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="190" />
+        <source>How route water surfaces are drawn.</source>
+        <translation>How route water surfaces are drawn.</translation>
+    </message>
     <message id="settings.group.rendering.subgroup.environment.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="180" />
         <source>Environment</source>
@@ -8308,6 +8318,26 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <location filename="../src/settings/SettingsRegistration.cpp" line="809" />
         <source>Diagnostic: draw the cube faces unfolded in the lower-left corner of the Route Editor and Shape Viewer.</source>
         <translation>Diagnostic: draw the cube faces unfolded in the lower-left corner of the Route Editor and Shape Viewer.</translation>
+    </message>
+    <message id="settings.core.rendering.water.shaded.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="817" />
+        <source>Shaded water</source>
+        <translation>Shaded water</translation>
+    </message>
+    <message id="settings.core.rendering.water.shaded.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="819" />
+        <source>Draw water as one surface with waves, reflections and sun glints, coloured by the route's water textures. When off, the water layers of the route's ENV file are drawn as stacked textures.</source>
+        <translation>Draw water as one surface with waves, reflections and sun glints, coloured by the route's water textures. When off, the water layers of the route's ENV file are drawn as stacked textures.</translation>
+    </message>
+    <message id="settings.core.rendering.water.reflection.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="824" />
+        <source>Water reflects the scene</source>
+        <translation>Water reflects the scene</translation>
+    </message>
+    <message id="settings.core.rendering.water.reflection.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="826" />
+        <source>Shaded water mirrors the terrain, objects and sky around it, from an extra half-resolution view drawn when water is in sight. When off, water reflects the environment map or a sky gradient only.</source>
+        <translation>Shaded water mirrors the terrain, objects and sky around it, from an extra half-resolution view drawn when water is in sight. When off, water reflects the environment map or a sky gradient only.</translation>
     </message>
     <message id="settings.core.rendering.default.line.width.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="718" />

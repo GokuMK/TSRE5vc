@@ -61,6 +61,38 @@ void OglObj::resetTexture() {
     if (texId >= 0)
         TexLib::delRef(texId);
     texId = -1;
+    for (int &layer : layerTexIds) {
+        if (layer >= 0)
+            TexLib::delRef(layer);
+        layer = -1;
+    }
+}
+
+void OglObj::setWater(bool enabled, QString *bottomPath, QString *middlePath) {
+    water = enabled;
+    QString *paths[RenderItem::Water::LAYER_COUNT] = {bottomPath, middlePath};
+    for (int i = 0; i < RenderItem::Water::LAYER_COUNT; ++i) {
+        if (paths[i] == layerRes[i])
+            continue;
+        if (layerTexIds[i] >= 0)
+            TexLib::delRef(layerTexIds[i]);
+        layerTexIds[i] = -1;
+        layerRes[i] = paths[i];
+    }
+}
+
+// The uploaded texture of a lower water layer; 0 for none or not loaded yet.
+unsigned int OglObj::layerTexture(int layer) {
+    if (!water || layerRes[layer] == NULL)
+        return 0;
+    int &id = layerTexIds[layer];
+    if (id == -1)
+        id = TexLib::addTex(*layerRes[layer]);
+    if (id < 0 || !TexLib::mtex[id]->loaded)
+        return 0;
+    if (!TexLib::mtex[id]->glLoaded)
+        TexLib::mtex[id]->GLTextures();
+    return TexLib::mtex[id]->glLoaded ? TexLib::mtex[id]->tex[0] : 0;
 }
 
 void OglObj::deleteVBO(){
@@ -156,13 +188,18 @@ void OglObj::pushRenderItem(RenderQueue &queue, quint32 selectionId, float lod){
         materialColor = colorValues;
     }
 
+    unsigned int layers[RenderItem::Water::LAYER_COUNT] = {0, 0};
+    if (textured)
+        for (int i = 0; i < RenderItem::Water::LAYER_COUNT; ++i)
+            layers[i] = layerTexture(i);
     RenderItem *packet = framePacket(textured, texAddr, materialColor,
-                                     terrainDecal && selectionId == 0);
+                                     terrainDecal && selectionId == 0, layers);
     queue.submit(packet, selectionId, RenderQueue::SUBMIT_ORDERED);
 }
 
 RenderItem *OglObj::framePacket(bool textured, unsigned int texAddr,
-                                const float *materialColor, bool decal){
+                                const float *materialColor, bool decal,
+                                const unsigned int *layers){
     const quint64 frame = Renderer::frameNumber();
     if(packetFrame != frame){
         packetFrame = frame;
@@ -175,6 +212,9 @@ RenderItem *OglObj::framePacket(bool textured, unsigned int texAddr,
                 && m.color[0] == materialColor[0] && m.color[1] == materialColor[1]
                 && m.color[2] == materialColor[2] && m.color[3] == materialColor[3]
                 && m.decal == decal
+                && packet->water.enabled == water
+                && std::equal(layers, layers + RenderItem::Water::LAYER_COUNT,
+                              packet->water.layers)
                 && packet->mesh.count == static_cast<unsigned int>(length)
                 && packet->mesh.primitive == RenderItem::primitiveFromGl(shapeType)
                 && m.lineWidth == lineWidth;
@@ -195,6 +235,8 @@ RenderItem *OglObj::framePacket(bool textured, unsigned int texAddr,
                                 materialColor[2], materialColor[3]);
     std::copy(materialColor, materialColor + 4, packet->material.color);
     packet->material.lineWidth = lineWidth;
+    packet->water.enabled = water;
+    std::copy(layers, layers + RenderItem::Water::LAYER_COUNT, packet->water.layers);
     packet->mesh.handle = mesh;
     packet->msMatrix = NULL;
     packet->mesh.primitive = RenderItem::primitiveFromGl(shapeType);

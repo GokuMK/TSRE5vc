@@ -39,6 +39,9 @@ public:
     int getTexId();
     void setDistanceRange(float min, float max);
     void setLineWidth(int val);
+    // Draws as a shaded water surface (water program variant) over the
+    // bottom and middle water layer textures, or as a plain surface when off.
+    void setWater(bool enabled, QString *bottomPath = NULL, QString *middlePath = NULL);
     bool getSimpleBorder(float* border);
     void setBound(float *b);
 private:
@@ -56,6 +59,10 @@ private:
     float minDistance = -1;
     float maxDistance = 999999;
     QString *res;
+    bool water = false;
+    // Lower water layers (RenderItem::Water::Layer order).
+    QString *layerRes[RenderItem::Water::LAYER_COUNT] = {NULL, NULL};
+    int layerTexIds[RenderItem::Water::LAYER_COUNT] = {-1, -1};
     Vector4f *color = NULL;
     RenderItem::VertexAttr vAttribures = RenderItem::NO_ATTR;
     // Gather packets reused across frames. One object can be submitted
@@ -65,7 +72,8 @@ private:
     quint64 packetFrame = 0;
     int packetsUsed = 0;
     RenderItem *framePacket(bool textured, unsigned int texAddr,
-                            const float *color, bool decal);
+                            const float *color, bool decal, const unsigned int *layers);
+    unsigned int layerTexture(int layer);
     void retirePackets();
 };
 

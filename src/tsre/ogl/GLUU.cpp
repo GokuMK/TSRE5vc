@@ -19,6 +19,9 @@
 #include <QOpenGLExtraFunctions>
 #include <QOpenGLFunctions_3_0>
 #include <QOpenGLVersionFunctionsFactory>
+#include <QElapsedTimer>
+#include <cmath>
+#include <tsre/renderer/Renderer.h>
 #ifndef __APPLE__
 #include <GL/gl.h>
 #else
@@ -122,6 +125,26 @@ Shader *GLUU::pbrVariant(Shader *shader) const {
     return pbrVariants.value(shader, shader);
 }
 
+Shader *GLUU::waterVariant(Shader *shader) const {
+    return waterVariants.value(shader, shader);
+}
+
+float GLUU::animationSeconds() {
+    static QElapsedTimer clock;
+    static quint64 frame = 0;
+    static float seconds = 0.0f;
+    if (Game::animationFrozen)
+        return 0.0f;
+    if (!clock.isValid())
+        clock.start();
+    if (frame != Renderer::frameNumber() || seconds == 0.0f) {
+        frame = Renderer::frameNumber();
+        // Wrapped hourly to keep the wave phases precise.
+        seconds = float(std::fmod(clock.elapsed() / 1000.0, 3600.0));
+    }
+    return seconds;
+}
+
 void GLUU::initShader() {
     QOpenGLContext *context = QOpenGLContext::currentContext();
     QOpenGLExtraFunctions *extra = context->extraFunctions();
@@ -154,6 +177,8 @@ void GLUU::initShader() {
     shaderDefinitions.push_back({"Selection", "StandardFog", "Selection", terrain});
     // Metallic-roughness materials (glTF) for the main program only.
     shaderDefinitions.push_back({"StandardFogPbr", "StandardFog", "StandardFog", {"TSRE_PBR"}});
+    // Water surfaces, for the main and the fast program.
+    shaderDefinitions.push_back({"StandardFogWater", "StandardFog", "StandardFog", {"TSRE_WATER"}});
 
     const QString directory = shaderDirectory();
     for(int i = 0; i < shaderDefinitions.size(); i++ ){
@@ -255,6 +280,10 @@ void GLUU::initShader() {
         currentShader->pbrClearcoat = currentShader->uniformLocation("pbrClearcoat");
         currentShader->cameraPosition = currentShader->uniformLocation("cameraPosition");
         currentShader->environmentMapLevels = currentShader->uniformLocation("environmentMapLevels");
+        currentShader->waterTime = currentShader->uniformLocation("waterTime");
+        currentShader->waterLayers = currentShader->uniformLocation("waterLayers");
+        currentShader->waterReflectionView = currentShader->uniformLocation("waterReflectionView");
+        currentShader->clipPlane = currentShader->uniformLocation("clipPlane");
 
         const GLuint terrainBlock = extra->glGetUniformBlockIndex(
                     currentShader->programId(), "TerrainPatchBlock");
@@ -300,11 +329,15 @@ void GLUU::initShader() {
             currentShader->setUniformValue(currentShader->instanceMatrices, 8);
         // Unit 10 holds the environment map, units 11-14 the metallic-roughness,
         // normal, occlusion and emissive maps, and units 4-6 (terrain-only
-        // elsewhere) the clearcoat maps.
+        // elsewhere) the clearcoat maps. Water uses units 4 and 5 for its
+        // lower layers, unit 6 for the planar reflection and unit 15 for the
+        // wave map.
         const struct { const char *name; int unit; } pbrSamplers[] = {
             {"environmentMap", 10}, {"pbrMetallicRoughnessMap", 11}, {"pbrNormalMap", 12},
             {"pbrOcclusionMap", 13}, {"pbrEmissiveMap", 14}, {"pbrClearcoatMap", 4},
-            {"pbrClearcoatRoughnessMap", 5}, {"pbrClearcoatNormalMap", 6}};
+            {"pbrClearcoatRoughnessMap", 5}, {"pbrClearcoatNormalMap", 6},
+            {"waterBottomMap", 4}, {"waterMiddleMap", 5}, {"waterReflectionMap", 6},
+            {"waterNormalMap", 15}};
         for (const auto &sampler : pbrSamplers) {
             const int location = currentShader->uniformLocation(sampler.name);
             if (location >= 0)
@@ -324,6 +357,8 @@ void GLUU::initShader() {
         unlitVariants[shaders[name]] = shaders[name + "Unlit"];
     }
     pbrVariants[shaders["StandardFog"]] = shaders["StandardFogPbr"];
+    waterVariants[shaders["StandardFog"]] = shaders["StandardFogWater"];
+    waterVariants[shaders["StandardFast"]] = shaders["StandardFogWater"];
     currentShader = shaders["StandardFog"];
 }
 
@@ -371,6 +406,14 @@ void GLUU::setMatrixUniforms() {
     currentShader->setUniformValue(currentShader->cameraPosition, cameraPosition[0],
             cameraPosition[1], cameraPosition[2]);
     currentShader->setUniformValue(currentShader->environmentMapLevels, float(environmentMapLevels));
+    if (currentShader->waterTime >= 0)
+        currentShader->setUniformValue(currentShader->waterTime, animationSeconds());
+    if (currentShader->waterReflectionView >= 0)
+        currentShader->setUniformValue(currentShader->waterReflectionView, waterReflectionView[0],
+                waterReflectionView[1], waterReflectionView[2], waterReflectionView[3]);
+    if (currentShader->clipPlane >= 0)
+        currentShader->setUniformValue(currentShader->clipPlane, clipPlane[0], clipPlane[1],
+                clipPlane[2], clipPlane[3]);
 };
 
 void GLUU::disableTextures(Vector4f* color){

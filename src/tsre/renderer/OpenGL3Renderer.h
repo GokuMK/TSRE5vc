@@ -13,6 +13,7 @@
 #define OPENGL3RENDERER_H
 
 #include <tsre/renderer/Renderer.h>
+#include <tsre/renderer/WaterNormalMap.h>
 #include <unordered_map>
 #include <vector>
 
@@ -27,6 +28,8 @@ public:
     virtual ~OpenGL3Renderer();
     void renderPasses(RenderPass first, RenderPass last) override;
     void renderPassesRetained(RenderPass first, RenderPass last) override;
+    bool nearestVisible(RenderPass pass, const float *viewProjection,
+                        float *center) const override;
     void renderShadowCasters(float range, int statsSlot,
                              const float *viewProjection = nullptr) override;
     void renderFrame() override;
@@ -123,6 +126,8 @@ private:
     void applyWrapSamplers(const RenderItem *item);
     void bindWrapSampler(int unit, quint32 wrap);
     void releaseWrapSamplers();
+    void applyWaterState(GLUU *gluu, const RenderItem *item);
+    WaterNormalMap waterNormals;
     std::unordered_map<quint32, unsigned int> wrapSamplers;
     unsigned int boundSamplers[16] = {};
     QOpenGLContext *samplerContext = nullptr;

@@ -183,6 +183,11 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
            QT_TRID_NOOP("settings.group.rendering.subgroup.reflections.name"),
            //% "Environment cube map rendered around the camera for reflections."
            QT_TRID_NOOP("settings.group.rendering.subgroup.reflections.description"), 45},
+          {"water",
+           //% "Water"
+           QT_TRID_NOOP("settings.group.rendering.subgroup.water.name"),
+           //% "How route water surfaces are drawn."
+           QT_TRID_NOOP("settings.group.rendering.subgroup.water.description"), 47},
           {"environment",
            //% "Environment"
            QT_TRID_NOOP("settings.group.rendering.subgroup.environment.name"),
@@ -806,6 +811,20 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Diagnostic: draw the cube faces unfolded in the lower-left corner of the Route Editor and Shape Viewer."
                 QT_TRID_NOOP("settings.core.rendering.environment.map.preview.description")).inGroup("rendering").inSubgroup("reflections"),
         "environmentMapPreview", "Game::environmentMapPreview", "RouteEditorGLWidget", true, "hot-cache");
+    ADD(SettingsDefinition::boolean("core.rendering.water.shaded", true)
+            .withNameId(
+                //% "Shaded water"
+                QT_TRID_NOOP("settings.core.rendering.water.shaded.name")).withDescriptionId(
+                //% "Draw water as one surface with waves, reflections and sun glints, coloured by the route's water textures. When off, the water layers of the route's ENV file are drawn as stacked textures."
+                QT_TRID_NOOP("settings.core.rendering.water.shaded.description")).inGroup("rendering").inSubgroup("water"),
+        "waterShaded", "Game::waterShaded", "RouteEditorGLWidget", true, "hot-cache");
+    ADD(SettingsDefinition::boolean("core.rendering.water.reflection", true)
+            .withNameId(
+                //% "Water reflects the scene"
+                QT_TRID_NOOP("settings.core.rendering.water.reflection.name")).withDescriptionId(
+                //% "Shaded water mirrors the terrain, objects and sky around it, from an extra half-resolution view drawn when water is in sight. When off, water reflects the environment map or a sky gradient only."
+                QT_TRID_NOOP("settings.core.rendering.water.reflection.description")).inGroup("rendering").inSubgroup("water"),
+        "waterReflection", "Game::waterReflection", "RouteEditorGLWidget", true, "hot-cache");
     ADD(SettingsDefinition::integer("core.rendering.defaultLineWidth", 1)
             .withNameId(
                 //% "Default line width"

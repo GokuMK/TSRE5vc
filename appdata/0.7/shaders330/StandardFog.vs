@@ -14,6 +14,9 @@ out vec4 vWorldTangent;
 out vec2 vTextureCoord1;
 out vec4 vColor;
 #endif
+#ifdef TSRE_WATER
+out vec3 vWorldPosition;
+#endif
 
 uniform float lod;
 uniform mat4 uShadowPMatrix;
@@ -30,6 +33,9 @@ uniform mat4 uMVMatrix;
 uniform mat4 uMSMatrix;
 #include "Instancing.glsl"
 uniform float fogDensity;
+// Geometry below this plane (submission space) is clipped where clip
+// distance 0 is enabled: the water reflection pass.
+uniform vec4 clipPlane;
 #ifdef TSRE_TERRAIN
 uniform int terrainPaged;
 // Zero is identity. A procedural patch can sample its tile bake without a mesh rebuild.
@@ -106,7 +112,11 @@ void main() {
     vTextureCoord1 = aTextureCoord1;
     vColor = vertexColor;
 #endif
+#ifdef TSRE_WATER
+    vWorldPosition = shadowVertex.xyz;
+#endif
     gl_Position = uPMatrix * modelView * uMSMatrix * renderVertex;
+    gl_ClipDistance[0] = dot(shadowVertex, clipPlane);
     vec4 fogPosition = uFMatrix * modelView * uMSMatrix * renderVertex;
 #ifdef TSRE_TERRAIN
     vTextureCoord = renderUv * (1.0 + terrainTextureRemap.x) + terrainTextureRemap.yz;
