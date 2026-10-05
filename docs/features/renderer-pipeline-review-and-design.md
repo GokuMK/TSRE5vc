@@ -47,6 +47,10 @@ is out of date. Current state:
   producer is migrated, including both terrain meshes, so packets carry no
   vertex arrays or buffers (weakness 1 below, mesh part). Materials still
   carry GL texture ids; textures and framebuffers are a later step.
+- Environment map (task 17): a cube around the camera, rendered from the
+  gathered queue a few faces per frame with limited object range; the Shape
+  Viewer uses a procedural warehouse. Off by default; no material samples it
+  yet.
 
 - The gather frame draws everything through the renderer: sky, distant
   terrain and water, high-res terrain, world objects, overlays, water, pointer,

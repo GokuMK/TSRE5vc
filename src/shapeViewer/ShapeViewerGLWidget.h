@@ -28,6 +28,7 @@ class GLUU;
 class Camera;
 class EngLib;
 class OpenGL3Renderer;
+class EnvironmentMap;
 class QImage;
 class ShapeTextureInfo;
 class ShapeHierarchyInfo;
@@ -103,6 +104,8 @@ private:
     void renderGathered(quint32 selectionId);
     // Owned; draws this widget's frames.
     OpenGL3Renderer *renderer = nullptr;
+    // Owned; a procedural warehouse interior for reflections.
+    EnvironmentMap *environmentMap = nullptr;
     SelectionRenderer selectionRenderer;
     QPointF selectionPosition;
     void setupVertexAttribs();

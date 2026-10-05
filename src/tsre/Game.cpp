@@ -125,6 +125,11 @@ bool Game::textureLoaderThreaded = true;
 int Game::shadowMapSize = 2048;
 int Game::shadowLowMapSize = 1024;
 int Game::shadowsEnabled = 1;
+bool Game::environmentMapEnabled = false;
+int Game::environmentMapSize = 128;
+int Game::environmentMapFacesPerFrame = 1;
+float Game::environmentMapObjectDistance = 300.0f;
+bool Game::environmentMapPreview = false;
 float Game::sunLightDirection[] = {-1.0,2.0,1.0};
 int Game::textureQuality = 1;
 float Game::snapableRadius = 20;
@@ -335,6 +340,15 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
         shadowLowMapSize = settings.runtimeInt("core.rendering.shadow.distantMapSize");
         if (shadowLowMapSize >= 2048) { shadow2Res = 4000.0; shadow2Bias = 0.001; }
     }
+    boolean("core.rendering.environmentMap.enabled", environmentMapEnabled);
+    claim("core.rendering.environmentMap.faceSize", SettingType::Enum);
+    if (appliesNow("core.rendering.environmentMap.faceSize"))
+        environmentMapSize = settings.runtimeInt("core.rendering.environmentMap.faceSize");
+    claim("core.rendering.environmentMap.facesPerFrame", SettingType::Enum);
+    if (appliesNow("core.rendering.environmentMap.facesPerFrame"))
+        environmentMapFacesPerFrame = settings.runtimeInt("core.rendering.environmentMap.facesPerFrame");
+    floating("core.rendering.environmentMap.objectDistance", environmentMapObjectDistance);
+    boolean("core.rendering.environmentMap.preview", environmentMapPreview);
     integer("core.rendering.defaultLineWidth", oglDefaultLineWidth);
     floating("core.rendering.fogDensity", fogDensity);
     auto colour = [&](const char *key, float target[4]) {
