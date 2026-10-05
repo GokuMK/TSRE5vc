@@ -718,7 +718,7 @@ const char *ViewerCaptureLog = "[tests:shape-viewer-capture]";
 const char *ViewerCompareLog = "[tests:shape-viewer-compare]";
 
 // One item shown in the Shape Viewer: a shape, an engine or a consist.
-// Paths are relative to the game root.
+// Paths are relative to the cases file's itemRoot, or the game root.
 struct ViewerItem {
     QString name;
     QString type;
@@ -733,6 +733,8 @@ struct ViewerOptions {
     QString outputDir = "build/shape-viewer-parity";
     int diffTolerance = 16;
     SettleOptions settle;
+    // Directory item paths are relative to; empty means the game root.
+    QString itemRoot;
     QVector<ViewerItem> items;
 };
 
@@ -747,6 +749,19 @@ bool loadViewerOptions(const QString &casesFile, ViewerOptions &options, QString
     options.height = root.value("height").toInt(options.height);
     options.outputDir = root.value("output").toString(options.outputDir);
     options.diffTolerance = root.value("diffTolerance").toInt(options.diffTolerance);
+    // A leading $NAME takes an environment variable, for content outside the
+    // game root such as the Khronos glTF sample models.
+    options.itemRoot = root.value("itemRoot").toString();
+    if (options.itemRoot.startsWith('$')) {
+        const int end = options.itemRoot.indexOf('/');
+        const QString name = options.itemRoot.mid(1, end < 0 ? -1 : end - 1);
+        const QString value = qEnvironmentVariable(name.toLatin1().constData());
+        if (value.isEmpty()) {
+            error = QString("set %1 for the item root").arg(name);
+            return false;
+        }
+        options.itemRoot = value + (end < 0 ? QString() : options.itemRoot.mid(end));
+    }
     const QJsonObject settle = root.value("settle").toObject();
     options.settle.minFrames = settle.value("minFrames").toInt(10);
     options.settle.stableFrames = settle.value("stableFrames").toInt(3);
@@ -823,13 +838,14 @@ int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, const QStrin
 
     QJsonArray items;
     for (const ViewerItem &item : options.items) {
-        const QString path = QDir(Game::root).absoluteFilePath(item.path);
+        const QDir itemRoot(options.itemRoot.isEmpty() ? Game::root : options.itemRoot);
+        const QString path = itemRoot.absoluteFilePath(item.path);
         bool shown = true;
         if (item.type == "shape") {
             widget.setCamera(&shapeCamera);
             widget.setMode("rot");
             const QString textures = item.textures.isEmpty()
-                    ? QString() : QDir(Game::root).absoluteFilePath(item.textures);
+                    ? QString() : itemRoot.absoluteFilePath(item.textures);
             widget.showShape(path, textures);
         } else if (item.type == "eng") {
             widget.setCamera(&shapeCamera);
