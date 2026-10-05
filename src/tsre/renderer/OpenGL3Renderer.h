@@ -76,6 +76,8 @@ private:
     RenderPass routePass(const RenderItem *packet, SubmitOrder order) const;
     bool castsShadow(const RenderItem *packet) const;
     void instanceOrigin(const DrawInstance &instance, float *origin) const;
+    // An instance's bounding sphere in submission space; false without bounds.
+    bool instanceBounds(const DrawInstance &instance, float *center, float &radius) const;
     // Whether an instance's bounds can be inside the frustum; counts culls.
     bool visible(const DrawInstance &instance, const Frustum &frustum) const;
     void queueInstance(RenderItem *packet, const float *matrix, quint32 selectionId,

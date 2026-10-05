@@ -469,12 +469,12 @@ void OpenGL3Renderer::instanceOrigin(const DrawInstance &instance, float *origin
                 + matrix[8 + i] * local[2] + matrix[12 + i];
 }
 
-bool OpenGL3Renderer::visible(const DrawInstance &instance, const Frustum &frustum) const{
+bool OpenGL3Renderer::instanceBounds(const DrawInstance &instance, float *center,
+                                     float &radius) const{
     const RenderItem::Bounds &bounds = instance.packet->bounds;
-    if(!frustum.enabled || !bounds.valid())
-        return true;
+    if(!bounds.valid())
+        return false;
     const float *m = instanceMatrix(instance.matrix);
-    float center[3];
     for(int i = 0; i < 3; ++i)
         center[i] = m[i] * bounds.center[0] + m[4 + i] * bounds.center[1]
                 + m[8 + i] * bounds.center[2] + m[12 + i];
@@ -483,7 +483,16 @@ bool OpenGL3Renderer::visible(const DrawInstance &instance, const Frustum &frust
         const float *axis = m + column * 4;
         scale = std::max(scale, axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2]);
     }
-    if(intersects(frustum, center, bounds.radius * std::sqrt(scale)))
+    radius = bounds.radius * std::sqrt(scale);
+    return true;
+}
+
+bool OpenGL3Renderer::visible(const DrawInstance &instance, const Frustum &frustum) const{
+    float center[3];
+    float radius = 0.0f;
+    if(!frustum.enabled || !instanceBounds(instance, center, radius))
+        return true;
+    if(intersects(frustum, center, radius))
         return true;
     if(RenderStats::inFrame())
         RenderStats::current().culledInstances++;
@@ -809,7 +818,6 @@ void OpenGL3Renderer::renderShadowCasters(float range, int statsSlot,
     f->glActiveTexture(GL_TEXTURE0);
     TerrainStateCache terrainState;
     DetailStateCache detailState;
-    const float rangeSquared = range * range;
     const Frustum lightFrustum = frustumOf(viewProjection);
     // Casters in range and inside the light view, grouped by packet. Depth
     // does not depend on draw order, so repeated packets draw instanced.
@@ -819,11 +827,16 @@ void OpenGL3Renderer::renderShadowCasters(float range, int statsSlot,
             for(const DrawInstance &instance : *list){
                 if(!instance.castsShadow || instance.packet->mesh.vao == NULL)
                     continue;
-                float origin[3];
-                instanceOrigin(instance, origin);
-                const float dx = origin[0] - viewPosition[0];
-                const float dz = origin[2] - viewPosition[2];
-                if(dx * dx + dz * dz > rangeSquared || !visible(instance, lightFrustum))
+                // Measure the range to the bounds, so long meshes whose origin
+                // is out of range still cast near the camera.
+                float center[3];
+                float radius = 0.0f;
+                if(!instanceBounds(instance, center, radius))
+                    instanceOrigin(instance, center);
+                const float dx = center[0] - viewPosition[0];
+                const float dz = center[2] - viewPosition[2];
+                const float reach = range + radius;
+                if(dx * dx + dz * dz > reach * reach || !visible(instance, lightFrustum))
                     continue;
                 shadowCasters.push_back(&instance);
             }
