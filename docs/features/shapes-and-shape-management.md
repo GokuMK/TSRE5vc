@@ -41,7 +41,7 @@ The original `SFile` class with its `SFileC`/`SFileX` readers has been removed; 
 ### 1.1 What `SFileLegacy` Represents
 `SFileLegacy` is both:
 1) a **loader/parser** for MSTS shape data (`.s`), and
-2) a **renderable asset** that owns GPU resources (VAO/VBO per subobject) and can submit draw packets.
+2) a **renderable asset** with one renderer-owned mesh per subobject (`MeshHandle`) that can submit draw packets.
 
 Key capabilities embedded in `SFileLegacy`:
 - **Multiple distance levels (LOD):** `distancelevel[]` plus `state[stateId].distanceLevel`.
@@ -182,7 +182,7 @@ glTF/GLB is implemented as a `ComplexShape` (`GltfShape`) and is loadable throug
 
 Major constraints to plan for:
 - **Shared asset + per-instance state must remain** (world objects already rely on `shapeState`).
-- **Renderer packet contract:** a mesh (renderer-owned `MeshHandle`, or a producer-owned VAO for producers not yet migrated) plus a vertex or index range. Indexed draws are supported; `SFileLegacy` and glTF/GLB still expand indexed geometry into non-indexed vertex arrays.
+- **Renderer packet contract:** a renderer-owned mesh (`MeshHandle`; terrain still passes its own VAO) plus a vertex or index range. Indexed draws are supported; the MSTS loaders and glTF/GLB still expand indexed geometry into non-indexed vertex arrays.
 - **Texture system is pathid + hashid based** (`Texture::hashid` is used for de-duplication in `TexLib`). While most textures are file-backed, TSRE already supports procedural/in-memory textures (e.g. `TextObj` uses `.:paintTex` handled by `PaintTexLib`). This means GLB embedded images can be supported by registering them in `TexLib` under a content hash (and optionally decoding in a worker, similar to other texture loaders).
 - **Material/alpha model is simple and shader-driven**. The current shader uses the `alpha` vertex attribute with sign semantics:
   - positive value (e.g. `1.0`) forces opaque output alpha

@@ -57,11 +57,21 @@ shadows off and on, Shape Viewer set) and the test suites, including
   rulers, markers, HUD, compass). `init()` no longer needs a GL context;
   `mapBuffer`/`unmapBuffer` are gone, the compass updates its own vertices.
   Pixel-identical.
-- [ ] `GltfShape`
-- [ ] `SFileComplex`
-- [ ] `SFileLegacy`
-- [ ] `ForestObj`, `TransferObj`
-- [ ] Terrain (`TerrainMeshBackend`, paged patch mesh and its uniform block)
+- [x] `GltfShape`: models load without a GL context. The Khronos sample set
+  (`tests/renderer/gltf-viewer-views.json`, `TSRE_GLTF_SAMPLE_ASSETS`) is
+  pixel-identical.
+- [x] `SFileComplex`: the GPU state machine and its context checks stay;
+  route captures with `TSRE_MSTS_SHAPE_BACKEND=complex` are pixel-identical.
+- [x] `SFileLegacy`: `initGL()` keeps its contract (needs a context, rolls
+  back on failure). Pixel-identical.
+- [x] `ForestObj`, `TransferObj`: already draw through `OglObj`.
+- [ ] Both MSTS loaders still require a current context in `initGL()` and
+  compare contexts in their ready checks; with shared buffers both can go.
+- [ ] Terrain (`TerrainMeshBackend`, `TerrainClient`). Needs store
+  extensions first: byte layouts (the paged mesh uses an 8-byte packed
+  vertex), range updates (brush edits rewrite single patches), uniform
+  buffers (per-page patch parameters) and an index buffer shared by meshes
+  (LOD and edge templates).
 - [ ] Remove `RenderItem::Mesh::vao`/`vbo` once no producer sets them.
 
 Textures and framebuffers (TexLib, procedural material arrays, shadow maps)

@@ -79,6 +79,34 @@ bool write(const QString &p, const QByteArray &b) {
 // In particular, tpoints and czes::idx are dangling after upload; never read them.
 // Private state allocations, unknown spare primitive slots, Qt/allocator/driver
 // overhead and shared textures are excluded. This is not a peak-memory counter.
+// The whole uploaded vertex buffer of a renderer-owned mesh; ok is false
+// when the mesh has nothing uploaded or cannot be read.
+QByteArray meshBufferBytes(MeshHandle handle, bool *ok = nullptr) {
+    QByteArray bytes;
+    bool read = false;
+    QOpenGLContext *context = QOpenGLContext::currentContext();
+    Meshes::Buffers buffers;
+    if (context && Meshes::prepare(handle, context->functions(), buffers)) {
+        QOpenGLExtraFunctions *e = context->extraFunctions();
+        e->glBindBuffer(GL_COPY_READ_BUFFER, buffers.vertexBuffer);
+        GLint size = 0;
+        e->glGetBufferParameteriv(GL_COPY_READ_BUFFER, GL_BUFFER_SIZE, &size);
+        read = size == 0;
+        if (size > 0) {
+            const void *mapped = e->glMapBufferRange(GL_COPY_READ_BUFFER, 0, size, GL_MAP_READ_BIT);
+            if (mapped) {
+                bytes = QByteArray(static_cast<const char *>(mapped), size);
+                e->glUnmapBuffer(GL_COPY_READ_BUFFER);
+                read = true;
+            }
+        }
+        e->glBindBuffer(GL_COPY_READ_BUFFER, 0);
+    }
+    if (ok)
+        *ok = read;
+    return bytes;
+}
+
 QJsonObject legacyStorage(SFileLegacy &shape) {
     quint64 cpu = sizeof(SFileLegacy);
     auto arrayBytes = [](int count, size_t element) {
@@ -131,14 +159,13 @@ QJsonObject legacyStorage(SFileLegacy &shape) {
             cpu += arrayBytes(mesh.iloscc + 1, sizeof(SFileLegacy::czes));
             for (int p = 0; p < mesh.iloscc; ++p)
                 expectedGpu += arrayBytes(mesh.czesci[p].iloscv, 9 * sizeof(GLfloat));
-            if (!mesh.VBO.isCreated() || !mesh.VBO.bind()) {
+            bool read = false;
+            const QByteArray bytes = meshBufferBytes(mesh.mesh, &read);
+            if (!read) {
                 queried = false;
                 continue;
             }
-            const int bytes = mesh.VBO.size();
-            queried &= bytes >= 0;
-            if (bytes >= 0)
-                gpu += quint64(bytes);
+            gpu += quint64(bytes.size());
         }
     }
     f->glBindBuffer(GL_ARRAY_BUFFER, GLuint(previousBuffer));
@@ -404,12 +431,11 @@ template<class Shape> int legacyCompatSnapshot(const QString &path) {
         for(int o=0;o<level.iloscs;++o) {
             auto &obj=level.subobiekty[o]; out<<obj.header.geometryNodeMap<<obj.iloscc;
             for(int k=0;k<obj.iloscc;++k) {const auto &p=obj.czesci[k];out<<p.iloscv<<p.offset<<p.prim_state_idx<<p.enabled;}
-            if(!obj.VBO.bind()) {gpuOk=false;continue;}
-            const int length=obj.VBO.size();
-            if(length<0) {gpuOk=false;obj.VBO.release();continue;}
-            QByteArray buffer(length,0);
-            gpuOk &= obj.VBO.read(0,buffer.data(),length);
-            obj.VBO.release(); bytes+=length; out<<length;
+            bool read=false;
+            const QByteArray buffer=meshBufferBytes(obj.mesh,&read);
+            if(!read) {gpuOk=false;continue;}
+            const int length=buffer.size();
+            bytes+=length; out<<length;
             buffers.addData(buffer);
         }
         QJsonObject row{{"layout",compatHash(layout)}, {"buffer",QString::fromLatin1(buffers.result().toHex())},
@@ -873,8 +899,7 @@ int TsreTests::runSFileComplexSuite(bool verbose, bool gl) {
             context.functions()->glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &boundVao);
             t.check(GLuint(boundBuffer) == sentinel.bufferId() &&
                         GLuint(boundVao) == sentinelVao.objectId() &&
-                        !legacy.distancelevel[0].subobiekty[0].VBO.isCreated() &&
-                        !legacy.distancelevel[0].subobiekty[0].VAO.isCreated(),
+                        !legacy.distancelevel[0].subobiekty[0].mesh.valid(),
                     "failed legacy upload rolls back resources and restores bindings");
             sentinelVao.release();
             sentinel.release();
@@ -1128,7 +1153,7 @@ int TsreTests::runSFileComplexCorpus(const QString &input, bool gl) {
                            !joined.initGL();
             for (int l = 0; l < joined.iloscd; ++l)
                 for (int o = 0; o < joined.distancelevel[l].iloscs; ++o)
-                    cpuOnly &= !joined.distancelevel[l].subobiekty[o].VBO.isCreated();
+                    cpuOnly &= !joined.distancelevel[l].subobiekty[o].mesh.valid();
             context->makeCurrent(surface);
             timer.restart();
             bool joinedReady = joined.initGL();
@@ -1173,16 +1198,8 @@ int TsreTests::runSFileComplexCorpus(const QString &input, bool gl) {
                     for (int h = 0; allLods && h < a.ilosch; ++h)
                         allLods &= a.hierarchia[h] == b.hierarchia[h];
                     for (int o = 0; allLods && o < a.iloscs; ++o) {
-                        auto readBuffer = [](QOpenGLBuffer &buffer) {
-                            QByteArray bytes;
-                            if (buffer.bind()) {
-                                bytes.resize(buffer.size());
-                                if (!buffer.read(0, bytes.data(), bytes.size())) bytes.clear();
-                                buffer.release();
-                            }
-                            return bytes;
-                        };
-                        allLods &= readBuffer(a.subobiekty[o].VBO) == readBuffer(b.subobiekty[o].VBO);
+                        allLods &= meshBufferBytes(a.subobiekty[o].mesh) ==
+                                   meshBufferBytes(b.subobiekty[o].mesh);
                     }
                 }
                 result["joined_all_lods_equal"] = allLods;

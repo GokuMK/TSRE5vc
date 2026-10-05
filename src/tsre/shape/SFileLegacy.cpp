@@ -10,6 +10,7 @@
 
 #include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/shape/SFileLegacy.h>
+#include <tsre/renderer/Mesh.h>
 
 
 #include <tsre/fileFunctions/ReadFile.h>
@@ -1060,8 +1061,7 @@ void SFileLegacy::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsign
                 if (selectionId == 0)
                     setGatherTexture(r, prim_state, texEnabled);
 
-                r->mesh.vbo = &distancelevel[currentDlevel].subobiekty[i].VBO;
-                r->mesh.vao = &distancelevel[currentDlevel].subobiekty[i].VAO;
+                r->mesh.handle = distancelevel[currentDlevel].subobiekty[i].mesh;
                 r->mesh.first = distancelevel[currentDlevel].subobiekty[i].czesci[j].offset;
                 r->mesh.count = distancelevel[currentDlevel].subobiekty[i].czesci[j].iloscv;
                 r->mesh.primitive = RenderItem::PRIMITIVE_TRIANGLES;
@@ -1128,8 +1128,7 @@ void SFileLegacy::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsign
                 r->material.surface = gatherSurface(prim_state);
                 setGatherTexture(r, prim_state, texEnabled);
 
-                r->mesh.vbo = &distancelevel[currentDlevel].subobiekty[i].VBO;
-                r->mesh.vao = &distancelevel[currentDlevel].subobiekty[i].VAO;
+                r->mesh.handle = distancelevel[currentDlevel].subobiekty[i].mesh;
                 //r->mvMatrix = Mat4::clone(queue.transform());
                 r->mesh.first = distancelevel[currentDlevel].subobiekty[i].czesci[j].offset;
                 r->mesh.count = distancelevel[currentDlevel].subobiekty[i].czesci[j].iloscv;
@@ -2055,25 +2054,13 @@ bool SFileLegacy::initGL() {
     // Uploaded source has been released. Another/lost context requires reload().
     if (glReady) return isGLReady();
     if (loaded != 1 || !QOpenGLContext::currentContext()) return false;
-    auto *f = QOpenGLContext::currentContext()->functions();
-    auto *extra = QOpenGLContext::currentContext()->extraFunctions();
-    GLint previousVao = 0, previousBuffer = 0;
-    f->glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &previousVao);
-    f->glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &previousBuffer);
     bool uploaded = false;
     const auto restore = qScopeGuard([&] {
         if (!uploaded) {
-            for (int l = 0; l < iloscd; ++l)
-                for (int o = 0; o < distancelevel[l].iloscs; ++o) {
-                    auto &object = distancelevel[l].subobiekty[o];
-                    object.VAO.destroy();
-                    object.VBO.destroy();
-                }
+            releaseMeshes();
             glContext.clear();
             glReady = false;
         }
-        extra->glBindVertexArray(GLuint(previousVao));
-        f->glBindBuffer(GL_ARRAY_BUFFER, GLuint(previousBuffer));
     });
     auto *gluu = GLUU::get();
     auto *pliks = this;
@@ -2099,25 +2086,9 @@ bool SFileLegacy::initGL() {
                     iloscv += pliks->distancelevel[j].subobiekty[ii].czesci[jj].iloscv;
                 }
 
-                if (!object.VAO.isCreated()) object.VAO.create();
-                QOpenGLVertexArrayObject::Binder vaoBinder(&pliks->distancelevel[j].subobiekty[ii].VAO);
-
-                if (!pliks->distancelevel[j].subobiekty[ii].VAO.isCreated() ||
-                    !pliks->distancelevel[j].subobiekty[ii].VBO.create()) return false;
-                if (!pliks->distancelevel[j].subobiekty[ii].VBO.bind()) return false;
-                pliks->distancelevel[j].subobiekty[ii].VBO.allocate(iloscv * 9 * sizeof(GLfloat));
-                if (object.VBO.size() != int(iloscv * 9 * sizeof(GLfloat))) {
-                    object.VBO.release();
-                    return false;
-                }
-                f->glEnableVertexAttribArray(0);
-                f->glEnableVertexAttribArray(1);
-                f->glEnableVertexAttribArray(2);
-                f->glEnableVertexAttribArray(3);
-                f->glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(GLfloat), 0);
-                f->glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(GLfloat), reinterpret_cast<void *>(3 * sizeof(GLfloat)));
-                f->glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 9 * sizeof(GLfloat), reinterpret_cast<void *>(6 * sizeof(GLfloat)));
-                f->glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, 9 * sizeof(GLfloat), reinterpret_cast<void *>(8 * sizeof(GLfloat)));
+                MeshData meshData;
+                meshData.layout = RenderItem::VNTA;
+                meshData.vertices.resize(size_t(iloscv) * 9);
 
                 for (int jj = 0; jj < pliks->distancelevel[j].subobiekty[ii].iloscc; jj++) {
                     const auto &part = object.czesci[jj];
@@ -2165,14 +2136,15 @@ bool SFileLegacy::initGL() {
                             //directxSmierdzi-=2;
                             //if(directxSmierdzi<-2) directxSmierdzi = 2;
                     }
-                    pliks->distancelevel[j].subobiekty[ii].VBO.write(offset * 9 * sizeof(GLfloat), wierzcholki, pliks->distancelevel[j].subobiekty[ii].czesci[jj].iloscv * 9 * sizeof(GLfloat));
+                    std::copy_n(wierzcholki, size_t(part.iloscv) * 9,
+                                meshData.vertices.begin() + size_t(offset) * 9);
                     partBounds(object.czesci[jj], wierzcholki);
 
                     pliks->distancelevel[j].subobiekty[ii].czesci[jj].offset = offset;
                     offset += pliks->distancelevel[j].subobiekty[ii].czesci[jj].iloscv;
 
                 }
-                pliks->distancelevel[j].subobiekty[ii].VBO.release();
+                Meshes::update(object.mesh, std::move(meshData));
             }
         }
     } catch (const FileBuffer::ParseError &error) {
@@ -2205,9 +2177,16 @@ void SFileLegacy::clearAnimatedPackets() {
     animatedPackets.clear();
 }
 
+void SFileLegacy::releaseMeshes() {
+    for (int j = 0; distancelevel && j < iloscd; ++j)
+        for (int i = 0; distancelevel[j].subobiekty && i < distancelevel[j].iloscs; ++i)
+            Meshes::release(distancelevel[j].subobiekty[i].mesh);
+}
+
 void SFileLegacy::clearData() {
     invalidateRenderState();
     clearAnimatedPackets();
+    releaseMeshes();
     for (int j = 0; distancelevel && j < iloscd; ++j) {
         auto &level = distancelevel[j];
         for (int i = 0; level.subobiekty && i < level.iloscs; ++i) {

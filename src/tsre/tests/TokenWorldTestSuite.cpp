@@ -12,12 +12,14 @@
 #include <tsre/world/objects/DynTrackObj.h>
 #include <tsre/world/objects/SignalObj.h>
 #include <tsre/shape/SFileLegacy.h>
+#include <tsre/renderer/Mesh.h>
 #include <QTemporaryDir>
 #include <QDir>
 #include <QFile>
 #include <QOffscreenSurface>
 #include <QOpenGLContext>
 #include <QOpenGLFunctions>
+#include <QOpenGLExtraFunctions>
 #include <QLocale>
 
 namespace {
@@ -522,9 +524,23 @@ int TsreTests::runTokenWorldSuite(bool verbose, bool withGl) {
                     if (ok) {
                         auto& sub = shape.distancelevel[0].subobiekty[0];
                         float vertices[27] = {};
-                        ok = sub.iloscc == 1 && sub.czesci[0].iloscv == 3 && sub.VBO.bind()
-                                && sub.VBO.read(0, vertices, sizeof(vertices));
-                        sub.VBO.release();
+                        ok = sub.iloscc == 1 && sub.czesci[0].iloscv == 3;
+                        // Read the uploaded vertices back from the renderer-owned mesh.
+                        QOpenGLContext *context = QOpenGLContext::currentContext();
+                        Meshes::Buffers buffers;
+                        ok = ok && context && Meshes::prepare(sub.mesh, context->functions(), buffers);
+                        if (ok) {
+                            QOpenGLExtraFunctions *e = context->extraFunctions();
+                            e->glBindBuffer(GL_COPY_READ_BUFFER, buffers.vertexBuffer);
+                            const void *mapped = e->glMapBufferRange(GL_COPY_READ_BUFFER, 0,
+                                                                     sizeof(vertices), GL_MAP_READ_BIT);
+                            ok = mapped != nullptr;
+                            if (mapped) {
+                                memcpy(vertices, mapped, sizeof(vertices));
+                                e->glUnmapBuffer(GL_COPY_READ_BUFFER);
+                            }
+                            e->glBindBuffer(GL_COPY_READ_BUFFER, 0);
+                        }
                         ok = ok && vertices[0] == 7 && vertices[1] == 8 && vertices[2] == 9
                                 && vertices[18] == 1 && vertices[19] == 2 && vertices[20] == 3;
                     }

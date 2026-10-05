@@ -18,7 +18,7 @@ This folder contains ordered tasks for migrating the TSRE renderer from legacy i
 - [x] `15-shape-viewer-gather.md` (Shape Viewer and Consist Editor draw through the renderer)
 - [x] `14-windows-hardware-validation.md` (manual Windows checks passed; further hardware runs only when they block work)
 - [x] `12-parity-automation-and-performance-gate.md` (harness compares a capture with a baseline capture)
-- [ ] `16-renderer-owned-meshes.md` (mesh store and `OglObj` done; shapes and terrain pending)
+- [ ] `16-renderer-owned-meshes.md` (mesh store, `OglObj`, glTF and both MSTS loaders done; terrain pending)
 
 ## Legacy Pipeline Removed
 
