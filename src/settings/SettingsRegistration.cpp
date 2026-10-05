@@ -178,6 +178,11 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
            QT_TRID_NOOP("settings.group.rendering.subgroup.shadows.name"),
            //% "Framebuffer and sampling options."
            QT_TRID_NOOP("settings.group.rendering.subgroup.shadows.description"), 40},
+          {"reflections",
+           //% "Reflections"
+           QT_TRID_NOOP("settings.group.rendering.subgroup.reflections.name"),
+           //% "Environment cube map rendered around the camera for reflections."
+           QT_TRID_NOOP("settings.group.rendering.subgroup.reflections.description"), 45},
           {"environment",
            //% "Environment"
            QT_TRID_NOOP("settings.group.rendering.subgroup.environment.name"),
@@ -752,6 +757,57 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "16384 px"
                 QT_TRID_NOOP("settings.core.rendering.shadow.distant.map.size.option.16384")}})).withUnit("px").inGroup("rendering").inSubgroup("shadows"),
         "shadowLowMapSize", "Game::shadowLowMapSize", "RouteEditorGLWidget", false, "renderer-restart");
+    ADD(SettingsDefinition::boolean("core.rendering.environmentMap.enabled", false)
+            .withNameId(
+                //% "Render environment map"
+                QT_TRID_NOOP("settings.core.rendering.environment.map.enabled.name")).withDescriptionId(
+                //% "Render a low-resolution cube map of the surroundings from the Route Editor camera, for reflections. The Shape Viewer always uses a fixed warehouse interior."
+                QT_TRID_NOOP("settings.core.rendering.environment.map.enabled.description")).inGroup("rendering").inSubgroup("reflections"),
+        "environmentMap", "Game::environmentMapEnabled", "RouteEditorGLWidget", true, "hot-cache");
+    ADD(SettingsDefinition::enumeration("core.rendering.environmentMap.faceSize", 128)
+            .withNameId(
+                //% "Environment map face size"
+                QT_TRID_NOOP("settings.core.rendering.environment.map.face.size.name")).withDescriptionId(
+                //% "Width and height of each of the six cube faces."
+                QT_TRID_NOOP("settings.core.rendering.environment.map.face.size.description"))
+            .withOptions(numericChoices({{64,
+                //% "64 px"
+                QT_TRID_NOOP("settings.core.rendering.environment.map.face.size.option.64")}, {128,
+                //% "128 px"
+                QT_TRID_NOOP("settings.core.rendering.environment.map.face.size.option.128")}, {256,
+                //% "256 px"
+                QT_TRID_NOOP("settings.core.rendering.environment.map.face.size.option.256")}})).withUnit("px").inGroup("rendering").inSubgroup("reflections"),
+        "environmentMapSize", "Game::environmentMapSize", "RouteEditorGLWidget", true, "hot-cache");
+    ADD(SettingsDefinition::enumeration("core.rendering.environmentMap.facesPerFrame", 1)
+            .withNameId(
+                //% "Environment map faces per frame"
+                QT_TRID_NOOP("settings.core.rendering.environment.map.faces.per.frame.name")).withDescriptionId(
+                //% "Cube faces rendered each frame, in turn; six refreshes the whole cube every frame."
+                QT_TRID_NOOP("settings.core.rendering.environment.map.faces.per.frame.description"))
+            .withOptions(numericChoices({{1,
+                //% "1"
+                QT_TRID_NOOP("settings.core.rendering.environment.map.faces.per.frame.option.1")}, {2,
+                //% "2"
+                QT_TRID_NOOP("settings.core.rendering.environment.map.faces.per.frame.option.2")}, {3,
+                //% "3"
+                QT_TRID_NOOP("settings.core.rendering.environment.map.faces.per.frame.option.3")}, {6,
+                //% "6"
+                QT_TRID_NOOP("settings.core.rendering.environment.map.faces.per.frame.option.6")}})).inGroup("rendering").inSubgroup("reflections"),
+        "environmentMapFacesPerFrame", "Game::environmentMapFacesPerFrame", "RouteEditorGLWidget", true, "hot-cache");
+    ADD(SettingsDefinition::floating("core.rendering.environmentMap.objectDistance", 300)
+            .withNameId(
+                //% "Environment map object distance"
+                QT_TRID_NOOP("settings.core.rendering.environment.map.object.distance.name")).withDescriptionId(
+                //% "Objects farther than this from the camera, and objects too small to cover a cube texel, are left out of the cube. Terrain and sky are always drawn."
+                QT_TRID_NOOP("settings.core.rendering.environment.map.object.distance.description")).withRange(25, 2000, 25).withUnit("m").inGroup("rendering").inSubgroup("reflections"),
+        "environmentMapObjectDistance", "Game::environmentMapObjectDistance", "RouteEditorGLWidget", true, "hot-cache");
+    ADD(SettingsDefinition::boolean("core.rendering.environmentMap.preview", false)
+            .withNameId(
+                //% "Show environment map"
+                QT_TRID_NOOP("settings.core.rendering.environment.map.preview.name")).withDescriptionId(
+                //% "Diagnostic: draw the cube faces unfolded in the lower-left corner of the Route Editor and Shape Viewer."
+                QT_TRID_NOOP("settings.core.rendering.environment.map.preview.description")).inGroup("rendering").inSubgroup("reflections"),
+        "environmentMapPreview", "Game::environmentMapPreview", "RouteEditorGLWidget", true, "hot-cache");
     ADD(SettingsDefinition::integer("core.rendering.defaultLineWidth", 1)
             .withNameId(
                 //% "Default line width"

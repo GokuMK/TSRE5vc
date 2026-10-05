@@ -47,6 +47,15 @@ public:
     // * transform * msMatrix * vertex). Null draws everything; a new frame
     // starts without culling. Packets without bounds are never culled.
     void setCullView(const float *viewProjection);
+    // Limits of a secondary view such as an environment map face: instances
+    // other than terrain whose bounds lie farther than maxDistance from the
+    // view position, or subtend less than minAngularRadius (radius over
+    // distance), are skipped. Null removes them; a new frame starts without.
+    struct ViewLimits {
+        float maxDistance = 0.0f;
+        float minAngularRadius = 0.0f;
+    };
+    void setViewLimits(const ViewLimits *limits);
     // Draws queued shadow casters with the bound shader without consuming
     // them, skipping instances whose origin lies farther than range from the
     // view position on the ground plane, and, with a light view-projection,
@@ -56,6 +65,9 @@ public:
     // Draws and consumes queued work of passes first..last; later passes stay
     // queued. Use it where direct drawing must happen between passes.
     virtual void renderPasses(RenderPass first, RenderPass last) = 0;
+    // Draws queued work of passes first..last without consuming it, for an
+    // extra view of the same frame (environment map faces).
+    virtual void renderPassesRetained(RenderPass first, RenderPass last) = 0;
     // Draws all remaining passes and ends the frame's submissions.
     virtual void renderFrame();
     // Starts a frame: drops queued work and rebalances the transform stack.
@@ -83,6 +95,8 @@ protected:
     // Whether a sphere in submission space can be inside the frustum.
     static bool intersects(const Frustum &frustum, const float *center, float radius);
     Frustum cullFrustum;
+    ViewLimits viewLimits;
+    bool viewLimitsEnabled = false;
 };
 
 #endif /* RENDERER_H */

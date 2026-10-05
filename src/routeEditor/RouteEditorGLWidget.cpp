@@ -60,6 +60,7 @@
 #include <tsre/sound/SoundManager.h>
 #include <tsre/world/Skydome.h>
 #include <tsre/renderer/OpenGL3Renderer.h>
+#include <tsre/renderer/EnvironmentMap.h>
 #include <tsre/renderer/SelectionId.h>
 #include <tsre/renderer/SelectionRenderer.h>
 #include <QDebug>
@@ -122,6 +123,8 @@ void RouteEditorGLWidget::cleanup() {
     }
     delete renderer;
     renderer = NULL;
+    delete environmentMap;
+    environmentMap = NULL;
     //delete gluu->m_program;
     //gluu->m_program = 0;
     doneCurrent();
@@ -512,6 +515,10 @@ void RouteEditorGLWidget::paintScene(){
     RenderStats::setCategory(RenderStats::CategoryTerrain);
     // Terrain receives shadows but does not cast them.
     renderer->setShadowCasting(false);
+    // Environment map faces look in every direction: gather terrain patches
+    // all around the camera and let the renderer cull each view.
+    const bool renderEnvironment = !selectionPass && Game::environmentMapEnabled;
+    Terrain::gatherAllDirections = renderEnvironment;
     Game::terrainLib->pushRenderItems(queue, camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3, gatherMode);
     renderer->setShadowCasting(true);
     RenderStats::setCategory(RenderStats::CategoryWorld);
@@ -525,11 +532,38 @@ void RouteEditorGLWidget::paintScene(){
         Game::terrainLib->pushRenderItemsWater(queue, camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3, gatherMode, i);
     renderer->setLayer(RenderQueue::LAYER_SCENE);
 
+    // Sky and distant terrain are gathered here too, so environment map faces
+    // can draw them before the main passes do.
+    const float aspect = float(this->width()) / this->height();
+    Mat4::identity(renderer->transform());
+    Mat4::translate(renderer->transform(), renderer->transform(), camera->getPos());
+    Mat4::translate(renderer->transform(), renderer->transform(), 0, -50, 0);
+    Mat4::rotate(renderer->transform(), renderer->transform(), 2.0, 0, 1, 0);
+    renderer->setLayer(RenderQueue::LAYER_SKY);
+    route->skydome->pushRenderItems(queue);
+    Mat4::identity(renderer->transform());
+    // Distant terrain patches are culled against the distant projection.
+    Mat4::perspective(gluu->pMatrix, Game::cameraFov * M_PI / 180, aspect, 600.0f, Game::distantLod);
+    Mat4::multiply(gluu->pMatrix, gluu->pMatrix, camera->getMatrix());
+    Mat4::translate(renderer->transform(), renderer->transform(), 0, route->getDistantTerrainYOffset(), 0);
+    renderer->setLayer(RenderQueue::LAYER_DISTANT);
+    Game::terrainLib->pushRenderItemsLo(queue, camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3, gatherMode);
+    for(int i = 0; i < route->env->waterCount; i++)
+        Game::terrainLib->pushRenderItemsWaterLo(queue, camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3, gatherMode, i);
+    Terrain::gatherAllDirections = false;
+    renderer->setLayer(RenderQueue::LAYER_SCENE);
+    Mat4::identity(renderer->transform());
+
     // Render Shadows
     if (!selectionPass && Game::shadowsEnabled > 0){
         RenderStats::beginPhase(RenderStats::PhaseShadow);
         renderShadowMaps();
         RenderStats::endPhase(RenderStats::PhaseShadow);
+    }
+    if (renderEnvironment){
+        RenderStats::beginPhase(RenderStats::PhaseEnvironment);
+        renderEnvironmentMap();
+        RenderStats::endPhase(RenderStats::PhaseEnvironment);
     }
 
     // Render Scene
@@ -550,12 +584,12 @@ void RouteEditorGLWidget::paintScene(){
     gluu->currentShader = gluu->shaders[shaderName];
     gluu->currentShader->bind();
 
-    int renderMode = GLUU::RENDER_DEFAULT;
     const GLboolean blendingWasEnabled = glIsEnabled(GL_BLEND);
-    if (selectionPass){
-        renderMode = GLUU::RENDER_SELECTION;
+    if (selectionPass)
         glDisable(GL_BLEND);
-    }
+    // Reflecting materials sample the environment map on its own unit.
+    if (!selectionPass && environmentMap != NULL && environmentMap->complete())
+        environmentMap->bind();
 
     glClearColor(gluu->skyColor[0], gluu->skyColor[1], gluu->skyColor[2], 1.0);
     if(!selectionPass)
@@ -567,18 +601,12 @@ void RouteEditorGLWidget::paintScene(){
     Mat4::perspective(gluu->fMatrix, Game::cameraFov * M_PI / 180, float(this->width()) / this->height(), 0.2f, Game::objectLod);
     Mat4::multiply(gluu->fMatrix, gluu->fMatrix, camera->getMatrix());
     
-    // Sky and distant terrain submit and draw with their own projections.
+    // Sky and distant terrain draw with their own projections.
     // Render Skydome
     Mat4::perspective(gluu->pMatrix, Game::cameraFov * M_PI / 180, float(this->width()) / this->height(), 100.0f, 10000.0f);
     Mat4::multiply(gluu->pMatrix, gluu->pMatrix, camera->getMatrix());
-    Mat4::translate(renderer->transform(), renderer->transform(), camera->getPos());
-    Mat4::translate(renderer->transform(), renderer->transform(), 0, -50, 0);
-    Mat4::rotate(renderer->transform(), renderer->transform(), 2.0, 0, 1, 0);
     gluu->setMatrixUniforms();
     gluu->currentShader->setUniformValue(gluu->currentShader->lod, 0.0f);
-    renderer->setLayer(RenderQueue::LAYER_SKY);
-    route->skydome->pushRenderItems(queue);
-    renderer->setLayer(RenderQueue::LAYER_SCENE);
     RenderStats::beginPhase(RenderStats::PhaseSky);
     renderer->renderPasses(Renderer::PASS_SKY, Renderer::PASS_SKY);
     RenderStats::endPhase(RenderStats::PhaseSky);
@@ -589,15 +617,11 @@ void RouteEditorGLWidget::paintScene(){
     Mat4::perspective(gluu->pMatrix, Game::cameraFov * M_PI / 180, float(this->width()) / this->height(), 600.0f, Game::distantLod);
     Mat4::multiply(gluu->pMatrix, gluu->pMatrix, camera->getMatrix());
     gluu->setMatrixUniforms();
-    Mat4::translate(renderer->transform(), renderer->transform(), 0, route->getDistantTerrainYOffset(), 0);
-    renderer->setLayer(RenderQueue::LAYER_DISTANT);
-    Game::terrainLib->pushRenderItemsLo(queue, camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3, renderMode);
-    for(int i = 0; i < route->env->waterCount; i++)
-        Game::terrainLib->pushRenderItemsWaterLo(queue, camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3, renderMode, i);
-    renderer->setLayer(RenderQueue::LAYER_SCENE);
+    renderer->setCullView(gluu->pMatrix);
     RenderStats::beginPhase(RenderStats::PhaseDistant);
     renderer->renderPasses(Renderer::PASS_DISTANT, Renderer::PASS_DISTANT);
     RenderStats::endPhase(RenderStats::PhaseDistant);
+    renderer->setCullView(NULL);
     Mat4::identity(renderer->transform());
     glClear(GL_DEPTH_BUFFER_BIT);
 
@@ -661,6 +685,9 @@ void RouteEditorGLWidget::paintScene(){
         gluu->currentShader->release();
     }
     renderer->renderFrame();
+    if (!selectionPass && Game::environmentMapPreview && environmentMap != NULL
+            && environmentMap->complete())
+        environmentMap->drawPreview(8, 8, qRound(48 * Game::PixelRatio));
     RenderStats::endPhase(RenderStats::PhaseUi);
 
     // Handle Selection
@@ -816,6 +843,61 @@ void RouteEditorGLWidget::renderShadowMaps() {
                                   gluu->pShadowMatrix);
     std::swap(gluu->pShadowMatrix, gluu->pShadowMatrix2);
     gluu->currentShader->release();
+}
+
+// Renders the faces scheduled for this frame from the camera position, from
+// the queue gathered for the main view: sky, distant terrain, then terrain,
+// objects and water without editor overlays. Objects are limited by distance
+// and size; every face is rendered once before the round-robin starts.
+void RouteEditorGLWidget::renderEnvironmentMap() {
+    if (environmentMap == NULL)
+        environmentMap = new EnvironmentMap();
+    if (!environmentMap->ensure(Game::environmentMapSize))
+        return;
+    gluu->currentShader = gluu->shaders[MainRenderShaderName];
+    gluu->currentShader->bind();
+    Mat4::identity(gluu->mvMatrix);
+    Mat4::identity(gluu->objStrMatrix);
+    const QVector<int> faces = environmentMap->nextFaces(environmentMap->complete()
+            ? Game::environmentMapFacesPerFrame : EnvironmentMap::FaceCount);
+    Renderer::ViewLimits limits;
+    limits.maxDistance = Game::environmentMapObjectDistance;
+    // A face spans 90 degrees over its texels: skip objects under one texel.
+    limits.minAngularRadius = 1.0f / Game::environmentMapSize;
+    float *eye = camera->getPos();
+    float view[16];
+    float projection[16];
+    for (int face : faces) {
+        environmentMap->beginFace(face, gluu->skyColor);
+        EnvironmentMap::faceView(face, eye, view);
+        EnvironmentMap::faceProjection(0.2f, Game::objectLod, projection);
+        Mat4::multiply(gluu->fMatrix, projection, view);
+
+        EnvironmentMap::faceProjection(100.0f, 10000.0f, projection);
+        Mat4::multiply(gluu->pMatrix, projection, view);
+        gluu->setMatrixUniforms();
+        gluu->currentShader->setUniformValue(gluu->currentShader->lod, 0.0f);
+        renderer->renderPassesRetained(Renderer::PASS_SKY, Renderer::PASS_SKY);
+        glClear(GL_DEPTH_BUFFER_BIT);
+
+        EnvironmentMap::faceProjection(600.0f, Game::distantLod, projection);
+        Mat4::multiply(gluu->pMatrix, projection, view);
+        gluu->setMatrixUniforms();
+        renderer->setCullView(gluu->pMatrix);
+        renderer->renderPassesRetained(Renderer::PASS_DISTANT, Renderer::PASS_DISTANT);
+        glClear(GL_DEPTH_BUFFER_BIT);
+
+        EnvironmentMap::faceProjection(0.2f, Game::objectLod, projection);
+        Mat4::multiply(gluu->pMatrix, projection, view);
+        gluu->setMatrixUniforms();
+        renderer->setCullView(gluu->pMatrix);
+        renderer->setViewLimits(&limits);
+        renderer->renderPassesRetained(Renderer::PASS_TERRAIN, Renderer::PASS_BLENDED);
+        renderer->renderPassesRetained(Renderer::PASS_WATER, Renderer::PASS_WATER);
+        renderer->setViewLimits(NULL);
+        renderer->setCullView(NULL);
+    }
+    environmentMap->endFaces(defaultFramebufferObject());
 }
 
 void RouteEditorGLWidget::handleSelection() {

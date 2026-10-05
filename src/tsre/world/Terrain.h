@@ -41,6 +41,10 @@ class Terrain : public GameObj {
     Q_OBJECT
 public:
     static Brush* DefaultBrush;
+    // Gather surface patches in all directions within range, for views
+    // beyond the main camera (environment map faces). The renderer culls
+    // each view by the patch bounds.
+    static bool gatherAllDirections;
     
     int loaded = false;
     float **terrainData = NULL;
@@ -376,6 +380,8 @@ protected:
                                          const float *cameraPosition) const;
     bool isPatchVisible(int patchId,
                         const PatchVisibility &visibility) const;
+    // Sphere of the patch for renderer culling, in the packet's space.
+    void setPatchCullBounds(RenderItem &item, int patchId) const;
     bool patchContainsGap(int patchId);
     void markPatchGapStateDirty(int patchId);
     void markPatchGapStateDirtyForSamples(int minX, int minZ,

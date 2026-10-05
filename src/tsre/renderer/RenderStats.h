@@ -25,6 +25,7 @@ enum Phase {
     PhaseDistant,
     PhaseScene,
     PhaseUi,
+    PhaseEnvironment,
     PhaseCount
 };
 
