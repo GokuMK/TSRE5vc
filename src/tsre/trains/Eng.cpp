@@ -820,6 +820,10 @@ void Eng::pushRenderItemOnTrack(RenderQueue &queue, float* playerT, quint32 sele
     Mat4::rotate(queue.transform(), queue.transform(), -selev1, 0, 0, 1);
     Mat4::rotateY(queue.transform(), queue.transform(), flip*M_PI);
 
+    // Activities submit their consists with the editor overlays; the
+    // rolling stock itself is scene geometry, lit and shadowed.
+    const RenderQueue::Layer layer = queue.layer();
+    queue.setLayer(RenderQueue::LAYER_SCENE);
     if (shape.id[shapeLibId] >= 0)
         Game::currentShapeLib->shape[shape.id[shapeLibId]]->pushRenderItem(queue, selectionId, 0);
 
@@ -831,6 +835,7 @@ void Eng::pushRenderItemOnTrack(RenderQueue &queue, float* playerT, quint32 sele
             queue.popTransform();
         }
     }
+    queue.setLayer(layer);
     if (selected)
         pushDrawBorder3d(queue);
     queue.popTransform();
