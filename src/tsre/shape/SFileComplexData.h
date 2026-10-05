@@ -4,9 +4,8 @@
 #include "SFileDocument.h"
 #include <QMap>
 #include <QMatrix4x4>
-#include <QOpenGLBuffer>
 #include <QOpenGLContext>
-#include <QOpenGLVertexArrayObject>
+#include <tsre/renderer/Mesh.h>
 #include <QPointer>
 #include <QQuaternion>
 #include <QSet>
@@ -50,10 +49,14 @@ struct SFileComplex::Data {
         float boundCenter[3] = {0.0f, 0.0f, 0.0f};
         float boundRadius = -1.0f;
     };
+    // A mesh's packed VNTA vertices, renderer-owned while this exists.
     struct Gpu {
-        QOpenGLBuffer vbo;
-        QOpenGLVertexArrayObject vao;
+        MeshHandle mesh;
         int bytes = 0;
+        Gpu() = default;
+        Gpu(const Gpu &) = delete;
+        Gpu &operator=(const Gpu &) = delete;
+        ~Gpu() { Meshes::release(mesh); }
     };
     struct Mesh {
         int subobject = 0, vertexCount = 0;

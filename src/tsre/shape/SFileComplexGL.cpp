@@ -61,7 +61,6 @@ bool SFileComplex::initGL() {
         return true;
     } else
         releaseGL();
-    auto *f = context->functions();
     auto fail = [&](const QString &reason) {
         releaseGL();
         d->gpuState = GpuState::Failed;
@@ -117,22 +116,11 @@ bool SFileComplex::initGL() {
                 }
             }
             auto gpu = std::make_unique<Data::Gpu>();
-            if (!gpu->vao.create() || !gpu->vbo.create())
-                return fail("Cannot create shape VAO/VBO");
-            QOpenGLVertexArrayObject::Binder binder(&gpu->vao);
-            if (!gpu->vbo.bind())
-                return fail("Cannot bind shape VBO");
             gpu->bytes = packed.size() * sizeof(float);
-            gpu->vbo.allocate(packed.data(), gpu->bytes);
-            if (gpu->vbo.size() != gpu->bytes)
-                return fail("Shape buffer allocation failed");
-            const int sizes[] = {3, 2, 3, 1}, offsets[] = {0, 6, 3, 8};
-            for (int i = 0; i < 4; ++i) {
-                f->glEnableVertexAttribArray(i);
-                f->glVertexAttribPointer(i, sizes[i], GL_FLOAT, GL_FALSE, 9 * sizeof(float),
-                                         reinterpret_cast<void *>(offsets[i] * sizeof(float)));
-            }
-            gpu->vbo.release();
+            MeshData data;
+            data.layout = RenderItem::VNTA;
+            data.vertices = std::move(packed);
+            gpu->mesh = Meshes::create(std::move(data));
             mesh.gpu = std::move(gpu);
         }
     d->context = context;
@@ -236,8 +224,7 @@ void SFileComplex::pushRenderItem(RenderQueue &queue, quint32 selection, unsigne
             auto &mat = d->materials[p.material];
             item->shared = true;
             item->setVertexAttributes(RenderItem::VNTA);
-            item->mesh.vbo = &m.gpu->vbo;
-            item->mesh.vao = &m.gpu->vao;
+            item->mesh.handle = m.gpu->mesh;
             item->msMatrix = const_cast<float *>(matrices[mat.matrix].constData());
             item->mesh.first = p.offset;
             item->mesh.count = p.count;

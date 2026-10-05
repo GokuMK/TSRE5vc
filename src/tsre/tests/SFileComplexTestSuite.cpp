@@ -16,6 +16,7 @@
 #include <QOffscreenSurface>
 #include <QOpenGLBuffer>
 #include <QOpenGLContext>
+#include <QOpenGLExtraFunctions>
 #include <QOpenGLFramebufferObject>
 #include <QOpenGLFunctions>
 #include <QScopedValueRollback>
@@ -30,6 +31,7 @@
 #include <tsre/Game.h>
 #include <tsre/fileFunctions/SimisTextReader.h>
 #include <tsre/ogl/GLUU.h>
+#include <tsre/renderer/Mesh.h>
 #include <tsre/renderer/OpenGL3Renderer.h>
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/renderer/SelectionRenderer.h>
@@ -165,6 +167,35 @@ struct MatrixProbe : RenderQueue {
         if (!item->shared)
             delete item;
     }
+    // Reads the packet's vertex range from its renderer-owned mesh or its
+    // producer's buffer.
+    static bool readPacketVertices(const RenderItem *item, std::vector<float> &vertices) {
+        const size_t offset = size_t(item->mesh.first) * 9 * sizeof(float);
+        const size_t bytes = vertices.size() * sizeof(float);
+        if (!item->mesh.handle.valid()) {
+            if (!item->mesh.vbo || !item->mesh.vbo->bind())
+                return false;
+            const bool ok = item->mesh.vbo->read(int(offset), vertices.data(), int(bytes));
+            item->mesh.vbo->release();
+            return ok;
+        }
+        QOpenGLContext *context = QOpenGLContext::currentContext();
+        Meshes::Buffers mesh;
+        if (!context || !Meshes::prepare(item->mesh.handle, context->functions(), mesh))
+            return false;
+        if (bytes == 0)
+            return true;
+        QOpenGLExtraFunctions *e = context->extraFunctions();
+        e->glBindBuffer(GL_COPY_READ_BUFFER, mesh.vertexBuffer);
+        const void *mapped = e->glMapBufferRange(GL_COPY_READ_BUFFER, GLintptr(offset),
+                                                 GLsizeiptr(bytes), GL_MAP_READ_BIT);
+        if (mapped)
+            std::memcpy(vertices.data(), mapped, bytes);
+        if (mapped)
+            e->glUnmapBuffer(GL_COPY_READ_BUFFER);
+        e->glBindBuffer(GL_COPY_READ_BUFFER, 0);
+        return mapped != nullptr;
+    }
     void record(RenderItem *item) {
         packets.push_back(item);
         std::array<float, 16> matrix{};
@@ -173,12 +204,7 @@ struct MatrixProbe : RenderQueue {
         transforms.push_back(matrix);
         if (captureGeometry) {
             std::vector<float> vertices(item->mesh.count * 9);
-            if (item->mesh.vbo && item->mesh.vbo->bind()) {
-                if (!item->mesh.vbo->read(item->mesh.first * 9 * sizeof(float), vertices.data(),
-                                     vertices.size() * sizeof(float)))
-                    vertices.clear();
-                item->mesh.vbo->release();
-            } else
+            if (!readPacketVertices(item, vertices))
                 vertices.clear();
             buffers.push_back(std::move(vertices));
         }
