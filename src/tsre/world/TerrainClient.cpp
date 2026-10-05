@@ -92,10 +92,6 @@ void TerrainClient::load(){
                 uniqueTex[i] = false;
                 selectedPatchs[i] = false;
             }
-            if (Game::terrainMeshMode == Game::TERRAIN_MESH_LEGACY) {
-                VBO = new QOpenGLBuffer();
-                VAO = new QOpenGLVertexArrayObject();
-            }
 
             configureTerrainSeason();
             path = Game::root + "/ROUTES/" + Game::route + "/" + TileDir[(int)lowTile] + "/";

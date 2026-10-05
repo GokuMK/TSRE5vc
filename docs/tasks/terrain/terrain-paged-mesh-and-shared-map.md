@@ -5,6 +5,13 @@ implemented. Interactive gap/map/selection coverage remains to be completed;
 initial performance and memory comparisons are recorded below. Paged rendering
 of distant terrain has a confirmed unresolved layout issue described below.
 
+Buffer ownership (2026-10-05): the pages, their terrain and map parameter
+blocks and the shared index buffer are renderer-owned meshes (renderer task
+16). `TerrainMeshPaged` builds them as CPU data and rewrites single patches
+with `Meshes::updateRange`, uploaded before the next draw; the page layout,
+the 8-byte vertex and the uniform-block design below are unchanged. Where
+this document says VBO, VAO or UBO it means those meshes.
+
 Related tasks:
 
 - [Terrain heightmap resolution support](terrain-heightmap-resolution.md)

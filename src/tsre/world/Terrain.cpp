@@ -10,8 +10,10 @@
 
 #include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/world/Terrain.h>
+#include <tsre/renderer/Mesh.h>
 #include <tsre/world/TerrainBrushProfiler.h>
 #include <algorithm>
+#include <cstring>
 #include <cmath>
 #include <limits>
 #include <QDebug>
@@ -94,10 +96,6 @@ void Terrain::load(){
         texLocked[i] = false;
         uniqueTex[i] = false;
         selectedPatchs[i] = false;
-    }
-    if (Game::terrainMeshMode == Game::TERRAIN_MESH_LEGACY) {
-        VBO = new QOpenGLBuffer();
-        VAO = new QOpenGLVertexArrayObject();
     }
 
     configureTerrainSeason();
@@ -369,10 +367,7 @@ Terrain::~Terrain() {
     }
     delete meshBackend;
     meshBackend = NULL;
-    delete VBO;
-    VBO = NULL;
-    delete VAO;
-    VAO = NULL;
+    Meshes::release(mesh);
     delete tfile;
     tfile = NULL;
     long timeNow2 = QDateTime::currentMSecsSinceEpoch();
@@ -2966,20 +2961,9 @@ void Terrain::oglInit() {
 }*/
 
 void Terrain::oglInit() {
-    if(!VAO->isCreated()){
-       VAO->create();
-       VBO->create();
-    }
-    QOpenGLVertexArrayObject::Binder vaoBinder(VAO);
-    VBO->bind();
-    VBO->allocate(static_cast<int>(gridLayout.terrainVboBytes));
-    QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
-    f->glEnableVertexAttribArray(0);
-    f->glEnableVertexAttribArray(1);
-    f->glEnableVertexAttribArray(2);
-    f->glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof (GLfloat), 0);
-    f->glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 8 * sizeof (GLfloat), reinterpret_cast<void *> (3 * sizeof (GLfloat)));
-    f->glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 8 * sizeof (GLfloat), reinterpret_cast<void *> (6 * sizeof (GLfloat)));
+    MeshData meshData;
+    meshData.layout = RenderItem::VNT;
+    meshData.vertices.assign(gridLayout.terrainVboBytes / sizeof(GLfloat), 0.0f);
     
     //int ilosc = 16 * 16;
     //int suma;
@@ -3164,7 +3148,8 @@ void Terrain::oglInit() {
             //VBO[0]->bind();
             //VBO[0]->
             const int patchBytes = static_cast<int>(gridLayout.patchVboBytes);
-            VBO->write((uu * patches + yy) * patchBytes, punkty, patchBytes);
+            std::memcpy(reinterpret_cast<char *>(meshData.vertices.data()) + (uu * patches + yy) * patchBytes,
+                        punkty, patchBytes);
             //VBO[0]->allocate(punkty, 16 * 16 * 6 * 5 * sizeof (GLfloat));
             //f->glEnableVertexAttribArray(0);
             //f->glEnableVertexAttribArray(1);
@@ -3174,7 +3159,7 @@ void Terrain::oglInit() {
         }
     }
 
-    VBO->release();
+    Meshes::update(mesh, std::move(meshData));
     delete[] punkty;
 
     initBlob();

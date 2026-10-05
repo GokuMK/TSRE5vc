@@ -136,6 +136,82 @@ int TsreTests::runMeshStoreSuite(bool verbose) {
     Meshes::collectGarbage(f);
     check(f->glGetError() == GL_NO_ERROR, "no GL errors");
 
+    // Range updates: before the upload they patch the pending data, after it
+    // they are uploaded before the next draw.
+    MeshHandle ranged = Meshes::create(vertexData(RenderItem::V, 4, 0.0f));
+    const float pendingPatch[3] = {100.0f, 101.0f, 102.0f};
+    check(Meshes::updateRange(ranged, 3 * sizeof(float), pendingPatch, sizeof(pendingPatch))
+          && !Meshes::updateRange(ranged, 11 * sizeof(float), pendingPatch, sizeof(pendingPatch)),
+          "range updates of pending data stay inside it");
+    check(Meshes::prepare(ranged, f, buffers)
+          && readBack(e, buffers.vertexBuffer, 12)[3] == 100.0f,
+          "a pending range update is part of the first upload");
+    const float uploadedPatch[2] = {200.0f, 201.0f};
+    check(Meshes::updateRange(ranged, 0, uploadedPatch, sizeof(uploadedPatch))
+          && Meshes::updateRange(ranged, 0, uploadedPatch, sizeof(uploadedPatch))
+          && !Meshes::updateRange(ranged, 46, uploadedPatch, sizeof(uploadedPatch)),
+          "range updates of uploaded data are checked against its size");
+    const quint64 rangedStamp = buffers.stamp;
+    const std::vector<float> patched = Meshes::prepare(ranged, f, buffers)
+            ? readBack(e, buffers.vertexBuffer, 12) : std::vector<float>();
+    check(patched.size() == 12 && patched[0] == 200.0f && patched[1] == 201.0f
+          && patched[2] == 2.0f && patched[3] == 100.0f && buffers.stamp == rangedStamp,
+          "uploaded range updates rewrite only their bytes and keep vertex arrays valid");
+
+    // Plain storage shared as another mesh's index buffer.
+    MeshData indexData;
+    indexData.format = MeshData::Buffer;
+    const quint16 sharedIndices[] = {0, 1, 2, 2, 1, 3};
+    indexData.bytes = QByteArray(reinterpret_cast<const char *>(sharedIndices), sizeof(sharedIndices));
+    MeshHandle indexStorage = Meshes::create(std::move(indexData));
+    MeshData packed;
+    packed.format = MeshData::TerrainHeightNormal;
+    packed.layout = RenderItem::VNT;
+    packed.bytes = QByteArray(4 * 8, 0);
+    packed.sharedIndices = indexStorage;
+    MeshHandle terrainPage = Meshes::create(std::move(packed));
+    Meshes::Buffers storage;
+    check(Meshes::prepare(indexStorage, f, storage) && storage.format == MeshData::Buffer
+          && storage.indexBuffer == 0,
+          "plain storage uploads without attributes or indices");
+    check(Meshes::prepare(terrainPage, f, buffers)
+          && buffers.format == MeshData::TerrainHeightNormal
+          && buffers.indexBuffer == storage.vertexBuffer,
+          "a mesh draws with shared index storage");
+    const quint64 sharedStamp = buffers.stamp;
+    MeshData replacement;
+    replacement.format = MeshData::Buffer;
+    replacement.bytes = QByteArray(sizeof(sharedIndices), 0);
+    Meshes::release(indexStorage);
+    indexStorage = Meshes::create(std::move(replacement));
+    check(Meshes::prepare(terrainPage, f, buffers) && buffers.indexBuffer == 0,
+          "a released shared index buffer is no longer bound");
+    check(buffers.stamp != sharedStamp,
+          "losing shared indices invalidates vertex arrays");
+
+    GLuint array = 0;
+    e->glGenVertexArrays(1, &array);
+    e->glBindVertexArray(array);
+    f->glBindBuffer(GL_ARRAY_BUFFER, buffers.vertexBuffer);
+    Meshes::setupAttributes(f, buffers);
+    GLint enabled[4] = {};
+    GLint normalType = 0;
+    for (GLuint location = 0; location < 4; ++location)
+        e->glGetVertexAttribiv(location, GL_VERTEX_ATTRIB_ARRAY_ENABLED, &enabled[location]);
+    e->glGetVertexAttribiv(2, GL_VERTEX_ATTRIB_ARRAY_TYPE, &normalType);
+    f->glBindBuffer(GL_ARRAY_BUFFER, 0);
+    e->glBindVertexArray(0);
+    e->glDeleteVertexArrays(1, &array);
+    check(enabled[0] && !enabled[1] && enabled[2] && !enabled[3]
+          && normalType == GL_INT_2_10_10_10_REV,
+          "the terrain format reads a height and a packed normal");
+
+    Meshes::release(ranged);
+    Meshes::release(terrainPage);
+    Meshes::release(indexStorage);
+    Meshes::collectGarbage(f);
+    check(f->glGetError() == GL_NO_ERROR, "no GL errors after range and shared buffers");
+
     context.doneCurrent();
     qInfo() << "[tests:mesh-store] cases=" << (passed + failed)
             << "passed=" << passed << "failed=" << failed;

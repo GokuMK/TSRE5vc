@@ -43,8 +43,10 @@ is out of date. Current state:
   GLSL 3.30 shaders from `appdata/0.7/shaders330`; the GLSL 1.40 `shaders`
   set is removed, so shader changes are made once.
 - Renderer-owned meshes (task 16): producers hand vertex data to `Meshes`
-  and keep a `MeshHandle`; the renderer uploads and binds it. `OglObj`,
-  glTF and both MSTS loaders are migrated; terrain still owns its buffers.
+  and keep a `MeshHandle`; the renderer uploads and binds it. Every
+  producer is migrated, including both terrain meshes, so packets carry no
+  vertex arrays or buffers (weakness 1 below, mesh part). Materials still
+  carry GL texture ids; textures and framebuffers are a later step.
 
 - The gather frame draws everything through the renderer: sky, distant
   terrain and water, high-res terrain, world objects, overlays, water, pointer,

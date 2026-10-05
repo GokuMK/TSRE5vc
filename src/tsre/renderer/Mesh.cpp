@@ -12,13 +12,22 @@
 #include <QMutex>
 #include <QMutexLocker>
 #include <QOpenGLFunctions>
+#include <cstring>
 #include <memory>
 
 #ifndef GL_COPY_WRITE_BUFFER
 #define GL_COPY_WRITE_BUFFER 0x8F37
 #endif
+#ifndef GL_INT_2_10_10_10_REV
+#define GL_INT_2_10_10_10_REV 0x8D9F
+#endif
 
 namespace {
+
+struct Range {
+    int offset = 0;
+    QByteArray data;
+};
 
 struct Entry {
     // Odd while live; a released slot moves to the next even number, so
@@ -26,9 +35,14 @@ struct Entry {
     quint32 generation = 0;
     // Data waiting for upload; uploaded data is dropped from the CPU.
     std::unique_ptr<MeshData> pending;
+    // Rewrites of uploaded data, applied before the next draw.
+    std::vector<Range> ranges;
     GLuint vertexBuffer = 0;
     GLuint indexBuffer = 0;
+    MeshHandle sharedIndices;
+    MeshData::Format format = MeshData::FloatLayout;
     RenderItem::VertexAttr layout = RenderItem::NO_ATTR;
+    int bytes = 0;
     quint64 stamp = 0;
 };
 
@@ -49,6 +63,83 @@ Store &store() {
 bool live(const Store &s, MeshHandle handle) {
     return handle.valid() && handle.index < s.entries.size()
             && s.entries[handle.index].generation == handle.generation;
+}
+
+// The vertex data of pending data, as bytes.
+char *pendingBytes(MeshData &data, int &size) {
+    if (data.format == MeshData::FloatLayout) {
+        size = int(data.vertices.size() * sizeof(float));
+        return reinterpret_cast<char *>(data.vertices.data());
+    }
+    size = data.bytes.size();
+    return data.bytes.data();
+}
+
+bool prepareLocked(Store &s, MeshHandle handle, QOpenGLFunctions *f,
+                   Meshes::Buffers &buffers, int depth) {
+    if (!live(s, handle) || depth > 1)
+        return false;
+    Entry &entry = s.entries[handle.index];
+    if (entry.pending) {
+        MeshData &data = *entry.pending;
+        const bool hadIndices = entry.indexBuffer != 0;
+        const GLenum usage = data.dynamic ? GL_DYNAMIC_DRAW : GL_STATIC_DRAW;
+        int size = 0;
+        const char *vertexBytes = pendingBytes(data, size);
+        if (entry.vertexBuffer == 0)
+            f->glGenBuffers(1, &entry.vertexBuffer);
+        // The copy target leaves the bound vertex array's bindings alone.
+        f->glBindBuffer(GL_COPY_WRITE_BUFFER, entry.vertexBuffer);
+        f->glBufferData(GL_COPY_WRITE_BUFFER, size, vertexBytes, usage);
+        if (!data.indices.isEmpty()) {
+            if (entry.indexBuffer == 0)
+                f->glGenBuffers(1, &entry.indexBuffer);
+            f->glBindBuffer(GL_COPY_WRITE_BUFFER, entry.indexBuffer);
+            f->glBufferData(GL_COPY_WRITE_BUFFER, data.indices.size(),
+                            data.indices.constData(), GL_STATIC_DRAW);
+        } else if (entry.indexBuffer != 0) {
+            s.deadBuffers.push_back(entry.indexBuffer);
+            entry.indexBuffer = 0;
+        }
+        f->glBindBuffer(GL_COPY_WRITE_BUFFER, 0);
+        if (entry.stamp == 0 || entry.layout != data.layout || entry.format != data.format
+                || hadIndices != (entry.indexBuffer != 0)
+                || !(entry.sharedIndices == data.sharedIndices))
+            entry.stamp = s.nextStamp++;
+        entry.format = data.format;
+        entry.layout = data.layout;
+        entry.sharedIndices = data.sharedIndices;
+        entry.bytes = size;
+        entry.pending.reset();
+    }
+    if (!entry.ranges.empty() && entry.vertexBuffer != 0) {
+        f->glBindBuffer(GL_COPY_WRITE_BUFFER, entry.vertexBuffer);
+        for (const Range &range : entry.ranges)
+            f->glBufferSubData(GL_COPY_WRITE_BUFFER, range.offset, range.data.size(),
+                               range.data.constData());
+        f->glBindBuffer(GL_COPY_WRITE_BUFFER, 0);
+        entry.ranges.clear();
+    }
+    if (entry.vertexBuffer == 0)
+        return false;
+    buffers.vertexBuffer = entry.vertexBuffer;
+    buffers.indexBuffer = entry.indexBuffer;
+    buffers.format = entry.format;
+    buffers.layout = entry.layout;
+    buffers.stamp = entry.stamp;
+    if (entry.sharedIndices.valid()) {
+        // Copy before the call: preparing another entry may grow the table.
+        const MeshHandle shared = entry.sharedIndices;
+        const quint64 stamp = entry.stamp;
+        Meshes::Buffers indices;
+        if (prepareLocked(s, shared, f, indices, depth + 1)) {
+            buffers.indexBuffer = indices.vertexBuffer;
+            buffers.stamp = stamp ^ (indices.stamp * 0x9E3779B97F4A7C15ull);
+        } else {
+            buffers.indexBuffer = 0;
+        }
+    }
+    return true;
 }
 
 }
@@ -75,11 +166,40 @@ void Meshes::update(MeshHandle &handle, MeshData data) {
     {
         QMutexLocker lock(&s.mutex);
         if (live(s, handle)) {
-            s.entries[handle.index].pending = std::make_unique<MeshData>(std::move(data));
+            Entry &entry = s.entries[handle.index];
+            entry.pending = std::make_unique<MeshData>(std::move(data));
+            entry.ranges.clear();
             return;
         }
     }
     handle = create(std::move(data));
+}
+
+bool Meshes::updateRange(MeshHandle handle, int byteOffset, const void *data, int bytes) {
+    Store &s = store();
+    QMutexLocker lock(&s.mutex);
+    if (!live(s, handle) || byteOffset < 0 || bytes < 0)
+        return false;
+    Entry &entry = s.entries[handle.index];
+    if (entry.pending) {
+        int size = 0;
+        char *target = pendingBytes(*entry.pending, size);
+        if (byteOffset + bytes > size)
+            return false;
+        std::memcpy(target + byteOffset, data, size_t(bytes));
+        return true;
+    }
+    if (byteOffset + bytes > entry.bytes)
+        return false;
+    // A newer write of the same range replaces the queued one.
+    for (Range &range : entry.ranges)
+        if (range.offset == byteOffset && range.data.size() == bytes) {
+            std::memcpy(range.data.data(), data, size_t(bytes));
+            return true;
+        }
+    entry.ranges.push_back(Range{byteOffset,
+                                 QByteArray(static_cast<const char *>(data), bytes)});
+    return true;
 }
 
 void Meshes::release(MeshHandle &handle) {
@@ -89,13 +209,17 @@ void Meshes::release(MeshHandle &handle) {
         Entry &entry = s.entries[handle.index];
         entry.generation += 1;
         entry.pending.reset();
+        entry.ranges.clear();
         if (entry.vertexBuffer != 0)
             s.deadBuffers.push_back(entry.vertexBuffer);
         if (entry.indexBuffer != 0)
             s.deadBuffers.push_back(entry.indexBuffer);
         entry.vertexBuffer = 0;
         entry.indexBuffer = 0;
+        entry.sharedIndices = MeshHandle();
+        entry.format = MeshData::FloatLayout;
         entry.layout = RenderItem::NO_ATTR;
+        entry.bytes = 0;
         s.freeSlots.push_back(handle.index);
         s.releases++;
     }
@@ -105,43 +229,7 @@ void Meshes::release(MeshHandle &handle) {
 bool Meshes::prepare(MeshHandle handle, QOpenGLFunctions *f, Buffers &buffers) {
     Store &s = store();
     QMutexLocker lock(&s.mutex);
-    if (!live(s, handle))
-        return false;
-    Entry &entry = s.entries[handle.index];
-    if (entry.pending) {
-        const MeshData &data = *entry.pending;
-        const bool hadIndices = entry.indexBuffer != 0;
-        if (entry.vertexBuffer == 0)
-            f->glGenBuffers(1, &entry.vertexBuffer);
-        f->glBindBuffer(GL_ARRAY_BUFFER, entry.vertexBuffer);
-        f->glBufferData(GL_ARRAY_BUFFER, data.vertices.size() * sizeof(float),
-                        data.vertices.data(), GL_STATIC_DRAW);
-        f->glBindBuffer(GL_ARRAY_BUFFER, 0);
-        // The copy target leaves the bound vertex array's index binding alone.
-        if (!data.indices.isEmpty()) {
-            if (entry.indexBuffer == 0)
-                f->glGenBuffers(1, &entry.indexBuffer);
-            f->glBindBuffer(GL_COPY_WRITE_BUFFER, entry.indexBuffer);
-            f->glBufferData(GL_COPY_WRITE_BUFFER, data.indices.size(),
-                            data.indices.constData(), GL_STATIC_DRAW);
-            f->glBindBuffer(GL_COPY_WRITE_BUFFER, 0);
-        } else if (entry.indexBuffer != 0) {
-            s.deadBuffers.push_back(entry.indexBuffer);
-            entry.indexBuffer = 0;
-        }
-        if (entry.stamp == 0 || entry.layout != data.layout
-                || hadIndices != (entry.indexBuffer != 0))
-            entry.stamp = s.nextStamp++;
-        entry.layout = data.layout;
-        entry.pending.reset();
-    }
-    if (entry.vertexBuffer == 0)
-        return false;
-    buffers.vertexBuffer = entry.vertexBuffer;
-    buffers.indexBuffer = entry.indexBuffer;
-    buffers.layout = entry.layout;
-    buffers.stamp = entry.stamp;
-    return true;
+    return prepareLocked(s, handle, f, buffers, 0);
 }
 
 bool Meshes::alive(MeshHandle handle) {
@@ -165,8 +253,21 @@ quint64 Meshes::releaseCount() {
     return s.releases;
 }
 
-void Meshes::setupAttributes(QOpenGLFunctions *f, RenderItem::VertexAttr layout) {
-    // Locations: 0 position, 1 texture coordinates, 2 normal, 3 alpha.
+void Meshes::setupAttributes(QOpenGLFunctions *f, const Buffers &buffers) {
+    // Locations: 0 position (or terrain height), 1 texture coordinates,
+    // 2 normal, 3 alpha.
+    if (buffers.format == MeshData::TerrainHeightNormal) {
+        const GLsizei stride = 8;
+        f->glEnableVertexAttribArray(0);
+        f->glVertexAttribPointer(0, 1, GL_FLOAT, GL_FALSE, stride, nullptr);
+        f->glEnableVertexAttribArray(2);
+        f->glVertexAttribPointer(2, 4, GL_INT_2_10_10_10_REV, GL_TRUE, stride,
+                                 reinterpret_cast<void *>(4));
+        return;
+    }
+    if (buffers.format != MeshData::FloatLayout)
+        return;
+    const RenderItem::VertexAttr layout = buffers.layout;
     const GLsizei stride = static_cast<GLsizei>(layout) * sizeof(GLfloat);
     auto attribute = [&](GLuint location, GLint size, int offset) {
         f->glEnableVertexAttribArray(location);
@@ -181,6 +282,11 @@ void Meshes::setupAttributes(QOpenGLFunctions *f, RenderItem::VertexAttr layout)
         attribute(0, 3, 0);
         attribute(1, 2, 3);
         attribute(3, 1, 5);
+        break;
+    case RenderItem::VNT:
+        attribute(0, 3, 0);
+        attribute(2, 3, 3);
+        attribute(1, 2, 6);
         break;
     case RenderItem::VNTA:
         attribute(0, 3, 0);
