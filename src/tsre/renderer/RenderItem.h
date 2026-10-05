@@ -88,7 +88,7 @@ public:
     struct Pbr {
         enum Map {MAP_BASE_COLOR = 0, MAP_METALLIC_ROUGHNESS, MAP_NORMAL, MAP_OCCLUSION,
                   MAP_EMISSIVE, MAP_CLEARCOAT, MAP_CLEARCOAT_ROUGHNESS, MAP_CLEARCOAT_NORMAL,
-                  MAP_COUNT};
+                  MAP_SPECULAR, MAP_SPECULAR_COLOR, MAP_COUNT};
         bool enabled = false;
         // Shaded with the base colour only (KHR_materials_unlit).
         bool unlit = false;
@@ -107,7 +107,12 @@ public:
         float clearcoat = 0.0f;
         float clearcoatRoughness = 0.0f;
         float clearcoatNormalScale = 1.0f;
-        int textures[MAP_COUNT] = {-1, -1, -1, -1, -1, -1, -1, -1};
+        // KHR_materials_specular and KHR_materials_ior: strength and colour of
+        // the dielectric reflection, and the index of refraction it starts from.
+        float specular = 1.0f;
+        float specularColor[3] = {1.0f, 1.0f, 1.0f};
+        float ior = 1.5f;
+        int textures[MAP_COUNT] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
         // Texture coordinate set (0 or 1) of each map.
         unsigned char texCoords[MAP_COUNT] = {};
         // KHR_texture_transform of each map: rows of a 2 x 3 matrix applied

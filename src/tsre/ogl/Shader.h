@@ -86,6 +86,8 @@ public:
     int pbrUvTransform = -1;
     int pbrUvTransforms = -1;
     int pbrClearcoat = -1;
+    int pbrSpecular = -1;
+    int pbrIor = -1;
     int cameraPosition = -1;
     int environmentMapLevels = -1;
     int waterTime = -1;

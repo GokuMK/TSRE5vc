@@ -346,6 +346,12 @@ struct GltfMaterial {
     GltfTextureRef clearcoatRoughnessTexture;
     GltfTextureRef clearcoatNormalTexture;
     float clearcoatNormalScale = 1.0f;
+    // KHR_materials_specular and KHR_materials_ior.
+    float specularFactor = 1.0f;
+    GltfTextureRef specularTexture;
+    float specularColorFactor[3] = {1.0f, 1.0f, 1.0f};
+    GltfTextureRef specularColorTexture;
+    float ior = 1.5f;
 };
 
 struct GltfPrimitive {
@@ -704,6 +710,16 @@ static void parseModelFromRoot(const QJsonObject& root, GltfModel& model) {
         const QJsonObject clearcoatNormal = clearcoat.value("clearcoatNormalTexture").toObject();
         material.clearcoatNormalTexture = textureRef(clearcoatNormal);
         material.clearcoatNormalScale = float(clearcoatNormal.value("scale").toDouble(1.0));
+        const QJsonObject specular = extensions.value("KHR_materials_specular").toObject();
+        material.specularFactor = float(specular.value("specularFactor").toDouble(1.0));
+        material.specularTexture = textureRef(specular.value("specularTexture").toObject());
+        const QVector<float> specularColor =
+                jsonFloatArray(specular.value("specularColorFactor").toArray());
+        for (int c = 0; c < 3 && c < specularColor.size(); ++c)
+            material.specularColorFactor[c] = specularColor[c];
+        material.specularColorTexture = textureRef(specular.value("specularColorTexture").toObject());
+        material.ior = float(extensions.value("KHR_materials_ior").toObject()
+                             .value("ior").toDouble(1.5));
     }
 
     const QJsonArray meshes = root.value("meshes").toArray();
@@ -1509,11 +1525,16 @@ bool GltfShape::parseAndBuild() {
                 pbr.clearcoat = srcMat.clearcoatFactor;
                 pbr.clearcoatRoughness = srcMat.clearcoatRoughnessFactor;
                 pbr.clearcoatNormalScale = srcMat.clearcoatNormalScale;
+                pbr.specular = srcMat.specularFactor;
+                std::copy(srcMat.specularColorFactor, srcMat.specularColorFactor + 3,
+                          pbr.specularColor);
+                pbr.ior = srcMat.ior;
                 const GltfTextureRef *maps[RenderItem::Pbr::MAP_COUNT] = {
                     &srcMat.baseColorTexture, &srcMat.metallicRoughnessTexture,
                     &srcMat.normalTexture, &srcMat.occlusionTexture, &srcMat.emissiveTexture,
                     &srcMat.clearcoatTexture, &srcMat.clearcoatRoughnessTexture,
-                    &srcMat.clearcoatNormalTexture};
+                    &srcMat.clearcoatNormalTexture, &srcMat.specularTexture,
+                    &srcMat.specularColorTexture};
                 for (int map = 0; map < RenderItem::Pbr::MAP_COUNT; ++map) {
                     pbr.texCoords[map] = maps[map]->texCoord == 1 ? 1 : 0;
                     std::copy(maps[map]->transform, maps[map]->transform + 6,

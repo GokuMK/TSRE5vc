@@ -64,8 +64,9 @@ bool resolveTexture(const RenderItem *item, unsigned int &address){
 }
 
 // Texture unit of each PBR map: the base colour is the packet texture, the
-// clearcoat maps use units that only terrain programs use otherwise.
-const int PbrMapUnits[RenderItem::Pbr::MAP_COUNT] = {0, 11, 12, 13, 14, 4, 5, 6};
+// clearcoat and specular maps use units that only terrain and water programs
+// use otherwise. All 16 units OpenGL 3.3 guarantees are taken.
+const int PbrMapUnits[RenderItem::Pbr::MAP_COUNT] = {0, 11, 12, 13, 14, 4, 5, 6, 7, 15};
 
 // Metallic-roughness material uniforms and maps of a packet drawn by the
 // PBR program. Maps not uploaded yet are left out.
@@ -84,6 +85,9 @@ void applyPbrState(GLUU *gluu, QOpenGLFunctions *f, const RenderItem *item){
     s->setUniformValue(s->pbrBlend, p.blend ? 1 : 0);
     s->setUniformValue(s->pbrUnlit, p.unlit ? 1 : 0);
     s->setUniformValue(s->pbrClearcoat, p.clearcoat, p.clearcoatRoughness, p.clearcoatNormalScale);
+    s->setUniformValue(s->pbrSpecular, p.specularColor[0], p.specularColor[1], p.specularColor[2],
+                       p.specular);
+    s->setUniformValue(s->pbrIor, p.ior);
     int present = 0;
     int texCoords = 0;
     int transformed = 0;

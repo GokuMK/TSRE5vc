@@ -278,6 +278,8 @@ void GLUU::initShader() {
         currentShader->pbrUvTransform = currentShader->uniformLocation("pbrUvTransform");
         currentShader->pbrUvTransforms = currentShader->uniformLocation("pbrUvTransforms");
         currentShader->pbrClearcoat = currentShader->uniformLocation("pbrClearcoat");
+        currentShader->pbrSpecular = currentShader->uniformLocation("pbrSpecular");
+        currentShader->pbrIor = currentShader->uniformLocation("pbrIor");
         currentShader->cameraPosition = currentShader->uniformLocation("cameraPosition");
         currentShader->environmentMapLevels = currentShader->uniformLocation("environmentMapLevels");
         currentShader->waterTime = currentShader->uniformLocation("waterTime");
@@ -329,14 +331,15 @@ void GLUU::initShader() {
         if (currentShader->instanceMatrices >= 0)
             currentShader->setUniformValue(currentShader->instanceMatrices, 8);
         // Unit 10 holds the environment map, units 11-14 the metallic-roughness,
-        // normal, occlusion and emissive maps, and units 4-6 (terrain-only
-        // elsewhere) the clearcoat maps. Water uses units 4 and 5 for its
-        // lower layers, unit 6 for the planar reflection and unit 15 for the
-        // wave map.
+        // normal, occlusion and emissive maps, units 4-6 (terrain-only
+        // elsewhere) the clearcoat maps, and units 7 and 15 the specular maps.
+        // Water uses units 4 and 5 for its lower layers, unit 6 for the planar
+        // reflection and unit 15 for the wave map.
         const struct { const char *name; int unit; } pbrSamplers[] = {
             {"environmentMap", 10}, {"pbrMetallicRoughnessMap", 11}, {"pbrNormalMap", 12},
             {"pbrOcclusionMap", 13}, {"pbrEmissiveMap", 14}, {"pbrClearcoatMap", 4},
             {"pbrClearcoatRoughnessMap", 5}, {"pbrClearcoatNormalMap", 6},
+            {"pbrSpecularMap", 7}, {"pbrSpecularColorMap", 15},
             {"waterBottomMap", 4}, {"waterMiddleMap", 5}, {"waterReflectionMap", 6},
             {"waterNormalMap", 15}};
         for (const auto &sampler : pbrSamplers) {

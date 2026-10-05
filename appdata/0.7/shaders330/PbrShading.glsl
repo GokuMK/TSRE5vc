@@ -20,15 +20,19 @@ uniform float pbrAlphaCutoff;
 uniform int pbrBlend;
 uniform int pbrUnlit;
 // Bit per map present: 1 metallic-roughness, 2 normal, 4 occlusion, 8 emissive,
-// 16 clearcoat, 32 clearcoat roughness, 64 clearcoat normal.
+// 16 clearcoat, 32 clearcoat roughness, 64 clearcoat normal, 128 specular,
+// 256 specular colour.
 uniform int pbrTextures;
 // Bit per map (RenderItem::Pbr::Map order) read with the second texture coordinates.
 uniform int pbrTexCoords;
 // KHR_texture_transform: bit per transformed map, and two rows per map.
 uniform int pbrUvTransforms;
-uniform vec3 pbrUvTransform[16];
+uniform vec3 pbrUvTransform[20];
 // Clearcoat strength, roughness and normal scale; strength 0 has no layer.
 uniform vec3 pbrClearcoat;
+// KHR_materials_specular colour (rgb) and strength (a), and KHR_materials_ior.
+uniform vec4 pbrSpecular;
+uniform float pbrIor;
 uniform sampler2D pbrMetallicRoughnessMap;
 uniform sampler2D pbrNormalMap;
 uniform sampler2D pbrOcclusionMap;
@@ -36,6 +40,8 @@ uniform sampler2D pbrEmissiveMap;
 uniform sampler2D pbrClearcoatMap;
 uniform sampler2D pbrClearcoatRoughnessMap;
 uniform sampler2D pbrClearcoatNormalMap;
+uniform sampler2D pbrSpecularMap;
+uniform sampler2D pbrSpecularColorMap;
 #include "EnvironmentLighting.glsl"
 
 vec2 pbrUv(int map) {
@@ -89,7 +95,18 @@ vec4 pbrShade() {
         n = mappedNormal(n, pbrNormalMap, 2, pbrNormalScale);
     vec3 v = normalize(cameraPosition - vWorldPosition);
     float nDotV = max(dot(n, v), 1e-4);
-    vec3 f0 = mix(vec3(0.04), base.rgb, metallic);
+    // Dielectric reflectance from the index of refraction, tinted and
+    // weighted by KHR_materials_specular; metals reflect their base colour.
+    float specularWeight = pbrSpecular.a;
+    if ((pbrTextures & 128) != 0)
+        specularWeight *= texture(pbrSpecularMap, pbrUv(8)).a;
+    vec3 specularTint = pbrSpecular.rgb;
+    if ((pbrTextures & 256) != 0)
+        specularTint *= toLinear(texture(pbrSpecularColorMap, pbrUv(9)).rgb);
+    float iorF0 = (pbrIor - 1.0) / (pbrIor + 1.0);
+    vec3 dielectricF0 = min(iorF0 * iorF0 * specularTint, vec3(1.0)) * specularWeight;
+    vec3 f0 = mix(dielectricF0, base.rgb, metallic);
+    vec3 f90 = vec3(mix(specularWeight, 1.0, metallic));
     vec3 diffuseAlbedo = base.rgb * (1.0 - metallic);
 
     // The sun. Its irradiance matches the legacy diffuse light, so a white
@@ -118,7 +135,7 @@ vec4 pbrShade() {
     vec3 sun = PbrPi * toLinear(diffuseColor.rgb) * shadow;
     if (nDotL > 0.0) {
         vec3 fresnel;
-        vec3 specular = ggxSpecular(n, v, l, roughness, f0, fresnel);
+        vec3 specular = ggxSpecular(n, v, l, roughness, f0, f90, fresnel);
         vec3 diffuse = (1.0 - fresnel) * diffuseAlbedo / PbrPi;
         color += (diffuse + specular) * sun * nDotL;
     }
@@ -143,7 +160,7 @@ vec4 pbrShade() {
     vec3 reflected = environmentRadiance(reflect(-v, n),
                                          roughness * max(environmentMapLevels - 1.0, 0.0));
     vec3 environment = diffuseAlbedo * irradiance * ambientScale
-            + reflected * environmentBrdf(f0, roughness, nDotV);
+            + reflected * environmentBrdf(f0, f90, roughness, nDotV);
     if (coat > 0.0) {
         vec3 coatReflected = environmentRadiance(reflect(-v, coatNormal),
                 coatRoughness * max(environmentMapLevels - 1.0, 0.0));

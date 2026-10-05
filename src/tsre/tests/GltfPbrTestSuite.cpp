@@ -183,6 +183,21 @@ int TsreTests::runGltfPbrGlSuite(bool verbose) {
         }
         check(coated && uncoated, "KHR_materials_clearcoat reaches the packets");
     }
+    {
+        auto specular = load(root, "SpecularTest");
+        bool weak = false, tinted = false;
+        for (const RenderItem *item : specular->recorder.packets) {
+            weak |= item->pbr.specular < 0.1f;
+            tinted |= item->pbr.specularColor[2] < item->pbr.specularColor[0];
+        }
+        check(weak && tinted, "KHR_materials_specular reaches the packets");
+        auto ior = load(root, "IORTestGrid");
+        std::set<float> values;
+        for (const RenderItem *item : ior->recorder.packets)
+            values.insert(item->pbr.ior);
+        check(values.count(1.0f) && values.count(1.33f) && values.count(2.42f),
+              "KHR_materials_ior reaches the packets");
+    }
     // Tangents: given (NormalTangentMirrorTest) or generated (DamagedHelmet)
     // must be unit length, across the normal, with a handedness sign.
     for (const char *model : {"NormalTangentMirrorTest", "DamagedHelmet"}) {
