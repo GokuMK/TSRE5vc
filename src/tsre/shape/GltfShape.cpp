@@ -317,6 +317,8 @@ struct GltfSampler {
 struct GltfTextureRef {
     int index = -1;
     int texCoord = 0;
+    // KHR_texture_transform as rows of a 2 x 3 matrix.
+    float transform[6] = {1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f};
 };
 
 struct GltfMaterial {
@@ -337,6 +339,13 @@ struct GltfMaterial {
     bool doubleSided = false;
     // KHR_materials_unlit.
     bool unlit = false;
+    // KHR_materials_clearcoat.
+    float clearcoatFactor = 0.0f;
+    float clearcoatRoughnessFactor = 0.0f;
+    GltfTextureRef clearcoatTexture;
+    GltfTextureRef clearcoatRoughnessTexture;
+    GltfTextureRef clearcoatNormalTexture;
+    float clearcoatNormalScale = 1.0f;
 };
 
 struct GltfPrimitive {
@@ -648,6 +657,24 @@ static void parseModelFromRoot(const QJsonObject& root, GltfModel& model) {
             GltfTextureRef ref;
             ref.index = info.value("index").toInt(-1);
             ref.texCoord = info.value("texCoord").toInt(0);
+            const QJsonObject transform = info.value("extensions").toObject()
+                    .value("KHR_texture_transform").toObject();
+            if (!transform.isEmpty()) {
+                // Offset * rotation * scale, as the extension defines it.
+                const QVector<float> offset = jsonFloatArray(transform.value("offset").toArray());
+                const QVector<float> scale = jsonFloatArray(transform.value("scale").toArray());
+                const float rotation = float(transform.value("rotation").toDouble(0.0));
+                const float ox = offset.size() >= 2 ? offset[0] : 0.0f;
+                const float oy = offset.size() >= 2 ? offset[1] : 0.0f;
+                const float sx = scale.size() >= 2 ? scale[0] : 1.0f;
+                const float sy = scale.size() >= 2 ? scale[1] : 1.0f;
+                const float c = std::cos(rotation), s = std::sin(rotation);
+                // Positive rotation turns the texture image clockwise, as in
+                // TextureTransformTest.
+                const float rows[6] = {c * sx, s * sy, ox, -s * sx, c * sy, oy};
+                std::copy(rows, rows + 6, ref.transform);
+                ref.texCoord = transform.value("texCoord").toInt(ref.texCoord);
+            }
             return ref;
         };
         GltfMaterial &material = model.materials[i];
@@ -669,6 +696,14 @@ static void parseModelFromRoot(const QJsonObject& root, GltfModel& model) {
         for (int c = 0; c < 3 && c < emissive.size(); ++c)
             material.emissiveFactor[c] = emissive[c] * emissiveStrength;
         material.unlit = extensions.contains("KHR_materials_unlit");
+        const QJsonObject clearcoat = extensions.value("KHR_materials_clearcoat").toObject();
+        material.clearcoatFactor = float(clearcoat.value("clearcoatFactor").toDouble(0.0));
+        material.clearcoatRoughnessFactor = float(clearcoat.value("clearcoatRoughnessFactor").toDouble(0.0));
+        material.clearcoatTexture = textureRef(clearcoat.value("clearcoatTexture").toObject());
+        material.clearcoatRoughnessTexture = textureRef(clearcoat.value("clearcoatRoughnessTexture").toObject());
+        const QJsonObject clearcoatNormal = clearcoat.value("clearcoatNormalTexture").toObject();
+        material.clearcoatNormalTexture = textureRef(clearcoatNormal);
+        material.clearcoatNormalScale = float(clearcoatNormal.value("scale").toDouble(1.0));
     }
 
     const QJsonArray meshes = root.value("meshes").toArray();
@@ -1471,11 +1506,18 @@ bool GltfShape::parseAndBuild() {
                 std::copy(srcMat.emissiveFactor, srcMat.emissiveFactor + 3, pbr.emissive);
                 pbr.normalScale = srcMat.normalScale;
                 pbr.occlusionStrength = srcMat.occlusionStrength;
+                pbr.clearcoat = srcMat.clearcoatFactor;
+                pbr.clearcoatRoughness = srcMat.clearcoatRoughnessFactor;
+                pbr.clearcoatNormalScale = srcMat.clearcoatNormalScale;
                 const GltfTextureRef *maps[RenderItem::Pbr::MAP_COUNT] = {
                     &srcMat.baseColorTexture, &srcMat.metallicRoughnessTexture,
-                    &srcMat.normalTexture, &srcMat.occlusionTexture, &srcMat.emissiveTexture};
+                    &srcMat.normalTexture, &srcMat.occlusionTexture, &srcMat.emissiveTexture,
+                    &srcMat.clearcoatTexture, &srcMat.clearcoatRoughnessTexture,
+                    &srcMat.clearcoatNormalTexture};
                 for (int map = 0; map < RenderItem::Pbr::MAP_COUNT; ++map) {
                     pbr.texCoords[map] = maps[map]->texCoord == 1 ? 1 : 0;
+                    std::copy(maps[map]->transform, maps[map]->transform + 6,
+                              pbr.uvTransforms[map].rows);
                     const int textureIndex = maps[map]->index;
                     if (textureIndex >= 0 && textureIndex < model.textures.size()) {
                         const int samplerIndex = model.textures[textureIndex].sampler;

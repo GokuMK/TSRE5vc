@@ -41,7 +41,9 @@ struct LoadedShape {
 
 std::unique_ptr<LoadedShape> load(const QString &root, const QString &model) {
     auto loaded = std::make_unique<LoadedShape>();
-    const QString path = QDir(root).filePath("Models/" + model + "/glTF-Binary/" + model + ".glb");
+    QString path = QDir(root).filePath("Models/" + model + "/glTF-Binary/" + model + ".glb");
+    if (!QFileInfo::exists(path))
+        path = QDir(root).filePath("Models/" + model + "/glTF/" + model + ".gltf");
     loaded->shape = std::make_unique<GltfShape>(path, QFileInfo(path).fileName(), QString());
     loaded->shape->load();
     const unsigned int state = loaded->shape->newState();
@@ -161,6 +163,25 @@ int TsreTests::runGltfPbrGlSuite(bool verbose) {
                 coloured = data[v + 15] < 0.5f || data[v + 16] < 0.5f || data[v + 17] < 0.5f;
         }
         check(coloured, "vertex colours reach the vertices");
+    }
+    {
+        auto transforms = load(root, "TextureTransformTest");
+        bool offset = false, rotation = false;
+        for (const RenderItem *item : transforms->recorder.packets) {
+            const float *rows = item->pbr.uvTransforms[RenderItem::Pbr::MAP_BASE_COLOR].rows;
+            offset |= rows[0] == 1.0f && rows[2] == 0.5f && rows[5] == 0.0f;
+            // 22.5 degrees turns the image clockwise: +sin in the first row.
+            rotation |= std::abs(rows[1] - std::sin(0.3926991f)) < 1e-4f
+                    && std::abs(rows[3] + std::sin(0.3926991f)) < 1e-4f;
+        }
+        check(offset && rotation, "KHR_texture_transform reaches the packets");
+        auto coat = load(root, "ClearCoatTest");
+        bool coated = false, uncoated = false;
+        for (const RenderItem *item : coat->recorder.packets) {
+            coated |= item->pbr.clearcoat == 1.0f && std::abs(item->pbr.clearcoatRoughness - 0.03f) < 1e-4f;
+            uncoated |= item->pbr.clearcoat == 0.0f;
+        }
+        check(coated && uncoated, "KHR_materials_clearcoat reaches the packets");
     }
     // Tangents: given (NormalTangentMirrorTest) or generated (DamagedHelmet)
     // must be unit length, across the normal, with a handedness sign.

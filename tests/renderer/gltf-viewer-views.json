@@ -25,6 +25,11 @@
     {"name": "boom-box", "type": "shape", "path": "BoomBox/glTF-Binary/BoomBox.glb", "yaw": 90},
     {"name": "unlit", "type": "shape", "path": "UnlitTest/glTF-Binary/UnlitTest.glb", "yaw": 90},
     {"name": "orientation", "type": "shape", "path": "OrientationTest/glTF-Binary/OrientationTest.glb", "yaw": 90},
-    {"name": "multi-uv", "type": "shape", "path": "MultiUVTest/glTF-Binary/MultiUVTest.glb", "yaw": 90}
+    {"name": "multi-uv", "type": "shape", "path": "MultiUVTest/glTF-Binary/MultiUVTest.glb", "yaw": 90},
+    {"name": "texture-transform", "type": "shape", "path": "TextureTransformTest/glTF/TextureTransformTest.gltf", "yaw": 90},
+    {"name": "texture-transform-multi", "type": "shape", "path": "TextureTransformMultiTest/glTF-Binary/TextureTransformMultiTest.glb", "yaw": 90},
+    {"name": "clearcoat", "type": "shape", "path": "ClearCoatTest/glTF-Binary/ClearCoatTest.glb", "yaw": 90},
+    {"name": "clearcoat-car-paint", "type": "shape", "path": "ClearCoatCarPaint/glTF-Binary/ClearCoatCarPaint.glb", "yaw": 90},
+    {"name": "clearcoat-wicker", "type": "shape", "path": "ClearcoatWicker/glTF-Binary/ClearcoatWicker.glb", "yaw": 90}
   ]
 }
