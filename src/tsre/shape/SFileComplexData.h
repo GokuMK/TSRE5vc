@@ -132,5 +132,4 @@ struct SFileComplex::Data {
         std::vector<RenderItem *> active;
     };
     std::map<QByteArray, SharedPackets> sharedPackets;
-    QPointer<QOpenGLContext> context;
 };

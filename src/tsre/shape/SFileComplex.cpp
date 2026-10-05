@@ -193,7 +193,7 @@ bool SFileComplex::loadData() {
     return true;
 }
 void SFileComplex::load() {
-    if (loadData() && QOpenGLContext::currentContext())
+    if (loadData())
         initGL();
 }
 void SFileComplex::reload() {

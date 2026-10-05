@@ -359,7 +359,7 @@ template<class Shape> int legacyCompatSnapshot(const QString &path) {
     if constexpr (std::is_same_v<Shape, SFileLegacy>) {
         context.doneCurrent();
         const bool cpu = shape.loadData();
-        result["cpu_only"] = cpu && shape.isLoaded() && !shape.isGLReady() && !shape.initGL();
+        result["cpu_only"] = cpu && shape.isLoaded() && !shape.isGLReady();
         context.makeCurrent(&surface);
         result["gpu_ready"] = shape.initGL();
     } else shape.load();
@@ -495,7 +495,7 @@ template<class Shape> int threeCompatSnapshot(const QString &path, bool compact 
     QElapsedTimer timer; timer.start();
     bool loaded=shape.loadData();
     result["cpu_ms"]=timer.nsecsElapsed()/1e6;
-    result["cpu_only"]=loaded && shape.isLoaded() && !shape.initGL();
+    result["cpu_only"]=loaded && shape.isLoaded();
     context.makeCurrent(&surface); timer.restart();
     bool ready=shape.initGL(); context.functions()->glFinish();
     result["init_gl_ms"]=timer.nsecsElapsed()/1e6;
@@ -869,7 +869,7 @@ int TsreTests::runSFileComplexSuite(bool verbose, bool gl) {
                     "write legacy fixture");
             SFileLegacy legacy(legacyPath, "fixture", tmp.path());
             context.doneCurrent();
-            t.check(legacy.loadData() && legacy.isLoaded() && !legacy.isGLReady() && !legacy.initGL(),
+            t.check(legacy.loadData() && legacy.isLoaded() && !legacy.isGLReady(),
                     "legacy CPU load without context");
             context.makeCurrent(&surface);
             if (!legacy.isLoaded() || legacy.iloscd == 0) continue;
@@ -909,18 +909,21 @@ int TsreTests::runSFileComplexSuite(bool verbose, bool gl) {
                 QOpenGLContext other;
                 other.setFormat(surface.format());
                 t.check(other.create() && other.makeCurrent(&surface), "second legacy GL context");
-                t.check(!legacy.isGLReady() && !legacy.initGL(), "legacy rejects foreign context");
+                t.check(legacy.isGLReady() && legacy.initGL(), "legacy readiness does not depend on the current context");
                 context.makeCurrent(&surface);
-                t.check(legacy.isGLReady(), "legacy readiness returns in owning context");
+                t.check(legacy.isGLReady(), "legacy stays ready in the first context");
                 other.makeCurrent(&surface);
                 legacy.reload();
                 t.check(legacy.loadData() && legacy.initGL(), "explicit reload uploads in new context");
                 other.doneCurrent();
             }
             context.makeCurrent(&surface);
-            t.check(!legacy.isGLReady() && !legacy.initGL(), "destroyed context requires explicit reload");
+            t.check(legacy.isGLReady() && legacy.initGL(), "readiness survives a destroyed second context");
+            context.doneCurrent();
             legacy.reload();
-            t.check(legacy.loadData() && legacy.initGL(), "reload recovers after context destruction");
+            t.check(legacy.loadData() && legacy.initGL() && legacy.isGLReady(),
+                    "legacy initGL needs no current context");
+            context.makeCurrent(&surface);
             {
                 RenderProbe packetRenderer;
                 packetRenderer.setup(legacy);
@@ -1141,8 +1144,7 @@ int TsreTests::runSFileComplexCorpus(const QString &input, bool gl) {
             timer.restart();
             bool joinedLoaded = joined.loadData();
             result["joined_cpu_ms"] = timer.nsecsElapsed() / 1e6;
-            bool cpuOnly = joinedLoaded && joined.isLoaded() && !joined.isGLReady() &&
-                           !joined.initGL();
+            bool cpuOnly = joinedLoaded && joined.isLoaded() && !joined.isGLReady();
             for (int l = 0; l < joined.iloscd; ++l)
                 for (int o = 0; o < joined.distancelevel[l].iloscs; ++o)
                     cpuOnly &= !joined.distancelevel[l].subobiekty[o].mesh.valid();

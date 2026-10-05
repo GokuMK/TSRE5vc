@@ -17,16 +17,13 @@ void SFileComplex::releaseGL() {
     for (auto &l : d->lods)
         for (auto &m : l.meshes)
             m.gpu.reset();
-    d->context.clear();
     d->gpuState = GpuState::NotInitialized;
 }
 bool SFileComplex::initGL() {
     if (!d->loaded || d->health == Health::Broken)
         return false;
-    auto *context = QOpenGLContext::currentContext();
-    if (!context)
-        return false;
-    if (d->gpuState == GpuState::Ready && d->context == context)
+    // Builds renderer-owned meshes; no GL context is needed.
+    if (d->gpuState == GpuState::Ready)
         return true;
     if (d->retention == Retention::Compact && !d->sourceAvailable) {
         if (d->edited) {
@@ -123,7 +120,6 @@ bool SFileComplex::initGL() {
             gpu->mesh = Meshes::create(std::move(data));
             mesh.gpu = std::move(gpu);
         }
-    d->context = context;
     d->gpuState = GpuState::Ready;
     for (auto &s : d->states)
         s.dirty = true;

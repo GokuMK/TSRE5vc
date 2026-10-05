@@ -55,7 +55,7 @@ Key capabilities embedded in `SFileLegacy`:
 - **Binary** (token stream) path: detected by `FileBuffer::isBinarySimis()`, then parsed by the `odczytaj*c` section readers.
 - **Text** path: parsed by the matching `odczytaj*` section readers for the same conceptual sections.
 
-`load()` parses on the calling thread and initializes GL immediately when a context is current; otherwise `initGL()` runs later on the GL thread. The section readers are static members of `SFileLegacy`, so "format support" is still intertwined with its internals; `SFileComplex` separates it into `SFileDocument`.
+`load()` parses and then runs `initGL()`, which builds renderer-owned meshes and needs no GL context; the renderer uploads them before the first draw. Readiness does not depend on the current context, since all TSRE GL widgets share one context group. The section readers are static members of `SFileLegacy`, so "format support" is still intertwined with its internals; `SFileComplex` separates it into `SFileDocument`.
 
 ### 1.3 `.sd` Metadata (`loadSd`)
 `SFileLegacy::loadSd()` reads `pathid + "d"` (MSTS `.sd`) and populates:
