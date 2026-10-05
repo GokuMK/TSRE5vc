@@ -118,6 +118,14 @@ private:
     void collectMeshes();
     void releaseMeshArrays();
     std::unordered_map<quint32, MeshArray> meshArrays;
+    // Sampler objects overriding the wrap mode of material maps that do not
+    // repeat (PBR packets), by wrap modes, and the one bound on each unit.
+    void applyWrapSamplers(const RenderItem *item);
+    void bindWrapSampler(int unit, quint32 wrap);
+    void releaseWrapSamplers();
+    std::unordered_map<quint32, unsigned int> wrapSamplers;
+    unsigned int boundSamplers[16] = {};
+    QOpenGLContext *samplerContext = nullptr;
     QOpenGLContext *meshContext = nullptr;
     quint64 sweptReleases = 0;
 

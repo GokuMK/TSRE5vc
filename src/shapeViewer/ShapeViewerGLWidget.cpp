@@ -241,12 +241,16 @@ void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
     
     gluu->currentShader->bind();
     gluu->setMatrixUniforms();
+    std::copy(camera->getPos(), camera->getPos() + 3, gluu->cameraPosition);
+    gluu->environmentMapLevels = 0;
     if(!selectionPass){
         if(environmentMap == nullptr)
             environmentMap = new EnvironmentMap();
         // A fixed warehouse interior: filled once, at the largest face size.
-        if(environmentMap->complete() || environmentMap->fillWarehouse(256))
+        if(environmentMap->complete() || environmentMap->fillWarehouse(256)){
             environmentMap->bind();
+            gluu->environmentMapLevels = environmentMap->levels();
+        }
     }
     if(renderer != nullptr)
         renderGathered(selectionId);

@@ -4,8 +4,8 @@
 
 Provide a cube map of the camera's surroundings so materials can reflect
 their environment (metal, glass, glTF metallic-roughness materials). This
-task adds the cube and its rendering; nothing samples it for shading yet.
-The glTF material work is its first consumer.
+task adds the cube and its rendering; glTF PBR materials (shapes task 06)
+sample it.
 
 ## Design
 
@@ -72,5 +72,7 @@ six per frame is clearly visible. Two per frame is a candidate default.
   preview, settings, `environment-map-gl` suite.
 - [x] Cost on hardware: see Settings. `RenderStats` reports the cube as phase
   `environment`.
-- [ ] Consumers: reflecting materials (glTF metallic-roughness, then MSTS
-  defaults), with blurred reflections from the mipmaps.
+- [x] First consumer: glTF metallic-roughness materials (shapes task 06),
+  with reflections blurred through the mipmaps.
+- [ ] MSTS shapes: reflecting materials need defaults chosen from their
+  shader names.

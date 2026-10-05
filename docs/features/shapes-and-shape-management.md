@@ -93,8 +93,9 @@ packets to the `RenderQueue` (see `src/tsre/renderer/RenderQueue.h`).
   neither shared nor culled.
 - `GltfShape` packets do not depend on the instance state (glTF animation is
   not drawn yet), so every state submits one shared set; each primitive's
-  bounds are computed when it is uploaded. glTF materials are drawn
-  single-sided: `doubleSided` is not applied yet.
+  bounds are computed when it is uploaded. glTF materials are drawn with
+  the PBR program and honour `doubleSided`
+  (`docs/tasks/shapes/06-gltf-pbr-materials.md`).
 - Caches are rebuilt when `invalidateRenderState()` is called or the shape is
   reloaded; `SFileComplex` also drops them when its GL data is released.
 
@@ -190,4 +191,4 @@ Major constraints to plan for:
   - positive value (e.g. `1.0`) forces opaque output alpha
   - negative value encodes an alpha cutoff (`discard` when `texAlpha < -vAlpha`)
   This maps naturally to glTF `OPAQUE` and `MASK`. glTF `BLEND` is supported with known limitations (ordering/sorting is renderer work); current best-effort behavior is closer to "alpha test + blend" than a fully sorted transparency pass.
-- **Full PBR is out of scope** unless the renderer pipeline is extended (metal/rough, normal maps, IBL, etc.).
+- **PBR:** glTF metallic-roughness materials, normal maps and image-based light are drawn by the PBR program variant; see `docs/tasks/shapes/06-gltf-pbr-materials.md` for the simplifications and what needs a new renderer.

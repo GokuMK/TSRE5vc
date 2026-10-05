@@ -55,6 +55,10 @@ public:
     float shadowNormalOffset[3] = {0.0f, 0.0f, 0.0f};
     float shadowDepthBias[2] = {0.0f, 0.0f};
     float shadowLightDirection[3] = {0.0f, 1.0f, 0.0f};
+    // Camera position in the submission space, for view-dependent shading,
+    // and mipmap levels of the bound environment map (0: none bound).
+    float cameraPosition[3] = {0.0f, 0.0f, 0.0f};
+    int environmentMapLevels = 0;
     //float fogColor[4]{0.5, 0.75, 1.0, 1.0};
     float fogColor[4] = {Game::fogColor[0], Game::fogColor[1], Game::fogColor[2], Game::fogColor[3]};
     float skyColor[4] = {Game::skyColor[0], Game::skyColor[1], Game::skyColor[2], Game::skyColor[3]};
@@ -94,6 +98,9 @@ public:
     // Program that draws overlay and UI packets in place of the given one:
     // its unlit variant (no lighting, shadows or fog), or the program itself.
     Shader *unlitVariant(Shader *shader) const;
+    // Program that draws metallic-roughness (PBR) packets in place of the
+    // given one, or the program itself when it has none.
+    Shader *pbrVariant(Shader *shader) const;
     // Shader source with #include "file" lines expanded from the same
     // directory and the given names defined after the #version line.
     static QByteArray shaderSource(const QString &directory, const QString &name,
@@ -105,6 +112,7 @@ public:
 private:
     QHash<Shader*, Shader*> terrainVariants;
     QHash<Shader*, Shader*> unlitVariants;
+    QHash<Shader*, Shader*> pbrVariants;
 
     int currentTexture = -1;
     Vector4f shapeColor;

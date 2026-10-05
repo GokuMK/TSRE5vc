@@ -118,6 +118,10 @@ Shader *GLUU::unlitVariant(Shader *shader) const {
     return unlitVariants.value(shader, shader);
 }
 
+Shader *GLUU::pbrVariant(Shader *shader) const {
+    return pbrVariants.value(shader, shader);
+}
+
 void GLUU::initShader() {
     QOpenGLContext *context = QOpenGLContext::currentContext();
     QOpenGLExtraFunctions *extra = context->extraFunctions();
@@ -148,6 +152,8 @@ void GLUU::initShader() {
     shaderDefinitions.push_back({"StandardFogStoredCoordsUnlit", "StandardFogStoredCoords", "StandardFogStoredCoords", unlit});
     shaderDefinitions.push_back({"Shadows", "Shadows", "Shadows", {}});
     shaderDefinitions.push_back({"Selection", "StandardFog", "Selection", terrain});
+    // Metallic-roughness materials (glTF) for the main program only.
+    shaderDefinitions.push_back({"StandardFogPbr", "StandardFog", "StandardFog", {"TSRE_PBR"}});
 
     const QString directory = shaderDirectory();
     for(int i = 0; i < shaderDefinitions.size(); i++ ){
@@ -166,6 +172,9 @@ void GLUU::initShader() {
         currentShader->bindAttributeLocation("aTextureCoord", 1);
         currentShader->bindAttributeLocation("normal", 2);
         currentShader->bindAttributeLocation("alpha", 3);
+        currentShader->bindAttributeLocation("tangent", 4);
+        currentShader->bindAttributeLocation("aTextureCoord1", 5);
+        currentShader->bindAttributeLocation("vertexColor", 6);
         if(definition.name == "Selection" && functions30 != nullptr)
             functions30->glBindFragDataLocation(currentShader->programId(), 0,
                                                 "selectionResult");
@@ -231,6 +240,18 @@ void GLUU::initShader() {
         currentShader->terrainMaterialMapRemap = currentShader->uniformLocation("terrainMaterialMapRemap");
         currentShader->terrainMaterialMapSide = currentShader->uniformLocation("terrainMaterialMapSide");
         currentShader->terrainMaterialNoiseScale = currentShader->uniformLocation("terrainMaterialNoiseScale");
+        currentShader->pbrBaseColor = currentShader->uniformLocation("pbrBaseColor");
+        currentShader->pbrMetallicRoughness = currentShader->uniformLocation("pbrMetallicRoughness");
+        currentShader->pbrEmissive = currentShader->uniformLocation("pbrEmissive");
+        currentShader->pbrNormalScale = currentShader->uniformLocation("pbrNormalScale");
+        currentShader->pbrOcclusionStrength = currentShader->uniformLocation("pbrOcclusionStrength");
+        currentShader->pbrAlphaCutoff = currentShader->uniformLocation("pbrAlphaCutoff");
+        currentShader->pbrBlend = currentShader->uniformLocation("pbrBlend");
+        currentShader->pbrUnlit = currentShader->uniformLocation("pbrUnlit");
+        currentShader->pbrTextures = currentShader->uniformLocation("pbrTextures");
+        currentShader->pbrTexCoords = currentShader->uniformLocation("pbrTexCoords");
+        currentShader->cameraPosition = currentShader->uniformLocation("cameraPosition");
+        currentShader->environmentMapLevels = currentShader->uniformLocation("environmentMapLevels");
 
         const GLuint terrainBlock = extra->glGetUniformBlockIndex(
                     currentShader->programId(), "TerrainPatchBlock");
@@ -274,6 +295,16 @@ void GLUU::initShader() {
         // Unit 8 holds the instance matrix buffer.
         if (currentShader->instanceMatrices >= 0)
             currentShader->setUniformValue(currentShader->instanceMatrices, 8);
+        // Unit 10 holds the environment map, units 11-14 the metallic-roughness,
+        // normal, occlusion and emissive maps.
+        const struct { const char *name; int unit; } pbrSamplers[] = {
+            {"environmentMap", 10}, {"pbrMetallicRoughnessMap", 11}, {"pbrNormalMap", 12},
+            {"pbrOcclusionMap", 13}, {"pbrEmissiveMap", 14}};
+        for (const auto &sampler : pbrSamplers) {
+            const int location = currentShader->uniformLocation(sampler.name);
+            if (location >= 0)
+                currentShader->setUniformValue(location, sampler.unit);
+        }
         if (currentShader->instanced >= 0)
             currentShader->setUniformValue(currentShader->instanced, 0);
         if (currentShader->terrainMaterialEnabled >= 0)
@@ -287,6 +318,7 @@ void GLUU::initShader() {
         terrainVariants[shaders[name]] = shaders[name + "Terrain"];
         unlitVariants[shaders[name]] = shaders[name + "Unlit"];
     }
+    pbrVariants[shaders["StandardFog"]] = shaders["StandardFogPbr"];
     currentShader = shaders["StandardFog"];
 }
 
@@ -331,6 +363,9 @@ void GLUU::setMatrixUniforms() {
             shadowDepthBias[1]);
     currentShader->setUniformValue(currentShader->shadowLightDirection, shadowLightDirection[0],
             shadowLightDirection[1], shadowLightDirection[2]);
+    currentShader->setUniformValue(currentShader->cameraPosition, cameraPosition[0],
+            cameraPosition[1], cameraPosition[2]);
+    currentShader->setUniformValue(currentShader->environmentMapLevels, float(environmentMapLevels));
 };
 
 void GLUU::disableTextures(Vector4f* color){

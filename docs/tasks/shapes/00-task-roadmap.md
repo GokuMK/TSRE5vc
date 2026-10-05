@@ -9,6 +9,7 @@ This folder contains ordered tasks for generalizing TSRE "complex shapes" (curre
 - [ ] [04-sfile-complex-implementation.md](04-sfile-complex-implementation.md) — new MSTS implementation alongside legacy SFile/C/X; opt-in implementation, stock comparison and typed-storage/pre-load Compact optimization implemented; SFileLegacy is the default; the original SFile/C/X classes have been removed. Independent of Task 03.
 
 - [x] [05-sfile-legacy-load-gl.md](05-sfile-legacy-load-gl.md) — SFileLegacy consolidates legacy parsing/rendering with separate CPU loading and GL initialization; stock regression checks and repeated SFileX/C comparisons complete.
+- [x] [06-gltf-pbr-materials.md](06-gltf-pbr-materials.md) — glTF metallic-roughness materials with image-based light from the environment map; simplifications and new-renderer requirements listed.
 
 ## Ground Rules For All Tasks
 - Keep MSTS `.s` + `.sd` support working throughout.

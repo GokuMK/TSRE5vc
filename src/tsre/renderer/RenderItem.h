@@ -22,7 +22,9 @@ class Vector4f;
 // persistent packets and submit them to a RenderQueue each frame.
 class RenderItem {
 public:
-    enum VertexAttr {NO_ATTR = 0, V = 3, VT = 6, VNT = 8, VNTA = 9};
+    // Floats per vertex. PBR: position, normal, texture coordinates, alpha,
+    // tangent (xyz, handedness), second texture coordinates, colour (rgba).
+    enum VertexAttr {NO_ATTR = 0, V = 3, VT = 6, VNT = 8, VNTA = 9, PBR = 19};
     // How the renderer routes a packet: opaque and alpha-tested packets are
     // batched by texture, blended packets are drawn back to front.
     enum Surface {SURFACE_OPAQUE = 0, SURFACE_ALPHA_TEST = 1, SURFACE_BLENDED = 2,
@@ -75,6 +77,35 @@ public:
         // Pixels; 0 uses the default.
         int lineWidth = 0;
         bool wireframe = false;
+        // Drawn without back-face culling.
+        bool doubleSided = false;
+    };
+
+    // Metallic-roughness material (glTF), drawn by the PBR program variant.
+    // The base colour texture is the material texture; the other maps are
+    // TexLib texture ids resolved when drawing, -1 for none. Colours are
+    // linear, as in glTF.
+    struct Pbr {
+        enum Map {MAP_BASE_COLOR = 0, MAP_METALLIC_ROUGHNESS, MAP_NORMAL, MAP_OCCLUSION,
+                  MAP_EMISSIVE, MAP_COUNT};
+        bool enabled = false;
+        // Shaded with the base colour only (KHR_materials_unlit).
+        bool unlit = false;
+        float baseColor[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+        float metallic = 1.0f;
+        float roughness = 1.0f;
+        float emissive[3] = {0.0f, 0.0f, 0.0f};
+        float normalScale = 1.0f;
+        float occlusionStrength = 1.0f;
+        // Alpha below it is discarded (MASK); negative keeps every pixel.
+        float alphaCutoff = -1.0f;
+        // Whether alpha is kept for blending (BLEND); otherwise opaque.
+        bool blend = false;
+        int textures[MAP_COUNT] = {-1, -1, -1, -1, -1};
+        // Texture coordinate set (0 or 1) of each map.
+        unsigned char texCoords[MAP_COUNT] = {0, 0, 0, 0, 0};
+        // Wrap mode of each map along s and t as GL enums; 0 repeats.
+        unsigned short wrap[MAP_COUNT][2] = {};
     };
 
     // Terrain-only parameters; unused by other packets.
@@ -114,6 +145,7 @@ public:
 
     Mesh mesh;
     Material material;
+    Pbr pbr;
     Terrain terrain;
     Bounds bounds;
     // Model-space transform applied before the submission transform; null

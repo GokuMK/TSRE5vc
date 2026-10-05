@@ -49,8 +49,8 @@ is out of date. Current state:
   carry GL texture ids; textures and framebuffers are a later step.
 - Environment map (task 17): a cube around the camera, rendered from the
   gathered queue a few faces per frame with limited object range; the Shape
-  Viewer uses a procedural warehouse. Off by default; no material samples it
-  yet.
+  Viewer uses a procedural warehouse. Off by default; glTF PBR materials
+  sample it (shapes task 06).
 
 - The gather frame draws everything through the renderer: sky, distant
   terrain and water, high-res terrain, world objects, overlays, water, pointer,

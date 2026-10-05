@@ -38,6 +38,8 @@ public:
     bool ensure(int faceSize);
     int faceSize() const { return size; }
     unsigned int texture() const { return cube; }
+    // Mipmap levels of the cube, 0 without one.
+    int levels() const;
     // Whether every face has content (rendered or filled) since ensure().
     bool complete() const { return facesReady == FaceCount; }
 
@@ -59,6 +61,8 @@ public:
 
     // Binds the cube to TextureUnit and leaves unit 0 active.
     void bind();
+    // Unbinds TextureUnit, so rendering into the cube cannot sample it.
+    static void unbind();
     // Draws the faces unfolded as a cross (4 x 3 cells of cellSize pixels)
     // with its lower-left corner at x, y of the current framebuffer.
     void drawPreview(int x, int y, int cellSize);

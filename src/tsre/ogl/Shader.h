@@ -72,6 +72,19 @@ public:
     int terrainMaterialMapRemap;
     int terrainMaterialMapSide;
     int terrainMaterialNoiseScale;
+    // Metallic-roughness materials (PBR variant) and image-based light.
+    int pbrBaseColor = -1;
+    int pbrMetallicRoughness = -1;
+    int pbrEmissive = -1;
+    int pbrNormalScale = -1;
+    int pbrOcclusionStrength = -1;
+    int pbrAlphaCutoff = -1;
+    int pbrBlend = -1;
+    int pbrUnlit = -1;
+    int pbrTextures = -1;
+    int pbrTexCoords = -1;
+    int cameraPosition = -1;
+    int environmentMapLevels = -1;
 private:
 
 };

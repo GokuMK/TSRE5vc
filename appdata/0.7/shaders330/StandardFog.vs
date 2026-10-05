@@ -4,6 +4,16 @@ in vec4 vertex;
 in vec4 normal;
 in vec2 aTextureCoord;
 in float alpha;
+#ifdef TSRE_PBR
+in vec4 tangent;
+in vec2 aTextureCoord1;
+in vec4 vertexColor;
+out vec3 vWorldPosition;
+out vec3 vWorldNormal;
+out vec4 vWorldTangent;
+out vec2 vTextureCoord1;
+out vec4 vColor;
+#endif
 
 uniform float lod;
 uniform mat4 uShadowPMatrix;
@@ -89,6 +99,13 @@ void main() {
     shadowPos = uShadowPMatrix * (shadowVertex + vec4(shadowOffset*shadowNormalOffset.y, 0.0));
     shadow2Pos = uShadow2PMatrix * (shadowVertex + vec4(shadowOffset*shadowNormalOffset.z, 0.0));
     shadow0Pos = uShadow0PMatrix * (shadowVertex + vec4(shadowOffset*shadowNormalOffset.x, 0.0));
+#ifdef TSRE_PBR
+    vWorldPosition = shadowVertex.xyz;
+    vWorldNormal = mat3(modelView) * mat3(uMSMatrix) * normal.xyz;
+    vWorldTangent = vec4(mat3(modelView) * mat3(uMSMatrix) * tangent.xyz, tangent.w);
+    vTextureCoord1 = aTextureCoord1;
+    vColor = vertexColor;
+#endif
     gl_Position = uPMatrix * modelView * uMSMatrix * renderVertex;
     vec4 fogPosition = uFMatrix * modelView * uMSMatrix * renderVertex;
 #ifdef TSRE_TERRAIN

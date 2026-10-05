@@ -255,7 +255,7 @@ quint64 Meshes::releaseCount() {
 
 void Meshes::setupAttributes(QOpenGLFunctions *f, const Buffers &buffers) {
     // Locations: 0 position (or terrain height), 1 texture coordinates,
-    // 2 normal, 3 alpha.
+    // 2 normal, 3 alpha, 4 tangent, 5 second texture coordinates, 6 colour.
     if (buffers.format == MeshData::TerrainHeightNormal) {
         const GLsizei stride = 8;
         f->glEnableVertexAttribArray(0);
@@ -293,6 +293,15 @@ void Meshes::setupAttributes(QOpenGLFunctions *f, const Buffers &buffers) {
         attribute(2, 3, 3);
         attribute(1, 2, 6);
         attribute(3, 1, 8);
+        break;
+    case RenderItem::PBR:
+        attribute(0, 3, 0);
+        attribute(2, 3, 3);
+        attribute(1, 2, 6);
+        attribute(3, 1, 8);
+        attribute(4, 4, 9);
+        attribute(5, 2, 13);
+        attribute(6, 4, 15);
         break;
     default:
         break;

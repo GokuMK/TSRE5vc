@@ -16,6 +16,7 @@
 #include <QString>
 #include <QVector>
 #include <tsre/renderer/MeshHandle.h>
+#include <tsre/renderer/RenderItem.h>
 #include <tsre/shape/ComplexShape.h>
 
 class RenderQueue;
@@ -71,11 +72,13 @@ private:
         // RenderItem::Surface from the glTF alpha mode.
         unsigned char surface = 0;
         bool doubleSided = false;
+        // Metallic-roughness parameters and the TexLib ids of the other maps.
+        RenderItem::Pbr pbr;
         QString debugName;
     };
 
     struct MeshPrimitiveGpu {
-        // Renderer-owned VNTA vertices.
+        // Renderer-owned PBR-layout vertices.
         MeshHandle mesh;
         int vertCount = 0;
         MaterialRuntime material;

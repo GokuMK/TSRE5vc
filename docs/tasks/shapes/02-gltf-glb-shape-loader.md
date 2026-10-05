@@ -135,6 +135,6 @@ This keeps route objects compatible with existing "route textures folder" assump
 - Routes that contain only MSTS shapes continue to behave as before.
 
 ## Out Of Scope
-- Full PBR shading and glTF extensions for lighting/IBL.
+- Full PBR shading and glTF extensions for lighting/IBL (since done in Task 06).
 - Transparent blend sorting and per-material render pass buckets (handled under renderer modernization).
 - Skinning, morph targets, animation playback.
