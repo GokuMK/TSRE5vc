@@ -10,6 +10,7 @@
 
 #include "RouteEditorGLWidget.h"
 #include <QMouseEvent>
+#include <QOpenGLExtraFunctions>
 #include <QOpenGLShaderProgram>
 #include <QCoreApplication>
 #include <QDateTime>
@@ -61,6 +62,7 @@
 #include <tsre/world/Skydome.h>
 #include <tsre/renderer/OpenGL3Renderer.h>
 #include <tsre/renderer/EnvironmentMap.h>
+#include <tsre/renderer/PlanarReflection.h>
 #include <tsre/renderer/SelectionId.h>
 #include <tsre/renderer/SelectionRenderer.h>
 #include <QDebug>
@@ -76,7 +78,13 @@
 // The active 8-byte paged layout derives local X/Z in StandardFog.
 // StandardFogStoredCoords is retained as the Stage 1 shader reference, but it
 // requires reverting the paged vertex layout to TerrainVertex12 before use.
+#ifndef GL_SAMPLES_PASSED
+#define GL_SAMPLES_PASSED 0x8914
+#endif
+
 static const QString MainRenderShaderName = "StandardFog";
+// Objects farther than this are left out of the water reflection.
+static const float WaterReflectionObjectDistance = 500.0f;
 static constexpr unsigned long long LiveContinuousUpdateIntervalMs = 50;
 
 RouteEditorGLWidget::RouteEditorGLWidget(QWidget *parent)
@@ -125,6 +133,11 @@ void RouteEditorGLWidget::cleanup() {
     renderer = NULL;
     delete environmentMap;
     environmentMap = NULL;
+    delete waterReflection;
+    waterReflection = NULL;
+    if (waterQuery != 0)
+        context()->extraFunctions()->glDeleteQueries(1, &waterQuery);
+    waterQuery = 0;
     //delete gluu->m_program;
     //gluu->m_program = 0;
     doneCurrent();
@@ -493,6 +506,8 @@ void RouteEditorGLWidget::paintScene(){
     RenderStats::ScopedFrame statsFrame(!selectionPass);
     // View-dependent shading (PBR materials) reads the camera position.
     std::copy(camera->getPos(), camera->getPos() + 3, gluu->cameraPosition);
+    // Secondary views must not read last frame's water reflection.
+    std::fill(gluu->waterReflectionView, gluu->waterReflectionView + 4, 0.0f);
     // Drop anything left from an interrupted frame and rebalance the matrix stack.
     renderer->resetFrame();
     renderer->setViewPosition(camera->getPos());
@@ -530,8 +545,11 @@ void RouteEditorGLWidget::paintScene(){
     route->pushRenderOverlays(queue, camera->pozT, camera->getPos(), camera->getRotX(), gatherMode);
     RenderStats::setCategory(RenderStats::CategoryOther);
     renderer->setLayer(RenderQueue::LAYER_WATER);
+    // Shaded water draws the top layer only; the others colour it.
+    const int waterSurface = route->env->surfaceWaterLayer();
     for(int i = 0; i < route->env->waterCount; i++)
-        Game::terrainLib->pushRenderItemsWater(queue, camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3, gatherMode, i);
+        if(!Game::waterShaded || i == waterSurface)
+            Game::terrainLib->pushRenderItemsWater(queue, camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3, gatherMode, i);
     renderer->setLayer(RenderQueue::LAYER_SCENE);
 
     // Sky and distant terrain are gathered here too, so environment map faces
@@ -551,7 +569,8 @@ void RouteEditorGLWidget::paintScene(){
     renderer->setLayer(RenderQueue::LAYER_DISTANT);
     Game::terrainLib->pushRenderItemsLo(queue, camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3, gatherMode);
     for(int i = 0; i < route->env->waterCount; i++)
-        Game::terrainLib->pushRenderItemsWaterLo(queue, camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3, gatherMode, i);
+        if(!Game::waterShaded || i == waterSurface)
+            Game::terrainLib->pushRenderItemsWaterLo(queue, camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3, gatherMode, i);
     Terrain::gatherAllDirections = false;
     renderer->setLayer(RenderQueue::LAYER_SCENE);
     Mat4::identity(renderer->transform());
@@ -566,6 +585,12 @@ void RouteEditorGLWidget::paintScene(){
         RenderStats::beginPhase(RenderStats::PhaseEnvironment);
         renderEnvironmentMap();
         RenderStats::endPhase(RenderStats::PhaseEnvironment);
+    }
+    bool reflectWater = false;
+    if (!selectionPass && Game::waterShaded && Game::waterReflection){
+        RenderStats::beginPhase(RenderStats::PhaseReflection);
+        reflectWater = renderWaterReflection();
+        RenderStats::endPhase(RenderStats::PhaseReflection);
     }
 
     // Render Scene
@@ -595,6 +620,14 @@ void RouteEditorGLWidget::paintScene(){
             && environmentMap->complete()) {
         environmentMap->bind();
         gluu->environmentMapLevels = environmentMap->levels();
+    }
+    std::fill(gluu->waterReflectionView, gluu->waterReflectionView + 4, 0.0f);
+    if (reflectWater) {
+        waterReflection->bind();
+        gluu->waterReflectionView[0] = 1.0f / (this->width() * Game::PixelRatio);
+        gluu->waterReflectionView[1] = 1.0f / (this->height() * Game::PixelRatio);
+        gluu->waterReflectionView[2] = waterReflectionHeight;
+        gluu->waterReflectionView[3] = float(waterReflection->levels());
     }
 
     glClearColor(gluu->skyColor[0], gluu->skyColor[1], gluu->skyColor[2], 1.0);
@@ -647,7 +680,8 @@ void RouteEditorGLWidget::paintScene(){
         pushRenderPointer(queue);
     }
 
-    renderer->renderPasses(Renderer::PASS_TERRAIN, Renderer::PASS_WATER);
+    renderer->renderPasses(Renderer::PASS_TERRAIN, Renderer::PASS_OVERLAY);
+    renderWaterPass(!selectionPass && Game::waterShaded && Game::waterReflection);
 
     if (drawPointerAfterWorld) {
         pushRenderPointer(queue);
@@ -907,6 +941,115 @@ void RouteEditorGLWidget::renderEnvironmentMap() {
         renderer->setCullView(NULL);
     }
     environmentMap->endFaces(defaultFramebufferObject());
+}
+
+void RouteEditorGLWidget::renderWaterPass(bool measure) {
+    if (!measure || waterQueryPending) {
+        renderer->renderPasses(Renderer::PASS_WATER, Renderer::PASS_WATER);
+        return;
+    }
+    QOpenGLExtraFunctions *f = context()->extraFunctions();
+    if (waterQuery == 0)
+        f->glGenQueries(1, &waterQuery);
+    RenderStats::pauseSamples();
+    f->glBeginQuery(GL_SAMPLES_PASSED, waterQuery);
+    renderer->renderPasses(Renderer::PASS_WATER, Renderer::PASS_WATER);
+    f->glEndQuery(GL_SAMPLES_PASSED);
+    RenderStats::resumeSamples(waterQuery);
+    waterQueryPending = true;
+}
+
+bool RouteEditorGLWidget::renderWaterReflection() {
+    // Water hidden behind terrain still passes the view test, so the last
+    // measured water pass decides; until a result is in, keep the last one.
+    if (waterQueryPending) {
+        QOpenGLExtraFunctions *f = context()->extraFunctions();
+        GLuint available = 0;
+        f->glGetQueryObjectuiv(waterQuery, GL_QUERY_RESULT_AVAILABLE, &available);
+        if (available) {
+            GLuint samples = 0;
+            f->glGetQueryObjectuiv(waterQuery, GL_QUERY_RESULT, &samples);
+            waterOnScreen = samples > 0;
+            waterQueryPending = false;
+        }
+    }
+    if (!waterOnScreen)
+        return false;
+    // The plane of the nearest water in view; no water, no reflection.
+    const float aspect = float(this->width()) / this->height();
+    const float fov = Game::cameraFov * M_PI / 180;
+    float projection[16];
+    float viewProjection[16];
+    Mat4::perspective(projection, fov, aspect, 0.2f, Game::objectLod);
+    Mat4::multiply(viewProjection, projection, camera->getMatrix());
+    float water[3];
+    if (!renderer->nearestVisible(Renderer::PASS_WATER, viewProjection, water))
+        return false;
+    const float height = water[1];
+    if (camera->getPos()[1] <= height)
+        return false;
+    if (waterReflection == NULL)
+        waterReflection = new PlanarReflection();
+    const int width = std::max(1, qRound(this->width() * Game::PixelRatio * 0.5f));
+    const int targetHeight = std::max(1, qRound(this->height() * Game::PixelRatio * 0.5f));
+    if (!waterReflection->ensure(width, targetHeight))
+        return false;
+    // The mirrored view must not sample the texture it is drawn into.
+    PlanarReflection::unbind();
+    gluu->currentShader = gluu->shaders[MainRenderShaderName];
+    gluu->currentShader->bind();
+    Mat4::identity(gluu->mvMatrix);
+    Mat4::identity(gluu->objStrMatrix);
+    // The camera looks at the scene mirrored in the plane: mirrored
+    // triangles turn the other way round.
+    float mirror[16];
+    float view[16];
+    PlanarReflection::mirrorMatrix(height, mirror);
+    Mat4::multiply(view, camera->getMatrix(), mirror);
+    waterReflection->begin(gluu->skyColor);
+    glFrontFace(GL_CW);
+
+    Mat4::perspective(projection, fov, aspect, 0.2f, Game::objectLod);
+    Mat4::multiply(gluu->fMatrix, projection, view);
+    Mat4::perspective(projection, fov, aspect, 100.0f, 10000.0f);
+    Mat4::multiply(gluu->pMatrix, projection, view);
+    gluu->setMatrixUniforms();
+    gluu->currentShader->setUniformValue(gluu->currentShader->lod, 0.0f);
+    renderer->renderPassesRetained(Renderer::PASS_SKY, Renderer::PASS_SKY);
+    glClear(GL_DEPTH_BUFFER_BIT);
+
+    // Below the plane only the water bed would show; clip it just under
+    // the surface so banks meet the water without a gap.
+    const float clip[4] = {0.0f, 1.0f, 0.0f, -(height - 0.05f)};
+    std::copy(clip, clip + 4, gluu->clipPlane);
+    glEnable(GL_CLIP_DISTANCE0);
+    Mat4::perspective(projection, fov, aspect, 600.0f, Game::distantLod);
+    Mat4::multiply(gluu->pMatrix, projection, view);
+    gluu->setMatrixUniforms();
+    renderer->setCullView(gluu->pMatrix);
+    renderer->renderPassesRetained(Renderer::PASS_DISTANT, Renderer::PASS_DISTANT);
+    glClear(GL_DEPTH_BUFFER_BIT);
+
+    Renderer::ViewLimits limits;
+    limits.maxDistance = WaterReflectionObjectDistance;
+    // Skip objects under about a texel of the half-resolution view.
+    limits.minAngularRadius = 1.0f / targetHeight;
+    Mat4::perspective(projection, fov, aspect, 0.2f, Game::objectLod);
+    Mat4::multiply(gluu->pMatrix, projection, view);
+    gluu->setMatrixUniforms();
+    renderer->setCullView(gluu->pMatrix);
+    renderer->setViewLimits(&limits);
+    renderer->renderPassesRetained(Renderer::PASS_TERRAIN, Renderer::PASS_BLENDED);
+    renderer->setViewLimits(NULL);
+    renderer->setCullView(NULL);
+
+    glDisable(GL_CLIP_DISTANCE0);
+    const float keep[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+    std::copy(keep, keep + 4, gluu->clipPlane);
+    glFrontFace(GL_CCW);
+    waterReflection->end(defaultFramebufferObject());
+    waterReflectionHeight = height;
+    return true;
 }
 
 void RouteEditorGLWidget::handleSelection() {

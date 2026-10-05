@@ -88,6 +88,10 @@ public:
     int pbrClearcoat = -1;
     int cameraPosition = -1;
     int environmentMapLevels = -1;
+    int waterTime = -1;
+    int waterLayers = -1;
+    int waterReflectionView = -1;
+    int clipPlane = -1;
 private:
 
 };

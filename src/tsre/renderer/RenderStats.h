@@ -26,6 +26,7 @@ enum Phase {
     PhaseScene,
     PhaseUi,
     PhaseEnvironment,
+    PhaseReflection,
     PhaseCount
 };
 
@@ -86,6 +87,11 @@ bool inFrame();
 
 void beginPhase(Phase phase);
 void endPhase(Phase phase);
+// Occlusion queries cannot nest. A caller counting samples with its own
+// GL_SAMPLES_PASSED query pauses the phase's one around it; on resume the
+// caller's query (still owned by the caller) is added to the phase.
+void pauseSamples();
+void resumeSamples(unsigned int callerQuery);
 
 void setCategory(Category category);
 Category category();

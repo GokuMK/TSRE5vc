@@ -130,6 +130,9 @@ int Game::environmentMapSize = 256;
 int Game::environmentMapFacesPerFrame = 1;
 float Game::environmentMapObjectDistance = 300.0f;
 bool Game::environmentMapPreview = false;
+bool Game::waterShaded = true;
+bool Game::waterReflection = true;
+bool Game::animationFrozen = false;
 float Game::sunLightDirection[] = {-1.0,2.0,1.0};
 int Game::textureQuality = 1;
 float Game::snapableRadius = 20;
@@ -349,6 +352,8 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
         environmentMapFacesPerFrame = settings.runtimeInt("core.rendering.environmentMap.facesPerFrame");
     floating("core.rendering.environmentMap.objectDistance", environmentMapObjectDistance);
     boolean("core.rendering.environmentMap.preview", environmentMapPreview);
+    boolean("core.rendering.water.shaded", waterShaded);
+    boolean("core.rendering.water.reflection", waterReflection);
     integer("core.rendering.defaultLineWidth", oglDefaultLineWidth);
     floating("core.rendering.fogDensity", fogDensity);
     auto colour = [&](const char *key, float target[4]) {

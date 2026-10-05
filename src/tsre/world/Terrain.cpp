@@ -2500,6 +2500,13 @@ void Terrain::pushRenderItemWater(RenderQueue &queue, float lodx, float lodz, fl
     if(water[layer] == NULL)
         water[layer] = new WaterTile();
     OglObj *w = water[layer]->w;
+    QString *lowerLayers[2] = {NULL, NULL};
+    if(Game::waterShaded){
+        Environment *env = Game::currentRoute->env;
+        const QVector<int> lower = env->lowerWaterLayers(2);
+        for(int i = 0; i < lower.size(); i++)
+            lowerLayers[i] = &env->water[lower[i]].tex;
+    }
     
     quint32 tselectionId = 0;
     for (int uu = 0; uu < patches; uu++) {
@@ -2600,6 +2607,11 @@ void Terrain::pushRenderItemWater(RenderQueue &queue, float lodx, float lodz, fl
                 if(selectionId != 0)
                     tselectionId = SelectionIdCodec::withTerrainPatch(
                                 selectionId, yy * patches + uu);
+                // Shaded water: one surface over the lower layers' colours.
+                if(Game::waterShaded)
+                    w[uu * patches + yy].setWater(true, lowerLayers[0], lowerLayers[1]);
+                else
+                    w[uu * patches + yy].setWater(false);
                 w[uu * patches + yy].pushRenderItem(queue, tselectionId);
             }
         }

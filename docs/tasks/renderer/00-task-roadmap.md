@@ -19,7 +19,8 @@ This folder contains ordered tasks for migrating the TSRE renderer from legacy i
 - [x] `14-windows-hardware-validation.md` (manual Windows checks passed; further hardware runs only when they block work)
 - [x] `12-parity-automation-and-performance-gate.md` (harness compares a capture with a baseline capture)
 - [x] `16-renderer-owned-meshes.md` (every producer draws renderer-owned meshes; textures and framebuffers are a later step)
-- [ ] `17-environment-map.md` (cube map around the camera for reflections; rendering done, hardware cost and consumers pending)
+- [x] `17-environment-map.md` (cube map around the camera for reflections; measured on hardware; glTF PBR and water read it, MSTS shapes pending)
+- [ ] `18-shaded-water.md` (one shaded water surface with waves and planar reflection; ENV wave fields pending)
 
 ## Legacy Pipeline Removed
 

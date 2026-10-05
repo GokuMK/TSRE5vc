@@ -68,6 +68,11 @@ public:
     // Draws queued work of passes first..last without consuming it, for an
     // extra view of the same frame (environment map faces).
     virtual void renderPassesRetained(RenderPass first, RenderPass last) = 0;
+    // Bounds centre (submission space) of the queued instance of a pass that
+    // is nearest to the view position and inside the view-projection; false
+    // when there is none. Instances without bounds are not considered.
+    virtual bool nearestVisible(RenderPass pass, const float *viewProjection,
+                                float *center) const = 0;
     // Draws all remaining passes and ends the frame's submissions.
     virtual void renderFrame();
     // Starts a frame: drops queued work and rebalances the transform stack.

@@ -154,6 +154,12 @@ public:
     static int environmentMapFacesPerFrame;
     static float environmentMapObjectDistance;
     static bool environmentMapPreview;
+    // Water drawn as one shaded surface instead of the stacked ENV layers.
+    static bool waterShaded;
+    // Shaded water mirrors the scene around it (PlanarReflection).
+    static bool waterReflection;
+    // Shader animation (water waves) stands still, for repeatable captures.
+    static bool animationFrozen;
     static float sunLightDirection[];
     static int textureQuality;
     static float snapableRadius;

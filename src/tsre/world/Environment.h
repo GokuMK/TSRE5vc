@@ -25,6 +25,11 @@ public:
     };
     QVector<WaterLayer> water;
     int waterCount = 0;
+    // The highest water layer (the last of equal ones), drawn as the
+    // surface of shaded water; -1 without layers.
+    int surfaceWaterLayer() const;
+    // The other layers from the lowest up, at most count of them.
+    QVector<int> lowerWaterLayers(int count) const;
     Environment(QString path);
     virtual ~Environment();
 private:
