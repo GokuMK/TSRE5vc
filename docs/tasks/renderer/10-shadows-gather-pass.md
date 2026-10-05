@@ -140,9 +140,12 @@ scene casts into them.
   far map keep the constant bias. The factors are
   `ShadowNormalOffsetTexels` and `ShadowDepthBiasTexels` in
   `RouteEditorGLWidget.cpp`, one per map; they need tuning on hardware.
-  Both maps share the filter radius (about 0.15 m at 2048); the near map's
-  texels are smaller than it, so with one shared factor its taps reached
-  sloped surfaces and showed acne. It starts at twice the offset.
+- Receiver-plane depth bias: each filter tap of the near and mid maps
+  compares against the receiver's depth at the tap, from the screen-space
+  derivatives of the shadow coordinates, limited to about 70 degrees of
+  slope. Normal offset alone left acne in the near map, whose 0.15 m filter
+  radius is larger than its texels; the per-tap bias removes it with both
+  offsets at one texel or filter radius.
 - Each map culls its casters to its own light frustum (stage 4 step 5) and
   draws repeated casters instanced: depth does not depend on draw order, so
   casters are grouped by packet. This removes 78-90% of shadow map draws on

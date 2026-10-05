@@ -722,10 +722,10 @@ constexpr float TunedShadowHalfDepth = 200.0f;
 // Direction towards the shadow-casting sun.
 constexpr float ShadowLightDirection[3] = {-1.0f, 1.5f, 1.0f};
 // Normal offset and depth bias of the near and middle maps for surfaces with
-// normals, in texels or filter radii, whichever is larger. Both maps share
-// the filter radius in world space; the near map's texels are smaller than
-// it, so its taps need a larger offset to clear sloped surfaces.
-constexpr float ShadowNormalOffsetTexels[2] = {2.0f, 1.0f};
+// normals, in texels or filter radii, whichever is larger. The fragment
+// shaders also bias each filter tap by the receiver's slope, so the offset
+// only has to cover texel quantization.
+constexpr float ShadowNormalOffsetTexels[2] = {1.0f, 1.0f};
 constexpr float ShadowDepthBiasTexels[2] = {1.0f, 1.0f};
 }
 
