@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstring>
 
 #include <QOpenGLContext>
 #include <QDebug>
@@ -23,6 +24,7 @@
 #include <tsre/Game.h>
 #include <tsre/ogl/GLUU.h>
 #include <tsre/ogl/Shader.h>
+#include <tsre/renderer/Mesh.h>
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/world/Terrain.h>
 #include <tsre/world/TerrainLib.h>
@@ -49,10 +51,6 @@ bool TerrainMeshLegacy::ensureInitialized() {
         return false;
     QElapsedTimer timer;
     timer.start();
-    if (terrain.VBO == nullptr)
-        terrain.VBO = new QOpenGLBuffer();
-    if (terrain.VAO == nullptr)
-        terrain.VAO = new QOpenGLVertexArrayObject();
     Game::terrainLib->fillRaw(&terrain, static_cast<int>(terrain.mojex),
                               static_cast<int>(terrain.mojez));
     terrain.initializePatchBounds();
@@ -75,8 +73,7 @@ void TerrainMeshLegacy::configureRenderItem(RenderItem &item, int patchId,
     const int patches = terrain.gridLayout.patchesPerSide;
     const int row = patchId / patches;
     const int column = patchId % patches;
-    item.mesh.vbo = terrain.VBO;
-    item.mesh.vao = terrain.VAO;
+    item.mesh.handle = terrain.mesh;
     item.mesh.first = (column * patches + row)
             * terrain.gridLayout.pagedIndicesPerPatch();
     item.mesh.count = terrain.gridLayout.pagedIndicesPerPatch();
@@ -98,23 +95,22 @@ void TerrainMeshLegacy::refreshModified() {
     TerrainBrushProfiler::add(TerrainBrushProfiler::LegacyRefresh);
 }
 
-TerrainMeshPaged::Page::Page()
-    : vertexBuffer(QOpenGLBuffer::VertexBuffer),
-      terrainParamsBuffer(QOpenGLBuffer::VertexBuffer),
-      mapParamsBuffer(QOpenGLBuffer::VertexBuffer) {
-}
-
 TerrainMeshPaged::TerrainMeshPaged(Terrain &terrainValue)
-    : TerrainMeshBackend(terrainValue),
-      indexBuffer(QOpenGLBuffer::IndexBuffer) {
+    : TerrainMeshBackend(terrainValue) {
     dirtyReasons.fill(TerrainDirtyAll, terrain.gridLayout.patchRecordCount());
     uniformNormalGrid = TerrainNormals::uniformCoordinates(terrain.gridLayout.sampleCount,
                                                             terrain.gridLayout.sampleSpacing);
 }
 
 TerrainMeshPaged::~TerrainMeshPaged() {
+    for (Page *page : pages) {
+        Meshes::release(page->vertices);
+        Meshes::release(page->terrainParams);
+        Meshes::release(page->mapParams);
+    }
     qDeleteAll(pages);
     pages.clear();
+    Meshes::release(indexBuffer);
 }
 
 bool TerrainMeshPaged::isPaged() const {
@@ -334,12 +330,11 @@ bool TerrainMeshPaged::ensureInitialized() {
     indexBufferBytes = static_cast<quint64>(allIndices.size())
             * sizeof(quint16);
 
-    indexBuffer.create();
-    indexBuffer.bind();
-    indexBuffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
-    indexBuffer.allocate(allIndices.constData(),
-                         allIndices.size() * int(sizeof(quint16)));
-    indexBuffer.release();
+    MeshData indexData;
+    indexData.format = MeshData::Buffer;
+    indexData.bytes = QByteArray(reinterpret_cast<const char *>(allIndices.constData()),
+                                 allIndices.size() * int(sizeof(quint16)));
+    Meshes::update(indexBuffer, std::move(indexData));
 
     for (int pageIndex = 0; pageIndex < terrain.gridLayout.pagedPageCount();
          ++pageIndex) {
@@ -372,54 +367,34 @@ bool TerrainMeshPaged::ensureInitialized() {
 }
 
 void TerrainMeshPaged::buildPage(Page &page) {
-    page.vertexArray.create();
-    page.vertexBuffer.create();
-    page.terrainParamsBuffer.create();
-    page.mapParamsBuffer.create();
-
-    QOpenGLVertexArrayObject::Binder binder(&page.vertexArray);
-    page.vertexBuffer.bind();
-    page.vertexBuffer.setUsagePattern(QOpenGLBuffer::DynamicDraw);
-    page.vertexBuffer.allocate(page.patchCount
-            * static_cast<int>(terrain.gridLayout.pagedPatchVertexBytes));
-    indexBuffer.bind();
-
-    QOpenGLFunctions *functions = QOpenGLContext::currentContext()->functions();
-    functions->glEnableVertexAttribArray(0);
-    functions->glEnableVertexAttribArray(2);
-    functions->glVertexAttribPointer(0, 1, GL_FLOAT, GL_FALSE,
-                                     sizeof(TerrainVertex8Derived), nullptr);
-    functions->glVertexAttribPointer(2, 4, GL_INT_2_10_10_10_REV, GL_TRUE,
-                                     sizeof(TerrainVertex8Derived),
-                                     reinterpret_cast<void*>(offsetof(TerrainVertex8Derived, packedNormal)));
-    page.vertexBuffer.release();
-
+    const int patchBytes = static_cast<int>(terrain.gridLayout.pagedPatchVertexBytes);
+    MeshData vertexData;
+    vertexData.format = MeshData::TerrainHeightNormal;
+    vertexData.layout = RenderItem::VNT;
+    vertexData.dynamic = true;
+    vertexData.sharedIndices = indexBuffer;
+    vertexData.bytes = QByteArray(page.patchCount * patchBytes, 0);
     QVector<TerrainPatchGpuParams> terrainRecords(PatchesPerPage);
     QVector<TerrainPatchGpuParams> mapRecords(PatchesPerPage);
     for (int slot = 0; slot < page.patchCount; ++slot) {
         const int patchId = page.firstPatch + slot;
         const QVector<TerrainVertex8Derived> vertices = buildPatchVertices(patchId);
-        page.vertexBuffer.bind();
-        page.vertexBuffer.write(slot
-                * static_cast<int>(terrain.gridLayout.pagedPatchVertexBytes),
-                vertices.constData(), vertices.size() * int(sizeof(TerrainVertex8Derived)));
-        page.vertexBuffer.release();
+        std::memcpy(vertexData.bytes.data() + slot * patchBytes, vertices.constData(),
+                    vertices.size() * sizeof(TerrainVertex8Derived));
         terrainRecords[slot] = terrainParams(terrain, patchId);
         mapRecords[slot] = mapParams(terrain, patchId);
     }
-
-    page.terrainParamsBuffer.bind();
-    page.terrainParamsBuffer.setUsagePattern(QOpenGLBuffer::DynamicDraw);
-    page.terrainParamsBuffer.allocate(terrainRecords.constData(),
-                                      terrainRecords.size()
-                                      * int(sizeof(TerrainPatchGpuParams)));
-    page.terrainParamsBuffer.release();
-    page.mapParamsBuffer.bind();
-    page.mapParamsBuffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
-    page.mapParamsBuffer.allocate(mapRecords.constData(),
-                                  mapRecords.size()
-                                  * int(sizeof(TerrainPatchGpuParams)));
-    page.mapParamsBuffer.release();
+    Meshes::update(page.vertices, std::move(vertexData));
+    auto parameterBlock = [](const QVector<TerrainPatchGpuParams> &records, bool dynamic) {
+        MeshData data;
+        data.format = MeshData::Buffer;
+        data.dynamic = dynamic;
+        data.bytes = QByteArray(reinterpret_cast<const char *>(records.constData()),
+                                records.size() * int(sizeof(TerrainPatchGpuParams)));
+        return data;
+    };
+    Meshes::update(page.terrainParams, parameterBlock(terrainRecords, true));
+    Meshes::update(page.mapParams, parameterBlock(mapRecords, false));
 }
 
 TerrainMeshPaged::Page *TerrainMeshPaged::pageForPatch(int patchId) const {
@@ -434,8 +409,7 @@ void TerrainMeshPaged::configureRenderItem(RenderItem &item, int patchId,
     if (page == nullptr)
         return;
     const int slot = patchId - page->firstPatch;
-    item.mesh.vbo = &page->vertexBuffer;
-    item.mesh.vao = &page->vertexArray;
+    item.mesh.handle = page->vertices;
     item.mesh.first = 0;
     auto indexTemplate = indexTemplates.constFind(
                 indexTemplateKey(sourceStep, edgeMask));
@@ -451,8 +425,7 @@ void TerrainMeshPaged::configureRenderItem(RenderItem &item, int patchId,
     item.mesh.indexOffset = indexTemplate->byteOffset;
     item.mesh.baseVertex = slot * terrain.gridLayout.pagedVerticesPerPatch();
     item.terrain.paged = true;
-    item.terrain.paramsBuffer = mapPass
-            ? &page->mapParamsBuffer : &page->terrainParamsBuffer;
+    item.terrain.paramsBuffer = mapPass ? page->mapParams : page->terrainParams;
     item.terrain.verticesPerPatch = terrain.gridLayout.pagedVerticesPerPatch();
     item.terrain.patchSide = terrain.gridLayout.patchResolution + 1;
     item.terrain.sampleSpacing = terrain.gridLayout.sampleSpacing;
@@ -518,21 +491,17 @@ void TerrainMeshPaged::updatePatch(int patchId, unsigned int reasons) {
         TerrainBrushProfiler::add(TerrainBrushProfiler::UploadBytes,
                                  vertices.size() * sizeof(TerrainVertex8Derived));
         TerrainBrushProfiler::Scope timing(TerrainBrushProfiler::Upload);
-        page->vertexBuffer.bind();
-        page->vertexBuffer.write(slot
-                * static_cast<int>(terrain.gridLayout.pagedPatchVertexBytes),
+        Meshes::updateRange(page->vertices,
+                slot * static_cast<int>(terrain.gridLayout.pagedPatchVertexBytes),
                 vertices.constData(), vertices.size() * int(sizeof(TerrainVertex8Derived)));
-        page->vertexBuffer.release();
     }
     if (reasons & TerrainDirtyUvParams) {
         const TerrainPatchGpuParams params = terrainParams(terrain, patchId);
         TerrainBrushProfiler::add(TerrainBrushProfiler::UploadCalls);
         TerrainBrushProfiler::add(TerrainBrushProfiler::UploadBytes, sizeof(params));
         TerrainBrushProfiler::Scope timing(TerrainBrushProfiler::Upload);
-        page->terrainParamsBuffer.bind();
-        page->terrainParamsBuffer.write(slot * int(sizeof(TerrainPatchGpuParams)),
-                                        &params, sizeof(params));
-        page->terrainParamsBuffer.release();
+        Meshes::updateRange(page->terrainParams, slot * int(sizeof(TerrainPatchGpuParams)),
+                            &params, sizeof(params));
     }
 }
 

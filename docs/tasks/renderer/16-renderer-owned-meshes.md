@@ -16,10 +16,14 @@ code, and is the prerequisite for a renderer that is not OpenGL 3.3.
 MeshData data;
 data.layout = RenderItem::VNTA;          // V, VT or VNTA; floats per vertex
 data.vertices.assign(points, points + count);
-// Optional: data.indices (raw u16 or u32), data.indexType.
+// Optional: data.indices (raw u16 or u32), data.indexType, or
+// data.sharedIndices (another mesh's storage as the index buffer).
+// Other formats: data.format = MeshData::TerrainHeightNormal or
+// MeshData::Buffer (plain storage, e.g. a uniform block) with data.bytes.
 
 MeshHandle mesh = Meshes::create(std::move(data));   // any thread
 Meshes::update(mesh, std::move(newData));            // replaces the data
+Meshes::updateRange(mesh, offset, bytes, size);      // rewrites a range
 packet->mesh.handle = mesh;                          // draw it
 Meshes::release(mesh);                               // when done
 ```
@@ -44,14 +48,18 @@ Meshes::release(mesh);                               // when done
   dropped when the mesh is released.
 - Index uploads use the copy-write target, so they never change the index
   binding of whichever vertex array is bound.
-- Packets without a handle still draw from the producer's own
-  `QOpenGLVertexArrayObject`, so producers move one at a time.
+- `Meshes::updateRange` rewrites part of an uploaded mesh before the next
+  draw; repeated writes of one range replace each other. Terrain brush edits
+  use it per patch.
+- A mesh can use another mesh's plain storage as its index buffer
+  (`sharedIndices`); vertex arrays rebuild when that buffer changes.
 
 ## Migration
 
 Each step is checked against baseline captures (EUROPE1, USA1, BNSF_SCENIC,
 shadows off and on, Shape Viewer set) and the test suites, including
-`mesh-store`.
+`mesh-store` and `terrain-mesh-gl` (a height edit reaches the uploaded page
+and changes only its patch).
 
 - [x] `OglObj` (and with it its 26 users: editor helpers, procedural track,
   rulers, markers, HUD, compass). `init()` no longer needs a GL context;
@@ -67,12 +75,15 @@ shadows off and on, Shape Viewer set) and the test suites, including
 - [x] `ForestObj`, `TransferObj`: already draw through `OglObj`.
 - [ ] Both MSTS loaders still require a current context in `initGL()` and
   compare contexts in their ready checks; with shared buffers both can go.
-- [ ] Terrain (`TerrainMeshBackend`, `TerrainClient`). Needs store
-  extensions first: byte layouts (the paged mesh uses an 8-byte packed
-  vertex), range updates (brush edits rewrite single patches), uniform
-  buffers (per-page patch parameters) and an index buffer shared by meshes
-  (LOD and edge templates).
-- [ ] Remove `RenderItem::Mesh::vao`/`vbo` once no producer sets them.
+- [x] Terrain, both mesh modes. The store gained what terrain needs:
+  `MeshData::TerrainHeightNormal` (the paged 8-byte vertex), `Buffer`
+  storage without vertex attributes (the per-page patch parameter blocks,
+  bound as `TerrainPatchBlock` from `RenderItem::Terrain::paramsBuffer`),
+  `sharedIndices` (one index buffer of LOD and edge templates for all
+  pages), `Meshes::updateRange` (brush edits rewrite single patches) and a
+  `dynamic` usage hint. The legacy mesh is one `VNT` float mesh per tile.
+- [x] `RenderItem::Mesh::vao`/`vbo` and the renderer's fallback for them are
+  removed: every packet draws a renderer-owned mesh.
 
 Textures and framebuffers (TexLib, procedural material arrays, shadow maps)
 are a separate, later step.

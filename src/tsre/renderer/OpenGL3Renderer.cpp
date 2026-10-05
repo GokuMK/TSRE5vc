@@ -17,11 +17,9 @@
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/renderer/RenderStats.h>
 #include <tsre/math3d/GLMatrix.h>
-#include <QOpenGLBuffer>
 #include <QOpenGLFunctions>
 #include <QOpenGLContext>
 #include <QOpenGLExtraFunctions>
-#include <QOpenGLVertexArrayObject>
 #include <tsre/ogl/GLUU.h>
 #include <tsre/ogl/ScopedTerrainDecal.h>
 #include <tsre/texture/TexLib.h>
@@ -124,7 +122,7 @@ unsigned int getIndexType(const RenderItem *item){
 struct TerrainStateCache {
     bool valid = false;
     bool paged = false;
-    QOpenGLBuffer *params = NULL;
+    MeshHandle params;
     int verticesPerPatch = 0;
     int patchSide = 0;
     float sampleSpacing = 0.0f;
@@ -202,7 +200,7 @@ void applyTerrainState(GLUU *gluu, RenderItem *item,
     if(!item->terrain.paged){
         cache.valid = true;
         cache.paged = false;
-        cache.params = NULL;
+        cache.params = MeshHandle();
         return;
     }
     if(!cache.valid || !cache.paged
@@ -223,11 +221,13 @@ void applyTerrainState(GLUU *gluu, RenderItem *item,
     if(!cache.valid || !cache.paged || cache.mapPass != item->terrain.mapPass)
         shader->setUniformValue(shader->terrainMapPass,
                                 item->terrain.mapPass ? 1 : 0);
-    if(!cache.valid || !cache.paged || cache.params != item->terrain.paramsBuffer)
-        QOpenGLContext::currentContext()->extraFunctions()->glBindBufferBase(
-                    GL_UNIFORM_BUFFER, 0,
-                    item->terrain.paramsBuffer == NULL ? 0
-                    : item->terrain.paramsBuffer->bufferId());
+    if(!cache.valid || !cache.paged || !(cache.params == item->terrain.paramsBuffer)){
+        QOpenGLContext *context = QOpenGLContext::currentContext();
+        Meshes::Buffers params;
+        const bool bound = Meshes::prepare(item->terrain.paramsBuffer, context->functions(), params);
+        context->extraFunctions()->glBindBufferBase(GL_UNIFORM_BUFFER, 0,
+                                                     bound ? params.vertexBuffer : 0);
+    }
     cache.valid = true;
     cache.paged = true;
     cache.params = item->terrain.paramsBuffer;
@@ -367,17 +367,13 @@ struct OpenGL3Renderer::MeshBinding {
 };
 
 bool OpenGL3Renderer::hasMesh(const RenderItem *item){
-    return item->mesh.handle.valid() || item->mesh.vao != NULL;
+    return item->mesh.handle.valid();
 }
 
 bool OpenGL3Renderer::bindMesh(const RenderItem *item){
     const MeshHandle handle = item->mesh.handle;
-    if(!handle.valid()){
-        if(item->mesh.vao == NULL)
-            return false;
-        item->mesh.vao->bind();
-        return true;
-    }
+    if(!handle.valid())
+        return false;
     QOpenGLContext *context = QOpenGLContext::currentContext();
     if(context == NULL)
         return false;
@@ -387,7 +383,7 @@ bool OpenGL3Renderer::bindMesh(const RenderItem *item){
         meshContext = context;
     }
     Meshes::Buffers buffers;
-    if(!Meshes::prepare(handle, f, buffers))
+    if(!Meshes::prepare(handle, f, buffers) || buffers.format == MeshData::Buffer)
         return false;
     QOpenGLExtraFunctions *e = context->extraFunctions();
     MeshArray &array = meshArrays[handle.index];
@@ -401,7 +397,7 @@ bool OpenGL3Renderer::bindMesh(const RenderItem *item){
     for(GLuint location = 0; location < 4; ++location)
         e->glDisableVertexAttribArray(location);
     f->glBindBuffer(GL_ARRAY_BUFFER, buffers.vertexBuffer);
-    Meshes::setupAttributes(f, buffers.layout);
+    Meshes::setupAttributes(f, buffers);
     f->glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffers.indexBuffer);
     f->glBindBuffer(GL_ARRAY_BUFFER, 0);
     array.generation = handle.generation;
@@ -409,11 +405,8 @@ bool OpenGL3Renderer::bindMesh(const RenderItem *item){
     return true;
 }
 
-void OpenGL3Renderer::unbindMesh(const RenderItem *item){
-    if(item->mesh.handle.valid())
-        QOpenGLContext::currentContext()->extraFunctions()->glBindVertexArray(0);
-    else
-        item->mesh.vao->release();
+void OpenGL3Renderer::unbindMesh(const RenderItem *){
+    QOpenGLContext::currentContext()->extraFunctions()->glBindVertexArray(0);
 }
 
 void OpenGL3Renderer::collectMeshes(){

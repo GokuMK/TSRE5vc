@@ -9,8 +9,7 @@
 #ifndef TERRAINMESHBACKEND_H
 #define TERRAINMESHBACKEND_H
 
-#include <QOpenGLBuffer>
-#include <QOpenGLVertexArrayObject>
+#include <tsre/renderer/MeshHandle.h>
 #include <QHash>
 #include <QVector>
 #include <QtGlobal>
@@ -113,18 +112,19 @@ private:
         int indexCount = 0;
     };
 
+    // Renderer-owned: packed patch vertices drawn with the shared index
+    // buffer, and the terrain and map patch parameter blocks.
     struct Page {
-        explicit Page();
-        QOpenGLBuffer vertexBuffer;
-        QOpenGLBuffer terrainParamsBuffer;
-        QOpenGLBuffer mapParamsBuffer;
-        QOpenGLVertexArrayObject vertexArray;
+        MeshHandle vertices;
+        MeshHandle terrainParams;
+        MeshHandle mapParams;
         int firstPatch = 0;
         int patchCount = 0;
     };
 
     QVector<Page*> pages;
-    QOpenGLBuffer indexBuffer;
+    // LOD and edge index templates of every page, in one buffer.
+    MeshHandle indexBuffer;
     QHash<int, IndexTemplate> indexTemplates;
     quint64 indexBufferBytes = 0;
     QVector<unsigned int> dirtyReasons;

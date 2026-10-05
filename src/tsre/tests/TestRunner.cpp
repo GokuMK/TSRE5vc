@@ -4115,6 +4115,7 @@ QStringList TsreTests::listSuites() {
         "terrain-material-gl",
         "transfer-mesh",
         "transfer-depth-gl",
+        "terrain-mesh-gl",
         "terrain-material-benchmark"
     };
 }
@@ -4232,6 +4233,8 @@ int TsreTests::run(const TestRunOptions &opts) {
         return runTransferMeshSuite(opts.verbose);
     if (suite == "transfer-depth-gl")
         return runTransferDepthGlSuite();
+    if (suite == "terrain-mesh-gl")
+        return runTerrainMeshGlSuite();
 
     if (suite == "all") {
         int rc = 0;

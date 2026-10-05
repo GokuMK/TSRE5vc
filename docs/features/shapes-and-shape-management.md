@@ -182,7 +182,7 @@ glTF/GLB is implemented as a `ComplexShape` (`GltfShape`) and is loadable throug
 
 Major constraints to plan for:
 - **Shared asset + per-instance state must remain** (world objects already rely on `shapeState`).
-- **Renderer packet contract:** a renderer-owned mesh (`MeshHandle`; terrain still passes its own VAO) plus a vertex or index range. Indexed draws are supported; the MSTS loaders and glTF/GLB still expand indexed geometry into non-indexed vertex arrays.
+- **Renderer packet contract:** a renderer-owned mesh (`MeshHandle`) plus a vertex or index range. Indexed draws are supported; the MSTS loaders and glTF/GLB still expand indexed geometry into non-indexed vertex arrays.
 - **Texture system is pathid + hashid based** (`Texture::hashid` is used for de-duplication in `TexLib`). While most textures are file-backed, TSRE already supports procedural/in-memory textures (e.g. `TextObj` uses `.:paintTex` handled by `PaintTexLib`). This means GLB embedded images can be supported by registering them in `TexLib` under a content hash (and optionally decoding in a worker, similar to other texture loaders).
 - **Material/alpha model is simple and shader-driven**. The current shader uses the `alpha` vertex attribute with sign semantics:
   - positive value (e.g. `1.0`) forces opaque output alpha

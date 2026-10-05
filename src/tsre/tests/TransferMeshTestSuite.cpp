@@ -10,10 +10,12 @@
 #include <QElapsedTimer>
 #include <QScopedValueRollback>
 #include <cmath>
+#include <cstring>
 #include <limits>
 #include <memory>
 #include <unordered_map>
 #include <vector>
+#include <tsre/renderer/Mesh.h>
 #include <tsre/renderer/OpenGL3Renderer.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/texture/Texture.h>
@@ -388,4 +390,82 @@ int TsreTests::runTransferDepthGlSuite() {
     extra->glDeleteBuffers(1,&ubo);
     qInfo() << "[tests:transfer-depth-gl] cases 44 failed" << failed;
     return failed?1:0;
+}
+
+namespace {
+// The whole uploaded storage of a renderer-owned mesh.
+QByteArray meshStorage(QOpenGLContext &context, MeshHandle handle, Meshes::Buffers &buffers) {
+    if (!Meshes::prepare(handle, context.functions(), buffers))
+        return QByteArray();
+    auto *extra = context.extraFunctions();
+    extra->glBindBuffer(GL_COPY_READ_BUFFER, buffers.vertexBuffer);
+    GLint size = 0;
+    extra->glGetBufferParameteriv(GL_COPY_READ_BUFFER, GL_BUFFER_SIZE, &size);
+    QByteArray bytes;
+    if (size > 0) {
+        if (const void *mapped = extra->glMapBufferRange(GL_COPY_READ_BUFFER, 0, size, GL_MAP_READ_BIT)) {
+            bytes = QByteArray(static_cast<const char *>(mapped), size);
+            extra->glUnmapBuffer(GL_COPY_READ_BUFFER);
+        }
+    }
+    extra->glBindBuffer(GL_COPY_READ_BUFFER, 0);
+    return bytes;
+}
+}
+
+// Paged terrain on renderer-owned meshes: a height edit rewrites only its
+// patch in the uploaded page, through a range update.
+int TsreTests::runTerrainMeshGlSuite() {
+    QOpenGLContext context;
+    if (!context.create()) return 2;
+    QOffscreenSurface surface; surface.setFormat(context.format()); surface.create();
+    if (!context.makeCurrent(&surface)) return 2;
+    int failed = 0, cases = 0;
+    auto check = [&](bool ok, const char *name) {
+        ++cases;
+        if (!ok) { ++failed; qWarning() << "[tests:terrain-mesh-gl] FAIL" << name; }
+    };
+    TestTerrain t(0,0); Library lib; lib.tiles={&t};
+    QScopedValueRollback<TerrainLib*> terrainLib(Game::terrainLib,&lib);
+    TerrainMeshPaged mesh(t);
+    check(mesh.ensureInitialized(), "paged mesh builds");
+    const TerrainGridLayout &layout = t.getGridLayout();
+    const int resolution = layout.patchResolution;
+    const int sampleX = resolution + 4, sampleZ = resolution + 4;
+    const int patchId = layout.patchIndex(1, 1);
+    RenderItem item;
+    mesh.configureRenderItem(item, patchId, false, true);
+    Meshes::Buffers vertices, params;
+    const QByteArray before = meshStorage(context, item.mesh.handle, vertices);
+    check(!before.isEmpty() && vertices.format == MeshData::TerrainHeightNormal
+          && vertices.indexBuffer != 0 && item.mesh.indexed,
+          "a page is packed terrain vertices drawn with the shared index buffer");
+    check(meshStorage(context, item.terrain.paramsBuffer, params).size()
+                  == TerrainMeshPaged::PatchesPerPage * int(sizeof(TerrainPatchGpuParams))
+          && params.format == MeshData::Buffer,
+          "patch parameters are a plain uniform block per page");
+    const int slot = patchId % TerrainMeshPaged::PatchesPerPage;
+    const int vertex = (sampleZ - resolution) * (resolution + 1) + (sampleX - resolution);
+    const int heightOffset = slot * int(layout.pagedPatchVertexBytes) + vertex * 8;
+    const quint64 stamp = vertices.stamp;
+    t.terrainData[sampleZ][sampleX] = 55.0f;
+    mesh.invalidateSamples(sampleX, sampleZ, sampleX, sampleZ, TerrainDirtyHeight);
+    mesh.refreshModified();
+    const QByteArray after = meshStorage(context, item.mesh.handle, vertices);
+    float height = 0.0f;
+    if (after.size() == before.size())
+        std::memcpy(&height, after.constData() + heightOffset, sizeof(height));
+    check(after.size() == before.size() && height == 55.0f,
+          "a height edit reaches the uploaded page");
+    const int patchBegin = slot * int(layout.pagedPatchVertexBytes);
+    const int patchEnd = patchBegin + int(layout.pagedPatchVertexBytes);
+    bool outsideUnchanged = after.size() == before.size();
+    for (int i = 0; outsideUnchanged && i < before.size(); ++i)
+        if ((i < patchBegin || i >= patchEnd) && before[i] != after[i])
+            outsideUnchanged = false;
+    check(outsideUnchanged, "only the edited patch changes");
+    check(vertices.stamp == stamp, "range updates keep vertex arrays valid");
+    check(context.functions()->glGetError() == GL_NO_ERROR, "no GL errors");
+    qInfo() << "[tests:terrain-mesh-gl] cases" << cases << "failed" << failed;
+    return failed ? 1 : 0;
 }

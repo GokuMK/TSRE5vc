@@ -17,8 +17,6 @@
 
 class Vector3f;
 class Vector4f;
-class QOpenGLBuffer;
-class QOpenGLVertexArrayObject;
 
 // One drawable packet: a mesh range drawn with one material. Producers own
 // persistent packets and submit them to a RenderQueue each frame.
@@ -40,13 +38,9 @@ public:
     };
     enum IndexType : unsigned char {INDEX_U16 = 0, INDEX_U32};
 
-    // Geometry this packet draws from, and the range of it. Meshes are
-    // renderer-owned (handle); producers not yet moved to Meshes still pass
-    // their own vertex array and buffer.
+    // The renderer-owned mesh this packet draws from, and the range of it.
     struct Mesh {
         MeshHandle handle;
-        QOpenGLVertexArrayObject *vao = nullptr;
-        QOpenGLBuffer *vbo = nullptr;
         VertexAttr layout = NO_ATTR;
         Primitive primitive = PRIMITIVE_TRIANGLES;
         // First vertex and vertex count, or index count when indexed.
@@ -87,7 +81,8 @@ public:
     struct Terrain {
         // Paged terrain meshes: vertices are generated from patch parameters.
         bool paged = false;
-        QOpenGLBuffer *paramsBuffer = nullptr;
+        // Plain storage (MeshData::Buffer) bound as the TerrainPatchBlock.
+        MeshHandle paramsBuffer;
         int verticesPerPatch = 0;
         int patchSide = 0;
         float sampleSpacing = 0.0f;

@@ -194,18 +194,10 @@ struct MatrixProbe : RenderQueue {
         if (!item->shared)
             delete item;
     }
-    // Reads the packet's vertex range from its renderer-owned mesh or its
-    // producer's buffer.
+    // Reads the packet's vertex range from its renderer-owned mesh.
     static bool readPacketVertices(const RenderItem *item, std::vector<float> &vertices) {
         const size_t offset = size_t(item->mesh.first) * 9 * sizeof(float);
         const size_t bytes = vertices.size() * sizeof(float);
-        if (!item->mesh.handle.valid()) {
-            if (!item->mesh.vbo || !item->mesh.vbo->bind())
-                return false;
-            const bool ok = item->mesh.vbo->read(int(offset), vertices.data(), int(bytes));
-            item->mesh.vbo->release();
-            return ok;
-        }
         QOpenGLContext *context = QOpenGLContext::currentContext();
         Meshes::Buffers mesh;
         if (!context || !Meshes::prepare(item->mesh.handle, context->functions(), mesh))

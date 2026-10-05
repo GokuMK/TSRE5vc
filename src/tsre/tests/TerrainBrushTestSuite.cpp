@@ -4,6 +4,7 @@
 #include <tsre/world/TerrainHeightArea.h>
 #include <tsre/world/TerrainBrushProfiler.h>
 #include <tsre/world/TerrainMeshBackend.h>
+#include <tsre/renderer/Mesh.h>
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/texture/Brush.h>
 #include <tsre/Game.h>
@@ -16,6 +17,7 @@
 #include <QScopeGuard>
 #include <QOffscreenSurface>
 #include <QOpenGLContext>
+#include <QOpenGLExtraFunctions>
 #include <memory>
 #include <cmath>
 #include <limits>
@@ -32,11 +34,22 @@ public:
     QByteArray firstVertexPage() {
         RenderItem item;
         meshBackend->configureRenderItem(item, 0, false, false);
-        if (!item.mesh.vbo || !item.mesh.vbo->bind()) return {};
-        QByteArray bytes(item.mesh.vbo->size(), '\0');
-        const bool read = item.mesh.vbo->read(0, bytes.data(), bytes.size());
-        item.mesh.vbo->release();
-        return read ? bytes : QByteArray();
+        QOpenGLContext *context = QOpenGLContext::currentContext();
+        Meshes::Buffers buffers;
+        if (!context || !Meshes::prepare(item.mesh.handle, context->functions(), buffers)) return {};
+        auto *extra = context->extraFunctions();
+        extra->glBindBuffer(GL_COPY_READ_BUFFER, buffers.vertexBuffer);
+        GLint size = 0;
+        extra->glGetBufferParameteriv(GL_COPY_READ_BUFFER, GL_BUFFER_SIZE, &size);
+        QByteArray bytes;
+        if (size > 0) {
+            if (const void *mapped = extra->glMapBufferRange(GL_COPY_READ_BUFFER, 0, size, GL_MAP_READ_BIT)) {
+                bytes = QByteArray(static_cast<const char *>(mapped), size);
+                extra->glUnmapBuffer(GL_COPY_READ_BUFFER);
+            }
+        }
+        extra->glBindBuffer(GL_COPY_READ_BUFFER, 0);
+        return bytes;
     }
 };
 class FixtureLibrary : public TsreTests::BrushTestLibrary {

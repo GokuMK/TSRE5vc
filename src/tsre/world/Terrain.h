@@ -20,6 +20,7 @@
 #include <tsre/math3d/Vector3f.h>
 #include <tsre/ogl/OglObj.h>
 #include <tsre/GameObj.h>
+#include <tsre/renderer/MeshHandle.h>
 #include <array>
 #include <memory>
 
@@ -253,8 +254,8 @@ protected:
     bool texModified[TerrainGridLayout::SupportedPatchRecordCount];
     bool texLocked[TerrainGridLayout::SupportedPatchRecordCount];
     bool selectedPatchs[TerrainGridLayout::SupportedPatchRecordCount];
-    QOpenGLBuffer *VBO = NULL;
-    QOpenGLVertexArrayObject *VAO = NULL;
+    // Renderer-owned VNT vertices of the legacy terrain mesh.
+    MeshHandle mesh;
     TerrainMeshBackend *meshBackend = NULL;
     quint64 surfaceGeneration = 1;
     QVector<TerrainPatchLodState> renderedSurfaceLod;
