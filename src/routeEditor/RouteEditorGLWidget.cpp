@@ -626,7 +626,7 @@ void RouteEditorGLWidget::paintScene(){
         waterReflection->bind();
         gluu->waterReflectionView[0] = 1.0f / (this->width() * Game::PixelRatio);
         gluu->waterReflectionView[1] = 1.0f / (this->height() * Game::PixelRatio);
-        gluu->waterReflectionView[2] = waterReflectionHeight;
+        std::copy(waterReflectionPlane, waterReflectionPlane + 4, gluu->waterReflectionPlane);
         gluu->waterReflectionView[3] = float(waterReflection->levels());
     }
 
@@ -975,18 +975,19 @@ bool RouteEditorGLWidget::renderWaterReflection() {
     }
     if (!waterOnScreen)
         return false;
-    // The plane of the nearest water in view; no water, no reflection.
+    // The plane of the water in view; no water, no reflection.
     const float aspect = float(this->width()) / this->height();
     const float fov = Game::cameraFov * M_PI / 180;
     float projection[16];
     float viewProjection[16];
     Mat4::perspective(projection, fov, aspect, 0.2f, Game::objectLod);
     Mat4::multiply(viewProjection, projection, camera->getMatrix());
-    float water[3];
-    if (!renderer->nearestVisible(Renderer::PASS_WATER, viewProjection, water))
+    float plane[4];
+    renderer->visibleBounds(Renderer::PASS_WATER, viewProjection, waterBounds);
+    const float *eye = camera->getPos();
+    if (!PlanarReflection::fitPlane(waterBounds, eye, plane))
         return false;
-    const float height = water[1];
-    if (camera->getPos()[1] <= height)
+    if (plane[0] * eye[0] + plane[1] * eye[1] + plane[2] * eye[2] + plane[3] <= 0.0f)
         return false;
     if (waterReflection == NULL)
         waterReflection = new PlanarReflection();
@@ -1004,7 +1005,7 @@ bool RouteEditorGLWidget::renderWaterReflection() {
     // triangles turn the other way round.
     float mirror[16];
     float view[16];
-    PlanarReflection::mirrorMatrix(height, mirror);
+    PlanarReflection::mirrorMatrix(plane, mirror);
     Mat4::multiply(view, camera->getMatrix(), mirror);
     waterReflection->begin(gluu->skyColor);
     glFrontFace(GL_CW);
@@ -1020,7 +1021,7 @@ bool RouteEditorGLWidget::renderWaterReflection() {
 
     // Below the plane only the water bed would show; clip it just under
     // the surface so banks meet the water without a gap.
-    const float clip[4] = {0.0f, 1.0f, 0.0f, -(height - 0.05f)};
+    const float clip[4] = {plane[0], plane[1], plane[2], plane[3] + 0.05f};
     std::copy(clip, clip + 4, gluu->clipPlane);
     glEnable(GL_CLIP_DISTANCE0);
     Mat4::perspective(projection, fov, aspect, 600.0f, Game::distantLod);
@@ -1048,7 +1049,7 @@ bool RouteEditorGLWidget::renderWaterReflection() {
     std::copy(keep, keep + 4, gluu->clipPlane);
     glFrontFace(GL_CCW);
     waterReflection->end(defaultFramebufferObject());
-    waterReflectionHeight = height;
+    std::copy(plane, plane + 4, waterReflectionPlane);
     return true;
 }
 

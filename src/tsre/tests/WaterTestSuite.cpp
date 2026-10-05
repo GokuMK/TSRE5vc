@@ -5,6 +5,7 @@
 #include <QOpenGLContext>
 #include <QOpenGLExtraFunctions>
 #include <QScopedValueRollback>
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <memory>
@@ -91,11 +92,42 @@ int TsreTests::runWaterGlSuite(bool verbose) {
           "the wave map repeats without a seam");
 
     float mirror[16];
-    PlanarReflection::mirrorMatrix(3.0f, mirror);
+    const float level[4] = {0.0f, 1.0f, 0.0f, -3.0f};
+    PlanarReflection::mirrorMatrix(level, mirror);
     float point[3] = {1.0f, 5.0f, 2.0f}, mirrored[3];
     Vec3::transformMat4(mirrored, point, mirror);
     check(mirrored[0] == 1.0f && mirrored[1] == 1.0f && mirrored[2] == 2.0f,
           "the mirror reflects heights about the plane");
+    // A river falling 2 m per 100 m along x: patches on a grid around the eye.
+    std::vector<float> patches;
+    for (int i = -4; i <= 4; ++i)
+        for (int k = -1; k <= 1; ++k)
+            patches.insert(patches.end(), {i * 64.0f, 10.0f - 0.02f * i * 64.0f, k * 64.0f, 45.0f});
+    const float eye[3] = {0.0f, 30.0f, 0.0f};
+    float plane[4];
+    bool fitted = PlanarReflection::fitPlane(patches, eye, plane);
+    float residual = 0.0f;
+    for (size_t i = 0; i < patches.size(); i += 4)
+        residual = std::max(residual, std::abs(plane[0] * patches[i] + plane[1] * patches[i + 1]
+                                               + plane[2] * patches[i + 2] + plane[3]));
+    check(fitted && plane[1] > 0.99f && residual < 0.05f,
+          "a sloping river gets a tilted plane through its patches");
+    float tilted[16];
+    PlanarReflection::mirrorMatrix(plane, tilted);
+    const float above[3] = {100.0f, 20.0f, 30.0f};
+    float image[3];
+    Vec3::transformMat4(image, const_cast<float *>(above), tilted);
+    const float before = plane[0] * above[0] + plane[1] * above[1] + plane[2] * above[2] + plane[3];
+    const float after = plane[0] * image[0] + plane[1] * image[1] + plane[2] * image[2] + plane[3];
+    check(std::abs(before + after) < 1e-3f && before > 0.0f,
+          "the tilted mirror puts a point at the same distance under the plane");
+    std::vector<float> row;
+    for (int i = -4; i <= 4; ++i)
+        row.insert(row.end(), {i * 64.0f, 5.0f, 0.0f, 45.0f});
+    fitted = PlanarReflection::fitPlane(row, eye, plane);
+    check(fitted && std::abs(plane[1] - 1.0f) < 1e-4f && std::abs(plane[3] + 5.0f) < 1e-3f,
+          "patches in one row give a level plane");
+    check(!PlanarReflection::fitPlane({}, eye, plane), "no patches, no plane");
 
     QOpenGLContext context;
     QSurfaceFormat format;
@@ -142,8 +174,8 @@ int TsreTests::runWaterGlSuite(bool verbose) {
     squares.push_back(square(6.0f, 2.0f, -3.0f, green));
     OpenGL3Renderer renderer;
     renderer.resetFrame();
-    const float eye[3] = {0.0f, 0.0f, 0.0f};
-    renderer.setViewPosition(eye);
+    const float origin[3] = {0.0f, 0.0f, 0.0f};
+    renderer.setViewPosition(origin);
     Mat4::identity(renderer.transform());
     for (auto &object : squares)
         object->pushRenderItem(renderer);
@@ -155,7 +187,8 @@ int TsreTests::runWaterGlSuite(bool verbose) {
     float view[16], mirroredView[16], projection[16];
     // The camera at the origin looking along -Z, +Y up.
     Mat4::identity(view);
-    PlanarReflection::mirrorMatrix(-1.0f, mirror);
+    const float waterPlane[4] = {0.0f, 1.0f, 0.0f, 1.0f};
+    PlanarReflection::mirrorMatrix(waterPlane, mirror);
     Mat4::multiply(mirroredView, view, mirror);
     Mat4::perspective(projection, float(M_PI) / 2.0f, 1.0f, 0.1f, 100.0f);
     auto draw = [&](bool clip) {

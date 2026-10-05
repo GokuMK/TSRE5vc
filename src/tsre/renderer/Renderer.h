@@ -12,6 +12,7 @@
 #define RENDERER_H
 
 #include <tsre/renderer/RenderQueue.h>
+#include <vector>
 
 // A render queue that also draws: the frame owner gathers producers into it,
 // then draws the queued work pass by pass. Producers only see RenderQueue.
@@ -68,11 +69,11 @@ public:
     // Draws queued work of passes first..last without consuming it, for an
     // extra view of the same frame (environment map faces).
     virtual void renderPassesRetained(RenderPass first, RenderPass last) = 0;
-    // Bounds centre (submission space) of the queued instance of a pass that
-    // is nearest to the view position and inside the view-projection; false
-    // when there is none. Instances without bounds are not considered.
-    virtual bool nearestVisible(RenderPass pass, const float *viewProjection,
-                                float *center) const = 0;
+    // Bounding spheres (centre x, y, z and radius, in submission space) of
+    // the queued instances of a pass that are inside the view-projection.
+    // Instances without bounds are left out.
+    virtual void visibleBounds(RenderPass pass, const float *viewProjection,
+                               std::vector<float> &spheres) const = 0;
     // Draws all remaining passes and ends the frame's submissions.
     virtual void renderFrame();
     // Starts a frame: drops queued work and rebalances the transform stack.

@@ -59,9 +59,10 @@ public:
     // and mipmap levels of the bound environment map (0: none bound).
     float cameraPosition[3] = {0.0f, 0.0f, 0.0f};
     int environmentMapLevels = 0;
-    // Planar water reflection: inverse viewport size, plane height and
-    // mipmap levels (0: none bound).
+    // Planar water reflection: inverse viewport size and mipmap levels in w
+    // (0: none bound), and the mirror plane (n . p + d = 0).
     float waterReflectionView[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    float waterReflectionPlane[4] = {0.0f, 1.0f, 0.0f, 0.0f};
     // Clip plane of the water reflection pass; the default keeps everything.
     float clipPlane[4] = {0.0f, 0.0f, 0.0f, 1.0f};
     //float fogColor[4]{0.5, 0.75, 1.0, 1.0};

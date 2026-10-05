@@ -11,6 +11,8 @@
 #ifndef PLANARREFLECTION_H
 #define PLANARREFLECTION_H
 
+#include <vector>
+
 class QOpenGLContext;
 
 // The scene mirrored in a horizontal water plane, drawn into a mipmapped
@@ -38,8 +40,13 @@ public:
     int width() const { return targetWidth; }
     int height() const { return targetHeight; }
     int levels() const;
-    // Mirror about the plane y = height, column-major.
-    static void mirrorMatrix(float height, float *out);
+    // Plane (unit normal pointing up, and offset: n . p + d = 0) fitted to
+    // the bounding sphere centres of water patches (x, y, z, radius each),
+    // nearer patches weighing more. A sloping river gets a tilted plane;
+    // the tilt is limited to 10%. False without patches.
+    static bool fitPlane(const std::vector<float> &spheres, const float *eye, float *plane);
+    // Mirror about a plane, column-major.
+    static void mirrorMatrix(const float *plane, float *out);
 
 private:
     void release();
