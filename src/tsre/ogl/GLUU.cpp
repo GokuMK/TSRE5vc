@@ -208,7 +208,6 @@ void GLUU::initShader() {
         currentShader->shaderBrightness = currentShader->uniformLocation("colorBrightness");
         currentShader->shaderFogDensity = currentShader->uniformLocation("fogDensity");
         currentShader->shadow1Res = currentShader->uniformLocation("shadow1Res");
-        currentShader->shadow1Bias = currentShader->uniformLocation("shadow1Bias");
         currentShader->shadow2Res = currentShader->uniformLocation("shadow2Res");
         currentShader->shadow2Bias = currentShader->uniformLocation("shadow2Bias");
         currentShader->shadowMapScale = currentShader->uniformLocation("shadowMapScale");
@@ -322,7 +321,6 @@ void GLUU::setMatrixUniforms() {
         setSelectionId(0);
     
     currentShader->setUniformValue(currentShader->shadow1Res, shadow1Res);
-    currentShader->setUniformValue(currentShader->shadow1Bias, shadow1Bias);
     currentShader->setUniformValue(currentShader->shadow2Res, shadow2Res);
     currentShader->setUniformValue(currentShader->shadow2Bias, shadow2Bias);
     currentShader->setUniformValue(currentShader->shadowMapScale, shadowMapScale[0],

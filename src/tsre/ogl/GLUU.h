@@ -42,7 +42,6 @@ public:
     
     float fogDensity = Game::fogDensity;
     float shadow1Res = Game::shadow1Res;
-    float shadow1Bias = Game::shadow1Bias;
     float shadow2Res = Game::shadow2Res;
     float shadow2Bias = Game::shadow2Bias;
     // Tap spread (x near, y middle) and depth-bias (z near, w middle) scales

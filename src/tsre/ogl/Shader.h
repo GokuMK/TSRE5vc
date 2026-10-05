@@ -49,7 +49,6 @@ public:
     unsigned int shaderBrightness;
     unsigned int shaderFogDensity;
     unsigned int shadow1Res;
-    unsigned int shadow1Bias;
     unsigned int shadow2Res;
     unsigned int shadow2Bias;
     int shadowMapScale = -1;

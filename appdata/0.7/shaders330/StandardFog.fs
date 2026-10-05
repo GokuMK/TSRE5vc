@@ -14,7 +14,6 @@ out vec4 fragColor;
 uniform float textureEnabled;
 uniform int shadowsEnabled;
 uniform float shadow1Res;
-uniform float shadow1Bias;
 uniform float shadow2Res;
 uniform float shadow2Bias;
 uniform vec4 shapeColor;

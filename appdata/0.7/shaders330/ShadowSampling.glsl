@@ -35,8 +35,8 @@ float receiverPlaneBias(vec2 gradient, vec2 offset, float limit) {
 float shadowedVisibility(float cosTheta) {
     float visibility = (1.0-enableNormals) + cosTheta*enableNormals;
     float shadowIntensity = 0.1;
-    float bias = shadow1Bias*tan(acos(cosTheta))*enableNormals + 0.0025*(1.0-enableNormals);
-    bias = clamp(bias, 0, 0.01);
+    // Constant bias of surfaces without normals, scaled per map below.
+    float bias = 0.0025;
 
     vec4 shadowPos2 = shadowPos*0.5+0.5;
     vec4 shadow2Pos2 = shadow2Pos*0.5+0.5;
