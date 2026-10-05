@@ -764,15 +764,13 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Render a low-resolution cube map of the surroundings from the Route Editor camera, for reflections. The Shape Viewer always uses a fixed warehouse interior."
                 QT_TRID_NOOP("settings.core.rendering.environment.map.enabled.description")).inGroup("rendering").inSubgroup("reflections"),
         "environmentMap", "Game::environmentMapEnabled", "RouteEditorGLWidget", true, "hot-cache");
-    ADD(SettingsDefinition::enumeration("core.rendering.environmentMap.faceSize", 128)
+    ADD(SettingsDefinition::enumeration("core.rendering.environmentMap.faceSize", 256)
             .withNameId(
                 //% "Environment map face size"
                 QT_TRID_NOOP("settings.core.rendering.environment.map.face.size.name")).withDescriptionId(
                 //% "Width and height of each of the six cube faces."
                 QT_TRID_NOOP("settings.core.rendering.environment.map.face.size.description"))
-            .withOptions(numericChoices({{64,
-                //% "64 px"
-                QT_TRID_NOOP("settings.core.rendering.environment.map.face.size.option.64")}, {128,
+            .withOptions(numericChoices({{128,
                 //% "128 px"
                 QT_TRID_NOOP("settings.core.rendering.environment.map.face.size.option.128")}, {256,
                 //% "256 px"

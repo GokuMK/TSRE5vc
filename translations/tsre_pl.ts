@@ -8254,11 +8254,6 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
             <source>Width and height of each of the six cube faces.</source>
             <translation>Szerokość i wysokość każdej z sześciu ścian sześcianu.</translation>
         </message>
-        <message id="settings.core.rendering.environment.map.face.size.option.64">
-            <location filename="../src/settings/SettingsRegistration.cpp" line="775" />
-            <source>64 px</source>
-            <translation>64 px</translation>
-        </message>
         <message id="settings.core.rendering.environment.map.face.size.option.128">
             <location filename="../src/settings/SettingsRegistration.cpp" line="777" />
             <source>128 px</source>

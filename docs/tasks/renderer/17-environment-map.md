@@ -53,20 +53,24 @@ All under Rendering > Reflections, applied while running:
 | Setting | Default | Meaning |
 | --- | --- | --- |
 | `core.rendering.environmentMap.enabled` | off | Render the Route Editor cube |
-| `core.rendering.environmentMap.faceSize` | 128 | 64, 128 or 256 px per face |
+| `core.rendering.environmentMap.faceSize` | 256 | 128 or 256 px per face |
 | `core.rendering.environmentMap.facesPerFrame` | 1 | 1, 2, 3 or 6 faces per frame |
 | `core.rendering.environmentMap.objectDistance` | 300 m | Object range in the cube |
 | `core.rendering.environmentMap.preview` | off | Draw the cube unfolded in the lower-left corner |
 
-Six 128 px faces hold about as many pixels as one 320 x 240 view. With one
-face per frame, each frame renders one 128 x 128 view with reduced object
+With one face per frame, each frame renders one face with reduced object
 range; the whole cube refreshes every six frames.
+
+Hardware test on the heavy CMK route (2026-10-05): face size and object
+distance have little effect on frame rate, so 256 px became the default and
+64 px was dropped. One face per frame costs under 10% of the frame rate;
+six per frame is clearly visible. Two per frame is a candidate default.
 
 ## Status
 
 - [x] Cube, face rendering, round robin, view limits, warehouse fill,
   preview, settings, `environment-map-gl` suite.
-- [ ] Cost on hardware (GPU time of the environment phase; `RenderStats`
-  reports it as phase `environment`).
+- [x] Cost on hardware: see Settings. `RenderStats` reports the cube as phase
+  `environment`.
 - [ ] Consumers: reflecting materials (glTF metallic-roughness, then MSTS
   defaults), with blurred reflections from the mipmaps.
