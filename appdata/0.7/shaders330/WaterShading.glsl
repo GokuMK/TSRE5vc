@@ -15,10 +15,11 @@ uniform sampler2D waterMiddleMap;
 // Tileable slopes (rg, 0.5 flat) and their squares (ba); see WaterNormalMap.
 uniform sampler2D waterNormalMap;
 // The scene mirrored in the water plane (PlanarReflection), read at the
-// screen position: inverse viewport size, plane height and mipmap levels
-// (0: none).
+// screen position: inverse viewport size and mipmap levels in w (0: none),
+// and the plane (n . p + d = 0), tilted along sloping rivers.
 uniform sampler2D waterReflectionMap;
 uniform vec4 waterReflectionView;
+uniform vec4 waterReflectionPlane;
 
 #include "EnvironmentLighting.glsl"
 
@@ -52,7 +53,7 @@ vec2 waterWaves(vec2 uv, bool transposed, float strength, inout float variance) 
 }
 
 // The surroundings reflected along r: the mirrored scene where the water
-// lies in its plane, otherwise the environment cube. Without the cube the
+// lies near its plane, otherwise the environment cube. Without the cube the
 // horizon reflects as the dark banks and the sky only higher up.
 vec3 waterReflection(vec3 r, vec2 slope, float roughness) {
     vec3 far;
@@ -64,7 +65,11 @@ vec3 waterReflection(vec3 r, vec2 slope, float roughness) {
     }
     if (waterReflectionView.w <= 0.0)
         return far;
-    float inPlane = 1.0 - smoothstep(0.25, 0.75, abs(vWorldPosition.y - waterReflectionView.z));
+    // Water off the plane would mirror the scene shifted by twice its
+    // distance from it; allow what stays under about half a degree.
+    float offPlane = abs(dot(waterReflectionPlane.xyz, vWorldPosition) + waterReflectionPlane.w);
+    float tolerance = 0.3 + 0.006 * length(cameraPosition - vWorldPosition);
+    float inPlane = 1.0 - smoothstep(tolerance, 2.0 * tolerance, offPlane);
     if (inPlane <= 0.0)
         return far;
     vec2 uv = gl_FragCoord.xy * waterReflectionView.xy + slope * WaterReflectionDistortion;

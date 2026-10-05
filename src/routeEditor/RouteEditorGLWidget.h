@@ -12,6 +12,7 @@
 #define GLWIDGET_H
 
 #include <QOpenGLWidget>
+#include <vector>
 #include <QOpenGLFunctions>
 //#include <QOpenGLFunctions_3_2_Core>
 #include <QOpenGLVertexArrayObject>
@@ -367,7 +368,9 @@ private:
     OpenGL3Renderer *renderer = NULL;
     EnvironmentMap *environmentMap = NULL;
     PlanarReflection *waterReflection = NULL;
-    float waterReflectionHeight = 0.0f;
+    // Mirror plane of the last reflection (n . p + d = 0).
+    float waterReflectionPlane[4] = {0.0f, 1.0f, 0.0f, 0.0f};
+    std::vector<float> waterBounds;
     // Samples of the last measured water pass: the reflection is drawn only
     // when the previous frame showed water.
     unsigned int waterQuery = 0;

@@ -58,8 +58,16 @@ the bank. The cube is right for the sky and distant terrain, and is used for
 water away from the reflection plane.
 
 `PlanarReflection` renders the gathered queue once more from the camera
-mirrored in the plane of the nearest visible water
-(`Renderer::nearestVisible`):
+mirrored in a plane fitted to the water in view. MSTS water is not level:
+its height is interpolated between each tile's corner water levels, so a
+river slopes (BNSF: about 4 m across one view). `PlanarReflection::fitPlane`
+fits a plane by weighted least squares through the bounding sphere centres
+of the visible water patches (`Renderer::visibleBounds`), nearer patches
+weighing more; the tilt is limited to 10%, and patches in one row keep the
+plane level across the row. The mirror and the clip plane use that tilted
+plane.
+
+The mirrored view:
 
 - half the screen resolution;
 - sky, distant terrain, then terrain and objects up to 500 m. Water,
@@ -69,9 +77,11 @@ mirrored in the plane of the nearest visible water
 - front faces turned the other way round (`glFrontFace(GL_CW)`).
 
 Water samples it at its screen position, offset by the wave slope and
-blurred through the mipmaps by the roughness. Water more than about half a
-metre away from the plane (other water levels) fades to the cube or
-gradient. The pass is skipped when the camera is under the plane, and when
+blurred through the mipmaps by the roughness. Water off the plane would
+mirror the scene shifted by twice its distance from it, so water fades to
+the cube or gradient where that distance passes 0.3 m plus 0.6% of its
+distance from the camera (about half a degree of shift); on BNSF the whole
+visible river stays within it. The pass is skipped when the camera is under the plane, and when
 the previous frame drew no water pixels: water under the banks passes the
 view test, so the main water pass is counted with a `GL_SAMPLES_PASSED`
 query (`RenderStats::pauseSamples` / `resumeSamples` keep the scene phase's
@@ -108,7 +118,8 @@ Under Rendering > Water, applied while running:
 - ENV wave height and speed, layer UV animation.
 - Refraction or depth-based colour: the bottom is a texture, not the
   terrain under the water.
-- Several water levels in view reflect correctly only at the nearest one.
+- Water at a different level from the fitted plane (a lake above a river)
+  reflects the cube or gradient instead of the mirrored scene.
 - Cheaper reflections if hardware needs them: a smaller target, leaving out
   distant terrain, or limiting the mirrored view to the water's screen area.
 
@@ -120,7 +131,8 @@ Under Rendering > Water, applied while running:
   unchanged. With `core.rendering.water.shaded` off, BNSF is
   pixel-identical to the baseline.
 - `water-gl` suite: wave map statistics (level on average, full range,
-  squared slopes, no seam), the mirror matrix, the water program and its
+  squared slopes, no seam), level and tilted mirror matrices, the plane fit
+  (a sloping river, one row of patches, no patches), the water program and its
   variants, frozen animation, and a mirrored render in which an object above
   the plane shows below the horizon and geometry under the plane is clipped.
 - `settings` suite: the two settings and their translations.

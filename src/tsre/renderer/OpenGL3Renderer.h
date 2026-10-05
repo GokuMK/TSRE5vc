@@ -28,8 +28,8 @@ public:
     virtual ~OpenGL3Renderer();
     void renderPasses(RenderPass first, RenderPass last) override;
     void renderPassesRetained(RenderPass first, RenderPass last) override;
-    bool nearestVisible(RenderPass pass, const float *viewProjection,
-                        float *center) const override;
+    void visibleBounds(RenderPass pass, const float *viewProjection,
+                       std::vector<float> &spheres) const override;
     void renderShadowCasters(float range, int statsSlot,
                              const float *viewProjection = nullptr) override;
     void renderFrame() override;

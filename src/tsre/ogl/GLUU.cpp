@@ -283,6 +283,7 @@ void GLUU::initShader() {
         currentShader->waterTime = currentShader->uniformLocation("waterTime");
         currentShader->waterLayers = currentShader->uniformLocation("waterLayers");
         currentShader->waterReflectionView = currentShader->uniformLocation("waterReflectionView");
+        currentShader->waterReflectionPlane = currentShader->uniformLocation("waterReflectionPlane");
         currentShader->clipPlane = currentShader->uniformLocation("clipPlane");
 
         const GLuint terrainBlock = extra->glGetUniformBlockIndex(
@@ -411,6 +412,9 @@ void GLUU::setMatrixUniforms() {
     if (currentShader->waterReflectionView >= 0)
         currentShader->setUniformValue(currentShader->waterReflectionView, waterReflectionView[0],
                 waterReflectionView[1], waterReflectionView[2], waterReflectionView[3]);
+    if (currentShader->waterReflectionPlane >= 0)
+        currentShader->setUniformValue(currentShader->waterReflectionPlane, waterReflectionPlane[0],
+                waterReflectionPlane[1], waterReflectionPlane[2], waterReflectionPlane[3]);
     if (currentShader->clipPlane >= 0)
         currentShader->setUniformValue(currentShader->clipPlane, clipPlane[0], clipPlane[1],
                 clipPlane[2], clipPlane[3]);

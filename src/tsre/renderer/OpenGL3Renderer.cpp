@@ -713,25 +713,18 @@ bool OpenGL3Renderer::instanceBounds(const DrawInstance &instance, float *center
     return true;
 }
 
-bool OpenGL3Renderer::nearestVisible(RenderPass pass, const float *viewProjection,
-                                     float *center) const{
+void OpenGL3Renderer::visibleBounds(RenderPass pass, const float *viewProjection,
+                                    std::vector<float> &spheres) const{
+    spheres.clear();
     const Frustum frustum = frustumOf(viewProjection);
-    float nearest = -1.0f;
     for(const std::vector<DrawInstance> *list : {&passes[pass].ordered, &passes[pass].grouped})
         for(const DrawInstance &instance : *list){
-            float c[3];
+            float center[3];
             float radius = 0.0f;
-            if(!instanceBounds(instance, c, radius) || !intersects(frustum, c, radius))
+            if(!instanceBounds(instance, center, radius) || !intersects(frustum, center, radius))
                 continue;
-            float distance = 0.0f;
-            for(int i = 0; i < 3; ++i)
-                distance += (c[i] - viewPosition[i]) * (c[i] - viewPosition[i]);
-            if(nearest >= 0.0f && distance >= nearest)
-                continue;
-            nearest = distance;
-            std::copy(c, c + 3, center);
+            spheres.insert(spheres.end(), {center[0], center[1], center[2], radius});
         }
-    return nearest >= 0.0f;
 }
 
 bool OpenGL3Renderer::visible(const DrawInstance &instance, const Frustum &frustum) const{
