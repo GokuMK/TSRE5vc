@@ -9,8 +9,9 @@ sample it.
 
 ## Design
 
-`src/tsre/renderer/EnvironmentMap.h` owns a cube texture (with mipmaps, for
-blurred reflections later), a framebuffer and a depth buffer. Faces follow
+`src/tsre/renderer/EnvironmentMap.h` owns a cube texture with mipmaps, a
+second cube prefiltered with the GGX lobe per roughness (what the scene
+shaders sample), a framebuffer and a depth buffer. Faces follow
 the OpenGL cube map order and orientation (+X, -X, +Y, -Y, +Z, -Z); the
 `environment-map-gl` suite checks both by drawing a coloured marker in every
 direction. The cube is bound on texture unit 10 for the scene shaders.

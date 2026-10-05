@@ -147,11 +147,13 @@ int TsreTests::runEnvironmentMapGlSuite(bool verbose) {
     GLuint readBuffer = 0;
     f->glGenFramebuffers(1, &readBuffer);
     f->glBindFramebuffer(GL_FRAMEBUFFER, readBuffer);
-    auto faceStats = [&](int face, int &bright, double &mean, double &spread) {
+    auto levelStats = [&](unsigned int texture, int level, int face, int &bright, double &mean,
+                          double &spread) {
+        const int side = 64 >> level;
         f->glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-                                  GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, warehouse.texture(), 0);
-        std::vector<unsigned char> pixels(64 * 64 * 4);
-        f->glReadPixels(0, 0, 64, 64, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
+                                  GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, texture, level);
+        std::vector<unsigned char> pixels(size_t(side) * side * 4);
+        f->glReadPixels(0, 0, side, side, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
         double sum = 0, squares = 0;
         bright = 0;
         for (size_t i = 0; i < pixels.size(); i += 4) {
@@ -159,8 +161,11 @@ int TsreTests::runEnvironmentMapGlSuite(bool verbose) {
             squares += double(pixels[i + 1]) * pixels[i + 1];
             bright += pixels[i + 1] > 240;
         }
-        mean = sum / (64 * 64);
-        spread = std::sqrt(std::max(0.0, squares / (64 * 64) - mean * mean));
+        mean = sum / (side * side);
+        spread = std::sqrt(std::max(0.0, squares / (side * side) - mean * mean));
+    };
+    auto faceStats = [&](int face, int &bright, double &mean, double &spread) {
+        levelStats(warehouse.texture(), 0, face, bright, mean, spread);
     };
     int bright = 0;
     double mean = 0, spread = 0;
@@ -170,6 +175,23 @@ int TsreTests::runEnvironmentMapGlSuite(bool verbose) {
     check(bright == 0 && mean > 70 && mean < 120, "the floor is grey concrete");
     faceStats(4, bright, mean, spread);
     check(mean > 100 && mean < 180 && spread > 10, "walls are patterned brick");
+
+    // The prefiltered cube: level 0 is the sharp cube, the last level the
+    // roughest lobe: smooth, and brighter than the dark ceiling alone because
+    // it also gathers the walls and windows.
+    const int last = warehouse.levels() - 1;
+    int rawBright = 0, sharpBright = 0, roughBright = 0;
+    double rawMean = 0, rawSpread = 0, sharpMean = 0, sharpSpread = 0, roughMean = 0, roughSpread = 0;
+    faceStats(2, rawBright, rawMean, rawSpread);
+    levelStats(warehouse.prefilteredTexture(), 0, 2, sharpBright, sharpMean, sharpSpread);
+    levelStats(warehouse.prefilteredTexture(), last, 2, roughBright, roughMean, roughSpread);
+    check(warehouse.levels() == 5 && warehouse.prefilteredTexture() != 0,
+          "the prefiltered cube stops at 4 x 4 texels");
+    check(std::abs(sharpMean - rawMean) < 2.0 && sharpBright > 20,
+          "the first prefiltered level is the sharp cube");
+    check(roughBright == 0 && roughSpread < rawSpread * 0.5
+          && roughMean > rawMean && roughMean < 200.0,
+          "the roughest level is blurred over the surroundings");
     f->glBindFramebuffer(GL_FRAMEBUFFER, 0);
     f->glDeleteFramebuffers(1, &readBuffer);
 

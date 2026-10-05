@@ -63,8 +63,12 @@ bool resolveTexture(const RenderItem *item, unsigned int &address){
     return resolveTexLibTexture(item->material.textureId, address);
 }
 
-// Metallic-roughness material uniforms and maps (units 11-14) of a packet
-// drawn by the PBR program. Maps not uploaded yet are left out.
+// Texture unit of each PBR map: the base colour is the packet texture, the
+// clearcoat maps use units that only terrain programs use otherwise.
+const int PbrMapUnits[RenderItem::Pbr::MAP_COUNT] = {0, 11, 12, 13, 14, 4, 5, 6};
+
+// Metallic-roughness material uniforms and maps of a packet drawn by the
+// PBR program. Maps not uploaded yet are left out.
 void applyPbrState(GLUU *gluu, QOpenGLFunctions *f, const RenderItem *item){
     Shader *s = gluu->currentShader;
     if(!item->pbr.enabled || s->pbrBaseColor < 0)
@@ -79,22 +83,31 @@ void applyPbrState(GLUU *gluu, QOpenGLFunctions *f, const RenderItem *item){
     s->setUniformValue(s->pbrAlphaCutoff, p.alphaCutoff);
     s->setUniformValue(s->pbrBlend, p.blend ? 1 : 0);
     s->setUniformValue(s->pbrUnlit, p.unlit ? 1 : 0);
+    s->setUniformValue(s->pbrClearcoat, p.clearcoat, p.clearcoatRoughness, p.clearcoatNormalScale);
     int present = 0;
     int texCoords = 0;
+    int transformed = 0;
+    float transforms[RenderItem::Pbr::MAP_COUNT * 6];
     for(int map = 0; map < RenderItem::Pbr::MAP_COUNT; ++map){
         if(p.texCoords[map] != 0)
             texCoords |= 1 << map;
+        std::copy(p.uvTransforms[map].rows, p.uvTransforms[map].rows + 6, transforms + map * 6);
+        if(!p.uvTransforms[map].identity())
+            transformed |= 1 << map;
         unsigned int address = 0;
         if(map == RenderItem::Pbr::MAP_BASE_COLOR || p.textures[map] < 0
                 || !resolveTexLibTexture(p.textures[map], address))
             continue;
-        f->glActiveTexture(GL_TEXTURE10 + map);
+        f->glActiveTexture(GL_TEXTURE0 + PbrMapUnits[map]);
         f->glBindTexture(GL_TEXTURE_2D, address);
         present |= 1 << (map - 1);
     }
     f->glActiveTexture(GL_TEXTURE0);
     s->setUniformValue(s->pbrTextures, present);
     s->setUniformValue(s->pbrTexCoords, texCoords);
+    s->setUniformValue(s->pbrUvTransforms, transformed);
+    if(transformed != 0)
+        s->setUniformValueArray(s->pbrUvTransform, transforms, RenderItem::Pbr::MAP_COUNT * 2, 3);
 }
 
 // Grouping key; texture handles and raw addresses do not collide.
@@ -490,7 +503,7 @@ void OpenGL3Renderer::bindWrapSampler(int unit, quint32 wrap){
 }
 
 void OpenGL3Renderer::applyWrapSamplers(const RenderItem *item){
-    static const int units[RenderItem::Pbr::MAP_COUNT] = {0, 11, 12, 13, 14};
+    const int *units = PbrMapUnits;
     for(int map = 0; map < RenderItem::Pbr::MAP_COUNT; ++map){
         quint32 wrap = 0;
         const unsigned short *modes = item->pbr.wrap[map];

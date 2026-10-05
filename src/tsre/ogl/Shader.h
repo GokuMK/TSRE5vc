@@ -83,6 +83,9 @@ public:
     int pbrUnlit = -1;
     int pbrTextures = -1;
     int pbrTexCoords = -1;
+    int pbrUvTransform = -1;
+    int pbrUvTransforms = -1;
+    int pbrClearcoat = -1;
     int cameraPosition = -1;
     int environmentMapLevels = -1;
 private:

@@ -87,7 +87,8 @@ public:
     // linear, as in glTF.
     struct Pbr {
         enum Map {MAP_BASE_COLOR = 0, MAP_METALLIC_ROUGHNESS, MAP_NORMAL, MAP_OCCLUSION,
-                  MAP_EMISSIVE, MAP_COUNT};
+                  MAP_EMISSIVE, MAP_CLEARCOAT, MAP_CLEARCOAT_ROUGHNESS, MAP_CLEARCOAT_NORMAL,
+                  MAP_COUNT};
         bool enabled = false;
         // Shaded with the base colour only (KHR_materials_unlit).
         bool unlit = false;
@@ -101,9 +102,24 @@ public:
         float alphaCutoff = -1.0f;
         // Whether alpha is kept for blending (BLEND); otherwise opaque.
         bool blend = false;
-        int textures[MAP_COUNT] = {-1, -1, -1, -1, -1};
+        // KHR_materials_clearcoat: layer strength, its roughness and the
+        // scale of its normal map; strength 0 has no layer.
+        float clearcoat = 0.0f;
+        float clearcoatRoughness = 0.0f;
+        float clearcoatNormalScale = 1.0f;
+        int textures[MAP_COUNT] = {-1, -1, -1, -1, -1, -1, -1, -1};
         // Texture coordinate set (0 or 1) of each map.
-        unsigned char texCoords[MAP_COUNT] = {0, 0, 0, 0, 0};
+        unsigned char texCoords[MAP_COUNT] = {};
+        // KHR_texture_transform of each map: rows of a 2 x 3 matrix applied
+        // to the texture coordinates.
+        struct UvTransform {
+            float rows[6] = {1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f};
+            bool identity() const {
+                return rows[0] == 1.0f && rows[1] == 0.0f && rows[2] == 0.0f
+                        && rows[3] == 0.0f && rows[4] == 1.0f && rows[5] == 0.0f;
+            }
+        };
+        UvTransform uvTransforms[MAP_COUNT];
         // Wrap mode of each map along s and t as GL enums; 0 repeats.
         unsigned short wrap[MAP_COUNT][2] = {};
     };

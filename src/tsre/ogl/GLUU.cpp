@@ -250,6 +250,9 @@ void GLUU::initShader() {
         currentShader->pbrUnlit = currentShader->uniformLocation("pbrUnlit");
         currentShader->pbrTextures = currentShader->uniformLocation("pbrTextures");
         currentShader->pbrTexCoords = currentShader->uniformLocation("pbrTexCoords");
+        currentShader->pbrUvTransform = currentShader->uniformLocation("pbrUvTransform");
+        currentShader->pbrUvTransforms = currentShader->uniformLocation("pbrUvTransforms");
+        currentShader->pbrClearcoat = currentShader->uniformLocation("pbrClearcoat");
         currentShader->cameraPosition = currentShader->uniformLocation("cameraPosition");
         currentShader->environmentMapLevels = currentShader->uniformLocation("environmentMapLevels");
 
@@ -296,10 +299,12 @@ void GLUU::initShader() {
         if (currentShader->instanceMatrices >= 0)
             currentShader->setUniformValue(currentShader->instanceMatrices, 8);
         // Unit 10 holds the environment map, units 11-14 the metallic-roughness,
-        // normal, occlusion and emissive maps.
+        // normal, occlusion and emissive maps, and units 4-6 (terrain-only
+        // elsewhere) the clearcoat maps.
         const struct { const char *name; int unit; } pbrSamplers[] = {
             {"environmentMap", 10}, {"pbrMetallicRoughnessMap", 11}, {"pbrNormalMap", 12},
-            {"pbrOcclusionMap", 13}, {"pbrEmissiveMap", 14}};
+            {"pbrOcclusionMap", 13}, {"pbrEmissiveMap", 14}, {"pbrClearcoatMap", 4},
+            {"pbrClearcoatRoughnessMap", 5}, {"pbrClearcoatNormalMap", 6}};
         for (const auto &sampler : pbrSamplers) {
             const int location = currentShader->uniformLocation(sampler.name);
             if (location >= 0)
