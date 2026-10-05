@@ -725,6 +725,8 @@ struct ViewerItem {
     QString path;
     QString file;
     QString textures;
+    // Degrees the model is turned from the default view (shapes only).
+    double yaw = 0.0;
 };
 
 struct ViewerOptions {
@@ -775,6 +777,7 @@ bool loadViewerOptions(const QString &casesFile, ViewerOptions &options, QString
         item.path = object.value("path").toString();
         item.file = object.value("file").toString();
         item.textures = object.value("textures").toString();
+        item.yaw = object.value("yaw").toDouble(0.0);
         if (item.name.isEmpty() || item.path.isEmpty()) {
             error = "every item needs a name and a path";
             return false;
@@ -849,6 +852,7 @@ int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, const QStrin
                     ? ShapeViewerGLWidget::textureDirectory(path)
                     : itemRoot.absoluteFilePath(item.textures);
             widget.showShape(path, textures);
+            widget.setModelRotation(float(item.yaw * M_PI / 180.0));
         } else if (item.type == "eng") {
             widget.setCamera(&shapeCamera);
             widget.setMode("rot");

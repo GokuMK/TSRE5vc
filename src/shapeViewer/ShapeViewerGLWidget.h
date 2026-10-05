@@ -54,6 +54,8 @@ public:
     QImage *screenShot = NULL;
     void setMode(QString n);
     void resetRot();
+    // Turns the shown model by yaw radians from the default view.
+    void setModelRotation(float yaw);
     void getImg();
     void setBackgroundGlColor(float r, float g, float b);
     void fillCurrentShapeHierarchyInfo(ShapeHierarchyInfo *info);
@@ -135,6 +137,8 @@ private:
     bool getImage = false;
     float backgroundGlColor[3];
     bool cameraInit = false;
+    // Near clip distance, scaled with the shown shape so small ones are not clipped.
+    float nearPlane = 0.2f;
     
     QMap<QString, QAction*> defaultMenuActions;
 };

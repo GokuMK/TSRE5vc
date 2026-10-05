@@ -17,6 +17,8 @@
 #include <QClipboard>
 #include <QMenu>
 #include <QFileInfo>
+#include <algorithm>
+#include <cmath>
 #include <tsre/renderer/EnvironmentMap.h>
 #include <QtMath>
 #include <math.h>
@@ -226,10 +228,11 @@ void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
     
     float aspect = float(this->width()) / float(this->height());
     float* lookAt = camera->getMatrix();
-    Mat4::perspective(gluu->pMatrix, camera->fov*M_PI/180*(1/aspect), aspect, 0.2f, Game::objectLod);
+    const float zNear = renderItem == 4 ? nearPlane : 0.2f;
+    Mat4::perspective(gluu->pMatrix, camera->fov*M_PI/180*(1/aspect), aspect, zNear, Game::objectLod);
     Mat4::multiply(gluu->pMatrix, gluu->pMatrix, lookAt);
     
-    Mat4::perspective(gluu->fMatrix, camera->fov*M_PI/180*(1/aspect), aspect, 0.2f, Game::objectLod);
+    Mat4::perspective(gluu->fMatrix, camera->fov*M_PI/180*(1/aspect), aspect, zNear, Game::objectLod);
     Mat4::multiply(gluu->fMatrix, gluu->pMatrix, lookAt);
     
     Mat4::identity(gluu->mvMatrix);
@@ -257,19 +260,32 @@ void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
             const float dx = fabs(bound[0]-bound[1]);
             const float dy = fabs(bound[2]-bound[3]);
             const float dz = fabs(bound[4]-bound[5]);
-            float max = dx;
-            if(dy > max) max = dy;
-            if(dz > max) max = dz;
-            qDebug() << dx;
-            qDebug() << dy;
-            qDebug() << dz;
             const float cx = (bound[0] + bound[1]) / 2.0f;
             const float cy = (bound[2] + bound[3]) / 2.0f;
             const float cz = (bound[4] + bound[5]) / 2.0f;
-            float dist = max*1.2f;
-            if(dist < 1.0f)
+            // Fit the bounding sphere into the narrower field of view, and keep
+            // the near plane in proportion so small shapes are not clipped.
+            const float radius = 0.5f * std::sqrt(dx*dx + dy*dy + dz*dz);
+            const float fovY = camera->fov*M_PI/180*(1/aspect);
+            const float fovX = 2.0f * std::atan(std::tan(fovY / 2.0f) * aspect);
+            float dist = 1.05f * radius / std::sin(0.5f * std::min(fovX, fovY));
+            if(!(dist > 0.0f) || !std::isfinite(dist))
                 dist = 1.0f;
-            camera->setPos(cx - dist, cy, cz);
+            nearPlane = std::clamp(dist * 0.02f, 0.001f, 0.2f);
+            // The model turns about its origin in "rot" mode (Z, then Y), so aim
+            // at its turned centre.
+            float centre[3] = {cx, cy, cz};
+            if(mode == "rot"){
+                const float zc = std::cos(rotZ), zs = std::sin(rotZ);
+                const float x = centre[0] * zc - centre[1] * zs;
+                centre[1] = centre[0] * zs + centre[1] * zc;
+                centre[0] = x;
+                const float yc = std::cos(rotY), ys = std::sin(rotY);
+                const float z = -centre[0] * ys + centre[2] * yc;
+                centre[0] = centre[0] * yc + centre[2] * ys;
+                centre[2] = z;
+            }
+            camera->setPos(centre[0] - dist, centre[1], centre[2]);
         }
     }
 
@@ -489,6 +505,11 @@ void ShapeViewerGLWidget::resetRot(){
     rotZ = 0;
 }
 
+void ShapeViewerGLWidget::setModelRotation(float yaw){
+    rotY = M_PI + yaw;
+    rotZ = 0;
+}
+
 
 void ShapeViewerGLWidget::showEng(Eng *e){
     eng = e;
@@ -648,6 +669,7 @@ void ShapeViewerGLWidget::showShape(QString path, QString texPath, ComplexShape 
 void ShapeViewerGLWidget::showShape(ComplexShape *currentShape){
     if(currentShape == NULL)
         return;
+    nearPlane = 0.2f;
     complexShape = currentShape;
     cameraInit = true;
     renderItem = 4;
