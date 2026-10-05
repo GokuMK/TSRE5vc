@@ -12,6 +12,7 @@
 #define	GUIGLCOMPASS_H
 
 #include <tsre/ogl/OglObj.h>
+#include <vector>
 
 class RenderQueue;
 
@@ -24,6 +25,9 @@ public:
 private:
     void setHeading(float a);
     float angle = 0;
+    bool headingSet = false;
+    // The strip's VT vertices; the heading scrolls their texture coordinates.
+    std::vector<float> vertices;
 };
 
 #endif	/* GUIGLCOMPASS_H */

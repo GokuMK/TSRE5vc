@@ -9,7 +9,7 @@ For on-disk `.s`/`.sd` structure, blocks, fields and unresolved semantics, see t
 
 ## Terminology (used in this doc)
 - **Complex shape (asset/model):** file-backed, multi-part, can have per-instance state (today: `ComplexShape` interface implemented by `SFileLegacy` and `SFileComplex` for MSTS `.s` + optional `.sd`, and `GltfShape` for `.gltf`/`.glb`).
-- **Simple shape (render primitive):** a single VAO/VBO draw call with a very small material model (today: `OglObj`), typically procedural/editor helpers.
+- **Simple shape (render primitive):** a single renderer-owned mesh with a very small material model (today: `OglObj`), typically procedural/editor helpers.
 
 ## Evidence Base (Code Anchors)
 - Shape cache and lifetime: `src/tsre/shape/ShapeLib.h:19`, `src/tsre/shape/ShapeLib.cpp:70`
@@ -22,7 +22,7 @@ For on-disk `.s`/`.sd` structure, blocks, fields and unresolved semantics, see t
 - Gather queue submission for shapes: `src/tsre/shape/SFileLegacy.cpp:987`
 - World object -> shape submission path: `src/tsre/world/objects/WorldObj.cpp:603`
 - Typical world object load path: `src/tsre/world/objects/StaticObj.cpp:82`, `src/tsre/world/objects/TrackObj.cpp:110`
-- Simple render primitive contract: `src/tsre/ogl/OglObj.h:18`, `src/tsre/ogl/OglObj.cpp:135`
+- Simple render primitive contract: `src/tsre/ogl/OglObj.h:21`, `src/tsre/ogl/OglObj.cpp:117`
 - Procedural shapes using OBJ templates: `src/tsre/procedural/ProceduralShape.h:39`, `src/tsre/shape/ObjFile.cpp:19`
 - Shape viewer depends on `ShapeLib` and renders via `ComplexShape`: `src/shapeViewer/ShapeViewerGLWidget.cpp:229`
 - Procedural/in-memory textures via `TexLib`: `src/tsre/ogl/TextObj.cpp:64`, `src/tsre/texture/TexLib.cpp:90`, `src/tsre/texture/PaintTexLib.cpp:20`
@@ -150,9 +150,9 @@ This exact pattern is what a new model format must fit into if we want "use glTF
 ## 4. Simple Shapes: `OglObj` + Procedural Generation
 
 `OglObj` is a lightweight render primitive:
-- owns one VAO + VBO
+- keeps one renderer-owned mesh (`MeshHandle`, see `docs/tasks/renderer/16-renderer-owned-meshes.md`); `init()` needs no GL context
 - supports a small material set: `NONE | TEXTURE | COLOR`
-- can submit a `RenderItem` via `pushRenderItem(selectionColor, lod)` (`src/tsre/ogl/OglObj.cpp:135`)
+- can submit a `RenderItem` via `pushRenderItem(queue, selectionId, lod)` (`src/tsre/ogl/OglObj.cpp:117`)
 - is widely used for procedural/editor visuals (lines, quads, markers, selection boxes, etc.)
 
 Procedural track shapes and helpers are often built from OBJ templates:
@@ -182,7 +182,7 @@ glTF/GLB is implemented as a `ComplexShape` (`GltfShape`) and is loadable throug
 
 Major constraints to plan for:
 - **Shared asset + per-instance state must remain** (world objects already rely on `shapeState`).
-- **Renderer packet contract today is VAO/VBO + glDrawArrays-style offsets** (`RenderItem` has no index buffer). Both MSTS shapes and glTF/GLB expand indexed geometry into non-indexed vertex arrays.
+- **Renderer packet contract:** a mesh (renderer-owned `MeshHandle`, or a producer-owned VAO for producers not yet migrated) plus a vertex or index range. Indexed draws are supported; `SFileLegacy` and glTF/GLB still expand indexed geometry into non-indexed vertex arrays.
 - **Texture system is pathid + hashid based** (`Texture::hashid` is used for de-duplication in `TexLib`). While most textures are file-backed, TSRE already supports procedural/in-memory textures (e.g. `TextObj` uses `.:paintTex` handled by `PaintTexLib`). This means GLB embedded images can be supported by registering them in `TexLib` under a content hash (and optionally decoding in a worker, similar to other texture loaders).
 - **Material/alpha model is simple and shader-driven**. The current shader uses the `alpha` vertex attribute with sign semantics:
   - positive value (e.g. `1.0`) forces opaque output alpha
