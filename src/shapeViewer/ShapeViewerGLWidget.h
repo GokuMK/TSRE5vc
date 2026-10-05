@@ -66,6 +66,10 @@ public slots:
     void showConSimple(Consist *currentCon);
     void showConSimple(int id);
     void showCon(int aid, int id);
+    // Texture directory of a shape opened on its own: a route SHAPES
+    // directory uses the route's TEXTURES next to it, anything else the
+    // shape's own directory. The same rule applies to .s and glTF files.
+    static QString textureDirectory(const QString &shapePath);
     void showShape(QString path, QString texPath, ComplexShape **currentShape = NULL);
     void showShape(ComplexShape *currentShape = NULL);
     void cleanup();

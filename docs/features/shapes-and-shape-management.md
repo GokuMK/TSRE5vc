@@ -170,6 +170,8 @@ This is conceptually a *different abstraction layer* than `ComplexShape`:
 `ShapeViewerGLWidget::showShape(...)` uses `ShapeLib::addShape(...)` and stores the result as a `ComplexShape*` for rendering.
 Hierarchy/texture/content panels call the `ComplexShape::fillShape*Info(...)` methods, so the viewer can work with any complex-shape format that implements the contract.
 
+Texture lookup is the same for `.s` and glTF/GLB files. Route objects use the route's `TEXTURES` directory (`ShapeLib::addShape(path)`). A shape opened on its own in the Shape Viewer uses the route's `TEXTURES` when it lies in a route `SHAPES` directory, otherwise its own directory (`ShapeViewerGLWidget::textureDirectory`). glTF external image URIs resolve against that directory.
+
 Any attempt to add **non-MSTS** complex shapes to the shape viewer UI will need a deliberate compatibility plan for:
 - the shape viewer UI (hierarchy/texture inspection),
 - any other tools that assume MSTS-only shapes.
