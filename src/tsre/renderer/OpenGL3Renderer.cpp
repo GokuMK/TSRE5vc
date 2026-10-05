@@ -373,22 +373,30 @@ void drawItemInstanced(QOpenGLFunctions *f, RenderItem *item, quint32 selectionI
     }
 }
 
-// Line width and polygon mode set for one packet and restored afterwards.
+// Line width, polygon mode, culling and depth writes set for one packet and
+// restored afterwards.
 class PacketRasterState {
 public:
     PacketRasterState(QOpenGLFunctions *f, const RenderItem *item)
         : f(f),
           lineWidth(item->material.lineWidth > 0 && item->material.lineWidth != Game::oglDefaultLineWidth),
           wireframe(item->material.wireframe),
-          bothSides(item->material.doubleSided && f->glIsEnabled(GL_CULL_FACE)) {
+          bothSides(item->material.doubleSided && f->glIsEnabled(GL_CULL_FACE)),
+          keepDepth(item->pbr.enabled && item->pbr.blend && depthWrites(f)) {
         if(lineWidth)
             f->glLineWidth(item->material.lineWidth);
         if(wireframe)
             glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
         if(bothSides)
             f->glDisable(GL_CULL_FACE);
+        // glTF BLEND surfaces are sorted by origin only: one drawn first
+        // must not hide others behind it (lights behind a glass shell).
+        if(keepDepth)
+            f->glDepthMask(GL_FALSE);
     }
     ~PacketRasterState() {
+        if(keepDepth)
+            f->glDepthMask(GL_TRUE);
         if(wireframe)
             glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
         if(lineWidth)
@@ -397,10 +405,16 @@ public:
             f->glEnable(GL_CULL_FACE);
     }
 private:
+    static bool depthWrites(QOpenGLFunctions *f) {
+        GLboolean mask = GL_TRUE;
+        f->glGetBooleanv(GL_DEPTH_WRITEMASK, &mask);
+        return mask == GL_TRUE;
+    }
     QOpenGLFunctions *f;
     bool lineWidth;
     bool wireframe;
     bool bothSides;
+    bool keepDepth;
 };
 
 }
