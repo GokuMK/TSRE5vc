@@ -844,8 +844,10 @@ int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, const QStrin
         if (item.type == "shape") {
             widget.setCamera(&shapeCamera);
             widget.setMode("rot");
+            // Without textures, follow the Shape Viewer window's rule.
             const QString textures = item.textures.isEmpty()
-                    ? QString() : itemRoot.absoluteFilePath(item.textures);
+                    ? ShapeViewerGLWidget::textureDirectory(path)
+                    : itemRoot.absoluteFilePath(item.textures);
             widget.showShape(path, textures);
         } else if (item.type == "eng") {
             widget.setCamera(&shapeCamera);

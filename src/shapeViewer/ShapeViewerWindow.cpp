@@ -465,19 +465,11 @@ void ShapeViewerWindow::loadFile(QString path){
     QString filename = path.section("/",-1,-1);
     qDebug() << filename;
     
-    if(filename.endsWith(".s", Qt::CaseInsensitive)){
-        if(dir.endsWith("/SHAPES", Qt::CaseInsensitive)){
-            QString dir2 = dir.section("/", 0, -2)+"/TEXTURES";
-            if(QFileInfo::exists(dir2)){
-                dir = dir2;
-            }
-        }
+    if(filename.endsWith(".s", Qt::CaseInsensitive)
+            || filename.endsWith(".gltf", Qt::CaseInsensitive)
+            || filename.endsWith(".glb", Qt::CaseInsensitive)){
         currentItemType = "shape";
-        glShapeWidget->showShape(path, dir, &currentShape);
-    }
-    if(filename.endsWith(".gltf", Qt::CaseInsensitive) || filename.endsWith(".glb", Qt::CaseInsensitive)){
-        currentItemType = "shape";
-        glShapeWidget->showShape(path, dir, &currentShape);
+        glShapeWidget->showShape(path, ShapeViewerGLWidget::textureDirectory(path), &currentShape);
     }
     if(filename.endsWith(".eng", Qt::CaseInsensitive) || filename.endsWith(".wag", Qt::CaseInsensitive)){
         int idx = Game::currentEngLib->addEng(dir, filename);

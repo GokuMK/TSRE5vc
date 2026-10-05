@@ -16,6 +16,7 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QMenu>
+#include <QFileInfo>
 #include <QtMath>
 #include <math.h>
 #include <tsre/ogl/GLUU.h>
@@ -599,6 +600,16 @@ void ShapeViewerGLWidget::showCon(int aid, int id){
     con->setTextColor(backgroundGlColor);
     complexShape = NULL;
     renderItem = 3;
+}
+
+QString ShapeViewerGLWidget::textureDirectory(const QString &shapePath){
+    const QString dir = shapePath.section("/", 0, -2);
+    if(dir.endsWith("/SHAPES", Qt::CaseInsensitive)){
+        const QString textures = dir.section("/", 0, -2) + "/TEXTURES";
+        if(QFileInfo::exists(textures))
+            return textures;
+    }
+    return dir;
 }
 
 void ShapeViewerGLWidget::showShape(QString path, QString texPath, ComplexShape **currentShape){
