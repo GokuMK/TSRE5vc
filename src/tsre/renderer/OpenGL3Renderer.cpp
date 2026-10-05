@@ -578,9 +578,19 @@ bool OpenGL3Renderer::instanceBounds(const DrawInstance &instance, float *center
 bool OpenGL3Renderer::visible(const DrawInstance &instance, const Frustum &frustum) const{
     float center[3];
     float radius = 0.0f;
-    if(!frustum.enabled || !instanceBounds(instance, center, radius))
+    if(!instanceBounds(instance, center, radius))
         return true;
-    if(intersects(frustum, center, radius))
+    bool inside = !frustum.enabled || intersects(frustum, center, radius);
+    if(inside && viewLimitsEnabled
+            && instance.packet->material.surface != RenderItem::SURFACE_TERRAIN){
+        float distance = 0.0f;
+        for(int i = 0; i < 3; ++i)
+            distance += (center[i] - viewPosition[i]) * (center[i] - viewPosition[i]);
+        distance = std::sqrt(distance);
+        inside = distance - radius <= viewLimits.maxDistance
+                && radius >= viewLimits.minAngularRadius * distance;
+    }
+    if(inside)
         return true;
     if(RenderStats::inFrame())
         RenderStats::current().culledInstances++;
@@ -850,6 +860,14 @@ void OpenGL3Renderer::resetFrame(){
 }
 
 void OpenGL3Renderer::renderPasses(RenderPass first, RenderPass last){
+    drawPasses(first, last, true);
+}
+
+void OpenGL3Renderer::renderPassesRetained(RenderPass first, RenderPass last){
+    drawPasses(first, last, false);
+}
+
+void OpenGL3Renderer::drawPasses(RenderPass first, RenderPass last, bool consume){
     GLUU *gluu = GLUU::get();
     QOpenGLContext *context = QOpenGLContext::currentContext();
     f = context != NULL ? context->functions() : NULL;
@@ -882,7 +900,8 @@ void OpenGL3Renderer::renderPasses(RenderPass first, RenderPass last){
             drawGrouped(gluu, base, queue.grouped, pass);
             drew = true;
         }
-        consumePass(queue);
+        if(consume)
+            consumePass(queue);
     }
     if(!drew)
         return;
