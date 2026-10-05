@@ -261,7 +261,6 @@ public:
     void fillContentHierarchyInfo(QVector<ContentHierarchyInfo*> &list, int parent) override;
 private:
     bool glReady = false;
-    QPointer<QOpenGLContext> glContext;
     // Retires a set of cached packets through the renderer.
     void clearRenderItems(quint64 key);
     // Static packets depend only on the distance level and the enabled

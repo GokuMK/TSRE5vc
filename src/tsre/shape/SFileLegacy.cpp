@@ -61,7 +61,7 @@ SFileLegacy::~SFileLegacy() {
 }
 
 void SFileLegacy::load() {
-    if (loadData() && QOpenGLContext::currentContext()) initGL();
+    if (loadData()) initGL();
 }
 
 bool SFileLegacy::loadData() {
@@ -2020,7 +2020,7 @@ void SFileLegacy::odczytajlodd(FileBuffer* bufor, SFileLegacy* pliks) {
 // GL buffer initialization
 
 bool SFileLegacy::isGLReady() const {
-    return glReady && glContext && glContext == QOpenGLContext::currentContext();
+    return glReady;
 }
 
 // Sphere around a part's uploaded positions (9 floats per vertex).
@@ -2051,14 +2051,14 @@ static void partBounds(SFileLegacy::czes &part, const float *vertices) {
 }
 
 bool SFileLegacy::initGL() {
-    // Uploaded source has been released. Another/lost context requires reload().
-    if (glReady) return isGLReady();
-    if (loaded != 1 || !QOpenGLContext::currentContext()) return false;
+    // Builds renderer-owned meshes; no GL context is needed. The indexed
+    // source is released afterwards, so only reload() rebuilds them.
+    if (glReady) return true;
+    if (loaded != 1) return false;
     bool uploaded = false;
     const auto restore = qScopeGuard([&] {
         if (!uploaded) {
             releaseMeshes();
-            glContext.clear();
             glReady = false;
         }
     });
@@ -2164,7 +2164,6 @@ bool SFileLegacy::initGL() {
     delete[] tpoints.points; tpoints.points = nullptr;
     delete[] tpoints.normals; tpoints.normals = nullptr;
     delete[] tpoints.uv_points; tpoints.uv_points = nullptr;
-    glContext = QOpenGLContext::currentContext();
     glReady = true;
     uploaded = true;
     return true;
@@ -2209,6 +2208,5 @@ void SFileLegacy::clearData() {
     delete[] shader; shader = nullptr; ishaders = 0;
     animations.clear();
     glReady = false;
-    glContext.clear();
     texloaded = 0;
 }

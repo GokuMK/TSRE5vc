@@ -68,13 +68,12 @@ and changes only its patch).
 - [x] `GltfShape`: models load without a GL context. The Khronos sample set
   (`tests/renderer/gltf-viewer-views.json`, `TSRE_GLTF_SAMPLE_ASSETS`) is
   pixel-identical.
-- [x] `SFileComplex`: the GPU state machine and its context checks stay;
+- [x] `SFileComplex`: the GPU state machine stays;
   route captures with `TSRE_MSTS_SHAPE_BACKEND=complex` are pixel-identical.
-- [x] `SFileLegacy`: `initGL()` keeps its contract (needs a context, rolls
-  back on failure). Pixel-identical.
+- [x] `SFileLegacy`: `initGL()` still rolls back on failure. Pixel-identical.
 - [x] `ForestObj`, `TransferObj`: already draw through `OglObj`.
-- [ ] Both MSTS loaders still require a current context in `initGL()` and
-  compare contexts in their ready checks; with shared buffers both can go.
+- [x] Both MSTS loaders' `initGL()` builds meshes without a GL context, and
+  their readiness no longer depends on the current context.
 - [x] Terrain, both mesh modes. The store gained what terrain needs:
   `MeshData::TerrainHeightNormal` (the paged 8-byte vertex), `Buffer`
   storage without vertex attributes (the per-page patch parameter blocks,
