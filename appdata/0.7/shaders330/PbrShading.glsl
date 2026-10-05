@@ -186,13 +186,13 @@ vec4 pbrShade() {
                 * sun * coatNDotL;
     }
 
-    // Image-based light. Reflections take the surroundings at full
-    // strength, sharper for smoother surfaces; diffuse light uses the most
-    // blurred levels, scaled so open sky gives the legacy ambient light.
+    // Image-based light from the prefiltered cube: level i holds reflections
+    // for roughness i / (levels - 1); diffuse light uses the roughest level,
+    // scaled so open sky gives the legacy ambient light.
     float occlusion = 1.0;
     if ((pbrTextures & 4) != 0)
         occlusion = 1.0 + pbrOcclusionStrength * (texture(pbrOcclusionMap, pbrUv(3)).r - 1.0);
-    float blurLevel = max(environmentMapLevels - 2.0, 0.0);
+    float blurLevel = max(environmentMapLevels - 1.0, 0.0);
     vec3 irradiance = environmentRadiance(n, blurLevel);
     float ambientScale = luminance(toLinear(ambientColor.rgb))
             / max(luminance(toLinear(skyColor.rgb)), 0.05);

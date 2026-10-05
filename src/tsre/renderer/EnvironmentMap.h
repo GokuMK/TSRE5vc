@@ -38,7 +38,9 @@ public:
     bool ensure(int faceSize);
     int faceSize() const { return size; }
     unsigned int texture() const { return cube; }
-    // Mipmap levels of the cube, 0 without one.
+    unsigned int prefilteredTexture() const { return prefiltered; }
+    // Levels of the prefiltered cube the scene shaders sample: level i holds
+    // reflections for roughness i / (levels - 1). 0 without a cube.
     int levels() const;
     // Whether every face has content (rendered or filled) since ensure().
     bool complete() const { return facesReady == FaceCount; }
@@ -59,12 +61,12 @@ public:
     // walls with high windows, a concrete floor and a dark ceiling with lamps.
     bool fillWarehouse(int faceSize);
 
-    // Binds the cube to TextureUnit and leaves unit 0 active.
+    // Binds the prefiltered cube to TextureUnit and leaves unit 0 active.
     void bind();
     // Unbinds TextureUnit, so rendering into the cube cannot sample it.
     static void unbind();
-    // Draws the faces unfolded as a cross (4 x 3 cells of cellSize pixels)
-    // with its lower-left corner at x, y of the current framebuffer.
+    // Draws the rendered faces unfolded as a cross (4 x 3 cells of cellSize
+    // pixels) with its lower-left corner at x, y of the current framebuffer.
     void drawPreview(int x, int y, int cellSize);
 
     // Deletes the GL objects; needs their context current.
@@ -77,6 +79,17 @@ private:
     unsigned int depth = 0;
     unsigned int previewArray = 0;
     QOpenGLShaderProgram *preview = nullptr;
+    // The cube convolved with the GGX lobe of each level's roughness.
+    unsigned int prefiltered = 0;
+    QOpenGLShaderProgram *prefilterProgram = nullptr;
+    // Faces drawn since the last endFaces(), prefiltered there.
+    QVector<int> pendingFaces;
+    // Whether every face has been prefiltered at least once.
+    bool prefilteredOnce = false;
+    // Prefilters the given faces at every level; the raw cube must have its
+    // mipmaps. Leaves the framebuffer unbound.
+    void prefilter(const QVector<int> &faces);
+    bool ensurePrograms();
     int size = 0;
     int nextFace = 0;
     int facesReady = 0;

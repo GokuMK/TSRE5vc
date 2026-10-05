@@ -154,6 +154,74 @@ void main() {
 }
 )";
 
+// Convolves the cube with the GGX lobe of a roughness for one face of one
+// level: importance sampling, each sample read from the source mip whose
+// texels match its footprint, averaged in linear colour.
+const char *PrefilterFragment = R"(#version 330 core
+in vec2 vUv;
+out vec4 fragColor;
+uniform samplerCube source;
+uniform int face;
+uniform float roughness;
+uniform float sourceSize;
+const int Samples = 32;
+const float Pi = 3.14159265;
+
+vec3 faceDirection(int face, vec2 uv) {
+    float s = uv.x * 2.0 - 1.0, t = uv.y * 2.0 - 1.0;
+    if (face == 0) return vec3(1.0, -t, -s);
+    if (face == 1) return vec3(-1.0, -t, s);
+    if (face == 2) return vec3(s, 1.0, t);
+    if (face == 3) return vec3(s, -1.0, -t);
+    if (face == 4) return vec3(s, -t, 1.0);
+    return vec3(-s, -t, -1.0);
+}
+
+vec2 hammersley(uint i) {
+    uint b = i;
+    b = (b << 16u) | (b >> 16u);
+    b = ((b & 0x55555555u) << 1u) | ((b & 0xAAAAAAAAu) >> 1u);
+    b = ((b & 0x33333333u) << 2u) | ((b & 0xCCCCCCCCu) >> 2u);
+    b = ((b & 0x0F0F0F0Fu) << 4u) | ((b & 0xF0F0F0F0u) >> 4u);
+    b = ((b & 0x00FF00FFu) << 8u) | ((b & 0xFF00FF00u) >> 8u);
+    return vec2(float(i) / float(Samples), float(b) * 2.3283064365386963e-10);
+}
+
+void main() {
+    vec3 n = normalize(faceDirection(face, vUv));
+    if (roughness < 1e-3) {
+        fragColor = vec4(textureLod(source, n, 0.0).rgb, 1.0);
+        return;
+    }
+    float a = roughness * roughness;
+    vec3 up = abs(n.z) < 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
+    vec3 tx = normalize(cross(up, n));
+    vec3 ty = cross(n, tx);
+    float texelSolidAngle = 4.0 * Pi / (6.0 * sourceSize * sourceSize);
+    vec3 sum = vec3(0.0);
+    float weight = 0.0;
+    for (int i = 0; i < Samples; ++i) {
+        vec2 xi = hammersley(uint(i));
+        float phi = 2.0 * Pi * xi.x;
+        float cosTheta = sqrt((1.0 - xi.y) / (1.0 + (a * a - 1.0) * xi.y));
+        float sinTheta = sqrt(1.0 - cosTheta * cosTheta);
+        vec3 h = normalize(tx * cos(phi) * sinTheta + ty * sin(phi) * sinTheta + n * cosTheta);
+        vec3 l = normalize(2.0 * dot(n, h) * h - n);
+        float nDotL = dot(n, l);
+        if (nDotL <= 0.0)
+            continue;
+        float nDotH = max(dot(n, h), 0.0);
+        float d = nDotH * nDotH * (a * a - 1.0) + 1.0;
+        float pdf = a * a / (Pi * d * d) * 0.25 + 1e-4;
+        float sampleSolidAngle = 1.0 / (float(Samples) * pdf);
+        float lod = max(0.5 * log2(sampleSolidAngle / texelSolidAngle) + 1.0, 0.0);
+        sum += pow(textureLod(source, l, lod).rgb, vec3(2.2)) * nDotL;
+        weight += nDotL;
+    }
+    fragColor = vec4(pow(sum / max(weight, 1e-4), vec3(1.0 / 2.2)), 1.0);
+}
+)";
+
 }
 
 EnvironmentMap::EnvironmentMap() = default;
@@ -195,6 +263,26 @@ bool EnvironmentMap::ensure(int faceSize) {
     f->glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, size, size);
     f->glBindRenderbuffer(GL_RENDERBUFFER, 0);
     f->glGenFramebuffers(1, &framebuffer);
+    // The prefiltered cube stops at 4 x 4 texels; its last level is roughness 1.
+    f->glGenTextures(1, &prefiltered);
+    f->glActiveTexture(GL_TEXTURE0 + TextureUnit);
+    f->glBindTexture(GL_TEXTURE_CUBE_MAP, prefiltered);
+    const int prefilteredLevels = levels();
+    for (int level = 0; level < prefilteredLevels; ++level)
+        for (int face = 0; face < FaceCount; ++face)
+            f->glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, level, GL_RGBA8,
+                            std::max(size >> level, 1), std::max(size >> level, 1), 0,
+                            GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    f->glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_BASE_LEVEL, 0);
+    f->glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAX_LEVEL, prefilteredLevels - 1);
+    f->glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    f->glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    f->glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    f->glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    f->glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+    f->glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+    f->glActiveTexture(GL_TEXTURE0);
+    pendingFaces.clear();
     nextFace = 0;
     facesReady = 0;
     std::fill(std::begin(faceUpdated), std::end(faceUpdated), false);
@@ -239,15 +327,94 @@ void EnvironmentMap::beginFace(int face, const float *clearColor) {
         faceUpdated[face] = true;
         facesReady++;
     }
+    if (face >= 0 && face < FaceCount && !pendingFaces.contains(face))
+        pendingFaces.append(face);
 }
 
 void EnvironmentMap::endFaces(unsigned int restoreFramebuffer) {
     QOpenGLExtraFunctions *f = QOpenGLContext::currentContext()->extraFunctions();
-    f->glBindFramebuffer(GL_FRAMEBUFFER, restoreFramebuffer);
+    f->glBindFramebuffer(GL_FRAMEBUFFER, 0);
     f->glActiveTexture(GL_TEXTURE0 + TextureUnit);
     f->glBindTexture(GL_TEXTURE_CUBE_MAP, cube);
     f->glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
     f->glActiveTexture(GL_TEXTURE0);
+    // Until every face exists the convolution would blur in empty faces;
+    // after that, the faces drawn this frame.
+    if (complete()) {
+        prefilter(prefilteredOnce ? pendingFaces : QVector<int>({0, 1, 2, 3, 4, 5}));
+        prefilteredOnce = true;
+    }
+    pendingFaces.clear();
+    f->glBindFramebuffer(GL_FRAMEBUFFER, restoreFramebuffer);
+}
+
+bool EnvironmentMap::ensurePrograms() {
+    if (preview != nullptr && prefilterProgram != nullptr)
+        return true;
+    QOpenGLExtraFunctions *f = QOpenGLContext::currentContext()->extraFunctions();
+    auto build = [](const char *fragment, const char *name) -> QOpenGLShaderProgram * {
+        auto *program = new QOpenGLShaderProgram();
+        if (!program->addShaderFromSourceCode(QOpenGLShader::Vertex, PreviewVertex)
+                || !program->addShaderFromSourceCode(QOpenGLShader::Fragment, fragment)
+                || !program->link()) {
+            qWarning() << "Environment map" << name << "shader failed" << program->log();
+            delete program;
+            return nullptr;
+        }
+        return program;
+    };
+    if (preview == nullptr)
+        preview = build(PreviewFragment, "preview");
+    if (prefilterProgram == nullptr)
+        prefilterProgram = build(PrefilterFragment, "prefilter");
+    if (previewArray == 0)
+        f->glGenVertexArrays(1, &previewArray);
+    return preview != nullptr && prefilterProgram != nullptr;
+}
+
+void EnvironmentMap::prefilter(const QVector<int> &faces) {
+    if (faces.isEmpty() || prefiltered == 0 || !ensurePrograms())
+        return;
+    QOpenGLExtraFunctions *f = QOpenGLContext::currentContext()->extraFunctions();
+    GLint viewport[4];
+    f->glGetIntegerv(GL_VIEWPORT, viewport);
+    const GLboolean depthTest = f->glIsEnabled(GL_DEPTH_TEST);
+    const GLboolean blend = f->glIsEnabled(GL_BLEND);
+    const GLboolean cull = f->glIsEnabled(GL_CULL_FACE);
+    f->glDisable(GL_DEPTH_TEST);
+    f->glDisable(GL_BLEND);
+    f->glDisable(GL_CULL_FACE);
+    f->glActiveTexture(GL_TEXTURE0 + TextureUnit);
+    f->glBindTexture(GL_TEXTURE_CUBE_MAP, cube);
+    f->glActiveTexture(GL_TEXTURE0);
+    f->glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+    f->glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, 0);
+    prefilterProgram->bind();
+    prefilterProgram->setUniformValue("source", TextureUnit);
+    prefilterProgram->setUniformValue("sourceSize", float(size));
+    f->glBindVertexArray(previewArray);
+    const int count = levels();
+    for (int level = 0; level < count; ++level) {
+        const int side = std::max(size >> level, 1);
+        f->glViewport(0, 0, side, side);
+        prefilterProgram->setUniformValue("roughness", count > 1 ? float(level) / (count - 1) : 0.0f);
+        for (int face : faces) {
+            f->glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                                      GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, prefiltered, level);
+            prefilterProgram->setUniformValue("face", face);
+            f->glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+        }
+    }
+    f->glBindVertexArray(0);
+    prefilterProgram->release();
+    f->glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    f->glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
+    if (depthTest)
+        f->glEnable(GL_DEPTH_TEST);
+    if (blend)
+        f->glEnable(GL_BLEND);
+    if (cull)
+        f->glEnable(GL_CULL_FACE);
 }
 
 bool EnvironmentMap::fillWarehouse(int faceSize) {
@@ -268,12 +435,14 @@ bool EnvironmentMap::fillWarehouse(int faceSize) {
     }
     f->glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
     f->glActiveTexture(GL_TEXTURE0);
+    prefilter({0, 1, 2, 3, 4, 5});
+    prefilteredOnce = true;
     return true;
 }
 
 int EnvironmentMap::levels() const {
     int count = 0;
-    for (int side = size; side > 0; side >>= 1)
+    for (int side = size; side >= 4; side >>= 1)
         ++count;
     return count;
 }
@@ -288,7 +457,7 @@ void EnvironmentMap::unbind() {
 void EnvironmentMap::bind() {
     QOpenGLExtraFunctions *f = QOpenGLContext::currentContext()->extraFunctions();
     f->glActiveTexture(GL_TEXTURE0 + TextureUnit);
-    f->glBindTexture(GL_TEXTURE_CUBE_MAP, cube);
+    f->glBindTexture(GL_TEXTURE_CUBE_MAP, prefilteredOnce ? prefiltered : cube);
     f->glActiveTexture(GL_TEXTURE0);
 }
 
@@ -296,18 +465,8 @@ void EnvironmentMap::drawPreview(int x, int y, int cellSize) {
     if (cube == 0 || cellSize < 1)
         return;
     QOpenGLExtraFunctions *f = QOpenGLContext::currentContext()->extraFunctions();
-    if (preview == nullptr) {
-        preview = new QOpenGLShaderProgram();
-        if (!preview->addShaderFromSourceCode(QOpenGLShader::Vertex, PreviewVertex)
-                || !preview->addShaderFromSourceCode(QOpenGLShader::Fragment, PreviewFragment)
-                || !preview->link()) {
-            qWarning() << "Environment map preview shader failed" << preview->log();
-            delete preview;
-            preview = nullptr;
-            return;
-        }
-        f->glGenVertexArrays(1, &previewArray);
-    }
+    if (!ensurePrograms())
+        return;
     GLint viewport[4];
     f->glGetIntegerv(GL_VIEWPORT, viewport);
     const GLboolean depthTest = f->glIsEnabled(GL_DEPTH_TEST);
@@ -317,7 +476,10 @@ void EnvironmentMap::drawPreview(int x, int y, int cellSize) {
     f->glViewport(x, y, cellSize * 4, cellSize * 3);
     preview->bind();
     preview->setUniformValue("environmentMap", TextureUnit);
-    bind();
+    // The rendered faces, not the prefiltered ones.
+    f->glActiveTexture(GL_TEXTURE0 + TextureUnit);
+    f->glBindTexture(GL_TEXTURE_CUBE_MAP, cube);
+    f->glActiveTexture(GL_TEXTURE0);
     f->glBindVertexArray(previewArray);
     f->glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     f->glBindVertexArray(0);
@@ -335,6 +497,8 @@ void EnvironmentMap::release() {
         QOpenGLExtraFunctions *f = current->extraFunctions();
         if (cube != 0)
             f->glDeleteTextures(1, &cube);
+        if (prefiltered != 0)
+            f->glDeleteTextures(1, &prefiltered);
         if (framebuffer != 0)
             f->glDeleteFramebuffers(1, &framebuffer);
         if (depth != 0)
@@ -344,7 +508,11 @@ void EnvironmentMap::release() {
     }
     delete preview;
     preview = nullptr;
-    cube = framebuffer = depth = previewArray = 0;
+    delete prefilterProgram;
+    prefilterProgram = nullptr;
+    cube = framebuffer = depth = previewArray = prefiltered = 0;
+    prefilteredOnce = false;
+    pendingFaces.clear();
     size = 0;
     facesReady = 0;
     std::fill(std::begin(faceUpdated), std::end(faceUpdated), false);
