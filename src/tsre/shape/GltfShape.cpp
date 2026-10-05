@@ -35,6 +35,7 @@
 #include <tsre/texture/Texture.h>
 
 #include <algorithm>
+#include <vector>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -303,21 +304,48 @@ struct GltfImage {
 
 struct GltfTexture {
     int source = -1;
+    int sampler = -1;
+};
+
+// Wrap modes of a texture sampler, as GL enums (10497 repeats).
+struct GltfSampler {
+    int wrapS = 10497;
+    int wrapT = 10497;
+};
+
+// A material's reference to a texture: index and texture coordinate set.
+struct GltfTextureRef {
+    int index = -1;
+    int texCoord = 0;
 };
 
 struct GltfMaterial {
     QString name;
-    int baseColorTexture = -1; // texture index
+    GltfTextureRef baseColorTexture;
     float baseColorFactor[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+    float metallicFactor = 1.0f;
+    float roughnessFactor = 1.0f;
+    GltfTextureRef metallicRoughnessTexture;
+    GltfTextureRef normalTexture;
+    float normalScale = 1.0f;
+    GltfTextureRef occlusionTexture;
+    float occlusionStrength = 1.0f;
+    GltfTextureRef emissiveTexture;
+    float emissiveFactor[3] = {0.0f, 0.0f, 0.0f};
     QString alphaMode = "OPAQUE";
     float alphaCutoff = 0.5f;
     bool doubleSided = false;
+    // KHR_materials_unlit.
+    bool unlit = false;
 };
 
 struct GltfPrimitive {
     int position = -1;
     int normal = -1;
     int texcoord0 = -1;
+    int texcoord1 = -1;
+    int tangent = -1;
+    int color0 = -1;
     int indices = -1;
     int material = -1;
     int mode = 4; // TRIANGLES
@@ -348,6 +376,7 @@ struct GltfModel {
     QVector<GltfAccessor> accessors;
     QVector<GltfImage> images;
     QVector<GltfTexture> textures;
+    QVector<GltfSampler> samplers;
     QVector<GltfMaterial> materials;
     QVector<GltfMesh> meshes;
     QVector<GltfNode> nodes;
@@ -585,6 +614,15 @@ static void parseModelFromRoot(const QJsonObject& root, GltfModel& model) {
     for (int i = 0; i < textures.size(); i++) {
         const QJsonObject o = textures[i].toObject();
         model.textures[i].source = o.value("source").toInt(-1);
+        model.textures[i].sampler = o.value("sampler").toInt(-1);
+    }
+
+    const QJsonArray samplers = root.value("samplers").toArray();
+    model.samplers.resize(samplers.size());
+    for (int i = 0; i < samplers.size(); i++) {
+        const QJsonObject o = samplers[i].toObject();
+        model.samplers[i].wrapS = o.value("wrapS").toInt(10497);
+        model.samplers[i].wrapT = o.value("wrapT").toInt(10497);
     }
 
     const QJsonArray materials = root.value("materials").toArray();
@@ -606,10 +644,31 @@ static void parseModelFromRoot(const QJsonObject& root, GltfModel& model) {
                 model.materials[i].baseColorFactor[3] = factor[3];
             }
         }
-        const QJsonObject baseColorTex = pbr.value("baseColorTexture").toObject();
-        if (baseColorTex.contains("index")) {
-            model.materials[i].baseColorTexture = baseColorTex.value("index").toInt(-1);
-        }
+        auto textureRef = [](const QJsonObject &info) {
+            GltfTextureRef ref;
+            ref.index = info.value("index").toInt(-1);
+            ref.texCoord = info.value("texCoord").toInt(0);
+            return ref;
+        };
+        GltfMaterial &material = model.materials[i];
+        material.baseColorTexture = textureRef(pbr.value("baseColorTexture").toObject());
+        material.metallicFactor = float(pbr.value("metallicFactor").toDouble(1.0));
+        material.roughnessFactor = float(pbr.value("roughnessFactor").toDouble(1.0));
+        material.metallicRoughnessTexture = textureRef(pbr.value("metallicRoughnessTexture").toObject());
+        const QJsonObject normal = o.value("normalTexture").toObject();
+        material.normalTexture = textureRef(normal);
+        material.normalScale = float(normal.value("scale").toDouble(1.0));
+        const QJsonObject occlusion = o.value("occlusionTexture").toObject();
+        material.occlusionTexture = textureRef(occlusion);
+        material.occlusionStrength = float(occlusion.value("strength").toDouble(1.0));
+        material.emissiveTexture = textureRef(o.value("emissiveTexture").toObject());
+        const QVector<float> emissive = jsonFloatArray(o.value("emissiveFactor").toArray());
+        const QJsonObject extensions = o.value("extensions").toObject();
+        const float emissiveStrength = float(extensions.value("KHR_materials_emissive_strength")
+                .toObject().value("emissiveStrength").toDouble(1.0));
+        for (int c = 0; c < 3 && c < emissive.size(); ++c)
+            material.emissiveFactor[c] = emissive[c] * emissiveStrength;
+        material.unlit = extensions.contains("KHR_materials_unlit");
     }
 
     const QJsonArray meshes = root.value("meshes").toArray();
@@ -630,6 +689,9 @@ static void parseModelFromRoot(const QJsonObject& root, GltfModel& model) {
             prim.position = attrs.value("POSITION").toInt(-1);
             prim.normal = attrs.value("NORMAL").toInt(-1);
             prim.texcoord0 = attrs.value("TEXCOORD_0").toInt(-1);
+            prim.texcoord1 = attrs.value("TEXCOORD_1").toInt(-1);
+            prim.tangent = attrs.value("TANGENT").toInt(-1);
+            prim.color0 = attrs.value("COLOR_0").toInt(-1);
 
             model.meshes[i].primitives.push_back(prim);
         }
@@ -878,17 +940,21 @@ void GltfShape::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned
             r->mesh.first = 0;
             r->mesh.count = prim->vertCount;
             r->mesh.primitive = RenderItem::PRIMITIVE_TRIANGLES;
-            r->mesh.layout = RenderItem::VNTA;
+            r->mesh.layout = RenderItem::PBR;
             r->shared = true;
             r->material.lit = 1;
             r->material.brightness = 1.0f;
             r->material.surface = prim->material.surface;
+            r->material.doubleSided = prim->material.doubleSided;
+            r->pbr = prim->material.pbr;
+            r->pbr.enabled = true;
             // Node world matrices are fixed at load, so the bounds hold.
             r->setBounds(prim->boundCenter, prim->boundRadius, r->msMatrix);
 
             r->setSelectionId(0);
             if (!prim->material.hasTexture || prim->material.texId < 0) {
-                r->disableTextures(prim->material.color[0], prim->material.color[1], prim->material.color[2], prim->material.color[3]);
+                // The PBR program applies the base colour factor itself.
+                r->disableTextures(1.0f, 1.0f, 1.0f, 1.0f);
             } else if (prim->material.texAddr >= 0 && TexLib::disabledTextures.value(prim->material.texAddr, 0) != 1) {
                 r->enableTextures((unsigned int)prim->material.texAddr);
             } else {
@@ -1383,17 +1449,44 @@ bool GltfShape::parseAndBuild() {
                     if (cutoff > 1.0f) cutoff = 1.0f;
                     mat.alphaAttr = -cutoff;
                     mat.surface = RenderItem::SURFACE_ALPHA_TEST;
+                    mat.pbr.alphaCutoff = cutoff;
                 } else if (alphaMode == "BLEND") {
                     mat.alphaAttr = -defaultAlphaTest;
                     mat.surface = RenderItem::SURFACE_BLENDED;
+                    mat.pbr.blend = true;
                 } else {
                     mat.alphaAttr = 1.0f;
                     mat.surface = RenderItem::SURFACE_OPAQUE;
                 }
 
-                if (srcMat.baseColorTexture >= 0) {
-                    mat.texId = resolveTextureIndexToTexLibId(srcMat.baseColorTexture);
+                if (srcMat.baseColorTexture.index >= 0) {
+                    mat.texId = resolveTextureIndexToTexLibId(srcMat.baseColorTexture.index);
                     mat.hasTexture = mat.texId >= 0;
+                }
+                RenderItem::Pbr &pbr = mat.pbr;
+                pbr.unlit = srcMat.unlit;
+                std::copy(srcMat.baseColorFactor, srcMat.baseColorFactor + 4, pbr.baseColor);
+                pbr.metallic = srcMat.metallicFactor;
+                pbr.roughness = srcMat.roughnessFactor;
+                std::copy(srcMat.emissiveFactor, srcMat.emissiveFactor + 3, pbr.emissive);
+                pbr.normalScale = srcMat.normalScale;
+                pbr.occlusionStrength = srcMat.occlusionStrength;
+                const GltfTextureRef *maps[RenderItem::Pbr::MAP_COUNT] = {
+                    &srcMat.baseColorTexture, &srcMat.metallicRoughnessTexture,
+                    &srcMat.normalTexture, &srcMat.occlusionTexture, &srcMat.emissiveTexture};
+                for (int map = 0; map < RenderItem::Pbr::MAP_COUNT; ++map) {
+                    pbr.texCoords[map] = maps[map]->texCoord == 1 ? 1 : 0;
+                    const int textureIndex = maps[map]->index;
+                    if (textureIndex >= 0 && textureIndex < model.textures.size()) {
+                        const int samplerIndex = model.textures[textureIndex].sampler;
+                        if (samplerIndex >= 0 && samplerIndex < model.samplers.size()) {
+                            const GltfSampler &sampler = model.samplers[samplerIndex];
+                            pbr.wrap[map][0] = sampler.wrapS == 10497 ? 0 : (unsigned short)sampler.wrapS;
+                            pbr.wrap[map][1] = sampler.wrapT == 10497 ? 0 : (unsigned short)sampler.wrapT;
+                        }
+                    }
+                    if (map != RenderItem::Pbr::MAP_BASE_COLOR && maps[map]->index >= 0)
+                        pbr.textures[map] = resolveTextureIndexToTexLibId(maps[map]->index);
                 }
             } else {
                 mat.alphaAttr = 1.0f;
@@ -1469,50 +1562,123 @@ bool GltfShape::parseAndBuild() {
                 }
             }
 
-            float* vertices = new float[outVertCount * 9];
+            AccessorView uv1View;
+            const bool hasUV1 = prim.texcoord1 >= 0 && makeAccessorView(model, prim.texcoord1, uv1View, viewErr)
+                    && uv1View.componentCount == 2;
+            AccessorView tangentView;
+            const bool hasTangents = prim.tangent >= 0 && makeAccessorView(model, prim.tangent, tangentView, viewErr)
+                    && tangentView.componentType == 5126 && tangentView.componentCount == 4;
+            AccessorView colorView;
+            const bool hasColors = prim.color0 >= 0 && makeAccessorView(model, prim.color0, colorView, viewErr)
+                    && (colorView.componentCount == 3 || colorView.componentCount == 4);
+
+            // Reads up to components values of a vertex; integer data is normalized.
+            auto readVector = [](const AccessorView &view, unsigned int index, int components, float *out) {
+                if ((int)index < 0 || (int)index >= view.count)
+                    return false;
+                const char *p = view.data + int(index) * view.stride;
+                const int size = componentByteSize(view.componentType);
+                const bool normalized = view.normalized || view.componentType != 5126;
+                for (int c = 0; c < components && c < view.componentCount; ++c)
+                    out[c] = readComponentAsFloat(p + c * size, view.componentType, normalized);
+                return true;
+            };
+            auto sourceNormal = [&](unsigned int index, float *out) {
+                out[0] = 0.0f; out[1] = 1.0f; out[2] = 0.0f;
+                if (hasNormals)
+                    readVector(normView, index, 3, out);
+                else if ((int)index >= 0 && (int)index < vertexSourceCount)
+                    std::copy(&generatedNormals[int(index) * 3], &generatedNormals[int(index) * 3] + 3, out);
+            };
+
+            // Tangents for normal maps: from the file, or accumulated per source
+            // vertex from the triangles' texture coordinate gradients.
+            QVector<float> generatedTangents;
+            if (!hasTangents && hasUV) {
+                QVector<float> tangentSum(vertexSourceCount * 3, 0.0f);
+                QVector<float> bitangentSum(vertexSourceCount * 3, 0.0f);
+                auto addTriangle = [&](unsigned int i0, unsigned int i1, unsigned int i2) {
+                    float p[3][3] = {}, t[3][2] = {};
+                    const unsigned int ids[3] = {i0, i1, i2};
+                    for (int k = 0; k < 3; ++k) {
+                        if (!readVector(posView, ids[k], 3, p[k]) || !readVector(uvView, ids[k], 2, t[k]))
+                            return;
+                    }
+                    const float e1[3] = {p[1][0] - p[0][0], p[1][1] - p[0][1], p[1][2] - p[0][2]};
+                    const float e2[3] = {p[2][0] - p[0][0], p[2][1] - p[0][1], p[2][2] - p[0][2]};
+                    const float du1 = t[1][0] - t[0][0], dv1 = t[1][1] - t[0][1];
+                    const float du2 = t[2][0] - t[0][0], dv2 = t[2][1] - t[0][1];
+                    const float det = du1 * dv2 - du2 * dv1;
+                    if (std::abs(det) < 1e-12f)
+                        return;
+                    const float r = 1.0f / det;
+                    for (int k = 0; k < 3; ++k) {
+                        for (int c = 0; c < 3; ++c) {
+                            tangentSum[int(ids[k]) * 3 + c] += (e1[c] * dv2 - e2[c] * dv1) * r;
+                            bitangentSum[int(ids[k]) * 3 + c] += (e2[c] * du1 - e1[c] * du2) * r;
+                        }
+                    }
+                };
+                if (!indices.isEmpty()) {
+                    for (int i = 0; i + 2 < indices.size(); i += 3)
+                        addTriangle(indices[i], indices[i + 1], indices[i + 2]);
+                } else {
+                    for (int i = 0; i + 2 < vertexSourceCount; i += 3)
+                        addTriangle(unsigned(i), unsigned(i + 1), unsigned(i + 2));
+                }
+                generatedTangents.fill(0.0f, vertexSourceCount * 4);
+                for (int i = 0; i < vertexSourceCount; ++i) {
+                    float n[3];
+                    sourceNormal(unsigned(i), n);
+                    float *t = &tangentSum[i * 3];
+                    const float d = n[0] * t[0] + n[1] * t[1] + n[2] * t[2];
+                    float o[3] = {t[0] - n[0] * d, t[1] - n[1] * d, t[2] - n[2] * d};
+                    float length = std::sqrt(o[0] * o[0] + o[1] * o[1] + o[2] * o[2]);
+                    if (length < 1e-8f) {
+                        // Any direction across the normal.
+                        const float axis[3] = {std::abs(n[0]) < 0.9f ? 1.0f : 0.0f,
+                                               std::abs(n[0]) < 0.9f ? 0.0f : 1.0f, 0.0f};
+                        const float e = n[0] * axis[0] + n[1] * axis[1];
+                        o[0] = axis[0] - n[0] * e; o[1] = axis[1] - n[1] * e; o[2] = -n[2] * e;
+                        length = std::sqrt(o[0] * o[0] + o[1] * o[1] + o[2] * o[2]);
+                    }
+                    const float *b = &bitangentSum[i * 3];
+                    const float cross[3] = {n[1] * o[2] - n[2] * o[1], n[2] * o[0] - n[0] * o[2],
+                                            n[0] * o[1] - n[1] * o[0]};
+                    const float handedness = cross[0] * b[0] + cross[1] * b[1] + cross[2] * b[2] < 0.0f
+                            ? -1.0f : 1.0f;
+                    for (int c = 0; c < 3; ++c)
+                        generatedTangents[i * 4 + c] = length > 0.0f ? o[c] / length : 0.0f;
+                    generatedTangents[i * 4 + 3] = handedness;
+                }
+            }
+
+            const int stride = RenderItem::PBR;
+            std::vector<float> vertices(size_t(outVertCount) * stride);
             for (int outIndex = 0; outIndex < outVertCount; outIndex++) {
                 const unsigned int srcIndex = !indices.isEmpty() ? indices[outIndex] : unsigned(outIndex);
-
-                float px = 0.0f, py = 0.0f, pz = 0.0f;
-                if ((int)srcIndex >= 0 && (int)srcIndex < posView.count) {
-                    const char* p = posView.data + int(srcIndex) * posView.stride;
-                    px = readComponentAsFloat(p + 0 * 4, 5126, false);
-                    py = readComponentAsFloat(p + 1 * 4, 5126, false);
-                    pz = readComponentAsFloat(p + 2 * 4, 5126, false);
-                }
-
-                float nx = 0.0f, ny = 1.0f, nz = 0.0f;
-                if (hasNormals && (int)srcIndex >= 0 && (int)srcIndex < normView.count) {
-                    const char* p = normView.data + int(srcIndex) * normView.stride;
-                    nx = readComponentAsFloat(p + 0 * 4, 5126, false);
-                    ny = readComponentAsFloat(p + 1 * 4, 5126, false);
-                    nz = readComponentAsFloat(p + 2 * 4, 5126, false);
-                } else if (!hasNormals && (int)srcIndex >= 0 && (int)srcIndex < vertexSourceCount) {
-                    nx = generatedNormals[int(srcIndex) * 3 + 0];
-                    ny = generatedNormals[int(srcIndex) * 3 + 1];
-                    nz = generatedNormals[int(srcIndex) * 3 + 2];
-                }
-
-                float u = 0.0f, v = 0.0f;
-                if (hasUV && (int)srcIndex >= 0 && (int)srcIndex < uvView.count) {
-                    const char* p = uvView.data + int(srcIndex) * uvView.stride;
-                    const int uvCompSize = componentByteSize(uvView.componentType);
-                    const bool uvNormalized = uvView.normalized || uvView.componentType != 5126;
-                    u = readComponentAsFloat(p + 0 * uvCompSize, uvView.componentType, uvNormalized);
-                    v = readComponentAsFloat(p + 1 * uvCompSize, uvView.componentType, uvNormalized);
-                }
+                float *vertex = &vertices[size_t(outIndex) * stride];
+                // Position, normal, texture coordinates, alpha.
+                readVector(posView, srcIndex, 3, vertex);
+                sourceNormal(srcIndex, vertex + 3);
+                if (hasUV)
+                    readVector(uvView, srcIndex, 2, vertex + 6);
                 // TSRE's texture upload path keeps Qt's scanline order (top-to-bottom).
                 // This matches glTF sample assets without any extra UV flipping here.
-
-                vertices[outIndex * 9 + 0] = px;
-                vertices[outIndex * 9 + 1] = py;
-                vertices[outIndex * 9 + 2] = pz;
-                vertices[outIndex * 9 + 3] = nx;
-                vertices[outIndex * 9 + 4] = ny;
-                vertices[outIndex * 9 + 5] = nz;
-                vertices[outIndex * 9 + 6] = u;
-                vertices[outIndex * 9 + 7] = v;
-                vertices[outIndex * 9 + 8] = mat.alphaAttr;
+                vertex[8] = mat.alphaAttr;
+                // Tangent with handedness, second texture coordinates, colour.
+                float *tangent = vertex + 9;
+                tangent[0] = 1.0f; tangent[3] = 1.0f;
+                if (hasTangents)
+                    readVector(tangentView, srcIndex, 4, tangent);
+                else if (!generatedTangents.isEmpty() && (int)srcIndex < vertexSourceCount)
+                    std::copy(&generatedTangents[int(srcIndex) * 4], &generatedTangents[int(srcIndex) * 4] + 4, tangent);
+                if (hasUV1)
+                    readVector(uv1View, srcIndex, 2, vertex + 13);
+                float *color = vertex + 15;
+                color[0] = color[1] = color[2] = color[3] = 1.0f;
+                if (hasColors)
+                    readVector(colorView, srcIndex, colorView.componentCount, color);
             }
 
             MeshPrimitiveGpu* gpuPrim = new MeshPrimitiveGpu();
@@ -1523,8 +1689,8 @@ bool GltfShape::parseAndBuild() {
                 float high[3] = {low[0], low[1], low[2]};
                 for (int i = 1; i < outVertCount; ++i)
                     for (int c = 0; c < 3; ++c) {
-                        low[c] = std::min(low[c], vertices[i * 9 + c]);
-                        high[c] = std::max(high[c], vertices[i * 9 + c]);
+                        low[c] = std::min(low[c], vertices[size_t(i) * stride + c]);
+                        high[c] = std::max(high[c], vertices[size_t(i) * stride + c]);
                     }
                 float radius = 0.0f;
                 for (int c = 0; c < 3; ++c)
@@ -1532,7 +1698,7 @@ bool GltfShape::parseAndBuild() {
                 for (int i = 0; i < outVertCount; ++i) {
                     float distance = 0.0f;
                     for (int c = 0; c < 3; ++c) {
-                        const float delta = vertices[i * 9 + c] - gpuPrim->boundCenter[c];
+                        const float delta = vertices[size_t(i) * stride + c] - gpuPrim->boundCenter[c];
                         distance += delta * delta;
                     }
                     radius = std::max(radius, distance);
@@ -1541,11 +1707,9 @@ bool GltfShape::parseAndBuild() {
             }
 
             MeshData meshData;
-            meshData.layout = RenderItem::VNTA;
-            meshData.vertices.assign(vertices, vertices + outVertCount * 9);
+            meshData.layout = RenderItem::PBR;
+            meshData.vertices = std::move(vertices);
             gpuPrim->mesh = Meshes::create(std::move(meshData));
-
-            delete[] vertices;
 
             mesh->primitives.push_back(gpuPrim);
         }

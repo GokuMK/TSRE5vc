@@ -491,6 +491,8 @@ void RouteEditorGLWidget::paintScene(){
         return;
     }
     RenderStats::ScopedFrame statsFrame(!selectionPass);
+    // View-dependent shading (PBR materials) reads the camera position.
+    std::copy(camera->getPos(), camera->getPos() + 3, gluu->cameraPosition);
     // Drop anything left from an interrupted frame and rebalance the matrix stack.
     renderer->resetFrame();
     renderer->setViewPosition(camera->getPos());
@@ -588,8 +590,12 @@ void RouteEditorGLWidget::paintScene(){
     if (selectionPass)
         glDisable(GL_BLEND);
     // Reflecting materials sample the environment map on its own unit.
-    if (!selectionPass && environmentMap != NULL && environmentMap->complete())
+    gluu->environmentMapLevels = 0;
+    if (!selectionPass && Game::environmentMapEnabled && environmentMap != NULL
+            && environmentMap->complete()) {
         environmentMap->bind();
+        gluu->environmentMapLevels = environmentMap->levels();
+    }
 
     glClearColor(gluu->skyColor[0], gluu->skyColor[1], gluu->skyColor[2], 1.0);
     if(!selectionPass)
@@ -854,6 +860,9 @@ void RouteEditorGLWidget::renderEnvironmentMap() {
         environmentMap = new EnvironmentMap();
     if (!environmentMap->ensure(Game::environmentMapSize))
         return;
+    // The faces must not sample the cube they are drawn into.
+    EnvironmentMap::unbind();
+    gluu->environmentMapLevels = 0;
     gluu->currentShader = gluu->shaders[MainRenderShaderName];
     gluu->currentShader->bind();
     Mat4::identity(gluu->mvMatrix);

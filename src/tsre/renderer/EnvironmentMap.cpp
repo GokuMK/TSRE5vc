@@ -271,6 +271,20 @@ bool EnvironmentMap::fillWarehouse(int faceSize) {
     return true;
 }
 
+int EnvironmentMap::levels() const {
+    int count = 0;
+    for (int side = size; side > 0; side >>= 1)
+        ++count;
+    return count;
+}
+
+void EnvironmentMap::unbind() {
+    QOpenGLExtraFunctions *f = QOpenGLContext::currentContext()->extraFunctions();
+    f->glActiveTexture(GL_TEXTURE0 + TextureUnit);
+    f->glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+    f->glActiveTexture(GL_TEXTURE0);
+}
+
 void EnvironmentMap::bind() {
     QOpenGLExtraFunctions *f = QOpenGLContext::currentContext()->extraFunctions();
     f->glActiveTexture(GL_TEXTURE0 + TextureUnit);

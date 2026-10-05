@@ -70,8 +70,14 @@ float insideBox(vec2 v, vec2 bottomLeft, vec2 topRight) {
 #include "TerrainMaterial.glsl"
 #endif
 #include "ShadowSampling.glsl"
+#ifdef TSRE_PBR
+#include "PbrShading.glsl"
+#endif
 
 void main() {
+#ifdef TSRE_PBR
+        fragColor = pbrShade();
+#else
 #ifdef TSRE_TERRAIN
         if(vTerrainGap > 0.0)
             discard;
@@ -115,4 +121,5 @@ void main() {
             fragColor = mix(fragColor, skyColor, fogFactor);
 #endif
         }
+#endif
 }

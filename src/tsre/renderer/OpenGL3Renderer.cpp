@@ -39,14 +39,10 @@ struct DetailStateCache {
     unsigned int texture = 0;
 };
 
-// Resolves a packet's texture handle when drawing. Returns false while the
-// texture is not uploaded, failed to load or is disabled by the user.
-bool resolveTexture(const RenderItem *item, unsigned int &address){
-    if(item->material.textureId < 0){
-        address = item->material.textureObject;
-        return true;
-    }
-    const auto found = TexLib::mtex.find(item->material.textureId);
+// Resolves a TexLib texture when drawing. Returns false while the texture is
+// not uploaded, failed to load or is disabled by the user.
+bool resolveTexLibTexture(int textureId, unsigned int &address){
+    const auto found = TexLib::mtex.find(textureId);
     if(found == TexLib::mtex.end() || found->second == NULL)
         return false;
     Texture *texture = found->second;
@@ -56,6 +52,49 @@ bool resolveTexture(const RenderItem *item, unsigned int &address){
         return false;
     address = texture->tex[0];
     return TexLib::disabledTextures.value(static_cast<int>(address), 0) != 1;
+}
+
+// Resolves a packet's texture handle when drawing.
+bool resolveTexture(const RenderItem *item, unsigned int &address){
+    if(item->material.textureId < 0){
+        address = item->material.textureObject;
+        return true;
+    }
+    return resolveTexLibTexture(item->material.textureId, address);
+}
+
+// Metallic-roughness material uniforms and maps (units 11-14) of a packet
+// drawn by the PBR program. Maps not uploaded yet are left out.
+void applyPbrState(GLUU *gluu, QOpenGLFunctions *f, const RenderItem *item){
+    Shader *s = gluu->currentShader;
+    if(!item->pbr.enabled || s->pbrBaseColor < 0)
+        return;
+    const RenderItem::Pbr &p = item->pbr;
+    s->setUniformValue(s->pbrBaseColor, p.baseColor[0], p.baseColor[1], p.baseColor[2],
+                       p.baseColor[3]);
+    s->setUniformValue(s->pbrMetallicRoughness, p.metallic, p.roughness);
+    s->setUniformValue(s->pbrEmissive, p.emissive[0], p.emissive[1], p.emissive[2]);
+    s->setUniformValue(s->pbrNormalScale, p.normalScale);
+    s->setUniformValue(s->pbrOcclusionStrength, p.occlusionStrength);
+    s->setUniformValue(s->pbrAlphaCutoff, p.alphaCutoff);
+    s->setUniformValue(s->pbrBlend, p.blend ? 1 : 0);
+    s->setUniformValue(s->pbrUnlit, p.unlit ? 1 : 0);
+    int present = 0;
+    int texCoords = 0;
+    for(int map = 0; map < RenderItem::Pbr::MAP_COUNT; ++map){
+        if(p.texCoords[map] != 0)
+            texCoords |= 1 << map;
+        unsigned int address = 0;
+        if(map == RenderItem::Pbr::MAP_BASE_COLOR || p.textures[map] < 0
+                || !resolveTexLibTexture(p.textures[map], address))
+            continue;
+        f->glActiveTexture(GL_TEXTURE10 + map);
+        f->glBindTexture(GL_TEXTURE_2D, address);
+        present |= 1 << (map - 1);
+    }
+    f->glActiveTexture(GL_TEXTURE0);
+    s->setUniformValue(s->pbrTextures, present);
+    s->setUniformValue(s->pbrTexCoords, texCoords);
 }
 
 // Grouping key; texture handles and raw addresses do not collide.
@@ -288,7 +327,8 @@ bool usesUnlitProgram(int pass){
 void useProgram(GLUU *gluu, Shader *base, const RenderItem *item, int pass,
                 ProgramCaches &caches){
     Shader *wanted = usesTerrainProgram(item) ? gluu->terrainVariant(base)
-            : usesUnlitProgram(pass) ? gluu->unlitVariant(base) : base;
+            : usesUnlitProgram(pass) ? gluu->unlitVariant(base)
+            : item->pbr.enabled ? gluu->pbrVariant(base) : base;
     if(wanted == gluu->currentShader)
         return;
     gluu->currentShader = wanted;
@@ -325,22 +365,28 @@ public:
     PacketRasterState(QOpenGLFunctions *f, const RenderItem *item)
         : f(f),
           lineWidth(item->material.lineWidth > 0 && item->material.lineWidth != Game::oglDefaultLineWidth),
-          wireframe(item->material.wireframe) {
+          wireframe(item->material.wireframe),
+          bothSides(item->material.doubleSided && f->glIsEnabled(GL_CULL_FACE)) {
         if(lineWidth)
             f->glLineWidth(item->material.lineWidth);
         if(wireframe)
             glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+        if(bothSides)
+            f->glDisable(GL_CULL_FACE);
     }
     ~PacketRasterState() {
         if(wireframe)
             glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
         if(lineWidth)
             f->glLineWidth(Game::oglDefaultLineWidth);
+        if(bothSides)
+            f->glEnable(GL_CULL_FACE);
     }
 private:
     QOpenGLFunctions *f;
     bool lineWidth;
     bool wireframe;
+    bool bothSides;
 };
 
 }
@@ -352,6 +398,11 @@ OpenGL3Renderer::~OpenGL3Renderer() {
     clearQueues();
     releaseInstanceBuffer();
     releaseMeshArrays();
+    releaseWrapSamplers();
+    QOpenGLContext *context = QOpenGLContext::currentContext();
+    if(context != NULL && context == samplerContext)
+        for(auto &entry : wrapSamplers)
+            context->extraFunctions()->glDeleteSamplers(1, &entry.second);
 }
 
 struct OpenGL3Renderer::MeshBinding {
@@ -394,7 +445,7 @@ bool OpenGL3Renderer::bindMesh(const RenderItem *item){
     if(array.vao == 0)
         e->glGenVertexArrays(1, &array.vao);
     e->glBindVertexArray(array.vao);
-    for(GLuint location = 0; location < 4; ++location)
+    for(GLuint location = 0; location < 7; ++location)
         e->glDisableVertexAttribArray(location);
     f->glBindBuffer(GL_ARRAY_BUFFER, buffers.vertexBuffer);
     Meshes::setupAttributes(f, buffers);
@@ -407,6 +458,59 @@ bool OpenGL3Renderer::bindMesh(const RenderItem *item){
 
 void OpenGL3Renderer::unbindMesh(const RenderItem *){
     QOpenGLContext::currentContext()->extraFunctions()->glBindVertexArray(0);
+}
+
+void OpenGL3Renderer::bindWrapSampler(int unit, quint32 wrap){
+    QOpenGLContext *context = QOpenGLContext::currentContext();
+    if(context != samplerContext){
+        // Sampler objects belong to their context; start over in a new one.
+        wrapSamplers.clear();
+        std::fill(std::begin(boundSamplers), std::end(boundSamplers), 0u);
+        samplerContext = context;
+    }
+    QOpenGLExtraFunctions *e = context->extraFunctions();
+    unsigned int sampler = 0;
+    if(wrap != 0){
+        auto found = wrapSamplers.find(wrap);
+        if(found == wrapSamplers.end()){
+            e->glGenSamplers(1, &sampler);
+            // Filtering as TexLib uploads it; only the wrap modes differ.
+            e->glSamplerParameteri(sampler, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+            e->glSamplerParameteri(sampler, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            e->glSamplerParameteri(sampler, GL_TEXTURE_WRAP_S, GLint(wrap >> 16));
+            e->glSamplerParameteri(sampler, GL_TEXTURE_WRAP_T, GLint(wrap & 0xffff));
+            found = wrapSamplers.emplace(wrap, sampler).first;
+        }
+        sampler = found->second;
+    }
+    if(boundSamplers[unit] != sampler){
+        e->glBindSampler(GLuint(unit), sampler);
+        boundSamplers[unit] = sampler;
+    }
+}
+
+void OpenGL3Renderer::applyWrapSamplers(const RenderItem *item){
+    static const int units[RenderItem::Pbr::MAP_COUNT] = {0, 11, 12, 13, 14};
+    for(int map = 0; map < RenderItem::Pbr::MAP_COUNT; ++map){
+        quint32 wrap = 0;
+        const unsigned short *modes = item->pbr.wrap[map];
+        if(item->pbr.enabled && (modes[0] != 0 || modes[1] != 0))
+            wrap = (quint32(modes[0] != 0 ? modes[0] : GL_REPEAT) << 16)
+                    | (modes[1] != 0 ? modes[1] : GL_REPEAT);
+        if(wrap != 0 || boundSamplers[units[map]] != 0)
+            bindWrapSampler(units[map], wrap);
+    }
+}
+
+void OpenGL3Renderer::releaseWrapSamplers(){
+    QOpenGLContext *context = QOpenGLContext::currentContext();
+    if(context == NULL || context != samplerContext)
+        return;
+    for(int unit = 0; unit < 16; ++unit)
+        if(boundSamplers[unit] != 0){
+            context->extraFunctions()->glBindSampler(GLuint(unit), 0);
+            boundSamplers[unit] = 0;
+        }
 }
 
 void OpenGL3Renderer::collectMeshes(){
@@ -542,7 +646,8 @@ bool OpenGL3Renderer::castsShadow(const RenderItem *packet) const{
         return false;
     if(packet->material.surface == RenderItem::SURFACE_TERRAIN || packet->material.decal)
         return false;
-    if(packet->mesh.layout != RenderItem::VNT && packet->mesh.layout != RenderItem::VNTA)
+    if(packet->mesh.layout != RenderItem::VNT && packet->mesh.layout != RenderItem::VNTA
+            && packet->mesh.layout != RenderItem::PBR)
         return false;
     return packet->mesh.primitive == RenderItem::PRIMITIVE_TRIANGLES;
 }
@@ -722,6 +827,8 @@ void OpenGL3Renderer::drawOrdered(GLUU *gluu, Shader *base,
             continue;
         useProgram(gluu, base, item, pass, caches);
         applyItemState(gluu, f, item, instance.selectionId, caches.detail);
+        applyPbrState(gluu, f, item);
+        applyWrapSamplers(item);
         applyTerrainState(gluu, item, caches.terrain);
         applyProceduralTerrainState(gluu,f,item,caches.procedural);
         setModelMatrix(gluu, item->msMatrix);
@@ -802,6 +909,8 @@ void OpenGL3Renderer::drawGrouped(GLUU *gluu, Shader *base,
 
         useProgram(gluu, base, item, pass, caches);
         applyItemState(gluu, f, item, instances[i].selectionId, caches.detail);
+        applyPbrState(gluu, f, item);
+        applyWrapSamplers(item);
         currentSelection = instances[i].selectionId;
         applyTerrainState(gluu, item, caches.terrain);
         applyProceduralTerrainState(gluu,f,item,caches.procedural);
@@ -903,6 +1012,7 @@ void OpenGL3Renderer::drawPasses(RenderPass first, RenderPass last, bool consume
         if(consume)
             consumePass(queue);
     }
+    releaseWrapSamplers();
     if(!drew)
         return;
 

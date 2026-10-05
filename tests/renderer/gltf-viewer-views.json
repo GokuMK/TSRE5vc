@@ -5,20 +5,26 @@
   "width": 800,
   "height": 500,
   "diffTolerance": 16,
-  "settle": {
-    "minFrames": 10,
-    "stableFrames": 3,
-    "maxFrames": 200,
-    "maxSeconds": 120
-  },
+  "settle": {"minFrames": 10, "stableFrames": 3, "maxFrames": 200, "maxSeconds": 120},
   "items": [
-    { "name": "box-textured", "type": "shape", "path": "BoxTextured/glTF/BoxTextured.gltf" },
-    { "name": "duck", "type": "shape", "path": "Duck/glTF-Binary/Duck.glb" },
-    { "name": "avocado", "type": "shape", "path": "Avocado/glTF-Binary/Avocado.glb" },
-    { "name": "damaged-helmet", "type": "shape", "path": "DamagedHelmet/glTF-Binary/DamagedHelmet.glb" },
-    { "name": "metal-rough-spheres", "type": "shape", "path": "MetalRoughSpheres/glTF-Binary/MetalRoughSpheres.glb" },
-    { "name": "alpha-blend-modes", "type": "shape", "path": "AlphaBlendModeTest/glTF-Binary/AlphaBlendModeTest.glb" },
-    { "name": "lantern", "type": "shape", "path": "Lantern/glTF-Binary/Lantern.glb" },
-    { "name": "antique-camera", "type": "shape", "path": "AntiqueCamera/glTF/AntiqueCamera.gltf" }
+    {"name": "box-textured", "type": "shape", "path": "BoxTextured/glTF/BoxTextured.gltf", "yaw": 90},
+    {"name": "duck", "type": "shape", "path": "Duck/glTF-Binary/Duck.glb", "yaw": 90},
+    {"name": "avocado", "type": "shape", "path": "Avocado/glTF-Binary/Avocado.glb", "yaw": 90},
+    {"name": "damaged-helmet", "type": "shape", "path": "DamagedHelmet/glTF-Binary/DamagedHelmet.glb", "yaw": 90},
+    {"name": "metal-rough-spheres", "type": "shape", "path": "MetalRoughSpheres/glTF-Binary/MetalRoughSpheres.glb", "yaw": 90},
+    {"name": "alpha-blend-modes", "type": "shape", "path": "AlphaBlendModeTest/glTF-Binary/AlphaBlendModeTest.glb", "yaw": 90},
+    {"name": "lantern", "type": "shape", "path": "Lantern/glTF-Binary/Lantern.glb", "yaw": 90},
+    {"name": "antique-camera", "type": "shape", "path": "AntiqueCamera/glTF/AntiqueCamera.gltf", "yaw": 90},
+    {"name": "normal-tangent-mirror", "type": "shape", "path": "NormalTangentMirrorTest/glTF-Binary/NormalTangentMirrorTest.glb", "yaw": 90},
+    {"name": "texture-coordinates", "type": "shape", "path": "TextureCoordinateTest/glTF-Binary/TextureCoordinateTest.glb", "yaw": 90},
+    {"name": "vertex-colors", "type": "shape", "path": "VertexColorTest/glTF-Binary/VertexColorTest.glb", "yaw": 90},
+    {"name": "emissive-strength", "type": "shape", "path": "EmissiveStrengthTest/glTF-Binary/EmissiveStrengthTest.glb", "yaw": 90},
+    {"name": "texture-settings", "type": "shape", "path": "TextureSettingsTest/glTF-Binary/TextureSettingsTest.glb", "yaw": 90},
+    {"name": "metal-rough-no-textures", "type": "shape", "path": "MetalRoughSpheresNoTextures/glTF-Binary/MetalRoughSpheresNoTextures.glb", "yaw": 90},
+    {"name": "water-bottle", "type": "shape", "path": "WaterBottle/glTF-Binary/WaterBottle.glb", "yaw": 90},
+    {"name": "boom-box", "type": "shape", "path": "BoomBox/glTF-Binary/BoomBox.glb", "yaw": 90},
+    {"name": "unlit", "type": "shape", "path": "UnlitTest/glTF-Binary/UnlitTest.glb", "yaw": 90},
+    {"name": "orientation", "type": "shape", "path": "OrientationTest/glTF-Binary/OrientationTest.glb", "yaw": 90},
+    {"name": "multi-uv", "type": "shape", "path": "MultiUVTest/glTF-Binary/MultiUVTest.glb", "yaw": 90}
   ]
 }
