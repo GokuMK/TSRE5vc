@@ -63,7 +63,7 @@ simplification.
 | Emission | Colours the surface only | Light from emitters: many-light or deferred renderer |
 | `KHR_lights_punctual` | Not supported | Many lights per pixel: clustered forward or deferred renderer |
 | High dynamic range | Clipped, no bloom | HDR target and tone mapping / bloom pass |
-| `BLEND` | Sorted per packet (back to front by origin) | Order-independent transparency |
+| `BLEND` | Sorted per packet (back to front by origin), without depth writes, so a shell drawn first (glass over lights) does not hide what lies behind it | Order-independent transparency |
 | Transmission, volume (`KHR_materials_transmission`, `_volume`) | Not supported | GL 3.3 approximations: refraction into the environment cube with volume absorption (surroundings only), or a copy of the frame after the opaque passes sampled at refracted positions (objects behind, on screen only) |
 | Sheen, specular, IOR, iridescence, anisotropy | Not supported | Extra lobes in the forward shader (possible in GL 3.3) |
 | Sampler filters | TexLib filtering (trilinear); wrap modes honoured | Min/mag filters per sampler (possible in GL 3.3) |
