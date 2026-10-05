@@ -1,0 +1,24 @@
+{
+  "notes": "Khronos glTF-Sample-Assets models in the Shape Viewer; set TSRE_GLTF_SAMPLE_ASSETS to a clone of KhronosGroup/glTF-Sample-Assets.",
+  "itemRoot": "$TSRE_GLTF_SAMPLE_ASSETS/Models",
+  "output": "build/gltf-viewer-parity",
+  "width": 800,
+  "height": 500,
+  "diffTolerance": 16,
+  "settle": {
+    "minFrames": 10,
+    "stableFrames": 3,
+    "maxFrames": 200,
+    "maxSeconds": 120
+  },
+  "items": [
+    { "name": "box-textured", "type": "shape", "path": "BoxTextured/glTF/BoxTextured.gltf" },
+    { "name": "duck", "type": "shape", "path": "Duck/glTF-Binary/Duck.glb" },
+    { "name": "avocado", "type": "shape", "path": "Avocado/glTF-Binary/Avocado.glb" },
+    { "name": "damaged-helmet", "type": "shape", "path": "DamagedHelmet/glTF-Binary/DamagedHelmet.glb" },
+    { "name": "metal-rough-spheres", "type": "shape", "path": "MetalRoughSpheres/glTF-Binary/MetalRoughSpheres.glb" },
+    { "name": "alpha-blend-modes", "type": "shape", "path": "AlphaBlendModeTest/glTF-Binary/AlphaBlendModeTest.glb" },
+    { "name": "lantern", "type": "shape", "path": "Lantern/glTF-Binary/Lantern.glb" },
+    { "name": "antique-camera", "type": "shape", "path": "AntiqueCamera/glTF/AntiqueCamera.gltf" }
+  ]
+}

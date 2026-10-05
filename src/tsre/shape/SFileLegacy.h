@@ -23,6 +23,7 @@
 #include <deque>
 #include <vector>
 #include <QVector>
+#include <tsre/renderer/MeshHandle.h>
 #include <tsre/shape/ComplexShape.h>
 
 class RenderQueue;
@@ -74,8 +75,8 @@ public:
         int iloscc = 0;
         SObjHeader header;
         czes* czesci = nullptr;
-        QOpenGLBuffer VBO;
-        QOpenGLVertexArrayObject VAO;
+        // Renderer-owned VNTA vertices of all parts, uploaded by initGL().
+        MeshHandle mesh;
     };
 
     struct dist {
@@ -280,6 +281,7 @@ private:
     unsigned char gatherSurface(int primState) const;
     void setGatherTexture(RenderItem *item, int primState, bool texEnabled);
     void clearData();
+    void releaseMeshes();
 public:
     // Section readers; public so the token tests can drive them directly.
     static void odczytajshadersc(FileBuffer* bufor, SFileLegacy* pliks);

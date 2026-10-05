@@ -70,7 +70,8 @@ GuiGlCompass::GuiGlCompass() {
     punkty[ptr++] = alpha;
     
     this->setMaterial(&texString);
-    OglObj::init(punkty, ptr, RenderItem::VT, GL_TRIANGLES);
+    vertices.assign(punkty, punkty + ptr);
+    OglObj::init(vertices.data(), static_cast<int>(vertices.size()), RenderItem::VT, GL_TRIANGLES);
     
     delete[] punkty;
 }
@@ -80,7 +81,11 @@ GuiGlCompass::~GuiGlCompass() {
 
 // The heading scrolls the texture coordinates of the strip.
 void GuiGlCompass::setHeading(float a){
-    float *data = mapBuffer();
+    if(headingSet && a == angle)
+        return;
+    headingSet = true;
+    angle = a;
+    float *data = vertices.data();
     a = -a / (M_PI*2);
     data[3] = a-0.2;
     data[3+6] = a-0.2;
@@ -88,7 +93,7 @@ void GuiGlCompass::setHeading(float a){
     data[3+18] = a+0.2;
     data[3+24] = a-0.2;
     data[3+30] = a+0.2;
-    unmapBuffer();
+    OglObj::init(vertices.data(), static_cast<int>(vertices.size()), RenderItem::VT, GL_TRIANGLES);
 }
 
 void GuiGlCompass::pushRenderItem(RenderQueue &queue, float a){

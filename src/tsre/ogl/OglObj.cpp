@@ -13,6 +13,7 @@
 #include <tsre/texture/TexLib.h>
 #include <tsre/Game.h>
 #include <tsre/math3d/GLMatrix.h>
+#include <tsre/renderer/Mesh.h>
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/renderer/Renderer.h>
 #include <tsre/math3d/Vector4f.h>
@@ -31,6 +32,7 @@ OglObj::OglObj(const OglObj& orig) {
 
 OglObj::~OglObj() {
     retirePackets();
+    Meshes::release(mesh);
 }
 
 void OglObj::setMaterial(float r, float g, float b) {
@@ -62,68 +64,17 @@ void OglObj::resetTexture() {
 }
 
 void OglObj::deleteVBO(){
-    if(loaded){
-        VBO.destroy();
-        VAO.destroy();
-    }
+    Meshes::release(mesh);
     loaded = false;
 }
 
-float* OglObj::mapBuffer(){
-    QOpenGLVertexArrayObject::Binder vaoBinder(&VAO);
-    VBO.bind();
-    return (float*)VBO.map(QOpenGLBuffer::ReadWrite);
-    VBO.release();
-}
-
-void OglObj::unmapBuffer(){
-    QOpenGLVertexArrayObject::Binder vaoBinder(&VAO);
-    VBO.bind();
-    VBO.unmap();
-    VBO.release();
-}
-
 void OglObj::init(float* punkty, int ptr, enum RenderItem::VertexAttr v, int type) {
-    //if(loaded){
-    //    VBO.destroy();
-    //    VAO.destroy();
-    //}
-    QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
     shapeType = type;
     vAttribures = v;
-    if(!loaded){
-        if(!VAO.isCreated()){
-            VAO.create();
-            VBO.create();
-        }
-    }
-    QOpenGLVertexArrayObject::Binder vaoBinder(&VAO);
-    //VBO.setUsagePattern(QOpenGLBuffer::DynamicDraw);
-    VBO.bind();
-    VBO.allocate(punkty, ptr * sizeof (GLfloat));
-    
-    if (v == RenderItem::V) {
-        f->glEnableVertexAttribArray(0);
-        f->glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof (GLfloat), 0);
-    } else if (v == RenderItem::VT) {
-        f->glEnableVertexAttribArray(0);
-        f->glEnableVertexAttribArray(1);
-        f->glEnableVertexAttribArray(3);
-        f->glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof (GLfloat), 0);
-        f->glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 6 * sizeof (GLfloat), reinterpret_cast<void *> (3 * sizeof (GLfloat)));
-        f->glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, 6 * sizeof (GLfloat), reinterpret_cast<void *> (5 * sizeof (GLfloat)));
-    } else if (v == RenderItem::VNTA) {
-        f->glEnableVertexAttribArray(0);
-        f->glEnableVertexAttribArray(1);
-        f->glEnableVertexAttribArray(2);
-        f->glEnableVertexAttribArray(3);
-        f->glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 9 * sizeof (GLfloat), 0);
-        f->glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 9 * sizeof (GLfloat), reinterpret_cast<void *> (3 * sizeof (GLfloat)));
-        f->glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 9 * sizeof (GLfloat), reinterpret_cast<void *> (6 * sizeof (GLfloat)));
-        f->glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, 9 * sizeof (GLfloat), reinterpret_cast<void *> (8 * sizeof (GLfloat)));
-    }
-    
-    VBO.release();
+    MeshData data;
+    data.layout = v;
+    data.vertices.assign(punkty, punkty + ptr);
+    Meshes::update(mesh, std::move(data));
     length = ptr / v;
     loaded = true;
     boundRadius = -1.0f;
@@ -244,8 +195,7 @@ RenderItem *OglObj::framePacket(bool textured, unsigned int texAddr,
                                 materialColor[2], materialColor[3]);
     std::copy(materialColor, materialColor + 4, packet->material.color);
     packet->material.lineWidth = lineWidth;
-    packet->mesh.vbo = &VBO;
-    packet->mesh.vao = &VAO;
+    packet->mesh.handle = mesh;
     packet->msMatrix = NULL;
     packet->mesh.primitive = RenderItem::primitiveFromGl(shapeType);
     packet->mesh.first = 0;

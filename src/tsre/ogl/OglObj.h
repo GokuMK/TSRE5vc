@@ -13,6 +13,7 @@
 
 #include <QString>
 #include <tsre/ogl/GLUU.h>
+#include <tsre/renderer/MeshHandle.h>
 #include <tsre/renderer/RenderItem.h>
 
 class RenderQueue;
@@ -40,11 +41,9 @@ public:
     void setLineWidth(int val);
     bool getSimpleBorder(float* border);
     void setBound(float *b);
-    float* mapBuffer();
-    void unmapBuffer();
 private:
-    QOpenGLBuffer VBO;
-    QOpenGLVertexArrayObject VAO;
+    // Renderer-owned vertices; init() needs no GL context.
+    MeshHandle mesh;
     int length; 
     int shapeType;
     // Sphere around the vertices given to init().
