@@ -153,17 +153,14 @@ vec4 pbrShade() {
     float occlusion = 1.0;
     if ((pbrTextures & 4) != 0)
         occlusion = 1.0 + pbrOcclusionStrength * (texture(pbrOcclusionMap, pbrUv(3)).r - 1.0);
-    float blurLevel = max(environmentMapLevels - 1.0, 0.0);
-    vec3 irradiance = environmentRadiance(n, blurLevel);
+    vec3 irradiance = environmentRadiance(n, 1.0);
     float ambientScale = luminance(toLinear(ambientColor.rgb))
             / max(luminance(toLinear(skyColor.rgb)), 0.05);
-    vec3 reflected = environmentRadiance(reflect(-v, n),
-                                         roughness * max(environmentMapLevels - 1.0, 0.0));
+    vec3 reflected = environmentRadiance(reflect(-v, n), roughness);
     vec3 environment = diffuseAlbedo * irradiance * ambientScale
             + reflected * environmentBrdf(f0, f90, roughness, nDotV);
     if (coat > 0.0) {
-        vec3 coatReflected = environmentRadiance(reflect(-v, coatNormal),
-                coatRoughness * max(environmentMapLevels - 1.0, 0.0));
+        vec3 coatReflected = environmentRadiance(reflect(-v, coatNormal), coatRoughness);
         environment = environment * (1.0 - coatFresnel)
                 + coat * coatReflected * environmentBrdf(vec3(0.04), coatRoughness, coatNDotV);
     }

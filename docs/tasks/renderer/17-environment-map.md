@@ -44,8 +44,12 @@ What the gathered queue contains in every direction:
 ### Shape Viewer
 
 A fixed procedural warehouse interior (`EnvironmentMap::fillWarehouse`):
-grey brick walls with high windows, a concrete floor, and a dark ceiling with
-rows of lamps. It is filled once at 256 px per face.
+grey brick walls with high windows, a dark painted band along their lower
+part and an open loading door in each wall with daylight outside, a concrete
+floor, and a dark ceiling with rows of lamps. It is filled once at 256 px
+per face. The band and doors give surfaces that look sideways (car bodies)
+something to reflect at their own height; plain brick blurred by a satin
+finish reflected as flat grey.
 
 ## Settings
 

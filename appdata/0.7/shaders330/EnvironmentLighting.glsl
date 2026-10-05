@@ -19,14 +19,16 @@ float luminance(vec3 c) {
     return dot(c, vec3(0.2126, 0.7152, 0.0722));
 }
 
-// The surroundings along a direction, blurred by mipmap level, in linear
-// colour. Without a map: the sky above and dark ground below.
-vec3 environmentRadiance(vec3 direction, float level) {
+// The surroundings along a direction, blurred for a GGX roughness, in linear
+// colour: the prefiltered level for that roughness. Without a map, the sky
+// above dark ground, with a horizon as sharp as the roughness allows, so
+// smooth surfaces show the horizon line and rough ones a soft gradient.
+vec3 environmentRadiance(vec3 direction, float roughness) {
     if (environmentMapLevels > 0.0)
         return toLinear(textureLod(environmentMap, direction,
-                                   clamp(level, 0.0, environmentMapLevels - 1.0)).rgb);
-    float up = clamp(direction.y * 0.5 + 0.5, 0.0, 1.0);
-    return mix(vec3(0.05), toLinear(skyColor.rgb), up);
+                                   roughness * (environmentMapLevels - 1.0)).rgb);
+    float width = mix(0.03, 1.0, roughness * roughness);
+    return mix(vec3(0.05), toLinear(skyColor.rgb), smoothstep(-width, width, direction.y));
 }
 
 // Split-sum environment BRDF as an analytic fit (Karis, mobile), in place

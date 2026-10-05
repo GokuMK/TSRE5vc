@@ -51,7 +51,9 @@ simplification.
   the Shape Viewer's warehouse is prefiltered once. Diffuse light uses the
   roughest level, scaled so open sky gives the legacy ambient light; the
   split-sum BRDF is an analytic fit instead of a lookup texture. Without a
-  cube (Route Editor cube off), a sky-to-ground gradient stands in.
+  cube (Route Editor cube off), the sky over dark ground stands in, with a
+  horizon as sharp as the roughness allows: smooth surfaces show the horizon
+  line, rough ones a soft gradient.
 - Clearcoat: a dielectric GGX layer (F0 0.04) over the base, which receives
   the light the layer transmits.
 - Specular and IOR: the dielectric F0 is ((ior - 1) / (ior + 1))^2 times

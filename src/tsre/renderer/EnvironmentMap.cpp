@@ -107,6 +107,27 @@ std::vector<unsigned char> warehouseFace(int face, int size) {
                         b = mullion ? 0.25f : 0.92f;
                     }
                 }
+                // A dark painted band along the lower wall and an open loading
+                // door with daylight outside: surfaces looking sideways, such
+                // as car bodies, reflect something at their own height.
+                if (v > 0.62f && v <= 0.88f)
+                    r = g = b = 0.22f + 0.015f * noise(x / 2, y / 2, 41);
+                const float doorCenter = face == 0 ? 0.5f : face == 1 ? 0.36f
+                        : face == 4 ? 0.62f : 0.45f;
+                const float doorU = std::abs(u - doorCenter);
+                if (doorU < 0.16f && v > 0.34f && v <= 0.88f) {
+                    if (doorU > 0.145f || v < 0.355f) {
+                        r = g = b = 0.12f;
+                    } else if (v < 0.52f) {
+                        // Sky, paler towards the horizon.
+                        const float t = (v - 0.355f) / (0.52f - 0.355f);
+                        r = 0.78f + 0.16f * t; g = 0.86f + 0.10f * t; b = 0.98f;
+                    } else {
+                        // Yard outside: asphalt and a lighter far edge.
+                        const float t = (v - 0.52f) / (0.88f - 0.52f);
+                        r = g = b = 0.62f - 0.22f * t;
+                    }
+                }
                 if (v > 0.88f)
                     r = g = b = std::min(r, std::min(g, b)) * 0.8f;
             }
