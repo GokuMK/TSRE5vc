@@ -7,7 +7,7 @@ the findings without access to that workspace.
 
 | Report | Scope |
 | --- | --- |
-| [TDB fields and MSRE saving](msts-tdb-fields-and-msre-save-review.md) | Hexadecimal vector byte, editor metadata, native node numbering, quadratic item validation, unresolved save crash and TrEndLinkFile lifecycle |
+| [TDB fields and MSRE saving](msts-tdb-fields-and-msre-save-review.md) | Hexadecimal vector byte, editor metadata, native node numbering, quadratic item validation, unresolved save crash and TrEndLinkFile lifecycle/live fake-filename test |
 | [Terrain T-file fields](tsre-msts-terrain-tfile-field-usage.md) | Token/field layout, MSTS consumers, dated TSRE audit, shader pairing and multiple-set/water follow-ups |
 | [Terrain profile compatibility](msts-orts-terrain-profile-compatibility.md) | Samples/patches, stock and patched MSTS, pinned ORTS master/unstable geometry and water limitations |
 | [Multiple patch sets and water](msts-orts-multiple-patchsets-and-water.md) | MSTS last-set versus ORTS first-set selection, water predicate/history and proposed tests |

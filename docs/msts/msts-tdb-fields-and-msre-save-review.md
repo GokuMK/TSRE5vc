@@ -27,8 +27,10 @@ and MSTS Bin 1.8, prompted by TSRE's
   that last-node-to-hole compaction is intrinsically incompatible with MSTS,
   nor prove that every editor subsystem tolerates every graph permutation.
 
-Only Linux-side static inspection and a read-only local file census were run.
-No Windows access, Wine execution, application patch or route edit was performed.
+The initial review used Linux-side static inspection and a read-only census.
+A user-authorized Wine follow-up on the same date tested fake `TrEndLinkFile`
+children on a disposable route copy; see the live-test subsection below.
+No Windows host access or source-route modification was performed.
 The original analysis and evidence remain in the MSTS workspace. At the user's
 request, this report is also mirrored into TSRE's `docs/msts`; no TSRE code or
 Task 15 content was changed.
@@ -216,7 +218,7 @@ TrEndNode (
 )
 ```
 
-This is a schema illustration, not a tested route recipe. The second child
+This is a schema illustration, not a recipe for working external links. The second child
 value is an opaque 32-bit hexadecimal value; it has **not** been proved to be
 a target node ID, pointer, flags word or world UiD. A decimal-looking `00000010`
 means `0x10`. This is a different I/O primitive from the one-byte vector `00`.
@@ -258,8 +260,8 @@ child. A missing or unreachable resolver is a plausible explanation for why
 normal routes never exposed this feature, but global non-use is not proved.
 
 None of the six local census files contains `TrEndLinkFile`. This is not a
-whole-stock-route census. No synthetic file was loaded in MSRE, so preservation
-is established statically from the reader/writer, not a live round-trip test.
+whole-stock-route census. The synthetic follow-up below confirms preservation
+in a live MSRE load/save, but does not demonstrate a working external link.
 
 For TSRE, preserve it as an optional `{filename, opaqueHexValue}` if lossless
 end-node support is implemented; do not start resolving files or synthesizing
@@ -273,6 +275,75 @@ Evidence: `analysis/pe/ghidra-tdb-link-lifecycle.txt`,
 `analysis/pe/ghidra-tdb-load-thunk-callers.txt`, and the audited disassembly.
 `scripts/ghidra/ScanTdbLinkCandidates.java` is a reproducible candidate search,
 not an exhaustive pointer-alias analysis.
+
+### Live fake-filename test, 2026-10-05
+
+Ran MSRE in the existing isolated Wine/Xvfb/llvmpipe lab, using a disposable
+copy of `PROCEDURAL` (three nodes, six vector sections). The original route
+remained unchanged; its TDB hash was checked after testing. Windows host
+files, processes and registry were not accessed.
+
+Injected this child into the first end node, separately with scalar values
+`0` and `3`:
+
+```text
+TrEndNode (
+    0
+    TrEndLinkFile ( "__MSTS_ENDLINK_MISSING_20261005__.tdb" a1b2c3d4 )
+)
+```
+
+| Case | Scene loads/renders | Special-end list members | Native save | Fake filename lookup in file trace |
+| --- | --- | --- | --- | --- |
+| Unchanged baseline, end value `0` | Yes | 0 | Succeeds | None |
+| Fake child, end value `0` | Yes | 0 | Filename and hex value preserved | None |
+| Fake child, end value `3` | Yes | 1 | Filename and hex value preserved | None |
+
+The filename and `a1b2c3d4` were also verified in runtime node memory. The
+writer omitted unnecessary filename quotes, but retained the content. After
+removing the probe child and restoring end value `0`, whitespace-normalized
+saved TDB content exactly matches the baseline saved TDB.
+
+To trigger serialization without a geometry edit that might rebuild the end
+node, the lab helper set **only the database-dirty DWORD at `0x007C2188` to
+`1`**. Save then used the normal Ctrl+S command and the native “Save world
+placement changes?” confirmation. Each output advanced `Serial` from `0` to
+`1`, and the dirty flag returned to zero. This tests the native writer, not
+ordinary track-edit operations on the special end.
+
+All three application traces used
+`WINEDEBUG=-all,err+all,+timestamp,+pid,+file`; none mentioned the fake filename
+during load, save or exit. As a positive control, requesting that same missing
+file with Wine `cmd /c type` produced an `NtCreateFile` trace and status
+`c0000034`. Thus an actual attempted lookup was observable with this setup.
+**In this tested editor path the field behaves as retained metadata, not a
+request to open an external database.** Driving, connecting/editing that end,
+other field values and any untraced resolver remain outside the test scope.
+
+**Shutdown caveat:** after successful saving, all three runs crashed after
+confirming application exit, including the unchanged baseline. The baseline
+fault read `FFFFFFFF` at `048FD288`; the two injected cases faulted writing
+`0000000B` at `048FD253`. These are not identical faults, and this test does not
+establish their cause. A clean exit cannot be claimed, but a shutdown crash
+alone is not evidence against the child because the baseline also crashes.
+This is separate from the historical large-route save crash discussed below.
+
+Test executable: Bin 1.8-derived `train-wine-r64-v5.exe`, SHA-256
+`97b4ceda684b447a69878dcdc13e37af8783e2e35103ab6ed48cba8f4a1cfaf0`.
+It includes earlier terrain/window/direct-route patches, rather than being an
+unmodified Bin executable. Fixture preparation verified that end-node
+read/write/destruction (`0x005CBE65…0x005CC055`), node loading
+(`0x005CDA79…0x005CDE52`) and TDB saving (`0x005CE032…0x005CEE7C`)
+ranges match the clean Bin 1.8 executable byte-for-byte. No executable patch
+was written for this test.
+
+Reproduction helpers: `scripts/prepare_msts_endlink_probe.py` creates the
+disposable fixtures (refuses existing output); `scripts/msts_endlink_probe.c`
+inspects runtime state, sets the dirty flag on request and confirms saving;
+`scripts/verify_msts_endlink_probe.py` checks the captured results. Private
+evidence is under `proprietary/wine-lab/tdb-link-probe/` (`manifest.json`,
+`results.json`, input/saved TDBs and runtime snapshots), with
+`logs/endlink-*.log` and `captures/endlink-*.png` under the same lab root.
 
 ## Does MSRE require nearby node IDs or paged TDB storage?
 
@@ -408,8 +479,9 @@ perform those graph checks. During a reproducing save, capture the faulting
 instruction and stack: determine whether it fails in metadata, pin traversal,
 item processing, serialization or world-object handling.
 
-An isolated Linux Wine copy is a possible later test environment; no live test
-is claimed here. Windows host access still requires explicit approval.
+No live node-permutation/save-crash reproduction is claimed here. The isolated
+Wine test above exercises only the optional end-link child. Windows host access
+still requires explicit approval.
 
 ## Local census and remaining field questions
 
