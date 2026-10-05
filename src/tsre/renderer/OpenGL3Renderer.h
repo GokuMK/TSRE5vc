@@ -26,6 +26,7 @@ public:
     OpenGL3Renderer();
     virtual ~OpenGL3Renderer();
     void renderPasses(RenderPass first, RenderPass last) override;
+    void renderPassesRetained(RenderPass first, RenderPass last) override;
     void renderShadowCasters(float range, int statsSlot,
                              const float *viewProjection = nullptr) override;
     void renderFrame() override;
@@ -89,6 +90,7 @@ private:
                      int pass);
     void drawGrouped(GLUU *gluu, Shader *base, const std::vector<DrawInstance> &instances,
                      int pass);
+    void drawPasses(RenderPass first, RenderPass last, bool consume);
     void consumePass(PassQueue &queue);
     void clearQueues();
     // Uploads instanceUpload to the instance buffer texture on unit 8.

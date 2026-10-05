@@ -45,6 +45,7 @@ class RulerObj;
 class TelepoleObj;
 class SelectionRenderer;
 class OpenGL3Renderer;
+class EnvironmentMap;
 class RenderQueue;
 
 QT_FORWARD_DECLARE_CLASS(QOpenGLShaderProgram)
@@ -168,6 +169,8 @@ protected:
     void initializeGL() Q_DECL_OVERRIDE;
     void paintGL() Q_DECL_OVERRIDE;
     void renderShadowMaps();
+    // Renders the scheduled environment map faces from the camera position.
+    void renderEnvironmentMap();
     void computeShadowMatrices();
     void handleSelection();
     void applySelection(quint32 selectionId, int cameraTileX, int cameraTileZ);
@@ -356,6 +359,7 @@ private:
     
     // Owned; draws this widget's frames.
     OpenGL3Renderer *renderer = NULL;
+    EnvironmentMap *environmentMap = NULL;
     GuiGlCompass * compass = NULL;
     OglObj * compassPointer = NULL;
     

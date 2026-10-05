@@ -17,6 +17,7 @@
 #include <QClipboard>
 #include <QMenu>
 #include <QFileInfo>
+#include <tsre/renderer/EnvironmentMap.h>
 #include <QtMath>
 #include <math.h>
 #include <tsre/ogl/GLUU.h>
@@ -57,6 +58,8 @@ void ShapeViewerGLWidget::cleanup() {
     selectionRenderer.release();
     delete renderer;
     renderer = nullptr;
+    delete environmentMap;
+    environmentMap = nullptr;
     if(context() != nullptr)
         disconnect(context(), nullptr, this, nullptr);
     doneCurrent();
@@ -235,8 +238,18 @@ void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
     
     gluu->currentShader->bind();
     gluu->setMatrixUniforms();
+    if(!selectionPass){
+        if(environmentMap == nullptr)
+            environmentMap = new EnvironmentMap();
+        // A fixed warehouse interior: filled once, at the largest face size.
+        if(environmentMap->complete() || environmentMap->fillWarehouse(256))
+            environmentMap->bind();
+    }
     if(renderer != nullptr)
         renderGathered(selectionId);
+    if(!selectionPass && Game::environmentMapPreview && environmentMap != nullptr
+            && environmentMap->complete())
+        environmentMap->drawPreview(8, 8, qRound(48 * devicePixelRatioF()));
     if(renderItem == 4 && complexShape != NULL){
         if(cameraInit && complexShape->isLoaded()){
             cameraInit = false;

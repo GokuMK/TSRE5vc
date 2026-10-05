@@ -42,6 +42,7 @@
 
 QString Terrain::TileDir[2] = {"TILES", "LO_TILES"};
 Brush* Terrain::DefaultBrush = NULL;
+bool Terrain::gatherAllDirections = false;
 
 static int validTerrainShader(const TFile *file, int patch) {
     const auto index=file->patches()[patch].shaderIndex;
@@ -984,6 +985,17 @@ bool Terrain::isPatchVisible(int patchId,
             return false;
     }
     return true;
+}
+
+void Terrain::setPatchCullBounds(RenderItem &item, int patchId) const {
+    if (patchId < 0 || patchId >= patchBounds.size()
+            || (patchId < patchBoundsDirty.size() && patchBoundsDirty[patchId])
+            || !patchBounds[patchId].valid)
+        return;
+    const PatchBounds &bounds = patchBounds[patchId];
+    // Terrain-local, as in isPatchVisible: Z is stored negated.
+    const float center[3] = {bounds.centerX, bounds.averageY, -bounds.centerZ};
+    item.setBounds(center, bounds.sphereRadius);
 }
 
 TerrainMeshBackend *Terrain::ensureMeshBackend() {
@@ -2239,6 +2251,15 @@ void Terrain::pushRenderItem(RenderQueue &queue, float lodx, float lodz, int til
     refreshPatchBounds(true);
     const PatchVisibility patchVisibility = buildPatchVisibility(
                 queue.transform(), playerW);
+    // Surface patches: within range in every direction when other views need
+    // them. Level of detail and procedural textures follow the main view.
+    PatchVisibility surfaceVisibility = patchVisibility;
+    if (gatherAllDirections && selectionId == 0) {
+        for (FrustumPlane &plane : surfaceVisibility.planes) {
+            plane.x = plane.y = plane.z = 0.0f;
+            plane.w = 1.0f;
+        }
+    }
     const QVector<TerrainPatchLodState> patchLod = backend->isPaged()
             ? buildPatchLodState(patchVisibility)
             : QVector<TerrainPatchLodState>();
@@ -2264,7 +2285,7 @@ void Terrain::pushRenderItem(RenderQueue &queue, float lodx, float lodz, int til
                 const int patchId = yy * patches + uu;
                 if (hidden[patchId]) continue;
                 if ((tfile->patches()[patchId].flags & 1) != 0) continue;
-                if (!isPatchVisible(patchId, patchVisibility)) continue;
+                if (!isPatchVisible(patchId, surfaceVisibility)) continue;
                 /*float lodxx = lodx + uu * 128 - 1024;
                 float lodzz = lodz + yy * 128 - 1024;
                 lod = sqrt(lodxx * lodxx + lodzz * lodzz);
@@ -2299,6 +2320,7 @@ void Terrain::pushRenderItem(RenderQueue &queue, float lodx, float lodz, int til
                     backend->configureRenderItem(*r,patchId,false,true,
                                                  lodState.sourceStep,lodState.edgeMask);
                     r->msMatrix=nullptr;
+                    setPatchCullBounds(*r,patchId);
                     r->setVertexAttributes(r->VNT);
                     queue.submit(r,0,RenderQueue::SUBMIT_ORDERED);
                     continue;
@@ -2375,6 +2397,7 @@ void Terrain::pushRenderItem(RenderQueue &queue, float lodx, float lodz, int til
                                              lodState.sourceStep,
                                              lodState.edgeMask);
                 r->msMatrix = nullptr;
+                setPatchCullBounds(*r, patchId);
                 r->setVertexAttributes(r->VNT);
                 queue.submit(r, 0, RenderQueue::SUBMIT_ORDERED);
             }

@@ -148,6 +148,12 @@ public:
     static int shadowMapSize;
     static int shadowLowMapSize;
     static int shadowsEnabled;
+    // Environment cube map for reflections (see EnvironmentMap).
+    static bool environmentMapEnabled;
+    static int environmentMapSize;
+    static int environmentMapFacesPerFrame;
+    static float environmentMapObjectDistance;
+    static bool environmentMapPreview;
     static float sunLightDirection[];
     static int textureQuality;
     static float snapableRadius;

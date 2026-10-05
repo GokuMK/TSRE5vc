@@ -7339,6 +7339,16 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
             <source>Framebuffer and sampling options.</source>
             <translation>Opcje bufora ramki i próbkowania.</translation>
         </message>
+        <message id="settings.group.rendering.subgroup.reflections.name">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="183" />
+            <source>Reflections</source>
+            <translation>Odbicia</translation>
+        </message>
+        <message id="settings.group.rendering.subgroup.reflections.description">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="185" />
+            <source>Environment cube map rendered around the camera for reflections.</source>
+            <translation>Mapa sześcienna otoczenia renderowana wokół kamery na potrzeby odbić.</translation>
+        </message>
         <message id="settings.group.rendering.subgroup.environment.name">
             <location filename="../src/settings/SettingsRegistration.cpp" line="180" />
             <source>Environment</source>
@@ -8223,6 +8233,91 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
             <location filename="../src/settings/SettingsRegistration.cpp" line="713" />
             <source>16384 px</source>
             <translation>16384 px</translation>
+        </message>
+        <message id="settings.core.rendering.environment.map.enabled.name">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="763" />
+            <source>Render environment map</source>
+            <translation>Renderuj mapę otoczenia</translation>
+        </message>
+        <message id="settings.core.rendering.environment.map.enabled.description">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="765" />
+            <source>Render a low-resolution cube map of the surroundings from the Route Editor camera, for reflections. The Shape Viewer always uses a fixed warehouse interior.</source>
+            <translation>Renderuje mapę sześcienną otoczenia w niskiej rozdzielczości z pozycji kamery edytora tras, na potrzeby odbić. Przeglądarka kształtów zawsze używa stałego wnętrza magazynu.</translation>
+        </message>
+        <message id="settings.core.rendering.environment.map.face.size.name">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="770" />
+            <source>Environment map face size</source>
+            <translation>Rozmiar ściany mapy otoczenia</translation>
+        </message>
+        <message id="settings.core.rendering.environment.map.face.size.description">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="772" />
+            <source>Width and height of each of the six cube faces.</source>
+            <translation>Szerokość i wysokość każdej z sześciu ścian sześcianu.</translation>
+        </message>
+        <message id="settings.core.rendering.environment.map.face.size.option.64">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="775" />
+            <source>64 px</source>
+            <translation>64 px</translation>
+        </message>
+        <message id="settings.core.rendering.environment.map.face.size.option.128">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="777" />
+            <source>128 px</source>
+            <translation>128 px</translation>
+        </message>
+        <message id="settings.core.rendering.environment.map.face.size.option.256">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="779" />
+            <source>256 px</source>
+            <translation>256 px</translation>
+        </message>
+        <message id="settings.core.rendering.environment.map.faces.per.frame.name">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="784" />
+            <source>Environment map faces per frame</source>
+            <translation>Ściany mapy otoczenia na klatkę</translation>
+        </message>
+        <message id="settings.core.rendering.environment.map.faces.per.frame.description">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="786" />
+            <source>Cube faces rendered each frame, in turn; six refreshes the whole cube every frame.</source>
+            <translation>Liczba ścian sześcianu renderowanych w każdej klatce, po kolei; sześć odświeża cały sześcian w każdej klatce.</translation>
+        </message>
+        <message id="settings.core.rendering.environment.map.faces.per.frame.option.1">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="789" />
+            <source>1</source>
+            <translation>1</translation>
+        </message>
+        <message id="settings.core.rendering.environment.map.faces.per.frame.option.2">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="791" />
+            <source>2</source>
+            <translation>2</translation>
+        </message>
+        <message id="settings.core.rendering.environment.map.faces.per.frame.option.3">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="793" />
+            <source>3</source>
+            <translation>3</translation>
+        </message>
+        <message id="settings.core.rendering.environment.map.faces.per.frame.option.6">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="795" />
+            <source>6</source>
+            <translation>6</translation>
+        </message>
+        <message id="settings.core.rendering.environment.map.object.distance.name">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="800" />
+            <source>Environment map object distance</source>
+            <translation>Zasięg obiektów w mapie otoczenia</translation>
+        </message>
+        <message id="settings.core.rendering.environment.map.object.distance.description">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="802" />
+            <source>Objects farther than this from the camera, and objects too small to cover a cube texel, are left out of the cube. Terrain and sky are always drawn.</source>
+            <translation>Obiekty dalej od kamery niż ta odległość oraz obiekty zbyt małe, by pokryć teksel sześcianu, są pomijane. Teren i niebo są rysowane zawsze.</translation>
+        </message>
+        <message id="settings.core.rendering.environment.map.preview.name">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="807" />
+            <source>Show environment map</source>
+            <translation>Pokaż mapę otoczenia</translation>
+        </message>
+        <message id="settings.core.rendering.environment.map.preview.description">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="809" />
+            <source>Diagnostic: draw the cube faces unfolded in the lower-left corner of the Route Editor and Shape Viewer.</source>
+            <translation>Diagnostyka: rysuje rozłożone ściany sześcianu w lewym dolnym rogu edytora tras i przeglądarki kształtów.</translation>
         </message>
         <message id="settings.core.rendering.default.line.width.name">
             <location filename="../src/settings/SettingsRegistration.cpp" line="718" />

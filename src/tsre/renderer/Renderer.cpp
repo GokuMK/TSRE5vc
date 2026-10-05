@@ -46,6 +46,11 @@ void Renderer::setCullView(const float *viewProjection){
     cullFrustum = frustumOf(viewProjection);
 }
 
+void Renderer::setViewLimits(const ViewLimits *limits){
+    viewLimitsEnabled = limits != nullptr;
+    viewLimits = limits != nullptr ? *limits : ViewLimits();
+}
+
 Renderer::Frustum Renderer::frustumOf(const float *m){
     Frustum frustum;
     if(m == nullptr)
@@ -84,6 +89,7 @@ bool Renderer::intersects(const Frustum &frustum, const float *center, float rad
 void Renderer::resetFrame(){
     currentFrame++;
     cullFrustum = Frustum();
+    viewLimitsEnabled = false;
     resetQueueState();
     deleteFrameMatrices();
     releaseRetiredPackets();

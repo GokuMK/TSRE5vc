@@ -243,6 +243,7 @@ const char *phaseName(Phase phase) {
     case PhaseDistant: return "distant";
     case PhaseScene: return "scene";
     case PhaseUi: return "ui";
+    case PhaseEnvironment: return "environment";
     default: return "unknown";
     }
 }
