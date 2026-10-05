@@ -176,7 +176,7 @@ bool Game::AARemoveBorder = false;
 float Game::PixelRatio = 1.0;
 
 float Game::fogDensity = 0.7;
-float Game::shadow1Res = 2000.0;
+float Game::shadow1Res = 2500.0;
 float Game::shadow1Bias = 0.0025;
 float Game::shadow2Res = 4000.0;
 float Game::shadow2Bias = 0.002;

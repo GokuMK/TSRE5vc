@@ -713,11 +713,11 @@ void RouteEditorGLWidget::drawEditorFpsHud(){
 namespace {
 // Half-widths and half depth ranges in metres of the near, middle and far
 // shadow maps.
-constexpr float ShadowHalfExtent[3] = {100.0f, 300.0f, 700.0f};
+constexpr float ShadowHalfExtent[3] = {80.0f, 300.0f, 700.0f};
 constexpr float ShadowHalfDepth[3] = {200.0f, 600.0f, 700.0f};
 // The shadow resolution and bias settings were tuned for one 150 m map
 // with a 200 m half depth range.
-constexpr float TunedShadowHalfExtent = 150.0f;
+constexpr float TunedShadowHalfExtent = 80.0f;
 constexpr float TunedShadowHalfDepth = 200.0f;
 // Direction towards the shadow-casting sun.
 constexpr float ShadowLightDirection[3] = {-1.0f, 1.5f, 1.0f};
