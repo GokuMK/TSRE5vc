@@ -27,6 +27,7 @@
 #include <QHash>
 #include <algorithm>
 
+#include <tsre/renderer/RenderQueue.h>
 TerrainLib::TerrainLib() {
     
 }
@@ -373,16 +374,16 @@ void TerrainLib::fillRaw(Terrain *cTerr, int mojex, int mojez) {
 
 }
 
-void TerrainLib::pushRenderItems(float* playerT, float* playerW, float* target, float fov, int renderMode){
+void TerrainLib::pushRenderItems(RenderQueue &queue, float* playerT, float* playerW, float* target, float fov, int renderMode){
     
 }
 
-void TerrainLib::pushRenderItemsLo(float* playerT, float* playerW, float* target, float fov, int renderMode){
+void TerrainLib::pushRenderItemsLo(RenderQueue &queue, float* playerT, float* playerW, float* target, float fov, int renderMode){
 }
 
-void TerrainLib::pushRenderItemsWater(float* playerT, float* playerW, float* target, float fov, int renderMode, int layer){
+void TerrainLib::pushRenderItemsWater(RenderQueue &queue, float* playerT, float* playerW, float* target, float fov, int renderMode, int layer){
 }
 
-void TerrainLib::pushRenderItemsWaterLo(float* playerT, float* playerW, float* target, float fov, int renderMode, int layer){
+void TerrainLib::pushRenderItemsWaterLo(RenderQueue &queue, float* playerT, float* playerW, float* target, float fov, int renderMode, int layer){
 }
 

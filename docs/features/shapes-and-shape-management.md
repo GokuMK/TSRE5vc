@@ -1,6 +1,6 @@
 # TSRE Shapes and Shape Management (Current State)
 
-For on-disk `.s`/`.sd` structure, blocks, fields and unresolved semantics, see the [MSTS shape file format reference](msts-shape-file-format.md). The implementation history below predates SFileLegacy becoming the default; current backend selection is documented in [Task 04](../tasks/shapes/04-sfile-complex-implementation.md).
+For on-disk `.s`/`.sd` structure, blocks, fields and unresolved semantics, see the [MSTS shape file format reference](msts-shape-file-format.md). Backend selection and the SFileComplex history are documented in [Task 04](../tasks/shapes/04-sfile-complex-implementation.md).
 
 ## Scope
 - Project: TSRE5vc
@@ -8,19 +8,20 @@ For on-disk `.s`/`.sd` structure, blocks, fields and unresolved semantics, see t
 - Non-goal: implement new formats (see `docs/tasks/shapes/`).
 
 ## Terminology (used in this doc)
-- **Complex shape (asset/model):** file-backed, multi-part, can have per-instance state (today: `ComplexShape` interface implemented by `SFile` for MSTS `.s` + optional `.sd`, and `GltfShape` for `.gltf`/`.glb`).
+- **Complex shape (asset/model):** file-backed, multi-part, can have per-instance state (today: `ComplexShape` interface implemented by `SFileLegacy` and `SFileComplex` for MSTS `.s` + optional `.sd`, and `GltfShape` for `.gltf`/`.glb`).
 - **Simple shape (render primitive):** a single VAO/VBO draw call with a very small material model (today: `OglObj`), typically procedural/editor helpers.
 
 ## Evidence Base (Code Anchors)
-- Shape cache and lifetime: `src/tsre/shape/ShapeLib.h:12`, `src/tsre/shape/ShapeLib.cpp:54`
-- Complex shape abstraction: `src/tsre/shape/ComplexShape.h:17`
-- MSTS shape implementation: `src/tsre/shape/SFile.h:29`, `src/tsre/shape/SFile.cpp:52`
-- glTF/GLB shape implementation: `src/tsre/shape/GltfShape.h:27`, `src/tsre/shape/GltfShape.cpp:1191`
-- MSTS `.sd` metadata handling: `src/tsre/shape/SFile.cpp:504`
-- Per-instance state for shared shapes: `src/tsre/shape/SFile.cpp:843`
-- Gather queue submission for shapes: `src/tsre/shape/SFile.cpp:970`
-- World object -> shape submission path: `src/tsre/world/objects/WorldObj.cpp:590`
-- Typical world object load path: `src/tsre/world/objects/StaticObj.cpp:81`, `src/tsre/world/objects/TrackObj.cpp:85`
+- Shape cache and lifetime: `src/tsre/shape/ShapeLib.h:19`, `src/tsre/shape/ShapeLib.cpp:70`
+- Complex shape abstraction: `src/tsre/shape/ComplexShape.h:32`
+- Default MSTS shape implementation: `src/tsre/shape/SFileLegacy.h:36`, `src/tsre/shape/SFileLegacy.cpp:62`
+- Opt-in MSTS shape implementation: `src/tsre/shape/SFileComplex.h:11`, `src/tsre/shape/SFileComplex.cpp:195`
+- glTF/GLB shape implementation: `src/tsre/shape/GltfShape.h:29`, `src/tsre/shape/GltfShape.cpp:795`
+- MSTS `.sd` metadata handling: `src/tsre/shape/SFileLegacy.cpp:468`
+- Per-instance state for shared shapes: `src/tsre/shape/SFileLegacy.cpp:845`
+- Gather queue submission for shapes: `src/tsre/shape/SFileLegacy.cpp:987`
+- World object -> shape submission path: `src/tsre/world/objects/WorldObj.cpp:603`
+- Typical world object load path: `src/tsre/world/objects/StaticObj.cpp:82`, `src/tsre/world/objects/TrackObj.cpp:110`
 - Simple render primitive contract: `src/tsre/ogl/OglObj.h:18`, `src/tsre/ogl/OglObj.cpp:135`
 - Procedural shapes using OBJ templates: `src/tsre/procedural/ProceduralShape.h:39`, `src/tsre/shape/ObjFile.cpp:19`
 - Shape viewer depends on `ShapeLib` and renders via `ComplexShape`: `src/shapeViewer/ShapeViewerGLWidget.cpp:229`
@@ -28,33 +29,36 @@ For on-disk `.s`/`.sd` structure, blocks, fields and unresolved semantics, see t
 
 ---
 
-## 1. Complex Shapes: `ComplexShape` + `SFile` (MSTS `.s`)
+## 1. Complex Shapes: `ComplexShape` + `SFileLegacy` (MSTS `.s`)
 
 TSRE uses the format-agnostic `ComplexShape` contract for world objects and tools. Implementations currently include:
-- `SFile` (MSTS `.s` + optional `.sd`)
+- `SFileLegacy` (MSTS `.s` + optional `.sd`; the default)
+- `SFileComplex` (MSTS `.s` + optional `.sd`; opt-in Complete/Compact backend, see [Task 04](../tasks/shapes/04-sfile-complex-implementation.md))
 - `GltfShape` (glTF 2.0 `.gltf` and GLB `.glb`)
 
-### 1.1 What `SFile` Represents
-`SFile` is both:
+The original `SFile` class with its `SFileC`/`SFileX` readers has been removed; `SFileLegacy` replaced it with the same parsing and rendering behavior and separate CPU loading and GL initialization.
+
+### 1.1 What `SFileLegacy` Represents
+`SFileLegacy` is both:
 1) a **loader/parser** for MSTS shape data (`.s`), and
 2) a **renderable asset** that owns GPU resources (VAO/VBO per subobject) and can submit draw packets.
 
-Key capabilities embedded in `SFile`:
+Key capabilities embedded in `SFileLegacy`:
 - **Multiple distance levels (LOD):** `distancelevel[]` plus `state[stateId].distanceLevel`.
 - **Subobjects and parts:** each distance level has `subobiekty[]` with `czesci[]` parts, each part has `offset`, `iloscv`, `prim_state_idx`.
 - **Matrix/node hierarchy and toggles:** matrix list `macierz[]` and per-instance `enabledSubObjs` mask (see `enableSubObjByName` queue usage).
 - **Animations:** parsed into `animations[]` and advanced by `updateSim(deltaTime, stateId)`.
 - **Bounds/size:** `bound[6]` and `size` via `getSize()`.
 
-### 1.2 File Variants Parsed by `SFile`
-`SFile::load()` supports multiple MSTS encodings:
-- **Binary** (token stream) path: detected by reading an int at offset 32, then delegated to `SFileC::*` parsing.
-- **Text/XML-like** path: delegated to `SFileX::*` parsing for the same conceptual sections.
+### 1.2 File Variants Parsed by `SFileLegacy`
+`SFileLegacy::loadData()` supports both MSTS encodings:
+- **Binary** (token stream) path: detected by `FileBuffer::isBinarySimis()`, then parsed by the `odczytaj*c` section readers.
+- **Text** path: parsed by the matching `odczytaj*` section readers for the same conceptual sections.
 
-This matters because "format support" in TSRE is currently intertwined with `SFile` internals.
+`load()` parses on the calling thread and initializes GL immediately when a context is current; otherwise `initGL()` runs later on the GL thread. The section readers are static members of `SFileLegacy`, so "format support" is still intertwined with its internals; `SFileComplex` separates it into `SFileDocument`.
 
 ### 1.3 `.sd` Metadata (`loadSd`)
-`SFile::loadSd()` reads `pathid + "d"` (MSTS `.sd`) and populates:
+`SFileLegacy::loadSd()` reads `pathid + "d"` (MSTS `.sd`) and populates:
 - `esdDetailLevel` (used by some objects as default detail level),
 - `esdAlternativeTexture` and seasonal `texPath` adjustments,
 - `esdBoundingBox` (complex bounding boxes),
@@ -63,7 +67,7 @@ This matters because "format support" in TSRE is currently intertwined with `SFi
 This is also where per-season texture path rewriting happens today.
 
 ### 1.4 Shared Asset + Per-Instance State (`newState`)
-`SFile` objects are **shared** via `ShapeLib`, but each world object instance can have different runtime state.
+MSTS shape objects are **shared** via `ShapeLib`, but each world object instance can have different runtime state.
 
 This is handled by an internal vector of `State` entries keyed by `stateId`:
 - `newState()` allocates a state slot and returns an id.
@@ -71,14 +75,28 @@ This is handled by an internal vector of `State` entries keyed by `stateId`:
 
 This is a critical design point to preserve when adding new model formats: shared GPU asset + per-instance state.
 
-### 1.5 Rendering Paths
-`SFile` supports both:
-- **legacy immediate draw** (`render(selectionColor, stateId)`), and
-- **gather-then-render submission** (`pushRenderItem(selectionColor, stateId)`).
+### 1.5 Rendering
+Shapes draw only through the gather renderer:
+`pushRenderItem(queue, selectionId, stateId)` submits persistent `RenderItem`
+packets to the `RenderQueue` (see `src/tsre/renderer/RenderQueue.h`).
 
-The gather path builds `RenderItem` packets, and caches them per `stateId` when not animated:
-- caching is invalidated when texture addresses change or when `invalidateRenderState()` is called.
-- animated shapes avoid caching shared packets to prevent dangling matrix pointers.
+- **Static states share packets.** A non-animated state submits the packet set
+  of every state that draws the same parts. `SFileLegacy` keys the sets by
+  distance level and enabled sub-objects; `SFileComplex` by LOD, enabled and
+  disabled sub-objects and disabled parts, and also shares the static pose
+  matrices of each LOD. Repeated objects of one shape therefore submit the
+  same packets, which the renderer draws as one instanced draw call.
+- **Shared packets carry bounds.** Each part's bounding sphere, computed when
+  the part is uploaded and moved by its static matrix, lets the renderer cull
+  it against the camera and each shadow map.
+- **Animated states keep their own packets** with per-frame matrices; they are
+  neither shared nor culled.
+- `GltfShape` packets do not depend on the instance state (glTF animation is
+  not drawn yet), so every state submits one shared set; each primitive's
+  bounds are computed when it is uploaded. glTF materials are drawn
+  single-sided: `doubleSided` is not applied yet.
+- Caches are rebuilt when `invalidateRenderState()` is called or the shape is
+  reloaded; `SFileComplex` also drops them when its GL data is released.
 
 ---
 
@@ -89,12 +107,11 @@ The gather path builds `RenderItem` packets, and caches them per `stateId` when 
 - id allocation: monotonic `jestshape` counter
 - de-duplication: `addShape(path, texPath)` normalizes `pathid` and linearly scans existing shapes to match `ComplexShape::getPathId()` (`src/tsre/shape/ShapeLib.cpp:64`)
   - note: `texPath` does **not** participate in de-duplication today; if the same `pathid` is requested with different texture roots, the first cached shape wins. If we ever need per-instance texture roots, consider keying by `(pathid, texRoot)` or moving `texRoot` into instance state.
-- format dispatch: `addShape(...)` currently rejects `.gltf/.glb` (planned under `docs/tasks/shapes/02-gltf-glb-shape-loader.md`); other extensions default to the MSTS `SFile` loader (with a warning for unknown extensions).
+- format dispatch: `addShape(...)` loads `.gltf/.glb` with `GltfShape`; other extensions use the configured MSTS backend, `SFileLegacy` by default or `SFileComplex` when `TSRE_MSTS_SHAPE_BACKEND` is `complex` or `complex-compact` (with a warning for unknown extensions).
 
 Notable characteristics:
 - **The cache is keyed by pathid string**, but stored by int id.
 - `ShapeLib::delRef/addRef` are currently stubs (shape lifetime is effectively "process lifetime" today).
-- `invalidateRendererCaches()` is a bulk hook to tell all shapes to rebuild cached packets/matrices.
 
 ---
 
@@ -109,13 +126,13 @@ Each placed world object typically stores:
 See `src/tsre/world/objects/WorldObj.h:82`.
 
 ### 3.2 Common Render Submission Path
-The base implementation `WorldObj::pushRenderItems(...)` targets the `ComplexShape` contract:
+The base implementation `WorldObj::pushRenderItems(queue, ...)` targets the `ComplexShape` contract:
 1) resolve `shapePointer` or lookup `Game::currentShapeLib->shape[shape]`
 2) compute size/LOD cull
-3) multiply instance transform into `Game::currentRenderer->mvMatrix`
-4) call `shapeToRender->pushRenderItem(selectionColor, shapeState)`
+3) multiply instance transform into `queue.transform()`
+4) call `shapeToRender->pushRenderItem(queue, selectionId, shapeState)`
 
-See `src/tsre/world/objects/WorldObj.cpp:590`.
+See `src/tsre/world/objects/WorldObj.cpp:603`.
 
 ### 3.3 Typical Load Flow (example: `StaticObj`)
 `StaticObj::load` shows the most common binding pattern:
@@ -124,7 +141,7 @@ See `src/tsre/world/objects/WorldObj.cpp:590`.
 - `shapeState = shapePointer->newState()`
 - `shapePointer->setAnimated(shapeState, isAnimated())`
 
-See `src/tsre/world/objects/StaticObj.cpp:81`.
+See `src/tsre/world/objects/StaticObj.cpp:82`.
 
 This exact pattern is what a new model format must fit into if we want "use glTF in route files" without changing route object semantics.
 
@@ -142,9 +159,9 @@ Procedural track shapes and helpers are often built from OBJ templates:
 - `ObjFile` parses a very small subset of Wavefront `.obj` (v/vt/vn + triangle faces), producing interleaved VNTA-like arrays (`src/tsre/shape/ObjFile.cpp:19`)
 - `ProceduralShape` loads/caches these templates and emits `QVector<OglObj*>` batches (`src/tsre/procedural/ProceduralShape.h:39`)
 
-This is conceptually a *different abstraction layer* than `SFile`:
+This is conceptually a *different abstraction layer* than `ComplexShape`:
 - `OglObj` is "a draw primitive"
-- `SFile` is "a shared model asset with per-instance state"
+- `ComplexShape` is "a shared model asset with per-instance state"
 
 ---
 

@@ -9,7 +9,7 @@
  */
 
 #include <tsre/world/objects/StaticObj.h>
-#include <tsre/shape/SFile.h>
+#include <tsre/shape/ComplexShape.h>
 #include <tsre/shape/ShapeLib.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <math.h>
@@ -146,7 +146,7 @@ bool StaticObj::castsShadows(){
     return !Game::mstsShadows || getShadowType() == WorldObj::ShadowDynamic;
 }
 
-void StaticObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId){
+void StaticObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId){
     if (!loaded) return;
     if (shape < 0) return;
     if (jestPQ < 2) return;
@@ -180,16 +180,16 @@ void StaticObj::pushRenderItems(float lod, float posx, float posz, float* player
 
     if(Game::viewSnapable)
         if(snapablePoints.size() == 6)
-            pushRenderSnapableEndpoints();
+            pushRenderSnapableEndpoints(queue);
     
-    Mat4::multiply(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, matrix);
+    Mat4::multiply(queue.transform(), queue.transform(), matrix);
     
     if(Game::showWorldObjPivotPoints){
         if(pointer3d == NULL){
             pointer3d = new TrackItemObj(1);
             pointer3d->setMaterial(0.9,0.9,0.7);
         }
-        pointer3d->pushRenderItem(selectionId);
+        pointer3d->pushRenderItem(queue, selectionId);
     }
     
     /*if(selectionId != 0){
@@ -199,11 +199,11 @@ void StaticObj::pushRenderItems(float lod, float posx, float posz, float* player
     }*/
     
     if(shapePointer != NULL){
-        shapePointer->pushRenderItem(selectionId, shapeState);
+        shapePointer->pushRenderItem(queue, selectionId, shapeState);
     }
 
     if(selected){
-        pushRenderBox();
+        pushRenderBox(queue);
     }
 }
 
@@ -270,17 +270,17 @@ void StaticObj::initSnapableEndPoint() {
 }
 
 // Submits the snapable endpoint markers in tile space.
-void StaticObj::pushRenderSnapableEndpoints() {
+void StaticObj::pushRenderSnapableEndpoints(RenderQueue &queue) {
     initSnapableEndPoint();
-    float *mv = Game::currentRenderer->mvMatrix;
+    float *mv = queue.transform();
     float vec[3];
     for(int i = 0; i < 6; i+=3){
         Vec3::transformQuat(vec, (float*)&snapablePoints[i], qDirection);
         Vec3::add(vec, vec, position);
-        Game::currentRenderer->mvPushMatrix();
+        queue.pushTransform();
         Mat4::translate(mv, mv, vec);
-        snapableEndPoint->pushRenderItem();
-        Game::currentRenderer->mvPopMatrix();
+        snapableEndPoint->pushRenderItem(queue);
+        queue.popTransform();
     }
 }
 

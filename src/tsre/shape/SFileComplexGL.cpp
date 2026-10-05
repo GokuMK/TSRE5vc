@@ -1,5 +1,7 @@
 #include "SFileComplexData.h"
 #include <QOpenGLFunctions>
+#include <algorithm>
+#include <cmath>
 #include <limits>
 #include <shapeViewer/ShapeTextureInfo.h>
 #include <tsre/Game.h>
@@ -11,6 +13,7 @@
 void SFileComplex::releaseGL() {
     for (auto &s : d->states)
         s.packets.clear();
+    clearSharedPackets();
     for (auto &l : d->lods)
         for (auto &m : l.meshes)
             m.gpu.reset();
@@ -87,6 +90,30 @@ bool SFileComplex::initGL() {
                                                   : -GLUU::get()->alphaTest;
                     packed.insert(packed.end(), {p.x(), p.y(), p.z(), n.x(), n.y(), n.z(), uv.x(),
                                                  uv.y(), alpha});
+                }
+                // Bounds sphere of the part's positions, for view culling.
+                const size_t first = size_t(part.offset) * 9, last = packed.size();
+                part.boundRadius = -1.0f;
+                if (last > first) {
+                    float low[3] = {packed[first], packed[first + 1], packed[first + 2]};
+                    float high[3] = {low[0], low[1], low[2]};
+                    for (size_t v = first; v < last; v += 9)
+                        for (int c = 0; c < 3; ++c) {
+                            low[c] = std::min(low[c], packed[v + c]);
+                            high[c] = std::max(high[c], packed[v + c]);
+                        }
+                    float radius = 0.0f;
+                    for (int c = 0; c < 3; ++c)
+                        part.boundCenter[c] = 0.5f * (low[c] + high[c]);
+                    for (size_t v = first; v < last; v += 9) {
+                        float distance = 0.0f;
+                        for (int c = 0; c < 3; ++c) {
+                            const float delta = packed[v + c] - part.boundCenter[c];
+                            distance += delta * delta;
+                        }
+                        radius = std::max(radius, distance);
+                    }
+                    part.boundRadius = std::sqrt(radius);
                 }
             }
             auto gpu = std::make_unique<Data::Gpu>();
@@ -173,36 +200,55 @@ bool SFileComplex::prepare(unsigned int id) {
     syncTextures();
     return true;
 }
-void SFileComplex::pushRenderItem() { pushRenderItem(0, 0); }
-void SFileComplex::pushRenderItem(quint32 selection, unsigned int id) {
-    if (!Game::currentRenderer || !prepare(id))
+void SFileComplex::pushRenderItem(RenderQueue &queue) { pushRenderItem(queue, 0, 0); }
+void SFileComplex::pushRenderItem(RenderQueue &queue, quint32 selection, unsigned int id) {
+    if (!prepare(id))
         return;
     auto &s = d->states[id];
     auto &lod = d->lods[s.lod];
+    // Animated states own their packets; static ones share theirs by key.
+    const bool animated = s.animated && !d->animations.empty();
+    Data::SharedPackets *shared = nullptr;
+    if (!animated) {
+        shared = &d->sharedPackets[packetKey(id)];
+        if (shared->frame == Renderer::frameNumber()) {
+            for (RenderItem *item : shared->active)
+                queue.submit(item, selection);
+            return;
+        }
+        shared->frame = Renderer::frameNumber();
+        shared->active.clear();
+    }
+    auto &packets = shared ? shared->packets : s.packets;
+    const std::vector<QMatrix4x4> &matrices = shared ? staticMatrices(s.lod) : s.matrices;
     size_t count = 0;
     for (auto &m : lod.meshes)
         count += m.parts.size();
-    while (s.packets.size() < count)
-        s.packets.emplace_back(new RenderItem());
+    while (packets.size() < count)
+        packets.emplace_back(new RenderItem());
     size_t at = 0;
     for (auto &m : lod.meshes)
         for (auto &p : m.parts) {
-            auto *item = s.packets[at++].get();
+            auto *item = packets[at++].get();
             if ((m.subobject < 32 && !(s.enabled & (quint32(1) << m.subobject))) ||
                 s.disabledSubs.contains(m.subobject))
                 continue;
             auto &mat = d->materials[p.material];
             item->shared = true;
             item->setVertexAttributes(RenderItem::VNTA);
-            item->VBO = &m.gpu->vbo;
-            item->VAO = &m.gpu->vao;
-            item->msMatrix = s.matrices[mat.matrix].data();
-            item->vertOffset = p.offset;
-            item->vertCount = p.count;
-            item->itemType = p.mode == GL_POINTS ? RenderItem::Points : p.mode;
-            item->polygonMode = 0;
-            item->normalsEnabled = mat.light >= -7;
-            item->brightness = mat.light == -12 ? 0.5f : 1.0f;
+            item->mesh.vbo = &m.gpu->vbo;
+            item->mesh.vao = &m.gpu->vao;
+            item->msMatrix = const_cast<float *>(matrices[mat.matrix].constData());
+            item->mesh.first = p.offset;
+            item->mesh.count = p.count;
+            item->mesh.primitive = RenderItem::primitiveFromGl(p.mode);
+            item->material.wireframe = false;
+            item->material.lit = mat.light >= -7;
+            item->material.brightness = mat.light == -12 ? 0.5f : 1.0f;
+            // Same classes as the alpha written into the vertices.
+            item->material.surface = mat.alpha == 1 ? RenderItem::SURFACE_OPAQUE
+                    : mat.alphaTest ? RenderItem::SURFACE_ALPHA_TEST
+                                    : RenderItem::SURFACE_BLENDED;
             int addr = mat.image >= 0 ? d->images[mat.image].address : -1;
             if (addr >= 0 && !s.disabledParts.contains(p.uid) &&
                 TexLib::disabledTextures.value(addr) != 1)
@@ -211,7 +257,13 @@ void SFileComplex::pushRenderItem(quint32 selection, unsigned int id) {
                 item->disableTextures(1, 0, 1, 1);
             // Persistent packet: selection goes on the queued instance.
             item->setSelectionId(0);
-            Game::currentRenderer->pushPacket(item, selection);
+            if (shared) {
+                // The static pose is fixed, so the bounds hold.
+                item->setBounds(p.boundCenter, p.boundRadius, item->msMatrix);
+                shared->active.push_back(item);
+            } else
+                item->setBounds(nullptr, -1.0f);
+            queue.submit(item, selection);
         }
 }
 void SFileComplex::fillShapeTextureInfo(QHash<int, ShapeTextureInfo *> &out, unsigned int id) {

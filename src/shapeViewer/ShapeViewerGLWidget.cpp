@@ -198,7 +198,7 @@ void ShapeViewerGLWidget::paintGL() {
 
 void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
     Game::currentShapeLib = currentShapeLib;
-    Shader *shader = gluu->shaders.value(selectionPass ? "Selection" : "StandardBloom", nullptr);
+    Shader *shader = gluu->shaders.value(selectionPass ? "Selection" : "StandardFog", nullptr);
     if(shader == nullptr)
         return;
     if(selectionPass){
@@ -292,31 +292,29 @@ void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
 }
 
 void ShapeViewerGLWidget::renderGathered(quint32 selectionId) {
-    Renderer *previous = Game::currentRenderer;
-    Game::currentRenderer = renderer;
     renderer->resetFrame();
     renderer->setViewPosition(camera->getPos());
-    float *mv = renderer->mvMatrix;
+    RenderQueue &queue = *renderer;
+    float *mv = renderer->transform();
     Mat4::identity(mv);
     if(mode == "rot"){
         Mat4::rotate(mv, mv, rotY, 0,1,0);
         Mat4::rotate(mv, mv, rotZ, 0,0,1);
     }
     if(renderItem == 2 && eng != NULL)
-        eng->pushRenderItems(selectionId);
+        eng->pushRenderItems(queue, selectionId);
     if(renderItem == 3 && con != NULL)
-        con->pushRenderItems(selectionId, true);
+        con->pushRenderItems(queue, selectionId, true);
     if(renderItem == 5 && con != NULL)
-        con->pushRenderItems(selectionId, false);
+        con->pushRenderItems(queue, selectionId, false);
     if(renderItem == 2 && con != NULL){
         Mat4::rotate(mv, mv, M_PI, 0,1,0);
         Mat4::translate(mv, mv, 0, 0, -con->conLength/2);
-        con->pushRenderItems(selectionId);
+        con->pushRenderItems(queue, selectionId);
     }
     if(renderItem == 4 && complexShape != NULL)
-        complexShape->pushRenderItem();
+        complexShape->pushRenderItem(queue);
     renderer->renderFrame();
-    Game::currentRenderer = previous;
 }
 
 void ShapeViewerGLWidget::getImg() {

@@ -18,6 +18,8 @@
 #include <QVector3D>
 #include <QMouseEvent>
 
+class RenderQueue;
+
 class PreciseTileCoordinate;
 class GameObj;
 class GLUU;
@@ -53,7 +55,7 @@ public:
     virtual void keyDown(QKeyEvent * e);
     virtual void keyUp(QKeyEvent * e);
     virtual void update(float fps);
-    virtual void pushRenderHud();
+    virtual void pushRenderHud(RenderQueue &queue);
     virtual void setCameraObject(GameObj* o);
     virtual PreciseTileCoordinate* getCurrentPos();
     float * pozT = NULL;

@@ -15,6 +15,8 @@
 #include <QString>
 #include <QVector>
 
+class RenderQueue;
+
 class OglObj;
 //class Ref::RefItem;
 
@@ -60,12 +62,12 @@ public:
     void rotate(float x, float y, float z);
     void resize(float x, float y, float z);
     int getDefaultDetailLevel();
-    void pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
+    void pushRenderItems(RenderQueue &queue, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
     static void LoadForestList();
     static int GetListIdByTexture(QString texture);
     virtual ~ForestObj();
 private:
-    void pushRenderShape(quint32 selectionId);
+    void pushRenderShape(RenderQueue &queue, quint32 selectionId);
     bool getBoxPoints(QVector<float>& points);
     int tex;
     bool init;

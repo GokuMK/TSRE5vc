@@ -13,6 +13,8 @@
 
 #include <QString>
 
+class RenderQueue;
+
 class OglObj;
 class TextObj;
 class GLUU;
@@ -31,7 +33,7 @@ public:
     ClientInfo();
     ClientInfo(const ClientInfo& orig);
     virtual ~ClientInfo();
-    void pushRenderItem(float playerRot);
+    void pushRenderItem(RenderQueue &queue, float playerRot);
 private:
     void initMarker();
     OglObj* stick = NULL;

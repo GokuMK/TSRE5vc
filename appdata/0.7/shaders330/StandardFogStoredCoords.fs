@@ -5,6 +5,7 @@ in float fogFactor;
 in vec3 vNormal;
 in vec4 shadowPos;
 in vec4 shadow2Pos;
+in vec4 shadow0Pos;
 in float vAlpha;
 in float vTerrainGap;
 in vec2 vTerrainMapCoord;
@@ -13,7 +14,6 @@ out vec4 fragColor;
 uniform float textureEnabled;
 uniform int shadowsEnabled;
 uniform float shadow1Res;
-uniform float shadow1Bias;
 uniform float shadow2Res;
 uniform float shadow2Bias;
 uniform vec4 shapeColor;
@@ -28,14 +28,10 @@ uniform sampler2D uSampler;
 uniform sampler2D uSampler2;
 uniform sampler2DShadow shadow1;
 uniform sampler2DShadow shadow2;
+uniform sampler2DShadow shadow0;
 uniform float secondTexEnabled;
-uniform int terrainMaterialEnabled;
-uniform sampler2D terrainMaterialMap;
-uniform int terrainMaterialId;
-uniform vec3 terrainMaterialMapRemap;
-uniform int terrainMaterialMapSide;
-uniform float terrainMaterialNoiseScale;
 uniform mat4 uMVMatrix;
+flat in mat4 vModelView;
 uniform mat4 uMSMatrix;
 uniform float enableNormals;
 uniform float colorBrightness;
@@ -70,43 +66,16 @@ float insideBox(vec2 v, vec2 bottomLeft, vec2 topRight) {
     return s.x * s.y;   
 }
 
-uint terrainScatterHash(uint value) {
-    value ^= value >> 16; value *= 0x7feb352du;
-    value ^= value >> 15; value *= 0x846ca68bu;
-    return value ^ (value >> 16);
-}
-
-int terrainMapId(ivec2 position) {
-    ivec2 safePosition=clamp(position,ivec2(0),ivec2(terrainMaterialMapSide-1));
-    vec2 uv=(vec2(safePosition)+vec2(0.5))/float(terrainMaterialMapSide);
-    return int(floor(texture(terrainMaterialMap,uv).r*255.0+0.5));
-}
-
-int selectedTerrainMaterial() {
-    vec2 mapPosition=clamp(vTerrainMapCoord,vec2(0.0),vec2(1.0))*float(terrainMaterialMapSide)-vec2(0.5);
-    ivec2 cell=ivec2(floor(mapPosition));
-    vec2 fraction=fract(mapPosition);
-    float weights[4]=float[4]((1.0-fraction.x)*(1.0-fraction.y),
-                             fraction.x*(1.0-fraction.y),
-                             (1.0-fraction.x)*fraction.y,
-                             fraction.x*fraction.y);
-    int ids[4]=int[4](terrainMapId(cell),terrainMapId(cell+ivec2(1,0)),
-                      terrainMapId(cell+ivec2(0,1)),terrainMapId(cell+ivec2(1,1)));
-    uvec2 noisePixel=uvec2(max(floor(vTextureCoord*terrainMaterialNoiseScale),vec2(0.0)));
-    uint seed=noisePixel.x*0x9e3779b9u ^ noisePixel.y*0x85ebca6bu ^ 0x73518u;
-    float probability=float(terrainScatterHash(seed))/4294967296.0;
-    for (int i=0;i<3;++i) {
-        if (probability<weights[i]) return ids[i];
-        probability-=weights[i];
-    }
-    return ids[3];
-}
+#ifdef TSRE_TERRAIN
+#include "TerrainMaterial.glsl"
+#endif
+#include "ShadowSampling.glsl"
 
 void main() {
+#ifdef TSRE_TERRAIN
         if(vTerrainGap > 0.0)
             discard;
-        if(terrainMaterialEnabled != 0 && selectedTerrainMaterial() != terrainMaterialId)
-            discard;
+#endif
         if(textureEnabled == 0) {
             fragColor = shapeColor;
         } else {
@@ -114,6 +83,10 @@ void main() {
             vec4 tex2 = texture(uSampler2, vec2(vTextureCoord.s*secondTexEnabled, vTextureCoord.t*secondTexEnabled));
             float isSecondTexEnabled = sign(secondTexEnabled);
             fragColor = fragColor*(1-isSecondTexEnabled) + fragColor*tex2*2.0*isSecondTexEnabled;
+#ifdef TSRE_TERRAIN
+            if(terrainMaterialEnabled != 0)
+                fragColor = terrainMaterialColor();
+#endif
             // discard if transparent
             //if(gl_FragColor.a < alphaTest)
             //    discard;    
@@ -123,51 +96,16 @@ void main() {
                 discard;
             //gl_FragColor.a = 1.0;
 
+#ifdef TSRE_UNLIT
+            // Overlays: no sun lighting, shadows or fog.
+            fragColor.xyz *= colorBrightness;
+#else
             // calculate normals
-            vec3 normal = normalize(mat3(uMVMatrix) * mat3(uMSMatrix) * vNormal);
+            vec3 normal = normalize(mat3(vModelView) * mat3(uMSMatrix) * vNormal);
             vec3 lights = normalize(lightDirection);
             float cosTheta = clamp(dot( normal, lights ), 0, 1);
-            float visibility = (1.0-enableNormals) + cosTheta*enableNormals;
-            float shadowIntensity = 0.1;
-            //float shadow1Res = 2000.0;
-            float bias = shadow1Bias*tan(acos(cosTheta))*enableNormals + 0.0025*(1.0-enableNormals);
-            //float shadow1Res = 5000.0;
-            //float bias = 0.0005*tan(acos(cosTheta))*enableNormals + 0.0025*(1.0-enableNormals);
-            bias = clamp(bias, 0, 0.01);
+            float visibility = shadowedVisibility(cosTheta);
 
-            // calculate shadows
-            vec4 shadowPos2 = shadowPos*0.5+0.5;
-            vec4 shadow2Pos2 = shadow2Pos*0.5+0.5;
-            float camdist = length(shadowPos.xyz);
-            camdist = clamp(camdist, 0, 1.0);
-            float camdist2 = length(shadow2Pos.xyz);
-            camdist2 = clamp(camdist2, 0, 1.0);
-            float t = 1.0 - floor(camdist);
-            float t2 = 1.0 - floor(camdist2);
-
-            float shadowsEnabled2 = shadowsEnabled;
-            float bias2 = shadow2Bias;//0.001; // 0.002;
-            visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[0]/shadow1Res, (shadowPos2.z-bias)) ));
-            visibility -= shadowsEnabled2*(1.0-t)*t2*0.4*(1.0-texture( shadow2, vec3(shadow2Pos2.xy + poissonDisk[0]/shadow2Res, (shadow2Pos2.z-bias2)) ));
-
-            visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[1]/shadow1Res, (shadowPos2.z-bias)) ));
-            visibility -= shadowsEnabled2*(1.0-t)*t2*0.4*(1.0-texture( shadow2, vec3(shadow2Pos2.xy + poissonDisk[1]/shadow2Res, (shadow2Pos2.z-bias2)) ));
-            
-            visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[2]/shadow1Res, (shadowPos2.z-bias)) ));
-            visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[3]/shadow1Res, (shadowPos2.z-bias)) ));
-            visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[4]/shadow1Res, (shadowPos2.z-bias)) ));
-            visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[5]/shadow1Res, (shadowPos2.z-bias)) ));
-            visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[6]/shadow1Res, (shadowPos2.z-bias)) ));
-            visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[7]/shadow1Res, (shadowPos2.z-bias)) ));
-            visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[8]/shadow1Res, (shadowPos2.z-bias)) ));
-            visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[9]/shadow1Res, (shadowPos2.z-bias)) ));
-            visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[10]/shadow1Res, (shadowPos2.z-bias)) ));
-            visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[11]/shadow1Res, (shadowPos2.z-bias)) ));
-            visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[12]/shadow1Res, (shadowPos2.z-bias)) ));
-            visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[13]/shadow1Res, (shadowPos2.z-bias)) ));
-            visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[14]/shadow1Res, (shadowPos2.z-bias)) ));
-            visibility -= shadowsEnabled2*t*shadowIntensity*(1.0-texture( shadow1, vec3(shadowPos2.xy + poissonDisk[15]/shadow1Res, (shadowPos2.z-bias)) ));
-            
             // calculate light color
             vec3 color = diffuseColor.xyz;
             color *= clamp(visibility, 0.0, 1.0);
@@ -175,5 +113,6 @@ void main() {
             fragColor.xyz *= color*colorBrightness;
 
             fragColor = mix(fragColor, skyColor, fogFactor);
+#endif
         }
 }

@@ -10,7 +10,7 @@
 
 #include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/world/objects/CarSpawnerObj.h>
-#include <tsre/shape/SFile.h>
+#include <tsre/shape/ComplexShape.h>
 #include <tsre/shape/ShapeLib.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <math.h>
@@ -221,9 +221,7 @@ void CarSpawnerObj::SimpleCar::updateSim(float deltaTime){
     }
 }
 
-void CarSpawnerObj::SimpleCar::pushRenderItems(quint32 selectionId){
-    if(Game::currentRenderer == NULL)
-        return;
+void CarSpawnerObj::SimpleCar::pushRenderItems(RenderQueue &queue, quint32 selectionId){
     bool ok = Game::roadDB->getDrawPositionOnTrNode(drawPosition, trNodeId, trPosMb);
     if(!ok){
         loaded = false;
@@ -232,16 +230,16 @@ void CarSpawnerObj::SimpleCar::pushRenderItems(quint32 selectionId){
     drawPosition[0] += 2048 * (drawPosition[5] - x);
     drawPosition[2] -= 2048 * (-drawPosition[6] - y);
 
-    Game::currentRenderer->mvPushMatrix();
-    Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPosition[0], drawPosition[1], -drawPosition[2]);
-    Mat4::rotateY(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPosition[3] + M_PI);
+    queue.pushTransform();
+    Mat4::translate(queue.transform(), queue.transform(), drawPosition[0], drawPosition[1], -drawPosition[2]);
+    Mat4::rotateY(queue.transform(), queue.transform(), drawPosition[3] + M_PI);
     if(!ignoreXRot)
-        Mat4::rotateX(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPosition[4] );
-    Mat4::rotateY(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, M_PI*0.5 + M_PI*0.5*direction);
+        Mat4::rotateX(queue.transform(), queue.transform(), drawPosition[4] );
+    Mat4::rotateY(queue.transform(), queue.transform(), M_PI*0.5 + M_PI*0.5*direction);
     if(shapePointer != NULL){
-        shapePointer->pushRenderItem(selectionId, shapeState);
+        shapePointer->pushRenderItem(queue, selectionId, shapeState);
     }
-    Game::currentRenderer->mvPopMatrix();
+    queue.popTransform();
 }
 
 bool CarSpawnerObj::allowNew(){
@@ -481,30 +479,30 @@ void CarSpawnerObj::updateSim(float deltaTime){
     }
 };
 
-void CarSpawnerObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId) {
-    if(!this->loaded || Game::currentRenderer == NULL)
+void CarSpawnerObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId) {
+    if(!this->loaded)
         return;
 
     if(Game::showWorldObjPivotPoints){
-        Game::currentRenderer->mvPushMatrix();
-        Mat4::multiply(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, matrix);
+        queue.pushTransform();
+        Mat4::multiply(queue.transform(), queue.transform(), matrix);
         if(pointer3d == NULL){
             pointer3d = new TrackItemObj(1);
             pointer3d->setMaterial(0.9,0.9,0.7);
         }
-        pointer3d->pushRenderItem(selectionId);
-        Game::currentRenderer->mvPopMatrix();
+        pointer3d->pushRenderItem(queue, selectionId);
+        queue.popTransform();
     }
 
     for(int i = 0; i < cars.size(); i++){
-        cars[i].pushRenderItems(selectionId);
+        cars[i].pushRenderItems(queue, selectionId);
     }
 
     if(Game::viewInteractives)
-        this->pushRenderTritems(selectionId);
+        this->pushRenderTritems(queue, selectionId);
 }
 
-void CarSpawnerObj::pushRenderTritems(quint32 selectionId){
+void CarSpawnerObj::pushRenderTritems(RenderQueue &queue, quint32 selectionId){
     
     if (drawPositionB == NULL) {
         TDB* tdb = Game::trackDB;
@@ -579,26 +577,26 @@ void CarSpawnerObj::pushRenderTritems(quint32 selectionId){
     //float rot = (aa+1)*M_PI/2 + (float)(atan((drawPositionB[0]-drawPositionE[0])/(drawPositionB[2]-drawPositionE[2]))); 
     
     //(-(float)(atan((drawPositionB[1]-drawPositionE[1])/(dlugosc))
-    Game::currentRenderer->mvPushMatrix();
-    Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPositionB[0] + 0 * (drawPositionB[4] - this->x), drawPositionB[1] + 1, -drawPositionB[2] + 0 * (-drawPositionB[5] - this->y));
-    Mat4::rotateY(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPositionB[3] + rotB*M_PI);
+    queue.pushTransform();
+    Mat4::translate(queue.transform(), queue.transform(), drawPositionB[0] + 0 * (drawPositionB[4] - this->x), drawPositionB[1] + 1, -drawPositionB[2] + 0 * (-drawPositionB[5] - this->y));
+    Mat4::rotateY(queue.transform(), queue.transform(), drawPositionB[3] + rotB*M_PI);
     if(this->selected && this->selectionValue == 1)
-        spointer3dSelected->pushRenderItem(SelectionIdCodec::withPart(selectionId, 1));
+        spointer3dSelected->pushRenderItem(queue, SelectionIdCodec::withPart(selectionId, 1));
     else
-        spointer3d->pushRenderItem(SelectionIdCodec::withPart(selectionId, 1));
-    Game::currentRenderer->mvPopMatrix();
+        spointer3d->pushRenderItem(queue, SelectionIdCodec::withPart(selectionId, 1));
+    queue.popTransform();
 
-    Game::currentRenderer->mvPushMatrix();
-    Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPositionE[0] + 0 * (drawPositionE[4] - this->x), drawPositionE[1] + 1, -drawPositionE[2] + 0 * (-drawPositionE[5] - this->y));
-    Mat4::rotateY(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPositionE[3] + rotE*M_PI);
+    queue.pushTransform();
+    Mat4::translate(queue.transform(), queue.transform(), drawPositionE[0] + 0 * (drawPositionE[4] - this->x), drawPositionE[1] + 1, -drawPositionE[2] + 0 * (-drawPositionE[5] - this->y));
+    Mat4::rotateY(queue.transform(), queue.transform(), drawPositionE[3] + rotE*M_PI);
     if(this->selected && this->selectionValue == 3)
-        spointer3dSelected->pushRenderItem(SelectionIdCodec::withPart(selectionId, 3));
+        spointer3dSelected->pushRenderItem(queue, SelectionIdCodec::withPart(selectionId, 3));
     else
-        spointer3d->pushRenderItem(SelectionIdCodec::withPart(selectionId, 3));
-    Game::currentRenderer->mvPopMatrix();
+        spointer3d->pushRenderItem(queue, SelectionIdCodec::withPart(selectionId, 3));
+    queue.popTransform();
 
     if(selectionId == 0)
-        line->pushRenderItem();
+        line->pushRenderItem(queue);
 };
 
 void CarSpawnerObj::expand(){

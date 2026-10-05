@@ -11,8 +11,7 @@
 #include <tsre/world/objects/TrWatermarkObj.h>
 #include <tsre/world/objects/DynTrackObj.h>
 #include <tsre/world/objects/SignalObj.h>
-#include <tsre/shape/SFile.h>
-#include <tsre/shape/SFileC.h>
+#include <tsre/shape/SFileLegacy.h>
 #include <QTemporaryDir>
 #include <QDir>
 #include <QFile>
@@ -432,8 +431,8 @@ int TsreTests::runTokenWorldSuite(bool verbose, bool withGl) {
                 + block(TS::named_shader, string(QString(180, 'a')), "name"), "container"));
         const auto header = data->readBlock();
         FileBuffer::ScopedLimit scope(*data, header.end);
-        SFile shape;
-        SFileC::odczytajshaders(data.get(), &shape);
+        SFileLegacy shape;
+        SFileLegacy::odczytajshadersc(data.get(), &shape);
         test.check(shape.ishaders == 1 && shape.shader[0].name.size() == 180,
                    "actual shape shader reader: unknown sibling, long name and labels");
     }
@@ -445,7 +444,7 @@ int TsreTests::runTokenWorldSuite(bool verbose, bool withGl) {
                 + block(TS::anim_nodes, uints({1}) + block(TS::anim_node,
                     block(TS::controllers, uints({1}) + keys, "controllers"), "MAIN")), "animation"));
         const auto header = data->readBlock();
-        SFile::Animation animation;
+        SFileLegacy::Animation animation;
         animation.loadC(data.get(), header.end);
         test.check(animation.frames == 8 && animation.node.size() == 1
                    && animation.node[0].linearKey.size() == 1
@@ -460,7 +459,7 @@ int TsreTests::runTokenWorldSuite(bool verbose, bool withGl) {
             + block(TS::anim_nodes, uints({1}) + block(TS::anim_node,
                 block(TS::controllers, uints({1}) + rotation), "MAIN"))));
         const auto header = data->readBlock();
-        SFile::Animation animation;
+        SFileLegacy::Animation animation;
         animation.loadC(data.get(), header.end);
         test.check(animation.node.size() == 1 && animation.node[0].tcbKey.size() == 1
             && animation.node[0].slerpRot.size() == 1
@@ -474,8 +473,8 @@ int TsreTests::runTokenWorldSuite(bool verbose, bool withGl) {
             + block(TS::normals, uints({0})));
         const auto header = data->readBlock();
         FileBuffer::ScopedLimit scope(*data, header.end);
-        SFile shape;
-        test.check(rejects([&] { SFileC::odczytajpunktyc(data.get(), &shape); }),
+        SFileLegacy shape;
+        test.check(rejects([&] { SFileLegacy::odczytajpunktyc(data.get(), &shape); }),
             "actual shape point reader rejects missing coordinate without consuming sibling");
     }
     QTemporaryDir temporary;
@@ -517,7 +516,7 @@ int TsreTests::runTokenWorldSuite(bool verbose, bool withGl) {
                     }
                     input.write(compress ? compressed(bytes) : bytes);
                     input.close();
-                    SFile shape(input.fileName(), "fixture.s", temporary.path());
+                    SFileLegacy shape(input.fileName(), "fixture.s", temporary.path());
                     shape.load();
                     bool ok = shape.loaded == 1 && shape.iloscd == 1 && shape.distancelevel[0].iloscs == 1;
                     if (ok) {

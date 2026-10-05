@@ -25,6 +25,8 @@
 #include <QVector>
 #include <tsre/shape/ComplexShape.h>
 
+class RenderQueue;
+
 class FileBuffer;
 class ShapeTextureInfo;
 class ShapeHierarchyInfo;
@@ -51,6 +53,10 @@ public:
         int offset = 0;
         int* idx = nullptr;
         bool enabled = true;
+        // Sphere around the part's vertices in its own space; radius -1 until
+        // the part is uploaded.
+        float boundCenter[3] = {0.0f, 0.0f, 0.0f};
+        float boundRadius = -1.0f;
     };
 
     struct fvertex {
@@ -234,8 +240,8 @@ public:
     void enablePart(unsigned int uid, unsigned int stateId = 0) override;
     void disablePart(unsigned int uid, unsigned int stateId = 0) override;
     void updateSim(float deltaTime, unsigned int stateId = 0) override;
-    void pushRenderItem() override;
-    void pushRenderItem(quint32 selectionId, unsigned int stateId) override;
+    void pushRenderItem(RenderQueue &queue) override;
+    void pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned int stateId) override;
     void invalidateRenderState(bool invalidateMatrixCache = true) override;
     void getSize();
     bool getBoxPoints(QVector<float> &points) override;
@@ -255,8 +261,11 @@ public:
 private:
     bool glReady = false;
     QPointer<QOpenGLContext> glContext;
-    // Retires the state's cached packets through the renderer.
-    void clearRenderItems(unsigned int stateId);
+    // Retires a set of cached packets through the renderer.
+    void clearRenderItems(quint64 key);
+    // Static packets depend only on the distance level and the enabled
+    // sub-objects, so states that agree on both share them.
+    quint64 packetKey(unsigned int stateId) const;
     // Animated parts are refilled every frame into packets and matrices
     // reused per state.
     struct AnimatedPackets {
@@ -271,6 +280,8 @@ private:
     unsigned char gatherSurface(int primState) const;
     void setGatherTexture(RenderItem *item, int primState, bool texEnabled);
     void clearData();
+public:
+    // Section readers; public so the token tests can drive them directly.
     static void odczytajshadersc(FileBuffer* bufor, SFileLegacy* pliks);
     static void odczytajpunktyc(FileBuffer* bufor, SFileLegacy* pliks);
     static void odczytajuvpunktyc(FileBuffer* bufor, SFileLegacy* pliks);
@@ -291,6 +302,7 @@ private:
     static void odczytajvtx_states(FileBuffer* bufor, SFileLegacy* pliks);
     static void odczytajprim_states(FileBuffer* bufor, SFileLegacy* pliks);
     static void odczytajlodd(FileBuffer* bufor, SFileLegacy* pliks);
+private:
     struct State {
         bool animated = false;
         int enabledSubObjs = 0xFFFFFFFF;
@@ -308,7 +320,9 @@ private:
     bool snapable = false;
     //float *mvMatrix = NULL;
     bool requiresUpdate = false;
-    QHash<unsigned int, QVector<RenderItem *>> renderItems;
+    // Static packets by packetKey(); repeated objects submit the same packets,
+    // which lets the renderer draw them instanced.
+    QHash<quint64, QVector<RenderItem *>> renderItems;
 };
 
 #endif	/* SFILELEGACY_H */

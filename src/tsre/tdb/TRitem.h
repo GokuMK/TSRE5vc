@@ -19,6 +19,8 @@
 #include <tsre/ogl/Pointer3d.h>
 #include <tsre/GameObj.h>
 
+class RenderQueue;
+
 class FileBuffer;
 class QTextStream;
 class TDB;
@@ -122,7 +124,7 @@ public:
     float getTrackPosition();
     void setTrackPosition(float val);
     void trackPositionAdd(float val);
-    void pushRenderItem(TDB *tdb, float* playerT, float playerRot, quint32 selectionId);
+    void pushRenderItem(RenderQueue &queue, TDB *tdb, float* playerT, float playerRot, quint32 selectionId);
     void addPositionOffset(float offsetXYZ[]);
     void addTrackNodeItemOffset(unsigned int trackNodeOffset, unsigned int trackItemOffset);
 

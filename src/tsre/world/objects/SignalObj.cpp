@@ -10,7 +10,7 @@
 
 #include <tsre/world/objects/SignalObj.h>
 #include <tsre/fileFunctions/SimisReader.h>
-#include <tsre/shape/SFile.h>
+#include <tsre/shape/ComplexShape.h>
 #include <tsre/shape/ShapeLib.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <math.h>
@@ -684,33 +684,32 @@ bool SignalObj::castsShadows(){
     return !Game::mstsShadows || getShadowType() == WorldObj::ShadowDynamic;
 }
 
-void SignalObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId){
+void SignalObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId){
     if (!loaded) return;
     if (shape < 0) return;
     if (jestPQ < 2) return;
-    if (Game::currentRenderer == NULL) return;
 
-    Game::currentRenderer->mvPushMatrix();
-    WorldObj::pushRenderItems(lod, posx, posz, playerW, target, fov, selectionId);
-    Game::currentRenderer->mvPopMatrix();
+    queue.pushTransform();
+    WorldObj::pushRenderItems(queue, lod, posx, posz, playerW, target, fov, selectionId);
+    queue.popTransform();
 
     if(Game::showWorldObjPivotPoints){
-        Game::currentRenderer->mvPushMatrix();
-        Mat4::multiply(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, matrix);
+        queue.pushTransform();
+        Mat4::multiply(queue.transform(), queue.transform(), matrix);
         if(pointer3d == NULL){
             pointer3d = new TrackItemObj(1);
             pointer3d->setMaterial(0.9,0.9,0.7);
         }
-        pointer3d->pushRenderItem(selectionId);
-        Game::currentRenderer->mvPopMatrix();
+        pointer3d->pushRenderItem(queue, selectionId);
+        queue.popTransform();
     }
 
     if(trLoaded >= 0)
         if(Game::viewInteractives)
-            this->pushRenderTritems(selectionId);
+            this->pushRenderTritems(queue, selectionId);
 }
 
-void SignalObj::pushRenderTritems(quint32 selectionId){
+void SignalObj::pushRenderTritems(RenderQueue &queue, quint32 selectionId){
 
     ///////////////////////////////
     if (drawPositions == NULL) {
@@ -760,14 +759,14 @@ void SignalObj::pushRenderTritems(quint32 selectionId){
     if(drawPositions[i] == NULL)
         return;
 
-    Game::currentRenderer->mvPushMatrix();
-    Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPositions[i][0] + 0 * (drawPositions[i][4] - this->x), drawPositions[i][1] + 1, -drawPositions[i][2] + 0 * (-drawPositions[i][5] - this->y));
-    Mat4::rotateY(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, -drawPositions[i][7]+M_PI);
+    queue.pushTransform();
+    Mat4::translate(queue.transform(), queue.transform(), drawPositions[i][0] + 0 * (drawPositions[i][4] - this->x), drawPositions[i][1] + 1, -drawPositions[i][2] + 0 * (-drawPositions[i][5] - this->y));
+    Mat4::rotateY(queue.transform(), queue.transform(), -drawPositions[i][7]+M_PI);
     if(this->selected && this->selectionValue > 0)
-        spointer3dSelected->pushRenderItem(SelectionIdCodec::withPart(selectionId, i + 1));
+        spointer3dSelected->pushRenderItem(queue, SelectionIdCodec::withPart(selectionId, i + 1));
     else
-        spointer3d->pushRenderItem(SelectionIdCodec::withPart(selectionId, i + 1));
-    Game::currentRenderer->mvPopMatrix();
+        spointer3d->pushRenderItem(queue, SelectionIdCodec::withPart(selectionId, i + 1));
+    queue.popTransform();
 };
 
 int SignalObj::getTrItemId(){

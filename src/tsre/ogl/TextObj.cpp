@@ -131,20 +131,20 @@ TextObj::TextObj(const TextObj& orig) {
 TextObj::~TextObj() {
 }
 
-void TextObj::pushRenderItem() {
-    pushRenderItem(0);
+void TextObj::pushRenderItem(RenderQueue &queue) {
+    pushRenderItem(queue, 0);
 }
 
-void TextObj::pushRenderItem(float rot) {
+void TextObj::pushRenderItem(RenderQueue &queue, float rot) {
     if(!isInit)
         init();
 
-    Game::currentRenderer->mvPushMatrix();
-    Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, pos[0], pos[1], pos[2]);
-    Mat4::rotateY(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, rot+rotOffset);
+    queue.pushTransform();
+    Mat4::translate(queue.transform(), queue.transform(), pos[0], pos[1], pos[2]);
+    Mat4::rotateY(queue.transform(), queue.transform(), rot+rotOffset);
 
-    OglObj::pushRenderItem();
+    OglObj::pushRenderItem(queue);
 
-    Game::currentRenderer->mvPopMatrix();
+    queue.popTransform();
 }
 

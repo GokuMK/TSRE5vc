@@ -23,6 +23,8 @@
 #include <array>
 #include <memory>
 
+
+class RenderQueue;
 class Brush;
 class TerrainInfo;
 class FileBuffer;
@@ -193,8 +195,8 @@ public:
     bool unselect();
     void resetPatchTexCoords(int uu = -1);
     void pushContextMenuActions(QMenu *menu);
-    void pushRenderItem(float lodx, float lodz, int tileX, int tileY, float* playerW, float* target, float fov, quint32 selectionId);
-    void pushRenderItemWater(float lodx, float lodz, float tileX, float tileY, float* playerW, float* target, float fov, int layer, quint32 selectionId = 0);
+    void pushRenderItem(RenderQueue &queue, float lodx, float lodz, int tileX, int tileY, float* playerW, float* target, float fov, quint32 selectionId);
+    void pushRenderItemWater(RenderQueue &queue, float lodx, float lodz, float tileX, float tileY, float* playerW, float* target, float fov, int layer, quint32 selectionId = 0);
     void refreshWaterShapes();
     void getRotation(float *rot, int x, int z, int posx, int posz);
     float getHeight(int x, int z, float posx, float posz, bool addR);
@@ -311,8 +313,10 @@ protected:
     QVector<int> proceduralRequestOrder(const PatchVisibility &visibility) const;
     bool proceduralNearCamera(const PatchVisibility &visibility) const;
     void prepareVisibleProceduralTextures(const PatchVisibility &visibility);
+    // Prepares the direct procedural draw of a patch; materials receives the
+    // tile's material ids, which all have a layer in the material arrays.
     bool prepareProceduralGpuPatch(int patch, QVector<int> &materials);
-    void configureProceduralGpuPacket(RenderItem &item, int patch, int material);
+    void configureProceduralGpuPacket(RenderItem &item, int patch);
     void synchronizeMaterialLibrary();
     QVector<PatchBounds> patchBounds;
     QVector<quint8> patchBoundsDirty;

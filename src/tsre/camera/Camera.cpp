@@ -15,6 +15,7 @@
 #include <tsre/Game.h>
 #include <tsre/geo/GeoCoordinates.h>
 #include <tsre/GameObj.h>
+#include <tsre/renderer/RenderQueue.h>
 
 Camera::Camera(float* pt) {
     pozT = pt;
@@ -93,9 +94,9 @@ float Camera::getRotY() {
 void Camera::update(float fps) {
 }
 
-void Camera::pushRenderHud(){
+void Camera::pushRenderHud(RenderQueue &queue){
     if(cameraObject != NULL)
-        cameraObject->pushRenderHud();
+        cameraObject->pushRenderHud(queue);
 }
 
 void Camera::setCameraObject(GameObj* o){

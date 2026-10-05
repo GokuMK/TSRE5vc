@@ -20,6 +20,8 @@
 #include <tsre/world/Ref.h>
 #include <QHash>
 
+class RenderQueue;
+
 class ComplexShape;
 class TrackItemObj;
 class ErrorMessage;
@@ -133,7 +135,7 @@ public:
     virtual void getLinePoints(float *&punkty);
     virtual Ref::RefItem* getRefInfo();
     // Submits the selection box under the renderer's current transform.
-    void pushRenderBox();
+    void pushRenderBox(RenderQueue &queue);
     bool ensureBox();
     virtual bool select();
     virtual bool select(int value);
@@ -180,7 +182,7 @@ public:
     virtual void setModified(bool val = true);
     virtual void randomTransform(Ref::RandomTransformation * transformation);
     virtual int updateTrackSectionInfo(QHash<unsigned int, unsigned int> shapes, QHash<unsigned int, unsigned int> sections);
-    virtual void pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
+    virtual void pushRenderItems(RenderQueue &queue, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
 protected:
     virtual void loadSnapablePoints();
     virtual bool getSimpleBorder(float* border);

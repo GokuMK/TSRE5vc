@@ -15,6 +15,8 @@
 #include <tsre/ogl/GLUU.h>
 #include <tsre/renderer/RenderItem.h>
 
+class RenderQueue;
+
 class OglObj {
 public:
     enum MaterialType {NONE, TEXTURE, COLOR};
@@ -26,8 +28,8 @@ public:
     OglObj(const OglObj& orig);
     virtual ~OglObj();
     void init(float* punkty, int ptr, enum RenderItem::VertexAttr v, int type);
-    virtual void pushRenderItem();
-    virtual void pushRenderItem(quint32 selectionId, float lod = 0);
+    virtual void pushRenderItem(RenderQueue &queue);
+    virtual void pushRenderItem(RenderQueue &queue, quint32 selectionId, float lod = 0);
     void deleteVBO();
     void setMaterial(float r, float g, float b);
     void setMaterial(QString* path);
@@ -45,6 +47,9 @@ private:
     QOpenGLVertexArrayObject VAO;
     int length; 
     int shapeType;
+    // Sphere around the vertices given to init().
+    float boundCenter[3] = {0.0f, 0.0f, 0.0f};
+    float boundRadius = -1.0f;
     int texId;
     int materialType;
     int lineWidth = 0;

@@ -16,6 +16,8 @@
 #include <QVariantMap>
 #include <QVector>
 
+class RenderQueue;
+
 class ContentHierarchyInfo;
 class ShapeHierarchyInfo;
 class ShapeTextureInfo;
@@ -56,8 +58,8 @@ public:
     virtual void enableSubObjByNameQueue(unsigned int stateId, const QString& name, bool val);
     virtual void updateSim(float deltaTime, unsigned int stateId = 0) = 0;
 
-    virtual void pushRenderItem() = 0;
-    virtual void pushRenderItem(quint32 selectionId, unsigned int stateId) = 0;
+    virtual void pushRenderItem(RenderQueue &queue) = 0;
+    virtual void pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned int stateId) = 0;
 
     virtual void invalidateRenderState(bool invalidateMatrixCache = true) = 0;
 

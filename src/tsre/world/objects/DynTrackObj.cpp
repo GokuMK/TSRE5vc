@@ -567,10 +567,8 @@ void DynTrackObj::set(QString sh, float* val) {
     deleteVBO();
 }
 
-void DynTrackObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId) {
+void DynTrackObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId) {
     if (!loaded)
-        return;
-    if (Game::currentRenderer == NULL)
         return;
 
     generateShape();
@@ -581,25 +579,25 @@ void DynTrackObj::pushRenderItems(float lod, float posx, float posz, float* play
                 qDirection, position, bakedMatrix);
         renderMatrix = bakedMatrix;
     }
-    Mat4::multiply(Game::currentRenderer->mvMatrix,
-            Game::currentRenderer->mvMatrix, renderMatrix);
+    Mat4::multiply(queue.transform(),
+            queue.transform(), renderMatrix);
 
     if(Game::showWorldObjPivotPoints){
         if(pointer3d == NULL){
             pointer3d = new TrackItemObj(1);
             pointer3d->setMaterial(0.9,0.9,0.7);
         }
-        pointer3d->pushRenderItem(selectionId);
+        pointer3d->pushRenderItem(queue, selectionId);
     }
 
     for(int i = 0; i < shape.size(); i++){
         const float partLod =
                 OrtsTrackProfileRenderer::generatedPartLod(
                     shape[i], renderMatrix, posx, posz);
-        shape[i]->pushRenderItem(selectionId, partLod);
+        shape[i]->pushRenderItem(queue, selectionId, partLod);
     }
     if(selected)
-        pushRenderBox();
+        pushRenderBox(queue);
 }
 
 bool DynTrackObj::getSimpleBorder(float* border){

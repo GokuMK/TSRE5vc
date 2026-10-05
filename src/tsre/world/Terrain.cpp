@@ -2216,11 +2216,11 @@ RenderItem *Terrain::framePacket(QVector<RenderItem*> &pool, int patchId){
     if (pool[patchId] == NULL)
         pool[patchId] = new RenderItem();
     *pool[patchId] = blank;
-    pool[patchId]->surface = RenderItem::SURFACE_TERRAIN;
+    pool[patchId]->material.surface = RenderItem::SURFACE_TERRAIN;
     return pool[patchId];
 }
 
-void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float* playerW, float* target, float fov, quint32 selectionId){
+void Terrain::pushRenderItem(RenderQueue &queue, float lodx, float lodz, int tileX, int tileY, float* playerW, float* target, float fov, quint32 selectionId){
     if (!loaded)
         return;
     synchronizeMaterialLibrary();
@@ -2238,23 +2238,23 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
     int patchRes = samples/patches;
     
     if(mojex-tileX != 0 || mojez-tileY != 0){
-        Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, 2048 * (mojex-tileX) , 0, 2048 * (mojez-tileY) );
+        Mat4::translate(queue.transform(), queue.transform(), 2048 * (mojex-tileX) , 0, 2048 * (mojez-tileY) );
     }
-    Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, -1024, 0, 1024-sampleSize*samples);
+    Mat4::translate(queue.transform(), queue.transform(), -1024, 0, 1024-sampleSize*samples);
     refreshPatchBounds(true);
     const PatchVisibility patchVisibility = buildPatchVisibility(
-                Game::currentRenderer->mvMatrix, playerW);
+                queue.transform(), playerW);
     const QVector<TerrainPatchLodState> patchLod = backend->isPaged()
             ? buildPatchLodState(patchVisibility)
             : QVector<TerrainPatchLodState>();
     renderedSurfaceLod = patchLod;
     if(Game::viewWorldGrid && selectionId == 0)
-        lines.pushRenderItem();
+        lines.pushRenderItem(queue);
     if(Game::viewTileGrid && selectionId == 0){
-        slines.pushRenderItem();
-        ulines.pushRenderItem();
-        lockedlines.pushRenderItem();
-        selectedlines.pushRenderItem();
+        slines.pushRenderItem(queue);
+        ulines.pushRenderItem(queue);
+        lockedlines.pushRenderItem(queue);
+        selectedlines.pushRenderItem(queue);
     }
     
     float lod = 0;
@@ -2263,7 +2263,6 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
     RenderItem *r;
     if(Game::viewTerrainShape && (!(showBlob && MapWindow::isAlpha == 0) || selectionId != 0)){
         if (selectionId==0) prepareVisibleProceduralTextures(patchVisibility);
-        int proceduralPacketIndex=0;
         float shaderSecondTexUV = 0;
         for (int yy = 0; yy < patches; yy++) {
             for (int uu = 0; uu < patches; uu++) {
@@ -2299,16 +2298,14 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
                 if (selectionId==0 && prepareProceduralGpuPatch(patchId,gpuMaterials)) {
                     const TerrainPatchLodState lodState = patchId < patchLod.size()
                             ? patchLod[patchId] : TerrainPatchLodState{};
-                    for (int material : std::as_const(gpuMaterials)) {
-                        r=framePacket(proceduralSurfacePackets,proceduralPacketIndex++);
-                        configureProceduralGpuPacket(*r,patchId,material);
-                        r->itemType=GL_TRIANGLES;
-                        backend->configureRenderItem(*r,patchId,false,true,
-                                                     lodState.sourceStep,lodState.edgeMask);
-                        r->msMatrix=Game::currentRenderer->objStrMatrix;
-                        r->setVertexAttributes(r->VNT);
-                        Game::currentRenderer->pushPacket(r,0,Renderer::SUBMIT_ORDERED);
-                    }
+                    r=framePacket(proceduralSurfacePackets,patchId);
+                    configureProceduralGpuPacket(*r,patchId);
+                    r->mesh.primitive = RenderItem::PRIMITIVE_TRIANGLES;
+                    backend->configureRenderItem(*r,patchId,false,true,
+                                                 lodState.sourceStep,lodState.edgeMask);
+                    r->msMatrix=nullptr;
+                    r->setVertexAttributes(r->VNT);
+                    queue.submit(r,0,RenderQueue::SUBMIT_ORDERED);
                     continue;
                 }
                 r = framePacket(surfacePackets, patchId);
@@ -2318,7 +2315,7 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
                 } else {
                     const int proceduralId = proceduralTexture(patchId, true);
                     const int shaderId = validTerrainShader(tfile,patchId);
-                    r->terrainTextureRemap=proceduralTextureRemap(patchId,proceduralId);
+                    r->terrain.textureRemap=proceduralTextureRemap(patchId,proceduralId);
                     const bool bakedFallback=proceduralId<0 && rendersProceduralMaterial()
                             && shaderId==0 && !tfile->bakedMaterialInfo.isEmpty();
                     const int outputId=bakedFallback?proceduralFallbackTexture():proceduralId;
@@ -2326,8 +2323,8 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
                         r->enableTextures(TexLib::mtex.at(outputId)->tex[0]);
                         const int detailId = proceduralDetailTexture();
                         if (detailId >= 0) {
-                            r->secondTexAddr = TexLib::mtex.at(detailId)->tex[0];
-                            r->secondTexScale = ProceduralDetailScale*(bakedFallback?patches:1);
+                            r->material.detailTextureObject = TexLib::mtex.at(detailId)->tex[0];
+                            r->material.detailScale = ProceduralDetailScale*(bakedFallback?patches:1);
                         }
                     } else if (bakedFallback || texid[yy * patches + uu] == -2) {
                     } else {
@@ -2357,48 +2354,40 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
                         const auto detail=TexLib::mtex.find(texid2[patchId]);
                         if (detail!=TexLib::mtex.end() && detail->second && detail->second->loaded) {
                             if (!detail->second->glLoaded) detail->second->GLTextures(true);
-                            r->secondTexAddr=detail->second->tex[0];
-                            r->secondTexScale=ProceduralDetailScale*patches;
+                            r->material.detailTextureObject=detail->second->tex[0];
+                            r->material.detailScale=ProceduralDetailScale*patches;
+                        }
+                    } else if (outputId < 0 && !bakedFallback && shaderId >= 0
+                               && texid2[patchId] != -2) {
+                        // MSTS detail texture: the shader's second texture,
+                        // scaled by its UV multiplier.
+                        if (texid2[patchId] == -1)
+                            texid2[patchId] = tfile->material(shaderId).textures.size() < 2 ? -2
+                                    : loadTerrainTexture(tfile->material(shaderId).textures[1].filename);
+                        const auto detail = TexLib::mtex.find(texid2[patchId]);
+                        if (detail != TexLib::mtex.end() && detail->second && detail->second->loaded) {
+                            if (!detail->second->glLoaded) detail->second->GLTextures(true);
+                            r->material.detailTextureObject = detail->second->tex[0];
+                            r->material.detailScale = tfile->detailScale(shaderId);
                         }
                     }
-                    /*if (texid2[yy * patches + uu] == -2) {
-                    } else if (tfile->material(shaderId).textures.size() < 2){
-                            texid2[yy * patches + uu] = -2;
-                    } else {
-                        if (texid2[yy * patches + uu] == -1) {
-                            if (shaderId < 0)
-                                texid[yy * patches + uu] = -2;
-                            else
-                                texid2[yy * patches + uu] = loadTerrainTexture(tfile->material(shaderId).textures[1].filename);
-                        }
-                        if (TexLib::mtex[texid2[yy * patches + uu]]->loaded) {
-                            if (!TexLib::mtex[texid2[yy * patches + uu]]->glLoaded)
-                                TexLib::mtex[texid2[yy * patches + uu]]->GLTextures(true);
-                            r->enableTextures(TexLib::mtex[texid2[yy * patches + uu]]->tex[0]);
-                            if(shaderSecondTexUV != tfile->detailScale(shaderId)){
-                                shaderSecondTexUV = tfile->detailScale(shaderId);
-                                gluu->currentShader->setUniformValue(gluu->currentShader->shaderSecondTexEnabled, shaderSecondTexUV);
-                            }
-                        } else {
-                        }
-                    }*/
                 }
-                r->itemType = GL_TRIANGLES;
+                r->mesh.primitive = RenderItem::PRIMITIVE_TRIANGLES;
                 const TerrainPatchLodState lodState = patchId < patchLod.size()
                         ? patchLod[patchId] : TerrainPatchLodState{};
                 backend->configureRenderItem(*r, patchId,
                                              false, true,
                                              lodState.sourceStep,
                                              lodState.edgeMask);
-                r->msMatrix = Game::currentRenderer->objStrMatrix;
+                r->msMatrix = nullptr;
                 r->setVertexAttributes(r->VNT);
-                Game::currentRenderer->pushPacket(r, 0, Renderer::SUBMIT_ORDERED);
+                queue.submit(r, 0, RenderQueue::SUBMIT_ORDERED);
             }
         }
     }
     if(Game::viewTerrainGrid || !Game::viewTerrainShape){
-        Game::currentRenderer->mvPushMatrix();
-        Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, 0, 0.05, 0);
+        queue.pushTransform();
+        Mat4::translate(queue.transform(), queue.transform(), 0, 0.05, 0);
 
         for (int yy = 0; yy < patches; yy++) {
             for (int uu = 0; uu < patches; uu++) {
@@ -2420,7 +2409,7 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
                     if (lod > 300) continue;
                 r = framePacket(gridPackets, patchId);
                 r->disableTextures(0.7,0.7,0.7,1.0);
-                r->itemType = GL_TRIANGLES;
+                r->mesh.primitive = RenderItem::PRIMITIVE_TRIANGLES;
                 const TerrainPatchLodState lodState = patchId < patchLod.size()
                         ? patchLod[patchId] : TerrainPatchLodState{};
                 backend->configureRenderItem(*r, patchId,
@@ -2428,12 +2417,12 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
                                              lodState.sourceStep,
                                              lodState.edgeMask);
                 r->setVertexAttributes(r->VNT);
-                r->polygonMode = 1;
-                r->msMatrix = Game::currentRenderer->objStrMatrix;
-                Game::currentRenderer->pushPacket(r, 0, Renderer::SUBMIT_ORDERED);
+                r->material.wireframe = true;
+                r->msMatrix = nullptr;
+                queue.submit(r, 0, RenderQueue::SUBMIT_ORDERED);
             }
         }
-        Game::currentRenderer->mvPopMatrix();
+        queue.popTransform();
     }
     
     if(showBlob && selectionId == 0){
@@ -2441,9 +2430,9 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
             const int mapTexture = ensureMapTexture();
             if (mapTexture >= 0) {
                 if(MapWindow::isAlpha != 0){
-                    Game::currentRenderer->mvPushMatrix();
-                    Mat4::translate(Game::currentRenderer->mvMatrix,
-                                    Game::currentRenderer->mvMatrix,
+                    queue.pushTransform();
+                    Mat4::translate(queue.transform(),
+                                    queue.transform(),
                                     0, 0.35, 0);
                 }
                 for (int patchId = 0; patchId < gridLayout.patchRecordCount(); ++patchId) {
@@ -2451,31 +2440,31 @@ void Terrain::pushRenderItem(float lodx, float lodz, int tileX, int tileY, float
                         continue;
                     r = framePacket(mapPackets, patchId);
                     r->enableTextures(static_cast<unsigned int>(mapTexture));
-                    r->itemType = GL_TRIANGLES;
-                    r->msMatrix = Game::currentRenderer->objStrMatrix;
+                    r->mesh.primitive = RenderItem::PRIMITIVE_TRIANGLES;
+                    r->msMatrix = nullptr;
                     r->setVertexAttributes(r->VNTA);
                     const TerrainPatchLodState lodState = patchId < patchLod.size()
                             ? patchLod[patchId] : TerrainPatchLodState{};
                     backend->configureRenderItem(*r, patchId, true, false,
                                                  lodState.sourceStep,
                                                  lodState.edgeMask);
-                    Game::currentRenderer->pushPacket(r, 0, Renderer::SUBMIT_ORDERED);
+                    queue.submit(r, 0, RenderQueue::SUBMIT_ORDERED);
                 }
                 if(MapWindow::isAlpha != 0)
-                    Game::currentRenderer->mvPopMatrix();
+                    queue.popTransform();
             }
         } else if(MapWindow::isAlpha == 0){
-            terrainBlob.pushRenderItem();
+            terrainBlob.pushRenderItem(queue);
         }else{
-            Game::currentRenderer->mvPushMatrix();
-            Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, 0, 0.35, 0);
-            terrainBlob.pushRenderItem();
-            Game::currentRenderer->mvPopMatrix();
+            queue.pushTransform();
+            Mat4::translate(queue.transform(), queue.transform(), 0, 0.35, 0);
+            terrainBlob.pushRenderItem(queue);
+            queue.popTransform();
         }
     }
 }
 
-void Terrain::pushRenderItemWater(float lodx, float lodz, float tileX, float tileY, float* playerW, float* target, float fov, int layer, quint32 selectionId){
+void Terrain::pushRenderItemWater(RenderQueue &queue, float lodx, float lodz, float tileX, float tileY, float* playerW, float* target, float fov, int layer, quint32 selectionId){
     if(showBlob)
         return;
     float alpha = 0;
@@ -2486,9 +2475,9 @@ void Terrain::pushRenderItemWater(float lodx, float lodz, float tileX, float til
     int patchSize = tileSize/patches;
     
     if(mojex-tileX != 0 || mojez-tileY != 0){
-        Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, 2048 * (mojex-tileX) , 0, 2048 * (mojez-tileY) );
+        Mat4::translate(queue.transform(), queue.transform(), 2048 * (mojex-tileX) , 0, 2048 * (mojez-tileY) );
     }
-    Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, -1024, 0, 1024-sampleSize*samples);
+    Mat4::translate(queue.transform(), queue.transform(), -1024, 0, 1024-sampleSize*samples);
     
     if(water[layer] == NULL)
         water[layer] = new WaterTile();
@@ -2593,7 +2582,7 @@ void Terrain::pushRenderItemWater(float lodx, float lodz, float tileX, float til
                 if(selectionId != 0)
                     tselectionId = SelectionIdCodec::withTerrainPatch(
                                 selectionId, yy * patches + uu);
-                w[uu * patches + yy].pushRenderItem(tselectionId);
+                w[uu * patches + yy].pushRenderItem(queue, tselectionId);
             }
         }
     }

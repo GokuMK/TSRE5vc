@@ -75,11 +75,11 @@ void TerrainMeshLegacy::configureRenderItem(RenderItem &item, int patchId,
     const int patches = terrain.gridLayout.patchesPerSide;
     const int row = patchId / patches;
     const int column = patchId % patches;
-    item.VBO = terrain.VBO;
-    item.VAO = terrain.VAO;
-    item.vertOffset = (column * patches + row)
+    item.mesh.vbo = terrain.VBO;
+    item.mesh.vao = terrain.VAO;
+    item.mesh.first = (column * patches + row)
             * terrain.gridLayout.pagedIndicesPerPatch();
-    item.vertCount = terrain.gridLayout.pagedIndicesPerPatch();
+    item.mesh.count = terrain.gridLayout.pagedIndicesPerPatch();
 }
 
 void TerrainMeshLegacy::invalidateAll(unsigned int) {
@@ -434,9 +434,9 @@ void TerrainMeshPaged::configureRenderItem(RenderItem &item, int patchId,
     if (page == nullptr)
         return;
     const int slot = patchId - page->firstPatch;
-    item.VBO = &page->vertexBuffer;
-    item.VAO = &page->vertexArray;
-    item.vertOffset = 0;
+    item.mesh.vbo = &page->vertexBuffer;
+    item.mesh.vao = &page->vertexArray;
+    item.mesh.first = 0;
     auto indexTemplate = indexTemplates.constFind(
                 indexTemplateKey(sourceStep, edgeMask));
     if (indexTemplate == indexTemplates.constEnd())
@@ -445,19 +445,19 @@ void TerrainMeshPaged::configureRenderItem(RenderItem &item, int patchId,
         indexTemplate = indexTemplates.constFind(indexTemplateKey(1, 0));
     if (indexTemplate == indexTemplates.constEnd())
         return;
-    item.vertCount = indexTemplate->indexCount;
-    item.indexed = true;
-    item.indexType = GL_UNSIGNED_SHORT;
-    item.indexOffset = indexTemplate->byteOffset;
-    item.baseVertex = slot * terrain.gridLayout.pagedVerticesPerPatch();
-    item.terrainPaged = true;
-    item.terrainParamsBuffer = mapPass
+    item.mesh.count = indexTemplate->indexCount;
+    item.mesh.indexed = true;
+    item.mesh.indexType = RenderItem::INDEX_U16;
+    item.mesh.indexOffset = indexTemplate->byteOffset;
+    item.mesh.baseVertex = slot * terrain.gridLayout.pagedVerticesPerPatch();
+    item.terrain.paged = true;
+    item.terrain.paramsBuffer = mapPass
             ? &page->mapParamsBuffer : &page->terrainParamsBuffer;
-    item.terrainVerticesPerPatch = terrain.gridLayout.pagedVerticesPerPatch();
-    item.terrainPatchSide = terrain.gridLayout.patchResolution + 1;
-    item.terrainSampleSpacing = terrain.gridLayout.sampleSpacing;
-    item.terrainApplyGaps = applyGaps;
-    item.terrainMapPass = mapPass;
+    item.terrain.verticesPerPatch = terrain.gridLayout.pagedVerticesPerPatch();
+    item.terrain.patchSide = terrain.gridLayout.patchResolution + 1;
+    item.terrain.sampleSpacing = terrain.gridLayout.sampleSpacing;
+    item.terrain.applyGaps = applyGaps;
+    item.terrain.mapPass = mapPass;
 }
 
 void TerrainMeshPaged::invalidateAll(unsigned int reasons) {

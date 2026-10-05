@@ -16,6 +16,7 @@
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/renderer/Renderer.h>
 #include <tsre/math3d/Vector4f.h>
+#include <algorithm>
 
 OglObj::OglObj() {
     loaded = false;
@@ -125,14 +126,36 @@ void OglObj::init(float* punkty, int ptr, enum RenderItem::VertexAttr v, int typ
     VBO.release();
     length = ptr / v;
     loaded = true;
+    boundRadius = -1.0f;
+    if (length > 0 && v >= 3) {
+        float low[3] = {punkty[0], punkty[1], punkty[2]};
+        float high[3] = {punkty[0], punkty[1], punkty[2]};
+        for (int i = 1; i < length; ++i)
+            for (int c = 0; c < 3; ++c) {
+                low[c] = std::min(low[c], punkty[i * v + c]);
+                high[c] = std::max(high[c], punkty[i * v + c]);
+            }
+        float radius = 0.0f;
+        for (int c = 0; c < 3; ++c)
+            boundCenter[c] = 0.5f * (low[c] + high[c]);
+        for (int i = 0; i < length; ++i) {
+            float distance = 0.0f;
+            for (int c = 0; c < 3; ++c) {
+                const float d = punkty[i * v + c] - boundCenter[c];
+                distance += d * d;
+            }
+            radius = std::max(radius, distance);
+        }
+        boundRadius = std::sqrt(radius);
+    }
 }
 
 void OglObj::setLineWidth(int val){
     lineWidth = val;
 }
 
-void OglObj::pushRenderItem() {
-    pushRenderItem(0);
+void OglObj::pushRenderItem(RenderQueue &queue) {
+    pushRenderItem(queue, 0);
 }
 
 void OglObj::setDistanceRange(float min, float max){
@@ -140,12 +163,10 @@ void OglObj::setDistanceRange(float min, float max){
     maxDistance = max;
 }
 
-void OglObj::pushRenderItem(quint32 selectionId, float lod){
+void OglObj::pushRenderItem(RenderQueue &queue, quint32 selectionId, float lod){
     if(!loaded)
         return;
     if(lod > maxDistance || lod < minDistance)
-        return;
-    if(Game::currentRenderer == NULL)
         return;
     if(vAttribures == RenderItem::NO_ATTR)
         return;
@@ -186,7 +207,7 @@ void OglObj::pushRenderItem(quint32 selectionId, float lod){
 
     RenderItem *packet = framePacket(textured, texAddr, materialColor,
                                      terrainDecal && selectionId == 0);
-    Game::currentRenderer->pushPacket(packet, selectionId, Renderer::SUBMIT_ORDERED);
+    queue.submit(packet, selectionId, RenderQueue::SUBMIT_ORDERED);
 }
 
 RenderItem *OglObj::framePacket(bool textured, unsigned int texAddr,
@@ -197,14 +218,15 @@ RenderItem *OglObj::framePacket(bool textured, unsigned int texAddr,
         packetsUsed = 0;
     }
     const auto matches = [&](const RenderItem *packet){
-        return packet->texturesEnabled == (textured ? 1 : 0)
-                && (!textured || packet->texAddr == texAddr)
-                && packet->colorX == materialColor[0] && packet->colorY == materialColor[1]
-                && packet->colorZ == materialColor[2] && packet->colorA == materialColor[3]
-                && packet->terrainDecal == decal
-                && packet->vertCount == static_cast<unsigned int>(length)
-                && packet->itemType == static_cast<unsigned int>(shapeType)
-                && packet->lineWidth == lineWidth;
+        const RenderItem::Material &m = packet->material;
+        return m.textured == textured
+                && (!textured || m.textureObject == texAddr)
+                && m.color[0] == materialColor[0] && m.color[1] == materialColor[1]
+                && m.color[2] == materialColor[2] && m.color[3] == materialColor[3]
+                && m.decal == decal
+                && packet->mesh.count == static_cast<unsigned int>(length)
+                && packet->mesh.primitive == RenderItem::primitiveFromGl(shapeType)
+                && m.lineWidth == lineWidth;
     };
     for(int i = 0; i < packetsUsed; ++i){
         if(matches(packets[i]))
@@ -214,23 +236,21 @@ RenderItem *OglObj::framePacket(bool textured, unsigned int texAddr,
         packets.push_back(new RenderItem());
     RenderItem *packet = packets[packetsUsed++];
     packet->setVertexAttributes(vAttribures);
-    packet->terrainDecal = decal;
+    packet->material.decal = decal;
     if(textured)
         packet->enableTextures(texAddr);
     else
         packet->disableTextures(materialColor[0], materialColor[1],
                                 materialColor[2], materialColor[3]);
-    packet->colorX = materialColor[0];
-    packet->colorY = materialColor[1];
-    packet->colorZ = materialColor[2];
-    packet->colorA = materialColor[3];
-    packet->lineWidth = lineWidth;
-    packet->VBO = &VBO;
-    packet->VAO = &VAO;
+    std::copy(materialColor, materialColor + 4, packet->material.color);
+    packet->material.lineWidth = lineWidth;
+    packet->mesh.vbo = &VBO;
+    packet->mesh.vao = &VAO;
     packet->msMatrix = NULL;
-    packet->itemType = shapeType;
-    packet->vertOffset = 0;
-    packet->vertCount = length;
+    packet->mesh.primitive = RenderItem::primitiveFromGl(shapeType);
+    packet->mesh.first = 0;
+    packet->mesh.count = length;
+    packet->setBounds(boundCenter, boundRadius);
     return packet;
 }
 

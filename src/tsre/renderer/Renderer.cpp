@@ -10,9 +10,9 @@
 
 #include <tsre/renderer/Renderer.h>
 #include <tsre/renderer/RenderItem.h>
-#include <tsre/math3d/GLMatrix.h>
 
 #include <algorithm>
+#include <cmath>
 
 namespace {
 
@@ -27,128 +27,66 @@ int Renderer::queuedPackets = 0;
 quint64 Renderer::currentFrame = 0;
 
 Renderer::Renderer() {
-    Mat4::identity(ownMvMatrix);
-    mvMatrix = ownMvMatrix;
 }
 
 Renderer::~Renderer() {
-    deleteFrameMatrices();
 }
 
-void Renderer::pushItem(RenderItem* r, float* mvmatrix){
-    Q_UNUSED(mvmatrix);
-    if(r != NULL && !r->shared)
-        delete r;
-}
-
-// Renderers without native packet support receive the older calls.
-void Renderer::pushPacket(RenderItem *packet, quint32 selectionId, SubmitOrder order){
-    if(packet == NULL)
-        return;
-    if(selectionId == 0 && order == SUBMIT_GROUPED){
-        pushItemVNTA(packet, mvMatrix);
-        return;
-    }
-    RenderItem *item = new RenderItem(*packet);
-    item->shared = false;
-    if(selectionId != 0){
-        item->setSelectionId(selectionId);
-        item->lineWidth = 0;
-    }
-    pushItem(item, mvMatrix);
-}
-
-void Renderer::pushPackets(const QVector<RenderItem*> &packets, quint32 selectionId){
-    if(selectionId == 0){
-        QVector<RenderItem*> borrowed = packets;
-        pushItemsVNTA(borrowed, mvMatrix);
-        return;
-    }
-    for(RenderItem *packet : packets){
-        if(packet == NULL)
-            continue;
-        RenderItem *selectionItem = new RenderItem(*packet);
-        selectionItem->shared = false;
-        selectionItem->setSelectionId(selectionId);
-        selectionItem->lineWidth = 0;
-        pushItem(selectionItem, mvMatrix);
-    }
-}
-
-void Renderer::pushItemsVNTA(QVector<RenderItem*>& r, float* mvmatrix){
-    Q_UNUSED(r);
-    Q_UNUSED(mvmatrix);
-}
-
-void Renderer::pushItemVNTA(RenderItem* r, float* mvmatrix){
-    Q_UNUSED(r);
-    Q_UNUSED(mvmatrix);
-}
-
-void Renderer::mvPushMatrix() {
-    if (matrixStackDepth == matrixStack.size())
-        matrixStack.push_back({});
-    std::copy(mvMatrix, mvMatrix + 16, matrixStack[matrixStackDepth].begin());
-    matrixStackDepth++;
-}
-
-void Renderer::mvPopMatrix() {
-    if (matrixStackDepth == 0)
-        return;
-    matrixStackDepth--;
-    std::copy(matrixStack[matrixStackDepth].begin(),
-              matrixStack[matrixStackDepth].end(), mvMatrix);
-}
-
-// A frame may flush several times; the matrix stack carries across flushes.
+// A frame may flush several times; the transform stack carries across flushes.
 void Renderer::renderFrame(){
     deleteFrameMatrices();
     releaseRetiredPackets();
-}
-
-void Renderer::setLayer(Layer layer){
-    currentLayer = layer;
-}
-
-Renderer::Layer Renderer::layer() const{
-    return currentLayer;
 }
 
 void Renderer::setViewPosition(const float *position){
     std::copy(position, position + 3, viewPosition);
 }
 
-void Renderer::setShadowCasting(bool cast){
-    shadowCasting = cast;
+void Renderer::setCullView(const float *viewProjection){
+    cullFrustum = frustumOf(viewProjection);
 }
 
-void Renderer::renderShadowCasters(float range, int statsSlot){
-    Q_UNUSED(range);
-    Q_UNUSED(statsSlot);
+Renderer::Frustum Renderer::frustumOf(const float *m){
+    Frustum frustum;
+    if(m == nullptr)
+        return frustum;
+    // Rows of the column-major matrix; planes are row 3 +/- rows 0..2.
+    const float r[4][4] = {{m[0], m[4], m[8], m[12]}, {m[1], m[5], m[9], m[13]},
+                           {m[2], m[6], m[10], m[14]}, {m[3], m[7], m[11], m[15]}};
+    for(int i = 0; i < 6; ++i){
+        const float sign = (i % 2) == 0 ? 1.0f : -1.0f;
+        float *plane = frustum.planes[i];
+        float length = 0.0f;
+        for(int c = 0; c < 4; ++c)
+            plane[c] = r[3][c] + sign * r[i / 2][c];
+        for(int c = 0; c < 3; ++c)
+            length += plane[c] * plane[c];
+        length = std::sqrt(length);
+        if(length <= 0.0f)
+            return Frustum();
+        for(int c = 0; c < 4; ++c)
+            plane[c] /= length;
+    }
+    frustum.enabled = true;
+    return frustum;
 }
 
-void Renderer::renderPasses(RenderPass first, RenderPass last){
-    Q_UNUSED(first);
-    Q_UNUSED(last);
+bool Renderer::intersects(const Frustum &frustum, const float *center, float radius){
+    if(!frustum.enabled)
+        return true;
+    for(const auto &plane : frustum.planes){
+        if(plane[0] * center[0] + plane[1] * center[1] + plane[2] * center[2] + plane[3] < -radius)
+            return false;
+    }
+    return true;
 }
 
 void Renderer::resetFrame(){
     currentFrame++;
-    currentLayer = LAYER_SCENE;
-    shadowCasting = true;
-    resetMatrixStack();
+    cullFrustum = Frustum();
+    resetQueueState();
     deleteFrameMatrices();
     releaseRetiredPackets();
-}
-
-void Renderer::resetMatrixStack(){
-    matrixStackDepth = 0;
-}
-
-void Renderer::deleteFrameMatrices(){
-    for(float *matrix : mvMatrixDelete)
-        delete[] matrix;
-    mvMatrixDelete.clear();
 }
 
 void Renderer::retirePacket(RenderItem *packet){

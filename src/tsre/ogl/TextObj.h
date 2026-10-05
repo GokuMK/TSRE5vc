@@ -15,6 +15,8 @@
 #include <QPainter>
 #include <QString>
 
+class RenderQueue;
+
 class TextObj : public OglObj{
 public:
     bool inUse = false;
@@ -24,8 +26,8 @@ public:
     TextObj(int val, float s = 0, float sc = 0, int resm = 1);
     TextObj(const TextObj& orig);
     virtual ~TextObj();
-    void pushRenderItem();
-    void pushRenderItem(float rot);
+    void pushRenderItem(RenderQueue &queue);
+    void pushRenderItem(RenderQueue &queue, float rot);
     void setColor(int r, int g, int b);
     void setOColor(int r, int g, int b);
     void setFontName(QString val);

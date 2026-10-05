@@ -15,6 +15,8 @@
 #include <QVector>
 #include <tsre/GameObj.h>
 
+class RenderQueue;
+
 class FileBuffer;
 class Consist;
 class Traffic;
@@ -63,7 +65,7 @@ public:
     bool getElementPosition(int id, float *posTW);
     void pushContextMenuActions(QMenu *menu);
     QString getParentName();
-    void pushRenderItems(float *playerT, int renderMode, int index);
+    void pushRenderItems(RenderQueue &queue, float *playerT, int renderMode, int index);
     
 public slots:
     void menuToggleDirection();
@@ -83,7 +85,7 @@ private:
         int init = 0;
         int failedSignal = -1;
         bool getWorldPosition(float *posTW);
-        void pushRenderItems(float * playerT, quint32 selectionId, bool selected = false);
+        void pushRenderItems(RenderQueue &queue, float * playerT, quint32 selectionId, bool selected = false);
     };
     
     struct SpeedZone {
@@ -99,7 +101,7 @@ private:
         int init = 0;
         float trid[6];
         bool getWorldPosition(float *posTW);
-        void pushRenderItems(float * playerT, quint32 selectionId, bool selected = false);
+        void pushRenderItems(RenderQueue &queue, float * playerT, quint32 selectionId, bool selected = false);
         void makelineShape();
     };
     

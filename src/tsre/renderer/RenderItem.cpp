@@ -12,13 +12,12 @@
 #include <tsre/renderer/RenderStats.h>
 #include <tsre/math3d/Vector3f.h>
 #include <tsre/math3d/Vector4f.h>
+#include <QOpenGLFunctions>
+#include <algorithm>
+#include <cmath>
 
 RenderItem::RenderItem() {
     RenderStats::countRenderItem();
-    colorX = 1.0f;
-    colorY = 1.0f;
-    colorZ = 1.0f;
-    colorA = 1.0f;
 }
 
 RenderItem::RenderItem(const RenderItem& orig) {
@@ -27,56 +26,76 @@ RenderItem::RenderItem(const RenderItem& orig) {
 }
 
 RenderItem::~RenderItem() {
-    //delete mvMatrix;
 }
 
 void RenderItem::setVertexAttributes(VertexAttr attr){
-    vertexAttr = attr;
-    if(vertexAttr == V){
-        normalsEnabled = 0;
-    } else if(vertexAttr == VT){
-        normalsEnabled = 0;
-    } else if(vertexAttr == VNT){
-        normalsEnabled = 1;
-    } else if(vertexAttr == VNTA){
-        normalsEnabled = 1;
-    }  
+    mesh.layout = attr;
+    material.lit = attr == VNT || attr == VNTA;
 }
 
 void RenderItem::disableTextures(Vector4f* color){
-    texturesEnabled = 0;
-    colorX = color->x;
-    colorY = color->y;
-    colorZ = color->z;
-    colorA = color->c;
+    disableTextures(color->x, color->y, color->z, color->c);
 }
 
 void RenderItem::disableTextures(Vector3f* color){
-    texturesEnabled = 0;
-    colorX = color->x;
-    colorY = color->y;
-    colorZ = color->z;
-    colorA = 1.0f;
+    disableTextures(color->x, color->y, color->z, 1.0f);
 }
 
 void RenderItem::disableTextures(float x, float y, float z, float a){
-    texturesEnabled = 0;
-    colorX = x;
-    colorY = y;
-    colorZ = z;
-    colorA = a;
+    material.textured = false;
+    material.color[0] = x;
+    material.color[1] = y;
+    material.color[2] = z;
+    material.color[3] = a;
 }
 
 void RenderItem::setSelectionId(quint32 id){
     selectionId = id;
 }
 
-void RenderItem::enableTextures(unsigned int addr){
-    texturesEnabled = 1;
-    texAddr = addr;
+void RenderItem::enableTextures(unsigned int textureObject){
+    material.textured = true;
+    material.textureObject = textureObject;
 }
 
 void RenderItem::enableTextureId(int id){
-    texturesEnabled = 1;
-    textureId = id;
+    material.textured = true;
+    material.textureId = id;
+}
+
+void RenderItem::setBounds(const float *center, float radius, const float *transform){
+    if(radius < 0.0f){
+        bounds = Bounds();
+        return;
+    }
+    if(transform == nullptr){
+        std::copy(center, center + 3, bounds.center);
+        bounds.radius = radius;
+        return;
+    }
+    float scale = 0.0f;
+    for(int column = 0; column < 3; ++column){
+        const float *axis = transform + column * 4;
+        scale = std::max(scale, axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2]);
+    }
+    for(int i = 0; i < 3; ++i)
+        bounds.center[i] = transform[i] * center[0] + transform[4 + i] * center[1]
+                + transform[8 + i] * center[2] + transform[12 + i];
+    bounds.radius = radius * std::sqrt(scale);
+}
+
+RenderItem::Primitive RenderItem::primitiveFromGl(unsigned int mode){
+    switch(mode){
+    case GL_TRIANGLE_STRIP: return PRIMITIVE_TRIANGLE_STRIP;
+    case GL_TRIANGLE_FAN: return PRIMITIVE_TRIANGLE_FAN;
+    case GL_LINES: return PRIMITIVE_LINES;
+    case GL_LINE_STRIP: return PRIMITIVE_LINE_STRIP;
+    case GL_LINE_LOOP: return PRIMITIVE_LINE_LOOP;
+    case GL_POINTS: return PRIMITIVE_POINTS;
+    default: return PRIMITIVE_TRIANGLES;
+    }
+}
+
+RenderItem::IndexType RenderItem::indexTypeFromGl(unsigned int type){
+    return type == GL_UNSIGNED_INT ? INDEX_U32 : INDEX_U16;
 }

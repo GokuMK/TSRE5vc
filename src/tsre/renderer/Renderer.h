@@ -11,46 +11,12 @@
 #ifndef RENDERER_H
 #define RENDERER_H
 
-#include <QVector>
-#include <QtGlobal>
-#include <array>
+#include <tsre/renderer/RenderQueue.h>
 
-class RenderItem;
-
-// Collects a frame's draw work from producers and submits it in renderFrame().
-//
-// Submission contract:
-// - pushPackets() borrows persistent packets owned by the producer. The
-//   renderer records an instance (packet, current mvMatrix, selection ID) and
-//   never modifies the packet. Producers release packets with retirePacket(),
-//   never with delete, so queued instances stay valid until the next flush.
-// - pushItem() takes ownership of a frame-owned item (a shared item is
-//   copied) and deletes it after the flush. It is the compatibility path for
-//   producers that still build items every frame.
-// - mvMatrix values are copied at submission; producers may change or reuse
-//   their matrices immediately afterwards. A packet's msMatrix pointer must
-//   stay valid while the packet is alive; a null msMatrix means identity.
-// - A packet's fields may be refreshed when it is submitted (for example a
-//   texture that finished loading), but must not change between submissions
-//   in the same frame. Producers that draw one object with different
-//   materials in a frame use one packet per material; frameNumber() tells
-//   them when a new frame starts.
-// - Retirement protects the RenderItem only. A producer must not destroy or
-//   rebuild a queued packet's VAO, VBO or textures before the frame ends;
-//   change geometry before submitting it (for example, live placement tools
-//   move at the start of the gather frame).
-class Renderer {
+// A render queue that also draws: the frame owner gathers producers into it,
+// then draws the queued work pass by pass. Producers only see RenderQueue.
+class Renderer : public RenderQueue {
 public:
-    enum RenderMode {
-        RENDER_DEFAULT = 0,
-        RENDER_SELECTION = 1
-    };
-    // Grouped packets are batched by texture; ordered ones keep submission
-    // order with frame-owned items (overlays, decals, helper geometry).
-    enum SubmitOrder {
-        SUBMIT_GROUPED = 0,
-        SUBMIT_ORDERED = 1
-    };
     // Passes draw in this order. The renderer routes each submission from the
     // current layer, the packet surface and the submission order. In the
     // scene layer terrain packets go to PASS_TERRAIN, ordered work to
@@ -69,55 +35,30 @@ public:
         PASS_UI,
         PASS_COUNT
     };
-    enum Layer {
-        LAYER_SCENE = 0,
-        LAYER_SKY,
-        LAYER_DISTANT,
-        LAYER_OVERLAY,
-        LAYER_WATER,
-        LAYER_UI
-    };
-    float* objStrMatrix = NULL;
-    // Current model-view matrix. Producers transform it in place; the pointer
-    // stays stable across mvPushMatrix()/mvPopMatrix().
-    float* mvMatrix = NULL;
-    // Producer-allocated matrices deleted at the end of the frame.
-    QVector<float*> mvMatrixDelete;
+
     Renderer();
-    Renderer(const Renderer& orig) = delete;
-    Renderer& operator=(const Renderer& orig) = delete;
     virtual ~Renderer();
 
-    virtual void pushItem(RenderItem *r, float* mvmatrix);
-    virtual void pushPacket(RenderItem *packet, quint32 selectionId = 0,
-                            SubmitOrder order = SUBMIT_GROUPED);
-    virtual void pushPackets(const QVector<RenderItem*> &packets, quint32 selectionId = 0);
-    // Compatibility wrappers for pushPackets().
-    virtual void pushItemVNTA(RenderItem *r, float* mvmatrix);
-    virtual void pushItemsVNTA(QVector<RenderItem*> &r, float* mvmatrix);
-
-    void mvPushMatrix();
-    void mvPopMatrix();
-    // Layer for following submissions; resetFrame() returns to LAYER_SCENE.
-    void setLayer(Layer layer);
-    Layer layer() const;
     // Camera position in the submission space, for back-to-front sorting and
     // shadow caster range.
     void setViewPosition(const float *position);
-    // Whether following scene submissions may cast shadows; resetFrame()
-    // turns it back on. Only lit triangle meshes in the scene and overlay
-    // layers cast, excluding terrain and terrain decals.
-    void setShadowCasting(bool cast);
+    // View-projection the following passes are culled against: an instance
+    // whose bounds lie outside it is skipped (clip position = viewProjection
+    // * transform * msMatrix * vertex). Null draws everything; a new frame
+    // starts without culling. Packets without bounds are never culled.
+    void setCullView(const float *viewProjection);
     // Draws queued shadow casters with the bound shader without consuming
     // them, skipping instances whose origin lies farther than range from the
-    // view position on the ground plane. statsSlot labels the draws.
-    virtual void renderShadowCasters(float range, int statsSlot);
+    // view position on the ground plane, and, with a light view-projection,
+    // instances outside it. statsSlot labels the draws.
+    virtual void renderShadowCasters(float range, int statsSlot,
+                                     const float *viewProjection = nullptr) = 0;
     // Draws and consumes queued work of passes first..last; later passes stay
     // queued. Use it where direct drawing must happen between passes.
-    virtual void renderPasses(RenderPass first, RenderPass last);
+    virtual void renderPasses(RenderPass first, RenderPass last) = 0;
     // Draws all remaining passes and ends the frame's submissions.
     virtual void renderFrame();
-    // Starts a frame: drops queued work and rebalances the matrix stack.
+    // Starts a frame: drops queued work and rebalances the transform stack.
     virtual void resetFrame();
     // Increments at every resetFrame() of any renderer.
     static quint64 frameNumber();
@@ -131,16 +72,17 @@ protected:
     static int queuedPackets;
     static quint64 currentFrame;
     static void releaseRetiredPackets();
-    void deleteFrameMatrices();
-    void resetMatrixStack();
-    Layer currentLayer = LAYER_SCENE;
-    bool shadowCasting = true;
     float viewPosition[3] = {0, 0, 0};
 
-private:
-    float ownMvMatrix[16];
-    QVector<std::array<float, 16>> matrixStack;
-    int matrixStackDepth = 0;
+    // Normalised clip planes of a view-projection; disabled draws everything.
+    struct Frustum {
+        float planes[6][4];
+        bool enabled = false;
+    };
+    static Frustum frustumOf(const float *viewProjection);
+    // Whether a sphere in submission space can be inside the frustum.
+    static bool intersects(const Frustum &frustum, const float *center, float radius);
+    Frustum cullFrustum;
 };
 
 #endif /* RENDERER_H */

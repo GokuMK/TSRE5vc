@@ -1,6 +1,6 @@
 # SFile Legacy Findings
 
-Historical source audit supporting [Task 04 - SFileComplex](../04-sfile-complex-implementation.md). Legacy classes remain unchanged; implementation requirements and the ParserX review live in Task 04.
+Historical source audit supporting [Task 04 - SFileComplex](../04-sfile-complex-implementation.md). Legacy classes remained unchanged during the audit; implementation requirements and the ParserX review live in Task 04. The audited SFile/C/X classes were removed on 2026-10-04, so the source links below no longer resolve.
 
 ## Audit scope and result
 

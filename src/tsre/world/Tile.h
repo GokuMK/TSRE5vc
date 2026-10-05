@@ -16,6 +16,8 @@
 #include <tsre/world/objects/WorldObj.h>
 #include <tsre/world/Ref.h>
 
+class RenderQueue;
+
 class GroupObj;
 
 class Tile {
@@ -81,7 +83,7 @@ public:
     void updateSim(float deltaTime);
     void findSimilar(WorldObj* obj, GroupObj* group);
     void checkForErrors();
-    void pushRenderItems(float *  playerT, float* playerW, float* target, float fov, int renderMode);
+    void pushRenderItems(RenderQueue &queue, float *  playerT, float* playerW, float* target, float fov, int renderMode);
     //void renderWS(float *  playerT, float* playerW, float* target, float fov, int renderMode);
     bool save();
     void saveToStream(QTextStream &out);

@@ -1,6 +1,6 @@
 # SFileLegacy: separate legacy loading and GL initialization
 
-Current integration (2026-09-11): SFileLegacy is the default MSTS backend in ShapeLib. `TSRE_MSTS_SHAPE_BACKEND=old` retains the original SFile/C/X fallback; `legacy` explicitly selects the default. Complex modes remain opt-in. The original scope and comparison history below predate this authorized default switch. Route/consist and hardware-GL practical checks remain pending before removal of the old classes.
+Current integration (2026-09-11): SFileLegacy is the default MSTS backend in ShapeLib. `legacy` explicitly selects the default. Complex modes remain opt-in. The original scope and comparison history below predate this authorized default switch. The original SFile/C/X classes and the `TSRE_MSTS_SHAPE_BACKEND=old` fallback were removed on 2026-10-04; hardware-GL practical checks remain optional follow-up work.
 
 
 Source layout: all SFileLegacy implementation methods live in `src/tsre/shape/SFileLegacy.cpp`, with declarations in `SFileLegacy.h`. Binary loading, UTF-16 loading and GL initialization are sections in that one source file. CPU loading and `initGL()` remain separate methods; the original SFile/C/X classes remain in the project.

@@ -22,6 +22,7 @@
 #include <QOpenGLShaderProgram>
 #include <tsre/ogl/GLUU.h>
 #include <tsre/math3d/GLMatrix.h>
+#include <algorithm>
 #include <cmath>
 #include <QString>
 #include <tsre/Game.h>
@@ -862,10 +863,15 @@ void SFileLegacy::setCurrentDistanceLevel(unsigned int stateId, int level){
     state[stateId].distanceLevel = level;
 }
 
-void SFileLegacy::clearRenderItems(unsigned int id) {
-    for (RenderItem *item : renderItems[id])
+void SFileLegacy::clearRenderItems(quint64 key) {
+    for (RenderItem *item : renderItems[key])
         Renderer::retirePacket(item);
-    renderItems[id].clear();
+    renderItems[key].clear();
+}
+
+quint64 SFileLegacy::packetKey(unsigned int stateId) const {
+    return (quint64(quint32(state[stateId].distanceLevel)) << 32)
+            | quint32(state[stateId].enabledSubObjs);
 }
 
 void SFileLegacy::invalidateRenderState(bool invalidateMatrixCache){
@@ -974,15 +980,13 @@ void SFileLegacy::setGatherTexture(RenderItem *item, int primState, bool texEnab
         item->enableTextureId(img.tex);
 }
 
-void SFileLegacy::pushRenderItem(){
-    pushRenderItem(0,0);
+void SFileLegacy::pushRenderItem(RenderQueue &queue){
+    pushRenderItem(queue, 0,0);
 }
 
-void SFileLegacy::pushRenderItem(quint32 selectionId, unsigned int stateId){
+void SFileLegacy::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned int stateId){
     if (loaded == 1 && !isGLReady() && !initGL()) return;
     if (isinit != 1 || loaded == 2)
-        return;
-    if(Game::currentRenderer == NULL)
         return;
     if (loaded == 0) {
         if(Game::objectLoadingTokens < 1) return;
@@ -1038,49 +1042,49 @@ void SFileLegacy::pushRenderItem(quint32 selectionId, unsigned int stateId){
                     slot++;
                 } else {
                     r = new RenderItem();
-                    r->msMatrix = Mat4::clone(m);
-                    Game::currentRenderer->mvMatrixDelete.push_back(r->msMatrix);
+                    r->msMatrix = queue.frameMatrix(m);
                 }
 
                 if( vtxstate[vtx_state].arg2 < -7 )
-                    r->normalsEnabled = 0;
+                    r->material.lit = 0;
                 else
-                    r->normalsEnabled = 1;
+                    r->material.lit = 1;
 
                 if( vtxstate[vtx_state].arg2 == -12 )
-                    r->brightness = 0.5;
+                    r->material.brightness = 0.5;
                 else
-                    r->brightness = 1.0;
+                    r->material.brightness = 1.0;
 
                 r->setSelectionId(selectionId);
-                r->surface = gatherSurface(prim_state);
+                r->material.surface = gatherSurface(prim_state);
                 if (selectionId == 0)
                     setGatherTexture(r, prim_state, texEnabled);
 
-                r->VBO = &distancelevel[currentDlevel].subobiekty[i].VBO;
-                r->VAO = &distancelevel[currentDlevel].subobiekty[i].VAO;
-                r->vertOffset = distancelevel[currentDlevel].subobiekty[i].czesci[j].offset;
-                r->vertCount = distancelevel[currentDlevel].subobiekty[i].czesci[j].iloscv;
-                r->itemType = GL_TRIANGLES;
-                r->vertexAttr = RenderItem::VNTA;
+                r->mesh.vbo = &distancelevel[currentDlevel].subobiekty[i].VBO;
+                r->mesh.vao = &distancelevel[currentDlevel].subobiekty[i].VAO;
+                r->mesh.first = distancelevel[currentDlevel].subobiekty[i].czesci[j].offset;
+                r->mesh.count = distancelevel[currentDlevel].subobiekty[i].czesci[j].iloscv;
+                r->mesh.primitive = RenderItem::PRIMITIVE_TRIANGLES;
+                r->mesh.layout = RenderItem::VNTA;
                 if(reusePool){
                     r->shared = true;
-                    Game::currentRenderer->pushPacket(r, 0, Renderer::SUBMIT_ORDERED);
+                    queue.submit(r, 0, RenderQueue::SUBMIT_ORDERED);
                 } else {
                     r->shared = false;
-                    Game::currentRenderer->pushItem(r, Game::currentRenderer->mvMatrix);
+                    queue.submitFrameItem(r);
                 }
             }
         }
         return;
     }
 
-    if(renderItems[stateId].size() == 0 || requiresUpdate){
-        // `requiresUpdate` is shape-wide (all stateIds).
-        // If any state requested refresh, invalidate other cached states too.
+    const quint64 key = packetKey(stateId);
+    if(renderItems[key].size() == 0 || requiresUpdate){
+        // `requiresUpdate` is shape-wide (all keys).
+        // If any state requested refresh, invalidate other cached keys too.
         bool globalInvalidateRequested = requiresUpdate;
         requiresUpdate = false;
-        clearRenderItems(stateId);
+        clearRenderItems(key);
 
         RenderItem * r;// = new RenderItem();
         float m[16];
@@ -1112,42 +1116,46 @@ void SFileLegacy::pushRenderItem(quint32 selectionId, unsigned int stateId){
                 }
 
                 if( vtxstate[vtx_state].arg2 < -7 )
-                    r->normalsEnabled = 0;
+                    r->material.lit = 0;
                 else
-                    r->normalsEnabled = 1;
+                    r->material.lit = 1;
 
                 if( vtxstate[vtx_state].arg2 == -12 )
-                    r->brightness = 0.5;
+                    r->material.brightness = 0.5;
                 else
-                    r->brightness = 1.0;
+                    r->material.brightness = 1.0;
 
-                r->surface = gatherSurface(prim_state);
+                r->material.surface = gatherSurface(prim_state);
                 setGatherTexture(r, prim_state, texEnabled);
 
-                r->VBO = &distancelevel[currentDlevel].subobiekty[i].VBO;
-                r->VAO = &distancelevel[currentDlevel].subobiekty[i].VAO;
-                //r->mvMatrix = Mat4::clone(Game::currentRenderer->mvMatrix);
-                r->vertOffset = distancelevel[currentDlevel].subobiekty[i].czesci[j].offset;
-                r->vertCount = distancelevel[currentDlevel].subobiekty[i].czesci[j].iloscv;
-                r->itemType = GL_TRIANGLES;
-                r->vertexAttr = RenderItem::VNTA;
+                r->mesh.vbo = &distancelevel[currentDlevel].subobiekty[i].VBO;
+                r->mesh.vao = &distancelevel[currentDlevel].subobiekty[i].VAO;
+                //r->mvMatrix = Mat4::clone(queue.transform());
+                r->mesh.first = distancelevel[currentDlevel].subobiekty[i].czesci[j].offset;
+                r->mesh.count = distancelevel[currentDlevel].subobiekty[i].czesci[j].iloscv;
+                r->mesh.primitive = RenderItem::PRIMITIVE_TRIANGLES;
+                r->mesh.layout = RenderItem::VNTA;
                 r->shared = true;
-                renderItems[stateId].push_back(r);
-                //Game::currentRenderer->pushItemVNTA(r);
+                // Static packets keep their part matrix, so their bounds hold.
+                if(!animated){
+                    const auto &part = distancelevel[currentDlevel].subobiekty[i].czesci[j];
+                    r->setBounds(part.boundCenter, part.boundRadius, r->msMatrix);
+                }
+                renderItems[key].push_back(r);
             }
         }
         if(globalInvalidateRequested){
-            // Keep current state items, but force rebuild of other cached states.
+            // Keep this key's items, but force rebuild of the other keys.
             for(auto it = renderItems.begin(); it != renderItems.end(); ++it){
-                if(it.key() == stateId)
+                if(it.key() == key)
                     continue;
                 clearRenderItems(it.key());
             }
         }
     }
 
-    if(renderItems[stateId].size() > 0)
-        Game::currentRenderer->pushPackets(renderItems[stateId], selectionId);
+    if(renderItems[key].size() > 0)
+        queue.submit(renderItems[key], selectionId);
 }
 
 void SFileLegacy::fillContentHierarchyInfo(QVector<ContentHierarchyInfo*>& list, int parent){
@@ -2016,6 +2024,33 @@ bool SFileLegacy::isGLReady() const {
     return glReady && glContext && glContext == QOpenGLContext::currentContext();
 }
 
+// Sphere around a part's uploaded positions (9 floats per vertex).
+static void partBounds(SFileLegacy::czes &part, const float *vertices) {
+    if (part.iloscv <= 0) {
+        part.boundRadius = -1.0f;
+        return;
+    }
+    float low[3] = {vertices[0], vertices[1], vertices[2]};
+    float high[3] = {vertices[0], vertices[1], vertices[2]};
+    for (int v = 1; v < part.iloscv; ++v)
+        for (int i = 0; i < 3; ++i) {
+            low[i] = std::min(low[i], vertices[v * 9 + i]);
+            high[i] = std::max(high[i], vertices[v * 9 + i]);
+        }
+    float radius = 0.0f;
+    for (int i = 0; i < 3; ++i)
+        part.boundCenter[i] = 0.5f * (low[i] + high[i]);
+    for (int v = 0; v < part.iloscv; ++v) {
+        float distance = 0.0f;
+        for (int i = 0; i < 3; ++i) {
+            const float d = vertices[v * 9 + i] - part.boundCenter[i];
+            distance += d * d;
+        }
+        radius = std::max(radius, distance);
+    }
+    part.boundRadius = std::sqrt(radius);
+}
+
 bool SFileLegacy::initGL() {
     // Uploaded source has been released. Another/lost context requires reload().
     if (glReady) return isGLReady();
@@ -2131,6 +2166,7 @@ bool SFileLegacy::initGL() {
                             //if(directxSmierdzi<-2) directxSmierdzi = 2;
                     }
                     pliks->distancelevel[j].subobiekty[ii].VBO.write(offset * 9 * sizeof(GLfloat), wierzcholki, pliks->distancelevel[j].subobiekty[ii].czesci[jj].iloscv * 9 * sizeof(GLfloat));
+                    partBounds(object.czesci[jj], wierzcholki);
 
                     pliks->distancelevel[j].subobiekty[ii].czesci[jj].offset = offset;
                     offset += pliks->distancelevel[j].subobiekty[ii].czesci[jj].iloscv;

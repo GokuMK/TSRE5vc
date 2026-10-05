@@ -41,6 +41,8 @@ GLUU::GLUU() {
     fMatrix = new float[16];
     pShadowMatrix = new float[16];
     pShadowMatrix2 = new float[16];
+    pShadowMatrix0 = new float[16];
+    Mat4::identity(pShadowMatrix0);
     mvMatrix = new float[16];
     objStrMatrix = new float[16];
 }
@@ -49,17 +51,71 @@ GLUU::~GLUU() {
 
 }
 
-const char* GLUU::getShader(QString shaderScript, QString type) {
-#ifdef __APPLE__
-    QFile* shaderData = new QFile(QString("appdata/")+Game::AppDataVersion+"/shaders330/"+shaderScript+"."+type);
-#else
-    QFile* shaderData = new QFile(QString("appdata/")+Game::AppDataVersion+"/shaders/"+shaderScript+"."+type);
-#endif
-    if (!shaderData->open(QIODevice::ReadOnly)){
-        qDebug() << "Shader file not found " << shaderData->fileName();
-        return "";
+// GLSL 3.30 sources; OpenGL 3.3 is the minimum on every platform.
+QString GLUU::shaderDirectory() {
+    return QString("appdata/")+Game::AppDataVersion+"/shaders330";
+}
+
+namespace {
+
+QByteArray readShaderFile(const QString &path) {
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        qWarning() << "Shader file not found" << path;
+        return QByteArray();
     }
-    return (const char*) ReadFile::readRAW(shaderData)->data;
+    return file.readAll();
+}
+
+QByteArray expandIncludes(const QString &directory, const QByteArray &source, int depth) {
+    if (depth > 8) {
+        qWarning() << "Shader includes nested too deeply in" << directory;
+        return source;
+    }
+    QByteArray out;
+    for (const QByteArray &line : source.split('\n')) {
+        const QByteArray trimmed = line.trimmed();
+        if (trimmed.startsWith("#include")) {
+            const int open = trimmed.indexOf('"');
+            const int close = trimmed.lastIndexOf('"');
+            if (open >= 0 && close > open) {
+                const QString name = QString::fromUtf8(trimmed.mid(open + 1, close - open - 1));
+                out += expandIncludes(directory, readShaderFile(directory + "/" + name), depth + 1);
+                out += '\n';
+                continue;
+            }
+        }
+        out += line;
+        out += '\n';
+    }
+    return out;
+}
+
+}
+
+QByteArray GLUU::shaderSource(const QString &directory, const QString &name,
+                              const QString &type, const QStringList &defines) {
+    QByteArray source = expandIncludes(directory,
+                                       readShaderFile(directory + "/" + name + "." + type), 0);
+    if (defines.isEmpty())
+        return source;
+    // Defines go right after #version, which must stay the first statement.
+    QByteArray defineLines;
+    for (const QString &define : defines)
+        defineLines += "#define " + define.toUtf8() + " 1\n";
+    const int version = source.indexOf("#version");
+    const int lineEnd = version >= 0 ? source.indexOf('\n', version) : -1;
+    if (lineEnd < 0)
+        return defineLines + source;
+    return source.left(lineEnd + 1) + defineLines + source.mid(lineEnd + 1);
+}
+
+Shader *GLUU::terrainVariant(Shader *shader) const {
+    return terrainVariants.value(shader, shader);
+}
+
+Shader *GLUU::unlitVariant(Shader *shader) const {
+    return unlitVariants.value(shader, shader);
 }
 
 void GLUU::initShader() {
@@ -71,22 +127,38 @@ void GLUU::initShader() {
         QString name;
         QString vertexSource;
         QString fragmentSource;
+        QStringList defines;
     };
+    // Standard programs leave out terrain code; each has a "<name>Terrain"
+    // variant built with TSRE_TERRAIN that draws terrain packets, and a
+    // "<name>Unlit" variant built with TSRE_UNLIT for overlays and UI.
+    // Selection draws terrain and objects with one program, so it always has
+    // the terrain code.
+    const QStringList terrain{"TSRE_TERRAIN"};
+    const QStringList unlit{"TSRE_UNLIT"};
     QVector<ShaderDefinition> shaderDefinitions;
-    shaderDefinitions.push_back({"StandardFog", "StandardFog", "StandardFog"});
-    shaderDefinitions.push_back({"StandardFast", "StandardFog", "StandardFast"});
-    shaderDefinitions.push_back({"StandardFogStoredCoords", "StandardFogStoredCoords", "StandardFogStoredCoords"});
-    shaderDefinitions.push_back({"StandardBloom", "StandardBloom", "StandardBloom"});
-    shaderDefinitions.push_back({"Shadows", "Shadows", "Shadows"});
-    shaderDefinitions.push_back({"Selection", "StandardFog", "Selection"});
+    shaderDefinitions.push_back({"StandardFog", "StandardFog", "StandardFog", {}});
+    shaderDefinitions.push_back({"StandardFast", "StandardFog", "StandardFast", {}});
+    shaderDefinitions.push_back({"StandardFogStoredCoords", "StandardFogStoredCoords", "StandardFogStoredCoords", {}});
+    shaderDefinitions.push_back({"StandardFogTerrain", "StandardFog", "StandardFog", terrain});
+    shaderDefinitions.push_back({"StandardFastTerrain", "StandardFog", "StandardFast", terrain});
+    shaderDefinitions.push_back({"StandardFogStoredCoordsTerrain", "StandardFogStoredCoords", "StandardFogStoredCoords", terrain});
+    shaderDefinitions.push_back({"StandardFogUnlit", "StandardFog", "StandardFog", unlit});
+    shaderDefinitions.push_back({"StandardFastUnlit", "StandardFog", "StandardFast", unlit});
+    shaderDefinitions.push_back({"StandardFogStoredCoordsUnlit", "StandardFogStoredCoords", "StandardFogStoredCoords", unlit});
+    shaderDefinitions.push_back({"Shadows", "Shadows", "Shadows", {}});
+    shaderDefinitions.push_back({"Selection", "StandardFog", "Selection", terrain});
 
+    const QString directory = shaderDirectory();
     for(int i = 0; i < shaderDefinitions.size(); i++ ){
         const ShaderDefinition &definition = shaderDefinitions[i];
         shaders[definition.name] = new Shader();
-        if(!shaders[definition.name]->addShaderFromSourceCode(QOpenGLShader::Vertex, getShader(definition.vertexSource, "vs"))){
+        if(!shaders[definition.name]->addShaderFromSourceCode(QOpenGLShader::Vertex,
+                shaderSource(directory, definition.vertexSource, "vs", definition.defines))){
             qDebug() << "Loading shader .vs file failed.";
         }
-        if(!shaders[definition.name]->addShaderFromSourceCode(QOpenGLShader::Fragment, getShader(definition.fragmentSource, "fs"))){
+        if(!shaders[definition.name]->addShaderFromSourceCode(QOpenGLShader::Fragment,
+                shaderSource(directory, definition.fragmentSource, "fs", definition.defines))){
             qDebug() << "Loading shader .fs file failed.";
         }
         currentShader = shaders[definition.name];
@@ -112,6 +184,7 @@ void GLUU::initShader() {
         currentShader->fMatrixUniform = currentShader->uniformLocation("uFMatrix");
         currentShader->pShadowMatrixUniform = currentShader->uniformLocation("uShadowPMatrix");
         currentShader->pShadow2MatrixUniform = currentShader->uniformLocation("uShadow2PMatrix");
+        currentShader->pShadow0MatrixUniform = currentShader->uniformLocation("uShadow0PMatrix");
         currentShader->mvMatrixUniform = currentShader->uniformLocation("uMVMatrix");
         currentShader->msMatrixUniform = currentShader->uniformLocation("uMSMatrix");
         currentShader->lod = currentShader->uniformLocation("lod");
@@ -135,9 +208,12 @@ void GLUU::initShader() {
         currentShader->shaderBrightness = currentShader->uniformLocation("colorBrightness");
         currentShader->shaderFogDensity = currentShader->uniformLocation("fogDensity");
         currentShader->shadow1Res = currentShader->uniformLocation("shadow1Res");
-        currentShader->shadow1Bias = currentShader->uniformLocation("shadow1Bias");
         currentShader->shadow2Res = currentShader->uniformLocation("shadow2Res");
         currentShader->shadow2Bias = currentShader->uniformLocation("shadow2Bias");
+        currentShader->shadowMapScale = currentShader->uniformLocation("shadowMapScale");
+        currentShader->shadowNormalOffset = currentShader->uniformLocation("shadowNormalOffset");
+        currentShader->shadowDepthBias = currentShader->uniformLocation("shadowDepthBias");
+        currentShader->shadowLightDirection = currentShader->uniformLocation("shadowLightDirection");
         currentShader->terrainPaged = currentShader->uniformLocation("terrainPaged");
         currentShader->terrainVerticesPerPatch = currentShader->uniformLocation("terrainVerticesPerPatch");
         currentShader->terrainPatchSide = currentShader->uniformLocation("terrainPatchSide");
@@ -146,7 +222,12 @@ void GLUU::initShader() {
         currentShader->terrainMapPass = currentShader->uniformLocation("terrainMapPass");
         currentShader->terrainMaterialEnabled = currentShader->uniformLocation("terrainMaterialEnabled");
         currentShader->terrainMaterialMap = currentShader->uniformLocation("terrainMaterialMap");
-        currentShader->terrainMaterialId = currentShader->uniformLocation("terrainMaterialId");
+        currentShader->terrainMaterialTextures = currentShader->uniformLocation("terrainMaterialTextures");
+        currentShader->terrainMaterialDetails = currentShader->uniformLocation("terrainMaterialDetails");
+        currentShader->terrainMaterialParams = currentShader->uniformLocation("terrainMaterialParams");
+        currentShader->instanced = currentShader->uniformLocation("instanced");
+        currentShader->instanceBase = currentShader->uniformLocation("instanceBase");
+        currentShader->instanceMatrices = currentShader->uniformLocation("instanceMatrices");
         currentShader->terrainMaterialMapRemap = currentShader->uniformLocation("terrainMaterialMapRemap");
         currentShader->terrainMaterialMapSide = currentShader->uniformLocation("terrainMaterialMapSide");
         currentShader->terrainMaterialNoiseScale = currentShader->uniformLocation("terrainMaterialNoiseScale");
@@ -177,15 +258,36 @@ void GLUU::initShader() {
         currentShader->setUniformValue(tex3, 2);
         unsigned int tex4 = currentShader->uniformLocation("shadow2");
         currentShader->setUniformValue(tex4, 3);
+        // Unit 9 holds the near shadow map.
+        unsigned int tex0 = currentShader->uniformLocation("shadow0");
+        currentShader->setUniformValue(tex0, 9);
+        // Units 4-7 hold the procedural terrain map, material and detail
+        // arrays and the per-material parameters.
         if (currentShader->terrainMaterialMap >= 0)
             currentShader->setUniformValue(currentShader->terrainMaterialMap, 4);
+        if (currentShader->terrainMaterialTextures >= 0)
+            currentShader->setUniformValue(currentShader->terrainMaterialTextures, 5);
+        if (currentShader->terrainMaterialDetails >= 0)
+            currentShader->setUniformValue(currentShader->terrainMaterialDetails, 6);
+        if (currentShader->terrainMaterialParams >= 0)
+            currentShader->setUniformValue(currentShader->terrainMaterialParams, 7);
+        // Unit 8 holds the instance matrix buffer.
+        if (currentShader->instanceMatrices >= 0)
+            currentShader->setUniformValue(currentShader->instanceMatrices, 8);
+        if (currentShader->instanced >= 0)
+            currentShader->setUniformValue(currentShader->instanced, 0);
         if (currentShader->terrainMaterialEnabled >= 0)
             currentShader->setUniformValue(currentShader->terrainMaterialEnabled, 0);
         currentShader->release();
     }
     
-    //currentShader = shaders["StandardFog"];
-    currentShader = shaders["StandardBloom"];
+    for (const QString &name : {QString("StandardFog"), QString("StandardFast"),
+                                QString("StandardFogStoredCoords")})
+    {
+        terrainVariants[shaders[name]] = shaders[name + "Terrain"];
+        unlitVariants[shaders[name]] = shaders[name + "Unlit"];
+    }
+    currentShader = shaders["StandardFog"];
 }
 
 void GLUU::setMatrixUniforms() {
@@ -193,6 +295,7 @@ void GLUU::setMatrixUniforms() {
     currentShader->setUniformValue(currentShader->fMatrixUniform, *reinterpret_cast<float(*)[4][4]> (fMatrix));
     currentShader->setUniformValue(currentShader->pShadowMatrixUniform, *reinterpret_cast<float(*)[4][4]> (pShadowMatrix));
     currentShader->setUniformValue(currentShader->pShadow2MatrixUniform, *reinterpret_cast<float(*)[4][4]> (pShadowMatrix2));
+    currentShader->setUniformValue(currentShader->pShadow0MatrixUniform, *reinterpret_cast<float(*)[4][4]> (pShadowMatrix0));
     currentShader->setUniformValue(currentShader->mvMatrixUniform, *reinterpret_cast<float(*)[4][4]> (mvMatrix));
     currentShader->setUniformValue(currentShader->msMatrixUniform, *reinterpret_cast<float(*)[4][4]> (objStrMatrix));
     currentTexture = -1;
@@ -218,9 +321,16 @@ void GLUU::setMatrixUniforms() {
         setSelectionId(0);
     
     currentShader->setUniformValue(currentShader->shadow1Res, shadow1Res);
-    currentShader->setUniformValue(currentShader->shadow1Bias, shadow1Bias);
     currentShader->setUniformValue(currentShader->shadow2Res, shadow2Res);
     currentShader->setUniformValue(currentShader->shadow2Bias, shadow2Bias);
+    currentShader->setUniformValue(currentShader->shadowMapScale, shadowMapScale[0],
+            shadowMapScale[1], shadowMapScale[2], shadowMapScale[3]);
+    currentShader->setUniformValue(currentShader->shadowNormalOffset, shadowNormalOffset[0],
+            shadowNormalOffset[1], shadowNormalOffset[2]);
+    currentShader->setUniformValue(currentShader->shadowDepthBias, shadowDepthBias[0],
+            shadowDepthBias[1]);
+    currentShader->setUniformValue(currentShader->shadowLightDirection, shadowLightDirection[0],
+            shadowLightDirection[1], shadowLightDirection[2]);
 };
 
 void GLUU::disableTextures(Vector4f* color){

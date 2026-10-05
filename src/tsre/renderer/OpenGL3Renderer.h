@@ -16,22 +16,24 @@
 #include <vector>
 
 class QOpenGLFunctions;
+class QOpenGLContext;
 class GLUU;
+class Shader;
 
 class OpenGL3Renderer : public Renderer {
 public:
     OpenGL3Renderer();
     virtual ~OpenGL3Renderer();
     void renderPasses(RenderPass first, RenderPass last) override;
-    void renderShadowCasters(float range, int statsSlot) override;
+    void renderShadowCasters(float range, int statsSlot,
+                             const float *viewProjection = nullptr) override;
     void renderFrame() override;
     void resetFrame() override;
-    void pushItem(RenderItem *r, float* mvmatrix) override;
-    void pushPacket(RenderItem *packet, quint32 selectionId = 0,
-                    SubmitOrder order = SUBMIT_GROUPED) override;
-    void pushPackets(const QVector<RenderItem*> &packets, quint32 selectionId = 0) override;
-    void pushItemsVNTA(QVector<RenderItem*>& r, float* mvmatrix) override;
-    void pushItemVNTA(RenderItem *r, float* mvmatrix) override;
+    using RenderQueue::submit;
+    void submit(RenderItem *packet, quint32 selectionId = 0,
+                SubmitOrder order = SUBMIT_GROUPED) override;
+    void submit(const QVector<RenderItem*> &packets, quint32 selectionId = 0) override;
+    void submitFrameItem(RenderItem *item) override;
 
     // Opaque, alpha-test and overlay packets are grouped by texture and
     // packet for fewer state changes; false draws them in submission order.
@@ -70,22 +72,50 @@ private:
     };
 
     quint32 captureMatrix(const float *matrix);
-    const float *frameMatrix(quint32 index) const;
+    const float *instanceMatrix(quint32 index) const;
     RenderPass routePass(const RenderItem *packet, SubmitOrder order) const;
     bool castsShadow(const RenderItem *packet) const;
     void instanceOrigin(const DrawInstance &instance, float *origin) const;
+    // An instance's bounding sphere in submission space; false without bounds.
+    bool instanceBounds(const DrawInstance &instance, float *center, float &radius) const;
+    // Whether an instance's bounds can be inside the frustum; counts culls.
+    bool visible(const DrawInstance &instance, const Frustum &frustum) const;
     void queueInstance(RenderItem *packet, const float *matrix, quint32 selectionId,
                        SubmitOrder order, bool owned);
     void sortByTexture(std::vector<DrawInstance> &instances);
     void sortBackToFront(std::vector<DrawInstance> &instances);
-    void drawOrdered(GLUU *gluu, const std::vector<DrawInstance> &instances, int pass);
-    void drawGrouped(GLUU *gluu, const std::vector<DrawInstance> &instances, int pass);
+    void drawOrdered(GLUU *gluu, Shader *base, const std::vector<DrawInstance> &instances,
+                     int pass);
+    void drawGrouped(GLUU *gluu, Shader *base, const std::vector<DrawInstance> &instances,
+                     int pass);
     void consumePass(PassQueue &queue);
     void clearQueues();
+    // Uploads instanceUpload to the instance buffer texture on unit 8.
+    bool uploadInstances();
+    // Whether instance rows first..first+count fit the buffer texture.
+    bool instanceRowsFit(int first, int count);
+    void releaseInstanceBuffer();
+
+    // A run of instances of one packet in a grouped pass. base >= 0 marks an
+    // instanced draw of count instances starting at that buffer row.
+    struct GroupPlan {
+        size_t begin = 0;
+        size_t end = 0;
+        int visible = 0;
+        int base = -1;
+    };
+    std::vector<GroupPlan> groupPlans;
+    std::vector<const DrawInstance *> shadowCasters;
+    std::vector<char> instanceVisible;
+    std::vector<float> instanceUpload;
+    unsigned int instanceBuffer = 0;
+    unsigned int instanceTexture = 0;
+    QOpenGLContext *instanceContext = nullptr;
+    int maxInstanceTexels = 0;
 
     // Frame storage is cleared, not freed, so steady frames do not allocate.
     PassQueue passes[PASS_COUNT];
-    std::vector<float> frameMatrices;
+    std::vector<float> instanceMatrices;
     std::vector<quint32> sortOrder;
     std::vector<RenderItem*> ownedItems;
     quint32 nextOrder = 0;

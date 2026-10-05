@@ -33,7 +33,6 @@
 #include <QtWidgets>
 #include <QColor>
 #include <tsre/fileFunctions/TarFile.h>
-#include <tsre/renderer/Renderer.h>
 #include <tsre/texture/AceLib.h>
 #include <tsre/texture/DdsLib.h>
 #include <tsre/world/TerrainGridLayout.h>
@@ -66,7 +65,6 @@ QString Game::season = "";
 QString Game::mainWindowLayout = "PWT";
 QString Game::ceWindowLayout = "C1";
 QString Game::ActivityToPlay = "";
-Renderer *Game::currentRenderer = NULL;
 bool Game::playerMode = false;
 bool Game::useNetworkEng = false;
 bool Game::useQuadTree = true;
@@ -178,8 +176,7 @@ bool Game::AARemoveBorder = false;
 float Game::PixelRatio = 1.0;
 
 float Game::fogDensity = 0.7;
-float Game::shadow1Res = 2000.0;
-float Game::shadow1Bias = 0.0025;
+float Game::shadow1Res = 2500.0;
 float Game::shadow2Res = 4000.0;
 float Game::shadow2Bias = 0.002;
 //float fogColor[4]{0.5, 0.75, 1.0, 1.0};
@@ -330,8 +327,8 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
     claim("core.rendering.shadow.primaryMapSize", SettingType::Enum);
     if (appliesNow("core.rendering.shadow.primaryMapSize")) {
         shadowMapSize = settings.runtimeInt("core.rendering.shadow.primaryMapSize");
-        if (shadowMapSize == 8192) { shadow1Res = 3000.0; shadow1Bias = 0.0004; }
-        else if (shadowMapSize == 4096) { shadow1Res = 2500.0; shadow1Bias = 0.0007; }
+        if (shadowMapSize == 8192) shadow1Res = 3000.0;
+        else if (shadowMapSize == 4096) shadow1Res = 2500.0;
     }
     claim("core.rendering.shadow.distantMapSize", SettingType::Enum);
     if (appliesNow("core.rendering.shadow.distantMapSize")) {
@@ -701,11 +698,9 @@ void Game::loadLegacySettings() {
             shadowMapSize = args[1].trimmed().toInt();
             if(shadowMapSize == 8192){
                 shadow1Res = 3000.0;
-                shadow1Bias = 0.0004;
             }
             if(shadowMapSize == 4096){
                 shadow1Res = 2500.0;
-                shadow1Bias = 0.0007;
             }
         }
         if(val == "shadowLowMapSize"){

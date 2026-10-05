@@ -113,14 +113,12 @@ void SoundSourceObj::set(QString sh, FileBuffer* data) {
     return;
 }
 
-void SoundSourceObj::pushRenderItems(float lod, float posx, float posz, float* pos, float* target, float fov, quint32 selectionId){
+void SoundSourceObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float posz, float* pos, float* target, float fov, quint32 selectionId){
     if (!loaded) return;
     if(!Game::viewInteractives)
         return;
-    if(Game::currentRenderer == NULL)
-        return;
 
-    Mat4::multiply(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, matrix);
+    Mat4::multiply(queue.transform(), queue.transform(), matrix);
 
     if(pointer3d == NULL)
         pointer3d = new PoleObj();
@@ -130,9 +128,9 @@ void SoundSourceObj::pushRenderItems(float lod, float posx, float posz, float* p
     }
 
     if(this->selected)
-        pointer3dSelected->pushRenderItem(selectionId);
+        pointer3dSelected->pushRenderItem(queue, selectionId);
     else
-        pointer3d->pushRenderItem(selectionId);
+        pointer3d->pushRenderItem(queue, selectionId);
 }
 
 int SoundSourceObj::getDefaultDetailLevel(){

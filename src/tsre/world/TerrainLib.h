@@ -18,6 +18,8 @@
 #include <tsre/world/TerrainAdjacentEdge.h>
 #include <tsre/world/TerrainLod.h>
 
+
+class RenderQueue;
 class Terrain;
 class Brush;
 class HeightWindow;
@@ -109,11 +111,11 @@ public:
     virtual void fillTerrainData(Terrain *tTile, float *offsetXYZ);
     virtual void updateTerrainHeightmap(Terrain *t);
     virtual void updateTerrainTFile(Terrain *t);
-    virtual void pushRenderItems(float* playerT, float* playerW, float* target, float fov, int renderMode);
+    virtual void pushRenderItems(RenderQueue &queue, float* playerT, float* playerW, float* target, float fov, int renderMode);
     // Distant terrain, water and distant water.
-    virtual void pushRenderItemsLo(float* playerT, float* playerW, float* target, float fov, int renderMode);
-    virtual void pushRenderItemsWater(float* playerT, float* playerW, float* target, float fov, int renderMode, int layer);
-    virtual void pushRenderItemsWaterLo(float* playerT, float* playerW, float* target, float fov, int renderMode, int layer);
+    virtual void pushRenderItemsLo(RenderQueue &queue, float* playerT, float* playerW, float* target, float fov, int renderMode);
+    virtual void pushRenderItemsWater(RenderQueue &queue, float* playerT, float* playerW, float* target, float fov, int renderMode, int layer);
+    virtual void pushRenderItemsWaterLo(RenderQueue &queue, float* playerT, float* playerW, float* target, float fov, int renderMode, int layer);
     
 protected:
     QHash<Terrain*, QVector<TerrainPatchLodState>> preparedTerrainLod;

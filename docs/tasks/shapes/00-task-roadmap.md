@@ -1,12 +1,12 @@
 # Shapes Task Roadmap
 
-This folder contains ordered tasks for generalizing TSRE "complex shapes" (currently MSTS `SFile`) and adding new model formats (starting with glTF/GLB).
+This folder contains ordered tasks for generalizing TSRE "complex shapes" (currently MSTS `SFileLegacy`/`SFileComplex`) and adding new model formats (starting with glTF/GLB).
 
 ## Execution Order
 - [x] `01-complex-shape-abstraction.md`
 - [x] `02-gltf-glb-shape-loader.md`
 - [ ] `03-complex-shape-metadata-sidecar.md`
-- [ ] [04-sfile-complex-implementation.md](04-sfile-complex-implementation.md) — new MSTS implementation alongside legacy SFile/C/X; opt-in implementation, stock comparison and typed-storage/pre-load Compact optimization implemented; SFileLegacy is the default, with original SFile/C/X retained as an explicit fallback. Independent of Task 03.
+- [ ] [04-sfile-complex-implementation.md](04-sfile-complex-implementation.md) — new MSTS implementation alongside legacy SFile/C/X; opt-in implementation, stock comparison and typed-storage/pre-load Compact optimization implemented; SFileLegacy is the default; the original SFile/C/X classes have been removed. Independent of Task 03.
 
 - [x] [05-sfile-legacy-load-gl.md](05-sfile-legacy-load-gl.md) — SFileLegacy consolidates legacy parsing/rendering with separate CPU loading and GL initialization; stock regression checks and repeated SFileX/C comparisons complete.
 

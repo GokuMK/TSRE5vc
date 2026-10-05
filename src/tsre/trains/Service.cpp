@@ -24,6 +24,7 @@
 #include <tsre/trains/ConLib.h>
 #include <tsre/trains/Consist.h>
 #include <tsre/trains/Path.h>
+#include <tsre/renderer/RenderQueue.h>
 
 Service::Service(QString p, QString n, bool nowe) {
     pathid = p + "/" + n;
@@ -223,12 +224,12 @@ void Service::save(){
     modified = false;
 }
 
-void Service::pushRenderItems(float* playerT, quint32 selectionId) {
+void Service::pushRenderItems(RenderQueue &queue, float* playerT, quint32 selectionId) {
     initToPlay();
     if (pathPointer != NULL)
-        pathPointer->pushRenderItems(playerT, selectionId);
+        pathPointer->pushRenderItems(queue, playerT, selectionId);
     if (conPointer != NULL)
-        conPointer->pushRenderItemsOnTrack(playerT, selectionId);
+        conPointer->pushRenderItemsOnTrack(queue, playerT, selectionId);
 }
 
 void Service::initToPlay(){

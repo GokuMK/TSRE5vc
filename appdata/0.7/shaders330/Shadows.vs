@@ -10,6 +10,7 @@ uniform mat4 uPMatrix;
 uniform mat4 uShadowPMatrix;
 uniform mat4 uMVMatrix;
 uniform mat4 uMSMatrix;
+#include "Instancing.glsl"
 uniform int terrainPaged;
 uniform int terrainVerticesPerPatch;
 uniform int terrainPatchSide;
@@ -49,7 +50,7 @@ void main() {
                         + terrainLocalSample.y * params.uvAndOriginZ.y
                         + params.uvAndOriginZ.z);
     }
-    gl_Position = uShadowPMatrix * uMVMatrix * uMSMatrix * renderVertex;
+    gl_Position = uShadowPMatrix * instanceModelView() * uMSMatrix * renderVertex;
     vTextureCoord = renderUv;
     vTerrainGap = terrainPaged != 0 && terrainApplyGaps != 0 ? normal.w : 0.0;
 }

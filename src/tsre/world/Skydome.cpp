@@ -30,8 +30,8 @@ Skydome::Skydome(const Skydome& orig) {
 Skydome::~Skydome() {
 }
 
-void Skydome::pushRenderItems() {
-    if (!loaded || shapePointer == NULL || Game::currentRenderer == NULL)
+void Skydome::pushRenderItems(RenderQueue &queue) {
+    if (!loaded || shapePointer == NULL)
         return;
-    shapePointer->pushRenderItem(0, 0);
+    shapePointer->pushRenderItem(queue, 0, 0);
 }

@@ -35,6 +35,7 @@
 #include <tsre/texture/TexLib.h>
 #include <tsre/texture/Texture.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -823,15 +824,12 @@ void GltfShape::updateSim(float deltaTime, unsigned int stateId) {
     (void)stateId;
 }
 
-void GltfShape::pushRenderItem() {
-    pushRenderItem(0, 0);
+void GltfShape::pushRenderItem(RenderQueue &queue) {
+    pushRenderItem(queue, 0, 0);
 }
 
-void GltfShape::pushRenderItem(quint32 selectionId, unsigned int stateId) {
+void GltfShape::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned int stateId) {
     if (isinit != 1 || loaded == 2) {
-        return;
-    }
-    if (Game::currentRenderer == nullptr) {
         return;
     }
     if (stateId >= (unsigned int)state.size()) {
@@ -846,19 +844,20 @@ void GltfShape::pushRenderItem(quint32 selectionId, unsigned int stateId) {
         return;
     }
 
+    const unsigned int key = 0;
     if (selectionId == 0) {
         syncTextureAddresses();
         const unsigned long long textureStateHash = getTextureStateHash();
-        if (renderItemsTextureHash.value(stateId, 0ULL) != textureStateHash) {
+        if (renderItemsTextureHash.value(key, 0ULL) != textureStateHash) {
             requiresUpdate = true;
         }
     }
 
-    if (renderItems[stateId].size() == 0 || requiresUpdate) {
+    if (renderItems[key].size() == 0 || requiresUpdate) {
         const bool globalInvalidateRequested = requiresUpdate;
         requiresUpdate = false;
-        renderItemsTextureHash.remove(stateId);
-        retireRenderItems(renderItems[stateId]);
+        renderItemsTextureHash.remove(key);
+        retireRenderItems(renderItems[key]);
 
         for (int u = 0; u < drawUnits.size(); u++) {
             const DrawUnit& unit = drawUnits[u];
@@ -876,15 +875,18 @@ void GltfShape::pushRenderItem(quint32 selectionId, unsigned int stateId) {
 
             RenderItem* r = new RenderItem();
             r->msMatrix = nodeWorldMatrices[unit.nodeIndex];
-            r->VBO = &prim->VBO;
-            r->VAO = &prim->VAO;
-            r->vertOffset = 0;
-            r->vertCount = prim->vertCount;
-            r->itemType = GL_TRIANGLES;
-            r->vertexAttr = RenderItem::VNTA;
+            r->mesh.vbo = &prim->VBO;
+            r->mesh.vao = &prim->VAO;
+            r->mesh.first = 0;
+            r->mesh.count = prim->vertCount;
+            r->mesh.primitive = RenderItem::PRIMITIVE_TRIANGLES;
+            r->mesh.layout = RenderItem::VNTA;
             r->shared = true;
-            r->normalsEnabled = 1;
-            r->brightness = 1.0f;
+            r->material.lit = 1;
+            r->material.brightness = 1.0f;
+            r->material.surface = prim->material.surface;
+            // Node world matrices are fixed at load, so the bounds hold.
+            r->setBounds(prim->boundCenter, prim->boundRadius, r->msMatrix);
 
             r->setSelectionId(0);
             if (!prim->material.hasTexture || prim->material.texId < 0) {
@@ -895,21 +897,21 @@ void GltfShape::pushRenderItem(quint32 selectionId, unsigned int stateId) {
                 r->disableTextures(1.0f, 0.0f, 1.0f, 1.0f);
             }
 
-            renderItems[stateId].push_back(r);
+            renderItems[key].push_back(r);
         }
 
         if (globalInvalidateRequested) {
             for (auto it = renderItems.begin(); it != renderItems.end(); ++it) {
-                if (it.key() == stateId) continue;
+                if (it.key() == key) continue;
                 retireRenderItems(it.value());
                 renderItemsTextureHash.remove(it.key());
             }
         }
-        renderItemsTextureHash[stateId] = getTextureStateHash();
+        renderItemsTextureHash[key] = getTextureStateHash();
     }
 
-    if (renderItems[stateId].size() > 0) {
-        Game::currentRenderer->pushPackets(renderItems[stateId], selectionId);
+    if (renderItems[key].size() > 0) {
+        queue.submit(renderItems[key], selectionId);
     }
 }
 
@@ -1392,15 +1394,19 @@ bool GltfShape::parseAndBuild() {
                 const QString alphaMode = srcMat.alphaMode.toUpper();
                 if (alphaMode == "OPAQUE") {
                     mat.alphaAttr = 1.0f;
+                    mat.surface = RenderItem::SURFACE_OPAQUE;
                 } else if (alphaMode == "MASK") {
                     float cutoff = srcMat.alphaCutoff;
                     if (cutoff < 0.0f) cutoff = 0.0f;
                     if (cutoff > 1.0f) cutoff = 1.0f;
                     mat.alphaAttr = -cutoff;
+                    mat.surface = RenderItem::SURFACE_ALPHA_TEST;
                 } else if (alphaMode == "BLEND") {
                     mat.alphaAttr = -defaultAlphaTest;
+                    mat.surface = RenderItem::SURFACE_BLENDED;
                 } else {
                     mat.alphaAttr = 1.0f;
+                    mat.surface = RenderItem::SURFACE_OPAQUE;
                 }
 
                 if (srcMat.baseColorTexture >= 0) {
@@ -1530,6 +1536,27 @@ bool GltfShape::parseAndBuild() {
             MeshPrimitiveGpu* gpuPrim = new MeshPrimitiveGpu();
             gpuPrim->material = mat;
             gpuPrim->vertCount = outVertCount;
+            if (outVertCount > 0) {
+                float low[3] = {vertices[0], vertices[1], vertices[2]};
+                float high[3] = {low[0], low[1], low[2]};
+                for (int i = 1; i < outVertCount; ++i)
+                    for (int c = 0; c < 3; ++c) {
+                        low[c] = std::min(low[c], vertices[i * 9 + c]);
+                        high[c] = std::max(high[c], vertices[i * 9 + c]);
+                    }
+                float radius = 0.0f;
+                for (int c = 0; c < 3; ++c)
+                    gpuPrim->boundCenter[c] = 0.5f * (low[c] + high[c]);
+                for (int i = 0; i < outVertCount; ++i) {
+                    float distance = 0.0f;
+                    for (int c = 0; c < 3; ++c) {
+                        const float delta = vertices[i * 9 + c] - gpuPrim->boundCenter[c];
+                        distance += delta * delta;
+                    }
+                    radius = std::max(radius, distance);
+                }
+                gpuPrim->boundRadius = std::sqrt(radius);
+            }
 
             gpuPrim->VAO.create();
             QOpenGLVertexArrayObject::Binder vaoBinder(&gpuPrim->VAO);

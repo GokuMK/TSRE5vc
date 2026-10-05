@@ -32,10 +32,10 @@ public:
     QByteArray firstVertexPage() {
         RenderItem item;
         meshBackend->configureRenderItem(item, 0, false, false);
-        if (!item.VBO || !item.VBO->bind()) return {};
-        QByteArray bytes(item.VBO->size(), '\0');
-        const bool read = item.VBO->read(0, bytes.data(), bytes.size());
-        item.VBO->release();
+        if (!item.mesh.vbo || !item.mesh.vbo->bind()) return {};
+        QByteArray bytes(item.mesh.vbo->size(), '\0');
+        const bool read = item.mesh.vbo->read(0, bytes.data(), bytes.size());
+        item.mesh.vbo->release();
         return read ? bytes : QByteArray();
     }
 };

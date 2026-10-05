@@ -284,8 +284,7 @@ int TsreTests::runTransferDepthGlSuite() {
         QOpenGLFramebufferObject target(16,16,QOpenGLFramebufferObject::CombinedDepthStencil);
         target.bind(); f->glViewport(0,0,16,16); f->glEnable(GL_DEPTH_TEST); f->glDepthFunc(GL_LESS);
         f->glClearColor(0,0,0,0);
-        OpenGL3Renderer renderer; Mat4::identity(renderer.mvMatrix);
-        QScopedValueRollback<Renderer*> current(Game::currentRenderer,&renderer);
+        OpenGL3Renderer renderer; Mat4::identity(renderer.transform());
         OglObj shape; shape.setMaterial(1,0,0);
         float vertices[]={-1,-1,0, 3,-1,0, -1,3,0};
         shape.init(vertices,9,RenderItem::V,GL_TRIANGLES);
@@ -299,7 +298,7 @@ int TsreTests::runTransferDepthGlSuite() {
                 else f->glDisable(GL_POLYGON_OFFSET_FILL);
                 extra->glBindBufferBase(GL_UNIFORM_BUFFER,0,ubo);
                 shape.terrainDecal=decalEnabled;
-                shape.pushRenderItem(selection); renderer.renderFrame();
+                shape.pushRenderItem(renderer, selection); renderer.renderFrame();
                 GLboolean restored; f->glGetBooleanv(GL_DEPTH_WRITEMASK,&restored);
                 GLfloat factor,units;
                 f->glGetFloatv(GL_POLYGON_OFFSET_FACTOR,&factor);
@@ -322,7 +321,7 @@ int TsreTests::runTransferDepthGlSuite() {
             f->glClearDepthf(1); f->glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
             auto draw=[&]() {
                 extra->glBindBufferBase(GL_UNIFORM_BUFFER,0,ubo);
-                shape.pushRenderItem(0); renderer.renderFrame();
+                shape.pushRenderItem(renderer, 0); renderer.renderFrame();
             };
             shape.terrainDecal=false; shape.setMaterial(0,1,0); draw();
             shape.terrainDecal=decal; shape.setMaterial(1,0,0); draw();
@@ -351,13 +350,13 @@ int TsreTests::runTransferDepthGlSuite() {
                 transfer.qDirection[3]=1;
                 float origin[]={0,0,0};
                 auto submit=[&](int count,bool firstIsGround,quint32 selection,const char *name) {
-                    transfer.pushRenderItems(0,0,0,origin,origin,1,selection);
+                    transfer.pushRenderItems(renderer,0,0,0,origin,origin,1,selection);
                     bool ok=renderer.queuedItemCount()==count;
                     for (int i=0;i<renderer.queuedItemCount();++i) {
                         const auto *item=renderer.queuedItem(i);
-                        ok &= item->vertCount>0 && renderer.queuedSelectionId(i)==selection;
-                        ok &= item->terrainDecal==(selection==0 && i==0 && firstIsGround);
-                        if (!selection) ok &= texture->glLoaded && texture->tex && item->texAddr==texture->tex[0];
+                        ok &= item->mesh.count>0 && renderer.queuedSelectionId(i)==selection;
+                        ok &= item->material.decal==(selection==0 && i==0 && firstIsGround);
+                        if (!selection) ok &= texture->glLoaded && texture->tex && item->material.textureObject==texture->tex[0];
                     }
                     if (count && !selection) ok &= transfer.getTexId()==textureId;
                     extra->glBindBufferBase(GL_UNIFORM_BUFFER,0,ubo);

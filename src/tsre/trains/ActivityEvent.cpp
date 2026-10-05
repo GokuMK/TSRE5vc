@@ -350,7 +350,7 @@ void ActivityEvent::Outcome::setModified(bool val){
     modified = val;
 }
 
-void ActivityEvent::pushRenderItem(float *playerT, float playerRot, int renderMode) {
+void ActivityEvent::pushRenderItem(RenderQueue &queue, float *playerT, float playerRot, int renderMode) {
     if (category == CategoryLocation) {
         if (!Game::viewInteractives)
             return;
@@ -378,13 +378,13 @@ void ActivityEvent::pushRenderItem(float *playerT, float playerRot, int renderMo
             txtMarkerObj->setColor(0, 0, 0);
         }
 
-        Game::currentRenderer->mvPushMatrix();
+        queue.pushTransform();
         float h = Game::terrainLib->getHeight(location[0], -location[1], location[2], -location[3]);
-        Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, location[2] + 2048 * (location[0] - playerT[0]), h, -location[3] + 2048 * (-location[1] - playerT[1]));
-        simpleMarkerObj->pushRenderItem();
-        Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, 0, 30, 0);
-        txtMarkerObj->pushRenderItem(playerRot);
-        Game::currentRenderer->mvPopMatrix();
+        Mat4::translate(queue.transform(), queue.transform(), location[2] + 2048 * (location[0] - playerT[0]), h, -location[3] + 2048 * (-location[1] - playerT[1]));
+        simpleMarkerObj->pushRenderItem(queue);
+        Mat4::translate(queue.transform(), queue.transform(), 0, 30, 0);
+        txtMarkerObj->pushRenderItem(queue, playerRot);
+        queue.popTransform();
     }
 }
 

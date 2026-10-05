@@ -27,7 +27,6 @@
 #include <unordered_map>
 
 class Tile;
-class SFile;
 class Eng;
 class GLUU;
 class Route;
@@ -45,6 +44,8 @@ class DynTrackObj;
 class RulerObj;
 class TelepoleObj;
 class SelectionRenderer;
+class OpenGL3Renderer;
+class RenderQueue;
 
 QT_FORWARD_DECLARE_CLASS(QOpenGLShaderProgram)
 
@@ -178,7 +179,7 @@ protected:
     void keyPressEvent(QKeyEvent * event) Q_DECL_OVERRIDE;
     void keyReleaseEvent(QKeyEvent * event) Q_DECL_OVERRIDE;
     void timerEvent(QTimerEvent *event) Q_DECL_OVERRIDE;
-    void pushRenderPointer();
+    void pushRenderPointer(RenderQueue &queue);
     void updatePointerPosition();
     void readPointerPosition();
     void applyPointerToLiveTools();
@@ -229,7 +230,6 @@ private:
     int fpsDisplayAccumFrames = 0;
     unsigned long long int fpsDisplayLastUpdate = 0;
     QPointF m_lastPos;
-    SFile* sFile;
     Eng* eng;
     Tile* tile;
     Route* route = NULL;
@@ -326,6 +326,9 @@ private:
     bool keyControlEnabled = false;
     bool keyShiftEnabled = false;
     bool keyAltEnabled = false;
+    // Near, mid and far shadow maps.
+    GLuint FramebufferName0 = 0;
+    GLuint depthTexture0 = 0;
     GLuint FramebufferName1 = 0;
     GLuint depthTexture1 = 0;
     GLuint FramebufferName2 = 0;
@@ -351,6 +354,8 @@ private:
     QMap<QString, QAction*> defaultMenuActions;
     bool bolckContextMenu = false;
     
+    // Owned; draws this widget's frames.
+    OpenGL3Renderer *renderer = NULL;
     GuiGlCompass * compass = NULL;
     OglObj * compassPointer = NULL;
     

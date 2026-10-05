@@ -65,8 +65,9 @@ counters are implemented. All passes still use the main shader
   camera position (`setViewPosition`), measured at the packet origin.
 - `SFileLegacy` sets the surface from the material, matching the per-vertex
   alpha mode it already writes: `texdiff` is opaque, alpha-test mode 1 is
-  alpha test, other materials blend. glTF, `SFileComplex` and `SFile` packets
-  are opaque until they classify their materials.
+  alpha test, other materials blend. `SFileComplex` uses the same classes
+  and glTF maps its alpha mode (OPAQUE, MASK, BLEND); `SFile` packets are
+  opaque until it classifies its materials.
 - `renderPasses(first, last)` replaces the mid-frame `renderFrame()` flushes.
   The gather frame draws `PASS_TERRAIN` before the terrain-attached pointer,
   the scene passes before the directly drawn water (legacy order; water was
@@ -77,5 +78,32 @@ counters are implemented. All passes still use the main shader
   shape caches.
 - `RenderStats` counts draws per pass (`passDraws`).
 
-Remaining for this task: dedicated shader variants per pass (terrain,
-lines/helpers), and surface classification for glTF and `SFileComplex`.
+## Terrain shader variants (implemented)
+
+- Shader sources support `#include "file"` (resolved from the same
+  directory) and defines inserted after `#version`
+  (`GLUU::shaderSource()`).
+- Terrain-only code (paged terrain vertices, tile bake remap, terrain gaps
+  and the procedural material block in `TerrainMaterial.glsl`) is behind
+  `TSRE_TERRAIN`. Each standard program has a `<name>Terrain` variant built
+  with it; the plain programs draw objects without terrain code. Selection
+  is built with it, since it draws terrain and objects with one program.
+- The renderer draws terrain packets (`SURFACE_TERRAIN`, paged, remapped or
+  procedural) with the terrain variant of the bound program
+  (`GLUU::terrainVariant()`), reapplies the frame uniforms on each switch,
+  and restores the bound program after the passes.
+
+## Unlit overlay variant (implemented)
+
+- Each standard program also has a `<name>Unlit` variant built with
+  `TSRE_UNLIT`: texture or colour, alpha test and brightness, without sun
+  lighting, shadows or fog (`GLUU::unlitVariant()`).
+- The renderer draws the overlay and UI passes with it, so track database
+  lines and labels, markers, activity and path overlays, the pointer, compass
+  and HUD do not depend on shadow, light or fog settings. Untextured overlays
+  already skipped those; textured labels (`TextObj`) no longer fade into fog
+  or darken in shadows. World objects with unlit MSTS materials keep the
+  object program and still receive shadows.
+- Selection and shadow passes keep their own programs.
+
+All shader variants planned in this task are implemented.

@@ -116,3 +116,44 @@ needs a third depth target (texture unit 4), a third light matrix and
 resolution/bias uniforms, shader changes in both shader sets, and a map size
 setting. Shadows much beyond 1 km stay expensive because nearly the whole
 scene casts into them.
+
+## Three shadow maps (implemented, stage 4 step 7)
+
+- Near map (`shadow0`, texture unit 9): +-80 m around the camera, depth
+  +-200 m, casters within 250 m, primary map size. Mid map (`shadow1`):
+  +-300 m, depth +-600 m, casters within 600 m, primary map size. Far map
+  (`shadow2`): +-700 m, casters within 1000 m, distant map size. All share
+  the light direction. Both near maps blur by 2 * `ShadowBlurReference` /
+  `shadow1Res` metres (80 m and 2500 at 2048 give 6.4 cm per unit tap);
+  `shadowMapScale` keeps that blur and the bias of surfaces without normals
+  the same in world space in each map. The caster range is measured to each
+  caster's bounds, so long meshes passing the camera still cast.
+- The first version used +-50 m and +-150 m. Its near map ended too close to
+  the camera: the change in contact shading at 50 m was easy to see. With
+  the default 2048 maps the near map now has 9.8 cm texels, close to the
+  7.3 cm of the former single 4096 map at +-150 m, at half the texels.
+- Normal-offset lookups: for surfaces with normals the vertex shaders move
+  the near and mid map lookups along the normal by one texel or filter
+  radius (whichever is larger), scaled by the sine of the angle to the sun,
+  and the fragment shaders use a one-texel depth bias instead of the tuned
+  slope bias. Self-shadowing is avoided with a far smaller depth bias, so
+  contact shadows survive in both maps. Surfaces without normals and the
+  far map keep the constant bias. The factors are
+  `ShadowNormalOffsetTexels` and `ShadowDepthBiasTexels` in
+  `RouteEditorGLWidget.cpp`, one per map; they need tuning on hardware.
+- Receiver-plane depth bias: each filter tap of the near and mid maps
+  compares against the receiver's depth at the tap, from the screen-space
+  derivatives of the shadow coordinates, limited to about 70 degrees of
+  slope. Normal offset alone left acne in the near map, whose 0.15 m filter
+  radius is larger than its texels; the per-tap bias removes it with both
+  offsets at one texel or filter radius.
+- Each map culls its casters to its own light frustum (stage 4 step 5) and
+  draws repeated casters instanced: depth does not depend on draw order, so
+  casters are grouped by packet. This removes 78-90% of shadow map draws on
+  EUROPE1, USA1 and BNSF_SCENIC with identical images.
+- The fragment shaders sample one map per fragment: near inside the near
+  map, mid inside the mid map, far beyond. The map weights are 0 or 1, so
+  this matches the weighted sum exactly while sampling at most 16 taps.
+- Shadows near the camera have three times the texel density. On EUROPE1
+  and BNSF_SCENIC only shadow edges near the camera change (RMSE up to 3.1,
+  at most 1.3% of pixels); views without shadows are unchanged.

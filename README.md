@@ -7,6 +7,8 @@ This is my TSRE5 project ported from Qt5 to Qt6 and from Makefile + Netbeans to 
 Netbeans version here:
 https://github.com/GokuMK/TSRE5
 
+Requires OpenGL 3.3 or newer.
+
 GitHub release ZIPs include the matching runtime resources in `appdata/0.7/`.
 Extract the full ZIP when updating so shaders stay in sync with the executable.
 `appdata/` is version-controlled; `assets/` contains local, untracked content and

@@ -31,7 +31,6 @@ class GameObj;
 class TerrainLib;
 class GeoWorldCoordinateConverter;
 enum class GeoProjectionType;
-class Renderer;
 class RouteEditorClient;
 enum class TerrainHeightProfile;
 
@@ -53,7 +52,6 @@ public:
     static TDB *roadDB;
     static SoundList *soundList;
     static TerrainLib *terrainLib;
-    static Renderer *currentRenderer;
     
     static bool UseWorkingDir;
     static QString AppVersion;
@@ -173,7 +171,6 @@ public:
     
     static float fogDensity;// = 0.7;
     static float shadow1Res;
-    static float shadow1Bias;
     static float shadow2Res;
     static float shadow2Bias;
     //float fogColor[4]{0.5, 0.75, 1.0, 1.0};

@@ -1,13 +1,13 @@
 # Task 04 - New Shape File Implementation (`SFileComplex`)
 
-Status: opt-in implementation milestone ready for visual and practical testing in `feature/sfile-complex`. SFileLegacy is now the default; SFileComplex remains opt-in and original SFile/C/X remains available as a fallback.
+Status: opt-in implementation milestone ready for visual and practical testing in `feature/sfile-complex`. SFileLegacy is now the default; SFileComplex remains opt-in. The original SFile/C/X classes were removed on 2026-10-04.
 Updated: 2026-09-11.
 
 The [MSTS shape file format reference](../../features/msts-shape-file-format.md) inventories blocks, ordered fields and unresolved semantics.
 
 ## Current implementation and validation
 
-SFileComplex provides Complete and pre-load Compact modes, separate CPU loading and GL initialization, and normalized saving from Complete storage. SFileLegacy joins the original loaders while separating loading from GL generation. Select the backend through `TSRE_MSTS_SHAPE_BACKEND`: `legacy` for SFileLegacy, `complex` for Complete, or `complex-compact` for Compact. Unset selects SFileLegacy; `old` selects original SFile/C/X. `TSRE_MSTS_FIRST_LOD_ONLY=1` applies only to the Complex backends; preferences are fixed when a ShapeLib is constructed.
+SFileComplex provides Complete and pre-load Compact modes, separate CPU loading and GL initialization, and normalized saving from Complete storage. SFileLegacy joins the original loaders while separating loading from GL generation. Select the backend through `TSRE_MSTS_SHAPE_BACKEND`: `legacy` for SFileLegacy, `complex` for Complete, or `complex-compact` for Compact. Unset selects SFileLegacy; the retired `old` value now also selects SFileLegacy. `TSRE_MSTS_FIRST_LOD_ONLY=1` applies only to the Complex backends; preferences are fixed when a ShapeLib is constructed.
 
 - [Latest three-mode compatibility results](reports/sfile-three-mode-comparison.md): all 4,306 collection inputs now initialize GL in Compact and Complete after the two documented recovery fixes. Existing Legacy/new rendering and animation differences remain observations requiring practical review.
 - [Label recovery and final parsing-time checks](reports/sfile-label-recovery.md): 16 spaced-label coaches recovered, all 203 UTF-16 files replayed on the final parser, 233 standalone checks and 108 CPU/GL checks passing. No material parsing-time regression observed.
@@ -23,7 +23,7 @@ The implementation history below retains measurements and check counts from each
 - Exercise animated trains and named controls in actual use. Complex animation differences need independent visual validation; Legacy is not an established correctness reference for every animation.
 - Exercise multiple instances, visibility controls, reload, seasonal textures, route switching and sustained rendering. Check responsiveness and resource behavior during normal use.
 - Exercise Complete editing/save/reload workflows on private copies; verify Compact requires a full reload before saving.
-- Record practical findings with SFileLegacy as the default before removing old classes or adopting SFileComplex by default. Persistent matrix reuse and the renderer ownership redesign remain separate follow-up work in [Task 05](05-sfile-legacy-load-gl.md) and the [renderer task](../renderer/02-renderer-core-generic-queue.md).
+- Record practical findings with SFileLegacy as the default before adopting SFileComplex by default. The old classes have been removed. Persistent matrix reuse and the renderer ownership redesign remain separate follow-up work in [Task 05](05-sfile-legacy-load-gl.md) and the [renderer task](../renderer/02-renderer-core-generic-queue.md).
 
 
 ## Objective and accepted boundary
@@ -243,12 +243,12 @@ Acceptance must cover:
 Worktree: `/root/TSRE5vc-sfile-complex`, branch `feature/sfile-complex`, based on the committed documentation at `9c6cf1b`. Main is kept separate.
 
 - `SFileComplex` implements `ComplexShape` directly through private owned data. `loadData()` is CPU-only, `initGL()` builds packed geometry and buffers, and compatibility `load()` invokes both when a context exists.
-- `SimisTextReader` is a single reusable class for bounded SIMIS token/string/numeric reading. ParserX and SFile/C/X remain unchanged.
+- `SimisTextReader` is a single reusable class for bounded SIMIS token/string/numeric reading. ParserX and SFile/C/X remained unchanged (SFile/C/X were later removed).
 - `SFileDocument` owns typed source records, labels, repeated blocks, extra roots and opaque binary data. See the [format coverage ledger](reports/sfile-complex-format-coverage.md).
 - Retention, source health and GPU readiness are separate. Compact/Partial saves require full reload. Unsaved edits prevent compaction and `reloadComplete()`; explicit legacy-compatible `reload()` discards edits. A failed Compact buffer rebuild leaves the previous CPU bounds/state inspectable and can be retried when the source becomes available.
 - `field()` / `setField()` access existing scalar values without exposing mutable containers (`points/point[0]`, or `sd/esd_detail_level`). Edits invalidate derived GPU caches. `save()` writes the shape; `saveMetadata()` writes `.sd` separately. Saving exports a snapshot; it does not retarget the asset's source path or clear edit protection. An explicit `reload()` discards the in-memory edits when that is intended.
 - Runtime data retains matrices, material references, animation keys, LOD/visibility information, bounds and per-instance state after compaction. Complete source records remain available for saving. A pre-load Compact request now skips unused records during parsing and releases its temporary document after CPU extraction; required geometry/index arrays survive until successful GL initialization.
-- The development factory originally exposed `TSRE_MSTS_SHAPE_BACKEND=complex` or `complex-compact`; it now also accepts `legacy` for SFileLegacy. The subsequent default switch selects SFileLegacy when unset; `old` explicitly selects original SFile/C/X. `TSRE_MSTS_FIRST_LOD_ONLY=1` applies to the new backend. Preferences are captured per ShapeLib so a library cache does not mix backends/options. Existing renderer packets gained an explicit point primitive sentinel because zero already means default triangles.
+- The development factory originally exposed `TSRE_MSTS_SHAPE_BACKEND=complex` or `complex-compact`; it now also accepts `legacy` for SFileLegacy. The subsequent default switch selects SFileLegacy when unset; `old` selected original SFile/C/X until those classes were removed, and now falls back to SFileLegacy. `TSRE_MSTS_FIRST_LOD_ONLY=1` applies to the new backend. Preferences are captured per ShapeLib so a library cache does not mix backends/options. Existing renderer packets gained an explicit point primitive sentinel because zero already means default triangles.
 - Tests cover CPU load/GL independence, full/partial/compact retention, malformed data, serialization, runtime rebuild and stock comparisons. The [comparison report](reports/sfile-complex-comparison.md) records commands, measured results and remaining limits.
 
 This initial implementation does not authorize default adoption or legacy deprecation. Complex-route stress tests and broader rendering features remain a later validation phase, as requested.
@@ -290,3 +290,14 @@ The [UTF-16 results](reports/sfile-utf16-optimization-results.md) record the com
 On original SD402, paired application Compact CPU loading decreases from 39.87 to 28.24 ms and Complete from 67.49 to 57.75 ms. Compact CPU + GL is 29.25 ms against the same-run SFileX 16.22 ms. Document-only Compact parsing decreases from 26.99 to 15.81 ms. Large generated CD text files also improve; the report separates those document-only results from application timing and includes the tiny wiper's non-improving Compact sample. Host activity remained 10–23%, so timings are qualified rather than described as fully idle-host validation.
 
 Both CTest suites, 56 application shape/GL checks, all 129 stock render/picking comparisons, and 12 paired application runs pass. ASan/UBSan passes 2,131 stock-inclusive checks and 251 checks over the large generated UTF-16 shapes. Old/new Complete exports are byte-identical for SD402 and all three CD text files. No legacy parser/backend or animation behavior was changed, and default adoption remains separate.
+
+## Renderer sharing and instancing
+
+Non-animated states share the static pose matrices of their LOD and, when they
+draw the same parts (LOD, enabled and disabled sub-objects, disabled parts), one
+packet set, like SFileLegacy. Each part keeps a bounding sphere computed during
+GL upload, so shared packets are culled against the camera and shadow views.
+With `TSRE_MSTS_SHAPE_BACKEND=complex-compact`, renderer captures on EUROPE1
+and BNSF_SCENIC (shadows off and on) and the Shape Viewer set are
+pixel-identical to SFileLegacy, with the same draw, instancing and culling
+counts.

@@ -22,6 +22,7 @@ public:
     unsigned int textureCoordAttribute;
     unsigned int pShadowMatrixUniform;
     unsigned int pShadow2MatrixUniform;
+    unsigned int pShadow0MatrixUniform;
     unsigned int pMatrixUniform;
     unsigned int fMatrixUniform;
     unsigned int mvMatrixUniform;
@@ -48,9 +49,12 @@ public:
     unsigned int shaderBrightness;
     unsigned int shaderFogDensity;
     unsigned int shadow1Res;
-    unsigned int shadow1Bias;
     unsigned int shadow2Res;
     unsigned int shadow2Bias;
+    int shadowMapScale = -1;
+    int shadowNormalOffset = -1;
+    int shadowDepthBias = -1;
+    int shadowLightDirection = -1;
     int terrainPaged;
     int terrainVerticesPerPatch;
     int terrainPatchSide;
@@ -59,7 +63,12 @@ public:
     int terrainMapPass;
     int terrainMaterialEnabled;
     int terrainMaterialMap;
-    int terrainMaterialId;
+    int terrainMaterialTextures;
+    int terrainMaterialDetails;
+    int terrainMaterialParams;
+    int instanced;
+    int instanceBase;
+    int instanceMatrices;
     int terrainMaterialMapRemap;
     int terrainMaterialMapSide;
     int terrainMaterialNoiseScale;

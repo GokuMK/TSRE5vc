@@ -19,6 +19,8 @@
 #include <QOpenGLVertexArrayObject>
 #include <tsre/shape/ComplexShape.h>
 
+class RenderQueue;
+
 class ContentHierarchyInfo;
 class RenderItem;
 class ShapeHierarchyInfo;
@@ -45,8 +47,8 @@ public:
     void setAnimated(unsigned int stateId, bool animated) override;
     void updateSim(float deltaTime, unsigned int stateId = 0) override;
 
-    void pushRenderItem() override;
-    void pushRenderItem(quint32 selectionId, unsigned int stateId) override;
+    void pushRenderItem(RenderQueue &queue) override;
+    void pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned int stateId) override;
 
     void invalidateRenderState(bool invalidateMatrixCache = true) override;
     void enablePart(unsigned int uid, unsigned int stateId = 0) override;
@@ -67,6 +69,8 @@ private:
         bool hasTexture = false;
         float color[4] = {1.0f, 1.0f, 1.0f, 1.0f};
         float alphaAttr = 1.0f;
+        // RenderItem::Surface from the glTF alpha mode.
+        unsigned char surface = 0;
         bool doubleSided = false;
         QString debugName;
     };
@@ -76,6 +80,9 @@ private:
         QOpenGLVertexArrayObject VAO;
         int vertCount = 0;
         MaterialRuntime material;
+        // Sphere around the primitive's vertices, for view culling.
+        float boundCenter[3] = {0.0f, 0.0f, 0.0f};
+        float boundRadius = -1.0f;
     };
 
     struct MeshGpu {
@@ -111,6 +118,8 @@ private:
     QVector<int> nodeParents;
 
     bool requiresUpdate = false;
+    // Packets do not depend on the instance state, so every state submits
+    // the set under key 0 and repeated objects draw instanced.
     QHash<unsigned int, QVector<RenderItem *>> renderItems;
     QHash<unsigned int, unsigned long long> renderItemsTextureHash;
 

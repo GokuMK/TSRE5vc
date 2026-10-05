@@ -13,6 +13,8 @@
 
 #include <tsre/GameObj.h>
 
+class RenderQueue;
+
 class GLUU;
 class ComplexShape;
 
@@ -23,7 +25,7 @@ public:
     virtual ~Skydome();
     
     // Submits the sky shape with the renderer's current transform.
-    void pushRenderItems();
+    void pushRenderItems(RenderQueue &queue);
 
 private:
     bool loaded = false;

@@ -625,12 +625,11 @@ void TelepoleObj::ensureInteractiveGeometry() {
     }
 }
 
-void TelepoleObj::pushRenderItems(float lod, float posx, float posz,
+void TelepoleObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float posz,
         float*, float*, float, quint32 selectionId) {
     Q_UNUSED(posx);
     Q_UNUSED(posz);
-    if(!loaded || !startPosition || !endPosition
-            || Game::currentRenderer == nullptr)
+    if(!loaded || !startPosition || !endPosition)
         return;
     ensureDerivedPoints();
     ensurePoleShape();
@@ -639,39 +638,39 @@ void TelepoleObj::pushRenderItems(float lod, float posx, float posz,
 
     if(poleShape != nullptr){
         for(const std::array<float, 16> &transform : poleTransforms){
-            Game::currentRenderer->mvPushMatrix();
-            Mat4::multiply(Game::currentRenderer->mvMatrix,
-                    Game::currentRenderer->mvMatrix,
+            queue.pushTransform();
+            Mat4::multiply(queue.transform(),
+                    queue.transform(),
                     const_cast<float*>(transform.data()));
-            poleShape->pushRenderItem(selectionId, poleShapeState);
-            Game::currentRenderer->mvPopMatrix();
+            poleShape->pushRenderItem(queue, selectionId, poleShapeState);
+            queue.popTransform();
         }
     }
-    Game::currentRenderer->mvPushMatrix();
-    Mat4::multiply(Game::currentRenderer->mvMatrix,
-            Game::currentRenderer->mvMatrix, wireTransform.data());
+    queue.pushTransform();
+    Mat4::multiply(queue.transform(),
+            queue.transform(), wireTransform.data());
     for(OglObj *object : wireObjects)
-        object->pushRenderItem(selectionId, lod);
-    Game::currentRenderer->mvPopMatrix();
+        object->pushRenderItem(queue, selectionId, lod);
+    queue.popTransform();
 
     if(!Game::viewInteractives)
         return;
     ensureInteractiveGeometry();
     if(guideLine != nullptr)
-        guideLine->pushRenderItem(selectionId);
+        guideLine->pushRenderItem(queue, selectionId);
     if(polePoints.size() >= 2){
         const int indices[2] = {0, (int)polePoints.size() - 1};
         for(int endpoint = 0; endpoint < 2; endpoint++){
-            Game::currentRenderer->mvPushMatrix();
+            queue.pushTransform();
             const Vector &point = polePoints[indices[endpoint]];
-            Mat4::translate(Game::currentRenderer->mvMatrix,
-                    Game::currentRenderer->mvMatrix,
+            Mat4::translate(queue.transform(),
+                    queue.transform(),
                     point[0], point[1], point[2]);
             OglObj *marker = selected && selectionValue == endpoint + 1
                     ? selectedEndpointMarker : endpointMarker;
-            marker->pushRenderItem(SelectionIdCodec::withPart(
+            marker->pushRenderItem(queue, SelectionIdCodec::withPart(
                     selectionId, endpoint + 1));
-            Game::currentRenderer->mvPopMatrix();
+            queue.popTransform();
         }
     }
 }

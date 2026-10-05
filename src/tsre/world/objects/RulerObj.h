@@ -17,6 +17,8 @@
 #include <tsre/procedural/ComplexLine.h>
 #include <array>
 
+
+class RenderQueue;
 class OglObj;
 
 class RulerObj : public WorldObj {
@@ -56,7 +58,7 @@ public:
     float getElevation();
     void createRoadPaths();
     void removeRoadPaths();
-    void pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
+    void pushRenderItems(RenderQueue &queue, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId);
 
 private:
     struct Point {

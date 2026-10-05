@@ -955,7 +955,7 @@ void Tile::updateSim(float deltaTime){
     }
 }
 
-void Tile::pushRenderItems(float* playerT, float* playerW, float* target, float fov, int renderMode){
+void Tile::pushRenderItems(RenderQueue &queue, float* playerT, float* playerW, float* target, float fov, int renderMode){
     if (loaded != 1) return;
     quint32 selectionId = 0;
     float lodx, lodz, lod;
@@ -974,17 +974,17 @@ void Tile::pushRenderItems(float* playerT, float* playerW, float* target, float 
             //console.log(this.x);
             lod = (float) sqrt(lodx * lodx + lodz * lodz);
             if (lod < Game::objectLod || obj->isInternalLodControl()) {
-                Game::currentRenderer->mvPushMatrix();
+                queue.pushTransform();
                 //obiekty[i]->render(gluu, lod, x-playerT[0]*2048, z-playerT[1]*2048);
-                if (renderMode == Game::currentRenderer->RENDER_SELECTION) {
+                if (renderMode == RenderQueue::RENDER_SELECTION) {
                     selectionId = SelectionIdCodec::worldObject(
                                 x - static_cast<int>(playerT[0]),
                                 z - static_cast<int>(playerT[1]), i);
                 }
-                Game::currentRenderer->setShadowCasting(obj->castsShadows());
-                obj->pushRenderItems(lod, lodx, lodz, playerW, target, fov, selectionId);
-                Game::currentRenderer->setShadowCasting(true);
-                Game::currentRenderer->mvPopMatrix();
+                queue.setShadowCasting(obj->castsShadows());
+                obj->pushRenderItems(queue, lod, lodx, lodz, playerW, target, fov, selectionId);
+                queue.setShadowCasting(true);
+                queue.popTransform();
             }
         }
     }

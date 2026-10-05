@@ -14,6 +14,8 @@
 #include <QString>
 #include <QVector>
 
+class RenderQueue;
+
 class GLUU;
 class Path;
 class Consist;
@@ -62,7 +64,7 @@ public:
     void save();
     Consist *getConsistPointer();
     void updateSim(float *playerT, float deltaTime);
-    void pushRenderItems(float* playerT, quint32 selectionId);
+    void pushRenderItems(RenderQueue &queue, float* playerT, quint32 selectionId);
     void initToPlay();
 private:
     bool modified = false;

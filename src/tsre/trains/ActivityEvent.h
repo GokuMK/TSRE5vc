@@ -12,6 +12,8 @@
 #include <QVector>
 #include <QVariant>
 
+class RenderQueue;
+
 #ifndef ACTIVITYEVENT_H
 #define	ACTIVITYEVENT_H
 
@@ -183,7 +185,7 @@ public:
     QString getSidingDescription();
     bool setSidingFromSelected();
     void setParentActivity(Activity* a);
-    void pushRenderItem(float *playerT, float playerRot, int renderMode);
+    void pushRenderItem(RenderQueue &queue, float *playerT, float playerRot, int renderMode);
     
 protected:
     Activity *parentActivity = NULL;

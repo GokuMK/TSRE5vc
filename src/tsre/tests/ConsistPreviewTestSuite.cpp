@@ -29,10 +29,10 @@ public:
     unsigned int newState() override { return 0; }
     void setAnimated(unsigned int, bool) override {}
     void updateSim(float, unsigned int) override {}
-    void pushRenderItem() override { pushRenderItem(0, 0); }
-    void pushRenderItem(quint32 id, unsigned int) override {
+    void pushRenderItem(RenderQueue &queue) override { pushRenderItem(queue, 0, 0); }
+    void pushRenderItem(RenderQueue &queue, quint32 id, unsigned int) override {
         initMesh();
-        mesh.pushRenderItem(id);
+        mesh.pushRenderItem(queue, id);
     }
     void invalidateRenderState(bool) override {}
     void initMesh() {
@@ -114,7 +114,7 @@ int TsreTests::runConsistPreviewSuite(bool verbose) {
         QMouseEvent release(QEvent::MouseButtonRelease, point, point,
                             Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
         QApplication::sendEvent(&widget, &release);
-        check(!frame.isNull() && GLUU::get()->currentShader == GLUU::get()->shaders["StandardBloom"],
+        check(!frame.isNull() && GLUU::get()->currentShader == GLUU::get()->shaders["StandardFog"],
               "pick finishes with the normal preview shader and framebuffer");
     };
     click(wagonPoint(-2));

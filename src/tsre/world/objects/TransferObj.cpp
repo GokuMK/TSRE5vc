@@ -209,19 +209,17 @@ bool TransferObj::castsShadows(){
     return false;
 }
 
-void TransferObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId){
+void TransferObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId){
     if (!loaded)
         return;
-    if (Game::currentRenderer == NULL)
-        return;
 
-    Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, position[0], 0, position[2]);
-    pushRenderShape(selectionId);
+    Mat4::translate(queue.transform(), queue.transform(), position[0], 0, position[2]);
+    pushRenderShape(queue, selectionId);
     if(selected)
-        pushRenderBox();
+        pushRenderBox(queue);
 }
 
-void TransferObj::pushRenderShape(quint32 selectionId) {
+void TransferObj::pushRenderShape(RenderQueue &queue, quint32 selectionId) {
     if (!init && !Game::ignoreLoadLimits && Game::objectLoadingTokens < 1) return;
     QVector<float> vertices, holeVertices;
     if (terrainMesh.update(Game::terrainLib, x, y, position, width, height,
@@ -249,11 +247,11 @@ void TransferObj::pushRenderShape(quint32 selectionId) {
         init=true;
     }
     shape.terrainDecal = true;
-    shape.pushRenderItem(selectionId);
+    shape.pushRenderItem(queue, selectionId);
     if (holeShape && holeShape->loaded) {
         // Hole covers must write depth so geometry below the carpet is occluded.
         holeShape->terrainDecal=false;
-        holeShape->pushRenderItem(selectionId);
+        holeShape->pushRenderItem(queue, selectionId);
     }
 }
 

@@ -20,6 +20,7 @@
 #include <tsre/Undo.h>
 #include <tsre/UndoBuffer.h>
 #include <tsre/renderer/RenderItem.h>
+#include <tsre/ogl/GLUU.h>
 #include <QTemporaryDir>
 #include <QDir>
 #include <QFile>
@@ -1956,12 +1957,13 @@ int TsreTests::runTerrainMaterialGlSuite() {
         ok &= materials==QVector<int>{1};
         RenderItem packet;
         if (ok) {
-            terrain.configureProceduralGpuPacket(packet,0,1);
-            ok &= packet.terrainMaterialMapAddr!=0 && f->glIsTexture(packet.terrainMaterialMapAddr)
-                    && packet.terrainMaterialMapSide==TerrainMaterialMap::Side
-                    && packet.terrainMaterialId==1
-                    && packet.terrainMaterialNoiseScale==TerrainMaterialMap::DirectNoiseSide
-                    && packet.texAddr!=0;
+            terrain.configureProceduralGpuPacket(packet,0);
+            ok &= packet.terrain.materialMap!=0 && f->glIsTexture(packet.terrain.materialMap)
+                    && packet.terrain.materialTextures!=0 && f->glIsTexture(packet.terrain.materialTextures)
+                    && packet.terrain.materialParams!=0 && f->glIsTexture(packet.terrain.materialParams)
+                    && packet.terrain.materialMapSide==TerrainMaterialMap::Side
+                    && packet.terrain.materialNoiseScale==TerrainMaterialMap::DirectNoiseSide
+                    && packet.material.textured;
         }
         Texture source(library->textureDirectory()+"/"+library->find(blueUid)->texture);
         Brush brush; brush.tex=&source; brush.useTexture=true;
@@ -1979,16 +1981,23 @@ int TsreTests::runTerrainMaterialGlSuite() {
         qInfo() << "[tests:terrain-material-gl] direct pmap upload, material packets and dirty patch refresh"
                 << ok << error << "GL error" << directError;
     }
-    for (const QString &directory : {QStringLiteral("shaders"),QStringLiteral("shaders330")}) {
+    for (const QString &directory : {QStringLiteral("shaders330")}) {
+        const QString path="appdata/"+Game::AppDataVersion+"/"+directory;
         for (const QString &shaderName : {QStringLiteral("StandardFog"),QStringLiteral("StandardFogStoredCoords"),
-                                          QStringLiteral("StandardBloom"),QStringLiteral("StandardFast")}) {
-            const QString base="appdata/"+Game::AppDataVersion+"/"+directory+"/"+shaderName;
-            const QString vertexBase=shaderName=="StandardFast"
-                    ? "appdata/"+Game::AppDataVersion+"/"+directory+"/StandardFog" : base;
-            QOpenGLShaderProgram program;
-            if (!program.addShaderFromSourceFile(QOpenGLShader::Vertex,vertexBase+".vs")
-                    || !program.addShaderFromSourceFile(QOpenGLShader::Fragment,base+".fs") || !program.link()) {
-                qWarning() << "Terrain shader compile/link failed" << base << program.log(); ++failed;
+                                          QStringLiteral("StandardFast")}) {
+            const QString vertexName=shaderName=="StandardFast" ? QStringLiteral("StandardFog") : shaderName;
+            // The object program and its terrain and unlit variants must build.
+            for (const QStringList &defines : {QStringList(),QStringList{"TSRE_TERRAIN"},
+                                               QStringList{"TSRE_UNLIT"}}) {
+                QOpenGLShaderProgram program;
+                if (!program.addShaderFromSourceCode(QOpenGLShader::Vertex,
+                            GLUU::shaderSource(path,vertexName,"vs",defines))
+                        || !program.addShaderFromSourceCode(QOpenGLShader::Fragment,
+                            GLUU::shaderSource(path,shaderName,"fs",defines))
+                        || !program.link()) {
+                    qWarning() << "Terrain shader compile/link failed" << path << shaderName << defines
+                               << program.log(); ++failed;
+                }
             }
         }
     }
@@ -1996,7 +2005,8 @@ int TsreTests::runTerrainMaterialGlSuite() {
         // Render actual vertex-shader UV remapping. The same post-transform is
         // used for precomputed attributes and paged UBO-derived coordinates.
         QOpenGLShaderProgram program;
-        bool ok=program.addShaderFromSourceFile(QOpenGLShader::Vertex,"appdata/"+Game::AppDataVersion+"/shaders330/StandardFog.vs")
+        bool ok=program.addShaderFromSourceCode(QOpenGLShader::Vertex,
+                    GLUU::shaderSource("appdata/"+Game::AppDataVersion+"/shaders330","StandardFog","vs",{"TSRE_TERRAIN"}))
                 && program.addShaderFromSourceCode(QOpenGLShader::Fragment,
                     "#version 330 core\nin vec2 vTextureCoord; out vec4 fragColor; void main(){fragColor=vec4(vTextureCoord,0,1);}")
                 && program.link() && program.bind();
@@ -2030,10 +2040,18 @@ int TsreTests::runTerrainMaterialGlSuite() {
     }
     {
         TestTerrain a,b; a.setup(temp.path(),16,"gla");b.setup(temp.path(),32,"glb");
-        float defaultDetailScale;
-        std::memcpy(&defaultDetailScale, &a.descriptor().material(0).uvCalcs[1].scale, sizeof(float));
-        if (defaultDetailScale != Terrain::ProceduralDetailScale
-                || a.descriptor().material(0).textures[1].filename != "microtex.ace") ++failed;
+        // New terrain files start with the default detail slot; the test tiles
+        // above trim theirs to one texture.
+        TFile fresh; fresh.initNew("detail-defaults",256,8,16);
+        const auto &defaults=fresh.material(0);
+        float defaultDetailScale=0.0f;
+        if (defaults.uvCalcs.size()>1)
+            std::memcpy(&defaultDetailScale, &defaults.uvCalcs[1].scale, sizeof(float));
+        if (defaultDetailScale != Terrain::ProceduralDetailScale || defaults.textures.size()<2
+                || defaults.textures[1].filename != "microtex.ace") {
+            ++failed;
+            qWarning() << "[tests:terrain-material-gl] default detail slot missing or wrong";
+        }
         QString error;
         // Seasonal resolution now verifies the file at tile setup, before the
         // synthetic pending TexLib object used by this binding test is installed.
@@ -2077,10 +2095,10 @@ int TsreTests::runTerrainMaterialGlSuite() {
         if (filter!=GL_LINEAR_MIPMAP_LINEAR || wrap!=GL_REPEAT) ++failed;
         f->glActiveTexture(GL_TEXTURE0);
         RenderItem item;
-        if (item.secondTexScale!=0.0f) ++failed;
-        item.secondTexAddr=detail->tex[0]; item.secondTexScale=Terrain::ProceduralDetailScale;
+        if (item.material.detailScale!=0.0f) ++failed;
+        item.material.detailTextureObject=detail->tex[0]; item.material.detailScale=Terrain::ProceduralDetailScale;
         RenderItem copied(item);
-        if (copied.secondTexAddr!=detail->tex[0] || copied.secondTexScale!=32.0f) ++failed;
+        if (copied.material.detailTextureObject!=detail->tex[0] || copied.material.detailScale!=32.0f) ++failed;
         const int detailRefs=detail->ref;
         a.proceduralDetailTexture();
         if (detail->ref!=detailRefs) ++failed;

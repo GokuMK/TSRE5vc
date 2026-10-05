@@ -14,7 +14,7 @@
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <tsre/fileFunctions/ReadFile.h>
 #include <tsre/shape/ShapeLib.h>
-#include <tsre/shape/SFile.h>
+#include <tsre/shape/ComplexShape.h>
 #include <QDebug>
 #include <QFile>
 #include <tsre/Game.h>
@@ -518,12 +518,12 @@ void Eng::initBorder(){
     }
 }
 
-void Eng::pushDrawBorder(){
+void Eng::pushDrawBorder(RenderQueue &queue){
     initBorder();
-    borderObj->pushRenderItem();
+    borderObj->pushRenderItem(queue);
 }
 
-void Eng::pushDrawBorder3d() {
+void Eng::pushDrawBorder3d(RenderQueue &queue) {
     if (borderObj3d == NULL) {
         borderObj3d = new OglObj();
 
@@ -565,7 +565,7 @@ void Eng::pushDrawBorder3d() {
         delete[] punkty;
     }
 
-    borderObj3d->pushRenderItem();
+    borderObj3d->pushRenderItem(queue);
 }
 
 void Eng::updateSim(float deltaTime){
@@ -689,20 +689,20 @@ long long int Eng::resolveShapeIds() {
 }
 
 // Submits the engine for the Shape Viewer and Consist Editor.
-void Eng::pushRenderItems(quint32 selectionId) {
+void Eng::pushRenderItems(RenderQueue &queue, quint32 selectionId) {
     if (loaded != 1) return;
     const long long int shapeLibId = resolveShapeIds();
     if (shape.id[shapeLibId] >= 0)
-        Game::currentShapeLib->shape[shape.id[shapeLibId]]->pushRenderItem(selectionId, 0);
+        Game::currentShapeLib->shape[shape.id[shapeLibId]]->pushRenderItem(queue, selectionId, 0);
 
-    float *mv = Game::currentRenderer->mvMatrix;
+    float *mv = queue.transform();
     for (int i = 0; i < freightanimShape.size(); i++) {
         if (freightanimShape[i].id[shapeLibId] < 0)
             continue;
-        Game::currentRenderer->mvPushMatrix();
+        queue.pushTransform();
         Mat4::translate(mv, mv, -freightanimShape[i].x, freightanimShape[i].y, -freightanimShape[i].z);
-        Game::currentShapeLib->shape[freightanimShape[i].id[shapeLibId]]->pushRenderItem(selectionId, 0);
-        Game::currentRenderer->mvPopMatrix();
+        Game::currentShapeLib->shape[freightanimShape[i].id[shapeLibId]]->pushRenderItem(queue, selectionId, 0);
+        queue.popTransform();
     }
 }
 
@@ -789,7 +789,7 @@ void Eng::getCameraPosition(float* out){
 
 // Submits the wagon at its track position; the selection border is submitted
 // inside the wagon transform.
-void Eng::pushRenderItemOnTrack(float* playerT, quint32 selectionId, bool selected) {
+void Eng::pushRenderItemOnTrack(RenderQueue &queue, float* playerT, quint32 selectionId, bool selected) {
     if (loaded != 1) return;
 
     const long long int shapeLibId = resolveShapeIds();
@@ -812,28 +812,33 @@ void Eng::pushRenderItemOnTrack(float* playerT, quint32 selectionId, bool select
     float rotY = ((float)someval + 1.0)*(M_PI / 2.0)+(float)(atan((drawPosition1[0] - drawPosition2[0]) / (drawPosition1[2] - drawPosition2[2])));
     float rotX = -(float)(asin((drawPosition1[1] - drawPosition2[1]) / (dlugosc)));
 
-    Game::currentRenderer->mvPushMatrix();
+    queue.pushTransform();
 
-    Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, pos[0] + 2048 * (pos[3] - playerT[0]), pos[1] + 0.28, -pos[2] + 2048 * (-pos[4] - playerT[1]));
-    Mat4::rotateY(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, -rotY);
-    Mat4::rotateX(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, rotX);
-    Mat4::rotate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, -selev1, 0, 0, 1);
-    Mat4::rotateY(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, flip*M_PI);
+    Mat4::translate(queue.transform(), queue.transform(), pos[0] + 2048 * (pos[3] - playerT[0]), pos[1] + 0.28, -pos[2] + 2048 * (-pos[4] - playerT[1]));
+    Mat4::rotateY(queue.transform(), queue.transform(), -rotY);
+    Mat4::rotateX(queue.transform(), queue.transform(), rotX);
+    Mat4::rotate(queue.transform(), queue.transform(), -selev1, 0, 0, 1);
+    Mat4::rotateY(queue.transform(), queue.transform(), flip*M_PI);
 
+    // Activities submit their consists with the editor overlays; the
+    // rolling stock itself is scene geometry, lit and shadowed.
+    const RenderQueue::Layer layer = queue.layer();
+    queue.setLayer(RenderQueue::LAYER_SCENE);
     if (shape.id[shapeLibId] >= 0)
-        Game::currentShapeLib->shape[shape.id[shapeLibId]]->pushRenderItem(selectionId, 0);
+        Game::currentShapeLib->shape[shape.id[shapeLibId]]->pushRenderItem(queue, selectionId, 0);
 
     for (int i = 0; i < freightanimShape.size(); i++) {
         if (freightanimShape[i].id[shapeLibId] >= 0) {
-            Game::currentRenderer->mvPushMatrix();
-            Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, freightanimShape[i].x, freightanimShape[i].y, -freightanimShape[i].z);
-            Game::currentShapeLib->shape[freightanimShape[i].id[shapeLibId]]->pushRenderItem(selectionId, 0);
-            Game::currentRenderer->mvPopMatrix();
+            queue.pushTransform();
+            Mat4::translate(queue.transform(), queue.transform(), freightanimShape[i].x, freightanimShape[i].y, -freightanimShape[i].z);
+            Game::currentShapeLib->shape[freightanimShape[i].id[shapeLibId]]->pushRenderItem(queue, selectionId, 0);
+            queue.popTransform();
         }
     }
+    queue.setLayer(layer);
     if (selected)
-        pushDrawBorder3d();
-    Game::currentRenderer->mvPopMatrix();
+        pushDrawBorder3d(queue);
+    queue.popTransform();
 }
 
 void Eng::move(float m){

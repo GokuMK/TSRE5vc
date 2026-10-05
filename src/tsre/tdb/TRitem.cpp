@@ -845,7 +845,7 @@ void TRitem::refresh(){
     drawPosition = NULL;
 }
 
-void TRitem::pushRenderItem(TDB *tdb, float* playerT, float playerRot, quint32 selectionId) {
+void TRitem::pushRenderItem(RenderQueue &queue, TDB *tdb, float* playerT, float playerRot, quint32 selectionId) {
     if (this->type == "emptyitem") {
         return;
     }
@@ -868,9 +868,9 @@ void TRitem::pushRenderItem(TDB *tdb, float* playerT, float playerRot, quint32 s
         return;
     }
 
-    Game::currentRenderer->mvPushMatrix();
-    Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPosition[0] + 2048 * (drawPosition[5] - playerT[0]), drawPosition[1] + 2 + offy, -drawPosition[2] + 2048 * (-drawPosition[6] - playerT[1]));
-    Mat4::rotateY(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, drawPosition[3]);
+    queue.pushTransform();
+    Mat4::translate(queue.transform(), queue.transform(), drawPosition[0] + 2048 * (drawPosition[5] - playerT[0]), drawPosition[1] + 2 + offy, -drawPosition[2] + 2048 * (-drawPosition[6] - playerT[1]));
+    Mat4::rotateY(queue.transform(), queue.transform(), drawPosition[3]);
     if (pointer3d == NULL) {
         pointer3d = new TrackItemObj(1);
     }
@@ -885,8 +885,8 @@ void TRitem::pushRenderItem(TDB *tdb, float* playerT, float playerRot, quint32 s
             pointer3d->setMaterial(0.0, 0.0, 0.0);
         else
             pointer3d->setMaterial(0.2, 0.2, 0.2);
-    pointer3d->pushRenderItem(selectionId);
-    Game::currentRenderer->mvPopMatrix();
+    pointer3d->pushRenderItem(queue, selectionId);
+    queue.popTransform();
 }
 
 void TRitem::save(QTextStream* out) {

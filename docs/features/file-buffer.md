@@ -22,7 +22,7 @@ For token assignments and the deliberate prototype/network ID changes, see
 | [ReadFile.cpp](../../src/tsre/fileFunctions/ReadFile.cpp) | Load a file; `read()` handles the existing SIMIS compression wrappers; `readRAW()` copies bytes without decompression |
 | [SimisReader.h](../../src/tsre/fileFunctions/SimisReader.h) | Required-token block scope and a minimum-size array-count check |
 | [TS.h](../../src/tsre/fileFunctions/TS.h), [TS.cpp](../../src/tsre/fileFunctions/TS.cpp) | Complete token IDs and symbolic-name lookup |
-| Consumer: TFile, Tile, SFile, etc. | File schema, required versus optional fields, payload interpretation, recovery and rendering suitability |
+| Consumer: TFile, Tile, SFileLegacy, etc. | File schema, required versus optional fields, payload interpretation, recovery and rendering suitability |
 | `QDataStream` / existing format writer | Serialize fields and block headers; FileBuffer has **no write-block or save API** |
 
 SIMIS block framing does not make every payload a child-block list. A payload
@@ -40,7 +40,7 @@ from classes that merely use FileBuffer as a byte/text buffer.
 | [TFile](../../src/tsre/world/TFile.cpp) | Binary terrain `.t` root, samples, shaders, patch sets and extension fields |
 | [Tile](../../src/tsre/world/Tile.cpp), `Tile::ViewDbSphere` | Binary `.w`/`.ws` roots, child/object framing, view spheres and inline watermark handling |
 | [WorldObj](../../src/tsre/world/objects/WorldObj.cpp) and subclasses below | Object factories and binary property setters invoked inside Tile's block scopes |
-| [SFile](../../src/tsre/shape/SFile.cpp), `SFile::Animation`, [SFileC](../../src/tsre/shape/SFileC.cpp) | Binary `.s` sections, geometry/LOD data, animation nodes/controllers/keys |
+| [SFileLegacy](../../src/tsre/shape/SFileLegacy.cpp), `SFileLegacy::Animation` | Binary `.s` sections, geometry/LOD data, animation nodes/controllers/keys |
 | [RouteEditorClient](../../src/routeEditor/RouteEditorClient.cpp), [RouteEditorServer](../../src/routeEditor/RouteEditorServer.cpp) | NetworkToken reads/writes full message IDs; its outer envelope is not a SIMIS child-block sequence |
 | [Terrain](../../src/tsre/world/Terrain.cpp), [TerrainClient](../../src/tsre/world/TerrainClient.cpp) | Indirect consumers: pass received terrain descriptors to TFile |
 
@@ -60,7 +60,7 @@ provided by Tile. This inventory is not a claim of complete binary field support
   `0x84`/`0x87` literals with `TS::terrain_desc` (132) and
   `TS::terrain_desc_tiles` (135). Header skipping, tree data and read behavior
   are unchanged; this is not an unfinished reader conversion to carry out now.
-- `ParserX`, `SFileX`, TDB/TSectionDAT text paths and similar consumers use
+- `ParserX`, the SFileLegacy text readers, TDB/TSectionDAT text paths and similar consumers use
   FileBuffer without the binary block helpers.
 - Terrain RAW readers use positional bytes, not child-token traversal.
 - New `AceLib`/`AceDocument` decoding is separate from these helpers;
@@ -677,7 +677,7 @@ old-versus-new parser performance result.
 
 Tile's binary W/WS loader now publishes only completed top-level units, skips a
 bad unit when its outer end is trusted, and stops without rolling back earlier
-units when the next boundary is unsafe. SFile still marks the whole shape
+units when the next boundary is unsafe. SFileLegacy still marks the whole shape
 failed, and TFile reports whole-file load failure on ParseError. Those are
 consumer decisions, **not necessary consequences of checked reads**.
 

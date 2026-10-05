@@ -13,6 +13,8 @@
 #include <QVector2D>
 #include <QVector3D>
 #include <array>
+#include <limits>
+#include <map>
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/renderer/Renderer.h>
 #include <vector>
@@ -44,6 +46,9 @@ struct SFileComplex::Data {
         std::vector<int> indices;
         int offset = 0, count = 0;
         unsigned int mode = 0x0004;
+        // Sphere around the part's vertices, set when it is uploaded.
+        float boundCenter[3] = {0.0f, 0.0f, 0.0f};
+        float boundRadius = -1.0f;
     };
     struct Gpu {
         QOpenGLBuffer vbo;
@@ -114,5 +119,15 @@ struct SFileComplex::Data {
     std::vector<Lod> lods;
     std::vector<Animation> animations;
     std::vector<State> states{1};
+    // Non-animated states share the static pose of their LOD and, when they
+    // draw the same parts (see packetKey()), one packet set. Repeated objects
+    // then submit the same packets and the renderer draws them instanced.
+    std::vector<std::vector<QMatrix4x4>> staticMatrices;
+    struct SharedPackets {
+        quint64 frame = std::numeric_limits<quint64>::max();
+        std::vector<std::unique_ptr<RenderItem, State::PacketRetirer>> packets;
+        std::vector<RenderItem *> active;
+    };
+    std::map<QByteArray, SharedPackets> sharedPackets;
     QPointer<QOpenGLContext> context;
 };

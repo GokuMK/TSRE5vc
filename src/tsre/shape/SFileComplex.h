@@ -1,7 +1,12 @@
 #pragma once
 #include <QStringList>
 #include <memory>
+#include <vector>
+
+class QMatrix4x4;
 #include <tsre/shape/ComplexShape.h>
+
+class RenderQueue;
 
 class SFileComplex final : public ComplexShape {
   public:
@@ -58,8 +63,8 @@ class SFileComplex final : public ComplexShape {
     void enableSubObjByName(unsigned int, const QString &, bool) override;
     void enableSubObjByNameQueue(unsigned int, const QString &, bool) override;
     void updateSim(float, unsigned int = 0) override;
-    void pushRenderItem() override;
-    void pushRenderItem(quint32, unsigned int) override;
+    void pushRenderItem(RenderQueue &queue) override;
+    void pushRenderItem(RenderQueue &queue, quint32, unsigned int) override;
     void invalidateRenderState(bool = true) override;
     void enablePart(unsigned int, unsigned int = 0) override;
     void disablePart(unsigned int, unsigned int = 0) override;
@@ -78,6 +83,14 @@ class SFileComplex final : public ComplexShape {
     bool extract();
     void loadMetadata(bool readFile = true);
     void updateMatrices(unsigned int);
+    // Hierarchy matrices of a LOD at an animation frame; animated false
+    // gives the static pose.
+    void fillMatrices(int lod, bool animated, float frame, std::vector<QMatrix4x4> &out) const;
+    // Static pose of a LOD, shared by non-animated states.
+    const std::vector<QMatrix4x4> &staticMatrices(int lod);
+    // Identifies the parts a state draws, for sharing static packets.
+    QByteArray packetKey(unsigned int) const;
+    void clearSharedPackets();
     void syncTextures();
     void releaseTextures();
 };

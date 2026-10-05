@@ -615,14 +615,14 @@ void ActivityServiceDefinition::save(QTextStream* out) {
     modified = false;
 }
 
-void ActivityServiceDefinition::pushRenderItems(float* playerT, int renderMode) {
+void ActivityServiceDefinition::pushRenderItems(RenderQueue &queue, float* playerT, int renderMode) {
     quint32 selectionId = 0;
-    if (renderMode == Game::currentRenderer->RENDER_SELECTION) {
+    if (renderMode == RenderQueue::RENDER_SELECTION) {
         selectionId = SelectionIdCodec::activityService(0);
     }
     if (servicePointer == NULL)
         return;
-    servicePointer->pushRenderItems(playerT, selectionId);
+    servicePointer->pushRenderItems(queue, playerT, selectionId);
 }
 
 void ActivityServiceDefinition::updateSim(float *playerT, float deltaTime){
@@ -899,25 +899,25 @@ void Activity::updateSim(float* playerT, float deltaTime){
     }
 }
 
-void Activity::pushRenderItems(float *playerT, float playerRot, int renderMode) {
+void Activity::pushRenderItems(RenderQueue &queue, float *playerT, float playerRot, int renderMode) {
     for (int i = 0; i < activityObjects.size(); i++) {
-        activityObjects[i]->pushRenderItems(playerT, renderMode, i);
+        activityObjects[i]->pushRenderItems(queue, playerT, renderMode, i);
     }
 
     for (int i = 0; i < activityFailedSignal.size(); i++) {
-        activityFailedSignal[i]->pushRenderItems(playerT, renderMode, i + 3500);
+        activityFailedSignal[i]->pushRenderItems(queue, playerT, renderMode, i + 3500);
     }
 
     for (int i = 0; i < restrictedSpeedZone.size(); i++) {
-        restrictedSpeedZone[i]->pushRenderItems(playerT, renderMode, i + 3000);
+        restrictedSpeedZone[i]->pushRenderItems(queue, playerT, renderMode, i + 3000);
     }
 
     for (int i = 0; i < event.size(); i++) {
-        event[i].pushRenderItem(playerT, playerRot, renderMode);
+        event[i].pushRenderItem(queue, playerT, playerRot, renderMode);
     }
 
     if (playerServiceDefinition != NULL) {
-        playerServiceDefinition->pushRenderItems(playerT, renderMode);
+        playerServiceDefinition->pushRenderItems(queue, playerT, renderMode);
     }
 }
 /*

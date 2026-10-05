@@ -9,7 +9,7 @@
  */
 
 #include <tsre/world/objects/TrackObj.h>
-#include <tsre/shape/SFile.h>
+#include <tsre/shape/ComplexShape.h>
 #include <tsre/shape/ShapeLib.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/math3d/Flex.h>
@@ -438,7 +438,7 @@ bool TrackObj::castsShadows(){
     return !Game::mstsShadows && !roadShape;
 }
 
-void TrackObj::pushRenderItems(float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId){
+void TrackObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float posz, float* playerW, float* target, float fov, quint32 selectionId){
     if (!loaded) return;
     if (shape < 0) return;
     if (jestPQ < 2) return;
@@ -479,15 +479,15 @@ void TrackObj::pushRenderItems(float lod, float posx, float posz, float* playerW
         fillYawOnlyTrackMatrix(qDirection, position, bakedMatrix);
         renderMatrix = bakedMatrix;
     }
-    Mat4::multiply(Game::currentRenderer->mvMatrix,
-            Game::currentRenderer->mvMatrix, renderMatrix);
+    Mat4::multiply(queue.transform(),
+            queue.transform(), renderMatrix);
     
     if(Game::showWorldObjPivotPoints){
         if(pointer3d == NULL){
             pointer3d = new TrackItemObj(1);
             pointer3d->setMaterial(0.9,0.9,0.7);
         }
-        pointer3d->pushRenderItem(selectionId);
+        pointer3d->pushRenderItem(queue, selectionId);
     }
     
     /*if(selectionId != 0){
@@ -497,20 +497,20 @@ void TrackObj::pushRenderItems(float lod, float posx, float posz, float* playerW
     }*/
     if(!procedural) {
         if(shapePointer != NULL){
-            shapePointer->pushRenderItem(selectionId, 0);
+            shapePointer->pushRenderItem(queue, selectionId, 0);
         }
     } else {
         for(int i = 0; i < procShape.size(); i++){
             const float partLod =
                     OrtsTrackProfileRenderer::generatedPartLod(
                         procShape[i], renderMatrix, posx, posz);
-            procShape[i]->pushRenderItem(selectionId, partLod);
+            procShape[i]->pushRenderItem(queue, selectionId, partLod);
         }
     }
 
 
     if(selected){
-        pushRenderBox();
+        pushRenderBox(queue);
     }
 }
 

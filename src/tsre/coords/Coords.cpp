@@ -70,7 +70,7 @@ const Coords::Marker *Coords::markerAt(int index) const {
     return &markerList[index];
 }
 
-void Coords::pushRenderItems(float *playerT, float* playerW, float playerRot) {
+void Coords::pushRenderItems(RenderQueue &queue, float *playerT, float* playerW, float playerRot) {
     if (!loaded) return;
 
     if (simpleMarkerObjP == NULL) {
@@ -120,31 +120,31 @@ void Coords::pushRenderItems(float *playerT, float* playerW, float playerRot) {
                 markerList[i].line3d->init(punkty, ptr, RenderItem::V, GL_LINES);
                 delete[] punkty;
             }
-            Game::currentRenderer->mvPushMatrix();
-            Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, 0 + 2048 * (markerList[i].tileX[0] - playerT[0]), 10, 0 + 2048 * (-markerList[i].tileZ[0] - playerT[1]));
-            markerList[i].line3d->pushRenderItem();
-            Game::currentRenderer->mvPopMatrix();
+            queue.pushTransform();
+            Mat4::translate(queue.transform(), queue.transform(), 0 + 2048 * (markerList[i].tileX[0] - playerT[0]), 10, 0 + 2048 * (-markerList[i].tileZ[0] - playerT[1]));
+            markerList[i].line3d->pushRenderItem(queue);
+            queue.popTransform();
         } else {
             for (int j = 0; j < markerList[i].tileX.size(); j++) {
                 if (fabs(markerList[i].tileX[j] - playerT[0]) + fabs(-markerList[i].tileZ[j] - playerT[1]) > 2) {
                     continue;
                 }
-                Game::currentRenderer->mvPushMatrix();
+                queue.pushTransform();
                 float h = Game::terrainLib->getHeight(markerList[i].tileX[j], -markerList[i].tileZ[j], markerList[i].x[j], markerList[i].z[j]);
-                Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, markerList[i].x[j] + 2048 * (markerList[i].tileX[j] - playerT[0]), h, markerList[i].z[j] + 2048 * (-markerList[i].tileZ[j] - playerT[1]));
+                Mat4::translate(queue.transform(), queue.transform(), markerList[i].x[j] + 2048 * (markerList[i].tileX[j] - playerT[0]), h, markerList[i].z[j] + 2048 * (-markerList[i].tileZ[j] - playerT[1]));
                 if (j == 0)
-                    simpleMarkerObjP->pushRenderItem();
+                    simpleMarkerObjP->pushRenderItem(queue);
                 else
-                    simpleMarkerObjL->pushRenderItem();
-                Mat4::translate(Game::currentRenderer->mvMatrix, Game::currentRenderer->mvMatrix, 0, 30, 0);
+                    simpleMarkerObjL->pushRenderItem(queue);
+                Mat4::translate(queue.transform(), queue.transform(), 0, 30, 0);
                 txt = nameGl[markerList[i].name.toStdString()];
                 if (txt == NULL) {
                     txt = new TextObj(markerList[i].name, 16, 1.0);
                     txt->setColor(0, 0, 0);
                     nameGl[markerList[i].name.toStdString()] = txt;
                 }
-                txt->pushRenderItem(playerRot);
-                Game::currentRenderer->mvPopMatrix();
+                txt->pushRenderItem(queue, playerRot);
+                queue.popTransform();
             }
         }
     }
