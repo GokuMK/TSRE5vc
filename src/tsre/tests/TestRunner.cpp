@@ -56,6 +56,7 @@
 #include <tsre/tdb/TSectionDAT.h>
 #include <tsre/tests/RouteLoadTestSuite.h>
 #include <tsre/tests/SelectionIdTestSuite.h>
+#include <tsre/tests/MeshStoreTestSuite.h>
 #include <tsre/tests/ConsistPreviewTestSuite.h>
 #include <tsre/tests/RendererParityTestSuite.h>
 #include <tsre/tests/PaintTexTestSuite.h>
@@ -4080,6 +4081,7 @@ QStringList TsreTests::listSuites() {
         "procedural-policy",
         "route-load",
         "selection-id",
+        "mesh-store",
         "consist-preview-gl",
         "renderer-capture",
         "renderer-compare",
@@ -4133,6 +4135,8 @@ int TsreTests::run(const TestRunOptions &opts) {
 
     if (suite == "selection-id")
         return runSelectionIdSuite(opts.verbose);
+    if (suite == "mesh-store")
+        return runMeshStoreSuite(opts.verbose);
 
     if (suite == "consist-preview-gl")
         return runConsistPreviewSuite(opts.verbose);

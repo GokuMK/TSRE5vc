@@ -13,6 +13,7 @@
 #include <algorithm>
 
 #include <tsre/renderer/OpenGL3Renderer.h>
+#include <tsre/renderer/Mesh.h>
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/renderer/RenderStats.h>
 #include <tsre/math3d/GLMatrix.h>
@@ -350,6 +351,100 @@ OpenGL3Renderer::OpenGL3Renderer() {
 OpenGL3Renderer::~OpenGL3Renderer() {
     clearQueues();
     releaseInstanceBuffer();
+    releaseMeshArrays();
+}
+
+struct OpenGL3Renderer::MeshBinding {
+    OpenGL3Renderer &renderer;
+    const RenderItem *item;
+    bool bound;
+    MeshBinding(OpenGL3Renderer &renderer, const RenderItem *item)
+        : renderer(renderer), item(item), bound(renderer.bindMesh(item)) {}
+    ~MeshBinding() {
+        if(bound)
+            renderer.unbindMesh(item);
+    }
+};
+
+bool OpenGL3Renderer::hasMesh(const RenderItem *item){
+    return item->mesh.handle.valid() || item->mesh.vao != NULL;
+}
+
+bool OpenGL3Renderer::bindMesh(const RenderItem *item){
+    const MeshHandle handle = item->mesh.handle;
+    if(!handle.valid()){
+        if(item->mesh.vao == NULL)
+            return false;
+        item->mesh.vao->bind();
+        return true;
+    }
+    QOpenGLContext *context = QOpenGLContext::currentContext();
+    if(context == NULL)
+        return false;
+    if(context != meshContext){
+        // Vertex arrays belong to one context; a new one starts empty.
+        meshArrays.clear();
+        meshContext = context;
+    }
+    Meshes::Buffers buffers;
+    if(!Meshes::prepare(handle, f, buffers))
+        return false;
+    QOpenGLExtraFunctions *e = context->extraFunctions();
+    MeshArray &array = meshArrays[handle.index];
+    if(array.vao != 0 && array.generation == handle.generation && array.stamp == buffers.stamp){
+        e->glBindVertexArray(array.vao);
+        return true;
+    }
+    if(array.vao == 0)
+        e->glGenVertexArrays(1, &array.vao);
+    e->glBindVertexArray(array.vao);
+    for(GLuint location = 0; location < 4; ++location)
+        e->glDisableVertexAttribArray(location);
+    f->glBindBuffer(GL_ARRAY_BUFFER, buffers.vertexBuffer);
+    Meshes::setupAttributes(f, buffers.layout);
+    f->glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, buffers.indexBuffer);
+    f->glBindBuffer(GL_ARRAY_BUFFER, 0);
+    array.generation = handle.generation;
+    array.stamp = buffers.stamp;
+    return true;
+}
+
+void OpenGL3Renderer::unbindMesh(const RenderItem *item){
+    if(item->mesh.handle.valid())
+        QOpenGLContext::currentContext()->extraFunctions()->glBindVertexArray(0);
+    else
+        item->mesh.vao->release();
+}
+
+void OpenGL3Renderer::collectMeshes(){
+    QOpenGLContext *context = QOpenGLContext::currentContext();
+    if(context == NULL || f == NULL)
+        return;
+    Meshes::collectGarbage(f);
+    const quint64 releases = Meshes::releaseCount();
+    if(releases == sweptReleases || context != meshContext)
+        return;
+    sweptReleases = releases;
+    QOpenGLExtraFunctions *e = context->extraFunctions();
+    for(auto it = meshArrays.begin(); it != meshArrays.end(); ){
+        if(Meshes::alive(MeshHandle{it->first, it->second.generation})){
+            ++it;
+            continue;
+        }
+        e->glDeleteVertexArrays(1, &it->second.vao);
+        it = meshArrays.erase(it);
+    }
+}
+
+void OpenGL3Renderer::releaseMeshArrays(){
+    QOpenGLContext *context = QOpenGLContext::currentContext();
+    if(context != NULL && context == meshContext){
+        QOpenGLExtraFunctions *e = context->extraFunctions();
+        for(auto &entry : meshArrays)
+            e->glDeleteVertexArrays(1, &entry.second.vao);
+    }
+    meshArrays.clear();
+    meshContext = NULL;
 }
 
 #ifndef GL_TEXTURE_BUFFER
@@ -620,7 +715,7 @@ void OpenGL3Renderer::drawOrdered(GLUU *gluu, Shader *base,
     ProgramCaches caches;
     for(const DrawInstance &instance : instances){
         RenderItem *item = instance.packet;
-        if(item->mesh.vao == NULL || !visible(instance, cullFrustum))
+        if(!hasMesh(item) || !visible(instance, cullFrustum))
             continue;
         useProgram(gluu, base, item, pass, caches);
         applyItemState(gluu, f, item, instance.selectionId, caches.detail);
@@ -629,7 +724,9 @@ void OpenGL3Renderer::drawOrdered(GLUU *gluu, Shader *base,
         setModelMatrix(gluu, item->msMatrix);
         setMatrixUniform(gluu, gluu->currentShader->mvMatrixUniform, instanceMatrix(instance.matrix));
         PacketRasterState raster(f, item);
-        QOpenGLVertexArrayObject::Binder vaoBinder(item->mesh.vao);
+        MeshBinding mesh(*this, item);
+        if(!mesh.bound)
+            continue;
         drawItem(f, item, instance.selectionId,
                  static_cast<RenderStats::Category>(instance.category), pass);
     }
@@ -649,7 +746,7 @@ void OpenGL3Renderer::drawGrouped(GLUU *gluu, Shader *base,
         while(i < instances.size() && instances[i].packet == item)
             ++i;
         plan.end = i;
-        if(item->mesh.vao == NULL){
+        if(!hasMesh(item)){
             groupPlans.push_back(plan);
             continue;
         }
@@ -686,7 +783,7 @@ void OpenGL3Renderer::drawGrouped(GLUU *gluu, Shader *base,
         size_t i = plan.begin;
         const size_t end = plan.end;
         RenderItem *item = instances[i].packet;
-        if(item->mesh.vao == NULL || plan.visible == 0)
+        if(!hasMesh(item) || plan.visible == 0)
             continue;
         while(i < end && !instanceVisible[i])
             ++i;
@@ -707,7 +804,9 @@ void OpenGL3Renderer::drawGrouped(GLUU *gluu, Shader *base,
         applyProceduralTerrainState(gluu,f,item,caches.procedural);
         setModelMatrix(gluu, item->msMatrix);
         PacketRasterState raster(f, item);
-        QOpenGLVertexArrayObject::Binder vaoBinder(item->mesh.vao);
+        MeshBinding mesh(*this, item);
+        if(!mesh.bound)
+            continue;
         Shader *shader = gluu->currentShader;
         if(instancing && plan.base >= 0 && shader->instanced >= 0){
             shader->setUniformValue(shader->instanced, 1);
@@ -762,6 +861,8 @@ void OpenGL3Renderer::renderPasses(RenderPass first, RenderPass last){
     QOpenGLContext *context = QOpenGLContext::currentContext();
     f = context != NULL ? context->functions() : NULL;
     const bool canDraw = gluu != NULL && f != NULL && gluu->currentShader != NULL;
+    if(canDraw)
+        collectMeshes();
     // Program the frame bound; terrain packets may switch to its variant.
     Shader *base = canDraw ? gluu->currentShader : NULL;
 
@@ -825,7 +926,7 @@ void OpenGL3Renderer::renderShadowCasters(float range, int statsSlot,
     for(PassQueue &queue : passes){
         for(const std::vector<DrawInstance> *list : {&queue.ordered, &queue.grouped}){
             for(const DrawInstance &instance : *list){
-                if(!instance.castsShadow || instance.packet->mesh.vao == NULL)
+                if(!instance.castsShadow || !hasMesh(instance.packet))
                     continue;
                 // Measure the range to the bounds, so long meshes whose origin
                 // is out of range still cast near the camera.
@@ -873,7 +974,9 @@ void OpenGL3Renderer::renderShadowCasters(float range, int statsSlot,
         applyItemState(gluu, f, item, 0, detailState);
         applyTerrainState(gluu, item, terrainState);
         setModelMatrix(gluu, item->msMatrix);
-        QOpenGLVertexArrayObject::Binder vaoBinder(item->mesh.vao);
+        MeshBinding mesh(*this, item);
+        if(!mesh.bound)
+            continue;
         const bool instanced = instancing && plan.base >= 0 && shader->instanced >= 0;
         if(instanced){
             shader->setUniformValue(shader->instanced, 1);

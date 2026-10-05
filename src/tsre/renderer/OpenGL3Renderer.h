@@ -13,6 +13,7 @@
 #define OPENGL3RENDERER_H
 
 #include <tsre/renderer/Renderer.h>
+#include <unordered_map>
 #include <vector>
 
 class QOpenGLFunctions;
@@ -95,6 +96,28 @@ private:
     // Whether instance rows first..first+count fit the buffer texture.
     bool instanceRowsFit(int first, int count);
     void releaseInstanceBuffer();
+
+    // Vertex arrays of renderer-owned meshes in this renderer's context.
+    // Mesh buffers are shared between contexts; vertex arrays are not.
+    struct MeshArray {
+        quint32 generation = 0;
+        quint64 stamp = 0;
+        unsigned int vao = 0;
+    };
+    // Binds a packet's mesh for the lifetime of the binding.
+    struct MeshBinding;
+    static bool hasMesh(const RenderItem *item);
+    // Binds the packet's mesh, uploading pending data; false when there is
+    // nothing to draw.
+    bool bindMesh(const RenderItem *item);
+    void unbindMesh(const RenderItem *item);
+    // Deletes released mesh buffers and this renderer's vertex arrays of
+    // released meshes.
+    void collectMeshes();
+    void releaseMeshArrays();
+    std::unordered_map<quint32, MeshArray> meshArrays;
+    QOpenGLContext *meshContext = nullptr;
+    quint64 sweptReleases = 0;
 
     // A run of instances of one packet in a grouped pass. base >= 0 marks an
     // instanced draw of count instances starting at that buffer row.

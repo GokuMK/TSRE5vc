@@ -13,6 +13,7 @@
 
 #include <QVector>
 #include <QVector3D>
+#include <tsre/renderer/MeshHandle.h>
 
 class Vector3f;
 class Vector4f;
@@ -39,8 +40,11 @@ public:
     };
     enum IndexType : unsigned char {INDEX_U16 = 0, INDEX_U32};
 
-    // Geometry the producer uploaded, and the range of it this packet draws.
+    // Geometry this packet draws from, and the range of it. Meshes are
+    // renderer-owned (handle); producers not yet moved to Meshes still pass
+    // their own vertex array and buffer.
     struct Mesh {
+        MeshHandle handle;
         QOpenGLVertexArrayObject *vao = nullptr;
         QOpenGLBuffer *vbo = nullptr;
         VertexAttr layout = NO_ATTR;
