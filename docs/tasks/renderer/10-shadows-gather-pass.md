@@ -119,14 +119,15 @@ scene casts into them.
 
 ## Three shadow maps (implemented, stage 4 step 7)
 
-- Near map (`shadow0`, texture unit 9): +-100 m around the camera, depth
+- Near map (`shadow0`, texture unit 9): +-80 m around the camera, depth
   +-200 m, casters within 250 m, primary map size. Mid map (`shadow1`):
   +-300 m, depth +-600 m, casters within 600 m, primary map size. Far map
   (`shadow2`): +-700 m, casters within 1000 m, distant map size. All share
-  the light direction. The resolution and bias settings were tuned for one
-  +-150 m map with a +-200 m depth range; `shadowMapScale` rescales the tap
-  spread and bias of the near and mid maps so both stay the same in world
-  space relative to texel size.
+  the light direction. Both near maps blur by 2 * `ShadowBlurReference` /
+  `shadow1Res` metres (80 m and 2500 at 2048 give 6.4 cm per unit tap);
+  `shadowMapScale` keeps that blur and the bias of surfaces without normals
+  the same in world space in each map. The caster range is measured to each
+  caster's bounds, so long meshes passing the camera still cast.
 - The first version used +-50 m and +-150 m. Its near map ended too close to
   the camera: the change in contact shading at 50 m was easy to see. With
   the default 2048 maps the near map now has 9.8 cm texels, close to the

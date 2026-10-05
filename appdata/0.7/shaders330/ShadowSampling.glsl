@@ -5,8 +5,8 @@
 // shadow inputs, uniforms and poissonDisk.
 
 // Tap spread (x near, y middle) and depth-bias (z near, w middle) scales of
-// the near and middle maps relative to the map the shadow resolution and
-// bias settings were tuned for; they keep both in world space.
+// the near and middle maps; they keep the blur and the bias of surfaces
+// without normals the same in world space in every map.
 uniform vec4 shadowMapScale;
 // Depth bias of the near and middle maps for surfaces with normals, whose
 // lookups the vertex shader moves along the normal.

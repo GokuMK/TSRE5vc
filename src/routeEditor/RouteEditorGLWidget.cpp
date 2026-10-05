@@ -715,10 +715,13 @@ namespace {
 // shadow maps.
 constexpr float ShadowHalfExtent[3] = {80.0f, 300.0f, 700.0f};
 constexpr float ShadowHalfDepth[3] = {200.0f, 600.0f, 700.0f};
-// The shadow resolution and bias settings were tuned for one 150 m map
-// with a 200 m half depth range.
-constexpr float TunedShadowHalfExtent = 80.0f;
-constexpr float TunedShadowHalfDepth = 200.0f;
+// Blur reference in metres: the near and middle maps blur by
+// 2 * ShadowBlurReference / shadow1Res metres (shadow1Res comes with the
+// primary map size), and the bias of surfaces without normals grows with
+// each map's width relative to it.
+constexpr float ShadowBlurReference = 80.0f;
+// Half depth range the bias of surfaces without normals was tuned for.
+constexpr float ShadowBiasReferenceHalfDepth = 200.0f;
 // Direction towards the shadow-casting sun.
 constexpr float ShadowLightDirection[3] = {-1.0f, 1.5f, 1.0f};
 // Normal offset and depth bias of the near and middle maps for surfaces with
@@ -746,17 +749,18 @@ void RouteEditorGLWidget::computeShadowMatrices() {
         Mat4::ortho(matrices[map], -ShadowHalfExtent[map], ShadowHalfExtent[map],
                     -ShadowHalfExtent[map], ShadowHalfExtent[map],
                     -ShadowHalfDepth[map], ShadowHalfDepth[map]);
-    // Keep the tuned tap spread and bias in world space: texels grow with the
-    // map width, depth units with the depth range.
+    // Keep the blur and the bias of surfaces without normals the same in world
+    // space in every map: texels grow with the map width, depth units with
+    // the depth range.
     for (int map = 0; map < 2; map++) {
-        const float texelScale = ShadowHalfExtent[map] / TunedShadowHalfExtent;
+        const float texelScale = ShadowHalfExtent[map] / ShadowBlurReference;
         gluu->shadowMapScale[map] = texelScale;
-        gluu->shadowMapScale[2 + map] = texelScale * TunedShadowHalfDepth / ShadowHalfDepth[map];
+        gluu->shadowMapScale[2 + map] = texelScale * ShadowBiasReferenceHalfDepth / ShadowHalfDepth[map];
     }
     // Surfaces with normals look up the near and middle maps from a point moved
     // along the normal, which needs only a small depth bias. The far map keeps
     // its constant bias.
-    const float tapSpread = 2.0f * TunedShadowHalfExtent / gluu->shadow1Res;
+    const float tapSpread = 2.0f * ShadowBlurReference / gluu->shadow1Res;
     for (int map = 0; map < 2; map++) {
         const float texel = 2.0f * ShadowHalfExtent[map] / shadowMapSize;
         const float filter = std::max(texel, tapSpread);

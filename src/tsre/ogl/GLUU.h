@@ -46,8 +46,8 @@ public:
     float shadow2Res = Game::shadow2Res;
     float shadow2Bias = Game::shadow2Bias;
     // Tap spread (x near, y middle) and depth-bias (z near, w middle) scales
-    // of the near and middle shadow maps, relative to the 150 m map the
-    // shadow resolution and bias settings were tuned for.
+    // of the near and middle shadow maps, which keep the blur and the bias
+    // of surfaces without normals the same in world space in every map.
     float shadowMapScale[4] = {1.0f, 1.0f, 1.0f, 1.0f};
     // Normal offset in metres of the near, middle and far shadow lookups, the
     // depth bias of the near and middle maps for surfaces with normals, and
