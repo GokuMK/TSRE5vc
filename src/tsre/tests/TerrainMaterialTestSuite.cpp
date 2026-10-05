@@ -1984,7 +1984,7 @@ int TsreTests::runTerrainMaterialGlSuite() {
     for (const QString &directory : {QStringLiteral("shaders330")}) {
         const QString path="appdata/"+Game::AppDataVersion+"/"+directory;
         for (const QString &shaderName : {QStringLiteral("StandardFog"),QStringLiteral("StandardFogStoredCoords"),
-                                          QStringLiteral("StandardBloom"),QStringLiteral("StandardFast")}) {
+                                          QStringLiteral("StandardFast")}) {
             const QString vertexName=shaderName=="StandardFast" ? QStringLiteral("StandardFog") : shaderName;
             // The object program and its terrain and unlit variants must build.
             for (const QStringList &defines : {QStringList(),QStringList{"TSRE_TERRAIN"},

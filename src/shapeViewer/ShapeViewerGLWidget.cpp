@@ -198,7 +198,7 @@ void ShapeViewerGLWidget::paintGL() {
 
 void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
     Game::currentShapeLib = currentShapeLib;
-    Shader *shader = gluu->shaders.value(selectionPass ? "Selection" : "StandardBloom", nullptr);
+    Shader *shader = gluu->shaders.value(selectionPass ? "Selection" : "StandardFog", nullptr);
     if(shader == nullptr)
         return;
     if(selectionPass){

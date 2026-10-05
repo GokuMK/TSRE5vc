@@ -140,15 +140,12 @@ void GLUU::initShader() {
     shaderDefinitions.push_back({"StandardFog", "StandardFog", "StandardFog", {}});
     shaderDefinitions.push_back({"StandardFast", "StandardFog", "StandardFast", {}});
     shaderDefinitions.push_back({"StandardFogStoredCoords", "StandardFogStoredCoords", "StandardFogStoredCoords", {}});
-    shaderDefinitions.push_back({"StandardBloom", "StandardBloom", "StandardBloom", {}});
     shaderDefinitions.push_back({"StandardFogTerrain", "StandardFog", "StandardFog", terrain});
     shaderDefinitions.push_back({"StandardFastTerrain", "StandardFog", "StandardFast", terrain});
     shaderDefinitions.push_back({"StandardFogStoredCoordsTerrain", "StandardFogStoredCoords", "StandardFogStoredCoords", terrain});
-    shaderDefinitions.push_back({"StandardBloomTerrain", "StandardBloom", "StandardBloom", terrain});
     shaderDefinitions.push_back({"StandardFogUnlit", "StandardFog", "StandardFog", unlit});
     shaderDefinitions.push_back({"StandardFastUnlit", "StandardFog", "StandardFast", unlit});
     shaderDefinitions.push_back({"StandardFogStoredCoordsUnlit", "StandardFogStoredCoords", "StandardFogStoredCoords", unlit});
-    shaderDefinitions.push_back({"StandardBloomUnlit", "StandardBloom", "StandardBloom", unlit});
     shaderDefinitions.push_back({"Shadows", "Shadows", "Shadows", {}});
     shaderDefinitions.push_back({"Selection", "StandardFog", "Selection", terrain});
 
@@ -286,13 +283,12 @@ void GLUU::initShader() {
     }
     
     for (const QString &name : {QString("StandardFog"), QString("StandardFast"),
-                                QString("StandardFogStoredCoords"), QString("StandardBloom")})
+                                QString("StandardFogStoredCoords")})
     {
         terrainVariants[shaders[name]] = shaders[name + "Terrain"];
         unlitVariants[shaders[name]] = shaders[name + "Unlit"];
     }
-    //currentShader = shaders["StandardFog"];
-    currentShader = shaders["StandardBloom"];
+    currentShader = shaders["StandardFog"];
 }
 
 void GLUU::setMatrixUniforms() {

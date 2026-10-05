@@ -533,7 +533,6 @@ void RouteEditorGLWidget::paintScene(){
     }
 
     // Render Scene
-    //gluu->currentShader = gluu->shaders["StandardBloom"];
     if(selectionPass){
         const int selectionWidth = qRound((float)this->width() * Game::PixelRatio);
         const int selectionHeight = qRound((float)this->height() * Game::PixelRatio);

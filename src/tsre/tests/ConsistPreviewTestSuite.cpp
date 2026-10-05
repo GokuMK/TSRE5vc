@@ -114,7 +114,7 @@ int TsreTests::runConsistPreviewSuite(bool verbose) {
         QMouseEvent release(QEvent::MouseButtonRelease, point, point,
                             Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
         QApplication::sendEvent(&widget, &release);
-        check(!frame.isNull() && GLUU::get()->currentShader == GLUU::get()->shaders["StandardBloom"],
+        check(!frame.isNull() && GLUU::get()->currentShader == GLUU::get()->shaders["StandardFog"],
               "pick finishes with the normal preview shader and framebuffer");
     };
     click(wagonPoint(-2));
