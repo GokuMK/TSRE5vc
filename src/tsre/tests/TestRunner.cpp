@@ -68,6 +68,9 @@
 #include <tsre/tests/TokenIdTestSuite.h>
 #include <tsre/tests/SettingsTestSuite.h>
 #include <tsre/tests/TdbLoadTestSuite.h>
+#include <tsre/tests/TdbRoundTripTestSuite.h>
+#include <tsre/tests/ParserExponentTestSuite.h>
+#include <tsre/tests/TdbOrderingTestSuite.h>
 #include <tsre/tests/TerrainRawBenchmark.h>
 #include <tsre/tests/TerrainBrushBenchmark.h>
 #include <tsre/tests/TerrainBrushTestSuite.h>
@@ -4107,6 +4110,9 @@ QStringList TsreTests::listSuites() {
         "elevation-ui",
         "new-route",
         "tdb-load",
+        "tdb-roundtrip",
+        "parser-exponents",
+        "tdb-ordering",
         "terrain-files",
         "terrain-tfile",
         "quadtree-recovery",
@@ -4186,6 +4192,12 @@ int TsreTests::run(const TestRunOptions &opts) {
 
     if (suite == "tdb-load")
         return runTdbLoadSuite(opts.verbose);
+    if (suite == "tdb-roundtrip")
+        return runTdbRoundTripSuite(opts.casesFile);
+    if (suite == "parser-exponents")
+        return runParserExponentSuite();
+    if (suite == "tdb-ordering")
+        return runTdbOrderingSuite();
 
     if (suite == "procedural-policy")
         return runProceduralPolicySuite(opts.verbose);

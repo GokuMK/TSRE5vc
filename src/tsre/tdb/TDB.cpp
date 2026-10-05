@@ -3561,7 +3561,8 @@ void TDB::sortItemRefs(){
         if(trackNodes[i]->iTri > 0){
             int *pointer = trackNodes[i]->trItemRef;
             int len = trackNodes[i]->iTri;
-            std::sort(pointer, pointer + len, SortItemRefsCompare );
+            // Preserve the relative order of items at the same path position.
+            std::stable_sort(pointer, pointer + len, SortItemRefsCompare);
         }
     }
 }
@@ -3608,7 +3609,7 @@ bool TDB::saveEmpty(bool road, const QString &routeFileStem) {
         return false;
     }
     QTextStream out(&file);
-    out.setRealNumberPrecision(8);
+    out.setRealNumberPrecision(6);
     out.setEncoding(QStringConverter::Utf16);
     out.setGenerateByteOrderMark(true);
     out << "SIMISA@@@@@@@@@@JINX0T0t______\n\n";
@@ -3666,7 +3667,7 @@ void TDB::save() {
         return;
     }
     QTextStream out(&file);
-    out.setRealNumberPrecision(8);
+    out.setRealNumberPrecision(6);
     //out.setRealNumberNotation(QTextStream::FixedNotation);
     out.setEncoding(QStringConverter::Utf16);
     out.setGenerateByteOrderMark(true);
@@ -3897,7 +3898,7 @@ void TDB::saveTit() {
         return;
     }
     QTextStream out(&file);
-    out.setRealNumberPrecision(8);
+    out.setRealNumberPrecision(6);
     //out.setRealNumberNotation(QTextStream::FixedNotation);
     out.setEncoding(QStringConverter::Utf16);
     out.setGenerateByteOrderMark(true);
