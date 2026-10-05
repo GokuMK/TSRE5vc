@@ -15,8 +15,7 @@
 #include <QMap>
 #include <QString>
 #include <QVector>
-#include <QOpenGLBuffer>
-#include <QOpenGLVertexArrayObject>
+#include <tsre/renderer/MeshHandle.h>
 #include <tsre/shape/ComplexShape.h>
 
 class RenderQueue;
@@ -76,8 +75,8 @@ private:
     };
 
     struct MeshPrimitiveGpu {
-        QOpenGLBuffer VBO;
-        QOpenGLVertexArrayObject VAO;
+        // Renderer-owned VNTA vertices.
+        MeshHandle mesh;
         int vertCount = 0;
         MaterialRuntime material;
         // Sphere around the primitive's vertices, for view culling.

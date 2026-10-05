@@ -19,8 +19,6 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QOpenGLContext>
-#include <QOpenGLFunctions>
 #include <QSet>
 
 #include <shapeViewer/ContentHierarchyInfo.h>
@@ -30,6 +28,7 @@
 #include <tsre/Game.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/ogl/GLUU.h>
+#include <tsre/renderer/Mesh.h>
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/renderer/Renderer.h>
 #include <tsre/texture/TexLib.h>
@@ -871,12 +870,11 @@ void GltfShape::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned
 
             MeshPrimitiveGpu* prim = mesh->primitives[unit.primitiveIndex];
             if (prim == nullptr) continue;
-            if (!prim->VAO.isCreated()) continue;
+            if (!prim->mesh.valid()) continue;
 
             RenderItem* r = new RenderItem();
             r->msMatrix = nodeWorldMatrices[unit.nodeIndex];
-            r->mesh.vbo = &prim->VBO;
-            r->mesh.vao = &prim->VAO;
+            r->mesh.handle = prim->mesh;
             r->mesh.first = 0;
             r->mesh.count = prim->vertCount;
             r->mesh.primitive = RenderItem::PRIMITIVE_TRIANGLES;
@@ -1063,17 +1061,11 @@ void GltfShape::fillContentHierarchyInfo(QVector<ContentHierarchyInfo*>& list, i
 }
 
 void GltfShape::cleanupGpu() {
-    QOpenGLContext* ctx = QOpenGLContext::currentContext();
-    const bool hasGl = ctx != nullptr;
-
     for (MeshGpu* mesh : meshes) {
         if (mesh == nullptr) continue;
         for (MeshPrimitiveGpu* prim : mesh->primitives) {
             if (prim == nullptr) continue;
-            if (hasGl) {
-                if (prim->VBO.isCreated()) prim->VBO.destroy();
-                if (prim->VAO.isCreated()) prim->VAO.destroy();
-            }
+            Meshes::release(prim->mesh);
             delete prim;
         }
         mesh->primitives.clear();
@@ -1289,17 +1281,7 @@ bool GltfShape::parseAndBuild() {
         return -1;
     };
 
-    // Build meshes + GPU buffers (requires an active OpenGL context).
-    QOpenGLContext* ctx = QOpenGLContext::currentContext();
-    if (ctx == nullptr) {
-        qDebug() << "glTF:" << pathid << "no OpenGL context";
-        return false;
-    }
-    QOpenGLFunctions* f = ctx->functions();
-    if (f == nullptr) {
-        qDebug() << "glTF:" << pathid << "no OpenGL functions";
-        return false;
-    }
+    // Build meshes; the renderer uploads them before they are first drawn.
 
     GLUU* gluu = GLUU::get();
     const float defaultAlphaTest = gluu != nullptr ? gluu->alphaTest : 0.3f;
@@ -1558,20 +1540,10 @@ bool GltfShape::parseAndBuild() {
                 gpuPrim->boundRadius = std::sqrt(radius);
             }
 
-            gpuPrim->VAO.create();
-            QOpenGLVertexArrayObject::Binder vaoBinder(&gpuPrim->VAO);
-            gpuPrim->VBO.create();
-            gpuPrim->VBO.bind();
-            gpuPrim->VBO.allocate(vertices, outVertCount * 9 * sizeof(GLfloat));
-            f->glEnableVertexAttribArray(0);
-            f->glEnableVertexAttribArray(1);
-            f->glEnableVertexAttribArray(2);
-            f->glEnableVertexAttribArray(3);
-            f->glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(GLfloat), 0);
-            f->glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(GLfloat), reinterpret_cast<void*>(3 * sizeof(GLfloat)));
-            f->glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 9 * sizeof(GLfloat), reinterpret_cast<void*>(6 * sizeof(GLfloat)));
-            f->glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, 9 * sizeof(GLfloat), reinterpret_cast<void*>(8 * sizeof(GLfloat)));
-            gpuPrim->VBO.release();
+            MeshData meshData;
+            meshData.layout = RenderItem::VNTA;
+            meshData.vertices.assign(vertices, vertices + outVertCount * 9);
+            gpuPrim->mesh = Meshes::create(std::move(meshData));
 
             delete[] vertices;
 
