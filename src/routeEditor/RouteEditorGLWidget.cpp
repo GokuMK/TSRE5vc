@@ -64,6 +64,9 @@
 #include <tsre/renderer/EnvironmentMap.h>
 #include <tsre/renderer/PlanarReflection.h>
 #include <tsre/renderer/SelectionId.h>
+#include <tsre/geo/GeoCoordinates.h>
+#include <tsre/geo/SunPosition.h>
+#include <tsre/world/Daylight.h>
 #include <QDebug>
 #include <algorithm>
 #include <cmath>
@@ -495,6 +498,8 @@ void RouteEditorGLWidget::paintScene(){
         return;
     }
     RenderStats::ScopedFrame statsFrame(!selectionPass);
+    // The sun and the sky of the chosen time of day (or the fixed light).
+    applyTimeOfDay();
     // View-dependent shading (PBR materials) reads the camera position.
     std::copy(camera->getPos(), camera->getPos() + 3, gluu->cameraPosition);
     // Secondary views must not read last frame's water reflection.
@@ -567,7 +572,7 @@ void RouteEditorGLWidget::paintScene(){
     Mat4::identity(renderer->transform());
 
     // Render Shadows
-    if (!selectionPass && Game::shadowsEnabled > 0){
+    if (!selectionPass && Game::shadowsEnabled > 0 && sunCastsShadows){
         RenderStats::beginPhase(RenderStats::PhaseShadow);
         renderShadowMaps();
         RenderStats::endPhase(RenderStats::PhaseShadow);
@@ -773,14 +778,85 @@ constexpr float ShadowHalfDepth[3] = {200.0f, 600.0f, 700.0f};
 constexpr float ShadowBlurReference = 80.0f;
 // Half depth range the bias of surfaces without normals was tuned for.
 constexpr float ShadowBiasReferenceHalfDepth = 200.0f;
-// Direction towards the shadow-casting sun.
-constexpr float ShadowLightDirection[3] = {-1.0f, 1.5f, 1.0f};
 // Normal offset and depth bias of the near and middle maps for surfaces with
 // normals, in texels or filter radii, whichever is larger. The fragment
 // shaders also bias each filter tap by the receiver's slope, so the offset
 // only has to cover texel quantization.
 constexpr float ShadowNormalOffsetTexels[2] = {1.0f, 1.0f};
 constexpr float ShadowDepthBiasTexels[2] = {1.0f, 1.0f};
+}
+
+void RouteEditorGLWidget::applyTimeOfDay() {
+    TimeOfDayState &state = timeOfDay;
+    if (!state.saved) {
+        std::copy(Game::sunLightDirection, Game::sunLightDirection + 3, state.sunDirection);
+        std::copy(gluu->skyColor, gluu->skyColor + 4, state.sky);
+        std::copy(gluu->fogColor, gluu->fogColor + 4, state.fog);
+        std::copy(gluu->diffuseColor, gluu->diffuseColor + 4, state.diffuse);
+        std::copy(gluu->ambientColor, gluu->ambientColor + 4, state.ambient);
+        state.saved = true;
+    }
+    if (!Game::timeOfDayEnabled) {
+        if (state.applied) {
+            std::copy(state.sunDirection, state.sunDirection + 3, Game::sunLightDirection);
+            std::copy(state.sky, state.sky + 4, gluu->skyColor);
+            std::copy(state.fog, state.fog + 4, gluu->fogColor);
+            std::copy(state.diffuse, state.diffuse + 4, gluu->diffuseColor);
+            std::copy(state.ambient, state.ambient + 4, gluu->ambientColor);
+            const float fixed[3] = {-1.0f, 1.5f, 1.0f};
+            std::copy(fixed, fixed + 3, shadowSunDirection);
+            sunCastsShadows = true;
+            state.applied = false;
+        }
+        return;
+    }
+    state.applied = true;
+    // Where the camera is; within a tile the sun hardly moves.
+    PreciseTileCoordinate *position = camera->getCurrentPos();
+    if (position != NULL && Game::GeoCoordConverter != NULL
+            && (!state.located || position->TileX != state.tileX || position->TileZ != state.tileZ)) {
+        // The place, and a point 100 m along -z for the grid's bearing.
+        auto locate = [](PreciseTileCoordinate *tile, LatitudeLongitudeCoordinate &out) {
+            IghCoordinate internal;
+            return Game::GeoCoordConverter->ConvertToInternal(tile, &internal) != NULL
+                    && Game::GeoCoordConverter->ConvertToLatLon(&internal, &out) != NULL
+                    && std::isfinite(out.Latitude) && std::isfinite(out.Longitude);
+        };
+        PreciseTileCoordinate ahead = *position;
+        ahead.setTWxyz(position->TileX, position->TileZ, position->wX, position->wY, position->wZ - 100.0f);
+        LatitudeLongitudeCoordinate here, north;
+        if (locate(position, here)) {
+            state.latitude = here.Latitude;
+            state.longitude = here.Longitude;
+            if (locate(&ahead, north)) {
+                const double east = (north.Longitude - here.Longitude) * std::cos(here.Latitude * M_PI / 180.0);
+                const double up = north.Latitude - here.Latitude;
+                if (east != 0.0 || up != 0.0)
+                    state.gridNorth = std::atan2(east, up) * 180.0 / M_PI;
+            }
+        }
+        state.tileX = position->TileX;
+        state.tileZ = position->TileZ;
+        state.located = true;
+    }
+    QDate date = QDate::fromString(Game::timeOfDayDate.trimmed(), "yyyy-MM-dd");
+    if (!date.isValid())
+        date = QDate(2026, 6, 21);
+    SunPosition::Result sun = SunPosition::atSolarTime(state.latitude, state.longitude, date,
+                                                       Game::timeOfDayHours);
+    // From true bearings to the world's grid.
+    sun.azimuth -= state.gridNorth;
+    SunPosition::direction(sun, Game::sunLightDirection);
+    // Shadows of a sun near the horizon would stretch across the maps.
+    SunPosition::Result shadowSun = sun;
+    shadowSun.elevation = std::max(sun.elevation, Daylight::MinShadowElevation);
+    SunPosition::direction(shadowSun, shadowSunDirection);
+    const Daylight::Light light = Daylight::forElevation(sun.elevation, state.sky, state.fog);
+    std::copy(light.sky, light.sky + 4, gluu->skyColor);
+    std::copy(light.fog, light.fog + 4, gluu->fogColor);
+    std::copy(light.diffuse, light.diffuse + 4, gluu->diffuseColor);
+    std::copy(light.ambient, light.ambient + 4, gluu->ambientColor);
+    sunCastsShadows = light.sunUp;
 }
 
 // Light-space matrices of the near, mid and far shadow maps, centred on the
@@ -792,7 +868,7 @@ void RouteEditorGLWidget::computeShadowMatrices() {
     float* out1 = Vec3::create();
     Vec3::set(out1, 0, 1, 0);
     float *ld = Vec3::create();
-    Vec3::set(ld, ShadowLightDirection[0], ShadowLightDirection[1], ShadowLightDirection[2]);
+    Vec3::set(ld, shadowSunDirection[0], shadowSunDirection[1], shadowSunDirection[2]);
     float *aaa = camera->getPos();
     Vec3::add(ld, ld, aaa);
     float *matrices[3] = {gluu->pShadowMatrix0, gluu->pShadowMatrix, gluu->pShadowMatrix2};
@@ -819,7 +895,7 @@ void RouteEditorGLWidget::computeShadowMatrices() {
         gluu->shadowDepthBias[map] = ShadowDepthBiasTexels[map] * filter / (2.0f * ShadowHalfDepth[map]);
     }
     gluu->shadowNormalOffset[2] = 0.0f;
-    float lightDirection[3] = {ShadowLightDirection[0], ShadowLightDirection[1], ShadowLightDirection[2]};
+    float lightDirection[3] = {shadowSunDirection[0], shadowSunDirection[1], shadowSunDirection[2]};
     Vec3::normalize(gluu->shadowLightDirection, lightDirection);
     Mat4::lookAt(lookAt, ld, aaa, out1);
     Mat4::multiply(gluu->pShadowMatrix0, gluu->pShadowMatrix0, lookAt);

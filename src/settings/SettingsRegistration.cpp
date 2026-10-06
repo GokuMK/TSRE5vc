@@ -911,6 +911,27 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Base clear colour copied into the scene renderer."
                 QT_TRID_NOOP("settings.core.rendering.sky.color.description")).inGroup("rendering").inSubgroup("environment"),
         "skyColor", "Game::skyColor", "GLUU", false, "renderer-construction");
+    ADD(SettingsDefinition::boolean("core.rendering.timeOfDay.enabled", false)
+            .withNameId(
+                //% "Time of day"
+                QT_TRID_NOOP("settings.core.rendering.time.of.day.enabled.name")).withDescriptionId(
+                //% "Light the Route Editor as the sun would at the camera's latitude and longitude at the time and date below: sun direction, shadows, light and sky colours. When off, the editor uses its fixed light."
+                QT_TRID_NOOP("settings.core.rendering.time.of.day.enabled.description")).inGroup("rendering").inSubgroup("environment"),
+        "timeOfDayEnabled", "Game::timeOfDayEnabled", "RouteEditorGLWidget", true, "hot-cache");
+    ADD(SettingsDefinition::floating("core.rendering.timeOfDay.time", 12.0)
+            .withNameId(
+                //% "Time"
+                QT_TRID_NOOP("settings.core.rendering.time.of.day.time.name")).withDescriptionId(
+                //% "Local mean solar time in hours: 12 is when the sun is highest on average, whatever the route's time zone."
+                QT_TRID_NOOP("settings.core.rendering.time.of.day.time.description")).withRange(0, 24, 0.25).withUnit("h").inGroup("rendering").inSubgroup("environment"),
+        "timeOfDayHours", "Game::timeOfDayHours", "RouteEditorGLWidget", true, "hot-cache");
+    ADD(SettingsDefinition::string("core.rendering.timeOfDay.date", "2026-06-21", SettingType::String)
+            .withNameId(
+                //% "Date"
+                QT_TRID_NOOP("settings.core.rendering.time.of.day.date.name")).withDescriptionId(
+                //% "Date for the sun's path, as yyyy-MM-dd."
+                QT_TRID_NOOP("settings.core.rendering.time.of.day.date.description")).inGroup("rendering").inSubgroup("environment"),
+        "timeOfDayDate", "Game::timeOfDayDate", "RouteEditorGLWidget", true, "hot-cache");
     ADD(SettingsDefinition::boolean("core.rendering.renderTrackItems", false)
             .withNameId(
                 //% "Render TrackDB items"

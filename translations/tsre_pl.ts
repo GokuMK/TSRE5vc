@@ -8484,6 +8484,36 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
             <source>Base clear colour copied into the scene renderer.</source>
             <translation>Bazowy kolor tła kopiowany do renderera sceny.</translation>
         </message>
+        <message id="settings.core.rendering.time.of.day.enabled.name">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="917" />
+            <source>Time of day</source>
+            <translation>Pora dnia</translation>
+        </message>
+        <message id="settings.core.rendering.time.of.day.enabled.description">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="919" />
+            <source>Light the Route Editor as the sun would at the camera&apos;s latitude and longitude at the time and date below: sun direction, shadows, light and sky colours. When off, the editor uses its fixed light.</source>
+            <translation>Oświetla edytor tras tak, jak słońce nad szerokością i długością geograficzną kamery o podanej godzinie i dacie: kierunek słońca, cienie, kolory światła i nieba. Wyłączone: stałe oświetlenie edytora.</translation>
+        </message>
+        <message id="settings.core.rendering.time.of.day.time.name">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="924" />
+            <source>Time</source>
+            <translation>Godzina</translation>
+        </message>
+        <message id="settings.core.rendering.time.of.day.time.description">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="926" />
+            <source>Local mean solar time in hours: 12 is when the sun is highest on average, whatever the route&apos;s time zone.</source>
+            <translation>Lokalny średni czas słoneczny w godzinach: 12 to średnio najwyższe położenie słońca, niezależnie od strefy czasowej trasy.</translation>
+        </message>
+        <message id="settings.core.rendering.time.of.day.date.name">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="931" />
+            <source>Date</source>
+            <translation>Data</translation>
+        </message>
+        <message id="settings.core.rendering.time.of.day.date.description">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="933" />
+            <source>Date for the sun&apos;s path, as yyyy-MM-dd.</source>
+            <translation>Data wyznaczająca drogę słońca, w formacie rrrr-MM-dd.</translation>
+        </message>
         <message id="settings.core.rendering.render.track.items.name">
             <location filename="../src/settings/SettingsRegistration.cpp" line="746" />
             <source>Render TrackDB items</source>

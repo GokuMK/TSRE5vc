@@ -357,8 +357,10 @@ void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
     program->setMat4("uMSMatrix", gluu->objStrMatrix);
     program->setFloat("lod", fogLodOverride ? fogLod : Game::objectLod);
     program->setVec("skyColor", gluu->fogColor[0], gluu->fogColor[1], gluu->fogColor[2], gluu->fogColor[3]);
-    program->setVec("diffuseColor", 0.7f, 0.7f, 0.7f, 0.7f);
-    program->setVec("ambientColor", 0.3f, 0.3f, 0.3f, 0.3f);
+    program->setVec("diffuseColor", gluu->diffuseColor[0], gluu->diffuseColor[1], gluu->diffuseColor[2],
+                    gluu->diffuseColor[3]);
+    program->setVec("ambientColor", gluu->ambientColor[0], gluu->ambientColor[1], gluu->ambientColor[2],
+                    gluu->ambientColor[3]);
     program->setVec("specularColor", 1.0f, 1.0f, 1.0f, 1.0f);
     program->setVec("lightDirection", Game::sunLightDirection[0], Game::sunLightDirection[1],
                     Game::sunLightDirection[2]);

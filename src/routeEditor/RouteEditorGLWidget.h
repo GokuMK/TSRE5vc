@@ -195,6 +195,26 @@ protected:
     // to know whether water was on screen (Renderer::measuredSamples).
     void renderWaterPass(bool measure);
     void computeShadowMatrices();
+    // Time of day (Game::timeOfDayEnabled): puts the sun where it stands over
+    // the camera and lights the scene for it; off, restores the fixed light.
+    void applyTimeOfDay();
+    struct TimeOfDayState {
+        bool saved = false;
+        bool applied = false;
+        // The fixed light, restored when time of day is switched off.
+        float sunDirection[3];
+        float sky[4], fog[4], diffuse[4], ambient[4];
+        // Latitude and longitude of the camera's tile.
+        int tileX = 0, tileZ = 0;
+        bool located = false;
+        double latitude = 50.0, longitude = 0.0;
+        // True bearing (degrees clockwise from north) of the world's -z axis:
+        // the projection's grid north turns away from true north.
+        double gridNorth = 0.0;
+    } timeOfDay;
+    // Direction towards the shadow-casting sun, and whether it casts shadows.
+    float shadowSunDirection[3] = {-1.0f, 1.5f, 1.0f};
+    bool sunCastsShadows = true;
     void handleSelection();
     void applySelection(quint32 selectionId, int cameraTileX, int cameraTileZ);
     void surfaceResize(int width, int height) override;
