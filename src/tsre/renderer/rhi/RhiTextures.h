@@ -25,6 +25,15 @@ namespace RhiTextures {
 // are generated from level 0. The upload goes with the next frame's resource
 // updates. Returns 0 when there is no QRhi.
 unsigned int create(int width, int height, const QVector<QByteArray> &levels);
+// Block-compressed formats textures can go to the GPU in unchanged: BC1
+// without alpha (DXT1), BC2 (DXT3) and BC3 (DXT5).
+enum class Blocks { Bc1, Bc2, Bc3 };
+bool supportsBlocks();
+// A block-compressed texture from its levels (level 0 first): level 0
+// alone, without mipmaps, or every level down to 1x1. Returns 0 when there
+// is no QRhi or the levels do not make either.
+unsigned int createCompressed(int width, int height, Blocks format,
+                              const QVector<QByteArray> &levels);
 // A texture sampled as stored, without filtering or mipmaps: one byte
 // (R8) or four floats (RGBA32F) per texel, rows tightly packed.
 unsigned int createData(int width, int height, bool floats, const QByteArray &data);

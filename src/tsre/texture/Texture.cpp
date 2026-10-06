@@ -607,6 +607,74 @@ Texture::~Texture() {
 // the place of the OpenGL texture name. The texture always has all mipmap
 // levels; gpuMipmaps tells the renderer whether to sample them, as an OpenGL
 // texture uploaded without mipmaps has none.
+// QRhi renderer: DXT data goes to the GPU as it is, as GLTextures uploads it
+// to OpenGL. DXT1 with alpha has no QRhi format and is decoded; so is a
+// chain of mipmaps that stops before 1x1 when mipmaps are wanted.
+static bool uploadCompressedForRhi(Texture &t, bool mipmaps) {
+    const int format = t.compressedGLFormat;
+    if (t.compressedData.isEmpty() || !dxtBlockBytes(format) ||
+        format == GL_COMPRESSED_RGBA_S3TC_DXT1_EXT ||
+        t.compressedData.size() != DxtCodec::byteSize(t.width, t.height, codecFormat(format)) ||
+        !RhiTextures::supportsBlocks())
+        return false;
+    const DxtCodec::Format codec = codecFormat(format);
+    QVector<QByteArray> levels{t.compressedData};
+    int previousW = t.width, previousH = t.height;
+    for (const TextureMip &mip : std::as_const(t.sourceMipmaps)) {
+        if (mip.width != std::max(1, previousW / 2) || mip.height != std::max(1, previousH / 2))
+            break;
+        QByteArray blocks = mip.data;
+        if (mip.compressedFormat != format) {
+            if (mip.compressedFormat)
+                break;
+            // ACE tiny tails are planar: encode only these tiny levels, as
+            // GLTextures does.
+            QString message;
+            if (!DxtCodec::encode(reinterpret_cast<const unsigned char *>(mip.data.constData()),
+                                  mip.data.size(), mip.width, mip.height, t.bytesPerPixel, codec,
+                                  t.type == GL_RGBA, blocks, message))
+                break;
+        }
+        if (blocks.size() != DxtCodec::byteSize(mip.width, mip.height, codec))
+            break;
+        levels.push_back(blocks);
+        previousW = mip.width;
+        previousH = mip.height;
+    }
+    int fullChain = 1;
+    for (int n = std::max(t.width, t.height); n > 1; n >>= 1)
+        ++fullChain;
+    if (levels.size() < fullChain) {
+        if (mipmaps)
+            return false;
+        levels.resize(1);
+    }
+    const RhiTextures::Blocks blocks = format == GL_COMPRESSED_RGB_S3TC_DXT1_EXT
+            ? RhiTextures::Blocks::Bc1
+            : format == GL_COMPRESSED_RGBA_S3TC_DXT3_EXT ? RhiTextures::Blocks::Bc2
+                                                         : RhiTextures::Blocks::Bc3;
+    if (t.tex != nullptr)
+        RhiTextures::release(t.tex[0]);
+    const unsigned int handle = RhiTextures::createCompressed(t.width, t.height, blocks, levels);
+    if (handle == 0)
+        return false;
+    if (t.tex == nullptr)
+        t.tex = new unsigned int[1]{};
+    t.tex[0] = handle;
+    RhiTextures::setSampling(handle, mipmaps, false);
+    t.gpuInternalFormat = format;
+    t.gpuMipmaps = mipmaps;
+    t.gpuMipLevels = int(levels.size());
+    delete[] t.imageData;
+    t.imageData = nullptr;
+    t.editable = false;
+    t.compressedData.clear();
+    t.compressedGLFormat = 0;
+    t.sourceMipmaps.clear();
+    t.glLoaded = true;
+    return true;
+}
+
 bool Texture::uploadForRhi(bool mipmaps) {
     if (!loaded || width <= 0 || height <= 0 || (bytesPerPixel != 3 && bytesPerPixel != 4))
         return false;
@@ -617,6 +685,8 @@ bool Texture::uploadForRhi(bool mipmaps) {
         }
         return true;
     }
+    if (uploadCompressedForRhi(*this, mipmaps))
+        return true;
     if (!decodeToCpu())
         return false;
     if (Game::AASamples > 0 && Game::AARemoveBorder && type == GL_RGBA) {

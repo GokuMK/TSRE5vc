@@ -102,6 +102,43 @@ unsigned int create(int width, int height, const QVector<QByteArray> &levels) {
     return add(Entry{texture, false, false, false});
 }
 
+bool supportsBlocks() {
+    RhiContext *context = RhiContext::instance();
+    QRhi *rhi = context != nullptr ? context->rhi() : nullptr;
+    return rhi != nullptr && rhi->isTextureFormatSupported(QRhiTexture::BC1)
+            && rhi->isTextureFormatSupported(QRhiTexture::BC2)
+            && rhi->isTextureFormatSupported(QRhiTexture::BC3);
+}
+
+unsigned int createCompressed(int width, int height, Blocks format,
+                              const QVector<QByteArray> &levels) {
+    RhiContext *context = RhiContext::instance();
+    if (context == nullptr || context->rhi() == nullptr || levels.isEmpty() || width <= 0
+            || height <= 0)
+        return 0;
+    QRhi *rhi = context->rhi();
+    const QSize size(width, height);
+    const bool mipmapped = levels.size() > 1;
+    if (mipmapped && levels.size() != rhi->mipLevelsForSize(size))
+        return 0;
+    const QRhiTexture::Format rhiFormat = format == Blocks::Bc1 ? QRhiTexture::BC1
+            : format == Blocks::Bc2 ? QRhiTexture::BC2 : QRhiTexture::BC3;
+    QRhiTexture *texture = rhi->newTexture(rhiFormat, size, 1,
+                                           mipmapped ? QRhiTexture::MipMapped : QRhiTexture::Flags());
+    if (!texture->create()) {
+        delete texture;
+        return 0;
+    }
+    QVarLengthArray<QRhiTextureUploadEntry, 16> entries;
+    for (int level = 0; level < levels.size(); ++level)
+        entries.append(QRhiTextureUploadEntry(0, level,
+                                              QRhiTextureSubresourceUploadDescription(levels[level])));
+    QRhiTextureUploadDescription upload;
+    upload.setEntries(entries.cbegin(), entries.cend());
+    updates()->uploadTexture(texture, upload);
+    return add(Entry{texture, false, false, false});
+}
+
 unsigned int createData(int width, int height, bool floats, const QByteArray &data) {
     RhiContext *context = RhiContext::instance();
     if (context == nullptr || context->rhi() == nullptr || width <= 0 || height <= 0
