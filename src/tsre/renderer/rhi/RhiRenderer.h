@@ -265,6 +265,9 @@ private:
                             QRhiResourceUpdateBatch *batch);
     void releaseResources();
 
+    // Fragment program of the main, terrain and unlit variants
+    // (StandardFast for manual testing, as OpenGL3Renderer::mainProgramName).
+    const char *mainFragment = "StandardFog";
     RhiContext *context;
     QRhi *rhi;
     GLUU *gluu;

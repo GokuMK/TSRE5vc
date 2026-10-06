@@ -178,9 +178,9 @@ RhiRenderer::RhiRenderer(RhiContext *context)
     // Programs: the main program and its variants, selection, shadows.
     struct Definition { RhiProgram::Kind kind; const char *vertex; const char *fragment; QStringList defines; };
     const Definition definitions[] = {
-        {RhiProgram::MAIN, "StandardFog", "StandardFog", {}},
-        {RhiProgram::TERRAIN, "StandardFog", "StandardFog", {"TSRE_TERRAIN"}},
-        {RhiProgram::UNLIT, "StandardFog", "StandardFog", {"TSRE_UNLIT"}},
+        {RhiProgram::MAIN, "StandardFog", mainFragment, {}},
+        {RhiProgram::TERRAIN, "StandardFog", mainFragment, {"TSRE_TERRAIN"}},
+        {RhiProgram::UNLIT, "StandardFog", mainFragment, {"TSRE_UNLIT"}},
         {RhiProgram::PBR, "StandardFog", "StandardFog", {"TSRE_PBR"}},
         {RhiProgram::WATER, "StandardFog", "StandardFog", {"TSRE_WATER"}},
         {RhiProgram::SELECTION, "StandardFog", "Selection", {"TSRE_TERRAIN"}},
