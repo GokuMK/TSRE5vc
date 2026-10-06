@@ -141,9 +141,51 @@ Open:
 
 - Water visibility without occlusion queries (the reflection is drawn
   whenever water is in view).
-- Direct3D and Metal backends are built but untested (no hardware here).
-  Full-screen passes flip y where clip space and the framebuffer disagree
-  about it (those two), by reasoning rather than a test.
+- Direct3D and Metal are not created yet (their init parameters are
+  missing; `auto` falls back to Vulkan or OpenGL). Full-screen passes flip
+  y where clip space and the framebuffer disagree about it (those two), by
+  reasoning rather than a test.
+
+## Hardware test (2026-10-06)
+
+First run on a GPU: terrain missing, QRhi OpenGL at 50 % and Vulkan at 70 %
+of the OpenGL renderer's frame rate, twice the time to the first frame.
+Found and changed:
+
+- Vsync: the OpenGL renderer runs with swap interval 0, QRhi swapchains
+  had vsync, so the frame rate stopped at the display's refresh. Now
+  `NoVSync`, frames paced by the editor's timer as before.
+- Uniform blocks on OpenGL: QRhi's OpenGL backend has no uniform buffers;
+  it sets every member with glUniform whenever shader resources are set.
+  The 256 patch records of a terrain page (512 vec4) went again with each
+  of about 700 terrain draws a frame. They now come from a one-row
+  RGBA32F texture (`TerrainPatch.glsl`, binding 19); the OpenGL renderer
+  keeps its block.
+- Redundant state: every draw set its viewport, shader resources and
+  vertex input. Draws now skip state equal to the draw before, reuse an
+  equal uniform block, and pass instance and index offsets as
+  firstInstance (`QRhi::BaseInstance`) and firstIndex. EUROPE1, one view:
+  862 draws, 183 resource and 140 vertex input changes (862 each before),
+  uniforms 0.47 MB a frame (1.09 MB).
+- The 3D pointer read its depth with a readback that waited for the GPU
+  mid-frame (`QRhi::finish`) 20 times a second; it now takes the last
+  completed read (`readDepthLatest`).
+- Textures: DXT textures were decoded to RGBA8 on the CPU at upload (all
+  levels); DXT1 without alpha, DXT3 and DXT5 now go up as BC1/BC2/BC3 as
+  in OpenGL. DXT1 with alpha has no QRhi format and is still decoded.
+- Startup: the driver's pipelines are kept between runs (QRhi pipeline
+  cache, `rhi-pipelines-<api>.bin` in the cache directory). Baking the
+  shaders (glslang, SPIRV-Cross) takes about 10 ms a stage and is not
+  cached.
+- Diagnostics: the FPS display shows the GPU time of the last frame
+  (QRhi timestamps); `TSRE_RHI_TRACE=1` logs draws, state changes,
+  pipelines and uniform bytes per frame; `TSRE_RHI_API=null` runs without
+  a GPU driver (renderer CPU cost: 1.7 ms a frame on EUROPE1 in a
+  RelWithDebInfo build).
+
+The terrain failure did not reproduce on lavapipe or llvmpipe; the patch
+records it read moved from a uniform block to a texture since. Still open
+until a retest on hardware.
 
 ## Verification
 
