@@ -804,6 +804,20 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "16384 px"
                 QT_TRID_NOOP("settings.core.rendering.shadow.distant.map.size.option.16384")}})).withUnit("px").inGroup("rendering").inSubgroup("shadows"),
         "shadowLowMapSize", "Game::shadowLowMapSize", "RouteEditorGLWidget", false, "renderer-restart");
+    ADD(SettingsDefinition::enumeration("core.rendering.blendedParts", 1)
+            .withNameId(
+                //% "Blended shape parts"
+                QT_TRID_NOOP("settings.core.rendering.blended.parts.name")).withDescriptionId(
+                //% "MSTS shapes mark many opaque parts as blended. Draw such parts with the opaque ones when their texture has no partly transparent texels, so they sort correctly and receive ambient occlusion."
+                QT_TRID_NOOP("settings.core.rendering.blended.parts.description"))
+            .withOptions(numericChoices({{0,
+                //% "As marked in the shape"
+                QT_TRID_NOOP("settings.core.rendering.blended.parts.option.0")}, {1,
+                //% "Opaque when the texture is opaque"
+                QT_TRID_NOOP("settings.core.rendering.blended.parts.option.1")}, {2,
+                //% "Also alpha-tested when the texture alpha is on/off"
+                QT_TRID_NOOP("settings.core.rendering.blended.parts.option.2")}})).inGroup("rendering").inSubgroup("pipeline"),
+        "blendedParts", "Game::blendedParts", "RenderItem::drawSurface", true, "hot-cache");
     ADD(SettingsDefinition::boolean("core.rendering.environmentMap.enabled", false)
             .withNameId(
                 //% "Render environment map"

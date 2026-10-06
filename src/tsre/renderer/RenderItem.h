@@ -66,6 +66,10 @@ public:
         int textureId = -1;
         // Backend texture object for producers that resolve textures themselves.
         unsigned int textureObject = 0;
+        // TextureAlpha::Class of textureObject's texture, from producers that
+        // resolve textures themselves (0: unknown). TexLib textures
+        // (textureId) carry their own.
+        unsigned char textureAlpha = 0;
         // Colour of untextured surfaces.
         float color[4] = {1.0f, 1.0f, 1.0f, 1.0f};
         float brightness = 1.0f;
@@ -236,6 +240,11 @@ public:
     void setSelectionId(quint32 selectionId);
     void enableTextures(unsigned int textureObject);
     void enableTextureId(int id);
+    // The surface the packet draws with. MSTS shapes take blending from the
+    // shader name and use it for many opaque parts: a blended packet whose
+    // texture has no partly transparent texels draws as opaque, and one whose
+    // texture alpha is binary as alpha-tested (core.rendering.blendedParts).
+    unsigned char drawSurface() const;
     // Sets the bounds from a sphere in mesh space, moved into the submission
     // space by transform (normally msMatrix; null is identity). A negative
     // radius clears them.

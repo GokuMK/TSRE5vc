@@ -128,6 +128,7 @@ int Game::shadowsEnabled = 1;
 QString Game::renderBackend = "opengl";
 QString Game::rhiApi = "auto";
 bool Game::environmentMapEnabled = false;
+int Game::blendedParts = 1;
 int Game::environmentMapSize = 256;
 int Game::environmentMapFacesPerFrame = 1;
 float Game::environmentMapObjectDistance = 300.0f;
@@ -358,6 +359,9 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
     string("core.rendering.backend", renderBackend, SettingType::Enum);
     string("core.rendering.rhiApi", rhiApi, SettingType::Enum);
     boolean("core.rendering.environmentMap.enabled", environmentMapEnabled);
+    claim("core.rendering.blendedParts", SettingType::Enum);
+    if (appliesNow("core.rendering.blendedParts"))
+        blendedParts = settings.runtimeInt("core.rendering.blendedParts");
     claim("core.rendering.environmentMap.faceSize", SettingType::Enum);
     if (appliesNow("core.rendering.environmentMap.faceSize"))
         environmentMapSize = settings.runtimeInt("core.rendering.environmentMap.faceSize");

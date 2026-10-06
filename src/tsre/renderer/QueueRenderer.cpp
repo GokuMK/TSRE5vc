@@ -51,9 +51,10 @@ Renderer::RenderPass QueueRenderer::routePass(const RenderItem *packet,
         return PASS_TRANSMISSION;
     if(order == SUBMIT_ORDERED)
         return PASS_OPAQUE;
-    if(packet->material.surface == RenderItem::SURFACE_ALPHA_TEST)
+    const unsigned char surface = packet->drawSurface();
+    if(surface == RenderItem::SURFACE_ALPHA_TEST)
         return PASS_ALPHA_TEST;
-    if(packet->material.surface == RenderItem::SURFACE_BLENDED)
+    if(surface == RenderItem::SURFACE_BLENDED)
         return PASS_BLENDED;
     return PASS_OPAQUE;
 }
