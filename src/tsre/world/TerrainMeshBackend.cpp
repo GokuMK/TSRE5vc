@@ -6,6 +6,7 @@
  *  Licensed under GNU General Public License 3.0 or later.
  */
 
+#include <tsre/renderer/RenderContext.h>
 #include <tsre/world/TerrainMeshBackend.h>
 #include <tsre/world/TerrainBrushProfiler.h>
 #include <tsre/world/TerrainNormals.h>
@@ -290,7 +291,7 @@ bool TerrainMeshPaged::ensureInitialized() {
         return true;
     }
     if (!terrain.loaded || terrain.tfile == nullptr || terrain.terrainData == nullptr
-            || QOpenGLContext::currentContext() == nullptr)
+            || !RenderContext::ready())
         return false;
 
     QElapsedTimer timer;
@@ -506,7 +507,7 @@ void TerrainMeshPaged::updatePatch(int patchId, unsigned int reasons) {
 }
 
 void TerrainMeshPaged::refreshModified() {
-    if (!initialized || QOpenGLContext::currentContext() == nullptr) {
+    if (!initialized || !RenderContext::ready()) {
         TerrainBrushProfiler::add(TerrainBrushProfiler::Deferred);
         return;
     }

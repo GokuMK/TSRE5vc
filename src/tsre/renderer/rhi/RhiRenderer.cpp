@@ -24,6 +24,7 @@
 #include <tsre/renderer/Mesh.h>
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/renderer/RenderStats.h>
+#include <tsre/renderer/WaterNormalMap.h>
 #include <tsre/texture/TexLib.h>
 #include <tsre/texture/Texture.h>
 
@@ -301,6 +302,9 @@ RhiRenderer::RhiRenderer(RhiContext *context)
                                     QRhiSampler::ClampToEdge, QRhiSampler::ClampToEdge);
     shadowSampler->setTextureCompareOp(QRhiSampler::LessOrEqual);
     shadowSampler->create();
+    // std140 TerrainPatchBlock: 256 patches of two vec4.
+    dummyTerrainPatches = rhi->newBuffer(QRhiBuffer::Static, QRhiBuffer::UniformBuffer, 256 * 32);
+    dummyTerrainPatches->create();
     // White placeholders; the depth stand-in is cleared to the far plane.
     QRhiResourceUpdateBatch *batch = RhiTextures::updates();
     if (batch != nullptr) {
@@ -358,6 +362,8 @@ void RhiRenderer::releaseResources() {
     delete dummyCube;
     delete dummyDepth;
     delete shadowSampler;
+    delete dummyTerrainPatches;
+    dummyTerrainPatches = nullptr;
     dummy2D = dummyArray = dummyCube = dummyDepth = nullptr;
     shadowSampler = nullptr;
 }
@@ -520,13 +526,26 @@ QRhiTexture *RhiRenderer::packetTexture(const RenderItem *item, bool &mipmapped)
     return RhiTextures::texture(handle);
 }
 
-QRhiSampler *RhiRenderer::sampler(bool mipmaps, bool clamp) {
-    const int key = (mipmaps ? 1 : 0) | (clamp ? 2 : 0);
+QRhiTexture *RhiRenderer::waterWaves() {
+    if (waterWaveHandle == 0) {
+        const QByteArray texels(reinterpret_cast<const char *>(
+                                    WaterNormalMap::generate(WaterNormalMap::Size).data()),
+                                WaterNormalMap::Size * WaterNormalMap::Size * 4);
+        waterWaveHandle = RhiTextures::create(WaterNormalMap::Size, WaterNormalMap::Size, {texels});
+        RhiTextures::setSampling(waterWaveHandle, true, false);
+    }
+    QRhiTexture *texture = RhiTextures::texture(waterWaveHandle);
+    return texture != nullptr ? texture : dummy2D;
+}
+
+QRhiSampler *RhiRenderer::sampler(bool mipmaps, bool clamp, bool nearest) {
+    const int key = (mipmaps ? 1 : 0) | (clamp ? 2 : 0) | (nearest ? 4 : 0);
     QRhiSampler *found = samplers.value(key, nullptr);
     if (found != nullptr)
         return found;
     const QRhiSampler::AddressMode address = clamp ? QRhiSampler::ClampToEdge : QRhiSampler::Repeat;
-    QRhiSampler *created = rhi->newSampler(QRhiSampler::Linear, QRhiSampler::Linear,
+    const QRhiSampler::Filter filter = nearest ? QRhiSampler::Nearest : QRhiSampler::Linear;
+    QRhiSampler *created = rhi->newSampler(filter, filter,
                                            mipmaps ? QRhiSampler::Linear : QRhiSampler::None,
                                            address, address);
     created->create();
@@ -731,8 +750,9 @@ QRhiGraphicsPipeline *RhiRenderer::pipeline(const PipelineKey &key) {
     // Binding 0: the mesh; binding 1: per-instance model matrix and the
     // (0, 0, 0, 1) values of inputs the mesh does not have.
     const RenderItem::VertexAttr layout = static_cast<RenderItem::VertexAttr>(key.layout);
+    const bool terrainVertex = key.format == MeshData::TerrainHeightNormal;
     QRhiVertexInputLayout inputLayout;
-    inputLayout.setBindings({{quint32(std::max(1, int(layout)) * sizeof(float))},
+    inputLayout.setBindings({{terrainVertex ? 8u : quint32(std::max(1, int(layout)) * sizeof(float))},
                              {quint32(InstanceStride), QRhiVertexInputBinding::PerInstance}});
     QVarLengthArray<QRhiVertexInputAttribute, 16> attributes;
     for (const QShaderDescription::InOutVariable &input : program->inputs) {
@@ -741,7 +761,11 @@ QRhiGraphicsPipeline *RhiRenderer::pipeline(const PipelineKey &key) {
         if (location >= 8 && location <= 11) {
             attributes.append({1, location, QRhiVertexInputAttribute::Float4,
                                quint32((location - 8) * 16)});
-        } else if (layoutAttribute(layout, location, size, offset)) {
+        } else if (terrainVertex && location == 0) {
+            attributes.append({0, 0, QRhiVertexInputAttribute::Float, 0});
+        } else if (terrainVertex && location == 2) {
+            attributes.append({0, 2, QRhiVertexInputAttribute::UNormByte4, 4});
+        } else if (!terrainVertex && layoutAttribute(layout, location, size, offset)) {
             attributes.append({0, location, floatFormat(size), quint32(offset * sizeof(float))});
         } else {
             attributes.append({1, location, floatFormat(inputComponents(input.type)), 64});
@@ -814,10 +838,16 @@ QRhiShaderResourceBindings *RhiRenderer::bindings(const BindingKey &key) {
     return set;
 }
 
+static QHash<QString, int> debugCounts;
+static const bool traceDraws = qEnvironmentVariableIsSet("TSRE_RHI_TRACE");
+static void debugCount(const QString &key) { if (traceDraws) debugCounts[key]++; }
+
 void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int count,
                              quint32 selectionId, int pass, int category) {
-    if (count <= 0 || !hasMesh(item))
+    if (count <= 0 || !hasMesh(item)) {
+        debugCount("skip-nomesh");
         return;
+    }
     RhiProgram *program = programFor(item, pass);
     if (program == nullptr)
         return;
@@ -832,14 +862,25 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
         frameBatch = rhi->nextResourceUpdateBatch();
     Meshes::RhiBuffers buffers;
     if (!Meshes::prepareRhi(item->mesh.handle, rhi, frameBatch, buffers)
-            || buffers.format != MeshData::FloatLayout)
+            || buffers.format == MeshData::Buffer) {
+        debugCount("skip-prepare");
         return;
+    }
+    if (traceDraws)
+        debugCount(QString("draw kind%1 format%2 pass%3 indexed%4").arg(program->kind)
+                   .arg(int(buffers.format)).arg(pass).arg(item->mesh.indexed));
     writeItemUniforms(program, item, selectionId);
 
     // Textures: the packet texture on 0, the detail texture on 1, stand-ins
     // elsewhere.
     BindingKey bindingKey;
     bindingKey.program = program;
+    if (program->terrainPatches) {
+        bindingKey.terrainPatches = item->terrain.paged
+                ? Meshes::uniformBufferRhi(item->terrain.paramsBuffer, rhi, frameBatch) : nullptr;
+        if (bindingKey.terrainPatches == nullptr)
+            bindingKey.terrainPatches = dummyTerrainPatches;
+    }
     bool mipmapped = false;
     QRhiTexture *base = nullptr;
     if (item->material.textured && selectionId == 0) {
@@ -862,9 +903,44 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
     QRhiTexture *detail = nullptr;
     if (item->material.textured && selectionId == 0 && item->material.detailScale != 0.0f)
         detail = RhiTextures::texture(item->material.detailTextureObject);
+    // Direct procedural terrain: the material map, the material and detail
+    // arrays and the per-material parameters on 4 to 7.
+    const RenderItem::Terrain &terrain = item->terrain;
+    const bool materials = program->kind == RhiProgram::TERRAIN && selectionId == 0
+            && RhiTextures::texture(terrain.materialMap) != nullptr
+            && RhiTextures::texture(terrain.materialTextures) != nullptr
+            && RhiTextures::texture(terrain.materialParams) != nullptr;
+    program->setInt("terrainMaterialEnabled", materials ? 1 : 0);
+    if (materials) {
+        // The base texture slot only selects the shader's textured path.
+        program->setFloat("textureEnabled", 1.0f);
+        const QVector3D mapRemap = terrain.materialMapRemap;
+        program->setVec("terrainMaterialMapRemap", mapRemap.x(), mapRemap.y(), mapRemap.z());
+        program->setInt("terrainMaterialMapSide", terrain.materialMapSide);
+        program->setFloat("terrainMaterialNoiseScale", terrain.materialNoiseScale);
+    }
+    // What each texture unit holds for this program, as the OpenGL renderer
+    // binds them: the packet texture on 0, the detail texture on 1, the
+    // water layers on 4 and 5 and the wave map on 15.
+    int waterLayers = 0;
     for (const RhiProgram::Sampler &slot : program->samplers) {
         QRhiTexture *texture = nullptr;
         QRhiSampler *slotSampler = sampler(true, false);
+        if (materials && slot.binding >= 4 && slot.binding <= 7) {
+            const unsigned int handles[4] = {terrain.materialMap, terrain.materialTextures,
+                                             terrain.materialDetails, terrain.materialParams};
+            const unsigned int handle = handles[slot.binding - 4];
+            texture = RhiTextures::texture(handle);
+            if (texture == nullptr)
+                texture = slot.type == 1 ? dummyArray : dummy2D;
+            else
+                slotSampler = sampler(RhiTextures::sampledWithMipmaps(handle),
+                                      RhiTextures::clampedToEdge(handle),
+                                      RhiTextures::sampledNearest(handle));
+            bindingKey.textures.push_back(texture);
+            bindingKey.samplers.push_back(slotSampler);
+            continue;
+        }
         switch (slot.type) {
         case 1: texture = dummyArray; break;
         case 2: texture = dummyCube; break;
@@ -877,12 +953,24 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
                                       && RhiTextures::clampedToEdge(baseHandle));
             } else if (slot.binding == 1 && detail != nullptr) {
                 texture = detail;
+            } else if (program->kind == RhiProgram::WATER && (slot.binding == 4 || slot.binding == 5)) {
+                const int layer = slot.binding - 4;
+                const unsigned int handle = item->water.layers[layer];
+                if (QRhiTexture *layerTexture = handle != 0 ? RhiTextures::texture(handle) : nullptr) {
+                    texture = layerTexture;
+                    slotSampler = sampler(RhiTextures::sampledWithMipmaps(handle), false);
+                    waterLayers |= 1 << layer;
+                }
+            } else if (program->kind == RhiProgram::WATER && slot.binding == 15) {
+                texture = waterWaves();
             }
             break;
         }
         bindingKey.textures.push_back(texture);
         bindingKey.samplers.push_back(slotSampler);
     }
+    if (program->kind == RhiProgram::WATER)
+        program->setInt("waterLayers", waterLayers);
 
     DrawCommand draw;
     draw.uniformOffset = appendUniforms(program);
@@ -1128,6 +1216,11 @@ void RhiRenderer::present() {
 }
 
 void RhiRenderer::renderFrame() {
+    if (traceDraws && !debugCounts.isEmpty()) {
+        for (auto it = debugCounts.cbegin(); it != debugCounts.cend(); ++it)
+            qInfo().noquote() << "rhi-trace" << it.key() << it.value();
+        debugCounts.clear();
+    }
     drawPasses(PASS_SKY, PASS_UI, true);
     flushTarget();
     present();

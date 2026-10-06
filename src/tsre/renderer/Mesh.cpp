@@ -13,6 +13,7 @@
 #include <QMutexLocker>
 #include <QOpenGLFunctions>
 #include <rhi/qrhi.h>
+#include <cmath>
 #include <cstring>
 #include <algorithm>
 #include <memory>
@@ -324,6 +325,32 @@ void Meshes::setupAttributes(QOpenGLFunctions *f, const Buffers &buffers) {
 
 namespace {
 
+// QRhi has no packed 2_10_10_10 vertex format: paged terrain vertices (a
+// float height and a packed normal and gap flag) carry the normal as four
+// unsigned bytes instead, round(v * 127) + 128, in the same 8 bytes; zero
+// stays exactly zero, so the gap flag keeps its sign. Converts the packed
+// words inside a byte range of such data in place.
+void convertTerrainNormals(char *data, int offset, int size) {
+    for (int p = (offset + 3) / 4 * 4; p + 4 <= offset + size; p += 4) {
+        if (p % 8 != 4)
+            continue;
+        quint32 packed;
+        std::memcpy(&packed, data + p - offset, 4);
+        auto signedField = [packed](int shift, int bits) {
+            const int raw = int((packed >> shift) & ((1u << bits) - 1));
+            const int value = raw >= (1 << (bits - 1)) ? raw - (1 << bits) : raw;
+            const float max = float((1 << (bits - 1)) - 1);
+            return std::max(float(value) / max, -1.0f);
+        };
+        const float values[4] = {signedField(0, 10), signedField(10, 10), signedField(20, 10),
+                                 signedField(30, 2)};
+        unsigned char bytes[4];
+        for (int c = 0; c < 4; ++c)
+            bytes[c] = static_cast<unsigned char>(std::lround(values[c] * 127.0f) + 128);
+        std::memcpy(data + p - offset, bytes, 4);
+    }
+}
+
 // A static buffer of the size, reusing one that fits exactly.
 QRhiBuffer *ensureBuffer(Store &s, QRhiBuffer *current, QRhi *rhi, QRhiBuffer::UsageFlags usage,
                          int size) {
@@ -359,6 +386,12 @@ bool prepareRhiLocked(Store &s, MeshHandle handle, QRhi *rhi, QRhiResourceUpdate
         } else {
             entry.rhiVertex = ensureBuffer(s, entry.rhiVertex, rhi, QRhiBuffer::VertexBuffer, size);
         }
+        QByteArray converted;
+        if (data.format == MeshData::TerrainHeightNormal) {
+            converted = QByteArray(vertexBytes, size);
+            convertTerrainNormals(converted.data(), 0, size);
+            vertexBytes = converted.constData();
+        }
         if (entry.rhiVertex != nullptr && size > 0)
             batch->uploadStaticBuffer(entry.rhiVertex, 0, quint32(size), vertexBytes);
         if (!data.indices.isEmpty()) {
@@ -379,8 +412,11 @@ bool prepareRhiLocked(Store &s, MeshHandle handle, QRhi *rhi, QRhiResourceUpdate
     }
     if (!entry.ranges.empty() && entry.rhiVertex != nullptr) {
         for (const Range &range : entry.ranges) {
+            QByteArray bytes = range.data;
+            if (entry.format == MeshData::TerrainHeightNormal)
+                convertTerrainNormals(bytes.data(), range.offset, int(bytes.size()));
             batch->uploadStaticBuffer(entry.rhiVertex, quint32(range.offset),
-                                      quint32(range.data.size()), range.data.constData());
+                                      quint32(bytes.size()), bytes.constData());
             if (!entry.retained.isEmpty()) {
                 std::memcpy(entry.retained.data() + range.offset, range.data.constData(),
                             size_t(range.data.size()));

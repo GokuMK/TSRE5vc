@@ -1,3 +1,4 @@
+#include <tsre/renderer/RenderContext.h>
 #include "SFileComplexData.h"
 #include <QOpenGLFunctions>
 #include <algorithm>
@@ -143,7 +144,7 @@ void SFileComplex::syncTextures() {
     }
 }
 bool SFileComplex::prepare(unsigned int id) {
-    if (id >= d->states.size() || !QOpenGLContext::currentContext())
+    if (id >= d->states.size() || !RenderContext::ready())
         return false;
     if (!d->loaded) {
         if (d->attempted)

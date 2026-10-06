@@ -46,12 +46,24 @@ namespace {
 
 // Whether a directive's condition holds: "defined(X)", "!defined(X)" or a
 // bare name for #ifdef / #ifndef.
-bool condition(const QString &expression, const QSet<QString> &defines) {
+bool term(const QString &expression, const QSet<QString> &defines) {
     static const QRegularExpression defined(R"(^\s*(!?)\s*defined\s*\(\s*(\w+)\s*\)\s*$)");
     const QRegularExpressionMatch match = defined.match(expression);
     if (match.hasMatch())
         return defines.contains(match.captured(2)) != (match.captured(1) == "!");
     return defines.contains(expression.trimmed());
+}
+
+// "defined(A) && !defined(B) || defined(C)": && binds tighter than ||.
+bool condition(const QString &expression, const QSet<QString> &defines) {
+    for (const QString &alternative : expression.split("||")) {
+        bool all = true;
+        for (const QString &part : alternative.split("&&"))
+            all = all && term(part, defines);
+        if (all)
+            return true;
+    }
+    return false;
 }
 
 int locationSlots(const QString &type) {

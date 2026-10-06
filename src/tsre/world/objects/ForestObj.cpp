@@ -280,7 +280,6 @@ void ForestObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float
 }
 
 void ForestObj::pushRenderShape(RenderQueue &queue, quint32 selectionId){
-    QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
     /*if (tex == -2) {
         f->glDisable(GL_TEXTURE_2D);
     } else {

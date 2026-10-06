@@ -25,11 +25,20 @@ namespace RhiTextures {
 // are generated from level 0. The upload goes with the next frame's resource
 // updates. Returns 0 when there is no QRhi.
 unsigned int create(int width, int height, const QVector<QByteArray> &levels);
+// A texture sampled as stored, without filtering or mipmaps: one byte
+// (R8) or four floats (RGBA32F) per texel, rows tightly packed.
+unsigned int createData(int width, int height, bool floats, const QByteArray &data);
+// Replaces a rectangle of a texture's level 0 (rows tightly packed).
+void updateRegion(unsigned int handle, int x, int y, int width, int height,
+                  const QByteArray &data);
+// A mipmapped RGBA8 2D array of side x side RGBA layers.
+unsigned int createArray(int side, const QVector<QByteArray> &layers);
 // How a texture is sampled: with its mipmaps (an OpenGL texture uploaded
 // without them has none), and clamped at the edges (baked terrain).
 void setSampling(unsigned int handle, bool mipmaps, bool clamp);
 bool sampledWithMipmaps(unsigned int handle);
 bool clampedToEdge(unsigned int handle);
+bool sampledNearest(unsigned int handle);
 // The texture behind a handle; null for 0 or a released handle.
 QRhiTexture *texture(unsigned int handle);
 void release(unsigned int handle);

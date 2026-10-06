@@ -48,6 +48,10 @@ int TsreTests::runRhiShaderSuite(bool verbose) {
           "#ifdef, #elif defined and #ifndef follow the defines");
     check(RhiShaderSource::preprocess(branches, {}) == "a\nc\nf\ng\n\n",
           "branches fall to #else without defines");
+    const QByteArray combined = "#if defined(A) && defined(B)\nab\n#endif\n#if defined(A) || defined(B)\naorb\n#endif\n";
+    check(RhiShaderSource::preprocess(combined, {"A"}) == "aorb\n\n"
+          && RhiShaderSource::preprocess(combined, {"A", "B"}) == "ab\naorb\n\n",
+          "&& and || combine defined() terms");
 
     struct Variant { const char *vertex; const char *fragment; QStringList defines; };
     const QList<Variant> variants = {

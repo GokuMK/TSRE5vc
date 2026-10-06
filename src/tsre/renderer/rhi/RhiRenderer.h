@@ -139,7 +139,10 @@ private:
     void writeItemUniforms(RhiProgram *program, RenderItem *item, quint32 selectionId);
     QRhiGraphicsPipeline *pipeline(const PipelineKey &key);
     QRhiShaderResourceBindings *bindings(const BindingKey &key);
-    QRhiSampler *sampler(bool mipmaps, bool clamp);
+    QRhiSampler *sampler(bool mipmaps, bool clamp, bool nearest = false);
+    // The wave map of the water program (WaterNormalMap), made once.
+    QRhiTexture *waterWaves();
+    unsigned int waterWaveHandle = 0;
     QRhiTexture *packetTexture(const RenderItem *item, bool &mipmapped);
     quint32 appendUniforms(const RhiProgram *program);
     quint32 appendInstances(const float *const *matrices, int count);
@@ -168,6 +171,7 @@ private:
     QRhiTexture *dummyCube = nullptr;
     QRhiTexture *dummyDepth = nullptr;
     QRhiSampler *shadowSampler = nullptr;
+    QRhiBuffer *dummyTerrainPatches = nullptr;
 
     // Offscreen view and the shader copying it to the surface's frame.
     QRhiTexture *viewColor = nullptr;
