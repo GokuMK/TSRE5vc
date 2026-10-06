@@ -166,15 +166,33 @@ QString RhiContext::info() const {
 RhiContext::Program RhiContext::bake(const QString &directory, const QString &vertexName,
                                      const QString &fragmentName, const QStringList &defines,
                                      QRhi::Implementation implementation) {
+    return bakeSource(GLUU::shaderSource(directory, vertexName, "vs"),
+                      GLUU::shaderSource(directory, fragmentName, "fs"), defines, implementation);
+}
+
+RhiContext::Program RhiContext::bakeSource(const QByteArray &vertex, const QByteArray &fragment,
+                                           const QStringList &defines,
+                                           QRhi::Implementation implementation) {
     Program program;
-    const QByteArray vertex = GLUU::shaderSource(directory, vertexName, "vs");
-    const QByteArray fragment = GLUU::shaderSource(directory, fragmentName, "fs");
     const RhiShaderSource::Program converted = RhiShaderSource::convert(vertex, fragment, defines);
     program.error = converted.error;
     program.vertex = bakeStage(converted.vertex, QShader::VertexStage, implementation, program.error);
     program.fragment = bakeStage(converted.fragment, QShader::FragmentStage, implementation,
                                  program.error);
     return program;
+}
+
+const RhiContext::Program &RhiContext::programFromSource(const QString &key,
+                                                         const QByteArray &vertex,
+                                                         const QByteArray &fragment) {
+    auto found = programs.constFind("source|" + key);
+    if (found != programs.constEnd())
+        return *found;
+    Program program = bakeSource(vertex, fragment, {},
+                                 rhiInstance ? rhiInstance->backend() : QRhi::Null);
+    if (!program.valid())
+        qWarning().noquote() << "QRhi program" << key << "failed:" << program.error;
+    return *programs.insert("source|" + key, program);
 }
 
 const RhiContext::Program &RhiContext::program(const QString &vertexName,

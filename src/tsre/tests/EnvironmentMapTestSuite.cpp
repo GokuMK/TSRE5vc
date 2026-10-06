@@ -137,7 +137,7 @@ int TsreTests::runEnvironmentMapGlSuite(bool verbose) {
                     && matches(readPixel(f, size / 2, size * 3 / 4), colours[face]);
         }
     }
-    environment.endFaces(0);
+    environment.endFaces();
     check(centres, "each face looks along its own axis");
     check(up, "face rows follow the cube map convention (first row is +Y)");
     check(environment.complete(), "rendering every face completes the cube");

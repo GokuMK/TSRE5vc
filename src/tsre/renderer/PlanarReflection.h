@@ -11,32 +11,53 @@
 #ifndef PLANARREFLECTION_H
 #define PLANARREFLECTION_H
 
+#include <memory>
 #include <vector>
 
-class QOpenGLContext;
+class Renderer;
 
 // The scene mirrored in a horizontal water plane, drawn into a mipmapped
-// texture that water samples at its screen position. Owned by the widget
-// whose context created it.
+// texture that water samples at its screen position. The texture lives in
+// the renderer's backend (Storage).
 class PlanarReflection {
 public:
     // Texture unit the water program reads the reflection from (terrain
     // material units elsewhere).
     static const int TextureUnit = 6;
 
-    PlanarReflection() = default;
+    // The mipmapped colour target in one backend.
+    class Storage {
+    public:
+        virtual ~Storage() = default;
+        virtual bool ready(int width, int height) const = 0;
+        virtual bool create(int width, int height) = 0;
+        // Draws from now on go to the target, cleared to clearColor.
+        virtual void begin(const float *clearColor) = 0;
+        // Ends drawing and builds the mipmaps; the renderer's target is
+        // undefined afterwards.
+        virtual void end() = 0;
+        // Lets the water program sample it, or stops it.
+        virtual void bind() = 0;
+        virtual void unbind() = 0;
+        virtual void release() = 0;
+    };
+    // The OpenGL storage (GL thread only).
+    static Storage *createOpenGlStorage();
+
+    // Without a renderer the target is kept in OpenGL.
+    explicit PlanarReflection(Renderer *renderer = nullptr);
     PlanarReflection(const PlanarReflection &) = delete;
     PlanarReflection &operator=(const PlanarReflection &) = delete;
     ~PlanarReflection();
 
-    // Creates or resizes the target in the current context.
+    // Creates or resizes the target.
     bool ensure(int width, int height);
-    // Binds the target, sets the viewport and clears it.
+    // Draws from now on go to the target, cleared to clearColor.
     void begin(const float *clearColor);
-    // Builds the mipmaps and binds restoreFramebuffer again.
-    void end(unsigned int restoreFramebuffer);
-    void bind() const;
-    static void unbind();
+    // Builds the mipmaps; bind the renderer's target again afterwards.
+    void end();
+    void bind();
+    void unbind();
     int width() const { return targetWidth; }
     int height() const { return targetHeight; }
     int levels() const;
@@ -49,11 +70,8 @@ public:
     static void mirrorMatrix(const float *plane, float *out);
 
 private:
-    void release();
-    QOpenGLContext *context = nullptr;
-    unsigned int texture = 0;
-    unsigned int depth = 0;
-    unsigned int framebuffer = 0;
+    Renderer *renderer = nullptr;
+    std::unique_ptr<Storage> storage;
     int targetWidth = 0;
     int targetHeight = 0;
 };

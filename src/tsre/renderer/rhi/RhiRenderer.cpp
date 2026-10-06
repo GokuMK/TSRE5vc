@@ -10,6 +10,7 @@
 
 #include "RhiRenderer.h"
 #include "RhiContext.h"
+#include "RhiProgram.h"
 #include "RhiRenderSurface.h"
 #include "RhiShaderSource.h"
 #include "RhiTextures.h"
@@ -28,56 +29,6 @@
 #include <tsre/texture/TexLib.h>
 #include <tsre/texture/Texture.h>
 
-// A program variant: its baked shaders and what their reflection says about
-// the uniform block, the samplers and the vertex inputs.
-struct RhiProgram {
-    enum Kind {MAIN, TERRAIN, UNLIT, PBR, WATER, SELECTION, SHADOW, KIND_COUNT};
-    Kind kind = MAIN;
-    const RhiContext::Program *source = nullptr;
-    struct Member {
-        int offset = 0;
-        int size = 0;
-        int arrayStride = 0;
-    };
-    QHash<QByteArray, Member> members;
-    int blockSize = 0;
-    std::vector<char> block;
-    // 0 2D, 1 2D array, 2 cube, 3 2D shadow (depth compare).
-    struct Sampler {
-        int binding = 0;
-        int type = 0;
-    };
-    std::vector<Sampler> samplers;
-    bool terrainPatches = false;
-    QVector<QShaderDescription::InOutVariable> inputs;
-    // A resource set the pipelines are created against.
-    QRhiShaderResourceBindings *layout = nullptr;
-
-    bool valid() const { return source != nullptr && source->valid(); }
-    void set(const char *name, const void *data, int bytes) {
-        auto found = members.constFind(QByteArray::fromRawData(name, int(std::strlen(name))));
-        if (found == members.constEnd())
-            return;
-        std::memcpy(block.data() + found->offset, data, size_t(std::min(bytes, found->size)));
-    }
-    void setFloat(const char *name, float value) { set(name, &value, 4); }
-    void setInt(const char *name, int value) { set(name, &value, 4); }
-    void setUint(const char *name, quint32 value) { set(name, &value, 4); }
-    void setVec(const char *name, float x, float y, float z = 0.0f, float w = 0.0f) {
-        const float v[4] = {x, y, z, w};
-        set(name, v, 16);
-    }
-    void setMat4(const char *name, const float *matrix) { set(name, matrix, 64); }
-    // Array of vec3 (std140: one vec4 per element).
-    void setVec3Array(const char *name, const float *values, int count) {
-        auto found = members.constFind(QByteArray::fromRawData(name, int(std::strlen(name))));
-        if (found == members.constEnd() || found->arrayStride == 0)
-            return;
-        for (int i = 0; i < count && (i + 1) * found->arrayStride <= found->size; ++i)
-            std::memcpy(block.data() + found->offset + i * found->arrayStride, values + i * 3, 12);
-    }
-};
-
 namespace {
 
 constexpr int InstanceFloats = 20;
@@ -85,56 +36,6 @@ constexpr int InstanceStride = InstanceFloats * sizeof(float);
 constexpr quint32 ArenaChunk = 4u << 20;
 
 const float Identity[16] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
-
-void reflect(RhiProgram &program) {
-    const QShader *stages[2] = {&program.source->vertex, &program.source->fragment};
-    QHash<int, RhiProgram::Sampler> samplers;
-    for (const QShader *stage : stages) {
-        const QShaderDescription description = stage->description();
-        for (const QShaderDescription::UniformBlock &block : description.uniformBlocks()) {
-            if (block.binding == RhiShaderSource::TerrainPatchBlockBinding) {
-                program.terrainPatches = true;
-                continue;
-            }
-            if (block.binding != RhiShaderSource::UniformBlockBinding)
-                continue;
-            program.blockSize = std::max(program.blockSize, block.size);
-            for (const QShaderDescription::BlockVariable &member : block.members) {
-                RhiProgram::Member entry;
-                entry.offset = member.offset;
-                entry.size = member.size;
-                entry.arrayStride = member.arrayStride;
-                program.members.insert(member.name, entry);
-            }
-        }
-        for (const QShaderDescription::InOutVariable &sampler : description.combinedImageSamplers()) {
-            RhiProgram::Sampler entry;
-            entry.binding = sampler.binding;
-            switch (sampler.type) {
-            case QShaderDescription::Sampler2DArray: entry.type = 1; break;
-            case QShaderDescription::SamplerCube: entry.type = 2; break;
-            case QShaderDescription::Sampler2D:
-                entry.type = 0;
-                break;
-            default:
-                entry.type = 0;
-                break;
-            }
-            // A comparison sampler shows up as Sampler2D with the shadow flag
-            // in its name only through the declared names; the shadow maps
-            // use bindings 2, 3 and 9.
-            if (sampler.name == "shadow0" || sampler.name == "shadow1" || sampler.name == "shadow2")
-                entry.type = 3;
-            samplers.insert(entry.binding, entry);
-        }
-    }
-    QList<int> bindings = samplers.keys();
-    std::sort(bindings.begin(), bindings.end());
-    for (int binding : bindings)
-        program.samplers.push_back(samplers.value(binding));
-    program.inputs = program.source->vertex.description().inputVariables();
-    program.block.assign(size_t(std::max(program.blockSize, 16)), 0);
-}
 
 // Float components and offset (in floats) of an attribute in a float layout.
 bool layoutAttribute(RenderItem::VertexAttr layout, int location, int &size, int &offset) {
@@ -347,6 +248,10 @@ void RhiRenderer::releaseResources() {
     presentBindings = nullptr;
     delete presentSampler;
     presentSampler = nullptr;
+    releaseEnvironment();
+    releaseReflection();
+    delete sceneCopy;
+    sceneCopy = nullptr;
     releaseAttachments(view);
     releaseAttachments(selection);
     for (Attachments &map : shadowMaps)
@@ -411,13 +316,13 @@ void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
     if (program == nullptr)
         return;
     float corrected[16];
-    const QMatrix4x4 correction = rhi->clipSpaceCorrMatrix();
+    const QMatrix4x4 correction = targetCorrection();
     Mat4::multiply(corrected, const_cast<float *>(correction.constData()), gluu->pMatrix);
     program->setMat4("uPMatrix", corrected);
     program->setMat4("uFMatrix", gluu->fMatrix);
     if (program->kind == RhiProgram::SHADOW) {
         // The shadow program draws with the light's matrix.
-        const QMatrix4x4 shadowCorrection = shadowClipCorrection();
+        const QMatrix4x4 shadowCorrection = openGlRowCorrection();
         Mat4::multiply(corrected, const_cast<float *>(shadowCorrection.constData()), gluu->pShadowMatrix);
         program->setMat4("uShadowPMatrix", corrected);
     } else {
@@ -501,6 +406,39 @@ void RhiRenderer::writeItemUniforms(RhiProgram *program, RenderItem *item, quint
         program->setInt("terrainApplyGaps", item->terrain.applyGaps ? 1 : 0);
         program->setInt("terrainMapPass", item->terrain.mapPass ? 1 : 0);
     }
+    if (program->kind == RhiProgram::PBR && item->pbr.enabled) {
+        const RenderItem::Pbr &p = item->pbr;
+        program->setVec("pbrBaseColor", p.baseColor[0], p.baseColor[1], p.baseColor[2], p.baseColor[3]);
+        program->setVec("pbrMetallicRoughness", p.metallic, p.roughness);
+        program->setVec("pbrEmissive", p.emissive[0], p.emissive[1], p.emissive[2]);
+        program->setFloat("pbrNormalScale", p.normalScale);
+        program->setFloat("pbrOcclusionStrength", p.occlusionStrength);
+        program->setFloat("pbrAlphaCutoff", p.alphaCutoff);
+        program->setInt("pbrBlend", p.blend ? 1 : 0);
+        program->setInt("pbrUnlit", p.unlit ? 1 : 0);
+        program->setVec("pbrClearcoat", p.clearcoat, p.clearcoatRoughness, p.clearcoatNormalScale);
+        program->setVec("pbrSpecular", p.specularColor[0], p.specularColor[1], p.specularColor[2],
+                        p.specular);
+        program->setFloat("pbrIor", p.ior);
+        program->setVec("pbrTransmission", p.transmission, p.thickness, p.attenuationDistance,
+                        sceneCopyLevels);
+        program->setVec("pbrAttenuationColor", p.attenuationColor[0], p.attenuationColor[1],
+                        p.attenuationColor[2]);
+        int texCoords = 0;
+        int transformed = 0;
+        float transforms[RenderItem::Pbr::MAP_COUNT * 6];
+        for (int map = 0; map < RenderItem::Pbr::MAP_COUNT; ++map) {
+            if (p.texCoords[map] != 0)
+                texCoords |= 1 << map;
+            std::copy(p.uvTransforms[map].rows, p.uvTransforms[map].rows + 6, transforms + map * 6);
+            if (!p.uvTransforms[map].identity())
+                transformed |= 1 << map;
+        }
+        program->setInt("pbrTexCoords", texCoords);
+        program->setInt("pbrUvTransforms", transformed);
+        if (transformed != 0)
+            program->setVec3Array("pbrUvTransform", transforms, RenderItem::Pbr::MAP_COUNT * 2);
+    }
 }
 
 QRhiTexture *RhiRenderer::packetTexture(const RenderItem *item, bool &mipmapped) {
@@ -538,18 +476,69 @@ QRhiTexture *RhiRenderer::waterWaves() {
 }
 
 QRhiSampler *RhiRenderer::sampler(bool mipmaps, bool clamp, bool nearest) {
-    const int key = (mipmaps ? 1 : 0) | (clamp ? 2 : 0) | (nearest ? 4 : 0);
+    return wrapSampler(mipmaps, clamp ? 1 : 0, clamp ? 1 : 0, nearest);
+}
+
+QRhiSampler *RhiRenderer::wrapSampler(bool mipmaps, int addressU, int addressV, bool nearest) {
+    const int key = (mipmaps ? 1 : 0) | (nearest ? 2 : 0) | (addressU << 2) | (addressV << 4);
     QRhiSampler *found = samplers.value(key, nullptr);
     if (found != nullptr)
         return found;
-    const QRhiSampler::AddressMode address = clamp ? QRhiSampler::ClampToEdge : QRhiSampler::Repeat;
+    auto mode = [](int address) {
+        return address == 1 ? QRhiSampler::ClampToEdge
+                            : address == 2 ? QRhiSampler::Mirror : QRhiSampler::Repeat;
+    };
     const QRhiSampler::Filter filter = nearest ? QRhiSampler::Nearest : QRhiSampler::Linear;
     QRhiSampler *created = rhi->newSampler(filter, filter,
                                            mipmaps ? QRhiSampler::Linear : QRhiSampler::None,
-                                           address, address);
+                                           mode(addressU), mode(addressV));
     created->create();
     samplers.insert(key, created);
     return created;
+}
+
+QRhiTexture *RhiRenderer::libraryTexture(int textureId, bool &mipmapped) {
+    mipmapped = false;
+    const auto found = TexLib::mtex.find(textureId);
+    if (found == TexLib::mtex.end() || found->second == nullptr)
+        return nullptr;
+    Texture *texture = found->second;
+    if (!texture->glLoaded && texture->loaded)
+        texture->GLTextures();
+    if (!texture->glLoaded || texture->tex == nullptr)
+        return nullptr;
+    const unsigned int handle = texture->tex[0];
+    if (TexLib::disabledTextures.value(int(handle), 0) == 1)
+        return nullptr;
+    mipmapped = RhiTextures::sampledWithMipmaps(handle);
+    return RhiTextures::texture(handle);
+}
+
+float RhiRenderer::copyFrameForTransmission() {
+    // Secondary views and the selection program use no copy: transmissive
+    // surfaces there see the environment.
+    if (secondaryView || baseProgram != PROGRAM_MAIN || currentTarget != TARGET_VIEW
+            || !view.valid())
+        return 0.0f;
+    RhiRenderSurface *s = surface();
+    if (s == nullptr || s->frame().commandBuffer == nullptr)
+        return 0.0f;
+    flushTarget();
+    if (sceneCopy == nullptr || sceneCopy->pixelSize() != view.size) {
+        delete sceneCopy;
+        sceneCopy = rhi->newTexture(QRhiTexture::RGBA8, view.size, 1,
+                                    QRhiTexture::MipMapped | QRhiTexture::UsedWithGenerateMips);
+        if (!sceneCopy->create()) {
+            delete sceneCopy;
+            sceneCopy = nullptr;
+            return 0.0f;
+        }
+    }
+    QRhiResourceUpdateBatch *batch = rhi->nextResourceUpdateBatch();
+    batch->copyTexture(sceneCopy, view.color);
+    batch->generateMips(sceneCopy);
+    s->frame().commandBuffer->resourceUpdate(batch);
+    return 1.0f + std::floor(std::log2(float(std::max(view.size.width(), view.size.height()))));
 }
 
 void RhiRenderer::beginFrameIfNeeded() {
@@ -578,6 +567,8 @@ bool RhiRenderer::createAttachments(Attachments &attachments, QRhiTexture::Forma
                                     const QSize &size, QRhiTexture::Flags colorFlags) {
     releaseAttachments(attachments);
     attachments.size = size;
+    attachments.ownsColor = attachments.ownsDepth = true;
+    attachments.colorLayer = attachments.colorLevel = 0;
     if (colorFormat != QRhiTexture::UnknownFormat) {
         attachments.color = rhi->newTexture(colorFormat, size, 1, QRhiTexture::RenderTarget | colorFlags);
         if (!attachments.color->create()) {
@@ -590,11 +581,20 @@ bool RhiRenderer::createAttachments(Attachments &attachments, QRhiTexture::Forma
         releaseAttachments(attachments);
         return false;
     }
+    return buildTargets(attachments);
+}
+
+bool RhiRenderer::buildTargets(Attachments &attachments) {
     for (int clears = 0; clears < 4; ++clears) {
         QRhiTextureRenderTargetDescription description;
-        if (attachments.color != nullptr)
-            description.setColorAttachments({QRhiColorAttachment(attachments.color)});
-        description.setDepthTexture(attachments.depth);
+        if (attachments.color != nullptr) {
+            QRhiColorAttachment color(attachments.color);
+            color.setLayer(attachments.colorLayer);
+            color.setLevel(attachments.colorLevel);
+            description.setColorAttachments({color});
+        }
+        if (attachments.depth != nullptr)
+            description.setDepthTexture(attachments.depth);
         QRhiTextureRenderTarget::Flags flags;
         if (!(clears & 1))
             flags |= QRhiTextureRenderTarget::PreserveColorContents;
@@ -630,8 +630,10 @@ void RhiRenderer::releaseAttachments(Attachments &attachments) {
         attachments.targets[clears] = nullptr;
         attachments.passes[clears] = nullptr;
     }
-    delete attachments.color;
-    delete attachments.depth;
+    if (attachments.ownsColor)
+        delete attachments.color;
+    if (attachments.ownsDepth)
+        delete attachments.depth;
     attachments.color = attachments.depth = nullptr;
     attachments.size = QSize();
 }
@@ -733,15 +735,21 @@ void RhiRenderer::createShadowMaps(int nearSize, int farSize) {
         const QSize size(std::max(1, sizes[map]), std::max(1, sizes[map]));
         if (!shadowMaps[map].valid() || shadowMaps[map].size != size)
             createAttachments(shadowMaps[map], QRhiTexture::UnknownFormat, size, {});
+        shadowMaps[map].openGlRows = true;
         targets[TARGET_SHADOW_NEAR + map].attachments = &shadowMaps[map];
     }
 }
 
-bool RhiRenderer::shadowTarget() const {
-    return currentTarget >= TARGET_SHADOW_NEAR && currentTarget <= TARGET_SHADOW_FAR;
+bool RhiRenderer::openGlRowTarget() const {
+    const Attachments *attachments = targets[currentTarget].attachments;
+    return attachments != nullptr && attachments->openGlRows;
 }
 
-QMatrix4x4 RhiRenderer::shadowClipCorrection() const {
+QMatrix4x4 RhiRenderer::targetCorrection() const {
+    return openGlRowTarget() ? openGlRowCorrection() : rhi->clipSpaceCorrMatrix();
+}
+
+QMatrix4x4 RhiRenderer::openGlRowCorrection() const {
     QMatrix4x4 correction = rhi->clipSpaceCorrMatrix();
     // Where the framebuffer's y points down, rows would come out flipped
     // against OpenGL's texture coordinates.
@@ -811,6 +819,13 @@ void RhiRenderer::beginViewBand(const LayeredView &view, ViewBand band) {
         return;
     }
     if (band == BAND_DISTANT) {
+        if (view.mirrorPlane != nullptr) {
+            // Below the plane only the water bed would show; clip it just
+            // under the surface so banks meet the water without a gap.
+            const float *plane = view.mirrorPlane;
+            const float clip[4] = {plane[0], plane[1], plane[2], plane[3] + 0.05f};
+            std::copy(clip, clip + 4, gluu->clipPlane);
+        }
         view.projection(600.0f, view.distantFar, projection);
         depthRange[0] = 0.98f;
         depthRange[1] = 0.99f;
@@ -826,9 +841,14 @@ void RhiRenderer::beginViewBand(const LayeredView &view, ViewBand band) {
         setViewLimits(view.limits);
 }
 
-void RhiRenderer::endView(const LayeredView &) {
+void RhiRenderer::endView(const LayeredView &view) {
     setViewLimits(nullptr);
     setCullView(nullptr);
+    if (view.mirrorPlane != nullptr) {
+        const float keep[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+        std::copy(keep, keep + 4, gluu->clipPlane);
+        applyFrameUniforms();
+    }
     frontCw = false;
     depthRange[0] = 0.0f;
     depthRange[1] = 1.0f;
@@ -1055,6 +1075,42 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
         program->setInt("terrainMaterialMapSide", terrain.materialMapSide);
         program->setFloat("terrainMaterialNoiseScale", terrain.materialNoiseScale);
     }
+    // PBR maps on the units the OpenGL renderer uses, with the glTF wrap
+    // modes; the frame copy on unit 1 while the transmission pass draws.
+    static const int PbrMapUnits[RenderItem::Pbr::MAP_COUNT] = {0, 11, 12, 13, 14, 4, 5, 6, 7,
+                                                               15, 16, 17};
+    auto wrapMode = [](unsigned short mode) {
+        return mode == 0x812F ? 1 : mode == 0x8370 ? 2 : 0;  // clamp, mirror, repeat
+    };
+    const bool pbr = program->kind == RhiProgram::PBR && item->pbr.enabled && selectionId == 0;
+    QRhiTexture *pbrMaps[RenderItem::Pbr::MAP_COUNT] = {};
+    QRhiSampler *pbrSamplers[RenderItem::Pbr::MAP_COUNT] = {};
+    if (pbr) {
+        const RenderItem::Pbr &p = item->pbr;
+        int present = 0;
+        for (int map = 0; map < RenderItem::Pbr::MAP_COUNT; ++map) {
+            const unsigned short *modes = p.wrap[map];
+            const bool wrapped = modes[0] != 0 || modes[1] != 0;
+            bool mipmaps = false;
+            QRhiTexture *texture = nullptr;
+            if (map == RenderItem::Pbr::MAP_BASE_COLOR) {
+                texture = base;
+                mipmaps = mipmapped;
+            } else if (p.textures[map] >= 0) {
+                texture = libraryTexture(p.textures[map], mipmaps);
+                if (texture != nullptr)
+                    present |= 1 << (map - 1);
+            }
+            if (texture == nullptr)
+                continue;
+            pbrMaps[map] = texture;
+            // A wrapped map samples its mipmaps, as the OpenGL sampler
+            // objects do.
+            pbrSamplers[map] = wrapped ? wrapSampler(true, wrapMode(modes[0]), wrapMode(modes[1]))
+                                       : sampler(mipmaps, false);
+        }
+        program->setInt("pbrTextures", present);
+    }
     // What each texture unit holds for this program, as the OpenGL renderer
     // binds them: the packet texture on 0, the detail texture on 1, the
     // water layers on 4 and 5 and the wave map on 15.
@@ -1079,7 +1135,13 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
         }
         switch (slot.type) {
         case 1: texture = dummyArray; break;
-        case 2: texture = dummyCube; break;
+        case 2:
+            texture = dummyCube;
+            if (slot.binding == EnvironmentMap::TextureUnit && environment.sampled != nullptr) {
+                texture = environment.sampled;
+                slotSampler = environment.sampler;
+            }
+            break;
         case 3: {
             texture = dummyDepth;
             slotSampler = shadowSampler;
@@ -1090,6 +1152,26 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
         }
         default:
             texture = dummy2D;
+            if (pbr && slot.binding == 1) {
+                if (sceneCopyLevels > 0.0f && sceneCopy != nullptr) {
+                    texture = sceneCopy;
+                    slotSampler = sampler(true, true);
+                }
+                break;
+            }
+            if (pbr) {
+                int map = -1;
+                for (int m = 0; m < RenderItem::Pbr::MAP_COUNT; ++m)
+                    if (PbrMapUnits[m] == slot.binding && pbrMaps[m] != nullptr)
+                        map = m;
+                if (map >= 0) {
+                    texture = pbrMaps[map];
+                    slotSampler = pbrSamplers[map];
+                    break;
+                }
+                if (slot.binding != 0)
+                    break;
+            }
             if (slot.binding == 0 && base != nullptr) {
                 texture = base;
                 slotSampler = sampler(mipmapped, baseHandle != 0
@@ -1104,6 +1186,10 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
                     slotSampler = sampler(RhiTextures::sampledWithMipmaps(handle), false);
                     waterLayers |= 1 << layer;
                 }
+            } else if (program->kind == RhiProgram::WATER
+                       && slot.binding == PlanarReflection::TextureUnit && reflectionSampled != nullptr) {
+                texture = reflectionSampled;
+                slotSampler = sampler(true, true);
             } else if (program->kind == RhiProgram::WATER && slot.binding == 15) {
                 texture = waterWaves();
             }
@@ -1138,13 +1224,14 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
     key.topology = quint8(topology(item->mesh.primitive));
     key.layout = quint8(buffers.layout);
     key.format = quint8(buffers.format);
-    key.blend = blending && baseProgram != PROGRAM_SELECTION && !shadowTarget();
+    key.blend = blending && baseProgram != PROGRAM_SELECTION && target().attachments != nullptr
+            && target().attachments->color != nullptr;
     key.depthWrite = !(item->pbr.enabled && item->pbr.blend);
     key.decal = item->material.decal && selectionId == 0;
     key.cullBack = !item->material.doubleSided;
-    // Shadow maps flipped against the backend's convention turn the
-    // winding around.
-    key.frontCw = frontCw != (shadowTarget() && !rhi->isYUpInFramebuffer());
+    // Targets flipped against the backend's convention turn the winding
+    // around.
+    key.frontCw = frontCw != (openGlRowTarget() && !rhi->isYUpInFramebuffer());
     key.wireframe = item->material.wireframe;
     key.lineWidth = quint8(std::clamp(item->material.lineWidth > 0 ? item->material.lineWidth
                                                                   : Game::oglDefaultLineWidth, 1, 255));
@@ -1215,12 +1302,15 @@ void RhiRenderer::drawPasses(RenderPass first, RenderPass last, bool consume) {
         PassQueue &queue = passes[pass];
         if (queue.ordered.empty() && queue.grouped.empty())
             continue;
+        if (pass == PASS_TRANSMISSION)
+            sceneCopyLevels = copyFrameForTransmission();
         recordInstances(queue.ordered, pass, false);
         if (pass == PASS_BLENDED || pass == PASS_TRANSMISSION)
             sortBackToFront(queue.grouped);
         else
             sortByTexture(queue.grouped);
         recordInstances(queue.grouped, pass, true);
+        sceneCopyLevels = 0.0f;
         if (consume)
             consumePass(queue);
     }

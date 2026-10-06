@@ -49,10 +49,15 @@ public:
     // this QRhi's backend and cached.
     const Program &program(const QString &vertexName, const QString &fragmentName,
                            const QStringList &defines);
+    // A program from shaders330-style sources held in the code, cached by key.
+    const Program &programFromSource(const QString &key, const QByteArray &vertex,
+                                     const QByteArray &fragment);
     // Converts and bakes a program for a backend.
     static Program bake(const QString &directory, const QString &vertexName,
                         const QString &fragmentName, const QStringList &defines,
                         QRhi::Implementation implementation);
+    static Program bakeSource(const QByteArray &vertex, const QByteArray &fragment,
+                              const QStringList &defines, QRhi::Implementation implementation);
 
 private:
     RhiContext() = default;

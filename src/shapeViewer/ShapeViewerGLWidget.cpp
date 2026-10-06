@@ -85,10 +85,11 @@ void ShapeViewerGLWidget::surfaceRelease() {
 
 void ShapeViewerGLWidget::cleanup() {
     makeCurrent();
-    delete renderer;
-    renderer = nullptr;
+    // The environment map's storage belongs to the renderer's backend.
     delete environmentMap;
     environmentMap = nullptr;
+    delete renderer;
+    renderer = nullptr;
     doneCurrent();
 }
 
@@ -228,8 +229,6 @@ void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
     Game::currentShapeLib = currentShapeLib;
     if(renderer == nullptr || !renderer->programsReady())
         return;
-    // The warehouse is OpenGL only for now.
-    const bool openGL = surface->backend() == RenderSurface::OpenGL;
     const int selectionHeight = qRound(height() * devicePixelRatioF());
     if(selectionPass){
         const qreal pixelRatio = devicePixelRatioF();
@@ -264,9 +263,9 @@ void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
     renderer->applyFrameUniforms();
     std::copy(camera->getPos(), camera->getPos() + 3, gluu->cameraPosition);
     gluu->environmentMapLevels = 0;
-    if(!selectionPass && openGL){
+    if(!selectionPass){
         if(environmentMap == nullptr)
-            environmentMap = new EnvironmentMap();
+            environmentMap = new EnvironmentMap(renderer);
         // A fixed warehouse interior: filled once, at the largest face size.
         if(environmentMap->complete() || environmentMap->fillWarehouse(256)){
             environmentMap->bind();

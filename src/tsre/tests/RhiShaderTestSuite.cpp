@@ -83,6 +83,14 @@ int TsreTests::runRhiShaderSuite(bool verbose) {
                 continue;
             check(member(program.vertex, "uPMatrix") != nullptr || QString(variant.vertex) == "Shadows",
                   name + " has the projection in its uniform block");
+            if (variant.defines.contains("TSRE_PBR")) {
+                // std140 arrays: 16 bytes per element. Reflection gives the
+                // whole array's size (its stride stays 0).
+                const QShaderDescription::BlockVariable *transforms = member(program.fragment, "pbrUvTransform");
+                check(transforms != nullptr && transforms->size == 24 * 16
+                      && transforms->arrayDims == QList<int>({24}),
+                      name + " lays out uniform arrays with a 16-byte stride");
+            }
             if (QString(variant.fragment) == "StandardFog")
                 check(samplerBinding(program.fragment, "uSampler") == 0
                       && samplerBinding(program.fragment, "shadow0") == 9,

@@ -12,20 +12,58 @@
 #include <QDebug>
 #include <QOpenGLContext>
 #include <QOpenGLExtraFunctions>
+#include <tsre/renderer/Renderer.h>
 #include <algorithm>
 #include <cmath>
 
-PlanarReflection::~PlanarReflection() {
-    if (context != nullptr && context == QOpenGLContext::currentContext())
-        release();
-}
+namespace {
 
-bool PlanarReflection::ensure(int width, int height) {
+// The target in OpenGL objects of the context current at create().
+class GlReflectionStorage : public PlanarReflection::Storage {
+public:
+    ~GlReflectionStorage() override {
+        if (context != nullptr && context == QOpenGLContext::currentContext())
+            release();
+    }
+    bool ready(int width, int height) const override {
+        return texture != 0 && context == QOpenGLContext::currentContext()
+                && width == targetWidth && height == targetHeight;
+    }
+    bool create(int width, int height) override;
+    void begin(const float *clearColor) override;
+    void end() override;
+    void bind() override {
+        QOpenGLExtraFunctions *f = QOpenGLContext::currentContext()->extraFunctions();
+        f->glActiveTexture(GL_TEXTURE0 + PlanarReflection::TextureUnit);
+        f->glBindTexture(GL_TEXTURE_2D, texture);
+        f->glActiveTexture(GL_TEXTURE0);
+    }
+    void unbind() override {
+        QOpenGLContext *current = QOpenGLContext::currentContext();
+        if (current == nullptr)
+            return;
+        QOpenGLExtraFunctions *f = current->extraFunctions();
+        f->glActiveTexture(GL_TEXTURE0 + PlanarReflection::TextureUnit);
+        f->glBindTexture(GL_TEXTURE_2D, 0);
+        f->glActiveTexture(GL_TEXTURE0);
+    }
+    void release() override;
+
+private:
+    QOpenGLContext *context = nullptr;
+    unsigned int texture = 0;
+    unsigned int depth = 0;
+    unsigned int framebuffer = 0;
+    int targetWidth = 0;
+    int targetHeight = 0;
+    // The framebuffer bound at begin(), bound again at end().
+    GLint restoreFramebuffer = 0;
+};
+
+bool GlReflectionStorage::create(int width, int height) {
     QOpenGLContext *current = QOpenGLContext::currentContext();
     if (current == nullptr || width < 1 || height < 1)
         return false;
-    if (texture != 0 && context == current && width == targetWidth && height == targetHeight)
-        return true;
     if (context == current)
         release();
     texture = depth = framebuffer = 0;
@@ -34,7 +72,7 @@ bool PlanarReflection::ensure(int width, int height) {
     targetHeight = height;
     QOpenGLExtraFunctions *f = current->extraFunctions();
     f->glGenTextures(1, &texture);
-    f->glActiveTexture(GL_TEXTURE0 + TextureUnit);
+    f->glActiveTexture(GL_TEXTURE0 + PlanarReflection::TextureUnit);
     f->glBindTexture(GL_TEXTURE_2D, texture);
     f->glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA,
                     GL_UNSIGNED_BYTE, nullptr);
@@ -67,39 +105,89 @@ bool PlanarReflection::ensure(int width, int height) {
     return true;
 }
 
-void PlanarReflection::begin(const float *clearColor) {
+void GlReflectionStorage::begin(const float *clearColor) {
     QOpenGLExtraFunctions *f = QOpenGLContext::currentContext()->extraFunctions();
+    f->glGetIntegerv(GL_FRAMEBUFFER_BINDING, &restoreFramebuffer);
     f->glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
     f->glViewport(0, 0, targetWidth, targetHeight);
     f->glClearColor(clearColor[0], clearColor[1], clearColor[2], 1.0f);
     f->glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
-void PlanarReflection::end(unsigned int restoreFramebuffer) {
+void GlReflectionStorage::end() {
     QOpenGLExtraFunctions *f = QOpenGLContext::currentContext()->extraFunctions();
-    f->glBindFramebuffer(GL_FRAMEBUFFER, restoreFramebuffer);
-    f->glActiveTexture(GL_TEXTURE0 + TextureUnit);
+    f->glBindFramebuffer(GL_FRAMEBUFFER, GLuint(restoreFramebuffer));
+    f->glActiveTexture(GL_TEXTURE0 + PlanarReflection::TextureUnit);
     f->glBindTexture(GL_TEXTURE_2D, texture);
     f->glGenerateMipmap(GL_TEXTURE_2D);
     f->glActiveTexture(GL_TEXTURE0);
 }
 
-void PlanarReflection::bind() const {
-    QOpenGLExtraFunctions *f = QOpenGLContext::currentContext()->extraFunctions();
-    f->glActiveTexture(GL_TEXTURE0 + TextureUnit);
-    f->glBindTexture(GL_TEXTURE_2D, texture);
-    f->glActiveTexture(GL_TEXTURE0);
+void GlReflectionStorage::release() {
+    QOpenGLContext *current = QOpenGLContext::currentContext();
+    if (current != nullptr && context == current) {
+        QOpenGLExtraFunctions *f = current->extraFunctions();
+        if (texture != 0)
+            f->glDeleteTextures(1, &texture);
+        if (depth != 0)
+            f->glDeleteRenderbuffers(1, &depth);
+        if (framebuffer != 0)
+            f->glDeleteFramebuffers(1, &framebuffer);
+    }
+    texture = depth = framebuffer = 0;
+    targetWidth = targetHeight = 0;
+}
+
+}
+
+PlanarReflection::Storage *PlanarReflection::createOpenGlStorage() {
+    return new GlReflectionStorage();
+}
+
+PlanarReflection::PlanarReflection(Renderer *renderer) : renderer(renderer) {}
+
+PlanarReflection::~PlanarReflection() = default;
+
+bool PlanarReflection::ensure(int width, int height) {
+    if (width < 1 || height < 1)
+        return false;
+    if (!storage)
+        storage.reset(renderer != nullptr ? renderer->createReflectionStorage()
+                                          : createOpenGlStorage());
+    if (!storage)
+        return false;
+    if (storage->ready(width, height))
+        return true;
+    targetWidth = targetHeight = 0;
+    if (!storage->create(width, height))
+        return false;
+    targetWidth = width;
+    targetHeight = height;
+    return true;
+}
+
+void PlanarReflection::begin(const float *clearColor) {
+    if (storage && targetWidth > 0)
+        storage->begin(clearColor);
+}
+
+void PlanarReflection::end() {
+    if (storage && targetWidth > 0)
+        storage->end();
+}
+
+void PlanarReflection::bind() {
+    if (storage && targetWidth > 0)
+        storage->bind();
 }
 
 void PlanarReflection::unbind() {
-    QOpenGLExtraFunctions *f = QOpenGLContext::currentContext()->extraFunctions();
-    f->glActiveTexture(GL_TEXTURE0 + TextureUnit);
-    f->glBindTexture(GL_TEXTURE_2D, 0);
-    f->glActiveTexture(GL_TEXTURE0);
+    if (storage)
+        storage->unbind();
 }
 
 int PlanarReflection::levels() const {
-    if (texture == 0)
+    if (targetWidth <= 0)
         return 0;
     return 1 + int(std::floor(std::log2(double(std::max(targetWidth, targetHeight)))));
 }
@@ -162,19 +250,4 @@ void PlanarReflection::mirrorMatrix(const float *plane, float *out) {
     for (int row = 0; row < 3; ++row)
         out[12 + row] = -2.0f * plane[3] * plane[row];
     out[15] = 1.0f;
-}
-
-void PlanarReflection::release() {
-    QOpenGLContext *current = QOpenGLContext::currentContext();
-    if (current != nullptr && context == current) {
-        QOpenGLExtraFunctions *f = current->extraFunctions();
-        if (texture != 0)
-            f->glDeleteTextures(1, &texture);
-        if (depth != 0)
-            f->glDeleteRenderbuffers(1, &depth);
-        if (framebuffer != 0)
-            f->glDeleteFramebuffers(1, &framebuffer);
-    }
-    texture = depth = framebuffer = 0;
-    targetWidth = targetHeight = 0;
 }

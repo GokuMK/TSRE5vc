@@ -67,6 +67,11 @@ out vec4 shadow0Pos;
 out float vAlpha;
 out float vTerrainGap;
 out vec2 vTerrainMapCoord;
+#ifdef TSRE_RHI
+// QRhi does not enable clip distances on every backend: the fragment
+// shader discards below the clip plane instead.
+out float vClipDistance;
+#endif
 
 void main() {
     // QRhi has no packed 2_10_10_10 vertex format: the paged terrain normal
@@ -123,7 +128,11 @@ void main() {
     vWorldPosition = shadowVertex.xyz;
 #endif
     gl_Position = uPMatrix * modelView * uMSMatrix * renderVertex;
+#ifdef TSRE_RHI
+    vClipDistance = dot(shadowVertex, clipPlane);
+#else
     gl_ClipDistance[0] = dot(shadowVertex, clipPlane);
+#endif
     vec4 fogPosition = uFMatrix * modelView * uMSMatrix * renderVertex;
 #ifdef TSRE_TERRAIN
     vTextureCoord = renderUv * (1.0 + terrainTextureRemap.x) + terrainTextureRemap.yz;

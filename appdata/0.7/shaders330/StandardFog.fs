@@ -9,6 +9,9 @@ in vec4 shadow0Pos;
 in float vAlpha;
 in float vTerrainGap;
 in vec2 vTerrainMapCoord;
+#ifdef TSRE_RHI
+in float vClipDistance;
+#endif
 out vec4 fragColor;
 
 uniform float textureEnabled;
@@ -78,6 +81,10 @@ float insideBox(vec2 v, vec2 bottomLeft, vec2 topRight) {
 #endif
 
 void main() {
+#ifdef TSRE_RHI
+    if (vClipDistance < 0.0)
+        discard;
+#endif
 #if defined(TSRE_PBR)
         fragColor = pbrShade();
 #elif defined(TSRE_WATER)

@@ -43,6 +43,12 @@ public:
     bool beginSelection(int width, int height) override;
     quint32 readSelection(int x, int y) override;
     void endSelection() override;
+    EnvironmentMap::Storage *createEnvironmentStorage() override {
+        return EnvironmentMap::createOpenGlStorage();
+    }
+    PlanarReflection::Storage *createReflectionStorage() override {
+        return PlanarReflection::createOpenGlStorage();
+    }
     // GLUU program the main program is (StandardFast for manual testing).
     QString mainProgramName = "StandardFog";
     void resetState() override;

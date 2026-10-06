@@ -16,6 +16,7 @@
 #include <memory>
 #include <unordered_map>
 #include <vector>
+#include <QMatrix4x4>
 #include <rhi/qrhi.h>
 #include <tsre/renderer/QueueRenderer.h>
 
@@ -57,10 +58,29 @@ public:
     bool beginSelection(int width, int height) override;
     quint32 readSelection(int x, int y) override;
     void endSelection() override;
+    EnvironmentMap::Storage *createEnvironmentStorage() override;
+    PlanarReflection::Storage *createReflectionStorage() override;
     void renderShadowCasters(float range, int statsSlot,
                              const float *viewProjection = nullptr) override;
     void renderFrame() override;
     void resetFrame() override;
+
+    // The environment map and water reflection storage (RhiReflections.cpp)
+    // drive these.
+    bool createEnvironment(int faceSize, int levels);
+    void beginEnvironmentFace(int face, const float *clearColor);
+    void endEnvironmentFaces(const QVector<int> &prefilterFaces);
+    void uploadEnvironment(const QByteArray *faces);
+    void bindEnvironment(bool prefiltered);
+    void unbindEnvironment() { environment.sampled = nullptr; }
+    bool environmentReady(int faceSize) const;
+    void releaseEnvironment();
+    bool createReflection(int width, int height);
+    bool reflectionReady(int width, int height) const;
+    void beginReflection(const float *clearColor);
+    void endReflection();
+    void bindReflection(bool bound);
+    void releaseReflection();
 
 protected:
     bool instanceRowsFit(int, int) override { return true; }
@@ -115,6 +135,16 @@ private:
     struct Attachments {
         QRhiTexture *color = nullptr;
         QRhiTexture *depth = nullptr;
+        // The colour subresource drawn into (cube face or array layer, and
+        // mip level), and whether the attachments own their textures.
+        int colorLayer = 0;
+        int colorLevel = 0;
+        bool ownsColor = true;
+        bool ownsDepth = true;
+        // Rows in OpenGL's order (first row at the bottom of the view), for
+        // textures sampled by direction or projection rather than by screen
+        // position: shadow maps and cube faces.
+        bool openGlRows = false;
         QRhiTextureRenderTarget *targets[4] = {};
         QRhiRenderPassDescriptor *passes[4] = {};
         QSize size;
@@ -135,9 +165,12 @@ private:
         std::vector<PipelineKey> keys;
         std::vector<BindingKey> bindings;
     };
-    // Targets by Renderer::Target, then the selection target.
+    // Targets by Renderer::Target, then selection, an environment map face
+    // and the water reflection.
     static constexpr int TargetSelection = TARGET_SHADOW_FAR + 1;
-    static constexpr int TargetCount = TargetSelection + 1;
+    static constexpr int TargetEnvironment = TargetSelection + 1;
+    static constexpr int TargetReflection = TargetEnvironment + 1;
+    static constexpr int TargetCount = TargetReflection + 1;
     // Per-frame storage appended to by draws and uploaded per pass.
     struct Arena {
         QRhiBuffer *buffer = nullptr;
@@ -150,11 +183,21 @@ private:
     // UnknownFormat.
     bool createAttachments(Attachments &attachments, QRhiTexture::Format colorFormat,
                            const QSize &size, QRhiTexture::Flags colorFlags);
-    bool shadowTarget() const;
-    // The matrix taking OpenGL clip space to this backend's for a shadow
-    // map: the maps keep OpenGL's orientation, so the lit programs sample
-    // them as they do under OpenGL.
-    QMatrix4x4 shadowClipCorrection() const;
+    // The render targets of attachments whose textures are set.
+    bool buildTargets(Attachments &attachments);
+    // Whether the current target keeps OpenGL's row order.
+    bool openGlRowTarget() const;
+    // The matrix taking OpenGL clip space to this backend's for a target
+    // in OpenGL's row order: such textures are sampled as under OpenGL.
+    QMatrix4x4 openGlRowCorrection() const;
+    // The clip space correction of the current target.
+    QMatrix4x4 targetCorrection() const;
+    // Switches to an offscreen target, cleared to clearColor, with a
+    // viewport covering it.
+    void beginOffscreen(int target, Attachments *attachments, const float *clearColor);
+    // Mipmaps and convolution the environment map still needs, run when a
+    // frame is recording.
+    void runEnvironmentWork();
     void releaseAttachments(Attachments &attachments);
     bool ensureViewTarget(const QSize &size);
     // Whether the current target can be drawn into this frame.
@@ -173,6 +216,16 @@ private:
     QRhiGraphicsPipeline *pipeline(const PipelineKey &key);
     QRhiShaderResourceBindings *bindings(const BindingKey &key);
     QRhiSampler *sampler(bool mipmaps, bool clamp, bool nearest = false);
+    // Address modes: 0 repeat, 1 clamp to edge, 2 mirrored repeat.
+    QRhiSampler *wrapSampler(bool mipmaps, int addressU, int addressV, bool nearest = false);
+    // A library texture as a QRhi texture, uploading it when loaded; null
+    // until then or when disabled.
+    QRhiTexture *libraryTexture(int textureId, bool &mipmapped);
+    // Copies the view for transmissive surfaces before the transmission
+    // pass; returns the copy's mipmap levels, 0 without a copy.
+    float copyFrameForTransmission();
+    QRhiTexture *sceneCopy = nullptr;
+    float sceneCopyLevels = 0.0f;
     // The wave map of the water program (WaterNormalMap), made once.
     QRhiTexture *waterWaves();
     unsigned int waterWaveHandle = 0;
@@ -215,6 +268,30 @@ private:
 
     // Shadow maps: near, middle and far.
     Attachments shadowMaps[3];
+    // Environment map: the cube drawn into, its convolved copy the scene
+    // samples, and the prefilter pass.
+    struct Environment {
+        QRhiTexture *cube = nullptr;
+        QRhiTexture *prefiltered = nullptr;
+        QRhiTexture *depth = nullptr;
+        Attachments faces[6];
+        // Prefilter targets, face * levels + level.
+        std::vector<Attachments> prefilterTargets;
+        int size = 0;
+        int levels = 0;
+        QRhiTexture *sampled = nullptr;
+        bool mipmapsPending = false;
+        QVector<int> prefilterPending;
+        std::unique_ptr<RhiProgram> program;
+        QRhiBuffer *uniforms = nullptr;
+        quint32 uniformStride = 0;
+        QRhiShaderResourceBindings *bindings = nullptr;
+        QRhiGraphicsPipeline *pipeline = nullptr;
+        QRhiSampler *sampler = nullptr;
+    } environment;
+    // Water reflection, sampled mipmapped by screen position.
+    Attachments reflection;
+    QRhiTexture *reflectionSampled = nullptr;
     // Selection ids, read back once per selection pass.
     Attachments selection;
     QByteArray selectionIds;

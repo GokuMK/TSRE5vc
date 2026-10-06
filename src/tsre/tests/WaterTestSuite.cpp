@@ -208,7 +208,7 @@ int TsreTests::runWaterGlSuite(bool verbose) {
         const std::array<unsigned char, 4> above = readPixel(f, side / 2, 21);
         f->glDisable(GL_CLIP_DISTANCE0);
         std::copy(keep, keep + 4, gluu->clipPlane);
-        reflection.end(0);
+        reflection.end();
         return std::make_pair(below, above);
     };
     const auto unclipped = draw(false);

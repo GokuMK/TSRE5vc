@@ -148,12 +148,13 @@ QSize RouteEditorGLWidget::sizeHint() const {
 
 void RouteEditorGLWidget::cleanup() {
     makeCurrent();
-    delete renderer;
-    renderer = NULL;
+    // The reflections' storage belongs to the renderer's backend.
     delete environmentMap;
     environmentMap = NULL;
     delete waterReflection;
     waterReflection = NULL;
+    delete renderer;
+    renderer = NULL;
     //delete gluu->m_program;
     //gluu->m_program = 0;
     doneCurrent();
@@ -870,15 +871,12 @@ void RouteEditorGLWidget::renderShadowMaps() {
 // objects and water without editor overlays. Objects are limited by distance
 // and size; every face is rendered once before the round-robin starts.
 void RouteEditorGLWidget::renderEnvironmentMap() {
-    // OpenGL only for now.
-    if (surface->backend() != RenderSurface::OpenGL)
-        return;
     if (environmentMap == NULL)
-        environmentMap = new EnvironmentMap();
+        environmentMap = new EnvironmentMap(renderer);
     if (!environmentMap->ensure(Game::environmentMapSize))
         return;
     // The faces must not sample the cube they are drawn into.
-    EnvironmentMap::unbind();
+    environmentMap->unbind();
     gluu->environmentMapLevels = 0;
     renderer->useProgram(Renderer::PROGRAM_MAIN);
     Mat4::identity(gluu->mvMatrix);
@@ -902,7 +900,7 @@ void RouteEditorGLWidget::renderEnvironmentMap() {
         EnvironmentMap::faceView(face, eye, view);
         renderer->renderLayeredView(faceView);
     }
-    environmentMap->endFaces(defaultFramebufferObject());
+    environmentMap->endFaces();
 }
 
 void RouteEditorGLWidget::renderWaterPass(bool measure) {
@@ -913,9 +911,6 @@ void RouteEditorGLWidget::renderWaterPass(bool measure) {
 }
 
 bool RouteEditorGLWidget::renderWaterReflection() {
-    // OpenGL only for now.
-    if (surface->backend() != RenderSurface::OpenGL)
-        return false;
     // Water hidden behind terrain still passes the view test, so the last
     // measured water pass decides; until a count is in, reflect.
     if (renderer->measuredSamples() == 0)
@@ -935,13 +930,13 @@ bool RouteEditorGLWidget::renderWaterReflection() {
     if (plane[0] * eye[0] + plane[1] * eye[1] + plane[2] * eye[2] + plane[3] <= 0.0f)
         return false;
     if (waterReflection == NULL)
-        waterReflection = new PlanarReflection();
+        waterReflection = new PlanarReflection(renderer);
     const int width = std::max(1, qRound(this->width() * Game::PixelRatio * 0.5f));
     const int targetHeight = std::max(1, qRound(this->height() * Game::PixelRatio * 0.5f));
     if (!waterReflection->ensure(width, targetHeight))
         return false;
     // The mirrored view must not sample the texture it is drawn into.
-    PlanarReflection::unbind();
+    waterReflection->unbind();
     renderer->useProgram(Renderer::PROGRAM_MAIN);
     Mat4::identity(gluu->mvMatrix);
     Mat4::identity(gluu->objStrMatrix);
@@ -966,7 +961,7 @@ bool RouteEditorGLWidget::renderWaterReflection() {
     mirrored.water = false;
     waterReflection->begin(gluu->skyColor);
     renderer->renderLayeredView(mirrored);
-    waterReflection->end(defaultFramebufferObject());
+    waterReflection->end();
     std::copy(plane, plane + 4, waterReflectionPlane);
     return true;
 }

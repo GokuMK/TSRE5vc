@@ -11,6 +11,8 @@
 #ifndef RENDERER_H
 #define RENDERER_H
 
+#include <tsre/renderer/EnvironmentMap.h>
+#include <tsre/renderer/PlanarReflection.h>
 #include <tsre/renderer/RenderQueue.h>
 #include <functional>
 #include <vector>
@@ -145,6 +147,10 @@ public:
     virtual bool beginSelection(int width, int height) = 0;
     virtual quint32 readSelection(int x, int y) = 0;
     virtual void endSelection() = 0;
+    // The backend's storage for an environment map and a water reflection
+    // drawn by this renderer; the caller owns it.
+    virtual EnvironmentMap::Storage *createEnvironmentStorage() = 0;
+    virtual PlanarReflection::Storage *createReflectionStorage() = 0;
 
     // Backend state every frame starts from: depth test and writes, back-face
     // culling, alpha blending, all colour channels, no scissor, the default
