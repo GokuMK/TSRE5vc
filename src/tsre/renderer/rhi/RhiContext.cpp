@@ -13,7 +13,12 @@
 #include "RhiShaderSource.h"
 #include "RhiTextures.h"
 #include <QDebug>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
 #include <QOffscreenSurface>
+#include <QSaveFile>
+#include <QStandardPaths>
 #if TSRE_RHI_VULKAN
 #include <QVulkanInstance>
 #endif
@@ -42,6 +47,36 @@ QList<QShaderBaker::GeneratedShader> targets(QRhi::Implementation implementation
     return {{QShader::SpirvShader, QShaderVersion(100)}};
 }
 
+// The driver's compiled pipelines (Vulkan pipeline cache, OpenGL program
+// binaries) are kept between runs: each pipeline is a full shader compile
+// and link on first use, dozens of them before the first frames show. QRhi
+// checks that the data matches the device and driver and ignores it
+// otherwise.
+QString pipelineCachePath(const QRhi *rhi) {
+    const QString directory = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+    if (directory.isEmpty() || rhi->backend() == QRhi::Null)
+        return QString();
+    return QDir(directory).filePath(QString("rhi-pipelines-%1.bin")
+                                    .arg(QString::fromLatin1(rhi->backendName()).toLower()));
+}
+
+void loadPipelineCache(QRhi *rhi) {
+    QFile file(pipelineCachePath(rhi));
+    if (file.fileName().isEmpty() || !file.open(QIODevice::ReadOnly))
+        return;
+    rhi->setPipelineCacheData(file.readAll());
+}
+
+void savePipelineCache(QRhi *rhi) {
+    const QString path = pipelineCachePath(rhi);
+    const QByteArray data = rhi->pipelineCacheData();
+    if (path.isEmpty() || data.isEmpty() || !QDir().mkpath(QFileInfo(path).absolutePath()))
+        return;
+    QSaveFile file(path);
+    if (file.open(QIODevice::WriteOnly) && file.write(data) == data.size())
+        file.commit();
+}
+
 QShader bakeStage(const QByteArray &source, QShader::Stage stage,
                   QRhi::Implementation implementation, QString &error) {
     QShaderBaker baker;
@@ -59,7 +94,10 @@ RhiContext *RhiContext::instance() {
     if (!attempted) {
         attempted = true;
         std::unique_ptr<RhiContext> context(new RhiContext());
-        const QString api = Game::rhiApi.toLower();
+        // TSRE_RHI_API overrides the setting; "null" measures the renderer's
+        // own CPU cost without a GPU driver.
+        const QString api = (qEnvironmentVariableIsSet("TSRE_RHI_API")
+                             ? qEnvironmentVariable("TSRE_RHI_API") : Game::rhiApi).toLower();
         QList<QRhi::Implementation> order;
         if (api == "vulkan") order = {QRhi::Vulkan};
         else if (api == "opengl") order = {QRhi::OpenGLES2};
@@ -93,6 +131,7 @@ RhiContext *RhiContext::instance() {
 void RhiContext::shutdown() {
     // Resources made by producers go before the QRhi does.
     if (holder() && holder()->rhi() != nullptr) {
+        savePipelineCache(holder()->rhi());
         RhiRenderSurface::releaseAll();
         Meshes::releaseAllRhi();
         RhiTextures::releaseAll();
@@ -105,7 +144,7 @@ RhiContext::~RhiContext() {
 }
 
 bool RhiContext::create(QRhi::Implementation implementation) {
-    QRhi::Flags flags;
+    QRhi::Flags flags = QRhi::EnablePipelineCacheDataSave;
     if (qEnvironmentVariableIsSet("TSRE_RHI_DEBUG"))
         flags |= QRhi::EnableDebugMarkers;
     switch (implementation) {
@@ -143,6 +182,8 @@ bool RhiContext::create(QRhi::Implementation implementation) {
         // Metal and Direct3D need their platforms' init parameters.
         break;
     }
+    if (rhiInstance)
+        loadPipelineCache(rhiInstance.get());
     return rhiInstance != nullptr;
 }
 
