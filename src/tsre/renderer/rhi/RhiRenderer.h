@@ -183,6 +183,9 @@ private:
         QRhiBuffer *buffer = nullptr;
         std::vector<char> data;
         quint32 uploaded = 0;
+        // The last block appended, which an equal block reuses.
+        quint32 lastOffset = 0;
+        quint32 lastSize = 0;
     };
 
     void beginFrameIfNeeded();
@@ -438,6 +441,9 @@ private:
     Arena uniformArena;
     Arena instanceArena;
     quint32 uniformStride = 256;
+    // Draws pick their instances with firstInstance (QRhi::BaseInstance),
+    // so consecutive draws keep one vertex input.
+    bool baseInstance = false;
     QRhiResourceUpdateBatch *frameBatch = nullptr;
     quint64 frameSerial = 0;
 };

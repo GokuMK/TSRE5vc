@@ -149,6 +149,7 @@ size_t RhiRenderer::BindingKeyHash::operator()(const BindingKey &k) const {
 RhiRenderer::RhiRenderer(RhiContext *context)
     : context(context), rhi(context->rhi()), gluu(GLUU::get()) {
     uniformStride = quint32(rhi->ubufAligned(1));
+    baseInstance = rhi->isFeatureSupported(QRhi::BaseInstance);
     targets[TARGET_VIEW].attachments = &view;
     targets[TargetSelection].attachments = &selection;
     // Programs: the main program and its variants, selection, shadows.
@@ -1056,9 +1057,17 @@ void RhiRenderer::endView(const LayeredView &view) {
 
 quint32 RhiRenderer::appendUniforms(const RhiProgram *program) {
     std::vector<char> &data = uniformArena.data;
+    const quint32 size = quint32(program->block.size());
+    // A draw with the values of the one before shares its block, so the two
+    // keep one resource binding.
+    if (!data.empty() && uniformArena.lastSize == size
+            && std::memcmp(data.data() + uniformArena.lastOffset, program->block.data(), size) == 0)
+        return uniformArena.lastOffset;
     const quint32 offset = quint32((data.size() + uniformStride - 1) / uniformStride * uniformStride);
-    data.resize(offset + quint32(program->block.size()));
-    std::memcpy(data.data() + offset, program->block.data(), program->block.size());
+    data.resize(offset + size);
+    std::memcpy(data.data() + offset, program->block.data(), size);
+    uniformArena.lastOffset = offset;
+    uniformArena.lastSize = size;
     return offset;
 }
 
@@ -1577,13 +1586,23 @@ void RhiRenderer::flushTarget() {
         frameBatch = rhi->nextResourceUpdateBatch();
     QRhiBuffer *uniforms = uploadArena(uniformArena, QRhiBuffer::UniformBuffer, frameBatch);
     QRhiBuffer *instances = uploadArena(instanceArena, QRhiBuffer::VertexBuffer, frameBatch);
-    // Resolve pipelines and resource sets now that the buffers are known.
+    // Resolve pipelines and resource sets now that the buffers are known;
+    // a draw with the keys of the one before takes its results.
     for (size_t i = 0; i < state.draws.size(); ++i) {
         BindingKey &key = state.bindings[i];
         key.uniforms = uniforms;
-        state.draws[i].bindings = bindings(key);
-        state.draws[i].pipeline = state.draws[i].bindings != nullptr ? pipeline(state.keys[i]) : nullptr;
-        state.draws[i].instanceBuffer = instances;
+        DrawCommand &draw = state.draws[i];
+        if (i > 0 && key == state.bindings[i - 1])
+            draw.bindings = state.draws[i - 1].bindings;
+        else
+            draw.bindings = bindings(key);
+        if (draw.bindings == nullptr)
+            draw.pipeline = nullptr;
+        else if (i > 0 && state.draws[i - 1].bindings != nullptr && state.keys[i] == state.keys[i - 1])
+            draw.pipeline = state.draws[i - 1].pipeline;
+        else
+            draw.pipeline = pipeline(state.keys[i]);
+        draw.instanceBuffer = instances;
     }
     // Clears happen at the start of the pass; otherwise the contents stay.
     int clears = (state.clearColor ? 1 : 0) | (state.clearDepth ? 2 : 0);
@@ -1605,23 +1624,84 @@ void RhiRenderer::flushTarget() {
     }
     cb->beginPass(state.attachments->targets[clears], state.color, {1.0f, 0}, frameBatch);
     frameBatch = nullptr;
+    // State a draw shares with the one before is not set again: on OpenGL
+    // every setShaderResources applies all uniforms and textures, and every
+    // setVertexInput all attributes. The instance and index offsets go to
+    // the draw (firstInstance, firstIndex) where they can, so the draws of
+    // one mesh keep one vertex input.
+    QRhiGraphicsPipeline *boundPipeline = nullptr;
+    QRhiShaderResourceBindings *boundBindings = nullptr;
+    quint32 boundUniformOffset = 0;
+    QRhiViewport boundViewport;
+    bool viewportBound = false;
+    struct VertexState {
+        QRhiBuffer *vertex = nullptr;
+        quint32 instanceOffset = 0;
+        QRhiBuffer *index = nullptr;
+        quint32 indexOffset = 0;
+        QRhiCommandBuffer::IndexFormat format = QRhiCommandBuffer::IndexUInt16;
+        bool operator==(const VertexState &o) const {
+            return vertex == o.vertex && instanceOffset == o.instanceOffset && index == o.index
+                    && indexOffset == o.indexOffset && format == o.format;
+        }
+    } boundVertex;
+    bool vertexBound = false;
     for (const DrawCommand &draw : state.draws) {
         if (draw.pipeline == nullptr || draw.bindings == nullptr)
             continue;
-        cb->setGraphicsPipeline(draw.pipeline);
-        cb->setViewport(draw.viewport);
-        const QRhiCommandBuffer::DynamicOffset offset(RhiShaderSource::UniformBlockBinding,
-                                                      draw.uniformOffset);
-        cb->setShaderResources(draw.bindings, 1, &offset);
-        const QRhiCommandBuffer::VertexInput inputs[2] = {
-            {draw.vertexBuffer, 0}, {draw.instanceBuffer, draw.instanceOffset}};
-        if (draw.indexBuffer != nullptr) {
-            cb->setVertexInput(0, 2, inputs, draw.indexBuffer, draw.indexOffset, draw.indexFormat);
-            cb->drawIndexed(draw.count, draw.instances, 0, draw.baseVertex, 0);
-        } else {
-            cb->setVertexInput(0, 2, inputs);
-            cb->draw(draw.count, draw.instances, draw.first, 0);
+        if (draw.pipeline != boundPipeline) {
+            cb->setGraphicsPipeline(draw.pipeline);
+            boundPipeline = draw.pipeline;
+            // A new pipeline takes its resources and inputs again.
+            boundBindings = nullptr;
+            viewportBound = vertexBound = false;
         }
+        if (!viewportBound || draw.viewport != boundViewport) {
+            cb->setViewport(draw.viewport);
+            boundViewport = draw.viewport;
+            viewportBound = true;
+        }
+        if (draw.bindings != boundBindings || draw.uniformOffset != boundUniformOffset) {
+            const QRhiCommandBuffer::DynamicOffset offset(RhiShaderSource::UniformBlockBinding,
+                                                          draw.uniformOffset);
+            cb->setShaderResources(draw.bindings, 1, &offset);
+            debugCount("call setShaderResources");
+            boundBindings = draw.bindings;
+            boundUniformOffset = draw.uniformOffset;
+        }
+        VertexState vertex;
+        vertex.vertex = draw.vertexBuffer;
+        quint32 firstInstance = 0;
+        if (baseInstance)
+            firstInstance = draw.instanceOffset / InstanceStride;
+        else
+            vertex.instanceOffset = draw.instanceOffset;
+        quint32 firstIndex = 0;
+        if (draw.indexBuffer != nullptr) {
+            vertex.index = draw.indexBuffer;
+            vertex.format = draw.indexFormat;
+            const quint32 indexSize = draw.indexFormat == QRhiCommandBuffer::IndexUInt32 ? 4 : 2;
+            if (draw.indexOffset % indexSize == 0)
+                firstIndex = draw.indexOffset / indexSize;
+            else
+                vertex.indexOffset = draw.indexOffset;
+        }
+        if (!vertexBound || !(vertex == boundVertex)) {
+            const QRhiCommandBuffer::VertexInput inputs[2] = {
+                {draw.vertexBuffer, 0}, {draw.instanceBuffer, vertex.instanceOffset}};
+            if (draw.indexBuffer != nullptr)
+                cb->setVertexInput(0, 2, inputs, vertex.index, vertex.indexOffset, vertex.format);
+            else
+                cb->setVertexInput(0, 2, inputs);
+            debugCount("call setVertexInput");
+            boundVertex = vertex;
+            vertexBound = true;
+        }
+        debugCount("call draw");
+        if (draw.indexBuffer != nullptr)
+            cb->drawIndexed(draw.count, draw.instances, firstIndex, draw.baseVertex, firstInstance);
+        else
+            cb->draw(draw.count, draw.instances, draw.first, firstInstance);
     }
     cb->endPass();
     state.draws.clear();
