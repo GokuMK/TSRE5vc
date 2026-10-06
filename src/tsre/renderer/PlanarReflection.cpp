@@ -196,7 +196,18 @@ bool PlanarReflection::fitPlane(const std::vector<float> &spheres, const float *
                                 float *plane) {
     // Weighted least squares for y = a dx + b dz + c around the eye.
     double m[3][3] = {}, r[3] = {}, total = 0.0;
+    // Far reaches of a bending river would tilt the plane away from the
+    // water near the camera, where reflections must line up best.
+    auto distance = [&](size_t i) {
+        const double dx = spheres[i] - eye[0], dz = spheres[i + 2] - eye[2];
+        return std::sqrt(dx * dx + dz * dz) - spheres[i + 3];
+    };
+    bool anyNear = false;
+    for (size_t i = 0; i + 3 < spheres.size(); i += 4)
+        anyNear = anyNear || distance(i) <= LocalRadius;
     for (size_t i = 0; i + 3 < spheres.size(); i += 4) {
+        if (anyNear && distance(i) > LocalRadius)
+            continue;
         const double dx = spheres[i] - eye[0], dz = spheres[i + 2] - eye[2], y = spheres[i + 1];
         const double distance = std::sqrt(dx * dx + dz * dz) / 150.0;
         const double w = 1.0 / (1.0 + distance * distance);

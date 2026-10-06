@@ -168,8 +168,8 @@ public:
     // RGBA bytes of a rectangle of the bound target, rows from the bottom.
     virtual void readColor(int x, int y, int width, int height, unsigned char *rgba) = 0;
     // Bounding spheres (centre x, y, z and radius, in submission space) of
-    // the queued instances of a pass that are inside the view-projection.
-    // Instances without bounds are left out.
+    // the queued instances of a pass that are inside the view-projection
+    // (all of them when it is null). Instances without bounds are left out.
     virtual void visibleBounds(RenderPass pass, const float *viewProjection,
                                std::vector<float> &spheres) const = 0;
     // Draws all remaining passes and ends the frame's submissions.

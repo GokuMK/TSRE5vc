@@ -58,14 +58,21 @@ the bank. The cube is right for the sky and distant terrain, and is used for
 water away from the reflection plane.
 
 `PlanarReflection` renders the gathered queue once more from the camera
-mirrored in a plane fitted to the water in view. MSTS water is not level:
+mirrored in a plane fitted to the water around it. MSTS water is not level:
 its height is interpolated between each tile's corner water levels, so a
 river slopes (BNSF: about 4 m across one view). `PlanarReflection::fitPlane`
 fits a plane by weighted least squares through the bounding sphere centres
-of the visible water patches (`Renderer::visibleBounds`), nearer patches
-weighing more; the tilt is limited to 10%, and patches in one row keep the
-plane level across the row. The mirror and the clip plane use that tilted
-plane.
+of the gathered water patches within 400 m of the camera
+(`Renderer::visibleBounds` without a view, all of them when none is that
+near), nearer patches weighing more; the tilt is limited to 10%, and
+patches in one row keep the plane level across the row. The mirror and the
+clip plane use that tilted plane. The fit does not depend on the view
+direction: fitted to the patches in view only, a sloping river seen through
+one or two patches got a level plane a metre off at the camera, and turning
+the camera flipped nearby water between the reflection and plain shading
+(BNSF, the camera half a metre above the river). Far reaches of a bending
+river are left out for the same reason. Water must still be in view for the
+pass to run.
 
 The mirrored view:
 
@@ -132,7 +139,8 @@ Under Rendering > Water, applied while running:
   pixel-identical to the baseline.
 - `water-gl` suite: wave map statistics (level on average, full range,
   squared slopes, no seam), level and tilted mirror matrices, the plane fit
-  (a sloping river, one row of patches, no patches), the water program and its
+  (a sloping river, one row of patches, no patches, a far reach of another
+  slope), the water program and its
   variants, frozen animation, and a mirrored render in which an object above
   the plane shows below the horizon and geometry under the plane is clipped.
 - `settings` suite: the two settings and their translations.

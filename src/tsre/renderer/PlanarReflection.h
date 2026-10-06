@@ -63,8 +63,10 @@ public:
     int levels() const;
     // Plane (unit normal pointing up, and offset: n . p + d = 0) fitted to
     // the bounding sphere centres of water patches (x, y, z, radius each),
-    // nearer patches weighing more. A sloping river gets a tilted plane;
-    // the tilt is limited to 10%. False without patches.
+    // nearer patches weighing more. Only patches within LocalRadius of the
+    // eye count, unless none is that near. A sloping river gets a tilted
+    // plane; the tilt is limited to 10%. False without patches.
+    static constexpr double LocalRadius = 400.0;
     static bool fitPlane(const std::vector<float> &spheres, const float *eye, float *plane);
     // Mirror about a plane, column-major.
     static void mirrorMatrix(const float *plane, float *out);
