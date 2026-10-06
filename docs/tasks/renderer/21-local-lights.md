@@ -45,11 +45,19 @@ irradiance 1 shows white (the legacy diffuse colour of the sun).
 ## Light grid
 
 The QRhi renderer gathers the lights of all queued instances once per frame
-and bins them into a world-space grid around the camera: 64 x 64 cells of
-16 m horizontally, 16 layers vertically spanning the lights' heights. Every
-view of the frame (main view, environment faces, water reflection) reads the
-same grid. Each cell lists the lights whose range reaches it, the brightest
-first, at most 64; fragments outside the grid get no local light.
+and bins them into a world-space grid of 64 x 64 x 16 cells spanning the
+lights' reach, within 4 km of the camera horizontally and 1 km vertically.
+Horizontal cells are 16 m while the lights fit 1 km and double (aligned to
+their size) for wider spreads; the 16 layers span the lights' heights.
+Every view of the frame (main view, environment faces, water reflection)
+reads the same grid. Each cell lists the lights whose range reaches it, the
+brightest first, at most 64; fragments outside the grid get no local light.
+A frame whose lights match the previous one keeps its grid without
+rebinning or uploading.
+
+Binning costs about 0.9 microseconds per light on the CPU (optimised
+build: 1.7 ms for 2000 lights, 7.5 ms for 10,000), paid only when the lights
+change. Larger counts would move binning to a compute pass.
 
 The grid lives in three float textures (light data, cell offsets and counts,
 light indices), so the shader code stays within GLSL 3.30 and could move to

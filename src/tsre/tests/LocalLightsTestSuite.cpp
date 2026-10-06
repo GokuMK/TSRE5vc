@@ -67,8 +67,8 @@ int TsreTests::runLocalLightsSuite(bool verbose) {
           && grid.indexTexels.size() % LightGrid::IndexWidth == 0,
           "light data and indices are laid out in texture rows");
     check(std::fmod(grid.origin[0], LightGrid::CellSize) == 0.0f
-          && grid.origin[0] <= eye[0] && grid.origin[0] + LightGrid::CellsX * LightGrid::CellSize > eye[0],
-          "the grid follows the camera in whole cells");
+          && grid.horizontalCell == LightGrid::CellSize && grid.origin[0] <= 990.0f,
+          "lights close together get 16 m cells aligned to their size");
 
     grid.build({light(1010.0f, 50.0f, -1990.0f, 1.0f, 20.0f),
                 light(1012.0f, 50.0f, -1990.0f, 5.0f, 20.0f)}, eye);
@@ -81,6 +81,14 @@ int TsreTests::runLocalLightsSuite(bool verbose) {
     for (int i = 0; i < 100; ++i)
         crowd.push_back(light(1010.0f, 50.0f, -1990.0f, 1.0f + i, 10.0f));
     crowd.push_back(light(eye[0] + 5000.0f, 50.0f, eye[2], 1.0f, 10.0f));
+    // A spread of lights 3 km wide takes coarser cells covering them all.
+    std::vector<LightGrid::Light> spread = {light(eye[0] - 1500.0f, 50.0f, eye[2], 1.0f, 10.0f),
+                                            light(eye[0] + 1500.0f, 50.0f, eye[2], 1.0f, 10.0f)};
+    grid.build(spread, eye);
+    const float west[3] = {eye[0] - 1500.0f, 50.0f, eye[2]};
+    const float east[3] = {eye[0] + 1500.0f, 50.0f, eye[2]};
+    check(grid.horizontalCell == 64.0f && count(west) == 1 && count(east) == 1,
+          "widely spread lights get coarser cells covering them all");
     grid.build(crowd, eye);
     check(grid.lightCount() == 100 && count(at) == LightGrid::MaxLightsPerCell,
           "cells keep the brightest 64 lights; lights off the grid are left out");

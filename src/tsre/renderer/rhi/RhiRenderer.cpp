@@ -15,6 +15,7 @@
 #include "RhiShaderSource.h"
 #include "RhiTextures.h"
 #include <QDebug>
+#include <QElapsedTimer>
 #include <algorithm>
 #include <cstring>
 #include <rhi/qshaderbaker.h>
@@ -1711,13 +1712,37 @@ void RhiRenderer::prepareLights() {
                     renderer->writeLightUniforms(program.get());
         }
     } write{this};
+    QElapsedTimer timer;
+    timer.start();
     frameLights.clear();
     if (Game::localLightsEnabled)
         gatherLights(frameLights, Game::localLightsExposure, Game::localLightsEmissiveGain);
+    // Static scenes keep their grid: the lights and the camera's grid
+    // window decide it.
+    quint64 hash = 1469598103934665603ull;
+    auto mix = [&hash](const void *data, size_t bytes) {
+        const unsigned char *p = static_cast<const unsigned char *>(data);
+        for (size_t i = 0; i < bytes; ++i)
+            hash = (hash ^ p[i]) * 1099511628211ull;
+    };
+    mix(frameLights.data(), frameLights.size() * sizeof(LightGrid::Light));
+    const float window[3] = {std::floor(viewPosition[0] / LightGrid::MaxExtent),
+                             std::floor(viewPosition[1] / LightGrid::MaxHeight),
+                             std::floor(viewPosition[2] / LightGrid::MaxExtent)};
+    mix(window, sizeof(window));
+    if (hash == lightsHash && lightData != nullptr && !frameLights.empty())
+        return;
+    lightsHash = hash;
+    const qint64 gathered = timer.nsecsElapsed();
     lightGrid.build(frameLights, viewPosition);
     if (traceDraws)
         qInfo() << "rhi-trace lights" << frameLights.size() << "binned" << lightGrid.lightCount()
-                << "indices" << lightGrid.indexTexels.size();
+                << "ms" << timer.nsecsElapsed() / 1e6 << "gather ms" << gathered / 1e6
+                << "indices" << lightGrid.indexTexels.size() << "eye" << viewPosition[0]
+                << viewPosition[1] << viewPosition[2]
+                << "first" << (frameLights.empty() ? QString() : QString("%1 %2 %3 r%4")
+                       .arg(frameLights[0].position[0]).arg(frameLights[0].position[1])
+                       .arg(frameLights[0].position[2]).arg(frameLights[0].range));
     if (lightGrid.empty())
         return;
     QRhiResourceUpdateBatch *batch = RhiTextures::updates();
@@ -1765,4 +1790,5 @@ void RhiRenderer::releaseLights() {
     delete lightIndices;
     lightData = lightCells = lightIndices = nullptr;
     lightGrid = LightGrid();
+    lightsHash = 0;
 }

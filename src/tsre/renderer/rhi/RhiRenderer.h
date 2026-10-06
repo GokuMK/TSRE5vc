@@ -235,6 +235,7 @@ private:
     LightGrid lightGrid;
     std::vector<LightGrid::Light> frameLights;
     bool lightsPrepared = false;
+    quint64 lightsHash = 0;
     QRhiTexture *lightData = nullptr;
     QRhiTexture *lightCells = nullptr;
     QRhiTexture *lightIndices = nullptr;

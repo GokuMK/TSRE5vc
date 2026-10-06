@@ -13,10 +13,10 @@
 
 #include <vector>
 
-// The local lights of a frame binned into a world-space grid around the
-// camera (task 21). Each cell lists the lights whose range reaches it, the
-// brightest first. The result is laid out as the shaders read it from float
-// textures.
+// The local lights of a frame binned into a world-space grid spanning their
+// reach (task 21), within MaxExtent of the camera. Each cell lists the lights
+// whose range reaches it, the brightest first. The result is laid out as the
+// shaders read it from float textures.
 class LightGrid {
 public:
     // A light in submission space.
@@ -36,7 +36,11 @@ public:
     static constexpr int CellsX = 64;
     static constexpr int CellsY = 16;
     static constexpr int CellsZ = 64;
+    // Smallest horizontal cell; cells double while the lights' reach is
+    // wider than the grid, up to MaxExtent around the camera.
     static constexpr float CellSize = 16.0f;
+    static constexpr float MaxExtent = 8192.0f;
+    static constexpr float MaxHeight = 2048.0f;
     static constexpr int MaxLightsPerCell = 64;
     // Texture widths of the cell and index data.
     static constexpr int CellsWidth = CellsX * CellsZ;
