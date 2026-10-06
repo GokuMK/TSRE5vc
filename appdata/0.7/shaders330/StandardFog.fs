@@ -14,6 +14,13 @@ in float vClipDistance;
 in vec3 vLightPosition;
 #endif
 out vec4 fragColor;
+#ifdef TSRE_RHI
+// The share of fragColor that ambient and environment light make, for
+// ambient occlusion: the renderer subtracts the occluded part of it.
+layout(location = 1) out vec4 ambientOut;
+// Set by pbrShade.
+vec4 pbrAmbientOut = vec4(0.0);
+#endif
 
 uniform float textureEnabled;
 uniform int shadowsEnabled;
@@ -88,9 +95,13 @@ void main() {
 #ifdef TSRE_RHI
     if (vClipDistance < 0.0)
         discard;
+    ambientOut = vec4(0.0);
 #endif
 #if defined(TSRE_PBR)
         fragColor = pbrShade();
+#ifdef TSRE_RHI
+        ambientOut = pbrAmbientOut;
+#endif
 #elif defined(TSRE_WATER)
         fragColor = textureEnabled != 0.0 ? waterShade() : shapeColor;
 #else
@@ -137,6 +148,8 @@ void main() {
             vec3 local = localLightsDiffuse(vLightPosition, normal, enableNormals);
             if (local != vec3(0.0))
                 color = pow(pow(max(color, vec3(0.0)), vec3(2.2)) + local, vec3(1.0 / 2.2));
+            ambientOut = vec4(fragColor.rgb * ambientColor.rgb * colorBrightness * (1.0 - fogFactor),
+                              fragColor.a);
 #endif
             fragColor.xyz *= color*colorBrightness;
 

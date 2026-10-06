@@ -869,6 +869,22 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "glTF lamps and emissive surfaces light the scene around them. QRhi renderer only."
                 QT_TRID_NOOP("settings.core.rendering.local.lights.enabled.description")).inGroup("rendering").inSubgroup("lights"),
         "localLightsEnabled", "Game::localLightsEnabled", "RouteEditorGLWidget", true, "hot-cache");
+    ADD(SettingsDefinition::enumeration("core.rendering.ambientOcclusion", 0)
+            .withNameId(
+                //% "Ambient occlusion"
+                QT_TRID_NOOP("settings.core.rendering.ambient.occlusion.name")).withDescriptionId(
+                //% "Darkens ambient light in corners, under objects and where surfaces meet, computed from the view's depth (QRhi renderer). Higher quality costs more time per frame."
+                QT_TRID_NOOP("settings.core.rendering.ambient.occlusion.description"))
+            .withOptions(numericChoices({{0,
+                //% "Off"
+                QT_TRID_NOOP("settings.core.rendering.ambient.occlusion.option.off")}, {1,
+                //% "Low"
+                QT_TRID_NOOP("settings.core.rendering.ambient.occlusion.option.low")}, {2,
+                //% "Medium"
+                QT_TRID_NOOP("settings.core.rendering.ambient.occlusion.option.medium")}, {3,
+                //% "High"
+                QT_TRID_NOOP("settings.core.rendering.ambient.occlusion.option.high")}})).inGroup("rendering").inSubgroup("lights"),
+        "ambientOcclusionQuality", "Game::ambientOcclusionQuality", "RouteEditorGLWidget", true, "hot-cache");
     ADD(SettingsDefinition::floating("core.rendering.localLights.exposure", 1.0)
             .withNameId(
                 //% "Lamp brightness"

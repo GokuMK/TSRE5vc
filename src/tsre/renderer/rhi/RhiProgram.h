@@ -72,4 +72,12 @@ struct RhiProgram {
 // Fills a program's members, samplers and inputs from its shaders.
 void reflect(RhiProgram &program);
 
+// Bakes a Vulkan-style GLSL 440 shader held in the code (full-screen passes)
+// for the QRhi's backend; invalid, with a warning, when it does not compile.
+QShader bakeInline(const char *source, QShader::Stage stage, QRhi *rhi);
+// A full-screen triangle (three vertices, no inputs) passing texture
+// coordinates `uv` at location 0, whose rows match the target's texture
+// rows on every backend.
+QByteArray fullScreenVertex(QRhi *rhi);
+
 #endif

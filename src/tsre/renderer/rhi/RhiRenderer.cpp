@@ -105,26 +105,6 @@ bool isUnlitPass(int pass) {
     return pass == Renderer::PASS_OVERLAY || pass == Renderer::PASS_UI;
 }
 
-// FLIP_Y where clip space and the framebuffer disagree about y (Direct3D,
-// Metal), so the view's first row stays the frame's first row.
-const char *PresentVertex = R"(#version 440
-layout(location = 0) out vec2 uv;
-void main() {
-    vec2 corner = vec2(float((gl_VertexIndex << 1) & 2), float(gl_VertexIndex & 2));
-    uv = corner;
-    gl_Position = vec4(corner * 2.0 - 1.0, 0.0, 1.0);
-#ifdef FLIP_Y
-    gl_Position.y = -gl_Position.y;
-#endif
-}
-)";
-
-QByteArray presentVertex(QRhi *rhi) {
-    QByteArray source(PresentVertex);
-    if (rhi->isYUpInNDC() != rhi->isYUpInFramebuffer())
-        source.replace("#version 440\n", "#version 440\n#define FLIP_Y\n");
-    return source;
-}
 const char *PresentFragment = R"(#version 440
 layout(location = 0) in vec2 uv;
 layout(location = 0) out vec4 fragColor;
@@ -134,21 +114,6 @@ void main() {
 }
 )";
 
-QShader bakeInline(const char *source, QShader::Stage stage, QRhi *rhi) {
-    QShaderBaker baker;
-    switch (rhi->backend()) {
-    case QRhi::Vulkan: baker.setGeneratedShaders({{QShader::SpirvShader, QShaderVersion(100)}}); break;
-    case QRhi::OpenGLES2: baker.setGeneratedShaders({{QShader::GlslShader, QShaderVersion(330)}}); break;
-    case QRhi::Metal: baker.setGeneratedShaders({{QShader::MslShader, QShaderVersion(12)}}); break;
-    default: baker.setGeneratedShaders({{QShader::HlslShader, QShaderVersion(50)}}); break;
-    }
-    baker.setGeneratedShaderVariants({QShader::StandardShader});
-    baker.setSourceString(source, stage);
-    QShader shader = baker.bake();
-    if (!shader.isValid())
-        qWarning() << "QRhi present shader:" << baker.errorMessage();
-    return shader;
-}
 
 }
 
@@ -156,14 +121,14 @@ bool RhiRenderer::PipelineKey::operator==(const PipelineKey &o) const {
     return program == o.program && pass == o.pass && topology == o.topology && layout == o.layout
             && format == o.format && blend == o.blend && depthWrite == o.depthWrite
             && decal == o.decal && cullBack == o.cullBack && frontCw == o.frontCw
-            && wireframe == o.wireframe && lineWidth == o.lineWidth;
+            && wireframe == o.wireframe && lineWidth == o.lineWidth && colorCount == o.colorCount;
 }
 
 size_t RhiRenderer::PipelineKeyHash::operator()(const PipelineKey &k) const {
     size_t h = std::hash<const void *>()(k.program) ^ (std::hash<const void *>()(k.pass) << 1);
     const quint32 bits = k.topology | (k.layout << 4) | (k.format << 10) | (k.blend << 12)
             | (k.depthWrite << 13) | (k.decal << 14) | (k.cullBack << 15) | (k.frontCw << 16)
-            | (k.wireframe << 17) | (quint32(k.lineWidth) << 18);
+            | (k.wireframe << 17) | (quint32(k.lineWidth) << 18) | (quint32(k.colorCount) << 26);
     return h ^ (std::hash<quint32>()(bits) * 0x9E3779B97F4A7C15ull);
 }
 
@@ -269,6 +234,7 @@ void RhiRenderer::releaseResources() {
     presentBindings = nullptr;
     delete presentSampler;
     presentSampler = nullptr;
+    releaseAmbientOcclusion();
     releaseEnvironment();
     releaseReflection();
     delete sceneCopy;
@@ -590,7 +556,8 @@ void RhiRenderer::beginFrameIfNeeded() {
 }
 
 bool RhiRenderer::createAttachments(Attachments &attachments, QRhiTexture::Format colorFormat,
-                                    const QSize &size, QRhiTexture::Flags colorFlags) {
+                                    const QSize &size, QRhiTexture::Flags colorFlags,
+                                    QRhiTexture::Format secondFormat) {
     releaseAttachments(attachments);
     attachments.size = size;
     attachments.ownsColor = attachments.ownsDepth = true;
@@ -598,6 +565,13 @@ bool RhiRenderer::createAttachments(Attachments &attachments, QRhiTexture::Forma
     if (colorFormat != QRhiTexture::UnknownFormat) {
         attachments.color = rhi->newTexture(colorFormat, size, 1, QRhiTexture::RenderTarget | colorFlags);
         if (!attachments.color->create()) {
+            releaseAttachments(attachments);
+            return false;
+        }
+    }
+    if (secondFormat != QRhiTexture::UnknownFormat) {
+        attachments.color2 = rhi->newTexture(secondFormat, size, 1, QRhiTexture::RenderTarget);
+        if (!attachments.color2->create()) {
             releaseAttachments(attachments);
             return false;
         }
@@ -617,7 +591,10 @@ bool RhiRenderer::buildTargets(Attachments &attachments) {
             QRhiColorAttachment color(attachments.color);
             color.setLayer(attachments.colorLayer);
             color.setLevel(attachments.colorLevel);
-            description.setColorAttachments({color});
+            if (attachments.color2 != nullptr)
+                description.setColorAttachments({color, QRhiColorAttachment(attachments.color2)});
+            else
+                description.setColorAttachments({color});
         }
         if (attachments.depth != nullptr)
             description.setDepthTexture(attachments.depth);
@@ -656,8 +633,11 @@ void RhiRenderer::releaseAttachments(Attachments &attachments) {
         attachments.targets[clears] = nullptr;
         attachments.passes[clears] = nullptr;
     }
-    if (attachments.ownsColor)
+    if (attachments.ownsColor) {
         delete attachments.color;
+        delete attachments.color2;
+    }
+    attachments.color2 = nullptr;
     if (attachments.ownsDepth)
         delete attachments.depth;
     attachments.color = attachments.depth = nullptr;
@@ -665,11 +645,15 @@ void RhiRenderer::releaseAttachments(Attachments &attachments) {
 }
 
 bool RhiRenderer::ensureViewTarget(const QSize &size) {
-    if (view.valid() && view.size == size)
+    // Ambient occlusion needs the view's ambient light share.
+    const bool ambient = ambientOcclusionQuality() > 0;
+    if (view.valid() && view.size == size && (view.color2 != nullptr) == ambient)
         return true;
     delete presentBindings;
     presentBindings = nullptr;
-    return createAttachments(view, QRhiTexture::RGBA8, size, QRhiTexture::UsedAsTransferSource);
+    releaseAmbientOcclusion();
+    return createAttachments(view, QRhiTexture::RGBA8, size, QRhiTexture::UsedAsTransferSource,
+                             ambient ? QRhiTexture::RGBA8 : QRhiTexture::UnknownFormat);
 }
 
 bool RhiRenderer::targetReady() {
@@ -975,6 +959,18 @@ void RhiRenderer::beginViewBand(const LayeredView &view, ViewBand band) {
         depthRange[1] = 1.0f;
         return;
     }
+    if (band == BAND_SCENE && !secondaryView && currentTarget == TARGET_VIEW) {
+        // Ambient occlusion reads this band's depth back.
+        float scene[16];
+        view.projection(0.2f, view.sceneFar, scene);
+        sceneProjection[0] = scene[0];
+        sceneProjection[1] = scene[5];
+        sceneProjection[2] = 0.2f;
+        sceneProjection[3] = view.sceneFar;
+        sceneDepthRange[0] = 0.0f;
+        sceneDepthRange[1] = 0.98f;
+        sceneProjectionValid = true;
+    }
     if (band == BAND_DISTANT) {
         if (view.mirrorPlane != nullptr) {
             // Below the plane only the water bed would show; clip it just
@@ -1096,14 +1092,19 @@ QRhiGraphicsPipeline *RhiRenderer::pipeline(const PipelineKey &key) {
         ps->setDepthBias(-2);
         ps->setSlopeScaledDepthBias(-2.0f);
     }
+    QRhiGraphicsPipeline::TargetBlend blend;
     if (key.blend) {
-        QRhiGraphicsPipeline::TargetBlend blend;
         blend.enable = true;
         blend.srcColor = QRhiGraphicsPipeline::SrcAlpha;
         blend.dstColor = QRhiGraphicsPipeline::OneMinusSrcAlpha;
         blend.srcAlpha = QRhiGraphicsPipeline::SrcAlpha;
         blend.dstAlpha = QRhiGraphicsPipeline::OneMinusSrcAlpha;
-        ps->setTargetBlends({blend});
+    }
+    // One blend state per colour attachment, alike.
+    if (key.colorCount > 0 && (key.blend || key.colorCount > 1))
+    {
+        QVarLengthArray<QRhiGraphicsPipeline::TargetBlend, 2> blends(key.colorCount, blend);
+        ps->setTargetBlends(blends.cbegin(), blends.cend());
     }
     if (key.wireframe && rhi->isFeatureSupported(QRhi::NonFillPolygonMode))
         ps->setPolygonMode(QRhiGraphicsPipeline::Line);
@@ -1401,6 +1402,8 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
     key.lineWidth = quint8(std::clamp(item->material.lineWidth > 0 ? item->material.lineWidth
                                                                   : Game::oglDefaultLineWidth, 1, 255));
     key.pass = target().attachments != nullptr ? target().attachments->pipelinePass() : nullptr;
+    key.colorCount = target().attachments == nullptr || target().attachments->color == nullptr ? 0
+            : target().attachments->color2 != nullptr ? 2 : 1;
     // The uniform buffer is known when the pass runs; the resource set and
     // pipeline are made then.
     draw.pipeline = nullptr;
@@ -1469,6 +1472,9 @@ void RhiRenderer::drawPasses(RenderPass first, RenderPass last, bool consume) {
         PassQueue &queue = passes[pass];
         if (queue.ordered.empty() && queue.grouped.empty())
             continue;
+        // Occlusion of the opaque scene, before blended and later passes.
+        if (pass > PASS_ALPHA_TEST)
+            applyAmbientOcclusion();
         if (pass == PASS_TRANSMISSION)
             sceneCopyLevels = copyFrameForTransmission();
         recordInstances(queue.ordered, pass, false);
@@ -1593,7 +1599,7 @@ void RhiRenderer::present() {
     if (presentPipeline == nullptr) {
         static QShader vertex, fragment;
         if (!vertex.isValid()) {
-            vertex = bakeInline(presentVertex(rhi).constData(), QShader::VertexStage, rhi);
+            vertex = bakeInline(fullScreenVertex(rhi).constData(), QShader::VertexStage, rhi);
             fragment = bakeInline(PresentFragment, QShader::FragmentStage, rhi);
         }
         presentPipeline = rhi->newGraphicsPipeline();
@@ -1642,7 +1648,7 @@ void main() {
 )";
             static QShader vertex, overlayFragment;
             if (!overlayFragment.isValid()) {
-                vertex = bakeInline(presentVertex(rhi).constData(), QShader::VertexStage, rhi);
+                vertex = bakeInline(fullScreenVertex(rhi).constData(), QShader::VertexStage, rhi);
                 overlayFragment = bakeInline(fragment, QShader::FragmentStage, rhi);
             }
             overlayPipeline = rhi->newGraphicsPipeline();
@@ -1690,6 +1696,7 @@ void RhiRenderer::renderFrame() {
         debugCounts.clear();
     }
     drawPasses(PASS_SKY, PASS_UI, true);
+    applyAmbientOcclusion();
     flushTarget();
     // The view goes to the frame when the surface ends it, after the
     // client painted its overlay.
@@ -1703,6 +1710,8 @@ void RhiRenderer::resetFrame() {
     beginFrameIfNeeded();
     QueueRenderer::resetFrame();
     lightsPrepared = false;
+    ambientOcclusionApplied = false;
+    sceneProjectionValid = false;
 }
 
 void RhiRenderer::writeLightUniforms(RhiProgram *program) {

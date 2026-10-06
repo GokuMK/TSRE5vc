@@ -1,10 +1,12 @@
 #include <tsre/tests/RhiShaderTestSuite.h>
 
 #include <QDebug>
+#include <rhi/qshaderbaker.h>
 #include <rhi/qshaderdescription.h>
 
 #include <tsre/ogl/GLUU.h>
 #include <tsre/renderer/rhi/RhiContext.h>
+#include <tsre/renderer/rhi/RhiRenderer.h>
 #include <tsre/renderer/rhi/RhiShaderSource.h>
 
 namespace {
@@ -96,6 +98,19 @@ int TsreTests::runRhiShaderSuite(bool verbose) {
                       && samplerBinding(program.fragment, "shadow0") == 9,
                       name + " keeps the OpenGL texture units as sampler bindings");
         }
+    }
+    // Ambient occlusion passes: code-held GLSL 440.
+    const QList<QByteArray> occlusion = RhiRenderer::ambientOcclusionShaders();
+    for (int i = 0; i < occlusion.size(); ++i) {
+        QShaderBaker baker;
+        baker.setGeneratedShaders({{QShader::SpirvShader, QShaderVersion(100)},
+                                   {QShader::GlslShader, QShaderVersion(330)}});
+        baker.setGeneratedShaderVariants({QShader::StandardShader});
+        baker.setSourceString(occlusion[i], QShader::FragmentStage);
+        const QShader shader = baker.bake();
+        if (!shader.isValid())
+            qWarning().noquote() << baker.errorMessage();
+        check(shader.isValid(), QString("ambient occlusion pass %1 bakes").arg(i));
     }
     qInfo() << "[tests:rhi-shaders] cases=" << (passed + failed)
             << "passed=" << passed << "failed=" << failed;

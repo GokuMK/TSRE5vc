@@ -7394,6 +7394,36 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <source>Scale of the light emissive surfaces cast. At 1 a surface lights its surroundings as a lamp of its brightness and size would.</source>
         <translation>Scale of the light emissive surfaces cast. At 1 a surface lights its surroundings as a lamp of its brightness and size would.</translation>
     </message>
+    <message id="settings.core.rendering.ambient.occlusion.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="875" />
+        <source>Ambient occlusion</source>
+        <translation>Ambient occlusion</translation>
+    </message>
+    <message id="settings.core.rendering.ambient.occlusion.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="877" />
+        <source>Darkens ambient light in corners, under objects and where surfaces meet, computed from the view&apos;s depth (QRhi renderer). Higher quality costs more time per frame.</source>
+        <translation>Darkens ambient light in corners, under objects and where surfaces meet, computed from the view&apos;s depth (QRhi renderer). Higher quality costs more time per frame.</translation>
+    </message>
+    <message id="settings.core.rendering.ambient.occlusion.option.off">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="880" />
+        <source>Off</source>
+        <translation>Off</translation>
+    </message>
+    <message id="settings.core.rendering.ambient.occlusion.option.low">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="882" />
+        <source>Low</source>
+        <translation>Low</translation>
+    </message>
+    <message id="settings.core.rendering.ambient.occlusion.option.medium">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="884" />
+        <source>Medium</source>
+        <translation>Medium</translation>
+    </message>
+    <message id="settings.core.rendering.ambient.occlusion.option.high">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="886" />
+        <source>High</source>
+        <translation>High</translation>
+    </message>
     <message id="settings.group.rendering.subgroup.environment.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="180" />
         <source>Environment</source>

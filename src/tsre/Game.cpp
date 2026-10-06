@@ -135,6 +135,7 @@ bool Game::environmentMapPreview = false;
 bool Game::waterShaded = true;
 bool Game::waterReflection = true;
 bool Game::localLightsEnabled = true;
+int Game::ambientOcclusionQuality = 0;
 bool Game::timeOfDayEnabled = false;
 float Game::timeOfDayHours = 12.0f;
 QString Game::timeOfDayDate = "2026-06-21";
@@ -365,6 +366,9 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
     boolean("core.rendering.water.shaded", waterShaded);
     boolean("core.rendering.water.reflection", waterReflection);
     boolean("core.rendering.localLights.enabled", localLightsEnabled);
+    claim("core.rendering.ambientOcclusion", SettingType::Enum);
+    if (appliesNow("core.rendering.ambientOcclusion"))
+        ambientOcclusionQuality = settings.runtimeInt("core.rendering.ambientOcclusion");
     boolean("core.rendering.timeOfDay.enabled", timeOfDayEnabled);
     floating("core.rendering.timeOfDay.time", timeOfDayHours);
     string("core.rendering.timeOfDay.date", timeOfDayDate, SettingType::String);

@@ -25,6 +25,7 @@ This folder contains ordered tasks for migrating the TSRE renderer from legacy i
 - [ ] `20-qrhi-renderer.md` (QRhi renderer on `feature/qrhi`: parity with the OpenGL renderer reached; water visibility without queries and the Direct3D / Metal backends open)
 - [ ] `21-local-lights.md` (glTF punctual lights and emissive surfaces light the scene on the QRhi renderer through a world-space light grid)
 - [ ] `22-time-of-day.md` (sun position from the camera's latitude and longitude at a set time and date; first step of the environment task)
+- [ ] `23-ambient-occlusion.md` (GTAO on the QRhi renderer from the view's depth, taken off the ambient light share the lit shaders write; Off/Low/Medium/High)
 
 ## Legacy Pipeline Removed
 

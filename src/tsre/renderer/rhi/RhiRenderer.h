@@ -101,6 +101,9 @@ private:
         bool frontCw = false;
         bool wireframe = false;
         quint8 lineWidth = 1;
+        // Colour attachments of the pass (the view has two with ambient
+        // occlusion on).
+        quint8 colorCount = 1;
         bool operator==(const PipelineKey &other) const;
     };
     struct PipelineKeyHash { size_t operator()(const PipelineKey &key) const; };
@@ -135,6 +138,9 @@ private:
     // 2); pipelines are made against the one that keeps both.
     struct Attachments {
         QRhiTexture *color = nullptr;
+        // Second colour output: the view's ambient light share for ambient
+        // occlusion; owned with color.
+        QRhiTexture *color2 = nullptr;
         QRhiTexture *depth = nullptr;
         // The colour subresource drawn into (cube face or array layer, and
         // mip level), and whether the attachments own their textures.
@@ -183,7 +189,8 @@ private:
     // Colour and depth, or depth only (a shadow map) when colorFormat is
     // UnknownFormat.
     bool createAttachments(Attachments &attachments, QRhiTexture::Format colorFormat,
-                           const QSize &size, QRhiTexture::Flags colorFlags);
+                           const QSize &size, QRhiTexture::Flags colorFlags,
+                           QRhiTexture::Format secondFormat = QRhiTexture::UnknownFormat);
     // The render targets of attachments whose textures are set.
     bool buildTargets(Attachments &attachments);
     // Whether the current target keeps OpenGL's row order.
@@ -227,6 +234,47 @@ private:
     float copyFrameForTransmission();
     QRhiTexture *sceneCopy = nullptr;
     float sceneCopyLevels = 0.0f;
+    // Ambient occlusion (task 23, RhiAmbientOcclusion.cpp): GTAO from the
+    // view's depth after the opaque passes, taken off the ambient light
+    // share the lit shaders write as the view's second colour output.
+    // Quality 0 is off.
+    int ambientOcclusionQuality() const;
+public:
+    // The fragment shaders of the occlusion, blur and composite passes, for
+    // tests.
+    static QList<QByteArray> ambientOcclusionShaders();
+private:
+    void applyAmbientOcclusion();
+    void releaseAmbientOcclusion();
+    struct AmbientOcclusion {
+        int quality = 0;
+        QSize size;
+        QRhiTexture *raw = nullptr;
+        QRhiTexture *blurred = nullptr;
+        QRhiTextureRenderTarget *rawTarget = nullptr;
+        QRhiTextureRenderTarget *blurTarget = nullptr;
+        QRhiTextureRenderTarget *compositeTarget = nullptr;
+        QRhiRenderPassDescriptor *rawPass = nullptr;
+        QRhiRenderPassDescriptor *blurPass = nullptr;
+        QRhiRenderPassDescriptor *compositePass = nullptr;
+        QRhiBuffer *uniforms = nullptr;
+        QRhiSampler *nearest = nullptr;
+        QRhiSampler *linear = nullptr;
+        QRhiShaderResourceBindings *aoBindings = nullptr;
+        QRhiShaderResourceBindings *blurBindings = nullptr;
+        QRhiShaderResourceBindings *compositeBindings = nullptr;
+        QRhiGraphicsPipeline *aoPipeline = nullptr;
+        QRhiGraphicsPipeline *blurPipeline = nullptr;
+        QRhiGraphicsPipeline *compositePipeline = nullptr;
+    } ambientOcclusion;
+    bool createAmbientOcclusion(int quality);
+    // Whether this frame's main view has had its occlusion.
+    bool ambientOcclusionApplied = false;
+    // The main view's scene band: projection terms (x and y scale, near,
+    // far) and its slice of the depth range, for reading its depth back.
+    bool sceneProjectionValid = false;
+    float sceneProjection[4] = {1.0f, 1.0f, 0.2f, 1000.0f};
+    float sceneDepthRange[2] = {0.0f, 1.0f};
     // Local lights of the frame (task 21), binned once before the first
     // view draws and read by every view.
     void prepareLights();

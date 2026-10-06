@@ -236,6 +236,9 @@ vec4 pbrShade() {
                 + coat * coatReflected * environmentBrdf(vec3(0.04), coatRoughness, coatNDotV);
     }
     color += environment * occlusion;
+#ifdef TSRE_RHI
+    vec3 ambientLight = environment * occlusion * colorBrightness;
+#endif
     color *= colorBrightness;
 
     // Transmission: the light from behind replaces the diffuse part of
@@ -252,5 +255,10 @@ vec4 pbrShade() {
         emissive *= toLinear(texture(pbrEmissiveMap, pbrUv(4)).rgb);
     color += emissive;
 
+#ifdef TSRE_RHI
+    // The display-space share of the environment light, after fog.
+    pbrAmbientOut = vec4((toDisplay(color) - toDisplay(max(color - ambientLight, vec3(0.0))))
+                         * (1.0 - fogFactor), alpha);
+#endif
     return vec4(mix(toDisplay(color), skyColor.rgb, fogFactor), alpha);
 }

@@ -164,6 +164,8 @@ public:
     // Light from punctual lights and emissive surfaces (QRhi renderer, task
     // 21): on or off, the scale of punctual lights and of emissive ones.
     static bool localLightsEnabled;
+    // Ambient occlusion on the QRhi renderer: 0 off, 1 low, 2 medium, 3 high.
+    static int ambientOcclusionQuality;
     // Time of day in the Route Editor: the sun stands where it would over
     // the camera at this local mean solar time (hours) and date
     // (yyyy-MM-dd); off, the fixed editor light.
