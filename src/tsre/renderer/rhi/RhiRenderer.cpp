@@ -105,14 +105,26 @@ bool isUnlitPass(int pass) {
     return pass == Renderer::PASS_OVERLAY || pass == Renderer::PASS_UI;
 }
 
+// FLIP_Y where clip space and the framebuffer disagree about y (Direct3D,
+// Metal), so the view's first row stays the frame's first row.
 const char *PresentVertex = R"(#version 440
 layout(location = 0) out vec2 uv;
 void main() {
     vec2 corner = vec2(float((gl_VertexIndex << 1) & 2), float(gl_VertexIndex & 2));
     uv = corner;
     gl_Position = vec4(corner * 2.0 - 1.0, 0.0, 1.0);
+#ifdef FLIP_Y
+    gl_Position.y = -gl_Position.y;
+#endif
 }
 )";
+
+QByteArray presentVertex(QRhi *rhi) {
+    QByteArray source(PresentVertex);
+    if (rhi->isYUpInNDC() != rhi->isYUpInFramebuffer())
+        source.replace("#version 440\n", "#version 440\n#define FLIP_Y\n");
+    return source;
+}
 const char *PresentFragment = R"(#version 440
 layout(location = 0) in vec2 uv;
 layout(location = 0) out vec4 fragColor;
@@ -1579,7 +1591,7 @@ void RhiRenderer::present() {
     if (presentPipeline == nullptr) {
         static QShader vertex, fragment;
         if (!vertex.isValid()) {
-            vertex = bakeInline(PresentVertex, QShader::VertexStage, rhi);
+            vertex = bakeInline(presentVertex(rhi).constData(), QShader::VertexStage, rhi);
             fragment = bakeInline(PresentFragment, QShader::FragmentStage, rhi);
         }
         presentPipeline = rhi->newGraphicsPipeline();
@@ -1628,7 +1640,7 @@ void main() {
 )";
             static QShader vertex, overlayFragment;
             if (!overlayFragment.isValid()) {
-                vertex = bakeInline(PresentVertex, QShader::VertexStage, rhi);
+                vertex = bakeInline(presentVertex(rhi).constData(), QShader::VertexStage, rhi);
                 overlayFragment = bakeInline(fragment, QShader::FragmentStage, rhi);
             }
             overlayPipeline = rhi->newGraphicsPipeline();
@@ -1725,7 +1737,15 @@ void RhiRenderer::prepareLights() {
         for (size_t i = 0; i < bytes; ++i)
             hash = (hash ^ p[i]) * 1099511628211ull;
     };
-    mix(frameLights.data(), frameLights.size() * sizeof(LightGrid::Light));
+    for (const LightGrid::Light &light : frameLights) {
+        // Field by field: the struct's padding is not initialised.
+        mix(light.position, sizeof(light.position));
+        mix(light.direction, sizeof(light.direction));
+        mix(light.color, sizeof(light.color));
+        const float shape[4] = {light.range, light.radius, light.cosInner, light.cosOuter};
+        mix(shape, sizeof(shape));
+        mix(&light.spot, sizeof(light.spot));
+    }
     const float window[3] = {std::floor(viewPosition[0] / LightGrid::MaxExtent),
                              std::floor(viewPosition[1] / LightGrid::MaxHeight),
                              std::floor(viewPosition[2] / LightGrid::MaxExtent)};

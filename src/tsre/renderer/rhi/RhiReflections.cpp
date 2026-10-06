@@ -166,6 +166,9 @@ bool RhiRenderer::createEnvironment(int faceSize, int levels) {
             program.setInt("face", face);
             program.setFloat("roughness", levels > 1 ? float(level) / (levels - 1) : 0.0f);
             program.setFloat("sourceSize", float(faceSize));
+            // The face's first row is texture row 0, as in OpenGL: flipped
+            // where clip space and the framebuffer disagree about y.
+            program.setFloat("rhiFlipY", rhi->isYUpInNDC() != rhi->isYUpInFramebuffer() ? 1.0f : 0.0f);
             std::memcpy(data.data() + qsizetype(face * levels + level) * e.uniformStride,
                         program.block.data(), program.block.size());
         }

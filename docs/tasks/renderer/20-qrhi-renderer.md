@@ -141,8 +141,9 @@ Open:
 
 - Water visibility without occlusion queries (the reflection is drawn
   whenever water is in view).
-- Direct3D and Metal backends are built but untested (no hardware here);
-  the present and preview passes assume the Vulkan or OpenGL y conventions.
+- Direct3D and Metal backends are built but untested (no hardware here).
+  Full-screen passes flip y where clip space and the framebuffer disagree
+  about it (those two), by reasoning rather than a test.
 
 ## Verification
 
