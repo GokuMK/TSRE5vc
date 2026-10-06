@@ -135,9 +135,6 @@ void RouteEditorGLWidget::cleanup() {
     environmentMap = NULL;
     delete waterReflection;
     waterReflection = NULL;
-    if (waterQuery != 0)
-        context()->extraFunctions()->glDeleteQueries(1, &waterQuery);
-    waterQuery = 0;
     //delete gluu->m_program;
     //gluu->m_program = 0;
     doneCurrent();
@@ -311,18 +308,14 @@ void RouteEditorGLWidget::initializeGL() {
     //    exit(1);
     //}
     //funcs->initializeOpenGLFunctions();/**/
-    glClearColor(0, 0, 0, 1);
+    const float black[3] = {0.0f, 0.0f, 0.0f};
+    renderer->clear(false, false, black);
     //qDebug() << "gluu->initShader();";
     qDebug() << "# InitShaders";
     gluu->initShader();
     qDebug() << "# InitShaders finished";
     selectionRenderer = new SelectionRenderer();
-    glEnable(GL_DEPTH_TEST);
-    glEnable(GL_CULL_FACE);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glCullFace(GL_BACK);
-    glLineWidth(Game::oglDefaultLineWidth);
+    renderer->resetState();
 
     //sFile = new SFile("F:/TrainSim/trains/trainset/pkp_sp47/pkp_sp47-001.s", "F:/TrainSim/trains/trainset/pkp_sp47");
     //sFile = new SFile("f:/train simulator/routes/cmk/shapes/cottage3.s", "cottage3.s", "f:/train simulator/routes/cmk/textures");
@@ -454,23 +447,11 @@ bool RouteEditorGLWidget::canRenderFrame() const{
     return true;
 }
 
-void RouteEditorGLWidget::restoreDefaultGlState(){
-    glEnable(GL_DEPTH_TEST);
-    glDepthMask(GL_TRUE);
-    glDepthFunc(GL_LESS);
-    glEnable(GL_CULL_FACE);
-    glCullFace(GL_BACK);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-    glDisable(GL_SCISSOR_TEST);
-}
-
 void RouteEditorGLWidget::paintGL(){
     Game::currentShapeLib = currentShapeLib;
     if (!canRenderFrame()) return;
     Terrain::beginProceduralFrame();
-    restoreDefaultGlState();
+    renderer->resetState();
 
     const bool selectionPass = selection;
     paintScene();
@@ -478,7 +459,7 @@ void RouteEditorGLWidget::paintGL(){
     if(selectionPass && !selection){
         // QOpenGLWidget does not preserve its color buffer by default. Finish
         // every selection callback with a visible frame before returning to Qt.
-        restoreDefaultGlState();
+        renderer->resetState();
         paintScene();
     }
 }
@@ -606,14 +587,12 @@ void RouteEditorGLWidget::paintScene(){
     } else {
         glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
         glActiveTexture(GL_TEXTURE0);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        renderer->clear(true, true);
     }
     gluu->currentShader = gluu->shaders[shaderName];
     gluu->currentShader->bind();
 
-    const GLboolean blendingWasEnabled = glIsEnabled(GL_BLEND);
-    if (selectionPass)
-        glDisable(GL_BLEND);
+    const bool blendingWasEnabled = selectionPass ? renderer->setBlending(false) : true;
     // Reflecting materials sample the environment map on its own unit.
     gluu->environmentMapLevels = 0;
     if (!selectionPass && Game::environmentMapEnabled && environmentMap != NULL
@@ -630,45 +609,36 @@ void RouteEditorGLWidget::paintScene(){
         gluu->waterReflectionView[3] = float(waterReflection->levels());
     }
 
-    glClearColor(gluu->skyColor[0], gluu->skyColor[1], gluu->skyColor[2], 1.0);
+    renderer->clear(false, false, gluu->skyColor);
     if(!selectionPass)
-        glViewport(0, 0, qRound((float)this->width() * Game::PixelRatio),
-                   qRound((float)this->height() * Game::PixelRatio));
+        renderer->setViewport(0, 0, qRound((float)this->width() * Game::PixelRatio),
+                              qRound((float)this->height() * Game::PixelRatio));
     Mat4::identity(gluu->mvMatrix);
     Mat4::identity(renderer->transform());
-    
-    Mat4::perspective(gluu->fMatrix, Game::cameraFov * M_PI / 180, float(this->width()) / this->height(), 0.2f, Game::objectLod);
-    Mat4::multiply(gluu->fMatrix, gluu->fMatrix, camera->getMatrix());
-    
-    // Sky and distant terrain draw with their own projections.
-    // Render Skydome
-    Mat4::perspective(gluu->pMatrix, Game::cameraFov * M_PI / 180, float(this->width()) / this->height(), 100.0f, 10000.0f);
-    Mat4::multiply(gluu->pMatrix, gluu->pMatrix, camera->getMatrix());
-    gluu->setMatrixUniforms();
-    gluu->currentShader->setUniformValue(gluu->currentShader->lod, 0.0f);
+
+    // Sky, distant terrain, then terrain and world, each with its own
+    // projection.
+    const float fov = Game::cameraFov * M_PI / 180;
+    Renderer::LayeredView mainView;
+    mainView.view = camera->getMatrix();
+    mainView.projection = [fov, aspect](float nearPlane, float farPlane, float *out) {
+        Mat4::perspective(out, fov, aspect, nearPlane, farPlane);
+    };
+    mainView.sceneFar = Game::objectLod;
+    mainView.distantFar = Game::distantLod;
+    renderer->beginViewBand(mainView, Renderer::BAND_SKY);
     RenderStats::beginPhase(RenderStats::PhaseSky);
     renderer->renderPasses(Renderer::PASS_SKY, Renderer::PASS_SKY);
     RenderStats::endPhase(RenderStats::PhaseSky);
     Mat4::identity(renderer->transform());
-    glClear(GL_DEPTH_BUFFER_BIT);
-    
-    // Render Low Resolution Terrain
-    Mat4::perspective(gluu->pMatrix, Game::cameraFov * M_PI / 180, float(this->width()) / this->height(), 600.0f, Game::distantLod);
-    Mat4::multiply(gluu->pMatrix, gluu->pMatrix, camera->getMatrix());
-    gluu->setMatrixUniforms();
-    renderer->setCullView(gluu->pMatrix);
+
+    renderer->beginViewBand(mainView, Renderer::BAND_DISTANT);
     RenderStats::beginPhase(RenderStats::PhaseDistant);
     renderer->renderPasses(Renderer::PASS_DISTANT, Renderer::PASS_DISTANT);
     RenderStats::endPhase(RenderStats::PhaseDistant);
-    renderer->setCullView(NULL);
     Mat4::identity(renderer->transform());
-    glClear(GL_DEPTH_BUFFER_BIT);
 
-    // Render High Resolution Terrain and World
-    Mat4::perspective(gluu->pMatrix, Game::cameraFov * M_PI / 180, float(this->width()) / this->height(), 0.2f, Game::objectLod);
-    Mat4::multiply(gluu->pMatrix, gluu->pMatrix, camera->getMatrix());
-    gluu->setMatrixUniforms();
-    renderer->setCullView(gluu->pMatrix);
+    renderer->beginViewBand(mainView, Renderer::BAND_SCENE);
     RenderStats::beginPhase(RenderStats::PhaseScene);
 
     const bool drawPointerOnTerrain = drawPointerEnabled && stickPointerToTerrain && Game::viewTerrainShape;
@@ -682,6 +652,8 @@ void RouteEditorGLWidget::paintScene(){
 
     renderer->renderPasses(Renderer::PASS_TERRAIN, Renderer::PASS_OVERLAY);
     renderWaterPass(!selectionPass && Game::waterShaded && Game::waterReflection);
+    // Glass and other transmissive glTF materials see the frame drawn so far.
+    renderer->renderPasses(Renderer::PASS_TRANSMISSION, Renderer::PASS_TRANSMISSION);
 
     if (drawPointerAfterWorld) {
         pushRenderPointer(queue);
@@ -689,7 +661,7 @@ void RouteEditorGLWidget::paintScene(){
     }
     RenderStats::endPhase(RenderStats::PhaseScene);
 
-    renderer->setCullView(NULL);
+    renderer->endView(mainView);
     // render compass
     RenderStats::beginPhase(RenderStats::PhaseUi);
     if (!selectionPass && Game::viewCompass){
@@ -731,8 +703,8 @@ void RouteEditorGLWidget::paintScene(){
     RenderStats::endPhase(RenderStats::PhaseUi);
 
     // Handle Selection
-    if (blendingWasEnabled)
-        glEnable(GL_BLEND);
+    if (selectionPass && blendingWasEnabled)
+        renderer->setBlending(true);
     if(selectionPass){
         handleSelection();
         selectionRenderer->end();
@@ -773,7 +745,7 @@ void RouteEditorGLWidget::drawEditorFpsHud(){
 
     // QPainter over QOpenGLWidget can leave GL state changed (depth/cull/blend).
     // Restore defaults to prevent cross-frame rendering regressions.
-    restoreDefaultGlState();
+    renderer->resetState();
 }
 
 namespace {
@@ -859,8 +831,8 @@ void RouteEditorGLWidget::renderShadowMaps() {
     gluu->setMatrixUniforms();
     glBindFramebuffer(GL_FRAMEBUFFER, FramebufferName0);
     glActiveTexture(GL_TEXTURE0);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glViewport(0, 0, shadowMapSize, shadowMapSize);
+    renderer->clear(true, true);
+    renderer->setViewport(0, 0, shadowMapSize, shadowMapSize);
     renderer->renderShadowCasters(250.0f, RenderStats::FrameStats::PassSlots - 3,
                                   gluu->pShadowMatrix);
     std::swap(gluu->pShadowMatrix, gluu->pShadowMatrix0);
@@ -868,8 +840,8 @@ void RouteEditorGLWidget::renderShadowMaps() {
     gluu->setMatrixUniforms();
     glBindFramebuffer(GL_FRAMEBUFFER, FramebufferName1);
     glActiveTexture(GL_TEXTURE0);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glViewport(0, 0, shadowMapSize, shadowMapSize);
+    renderer->clear(true, true);
+    renderer->setViewport(0, 0, shadowMapSize, shadowMapSize);
     renderer->renderShadowCasters(600.0f, RenderStats::FrameStats::PassSlots - 2,
                                   gluu->pShadowMatrix);
 
@@ -877,8 +849,8 @@ void RouteEditorGLWidget::renderShadowMaps() {
     gluu->setMatrixUniforms();
     glBindFramebuffer(GL_FRAMEBUFFER, FramebufferName2);
     glActiveTexture(GL_TEXTURE0);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glViewport(0, 0, distantShadowMapSize, distantShadowMapSize);
+    renderer->clear(true, true);
+    renderer->setViewport(0, 0, distantShadowMapSize, distantShadowMapSize);
     renderer->renderShadowCasters(1000.0f, RenderStats::FrameStats::PassSlots - 1,
                                   gluu->pShadowMatrix);
     std::swap(gluu->pShadowMatrix, gluu->pShadowMatrix2);
@@ -909,71 +881,31 @@ void RouteEditorGLWidget::renderEnvironmentMap() {
     limits.minAngularRadius = 1.0f / Game::environmentMapSize;
     float *eye = camera->getPos();
     float view[16];
-    float projection[16];
+    Renderer::LayeredView faceView;
+    faceView.view = view;
+    faceView.projection = EnvironmentMap::faceProjection;
+    faceView.sceneFar = Game::objectLod;
+    faceView.distantFar = Game::distantLod;
+    faceView.limits = &limits;
     for (int face : faces) {
         environmentMap->beginFace(face, gluu->skyColor);
         EnvironmentMap::faceView(face, eye, view);
-        EnvironmentMap::faceProjection(0.2f, Game::objectLod, projection);
-        Mat4::multiply(gluu->fMatrix, projection, view);
-
-        EnvironmentMap::faceProjection(100.0f, 10000.0f, projection);
-        Mat4::multiply(gluu->pMatrix, projection, view);
-        gluu->setMatrixUniforms();
-        gluu->currentShader->setUniformValue(gluu->currentShader->lod, 0.0f);
-        renderer->renderPassesRetained(Renderer::PASS_SKY, Renderer::PASS_SKY);
-        glClear(GL_DEPTH_BUFFER_BIT);
-
-        EnvironmentMap::faceProjection(600.0f, Game::distantLod, projection);
-        Mat4::multiply(gluu->pMatrix, projection, view);
-        gluu->setMatrixUniforms();
-        renderer->setCullView(gluu->pMatrix);
-        renderer->renderPassesRetained(Renderer::PASS_DISTANT, Renderer::PASS_DISTANT);
-        glClear(GL_DEPTH_BUFFER_BIT);
-
-        EnvironmentMap::faceProjection(0.2f, Game::objectLod, projection);
-        Mat4::multiply(gluu->pMatrix, projection, view);
-        gluu->setMatrixUniforms();
-        renderer->setCullView(gluu->pMatrix);
-        renderer->setViewLimits(&limits);
-        renderer->renderPassesRetained(Renderer::PASS_TERRAIN, Renderer::PASS_BLENDED);
-        renderer->renderPassesRetained(Renderer::PASS_WATER, Renderer::PASS_WATER);
-        renderer->setViewLimits(NULL);
-        renderer->setCullView(NULL);
+        renderer->renderLayeredView(faceView);
     }
     environmentMap->endFaces(defaultFramebufferObject());
 }
 
 void RouteEditorGLWidget::renderWaterPass(bool measure) {
-    if (!measure || waterQueryPending) {
+    if (measure)
+        renderer->renderPassesMeasured(Renderer::PASS_WATER, Renderer::PASS_WATER);
+    else
         renderer->renderPasses(Renderer::PASS_WATER, Renderer::PASS_WATER);
-        return;
-    }
-    QOpenGLExtraFunctions *f = context()->extraFunctions();
-    if (waterQuery == 0)
-        f->glGenQueries(1, &waterQuery);
-    RenderStats::pauseSamples();
-    f->glBeginQuery(GL_SAMPLES_PASSED, waterQuery);
-    renderer->renderPasses(Renderer::PASS_WATER, Renderer::PASS_WATER);
-    f->glEndQuery(GL_SAMPLES_PASSED);
-    RenderStats::resumeSamples(waterQuery);
-    waterQueryPending = true;
 }
 
 bool RouteEditorGLWidget::renderWaterReflection() {
     // Water hidden behind terrain still passes the view test, so the last
-    // measured water pass decides; until a result is in, keep the last one.
-    if (waterQueryPending) {
-        QOpenGLExtraFunctions *f = context()->extraFunctions();
-        GLuint available = 0;
-        f->glGetQueryObjectuiv(waterQuery, GL_QUERY_RESULT_AVAILABLE, &available);
-        if (available) {
-            GLuint samples = 0;
-            f->glGetQueryObjectuiv(waterQuery, GL_QUERY_RESULT, &samples);
-            waterOnScreen = samples > 0;
-            waterQueryPending = false;
-        }
-    }
-    if (!waterOnScreen)
+    // measured water pass decides; until a count is in, reflect.
+    if (renderer->measuredSamples() == 0)
         return false;
     // The plane of the water in view; no water, no reflection.
     const float aspect = float(this->width()) / this->height();
@@ -1001,53 +933,27 @@ bool RouteEditorGLWidget::renderWaterReflection() {
     gluu->currentShader->bind();
     Mat4::identity(gluu->mvMatrix);
     Mat4::identity(gluu->objStrMatrix);
-    // The camera looks at the scene mirrored in the plane: mirrored
-    // triangles turn the other way round.
+    // The camera looks at the scene mirrored in the plane.
     float mirror[16];
     float view[16];
     PlanarReflection::mirrorMatrix(plane, mirror);
     Mat4::multiply(view, camera->getMatrix(), mirror);
-    waterReflection->begin(gluu->skyColor);
-    glFrontFace(GL_CW);
-
-    Mat4::perspective(projection, fov, aspect, 0.2f, Game::objectLod);
-    Mat4::multiply(gluu->fMatrix, projection, view);
-    Mat4::perspective(projection, fov, aspect, 100.0f, 10000.0f);
-    Mat4::multiply(gluu->pMatrix, projection, view);
-    gluu->setMatrixUniforms();
-    gluu->currentShader->setUniformValue(gluu->currentShader->lod, 0.0f);
-    renderer->renderPassesRetained(Renderer::PASS_SKY, Renderer::PASS_SKY);
-    glClear(GL_DEPTH_BUFFER_BIT);
-
-    // Below the plane only the water bed would show; clip it just under
-    // the surface so banks meet the water without a gap.
-    const float clip[4] = {plane[0], plane[1], plane[2], plane[3] + 0.05f};
-    std::copy(clip, clip + 4, gluu->clipPlane);
-    glEnable(GL_CLIP_DISTANCE0);
-    Mat4::perspective(projection, fov, aspect, 600.0f, Game::distantLod);
-    Mat4::multiply(gluu->pMatrix, projection, view);
-    gluu->setMatrixUniforms();
-    renderer->setCullView(gluu->pMatrix);
-    renderer->renderPassesRetained(Renderer::PASS_DISTANT, Renderer::PASS_DISTANT);
-    glClear(GL_DEPTH_BUFFER_BIT);
-
     Renderer::ViewLimits limits;
     limits.maxDistance = WaterReflectionObjectDistance;
     // Skip objects under about a texel of the half-resolution view.
     limits.minAngularRadius = 1.0f / targetHeight;
-    Mat4::perspective(projection, fov, aspect, 0.2f, Game::objectLod);
-    Mat4::multiply(gluu->pMatrix, projection, view);
-    gluu->setMatrixUniforms();
-    renderer->setCullView(gluu->pMatrix);
-    renderer->setViewLimits(&limits);
-    renderer->renderPassesRetained(Renderer::PASS_TERRAIN, Renderer::PASS_BLENDED);
-    renderer->setViewLimits(NULL);
-    renderer->setCullView(NULL);
-
-    glDisable(GL_CLIP_DISTANCE0);
-    const float keep[4] = {0.0f, 0.0f, 0.0f, 1.0f};
-    std::copy(keep, keep + 4, gluu->clipPlane);
-    glFrontFace(GL_CCW);
+    Renderer::LayeredView mirrored;
+    mirrored.view = view;
+    mirrored.projection = [fov, aspect](float nearPlane, float farPlane, float *out) {
+        Mat4::perspective(out, fov, aspect, nearPlane, farPlane);
+    };
+    mirrored.sceneFar = Game::objectLod;
+    mirrored.distantFar = Game::distantLod;
+    mirrored.limits = &limits;
+    mirrored.mirrorPlane = plane;
+    mirrored.water = false;
+    waterReflection->begin(gluu->skyColor);
+    renderer->renderLayeredView(mirrored);
     waterReflection->end(defaultFramebufferObject());
     std::copy(plane, plane + 4, waterReflectionPlane);
     return true;
@@ -1257,10 +1163,10 @@ void RouteEditorGLWidget::readPointerPosition() {
     static float winZ[4];
     int viewport[4];
 
-    glGetIntegerv(GL_VIEWPORT, viewport);
+    renderer->viewport(viewport);
     int realy = viewport[3] - (int) y - 1;
     if(newTime - oldTime > 50){
-        glReadPixels(x, realy, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &winZ);
+        winZ[0] = renderer->readDepth(x, realy);
         oldTime = newTime;
     }
     GLH::glhUnProjectf((float) x, (float) realy, winZ[0], // 

@@ -120,16 +120,10 @@ void ShapeViewerGLWidget::initializeGL() {
             backgroundGlColor[2] = 1;
         }
     }
-    glClearColor(backgroundGlColor[0], backgroundGlColor[1], backgroundGlColor[2], 1);
-
     gluu->initShader();
     renderer = new OpenGL3Renderer();
-
-    glEnable(GL_DEPTH_TEST);
-    glEnable(GL_CULL_FACE);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glCullFace(GL_BACK);
+    renderer->clear(false, false, backgroundGlColor);
+    renderer->resetState();
 
 
     //sFile = new SFile("F:/TrainSim/trains/trainset/pkp_sp47/pkp_sp47-001.s", "F:/TrainSim/trains/trainset/pkp_sp47");
@@ -213,8 +207,7 @@ void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
                                     qRound(height() * pixelRatio)))
             return;
     } else {
-        glClearColor(backgroundGlColor[0], backgroundGlColor[1], backgroundGlColor[2], 1);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        renderer->clear(true, true, backgroundGlColor);
     }
     gluu->currentShader = shader;
     // Zero is the background; wagon indices start at one.
@@ -224,7 +217,7 @@ void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
     int shadowsState = Game::shadowsEnabled;
     Game::shadowsEnabled = 0;
     
-    glClearColor(backgroundGlColor[0], backgroundGlColor[1], backgroundGlColor[2], 1);
+    renderer->clear(false, false, backgroundGlColor);
     
     float aspect = float(this->width()) / float(this->height());
     float* lookAt = camera->getMatrix();
@@ -314,9 +307,9 @@ void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
         screenShot = NULL;
         getImage = false;
         int* viewport = new int[4];
-        glGetIntegerv(GL_VIEWPORT, viewport);
+        renderer->viewport(viewport);
         unsigned char* winZ = new unsigned char[viewport[2]*viewport[3]*4];
-        glReadPixels(0, 0, viewport[2], viewport[3], GL_RGBA, GL_UNSIGNED_BYTE, winZ);
+        renderer->readColor(0, 0, viewport[2], viewport[3], winZ);
         screenShot = new QImage(winZ, viewport[2], viewport[3], QImage::Format_RGBA8888 );
         
     }

@@ -59,7 +59,10 @@ counters are implemented. All passes still use the main shader
     `Route::pushRenderOverlays`) goes to `PASS_OVERLAY`;
   - `SURFACE_TERRAIN` packets go to `PASS_TERRAIN`;
   - other ordered work (helpers, decals, animated shapes) to `PASS_OPAQUE`;
-  - grouped packets by `RenderItem::surface`.
+  - grouped packets by `RenderItem::surface`;
+  - glTF packets with transmission to `PASS_TRANSMISSION`, after water: the
+    renderer copies the frame drawn so far when that pass starts (shapes
+    task 06).
 - Grouped opaque, alpha-test and overlay packets are batched by texture with
   a deterministic order; blended packets are sorted back to front from the
   camera position (`setViewPosition`), measured at the packet origin.

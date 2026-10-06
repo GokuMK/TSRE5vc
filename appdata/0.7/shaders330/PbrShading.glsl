@@ -20,15 +20,28 @@ uniform float pbrAlphaCutoff;
 uniform int pbrBlend;
 uniform int pbrUnlit;
 // Bit per map present: 1 metallic-roughness, 2 normal, 4 occlusion, 8 emissive,
-// 16 clearcoat, 32 clearcoat roughness, 64 clearcoat normal.
+// 16 clearcoat, 32 clearcoat roughness, 64 clearcoat normal, 128 specular,
+// 256 specular colour, 512 transmission, 1024 thickness.
 uniform int pbrTextures;
 // Bit per map (RenderItem::Pbr::Map order) read with the second texture coordinates.
 uniform int pbrTexCoords;
 // KHR_texture_transform: bit per transformed map, and two rows per map.
 uniform int pbrUvTransforms;
-uniform vec3 pbrUvTransform[16];
+uniform vec3 pbrUvTransform[24];
 // Clearcoat strength, roughness and normal scale; strength 0 has no layer.
 uniform vec3 pbrClearcoat;
+// KHR_materials_specular colour (rgb) and strength (a), and KHR_materials_ior.
+uniform vec4 pbrSpecular;
+uniform float pbrIor;
+// KHR_materials_transmission and KHR_materials_volume: transmission,
+// thickness, attenuation distance (0 never absorbs), and the mipmap levels
+// of the frame copy behind (0: the environment stands in).
+uniform vec4 pbrTransmission;
+uniform vec3 pbrAttenuationColor;
+uniform sampler2D pbrSceneColor;
+uniform sampler2D pbrTransmissionMap;
+uniform sampler2D pbrThicknessMap;
+uniform mat4 uPMatrix;
 uniform sampler2D pbrMetallicRoughnessMap;
 uniform sampler2D pbrNormalMap;
 uniform sampler2D pbrOcclusionMap;
@@ -36,6 +49,8 @@ uniform sampler2D pbrEmissiveMap;
 uniform sampler2D pbrClearcoatMap;
 uniform sampler2D pbrClearcoatRoughnessMap;
 uniform sampler2D pbrClearcoatNormalMap;
+uniform sampler2D pbrSpecularMap;
+uniform sampler2D pbrSpecularColorMap;
 #include "EnvironmentLighting.glsl"
 
 vec2 pbrUv(int map) {
@@ -57,6 +72,37 @@ vec3 mappedNormal(vec3 n, sampler2D map, int uvMap, float scale) {
     vec3 m = texture(map, pbrUv(uvMap)).xyz * 2.0 - 1.0;
     m.xy *= scale;
     return normalize(mat3(t, b, n) * m);
+}
+
+// Light reaching the eye through a transmissive surface: the frame drawn
+// before the transmission pass, read where the refracted ray leaves the
+// volume (at the surface itself when thin-walled) and blurred by roughness,
+// or the environment along the refracted ray without a frame copy.
+vec3 transmittedLight(vec3 n, vec3 v, float roughness) {
+    float thickness = pbrTransmission.y;
+    if ((pbrTextures & 1024) != 0)
+        thickness *= texture(pbrThicknessMap, pbrUv(11)).g;
+    // Thickness is given in the model's units.
+    mat4 model = vModelView * uMSMatrix;
+    float scale = length(model[0].xyz);
+    vec3 refracted = normalize(refract(-v, n, 1.0 / pbrIor));
+    float path = thickness * scale;
+    vec3 exitPoint = vWorldPosition + refracted * path;
+    // A higher index of refraction spreads the light more (as the Khronos
+    // sample viewer does).
+    float spread = roughness * clamp(pbrIor * 2.0 - 2.0, 0.0, 1.0);
+    vec3 behind;
+    if (pbrTransmission.w > 0.0) {
+        vec4 clip = uPMatrix * vec4(exitPoint, 1.0);
+        // Off-screen lookups read the edge pixels of the copy.
+        vec2 uv = clamp(clip.xy / max(clip.w, 1e-4) * 0.5 + 0.5, 0.0, 1.0);
+        behind = toLinear(textureLod(pbrSceneColor, uv, spread * (pbrTransmission.w - 1.0)).rgb);
+    } else {
+        behind = environmentRadiance(refracted, spread) * colorBrightness;
+    }
+    if (pbrTransmission.z > 0.0 && path > 0.0)
+        behind *= pow(max(pbrAttenuationColor, vec3(1e-4)), vec3(path / pbrTransmission.z));
+    return behind;
 }
 
 vec4 pbrShade() {
@@ -89,8 +135,25 @@ vec4 pbrShade() {
         n = mappedNormal(n, pbrNormalMap, 2, pbrNormalScale);
     vec3 v = normalize(cameraPosition - vWorldPosition);
     float nDotV = max(dot(n, v), 1e-4);
-    vec3 f0 = mix(vec3(0.04), base.rgb, metallic);
+    // Dielectric reflectance from the index of refraction, tinted and
+    // weighted by KHR_materials_specular; metals reflect their base colour.
+    float specularWeight = pbrSpecular.a;
+    if ((pbrTextures & 128) != 0)
+        specularWeight *= texture(pbrSpecularMap, pbrUv(8)).a;
+    vec3 specularTint = pbrSpecular.rgb;
+    if ((pbrTextures & 256) != 0)
+        specularTint *= toLinear(texture(pbrSpecularColorMap, pbrUv(9)).rgb);
+    float iorF0 = (pbrIor - 1.0) / (pbrIor + 1.0);
+    vec3 dielectricF0 = min(iorF0 * iorF0 * specularTint, vec3(1.0)) * specularWeight;
+    vec3 f0 = mix(dielectricF0, base.rgb, metallic);
+    vec3 f90 = vec3(mix(specularWeight, 1.0, metallic));
     vec3 diffuseAlbedo = base.rgb * (1.0 - metallic);
+    float transmission = pbrTransmission.x;
+    if ((pbrTextures & 512) != 0)
+        transmission *= texture(pbrTransmissionMap, pbrUv(10)).r;
+    // Light passing through is not scattered diffusely.
+    if (transmission > 0.0)
+        diffuseAlbedo *= 1.0 - transmission;
 
     // The sun. Its irradiance matches the legacy diffuse light, so a white
     // matte surface facing it is as bright as in the legacy shading.
@@ -118,7 +181,7 @@ vec4 pbrShade() {
     vec3 sun = PbrPi * toLinear(diffuseColor.rgb) * shadow;
     if (nDotL > 0.0) {
         vec3 fresnel;
-        vec3 specular = ggxSpecular(n, v, l, roughness, f0, fresnel);
+        vec3 specular = ggxSpecular(n, v, l, roughness, f0, f90, fresnel);
         vec3 diffuse = (1.0 - fresnel) * diffuseAlbedo / PbrPi;
         color += (diffuse + specular) * sun * nDotL;
     }
@@ -136,22 +199,27 @@ vec4 pbrShade() {
     float occlusion = 1.0;
     if ((pbrTextures & 4) != 0)
         occlusion = 1.0 + pbrOcclusionStrength * (texture(pbrOcclusionMap, pbrUv(3)).r - 1.0);
-    float blurLevel = max(environmentMapLevels - 1.0, 0.0);
-    vec3 irradiance = environmentRadiance(n, blurLevel);
+    vec3 irradiance = environmentRadiance(n, 1.0);
     float ambientScale = luminance(toLinear(ambientColor.rgb))
             / max(luminance(toLinear(skyColor.rgb)), 0.05);
-    vec3 reflected = environmentRadiance(reflect(-v, n),
-                                         roughness * max(environmentMapLevels - 1.0, 0.0));
+    vec3 reflected = environmentRadiance(reflect(-v, n), roughness);
     vec3 environment = diffuseAlbedo * irradiance * ambientScale
-            + reflected * environmentBrdf(f0, roughness, nDotV);
+            + reflected * environmentBrdf(f0, f90, roughness, nDotV);
     if (coat > 0.0) {
-        vec3 coatReflected = environmentRadiance(reflect(-v, coatNormal),
-                coatRoughness * max(environmentMapLevels - 1.0, 0.0));
+        vec3 coatReflected = environmentRadiance(reflect(-v, coatNormal), coatRoughness);
         environment = environment * (1.0 - coatFresnel)
                 + coat * coatReflected * environmentBrdf(vec3(0.04), coatRoughness, coatNDotV);
     }
     color += environment * occlusion;
     color *= colorBrightness;
+
+    // Transmission: the light from behind replaces the diffuse part of
+    // non-metal surfaces, tinted by the base colour and, through a volume,
+    // absorbed along the refracted path; the clearcoat lies over it.
+    if (transmission > 0.0)
+        color += transmission * (1.0 - coatFresnel) * (1.0 - metallic)
+                * (vec3(1.0) - environmentBrdf(f0, f90, roughness, nDotV))
+                * base.rgb * transmittedLight(n, v, roughness);
 
     // Emission adds its own colour only; it does not light other surfaces.
     vec3 emissive = pbrEmissive;

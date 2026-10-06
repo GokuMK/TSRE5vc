@@ -176,7 +176,7 @@ protected:
     // Draws the mirrored scene for shaded water; false when none is needed.
     bool renderWaterReflection();
     // Draws the water pass, counting its samples when the reflection needs
-    // to know whether water was on screen.
+    // to know whether water was on screen (Renderer::measuredSamples).
     void renderWaterPass(bool measure);
     void computeShadowMatrices();
     void handleSelection();
@@ -223,7 +223,6 @@ private:
             float *position, float step);
     void paintScene();
     bool canRenderFrame() const;
-    void restoreDefaultGlState();
     void drawEditorFpsHud();
     void setupVertexAttribs();
     void setSelectedObj(GameObj* o);
@@ -371,11 +370,6 @@ private:
     // Mirror plane of the last reflection (n . p + d = 0).
     float waterReflectionPlane[4] = {0.0f, 1.0f, 0.0f, 0.0f};
     std::vector<float> waterBounds;
-    // Samples of the last measured water pass: the reflection is drawn only
-    // when the previous frame showed water.
-    unsigned int waterQuery = 0;
-    bool waterQueryPending = false;
-    bool waterOnScreen = true;
     GuiGlCompass * compass = NULL;
     OglObj * compassPointer = NULL;
     

@@ -25,6 +25,10 @@
 #include <tsre/texture/TexLib.h>
 #include <tsre/texture/Texture.h>
 #include <tsre/Game.h>
+
+#ifndef GL_SAMPLES_PASSED
+#define GL_SAMPLES_PASSED 0x8914
+#endif
 #ifndef __APPLE__
 #include <GL/gl.h>
 #else
@@ -64,8 +68,29 @@ bool resolveTexture(const RenderItem *item, unsigned int &address){
 }
 
 // Texture unit of each PBR map: the base colour is the packet texture, the
-// clearcoat maps use units that only terrain programs use otherwise.
-const int PbrMapUnits[RenderItem::Pbr::MAP_COUNT] = {0, 11, 12, 13, 14, 4, 5, 6};
+// clearcoat and specular maps use units that only terrain and water programs
+// use otherwise. That takes all 16 units OpenGL 3.3 guarantees; the
+// transmission and thickness maps use units 16 and 17 where the driver has
+// them (current drivers have 32) and are left out otherwise.
+const int PbrMapUnits[RenderItem::Pbr::MAP_COUNT] = {0, 11, 12, 13, 14, 4, 5, 6, 7, 15, 16, 17};
+// The frame copy transmissive surfaces see through, on unit 1 (the detail
+// texture unit, unused by the PBR program).
+const int SceneCopyUnit = 1;
+
+// Mipmap levels of the frame copy while the transmission pass draws; 0 when
+// transmissive surfaces see the environment instead.
+float sceneCopyLevels = 0.0f;
+
+int textureUnitCount(){
+    static int units = 0;
+    if(units == 0){
+        if(QOpenGLContext *context = QOpenGLContext::currentContext())
+            context->functions()->glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &units);
+        if(units <= 0)
+            units = 16;
+    }
+    return units;
+}
 
 // Metallic-roughness material uniforms and maps of a packet drawn by the
 // PBR program. Maps not uploaded yet are left out.
@@ -84,6 +109,13 @@ void applyPbrState(GLUU *gluu, QOpenGLFunctions *f, const RenderItem *item){
     s->setUniformValue(s->pbrBlend, p.blend ? 1 : 0);
     s->setUniformValue(s->pbrUnlit, p.unlit ? 1 : 0);
     s->setUniformValue(s->pbrClearcoat, p.clearcoat, p.clearcoatRoughness, p.clearcoatNormalScale);
+    s->setUniformValue(s->pbrSpecular, p.specularColor[0], p.specularColor[1], p.specularColor[2],
+                       p.specular);
+    s->setUniformValue(s->pbrIor, p.ior);
+    s->setUniformValue(s->pbrTransmission, p.transmission, p.thickness, p.attenuationDistance,
+                       sceneCopyLevels);
+    s->setUniformValue(s->pbrAttenuationColor, p.attenuationColor[0], p.attenuationColor[1],
+                       p.attenuationColor[2]);
     int present = 0;
     int texCoords = 0;
     int transformed = 0;
@@ -96,6 +128,7 @@ void applyPbrState(GLUU *gluu, QOpenGLFunctions *f, const RenderItem *item){
             transformed |= 1 << map;
         unsigned int address = 0;
         if(map == RenderItem::Pbr::MAP_BASE_COLOR || p.textures[map] < 0
+                || PbrMapUnits[map] >= textureUnitCount()
                 || !resolveTexLibTexture(p.textures[map], address))
             continue;
         f->glActiveTexture(GL_TEXTURE0 + PbrMapUnits[map]);
@@ -428,6 +461,14 @@ OpenGL3Renderer::~OpenGL3Renderer() {
     releaseMeshArrays();
     releaseWrapSamplers();
     QOpenGLContext *context = QOpenGLContext::currentContext();
+    if(context != NULL && context == queryContext && samplesQuery != 0)
+        context->extraFunctions()->glDeleteQueries(1, &samplesQuery);
+    if(context != NULL && context == copyContext){
+        if(sceneCopyTexture != 0)
+            context->functions()->glDeleteTextures(1, &sceneCopyTexture);
+        if(sceneCopyFramebuffer != 0)
+            context->functions()->glDeleteFramebuffers(1, &sceneCopyFramebuffer);
+    }
     if(context != NULL && context == samplerContext)
         for(auto &entry : wrapSamplers)
             context->extraFunctions()->glDeleteSamplers(1, &entry.second);
@@ -518,6 +559,7 @@ void OpenGL3Renderer::bindWrapSampler(int unit, quint32 wrap){
 }
 
 void OpenGL3Renderer::applyWrapSamplers(const RenderItem *item){
+    static_assert(17 < SamplerUnits, "sampler bookkeeping covers the PBR units");
     const int *units = PbrMapUnits;
     for(int map = 0; map < RenderItem::Pbr::MAP_COUNT; ++map){
         quint32 wrap = 0;
@@ -525,6 +567,9 @@ void OpenGL3Renderer::applyWrapSamplers(const RenderItem *item){
         if(item->pbr.enabled && (modes[0] != 0 || modes[1] != 0))
             wrap = (quint32(modes[0] != 0 ? modes[0] : GL_REPEAT) << 16)
                     | (modes[1] != 0 ? modes[1] : GL_REPEAT);
+        // Maps on units the driver lacks are not bound (transmission).
+        if(units[map] >= textureUnitCount())
+            continue;
         if(wrap != 0 || boundSamplers[units[map]] != 0)
             bindWrapSampler(units[map], wrap);
     }
@@ -553,7 +598,7 @@ void OpenGL3Renderer::releaseWrapSamplers(){
     QOpenGLContext *context = QOpenGLContext::currentContext();
     if(context == NULL || context != samplerContext)
         return;
-    for(int unit = 0; unit < 16; ++unit)
+    for(int unit = 0; unit < SamplerUnits; ++unit)
         if(boundSamplers[unit] != 0){
             context->extraFunctions()->glBindSampler(GLuint(unit), 0);
             boundSamplers[unit] = 0;
@@ -677,6 +722,8 @@ Renderer::RenderPass OpenGL3Renderer::routePass(const RenderItem *packet,
     }
     if(packet->material.surface == RenderItem::SURFACE_TERRAIN)
         return PASS_TERRAIN;
+    if(packet->pbr.enabled && packet->pbr.transmission > 0.0f)
+        return PASS_TRANSMISSION;
     if(order == SUBMIT_ORDERED)
         return PASS_OPAQUE;
     if(packet->material.surface == RenderItem::SURFACE_ALPHA_TEST)
@@ -774,7 +821,7 @@ void OpenGL3Renderer::queueInstance(RenderItem *packet, const float *matrix,
     instance.category = RenderStats::category();
     instance.owned = owned;
     instance.castsShadow = castsShadow(packet);
-    if(pass == PASS_BLENDED && order == SUBMIT_GROUPED){
+    if((pass == PASS_BLENDED || pass == PASS_TRANSMISSION) && order == SUBMIT_GROUPED){
         // Distance from the camera to the packet origin, for back-to-front order.
         float origin[3];
         instanceOrigin(instance, origin);
@@ -1060,18 +1107,23 @@ void OpenGL3Renderer::drawPasses(RenderPass first, RenderPass last, bool consume
                 if(RenderStats::inFrame())
                     RenderStats::current().flushes++;
             }
+            // Transmissive surfaces see the frame drawn so far.
+            if(pass == PASS_TRANSMISSION)
+                sceneCopyLevels = copyFrameForTransmission(gluu, base);
             drawOrdered(gluu, base, queue.ordered, pass);
             // Keep defaults predictable for the packet loop.
             gluu->setBrightness(1.0f);
             gluu->enableTextures();
             gluu->enableNormals();
-            if(pass == PASS_BLENDED)
+            if(pass == PASS_BLENDED || pass == PASS_TRANSMISSION)
                 sortBackToFront(queue.grouped);
             else
                 sortByTexture(queue.grouped);
             drawGrouped(gluu, base, queue.grouped, pass);
             drew = true;
         }
+        if(pass == PASS_TRANSMISSION)
+            sceneCopyLevels = 0.0f;
         if(consume)
             consumePass(queue);
     }
@@ -1193,6 +1245,224 @@ void OpenGL3Renderer::renderShadowCasters(float range, int statsSlot,
     gluu->setBrightness(1.0f);
     gluu->enableTextures();
     gluu->enableNormals();
+}
+
+float OpenGL3Renderer::copyFrameForTransmission(GLUU *gluu, Shader *base){
+    // Secondary views and programs without a PBR variant (selection) use no
+    // copy: transmissive surfaces there see the environment.
+    QOpenGLContext *context = QOpenGLContext::currentContext();
+    if(secondaryView || context == NULL || gluu->pbrVariant(base) == base)
+        return 0.0f;
+    QOpenGLExtraFunctions *e = context->extraFunctions();
+    GLint viewportRect[4] = {0, 0, 0, 0};
+    e->glGetIntegerv(GL_VIEWPORT, viewportRect);
+    const int width = viewportRect[2], height = viewportRect[3];
+    if(width <= 0 || height <= 0)
+        return 0.0f;
+    if(copyContext != context){
+        // Objects of another context cannot be used or deleted here.
+        sceneCopyTexture = sceneCopyFramebuffer = 0;
+        sceneCopyWidth = sceneCopyHeight = 0;
+        copyContext = context;
+    }
+    if(sceneCopyTexture == 0 || width != sceneCopyWidth || height != sceneCopyHeight){
+        if(sceneCopyTexture == 0)
+            e->glGenTextures(1, &sceneCopyTexture);
+        if(sceneCopyFramebuffer == 0)
+            e->glGenFramebuffers(1, &sceneCopyFramebuffer);
+        e->glActiveTexture(GL_TEXTURE0 + SceneCopyUnit);
+        e->glBindTexture(GL_TEXTURE_2D, sceneCopyTexture);
+        e->glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA,
+                        GL_UNSIGNED_BYTE, nullptr);
+        e->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        e->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        // Refraction near the screen edge reads the last pixel row or column.
+        e->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        e->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        e->glGenerateMipmap(GL_TEXTURE_2D);
+        e->glActiveTexture(GL_TEXTURE0);
+        sceneCopyWidth = width;
+        sceneCopyHeight = height;
+    }
+    GLint drawFramebuffer = 0, readFramebuffer = 0;
+    e->glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &drawFramebuffer);
+    e->glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &readFramebuffer);
+    // A blit also resolves a multisampled frame.
+    e->glBindFramebuffer(GL_DRAW_FRAMEBUFFER, sceneCopyFramebuffer);
+    e->glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                              sceneCopyTexture, 0);
+    e->glBindFramebuffer(GL_READ_FRAMEBUFFER, GLuint(drawFramebuffer));
+    e->glBlitFramebuffer(viewportRect[0], viewportRect[1], viewportRect[0] + width,
+                         viewportRect[1] + height, 0, 0, width, height,
+                         GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    e->glBindFramebuffer(GL_DRAW_FRAMEBUFFER, GLuint(drawFramebuffer));
+    e->glBindFramebuffer(GL_READ_FRAMEBUFFER, GLuint(readFramebuffer));
+    e->glActiveTexture(GL_TEXTURE0 + SceneCopyUnit);
+    e->glBindTexture(GL_TEXTURE_2D, sceneCopyTexture);
+    e->glGenerateMipmap(GL_TEXTURE_2D);
+    e->glActiveTexture(GL_TEXTURE0);
+    return 1.0f + std::floor(std::log2(float(std::max(width, height))));
+}
+
+void OpenGL3Renderer::renderPassesMeasured(RenderPass first, RenderPass last){
+    QOpenGLContext *context = QOpenGLContext::currentContext();
+    if(context == NULL || samplesPending){
+        renderPasses(first, last);
+        return;
+    }
+    QOpenGLExtraFunctions *e = context->extraFunctions();
+    if(queryContext != context){
+        // A query of another context cannot be used or deleted here.
+        samplesQuery = 0;
+        queryContext = context;
+        lastSamples = -1;
+    }
+    if(samplesQuery == 0)
+        e->glGenQueries(1, &samplesQuery);
+    RenderStats::pauseSamples();
+    e->glBeginQuery(GL_SAMPLES_PASSED, samplesQuery);
+    renderPasses(first, last);
+    e->glEndQuery(GL_SAMPLES_PASSED);
+    RenderStats::resumeSamples(samplesQuery);
+    samplesPending = true;
+}
+
+long long OpenGL3Renderer::measuredSamples(){
+    QOpenGLContext *context = QOpenGLContext::currentContext();
+    if(samplesPending && context != NULL && context == queryContext){
+        QOpenGLExtraFunctions *e = context->extraFunctions();
+        GLuint available = 0;
+        e->glGetQueryObjectuiv(samplesQuery, GL_QUERY_RESULT_AVAILABLE, &available);
+        if(available){
+            GLuint samples = 0;
+            e->glGetQueryObjectuiv(samplesQuery, GL_QUERY_RESULT, &samples);
+            lastSamples = samples;
+            samplesPending = false;
+        }
+    }
+    return lastSamples;
+}
+
+void OpenGL3Renderer::beginViewBand(const LayeredView &view, ViewBand band){
+    GLUU *gluu = GLUU::get();
+    QOpenGLContext *context = QOpenGLContext::currentContext();
+    if(gluu == NULL || context == NULL || gluu->currentShader == NULL || !view.projection)
+        return;
+    QOpenGLFunctions *functions = context->functions();
+    float projection[16];
+    float viewMatrix[16];
+    std::copy(view.view, view.view + 16, viewMatrix);
+    if(band == BAND_SKY){
+        // A mirrored view sees mirrored triangles turn the other way round.
+        if(view.mirrorPlane != nullptr)
+            functions->glFrontFace(GL_CW);
+        view.projection(0.2f, view.sceneFar, projection);
+        Mat4::multiply(gluu->fMatrix, projection, viewMatrix);
+        view.projection(100.0f, 10000.0f, projection);
+        Mat4::multiply(gluu->pMatrix, projection, viewMatrix);
+        gluu->setMatrixUniforms();
+        gluu->currentShader->setUniformValue(gluu->currentShader->lod, 0.0f);
+        setCullView(nullptr);
+        return;
+    }
+    functions->glClear(GL_DEPTH_BUFFER_BIT);
+    if(band == BAND_DISTANT){
+        if(view.mirrorPlane != nullptr){
+            // Below the plane only the water bed would show; clip it just
+            // under the surface so banks meet the water without a gap.
+            const float *plane = view.mirrorPlane;
+            const float clip[4] = {plane[0], plane[1], plane[2], plane[3] + 0.05f};
+            std::copy(clip, clip + 4, gluu->clipPlane);
+            functions->glEnable(GL_CLIP_DISTANCE0);
+        }
+        view.projection(600.0f, view.distantFar, projection);
+    } else {
+        view.projection(0.2f, view.sceneFar, projection);
+    }
+    Mat4::multiply(gluu->pMatrix, projection, viewMatrix);
+    gluu->setMatrixUniforms();
+    setCullView(gluu->pMatrix);
+    if(band == BAND_SCENE)
+        setViewLimits(view.limits);
+}
+
+void OpenGL3Renderer::endView(const LayeredView &view){
+    setViewLimits(nullptr);
+    setCullView(nullptr);
+    QOpenGLContext *context = QOpenGLContext::currentContext();
+    if(view.mirrorPlane == nullptr || context == NULL)
+        return;
+    QOpenGLFunctions *functions = context->functions();
+    functions->glDisable(GL_CLIP_DISTANCE0);
+    GLUU *gluu = GLUU::get();
+    const float keep[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+    std::copy(keep, keep + 4, gluu->clipPlane);
+    functions->glFrontFace(GL_CCW);
+}
+
+void OpenGL3Renderer::resetState(){
+    QOpenGLContext *context = QOpenGLContext::currentContext();
+    if(context == NULL)
+        return;
+    QOpenGLFunctions *functions = context->functions();
+    functions->glEnable(GL_DEPTH_TEST);
+    functions->glDepthMask(GL_TRUE);
+    functions->glDepthFunc(GL_LESS);
+    functions->glEnable(GL_CULL_FACE);
+    functions->glCullFace(GL_BACK);
+    functions->glEnable(GL_BLEND);
+    functions->glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    functions->glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    functions->glDisable(GL_SCISSOR_TEST);
+    functions->glLineWidth(Game::oglDefaultLineWidth);
+}
+
+bool OpenGL3Renderer::setBlending(bool enabled){
+    QOpenGLContext *context = QOpenGLContext::currentContext();
+    if(context == NULL)
+        return false;
+    QOpenGLFunctions *functions = context->functions();
+    const bool previous = functions->glIsEnabled(GL_BLEND);
+    if(enabled)
+        functions->glEnable(GL_BLEND);
+    else
+        functions->glDisable(GL_BLEND);
+    return previous;
+}
+
+void OpenGL3Renderer::clear(bool color, bool depth, const float *clearColor){
+    QOpenGLContext *context = QOpenGLContext::currentContext();
+    if(context == NULL)
+        return;
+    QOpenGLFunctions *functions = context->functions();
+    if(clearColor != nullptr)
+        functions->glClearColor(clearColor[0], clearColor[1], clearColor[2], 1.0f);
+    const GLbitfield bits = (color ? GL_COLOR_BUFFER_BIT : 0) | (depth ? GL_DEPTH_BUFFER_BIT : 0);
+    if(bits != 0)
+        functions->glClear(bits);
+}
+
+void OpenGL3Renderer::setViewport(int x, int y, int width, int height){
+    if(QOpenGLContext *context = QOpenGLContext::currentContext())
+        context->functions()->glViewport(x, y, width, height);
+}
+
+void OpenGL3Renderer::viewport(int *rectangle) const{
+    std::fill(rectangle, rectangle + 4, 0);
+    if(QOpenGLContext *context = QOpenGLContext::currentContext())
+        context->functions()->glGetIntegerv(GL_VIEWPORT, rectangle);
+}
+
+float OpenGL3Renderer::readDepth(int x, int y){
+    float depth = 1.0f;
+    if(QOpenGLContext *context = QOpenGLContext::currentContext())
+        context->functions()->glReadPixels(x, y, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &depth);
+    return depth;
+}
+
+void OpenGL3Renderer::readColor(int x, int y, int width, int height, unsigned char *rgba){
+    if(QOpenGLContext *context = QOpenGLContext::currentContext())
+        context->functions()->glReadPixels(x, y, width, height, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
 }
 
 void OpenGL3Renderer::renderFrame(){

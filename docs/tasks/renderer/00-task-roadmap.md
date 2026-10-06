@@ -21,6 +21,7 @@ This folder contains ordered tasks for migrating the TSRE renderer from legacy i
 - [x] `16-renderer-owned-meshes.md` (every producer draws renderer-owned meshes; textures and framebuffers are a later step)
 - [x] `17-environment-map.md` (cube map around the camera for reflections; measured on hardware; glTF PBR and water read it, MSTS shapes pending)
 - [ ] `18-shaded-water.md` (one shaded water surface with waves and planar reflection; ENV wave fields pending)
+- [ ] `19-backend-boundary.md` (OpenGL calls left outside the renderer; state, views, measurement and readback moved behind `Renderer`; targets, textures and programs wait for the second renderer)
 
 ## Legacy Pipeline Removed
 

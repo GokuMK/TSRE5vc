@@ -58,7 +58,7 @@ vec2 waterWaves(vec2 uv, bool transposed, float strength, inout float variance) 
 vec3 waterReflection(vec3 r, vec2 slope, float roughness) {
     vec3 far;
     if (environmentMapLevels > 0.0) {
-        far = environmentRadiance(r, roughness * (environmentMapLevels - 1.0));
+        far = environmentRadiance(r, roughness);
     } else {
         vec3 banks = toLinear(ambientColor.rgb * 0.6);
         far = mix(banks, toLinear(skyColor.rgb), smoothstep(0.1, 0.6, r.y));
