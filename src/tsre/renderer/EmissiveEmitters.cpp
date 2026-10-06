@@ -13,9 +13,6 @@
 #include <algorithm>
 #include <cmath>
 
-// M_PI is not standard (MSVC defines it only on request).
-constexpr double Pi = 3.14159265358979323846;
-
 namespace EmissiveEmitters {
 
 namespace {
@@ -135,11 +132,11 @@ QVector<RenderItem::Light> extract(const Surface &surface, int maxEmitters) {
         }
         // M A / (4 pi): intensity in engine units, split into the brightest
         // channel and a colour.
-        light.intensity = float(peak / (4.0 * Pi));
+        light.intensity = float(peak / (4.0 * M_PI));
         for (int c = 0; c < 3; ++c)
             light.color[c] = float(cell.power[c] / peak);
         // The radius of a sphere of the cell's emitting area.
-        light.radius = float(std::sqrt(cell.area / (4.0 * Pi)));
+        light.radius = float(std::sqrt(cell.area / (4.0 * M_PI)));
         lights.push_back(light);
     }
     return lights;

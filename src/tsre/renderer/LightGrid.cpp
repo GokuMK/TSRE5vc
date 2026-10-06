@@ -12,13 +12,10 @@
 #include <algorithm>
 #include <cmath>
 
-// M_PI is not standard (MSVC defines it only on request).
-constexpr double Pi = 3.14159265358979323846;
-
 float LightGrid::rangeFor(float brightness, float radius, float maxRange) {
     // pi * brightness / (d^2 + r^2) = 1 / 512: the radiance factor the
     // shaders apply, as for the sun.
-    const float squared = 512.0f * Pi * std::max(brightness, 0.0f) - radius * radius;
+    const float squared = 512.0f * float(M_PI) * std::max(brightness, 0.0f) - radius * radius;
     return std::clamp(squared > 0.0f ? std::sqrt(squared) : 0.0f, 0.0f, maxRange);
 }
 

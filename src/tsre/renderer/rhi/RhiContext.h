@@ -18,14 +18,6 @@
 #include <memory>
 #include <rhi/qrhi.h>
 
-// QRhi's Vulkan backend needs Qt's Vulkan support and the Vulkan SDK
-// headers (Qt declares QRhiVulkanInitParams only with both).
-#if QT_CONFIG(vulkan) && __has_include(<vulkan/vulkan.h>)
-#define TSRE_RHI_VULKAN 1
-#else
-#define TSRE_RHI_VULKAN 0
-#endif
-
 class QOffscreenSurface;
 class QVulkanInstance;
 

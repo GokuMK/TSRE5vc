@@ -108,7 +108,7 @@ bool RhiContext::create(QRhi::Implementation implementation) {
         flags |= QRhi::EnableDebugMarkers;
     switch (implementation) {
     case QRhi::Vulkan: {
-#if TSRE_RHI_VULKAN
+#if QT_CONFIG(vulkan)
         vulkan = std::make_unique<QVulkanInstance>();
         if (qEnvironmentVariableIsSet("TSRE_RHI_DEBUG"))
             vulkan->setLayers({"VK_LAYER_KHRONOS_validation"});
@@ -137,29 +137,8 @@ bool RhiContext::create(QRhi::Implementation implementation) {
         rhiInstance.reset(QRhi::create(QRhi::Null, &params, flags));
         break;
     }
-#if defined(Q_OS_WIN)
-    case QRhi::D3D11: {
-        QRhiD3D11InitParams params;
-        params.enableDebugLayer = qEnvironmentVariableIsSet("TSRE_RHI_DEBUG");
-        rhiInstance.reset(QRhi::create(QRhi::D3D11, &params, flags));
-        break;
-    }
-    case QRhi::D3D12: {
-        QRhiD3D12InitParams params;
-        params.enableDebugLayer = qEnvironmentVariableIsSet("TSRE_RHI_DEBUG");
-        rhiInstance.reset(QRhi::create(QRhi::D3D12, &params, flags));
-        break;
-    }
-#endif
-#if QT_CONFIG(metal)
-    case QRhi::Metal: {
-        QRhiMetalInitParams params;
-        rhiInstance.reset(QRhi::create(QRhi::Metal, &params, flags));
-        break;
-    }
-#endif
     default:
-        // Not available on this platform or in this Qt build.
+        // Metal and Direct3D need their platforms' init parameters.
         break;
     }
     return rhiInstance != nullptr;
