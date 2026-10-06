@@ -803,6 +803,7 @@ void RouteEditorGLWidget::applyTimeOfDay() {
             std::copy(state.fog, state.fog + 4, gluu->fogColor);
             std::copy(state.diffuse, state.diffuse + 4, gluu->diffuseColor);
             std::copy(state.ambient, state.ambient + 4, gluu->ambientColor);
+            gluu->localLightAdaptation = 1.0f;
             const float fixed[3] = {-1.0f, 1.5f, 1.0f};
             std::copy(fixed, fixed + 3, shadowSunDirection);
             sunCastsShadows = true;
@@ -856,6 +857,7 @@ void RouteEditorGLWidget::applyTimeOfDay() {
     std::copy(light.fog, light.fog + 4, gluu->fogColor);
     std::copy(light.diffuse, light.diffuse + 4, gluu->diffuseColor);
     std::copy(light.ambient, light.ambient + 4, gluu->ambientColor);
+    gluu->localLightAdaptation = light.localLights;
     sunCastsShadows = light.sunUp;
 }
 

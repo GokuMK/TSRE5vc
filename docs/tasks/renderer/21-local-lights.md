@@ -71,6 +71,10 @@ the OpenGL renderer later.
   light.
 - Water and unlit packets take no local light.
 
+With time of day (task 22) lamps and glows adapt to daylight as eyes and
+cameras do: full at night, 3 % in full daylight, so lamps light the scene at
+dusk and night without pools of light at noon.
+
 ## Settings
 
 - `core.rendering.localLights.enabled` (on).
@@ -83,8 +87,16 @@ the OpenGL renderer later.
   emissive map masking), grid binning (a light reaches the cells within its
   range, the brightest kept first), units of point lights.
 - Captures: Khronos `PointLightIntensityTest` (colour channels match the
-  white light), `LightsPunctualLamp`, `EmissiveStrengthTest` and a route
-  scene with emissive objects at night, on QRhi Vulkan and OpenGL.
+  white light), `LightsPunctualLamp`, `EmissiveStrengthTest`, on QRhi Vulkan
+  and OpenGL.
+- Route scene: `tests/renderer/lights` holds a generated street lamp (6 m
+  pole, warm emissive lens, a 60 cd spot light down; `make_street_lamp.py`)
+  and `lamp-views.json`, which places 14 lamps in two rows at the start of a
+  route for the capture only (the harness's `objects` option) and views them
+  from the street and from above (`aboveGround`). `lamp-root.sh` builds a
+  game root of links in which the route finds the lamp, leaving the route
+  unchanged. EUROPE1 on 2026-12-21: no light at noon, pools of light and
+  lit walls at 15:45 and 18:00.
 - OpenGL renderer captures stay identical.
 
 ## Later

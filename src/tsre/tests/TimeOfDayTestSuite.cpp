@@ -95,6 +95,8 @@ int TsreTests::runTimeOfDaySuite(bool verbose) {
     light = Daylight::forElevation(-25.0, sky, fog);
     check(light.diffuse[0] == 0.0f && light.ambient[0] < 0.05f && light.sky[2] < 0.06f && !light.sunUp,
           "at night the sun is gone and the sky dark");
+    check(light.localLights == 1.0f && near(Daylight::forElevation(60.0, sky, fog).localLights, Daylight::DayLocalLights, 1e-6),
+          "lamps count fully at night and little by day");
     light = Daylight::forElevation(-8.0, sky, fog);
     check(light.sky[2] > light.sky[0] && light.sky[2] > 0.15f && light.diffuse[0] == 0.0f,
           "twilight is blue");

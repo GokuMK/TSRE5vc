@@ -42,7 +42,8 @@ World axes: x east, y up, z south (MSTS z points north; TSRE flips it).
 Shadows follow the sun; below the horizon the shadow maps are not drawn, and
 a sun lower than 6 degrees casts shadows as if at 6 degrees, so they do not
 stretch across the maps. Local lights (task 21) show at dusk and night on
-the QRhi renderer.
+the QRhi renderer: they scale from full at night (sun under -6 degrees) to
+3 % above 10 degrees, as eyes adapt to daylight.
 
 ## Verification
 

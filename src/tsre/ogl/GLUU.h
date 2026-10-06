@@ -71,6 +71,8 @@ public:
     // The sun's (diffuse) and the ambient light; time of day changes them.
     float diffuseColor[4] = {0.7f, 0.7f, 0.7f, 0.7f};
     float ambientColor[4] = {0.3f, 0.3f, 0.3f, 0.3f};
+    // Scale of local lights from the time of day (Daylight::localLights).
+    float localLightAdaptation = 1.0f;
     //float skyc[4]{200.0/255.0,218.0/255,225.0/255.0, 1.0};
     float sky[3]{1.0, 1.0, 1.0};
     

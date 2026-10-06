@@ -26,7 +26,12 @@ struct Light {
     float fog[4] = {0.0f, 0.0f, 0.0f, 1.0f};
     // Whether the sun casts shadows (it is above the horizon).
     bool sunUp = true;
+    // Scale of lamp and glow light (task 21): eyes and cameras adapt to
+    // daylight, which outshines lamps; full at night, DayLocalLights by day.
+    float localLights = 1.0f;
 };
+
+constexpr float DayLocalLights = 0.03f;
 
 // daySky and dayFog: the colours of a high sun (the sky and fog settings).
 Light forElevation(double elevationDegrees, const float *daySky, const float *dayFog);

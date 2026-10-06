@@ -38,7 +38,10 @@
 #include <tsre/Game.h>
 #include <tsre/renderer/RenderStats.h>
 #include <tsre/renderer/SelectionId.h>
+#include <tsre/world/Ref.h>
 #include <tsre/world/Route.h>
+#include <tsre/world/TerrainLib.h>
+#include <tsre/math3d/GLMatrix.h>
 
 namespace {
 
@@ -70,9 +73,22 @@ struct ViewSpec {
     float offset[3] = {0, 0, 0};
     bool hasRot = false;
     float rot[2] = {0, 0};
+    // Height above the terrain, replacing the view's own height.
+    bool hasAboveGround = false;
+    float aboveGround = 0.0f;
+};
+
+// A static object placed for the capture only (not saved): a shape of the
+// route's SHAPES directory, at an offset (x, height above the terrain, z)
+// from the start view's position, turned by yaw degrees.
+struct PlacedObject {
+    QString file;
+    float offset[3] = {0.0f, 0.0f, 0.0f};
+    float yaw = 0.0f;
 };
 
 struct Options {
+    QVector<PlacedObject> objects;
     int width = 960;
     int height = 540;
     QString outputDir = "renderer-parity";
@@ -177,6 +193,20 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
     options.thresholds.maxDiffPixelRatio = thresholds.value("maxDiffPixelRatio").toDouble(-1.0);
     options.thresholds.maxPickMismatches = thresholds.value("maxPickMismatches").toInt(-1);
 
+    const QJsonArray objects = root.value("objects").toArray();
+    for (const QJsonValue &value : objects) {
+        const QJsonObject object = value.toObject();
+        PlacedObject placed;
+        placed.file = object.value("file").toString();
+        readFloatArray(object.value("offset"), placed.offset, 3);
+        placed.yaw = float(object.value("yaw").toDouble(0.0));
+        if (placed.file.isEmpty()) {
+            error = "placed object without a file";
+            return false;
+        }
+        options.objects.push_back(placed);
+    }
+
     const QJsonArray views = root.value("views").toArray();
     for (int i = 0; i < views.size(); ++i) {
         const QJsonObject object = views[i].toObject();
@@ -191,6 +221,8 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         view.hasPos = readFloatArray(object.value("pos"), view.pos, 3);
         view.hasOffset = readFloatArray(object.value("offset"), view.offset, 3);
         view.hasRot = readFloatArray(object.value("rot"), view.rot, 2);
+        view.hasAboveGround = object.contains("aboveGround");
+        view.aboveGround = float(object.value("aboveGround").toDouble(0.0));
         if (view.hasTile != view.hasPos) {
             error = QString("view %1 needs both tile and pos").arg(view.name);
             return false;
@@ -390,6 +422,22 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
     float startPos[3];
     float startRot[2];
     widget.diagnosticView(startTileX, startTileZ, startPos, startRot[0], startRot[1]);
+    for (const PlacedObject &placed : options.objects) {
+        Ref::RefItem item;
+        item.type = "static";
+        item.filename.push_back(placed.file);
+        item.currentFilename = placed.file;
+        int tileX = startTileX, tileZ = startTileZ;
+        float position[3] = {startPos[0] + placed.offset[0], 0.0f, startPos[2] + placed.offset[2]};
+        Game::check_coords(tileX, tileZ, position);
+        position[1] = Game::terrainLib->getHeight(tileX, tileZ, position[0], position[2]) + placed.offset[1];
+        float rotation[4];
+        float up[3] = {0.0f, 1.0f, 0.0f};
+        Quat::setAxisAngle(rotation, up, placed.yaw * float(M_PI) / 180.0f);
+        if (widget.currentRoute() == nullptr
+                || widget.currentRoute()->placeObject(tileX, tileZ, position, rotation, 0.0f, &item) == nullptr)
+            qWarning() << CaptureLog << "could not place" << placed.file;
+    }
 
     QJsonArray viewReports;
     for (const ViewSpec &spec : options.views) {
@@ -404,6 +452,12 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
                 pos[i] += spec.offset[i];
         if (spec.hasRot)
             std::copy(spec.rot, spec.rot + 2, rot);
+        if (spec.hasAboveGround) {
+            int groundX = tileX, groundZ = tileZ;
+            float ground[3] = {pos[0], 0.0f, pos[2]};
+            Game::check_coords(groundX, groundZ, ground);
+            pos[1] = Game::terrainLib->getHeight(groundX, groundZ, ground[0], ground[2]) + spec.aboveGround;
+        }
         widget.setDiagnosticView(tileX, tileZ, pos[0], pos[1], pos[2], rot[0], rot[1]);
 
         QElapsedTimer settleTimer;

@@ -1730,7 +1730,8 @@ void RhiRenderer::prepareLights() {
     timer.start();
     frameLights.clear();
     if (Game::localLightsEnabled)
-        gatherLights(frameLights, Game::localLightsExposure, Game::localLightsEmissiveGain);
+        gatherLights(frameLights, Game::localLightsExposure * gluu->localLightAdaptation,
+                     Game::localLightsEmissiveGain * gluu->localLightAdaptation);
     // Static scenes keep their grid: the lights and the camera's grid
     // window decide it.
     quint64 hash = 1469598103934665603ull;

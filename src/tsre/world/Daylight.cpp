@@ -62,6 +62,7 @@ Light forElevation(double elevationDegrees, const float *daySky, const float *da
     light.sky[3] = daySky[3];
     light.fog[3] = dayFog[3];
     light.sunUp = h > -1.0f;
+    light.localLights = mix(1.0f, DayLocalLights, smoothstep(-6.0f, 10.0f, h));
     return light;
 }
 
