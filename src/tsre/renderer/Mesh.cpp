@@ -377,14 +377,18 @@ void uploadDataTexels(const Entry &entry, QRhiResourceUpdateBatch *batch, int of
     batch->uploadTexture(entry.rhiData, QRhiTextureUploadDescription({0, 0, description}));
 }
 
-// A static buffer of the size, reusing one that fits exactly.
+// A GPU buffer of the size, reusing one that fits exactly. Immutable, not
+// Static: QRhi's Vulkan backend keeps a host copy of a Static buffer, as
+// large as the buffer, for later uploads (one per frame in flight), and frees
+// it after the upload only for Immutable ones. Later uploads still work,
+// through a temporary copy each.
 QRhiBuffer *ensureBuffer(Store &s, QRhiBuffer *current, QRhi *rhi, QRhiBuffer::UsageFlags usage,
                          int size) {
     if (current != nullptr && current->size() == quint32(size))
         return current;
     if (current != nullptr)
         s.deadRhiBuffers.push_back(current);
-    QRhiBuffer *buffer = rhi->newBuffer(QRhiBuffer::Static, usage, quint32(std::max(size, 4)));
+    QRhiBuffer *buffer = rhi->newBuffer(QRhiBuffer::Immutable, usage, quint32(std::max(size, 4)));
     if (!buffer->create()) {
         delete buffer;
         return nullptr;
