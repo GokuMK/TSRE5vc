@@ -38,6 +38,18 @@ void Renderer::renderFrame(){
     releaseRetiredPackets();
 }
 
+void Renderer::renderLayeredView(const LayeredView &view){
+    beginViewBand(view, BAND_SKY);
+    renderPassesRetained(PASS_SKY, PASS_SKY);
+    beginViewBand(view, BAND_DISTANT);
+    renderPassesRetained(PASS_DISTANT, PASS_DISTANT);
+    beginViewBand(view, BAND_SCENE);
+    renderPassesRetained(PASS_TERRAIN, PASS_BLENDED);
+    if(view.water)
+        renderPassesRetained(PASS_WATER, PASS_WATER);
+    endView(view);
+}
+
 void Renderer::setViewPosition(const float *position){
     std::copy(position, position + 3, viewPosition);
 }

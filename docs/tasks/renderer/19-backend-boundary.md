@@ -56,31 +56,42 @@ Not raw GL but still GL-shaped, through `GLUU`: the widgets set
 No blocker was found: nothing in the widgets depends on OpenGL behaviour
 that another backend could not provide.
 
-## Plan
+## Done
 
-Done in this task (no change in pixels):
+All verified pixel-identical: the four routes with and without shadows,
+BNSF with the environment map on (cube faces and water reflection), the MSTS
+Shape Viewer set and the glTF set, plus every suite.
 
-- `Renderer::resetState()`: the default state, used by both widgets.
-- `Renderer::clear(colour, depth, clearColour)` and `setViewport()`.
-- `Renderer::LayeredView` and `renderLayeredView()`: one call draws sky,
-  distant terrain and the scene passes for a view matrix and a projection
-  function, optionally mirrored about a clip plane, with view limits; the
-  cube faces and the water reflection use it, and the main view uses its
-  band helpers around the pointer drawing and stats phases.
-- `Renderer::setMirror(plane)`: front faces and the clip plane of a
-  mirrored view.
-- `Renderer::renderPassesMeasured()` and `measuredSamples()`: the water
-  query.
-- `Renderer::readDepth(x, y)`: depth under the mouse.
+| Renderer call | Replaces |
+| --- | --- |
+| `resetState()` | `restoreDefaultGlState()` and the state set in both widgets' `initializeGL`; it also sets the default line width (the Shape Viewer used OpenGL's 1) |
+| `setBlending()` | blending off and back on around the selection pass |
+| `clear()`, `setViewport()`, `viewport()` | frame, shadow map and Shape Viewer clears and viewports |
+| `LayeredView`, `beginViewBand()`, `endView()`, `renderLayeredView()` | the sky / distant / scene sequence: cube faces and the water reflection call `renderLayeredView()`; the main view calls the bands itself around its stats phases and pointer drawing |
+| `LayeredView::mirrorPlane` | front-face flip and clip distance of the water reflection |
+| `renderPassesMeasured()`, `measuredSamples()` | the widget's water samples query |
+| `readDepth()`, `readColor()` | the pointer's depth read and the Shape Viewer screenshot |
 
-Left for the framebuffer and texture ownership step (with the second
-renderer): binding targets (default framebuffer, shadow maps, cube faces,
-reflection) through renderer-owned target handles, TexLib and procedural
-terrain textures, and moving shader selection by name (`GLUU::shaders`)
-behind pass or material kinds.
+What the widgets still do with OpenGL directly: bind render targets (the
+default framebuffer, the three shadow map framebuffers) and select the
+active texture unit next to them. That is the framebuffer ownership step.
+
+## Left For The Second Renderer
+
+- Render targets as renderer-owned handles: default framebuffer, shadow
+  maps (now created by `GLUU::makeShadowFramebuffer`), environment cube
+  faces, water reflection.
+- Textures: TexLib uploads (`Texture.cpp`), procedural terrain arrays and
+  maps (`TerrainProceduralMaterial.cpp`), baked terrain clamping.
+- Programs by name (`gluu->shaders["Shadows"]`, `"Selection"`, the main
+  program) and the matrix fields the widgets fill in `GLUU` (`pMatrix`,
+  `fMatrix`, shadow matrices): pass or view descriptions the renderer turns
+  into its own uniforms.
+- `EnvironmentMap`, `PlanarReflection` and `WaterNormalMap` are OpenGL
+  classes inside `src/tsre/renderer`; a second renderer needs its own.
 
 ## Status
 
 - [x] Inventory and plan.
-- [ ] Renderer calls above, verified pixel-identical (routes with shadows,
-  with the environment map, the Shape Viewer and the glTF set).
+- [x] Renderer calls above, verified pixel-identical.
+- [ ] Render targets, textures and programs (with the second renderer).

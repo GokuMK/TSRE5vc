@@ -30,6 +30,17 @@ public:
     void renderPassesRetained(RenderPass first, RenderPass last) override;
     void visibleBounds(RenderPass pass, const float *viewProjection,
                        std::vector<float> &spheres) const override;
+    void renderPassesMeasured(RenderPass first, RenderPass last) override;
+    long long measuredSamples() override;
+    void beginViewBand(const LayeredView &view, ViewBand band) override;
+    void endView(const LayeredView &view) override;
+    void resetState() override;
+    bool setBlending(bool enabled) override;
+    void clear(bool color, bool depth, const float *clearColor = nullptr) override;
+    void setViewport(int x, int y, int width, int height) override;
+    void viewport(int *rectangle) const override;
+    float readDepth(int x, int y) override;
+    void readColor(int x, int y, int width, int height, unsigned char *rgba) override;
     void renderShadowCasters(float range, int statsSlot,
                              const float *viewProjection = nullptr) override;
     void renderFrame() override;
@@ -128,6 +139,11 @@ private:
     void releaseWrapSamplers();
     void applyWaterState(GLUU *gluu, const RenderItem *item);
     WaterNormalMap waterNormals;
+    // Samples query of renderPassesMeasured(), in queryContext.
+    unsigned int samplesQuery = 0;
+    QOpenGLContext *queryContext = nullptr;
+    bool samplesPending = false;
+    long long lastSamples = -1;
     std::unordered_map<quint32, unsigned int> wrapSamplers;
     unsigned int boundSamplers[16] = {};
     QOpenGLContext *samplerContext = nullptr;

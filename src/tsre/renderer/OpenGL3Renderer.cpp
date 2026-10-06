@@ -25,6 +25,10 @@
 #include <tsre/texture/TexLib.h>
 #include <tsre/texture/Texture.h>
 #include <tsre/Game.h>
+
+#ifndef GL_SAMPLES_PASSED
+#define GL_SAMPLES_PASSED 0x8914
+#endif
 #ifndef __APPLE__
 #include <GL/gl.h>
 #else
@@ -432,6 +436,8 @@ OpenGL3Renderer::~OpenGL3Renderer() {
     releaseMeshArrays();
     releaseWrapSamplers();
     QOpenGLContext *context = QOpenGLContext::currentContext();
+    if(context != NULL && context == queryContext && samplesQuery != 0)
+        context->extraFunctions()->glDeleteQueries(1, &samplesQuery);
     if(context != NULL && context == samplerContext)
         for(auto &entry : wrapSamplers)
             context->extraFunctions()->glDeleteSamplers(1, &entry.second);
@@ -1197,6 +1203,167 @@ void OpenGL3Renderer::renderShadowCasters(float range, int statsSlot,
     gluu->setBrightness(1.0f);
     gluu->enableTextures();
     gluu->enableNormals();
+}
+
+void OpenGL3Renderer::renderPassesMeasured(RenderPass first, RenderPass last){
+    QOpenGLContext *context = QOpenGLContext::currentContext();
+    if(context == NULL || samplesPending){
+        renderPasses(first, last);
+        return;
+    }
+    QOpenGLExtraFunctions *e = context->extraFunctions();
+    if(queryContext != context){
+        // A query of another context cannot be used or deleted here.
+        samplesQuery = 0;
+        queryContext = context;
+        lastSamples = -1;
+    }
+    if(samplesQuery == 0)
+        e->glGenQueries(1, &samplesQuery);
+    RenderStats::pauseSamples();
+    e->glBeginQuery(GL_SAMPLES_PASSED, samplesQuery);
+    renderPasses(first, last);
+    e->glEndQuery(GL_SAMPLES_PASSED);
+    RenderStats::resumeSamples(samplesQuery);
+    samplesPending = true;
+}
+
+long long OpenGL3Renderer::measuredSamples(){
+    QOpenGLContext *context = QOpenGLContext::currentContext();
+    if(samplesPending && context != NULL && context == queryContext){
+        QOpenGLExtraFunctions *e = context->extraFunctions();
+        GLuint available = 0;
+        e->glGetQueryObjectuiv(samplesQuery, GL_QUERY_RESULT_AVAILABLE, &available);
+        if(available){
+            GLuint samples = 0;
+            e->glGetQueryObjectuiv(samplesQuery, GL_QUERY_RESULT, &samples);
+            lastSamples = samples;
+            samplesPending = false;
+        }
+    }
+    return lastSamples;
+}
+
+void OpenGL3Renderer::beginViewBand(const LayeredView &view, ViewBand band){
+    GLUU *gluu = GLUU::get();
+    QOpenGLContext *context = QOpenGLContext::currentContext();
+    if(gluu == NULL || context == NULL || gluu->currentShader == NULL || !view.projection)
+        return;
+    QOpenGLFunctions *functions = context->functions();
+    float projection[16];
+    float viewMatrix[16];
+    std::copy(view.view, view.view + 16, viewMatrix);
+    if(band == BAND_SKY){
+        // A mirrored view sees mirrored triangles turn the other way round.
+        if(view.mirrorPlane != nullptr)
+            functions->glFrontFace(GL_CW);
+        view.projection(0.2f, view.sceneFar, projection);
+        Mat4::multiply(gluu->fMatrix, projection, viewMatrix);
+        view.projection(100.0f, 10000.0f, projection);
+        Mat4::multiply(gluu->pMatrix, projection, viewMatrix);
+        gluu->setMatrixUniforms();
+        gluu->currentShader->setUniformValue(gluu->currentShader->lod, 0.0f);
+        setCullView(nullptr);
+        return;
+    }
+    functions->glClear(GL_DEPTH_BUFFER_BIT);
+    if(band == BAND_DISTANT){
+        if(view.mirrorPlane != nullptr){
+            // Below the plane only the water bed would show; clip it just
+            // under the surface so banks meet the water without a gap.
+            const float *plane = view.mirrorPlane;
+            const float clip[4] = {plane[0], plane[1], plane[2], plane[3] + 0.05f};
+            std::copy(clip, clip + 4, gluu->clipPlane);
+            functions->glEnable(GL_CLIP_DISTANCE0);
+        }
+        view.projection(600.0f, view.distantFar, projection);
+    } else {
+        view.projection(0.2f, view.sceneFar, projection);
+    }
+    Mat4::multiply(gluu->pMatrix, projection, viewMatrix);
+    gluu->setMatrixUniforms();
+    setCullView(gluu->pMatrix);
+    if(band == BAND_SCENE)
+        setViewLimits(view.limits);
+}
+
+void OpenGL3Renderer::endView(const LayeredView &view){
+    setViewLimits(nullptr);
+    setCullView(nullptr);
+    QOpenGLContext *context = QOpenGLContext::currentContext();
+    if(view.mirrorPlane == nullptr || context == NULL)
+        return;
+    QOpenGLFunctions *functions = context->functions();
+    functions->glDisable(GL_CLIP_DISTANCE0);
+    GLUU *gluu = GLUU::get();
+    const float keep[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+    std::copy(keep, keep + 4, gluu->clipPlane);
+    functions->glFrontFace(GL_CCW);
+}
+
+void OpenGL3Renderer::resetState(){
+    QOpenGLContext *context = QOpenGLContext::currentContext();
+    if(context == NULL)
+        return;
+    QOpenGLFunctions *functions = context->functions();
+    functions->glEnable(GL_DEPTH_TEST);
+    functions->glDepthMask(GL_TRUE);
+    functions->glDepthFunc(GL_LESS);
+    functions->glEnable(GL_CULL_FACE);
+    functions->glCullFace(GL_BACK);
+    functions->glEnable(GL_BLEND);
+    functions->glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    functions->glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    functions->glDisable(GL_SCISSOR_TEST);
+    functions->glLineWidth(Game::oglDefaultLineWidth);
+}
+
+bool OpenGL3Renderer::setBlending(bool enabled){
+    QOpenGLContext *context = QOpenGLContext::currentContext();
+    if(context == NULL)
+        return false;
+    QOpenGLFunctions *functions = context->functions();
+    const bool previous = functions->glIsEnabled(GL_BLEND);
+    if(enabled)
+        functions->glEnable(GL_BLEND);
+    else
+        functions->glDisable(GL_BLEND);
+    return previous;
+}
+
+void OpenGL3Renderer::clear(bool color, bool depth, const float *clearColor){
+    QOpenGLContext *context = QOpenGLContext::currentContext();
+    if(context == NULL)
+        return;
+    QOpenGLFunctions *functions = context->functions();
+    if(clearColor != nullptr)
+        functions->glClearColor(clearColor[0], clearColor[1], clearColor[2], 1.0f);
+    const GLbitfield bits = (color ? GL_COLOR_BUFFER_BIT : 0) | (depth ? GL_DEPTH_BUFFER_BIT : 0);
+    if(bits != 0)
+        functions->glClear(bits);
+}
+
+void OpenGL3Renderer::setViewport(int x, int y, int width, int height){
+    if(QOpenGLContext *context = QOpenGLContext::currentContext())
+        context->functions()->glViewport(x, y, width, height);
+}
+
+void OpenGL3Renderer::viewport(int *rectangle) const{
+    std::fill(rectangle, rectangle + 4, 0);
+    if(QOpenGLContext *context = QOpenGLContext::currentContext())
+        context->functions()->glGetIntegerv(GL_VIEWPORT, rectangle);
+}
+
+float OpenGL3Renderer::readDepth(int x, int y){
+    float depth = 1.0f;
+    if(QOpenGLContext *context = QOpenGLContext::currentContext())
+        context->functions()->glReadPixels(x, y, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &depth);
+    return depth;
+}
+
+void OpenGL3Renderer::readColor(int x, int y, int width, int height, unsigned char *rgba){
+    if(QOpenGLContext *context = QOpenGLContext::currentContext())
+        context->functions()->glReadPixels(x, y, width, height, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
 }
 
 void OpenGL3Renderer::renderFrame(){

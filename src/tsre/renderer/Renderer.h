@@ -12,6 +12,7 @@
 #define RENDERER_H
 
 #include <tsre/renderer/RenderQueue.h>
+#include <functional>
 #include <vector>
 
 // A render queue that also draws: the frame owner gathers producers into it,
@@ -69,6 +70,58 @@ public:
     // Draws queued work of passes first..last without consuming it, for an
     // extra view of the same frame (environment map faces).
     virtual void renderPassesRetained(RenderPass first, RenderPass last) = 0;
+    // Draws passes like renderPasses and counts the samples they write; the
+    // count is read with measuredSamples() in a later frame. While a count
+    // is still pending, the passes are drawn without counting.
+    virtual void renderPassesMeasured(RenderPass first, RenderPass last) = 0;
+    // Samples counted by the last measured passes; -1 until a count is in.
+    virtual long long measuredSamples() = 0;
+
+    // A view drawn in three bands with their own depth ranges, as the
+    // editors draw the scene: sky, distant terrain, then terrain, objects
+    // and optionally water. Each band after the sky starts with a cleared
+    // depth buffer.
+    enum ViewBand {BAND_SKY = 0, BAND_DISTANT, BAND_SCENE};
+    struct LayeredView {
+        // View matrix (column-major).
+        const float *view = nullptr;
+        // Projection for a near and far plane.
+        std::function<void(float nearPlane, float farPlane, float *projection)> projection;
+        float sceneFar = 0.0f;
+        float distantFar = 0.0f;
+        // Limits of objects in the scene band; null draws all.
+        const ViewLimits *limits = nullptr;
+        // Mirror plane (n . p + d = 0): the view is seen mirrored in it,
+        // triangles turn the other way round, and the distant and scene
+        // bands are clipped just under it. Null for a plain view.
+        const float *mirrorPlane = nullptr;
+        bool water = true;
+    };
+    // Sets up one band of a view: clears depth (except for the sky), sets
+    // the projection, culling, limits and mirroring. The band's passes are
+    // then drawn by the caller.
+    virtual void beginViewBand(const LayeredView &view, ViewBand band) = 0;
+    // Ends a view: culling, limits and mirroring off.
+    virtual void endView(const LayeredView &view) = 0;
+    // Draws all bands of a view without consuming the queue (secondary views
+    // such as environment map faces and the water reflection).
+    void renderLayeredView(const LayeredView &view);
+
+    // Backend state every frame starts from: depth test and writes, back-face
+    // culling, alpha blending, all colour channels, no scissor, the default
+    // line width.
+    virtual void resetState() = 0;
+    // Turns alpha blending on or off; returns whether it was on.
+    virtual bool setBlending(bool enabled) = 0;
+    // Clears the bound target's colour (to clearColor, RGB) and/or depth.
+    virtual void clear(bool color, bool depth, const float *clearColor = nullptr) = 0;
+    virtual void setViewport(int x, int y, int width, int height) = 0;
+    // The viewport as x, y, width, height.
+    virtual void viewport(int *rectangle) const = 0;
+    // Depth (0..1) of the bound target at a pixel, origin bottom-left.
+    virtual float readDepth(int x, int y) = 0;
+    // RGBA bytes of a rectangle of the bound target, rows from the bottom.
+    virtual void readColor(int x, int y, int width, int height, unsigned char *rgba) = 0;
     // Bounding spheres (centre x, y, z and radius, in submission space) of
     // the queued instances of a pass that are inside the view-projection.
     // Instances without bounds are left out.
