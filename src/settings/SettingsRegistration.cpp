@@ -193,6 +193,11 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
            QT_TRID_NOOP("settings.group.rendering.subgroup.lights.name"),
            //% "Light from lamps and glowing surfaces in the scene (QRhi renderer)."
            QT_TRID_NOOP("settings.group.rendering.subgroup.lights.description"), 48},
+          {"image",
+           //% "Image"
+           QT_TRID_NOOP("settings.group.rendering.subgroup.image.name"),
+           //% "Exposure, tone mapping and glow of the final image (QRhi renderer)."
+           QT_TRID_NOOP("settings.group.rendering.subgroup.image.description"), 49},
           {"environment",
            //% "Environment"
            QT_TRID_NOOP("settings.group.rendering.subgroup.environment.name"),
@@ -885,6 +890,36 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "High"
                 QT_TRID_NOOP("settings.core.rendering.ambient.occlusion.option.high")}})).inGroup("rendering").inSubgroup("lights"),
         "ambientOcclusionQuality", "Game::ambientOcclusionQuality", "RouteEditorGLWidget", true, "hot-cache");
+    ADD(SettingsDefinition::enumeration("core.rendering.toneMapping", 0)
+            .withNameId(
+                //% "Tone mapping"
+                QT_TRID_NOOP("settings.core.rendering.tone.mapping.name")).withDescriptionId(
+                //% "How light brighter than white (lamps, glowing surfaces, sun glints) is fitted to the screen. Off clips it as before; Soft shoulder keeps the usual look and only rolls off highlights; ACES and AgX are filmic curves that also change mid-tones. QRhi renderer."
+                QT_TRID_NOOP("settings.core.rendering.tone.mapping.description"))
+            .withOptions(numericChoices({{0,
+                //% "Off"
+                QT_TRID_NOOP("settings.core.rendering.tone.mapping.option.off")}, {1,
+                //% "Soft shoulder"
+                QT_TRID_NOOP("settings.core.rendering.tone.mapping.option.soft")}, {2,
+                //% "ACES"
+                QT_TRID_NOOP("settings.core.rendering.tone.mapping.option.aces")}, {3,
+                //% "AgX"
+                QT_TRID_NOOP("settings.core.rendering.tone.mapping.option.agx")}})).inGroup("rendering").inSubgroup("image"),
+        "toneMapping", "Game::toneMapping", "RouteEditorGLWidget", true, "hot-cache");
+    ADD(SettingsDefinition::floating("core.rendering.exposure", 0.0)
+            .withNameId(
+                //% "Exposure"
+                QT_TRID_NOOP("settings.core.rendering.exposure.name")).withDescriptionId(
+                //% "Brightens (positive) or darkens (negative) the final image, in stops: +1 doubles the light. QRhi renderer."
+                QT_TRID_NOOP("settings.core.rendering.exposure.description")).withRange(-4, 4, 0.25).withUnit("EV").inGroup("rendering").inSubgroup("image"),
+        "exposure", "Game::exposure", "RouteEditorGLWidget", true, "hot-cache");
+    ADD(SettingsDefinition::floating("core.rendering.bloom", 0.0)
+            .withNameId(
+                //% "Glow (bloom)"
+                QT_TRID_NOOP("settings.core.rendering.bloom.name")).withDescriptionId(
+                //% "Strength of the halo around light-emitting surfaces such as lamps and signal or train lights. Only emitted light glows, never surfaces that are merely bright. 0 turns it off. QRhi renderer."
+                QT_TRID_NOOP("settings.core.rendering.bloom.description")).withRange(0, 4, 0.05).inGroup("rendering").inSubgroup("image"),
+        "bloomStrength", "Game::bloomStrength", "RouteEditorGLWidget", true, "hot-cache");
     ADD(SettingsDefinition::floating("core.rendering.localLights.exposure", 1.0)
             .withNameId(
                 //% "Lamp brightness"

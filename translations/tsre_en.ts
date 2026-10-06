@@ -7424,6 +7424,66 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <source>High</source>
         <translation>High</translation>
     </message>
+    <message id="settings.group.rendering.subgroup.image.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="198" />
+        <source>Image</source>
+        <translation>Image</translation>
+    </message>
+    <message id="settings.group.rendering.subgroup.image.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="200" />
+        <source>Exposure, tone mapping and glow of the final image (QRhi renderer).</source>
+        <translation>Exposure, tone mapping and glow of the final image (QRhi renderer).</translation>
+    </message>
+    <message id="settings.core.rendering.tone.mapping.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="896" />
+        <source>Tone mapping</source>
+        <translation>Tone mapping</translation>
+    </message>
+    <message id="settings.core.rendering.tone.mapping.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="898" />
+        <source>How light brighter than white (lamps, glowing surfaces, sun glints) is fitted to the screen. Off clips it as before; Soft shoulder keeps the usual look and only rolls off highlights; ACES and AgX are filmic curves that also change mid-tones. QRhi renderer.</source>
+        <translation>How light brighter than white (lamps, glowing surfaces, sun glints) is fitted to the screen. Off clips it as before; Soft shoulder keeps the usual look and only rolls off highlights; ACES and AgX are filmic curves that also change mid-tones. QRhi renderer.</translation>
+    </message>
+    <message id="settings.core.rendering.tone.mapping.option.off">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="901" />
+        <source>Off</source>
+        <translation>Off</translation>
+    </message>
+    <message id="settings.core.rendering.tone.mapping.option.soft">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="903" />
+        <source>Soft shoulder</source>
+        <translation>Soft shoulder</translation>
+    </message>
+    <message id="settings.core.rendering.tone.mapping.option.aces">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="905" />
+        <source>ACES</source>
+        <translation>ACES</translation>
+    </message>
+    <message id="settings.core.rendering.tone.mapping.option.agx">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="907" />
+        <source>AgX</source>
+        <translation>AgX</translation>
+    </message>
+    <message id="settings.core.rendering.exposure.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="912" />
+        <source>Exposure</source>
+        <translation>Exposure</translation>
+    </message>
+    <message id="settings.core.rendering.exposure.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="914" />
+        <source>Brightens (positive) or darkens (negative) the final image, in stops: +1 doubles the light. QRhi renderer.</source>
+        <translation>Brightens (positive) or darkens (negative) the final image, in stops: +1 doubles the light. QRhi renderer.</translation>
+    </message>
+    <message id="settings.core.rendering.bloom.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="919" />
+        <source>Glow (bloom)</source>
+        <translation>Glow (bloom)</translation>
+    </message>
+    <message id="settings.core.rendering.bloom.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="921" />
+        <source>Strength of the halo around light-emitting surfaces such as lamps and signal or train lights. Only emitted light glows, never surfaces that are merely bright. 0 turns it off. QRhi renderer.</source>
+        <translation>Strength of the halo around light-emitting surfaces such as lamps and signal or train lights. Only emitted light glows, never surfaces that are merely bright. 0 turns it off. QRhi renderer.</translation>
+    </message>
     <message id="settings.group.rendering.subgroup.environment.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="180" />
         <source>Environment</source>

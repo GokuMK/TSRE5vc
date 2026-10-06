@@ -136,6 +136,9 @@ bool Game::waterShaded = true;
 bool Game::waterReflection = true;
 bool Game::localLightsEnabled = true;
 int Game::ambientOcclusionQuality = 0;
+int Game::toneMapping = 0;
+float Game::exposure = 0.0f;
+float Game::bloomStrength = 0.0f;
 bool Game::timeOfDayEnabled = false;
 float Game::timeOfDayHours = 12.0f;
 QString Game::timeOfDayDate = "2026-06-21";
@@ -369,6 +372,11 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
     claim("core.rendering.ambientOcclusion", SettingType::Enum);
     if (appliesNow("core.rendering.ambientOcclusion"))
         ambientOcclusionQuality = settings.runtimeInt("core.rendering.ambientOcclusion");
+    claim("core.rendering.toneMapping", SettingType::Enum);
+    if (appliesNow("core.rendering.toneMapping"))
+        toneMapping = settings.runtimeInt("core.rendering.toneMapping");
+    floating("core.rendering.exposure", exposure);
+    floating("core.rendering.bloom", bloomStrength);
     boolean("core.rendering.timeOfDay.enabled", timeOfDayEnabled);
     floating("core.rendering.timeOfDay.time", timeOfDayHours);
     string("core.rendering.timeOfDay.date", timeOfDayDate, SettingType::String);

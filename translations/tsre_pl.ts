@@ -7429,6 +7429,66 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
             <source>High</source>
             <translation>Wysoka</translation>
         </message>
+        <message id="settings.group.rendering.subgroup.image.name">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="198" />
+            <source>Image</source>
+            <translation>Obraz</translation>
+        </message>
+        <message id="settings.group.rendering.subgroup.image.description">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="200" />
+            <source>Exposure, tone mapping and glow of the final image (QRhi renderer).</source>
+            <translation>Ekspozycja, mapowanie tonów i poświata obrazu końcowego (renderer QRhi).</translation>
+        </message>
+        <message id="settings.core.rendering.tone.mapping.name">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="896" />
+            <source>Tone mapping</source>
+            <translation>Mapowanie tonów</translation>
+        </message>
+        <message id="settings.core.rendering.tone.mapping.description">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="898" />
+            <source>How light brighter than white (lamps, glowing surfaces, sun glints) is fitted to the screen. Off clips it as before; Soft shoulder keeps the usual look and only rolls off highlights; ACES and AgX are filmic curves that also change mid-tones. QRhi renderer.</source>
+            <translation>Jak światło jaśniejsze od bieli (lampy, świecące powierzchnie, odblaski słońca) jest dopasowywane do ekranu. Wyłączone obcina je jak dotąd; Miękkie ramię zachowuje zwykły wygląd i łagodzi tylko światła; ACES i AgX to krzywe filmowe, które zmieniają też półtony. Renderer QRhi.</translation>
+        </message>
+        <message id="settings.core.rendering.tone.mapping.option.off">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="901" />
+            <source>Off</source>
+            <translation>Wyłączone</translation>
+        </message>
+        <message id="settings.core.rendering.tone.mapping.option.soft">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="903" />
+            <source>Soft shoulder</source>
+            <translation>Miękkie ramię</translation>
+        </message>
+        <message id="settings.core.rendering.tone.mapping.option.aces">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="905" />
+            <source>ACES</source>
+            <translation>ACES</translation>
+        </message>
+        <message id="settings.core.rendering.tone.mapping.option.agx">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="907" />
+            <source>AgX</source>
+            <translation>AgX</translation>
+        </message>
+        <message id="settings.core.rendering.exposure.name">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="912" />
+            <source>Exposure</source>
+            <translation>Ekspozycja</translation>
+        </message>
+        <message id="settings.core.rendering.exposure.description">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="914" />
+            <source>Brightens (positive) or darkens (negative) the final image, in stops: +1 doubles the light. QRhi renderer.</source>
+            <translation>Rozjaśnia (dodatnia) lub przyciemnia (ujemna) obraz końcowy, w stopniach: +1 podwaja światło. Renderer QRhi.</translation>
+        </message>
+        <message id="settings.core.rendering.bloom.name">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="919" />
+            <source>Glow (bloom)</source>
+            <translation>Poświata (bloom)</translation>
+        </message>
+        <message id="settings.core.rendering.bloom.description">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="921" />
+            <source>Strength of the halo around light-emitting surfaces such as lamps and signal or train lights. Only emitted light glows, never surfaces that are merely bright. 0 turns it off. QRhi renderer.</source>
+            <translation>Siła poświaty wokół powierzchni emitujących światło, takich jak lampy oraz światła sygnałów i pociągów. Świeci tylko światło emitowane, nigdy powierzchnie po prostu jasne. 0 wyłącza. Renderer QRhi.</translation>
+        </message>
         <message id="settings.group.rendering.subgroup.environment.name">
             <location filename="../src/settings/SettingsRegistration.cpp" line="180" />
             <source>Environment</source>

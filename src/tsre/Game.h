@@ -166,6 +166,11 @@ public:
     static bool localLightsEnabled;
     // Ambient occlusion on the QRhi renderer: 0 off, 1 low, 2 medium, 3 high.
     static int ambientOcclusionQuality;
+    // QRhi renderer image: tone curve (0 off, 1 soft shoulder, 2 ACES,
+    // 3 AgX), exposure in stops and bloom strength (0 off).
+    static int toneMapping;
+    static float exposure;
+    static float bloomStrength;
     // Time of day in the Route Editor: the sun stands where it would over
     // the camera at this local mean solar time (hours) and date
     // (yyyy-MM-dd); off, the fixed editor light.

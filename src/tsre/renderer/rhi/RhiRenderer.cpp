@@ -15,6 +15,7 @@
 #include "RhiShaderSource.h"
 #include "RhiTextures.h"
 #include <QDebug>
+#include <QFloat16>
 #include <QElapsedTimer>
 #include <algorithm>
 #include <cstring>
@@ -29,6 +30,9 @@
 #include <tsre/renderer/WaterNormalMap.h>
 #include <tsre/texture/TexLib.h>
 #include <tsre/texture/Texture.h>
+
+// The present pass's fragment shader (RhiImage.cpp).
+extern const char *RhiPresentFragment;
 
 namespace {
 
@@ -105,14 +109,6 @@ bool isUnlitPass(int pass) {
     return pass == Renderer::PASS_OVERLAY || pass == Renderer::PASS_UI;
 }
 
-const char *PresentFragment = R"(#version 440
-layout(location = 0) in vec2 uv;
-layout(location = 0) out vec4 fragColor;
-layout(binding = 0) uniform sampler2D view;
-void main() {
-    fragColor = vec4(texture(view, uv).rgb, 1.0);
-}
-)";
 
 
 }
@@ -179,6 +175,8 @@ RhiRenderer::RhiRenderer(RhiContext *context)
     dummyCube->create();
     dummyDepth = rhi->newTexture(QRhiTexture::D32F, QSize(1, 1), 1, QRhiTexture::RenderTarget);
     dummyDepth->create();
+    dummyBlack = rhi->newTexture(QRhiTexture::RGBA8, QSize(1, 1));
+    dummyBlack->create();
     shadowSampler = rhi->newSampler(QRhiSampler::Linear, QRhiSampler::Linear, QRhiSampler::None,
                                     QRhiSampler::ClampToEdge, QRhiSampler::ClampToEdge);
     shadowSampler->setTextureCompareOp(QRhiSampler::LessOrEqual);
@@ -192,6 +190,9 @@ RhiRenderer::RhiRenderer(RhiContext *context)
         QImage white(1, 1, QImage::Format_RGBA8888);
         white.fill(Qt::white);
         batch->uploadTexture(dummy2D, white);
+        QImage black(1, 1, QImage::Format_RGBA8888);
+        black.fill(Qt::black);
+        batch->uploadTexture(dummyBlack, black);
         QRhiTextureUploadDescription arrayUpload(QRhiTextureUploadEntry(0, 0, QRhiTextureSubresourceUploadDescription(white)));
         batch->uploadTexture(dummyArray, arrayUpload);
         QVarLengthArray<QRhiTextureUploadEntry, 6> faces;
@@ -235,6 +236,14 @@ void RhiRenderer::releaseResources() {
     delete presentSampler;
     presentSampler = nullptr;
     releaseAmbientOcclusion();
+    releaseBloom();
+    releaseGlowClear();
+    delete presentUniforms;
+    delete presentLinear;
+    delete dummyBlack;
+    presentUniforms = nullptr;
+    presentLinear = nullptr;
+    dummyBlack = nullptr;
     releaseEnvironment();
     releaseReflection();
     delete sceneCopy;
@@ -516,9 +525,10 @@ float RhiRenderer::copyFrameForTransmission() {
     if (s == nullptr || s->frame().commandBuffer == nullptr)
         return 0.0f;
     flushTarget();
-    if (sceneCopy == nullptr || sceneCopy->pixelSize() != view.size) {
+    if (sceneCopy == nullptr || sceneCopy->pixelSize() != view.size
+            || sceneCopy->format() != view.color->format()) {
         delete sceneCopy;
-        sceneCopy = rhi->newTexture(QRhiTexture::RGBA8, view.size, 1,
+        sceneCopy = rhi->newTexture(view.color->format(), view.size, 1,
                                     QRhiTexture::MipMapped | QRhiTexture::UsedWithGenerateMips);
         if (!sceneCopy->create()) {
             delete sceneCopy;
@@ -557,7 +567,8 @@ void RhiRenderer::beginFrameIfNeeded() {
 
 bool RhiRenderer::createAttachments(Attachments &attachments, QRhiTexture::Format colorFormat,
                                     const QSize &size, QRhiTexture::Flags colorFlags,
-                                    QRhiTexture::Format secondFormat) {
+                                    QRhiTexture::Format secondFormat,
+                                    QRhiTexture::Format thirdFormat) {
     releaseAttachments(attachments);
     attachments.size = size;
     attachments.ownsColor = attachments.ownsDepth = true;
@@ -572,6 +583,13 @@ bool RhiRenderer::createAttachments(Attachments &attachments, QRhiTexture::Forma
     if (secondFormat != QRhiTexture::UnknownFormat) {
         attachments.color2 = rhi->newTexture(secondFormat, size, 1, QRhiTexture::RenderTarget);
         if (!attachments.color2->create()) {
+            releaseAttachments(attachments);
+            return false;
+        }
+    }
+    if (thirdFormat != QRhiTexture::UnknownFormat) {
+        attachments.color3 = rhi->newTexture(thirdFormat, size, 1, QRhiTexture::RenderTarget);
+        if (!attachments.color3->create()) {
             releaseAttachments(attachments);
             return false;
         }
@@ -591,7 +609,10 @@ bool RhiRenderer::buildTargets(Attachments &attachments) {
             QRhiColorAttachment color(attachments.color);
             color.setLayer(attachments.colorLayer);
             color.setLevel(attachments.colorLevel);
-            if (attachments.color2 != nullptr)
+            if (attachments.color3 != nullptr)
+                description.setColorAttachments({color, QRhiColorAttachment(attachments.color2),
+                                                 QRhiColorAttachment(attachments.color3)});
+            else if (attachments.color2 != nullptr)
                 description.setColorAttachments({color, QRhiColorAttachment(attachments.color2)});
             else
                 description.setColorAttachments({color});
@@ -636,8 +657,9 @@ void RhiRenderer::releaseAttachments(Attachments &attachments) {
     if (attachments.ownsColor) {
         delete attachments.color;
         delete attachments.color2;
+        delete attachments.color3;
     }
-    attachments.color2 = nullptr;
+    attachments.color2 = attachments.color3 = nullptr;
     if (attachments.ownsDepth)
         delete attachments.depth;
     attachments.color = attachments.depth = nullptr;
@@ -645,15 +667,30 @@ void RhiRenderer::releaseAttachments(Attachments &attachments) {
 }
 
 bool RhiRenderer::ensureViewTarget(const QSize &size) {
-    // Ambient occlusion needs the view's ambient light share.
-    const bool ambient = ambientOcclusionQuality() > 0;
-    if (view.valid() && view.size == size && (view.color2 != nullptr) == ambient)
+    // HDR draws into floats; ambient occlusion needs the ambient light
+    // share, bloom the glow (and, as its outputs are numbered, the ambient
+    // share before it).
+    const QRhiTexture::Format format = viewFormat();
+    const bool glow = bloomEnabled();
+    const bool ambient = ambientOcclusionQuality() > 0 || glow;
+    if (view.valid() && view.size == size && view.color->format() == format
+            && (view.color2 != nullptr) == ambient && (view.color3 != nullptr) == glow)
         return true;
     delete presentBindings;
     presentBindings = nullptr;
     releaseAmbientOcclusion();
-    return createAttachments(view, QRhiTexture::RGBA8, size, QRhiTexture::UsedAsTransferSource,
-                             ambient ? QRhiTexture::RGBA8 : QRhiTexture::UnknownFormat);
+    releaseBloom();
+    releaseGlowClear();
+    return createAttachments(view, format, size, QRhiTexture::UsedAsTransferSource,
+                             ambient ? QRhiTexture::RGBA8 : QRhiTexture::UnknownFormat,
+                             glow ? QRhiTexture::RGBA16F : QRhiTexture::UnknownFormat);
+}
+
+void RhiRenderer::releaseGlowClear() {
+    delete glowClear;
+    delete glowClearPass;
+    glowClear = nullptr;
+    glowClearPass = nullptr;
 }
 
 bool RhiRenderer::targetReady() {
@@ -906,7 +943,16 @@ void RhiRenderer::readColor(int x, int y, int width, int height, unsigned char *
     if (currentTarget != TARGET_VIEW || !targetReady())
         return;
     QSize size;
-    const QByteArray data = readNow(view.color, &size);
+    QByteArray data = readNow(view.color, &size);
+    // A float view (HDR) as 8-bit colour, clipped.
+    if (view.color->format() == QRhiTexture::RGBA16F
+            && data.size() >= qsizetype(size.width()) * size.height() * 8) {
+        QByteArray bytes(qsizetype(size.width()) * size.height() * 4, '\0');
+        const qfloat16 *halves = reinterpret_cast<const qfloat16 *>(data.constData());
+        for (qsizetype i = 0; i < bytes.size(); ++i)
+            bytes[i] = char(std::clamp(int(float(halves[i]) * 255.0f + 0.5f), 0, 255));
+        data = bytes;
+    }
     if (data.size() < qsizetype(size.width()) * size.height() * 4)
         return;
     // Rows from the bottom, as glReadPixels returns them.
@@ -1103,7 +1149,7 @@ QRhiGraphicsPipeline *RhiRenderer::pipeline(const PipelineKey &key) {
     // One blend state per colour attachment, alike.
     if (key.colorCount > 0 && (key.blend || key.colorCount > 1))
     {
-        QVarLengthArray<QRhiGraphicsPipeline::TargetBlend, 2> blends(key.colorCount, blend);
+        QVarLengthArray<QRhiGraphicsPipeline::TargetBlend, 3> blends(key.colorCount, blend);
         ps->setTargetBlends(blends.cbegin(), blends.cend());
     }
     if (key.wireframe && rhi->isFeatureSupported(QRhi::NonFillPolygonMode))
@@ -1403,6 +1449,7 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
                                                                   : Game::oglDefaultLineWidth, 1, 255));
     key.pass = target().attachments != nullptr ? target().attachments->pipelinePass() : nullptr;
     key.colorCount = target().attachments == nullptr || target().attachments->color == nullptr ? 0
+            : target().attachments->color3 != nullptr ? 3
             : target().attachments->color2 != nullptr ? 2 : 1;
     // The uniform buffer is known when the pass runs; the resource set and
     // pipeline are made then.
@@ -1543,7 +1590,23 @@ void RhiRenderer::flushTarget() {
         state.draws[i].instanceBuffer = instances;
     }
     // Clears happen at the start of the pass; otherwise the contents stay.
-    const int clears = (state.clearColor ? 1 : 0) | (state.clearDepth ? 2 : 0);
+    int clears = (state.clearColor ? 1 : 0) | (state.clearDepth ? 2 : 0);
+    if ((clears & 1) && state.attachments->color3 != nullptr) {
+        // The glow (bloom) starts black, not in the background colour: the
+        // clear gets a pass of its own, then the glow is cleared again.
+        if (glowClear == nullptr) {
+            glowClear = rhi->newTextureRenderTarget({QRhiColorAttachment(state.attachments->color3)});
+            glowClearPass = glowClear->newCompatibleRenderPassDescriptor();
+            glowClear->setRenderPassDescriptor(glowClearPass);
+            glowClear->create();
+        }
+        cb->beginPass(state.attachments->targets[clears], state.color, {1.0f, 0}, frameBatch);
+        frameBatch = nullptr;
+        cb->endPass();
+        cb->beginPass(glowClear, Qt::black, {1.0f, 0});
+        cb->endPass();
+        clears = 0;
+    }
     cb->beginPass(state.attachments->targets[clears], state.color, {1.0f, 0}, frameBatch);
     frameBatch = nullptr;
     for (const DrawCommand &draw : state.draws) {
@@ -1576,6 +1639,20 @@ void RhiRenderer::present() {
     if (s == nullptr || s->frame().commandBuffer == nullptr || !view.valid())
         return;
     const RhiRenderSurface::Frame &frame = s->frame();
+    // Bloom from the view's glow, before the frame's pass begins.
+    QRhiTexture *bloomTexture = renderBloom(frame.commandBuffer);
+    QRhiTexture *bloomSource = bloomTexture != nullptr ? bloomTexture : dummyBlack;
+    if (presentUniforms == nullptr) {
+        presentUniforms = rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, 16);
+        presentUniforms->create();
+        presentLinear = rhi->newSampler(QRhiSampler::Linear, QRhiSampler::Linear, QRhiSampler::None,
+                                        QRhiSampler::ClampToEdge, QRhiSampler::ClampToEdge);
+        presentLinear->create();
+    }
+    if (presentBindings != nullptr && presentBloomTexture != bloomSource) {
+        delete presentBindings;
+        presentBindings = nullptr;
+    }
     if (presentPipeline == nullptr || presentPassKey != frame.passDescriptor
             || !presentPassKey->isCompatible(frame.passDescriptor)) {
         delete presentPipeline;
@@ -1588,11 +1665,14 @@ void RhiRenderer::present() {
         presentSampler->create();
     }
     if (presentBindings == nullptr) {
+        const auto fragment = QRhiShaderResourceBinding::FragmentStage;
         presentBindings = rhi->newShaderResourceBindings();
-        presentBindings->setBindings({QRhiShaderResourceBinding::sampledTexture(
-                                          0, QRhiShaderResourceBinding::FragmentStage, view.color,
-                                          presentSampler)});
+        presentBindings->setBindings({
+            QRhiShaderResourceBinding::sampledTexture(0, fragment, view.color, presentSampler),
+            QRhiShaderResourceBinding::sampledTexture(1, fragment, bloomSource, presentLinear),
+            QRhiShaderResourceBinding::uniformBuffer(2, fragment, presentUniforms)});
         presentBindings->create();
+        presentBloomTexture = bloomSource;
         delete presentPipeline;
         presentPipeline = nullptr;
     }
@@ -1600,7 +1680,7 @@ void RhiRenderer::present() {
         static QShader vertex, fragment;
         if (!vertex.isValid()) {
             vertex = bakeInline(fullScreenVertex(rhi).constData(), QShader::VertexStage, rhi);
-            fragment = bakeInline(PresentFragment, QShader::FragmentStage, rhi);
+            fragment = bakeInline(RhiPresentFragment, QShader::FragmentStage, rhi);
         }
         presentPipeline = rhi->newGraphicsPipeline();
         presentPipeline->setShaderStages({{QRhiShaderStage::Vertex, vertex},
@@ -1675,8 +1755,18 @@ void main() {
             overlayUpload->uploadTexture(overlayTexture, rows);
         }
     }
+    // Tone curve, exposure and bloom strength (bloom levels add up, so
+    // their sum is averaged).
+    const float image[4] = {float(toneMapping()), std::exp2(Game::exposure),
+                            bloomTexture != nullptr
+                                    ? Game::bloomStrength / float(std::max<size_t>(1, bloom.levels.size()))
+                                    : 0.0f,
+                            0.0f};
+    QRhiResourceUpdateBatch *updates = overlayUpload != nullptr ? overlayUpload
+                                                                : rhi->nextResourceUpdateBatch();
+    updates->updateDynamicBuffer(presentUniforms, 0, sizeof(image), image);
     QRhiCommandBuffer *cb = frame.commandBuffer;
-    cb->beginPass(frame.target, Qt::black, {1.0f, 0}, overlayUpload);
+    cb->beginPass(frame.target, Qt::black, {1.0f, 0}, updates);
     cb->setGraphicsPipeline(presentPipeline);
     cb->setViewport(QRhiViewport(0, 0, float(frame.pixelSize.width()), float(frame.pixelSize.height())));
     cb->setShaderResources(presentBindings);

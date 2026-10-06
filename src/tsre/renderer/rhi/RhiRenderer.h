@@ -138,9 +138,10 @@ private:
     // 2); pipelines are made against the one that keeps both.
     struct Attachments {
         QRhiTexture *color = nullptr;
-        // Second colour output: the view's ambient light share for ambient
-        // occlusion; owned with color.
+        // Further colour outputs of the view, owned with color: the ambient
+        // light share for ambient occlusion, and the emissive glow for bloom.
         QRhiTexture *color2 = nullptr;
+        QRhiTexture *color3 = nullptr;
         QRhiTexture *depth = nullptr;
         // The colour subresource drawn into (cube face or array layer, and
         // mip level), and whether the attachments own their textures.
@@ -190,7 +191,8 @@ private:
     // UnknownFormat.
     bool createAttachments(Attachments &attachments, QRhiTexture::Format colorFormat,
                            const QSize &size, QRhiTexture::Flags colorFlags,
-                           QRhiTexture::Format secondFormat = QRhiTexture::UnknownFormat);
+                           QRhiTexture::Format secondFormat = QRhiTexture::UnknownFormat,
+                           QRhiTexture::Format thirdFormat = QRhiTexture::UnknownFormat);
     // The render targets of attachments whose textures are set.
     bool buildTargets(Attachments &attachments);
     // Whether the current target keeps OpenGL's row order.
@@ -234,6 +236,44 @@ private:
     float copyFrameForTransmission();
     QRhiTexture *sceneCopy = nullptr;
     float sceneCopyLevels = 0.0f;
+    // HDR and bloom (task 24, RhiImage.cpp). The view draws into floats
+    // when a tone curve is chosen; present() applies exposure, adds bloom
+    // and maps the result to the frame. Bloom is made only from the glow
+    // the lit shaders write (emitted light), never from bright pixels.
+    QRhiTexture::Format viewFormat() const;
+    int toneMapping() const;
+    bool bloomEnabled() const;
+    // Runs the bloom chain from the view's glow; the texture present()
+    // adds, or null without bloom.
+    QRhiTexture *renderBloom(QRhiCommandBuffer *cb);
+    void releaseBloom();
+    struct Bloom {
+        QSize viewSize;
+        std::vector<QRhiTexture *> levels;
+        // Per level: a target cleared by the downsample, and one the
+        // upsample adds to.
+        std::vector<QRhiTextureRenderTarget *> downTargets;
+        std::vector<QRhiTextureRenderTarget *> upTargets;
+        std::vector<QRhiRenderPassDescriptor *> passes;
+        std::vector<QRhiShaderResourceBindings *> downBindings;
+        std::vector<QRhiShaderResourceBindings *> upBindings;
+        QRhiGraphicsPipeline *down = nullptr;
+        QRhiGraphicsPipeline *up = nullptr;
+        QRhiSampler *linear = nullptr;
+    } bloom;
+public:
+    // The fragment shaders of present and bloom, for tests.
+    static QList<QByteArray> imageShaders();
+private:
+    QRhiBuffer *presentUniforms = nullptr;
+    QRhiSampler *presentLinear = nullptr;
+    QRhiTexture *presentBloomTexture = nullptr;
+    QRhiTexture *dummyBlack = nullptr;
+    // Clears the view's glow to black: a pass clears every colour output
+    // with one colour, and the background colour must not glow.
+    QRhiTextureRenderTarget *glowClear = nullptr;
+    QRhiRenderPassDescriptor *glowClearPass = nullptr;
+    void releaseGlowClear();
     // Ambient occlusion (task 23, RhiAmbientOcclusion.cpp): GTAO from the
     // view's depth after the opaque passes, taken off the ambient light
     // share the lit shaders write as the view's second colour output.

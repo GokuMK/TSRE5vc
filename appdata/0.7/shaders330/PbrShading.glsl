@@ -249,13 +249,15 @@ vec4 pbrShade() {
                 * (vec3(1.0) - environmentBrdf(f0, f90, roughness, nDotV))
                 * base.rgb * transmittedLight(n, v, roughness);
 
-    // Emission adds its own colour only; it does not light other surfaces.
+    // Emission adds its own colour; on the QRhi renderer emitters placed on
+    // it also light other surfaces (task 21) and its glow feeds bloom.
     vec3 emissive = pbrEmissive;
     if ((pbrTextures & 8) != 0)
         emissive *= toLinear(texture(pbrEmissiveMap, pbrUv(4)).rgb);
     color += emissive;
 
 #ifdef TSRE_RHI
+    pbrGlowOut = vec4(emissive * (1.0 - fogFactor), alpha);
     // The display-space share of the environment light, after fog.
     pbrAmbientOut = vec4((toDisplay(color) - toDisplay(max(color - ambientLight, vec3(0.0))))
                          * (1.0 - fogFactor), alpha);
