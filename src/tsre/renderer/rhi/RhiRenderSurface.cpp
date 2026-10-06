@@ -187,10 +187,31 @@ void RhiRenderSurface::render() {
     current.passDescriptor = passDescriptor.get();
     current.pixelSize = swapChain->currentPixelSize();
     current.offscreen = false;
-    ++serial;
-    client->surfacePaint();
-    current = Frame();
+    paintFrame();
     rhi->endFrame(swapChain.get());
+}
+
+void RhiRenderSurface::paintFrame() {
+    ++serial;
+    overlayUsed = false;
+    client->surfacePaint();
+    if (frameEnd)
+        frameEnd();
+    overlayUsed = false;
+    current = Frame();
+}
+
+QPaintDevice *RhiRenderSurface::overlayPaintDevice() {
+    if (current.commandBuffer == nullptr)
+        return nullptr;
+    if (overlayImage.size() != current.pixelSize)
+        overlayImage = QImage(current.pixelSize, QImage::Format_RGBA8888_Premultiplied);
+    overlayImage.setDevicePixelRatio(hostWidget->devicePixelRatioF());
+    if (!overlayUsed) {
+        overlayImage.fill(Qt::transparent);
+        overlayUsed = true;
+    }
+    return &overlayImage;
 }
 
 QImage RhiRenderSurface::grabFramebuffer() {
@@ -228,10 +249,8 @@ QImage RhiRenderSurface::grabFramebuffer() {
     current.passDescriptor = grabPassDescriptor.get();
     current.pixelSize = size;
     current.offscreen = true;
-    ++serial;
-    client->surfacePaint();
-    current = Frame();
     QRhiReadbackResult readback;
+    paintFrame();
     QRhiResourceUpdateBatch *batch = rhi->nextResourceUpdateBatch();
     batch->readBackTexture(QRhiReadbackDescription(grabColor.get()), &readback);
     commandBuffer->resourceUpdate(batch);

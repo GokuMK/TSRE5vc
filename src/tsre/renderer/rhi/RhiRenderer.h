@@ -226,6 +226,22 @@ private:
     float copyFrameForTransmission();
     QRhiTexture *sceneCopy = nullptr;
     float sceneCopyLevels = 0.0f;
+    // Reads a texture back now: ends the current pass and waits for the
+    // GPU. Rows come top first unless the backend's framebuffer has y up.
+    QByteArray readNow(QRhiTexture *texture, QSize *size = nullptr);
+    // Depth probe: samples the view's depth at one pixel into a 1 x 1 float
+    // target, which is read back.
+    struct DepthProbe {
+        QRhiTexture *result = nullptr;
+        QRhiTextureRenderTarget *target = nullptr;
+        QRhiRenderPassDescriptor *pass = nullptr;
+        QRhiBuffer *uniforms = nullptr;
+        QRhiSampler *sampler = nullptr;
+        QRhiShaderResourceBindings *bindings = nullptr;
+        QRhiTexture *boundDepth = nullptr;
+        QRhiGraphicsPipeline *pipeline = nullptr;
+    } depthProbe;
+    void releaseDepthProbe();
     // The wave map of the water program (WaterNormalMap), made once.
     QRhiTexture *waterWaves();
     unsigned int waterWaveHandle = 0;
@@ -265,6 +281,11 @@ private:
     QRhiShaderResourceBindings *presentBindings = nullptr;
     QRhiSampler *presentSampler = nullptr;
     QRhiRenderPassDescriptor *presentPassKey = nullptr;
+    // The surface's overlay, composed over the view by present().
+    QRhiTexture *overlayTexture = nullptr;
+    QRhiShaderResourceBindings *overlayBindings = nullptr;
+    QRhiGraphicsPipeline *overlayPipeline = nullptr;
+    QRhiRenderPassDescriptor *overlayPassKey = nullptr;
 
     // Shadow maps: near, middle and far.
     Attachments shadowMaps[3];

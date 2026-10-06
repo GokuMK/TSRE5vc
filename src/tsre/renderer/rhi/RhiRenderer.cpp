@@ -226,6 +226,8 @@ RhiRenderer::RhiRenderer(RhiContext *context)
 }
 
 RhiRenderer::~RhiRenderer() {
+    if (RhiRenderSurface *s = surface())
+        s->setFrameEnd(nullptr);
     clearQueues();
     releaseResources();
 }
@@ -242,6 +244,12 @@ void RhiRenderer::releaseResources() {
     samplers.clear();
     for (auto &program : programs)
         program->layout = nullptr;
+    delete overlayPipeline;
+    overlayPipeline = nullptr;
+    delete overlayBindings;
+    overlayBindings = nullptr;
+    delete overlayTexture;
+    overlayTexture = nullptr;
     delete presentPipeline;
     presentPipeline = nullptr;
     delete presentBindings;
@@ -252,6 +260,7 @@ void RhiRenderer::releaseResources() {
     releaseReflection();
     delete sceneCopy;
     sceneCopy = nullptr;
+    releaseDepthProbe();
     releaseAttachments(view);
     releaseAttachments(selection);
     for (Attachments &map : shadowMaps)
@@ -789,12 +798,142 @@ void RhiRenderer::viewport(int *rectangle) const {
     std::copy(viewportRect, viewportRect + 4, rectangle);
 }
 
-float RhiRenderer::readDepth(int, int) {
-    return 1.0f;
+QByteArray RhiRenderer::readNow(QRhiTexture *texture, QSize *size) {
+    RhiRenderSurface *s = surface();
+    if (texture == nullptr || s == nullptr || s->frame().commandBuffer == nullptr)
+        return QByteArray();
+    flushTarget();
+    QRhiReadbackResult result;
+    QRhiResourceUpdateBatch *batch = rhi->nextResourceUpdateBatch();
+    batch->readBackTexture(QRhiReadbackDescription(texture), &result);
+    s->frame().commandBuffer->resourceUpdate(batch);
+    // Within a frame this submits the work so far and completes readbacks.
+    rhi->finish();
+    if (size != nullptr)
+        *size = result.pixelSize;
+    return result.data;
 }
 
-void RhiRenderer::readColor(int, int, int width, int height, unsigned char *rgba) {
+float RhiRenderer::readDepth(int x, int y) {
+    beginFrameIfNeeded();
+    if (currentTarget != TARGET_VIEW || !targetReady() || x < 0 || y < 0
+            || x >= view.size.width() || y >= view.size.height())
+        return 1.0f;
+    RhiRenderSurface *s = surface();
+    QRhiCommandBuffer *cb = s->frame().commandBuffer;
+    flushTarget();
+    DepthProbe &probe = depthProbe;
+    if (probe.pipeline == nullptr) {
+        static const char *vertex = R"(#version 440
+void main() {
+    vec2 corner = vec2(float((gl_VertexIndex << 1) & 2), float(gl_VertexIndex & 2));
+    gl_Position = vec4(corner * 2.0 - 1.0, 0.0, 1.0);
+}
+)";
+        static const char *fragment = R"(#version 440
+layout(location = 0) out vec4 result;
+layout(binding = 0) uniform sampler2D depthTexture;
+layout(std140, binding = 1) uniform Probe { ivec4 position; };
+void main() {
+    result = vec4(texelFetch(depthTexture, position.xy, 0).r);
+}
+)";
+        probe.result = rhi->newTexture(QRhiTexture::R32F, QSize(1, 1), 1,
+                                       QRhiTexture::RenderTarget | QRhiTexture::UsedAsTransferSource);
+        probe.uniforms = rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, 16);
+        probe.sampler = rhi->newSampler(QRhiSampler::Nearest, QRhiSampler::Nearest, QRhiSampler::None,
+                                        QRhiSampler::ClampToEdge, QRhiSampler::ClampToEdge);
+        if (!probe.result->create() || !probe.uniforms->create() || !probe.sampler->create()) {
+            releaseDepthProbe();
+            return 1.0f;
+        }
+        probe.target = rhi->newTextureRenderTarget({QRhiColorAttachment(probe.result)});
+        probe.pass = probe.target->newCompatibleRenderPassDescriptor();
+        probe.target->setRenderPassDescriptor(probe.pass);
+        probe.bindings = rhi->newShaderResourceBindings();
+        probe.bindings->setBindings({
+            QRhiShaderResourceBinding::sampledTexture(0, QRhiShaderResourceBinding::FragmentStage,
+                                                      view.depth, probe.sampler),
+            QRhiShaderResourceBinding::uniformBuffer(1, QRhiShaderResourceBinding::FragmentStage,
+                                                     probe.uniforms)});
+        probe.boundDepth = view.depth;
+        probe.pipeline = rhi->newGraphicsPipeline();
+        probe.pipeline->setShaderStages({{QRhiShaderStage::Vertex, bakeInline(vertex, QShader::VertexStage, rhi)},
+                                         {QRhiShaderStage::Fragment, bakeInline(fragment, QShader::FragmentStage, rhi)}});
+        probe.pipeline->setShaderResourceBindings(probe.bindings);
+        probe.pipeline->setRenderPassDescriptor(probe.pass);
+        if (!probe.target->create() || !probe.bindings->create() || !probe.pipeline->create()) {
+            releaseDepthProbe();
+            return 1.0f;
+        }
+    }
+    if (probe.boundDepth != view.depth) {
+        // The view was recreated (resized).
+        probe.bindings->setBindings({
+            QRhiShaderResourceBinding::sampledTexture(0, QRhiShaderResourceBinding::FragmentStage,
+                                                      view.depth, probe.sampler),
+            QRhiShaderResourceBinding::uniformBuffer(1, QRhiShaderResourceBinding::FragmentStage,
+                                                     probe.uniforms)});
+        probe.bindings->create();
+        probe.boundDepth = view.depth;
+    }
+    // y counts from the bottom, as glReadPixels does.
+    const qint32 position[4] = {x, rhi->isYUpInFramebuffer() ? y : view.size.height() - 1 - y, 0, 0};
+    QRhiResourceUpdateBatch *batch = rhi->nextResourceUpdateBatch();
+    batch->updateDynamicBuffer(probe.uniforms, 0, 16, position);
+    cb->beginPass(probe.target, Qt::black, {1.0f, 0}, batch);
+    cb->setGraphicsPipeline(probe.pipeline);
+    cb->setViewport(QRhiViewport(0, 0, 1, 1));
+    cb->setShaderResources(probe.bindings);
+    cb->draw(3);
+    cb->endPass();
+    const QByteArray data = readNow(probe.result);
+    if (data.size() < 4)
+        return 1.0f;
+    float depth = 1.0f;
+    std::memcpy(&depth, data.constData(), sizeof(depth));
+    // The scene band draws into [0, 0.98] of the depth range; OpenGL clears
+    // depth before it instead, so farther bands read as the far plane.
+    if (depth >= depthRange[1] || depthRange[1] <= depthRange[0])
+        return 1.0f;
+    return std::clamp((depth - depthRange[0]) / (depthRange[1] - depthRange[0]), 0.0f, 1.0f);
+}
+
+void RhiRenderer::readColor(int x, int y, int width, int height, unsigned char *rgba) {
     std::fill(rgba, rgba + qsizetype(width) * height * 4, 0);
+    beginFrameIfNeeded();
+    if (currentTarget != TARGET_VIEW || !targetReady())
+        return;
+    QSize size;
+    const QByteArray data = readNow(view.color, &size);
+    if (data.size() < qsizetype(size.width()) * size.height() * 4)
+        return;
+    // Rows from the bottom, as glReadPixels returns them.
+    for (int row = 0; row < height; ++row) {
+        const int sourceY = y + row;
+        if (sourceY < 0 || sourceY >= size.height())
+            continue;
+        const int stored = rhi->isYUpInFramebuffer() ? sourceY : size.height() - 1 - sourceY;
+        for (int column = 0; column < width; ++column) {
+            const int sourceX = x + column;
+            if (sourceX < 0 || sourceX >= size.width())
+                continue;
+            std::memcpy(rgba + (qsizetype(row) * width + column) * 4,
+                        data.constData() + (qsizetype(stored) * size.width() + sourceX) * 4, 4);
+        }
+    }
+}
+
+void RhiRenderer::releaseDepthProbe() {
+    DepthProbe &probe = depthProbe;
+    delete probe.pipeline;
+    delete probe.bindings;
+    delete probe.target;
+    delete probe.pass;
+    delete probe.sampler;
+    delete probe.uniforms;
+    delete probe.result;
+    probe = DepthProbe();
 }
 
 void RhiRenderer::beginViewBand(const LayeredView &view, ViewBand band) {
@@ -1437,12 +1576,82 @@ void RhiRenderer::present() {
         presentPipeline->create();
         presentPassKey = frame.passDescriptor;
     }
+    // The overlay, painted top row first, over the view.
+    QRhiResourceUpdateBatch *overlayUpload = nullptr;
+    const QImage *overlay = s->overlay();
+    if (overlay != nullptr && !overlay->isNull()) {
+        if (overlayTexture == nullptr || overlayTexture->pixelSize() != overlay->size()) {
+            delete overlayBindings;
+            overlayBindings = nullptr;
+            delete overlayTexture;
+            overlayTexture = rhi->newTexture(QRhiTexture::RGBA8, overlay->size());
+            if (!overlayTexture->create()) {
+                delete overlayTexture;
+                overlayTexture = nullptr;
+            }
+        }
+        if (overlayTexture != nullptr && overlayBindings == nullptr) {
+            overlayBindings = rhi->newShaderResourceBindings();
+            overlayBindings->setBindings({QRhiShaderResourceBinding::sampledTexture(
+                                              0, QRhiShaderResourceBinding::FragmentStage,
+                                              overlayTexture, presentSampler)});
+            overlayBindings->create();
+            delete overlayPipeline;
+            overlayPipeline = nullptr;
+        }
+        if (overlayPipeline != nullptr && overlayPassKey != frame.passDescriptor) {
+            delete overlayPipeline;
+            overlayPipeline = nullptr;
+        }
+        if (overlayTexture != nullptr && overlayPipeline == nullptr) {
+            static const char *fragment = R"(#version 440
+layout(location = 0) in vec2 uv;
+layout(location = 0) out vec4 fragColor;
+layout(binding = 0) uniform sampler2D overlay;
+void main() {
+    fragColor = texture(overlay, uv);
+}
+)";
+            static QShader vertex, overlayFragment;
+            if (!overlayFragment.isValid()) {
+                vertex = bakeInline(PresentVertex, QShader::VertexStage, rhi);
+                overlayFragment = bakeInline(fragment, QShader::FragmentStage, rhi);
+            }
+            overlayPipeline = rhi->newGraphicsPipeline();
+            overlayPipeline->setShaderStages({{QRhiShaderStage::Vertex, vertex},
+                                              {QRhiShaderStage::Fragment, overlayFragment}});
+            QRhiGraphicsPipeline::TargetBlend blend;
+            blend.enable = true;
+            blend.srcColor = QRhiGraphicsPipeline::One;
+            blend.dstColor = QRhiGraphicsPipeline::OneMinusSrcAlpha;
+            blend.srcAlpha = QRhiGraphicsPipeline::One;
+            blend.dstAlpha = QRhiGraphicsPipeline::OneMinusSrcAlpha;
+            overlayPipeline->setTargetBlends({blend});
+            overlayPipeline->setShaderResourceBindings(overlayBindings);
+            overlayPipeline->setRenderPassDescriptor(frame.passDescriptor);
+            overlayPipeline->create();
+            overlayPassKey = frame.passDescriptor;
+        }
+        if (overlayTexture != nullptr) {
+            // Uploads keep row order; where the framebuffer's y points up the
+            // view's first row is its bottom.
+            const QImage rows = rhi->isYUpInFramebuffer()
+                    ? overlay->flipped(Qt::Vertical) : *overlay;
+            overlayUpload = rhi->nextResourceUpdateBatch();
+            overlayUpload->uploadTexture(overlayTexture, rows);
+        }
+    }
     QRhiCommandBuffer *cb = frame.commandBuffer;
-    cb->beginPass(frame.target, Qt::black, {1.0f, 0});
+    cb->beginPass(frame.target, Qt::black, {1.0f, 0}, overlayUpload);
     cb->setGraphicsPipeline(presentPipeline);
     cb->setViewport(QRhiViewport(0, 0, float(frame.pixelSize.width()), float(frame.pixelSize.height())));
     cb->setShaderResources(presentBindings);
     cb->draw(3);
+    if (overlayUpload != nullptr && overlayPipeline != nullptr) {
+        cb->setGraphicsPipeline(overlayPipeline);
+        cb->setShaderResources(overlayBindings);
+        cb->draw(3);
+    }
     cb->endPass();
 }
 
@@ -1454,9 +1663,10 @@ void RhiRenderer::renderFrame() {
     }
     drawPasses(PASS_SKY, PASS_UI, true);
     flushTarget();
-    // A selection pass ends in its ids, not on screen.
-    if (currentTarget != TargetSelection)
-        present();
+    // The view goes to the frame when the surface ends it, after the
+    // client painted its overlay.
+    if (RhiRenderSurface *s = surface())
+        s->setFrameEnd([this] { present(); });
     clearQueues();
     Renderer::renderFrame();
 }

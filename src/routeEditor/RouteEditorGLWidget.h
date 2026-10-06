@@ -11,6 +11,7 @@
 #ifndef GLWIDGET_H
 #define GLWIDGET_H
 
+#include <QVector3D>
 #include <QWidget>
 #include <tsre/renderer/RenderSurface.h>
 #include <vector>
@@ -78,6 +79,9 @@ public:
     // Renders one selection pass and reads the IDs at device-pixel points
     // without applying a selection.
     QVector<quint32> probeSelectionIds(const QVector<QPoint> &devicePoints);
+    // Renders a frame with the mouse at a device-pixel point and returns
+    // the 3D pointer position read from the depth there.
+    QVector3D probePointer(const QPoint &devicePoint);
     // Stops simulation updates (traffic, animation) so separate processes
     // render the same scene. Content loading continues.
     void setSimulationPaused(bool paused);
@@ -278,6 +282,8 @@ private:
     Pointer3d* pointer3d;
     float lastPointerPos[3];
     float aktPointerPos[3];
+    // When the pointer last read the depth (it reads at most every 50 ms).
+    unsigned long long pointerReadTime = 0;
     bool mouseLPressed = false;
     bool mouseRPressed = false;
     bool mouseClick = false;

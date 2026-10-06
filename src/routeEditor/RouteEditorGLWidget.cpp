@@ -1165,16 +1165,15 @@ void RouteEditorGLWidget::readPointerPosition() {
     int x = mousex;
     int y = mousey;
 
-    static unsigned long long int oldTime = 0;
     unsigned long long int newTime = QDateTime::currentMSecsSinceEpoch();
     static float winZ[4];
     int viewport[4];
 
     renderer->viewport(viewport);
     int realy = viewport[3] - (int) y - 1;
-    if(newTime - oldTime > 50){
+    if(newTime - pointerReadTime > 50){
         winZ[0] = renderer->readDepth(x, realy);
-        oldTime = newTime;
+        pointerReadTime = newTime;
     }
     GLH::glhUnProjectf((float) x, (float) realy, winZ[0], // 
             gluu->mvMatrix,
@@ -2198,6 +2197,14 @@ QVector<quint32> RouteEditorGLWidget::probeSelectionIds(
     QVector<quint32> results;
     results.swap(selectionProbeResults);
     return results;
+}
+
+QVector3D RouteEditorGLWidget::probePointer(const QPoint &devicePoint) {
+    mousex = devicePoint.x() / Game::PixelRatio;
+    mousey = devicePoint.y() / Game::PixelRatio;
+    pointerReadTime = 0;
+    grabFramebuffer();
+    return QVector3D(aktPointerPos[0], aktPointerPos[1], aktPointerPos[2]);
 }
 
 void RouteEditorGLWidget::objectSelected(GameObj* obj){

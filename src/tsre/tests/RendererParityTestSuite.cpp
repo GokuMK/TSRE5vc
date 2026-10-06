@@ -82,6 +82,8 @@ struct Options {
     int timingFrames = 3;
     int diffTolerance = 16;
     bool hud = false;
+    // The Route Editor's FPS counter, painted over the frame.
+    bool fpsHud = false;
     bool compass = true;
     bool pointer = false;
     // -1 keeps the profile setting.
@@ -150,6 +152,7 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
     options.timingFrames = std::max(1, root.value("timingFrames").toInt(options.timingFrames));
     options.diffTolerance = root.value("diffTolerance").toInt(options.diffTolerance);
     options.hud = root.value("hud").toBool(options.hud);
+    options.fpsHud = root.value("fpsHud").toBool(options.fpsHud);
     options.compass = root.value("compass").toBool(options.compass);
     options.pointer = root.value("pointer").toBool(options.pointer);
     if (root.contains("shadows"))
@@ -348,7 +351,7 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         return 2;
     }
 
-    QScopedValueRollback<bool> restoreFpsHud(Game::editorFpsHudEnabled, false);
+    QScopedValueRollback<bool> restoreFpsHud(Game::editorFpsHudEnabled, options.fpsHud);
     // Animated shading (water waves) must stand still to settle.
     QScopedValueRollback<bool> restoreAnimation(Game::animationFrozen, true);
     QScopedValueRollback<bool> restoreHud(Game::hudEnabled, options.hud);
@@ -445,6 +448,8 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
                 points.push_back(QPoint((2 * column + 1) * image.width() / (2 * options.pickColumns),
                                         (2 * row + 1) * image.height() / (2 * options.pickRows)));
         const QVector<quint32> picks = widget.probeSelectionIds(points);
+        // The 3D pointer under the centre, from the depth read there.
+        const QVector3D pointer = widget.probePointer(QPoint(image.width() / 2, image.height() / 2));
 
         const QString imageName = spec.name + ".png";
         image.save(QDir(outputDir).filePath(imageName));
@@ -474,6 +479,7 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         view["stableAcrossTimingFrames"] = stable;
         view["image"] = imageName;
         view["picking"] = picking;
+        view["pointer"] = QJsonArray{pointer.x(), pointer.y(), pointer.z()};
         view["stats"] = statsJson;
         viewReports.append(view);
 

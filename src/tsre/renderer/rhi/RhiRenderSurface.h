@@ -11,7 +11,9 @@
 #ifndef RHIRENDERSURFACE_H
 #define RHIRENDERSURFACE_H
 
+#include <QImage>
 #include <QSize>
+#include <functional>
 #include <memory>
 #include <tsre/renderer/RenderSurface.h>
 
@@ -42,7 +44,8 @@ public:
     QString graphicsInfo() override;
     QImage grabFramebuffer() override;
     unsigned int defaultFramebufferObject() const override { return 0; }
-    QPaintDevice *overlayPaintDevice() override { return nullptr; }
+    // A transparent image of the frame, composed over it at the end.
+    QPaintDevice *overlayPaintDevice() override;
     void detachClient() override { client = nullptr; }
 
     // The frame being painted: its command buffer and final target. The
@@ -59,6 +62,11 @@ public:
     // renderer knows when per-frame storage can be reused.
     quint64 frameSerial() const { return serial; }
     RhiContext *context() const { return rhiContext; }
+    // The overlay painted during this frame, or null.
+    const QImage *overlay() const { return overlayUsed ? &overlayImage : nullptr; }
+    // Runs once the client painted a frame, before it is submitted: the
+    // renderer composes its view and the overlay into the frame there.
+    void setFrameEnd(std::function<void()> callback) { frameEnd = std::move(callback); }
     QWidget *host() const { return hostWidget; }
 
     // Releases the QRhi resources of every surface, before the QRhi goes
@@ -91,6 +99,11 @@ private:
     bool swapChainReady = false;
     quint64 serial = 0;
     Frame current;
+    QImage overlayImage;
+    bool overlayUsed = false;
+    std::function<void()> frameEnd;
+    // Paints a frame through the client and finishes it.
+    void paintFrame();
 };
 
 #endif
