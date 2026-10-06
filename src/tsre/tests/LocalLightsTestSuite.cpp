@@ -6,6 +6,9 @@
 #include <tsre/renderer/EmissiveEmitters.h>
 #include <tsre/renderer/LightGrid.h>
 
+// M_PI is not standard (MSVC defines it only on request).
+constexpr double Pi = 3.14159265358979323846;
+
 namespace {
 
 // Two triangles of a w x h quad in the y = 0 plane at x0, z0, with texture
@@ -39,7 +42,7 @@ int TsreTests::runLocalLightsSuite(bool verbose) {
     };
 
     // Range: where pi * brightness / d^2 falls to 1/512.
-    check(std::abs(LightGrid::rangeFor(1.0f, 0.0f) - std::sqrt(512.0f * float(M_PI))) < 1e-3f,
+    check(std::abs(LightGrid::rangeFor(1.0f, 0.0f) - std::sqrt(512.0f * Pi)) < 1e-3f,
           "a light of brightness 1 reaches about 40 m");
     check(LightGrid::rangeFor(1e6f, 0.0f) == 250.0f && LightGrid::rangeFor(0.0f, 0.0f) == 0.0f,
           "ranges are limited, and dark lights reach nowhere");
@@ -113,7 +116,7 @@ int TsreTests::runLocalLightsSuite(bool verbose) {
         weight += emitter.intensity;
     }
     check(!lights.isEmpty() && lights.first().emissive
-          && std::abs(totalIntensity(lights) - 1.0f / (4.0f * float(M_PI))) < 1e-5f,
+          && std::abs(totalIntensity(lights) - 1.0f / (4.0f * Pi)) < 1e-5f,
           "a white square metre of emission carries M A / (4 pi)");
     check(weight > 0.0f && std::abs(centre[0] / weight - 0.5f) < 1e-4f
           && std::abs(centre[2] / weight - 0.5f) < 1e-4f,
@@ -148,7 +151,7 @@ int TsreTests::runLocalLightsSuite(bool verbose) {
     bool rightOnly = !lights.isEmpty();
     for (const RenderItem::Light &emitter : lights)
         rightOnly = rightOnly && emitter.position[0] > 2.0f;
-    check(rightOnly && std::abs(totalIntensity(lights) - 2.0f / (4.0f * float(M_PI))) < 1e-4f,
+    check(rightOnly && std::abs(totalIntensity(lights) - 2.0f / (4.0f * Pi)) < 1e-4f,
           "the emissive map masks the emission");
     surface.map = nullptr;
 
@@ -160,7 +163,7 @@ int TsreTests::runLocalLightsSuite(bool verbose) {
     surface.vertexCount = int(road.size() / 5);
     lights = EmissiveEmitters::extract(surface);
     check(lights.size() > 1 && lights.size() <= EmissiveEmitters::MaxEmitters
-          && std::abs(totalIntensity(lights) - 400.0f / (4.0f * float(M_PI))) < 1e-2f,
+          && std::abs(totalIntensity(lights) - 400.0f / (4.0f * Pi)) < 1e-2f,
           "large surfaces split into at most 64 emitters keeping their power");
 
     qInfo() << "[tests:local-lights] cases=" << (passed + failed) << "passed=" << passed

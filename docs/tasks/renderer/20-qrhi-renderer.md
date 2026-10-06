@@ -141,9 +141,19 @@ Open:
 
 - Water visibility without occlusion queries (the reflection is drawn
   whenever water is in view).
-- Direct3D and Metal backends are built but untested (no hardware here).
-  Full-screen passes flip y where clip space and the framebuffer disagree
-  about it (those two), by reasoning rather than a test.
+- Direct3D 11/12 and Metal are created since 2026-10-07 (before that the
+  creation was missing and "auto" fell back to Vulkan or OpenGL) but are
+  untested (no hardware here). Full-screen passes flip y where clip space
+  and the framebuffer disagree about it (those backends), by reasoning
+  rather than a test.
+
+Backend choice: `core.rendering.rhiApi` names the API (`vulkan`, `opengl`,
+`d3d11`, `d3d12`, `metal`); `auto` tries Direct3D 11, Vulkan, then OpenGL on
+Windows, Metal then OpenGL on macOS, Vulkan then OpenGL elsewhere. Vulkan
+needs the Vulkan SDK headers at build time (Qt declares its init
+parameters only with them); without them it is left out of the build.
+`TSRE_RHI_DEBUG` turns on the Vulkan validation layer or the Direct3D debug
+layer.
 
 ## Verification
 

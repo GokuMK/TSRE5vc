@@ -813,7 +813,7 @@ static void parseModelFromRoot(const QJsonObject& root, GltfModel& model) {
         light.range = float(o.value("range").toDouble(0.0));
         const QJsonObject spot = o.value("spot").toObject();
         light.innerCone = float(spot.value("innerConeAngle").toDouble(0.0));
-        light.outerCone = float(spot.value("outerConeAngle").toDouble(M_PI / 4.0));
+        light.outerCone = float(spot.value("outerConeAngle").toDouble(0.78539816339744831));
     }
 
     const QJsonArray scenes = root.value("scenes").toArray();
@@ -1922,7 +1922,7 @@ bool GltfShape::parseAndBuild() {
             light.direction[c] = -m[8 + c];
             light.color[c] = source.color[c];
         }
-        light.intensity = source.intensity / float(M_PI);
+        light.intensity = source.intensity / 3.14159265f;
         light.range = source.range;
         light.radius = 0.05f;
         light.type = source.spot ? RenderItem::Light::SPOT : RenderItem::Light::POINT;

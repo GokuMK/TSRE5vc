@@ -23,7 +23,7 @@ class RhiWindow : public QWindow {
 public:
     RhiWindow(RhiRenderSurface *surface, RhiContext *context) : surface(surface) {
         setSurfaceType(context->surfaceType());
-#if QT_CONFIG(vulkan)
+#if TSRE_RHI_VULKAN
         if (context->vulkanInstance() != nullptr)
             setVulkanInstance(context->vulkanInstance());
 #endif
