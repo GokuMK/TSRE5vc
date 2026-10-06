@@ -142,6 +142,10 @@ bool RhiRenderSurface::ensureSwapChain() {
     if (!swapChain) {
         swapChain.reset(rhi->newSwapChain());
         swapChain->setWindow(window);
+        // As the OpenGL renderer (swap interval 0 in main.cpp): frames are
+        // paced by the widget's timer and core.system.fpsLimit, not by the
+        // display's refresh.
+        swapChain->setFlags(QRhiSwapChain::NoVSync);
         depthStencil.reset(rhi->newRenderBuffer(QRhiRenderBuffer::DepthStencil, QSize(), 1,
                                                 QRhiRenderBuffer::UsedWithSwapChainOnly));
         swapChain->setDepthStencil(depthStencil.get());
