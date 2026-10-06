@@ -62,7 +62,10 @@ Light forElevation(double elevationDegrees, const float *daySky, const float *da
     light.sky[3] = daySky[3];
     light.fog[3] = dayFog[3];
     light.sunUp = h > -1.0f;
-    light.localLights = mix(1.0f, DayLocalLights, smoothstep(-6.0f, 10.0f, h));
+    // Lamps fade in as the sun sinks, from DayLocalLights with the sun 20
+    // degrees up to full at sunset, evenly to the eye (in log space): a
+    // linear fade left them invisible until the sun had set.
+    light.localLights = std::pow(DayLocalLights, smoothstep(0.0f, 20.0f, h));
     return light;
 }
 
