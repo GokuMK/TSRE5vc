@@ -126,6 +126,7 @@ int Game::shadowMapSize = 2048;
 int Game::shadowLowMapSize = 1024;
 int Game::shadowsEnabled = 1;
 bool Game::environmentMapEnabled = false;
+int Game::blendedParts = 1;
 int Game::environmentMapSize = 256;
 int Game::environmentMapFacesPerFrame = 1;
 float Game::environmentMapObjectDistance = 300.0f;
@@ -344,6 +345,9 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
         if (shadowLowMapSize >= 2048) { shadow2Res = 4000.0; shadow2Bias = 0.001; }
     }
     boolean("core.rendering.environmentMap.enabled", environmentMapEnabled);
+    claim("core.rendering.blendedParts", SettingType::Enum);
+    if (appliesNow("core.rendering.blendedParts"))
+        blendedParts = settings.runtimeInt("core.rendering.blendedParts");
     claim("core.rendering.environmentMap.faceSize", SettingType::Enum);
     if (appliesNow("core.rendering.environmentMap.faceSize"))
         environmentMapSize = settings.runtimeInt("core.rendering.environmentMap.faceSize");

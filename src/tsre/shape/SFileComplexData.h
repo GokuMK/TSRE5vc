@@ -30,6 +30,8 @@ struct SFileComplex::Data {
         QString name;
         int id = -1;
         int address = -1;
+        // TextureAlpha::Class of the texture once loaded.
+        unsigned char alpha = 0;
     };
     struct Material {
         int image = -1, matrix = 0, light = 0;

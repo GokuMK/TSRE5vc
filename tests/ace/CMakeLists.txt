@@ -6,7 +6,7 @@ qt_add_executable(tsre_ace_tool
     "${ACE_TEXTURE_ROOT}/DxtCodec.cpp"
     "${ACE_TEXTURE_ROOT}/AceLib.cpp" "${ACE_TEXTURE_ROOT}/AceLib.h"
     "${ACE_TEXTURE_ROOT}/AceLibLegacy.cpp" "${ACE_TEXTURE_ROOT}/AceLibLegacy.h"
-    "${ACE_TEXTURE_ROOT}/Texture.cpp"
+    "${ACE_TEXTURE_ROOT}/Texture.cpp" "${ACE_TEXTURE_ROOT}/TextureAlpha.cpp"
     "${PROJECT_SOURCE_DIR}/src/tsre/fileFunctions/ReadFile.cpp"
     "${PROJECT_SOURCE_DIR}/src/tsre/fileFunctions/FileBuffer.cpp"
 )
