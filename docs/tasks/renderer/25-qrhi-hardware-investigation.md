@@ -216,8 +216,8 @@ warm-up, FPS display on unless stated.
 |---|---|---|---|---|
 | OpenGL renderer | 63.8-65.7 | 12.2 | 71-77 % (+52 % driver thread) | 72 % |
 | QRhi Vulkan, before | 39.6 | 25.1 | 60 % | 51 % |
-| QRhi Vulkan, after | 57.9-58.6 | 16.9 | 76 % | 62 % |
-| QRhi Vulkan, after, FPS display off | 66.4 | 14.8 | 80 % | 75 % |
+| QRhi Vulkan, after `c372ad2` | 57.9-58.6 | 16.9 | 76 % | 62 % |
+| QRhi Vulkan, after `cb3cca7` (paged terrain) | 66.2-66.7 | 14.9 | 87-95 % | - |
 | QRhi OpenGL, before | 24.9 | 40.3 | 72 % | 33 % |
 | QRhi OpenGL, after | 49.3-51.5 | 20.0 | 84 % (+38 %) | 58 % |
 
@@ -229,14 +229,23 @@ Two causes, both on the main thread:
   QRhi Vulkan ran at 66.4 against 39.7. Now the image and its texture
   persist, the painter passes its area, only the area painted last time
   is cleared, only the changed part is uploaded, and the overlay is
-  drawn scissored to the painted area.
+  drawn scissored to the painted area. A source rectangle was not
+  enough (`cb3cca7`): QRhi's Vulkan backend copies only the rectangle
+  but sizes the staging buffer for the whole image, so the changed part
+  is copied first. QRhi Vulkan then runs at the editor timer's limit
+  (15 ms) with the FPS display on, as the OpenGL renderer.
 - `QWindow::requestUpdate()` (`48d3974`): on Windows Qt delivers the
   UpdateRequest after a 5 ms timer (`QT_QPA_UPDATE_IDLE_TIME=0` alone
   gave 39.6 -> 51). The surface now posts the UpdateRequest itself,
   coalesced, at low priority, as QOpenGLWidget repaints are posted.
   Alternating runs after the overlay fix: Vulkan 57.9-58.6 posted
   against 42.9-43.2 with `requestUpdate()`; OpenGL 49.3-51.5 against
-  37.2/37.3/50.9.
+  37.2/37.3/50.9. After `cb3cca7`, three alternating runs of each way
+  to schedule the frame (paged terrain, FPS display on): posted at low
+  priority 66.2-66.5, posted at normal priority 66.2-66.6, rendered
+  from the timer 58.8/66.2/66.7, `requestUpdate()` 49.2-50.8. Loading
+  did not differ: first frame 3.0-3.3 s after launch (one cold start
+  4.3 s), last mesh upload 0.1 s later, in every variant.
 
 Not causes: the editor timer (`core.system.fpsLimit=200`, 5 ms step,
 changed nothing); waits on the GPU (`finish()` ran once in 1109 frames,
@@ -252,9 +261,10 @@ Open:
   Qt or the driver on this build). Leads from the brief stand: glUniform
   per member on every `setShaderResources`, `glBufferSubData` of the
   instance and uniform arenas.
-- QRhi Vulkan with the FPS display on is still below the display off
-  (58 against 66); the QPainter text into a large image may cost more
-  than it should.
+- QRhi OpenGL after `cb3cca7`, paged terrain: 45.8-46.9 frames a
+  second, main thread 87 %, against 64.2-64.5 for the OpenGL renderer.
+- Loading on a larger route: bbb loads within 0.1 s of the first frame,
+  too fast to tell the ways of scheduling frames apart.
 
 ### 3. Memory - fixed (`ab8562a`)
 
