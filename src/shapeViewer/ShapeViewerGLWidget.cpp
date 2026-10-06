@@ -134,7 +134,9 @@ void ShapeViewerGLWidget::surfaceInitialize() {
     gluu = GLUU::get();
     //context()->set
     //qDebug() << "initializeOpenGLFunctions();";
-    initializeOpenGLFunctions();
+    const bool openGL = surface->backend() == RenderSurface::OpenGL;
+    if(openGL)
+        initializeOpenGLFunctions();
     if(backgroundGlColor[0] == -2){
         backgroundGlColor[0] = 25.0/255;
         backgroundGlColor[1] = 25.0/255;
@@ -145,8 +147,9 @@ void ShapeViewerGLWidget::surfaceInitialize() {
             backgroundGlColor[2] = 1;
         }
     }
-    gluu->initShader();
-    renderer = new OpenGL3Renderer();
+    if(openGL)
+        gluu->initShader();
+    renderer = surface->createRenderer();
     renderer->setSurface(surface);
     renderer->clear(false, false, backgroundGlColor);
     renderer->resetState();
@@ -226,6 +229,10 @@ void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
     Game::currentShapeLib = currentShapeLib;
     if(renderer == nullptr || !renderer->programsReady())
         return;
+    // Selection and the warehouse are OpenGL only for now.
+    const bool openGL = surface->backend() == RenderSurface::OpenGL;
+    if(selectionPass && !openGL)
+        return;
     if(selectionPass){
         const qreal pixelRatio = devicePixelRatioF();
         if(!selectionRenderer.begin(qRound(width() * pixelRatio),
@@ -260,7 +267,7 @@ void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
     renderer->applyFrameUniforms();
     std::copy(camera->getPos(), camera->getPos() + 3, gluu->cameraPosition);
     gluu->environmentMapLevels = 0;
-    if(!selectionPass){
+    if(!selectionPass && openGL){
         if(environmentMap == nullptr)
             environmentMap = new EnvironmentMap();
         // A fixed warehouse interior: filled once, at the largest face size.

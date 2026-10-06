@@ -25,6 +25,11 @@ namespace RhiTextures {
 // are generated from level 0. The upload goes with the next frame's resource
 // updates. Returns 0 when there is no QRhi.
 unsigned int create(int width, int height, const QVector<QByteArray> &levels);
+// How a texture is sampled: with its mipmaps (an OpenGL texture uploaded
+// without them has none), and clamped at the edges (baked terrain).
+void setSampling(unsigned int handle, bool mipmaps, bool clamp);
+bool sampledWithMipmaps(unsigned int handle);
+bool clampedToEdge(unsigned int handle);
 // The texture behind a handle; null for 0 or a released handle.
 QRhiTexture *texture(unsigned int handle);
 void release(unsigned int handle);

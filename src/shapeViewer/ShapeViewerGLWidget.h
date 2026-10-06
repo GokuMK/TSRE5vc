@@ -28,7 +28,7 @@ class Consist;
 class GLUU;
 class Camera;
 class EngLib;
-class OpenGL3Renderer;
+class Renderer;
 class EnvironmentMap;
 class QImage;
 class ShapeTextureInfo;
@@ -118,7 +118,7 @@ private:
     // Draws the current item through this widget's renderer.
     void renderGathered(quint32 selectionId);
     // Owned; draws this widget's frames.
-    OpenGL3Renderer *renderer = nullptr;
+    Renderer *renderer = nullptr;
     // Owned; a procedural warehouse interior for reflections.
     EnvironmentMap *environmentMap = nullptr;
     SelectionRenderer selectionRenderer;

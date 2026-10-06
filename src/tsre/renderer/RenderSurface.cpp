@@ -12,7 +12,12 @@
 #include <QOpenGLContext>
 #include <QOpenGLFunctions>
 #include <QOpenGLWidget>
+#include <QDebug>
 #include <QVBoxLayout>
+#include <tsre/Game.h>
+#include <tsre/renderer/OpenGL3Renderer.h>
+
+RenderSurface *createRhiRenderSurface(QWidget *host, RenderSurfaceClient *client);
 
 namespace {
 
@@ -26,6 +31,7 @@ public:
         setFocusPolicy(Qt::NoFocus);
     }
     Backend backend() const override { return OpenGL; }
+    Renderer *createRenderer() override { return new OpenGL3Renderer(); }
     QWidget *widget() override { return this; }
     void requestUpdate() override { QOpenGLWidget::update(); }
     void makeCurrent() override { QOpenGLWidget::makeCurrent(); }
@@ -77,6 +83,13 @@ private:
 }
 
 RenderSurface *RenderSurface::create(QWidget *host, RenderSurfaceClient *client) {
+    if (Game::renderBackend == "qrhi") {
+        if (RenderSurface *surface = createRhiRenderSurface(host, client))
+            return surface;
+        // Textures and meshes follow the backend; keep them on OpenGL.
+        qWarning() << "QRhi renderer unavailable, using OpenGL";
+        Game::renderBackend = "opengl";
+    }
     GlRenderSurface *surface = new GlRenderSurface(host, client);
     QVBoxLayout *layout = new QVBoxLayout(host);
     layout->setContentsMargins(0, 0, 0, 0);

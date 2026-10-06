@@ -18,6 +18,7 @@
 #include <limits>
 #include <QDebug>
 #include <tsre/Game.h>
+#include <tsre/renderer/rhi/RhiTextures.h>
 #include <QFile>
 #include <QFileInfo>
 #include <QDir>
@@ -670,6 +671,10 @@ static void uploadTerrainBaseTexture(Texture *texture, bool baked) {
     if (texture->glLoaded) return;
     // Bake mipmaps temporarily disabled to isolate tile-entry upload hitches.
     if (!texture->GLTextures(false)) return;
+    if (baked && Game::renderBackend == "qrhi") {
+        RhiTextures::setSampling(texture->tex[0], texture->gpuMipmaps, true);
+        return;
+    }
     if (baked) {
         auto *f=QOpenGLContext::currentContext()->functions();
         f->glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);

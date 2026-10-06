@@ -15,6 +15,7 @@
 #include <QString>
 
 class QPaintDevice;
+class Renderer;
 class QWidget;
 
 // The view a render surface draws for: it sets up, resizes and paints when
@@ -40,6 +41,8 @@ public:
     // A surface for the backend chosen in the settings, filling host.
     static RenderSurface *create(QWidget *host, RenderSurfaceClient *client);
     virtual Backend backend() const = 0;
+    // A renderer drawing for this surface's backend.
+    virtual Renderer *createRenderer() = 0;
     virtual QWidget *widget() = 0;
     // Schedules a repaint.
     virtual void requestUpdate() = 0;

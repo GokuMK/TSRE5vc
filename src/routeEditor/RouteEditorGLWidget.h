@@ -46,7 +46,7 @@ class DynTrackObj;
 class RulerObj;
 class TelepoleObj;
 class SelectionRenderer;
-class OpenGL3Renderer;
+class Renderer;
 class EnvironmentMap;
 class PlanarReflection;
 class RenderQueue;
@@ -372,7 +372,7 @@ private:
     bool bolckContextMenu = false;
     
     // Owned; draws this widget's frames.
-    OpenGL3Renderer *renderer = NULL;
+    Renderer *renderer = NULL;
     EnvironmentMap *environmentMap = NULL;
     RenderSurface *surface = NULL;
     PlanarReflection *waterReflection = NULL;

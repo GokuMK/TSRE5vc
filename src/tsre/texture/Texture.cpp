@@ -611,8 +611,10 @@ bool Texture::uploadForRhi(bool mipmaps) {
     if (!loaded || width <= 0 || height <= 0 || (bytesPerPixel != 3 && bytesPerPixel != 4))
         return false;
     if (glLoaded) {
-        if (mipmaps)
+        if (mipmaps && !gpuMipmaps && tex != nullptr) {
             gpuMipmaps = true;
+            RhiTextures::setSampling(tex[0], true, RhiTextures::clampedToEdge(tex[0]));
+        }
         return true;
     }
     if (!decodeToCpu())
@@ -672,6 +674,7 @@ bool Texture::uploadForRhi(bool mipmaps) {
     if (tex == nullptr)
         tex = new unsigned int[1]{};
     tex[0] = handle;
+    RhiTextures::setSampling(handle, mipmaps, false);
     gpuInternalFormat = GL_RGBA8;
     gpuMipmaps = mipmaps;
     gpuMipLevels = 1;

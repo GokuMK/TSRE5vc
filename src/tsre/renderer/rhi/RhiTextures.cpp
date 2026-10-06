@@ -13,8 +13,13 @@
 #include <vector>
 
 namespace {
-std::vector<QRhiTexture *> &store() {
-    static std::vector<QRhiTexture *> textures;
+struct Entry {
+    QRhiTexture *texture = nullptr;
+    bool mipmaps = false;
+    bool clamp = false;
+};
+std::vector<Entry> &store() {
+    static std::vector<Entry> textures;
     return textures;
 }
 QRhiResourceUpdateBatch *pending = nullptr;
@@ -69,23 +74,38 @@ unsigned int create(int width, int height, const QVector<QByteArray> &levels) {
     batch->uploadTexture(texture, upload);
     if (!complete)
         batch->generateMips(texture);
-    store().push_back(texture);
+    store().push_back(Entry{texture, false, false});
     return static_cast<unsigned int>(store().size());
 }
 
 QRhiTexture *texture(unsigned int handle) {
     if (handle == 0 || handle > store().size())
         return nullptr;
-    return store()[handle - 1];
+    return store()[handle - 1].texture;
+}
+
+void setSampling(unsigned int handle, bool mipmaps, bool clamp) {
+    if (handle == 0 || handle > store().size())
+        return;
+    store()[handle - 1].mipmaps = mipmaps;
+    store()[handle - 1].clamp = clamp;
+}
+
+bool sampledWithMipmaps(unsigned int handle) {
+    return handle != 0 && handle <= store().size() && store()[handle - 1].mipmaps;
+}
+
+bool clampedToEdge(unsigned int handle) {
+    return handle != 0 && handle <= store().size() && store()[handle - 1].clamp;
 }
 
 void release(unsigned int handle) {
     if (handle == 0 || handle > store().size())
         return;
-    QRhiTexture *&texture = store()[handle - 1];
-    if (texture != nullptr)
-        texture->deleteLater();
-    texture = nullptr;
+    Entry &entry = store()[handle - 1];
+    if (entry.texture != nullptr)
+        entry.texture->deleteLater();
+    entry = Entry();
 }
 
 }

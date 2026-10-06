@@ -322,9 +322,11 @@ void RouteEditorGLWidget::surfaceInitialize() {
     gluu = GLUU::get();
     qDebug() << "# InitializeOpenGLFunctions";
 
-    initializeOpenGLFunctions();
+    const bool openGL = surface->backend() == RenderSurface::OpenGL;
+    if(openGL)
+        initializeOpenGLFunctions();
 
-    renderer = new OpenGL3Renderer();
+    renderer = surface->createRenderer();
     renderer->setSurface(surface);
     
     //funcs = QOpenGLContext::currentContext()->versionFunctions<QOpenGLFunctions_3_3_Core>();
@@ -337,9 +339,13 @@ void RouteEditorGLWidget::surfaceInitialize() {
     renderer->clear(false, false, black);
     //qDebug() << "gluu->initShader();";
     qDebug() << "# InitShaders";
-    gluu->initShader();
+    // The QRhi renderer builds its own programs; selection is OpenGL only
+    // for now.
+    if(openGL){
+        gluu->initShader();
+        selectionRenderer = new SelectionRenderer();
+    }
     qDebug() << "# InitShaders finished";
-    selectionRenderer = new SelectionRenderer();
     renderer->resetState();
 
     //sFile = new SFile("F:/TrainSim/trains/trainset/pkp_sp47/pkp_sp47-001.s", "F:/TrainSim/trains/trainset/pkp_sp47");
@@ -877,6 +883,9 @@ void RouteEditorGLWidget::renderShadowMaps() {
 // objects and water without editor overlays. Objects are limited by distance
 // and size; every face is rendered once before the round-robin starts.
 void RouteEditorGLWidget::renderEnvironmentMap() {
+    // OpenGL only for now.
+    if (surface->backend() != RenderSurface::OpenGL)
+        return;
     if (environmentMap == NULL)
         environmentMap = new EnvironmentMap();
     if (!environmentMap->ensure(Game::environmentMapSize))
@@ -917,6 +926,9 @@ void RouteEditorGLWidget::renderWaterPass(bool measure) {
 }
 
 bool RouteEditorGLWidget::renderWaterReflection() {
+    // OpenGL only for now.
+    if (surface->backend() != RenderSurface::OpenGL)
+        return false;
     // Water hidden behind terrain still passes the view test, so the last
     // measured water pass decides; until a count is in, reflect.
     if (renderer->measuredSamples() == 0)
