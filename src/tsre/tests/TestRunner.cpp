@@ -59,6 +59,7 @@
 #include <tsre/tests/MeshStoreTestSuite.h>
 #include <tsre/tests/EnvironmentMapTestSuite.h>
 #include <tsre/tests/WaterTestSuite.h>
+#include <tsre/tests/LocalLightsTestSuite.h>
 #include <tsre/tests/RhiShaderTestSuite.h>
 #include <tsre/tests/GltfPbrTestSuite.h>
 #include <tsre/tests/ConsistPreviewTestSuite.h>
@@ -4089,6 +4090,7 @@ QStringList TsreTests::listSuites() {
         "environment-map-gl",
         "water-gl",
         "rhi-shaders",
+        "local-lights",
         "gltf-pbr-gl",
         "consist-preview-gl",
         "renderer-capture",
@@ -4152,6 +4154,8 @@ int TsreTests::run(const TestRunOptions &opts) {
         return runWaterGlSuite(opts.verbose);
     if (suite == "rhi-shaders")
         return runRhiShaderSuite(opts.verbose);
+    if (suite == "local-lights")
+        return runLocalLightsSuite(opts.verbose);
     if (suite == "gltf-pbr-gl")
         return runGltfPbrGlSuite(opts.verbose);
 

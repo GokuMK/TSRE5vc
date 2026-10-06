@@ -185,7 +185,32 @@ vec4 pbrShade() {
         vec3 diffuse = (1.0 - fresnel) * diffuseAlbedo / PbrPi;
         color += (diffuse + specular) * sun * nDotL;
     }
+#ifdef TSRE_RHI
+    // Lamps and glowing surfaces, shaded as the sun is.
+    vec3 coatLocal = vec3(0.0);
+    ivec2 lightCell = localLightCell(vWorldPosition);
+    for (int i = 0; i < lightCell.y; ++i) {
+        vec3 lightDir, radiance;
+        if (!localLight(lightCell.x + i, vWorldPosition, lightDir, radiance))
+            continue;
+        float lightNDotL = max(dot(n, lightDir), 0.0);
+        if (lightNDotL > 0.0) {
+            vec3 fresnel;
+            vec3 specular = ggxSpecular(n, v, lightDir, roughness, f0, f90, fresnel);
+            color += ((1.0 - fresnel) * diffuseAlbedo / PbrPi + specular) * radiance * lightNDotL;
+        }
+        float lightCoatNDotL = max(dot(coatNormal, lightDir), 0.0);
+        if (coat > 0.0 && lightCoatNDotL > 0.0) {
+            vec3 fresnel;
+            coatLocal += coat * ggxSpecular(coatNormal, v, lightDir, coatRoughness, vec3(0.04), fresnel)
+                    * radiance * lightCoatNDotL;
+        }
+    }
+#endif
     color *= 1.0 - coatFresnel;
+#ifdef TSRE_RHI
+    color += coatLocal;
+#endif
     float coatNDotL = max(dot(coatNormal, l), 0.0);
     if (coat > 0.0 && coatNDotL > 0.0) {
         vec3 fresnel;

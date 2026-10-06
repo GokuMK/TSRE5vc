@@ -28,6 +28,7 @@
 #include <tsre/Game.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/ogl/GLUU.h>
+#include <tsre/renderer/EmissiveEmitters.h>
 #include <tsre/renderer/Mesh.h>
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/renderer/Renderer.h>
@@ -378,9 +379,23 @@ struct GltfMesh {
     QVector<GltfPrimitive> primitives;
 };
 
+// A KHR_lights_punctual light: point or spot (directional lights are
+// skipped), intensity in candela, range 0 for none.
+struct GltfLight {
+    bool spot = false;
+    bool supported = true;
+    float color[3] = {1.0f, 1.0f, 1.0f};
+    float intensity = 1.0f;
+    float range = 0.0f;
+    float innerCone = 0.0f;
+    float outerCone = 0.785398f;
+};
+
 struct GltfNode {
     QString name;
     int mesh = -1;
+    // KHR_lights_punctual light index.
+    int light = -1;
     QVector<int> children;
     QVector<float> matrix;
     QVector<float> translation;
@@ -403,6 +418,7 @@ struct GltfModel {
     QVector<GltfMesh> meshes;
     QVector<GltfNode> nodes;
     QVector<GltfScene> scenes;
+    QVector<GltfLight> lights;
     int defaultScene = 0;
 };
 
@@ -772,11 +788,32 @@ static void parseModelFromRoot(const QJsonObject& root, GltfModel& model) {
         const QJsonObject o = nodes[i].toObject();
         model.nodes[i].name = o.value("name").toString();
         model.nodes[i].mesh = o.value("mesh").toInt(-1);
+        model.nodes[i].light = o.value("extensions").toObject().value("KHR_lights_punctual")
+                .toObject().value("light").toInt(-1);
         model.nodes[i].children = jsonIntArray(o.value("children").toArray());
         if (o.contains("matrix")) model.nodes[i].matrix = jsonFloatArray(o.value("matrix").toArray());
         if (o.contains("translation")) model.nodes[i].translation = jsonFloatArray(o.value("translation").toArray());
         if (o.contains("rotation")) model.nodes[i].rotation = jsonFloatArray(o.value("rotation").toArray());
         if (o.contains("scale")) model.nodes[i].scale = jsonFloatArray(o.value("scale").toArray());
+    }
+
+    const QJsonArray lights = root.value("extensions").toObject().value("KHR_lights_punctual")
+            .toObject().value("lights").toArray();
+    model.lights.resize(lights.size());
+    for (int i = 0; i < lights.size(); i++) {
+        const QJsonObject o = lights[i].toObject();
+        GltfLight &light = model.lights[i];
+        const QString type = o.value("type").toString();
+        light.spot = type == "spot";
+        light.supported = type == "point" || type == "spot";
+        const QVector<float> color = jsonFloatArray(o.value("color").toArray());
+        for (int c = 0; c < 3 && c < color.size(); ++c)
+            light.color[c] = color[c];
+        light.intensity = float(o.value("intensity").toDouble(1.0));
+        light.range = float(o.value("range").toDouble(0.0));
+        const QJsonObject spot = o.value("spot").toObject();
+        light.innerCone = float(spot.value("innerConeAngle").toDouble(0.0));
+        light.outerCone = float(spot.value("outerConeAngle").toDouble(M_PI / 4.0));
     }
 
     const QJsonArray scenes = root.value("scenes").toArray();
@@ -1019,6 +1056,7 @@ void GltfShape::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned
             r->pbr.enabled = true;
             // Node world matrices are fixed at load, so the bounds hold.
             r->setBounds(prim->boundCenter, prim->boundRadius, r->msMatrix);
+            r->lights = prim->lights;
 
             r->setSelectionId(0);
             if (!prim->material.hasTexture || prim->material.texId < 0) {
@@ -1031,6 +1069,14 @@ void GltfShape::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned
             }
 
             renderItems[key].push_back(r);
+        }
+
+        // Punctual lights travel in a packet without a mesh.
+        if (!punctualLights.isEmpty()) {
+            RenderItem *lights = new RenderItem();
+            lights->shared = true;
+            lights->lights = punctualLights;
+            renderItems[key].push_back(lights);
         }
 
         if (globalInvalidateRequested) {
@@ -1416,6 +1462,42 @@ bool GltfShape::parseAndBuild() {
         return -1;
     };
 
+    // Emissive maps decoded once, to place the light of emissive surfaces.
+    // A sample per triangle needs no detail: large maps are reduced.
+    QHash<int, QImage> emissiveImages;
+    auto emissiveImage = [&](int textureIndex) -> const QImage * {
+        if (textureIndex < 0 || textureIndex >= model.textures.size())
+            return nullptr;
+        auto found = emissiveImages.find(textureIndex);
+        if (found == emissiveImages.end()) {
+            QImage image;
+            const int imageIndex = model.textures[textureIndex].source;
+            if (imageIndex >= 0 && imageIndex < model.images.size()) {
+                const GltfImage &img = model.images[imageIndex];
+                QByteArray bytes;
+                QString mime;
+                if (!img.uri.isEmpty()) {
+                    if (decodeDataUri(img.uri, bytes, mime))
+                        image = QImage::fromData(bytes);
+                    else
+                        image = QImage(cleanJoinPath(texRoot(), img.uri));
+                } else if (img.bufferView >= 0 && img.bufferView < model.bufferViews.size()) {
+                    const GltfBufferView &bv = model.bufferViews[img.bufferView];
+                    if (bv.buffer >= 0 && bv.buffer < model.buffers.size() && bv.byteOffset >= 0
+                            && bv.byteLength > 0
+                            && bv.byteOffset + bv.byteLength <= model.buffers[bv.buffer].data.size())
+                        image = QImage::fromData(QByteArray::fromRawData(
+                                model.buffers[bv.buffer].data.constData() + bv.byteOffset, bv.byteLength));
+                }
+            }
+            if (!image.isNull() && (image.width() > 512 || image.height() > 512))
+                image = image.scaled(512, 512, Qt::KeepAspectRatio, Qt::FastTransformation);
+            found = emissiveImages.insert(textureIndex, image.isNull() ? image
+                                          : image.convertToFormat(QImage::Format_RGB32));
+        }
+        return found->isNull() ? nullptr : &found.value();
+    };
+
     // Build meshes; the renderer uploads them before they are first drawn.
 
     GLUU* gluu = GLUU::get();
@@ -1793,6 +1875,28 @@ bool GltfShape::parseAndBuild() {
                 gpuPrim->boundRadius = std::sqrt(radius);
             }
 
+            // Emissive surfaces light their surroundings (task 21). A map
+            // that cannot be read gives no light rather than a guess.
+            if (prim.material >= 0 && prim.material < model.materials.size()
+                    && !model.materials[prim.material].unlit) {
+                const GltfMaterial &srcMat = model.materials[prim.material];
+                EmissiveEmitters::Surface surface;
+                surface.vertices = vertices.data();
+                surface.vertexCount = outVertCount;
+                surface.stride = stride;
+                std::copy(srcMat.emissiveFactor, srcMat.emissiveFactor + 3, surface.emissive);
+                bool readable = true;
+                if (srcMat.emissiveTexture.index >= 0) {
+                    surface.map = emissiveImage(srcMat.emissiveTexture.index);
+                    surface.uvOffset = srcMat.emissiveTexture.texCoord == 1 ? 13 : 6;
+                    std::copy(srcMat.emissiveTexture.transform, srcMat.emissiveTexture.transform + 6,
+                              surface.uvTransform);
+                    readable = surface.map != nullptr;
+                }
+                if (readable)
+                    gpuPrim->lights = EmissiveEmitters::extract(surface);
+            }
+
             MeshData meshData;
             meshData.layout = RenderItem::PBR;
             meshData.vertices = std::move(vertices);
@@ -1800,6 +1904,31 @@ bool GltfShape::parseAndBuild() {
 
             mesh->primitives.push_back(gpuPrim);
         }
+    }
+
+    // Punctual lights in shape space: at the node's origin, spots pointing
+    // along its -Z. glTF intensity is in candela; see RenderItem::Light.
+    punctualLights.clear();
+    for (int ni = 0; ni < model.nodes.size(); ni++) {
+        const int index = model.nodes[ni].light;
+        if (index < 0 || index >= model.lights.size() || !model.lights[index].supported
+                || ni >= nodeWorldMatrices.size() || nodeWorldMatrices[ni] == nullptr)
+            continue;
+        const GltfLight &source = model.lights[index];
+        const float *m = nodeWorldMatrices[ni];
+        RenderItem::Light light;
+        for (int c = 0; c < 3; ++c) {
+            light.position[c] = m[12 + c];
+            light.direction[c] = -m[8 + c];
+            light.color[c] = source.color[c];
+        }
+        light.intensity = source.intensity / float(M_PI);
+        light.range = source.range;
+        light.radius = 0.05f;
+        light.type = source.spot ? RenderItem::Light::SPOT : RenderItem::Light::POINT;
+        light.innerCone = source.innerCone;
+        light.outerCone = source.outerCone;
+        punctualLights.push_back(light);
     }
 
     // Build draw units from nodes referencing meshes.

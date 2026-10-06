@@ -11,6 +11,7 @@
 #ifndef QUEUERENDERER_H
 #define QUEUERENDERER_H
 
+#include <tsre/renderer/LightGrid.h>
 #include <tsre/renderer/Renderer.h>
 #include <vector>
 
@@ -106,6 +107,11 @@ protected:
     // bounds) and inside the light view, grouped by packet: shadowCasters,
     // groupPlans and instanceUpload.
     void planShadowCasters(float range, const float *viewProjection);
+    // The lights of every queued instance in submission space, punctual
+    // lights scaled by exposure and emissive ones by emissiveGain, with
+    // ranges derived where missing (task 21).
+    void gatherLights(std::vector<LightGrid::Light> &lights, float exposure,
+                      float emissiveGain) const;
 
     std::vector<GroupPlan> groupPlans;
     std::vector<const DrawInstance *> shadowCasters;

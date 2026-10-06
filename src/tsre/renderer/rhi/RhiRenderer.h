@@ -227,6 +227,17 @@ private:
     float copyFrameForTransmission();
     QRhiTexture *sceneCopy = nullptr;
     float sceneCopyLevels = 0.0f;
+    // Local lights of the frame (task 21), binned once before the first
+    // view draws and read by every view.
+    void prepareLights();
+    void releaseLights();
+    void writeLightUniforms(RhiProgram *program);
+    LightGrid lightGrid;
+    std::vector<LightGrid::Light> frameLights;
+    bool lightsPrepared = false;
+    QRhiTexture *lightData = nullptr;
+    QRhiTexture *lightCells = nullptr;
+    QRhiTexture *lightIndices = nullptr;
     // Reads a texture back now: ends the current pass and waits for the
     // GPU. Rows come top first unless the backend's framebuffer has y up.
     QByteArray readNow(QRhiTexture *texture, QSize *size = nullptr);

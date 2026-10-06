@@ -71,6 +71,8 @@ out vec2 vTerrainMapCoord;
 // QRhi does not enable clip distances on every backend: the fragment
 // shader discards below the clip plane instead.
 out float vClipDistance;
+// Position in submission space, for the local lights.
+out vec3 vLightPosition;
 #endif
 
 void main() {
@@ -130,6 +132,7 @@ void main() {
     gl_Position = uPMatrix * modelView * uMSMatrix * renderVertex;
 #ifdef TSRE_RHI
     vClipDistance = dot(shadowVertex, clipPlane);
+    vLightPosition = shadowVertex.xyz;
 #else
     gl_ClipDistance[0] = dot(shadowVertex, clipPlane);
 #endif

@@ -148,10 +148,10 @@ public:
     static int shadowMapSize;
     static int shadowLowMapSize;
     static int shadowsEnabled;
-    // Environment cube map for reflections (see EnvironmentMap).
     // Renderer chosen at startup: "opengl" or "qrhi", and the QRhi API.
     static QString renderBackend;
     static QString rhiApi;
+    // Environment cube map for reflections (see EnvironmentMap).
     static bool environmentMapEnabled;
     static int environmentMapSize;
     static int environmentMapFacesPerFrame;
@@ -161,6 +161,11 @@ public:
     static bool waterShaded;
     // Shaded water mirrors the scene around it (PlanarReflection).
     static bool waterReflection;
+    // Light from punctual lights and emissive surfaces (QRhi renderer, task
+    // 21): on or off, the scale of punctual lights and of emissive ones.
+    static bool localLightsEnabled;
+    static float localLightsExposure;
+    static float localLightsEmissiveGain;
     // Shader animation (water waves) stands still, for repeatable captures.
     static bool animationFrozen;
     static float sunLightDirection[];

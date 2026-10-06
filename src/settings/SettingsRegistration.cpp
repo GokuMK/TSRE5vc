@@ -188,6 +188,11 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
            QT_TRID_NOOP("settings.group.rendering.subgroup.water.name"),
            //% "How route water surfaces are drawn."
            QT_TRID_NOOP("settings.group.rendering.subgroup.water.description"), 47},
+          {"lights",
+           //% "Local lights"
+           QT_TRID_NOOP("settings.group.rendering.subgroup.lights.name"),
+           //% "Light from lamps and glowing surfaces in the scene (QRhi renderer)."
+           QT_TRID_NOOP("settings.group.rendering.subgroup.lights.description"), 48},
           {"environment",
            //% "Environment"
            QT_TRID_NOOP("settings.group.rendering.subgroup.environment.name"),
@@ -857,6 +862,27 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Shaded water mirrors the terrain, objects and sky around it, from an extra half-resolution view drawn when water is in sight. When off, water reflects the environment map or a sky gradient only."
                 QT_TRID_NOOP("settings.core.rendering.water.reflection.description")).inGroup("rendering").inSubgroup("water"),
         "waterReflection", "Game::waterReflection", "RouteEditorGLWidget", true, "hot-cache");
+    ADD(SettingsDefinition::boolean("core.rendering.localLights.enabled", true)
+            .withNameId(
+                //% "Local lights"
+                QT_TRID_NOOP("settings.core.rendering.local.lights.enabled.name")).withDescriptionId(
+                //% "glTF lamps and emissive surfaces light the scene around them. QRhi renderer only."
+                QT_TRID_NOOP("settings.core.rendering.local.lights.enabled.description")).inGroup("rendering").inSubgroup("lights"),
+        "localLightsEnabled", "Game::localLightsEnabled", "RouteEditorGLWidget", true, "hot-cache");
+    ADD(SettingsDefinition::floating("core.rendering.localLights.exposure", 1.0)
+            .withNameId(
+                //% "Lamp brightness"
+                QT_TRID_NOOP("settings.core.rendering.local.lights.exposure.name")).withDescriptionId(
+                //% "Scale of glTF lamp intensities. At 1 a lamp of 1 candela lights a white surface 1 m away to 1/pi of the sun's light, as in the Khronos sample viewer."
+                QT_TRID_NOOP("settings.core.rendering.local.lights.exposure.description")).withRange(0, 100, 0.1).inGroup("rendering").inSubgroup("lights"),
+        "localLightsExposure", "Game::localLightsExposure", "RouteEditorGLWidget", true, "hot-cache");
+    ADD(SettingsDefinition::floating("core.rendering.localLights.emissiveGain", 1.0)
+            .withNameId(
+                //% "Glow brightness"
+                QT_TRID_NOOP("settings.core.rendering.local.lights.emissive.gain.name")).withDescriptionId(
+                //% "Scale of the light emissive surfaces cast. At 1 a surface lights its surroundings as a lamp of its brightness and size would."
+                QT_TRID_NOOP("settings.core.rendering.local.lights.emissive.gain.description")).withRange(0, 1000, 1).inGroup("rendering").inSubgroup("lights"),
+        "localLightsEmissiveGain", "Game::localLightsEmissiveGain", "RouteEditorGLWidget", true, "hot-cache");
     ADD(SettingsDefinition::integer("core.rendering.defaultLineWidth", 1)
             .withNameId(
                 //% "Default line width"

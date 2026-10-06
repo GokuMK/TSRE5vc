@@ -83,8 +83,8 @@ simplification.
 | Feature | Status | Full support needs |
 | --- | --- | --- |
 | Diffuse environment light | Roughest prefiltered level, not cosine irradiance | Spherical harmonics or an irradiance cube (possible in GL 3.3) |
-| Emission | Colours the surface only | Light from emitters: many-light or deferred renderer |
-| `KHR_lights_punctual` | Not supported | Many lights per pixel: clustered forward or deferred renderer |
+| Emission | Colours the surface; on the QRhi renderer it also lights the surroundings through emitters placed on the emissive surface (task 21) | Area lights, shadows from emitters |
+| `KHR_lights_punctual` | Point and spot lights on the QRhi renderer, binned in a world-space light grid (task 21); directional lights are skipped; none on the OpenGL renderer | Shadows from local lights; directional lights as extra suns |
 | High dynamic range | Clipped, no bloom | HDR target and tone mapping / bloom pass |
 | `BLEND` | Sorted per packet (back to front by origin), without depth writes, so a shell drawn first (glass over lights) does not hide what lies behind it | Order-independent transparency |
 | Transmission, volume (`KHR_materials_transmission`, `_volume`) | Screen-space: a copy of the frame drawn before the transmission pass, read along the refracted ray | Glass behind glass and other blended surfaces behind it are not seen; lookups off screen read the edge pixels |

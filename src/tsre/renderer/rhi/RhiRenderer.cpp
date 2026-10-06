@@ -261,6 +261,7 @@ void RhiRenderer::releaseResources() {
     delete sceneCopy;
     sceneCopy = nullptr;
     releaseDepthProbe();
+    releaseLights();
     releaseAttachments(view);
     releaseAttachments(selection);
     for (Attachments &map : shadowMaps)
@@ -380,6 +381,7 @@ void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
                     gluu->clipPlane[3]);
     program->setInt("terrainPaged", 0);
     program->setInt("terrainMaterialEnabled", 0);
+    writeLightUniforms(program);
 }
 
 void RhiRenderer::applyFrameUniforms() {
@@ -939,6 +941,7 @@ void RhiRenderer::releaseDepthProbe() {
 void RhiRenderer::beginViewBand(const LayeredView &view, ViewBand band) {
     if (!view.projection)
         return;
+    prepareLights();
     float projection[16];
     float viewMatrix[16];
     std::copy(view.view, view.view + 16, viewMatrix);
@@ -1291,6 +1294,14 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
         }
         default:
             texture = dummy2D;
+            if (slot.binding >= 22 && slot.binding <= 24) {
+                QRhiTexture *grid[3] = {lightData, lightCells, lightIndices};
+                if (grid[slot.binding - 22] != nullptr && !lightGrid.empty()) {
+                    texture = grid[slot.binding - 22];
+                    slotSampler = sampler(false, true, true);
+                }
+                break;
+            }
             if (pbr && slot.binding == 1) {
                 if (sceneCopyLevels > 0.0f && sceneCopy != nullptr) {
                     texture = sceneCopy;
@@ -1435,6 +1446,8 @@ void RhiRenderer::recordInstances(const std::vector<DrawInstance> &instances, in
 
 void RhiRenderer::drawPasses(RenderPass first, RenderPass last, bool consume) {
     beginFrameIfNeeded();
+    // Views drawn without bands (Shape Viewer) gather the lights here.
+    prepareLights();
     if (!targetReady())
         return;
     for (int pass = first; pass <= last; ++pass) {
@@ -1674,4 +1687,82 @@ void RhiRenderer::renderFrame() {
 void RhiRenderer::resetFrame() {
     beginFrameIfNeeded();
     QueueRenderer::resetFrame();
+    lightsPrepared = false;
+}
+
+void RhiRenderer::writeLightUniforms(RhiProgram *program) {
+    program->setVec("localLightGrid", lightGrid.origin[0], lightGrid.origin[1], lightGrid.origin[2],
+                    lightGrid.horizontalCell);
+    const bool textures = lightData != nullptr && lightCells != nullptr && lightIndices != nullptr;
+    program->setVec("localLightLayers", lightGrid.verticalCell,
+                    textures ? float(lightGrid.lightCount()) : 0.0f);
+}
+
+void RhiRenderer::prepareLights() {
+    if (lightsPrepared)
+        return;
+    lightsPrepared = true;
+    // Programs take the grid of this frame whatever happens below.
+    struct Write {
+        RhiRenderer *renderer;
+        ~Write() {
+            for (auto &program : renderer->programs)
+                if (program->valid())
+                    renderer->writeLightUniforms(program.get());
+        }
+    } write{this};
+    frameLights.clear();
+    if (Game::localLightsEnabled)
+        gatherLights(frameLights, Game::localLightsExposure, Game::localLightsEmissiveGain);
+    lightGrid.build(frameLights, viewPosition);
+    if (traceDraws)
+        qInfo() << "rhi-trace lights" << frameLights.size() << "binned" << lightGrid.lightCount()
+                << "indices" << lightGrid.indexTexels.size();
+    if (lightGrid.empty())
+        return;
+    QRhiResourceUpdateBatch *batch = RhiTextures::updates();
+    if (batch == nullptr)
+        return;
+    // Textures grow to the frame's needs and are written from the top.
+    auto ensure = [this](QRhiTexture *&texture, QRhiTexture::Format format, int width, int rows) {
+        if (texture != nullptr && texture->pixelSize().height() >= rows)
+            return texture != nullptr;
+        int capacity = 16;
+        while (capacity < rows)
+            capacity *= 2;
+        delete texture;
+        texture = rhi->newTexture(format, QSize(width, capacity));
+        if (!texture->create()) {
+            delete texture;
+            texture = nullptr;
+        }
+        return texture != nullptr;
+    };
+    auto upload = [batch](QRhiTexture *texture, const std::vector<float> &texels, int width,
+                          int components) {
+        const int rows = int(texels.size() / size_t(width * components));
+        QRhiTextureSubresourceUploadDescription description(
+                    texels.data(), quint32(texels.size() * sizeof(float)));
+        description.setSourceSize(QSize(width, rows));
+        batch->uploadTexture(texture, QRhiTextureUploadDescription(QRhiTextureUploadEntry(0, 0, description)));
+    };
+    const int lights = lightGrid.lightCount();
+    const int indexRows = int(lightGrid.indexTexels.size() / LightGrid::IndexWidth);
+    if (!ensure(lightData, QRhiTexture::RGBA32F, 4, lights)
+            || !ensure(lightCells, QRhiTexture::RGBA32F, LightGrid::CellsWidth, LightGrid::CellsY)
+            || !ensure(lightIndices, QRhiTexture::R32F, LightGrid::IndexWidth, indexRows)) {
+        lightGrid = LightGrid();
+        return;
+    }
+    upload(lightData, lightGrid.lightTexels, 4, 4);
+    upload(lightCells, lightGrid.cellTexels, LightGrid::CellsWidth, 4);
+    upload(lightIndices, lightGrid.indexTexels, LightGrid::IndexWidth, 1);
+}
+
+void RhiRenderer::releaseLights() {
+    delete lightData;
+    delete lightCells;
+    delete lightIndices;
+    lightData = lightCells = lightIndices = nullptr;
+    lightGrid = LightGrid();
 }

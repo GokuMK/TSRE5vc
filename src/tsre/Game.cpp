@@ -134,6 +134,9 @@ float Game::environmentMapObjectDistance = 300.0f;
 bool Game::environmentMapPreview = false;
 bool Game::waterShaded = true;
 bool Game::waterReflection = true;
+bool Game::localLightsEnabled = true;
+float Game::localLightsExposure = 1.0f;
+float Game::localLightsEmissiveGain = 1.0f;
 bool Game::animationFrozen = false;
 float Game::sunLightDirection[] = {-1.0,2.0,1.0};
 int Game::textureQuality = 1;
@@ -358,6 +361,9 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
     boolean("core.rendering.environmentMap.preview", environmentMapPreview);
     boolean("core.rendering.water.shaded", waterShaded);
     boolean("core.rendering.water.reflection", waterReflection);
+    boolean("core.rendering.localLights.enabled", localLightsEnabled);
+    floating("core.rendering.localLights.exposure", localLightsExposure);
+    floating("core.rendering.localLights.emissiveGain", localLightsEmissiveGain);
     integer("core.rendering.defaultLineWidth", oglDefaultLineWidth);
     floating("core.rendering.fogDensity", fogDensity);
     auto colour = [&](const char *key, float target[4]) {

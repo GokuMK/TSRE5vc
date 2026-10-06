@@ -85,6 +85,8 @@ private:
         // Sphere around the primitive's vertices, for view culling.
         float boundCenter[3] = {0.0f, 0.0f, 0.0f};
         float boundRadius = -1.0f;
+        // Lights standing in for its emission, in mesh space.
+        QVector<RenderItem::Light> lights;
     };
 
     struct MeshGpu {
@@ -118,6 +120,8 @@ private:
     QVector<float*> nodeWorldMatrices; // owned (float[16])
     QVector<QString> nodeNames;
     QVector<int> nodeParents;
+    // KHR_lights_punctual lights in shape space.
+    QVector<RenderItem::Light> punctualLights;
 
     bool requiresUpdate = false;
     // Packets do not depend on the instance state, so every state submits

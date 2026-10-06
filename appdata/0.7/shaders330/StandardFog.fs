@@ -11,6 +11,7 @@ in float vTerrainGap;
 in vec2 vTerrainMapCoord;
 #ifdef TSRE_RHI
 in float vClipDistance;
+in vec3 vLightPosition;
 #endif
 out vec4 fragColor;
 
@@ -73,6 +74,9 @@ float insideBox(vec2 v, vec2 bottomLeft, vec2 topRight) {
 #include "TerrainMaterial.glsl"
 #endif
 #include "ShadowSampling.glsl"
+#ifdef TSRE_RHI
+#include "LocalLights.glsl"
+#endif
 #ifdef TSRE_PBR
 #include "PbrShading.glsl"
 #endif
@@ -128,6 +132,12 @@ void main() {
             vec3 color = diffuseColor.xyz;
             color *= clamp(visibility, 0.0, 1.0);
             color += ambientColor.xyz;
+#ifdef TSRE_RHI
+            // Lamps and glowing surfaces add their light in linear terms.
+            vec3 local = localLightsDiffuse(vLightPosition, normal, enableNormals);
+            if (local != vec3(0.0))
+                color = pow(pow(max(color, vec3(0.0)), vec3(2.2)) + local, vec3(1.0 / 2.2));
+#endif
             fragColor.xyz *= color*colorBrightness;
 
             fragColor = mix(fragColor, skyColor, fogFactor);

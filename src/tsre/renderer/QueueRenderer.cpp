@@ -9,6 +9,7 @@
  */
 
 #include <tsre/renderer/QueueRenderer.h>
+#include <tsre/math3d/GLMatrix.h>
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/renderer/RenderStats.h>
 #include <algorithm>
@@ -311,6 +312,58 @@ void QueueRenderer::planGroups(const std::vector<DrawInstance> &instances){
                 }
         }
         groupPlans.push_back(plan);
+    }
+}
+
+void QueueRenderer::gatherLights(std::vector<LightGrid::Light> &lights, float exposure,
+                                 float emissiveGain) const{
+    lights.clear();
+    for(const PassQueue &queue : passes){
+        for(const std::vector<DrawInstance> *list : {&queue.ordered, &queue.grouped}){
+            for(const DrawInstance &instance : *list){
+                const RenderItem *packet = instance.packet;
+                if(packet == nullptr || packet->lights.isEmpty())
+                    continue;
+                // Model space to submission space.
+                float transform[16];
+                const float *matrix = instanceMatrix(instance.matrix);
+                if(packet->msMatrix != nullptr)
+                    Mat4::multiply(transform, const_cast<float *>(matrix), packet->msMatrix);
+                else
+                    std::copy(matrix, matrix + 16, transform);
+                for(const RenderItem::Light &source : packet->lights){
+                    LightGrid::Light light;
+                    const float *p = source.position;
+                    const float *d = source.direction;
+                    float length = 0.0f;
+                    for(int row = 0; row < 3; ++row){
+                        light.position[row] = transform[row] * p[0] + transform[4 + row] * p[1]
+                                + transform[8 + row] * p[2] + transform[12 + row];
+                        light.direction[row] = transform[row] * d[0] + transform[4 + row] * d[1]
+                                + transform[8 + row] * d[2];
+                        length += light.direction[row] * light.direction[row];
+                    }
+                    length = std::sqrt(length);
+                    for(float &component : light.direction)
+                        component = length > 0.0f ? component / length : 0.0f;
+                    // Scaled shapes scale their emitters.
+                    const float scale = std::sqrt(transform[0] * transform[0] + transform[1] * transform[1]
+                                                  + transform[2] * transform[2]);
+                    const float gain = source.emissive ? emissiveGain * scale * scale : exposure;
+                    for(int c = 0; c < 3; ++c)
+                        light.color[c] = source.color[c] * source.intensity * gain;
+                    light.radius = source.radius * scale;
+                    const float brightness = std::max({light.color[0], light.color[1], light.color[2]});
+                    const float reach = LightGrid::rangeFor(brightness, light.radius);
+                    light.range = source.range > 0.0f ? std::min(source.range * scale, reach) : reach;
+                    light.spot = source.type == RenderItem::Light::SPOT;
+                    light.cosInner = std::cos(source.innerCone);
+                    light.cosOuter = std::cos(source.outerCone);
+                    if(light.range > 0.0f)
+                        lights.push_back(light);
+                }
+            }
+        }
     }
 }
 

@@ -7359,6 +7359,46 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
             <source>How route water surfaces are drawn.</source>
             <translation>Sposób rysowania powierzchni wody na trasie.</translation>
         </message>
+        <message id="settings.group.rendering.subgroup.lights.name">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="193" />
+            <source>Local lights</source>
+            <translation>Światła lokalne</translation>
+        </message>
+        <message id="settings.group.rendering.subgroup.lights.description">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="195" />
+            <source>Light from lamps and glowing surfaces in the scene (QRhi renderer).</source>
+            <translation>Światło lamp i świecących powierzchni w scenie (renderer QRhi).</translation>
+        </message>
+        <message id="settings.core.rendering.local.lights.enabled.name">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="868" />
+            <source>Local lights</source>
+            <translation>Światła lokalne</translation>
+        </message>
+        <message id="settings.core.rendering.local.lights.enabled.description">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="870" />
+            <source>glTF lamps and emissive surfaces light the scene around them. QRhi renderer only.</source>
+            <translation>Lampy glTF i powierzchnie emisyjne oświetlają otoczenie. Tylko renderer QRhi.</translation>
+        </message>
+        <message id="settings.core.rendering.local.lights.exposure.name">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="875" />
+            <source>Lamp brightness</source>
+            <translation>Jasność lamp</translation>
+        </message>
+        <message id="settings.core.rendering.local.lights.exposure.description">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="877" />
+            <source>Scale of glTF lamp intensities. At 1 a lamp of 1 candela lights a white surface 1 m away to 1/pi of the sun&apos;s light, as in the Khronos sample viewer.</source>
+            <translation>Skala natężenia lamp glTF. Przy 1 lampa o natężeniu 1 kandeli oświetla białą powierzchnię oddaloną o 1 m do 1/pi światła słońca, jak w przeglądarce Khronos.</translation>
+        </message>
+        <message id="settings.core.rendering.local.lights.emissive.gain.name">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="882" />
+            <source>Glow brightness</source>
+            <translation>Jasność poświaty</translation>
+        </message>
+        <message id="settings.core.rendering.local.lights.emissive.gain.description">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="884" />
+            <source>Scale of the light emissive surfaces cast. At 1 a surface lights its surroundings as a lamp of its brightness and size would.</source>
+            <translation>Skala światła rzucanego przez powierzchnie emisyjne. Przy 1 powierzchnia oświetla otoczenie jak lampa o jej jasności i rozmiarze.</translation>
+        </message>
         <message id="settings.group.rendering.subgroup.environment.name">
             <location filename="../src/settings/SettingsRegistration.cpp" line="180" />
             <source>Environment</source>
