@@ -31,6 +31,10 @@
 #include <tsre/texture/TexLib.h>
 #include <tsre/texture/Texture.h>
 
+static QHash<QString, int> debugCounts;
+static const bool traceDraws = qEnvironmentVariableIsSet("TSRE_RHI_TRACE");
+static void debugCount(const QString &key) { if (traceDraws) debugCounts[key]++; }
+
 // The present pass's fragment shader (RhiImage.cpp).
 extern const char *RhiPresentFragment;
 
@@ -129,13 +133,12 @@ size_t RhiRenderer::PipelineKeyHash::operator()(const PipelineKey &k) const {
 }
 
 bool RhiRenderer::BindingKey::operator==(const BindingKey &o) const {
-    return program == o.program && uniforms == o.uniforms && terrainPatches == o.terrainPatches
-            && textures == o.textures && samplers == o.samplers;
+    return program == o.program && uniforms == o.uniforms && textures == o.textures
+            && samplers == o.samplers;
 }
 
 size_t RhiRenderer::BindingKeyHash::operator()(const BindingKey &k) const {
-    size_t h = std::hash<const void *>()(k.program) ^ (std::hash<const void *>()(k.uniforms) << 1)
-            ^ (std::hash<const void *>()(k.terrainPatches) << 2);
+    size_t h = std::hash<const void *>()(k.program) ^ (std::hash<const void *>()(k.uniforms) << 1);
     for (QRhiTexture *texture : k.textures)
         h = h * 31 + std::hash<const void *>()(texture);
     for (QRhiSampler *sampler : k.samplers)
@@ -181,9 +184,6 @@ RhiRenderer::RhiRenderer(RhiContext *context)
                                     QRhiSampler::ClampToEdge, QRhiSampler::ClampToEdge);
     shadowSampler->setTextureCompareOp(QRhiSampler::LessOrEqual);
     shadowSampler->create();
-    // std140 TerrainPatchBlock: 256 patches of two vec4.
-    dummyTerrainPatches = rhi->newBuffer(QRhiBuffer::Static, QRhiBuffer::UniformBuffer, 256 * 32);
-    dummyTerrainPatches->create();
     // White placeholders; the depth stand-in is cleared to the far plane.
     QRhiResourceUpdateBatch *batch = RhiTextures::updates();
     if (batch != nullptr) {
@@ -263,8 +263,6 @@ void RhiRenderer::releaseResources() {
     delete dummyCube;
     delete dummyDepth;
     delete shadowSampler;
-    delete dummyTerrainPatches;
-    dummyTerrainPatches = nullptr;
     dummy2D = dummyArray = dummyCube = dummyDepth = nullptr;
     shadowSampler = nullptr;
 }
@@ -549,6 +547,9 @@ void RhiRenderer::beginFrameIfNeeded() {
     if (serial == frameSerial)
         return;
     frameSerial = serial;
+    if (traceDraws)
+        qInfo().noquote() << "rhi-trace frame uniform bytes" << uniformArena.data.size()
+                          << "instance bytes" << instanceArena.data.size();
     uniformArena.data.clear();
     uniformArena.uploaded = 0;
     instanceArena.data.clear();
@@ -1177,10 +1178,6 @@ QRhiShaderResourceBindings *RhiRenderer::bindings(const BindingKey &key) {
     entries.append(QRhiShaderResourceBinding::uniformBufferWithDynamicOffset(
                        RhiShaderSource::UniformBlockBinding, stages, key.uniforms,
                        quint32(program->block.size())));
-    if (program->terrainPatches && key.terrainPatches != nullptr)
-        entries.append(QRhiShaderResourceBinding::uniformBuffer(
-                           RhiShaderSource::TerrainPatchBlockBinding,
-                           QRhiShaderResourceBinding::VertexStage, key.terrainPatches));
     for (size_t i = 0; i < program->samplers.size(); ++i)
         entries.append(QRhiShaderResourceBinding::sampledTexture(
                            program->samplers[i].binding, stages, key.textures[i], key.samplers[i]));
@@ -1197,10 +1194,6 @@ QRhiShaderResourceBindings *RhiRenderer::bindings(const BindingKey &key) {
         mutableProgram->layout = set;
     return set;
 }
-
-static QHash<QString, int> debugCounts;
-static const bool traceDraws = qEnvironmentVariableIsSet("TSRE_RHI_TRACE");
-static void debugCount(const QString &key) { if (traceDraws) debugCounts[key]++; }
 
 void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int count,
                              quint32 selectionId, int pass, int category) {
@@ -1235,12 +1228,6 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
     // elsewhere.
     BindingKey bindingKey;
     bindingKey.program = program;
-    if (program->terrainPatches) {
-        bindingKey.terrainPatches = item->terrain.paged
-                ? Meshes::uniformBufferRhi(item->terrain.paramsBuffer, rhi, frameBatch) : nullptr;
-        if (bindingKey.terrainPatches == nullptr)
-            bindingKey.terrainPatches = dummyTerrainPatches;
-    }
     bool mipmapped = false;
     QRhiTexture *base = nullptr;
     if (item->material.textured && selectionId == 0) {
@@ -1322,6 +1309,15 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
     for (const RhiProgram::Sampler &slot : program->samplers) {
         QRhiTexture *texture = nullptr;
         QRhiSampler *slotSampler = sampler(true, false);
+        if (slot.binding == RhiShaderSource::TerrainPatchDataBinding) {
+            texture = item->terrain.paged
+                    ? Meshes::dataTextureRhi(item->terrain.paramsBuffer, rhi, frameBatch) : nullptr;
+            if (texture == nullptr)
+                texture = dummy2D;
+            bindingKey.textures.push_back(texture);
+            bindingKey.samplers.push_back(sampler(false, true, true));
+            continue;
+        }
         if (materials && slot.binding >= 4 && slot.binding <= 7) {
             const unsigned int handles[4] = {terrain.materialMap, terrain.materialTextures,
                                              terrain.materialDetails, terrain.materialParams};
@@ -1784,6 +1780,8 @@ void RhiRenderer::renderFrame() {
         for (auto it = debugCounts.cbegin(); it != debugCounts.cend(); ++it)
             qInfo().noquote() << "rhi-trace" << it.key() << it.value();
         debugCounts.clear();
+        qInfo().noquote() << "rhi-trace pipelines" << pipelines.size() << "resource sets"
+                          << resourceSets.size();
     }
     drawPasses(PASS_SKY, PASS_UI, true);
     applyAmbientOcclusion();

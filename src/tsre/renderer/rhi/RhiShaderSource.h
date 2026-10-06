@@ -24,9 +24,10 @@
 // attributes and varyings get locations.
 namespace RhiShaderSource {
 
-// Binding of the block holding the loose uniforms, and of named blocks.
+// Binding of the block holding the loose uniforms.
 constexpr int UniformBlockBinding = 20;
-constexpr int TerrainPatchBlockBinding = 21;
+// Sampler binding of the paged terrain's patch records (TerrainPatch.glsl).
+constexpr int TerrainPatchDataBinding = 19;
 
 // Vertex attribute locations (as GLUU binds them), and the per-instance
 // matrix columns the QRhi renderer adds.

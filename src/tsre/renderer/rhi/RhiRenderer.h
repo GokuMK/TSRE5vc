@@ -111,7 +111,6 @@ private:
     struct BindingKey {
         const RhiProgram *program = nullptr;
         QRhiBuffer *uniforms = nullptr;
-        QRhiBuffer *terrainPatches = nullptr;
         std::vector<QRhiTexture *> textures;
         std::vector<QRhiSampler *> samplers;
         bool operator==(const BindingKey &other) const;
@@ -377,7 +376,6 @@ private:
     QRhiTexture *dummyCube = nullptr;
     QRhiTexture *dummyDepth = nullptr;
     QRhiSampler *shadowSampler = nullptr;
-    QRhiBuffer *dummyTerrainPatches = nullptr;
 
     // Offscreen view and the shader copying it to the surface's frame.
     Attachments view;

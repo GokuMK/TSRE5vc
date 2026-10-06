@@ -18,13 +18,7 @@ uniform float terrainSampleSpacing;
 uniform int terrainApplyGaps;
 uniform int terrainMapPass;
 
-struct TerrainPatchParams {
-    vec4 uvAndOriginX;
-    vec4 uvAndOriginZ;
-};
-layout(std140) uniform TerrainPatchBlock {
-    TerrainPatchParams terrainPatch[256];
-};
+#include "TerrainPatch.glsl"
 
 out vec2 vTextureCoord;
 out float vTerrainGap;
@@ -45,7 +39,7 @@ void main() {
         int localSampleZ = localVertexId / terrainPatchSide;
         int localSampleX = localVertexId - localSampleZ * terrainPatchSide;
         vec2 terrainLocalSample = vec2(float(localSampleX), float(localSampleZ));
-        TerrainPatchParams params = terrainPatch[patchSlot];
+        TerrainPatchParams params = terrainPatchParams(patchSlot);
         renderVertex = vec4(params.uvAndOriginX.w + terrainLocalSample.x * terrainSampleSpacing,
                             vertex.x,
                             params.uvAndOriginZ.w + terrainLocalSample.y * terrainSampleSpacing,

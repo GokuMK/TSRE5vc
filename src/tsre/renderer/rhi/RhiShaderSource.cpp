@@ -39,7 +39,8 @@ const QHash<QString, int> &samplerBindings() {
         {"pbrSceneColor", 1}, {"pbrTransmissionMap", 16}, {"pbrThicknessMap", 17},
         {"waterBottomMap", 4}, {"waterMiddleMap", 5}, {"waterReflectionMap", 6},
         {"waterNormalMap", 15}, {"uSampler4", 18}, {"environmentSource", 0},
-        {"localLightData", 22}, {"localLightCells", 23}, {"localLightIndices", 24}};
+        {"localLightData", 22}, {"localLightCells", 23}, {"localLightIndices", 24},
+        {"terrainPatchData", TerrainPatchDataBinding}};
     return bindings;
 }
 
@@ -225,11 +226,8 @@ Program convert(const QByteArray &vertexSource, const QByteArray &fragmentSource
                     line = QString("layout(binding = %1) uniform %2 %3;")
                             .arg(samplers.value(u.captured(2))).arg(type, u.captured(2));
                 } else if (blockLine.match(line).hasMatch()) {
-                    const QString name = blockLine.match(line).captured(1);
-                    if (name != "TerrainPatchBlock")
-                        program.error += "uniform block without a binding: " + name + "\n";
-                    line.replace(QRegularExpression(R"(layout\s*\(\s*std140\s*\))"),
-                                 QString("layout(std140, binding = %1)").arg(TerrainPatchBlockBinding));
+                    program.error += "uniform block without a binding: "
+                            + blockLine.match(line).captured(1) + "\n";
                 } else {
                     const QRegularExpressionMatch v = interfaceLine.match(line);
                     if (v.hasMatch()) {

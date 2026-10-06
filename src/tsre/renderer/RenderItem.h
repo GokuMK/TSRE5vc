@@ -152,7 +152,8 @@ public:
     struct Terrain {
         // Paged terrain meshes: vertices are generated from patch parameters.
         bool paged = false;
-        // Plain storage (MeshData::Buffer) bound as the TerrainPatchBlock.
+        // Plain storage (MeshData::Buffer) of the patch records: the
+        // TerrainPatchBlock in OpenGL, a data texture in QRhi.
         MeshHandle paramsBuffer;
         int verticesPerPatch = 0;
         int patchSide = 0;

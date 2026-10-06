@@ -48,10 +48,10 @@ struct Entry {
     int bytes = 0;
     quint64 stamp = 0;
     // QRhi renderer: the buffers, and the bytes of Buffer-format data, kept
-    // because one storage can serve as an index buffer and a uniform buffer.
+    // because one storage can serve as an index buffer and a data texture.
     QRhiBuffer *rhiVertex = nullptr;
     QRhiBuffer *rhiIndex = nullptr;
-    QRhiBuffer *rhiUniform = nullptr;
+    QRhiTexture *rhiData = nullptr;
     QByteArray retained;
 };
 
@@ -60,7 +60,7 @@ struct Store {
     std::vector<Entry> entries;
     std::vector<quint32> freeSlots;
     std::vector<GLuint> deadBuffers;
-    std::vector<QRhiBuffer *> deadRhiBuffers;
+    std::vector<QRhiResource *> deadRhiBuffers;
     quint64 nextStamp = 1;
     quint64 releases = 0;
 };
@@ -226,10 +226,12 @@ void Meshes::release(MeshHandle &handle) {
             s.deadBuffers.push_back(entry.indexBuffer);
         entry.vertexBuffer = 0;
         entry.indexBuffer = 0;
-        for (QRhiBuffer *buffer : {entry.rhiVertex, entry.rhiIndex, entry.rhiUniform})
-            if (buffer != nullptr)
-                s.deadRhiBuffers.push_back(buffer);
-        entry.rhiVertex = entry.rhiIndex = entry.rhiUniform = nullptr;
+        for (QRhiResource *resource : std::initializer_list<QRhiResource *>{
+                 entry.rhiVertex, entry.rhiIndex, entry.rhiData})
+            if (resource != nullptr)
+                s.deadRhiBuffers.push_back(resource);
+        entry.rhiVertex = entry.rhiIndex = nullptr;
+        entry.rhiData = nullptr;
         entry.retained.clear();
         entry.sharedIndices = MeshHandle();
         entry.format = MeshData::FloatLayout;
@@ -351,6 +353,24 @@ void convertTerrainNormals(char *data, int offset, int size) {
     }
 }
 
+// Buffer-format data as a texture: RGBA32F texels in one row.
+constexpr int DataTexelBytes = 16;
+
+// Uploads the texels of an entry's data texture covering a byte range of
+// its retained data.
+void uploadDataTexels(const Entry &entry, QRhiResourceUpdateBatch *batch, int offset, int size) {
+    const int width = entry.rhiData->pixelSize().width();
+    const int first = std::max(0, offset / DataTexelBytes);
+    const int end = std::min(width, (offset + size + DataTexelBytes - 1) / DataTexelBytes);
+    if (end <= first)
+        return;
+    QRhiTextureSubresourceUploadDescription description(
+            entry.retained.constData() + first * DataTexelBytes, quint32((end - first) * DataTexelBytes));
+    description.setDestinationTopLeft(QPoint(first, 0));
+    description.setSourceSize(QSize(end - first, 1));
+    batch->uploadTexture(entry.rhiData, QRhiTextureUploadDescription({0, 0, description}));
+}
+
 // A static buffer of the size, reusing one that fits exactly.
 QRhiBuffer *ensureBuffer(Store &s, QRhiBuffer *current, QRhi *rhi, QRhiBuffer::UsageFlags usage,
                          int size) {
@@ -378,10 +398,12 @@ bool prepareRhiLocked(Store &s, MeshHandle handle, QRhi *rhi, QRhiResourceUpdate
         if (data.format == MeshData::Buffer) {
             entry.retained = QByteArray(vertexBytes, size);
             // Buffers of other uses are made again from the new bytes.
-            for (QRhiBuffer *buffer : {entry.rhiVertex, entry.rhiUniform})
-                if (buffer != nullptr)
-                    s.deadRhiBuffers.push_back(buffer);
-            entry.rhiVertex = entry.rhiUniform = nullptr;
+            for (QRhiResource *resource : std::initializer_list<QRhiResource *>{
+                     entry.rhiVertex, entry.rhiData})
+                if (resource != nullptr)
+                    s.deadRhiBuffers.push_back(resource);
+            entry.rhiVertex = nullptr;
+            entry.rhiData = nullptr;
             entry.rhiVertex = ensureBuffer(s, nullptr, rhi, QRhiBuffer::IndexBuffer, size);
         } else {
             entry.rhiVertex = ensureBuffer(s, entry.rhiVertex, rhi, QRhiBuffer::VertexBuffer, size);
@@ -420,9 +442,8 @@ bool prepareRhiLocked(Store &s, MeshHandle handle, QRhi *rhi, QRhiResourceUpdate
             if (!entry.retained.isEmpty()) {
                 std::memcpy(entry.retained.data() + range.offset, range.data.constData(),
                             size_t(range.data.size()));
-                if (entry.rhiUniform != nullptr)
-                    batch->uploadStaticBuffer(entry.rhiUniform, quint32(range.offset),
-                                              quint32(range.data.size()), range.data.constData());
+                if (entry.rhiData != nullptr)
+                    uploadDataTexels(entry, batch, range.offset, int(range.data.size()));
             }
         }
         entry.ranges.clear();
@@ -451,30 +472,33 @@ bool Meshes::prepareRhi(MeshHandle handle, QRhi *rhi, QRhiResourceUpdateBatch *b
     return prepareRhiLocked(s, handle, rhi, batch, buffers, 0);
 }
 
-QRhiBuffer *Meshes::uniformBufferRhi(MeshHandle handle, QRhi *rhi, QRhiResourceUpdateBatch *batch) {
+QRhiTexture *Meshes::dataTextureRhi(MeshHandle handle, QRhi *rhi, QRhiResourceUpdateBatch *batch) {
     Store &s = store();
     QMutexLocker lock(&s.mutex);
     RhiBuffers buffers;
     if (!prepareRhiLocked(s, handle, rhi, batch, buffers, 0))
         return nullptr;
     Entry &entry = s.entries[handle.index];
-    if (entry.format != MeshData::Buffer)
+    if (entry.format != MeshData::Buffer || entry.retained.size() < DataTexelBytes)
         return nullptr;
-    if (entry.rhiUniform == nullptr) {
-        entry.rhiUniform = ensureBuffer(s, nullptr, rhi, QRhiBuffer::UniformBuffer,
-                                        int(entry.retained.size()));
-        if (entry.rhiUniform != nullptr && !entry.retained.isEmpty())
-            batch->uploadStaticBuffer(entry.rhiUniform, 0, quint32(entry.retained.size()),
-                                      entry.retained.constData());
+    if (entry.rhiData == nullptr) {
+        const int texels = int(entry.retained.size() / DataTexelBytes);
+        QRhiTexture *texture = rhi->newTexture(QRhiTexture::RGBA32F, QSize(texels, 1));
+        if (!texture->create()) {
+            delete texture;
+            return nullptr;
+        }
+        entry.rhiData = texture;
+        uploadDataTexels(entry, batch, 0, texels * DataTexelBytes);
     }
-    return entry.rhiUniform;
+    return entry.rhiData;
 }
 
 void Meshes::collectGarbageRhi() {
     Store &s = store();
     QMutexLocker lock(&s.mutex);
-    for (QRhiBuffer *buffer : s.deadRhiBuffers)
-        buffer->deleteLater();
+    for (QRhiResource *resource : s.deadRhiBuffers)
+        resource->deleteLater();
     s.deadRhiBuffers.clear();
 }
 
@@ -482,11 +506,13 @@ void Meshes::releaseAllRhi() {
     Store &s = store();
     QMutexLocker lock(&s.mutex);
     for (Entry &entry : s.entries) {
-        for (QRhiBuffer *buffer : {entry.rhiVertex, entry.rhiIndex, entry.rhiUniform})
-            delete buffer;
-        entry.rhiVertex = entry.rhiIndex = entry.rhiUniform = nullptr;
+        delete entry.rhiVertex;
+        delete entry.rhiIndex;
+        delete entry.rhiData;
+        entry.rhiVertex = entry.rhiIndex = nullptr;
+        entry.rhiData = nullptr;
     }
-    for (QRhiBuffer *buffer : s.deadRhiBuffers)
-        delete buffer;
+    for (QRhiResource *resource : s.deadRhiBuffers)
+        delete resource;
     s.deadRhiBuffers.clear();
 }

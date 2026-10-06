@@ -39,7 +39,6 @@ struct RhiProgram {
         int type = 0;
     };
     std::vector<Sampler> samplers;
-    bool terrainPatches = false;
     QVector<QShaderDescription::InOutVariable> inputs;
     // A resource set the pipelines are created against.
     QRhiShaderResourceBindings *layout = nullptr;

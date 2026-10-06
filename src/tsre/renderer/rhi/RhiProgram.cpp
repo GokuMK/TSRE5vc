@@ -20,10 +20,6 @@ void reflect(RhiProgram &program) {
     for (const QShader *stage : stages) {
         const QShaderDescription description = stage->description();
         for (const QShaderDescription::UniformBlock &block : description.uniformBlocks()) {
-            if (block.binding == RhiShaderSource::TerrainPatchBlockBinding) {
-                program.terrainPatches = true;
-                continue;
-            }
             if (block.binding != RhiShaderSource::UniformBlockBinding)
                 continue;
             program.blockSize = std::max(program.blockSize, block.size);

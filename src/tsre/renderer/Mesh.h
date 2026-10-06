@@ -20,6 +20,7 @@
 class QOpenGLFunctions;
 class QRhi;
 class QRhiBuffer;
+class QRhiTexture;
 class QRhiResourceUpdateBatch;
 
 // Data a producer hands to the renderer. Without indices the mesh draws
@@ -91,8 +92,9 @@ namespace Meshes {
     // the mesh's buffers; false for a released mesh.
     bool prepareRhi(MeshHandle handle, QRhi *rhi, QRhiResourceUpdateBatch *batch,
                     RhiBuffers &buffers);
-    // A Buffer-format mesh (terrain patch parameters) as a uniform buffer.
-    QRhiBuffer *uniformBufferRhi(MeshHandle handle, QRhi *rhi, QRhiResourceUpdateBatch *batch);
+    // A Buffer-format mesh (terrain patch parameters) as a one-row RGBA32F
+    // texture, one texel per 16 bytes, for shaders to fetch from.
+    QRhiTexture *dataTextureRhi(MeshHandle handle, QRhi *rhi, QRhiResourceUpdateBatch *batch);
     // Releases the QRhi buffers of released meshes.
     void collectGarbageRhi();
     // Releases every QRhi buffer, before the QRhi goes away.

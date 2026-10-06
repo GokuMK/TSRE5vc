@@ -97,6 +97,13 @@ int TsreTests::runRhiShaderSuite(bool verbose) {
                 check(samplerBinding(program.fragment, "uSampler") == 0
                       && samplerBinding(program.fragment, "shadow0") == 9,
                       name + " keeps the OpenGL texture units as sampler bindings");
+            // QRhi's OpenGL backend sets uniform blocks member by member on
+            // every draw: the patch records come from a texture instead.
+            if (variant.defines.contains("TSRE_TERRAIN") || QString(variant.vertex) == "Shadows")
+                check(samplerBinding(program.vertex, "terrainPatchData")
+                              == RhiShaderSource::TerrainPatchDataBinding
+                      && program.vertex.description().uniformBlocks().size() == 1,
+                      name + " reads the terrain patch records from a texture");
         }
     }
     // Ambient occlusion passes: code-held GLSL 440.
