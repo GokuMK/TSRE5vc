@@ -128,6 +128,18 @@ int TsreTests::runWaterGlSuite(bool verbose) {
     check(fitted && std::abs(plane[1] - 1.0f) < 1e-4f && std::abs(plane[3] + 5.0f) < 1e-3f,
           "patches in one row give a level plane");
     check(!PlanarReflection::fitPlane({}, eye, plane), "no patches, no plane");
+    // A river falling 2.7 % near the eye and 1.3 % in a reach 4 km away: the
+    // plane follows the water near the eye.
+    std::vector<float> river;
+    for (int i = -3; i <= 3; ++i)
+        river.insert(river.end(), {i * 128.0f, 10.0f - 0.027f * i * 128.0f, 0.0f, 90.0f});
+    for (int i = 0; i < 20; ++i)
+        river.insert(river.end(), {4000.0f + i * 128.0f, -90.0f - 0.013f * i * 128.0f, -800.0f, 90.0f});
+    const float bank[3] = {-41.0f, 12.0f, 0.0f};
+    fitted = PlanarReflection::fitPlane(river, bank, plane);
+    const float waterHeight = -(plane[0] * bank[0] + plane[2] * bank[2] + plane[3]) / plane[1];
+    check(fitted && std::abs(waterHeight - (10.0f + 0.027f * 41.0f)) < 0.05f,
+          "far reaches of a river do not move the plane at the camera");
 
     QOpenGLContext context;
     QSurfaceFormat format;

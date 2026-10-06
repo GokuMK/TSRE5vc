@@ -916,6 +916,13 @@ bool RouteEditorGLWidget::renderWaterReflection() {
     Mat4::multiply(viewProjection, projection, camera->getMatrix());
     float plane[4];
     renderer->visibleBounds(Renderer::PASS_WATER, viewProjection, waterBounds);
+    if (waterBounds.empty())
+        return false;
+    // The plane is fitted to all the water gathered around the camera, not
+    // only the patches in view: a sloping river seen through a patch or two
+    // would give a level plane, off by a metre at the camera, and turning
+    // would flip nearby water between reflection and plain shading.
+    renderer->visibleBounds(Renderer::PASS_WATER, nullptr, waterBounds);
     const float *eye = camera->getPos();
     if (!PlanarReflection::fitPlane(waterBounds, eye, plane))
         return false;
