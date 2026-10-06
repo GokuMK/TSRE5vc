@@ -101,6 +101,8 @@ private:
     Frame current;
     QImage overlayImage;
     bool overlayUsed = false;
+    // An UpdateRequest is posted to the window and not delivered yet.
+    bool updatePosted = false;
     std::function<void()> frameEnd;
     // Paints a frame through the client and finishes it.
     void paintFrame();

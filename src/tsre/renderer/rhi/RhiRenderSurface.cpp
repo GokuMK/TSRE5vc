@@ -110,8 +110,14 @@ Renderer *RhiRenderSurface::createRenderer() {
 }
 
 void RhiRenderSurface::requestUpdate() {
-    if (window != nullptr)
-        window->requestUpdate();
+    // Frames are paced by the widget's timer, as with QOpenGLWidget, whose
+    // repaints are posted events too. QWindow::requestUpdate() would deliver
+    // the frame later, after a platform timer or the compositor's frame
+    // callback (Steam Deck on Windows: 40 instead of 53 frames a second).
+    if (window == nullptr || updatePosted)
+        return;
+    updatePosted = true;
+    QCoreApplication::postEvent(window, new QEvent(QEvent::UpdateRequest), Qt::LowEventPriority);
 }
 
 void RhiRenderSurface::makeCurrent() {
@@ -174,6 +180,7 @@ void RhiRenderSurface::exposed() {
 }
 
 void RhiRenderSurface::render() {
+    updatePosted = false;
     QRhi *rhi = rhiContext->rhi();
     if (rhi == nullptr || client == nullptr || !ensureSwapChain())
         return;
