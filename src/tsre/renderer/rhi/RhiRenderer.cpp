@@ -349,6 +349,8 @@ void RhiRenderer::releaseResources() {
     presentSampler = nullptr;
     releaseAttachments(view);
     releaseAttachments(selection);
+    for (Attachments &map : shadowMaps)
+        releaseAttachments(map);
     delete uniformArena.buffer;
     uniformArena.buffer = nullptr;
     delete instanceArena.buffer;
@@ -415,7 +417,8 @@ void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
     program->setMat4("uFMatrix", gluu->fMatrix);
     if (program->kind == RhiProgram::SHADOW) {
         // The shadow program draws with the light's matrix.
-        Mat4::multiply(corrected, const_cast<float *>(correction.constData()), gluu->pShadowMatrix);
+        const QMatrix4x4 shadowCorrection = shadowClipCorrection();
+        Mat4::multiply(corrected, const_cast<float *>(shadowCorrection.constData()), gluu->pShadowMatrix);
         program->setMat4("uShadowPMatrix", corrected);
     } else {
         program->setMat4("uShadowPMatrix", gluu->pShadowMatrix);
@@ -575,14 +578,22 @@ bool RhiRenderer::createAttachments(Attachments &attachments, QRhiTexture::Forma
                                     const QSize &size, QRhiTexture::Flags colorFlags) {
     releaseAttachments(attachments);
     attachments.size = size;
-    attachments.color = rhi->newTexture(colorFormat, size, 1, QRhiTexture::RenderTarget | colorFlags);
+    if (colorFormat != QRhiTexture::UnknownFormat) {
+        attachments.color = rhi->newTexture(colorFormat, size, 1, QRhiTexture::RenderTarget | colorFlags);
+        if (!attachments.color->create()) {
+            releaseAttachments(attachments);
+            return false;
+        }
+    }
     attachments.depth = rhi->newTexture(QRhiTexture::D32F, size, 1, QRhiTexture::RenderTarget);
-    if (!attachments.color->create() || !attachments.depth->create()) {
+    if (!attachments.depth->create()) {
         releaseAttachments(attachments);
         return false;
     }
     for (int clears = 0; clears < 4; ++clears) {
-        QRhiTextureRenderTargetDescription description{QRhiColorAttachment(attachments.color)};
+        QRhiTextureRenderTargetDescription description;
+        if (attachments.color != nullptr)
+            description.setColorAttachments({QRhiColorAttachment(attachments.color)});
         description.setDepthTexture(attachments.depth);
         QRhiTextureRenderTarget::Flags flags;
         if (!(clears & 1))
@@ -715,7 +726,28 @@ void RhiRenderer::endSelection() {
                 selectionViewport[3]);
 }
 
-void RhiRenderer::createShadowMaps(int, int) {
+void RhiRenderer::createShadowMaps(int nearSize, int farSize) {
+    beginFrameIfNeeded();
+    const int sizes[3] = {nearSize, nearSize, farSize};
+    for (int map = 0; map < 3; ++map) {
+        const QSize size(std::max(1, sizes[map]), std::max(1, sizes[map]));
+        if (!shadowMaps[map].valid() || shadowMaps[map].size != size)
+            createAttachments(shadowMaps[map], QRhiTexture::UnknownFormat, size, {});
+        targets[TARGET_SHADOW_NEAR + map].attachments = &shadowMaps[map];
+    }
+}
+
+bool RhiRenderer::shadowTarget() const {
+    return currentTarget >= TARGET_SHADOW_NEAR && currentTarget <= TARGET_SHADOW_FAR;
+}
+
+QMatrix4x4 RhiRenderer::shadowClipCorrection() const {
+    QMatrix4x4 correction = rhi->clipSpaceCorrMatrix();
+    // Where the framebuffer's y points down, rows would come out flipped
+    // against OpenGL's texture coordinates.
+    if (!rhi->isYUpInFramebuffer())
+        correction.scale(1.0f, -1.0f, 1.0f);
+    return correction;
 }
 
 bool RhiRenderer::setBlending(bool enabled) {
@@ -1048,7 +1080,14 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
         switch (slot.type) {
         case 1: texture = dummyArray; break;
         case 2: texture = dummyCube; break;
-        case 3: texture = dummyDepth; slotSampler = shadowSampler; break;
+        case 3: {
+            texture = dummyDepth;
+            slotSampler = shadowSampler;
+            const int map = slot.binding == 9 ? 0 : slot.binding == 2 ? 1 : slot.binding == 3 ? 2 : -1;
+            if (map >= 0 && shadowMaps[map].valid() && Game::shadowsEnabled > 0)
+                texture = shadowMaps[map].depth;
+            break;
+        }
         default:
             texture = dummy2D;
             if (slot.binding == 0 && base != nullptr) {
@@ -1099,11 +1138,13 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
     key.topology = quint8(topology(item->mesh.primitive));
     key.layout = quint8(buffers.layout);
     key.format = quint8(buffers.format);
-    key.blend = blending && baseProgram != PROGRAM_SELECTION;
+    key.blend = blending && baseProgram != PROGRAM_SELECTION && !shadowTarget();
     key.depthWrite = !(item->pbr.enabled && item->pbr.blend);
     key.decal = item->material.decal && selectionId == 0;
     key.cullBack = !item->material.doubleSided;
-    key.frontCw = frontCw;
+    // Shadow maps flipped against the backend's convention turn the
+    // winding around.
+    key.frontCw = frontCw != (shadowTarget() && !rhi->isYUpInFramebuffer());
     key.wireframe = item->material.wireframe;
     key.lineWidth = quint8(std::clamp(item->material.lineWidth > 0 ? item->material.lineWidth
                                                                   : Game::oglDefaultLineWidth, 1, 255));
@@ -1197,7 +1238,21 @@ void RhiRenderer::renderPassesMeasured(RenderPass first, RenderPass last) {
     drawPasses(first, last, true);
 }
 
-void RhiRenderer::renderShadowCasters(float, int, const float *) {
+void RhiRenderer::renderShadowCasters(float range, int statsSlot, const float *viewProjection) {
+    beginFrameIfNeeded();
+    if (!targetReady())
+        return;
+    // Casters in range and inside the light view, instanced by packet.
+    planShadowCasters(range, viewProjection);
+    std::vector<const float *> matrices;
+    for (const GroupPlan &plan : groupPlans) {
+        RenderItem *item = shadowCasters[plan.begin]->packet;
+        matrices.clear();
+        for (size_t k = plan.begin; k < plan.end; ++k)
+            matrices.push_back(instanceMatrix(shadowCasters[k]->matrix));
+        recordDraw(item, matrices.data(), int(matrices.size()), 0, statsSlot,
+                   shadowCasters[plan.begin]->category);
+    }
 }
 
 void RhiRenderer::flushTarget() {

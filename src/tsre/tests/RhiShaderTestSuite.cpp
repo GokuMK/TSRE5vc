@@ -53,6 +53,14 @@ int TsreTests::runRhiShaderSuite(bool verbose) {
           && RhiShaderSource::preprocess(combined, {"A", "B"}) == "ab\naorb\n\n",
           "&& and || combine defined() terms");
 
+    const RhiShaderSource::Program unwritten = RhiShaderSource::convert(
+            "#version 330 core\nin vec4 vertex;\nout float written;\nvoid main() { written = 1.0; gl_Position = vertex; }\n",
+            "#version 330 core\nin float written;\nin vec3 unwritten;\nout vec4 color;\n"
+            "void main() { color = vec4(unwritten, written); }\n", {});
+    check(unwritten.error.isEmpty() && unwritten.fragment.contains("vec3 unwritten = vec3(0);")
+          && unwritten.fragment.contains("layout(location = 0) in float written;"),
+          "fragment inputs the vertex stage does not write become private zeros");
+
     struct Variant { const char *vertex; const char *fragment; QStringList defines; };
     const QList<Variant> variants = {
         {"StandardFog", "StandardFog", {}}, {"StandardFog", "StandardFast", {}},

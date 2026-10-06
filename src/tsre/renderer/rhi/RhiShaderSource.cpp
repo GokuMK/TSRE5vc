@@ -149,6 +149,7 @@ Program convert(const QByteArray &vertexSource, const QByteArray &fragmentSource
     // name, so both stages give a varying the same location.
     QMap<QString, Declaration> uniforms;
     QMap<QString, Declaration> varyings;
+    QSet<QString> vertexOutputs;
     for (int stage = 0; stage < 2; ++stage) {
         int depth = 0;
         for (const QByteArray &rawLine : stages[stage].split('\n')) {
@@ -169,7 +170,10 @@ Program convert(const QByteArray &vertexSource, const QByteArray &fragmentSource
                 if (v.hasMatch()) {
                     const bool varying = (stage == 0 && v.captured(2) == "out")
                             || (stage == 1 && v.captured(2) == "in");
-                    if (varying)
+                    if (stage == 0 && varying)
+                        vertexOutputs.insert(v.captured(4));
+                    // Inputs the vertex stage does not write take no location.
+                    if (varying && (stage == 0 || vertexOutputs.contains(v.captured(4))))
                         varyings.insert(v.captured(4), {v.captured(3), v.captured(4), v.captured(5)});
                 }
             }
@@ -237,6 +241,13 @@ Program convert(const QByteArray &vertexSource, const QByteArray &fragmentSource
                             location = attributes.value(name, -1);
                         } else if (stage == 1 && direction == "out") {
                             location = 0;
+                        } else if (stage == 1 && !vertexOutputs.contains(name)) {
+                            // An input the vertex stage does not write: OpenGL
+                            // leaves it undefined, Vulkan rejects it. Keep the
+                            // name as a private zero.
+                            line = v.captured(5).isEmpty()
+                                    ? QString("%1 %2 = %1(0);").arg(v.captured(3), name)
+                                    : QString("%1 %2%3;").arg(v.captured(3), name, v.captured(5));
                         } else {
                             location = varyingLocations.value(name, -1);
                         }

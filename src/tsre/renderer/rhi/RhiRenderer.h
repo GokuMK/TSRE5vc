@@ -146,8 +146,15 @@ private:
     };
 
     void beginFrameIfNeeded();
+    // Colour and depth, or depth only (a shadow map) when colorFormat is
+    // UnknownFormat.
     bool createAttachments(Attachments &attachments, QRhiTexture::Format colorFormat,
                            const QSize &size, QRhiTexture::Flags colorFlags);
+    bool shadowTarget() const;
+    // The matrix taking OpenGL clip space to this backend's for a shadow
+    // map: the maps keep OpenGL's orientation, so the lit programs sample
+    // them as they do under OpenGL.
+    QMatrix4x4 shadowClipCorrection() const;
     void releaseAttachments(Attachments &attachments);
     bool ensureViewTarget(const QSize &size);
     // Whether the current target can be drawn into this frame.
@@ -206,6 +213,8 @@ private:
     QRhiSampler *presentSampler = nullptr;
     QRhiRenderPassDescriptor *presentPassKey = nullptr;
 
+    // Shadow maps: near, middle and far.
+    Attachments shadowMaps[3];
     // Selection ids, read back once per selection pass.
     Attachments selection;
     QByteArray selectionIds;
