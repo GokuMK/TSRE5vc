@@ -759,6 +759,7 @@ quint32 RhiRenderer::readSelection(int x, int y) {
         QRhiResourceUpdateBatch *batch = rhi->nextResourceUpdateBatch();
         batch->readBackTexture(QRhiReadbackDescription(selection.color), &result);
         s->frame().commandBuffer->resourceUpdate(batch);
+        debugCount("call finish (selection)");
         rhi->finish();
         selectionIds = result.data;
     }
@@ -851,6 +852,7 @@ QByteArray RhiRenderer::readNow(QRhiTexture *texture, QSize *size) {
     batch->readBackTexture(QRhiReadbackDescription(texture), &result);
     s->frame().commandBuffer->resourceUpdate(batch);
     // Within a frame this submits the work so far and completes readbacks.
+    debugCount("call finish (readNow)");
     rhi->finish();
     if (size != nullptr)
         *size = result.pixelSize;
@@ -1908,6 +1910,14 @@ void RhiRenderer::renderFrame() {
         debugCounts.clear();
         qInfo().noquote() << "rhi-trace pipelines" << pipelines.size() << "resource sets"
                           << resourceSets.size();
+        // The driver memory QRhi allocated (Vulkan: its allocator's blocks).
+        const QRhiStats stats = rhi->statistics();
+        qInfo().noquote() << "rhi-trace memory blocks" << stats.blockCount << "allocations"
+                          << stats.allocCount << "used MB" << stats.usedBytes / 1048576
+                          << "unused MB" << stats.unusedBytes / 1048576 << "total MB"
+                          << stats.totalUsageBytes / 1048576 << "meshes"
+                          << Meshes::rhiTraceSummary() << "textures"
+                          << RhiTextures::memorySummary();
     }
     drawPasses(PASS_SKY, PASS_UI, true);
     applyAmbientOcclusion();

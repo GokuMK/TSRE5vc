@@ -10,6 +10,8 @@
 
 #include "RhiTextures.h"
 #include "RhiContext.h"
+#include <QMap>
+#include <QStringList>
 #include <algorithm>
 #include <vector>
 
@@ -235,6 +237,41 @@ void releaseAll() {
         pending->release();
         pending = nullptr;
     }
+}
+
+QString memorySummary() {
+    QMap<QString, QPair<int, qint64>> formats;
+    for (const Entry &entry : store()) {
+        if (entry.texture == nullptr)
+            continue;
+        const QRhiTexture *t = entry.texture;
+        const QSize size = t->pixelSize();
+        const qint64 texels = qint64(size.width()) * size.height() * std::max(1, t->arraySize());
+        qint64 bytes = 0;
+        QString name;
+        switch (t->format()) {
+        case QRhiTexture::BC1: bytes = texels / 2; name = "BC1"; break;
+        case QRhiTexture::BC2: bytes = texels; name = "BC2"; break;
+        case QRhiTexture::BC3: bytes = texels; name = "BC3"; break;
+        case QRhiTexture::R8: bytes = texels; name = "R8"; break;
+        case QRhiTexture::RGBA32F: bytes = texels * 16; name = "RGBA32F"; break;
+        default: bytes = texels * 4; name = "RGBA8"; break;
+        }
+        if (t->flags() & QRhiTexture::MipMapped) {
+            bytes = bytes * 4 / 3;
+            name += " mipmapped";
+        }
+        if (t->arraySize() > 0)
+            name += " array";
+        auto &total = formats[name];
+        total.first += 1;
+        total.second += bytes;
+    }
+    QStringList parts;
+    for (auto it = formats.cbegin(); it != formats.cend(); ++it)
+        parts << QString("%1: %2 / %3 MB").arg(it.key()).arg(it.value().first)
+                         .arg(it.value().second / 1048576.0, 0, 'f', 1);
+    return parts.join(", ");
 }
 
 bool sampledNearest(unsigned int handle) {
