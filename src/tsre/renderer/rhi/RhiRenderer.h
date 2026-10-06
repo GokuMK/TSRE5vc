@@ -54,6 +54,7 @@ public:
     void setViewport(int x, int y, int width, int height) override;
     void viewport(int *rectangle) const override;
     float readDepth(int x, int y) override;
+    float readDepthLatest(int x, int y) override;
     void readColor(int x, int y, int width, int height, unsigned char *rgba) override;
     bool beginSelection(int width, int height) override;
     quint32 readSelection(int x, int y) override;
@@ -344,6 +345,17 @@ private:
         QRhiTexture *boundDepth = nullptr;
         QRhiGraphicsPipeline *pipeline = nullptr;
     } depthProbe;
+    // The asynchronous read of readDepthLatest, completed with its frame.
+    struct LatestDepth {
+        QRhiReadbackResult result;
+        bool pending = false;
+        bool valid = false;
+        float depth = 1.0f;
+    };
+    std::unique_ptr<LatestDepth> latestDepth;
+    // Draws the view's depth at a pixel into the probe's 1x1 texture; false
+    // when there is no view to read.
+    bool recordDepthProbe(int x, int y);
     void releaseDepthProbe();
     // The wave map of the water program (WaterNormalMap), made once.
     QRhiTexture *waterWaves();

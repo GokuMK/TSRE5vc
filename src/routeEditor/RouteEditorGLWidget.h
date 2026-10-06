@@ -304,6 +304,9 @@ private:
     float aktPointerPos[3];
     // When the pointer last read the depth (it reads at most every 50 ms).
     unsigned long long pointerReadTime = 0;
+    // The next pointer read waits for this frame's depth (probePointer);
+    // otherwise it takes the latest completed read.
+    bool pointerReadExact = false;
     bool mouseLPressed = false;
     bool mouseRPressed = false;
     bool mouseClick = false;

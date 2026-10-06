@@ -208,6 +208,9 @@ RhiRenderer::RhiRenderer(RhiContext *context)
 RhiRenderer::~RhiRenderer() {
     if (RhiRenderSurface *s = surface())
         s->setFrameEnd(nullptr);
+    // A read in flight writes into latestDepth when it completes.
+    if (latestDepth && latestDepth->pending)
+        rhi->finish();
     clearQueues();
     releaseResources();
 }
@@ -854,11 +857,60 @@ QByteArray RhiRenderer::readNow(QRhiTexture *texture, QSize *size) {
     return result.data;
 }
 
+namespace {
+// A probed depth in the view's depth range. The scene band draws into
+// [0, 0.98] of it; OpenGL clears depth before it instead, so farther bands
+// read as the far plane.
+float bandDepth(float depth, float rangeNear, float rangeFar) {
+    if (depth >= rangeFar || rangeFar <= rangeNear)
+        return 1.0f;
+    return std::clamp((depth - rangeNear) / (rangeFar - rangeNear), 0.0f, 1.0f);
+}
+}
+
 float RhiRenderer::readDepth(int x, int y) {
+    if (!recordDepthProbe(x, y))
+        return 1.0f;
+    const QByteArray data = readNow(depthProbe.result);
+    if (data.size() < 4)
+        return 1.0f;
+    float depth = 1.0f;
+    std::memcpy(&depth, data.constData(), sizeof(depth));
+    return bandDepth(depth, depthRange[0], depthRange[1]);
+}
+
+float RhiRenderer::readDepthLatest(int x, int y) {
+    if (!latestDepth)
+        latestDepth = std::make_unique<LatestDepth>();
+    LatestDepth *latest = latestDepth.get();
+    if (!latest->valid) {
+        // Nothing read yet: wait for this one.
+        latest->depth = readDepth(x, y);
+        latest->valid = true;
+        return latest->depth;
+    }
+    if (!latest->pending && recordDepthProbe(x, y)) {
+        latest->pending = true;
+        const float rangeNear = depthRange[0], rangeFar = depthRange[1];
+        latest->result.completed = [latest, rangeNear, rangeFar] {
+            float depth = 1.0f;
+            if (latest->result.data.size() >= 4)
+                std::memcpy(&depth, latest->result.data.constData(), sizeof(depth));
+            latest->depth = bandDepth(depth, rangeNear, rangeFar);
+            latest->pending = false;
+        };
+        QRhiResourceUpdateBatch *batch = rhi->nextResourceUpdateBatch();
+        batch->readBackTexture(QRhiReadbackDescription(depthProbe.result), &latest->result);
+        surface()->frame().commandBuffer->resourceUpdate(batch);
+    }
+    return latest->depth;
+}
+
+bool RhiRenderer::recordDepthProbe(int x, int y) {
     beginFrameIfNeeded();
     if (currentTarget != TARGET_VIEW || !targetReady() || x < 0 || y < 0
             || x >= view.size.width() || y >= view.size.height())
-        return 1.0f;
+        return false;
     RhiRenderSurface *s = surface();
     QRhiCommandBuffer *cb = s->frame().commandBuffer;
     flushTarget();
@@ -885,7 +937,7 @@ void main() {
                                         QRhiSampler::ClampToEdge, QRhiSampler::ClampToEdge);
         if (!probe.result->create() || !probe.uniforms->create() || !probe.sampler->create()) {
             releaseDepthProbe();
-            return 1.0f;
+            return false;
         }
         probe.target = rhi->newTextureRenderTarget({QRhiColorAttachment(probe.result)});
         probe.pass = probe.target->newCompatibleRenderPassDescriptor();
@@ -904,7 +956,7 @@ void main() {
         probe.pipeline->setRenderPassDescriptor(probe.pass);
         if (!probe.target->create() || !probe.bindings->create() || !probe.pipeline->create()) {
             releaseDepthProbe();
-            return 1.0f;
+            return false;
         }
     }
     if (probe.boundDepth != view.depth) {
@@ -927,16 +979,7 @@ void main() {
     cb->setShaderResources(probe.bindings);
     cb->draw(3);
     cb->endPass();
-    const QByteArray data = readNow(probe.result);
-    if (data.size() < 4)
-        return 1.0f;
-    float depth = 1.0f;
-    std::memcpy(&depth, data.constData(), sizeof(depth));
-    // The scene band draws into [0, 0.98] of the depth range; OpenGL clears
-    // depth before it instead, so farther bands read as the far plane.
-    if (depth >= depthRange[1] || depthRange[1] <= depthRange[0])
-        return 1.0f;
-    return std::clamp((depth - depthRange[0]) / (depthRange[1] - depthRange[0]), 0.0f, 1.0f);
+    return true;
 }
 
 void RhiRenderer::readColor(int x, int y, int width, int height, unsigned char *rgba) {

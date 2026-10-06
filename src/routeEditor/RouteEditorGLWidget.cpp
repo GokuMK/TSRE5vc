@@ -1257,7 +1257,8 @@ void RouteEditorGLWidget::readPointerPosition() {
     renderer->viewport(viewport);
     int realy = viewport[3] - (int) y - 1;
     if(newTime - pointerReadTime > 50){
-        winZ[0] = renderer->readDepth(x, realy);
+        winZ[0] = pointerReadExact ? renderer->readDepth(x, realy)
+                                   : renderer->readDepthLatest(x, realy);
         pointerReadTime = newTime;
     }
     GLH::glhUnProjectf((float) x, (float) realy, winZ[0], // 
@@ -2288,7 +2289,9 @@ QVector3D RouteEditorGLWidget::probePointer(const QPoint &devicePoint) {
     mousex = devicePoint.x() / Game::PixelRatio;
     mousey = devicePoint.y() / Game::PixelRatio;
     pointerReadTime = 0;
+    pointerReadExact = true;
     grabFramebuffer();
+    pointerReadExact = false;
     return QVector3D(aktPointerPos[0], aktPointerPos[1], aktPointerPos[2]);
 }
 

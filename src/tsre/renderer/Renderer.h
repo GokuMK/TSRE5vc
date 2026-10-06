@@ -165,6 +165,9 @@ public:
     virtual void viewport(int *rectangle) const = 0;
     // Depth (0..1) of the bound target at a pixel, origin bottom-left.
     virtual float readDepth(int x, int y) = 0;
+    // As readDepth, without waiting for the GPU: the depth of the last read
+    // that completed, which may be a frame or two old (the 3D pointer).
+    virtual float readDepthLatest(int x, int y) { return readDepth(x, y); }
     // RGBA bytes of a rectangle of the bound target, rows from the bottom.
     virtual void readColor(int x, int y, int width, int height, unsigned char *rgba) = 0;
     // Bounding spheres (centre x, y, z and radius, in submission space) of
