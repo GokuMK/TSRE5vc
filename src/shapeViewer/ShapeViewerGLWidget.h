@@ -150,6 +150,11 @@ private:
     bool cameraInit = false;
     // Near clip distance, scaled with the shown shape so small ones are not clipped.
     float nearPlane = 0.2f;
+    // This frame's projection (without the camera) and depth planes, which
+    // the renderer's screen-space effects need (setSceneProjection).
+    float sceneProjection[16] = {};
+    float sceneNear = 0.2f;
+    float sceneFar = 1.0f;
     
     QMap<QString, QAction*> defaultMenuActions;
 };

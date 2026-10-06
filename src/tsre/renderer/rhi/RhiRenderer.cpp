@@ -1028,6 +1028,19 @@ void RhiRenderer::releaseDepthProbe() {
     probe = DepthProbe();
 }
 
+void RhiRenderer::setSceneProjection(const float *projection, float zNear, float zFar) {
+    beginFrameIfNeeded();
+    if (secondaryView || currentTarget != TARGET_VIEW)
+        return;
+    sceneProjection[0] = projection[0];
+    sceneProjection[1] = projection[5];
+    sceneProjection[2] = zNear;
+    sceneProjection[3] = zFar;
+    sceneDepthRange[0] = depthRange[0];
+    sceneDepthRange[1] = depthRange[1];
+    sceneProjectionValid = true;
+}
+
 void RhiRenderer::beginViewBand(const LayeredView &view, ViewBand band) {
     if (!view.projection)
         return;

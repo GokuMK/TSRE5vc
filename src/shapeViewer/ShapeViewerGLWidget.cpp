@@ -251,6 +251,9 @@ void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
     float* lookAt = camera->getMatrix();
     const float zNear = renderItem == 4 ? nearPlane : 0.2f;
     Mat4::perspective(gluu->pMatrix, camera->fov*M_PI/180*(1/aspect), aspect, zNear, Game::objectLod);
+    std::copy(gluu->pMatrix, gluu->pMatrix + 16, sceneProjection);
+    sceneNear = zNear;
+    sceneFar = Game::objectLod;
     Mat4::multiply(gluu->pMatrix, gluu->pMatrix, lookAt);
     
     Mat4::perspective(gluu->fMatrix, camera->fov*M_PI/180*(1/aspect), aspect, zNear, Game::objectLod);
@@ -347,6 +350,7 @@ void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
 
 void ShapeViewerGLWidget::renderGathered(quint32 selectionId) {
     renderer->resetFrame();
+    renderer->setSceneProjection(sceneProjection, sceneNear, sceneFar);
     renderer->setViewPosition(camera->getPos());
     RenderQueue &queue = *renderer;
     float *mv = renderer->transform();
