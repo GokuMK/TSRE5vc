@@ -9,6 +9,8 @@ int Game::textureQuality = 1;
 QString Game::renderBackend = "opengl";
 namespace RhiTextures {
 unsigned int create(int, int, const QVector<QByteArray> &) { return 0; }
+bool supportsBlocks() { return false; }
+unsigned int createCompressed(int, int, Blocks, const QVector<QByteArray> &) { return 0; }
 void release(unsigned int) {}
 void setSampling(unsigned int, bool, bool) {}
 bool clampedToEdge(unsigned int) { return false; }
