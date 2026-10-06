@@ -25,11 +25,13 @@ out float vTerrainGap;
 
 void main() {
     // QRhi has no packed 2_10_10_10 vertex format: the paged terrain normal
-    // and gap flag arrive as unsigned bytes, round(v * 127) + 128.
+    // and gap flag arrive as unsigned bytes, round(v * 127) + 128. Round
+    // back to the byte: GPUs may turn 128/255 * 255 into a little over 128,
+    // and a gap flag above zero discards the fragment.
     vec4 vertexNormal = normal;
 #if defined(TSRE_RHI)
     if (terrainPaged != 0)
-        vertexNormal = (normal * 255.0 - 128.0) / 127.0;
+        vertexNormal = (round(normal * 255.0) - 128.0) / 127.0;
 #endif
     vec4 renderVertex = vertex;
     vec2 renderUv = aTextureCoord;
