@@ -119,6 +119,31 @@ renderers resolve; the QRhi renderer keeps the CPU pixels until upload.
 6. Selection, pointer depth, screenshots.
 7. New: emissive light and many lights.
 
+## Status (2026-10-06)
+
+Milestones 1 to 6 are done on `feature/qrhi`. Parity sweep, QRhi on Vulkan
+(lavapipe) against the OpenGL renderer of the same build, every view of
+`parity-views` and `parity-views-shadows` on EUROPE1, JAPAN1, USA1 and
+BNSF_SCENIC:
+
+- Images: RMSE 1.2 to 7.1 (0.00 to 0.16 % of pixels off by more than 16);
+  the remaining differences are thin-line rasterization (track lines).
+- Picking: 144 of 144 probes equal in every view but USA1 aerial (143, a
+  probe on a track line).
+- Pointer depth: within 0.2 m.
+- QRhi on OpenGL: RMSE 0.85 (EUROPE1) and 1.28 (BNSF), picking equal.
+- glTF samples (32, Shape Viewer with the warehouse cube): RMSE up to 1.4.
+- PROCEDURAL (direct GPU material arrays): RMSE 1.45.
+- Environment map in the Route Editor (water without planar reflection):
+  RMSE 2.4 against OpenGL, where the cube changes the image by 10.3.
+
+Open:
+
+- Water visibility without occlusion queries (the reflection is drawn
+  whenever water is in view).
+- Direct3D and Metal backends are built but untested (no hardware here);
+  the present and preview passes assume the Vulkan or OpenGL y conventions.
+
 ## Verification
 
 Captures with `--set=core.rendering.backend=qrhi` compared with OpenGL
