@@ -14,6 +14,7 @@
 #include "RhiRenderSurface.h"
 #include "RhiShaderSource.h"
 #include "RhiTextures.h"
+#include <QDateTime>
 #include <QDebug>
 #include <QFloat16>
 #include <QElapsedTimer>
@@ -1877,19 +1878,17 @@ void main() {
         const QRect changed = s->overlayChanged() & overlay->rect();
         if (overlayTexture != nullptr && !changed.isEmpty()) {
             // Uploads keep row order; where the framebuffer's y points up the
-            // view's first row is its bottom.
-            QRhiTextureSubresourceUploadDescription rows;
+            // view's first row is its bottom. A copy of the part, not a source
+            // rectangle: QRhi's Vulkan backend sizes the staging buffer for
+            // the whole image either way.
+            QImage part = overlay->copy(changed);
+            QPoint to = changed.topLeft();
             if (rhi->isYUpInFramebuffer()) {
-                rows = QRhiTextureSubresourceUploadDescription(
-                        overlay->copy(changed).flipped(Qt::Vertical));
-                rows.setDestinationTopLeft(
-                        QPoint(changed.x(), overlay->height() - changed.y() - changed.height()));
-            } else {
-                rows = QRhiTextureSubresourceUploadDescription(*overlay);
-                rows.setSourceTopLeft(changed.topLeft());
-                rows.setSourceSize(changed.size());
-                rows.setDestinationTopLeft(changed.topLeft());
+                part = part.flipped(Qt::Vertical);
+                to.setY(overlay->height() - changed.y() - changed.height());
             }
+            QRhiTextureSubresourceUploadDescription rows(part);
+            rows.setDestinationTopLeft(to);
             overlayUpload = rhi->nextResourceUpdateBatch();
             overlayUpload->uploadTexture(overlayTexture,
                                          QRhiTextureUploadDescription(QRhiTextureUploadEntry(0, 0, rows)));
@@ -1933,7 +1932,8 @@ void RhiRenderer::renderFrame() {
                           << resourceSets.size();
         // The driver memory QRhi allocated (Vulkan: its allocator's blocks).
         const QRhiStats stats = rhi->statistics();
-        qInfo().noquote() << "rhi-trace memory blocks" << stats.blockCount << "allocations"
+        qInfo().noquote() << "rhi-trace memory at" << QDateTime::currentMSecsSinceEpoch()
+                          << "blocks" << stats.blockCount << "allocations"
                           << stats.allocCount << "used MB" << stats.usedBytes / 1048576
                           << "unused MB" << stats.unusedBytes / 1048576 << "total MB"
                           << stats.totalUsageBytes / 1048576 << "meshes"
