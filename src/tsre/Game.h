@@ -150,6 +150,9 @@ public:
     static int shadowsEnabled;
     // Environment cube map for reflections (see EnvironmentMap).
     static bool environmentMapEnabled;
+    // MSTS parts marked as blended: 0 as marked, 1 opaque when their texture
+    // is opaque, 2 also alpha-tested when its alpha is binary.
+    static int blendedParts;
     static int environmentMapSize;
     static int environmentMapFacesPerFrame;
     static float environmentMapObjectDistance;

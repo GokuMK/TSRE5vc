@@ -8239,6 +8239,26 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <source>16384 px</source>
         <translation>16384 px</translation>
     </message>
+    <message id="settings.core.rendering.blended.parts.name">
+        <source>Blended shape parts</source>
+        <translation>Blended shape parts</translation>
+    </message>
+    <message id="settings.core.rendering.blended.parts.description">
+        <source>MSTS shapes mark many opaque parts as blended. Draw such parts with the opaque ones when their texture has no partly transparent texels, so they sort correctly and receive ambient occlusion.</source>
+        <translation>MSTS shapes mark many opaque parts as blended. Draw such parts with the opaque ones when their texture has no partly transparent texels, so they sort correctly and receive ambient occlusion.</translation>
+    </message>
+    <message id="settings.core.rendering.blended.parts.option.0">
+        <source>As marked in the shape</source>
+        <translation>As marked in the shape</translation>
+    </message>
+    <message id="settings.core.rendering.blended.parts.option.1">
+        <source>Opaque when the texture is opaque</source>
+        <translation>Opaque when the texture is opaque</translation>
+    </message>
+    <message id="settings.core.rendering.blended.parts.option.2">
+        <source>Also alpha-tested when the texture alpha is on/off</source>
+        <translation>Also alpha-tested when the texture alpha is on/off</translation>
+    </message>
     <message id="settings.core.rendering.environment.map.enabled.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="763" />
         <source>Render environment map</source>

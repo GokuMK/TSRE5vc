@@ -409,6 +409,7 @@ void DdsLib::run()
                      << "dxt:" << (fourCC == FOURCC_DXT1 ? "DXT1" : (fourCC == FOURCC_DXT3 ? "DXT3" : "DXT5"));
         }
 
+        texture->classifyAlpha();
         texture->loaded = true;
         texture->editable = false;
         return;
@@ -522,6 +523,7 @@ void DdsLib::run()
                      << "bpp:" << texture->bytesPerPixel;
         }
 
+        texture->classifyAlpha();
         texture->loaded = true;
         texture->editable = true;
         return;

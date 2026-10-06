@@ -138,8 +138,10 @@ void SFileComplex::syncTextures() {
         auto *tex = it->second;
         if (tex->loaded && !tex->glLoaded && !tex->missing && !tex->error)
             tex->GLTextures();
-        if (tex->glLoaded)
+        if (tex->glLoaded) {
             image.address = tex->tex[0];
+            image.alpha = tex->alphaClass.load();
+        }
     }
 }
 bool SFileComplex::prepare(unsigned int id) {
@@ -234,10 +236,12 @@ void SFileComplex::pushRenderItem(RenderQueue &queue, quint32 selection, unsigne
                                     : RenderItem::SURFACE_BLENDED;
             int addr = mat.image >= 0 ? d->images[mat.image].address : -1;
             if (addr >= 0 && !s.disabledParts.contains(p.uid) &&
-                TexLib::disabledTextures.value(addr) != 1)
+                TexLib::disabledTextures.value(addr) != 1) {
                 item->enableTextures(addr);
-            else
+                item->material.textureAlpha = d->images[mat.image].alpha;
+            } else {
                 item->disableTextures(1, 0, 1, 1);
+            }
             // Persistent packet: selection goes on the queued instance.
             item->setSelectionId(0);
             if (shared) {

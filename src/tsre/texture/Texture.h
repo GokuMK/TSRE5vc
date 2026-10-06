@@ -59,6 +59,8 @@ class Texture {
     QString pathid;
     QVector<QString> hashid; // Logical lookup keys only; pathid retains I/O spelling.
     std::atomic<bool> loaded{false}; // Worker publishes fully prepared content last.
+    // TextureAlpha::Class of level 0, set by the loaders before loaded.
+    std::atomic<unsigned char> alphaClass{0};
     int ref = 0;
     bool glLoaded = false;
     bool editable = false;
@@ -68,6 +70,8 @@ class Texture {
     void setEditable();
     // Decode retained ACE/DDS blocks without uploading or reading back a GL texture.
     bool decodeToCpu();
+    // Finds alphaClass from the loaded data (compressed blocks or pixels).
+    void classifyAlpha();
     // Moves content, NOT cache identity/ref count. Source remains safely empty.
     void takeContentFrom(Texture &other);
     void pixelsChanged();
