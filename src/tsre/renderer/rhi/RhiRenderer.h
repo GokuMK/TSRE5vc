@@ -72,6 +72,7 @@ public:
     void endEnvironmentFaces(const QVector<int> &prefilterFaces);
     void uploadEnvironment(const QByteArray *faces);
     void bindEnvironment(bool prefiltered);
+    void drawEnvironmentPreview(int x, int y, int cellSize);
     void unbindEnvironment() { environment.sampled = nullptr; }
     bool environmentReady(int faceSize) const;
     void releaseEnvironment();
@@ -309,6 +310,12 @@ private:
         QRhiShaderResourceBindings *bindings = nullptr;
         QRhiGraphicsPipeline *pipeline = nullptr;
         QRhiSampler *sampler = nullptr;
+        // The preview cross of the raw faces, drawn over the view.
+        std::unique_ptr<RhiProgram> previewProgram;
+        QRhiBuffer *previewUniforms = nullptr;
+        QRhiShaderResourceBindings *previewBindings = nullptr;
+        QRhiGraphicsPipeline *previewPipeline = nullptr;
+        QRhiRenderPassDescriptor *previewPass = nullptr;
     } environment;
     // Water reflection, sampled mipmapped by screen position.
     Attachments reflection;

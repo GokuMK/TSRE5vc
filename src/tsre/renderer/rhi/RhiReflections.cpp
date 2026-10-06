@@ -37,8 +37,9 @@ public:
     void uploadFaces(const QByteArray *faces) override { renderer->uploadEnvironment(faces); }
     void bind(bool prefiltered) override { renderer->bindEnvironment(prefiltered); }
     void unbind() override { renderer->unbindEnvironment(); }
-    // The preview cross is not drawn on QRhi yet.
-    void drawPreview(int, int, int) override {}
+    void drawPreview(int x, int y, int cellSize) override {
+        renderer->drawEnvironmentPreview(x, y, cellSize);
+    }
     void release() override { renderer->releaseEnvironment(); }
 
 private:
@@ -275,8 +276,85 @@ void RhiRenderer::bindEnvironment(bool prefiltered) {
     environment.sampled = prefiltered ? environment.prefiltered : environment.cube;
 }
 
+void RhiRenderer::drawEnvironmentPreview(int x, int y, int cellSize) {
+    Environment &e = environment;
+    RhiRenderSurface *s = surface();
+    if (e.cube == nullptr || cellSize < 1 || s == nullptr || s->frame().commandBuffer == nullptr
+            || !view.valid())
+        return;
+    if (currentTarget != TARGET_VIEW) {
+        flushTarget();
+        currentTarget = TARGET_VIEW;
+    }
+    flushTarget();
+    if (!e.previewProgram) {
+        e.previewProgram = std::make_unique<RhiProgram>();
+        e.previewProgram->kind = RhiProgram::OTHER;
+        e.previewProgram->source = &context->programFromSource(
+                    "environment-preview", EnvironmentMap::fullScreenVertexShader(),
+                    EnvironmentMap::previewFragmentShader());
+        if (e.previewProgram->valid())
+            reflect(*e.previewProgram);
+    }
+    RhiProgram &program = *e.previewProgram;
+    if (!program.valid())
+        return;
+    if (e.previewPipeline != nullptr && e.previewPass != view.pipelinePass()) {
+        delete e.previewPipeline;
+        e.previewPipeline = nullptr;
+    }
+    if (e.previewUniforms == nullptr) {
+        program.setFloat("rhiFlipY", rhi->isYUpInNDC() ? 0.0f : 1.0f);
+        e.previewUniforms = rhi->newBuffer(QRhiBuffer::Static, QRhiBuffer::UniformBuffer,
+                                           quint32(program.block.size()));
+        e.previewUniforms->create();
+        if (QRhiResourceUpdateBatch *batch = RhiTextures::updates())
+            batch->uploadStaticBuffer(e.previewUniforms, program.block.data());
+    }
+    if (e.previewBindings == nullptr) {
+        e.previewBindings = rhi->newShaderResourceBindings();
+        const auto stages = QRhiShaderResourceBinding::VertexStage | QRhiShaderResourceBinding::FragmentStage;
+        e.previewBindings->setBindings({
+            QRhiShaderResourceBinding::uniformBuffer(RhiShaderSource::UniformBlockBinding, stages,
+                                                     e.previewUniforms),
+            QRhiShaderResourceBinding::sampledTexture(EnvironmentMap::TextureUnit,
+                                                      QRhiShaderResourceBinding::FragmentStage,
+                                                      e.cube, e.sampler)});
+        e.previewBindings->create();
+    }
+    if (e.previewPipeline == nullptr) {
+        e.previewPipeline = rhi->newGraphicsPipeline();
+        e.previewPipeline->setShaderStages({{QRhiShaderStage::Vertex, program.source->vertex},
+                                            {QRhiShaderStage::Fragment, program.source->fragment}});
+        e.previewPipeline->setTopology(QRhiGraphicsPipeline::TriangleStrip);
+        e.previewPipeline->setShaderResourceBindings(e.previewBindings);
+        e.previewPipeline->setRenderPassDescriptor(view.pipelinePass());
+        if (!e.previewPipeline->create()) {
+            delete e.previewPipeline;
+            e.previewPipeline = nullptr;
+            return;
+        }
+        e.previewPass = view.pipelinePass();
+    }
+    QRhiCommandBuffer *cb = s->frame().commandBuffer;
+    QRhiResourceUpdateBatch *uploads = RhiTextures::takeUpdates();
+    cb->beginPass(view.targets[0], Qt::black, {1.0f, 0}, uploads);
+    cb->setGraphicsPipeline(e.previewPipeline);
+    cb->setViewport(QRhiViewport(float(x), float(y), float(cellSize * 4), float(cellSize * 3)));
+    cb->setShaderResources(e.previewBindings);
+    cb->draw(4);
+    cb->endPass();
+}
+
 void RhiRenderer::releaseEnvironment() {
     Environment &e = environment;
+    delete e.previewPipeline;
+    delete e.previewBindings;
+    delete e.previewUniforms;
+    e.previewPipeline = nullptr;
+    e.previewBindings = nullptr;
+    e.previewUniforms = nullptr;
+    e.previewPass = nullptr;
     if (currentTarget == TargetEnvironment)
         currentTarget = TARGET_VIEW;
     targets[TargetEnvironment].attachments = nullptr;

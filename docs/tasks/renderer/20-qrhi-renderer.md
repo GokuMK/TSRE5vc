@@ -47,10 +47,12 @@ moves to a base class both renderers derive from.
 
 ### Targets and programs
 
-The widgets still bind framebuffers (screen, shadow maps) and choose
-programs by name (`gluu->shaders["Shadows"]`). Both become renderer calls
-(render target handles and program kinds), implemented by both renderers;
-this is the framebuffer ownership step of task 19.
+The widgets bind targets and choose programs through renderer calls
+(`bindTarget`, `useProgram`, `beginSelection` / `readSelection`), the
+framebuffer ownership step of task 19. The environment map and the water
+reflection keep their scheduling and geometry and take their textures from a
+storage the renderer creates (`createEnvironmentStorage`,
+`createReflectionStorage`): OpenGL objects, or QRhi targets.
 
 ### Frames on QRhi
 
@@ -62,18 +64,39 @@ this is the framebuffer ownership step of task 19.
   QRhi each band gets its own slice of the depth range (viewport min/max
   depth), farther bands behind nearer ones, so one pass draws all three.
 - The view renders into an offscreen colour and depth target, then to the
-  swapchain; the transmission copy, grabs and readbacks use that target.
+  swapchain when the surface ends the frame, with the overlay the widget
+  painted (FPS counter) composed over it; the transmission copy, grabs and
+  readbacks use that target.
+- Each target keeps a render target per combination of clears at the start
+  of its pass (`Attachments`); pipelines are made against the one that
+  keeps both.
+- Textures sampled by direction or projection (shadow maps, cube faces) keep
+  OpenGL's row order: on y-down framebuffers their projection is flipped
+  again and the winding turned, so the lit shaders sample them unchanged.
+  Screen-position lookups (water reflection, transmission copy) use the
+  backend's order on both sides.
 - Matrices and lights still come from `GLUU`; the QRhi renderer copies them
-  when passes are drawn.
-- The water reflection clips under its plane in the fragment shader.
-- Water visibility (OpenGL occlusion query) needs another source on QRhi.
+  into each program's uniform block when draws are recorded.
+- The water reflection clips under its plane in the fragment shader (QRhi
+  enables no clip distances on OpenGL).
+- Selection, pointer depth and colour reads wait for the GPU within the
+  frame (`QRhi::finish`). Depth is read by a probe pass that samples the
+  view's depth texture into a 1 x 1 float target.
+- Water visibility (OpenGL occlusion query) needs another source on QRhi;
+  until then the reflection is drawn whenever water is in view.
 
 ### Shaders
 
-GLSL 440 sources in `appdata/<version>/shadersrhi`, with the same `#include`
-and define variants as `shaders330`, baked at startup with `QShaderBaker`
-into SPIR-V and GLSL 330 (HLSL and MSL on Windows and macOS). Editing a
-shader still needs no rebuild.
+`RhiShaderSource` converts the `shaders330` programs when they are first
+used: it resolves the variant `#if`s, gathers the loose uniforms of both
+stages into one std140 block (binding 20), keeps the OpenGL texture units as
+sampler bindings, assigns attribute and varying locations and turns
+fragment inputs no vertex stage writes into private zeros. `QShaderBaker`
+bakes the result for the backend (SPIR-V, GLSL 330; HLSL and MSL on Windows
+and macOS). Uniform offsets come from the shader reflection; arrays take
+their std140 stride from their size. Editing a shader still needs no
+rebuild. Code-held shaders (environment prefilter) go through the same
+conversion.
 
 ### Meshes and textures
 

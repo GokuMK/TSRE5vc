@@ -57,10 +57,19 @@ unsigned char byte(float value) {
 
 const char *PreviewVertex = R"(#version 330 core
 out vec2 vUv;
+#ifdef TSRE_RHI
+// Non-zero where clip space y points down (Vulkan): vUv.y = 0 stays at the
+// bottom of the viewport, as in OpenGL.
+uniform float rhiFlipY;
+#endif
 void main() {
     vec2 corner = vec2(float(gl_VertexID & 1), float(gl_VertexID >> 1));
     vUv = corner;
     gl_Position = vec4(corner * 2.0 - 1.0, 0.0, 1.0);
+#ifdef TSRE_RHI
+    if (rhiFlipY != 0.0)
+        gl_Position.y = -gl_Position.y;
+#endif
 }
 )";
 
