@@ -271,6 +271,8 @@ size_t RhiRenderer::BindingKeyHash::operator()(const BindingKey &k) const {
 RhiRenderer::RhiRenderer(RhiContext *context)
     : context(context), rhi(context->rhi()), gluu(GLUU::get()) {
     uniformStride = quint32(rhi->ubufAligned(1));
+    targets[TARGET_VIEW].attachments = &view;
+    targets[TargetSelection].attachments = &selection;
     // Programs: the main program and its variants, selection, shadows.
     struct Definition { RhiProgram::Kind kind; const char *vertex; const char *fragment; QStringList defines; };
     const Definition definitions[] = {
@@ -345,14 +347,8 @@ void RhiRenderer::releaseResources() {
     presentBindings = nullptr;
     delete presentSampler;
     presentSampler = nullptr;
-    delete viewTarget;
-    viewTarget = nullptr;
-    delete viewPass;
-    viewPass = nullptr;
-    delete viewColor;
-    viewColor = nullptr;
-    delete viewDepth;
-    viewDepth = nullptr;
+    releaseAttachments(view);
+    releaseAttachments(selection);
     delete uniformArena.buffer;
     uniformArena.buffer = nullptr;
     delete instanceArena.buffer;
@@ -563,48 +559,92 @@ void RhiRenderer::beginFrameIfNeeded() {
     uniformArena.uploaded = 0;
     instanceArena.data.clear();
     instanceArena.uploaded = 0;
-    viewState.draws.clear();
-    viewState.clearColor = viewState.clearDepth = false;
+    for (TargetState &state : targets) {
+        state.draws.clear();
+        state.keys.clear();
+        state.bindings.clear();
+        state.clearColor = state.clearDepth = false;
+    }
+    targets[TARGET_VIEW].attachments = &view;
+    targets[TargetSelection].attachments = &selection;
     currentTarget = TARGET_VIEW;
     Meshes::collectGarbageRhi();
 }
 
-bool RhiRenderer::ensureViewTarget(const QSize &size) {
-    if (viewTarget != nullptr && viewColor->pixelSize() == size)
-        return true;
-    for (auto it = pipelines.begin(); it != pipelines.end(); ) {
-        if (it->first.pass == viewPass) {
-            delete it->second;
-            it = pipelines.erase(it);
-        } else {
-            ++it;
+bool RhiRenderer::createAttachments(Attachments &attachments, QRhiTexture::Format colorFormat,
+                                    const QSize &size, QRhiTexture::Flags colorFlags) {
+    releaseAttachments(attachments);
+    attachments.size = size;
+    attachments.color = rhi->newTexture(colorFormat, size, 1, QRhiTexture::RenderTarget | colorFlags);
+    attachments.depth = rhi->newTexture(QRhiTexture::D32F, size, 1, QRhiTexture::RenderTarget);
+    if (!attachments.color->create() || !attachments.depth->create()) {
+        releaseAttachments(attachments);
+        return false;
+    }
+    for (int clears = 0; clears < 4; ++clears) {
+        QRhiTextureRenderTargetDescription description{QRhiColorAttachment(attachments.color)};
+        description.setDepthTexture(attachments.depth);
+        QRhiTextureRenderTarget::Flags flags;
+        if (!(clears & 1))
+            flags |= QRhiTextureRenderTarget::PreserveColorContents;
+        if (!(clears & 2))
+            flags |= QRhiTextureRenderTarget::PreserveDepthStencilContents;
+        QRhiTextureRenderTarget *target = rhi->newTextureRenderTarget(description, flags);
+        attachments.passes[clears] = target->newCompatibleRenderPassDescriptor();
+        target->setRenderPassDescriptor(attachments.passes[clears]);
+        attachments.targets[clears] = target;
+        if (!target->create()) {
+            releaseAttachments(attachments);
+            return false;
         }
     }
-    delete viewTarget;
-    delete viewPass;
-    delete viewColor;
-    delete viewDepth;
-    viewColor = rhi->newTexture(QRhiTexture::RGBA8, size, 1,
-                                QRhiTexture::RenderTarget | QRhiTexture::UsedAsTransferSource);
-    viewDepth = rhi->newTexture(QRhiTexture::D32F, size, 1, QRhiTexture::RenderTarget);
-    if (!viewColor->create() || !viewDepth->create())
-        return false;
-    QRhiTextureRenderTargetDescription description{QRhiColorAttachment(viewColor)};
-    description.setDepthTexture(viewDepth);
-    viewTarget = rhi->newTextureRenderTarget(description,
-                                             QRhiTextureRenderTarget::PreserveColorContents
-                                             | QRhiTextureRenderTarget::PreserveDepthStencilContents);
-    viewPass = viewTarget->newCompatibleRenderPassDescriptor();
-    viewTarget->setRenderPassDescriptor(viewPass);
-    if (!viewTarget->create())
-        return false;
-    delete presentBindings;
-    presentBindings = nullptr;
     return true;
 }
 
+void RhiRenderer::releaseAttachments(Attachments &attachments) {
+    QRhiRenderPassDescriptor *pass = attachments.pipelinePass();
+    if (pass != nullptr) {
+        for (auto it = pipelines.begin(); it != pipelines.end(); ) {
+            if (it->first.pass == pass) {
+                delete it->second;
+                it = pipelines.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    }
+    for (int clears = 0; clears < 4; ++clears) {
+        delete attachments.targets[clears];
+        delete attachments.passes[clears];
+        attachments.targets[clears] = nullptr;
+        attachments.passes[clears] = nullptr;
+    }
+    delete attachments.color;
+    delete attachments.depth;
+    attachments.color = attachments.depth = nullptr;
+    attachments.size = QSize();
+}
+
+bool RhiRenderer::ensureViewTarget(const QSize &size) {
+    if (view.valid() && view.size == size)
+        return true;
+    delete presentBindings;
+    presentBindings = nullptr;
+    return createAttachments(view, QRhiTexture::RGBA8, size, QRhiTexture::UsedAsTransferSource);
+}
+
+bool RhiRenderer::targetReady() {
+    RhiRenderSurface *s = surface();
+    if (s == nullptr || s->frame().commandBuffer == nullptr)
+        return false;
+    if (currentTarget == TARGET_VIEW)
+        return ensureViewTarget(s->frame().pixelSize);
+    const Attachments *attachments = targets[currentTarget].attachments;
+    return attachments != nullptr && attachments->valid();
+}
+
 RhiRenderer::TargetState &RhiRenderer::target() {
-    return viewState;
+    return targets[currentTarget];
 }
 
 void RhiRenderer::bindTarget(Target target) {
@@ -612,6 +652,67 @@ void RhiRenderer::bindTarget(Target target) {
     if (currentTarget != target)
         flushTarget();
     currentTarget = target;
+}
+
+bool RhiRenderer::beginSelection(int width, int height) {
+    beginFrameIfNeeded();
+    if (!targetReady() && currentTarget == TARGET_VIEW)
+        return false;
+    flushTarget();
+    const QSize size(std::max(1, width), std::max(1, height));
+    if ((!selection.valid() || selection.size != size)
+            && !createAttachments(selection, QRhiTexture::R32UI, size,
+                                  QRhiTexture::UsedAsTransferSource))
+        return false;
+    std::copy(viewportRect, viewportRect + 4, selectionViewport);
+    setViewport(0, 0, size.width(), size.height());
+    currentTarget = TargetSelection;
+    TargetState &state = target();
+    state.clearColor = state.clearDepth = true;
+    state.color = Qt::black;
+    selectionRead = false;
+    selectionIds.clear();
+    return true;
+}
+
+quint32 RhiRenderer::readSelection(int x, int y) {
+    if (!selection.valid() || x < 0 || y < 0 || x >= selection.size.width()
+            || y >= selection.size.height())
+        return 0;
+    if (!selectionRead) {
+        selectionRead = true;
+        const int previous = currentTarget;
+        currentTarget = TargetSelection;
+        flushTarget();
+        currentTarget = previous;
+        RhiRenderSurface *s = surface();
+        if (s == nullptr || s->frame().commandBuffer == nullptr)
+            return 0;
+        // The ids are needed now: wait for the GPU, which completes the
+        // readback within the frame.
+        QRhiReadbackResult result;
+        QRhiResourceUpdateBatch *batch = rhi->nextResourceUpdateBatch();
+        batch->readBackTexture(QRhiReadbackDescription(selection.color), &result);
+        s->frame().commandBuffer->resourceUpdate(batch);
+        rhi->finish();
+        selectionIds = result.data;
+    }
+    if (selectionIds.size() < qsizetype(selection.size.width()) * selection.size.height() * 4)
+        return 0;
+    // Rows come top first unless the backend's framebuffer has y up.
+    const int row = rhi->isYUpInFramebuffer() ? y : selection.size.height() - 1 - y;
+    quint32 id = 0;
+    std::memcpy(&id, selectionIds.constData()
+                + (qsizetype(row) * selection.size.width() + x) * 4, sizeof(id));
+    return id;
+}
+
+void RhiRenderer::endSelection() {
+    if (currentTarget == TargetSelection)
+        flushTarget();
+    currentTarget = TARGET_VIEW;
+    setViewport(selectionViewport[0], selectionViewport[1], selectionViewport[2],
+                selectionViewport[3]);
 }
 
 void RhiRenderer::createShadowMaps(int, int) {
@@ -628,8 +729,11 @@ void RhiRenderer::clear(bool color, bool depth, const float *clearColor) {
     TargetState &state = target();
     if ((color || depth) && !state.draws.empty())
         flushTarget();
+    // As glClearColor: the colour of this and later clears.
     if (clearColor != nullptr)
-        state.color = QColor::fromRgbF(clearColor[0], clearColor[1], clearColor[2], 1.0f);
+        nextClearColor = QColor::fromRgbF(clearColor[0], clearColor[1], clearColor[2], 1.0f);
+    if (color)
+        state.color = nextClearColor;
     state.clearColor = state.clearColor || color;
     state.clearDepth = state.clearDepth || depth;
 }
@@ -1003,19 +1107,21 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
     key.wireframe = item->material.wireframe;
     key.lineWidth = quint8(std::clamp(item->material.lineWidth > 0 ? item->material.lineWidth
                                                                   : Game::oglDefaultLineWidth, 1, 255));
-    key.pass = viewPass;
+    key.pass = target().attachments != nullptr ? target().attachments->pipelinePass() : nullptr;
     // The uniform buffer is known when the pass runs; the resource set and
     // pipeline are made then.
     draw.pipeline = nullptr;
     draw.bindings = nullptr;
-    const QSize size = viewColor != nullptr ? viewColor->pixelSize() : QSize(1, 1);
+    const QSize size = target().attachments != nullptr && target().attachments->valid()
+            ? target().attachments->size : QSize(1, 1);
     const float w = viewportRect[2] > 0 ? float(viewportRect[2]) : float(size.width());
     const float h = viewportRect[3] > 0 ? float(viewportRect[3]) : float(size.height());
     draw.viewport = QRhiViewport(float(viewportRect[0]), float(viewportRect[1]), w, h,
                                  depthRange[0], depthRange[1]);
-    pendingKeys.push_back(key);
-    pendingBindings.push_back(std::move(bindingKey));
-    target().draws.push_back(draw);
+    TargetState &state = target();
+    state.keys.push_back(key);
+    state.bindings.push_back(std::move(bindingKey));
+    state.draws.push_back(draw);
     RenderStats::countDraw(static_cast<RenderStats::Category>(category), 0, item->mesh.count * count);
     RenderStats::countPassDraw(pass);
 }
@@ -1062,8 +1168,7 @@ void RhiRenderer::recordInstances(const std::vector<DrawInstance> &instances, in
 
 void RhiRenderer::drawPasses(RenderPass first, RenderPass last, bool consume) {
     beginFrameIfNeeded();
-    RhiRenderSurface *s = surface();
-    if (s == nullptr || s->frame().commandBuffer == nullptr || !ensureViewTarget(s->frame().pixelSize))
+    if (!targetReady())
         return;
     for (int pass = first; pass <= last; ++pass) {
         PassQueue &queue = passes[pass];
@@ -1102,7 +1207,7 @@ void RhiRenderer::flushTarget() {
         return;
     if (state.draws.empty() && !state.clearColor && !state.clearDepth)
         return;
-    if (!ensureViewTarget(s->frame().pixelSize))
+    if (!targetReady())
         return;
     QRhiCommandBuffer *cb = s->frame().commandBuffer;
     if (QRhiResourceUpdateBatch *textures = RhiTextures::takeUpdates())
@@ -1113,34 +1218,15 @@ void RhiRenderer::flushTarget() {
     QRhiBuffer *instances = uploadArena(instanceArena, QRhiBuffer::VertexBuffer, frameBatch);
     // Resolve pipelines and resource sets now that the buffers are known.
     for (size_t i = 0; i < state.draws.size(); ++i) {
-        BindingKey &key = pendingBindings[i];
+        BindingKey &key = state.bindings[i];
         key.uniforms = uniforms;
         state.draws[i].bindings = bindings(key);
-        state.draws[i].pipeline = state.draws[i].bindings != nullptr ? pipeline(pendingKeys[i]) : nullptr;
+        state.draws[i].pipeline = state.draws[i].bindings != nullptr ? pipeline(state.keys[i]) : nullptr;
         state.draws[i].instanceBuffer = instances;
     }
     // Clears happen at the start of the pass; otherwise the contents stay.
-    if (state.clearColor || state.clearDepth) {
-        // A clearing pass: draw nothing into a target that keeps contents,
-        // after a clear through a pass without preservation.
-        QRhiTextureRenderTargetDescription description{QRhiColorAttachment(viewColor)};
-        description.setDepthTexture(viewDepth);
-        QRhiTextureRenderTarget::Flags flags;
-        if (!state.clearColor)
-            flags |= QRhiTextureRenderTarget::PreserveColorContents;
-        if (!state.clearDepth)
-            flags |= QRhiTextureRenderTarget::PreserveDepthStencilContents;
-        QRhiTextureRenderTarget *clearing = rhi->newTextureRenderTarget(description, flags);
-        QRhiRenderPassDescriptor *clearingPass = clearing->newCompatibleRenderPassDescriptor();
-        clearing->setRenderPassDescriptor(clearingPass);
-        clearing->create();
-        cb->beginPass(clearing, state.color, {1.0f, 0}, frameBatch);
-        frameBatch = nullptr;
-        cb->endPass();
-        clearing->deleteLater();
-        clearingPass->deleteLater();
-    }
-    cb->beginPass(viewTarget, state.color, {1.0f, 0}, frameBatch);
+    const int clears = (state.clearColor ? 1 : 0) | (state.clearDepth ? 2 : 0);
+    cb->beginPass(state.attachments->targets[clears], state.color, {1.0f, 0}, frameBatch);
     frameBatch = nullptr;
     for (const DrawCommand &draw : state.draws) {
         if (draw.pipeline == nullptr || draw.bindings == nullptr)
@@ -1162,14 +1248,14 @@ void RhiRenderer::flushTarget() {
     }
     cb->endPass();
     state.draws.clear();
-    pendingKeys.clear();
-    pendingBindings.clear();
+    state.keys.clear();
+    state.bindings.clear();
     state.clearColor = state.clearDepth = false;
 }
 
 void RhiRenderer::present() {
     RhiRenderSurface *s = surface();
-    if (s == nullptr || s->frame().commandBuffer == nullptr || viewColor == nullptr)
+    if (s == nullptr || s->frame().commandBuffer == nullptr || !view.valid())
         return;
     const RhiRenderSurface::Frame &frame = s->frame();
     if (presentPipeline == nullptr || presentPassKey != frame.passDescriptor
@@ -1186,7 +1272,7 @@ void RhiRenderer::present() {
     if (presentBindings == nullptr) {
         presentBindings = rhi->newShaderResourceBindings();
         presentBindings->setBindings({QRhiShaderResourceBinding::sampledTexture(
-                                          0, QRhiShaderResourceBinding::FragmentStage, viewColor,
+                                          0, QRhiShaderResourceBinding::FragmentStage, view.color,
                                           presentSampler)});
         presentBindings->create();
         delete presentPipeline;
@@ -1223,7 +1309,9 @@ void RhiRenderer::renderFrame() {
     }
     drawPasses(PASS_SKY, PASS_UI, true);
     flushTarget();
-    present();
+    // A selection pass ends in its ids, not on screen.
+    if (currentTarget != TargetSelection)
+        present();
     clearQueues();
     Renderer::renderFrame();
 }

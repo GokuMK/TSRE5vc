@@ -64,7 +64,6 @@
 #include <tsre/renderer/EnvironmentMap.h>
 #include <tsre/renderer/PlanarReflection.h>
 #include <tsre/renderer/SelectionId.h>
-#include <tsre/renderer/SelectionRenderer.h>
 #include <QDebug>
 #include <algorithm>
 #include <cmath>
@@ -149,11 +148,6 @@ QSize RouteEditorGLWidget::sizeHint() const {
 
 void RouteEditorGLWidget::cleanup() {
     makeCurrent();
-    if(selectionRenderer != NULL){
-        selectionRenderer->release();
-        delete selectionRenderer;
-        selectionRenderer = NULL;
-    }
     delete renderer;
     renderer = NULL;
     delete environmentMap;
@@ -339,12 +333,9 @@ void RouteEditorGLWidget::surfaceInitialize() {
     renderer->clear(false, false, black);
     //qDebug() << "gluu->initShader();";
     qDebug() << "# InitShaders";
-    // The QRhi renderer builds its own programs; selection is OpenGL only
-    // for now.
-    if(openGL){
+    // The QRhi renderer builds its own programs.
+    if(openGL)
         gluu->initShader();
-        selectionRenderer = new SelectionRenderer();
-    }
     qDebug() << "# InitShaders finished";
     renderer->resetState();
 
@@ -502,12 +493,6 @@ void RouteEditorGLWidget::paintScene(){
         }
         return;
     }
-    if(selectionPass && selectionRenderer == NULL){
-        qWarning() << "Selection renderer is unavailable";
-        selection = false;
-        update();
-        return;
-    }
     RenderStats::ScopedFrame statsFrame(!selectionPass);
     // View-dependent shading (PBR materials) reads the camera position.
     std::copy(camera->getPos(), camera->getPos() + 3, gluu->cameraPosition);
@@ -602,7 +587,7 @@ void RouteEditorGLWidget::paintScene(){
     if(selectionPass){
         const int selectionWidth = qRound((float)this->width() * Game::PixelRatio);
         const int selectionHeight = qRound((float)this->height() * Game::PixelRatio);
-        if(!selectionRenderer->begin(selectionWidth, selectionHeight)){
+        if(!renderer->beginSelection(selectionWidth, selectionHeight)){
             qWarning() << "Could not start the integer selection pass";
             selection = false;
             update();
@@ -728,8 +713,10 @@ void RouteEditorGLWidget::paintScene(){
     if (selectionPass && blendingWasEnabled)
         renderer->setBlending(true);
     if(selectionPass){
+        selectionTargetHeight = qRound((float)this->height() * Game::PixelRatio);
         handleSelection();
-        selectionRenderer->end();
+        selectionTargetHeight = 0;
+        renderer->endSelection();
         renderer->releaseProgram();
         return;
     }
@@ -987,7 +974,7 @@ bool RouteEditorGLWidget::renderWaterReflection() {
 void RouteEditorGLWidget::handleSelection() {
     if (!selection)
         return;
-    if(selectionRenderer == NULL || !selectionRenderer->isActive()){
+    if(selectionTargetHeight <= 0){
         qWarning() << "Selection read requested without an active selection target";
         selection = false;
         update();
@@ -996,16 +983,16 @@ void RouteEditorGLWidget::handleSelection() {
 
     if(!selectionProbePoints.isEmpty()){
         for(const QPoint &point : selectionProbePoints){
-            const int probeY = selectionRenderer->height() - point.y() - 1;
-            selectionProbeResults.push_back(selectionRenderer->readPixel(point.x(), probeY));
+            const int probeY = selectionTargetHeight - point.y() - 1;
+            selectionProbeResults.push_back(renderer->readSelection(point.x(), probeY));
         }
         selection = false;
         return;
     }
 
     const int x = mousex;
-    const int realy = selectionRenderer->height() - (int)mousey - 1;
-    const quint32 selectionId = selectionRenderer->readPixel(x, realy);
+    const int realy = selectionTargetHeight - (int)mousey - 1;
+    const quint32 selectionId = renderer->readSelection(x, realy);
     const int cameraTileX = static_cast<int>(camera->pozT[0]);
     const int cameraTileZ = static_cast<int>(camera->pozT[1]);
 

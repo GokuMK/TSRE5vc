@@ -85,7 +85,6 @@ void ShapeViewerGLWidget::surfaceRelease() {
 
 void ShapeViewerGLWidget::cleanup() {
     makeCurrent();
-    selectionRenderer.release();
     delete renderer;
     renderer = nullptr;
     delete environmentMap;
@@ -229,14 +228,12 @@ void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
     Game::currentShapeLib = currentShapeLib;
     if(renderer == nullptr || !renderer->programsReady())
         return;
-    // Selection and the warehouse are OpenGL only for now.
+    // The warehouse is OpenGL only for now.
     const bool openGL = surface->backend() == RenderSurface::OpenGL;
-    if(selectionPass && !openGL)
-        return;
+    const int selectionHeight = qRound(height() * devicePixelRatioF());
     if(selectionPass){
         const qreal pixelRatio = devicePixelRatioF();
-        if(!selectionRenderer.begin(qRound(width() * pixelRatio),
-                                    qRound(height() * pixelRatio)))
+        if(!renderer->beginSelection(qRound(width() * pixelRatio), selectionHeight))
             return;
     } else {
         renderer->clear(true, true, backgroundGlColor);
@@ -319,10 +316,10 @@ void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
 
     if (selectionPass) {
         const qreal pixelRatio = devicePixelRatioF();
-        const quint32 id = selectionRenderer.readPixel(
+        const quint32 id = renderer->readSelection(
             qFloor(selectionPosition.x() * pixelRatio),
-            selectionRenderer.height() - qFloor(selectionPosition.y() * pixelRatio) - 1);
-        selectionRenderer.end();
+            selectionHeight - qFloor(selectionPosition.y() * pixelRatio) - 1);
+        renderer->endSelection();
         if(id > 0 && id <= static_cast<quint32>(con->engItems.size())){
             const int index = static_cast<int>(id - 1);
             con->select(index);

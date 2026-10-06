@@ -13,6 +13,7 @@
 #define OPENGL3RENDERER_H
 
 #include <tsre/renderer/QueueRenderer.h>
+#include <tsre/renderer/SelectionRenderer.h>
 #include <tsre/renderer/WaterNormalMap.h>
 #include <unordered_map>
 #include <vector>
@@ -39,6 +40,9 @@ public:
     void setFogLod(float lod) override;
     void createShadowMaps(int nearSize, int farSize) override;
     void bindTarget(Target target) override;
+    bool beginSelection(int width, int height) override;
+    quint32 readSelection(int x, int y) override;
+    void endSelection() override;
     // GLUU program the main program is (StandardFast for manual testing).
     QString mainProgramName = "StandardFog";
     void resetState() override;
@@ -118,6 +122,7 @@ private:
     // Shadow map framebuffers (near, middle, far) and their depth textures.
     unsigned int shadowFramebuffers[3] = {0, 0, 0};
     unsigned int shadowTextures[3] = {0, 0, 0};
+    SelectionRenderer selectionTarget;
 };
 
 #endif /* OPENGL3RENDERER_H */

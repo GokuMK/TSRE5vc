@@ -9,13 +9,16 @@
  */
 
 #include "RhiContext.h"
+#include "RhiRenderSurface.h"
 #include "RhiShaderSource.h"
+#include "RhiTextures.h"
 #include <QDebug>
 #include <QOffscreenSurface>
 #include <QVulkanInstance>
 #include <rhi/qshaderbaker.h>
 #include <tsre/Game.h>
 #include <tsre/ogl/GLUU.h>
+#include <tsre/renderer/Mesh.h>
 
 namespace {
 std::unique_ptr<RhiContext> &holder() {
@@ -86,6 +89,12 @@ RhiContext *RhiContext::instance() {
 }
 
 void RhiContext::shutdown() {
+    // Resources made by producers go before the QRhi does.
+    if (holder() && holder()->rhi() != nullptr) {
+        RhiRenderSurface::releaseAll();
+        Meshes::releaseAllRhi();
+        RhiTextures::releaseAll();
+    }
     holder().reset();
 }
 

@@ -42,6 +42,8 @@ bool sampledNearest(unsigned int handle);
 // The texture behind a handle; null for 0 or a released handle.
 QRhiTexture *texture(unsigned int handle);
 void release(unsigned int handle);
+// Releases every texture and pending upload, before the QRhi goes away.
+void releaseAll();
 // Uploads recorded since the last call, for the renderer to submit before
 // its first pass; null when there are none.
 QRhiResourceUpdateBatch *takeUpdates();

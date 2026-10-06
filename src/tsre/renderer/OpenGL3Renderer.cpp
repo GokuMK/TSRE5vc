@@ -452,6 +452,7 @@ OpenGL3Renderer::OpenGL3Renderer() {
 
 OpenGL3Renderer::~OpenGL3Renderer() {
     clearQueues();
+    selectionTarget.release();
     releaseInstanceBuffer();
     releaseMeshArrays();
     releaseWrapSamplers();
@@ -1119,6 +1120,18 @@ void OpenGL3Renderer::bindTarget(Target target){
             : shadowFramebuffers[target - TARGET_SHADOW_NEAR];
     functions->glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
     functions->glActiveTexture(GL_TEXTURE0);
+}
+
+bool OpenGL3Renderer::beginSelection(int width, int height){
+    return selectionTarget.begin(width, height);
+}
+
+quint32 OpenGL3Renderer::readSelection(int x, int y){
+    return selectionTarget.readPixel(x, y);
+}
+
+void OpenGL3Renderer::endSelection(){
+    selectionTarget.end();
 }
 
 void OpenGL3Renderer::resetState(){

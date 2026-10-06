@@ -138,6 +138,13 @@ public:
     virtual void createShadowMaps(int nearSize, int farSize) = 0;
     // Draws from now on go to this target.
     virtual void bindTarget(Target target) = 0;
+    // The integer selection target of width x height pixels: beginSelection
+    // binds it, cleared to 0 and with a viewport covering it; readSelection
+    // reads the id drawn at a pixel (origin bottom-left) after renderFrame;
+    // endSelection binds the view again with its previous viewport.
+    virtual bool beginSelection(int width, int height) = 0;
+    virtual quint32 readSelection(int x, int y) = 0;
+    virtual void endSelection() = 0;
 
     // Backend state every frame starts from: depth test and writes, back-face
     // culling, alpha blending, all colour channels, no scissor, the default

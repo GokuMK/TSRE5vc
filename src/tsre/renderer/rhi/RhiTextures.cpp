@@ -189,6 +189,17 @@ bool clampedToEdge(unsigned int handle) {
     return handle != 0 && handle <= store().size() && store()[handle - 1].clamp;
 }
 
+void releaseAll() {
+    for (Entry &entry : store()) {
+        delete entry.texture;
+        entry = Entry();
+    }
+    if (pending != nullptr) {
+        pending->release();
+        pending = nullptr;
+    }
+}
+
 bool sampledNearest(unsigned int handle) {
     return handle != 0 && handle <= store().size() && store()[handle - 1].nearest;
 }

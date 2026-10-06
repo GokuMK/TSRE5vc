@@ -477,3 +477,16 @@ void Meshes::collectGarbageRhi() {
         buffer->deleteLater();
     s.deadRhiBuffers.clear();
 }
+
+void Meshes::releaseAllRhi() {
+    Store &s = store();
+    QMutexLocker lock(&s.mutex);
+    for (Entry &entry : s.entries) {
+        for (QRhiBuffer *buffer : {entry.rhiVertex, entry.rhiIndex, entry.rhiUniform})
+            delete buffer;
+        entry.rhiVertex = entry.rhiIndex = entry.rhiUniform = nullptr;
+    }
+    for (QRhiBuffer *buffer : s.deadRhiBuffers)
+        delete buffer;
+    s.deadRhiBuffers.clear();
+}

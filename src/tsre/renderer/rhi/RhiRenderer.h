@@ -54,6 +54,9 @@ public:
     void viewport(int *rectangle) const override;
     float readDepth(int x, int y) override;
     void readColor(int x, int y, int width, int height, unsigned char *rgba) override;
+    bool beginSelection(int width, int height) override;
+    quint32 readSelection(int x, int y) override;
+    void endSelection() override;
     void renderShadowCasters(float range, int statsSlot,
                              const float *viewProjection = nullptr) override;
     void renderFrame() override;
@@ -106,17 +109,35 @@ private:
         qint32 baseVertex = 0;
         QRhiViewport viewport;
     };
-    // A render target the renderer draws into: the view (offscreen colour
-    // and depth, copied to the surface's frame at the end) or a shadow map.
-    struct TargetState {
-        QRhiTextureRenderTarget *target = nullptr;
-        QRhiRenderPassDescriptor *pass = nullptr;
+    // Textures a target draws into, with a render target for each
+    // combination of clears at the start of a pass (index: colour 1, depth
+    // 2); pipelines are made against the one that keeps both.
+    struct Attachments {
+        QRhiTexture *color = nullptr;
+        QRhiTexture *depth = nullptr;
+        QRhiTextureRenderTarget *targets[4] = {};
+        QRhiRenderPassDescriptor *passes[4] = {};
         QSize size;
+        bool valid() const { return targets[0] != nullptr; }
+        QRhiRenderPassDescriptor *pipelinePass() const { return passes[0]; }
+    };
+    // A target the renderer draws into: the view (offscreen colour and
+    // depth, copied to the surface's frame at the end), a shadow map or the
+    // selection ids. Draws wait here until the target is flushed.
+    struct TargetState {
+        Attachments *attachments = nullptr;
         bool clearColor = false;
         bool clearDepth = false;
         QColor color = Qt::black;
         std::vector<DrawCommand> draws;
+        // Pipeline and resource-set keys of the draws, resolved when the
+        // pass runs (the per-frame buffers are known then).
+        std::vector<PipelineKey> keys;
+        std::vector<BindingKey> bindings;
     };
+    // Targets by Renderer::Target, then the selection target.
+    static constexpr int TargetSelection = TARGET_SHADOW_FAR + 1;
+    static constexpr int TargetCount = TargetSelection + 1;
     // Per-frame storage appended to by draws and uploaded per pass.
     struct Arena {
         QRhiBuffer *buffer = nullptr;
@@ -125,7 +146,12 @@ private:
     };
 
     void beginFrameIfNeeded();
+    bool createAttachments(Attachments &attachments, QRhiTexture::Format colorFormat,
+                           const QSize &size, QRhiTexture::Flags colorFlags);
+    void releaseAttachments(Attachments &attachments);
     bool ensureViewTarget(const QSize &size);
+    // Whether the current target can be drawn into this frame.
+    bool targetReady();
     TargetState &target();
     void flushTarget();
     void present();
@@ -174,17 +200,21 @@ private:
     QRhiBuffer *dummyTerrainPatches = nullptr;
 
     // Offscreen view and the shader copying it to the surface's frame.
-    QRhiTexture *viewColor = nullptr;
-    QRhiTexture *viewDepth = nullptr;
-    QRhiTextureRenderTarget *viewTarget = nullptr;
-    QRhiRenderPassDescriptor *viewPass = nullptr;
+    Attachments view;
     QRhiGraphicsPipeline *presentPipeline = nullptr;
     QRhiShaderResourceBindings *presentBindings = nullptr;
     QRhiSampler *presentSampler = nullptr;
     QRhiRenderPassDescriptor *presentPassKey = nullptr;
 
-    TargetState viewState;
-    Target currentTarget = TARGET_VIEW;
+    // Selection ids, read back once per selection pass.
+    Attachments selection;
+    QByteArray selectionIds;
+    bool selectionRead = false;
+    int selectionViewport[4] = {0, 0, 0, 0};
+
+    TargetState targets[TargetCount];
+    int currentTarget = TARGET_VIEW;
+    QColor nextClearColor = Qt::black;
     QRhiViewport currentViewport;
     int viewportRect[4] = {0, 0, 0, 0};
     float depthRange[2] = {0.0f, 1.0f};
@@ -195,10 +225,6 @@ private:
     quint32 uniformStride = 256;
     QRhiResourceUpdateBatch *frameBatch = nullptr;
     quint64 frameSerial = 0;
-    // Pipeline and resource-set keys of the recorded draws, resolved when
-    // the pass runs (the per-frame buffers are known then).
-    std::vector<PipelineKey> pendingKeys;
-    std::vector<BindingKey> pendingBindings;
 };
 
 #endif

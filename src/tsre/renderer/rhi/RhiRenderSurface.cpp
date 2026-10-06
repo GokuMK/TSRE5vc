@@ -13,6 +13,7 @@
 #include "RhiRenderer.h"
 #include <QCoreApplication>
 #include <QPlatformSurfaceEvent>
+#include <QSet>
 #include <QVBoxLayout>
 #include <QWidget>
 #include <QWindow>
@@ -65,8 +66,16 @@ private:
     RhiRenderSurface *surface;
 };
 
+namespace {
+QSet<RhiRenderSurface *> &liveSurfaces() {
+    static QSet<RhiRenderSurface *> surfaces;
+    return surfaces;
+}
+}
+
 RhiRenderSurface::RhiRenderSurface(QWidget *host, RenderSurfaceClient *client, RhiContext *context)
     : hostWidget(host), client(client), rhiContext(context) {
+    liveSurfaces().insert(this);
     window = new RhiWindow(this, context);
     container = QWidget::createWindowContainer(window, host);
     container->setFocusPolicy(Qt::NoFocus);
@@ -77,11 +86,23 @@ RhiRenderSurface::RhiRenderSurface(QWidget *host, RenderSurfaceClient *client, R
 }
 
 RhiRenderSurface::~RhiRenderSurface() {
+    liveSurfaces().remove(this);
+    releaseResources();
+}
+
+void RhiRenderSurface::releaseResources() {
     releaseSwapChain();
     grabTarget.reset();
     grabPassDescriptor.reset();
     grabDepth.reset();
     grabColor.reset();
+}
+
+void RhiRenderSurface::releaseAll() {
+    for (RhiRenderSurface *surface : std::as_const(liveSurfaces())) {
+        surface->releaseResources();
+        surface->client = nullptr;
+    }
 }
 
 Renderer *RhiRenderSurface::createRenderer() {

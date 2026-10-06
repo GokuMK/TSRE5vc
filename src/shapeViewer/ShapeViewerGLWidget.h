@@ -20,7 +20,6 @@
 #include <QBasicTimer>
 #include <math.h>
 #include <tsre/shape/ShapeLib.h>
-#include <tsre/renderer/SelectionRenderer.h>
 
 class ComplexShape;
 class Eng;
@@ -121,7 +120,6 @@ private:
     Renderer *renderer = nullptr;
     // Owned; a procedural warehouse interior for reflections.
     EnvironmentMap *environmentMap = nullptr;
-    SelectionRenderer selectionRenderer;
     QPointF selectionPosition;
     void setupVertexAttribs();
     QBasicTimer timer;

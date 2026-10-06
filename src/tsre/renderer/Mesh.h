@@ -95,6 +95,8 @@ namespace Meshes {
     QRhiBuffer *uniformBufferRhi(MeshHandle handle, QRhi *rhi, QRhiResourceUpdateBatch *batch);
     // Releases the QRhi buffers of released meshes.
     void collectGarbageRhi();
+    // Releases every QRhi buffer, before the QRhi goes away.
+    void releaseAllRhi();
 }
 
 #endif // MESH_H

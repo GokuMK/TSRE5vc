@@ -45,7 +45,6 @@ class GuiGlCompass;
 class DynTrackObj;
 class RulerObj;
 class TelepoleObj;
-class SelectionRenderer;
 class Renderer;
 class EnvironmentMap;
 class PlanarReflection;
@@ -259,7 +258,9 @@ private:
     GLUU* gluu;
     QOpenGLFunctions_3_3_Core* funcs = 0;
     unsigned int fbo[3];
-    SelectionRenderer *selectionRenderer = NULL;
+    // Height of the renderer's selection target while a selection pass
+    // draws, 0 otherwise.
+    int selectionTargetHeight = 0;
     bool m_transparent;
     Camera* camera = NULL;
     CameraFree* cameraFree = NULL;

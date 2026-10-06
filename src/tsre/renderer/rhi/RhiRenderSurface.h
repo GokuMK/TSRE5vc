@@ -61,6 +61,10 @@ public:
     RhiContext *context() const { return rhiContext; }
     QWidget *host() const { return hostWidget; }
 
+    // Releases the QRhi resources of every surface, before the QRhi goes
+    // away; surfaces outliving it draw nothing.
+    static void releaseAll();
+
     // From the window.
     void exposed();
     void render();
@@ -69,6 +73,7 @@ public:
 private:
     void initialize();
     bool ensureSwapChain();
+    void releaseResources();
     QWidget *hostWidget;
     RenderSurfaceClient *client;
     RhiContext *rhiContext;
