@@ -272,6 +272,8 @@ private:
     int m_zRot;
     int fps;
     int fpsDisplay = 0;
+    // GPU time of a recent frame where the renderer measures it, else < 0.
+    float gpuMsDisplay = -1.0f;
     double fpsDisplayAccumMs = 0.0;
     int fpsDisplayAccumFrames = 0;
     unsigned long long int fpsDisplayLastUpdate = 0;

@@ -188,6 +188,7 @@ void RouteEditorGLWidget::timerEvent(QTimerEvent * event) {
         fpsDisplayAccumMs = 0.0;
         fpsDisplayAccumFrames = 0;
         fpsDisplayLastUpdate = timeNow;
+        gpuMsDisplay = renderer != nullptr ? renderer->gpuFrameMs() : -1.0f;
     }
 
     if (timeNow % 200 < lastTime % 200) {
@@ -755,8 +756,11 @@ void RouteEditorGLWidget::drawEditorFpsHud(){
     font.setPointSize(10);
     painter.setFont(font);
 
-    const QString label = QString("FPS: %1").arg(fpsDisplay);
-    const QRect backgroundRect(12, 12, 92, 24);
+    // GPU time near the frame time means the GPU limits the frame rate.
+    const QString label = gpuMsDisplay >= 0.0f
+            ? QString("FPS: %1  GPU %2 ms").arg(fpsDisplay).arg(gpuMsDisplay, 0, 'f', 1)
+            : QString("FPS: %1").arg(fpsDisplay);
+    const QRect backgroundRect(12, 12, gpuMsDisplay >= 0.0f ? 190 : 92, 24);
     painter.fillRect(backgroundRect, QColor(0, 0, 0, 150));
     painter.drawText(backgroundRect.adjusted(8, 0, 0, 0), Qt::AlignVCenter | Qt::AlignLeft, label);
     painter.end();

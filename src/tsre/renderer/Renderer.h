@@ -168,6 +168,9 @@ public:
     // As readDepth, without waiting for the GPU: the depth of the last read
     // that completed, which may be a frame or two old (the 3D pointer).
     virtual float readDepthLatest(int x, int y) { return readDepth(x, y); }
+    // GPU time in milliseconds of the last frame the GPU completed;
+    // negative where the renderer does not measure it.
+    virtual float gpuFrameMs() const { return -1.0f; }
     // RGBA bytes of a rectangle of the bound target, rows from the bottom.
     virtual void readColor(int x, int y, int width, int height, unsigned char *rgba) = 0;
     // Bounding spheres (centre x, y, z and radius, in submission space) of

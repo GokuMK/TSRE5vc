@@ -55,6 +55,7 @@ public:
     void viewport(int *rectangle) const override;
     float readDepth(int x, int y) override;
     float readDepthLatest(int x, int y) override;
+    float gpuFrameMs() const override { return gpuMs; }
     void readColor(int x, int y, int width, int height, unsigned char *rgba) override;
     bool beginSelection(int width, int height) override;
     quint32 readSelection(int x, int y) override;
@@ -456,6 +457,8 @@ private:
     // Draws pick their instances with firstInstance (QRhi::BaseInstance),
     // so consecutive draws keep one vertex input.
     bool baseInstance = false;
+    // QRhi's timestamp of the last completed frame (gpuFrameMs).
+    float gpuMs = -1.0f;
     QRhiResourceUpdateBatch *frameBatch = nullptr;
     quint64 frameSerial = 0;
 };

@@ -144,7 +144,8 @@ RhiContext::~RhiContext() {
 }
 
 bool RhiContext::create(QRhi::Implementation implementation) {
-    QRhi::Flags flags = QRhi::EnablePipelineCacheDataSave;
+    // Timestamps give the GPU time of frames (the FPS display).
+    QRhi::Flags flags = QRhi::EnablePipelineCacheDataSave | QRhi::EnableTimestamps;
     if (qEnvironmentVariableIsSet("TSRE_RHI_DEBUG"))
         flags |= QRhi::EnableDebugMarkers;
     switch (implementation) {

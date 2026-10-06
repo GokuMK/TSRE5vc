@@ -1758,6 +1758,9 @@ void RhiRenderer::present() {
     if (s == nullptr || s->frame().commandBuffer == nullptr || !view.valid())
         return;
     const RhiRenderSurface::Frame &frame = s->frame();
+    const double gpuSeconds = frame.commandBuffer->lastCompletedGpuTime();
+    if (gpuSeconds > 0.0)
+        gpuMs = float(gpuSeconds * 1000.0);
     // Bloom from the view's glow, before the frame's pass begins.
     QRhiTexture *bloomTexture = renderBloom(frame.commandBuffer);
     QRhiTexture *bloomSource = bloomTexture != nullptr ? bloomTexture : dummyBlack;
