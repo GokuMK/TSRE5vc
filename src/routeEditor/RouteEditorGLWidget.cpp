@@ -744,7 +744,8 @@ void RouteEditorGLWidget::drawEditorFpsHud(){
     if(selection)
         return;
 
-    QPaintDevice *overlay = surface->overlayPaintDevice();
+    const QRect backgroundRect(12, 12, gpuMsDisplay >= 0.0f ? 190 : 92, 24);
+    QPaintDevice *overlay = surface->overlayPaintDevice(backgroundRect);
     if(overlay == NULL)
         return;
     QPainter painter(overlay);
@@ -760,7 +761,6 @@ void RouteEditorGLWidget::drawEditorFpsHud(){
     const QString label = gpuMsDisplay >= 0.0f
             ? QString("FPS: %1  GPU %2 ms").arg(fpsDisplay).arg(gpuMsDisplay, 0, 'f', 1)
             : QString("FPS: %1").arg(fpsDisplay);
-    const QRect backgroundRect(12, 12, gpuMsDisplay >= 0.0f ? 190 : 92, 24);
     painter.fillRect(backgroundRect, QColor(0, 0, 0, 150));
     painter.drawText(backgroundRect.adjusted(8, 0, 0, 0), Qt::AlignVCenter | Qt::AlignLeft, label);
     painter.end();

@@ -58,8 +58,9 @@ public:
     // The framebuffer a paint draws into (OpenGL); 0 elsewhere.
     virtual unsigned int defaultFramebufferObject() const = 0;
     // Where 2D overlays can be painted with QPainter after the frame; null
-    // when the surface has none.
-    virtual QPaintDevice *overlayPaintDevice() = 0;
+    // when the surface has none. A painter that stays inside an area (widget
+    // coordinates) passes it, so the surface composes only that part.
+    virtual QPaintDevice *overlayPaintDevice(const QRect &area = QRect()) = 0;
     // Stops calling the client (its host is being destroyed).
     virtual void detachClient() = 0;
 };

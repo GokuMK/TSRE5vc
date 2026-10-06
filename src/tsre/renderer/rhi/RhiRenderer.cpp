@@ -1816,6 +1816,7 @@ void RhiRenderer::present() {
     }
     // The overlay, painted top row first, over the view.
     QRhiResourceUpdateBatch *overlayUpload = nullptr;
+    QRect overlayDrawn;
     const QImage *overlay = s->overlay();
     if (overlay != nullptr && !overlay->isNull()) {
         if (overlayTexture == nullptr || overlayTexture->pixelSize() != overlay->size()) {
@@ -1865,19 +1866,35 @@ void main() {
             blend.srcAlpha = QRhiGraphicsPipeline::One;
             blend.dstAlpha = QRhiGraphicsPipeline::OneMinusSrcAlpha;
             overlayPipeline->setTargetBlends({blend});
+            overlayPipeline->setFlags(QRhiGraphicsPipeline::UsesScissor);
             overlayPipeline->setShaderResourceBindings(overlayBindings);
             overlayPipeline->setRenderPassDescriptor(frame.passDescriptor);
             overlayPipeline->create();
             overlayPassKey = frame.passDescriptor;
         }
-        if (overlayTexture != nullptr) {
+        // The texture keeps the overlay between frames: only the part painted
+        // or cleared since the last upload goes up again.
+        const QRect changed = s->overlayChanged() & overlay->rect();
+        if (overlayTexture != nullptr && !changed.isEmpty()) {
             // Uploads keep row order; where the framebuffer's y points up the
             // view's first row is its bottom.
-            const QImage rows = rhi->isYUpInFramebuffer()
-                    ? overlay->flipped(Qt::Vertical) : *overlay;
+            QRhiTextureSubresourceUploadDescription rows;
+            if (rhi->isYUpInFramebuffer()) {
+                rows = QRhiTextureSubresourceUploadDescription(
+                        overlay->copy(changed).flipped(Qt::Vertical));
+                rows.setDestinationTopLeft(
+                        QPoint(changed.x(), overlay->height() - changed.y() - changed.height()));
+            } else {
+                rows = QRhiTextureSubresourceUploadDescription(*overlay);
+                rows.setSourceTopLeft(changed.topLeft());
+                rows.setSourceSize(changed.size());
+                rows.setDestinationTopLeft(changed.topLeft());
+            }
             overlayUpload = rhi->nextResourceUpdateBatch();
-            overlayUpload->uploadTexture(overlayTexture, rows);
+            overlayUpload->uploadTexture(overlayTexture,
+                                         QRhiTextureUploadDescription(QRhiTextureUploadEntry(0, 0, rows)));
         }
+        overlayDrawn = s->overlayPainted() & overlay->rect();
     }
     // Tone curve, exposure and bloom strength (bloom levels add up, so
     // their sum is averaged).
@@ -1895,9 +1912,13 @@ void main() {
     cb->setViewport(QRhiViewport(0, 0, float(frame.pixelSize.width()), float(frame.pixelSize.height())));
     cb->setShaderResources(presentBindings);
     cb->draw(3);
-    if (overlayUpload != nullptr && overlayPipeline != nullptr) {
+    if (!overlayDrawn.isEmpty() && overlayTexture != nullptr && overlayPipeline != nullptr) {
         cb->setGraphicsPipeline(overlayPipeline);
         cb->setShaderResources(overlayBindings);
+        // Scissor origin is the bottom left.
+        cb->setScissor(QRhiScissor(overlayDrawn.x(),
+                                   frame.pixelSize.height() - overlayDrawn.y() - overlayDrawn.height(),
+                                   overlayDrawn.width(), overlayDrawn.height()));
         cb->draw(3);
     }
     cb->endPass();

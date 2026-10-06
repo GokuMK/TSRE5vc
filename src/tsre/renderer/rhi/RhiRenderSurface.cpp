@@ -236,20 +236,38 @@ void RhiRenderSurface::paintFrame() {
     client->surfacePaint();
     if (frameEnd)
         frameEnd();
+    if (overlayUsed)
+        overlayStaleRect = overlayPaintedRect;
     overlayUsed = false;
     current = Frame();
 }
 
-QPaintDevice *RhiRenderSurface::overlayPaintDevice() {
+QPaintDevice *RhiRenderSurface::overlayPaintDevice(const QRect &area) {
     if (current.commandBuffer == nullptr)
         return nullptr;
-    if (overlayImage.size() != current.pixelSize)
+    // Uploading and composing the whole window each frame cost the Steam
+    // Deck about a third of its frame rate (the FPS display).
+    if (overlayImage.size() != current.pixelSize) {
         overlayImage = QImage(current.pixelSize, QImage::Format_RGBA8888_Premultiplied);
-    overlayImage.setDevicePixelRatio(hostWidget->devicePixelRatioF());
-    if (!overlayUsed) {
         overlayImage.fill(Qt::transparent);
-        overlayUsed = true;
+        overlayStaleRect = QRect();
     }
+    const qreal ratio = hostWidget->devicePixelRatioF();
+    overlayImage.setDevicePixelRatio(ratio);
+    if (!overlayUsed) {
+        overlayUsed = true;
+        const QRect stale = overlayStaleRect & overlayImage.rect();
+        for (int y = stale.top(); y <= stale.bottom(); ++y)
+            std::memset(overlayImage.scanLine(y) + stale.left() * 4, 0, size_t(stale.width()) * 4);
+        overlayChangedRect = stale;
+        overlayPaintedRect = QRect();
+    }
+    // In pixels, with a pixel more for antialiased edges.
+    const QRect painted = area.isNull() ? overlayImage.rect()
+            : QRectF(area.x() * ratio, area.y() * ratio, area.width() * ratio, area.height() * ratio)
+                      .toAlignedRect().adjusted(-1, -1, 1, 1) & overlayImage.rect();
+    overlayPaintedRect |= painted;
+    overlayChangedRect |= painted;
     return &overlayImage;
 }
 
