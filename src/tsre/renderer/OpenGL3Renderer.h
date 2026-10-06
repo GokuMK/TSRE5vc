@@ -65,6 +65,10 @@ public:
     quint32 queuedSelectionId(int index, RenderPass pass = PASS_OPAQUE) const {
         return passes[pass].ordered[index].selectionId;
     }
+    // Grouped packets queued in a pass since it was last drawn.
+    int queuedGroupedCount(RenderPass pass) const {
+        return static_cast<int>(passes[pass].grouped.size());
+    }
 
     // One queued draw of a packet for this frame.
     struct DrawInstance {
@@ -139,13 +143,23 @@ private:
     void releaseWrapSamplers();
     void applyWaterState(GLUU *gluu, const RenderItem *item);
     WaterNormalMap waterNormals;
+    // Copies the frame drawn so far for the transmission pass; returns its
+    // mipmap levels, 0 when transmissive surfaces see the environment.
+    float copyFrameForTransmission(GLUU *gluu, Shader *base);
+    unsigned int sceneCopyTexture = 0;
+    unsigned int sceneCopyFramebuffer = 0;
+    int sceneCopyWidth = 0;
+    int sceneCopyHeight = 0;
+    QOpenGLContext *copyContext = nullptr;
     // Samples query of renderPassesMeasured(), in queryContext.
     unsigned int samplesQuery = 0;
     QOpenGLContext *queryContext = nullptr;
     bool samplesPending = false;
     long long lastSamples = -1;
     std::unordered_map<quint32, unsigned int> wrapSamplers;
-    unsigned int boundSamplers[16] = {};
+    // Indexed by texture unit; covers every unit a PBR map uses.
+    static constexpr int SamplerUnits = 32;
+    unsigned int boundSamplers[SamplerUnits] = {};
     QOpenGLContext *samplerContext = nullptr;
     QOpenGLContext *meshContext = nullptr;
     quint64 sweptReleases = 0;

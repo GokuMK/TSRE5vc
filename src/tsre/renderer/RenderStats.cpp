@@ -329,8 +329,8 @@ QJsonObject toJson(const FrameStats &stats) {
     // Shadow cascades follow the render passes.
     static const char *passNames[FrameStats::PassSlots] = {
         "sky", "distant", "terrain", "opaque", "alphaTest", "blended",
-        "overlay", "water", "ui", "shadow0", "shadow1", "shadow2"};
-    static_assert(Renderer::PASS_COUNT == 9, "pass names");
+        "overlay", "water", "transmission", "ui", "shadow0", "shadow1", "shadow2"};
+    static_assert(Renderer::PASS_COUNT == 10, "pass names");
     QJsonObject passDraws;
     for (int i = 0; i < FrameStats::PassSlots; ++i)
         passDraws[passNames[i]] = double(stats.passDraws[i]);

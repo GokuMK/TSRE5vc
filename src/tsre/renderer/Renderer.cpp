@@ -39,6 +39,7 @@ void Renderer::renderFrame(){
 }
 
 void Renderer::renderLayeredView(const LayeredView &view){
+    secondaryView = true;
     beginViewBand(view, BAND_SKY);
     renderPassesRetained(PASS_SKY, PASS_SKY);
     beginViewBand(view, BAND_DISTANT);
@@ -47,7 +48,9 @@ void Renderer::renderLayeredView(const LayeredView &view){
     renderPassesRetained(PASS_TERRAIN, PASS_BLENDED);
     if(view.water)
         renderPassesRetained(PASS_WATER, PASS_WATER);
+    renderPassesRetained(PASS_TRANSMISSION, PASS_TRANSMISSION);
     endView(view);
+    secondaryView = false;
 }
 
 void Renderer::setViewPosition(const float *position){

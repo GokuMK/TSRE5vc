@@ -280,6 +280,8 @@ void GLUU::initShader() {
         currentShader->pbrClearcoat = currentShader->uniformLocation("pbrClearcoat");
         currentShader->pbrSpecular = currentShader->uniformLocation("pbrSpecular");
         currentShader->pbrIor = currentShader->uniformLocation("pbrIor");
+        currentShader->pbrTransmission = currentShader->uniformLocation("pbrTransmission");
+        currentShader->pbrAttenuationColor = currentShader->uniformLocation("pbrAttenuationColor");
         currentShader->cameraPosition = currentShader->uniformLocation("cameraPosition");
         currentShader->environmentMapLevels = currentShader->uniformLocation("environmentMapLevels");
         currentShader->waterTime = currentShader->uniformLocation("waterTime");
@@ -339,12 +341,16 @@ void GLUU::initShader() {
             {"environmentMap", 10}, {"pbrMetallicRoughnessMap", 11}, {"pbrNormalMap", 12},
             {"pbrOcclusionMap", 13}, {"pbrEmissiveMap", 14}, {"pbrClearcoatMap", 4},
             {"pbrClearcoatRoughnessMap", 5}, {"pbrClearcoatNormalMap", 6},
-            {"pbrSpecularMap", 7}, {"pbrSpecularColorMap", 15},
+            {"pbrSpecularMap", 7}, {"pbrSpecularColorMap", 15}, {"pbrSceneColor", 1},
+            {"pbrTransmissionMap", 16}, {"pbrThicknessMap", 17},
             {"waterBottomMap", 4}, {"waterMiddleMap", 5}, {"waterReflectionMap", 6},
             {"waterNormalMap", 15}};
+        GLint unitCount = 16;
+        extra->glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &unitCount);
         for (const auto &sampler : pbrSamplers) {
             const int location = currentShader->uniformLocation(sampler.name);
-            if (location >= 0)
+            // Maps beyond the driver's units are left out (transmission).
+            if (location >= 0 && sampler.unit < unitCount)
                 currentShader->setUniformValue(location, sampler.unit);
         }
         if (currentShader->instanced >= 0)

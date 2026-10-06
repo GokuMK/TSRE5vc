@@ -652,6 +652,8 @@ void RouteEditorGLWidget::paintScene(){
 
     renderer->renderPasses(Renderer::PASS_TERRAIN, Renderer::PASS_OVERLAY);
     renderWaterPass(!selectionPass && Game::waterShaded && Game::waterReflection);
+    // Glass and other transmissive glTF materials see the frame drawn so far.
+    renderer->renderPasses(Renderer::PASS_TRANSMISSION, Renderer::PASS_TRANSMISSION);
 
     if (drawPointerAfterWorld) {
         pushRenderPointer(queue);

@@ -12,7 +12,9 @@
 #include <set>
 #include <vector>
 
+#include <tsre/math3d/GLMatrix.h>
 #include <tsre/renderer/Mesh.h>
+#include <tsre/renderer/OpenGL3Renderer.h>
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/renderer/RenderQueue.h>
 #include <tsre/shape/GltfShape.h>
@@ -197,6 +199,31 @@ int TsreTests::runGltfPbrGlSuite(bool verbose) {
             values.insert(item->pbr.ior);
         check(values.count(1.0f) && values.count(1.33f) && values.count(2.42f),
               "KHR_materials_ior reaches the packets");
+    }
+    {
+        auto transmissive = load(root, "TransmissionTest");
+        bool through = false;
+        for (const RenderItem *item : transmissive->recorder.packets)
+            through |= item->pbr.transmission == 1.0f;
+        check(through, "KHR_materials_transmission reaches the packets");
+        auto volume = load(root, "CompareVolume");
+        bool absorbing = false;
+        for (const RenderItem *item : volume->recorder.packets)
+            absorbing |= std::abs(item->pbr.thickness - 0.75f) < 1e-4f
+                    && std::abs(item->pbr.attenuationDistance - 0.25f) < 1e-4f
+                    && std::abs(item->pbr.attenuationColor[0] - 0.15f) < 1e-4f
+                    && item->pbr.textures[RenderItem::Pbr::MAP_THICKNESS] >= 0;
+        check(absorbing, "KHR_materials_volume reaches the packets");
+        // Transmissive packets draw in their own pass, the rest as before.
+        OpenGL3Renderer renderer;
+        renderer.resetFrame();
+        Mat4::identity(renderer.transform());
+        const unsigned int state = volume->shape->newState();
+        volume->shape->pushRenderItem(renderer, 0, state);
+        check(renderer.queuedGroupedCount(Renderer::PASS_TRANSMISSION) == 2
+              && renderer.queuedGroupedCount(Renderer::PASS_OPAQUE) > 0,
+              "transmissive packets go to the transmission pass");
+        renderer.resetFrame();
     }
     // Tangents: given (NormalTangentMirrorTest) or generated (DamagedHelmet)
     // must be unit length, across the normal, with a handedness sign.

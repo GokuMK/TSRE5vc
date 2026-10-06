@@ -34,6 +34,9 @@ public:
         PASS_BLENDED,
         PASS_OVERLAY,
         PASS_WATER,
+        // glTF materials with transmission, drawn over a copy of the frame
+        // taken when the pass starts.
+        PASS_TRANSMISSION,
         PASS_UI,
         PASS_COUNT
     };
@@ -104,7 +107,8 @@ public:
     // Ends a view: culling, limits and mirroring off.
     virtual void endView(const LayeredView &view) = 0;
     // Draws all bands of a view without consuming the queue (secondary views
-    // such as environment map faces and the water reflection).
+    // such as environment map faces and the water reflection). Transmissive
+    // surfaces there see the environment instead of a copy of the view.
     void renderLayeredView(const LayeredView &view);
 
     // Backend state every frame starts from: depth test and writes, back-face
@@ -156,6 +160,8 @@ protected:
     Frustum cullFrustum;
     ViewLimits viewLimits;
     bool viewLimitsEnabled = false;
+    // Set while a secondary view draws: no frame copy for transmission.
+    bool secondaryView = false;
 };
 
 #endif /* RENDERER_H */

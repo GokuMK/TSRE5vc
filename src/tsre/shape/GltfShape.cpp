@@ -352,6 +352,13 @@ struct GltfMaterial {
     float specularColorFactor[3] = {1.0f, 1.0f, 1.0f};
     GltfTextureRef specularColorTexture;
     float ior = 1.5f;
+    // KHR_materials_transmission and KHR_materials_volume.
+    float transmissionFactor = 0.0f;
+    GltfTextureRef transmissionTexture;
+    float thicknessFactor = 0.0f;
+    GltfTextureRef thicknessTexture;
+    float attenuationDistance = 0.0f;
+    float attenuationColor[3] = {1.0f, 1.0f, 1.0f};
 };
 
 struct GltfPrimitive {
@@ -720,6 +727,17 @@ static void parseModelFromRoot(const QJsonObject& root, GltfModel& model) {
         material.specularColorTexture = textureRef(specular.value("specularColorTexture").toObject());
         material.ior = float(extensions.value("KHR_materials_ior").toObject()
                              .value("ior").toDouble(1.5));
+        const QJsonObject transmission = extensions.value("KHR_materials_transmission").toObject();
+        material.transmissionFactor = float(transmission.value("transmissionFactor").toDouble(0.0));
+        material.transmissionTexture = textureRef(transmission.value("transmissionTexture").toObject());
+        const QJsonObject volume = extensions.value("KHR_materials_volume").toObject();
+        material.thicknessFactor = float(volume.value("thicknessFactor").toDouble(0.0));
+        material.thicknessTexture = textureRef(volume.value("thicknessTexture").toObject());
+        // Absent means light is never absorbed.
+        material.attenuationDistance = float(volume.value("attenuationDistance").toDouble(0.0));
+        const QVector<float> attenuation = jsonFloatArray(volume.value("attenuationColor").toArray());
+        for (int c = 0; c < 3 && c < attenuation.size(); ++c)
+            material.attenuationColor[c] = attenuation[c];
     }
 
     const QJsonArray meshes = root.value("meshes").toArray();
@@ -1529,12 +1547,18 @@ bool GltfShape::parseAndBuild() {
                 std::copy(srcMat.specularColorFactor, srcMat.specularColorFactor + 3,
                           pbr.specularColor);
                 pbr.ior = srcMat.ior;
+                pbr.transmission = srcMat.transmissionFactor;
+                pbr.thickness = srcMat.thicknessFactor;
+                pbr.attenuationDistance = srcMat.attenuationDistance;
+                std::copy(srcMat.attenuationColor, srcMat.attenuationColor + 3,
+                          pbr.attenuationColor);
                 const GltfTextureRef *maps[RenderItem::Pbr::MAP_COUNT] = {
                     &srcMat.baseColorTexture, &srcMat.metallicRoughnessTexture,
                     &srcMat.normalTexture, &srcMat.occlusionTexture, &srcMat.emissiveTexture,
                     &srcMat.clearcoatTexture, &srcMat.clearcoatRoughnessTexture,
                     &srcMat.clearcoatNormalTexture, &srcMat.specularTexture,
-                    &srcMat.specularColorTexture};
+                    &srcMat.specularColorTexture, &srcMat.transmissionTexture,
+                    &srcMat.thicknessTexture};
                 for (int map = 0; map < RenderItem::Pbr::MAP_COUNT; ++map) {
                     pbr.texCoords[map] = maps[map]->texCoord == 1 ? 1 : 0;
                     std::copy(maps[map]->transform, maps[map]->transform + 6,

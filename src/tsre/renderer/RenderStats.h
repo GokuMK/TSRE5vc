@@ -74,7 +74,7 @@ struct FrameStats {
     quint64 instancedDraws = 0;
     quint64 instancedInstances = 0;
     // Draw calls per Renderer::RenderPass.
-    static constexpr int PassSlots = 12;
+    static constexpr int PassSlots = 13;
     quint64 passDraws[PassSlots] = {};
 };
 

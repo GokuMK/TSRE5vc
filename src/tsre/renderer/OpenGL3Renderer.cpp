@@ -69,8 +69,28 @@ bool resolveTexture(const RenderItem *item, unsigned int &address){
 
 // Texture unit of each PBR map: the base colour is the packet texture, the
 // clearcoat and specular maps use units that only terrain and water programs
-// use otherwise. All 16 units OpenGL 3.3 guarantees are taken.
-const int PbrMapUnits[RenderItem::Pbr::MAP_COUNT] = {0, 11, 12, 13, 14, 4, 5, 6, 7, 15};
+// use otherwise. That takes all 16 units OpenGL 3.3 guarantees; the
+// transmission and thickness maps use units 16 and 17 where the driver has
+// them (current drivers have 32) and are left out otherwise.
+const int PbrMapUnits[RenderItem::Pbr::MAP_COUNT] = {0, 11, 12, 13, 14, 4, 5, 6, 7, 15, 16, 17};
+// The frame copy transmissive surfaces see through, on unit 1 (the detail
+// texture unit, unused by the PBR program).
+const int SceneCopyUnit = 1;
+
+// Mipmap levels of the frame copy while the transmission pass draws; 0 when
+// transmissive surfaces see the environment instead.
+float sceneCopyLevels = 0.0f;
+
+int textureUnitCount(){
+    static int units = 0;
+    if(units == 0){
+        if(QOpenGLContext *context = QOpenGLContext::currentContext())
+            context->functions()->glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &units);
+        if(units <= 0)
+            units = 16;
+    }
+    return units;
+}
 
 // Metallic-roughness material uniforms and maps of a packet drawn by the
 // PBR program. Maps not uploaded yet are left out.
@@ -92,6 +112,10 @@ void applyPbrState(GLUU *gluu, QOpenGLFunctions *f, const RenderItem *item){
     s->setUniformValue(s->pbrSpecular, p.specularColor[0], p.specularColor[1], p.specularColor[2],
                        p.specular);
     s->setUniformValue(s->pbrIor, p.ior);
+    s->setUniformValue(s->pbrTransmission, p.transmission, p.thickness, p.attenuationDistance,
+                       sceneCopyLevels);
+    s->setUniformValue(s->pbrAttenuationColor, p.attenuationColor[0], p.attenuationColor[1],
+                       p.attenuationColor[2]);
     int present = 0;
     int texCoords = 0;
     int transformed = 0;
@@ -104,6 +128,7 @@ void applyPbrState(GLUU *gluu, QOpenGLFunctions *f, const RenderItem *item){
             transformed |= 1 << map;
         unsigned int address = 0;
         if(map == RenderItem::Pbr::MAP_BASE_COLOR || p.textures[map] < 0
+                || PbrMapUnits[map] >= textureUnitCount()
                 || !resolveTexLibTexture(p.textures[map], address))
             continue;
         f->glActiveTexture(GL_TEXTURE0 + PbrMapUnits[map]);
@@ -438,6 +463,12 @@ OpenGL3Renderer::~OpenGL3Renderer() {
     QOpenGLContext *context = QOpenGLContext::currentContext();
     if(context != NULL && context == queryContext && samplesQuery != 0)
         context->extraFunctions()->glDeleteQueries(1, &samplesQuery);
+    if(context != NULL && context == copyContext){
+        if(sceneCopyTexture != 0)
+            context->functions()->glDeleteTextures(1, &sceneCopyTexture);
+        if(sceneCopyFramebuffer != 0)
+            context->functions()->glDeleteFramebuffers(1, &sceneCopyFramebuffer);
+    }
     if(context != NULL && context == samplerContext)
         for(auto &entry : wrapSamplers)
             context->extraFunctions()->glDeleteSamplers(1, &entry.second);
@@ -528,6 +559,7 @@ void OpenGL3Renderer::bindWrapSampler(int unit, quint32 wrap){
 }
 
 void OpenGL3Renderer::applyWrapSamplers(const RenderItem *item){
+    static_assert(17 < SamplerUnits, "sampler bookkeeping covers the PBR units");
     const int *units = PbrMapUnits;
     for(int map = 0; map < RenderItem::Pbr::MAP_COUNT; ++map){
         quint32 wrap = 0;
@@ -535,6 +567,9 @@ void OpenGL3Renderer::applyWrapSamplers(const RenderItem *item){
         if(item->pbr.enabled && (modes[0] != 0 || modes[1] != 0))
             wrap = (quint32(modes[0] != 0 ? modes[0] : GL_REPEAT) << 16)
                     | (modes[1] != 0 ? modes[1] : GL_REPEAT);
+        // Maps on units the driver lacks are not bound (transmission).
+        if(units[map] >= textureUnitCount())
+            continue;
         if(wrap != 0 || boundSamplers[units[map]] != 0)
             bindWrapSampler(units[map], wrap);
     }
@@ -563,7 +598,7 @@ void OpenGL3Renderer::releaseWrapSamplers(){
     QOpenGLContext *context = QOpenGLContext::currentContext();
     if(context == NULL || context != samplerContext)
         return;
-    for(int unit = 0; unit < 16; ++unit)
+    for(int unit = 0; unit < SamplerUnits; ++unit)
         if(boundSamplers[unit] != 0){
             context->extraFunctions()->glBindSampler(GLuint(unit), 0);
             boundSamplers[unit] = 0;
@@ -687,6 +722,8 @@ Renderer::RenderPass OpenGL3Renderer::routePass(const RenderItem *packet,
     }
     if(packet->material.surface == RenderItem::SURFACE_TERRAIN)
         return PASS_TERRAIN;
+    if(packet->pbr.enabled && packet->pbr.transmission > 0.0f)
+        return PASS_TRANSMISSION;
     if(order == SUBMIT_ORDERED)
         return PASS_OPAQUE;
     if(packet->material.surface == RenderItem::SURFACE_ALPHA_TEST)
@@ -784,7 +821,7 @@ void OpenGL3Renderer::queueInstance(RenderItem *packet, const float *matrix,
     instance.category = RenderStats::category();
     instance.owned = owned;
     instance.castsShadow = castsShadow(packet);
-    if(pass == PASS_BLENDED && order == SUBMIT_GROUPED){
+    if((pass == PASS_BLENDED || pass == PASS_TRANSMISSION) && order == SUBMIT_GROUPED){
         // Distance from the camera to the packet origin, for back-to-front order.
         float origin[3];
         instanceOrigin(instance, origin);
@@ -1070,18 +1107,23 @@ void OpenGL3Renderer::drawPasses(RenderPass first, RenderPass last, bool consume
                 if(RenderStats::inFrame())
                     RenderStats::current().flushes++;
             }
+            // Transmissive surfaces see the frame drawn so far.
+            if(pass == PASS_TRANSMISSION)
+                sceneCopyLevels = copyFrameForTransmission(gluu, base);
             drawOrdered(gluu, base, queue.ordered, pass);
             // Keep defaults predictable for the packet loop.
             gluu->setBrightness(1.0f);
             gluu->enableTextures();
             gluu->enableNormals();
-            if(pass == PASS_BLENDED)
+            if(pass == PASS_BLENDED || pass == PASS_TRANSMISSION)
                 sortBackToFront(queue.grouped);
             else
                 sortByTexture(queue.grouped);
             drawGrouped(gluu, base, queue.grouped, pass);
             drew = true;
         }
+        if(pass == PASS_TRANSMISSION)
+            sceneCopyLevels = 0.0f;
         if(consume)
             consumePass(queue);
     }
@@ -1203,6 +1245,63 @@ void OpenGL3Renderer::renderShadowCasters(float range, int statsSlot,
     gluu->setBrightness(1.0f);
     gluu->enableTextures();
     gluu->enableNormals();
+}
+
+float OpenGL3Renderer::copyFrameForTransmission(GLUU *gluu, Shader *base){
+    // Secondary views and programs without a PBR variant (selection) use no
+    // copy: transmissive surfaces there see the environment.
+    QOpenGLContext *context = QOpenGLContext::currentContext();
+    if(secondaryView || context == NULL || gluu->pbrVariant(base) == base)
+        return 0.0f;
+    QOpenGLExtraFunctions *e = context->extraFunctions();
+    GLint viewportRect[4] = {0, 0, 0, 0};
+    e->glGetIntegerv(GL_VIEWPORT, viewportRect);
+    const int width = viewportRect[2], height = viewportRect[3];
+    if(width <= 0 || height <= 0)
+        return 0.0f;
+    if(copyContext != context){
+        // Objects of another context cannot be used or deleted here.
+        sceneCopyTexture = sceneCopyFramebuffer = 0;
+        sceneCopyWidth = sceneCopyHeight = 0;
+        copyContext = context;
+    }
+    if(sceneCopyTexture == 0 || width != sceneCopyWidth || height != sceneCopyHeight){
+        if(sceneCopyTexture == 0)
+            e->glGenTextures(1, &sceneCopyTexture);
+        if(sceneCopyFramebuffer == 0)
+            e->glGenFramebuffers(1, &sceneCopyFramebuffer);
+        e->glActiveTexture(GL_TEXTURE0 + SceneCopyUnit);
+        e->glBindTexture(GL_TEXTURE_2D, sceneCopyTexture);
+        e->glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA,
+                        GL_UNSIGNED_BYTE, nullptr);
+        e->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        e->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        // Refraction near the screen edge reads the last pixel row or column.
+        e->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        e->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        e->glGenerateMipmap(GL_TEXTURE_2D);
+        e->glActiveTexture(GL_TEXTURE0);
+        sceneCopyWidth = width;
+        sceneCopyHeight = height;
+    }
+    GLint drawFramebuffer = 0, readFramebuffer = 0;
+    e->glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &drawFramebuffer);
+    e->glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &readFramebuffer);
+    // A blit also resolves a multisampled frame.
+    e->glBindFramebuffer(GL_DRAW_FRAMEBUFFER, sceneCopyFramebuffer);
+    e->glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                              sceneCopyTexture, 0);
+    e->glBindFramebuffer(GL_READ_FRAMEBUFFER, GLuint(drawFramebuffer));
+    e->glBlitFramebuffer(viewportRect[0], viewportRect[1], viewportRect[0] + width,
+                         viewportRect[1] + height, 0, 0, width, height,
+                         GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    e->glBindFramebuffer(GL_DRAW_FRAMEBUFFER, GLuint(drawFramebuffer));
+    e->glBindFramebuffer(GL_READ_FRAMEBUFFER, GLuint(readFramebuffer));
+    e->glActiveTexture(GL_TEXTURE0 + SceneCopyUnit);
+    e->glBindTexture(GL_TEXTURE_2D, sceneCopyTexture);
+    e->glGenerateMipmap(GL_TEXTURE_2D);
+    e->glActiveTexture(GL_TEXTURE0);
+    return 1.0f + std::floor(std::log2(float(std::max(width, height))));
 }
 
 void OpenGL3Renderer::renderPassesMeasured(RenderPass first, RenderPass last){
