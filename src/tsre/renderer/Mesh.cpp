@@ -12,7 +12,9 @@
 #include <QMutex>
 #include <QMutexLocker>
 #include <QOpenGLFunctions>
+#include <rhi/qrhi.h>
 #include <cstring>
+#include <algorithm>
 #include <memory>
 
 #ifndef GL_COPY_WRITE_BUFFER
@@ -44,6 +46,12 @@ struct Entry {
     RenderItem::VertexAttr layout = RenderItem::NO_ATTR;
     int bytes = 0;
     quint64 stamp = 0;
+    // QRhi renderer: the buffers, and the bytes of Buffer-format data, kept
+    // because one storage can serve as an index buffer and a uniform buffer.
+    QRhiBuffer *rhiVertex = nullptr;
+    QRhiBuffer *rhiIndex = nullptr;
+    QRhiBuffer *rhiUniform = nullptr;
+    QByteArray retained;
 };
 
 struct Store {
@@ -51,6 +59,7 @@ struct Store {
     std::vector<Entry> entries;
     std::vector<quint32> freeSlots;
     std::vector<GLuint> deadBuffers;
+    std::vector<QRhiBuffer *> deadRhiBuffers;
     quint64 nextStamp = 1;
     quint64 releases = 0;
 };
@@ -216,6 +225,11 @@ void Meshes::release(MeshHandle &handle) {
             s.deadBuffers.push_back(entry.indexBuffer);
         entry.vertexBuffer = 0;
         entry.indexBuffer = 0;
+        for (QRhiBuffer *buffer : {entry.rhiVertex, entry.rhiIndex, entry.rhiUniform})
+            if (buffer != nullptr)
+                s.deadRhiBuffers.push_back(buffer);
+        entry.rhiVertex = entry.rhiIndex = entry.rhiUniform = nullptr;
+        entry.retained.clear();
         entry.sharedIndices = MeshHandle();
         entry.format = MeshData::FloatLayout;
         entry.layout = RenderItem::NO_ATTR;
@@ -306,4 +320,124 @@ void Meshes::setupAttributes(QOpenGLFunctions *f, const Buffers &buffers) {
     default:
         break;
     }
+}
+
+namespace {
+
+// A static buffer of the size, reusing one that fits exactly.
+QRhiBuffer *ensureBuffer(Store &s, QRhiBuffer *current, QRhi *rhi, QRhiBuffer::UsageFlags usage,
+                         int size) {
+    if (current != nullptr && current->size() == quint32(size))
+        return current;
+    if (current != nullptr)
+        s.deadRhiBuffers.push_back(current);
+    QRhiBuffer *buffer = rhi->newBuffer(QRhiBuffer::Static, usage, quint32(std::max(size, 4)));
+    if (!buffer->create()) {
+        delete buffer;
+        return nullptr;
+    }
+    return buffer;
+}
+
+bool prepareRhiLocked(Store &s, MeshHandle handle, QRhi *rhi, QRhiResourceUpdateBatch *batch,
+                      Meshes::RhiBuffers &buffers, int depth) {
+    if (!live(s, handle) || depth > 1)
+        return false;
+    Entry &entry = s.entries[handle.index];
+    if (entry.pending) {
+        MeshData &data = *entry.pending;
+        int size = 0;
+        const char *vertexBytes = pendingBytes(data, size);
+        if (data.format == MeshData::Buffer) {
+            entry.retained = QByteArray(vertexBytes, size);
+            // Buffers of other uses are made again from the new bytes.
+            for (QRhiBuffer *buffer : {entry.rhiVertex, entry.rhiUniform})
+                if (buffer != nullptr)
+                    s.deadRhiBuffers.push_back(buffer);
+            entry.rhiVertex = entry.rhiUniform = nullptr;
+            entry.rhiVertex = ensureBuffer(s, nullptr, rhi, QRhiBuffer::IndexBuffer, size);
+        } else {
+            entry.rhiVertex = ensureBuffer(s, entry.rhiVertex, rhi, QRhiBuffer::VertexBuffer, size);
+        }
+        if (entry.rhiVertex != nullptr && size > 0)
+            batch->uploadStaticBuffer(entry.rhiVertex, 0, quint32(size), vertexBytes);
+        if (!data.indices.isEmpty()) {
+            entry.rhiIndex = ensureBuffer(s, entry.rhiIndex, rhi, QRhiBuffer::IndexBuffer,
+                                          int(data.indices.size()));
+            if (entry.rhiIndex != nullptr)
+                batch->uploadStaticBuffer(entry.rhiIndex, 0, quint32(data.indices.size()),
+                                          data.indices.constData());
+        } else if (entry.rhiIndex != nullptr) {
+            s.deadRhiBuffers.push_back(entry.rhiIndex);
+            entry.rhiIndex = nullptr;
+        }
+        entry.format = data.format;
+        entry.layout = data.layout;
+        entry.sharedIndices = data.sharedIndices;
+        entry.bytes = size;
+        entry.pending.reset();
+    }
+    if (!entry.ranges.empty() && entry.rhiVertex != nullptr) {
+        for (const Range &range : entry.ranges) {
+            batch->uploadStaticBuffer(entry.rhiVertex, quint32(range.offset),
+                                      quint32(range.data.size()), range.data.constData());
+            if (!entry.retained.isEmpty()) {
+                std::memcpy(entry.retained.data() + range.offset, range.data.constData(),
+                            size_t(range.data.size()));
+                if (entry.rhiUniform != nullptr)
+                    batch->uploadStaticBuffer(entry.rhiUniform, quint32(range.offset),
+                                              quint32(range.data.size()), range.data.constData());
+            }
+        }
+        entry.ranges.clear();
+    }
+    if (entry.rhiVertex == nullptr)
+        return false;
+    buffers.vertexBuffer = entry.rhiVertex;
+    buffers.indexBuffer = entry.rhiIndex;
+    buffers.format = entry.format;
+    buffers.layout = entry.layout;
+    if (entry.sharedIndices.valid()) {
+        const MeshHandle shared = entry.sharedIndices;
+        Meshes::RhiBuffers indices;
+        buffers.indexBuffer = prepareRhiLocked(s, shared, rhi, batch, indices, depth + 1)
+                ? indices.vertexBuffer : nullptr;
+    }
+    return true;
+}
+
+}
+
+bool Meshes::prepareRhi(MeshHandle handle, QRhi *rhi, QRhiResourceUpdateBatch *batch,
+                        RhiBuffers &buffers) {
+    Store &s = store();
+    QMutexLocker lock(&s.mutex);
+    return prepareRhiLocked(s, handle, rhi, batch, buffers, 0);
+}
+
+QRhiBuffer *Meshes::uniformBufferRhi(MeshHandle handle, QRhi *rhi, QRhiResourceUpdateBatch *batch) {
+    Store &s = store();
+    QMutexLocker lock(&s.mutex);
+    RhiBuffers buffers;
+    if (!prepareRhiLocked(s, handle, rhi, batch, buffers, 0))
+        return nullptr;
+    Entry &entry = s.entries[handle.index];
+    if (entry.format != MeshData::Buffer)
+        return nullptr;
+    if (entry.rhiUniform == nullptr) {
+        entry.rhiUniform = ensureBuffer(s, nullptr, rhi, QRhiBuffer::UniformBuffer,
+                                        int(entry.retained.size()));
+        if (entry.rhiUniform != nullptr && !entry.retained.isEmpty())
+            batch->uploadStaticBuffer(entry.rhiUniform, 0, quint32(entry.retained.size()),
+                                      entry.retained.constData());
+    }
+    return entry.rhiUniform;
+}
+
+void Meshes::collectGarbageRhi() {
+    Store &s = store();
+    QMutexLocker lock(&s.mutex);
+    for (QRhiBuffer *buffer : s.deadRhiBuffers)
+        buffer->deleteLater();
+    s.deadRhiBuffers.clear();
 }

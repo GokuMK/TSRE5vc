@@ -32,6 +32,15 @@ public:
     long long measuredSamples() override;
     void beginViewBand(const LayeredView &view, ViewBand band) override;
     void endView(const LayeredView &view) override;
+    bool programsReady() const override;
+    void useProgram(Program program) override;
+    void releaseProgram() override;
+    void applyFrameUniforms() override;
+    void setFogLod(float lod) override;
+    void createShadowMaps(int nearSize, int farSize) override;
+    void bindTarget(Target target) override;
+    // GLUU program the main program is (StandardFast for manual testing).
+    QString mainProgramName = "StandardFog";
     void resetState() override;
     bool setBlending(bool enabled) override;
     void clear(bool color, bool depth, const float *clearColor = nullptr) override;
@@ -106,6 +115,9 @@ private:
     int maxInstanceTexels = 0;
 
     QOpenGLFunctions *f = nullptr;
+    // Shadow map framebuffers (near, middle, far) and their depth textures.
+    unsigned int shadowFramebuffers[3] = {0, 0, 0};
+    unsigned int shadowTextures[3] = {0, 0, 0};
 };
 
 #endif /* OPENGL3RENDERER_H */

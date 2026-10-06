@@ -72,6 +72,8 @@ class Texture {
     void takeContentFrom(Texture &other);
     void pixelsChanged();
     bool GLTextures(bool mipmaps = false);
+    // GLTextures for the QRhi renderer.
+    bool uploadForRhi(bool mipmaps);
     qint64 estimatedCpuBytes() const;
     qint64 estimatedVramBytes() const;
     bool gpuIsCompressed() const;

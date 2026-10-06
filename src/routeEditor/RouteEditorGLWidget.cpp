@@ -82,18 +82,45 @@
 #define GL_SAMPLES_PASSED 0x8914
 #endif
 
-static const QString MainRenderShaderName = "StandardFog";
 // Objects farther than this are left out of the water reflection.
 static const float WaterReflectionObjectDistance = 500.0f;
 static constexpr unsigned long long LiveContinuousUpdateIntervalMs = 50;
 
 RouteEditorGLWidget::RouteEditorGLWidget(QWidget *parent)
-: QOpenGLWidget(parent),
+: QWidget(parent),
 m_xRot(0),
 m_yRot(0),
 m_zRot(0) {
-    
+    surface = RenderSurface::create(this, this);
     this->installEventFilter(this);
+}
+
+void RouteEditorGLWidget::update(){
+    surface->requestUpdate();
+}
+
+void RouteEditorGLWidget::makeCurrent(){
+    surface->makeCurrent();
+}
+
+void RouteEditorGLWidget::doneCurrent(){
+    surface->doneCurrent();
+}
+
+QImage RouteEditorGLWidget::grabFramebuffer(){
+    return surface->grabFramebuffer();
+}
+
+unsigned int RouteEditorGLWidget::defaultFramebufferObject() const{
+    return surface->defaultFramebufferObject();
+}
+
+void RouteEditorGLWidget::paintEvent(QPaintEvent *){
+    // The surface fills the widget and paints itself.
+}
+
+void RouteEditorGLWidget::surfaceRelease(){
+    cleanup();
 }
 
 
@@ -106,11 +133,9 @@ bool RouteEditorGLWidget::eventFilter(QObject *object, QEvent *event){
 }
 
 RouteEditorGLWidget::~RouteEditorGLWidget() {
-    // QOpenGLWidget destroys the context after this destructor has run; its
-    // aboutToBeDestroyed signal must not call cleanup() on a destroyed object.
-    if (context() != NULL)
-        disconnect(context(), &QOpenGLContext::aboutToBeDestroyed,
-                   this, &RouteEditorGLWidget::cleanup);
+    // The surface is destroyed after this destructor has run; it must not
+    // call back into a destroyed object.
+    surface->detachClient();
     cleanup();
 }
 
@@ -289,18 +314,18 @@ void RouteEditorGLWidget::cameraInit(){
     camera->setPos((float*) &spos);
 }
 
-void RouteEditorGLWidget::initializeGL() {
+void RouteEditorGLWidget::surfaceInitialize() {
     
     if(Game::soundEnabled)
         SoundManager::InitAl();
 
     gluu = GLUU::get();
-    connect(context(), &QOpenGLContext::aboutToBeDestroyed, this, &RouteEditorGLWidget::cleanup);
     qDebug() << "# InitializeOpenGLFunctions";
 
     initializeOpenGLFunctions();
 
     renderer = new OpenGL3Renderer();
+    renderer->setSurface(surface);
     
     //funcs = QOpenGLContext::currentContext()->versionFunctions<QOpenGLFunctions_3_3_Core>();
     //if (!funcs) {
@@ -377,14 +402,8 @@ void RouteEditorGLWidget::initializeGL() {
                 "core.rendering.shadow.primaryMapSize", SettingType::Enum).toInt();
     distantShadowMapSize = Settings::variant(
                 "core.rendering.shadow.distantMapSize", SettingType::Enum).toInt();
-    gluu->makeShadowFramebuffer(FramebufferName0, depthTexture0,
-            shadowMapSize, GL_TEXTURE9);
-    gluu->makeShadowFramebuffer(FramebufferName1, depthTexture1,
-            shadowMapSize, GL_TEXTURE2);
-    gluu->makeShadowFramebuffer(FramebufferName2, depthTexture2,
-            distantShadowMapSize, GL_TEXTURE3);
-    glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
-    glActiveTexture(GL_TEXTURE0);
+    renderer->createShadowMaps(shadowMapSize, distantShadowMapSize);
+    renderer->bindTarget(Renderer::TARGET_VIEW);
         
     
     moveStep = Game::DefaultMoveStep;
@@ -447,7 +466,7 @@ bool RouteEditorGLWidget::canRenderFrame() const{
     return true;
 }
 
-void RouteEditorGLWidget::paintGL(){
+void RouteEditorGLWidget::surfacePaint(){
     Game::currentShapeLib = currentShapeLib;
     if (!canRenderFrame()) return;
     Terrain::beginProceduralFrame();
@@ -469,8 +488,7 @@ void RouteEditorGLWidget::paintScene(){
     if (!canRenderFrame()) return;
     if (renderer == NULL) return;
     const bool selectionPass = selection;
-    const QString shaderName = selectionPass ? "Selection" : MainRenderShaderName;
-    if (gluu->shaders[shaderName] == NULL){
+    if (!renderer->programsReady()){
         if(selectionPass){
             qWarning() << "Selection shader is unavailable";
             selection = false;
@@ -585,12 +603,10 @@ void RouteEditorGLWidget::paintScene(){
             return;
         }
     } else {
-        glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
-        glActiveTexture(GL_TEXTURE0);
+        renderer->bindTarget(Renderer::TARGET_VIEW);
         renderer->clear(true, true);
     }
-    gluu->currentShader = gluu->shaders[shaderName];
-    gluu->currentShader->bind();
+    renderer->useProgram(selectionPass ? Renderer::PROGRAM_SELECTION : Renderer::PROGRAM_MAIN);
 
     const bool blendingWasEnabled = selectionPass ? renderer->setBlending(false) : true;
     // Reflecting materials sample the environment map on its own unit.
@@ -668,8 +684,8 @@ void RouteEditorGLWidget::paintScene(){
         Mat4::identity(gluu->mvMatrix);
         Mat4::ortho(gluu->pMatrix, -1.0, 1.0, 1.0 - 2*(float(this->height()) / this->width()), 1.0, 0.0, 1.0);
         Mat4::identity(gluu->objStrMatrix);
-        gluu->setMatrixUniforms();
-        gluu->currentShader->setUniformValue(gluu->currentShader->lod, 0.0f);
+        renderer->applyFrameUniforms();
+        renderer->setFogLod(0.0f);
 
         renderer->setLayer(RenderQueue::LAYER_UI);
         compass->pushRenderItem(queue, camera->getRotX()+M_PI);
@@ -687,14 +703,14 @@ void RouteEditorGLWidget::paintScene(){
         Mat4::identity(gluu->mvMatrix);
         Mat4::ortho(gluu->pMatrix, -1.0, -1.0+2.0*hudScale, 1.0 - 2*(float(this->height()) / this->width())*hudScale, 1.0, 0.0, 1.0);
         Mat4::identity(gluu->objStrMatrix);
-        gluu->setMatrixUniforms();
-        gluu->currentShader->setUniformValue(gluu->currentShader->lod, 0.0f);
+        renderer->applyFrameUniforms();
+        renderer->setFogLod(0.0f);
         renderer->setLayer(RenderQueue::LAYER_UI);
         camera->pushRenderHud(queue);
         renderer->setLayer(RenderQueue::LAYER_SCENE);
         renderer->renderPasses(Renderer::PASS_UI, Renderer::PASS_UI);
         Game::shadowsEnabled = shadowsState;
-        gluu->currentShader->release();
+        renderer->releaseProgram();
     }
     renderer->renderFrame();
     if (!selectionPass && Game::environmentMapPreview && environmentMap != NULL
@@ -708,7 +724,7 @@ void RouteEditorGLWidget::paintScene(){
     if(selectionPass){
         handleSelection();
         selectionRenderer->end();
-        gluu->currentShader->release();
+        renderer->releaseProgram();
         return;
     }
 
@@ -728,7 +744,10 @@ void RouteEditorGLWidget::drawEditorFpsHud(){
     if(selection)
         return;
 
-    QPainter painter(this);
+    QPaintDevice *overlay = surface->overlayPaintDevice();
+    if(overlay == NULL)
+        return;
+    QPainter painter(overlay);
     painter.setRenderHint(QPainter::TextAntialiasing, true);
     painter.setPen(QColor(72, 30, 112));
 
@@ -821,40 +840,36 @@ void RouteEditorGLWidget::computeShadowMatrices() {
 // casters up to 250 m, 600 m and 1000 m away.
 void RouteEditorGLWidget::renderShadowMaps() {
     computeShadowMatrices();
-    gluu->currentShader = gluu->shaders["Shadows"];
-    gluu->currentShader->bind();
+    renderer->useProgram(Renderer::PROGRAM_SHADOW);
     Mat4::identity(gluu->mvMatrix);
     Mat4::identity(gluu->objStrMatrix);
 
     // The shadow shader reads uShadowPMatrix; swap in the near map's matrix.
     std::swap(gluu->pShadowMatrix, gluu->pShadowMatrix0);
-    gluu->setMatrixUniforms();
-    glBindFramebuffer(GL_FRAMEBUFFER, FramebufferName0);
-    glActiveTexture(GL_TEXTURE0);
+    renderer->applyFrameUniforms();
+    renderer->bindTarget(Renderer::TARGET_SHADOW_NEAR);
     renderer->clear(true, true);
     renderer->setViewport(0, 0, shadowMapSize, shadowMapSize);
     renderer->renderShadowCasters(250.0f, RenderStats::FrameStats::PassSlots - 3,
                                   gluu->pShadowMatrix);
     std::swap(gluu->pShadowMatrix, gluu->pShadowMatrix0);
 
-    gluu->setMatrixUniforms();
-    glBindFramebuffer(GL_FRAMEBUFFER, FramebufferName1);
-    glActiveTexture(GL_TEXTURE0);
+    renderer->applyFrameUniforms();
+    renderer->bindTarget(Renderer::TARGET_SHADOW_MID);
     renderer->clear(true, true);
     renderer->setViewport(0, 0, shadowMapSize, shadowMapSize);
     renderer->renderShadowCasters(600.0f, RenderStats::FrameStats::PassSlots - 2,
                                   gluu->pShadowMatrix);
 
     std::swap(gluu->pShadowMatrix, gluu->pShadowMatrix2);
-    gluu->setMatrixUniforms();
-    glBindFramebuffer(GL_FRAMEBUFFER, FramebufferName2);
-    glActiveTexture(GL_TEXTURE0);
+    renderer->applyFrameUniforms();
+    renderer->bindTarget(Renderer::TARGET_SHADOW_FAR);
     renderer->clear(true, true);
     renderer->setViewport(0, 0, distantShadowMapSize, distantShadowMapSize);
     renderer->renderShadowCasters(1000.0f, RenderStats::FrameStats::PassSlots - 1,
                                   gluu->pShadowMatrix);
     std::swap(gluu->pShadowMatrix, gluu->pShadowMatrix2);
-    gluu->currentShader->release();
+    renderer->releaseProgram();
 }
 
 // Renders the faces scheduled for this frame from the camera position, from
@@ -869,8 +884,7 @@ void RouteEditorGLWidget::renderEnvironmentMap() {
     // The faces must not sample the cube they are drawn into.
     EnvironmentMap::unbind();
     gluu->environmentMapLevels = 0;
-    gluu->currentShader = gluu->shaders[MainRenderShaderName];
-    gluu->currentShader->bind();
+    renderer->useProgram(Renderer::PROGRAM_MAIN);
     Mat4::identity(gluu->mvMatrix);
     Mat4::identity(gluu->objStrMatrix);
     const QVector<int> faces = environmentMap->nextFaces(environmentMap->complete()
@@ -929,8 +943,7 @@ bool RouteEditorGLWidget::renderWaterReflection() {
         return false;
     // The mirrored view must not sample the texture it is drawn into.
     PlanarReflection::unbind();
-    gluu->currentShader = gluu->shaders[MainRenderShaderName];
-    gluu->currentShader->bind();
+    renderer->useProgram(Renderer::PROGRAM_MAIN);
     Mat4::identity(gluu->mvMatrix);
     Mat4::identity(gluu->objStrMatrix);
     // The camera looks at the scene mirrored in the plane.
@@ -1222,7 +1235,7 @@ void RouteEditorGLWidget::pushRenderPointer(RenderQueue &queue) {
     }
 }
 
-void RouteEditorGLWidget::resizeGL(int w, int h) {
+void RouteEditorGLWidget::surfaceResize(int w, int h) {
     //gluu->m_proj.setToIdentity();
     //gluu->m_proj.perspective(45.0f, GLfloat(w) / h, 0.01f, 100.0f);
 }

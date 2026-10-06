@@ -668,6 +668,38 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "On GPU / Experimental"
                 QT_TRID_NOOP("settings.core.rendering.terrain.mesh.option.paged")}})).inGroup("rendering").inSubgroup("pipeline").applies("routeReload").asAdvanced(),
         "terrainMesh", "Game::terrainMeshMode", "Terrain renderer", true, "route-reload");
+    ADD(SettingsDefinition::string("core.rendering.backend", "opengl", SettingType::Enum)
+            .withNameId(
+                //% "Renderer"
+                QT_TRID_NOOP("settings.core.rendering.backend.name")).withDescriptionId(
+                //% "The OpenGL renderer, or the experimental QRhi renderer (Vulkan, Metal, Direct3D or OpenGL through Qt). Applies after a restart."
+                QT_TRID_NOOP("settings.core.rendering.backend.description"))
+            .withOptions(choices({{"opengl",
+                //% "OpenGL"
+                QT_TRID_NOOP("settings.core.rendering.backend.option.opengl")}, {"qrhi",
+                //% "QRhi / Experimental"
+                QT_TRID_NOOP("settings.core.rendering.backend.option.qrhi")}})).inGroup("rendering").inSubgroup("pipeline").asAdvanced(),
+        "renderBackend", "Game::renderBackend", "RouteEditorGLWidget", false, "renderer-restart");
+    ADD(SettingsDefinition::string("core.rendering.rhiApi", "auto", SettingType::Enum)
+            .withNameId(
+                //% "QRhi graphics API"
+                QT_TRID_NOOP("settings.core.rendering.rhi.api.name")).withDescriptionId(
+                //% "Graphics API of the QRhi renderer. Automatic picks Metal on macOS, Direct3D 11 on Windows and Vulkan elsewhere, falling back to OpenGL. Applies after a restart."
+                QT_TRID_NOOP("settings.core.rendering.rhi.api.description"))
+            .withOptions(choices({{"auto",
+                //% "Automatic"
+                QT_TRID_NOOP("settings.core.rendering.rhi.api.option.auto")}, {"vulkan",
+                //% "Vulkan"
+                QT_TRID_NOOP("settings.core.rendering.rhi.api.option.vulkan")}, {"opengl",
+                //% "OpenGL"
+                QT_TRID_NOOP("settings.core.rendering.rhi.api.option.opengl")}, {"metal",
+                //% "Metal"
+                QT_TRID_NOOP("settings.core.rendering.rhi.api.option.metal")}, {"d3d11",
+                //% "Direct3D 11"
+                QT_TRID_NOOP("settings.core.rendering.rhi.api.option.d3d11")}, {"d3d12",
+                //% "Direct3D 12"
+                QT_TRID_NOOP("settings.core.rendering.rhi.api.option.d3d12")}})).inGroup("rendering").inSubgroup("pipeline").asAdvanced(),
+        "rhiApi", "Game::rhiApi", "RouteEditorGLWidget", false, "renderer-restart");
     ADD(SettingsDefinition::boolean("core.rendering.threadedTextureLoading", true)
             .withNameId(
                 //% "Threaded texture loading"

@@ -149,6 +149,9 @@ public:
     static int shadowLowMapSize;
     static int shadowsEnabled;
     // Environment cube map for reflections (see EnvironmentMap).
+    // Renderer chosen at startup: "opengl" or "qrhi", and the QRhi API.
+    static QString renderBackend;
+    static QString rhiApi;
     static bool environmentMapEnabled;
     static int environmentMapSize;
     static int environmentMapFacesPerFrame;

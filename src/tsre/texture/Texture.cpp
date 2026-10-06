@@ -25,6 +25,7 @@
 #include <cstdint>
 #include <tsre/texture/DxtCodec.h>
 #include <tsre/texture/AceDocument.h>
+#include <tsre/renderer/rhi/RhiTextures.h>
 #include <algorithm>
 #include <cstring>
 #include <cmath>
@@ -323,7 +324,9 @@ void Texture::takeContentFrom(Texture &other) {
     if (reusable)
         tex = nullptr;
     // Moving an already GPU-resident source still requires the owning context.
-    if (tex && tex[0] && QOpenGLContext::currentContext())
+    if (tex && tex[0] && Game::renderBackend == "qrhi")
+        RhiTextures::release(tex[0]);
+    else if (tex && tex[0] && QOpenGLContext::currentContext())
         glDeleteTextures(1, tex);
     delete[] tex;
     tex = nullptr;
@@ -600,7 +603,93 @@ Texture::~Texture() {
     // Existing callers own/free the legacy raw pointers. New containers are RAII.
 }
 
+// QRhi renderer: the pixels go to an RhiTextures texture, whose handle takes
+// the place of the OpenGL texture name. The texture always has all mipmap
+// levels; gpuMipmaps tells the renderer whether to sample them, as an OpenGL
+// texture uploaded without mipmaps has none.
+bool Texture::uploadForRhi(bool mipmaps) {
+    if (!loaded || width <= 0 || height <= 0 || (bytesPerPixel != 3 && bytesPerPixel != 4))
+        return false;
+    if (glLoaded) {
+        if (mipmaps)
+            gpuMipmaps = true;
+        return true;
+    }
+    if (!decodeToCpu())
+        return false;
+    if (Game::AASamples > 0 && Game::AARemoveBorder && type == GL_RGBA) {
+        for (int y = 0; y < height; ++y) {
+            imageData[(qsizetype(y) * width) * 4 + 3] = 0;
+            imageData[(qsizetype(y) * width + width - 1) * 4 + 3] = 0;
+        }
+        for (int x = 0; x < width; ++x) {
+            imageData[x * 4 + 3] = 0;
+            imageData[(qsizetype(height - 1) * width + x) * 4 + 3] = 0;
+        }
+        sourceMipmaps.clear();
+    }
+    // RGBA levels: the base, then the texture's own mipmaps when they chain.
+    auto toRgba = [this](const unsigned char *pixels, int w, int h) {
+        QByteArray rgba(qsizetype(w) * h * 4, char(255));
+        if (bytesPerPixel == 4) {
+            std::memcpy(rgba.data(), pixels, rgba.size());
+        } else {
+            for (qsizetype i = 0; i < qsizetype(w) * h; ++i)
+                std::memcpy(rgba.data() + i * 4, pixels + i * 3, 3);
+        }
+        return rgba;
+    };
+    QVector<QByteArray> levels;
+    levels.push_back(toRgba(imageData, width, height));
+    if (mipmaps) {
+        int previousW = width, previousH = height;
+        for (const TextureMip &mip : std::as_const(sourceMipmaps)) {
+            if (mip.width != std::max(1, previousW / 2) || mip.height != std::max(1, previousH / 2))
+                break;
+            QByteArray decoded;
+            QString message;
+            const QByteArray *data = &mip.data;
+            if (mip.compressedFormat) {
+                if (!DxtCodec::decode(mip.data, mip.width, mip.height,
+                                      codecFormat(mip.compressedFormat), type == GL_RGBA,
+                                      decoded, message))
+                    break;
+                data = &decoded;
+            }
+            if (data->size() != qsizetype(mip.width) * mip.height * bytesPerPixel)
+                break;
+            levels.push_back(toRgba(reinterpret_cast<const unsigned char *>(data->constData()),
+                                    mip.width, mip.height));
+            previousW = mip.width;
+            previousH = mip.height;
+        }
+    }
+    if (tex != nullptr)
+        RhiTextures::release(tex[0]);
+    const unsigned int handle = RhiTextures::create(width, height, levels);
+    if (handle == 0)
+        return false;
+    if (tex == nullptr)
+        tex = new unsigned int[1]{};
+    tex[0] = handle;
+    gpuInternalFormat = GL_RGBA8;
+    gpuMipmaps = mipmaps;
+    gpuMipLevels = 1;
+    for (int n = std::max(width, height); n > 1; n >>= 1)
+        ++gpuMipLevels;
+    delete[] imageData;
+    imageData = nullptr;
+    editable = false;
+    compressedData.clear();
+    compressedGLFormat = 0;
+    sourceMipmaps.clear();
+    glLoaded = true;
+    return true;
+}
+
 bool Texture::GLTextures(bool mipmaps) {
+    if (Game::renderBackend == "qrhi")
+        return uploadForRhi(mipmaps);
     auto *context = QOpenGLContext::currentContext();
     if (!loaded || !context || width <= 0 || height <= 0 ||
         (bytesPerPixel != 3 && bytesPerPixel != 4))

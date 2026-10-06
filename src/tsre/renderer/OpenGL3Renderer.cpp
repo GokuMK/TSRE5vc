@@ -16,6 +16,7 @@
 #include <tsre/renderer/Mesh.h>
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/renderer/RenderStats.h>
+#include <tsre/renderer/RenderSurface.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <QOpenGLFunctions>
 #include <QOpenGLContext>
@@ -364,7 +365,7 @@ bool usesUnlitProgram(int pass){
 
 // Binds the program a packet needs. A newly bound program receives the frame
 // uniforms again and starts with empty caches.
-void useProgram(GLUU *gluu, Shader *base, const RenderItem *item, int pass,
+void usePacketProgram(GLUU *gluu, Shader *base, const RenderItem *item, int pass,
                 ProgramCaches &caches){
     Shader *wanted = usesTerrainProgram(item) ? gluu->terrainVariant(base)
             : usesUnlitProgram(pass) ? gluu->unlitVariant(base)
@@ -697,7 +698,7 @@ void OpenGL3Renderer::drawOrdered(GLUU *gluu, Shader *base,
         RenderItem *item = instance.packet;
         if(!hasMesh(item) || !visible(instance, cullFrustum))
             continue;
-        useProgram(gluu, base, item, pass, caches);
+        usePacketProgram(gluu, base, item, pass, caches);
         applyItemState(gluu, f, item, instance.selectionId, caches.detail);
         applyPbrState(gluu, f, item);
         applyWaterState(gluu, item);
@@ -744,7 +745,7 @@ void OpenGL3Renderer::drawGrouped(GLUU *gluu, Shader *base,
         if(RenderStats::inFrame())
             RenderStats::current().groupedPackets++;
 
-        useProgram(gluu, base, item, pass, caches);
+        usePacketProgram(gluu, base, item, pass, caches);
         applyItemState(gluu, f, item, instances[i].selectionId, caches.detail);
         applyPbrState(gluu, f, item);
         applyWaterState(gluu, item);
@@ -1057,6 +1058,67 @@ void OpenGL3Renderer::endView(const LayeredView &view){
     const float keep[4] = {0.0f, 0.0f, 0.0f, 1.0f};
     std::copy(keep, keep + 4, gluu->clipPlane);
     functions->glFrontFace(GL_CCW);
+}
+
+namespace {
+QString programName(Renderer::Program program, const QString &main){
+    switch(program){
+    case Renderer::PROGRAM_SELECTION: return "Selection";
+    case Renderer::PROGRAM_SHADOW: return "Shadows";
+    case Renderer::PROGRAM_MAIN: break;
+    }
+    return main;
+}
+}
+
+bool OpenGL3Renderer::programsReady() const{
+    GLUU *gluu = GLUU::get();
+    for(Program program : {PROGRAM_MAIN, PROGRAM_SELECTION, PROGRAM_SHADOW})
+        if(gluu->shaders.value(programName(program, mainProgramName), nullptr) == nullptr)
+            return false;
+    return true;
+}
+
+void OpenGL3Renderer::useProgram(Program program){
+    GLUU *gluu = GLUU::get();
+    gluu->currentShader = gluu->shaders[programName(program, mainProgramName)];
+    gluu->currentShader->bind();
+}
+
+void OpenGL3Renderer::releaseProgram(){
+    GLUU *gluu = GLUU::get();
+    if(gluu->currentShader != nullptr)
+        gluu->currentShader->release();
+}
+
+void OpenGL3Renderer::applyFrameUniforms(){
+    GLUU::get()->setMatrixUniforms();
+}
+
+void OpenGL3Renderer::setFogLod(float lod){
+    GLUU *gluu = GLUU::get();
+    gluu->currentShader->setUniformValue(gluu->currentShader->lod, lod);
+}
+
+void OpenGL3Renderer::createShadowMaps(int nearSize, int farSize){
+    // The main program reads the near map on unit 9, the middle on unit 2
+    // and the far map on unit 3.
+    GLUU *gluu = GLUU::get();
+    gluu->makeShadowFramebuffer(shadowFramebuffers[0], shadowTextures[0], nearSize, GL_TEXTURE9);
+    gluu->makeShadowFramebuffer(shadowFramebuffers[1], shadowTextures[1], nearSize, GL_TEXTURE2);
+    gluu->makeShadowFramebuffer(shadowFramebuffers[2], shadowTextures[2], farSize, GL_TEXTURE3);
+}
+
+void OpenGL3Renderer::bindTarget(Target target){
+    QOpenGLContext *context = QOpenGLContext::currentContext();
+    if(context == NULL)
+        return;
+    QOpenGLFunctions *functions = context->functions();
+    const unsigned int framebuffer = target == TARGET_VIEW
+            ? (viewSurface != nullptr ? viewSurface->defaultFramebufferObject() : 0u)
+            : shadowFramebuffers[target - TARGET_SHADOW_NEAR];
+    functions->glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+    functions->glActiveTexture(GL_TEXTURE0);
 }
 
 void OpenGL3Renderer::resetState(){

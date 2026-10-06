@@ -15,6 +15,8 @@
 #include <functional>
 #include <vector>
 
+class RenderSurface;
+
 // A render queue that also draws: the frame owner gathers producers into it,
 // then draws the queued work pass by pass. Producers only see RenderQueue.
 class Renderer : public RenderQueue {
@@ -111,6 +113,32 @@ public:
     // surfaces there see the environment instead of a copy of the view.
     void renderLayeredView(const LayeredView &view);
 
+    // Programs the editors draw with: the main lit program (with its
+    // terrain, unlit, PBR and water variants chosen per packet), the integer
+    // selection program and the shadow depth program.
+    enum Program {PROGRAM_MAIN = 0, PROGRAM_SELECTION, PROGRAM_SHADOW};
+    // Whether the programs are built.
+    virtual bool programsReady() const = 0;
+    // Draws from now on use this program.
+    virtual void useProgram(Program program) = 0;
+    virtual void releaseProgram() = 0;
+    // Takes the frame values held in GLUU (projection, fog and shadow
+    // matrices, lights, colours, camera, environment) for the following draws.
+    virtual void applyFrameUniforms() = 0;
+    // Fog distance of the following draws (applyFrameUniforms sets the
+    // object draw distance); 0 draws without fog.
+    virtual void setFogLod(float lod) = 0;
+
+    // Render targets: the view's frame, or one of the three shadow maps.
+    enum Target {TARGET_VIEW = 0, TARGET_SHADOW_NEAR, TARGET_SHADOW_MID, TARGET_SHADOW_FAR};
+    // The surface whose frame TARGET_VIEW is.
+    void setSurface(RenderSurface *surface) { viewSurface = surface; }
+    // Creates the shadow maps the main program samples: near and middle at
+    // nearSize texels, far at farSize.
+    virtual void createShadowMaps(int nearSize, int farSize) = 0;
+    // Draws from now on go to this target.
+    virtual void bindTarget(Target target) = 0;
+
     // Backend state every frame starts from: depth test and writes, back-face
     // culling, alpha blending, all colour channels, no scissor, the default
     // line width.
@@ -162,6 +190,7 @@ protected:
     bool viewLimitsEnabled = false;
     // Set while a secondary view draws: no frame copy for transmission.
     bool secondaryView = false;
+    RenderSurface *viewSurface = nullptr;
 };
 
 #endif /* RENDERER_H */

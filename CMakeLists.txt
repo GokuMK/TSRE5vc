@@ -13,7 +13,11 @@ configure_file(
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Network Core Widgets OpenGL OpenGLWidgets WebSockets LinguistTools)
+# The QRhi renderer uses QRhi and QShaderBaker, which Qt publishes through its
+# private Gui and ShaderTools modules; they tie the build to this Qt version.
+set(QT_NO_PRIVATE_MODULE_WARNING ON)
+find_package(Qt6 REQUIRED COMPONENTS Network Core Gui Widgets OpenGL OpenGLWidgets WebSockets LinguistTools
+    GuiPrivate ShaderTools ShaderToolsPrivate)
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     find_package(OpenGL REQUIRED)
@@ -65,6 +69,8 @@ file(GLOB TSRE5vc_SRC CONFIGURE_DEPENDS
     "./src/tsre/trains/*.cpp"
     "./src/tsre/renderer/*.h"
     "./src/tsre/renderer/*.cpp"
+    "./src/tsre/renderer/rhi/*.h"
+    "./src/tsre/renderer/rhi/*.cpp"
     "./src/tsre/procedural/*.h"
     "./src/tsre/procedural/*.cpp"
     "./src/tsre/geo/*.h" 
@@ -108,7 +114,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     target_link_libraries(TSRE5vc PRIVATE OpenGL::GL )
 endif()
 
-target_link_libraries(TSRE5vc PRIVATE OpenAL::OpenAL Qt6::Network Qt6::Widgets Qt6::OpenGL Qt6::OpenGLWidgets Qt6::WebSockets )
+target_link_libraries(TSRE5vc PRIVATE OpenAL::OpenAL Qt6::Network Qt6::Widgets Qt6::OpenGL Qt6::OpenGLWidgets Qt6::WebSockets
+    Qt6::GuiPrivate Qt6::ShaderTools Qt6::ShaderToolsPrivate)
 
 qt_add_translations(
     TSRE5vc

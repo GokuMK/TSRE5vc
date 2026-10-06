@@ -8059,6 +8059,66 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <source>On GPU / Experimental</source>
         <translation>On GPU / Experimental</translation>
     </message>
+    <message id="settings.core.rendering.backend.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="674" />
+        <source>Renderer</source>
+        <translation>Renderer</translation>
+    </message>
+    <message id="settings.core.rendering.backend.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="676" />
+        <source>The OpenGL renderer, or the experimental QRhi renderer (Vulkan, Metal, Direct3D or OpenGL through Qt). Applies after a restart.</source>
+        <translation>The OpenGL renderer, or the experimental QRhi renderer (Vulkan, Metal, Direct3D or OpenGL through Qt). Applies after a restart.</translation>
+    </message>
+    <message id="settings.core.rendering.backend.option.opengl">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="679" />
+        <source>OpenGL</source>
+        <translation>OpenGL</translation>
+    </message>
+    <message id="settings.core.rendering.backend.option.qrhi">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="681" />
+        <source>QRhi / Experimental</source>
+        <translation>QRhi / Experimental</translation>
+    </message>
+    <message id="settings.core.rendering.rhi.api.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="686" />
+        <source>QRhi graphics API</source>
+        <translation>QRhi graphics API</translation>
+    </message>
+    <message id="settings.core.rendering.rhi.api.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="688" />
+        <source>Graphics API of the QRhi renderer. Automatic picks Metal on macOS, Direct3D 11 on Windows and Vulkan elsewhere, falling back to OpenGL. Applies after a restart.</source>
+        <translation>Graphics API of the QRhi renderer. Automatic picks Metal on macOS, Direct3D 11 on Windows and Vulkan elsewhere, falling back to OpenGL. Applies after a restart.</translation>
+    </message>
+    <message id="settings.core.rendering.rhi.api.option.auto">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="691" />
+        <source>Automatic</source>
+        <translation>Automatic</translation>
+    </message>
+    <message id="settings.core.rendering.rhi.api.option.vulkan">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="693" />
+        <source>Vulkan</source>
+        <translation>Vulkan</translation>
+    </message>
+    <message id="settings.core.rendering.rhi.api.option.opengl">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="695" />
+        <source>OpenGL</source>
+        <translation>OpenGL</translation>
+    </message>
+    <message id="settings.core.rendering.rhi.api.option.metal">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="697" />
+        <source>Metal</source>
+        <translation>Metal</translation>
+    </message>
+    <message id="settings.core.rendering.rhi.api.option.d3d11">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="699" />
+        <source>Direct3D 11</source>
+        <translation>Direct3D 11</translation>
+    </message>
+    <message id="settings.core.rendering.rhi.api.option.d3d12">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="701" />
+        <source>Direct3D 12</source>
+        <translation>Direct3D 12</translation>
+    </message>
     <message id="settings.core.rendering.threaded.texture.loading.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="624" />
         <source>Threaded texture loading</source>

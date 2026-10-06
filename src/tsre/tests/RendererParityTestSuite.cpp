@@ -489,8 +489,7 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
     report["root"] = Game::root;
     report["label"] = label;
     report["generated"] = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
-    report["glRenderer"] = QString::fromLatin1(reinterpret_cast<const char *>(
-                                                   widget.context()->functions()->glGetString(GL_RENDERER)));
+    report["glRenderer"] = widget.graphicsInfo();
     report["shadowsEnabled"] = Game::shadowsEnabled;
     report["views"] = viewReports;
     QFile jsonFile(QDir(outputDir).filePath("capture.json"));

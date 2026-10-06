@@ -11,7 +11,8 @@
 #ifndef GLWIDGET_H
 #define GLWIDGET_H
 
-#include <QOpenGLWidget>
+#include <QWidget>
+#include <tsre/renderer/RenderSurface.h>
 #include <vector>
 #include <QOpenGLFunctions>
 //#include <QOpenGLFunctions_3_2_Core>
@@ -52,7 +53,8 @@ class RenderQueue;
 
 QT_FORWARD_DECLARE_CLASS(QOpenGLShaderProgram)
 
-class RouteEditorGLWidget : public QOpenGLWidget, protected QOpenGLFunctions
+class RouteEditorGLWidget : public QWidget, public RenderSurfaceClient,
+        protected QOpenGLFunctions
 {
     Q_OBJECT
 
@@ -81,6 +83,16 @@ public:
     // render the same scene. Content loading continues.
     void setSimulationPaused(bool paused);
     Route *currentRoute() const { return route; }
+
+    // The render surface does the drawing; these forward to it so the view
+    // code reads as before.
+    void update();
+    void makeCurrent();
+    void doneCurrent();
+    QImage grabFramebuffer();
+    bool isValid() const { return surface->isValid(); }
+    QString graphicsInfo() { return surface->graphicsInfo(); }
+    unsigned int defaultFramebufferObject() const;
 
 public slots:
     void cleanup();
@@ -168,8 +180,9 @@ signals:
 
 protected:
     bool eventFilter(QObject *object, QEvent *event);
-    void initializeGL() Q_DECL_OVERRIDE;
-    void paintGL() Q_DECL_OVERRIDE;
+    void surfaceInitialize() override;
+    void surfacePaint() override;
+    void surfaceRelease() override;
     void renderShadowMaps();
     // Renders the scheduled environment map faces from the camera position.
     void renderEnvironmentMap();
@@ -181,7 +194,8 @@ protected:
     void computeShadowMatrices();
     void handleSelection();
     void applySelection(quint32 selectionId, int cameraTileX, int cameraTileZ);
-    void resizeGL(int width, int height) Q_DECL_OVERRIDE;
+    void surfaceResize(int width, int height) override;
+    void paintEvent(QPaintEvent *event) Q_DECL_OVERRIDE;
     void mousePressEvent(QMouseEvent *event) Q_DECL_OVERRIDE;
     void mouseReleaseEvent(QMouseEvent* event) Q_DECL_OVERRIDE;
     void mouseMoveEvent(QMouseEvent *event) Q_DECL_OVERRIDE;
@@ -336,12 +350,6 @@ private:
     bool keyShiftEnabled = false;
     bool keyAltEnabled = false;
     // Near, mid and far shadow maps.
-    GLuint FramebufferName0 = 0;
-    GLuint depthTexture0 = 0;
-    GLuint FramebufferName1 = 0;
-    GLuint depthTexture1 = 0;
-    GLuint FramebufferName2 = 0;
-    GLuint depthTexture2 = 0;
     int shadowMapSize = 2048;
     int distantShadowMapSize = 1024;
     Brush* defaultPaintBrush;
@@ -366,6 +374,7 @@ private:
     // Owned; draws this widget's frames.
     OpenGL3Renderer *renderer = NULL;
     EnvironmentMap *environmentMap = NULL;
+    RenderSurface *surface = NULL;
     PlanarReflection *waterReflection = NULL;
     // Mirror plane of the last reflection (n . p + d = 0).
     float waterReflectionPlane[4] = {0.0f, 1.0f, 0.0f, 0.0f};

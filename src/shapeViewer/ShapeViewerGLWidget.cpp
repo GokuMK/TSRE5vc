@@ -43,15 +43,43 @@
 #include <tsre/renderer/OpenGL3Renderer.h>
 
 ShapeViewerGLWidget::ShapeViewerGLWidget(QWidget *parent, ShapeLib::MstsBackend backend)
-: QOpenGLWidget(parent),
+: QWidget(parent),
 m_xRot(0),
 m_yRot(0),
 m_zRot(0) {
     backgroundGlColor[0] = -2;
     currentShapeLib = new ShapeLib(backend);
+    surface = RenderSurface::create(this, this);
 }
 
 ShapeViewerGLWidget::~ShapeViewerGLWidget() {
+    // The surface is destroyed after this destructor has run; it must not
+    // call back into a destroyed object.
+    surface->detachClient();
+    cleanup();
+}
+
+void ShapeViewerGLWidget::update() {
+    surface->requestUpdate();
+}
+
+void ShapeViewerGLWidget::makeCurrent() {
+    surface->makeCurrent();
+}
+
+void ShapeViewerGLWidget::doneCurrent() {
+    surface->doneCurrent();
+}
+
+QImage ShapeViewerGLWidget::grabFramebuffer() {
+    return surface->grabFramebuffer();
+}
+
+void ShapeViewerGLWidget::paintEvent(QPaintEvent *) {
+    // The surface fills the widget and paints itself.
+}
+
+void ShapeViewerGLWidget::surfaceRelease() {
     cleanup();
 }
 
@@ -62,8 +90,6 @@ void ShapeViewerGLWidget::cleanup() {
     renderer = nullptr;
     delete environmentMap;
     environmentMap = nullptr;
-    if(context() != nullptr)
-        disconnect(context(), nullptr, this, nullptr);
     doneCurrent();
 }
 
@@ -98,7 +124,7 @@ void ShapeViewerGLWidget::setCamera(Camera* cam){
     camera = cam;
 }
 
-void ShapeViewerGLWidget::initializeGL() {
+void ShapeViewerGLWidget::surfaceInitialize() {
     Game::currentShapeLib = currentShapeLib;
     /*if(currentEngLib == NULL){
          currentEngLib = new EngLib();
@@ -107,7 +133,6 @@ void ShapeViewerGLWidget::initializeGL() {
     //qDebug() << "GLUU::get();";
     gluu = GLUU::get();
     //context()->set
-    connect(context(), &QOpenGLContext::aboutToBeDestroyed, this, &ShapeViewerGLWidget::cleanup);
     //qDebug() << "initializeOpenGLFunctions();";
     initializeOpenGLFunctions();
     if(backgroundGlColor[0] == -2){
@@ -122,6 +147,7 @@ void ShapeViewerGLWidget::initializeGL() {
     }
     gluu->initShader();
     renderer = new OpenGL3Renderer();
+    renderer->setSurface(surface);
     renderer->clear(false, false, backgroundGlColor);
     renderer->resetState();
 
@@ -186,7 +212,7 @@ void ShapeViewerGLWidget::fillCurrentContentHierarchyInfo(QVector<ContentHierarc
     }
 }
 
-void ShapeViewerGLWidget::paintGL() {
+void ShapeViewerGLWidget::surfacePaint() {
     if(selection){
         selection = false;
         if(renderItem == 3 && con != nullptr)
@@ -198,8 +224,7 @@ void ShapeViewerGLWidget::paintGL() {
 
 void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
     Game::currentShapeLib = currentShapeLib;
-    Shader *shader = gluu->shaders.value(selectionPass ? "Selection" : "StandardFog", nullptr);
-    if(shader == nullptr)
+    if(renderer == nullptr || !renderer->programsReady())
         return;
     if(selectionPass){
         const qreal pixelRatio = devicePixelRatioF();
@@ -209,7 +234,7 @@ void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
     } else {
         renderer->clear(true, true, backgroundGlColor);
     }
-    gluu->currentShader = shader;
+    renderer->useProgram(selectionPass ? Renderer::PROGRAM_SELECTION : Renderer::PROGRAM_MAIN);
     // Zero is the background; wagon indices start at one.
     const quint32 selectionId = selectionPass ? 1 : 0;
 
@@ -232,8 +257,7 @@ void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
 
     Mat4::identity(gluu->objStrMatrix);
     
-    gluu->currentShader->bind();
-    gluu->setMatrixUniforms();
+    renderer->applyFrameUniforms();
     std::copy(camera->getPos(), camera->getPos() + 3, gluu->cameraPosition);
     gluu->environmentMapLevels = 0;
     if(!selectionPass){
@@ -314,7 +338,7 @@ void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
         
     }
     
-    gluu->currentShader->release();
+    renderer->releaseProgram();
     Game::shadowsEnabled = shadowsState;
 }
 
@@ -349,7 +373,7 @@ void ShapeViewerGLWidget::getImg() {
     return;
 }
 
-void ShapeViewerGLWidget::resizeGL(int w, int h) {
+void ShapeViewerGLWidget::surfaceResize(int w, int h) {
 }
 
 void ShapeViewerGLWidget::keyPressEvent(QKeyEvent * event) {

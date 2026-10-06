@@ -18,6 +18,9 @@
 #include <tsre/renderer/RenderItem.h>
 
 class QOpenGLFunctions;
+class QRhi;
+class QRhiBuffer;
+class QRhiResourceUpdateBatch;
 
 // Data a producer hands to the renderer. Without indices the mesh draws
 // vertex ranges.
@@ -76,6 +79,22 @@ namespace Meshes {
     // Enables the vertex attributes of a mesh on the bound vertex array,
     // reading from the bound array buffer.
     void setupAttributes(QOpenGLFunctions *f, const Buffers &buffers);
+
+    // QRhi renderer side, GUI thread. Meshes live in RhiContext's QRhi.
+    struct RhiBuffers {
+        QRhiBuffer *vertexBuffer = nullptr;
+        QRhiBuffer *indexBuffer = nullptr;
+        MeshData::Format format = MeshData::FloatLayout;
+        RenderItem::VertexAttr layout = RenderItem::NO_ATTR;
+    };
+    // Records uploads of pending data and ranges into the batch and returns
+    // the mesh's buffers; false for a released mesh.
+    bool prepareRhi(MeshHandle handle, QRhi *rhi, QRhiResourceUpdateBatch *batch,
+                    RhiBuffers &buffers);
+    // A Buffer-format mesh (terrain patch parameters) as a uniform buffer.
+    QRhiBuffer *uniformBufferRhi(MeshHandle handle, QRhi *rhi, QRhiResourceUpdateBatch *batch);
+    // Releases the QRhi buffers of released meshes.
+    void collectGarbageRhi();
 }
 
 #endif // MESH_H

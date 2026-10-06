@@ -125,6 +125,8 @@ bool Game::textureLoaderThreaded = true;
 int Game::shadowMapSize = 2048;
 int Game::shadowLowMapSize = 1024;
 int Game::shadowsEnabled = 1;
+QString Game::renderBackend = "opengl";
+QString Game::rhiApi = "auto";
 bool Game::environmentMapEnabled = false;
 int Game::environmentMapSize = 256;
 int Game::environmentMapFacesPerFrame = 1;
@@ -343,6 +345,8 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
         shadowLowMapSize = settings.runtimeInt("core.rendering.shadow.distantMapSize");
         if (shadowLowMapSize >= 2048) { shadow2Res = 4000.0; shadow2Bias = 0.001; }
     }
+    string("core.rendering.backend", renderBackend, SettingType::Enum);
+    string("core.rendering.rhiApi", rhiApi, SettingType::Enum);
     boolean("core.rendering.environmentMap.enabled", environmentMapEnabled);
     claim("core.rendering.environmentMap.faceSize", SettingType::Enum);
     if (appliesNow("core.rendering.environmentMap.faceSize"))
