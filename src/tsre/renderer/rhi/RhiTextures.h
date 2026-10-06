@@ -12,6 +12,7 @@
 #define RHITEXTURES_H
 
 #include <QByteArray>
+#include <QString>
 #include <QVector>
 
 class QRhiResourceUpdateBatch;
@@ -58,6 +59,8 @@ void releaseAll();
 QRhiResourceUpdateBatch *takeUpdates();
 // The batch new uploads go to (created when needed).
 QRhiResourceUpdateBatch *updates();
+// Live textures and their bytes by format, for TSRE_RHI_TRACE.
+QString memorySummary();
 
 }
 

@@ -12,11 +12,13 @@
 #include "RhiContext.h"
 #include "RhiRenderer.h"
 #include <QCoreApplication>
+#include <QElapsedTimer>
 #include <QPlatformSurfaceEvent>
 #include <QSet>
 #include <QVBoxLayout>
 #include <QWidget>
 #include <QWindow>
+#include <cstring>
 #include <rhi/qrhi.h>
 
 class RhiWindow : public QWindow {
@@ -110,8 +112,14 @@ Renderer *RhiRenderSurface::createRenderer() {
 }
 
 void RhiRenderSurface::requestUpdate() {
-    if (window != nullptr)
-        window->requestUpdate();
+    // Frames are paced by the widget's timer, as with QOpenGLWidget, whose
+    // repaints are posted events too. QWindow::requestUpdate() would deliver
+    // the frame later, after a platform timer or the compositor's frame
+    // callback (Steam Deck on Windows: 40 instead of 53 frames a second).
+    if (window == nullptr || updatePosted)
+        return;
+    updatePosted = true;
+    QCoreApplication::postEvent(window, new QEvent(QEvent::UpdateRequest), Qt::LowEventPriority);
 }
 
 void RhiRenderSurface::makeCurrent() {
@@ -174,9 +182,17 @@ void RhiRenderSurface::exposed() {
 }
 
 void RhiRenderSurface::render() {
+    updatePosted = false;
     QRhi *rhi = rhiContext->rhi();
     if (rhi == nullptr || client == nullptr || !ensureSwapChain())
         return;
+    // TSRE_RHI_TRACE: where the frames' time goes, averaged over 60 frames.
+    static const bool trace = qEnvironmentVariableIsSet("TSRE_RHI_TRACE");
+    static QElapsedTimer clock;
+    static qint64 lastEnd = 0, sums[4] = {}, frames = 0;
+    if (trace && !clock.isValid())
+        clock.start();
+    const qint64 start = trace ? clock.nsecsElapsed() : 0;
     QRhi::FrameOpResult result = rhi->beginFrame(swapChain.get());
     if (result == QRhi::FrameOpSwapChainOutOfDate) {
         swapChainReady = false;
@@ -186,13 +202,32 @@ void RhiRenderSurface::render() {
     }
     if (result != QRhi::FrameOpSuccess)
         return;
+    const qint64 begun = trace ? clock.nsecsElapsed() : 0;
     current.commandBuffer = swapChain->currentFrameCommandBuffer();
     current.target = swapChain->currentFrameRenderTarget();
     current.passDescriptor = passDescriptor.get();
     current.pixelSize = swapChain->currentPixelSize();
     current.offscreen = false;
     paintFrame();
+    const qint64 painted = trace ? clock.nsecsElapsed() : 0;
     rhi->endFrame(swapChain.get());
+    if (trace) {
+        const qint64 end = clock.nsecsElapsed();
+        if (lastEnd != 0) {
+            sums[0] += start - lastEnd;
+            sums[1] += begun - start;
+            sums[2] += painted - begun;
+            sums[3] += end - painted;
+            if (++frames == 60) {
+                qInfo().noquote() << "rhi-trace frame ms between" << sums[0] / 60e6 << "beginFrame"
+                                  << sums[1] / 60e6 << "paint" << sums[2] / 60e6 << "endFrame"
+                                  << sums[3] / 60e6;
+                frames = 0;
+                std::fill(std::begin(sums), std::end(sums), 0);
+            }
+        }
+        lastEnd = end;
+    }
 }
 
 void RhiRenderSurface::paintFrame() {
@@ -201,20 +236,38 @@ void RhiRenderSurface::paintFrame() {
     client->surfacePaint();
     if (frameEnd)
         frameEnd();
+    if (overlayUsed)
+        overlayStaleRect = overlayPaintedRect;
     overlayUsed = false;
     current = Frame();
 }
 
-QPaintDevice *RhiRenderSurface::overlayPaintDevice() {
+QPaintDevice *RhiRenderSurface::overlayPaintDevice(const QRect &area) {
     if (current.commandBuffer == nullptr)
         return nullptr;
-    if (overlayImage.size() != current.pixelSize)
+    // Uploading and composing the whole window each frame cost the Steam
+    // Deck about a third of its frame rate (the FPS display).
+    if (overlayImage.size() != current.pixelSize) {
         overlayImage = QImage(current.pixelSize, QImage::Format_RGBA8888_Premultiplied);
-    overlayImage.setDevicePixelRatio(hostWidget->devicePixelRatioF());
-    if (!overlayUsed) {
         overlayImage.fill(Qt::transparent);
-        overlayUsed = true;
+        overlayStaleRect = QRect();
     }
+    const qreal ratio = hostWidget->devicePixelRatioF();
+    overlayImage.setDevicePixelRatio(ratio);
+    if (!overlayUsed) {
+        overlayUsed = true;
+        const QRect stale = overlayStaleRect & overlayImage.rect();
+        for (int y = stale.top(); y <= stale.bottom(); ++y)
+            std::memset(overlayImage.scanLine(y) + stale.left() * 4, 0, size_t(stale.width()) * 4);
+        overlayChangedRect = stale;
+        overlayPaintedRect = QRect();
+    }
+    // In pixels, with a pixel more for antialiased edges.
+    const QRect painted = area.isNull() ? overlayImage.rect()
+            : QRectF(area.x() * ratio, area.y() * ratio, area.width() * ratio, area.height() * ratio)
+                      .toAlignedRect().adjusted(-1, -1, 1, 1) & overlayImage.rect();
+    overlayPaintedRect |= painted;
+    overlayChangedRect |= painted;
     return &overlayImage;
 }
 

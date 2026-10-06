@@ -50,7 +50,7 @@ public:
     unsigned int defaultFramebufferObject() const override {
         return QOpenGLWidget::defaultFramebufferObject();
     }
-    QPaintDevice *overlayPaintDevice() override { return this; }
+    QPaintDevice *overlayPaintDevice(const QRect &) override { return this; }
     void detachClient() override {
         if (context() != nullptr)
             QObject::disconnect(context(), &QOpenGLContext::aboutToBeDestroyed, this, nullptr);

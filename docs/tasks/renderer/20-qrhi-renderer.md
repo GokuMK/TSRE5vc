@@ -190,8 +190,13 @@ Found and changed:
   RelWithDebInfo build).
 
 The terrain failure did not reproduce on lavapipe or llvmpipe; the patch
-records it read moved from a uniform block to a texture since. Still open
-until a retest on hardware.
+records it read moved from a uniform block to a texture since.
+
+Retest on the Steam Deck (Windows, AMD driver), task 25: paged terrain was
+discarded by the gap flag decode, frames waited on the overlay upload and
+on `QWindow::requestUpdate()`, and Vulkan kept host copies of every mesh
+buffer. All fixed; QRhi OpenGL remains CPU-bound (about 50 against 64
+frames a second).
 
 ## Verification
 

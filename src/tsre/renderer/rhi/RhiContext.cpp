@@ -154,6 +154,11 @@ bool RhiContext::create(QRhi::Implementation implementation) {
         vulkan = std::make_unique<QVulkanInstance>();
         if (qEnvironmentVariableIsSet("TSRE_RHI_DEBUG"))
             vulkan->setLayers({"VK_LAYER_KHRONOS_validation"});
+#ifndef Q_OS_MACOS
+        // Portability drivers (MoltenVK) exist only on Apple systems, and
+        // RenderDoc refuses instances that enable their enumeration.
+        vulkan->setFlags(QVulkanInstance::NoPortabilityDrivers);
+#endif
         vulkan->setExtensions(QRhiVulkanInitParams::preferredInstanceExtensions());
         if (!vulkan->create()) {
             vulkan.reset();

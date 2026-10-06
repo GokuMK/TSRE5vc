@@ -44,8 +44,10 @@ public:
     QString graphicsInfo() override;
     QImage grabFramebuffer() override;
     unsigned int defaultFramebufferObject() const override { return 0; }
-    // A transparent image of the frame, composed over it at the end.
-    QPaintDevice *overlayPaintDevice() override;
+    // A transparent image of the frame, composed over it at the end. It is
+    // kept between frames; the area painted in the last frame that painted
+    // is cleared before the next paint.
+    QPaintDevice *overlayPaintDevice(const QRect &area = QRect()) override;
     void detachClient() override { client = nullptr; }
 
     // The frame being painted: its command buffer and final target. The
@@ -62,8 +64,12 @@ public:
     // renderer knows when per-frame storage can be reused.
     quint64 frameSerial() const { return serial; }
     RhiContext *context() const { return rhiContext; }
-    // The overlay painted during this frame, or null.
+    // The overlay painted during this frame, or null; the part painted (in
+    // pixels), and the part changed since the last upload (painted or
+    // cleared), which is all a texture of it needs again.
     const QImage *overlay() const { return overlayUsed ? &overlayImage : nullptr; }
+    QRect overlayPainted() const { return overlayPaintedRect; }
+    QRect overlayChanged() const { return overlayChangedRect; }
     // Runs once the client painted a frame, before it is submitted: the
     // renderer composes its view and the overlay into the frame there.
     void setFrameEnd(std::function<void()> callback) { frameEnd = std::move(callback); }
@@ -101,6 +107,12 @@ private:
     Frame current;
     QImage overlayImage;
     bool overlayUsed = false;
+    QRect overlayPaintedRect;
+    QRect overlayChangedRect;
+    // Painted in the last frame that painted the overlay, to clear.
+    QRect overlayStaleRect;
+    // An UpdateRequest is posted to the window and not delivered yet.
+    bool updatePosted = false;
     std::function<void()> frameEnd;
     // Paints a frame through the client and finishes it.
     void paintFrame();

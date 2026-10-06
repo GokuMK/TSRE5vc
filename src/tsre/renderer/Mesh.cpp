@@ -63,6 +63,12 @@ struct Store {
     std::vector<QRhiResource *> deadRhiBuffers;
     quint64 nextStamp = 1;
     quint64 releases = 0;
+    // QRhi uploads since the last trace: new meshes, meshes uploaded again
+    // into their buffers, range updates, and their bytes.
+    int rhiNewUploads = 0;
+    int rhiAgainUploads = 0;
+    int rhiRangeUploads = 0;
+    qint64 rhiUploadBytes = 0;
 };
 
 Store &store() {
@@ -371,14 +377,18 @@ void uploadDataTexels(const Entry &entry, QRhiResourceUpdateBatch *batch, int of
     batch->uploadTexture(entry.rhiData, QRhiTextureUploadDescription({0, 0, description}));
 }
 
-// A static buffer of the size, reusing one that fits exactly.
+// A GPU buffer of the size, reusing one that fits exactly. Immutable, not
+// Static: QRhi's Vulkan backend keeps a host copy of a Static buffer, as
+// large as the buffer, for later uploads (one per frame in flight), and frees
+// it after the upload only for Immutable ones. Later uploads still work,
+// through a temporary copy each.
 QRhiBuffer *ensureBuffer(Store &s, QRhiBuffer *current, QRhi *rhi, QRhiBuffer::UsageFlags usage,
                          int size) {
     if (current != nullptr && current->size() == quint32(size))
         return current;
     if (current != nullptr)
         s.deadRhiBuffers.push_back(current);
-    QRhiBuffer *buffer = rhi->newBuffer(QRhiBuffer::Static, usage, quint32(std::max(size, 4)));
+    QRhiBuffer *buffer = rhi->newBuffer(QRhiBuffer::Immutable, usage, quint32(std::max(size, 4)));
     if (!buffer->create()) {
         delete buffer;
         return nullptr;
@@ -408,6 +418,8 @@ bool prepareRhiLocked(Store &s, MeshHandle handle, QRhi *rhi, QRhiResourceUpdate
         } else {
             entry.rhiVertex = ensureBuffer(s, entry.rhiVertex, rhi, QRhiBuffer::VertexBuffer, size);
         }
+        ++(entry.bytes > 0 ? s.rhiAgainUploads : s.rhiNewUploads);
+        s.rhiUploadBytes += size + data.indices.size();
         QByteArray converted;
         if (data.format == MeshData::TerrainHeightNormal) {
             converted = QByteArray(vertexBytes, size);
@@ -439,6 +451,8 @@ bool prepareRhiLocked(Store &s, MeshHandle handle, QRhi *rhi, QRhiResourceUpdate
                 convertTerrainNormals(bytes.data(), range.offset, int(bytes.size()));
             batch->uploadStaticBuffer(entry.rhiVertex, quint32(range.offset),
                                       quint32(bytes.size()), bytes.constData());
+            ++s.rhiRangeUploads;
+            s.rhiUploadBytes += bytes.size();
             if (!entry.retained.isEmpty()) {
                 std::memcpy(entry.retained.data() + range.offset, range.data.constData(),
                             size_t(range.data.size()));
@@ -500,6 +514,25 @@ void Meshes::collectGarbageRhi() {
     for (QRhiResource *resource : s.deadRhiBuffers)
         resource->deleteLater();
     s.deadRhiBuffers.clear();
+}
+
+QString Meshes::rhiTraceSummary() {
+    Store &s = store();
+    QMutexLocker lock(&s.mutex);
+    qint64 immutable = 0, other = 0;
+    for (const Entry &entry : s.entries) {
+        for (const QRhiBuffer *buffer : {entry.rhiVertex, entry.rhiIndex})
+            if (buffer != nullptr)
+                (buffer->type() == QRhiBuffer::Immutable ? immutable : other) += buffer->size();
+        if (entry.rhiData != nullptr)
+            immutable += qint64(entry.rhiData->pixelSize().width()) * DataTexelBytes;
+    }
+    const QString summary = QString("immutable MB %1 static MB %2 uploads new %3 again %4 ranges %5 KB %6")
+            .arg(immutable / 1048576).arg(other / 1048576).arg(s.rhiNewUploads)
+            .arg(s.rhiAgainUploads).arg(s.rhiRangeUploads).arg(s.rhiUploadBytes / 1024);
+    s.rhiNewUploads = s.rhiAgainUploads = s.rhiRangeUploads = 0;
+    s.rhiUploadBytes = 0;
+    return summary;
 }
 
 void Meshes::releaseAllRhi() {

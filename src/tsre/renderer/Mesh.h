@@ -99,6 +99,9 @@ namespace Meshes {
     void collectGarbageRhi();
     // Releases every QRhi buffer, before the QRhi goes away.
     void releaseAllRhi();
+    // The live QRhi buffers' bytes by kind and the uploads since the last
+    // call, for TSRE_RHI_TRACE.
+    QString rhiTraceSummary();
 }
 
 #endif // MESH_H

@@ -156,4 +156,139 @@ Keep the OpenGL renderer unchanged and say how that was checked.
 
 ## Findings
 
-(to be filled in)
+### Machine (2026-10-07)
+
+The Deck runs Windows 10 (19045), not SteamOS: Steam Deck OLED
+("Galileo", AMD Custom APU/GPU 0932), AMD's Windows driver (Vulkan
+1.3.280, driver 24.10.02.03; OpenGL 4.6 compatibility, same driver), Qt
+6.10.1 MinGW, Release build. Displays: 800x1280 panel and a 3840x2160
+monitor at 250 %; the editor window is 3232x2088, its view 2160x1948
+pixels. The Mesa and Linux leads above (RADV, radeonsi, compositor
+frame callbacks, perf, MangoHud) did not apply. Tools used instead,
+kept outside the repository and the system paths:
+
+- RenderDoc 1.46 portable, driven by Python scripts in qrenderdoc
+  (`--python`). Its Vulkan layer is enabled for the child process only
+  (`VK_ADD_LAYER_PATH`, `VK_INSTANCE_LAYERS=VK_LAYER_RENDERDOC_Capture`).
+- The Khronos validation layer from MSYS2's clang64 package, loaded with
+  `VK_ADD_LAYER_PATH` and `TSRE_RHI_DEBUG=1`.
+- PresentMon 2.6 (`--process_id <pid> --timed 15 --output_file x.csv`),
+  which needs no administrator rights for members of Performance Log
+  Users; GPU load and GPU memory from the `GPU Engine` and
+  `GPU Process Memory` performance counters, CPU from process and
+  thread times.
+
+Route `bbb` (basic, fast to load), editor start view, 15 s after a 20 s
+warm-up, FPS display on unless stated.
+
+### 1. Paged terrain not drawn - fixed (`1d6723f`)
+
+- Trace: the draws were recorded, `draw kind1 format1 pass2` 63-412
+  a frame. Validation: nothing about terrain (only Qt's
+  `VK_IMAGE_LAYOUT_PREINITIALIZED` with optimal tiling, and unused
+  `ambientOut` / `glowOut` writes).
+- RenderDoc, frame 712: 65 terrain draws, inputs all sensible (16-bit
+  index template, `baseVertex` = slot x 289, heights, normal bytes
+  `[128, 255, 128, 128]`, patch texture 512 x 1 RGBA32F with origins
+  0/128/256/384 and UV step 1/16, viewport depth [0, 0.98]). The VS
+  output projects on screen (NDC z 0.975-0.9999). Pixel history at
+  (2015, 1753), event 6456: the fragment is rasterized and then
+  `shaderDiscarded`. The colour target is plain sky after the last
+  terrain draw.
+- Cause: the gap flag comes as an unsigned byte, 128 for no gap, and
+  `StandardFog.vs` / `Shadows.vs` decoded it as
+  `(normal * 255.0 - 128.0) / 127.0`. On AMD (Vulkan and OpenGL)
+  128/255 x 255 comes out a little over 128, so `vTerrainGap > 0.0`
+  discarded every fragment; lavapipe and llvmpipe give exactly 128. The
+  shaders now round to the byte first (QRhi branch only).
+- Check: `parity-views` on bbb, QRhi against the OpenGL renderer, paged
+  terrain: Vulkan RMSE 0.83-1.55 (at most 0.33 % of pixels), OpenGL RMSE
+  0.83-1.48, picking 144/144 in every view.
+- `StandardFogStoredCoords.vs` still reads `normal.w` without the
+  decode; it is a reference shader and not used by the editor.
+- Also (`f051eee`): the Vulkan instance leaves out portability drivers
+  outside macOS. RenderDoc refuses instances that enable
+  `VK_KHR_portability_enumeration`, so Vulkan could not be captured.
+
+### 2. Frame pacing and load
+
+| Renderer, legacy terrain | Frames/s | Median ms | Busiest thread | GPU 3D |
+|---|---|---|---|---|
+| OpenGL renderer | 63.8-65.7 | 12.2 | 71-77 % (+52 % driver thread) | 72 % |
+| QRhi Vulkan, before | 39.6 | 25.1 | 60 % | 51 % |
+| QRhi Vulkan, after | 57.9-58.6 | 16.9 | 76 % | 62 % |
+| QRhi Vulkan, after, FPS display off | 66.4 | 14.8 | 80 % | 75 % |
+| QRhi OpenGL, before | 24.9 | 40.3 | 72 % | 33 % |
+| QRhi OpenGL, after | 49.3-51.5 | 20.0 | 84 % (+38 %) | 58 % |
+
+Two causes, both on the main thread:
+
+- The overlay (`c372ad2`): the FPS display painted a window-sized image
+  (2160x1948, 17 MB), cleared, uploaded and blended over the frame every
+  frame, and flipped into a copy first on OpenGL. With the display off
+  QRhi Vulkan ran at 66.4 against 39.7. Now the image and its texture
+  persist, the painter passes its area, only the area painted last time
+  is cleared, only the changed part is uploaded, and the overlay is
+  drawn scissored to the painted area.
+- `QWindow::requestUpdate()` (`48d3974`): on Windows Qt delivers the
+  UpdateRequest after a 5 ms timer (`QT_QPA_UPDATE_IDLE_TIME=0` alone
+  gave 39.6 -> 51). The surface now posts the UpdateRequest itself,
+  coalesced, at low priority, as QOpenGLWidget repaints are posted.
+  Alternating runs after the overlay fix: Vulkan 57.9-58.6 posted
+  against 42.9-43.2 with `requestUpdate()`; OpenGL 49.3-51.5 against
+  37.2/37.3/50.9.
+
+Not causes: the editor timer (`core.system.fpsLimit=200`, 5 ms step,
+changed nothing); waits on the GPU (`finish()` ran once in 1109 frames,
+for the first pointer depth; `beginFrame` 0.2 ms, `endFrame` 1.3 ms,
+time in Present 0.17 ms). QRhi Vulkan records the whole frame and
+submits at the end, so the GPU starts when the CPU is done (PresentMon
+GPU latency equals the frame time); that adds latency, not frame time.
+
+Open:
+
+- QRhi OpenGL is CPU-bound at about 20 ms a frame (main thread 84 %),
+  against 12 ms for the OpenGL renderer; not profiled (no symbols for
+  Qt or the driver on this build). Leads from the brief stand: glUniform
+  per member on every `setShaderResources`, `glBufferSubData` of the
+  instance and uniform arenas.
+- QRhi Vulkan with the FPS display on is still below the display off
+  (58 against 66); the QPainter text into a large image may cost more
+  than it should.
+
+### 3. Memory - fixed (`ab8562a`)
+
+| Renderer, legacy terrain | Private MB | GPU shared MB | GPU dedicated MB |
+|---|---|---|---|
+| OpenGL renderer | 1278-1286 | 429 | 209 |
+| QRhi Vulkan, before | 1830-1843 | 1139 | 209 |
+| QRhi Vulkan, after | 1253-1277 | 590 | 185 |
+| QRhi OpenGL | 1288-1317 | 506-548 | 118-160 |
+
+- The extra memory was Vulkan device memory only (QRhi OpenGL matched the
+  OpenGL renderer). `TSRE_RHI_TRACE` (`ec5ae18`) logs QRhi's allocator:
+  956 MB used and 179 MB unused in 14 blocks, against 279 MB of mesh
+  buffers and 64 MB of library textures (194 RGBA8, 9 BC1). In the
+  RenderDoc capture every vertex and index buffer had a twin of the same
+  size with transfer usage only.
+- Cause: QRhi's Vulkan backend (Qt 6.10.1 `qrhivulkan.cpp`, static
+  upload) keeps a host staging buffer, as large as the buffer, for every
+  `Static` buffer (one per frame slot it was uploaded in), and frees it
+  only for `Immutable` buffers. The mesh store now creates Immutable
+  buffers; a later upload goes through a temporary staging buffer.
+  Steady state has no mesh uploads (`uploads new 0 again 0 ranges 0`).
+- After: allocator 472 MB used, 87 MB unused, 1647 allocations (3045);
+  frame rate equal over three alternating runs each (39.7-40.0 against
+  39.2-39.7, before the overlay fix).
+
+### OpenGL renderer unchanged
+
+The QRhi shader change sits under `TSRE_RHI`; the other changes are in
+QRhi code, except the overlay area argument, which the OpenGL surface
+ignores. `parity-views` with the OpenGL renderer, bbb, paged terrain:
+captures before the work (shaders of `20022a2`) and after all commits
+compare at RMSE 0.00, 0.00 % pixels and equal primitives and samples
+in every view. The `all` target builds. Suites `rhi-shaders`,
+`terrain-mesh-gl` and `selection-id` pass; `terrain-material-gl` fails
+13 checks when the profile selects the QRhi backend, before these
+changes as well, and passes with `--set=core.rendering.backend=opengl`.
