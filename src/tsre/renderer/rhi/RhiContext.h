@@ -18,6 +18,15 @@
 #include <memory>
 #include <rhi/qrhi.h>
 
+// QRhi's Vulkan backend needs a Qt built with Vulkan support (otherwise
+// QVulkanInstance does not exist) and the Vulkan headers (Qt declares
+// QRhiVulkanInitParams only with them). Without either, Vulkan is left out.
+#if QT_CONFIG(vulkan) && __has_include(<vulkan/vulkan.h>)
+#define TSRE_RHI_VULKAN 1
+#else
+#define TSRE_RHI_VULKAN 0
+#endif
+
 class QOffscreenSurface;
 class QVulkanInstance;
 
@@ -35,7 +44,11 @@ public:
     QRhi *rhi() const { return rhiInstance.get(); }
     // The QWindow surface type windows rendering with this QRhi need.
     QSurface::SurfaceType surfaceType() const;
+#if TSRE_RHI_VULKAN
     QVulkanInstance *vulkanInstance() const { return vulkan.get(); }
+#else
+    QVulkanInstance *vulkanInstance() const { return nullptr; }
+#endif
     // Backend and device, for reports.
     QString info() const;
 
@@ -62,7 +75,9 @@ public:
 private:
     RhiContext() = default;
     bool create(QRhi::Implementation implementation);
+#if TSRE_RHI_VULKAN
     std::unique_ptr<QVulkanInstance> vulkan;
+#endif
     std::unique_ptr<QOffscreenSurface> fallbackSurface;
     std::unique_ptr<QRhi> rhiInstance;
     QHash<QString, Program> programs;

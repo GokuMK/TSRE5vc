@@ -14,7 +14,9 @@
 #include "RhiTextures.h"
 #include <QDebug>
 #include <QOffscreenSurface>
+#if TSRE_RHI_VULKAN
 #include <QVulkanInstance>
+#endif
 #include <rhi/qshaderbaker.h>
 #include <tsre/Game.h>
 #include <tsre/ogl/GLUU.h>
@@ -108,7 +110,7 @@ bool RhiContext::create(QRhi::Implementation implementation) {
         flags |= QRhi::EnableDebugMarkers;
     switch (implementation) {
     case QRhi::Vulkan: {
-#if QT_CONFIG(vulkan)
+#if TSRE_RHI_VULKAN
         vulkan = std::make_unique<QVulkanInstance>();
         if (qEnvironmentVariableIsSet("TSRE_RHI_DEBUG"))
             vulkan->setLayers({"VK_LAYER_KHRONOS_validation"});
