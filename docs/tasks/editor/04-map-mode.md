@@ -16,8 +16,12 @@ Phase 1 core, as built:
     pointer's place in the other mode.
   - Tools the mode does not support are put aside and restored on
     return.
-  - The tool panels are disabled in map mode, as no tool supports it
-    yet, except the activity tools (see "Paths and activity").
+  - The tool panels stay usable in both modes. On each mode change they
+    get the view's "viewMode" message and disable only the buttons of
+    tools the mode does not support (`tools/ToolButtons`, asking the
+    `ToolRegistry`). A button with its own condition (auto placement
+    needs a selected item) keeps it. No tool supports map mode yet, so
+    every tool button is off there.
 - **Map view** (`src/tsre/map/MapView`, `src/tsre/camera/CameraMap`):
   - centre, scale and heading, with an orthographic projection;
   - left drag pans, right drag turns, the wheel zooms about the mouse;
@@ -76,9 +80,8 @@ Phase 1 core, as built:
     `MapFeatures`), so the 3D draw code is not involved. The speed zone
     and failed signal code that finds their positions was moved out of
     their draw calls for that.
-  - The activity tools panel stays enabled in map mode, so the activity
-    and paths can be chosen there; its tools are still refused in map
-    mode.
+  - The activity and paths are chosen in the activity tools panel, which
+    works in map mode like the other panels.
   - Rebuilt on a scale or tile change, a new palette, or a change in
     what is shown (activity, selected paths, number of objects). On
     winterun (33 vehicles, a 15 km path) a build takes 1 to 2 ms.

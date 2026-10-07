@@ -4,7 +4,9 @@
 #include <QDebug>
 #include <QKeyEvent>
 #include <QMenu>
+#include <QPushButton>
 #include <QWidget>
+#include <routeEditor/tools/ToolButtons.h>
 #include <routeEditor/tools/ToolContext.h>
 #include <routeEditor/tools/ToolRegistry.h>
 #include <tsre/texture/Brush.h>
@@ -226,6 +228,26 @@ int TsreTests::runEditorToolsSuite(bool verbose) {
     check(noneRegistered && registry.ids().size() == objectTools.size() + terrainTools.size()
                                                      + dataTools.size(),
           "every other panel name has a tool, and no tool is registered twice");
+
+    // Tool panel buttons follow the view mode; a button's own condition
+    // stays with it.
+    QPushButton selectButton, picker, needsSelection;
+    const QMap<QString, QPushButton *> buttons = {
+        {"selectTool", &selectButton}, {"proceduralPickTool", &picker},
+        {"autoPlaceSimpleTool", &needsSelection}, {"", nullptr}};
+    ToolButtons::setAvailable(&needsSelection, false);
+    ToolButtons::applyMode(buttons, &registry, ToolButtons::modeOf("map"));
+    const bool mapOff = !selectButton.isEnabled() && !picker.isEnabled()
+            && !needsSelection.isEnabled();
+    ToolButtons::setAvailable(&needsSelection, true);
+    const bool stillOff = !needsSelection.isEnabled();
+    ToolButtons::applyMode(buttons, &registry, ToolButtons::modeOf("3d"));
+    check(mapOff && stillOff && selectButton.isEnabled() && picker.isEnabled()
+                  && needsSelection.isEnabled(),
+          "panel buttons: off in map mode for 3D tools, back in 3D with their own condition");
+    ToolButtons::setAvailable(&needsSelection, false);
+    check(!needsSelection.isEnabled() && selectButton.isEnabled(),
+          "panel buttons: a button's own condition still disables it in 3D");
 
     qInfo().noquote() << "[tests:editor-tools] cases=" << passed + failed << "passed=" << passed
                       << "failed=" << failed;

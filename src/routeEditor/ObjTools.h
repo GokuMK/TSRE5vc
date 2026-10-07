@@ -16,10 +16,14 @@
 #include <tsre/world/Ref.h>
 #include <deque>
 
+class ToolRegistry;
+
 class ObjTools : public QWidget{
     Q_OBJECT
 
 public:
+    // The tools, to enable only the buttons of tools the view mode supports.
+    void setToolRegistry(const ToolRegistry *registry) { toolRegistry = registry; }
     ObjTools(QString name);
     virtual ~ObjTools();
     
@@ -99,6 +103,7 @@ private:
     //QPushButton *placeTool;
     //QPushButton *autoPlacementButton;
     QMap<QString, QPushButton*> buttonTools;
+    const ToolRegistry *toolRegistry = nullptr;
 
     QWidget advancedPlacementWidget;
     QWidget continuousFlexOptionsWidget;

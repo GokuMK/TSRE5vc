@@ -20,9 +20,13 @@ class Activity;
 class ActivityServiceDefinition;
 class PreciseTileCoordinate;
 
+class ToolRegistry;
+
 class ActivityTools : public QWidget{
     Q_OBJECT
 public:
+    // The tools, to enable only the buttons of tools the view mode supports.
+    void setToolRegistry(const ToolRegistry *registry) { toolRegistry = registry; }
     ActivityTools(QString name);
     virtual ~ActivityTools();
 
@@ -109,6 +113,7 @@ private:
     QComboBox actShow;
     QComboBox conFilesShow;
     QMap<QString, QPushButton*> buttonTools;
+    const ToolRegistry *toolRegistry = nullptr;
     
     QLineEdit eDisplayName;
     QLineEdit eFileName;

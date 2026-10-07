@@ -9,6 +9,7 @@
  */
 
 #include "GeoTools.h"
+#include "tools/ToolButtons.h"
 #include <tsre/texture/TexLib.h>
 #include <tsre/texture/Brush.h>
 #include <tsre/texture/Texture.h>
@@ -335,6 +336,10 @@ GeoTools::~GeoTools() {
 }
 
 void GeoTools::msg(QString text, QString val){
+    if(text == "viewMode"){
+        ToolButtons::applyMode(buttonTools, toolRegistry, ToolButtons::modeOf(val));
+        return;
+    }
     if(text == "toolEnabled"){
         QMapIterator<QString, QPushButton*> i(buttonTools);
         while (i.hasNext()) {

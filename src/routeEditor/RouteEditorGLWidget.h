@@ -91,6 +91,9 @@ public:
     // Selects an activity and a path by file name, as the activity tools
     // do; empty names leave them as they are.
     void setDiagnosticActivity(const QString &activity, const QString &path);
+    // The editor's tools, for the tool panels to know which work in a view
+    // mode.
+    const ToolRegistry *toolRegistry() const { return tools.get(); }
     // Renders one selection pass and reads the IDs at device-pixel points
     // without applying a selection.
     QVector<quint32> probeSelectionIds(const QVector<QPoint> &devicePoints);

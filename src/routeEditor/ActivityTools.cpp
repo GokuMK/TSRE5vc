@@ -9,6 +9,7 @@
  */
 
 #include "ActivityTools.h"
+#include "tools/ToolButtons.h"
 #include <tsre/world/Route.h>
 #include <tsre/Game.h>
 #include <tsre/trains/ActLib.h>
@@ -817,6 +818,10 @@ void ActivityTools::msg(QString text){
 }
     
 void ActivityTools::msg(QString text, QString val){
+    if(text == "viewMode"){
+        ToolButtons::applyMode(buttonTools, toolRegistry, ToolButtons::modeOf(val));
+        return;
+    }
     if(text == "toolEnabled"){
         QMapIterator<QString, QPushButton*> i(buttonTools);
         while (i.hasNext()) {

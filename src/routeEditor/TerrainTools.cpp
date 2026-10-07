@@ -10,6 +10,7 @@
 
 #include <tsre/fileFunctions/ContentPath.h>
 #include "TerrainTools.h"
+#include "tools/ToolButtons.h"
 #include "TerrainMaterialDialog.h"
 #include <tsre/world/TerrainMaterialLibrary.h>
 #include <tsre/world/TerrainMaterialMap.h>
@@ -916,6 +917,10 @@ void TerrainTools::texPreviewEnabled(int val){
 }
 
 void TerrainTools::msg(QString text, QString val){
+    if(text == "viewMode"){
+        ToolButtons::applyMode(buttonTools, toolRegistry, ToolButtons::modeOf(val));
+        return;
+    }
     if(text == "toolEnabled"){
         QMapIterator<QString, QPushButton*> i(buttonTools);
         while (i.hasNext()) {

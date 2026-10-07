@@ -116,6 +116,10 @@ RouteEditorWindow::RouteEditorWindow() {
     activityTools = new ActivityTools("ActivityTools");
     //naviBox = new NaviBox();
     glWidget = new RouteEditorGLWidget(this);
+    objTools->setToolRegistry(glWidget->toolRegistry());
+    terrainTools->setToolRegistry(glWidget->toolRegistry());
+    geoTools->setToolRegistry(glWidget->toolRegistry());
+    activityTools->setToolRegistry(glWidget->toolRegistry());
     shapeViewWindow = new ShapeViewWindow(this);
     aboutWindow = new AboutWindow(this);
     naviWindow = new NaviWindow(this);
@@ -340,17 +344,12 @@ RouteEditorWindow::RouteEditorWindow() {
         qtTrId("route.editor.route.editor.window.action.map.mode") + "\t`", this, false);
     QObject::connect(viewMapMode, &QAction::triggered, this, [this] { glWidget->toggleViewMode(); });
     QObject::connect(glWidget, QOverload<QString, QString>::of(&RouteEditorGLWidget::sendMsg), this,
-                     [this, viewMapMode](const QString &name, const QString &value) {
+                     [viewMapMode](const QString &name, const QString &value) {
         if (name != "viewMode")
             return;
-        // No tool works on the map yet: the tool panels wait for 3D. The
-        // activity tools stay, to pick the activity and paths the map
-        // shows; their tools are refused in map mode.
-        const bool map = value == "map";
-        viewMapMode->setChecked(map);
-        for (QWidget *panel : {static_cast<QWidget *>(objTools), static_cast<QWidget *>(terrainTools),
-                               static_cast<QWidget *>(geoTools)})
-            panel->setEnabled(!map);
+        // The tool panels get the message too and disable the buttons of
+        // tools the mode does not support (tools/ToolButtons).
+        viewMapMode->setChecked(value == "map");
     });
     viewMenu->addSeparator();
     vViewWorldGrid = GuiFunct::newMenuCheckAction(

@@ -10,6 +10,7 @@
 
 #include <tsre/tdb/TSectionDAT.h>
 #include "ObjTools.h"
+#include "tools/ToolButtons.h"
 #include <tsre/world/Route.h>
 #include <tsre/Game.h>
 #include <settings/SettingsAccess.h>
@@ -1004,7 +1005,7 @@ void ObjTools::autoPlacementDeleteLastEnabled(){
 }
 
 void ObjTools::itemSelected(Ref::RefItem* item){
-    buttonTools["autoPlaceSimpleTool"]->setEnabled(
+    ToolButtons::setAvailable(buttonTools["autoPlaceSimpleTool"],
             item != nullptr
             && item->type.compare("telepole", Qt::CaseInsensitive) != 0);
     QString text;
@@ -1073,6 +1074,10 @@ void ObjTools::msg(QString text, float val){
 }
 
 void ObjTools::msg(QString text, QString val){
+    if(text == "viewMode"){
+        ToolButtons::applyMode(buttonTools, toolRegistry, ToolButtons::modeOf(val));
+        return;
+    }
     if(text == "toolEnabled"){
         QMapIterator<QString, QPushButton*> i(buttonTools);
         while (i.hasNext()) {
