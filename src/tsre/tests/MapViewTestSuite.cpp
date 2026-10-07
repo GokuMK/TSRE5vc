@@ -5,6 +5,7 @@
 #include <cmath>
 #include <tsre/map/ActivityMapLayer.h>
 #include <tsre/map/MapPalette.h>
+#include <tsre/map/TerrainMapLayer.h>
 #include <tsre/map/MapView.h>
 #include <tsre/map/TrackItemMapLayer.h>
 #include <tsre/map/TrackMapLayer.h>
@@ -191,6 +192,38 @@ int TsreTests::runMapViewSuite(bool verbose) {
                           == QColor(255, 0, 0)
                   && MapPalette::dark().path != itemPalette.path,
           "activity: colours from the palette, events red as in 3D");
+
+    // Terrain levels by the view's longer side.
+    MapView ground;
+    ground.width = 1600;
+    ground.height = 900;
+    ground.metresPerPixel = 10.24f;
+    const bool patchesAt16 = TerrainMapLayer::drawsDetailedPatches(ground);
+    ground.metresPerPixel = 10.3f;
+    const bool bordersAbove16 = !TerrainMapLayer::drawsDetailedPatches(ground);
+    ground.metresPerPixel = 3.8f;
+    const bool proceduralBelow = TerrainMapLayer::drawsProcedural(ground);
+    ground.metresPerPixel = 3.84f;
+    check(patchesAt16 && bordersAbove16 && proceduralBelow
+                  && !TerrainMapLayer::drawsProcedural(ground),
+          "terrain: patches up to 16 km across, procedural shading below 6144 m");
+    // A patch square from Terrain::mapPatchCorners order: two triangles of
+    // VT vertices, wound like the ribbons (clockwise seen from above in x, z).
+    const float patchCorners[16] = {0, 0, 0, 0,  128, 0, 1, 0,  128, 128, 1, 1,  0, 128, 0, 1};
+    std::vector<float> square;
+    TerrainMapLayer::appendPatch(square, patchCorners, 20.0f);
+    std::vector<float> lineRibbon;
+    const float lineSegment[6] = {0, 0, 0, 100, 0, 0};
+    TrackMapLayer::appendRibbons(lineRibbon, lineSegment, 1, 10.0f);
+    auto winding = [](const float *a, const float *b, const float *c) {
+        return (b[0] - a[0]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[0] - a[0]);
+    };
+    const float squareWinding = winding(square.data(), square.data() + 6, square.data() + 12);
+    const float ribbonWinding = winding(lineRibbon.data(), lineRibbon.data() + 3,
+                                        lineRibbon.data() + 6);
+    check(square.size() == 36 && near(square[1], 20.0f) && near(square[5], 1.0f)
+                  && squareWinding * ribbonWinding > 0.0f,
+          "terrain: a patch is two textured triangles wound like the ribbons");
 
     items.metresPerPixel = 2.0f;
     items.x = 900.0f;

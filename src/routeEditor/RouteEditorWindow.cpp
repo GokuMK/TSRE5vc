@@ -436,10 +436,16 @@ RouteEditorWindow::RouteEditorWindow() {
          qtTrId("route.editor.route.editor.window.action.map.paths"), MapLayer::Paths},
         {//% "&Activity"
          qtTrId("route.editor.route.editor.window.action.map.activity"), MapLayer::Activity},
+        {//% "Terra&in"
+         qtTrId("route.editor.route.editor.window.action.map.terrain"), MapLayer::Terrain},
+        {//% "&Faded Terrain"
+         qtTrId("route.editor.route.editor.window.action.map.faded.terrain"),
+         MapLayer::FadedTerrain},
         {//% "&Pointer"
          qtTrId("route.editor.route.editor.window.action.map.pointer"), MapLayer::Pointer}};
     for (const auto &entry : mapLayerEntries) {
-        QAction *action = GuiFunct::newMenuCheckAction(entry.text, this, true);
+        QAction *action = GuiFunct::newMenuCheckAction(entry.text, this,
+                                                       MapLayers().shows(entry.layer));
         const MapLayer layer = entry.layer;
         QObject::connect(action, &QAction::triggered, this,
                          [this, layer](bool visible) { glWidget->setMapLayerVisible(layer, visible); });

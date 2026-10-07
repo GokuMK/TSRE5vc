@@ -14,6 +14,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QStandardPaths>
+#include <algorithm>
 
 MapPalette MapPalette::light() {
     return MapPalette();
@@ -33,6 +34,8 @@ MapPalette MapPalette::dark() {
     palette.pathNode = QColor(60, 200, 100);
     palette.wagon = QColor(110, 150, 235);
     palette.engine = QColor(60, 90, 200);
+    palette.terrainBorder = QColor(70, 73, 82);
+    palette.distantBorder = QColor(105, 108, 122);
     return palette;
 }
 
@@ -74,6 +77,10 @@ bool MapPalette::fromJson(const QByteArray &json, MapPalette &palette, QString *
     read("failedSignal", palette.failedSignal);
     read("event", palette.event);
     read("selection", palette.selection);
+    read("terrainBorder", palette.terrainBorder);
+    read("distantBorder", palette.distantBorder);
+    if (object.value("terrainFade").isDouble())
+        palette.terrainFade = float(std::clamp(object.value("terrainFade").toDouble(), 0.0, 1.0));
     return true;
 }
 

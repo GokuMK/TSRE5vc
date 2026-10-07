@@ -25,6 +25,10 @@ public:
     TerrainLibQt();
     TerrainLibQt(const TerrainLibQt& orig);
     virtual Terrain* getTerrainByXY(int x, int y, bool load = false);
+    Terrain* getTerrainDescriptor(int x, int y) override;
+    Terrain* getDistantDescriptor(int x, int y) override;
+    unsigned int terrainTileId(int x, int y, bool distant = false,
+                               TerrainInfo *info = nullptr) override;
     virtual ~TerrainLibQt();
     void setDetailedAsCurrent();
     void setDistantAsCurrent();

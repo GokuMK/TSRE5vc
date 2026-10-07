@@ -2494,6 +2494,14 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
             <source>&amp;Activity</source>
             <translation>&amp;Scenariusz</translation>
         </message>
+        <message id="route.editor.route.editor.window.action.map.terrain">
+            <source>Terra&amp;in</source>
+            <translation>Te&amp;ren</translation>
+        </message>
+        <message id="route.editor.route.editor.window.action.map.faded.terrain">
+            <source>&amp;Faded Terrain</source>
+            <translation>&amp;Wyblakły teren</translation>
+        </message>
         <message id="route.editor.route.editor.window.action.map.pointer">
             <source>&amp;Pointer</source>
             <translation>&amp;Wskaźnik</translation>

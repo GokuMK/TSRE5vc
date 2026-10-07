@@ -77,6 +77,7 @@
 #include <tsre/map/MapView.h>
 #include <tsre/map/ActivityMapLayer.h>
 #include <tsre/map/MapSelection.h>
+#include <tsre/map/TerrainMapLayer.h>
 #include <tsre/map/TrackItemMapLayer.h>
 #include <tsre/map/TrackMapLayer.h>
 #include <tsre/ogl/OglObj.h>
@@ -293,6 +294,8 @@ void RouteEditorGLWidget::cameraInit(){
         trackItemMap = std::make_unique<TrackItemMapLayer>();
     if (!activityMap)
         activityMap = std::make_unique<ActivityMapLayer>();
+    if (!terrainMap)
+        terrainMap = std::make_unique<TerrainMapLayer>();
     float spos[3];
     if (Game::start == 2) {
         camera->setPozT(Game::startTileX, -Game::startTileY);
@@ -1710,6 +1713,7 @@ void RouteEditorGLWidget::setViewMode(ViewMode mode) {
         camera = cameraMap;
         trackMap->invalidate();
         trackItemMap->invalidate();
+        terrainMap->invalidate();
         activityMap->invalidate();
     } else {
         // The 3D camera looks at the map pointer from behind and above, in
@@ -1774,6 +1778,9 @@ void RouteEditorGLWidget::paintMap() {
     renderer->setShadowCasting(false);
     renderer->setLayer(RenderQueue::LAYER_OVERLAY);
     const MapView &view = cameraMap->view;
+    if (mapLayers.shows(MapLayer::Terrain))
+        terrainMap->pushRenderItems(queue, view, palette, Game::terrainLib,
+                                    mapLayers.shows(MapLayer::FadedTerrain));
     trackMap->pushRenderItems(queue, view, palette, Game::trackDB, Game::roadDB, mapLayers);
     if (mapLayers.shows(MapLayer::TrackObjects))
         trackItemMap->pushRenderItems(queue, view, palette, route, Game::trackDB, Game::roadDB);
@@ -2114,6 +2121,7 @@ void RouteEditorGLWidget::setDiagnosticMapView(int tileX, int tileZ, float x, fl
     }
     trackMap->invalidate();
     trackItemMap->invalidate();
+    terrainMap->invalidate();
     activityMap->invalidate();
 }
 

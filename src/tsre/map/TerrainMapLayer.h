@@ -1,0 +1,109 @@
+/*  This file is part of TSRE5.
+ *
+ *  TSRE5 - train sim game engine and MSTS/OR Editors.
+ *  Copyright (C) 2016 Piotr Gadecki <pgadecki@gmail.com>
+ *
+ *  Licensed under GNU General Public License 3.0 or later.
+ *
+ *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
+ */
+
+#ifndef TERRAINMAPLAYER_H
+#define TERRAINMAPLAYER_H
+
+#include <QHash>
+#include <QString>
+#include <memory>
+#include <vector>
+
+class MapView;
+class OglObj;
+class RenderQueue;
+class Terrain;
+class TerrainInfo;
+class TerrainLib;
+struct MapPalette;
+
+// Terrain in map mode (task editor 04, "7. Terrain"): flat textured squares
+// under every other layer, by how much ground the view shows.
+// - Distant terrain (LO tiles) always, at the bottom, with tile borders.
+// - Views wider than DetailedExtentMetres show the detailed tiles as
+//   borders only, loading nothing for them.
+// - Narrower views show each detailed patch as a square with its texture
+//   and placement from the tile file (procedural tiles: their baked
+//   fallback, which their patches reference). Only tile files are read
+//   (Terrain::descriptorLoaded), never heights.
+// - Views narrower than ProceduralExtentMetres (the track objects' bound)
+//   complete the procedural tiles in view, as the 3D view loads them, and
+//   draw each as one square with the 3D view's direct GPU material shading
+//   over its bake.
+class TerrainMapLayer {
+public:
+    static constexpr float DetailedExtentMetres = 16384.0f;
+    static constexpr float ProceduralExtentMetres = 3.0f * 2048.0f;
+    // Under the roads (TrackMapLayer: 100).
+    static constexpr float DistantHeight = 10.0f;
+    static constexpr float DetailedHeight = 20.0f;
+    static constexpr float ProceduralHeight = 25.0f;
+    static constexpr float DistantBorderHeight = 30.0f;
+    static constexpr float BorderHeight = 40.0f;
+    // Faded Terrain: a square of the background colour over the terrain,
+    // under the roads.
+    static constexpr float FadeHeight = 50.0f;
+    static constexpr float BorderPixels = 1.0f;
+
+    TerrainMapLayer();
+    ~TerrainMapLayer();
+    void pushRenderItems(RenderQueue &queue, const MapView &view, const MapPalette &palette,
+                         TerrainLib *terrain, bool faded = false);
+    // Tiles or textures changed: everything is read again.
+    void invalidate();
+
+    // Whether a view shows the detailed tiles' patches, and procedural
+    // tiles with their GPU material shading.
+    static bool drawsDetailedPatches(const MapView &view);
+    static bool drawsProcedural(const MapView &view);
+    // A patch's two triangles from Terrain::mapPatchCorners, as VT vertices
+    // (x, y, z, u, v, alpha), wound for the map's face culling. Public for
+    // tests.
+    static void appendPatch(std::vector<float> &out, const float *corners, float y);
+
+private:
+    struct Group {
+        int texture = -1;
+        std::unique_ptr<OglObj> object;
+    };
+    class ProceduralSquare;
+    struct Procedural {
+        int tileX = 0;
+        int tileZ = 0;
+        std::unique_ptr<ProceduralSquare> square;
+    };
+    void build(const MapView &view, const MapPalette &palette, TerrainLib *terrain);
+    void appendTile(Terrain *tile, const MapView &view, float y,
+                    QHash<int, std::vector<float>> &byTexture);
+    static Procedural proceduralSquare(Terrain *tile, const MapView &view, int tileX, int tileZ);
+    static void appendOutline(std::vector<float> &out, const TerrainInfo &info,
+                              const MapView &view, float y, float width);
+    int texture(Terrain *tile, const QString &name);
+    void releaseTextures();
+
+    bool valid = false;
+    int builtTileX = 0;
+    int builtTileZ = 0;
+    float builtMetresPerPixel = 0.0f;
+    bool builtDetailed = false;
+    bool builtProcedural = false;
+    int builtTiles[4] = {0, 0, 0, 0};
+    QString builtPalette;
+    std::vector<Group> distant;
+    std::vector<Group> detailed;
+    std::vector<Procedural> procedural;
+    std::unique_ptr<OglObj> distantBorders;
+    std::unique_ptr<OglObj> borders;
+    std::unique_ptr<OglObj> fade;
+    // TexLib references this layer holds, by texture name.
+    QHash<QString, int> textures;
+};
+
+#endif

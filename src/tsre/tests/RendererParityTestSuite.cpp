@@ -74,6 +74,7 @@ struct ViewSpec {
     bool map = false;
     float metresPerPixel = 2.0f;
     float bearing = 0.0f;
+    bool fadedTerrain = false;
 };
 
 struct Options {
@@ -200,6 +201,7 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         view.map = object.value("mode").toString() == "map";
         view.metresPerPixel = float(object.value("metresPerPixel").toDouble(2.0));
         view.bearing = float(object.value("bearing").toDouble(0.0));
+        view.fadedTerrain = object.value("fadedTerrain").toBool(false);
         if (view.hasTile != view.hasPos) {
             error = QString("view %1 needs both tile and pos").arg(view.name);
             return false;
@@ -415,9 +417,11 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         if (spec.hasRot)
             std::copy(spec.rot, spec.rot + 2, rot);
         widget.setDiagnosticView(tileX, tileZ, pos[0], pos[1], pos[2], rot[0], rot[1]);
-        if (spec.map)
+        if (spec.map) {
             widget.setDiagnosticMapView(tileX, tileZ, pos[0], pos[2], spec.metresPerPixel,
                                         spec.bearing);
+            widget.setMapLayerVisible(MapLayer::FadedTerrain, spec.fadedTerrain);
+        }
 
         QElapsedTimer settleTimer;
         settleTimer.start();

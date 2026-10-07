@@ -64,12 +64,15 @@ Terrain::Terrain(){
 
 }
 
-Terrain::Terrain(TerrainInfo *ti){
+Terrain::Terrain(TerrainInfo *ti, bool complete){
     mojex = ti->cx;
     mojez = -ti->cy;
     name = ti->name;
     lowTile = ti->low;
-    load();
+    if (complete)
+        load();
+    else
+        loadDescriptor();
 }
 
 Terrain::Terrain(float x, float y) {
@@ -80,6 +83,15 @@ Terrain::Terrain(float x, float y) {
 }
 
 void Terrain::load(){
+    if (loadDescriptor())
+        completeLoad();
+}
+
+QString Terrain::tileDirectory() const {
+    return Game::root + "/ROUTES/" + Game::route + "/" + TileDir[(int)lowTile] + "/";
+}
+
+bool Terrain::loadDescriptor(){
     ++surfaceGeneration;
     renderedSurfaceLod.clear();
     typeObj = this->terrainobj;
@@ -99,8 +111,9 @@ void Terrain::load(){
         selectedPatchs[i] = false;
     }
 
+    descriptorLoaded = false;
     configureTerrainSeason();
-    QString path = Game::root + "/ROUTES/" + Game::route + "/" + TileDir[(int)lowTile] + "/";
+    const QString path = tileDirectory();
     tfile = new TFile();
 
     //QString filename = getTileName((int) x, (int) -y);
@@ -108,22 +121,14 @@ void Terrain::load(){
     //qDebug() << filename << x << -y;
     if (!tfile->readT((path + name + ".t"))) {
         //qDebug() << " t fail" << name;
-        return;
+        return false;
     }
     QString flagsError;
     if(!tfile->loadPatchFlags(path,flagsError))qWarning()<<flagsError;
     if (!validateGridLayout(path + name + ".t"))
-        return;
+        return false;
     if(tfile->samples.y.has_value() == false)
-        return;
-    if (!readRAW((path + *tfile->samples.y/* + "_y.raw"*/))) {
-        //qDebug() << " y fail" << name;
-        return;
-    }
-    if(tfile->samples.f.has_value())
-        jestF = readF(path + *tfile->samples.f/* + "_f.raw"*/);
-    modifiedF = false;
-    //qDebug() << " ok";
+        return false;
     
     //QString name = this->getTileName(mojex, -mojez);
     QString name2;
@@ -143,10 +148,61 @@ void Terrain::load(){
                 this->uniqueTex[y*patches+u] = true;
             
         }
-    
+    descriptorLoaded = true;
+    return true;
+}
+
+QString Terrain::mapPatchTextureName(int patch) const {
+    if (!descriptorLoaded || tfile == NULL || !gridLayout.isPatchIndexValid(patch)
+            || patch >= int(tfile->patches().size()) || hidden[patch])
+        return QString();
+    const int shader = int(tfile->patches()[patch].shaderIndex);
+    if (!tfile->hasMaterial(shader))
+        return QString();
+    return tfile->textureName(shader);
+}
+
+bool Terrain::mapPatchCorners(int patch, int tileX, int tileZ, float *corners) const {
+    if (!descriptorLoaded || tfile == NULL || !gridLayout.isPatchIndexValid(patch)
+            || patch >= int(tfile->patches().size()))
+        return false;
+    // As TerrainMeshPaged and the terrain vertex shader: the tile's corner,
+    // then the patch's samples.
+    const auto &uv = tfile->patches()[patch].uv;
+    const float r = float(gridLayout.patchResolution);
+    const float spacing = float(gridLayout.sampleSpacing);
+    const float originX = (mojex - tileX) * 2048.0f - 1024.0f
+            + gridLayout.patchColumn(patch) * gridLayout.patchWorldSize;
+    const float originZ = (mojez - tileZ) * 2048.0f + 1024.0f - gridLayout.terrainWorldSize
+            + gridLayout.patchRow(patch) * gridLayout.patchWorldSize;
+    const float samples[4][2] = {{0, 0}, {r, 0}, {r, r}, {0, r}};
+    for (int i = 0; i < 4; ++i) {
+        const float sx = samples[i][0], sz = samples[i][1];
+        corners[i * 4 + 0] = originX + sx * spacing;
+        corners[i * 4 + 1] = originZ + sz * spacing;
+        corners[i * 4 + 2] = sx * uv.w + sz * uv.b + uv.x;
+        corners[i * 4 + 3] = sx * uv.c + sz * uv.h + uv.y;
+    }
+    return true;
+}
+
+bool Terrain::completeLoad(){
+    if (loaded)
+        return true;
+    if (!descriptorLoaded)
+        return false;
+    const QString path = tileDirectory();
+    if (!readRAW((path + *tfile->samples.y/* + "_y.raw"*/))) {
+        //qDebug() << " y fail" << name;
+        return false;
+    }
+    if(tfile->samples.f.has_value())
+        jestF = readF(path + *tfile->samples.f/* + "_f.raw"*/);
+    modifiedF = false;
     loadProceduralMaterial(path);
     loaded = true;
     //save();
+    return true;
 }
 
 bool Terrain::isModified() {

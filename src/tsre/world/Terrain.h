@@ -46,7 +46,12 @@ public:
     // each view by the patch bounds.
     static bool gatherAllDirections;
     
+    // The complete tile: tile file, heights and procedural state.
     int loaded = false;
+    // The tile file only (grid layout, patch textures and their placement):
+    // enough to draw the tile flat in map mode. completeLoad() reads the
+    // rest; loaded keeps meaning the complete tile.
+    bool descriptorLoaded = false;
     float **terrainData = NULL;
     bool inUse = true;
     bool showBlob = false;
@@ -56,8 +61,26 @@ public:
     bool lowTile = false;
     std::array<TerrainAdjacentEdge, 4> adjacentEdges;
     Terrain();
-    Terrain(TerrainInfo *ti);
+    // complete false reads the descriptor only.
+    Terrain(TerrainInfo *ti, bool complete = true);
     Terrain(float x, float y);
+    // Reads the heights and procedural state of a descriptor-only tile;
+    // true when the tile is complete.
+    bool completeLoad();
+    // Map mode (task editor 04), from the tile file only: a patch's texture
+    // name ("" for none or a hidden patch) and its flat square, as the 3D
+    // view places it: four corners of x, z relative to the tile tileX,
+    // tileZ (the view's tile convention), u and v, in the order of samples
+    // (0, 0), (R, 0), (R, R), (0, R).
+    QString mapPatchTextureName(int patch) const;
+    bool mapPatchCorners(int patch, int tileX, int tileZ, float *corners) const;
+    // A packet drawing the whole complete tile with the direct GPU material
+    // shading, from one square whose texture coordinates span the tile;
+    // false when the tile has none.
+    bool configureMapProceduralPacket(RenderItem &item);
+    // A texture of the tile's terrain textures, with the season applied: a
+    // new TexLib reference.
+    int loadMapTexture(const QString &filename) { return loadTerrainTexture(filename); }
     Terrain(const Terrain& orig);
     virtual void saveTfileToStream(QDataStream &out);
     virtual void saveRAWfileToStream(QDataStream &out);
@@ -321,6 +344,9 @@ protected:
     // Prepares the direct procedural draw of a patch; materials receives the
     // tile's material ids, which all have a layer in the material arrays.
     bool prepareProceduralGpuPatch(int patch, QVector<int> &materials);
+    // The tile's material map and arrays on the GPU, without the 3D view's
+    // distance check.
+    bool prepareProceduralGpuResources(QVector<int> &materials);
     void configureProceduralGpuPacket(RenderItem &item, int patch);
     void synchronizeMaterialLibrary();
     QVector<PatchBounds> patchBounds;
@@ -361,6 +387,9 @@ protected:
     void reloadLines();
     
     virtual void load();
+    // The tile file and what follows from it; see descriptorLoaded.
+    bool loadDescriptor();
+    QString tileDirectory() const;
     bool validateGridLayout(const QString &source);
     bool validatePayload(const FileBuffer *data, std::size_t bytesPerCell,
                          const QString &kind) const;

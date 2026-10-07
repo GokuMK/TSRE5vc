@@ -42,6 +42,17 @@ public:
     virtual void saveQtLoToStream(QTextStream &out);
     virtual void saveQtToStream(QTextStream &out);
     virtual Terrain* getTerrainByXY(int x, int y, bool load = false);
+    // A tile with at least its tile file read (Terrain::descriptorLoaded),
+    // without reading heights: what map mode draws. A complete tile is
+    // returned as it is; getTerrainByXY(x, y, true) completes the others.
+    virtual Terrain* getTerrainDescriptor(int x, int y);
+    // The same for the distant terrain tile covering a world tile.
+    virtual Terrain* getDistantDescriptor(int x, int y);
+    // The detailed (or distant) terrain tile covering a world tile, without
+    // loading it: 0 for none, the same for every world tile it covers. info,
+    // when given, gets its corner and size (level, in world tiles).
+    virtual unsigned int terrainTileId(int x, int y, bool distant = false,
+                                       TerrainInfo *info = nullptr);
     virtual void fillRaw(Terrain *cTerr, int mojex, int mojez);
     const TerrainAdjacentEdge &resolveAdjacentEdge(Terrain &terrain,
                         TerrainEdgeSide side, TerrainEdgeDiscovery mode);

@@ -83,8 +83,15 @@ Terrain* TerrainLibQt::getTerrainByXY(int x, int y, bool load) {
     if (terrainNameId == 0)
         return NULL;
     if ((*currentQt)[terrainNameId] != NULL) {
-        if((*currentQt)[terrainNameId]->t != NULL)
-            return (*currentQt)[terrainNameId]->t;
+        Terrain *existing = (*currentQt)[terrainNameId]->t;
+        if (existing != NULL) {
+            // A tile map mode read only partly is completed when asked to
+            // load.
+            if (load && !existing->loaded && existing->descriptorLoaded
+                    && existing->completeLoad())
+                terrainAvailabilityChanged(existing);
+            return existing;
+        }
     }
     if (load) {
         (*currentQt)[terrainNameId] = new TerrainInfo();
@@ -97,6 +104,43 @@ Terrain* TerrainLibQt::getTerrainByXY(int x, int y, bool load) {
     }
 
     return NULL;
+}
+
+// A tile of a tree with its tile file read, loading only that.
+static Terrain *descriptorTile(QuadTree *tree, QHash<unsigned int, TerrainInfo*> &tiles,
+                               int x, int y) {
+    if (tree == NULL)
+        return NULL;
+    const unsigned int terrainNameId = tree->getMyNameId(x, -y);
+    if (terrainNameId == 0)
+        return NULL;
+    TerrainInfo *&info = tiles[terrainNameId];
+    if (info != NULL && info->t != NULL)
+        return info->t;
+    if (info == NULL) {
+        info = new TerrainInfo();
+        tree->fillTerrainInfo(x, -y, info);
+    }
+    info->t = new Terrain(info, false);
+    return info->t;
+}
+
+Terrain* TerrainLibQt::getTerrainDescriptor(int x, int y) {
+    return descriptorTile(quadTree, terrainQt, x, y);
+}
+
+Terrain* TerrainLibQt::getDistantDescriptor(int x, int y) {
+    return descriptorTile(quadTreeLo, terrainQtLo, x, y);
+}
+
+unsigned int TerrainLibQt::terrainTileId(int x, int y, bool distant, TerrainInfo *info) {
+    QuadTree *tree = distant ? quadTreeLo : quadTree;
+    if (tree == NULL)
+        return 0;
+    const unsigned int id = tree->getMyNameId(x, -y);
+    if (id != 0 && info != NULL)
+        tree->fillTerrainInfo(x, -y, info);
+    return id;
 }
 
 QuadTree* TerrainLibQt::getQuadTreeDetailed(){
@@ -1419,6 +1463,9 @@ void TerrainLibQt::pushRenderItemsLo(RenderQueue &queue, float * playerT, float*
             continue;
         terrainQtLo[terrainNameId]->rendered = true;
         tTile = terrainQtLo[terrainNameId]->t;
+        // Map mode may have read only the tile file.
+        if (!tTile->loaded && tTile->descriptorLoaded)
+            tTile->completeLoad();
         if (!tTile->loaded)
             continue;
 
@@ -1499,6 +1546,9 @@ void TerrainLibQt::pushRenderItemsWaterLo(RenderQueue &queue, float* playerT, fl
             continue;
         terrainQtLo[terrainNameId]->rendered = true;
         tTile = terrainQtLo[terrainNameId]->t;
+        // Map mode may have read only the tile file.
+        if (!tTile->loaded && tTile->descriptorLoaded)
+            tTile->completeLoad();
         if (!tTile->loaded)
             continue;
 

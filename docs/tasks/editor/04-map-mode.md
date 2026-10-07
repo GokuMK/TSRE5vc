@@ -425,7 +425,32 @@ incremental:
   them), then the remaining batches. Map mode support per tool comes
   later, one tool at a time, starting with the activity tools.
 
-### 7. Terrain (phase 4, designed 2026-10-07)
+### 7. Terrain (phase 4, designed and built 2026-10-07)
+
+Built as designed (`src/tsre/map/TerrainMapLayer`, Map > Terrain and
+Map > Faded Terrain):
+- `Terrain::descriptorLoaded` marks a tile whose tile file is read;
+  `completeLoad()` reads heights and procedural state, and `loaded` keeps
+  meaning the complete tile. `TerrainLib::getTerrainDescriptor` and
+  `getDistantDescriptor` read descriptor-only tiles; `getTerrainByXY(x, z,
+  true)` and the 3D distant pass complete them. `terrainTileId` finds a
+  tile's corner and size in the quadtree without loading it, for borders.
+- Patch squares use the 3D view's placement (`Terrain::mapPatchCorners`,
+  the formula of `TerrainMeshPaged::terrainParams` and the terrain vertex
+  shader); a top-down 3D capture of USA2 matches. Procedural tiles at the
+  Detailed level show their bake through their patches' own references.
+- The Procedural level completes the procedural tiles in view and draws
+  each as one square: `Terrain::configureMapProceduralPacket` prepares the
+  direct GPU resources without the 3D distance check, spans the material
+  map across the tile and repeats the materials per patch through the
+  texture remap. About nine draws instead of 2300 patch packets.
+- Faded Terrain is a square of the background colour with the palette's
+  `terrainFade` alpha over the terrain, under the roads.
+- Measured builds: under 3 ms at 16 km on USA2 (16 tiles, 12 textures);
+  3D captures identical on EUROPE1, USA2 and PROCEDURAL.
+- Not yet: terrain painting on the map (tools must complete a tile before
+  editing it, as saving writes heights); procedural tiles without heights
+  (a third load stage) if memory needs it.
 
 Terrain is drawn flat, under every other layer, as textured squares. Which
 squares depends on how much ground the view shows (metres across its

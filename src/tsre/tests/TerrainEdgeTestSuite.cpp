@@ -457,6 +457,22 @@ int TsreTests::runTerrainEdgeSuite(bool verbose) {
             real.fillRaw(a, 20, 0);
             check(a->adjacentEdges[3].sections.size() == 1,
                   "production-available-neighbour-fills-border");
+            // Map mode reads the tile file only; asking to load completes
+            // the same tile.
+            qt->addTile(22, 0);
+            Terrain::SaveEmpty(qt->getMyName(22, 0), 256, 8, 16);
+            Terrain *partial = real.getTerrainDescriptor(22, 0);
+            float corners[16] = {};
+            const bool descriptorOnly = partial && partial->descriptorLoaded && !partial->loaded
+                    && partial->terrainData == nullptr
+                    && real.getTerrainByXY(22, 0, false) == partial
+                    && partial->mapPatchCorners(0, 22, 0, corners);
+            check(descriptorOnly && corners[0] == -1024.0f && corners[1] == -1024.0f
+                  && corners[4] == -1024.0f + 128.0f && corners[9] == -1024.0f + 128.0f,
+                  "production-descriptor-only-tile-and-patch-corners");
+            Terrain *complete = real.getTerrainByXY(22, 0, true);
+            check(complete == partial && complete->loaded && complete->terrainData != nullptr,
+                  "production-descriptor-tile-completes-on-load");
             Terrain *bCurrent = real.getTerrainByXY(21, 0, false);
             bCurrent->setFixedHeight(73);
             bCurrent->save();
