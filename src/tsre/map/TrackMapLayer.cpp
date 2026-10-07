@@ -99,8 +99,9 @@ void TrackMapLayer::appendOctagon(std::vector<float> &out, float x, float y, flo
         corners[i][1] = y;
         corners[i][2] = z + radius * std::sin(angle);
     }
+    // Wound like the ribbons, so the map's face culling keeps them.
     for (int i = 1; i < 7; ++i)
-        for (int corner : {0, i, i + 1})
+        for (int corner : {0, i + 1, i})
             out.insert(out.end(), corners[corner], corners[corner] + 3);
 }
 
@@ -178,21 +179,8 @@ void TrackMapLayer::build(const MapView &view, const MapPalette &palette, TDB *t
     timer.start();
     const bool detail = view.metresPerPixel <= DetailMetresPerPixel;
     // Tiles in view, with one more around, in the view's tile convention.
-    float corners[4][2];
-    const float screen[4][2] = {{0, 0}, {float(view.width), 0}, {0, float(view.height)},
-                                {float(view.width), float(view.height)}};
-    for (int c = 0; c < 4; ++c)
-        view.groundAt(screen[c][0], screen[c][1], corners[c][0], corners[c][1]);
-    float lowX = corners[0][0], highX = lowX, lowZ = corners[0][1], highZ = lowZ;
-    for (int c = 1; c < 4; ++c) {
-        lowX = std::min(lowX, corners[c][0]);
-        highX = std::max(highX, corners[c][0]);
-        lowZ = std::min(lowZ, corners[c][1]);
-        highZ = std::max(highZ, corners[c][1]);
-    }
-    auto tileOf = [](float metres) { return int(std::floor((metres + 1024.0f) / 2048.0f)); };
-    const int tiles[4] = {view.tileX + tileOf(lowX) - 1, view.tileX + tileOf(highX) + 1,
-                          view.tileZ + tileOf(lowZ) - 1, view.tileZ + tileOf(highZ) + 1};
+    int tiles[4];
+    view.visibleTiles(tiles[0], tiles[1], tiles[2], tiles[3], 1);
 
     Geometry trackGeometry, roadGeometry;
     buildDatabase(trackGeometry, view, track, detail, tiles[0], tiles[1], tiles[2], tiles[3],

@@ -90,6 +90,25 @@ void MapView::normalize() {
     }
 }
 
+void MapView::visibleTiles(int &minX, int &maxX, int &minZ, int &maxZ, int margin) const {
+    const float screen[4][2] = {{0, 0}, {float(width), 0}, {0, float(height)},
+                                {float(width), float(height)}};
+    float lowX = 0, highX = 0, lowZ = 0, highZ = 0;
+    for (int c = 0; c < 4; ++c) {
+        float gx, gz;
+        groundAt(screen[c][0], screen[c][1], gx, gz);
+        lowX = c == 0 ? gx : std::min(lowX, gx);
+        highX = c == 0 ? gx : std::max(highX, gx);
+        lowZ = c == 0 ? gz : std::min(lowZ, gz);
+        highZ = c == 0 ? gz : std::max(highZ, gz);
+    }
+    auto tileOf = [](float metres) { return int(std::floor((metres + 1024.0f) / 2048.0f)); };
+    minX = tileX + tileOf(lowX) - margin;
+    maxX = tileX + tileOf(highX) + margin;
+    minZ = tileZ + tileOf(lowZ) - margin;
+    maxZ = tileZ + tileOf(highZ) + margin;
+}
+
 void MapView::viewMatrix(float *out) const {
     float ux, uz;
     up(ux, uz);

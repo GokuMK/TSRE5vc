@@ -39,7 +39,8 @@ public:
     static constexpr float TrackHeight = 200.0f;
     static constexpr float EndHeight = 300.0f;
     static constexpr float JunctionHeight = 400.0f;
-    static constexpr float PointerHeight = 500.0f;
+    // Above the track objects (TrackItemMapLayer).
+    static constexpr float PointerHeight = 900.0f;
 
     TrackMapLayer();
     ~TrackMapLayer();

@@ -2482,6 +2482,10 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
             <source>Track &amp;Ends</source>
             <translation>&amp;Końce torów</translation>
         </message>
+        <message id="route.editor.route.editor.window.action.map.track.objects">
+            <source>Track &amp;Objects</source>
+            <translation>&amp;Obiekty torowe</translation>
+        </message>
         <message id="route.editor.route.editor.window.action.map.pointer">
             <source>&amp;Pointer</source>
             <translation>&amp;Wskaźnik</translation>

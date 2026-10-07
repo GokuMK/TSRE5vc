@@ -56,6 +56,7 @@ class RenderQueue;
 class ToolRegistry;
 class CameraMap;
 class TrackMapLayer;
+class TrackItemMapLayer;
 
 QT_FORWARD_DECLARE_CLASS(QOpenGLShaderProgram)
 
@@ -322,6 +323,7 @@ private:
     ViewMode currentViewMode = ViewMode::Scene3D;
     CameraMap *cameraMap = NULL;
     std::unique_ptr<TrackMapLayer> trackMap;
+    std::unique_ptr<TrackItemMapLayer> trackItemMap;
     OglObj *mapPointer = NULL;
     MapPalette mapPalette;
     MapLayers mapLayers;

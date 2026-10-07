@@ -8,8 +8,8 @@ Phase 1 core, as built:
 - **Menus:**
   - The old View menu is now "3D View", with the 3D toggles.
   - A new "Map" menu holds the map's own layer toggles: track lines, road
-    lines, junctions, track ends, pointer. They are kept in the map code
-    (`MapLayers`), not `Game`.
+    lines, junctions, track ends, track objects, pointer. They are kept
+    in the map code (`MapLayers`), not `Game`.
   - "Map Mode" sits in the Tools menu until the menus are restructured.
 - **Switching:**
   - Backquote or Tools > Map Mode switches modes; switching moves to the
@@ -28,6 +28,29 @@ Phase 1 core, as built:
     when zoomed to 1 m a pixel or closer, for the tiles in view;
   - layers at fixed heights so the depth test orders them;
   - no terrain is loaded or drawn.
+- **Track objects** (`src/tsre/map/TrackItemMapLayer`, Map > Track
+  Objects): signals, speed posts, platforms, sidings, car spawners, level
+  crossings, hazards, pickups and sound regions.
+  - Drawn as filled circles 11 pixels wide with a border. The fill uses
+    the colour the 3D view gives each object (signals red); the border
+    comes from the palette (`itemBorder`, dark on light and light on
+    dark). Each kind's colour can be set in a palette file.
+  - When the view spans three tiles or more, the circles come from the
+    track and road databases' items. These are the 3D view's black
+    boxes, positioned along their node.
+  - Below three tiles, they come from the world objects of the tiles in
+    view. The map loads those world files (no shapes are drawn), takes
+    only the track objects and places each at its items' database
+    positions. This is the path that later lets objects be selected and
+    edited in the map. Items without an object are not drawn on this
+    path.
+  - Rebuilt on a scale change, a tile change, a switch between the paths,
+    a new palette, or a change in the objects of the tiles in view.
+  - On EUROPE1: 253 items in the overview, 71 at the station; a build
+    takes about 0.2 to 0.3 ms.
+- **Face culling:** the map culls back faces. Markers must be wound like
+  the ribbons. The junction and end octagons of `1c5d784` were wound the
+  other way and never showed; this is fixed.
 - **Lines:** quads built on the CPU and rebuilt when the scale changes by
   a quarter, rather than the shader-built ribbons of the design. This
   needs no shader or renderer change, so both renderers draw it as is.
@@ -48,7 +71,7 @@ Phase 1 core, as built:
   are real data: double track, and roads with one database node per
   lane.
 
-Next: phase 2 layers (tile grid, scale ruler, track items, labels).
+Next: phase 2 layers (tile grid, scale ruler, labels).
 
 Phase 0, in three batches, each to be tested once in the editor:
 
@@ -349,8 +372,7 @@ incremental:
    - screen-width ribbons.
 2. **Map layers**:
    - tile grid, scale ruler;
-   - track items (signals, platforms, sidings, speed posts), station
-     names;
+   - track items (done, see "Track objects" above), station names;
    - search and centre-on, highlighting;
    - layer toggles in the View menu.
 3. **Activity tools in map mode**: the most urgent need for route-scale

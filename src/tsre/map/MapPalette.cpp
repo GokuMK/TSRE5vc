@@ -28,6 +28,7 @@ MapPalette MapPalette::dark() {
     palette.junction = QColor(255, 96, 96);
     palette.end = QColor(110, 156, 255);
     palette.pointer = QColor(255, 160, 40);
+    palette.itemBorder = QColor(235, 236, 240);
     return palette;
 }
 
@@ -51,6 +52,16 @@ bool MapPalette::fromJson(const QByteArray &json, MapPalette &palette, QString *
     read("junction", palette.junction);
     read("end", palette.end);
     read("pointer", palette.pointer);
+    read("signal", palette.signal);
+    read("speedPost", palette.speedPost);
+    read("platform", palette.platform);
+    read("siding", palette.siding);
+    read("carSpawner", palette.carSpawner);
+    read("levelCrossing", palette.levelCrossing);
+    read("hazard", palette.hazard);
+    read("pickup", palette.pickup);
+    read("soundRegion", palette.soundRegion);
+    read("itemBorder", palette.itemBorder);
     return true;
 }
 

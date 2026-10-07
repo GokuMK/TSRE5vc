@@ -430,6 +430,9 @@ RouteEditorWindow::RouteEditorWindow() {
          qtTrId("route.editor.route.editor.window.action.map.junctions"), MapLayer::Junctions},
         {//% "Track &Ends"
          qtTrId("route.editor.route.editor.window.action.map.ends"), MapLayer::Ends},
+        {//% "Track &Objects"
+         qtTrId("route.editor.route.editor.window.action.map.track.objects"),
+         MapLayer::TrackObjects},
         {//% "&Pointer"
          qtTrId("route.editor.route.editor.window.action.map.pointer"), MapLayer::Pointer}};
     for (const auto &entry : mapLayerEntries) {

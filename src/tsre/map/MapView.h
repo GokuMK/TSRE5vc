@@ -59,6 +59,9 @@ public:
     // Keeps the centre inside its tile, moving to the next tile as the
     // camera does.
     void normalize();
+    // The tiles the view shows, with margin tiles more around, in the
+    // camera's tile convention.
+    void visibleTiles(int &minX, int &maxX, int &minZ, int &maxZ, int margin = 0) const;
     // View and orthographic projection matrices (column-major).
     void viewMatrix(float *out) const;
     void projection(float *out) const;

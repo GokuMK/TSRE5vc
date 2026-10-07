@@ -2480,6 +2480,10 @@ Consist with this file name already exist. Overwrite?
         <source>Track &amp;Ends</source>
         <translation>Track &amp;Ends</translation>
     </message>
+    <message id="route.editor.route.editor.window.action.map.track.objects">
+        <source>Track &amp;Objects</source>
+        <translation>Track &amp;Objects</translation>
+    </message>
     <message id="route.editor.route.editor.window.action.map.pointer">
         <source>&amp;Pointer</source>
         <translation>&amp;Pointer</translation>

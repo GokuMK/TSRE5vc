@@ -28,6 +28,18 @@ struct MapPalette {
     QColor junction = QColor(214, 48, 48);
     QColor end = QColor(48, 96, 214);
     QColor pointer = QColor(255, 120, 0);
+    // Track objects, in the colours the 3D view gives their objects, and
+    // the border around them.
+    QColor signal = QColor(255, 0, 0);
+    QColor speedPost = QColor(178, 178, 178);
+    QColor platform = QColor(0, 255, 0);
+    QColor siding = QColor(255, 178, 0);
+    QColor carSpawner = QColor(102, 0, 255);
+    QColor levelCrossing = QColor(230, 128, 0);
+    QColor hazard = QColor(204, 51, 204);
+    QColor pickup = QColor(204, 51, 204);
+    QColor soundRegion = QColor(255, 255, 0);
+    QColor itemBorder = QColor(30, 30, 34);
 
     static MapPalette light();
     static MapPalette dark();

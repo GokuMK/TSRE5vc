@@ -4,7 +4,9 @@
 #include <cmath>
 #include <tsre/map/MapPalette.h>
 #include <tsre/map/MapView.h>
+#include <tsre/map/TrackItemMapLayer.h>
 #include <tsre/map/TrackMapLayer.h>
+#include <tsre/world/objects/WorldObj.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <vector>
 
@@ -129,6 +131,42 @@ int TsreTests::runMapViewSuite(bool verbose) {
           "palettes: light and dark built in, custom files over the light one");
     check(MapPalette::named("no-such-palette").background == QColor(Qt::white),
           "an unknown palette falls back to light");
+
+    // Track objects.
+    check(TrackItemMapLayer::kindOfItemType("SignalItem") == TrackItemMapLayer::Signal
+                  && TrackItemMapLayer::kindOfItemType("hazzarditem") == TrackItemMapLayer::Hazard
+                  && TrackItemMapLayer::kindOfItemType("levelcritem")
+                          == TrackItemMapLayer::LevelCrossing
+                  && TrackItemMapLayer::kindOfItemType("crossoveritem") == -1
+                  && TrackItemMapLayer::kindOfItemType("emptyitem") == -1,
+          "track objects: database item types, crossovers and empty items skipped");
+    check(TrackItemMapLayer::kindOfObjectType(WorldObj::signal) == TrackItemMapLayer::Signal
+                  && TrackItemMapLayer::kindOfObjectType(WorldObj::carspawner)
+                          == TrackItemMapLayer::CarSpawner
+                  && TrackItemMapLayer::kindOfObjectType(WorldObj::soundregion)
+                          == TrackItemMapLayer::SoundRegion
+                  && TrackItemMapLayer::kindOfObjectType(WorldObj::sstatic) == -1,
+          "track objects: world object types, other objects skipped");
+    const MapPalette itemPalette = MapPalette::light();
+    check(TrackItemMapLayer::colour(itemPalette, TrackItemMapLayer::Signal) == QColor(255, 0, 0)
+                  && TrackItemMapLayer::colour(itemPalette, TrackItemMapLayer::Platform)
+                          == QColor(0, 255, 0)
+                  && MapPalette::dark().itemBorder.lightness() > itemPalette.itemBorder.lightness(),
+          "track objects: the 3D view's colours, a border that stands out of the background");
+    MapView items;
+    items.width = 1000;
+    items.height = 600;
+    items.metresPerPixel = 6.0f;
+    const bool closeDrawsObjects = TrackItemMapLayer::drawsWorldObjects(items);
+    items.metresPerPixel = 6.2f;
+    check(closeDrawsObjects && !TrackItemMapLayer::drawsWorldObjects(items),
+          "track objects: world objects below three tiles across, the database above");
+    items.metresPerPixel = 2.0f;
+    items.x = 900.0f;
+    int tiles[4];
+    items.visibleTiles(tiles[0], tiles[1], tiles[2], tiles[3]);
+    check(tiles[0] == 0 && tiles[1] == 1 && tiles[2] == 0 && tiles[3] == 0,
+          "visible tiles: a 2 km by 1.2 km view across a tile edge");
 
     qInfo().noquote() << "[tests:map-view] cases=" << passed + failed << "passed=" << passed
                       << "failed=" << failed;

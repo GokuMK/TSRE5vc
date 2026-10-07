@@ -74,6 +74,7 @@
 #include <tsre/camera/CameraMap.h>
 #include <tsre/map/MapPalette.h>
 #include <tsre/map/MapView.h>
+#include <tsre/map/TrackItemMapLayer.h>
 #include <tsre/map/TrackMapLayer.h>
 #include <tsre/ogl/OglObj.h>
 #include <routeEditor/TerrainTileCreationDialog.h>
@@ -285,6 +286,8 @@ void RouteEditorGLWidget::cameraInit(){
         cameraMap = new CameraMap();
     if (!trackMap)
         trackMap = std::make_unique<TrackMapLayer>();
+    if (!trackItemMap)
+        trackItemMap = std::make_unique<TrackItemMapLayer>();
     float spos[3];
     if (Game::start == 2) {
         camera->setPozT(Game::startTileX, -Game::startTileY);
@@ -1651,6 +1654,7 @@ void RouteEditorGLWidget::setViewMode(ViewMode mode) {
             enableTool("");
         camera = cameraMap;
         trackMap->invalidate();
+        trackItemMap->invalidate();
     } else {
         // The 3D camera looks at the map pointer from behind and above, in
         // the map's heading.
@@ -1713,6 +1717,8 @@ void RouteEditorGLWidget::paintMap() {
     renderer->setLayer(RenderQueue::LAYER_OVERLAY);
     const MapView &view = cameraMap->view;
     trackMap->pushRenderItems(queue, view, palette, Game::trackDB, Game::roadDB, mapLayers);
+    if (mapLayers.shows(MapLayer::TrackObjects))
+        trackItemMap->pushRenderItems(queue, view, palette, route, Game::trackDB, Game::roadDB);
     // The pointer: a square of a fixed screen size above everything.
     if (mapPointer == NULL)
         mapPointer = new OglObj();
@@ -1958,6 +1964,7 @@ void RouteEditorGLWidget::setDiagnosticMapView(int tileX, int tileZ, float x, fl
         camera = cameraMap;
     }
     trackMap->invalidate();
+    trackItemMap->invalidate();
 }
 
 void RouteEditorGLWidget::diagnosticView(int &tileX, int &tileZ, float *pos,
