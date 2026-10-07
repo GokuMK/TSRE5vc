@@ -2461,9 +2461,9 @@ Consist with this file name already exist. Overwrite?
         <source>&amp;Unselect All</source>
         <translation>&amp;Unselect All</translation>
     </message>
-    <message id="route.editor.route.editor.window.action.view.copy.camera">
-        <source>Copy Camera &amp;Position</source>
-        <translation>Copy Camera &amp;Position</translation>
+    <message id="route.editor.route.editor.window.action.tools.copy.camera">
+        <source>&amp;Copy Camera Position</source>
+        <translation>&amp;Copy Camera Position</translation>
     </message>
     <message id="route.editor.route.editor.window.action.v.view.world.grid">
         <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="281" />
@@ -7858,8 +7858,8 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <translation>Startup camera</translation>
     </message>
     <message id="settings.core.startup.camera.description">
-        <source>Initial Route Editor camera as tileX,tileZ,x,y,z,yaw,pitch: tile and position as in the navigation window, angles in degrees (yaw and pitch may be left out). View &gt; Copy Camera Position copies the current one. Overrides the startup tile and the route&apos;s starting position; empty to leave them.</source>
-        <translation>Initial Route Editor camera as tileX,tileZ,x,y,z,yaw,pitch: tile and position as in the navigation window, angles in degrees (yaw and pitch may be left out). View &gt; Copy Camera Position copies the current one. Overrides the startup tile and the route&apos;s starting position; empty to leave them.</translation>
+        <source>Initial Route Editor camera as tileX,tileZ,x,y,z,yaw,pitch: tile and position as in the navigation window, angles in degrees (yaw and pitch may be left out). Tools &gt; Copy Camera Position copies the current one. Overrides the startup tile and the route&apos;s starting position; empty to leave them.</source>
+        <translation>Initial Route Editor camera as tileX,tileZ,x,y,z,yaw,pitch: tile and position as in the navigation window, angles in degrees (yaw and pitch may be left out). Tools &gt; Copy Camera Position copies the current one. Overrides the startup tile and the route&apos;s starting position; empty to leave them.</translation>
     </message>
     <message id="settings.core.startup.season.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="399" />

@@ -2463,9 +2463,9 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
             <source>&amp;Unselect All</source>
             <translation>&amp;Odznacz wszystko</translation>
         </message>
-        <message id="route.editor.route.editor.window.action.view.copy.camera">
-            <source>Copy Camera &amp;Position</source>
-            <translation>Kopiuj &amp;położenie kamery</translation>
+        <message id="route.editor.route.editor.window.action.tools.copy.camera">
+            <source>&amp;Copy Camera Position</source>
+            <translation>&amp;Kopiuj położenie kamery</translation>
         </message>
         <message id="route.editor.route.editor.window.action.v.view.world.grid">
             <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="281" />
@@ -7863,8 +7863,8 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
             <translation>Kamera startowa</translation>
         </message>
         <message id="settings.core.startup.camera.description">
-            <source>Initial Route Editor camera as tileX,tileZ,x,y,z,yaw,pitch: tile and position as in the navigation window, angles in degrees (yaw and pitch may be left out). View &gt; Copy Camera Position copies the current one. Overrides the startup tile and the route&apos;s starting position; empty to leave them.</source>
-            <translation>Początkowa kamera Edytora tras jako tileX,tileZ,x,y,z,yaw,pitch: kafel i położenie jak w oknie nawigacji, kąty w stopniach (yaw i pitch można pominąć). Widok &gt; Kopiuj położenie kamery kopiuje bieżącą. Zastępuje kafel startowy i początkowe położenie trasy; puste, aby ich nie zmieniać.</translation>
+            <source>Initial Route Editor camera as tileX,tileZ,x,y,z,yaw,pitch: tile and position as in the navigation window, angles in degrees (yaw and pitch may be left out). Tools &gt; Copy Camera Position copies the current one. Overrides the startup tile and the route&apos;s starting position; empty to leave them.</source>
+            <translation>Początkowa kamera Edytora tras jako tileX,tileZ,x,y,z,yaw,pitch: kafel i położenie jak w oknie nawigacji, kąty w stopniach (yaw i pitch można pominąć). Narzędzia &gt; Kopiuj położenie kamery kopiuje bieżącą. Zastępuje kafel startowy i początkowe położenie trasy; puste, aby ich nie zmieniać.</translation>
         </message>
         <message id="settings.core.startup.season.name">
             <location filename="../src/settings/SettingsRegistration.cpp" line="399" />

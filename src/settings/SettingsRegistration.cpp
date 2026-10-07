@@ -478,7 +478,7 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
             .withNameId(
                 //% "Startup camera"
                 QT_TRID_NOOP("settings.core.startup.camera.name")).withDescriptionId(
-                //% "Initial Route Editor camera as tileX,tileZ,x,y,z,yaw,pitch: tile and position as in the navigation window, angles in degrees (yaw and pitch may be left out). View > Copy Camera Position copies the current one. Overrides the startup tile and the route's starting position; empty to leave them."
+                //% "Initial Route Editor camera as tileX,tileZ,x,y,z,yaw,pitch: tile and position as in the navigation window, angles in degrees (yaw and pitch may be left out). Tools > Copy Camera Position copies the current one. Overrides the startup tile and the route's starting position; empty to leave them."
                 QT_TRID_NOOP("settings.core.startup.camera.description")).inGroup("content").inSubgroup("routeStartup"),
         "", "", "Route Editor startup", false, "startup");
     ADD(SettingsDefinition::string("core.startup.season", "", SettingType::Enum)

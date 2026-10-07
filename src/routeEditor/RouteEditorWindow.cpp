@@ -333,15 +333,6 @@ RouteEditorWindow::RouteEditorWindow() {
         qtTrId("route.editor.route.editor.window.action.view.unselect.all"), this);
     viewMenu->addAction(viewUnselectAll);
     QObject::connect(viewUnselectAll, SIGNAL(triggered()), this, SLOT(viewUnselectAll()));
-    QAction* viewCopyCamera = new QAction(
-        //% "Copy Camera &Position"
-        qtTrId("route.editor.route.editor.window.action.view.copy.camera"), this);
-    viewMenu->addAction(viewCopyCamera);
-    QObject::connect(viewCopyCamera, &QAction::triggered, this, [this]() {
-        // A startup argument (startup-args.txt or the command line) that
-        // starts the editor with this camera.
-        QApplication::clipboard()->setText("--set=core.startup.camera=" + glWidget->cameraSetting());
-    });
     viewMenu->addSeparator();
     vViewWorldGrid = GuiFunct::newMenuCheckAction(
         //% "&World Grid"
@@ -466,6 +457,16 @@ RouteEditorWindow::RouteEditorWindow() {
     activityAction->setShortcut(QKeySequence("F4"));
     toolsMenu->addAction(activityAction);
     QObject::connect(activityAction, SIGNAL(triggered(bool)), this, SLOT(showToolsActivity(bool)));
+    toolsMenu->addSeparator();
+    QAction* copyCameraAction = new QAction(
+        //% "&Copy Camera Position"
+        qtTrId("route.editor.route.editor.window.action.tools.copy.camera"), this);
+    toolsMenu->addAction(copyCameraAction);
+    QObject::connect(copyCameraAction, &QAction::triggered, this, [this]() {
+        // A startup argument (startup-args.txt or the command line) that
+        // starts the editor with this camera.
+        QApplication::clipboard()->setText("--set=core.startup.camera=" + glWidget->cameraSetting());
+    });
     // Settigs
     terrainCameraAction = GuiFunct::newMenuCheckAction(
         //% "&Stick Camera To Terrain"
