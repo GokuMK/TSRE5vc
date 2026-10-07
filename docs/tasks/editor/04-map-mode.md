@@ -268,8 +268,9 @@ width.
   - When track sections and nodes become selectable, it goes through the
     selection pass, not CPU picking (decided 2026-10-07). At close zoom
     the lines are drawn much thicker so they are easy to hit.
-- **3D to map**: the map centres on the 3D pointer position, or the
-  camera position when there is no pointer, at the last map zoom.
+- **3D to map**: the map centres on the 3D pointer when it is within
+  500 m of the camera, else on the camera (a pointer near the horizon
+  lies a kilometre or more away), at the last map zoom.
 - **Map to 3D**: the 3D camera moves above the map pointer position. 3D
   mode loads the terrain there, as for any jump, and places the camera
   at terrain height plus a comfortable height (for example 30 m). Its

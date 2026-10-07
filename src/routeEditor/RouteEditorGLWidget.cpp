@@ -1632,13 +1632,16 @@ void RouteEditorGLWidget::setViewMode(ViewMode mode) {
     if (mode == currentViewMode || route == NULL || !route->loaded || cameraMap == NULL)
         return;
     if (mode == ViewMode::Map) {
-        // The map centres on the 3D pointer when it is near, else on the
-        // camera.
+        // The map centres on the 3D pointer when it is near the camera, else
+        // on the camera: a pointer on the horizon (the middle of a level
+        // view) lies a kilometre or more away, and the map would open far
+        // from where the user is.
+        constexpr float PointerNearMetres = 500.0f;
         const float *eye = camera->getPos();
         const float dx = aktPointerPos[0] - eye[0];
         const float dz = aktPointerPos[2] - eye[2];
         const bool pointerNear = std::isfinite(dx) && std::isfinite(dz)
-                && dx * dx + dz * dz < 4000.0f * 4000.0f;
+                && dx * dx + dz * dz < PointerNearMetres * PointerNearMetres;
         cameraMap->setPozT(int(camera->pozT[0]), int(camera->pozT[1]));
         cameraMap->setPos(pointerNear ? aktPointerPos[0] : eye[0], 0.0f,
                           pointerNear ? aktPointerPos[2] : eye[2]);
