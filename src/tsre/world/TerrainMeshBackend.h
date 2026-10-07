@@ -120,6 +120,9 @@ private:
         MeshHandle mapParams;
         int firstPatch = 0;
         int patchCount = 0;
+        // Changed since it was built (terrain editing): its vertices are
+        // uploaded as dynamic, so the renderer keeps a copy for the edits.
+        bool edited = false;
     };
 
     QVector<Page*> pages;
