@@ -431,34 +431,48 @@ Terrain is drawn flat, under every other layer, as textured squares. Which
 squares depends on how much ground the view shows (metres across its
 longer side, as for track objects):
 
-| Level | View | Static tiles | Procedural tiles | Distant terrain |
-|---|---|---|---|---|
-| Distant | wider than 16 km | border only | border only | textured squares with borders |
-| Detailed | 16 km to 6144 m | one square per patch, its texture | one square per tile, its baked fallback | not drawn |
-| Procedural | under 6144 m (as track objects) | as Detailed | the 3D view's direct GPU material shading | not drawn |
+| Level | View | Static tiles | Procedural tiles |
+|---|---|---|---|
+| Distant | wider than 16 km | border only | border only |
+| Detailed | 16 km to 6144 m | one square per patch, its texture | one square per tile, its baked fallback |
+| Procedural | under 6144 m (as track objects) | as Detailed | the 3D view's direct GPU material shading |
 
-- **Distant**: the route's distant (LO) tiles as squares with their
-  textures, with borders. The detailed tiles show only their borders,
-  from the quadtree, so nothing is loaded for them. A route without
-  distant tiles shows only the borders.
-- **Detailed**: only the tile files (`.t`, for the patch textures and
-  their placement) and the procedural tiles' baked fallbacks are read,
-  not the height maps. Static patch textures come from the route's shared
-  texture set. At 16 km about 64 tiles are in view: 16k patch squares,
-  and 32 MiB of 1024-square DXT1 bakes.
-- **Procedural**: the map reuses the 3D view's resources for these tiles
-  as they are: the full material ID map and the per-tile material arrays
-  of the direct GPU path (`prepareProceduralGpuPatch`,
+- **Distant terrain** always renders, at every level, in a layer below
+  the detailed tiles: the route's distant (LO) tiles as squares with
+  their textures, with borders. It fills what the detailed tiles do not
+  cover.
+- **Distant level**: the detailed tiles show only their borders, from the
+  quadtree, so nothing is loaded for them. A route without distant tiles
+  shows only these borders.
+- **Detailed level**: one square per patch with its texture and
+  placement from the tile file; procedural tiles as one square with
+  their baked fallback. Static patch textures come from the route's
+  shared texture set. At 16 km about 64 tiles are in view: 16k patch
+  squares, and 32 MiB of 1024-square DXT1 bakes.
+- **Procedural level**: the map reuses the 3D view's resources for these
+  tiles as they are: the full material ID map and the per-tile material
+  arrays of the direct GPU path (`prepareProceduralGpuPatch`,
   `configureProceduralGpuPacket`). The squares are drawn as terrain
-  packets with that shader, flat, with patch texture coordinates. This
-  loads the tiles as 3D does (about 9 tiles at this bound), height maps
-  included; the map does not use the heights. No custom resizing: the
-  map shows the same content the 3D view would.
+  packets with that shader, flat, with patch texture coordinates. No
+  custom resizing: the map shows the same content the 3D view would.
+- **No height maps at any level.** Both detailed levels need the tile
+  file, the procedural material map and the bake, which live on
+  `Terrain`, but not the heights: everything is drawn flat. `TerrainLib`
+  gets a map load that reads those and skips the height files; a tile
+  the 3D view already loaded is used as it is, and a later 3D load of a
+  map-loaded tile adds the heights. Code that treats a loaded tile as
+  having heights (`getHeight`, brushes, LOD) must see map-loaded tiles
+  as a separate state. Measured with full loads: about 0.25 MiB and
+  2 ms a tile on routes with 256-sample heights (EUROPE1), so 64 tiles
+  would add 16 MiB; but heavy-terrain routes (ULARGE: 8 MiB height file,
+  about 16 MiB of floats a tile) would add about 1 GB at the 16 km bound.
 - **Lighting**: neutral and fixed, not the time of day, so terrain does
   not darken at night in the editor.
-- **Readability**: a palette value `terrainFade` blends terrain towards
-  the background (proposed default 30%), so lines and markers stay
-  readable over textures.
+- **Faded terrain**: a Map menu toggle blends terrain towards the
+  background (the amount a palette value, `terrainFade`, default 30%),
+  so lines and markers stay readable when working on track. Off by
+  default, as painting needs the true colours; terrain can also be
+  hidden altogether with its own toggle.
 - **Painting**: terrain texture tools work at the Detailed and Procedural
   levels, not at Distant. Procedural painting needs the Procedural level,
   where the result shows at once (at Detailed, the bake would change only
@@ -566,3 +580,8 @@ branch, whose merge is not decided.
 - Shared resized material textures are an open improvement, not part of
   this phase.
 - Terrain painting tools work only at the detailed levels.
+- Distant terrain always renders, below the detailed tiles.
+- No height maps at any terrain level; a map load reads the tile file,
+  procedural map and bake only.
+- Faded terrain is a Map menu toggle, off by default; the amount comes
+  from the palette.
