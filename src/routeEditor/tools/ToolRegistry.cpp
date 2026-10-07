@@ -11,11 +11,14 @@
 #include "ToolRegistry.h"
 #include "ObjectTools.h"
 #include "TerrainEditTools.h"
+#include "RouteDataTools.h"
 
 ToolRegistry::ToolRegistry() {
     for (std::unique_ptr<EditorTool> &tool : ObjectTools::create())
         add(std::move(tool));
     for (std::unique_ptr<EditorTool> &tool : TerrainEditTools::create())
+        add(std::move(tool));
+    for (std::unique_ptr<EditorTool> &tool : RouteDataTools::create())
         add(std::move(tool));
 }
 

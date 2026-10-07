@@ -73,6 +73,8 @@ public:
     void sendFlexData() override { flexDataSent = true; }
     void reportTextureId(int) override {}
     void reportMaterialPicked() override {}
+    void openMapTileWindow(Terrain *) override {}
+    void openImageryWindow(Terrain *) override {}
 };
 
 }
@@ -205,6 +207,25 @@ int TsreTests::runEditorToolsSuite(bool verbose) {
     check(!paintMenu.actions().isEmpty() && paintMenu.actions().first()->menu() != nullptr
           && paintMenu.actions().first()->menu()->actions().size() == 4,
           "painting offers four automatic paints");
+
+    // Geo and activity tools; every name the panels send.
+    const QStringList dataTools = {"mapTileShowTool", "mapTileLoadTool", "imageryTileLoadTool",
+                                   "heightTileLoadTool", "actNewLooseConsistTool",
+                                   "actNewSpeedZoneTool", "pickNewEventLocationTool"};
+    allFound = true;
+    for (const QString &id : dataTools)
+        allFound = allFound && registry.find(id) != nullptr;
+    check(allFound, "the geo and activity tools are registered by their panel names");
+    // Names the panels send that need no mouse handling (live flex is a
+    // view state; the others act in their panels).
+    const QStringList withoutTool = {"liveFlexTool", "proceduralPickTool", "proceduralLockTool",
+                                     "setTexTool", "waTileTool"};
+    bool noneRegistered = true;
+    for (const QString &id : withoutTool)
+        noneRegistered = noneRegistered && registry.find(id) == nullptr;
+    check(noneRegistered && registry.ids().size() == objectTools.size() + terrainTools.size()
+                                                     + dataTools.size(),
+          "every other panel name has a tool, and no tool is registered twice");
 
     qInfo().noquote() << "[tests:editor-tools] cases=" << passed + failed << "passed=" << passed
                       << "failed=" << failed;

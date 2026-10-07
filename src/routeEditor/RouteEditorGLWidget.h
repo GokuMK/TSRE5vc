@@ -221,6 +221,8 @@ private:
     void sendFlexData() override;
     void reportTextureId(int textureId) override { emit setBrushTextureId(textureId); }
     void reportMaterialPicked() override { emit terrainMaterialPicked(); }
+    void openMapTileWindow(Terrain *terrain) override;
+    void openImageryWindow(Terrain *terrain) override;
     // The active tool's object; null for no tool or a name without one.
     EditorTool *activeTool() const;
 

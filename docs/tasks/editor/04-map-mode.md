@@ -1,7 +1,31 @@
 # Task 04 - Map Mode (Top-Down Route View)
 
-Status: design, no code yet. Base branch: `main` (decided 2026-10-07, see
-"Branch").
+Status: phase 0 (tool structure) done on `feature/map-mode`; phase 1 next.
+Base branch: `main` (decided 2026-10-07, see "Branch").
+
+Phase 0, in three batches, each to be tested once in the editor:
+
+1. `bbf4442`: framework (`src/routeEditor/tools`: `EditorTool`,
+   `ToolContext`, `ToolRegistry`) and the object tools:
+   - select, place, auto place;
+   - signal link, flex points;
+   - continuous flex track and road, continuous ruler.
+2. `519447e`: the terrain tools:
+   - height, water, gaps;
+   - colour and texture painting, procedural painting and fills,
+     texture picking, procedural tiles;
+   - patch textures, drawing, water level, fixed tile height, texture
+     locks, tile textures.
+3. The geo and activity tools: map tiles, imagery, height from geo data,
+   loose consists, speed zones, event locations.
+
+The view keeps only:
+- "no tool" (the camera takes the left mouse button);
+- the live flex, ruler and telepole sessions;
+- copy and paste, which act under select and place.
+
+`--test-suite=editor-tools` checks the registry, mode gating and tool
+behaviour through a fake context.
 
 ## Objective
 

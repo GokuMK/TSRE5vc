@@ -18,6 +18,7 @@ class Brush;
 class GameObj;
 class Route;
 class TelepoleObj;
+class Terrain;
 class QWidget;
 
 // What the Route Editor view offers its tools. Tools read and change the
@@ -93,6 +94,9 @@ public:
     // terrain tools panel (setBrushTextureId, terrainMaterialPicked).
     virtual void reportTextureId(int textureId) = 0;
     virtual void reportMaterialPicked() = 0;
+    // Geo data windows for a loaded terrain tile: map tiles and imagery.
+    virtual void openMapTileWindow(Terrain *terrain) = 0;
+    virtual void openImageryWindow(Terrain *terrain) = 0;
 };
 
 #endif

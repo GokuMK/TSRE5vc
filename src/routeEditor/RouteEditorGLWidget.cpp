@@ -1466,53 +1466,6 @@ void RouteEditorGLWidget::mousePressEvent(QMouseEvent *event) {
                 return;
             }
         }
-        if (toolEnabled == "mapTileShowTool") {
-            Game::terrainLib->setTileBlob((int) camera->pozT[0], (int) camera->pozT[1], aktPointerPos);
-        }
-        if (toolEnabled == "mapTileLoadTool") {
-            int x = (int) camera->pozT[0];
-            int z = (int) camera->pozT[1];
-            float posx = aktPointerPos[0];
-            float posz = aktPointerPos[2];
-            Game::check_coords(x, z, posx, posz);
-            Terrain *t = Game::terrainLib->getTerrainByXY(x, z);
-            if(t == NULL)
-                return;
-            if(!t->loaded)
-                return;
-            t->getLowCornerTileXY(mapWindow->tileX, mapWindow->tileZ);
-            mapWindow->tileSize = t->getSampleCount()*t->getSampleSize();
-            mapWindow->exec();
-        }
-        if (toolEnabled == "imageryTileLoadTool") {
-            int x = (int) camera->pozT[0];
-            int z = (int) camera->pozT[1];
-            float posx = aktPointerPos[0];
-            float posz = aktPointerPos[2];
-            Game::check_coords(x, z, posx, posz);
-            Terrain *terrain = Game::terrainLib->getTerrainByXY(x, z);
-            if (terrain == NULL || !terrain->loaded)
-                return;
-            terrain->getLowCornerTileXY(imageryWindow->tileX, imageryWindow->tileZ);
-            imageryWindow->terrainSize = terrain->getSampleCount()*terrain->getSampleSize();
-            imageryWindow->distantTerrain = terrain->lowTile;
-            imageryWindow->exec();
-        }
-        if (toolEnabled == "heightTileLoadTool") {
-            Game::terrainLib->setHeightFromGeoGui((int) camera->pozT[0], (int) camera->pozT[1], aktPointerPos);
-        }
-        if (toolEnabled == "actNewLooseConsistTool") {
-            route->actNewLooseConsist((int) camera->pozT[0], (int) camera->pozT[1], aktPointerPos);
-            emit sendMsg("refreshActivityTools");
-        }
-        if (toolEnabled == "actNewSpeedZoneTool") {
-            route->actNewNewSpeedZone((int) camera->pozT[0], (int) camera->pozT[1], aktPointerPos);
-            emit sendMsg("refreshActivityTools");
-        }
-        if (toolEnabled == "pickNewEventLocationTool") {
-            route->actPickNewEventLocation((int) camera->pozT[0], (int) camera->pozT[1], aktPointerPos);
-            enableTool("");
-        }
         if (toolEnabled == "") {
             camera->MouseDown(event);
         }
@@ -1665,6 +1618,19 @@ bool RouteEditorGLWidget::placeContinuousFlex(float *rotation) {
 
 bool RouteEditorGLWidget::placeContinuousRulerPoint(const float *rotation) {
     return placeContinuousRuler(tileX(), tileZ(), aktPointerPos, rotation);
+}
+
+void RouteEditorGLWidget::openMapTileWindow(Terrain *terrain) {
+    terrain->getLowCornerTileXY(mapWindow->tileX, mapWindow->tileZ);
+    mapWindow->tileSize = terrain->getSampleCount()*terrain->getSampleSize();
+    mapWindow->exec();
+}
+
+void RouteEditorGLWidget::openImageryWindow(Terrain *terrain) {
+    terrain->getLowCornerTileXY(imageryWindow->tileX, imageryWindow->tileZ);
+    imageryWindow->terrainSize = terrain->getSampleCount()*terrain->getSampleSize();
+    imageryWindow->distantTerrain = terrain->lowTile;
+    imageryWindow->exec();
 }
 
 void RouteEditorGLWidget::sendFlexData() {
