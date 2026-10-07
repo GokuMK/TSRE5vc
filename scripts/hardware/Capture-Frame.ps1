@@ -23,7 +23,7 @@ param(
 . "$PSScriptRoot\Common.ps1"
 
 $renderDocDir = Split-Path -Parent $TsreQRenderDoc
-$arguments = (Get-TsreArguments $GameRoot $Route $Set) | ForEach-Object { if ($_ -match '\s') { "`"$_`"" } else { $_ } }
+$arguments = Get-TsreArguments $GameRoot $Route $Set
 $vars = @{
     # qrenderdoc loads its own Qt 5 from its folder; TSRE finds Qt 6 at the
     # end of PATH. Qt plugin paths and the Vulkan layer go to TSRE only.

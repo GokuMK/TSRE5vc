@@ -43,7 +43,10 @@ function Get-TsreArguments([string]$GameRoot, [string]$Route, [string[]]$Set = @
     $a = @()
     if ($GameRoot) { $a += "--game-root=$GameRoot" }
     if ($Route) { $a += "--route=$Route" }
-    return $a + @($Set | Where-Object { $_ } | ForEach-Object { "--set=$_" }) + @($Extra | Where-Object { $_ })
+    $a = $a + @($Set | Where-Object { $_ } | ForEach-Object { "--set=$_" }) + @($Extra | Where-Object { $_ })
+    # Windows PowerShell's Start-Process joins arguments with spaces without
+    # quoting them.
+    return @($a | ForEach-Object { if ($_ -match '\s' -and $_ -notmatch '^".*"$') { "`"$_`"" } else { $_ } })
 }
 
 # Starts TSRE from the repository root (it finds appdata/ there and writes

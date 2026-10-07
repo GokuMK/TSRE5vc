@@ -19,6 +19,11 @@ Output goes to `build\hardware\` (ignored by git). Settings go in as
 `-Set key=value,...` (`--set` of TSRE), environment variables as
 `-EnvVars @{ NAME = 'value' }`; they apply to the started TSRE only.
 
+To measure or capture at a chosen spot, start the editor there:
+`core.startup.camera=tileX,tileZ,x,y,z,yaw,pitch` (tile and position as in
+the navigation window, angles in degrees). **View > Copy Camera Position**
+copies the current camera as that `--set` argument.
+
 ```powershell
 cd scripts\hardware
 $common = 'core.rendering.backend=qrhi', 'core.interface.hud.showEditorFps=true'
