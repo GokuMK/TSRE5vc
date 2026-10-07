@@ -9,7 +9,8 @@ Both renderers; off by default.
 
 ## Settings
 
-- `core.rendering.timeOfDay.enabled` (off).
+- `core.rendering.timeOfDay.enabled` (off). Off, the editor keeps its fixed
+  daytime light and local lights stay at full strength (see "Sun").
 - `core.rendering.timeOfDay.time` (12): local mean solar time in hours at
   the camera; 12 is when the sun is highest on average. Clock time needs the
   route's time zone, which routes do not record.
@@ -47,6 +48,12 @@ to full at sunset, as eyes adapt to daylight. The scale goes evenly in log
 space (17 % at 10 degrees, 58 % at 5): a linear fade, from full at -6
 degrees to 3 % at 10, left lamps invisible until the sun had set (user's
 test, 2026-10-07).
+
+This daylight scale applies only with time of day on. Off, local lights
+are at full strength under the fixed daytime light, by design: off is an
+editing mode that keeps every lamp's light visible (task 21, user's
+decision, 2026-10-08). Bright pools of light in the default editor view are
+expected then, not a bug.
 
 ## Verification
 

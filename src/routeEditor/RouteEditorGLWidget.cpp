@@ -857,6 +857,9 @@ void RouteEditorGLWidget::applyTimeOfDay() {
             std::copy(state.fog, state.fog + 4, gluu->fogColor);
             std::copy(state.diffuse, state.diffuse + 4, gluu->diffuseColor);
             std::copy(state.ambient, state.ambient + 4, gluu->ambientColor);
+            // Lamps at full strength under the fixed daytime light, by design:
+            // time of day off is an editing mode that keeps every lamp's light
+            // visible (tasks 21 and 22). Only time of day scales them down.
             gluu->localLightAdaptation = 1.0f;
             const float fixed[3] = {-1.0f, 1.5f, 1.0f};
             std::copy(fixed, fixed + 3, shadowSunDirection);

@@ -75,6 +75,14 @@ With time of day (task 22) lamps and glows adapt to daylight as eyes and
 cameras do: full at night, 3 % in full daylight, so lamps light the scene at
 dusk and night without pools of light at noon.
 
+With time of day off, lamps and glows are always at full strength, although
+the fixed editor light is a daytime sun (about 55 degrees up), under which
+time of day would give 3 %. This is intended, not a bug: off is an editing
+mode in which every lamp's light stays visible for placing and checking
+lamps. Pools of light in the daylit editor are therefore expected with
+time of day off; to judge how lamps look by day, dusk or night, turn time
+of day on (user's decision, 2026-10-08).
+
 ## Settings
 
 - `core.rendering.localLights.enabled` (on).
