@@ -7,6 +7,7 @@
 #include <QWidget>
 #include <routeEditor/tools/ToolContext.h>
 #include <routeEditor/tools/ToolRegistry.h>
+#include <tsre/texture/Brush.h>
 
 namespace {
 
@@ -33,7 +34,8 @@ public:
     int tileZ() const override { return -20; }
     float *pointer() override { return pointerPosition; }
     float cameraHeading() const override { return 0.0f; }
-    Brush *brush() override { return nullptr; }
+    Brush paintBrush;
+    Brush *brush() override { return &paintBrush; }
     GameObj *selected() const override { return nullptr; }
     void select(GameObj *) override {}
     void setLastSelected(GameObj *) override {}
@@ -44,7 +46,8 @@ public:
     bool pointerSticksToTerrain() const override { return sticks; }
     void setPointerSticksToTerrain(bool terrainOnly) override { sticks = terrainOnly; }
     bool shiftDown() const override { return false; }
-    bool controlDown() const override { return false; }
+    bool control = false;
+    bool controlDown() const override { return control; }
     float keyMoveStep() const override { return 0.25f; }
     bool stepReset = false;
     void resetKeyMoveStep() override { stepReset = true; }
@@ -65,8 +68,11 @@ public:
     void startTelepole(TelepoleObj *) override {}
     void activateTool(const QString &id) override { activated = id; }
     void message(const QString &) override {}
-    void message(const QString &, const QString &) override {}
+    QString lastMessage;
+    void message(const QString &name, const QString &value) override { lastMessage = name + value; }
     void sendFlexData() override { flexDataSent = true; }
+    void reportTextureId(int) override {}
+    void reportMaterialPicked() override {}
 };
 
 }
@@ -156,6 +162,49 @@ int TsreTests::runEditorToolsSuite(bool verbose) {
     }
     check(!ctx.sticks && ctx.stepReset && ctx.rotationReset,
           "the place menu sets the pointer and resets step and rotation");
+
+    // Terrain tools.
+    const QStringList terrainTools = {"heightTool", "waterTerrTool", "gapsTerrainTool",
+                                      "paintToolColor", "paintToolTexture",
+                                      "proceduralPaintTextureTool", "proceduralFillPatchTool",
+                                      "proceduralFillTool", "pickTerrainTexTool",
+                                      "proceduralTileEnableTool", "proceduralTileDisableTool",
+                                      "putTerrainTexTool", "drawTerrTool", "waterHeightTileTool",
+                                      "fixedTileTool", "lockTexTool", "makeTileTextureTool",
+                                      "removeTileTextureTool"};
+    allFound = true;
+    for (const QString &id : terrainTools)
+        allFound = allFound && registry.find(id) != nullptr;
+    check(allFound, "the terrain tools are registered by their panel names");
+    EditorTool *height = registry.find("heightTool");
+    QKeyEvent keyZ(QEvent::KeyPress, Qt::Key_Z, Qt::NoModifier);
+    ctx.paintBrush.direction = 1;
+    check(height->key(ctx, &keyZ) && ctx.paintBrush.direction == -1 && ctx.lastMessage == "brushDirection-",
+          "Z flips the height brush and tells the panel");
+    ctx.control = true;
+    check(!height->key(ctx, &keyZ) && ctx.paintBrush.direction == -1,
+          "Control Z is left to undo");
+    ctx.control = false;
+    QMenu directionMenu;
+    registry.find("gapsTerrainTool")->contextMenu(ctx, directionMenu);
+    QMenu *direction = directionMenu.actions().isEmpty() ? nullptr : directionMenu.actions().first()->menu();
+    if (direction != nullptr && direction->actions().size() == 2)
+        direction->actions()[0]->trigger();
+    check(direction != nullptr && ctx.paintBrush.direction == 1 && ctx.lastMessage == "brushDirection+",
+          "the direction menu sets the brush direction");
+    QMenu orientationMenu;
+    registry.find("putTerrainTexTool")->contextMenu(ctx, orientationMenu);
+    QMenu *orientation = orientationMenu.actions().isEmpty() ? nullptr
+                                                             : orientationMenu.actions().first()->menu();
+    if (orientation != nullptr && orientation->actions().size() == 6)
+        orientation->actions()[3]->trigger();
+    check(orientation != nullptr && ctx.paintBrush.texTransformation == Brush::ROT90,
+          "the texture menu sets the patch orientation");
+    QMenu paintMenu;
+    registry.find("paintToolTexture")->contextMenu(ctx, paintMenu);
+    check(!paintMenu.actions().isEmpty() && paintMenu.actions().first()->menu() != nullptr
+          && paintMenu.actions().first()->menu()->actions().size() == 4,
+          "painting offers four automatic paints");
 
     qInfo().noquote() << "[tests:editor-tools] cases=" << passed + failed << "passed=" << passed
                       << "failed=" << failed;

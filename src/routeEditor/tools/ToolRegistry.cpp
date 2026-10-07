@@ -10,9 +10,12 @@
 
 #include "ToolRegistry.h"
 #include "ObjectTools.h"
+#include "TerrainEditTools.h"
 
 ToolRegistry::ToolRegistry() {
     for (std::unique_ptr<EditorTool> &tool : ObjectTools::create())
+        add(std::move(tool));
+    for (std::unique_ptr<EditorTool> &tool : TerrainEditTools::create())
         add(std::move(tool));
 }
 

@@ -116,29 +116,11 @@ public slots:
     
     void selectToolresetMoveStep();
     void selectToolresetRot();
-    void selectToolSelect();
-    void selectToolRotate();
-    void selectToolTranslate();
-    void selectToolScale();
-    void toolBrushDirectionUp();
-    void toolBrushDirectionDown();
-    void putTerrainTexToolSelectRandom();
-    void putTerrainTexToolSelectPresent();
-    void putTerrainTexToolSelect0();
-    void putTerrainTexToolSelect90();
-    void putTerrainTexToolSelect180();
-    void putTerrainTexToolSelect270();
-    void placeToolStickTerrain();
-    void placeToolStickAll();
     void reloadRefFile();
     void reloadTrackProfiles();
     void refreshMarkerList();
     void setCameraObject(GameObj* obj);
     void setMoveStep(float val);
-    void paintToolObj();
-    void paintToolObjSelected();
-    void paintToolTDB();
-    void paintToolTDBVector();
     void setTerrainToObj();
     void adjustObjPositionToTerrainMenu();
     void adjustObjRotationToTerrainMenu();
@@ -237,6 +219,8 @@ private:
     void message(const QString &name) override { emit sendMsg(name); }
     void message(const QString &name, const QString &value) override { emit sendMsg(name, value); }
     void sendFlexData() override;
+    void reportTextureId(int textureId) override { emit setBrushTextureId(textureId); }
+    void reportMaterialPicked() override { emit terrainMaterialPicked(); }
     // The active tool's object; null for no tool or a name without one.
     EditorTool *activeTool() const;
 

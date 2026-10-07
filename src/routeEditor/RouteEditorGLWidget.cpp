@@ -1365,21 +1365,6 @@ void RouteEditorGLWidget::keyPressEvent(QKeyEvent * event) {
         default:
             break;
     }
-    if (toolEnabled == "heightTool" || toolEnabled == "waterTerrTool" || toolEnabled == "gapsTerrainTool") {
-        switch (event->key()) {
-            case Qt::Key_Z:
-                if (!keyControlEnabled) {
-                    this->defaultPaintBrush->direction = -this->defaultPaintBrush->direction;
-                    if (this->defaultPaintBrush->direction == 1)
-                        emit sendMsg(QString("brushDirection"), QString("+"));
-                    else
-                        emit sendMsg(QString("brushDirection"), QString("-"));
-                }
-                break;
-            default:
-                break;
-        }
-    }
     if (EditorTool *tool = activeTool())
         tool->key(*this, event);
 }
@@ -1481,81 +1466,6 @@ void RouteEditorGLWidget::mousePressEvent(QMouseEvent *event) {
                 return;
             }
         }
-        if (toolEnabled == "heightTool") {
-            // qDebug() << aktPointerPos[0] << " " << aktPointerPos[2];
-            route->paintHeightMap(defaultPaintBrush, (int) camera->pozT[0], (int) camera->pozT[1], aktPointerPos);
-        }
-        if (toolEnabled.startsWith("paintTool")) {
-            // qDebug() << aktPointerPos[0] << " " << aktPointerPos[2];
-            if (keyControlEnabled)
-                route->setTerrainTextureToTrack((int) camera->pozT[0], (int) camera->pozT[1], aktPointerPos, defaultPaintBrush, 0);
-            else if (keyShiftEnabled)
-                route->setTerrainTextureToObj((int) camera->pozT[0], (int) camera->pozT[1], aktPointerPos, defaultPaintBrush, NULL);
-            else
-                Game::terrainLib->paintTexture(defaultPaintBrush, (int) camera->pozT[0], (int) camera->pozT[1], aktPointerPos);
-        }
-        if (toolEnabled == "proceduralPaintTextureTool" || toolEnabled == "proceduralFillPatchTool"
-                || toolEnabled == "proceduralFillTool") {
-            const int operation=toolEnabled=="proceduralFillPatchTool" ? TerrainMaterialMap::FillPatch
-                    : (toolEnabled=="proceduralFillTool" ? TerrainMaterialMap::FloodFill : TerrainMaterialMap::TexturePaint);
-            Game::terrainLib->paintProceduralTexture(defaultPaintBrush,int(camera->pozT[0]),int(camera->pozT[1]),aktPointerPos,operation);
-        }
-        if (toolEnabled == "pickTerrainTexTool") {
-            // qDebug() << aktPointerPos[0] << " " << aktPointerPos[2];
-            int textureId = Game::terrainLib->getTexture((int) camera->pozT[0], (int) camera->pozT[1], aktPointerPos);
-            emit setBrushTextureId(textureId);
-            int x=int(camera->pozT[0]), z=int(camera->pozT[1]);
-            float px=aktPointerPos[0], pz=aktPointerPos[2];
-            Game::check_coords(x,z,px,pz);
-            Terrain *terrain=Game::terrainLib->getTerrainByXY(x,z);
-            if (terrain && textureId >= 0) terrain->rememberProceduralSource(defaultPaintBrush,x,z,px,pz);
-            if (textureId>=0) emit terrainMaterialPicked();
-            // Procedural picking acquires a source ref; static picking borrows
-            // the patch's ref. The toolbar now retains its own selection/history.
-            if (terrain && terrain->usesProceduralMaterial() && textureId>=0) TexLib::delRef(textureId);
-        }
-        if (toolEnabled == "proceduralTileEnableTool" || toolEnabled == "proceduralTileDisableTool") {
-            int x=int(camera->pozT[0]), z=int(camera->pozT[1]);
-            float px=aktPointerPos[0], pz=aktPointerPos[2];
-            Game::check_coords(x,z,px,pz);
-            Terrain *terrain=Game::terrainLib->getTerrainByXY(x,z);
-            QString error;
-            const bool enable=toolEnabled == "proceduralTileEnableTool";
-            bool restore=false, cancelled=false;
-            if (terrain && terrain->loaded && enable && !terrain->usesProceduralMaterial()
-                    && terrain->hasSavedProceduralMap()) {
-                const auto answer=QMessageBox::question(this,tr("Restore procedural map"),
-                    tr("An existing procedural material map was found for this tile. Restore it?\n\n"
-                       "Painted regions will be preserved, but random materials may be assigned if the original material mapping is missing.\n\n"
-                       "Choose No to fill the whole tile with the selected material instead."),
-                    QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel,QMessageBox::Yes);
-                restore=answer==QMessageBox::Yes;
-                cancelled=answer==QMessageBox::Cancel;
-            }
-            if (!cancelled && terrain && terrain->loaded && !terrain->setProceduralMaterial(enable,error,
-                    defaultPaintBrush ? defaultPaintBrush->terrainMaterialUid : 0,restore))
-                QMessageBox::warning(this,
-                    //% "Procedural terrain"
-                    qtTrId("route.editor.route.editor.glwidget.dialog.title.procedural.terrain"),error);
-        }
-        if (toolEnabled == "putTerrainTexTool") {
-            Game::terrainLib->setTerrainTexture(defaultPaintBrush, (int) camera->pozT[0], (int) camera->pozT[1], aktPointerPos);
-            lastPointerPos[0] = aktPointerPos[0];
-            lastPointerPos[1] = aktPointerPos[1];
-            lastPointerPos[2] = aktPointerPos[2];
-        }
-        if (toolEnabled == "waterTerrTool") {
-            Game::terrainLib->toggleWaterDraw((int) camera->pozT[0], (int) camera->pozT[1], aktPointerPos, defaultPaintBrush->direction);
-        }
-        if (toolEnabled == "drawTerrTool") {
-            Game::terrainLib->toggleDraw((int) camera->pozT[0], (int) camera->pozT[1], aktPointerPos);
-        }
-        if (toolEnabled == "waterHeightTileTool") {
-            Game::terrainLib->setWaterLevelGui((int) camera->pozT[0], (int) camera->pozT[1], aktPointerPos);
-        }
-        if (toolEnabled == "fixedTileTool") {
-            Game::terrainLib->setFixedTileHeight(defaultPaintBrush, (int) camera->pozT[0], (int) camera->pozT[1], aktPointerPos);
-        }
         if (toolEnabled == "mapTileShowTool") {
             Game::terrainLib->setTileBlob((int) camera->pozT[0], (int) camera->pozT[1], aktPointerPos);
         }
@@ -1590,18 +1500,6 @@ void RouteEditorGLWidget::mousePressEvent(QMouseEvent *event) {
         }
         if (toolEnabled == "heightTileLoadTool") {
             Game::terrainLib->setHeightFromGeoGui((int) camera->pozT[0], (int) camera->pozT[1], aktPointerPos);
-        }
-        if (toolEnabled == "lockTexTool") {
-            Game::terrainLib->lockTexture(defaultPaintBrush, (int) camera->pozT[0], (int) camera->pozT[1], aktPointerPos);
-        }
-        if (toolEnabled == "gapsTerrainTool") {
-            Game::terrainLib->toggleGaps((int) camera->pozT[0], (int) camera->pozT[1], aktPointerPos, defaultPaintBrush->direction);
-        }
-        if (toolEnabled == "makeTileTextureTool") {
-            Game::terrainLib->makeTextureFromMap((int) camera->pozT[0], (int) camera->pozT[1], aktPointerPos);
-        }
-        if (toolEnabled == "removeTileTextureTool") {
-            Game::terrainLib->removeTileTextureFromMap((int) camera->pozT[0], (int) camera->pozT[1], aktPointerPos);
         }
         if (toolEnabled == "actNewLooseConsistTool") {
             route->actNewLooseConsist((int) camera->pozT[0], (int) camera->pozT[1], aktPointerPos);
@@ -1712,34 +1610,6 @@ void RouteEditorGLWidget::mouseMoveEvent(QMouseEvent *event) {
         camera->MouseMove(event);
     }
     if ((event->buttons() & 1) == Qt::LeftButton) {
-        if (toolEnabled.startsWith("paintTool") && mouseLPressed == true) {
-            if (mousex != m_lastPos.x() || mousey != m_lastPos.y()) {
-                Game::terrainLib->paintTexture(defaultPaintBrush, (int) camera->pozT[0], (int) camera->pozT[1], aktPointerPos);
-            }
-        }
-        if (toolEnabled == "proceduralPaintTextureTool" && mouseLPressed
-                && (mousex != m_lastPos.x() || mousey != m_lastPos.y())) {
-            Undo::StateBeginIfNotExist();
-            Game::terrainLib->paintProceduralTexture(defaultPaintBrush,int(camera->pozT[0]),int(camera->pozT[1]),aktPointerPos);
-        }
-        if (toolEnabled == "heightTool" && mouseLPressed == true) {
-            if (mousex != m_lastPos.x() || mousey != m_lastPos.y()) {
-                route->paintHeightMap(defaultPaintBrush, (int) camera->pozT[0], (int) camera->pozT[1], aktPointerPos);
-            }
-        }
-        if (toolEnabled == "waterTerrTool") {
-            if (mousex != m_lastPos.x() || mousey != m_lastPos.y()) {
-                Game::terrainLib->toggleWaterDraw((int) camera->pozT[0], (int) camera->pozT[1], aktPointerPos, defaultPaintBrush->direction);
-            }
-        }
-        if (toolEnabled == "putTerrainTexTool" && mouseLPressed == true) {
-            if (fabs(lastPointerPos[0] - aktPointerPos[0]) > 32 || fabs(lastPointerPos[2] - aktPointerPos[2]) > 32) {
-                Game::terrainLib->setTerrainTexture(defaultPaintBrush, (int) camera->pozT[0], (int) camera->pozT[1], aktPointerPos);
-                lastPointerPos[0] = aktPointerPos[0];
-                lastPointerPos[1] = aktPointerPos[1];
-                lastPointerPos[2] = aktPointerPos[2];
-            }
-        }
         if (mouseLPressed)
             if (EditorTool *tool = activeTool())
                 tool->drag(*this, ToolMouse{QPointF(mousex, mousey), m_lastPos});
@@ -3094,87 +2964,6 @@ void RouteEditorGLWidget::selectToolresetRot(){
     placeElev = 0;
 }
 
-void RouteEditorGLWidget::selectToolSelect(){
-    resizeTool = false;
-    translateTool = false;
-    rotateTool = false;
-}
-
-void RouteEditorGLWidget::selectToolRotate(){
-    resizeTool = false;
-    translateTool = false;
-    rotateTool = true;
-}
-
-void RouteEditorGLWidget::selectToolTranslate(){
-    resizeTool = false;
-    translateTool = true;
-    rotateTool = false;
-}
-
-void RouteEditorGLWidget::selectToolScale(){
-    resizeTool = true;
-    translateTool = false;
-    rotateTool = false;
-}
-
-void RouteEditorGLWidget::toolBrushDirectionUp(){
-    defaultPaintBrush->direction = 1;
-    emit sendMsg(QString("brushDirection"), QString("+"));
-}
-
-void RouteEditorGLWidget::toolBrushDirectionDown(){
-    defaultPaintBrush->direction = -1;
-    emit sendMsg(QString("brushDirection"), QString("-"));
-}
-void RouteEditorGLWidget::putTerrainTexToolSelectRandom(){
-    defaultPaintBrush->texTransformation = defaultPaintBrush->RANDOM;
-}
-
-void RouteEditorGLWidget::putTerrainTexToolSelectPresent(){
-    defaultPaintBrush->texTransformation = defaultPaintBrush->PRESENT;
-}
-
-void RouteEditorGLWidget::putTerrainTexToolSelect0(){
-    defaultPaintBrush->texTransformation = defaultPaintBrush->ROT0;
-}
-
-void RouteEditorGLWidget::putTerrainTexToolSelect90(){
-    defaultPaintBrush->texTransformation = defaultPaintBrush->ROT90;
-}
-
-void RouteEditorGLWidget::putTerrainTexToolSelect180(){
-    defaultPaintBrush->texTransformation = defaultPaintBrush->ROT180;
-}
-
-void RouteEditorGLWidget::putTerrainTexToolSelect270(){
-    defaultPaintBrush->texTransformation = defaultPaintBrush->ROT270;
-}
-
-void RouteEditorGLWidget::placeToolStickTerrain(){
-    stickPointerToTerrain = true;
-}
-
-void RouteEditorGLWidget::placeToolStickAll(){
-    stickPointerToTerrain = false;
-}
-
-void RouteEditorGLWidget::paintToolObjSelected(){
-    route->setTerrainTextureToObj((int) camera->pozT[0], (int) camera->pozT[1], aktPointerPos, defaultPaintBrush, (WorldObj*) selectedObj);
-}
-
-void RouteEditorGLWidget::paintToolObj(){
-    route->setTerrainTextureToObj((int) camera->pozT[0], (int) camera->pozT[1], aktPointerPos, defaultPaintBrush, NULL);
-}
-
-void RouteEditorGLWidget::paintToolTDB(){
-    route->setTerrainTextureToTrack((int) camera->pozT[0], (int) camera->pozT[1], aktPointerPos, defaultPaintBrush, 0);
-}
-
-void RouteEditorGLWidget::paintToolTDBVector(){
-    route->setTerrainTextureToTrack((int) camera->pozT[0], (int) camera->pozT[1], aktPointerPos, defaultPaintBrush, 1);
-}
-
 void RouteEditorGLWidget::editFind1x1() {
     editFind(0);
 }
@@ -3343,8 +3132,6 @@ void RouteEditorGLWidget::showContextMenu(const QPoint & point) {
     }
     
     QMenu menu;
-    QMenu menuTool;
-    QMenu menuPointer;
     QString menuStyle = QString(
         "QMenu::separator {\
           color: ")+Game::StyleMainLabel+";\
@@ -3377,147 +3164,6 @@ void RouteEditorGLWidget::showContextMenu(const QPoint & point) {
         menu.addSection(toolName);
         if (EditorTool *tool = activeTool())
             tool->contextMenu(*this, menu);
-        if (toolEnabled == "heightTool" || toolEnabled == "waterTerrTool" || toolEnabled == "gapsTerrainTool"){
-            menu.addMenu(&menuTool);
-            if(defaultMenuActions["toolDirectionUp"] == NULL){
-                defaultMenuActions["toolDirectionUp"] = GuiFunct::newMenuCheckAction(
-                    //% "&Up"
-                    qtTrId("route.editor.route.editor.glwidget.action.up"), this, (defaultPaintBrush->direction+1));
-                QObject::connect(defaultMenuActions["toolDirectionUp"], SIGNAL(triggered()), this, SLOT(toolBrushDirectionUp()));
-            }
-            defaultMenuActions["toolDirectionUp"]->setChecked((defaultPaintBrush->direction+1)); 
-            if(defaultMenuActions["toolDirectionDown"] == NULL){
-                defaultMenuActions["toolDirectionDown"] = GuiFunct::newMenuCheckAction(
-                    //% "&Down"
-                    qtTrId("route.editor.route.editor.glwidget.action.down"), this, !((defaultPaintBrush->direction+1)));
-                QObject::connect(defaultMenuActions["toolDirectionDown"], SIGNAL(triggered()), this, SLOT(toolBrushDirectionDown()));
-            }
-            defaultMenuActions["toolDirectionDown"]->setChecked(!((defaultPaintBrush->direction+1))); 
-            menuTool.addAction(defaultMenuActions["toolDirectionUp"]); 
-            menuTool.addAction(defaultMenuActions["toolDirectionDown"]);
-            
-            if (toolEnabled == "heightTool"){
-                menuTool.setTitle(
-                    //% "Paint Direction"
-                    qtTrId("route.editor.route.editor.glwidget.group.paint.direction"));
-                defaultMenuActions["toolDirectionUp"]->setText(
-                    //% "Up"
-                    qtTrId("route.editor.route.editor.glwidget.text.up"));
-                defaultMenuActions["toolDirectionDown"]->setText(
-                    //% "Down"
-                    qtTrId("route.editor.route.editor.glwidget.text.down"));
-            }
-            if (toolEnabled == "waterTerrTool"){
-                menuTool.setTitle(
-                    //% "Water"
-                    qtTrId("route.editor.route.editor.glwidget.group.water"));
-                defaultMenuActions["toolDirectionUp"]->setText(
-                    //% "Show"
-                    qtTrId("route.editor.route.editor.glwidget.text.show"));
-                defaultMenuActions["toolDirectionDown"]->setText(
-                    //% "Hide"
-                    qtTrId("route.editor.route.editor.glwidget.text.hide"));
-            }
-            if (toolEnabled == "gapsTerrainTool"){
-                menuTool.setTitle(
-                    //% "Gaps"
-                    qtTrId("route.editor.route.editor.glwidget.group.gaps"));
-                defaultMenuActions["toolDirectionUp"]->setText(
-                    //% "Show"
-                    qtTrId("route.editor.route.editor.glwidget.text.show.2"));
-                defaultMenuActions["toolDirectionDown"]->setText(
-                    //% "Hide"
-                    qtTrId("route.editor.route.editor.glwidget.text.hide.2"));
-            }
-        }
-        if (toolEnabled == "putTerrainTexTool"){
-            menuTool.setTitle(
-                //% "Default"
-                qtTrId("route.editor.route.editor.glwidget.group.default"));
-            menu.addMenu(&menuTool);
-            if(defaultMenuActions["putTerrainTexRandom"] == NULL){
-                defaultMenuActions["putTerrainTexRandom"] = GuiFunct::newMenuCheckAction(
-                    //% "&Random"
-                    qtTrId("route.editor.route.editor.glwidget.action.random"), this, defaultPaintBrush->texTransformation == defaultPaintBrush->RANDOM);
-                QObject::connect(defaultMenuActions["putTerrainTexRandom"], SIGNAL(triggered()), this, SLOT(putTerrainTexToolSelectRandom()));
-            }
-            defaultMenuActions["putTerrainTexRandom"]->setChecked(defaultPaintBrush->texTransformation == defaultPaintBrush->RANDOM);
-            if(defaultMenuActions["putTerrainTexPresent"] == NULL){
-                defaultMenuActions["putTerrainTexPresent"] = GuiFunct::newMenuCheckAction(
-                    //% "&Present"
-                    qtTrId("route.editor.route.editor.glwidget.action.present"), this, defaultPaintBrush->texTransformation == defaultPaintBrush->PRESENT);
-                QObject::connect(defaultMenuActions["putTerrainTexPresent"], SIGNAL(triggered()), this, SLOT(putTerrainTexToolSelectPresent()));
-            }
-            defaultMenuActions["putTerrainTexPresent"]->setChecked(defaultPaintBrush->texTransformation == defaultPaintBrush->PRESENT);
-            if(defaultMenuActions["putTerrainTex0"] == NULL){
-                defaultMenuActions["putTerrainTex0"] = GuiFunct::newMenuCheckAction(
-                    //% "&Rotate 0°"
-                    qtTrId("route.editor.route.editor.glwidget.action.rotate.0"), this, defaultPaintBrush->texTransformation == defaultPaintBrush->ROT0);
-                QObject::connect(defaultMenuActions["putTerrainTex0"], SIGNAL(triggered()), this, SLOT(putTerrainTexToolSelect0()));
-            }
-            defaultMenuActions["putTerrainTex0"]->setChecked(defaultPaintBrush->texTransformation == defaultPaintBrush->ROT0);
-            if(defaultMenuActions["putTerrainTex90"] == NULL){
-                defaultMenuActions["putTerrainTex90"] = GuiFunct::newMenuCheckAction(
-                    //% "&Rotate 90°"
-                    qtTrId("route.editor.route.editor.glwidget.action.rotate.90"), this, defaultPaintBrush->texTransformation == defaultPaintBrush->ROT90);
-                QObject::connect(defaultMenuActions["putTerrainTex90"], SIGNAL(triggered()), this, SLOT(putTerrainTexToolSelect90()));
-            }
-            defaultMenuActions["putTerrainTex90"]->setChecked(defaultPaintBrush->texTransformation == defaultPaintBrush->ROT90);
-            if(defaultMenuActions["putTerrainTex180"] == NULL){
-                defaultMenuActions["putTerrainTex180"] = GuiFunct::newMenuCheckAction(
-                    //% "&Rotate 180°"
-                    qtTrId("route.editor.route.editor.glwidget.action.rotate.180"), this, defaultPaintBrush->texTransformation == defaultPaintBrush->ROT180);
-                QObject::connect(defaultMenuActions["putTerrainTex180"], SIGNAL(triggered()), this, SLOT(putTerrainTexToolSelect180()));
-            }
-            defaultMenuActions["putTerrainTex180"]->setChecked(defaultPaintBrush->texTransformation == defaultPaintBrush->ROT180);
-            if(defaultMenuActions["putTerrainTex270"] == NULL){
-                defaultMenuActions["putTerrainTex270"] = GuiFunct::newMenuCheckAction(
-                    //% "&Rotate 270°"
-                    qtTrId("route.editor.route.editor.glwidget.action.rotate.270"), this, defaultPaintBrush->texTransformation == defaultPaintBrush->ROT270);
-                QObject::connect(defaultMenuActions["putTerrainTex270"], SIGNAL(triggered()), this, SLOT(putTerrainTexToolSelect270()));
-            }
-            defaultMenuActions["putTerrainTex270"]->setChecked(defaultPaintBrush->texTransformation == defaultPaintBrush->ROT270);
-            menuTool.addAction(defaultMenuActions["putTerrainTexRandom"]);
-            menuTool.addAction(defaultMenuActions["putTerrainTexPresent"]);
-            menuTool.addAction(defaultMenuActions["putTerrainTex0"]);
-            menuTool.addAction(defaultMenuActions["putTerrainTex90"]); 
-            menuTool.addAction(defaultMenuActions["putTerrainTex180"]);
-            menuTool.addAction(defaultMenuActions["putTerrainTex270"]);
-        }
-        if (toolEnabled.startsWith("paintTool")){
-            menuTool.setTitle(
-                //% "Auto Paint"
-                qtTrId("route.editor.route.editor.glwidget.group.auto.paint"));
-            menu.addMenu(&menuTool);   
-            if(defaultMenuActions["paintToolObjSelected"] == NULL){
-                defaultMenuActions["paintToolObjSelected"] = new QAction(
-                    //% "&Selected Object"
-                    qtTrId("route.editor.route.editor.glwidget.action.selected.object"), this);
-                QObject::connect(defaultMenuActions["paintToolObjSelected"], SIGNAL(triggered()), this, SLOT(paintToolObjSelected()));
-            }
-            if(defaultMenuActions["paintToolObj"] == NULL){
-                defaultMenuActions["paintToolObj"] = new QAction(
-                    //% "&Nearest Object"
-                    qtTrId("route.editor.route.editor.glwidget.action.nearest.object"), this);
-                QObject::connect(defaultMenuActions["paintToolObj"], SIGNAL(triggered()), this, SLOT(paintToolObj()));
-            }
-            if(defaultMenuActions["paintToolTDB"] == NULL){
-                defaultMenuActions["paintToolTDB"] = new QAction(
-                    //% "&Nearest Track or Road"
-                    qtTrId("route.editor.route.editor.glwidget.action.nearest.track.road"), this);
-                QObject::connect(defaultMenuActions["paintToolTDB"], SIGNAL(triggered()), this, SLOT(paintToolTDB()));
-            }
-            if(defaultMenuActions["paintToolTDBVector"] == NULL){
-                defaultMenuActions["paintToolTDBVector"] = new QAction(
-                    //% "&Nearest TDB/RDB Vector"
-                    qtTrId("route.editor.route.editor.glwidget.action.nearest.tdb.rdb.vector"), this);
-                QObject::connect(defaultMenuActions["paintToolTDBVector"], SIGNAL(triggered()), this, SLOT(paintToolTDBVector()));
-            }
-            menuTool.addAction(defaultMenuActions["paintToolObjSelected"]);
-            menuTool.addAction(defaultMenuActions["paintToolObj"]);
-            menuTool.addAction(defaultMenuActions["paintToolTDB"]);
-            menuTool.addAction(defaultMenuActions["paintToolTDBVector"]); 
-        }
 
     }
     

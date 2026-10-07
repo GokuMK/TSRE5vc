@@ -89,6 +89,10 @@ public:
     virtual void message(const QString &name, const QString &value) = 0;
     // Dynamic track points for the flex properties (flexData).
     virtual void sendFlexData() = 0;
+    // A terrain texture or material picked from the terrain, for the
+    // terrain tools panel (setBrushTextureId, terrainMaterialPicked).
+    virtual void reportTextureId(int textureId) = 0;
+    virtual void reportMaterialPicked() = 0;
 };
 
 #endif
