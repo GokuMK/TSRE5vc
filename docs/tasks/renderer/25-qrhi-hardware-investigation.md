@@ -1,5 +1,11 @@
 # Task 25 - QRhi Renderer on Real Hardware (Steam Deck)
 
+Status (2026-10-07): the three problems are fixed (see "Findings"); open
+performance work is in "Handover" at the end. The Deck runs Windows with
+AMD's driver, not SteamOS with Mesa as this brief first assumed, so its
+Linux leads and tools did not apply; the Windows tools are in
+`scripts/hardware/`.
+
 A brief for an agent working on the Steam Deck, where the problems show.
 The QRhi renderer (task 20, branch `feature/qrhi`) was developed on a
 headless machine with software rendering only (Mesa llvmpipe for OpenGL,
@@ -22,8 +28,9 @@ to be found on the hardware.
 
 ## Hardware and symptoms (user's report, 2026-10-06)
 
-Steam Deck: AMD Van Gogh APU (RDNA2), Mesa RADV (Vulkan) and radeonsi
-(OpenGL). Memory is shared between the CPU and GPU.
+Steam Deck OLED (AMD Custom APU 0932, RDNA2) under Windows 10, AMD's
+driver for Vulkan and OpenGL (first assumed: SteamOS, Mesa RADV and
+radeonsi). Memory is shared between the CPU and GPU.
 
 1. Paged terrain is not drawn by QRhi, on either API as far as we know.
    `core.rendering.terrainMesh=legacy` terrain is drawn. Both draw on
@@ -66,7 +73,8 @@ Steam Deck: AMD Van Gogh APU (RDNA2), Mesa RADV (Vulkan) and radeonsi
   - Use `--test-suite=renderer-compare` to compare two labels.
 - The FPS display (editor settings) shows "GPU x ms" under QRhi. A GPU time
   close to the frame time means the GPU limits the frame rate.
-- Useful tools on the Deck:
+- Useful tools on the Deck, had it run SteamOS (on Windows: PresentMon,
+  RenderDoc and performance counters, `scripts/hardware/README.md`):
   - MangoHud: frame time, CPU and GPU load.
   - `perf record -g` and `perf report`.
   - `strace -f -c`.
@@ -165,7 +173,8 @@ The Deck runs Windows 10 (19045), not SteamOS: Steam Deck OLED
 monitor at 250 %; the editor window is 3232x2088, its view 2160x1948
 pixels. The Mesa and Linux leads above (RADV, radeonsi, compositor
 frame callbacks, perf, MangoHud) did not apply. Tools used instead,
-kept outside the repository and the system paths:
+kept outside the repository and the system paths (the scripts that drive
+them, and their setup, are in `scripts/hardware/`):
 
 - RenderDoc 1.46 portable, driven by Python scripts in qrenderdoc
   (`--python`). Its Vulkan layer is enabled for the child process only

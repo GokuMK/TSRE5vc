@@ -14,19 +14,24 @@ This folder contains ordered tasks for migrating the TSRE renderer from legacy i
 - [x] `09-hud-compass-pointer.md` (gather draws pointer, compass and HUD through the renderer)
 - [x] `10-shadows-gather-pass.md` (gather draws both shadow maps from the gathered queue; three-map review in the task)
 - [ ] `11-shader-pass-buckets-and-custom-shaders.md` (pass buckets implemented; per-pass shaders pending)
-- [ ] `13-selection-renderer-and-id-redesign.md`
+- [x] `13-selection-renderer-and-id-redesign.md` (32-bit selection IDs in an integer target; picking compared between renderers by the capture harness)
 - [x] `15-shape-viewer-gather.md` (Shape Viewer and Consist Editor draw through the renderer)
 - [x] `14-windows-hardware-validation.md` (manual Windows checks passed; further hardware runs only when they block work)
 - [x] `12-parity-automation-and-performance-gate.md` (harness compares a capture with a baseline capture)
 - [x] `16-renderer-owned-meshes.md` (every producer draws renderer-owned meshes; textures and framebuffers are a later step)
 - [x] `17-environment-map.md` (cube map around the camera for reflections; measured on hardware; glTF PBR and water read it, MSTS shapes pending)
 - [ ] `18-shaded-water.md` (one shaded water surface with waves and planar reflection; ENV wave fields pending)
-- [ ] `19-backend-boundary.md` (OpenGL calls left outside the renderer; state, views, measurement and readback moved behind `Renderer`; targets, programs, selection and reflection storage moved on `feature/qrhi`)
-- [ ] `20-qrhi-renderer.md` (QRhi renderer on `feature/qrhi`: parity with the OpenGL renderer reached; water visibility without queries and the Direct3D / Metal backends open)
+- [ ] `19-backend-boundary.md` (OpenGL calls left outside the renderer; state, views, measurement, readback, targets, programs, selection and reflection storage moved behind `Renderer`; texture uploads and the `GLUU` matrices and lights remain)
+- [ ] `20-qrhi-renderer.md` (QRhi renderer on `feature/qrhi`: parity with the OpenGL renderer reached on lavapipe and on the Steam Deck; open: hardware sweep of all capture sets, water visibility without queries, DXT1 with alpha, QRhi OpenGL CPU cost, the Direct3D / Metal backends)
 - [ ] `21-local-lights.md` (glTF punctual lights and emissive surfaces light the scene on the QRhi renderer through a world-space light grid)
 - [ ] `22-time-of-day.md` (sun position from the camera's latitude and longitude at a set time and date; first step of the environment task)
 - [ ] `23-ambient-occlusion.md` (GTAO on the QRhi renderer from the view's depth, taken off the ambient light share the lit shaders write; Off/Low/Medium/High)
 - [ ] `24-hdr-and-bloom.md` (float view with tone curves and exposure; bloom only from emitted light; defaults unchanged, look to be tuned)
+- [x] `25-qrhi-hardware-investigation.md` (Steam Deck under Windows: paged terrain, frame pacing and memory fixed; open performance work in its handover)
+
+Renderer work continues on Windows hardware; software rendering (llvmpipe,
+lavapipe) no longer shows the remaining problems. Measurement and
+RenderDoc scripts: `scripts/hardware/`.
 
 ## Legacy Pipeline Removed
 
@@ -91,6 +96,11 @@ scripts/renderer-parity.sh <game-root> <route> current baseline      # after the
 default `current`); `renderer-compare` compares `--test-baseline` (default
 `baseline`) with `--test-label`. `shape-viewer-capture` and
 `shape-viewer-compare` take the same options.
+
+On Windows, `scripts/hardware/Capture-Views.ps1` does the same. Take the
+baseline and the current capture with the same profile: settings such as
+time of day change the images (bbb: RMSE 12 to 22 between captures a day
+and a profile change apart, 1.2 to 2.6 for a fresh pair).
 
 ## Ground Rules For All Tasks
 - Prefer incremental, reversible changes.

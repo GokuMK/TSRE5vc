@@ -17,6 +17,9 @@ main until the user decides.
   Both support wide lines, non-fill polygon modes, R32UI textures,
   instancing, base vertex, texel fetch and texture arrays.
 - QRhi has no occlusion queries and no clip-distance feature flag.
+- Hardware machine (task 25): Steam Deck under Windows 10, AMD driver
+  (Vulkan and OpenGL), Qt 6.10.1 MinGW. Measurement and RenderDoc scripts:
+  `scripts/hardware/`.
 
 ## Architecture
 
@@ -66,7 +69,13 @@ storage the renderer creates (`createEnvironmentStorage`,
 - The view renders into an offscreen colour and depth target, then to the
   swapchain when the surface ends the frame, with the overlay the widget
   painted (FPS counter) composed over it; the transmission copy, grabs and
-  readbacks use that target.
+  readbacks use that target. The overlay image and texture persist: a
+  painter passes its area, only what changed is uploaded, and the overlay
+  is drawn scissored to the painted area.
+- Frames are paced by the widget's timer: the surface posts its own
+  UpdateRequest (coalesced, low priority), as QOpenGLWidget repaints are
+  posted; `QWindow::requestUpdate()` would wait for a platform timer or
+  the compositor. Swapchains have no vsync, as the OpenGL renderer.
 - Each target keeps a render target per combination of clears at the start
   of its pass (`Attachments`); pipelines are made against the one that
   keeps both.
@@ -79,9 +88,10 @@ storage the renderer creates (`createEnvironmentStorage`,
   into each program's uniform block when draws are recorded.
 - The water reflection clips under its plane in the fragment shader (QRhi
   enables no clip distances on OpenGL).
-- Selection, pointer depth and colour reads wait for the GPU within the
-  frame (`QRhi::finish`). Depth is read by a probe pass that samples the
-  view's depth texture into a 1 x 1 float target.
+- Selection and colour reads wait for the GPU within the frame
+  (`QRhi::finish`). Depth is read by a probe pass that samples the view's
+  depth texture into a 1 x 1 float target; the 3D pointer takes the last
+  completed read (`readDepthLatest`), and only exact reads (tests) wait.
 - Water visibility (OpenGL occlusion query) needs another source on QRhi;
   until then the reflection is drawn whenever water is in view.
 
@@ -101,7 +111,11 @@ conversion.
 ### Meshes and textures
 
 The mesh store keeps uploading lazily; on QRhi it creates `QRhiBuffer`s in
-the single `QRhi`. TexLib textures become renderer-owned handles that both
+the single `QRhi`. They are Immutable: QRhi's Vulkan backend keeps a host
+copy as large as the buffer of every Static buffer. Meshes being edited
+(marked dynamic, such as paged terrain pages after their first edit, or
+uploaded a third time, such as painted legacy tiles) are Static, so their
+copy is reused. TexLib textures become renderer-owned handles that both
 renderers resolve; the QRhi renderer keeps the CPU pixels until upload.
 
 ## Milestones
@@ -119,10 +133,20 @@ renderers resolve; the QRhi renderer keeps the CPU pixels until upload.
 6. Selection, pointer depth, screenshots.
 7. New: emissive light and many lights.
 
-## Status (2026-10-06)
+## Status (2026-10-07)
 
-Milestones 1 to 6 are done on `feature/qrhi`. Parity sweep, QRhi on Vulkan
-(lavapipe) against the OpenGL renderer of the same build, every view of
+Milestones 1 to 6 are done on `feature/qrhi`. Work continues on Windows
+hardware (task 25); software rendering no longer shows the problems left.
+
+On the Steam Deck (Windows, AMD driver), route bbb, `parity-views` against
+the OpenGL renderer: QRhi Vulkan RMSE 0.83 to 1.55 and QRhi OpenGL 0.83 to
+1.48 (at most 0.33 % of pixels), picking 144 of 144. QRhi Vulkan runs at
+the editor timer's limit (about 66 frames a second) as the OpenGL
+renderer; QRhi OpenGL is CPU-bound at about 46. A hardware sweep of the
+other routes and capture sets is still to do.
+
+Parity sweep, QRhi on Vulkan (lavapipe, 2026-10-06) against the OpenGL
+renderer of the same build, every view of
 `parity-views` and `parity-views-shadows` on EUROPE1, JAPAN1, USA1 and
 BNSF_SCENIC:
 
@@ -151,6 +175,9 @@ Open:
   missing; `auto` falls back to Vulkan or OpenGL). Full-screen passes flip
   y where clip space and the framebuffer disagree about it (those two), by
   reasoning rather than a test.
+- QRhi OpenGL is CPU-bound: about 20 ms a frame against 12 for the OpenGL
+  renderer (task 25, handover). Direct3D 11, QRhi's most used backend on
+  Windows, may serve better as the fallback to Vulkan there.
 
 ## Hardware test (2026-10-06)
 
@@ -195,7 +222,7 @@ records it read moved from a uniform block to a texture since.
 Retest on the Steam Deck (Windows, AMD driver), task 25: paged terrain was
 discarded by the gap flag decode, frames waited on the overlay upload and
 on `QWindow::requestUpdate()`, and Vulkan kept host copies of every mesh
-buffer. All fixed; QRhi OpenGL remains CPU-bound (about 50 against 64
+buffer. All fixed; QRhi OpenGL remains CPU-bound (about 46 against 64
 frames a second).
 
 ## Verification
