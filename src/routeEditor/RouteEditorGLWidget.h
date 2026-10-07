@@ -28,6 +28,7 @@
 #include <unordered_map>
 #include <memory>
 #include "tools/ToolContext.h"
+#include <tsre/map/MapPalette.h>
 
 class Tile;
 class Eng;
@@ -52,6 +53,8 @@ class EnvironmentMap;
 class PlanarReflection;
 class RenderQueue;
 class ToolRegistry;
+class CameraMap;
+class TrackMapLayer;
 
 QT_FORWARD_DECLARE_CLASS(QOpenGLShaderProgram)
 
@@ -78,6 +81,10 @@ public:
                            float rotX, float rotY);
     void diagnosticView(int &tileX, int &tileZ, float *pos,
                         float &rotX, float &rotY) const;
+    // Map mode centred on a ground point, at a scale, with a compass
+    // bearing (degrees, 0: north) at the top of the screen.
+    void setDiagnosticMapView(int tileX, int tileZ, float x, float z,
+                              float metresPerPixel, float bearingDegrees);
     // Renders one selection pass and reads the IDs at device-pixel points
     // without applying a selection.
     QVector<quint32> probeSelectionIds(const QVector<QPoint> &devicePoints);
@@ -85,9 +92,14 @@ public:
     // render the same scene. Content loading continues.
     void setSimulationPaused(bool paused);
     Route *currentRoute() const override { return route; }
+    // The view mode (task editor 04): the 3D scene, or the map from straight
+    // above. Switching moves to the pointer's place in the other mode; tools
+    // the new mode does not support are put aside until the mode returns.
+    void setViewMode(ViewMode mode);
 
 public slots:
     void cleanup();
+    void toggleViewMode();
     void enableTool(QString name);
     void setPaintBrush(Brush* brush);
     void jumpTo(PreciseTileCoordinate*);
@@ -225,6 +237,11 @@ private:
     void openImageryWindow(Terrain *terrain) override;
     // The active tool's object; null for no tool or a name without one.
     EditorTool *activeTool() const;
+    // Draws the map mode's frame.
+    void paintMap();
+    // The pointer in map mode: the ground under the mouse, on the map
+    // plane (height 0; the map loads no terrain).
+    void updateMapPointer();
 
     bool startLiveFlex(bool reuseUndoState = false, bool deleteOnCancel = false,
             bool initialDirectionFromMouse = false);
@@ -300,6 +317,14 @@ private:
     QString toolEnabled = "";
     std::unique_ptr<ToolRegistry> tools;
     ViewMode currentViewMode = ViewMode::Scene3D;
+    CameraMap *cameraMap = NULL;
+    std::unique_ptr<TrackMapLayer> trackMap;
+    OglObj *mapPointer = NULL;
+    MapPalette mapPalette;
+    // The setting value mapPalette was read for.
+    QString mapPaletteSetting;
+    // The tool active when map mode began, for the return to 3D.
+    QString toolBeforeMap;
     float defaultMoveStep = 0.25;
     float moveStep = 0.25;
     //float moveUltraStep = 2.0;

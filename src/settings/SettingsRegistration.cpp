@@ -554,6 +554,13 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Permit Tile and TrackDB validation to apply supported repairs while loading route data."
                 QT_TRID_NOOP("settings.core.route.validation.auto.fix.description")).inGroup("content").inSubgroup("savingRecovery").asAdvanced(),
         "autoFix", "Game::autoFix", "Tile/TDB", false, "load-time");
+    ADD(SettingsDefinition::string("core.interface.routeEditor.mapPalette", "light")
+            .withNameId(
+                //% "Map mode colours"
+                QT_TRID_NOOP("settings.core.interface.route.editor.map.palette.name")).withDescriptionId(
+                //% "Colour palette of the Route Editor's map mode: light, dark, or the name of a palette file (name.json) in the map-palettes folder of the configuration directory."
+                QT_TRID_NOOP("settings.core.interface.route.editor.map.palette.description")).inGroup("interface").inSubgroup("routeEditor"),
+        "mapPalette", "Game::mapPalette", "RouteEditorGLWidget", true, "hot-cache");
     ADD(SettingsDefinition::integer("core.interface.routeEditor.recentItemLimit", 11)
             .withNameId(
                 //% "Recent placement item limit"

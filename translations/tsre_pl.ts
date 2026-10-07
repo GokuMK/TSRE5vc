@@ -2458,6 +2458,10 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
             <source>&amp;View</source>
             <translation>&amp;Widok</translation>
         </message>
+        <message id="route.editor.route.editor.window.action.view.map.mode">
+            <source>&amp;Map Mode</source>
+            <translation>&amp;Tryb mapy</translation>
+        </message>
         <message id="route.editor.route.editor.window.action.view.unselect.all">
             <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="275" />
             <source>&amp;Unselect All</source>
@@ -8263,6 +8267,14 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
         <message id="settings.core.rendering.blended.parts.option.2">
             <source>Also alpha-tested when the texture alpha is on/off</source>
             <translation>Także test alfa, gdy alfa tekstury jest zero-jedynkowa</translation>
+        </message>
+        <message id="settings.core.interface.route.editor.map.palette.name">
+            <source>Map mode colours</source>
+            <translation>Kolory trybu mapy</translation>
+        </message>
+        <message id="settings.core.interface.route.editor.map.palette.description">
+            <source>Colour palette of the Route Editor&apos;s map mode: light, dark, or the name of a palette file (name.json) in the map-palettes folder of the configuration directory.</source>
+            <translation>Paleta kolorów trybu mapy Edytora Tras: light (jasna), dark (ciemna) lub nazwa pliku palety (nazwa.json) w folderze map-palettes katalogu konfiguracji.</translation>
         </message>
         <message id="settings.core.rendering.environment.map.enabled.name">
             <location filename="../src/settings/SettingsRegistration.cpp" line="763" />

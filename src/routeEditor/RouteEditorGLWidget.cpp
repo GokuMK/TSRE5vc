@@ -71,6 +71,11 @@
 #include <routeEditor/RouteEditorClient.h>
 #include "tools/EditorTool.h"
 #include "tools/ToolRegistry.h"
+#include <tsre/camera/CameraMap.h>
+#include <tsre/map/MapPalette.h>
+#include <tsre/map/MapView.h>
+#include <tsre/map/TrackMapLayer.h>
+#include <tsre/ogl/OglObj.h>
 #include <routeEditor/TerrainTileCreationDialog.h>
 #include <tsre/world/RouteClient.h>
 #include <tsre/ClientInfo.h>
@@ -276,6 +281,10 @@ void RouteEditorGLWidget::cameraInit(){
     cameraFree = new CameraFree(aaa);
     //cameraObj = new CameraConsist();
     camera = cameraFree;
+    if (cameraMap == NULL)
+        cameraMap = new CameraMap();
+    if (!trackMap)
+        trackMap = std::make_unique<TrackMapLayer>();
     float spos[3];
     if (Game::start == 2) {
         camera->setPozT(Game::startTileX, -Game::startTileY);
@@ -455,6 +464,11 @@ void RouteEditorGLWidget::paintGL(){
     if (!canRenderFrame()) return;
     Terrain::beginProceduralFrame();
     renderer->resetState();
+
+    if (currentViewMode == ViewMode::Map) {
+        paintMap();
+        return;
+    }
 
     const bool selectionPass = selection;
     paintScene();
@@ -1246,6 +1260,18 @@ void RouteEditorGLWidget::keyPressEvent(QKeyEvent * event) {
         TexLib::dumpStats("RouteEditorGLWidget");
         return;
     }
+
+    if (event->key() == Qt::Key_QuoteLeft && !event->isAutoRepeat()) {
+        toggleViewMode();
+        event->accept();
+        return;
+    }
+    if (currentViewMode == ViewMode::Map) {
+        // The map takes navigation keys only; the 3D keys stay in 3D.
+        camera->keyDown(event);
+        event->accept();
+        return;
+    }
     
     if (liveFlexActive && event->key() == Qt::Key_Escape) {
         // Escape cancels only the unfinished continuous segment. Keep the
@@ -1398,6 +1424,12 @@ void RouteEditorGLWidget::mousePressEvent(QMouseEvent *event) {
     m_lastPos = event->position();
     m_lastPos *= Game::PixelRatio;
     mouseClick = true;
+    if (currentViewMode == ViewMode::Map) {
+        // No tool works on the map yet: both buttons move the map.
+        camera->MouseDown(event);
+        setFocus();
+        return;
+    }
     if ((event->button()) == Qt::RightButton) {
         mouseRPressed = true;
         camera->MouseDown(event);
@@ -1475,6 +1507,13 @@ void RouteEditorGLWidget::mousePressEvent(QMouseEvent *event) {
 
 void RouteEditorGLWidget::wheelEvent(QWheelEvent *event) {
     float numDegrees = 0.01 * event->angleDelta().y();
+    if (currentViewMode == ViewMode::Map) {
+        const QPointF position = event->position() * Game::PixelRatio;
+        cameraMap->zoomAt(float(position.x()), float(position.y()), numDegrees);
+        update();
+        event->accept();
+        return;
+    }
 
     if(continuousFlexMode || liveFlexActive
             || continuousRulerMode || liveRulerActive
@@ -1521,6 +1560,10 @@ void RouteEditorGLWidget::mouseReleaseEvent(QMouseEvent* event) {
     Game::currentShapeLib = currentShapeLib;
     if (!route->loaded) return;
     camera->MouseUp(event);
+    if (currentViewMode == ViewMode::Map) {
+        mouseClick = false;
+        return;
+    }
     if ((event->button()) == Qt::RightButton) {
         mouseRPressed = false;
         if(mouseClick && !bolckContextMenu)
@@ -1550,6 +1593,13 @@ void RouteEditorGLWidget::mouseMoveEvent(QMouseEvent *event) {
     }*/
     mousex = event->position().x() * Game::PixelRatio;
     mousey = event->position().y() * Game::PixelRatio;
+    if (currentViewMode == ViewMode::Map) {
+        if (event->buttons() & (Qt::LeftButton | Qt::RightButton))
+            camera->MouseMove(event);
+        m_lastPos = event->position();
+        m_lastPos *= Game::PixelRatio;
+        return;
+    }
 
     if(liveFlexActive || liveRulerActive || liveTelepoleActive) {
         if((event->buttons() & Qt::RightButton) == Qt::RightButton)
@@ -1572,6 +1622,155 @@ void RouteEditorGLWidget::mouseMoveEvent(QMouseEvent *event) {
     }
     m_lastPos = event->position();
     m_lastPos *= Game::PixelRatio;
+}
+
+void RouteEditorGLWidget::toggleViewMode() {
+    setViewMode(currentViewMode == ViewMode::Map ? ViewMode::Scene3D : ViewMode::Map);
+}
+
+void RouteEditorGLWidget::setViewMode(ViewMode mode) {
+    if (mode == currentViewMode || route == NULL || !route->loaded || cameraMap == NULL)
+        return;
+    if (mode == ViewMode::Map) {
+        // The map centres on the 3D pointer when it is near, else on the
+        // camera.
+        const float *eye = camera->getPos();
+        const float dx = aktPointerPos[0] - eye[0];
+        const float dz = aktPointerPos[2] - eye[2];
+        const bool pointerNear = std::isfinite(dx) && std::isfinite(dz)
+                && dx * dx + dz * dz < 4000.0f * 4000.0f;
+        cameraMap->setPozT(int(camera->pozT[0]), int(camera->pozT[1]));
+        cameraMap->setPos(pointerNear ? aktPointerPos[0] : eye[0], 0.0f,
+                          pointerNear ? aktPointerPos[2] : eye[2]);
+        toolBeforeMap = toolEnabled;
+        currentViewMode = ViewMode::Map;
+        if (!tools->allowed(toolEnabled, ViewMode::Map))
+            enableTool("");
+        camera = cameraMap;
+        trackMap->invalidate();
+    } else {
+        // The 3D camera looks at the map pointer from behind and above, in
+        // the map's heading.
+        const float heading = cameraMap->view.heading;
+        constexpr float Back = 60.0f, Above = 35.0f;
+        currentViewMode = ViewMode::Scene3D;
+        camera = cameraFree;
+        cameraFree->setPozT(cameraMap->view.tileX, cameraMap->view.tileZ);
+        cameraFree->setPos(aktPointerPos[0] - std::sin(heading) * Back, 0.0f,
+                           aktPointerPos[2] - std::cos(heading) * Back);
+        cameraFree->check_coords();
+        const float *position = cameraFree->getPos();
+        const float x = position[0], z = position[2];
+        Game::terrainLib->load(int(cameraFree->pozT[0]), int(cameraFree->pozT[1]));
+        const float ground = Game::terrainLib->getHeight(int(cameraFree->pozT[0]),
+                                                         int(cameraFree->pozT[1]), x, z);
+        cameraFree->setPos(x, ground + Above, z);
+        cameraFree->setPlayerRot(heading, -std::atan2(Above, Back));
+        if (!toolBeforeMap.isEmpty() && tools->allowed(toolBeforeMap, ViewMode::Scene3D))
+            enableTool(toolBeforeMap);
+    }
+    emit sendMsg("viewMode", QString(mode == ViewMode::Map ? "map" : "3d"));
+    update();
+}
+
+void RouteEditorGLWidget::updateMapPointer() {
+    float x, z;
+    cameraMap->view.groundAt(mousex, mousey, x, z);
+    aktPointerPos[0] = x;
+    aktPointerPos[1] = 0.0f;
+    aktPointerPos[2] = z;
+}
+
+void RouteEditorGLWidget::paintMap() {
+    if (renderer == NULL || gluu->shaders[MainRenderShaderName] == NULL)
+        return;
+    // Selection and the tools that would ask for it are 3D only for now.
+    selection = false;
+    const int width = qRound(float(this->width()) * Game::PixelRatio);
+    const int height = qRound(float(this->height()) * Game::PixelRatio);
+    cameraMap->setViewport(width, height);
+    updateMapPointer();
+    if (mapPaletteSetting != Game::mapPalette) {
+        mapPalette = MapPalette::named(Game::mapPalette);
+        mapPaletteSetting = Game::mapPalette;
+    }
+    const MapPalette &palette = mapPalette;
+
+    RenderStats::ScopedFrame statsFrame(true);
+    renderer->resetFrame();
+    renderer->setViewPosition(camera->getPos());
+    RenderQueue &queue = *renderer;
+    Mat4::identity(renderer->transform());
+    renderer->setShadowCasting(false);
+    renderer->setLayer(RenderQueue::LAYER_OVERLAY);
+    const MapView &view = cameraMap->view;
+    trackMap->pushRenderItems(queue, view, palette, Game::trackDB, Game::roadDB);
+    // The pointer: a square of a fixed screen size above everything.
+    if (mapPointer == NULL)
+        mapPointer = new OglObj();
+    std::vector<float> square;
+    float rx, rz, ux, uz;
+    view.right(rx, rz);
+    view.up(ux, uz);
+    TrackMapLayer::appendSquare(square, aktPointerPos[0], TrackMapLayer::PointerHeight,
+                                aktPointerPos[2], 9.0f * view.metresPerPixel, rx, rz, ux, uz);
+    mapPointer->setMaterial(float(palette.pointer.redF()), float(palette.pointer.greenF()),
+                            float(palette.pointer.blueF()));
+    mapPointer->init(square.data(), int(square.size()), RenderItem::V, GL_TRIANGLES);
+    mapPointer->pushRenderItem(queue);
+    renderer->setLayer(RenderQueue::LAYER_SCENE);
+    renderer->setShadowCasting(true);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
+    glActiveTexture(GL_TEXTURE0);
+    gluu->currentShader = gluu->shaders[MainRenderShaderName];
+    gluu->currentShader->bind();
+    const float background[4] = {float(palette.background.redF()), float(palette.background.greenF()),
+                                 float(palette.background.blueF()), 1.0f};
+    renderer->clear(true, true, background);
+    renderer->setViewport(0, 0, width, height);
+    Mat4::identity(gluu->mvMatrix);
+    Mat4::identity(renderer->transform());
+    // The eye is kilometres above the map: no fog, no shadows.
+    const float fogDensity = gluu->fogDensity;
+    gluu->fogDensity = 0.0f;
+    const int shadows = Game::shadowsEnabled;
+    Game::shadowsEnabled = 0;
+    Renderer::LayeredView mapView;
+    mapView.view = camera->getMatrix();
+    const MapView projectionView = view;
+    mapView.projection = [projectionView](float, float, float *out) {
+        projectionView.projection(out);
+    };
+    mapView.sceneFar = MapView::FarPlane;
+    mapView.distantFar = MapView::FarPlane;
+    mapView.water = false;
+    renderer->beginViewBand(mapView, Renderer::BAND_SCENE);
+    RenderStats::beginPhase(RenderStats::PhaseScene);
+    renderer->renderPasses(Renderer::PASS_TERRAIN, Renderer::PASS_OVERLAY);
+    RenderStats::endPhase(RenderStats::PhaseScene);
+    renderer->endView(mapView);
+    if (Game::viewCompass) {
+        Mat4::identity(gluu->mvMatrix);
+        Mat4::ortho(gluu->pMatrix, -1.0, 1.0, 1.0 - 2*(float(this->height()) / this->width()), 1.0, 0.0, 1.0);
+        Mat4::identity(gluu->objStrMatrix);
+        gluu->setMatrixUniforms();
+        gluu->currentShader->setUniformValue(gluu->currentShader->lod, 0.0f);
+        renderer->setLayer(RenderQueue::LAYER_UI);
+        compass->pushRenderItem(queue, camera->getRotX()+M_PI);
+        compassPointer->pushRenderItem(queue);
+        renderer->setLayer(RenderQueue::LAYER_SCENE);
+        renderer->renderPasses(Renderer::PASS_UI, Renderer::PASS_UI);
+    }
+    renderer->renderFrame();
+    gluu->fogDensity = fogDensity;
+    Game::shadowsEnabled = shadows;
+    gluu->currentShader->release();
+    if (this->isActiveWindow()) {
+        emit this->posInfo(camera->getCurrentPos());
+        emit this->pointerInfo(aktPointerPos);
+    }
+    drawEditorFpsHud();
 }
 
 EditorTool *RouteEditorGLWidget::activeTool() const {
@@ -1724,10 +1923,32 @@ void RouteEditorGLWidget::jumpTo(int X, int Z, float x, float y, float z) {
 
 void RouteEditorGLWidget::setDiagnosticView(int tileX, int tileZ,
         float x, float y, float z, float rotX, float rotY) {
+    if (currentViewMode == ViewMode::Map) {
+        currentViewMode = ViewMode::Scene3D;
+        camera = cameraFree;
+    }
     Game::terrainLib->load(tileX, tileZ);
     camera->setPozT(tileX, tileZ);
     camera->setPos(x, y, z);
     camera->setPlayerRot(rotX, rotY);
+}
+
+void RouteEditorGLWidget::setDiagnosticMapView(int tileX, int tileZ, float x, float z,
+        float metresPerPixel, float bearingDegrees) {
+    if (cameraMap == NULL)
+        return;
+    cameraMap->setPozT(tileX, tileZ);
+    cameraMap->setPos(x, 0.0f, z);
+    cameraMap->view.metresPerPixel = metresPerPixel;
+    cameraMap->view.heading = MapView::NorthUp - bearingDegrees * float(M_PI) / 180.0f;
+    if (currentViewMode != ViewMode::Map) {
+        toolBeforeMap = toolEnabled;
+        currentViewMode = ViewMode::Map;
+        if (!tools->allowed(toolEnabled, ViewMode::Map))
+            enableTool("");
+        camera = cameraMap;
+    }
+    trackMap->invalidate();
 }
 
 void RouteEditorGLWidget::diagnosticView(int &tileX, int &tileZ, float *pos,

@@ -43,6 +43,8 @@ file(GLOB TSRE5vc_SRC CONFIGURE_DEPENDS
     "./src/settings/ui/*.cpp"
     "./src/tsre/camera/*.h"
     "./src/tsre/camera/*.cpp"
+    "./src/tsre/map/*.h"
+    "./src/tsre/map/*.cpp"
     "./src/tsre/ogl/*.h"
     "./src/tsre/ogl/*.cpp"
     "./src/tsre/math3d/*.h"

@@ -58,6 +58,7 @@
 #include <tsre/tests/SelectionIdTestSuite.h>
 #include <tsre/tests/MeshStoreTestSuite.h>
 #include <tsre/tests/EditorToolsTestSuite.h>
+#include <tsre/tests/MapViewTestSuite.h>
 #include <tsre/tests/EnvironmentMapTestSuite.h>
 #include <tsre/tests/WaterTestSuite.h>
 #include <tsre/tests/GltfPbrTestSuite.h>
@@ -4097,6 +4098,7 @@ QStringList TsreTests::listSuites() {
         "selection-id",
         "mesh-store",
         "editor-tools",
+        "map-view",
         "environment-map-gl",
         "water-gl",
         "gltf-pbr-gl",
@@ -4163,6 +4165,8 @@ int TsreTests::run(const TestRunOptions &opts) {
         return runMeshStoreSuite(opts.verbose);
     if (suite == "editor-tools")
         return runEditorToolsSuite(opts.verbose);
+    if (suite == "map-view")
+        return runMapViewSuite(opts.verbose);
     if (suite == "environment-map-gl")
         return runEnvironmentMapGlSuite(opts.verbose);
     if (suite == "water-gl")

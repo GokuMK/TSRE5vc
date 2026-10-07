@@ -333,6 +333,24 @@ RouteEditorWindow::RouteEditorWindow() {
         qtTrId("route.editor.route.editor.window.action.view.unselect.all"), this);
     viewMenu->addAction(viewUnselectAll);
     QObject::connect(viewUnselectAll, SIGNAL(triggered()), this, SLOT(viewUnselectAll()));
+    // Map mode (task editor 04). Backquote toggles it in the view; the menu
+    // shows the key without taking it, so typing a backquote elsewhere works.
+    QAction *viewMapMode = GuiFunct::newMenuCheckAction(
+        //% "&Map Mode"
+        qtTrId("route.editor.route.editor.window.action.view.map.mode") + "\t`", this, false);
+    viewMenu->addAction(viewMapMode);
+    QObject::connect(viewMapMode, &QAction::triggered, this, [this] { glWidget->toggleViewMode(); });
+    QObject::connect(glWidget, QOverload<QString, QString>::of(&RouteEditorGLWidget::sendMsg), this,
+                     [this, viewMapMode](const QString &name, const QString &value) {
+        if (name != "viewMode")
+            return;
+        // No tool works on the map yet: the tool panels wait for 3D.
+        const bool map = value == "map";
+        viewMapMode->setChecked(map);
+        for (QWidget *panel : {static_cast<QWidget *>(objTools), static_cast<QWidget *>(terrainTools),
+                               static_cast<QWidget *>(geoTools), static_cast<QWidget *>(activityTools)})
+            panel->setEnabled(!map);
+    });
     viewMenu->addSeparator();
     vViewWorldGrid = GuiFunct::newMenuCheckAction(
         //% "&World Grid"

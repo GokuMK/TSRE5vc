@@ -1,0 +1,45 @@
+/*  This file is part of TSRE5.
+ *
+ *  TSRE5 - train sim game engine and MSTS/OR Editors.
+ *  Copyright (C) 2016 Piotr Gadecki <pgadecki@gmail.com>
+ *
+ *  Licensed under GNU General Public License 3.0 or later.
+ *
+ *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
+ */
+
+#ifndef MAPPALETTE_H
+#define MAPPALETTE_H
+
+#include <QColor>
+#include <QString>
+#include <QStringList>
+
+// Colours of the map mode (task editor 04). Built in: "light" (white
+// background, the default) and "dark". Custom palettes are JSON files in
+// the user's palette directory (directory()), named by their file name: an
+// object with any of the colour names below as "#rrggbb" strings; colours
+// they leave out come from the light palette.
+struct MapPalette {
+    QString name = "light";
+    QColor background = QColor(255, 255, 255);
+    QColor track = QColor(40, 40, 46);
+    QColor road = QColor(176, 128, 64);
+    QColor junction = QColor(214, 48, 48);
+    QColor end = QColor(48, 96, 214);
+    QColor pointer = QColor(255, 120, 0);
+
+    static MapPalette light();
+    static MapPalette dark();
+    // The palette of a name: built in, or a file in the palette directory;
+    // light when there is none.
+    static MapPalette named(const QString &name);
+    // Reads a palette from JSON over the light one; false on a parse error.
+    static bool fromJson(const QByteArray &json, MapPalette &palette, QString *error = nullptr);
+    // Where custom palettes are looked up.
+    static QString directory();
+    // Built-in names and the custom files found.
+    static QStringList available();
+};
+
+#endif

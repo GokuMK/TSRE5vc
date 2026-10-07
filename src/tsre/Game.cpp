@@ -127,6 +127,7 @@ int Game::shadowLowMapSize = 1024;
 int Game::shadowsEnabled = 1;
 bool Game::environmentMapEnabled = false;
 int Game::blendedParts = 1;
+QString Game::mapPalette = "light";
 int Game::environmentMapSize = 256;
 int Game::environmentMapFacesPerFrame = 1;
 float Game::environmentMapObjectDistance = 300.0f;
@@ -268,6 +269,7 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
     // startup settings even though it is not copied into a Game field.
     claim("core.interface.language", SettingType::Enum);
     boolean("core.interface.routeEditor.startMaximized", fullscreen);
+    string("core.interface.routeEditor.mapPalette", mapPalette);
     integer("core.system.fpsLimit", fpsLimit);
     boolean("core.system.soundEnabled", soundEnabled);
 

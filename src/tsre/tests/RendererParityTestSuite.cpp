@@ -70,6 +70,10 @@ struct ViewSpec {
     float offset[3] = {0, 0, 0};
     bool hasRot = false;
     float rot[2] = {0, 0};
+    // Map mode (task editor 04): centred on the view's ground position.
+    bool map = false;
+    float metresPerPixel = 2.0f;
+    float bearing = 0.0f;
 };
 
 struct Options {
@@ -188,6 +192,9 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         view.hasPos = readFloatArray(object.value("pos"), view.pos, 3);
         view.hasOffset = readFloatArray(object.value("offset"), view.offset, 3);
         view.hasRot = readFloatArray(object.value("rot"), view.rot, 2);
+        view.map = object.value("mode").toString() == "map";
+        view.metresPerPixel = float(object.value("metresPerPixel").toDouble(2.0));
+        view.bearing = float(object.value("bearing").toDouble(0.0));
         if (view.hasTile != view.hasPos) {
             error = QString("view %1 needs both tile and pos").arg(view.name);
             return false;
@@ -402,6 +409,9 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         if (spec.hasRot)
             std::copy(spec.rot, spec.rot + 2, rot);
         widget.setDiagnosticView(tileX, tileZ, pos[0], pos[1], pos[2], rot[0], rot[1]);
+        if (spec.map)
+            widget.setDiagnosticMapView(tileX, tileZ, pos[0], pos[2], spec.metresPerPixel,
+                                        spec.bearing);
 
         QElapsedTimer settleTimer;
         settleTimer.start();

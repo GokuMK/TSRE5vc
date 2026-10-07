@@ -1,7 +1,49 @@
 # Task 04 - Map Mode (Top-Down Route View)
 
-Status: phase 0 (tool structure) done on `feature/map-mode`; phase 1 next.
-Base branch: `main` (decided 2026-10-07, see "Branch").
+Status: phase 0 (tool structure) and the phase 1 core are done on
+`feature/map-mode`. Base branch: `main` (decided 2026-10-07, see
+"Branch").
+
+Phase 1 core, as built:
+- **Switching:**
+  - Backquote or View > Map Mode switches modes; switching moves to the
+    pointer's place in the other mode.
+  - Tools the mode does not support are put aside and restored on
+    return.
+  - The tool panels are disabled in map mode: no tool supports it yet.
+- **Map view** (`src/tsre/map/MapView`, `src/tsre/camera/CameraMap`):
+  - centre, scale and heading, with an orthographic projection;
+  - left drag pans, right drag turns, the wheel zooms about the mouse;
+  - W, A, S, D and the arrows move, Q and E turn, N returns to north up.
+- **Track layer** (`src/tsre/map/TrackMapLayer`):
+  - the track and road databases as lines 2 pixels wide;
+  - junction and end markers 7 pixels wide;
+  - straight chords between vector sections for the whole route, curved
+    when zoomed to 1 m a pixel or closer, for the tiles in view;
+  - layers at fixed heights so the depth test orders them;
+  - no terrain is loaded or drawn.
+- **Lines:** quads built on the CPU and rebuilt when the scale changes by
+  a quarter, rather than the shader-built ribbons of the design. This
+  needs no shader or renderer change, so both renderers draw it as is.
+  The shader way remains open if rebuilding the whole route's lines
+  becomes slow.
+- **Palettes** (`src/tsre/map/MapPalette`):
+  - light (default) and dark, plus custom JSON files in the
+    `map-palettes` folder of the configuration directory;
+  - setting `core.interface.routeEditor.mapPalette`.
+- **Pointer:** the ground under the mouse at height 0, drawn as a
+  square.
+- **Checks:**
+  - `--test-suite=map-view` (view mathematics, ribbons, palettes);
+  - `tests/renderer/map-views.json` (map captures, `"mode": "map"` with
+    `metresPerPixel` and `bearing`);
+  - 3D captures are unchanged.
+- **Seen on EUROPE1:** many lines are pairs about 6 to 11 m apart. Those
+  are real data: double track, and roads with one database node per
+  lane.
+
+Next: phase 2 layers (tile grid, scale ruler, track items, labels), and
+CPU picking of track data.
 
 Phase 0, in three batches, each to be tested once in the editor:
 
