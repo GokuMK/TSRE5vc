@@ -2458,7 +2458,35 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
             <source>&amp;View</source>
             <translation>&amp;Widok</translation>
         </message>
-        <message id="route.editor.route.editor.window.action.view.map.mode">
+        <message id="route.editor.route.editor.window.menu.view.3d">
+            <source>&amp;3D View</source>
+            <translation>Widok &amp;3D</translation>
+        </message>
+        <message id="route.editor.route.editor.window.menu.map">
+            <source>&amp;Map</source>
+            <translation>&amp;Mapa</translation>
+        </message>
+        <message id="route.editor.route.editor.window.action.map.track.lines">
+            <source>&amp;Track Lines</source>
+            <translation>Linie &amp;torów</translation>
+        </message>
+        <message id="route.editor.route.editor.window.action.map.road.lines">
+            <source>&amp;Road Lines</source>
+            <translation>Linie &amp;dróg</translation>
+        </message>
+        <message id="route.editor.route.editor.window.action.map.junctions">
+            <source>&amp;Junctions</source>
+            <translation>&amp;Rozjazdy</translation>
+        </message>
+        <message id="route.editor.route.editor.window.action.map.ends">
+            <source>Track &amp;Ends</source>
+            <translation>&amp;Końce torów</translation>
+        </message>
+        <message id="route.editor.route.editor.window.action.map.pointer">
+            <source>&amp;Pointer</source>
+            <translation>&amp;Wskaźnik</translation>
+        </message>
+        <message id="route.editor.route.editor.window.action.map.mode">
             <source>&amp;Map Mode</source>
             <translation>&amp;Tryb mapy</translation>
         </message>

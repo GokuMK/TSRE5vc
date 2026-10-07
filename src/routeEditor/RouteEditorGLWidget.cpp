@@ -1676,6 +1676,11 @@ void RouteEditorGLWidget::setViewMode(ViewMode mode) {
     update();
 }
 
+void RouteEditorGLWidget::setMapLayerVisible(MapLayer layer, bool visible) {
+    mapLayers.set(layer, visible);
+    update();
+}
+
 void RouteEditorGLWidget::updateMapPointer() {
     float x, z;
     cameraMap->view.groundAt(mousex, mousey, x, z);
@@ -1707,7 +1712,7 @@ void RouteEditorGLWidget::paintMap() {
     renderer->setShadowCasting(false);
     renderer->setLayer(RenderQueue::LAYER_OVERLAY);
     const MapView &view = cameraMap->view;
-    trackMap->pushRenderItems(queue, view, palette, Game::trackDB, Game::roadDB);
+    trackMap->pushRenderItems(queue, view, palette, Game::trackDB, Game::roadDB, mapLayers);
     // The pointer: a square of a fixed screen size above everything.
     if (mapPointer == NULL)
         mapPointer = new OglObj();
@@ -1720,7 +1725,8 @@ void RouteEditorGLWidget::paintMap() {
     mapPointer->setMaterial(float(palette.pointer.redF()), float(palette.pointer.greenF()),
                             float(palette.pointer.blueF()));
     mapPointer->init(square.data(), int(square.size()), RenderItem::V, GL_TRIANGLES);
-    mapPointer->pushRenderItem(queue);
+    if (mapLayers.shows(MapLayer::Pointer))
+        mapPointer->pushRenderItem(queue);
     renderer->setLayer(RenderQueue::LAYER_SCENE);
     renderer->setShadowCasting(true);
 

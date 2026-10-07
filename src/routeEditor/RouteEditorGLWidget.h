@@ -28,6 +28,7 @@
 #include <unordered_map>
 #include <memory>
 #include "tools/ToolContext.h"
+#include <tsre/map/MapLayers.h>
 #include <tsre/map/MapPalette.h>
 
 class Tile;
@@ -96,6 +97,8 @@ public:
     // above. Switching moves to the pointer's place in the other mode; tools
     // the new mode does not support are put aside until the mode returns.
     void setViewMode(ViewMode mode);
+    // Shows or hides a layer of the map mode (the Map menu).
+    void setMapLayerVisible(MapLayer layer, bool visible);
 
 public slots:
     void cleanup();
@@ -321,6 +324,7 @@ private:
     std::unique_ptr<TrackMapLayer> trackMap;
     OglObj *mapPointer = NULL;
     MapPalette mapPalette;
+    MapLayers mapLayers;
     // The setting value mapPalette was read for.
     QString mapPaletteSetting;
     // The tool active when map mode began, for the return to 3D.

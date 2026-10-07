@@ -229,7 +229,8 @@ void TrackMapLayer::build(const MapView &view, const MapPalette &palette, TDB *t
 }
 
 void TrackMapLayer::pushRenderItems(RenderQueue &queue, const MapView &view,
-                                    const MapPalette &palette, TDB *track, TDB *road) {
+                                    const MapPalette &palette, TDB *track, TDB *road,
+                                    const MapLayers &layers) {
     const float scale = view.metresPerPixel / std::max(builtMetresPerPixel, 1e-6f);
     const bool detail = view.metresPerPixel <= DetailMetresPerPixel;
     bool rebuild = !valid || view.tileX != builtTileX || view.tileZ != builtTileZ
@@ -247,6 +248,12 @@ void TrackMapLayer::pushRenderItems(RenderQueue &queue, const MapView &view,
     }
     if (rebuild)
         build(view, palette, track, road);
-    for (OglObj *object : {roadLines.get(), trackLines.get(), ends.get(), junctions.get()})
-        object->pushRenderItem(queue);
+    if (layers.shows(MapLayer::Road))
+        roadLines->pushRenderItem(queue);
+    if (layers.shows(MapLayer::Track))
+        trackLines->pushRenderItem(queue);
+    if (layers.shows(MapLayer::Ends))
+        ends->pushRenderItem(queue);
+    if (layers.shows(MapLayer::Junctions))
+        junctions->pushRenderItem(queue);
 }

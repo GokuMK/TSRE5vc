@@ -15,6 +15,7 @@
 #include <QString>
 #include <memory>
 #include <vector>
+#include "MapLayers.h"
 
 class MapView;
 class OglObj;
@@ -45,7 +46,7 @@ public:
     // Draws the databases for the view, rebuilding the geometry when the
     // view moved to another tile or zoomed enough to change line widths.
     void pushRenderItems(RenderQueue &queue, const MapView &view, const MapPalette &palette,
-                         TDB *track, TDB *road);
+                         TDB *track, TDB *road, const MapLayers &layers = MapLayers());
     // Builds again on the next draw (the databases changed).
     void invalidate() { valid = false; }
 

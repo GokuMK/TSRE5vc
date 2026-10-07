@@ -2456,7 +2456,35 @@ Consist with this file name already exist. Overwrite?
         <source>&amp;View</source>
         <translation>&amp;View</translation>
     </message>
-    <message id="route.editor.route.editor.window.action.view.map.mode">
+    <message id="route.editor.route.editor.window.menu.view.3d">
+        <source>&amp;3D View</source>
+        <translation>&amp;3D View</translation>
+    </message>
+    <message id="route.editor.route.editor.window.menu.map">
+        <source>&amp;Map</source>
+        <translation>&amp;Map</translation>
+    </message>
+    <message id="route.editor.route.editor.window.action.map.track.lines">
+        <source>&amp;Track Lines</source>
+        <translation>&amp;Track Lines</translation>
+    </message>
+    <message id="route.editor.route.editor.window.action.map.road.lines">
+        <source>&amp;Road Lines</source>
+        <translation>&amp;Road Lines</translation>
+    </message>
+    <message id="route.editor.route.editor.window.action.map.junctions">
+        <source>&amp;Junctions</source>
+        <translation>&amp;Junctions</translation>
+    </message>
+    <message id="route.editor.route.editor.window.action.map.ends">
+        <source>Track &amp;Ends</source>
+        <translation>Track &amp;Ends</translation>
+    </message>
+    <message id="route.editor.route.editor.window.action.map.pointer">
+        <source>&amp;Pointer</source>
+        <translation>&amp;Pointer</translation>
+    </message>
+    <message id="route.editor.route.editor.window.action.map.mode">
         <source>&amp;Map Mode</source>
         <translation>&amp;Map Mode</translation>
     </message>

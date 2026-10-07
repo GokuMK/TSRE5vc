@@ -323,8 +323,8 @@ RouteEditorWindow::RouteEditorWindow() {
     editMenu->addAction(selectAction);
     // View
     viewMenu = menuBar()->addMenu(
-        //% "&View"
-        qtTrId("route.editor.route.editor.window.menu.view.menu"));
+        //% "&3D View"
+        qtTrId("route.editor.route.editor.window.menu.view.3d"));
     //toolsAction = GuiFunct::newMenuCheckAction(tr("&Tools"), this); 
     //viewMenu->addAction(toolsAction);
     //QObject::connect(toolsAction, SIGNAL(triggered(bool)), this, SLOT(hideShowToolWidget(bool)));
@@ -337,8 +337,7 @@ RouteEditorWindow::RouteEditorWindow() {
     // shows the key without taking it, so typing a backquote elsewhere works.
     QAction *viewMapMode = GuiFunct::newMenuCheckAction(
         //% "&Map Mode"
-        qtTrId("route.editor.route.editor.window.action.view.map.mode") + "\t`", this, false);
-    viewMenu->addAction(viewMapMode);
+        qtTrId("route.editor.route.editor.window.action.map.mode") + "\t`", this, false);
     QObject::connect(viewMapMode, &QAction::triggered, this, [this] { glWidget->toggleViewMode(); });
     QObject::connect(glWidget, QOverload<QString, QString>::of(&RouteEditorGLWidget::sendMsg), this,
                      [this, viewMapMode](const QString &name, const QString &value) {
@@ -418,10 +417,34 @@ RouteEditorWindow::RouteEditorWindow() {
         qtTrId("route.editor.route.editor.window.action.v.view.compass"), this, false);
     viewMenu->addAction(vViewCompass);
     QObject::connect(vViewCompass, SIGNAL(triggered(bool)), this, SLOT(viewCompass(bool)));
+    // Map: what the map mode draws, apart from the 3D view's toggles.
+    QMenu *mapMenu = menuBar()->addMenu(
+        //% "&Map"
+        qtTrId("route.editor.route.editor.window.menu.map"));
+    const struct { QString text; MapLayer layer; } mapLayerEntries[] = {
+        {//% "&Track Lines"
+         qtTrId("route.editor.route.editor.window.action.map.track.lines"), MapLayer::Track},
+        {//% "&Road Lines"
+         qtTrId("route.editor.route.editor.window.action.map.road.lines"), MapLayer::Road},
+        {//% "&Junctions"
+         qtTrId("route.editor.route.editor.window.action.map.junctions"), MapLayer::Junctions},
+        {//% "Track &Ends"
+         qtTrId("route.editor.route.editor.window.action.map.ends"), MapLayer::Ends},
+        {//% "&Pointer"
+         qtTrId("route.editor.route.editor.window.action.map.pointer"), MapLayer::Pointer}};
+    for (const auto &entry : mapLayerEntries) {
+        QAction *action = GuiFunct::newMenuCheckAction(entry.text, this, true);
+        const MapLayer layer = entry.layer;
+        QObject::connect(action, &QAction::triggered, this,
+                         [this, layer](bool visible) { glWidget->setMapLayerVisible(layer, visible); });
+        mapMenu->addAction(action);
+    }
     // Tools
     toolsMenu = menuBar()->addMenu(
         //% "&Tools"
         qtTrId("route.editor.route.editor.window.menu.tools.menu"));
+    toolsMenu->addAction(viewMapMode);
+    toolsMenu->addSeparator();
     propertiesAction = GuiFunct::newMenuCheckAction(
         //% "&Properties"
         qtTrId("route.editor.route.editor.window.action.properties.action"), this);

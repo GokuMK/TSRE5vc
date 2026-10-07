@@ -5,8 +5,14 @@ Status: phase 0 (tool structure) and the phase 1 core are done on
 "Branch").
 
 Phase 1 core, as built:
+- **Menus:**
+  - The old View menu is now "3D View", with the 3D toggles.
+  - A new "Map" menu holds the map's own layer toggles: track lines, road
+    lines, junctions, track ends, pointer. They are kept in the map code
+    (`MapLayers`), not `Game`.
+  - "Map Mode" sits in the Tools menu until the menus are restructured.
 - **Switching:**
-  - Backquote or View > Map Mode switches modes; switching moves to the
+  - Backquote or Tools > Map Mode switches modes; switching moves to the
     pointer's place in the other mode.
   - Tools the mode does not support are put aside and restored on
     return.
