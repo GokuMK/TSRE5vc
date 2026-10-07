@@ -424,7 +424,11 @@ float ParserX::GetNumber(FileBuffer* bufor){
             ujemna = 1;
             b = bufor->getShort();
             //bufor->off++;
-        } else ujemna = 0;
+        } else {
+            ujemna = 0;
+            if (b == '+')
+                b = bufor->getShort();
+        }
         liczba = 0;
         while (b > 47 && b < 58) {
             liczba = liczba * 10.0 + b - 48;
@@ -499,7 +503,11 @@ float ParserX::GetNumberInside(FileBuffer* bufor, bool *ok){
             ujemna = 1;
             b = bufor->getShort();
             //bufor->off++;
-        } else ujemna = 0;
+        } else {
+            ujemna = 0;
+            if (b == '+')
+                b = bufor->getShort();
+        }
         liczba = 0;
         while (b > 47 && b < 58) {
             liczba = liczba * 10.0 + b - 48;

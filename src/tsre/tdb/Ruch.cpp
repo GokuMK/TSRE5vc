@@ -29,8 +29,8 @@ void Ruch::set(int nid, int m, int tdirection, QMap<int, int>* jDirections) {
 
     TDB *tdb = Game::trackDB;
     if (tdb->trackNodes[nodeIdx]->typ == 0 || tdb->trackNodes[nodeIdx]->typ == 2) {
-        kierunek = tdb->trackNodes[nodeIdx]->TrPinK[0];
-        nodeIdx = tdb->trackNodes[nodeIdx]->TrPinS[0];
+        kierunek = tdb->trackNodes[nodeIdx]->pins[0].direction;
+        nodeIdx = tdb->trackNodes[nodeIdx]->pins[0].link;
         nodeLength = Game::trackDB->getVectorSectionLength(nodeIdx);
         if (kierunek == 1) {
             nodeDist = 0;
@@ -102,12 +102,12 @@ void Ruch::checkNode(int mSign) {
     float nodeDistLeft = 0;
     if (nodeDist >= nodeLength) {
         nodeDistLeft = nodeDist - nodeLength;
-        kier = tdb->trackNodes[nodeIdx]->TrPinK[1];
-        nodeId = tdb->trackNodes[nodeIdx]->TrPinS[1];
+        kier = tdb->trackNodes[nodeIdx]->pins[1].direction;
+        nodeId = tdb->trackNodes[nodeIdx]->pins[1].link;
     } else if (nodeDist < 0) {
         nodeDistLeft = -nodeDist;
-        kier = tdb->trackNodes[nodeIdx]->TrPinK[0];
-        nodeId = tdb->trackNodes[nodeIdx]->TrPinS[0];
+        kier = tdb->trackNodes[nodeIdx]->pins[0].direction;
+        nodeId = tdb->trackNodes[nodeIdx]->pins[0].link;
     } else {
         return;
     }
@@ -116,24 +116,24 @@ void Ruch::checkNode(int mSign) {
     if (n == NULL)
         return;
     if (n->typ == 2) {
-        int u = 0;// n->TrP1-1;
+        int u = 0;// n->inputPinCount-1;
         onJunction = 2; // just info
         if (kier == 1){
             onJunction = 1; // just info
-            u = 1+(*junctionDirections)[nodeId];//n->TrP1;//+n->TrP2-1;
+            u = 1+(*junctionDirections)[nodeId];//n->inputPinCount;//+n->outputPinCount-1;
         }
         
         // todo if u > 1 allow junction switch
         //if(u > 1)
         //    u++;
-        //u = n->TrP1*kierunek;
-        kierunek = n->TrPinK[u];
-        nodeIdx = n->TrPinS[u];
+        //u = n->inputPinCount*kierunek;
+        kierunek = n->pins[u].direction;
+        nodeIdx = n->pins[u].link;
         nodeLength = Game::trackDB->getVectorSectionLength(nodeIdx);
 
     } else if (n->typ == 0) {
-        kierunek = n->TrPinK[0];
-        nodeIdx = n->TrPinS[0];
+        kierunek = n->pins[0].direction;
+        nodeIdx = n->pins[0].link;
         nodeLength = Game::trackDB->getVectorSectionLength(nodeIdx);
 
     } else if (n->typ == 1) {
@@ -200,23 +200,23 @@ bool Ruch::next(){
             case 0:
                 //System.out.print("byles na endpoint "+aktt);
                 
-                pozW.x = trackDB->trackNodes[aktt]->UiD[6];
-                pozW.y = trackDB->trackNodes[aktt]->UiD[7];
-                pozW.z = trackDB->trackNodes[aktt]->UiD[8];
-                pozT.x = (int) trackDB->trackNodes[aktt]->UiD[4];
-                pozT.z = (int) trackDB->trackNodes[aktt]->UiD[5];
+                pozW.x = trackDB->trackNodes[aktt]->uid.x;
+                pozW.y = trackDB->trackNodes[aktt]->uid.y;
+                pozW.z = trackDB->trackNodes[aktt]->uid.z;
+                pozT.x = (int) trackDB->trackNodes[aktt]->uid.tileX;
+                pozT.z = (int) trackDB->trackNodes[aktt]->uid.tileZ;
                 
-                kierunek = trackDB->trackNodes[aktt]->TrPinK[0];
-                aktt = trackDB->trackNodes[aktt]->TrPinS[0];
+                kierunek = trackDB->trackNodes[aktt]->pins[0].direction;
+                aktt = trackDB->trackNodes[aktt]->pins[0].link;
                 //System.out.println(" przejdziesz do "+aktt);
                 
                 akticz = 0;
                 
                 if(kierunek==1) {
-                    idx = (int) trackDB->trackNodes[aktt]->trVectorSection[0].param[0];
+                    idx = (int) trackDB->trackNodes[aktt]->trVectorSection[0].sectionIndex;
                     metry = 0;
                 } else {
-                    idx = (int) trackDB->trackNodes[aktt]->trVectorSection[trackDB->trackNodes[aktt]->iTrv-1].param[0];
+                    idx = (int) trackDB->trackNodes[aktt]->trVectorSection[trackDB->trackNodes[aktt]->iTrv-1].sectionIndex;
                     metry = trackDB->tsection->sekcja.at(idx)->getDlugosc();
                 }
 
@@ -238,23 +238,23 @@ bool Ruch::next(){
                     }
                     if(i<u){
                         //System.out.println("czesc" + i);
-                        idx = (int) trackDB->trackNodes[aktt]->trVectorSection[i].param[0];
-                        pozW.x = trackDB->trackNodes[aktt]->trVectorSection[i].param[10];
-                        pozW.y = trackDB->trackNodes[aktt]->trVectorSection[i].param[11];
-                        pozW.z = trackDB->trackNodes[aktt]->trVectorSection[i].param[12];
-                        pozO.x = trackDB->trackNodes[aktt]->trVectorSection[i].param[13];
-                        pozO.y = trackDB->trackNodes[aktt]->trVectorSection[i].param[14];
-                        pozO.z = trackDB->trackNodes[aktt]->trVectorSection[i].param[15];
-                        pozT.x = trackDB->trackNodes[aktt]->trVectorSection[i].param[8];
-                        pozT.z = trackDB->trackNodes[aktt]->trVectorSection[i].param[9];
+                        idx = (int) trackDB->trackNodes[aktt]->trVectorSection[i].sectionIndex;
+                        pozW.x = trackDB->trackNodes[aktt]->trVectorSection[i].x;
+                        pozW.y = trackDB->trackNodes[aktt]->trVectorSection[i].y;
+                        pozW.z = trackDB->trackNodes[aktt]->trVectorSection[i].z;
+                        pozO.x = trackDB->trackNodes[aktt]->trVectorSection[i].ax;
+                        pozO.y = trackDB->trackNodes[aktt]->trVectorSection[i].ay;
+                        pozO.z = trackDB->trackNodes[aktt]->trVectorSection[i].az;
+                        pozT.x = trackDB->trackNodes[aktt]->trVectorSection[i].tileX;
+                        pozT.z = trackDB->trackNodes[aktt]->trVectorSection[i].tileZ;
                         return true;
                     }
                     
-                    //rozjazdy[trackDB.trackNodes[aktt].TrPinS[1]][1] = Math.abs(kierunek-1);
-                    //rozjazdy[trackDB.trackNodes[aktt].TrPinS[1]][0] = aktt;
+                    //rozjazdy[trackDB.trackNodes[aktt].pins[1].link][1] = Math.abs(kierunek-1);
+                    //rozjazdy[trackDB.trackNodes[aktt].pins[1].link][0] = aktt;
                             
-                    kierunek = trackDB->trackNodes[aktt]->TrPinK[1];
-                    aktt = trackDB->trackNodes[aktt]->TrPinS[1];
+                    kierunek = trackDB->trackNodes[aktt]->pins[1].direction;
+                    aktt = trackDB->trackNodes[aktt]->pins[1].link;
                     //System.out.println("zjezdzasz z toru na " + aktt);
                     return false;
                 }
@@ -268,7 +268,7 @@ bool Ruch::next(){
                          //System.out.println("++ ");
                          i=u-akticz-1;
                          if(i>=0){
-                            idx = trackDB->trackNodes[aktt]->trVectorSection[i].param[0];
+                            idx = trackDB->trackNodes[aktt]->trVectorSection[i].sectionIndex;
                             metry=trackDB->tsection->sekcja.at(idx)->getDlugosc();
                          }
                     }
@@ -280,53 +280,53 @@ bool Ruch::next(){
                     
                     if(i>=0){
                         //System.out.println("czesc" + i + " m " + metry);
-                        idx = (int) trackDB->trackNodes[aktt]->trVectorSection[i].param[0];
-                        pozW.x = trackDB->trackNodes[aktt]->trVectorSection[i].param[10];
-                        pozW.y = trackDB->trackNodes[aktt]->trVectorSection[i].param[11];
-                        pozW.z = trackDB->trackNodes[aktt]->trVectorSection[i].param[12];
-                        pozO.x = trackDB->trackNodes[aktt]->trVectorSection[i].param[13];
-                        pozO.y = trackDB->trackNodes[aktt]->trVectorSection[i].param[14];
-                        pozO.z = trackDB->trackNodes[aktt]->trVectorSection[i].param[15];
-                        pozT.x = (int) trackDB->trackNodes[aktt]->trVectorSection[i].param[8];
-                        pozT.z = (int) trackDB->trackNodes[aktt]->trVectorSection[i].param[9];     
+                        idx = (int) trackDB->trackNodes[aktt]->trVectorSection[i].sectionIndex;
+                        pozW.x = trackDB->trackNodes[aktt]->trVectorSection[i].x;
+                        pozW.y = trackDB->trackNodes[aktt]->trVectorSection[i].y;
+                        pozW.z = trackDB->trackNodes[aktt]->trVectorSection[i].z;
+                        pozO.x = trackDB->trackNodes[aktt]->trVectorSection[i].ax;
+                        pozO.y = trackDB->trackNodes[aktt]->trVectorSection[i].ay;
+                        pozO.z = trackDB->trackNodes[aktt]->trVectorSection[i].az;
+                        pozT.x = (int) trackDB->trackNodes[aktt]->trVectorSection[i].tileX;
+                        pozT.z = (int) trackDB->trackNodes[aktt]->trVectorSection[i].tileZ;
                         return true;
                     }
                     akticz = 0;
                     metry = 0;
                     
-                    //rozjazdy[trackDB.trackNodes[aktt].TrPinS[1]][1] = Math.abs(kierunek-1);
-                    //rozjazdy[trackDB.trackNodes[aktt].TrPinS[1]][0] = aktt;
+                    //rozjazdy[trackDB.trackNodes[aktt].pins[1].link][1] = Math.abs(kierunek-1);
+                    //rozjazdy[trackDB.trackNodes[aktt].pins[1].link][0] = aktt;
                     
-                    kierunek = trackDB->trackNodes[aktt]->TrPinK[0];
-                    aktt = trackDB->trackNodes[aktt]->TrPinS[0];
+                    kierunek = trackDB->trackNodes[aktt]->pins[0].direction;
+                    aktt = trackDB->trackNodes[aktt]->pins[0].link;
                     //System.out.println("zjezdzasz z toru na " + aktt);
                     return false;
                 }
                 return false;
             case 2:
-                if(kierunek==1){ u = trackDB->trackNodes[aktt]->TrP2;}
-                if(kierunek==0){ u = trackDB->trackNodes[aktt]->TrP1;}
+                if(kierunek==1){ u = trackDB->trackNodes[aktt]->outputPinCount;}
+                if(kierunek==0){ u = trackDB->trackNodes[aktt]->inputPinCount;}
                 akticz = 0;
                 metry = 0;
-                pozW.x = trackDB->trackNodes[aktt]->UiD[6];
-                pozW.y = trackDB->trackNodes[aktt]->UiD[7];
-                pozW.z = trackDB->trackNodes[aktt]->UiD[8];
-                pozT.x = (int) trackDB->trackNodes[aktt]->UiD[4];
-                pozT.z = (int) trackDB->trackNodes[aktt]->UiD[5];
+                pozW.x = trackDB->trackNodes[aktt]->uid.x;
+                pozW.y = trackDB->trackNodes[aktt]->uid.y;
+                pozW.z = trackDB->trackNodes[aktt]->uid.z;
+                pozT.x = (int) trackDB->trackNodes[aktt]->uid.tileX;
+                pozT.z = (int) trackDB->trackNodes[aktt]->uid.tileZ;
                 
                 int kt, at;
                 
                 if(u==1){
                     //System.out.println("zjezdzasz z rozjazdu "+aktt);
-                    kt = trackDB->trackNodes[aktt]->TrPinK[trackDB->trackNodes[aktt]->TrP1*kierunek];
-                    at = trackDB->trackNodes[aktt]->TrPinS[trackDB->trackNodes[aktt]->TrP1*kierunek];
+                    kt = trackDB->trackNodes[aktt]->pins[trackDB->trackNodes[aktt].direction->inputPinCount*kierunek];
+                    at = trackDB->trackNodes[aktt]->pins[trackDB->trackNodes[aktt].link->inputPinCount*kierunek];
                     kierunek=kt; aktt=at;
                     
                     if(kierunek==1) {
-                        idx = (int) trackDB->trackNodes[aktt]->trVectorSection[0].param[0];
+                        idx = (int) trackDB->trackNodes[aktt]->trVectorSection[0].sectionIndex;
                         metry = 0;
                     } else {
-                        idx = (int) trackDB->trackNodes[aktt]->trVectorSection[trackDB->trackNodes[aktt]->iTrv-1].param[0];
+                        idx = (int) trackDB->trackNodes[aktt]->trVectorSection[trackDB->trackNodes[aktt]->iTrv-1].sectionIndex;
                         metry = trackDB->tsection->sekcja.at(idx)->getDlugosc();
                     }
                     
@@ -340,20 +340,20 @@ bool Ruch::next(){
                 //} else {
                     //if(rozjazd){
                         //rozjazdy[aktt][1] = 
-                kt = trackDB->trackNodes[aktt]->TrPinK[trackDB->trackNodes[aktt]->TrP1*kierunek];
+                kt = trackDB->trackNodes[aktt]->pins[trackDB->trackNodes[aktt].direction->inputPinCount*kierunek];
                         //rozjazdy[aktt][0] = 
-                at = trackDB->trackNodes[aktt]->TrPinS[trackDB->trackNodes[aktt]->TrP1*kierunek];
+                at = trackDB->trackNodes[aktt]->pins[trackDB->trackNodes[aktt].link->inputPinCount*kierunek];
                     //} else {
-                    //    rozjazdy[aktt][1] = kt = trackDB.trackNodes[aktt].TrPinK[trackDB.trackNodes[aktt].TrP1*kierunek+1];
-                    //    rozjazdy[aktt][0] = at = trackDB.trackNodes[aktt].TrPinS[trackDB.trackNodes[aktt].TrP1*kierunek+1];
+                    //    rozjazdy[aktt][1] = kt = trackDB.trackNodes[aktt].pins[trackDB.trackNodes[aktt].direction.inputPinCount*kierunek+1];
+                    //    rozjazdy[aktt][0] = at = trackDB.trackNodes[aktt].pins[trackDB.trackNodes[aktt].link.inputPinCount*kierunek+1];
                     //}
                 //}
                 kierunek = kt; aktt = at;
                 if(kierunek==1) {
-                    idx = (int) trackDB->trackNodes[aktt]->trVectorSection[0].param[0];
+                    idx = (int) trackDB->trackNodes[aktt]->trVectorSection[0].sectionIndex;
                     metry = 0;
                 } else {
-                    idx = (int) trackDB->trackNodes[aktt]->trVectorSection[trackDB->trackNodes[aktt]->iTrv-1].param[0];
+                    idx = (int) trackDB->trackNodes[aktt]->trVectorSection[trackDB->trackNodes[aktt]->iTrv-1].sectionIndex;
                     metry = trackDB->tsection->sekcja.at(idx)->getDlugosc();
                     //System.out.println("metry "+metry);
                 }

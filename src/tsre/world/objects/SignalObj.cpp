@@ -433,12 +433,12 @@ void SignalObj::getLinkInfo(int *ids){
     int jid = trit->trSignalDir[0];
     int dir = trit->trSignalDir[2];
     ids[0] = jid;
-    ids[1] = tdb->trackNodes[jid]->TrPinS[1+dir];
+    ids[1] = tdb->trackNodes[jid]->pins[1+dir].link;
     TRnode *n = tdb->trackNodes[ids[1]];
-    if(n->TrPinS[0] == ids[0])
-        ids[2] = n->TrPinS[1];
+    if(n->pins[0].link == ids[0])
+        ids[2] = n->pins[1].link;
     else
-        ids[2] = n->TrPinS[0];
+        ids[2] = n->pins[0].link;
 }
 
 bool SignalObj::isJunctionAvailable(int i){

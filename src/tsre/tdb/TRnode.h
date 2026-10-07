@@ -13,26 +13,24 @@
 
 #include <tsre/math3d/Vector2i.h>
 #include <QString>
+#include <tsre/tdb/TrackNodeData.h>
 
 class QTextStream;
 class FileBuffer;
 
 class TRnode {
 public:
-    struct TRSect {
-        float param[16];
-    };
     int typ;
-    int args[3];
-    float UiD[12];
+    JunctionData junction;
+    std::uint32_t endNodeValue = 0;
+    TrackNodeUid uid;
     int iTrv = 0;
-    TRSect *trVectorSection = NULL;
+    TrackVectorSection *trVectorSection = NULL;
     int iTri = 0;
     int *trItemRef = NULL;
-    int TrP1 = 0;
-    int TrP2 = 0;
-    int TrPinS[3];
-    int TrPinK[3];
+    int inputPinCount = 0;
+    int outputPinCount = 0;
+    std::array<TrackPin, 3> pins{};
     
     TRnode();
     TRnode(const TRnode& orig);
