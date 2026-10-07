@@ -1432,7 +1432,9 @@ void RouteEditorGLWidget::mousePressEvent(QMouseEvent *event) {
     m_lastPos *= Game::PixelRatio;
     mouseClick = true;
     if (currentViewMode == ViewMode::Map) {
-        // No tool works on the map yet: both buttons move the map.
+        // Both buttons move the map; a left click that does not move it
+        // goes to the active tool (mouseReleaseEvent).
+        mapPressPos = m_lastPos;
         camera->MouseDown(event);
         setFocus();
         return;
@@ -1569,6 +1571,23 @@ void RouteEditorGLWidget::mouseReleaseEvent(QMouseEvent* event) {
     camera->MouseUp(event);
     if (currentViewMode == ViewMode::Map) {
         mouseClick = false;
+        const QPointF position = event->position() * Game::PixelRatio;
+        const QPointF moved = position - mapPressPos;
+        EditorTool *tool = activeTool();
+        if (event->button() == Qt::LeftButton && tool != nullptr
+                && tool->supports(ViewMode::Map)
+                && std::abs(moved.x()) + std::abs(moved.y()) <= MapClickPixels) {
+            mousex = float(position.x());
+            mousey = float(position.y());
+            updateMapPointer();
+            Undo::StateBegin();
+            tool->press(*this, ToolMouse{position, position});
+            Undo::StateEnd();
+            // What the tool changed shows on the next draw.
+            trackItemMap->invalidate();
+            activityMap->invalidate();
+            update();
+        }
         return;
     }
     if ((event->button()) == Qt::RightButton) {

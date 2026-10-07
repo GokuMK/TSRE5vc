@@ -293,7 +293,7 @@ bool ActivityObject::SpeedZone::initPositions() {
         Vec2::set(posT, start[0], -start[1]);
         float h = Game::terrainLib->getHeight(start[0], -start[1], start[2], start[3]);
         Vec3::set(pos, start[2], h, -start[3]);
-        int ok = Game::trackDB->findNearestPositionOnTDB(posT, pos, NULL, trid);
+        int ok = Game::trackDB->findNearestPositionOnTDB(posT, pos, NULL, trid, false);
         if (ok < 0) {
             init = -1;
             return false;
@@ -317,7 +317,7 @@ bool ActivityObject::SpeedZone::initPositions() {
         float h = Game::terrainLib->getHeight(end[0], -end[1], end[2], end[3]);
         Vec3::set(pos, end[2], h, -end[3]);
 
-        int ok = Game::trackDB->findNearestPositionOnTDB(posT, pos, NULL, trid + 3);
+        int ok = Game::trackDB->findNearestPositionOnTDB(posT, pos, NULL, trid + 3, false);
         if (ok < 0) {
             init = -1;
             return false;

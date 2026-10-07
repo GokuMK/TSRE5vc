@@ -294,6 +294,7 @@ PropertiesDyntrack::~PropertiesDyntrack() {
 }
 
 void PropertiesDyntrack::msg(QString name, QString val){
+    PropertiesAbstract::msg(name, val);
     if(name == "toolEnabled"){
         QMapIterator<QString, QPushButton*> i(buttonTools);
         while (i.hasNext()) {

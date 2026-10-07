@@ -1607,7 +1607,7 @@ void Route::deleteTrackItem(TRitem * item){
     return;
 }
 
-void Route::actPickNewEventLocation(int x, int z, float* p){
+void Route::actPickNewEventLocation(int x, int z, float* p, bool useHeight){
     if(currentActivity == NULL)
         return;
     float tp[3];
@@ -1618,13 +1618,13 @@ void Route::actPickNewEventLocation(int x, int z, float* p){
     Game::check_coords(x, z, tp);
     posT[0] = x;
     posT[1] = z;            
-    int ok = this->trackDB->findNearestPositionOnTDB(posT, tp, NULL, tpos);
+    int ok = this->trackDB->findNearestPositionOnTDB(posT, tp, NULL, tpos, useHeight);
     if(ok >= 0){
         currentActivity->pickNewEventLocation(tpos);
     }
 }
 
-void Route::actNewLooseConsist(int x, int z, float* p){
+void Route::actNewLooseConsist(int x, int z, float* p, bool useHeight){
     if(currentActivity == NULL)
         return;
     float tp[3];
@@ -1635,7 +1635,7 @@ void Route::actNewLooseConsist(int x, int z, float* p){
     Game::check_coords(x, z, tp);
     posT[0] = x;
     posT[1] = z;            
-    int ok = this->trackDB->findNearestPositionOnTDB(posT, tp, NULL, tpos);
+    int ok = this->trackDB->findNearestPositionOnTDB(posT, tp, NULL, tpos, useHeight);
     if(ok >= 0){
         currentActivity->newLooseConsist(tpos);
     }
@@ -1656,7 +1656,7 @@ void Route::actNewFailedSignal(int x, int z, float* p){
     
 }
 
-void Route::actNewNewSpeedZone(int x, int z, float* p){
+void Route::actNewNewSpeedZone(int x, int z, float* p, bool useHeight){
     if(currentActivity == NULL)
         return;
     float tp[3];
@@ -1667,7 +1667,7 @@ void Route::actNewNewSpeedZone(int x, int z, float* p){
     Game::check_coords(x, z, tp);
     posT[0] = x;
     posT[1] = z;            
-    int ok = this->trackDB->findNearestPositionOnTDB(posT, tp, NULL, tpos);
+    int ok = this->trackDB->findNearestPositionOnTDB(posT, tp, NULL, tpos, useHeight);
     if(ok >= 0){
         currentActivity->newSpeedZone(tpos);
     }

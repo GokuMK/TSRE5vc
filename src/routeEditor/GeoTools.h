@@ -18,13 +18,9 @@
 
 class Coords;
 
-class ToolRegistry;
-
 class GeoTools : public QWidget{
     Q_OBJECT
 public:
-    // The tools, to enable only the buttons of tools the view mode supports.
-    void setToolRegistry(const ToolRegistry *registry) { toolRegistry = registry; }
     GeoTools(QString name);
     virtual ~GeoTools();
     
@@ -52,7 +48,6 @@ signals:
     
 private:
     QMap<QString, QPushButton*> buttonTools;
-    const ToolRegistry *toolRegistry = nullptr;
     QMap<QString, Coords*> mkrFiles;
     QComboBox markerFiles;
     QSpinBox eRadius;

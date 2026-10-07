@@ -235,19 +235,27 @@ int TsreTests::runEditorToolsSuite(bool verbose) {
     const QMap<QString, QPushButton *> buttons = {
         {"selectTool", &selectButton}, {"proceduralPickTool", &picker},
         {"autoPlaceSimpleTool", &needsSelection}, {"", nullptr}};
+    ToolButtons::setRegistry(&registry);
     ToolButtons::setAvailable(&needsSelection, false);
-    ToolButtons::applyMode(buttons, &registry, ToolButtons::modeOf("map"));
+    ToolButtons::applyMode(buttons, ToolButtons::modeOf("map"));
     const bool mapOff = !selectButton.isEnabled() && !picker.isEnabled()
             && !needsSelection.isEnabled();
     ToolButtons::setAvailable(&needsSelection, true);
     const bool stillOff = !needsSelection.isEnabled();
-    ToolButtons::applyMode(buttons, &registry, ToolButtons::modeOf("3d"));
+    ToolButtons::applyMode(buttons, ToolButtons::modeOf("3d"));
     check(mapOff && stillOff && selectButton.isEnabled() && picker.isEnabled()
                   && needsSelection.isEnabled(),
           "panel buttons: off in map mode for 3D tools, back in 3D with their own condition");
     ToolButtons::setAvailable(&needsSelection, false);
     check(!needsSelection.isEnabled() && selectButton.isEnabled(),
           "panel buttons: a button's own condition still disables it in 3D");
+    check(registry.allowed("actNewLooseConsistTool", ViewMode::Map)
+                  && registry.allowed("actNewSpeedZoneTool", ViewMode::Map)
+                  && registry.allowed("pickNewEventLocationTool", ViewMode::Map)
+                  && ToolButtons::allowed("pickNewEventLocationTool", ViewMode::Map)
+                  && !ToolButtons::allowed("selectTool", ViewMode::Map),
+          "activity tools work in map mode; the others stay 3D only");
+    ToolButtons::setRegistry(nullptr);
 
     qInfo().noquote() << "[tests:editor-tools] cases=" << passed + failed << "passed=" << passed
                       << "failed=" << failed;

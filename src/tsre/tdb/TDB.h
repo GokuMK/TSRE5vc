@@ -137,7 +137,9 @@ public:
     bool getDrawPositionOnTrNode(float* out, int id, float metry, float *sElev = NULL);
     int findTrItemNodeId(int id);
     int findTrItemNodeIds(int id, QVector<int> &ids);
-    int findNearestPositionOnTDB(float* posT, float* pos, float* q = NULL, float* tpos = NULL);
+    // useHeight false measures across the ground only: for positions
+    // without a meaningful height (map mode, stored x and z).
+    int findNearestPositionOnTDB(float* posT, float* pos, float* q = NULL, float* tpos = NULL, bool useHeight = true);
     int findNearestPositionsOnTDB(float* posT, float * pos, QVector<TDB::IntersectionPoint> &points, float maxDistance = 10.0);
     void fillNearestSquaredDistanceToTDBXZ(float* posT, QVector<Vector4f> &points, float* bbox = NULL);
     void deleteTrItem(int trid);

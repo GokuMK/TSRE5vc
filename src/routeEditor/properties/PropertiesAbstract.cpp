@@ -9,6 +9,7 @@
  */
 
 #include <routeEditor/properties/PropertiesAbstract.h>
+#include <routeEditor/tools/ToolButtons.h>
 #include <tsre/world/objects/WorldObj.h>
 #include "TransformWorldObjDialog.h"
 #include "RandomTransformWorldObjDialog.h"
@@ -157,7 +158,9 @@ void PropertiesAbstract::enableTool(){
 }*/
 
 void PropertiesAbstract::msg(QString name, QString val){
-    
+    // Tool buttons follow the view mode (task editor 04).
+    if(name == "viewMode")
+        ToolButtons::applyMode(buttonTools, ToolButtons::modeOf(val));
 }
 
 void PropertiesAbstract::copyREnabled(){

@@ -20,14 +20,10 @@ class Brush;
 class ClickableLabel;
 class Texture;
 
-class ToolRegistry;
-
 class TerrainTools : public QWidget{
     Q_OBJECT
 
 public:
-    // The tools, to enable only the buttons of tools the view mode supports.
-    void setToolRegistry(const ToolRegistry *registry) { toolRegistry = registry; }
     TerrainTools(QString name);
     virtual ~TerrainTools();
     
@@ -118,7 +114,6 @@ private:
     QLineEdit *leEradius;
     
     QMap<QString, QPushButton*> buttonTools;
-    const ToolRegistry *toolRegistry = nullptr;
 
 };
 

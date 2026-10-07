@@ -15,6 +15,7 @@
 
 namespace {
 
+const ToolRegistry *tools = nullptr;
 const char *const ModeAllowed = "toolModeAllowed";
 const char *const Available = "toolAvailable";
 
@@ -34,20 +35,25 @@ void initialise(QPushButton *button) {
 
 namespace ToolButtons {
 
+void setRegistry(const ToolRegistry *registry) {
+    tools = registry;
+}
+
+bool allowed(const QString &tool, ViewMode mode) {
+    return tools != nullptr ? tools->allowed(tool, mode) : mode == ViewMode::Scene3D;
+}
+
 ViewMode modeOf(const QString &value) {
     return value == "map" ? ViewMode::Map : ViewMode::Scene3D;
 }
 
-void applyMode(const QMap<QString, QPushButton *> &buttons, const ToolRegistry *registry,
-               ViewMode mode) {
+void applyMode(const QMap<QString, QPushButton *> &buttons, ViewMode mode) {
     for (auto it = buttons.constBegin(); it != buttons.constEnd(); ++it) {
         QPushButton *button = it.value();
         if (button == nullptr)
             continue;
         initialise(button);
-        const bool allowed = registry != nullptr ? registry->allowed(it.key(), mode)
-                                                 : mode == ViewMode::Scene3D;
-        button->setProperty(ModeAllowed, allowed);
+        button->setProperty(ModeAllowed, allowed(it.key(), mode));
         update(button);
     }
 }

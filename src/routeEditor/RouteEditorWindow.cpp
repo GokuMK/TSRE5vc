@@ -11,6 +11,7 @@
 #include <QtWidgets>
 #include "RouteEditorGLWidget.h"
 #include <routeEditor/RouteEditorWindow.h>
+#include "tools/ToolButtons.h"
 #include <tsre/Game.h>
 #include <tsre/world/TerrainBakeCommand.h>
 #include <tsre/texture/AceLib.h>
@@ -116,10 +117,7 @@ RouteEditorWindow::RouteEditorWindow() {
     activityTools = new ActivityTools("ActivityTools");
     //naviBox = new NaviBox();
     glWidget = new RouteEditorGLWidget(this);
-    objTools->setToolRegistry(glWidget->toolRegistry());
-    terrainTools->setToolRegistry(glWidget->toolRegistry());
-    geoTools->setToolRegistry(glWidget->toolRegistry());
-    activityTools->setToolRegistry(glWidget->toolRegistry());
+    ToolButtons::setRegistry(glWidget->toolRegistry());
     shapeViewWindow = new ShapeViewWindow(this);
     aboutWindow = new AboutWindow(this);
     naviWindow = new NaviWindow(this);

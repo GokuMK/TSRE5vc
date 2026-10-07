@@ -20,8 +20,9 @@ namespace {
 
 class ClickTool : public EditorTool {
 public:
-    ClickTool(const QString &id, std::function<void(ToolContext &)> command)
-        : EditorTool(id), command(std::move(command)) {}
+    ClickTool(const QString &id, std::function<void(ToolContext &)> command,
+              ViewModes modes = ViewMode::Scene3D)
+        : EditorTool(id, modes), command(std::move(command)) {}
 
     bool press(ToolContext &ctx, const ToolMouse &) override {
         command(ctx);
@@ -49,9 +50,14 @@ namespace RouteDataTools {
 
 std::vector<std::unique_ptr<EditorTool>> create() {
     std::vector<std::unique_ptr<EditorTool>> tools;
-    auto click = [&tools](const char *id, std::function<void(ToolContext &)> command) {
-        tools.push_back(std::make_unique<ClickTool>(id, std::move(command)));
+    auto click = [&tools](const char *id, std::function<void(ToolContext &)> command,
+                          ViewModes modes = ViewMode::Scene3D) {
+        tools.push_back(std::make_unique<ClickTool>(id, std::move(command), modes));
     };
+    // The activity tools find the nearest track to the pointer, which works
+    // on the map too, where the pointer has no height.
+    const ViewModes bothModes = ViewMode::Scene3D | ViewMode::Map;
+    auto useHeight = [](ToolContext &ctx) { return ctx.viewMode() == ViewMode::Scene3D; };
     click("mapTileShowTool", [](ToolContext &ctx) {
         Game::terrainLib->setTileBlob(ctx.tileX(), ctx.tileZ(), ctx.pointer());
     });
@@ -66,18 +72,21 @@ std::vector<std::unique_ptr<EditorTool>> create() {
     click("heightTileLoadTool", [](ToolContext &ctx) {
         Game::terrainLib->setHeightFromGeoGui(ctx.tileX(), ctx.tileZ(), ctx.pointer());
     });
-    click("actNewLooseConsistTool", [](ToolContext &ctx) {
-        ctx.currentRoute()->actNewLooseConsist(ctx.tileX(), ctx.tileZ(), ctx.pointer());
+    click("actNewLooseConsistTool", [useHeight](ToolContext &ctx) {
+        ctx.currentRoute()->actNewLooseConsist(ctx.tileX(), ctx.tileZ(), ctx.pointer(),
+                                               useHeight(ctx));
         ctx.message("refreshActivityTools");
-    });
-    click("actNewSpeedZoneTool", [](ToolContext &ctx) {
-        ctx.currentRoute()->actNewNewSpeedZone(ctx.tileX(), ctx.tileZ(), ctx.pointer());
+    }, bothModes);
+    click("actNewSpeedZoneTool", [useHeight](ToolContext &ctx) {
+        ctx.currentRoute()->actNewNewSpeedZone(ctx.tileX(), ctx.tileZ(), ctx.pointer(),
+                                               useHeight(ctx));
         ctx.message("refreshActivityTools");
-    });
-    click("pickNewEventLocationTool", [](ToolContext &ctx) {
-        ctx.currentRoute()->actPickNewEventLocation(ctx.tileX(), ctx.tileZ(), ctx.pointer());
+    }, bothModes);
+    click("pickNewEventLocationTool", [useHeight](ToolContext &ctx) {
+        ctx.currentRoute()->actPickNewEventLocation(ctx.tileX(), ctx.tileZ(), ctx.pointer(),
+                                                    useHeight(ctx));
         ctx.activateTool("");
-    });
+    }, bothModes);
     return tools;
 }
 

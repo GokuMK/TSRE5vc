@@ -332,6 +332,10 @@ private:
     std::unique_ptr<TrackMapLayer> trackMap;
     std::unique_ptr<TrackItemMapLayer> trackItemMap;
     std::unique_ptr<ActivityMapLayer> activityMap;
+    // Where a press began in map mode: a left click that moves the map no
+    // more than this goes to the active tool.
+    static constexpr float MapClickPixels = 4.0f;
+    QPointF mapPressPos;
     OglObj *mapPointer = NULL;
     MapPalette mapPalette;
     MapLayers mapLayers;

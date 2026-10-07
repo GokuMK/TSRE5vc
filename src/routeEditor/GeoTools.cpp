@@ -337,7 +337,7 @@ GeoTools::~GeoTools() {
 
 void GeoTools::msg(QString text, QString val){
     if(text == "viewMode"){
-        ToolButtons::applyMode(buttonTools, toolRegistry, ToolButtons::modeOf(val));
+        ToolButtons::applyMode(buttonTools, ToolButtons::modeOf(val));
         return;
     }
     if(text == "toolEnabled"){

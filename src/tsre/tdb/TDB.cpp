@@ -2659,7 +2659,7 @@ void TDB::drawLine(GLUU *gluu, float* &ptr, Vector3f p, Vector3f o, int idx) {
     }
 }
 
-int TDB::findNearestPositionOnTDB(float* posT, float* pos, float * q, float* tpos){
+int TDB::findNearestPositionOnTDB(float* posT, float* pos, float * q, float* tpos, bool useHeight){
     float *lineBuffer;
     int length = 0;
     getLines(lineBuffer, length, posT);
@@ -2676,14 +2676,20 @@ int TDB::findNearestPositionOnTDB(float* posT, float* pos, float * q, float* tpo
         //qDebug() << i/12;
         //qDebug() << lineBuffer[i+0] << " "<< lineBuffer[i+1] << " " << lineBuffer[i+2] << " "<< lineBuffer[i+3] << " "<< lineBuffer[i+4] << " " << lineBuffer[i+5] ;
         //qDebug() << lineBuffer[i+6] << " "<< lineBuffer[i+7] << " " << lineBuffer[i+8] << " "<< lineBuffer[i+9] << " "<< lineBuffer[i+10] << " " << lineBuffer[i+11] ;
-        dist = Intersections::pointSegmentDistance(lineBuffer + i, lineBuffer + i+6, pos, (float*)&intersectionPoint);
+        // Without height, the segment is laid at the position's height; the
+        // fraction along it is the same.
+        float a[3] = {lineBuffer[i], lineBuffer[i+1], lineBuffer[i+2]};
+        float b[3] = {lineBuffer[i+6], lineBuffer[i+7], lineBuffer[i+8]};
+        if(!useHeight)
+            a[1] = b[1] = pos[1];
+        dist = Intersections::pointSegmentDistance(a, b, pos, (float*)&intersectionPoint);
         if(dist < best[0]){
             best[0] = dist;
             best[1] = lineBuffer[i+3];
             best[2] = lineBuffer[i+4];
 
-            float dist1 = Vec3::distance(lineBuffer + i, lineBuffer + i+6);
-            float dist2 = Vec3::distance(lineBuffer + i, intersectionPoint);
+            float dist1 = Vec3::distance(a, b);
+            float dist2 = Vec3::distance(a, intersectionPoint);
             dist1 = dist2/dist1;
             best[3] = lineBuffer[i+5] + (lineBuffer[i+11] - lineBuffer[i+5])*dist1;
             //best[3] = intersectionPoint[0];

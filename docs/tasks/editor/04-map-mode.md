@@ -20,8 +20,23 @@ Phase 1 core, as built:
     get the view's "viewMode" message and disable only the buttons of
     tools the mode does not support (`tools/ToolButtons`, asking the
     `ToolRegistry`). A button with its own condition (auto placement
-    needs a selected item) keeps it. No tool supports map mode yet, so
-    every tool button is off there.
+    needs a selected item) keeps it. The property windows do the same for
+    their tool buttons (flex in dyntrack, Set Link in the signal window,
+    pick location in the event editor).
+  - **Tools in map mode:** a left click that does not move the map goes
+    to the active tool, if it supports map mode; a drag still pans.
+    The activity tools do: new loose consist, new speed zone and pick
+    event location. They find the nearest track to the pointer, which
+    has no height on the map, so they search across the ground only
+    (`TDB::findNearestPositionOnTDB(..., useHeight = false)`). Measured
+    with the pointer at height 0 near track: the 3D search took a track
+    2 to 24 m farther on about 1% of clicks (EUROPE1, USA1, JAPAN1) and
+    shifted the point up to 6 m along the right track. 3D mode keeps
+    searching with the pointer's height.
+  - Speed zones store only x and z for their ends. They now find their
+    track across the ground too, not at the terrain height under them,
+    which is not loaded on the map and could pick the end the other way
+    round (the start marker drawn from or to the line).
 - **Map view** (`src/tsre/map/MapView`, `src/tsre/camera/CameraMap`):
   - centre, scale and heading, with an orthographic projection;
   - left drag pans, right drag turns, the wheel zooms about the mouse;
