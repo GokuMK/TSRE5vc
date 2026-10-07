@@ -42,8 +42,7 @@ Phase 1 core, as built:
   are real data: double track, and roads with one database node per
   lane.
 
-Next: phase 2 layers (tile grid, scale ruler, track items, labels), and
-CPU picking of track data.
+Next: phase 2 layers (tile grid, scale ruler, track items, labels).
 
 Phase 0, in three batches, each to be tested once in the editor:
 
@@ -263,9 +262,12 @@ width.
   - Terrain heights are used only if a later layer draws terrain.
 - **Selection**:
   - The ID-buffer pass works unchanged for objects.
-  - Thin lines are hard to hit, so track data is also picked on the CPU:
-    the nearest track vector section, node or item within a few pixels of
-    the mouse (TrackViewer's "close to mouse").
+  - Not needed yet for track sections and nodes. Tools find track
+    positions as the 3D tools do: by asking the track database for the
+    track nearest the pointer.
+  - When track sections and nodes become selectable, it goes through the
+    selection pass, not CPU picking (decided 2026-10-07). At close zoom
+    the lines are drawn much thicker so they are easy to hit.
 - **3D to map**: the map centres on the 3D pointer position, or the
   camera position when there is no pointer, at the last map zoom.
 - **Map to 3D**: the 3D camera moves above the map pointer position. 3D
@@ -367,7 +369,7 @@ the core is in.
   - map camera mathematics (screen to ground and back, zoom about the
     mouse);
   - the tool registry (gating per mode);
-  - CPU track picking.
+  - track selection through the selection pass, when it comes.
 - **Manual**: toggle on a large route, pan and zoom across the whole
   route, switch at the pointer both ways, and check that 3D-only tools
   do nothing in map mode.
@@ -391,6 +393,8 @@ branch, whose merge is not decided.
 - Colours: palettes, built-in light and dark ones, custom ones possible;
   no TrackViewer green style.
 - Name: "Map mode" (may still change).
+- Track sections and nodes: not selectable for now; later through the
+  selection pass with thicker lines at close zoom, not CPU picking.
 - Tool structure before map mode (phase 0); tools migrate to it in
   batches, each batch tested once.
 - Base branch: `main`.
