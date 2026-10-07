@@ -19,6 +19,7 @@
 #include <tsre/ogl/OglObj.h>
 #include <tsre/world/Ref.h>
 #include <QHash>
+#include <vector>
 
 class RenderQueue;
 
@@ -133,6 +134,10 @@ public:
     virtual void addTrackItemIdOffset(unsigned int trackOffset, unsigned int roadOffset);
     virtual bool hasLinePoints();
     virtual void getLinePoints(float *&punkty);
+    // The line the map mode draws between the object's track items, as line
+    // segments (pairs of x, y, z points) relative to tile tileX, tileZ in
+    // the editor's tile convention; none for most objects.
+    virtual void getMapLine(std::vector<float> &segments, int tileX, int tileZ);
     virtual Ref::RefItem* getRefInfo();
     // Submits the selection box under the renderer's current transform.
     void pushRenderBox(RenderQueue &queue);

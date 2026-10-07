@@ -33,7 +33,9 @@ struct MapPalette;
 // come from the track and road databases' items. Zoomed in, they come from
 // the world objects of the tiles in view, which the map loads (only the
 // track objects are read, no shapes), so they can later be selected and
-// edited as objects.
+// edited as objects. Objects with two items (platforms, sidings, car
+// spawners) also draw the line they give the map (WorldObj::getMapLine)
+// along the track between them, LinePixels wide with the same border.
 class TrackItemMapLayer {
 public:
     enum Kind {
@@ -42,6 +44,7 @@ public:
     };
     static constexpr float WorldObjectExtentMetres = 3.0f * 2048.0f;
     static constexpr float MarkerPixels = 11.0f;
+    static constexpr float LinePixels = 3.0f;
     static constexpr float BorderPixels = 1.5f;
     static constexpr float BorderHeight = 600.0f;
     static constexpr float FillHeight = 610.0f;
@@ -75,7 +78,9 @@ private:
     };
     void buildIndex(Index &index, TDB *database);
     void collectDatabaseMarkers(std::vector<Position> &markers, const int *tiles);
-    void collectObjectMarkers(std::vector<Position> &markers, Route *route, const int *tiles);
+    // Also the objects' lines, by kind, relative to the view's tile.
+    void collectObjectMarkers(std::vector<Position> &markers, std::vector<float> *lines,
+                              const MapView &view, Route *route, const int *tiles);
     // The objects of the loaded tiles in a range, loading the tiles.
     static int objectCount(Route *route, const int *tiles);
     void build(const MapView &view, const MapPalette &palette, Route *route, const int *tiles,

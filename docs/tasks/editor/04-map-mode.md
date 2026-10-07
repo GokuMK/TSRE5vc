@@ -44,10 +44,17 @@ Phase 1 core, as built:
     positions. This is the path that later lets objects be selected and
     edited in the map. Items without an object are not drawn on this
     path.
+  - Platforms, sidings and car spawners also draw the line between their
+    two items along the track, 3 pixels wide with the same border, as the
+    3D view does. The map asks the object for it
+    (`WorldObj::getMapLine`, built on `TDB::getTrackSegments`), so only
+    the world-object path has lines.
   - Rebuilt on a scale change, a tile change, a switch between the paths,
     a new palette, or a change in the objects of the tiles in view.
-  - On EUROPE1: 253 items in the overview, 71 at the station; a build
-    takes about 0.2 to 0.3 ms.
+  - On EUROPE1: 253 items in the overview, 71 at the station. A build
+    takes about 0.25 ms from the databases and 1 ms from world objects;
+    most of that is finding each line's node (`findTrItemNodeId` scans
+    all nodes).
 - **Face culling:** the map culls back faces. Markers must be wound like
   the ribbons. The junction and end octagons of `1c5d784` were wound the
   other way and never showed; this is fixed.

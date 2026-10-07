@@ -16,6 +16,7 @@
 
 #include <QString>
 #include <unordered_map>
+#include <vector>
 #include <QVector>
 #include <tsre/ogl/OglObj.h>
 #include <tsre/ogl/TextObj.h>
@@ -116,6 +117,10 @@ public:
     void getVectorSectionPoints(int x, int y, int uid, QVector<float> &ptr);
     void getVectorSectionPoints(int x, int y, int nId, int sId, QVector<float> &ptr);
     void getVectorSectionLine(float * &buffer, int &len, int x, int y, int uid, bool useOffset = false);
+    // The track of a node between two distances along it, as line segments
+    // (pairs of x, y, z points) relative to tile x, y in the editor's tile
+    // convention.
+    void getTrackSegments(std::vector<float> &segments, int nodeId, float from, float to, int x, int y);
     void moveItemsFrom2to1(int id2, int id1);
     int appendToJunction(int junctionId, int eId, int idx);
     int newTrack(int x, int z, float* p, float* q, int* ends, int r, int sect, int uid);

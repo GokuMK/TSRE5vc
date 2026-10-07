@@ -10,6 +10,7 @@
 
 #include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/tdb/TDB.h>
+#include <algorithm>
 #include <QDebug>
 #include <functional>
 #include <tsre/Game.h>
@@ -2364,6 +2365,29 @@ void TDB::getVectorSectionLine(float * &buffer, int &len, int x, int y, int uid,
     }
     len = ptr - buffer;
     //qDebug() << "len" << len;
+}
+
+void TDB::getTrackSegments(std::vector<float> &segments, int nodeId, float from, float to, int x, int y){
+    if (from > to)
+        std::swap(from, to);
+    float *buffer = NULL;
+    int length = 0;
+    getVectorSectionLine(buffer, length, x, y, nodeId, true);
+    // Segments of two points of six floats: x, y, z, section, vector
+    // section and the distance along the node.
+    for (int i = 0; i + 12 <= length; i += 12) {
+        const float *a = buffer + i;
+        const float *b = buffer + i + 6;
+        const float da = a[5], db = b[5];
+        if (db <= from || da >= to || db <= da)
+            continue;
+        const float t0 = std::max(0.0f, (from - da) / (db - da));
+        const float t1 = std::min(1.0f, (to - da) / (db - da));
+        for (float t : {t0, t1})
+            for (int c = 0; c < 3; ++c)
+                segments.push_back(a[c] + (b[c] - a[c]) * t);
+    }
+    delete[] buffer;
 }
 
 void TDB::pushRenderLines(RenderQueue &queue, float* playerT, float playerRot) {

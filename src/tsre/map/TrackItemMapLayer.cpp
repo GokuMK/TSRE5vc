@@ -11,6 +11,7 @@
 #include "TrackItemMapLayer.h"
 #include "MapPalette.h"
 #include "MapView.h"
+#include "TrackMapLayer.h"
 #include <QDebug>
 #include <QElapsedTimer>
 #include <QOpenGLFunctions>
@@ -164,8 +165,9 @@ int TrackItemMapLayer::objectCount(Route *route, const int *tiles) {
     return count;
 }
 
-void TrackItemMapLayer::collectObjectMarkers(std::vector<Position> &markers, Route *route,
-                                             const int *tiles) {
+void TrackItemMapLayer::collectObjectMarkers(std::vector<Position> &markers,
+                                             std::vector<float> *lines, const MapView &view,
+                                             Route *route, const int *tiles) {
     if (route == nullptr)
         return;
     QVector<int> ids;
@@ -181,6 +183,7 @@ void TrackItemMapLayer::collectObjectMarkers(std::vector<Position> &markers, Rou
                 const int kind = kindOfObjectType(object->typeID);
                 if (kind < 0)
                     continue;
+                object->getMapLine(lines[kind], view.tileX, view.tileZ);
                 for (int database = 0; database < 2; ++database) {
                     const Index &index = database == 0 ? trackIndex : roadIndex;
                     ids.clear();
@@ -204,8 +207,9 @@ void TrackItemMapLayer::build(const MapView &view, const MapPalette &palette, Ro
     QElapsedTimer timer;
     timer.start();
     std::vector<Position> markers;
+    std::vector<float> lines[KindCount];
     if (worldObjects)
-        collectObjectMarkers(markers, route, tiles);
+        collectObjectMarkers(markers, lines, view, route, tiles);
     else
         collectDatabaseMarkers(markers, tiles);
 
@@ -213,6 +217,18 @@ void TrackItemMapLayer::build(const MapView &view, const MapPalette &palette, Ro
     const float border = radius + BorderPixels * view.metresPerPixel;
     std::vector<float> borderVertices;
     std::vector<float> fillVertices[KindCount];
+    const float lineWidth = LinePixels * view.metresPerPixel;
+    const float lineBorder = lineWidth + 2.0f * BorderPixels * view.metresPerPixel;
+    for (int kind = 0; kind < KindCount; ++kind) {
+        std::vector<float> &segments = lines[kind];
+        const int count = int(segments.size() / 6);
+        for (size_t i = 1; i < segments.size(); i += 3)
+            segments[i] = BorderHeight;
+        TrackMapLayer::appendRibbons(borderVertices, segments.data(), count, lineBorder);
+        for (size_t i = 1; i < segments.size(); i += 3)
+            segments[i] = FillHeight;
+        TrackMapLayer::appendRibbons(fillVertices[kind], segments.data(), count, lineWidth);
+    }
     for (const Position &marker : markers) {
         if (marker.kind < 0 || marker.kind >= KindCount)
             continue;
