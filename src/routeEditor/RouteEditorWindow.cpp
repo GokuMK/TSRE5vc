@@ -333,6 +333,15 @@ RouteEditorWindow::RouteEditorWindow() {
         qtTrId("route.editor.route.editor.window.action.view.unselect.all"), this);
     viewMenu->addAction(viewUnselectAll);
     QObject::connect(viewUnselectAll, SIGNAL(triggered()), this, SLOT(viewUnselectAll()));
+    QAction* viewCopyCamera = new QAction(
+        //% "Copy Camera &Position"
+        qtTrId("route.editor.route.editor.window.action.view.copy.camera"), this);
+    viewMenu->addAction(viewCopyCamera);
+    QObject::connect(viewCopyCamera, &QAction::triggered, this, [this]() {
+        // A startup argument (startup-args.txt or the command line) that
+        // starts the editor with this camera.
+        QApplication::clipboard()->setText("--set=core.startup.camera=" + glWidget->cameraSetting());
+    });
     viewMenu->addSeparator();
     vViewWorldGrid = GuiFunct::newMenuCheckAction(
         //% "&World Grid"

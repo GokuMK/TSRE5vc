@@ -2463,6 +2463,10 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
             <source>&amp;Unselect All</source>
             <translation>&amp;Odznacz wszystko</translation>
         </message>
+        <message id="route.editor.route.editor.window.action.view.copy.camera">
+            <source>Copy Camera &amp;Position</source>
+            <translation>Kopiuj &amp;położenie kamery</translation>
+        </message>
         <message id="route.editor.route.editor.window.action.v.view.world.grid">
             <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="281" />
             <source>&amp;World Grid</source>
@@ -7853,6 +7857,14 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
             <location filename="../src/settings/SettingsRegistration.cpp" line="394" />
             <source>World tile Z coordinate used for the initial Route Editor camera position; the legacy file calls it startTileY.</source>
             <translation>Współrzędna Z kafla świata używana dla początkowego położenia kamery Edytora tras; w starszym pliku nosi nazwę startTileY.</translation>
+        </message>
+        <message id="settings.core.startup.camera.name">
+            <source>Startup camera</source>
+            <translation>Kamera startowa</translation>
+        </message>
+        <message id="settings.core.startup.camera.description">
+            <source>Initial Route Editor camera as tileX,tileZ,x,y,z,yaw,pitch: tile and position as in the navigation window, angles in degrees (yaw and pitch may be left out). View &gt; Copy Camera Position copies the current one. Overrides the startup tile and the route&apos;s starting position; empty to leave them.</source>
+            <translation>Początkowa kamera Edytora tras jako tileX,tileZ,x,y,z,yaw,pitch: kafel i położenie jak w oknie nawigacji, kąty w stopniach (yaw i pitch można pominąć). Widok &gt; Kopiuj położenie kamery kopiuje bieżącą. Zastępuje kafel startowy i początkowe położenie trasy; puste, aby ich nie zmieniać.</translation>
         </message>
         <message id="settings.core.startup.season.name">
             <location filename="../src/settings/SettingsRegistration.cpp" line="399" />

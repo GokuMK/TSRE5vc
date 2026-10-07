@@ -71,7 +71,9 @@ public:
     
     void getUnsavedInfo(QVector<QString> &items);
 
-    // Renderer parity harness hooks; not used by the editor UI.
+    // The camera as a core.startup.camera value.
+    QString cameraSetting() const;
+    // Renderer parity harness hooks (and the startup camera).
     void setDiagnosticView(int tileX, int tileZ, float x, float y, float z,
                            float rotX, float rotY);
     void diagnosticView(int &tileX, int &tileZ, float *pos,

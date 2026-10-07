@@ -466,14 +466,21 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 QT_TRID_NOOP("settings.core.startup.tile.x.name")).withDescriptionId(
                 //% "World tile X coordinate used for the initial Route Editor camera position when both startup tile coordinates are provided."
                 QT_TRID_NOOP("settings.core.startup.tile.x.description")).withRange(-32768, 32767, 1).inGroup("content").inSubgroup("routeStartup"),
-        "startTileX", "Game::startTileX", "Game", false, "startup");
+        "startTileX", "Game::startTileX", "Route Editor startup", false, "startup");
     ADD(SettingsDefinition::integer("core.startup.tileZ", 0)
             .withNameId(
                 //% "Startup tile Z"
                 QT_TRID_NOOP("settings.core.startup.tile.z.name")).withDescriptionId(
                 //% "World tile Z coordinate used for the initial Route Editor camera position; the legacy file calls it startTileY."
                 QT_TRID_NOOP("settings.core.startup.tile.z.description")).withRange(-32768, 32767, 1).inGroup("content").inSubgroup("routeStartup"),
-        "startTileY", "Game::startTileY", "Game", false, "startup");
+        "startTileY", "Game::startTileY", "Route Editor startup", false, "startup");
+    ADD(SettingsDefinition::string("core.startup.camera", "", SettingType::String)
+            .withNameId(
+                //% "Startup camera"
+                QT_TRID_NOOP("settings.core.startup.camera.name")).withDescriptionId(
+                //% "Initial Route Editor camera as tileX,tileZ,x,y,z,yaw,pitch: tile and position as in the navigation window, angles in degrees (yaw and pitch may be left out). View > Copy Camera Position copies the current one. Overrides the startup tile and the route's starting position; empty to leave them."
+                QT_TRID_NOOP("settings.core.startup.camera.description")).inGroup("content").inSubgroup("routeStartup"),
+        "", "", "Route Editor startup", false, "startup");
     ADD(SettingsDefinition::string("core.startup.season", "", SettingType::Enum)
             .withNameId(
                 //% "Content season"

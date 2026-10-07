@@ -17,6 +17,7 @@
 #include <iostream>
 #include <vector>
 
+#include <settings/SettingsAccess.h>
 #include <tsre/Game.h>
 #include <tsre/shape/ShapeLib.h>
 #include <tsre/trains/EngLib.h>
@@ -72,9 +73,9 @@ static Tile *currentTileFromPreload(Route *route, QString &error) {
 
     int tileX = route->getStartTileX();
     int tileZ = -route->getStartTileZ();
-    if (Game::start == 2) {
-        tileX = Game::startTileX;
-        tileZ = -Game::startTileY;
+    if (Settings::boolean("core.startup.useTilePosition")) {
+        tileX = Settings::integer("core.startup.tileX");
+        tileZ = -Settings::integer("core.startup.tileZ");
     }
 
     Tile *tile = route->requestTile(tileX, tileZ, false);
@@ -139,9 +140,9 @@ int TsreTests::runRouteLoadSuite(const TestRunOptions &opts) {
 
     int tileX = route->getStartTileX();
     int tileZ = -route->getStartTileZ();
-    if (Game::start == 2) {
-        tileX = Game::startTileX;
-        tileZ = -Game::startTileY;
+    if (Settings::boolean("core.startup.useTilePosition")) {
+        tileX = Settings::integer("core.startup.tileX");
+        tileZ = -Settings::integer("core.startup.tileZ");
     }
 
     std::cout << "[tests:route-load] route=" << Game::route.toStdString()

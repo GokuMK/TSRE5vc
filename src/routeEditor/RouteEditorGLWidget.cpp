@@ -16,6 +16,8 @@
 #include <QDateTime>
 #include <QMetaObject>
 #include <QPainter>
+#include <QRegularExpression>
+#include <cmath>
 #include <math.h>
 #include <tsre/ogl/GLUU.h>
 #include <tsre/fileFunctions/ReadFile.h>
@@ -292,25 +294,73 @@ void RouteEditorGLWidget::playInit(){
         }
 }
 
+namespace {
+// core.startup.camera, "tileX,tileZ,x,y,z[,yaw,pitch]" with the tile and
+// position as the navigation window shows them (tile Z and z with the
+// opposite sign to the camera's) and the angles in degrees.
+bool parseStartupCamera(const QString &text, int &tileX, int &tileZ, float *pos, float *rot) {
+    const QStringList parts = text.split(QRegularExpression("[,;\\s]+"), Qt::SkipEmptyParts);
+    if (parts.size() != 5 && parts.size() != 7)
+        return false;
+    double values[7] = {0, 0, 0, 0, 0, 0, 0};
+    for (int i = 0; i < parts.size(); ++i) {
+        bool ok = false;
+        values[i] = parts[i].toDouble(&ok);
+        if (!ok || !std::isfinite(values[i]))
+            return false;
+    }
+    tileX = int(values[0]);
+    tileZ = -int(values[1]);
+    pos[0] = float(values[2]);
+    pos[1] = float(values[3]);
+    pos[2] = -float(values[4]);
+    rot[0] = float(values[5] * M_PI / 180.0);
+    rot[1] = float(values[6] * M_PI / 180.0);
+    Game::check_coords(tileX, tileZ, pos[0], pos[2]);
+    return true;
+}
+}
+
 void RouteEditorGLWidget::cameraInit(){
     float * aaa = new float[2] { 0, 0 };
     cameraFree = new CameraFree(aaa);
     //cameraObj = new CameraConsist();
     camera = cameraFree;
-    float spos[3];
-    if (Game::start == 2) {
-        camera->setPozT(Game::startTileX, -Game::startTileY);
+    int tileX = 0, tileZ = 0;
+    float spos[3] = {0.0f, 0.0f, 0.0f};
+    float rot[2] = {0.0f, 0.0f};
+    const QString startCamera = Settings::string("core.startup.camera").trimmed();
+    if (!startCamera.isEmpty()) {
+        if (parseStartupCamera(startCamera, tileX, tileZ, spos, rot)) {
+            setDiagnosticView(tileX, tileZ, spos[0], spos[1], spos[2], rot[0], rot[1]);
+            return;
+        }
+        qWarning() << "core.startup.camera: expected tileX,tileZ,x,y,z[,yaw,pitch], got" << startCamera;
+    }
+    if (Settings::boolean("core.startup.useTilePosition")) {
+        // The centre of the startup tile.
+        tileX = Settings::integer("core.startup.tileX");
+        tileZ = -Settings::integer("core.startup.tileZ");
     } else {
-        camera->setPozT(route->getStartTileX(), -route->getStartTileZ());
+        tileX = route->getStartTileX();
+        tileZ = -route->getStartTileZ();
         spos[0] = route->getStartpX();
         spos[2] = -route->getStartpZ();
     }
-    if (Game::terrainLib->load(route->getStartTileX(), -route->getStartTileZ())) {
-        spos[1] = 20 + Game::terrainLib->getHeight(route->getStartTileX(), -route->getStartTileZ(), route->getStartpX(), -route->getStartpZ());
-    } else {
-        spos[1] = 0;
-    }
-    camera->setPos((float*) &spos);
+    camera->setPozT(tileX, tileZ);
+    if (Game::terrainLib->load(tileX, tileZ))
+        spos[1] = 20 + Game::terrainLib->getHeight(tileX, tileZ, spos[0], spos[2]);
+    camera->setPos(spos);
+}
+
+QString RouteEditorGLWidget::cameraSetting() const {
+    int tileX = 0, tileZ = 0;
+    float pos[3];
+    float rotX = 0.0f, rotY = 0.0f;
+    diagnosticView(tileX, tileZ, pos, rotX, rotY);
+    return QString("%1,%2,%3,%4,%5,%6,%7").arg(tileX).arg(-tileZ)
+            .arg(pos[0], 0, 'f', 2).arg(pos[1], 0, 'f', 2).arg(-pos[2], 0, 'f', 2)
+            .arg(rotX * 180.0 / M_PI, 0, 'f', 2).arg(rotY * 180.0 / M_PI, 0, 'f', 2);
 }
 
 void RouteEditorGLWidget::surfaceInitialize() {

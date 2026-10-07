@@ -73,12 +73,9 @@ int Game::allowObjLag = 1000;
 int Game::objectLoadingTokens = 1000;
 int Game::maxObjLag = 10;
 bool Game::ignoreLoadLimits = false;
-int Game::startTileX = 0;
-int Game::startTileY = 0;
 float Game::objectLod = 3000;
 float Game::distantLod = 100000;
 int Game::tileLod = 2;
-int Game::start = 0;
 bool Game::ignoreMissingGlobalShapes = false;
 bool Game::deleteTrWatermarks = false;
 bool Game::deleteViewDbSpheres = false;
@@ -289,11 +286,12 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
     claim("geo.elevation.fallback", SettingType::Enum);
     claim("geo.imagery.source", SettingType::Enum);
     string("core.startup.route", route);
+    // Read by the Route Editor when it places its camera
+    // (RouteEditorGLWidget::cameraInit), not kept here.
     claim("core.startup.useTilePosition", SettingType::Bool);
-    if (appliesNow("core.startup.useTilePosition"))
-        start = settings.runtimeBool("core.startup.useTilePosition") ? 2 : 0;
-    integer("core.startup.tileX", startTileX);
-    integer("core.startup.tileZ", startTileY);
+    claim("core.startup.tileX", SettingType::Int);
+    claim("core.startup.tileZ", SettingType::Int);
+    claim("core.startup.camera", SettingType::String);
     string("core.startup.season", season, SettingType::Enum);
 
     boolean("core.startup.createMissingRoute", createNewRoutes);
@@ -609,14 +607,6 @@ void Game::loadLegacySettings() {
         if(val == "routeName")
             route = args[1].trimmed();
 
-        if(val == "startTileX"){
-            Game::start++;
-            startTileX = args[1].trimmed().toInt();
-        }
-        if(val == "startTileY"){
-            Game::start++;
-            startTileY = args[1].trimmed().toInt();
-        }
         if(val == "deleteTrWatermarks"){
             if(args[1].trimmed().toLower() == "true")
                 deleteTrWatermarks = true;
