@@ -10,6 +10,7 @@
 
 #include <tsre/fileFunctions/ContentPath.h>
 #include <tsre/trains/Eng.h>
+#include <tsre/map/MapFeatures.h>
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <tsre/fileFunctions/ReadFile.h>
@@ -789,6 +790,33 @@ void Eng::getCameraPosition(float* out){
 
 // Submits the wagon at its track position; the selection border is submitted
 // inside the wagon transform.
+void Eng::getMapFeatures(MapFeatures &features, int tileX, int tileZ) {
+    if (loaded != 1 || ruch1 == NULL || ruch2 == NULL)
+        return;
+    // Both ends, relative to the tile; positions are rebuilt by each call.
+    float ends[2][2];
+    Ruch *ruch[2] = {ruch1, ruch2};
+    for (int i = 0; i < 2; i++) {
+        const float *p = ruch[i]->getCurrentPosition();
+        ends[i][0] = (p[5] - tileX) * 2048 + p[0];
+        ends[i][1] = (-p[6] - tileZ) * 2048 - p[2];
+    }
+    float dx = ends[1][0] - ends[0][0];
+    float dz = ends[1][1] - ends[0][1];
+    const float span = sqrt(dx * dx + dz * dz);
+    if (span > 0.001f) {
+        dx /= span;
+        dz /= span;
+    } else {
+        dx = 0;
+        dz = 1;
+    }
+    const float vehicle[MapFeatures::VehicleFloats] = {
+        (ends[0][0] + ends[1][0]) * 0.5f, (ends[0][1] + ends[1][1]) * 0.5f, dx, dz,
+        sizez > 0 ? sizez : span, sizex > 0 ? sizex : 3.0f, wagonTypeId >= 4 ? 1.0f : 0.0f};
+    features.vehicles.insert(features.vehicles.end(), vehicle, vehicle + MapFeatures::VehicleFloats);
+}
+
 void Eng::pushRenderItemOnTrack(RenderQueue &queue, float* playerT, quint32 selectionId, bool selected) {
     if (loaded != 1) return;
 

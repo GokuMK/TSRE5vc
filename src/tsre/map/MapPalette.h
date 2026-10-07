@@ -40,6 +40,14 @@ struct MapPalette {
     QColor pickup = QColor(204, 51, 204);
     QColor soundRegion = QColor(255, 255, 0);
     QColor itemBorder = QColor(30, 30, 34);
+    // Paths (a band under the track, and their nodes) and the activity.
+    QColor path = QColor(90, 210, 120);
+    QColor pathNode = QColor(0, 150, 60);
+    QColor wagon = QColor(100, 140, 220);
+    QColor engine = QColor(35, 55, 150);
+    QColor speedZone = QColor(255, 0, 102);
+    QColor failedSignal = QColor(204, 51, 204);
+    QColor event = QColor(255, 0, 0);
 
     static MapPalette light();
     static MapPalette dark();

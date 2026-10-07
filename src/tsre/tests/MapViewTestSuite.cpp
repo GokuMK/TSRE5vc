@@ -1,7 +1,9 @@
 #include <tsre/tests/MapViewTestSuite.h>
 
 #include <QDebug>
+#include <algorithm>
 #include <cmath>
+#include <tsre/map/ActivityMapLayer.h>
 #include <tsre/map/MapPalette.h>
 #include <tsre/map/MapView.h>
 #include <tsre/map/TrackItemMapLayer.h>
@@ -161,6 +163,35 @@ int TsreTests::runMapViewSuite(bool verbose) {
     items.metresPerPixel = 6.2f;
     check(closeDrawsObjects && !TrackItemMapLayer::drawsWorldObjects(items),
           "track objects: world objects below three tiles across, the database above");
+    // Activity: vehicle footprints.
+    const float wagon[MapFeatures::VehicleFloats] = {10.0f, 20.0f, 1.0f, 0.0f, 20.0f, 3.0f, 0.0f};
+    auto extent = [](const std::vector<float> &v, int axis, float &low, float &high) {
+        low = high = v[axis];
+        for (size_t i = axis; i < v.size(); i += 3) {
+            low = std::min(low, v[i]);
+            high = std::max(high, v[i]);
+        }
+    };
+    std::vector<float> footprint;
+    ActivityMapLayer::appendVehicle(footprint, wagon, 1.0f, 0.0f, 0.0f);
+    float xLow, xHigh, zLow, zHigh;
+    extent(footprint, 0, xLow, xHigh);
+    extent(footprint, 2, zLow, zHigh);
+    check(footprint.size() == 18 && near(xLow, 0.0f) && near(xHigh, 20.0f) && near(zLow, 18.5f)
+                  && near(zHigh, 21.5f),
+          "activity: a wagon's footprint is its length along the track and its width across");
+    footprint.clear();
+    ActivityMapLayer::appendVehicle(footprint, wagon, 1.0f, 0.5f, 5.0f);
+    extent(footprint, 0, xLow, xHigh);
+    extent(footprint, 2, zLow, zHigh);
+    check(near(xLow, -0.5f) && near(xHigh, 20.5f) && near(zLow, 17.0f) && near(zHigh, 23.0f),
+          "activity: footprints keep a smallest size and grow by the border");
+    check(ActivityMapLayer::colour(itemPalette, ActivityMapLayer::Engines) == itemPalette.engine
+                  && ActivityMapLayer::colour(itemPalette, ActivityMapLayer::Event)
+                          == QColor(255, 0, 0)
+                  && MapPalette::dark().path != itemPalette.path,
+          "activity: colours from the palette, events red as in 3D");
+
     items.metresPerPixel = 2.0f;
     items.x = 900.0f;
     int tiles[4];

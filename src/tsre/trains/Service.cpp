@@ -23,6 +23,7 @@
 #include <tsre/trains/ActLib.h>
 #include <tsre/trains/ConLib.h>
 #include <tsre/trains/Consist.h>
+#include <tsre/map/MapFeatures.h>
 #include <tsre/trains/Path.h>
 #include <tsre/renderer/RenderQueue.h>
 
@@ -230,6 +231,17 @@ void Service::pushRenderItems(RenderQueue &queue, float* playerT, quint32 select
         pathPointer->pushRenderItems(queue, playerT, selectionId);
     if (conPointer != NULL)
         conPointer->pushRenderItemsOnTrack(queue, playerT, selectionId);
+}
+
+void Service::getMapFeatures(MapFeatures &consist, int tileX, int tileZ) {
+    initToPlay();
+    if (conPointer != NULL)
+        conPointer->getMapFeatures(consist, tileX, tileZ);
+}
+
+Path *Service::getPathPointer() {
+    initToPlay();
+    return pathPointer;
 }
 
 void Service::initToPlay(){

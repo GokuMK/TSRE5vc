@@ -34,7 +34,16 @@ namespace {
 constexpr float RebuildScale = 1.25f;
 constexpr int CircleSegments = 12;
 
-void appendCircle(std::vector<float> &out, float x, float y, float z, float radius) {
+}
+
+TrackItemMapLayer::TrackItemMapLayer() : borders(std::make_unique<OglObj>()) {
+    for (auto &fill : fills)
+        fill = std::make_unique<OglObj>();
+}
+
+TrackItemMapLayer::~TrackItemMapLayer() = default;
+
+void TrackItemMapLayer::appendCircle(std::vector<float> &out, float x, float y, float z, float radius) {
     constexpr float step = 6.28318531f / CircleSegments;
     // Wound like TrackMapLayer's ribbons and octagons, which the map's face
     // culling keeps.
@@ -47,15 +56,6 @@ void appendCircle(std::vector<float> &out, float x, float y, float z, float radi
         out.insert(out.end(), triangle, triangle + 9);
     }
 }
-
-}
-
-TrackItemMapLayer::TrackItemMapLayer() : borders(std::make_unique<OglObj>()) {
-    for (auto &fill : fills)
-        fill = std::make_unique<OglObj>();
-}
-
-TrackItemMapLayer::~TrackItemMapLayer() = default;
 
 int TrackItemMapLayer::kindOfItemType(const QString &type) {
     static const QHash<QString, int> kinds = {

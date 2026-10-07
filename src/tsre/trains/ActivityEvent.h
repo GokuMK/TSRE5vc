@@ -25,6 +25,8 @@ class TextObj;
 class OrtsWeatherChange;
 class Activity;
 
+struct MapFeatures;
+
 class ActivityEvent {
 
 public:
@@ -186,6 +188,9 @@ public:
     bool setSidingFromSelected();
     void setParentActivity(Activity* a);
     void pushRenderItem(RenderQueue &queue, float *playerT, float playerRot, int renderMode);
+    // A location event for the map mode: its place as a point and its
+    // trigger area.
+    void getMapFeatures(MapFeatures &features, int tileX, int tileZ);
     
 protected:
     Activity *parentActivity = NULL;

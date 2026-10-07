@@ -23,8 +23,12 @@ class SoundVariables;
 class TrainNetworkEng;
 class ContentHierarchyInfo;
 
+struct MapFeatures;
+
 class Eng {
 public:
+    // The vehicle's footprint on the track for the map mode.
+    void getMapFeatures(MapFeatures &features, int tileX, int tileZ);
     struct Coupling {
         QString type;
 	float r0[2];

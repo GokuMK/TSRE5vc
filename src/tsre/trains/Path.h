@@ -21,6 +21,8 @@ class RenderQueue;
 
 class OglObj;
 
+struct MapFeatures;
+
 class Path : public GameObj {
     Q_OBJECT
 public:
@@ -73,6 +75,9 @@ public:
     int getStartDirection();
     QMap<int, int>* getJunctionDirections();
     void initRoute();
+    // The path for the map mode: its track as lines and its nodes as
+    // points.
+    void getMapFeatures(MapFeatures &features, int tileX, int tileZ);
     void init3dShapes(bool initShapes = true);
     bool isModified();
     void pushRenderItems(RenderQueue &queue, float * playerT, quint32 selectionId);
@@ -88,6 +93,13 @@ private:
     QMap<float, PathObject*> pathObjectsMap;
     QMap<int, int> junctionDirections;
     int startDirection = 0;
+    // The track the path takes: a node between two distances along it.
+    struct TrackRange {
+        int node;
+        float from;
+        float to;
+    };
+    QVector<TrackRange> trackRanges;
 };
 
 #endif	/* PATH_H */

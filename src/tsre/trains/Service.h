@@ -20,6 +20,8 @@ class GLUU;
 class Path;
 class Consist;
 
+struct MapFeatures;
+
 class Service {
 public:
     struct StationStop{
@@ -65,6 +67,9 @@ public:
     Consist *getConsistPointer();
     void updateSim(float *playerT, float deltaTime);
     void pushRenderItems(RenderQueue &queue, float* playerT, quint32 selectionId);
+    // The service's consist for the map mode, and its path.
+    void getMapFeatures(MapFeatures &consist, int tileX, int tileZ);
+    Path *getPathPointer();
     void initToPlay();
 private:
     bool modified = false;

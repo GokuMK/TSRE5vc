@@ -94,6 +94,9 @@ struct Options {
     bool pivotPoints = false;
     bool snapable = false;
     Thresholds thresholds;
+    // Map mode layers: an activity and a path to select, by file name.
+    QString activity;
+    QString path;
     QVector<ViewSpec> views;
 };
 
@@ -178,6 +181,8 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
     options.thresholds.maxDiffPixelRatio = thresholds.value("maxDiffPixelRatio").toDouble(-1.0);
     options.thresholds.maxPickMismatches = thresholds.value("maxPickMismatches").toInt(-1);
 
+    options.activity = root.value("activity").toString();
+    options.path = root.value("path").toString();
     const QJsonArray views = root.value("views").toArray();
     for (int i = 0; i < views.size(); ++i) {
         const QJsonObject object = views[i].toObject();
@@ -395,6 +400,7 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
     float startRot[2];
     widget.diagnosticView(startTileX, startTileZ, startPos, startRot[0], startRot[1]);
 
+    widget.setDiagnosticActivity(options.activity, options.path);
     QJsonArray viewReports;
     for (const ViewSpec &spec : options.views) {
         int tileX = spec.hasTile ? spec.tileX : startTileX;

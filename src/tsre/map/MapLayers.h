@@ -13,10 +13,10 @@
 
 // What the map mode draws (the Map menu). Separate from the 3D view's
 // toggles, which live in Game.
-enum class MapLayer { Track, Road, Junctions, Ends, TrackObjects, Pointer, Count };
+enum class MapLayer { Track, Road, Junctions, Ends, TrackObjects, Paths, Activity, Pointer, Count };
 
 struct MapLayers {
-    bool visible[int(MapLayer::Count)] = {true, true, true, true, true, true};
+    bool visible[int(MapLayer::Count)] = {true, true, true, true, true, true, true, true};
     bool shows(MapLayer layer) const { return visible[int(layer)]; }
     void set(MapLayer layer, bool show) { visible[int(layer)] = show; }
 };

@@ -61,6 +61,9 @@ public:
     static int kindOfItemType(const QString &type);
     static int kindOfObjectType(int typeId);
     static QColor colour(const MapPalette &palette, int kind);
+    // A filled circle on the ground, as triangles wound for the map's face
+    // culling.
+    static void appendCircle(std::vector<float> &out, float x, float y, float z, float radius);
     // Whether a view of that size draws the world objects' items.
     static bool drawsWorldObjects(const MapView &view);
 

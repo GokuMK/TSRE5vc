@@ -726,6 +726,13 @@ void Consist::getCameraPosition(float *out){
     engItems[0].engPointer->getCameraPosition(out);
 }
 
+void Consist::getMapFeatures(MapFeatures &features, int tileX, int tileZ) {
+    if (loaded != 1) return;
+    for (int i = 0; i < engItems.size(); i++)
+        if (engItems[i].engPointer != NULL)
+            engItems[i].engPointer->getMapFeatures(features, tileX, tileZ);
+}
+
 void Consist::pushRenderItemsOnTrack(RenderQueue &queue, float* playerT, quint32 selectionId) {
     if (loaded != 1) return;
 

@@ -343,11 +343,13 @@ RouteEditorWindow::RouteEditorWindow() {
                      [this, viewMapMode](const QString &name, const QString &value) {
         if (name != "viewMode")
             return;
-        // No tool works on the map yet: the tool panels wait for 3D.
+        // No tool works on the map yet: the tool panels wait for 3D. The
+        // activity tools stay, to pick the activity and paths the map
+        // shows; their tools are refused in map mode.
         const bool map = value == "map";
         viewMapMode->setChecked(map);
         for (QWidget *panel : {static_cast<QWidget *>(objTools), static_cast<QWidget *>(terrainTools),
-                               static_cast<QWidget *>(geoTools), static_cast<QWidget *>(activityTools)})
+                               static_cast<QWidget *>(geoTools)})
             panel->setEnabled(!map);
     });
     viewMenu->addSeparator();
@@ -433,6 +435,10 @@ RouteEditorWindow::RouteEditorWindow() {
         {//% "Track &Objects"
          qtTrId("route.editor.route.editor.window.action.map.track.objects"),
          MapLayer::TrackObjects},
+        {//% "Pat&hs"
+         qtTrId("route.editor.route.editor.window.action.map.paths"), MapLayer::Paths},
+        {//% "&Activity"
+         qtTrId("route.editor.route.editor.window.action.map.activity"), MapLayer::Activity},
         {//% "&Pointer"
          qtTrId("route.editor.route.editor.window.action.map.pointer"), MapLayer::Pointer}};
     for (const auto &entry : mapLayerEntries) {

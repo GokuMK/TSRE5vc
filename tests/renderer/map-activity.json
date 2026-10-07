@@ -1,0 +1,19 @@
+{
+  "notes": "Map mode activity and path layers (docs/tasks/editor/04-map-mode.md) on EUROPE1's winterun activity: loose consists in the yard, location events, a speed zone and a failed signal, with the activity's path selected.",
+  "output": "build/renderer-map",
+  "activity": "winterun.act",
+  "path": "winterun",
+  "width": 1280,
+  "height": 800,
+  "pickGrid": [1, 1],
+  "timingFrames": 1,
+  "diffTolerance": 16,
+  "shadows": false,
+  "settle": {"minFrames": 6, "stableFrames": 2, "maxFrames": 60, "maxSeconds": 120},
+  "views": [
+    {"name": "overview", "mode": "map", "tile": [-6120, -15094], "pos": [0, 0, 1000], "metresPerPixel": 8},
+    {"name": "yard", "mode": "map", "tile": [-6121, -15094], "pos": [-830, 0, 160], "metresPerPixel": 1},
+    {"name": "consists", "mode": "map", "tile": [-6121, -15094], "pos": [-830, 0, 160], "metresPerPixel": 0.25},
+    {"name": "speedzone", "mode": "map", "tile": [-6119, -15093], "pos": [0, 0, 0], "metresPerPixel": 4}
+  ]
+}

@@ -2486,6 +2486,14 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
             <source>Track &amp;Objects</source>
             <translation>&amp;Obiekty torowe</translation>
         </message>
+        <message id="route.editor.route.editor.window.action.map.paths">
+            <source>Pat&amp;hs</source>
+            <translation>&amp;Drogi przejazdu</translation>
+        </message>
+        <message id="route.editor.route.editor.window.action.map.activity">
+            <source>&amp;Activity</source>
+            <translation>&amp;Scenariusz</translation>
+        </message>
         <message id="route.editor.route.editor.window.action.map.pointer">
             <source>&amp;Pointer</source>
             <translation>&amp;Wskaźnik</translation>

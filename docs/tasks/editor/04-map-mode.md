@@ -8,15 +8,16 @@ Phase 1 core, as built:
 - **Menus:**
   - The old View menu is now "3D View", with the 3D toggles.
   - A new "Map" menu holds the map's own layer toggles: track lines, road
-    lines, junctions, track ends, track objects, pointer. They are kept
-    in the map code (`MapLayers`), not `Game`.
+    lines, junctions, track ends, track objects, paths, activity,
+    pointer. They are kept in the map code (`MapLayers`), not `Game`.
   - "Map Mode" sits in the Tools menu until the menus are restructured.
 - **Switching:**
   - Backquote or Tools > Map Mode switches modes; switching moves to the
     pointer's place in the other mode.
   - Tools the mode does not support are put aside and restored on
     return.
-  - The tool panels are disabled in map mode: no tool supports it yet.
+  - The tool panels are disabled in map mode, as no tool supports it
+    yet, except the activity tools (see "Paths and activity").
 - **Map view** (`src/tsre/map/MapView`, `src/tsre/camera/CameraMap`):
   - centre, scale and heading, with an orthographic projection;
   - left drag pans, right drag turns, the wheel zooms about the mouse;
@@ -55,6 +56,36 @@ Phase 1 core, as built:
     takes about 0.25 ms from the databases and 1 ms from world objects;
     most of that is finding each line's node (`findTrItemNodeId` scans
     all nodes).
+- **Paths and activity** (`src/tsre/map/ActivityMapLayer`, Map > Paths
+  and Map > Activity): what the activity tools (F4) select.
+  - Paths: the paths selected in the activity tools and the activity's
+    player path, as an 8-pixel band under the track lines, green as in
+    3D, with their nodes as circles.
+  - Consists, loose and the player's: one footprint for each vehicle on
+    its track position, the Eng file's length and width (at least
+    3 pixels). Engines are dark blue, wagons light blue, with borders
+    between them. These are boxes, not shapes: they read better from
+    above at map scales and need no shape loading. Unlit top-down shapes
+    can be added for close zoom later.
+  - Speed zones as a line along the track with circles at the ends;
+    failed signals as circles.
+  - Location events as squares (north up), with a ring at their trigger
+    radius.
+  - Each part answers for itself (`getMapFeatures` on `Path`, `Service`,
+    `Consist`, `Eng`, `ActivityObject`, `ActivityEvent`, into a
+    `MapFeatures`), so the 3D draw code is not involved. The speed zone
+    and failed signal code that finds their positions was moved out of
+    their draw calls for that.
+  - The activity tools panel stays enabled in map mode, so the activity
+    and paths can be chosen there; its tools are still refused in map
+    mode.
+  - Rebuilt on a scale or tile change, a new palette, or a change in
+    what is shown (activity, selected paths, number of objects). On
+    winterun (33 vehicles, a 15 km path) a build takes 1 to 2 ms.
+  - Captures: `tests/renderer/map-activity.json` (map) and
+    `tests/renderer/activity-3d-views.json` (3D), which select the
+    activity and path through the harness's new `activity` and `path`
+    options.
 - **Face culling:** the map culls back faces. Markers must be wound like
   the ribbons. The junction and end octagons of `1c5d784` were wound the
   other way and never showed; this is fixed.

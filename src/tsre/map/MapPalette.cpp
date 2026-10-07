@@ -29,6 +29,10 @@ MapPalette MapPalette::dark() {
     palette.end = QColor(110, 156, 255);
     palette.pointer = QColor(255, 160, 40);
     palette.itemBorder = QColor(235, 236, 240);
+    palette.path = QColor(40, 110, 60);
+    palette.pathNode = QColor(60, 200, 100);
+    palette.wagon = QColor(110, 150, 235);
+    palette.engine = QColor(60, 90, 200);
     return palette;
 }
 
@@ -62,6 +66,13 @@ bool MapPalette::fromJson(const QByteArray &json, MapPalette &palette, QString *
     read("pickup", palette.pickup);
     read("soundRegion", palette.soundRegion);
     read("itemBorder", palette.itemBorder);
+    read("path", palette.path);
+    read("pathNode", palette.pathNode);
+    read("wagon", palette.wagon);
+    read("engine", palette.engine);
+    read("speedZone", palette.speedZone);
+    read("failedSignal", palette.failedSignal);
+    read("event", palette.event);
     return true;
 }
 

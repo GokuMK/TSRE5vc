@@ -57,6 +57,7 @@ class ToolRegistry;
 class CameraMap;
 class TrackMapLayer;
 class TrackItemMapLayer;
+class ActivityMapLayer;
 
 QT_FORWARD_DECLARE_CLASS(QOpenGLShaderProgram)
 
@@ -87,6 +88,9 @@ public:
     // bearing (degrees, 0: north) at the top of the screen.
     void setDiagnosticMapView(int tileX, int tileZ, float x, float z,
                               float metresPerPixel, float bearingDegrees);
+    // Selects an activity and a path by file name, as the activity tools
+    // do; empty names leave them as they are.
+    void setDiagnosticActivity(const QString &activity, const QString &path);
     // Renders one selection pass and reads the IDs at device-pixel points
     // without applying a selection.
     QVector<quint32> probeSelectionIds(const QVector<QPoint> &devicePoints);
@@ -324,6 +328,7 @@ private:
     CameraMap *cameraMap = NULL;
     std::unique_ptr<TrackMapLayer> trackMap;
     std::unique_ptr<TrackItemMapLayer> trackItemMap;
+    std::unique_ptr<ActivityMapLayer> activityMap;
     OglObj *mapPointer = NULL;
     MapPalette mapPalette;
     MapLayers mapLayers;

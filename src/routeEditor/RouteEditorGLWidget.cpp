@@ -56,6 +56,7 @@
 #include <tsre/gui/GuiFunct.h>
 #include <tsre/hud/GuiGlCompass.h>
 #include <tsre/trains/ActLib.h>
+#include <tsre/trains/Path.h>
 #include <tsre/trains/Activity.h>
 #include "PlayActivitySelectWindow.h"
 #include <tsre/sound/SoundManager.h>
@@ -74,6 +75,7 @@
 #include <tsre/camera/CameraMap.h>
 #include <tsre/map/MapPalette.h>
 #include <tsre/map/MapView.h>
+#include <tsre/map/ActivityMapLayer.h>
 #include <tsre/map/TrackItemMapLayer.h>
 #include <tsre/map/TrackMapLayer.h>
 #include <tsre/ogl/OglObj.h>
@@ -288,6 +290,8 @@ void RouteEditorGLWidget::cameraInit(){
         trackMap = std::make_unique<TrackMapLayer>();
     if (!trackItemMap)
         trackItemMap = std::make_unique<TrackItemMapLayer>();
+    if (!activityMap)
+        activityMap = std::make_unique<ActivityMapLayer>();
     float spos[3];
     if (Game::start == 2) {
         camera->setPozT(Game::startTileX, -Game::startTileY);
@@ -1655,6 +1659,7 @@ void RouteEditorGLWidget::setViewMode(ViewMode mode) {
         camera = cameraMap;
         trackMap->invalidate();
         trackItemMap->invalidate();
+        activityMap->invalidate();
     } else {
         // The 3D camera looks at the map pointer from behind and above, in
         // the map's heading.
@@ -1719,6 +1724,8 @@ void RouteEditorGLWidget::paintMap() {
     trackMap->pushRenderItems(queue, view, palette, Game::trackDB, Game::roadDB, mapLayers);
     if (mapLayers.shows(MapLayer::TrackObjects))
         trackItemMap->pushRenderItems(queue, view, palette, route, Game::trackDB, Game::roadDB);
+    activityMap->pushRenderItems(queue, view, palette, route, mapLayers.shows(MapLayer::Activity),
+                                 mapLayers.shows(MapLayer::Paths));
     // The pointer: a square of a fixed screen size above everything.
     if (mapPointer == NULL)
         mapPointer = new OglObj();
@@ -1948,6 +1955,33 @@ void RouteEditorGLWidget::setDiagnosticView(int tileX, int tileZ,
     camera->setPlayerRot(rotX, rotY);
 }
 
+void RouteEditorGLWidget::setDiagnosticActivity(const QString &activity, const QString &path) {
+    if (route == NULL)
+        return;
+    if (!activity.isEmpty()) {
+        const int id = ActLib::GetAct(Game::root + "/ROUTES/" + Game::route + "/ACTIVITIES",
+                                      activity);
+        if (id >= 0 && ActLib::Act[id] != NULL)
+            route->activitySelected(ActLib::Act[id]);
+        else
+            qWarning() << "diagnostic activity not found" << activity;
+    }
+    if (!path.isEmpty()) {
+        bool found = false;
+        for (Path *candidate : route->path) {
+            if (candidate == NULL)
+                continue;
+            const bool match = candidate->name.compare(path, Qt::CaseInsensitive) == 0
+                    || candidate->nameId.compare(path, Qt::CaseInsensitive) == 0;
+            if (match)
+                candidate->select();
+            found = found || match;
+        }
+        if (!found)
+            qWarning() << "diagnostic path not found" << path;
+    }
+}
+
 void RouteEditorGLWidget::setDiagnosticMapView(int tileX, int tileZ, float x, float z,
         float metresPerPixel, float bearingDegrees) {
     if (cameraMap == NULL)
@@ -1965,6 +1999,7 @@ void RouteEditorGLWidget::setDiagnosticMapView(int tileX, int tileZ, float x, fl
     }
     trackMap->invalidate();
     trackItemMap->invalidate();
+    activityMap->invalidate();
 }
 
 void RouteEditorGLWidget::diagnosticView(int &tileX, int &tileZ, float *pos,
