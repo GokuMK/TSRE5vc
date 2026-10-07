@@ -2,7 +2,10 @@
 
 ## Status And Scope
 
-Review completed on **2026-10-05**. **No production code or tests changed.**
+Initial review completed on **2026-10-05** without code changes. The conservative
+implementation began on **2026-10-06**, on `feature/tdb-edit-safety` based on
+`9cf4e4a`. The original review below remains a historical record and backlog;
+see the implementation record at the end for delivered scope and validation.
 
 - TSRE5vc baseline: `c92b0cf`, branch `review/tdb-roundtrip`, including the
   merge of remote main and [Task 14](14-tdb-roundtrip-maintenance.md).
@@ -21,9 +24,77 @@ changes. A field rename alone will not fix the dangerous editing paths.
 Open Rails identifies most fields, but does **not** provide authoritative
 names for every serialized value.
 
+### Conservative Implementation Scope - 2026-10-06
+
+The user prefers preserving established, user-tested behavior. The next work
+should therefore be **tests, confirmed critical fixes, then named structs**.
+This narrower scope supersedes the broader improvement suggestions below;
+the original findings remain a backlog, not an instruction to implement all
+of them. This update changes the plan only, not production code or tests.
+
+**Baseline reconciliation completed, 2026-10-06:** main `117f3e3` lacked
+`6919c50` (legacy exponent fix, six-digit saves, stable item ordering, and
+Task 14 audit tests/document). At the user's request, that commit was applied
+without conflicts as **`9cf4e4a`** on main. This restores the accepted Task 14
+baseline; it does not implement the Task 15 refactor or critical fixes.
+
+The build passed, as did 38 exponent checks, 4 ordering/pickup checks, 15
+load checks and 5 Python audit tests. `flex-point` remains at 49/50 with the
+previously reported `complete TDB subsection frames` failure.
+The new audit is in `build/tdb-audit-main-20261006`: all 164 source hashes
+remained unchanged, and all 14 saved TDBs and 14 TITs are byte-stable between
+passes. Compared with the previous audit, only the procedural route's
+metrics differ; its source TDB and route tsection had changed since that
+audit. Other route metrics match. The known Task 14 tsection exceptions
+remain outside this integration.
+
+1. Recheck the current baseline (main has advanced since the original
+   review), isolate the previously failing `flex-point` case, and add direct
+   join/split/delete/undo regressions. Verify a disconnected network stays
+   unchanged. Establish expected results independently of the old code's
+   output so characterization does not accidentally bless a known defect.
+2. Fix the demonstrated lifetime, allocation and indexing defects B1-B3
+   with the smallest changes. Add the duplicate-reference regression for
+   B4 and fix its memory-safety failure without redesigning item validation.
+   Keep each correction separate from the representation change.
+3. Replace numeric field indexing with small named value structs, updating
+   both I/O paths and their consumers. Keep the existing owned arrays,
+   counts, node maps and editing algorithms for this pass. Exact integer
+   fields and the correctly typed hexadecimal byte are part of this work;
+   six-digit formatting remains for real values.
+
+The [native MSTS review](../../msts/msts-tdb-fields-and-msre-save-review.md)
+provides these useful corrections to the original review:
+
+- Vector slot 7 is a **single hexadecimal byte**, retained by MSTS. Use
+  `uint8_t opaqueByte`, with a nonzero round-trip fixture; its bit meanings
+  remain unknown. Parsing `10` must yield `0x10`, and saving must emit two
+  hexadecimal digits rather than overwrite the field with `00`.
+- Endpoint values are retained unsigned integer editor metadata. The user's
+  TrackShape endpoint interpretation remains supported; the complete native
+  numbering rule has not been independently established.
+- Unknown junction values and the scalar end-node value are retained by
+  MSTS. Preserve them as integers without assigning speculative semantics.
+  Preserving the existing scalar end-node field is a focused I/O correction
+  with its own fixture. New `TrEndLinkFile` support is deferred.
+- Native vector section/shape ID narrowing is a compatibility limitation,
+  not a reason to truncate TSRE IDs. Preserve TSRE's full integer values.
+- The native save ordering findings do **not** establish a defect in
+  TSRE's current compaction policy. Keep that policy and ascending output
+  block order. Do not introduce native-style pointer links or renumbering.
+
+Defer container/ownership redesign, autojoin heuristics, geometric position
+keys, broad failure/transaction handling, notification redesign, save
+performance work, and other robustness improvements. B8's edit-to-empty
+count issue can have a separate reproducer and focused fix; it is not a
+prerequisite for renaming fields. Revisit deferred behavior only with a
+specific failing case and a clear expected outcome. The test matrix below
+is a regression backlog; writing a test does not itself authorize changing
+an established behavior.
+
 ## 1. Proposed Data Representation
 
-Current definitions are in [TRnode.h](../../../src/tsre/tdb/TRnode.h):
+Definitions at the original review baseline were in [TRnode.h](../../../src/tsre/tdb/TRnode.h):
 `UiD[12]`, `TRSect::param[16]`, `args[3]`, and the parallel
 `TrPinS[3]` / `TrPinK[3]` arrays. All UiD and vector-section values currently
 use `float`, including identifiers and tile coordinates.
@@ -31,7 +102,8 @@ use `float`, including identifiers and tile coordinates.
 Use simple value types such as `TrackNodeUid`, `TrackVectorSection`,
 `TrackPin`, and `JunctionData`. Keep geometry as float for this refactor;
 changing the geometry math to double would be a separate project. Use signed
-integer tile coordinates and endpoint/pin values, and exact integer IDs.
+integer tile coordinates and pin values, unsigned integer endpoint metadata,
+and exact integer IDs.
 For IDs read as unsigned by OR, a 32-bit unsigned serialized value is
 appropriate, but validate conversion at TSRE's existing signed map/API
 boundaries. Do not silently reinterpret its `-1` sentinels.
@@ -49,7 +121,7 @@ Source: OR's actual [UiD parser](https://github.com/openrails/openrails/blob/8aa
 | 0 | `worldTileX` | integer | `WorldTileX`: world-object owning tile |
 | 1 | `worldTileZ` | integer | `WorldTileZ`: world-object owning tile |
 | 2 | `worldObjectId` | integer ID | `WorldId`: object's UiD within that world tile |
-| 3 | `worldEndpointIndex` (provisional) | integer | OR reads and discards it; TSRE stores an entry from `ends[]` |
+| 3 | `worldEndpointIndex` | unsigned integer | Native retained metadata; TSRE stores a TrackShape endpoint from `ends[]` |
 | 4 | `tileX` | integer | `TileX`: node location tile |
 | 5 | `tileZ` | integer | `TileZ`: node location tile |
 | 6 | `x` | float | `X`: local position |
@@ -77,9 +149,9 @@ Source: OR's [TrVectorSection parser](https://github.com/openrails/openrails/blo
 | 2 | `worldTileX` | integer | `WFNameX`: owning world tile |
 | 3 | `worldTileZ` | integer | `WFNameZ`: owning world tile |
 | 4 | `worldObjectId` | integer ID | `WorldFileUiD` |
-| 5 | `startEndpointIndex` (provisional) | integer | OR `Flag1`; TSRE `ends[0]` |
-| 6 | `endEndpointIndex` (provisional) | integer | OR `Flag2`; TSRE `ends[1]` |
-| 7 | `unknownToken7` | opaque token pending review | OR skips a string, commonly `00` |
+| 5 | `startEndpointIndex` | unsigned integer | OR `Flag1`; TSRE `ends[0]`; native retained metadata |
+| 6 | `endEndpointIndex` | unsigned integer | OR `Flag2`; TSRE `ends[1]`; native retained metadata |
+| 7 | `opaqueByte` | `uint8_t` | Native one-byte hexadecimal I/O; meanings of bits unresolved |
 | 8 | `tileX` | integer | `TileX`: section start location tile |
 | 9 | `tileZ` | integer | `TileZ`: section start location tile |
 | 10 | `x` | float | `X`: section start local position |
@@ -99,10 +171,10 @@ endpoint names, but does not settle all native MSTS semantics.
 
 > ?? Indeed, those represents "endpoints" of placed TrackShape.
 
-The current loaders parse slot 7 as a float, while both writers replace it
-with literal `00`. Do not invent a bitmask interpretation. Separately decide
-how to preserve a non-default input token; changing this behavior should be
-an explicit compatibility fix with a fixture, not an unnoticed rename.
+The reviewed loaders parse slot 7 as a float, while both writers replace it
+with literal `00`. The native review now establishes the required one-byte
+hexadecimal representation. Correct preservation is an explicit I/O fix
+with a nonzero fixture, not an unnoticed rename. Do not invent bit names.
 
 ### Pins, Junctions, Counts, And Node Type
 
@@ -127,17 +199,18 @@ does not establish a meaning for serialized `args[2]`.
 
 ### Questions For A Native MSTS Review
 
-An MSTS-specific review would help with these remaining fields. No external
-MSTS review was performed during this task; the questions are ready for it:
+The following questions were prepared for the native review. Its report now
+answers the syntax and retention questions; semantic gaps remain as noted:
 
 1. Is UiD[3] precisely the world TrackShape endpoint index? How are internal
    subsection boundaries, junctions, and multi-path shapes numbered?
 2. Are vector slots 5/6 endpoint indices in that same namespace for every
    shape, including reversed curves and crossovers?
-3. What is slot 7, what nonzero values exist, and is its syntax hexadecimal,
-   decimal, or an opaque two-character field?
+3. Slot 7 is now confirmed as one retained hexadecimal byte. Its bit meanings
+   and the behavioral validity of arbitrary nonzero values remain unknown.
 4. What are the first and third `TrJunctionNode` values, and the
-   `TrEndNode` value? Which must round-trip even when the editor ignores them?
+   `TrEndNode` value? Native retention is now confirmed; preserve these
+   values, while leaving the unresolved meanings explicit.
 
 The known fields can be refactored without waiting for these answers. Keep
 unknown values explicit and preserved rather than giving them false names.
@@ -164,9 +237,9 @@ The work must also preserve indirect users such as undo and `TDBClient`.
   as integers, without passing through `ParserX::GetNumber`'s float result.
   Use a narrow typed reader at this boundary; do not switch the whole TDB
   to the newer parser or redesign the legacy parser as part of this task.
-- Prefer a separate ownership change to `std::vector` and paired pins in
-  `std::array`. It removes manual resize/count management but still needs
-  explicit graph-edit logic, copy/undo checks, and deletion-lifetime fixes.
+- Defer conversion of owned arrays/counts to containers. Pairing each pin's
+  link/direction in a small struct can preserve the existing fixed capacity
+  and ordering; it does not require new ownership or editing algorithms.
 
 ## 2. Confirmed Defects And Risks
 
@@ -416,6 +489,54 @@ item ordering/pickup formatting in `tdb-ordering`, load/save guards in
 found no direct join/split/delete regression coverage. Passing a no-edit
 round trip does not demonstrate safe graph editing.
 
+### CMK Large-Route Check - 2026-10-06
+
+At the user's request, tested `C:/trainsim/routes/CMK` with the current
+`9cf4e4a` executable. The build was current. Used the production
+`tdb-roundtrip` suite for two load/save passes into separate output copies,
+plus the existing structured comparator and an additional graph/identity
+comparison. Local artifacts and logs are in
+`build/tdb-audit-cmk-20261006`; the local driver is
+`build/audit_cmk_20261006.py`.
+
+**Result: no structural loss or connection/identity changes observed.**
+
+| Check | Result |
+| --- | --- |
+| Production capture, including load and save | Both passes succeeded, approximately 3.4 / 3.3 seconds |
+| Nodes | 8,590 preserved: 4,898 vector, 3,052 junction, 640 end |
+| Vector subsections | 35,936 preserved |
+| Item records / vector item references | 21,539 / 20,269 preserved |
+| Node IDs, item IDs, pins and directions | Exact structural signatures unchanged |
+| Section IDs, shape IDs, world ownership, endpoint metadata and geometry tiles | Exact structural signatures unchanged |
+| Per-node item ownership and integer node metadata | Exact structural signatures unchanged |
+| Missing pin targets, nonreciprocal pin pairs, missing item targets | Zero in source and both saved copies |
+| Added/removed blocks, atom-count changes, nonnumeric changes | None in TDB, TIT or route tsection comparisons |
+| Item reference permutations | None |
+| Route `tsection.dat` | All 18,189 parsed atoms unchanged from source |
+| First versus second full save | TDB, TIT and route tsection each byte-identical |
+| Source integrity | All 30 hashed database/configuration files unchanged, including RDB/RIT |
+
+The first save changes higher-precision real values, as expected for this
+TSRE-produced route. Maximum observed component changes are 0.0049 m for
+node coordinates, 0.005 m for section/item coordinates, 0.05 m for item
+distance along the path, and 0.000005 radians for node/section angles.
+Integer identity and connection fields do not change.
+
+Do not describe every numeric difference as ideal decimal rounding alone:
+4,753 TDB values still differ under the comparator's six-significant-digit
+check. The nine-digit capture shows some differences already arise while
+loading into float32, before applying six-digit output. For example,
+`0.0026192318` saves as `0.00261924`. These small numeric effects settle after
+the first save; they do not produce continuing drift on the second pass.
+The TDB's raw six-digit serialization and full save also match exactly at
+the parsed-atom level.
+
+This check exercises rail TDB/TIT and shared route track definitions, without
+track editing or loading world scenery. RDB/RIT were integrity-hashed, not
+round-tripped. It is not a join/split/delete test or a native MSRE live test.
+No production code or source route content was changed for this check.
+
 ## 5. Required Editing Regression Plan
 
 Use small in-memory graphs with explicit section definitions and known world
@@ -462,23 +583,130 @@ identifiers, connectivity, record counts, or ownership.
 
 ## 6. Suggested Implementation Sequence
 
-1. Isolate the current `flex-point` failure; add focused editing fixtures and
-   regressions for B1-B4, including the disconnected sentinel network.
-2. Fix deletion lifetimes, array ownership, and item-removal indexing in
-   separately reviewable commits. Address the empty-save transition.
-3. Introduce named fields and exact integer I/O. Update every loader,
-   serializer, math boundary, copy path, and direct consumer together.
-   Preserve established geometry and six-digit real formatting.
-4. Convert owned arrays/counts and parallel pins to simple containers in a
-   separate step. Define join/split failure contracts and update replay.
-5. Address the remaining topology/identity issues with their own fixtures;
-   resolve the native MSTS unknowns before semantic renaming of those fields.
-6. Run all targeted editing and geometry tests, then repeat Task 14's
-   two-pass official-installation audit using output copies. Add edited
-   fixtures because that corpus audit alone does not exercise mutation.
+Follow the narrower three-step scope recorded above: establish regression
+coverage, fix confirmed critical defects, then introduce named fields and
+typed I/O. Keep those changes separately reviewable. The other findings
+remain deferred unless a specific reproducer justifies a focused repair.
+
+At each step, run the relevant editing and geometry tests. After the
+representation change, repeat Task 14's two-pass official-installation audit
+using output copies. Include edited fixtures because the no-edit corpus
+audit alone does not exercise mutation. Account explicitly for intended
+preservation fixes to byte, integer and end-node metadata values.
 
 Acceptance requires an explained and passing baseline, no memory-safety failures
 in the edit regressions, unchanged unrelated networks, exact identifier and
 ownership preservation, valid topology through undo/save/reload, and no
 unexplained numeric or structural regression against Task 14. This review
 does not implement or claim completion of those repairs.
+
+
+## 7. Conservative Implementation - 2026-10-06
+
+Implemented on `feature/tdb-edit-safety`, based on `9cf4e4a`. No route source
+files were edited. The implementation follows the agreed order: regression
+fixtures, focused critical fixes, then named fields. The implementation was
+prepared for commit at the user's request on 2026-10-07.
+
+### Confirmed Defects Fixed
+
+- **B1:** replace five scalar deletes of vector-section arrays with `delete[]`
+  in append, join, split and subsection deletion.
+- **B2:** retain endpoint IDs before deleting a vector node; stop the selected
+  world-object removal loop when that vector has been deleted. No access to
+  the freed vector is needed for endpoint cleanup or update notifications.
+- **B3:** after deleting an item from a section's head, continue with the
+  updated reference array rather than using the decremented index (`-1` when
+  the first reference was removed).
+- **B4:** count and remove every matching reference, allocate the actual
+  remaining size, leave absent references alone, and deduplicate the list of
+  owning nodes before removal. The validation API still reports duplicate
+  ownership as before.
+
+The initial 34 editing checks gave **26 passes / 8 failures** before these
+fixes and **34 / 0** afterward, before changing the representation. The final
+suite adds junction loops, prepend, edited reloads, repeated world ownership
+and an item on the disconnected sentinel network. This reproduces concrete
+faulty editing behavior; it does not establish that every reported disappearing
+section had the same cause.
+
+### Named Fields And I/O
+
+[TrackNodeData.h](../../../src/tsre/tdb/TrackNodeData.h) defines `TrackNodeUid`,
+`TrackVectorSection`, `TrackPin` and `JunctionData`. `TRnode` retains its owned
+arrays, counts and existing node type; no map/container or algorithm redesign
+was introduced. Consumers in TDB, TRitem, Ruch, Path and SignalObj use the named
+fields. Geometry retains the existing axis and angle conventions.
+
+Both node and database text paths share the field readers/writers:
+
+- Signed tile coordinates, unsigned section/shape/world IDs and endpoint
+  metadata are read without conversion through float32. Older scientific
+  integer literals are accepted. Existing signed node-map keys and item
+  references remain signed integers; this does not expand every downstream
+  identifier representation in TSRE.
+- Vector `opaqueByte` is a retained `uint8_t`, read as hexadecimal and written
+  as two lowercase hexadecimal digits. Its meanings are deliberately unnamed.
+- Junction metadata remains opaque unsigned integers; an omitted third value
+  defaults to zero. End nodes retain their own unsigned scalar instead of
+  silently saving zero. `TrEndLinkFile` remains unsupported in this change.
+- Real coordinates and angles retain the legacy parser and six-digit saving.
+  Narrow, local integer adapters are used; no newer parser migration or broad
+  legacy-parser rewrite was performed.
+- Invalid integer ranges fail loading and leave the existing database protected
+  against overwrite. Deep copies retain all fields without aliasing arrays.
+
+### Validation And Limits
+
+Final sequential build passed. Focused validation:
+
+| Suite | Passed / failed |
+| --- | --- |
+| `tdb-editing` | 48 / 0 |
+| `tdb-fields` | 40 / 0 |
+| `flex-point` | 50 / 0 |
+| `parser-exponents` | 38 / 0 |
+| `tdb-ordering` | 4 / 0 |
+| `tdb-load` | 17 / 0 |
+| Python audit unit tests | 5 / 0 |
+
+That is **197 C++ checks and 5 Python tests**, all passing. Final C++ logs are
+`build/task15-final-<suite>.log`; baseline/fix-stage editing logs are
+`build/tdb-editing-before-fixes.log` and `build/tdb-editing-after-fixes.log`.
+`git diff --check` passes. The source diff was also reviewed with mechanical
+field substitutions factored out, to isolate behavior changes from renaming.
+
+The old `flex-point` failure was a test expectation error: the final 4.32589 m
+curve is tessellated into equal intervals, so its second point is about
+2.162945 m along the curve, not 4 m. The corrected assertion samples every
+emitted point at its actual subdivision distance. Production geometry was not
+changed for this correction; all **50** cases pass.
+
+CMK was rerun in `build/tdb-audit-cmk-task15-20261006`. Its first saved TDB, TIT
+and route tsection are **byte-identical to the pre-refactor baseline**, and
+all comparison metrics and structural signatures match. Both saves are stable.
+The 8,590 nodes, 35,936 vector sections, 21,539 items, 20,269 references, pin
+connectivity, ownership and metadata are preserved, with zero missing node/item
+targets or nonreciprocal pin pairs. All 30 source hashes remain unchanged.
+
+The official-installation audit completed separately in
+`build/tdb-audit-task15-serial-20261006`: **14 routes**, **164 unchanged source
+hashes**, and exactly the same comparison metrics as the Task 14 baseline.
+All **382** compared capture/output data files (including copied metadata)
+are byte-identical to their baseline counterparts. TDB/TIT second saves remain
+stable; the previously documented USA2/TUTORIAL route-tsection exceptions
+remain unchanged.
+
+An initial concurrent stock/CMK audit exhausted available memory in Python's
+comparison step. The user confirmed concurrent system tasks were consuming
+memory; rerunning the stock audit separately succeeded. The final rebuild and
+focused test suites were also run sequentially.
+
+Ordinary regression builds were used; no AddressSanitizer/Valgrind result is
+claimed. Tests exercise production database operations and undo, but not live
+GUI commands, multiplayer notification replay or native MSRE. CMK's RDB/RIT
+were hashed, not round-tripped. Edited fixtures use stream save/reload; the
+real-route audits exercise full saves. Broad invalid-graph handling, placement
+key collisions, prepend item policy, compaction policy and the edit-to-empty
+count defect remain deferred. The broader matrix in section 5 remains a
+backlog and is not claimed fully implemented.

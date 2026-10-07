@@ -57,3 +57,26 @@ the legacy parser or change its fractional arithmetic.
 `tdb-ordering` verifies sorting by path distance, stable ties, repeat sorting,
 and six-digit scientific serialization/reloading of pickup content with
 hexadecimal flags. Normal TDB/TIT saving uses six significant digits.
+
+Task 15 editing and typed-field regressions run without installed route content:
+
+```powershell
+build/TSRE5vc.exe --test --test-suite tdb-editing
+build/TSRE5vc.exe --test --test-suite tdb-fields
+build/TSRE5vc.exe --test --test-suite tdb-load
+build/TSRE5vc.exe --test --test-suite flex-point
+```
+
+`tdb-editing` covers both rail and road joins in all orientations, append and
+prepend, split/rejoin, item migration, selected-world-object deletion,
+junctions/loops, duplicate and absent item references, production undo, reversal
+and reloading edited graphs. Each fixture includes a disconnected sentinel
+network and item. It does not run editor UI commands, multiplayer replay or
+save-time compaction on the edited fixtures.
+
+`tdb-fields` exercises both node and database load/save paths, distinct values
+in all UID/vector slots, signed tiles, large exact integers, older scientific
+integer notation, hexadecimal bytes, end-node values, optional junction
+metadata and deep copies. Real fields still use the legacy parser and stream
+precision. These tests are ordinary builds, not a substitute for a memory
+sanitizer run.

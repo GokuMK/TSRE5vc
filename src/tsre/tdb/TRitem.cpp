@@ -526,16 +526,16 @@ void TRitem::setSignalDirection(int dir) {
     }
     // find to;
     int direction;
-    TRnode* n1 = tdb->trackNodes[n->TrPinS[1]];
-    TRnode* n2 = tdb->trackNodes[n->TrPinS[2]];
+    TRnode* n1 = tdb->trackNodes[n->pins[1].link];
+    TRnode* n2 = tdb->trackNodes[n->pins[2].link];
     TRnode* nd;
     if(n1 == NULL) return;
     if(n2 == NULL) return;
-    if(n1->TrPinS[0] == to || n1->TrPinS[1] == to){
+    if(n1->pins[0].link == to || n1->pins[1].link == to){
         direction = 0;
         nd = n1;
     }
-    else if(n2->TrPinS[0] == to || n2->TrPinS[1] == to){
+    else if(n2->pins[0].link == to || n2->pins[1].link == to){
         direction = 1;
         nd = n2;
     }
@@ -553,12 +553,12 @@ void TRitem::setSignalDirection(int dir) {
     // calc position n - nd;
     
     trSignalRDir = new float[trSignalDirs * 6];
-    trSignalRDir[0 + 0] = n->UiD[6];
-    trSignalRDir[0 + 1] = n->UiD[7];
-    trSignalRDir[0 + 2] = n->UiD[8];
-    trSignalRDir[0 + 3] = n->UiD[4];
-    trSignalRDir[0 + 4] = n->UiD[5];
-    trSignalRDir[0 + 5] = n->UiD[10];
+    trSignalRDir[0 + 0] = n->uid.x;
+    trSignalRDir[0 + 1] = n->uid.y;
+    trSignalRDir[0 + 2] = n->uid.z;
+    trSignalRDir[0 + 3] = n->uid.tileX;
+    trSignalRDir[0 + 4] = n->uid.tileZ;
+    trSignalRDir[0 + 5] = n->uid.ay;
 }*/
 
 void TRitem::linkSignal(int trackId, int dist) {
@@ -573,7 +573,7 @@ void TRitem::linkSignal(int trackId, int dist) {
     int end = 0;
     if(dist*2 > length)
         end = 1;
-    int jid = n->TrPinS[end];
+    int jid = n->pins[end].link;
     n = tdb->trackNodes[jid];
     if(n->typ != 2 ) {
         qDebug() << "link is no junction";
@@ -582,15 +582,15 @@ void TRitem::linkSignal(int trackId, int dist) {
     // find to;
     int direction;
 
-    TRnode* n1 = tdb->trackNodes[n->TrPinS[1]];
-    TRnode* n2 = tdb->trackNodes[n->TrPinS[2]];
+    TRnode* n1 = tdb->trackNodes[n->pins[1].link];
+    TRnode* n2 = tdb->trackNodes[n->pins[2].link];
 
     if(n1 == NULL) return;
     if(n2 == NULL) return;
-    if(n->TrPinS[1] == trackId){
+    if(n->pins[1].link == trackId){
         direction = 0;
     }
-    else if(n->TrPinS[2] == trackId){
+    else if(n->pins[2].link == trackId){
         direction = 1;
     }
     else {
@@ -607,12 +607,12 @@ void TRitem::linkSignal(int trackId, int dist) {
     // calc position n - nd;
     
     trSignalRDir = new float[trSignalDirs * 6];
-    trSignalRDir[0 + 0] = n->UiD[6];
-    trSignalRDir[0 + 1] = n->UiD[7];
-    trSignalRDir[0 + 2] = n->UiD[8];
-    trSignalRDir[0 + 3] = n->UiD[4];
-    trSignalRDir[0 + 4] = n->UiD[5];
-    trSignalRDir[0 + 5] = n->UiD[10];
+    trSignalRDir[0 + 0] = n->uid.x;
+    trSignalRDir[0 + 1] = n->uid.y;
+    trSignalRDir[0 + 2] = n->uid.z;
+    trSignalRDir[0 + 3] = n->uid.tileX;
+    trSignalRDir[0 + 4] = n->uid.tileZ;
+    trSignalRDir[0 + 5] = n->uid.ay;
 }
 
 void TRitem::setSpeedpostRot(float rot) {
@@ -1055,8 +1055,8 @@ void TRitem::addTrackNodeItemOffset(unsigned int trackNodeOffset, unsigned int t
     for(int i = 0; i < this->iTri; i++)
         trItemRef[i] += trackItemOffset;
     
-    for(int i = 0; i < this->TrP1+this->TrP2; i++)
-        this->TrPinS[i] += trackNodeOffset;*/
+    for(int i = 0; i < this->inputPinCount+this->outputPinCount; i++)
+        this->pins[i].link += trackNodeOffset;*/
     if(this->trSignalDirs == 1){
         if(this->trSignalDir != NULL){
             this->trSignalDir[0] += trackNodeOffset;

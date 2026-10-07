@@ -71,6 +71,8 @@
 #include <tsre/tests/TdbRoundTripTestSuite.h>
 #include <tsre/tests/ParserExponentTestSuite.h>
 #include <tsre/tests/TdbOrderingTestSuite.h>
+#include <tsre/tests/TdbEditingTestSuite.h>
+#include <tsre/tests/TrackNodeDataTestSuite.h>
 #include <tsre/tests/TerrainRawBenchmark.h>
 #include <tsre/tests/TerrainBrushBenchmark.h>
 #include <tsre/tests/TerrainBrushTestSuite.h>
@@ -1488,10 +1490,12 @@ static int runFlexPointSuite(bool verbose) {
                 const double dz = drawAbsoluteZ - expectedAbsoluteZ;
                 caseOk = std::sqrt(dx * dx + dy * dy + dz * dz)
                         < 0.002;
+                if(!caseOk)
+                    qWarning() << "[tests:flex-point] subsection endpoint" << prefix
+                               << "delta" << dx << dy << dz;
             }
 
-            const float* frame =
-                    vectorNode->trVectorSection[prefix].param + 13;
+            const auto frame = vectorNode->trVectorSection[prefix].frame();
             caseOk = caseOk
                     && std::isfinite(frame[0])
                     && std::isfinite(frame[1])
@@ -1500,23 +1504,24 @@ static int runFlexPointSuite(bool verbose) {
                 transportedRollFound = true;
 
             if(caseOk && prefix < 2) {
-                const float* stored =
-                        vectorNode->trVectorSection[prefix + 1].param;
+                const auto &stored = vectorNode->trVectorSection[prefix + 1];
                 caseOk = storedPositionMatches(
-                        (int)stored[8], (int)stored[9],
-                        stored[10], stored[11], stored[12],
+                        stored.tileX, stored.tileZ,
+                        stored.x, stored.y, stored.z,
                         expectedTileX, expectedTileZ, expectedPosition);
             } else if(caseOk) {
                 TRnode* endNode =
-                        database.trackNodes[vectorNode->TrPinS[1]];
+                        database.trackNodes[vectorNode->pins[1].link];
                 caseOk = endNode != NULL && storedPositionMatches(
-                        (int)endNode->UiD[4], (int)endNode->UiD[5],
-                        endNode->UiD[6], endNode->UiD[7], endNode->UiD[8],
+                        (int)endNode->uid.tileX, (int)endNode->uid.tileZ,
+                        endNode->uid.x, endNode->uid.y, endNode->uid.z,
                         expectedTileX, expectedTileZ, expectedPosition);
             }
         }
 
         caseOk = caseOk && transportedRollFound;
+        if(!caseOk)
+            qWarning() << "[tests:flex-point] subsection placement/frame check failed";
 
         struct AbsoluteSample {
             double x;
@@ -1563,37 +1568,41 @@ static int runFlexPointSuite(bool verbose) {
                     vectorNodeId, sampleDistances[i], forwardSamples[i]);
 
         // The yellow/collision-line matrix must describe the same path as
-        // the hot TDB sampler. The final curve has transported roll and its
-        // second generated point is exactly four metres into the section.
+        // the hot TDB sampler. The final curve has transported roll. The
+        // tessellator divides it into equal intervals, including both ends.
         QVector<float> finalCurvePoints;
         if(caseOk) {
             database.getVectorSectionPoints(startTileX, -startTileZ,
                     vectorNodeId, 2, finalCurvePoints);
             caseOk = finalCurvePoints.size() >= 6;
         }
-        if(caseOk) {
+        for(int point = 0; caseOk && point < finalCurvePoints.size() / 3; ++point) {
             AbsoluteSample sampledPoint = {};
+            const float distance = finalLength * point
+                    / (finalCurvePoints.size() / 3 - 1);
             caseOk = sampleVector(vectorNodeId,
-                    firstLength + middleLength + 4.0f, sampledPoint);
+                    firstLength + middleLength + distance, sampledPoint);
             const double expectedX = sampledPoint.x
                     - startTileX * 2048.0;
             const double expectedZ = sampledPoint.z
                     - startTileZ * 2048.0;
-            const double dx = finalCurvePoints[3] - expectedX;
-            const double dy = finalCurvePoints[4] - sampledPoint.y;
-            const double dz = finalCurvePoints[5] - expectedZ;
+            const double dx = finalCurvePoints[point * 3] - expectedX;
+            const double dy = finalCurvePoints[point * 3 + 1] - sampledPoint.y;
+            const double dz = finalCurvePoints[point * 3 + 2] - expectedZ;
             caseOk = std::sqrt(dx * dx + dy * dy + dz * dz) < 0.002;
+            if(!caseOk)
+                qWarning() << "[tests:flex-point] subsection line point delta" << dx << dy << dz;
         }
 
         caseOk = caseOk && database.rotate(vectorNodeId) == 0;
         if(caseOk) {
             vectorNode = database.trackNodes[vectorNodeId];
             caseOk = vectorNode != NULL
-                    && (int)vectorNode->trVectorSection[0].param[0]
+                    && (int)vectorNode->trVectorSection[0].sectionIndex
                             == firstSectionId + 3
-                    && (int)vectorNode->trVectorSection[1].param[0]
+                    && (int)vectorNode->trVectorSection[1].sectionIndex
                             == firstSectionId + 2
-                    && (int)vectorNode->trVectorSection[2].param[0]
+                    && (int)vectorNode->trVectorSection[2].sectionIndex
                             == firstSectionId + 1;
         }
         for(int i = 0; caseOk && i < 7; i++) {
@@ -1647,29 +1656,29 @@ static int runFlexPointSuite(bool verbose) {
         database.iTRnodes = vectorNodeId;
 
         startNode->typ = 0;
-        const float startUid[12] = {
+        const TrackNodeUid startUid = {
             -5306, 14961, 133, 0, -5306, 14961,
             -755.71405f, 0.97610611f, -280.55771f,
             0.0f, (float)M_PI, 0.0f
         };
-        std::copy(startUid, startUid + 12, startNode->UiD);
-        startNode->TrPinS[0] = vectorNodeId;
-        startNode->TrPinK[0] = 1;
+        startNode->uid = startUid;
+        startNode->pins[0].link = vectorNodeId;
+        startNode->pins[0].direction = 1;
 
         endNode->typ = 0;
-        const float endUid[12] = {
+        const TrackNodeUid endUid = {
             -5306, 14961, 135, 1, -5306, 14961,
             -746.98889f, 0.9761017f, -230.54849f,
             -0.00049897865f, -0.0023593903f, 1.1773519e-06f
         };
-        std::copy(endUid, endUid + 12, endNode->UiD);
-        endNode->TrPinS[0] = vectorNodeId;
-        endNode->TrPinK[0] = 0;
+        endNode->uid = endUid;
+        endNode->pins[0].link = vectorNodeId;
+        endNode->pins[0].direction = 0;
 
         vectorNode->typ = 1;
         vectorNode->iTrv = 3;
-        vectorNode->trVectorSection = new TRnode::TRSect[3];
-        const float capturedSections[3][16] = {
+        vectorNode->trVectorSection = new TrackVectorSection[3];
+        const TrackVectorSection capturedSections[3] = {
             {36170, 33262, -5306, 14961, 133, 0, 1, 0,
              -5306, 14961, -755.71405f, 0.97610611f, -280.55771f,
              0.0f, 0.0f, 0.0f},
@@ -1681,12 +1690,11 @@ static int runFlexPointSuite(bool verbose) {
              0.0f, 0.015093067f, 0.0f}
         };
         for(int i = 0; i < 3; ++i)
-            std::copy(capturedSections[i], capturedSections[i] + 16,
-                    vectorNode->trVectorSection[i].param);
-        vectorNode->TrPinS[0] = startNodeId;
-        vectorNode->TrPinS[1] = endNodeId;
-        vectorNode->TrPinK[0] = 1;
-        vectorNode->TrPinK[1] = 1;
+            vectorNode->trVectorSection[i] = capturedSections[i];
+        vectorNode->pins[0].link = startNodeId;
+        vectorNode->pins[1].link = endNodeId;
+        vectorNode->pins[0].direction = 1;
+        vectorNode->pins[1].direction = 1;
 
         struct CapturedSample {
             double x;
@@ -1725,24 +1733,23 @@ static int runFlexPointSuite(bool verbose) {
         for(int i = 0; caseOk && i < 6; ++i)
             caseOk = sample(distances[i], forwardSamples[i]);
         const float originalStartFrame[3] = {
-            startNode->UiD[9], startNode->UiD[10], startNode->UiD[11]
+            startNode->uid.ax, startNode->uid.ay, startNode->uid.az
         };
         const float originalEndFrame[3] = {
-            endNode->UiD[9], endNode->UiD[10], endNode->UiD[11]
+            endNode->uid.ax, endNode->uid.ay, endNode->uid.az
         };
 
         caseOk = caseOk && database.rotate(vectorNodeId) == 0;
         if(caseOk) {
             vectorNode = database.trackNodes[vectorNodeId];
+            auto sameStart = [](const auto &a, const auto &b) {
+                return a.tileX == b.tileX && a.tileZ == b.tileZ
+                        && a.x == b.x && a.y == b.y && a.z == b.z;
+            };
             caseOk = vectorNode != NULL
-                    && std::equal(endNode->UiD + 4, endNode->UiD + 9,
-                            vectorNode->trVectorSection[0].param + 8)
-                    && std::equal(capturedSections[2] + 8,
-                            capturedSections[2] + 13,
-                            vectorNode->trVectorSection[1].param + 8)
-                    && std::equal(capturedSections[1] + 8,
-                            capturedSections[1] + 13,
-                            vectorNode->trVectorSection[2].param + 8);
+                    && sameStart(endNode->uid, vectorNode->trVectorSection[0])
+                    && sameStart(capturedSections[2], vectorNode->trVectorSection[1])
+                    && sameStart(capturedSections[1], vectorNode->trVectorSection[2]);
         }
         for(int i = 0; caseOk && i < 6; ++i) {
             CapturedSample reversedSample = {};
@@ -1752,9 +1759,9 @@ static int runFlexPointSuite(bool verbose) {
         }
         const bool endpointFramesUnchanged =
                 std::equal(originalStartFrame, originalStartFrame + 3,
-                        startNode->UiD + 9)
+                        startNode->uid.frame().begin())
                 && std::equal(originalEndFrame, originalEndFrame + 3,
-                        endNode->UiD + 9);
+                        endNode->uid.frame().begin());
         caseOk = caseOk && endpointFramesUnchanged;
 
         caseOk = caseOk && database.rotate(vectorNodeId) == 0;
@@ -4113,6 +4120,8 @@ QStringList TsreTests::listSuites() {
         "tdb-roundtrip",
         "parser-exponents",
         "tdb-ordering",
+        "tdb-editing",
+        "tdb-fields",
         "terrain-files",
         "terrain-tfile",
         "quadtree-recovery",
@@ -4198,6 +4207,10 @@ int TsreTests::run(const TestRunOptions &opts) {
         return runParserExponentSuite();
     if (suite == "tdb-ordering")
         return runTdbOrderingSuite();
+    if (suite == "tdb-editing")
+        return runTdbEditingSuite();
+    if (suite == "tdb-fields")
+        return runTrackNodeDataSuite();
 
     if (suite == "procedural-policy")
         return runProceduralPolicySuite(opts.verbose);
@@ -4275,6 +4288,8 @@ int TsreTests::run(const TestRunOptions &opts) {
         rc = std::max(rc, runSettingsSuite(opts.verbose));
         rc = std::max(rc, runNewRouteSuite(opts.verbose));
         rc = std::max(rc, runTdbLoadSuite(opts.verbose));
+        rc = std::max(rc, runTdbEditingSuite());
+        rc = std::max(rc, runTrackNodeDataSuite());
         rc = std::max(rc, runTerrainGridSuite(opts.verbose));
         rc = std::max(rc, runTerrainEdgeSuite(opts.verbose));
         rc = std::max(rc, runTerrainBrushSuite(opts.verbose));

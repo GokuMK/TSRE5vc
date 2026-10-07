@@ -105,6 +105,15 @@ int TsreTests::runTdbLoadSuite(bool verbose) {
     check(readFixture(tdbPath) == beforeSave,
           "existing-broken-tdb-is-not-overwritten");
 
+    const QByteArray invalidInteger = "SIMISA@@@@@@@@@@JINX0T0t______\n\n"
+        "TrackDB ( TrackNodes ( 1 TrackNode ( 1 TrEndNode ( 4294967296 ) ) ) )\n";
+    check(writeFixture(tdbPath, invalidInteger), "write-invalid-integer-fixture");
+    TDB invalidTdb(&tsection, false);
+    invalidTdb.loadTdb();
+    invalidTdb.save();
+    check(!invalidTdb.loaded && readFixture(tdbPath) == invalidInteger,
+          "invalid-integer-fails-load-and-prevents-overwrite");
+
     const QString rdbPath = routeDirectory + "/empty.rdb";
     check(writeFixture(rdbPath, brokenDatabase), "write-broken-rdb-fixture");
     TDB brokenRdb(&tsection, true);

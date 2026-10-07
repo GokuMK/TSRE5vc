@@ -168,7 +168,13 @@ void TDB::loadTdb(){
     while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
         if (sh == "trackdb") {
             trackDbFound = true;
-            loadUtf16Data(data);
+            try {
+                loadUtf16Data(data);
+            } catch(const FileBuffer::ParseError &error) {
+                reportLoadFailure(QString::fromUtf8(error.what()));
+                delete data;
+                return;
+            }
             ParserX::SkipToken(data);
             continue;
             
@@ -220,8 +226,8 @@ void TDB::printVectorParamStats(){
 
         vectorNodeCount++;
         for (int j = 0; j < node->iTrv; j++) {
-            const float param13 = node->trVectorSection[j].param[13];
-            const float param15 = node->trVectorSection[j].param[15];
+            const float param13 = node->trVectorSection[j].ax;
+            const float param15 = node->trVectorSection[j].az;
 
             vectorSectionCount++;
             if (param13 != 0.0f) {
@@ -258,11 +264,12 @@ void TDB::loadUtf16Data(FileBuffer *data){
 
                     while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
                         if(sh == "tracknode"){
-                            t = (int) ParserX::GetNumber(data); // odczytanie numeru sciezki
+                            t = TrackNodeText::readInt(data); // odczytanie numeru sciezki
                             trackNodes[t] = new TRnode();
                             while (!((sh = ParserX::NextTokenInside(data).toLower()) == "")) {
                                 if(sh == "trendnode"){
                                     trackNodes[t]->typ = 0; //typ endnode
+                                    trackNodes[t]->endNodeValue = TrackNodeText::readUInt(data);
                                     ParserX::SkipToken(data);
                                     continue;
                                 }
@@ -273,15 +280,9 @@ void TDB::loadUtf16Data(FileBuffer *data){
                                             uu = (int) ParserX::GetNumberInside(data, &ok);
                                             if(ok){
                                                 trackNodes[t]->iTrv = uu;
-                                                trackNodes[t]->trVectorSection = new TRnode::TRSect[uu]; // przydzielenie pamieci dla sciezki
+                                                trackNodes[t]->trVectorSection = new TrackVectorSection[uu]; // przydzielenie pamieci dla sciezki
                                                 for (j = 0; j < uu; j++) {
-                                                    for (ii = 0; ii < 16; ii++) {
-                                                        xx = ParserX::GetNumber(data);
-                                                        if(std::isnan(xx)){
-                                                            qDebug() << "#TrackDB: NAN found in tracknode: "<<t;
-                                                        }
-                                                        trackNodes[t]->trVectorSection[j].param[ii] = xx;
-                                                    }
+                                                    trackNodes[t]->trVectorSection[j].load(data);
                                                 }
                                             }
                                             ParserX::SkipToken(data);
@@ -293,7 +294,7 @@ void TDB::loadUtf16Data(FileBuffer *data){
                                             trackNodes[t]->trItemRef = new int[uu]; // przydzielenie pamieci dla sciezki
                                             if(uu > 0){
                                                 for (j = 0; j < uu; j++) {
-                                                    trackNodes[t]->trItemRef[j] = ParserX::GetNumber(data);
+                                                    trackNodes[t]->trItemRef[j] = TrackNodeText::readInt(data);
                                                 }
                                                 ParserX::SkipToken(data);
                                             }
@@ -308,32 +309,26 @@ void TDB::loadUtf16Data(FileBuffer *data){
                                 }
                                 if(sh == "trjunctionnode"){
                                     trackNodes[t]->typ = 2; //typ rozjazd
-                                    trackNodes[t]->args[0] = ParserX::GetNumber(data);
-                                    trackNodes[t]->args[1] = ParserX::GetNumber(data);
-                                    trackNodes[t]->args[2] = ParserX::GetNumber(data);
+                                    trackNodes[t]->junction.unknown0 = TrackNodeText::readUInt(data);
+                                    trackNodes[t]->junction.shapeIndex = TrackNodeText::readUInt(data);
+                                    trackNodes[t]->junction.unknown2 = TrackNodeText::readUInt(data, true);
                                     ParserX::SkipToken(data);
                                     continue;
                                 }
                                 if(sh == "trpins"){
-                                    trackNodes[t]->TrP1 = (int) ParserX::GetNumber(data);
-                                    trackNodes[t]->TrP2 = (int) ParserX::GetNumber(data);
+                                    trackNodes[t]->inputPinCount = TrackNodeText::readInt(data);
+                                    trackNodes[t]->outputPinCount = TrackNodeText::readInt(data);
 
-                                    for (int i = 0; i < (trackNodes[t]->TrP1 + trackNodes[t]->TrP2); i++) {
-                                        trackNodes[t]->TrPinS[i] = (int) ParserX::GetNumber(data);
-                                        trackNodes[t]->TrPinK[i] = (int) ParserX::GetNumber(data);
+                                    for (int i = 0; i < (trackNodes[t]->inputPinCount + trackNodes[t]->outputPinCount); i++) {
+                                        trackNodes[t]->pins[i].link = TrackNodeText::readInt(data);
+                                        trackNodes[t]->pins[i].direction = TrackNodeText::readInt(data);
                                     }
                                     ParserX::SkipToken(data);
                                     ParserX::SkipToken(data);
                                     continue;
                                 }
                                 if(sh == "uid"){
-                                    for (ii = 0; ii < 12; ii++) {
-                                        xx = ParserX::GetNumber(data);
-                                        if(std::isnan(xx)){
-                                            qDebug() << "#TrackDB: NAN found in tracknode: "<<t;
-                                        }
-                                        trackNodes[t]->UiD[ii] = xx;
-                                    }
+                                    trackNodes[t]->uid.load(data);
                                     ParserX::SkipToken(data);
                                     continue;              
                                 }
@@ -395,22 +390,22 @@ void TDB::updateUiDs(QVector<int*> &trackObjUpdates, int startNode){
             
             for(int j = 0; j < trackObjUpdates.size(); j++){
                 if(n->typ == 2){
-                    if(n->UiD[0] == trackObjUpdates[j][0]) 
-                        if(n->UiD[1] == -trackObjUpdates[j][1])
-                            if(n->UiD[2] == trackObjUpdates[j][2]){
-                                n->UiD[0] = trackObjUpdates[j][3];
-                                n->UiD[1] = -trackObjUpdates[j][4];
-                                n->UiD[2] = trackObjUpdates[j][5];
+                    if(n->uid.worldTileX == trackObjUpdates[j][0])
+                        if(n->uid.worldTileZ == -trackObjUpdates[j][1])
+                            if(n->uid.worldObjectId == trackObjUpdates[j][2]){
+                                n->uid.worldTileX = trackObjUpdates[j][3];
+                                n->uid.worldTileZ = -trackObjUpdates[j][4];
+                                n->uid.worldObjectId = trackObjUpdates[j][5];
                     }
                 }
                 if(n->typ == 1){
                     for(int jj = 0; jj < n->iTrv; jj++){
-                        if(n->trVectorSection[jj].param[2] == trackObjUpdates[j][0])
-                            if(n->trVectorSection[jj].param[3] == -trackObjUpdates[j][1])
-                                if(n->trVectorSection[jj].param[4] == trackObjUpdates[j][2]){
-                                    n->trVectorSection[jj].param[2] = trackObjUpdates[j][3];
-                                    n->trVectorSection[jj].param[3] = -trackObjUpdates[j][4];
-                                    n->trVectorSection[jj].param[4] = trackObjUpdates[j][5];
+                        if(n->trVectorSection[jj].worldTileX == trackObjUpdates[j][0])
+                            if(n->trVectorSection[jj].worldTileZ == -trackObjUpdates[j][1])
+                                if(n->trVectorSection[jj].worldObjectId == trackObjUpdates[j][2]){
+                                    n->trVectorSection[jj].worldTileX = trackObjUpdates[j][3];
+                                    n->trVectorSection[jj].worldTileZ = -trackObjUpdates[j][4];
+                                    n->trVectorSection[jj].worldObjectId = trackObjUpdates[j][5];
                         }
                     }
                 }
@@ -424,15 +419,15 @@ void TDB::updateSectionAndShapeIds(QHash<unsigned int,unsigned int>& fixedSectio
             if(n == NULL)
                 continue;
             if(n->typ == 2){
-                if(fixedShapeIds[n->args[1]] > 0)
-                    n->args[1] = fixedShapeIds[n->args[1]];
+                if(fixedShapeIds[n->junction.shapeIndex] > 0)
+                    n->junction.shapeIndex = fixedShapeIds[n->junction.shapeIndex];
             }
             if(n->typ == 1)
                 for(int j = 0; j < n->iTrv; j++){
-                    if(fixedShapeIds[n->trVectorSection[j].param[1]] > 0)
-                        n->trVectorSection[j].param[1] = fixedShapeIds[n->trVectorSection[j].param[1]];
-                    if(fixedSectionIds[n->trVectorSection[j].param[0]] > 0)
-                        n->trVectorSection[j].param[0] = fixedSectionIds[n->trVectorSection[j].param[0]];
+                    if(fixedShapeIds[n->trVectorSection[j].shapeIndex] > 0)
+                        n->trVectorSection[j].shapeIndex = fixedShapeIds[n->trVectorSection[j].shapeIndex];
+                    if(fixedSectionIds[n->trVectorSection[j].sectionIndex] > 0)
+                        n->trVectorSection[j].sectionIndex = fixedSectionIds[n->trVectorSection[j].sectionIndex];
                 }
         }
 }
@@ -576,12 +571,12 @@ void TDB::checkTrSignalRDirs(){
             }
             
             it->trSignalRDir = new float[it->trSignalDirs * 6];
-            it->trSignalRDir[0 + 0] = n->UiD[6];
-            it->trSignalRDir[0 + 1] = n->UiD[7];
-            it->trSignalRDir[0 + 2] = n->UiD[8];
-            it->trSignalRDir[0 + 3] = n->UiD[4];
-            it->trSignalRDir[0 + 4] = n->UiD[5];
-            it->trSignalRDir[0 + 5] = n->UiD[10];
+            it->trSignalRDir[0 + 0] = n->uid.x;
+            it->trSignalRDir[0 + 1] = n->uid.y;
+            it->trSignalRDir[0 + 2] = n->uid.z;
+            it->trSignalRDir[0 + 3] = n->uid.tileX;
+            it->trSignalRDir[0 + 4] = n->uid.tileZ;
+            it->trSignalRDir[0 + 5] = n->uid.ay;
             
         }
     }
@@ -719,10 +714,10 @@ void TDB::fillDynTrack(DynTrackObj* track){
 }
 
 int TDB::findVectorNodeBetweenTwoNodes(int first, int second){
-    for(int i = 0; i < trackNodes[first]->TrP1 + trackNodes[first]->TrP2; i++)
-        for(int j = 0; j < trackNodes[second]->TrP1 + trackNodes[second]->TrP2; j++){
-            if(trackNodes[first]->TrPinS[i] == trackNodes[second]->TrPinS[j])
-                return trackNodes[first]->TrPinS[i];
+    for(int i = 0; i < trackNodes[first]->inputPinCount + trackNodes[first]->outputPinCount; i++)
+        for(int j = 0; j < trackNodes[second]->inputPinCount + trackNodes[second]->outputPinCount; j++){
+            if(trackNodes[first]->pins[i].link == trackNodes[second]->pins[j].link)
+                return trackNodes[first]->pins[i].link;
         }
     
     return -1;
@@ -735,9 +730,9 @@ int TDB::findNearestNode(int &x, int &z, float* p, float* q, float maxD, bool up
         TRnode* n = trackNodes[j];
         if(n == NULL) continue;
         if (n->typ == 0 || n->typ == 2) {
-            float lenx = ((n->UiD[4] - x)*2048 + n->UiD[6] - p[0]);
-            float leny = (n->UiD[7]) - p[1];
-            float lenz = ((-n->UiD[5] - z)*2048 - n->UiD[8] - p[2]);
+            float lenx = ((n->uid.tileX - x)*2048 + n->uid.x - p[0]);
+            float leny = (n->uid.y) - p[1];
+            float lenz = ((-n->uid.tileZ - z)*2048 - n->uid.z - p[2]);
             float dist = fabs(lenx) + fabs(leny) + fabs(lenz);
             if(dist < nearestD && dist < maxD){
                 nearestID = j;
@@ -747,16 +742,16 @@ int TDB::findNearestNode(int &x, int &z, float* p, float* q, float maxD, bool up
     }
     if ((nearestD < maxD) && updatePosition) {
         //qDebug() << ":"<<len;
-        x = trackNodes[nearestID]->UiD[4];
-        z = -trackNodes[nearestID]->UiD[5];
-        p[0] = trackNodes[nearestID]->UiD[6];
-        p[1] = trackNodes[nearestID]->UiD[7];
-        p[2] = -trackNodes[nearestID]->UiD[8];
+        x = trackNodes[nearestID]->uid.tileX;
+        z = -trackNodes[nearestID]->uid.tileZ;
+        p[0] = trackNodes[nearestID]->uid.x;
+        p[1] = trackNodes[nearestID]->uid.y;
+        p[2] = -trackNodes[nearestID]->uid.z;
 
-        q[0] = 0;//n->UiD[9]; //fix ??????????
-        q[1] = trackNodes[nearestID]->UiD[10];
-        q[2] = trackNodes[nearestID]->UiD[11];
-                //Quat::rotateY(q, q, n->UiD[10]);
+        q[0] = 0;//n->uid.ax; //fix ??????????
+        q[1] = trackNodes[nearestID]->uid.ay;
+        q[2] = trackNodes[nearestID]->uid.az;
+                //Quat::rotateY(q, q, n->uid.ay);
     }
     
     return nearestID;
@@ -766,8 +761,8 @@ int TDB::appendTrack(int id, int* ends, int r, int sect, int uid) {
     TRnode* endNode = trackNodes[id];
     float p[3];
     if (endNode->typ == 0) {
-        int kierunek = endNode->TrPinK[0];
-        TRnode* n = trackNodes[endNode->TrPinS[0]];
+        int kierunek = endNode->pins[0].direction;
+        TRnode* n = trackNodes[endNode->pins[0].link];
         if (n->typ != 1) {
             qDebug() << "tdb error";
             return -1;
@@ -775,14 +770,14 @@ int TDB::appendTrack(int id, int* ends, int r, int sect, int uid) {
 
         qDebug() << kierunek;
         n->iTrv++;
-        TRnode::TRSect *newV = new TRnode::TRSect[n->iTrv];
+        TrackVectorSection *newV = new TrackVectorSection[n->iTrv];
 
         if (kierunek == 1) {
             std::copy(n->trVectorSection, n->trVectorSection + n->iTrv - 1, newV + 1);
         } else {
             std::copy(n->trVectorSection, n->trVectorSection + n->iTrv - 1, newV);
         }
-        delete n->trVectorSection;
+        delete[] n->trVectorSection;
         n->trVectorSection = newV;
         //qDebug() <<"sect"<< sect;
         float dlugosc = this->tsection->sekcja[sect]->getDlugosc();
@@ -790,7 +785,7 @@ int TDB::appendTrack(int id, int* ends, int r, int sect, int uid) {
         Vector3f aa;
         this->tsection->sekcja[sect]->getDrawPosition(&aa, dlugosc);
         float startFrame[3] = {
-            endNode->UiD[9], endNode->UiD[10], endNode->UiD[11]
+            endNode->uid.ax, endNode->uid.ay, endNode->uid.az
         };
         transformTdbSectionDelta(aa, startFrame);
         float angle = this->tsection->sekcja[sect]->getAngle();
@@ -798,23 +793,23 @@ int TDB::appendTrack(int id, int* ends, int r, int sect, int uid) {
         advanceTdbFrame(startFrame, angle, endFrame);
         int sid = sect;
 
-        p[0] = endNode->UiD[6] + aa.x;
-        p[1] = endNode->UiD[7] + aa.y;
-        p[2] = endNode->UiD[8] - aa.z;
-        int x = endNode->UiD[4];
-        int z = endNode->UiD[5];
-        int xx = endNode->UiD[4];
-        int zz = endNode->UiD[5];
+        p[0] = endNode->uid.x + aa.x;
+        p[1] = endNode->uid.y + aa.y;
+        p[2] = endNode->uid.z - aa.z;
+        int x = endNode->uid.tileX;
+        int z = endNode->uid.tileZ;
+        int xx = endNode->uid.tileX;
+        int zz = endNode->uid.tileZ;
         float pp[3];
-        pp[0] = endNode->UiD[6];
-        pp[1] = endNode->UiD[7];
-        pp[2] = endNode->UiD[8];
+        pp[0] = endNode->uid.x;
+        pp[1] = endNode->uid.y;
+        pp[2] = endNode->uid.z;
         Game::check_coords(x, z, p);
 
         float vangle = 0;
-        float * vector = n->trVectorSection[n->iTrv - 1].param;
+        TrackVectorSection *vector = &n->trVectorSection[n->iTrv - 1];
         if (kierunek == 1) {
-            vector = n->trVectorSection[0].param;
+            vector = &n->trVectorSection[0];
             int tmp = ends[0];
             ends[0] = ends[1];
             ends[1] = tmp;
@@ -827,46 +822,46 @@ int TDB::appendTrack(int id, int* ends, int r, int sect, int uid) {
             pp[2] = p[2];
         }
 
-        vector[0] = sid;
-        vector[1] = r;
-        vector[2] = endNode->UiD[0];
-        vector[3] = endNode->UiD[1];
-        vector[4] = uid;
-        vector[5] = ends[0];
-        vector[6] = ends[1];
-        vector[7] = 0;
-        vector[8] = xx;
-        vector[9] = zz;
-        vector[10] = pp[0];
-        vector[11] = pp[1];
-        vector[12] = pp[2];
+        vector->sectionIndex = sid;
+        vector->shapeIndex = r;
+        vector->worldTileX = endNode->uid.worldTileX;
+        vector->worldTileZ = endNode->uid.worldTileZ;
+        vector->worldObjectId = uid;
+        vector->startEndpointIndex = ends[0];
+        vector->endEndpointIndex = ends[1];
+        vector->opaqueByte = 0;
+        vector->tileX = xx;
+        vector->tileZ = zz;
+        vector->x = pp[0];
+        vector->y = pp[1];
+        vector->z = pp[2];
         if(kierunek == 1) {
             float reverseFrame[3];
             advanceTdbFrame(startFrame, angle + (float)M_PI, reverseFrame);
-            vector[13] = reverseFrame[0];
-            vector[14] = reverseFrame[1];
-            vector[15] = reverseFrame[2];
+            vector->ax = reverseFrame[0];
+            vector->ay = reverseFrame[1];
+            vector->az = reverseFrame[2];
         } else {
-            vector[13] = startFrame[0];
-            vector[14] = startFrame[1] + vangle;
-            vector[15] = startFrame[2];
+            vector->ax = startFrame[0];
+            vector->ay = startFrame[1] + vangle;
+            vector->az = startFrame[2];
         }
 
-        //endNode->UiD[0] = endNode->UiD[0];
-        //endNode->UiD[1] = endNode->UiD[1];
-        endNode->UiD[2] = uid;
-        endNode->UiD[3] = ends[1];
-        endNode->UiD[4] = x;
-        endNode->UiD[5] = z;
-        endNode->UiD[6] = p[0];
-        endNode->UiD[7] = p[1];
-        endNode->UiD[8] = p[2];
-        endNode->UiD[9] = endFrame[0];
-        endNode->UiD[10] = endFrame[1];
-        endNode->UiD[11] = endFrame[2];
+        //endNode->uid.worldTileX = endNode->uid.worldTileX;
+        //endNode->uid.worldTileZ = endNode->uid.worldTileZ;
+        endNode->uid.worldObjectId = uid;
+        endNode->uid.worldEndpointIndex = ends[1];
+        endNode->uid.tileX = x;
+        endNode->uid.tileZ = z;
+        endNode->uid.x = p[0];
+        endNode->uid.y = p[1];
+        endNode->uid.z = p[2];
+        endNode->uid.ax = endFrame[0];
+        endNode->uid.ay = endFrame[1];
+        endNode->uid.az = endFrame[2];
     }
     updateTrNode(id);
-    updateTrNode(endNode->TrPinS[0]);
+    updateTrNode(endNode->pins[0].link);
     return id;
 }
 
@@ -894,22 +889,22 @@ int TDB::newTrack(int x, int z, float* p, float* qe, int* ends, int r, int sect,
     this->trackNodes[end1Id] = new TRnode();
     TRnode *newNode = this->trackNodes[end1Id];
     newNode->typ = 0;
-    newNode->UiD[0] = x;
-    newNode->UiD[1] = z;
-    newNode->UiD[2] = uid;
-    newNode->UiD[3] = ends[0];
-    newNode->UiD[4] = xx;
-    newNode->UiD[5] = zz;
-    newNode->UiD[6] = pp[0];
-    newNode->UiD[7] = pp[1];
-    newNode->UiD[8] = -pp[2];
-    newNode->UiD[9] = qe[0];
-    newNode->UiD[10] = qe[1] + M_PI;
-    newNode->UiD[11] = qe[2];
+    newNode->uid.worldTileX = x;
+    newNode->uid.worldTileZ = z;
+    newNode->uid.worldObjectId = uid;
+    newNode->uid.worldEndpointIndex = ends[0];
+    newNode->uid.tileX = xx;
+    newNode->uid.tileZ = zz;
+    newNode->uid.x = pp[0];
+    newNode->uid.y = pp[1];
+    newNode->uid.z = -pp[2];
+    newNode->uid.ax = qe[0];
+    newNode->uid.ay = qe[1] + M_PI;
+    newNode->uid.az = qe[2];
 
-    newNode->TrP1 = 1;
-    newNode->TrPinS[0] = vecId;
-    newNode->TrPinK[0] = 1;
+    newNode->inputPinCount = 1;
+    newNode->pins[0].link = vecId;
+    newNode->pins[0].direction = 1;
 
     /////////////////////////////////////////////////////
     this->trackNodes[vecId] = new TRnode();
@@ -917,30 +912,30 @@ int TDB::newTrack(int x, int z, float* p, float* qe, int* ends, int r, int sect,
     qDebug() << vecId;
     newNode->typ = 1;
     newNode->iTrv = 1;
-    newNode->trVectorSection = new TRnode::TRSect[newNode->iTrv];
-    newNode->trVectorSection[0].param[0] = sect;
-    newNode->trVectorSection[0].param[1] = r;
-    newNode->trVectorSection[0].param[2] = x;
-    newNode->trVectorSection[0].param[3] = z;
-    newNode->trVectorSection[0].param[4] = uid;
-    newNode->trVectorSection[0].param[5] = ends[0];
-    newNode->trVectorSection[0].param[6] = ends[1];
-    newNode->trVectorSection[0].param[7] = 0;
-    newNode->trVectorSection[0].param[8] = xx;
-    newNode->trVectorSection[0].param[9] = zz;
-    newNode->trVectorSection[0].param[10] = pp[0];
-    newNode->trVectorSection[0].param[11] = pp[1];
-    newNode->trVectorSection[0].param[12] = -pp[2];
-    newNode->trVectorSection[0].param[13] = qe[0];
-    newNode->trVectorSection[0].param[14] = qe[1];
-    newNode->trVectorSection[0].param[15] = qe[2];
+    newNode->trVectorSection = new TrackVectorSection[newNode->iTrv];
+    newNode->trVectorSection[0].sectionIndex = sect;
+    newNode->trVectorSection[0].shapeIndex = r;
+    newNode->trVectorSection[0].worldTileX = x;
+    newNode->trVectorSection[0].worldTileZ = z;
+    newNode->trVectorSection[0].worldObjectId = uid;
+    newNode->trVectorSection[0].startEndpointIndex = ends[0];
+    newNode->trVectorSection[0].endEndpointIndex = ends[1];
+    newNode->trVectorSection[0].opaqueByte = 0;
+    newNode->trVectorSection[0].tileX = xx;
+    newNode->trVectorSection[0].tileZ = zz;
+    newNode->trVectorSection[0].x = pp[0];
+    newNode->trVectorSection[0].y = pp[1];
+    newNode->trVectorSection[0].z = -pp[2];
+    newNode->trVectorSection[0].ax = qe[0];
+    newNode->trVectorSection[0].ay = qe[1];
+    newNode->trVectorSection[0].az = qe[2];
 
-    newNode->TrP1 = 1;
-    newNode->TrP2 = 1;
-    newNode->TrPinS[0] = end1Id;
-    newNode->TrPinK[0] = 1;
-    newNode->TrPinS[1] = end2Id;
-    newNode->TrPinK[1] = 1;
+    newNode->inputPinCount = 1;
+    newNode->outputPinCount = 1;
+    newNode->pins[0].link = end1Id;
+    newNode->pins[0].direction = 1;
+    newNode->pins[1].link = end2Id;
+    newNode->pins[1].direction = 1;
     /////////////////////////////////////////////////////
     qDebug() << sect;
     float dlugosc = this->tsection->sekcja[sect]->getDlugosc();
@@ -967,23 +962,23 @@ int TDB::newTrack(int x, int z, float* p, float* qe, int* ends, int r, int sect,
     this->trackNodes[end2Id] = new TRnode();
     newNode = this->trackNodes[end2Id];
     newNode->typ = 0;
-    newNode->UiD[0] = x;
-    newNode->UiD[1] = z;
-    newNode->UiD[2] = uid;
-    newNode->UiD[3] = ends[1];
-    newNode->UiD[4] = xx;
-    newNode->UiD[5] = zz;
-    newNode->UiD[6] = pp[0];
-    newNode->UiD[7] = pp[1];
-    qDebug() << "uid7" << newNode->UiD[7];
-    newNode->UiD[8] = pp[2];
-    newNode->UiD[9] = endFrame[0];
-    newNode->UiD[10] = endFrame[1];
-    newNode->UiD[11] = endFrame[2];
+    newNode->uid.worldTileX = x;
+    newNode->uid.worldTileZ = z;
+    newNode->uid.worldObjectId = uid;
+    newNode->uid.worldEndpointIndex = ends[1];
+    newNode->uid.tileX = xx;
+    newNode->uid.tileZ = zz;
+    newNode->uid.x = pp[0];
+    newNode->uid.y = pp[1];
+    qDebug() << "uid7" << newNode->uid.y;
+    newNode->uid.z = pp[2];
+    newNode->uid.ax = endFrame[0];
+    newNode->uid.ay = endFrame[1];
+    newNode->uid.az = endFrame[2];
 
-    newNode->TrP1 = 1;
-    newNode->TrPinS[0] = vecId;
-    newNode->TrPinK[0] = 0;
+    newNode->inputPinCount = 1;
+    newNode->pins[0].link = vecId;
+    newNode->pins[0].direction = 0;
     
     updateTrNode(end1Id);
     updateTrNode(vecId);
@@ -1012,29 +1007,29 @@ int TDB::newJunction(int x, int z, float* p, float* qe, int r, int uid, int end)
     this->trackNodes[junction] = new TRnode();
     TRnode *newNode = this->trackNodes[junction];
     newNode->typ = 2;
-    newNode->UiD[0] = x;
-    newNode->UiD[1] = z;
-    newNode->UiD[2] = uid;
-    newNode->UiD[3] = end;
-    newNode->UiD[4] = xx;
-    newNode->UiD[5] = zz;
-    newNode->UiD[6] = pp[0];
-    newNode->UiD[7] = pp[1];
-    newNode->UiD[8] = -pp[2];
-    newNode->UiD[9] = qe[0];
-    newNode->UiD[10] = qe[1] + M_PI;
-    newNode->UiD[11] = qe[2];
+    newNode->uid.worldTileX = x;
+    newNode->uid.worldTileZ = z;
+    newNode->uid.worldObjectId = uid;
+    newNode->uid.worldEndpointIndex = end;
+    newNode->uid.tileX = xx;
+    newNode->uid.tileZ = zz;
+    newNode->uid.x = pp[0];
+    newNode->uid.y = pp[1];
+    newNode->uid.z = -pp[2];
+    newNode->uid.ax = qe[0];
+    newNode->uid.ay = qe[1] + M_PI;
+    newNode->uid.az = qe[2];
 
-    newNode->TrP1 = 1;
-    newNode->TrP2 = 2;
-    newNode->TrPinS[0] = 0;
-    newNode->TrPinK[0] = 0;
-    newNode->TrPinS[1] = 0;
-    newNode->TrPinK[1] = 0;
-    newNode->TrPinS[2] = 0;
-    newNode->TrPinK[2] = 0;
-    
-    newNode->args[1] = r;
+    newNode->inputPinCount = 1;
+    newNode->outputPinCount = 2;
+    newNode->pins[0].link = 0;
+    newNode->pins[0].direction = 0;
+    newNode->pins[1].link = 0;
+    newNode->pins[1].direction = 0;
+    newNode->pins[2].link = 0;
+    newNode->pins[2].direction = 0;
+
+    newNode->junction.shapeIndex = r;
     
     return junction;
 }
@@ -1051,9 +1046,9 @@ int TDB::joinTracks(int iendp) {
                     continue;
                 if (endp->equals(n)) {
                     qDebug() << "polacze " << iendp << " " << j;
-                    qDebug() << n->TrPinS[0] << " " << n->TrPinK[0];
-                    qDebug() << endp->TrPinS[0] << " " << endp->TrPinK[0];
-                    joinVectorSections(endp->TrPinS[0], n->TrPinS[0]);
+                    qDebug() << n->pins[0].link << " " << n->pins[0].direction;
+                    qDebug() << endp->pins[0].link << " " << endp->pins[0].direction;
+                    joinVectorSections(endp->pins[0].link, n->pins[0].link);
                     return 0;
                 }
             }
@@ -1101,14 +1096,14 @@ int TDB::joinVectorSections(int id1, int id2) {
     TRnode* section2 = trackNodes[id2];
     if(section1 == section2)
         return 0;
-    int endpk1 = section1->TrPinS[1];
-    int endpk2 = section2->TrPinS[0];
-    int endpk11 = section1->TrPinS[0];
-    int endpk22 = section2->TrPinS[1];
-    TRnode* section1e1 = trackNodes[section1->TrPinS[0]];
-    TRnode* section1e2 = trackNodes[section1->TrPinS[1]];
-    TRnode* section2e1 = trackNodes[section2->TrPinS[0]];
-    TRnode* section2e2 = trackNodes[section2->TrPinS[1]];
+    int endpk1 = section1->pins[1].link;
+    int endpk2 = section2->pins[0].link;
+    int endpk11 = section1->pins[0].link;
+    int endpk22 = section2->pins[1].link;
+    TRnode* section1e1 = trackNodes[section1->pins[0].link];
+    TRnode* section1e2 = trackNodes[section1->pins[1].link];
+    TRnode* section2e1 = trackNodes[section2->pins[0].link];
+    TRnode* section2e2 = trackNodes[section2->pins[1].link];
     
     if (section1e2->equals(section2e1)) {
         qDebug() << "ok";
@@ -1135,21 +1130,21 @@ int TDB::joinVectorSections(int id1, int id2) {
     }
     moveItemsFrom2to1(id2, id1);
     
-    TRnode::TRSect *newV = new TRnode::TRSect[section1->iTrv + section2->iTrv];
+    TrackVectorSection *newV = new TrackVectorSection[section1->iTrv + section2->iTrv];
 
     std::copy(section1->trVectorSection, section1->trVectorSection + section1->iTrv, newV);
     std::copy(section2->trVectorSection, section2->trVectorSection + section2->iTrv, newV + section1->iTrv);
     section1->iTrv = section1->iTrv + section2->iTrv;
     
-    delete section1->trVectorSection;
-    delete section2->trVectorSection;
+    delete[] section1->trVectorSection;
+    delete[] section2->trVectorSection;
     
     
     section1->trVectorSection = newV;
-    section1->TrPinS[1] = section2->TrPinS[1];
-    section1->TrPinK[1] = section2->TrPinK[1];
+    section1->pins[1].link = section2->pins[1].link;
+    section1->pins[1].direction = section2->pins[1].direction;
     section2e2->podmienTrPin(id2, id1);
-    //section2e2->TrPinS[0] = section1e2->TrPinS[0];
+    //section2e2->pins[0].link = section1e2->pins[0].link;
     
     trackNodes[id2] = NULL;
     trackNodes[endpk1] = NULL;
@@ -1198,7 +1193,7 @@ float TDB::getVectorSectionLength(int id){
     float dlugosc = 0;
     TSection* sect;
     for (int i = 0; i < n->iTrv; i++) {
-        sect = tsection->sekcja[(int)n->trVectorSection[i].param[0]];
+        sect = tsection->sekcja[(int)n->trVectorSection[i].sectionIndex];
         if(sect != NULL)
             dlugosc += sect->getDlugosc();
     }
@@ -1210,7 +1205,7 @@ float TDB::getVectorSectionLengthToIdx(int id, int idx){
     float dlugosc = 0;
     TSection* sect;
     for (int i = 0; i < idx; i++) {
-        sect = tsection->sekcja[(int)n->trVectorSection[i].param[0]];
+        sect = tsection->sekcja[(int)n->trVectorSection[i].sectionIndex];
         if(sect != NULL)
             dlugosc += sect->getDlugosc();
     }
@@ -1219,7 +1214,7 @@ float TDB::getVectorSectionLengthToIdx(int id, int idx){
 
 int TDB::splitVectorSection(int id, int j){
     TRnode* vect = trackNodes[id];
-    TRnode* end2 = trackNodes[vect->TrPinS[1]];
+    TRnode* end2 = trackNodes[vect->pins[1].link];
     TRnode* newNode;
     
     int end1Id = getNextItrNode();//++this->iTRnodes;
@@ -1227,7 +1222,7 @@ int TDB::splitVectorSection(int id, int j){
     int end2Id = getNextItrNode();//++this->iTRnodes;
     end2->podmienTrPin(id, vecId);
     
-    updateTrNode(vect->TrPinS[1]);
+    updateTrNode(vect->pins[1].link);
     
     this->trackNodes[vecId] = new TRnode();
     newNode = this->trackNodes[vecId];
@@ -1270,67 +1265,67 @@ int TDB::splitVectorSection(int id, int j){
         newNode->trItemRef = newItems;
     }
     
-    TRnode::TRSect *newV = new TRnode::TRSect[newNode->iTrv];
+    TrackVectorSection *newV = new TrackVectorSection[newNode->iTrv];
     std::copy(vect->trVectorSection + j, vect->trVectorSection + vect->iTrv, newV);
     newNode->trVectorSection = newV;
     
-    newNode->TrP1 = 1;
-    newNode->TrP2 = 1;
-    newNode->TrPinS[0] = end2Id;
-    newNode->TrPinK[0] = 1;
-    newNode->TrPinS[1] = vect->TrPinS[1];
-    newNode->TrPinK[1] = vect->TrPinK[1];
+    newNode->inputPinCount = 1;
+    newNode->outputPinCount = 1;
+    newNode->pins[0].link = end2Id;
+    newNode->pins[0].direction = 1;
+    newNode->pins[1].link = vect->pins[1].link;
+    newNode->pins[1].direction = vect->pins[1].direction;
     
-    newV = new TRnode::TRSect[j];
+    newV = new TrackVectorSection[j];
     std::copy(vect->trVectorSection, vect->trVectorSection + j, newV);
     
     vect->iTrv = j;
-    vect->TrPinS[1] = end1Id;
-    vect->TrPinK[1] = 1;
+    vect->pins[1].link = end1Id;
+    vect->pins[1].direction = 1;
     
     
     ////////////////////
     this->trackNodes[end1Id] = new TRnode();
     newNode = this->trackNodes[end1Id];
     newNode->typ = 0;
-    newNode->UiD[0] = vect->trVectorSection[j-1].param[2];
-    newNode->UiD[1] = vect->trVectorSection[j-1].param[3];
-    newNode->UiD[2] = vect->trVectorSection[j-1].param[4];
-    newNode->UiD[3] = vect->trVectorSection[j-1].param[6];
-    newNode->UiD[4] = vect->trVectorSection[j].param[8];
-    newNode->UiD[5] = vect->trVectorSection[j].param[9];
-    newNode->UiD[6] = vect->trVectorSection[j].param[10];
-    newNode->UiD[7] = vect->trVectorSection[j].param[11];
-    newNode->UiD[8] = vect->trVectorSection[j].param[12];
-    newNode->UiD[9] = vect->trVectorSection[j].param[13];
-    newNode->UiD[10] = vect->trVectorSection[j].param[14];
-    newNode->UiD[11] = vect->trVectorSection[j].param[15];
+    newNode->uid.worldTileX = vect->trVectorSection[j-1].worldTileX;
+    newNode->uid.worldTileZ = vect->trVectorSection[j-1].worldTileZ;
+    newNode->uid.worldObjectId = vect->trVectorSection[j-1].worldObjectId;
+    newNode->uid.worldEndpointIndex = vect->trVectorSection[j-1].endEndpointIndex;
+    newNode->uid.tileX = vect->trVectorSection[j].tileX;
+    newNode->uid.tileZ = vect->trVectorSection[j].tileZ;
+    newNode->uid.x = vect->trVectorSection[j].x;
+    newNode->uid.y = vect->trVectorSection[j].y;
+    newNode->uid.z = vect->trVectorSection[j].z;
+    newNode->uid.ax = vect->trVectorSection[j].ax;
+    newNode->uid.ay = vect->trVectorSection[j].ay;
+    newNode->uid.az = vect->trVectorSection[j].az;
 
-    newNode->TrP1 = 1;
-    newNode->TrPinS[0] = id;
-    newNode->TrPinK[0] = 0;
+    newNode->inputPinCount = 1;
+    newNode->pins[0].link = id;
+    newNode->pins[0].direction = 0;
     /////////////////
     this->trackNodes[end2Id] = new TRnode();
     newNode = this->trackNodes[end2Id];
     newNode->typ = 0;
-    newNode->UiD[0] = vect->trVectorSection[j].param[2];
-    newNode->UiD[1] = vect->trVectorSection[j].param[3];
-    newNode->UiD[2] = vect->trVectorSection[j].param[4];
-    newNode->UiD[3] = vect->trVectorSection[j].param[5];
-    newNode->UiD[4] = vect->trVectorSection[j].param[8];
-    newNode->UiD[5] = vect->trVectorSection[j].param[9];
-    newNode->UiD[6] = vect->trVectorSection[j].param[10];
-    newNode->UiD[7] = vect->trVectorSection[j].param[11];
-    newNode->UiD[8] = vect->trVectorSection[j].param[12];
-    newNode->UiD[9] = vect->trVectorSection[j].param[13];
-    newNode->UiD[10] = vect->trVectorSection[j].param[14] + M_PI;
-    newNode->UiD[11] = vect->trVectorSection[j].param[15];
+    newNode->uid.worldTileX = vect->trVectorSection[j].worldTileX;
+    newNode->uid.worldTileZ = vect->trVectorSection[j].worldTileZ;
+    newNode->uid.worldObjectId = vect->trVectorSection[j].worldObjectId;
+    newNode->uid.worldEndpointIndex = vect->trVectorSection[j].startEndpointIndex;
+    newNode->uid.tileX = vect->trVectorSection[j].tileX;
+    newNode->uid.tileZ = vect->trVectorSection[j].tileZ;
+    newNode->uid.x = vect->trVectorSection[j].x;
+    newNode->uid.y = vect->trVectorSection[j].y;
+    newNode->uid.z = vect->trVectorSection[j].z;
+    newNode->uid.ax = vect->trVectorSection[j].ax;
+    newNode->uid.ay = vect->trVectorSection[j].ay + M_PI;
+    newNode->uid.az = vect->trVectorSection[j].az;
 
-    newNode->TrP1 = 1;
-    newNode->TrPinS[0] = vecId;
-    newNode->TrPinK[0] = 1;
-    
-    delete vect->trVectorSection;
+    newNode->inputPinCount = 1;
+    newNode->pins[0].link = vecId;
+    newNode->pins[0].direction = 1;
+
+    delete[] vect->trVectorSection;
     vect->trVectorSection = newV;
     
     updateTrNode(id);
@@ -1348,8 +1343,8 @@ void TDB::deleteJunction(int id){
     int count = 0;
     int vecId = 0;
     for(int i = 0; i < 3; i++){
-        qDebug() << junction->TrPinS[i];
-        if(junction->TrPinS[i] != 0) count++;
+        qDebug() << junction->pins[i].link;
+        if(junction->pins[i].link != 0) count++;
     }
     qDebug() << count;
     if(count > 1){
@@ -1365,10 +1360,10 @@ void TDB::deleteJunction(int id){
     if(count == 1){
         vecId = 0;
         for(int i = 0; i < 3; i++){
-            if(junction->TrPinS[i] != 0){
-                junction->TrPinS[0] = junction->TrPinS[i];
-                junction->TrPinK[0] = junction->TrPinK[i];
-                vecId = junction->TrPinS[i];
+            if(junction->pins[i].link != 0){
+                junction->pins[0].link = junction->pins[i].link;
+                junction->pins[0].direction = junction->pins[i].direction;
+                vecId = junction->pins[i].link;
                 break;
             }
         }
@@ -1383,18 +1378,19 @@ void TDB::deleteJunction(int id){
         
         vect->setTrPinK(id, 1);
 
-        if(junction->TrPinK[0] == 1){
-            junction->UiD[2] = vect->trVectorSection[0].param[4];
-            junction->UiD[3] = vect->trVectorSection[0].param[5];
-        } else if(junction->TrPinK[0] == 0){
-            junction->UiD[2] = vect->trVectorSection[vect->iTrv-1].param[4];
-            junction->UiD[3] = vect->trVectorSection[vect->iTrv-1].param[6];
+        if(junction->pins[0].direction == 1){
+            junction->uid.worldObjectId = vect->trVectorSection[0].worldObjectId;
+            junction->uid.worldEndpointIndex = vect->trVectorSection[0].startEndpointIndex;
+        } else if(junction->pins[0].direction == 0){
+            junction->uid.worldObjectId = vect->trVectorSection[vect->iTrv-1].worldObjectId;
+            junction->uid.worldEndpointIndex = vect->trVectorSection[vect->iTrv-1].endEndpointIndex;
         }
-        junction->UiD[10] += M_PI;
+        junction->uid.ay += M_PI;
         
         junction->typ = 0;
-        junction->TrP1 = 1;
-        junction->TrP2 = 0;
+        junction->endNodeValue = junction->junction.unknown0;
+        junction->inputPinCount = 1;
+        junction->outputPinCount = 0;
         updateTrNode(vecId);
         updateTrNode(id);
     }
@@ -1402,8 +1398,10 @@ void TDB::deleteJunction(int id){
 
 void TDB::deleteVectorSection(int id){
     TRnode* vect = trackNodes[id];
-    TRnode* end1 = trackNodes[vect->TrPinS[0]];
-    TRnode* end2 = trackNodes[vect->TrPinS[1]];
+    const int end1Id = vect->pins[0].link;
+    const int end2Id = vect->pins[1].link;
+    TRnode* end1 = trackNodes[end1Id];
+    TRnode* end2 = trackNodes[end2Id];
     
     deleteAllTrItemsFromVectorSection(id);
     
@@ -1411,24 +1409,24 @@ void TDB::deleteVectorSection(int id){
     trackNodes[id] = NULL;
     
     if(end1->typ == 0){
-        delete trackNodes[vect->TrPinS[0]];
-        trackNodes[vect->TrPinS[0]] = NULL;
+        delete trackNodes[end1Id];
+        trackNodes[end1Id] = NULL;
     } else if (end1->typ == 2) {
         end1->podmienTrPin(id, 0);
         end1->setTrPinK(0, 0);
     } 
     
     if(end2->typ == 0){
-        delete trackNodes[vect->TrPinS[1]];
-        trackNodes[vect->TrPinS[1]] = NULL;
+        delete trackNodes[end2Id];
+        trackNodes[end2Id] = NULL;
     } else if (end2->typ == 2) {
         end2->podmienTrPin(id, 0);
         end2->setTrPinK(0, 0);
     }
     
     updateTrNode(id);
-    updateTrNode(vect->TrPinS[0]);
-    updateTrNode(vect->TrPinS[1]);
+    updateTrNode(end1Id);
+    updateTrNode(end2Id);
     
 }
 
@@ -1464,16 +1462,16 @@ bool TDB::deleteFromVectorSection(int id, int j){
         vect = trackNodes[vid];
         j = 0;
     }
-    int endNId1 = vect->TrPinS[0];
-    int endNId2 = vect->TrPinS[1];
-    TRnode* end1 = trackNodes[vect->TrPinS[0]];
-    TRnode* end2 = trackNodes[vect->TrPinS[1]];
+    int endNId1 = vect->pins[0].link;
+    int endNId2 = vect->pins[1].link;
+    TRnode* end1 = trackNodes[vect->pins[0].link];
+    TRnode* end2 = trackNodes[vect->pins[1].link];
     //deleteAllTrItemsFromVectorSection(id);
-    TRnode::TRSect *newV = new TRnode::TRSect[vect->iTrv - 1];
+    TrackVectorSection *newV = new TrackVectorSection[vect->iTrv - 1];
     if(j == 0){
         // move & check items
         if(vect->iTri > 0){
-            float sectDlugosc = this->tsection->sekcja[vect->trVectorSection[0].param[0]]->getDlugosc();
+            float sectDlugosc = this->tsection->sekcja[vect->trVectorSection[0].sectionIndex]->getDlugosc();
             TRitem* trit;
             for(int i = 0; i < vect->iTri; i++){
                 trit = this->trackItems[vect->trItemRef[i]];
@@ -1486,6 +1484,7 @@ bool TDB::deleteFromVectorSection(int id, int j){
                     qDebug() << "item delete " << trit->trItemId;
                     this->deleteTrItem(trit->trItemId);
                     i--;
+                    continue; // The reference array has changed; do not index i == -1.
                 }
                 updateTrItem(vect->trItemRef[i]);
             }
@@ -1502,25 +1501,25 @@ bool TDB::deleteFromVectorSection(int id, int j){
             this->trackNodes[endNId1] = new TRnode();
             end1 = trackNodes[endNId1];
             end1->typ = 0;
-            end1->TrP1 = 1;
-            end1->TrPinS[0] = id;
-            end1->TrPinK[0] = 1;
-            vect->TrPinS[0] = endNId1;
-            vect->TrPinK[0] = 1;
+            end1->inputPinCount = 1;
+            end1->pins[0].link = id;
+            end1->pins[0].direction = 1;
+            vect->pins[0].link = endNId1;
+            vect->pins[0].direction = 1;
         }
         
-            end1->UiD[0] = vect->trVectorSection[1].param[2];
-            end1->UiD[1] = vect->trVectorSection[1].param[3];
-            end1->UiD[2] = vect->trVectorSection[1].param[4];
-            end1->UiD[3] = vect->trVectorSection[1].param[5];
-            end1->UiD[4] = vect->trVectorSection[1].param[8];
-            end1->UiD[5] = vect->trVectorSection[1].param[9];
-            end1->UiD[6] = vect->trVectorSection[1].param[10];
-            end1->UiD[7] = vect->trVectorSection[1].param[11];
-            end1->UiD[8] = vect->trVectorSection[1].param[12];
-            end1->UiD[9] = vect->trVectorSection[1].param[13];
-            end1->UiD[10] = vect->trVectorSection[1].param[14] + M_PI;
-            end1->UiD[11] = vect->trVectorSection[1].param[15];
+            end1->uid.worldTileX = vect->trVectorSection[1].worldTileX;
+            end1->uid.worldTileZ = vect->trVectorSection[1].worldTileZ;
+            end1->uid.worldObjectId = vect->trVectorSection[1].worldObjectId;
+            end1->uid.worldEndpointIndex = vect->trVectorSection[1].startEndpointIndex;
+            end1->uid.tileX = vect->trVectorSection[1].tileX;
+            end1->uid.tileZ = vect->trVectorSection[1].tileZ;
+            end1->uid.x = vect->trVectorSection[1].x;
+            end1->uid.y = vect->trVectorSection[1].y;
+            end1->uid.z = vect->trVectorSection[1].z;
+            end1->uid.ax = vect->trVectorSection[1].ax;
+            end1->uid.ay = vect->trVectorSection[1].ay + M_PI;
+            end1->uid.az = vect->trVectorSection[1].az;
             updateTrNode(endNId1);
             
             
@@ -1553,29 +1552,29 @@ bool TDB::deleteFromVectorSection(int id, int j){
             this->trackNodes[endNId2] = new TRnode();
             end2 = trackNodes[endNId2];
             end2->typ = 0;
-            end2->TrP1 = 1;
-            end2->TrPinS[0] = id;
-            end2->TrPinK[0] = 0;
-            vect->TrPinS[1] = endNId2;
-            vect->TrPinK[1] = 1;
+            end2->inputPinCount = 1;
+            end2->pins[0].link = id;
+            end2->pins[0].direction = 0;
+            vect->pins[1].link = endNId2;
+            vect->pins[1].direction = 1;
         }
-            end2->UiD[0] = vect->trVectorSection[vect->iTrv-2].param[2];
-            end2->UiD[1] = vect->trVectorSection[vect->iTrv-2].param[3];
-            end2->UiD[2] = vect->trVectorSection[vect->iTrv-2].param[4];
-            end2->UiD[3] = vect->trVectorSection[vect->iTrv-2].param[6];
-            end2->UiD[4] = vect->trVectorSection[vect->iTrv-1].param[8];
-            end2->UiD[5] = vect->trVectorSection[vect->iTrv-1].param[9];
-            end2->UiD[6] = vect->trVectorSection[vect->iTrv-1].param[10];
-            end2->UiD[7] = vect->trVectorSection[vect->iTrv-1].param[11];
-            end2->UiD[8] = vect->trVectorSection[vect->iTrv-1].param[12];
-            end2->UiD[9] = vect->trVectorSection[vect->iTrv-1].param[13];
-            end2->UiD[10] = vect->trVectorSection[vect->iTrv-1].param[14];
-            end2->UiD[11] = vect->trVectorSection[vect->iTrv-1].param[15];
+            end2->uid.worldTileX = vect->trVectorSection[vect->iTrv-2].worldTileX;
+            end2->uid.worldTileZ = vect->trVectorSection[vect->iTrv-2].worldTileZ;
+            end2->uid.worldObjectId = vect->trVectorSection[vect->iTrv-2].worldObjectId;
+            end2->uid.worldEndpointIndex = vect->trVectorSection[vect->iTrv-2].endEndpointIndex;
+            end2->uid.tileX = vect->trVectorSection[vect->iTrv-1].tileX;
+            end2->uid.tileZ = vect->trVectorSection[vect->iTrv-1].tileZ;
+            end2->uid.x = vect->trVectorSection[vect->iTrv-1].x;
+            end2->uid.y = vect->trVectorSection[vect->iTrv-1].y;
+            end2->uid.z = vect->trVectorSection[vect->iTrv-1].z;
+            end2->uid.ax = vect->trVectorSection[vect->iTrv-1].ax;
+            end2->uid.ay = vect->trVectorSection[vect->iTrv-1].ay;
+            end2->uid.az = vect->trVectorSection[vect->iTrv-1].az;
             updateTrNode(endNId2);
     }
     
     vect->iTrv -= 1;
-    delete vect->trVectorSection;
+    delete[] vect->trVectorSection;
     vect->trVectorSection = newV;
     updateTrNode(id);
     if(vid >= 0)
@@ -1592,19 +1591,19 @@ int TDB::rotate(int id){
     if(vect->typ != 1 || vect->iTrv <= 0
             || vect->trVectorSection == NULL)
         return -1;
-    auto end1It = trackNodes.find(vect->TrPinS[0]);
-    auto end2It = trackNodes.find(vect->TrPinS[1]);
+    auto end1It = trackNodes.find(vect->pins[0].link);
+    auto end2It = trackNodes.find(vect->pins[1].link);
     if(end1It == trackNodes.end() || end1It->second == NULL
             || end2It == trackNodes.end() || end2It->second == NULL)
         return -1;
     TRnode* e1 = end1It->second;
     TRnode* e2 = end2It->second;
 
-    TRnode::TRSect *reversed = new TRnode::TRSect[vect->iTrv];
+    TrackVectorSection *reversed = new TrackVectorSection[vect->iTrv];
     for(int oldIndex = 0; oldIndex < vect->iTrv; oldIndex++){
-        const TRnode::TRSect &oldSection =
+        const TrackVectorSection &oldSection =
                 vect->trVectorSection[oldIndex];
-        TRnode::TRSect &newSection =
+        TrackVectorSection &newSection =
                 reversed[vect->iTrv - 1 - oldIndex];
         newSection = oldSection;
 
@@ -1614,16 +1613,21 @@ int TDB::rotate(int id){
         // Reversal must therefore exchange stored starts, not regenerate
         // them from section geometry.
         if(oldIndex < vect->iTrv - 1){
-            const float *nextSection =
-                    vect->trVectorSection[oldIndex + 1].param;
-            for(int parameter = 8; parameter <= 12; parameter++)
-                newSection.param[parameter] = nextSection[parameter];
+            const auto &nextSection = vect->trVectorSection[oldIndex + 1];
+            newSection.tileX = nextSection.tileX;
+            newSection.tileZ = nextSection.tileZ;
+            newSection.x = nextSection.x;
+            newSection.y = nextSection.y;
+            newSection.z = nextSection.z;
         } else {
-            for(int parameter = 8; parameter <= 12; parameter++)
-                newSection.param[parameter] = e2->UiD[parameter - 4];
+            newSection.tileX = e2->uid.tileX;
+            newSection.tileZ = e2->uid.tileZ;
+            newSection.x = e2->uid.x;
+            newSection.y = e2->uid.y;
+            newSection.z = e2->uid.z;
         }
 
-        auto sectionIt = tsection->sekcja.find((int)oldSection.param[0]);
+        auto sectionIt = tsection->sekcja.find((int)oldSection.sectionIndex);
         if(sectionIt == tsection->sekcja.end()
                 || sectionIt->second == NULL){
             delete[] reversed;
@@ -1631,11 +1635,11 @@ int TDB::rotate(int id){
         }
         const float angle = sectionIt->second->getAngle();
         if(angle > 0.0f)
-            newSection.param[0]--;
+            newSection.sectionIndex--;
         else if(angle < 0.0f)
-            newSection.param[0]++;
+            newSection.sectionIndex++;
         auto reverseSectionIt =
-                tsection->sekcja.find((int)newSection.param[0]);
+                tsection->sekcja.find((int)newSection.sectionIndex);
         if(reverseSectionIt == tsection->sekcja.end()
                 || reverseSectionIt->second == NULL){
             delete[] reversed;
@@ -1645,12 +1649,14 @@ int TDB::rotate(int id){
         // Unlike the stored position, the frame belongs to this individual
         // section. Reverse its complete end tangent so independently rotated
         // neighbors do not lend it an unrelated yaw.
-        advanceTdbFrame(oldSection.param + 13,
-                angle + (float)M_PI, newSection.param + 13);
+        std::array<float, 3> reversedFrame;
+        advanceTdbFrame(oldSection.frame().data(),
+                angle + (float)M_PI, reversedFrame.data());
+        newSection.setFrame(reversedFrame);
 
-        const float oldEnd = newSection.param[5];
-        newSection.param[5] = newSection.param[6];
-        newSection.param[6] = oldEnd;
+        const auto oldEnd = newSection.startEndpointIndex;
+        newSection.startEndpointIndex = newSection.endEndpointIndex;
+        newSection.endEndpointIndex = oldEnd;
     }
 
     delete[] vect->trVectorSection;
@@ -1658,19 +1664,19 @@ int TDB::rotate(int id){
     
     e1->setTrPinK(id, 0);
     e2->setTrPinK(id, 1);
-    /*e1->UiD[10] += M_PI;
-    if(e1->UiD[10] > 2*M_PI)
-        e1->UiD[10] -= 2*M_PI;
-    e2->UiD[10] += M_PI;
-    if(e2->UiD[10] > 2*M_PI)
-        e2->UiD[10] -= 2*M_PI;*/
-    
-    int tmp = vect->TrPinS[0];
-    vect->TrPinS[0] = vect->TrPinS[1];
-    vect->TrPinS[1] = tmp;
-    tmp = vect->TrPinK[0];
-    vect->TrPinK[0] = vect->TrPinK[1];
-    vect->TrPinK[1] = tmp;
+    /*e1->uid.ay += M_PI;
+    if(e1->uid.ay > 2*M_PI)
+        e1->uid.ay -= 2*M_PI;
+    e2->uid.ay += M_PI;
+    if(e2->uid.ay > 2*M_PI)
+        e2->uid.ay -= 2*M_PI;*/
+
+    int tmp = vect->pins[0].link;
+    vect->pins[0].link = vect->pins[1].link;
+    vect->pins[1].link = tmp;
+    tmp = vect->pins[0].direction;
+    vect->pins[0].direction = vect->pins[1].direction;
+    vect->pins[1].direction = tmp;
     
     // update items
     float d = getVectorSectionLength(id);
@@ -1685,33 +1691,33 @@ int TDB::appendToJunction(int junctionId, int eId, int idx){
     TRnode* junction = trackNodes[junctionId];
 
     if(idx == 1){
-        if(junction->TrPinS[idx] != 0)
+        if(junction->pins[idx].link != 0)
             idx++;
-        if(junction->TrPinS[idx] != 0)
+        if(junction->pins[idx].link != 0)
             return 0;
     } else {
-        if(junction->TrPinS[idx] != 0)
+        if(junction->pins[idx].link != 0)
             return 0;
     }
     
     TRnode* e1 = trackNodes[eId];
-    int trackId = e1->TrPinS[0];
+    int trackId = e1->pins[0].link;
     TRnode* track = trackNodes[trackId];
     trackNodes[eId] = NULL;
     
-    junction->TrPinS[idx] = trackId;
+    junction->pins[idx].link = trackId;
     
     
     int j = track->podmienTrPin(eId, junctionId);
-    //track->TrPinS[0] = junctionId;
+    //track->pins[0].link = junctionId;
     if(idx == 0) {
-        track->TrPinK[j] = 1;
-        //junction->TrPinK[idx] = 0;
-        junction->TrPinK[idx] = e1->TrPinK[0];
+        track->pins[j].direction = 1;
+        //junction->pins[idx].direction = 0;
+        junction->pins[idx].direction = e1->pins[0].direction;
     } else {
-        track->TrPinK[j] = 0;
-        //junction->TrPinK[idx] = 1;
-        junction->TrPinK[idx] = e1->TrPinK[0];
+        track->pins[j].direction = 0;
+        //junction->pins[idx].direction = 1;
+        junction->pins[idx].direction = e1->pins[0].direction;
     }
     updateTrNode(trackId);
     updateTrNode(junctionId);
@@ -1847,17 +1853,17 @@ bool TDB::fillJNodePosn(int x, int z, int uid, QVector<std::array<float, 5>> *jN
             if (n == NULL) continue;
             if (n ->typ == -1) continue;
             if (n->typ == 2) {
-                if(n->UiD[0] == x)
-                    if(n->UiD[1] == z)
-                        if(n->UiD[2] == uid){
+                if(n->uid.worldTileX == x)
+                    if(n->uid.worldTileZ == z)
+                        if(n->uid.worldObjectId == uid){
                             qDebug() << "jest j";
                             count++;
                             jNodePosn->push_back(std::array<float,5>());
-                            jNodePosn->back()[0] = n->UiD[0];
-                            jNodePosn->back()[1] = n->UiD[1];
-                            jNodePosn->back()[2] = n->UiD[6];
-                            jNodePosn->back()[3] = n->UiD[7];
-                            jNodePosn->back()[4] = n->UiD[8];
+                            jNodePosn->back()[0] = n->uid.worldTileX;
+                            jNodePosn->back()[1] = n->uid.worldTileZ;
+                            jNodePosn->back()[2] = n->uid.x;
+                            jNodePosn->back()[3] = n->uid.y;
+                            jNodePosn->back()[4] = n->uid.z;
                 }
             }
         }
@@ -2037,13 +2043,15 @@ bool TDB::removeTrackFromTDB(int x, int y, int UiD){
             if (n ->typ == -1) continue;
             if (n->typ == 1) {
                 for(int j = 0; j < n->iTrv; j++)
-                    if(n->trVectorSection[j].param[2] == x)
-                        if(n->trVectorSection[j].param[3] == y)
-                            if(n->trVectorSection[j].param[4] == UiD){
+                    if(n->trVectorSection[j].worldTileX == x)
+                        if(n->trVectorSection[j].worldTileZ == y)
+                            if(n->trVectorSection[j].worldObjectId == UiD){
                                 ok = true;
                                 qDebug() << "jest";
                                 if(deleteFromVectorSection(i, j))
                                     j = -1;
+                                else
+                                    break; // The vector and local n have been deleted.
                     }
             }
         }
@@ -2052,9 +2060,9 @@ bool TDB::removeTrackFromTDB(int x, int y, int UiD){
             if (n == NULL) continue;
             if (n ->typ == -1) continue;
             if (n->typ == 2) {
-                if(n->UiD[0] == x)
-                    if(n->UiD[1] == y)
-                        if(n->UiD[2] == UiD){
+                if(n->uid.worldTileX == x)
+                    if(n->uid.worldTileZ == y)
+                        if(n->uid.worldObjectId == UiD){
                             ok = true;
                             qDebug() << "jest j";
                             deleteJunction(i);
@@ -2075,14 +2083,14 @@ void TDB::fillTrackAngles(int x, int z, int UiD, QMap<int, float>& angles){
             if (n ->typ == -1) continue;
             if (n->typ == 1) {
                 for(int j = 0; j < n->iTrv; j++)
-                    if(n->trVectorSection[j].param[2] == x)
-                        if(n->trVectorSection[j].param[3] == z)
-                            if(n->trVectorSection[j].param[4] == UiD){
-                                int endp1 = n->trVectorSection[j].param[5];
-                                int endp2 = n->trVectorSection[j].param[6];
-                                angles[endp1] = fabs(n->trVectorSection[j].param[15]);
+                    if(n->trVectorSection[j].worldTileX == x)
+                        if(n->trVectorSection[j].worldTileZ == z)
+                            if(n->trVectorSection[j].worldObjectId == UiD){
+                                int endp1 = n->trVectorSection[j].startEndpointIndex;
+                                int endp2 = n->trVectorSection[j].endEndpointIndex;
+                                angles[endp1] = fabs(n->trVectorSection[j].az);
                                 if(j < n->iTrv - 1)
-                                    angles[endp2] = fabs(n->trVectorSection[j+1].param[15]);
+                                    angles[endp2] = fabs(n->trVectorSection[j+1].az);
                                 else
                                     angles[endp2] = 0;
                             
@@ -2102,9 +2110,9 @@ bool TDB::ifTrackExist(int x, int y, int UiD){
             if (n ->typ == -1) continue;
             if (n->typ == 1) {
                 for(int j = 0; j < n->iTrv; j++)
-                    if(n->trVectorSection[j].param[2] == x)
-                        if(n->trVectorSection[j].param[3] == y)
-                            if(n->trVectorSection[j].param[4] == UiD){
+                    if(n->trVectorSection[j].worldTileX == x)
+                        if(n->trVectorSection[j].worldTileZ == y)
+                            if(n->trVectorSection[j].worldObjectId == UiD){
                                 qDebug() << "jest";
                                 return true;
                     }
@@ -2150,7 +2158,7 @@ void TDB::pushRenderAll(RenderQueue &queue, float* playerT, float playerRot) {
             if (n->typ == 1) {
                 if (n->iTrv < 1) continue;
                 lLen += 6 * (n->iTrv - 1);
-                if (n->TrPinS[1] != 0)
+                if (n->pins[1].link != 0)
                     lLen += 6;
             } else if (n->typ == 0) {
                 kLen += 6;
@@ -2170,34 +2178,34 @@ void TDB::pushRenderAll(RenderQueue &queue, float* playerT, float playerRot) {
             if (n->typ == 1) {
                 if (n->iTrv < 1) continue;
                 for (int i = 0; i < n->iTrv - 1; i++) {
-                    linie[lPtr++] = ((n->trVectorSection[i].param[8] - playerT[0])*2048 + n->trVectorSection[i].param[10]);
-                    linie[lPtr++] = (n->trVectorSection[i].param[11] + wysokoscSieci);
-                    linie[lPtr++] = (((-n->trVectorSection[i].param[9] - playerT[1])*2048 - n->trVectorSection[i].param[12]));
+                    linie[lPtr++] = ((n->trVectorSection[i].tileX - playerT[0])*2048 + n->trVectorSection[i].x);
+                    linie[lPtr++] = (n->trVectorSection[i].y + wysokoscSieci);
+                    linie[lPtr++] = (((-n->trVectorSection[i].tileZ - playerT[1])*2048 - n->trVectorSection[i].z));
 
-                    linie[lPtr++] = ((n->trVectorSection[i + 1].param[8] - playerT[0])*2048 + n->trVectorSection[i + 1].param[10]);
-                    linie[lPtr++] = (n->trVectorSection[i + 1].param[11] + wysokoscSieci);
-                    linie[lPtr++] = (((-n->trVectorSection[i + 1].param[9] - playerT[1])*2048 - n->trVectorSection[i + 1].param[12]));
+                    linie[lPtr++] = ((n->trVectorSection[i + 1].tileX - playerT[0])*2048 + n->trVectorSection[i + 1].x);
+                    linie[lPtr++] = (n->trVectorSection[i + 1].y + wysokoscSieci);
+                    linie[lPtr++] = (((-n->trVectorSection[i + 1].tileZ - playerT[1])*2048 - n->trVectorSection[i + 1].z));
                 }
-                if (n->TrPinS[1] != 0) {
-                    linie[lPtr++] = ((n->trVectorSection[n->iTrv - 1].param[8] - playerT[0])*2048 + n->trVectorSection[n->iTrv - 1].param[10]);
-                    linie[lPtr++] = (n->trVectorSection[n->iTrv - 1].param[11] + wysokoscSieci);
-                    linie[lPtr++] = (((-n->trVectorSection[n->iTrv - 1].param[9] - playerT[1])*2048 - n->trVectorSection[n->iTrv - 1].param[12]));
+                if (n->pins[1].link != 0) {
+                    linie[lPtr++] = ((n->trVectorSection[n->iTrv - 1].tileX - playerT[0])*2048 + n->trVectorSection[n->iTrv - 1].x);
+                    linie[lPtr++] = (n->trVectorSection[n->iTrv - 1].y + wysokoscSieci);
+                    linie[lPtr++] = (((-n->trVectorSection[n->iTrv - 1].tileZ - playerT[1])*2048 - n->trVectorSection[n->iTrv - 1].z));
 
-                    linie[lPtr++] = ((trackNodes[n->TrPinS[1]]->UiD[4] - playerT[0])*2048 + trackNodes[n->TrPinS[1]]->UiD[6]);
-                    linie[lPtr++] = (trackNodes[n->TrPinS[1]]->UiD[7] + wysokoscSieci);
-                    linie[lPtr++] = (((-trackNodes[n->TrPinS[1]]->UiD[5] - playerT[1])*2048 - trackNodes[n->TrPinS[1]]->UiD[8]));
+                    linie[lPtr++] = ((trackNodes[n->pins[1].link]->uid.tileX - playerT[0])*2048 + trackNodes[n->pins[1].link]->uid.x);
+                    linie[lPtr++] = (trackNodes[n->pins[1].link]->uid.y + wysokoscSieci);
+                    linie[lPtr++] = (((-trackNodes[n->pins[1].link]->uid.tileZ - playerT[1])*2048 - trackNodes[n->pins[1].link]->uid.z));
                 }
             } else if (n->typ == 0) {
-                konce[kPtr++] = ((n->UiD[4] - playerT[0])*2048 + n->UiD[6]);
-                konce[kPtr++] = (n->UiD[7]);
-                konce[kPtr++] = ((-n->UiD[5] - playerT[1])*2048 - n->UiD[8]);
+                konce[kPtr++] = ((n->uid.tileX - playerT[0])*2048 + n->uid.x);
+                konce[kPtr++] = (n->uid.y);
+                konce[kPtr++] = ((-n->uid.tileZ - playerT[1])*2048 - n->uid.z);
 
-                konce[kPtr++] = ((n->UiD[4] - playerT[0])*2048 + n->UiD[6]);
-                konce[kPtr++] = (n->UiD[7] + wysokoscSieci);
-                konce[kPtr++] = ((-n->UiD[5] - playerT[1])*2048 - n->UiD[8]);
+                konce[kPtr++] = ((n->uid.tileX - playerT[0])*2048 + n->uid.x);
+                konce[kPtr++] = (n->uid.y + wysokoscSieci);
+                konce[kPtr++] = ((-n->uid.tileZ - playerT[1])*2048 - n->uid.z);
 
-                if (fabs(n->UiD[4] - playerT[0]) > 1) continue;
-                if (fabs(-n->UiD[5] - playerT[1]) > 1) continue;
+                if (fabs(n->uid.tileX - playerT[0]) > 1) continue;
+                if (fabs(-n->uid.tileZ - playerT[1]) > 1) continue;
 
                 if (!road) {
                     if (endIdObj[i] == NULL) {
@@ -2205,21 +2213,21 @@ void TDB::pushRenderAll(RenderQueue &queue, float* playerT, float playerRot) {
                         endIdObj[i]->setColor(50, 50, 255);
                     }
                     endIdObj[i]->inUse = true;
-                    endIdObj[i]->pos[0] = ((n->UiD[4] - playerT[0])*2048 + n->UiD[6]);
-                    endIdObj[i]->pos[1] = n->UiD[7] + wysokoscSieci;
-                    endIdObj[i]->pos[2] = ((-n->UiD[5] - playerT[1])*2048 - n->UiD[8]);
+                    endIdObj[i]->pos[0] = ((n->uid.tileX - playerT[0])*2048 + n->uid.x);
+                    endIdObj[i]->pos[1] = n->uid.y + wysokoscSieci;
+                    endIdObj[i]->pos[2] = ((-n->uid.tileZ - playerT[1])*2048 - n->uid.z);
                 }
             } else if (n->typ == 2) {
-                punkty[pPtr++] = ((n->UiD[4] - playerT[0])*2048 + n->UiD[6]);
-                punkty[pPtr++] = (n->UiD[7]);
-                punkty[pPtr++] = ((-n->UiD[5] - playerT[1])*2048 - n->UiD[8]);
+                punkty[pPtr++] = ((n->uid.tileX - playerT[0])*2048 + n->uid.x);
+                punkty[pPtr++] = (n->uid.y);
+                punkty[pPtr++] = ((-n->uid.tileZ - playerT[1])*2048 - n->uid.z);
 
-                punkty[pPtr++] = ((n->UiD[4] - playerT[0])*2048 + n->UiD[6]);
-                punkty[pPtr++] = (n->UiD[7] + wysokoscSieci);
-                punkty[pPtr++] = ((-n->UiD[5] - playerT[1])*2048 - n->UiD[8]);
+                punkty[pPtr++] = ((n->uid.tileX - playerT[0])*2048 + n->uid.x);
+                punkty[pPtr++] = (n->uid.y + wysokoscSieci);
+                punkty[pPtr++] = ((-n->uid.tileZ - playerT[1])*2048 - n->uid.z);
 
-                if (fabs(n->UiD[4] - playerT[0]) > 1) continue;
-                if (fabs(-n->UiD[5] - playerT[1]) > 1) continue;
+                if (fabs(n->uid.tileX - playerT[0]) > 1) continue;
+                if (fabs(-n->uid.tileZ - playerT[1]) > 1) continue;
 
                 if (!road) {
                     if (junctIdObj[i] == NULL) {
@@ -2227,9 +2235,9 @@ void TDB::pushRenderAll(RenderQueue &queue, float* playerT, float playerRot) {
                         junctIdObj[i]->setColor(255, 50, 50);
                     }
                     junctIdObj[i]->inUse = true;
-                    junctIdObj[i]->pos[0] = ((n->UiD[4] - playerT[0])*2048 + n->UiD[6]);
-                    junctIdObj[i]->pos[1] = n->UiD[7] + wysokoscSieci;
-                    junctIdObj[i]->pos[2] = ((-n->UiD[5] - playerT[1])*2048 - n->UiD[8]);
+                    junctIdObj[i]->pos[0] = ((n->uid.tileX - playerT[0])*2048 + n->uid.x);
+                    junctIdObj[i]->pos[1] = n->uid.y + wysokoscSieci;
+                    junctIdObj[i]->pos[2] = ((-n->uid.tileZ - playerT[1])*2048 - n->uid.z);
                 }
             }
         }
@@ -2282,8 +2290,8 @@ void TDB::getLines(float * &lineBuffer, int &length, float* playerT){
         if (n->typ == -1) continue;
         if (n->typ == 1) {
             for (int i = 0; i < n->iTrv; i++) {
-                if (fabs(n->trVectorSection[i].param[8] - playerT[0]) > 1 || fabs(-n->trVectorSection[i].param[9] - playerT[1]) > 1) continue;
-                len += getLineBufferSize((int) n->trVectorSection[i].param[0], 6, 0);
+                if (fabs(n->trVectorSection[i].tileX - playerT[0]) > 1 || fabs(-n->trVectorSection[i].tileZ - playerT[1]) > 1) continue;
+                len += getLineBufferSize((int) n->trVectorSection[i].sectionIndex, 6, 0);
             }
         }
     }
@@ -2297,18 +2305,18 @@ void TDB::getLines(float * &lineBuffer, int &length, float* playerT){
         if (n->typ == -1) continue;
         if (n->typ == 1) {
             for (int i = 0; i < n->iTrv; i++) {
-                if (fabs(n->trVectorSection[i].param[8] - playerT[0]) > 1 || fabs(-n->trVectorSection[i].param[9] - playerT[1]) > 1) continue;
+                if (fabs(n->trVectorSection[i].tileX - playerT[0]) > 1 || fabs(-n->trVectorSection[i].tileZ - playerT[1]) > 1) continue;
                 p.set(
-                        (n->trVectorSection[i].param[8] - playerT[0])*2048 + n->trVectorSection[i].param[10],
-                        n->trVectorSection[i].param[11],
-                        (-n->trVectorSection[i].param[9] - playerT[1])*2048 - n->trVectorSection[i].param[12]
+                        (n->trVectorSection[i].tileX - playerT[0])*2048 + n->trVectorSection[i].x,
+                        n->trVectorSection[i].y,
+                        (-n->trVectorSection[i].tileZ - playerT[1])*2048 - n->trVectorSection[i].z
                         );
                 o.set(
-                        n->trVectorSection[i].param[13],
-                        n->trVectorSection[i].param[14],
-                        n->trVectorSection[i].param[15]
+                        n->trVectorSection[i].ax,
+                        n->trVectorSection[i].ay,
+                        n->trVectorSection[i].az
                         );
-                getLine(ptr, p, o, (int) n->trVectorSection[i].param[0], j, i);
+                getLine(ptr, p, o, (int) n->trVectorSection[i].sectionIndex, j, i);
             }
         }
     }
@@ -2328,7 +2336,7 @@ void TDB::getVectorSectionLine(float * &buffer, int &len, int x, int y, int uid,
     if (n == NULL) return;
         
     for (int i = 0; i < n->iTrv; i++) {
-        len += getLineBufferSize((int) n->trVectorSection[i].param[0], 6, 0, 1);
+        len += getLineBufferSize((int) n->trVectorSection[i].sectionIndex, 6, 0, 1);
     }
     //qDebug() << "len" << len;
     buffer = new float[len]; 
@@ -2338,21 +2346,21 @@ void TDB::getVectorSectionLine(float * &buffer, int &len, int x, int y, int uid,
     float dlugosc = 0;
     for (int i = 0; i < n->iTrv; i++) {
         p.set(
-            (n->trVectorSection[i].param[8] - x)*2048 + n->trVectorSection[i].param[10],
-            n->trVectorSection[i].param[11],
-            (-n->trVectorSection[i].param[9] - y)*2048 - n->trVectorSection[i].param[12]
+            (n->trVectorSection[i].tileX - x)*2048 + n->trVectorSection[i].x,
+            n->trVectorSection[i].y,
+            (-n->trVectorSection[i].tileZ - y)*2048 - n->trVectorSection[i].z
             );
         o.set(
-            n->trVectorSection[i].param[13],
-            n->trVectorSection[i].param[14],
-            n->trVectorSection[i].param[15]
+            n->trVectorSection[i].ax,
+            n->trVectorSection[i].ay,
+            n->trVectorSection[i].az
         );
 
         if(useOffset)
             offset = dlugosc;
-        getLine(ptr, p, o, (int) n->trVectorSection[i].param[0], uid, i, offset, 2);
-        if(tsection->sekcja[n->trVectorSection[i].param[0]] != NULL)
-            dlugosc += tsection->sekcja[n->trVectorSection[i].param[0]]->getDlugosc();
+        getLine(ptr, p, o, (int) n->trVectorSection[i].sectionIndex, uid, i, offset, 2);
+        if(tsection->sekcja[n->trVectorSection[i].sectionIndex] != NULL)
+            dlugosc += tsection->sekcja[n->trVectorSection[i].sectionIndex]->getDlugosc();
     }
     len = ptr - buffer;
     //qDebug() << "len" << len;
@@ -2377,8 +2385,8 @@ void TDB::pushRenderLines(RenderQueue &queue, float* playerT, float playerRot) {
             if (n->typ == -1) continue;
             if (n->typ == 1) {
                 for (int i = 0; i < n->iTrv; i++) {
-                    if (fabs(n->trVectorSection[i].param[8] - playerT[0]) > tileRadius || fabs(-n->trVectorSection[i].param[9] - playerT[1]) > tileRadius) continue;
-                    len += getLineBufferSize((int) n->trVectorSection[i].param[0], 3, 6);
+                    if (fabs(n->trVectorSection[i].tileX - playerT[0]) > tileRadius || fabs(-n->trVectorSection[i].tileZ - playerT[1]) > tileRadius) continue;
+                    len += getLineBufferSize((int) n->trVectorSection[i].sectionIndex, 3, 6);
                 }
             }
         }
@@ -2390,19 +2398,19 @@ void TDB::pushRenderLines(RenderQueue &queue, float* playerT, float playerRot) {
             if (n->typ == -1) continue;
             if (n->typ == 1) {
                 for (int i = 0; i < n->iTrv; i++) {
-                    if (fabs(n->trVectorSection[i].param[8] - playerT[0]) > tileRadius || fabs(-n->trVectorSection[i].param[9] - playerT[1]) > tileRadius)
+                    if (fabs(n->trVectorSection[i].tileX - playerT[0]) > tileRadius || fabs(-n->trVectorSection[i].tileZ - playerT[1]) > tileRadius)
                         continue;
                     p.set(
-                            (n->trVectorSection[i].param[8] - playerT[0])*2048 + n->trVectorSection[i].param[10],
-                            n->trVectorSection[i].param[11] + hOffset,
-                            (-n->trVectorSection[i].param[9] - playerT[1])*2048 - n->trVectorSection[i].param[12]
+                            (n->trVectorSection[i].tileX - playerT[0])*2048 + n->trVectorSection[i].x,
+                            n->trVectorSection[i].y + hOffset,
+                            (-n->trVectorSection[i].tileZ - playerT[1])*2048 - n->trVectorSection[i].z
                             );
                     o.set(
-                            n->trVectorSection[i].param[13],
-                            n->trVectorSection[i].param[14],
-                            n->trVectorSection[i].param[15]
+                            n->trVectorSection[i].ax,
+                            n->trVectorSection[i].ay,
+                            n->trVectorSection[i].az
                             );
-                    drawLine(NULL, ptr, p, o, (int) n->trVectorSection[i].param[0]);
+                    drawLine(NULL, ptr, p, o, (int) n->trVectorSection[i].sectionIndex);
                 }
             }
         }
@@ -2429,7 +2437,7 @@ bool TDB::getDrawPositionOnTrNode(float* out, int id, float metry, float *sElev)
     int idx = 0;
     Vector3f position;
     for (int i = 0; i < n->iTrv; i++) {
-        idx = n->trVectorSection[i].param[0];
+        idx = n->trVectorSection[i].sectionIndex;
         
         if(tsection->sekcja[idx] == NULL){
             //qDebug() << "nie ma sekcji " << idx;
@@ -2443,8 +2451,8 @@ bool TDB::getDrawPositionOnTrNode(float* out, int id, float metry, float *sElev)
         
         float sDistance = metry - length + sectionLength;
         tsection->sekcja.at(idx)->getDrawPosition(&position, sDistance);
-        if(n->trVectorSection[i].param[15] != 0.0f)
-            position.rotateZ(n->trVectorSection[i].param[15], 0.0f);
+        if(n->trVectorSection[i].az != 0.0f)
+            position.rotateZ(n->trVectorSection[i].az, 0.0f);
         //qDebug() << "position"<<position.x<<position.y<<position.z;
 
         float matrix[16];
@@ -2452,40 +2460,40 @@ bool TDB::getDrawPositionOnTrNode(float* out, int id, float metry, float *sElev)
         q[0] = q[1] = q[2] = 0; q[3] = 1;
         float rot[3];
         rot[0] = M_PI;
-        rot[1] = n->trVectorSection[i].param[14];
-        rot[2] = 0;//n->trVectorSection[i].param[15];
+        rot[1] = n->trVectorSection[i].ay;
+        rot[2] = 0;//n->trVectorSection[i].az;
 
         float pos[3];
-        pos[0] = n->trVectorSection[i].param[10];
-        pos[1] = n->trVectorSection[i].param[11];
-        pos[2] = n->trVectorSection[i].param[12];
+        pos[0] = n->trVectorSection[i].x;
+        pos[1] = n->trVectorSection[i].y;
+        pos[2] = n->trVectorSection[i].z;
         
         Quat::fromRotationXYZ(q, rot);
         Mat4::fromRotationTranslation(matrix, q, pos);
-        Mat4::rotate(matrix, matrix, -n->trVectorSection[i].param[13], 1, 0, 0);
+        Mat4::rotate(matrix, matrix, -n->trVectorSection[i].ax, 1, 0, 0);
 
         pos[0] = position.x;
         pos[1] = position.y;
         pos[2] = -position.z;
         Vec3::transformMat4(pos, pos, matrix);
 
-        out[3] = -n->trVectorSection[i].param[14] - tsection->sekcja.at(idx)->getDrawAngle(sDistance);
-        out[4] = n->trVectorSection[i].param[13];
-        out[5] = n->trVectorSection[i].param[8];
-        out[6] = n->trVectorSection[i].param[9];
+        out[3] = -n->trVectorSection[i].ay - tsection->sekcja.at(idx)->getDrawAngle(sDistance);
+        out[4] = n->trVectorSection[i].ax;
+        out[5] = n->trVectorSection[i].tileX;
+        out[6] = n->trVectorSection[i].tileZ;
         out[0] = pos[0];
         out[1] = pos[1];
         out[2] = pos[2];        
-        //position->x += (n->trVectorSection[i].param[8] - playerT[0])*2048 + n->trVectorSection[i].param[10];
-        //position->y += n->trVectorSection[i].param[11];
-        //position->z += (-n->trVectorSection[i].param[9] - playerT[1])*2048 - n->trVectorSection[i].param[12];
+        //position->x += (n->trVectorSection[i].tileX - playerT[0])*2048 + n->trVectorSection[i].x;
+        //position->y += n->trVectorSection[i].y;
+        //position->z += (-n->trVectorSection[i].tileZ - playerT[1])*2048 - n->trVectorSection[i].z;
         
         if(sElev != NULL)
             if(Game::useSuperelevation){
                 if(i < n->iTrv - 1)
-                    *sElev = -(n->trVectorSection[i].param[15]*(1.0 - sDistance/sectionLength) + n->trVectorSection[i+1].param[15]*(sDistance/sectionLength));
+                    *sElev = -(n->trVectorSection[i].az*(1.0 - sDistance/sectionLength) + n->trVectorSection[i+1].az*(sDistance/sectionLength));
                 else
-                    *sElev = -(n->trVectorSection[i].param[15]*(1.0 - sDistance/sectionLength));
+                    *sElev = -(n->trVectorSection[i].az*(1.0 - sDistance/sectionLength));
             } else {
                 *sElev = 0;
             }
@@ -2529,7 +2537,7 @@ int TDB::getEndpointType(int trid, int endp){
     TRnode* n = this->trackNodes[trid];
     if(n->typ !=1 )
         return -1;
-    n = this->trackNodes[n->TrPinS[endp]];
+    n = this->trackNodes[n->pins[endp].link];
     if(n == NULL) return -1;
     return n->typ;
 }
@@ -2666,8 +2674,8 @@ int TDB::findNearestPositionOnTDB(float* posT, float* pos, float * q, float* tpo
     if(best[0] >= 99999)
         return -1;
     //TRnode* n = trackNodes[(int)best[1]];
-    //posT[0] = n->trVectorSection[(int)best[2]].param[8];
-    //posT[1] = -n->trVectorSection[(int)best[2]].param[9];
+    //posT[0] = n->trVectorSection[(int)best[2]].tileX;
+    //posT[1] = -n->trVectorSection[(int)best[2]].tileZ;
     
 
     
@@ -2803,8 +2811,8 @@ bool TDB::getSegmentIntersectionPositionOnTDB(float* posT, float* segment, float
     if(best[0] == 99999) return false;
     
     //TRnode* n = trackNodes[(int)best[1]];
-    //posT[0] = n->trVectorSection[(int)best[2]].param[8];
-    //posT[1] = -n->trVectorSection[(int)best[2]].param[9];
+    //posT[0] = n->trVectorSection[(int)best[2]].tileX;
+    //posT[1] = -n->trVectorSection[(int)best[2]].tileZ;
     
     float metry = this->getVectorSectionLengthToIdx(best[1], best[2]);
     if(tpos != NULL){
@@ -2924,7 +2932,7 @@ void TDB::getVectorSectionPoints(int x, int y, int uid, QVector<float> &ptr){
             if (n->typ == -1) continue;
             if (n->typ == 1) {
                 for (int i = 0; i < n->iTrv; i++) {
-                    if(n->trVectorSection[i].param[2] == x && n->trVectorSection[i].param[3] == y && n->trVectorSection[i].param[4] == uid ){
+                    if(n->trVectorSection[i].worldTileX == x && n->trVectorSection[i].worldTileZ == y && n->trVectorSection[i].worldObjectId == uid ){
                         qDebug() << "mam";
                         getVectorSectionPoints(x, y, j, i, ptr);
                     }
@@ -2943,23 +2951,23 @@ void TDB::getVectorSectionPoints(int x, int y, int nId, int sId, QVector<float> 
     TRnode* n = trackNodes[nId];
 
     rot[0] = M_PI;
-    rot[1] = -n->trVectorSection[sId].param[14];
-    rot[2] = 0;//n->trVectorSection[sId].param[15];
-    p[0] = (n->trVectorSection[sId].param[8] - x)*2048 + n->trVectorSection[sId].param[10];
-    p[1] = n->trVectorSection[sId].param[11];
-    p[2] = (-n->trVectorSection[sId].param[9] + y)*2048 - n->trVectorSection[sId].param[12];
+    rot[1] = -n->trVectorSection[sId].ay;
+    rot[2] = 0;//n->trVectorSection[sId].az;
+    p[0] = (n->trVectorSection[sId].tileX - x)*2048 + n->trVectorSection[sId].x;
+    p[1] = n->trVectorSection[sId].y;
+    p[2] = (-n->trVectorSection[sId].tileZ + y)*2048 - n->trVectorSection[sId].z;
 
     Quat::fromRotationXYZ(q, rot);
     Mat4::fromRotationTranslation(matrix, q, p);
-    Mat4::rotate(matrix, matrix, n->trVectorSection[sId].param[13], 1, 0, 0);
-    if(n->trVectorSection[sId].param[15] != 0.0f)
+    Mat4::rotate(matrix, matrix, n->trVectorSection[sId].ax, 1, 0, 0);
+    if(n->trVectorSection[sId].az != 0.0f)
         Mat4::rotate(matrix, matrix,
-                -n->trVectorSection[sId].param[15], 0, 0, 1);
+                -n->trVectorSection[sId].az, 0, 0, 1);
     //Mat4::fromRotationTranslation(matrix, q, objMatrix);
-    if(tsection->sekcja[(int) n->trVectorSection[sId].param[0]] == NULL){
-        qDebug() << "nie ma sekcji " << (int) n->trVectorSection[sId].param[0];
+    if(tsection->sekcja[(int) n->trVectorSection[sId].sectionIndex] == NULL){
+        qDebug() << "nie ma sekcji " << (int) n->trVectorSection[sId].sectionIndex;
     }
-    tsection->sekcja[(int) n->trVectorSection[sId].param[0]]->getPoints(ptr, matrix);
+    tsection->sekcja[(int) n->trVectorSection[sId].sectionIndex]->getPoints(ptr, matrix);
     return;
 }
 
@@ -3343,6 +3351,8 @@ void TDB::deleteTrItem(int trid){
     int nid = findTrItemNodeIds(trid, ids);
     if(ids.size() == 0) 
         return;
+    std::sort(ids.begin(), ids.end());
+    ids.erase(std::unique(ids.begin(), ids.end()), ids.end());
     for(int i = 0; i < ids.size(); i++)
         deleteItemFromTrNode(ids[i], trid);
 
@@ -3360,20 +3370,18 @@ void TDB::addItemToTrNode(int tid, int iid){
 
 void TDB::deleteItemFromTrNode(int tid, int iid){
     TRnode* n = this->trackNodes[tid];
-    if(n == NULL) return;
-    if(n->iTri == 1){
-        n->iTri = 0;
-        updateTrNode(tid);
-        return;
-    }
-    int* newVec = new int[n->iTri-1];
+    if(n == NULL || n->iTri == 0) return;
+    const int matches = std::count(n->trItemRef, n->trItemRef + n->iTri, iid);
+    if(matches == 0) return;
+    const int remaining = n->iTri - matches;
+    int* newVec = remaining ? new int[remaining] : nullptr;
     for(int i = 0, j = 0; i < n->iTri; i++){
         if(n->trItemRef[i] == iid){
             continue;
         }
         newVec[j++] = n->trItemRef[i];
     }
-    n->iTri--;
+    n->iTri = remaining;
     delete[] n->trItemRef;
     n->trItemRef = newVec;
     updateTrNode(tid);
@@ -3391,9 +3399,9 @@ void TDB::fixTDBVectorElevation(int x, int y, int UiD){
             if (n->typ == 1) {
                 bool found = false;
                 for(int j = 0; j < n->iTrv; j++){
-                    if(n->trVectorSection[j].param[2] == x)
-                        if(n->trVectorSection[j].param[3] == y)
-                            if(n->trVectorSection[j].param[4] == UiD){
+                    if(n->trVectorSection[j].worldTileX == x)
+                        if(n->trVectorSection[j].worldTileZ == y)
+                            if(n->trVectorSection[j].worldObjectId == UiD){
                                 found = true;
                                 break;
                     }
@@ -3410,21 +3418,21 @@ void TDB::fixTDBVectorElevation(TRnode *n){
     if (n == NULL) return;
     if (n->typ != 1) return;
     
-    n->trVectorSection[0].param[15] = 0;
-    n->trVectorSection[n->iTrv - 1].param[15] = 0;
+    n->trVectorSection[0].az = 0;
+    n->trVectorSection[n->iTrv - 1].az = 0;
     int sect;
     float angle1, angle2;
     for(int j = 1; j < n->iTrv; j++){
-        sect = n->trVectorSection[j-1].param[0];
+        sect = n->trVectorSection[j-1].sectionIndex;
         angle1 = tsection->sekcja[sect]->getAngle();
-        sect = n->trVectorSection[j].param[0];
+        sect = n->trVectorSection[j].sectionIndex;
         angle2 = tsection->sekcja[sect]->getAngle();
         if(angle1 < 0 && angle2 < 0)
-            n->trVectorSection[j].param[15] = -0.05;
+            n->trVectorSection[j].az = -0.05;
         else if(angle1 > 0 && angle2 > 0)
-            n->trVectorSection[j].param[15] = 0.05;
+            n->trVectorSection[j].az = 0.05;
         else
-            n->trVectorSection[j].param[15] = 0;
+            n->trVectorSection[j].az = 0;
     }
 }
 
@@ -3439,9 +3447,9 @@ void TDB::deleteVectorSection(int x, int y, int UiD){
             if (n ->typ == -1) continue;
             if (n->typ == 1) {
                 for(int j = 0; j < n->iTrv; j++)
-                    if(n->trVectorSection[j].param[2] == x)
-                        if(n->trVectorSection[j].param[3] == y)
-                            if(n->trVectorSection[j].param[4] == UiD){
+                    if(n->trVectorSection[j].worldTileX == x)
+                        if(n->trVectorSection[j].worldTileZ == y)
+                            if(n->trVectorSection[j].worldObjectId == UiD){
                                 tid = i;
                                 break;
                     }
@@ -3465,9 +3473,9 @@ void TDB::deleteTree(int x, int y, int UiD){
             if (n ->typ == -1) continue;
             if (n->typ == 1) {
                 for(int j = 0; j < n->iTrv; j++)
-                    if(n->trVectorSection[j].param[2] == x)
-                        if(n->trVectorSection[j].param[3] == y)
-                            if(n->trVectorSection[j].param[4] == UiD){
+                    if(n->trVectorSection[j].worldTileX == x)
+                        if(n->trVectorSection[j].worldTileZ == y)
+                            if(n->trVectorSection[j].worldObjectId == UiD){
                                 tid = i;
                                 break;
                     }
@@ -3514,12 +3522,12 @@ void TDB::deleteTree(int d) {
 void TDB::addToDeletedTree(int* drzewo, int d){
         drzewo[d] = 1;
         for(int i = 0; i < 3; i++){
-            //qDebug() << trackNodes[d]->TrPinS[i];
-            if(trackNodes[d]->TrPinS[i] == 0) 
+            //qDebug() << trackNodes[d]->pins[i].link;
+            if(trackNodes[d]->pins[i].link == 0)
                 continue;
-            //qDebug() << drzewo[trackNodes[d]->TrPinS[i]];
-            if(drzewo[trackNodes[d]->TrPinS[i]] == 0)
-                addToDeletedTree(drzewo, trackNodes[d]->TrPinS[i]);
+            //qDebug() << drzewo[trackNodes[d]->pins[i].link];
+            if(drzewo[trackNodes[d]->pins[i].link] == 0)
+                addToDeletedTree(drzewo, trackNodes[d]->pins[i].link);
         }
     }
 
@@ -3538,12 +3546,12 @@ bool TDB::deleteNulls() {
                 qDebug() << i << "Replaced by: " << stare;
                 
                 for(int j = 0; j < 3; j++){
-                    if(trackNodes[i]->TrPinS[j] == 0) 
+                    if(trackNodes[i]->pins[j].link == 0)
                         continue;
-                    if(trackNodes[trackNodes[i]->TrPinS[j]] == NULL)
-                        qDebug() << "Fail, unexpected NULL TrackNode found!" << trackNodes[i]->TrPinS[j];
+                    if(trackNodes[trackNodes[i]->pins[j].link] == NULL)
+                        qDebug() << "Fail, unexpected NULL TrackNode found!" << trackNodes[i]->pins[j].link;
                     else
-                        trackNodes[trackNodes[i]->TrPinS[j]]->podmienTrPin(stare, i);
+                        trackNodes[trackNodes[i]->pins[j].link]->podmienTrPin(stare, i);
                 }
                 replaceSignalDirJunctionId(stare, i);
                 return true;
@@ -3810,27 +3818,19 @@ void TDB::saveToStream(QTextStream &out){
         out << "		TrackNode ( " << i << "\n";
         switch (trackNodes[i]->typ) {
             case 0:
-                out << "			TrEndNode ( " << trackNodes[i]->args[0] << " )\n";
+                out << "			TrEndNode ( " << trackNodes[i]->endNodeValue << " )\n";
                 out << "			UiD ( ";
-                for (int j = 0; j < 12; j++) {
-                    out << trackNodes[i]->UiD[j] << " ";
-                }
+                trackNodes[i]->uid.save(out);
                 out << ")\n";
                 out << "			TrPins ( 1 0\n";
-                out << "				TrPin ( " << trackNodes[i]->TrPinS[0] << " " << trackNodes[i]->TrPinK[0] << " )\n";
+                out << "				TrPin ( " << trackNodes[i]->pins[0].link << " " << trackNodes[i]->pins[0].direction << " )\n";
                 out << "			)\n";
                 break;
             case 1:
                 out << "			TrVectorNode (\n";
                 out << "				TrVectorSections ( " << trackNodes[i]->iTrv << "";
                 for (int j = 0; j < trackNodes[i]->iTrv; j++) {
-                    for (int jj = 0; jj < 7; jj++) {
-                        out << " " << trackNodes[i]->trVectorSection[j].param[jj];
-                    }
-                    out << " 00";
-                    for (int jj = 8; jj < 16; jj++) {
-                        out << " " << trackNodes[i]->trVectorSection[j].param[jj];
-                    }
+                    trackNodes[i]->trVectorSection[j].save(out);
                     if (j % 11 == 0 && j > 0 && j < trackNodes[i]->iTrv - 1)
                         out << "\n					";
                 }
@@ -3844,21 +3844,19 @@ void TDB::saveToStream(QTextStream &out){
                 }
                 out << "			)\n";
                 out << "			TrPins ( 1 1\n";
-                out << "				TrPin ( " << trackNodes[i]->TrPinS[0] << " " << trackNodes[i]->TrPinK[0] << " )\n";
-                out << "				TrPin ( " << trackNodes[i]->TrPinS[1] << " " << trackNodes[i]->TrPinK[1] << " )\n";
+                out << "				TrPin ( " << trackNodes[i]->pins[0].link << " " << trackNodes[i]->pins[0].direction << " )\n";
+                out << "				TrPin ( " << trackNodes[i]->pins[1].link << " " << trackNodes[i]->pins[1].direction << " )\n";
                 out << "			)\n";
                 break;
             case 2:
-                out << "			TrJunctionNode ( " << trackNodes[i]->args[0] << " " << trackNodes[i]->args[1] << " " << trackNodes[i]->args[2] << " )\n";
+                out << "			TrJunctionNode ( " << trackNodes[i]->junction.unknown0 << " " << trackNodes[i]->junction.shapeIndex << " " << trackNodes[i]->junction.unknown2 << " )\n";
                 out << "			UiD ( ";
-                for (int j = 0; j < 12; j++) {
-                    out << trackNodes[i]->UiD[j] << " ";
-                }
+                trackNodes[i]->uid.save(out);
                 out << ")\n";
                 out << "			TrPins ( 1 2\n";
-                out << "				TrPin ( " << trackNodes[i]->TrPinS[0] << " " << trackNodes[i]->TrPinK[0] << " )\n";
-                out << "				TrPin ( " << trackNodes[i]->TrPinS[1] << " " << trackNodes[i]->TrPinK[1] << " )\n";
-                out << "				TrPin ( " << trackNodes[i]->TrPinS[2] << " " << trackNodes[i]->TrPinK[2] << " )\n";
+                out << "				TrPin ( " << trackNodes[i]->pins[0].link << " " << trackNodes[i]->pins[0].direction << " )\n";
+                out << "				TrPin ( " << trackNodes[i]->pins[1].link << " " << trackNodes[i]->pins[1].direction << " )\n";
+                out << "				TrPin ( " << trackNodes[i]->pins[2].link << " " << trackNodes[i]->pins[2].direction << " )\n";
                 out << "			)\n";
                 break;
         }
@@ -4005,8 +4003,8 @@ void TDB::getUsedTileList(QMap<int, QPair<int, int>*> &tileList, int radius, int
             continue;
         if(trackNodes[i]->typ == 1)
             continue;
-        if(tileList2[trackNodes[i]->UiD[4]*10000 + trackNodes[i]->UiD[5]] == NULL)
-            tileList2[trackNodes[i]->UiD[4]*10000 + trackNodes[i]->UiD[5]] = new QPair<int, int>(trackNodes[i]->UiD[4], trackNodes[i]->UiD[5]);
+        if(tileList2[trackNodes[i]->uid.tileX*10000 + trackNodes[i]->uid.tileZ] == NULL)
+            tileList2[trackNodes[i]->uid.tileX*10000 + trackNodes[i]->uid.tileZ] = new QPair<int, int>(trackNodes[i]->uid.tileX, trackNodes[i]->uid.tileZ);
         }
     
     QMapIterator<int, QPair<int, int>*> i(tileList2);
@@ -4295,7 +4293,7 @@ void TDB::checkDatabase(){
             }
         }
         if (n->typ == 2) {
-            int originId = n->TrPinS[0];
+            int originId = n->pins[0].link;
             if(originId == 0){
                     ErrorMessage *e = new ErrorMessage(
                         ErrorMessage::Type_Warning, 
@@ -4303,7 +4301,7 @@ void TDB::checkDatabase(){
                         QString("TrackNode: ") + QString::number(i) + ". Junction origin linked to nothing.",
                         "Junction is not finished. Junction origin must be linked to a track section, otherwise OR simulation will crash."
                     );
-                    e->setLocationXYZ(n->UiD[4], n->UiD[5], n->UiD[6], n->UiD[7], n->UiD[8]);
+                    e->setLocationXYZ(n->uid.tileX, n->uid.tileZ, n->uid.x, n->uid.y, n->uid.z);
                     ErrorMessagesLib::PushErrorMessage(e);
             } else {
                 TRnode *origin = trackNodes[originId];
@@ -4314,7 +4312,7 @@ void TDB::checkDatabase(){
                         QString("TrackNode: ") + QString::number(i) + ". Junction origin linked to a NULL TrackNode.",
                         "There might be a fatal error inside Track Database."
                     );
-                    e->setLocationXYZ(n->UiD[4], n->UiD[5], n->UiD[6], n->UiD[7], n->UiD[8]);
+                    e->setLocationXYZ(n->uid.tileX, n->uid.tileZ, n->uid.x, n->uid.y, n->uid.z);
                     ErrorMessagesLib::PushErrorMessage(e);
                 } else if(!origin->isLikedTo(i)){
                     ErrorMessage *e = new ErrorMessage(
@@ -4323,7 +4321,7 @@ void TDB::checkDatabase(){
                         QString("TrackNode: ") + QString::number(i) + ". Link Error.",
                         QString("Fatal Track Database error. Junction origin linked to TrackNode ") + QString::number(originId) + ", but this TrackNode is not linked to this Junction."
                     );
-                    e->setLocationXYZ(n->UiD[4], n->UiD[5], n->UiD[6], n->UiD[7], n->UiD[8]);
+                    e->setLocationXYZ(n->uid.tileX, n->uid.tileZ, n->uid.x, n->uid.y, n->uid.z);
                     ErrorMessagesLib::PushErrorMessage(e);
                 } else if(origin->typ == 2){
                     ErrorMessage *e = new ErrorMessage(
@@ -4332,7 +4330,7 @@ void TDB::checkDatabase(){
                         QString("TrackNode: ") + QString::number(i) + ".  Junction linked to another Junction.",
                         QString("Fatal Track Database error. Junction origin linked to another Junction origin. ") + QString::number(originId)
                     );
-                    e->setLocationXYZ(n->UiD[4], n->UiD[5], n->UiD[6], n->UiD[7], n->UiD[8]);
+                    e->setLocationXYZ(n->uid.tileX, n->uid.tileZ, n->uid.x, n->uid.y, n->uid.z);
                     ErrorMessagesLib::PushErrorMessage(e);
                 }
             }

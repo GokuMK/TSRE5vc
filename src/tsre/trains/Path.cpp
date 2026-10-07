@@ -252,7 +252,7 @@ void Path::init3dShapes(bool initShapes){
             }
             
             if(tdb->trackNodes[lastNodeId]->typ != 1){
-                if(tdb->trackNodes[currentNodeId]->TrPinS[0] == lastNodeId){
+                if(tdb->trackNodes[currentNodeId]->pins[0].link == lastNodeId){
                     distance1 = 0;
                 } else {
                     distance1 = tdb->getVectorSectionLength(currentNodeId);
@@ -264,7 +264,7 @@ void Path::init3dShapes(bool initShapes){
             }
             
             if(tdb->trackNodes[lastNodeId]->typ == 2)
-                if(tdb->trackNodes[lastNodeId]->TrPinS[1] == currentNodeId)
+                if(tdb->trackNodes[lastNodeId]->pins[1].link == currentNodeId)
                     junctionDirections[lastNodeId] = 0;
                 else
                     junctionDirections[lastNodeId] = 1;
@@ -283,7 +283,7 @@ void Path::init3dShapes(bool initShapes){
             
             if(tdb->trackNodes[lastNodeId]->typ != 1){
                 currentNodeId = tdb->findVectorNodeBetweenTwoNodes(lastNodeId, nodeId1);
-                if(tdb->trackNodes[currentNodeId]->TrPinS[0] == nodeId1){
+                if(tdb->trackNodes[currentNodeId]->pins[0].link == nodeId1){
                     distance2 = 0;
                     distance1 = tdb->getVectorSectionLength(currentNodeId);
                 } else {
@@ -292,8 +292,8 @@ void Path::init3dShapes(bool initShapes){
                 }
             } else {
                 currentNodeId = lastNodeId;
-                if(tdb->trackNodes[currentNodeId]->TrPinS[0] == nodeId1){
-                    /*&& tdb->trackNodes[currentNodeId]->TrPinK[0] == 1*/
+                if(tdb->trackNodes[currentNodeId]->pins[0].link == nodeId1){
+                    /*&& tdb->trackNodes[currentNodeId]->pins[0].direction == 1*/
                     distance2 = 0;
                 } else {
                     distance2 = tdb->getVectorSectionLength(currentNodeId);
@@ -302,13 +302,13 @@ void Path::init3dShapes(bool initShapes){
             }
             
             if(i == 1)
-                if(tdb->trackNodes[currentNodeId]->TrPinS[0] == nodeId1)
+                if(tdb->trackNodes[currentNodeId]->pins[0].link == nodeId1)
                     startDirection = 1;
                 else 
                     startDirection = 0;
             
             if(tdb->trackNodes[lastNodeId]->typ == 2){
-                if(tdb->trackNodes[lastNodeId]->TrPinS[1] == currentNodeId)
+                if(tdb->trackNodes[lastNodeId]->pins[1].link == currentNodeId)
                     junctionDirections[lastNodeId] = 0;
                 else
                     junctionDirections[lastNodeId] = 1;
@@ -483,7 +483,7 @@ void Path::CreatePaths(TDB * tdb){
     for (int i = 1; i <= tdb->iTRnodes; i++) {
         if (tdb->trackNodes[i] == NULL) continue;
         if (tdb->trackNodes[i]->typ == 0) {
-            //tdb->trackNodes[i]->TrPinS[0];
+            //tdb->trackNodes[i]->pins[0].link;
             ruch.set(i, 0, 0);
 
             filepath = path+"/"+QString::number(i,10)+".pat";
