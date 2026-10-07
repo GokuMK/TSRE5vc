@@ -111,6 +111,16 @@ int TsreTests::runMapViewSuite(bool verbose) {
     check(flat && near(minZ, -1.0f) && near(maxZ, 1.0f),
           "a segment becomes two triangles of the line's width");
 
+    std::vector<float> octagon;
+    TrackMapLayer::appendOctagon(octagon, 10.0f, 3.0f, 20.0f, 4.0f);
+    float lowX = 1e9f, highX = -1e9f;
+    for (size_t i = 0; i + 2 < octagon.size(); i += 3) {
+        lowX = std::min(lowX, octagon[i]);
+        highX = std::max(highX, octagon[i]);
+    }
+    check(octagon.size() == 54 && near(lowX, 8.0f) && near(highX, 12.0f),
+          "a marker is an octagon of its width, six triangles");
+
     const MapPalette dark = MapPalette::named("dark");
     MapPalette custom;
     const bool parsed = MapPalette::fromJson("{\"background\": \"#102030\", \"track\": \"#ffffff\"}", custom);

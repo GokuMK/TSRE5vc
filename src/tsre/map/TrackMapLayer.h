@@ -57,6 +57,10 @@ public:
     // directions in x and z), as two triangles.
     static void appendSquare(std::vector<float> &out, float x, float y, float z, float side,
                              float rx, float rz, float ux, float uz);
+    // An octagon of a width on the ground, as six triangles: a marker that
+    // looks the same however the map is turned, so turning needs no new
+    // geometry.
+    static void appendOctagon(std::vector<float> &out, float x, float y, float z, float width);
 
 private:
     struct Geometry;
@@ -68,7 +72,6 @@ private:
     int builtTileX = 0;
     int builtTileZ = 0;
     float builtMetresPerPixel = 0.0f;
-    float builtHeading = 0.0f;
     bool builtDetail = false;
     int builtTiles[4] = {0, 0, 0, 0};
     QString builtPalette;

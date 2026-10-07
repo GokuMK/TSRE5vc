@@ -11,6 +11,8 @@
 #include "TrackMapLayer.h"
 #include "MapPalette.h"
 #include "MapView.h"
+#include <QDebug>
+#include <QElapsedTimer>
 #include <QOpenGLFunctions>
 #include <algorithm>
 #include <cmath>
@@ -86,14 +88,27 @@ void TrackMapLayer::appendSquare(std::vector<float> &out, float x, float y, floa
         out.insert(out.end(), corners[corner], corners[corner] + 3);
 }
 
+void TrackMapLayer::appendOctagon(std::vector<float> &out, float x, float y, float z, float width) {
+    // Corners at 22.5 degrees and every 45 degrees from there, the flats a
+    // width apart.
+    const float radius = 0.5f * width / std::cos(0.39269908f);
+    float corners[8][3];
+    for (int i = 0; i < 8; ++i) {
+        const float angle = 0.39269908f + i * 0.78539816f;
+        corners[i][0] = x + radius * std::cos(angle);
+        corners[i][1] = y;
+        corners[i][2] = z + radius * std::sin(angle);
+    }
+    for (int i = 1; i < 7; ++i)
+        for (int corner : {0, i, i + 1})
+            out.insert(out.end(), corners[corner], corners[corner] + 3);
+}
+
 void TrackMapLayer::buildDatabase(Geometry &geometry, const MapView &view, TDB *database,
                                   bool detail, int minTileX, int maxTileX, int minTileZ,
                                   int maxTileZ, float lineHeight) {
     if (database == nullptr || !database->loaded)
         return;
-    float rx, rz, ux, uz;
-    view.right(rx, rz);
-    view.up(ux, uz);
     const float width = LinePixels * view.metresPerPixel;
     const float marker = MarkerPixels * view.metresPerPixel;
     std::vector<float> segments;
@@ -110,8 +125,8 @@ void TrackMapLayer::buildDatabase(Geometry &geometry, const MapView &view, TDB *
             float p[3];
             relative(p, node->uid.tileX, node->uid.tileZ, node->uid.x, node->uid.y, node->uid.z,
                      view.tileX, view.tileZ);
-            appendSquare(node->typ == 2 ? geometry.junctions : geometry.ends, p[0],
-                         node->typ == 2 ? JunctionHeight : EndHeight, p[2], marker, rx, rz, ux, uz);
+            appendOctagon(node->typ == 2 ? geometry.junctions : geometry.ends, p[0],
+                          node->typ == 2 ? JunctionHeight : EndHeight, p[2], marker);
             continue;
         }
         if (node->typ != 1 || node->iTrv < 1 || node->trVectorSection == nullptr)
@@ -158,6 +173,9 @@ void TrackMapLayer::buildDatabase(Geometry &geometry, const MapView &view, TDB *
 }
 
 void TrackMapLayer::build(const MapView &view, const MapPalette &palette, TDB *track, TDB *road) {
+    static const bool trace = qEnvironmentVariableIsSet("TSRE_MAP_TRACE");
+    QElapsedTimer timer;
+    timer.start();
     const bool detail = view.metresPerPixel <= DetailMetresPerPixel;
     // Tiles in view, with one more around, in the view's tile convention.
     float corners[4][2];
@@ -189,6 +207,9 @@ void TrackMapLayer::build(const MapView &view, const MapPalette &palette, TDB *t
         setColour(object, colour);
         object.init(vertices.data(), int(vertices.size()), RenderItem::V, GL_TRIANGLES);
     };
+    const qint64 geometryNs = timer.nsecsElapsed();
+    const size_t floats = trackGeometry.lines.size() + roadGeometry.lines.size()
+            + trackGeometry.junctions.size() + trackGeometry.ends.size();
     upload(*trackLines, trackGeometry.lines, palette.track);
     upload(*roadLines, roadGeometry.lines, palette.road);
     upload(*junctions, trackGeometry.junctions, palette.junction);
@@ -198,10 +219,13 @@ void TrackMapLayer::build(const MapView &view, const MapPalette &palette, TDB *t
     builtTileX = view.tileX;
     builtTileZ = view.tileZ;
     builtMetresPerPixel = view.metresPerPixel;
-    builtHeading = view.heading;
     builtDetail = detail;
     std::copy(tiles, tiles + 4, builtTiles);
     builtPalette = palette.name;
+    if (trace)
+        qInfo().noquote() << "map-trace build" << (detail ? "detail" : "chords") << "m/px"
+                          << view.metresPerPixel << "geometry ms" << geometryNs / 1e6 << "total ms"
+                          << timer.nsecsElapsed() / 1e6 << "vertices" << floats / 3;
 }
 
 void TrackMapLayer::pushRenderItems(RenderQueue &queue, const MapView &view,
@@ -210,7 +234,7 @@ void TrackMapLayer::pushRenderItems(RenderQueue &queue, const MapView &view,
     const bool detail = view.metresPerPixel <= DetailMetresPerPixel;
     bool rebuild = !valid || view.tileX != builtTileX || view.tileZ != builtTileZ
             || scale > RebuildScale || scale < 1.0f / RebuildScale
-            || view.heading != builtHeading || detail != builtDetail
+            || detail != builtDetail
             || palette.name != builtPalette;
     if (!rebuild && detail) {
         // Zoomed in, the curves follow the tiles in view.
