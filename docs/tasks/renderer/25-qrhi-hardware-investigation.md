@@ -302,3 +302,52 @@ in every view. The `all` target builds. Suites `rhi-shaders`,
 `terrain-mesh-gl` and `selection-id` pass; `terrain-material-gl` fails
 13 checks when the profile selects the QRhi backend, before these
 changes as well, and passes with `--set=core.rendering.backend=opengl`.
+
+## Handover: open performance work (2026-10-07)
+
+Performance work on the QRhi renderer continues on Windows hardware. State
+after the work above and the later fixes on this branch:
+
+- QRhi Vulkan matches the OpenGL renderer on the Deck (66 frames a second,
+  the editor timer's limit, `core.system.fpsLimit`). Raise the limit (for
+  example `--set=core.system.fpsLimit=200`) to measure above it.
+- Terrain editing: Immutable mesh buffers (`ab8562a`) made every later
+  upload allocate a host copy as large as the buffer. Now (`925686a`,
+  `b7d4501`) a paged terrain page is uploaded again whole on its first
+  edit, marked dynamic, and keeps a QRhi host copy from then on; legacy
+  tiles keep one from their third upload (they are built twice while
+  loading); nothing else keeps one. Not measured on hardware yet:
+  `--test --test-suite=mesh-upload-rhi-benchmark
+  --set=core.rendering.rhiApi=vulkan` times a page rewritten 50 patches a
+  frame and a legacy tile replaced each frame (lavapipe allocates host
+  memory cheaply and shows no difference). Compare `0615047` (before)
+  with the current head, and paint a heavy height map by hand. A
+  further step if still slow: merge the ranges of one page and frame into
+  one upload.
+- Memory on large routes (user: ularge, 700 MB in older TSRE against
+  1300 MB on QRhi before `b7d4501`): re-measure. The next suspect is DXT1
+  with alpha, most MSTS content: Qt's `BC1` is the opaque variant on
+  Vulkan and OpenGL, so these textures go up decoded to RGBA8, eight times
+  their size (see "DXT1 with alpha" in `20-qrhi-renderer.md`; plan:
+  transcode to BC3 at upload). `TSRE_RHI_TRACE=1` logs texture counts and
+  MB per format in its `rhi-trace memory` line.
+- QRhi OpenGL stays CPU-bound (about 20 ms a frame against 12 for the
+  OpenGL renderer). QRhi's OpenGL backend sets every member of the
+  uniform block with glUniform on each `setShaderResources` (values of up
+  to 4 components are cached, matrices are always sent) and binds every
+  texture of the resource set. Ideas, not tried:
+  - fewer, smaller uniform members per draw (the block carries the
+    frame's matrices and lights in every draw);
+  - frame values in a texture or a separate block bound once;
+  - sorting draws by resource set to make more of them share one.
+  On Windows, Direct3D 11 is QRhi's most used backend and was never
+  created here (`RhiContext::create` lacks its init parameters); it may
+  serve better than QRhi OpenGL as the fallback to Vulkan.
+- QRhi Vulkan records the whole frame and submits at its end, so the GPU
+  starts after the CPU (latency, not frame time). Splitting the frame
+  into submissions would let them overlap; QRhi offers only one command
+  buffer a frame, so this needs a closer look.
+- Diagnostics: the FPS display shows the GPU time of a frame;
+  `TSRE_RHI_TRACE=1` logs draws, state changes, pipelines, uniform bytes,
+  memory and uploads; `TSRE_RHI_API=null` measures the renderer's own CPU
+  cost.
