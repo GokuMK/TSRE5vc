@@ -24,6 +24,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <tsre/texture/DxtCodec.h>
+#include <tsre/texture/TextureAlpha.h>
 #include <tsre/texture/AceDocument.h>
 #include <algorithm>
 #include <cstring>
@@ -312,6 +313,15 @@ void Texture::pixelsChanged() {
     bpp = bytesPerPixel * 8;
 }
 
+void Texture::classifyAlpha() {
+    TextureAlpha::Class alpha = TextureAlpha::Unknown;
+    if (!compressedData.isEmpty() && compressedGLFormat != 0)
+        alpha = TextureAlpha::ofBlocks(compressedData, compressedGLFormat);
+    else if (imageData != nullptr && width > 0 && height > 0)
+        alpha = TextureAlpha::ofPixels(imageData, qsizetype(width) * height, bytesPerPixel);
+    alphaClass.store(alpha);
+}
+
 void Texture::takeContentFrom(Texture &other) {
     if (this == &other)
         return;
@@ -339,6 +349,7 @@ void Texture::takeContentFrom(Texture &other) {
     typk = other.typk;
     compressedData = std::move(other.compressedData);
     compressedGLFormat = other.compressedGLFormat;
+    alphaClass.store(other.alphaClass.load());
     gpuInternalFormat = other.gpuInternalFormat;
     sourceMipmaps = std::move(other.sourceMipmaps);
     aceMetadata = std::move(other.aceMetadata);

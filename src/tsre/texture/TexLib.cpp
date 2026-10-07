@@ -314,6 +314,7 @@ bool TexLib::decodeFromBytes(Texture* texture, const QByteArray& encodedBytes, Q
         }
     }
 
+    texture->classifyAlpha();
     texture->loaded = true;
     texture->editable = true;
     texture->missing = false;
