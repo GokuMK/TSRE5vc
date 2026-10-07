@@ -1,0 +1,163 @@
+#include <tsre/tests/EditorToolsTestSuite.h>
+
+#include <QAction>
+#include <QDebug>
+#include <QKeyEvent>
+#include <QMenu>
+#include <QWidget>
+#include <routeEditor/tools/ToolContext.h>
+#include <routeEditor/tools/ToolRegistry.h>
+
+namespace {
+
+// Records what tools ask of the editor; no route is loaded.
+class FakeContext : public ToolContext {
+public:
+    QWidget widget;
+    ViewMode mode = ViewMode::Scene3D;
+    float pointerPosition[3] = {1, 2, 3};
+    float rotation[4] = {0, 0, 0, 1};
+    ObjectEdit edit = ObjectEdit::Select;
+    bool selectionRequested = false;
+    bool continuousFlexPlaced = false;
+    bool rulerPlaced = false;
+    bool flexDataSent = false;
+    bool terrainToSelectedCalled = false;
+    bool placeResult = true;
+    QString activated;
+
+    QWidget *view() override { return &widget; }
+    ViewMode viewMode() const override { return mode; }
+    Route *currentRoute() const override { return nullptr; }
+    int tileX() const override { return 10; }
+    int tileZ() const override { return -20; }
+    float *pointer() override { return pointerPosition; }
+    float cameraHeading() const override { return 0.0f; }
+    Brush *brush() override { return nullptr; }
+    GameObj *selected() const override { return nullptr; }
+    void select(GameObj *) override {}
+    void setLastSelected(GameObj *) override {}
+    void requestSelectionPass() override { selectionRequested = true; }
+    ObjectEdit objectEdit() const override { return edit; }
+    void setObjectEdit(ObjectEdit chosen) override { edit = chosen; }
+    bool sticks = true;
+    bool pointerSticksToTerrain() const override { return sticks; }
+    void setPointerSticksToTerrain(bool terrainOnly) override { sticks = terrainOnly; }
+    bool shiftDown() const override { return false; }
+    bool controlDown() const override { return false; }
+    float keyMoveStep() const override { return 0.25f; }
+    bool stepReset = false;
+    void resetKeyMoveStep() override { stepReset = true; }
+    float *placementRotation() override { return rotation; }
+    float placementElevation() const override { return 0.0f; }
+    bool autoAddToTrackDb() const override { return true; }
+    bool rotationReset = false;
+    void resetPlacementRotation() override { rotationReset = true; }
+    void rememberPlacement() override {}
+    void terrainToSelected() override { terrainToSelectedCalled = true; }
+    void selectedPositionToTerrain() override {}
+    void selectedRotationToTerrain() override {}
+    void pickPlacementFromSelected() override {}
+    void pickPlacementRotation() override {}
+    void pickPlacementRotationAndElevation() override {}
+    bool placeContinuousFlex(float *) override { continuousFlexPlaced = true; return placeResult; }
+    bool placeContinuousRulerPoint(const float *) override { rulerPlaced = true; return placeResult; }
+    void startTelepole(TelepoleObj *) override {}
+    void activateTool(const QString &id) override { activated = id; }
+    void message(const QString &) override {}
+    void message(const QString &, const QString &) override {}
+    void sendFlexData() override { flexDataSent = true; }
+};
+
+}
+
+int TsreTests::runEditorToolsSuite(bool verbose) {
+    int passed = 0;
+    int failed = 0;
+    auto check = [&](bool condition, const char *name) {
+        if (condition) {
+            ++passed;
+            if (verbose)
+                qInfo() << "[tests:editor-tools] PASS" << name;
+        } else {
+            ++failed;
+            qWarning() << "[tests:editor-tools] FAIL" << name;
+        }
+    };
+
+    ToolRegistry registry;
+    const QStringList objectTools = {"selectTool", "placeTool", "autoPlaceSimpleTool",
+                                     "signalLinkTool", "FlexTool", "continuousFlexTool",
+                                     "continuousFlexRoadTool", "continuousRulerTool"};
+    bool allFound = true;
+    for (const QString &id : objectTools)
+        allFound = allFound && registry.find(id) != nullptr && registry.find(id)->id() == id;
+    check(allFound, "the object tools are registered by their panel names");
+    check(registry.find("proceduralPickTool") == nullptr
+          && registry.allowed("proceduralPickTool", ViewMode::Scene3D)
+          && !registry.allowed("proceduralPickTool", ViewMode::Map),
+          "a name without a tool stays valid in 3D and is 3D only");
+    check(registry.allowed("", ViewMode::Map) && registry.allowed("", ViewMode::Scene3D),
+          "no tool is allowed in every mode");
+    check(registry.allowed("selectTool", ViewMode::Scene3D)
+          && !registry.allowed("selectTool", ViewMode::Map),
+          "the object tools are 3D only for now");
+
+    FakeContext ctx;
+    EditorTool *select = registry.find("selectTool");
+    const ToolMouse mouse{QPointF(5, 5), QPointF(5, 5)};
+    check(select->press(ctx, mouse) && ctx.selectionRequested,
+          "a select click asks for a selection pass");
+    ctx.selectionRequested = false;
+    ctx.edit = ToolContext::ObjectEdit::Rotate;
+    select->press(ctx, mouse);
+    check(!ctx.selectionRequested, "select in rotate mode keeps the selection");
+    ctx.edit = ToolContext::ObjectEdit::Select;
+
+    EditorTool *flex = registry.find("continuousFlexTool");
+    check(!flex->press(ctx, mouse) && ctx.continuousFlexPlaced,
+          "continuous flex places a point and ends the press");
+    EditorTool *ruler = registry.find("continuousRulerTool");
+    check(!ruler->press(ctx, mouse) && ctx.rulerPlaced,
+          "continuous ruler places a point and ends the press");
+    check(registry.find("FlexTool")->press(ctx, mouse) && ctx.flexDataSent,
+          "the flex point tool sends the pointer to the flex properties");
+
+    QKeyEvent keyF(QEvent::KeyPress, Qt::Key_F, Qt::NoModifier);
+    QKeyEvent keyA(QEvent::KeyPress, Qt::Key_A, Qt::NoModifier);
+    check(select->key(ctx, &keyF) && ctx.terrainToSelectedCalled,
+          "F under select fits the terrain to the selected object");
+    check(!select->key(ctx, &keyA), "keys the tool does not use pass on");
+    check(select->wheel(ctx, 1.2f), "select and place use the wheel");
+    check(!registry.find("autoPlaceSimpleTool")->wheel(ctx, 1.2f),
+          "auto place leaves the wheel alone");
+
+    QMenu menu;
+    ctx.edit = ToolContext::ObjectEdit::Translate;
+    select->contextMenu(ctx, menu);
+    QMenu *mode = menu.actions().isEmpty() ? nullptr : menu.actions().first()->menu();
+    int checkedIndex = -1;
+    if (mode != nullptr)
+        for (int i = 0; i < mode->actions().size(); ++i)
+            if (mode->actions()[i]->isChecked())
+                checkedIndex = i;
+    check(mode != nullptr && mode->actions().size() == 4 && checkedIndex == 2,
+          "the select menu offers four modes with the current one checked");
+    if (mode != nullptr && mode->actions().size() == 4)
+        mode->actions()[1]->trigger();
+    check(ctx.edit == ToolContext::ObjectEdit::Rotate, "a mode entry sets the select mode");
+    QMenu placeMenu;
+    registry.find("placeTool")->contextMenu(ctx, placeMenu);
+    check(placeMenu.actions().size() == 3, "place offers pointer, move step and rotation reset");
+    if (placeMenu.actions().size() == 3) {
+        placeMenu.actions()[0]->menu()->actions()[1]->trigger();
+        placeMenu.actions()[1]->trigger();
+        placeMenu.actions()[2]->trigger();
+    }
+    check(!ctx.sticks && ctx.stepReset && ctx.rotationReset,
+          "the place menu sets the pointer and resets step and rotation");
+
+    qInfo().noquote() << "[tests:editor-tools] cases=" << passed + failed << "passed=" << passed
+                      << "failed=" << failed;
+    return failed == 0 ? 0 : 1;
+}

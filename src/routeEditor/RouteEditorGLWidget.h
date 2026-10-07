@@ -26,6 +26,8 @@
 #include <tsre/ogl/Pointer3d.h>
 #include <tsre/world/Ref.h>
 #include <unordered_map>
+#include <memory>
+#include "tools/ToolContext.h"
 
 class Tile;
 class Eng;
@@ -49,10 +51,12 @@ class OpenGL3Renderer;
 class EnvironmentMap;
 class PlanarReflection;
 class RenderQueue;
+class ToolRegistry;
 
 QT_FORWARD_DECLARE_CLASS(QOpenGLShaderProgram)
 
-class RouteEditorGLWidget : public QOpenGLWidget, protected QOpenGLFunctions
+class RouteEditorGLWidget : public QOpenGLWidget, protected QOpenGLFunctions,
+        private ToolContext
 {
     Q_OBJECT
 
@@ -80,7 +84,7 @@ public:
     // Stops simulation updates (traffic, animation) so separate processes
     // render the same scene. Content loading continues.
     void setSimulationPaused(bool paused);
-    Route *currentRoute() const { return route; }
+    Route *currentRoute() const override { return route; }
 
 public slots:
     void cleanup();
@@ -195,6 +199,47 @@ protected:
     void applyPointerToLiveTools();
     float pointerDisplayY() const;
 private:
+    // ToolContext: what the tools reach (tools/ToolContext.h).
+    QWidget *view() override { return this; }
+    ViewMode viewMode() const override { return currentViewMode; }
+    int tileX() const override;
+    int tileZ() const override;
+    float *pointer() override { return aktPointerPos; }
+    float cameraHeading() const override;
+    Brush *brush() override { return defaultPaintBrush; }
+    GameObj *selected() const override { return selectedObj; }
+    void select(GameObj *object) override { setSelectedObj(object); }
+    void setLastSelected(GameObj *object) override { lastSelectedObj = object; }
+    void requestSelectionPass() override { selection = true; }
+    ObjectEdit objectEdit() const override;
+    void setObjectEdit(ObjectEdit edit) override;
+    bool pointerSticksToTerrain() const override { return stickPointerToTerrain; }
+    void setPointerSticksToTerrain(bool terrainOnly) override { stickPointerToTerrain = terrainOnly; }
+    bool shiftDown() const override { return keyShiftEnabled; }
+    bool controlDown() const override { return keyControlEnabled; }
+    float keyMoveStep() const override { return moveStep; }
+    void resetKeyMoveStep() override { selectToolresetMoveStep(); }
+    float *placementRotation() override { return placeRot; }
+    float placementElevation() const override { return placeElev; }
+    bool autoAddToTrackDb() const override { return autoAddToTDB; }
+    void resetPlacementRotation() override { selectToolresetRot(); }
+    void rememberPlacement() override;
+    void terrainToSelected() override { setTerrainToObj(); }
+    void selectedPositionToTerrain() override { adjustObjPositionToTerrainMenu(); }
+    void selectedRotationToTerrain() override { adjustObjRotationToTerrainMenu(); }
+    void pickPlacementFromSelected() override { pickObjForPlacement(); }
+    void pickPlacementRotation() override { pickObjRotForPlacement(); }
+    void pickPlacementRotationAndElevation() override { pickObjRotElevForPlacement(); }
+    bool placeContinuousFlex(float *rotation) override;
+    bool placeContinuousRulerPoint(const float *rotation) override;
+    void startTelepole(TelepoleObj *telepole) override { beginLiveTelepole(telepole); }
+    void activateTool(const QString &id) override { enableTool(id); }
+    void message(const QString &name) override { emit sendMsg(name); }
+    void message(const QString &name, const QString &value) override { emit sendMsg(name, value); }
+    void sendFlexData() override;
+    // The active tool's object; null for no tool or a name without one.
+    EditorTool *activeTool() const;
+
     bool startLiveFlex(bool reuseUndoState = false, bool deleteOnCancel = false,
             bool initialDirectionFromMouse = false);
     bool updateLiveFlex(int pointerTileX, int pointerTileZ,
@@ -267,6 +312,8 @@ private:
     bool mouseRPressed = false;
     bool mouseClick = false;
     QString toolEnabled = "";
+    std::unique_ptr<ToolRegistry> tools;
+    ViewMode currentViewMode = ViewMode::Scene3D;
     float defaultMoveStep = 0.25;
     float moveStep = 0.25;
     //float moveUltraStep = 2.0;

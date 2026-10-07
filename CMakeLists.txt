@@ -81,6 +81,8 @@ file(GLOB TSRE5vc_SRC CONFIGURE_DEPENDS
     "./src/tsre/*.cpp"
     "./src/routeEditor/*.h"
     "./src/routeEditor/*.cpp"
+    "./src/routeEditor/tools/*.h"
+    "./src/routeEditor/tools/*.cpp"
     "./src/routeEditor/activity/*.h"
     "./src/routeEditor/activity/*.cpp"
     "./src/routeEditor/properties/*.h"
