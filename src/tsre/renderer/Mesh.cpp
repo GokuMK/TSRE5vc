@@ -52,6 +52,8 @@ struct Entry {
     QRhiBuffer *rhiVertex = nullptr;
     QRhiBuffer *rhiIndex = nullptr;
     QRhiTexture *rhiData = nullptr;
+    // Uploads of whole data to the QRhi buffers so far.
+    int rhiUploads = 0;
     QByteArray retained;
 };
 
@@ -238,6 +240,7 @@ void Meshes::release(MeshHandle &handle) {
                 s.deadRhiBuffers.push_back(resource);
         entry.rhiVertex = entry.rhiIndex = nullptr;
         entry.rhiData = nullptr;
+        entry.rhiUploads = 0;
         entry.retained.clear();
         entry.sharedIndices = MeshHandle();
         entry.format = MeshData::FloatLayout;
@@ -377,18 +380,22 @@ void uploadDataTexels(const Entry &entry, QRhiResourceUpdateBatch *batch, int of
     batch->uploadTexture(entry.rhiData, QRhiTextureUploadDescription({0, 0, description}));
 }
 
-// A GPU buffer of the size, reusing one that fits exactly. Immutable, not
-// Static: QRhi's Vulkan backend keeps a host copy of a Static buffer, as
-// large as the buffer, for later uploads (one per frame in flight), and frees
-// it after the upload only for Immutable ones. Later uploads still work,
-// through a temporary copy each.
+// A GPU buffer of the size, reusing one that fits exactly. QRhi's Vulkan
+// backend keeps a host copy of a Static buffer, as large as the buffer, for
+// later uploads (one per frame in flight), and frees it after the upload only
+// for Immutable ones, which then allocate a new copy for every later upload
+// (terrain editing: one per patch a brush step, slow on the Steam Deck's
+// driver). Meshes that are edited (dynamic, or uploaded a third time: legacy
+// terrain tiles are built twice while loading, and on every brush step when
+// painted) are Static, the rest Immutable.
 QRhiBuffer *ensureBuffer(Store &s, QRhiBuffer *current, QRhi *rhi, QRhiBuffer::UsageFlags usage,
-                         int size) {
-    if (current != nullptr && current->size() == quint32(size))
+                         int size, bool edited) {
+    const QRhiBuffer::Type type = edited ? QRhiBuffer::Static : QRhiBuffer::Immutable;
+    if (current != nullptr && current->size() == quint32(size) && current->type() == type)
         return current;
     if (current != nullptr)
         s.deadRhiBuffers.push_back(current);
-    QRhiBuffer *buffer = rhi->newBuffer(QRhiBuffer::Immutable, usage, quint32(std::max(size, 4)));
+    QRhiBuffer *buffer = rhi->newBuffer(type, usage, quint32(std::max(size, 4)));
     if (!buffer->create()) {
         delete buffer;
         return nullptr;
@@ -405,6 +412,8 @@ bool prepareRhiLocked(Store &s, MeshHandle handle, QRhi *rhi, QRhiResourceUpdate
         MeshData &data = *entry.pending;
         int size = 0;
         const char *vertexBytes = pendingBytes(data, size);
+        const bool edited = data.dynamic || entry.rhiUploads >= 2;
+        ++entry.rhiUploads;
         if (data.format == MeshData::Buffer) {
             entry.retained = QByteArray(vertexBytes, size);
             // Buffers of other uses are made again from the new bytes.
@@ -414,9 +423,10 @@ bool prepareRhiLocked(Store &s, MeshHandle handle, QRhi *rhi, QRhiResourceUpdate
                     s.deadRhiBuffers.push_back(resource);
             entry.rhiVertex = nullptr;
             entry.rhiData = nullptr;
-            entry.rhiVertex = ensureBuffer(s, nullptr, rhi, QRhiBuffer::IndexBuffer, size);
+            entry.rhiVertex = ensureBuffer(s, nullptr, rhi, QRhiBuffer::IndexBuffer, size, edited);
         } else {
-            entry.rhiVertex = ensureBuffer(s, entry.rhiVertex, rhi, QRhiBuffer::VertexBuffer, size);
+            entry.rhiVertex = ensureBuffer(s, entry.rhiVertex, rhi, QRhiBuffer::VertexBuffer, size,
+                                           edited);
         }
         ++(entry.bytes > 0 ? s.rhiAgainUploads : s.rhiNewUploads);
         s.rhiUploadBytes += size + data.indices.size();
@@ -430,7 +440,7 @@ bool prepareRhiLocked(Store &s, MeshHandle handle, QRhi *rhi, QRhiResourceUpdate
             batch->uploadStaticBuffer(entry.rhiVertex, 0, quint32(size), vertexBytes);
         if (!data.indices.isEmpty()) {
             entry.rhiIndex = ensureBuffer(s, entry.rhiIndex, rhi, QRhiBuffer::IndexBuffer,
-                                          int(data.indices.size()));
+                                          int(data.indices.size()), edited);
             if (entry.rhiIndex != nullptr)
                 batch->uploadStaticBuffer(entry.rhiIndex, 0, quint32(data.indices.size()),
                                           data.indices.constData());

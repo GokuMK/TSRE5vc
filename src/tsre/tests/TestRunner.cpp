@@ -4089,6 +4089,7 @@ QStringList TsreTests::listSuites() {
         "route-load",
         "selection-id",
         "mesh-store",
+        "mesh-upload-rhi-benchmark",
         "environment-map-gl",
         "water-gl",
         "rhi-shaders",
@@ -4154,6 +4155,8 @@ int TsreTests::run(const TestRunOptions &opts) {
         return runSelectionIdSuite(opts.verbose);
     if (suite == "mesh-store")
         return runMeshStoreSuite(opts.verbose);
+    if (suite == "mesh-upload-rhi-benchmark")
+        return runMeshUploadRhiBenchmark(opts.verbose);
     if (suite == "environment-map-gl")
         return runEnvironmentMapGlSuite(opts.verbose);
     if (suite == "water-gl")
