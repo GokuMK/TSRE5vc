@@ -22,7 +22,15 @@ Output goes to `build\hardware\` (ignored by git). Settings go in as
 To measure or capture at a chosen spot, start the editor there:
 `core.startup.camera=tileX,tileZ,x,y,z,yaw,pitch` (tile and position as in
 the navigation window, angles in degrees). **Tools > Copy Camera Position**
-copies the current camera as that `--set` argument.
+copies the current camera in that form: `-Set` takes it as it is, TSRE's
+command line and `startup-args.txt` with `--set=` before it. For example,
+route bbb (the user's test route) facing many lamps, which loads the
+renderer with local lights:
+
+```powershell
+.\Measure-Frames.ps1 -Label vk-lamps -GameRoot C:/trainsim -Route bbb `
+    -Set core.rendering.backend=qrhi, 'core.startup.camera=-5306,14963,-74.32,3.28,690.88,1.87,-0.93'
+```
 
 ```powershell
 cd scripts\hardware

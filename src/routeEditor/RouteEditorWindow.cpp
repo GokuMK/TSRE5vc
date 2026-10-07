@@ -463,9 +463,10 @@ RouteEditorWindow::RouteEditorWindow() {
         qtTrId("route.editor.route.editor.window.action.tools.copy.camera"), this);
     toolsMenu->addAction(copyCameraAction);
     QObject::connect(copyCameraAction, &QAction::triggered, this, [this]() {
-        // A startup argument (startup-args.txt or the command line) that
-        // starts the editor with this camera.
-        QApplication::clipboard()->setText("--set=core.startup.camera=" + glWidget->cameraSetting());
+        // The setting that starts the editor with this camera, as key=value:
+        // after --set= on the command line or in startup-args.txt, or as a
+        // -Set value of the hardware scripts.
+        QApplication::clipboard()->setText("core.startup.camera=" + glWidget->cameraSetting());
     });
     // Settigs
     terrainCameraAction = GuiFunct::newMenuCheckAction(
