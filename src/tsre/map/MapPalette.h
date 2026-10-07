@@ -48,6 +48,8 @@ struct MapPalette {
     QColor speedZone = QColor(255, 0, 102);
     QColor failedSignal = QColor(204, 51, 204);
     QColor event = QColor(255, 0, 0);
+    // The halo around selected objects.
+    QColor selection = QColor(0, 170, 255);
 
     static MapPalette light();
     static MapPalette dark();

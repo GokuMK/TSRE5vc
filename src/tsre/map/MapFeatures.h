@@ -31,6 +31,12 @@ struct MapFeatures {
     // Circular areas: centre x, z and radius.
     std::vector<float> areas;
 
+    void append(const MapFeatures &other) {
+        lines.insert(lines.end(), other.lines.begin(), other.lines.end());
+        points.insert(points.end(), other.points.begin(), other.points.end());
+        vehicles.insert(vehicles.end(), other.vehicles.begin(), other.vehicles.end());
+        areas.insert(areas.end(), other.areas.begin(), other.areas.end());
+    }
     bool empty() const {
         return lines.empty() && points.empty() && vehicles.empty() && areas.empty();
     }

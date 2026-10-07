@@ -10,6 +10,7 @@
 
 #include "TrackItemMapLayer.h"
 #include "MapPalette.h"
+#include "MapSelection.h"
 #include "MapView.h"
 #include "TrackMapLayer.h"
 #include <QDebug>
@@ -20,6 +21,7 @@
 #include <cmath>
 #include <tsre/ogl/OglObj.h>
 #include <tsre/renderer/RenderItem.h>
+#include <tsre/renderer/SelectionId.h>
 #include <tsre/tdb/TDB.h>
 #include <tsre/tdb/TRitem.h>
 #include <tsre/tdb/TRnode.h>
@@ -36,7 +38,8 @@ constexpr int CircleSegments = 12;
 
 }
 
-TrackItemMapLayer::TrackItemMapLayer() : borders(std::make_unique<OglObj>()) {
+TrackItemMapLayer::TrackItemMapLayer()
+    : halos(std::make_unique<OglObj>()), borders(std::make_unique<OglObj>()) {
     for (auto &fill : fills)
         fill = std::make_unique<OglObj>();
 }
@@ -105,7 +108,7 @@ void TrackItemMapLayer::invalidate() {
     valid = false;
 }
 
-void TrackItemMapLayer::buildIndex(Index &index, TDB *database) {
+void TrackItemMapLayer::buildIndex(Index &index, TDB *database, int databaseKind) {
     index.built = true;
     index.items.clear();
     if (database == nullptr || !database->loaded)
@@ -139,6 +142,9 @@ void TrackItemMapLayer::buildIndex(Index &index, TDB *database) {
         position.x = out[0];
         position.z = out[2];
         position.kind = kind;
+        position.database = databaseKind;
+        position.itemId = item->trItemId;
+        position.object = item;
         index.items.insert(int(item->trItemId), position);
     }
 }
@@ -178,22 +184,33 @@ void TrackItemMapLayer::collectObjectMarkers(std::vector<Position> &markers,
                 continue;
             for (const auto &entry : tile->obiekty) {
                 WorldObj *object = entry.second;
+                const int key = entry.first;
                 if (object == nullptr || !object->loaded || !object->isTrackItem())
                     continue;
                 const int kind = kindOfObjectType(object->typeID);
                 if (kind < 0)
                     continue;
                 object->getMapLine(lines[kind], view.tileX, view.tileZ);
+                if (object->isSelected())
+                    object->getMapLine(lines[KindCount], view.tileX, view.tileZ);
                 for (int database = 0; database < 2; ++database) {
                     const Index &index = database == 0 ? trackIndex : roadIndex;
                     ids.clear();
                     object->getTrackItemIds(ids, database);
-                    for (int id : ids) {
-                        auto found = index.items.constFind(id);
+                    // Objects with two items select them as parts 1 and 3,
+                    // as in 3D.
+                    const bool ends = kind == Platform || kind == Siding || kind == CarSpawner;
+                    for (int i = 0; i < ids.size(); ++i) {
+                        auto found = index.items.constFind(ids[i]);
                         if (found == index.items.constEnd())
                             continue;
                         Position position = found.value();
                         position.kind = kind;
+                        position.objectTileX = x;
+                        position.objectTileZ = z;
+                        position.objectKey = key;
+                        position.part = ends ? (i == 0 ? 1 : 3) : 0;
+                        position.object = object;
                         markers.push_back(position);
                     }
                 }
@@ -207,7 +224,7 @@ void TrackItemMapLayer::build(const MapView &view, const MapPalette &palette, Ro
     QElapsedTimer timer;
     timer.start();
     std::vector<Position> markers;
-    std::vector<float> lines[KindCount];
+    std::vector<float> lines[KindCount + 1];
     if (worldObjects)
         collectObjectMarkers(markers, lines, view, route, tiles);
     else
@@ -215,8 +232,10 @@ void TrackItemMapLayer::build(const MapView &view, const MapPalette &palette, Ro
 
     const float radius = 0.5f * MarkerPixels * view.metresPerPixel;
     const float border = radius + BorderPixels * view.metresPerPixel;
+    std::vector<float> haloVertices;
     std::vector<float> borderVertices;
     std::vector<float> fillVertices[KindCount];
+    const float halo = border + HaloPixels * view.metresPerPixel;
     const float lineWidth = LinePixels * view.metresPerPixel;
     const float lineBorder = lineWidth + 2.0f * BorderPixels * view.metresPerPixel;
     for (int kind = 0; kind < KindCount; ++kind) {
@@ -229,6 +248,12 @@ void TrackItemMapLayer::build(const MapView &view, const MapPalette &palette, Ro
             segments[i] = FillHeight;
         TrackMapLayer::appendRibbons(fillVertices[kind], segments.data(), count, lineWidth);
     }
+    // A selected object's line gets the halo too.
+    std::vector<float> &selectedLines = lines[KindCount];
+    for (size_t i = 1; i < selectedLines.size(); i += 3)
+        selectedLines[i] = HaloHeight;
+    TrackMapLayer::appendRibbons(haloVertices, selectedLines.data(), int(selectedLines.size() / 6),
+                                 lineBorder + 2.0f * HaloPixels * view.metresPerPixel);
     for (const Position &marker : markers) {
         if (marker.kind < 0 || marker.kind >= KindCount)
             continue;
@@ -236,11 +261,14 @@ void TrackItemMapLayer::build(const MapView &view, const MapPalette &palette, Ro
         const float z = float(-marker.tileZ - view.tileZ) * 2048.0f - marker.z;
         appendCircle(borderVertices, x, BorderHeight, z, border);
         appendCircle(fillVertices[marker.kind], x, FillHeight, z, radius);
+        if (marker.object != nullptr && marker.object->isSelected())
+            appendCircle(haloVertices, x, HaloHeight, z, halo);
     }
     auto upload = [](OglObj &object, std::vector<float> &vertices, const QColor &colour) {
         object.setMaterial(float(colour.redF()), float(colour.greenF()), float(colour.blueF()));
         object.init(vertices.data(), int(vertices.size()), RenderItem::V, GL_TRIANGLES);
     };
+    upload(*halos, haloVertices, palette.selection);
     upload(*borders, borderVertices, palette.itemBorder);
     for (int kind = 0; kind < KindCount; ++kind)
         upload(*fills[kind], fillVertices[kind], colour(palette, kind));
@@ -252,9 +280,10 @@ void TrackItemMapLayer::build(const MapView &view, const MapPalette &palette, Ro
     builtWorldObjects = worldObjects;
     std::copy(tiles, tiles + 4, builtTiles);
     builtPalette = palette.name;
+    builtMarkers = std::move(markers);
     if (trace)
         qInfo().noquote() << "map-trace items" << (worldObjects ? "objects" : "database")
-                          << "m/px" << view.metresPerPixel << "markers" << markers.size()
+                          << "m/px" << view.metresPerPixel << "markers" << builtMarkers.size()
                           << "ms" << timer.nsecsElapsed() / 1e6;
 }
 
@@ -262,9 +291,9 @@ void TrackItemMapLayer::pushRenderItems(RenderQueue &queue, const MapView &view,
                                         const MapPalette &palette, Route *route, TDB *track,
                                         TDB *road) {
     if (!trackIndex.built)
-        buildIndex(trackIndex, track);
+        buildIndex(trackIndex, track, 0);
     if (!roadIndex.built)
-        buildIndex(roadIndex, road);
+        buildIndex(roadIndex, road, 1);
     const bool worldObjects = drawsWorldObjects(view);
     // Zoomed in, the tiles in view, whose world files the map loads; zoomed
     // out, the database items of the tiles in view and one more around.
@@ -290,7 +319,28 @@ void TrackItemMapLayer::pushRenderItems(RenderQueue &queue, const MapView &view,
         build(view, palette, route, tiles, worldObjects);
         builtObjects = objects;
     }
+    halos->pushRenderItem(queue);
     borders->pushRenderItem(queue);
     for (auto &fill : fills)
         fill->pushRenderItem(queue);
+}
+
+void TrackItemMapLayer::pushSelection(MapSelection &selection, const MapView &view) const {
+    // The markers of the last build, also when a rebuild is pending (the
+    // selection or a tool changed what they look like, not where they are).
+    const float radius = (0.5f * MarkerPixels + BorderPixels + MapSelection::MarginPixels)
+            * view.metresPerPixel;
+    for (const Position &marker : builtMarkers) {
+        quint32 id = 0;
+        const bool ok = marker.objectKey >= 0
+                ? SelectionIdCodec::tryWorldObject(marker.objectTileX - view.tileX,
+                                                   marker.objectTileZ - view.tileZ,
+                                                   marker.objectKey, marker.part, id)
+                : SelectionIdCodec::tryDatabaseItem(marker.database, marker.itemId, id);
+        if (!ok)
+            continue;
+        const float x = float(marker.tileX - view.tileX) * 2048.0f + marker.x;
+        const float z = float(-marker.tileZ - view.tileZ) * 2048.0f - marker.z;
+        appendCircle(selection.shape(id), x, FillHeight, z, radius);
+    }
 }

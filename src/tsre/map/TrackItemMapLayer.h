@@ -17,6 +17,8 @@
 #include <memory>
 #include <vector>
 
+class GameObj;
+class MapSelection;
 class MapView;
 class OglObj;
 class RenderQueue;
@@ -46,6 +48,9 @@ public:
     static constexpr float MarkerPixels = 11.0f;
     static constexpr float LinePixels = 3.0f;
     static constexpr float BorderPixels = 1.5f;
+    // Selected objects get a halo of this many pixels around the border.
+    static constexpr float HaloPixels = 3.0f;
+    static constexpr float HaloHeight = 595.0f;
     static constexpr float BorderHeight = 600.0f;
     static constexpr float FillHeight = 610.0f;
 
@@ -53,8 +58,13 @@ public:
     ~TrackItemMapLayer();
     void pushRenderItems(RenderQueue &queue, const MapView &view, const MapPalette &palette,
                          Route *route, TDB *track, TDB *road);
+    // The markers last drawn, with the 3D view's selection IDs: database
+    // items zoomed out, world objects (and their parts) zoomed in.
+    void pushSelection(MapSelection &selection, const MapView &view) const;
     // The databases or world objects changed: positions are found again.
     void invalidate();
+    // Builds the geometry again on the next draw (the selection changed).
+    void rebuild() { valid = false; }
 
     // The kind of a database item or a world object; -1 for what the map
     // does not draw. Public for tests.
@@ -74,14 +84,24 @@ private:
         float x = 0.0f;
         float z = 0.0f;
         int kind = -1;
+        // What a pick selects: the database item, or the world object (its
+        // tile in the view's convention, key and part) zoomed in.
+        int database = 0;
+        unsigned int itemId = 0;
+        int objectTileX = 0;
+        int objectTileZ = 0;
+        int objectKey = -1;
+        int part = 0;
+        GameObj *object = nullptr;
     };
     struct Index {
         bool built = false;
         QHash<int, Position> items;
     };
-    void buildIndex(Index &index, TDB *database);
+    void buildIndex(Index &index, TDB *database, int databaseKind);
     void collectDatabaseMarkers(std::vector<Position> &markers, const int *tiles);
-    // Also the objects' lines, by kind, relative to the view's tile.
+    // Also the objects' lines, by kind, relative to the view's tile, and the
+    // selected objects' lines again in lines[KindCount].
     void collectObjectMarkers(std::vector<Position> &markers, std::vector<float> *lines,
                               const MapView &view, Route *route, const int *tiles);
     // The objects of the loaded tiles in a range, loading the tiles.
@@ -99,6 +119,8 @@ private:
     int builtTiles[4] = {0, 0, 0, 0};
     int builtObjects = 0;
     QString builtPalette;
+    std::vector<Position> builtMarkers;
+    std::unique_ptr<OglObj> halos;
     std::unique_ptr<OglObj> borders;
     std::unique_ptr<OglObj> fills[KindCount];
 };

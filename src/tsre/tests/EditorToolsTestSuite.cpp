@@ -42,6 +42,7 @@ public:
     void select(GameObj *) override {}
     void setLastSelected(GameObj *) override {}
     void requestSelectionPass() override { selectionRequested = true; }
+    bool pointerOnTrack(int &, int &, float *) override { return false; }
     ObjectEdit objectEdit() const override { return edit; }
     void setObjectEdit(ObjectEdit chosen) override { edit = chosen; }
     bool sticks = true;
@@ -109,9 +110,10 @@ int TsreTests::runEditorToolsSuite(bool verbose) {
           "a name without a tool stays valid in 3D and is 3D only");
     check(registry.allowed("", ViewMode::Map) && registry.allowed("", ViewMode::Scene3D),
           "no tool is allowed in every mode");
-    check(registry.allowed("selectTool", ViewMode::Scene3D)
-          && !registry.allowed("selectTool", ViewMode::Map),
-          "the object tools are 3D only for now");
+    check(registry.allowed("placeTool", ViewMode::Scene3D)
+          && !registry.allowed("placeTool", ViewMode::Map)
+          && registry.allowed("selectTool", ViewMode::Map),
+          "placing is 3D only; selecting works on the map too");
 
     FakeContext ctx;
     EditorTool *select = registry.find("selectTool");
@@ -231,29 +233,29 @@ int TsreTests::runEditorToolsSuite(bool verbose) {
 
     // Tool panel buttons follow the view mode; a button's own condition
     // stays with it.
-    QPushButton selectButton, picker, needsSelection;
+    QPushButton placeButton, picker, needsSelection;
     const QMap<QString, QPushButton *> buttons = {
-        {"selectTool", &selectButton}, {"proceduralPickTool", &picker},
+        {"placeTool", &placeButton}, {"proceduralPickTool", &picker},
         {"autoPlaceSimpleTool", &needsSelection}, {"", nullptr}};
     ToolButtons::setRegistry(&registry);
     ToolButtons::setAvailable(&needsSelection, false);
     ToolButtons::applyMode(buttons, ToolButtons::modeOf("map"));
-    const bool mapOff = !selectButton.isEnabled() && !picker.isEnabled()
+    const bool mapOff = !placeButton.isEnabled() && !picker.isEnabled()
             && !needsSelection.isEnabled();
     ToolButtons::setAvailable(&needsSelection, true);
     const bool stillOff = !needsSelection.isEnabled();
     ToolButtons::applyMode(buttons, ToolButtons::modeOf("3d"));
-    check(mapOff && stillOff && selectButton.isEnabled() && picker.isEnabled()
+    check(mapOff && stillOff && placeButton.isEnabled() && picker.isEnabled()
                   && needsSelection.isEnabled(),
           "panel buttons: off in map mode for 3D tools, back in 3D with their own condition");
     ToolButtons::setAvailable(&needsSelection, false);
-    check(!needsSelection.isEnabled() && selectButton.isEnabled(),
+    check(!needsSelection.isEnabled() && placeButton.isEnabled(),
           "panel buttons: a button's own condition still disables it in 3D");
     check(registry.allowed("actNewLooseConsistTool", ViewMode::Map)
                   && registry.allowed("actNewSpeedZoneTool", ViewMode::Map)
                   && registry.allowed("pickNewEventLocationTool", ViewMode::Map)
                   && ToolButtons::allowed("pickNewEventLocationTool", ViewMode::Map)
-                  && !ToolButtons::allowed("selectTool", ViewMode::Map),
+                  && !ToolButtons::allowed("placeTool", ViewMode::Map),
           "activity tools work in map mode; the others stay 3D only");
     ToolButtons::setRegistry(nullptr);
 

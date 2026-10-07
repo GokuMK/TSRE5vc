@@ -73,6 +73,7 @@ bool MapPalette::fromJson(const QByteArray &json, MapPalette &palette, QString *
     read("speedZone", palette.speedZone);
     read("failedSignal", palette.failedSignal);
     read("event", palette.event);
+    read("selection", palette.selection);
     return true;
 }
 

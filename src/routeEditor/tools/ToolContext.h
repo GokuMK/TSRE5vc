@@ -52,6 +52,10 @@ public:
     virtual void setLastSelected(GameObj *object) = 0;
     // Picks the object under the mouse with the next frame.
     virtual void requestSelectionPass() = 0;
+    // The nearest track point to the pointer measured across the ground,
+    // for map mode where the pointer has no height: tileX, tileZ and
+    // position (x, y, z) are replaced by it. False without track.
+    virtual bool pointerOnTrack(int &tileX, int &tileZ, float *position) = 0;
     virtual ObjectEdit objectEdit() const = 0;
     virtual void setObjectEdit(ObjectEdit edit) = 0;
     // Whether the pointer stays on the terrain or also lands on objects.

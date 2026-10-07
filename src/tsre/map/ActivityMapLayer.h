@@ -17,6 +17,7 @@
 #include <vector>
 #include "MapFeatures.h"
 
+class MapSelection;
 class MapView;
 class OglObj;
 class RenderQueue;
@@ -44,6 +45,9 @@ public:
     // Under the track lines (TrackMapLayer: road 100, track 200).
     static constexpr float PathHeight = 150.0f;
     // Above the track objects (600, 610) and under the pointer (900).
+    // Selected objects get a halo of this many pixels around the border.
+    static constexpr float HaloPixels = 3.0f;
+    static constexpr float HaloHeight = 695.0f;
     static constexpr float BorderHeight = 700.0f;
     static constexpr float AreaHeight = 705.0f;
     static constexpr float FillHeight = 710.0f;
@@ -53,6 +57,10 @@ public:
     void pushRenderItems(RenderQueue &queue, const MapView &view, const MapPalette &palette,
                          Route *route, bool activity, bool paths);
     void invalidate() { valid = false; }
+    // The activity's selectable parts with the 3D view's selection IDs:
+    // each vehicle of a consist, speed zone ends, failed signals.
+    void pushSelection(MapSelection &selection, const MapView &view, Route *route,
+                       bool activity) const;
 
     static QColor colour(const MapPalette &palette, int group);
     // A vehicle's footprint as two triangles, grown by a margin all round
@@ -72,6 +80,7 @@ private:
     QString builtPalette;
     std::vector<const void *> builtSources;
     std::unique_ptr<OglObj> pathBand;
+    std::unique_ptr<OglObj> halos;
     std::unique_ptr<OglObj> borders;
     std::unique_ptr<OglObj> areas;
     std::unique_ptr<OglObj> fills[GroupCount];

@@ -76,6 +76,7 @@
 #include <tsre/map/MapPalette.h>
 #include <tsre/map/MapView.h>
 #include <tsre/map/ActivityMapLayer.h>
+#include <tsre/map/MapSelection.h>
 #include <tsre/map/TrackItemMapLayer.h>
 #include <tsre/map/TrackMapLayer.h>
 #include <tsre/ogl/OglObj.h>
@@ -472,12 +473,17 @@ void RouteEditorGLWidget::paintGL(){
     Terrain::beginProceduralFrame();
     renderer->resetState();
 
+    const bool selectionPass = selection;
     if (currentViewMode == ViewMode::Map) {
         paintMap();
+        // As in 3D, a selection pass is followed by a visible frame.
+        if (selectionPass && !selection) {
+            renderer->resetState();
+            paintMap();
+        }
         return;
     }
 
-    const bool selectionPass = selection;
     paintScene();
 
     if(selectionPass && !selection){
@@ -1030,6 +1036,7 @@ void RouteEditorGLWidget::applySelection(quint32 selectionId,
     if(route == NULL || !route->loaded)
         return;
 
+    appliedSelectionId = selectionId;
     const SelectionIdCodec::DecodedSelection decoded =
             SelectionIdCodec::decode(selectionId);
     qDebug() << selectionId;
@@ -1433,9 +1440,21 @@ void RouteEditorGLWidget::mousePressEvent(QMouseEvent *event) {
     mouseClick = true;
     if (currentViewMode == ViewMode::Map) {
         // Both buttons move the map; a left click that does not move it
-        // goes to the active tool (mouseReleaseEvent).
+        // goes to the active tool (mouseReleaseEvent). A left press on the
+        // selected activity object drags it with the select tool instead.
         mapPressPos = m_lastPos;
-        camera->MouseDown(event);
+        mapDraggingObject = false;
+        EditorTool *tool = activeTool();
+        if (event->button() == Qt::LeftButton && tool != nullptr && tool->id() == "selectTool"
+                && selectedObj != NULL && selectedObj->typeObj == GameObj::activityobj
+                && appliedSelectionId != 0) {
+            const QVector<quint32> picked = probeSelectionIds({m_lastPos.toPoint()});
+            mapDraggingObject = !picked.isEmpty() && picked.first() == appliedSelectionId;
+        }
+        if (mapDraggingObject)
+            Undo::StateBegin();
+        else
+            camera->MouseDown(event);
         setFocus();
         return;
     }
@@ -1571,6 +1590,11 @@ void RouteEditorGLWidget::mouseReleaseEvent(QMouseEvent* event) {
     camera->MouseUp(event);
     if (currentViewMode == ViewMode::Map) {
         mouseClick = false;
+        if (mapDraggingObject) {
+            mapDraggingObject = false;
+            Undo::StateEnd();
+            return;
+        }
         const QPointF position = event->position() * Game::PixelRatio;
         const QPointF moved = position - mapPressPos;
         EditorTool *tool = activeTool();
@@ -1584,7 +1608,7 @@ void RouteEditorGLWidget::mouseReleaseEvent(QMouseEvent* event) {
             tool->press(*this, ToolMouse{position, position});
             Undo::StateEnd();
             // What the tool changed shows on the next draw.
-            trackItemMap->invalidate();
+            trackItemMap->rebuild();
             activityMap->invalidate();
             update();
         }
@@ -1620,10 +1644,18 @@ void RouteEditorGLWidget::mouseMoveEvent(QMouseEvent *event) {
     mousex = event->position().x() * Game::PixelRatio;
     mousey = event->position().y() * Game::PixelRatio;
     if (currentViewMode == ViewMode::Map) {
-        if (event->buttons() & (Qt::LeftButton | Qt::RightButton))
+        const QPointF position = event->position() * Game::PixelRatio;
+        if (mapDraggingObject && (event->buttons() & Qt::LeftButton)) {
+            if (EditorTool *tool = activeTool()) {
+                updateMapPointer();
+                tool->drag(*this, ToolMouse{position, m_lastPos});
+                activityMap->invalidate();
+                update();
+            }
+        } else if (event->buttons() & (Qt::LeftButton | Qt::RightButton)) {
             camera->MouseMove(event);
-        m_lastPos = event->position();
-        m_lastPos *= Game::PixelRatio;
+        }
+        m_lastPos = position;
         return;
     }
 
@@ -1720,12 +1752,14 @@ void RouteEditorGLWidget::updateMapPointer() {
 void RouteEditorGLWidget::paintMap() {
     if (renderer == NULL || gluu->shaders[MainRenderShaderName] == NULL)
         return;
-    // Selection and the tools that would ask for it are 3D only for now.
-    selection = false;
     const int width = qRound(float(this->width()) * Game::PixelRatio);
     const int height = qRound(float(this->height()) * Game::PixelRatio);
     cameraMap->setViewport(width, height);
     updateMapPointer();
+    if (selection) {
+        paintMapSelection(width, height);
+        return;
+    }
     if (mapPaletteSetting != Game::mapPalette) {
         mapPalette = MapPalette::named(Game::mapPalette);
         mapPaletteSetting = Game::mapPalette;
@@ -1812,6 +1846,68 @@ void RouteEditorGLWidget::paintMap() {
         emit this->pointerInfo(aktPointerPos);
     }
     drawEditorFpsHud();
+}
+
+void RouteEditorGLWidget::paintMapSelection(int width, int height) {
+    if (gluu->shaders["Selection"] == NULL || selectionRenderer == NULL
+            || !selectionRenderer->begin(width, height)) {
+        qWarning() << "Could not start the map selection pass";
+        selection = false;
+        update();
+        return;
+    }
+    renderer->resetFrame();
+    renderer->setViewPosition(camera->getPos());
+    RenderQueue &queue = *renderer;
+    Mat4::identity(renderer->transform());
+    renderer->setShadowCasting(false);
+    renderer->setLayer(RenderQueue::LAYER_OVERLAY);
+    const MapView &view = cameraMap->view;
+    if (!mapSelection)
+        mapSelection = std::make_unique<MapSelection>();
+    mapSelection->clear();
+    if (mapLayers.shows(MapLayer::TrackObjects))
+        trackItemMap->pushSelection(*mapSelection, view);
+    activityMap->pushSelection(*mapSelection, view, route, mapLayers.shows(MapLayer::Activity));
+    mapSelection->pushRenderItems(queue);
+    renderer->setLayer(RenderQueue::LAYER_SCENE);
+    renderer->setShadowCasting(true);
+
+    gluu->currentShader = gluu->shaders["Selection"];
+    gluu->currentShader->bind();
+    const bool blendingWasEnabled = renderer->setBlending(false);
+    Mat4::identity(gluu->mvMatrix);
+    Mat4::identity(renderer->transform());
+    Renderer::LayeredView mapView;
+    mapView.view = camera->getMatrix();
+    const MapView projectionView = view;
+    mapView.projection = [projectionView](float, float, float *out) {
+        projectionView.projection(out);
+    };
+    mapView.sceneFar = MapView::FarPlane;
+    mapView.distantFar = MapView::FarPlane;
+    mapView.water = false;
+    renderer->beginViewBand(mapView, Renderer::BAND_SCENE);
+    renderer->renderPasses(Renderer::PASS_TERRAIN, Renderer::PASS_OVERLAY);
+    renderer->endView(mapView);
+    renderer->renderFrame();
+    if (blendingWasEnabled)
+        renderer->setBlending(true);
+    handleSelection();
+    selectionRenderer->end();
+    gluu->currentShader->release();
+}
+
+bool RouteEditorGLWidget::pointerOnTrack(int &tileX, int &tileZ, float *position) {
+    if (Game::trackDB == NULL)
+        return false;
+    Game::check_coords(tileX, tileZ, position);
+    float posT[2] = {float(tileX), float(tileZ)};
+    if (Game::trackDB->findNearestPositionOnTDB(posT, position, NULL, NULL, false) < 0)
+        return false;
+    tileX = int(posT[0]);
+    tileZ = int(posT[1]);
+    return true;
 }
 
 EditorTool *RouteEditorGLWidget::activeTool() const {
@@ -2093,6 +2189,11 @@ void RouteEditorGLWidget::setSelectedObj(GameObj* o) {
         finishLiveTelepole(false);
     selectedObj = o;
     Game::currentSelectedGameObj = selectedObj;
+    // The map shows what is selected.
+    if (trackItemMap)
+        trackItemMap->rebuild();
+    if (activityMap)
+        activityMap->invalidate();
     emit showProperties(selectedObj);
     if (o != NULL)
         if (o->typeObj == o->worldobj)

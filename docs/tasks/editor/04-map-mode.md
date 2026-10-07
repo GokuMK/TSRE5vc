@@ -33,6 +33,23 @@ Phase 1 core, as built:
     2 to 24 m farther on about 1% of clicks (EUROPE1, USA1, JAPAN1) and
     shifted the point up to 6 m along the right track. 3D mode keeps
     searching with the pointer's height.
+  - **Selection** works on the map through the selection pass, with the
+    3D view's IDs and handling (`applySelection`), so the same objects,
+    parts, properties and undo apply:
+    - zoomed in, track objects are world objects (platform, siding and
+      car spawner ends as parts 1 and 3); zoomed out, database items;
+    - activity: each vehicle of a loose or the player's consist, speed
+      zone ends, failed signals;
+    - hit areas are 3 pixels larger than the markers
+      (`MapSelection`), drawn only for the pass.
+    - Selected objects get a halo (palette `selection`, cyan).
+    - The select tool supports map mode: a click selects; a drag that
+      starts on the selected activity object moves it along the track
+      (the pointer is first put on the nearest track across the ground,
+      `ToolContext::pointerOnTrack`); any other drag pans. World objects
+      are not moved on the map, as it has no ground height.
+    - Not yet: track and road lines (later, with thicker lines when
+      zoomed in), events and path nodes (not selectable in 3D either).
   - Speed zones store only x and z for their ends. They now find their
     track across the ground too, not at the terrain height under them,
     which is not loaded on the map and could pick the end the other way

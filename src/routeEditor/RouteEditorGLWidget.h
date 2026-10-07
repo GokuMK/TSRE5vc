@@ -58,6 +58,7 @@ class CameraMap;
 class TrackMapLayer;
 class TrackItemMapLayer;
 class ActivityMapLayer;
+class MapSelection;
 
 QT_FORWARD_DECLARE_CLASS(QOpenGLShaderProgram)
 
@@ -216,6 +217,7 @@ private:
     void select(GameObj *object) override { setSelectedObj(object); }
     void setLastSelected(GameObj *object) override { lastSelectedObj = object; }
     void requestSelectionPass() override { selection = true; }
+    bool pointerOnTrack(int &tileX, int &tileZ, float *position) override;
     ObjectEdit objectEdit() const override;
     void setObjectEdit(ObjectEdit edit) override;
     bool pointerSticksToTerrain() const override { return stickPointerToTerrain; }
@@ -250,6 +252,9 @@ private:
     EditorTool *activeTool() const;
     // Draws the map mode's frame.
     void paintMap();
+    // The map's selection pass: the layers' selectable shapes with 3D's IDs,
+    // read and applied as in 3D.
+    void paintMapSelection(int width, int height);
     // The pointer in map mode: the ground under the mouse, on the map
     // plane (height 0; the map loads no terrain).
     void updateMapPointer();
@@ -336,6 +341,12 @@ private:
     // more than this goes to the active tool.
     static constexpr float MapClickPixels = 4.0f;
     QPointF mapPressPos;
+    // A left press on the map that picked the selected activity object:
+    // the drag moves it instead of the map.
+    bool mapDraggingObject = false;
+    std::unique_ptr<MapSelection> mapSelection;
+    // The ID of the last selection applied, to know a press is on it.
+    quint32 appliedSelectionId = 0;
     OglObj *mapPointer = NULL;
     MapPalette mapPalette;
     MapLayers mapLayers;

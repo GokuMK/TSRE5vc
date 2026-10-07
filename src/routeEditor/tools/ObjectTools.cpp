@@ -274,7 +274,9 @@ bool ObjectEditTool::key(ToolContext &ctx, QKeyEvent *event) {
 
 class SelectTool : public ObjectEditTool {
 public:
-    SelectTool() : ObjectEditTool("selectTool") {}
+    // On the map it selects, and moves activity objects along the track;
+    // world objects stay where they are, as the map has no ground height.
+    SelectTool() : ObjectEditTool("selectTool", ViewMode::Scene3D | ViewMode::Map) {}
 
     bool press(ToolContext &ctx, const ToolMouse &) override {
         pressTime = QDateTime::currentMSecsSinceEpoch();
@@ -283,7 +285,7 @@ public:
             ctx.requestSelectionPass();
         GameObj *object = ctx.selected();
         if (object != nullptr && edit == ToolContext::ObjectEdit::Translate
-                && object->typeObj == GameObj::worldobj) {
+                && object->typeObj == GameObj::worldobj && ctx.viewMode() == ViewMode::Scene3D) {
             Undo::PushGameObjData(object);
             float position[3];
             int tileX = ctx.tileX();
@@ -299,6 +301,19 @@ public:
         GameObj *object = ctx.selected();
         if (object == nullptr)
             return;
+        if (ctx.viewMode() == ViewMode::Map) {
+            // The view drags only what the press picked: activity objects,
+            // moved to the track under the pointer.
+            int tileX = ctx.tileX();
+            int tileZ = ctx.tileZ();
+            float position[3] = {ctx.pointer()[0], ctx.pointer()[1], ctx.pointer()[2]};
+            if (object->typeObj == GameObj::activityobj
+                    && ctx.pointerOnTrack(tileX, tileZ, position)) {
+                Undo::PushGameObjData(object);
+                object->setPosition(tileX, tileZ, position);
+            }
+            return;
+        }
         const ToolContext::ObjectEdit edit = ctx.objectEdit();
         if (edit == ToolContext::ObjectEdit::Select
                 && QDateTime::currentMSecsSinceEpoch() - pressTime > DragDelayMs) {
