@@ -38,6 +38,7 @@
 #include <set>
 
 #include <tsre/Game.h>
+#include <QScopedValueRollback>
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <tsre/math3d/Flex.h>
 #include <tsre/math3d/GLMatrix.h>
@@ -4136,6 +4137,9 @@ int TsreTests::run(const TestRunOptions &opts) {
     const QString suite = suiteNameNormalized(opts.suite);
 
     Game::gui = false;
+    // Suites named -gl test the OpenGL renderer, whichever the profile selects.
+    const QScopedValueRollback<QString> backend(
+            Game::renderBackend, suite.endsWith("-gl") ? QString("opengl") : Game::renderBackend);
 
     if (suite.isEmpty() || suite == "flex-point")
         return runFlexPointSuite(opts.verbose);

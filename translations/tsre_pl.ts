@@ -8434,6 +8434,26 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
             <source>16384 px</source>
             <translation>16384 px</translation>
         </message>
+        <message id="settings.core.rendering.blended.parts.name">
+            <source>Blended shape parts</source>
+            <translation>Mieszane części kształtów</translation>
+        </message>
+        <message id="settings.core.rendering.blended.parts.description">
+            <source>MSTS shapes mark many opaque parts as blended. Draw such parts with the opaque ones when their texture has no partly transparent texels, so they sort correctly and receive ambient occlusion.</source>
+            <translation>Kształty MSTS oznaczają wiele nieprzezroczystych części jako mieszane. Rysuj takie części razem z nieprzezroczystymi, gdy ich tekstura nie ma częściowo przezroczystych tekseli, aby były poprawnie sortowane i otrzymywały okluzję otoczenia.</translation>
+        </message>
+        <message id="settings.core.rendering.blended.parts.option.0">
+            <source>As marked in the shape</source>
+            <translation>Tak jak w kształcie</translation>
+        </message>
+        <message id="settings.core.rendering.blended.parts.option.1">
+            <source>Opaque when the texture is opaque</source>
+            <translation>Nieprzezroczyste, gdy tekstura jest nieprzezroczysta</translation>
+        </message>
+        <message id="settings.core.rendering.blended.parts.option.2">
+            <source>Also alpha-tested when the texture alpha is on/off</source>
+            <translation>Także test alfa, gdy alfa tekstury jest zero-jedynkowa</translation>
+        </message>
         <message id="settings.core.rendering.environment.map.enabled.name">
             <location filename="../src/settings/SettingsRegistration.cpp" line="763" />
             <source>Render environment map</source>

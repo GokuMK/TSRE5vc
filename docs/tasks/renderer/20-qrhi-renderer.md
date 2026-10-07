@@ -141,6 +141,12 @@ Open:
 
 - Water visibility without occlusion queries (the reflection is drawn
   whenever water is in view).
+- DXT1 with alpha (most MSTS content): Qt's `BC1` is the opaque variant
+  on Vulkan and OpenGL, so these textures are decoded to RGBA8, 8 times
+  their DXT1 size (BNSF_SCENIC, one view: 80 of 88 textures, 64 MB instead
+  of 8). Plan, deferred by the user: transcode to BC3 at upload. Alpha and
+  4-colour blocks stay exact; in 3-colour blocks the midpoint colour moves
+  by up to a sixth of the endpoint difference.
 - Direct3D and Metal are not created yet (their init parameters are
   missing; `auto` falls back to Vulkan or OpenGL). Full-screen passes flip
   y where clip space and the framebuffer disagree about it (those two), by

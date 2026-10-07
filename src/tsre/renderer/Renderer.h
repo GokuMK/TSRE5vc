@@ -110,6 +110,10 @@ public:
     virtual void beginViewBand(const LayeredView &view, ViewBand band) = 0;
     // Ends a view: culling, limits and mirroring off.
     virtual void endView(const LayeredView &view) = 0;
+    // For a view drawn without bands (Shape Viewer): its projection (without
+    // the camera) and depth planes, which screen-space effects such as
+    // ambient occlusion need to rebuild positions from depth.
+    virtual void setSceneProjection(const float *projection, float zNear, float zFar) {}
     // Draws all bands of a view without consuming the queue (secondary views
     // such as environment map faces and the water reflection). Transmissive
     // surfaces there see the environment instead of a copy of the view.

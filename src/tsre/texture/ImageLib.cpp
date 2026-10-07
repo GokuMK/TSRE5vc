@@ -61,6 +61,7 @@ void ImageLib::run(){
     //    lineWidth = lineWidth + 4 - lineWidth%4;
     //memcpy(texture->imageData, img.bits(), texture->width*texture->height*texture->bytesPerPixel);
     
+    texture->classifyAlpha();
     texture->loaded = true;
     texture->editable = true;
     

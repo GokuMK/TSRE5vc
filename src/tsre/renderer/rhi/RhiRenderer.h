@@ -40,6 +40,7 @@ public:
     void renderPassesMeasured(RenderPass first, RenderPass last) override;
     long long measuredSamples() override { return -1; }
     void beginViewBand(const LayeredView &view, ViewBand band) override;
+    void setSceneProjection(const float *projection, float zNear, float zFar) override;
     void endView(const LayeredView &view) override;
     bool programsReady() const override;
     void useProgram(Program program) override;

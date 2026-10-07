@@ -100,6 +100,7 @@ bool AceLib::load(const QString &path, Texture &target, const AceLoadOptions &o,
         incoming.imageData = base.release();
         incoming.editable = true;
     }
+    incoming.classifyAlpha();
     incoming.loaded = true;
     target.takeContentFrom(incoming);
     error.clear();

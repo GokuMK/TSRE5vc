@@ -318,6 +318,7 @@ void AceLibLegacy::run() {
         texture->width = nw;
         texture->height = nh;
     }
+    texture->classifyAlpha();
     texture->loaded = true;
     texture->editable = (texture->imageData != nullptr);
     //qDebug() << "--";

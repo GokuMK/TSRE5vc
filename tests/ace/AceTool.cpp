@@ -3,6 +3,7 @@
 #include <tsre/texture/AceLibLegacy.h>
 #include <tsre/texture/Texture.h>
 #include <tsre/texture/DxtCodec.h>
+#include <tsre/texture/TextureAlpha.h>
 #include <tsre/world/TerrainFileData.h>
 #include "AceDxt3Diagnostic.h"
 #include <QGuiApplication>
@@ -81,7 +82,74 @@ bool build(int w, int h, AceEncoding encoding, bool mips, bool zipped, AceDocume
     return AceDocument::fromPixels(reinterpret_cast<const unsigned char *>(p.constData()), p.size(),
                                    w, h, 4, o, doc, error);
 }
+// Alpha classes of texels and DXT blocks (TextureAlpha), from hand-made
+// blocks so every case is exact.
+void alphaClassChecks() {
+    using namespace TextureAlpha;
+    auto rgba = [](std::initializer_list<int> alphas) {
+        QByteArray pixels;
+        for (int a : alphas)
+            pixels.append(QByteArray("\x80\x80\x80", 3)).append(char(a));
+        return pixels;
+    };
+    auto pixelClass = [](const QByteArray &pixels, int components) {
+        return ofPixels(reinterpret_cast<const unsigned char *>(pixels.constData()),
+                        pixels.size() / components, components);
+    };
+    check(pixelClass(rgba({255, 252, 250}), 4) == Opaque, "alpha: RGBA from 250 up is opaque");
+    check(pixelClass(rgba({255, 0, 5}), 4) == Binary, "alpha: RGBA with 0 and 255 is binary");
+    check(pixelClass(rgba({255, 0, 128}), 4) == Partial, "alpha: RGBA with 128 is partial");
+    check(pixelClass(QByteArray(9, char(0)), 3) == Opaque, "alpha: RGB is opaque");
+    // DXT1: colour 0 and 1 (16-bit), then 2-bit indices, row by row.
+    auto dxt1 = [](quint16 c0, quint16 c1, quint8 rows) {
+        QByteArray block;
+        block.append(char(c0 & 255)).append(char(c0 >> 8)).append(char(c1 & 255)).append(char(c1 >> 8));
+        block.append(QByteArray(4, char(rows)));
+        return block;
+    };
+    const int Rgb1 = 0x83F0, Rgba1 = 0x83F1, Dxt3 = 0x83F2, Dxt5 = 0x83F3;
+    check(ofBlocks(dxt1(0, 0xFFFF, 0xFF), Rgba1) == Binary,
+          "alpha: DXT1 three-colour block with index 3 is binary");
+    check(ofBlocks(dxt1(0, 0xFFFF, 0xAA), Rgba1) == Opaque,
+          "alpha: DXT1 three-colour block without index 3 is opaque");
+    check(ofBlocks(dxt1(0xFFFF, 0, 0xFF), Rgba1) == Opaque,
+          "alpha: DXT1 four-colour block is opaque");
+    check(ofBlocks(dxt1(0, 0xFFFF, 0xFF), Rgb1) == Opaque, "alpha: DXT1 without alpha is opaque");
+    // DXT3: 4-bit alpha per texel, then a colour block.
+    auto dxt3 = [&](quint8 nibbles) { return QByteArray(8, char(nibbles)) + dxt1(0xFFFF, 0, 0); };
+    check(ofBlocks(dxt3(0xFF), Dxt3) == Opaque, "alpha: DXT3 all 15 is opaque");
+    check(ofBlocks(dxt3(0xF0), Dxt3) == Binary, "alpha: DXT3 0 and 15 is binary");
+    check(ofBlocks(dxt3(0x8F), Dxt3) == Partial, "alpha: DXT3 with 8 is partial");
+    // DXT5: two alpha endpoints, 3-bit indices (all equal here), a colour block.
+    auto dxt5 = [&](quint8 a0, quint8 a1, int index) {
+        quint64 bits = 0;
+        for (int t = 0; t < 16; ++t)
+            bits |= quint64(index) << (3 * t);
+        QByteArray block;
+        block.append(char(a0)).append(char(a1));
+        for (int i = 0; i < 6; ++i)
+            block.append(char((bits >> (8 * i)) & 255));
+        return block + dxt1(0xFFFF, 0, 0);
+    };
+    check(ofBlocks(dxt5(255, 0, 0) + dxt5(255, 0, 1), Dxt5) == Binary,
+          "alpha: DXT5 endpoints 255 and 0 are binary");
+    check(ofBlocks(dxt5(255, 0, 2), Dxt5) == Partial, "alpha: DXT5 interpolated alpha is partial");
+    check(ofBlocks(dxt5(255, 255, 3), Dxt5) == Opaque, "alpha: DXT5 all 255 is opaque");
+    check(ofBlocks(dxt5(10, 200, 6) + dxt5(10, 200, 7), Dxt5) == Binary,
+          "alpha: DXT5 six-value block's 0 and 255 are binary");
+    check(ofBlocks(QByteArray(16, 0), 0) == Unknown, "alpha: other formats are unknown");
+    // A texture keeps its class when its content moves.
+    Texture loaded, target;
+    loaded.compressedGLFormat = Rgba1;
+    loaded.compressedData = dxt1(0, 0xFFFF, 0xFF);
+    loaded.width = loaded.height = 4;
+    loaded.classifyAlpha();
+    target.takeContentFrom(loaded);
+    check(target.alphaClass.load() == Binary, "alpha: class moves with the texture content");
+}
+
 int selfTest() {
+    alphaClassChecks();
     QString error;
     QTemporaryDir dir;
     for (const auto &format : encodings)
