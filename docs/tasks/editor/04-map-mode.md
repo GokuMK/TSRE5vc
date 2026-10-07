@@ -425,6 +425,59 @@ incremental:
   them), then the remaining batches. Map mode support per tool comes
   later, one tool at a time, starting with the activity tools.
 
+### 7. Terrain (phase 4, designed 2026-10-07)
+
+Terrain is drawn flat, under every other layer, as textured squares. Which
+squares depends on how much ground the view shows (metres across its
+longer side, as for track objects):
+
+| Level | View | Static tiles | Procedural tiles | Distant terrain |
+|---|---|---|---|---|
+| Distant | wider than 16 km | border only | border only | textured squares with borders |
+| Detailed | 16 km to 6144 m | one square per patch, its texture | one square per tile, its baked fallback | not drawn |
+| Procedural | under 6144 m (as track objects) | as Detailed | the 3D view's direct GPU material shading | not drawn |
+
+- **Distant**: the route's distant (LO) tiles as squares with their
+  textures, with borders. The detailed tiles show only their borders,
+  from the quadtree, so nothing is loaded for them. A route without
+  distant tiles shows only the borders.
+- **Detailed**: only the tile files (`.t`, for the patch textures and
+  their placement) and the procedural tiles' baked fallbacks are read,
+  not the height maps. Static patch textures come from the route's shared
+  texture set. At 16 km about 64 tiles are in view: 16k patch squares,
+  and 32 MiB of 1024-square DXT1 bakes.
+- **Procedural**: the map reuses the 3D view's resources for these tiles
+  as they are: the full material ID map and the per-tile material arrays
+  of the direct GPU path (`prepareProceduralGpuPatch`,
+  `configureProceduralGpuPacket`). The squares are drawn as terrain
+  packets with that shader, flat, with patch texture coordinates. This
+  loads the tiles as 3D does (about 9 tiles at this bound), height maps
+  included; the map does not use the heights. No custom resizing: the
+  map shows the same content the 3D view would.
+- **Lighting**: neutral and fixed, not the time of day, so terrain does
+  not darken at night in the editor.
+- **Readability**: a palette value `terrainFade` blends terrain towards
+  the background (proposed default 30%), so lines and markers stay
+  readable over textures.
+- **Painting**: terrain texture tools work at the Detailed and Procedural
+  levels, not at Distant. Procedural painting needs the Procedural level,
+  where the result shows at once (at Detailed, the bake would change only
+  on save). No height tools: the map has no heights.
+- **Memory** is to be measured in real runs with the 16 km bound before
+  changing it.
+- **Open for improvement**:
+  - Material arrays are per tile and sized to the tile's biggest source
+    texture. Sharing resized source images between tiles (on the CPU, so
+    each tile still builds its own array) would cut memory in 3D and the
+    map alike, but a route-wide cache needs a fixed target size (for
+    example 1024) instead of the per-tile choice.
+  - Baked fallbacks have no mipmaps; at the Detailed level's wider views
+    they may shimmer, which the map could fix by generating mipmaps when
+    it uploads them.
+  - Procedural shading further out than 6144 m would need smaller map
+    resources (reduced ID maps, smaller layers), which is when custom
+    resizing would make sense.
+
 ## Phases
 
 0. **Tool structure**:
@@ -450,8 +503,9 @@ incremental:
    - layer toggles in the View menu.
 3. **Activity tools in map mode**: the most urgent need for route-scale
    data.
-4. **Other data**: terrain shading, geo and OSM overlays, quadtree
-   editing, terrain texture painting.
+4. **Terrain** (design in "7. Terrain"): distant, detailed and procedural
+   levels, terrain texture painting. Then other data: geo and OSM
+   overlays, quadtree editing.
 
 From phase 2 on, other agents can add layers and tools in parallel once
 the core is in.
@@ -500,3 +554,15 @@ branch, whose merge is not decided.
 - Tool structure before map mode (phase 0); tools migrate to it in
   batches, each batch tested once.
 - Base branch: `main`.
+
+## Decisions (user, 2026-10-07, terrain)
+
+- Three levels by view size: Distant above 16 km (detailed tiles as
+  borders only), Detailed from 16 km, Procedural below the track objects'
+  bound (6144 m). The 16 km bound stays for the first version; memory is
+  measured in real runs.
+- The Procedural level reuses the 3D view's direct GPU resources as they
+  are; no custom resizing for the map.
+- Shared resized material textures are an open improvement, not part of
+  this phase.
+- Terrain painting tools work only at the detailed levels.
