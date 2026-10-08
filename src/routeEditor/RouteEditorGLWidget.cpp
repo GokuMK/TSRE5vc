@@ -1949,8 +1949,10 @@ bool RouteEditorGLWidget::prepareTerrainEdit(bool procedural) {
     if (currentViewMode != ViewMode::Map)
         return true;
     const MapView &view = cameraMap->view;
-    if (procedural ? !TerrainMapLayer::drawsProcedural(view)
-                   : !TerrainMapLayer::drawsDetailedPatches(view))
+    // Distant tiles being edited show their patches at every zoom.
+    const bool patches = (Game::terrainLib != NULL && Game::terrainLib->distantIsCurrent())
+            || TerrainMapLayer::drawsDetailedPatches(view);
+    if (procedural ? !TerrainMapLayer::drawsProcedural(view) : !patches)
         return false;
     return prepareTerrainTile();
 }

@@ -56,7 +56,7 @@ public:
 };
 
 TerrainMapLayer::TerrainMapLayer()
-    : distantBorders(std::make_unique<OglObj>()), borders(std::make_unique<OglObj>()),
+    : borders(std::make_unique<OglObj>()),
       fade(std::make_unique<OglObj>()) {}
 
 TerrainMapLayer::~TerrainMapLayer() = default;
@@ -139,7 +139,11 @@ void TerrainMapLayer::build(const MapView &view, const MapPalette &palette, Terr
     static const bool trace = qEnvironmentVariableIsSet("TSRE_MAP_TRACE");
     QElapsedTimer timer;
     timer.start();
-    const bool patches = drawsDetailedPatches(view);
+    // The tiles being edited (the current tree) are the main layer: the
+    // detailed tiles with the distant terrain as a background, or the
+    // distant tiles alone, as the 3D view draws them.
+    const bool distantMode = terrain->distantIsCurrent();
+    const bool patches = distantMode || drawsDetailedPatches(view);
     const bool gpu = drawsProcedural(view);
     procedural.clear();
     overlayPending = false;
@@ -148,32 +152,33 @@ void TerrainMapLayer::build(const MapView &view, const MapPalette &palette, Terr
     const float borderWidth = BorderPixels * view.metresPerPixel;
 
     QHash<int, std::vector<float>> distantPatches, detailedPatches, overlayTiles;
-    std::vector<float> distantOutlines, outlines;
+    std::vector<float> outlines;
     QSet<unsigned int> seenDistant, seenDetailed;
     int distantTiles = 0, detailedTiles = 0;
     TerrainInfo info;
     for (int x = tiles[0]; x <= tiles[1]; ++x)
         for (int z = tiles[2]; z <= tiles[3]; ++z) {
-            // Distant terrain always, below the detailed tiles.
-            const unsigned int distantId = terrain->terrainTileId(x, z, true, &info);
+            // Editing detailed tiles: the distant terrain as a background,
+            // without borders.
+            const unsigned int distantId = distantMode ? 0 : terrain->terrainTileId(x, z, true);
             if (distantId != 0 && !seenDistant.contains(distantId)) {
                 seenDistant.insert(distantId);
-                appendOutline(distantOutlines, info, view, DistantBorderHeight, borderWidth);
                 Terrain *tile = terrain->getDistantDescriptor(x, z);
                 if (tile != nullptr && tile->descriptorLoaded) {
                     appendTile(tile, view, DistantHeight, distantPatches);
                     ++distantTiles;
                 }
             }
-            const unsigned int detailedId = terrain->terrainTileId(x, z, false, &info);
+            const unsigned int detailedId = terrain->terrainTileId(x, z, distantMode, &info);
             if (detailedId == 0 || seenDetailed.contains(detailedId))
                 continue;
             seenDetailed.insert(detailedId);
             appendOutline(outlines, info, view, BorderHeight, borderWidth);
-            // Wider views: borders only, nothing loaded.
+            // Wider views: detailed tiles as borders only, nothing loaded.
             if (!patches)
                 continue;
-            Terrain *tile = terrain->getTerrainDescriptor(x, z);
+            Terrain *tile = distantMode ? terrain->getDistantDescriptor(x, z)
+                                        : terrain->getTerrainDescriptor(x, z);
             if (tile != nullptr && tile->descriptorLoaded) {
                 appendTile(tile, view, DetailedHeight, detailedPatches);
                 ++detailedTiles;
@@ -184,7 +189,8 @@ void TerrainMapLayer::build(const MapView &view, const MapPalette &palette, Terr
                     else
                         overlayPending = true;
                 }
-                // Close: procedural tiles complete, shaded over their bake.
+                // Close: procedural tiles complete (through the current
+                // tree, as edits use them), shaded over their bake.
                 if (gpu && tile->usesProceduralMaterial()) {
                     Terrain *complete = terrain->getTerrainByXY(x, z, true);
                     if (complete != nullptr && complete->loaded)
@@ -208,9 +214,6 @@ void TerrainMapLayer::build(const MapView &view, const MapPalette &palette, Terr
     groups(distant, distantPatches);
     groups(detailed, detailedPatches);
     groups(overlays, overlayTiles);
-    setColour(*distantBorders, palette.distantBorder);
-    distantBorders->init(distantOutlines.data(), int(distantOutlines.size()), RenderItem::V,
-                         GL_TRIANGLES);
     setColour(*borders, palette.terrainBorder);
     borders->init(outlines.data(), int(outlines.size()), RenderItem::V, GL_TRIANGLES);
 
@@ -218,12 +221,14 @@ void TerrainMapLayer::build(const MapView &view, const MapPalette &palette, Terr
     builtTileX = view.tileX;
     builtTileZ = view.tileZ;
     builtMetresPerPixel = view.metresPerPixel;
-    builtDetailed = patches;
+    builtDetailed = drawsDetailedPatches(view);
     builtProcedural = gpu;
+    builtDistantMode = distantMode;
     std::copy(tiles, tiles + 4, builtTiles);
     builtPalette = palette.name;
     if (trace)
-        qInfo().noquote() << "map-trace terrain" << (patches ? "patches" : "borders") << "m/px"
+        qInfo().noquote() << "map-trace terrain" << (distantMode ? "distant mode" : "detailed mode")
+                          << (patches ? "patches" : "borders") << "m/px"
                           << view.metresPerPixel << "distant tiles" << seenDistant.size()
                           << "loaded" << distantTiles << "detailed tiles" << seenDetailed.size()
                           << "loaded" << detailedTiles << "procedural" << procedural.size()
@@ -244,6 +249,7 @@ void TerrainMapLayer::pushRenderItems(RenderQueue &queue, const MapView &view,
             || scale > RebuildScale || scale < 1.0f / RebuildScale
             || drawsDetailedPatches(view) != builtDetailed
             || drawsProcedural(view) != builtProcedural || palette.name != builtPalette
+            || terrain->distantIsCurrent() != builtDistantMode
             || tiles[0] < builtTiles[0] || tiles[1] > builtTiles[1] || tiles[2] < builtTiles[2]
             || tiles[3] > builtTiles[3];
     if (rebuild)
@@ -257,7 +263,6 @@ void TerrainMapLayer::pushRenderItems(RenderQueue &queue, const MapView &view,
         }
     };
     push(distant);
-    distantBorders->pushRenderItem(queue);
     push(detailed);
     for (Procedural &tile : procedural)
         tile.square->push(queue, terrain->getTerrainByXY(tile.tileX, tile.tileZ, false));

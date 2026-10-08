@@ -35,6 +35,8 @@ public:
     virtual ~TerrainLib();
     virtual void setDetailedAsCurrent();
     virtual void setDistantAsCurrent();
+    // Whether the distant tiles are the ones being edited (current).
+    virtual bool distantIsCurrent() const { return false; }
     virtual void loadQuadTreeDetailed(FileBuffer *data);
     virtual void loadQuadTreeDistant(FileBuffer *data);
     virtual QuadTree* getQuadTreeDetailed();

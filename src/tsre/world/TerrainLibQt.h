@@ -32,6 +32,9 @@ public:
     virtual ~TerrainLibQt();
     void setDetailedAsCurrent();
     void setDistantAsCurrent();
+    bool distantIsCurrent() const override {
+        return currentQuadTree != nullptr && currentQuadTree == quadTreeLo;
+    }
     void setDetailedTerrainAsCurrent();
     void setLowTerrainAsCurrent();
     void saveQtToStream(QTextStream &out);

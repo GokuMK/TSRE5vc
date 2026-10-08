@@ -25,10 +25,14 @@ class TerrainLib;
 struct MapPalette;
 
 // Terrain in map mode (task editor 04, "7. Terrain"): flat textured squares
-// under every other layer, by how much ground the view shows.
-// - Distant terrain (LO tiles) always, at the bottom, with tile borders.
-// - Views wider than DetailedExtentMetres show the detailed tiles as
-//   borders only, loading nothing for them.
+// under every other layer, by how much ground the view shows. The tiles
+// being edited (TerrainLib's current tree) are the main layer, with
+// borders, as the 3D view draws them:
+// - editing detailed tiles, the distant terrain (LO tiles) is a background
+//   without borders, and views wider than DetailedExtentMetres show the
+//   detailed tiles as borders only, loading nothing for them;
+// - editing distant tiles, they are the main layer at every zoom, without
+//   a background or detailed tiles.
 // - Narrower views show each detailed patch as a square with its texture
 //   and placement from the tile file (procedural tiles: their baked
 //   fallback, which their patches reference). Only tile files are read
@@ -47,7 +51,6 @@ public:
     static constexpr float ProceduralHeight = 25.0f;
     // A tile's map texture shown by the geo tools, over its terrain.
     static constexpr float OverlayHeight = 35.0f;
-    static constexpr float DistantBorderHeight = 30.0f;
     static constexpr float BorderHeight = 40.0f;
     // Faded Terrain: a square of the background colour over the terrain,
     // under the roads.
@@ -100,6 +103,7 @@ private:
     float builtMetresPerPixel = 0.0f;
     bool builtDetailed = false;
     bool builtProcedural = false;
+    bool builtDistantMode = false;
     // A shown map overlay whose texture was still loading: build again.
     bool overlayPending = false;
     int builtTiles[4] = {0, 0, 0, 0};
@@ -108,7 +112,6 @@ private:
     std::vector<Group> detailed;
     std::vector<Procedural> procedural;
     std::vector<Group> overlays;
-    std::unique_ptr<OglObj> distantBorders;
     std::unique_ptr<OglObj> borders;
     std::unique_ptr<OglObj> fade;
 };

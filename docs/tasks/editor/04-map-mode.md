@@ -500,8 +500,15 @@ longer side, as for track objects):
 
 - **Distant terrain** always renders, at every level, in a layer below
   the detailed tiles: the route's distant (LO) tiles as squares with
-  their textures, with borders. It fills what the detailed tiles do not
-  cover.
+  their textures, without borders. It fills what the detailed tiles do
+  not cover.
+- **Editing mode** (F2, detailed or distant terrain): the tiles being
+  edited (TerrainLib's current tree) are the main layer, as in 3D.
+  Editing detailed tiles is the table above. Editing distant tiles, they
+  are the main layer at every zoom, with their borders, patches,
+  procedural shading and map overlays, and neither the background nor
+  the detailed tiles are drawn; static painting then works at any zoom.
+  Edits go through the current tree in both modes.
 - **Distant level**: the detailed tiles show only their borders, from the
   quadtree, so nothing is loaded for them. A route without distant tiles
   shows only these borders.

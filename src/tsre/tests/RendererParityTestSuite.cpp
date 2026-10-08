@@ -36,6 +36,7 @@
 #include <tsre/trains/ConLib.h>
 #include <tsre/trains/EngLib.h>
 #include <tsre/Game.h>
+#include <tsre/world/TerrainLib.h>
 #include <tsre/renderer/RenderStats.h>
 #include <tsre/renderer/SelectionId.h>
 #include <tsre/world/Route.h>
@@ -75,6 +76,8 @@ struct ViewSpec {
     float metresPerPixel = 2.0f;
     float bearing = 0.0f;
     bool fadedTerrain = false;
+    // Edit the distant terrain (TerrainLib's current tree) for this view.
+    bool editDistant = false;
 };
 
 struct Options {
@@ -202,6 +205,7 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         view.metresPerPixel = float(object.value("metresPerPixel").toDouble(2.0));
         view.bearing = float(object.value("bearing").toDouble(0.0));
         view.fadedTerrain = object.value("fadedTerrain").toBool(false);
+        view.editDistant = object.value("editDistant").toBool(false);
         if (view.hasTile != view.hasPos) {
             error = QString("view %1 needs both tile and pos").arg(view.name);
             return false;
@@ -421,6 +425,10 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
             widget.setDiagnosticMapView(tileX, tileZ, pos[0], pos[2], spec.metresPerPixel,
                                         spec.bearing);
             widget.setMapLayerVisible(MapLayer::FadedTerrain, spec.fadedTerrain);
+            if (spec.editDistant)
+                Game::terrainLib->setDistantAsCurrent();
+            else
+                Game::terrainLib->setDetailedAsCurrent();
         }
 
         QElapsedTimer settleTimer;
