@@ -69,6 +69,8 @@ file(GLOB TSRE5vc_SRC CONFIGURE_DEPENDS
     "./src/tsre/procedural/*.cpp"
     "./src/tsre/geo/*.h" 
     "./src/tsre/geo/*.cpp"
+    "./src/tsre/geo/osm/*.h"
+    "./src/tsre/geo/osm/*.cpp"
     "./src/tsre/coords/*.h"
     "./src/tsre/coords/*.cpp"
     "./src/tsre/tests/*.h"
@@ -158,4 +160,10 @@ option(TSRE_BUILD_GEO_TESTS "Build elevation raster, cache and sampling checks" 
 if(TSRE_BUILD_GEO_TESTS)
     enable_testing()
     add_subdirectory(tests/geo)
+endif()
+
+option(TSRE_BUILD_OSM_TESTS "Build OSM PBF format and store checks" ON)
+if(TSRE_BUILD_OSM_TESTS)
+    enable_testing()
+    add_subdirectory(tests/osm)
 endif()

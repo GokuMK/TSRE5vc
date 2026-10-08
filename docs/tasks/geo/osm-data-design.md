@@ -167,3 +167,38 @@ before the next one starts.
 - **Line endings:** the tile map code sits in CRLF/LF-mixed files. Edit them
   in binary-safe mode and compare `git diff --shortstat` with and without
   `--ignore-cr-at-eol` before committing.
+
+## Implementation status
+
+**Steps 1–2 done (2026-10-08).** New code is in `src/tsre/geo/osm/`; tests
+are in `tests/osm` (`ctest -R osm`, plus the opt-in `--count`, `--convert`
+and `--verify` modes for local data).
+
+Format layer:
+- Reading all of Poland (34,599 blocks, every entity and tag) takes 3.1 s on
+  12 threads with miniz; libosmium takes 6.5 s.
+- Counts are identical to libosmium: 242,829,698 nodes, 33,661,806 ways,
+  280,493 relations, 135,986,026 tags, 316,454,747 way refs, 5,483,134
+  members.
+- It also reads libosmium's `LocationsOnWays` output.
+
+Converter:
+- Relations are sorted by member extent.
+- Output is byte-identical across thread counts and for shuffled, unsorted
+  input.
+- Level 1 is the default compression.
+
+| Source | Level | Time (12 threads) | Output | Notes |
+|---|---:|---:|---:|---|
+| pomorskie | 1 | 2.5 s | 125 MiB | |
+| pomorskie | 6 | 3.1 s | 119 MiB | |
+| Poland | 1 | 24.8 s | 2,281 MiB | node table 3.7 GiB, temp 6.2 GiB |
+| Poland | 2 | 30.4 s | 2,202 MiB | |
+| Poland | 6 | 37.1 s | 2,175 MiB | |
+
+- `--verify` on Poland: 316,431,023 way coordinates, 0 mismatches; tags,
+  relations and members identical to the source.
+- Other sessions kept the load average at 3–10 during these runs.
+- The write phase is mostly compression (57 % of its CPU at level 6). Record
+  parsing and block building take most of the rest; they can be tightened
+  later.
