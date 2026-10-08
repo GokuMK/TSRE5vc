@@ -416,12 +416,15 @@ std::vector<std::unique_ptr<EditorTool>> create() {
         if (ctx.prepareTerrainEdit(false))
             Game::terrainLib->lockTexture(ctx.brush(), ctx.tileX(), ctx.tileZ(), ctx.pointer());
     }, TextureModes);
+    // Geo tools (F3): whole-tile actions, at any zoom on the map.
     click("makeTileTextureTool", [](ToolContext &ctx) {
-        Game::terrainLib->makeTextureFromMap(ctx.tileX(), ctx.tileZ(), ctx.pointer());
-    });
+        if (ctx.prepareTerrainTile())
+            Game::terrainLib->makeTextureFromMap(ctx.tileX(), ctx.tileZ(), ctx.pointer());
+    }, TextureModes);
     click("removeTileTextureTool", [](ToolContext &ctx) {
-        Game::terrainLib->removeTileTextureFromMap(ctx.tileX(), ctx.tileZ(), ctx.pointer());
-    });
+        if (ctx.prepareTerrainTile())
+            Game::terrainLib->removeTileTextureFromMap(ctx.tileX(), ctx.tileZ(), ctx.pointer());
+    }, TextureModes);
     return tools;
 }
 

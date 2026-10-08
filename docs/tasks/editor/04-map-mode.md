@@ -466,8 +466,17 @@ Map > Faded Terrain):
     needs. Procedural painting shows at once through the GPU shading.
   - The procedural Pick and Lock buttons start the static tools; a
     button's `tool` property tells `ToolButtons` which tool it starts.
+- **Geo tools** (F3) work on the map (2026-10-08): show/hide map, load
+  map, load imagery, make and remove the tile texture from the map, load
+  height. They act on the tile under the pointer, so the map is a quick
+  way to pick tiles; `ToolContext::prepareTerrainTile` completes the
+  tiles around it at any zoom, as for painting. A tile whose map is shown
+  (`showBlob`) gets its map texture over its terrain
+  (`Terrain::mapOverlayTexture`), mapped across the tile as the 3D view
+  maps it; the layer builds again while that texture still loads.
 - Not yet: procedural tiles without heights (a third load stage) if
-  memory needs it.
+  memory needs it; map overlays drawn translucent when the map window's
+  alpha is set (they are opaque on the map).
 
 Terrain is drawn flat, under every other layer, as textured squares. Which
 squares depends on how much ground the view shows (metres across its

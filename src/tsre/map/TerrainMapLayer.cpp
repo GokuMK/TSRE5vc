@@ -83,6 +83,7 @@ void TerrainMapLayer::invalidate() {
     distant.clear();
     detailed.clear();
     procedural.clear();
+    overlays.clear();
 }
 
 void TerrainMapLayer::appendTile(Terrain *tile, const MapView &view, float y,
@@ -97,21 +98,24 @@ void TerrainMapLayer::appendTile(Terrain *tile, const MapView &view, float y,
 
 TerrainMapLayer::Procedural TerrainMapLayer::proceduralSquare(Terrain *tile, const MapView &view,
                                                               int tileX, int tileZ) {
-    // The tile in sample order, its texture coordinates spanning it.
-    const TerrainGridLayout &grid = tile->getGridLayout();
-    const float size = float(grid.terrainWorldSize);
-    const float x0 = (tile->mojex - view.tileX) * 2048.0f - 1024.0f;
-    const float z0 = (tile->mojez - view.tileZ) * 2048.0f + 1024.0f - size;
-    const float corners[16] = {x0, z0, 0, 0,  x0 + size, z0, 1, 0,
-                               x0 + size, z0 + size, 1, 1,  x0, z0 + size, 0, 1};
     std::vector<float> vertices;
-    appendPatch(vertices, corners, ProceduralHeight);
+    appendTileSquare(vertices, tile, view, ProceduralHeight);
     Procedural square;
     square.tileX = tileX;
     square.tileZ = tileZ;
     square.square = std::make_unique<ProceduralSquare>();
     square.square->init(vertices.data(), int(vertices.size()), RenderItem::VT, GL_TRIANGLES);
     return square;
+}
+
+void TerrainMapLayer::appendTileSquare(std::vector<float> &out, Terrain *tile,
+                                       const MapView &view, float y) {
+    const float size = float(tile->getGridLayout().terrainWorldSize);
+    const float x0 = (tile->mojex - view.tileX) * 2048.0f - 1024.0f;
+    const float z0 = (tile->mojez - view.tileZ) * 2048.0f + 1024.0f - size;
+    const float corners[16] = {x0, z0, 0, 0,  x0 + size, z0, 1, 0,
+                               x0 + size, z0 + size, 1, 1,  x0, z0 + size, 0, 1};
+    appendPatch(out, corners, y);
 }
 
 void TerrainMapLayer::appendOutline(std::vector<float> &out, const TerrainInfo &info,
@@ -138,11 +142,12 @@ void TerrainMapLayer::build(const MapView &view, const MapPalette &palette, Terr
     const bool patches = drawsDetailedPatches(view);
     const bool gpu = drawsProcedural(view);
     procedural.clear();
+    overlayPending = false;
     int tiles[4];
     view.visibleTiles(tiles[0], tiles[1], tiles[2], tiles[3], 1);
     const float borderWidth = BorderPixels * view.metresPerPixel;
 
-    QHash<int, std::vector<float>> distantPatches, detailedPatches;
+    QHash<int, std::vector<float>> distantPatches, detailedPatches, overlayTiles;
     std::vector<float> distantOutlines, outlines;
     QSet<unsigned int> seenDistant, seenDetailed;
     int distantTiles = 0, detailedTiles = 0;
@@ -172,6 +177,13 @@ void TerrainMapLayer::build(const MapView &view, const MapPalette &palette, Terr
             if (tile != nullptr && tile->descriptorLoaded) {
                 appendTile(tile, view, DetailedHeight, detailedPatches);
                 ++detailedTiles;
+                if (tile->loaded && tile->showBlob) {
+                    const int overlay = tile->mapOverlayTexture();
+                    if (overlay >= 0)
+                        appendTileSquare(overlayTiles[overlay], tile, view, OverlayHeight);
+                    else
+                        overlayPending = true;
+                }
                 // Close: procedural tiles complete, shaded over their bake.
                 if (gpu && tile->usesProceduralMaterial()) {
                     Terrain *complete = terrain->getTerrainByXY(x, z, true);
@@ -195,6 +207,7 @@ void TerrainMapLayer::build(const MapView &view, const MapPalette &palette, Terr
     };
     groups(distant, distantPatches);
     groups(detailed, detailedPatches);
+    groups(overlays, overlayTiles);
     setColour(*distantBorders, palette.distantBorder);
     distantBorders->init(distantOutlines.data(), int(distantOutlines.size()), RenderItem::V,
                          GL_TRIANGLES);
@@ -226,7 +239,8 @@ void TerrainMapLayer::pushRenderItems(RenderQueue &queue, const MapView &view,
     const float scale = view.metresPerPixel / std::max(builtMetresPerPixel, 1e-6f);
     int tiles[4];
     view.visibleTiles(tiles[0], tiles[1], tiles[2], tiles[3], 0);
-    const bool rebuild = !valid || view.tileX != builtTileX || view.tileZ != builtTileZ
+    const bool rebuild = !valid || overlayPending || view.tileX != builtTileX
+            || view.tileZ != builtTileZ
             || scale > RebuildScale || scale < 1.0f / RebuildScale
             || drawsDetailedPatches(view) != builtDetailed
             || drawsProcedural(view) != builtProcedural || palette.name != builtPalette
@@ -247,6 +261,7 @@ void TerrainMapLayer::pushRenderItems(RenderQueue &queue, const MapView &view,
     push(detailed);
     for (Procedural &tile : procedural)
         tile.square->push(queue, terrain->getTerrainByXY(tile.tileX, tile.tileZ, false));
+    push(overlays);
     borders->pushRenderItem(queue);
     if (faded && palette.terrainFade > 0.0f) {
         // The ground in view, wound as the patches are.

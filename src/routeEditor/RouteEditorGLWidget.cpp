@@ -1949,6 +1949,12 @@ bool RouteEditorGLWidget::prepareTerrainEdit(bool procedural) {
     if (procedural ? !TerrainMapLayer::drawsProcedural(view)
                    : !TerrainMapLayer::drawsDetailedPatches(view))
         return false;
+    return prepareTerrainTile();
+}
+
+bool RouteEditorGLWidget::prepareTerrainTile() {
+    if (currentViewMode != ViewMode::Map)
+        return true;
     if (Game::terrainLib == NULL)
         return false;
     int x = tileX(), z = tileZ();

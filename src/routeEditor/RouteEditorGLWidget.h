@@ -220,6 +220,7 @@ private:
     void requestSelectionPass() override { selection = true; }
     bool pointerOnTrack(int &tileX, int &tileZ, float *position) override;
     bool prepareTerrainEdit(bool procedural) override;
+    bool prepareTerrainTile() override;
     ObjectEdit objectEdit() const override;
     void setObjectEdit(ObjectEdit edit) override;
     bool pointerSticksToTerrain() const override { return stickPointerToTerrain; }

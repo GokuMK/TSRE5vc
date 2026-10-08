@@ -58,20 +58,29 @@ std::vector<std::unique_ptr<EditorTool>> create() {
     // on the map too, where the pointer has no height.
     const ViewModes bothModes = ViewMode::Scene3D | ViewMode::Map;
     auto useHeight = [](ToolContext &ctx) { return ctx.viewMode() == ViewMode::Scene3D; };
+    // The geo tools act on the tile under the pointer, which the map
+    // completes first; they work at any zoom, the tile picked by its
+    // square or border.
     click("mapTileShowTool", [](ToolContext &ctx) {
-        Game::terrainLib->setTileBlob(ctx.tileX(), ctx.tileZ(), ctx.pointer());
-    });
+        if (ctx.prepareTerrainTile())
+            Game::terrainLib->setTileBlob(ctx.tileX(), ctx.tileZ(), ctx.pointer());
+    }, bothModes);
     click("mapTileLoadTool", [](ToolContext &ctx) {
+        if (!ctx.prepareTerrainTile())
+            return;
         if (Terrain *terrain = terrainAtPointer(ctx))
             ctx.openMapTileWindow(terrain);
-    });
+    }, bothModes);
     click("imageryTileLoadTool", [](ToolContext &ctx) {
+        if (!ctx.prepareTerrainTile())
+            return;
         if (Terrain *terrain = terrainAtPointer(ctx))
             ctx.openImageryWindow(terrain);
-    });
+    }, bothModes);
     click("heightTileLoadTool", [](ToolContext &ctx) {
-        Game::terrainLib->setHeightFromGeoGui(ctx.tileX(), ctx.tileZ(), ctx.pointer());
-    });
+        if (ctx.prepareTerrainTile())
+            Game::terrainLib->setHeightFromGeoGui(ctx.tileX(), ctx.tileZ(), ctx.pointer());
+    }, bothModes);
     click("actNewLooseConsistTool", [useHeight](ToolContext &ctx) {
         ctx.currentRoute()->actNewLooseConsist(ctx.tileX(), ctx.tileZ(), ctx.pointer(),
                                                useHeight(ctx));

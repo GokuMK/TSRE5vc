@@ -45,6 +45,8 @@ public:
     static constexpr float DistantHeight = 10.0f;
     static constexpr float DetailedHeight = 20.0f;
     static constexpr float ProceduralHeight = 25.0f;
+    // A tile's map texture shown by the geo tools, over its terrain.
+    static constexpr float OverlayHeight = 35.0f;
     static constexpr float DistantBorderHeight = 30.0f;
     static constexpr float BorderHeight = 40.0f;
     // Faded Terrain: a square of the background colour over the terrain,
@@ -85,6 +87,10 @@ private:
     void appendTile(Terrain *tile, const MapView &view, float y,
                     QHash<int, std::vector<float>> &byTexture);
     static Procedural proceduralSquare(Terrain *tile, const MapView &view, int tileX, int tileZ);
+    // The tile as one square in sample order, its texture coordinates
+    // spanning it (procedural shading, map overlays).
+    static void appendTileSquare(std::vector<float> &out, Terrain *tile, const MapView &view,
+                                 float y);
     static void appendOutline(std::vector<float> &out, const TerrainInfo &info,
                               const MapView &view, float y, float width);
 
@@ -94,11 +100,14 @@ private:
     float builtMetresPerPixel = 0.0f;
     bool builtDetailed = false;
     bool builtProcedural = false;
+    // A shown map overlay whose texture was still loading: build again.
+    bool overlayPending = false;
     int builtTiles[4] = {0, 0, 0, 0};
     QString builtPalette;
     std::vector<Group> distant;
     std::vector<Group> detailed;
     std::vector<Procedural> procedural;
+    std::vector<Group> overlays;
     std::unique_ptr<OglObj> distantBorders;
     std::unique_ptr<OglObj> borders;
     std::unique_ptr<OglObj> fade;

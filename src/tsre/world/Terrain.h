@@ -75,6 +75,9 @@ public:
     // (0, 0), (R, 0), (R, R), (0, R).
     int mapPatchTexture(int patch);
     bool mapPatchCorners(int patch, int tileX, int tileZ, float *corners) const;
+    // The tile's map texture while the geo tools show it (showBlob): a
+    // TexLib id spanning the tile, -1 when hidden or not loaded yet.
+    int mapOverlayTexture();
     // A packet drawing the whole complete tile with the direct GPU material
     // shading, from one square whose texture coordinates span the tile;
     // false when the tile has none.

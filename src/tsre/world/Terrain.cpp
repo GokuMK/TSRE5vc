@@ -165,6 +165,12 @@ int Terrain::mapPatchTexture(int patch) {
     return texid[patch] >= 0 ? texid[patch] : -1;
 }
 
+int Terrain::mapOverlayTexture() {
+    if (!showBlob || ensureMapTexture() < 0)
+        return -1;
+    return wTexid;
+}
+
 bool Terrain::mapPatchCorners(int patch, int tileX, int tileZ, float *corners) const {
     if (!descriptorLoaded || tfile == NULL || !gridLayout.isPatchIndexValid(patch)
             || patch >= int(tfile->patches().size()))

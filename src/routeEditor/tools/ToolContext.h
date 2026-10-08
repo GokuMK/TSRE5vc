@@ -62,6 +62,9 @@ public:
     // pointer are completed, as only complete tiles are edited and saved.
     // In 3D, true.
     virtual bool prepareTerrainEdit(bool procedural) = 0;
+    // The same for whole-tile actions (the geo tools) at any zoom: completes
+    // the tiles around the pointer; false without terrain there.
+    virtual bool prepareTerrainTile() = 0;
     virtual ObjectEdit objectEdit() const = 0;
     virtual void setObjectEdit(ObjectEdit edit) = 0;
     // Whether the pointer stays on the terrain or also lands on objects.

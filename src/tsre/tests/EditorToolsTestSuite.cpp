@@ -44,6 +44,7 @@ public:
     void requestSelectionPass() override { selectionRequested = true; }
     bool pointerOnTrack(int &, int &, float *) override { return false; }
     bool prepareTerrainEdit(bool) override { return true; }
+    bool prepareTerrainTile() override { return true; }
     ObjectEdit objectEdit() const override { return edit; }
     void setObjectEdit(ObjectEdit chosen) override { edit = chosen; }
     bool sticks = true;
@@ -270,6 +271,11 @@ int TsreTests::runEditorToolsSuite(bool verbose) {
     for (const char *id : {"heightTool", "waterTerrTool", "gapsTerrainTool", "fixedTileTool",
                            "drawTerrTool"})
         geometryTools = geometryTools || registry.allowed(id, ViewMode::Map);
+    bool geoTools = true;
+    for (const char *id : {"mapTileShowTool", "mapTileLoadTool", "imageryTileLoadTool",
+                           "heightTileLoadTool", "makeTileTextureTool", "removeTileTextureTool"})
+        geoTools = geoTools && registry.allowed(id, ViewMode::Map);
+    check(geoTools, "geo: the tile tools work on the map");
     check(textureTools && !geometryTools && registry.find("paintToolTexture")->editsByDragging()
                   && registry.find("putTerrainTexTool")->editsByDragging()
                   && !registry.find("proceduralFillTool")->editsByDragging()
