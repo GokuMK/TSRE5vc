@@ -128,6 +128,8 @@ private:
         QRhiShaderResourceBindings *bindings = nullptr;
         quint32 uniformOffset = 0;
         QRhiBuffer *vertexBuffer = nullptr;
+        // Where the mesh starts in vertexBuffer (meshes share buffers).
+        quint32 vertexOffset = 0;
         QRhiBuffer *instanceBuffer = nullptr;
         quint32 instanceOffset = 0;
         QRhiBuffer *indexBuffer = nullptr;

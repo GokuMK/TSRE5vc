@@ -1555,11 +1555,12 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
     draw.instanceOffset = appendInstances(matrices, count);
     draw.instances = quint32(count);
     draw.vertexBuffer = buffers.vertexBuffer;
+    draw.vertexOffset = buffers.vertexOffset;
     if (item->mesh.indexed) {
         if (buffers.indexBuffer == nullptr)
             return;
         draw.indexBuffer = buffers.indexBuffer;
-        draw.indexOffset = item->mesh.indexOffset;
+        draw.indexOffset = buffers.indexOffset + item->mesh.indexOffset;
         draw.indexFormat = item->mesh.indexType == RenderItem::INDEX_U32
                 ? QRhiCommandBuffer::IndexUInt32 : QRhiCommandBuffer::IndexUInt16;
         draw.baseVertex = item->mesh.baseVertex;
@@ -1771,12 +1772,14 @@ void RhiRenderer::flushTarget() {
     bool viewportBound = false;
     struct VertexState {
         QRhiBuffer *vertex = nullptr;
+        quint32 vertexOffset = 0;
         quint32 instanceOffset = 0;
         QRhiBuffer *index = nullptr;
         quint32 indexOffset = 0;
         QRhiCommandBuffer::IndexFormat format = QRhiCommandBuffer::IndexUInt16;
         bool operator==(const VertexState &o) const {
-            return vertex == o.vertex && instanceOffset == o.instanceOffset && index == o.index
+            return vertex == o.vertex && vertexOffset == o.vertexOffset
+                    && instanceOffset == o.instanceOffset && index == o.index
                     && indexOffset == o.indexOffset && format == o.format;
         }
     } boundVertex;
@@ -1806,6 +1809,7 @@ void RhiRenderer::flushTarget() {
         }
         VertexState vertex;
         vertex.vertex = draw.vertexBuffer;
+        vertex.vertexOffset = draw.vertexOffset;
         quint32 firstInstance = 0;
         if (baseInstance)
             firstInstance = draw.instanceOffset / InstanceStride;
@@ -1823,7 +1827,7 @@ void RhiRenderer::flushTarget() {
         }
         if (!vertexBound || !(vertex == boundVertex)) {
             const QRhiCommandBuffer::VertexInput inputs[2] = {
-                {draw.vertexBuffer, 0}, {draw.instanceBuffer, vertex.instanceOffset}};
+                {draw.vertexBuffer, draw.vertexOffset}, {draw.instanceBuffer, vertex.instanceOffset}};
             if (draw.indexBuffer != nullptr)
                 cb->setVertexInput(0, 2, inputs, vertex.index, vertex.indexOffset, vertex.format);
             else

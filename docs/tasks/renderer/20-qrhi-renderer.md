@@ -111,11 +111,19 @@ conversion.
 ### Meshes and textures
 
 The mesh store keeps uploading lazily; on QRhi it creates `QRhiBuffer`s in
-the single `QRhi`. They are Immutable: QRhi's Vulkan backend keeps a host
-copy as large as the buffer of every Static buffer. Meshes being edited
+the single `QRhi`. Most meshes share chunks: Static buffers of 8 MB, each
+mesh a slice of one (first fit, 256-byte aligned; freed slices wait three
+frames before reuse). On Vulkan every buffer is an allocation, and a camera
+jump made one per mesh, about 0.4 ms each on the Steam Deck: 643 for 285 ms
+in one frame into Warszawa Wschodnia (CMK), 53 ms with chunks. Chunks are
+Static, not Immutable: QRhi's Vulkan backend frees an Immutable buffer's
+staging copy after each upload, so every mesh put into a chunk allocated a
+staging buffer as large as the chunk, and a jump ran out of memory. A
+Static chunk keeps one host copy per frame in flight. Meshes being edited
 (marked dynamic, such as paged terrain pages after their first edit, or
-uploaded a third time, such as painted legacy tiles) are Static, so their
-copy is reused. TexLib textures become renderer-owned handles that both
+uploaded a third time, such as painted legacy tiles), paged terrain,
+Buffer-format data and meshes over a quarter of a chunk keep buffers of
+their own: Immutable, or Static while edited, so that copy is reused. TexLib textures become renderer-owned handles that both
 renderers resolve; the QRhi renderer keeps the CPU pixels until upload.
 
 ## Milestones
