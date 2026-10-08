@@ -137,6 +137,9 @@ void variedMaterialMap(TerrainMaterialMap &map) {
 }
 
 int TsreTests::runTerrainMaterialSuite(bool verbose, bool benchmark) {
+    // Generated materials are checked through their CPU pixels, which an upload
+    // releases: the QRhi renderer would upload them even without a context.
+    QScopedValueRollback<QString> backend(Game::renderBackend,QString("opengl"));
     QScopedValueRollback<QString> baseSeason(Game::season,QString());
     QScopedValueRollback<bool> enabledSetting(TerrainMaterialMap::Enabled,true);
     // This suite remains the regression contract for the retained CPU path.
