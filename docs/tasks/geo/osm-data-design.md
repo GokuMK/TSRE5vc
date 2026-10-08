@@ -317,3 +317,55 @@ Known legacy quirks not carried over:
 - The colour (157, 256, 108) was clamped to 255.
 - The primary_link branch did not reset its pen width, which made later
   outlines thick; that is not reproduced.
+
+**Step 7 done (2026-10-08).**
+- `MapDataOSM::load()` uses the local OSM directory when a converted file
+  covers the tile. It asks first through `ensureConverted()`, keeps one
+  `SortedPbfStore` over all converted files (block cache shared across
+  tiles), and falls back to the four OSM API requests otherwise.
+- Both paths produce the same items: features classified by
+  `FeatureClasses`, every point projected once, `type=multipolygon`
+  relations with a fill style assembled with their holes.
+- Drawing, with `MapWindow` now creating `Format_RGB32` /
+  `ARGB32_Premultiplied` images:
+  - four threads paint the quadrants of the same image buffer;
+  - each item is culled to its quadrant;
+  - each legacy slot draws in batches per style: fills (winding rule,
+    consistent ring orientation), then outlines, casings and lines;
+  - pen widths come from the style in metres.
+- The API path no longer accumulates nodes and ways across tiles,
+  deduplicates the four overlapping responses, uses one network manager,
+  frees replies, and replaces the 5 s busy wait after "No data" with a timer.
+- `OSMFeatures` left the application. It lives on in
+  `tests/osm/legacy/` as the classification parity reference.
+
+At 4096 px on real data, on 12 threads:
+
+| Tile | Items | Load (query, projection, multipolygons) | Draw | Legacy draw (study §3/§5) |
+|---|---:|---:|---:|---:|
+| Tczew | 5,462 | 76 ms | 43 ms | 0.16–0.18 s |
+| Gdańsk centre | 10,180 | 111 ms | 49 ms | 0.30 s |
+| Warsaw centre | 23,500 | 145 ms | 82 ms | 0.43–0.48 s |
+
+- Drawing is 4–6× faster.
+- The whole tile now takes 0.12–0.23 s, against the legacy 2–6 s
+  (network, XML, draw).
+- Parsing the four saved Tczew API responses takes 443 ms (legacy 570 ms).
+
+Differences from the legacy map image, all intended:
+- multipolygons (lakes, forests, parks) are drawn;
+- untagged ways are no longer drawn as thin dark lines (they are relation
+  members);
+- open ways with an area style are not filled;
+- within a slot, all casings are drawn before all road lines, so junctions
+  join cleanly;
+- line widths scale with the image resolution (identical at the default
+  4096 px for a 2048 m tile).
+
+Tests:
+- The `osm-data` suite renders a fixture tile (road, building, lake with
+  island, rail bridge) from the store and from API XML, and checks pixel
+  colours.
+- Opt-in `TSRE_OSM_TEST_DIR` renders the real tiles above;
+  `TSRE_OSM_API_XML_DIR` renders saved API responses;
+  `TSRE_OSM_UI_SNAPSHOTS` saves the images.

@@ -1,6 +1,6 @@
 #include <tsre/geo/osm/OsmClasses.h>
 #include <tsre/geo/osm/SortedPbfStore.h>
-#include <tsre/geo/OSMFeatures.h>
+#include "legacy/OSMFeatures.h"
 #include <QString>
 #include <algorithm>
 #include <cctype>

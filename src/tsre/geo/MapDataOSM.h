@@ -12,114 +12,74 @@
 #define	MAPDATAOSM_H
 
 #include <tsre/geo/MapData.h>
+#include <QPointF>
+#include <QList>
+#include <QRectF>
 #include <unordered_map>
+#include <unordered_set>
+#include <string>
 #include <vector>
-#include <QVector>
 
-class IghCoordinate;
-class LatitudeLongitudeCoordinate;
-class PreciseTileCoordinate;
-class QImage;
-class QColor;
-class QPen;
-class QPainter;
-class QBrush;
 class QByteArray;
+class QImage;
+class QNetworkAccessManager;
 class QNetworkReply;
+class QPainter;
+class LatitudeLongitudeCoordinate;
 
+namespace Osm {
+class OsmStore;
+struct Style;
+}
 
+// OSM map image of one terrain tile. Data comes from the local OSM directory
+// (core.paths.osmData, converted on first use) and, when no local file covers the
+// tile, from the OSM API. Classes and styles: Osm::FeatureClasses.
 class MapDataOSM : public MapData {
     Q_OBJECT
 public:
-    
-    struct Node {
-        int64_t id;
-        float lat;
-        float lon;
-        unsigned short type;
-        unsigned char val1;
-        unsigned char val2;
-
-        Node(){
-             //id = 0;
-             lon = 0;
-             lat = 0;
-             type = 0;
-             val1 = 0; 
-             val2 = 0;
-        }   
-
-        Node(int64_t id1, float lat1, float lon1){
-             id = id1;
-             lon = lon1;
-             lat = lat1;
-             type = 0;
-             val1 = 0; 
-             val2 = 0;
-        }
-    };
-
-    struct Way {
-        int64_t id;
-        unsigned short type;
-        unsigned char val1;
-        unsigned char val2;
-        QVector<int64_t> ref;
-        QVector<float> lat;
-        QVector<float> lon;
-
-        Way(int64_t id1){
-             id = id1;
-             type = 0;
-             val1 = 0;
-             val2 = 0;
-        }
-
-        Way(){
-             id = 0;
-             type = 0;
-             val1 = 0;
-             val2 = 0;
-        }    
-    };
-    
     MapDataOSM();
     virtual ~MapDataOSM();
     bool draw(QImage* myImage);
     void load();
-    
+    // Fills the tile from a store; used by load() and by tests. Returns the number of drawable items.
+    size_t loadFrom(const Osm::OsmStore &store);
+    // Fills the tile from OSM API responses (api/0.6/map XML); used by the network path and by tests.
+    size_t loadFromApiXml(const QList<QByteArray> &responses);
+
 signals:
     void loaded();
     void statusInfo(QString val);
-    
+
 public slots:
     void isData(QNetworkReply* r);
-    
+
 private:
-    IghCoordinate* igh = NULL;
-    LatitudeLongitudeCoordinate* latlon = NULL;
-    PreciseTileCoordinate* aCoords = NULL;
-    QColor* color;
-    QColor* roadBorder;
-    QPen* p;
-    QPainter* gg;
-    QBrush* brush;
-    
-    std::unordered_map<int64_t,Node*> nodes;
-    QVector<Way*> ways[10];
-    float height, width;
-    
-    int loadCount;
-    int totalLoadCount;
-    int rX(float tlon);
-    int rY(float tlat);
-    void r(int &x, int &y, float lat, float lon);
-    void loadData(QByteArray* data = NULL);
-    void setColor(int r, int g, int b);
-    void setColor(QColor* color);
-    void setPenSettings(QPen* pen);
+    // One drawable feature, coordinates in tile units (pixel = unit * image height / level).
+    struct Item {
+        const Osm::Style *style = nullptr;
+        int slot = 0;        // legacy draw order: 0 first, bridges last
+        bool area = false;   // rings are filled (closed ways, multipolygons)
+        std::vector<std::vector<QPointF>> rings;  // a way: one polyline; a multipolygon: outer, inners
+        QRectF bounds;
+    };
+    struct ApiWay { std::vector<int64_t> refs; std::vector<std::pair<std::string, std::string>> tags; };
+
+    bool loadLocal();
     void get(LatitudeLongitudeCoordinate* min, LatitudeLongitudeCoordinate* max);
+    void parseApi(const QByteArray &data);
+    void buildApiItems();
+    QPointF project(double lat, double lon) const;
+    void addItem(Item item);
+    void paint(QPainter &painter, const QRectF &unitArea) const;
+
+    std::vector<Item> items;
+    bool hasData = false;
+    QNetworkAccessManager *network = nullptr;
+    int loadCount = 0;
+    int totalLoadCount = 0;
+    std::unordered_map<int64_t, std::pair<double, double>> apiNodes;
+    std::unordered_map<int64_t, ApiWay> apiWays;
 };
 
 #endif	/* MAPDATAOSM_H */
-
