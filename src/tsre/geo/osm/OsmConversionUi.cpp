@@ -11,6 +11,7 @@
 #include <tsre/geo/osm/OsmConversionUi.h>
 #include <tsre/geo/osm/OsmDirectory.h>
 #include <tsre/geo/osm/OsmOverview.h>
+#include <tsre/geo/osm/OsmThread.h>
 #include <settings/SettingsAccess.h>
 #include <QCheckBox>
 #include <QDebug>
@@ -186,7 +187,7 @@ EnsureResult ensureConverted(QWidget *parent, const QString &path, bool deleteOr
     // Write groups sized to the memory available now (the editor holds its own data too).
     ConvertOptions options;
     options.writeGroupBytes = writeGroupBytesFor(availableMemoryBytes());
-    std::thread worker([&] {
+    Osm::Thread worker([&] {
         // Out of memory or another exception becomes an error message, not an end of the program.
         try {
             for (size_t i = 0; i < files.size() && !cancel; ++i) {

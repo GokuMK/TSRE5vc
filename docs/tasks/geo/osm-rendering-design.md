@@ -383,6 +383,32 @@ Measured on TEST_PROFILES (route projection, llvmpipe), in four steps:
 - Not done: the detail file's read at 10-20 m/px (1 s at 19 m/px over 55 km
   of Warsaw), which the regional switch at 20 m/px bounds.
 
+### Worker threads on Windows (user report, 2026-10-09)
+
+On the Steam Deck (Windows, MinGW build) converting a province took minutes
+and the editor then crashed; on the Linux server all was fine.
+
+- **Cause**: a `std::thread` that used a QObject (the converter's workers
+  open a `QFile` each) crashes in Qt 6.10's per-thread cleanup when it ends
+  (`Qt6Core.dll+0x255fbc`, reading the thread's data after it was cleared).
+  Windows writes a crash report for each, about a second, and lets the
+  program go on; after some 20 of them the heap was corrupted (`c0000374`).
+  A ten-line program with no TSRE code shows the same; with `QThread` it
+  does not.
+- **Fix**: every OSM worker runs on `Osm::Thread` (`OsmThread.h`), a
+  `std::thread` look-alike over `QThread::create`: the converter, the
+  conversion dialog's worker, overview builds, block reads, map geometry,
+  the map layer, the tile map's quadrants and the OSM tests.
+- `tsre_osm_tests` on the Deck: 20.8 s and 20 crash reports before, 9.6 s and
+  none after.
+- Two overview tests failed on Windows, before and after: they deleted an
+  overview file that open layers still had mapped, which Windows refuses.
+  The tests now close their layers first; on Windows the check that users
+  of old shared layers keep them is left out, as there the file cannot go
+  while they do. The editor never meets this: layers leave out stale
+  overviews, and only stale or missing ones are rebuilt; conversion writes
+  only files that are not converted yet.
+
 Still open: the line shader, labels and points, selection of OSM features, a
 dark style for the dark palette, the multipolygon cache, and an option to
 start with the layer on.

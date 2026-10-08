@@ -12,6 +12,7 @@
 #include <tsre/geo/osm/OsmDirectory.h>
 #include <tsre/geo/osm/OsmMultipolygon.h>
 #include <tsre/geo/osm/OsmGeneralize.h>
+#include <tsre/geo/osm/OsmThread.h>
 #include <QCryptographicHash>
 #include <QDebug>
 #include <QDir>
@@ -293,7 +294,7 @@ bool buildOverviews(const QString &convertedPath, const OverviewConfig &config, 
                         std::vector<std::vector<Level>> &perWorker) {
         perWorker.assign(size_t(threads), std::vector<Level>(L));
         std::atomic<size_t> next{0};
-        std::vector<std::thread> pool;
+        std::vector<Osm::Thread> pool;
         for (int w = 0; w < threads; ++w)
             pool.emplace_back([&, w] {
                 // An exception may not leave a thread: out of memory fails the build instead.

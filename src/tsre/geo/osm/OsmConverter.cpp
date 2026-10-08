@@ -11,6 +11,7 @@
 #include <tsre/geo/osm/OsmConverter.h>
 #include <tsre/geo/osm/OsmPbf.h>
 #include <tsre/geo/osm/OsmSortedFormat.h>
+#include <tsre/geo/osm/OsmThread.h>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -57,7 +58,7 @@ struct Job {
     // Runs body(i, worker) for i < n on the worker threads; the calling thread reports progress.
     bool parallel(size_t n, ConvertPhase phase, const std::function<bool(size_t, int)> &body, bool report = true) {
         std::atomic<size_t> next{0}, done{0};
-        std::vector<std::thread> workers;
+        std::vector<Osm::Thread> workers;
         const int count = int(std::min<size_t>(size_t(threads), std::max<size_t>(n, 1)));
         for (int w = 0; w < count; ++w)
             workers.emplace_back([&, w] {
