@@ -225,7 +225,8 @@ bool MapGeometry::load(const OsmStore &store, const Box &area, double metersPerP
         const bool area = s.hasFill && closed && count >= 4;
         xz.resize(2 * size_t(count));
         project(points, count, xz.data());
-        if (extent(xz.data(), count) < minExtent) { ++stats_.culled; return; }
+        // Closed ways only: an open way may be one short piece of a long road or river.
+        if (closed && extent(xz.data(), count) < minExtent) { ++stats_.culled; return; }
         const int slot = slotOf(c);
         if (area) {
             MapRing &ring = rings.front();

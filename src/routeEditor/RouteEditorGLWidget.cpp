@@ -82,6 +82,8 @@
 #include <tsre/map/ActivityMapLayer.h>
 #include <tsre/map/MapSelection.h>
 #include <tsre/map/MapOverlayFade.h>
+#include <tsre/map/OsmMapLayer.h>
+#include <tsre/geo/osm/OsmConversionUi.h>
 #include <tsre/map/TerrainMapLayer.h>
 #include <tsre/map/TrackItemMapLayer.h>
 #include <tsre/map/TrackMapLayer.h>
@@ -91,6 +93,7 @@
 #include <tsre/ClientInfo.h>
 #include <tsre/renderer/RenderStats.h>
 #include <tsre/shape/ShapeLoader.h>
+#include <QDir>
 #include <QMessageBox>
 
 // The active 8-byte paged layout derives local X/Z in StandardFog.
@@ -353,6 +356,13 @@ void RouteEditorGLWidget::cameraInit(){
         terrainMap = std::make_unique<TerrainMapLayer>();
     if (!mapFade)
         mapFade = std::make_unique<MapOverlayFade>();
+    if (!osmMap) {
+        osmMap = std::make_unique<OsmMapLayer>();
+        // From the worker thread: draw again once a build is ready.
+        osmMap->setReadyCallback([this] {
+            QMetaObject::invokeMethod(this, [this] { update(); }, Qt::QueuedConnection);
+        });
+    }
     int tileX = 0, tileZ = 0;
     float spos[3] = {0.0f, 0.0f, 0.0f};
     float rot[2] = {0.0f, 0.0f};
@@ -1979,6 +1989,34 @@ void RouteEditorGLWidget::setMapLayerVisible(MapLayer layer, bool visible) {
     update();
 }
 
+bool RouteEditorGLWidget::prepareOsmLayer() {
+    //% "OSM Data"
+    const QString title = qtTrId("route.editor.route.editor.glwidget.osm.title");
+    const QString directory = Settings::string("core.paths.osmData", SettingType::Directory).trimmed();
+    if (directory.isEmpty() || !QDir(directory).exists()) {
+        QMessageBox::information(this, title,
+            //% "Set the OpenStreetMap data directory first, in Settings > Maps and geodata > Geodata. It holds the .osm.pbf files downloaded for your area, for example from Geofabrik."
+            qtTrId("route.editor.route.editor.glwidget.osm.no.directory"));
+        return false;
+    }
+    if (Game::GeoCoordConverter == NULL) {
+        QMessageBox::information(this, title,
+            //% "This route has no geographic reference, so OSM data cannot be placed on it."
+            qtTrId("route.editor.route.editor.glwidget.osm.no.reference"));
+        return false;
+    }
+    const MapView &view = cameraMap->view;
+    float rect[4];
+    OsmMapLayer::viewRect(view, rect);
+    Osm::ensureConverted(this, OsmMapLayer::areaOf(Game::GeoCoordConverter, view.tileX, view.tileZ, rect));
+    osmMap->invalidate();
+    return true;
+}
+
+bool RouteEditorGLWidget::mapLayersBusy() const {
+    return osmMap && osmMap->busy();
+}
+
 void RouteEditorGLWidget::updateMapPointer() {
     float x, z;
     cameraMap->view.groundAt(mousex, mousey, x, z);
@@ -2020,6 +2058,10 @@ void RouteEditorGLWidget::paintMap() {
     const MapView &view = cameraMap->view;
     if (mapLayers.shows(MapLayer::Terrain))
         terrainMap->pushRenderItems(queue, view, palette, Game::terrainLib);
+    if (mapLayers.shows(MapLayer::OsmData))
+        osmMap->pushRenderItems(queue, view, palette,
+                                Settings::string("core.paths.osmData", SettingType::Directory),
+                                mapLayers.shows(MapLayer::OsmTransparentAreas));
     // Over terrain and OSM data, under the route's own data.
     if (mapLayers.shows(MapLayer::FadedOverlay))
         mapFade->pushRenderItems(queue, view, palette);

@@ -86,6 +86,12 @@ private:
     std::vector<std::unique_ptr<SortedPbfStore>> levels_;
 };
 
+// The layers of an OSM directory (standard overview rules), opened once for the process and
+// shared by their users (the map mode's OSM layer, the tile map), so they share one block
+// cache. Reopened when the directory or its converted and overview files change; null
+// when it has no converted files. Thread-safe.
+std::shared_ptr<const OsmLayers> sharedLayers(const QString &directory, QString &error);
+
 template <class TagAt> bool OverviewRule::matchesTags(uint32_t count, TagAt tagAt) const {
     auto hit = [&](const std::vector<std::string> &patterns) {
         for (uint32_t i = 0; i < count; ++i) {

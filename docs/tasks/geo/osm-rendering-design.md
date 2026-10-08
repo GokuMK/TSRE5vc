@@ -5,7 +5,8 @@ on the local OSM data ([design](osm-data-design.md)) and the Route Editor's map
 mode ([task editor 04](../editor/04-map-mode.md)). The measurements are in
 [evidence/2026-10-08-osm-rendering](evidence/2026-10-08-osm-rendering/results.md).
 
-Status: design agreed with the user on 2026-10-08. No code yet.
+Status (2026-10-08): steps 1 to 5 done, step 6 measured on TEST_PROFILES
+(Lower Silesia) with OpenGL and QRhi; see "Implementation status" at the end.
 
 ## Goal
 
@@ -262,3 +263,53 @@ Requested by the user for a later step, with less memory as the goal:
   OSM data. Opt-in, as the data is not in the repository.
 - **Manual**: a route in Poland, zooming from a station to the whole country,
   OSM over terrain with and without transparency and fade.
+
+## Implementation status
+
+| Step | Commit | Notes |
+|---|---|---|
+| 1. Layer order | `f499ac1` | Faded Overlay (`MapOverlayFade`, height 90); terrain aids moved to 81 to 87; USA2 map-terrain captures match main. |
+| 2. earcut | `9c68474` | `src/earcut/earcut.hpp` with its licence and a README. |
+| 3. Scale ranges | `56d68fa` | `maxMetersPerPixel` in styles; ranges 2.5, 5 and 10 m/px. Unstyled ways (the default style) got 5 m/px with step 4. |
+| 4. Geometry | `8c440ac` | `Osm::MapGeometry`; measurements in the evidence. |
+| 5. Map layer | this step | `OsmMapLayer`, `Osm::sharedLayers`, menu, prompt, captures. |
+
+What changed from the design while building:
+
+- **Small and fine detail** (step 4): culling under 2 pixels and
+  simplification to half a pixel were added; without them the views took up to
+  159 MiB. Only closed ways and areas are culled: an open way may be a short
+  piece of a long road (the national view showed main roads dashed).
+- **Points** wait for labels.
+- **Assembled multipolygons are not cached** between builds yet. In the app
+  they cost 1 to 26 ms at detail scales and 136 ms of an 0.87 s national
+  build; the cache stays open until it matters.
+- **Built area**: the view's bounding box (rotated views included) plus a
+  quarter of its size each side. The geometry is relative to the tile it was
+  built for and drawn shifted to the view's tile.
+- **One store** (`Osm::sharedLayers`) serves the layer and the tile map; it
+  reopens when the converted or overview files change.
+
+Measured in the app on TEST_PROFILES (Transverse Mercator, 50.77 N 16.30 E),
+1280 x 800 at pixel ratio 1.5, the route's own projection, OpenGL (llvmpipe):
+
+| View | m/px | File | Build | of it read (with projection) | Triangles | Polylines |
+|---|---:|---|---:|---:|---:|---:|
+| close | 1 | detail | 0.10 s | 0.09 s | 15 k | 5 k |
+| town | 4 | detail | 0.11 s | 0.10 s | 31 k | 11 k |
+| detail-wide | 15 | detail | 0.46 s | 0.37 s | 194 k | 13 k |
+| regional | 40 | regional | 0.35 s | 0.25 s | 194 k | 25 k |
+| national | 300 | national | 0.87 s | 0.53 s | 245 k | 122 k |
+
+- Captures: `tests/renderer/map-osm.json` (opt-in, needs
+  `--set core.paths.osmData=<converted Poland files>`). The harness waits while
+  a map layer builds (`RouteEditorGLWidget::mapLayersBusy`) and takes the view
+  keys `osmData` and `osmTransparentAreas`.
+- QRhi (Vulkan, llvmpipe) against OpenGL: under 1% of pixels differ in every
+  view, all of them one-pixel lines and tile borders (rasterization rules).
+- Not checked here: the conversion prompt from the menu (the dialog itself is
+  covered by the `osm-data` suite), and a real GPU.
+
+Still open: the line shader, labels and points, selection of OSM features, a
+dark style for the dark palette, the multipolygon cache, and an option to
+start with the layer on.

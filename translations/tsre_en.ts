@@ -2195,6 +2195,18 @@ Consist with this file name already exist. Overwrite?
         <source>&amp;Undo</source>
         <translation>&amp;Undo</translation>
     </message>
+    <message id="route.editor.route.editor.glwidget.osm.title">
+        <source>OSM Data</source>
+        <translation>OSM Data</translation>
+    </message>
+    <message id="route.editor.route.editor.glwidget.osm.no.directory">
+        <source>Set the OpenStreetMap data directory first, in Settings &gt; Maps and geodata &gt; Geodata. It holds the .osm.pbf files downloaded for your area, for example from Geofabrik.</source>
+        <translation>Set the OpenStreetMap data directory first, in Settings &gt; Maps and geodata &gt; Geodata. It holds the .osm.pbf files downloaded for your area, for example from Geofabrik.</translation>
+    </message>
+    <message id="route.editor.route.editor.glwidget.osm.no.reference">
+        <source>This route has no geographic reference, so OSM data cannot be placed on it.</source>
+        <translation>This route has no geographic reference, so OSM data cannot be placed on it.</translation>
+    </message>
     <message id="route.editor.route.editor.glwidget.action.copy">
         <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3089" />
         <source>&amp;Copy</source>
@@ -2559,6 +2571,14 @@ Consist with this file name already exist. Overwrite?
     <message id="route.editor.route.editor.window.action.map.terrain">
         <source>Terra&amp;in</source>
         <translation>Terra&amp;in</translation>
+    </message>
+    <message id="route.editor.route.editor.window.action.map.osm.data">
+        <source>&amp;OSM Data</source>
+        <translation>&amp;OSM Data</translation>
+    </message>
+    <message id="route.editor.route.editor.window.action.map.osm.transparent">
+        <source>Transparent OSM &amp;Areas</source>
+        <translation>Transparent OSM &amp;Areas</translation>
     </message>
     <message id="route.editor.route.editor.window.action.map.faded.overlay">
         <source>&amp;Faded Overlay</source>

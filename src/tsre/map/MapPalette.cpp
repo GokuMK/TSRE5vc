@@ -80,6 +80,8 @@ bool MapPalette::fromJson(const QByteArray &json, MapPalette &palette, QString *
     read("terrainBorder", palette.terrainBorder);
     read("quadBorder", palette.quadBorder);
     read("missingTile", palette.missingTile);
+    if (object.value("osmAreaAlpha").isDouble())
+        palette.osmAreaAlpha = float(std::clamp(object.value("osmAreaAlpha").toDouble(), 0.0, 1.0));
     for (const char *key : {"terrainFade", "overlayFade"})
         if (object.value(key).isDouble())
             palette.overlayFade = float(std::clamp(object.value(key).toDouble(), 0.0, 1.0));

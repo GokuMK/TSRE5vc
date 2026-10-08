@@ -2197,6 +2197,18 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
             <source>&amp;Undo</source>
             <translation>&amp;Cofnij</translation>
         </message>
+        <message id="route.editor.route.editor.glwidget.osm.title">
+            <source>OSM Data</source>
+            <translation>Dane OSM</translation>
+        </message>
+        <message id="route.editor.route.editor.glwidget.osm.no.directory">
+            <source>Set the OpenStreetMap data directory first, in Settings &gt; Maps and geodata &gt; Geodata. It holds the .osm.pbf files downloaded for your area, for example from Geofabrik.</source>
+            <translation>Najpierw ustaw katalog danych OpenStreetMap w Ustawienia &gt; Mapy i geodane &gt; Geodane. Znajdują się w nim pliki .osm.pbf pobrane dla twojego obszaru, na przykład z Geofabrik.</translation>
+        </message>
+        <message id="route.editor.route.editor.glwidget.osm.no.reference">
+            <source>This route has no geographic reference, so OSM data cannot be placed on it.</source>
+            <translation>Ta trasa nie ma odniesienia geograficznego, więc nie można na niej umieścić danych OSM.</translation>
+        </message>
         <message id="route.editor.route.editor.glwidget.action.copy">
             <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3089" />
             <source>&amp;Copy</source>
@@ -2561,6 +2573,14 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
         <message id="route.editor.route.editor.window.action.map.terrain">
             <source>Terra&amp;in</source>
             <translation>Te&amp;ren</translation>
+        </message>
+        <message id="route.editor.route.editor.window.action.map.osm.data">
+            <source>&amp;OSM Data</source>
+            <translation>Dane &amp;OSM</translation>
+        </message>
+        <message id="route.editor.route.editor.window.action.map.osm.transparent">
+            <source>Transparent OSM &amp;Areas</source>
+            <translation>Przezroczyste &amp;obszary OSM</translation>
         </message>
         <message id="route.editor.route.editor.window.action.map.faded.overlay">
             <source>&amp;Faded Overlay</source>

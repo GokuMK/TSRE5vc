@@ -15,13 +15,14 @@
 // toggles, which live in Game.
 enum class MapLayer {
     Track, Road, Junctions, Ends, TrackObjects, Paths, Activity, Terrain, FadedOverlay, Pointer,
-    Count
+    OsmData, OsmTransparentAreas, Count
 };
 
 struct MapLayers {
-    // Faded Overlay is off: painting needs the true colours.
+    // Faded Overlay is off: painting needs the true colours. OSM data is off: it needs
+    // an OSM directory and may ask to convert files.
     bool visible[int(MapLayer::Count)] = {true, true, true, true, true, true, true, true, false,
-                                          true};
+                                          true, false, false};
     bool shows(MapLayer layer) const { return visible[int(layer)]; }
     void set(MapLayer layer, bool show) { visible[int(layer)] = show; }
 };

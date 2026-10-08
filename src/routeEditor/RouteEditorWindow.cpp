@@ -438,6 +438,11 @@ RouteEditorWindow::RouteEditorWindow() {
          qtTrId("route.editor.route.editor.window.action.map.activity"), MapLayer::Activity},
         {//% "Terra&in"
          qtTrId("route.editor.route.editor.window.action.map.terrain"), MapLayer::Terrain},
+        {//% "&OSM Data"
+         qtTrId("route.editor.route.editor.window.action.map.osm.data"), MapLayer::OsmData},
+        {//% "Transparent OSM &Areas"
+         qtTrId("route.editor.route.editor.window.action.map.osm.transparent"),
+         MapLayer::OsmTransparentAreas},
         {//% "&Faded Overlay"
          qtTrId("route.editor.route.editor.window.action.map.faded.overlay"),
          MapLayer::FadedOverlay},
@@ -447,8 +452,13 @@ RouteEditorWindow::RouteEditorWindow() {
         QAction *action = GuiFunct::newMenuCheckAction(entry.text, this,
                                                        MapLayers().shows(entry.layer));
         const MapLayer layer = entry.layer;
-        QObject::connect(action, &QAction::triggered, this,
-                         [this, layer](bool visible) { glWidget->setMapLayerVisible(layer, visible); });
+        QObject::connect(action, &QAction::triggered, this, [this, layer, action](bool visible) {
+            if (visible && layer == MapLayer::OsmData && !glWidget->prepareOsmLayer()) {
+                action->setChecked(false);
+                return;
+            }
+            glWidget->setMapLayerVisible(layer, visible);
+        });
         mapMenu->addAction(action);
     }
     // Tools

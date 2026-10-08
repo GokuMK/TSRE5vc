@@ -8,6 +8,9 @@
 #include <tsre/map/ActivityMapLayer.h>
 #include <tsre/map/MapOverlayFade.h>
 #include <tsre/map/MapPalette.h>
+#include <tsre/map/OsmMapLayer.h>
+#include <tsre/geo/GeoCoordinates.h>
+#include <memory>
 #include <tsre/map/TerrainMapLayer.h>
 #include <tsre/map/MapView.h>
 #include <tsre/map/TrackItemMapLayer.h>
@@ -169,6 +172,55 @@ int TsreTests::runMapViewSuite(bool verbose) {
         check(fadeSquare.size() == 18 && near(highX - lowX, 400.0f) && near(highZ - lowZ, 200.0f)
                       && near(fadeSquare[1], MapOverlayFade::Height),
               "Faded Overlay covers the ground in view");
+    }
+
+    // OSM data: its band of heights, and placing latitude and longitude on the ground.
+    check(OsmMapLayer::BaseHeight > TerrainMapLayer::OverlayHeight
+                  && OsmMapLayer::BaseHeight + 40.0f * OsmMapLayer::HeightStep
+                             <= TerrainMapLayer::MissingHeight,
+          "OSM: drawn between the terrain textures and the terrain aids");
+    for (GeoProjectionType type : {GeoProjectionType::TransverseMercator,
+                                   GeoProjectionType::InterruptedGoodeHomolosine}) {
+        GeoProjectionParameters projection;
+        projection.originLatitude = 52.0;
+        projection.originLongitude = 20.0;
+        std::unique_ptr<GeoWorldCoordinateConverter> converter(
+                GeoWorldCoordinateConverter::Create(type, &projection));
+        // A view tile and a point 5 km away in both directions.
+        int tileX = 3, tileZ = -2;
+        if (type == GeoProjectionType::InterruptedGoodeHomolosine) {
+            IghCoordinate igh;
+            PreciseTileCoordinate tile;
+            converter->ConvertToInternal(52.0, 20.0, &igh);
+            converter->ConvertToTile(&igh, &tile);
+            tileX = tile.TileX;
+            tileZ = -tile.TileZ;
+        }
+        double lat = 0, lon = 0;
+        float x = 0, z = 0;
+        OsmMapLayer::toLatLon(converter.get(), tileX, tileZ, 5000.0, -5000.0, lat, lon);
+        OsmMapLayer::toGround(converter.get(), lat, lon, tileX, tileZ, x, z);
+        double latEast = 0, lonEast = 0, latSouth = 0, lonSouth = 0;
+        OsmMapLayer::toLatLon(converter.get(), tileX, tileZ, 1000.0, 0.0, latEast, lonEast);
+        OsmMapLayer::toLatLon(converter.get(), tileX, tileZ, 0.0, 1000.0, latSouth, lonSouth);
+        double lat0 = 0, lon0 = 0;
+        OsmMapLayer::toLatLon(converter.get(), tileX, tileZ, 0.0, 0.0, lat0, lon0);
+        const float rect[4] = {-2000.0f, 3000.0f, -1000.0f, 4000.0f};
+        const Osm::Box area = OsmMapLayer::areaOf(converter.get(), tileX, tileZ, rect);
+        bool inside = true;
+        for (float cx : {rect[0], rect[1]})
+            for (float cz : {rect[2], rect[3]}) {
+                double clat, clon;
+                OsmMapLayer::toLatLon(converter.get(), tileX, tileZ, cx, cz, clat, clon);
+                const Osm::Location l = Osm::Location::fromDegrees(clon, clat);
+                inside = inside && l.x >= area.minX && l.x <= area.maxX && l.y >= area.minY
+                        && l.y <= area.maxY;
+            }
+        check(near(x, 5000.0f, 0.05f) && near(z, -5000.0f, 0.05f) && lonEast > lon0
+                      && latSouth < lat0 && inside,
+              type == GeoProjectionType::TransverseMercator
+                      ? "OSM: ground and latitude/longitude round trip, x east, z south (TM)"
+                      : "OSM: ground and latitude/longitude round trip, x east, z south (IGH)");
     }
 
     // Track objects.

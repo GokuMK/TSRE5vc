@@ -437,6 +437,32 @@ bool OsmLayers::open(const OsmDirectory &directory, const OverviewConfig &config
     return true;
 }
 
+std::shared_ptr<const OsmLayers> sharedLayers(const QString &directory, QString &error) {
+    static std::mutex mutex;
+    static std::shared_ptr<OsmLayers> layers;
+    static QString signature;
+    OsmDirectory scanned;
+    if (!scanned.scan(directory, error)) return nullptr;
+    const OverviewConfig &config = OverviewConfig::standard();
+    QString now = directory + QLatin1Char(';');
+    for (const DirectoryEntry *e : scanned.convertedFiles()) {
+        now += e->path + QLatin1Char('|') + QString::number(e->size) + QLatin1Char('|')
+               + QString::number(QFileInfo(e->path).lastModified().toMSecsSinceEpoch());
+        for (size_t l = 0; l < config.levels.size(); ++l) now += overviewUpToDate(e->path, config, l) ? QLatin1Char('+') : QLatin1Char('-');
+        now += QLatin1Char(';');
+    }
+    std::lock_guard<std::mutex> lock(mutex);
+    if (layers && now == signature) return layers;
+    layers.reset();
+    signature.clear();
+    if (scanned.convertedFiles().empty()) { error = QStringLiteral("No converted OSM files in %1").arg(directory); return nullptr; }
+    auto opened = std::make_shared<OsmLayers>();
+    if (!opened->open(scanned, config, error)) return nullptr;
+    layers = opened;
+    signature = now;
+    return layers;
+}
+
 int OsmLayers::levelForScale(double metersPerPixel) const {
     int level = -1;
     for (size_t l = 0; l < config_.levels.size(); ++l)

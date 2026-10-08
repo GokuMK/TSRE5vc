@@ -57,8 +57,9 @@ public:
     static constexpr float StripPixels = 1.5f;
     // Joins sharper than this miter length (in half widths) get two vertex pairs.
     static constexpr float MiterLimit = 2.0f;
-    // Features smaller than this across (pixels at the load's scale) are left out: specks
-    // that cost as many vertices as visible features.
+    // Areas and closed ways smaller than this across (pixels at the load's scale) are left
+    // out: specks that cost as many vertices as visible features. Open ways stay, as they
+    // may be short pieces of long roads and rivers.
     static constexpr float MinPixels = 2.0f;
     // Geometry is simplified to this many pixels (Douglas-Peucker) when that is at least
     // SimplifyFromMeters: detail no pixel shows, and most of the vertices at coarse scales.
@@ -89,6 +90,8 @@ public:
 
     // Area fills from load(), one batch per slot and colour.
     const std::vector<MapBatch> &fills() const { return fills_; }
+    // Moves the fills out (they are uploaded once; strokes() does not need them).
+    std::vector<MapBatch> takeFills() { fillIndex_.clear(); return std::move(fills_); }
     // Outlines, casings and lines for a scale.
     void strokes(double metersPerPixel, std::vector<MapBatch> &out) const;
     const Stats &stats() const { return stats_; }

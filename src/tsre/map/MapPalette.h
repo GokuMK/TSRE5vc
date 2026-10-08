@@ -51,6 +51,8 @@ struct MapPalette {
     // How much Map > Faded Overlay blends terrain and OSM data towards the
     // background. Files may still name it terrainFade, its former name.
     float overlayFade = 0.3f;
+    // Alpha of OSM area fills with Map > Transparent OSM Areas.
+    float osmAreaAlpha = 0.5f;
     // Borders of the terrain tiles being edited, the thin lines of their
     // quadtree, and the tint of a populated tile without its file.
     QColor terrainBorder = QColor(185, 186, 194);

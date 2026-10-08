@@ -158,7 +158,14 @@ void runOverviewTests(const std::function<void(bool, const char *)> &check) {
     check(&layers.forScale(1) == &layers.detail() && layers.levelForScale(1) == -1 && layers.levelForScale(20) == 0 && layers.levelForScale(149) == 0
               && layers.levelForScale(150) == 1 && &layers.forScale(500) != &layers.forScale(30) && &layers.forScale(30) != &layers.detail(),
           "scale picks detail below 20 m/px, regional to 150 m/px, national beyond");
+    const auto shared = sharedLayers(dir.path(), error), again = sharedLayers(dir.path(), error);
+    QTemporaryDir empty;
+    check(shared && shared == again && shared->hasLevel(1) && !sharedLayers(empty.path(), error),
+          "shared layers open once while the files stay the same; none without converted files");
     QFile::remove(nationalPath);
+    const auto reopened = sharedLayers(dir.path(), error);
+    check(reopened && reopened != shared && !reopened->hasLevel(1) && shared->hasLevel(1),
+          "shared layers reopen when an overview goes; users of the old ones keep them");
     OsmLayers partial;
     check(partial.open(od, standard, error) && !partial.hasLevel(1) && &partial.forScale(500) != &partial.detail(),
           "a missing national level falls back to the regional one");

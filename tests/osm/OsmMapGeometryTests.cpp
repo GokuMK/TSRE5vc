@@ -134,6 +134,7 @@ void runMapGeometryTests(const std::function<void(bool, const char *)> &check) {
     std::vector<std::pair<double, double>> jitter;
     for (int i = 0; i <= 100; ++i) jitter.push_back({i * 10.0, 3000 + (i % 2) * 1.0});
     fx.way(8, {{"highway", "primary"}}, fx.line(jitter));
+    fx.way(9, {{"highway", "primary"}}, fx.line({{1000, 1000}, {1010, 1000}}));  // a short piece of way 3's road
     HeaderInfo h;
     h.requiredFeatures << "OsmSchema-V0.6" << "DenseNodes";
     std::string a, b, c;
@@ -190,10 +191,10 @@ void runMapGeometryTests(const std::function<void(bool, const char *)> &check) {
     const bool coarse = geometry.load(store, all, 6.0, project, heights, error);
     geometry.strokes(6.0, strokes);
     check(coarse && geometry.stats().polygons == 1 && !find(geometry.fills(), buildingFill, MapBatch::Triangles)
-              && vertexCount(strokes, MapBatch::Lines) > 0 && geometry.stats().polylines == 3 && geometry.stats().points == 3 + 2 + 2,
+              && vertexCount(strokes, MapBatch::Lines) > 0 && geometry.stats().polylines == 4 && geometry.stats().points == 3 + 2 + 2 + 2,
           "at 6 m/px buildings and fences are left out; roads and the forest stay, the zigzag simplified to its ends");
     const bool far = geometry.load(store, all, 20.0, project, heights, error);
-    check(far && geometry.stats().polylines == 2, "at 20 m/px residential roads are left out too");
+    check(far && geometry.stats().polylines == 3, "at 20 m/px residential roads are left out too; a 10 m piece of a main road stays");
 }
 
 // Opt-in: --map-geometry <minLon> <minLat> <maxLon> <maxLat> <metresPerPixel> <converted files...>

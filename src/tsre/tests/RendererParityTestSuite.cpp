@@ -80,6 +80,8 @@ struct ViewSpec {
     float metresPerPixel = 2.0f;
     float bearing = 0.0f;
     bool fadedOverlay = false;
+    bool osmData = false;
+    bool osmTransparentAreas = false;
     // Edit the distant terrain (TerrainLib's current tree) for this view.
     bool editDistant = false;
     // Height above the terrain, replacing the view's own height.
@@ -240,6 +242,8 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         view.metresPerPixel = float(object.value("metresPerPixel").toDouble(2.0));
         view.bearing = float(object.value("bearing").toDouble(0.0));
         view.fadedOverlay = object.value("fadedOverlay").toBool(false);
+        view.osmData = object.value("osmData").toBool(false);
+        view.osmTransparentAreas = object.value("osmTransparentAreas").toBool(false);
         view.editDistant = object.value("editDistant").toBool(false);
         view.hasAboveGround = object.contains("aboveGround");
         view.aboveGround = float(object.value("aboveGround").toDouble(0.0));
@@ -484,6 +488,8 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
             widget.setDiagnosticMapView(tileX, tileZ, pos[0], pos[2], spec.metresPerPixel,
                                         spec.bearing);
             widget.setMapLayerVisible(MapLayer::FadedOverlay, spec.fadedOverlay);
+            widget.setMapLayerVisible(MapLayer::OsmData, spec.osmData);
+            widget.setMapLayerVisible(MapLayer::OsmTransparentAreas, spec.osmTransparentAreas);
             if (spec.editDistant)
                 Game::terrainLib->setDistantAsCurrent();
             else
@@ -509,6 +515,9 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
             if (shapeProgress != lastShapeProgress)
                 stableCount = 0;
             lastShapeProgress = shapeProgress;
+            // Map layers built on a worker (OSM data) draw the same until they are ready.
+            if (widget.mapLayersBusy())
+                stableCount = 0;
             if (frames >= options.settle.minFrames && stableCount >= options.settle.stableFrames
                     && !ShapeLoader::busy()) {
                 settled = true;
