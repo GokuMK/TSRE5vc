@@ -512,7 +512,8 @@ longer side, as for track objects):
   the detailed tiles are drawn; static painting then works at any zoom.
   Edits go through the current tree in both modes.
 - **Quadtree** of the tiles being edited (`QuadTree::visit`): every node's
-  square as a thin line (palette `quadBorder`); a populated tile whose
+  four quadrants (the quads the tool acts on) as thin lines (palette
+  `quadBorder`); a populated tile whose
   file exists gets the tile border, one whose file is missing a light red
   tint (`missingTile`, 35%). Tile file checks are cached by name until
   the layer is invalidated.

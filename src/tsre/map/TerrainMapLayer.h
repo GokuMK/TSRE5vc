@@ -34,7 +34,7 @@ struct MapPalette;
 // - editing distant tiles, they are the main layer at every zoom, without
 //   a background or detailed tiles.
 // The quadtree of the tiles being edited shows as thin lines around every
-// node; tiles with their file have the tile border, populated tiles
+// node's quadrants; tiles with their file have the tile border, populated tiles
 // without one a light red tint.
 // - Narrower views show each detailed patch as a square with its texture
 //   and placement from the tile file (procedural tiles: their baked
@@ -54,8 +54,8 @@ public:
     static constexpr float ProceduralHeight = 25.0f;
     // A tile's map texture shown by the geo tools, over its terrain.
     static constexpr float OverlayHeight = 35.0f;
-    // The quadtree of the tiles being edited: every node's square as a thin
-    // line, a populated tile whose file is missing tinted.
+    // The quadtree of the tiles being edited: every node's quadrants as thin
+    // lines, a populated tile whose file is missing tinted.
     static constexpr float MissingHeight = 36.0f;
     static constexpr float QuadHeight = 38.0f;
     static constexpr float BorderHeight = 40.0f;

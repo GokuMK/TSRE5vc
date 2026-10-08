@@ -249,12 +249,18 @@ void TerrainMapLayer::build(const MapView &view, const MapPalette &palette, Terr
                                      : terrain->getQuadTreeDetailed()) {
         const float quadWidth = QuadPixels * view.metresPerPixel;
         QuadTree::Visitor visitor;
+        // A node's four quadrants, the quads the quadtree tool acts on: a
+        // split quadrant then shows as its own node's four.
         visitor.node = [&](int x, int y, int size) {
-            TerrainInfo node;
-            node.cx = x;
-            node.cy = y;
-            node.level = size;
-            appendOutline(nodeLines, node, view, QuadHeight, quadWidth);
+            const int half = size / 2;
+            for (int qx = 0; qx < 2; ++qx)
+                for (int qy = 0; qy < 2; ++qy) {
+                    TerrainInfo quadrant;
+                    quadrant.cx = x + qx * half;
+                    quadrant.cy = y + qy * half;
+                    quadrant.level = half;
+                    appendOutline(nodeLines, quadrant, view, QuadHeight, quadWidth);
+                }
             ++nodes;
         };
         visitor.tile = [&](const TerrainInfo &tile) {
