@@ -514,6 +514,30 @@ longer side, as for track objects):
   file exists gets the tile border, one whose file is missing a light red
   tint (`missingTile`, 35%). Tile file checks are cached by name until
   the layer is invalidated.
+- **Quadtree tool** (F3 > Quad Tree > Edit Quad Tree, 2026-10-08): a left
+  click does nothing; the context menu acts on the quad under the pointer
+  (taken when the menu opens) in the tree being edited, which the map
+  outlines while the tool is active:
+  - Split Quad: gives the quad its four children (`QuadTree::splitQuad`).
+  - Toggle Populated: no tile files touched (`QuadTree::setPopulated`);
+    up to 32 km quads.
+  - Create Tile: populates the quad if needed and writes an empty tile of
+    its size, the default profile's samples with their spacing times the
+    quad's size; asks before replacing an existing tile. Up to 32 km.
+  - Delete Tile: after a confirmation, removes the tile file and the files
+    it names (samples, procedural map, patch flags; never matched by
+    prefix, as a smaller tile's name may start with a larger one's) and
+    the populated state. Textures in TERRTEX stay.
+  - Tree edits are saved at once (as the existing tile creation), held
+    for a recovery tree. No undo.
+  - `QuadTree::quadAt` gives the smallest quad under a tile, following
+    split quadrants; outside every TD block, the block's 256-tile quad.
+  - The map gets right-click menus for map tools; right drags still turn.
+- **Tile coordinates**: `Game::check_coords` moved a position by one tile
+  at most, enough for the 3D pointer but not for the map's, which can lie
+  several tiles from the view's tile: painting, geo and activity tools
+  then acted on the wrong tile beyond about 3 km. It now normalizes any
+  offset (positions within a tile and a half move as before).
 - **Distant level**: the detailed tiles show only their borders, from the
   quadtree, so nothing is loaded for them. A route without distant tiles
   shows only these borders.

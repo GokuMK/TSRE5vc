@@ -17,6 +17,7 @@
 #include <tsre/world/TerrainGridLayout.h>
 #include <tsre/world/TerrainAdjacentEdge.h>
 #include <tsre/world/TerrainLod.h>
+#include <tsre/world/QuadTree.h>
 
 
 class RenderQueue;
@@ -37,6 +38,18 @@ public:
     virtual void setDistantAsCurrent();
     // Whether the distant tiles are the ones being edited (current).
     virtual bool distantIsCurrent() const { return false; }
+    // The quadtree being edited (map mode's quadtree tool), or null.
+    virtual QuadTree *currentTree() { return nullptr; }
+    // Whether a quad of the current tree has its tile file.
+    virtual bool quadTileExists(const QuadTree::Quad &quad);
+    // Writes an empty terrain tile for a quad of the current tree, sized to
+    // the quad (the default profile's samples, their spacing times the
+    // quad's size), populating the quad; overwrite replaces an existing
+    // tile. The tile is loaded again.
+    virtual bool createQuadTile(const QuadTree::Quad &quad, bool overwrite, QString &error);
+    // Removes a quad's tile: its tile file and the files it references, and
+    // its populated state. The tile is dropped from the library.
+    virtual bool deleteQuadTile(const QuadTree::Quad &quad, QString &error);
     virtual void loadQuadTreeDetailed(FileBuffer *data);
     virtual void loadQuadTreeDistant(FileBuffer *data);
     virtual QuadTree* getQuadTreeDetailed();

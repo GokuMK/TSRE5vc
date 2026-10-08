@@ -61,6 +61,8 @@ public:
     static constexpr float BorderHeight = 40.0f;
     static constexpr float QuadPixels = 1.0f;
     static constexpr float MissingAlpha = 0.35f;
+    static constexpr float HighlightHeight = 45.0f;
+    static constexpr float HighlightPixels = 3.0f;
     // Faded Terrain: a square of the background colour over the terrain,
     // under the roads.
     static constexpr float FadeHeight = 50.0f;
@@ -74,6 +76,11 @@ public:
     void invalidate();
     // Builds the geometry again on the next draw (an edit changed patches).
     void rebuild() { valid = false; }
+    // An outline around a quad of the tree (the quadtree tool's quad under
+    // the pointer): corner x, y and size level in world tiles, tree
+    // coordinates.
+    void pushQuadHighlight(RenderQueue &queue, const MapView &view, const MapPalette &palette,
+                           int x, int y, int level);
 
     // Whether a view shows the detailed tiles' patches, and procedural
     // tiles with their GPU material shading.
@@ -128,6 +135,7 @@ private:
     std::unique_ptr<OglObj> borders;
     std::unique_ptr<OglObj> quadLines;
     std::unique_ptr<OglObj> missing;
+    std::unique_ptr<OglObj> highlight;
     QHash<QString, bool> tileFiles;
     std::unique_ptr<OglObj> fade;
 };

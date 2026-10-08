@@ -217,7 +217,8 @@ int TsreTests::runEditorToolsSuite(bool verbose) {
     // Geo and activity tools; every name the panels send.
     const QStringList dataTools = {"mapTileShowTool", "mapTileLoadTool", "imageryTileLoadTool",
                                    "heightTileLoadTool", "actNewLooseConsistTool",
-                                   "actNewSpeedZoneTool", "pickNewEventLocationTool"};
+                                   "actNewSpeedZoneTool", "pickNewEventLocationTool",
+                                   "quadTreeTool"};
     allFound = true;
     for (const QString &id : dataTools)
         allFound = allFound && registry.find(id) != nullptr;
@@ -275,7 +276,9 @@ int TsreTests::runEditorToolsSuite(bool verbose) {
     for (const char *id : {"mapTileShowTool", "mapTileLoadTool", "imageryTileLoadTool",
                            "heightTileLoadTool", "makeTileTextureTool", "removeTileTextureTool"})
         geoTools = geoTools && registry.allowed(id, ViewMode::Map);
-    check(geoTools, "geo: the tile tools work on the map");
+    geoTools = geoTools && registry.allowed("quadTreeTool", ViewMode::Map)
+            && !registry.find("quadTreeTool")->editsByDragging();
+    check(geoTools, "geo: the tile tools and the quadtree tool work on the map");
     check(textureTools && !geometryTools && registry.find("paintToolTexture")->editsByDragging()
                   && registry.find("putTerrainTexTool")->editsByDragging()
                   && !registry.find("proceduralFillTool")->editsByDragging()

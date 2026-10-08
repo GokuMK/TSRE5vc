@@ -61,7 +61,7 @@ public:
 
 TerrainMapLayer::TerrainMapLayer()
     : borders(std::make_unique<OglObj>()), quadLines(std::make_unique<OglObj>()),
-      missing(std::make_unique<OglObj>()),
+      missing(std::make_unique<OglObj>()), highlight(std::make_unique<OglObj>()),
       fade(std::make_unique<OglObj>()) {}
 
 TerrainMapLayer::~TerrainMapLayer() = default;
@@ -122,6 +122,19 @@ void TerrainMapLayer::appendTileSquare(std::vector<float> &out, Terrain *tile,
     const float corners[16] = {x0, z0, 0, 0,  x0 + size, z0, 1, 0,
                                x0 + size, z0 + size, 1, 1,  x0, z0 + size, 0, 1};
     appendPatch(out, corners, y);
+}
+
+void TerrainMapLayer::pushQuadHighlight(RenderQueue &queue, const MapView &view,
+                                        const MapPalette &palette, int x, int y, int level) {
+    TerrainInfo quad;
+    quad.cx = x;
+    quad.cy = y;
+    quad.level = level;
+    std::vector<float> outline;
+    appendOutline(outline, quad, view, HighlightHeight, HighlightPixels * view.metresPerPixel);
+    setColour(*highlight, palette.selection);
+    highlight->init(outline.data(), int(outline.size()), RenderItem::V, GL_TRIANGLES);
+    highlight->pushRenderItem(queue);
 }
 
 void TerrainMapLayer::appendFill(std::vector<float> &out, const TerrainInfo &info,

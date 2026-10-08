@@ -15,6 +15,9 @@
 #include <tsre/world/Route.h>
 #include <tsre/world/Terrain.h>
 #include <tsre/world/TerrainLib.h>
+#include <QAction>
+#include <QMenu>
+#include <QMessageBox>
 
 namespace {
 
@@ -31,6 +34,92 @@ public:
 
 private:
     std::function<void(ToolContext &)> command;
+};
+
+// Edits the quadtree of the terrain being edited (F3 Edit Quad Tree): a
+// left click does nothing; the context menu acts on the quad under the
+// pointer, taken when the menu opens.
+class QuadTreeTool : public EditorTool {
+public:
+    // The largest quad populated or given a tile: 32 km.
+    static constexpr int MaxTileLevel = 16;
+
+    QuadTreeTool() : EditorTool("quadTreeTool", ViewMode::Scene3D | ViewMode::Map) {}
+
+    bool press(ToolContext &, const ToolMouse &) override { return true; }
+
+    void contextMenu(ToolContext &ctx, QMenu &menu) override {
+        QuadTree *tree = Game::terrainLib != nullptr ? Game::terrainLib->currentTree() : nullptr;
+        if (tree == nullptr)
+            return;
+        int x = ctx.tileX(), z = ctx.tileZ();
+        float px = ctx.pointer()[0], pz = ctx.pointer()[2];
+        Game::check_coords(x, z, px, pz);
+        // Tree coordinates count tiles northwards.
+        const QuadTree::Quad quad = tree->quadAt(x, -z);
+        const bool exists = Game::terrainLib->quadTileExists(quad);
+        QWidget *view = ctx.view();
+        menu.addSection(
+            //% "Quad %1 km, %2: %3"
+            qtTrId("route.editor.quad.tree.tool.label.quad").arg(quad.level * 2).arg(quad.name)
+                .arg(quad.populated
+                     ? (exists
+                        //% "populated, tile present"
+                        ? qtTrId("route.editor.quad.tree.tool.label.populated.present")
+                        //% "populated, tile missing"
+                        : qtTrId("route.editor.quad.tree.tool.label.populated.missing"))
+                     //% "not populated"
+                     : qtTrId("route.editor.quad.tree.tool.label.empty")));
+        const bool writable = Game::writeEnabled;
+        QAction *split = menu.addAction(
+            //% "Split Quad"
+            qtTrId("route.editor.quad.tree.tool.action.split"));
+        split->setEnabled(writable && quad.level >= 2);
+        QObject::connect(split, &QAction::triggered, [tree, quad] {
+            tree->splitQuad(quad.x, quad.y, quad.level);
+        });
+        QAction *toggle = menu.addAction(
+            //% "Toggle Populated"
+            qtTrId("route.editor.quad.tree.tool.action.toggle.populated"));
+        toggle->setEnabled(writable && quad.level <= MaxTileLevel);
+        QObject::connect(toggle, &QAction::triggered, [tree, quad] {
+            tree->setPopulated(quad.x, quad.y, quad.level, !quad.populated);
+        });
+        QAction *create = menu.addAction(
+            //% "Create Tile"
+            qtTrId("route.editor.quad.tree.tool.action.create.tile"));
+        create->setEnabled(writable && quad.level <= MaxTileLevel);
+        QObject::connect(create, &QAction::triggered, [view, quad, exists] {
+            if (exists && QMessageBox::question(view,
+                    //% "Create Tile"
+                    qtTrId("route.editor.quad.tree.tool.dialog.create.title"),
+                    //% "The tile %1 exists. Replace it with an empty tile?"
+                    qtTrId("route.editor.quad.tree.tool.dialog.create.override").arg(quad.name))
+                    != QMessageBox::Yes)
+                return;
+            QString error;
+            if (!Game::terrainLib->createQuadTile(quad, exists, error))
+                QMessageBox::warning(view, qtTrId("route.editor.quad.tree.tool.dialog.create.title"),
+                                     error);
+        });
+        QAction *remove = menu.addAction(
+            //% "Delete Tile"
+            qtTrId("route.editor.quad.tree.tool.action.delete.tile"));
+        remove->setEnabled(writable && (quad.populated || exists));
+        QObject::connect(remove, &QAction::triggered, [view, quad] {
+            if (QMessageBox::question(view,
+                    //% "Delete Tile"
+                    qtTrId("route.editor.quad.tree.tool.dialog.delete.title"),
+                    //% "Delete the tile %1 and its files? This cannot be undone."
+                    qtTrId("route.editor.quad.tree.tool.dialog.delete.question").arg(quad.name))
+                    != QMessageBox::Yes)
+                return;
+            QString error;
+            if (!Game::terrainLib->deleteQuadTile(quad, error))
+                QMessageBox::warning(view, qtTrId("route.editor.quad.tree.tool.dialog.delete.title"),
+                                     error);
+        });
+    }
 };
 
 // The loaded terrain tile under the pointer, or null.
@@ -81,6 +170,7 @@ std::vector<std::unique_ptr<EditorTool>> create() {
         if (ctx.prepareTerrainTile())
             Game::terrainLib->setHeightFromGeoGui(ctx.tileX(), ctx.tileZ(), ctx.pointer());
     }, bothModes);
+    tools.push_back(std::make_unique<QuadTreeTool>());
     click("actNewLooseConsistTool", [useHeight](ToolContext &ctx) {
         ctx.currentRoute()->actNewLooseConsist(ctx.tileX(), ctx.tileZ(), ctx.pointer(),
                                                useHeight(ctx));

@@ -35,6 +35,10 @@ public:
     bool distantIsCurrent() const override {
         return currentQuadTree != nullptr && currentQuadTree == quadTreeLo;
     }
+    QuadTree *currentTree() override { return currentQuadTree; }
+    bool quadTileExists(const QuadTree::Quad &quad) override;
+    bool createQuadTile(const QuadTree::Quad &quad, bool overwrite, QString &error) override;
+    bool deleteQuadTile(const QuadTree::Quad &quad, QString &error) override;
     void setDetailedTerrainAsCurrent();
     void setLowTerrainAsCurrent();
     void saveQtToStream(QTextStream &out);

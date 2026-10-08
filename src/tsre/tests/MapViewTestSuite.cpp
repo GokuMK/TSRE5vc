@@ -3,6 +3,8 @@
 #include <QDebug>
 #include <algorithm>
 #include <cmath>
+#include <limits>
+#include <tsre/Game.h>
 #include <tsre/map/ActivityMapLayer.h>
 #include <tsre/map/MapPalette.h>
 #include <tsre/map/TerrainMapLayer.h>
@@ -192,6 +194,23 @@ int TsreTests::runMapViewSuite(bool verbose) {
                           == QColor(255, 0, 0)
                   && MapPalette::dark().path != itemPalette.path,
           "activity: colours from the palette, events red as in 3D");
+
+    // Positions into their tile, however far (the map's pointer).
+    {
+        int tx = 0, tz = 0;
+        float px = 11210.0f, pz = -8023.0f;
+        Game::check_coords(tx, tz, px, pz);
+        const bool far = tx == 5 && near(px, 970.0f) && tz == -4 && near(pz, 169.0f);
+        int ex = 0, ez = 0;
+        float edgeX = 1024.0f, edgeZ = -1024.0f;
+        Game::check_coords(ex, ez, edgeX, edgeZ);
+        const bool edges = ex == 1 && near(edgeX, -1024.0f) && ez == 0 && near(edgeZ, -1024.0f);
+        int nx = 0, nz = 0;
+        float bad = std::numeric_limits<float>::quiet_NaN(), small = -1025.0f;
+        Game::check_coords(nx, nz, bad, small);
+        check(far && edges && nx == 0 && std::isnan(bad) && nz == -1 && near(small, 1023.0f),
+              "tile coordinates: positions far off normalize into their tile");
+    }
 
     // Terrain levels by the view's longer side.
     MapView ground;

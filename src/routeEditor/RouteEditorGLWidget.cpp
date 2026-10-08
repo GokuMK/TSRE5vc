@@ -1618,6 +1618,25 @@ void RouteEditorGLWidget::mouseReleaseEvent(QMouseEvent* event) {
         const QPointF position = event->position() * Game::PixelRatio;
         const QPointF moved = position - mapPressPos;
         EditorTool *tool = activeTool();
+        // A right click that does not turn the map: the tool's menu, acting
+        // at the pointer.
+        if (event->button() == Qt::RightButton && tool != nullptr
+                && tool->supports(ViewMode::Map)
+                && std::abs(moved.x()) + std::abs(moved.y()) <= MapClickPixels) {
+            mousex = float(position.x());
+            mousey = float(position.y());
+            updateMapPointer();
+            QMenu menu;
+            tool->contextMenu(*this, menu);
+            if (!menu.isEmpty())
+                menu.exec(mapToGlobal(event->position().toPoint()));
+            // What the actions changed shows on the next draw.
+            terrainMap->invalidate();
+            trackItemMap->rebuild();
+            activityMap->invalidate();
+            update();
+            return;
+        }
         if (event->button() == Qt::LeftButton && tool != nullptr
                 && tool->supports(ViewMode::Map)
                 && std::abs(moved.x()) + std::abs(moved.y()) <= MapClickPixels) {
@@ -1809,6 +1828,16 @@ void RouteEditorGLWidget::paintMap() {
     if (mapLayers.shows(MapLayer::Terrain))
         terrainMap->pushRenderItems(queue, view, palette, Game::terrainLib,
                                     mapLayers.shows(MapLayer::FadedTerrain));
+    // The quadtree tool: the quad its menu would act on.
+    if (toolEnabled == "quadTreeTool" && Game::terrainLib != NULL) {
+        if (QuadTree *tree = Game::terrainLib->currentTree()) {
+            int x = tileX(), z = tileZ();
+            float px = aktPointerPos[0], pz = aktPointerPos[2];
+            Game::check_coords(x, z, px, pz);
+            const QuadTree::Quad quad = tree->quadAt(x, -z);
+            terrainMap->pushQuadHighlight(queue, view, palette, quad.x, quad.y, quad.level);
+        }
+    }
     trackMap->pushRenderItems(queue, view, palette, Game::trackDB, Game::roadDB, mapLayers);
     if (mapLayers.shows(MapLayer::TrackObjects))
         trackItemMap->pushRenderItems(queue, view, palette, route, Game::trackDB, Game::roadDB);

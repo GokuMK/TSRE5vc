@@ -1589,6 +1589,66 @@ Consist with this file name already exist. Overwrite?
         <source>Make Tile Texture from Map</source>
         <translation>Make Tile Texture from Map</translation>
     </message>
+    <message id="route.editor.quad.tree.tool.label.quad">
+        <source>Quad %1 km, %2: %3</source>
+        <translation>Quad %1 km, %2: %3</translation>
+    </message>
+    <message id="route.editor.quad.tree.tool.label.populated.present">
+        <source>populated, tile present</source>
+        <translation>populated, tile present</translation>
+    </message>
+    <message id="route.editor.quad.tree.tool.label.populated.missing">
+        <source>populated, tile missing</source>
+        <translation>populated, tile missing</translation>
+    </message>
+    <message id="route.editor.quad.tree.tool.label.empty">
+        <source>not populated</source>
+        <translation>not populated</translation>
+    </message>
+    <message id="route.editor.quad.tree.tool.action.split">
+        <source>Split Quad</source>
+        <translation>Split Quad</translation>
+    </message>
+    <message id="route.editor.quad.tree.tool.action.toggle.populated">
+        <source>Toggle Populated</source>
+        <translation>Toggle Populated</translation>
+    </message>
+    <message id="route.editor.quad.tree.tool.action.create.tile">
+        <source>Create Tile</source>
+        <translation>Create Tile</translation>
+    </message>
+    <message id="route.editor.quad.tree.tool.dialog.create.title">
+        <source>Create Tile</source>
+        <translation>Create Tile</translation>
+    </message>
+    <message id="route.editor.quad.tree.tool.dialog.create.override">
+        <source>The tile %1 exists. Replace it with an empty tile?</source>
+        <translation>The tile %1 exists. Replace it with an empty tile?</translation>
+    </message>
+    <message id="route.editor.quad.tree.tool.action.delete.tile">
+        <source>Delete Tile</source>
+        <translation>Delete Tile</translation>
+    </message>
+    <message id="route.editor.quad.tree.tool.dialog.delete.title">
+        <source>Delete Tile</source>
+        <translation>Delete Tile</translation>
+    </message>
+    <message id="route.editor.quad.tree.tool.dialog.delete.question">
+        <source>Delete the tile %1 and its files? This cannot be undone.</source>
+        <translation>Delete the tile %1 and its files? This cannot be undone.</translation>
+    </message>
+    <message id="route.editor.geo.tools.button.edit.quad.tree">
+        <source>Edit Quad Tree</source>
+        <translation>Edit Quad Tree</translation>
+    </message>
+    <message id="route.editor.geo.tools.tooltip.edit.quad.tree">
+        <source>Right click a quad of the terrain tree being edited for its actions: split, populate, create or delete its tile.</source>
+        <translation>Right click a quad of the terrain tree being edited for its actions: split, populate, create or delete its tile.</translation>
+    </message>
+    <message id="route.editor.geo.tools.label.quad.tree">
+        <source>Quad Tree:</source>
+        <translation>Quad Tree:</translation>
+    </message>
     <message id="route.editor.geo.tools.button.remove.map.tile.texture">
         <location filename="../src/routeEditor/GeoTools.cpp" line="43" />
         <source>Remove Map Tile Texture</source>

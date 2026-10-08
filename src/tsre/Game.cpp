@@ -989,44 +989,27 @@ bool Game::checkRemoteRoute(QString dir){
 
 template<class T>
 void Game::check_coords(T&& x, T&& z, float* p) {
-    if (p[0] >= 1024) {
-        p[0] -= 2048;
-        x++;
-    }
-    if (p[0] < -1024) {
-        p[0] += 2048;
-        x--;
-    }
-    if (p[2] >= 1024) {
-        p[2] -= 2048;
-        z++;
-    }
-    if (p[2] < -1024) {
-        p[2] += 2048;
-        z--;
-    }
+    check_coords(x, z, p[0], p[2]);
 }
 template void Game::check_coords(int& x, int& z, float* p);
 template void Game::check_coords(float& x, float& z, float* p);
 
 template<class T, class K>
 void Game::check_coords(T&& x, T&& z, K&& px, K&& pz) {
-    if (px >= 1024) {
-        px -= 2048;
-        x++;
-    }
-    if (px < -1024) {
-        px += 2048;
-        x--;
-    }
-    if (pz >= 1024) {
-        pz -= 2048;
-        z++;
-    }
-    if (pz < -1024) {
-        pz += 2048;
-        z--;
-    }
+    // Into the tile holding the position, however far: positions within a
+    // tile and a half (the 3D pointer) move as before; map mode's pointer can
+    // lie several tiles from the view's tile. Positions in [-1024, 1024).
+    auto normalize = [](auto &tile, auto &position) {
+        if (!std::isfinite(double(position)))
+            return;
+        const double steps = std::floor((double(position) + 1024.0) / 2048.0);
+        if (steps == 0.0)
+            return;
+        position -= decltype(position + 0)(steps * 2048.0);
+        tile += decltype(tile + 0)(steps);
+    };
+    normalize(x, px);
+    normalize(z, pz);
 }
 template void Game::check_coords(int& x, int& z, int& px, int& pz);
 template void Game::check_coords(int& x, int& z, float& px, float& pz);

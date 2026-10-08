@@ -1,4 +1,5 @@
 #include "QuadTree.h"
+#include "TerrainInfo.h"
 #include "TFile.h"
 #include "TerrainGridLayout.h"
 #include <tsre/Game.h>
@@ -61,6 +62,95 @@ bool QuadTree::insertTile(int x, int y, int level, SavePolicy policy) {
         entry->qt = new QuadTile(256, 1, tx, ty);
     }
     entry->qt->addTile(x, y, level);
+    entry->modified = modified = true;
+    if (policy == SavePolicy::Immediate && immediateSaveAllowed()) save();
+    return true;
+}
+
+QuadTree::QuadTile *QuadTree::QuadTile::quadrantOwner(int qx, int qy, int qLevel, bool create,
+                                                       int &px, int &py) {
+    px = qx >= x + level ? 1 : 0;
+    py = qy >= y + level ? 1 : 0;
+    if (level == qLevel)
+        return this;
+    if (level < qLevel)
+        return nullptr;
+    if (tile[px][py] == nullptr) {
+        if (!create)
+            return nullptr;
+        tile[px][py] = new QuadTile(level / 2, 1 - prefix, x + px * level, y + py * level);
+    }
+    return tile[px][py]->quadrantOwner(qx, qy, qLevel, create, px, py);
+}
+
+void QuadTree::QuadTile::quadAt(int tileX, int tileY, Quad &quad) const {
+    const int px = tileX >= x + level ? 1 : 0;
+    const int py = tileY >= y + level ? 1 : 0;
+    if (tile[px][py] != nullptr) {
+        tile[px][py]->quadAt(tileX, tileY, quad);
+        return;
+    }
+    TerrainInfo info;
+    quadrantInfo(px, py, &info);
+    quad.x = info.cx;
+    quad.y = info.cy;
+    quad.level = level;
+    quad.populated = populated[px][py];
+    quad.name = info.name;
+}
+
+QuadTree::Quad QuadTree::quadAt(int tileX, int tileY) const {
+    Quad quad;
+    const int tx = int(std::floor(tileX / 512.0)) * 512;
+    const int ty = int(std::floor(tileY / 512.0)) * 512;
+    const auto *entry = td.value(tx * 100000 + ty, nullptr);
+    if (entry == nullptr || entry->qt == nullptr) {
+        // No TD block yet: its root quadrant, named as a new root would.
+        const QuadTile root(256, 1, tx, ty);
+        root.quadAt(tileX, tileY, quad);
+        return quad;
+    }
+    entry->qt->quadAt(tileX, tileY, quad);
+    return quad;
+}
+
+bool QuadTree::splitQuad(int x, int y, int level, SavePolicy policy) {
+    if (level < 2 || level > 256 || (level & (level - 1)) || x < -16384 || x >= 16384
+            || y < -16384 || y >= 16384 || x % level || y % level)
+        return false;
+    const int tx = int(std::floor(x / 512.0)) * 512;
+    const int ty = int(std::floor(y / 512.0)) * 512;
+    auto *&entry = td[tx * 100000 + ty];
+    if (!entry) {
+        entry = new TdFile;
+        entry->x = tx; entry->y = ty;
+        entry->qt = new QuadTile(256, 1, tx, ty);
+    }
+    int px = 0, py = 0;
+    QuadTile *owner = entry->qt->quadrantOwner(x, y, level, true, px, py);
+    if (owner == nullptr || owner->tile[px][py] != nullptr)
+        return false;
+    owner->tile[px][py] = new QuadTile(level / 2, 1 - owner->prefix, x, y);
+    entry->modified = modified = true;
+    if (policy == SavePolicy::Immediate && immediateSaveAllowed()) save();
+    return true;
+}
+
+bool QuadTree::setPopulated(int x, int y, int level, bool populated, SavePolicy policy) {
+    if (populated)
+        return insertTile(x, y, level, policy);
+    if (level < 1 || level > 256 || (level & (level - 1)) || x % level || y % level)
+        return false;
+    const int tx = int(std::floor(x / 512.0)) * 512;
+    const int ty = int(std::floor(y / 512.0)) * 512;
+    TdFile *entry = td.value(tx * 100000 + ty, nullptr);
+    if (entry == nullptr || entry->qt == nullptr)
+        return false;
+    int px = 0, py = 0;
+    QuadTile *owner = entry->qt->quadrantOwner(x, y, level, false, px, py);
+    if (owner == nullptr || !owner->populated[px][py])
+        return false;
+    owner->populated[px][py] = false;
     entry->modified = modified = true;
     if (policy == SavePolicy::Immediate && immediateSaveAllowed()) save();
     return true;
