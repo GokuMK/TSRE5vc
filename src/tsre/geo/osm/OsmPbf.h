@@ -28,6 +28,10 @@
 
 namespace Osm {
 
+// TSRE extension: Relation field holding the relation's extent (packed sint32 minX minY maxX maxY).
+// Standard readers skip unknown fields, so files stay valid PBF.
+constexpr uint32_t RelationExtentField = 16001;
+
 // Limits from the format specification.
 constexpr uint32_t MaxBlobHeaderSize = 64 * 1024;
 constexpr uint32_t MaxBlobSize = 32 * 1024 * 1024;
@@ -66,7 +70,7 @@ struct Member {
 struct PrimitiveBlock {
     struct Node { int64_t id; Location location; uint32_t tagFirst, tagCount; };
     struct Way { int64_t id; uint32_t tagFirst, tagCount, refFirst, refCount; };
-    struct Relation { int64_t id; uint32_t tagFirst, tagCount, memberFirst, memberCount; };
+    struct Relation { int64_t id; uint32_t tagFirst, tagCount, memberFirst, memberCount; Box extent; };
 
     std::vector<uint8_t> raw;
     std::vector<std::string_view> strings;
@@ -104,7 +108,9 @@ public:
     PbfFile(const PbfFile &) = delete;
     PbfFile &operator=(const PbfFile &) = delete;
 
-    bool open(const QString &path, QString &error);
+    // With a sidecar path, the block table is read from that cache file when it matches the
+    // file's size and modification time, and written there after a full walk.
+    bool open(const QString &path, QString &error, const QString &sidecar = QString());
     // Reads only the leading header block: cheap enough for scanning a directory.
     static bool readHeader(const QString &path, HeaderInfo &header, QString &error);
     void close();  // releases the mapping; required before renaming or deleting on Windows
@@ -141,7 +147,8 @@ public:
     void addNode(int64_t id, Location location, const Tag *tags, size_t tagCount);
     // locations may be null; when given, every way in the block must have them.
     void addWay(int64_t id, const Tag *tags, size_t tagCount, const int64_t *refs, const Location *locations, size_t refCount);
-    void addRelation(int64_t id, const Tag *tags, size_t tagCount, const MemberIn *members, size_t memberCount);
+    // extent (TSRE extension) is written when valid.
+    void addRelation(int64_t id, const Tag *tags, size_t tagCount, const MemberIn *members, size_t memberCount, const Box &extent = Box());
 
     // Serialised PrimitiveBlock (granularity 100, no offsets: plain 1e-7 units).
     void build(std::string &out);
@@ -152,7 +159,7 @@ private:
 
     struct Node { int64_t id; Location location; uint32_t tagFirst, tagCount; };
     struct Way { int64_t id; uint32_t tagFirst, tagCount, refFirst, refCount; };
-    struct Relation { int64_t id; uint32_t tagFirst, tagCount, memberFirst, memberCount; };
+    struct Relation { int64_t id; uint32_t tagFirst, tagCount, memberFirst, memberCount; Box extent; };
     struct MemberRec { int64_t ref; uint32_t role; ItemType type; };
 
     std::deque<std::string> stringStorage_;  // stable addresses for the views below

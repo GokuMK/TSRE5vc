@@ -220,3 +220,37 @@ Converter:
   `TSRE5vc --test --test-suite osm-data`, which drives the dialog headless
   (`TSRE_OSM_UI_SNAPSHOTS=<dir>` saves snapshots).
 - The prompt is wired into the tile map in step 7.
+
+**Step 4 done (2026-10-08).**
+- `OsmStore` is the query interface: `forEach(area, filter, callback)`.
+  `Feature` gives tags, coordinates, node ids and members; `Filter` selects
+  by type, keys and ids.
+- `SortedPbfStore` implements it over converted files:
+  - reads only the blocks whose `indexdata` bbox meets the query, decoding
+    them in parallel;
+  - keeps decoded blocks in an LRU cache (512 MiB budget by default);
+  - reports a feature present in overlapping files once, taking the newest
+    file.
+- Relations now carry their member extent in a TSRE extension field
+  (`Relation` field 16001, packed sint32). Standard readers skip it, and
+  libosmium still reads the files.
+- Without the extent, a relation query matched every relation of a 1° cell.
+  Relations without a resolvable member are not returned by area queries.
+- `.idx` sidecar of the block table next to each converted file: opening
+  Poland from cold storage takes 0.006 s with it and 0.79 s without; the walk
+  now reads each header in one unbuffered read, down from 2.1 s.
+
+Queries, converted files not in the page cache / warm, 12 threads:
+
+| Query | Not cached | Warm | Blocks | Result |
+|---|---:|---:|---:|---|
+| Tczew 2 km tile (pomorskie) | 51 ms | 1.5 ms | 16 | 3,851 nodes, 5,965 ways, 232 relations |
+| Gdańsk centre tile | 84 ms | 5 ms | 28 | 7,555 nodes, 13,589 ways, 672 relations |
+| Rural tile | 61 ms | 4 ms | 19 | 179 nodes, 489 ways |
+| 60 × 60 km area | 0.19 s | 0.02 s | 141 | 562,331 ways, 4.9 M points |
+| Warsaw centre tile (Poland) | 175 ms | 11 ms | 45 | 31,743 nodes, 22,486 ways, 1,379 relations |
+
+Tests: 140 checks in `tests/osm`. Sixty random area queries match a
+brute-force scan of the fixture exactly, geometry included; filters, dedupe
+and the cache budget are covered. Opt-in local data:
+`--query <minLon> <minLat> <maxLon> <maxLat> <files...>`.

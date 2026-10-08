@@ -15,6 +15,7 @@ void runDirectoryTests(const std::function<void(bool, const char *)> &check);
 int convertFile(const QStringList &args);
 int verifyFile(const QStringList &args);
 int scanDirectory(const QString &path);
+int queryFiles(const QStringList &args);
 
 namespace {
 
@@ -211,6 +212,32 @@ void fileTests(const std::function<void(bool, const char *)> &check) {
     check(zlibOk && rawOk, "zlib and uncompressed blobs decode");
     f.close();
 
+    // Block table sidecar: written on the first open, then used; a damaged or stale one is rebuilt.
+    const QString sidecar = path + ".idx";
+    auto sameTable = [](const PbfFile &a, const PbfFile &b) {
+        if (a.blobs().size() != b.blobs().size()) return false;
+        for (size_t i = 0; i < a.blobs().size(); ++i) {
+            const BlobInfo &x = a.blobs()[i], &y = b.blobs()[i];
+            if (x.offset != y.offset || x.size != y.size || x.dataOffset != y.dataOffset || x.dataSize != y.dataSize || x.type != y.type || x.indexData != y.indexData)
+                return false;
+        }
+        return true;
+    };
+    PbfFile plainOpen, withSidecar, fromSidecar, damaged;
+    plainOpen.open(path, error);
+    check(withSidecar.open(path, error, sidecar) && QFile::exists(sidecar) && sameTable(plainOpen, withSidecar), "a sidecar is written on the first open");
+    check(fromSidecar.open(path, error, sidecar) && sameTable(plainOpen, fromSidecar) && fromSidecar.header().source == header.source,
+          "the sidecar gives the same block table");
+    writeFile(sidecar, "TSREPBI1 garbage");
+    check(damaged.open(path, error, sidecar) && sameTable(plainOpen, damaged), "a damaged sidecar is ignored and rebuilt");
+    const QString grown = dir.filePath("grown.osm.pbf");
+    writeFile(grown, bytes);
+    PbfFile g1, g2;
+    g1.open(grown, error, grown + ".idx");
+    g1.close();
+    writeFile(grown, bytes + encodeBlobFrame("OSMData", raw, {}, 6));
+    check(g2.open(grown, error, grown + ".idx") && g2.blobs().size() == 5, "a sidecar of a changed file is not used");
+
     const QString truncatedPath = dir.filePath("truncated.osm.pbf");
     writeFile(truncatedPath, bytes.substr(0, bytes.size() - 5));
     check(!f.open(truncatedPath, error) && !f.isOpen(), "truncated file is rejected");
@@ -284,6 +311,7 @@ int main(int argc, char **argv) {
     if (args.size() >= 3 && args[0] == "--convert") return convertFile(args.mid(1));
     if (args.size() == 3 && args[0] == "--verify") return verifyFile(args.mid(1));
     if (args.size() == 2 && args[0] == "--scan") return scanDirectory(args[1]);
+    if (args.size() >= 6 && args[0] == "--query") return queryFiles(args.mid(1));
     int checks = 0, failures = 0;
     const auto check = [&](bool condition, const char *name) {
         ++checks;

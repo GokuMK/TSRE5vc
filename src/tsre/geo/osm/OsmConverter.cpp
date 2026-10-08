@@ -409,7 +409,7 @@ bool writeBuckets(Buckets &buckets, Job &job, QFile &out, ConvertStats &stats) {
                 index.bounds.extend(rec.box);
                 if (rec.kind == ItemType::Node) b.addNode(rec.id, rec.location, rec.tags.data(), rec.tags.size());
                 else if (rec.kind == ItemType::Way) b.addWay(rec.id, rec.tags.data(), rec.tags.size(), rec.refs.data(), rec.locations.data(), rec.refs.size());
-                else b.addRelation(rec.id, rec.tags.data(), rec.tags.size(), rec.members.data(), rec.members.size());
+                else b.addRelation(rec.id, rec.tags.data(), rec.tags.size(), rec.members.data(), rec.members.size(), rec.box);
             }
             // One unplaced record makes the whole block unbounded.
             for (size_t j = range.a; j < range.e; ++j)

@@ -11,6 +11,8 @@
 #include <tsre/geo/osm/OsmPbf.h>
 #include <mzip/miniz/miniz.h>
 #include <cstring>
+#include <QDateTime>
+#include <QFileInfo>
 #if defined(Q_OS_LINUX)
 #include <fcntl.h>
 #endif
@@ -158,7 +160,7 @@ bool decodeWay(PrimitiveBlock &b, Span msg, const CoordinateFormat &cf, GroupScr
 
 bool decodeRelation(PrimitiveBlock &b, Span msg, GroupScratch &g) {
     Reader r(msg);
-    PrimitiveBlock::Relation rel{0, 0, 0, uint32_t(b.members.size()), 0};
+    PrimitiveBlock::Relation rel{0, 0, 0, uint32_t(b.members.size()), 0, Box()};
     Span memids;
     g.keys.clear(); g.vals.clear(); g.roles.clear(); g.types.clear();
     bool ok = true;
@@ -170,6 +172,12 @@ bool decodeRelation(PrimitiveBlock &b, Span msg, GroupScratch &g) {
             case 8: ok &= readPackedU32(r.bytes(), g.roles); break;
             case 9: memids = r.bytes(); break;
             case 10: ok &= readPackedU32(r.bytes(), g.types); break;
+            case RelationExtentField: {
+                int32_t v[4]; size_t n = 0;
+                ok &= Proto::forEachSVarint(r.bytes(), [&](int64_t x) { if (n < 4) v[n] = int32_t(x); ++n; }) && n == 4;
+                if (ok) { rel.extent.minX = v[0]; rel.extent.minY = v[1]; rel.extent.maxX = v[2]; rel.extent.maxY = v[3]; }
+                break;
+            }
             default: r.skip();
         }
     }
@@ -330,49 +338,113 @@ void PbfFile::close() {
     size_ = 0;
 }
 
-bool PbfFile::open(const QString &path, QString &error) {
+namespace {
+
+// Block table sidecar: "TSREPBI1", file size, mtime (ms), count, then per frame offset, size,
+// data offset, data size, type, indexdata length and bytes. Host byte order; only a cache.
+const char SidecarMagic[8] = {'T', 'S', 'R', 'E', 'P', 'B', 'I', '1'};
+
+bool loadSidecar(const QString &sidecar, int64_t size, int64_t mtime, std::vector<BlobInfo> &blobs) {
+    QFile f(sidecar);
+    if (!f.open(QIODevice::ReadOnly)) return false;
+    const QByteArray d = f.readAll();
+    const char *p = d.constData(), *end = p + d.size();
+    auto take = [&](void *out, size_t n) { if (size_t(end - p) < n) return false; std::memcpy(out, p, n); p += n; return true; };
+    char magic[8]; int64_t s = 0, m = 0; uint32_t count = 0;
+    if (!take(magic, 8) || std::memcmp(magic, SidecarMagic, 8) || !take(&s, 8) || !take(&m, 8) || !take(&count, 4) || s != size || m != mtime) return false;
+    std::vector<BlobInfo> v;
+    int64_t expected = 0;
+    for (uint32_t i = 0; i < count; ++i) {
+        BlobInfo b; uint8_t type = 0; uint16_t len = 0;
+        if (!take(&b.offset, 8) || !take(&b.size, 8) || !take(&b.dataOffset, 8) || !take(&b.dataSize, 4) || !take(&type, 1) || !take(&len, 2)
+            || type > 2 || size_t(end - p) < len || b.offset != expected || b.dataOffset + b.dataSize != b.offset + b.size)
+            return false;
+        b.type = BlobType(type);
+        b.indexData.assign(p, len); p += len;
+        expected = b.offset + b.size;
+        v.push_back(std::move(b));
+    }
+    if (p != end || expected != size) return false;
+    blobs = std::move(v);
+    return true;
+}
+
+void saveSidecar(const QString &sidecar, int64_t size, int64_t mtime, const std::vector<BlobInfo> &blobs) {
+    QByteArray d;
+    auto put = [&](const void *v, size_t n) { d.append(static_cast<const char *>(v), qsizetype(n)); };
+    const uint32_t count = uint32_t(blobs.size());
+    put(SidecarMagic, 8); put(&size, 8); put(&mtime, 8); put(&count, 4);
+    for (const BlobInfo &b : blobs) {
+        const uint8_t type = uint8_t(b.type);
+        const uint16_t len = uint16_t(std::min<size_t>(b.indexData.size(), 65535));
+        put(&b.offset, 8); put(&b.size, 8); put(&b.dataOffset, 8); put(&b.dataSize, 4); put(&type, 1); put(&len, 2);
+        put(b.indexData.data(), len);
+    }
+    QFile f(sidecar + QStringLiteral(".part"));
+    if (f.open(QIODevice::WriteOnly) && f.write(d) == d.size()) {
+        f.close();
+        QFile::remove(sidecar);
+        f.rename(sidecar);
+    } else {
+        f.remove();
+    }
+}
+
+}
+
+bool PbfFile::open(const QString &path, QString &error, const QString &sidecar) {
     close();
     file_.setFileName(path);
-    if (!file_.open(QIODevice::ReadOnly)) return fail(error, QStringLiteral("Cannot open %1: %2").arg(path, file_.errorString()));
+    // Unbuffered: the header walk reads a few hundred bytes per block, not 16 KiB.
+    if (!file_.open(QIODevice::ReadOnly | QIODevice::Unbuffered)) return fail(error, QStringLiteral("Cannot open %1: %2").arg(path, file_.errorString()));
     size_ = file_.size();
-#if defined(Q_OS_LINUX)
-    // Header walk touches a few bytes per block; readahead would pull in most of the file.
-    posix_fadvise(file_.handle(), 0, 0, POSIX_FADV_RANDOM);
-#endif
+    const int64_t mtime = QFileInfo(path).lastModified().toMSecsSinceEpoch();
     bool ok = true;
-    std::vector<uint8_t> header;
-    int64_t off = 0;
-    while (ok && off < size_) {
-        uint8_t prefix[4];
-        if (size_ - off < 4 || !file_.seek(off) || file_.read(reinterpret_cast<char *>(prefix), 4) != 4) { ok = fail(error, QStringLiteral("Truncated PBF frame")); break; }
-        const uint32_t headerSize = uint32_t(prefix[0]) << 24 | uint32_t(prefix[1]) << 16 | uint32_t(prefix[2]) << 8 | prefix[3];
-        if (headerSize == 0 || headerSize > MaxBlobHeaderSize || int64_t(headerSize) > size_ - off - 4) { ok = fail(error, QStringLiteral("Invalid PBF blob header size")); break; }
-        header.resize(headerSize);
-        if (file_.read(reinterpret_cast<char *>(header.data()), headerSize) != qint64(headerSize)) { ok = fail(error, QStringLiteral("Truncated PBF blob header")); break; }
-        BlobInfo info;
-        info.offset = off;
-        uint64_t dataSize = 0;
-        bool hasSize = false;
-        Reader r(spanOf(header));
-        while (r.next()) {
-            switch (r.field()) {
-                case 1: { const auto t = r.bytes().view(); info.type = t == "OSMData" ? BlobType::Data : t == "OSMHeader" ? BlobType::Header : BlobType::Unknown; break; }
-                case 2: info.indexData = std::string(r.bytes().view()); break;
-                case 3: dataSize = r.varint(); hasSize = true; break;
-                default: r.skip();
-            }
-        }
-        if (!r.ok() || !hasSize || dataSize > MaxBlobSize) { ok = fail(error, QStringLiteral("Malformed PBF blob header")); break; }
-        info.dataOffset = off + 4 + headerSize;
-        info.dataSize = uint32_t(dataSize);
-        info.size = 4 + int64_t(headerSize) + int64_t(dataSize);
-        if (info.dataOffset + int64_t(dataSize) > size_) { ok = fail(error, QStringLiteral("Truncated PBF blob")); break; }
-        blobs_.push_back(std::move(info));
-        off += blobs_.back().size;
-    }
+    const bool fromSidecar = !sidecar.isEmpty() && loadSidecar(sidecar, size_, mtime, blobs_);
+    if (!fromSidecar) {
 #if defined(Q_OS_LINUX)
-    posix_fadvise(file_.handle(), 0, 0, POSIX_FADV_NORMAL);
+        // Readahead would pull in most of the file for a walk that needs a few bytes per block.
+        posix_fadvise(file_.handle(), 0, 0, POSIX_FADV_RANDOM);
 #endif
+        std::vector<uint8_t> buf(512);
+        int64_t off = 0;
+        while (ok && off < size_) {
+            const qint64 want = qint64(std::min<int64_t>(int64_t(buf.size()), size_ - off));
+            if (want < 4 || !file_.seek(off) || file_.read(reinterpret_cast<char *>(buf.data()), want) != want) { ok = fail(error, QStringLiteral("Truncated PBF frame")); break; }
+            const uint32_t headerSize = uint32_t(buf[0]) << 24 | uint32_t(buf[1]) << 16 | uint32_t(buf[2]) << 8 | buf[3];
+            if (headerSize == 0 || headerSize > MaxBlobHeaderSize || int64_t(headerSize) > size_ - off - 4) { ok = fail(error, QStringLiteral("Invalid PBF blob header size")); break; }
+            std::vector<uint8_t> header(buf.begin() + 4, buf.begin() + std::min<qint64>(want, 4 + qint64(headerSize)));
+            if (header.size() < headerSize) {
+                const size_t have = header.size();
+                header.resize(headerSize);
+                const qint64 rest = qint64(headerSize - have);
+                if (file_.read(reinterpret_cast<char *>(header.data() + have), rest) != rest) { ok = fail(error, QStringLiteral("Truncated PBF blob header")); break; }
+            }
+            BlobInfo info;
+            info.offset = off;
+            uint64_t dataSize = 0;
+            bool hasSize = false;
+            Reader r(spanOf(header));
+            while (r.next()) {
+                switch (r.field()) {
+                    case 1: { const auto t = r.bytes().view(); info.type = t == "OSMData" ? BlobType::Data : t == "OSMHeader" ? BlobType::Header : BlobType::Unknown; break; }
+                    case 2: info.indexData = std::string(r.bytes().view()); break;
+                    case 3: dataSize = r.varint(); hasSize = true; break;
+                    default: r.skip();
+                }
+            }
+            if (!r.ok() || !hasSize || dataSize > MaxBlobSize) { ok = fail(error, QStringLiteral("Malformed PBF blob header")); break; }
+            info.dataOffset = off + 4 + headerSize;
+            info.dataSize = uint32_t(dataSize);
+            info.size = 4 + int64_t(headerSize) + int64_t(dataSize);
+            if (info.dataOffset + int64_t(dataSize) > size_) { ok = fail(error, QStringLiteral("Truncated PBF blob")); break; }
+            blobs_.push_back(std::move(info));
+            off += blobs_.back().size;
+        }
+#if defined(Q_OS_LINUX)
+        posix_fadvise(file_.handle(), 0, 0, POSIX_FADV_NORMAL);
+#endif
+    }
     if (ok && (blobs_.empty() || blobs_.front().type != BlobType::Header)) ok = fail(error, QStringLiteral("PBF file does not start with a header block"));
     if (ok) {
         map_ = file_.map(0, size_);
@@ -383,6 +455,8 @@ bool PbfFile::open(const QString &path, QString &error) {
     if (!ok) {
         error = QStringLiteral("%1: %2").arg(path, error);
         close();
+    } else if (!sidecar.isEmpty() && !fromSidecar) {
+        saveSidecar(sidecar, size_, mtime, blobs_);
     }
     return ok;
 }
@@ -473,8 +547,8 @@ void BlockBuilder::addWay(int64_t id, const Tag *tags, size_t tagCount, const in
     ways_.push_back(w);
 }
 
-void BlockBuilder::addRelation(int64_t id, const Tag *tags, size_t tagCount, const MemberIn *members, size_t memberCount) {
-    Relation r{id, 0, 0, uint32_t(members_.size()), uint32_t(memberCount)};
+void BlockBuilder::addRelation(int64_t id, const Tag *tags, size_t tagCount, const MemberIn *members, size_t memberCount, const Box &extent) {
+    Relation r{id, 0, 0, uint32_t(members_.size()), uint32_t(memberCount), extent};
     addTags(tags, tagCount, r.tagFirst, r.tagCount);
     for (size_t i = 0; i < memberCount; ++i) members_.push_back({members[i].ref, string(members[i].role), members[i].type});
     relations_.push_back(r);
@@ -553,6 +627,10 @@ void BlockBuilder::build(std::string &out) {
             m.packedVarint(8, kv.begin(), kv.end());
             m.packedDelta(9, a.begin(), a.end());
             m.packedVarint(10, keys.begin(), keys.end());
+            if (r.extent.valid()) {
+                const int64_t e[4] = {r.extent.minX, r.extent.minY, r.extent.maxX, r.extent.maxY};
+                m.packedSVarint(RelationExtentField, e, e + 4);
+            }
             gw.bytes(4, msg);
         }
         block.bytes(2, group);

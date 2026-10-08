@@ -1,6 +1,7 @@
 #include <tsre/geo/osm/OsmConverter.h>
 #include <tsre/geo/osm/OsmPbf.h>
 #include <tsre/geo/osm/OsmSortedFormat.h>
+#include <tsre/geo/osm/SortedPbfStore.h>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -291,7 +292,102 @@ void converterTests(const std::function<void(bool, const char *)> &check) {
 
 }
 
-void runConverterTests(const std::function<void(bool, const char *)> &check) { converterTests(check); }
+
+void storeTests(const std::function<void(bool, const char *)> &check) {
+    QTemporaryDir dir;
+    const Fixture fx = makeFixture();
+    const QString src = dir.filePath("sample.osm.pbf"), out = dir.filePath("sample" + Sorted::ConvertedSuffix);
+    ConvertOptions options; options.threads = 2;
+    ConvertStats stats; QString error;
+    check(writeFile(src, writeSource(fx, true, 100)) && convertPbf(src, out, options, stats, error), "store fixture converts");
+
+    SortedPbfStore store;
+    check(store.open(QStringList{out}, error) && store.fileCount() == 1, "store opens a converted file");
+    check(!SortedPbfStore().open(QStringList{src}, error), "store refuses an unconverted file");
+
+    // Expected answers from the fixture itself.
+    std::map<int64_t, const FixtureNode *> nodeById;
+    for (const auto &n : fx.nodes) nodeById[n.id] = &n;
+    std::map<int64_t, std::vector<Location>> wayPoints;
+    std::map<int64_t, Box> wayBox;
+    for (const auto &w : fx.ways) {
+        std::vector<Location> pts;
+        for (int64_t r : w.refs) if (nodeById.count(r)) pts.push_back(nodeById[r]->location);
+        if (pts.empty() || (w.tags.empty() && w.id != 900 && w.id != 905)) continue;
+        wayPoints[w.id] = pts;
+        Box b; for (const Location &l : pts) b.extend(l);
+        wayBox[w.id] = b;
+    }
+    Box r1; r1.extend(wayBox[900]); r1.extend(wayBox[905]);
+    Box r2 = r1; r2.extend(nodeById[1000 + 3 * 40 + 3]->location);
+    const std::map<int64_t, Box> relBox{{1, r1}, {2, r2}};
+
+    std::mt19937 rng(7);
+    std::uniform_real_distribution<double> lon(16.8, 20.2), lat(53.3, 55.7), span(0.01, 1.2);
+    bool allMatch = true;
+    for (int q = 0; q < 60 && allMatch; ++q) {
+        const double x = lon(rng), y = lat(rng), w = span(rng), h = span(rng) * 0.6;
+        const Box area = q == 0 ? Box::fromDegrees(10, 40, 30, 60) : Box::fromDegrees(x, y, x + w, y + h);
+        std::set<int64_t> nodes, ways, rels, expNodes, expWays, expRels;
+        bool geometryOk = true;
+        check(store.forEach(area, Filter(), [&](const Feature &f) {
+            if (f.type == ItemType::Node) nodes.insert(f.id);
+            else if (f.type == ItemType::Way) {
+                ways.insert(f.id);
+                const auto &pts = wayPoints[f.id];
+                geometryOk &= f.refCount == pts.size();
+                for (uint32_t i = 0; geometryOk && i < f.refCount; ++i) geometryOk &= f.locations[i] == pts[i];
+            } else rels.insert(f.id);
+        }, error), "query succeeds");
+        for (const auto &n : fx.nodes) if (!n.tags.empty() && area.contains(n.location)) expNodes.insert(n.id);
+        for (const auto &wb : wayBox) if (wb.second.intersects(area)) expWays.insert(wb.first);
+        for (const auto &rb : relBox) if (rb.second.intersects(area)) expRels.insert(rb.first);
+        allMatch = geometryOk && nodes == expNodes && ways == expWays && rels == expRels;
+    }
+    check(allMatch, "60 random area queries return exactly the features a brute-force scan finds, with their geometry");
+
+    Filter rails; rails.types = Ways; rails.keys = {"railway"};
+    std::vector<int64_t> found;
+    store.forEach(Box::fromDegrees(10, 40, 30, 60), rails, [&](const Feature &f) { found.push_back(f.id); }, error);
+    check(found == std::vector<int64_t>({902}), "type and key filters");
+    Filter byId; byId.ids = {11, 902, 1008};
+    std::set<int64_t> ids;
+    store.forEach(Box::fromDegrees(10, 40, 30, 60), byId, [&](const Feature &f) { ids.insert(f.id); }, error);
+    check(ids == std::set<int64_t>({11, 902, 1008}), "id filter");
+    Box extent;
+    Filter rel1; rel1.types = Relations; rel1.ids = {1};
+    std::string landuse;
+    store.forEach(Box::fromDegrees(10, 40, 30, 60), rel1, [&](const Feature &f) { extent = f.extent; landuse = std::string(f.value("landuse")); }, error);
+    check(extent == r1 && landuse == "forest", "relations carry their member extent and tags");
+
+    store.forEach(Box::fromDegrees(10, 40, 30, 60), Filter(), [](const Feature &) {}, error);
+    const auto cold = store.lastQuery();
+    store.forEach(Box::fromDegrees(10, 40, 30, 60), Filter(), [](const Feature &) {}, error);
+    const auto warm = store.lastQuery();
+    check(warm.blocksRead == 0 && warm.blocksCached == cold.blocksRead + cold.blocksCached, "repeated queries are served from the block cache");
+    store.setCacheBudget(4096);
+    store.forEach(Box::fromDegrees(10, 40, 30, 60), Filter(), [](const Feature &) {}, error);
+    check(store.cacheBytes() <= 4096, "the block cache respects its budget");
+
+    // Two overlapping conversions: each feature is reported once, from the newer file.
+    Fixture newer = fx;
+    for (auto &n : newer.nodes) if (n.id == 1008) n.tags = {{"amenity", "bench"}, {"name", "renamed"}};
+    const QString src2 = dir.filePath("newer.osm.pbf"), out2 = dir.filePath("newer" + Sorted::ConvertedSuffix);
+    check(writeFile(src2, writeSource(newer, true, 200)) && convertPbf(src2, out2, options, stats, error), "second fixture converts");
+    SortedPbfStore both;
+    check(both.open(QStringList{out, out2}, error) && both.fileCount() == 2, "store opens overlapping files");
+    std::map<int64_t, int> seen;
+    std::string name;
+    both.forEach(Box::fromDegrees(10, 40, 30, 60), Filter(), [&](const Feature &f) {
+        ++seen[int64_t(f.type) << 40 | f.id];
+        if (f.type == ItemType::Node && f.id == 1008) name = std::string(f.value("name"));
+    }, error);
+    bool once = !seen.empty();
+    for (const auto &p : seen) once &= p.second == 1;
+    check(once && name == "renamed", "overlapping files report each feature once, from the newest file");
+}
+
+void runConverterTests(const std::function<void(bool, const char *)> &check) { converterTests(check); storeTests(check); }
 
 // Opt-in local data: --convert <source> <output> [threads] [zlib level]
 int convertFile(const QStringList &args) {
@@ -355,4 +451,25 @@ int verifyFile(const QStringList &args) {
     std::cout << "verify: way refs " << refs << ", mismatched " << mismatched << ", tags " << convTags << "/" << srcTags << ", relations " << convRelations
               << "/" << srcRelations << ", members " << convMembers << "/" << srcMembers << '\n';
     return mismatched == 0 && convTags == srcTags && convRelations == srcRelations && convMembers == srcMembers ? 0 : 1;
+}
+
+// Opt-in local data: --query <minLon> <minLat> <maxLon> <maxLat> <converted files...>
+int queryFiles(const QStringList &args) {
+    const Box area = Box::fromDegrees(args[0].toDouble(), args[1].toDouble(), args[2].toDouble(), args[3].toDouble());
+    auto t0 = std::chrono::steady_clock::now();
+    SortedPbfStore store;
+    QString error;
+    if (!store.open(args.mid(4), error)) { std::cerr << error.toStdString() << '\n'; return 1; }
+    const double openSeconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+    for (int pass = 0; pass < 2; ++pass) {
+        uint64_t counts[3] = {0, 0, 0}, points = 0;
+        t0 = std::chrono::steady_clock::now();
+        if (!store.forEach(area, Filter(), [&](const Feature &f) { ++counts[int(f.type)]; points += f.refCount; }, error)) { std::cerr << error.toStdString() << '\n'; return 1; }
+        const double s = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+        const auto st = store.lastQuery();
+        std::cout << (pass ? "warm" : "cold") << ": " << s << " s, blocks read " << st.blocksRead << ", cached " << st.blocksCached << ", nodes " << counts[0]
+                  << ", ways " << counts[1] << " (" << points << " points), relations " << counts[2] << '\n';
+    }
+    std::cout << "open " << openSeconds << " s, cache " << store.cacheBytes() / 1048576 << " MiB\n";
+    return 0;
 }
