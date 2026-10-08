@@ -17,5 +17,12 @@ bool decodeInto(const QByteArray &blocks, int width, int height, Format format, 
 // Portable, deterministic fast endpoint-fit encoder; not an offline quality optimizer.
 bool encode(const unsigned char *pixels, qsizetype size, int width, int height, int components,
             Format format, bool alpha, QByteArray &blocks, QString &error);
+// DXT1 blocks as BC3 (DXT5) blocks of the same image, for a GPU API without
+// BC1 with alpha (QRhi). Alpha is 255, or 0 where a three-colour block marks
+// a pixel transparent; such a pixel takes the first endpoint's colour instead
+// of black. A three-colour block's midpoint becomes BC3's one-third point, at
+// most a sixth of the endpoints' distance off. False when the size is not
+// whole blocks.
+bool dxt1ToBc3(const QByteArray &dxt1, QByteArray &bc3);
 } // namespace DxtCodec
 #endif

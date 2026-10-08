@@ -22,7 +22,7 @@ This folder contains ordered tasks for migrating the TSRE renderer from legacy i
 - [x] `17-environment-map.md` (cube map around the camera for reflections; measured on hardware; glTF PBR and water read it, MSTS shapes pending)
 - [ ] `18-shaded-water.md` (one shaded water surface with waves and planar reflection; ENV wave fields pending)
 - [ ] `19-backend-boundary.md` (OpenGL calls left outside the renderer; state, views, measurement, readback, targets, programs, selection and reflection storage moved behind `Renderer`; texture uploads and the `GLUU` matrices and lights remain)
-- [ ] `20-qrhi-renderer.md` (QRhi renderer on `feature/qrhi`: parity with the OpenGL renderer reached on lavapipe and on the Steam Deck; open: hardware sweep of all capture sets, water visibility without queries, DXT1 with alpha, QRhi OpenGL CPU cost (automatic API is Vulkan only until then), Direct3D 11 for development only)
+- [ ] `20-qrhi-renderer.md` (QRhi renderer on `feature/qrhi`: parity with the OpenGL renderer reached on lavapipe and on the Steam Deck; open: hardware sweep of all capture sets, water visibility without queries, QRhi OpenGL CPU cost (automatic API is Vulkan only until then), Direct3D 11 for development only)
 - [ ] `21-local-lights.md` (glTF punctual lights and emissive surfaces light the scene on the QRhi renderer through a world-space light grid)
 - [ ] `22-time-of-day.md` (sun position from the camera's latitude and longitude at a set time and date; first step of the environment task)
 - [ ] `23-ambient-occlusion.md` (GTAO on the QRhi renderer from the view's depth, taken off the ambient light share the lit shaders write; Off/Low/Medium/High)

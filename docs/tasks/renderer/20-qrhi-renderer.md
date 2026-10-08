@@ -183,12 +183,6 @@ Open:
 
 - Water visibility without occlusion queries (the reflection is drawn
   whenever water is in view).
-- DXT1 with alpha (most MSTS content): Qt's `BC1` is the opaque variant
-  on Vulkan and OpenGL, so these textures are decoded to RGBA8, 8 times
-  their DXT1 size (BNSF_SCENIC, one view: 80 of 88 textures, 64 MB instead
-  of 8). Plan, deferred by the user: transcode to BC3 at upload. Alpha and
-  4-colour blocks stay exact; in 3-colour blocks the midpoint colour moves
-  by up to a sixth of the endpoint difference.
 - Direct3D 11, for development only: `TSRE_RHI_API=d3d11` (the setting
   no longer offers it, and a profile that still names it gets the
   automatic choice: Vulkan, then OpenGL). 2026-10-08, Steam Deck: bbb
@@ -248,7 +242,16 @@ Found and changed:
   completed read (`readDepthLatest`).
 - Textures: DXT textures were decoded to RGBA8 on the CPU at upload (all
   levels); DXT1 without alpha, DXT3 and DXT5 now go up as BC1/BC2/BC3 as
-  in OpenGL. DXT1 with alpha has no QRhi format and is still decoded.
+  in OpenGL. DXT1 with alpha (most MSTS content) has no QRhi format: Qt's
+  `BC1` is the opaque variant on Vulkan and OpenGL. These textures were
+  decoded to RGBA8, 8 times their DXT1 size; they are now transcoded to
+  BC3 at upload (`DxtCodec::dxt1ToBc3`), twice their size. Alpha and
+  4-colour blocks stay exact; in 3-colour blocks the midpoint colour moves
+  by up to a sixth of the endpoint difference, and transparent pixels take
+  the first endpoint's colour instead of black (`dxt-codec` suite).
+  2026-10-08, Steam Deck, CMK start view: 55 textures, 82 MB as RGBA8,
+  20 MB as BC3; QRhi VRAM in use 507 to 445 MB; `parity-views` against the
+  previous QRhi capture RMSE 0.46 or less.
 - Startup: the driver's pipelines are kept between runs (QRhi pipeline
   cache, `rhi-pipelines-<api>.bin` in the cache directory). Baking the
   shaders (glslang, SPIRV-Cross) takes about 10 ms a stage and is not

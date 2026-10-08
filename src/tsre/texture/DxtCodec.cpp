@@ -229,4 +229,36 @@ bool encode(const unsigned char *pixels, qsizetype size, int w, int h, int compo
     error.clear();
     return true;
 }
+
+bool dxt1ToBc3(const QByteArray &dxt1, QByteArray &bc3) {
+    if (dxt1.size() % 8 != 0)
+        return false;
+    QByteArray result(dxt1.size() * 2, Qt::Uninitialized);
+    const auto *src = reinterpret_cast<const unsigned char *>(dxt1.constData());
+    auto *dst = reinterpret_cast<unsigned char *>(result.data());
+    for (qsizetype n = dxt1.size() / 8; n > 0; --n, src += 8, dst += 16) {
+        quint32 selectors = qFromLittleEndian<quint32>(src + 4);
+        // Alpha endpoints 255 and 0: index 0 opaque, index 1 transparent.
+        quint64 alphaIndices = 0;
+        if (qFromLittleEndian<quint16>(src) <= qFromLittleEndian<quint16>(src + 2)) {
+            quint32 colorIndices = 0;
+            for (int i = 0; i < 16; ++i) {
+                const quint32 s = (selectors >> (2 * i)) & 3;
+                if (s == 3)
+                    alphaIndices |= quint64(1) << (3 * i);
+                else
+                    colorIndices |= s << (2 * i);
+            }
+            selectors = colorIndices;
+        }
+        dst[0] = 255;
+        dst[1] = 0;
+        for (int i = 0; i < 6; ++i)
+            dst[2 + i] = (alphaIndices >> (8 * i)) & 255;
+        std::copy(src, src + 4, dst + 8);
+        qToLittleEndian(selectors, dst + 12);
+    }
+    bc3 = std::move(result);
+    return true;
+}
 } // namespace DxtCodec

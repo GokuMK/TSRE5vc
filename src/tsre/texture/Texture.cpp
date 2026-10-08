@@ -619,12 +619,12 @@ Texture::~Texture() {
 // levels; gpuMipmaps tells the renderer whether to sample them, as an OpenGL
 // texture uploaded without mipmaps has none.
 // QRhi renderer: DXT data goes to the GPU as it is, as GLTextures uploads it
-// to OpenGL. DXT1 with alpha has no QRhi format and is decoded; so is a
-// chain of mipmaps that stops before 1x1 when mipmaps are wanted.
+// to OpenGL. DXT1 with alpha has no QRhi format and goes as BC3 (twice its
+// size, a quarter of decoded RGBA); a chain of mipmaps that stops before 1x1
+// when mipmaps are wanted is decoded.
 static bool uploadCompressedForRhi(Texture &t, bool mipmaps) {
     const int format = t.compressedGLFormat;
     if (t.compressedData.isEmpty() || !dxtBlockBytes(format) ||
-        format == GL_COMPRESSED_RGBA_S3TC_DXT1_EXT ||
         t.compressedData.size() != DxtCodec::byteSize(t.width, t.height, codecFormat(format)) ||
         !RhiTextures::supportsBlocks())
         return false;
@@ -660,10 +660,17 @@ static bool uploadCompressedForRhi(Texture &t, bool mipmaps) {
             return false;
         levels.resize(1);
     }
-    const RhiTextures::Blocks blocks = format == GL_COMPRESSED_RGB_S3TC_DXT1_EXT
+    int gpuFormat = format;
+    if (format == GL_COMPRESSED_RGBA_S3TC_DXT1_EXT) {
+        for (QByteArray &level : levels)
+            if (!DxtCodec::dxt1ToBc3(level, level))
+                return false;
+        gpuFormat = GL_COMPRESSED_RGBA_S3TC_DXT5_EXT;
+    }
+    const RhiTextures::Blocks blocks = gpuFormat == GL_COMPRESSED_RGB_S3TC_DXT1_EXT
             ? RhiTextures::Blocks::Bc1
-            : format == GL_COMPRESSED_RGBA_S3TC_DXT3_EXT ? RhiTextures::Blocks::Bc2
-                                                         : RhiTextures::Blocks::Bc3;
+            : gpuFormat == GL_COMPRESSED_RGBA_S3TC_DXT3_EXT ? RhiTextures::Blocks::Bc2
+                                                            : RhiTextures::Blocks::Bc3;
     if (t.tex != nullptr)
         RhiTextures::release(t.tex[0]);
     const unsigned int handle = RhiTextures::createCompressed(t.width, t.height, blocks, levels);
@@ -673,7 +680,7 @@ static bool uploadCompressedForRhi(Texture &t, bool mipmaps) {
         t.tex = new unsigned int[1]{};
     t.tex[0] = handle;
     RhiTextures::setSampling(handle, mipmaps, false);
-    t.gpuInternalFormat = format;
+    t.gpuInternalFormat = gpuFormat;
     t.gpuMipmaps = mipmaps;
     t.gpuMipLevels = int(levels.size());
     delete[] t.imageData;

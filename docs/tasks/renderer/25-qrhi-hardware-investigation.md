@@ -334,12 +334,13 @@ after the work above and the later fixes on this branch:
   further step if still slow: merge the ranges of one page and frame into
   one upload.
 - Memory on large routes (user: ularge, 700 MB in older TSRE against
-  1300 MB on QRhi before `b7d4501`): re-measure. The next suspect is DXT1
-  with alpha, most MSTS content: Qt's `BC1` is the opaque variant on
-  Vulkan and OpenGL, so these textures go up decoded to RGBA8, eight times
-  their size (see "DXT1 with alpha" in `20-qrhi-renderer.md`; plan:
-  transcode to BC3 at upload). `TSRE_RHI_TRACE=1` logs texture counts and
-  MB per format in its `rhi-trace memory` line.
+  1300 MB on QRhi before `b7d4501`): re-measure. DXT1 with alpha, most
+  MSTS content, was decoded to RGBA8, eight times its size; it now goes up
+  as BC3, twice its size (`20-qrhi-renderer.md`, textures). What is left
+  as RGBA8 is uncompressed content (RGBA8 in the OpenGL renderer too) and
+  DXT mipmap chains that stop before 1x1.
+  `TSRE_RHI_TRACE=1` logs texture counts and MB per format in its
+  `rhi-trace memory` line.
 - QRhi OpenGL stays CPU-bound (about 20 ms a frame against 12 for the
   OpenGL renderer). QRhi's OpenGL backend sets every member of the
   uniform block with glUniform on each `setShaderResources` (values of up
