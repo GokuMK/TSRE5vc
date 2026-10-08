@@ -92,13 +92,15 @@ Thread safety of what loading touches:
   flight, default 4); both apply after a restart.
   `core.rendering.objectLoading.targetTokens` now paces main-thread loading
   only: forests, transfers, and shapes when threading is off.
-- First view: `core.rendering.objectLoading.initialTokens` (the startup
-  burst) is retired. Instead the route editor's first frame gathers the
-  world and drops it until nothing more is asked
-  (`RouteEditorGLWidget::loadFirstView`): requests then have no limits
-  (`ShapeLoader::FirstView`, `Game::ignoreLoadLimits` for forests and
-  transfers), and the gathers wait for the workers. The first view is
-  shown with its shapes loaded, threaded or not.
+- Whole views: `core.rendering.objectLoading.initialTokens` (the startup
+  burst) is retired. Instead the route editor's first frame, and the first
+  frame after a camera jump (more than 500 m in one frame: navigation
+  window, startup camera, capture views), gathers the world and drops it
+  until nothing more is asked (`RouteEditorGLWidget::loadWholeView`):
+  requests then have no limits (`ShapeLoader::WholeView`,
+  `Game::ignoreLoadLimits` for forests and transfers), and the gathers wait
+  for the workers. Such a view is shown with its shapes loaded, threaded or
+  not.
 - The log handler takes a mutex; `loadSd` reads the season flags with
   `QHash::value`.
 - The renderer capture suites settle only when no job runs and none
@@ -116,7 +118,33 @@ Thread safety of what loading touches:
 - Repeated runs for races (shape reload while loading, quitting while
   loading).
 
+## Measurements
+
+CMK, Steam Deck, first view (648 shapes), main-thread time measured with
+temporary timers (2026-10-08):
+
+| | Threads | Main thread |
+|---|---|---|
+| Whole first view | about 430 ms | about 820 ms |
+| Tile requests (world files, object creation) | 200-270 ms | 200 ms |
+| World gather | 190-230 ms | 640 ms |
+| Forests generated | 0.15 ms | 0.13 ms |
+| Transfers built | 5 ms | 5 ms |
+| Adopting copies | 0.7 ms | - |
+
+Forests and transfers stay on the main thread: they cost little, and both
+read state the main thread edits. A transfer re-samples the terrain every
+frame to follow brush edits (`TransferMesh::update`); a forest reads
+terrain heights, the track and road databases (clearing distance) and the
+global `std::rand` sequence, whose shared state would make tree placement
+depend on thread timing. The next main-thread costs are reading the tiles'
+world files and the rest of the world gather.
+
 ## Open
 
-- Camera jumps (navigation window, parity views) load progressively; they
-  could load like the first view.
+- `.sd` season directories: settings store seasons as `SpringClear`,
+  `WinterClear` and so on, but both MSTS loaders compare the raw name
+  (`TextureFlags.value(season)`, `season == "Winter"`), so the clear
+  seasons never select seasonal shape textures. `SFileLegacy` also tests
+  the Snow bit for SnowTrack (`flags & X != 0` precedence) and leaves out
+  SummerSnow; `SFileComplex` has neither of those two faults.

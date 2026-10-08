@@ -536,14 +536,14 @@ void RouteEditorGLWidget::surfacePaint(){
     }
 }
 
-// Loads the shapes, forests and transfers of the first view without the
-// loading limits, before it is drawn: the world is gathered and dropped until
-// it asks for nothing more (on the workers when shapes load threaded, so the
-// gathers wait for them).
-void RouteEditorGLWidget::loadFirstView() {
-    firstViewPending = false;
+// Loads the shapes, forests and transfers of the view without the loading
+// limits, before it is drawn: the world is gathered and dropped until it asks
+// for nothing more (on the workers when shapes load threaded, so the gathers
+// wait for them).
+void RouteEditorGLWidget::loadWholeView(const char *reason) {
+    wholeViewPending = false;
     RenderQueue &queue = *renderer;
-    ShapeLoader::FirstView unlimited;
+    ShapeLoader::WholeView unlimited;
     QElapsedTimer timer;
     timer.start();
     const unsigned jobs = ShapeLoader::progress();
@@ -559,7 +559,7 @@ void RouteEditorGLWidget::loadFirstView() {
             break;
         ShapeLoader::waitForAll();
     }
-    qInfo() << "First view loaded in" << timer.elapsed() << "ms," << pass << "gathers,"
+    qInfo() << "Whole view (" << reason << ") loaded in" << timer.elapsed() << "ms," << pass << "gathers,"
             << ShapeLoader::progress() - jobs << "shapes on workers";
 }
 
@@ -583,8 +583,20 @@ void RouteEditorGLWidget::paintScene(){
     std::copy(camera->getPos(), camera->getPos() + 3, gluu->cameraPosition);
     // Secondary views must not read last frame's water reflection.
     std::fill(gluu->waterReflectionView, gluu->waterReflectionView + 4, 0.0f);
-    if (firstViewPending && !selectionPass)
-        loadFirstView();
+    if (!selectionPass) {
+        // A camera moving farther than this in one frame jumped.
+        const double jumpDistance = 500.0;
+        const double position[2] = {camera->pozT[0] * 2048.0 + camera->getPos()[0],
+                                    camera->pozT[1] * 2048.0 + camera->getPos()[2]};
+        const bool jumped = std::hypot(position[0] - lastViewPosition[0],
+                                       position[1] - lastViewPosition[1]) > jumpDistance;
+        lastViewPosition[0] = position[0];
+        lastViewPosition[1] = position[1];
+        if (wholeViewPending)
+            loadWholeView("first view");
+        else if (jumped)
+            loadWholeView("camera jump");
+    }
     // Drop anything left from an interrupted frame and rebalance the matrix stack.
     renderer->resetFrame();
     renderer->setViewPosition(camera->getPos());

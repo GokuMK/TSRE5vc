@@ -39,7 +39,7 @@ struct Loader {
     QHash<ComplexShape *, Job *> jobs;
     // Jobs cancelled while running, deleted once done.
     QVector<Job *> dropped;
-    int firstView = 0;
+    int wholeViews = 0;
 
     void collectDropped() {
         dropped.erase(std::remove_if(dropped.begin(), dropped.end(), [](Job *job) {
@@ -82,7 +82,7 @@ ShapeLoader::Request ShapeLoader::request(ComplexShape *shape) {
         delete job;
         return Request::Adopted;
     }
-    const bool limited = l.firstView == 0;
+    const bool limited = l.wholeViews == 0;
     if (l.threaded) {
         if (limited && l.running.load() >= l.parallel)
             return Request::Wait;
@@ -137,10 +137,10 @@ void ShapeLoader::waitForAll() {
         existing->pool->waitForDone();
 }
 
-ShapeLoader::FirstView::FirstView() {
-    loader().firstView++;
+ShapeLoader::WholeView::WholeView() {
+    loader().wholeViews++;
 }
 
-ShapeLoader::FirstView::~FirstView() {
-    loader().firstView--;
+ShapeLoader::WholeView::~WholeView() {
+    loader().wholeViews--;
 }

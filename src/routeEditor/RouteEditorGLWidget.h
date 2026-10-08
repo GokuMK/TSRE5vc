@@ -297,9 +297,12 @@ private:
     float mousex, mousey;
     QVector<QPoint> selectionProbePoints;
     bool simulationPaused = false;
-    // The first view is shown with its shapes loaded (loadFirstView()).
-    bool firstViewPending = true;
-    void loadFirstView();
+    // The first view, and the view after a camera jump, are shown with their
+    // shapes loaded (loadWholeView()). The camera's position in the last
+    // frame, in metres, tells a jump.
+    bool wholeViewPending = true;
+    double lastViewPosition[2] = {0.0, 0.0};
+    void loadWholeView(const char *reason);
     QVector<quint32> selectionProbeResults;
     GameObj* selectedObj = NULL;
     GameObj* lastSelectedObj = NULL;

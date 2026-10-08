@@ -670,7 +670,7 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
             .withNameId(
                 //% "Threaded shape loading"
                 QT_TRID_NOOP("settings.core.rendering.threaded.shape.loading.name")).withDescriptionId(
-                //% "Load shapes (MSTS and glTF) on worker threads. Off: shapes load on the main thread, paced by the object loading budget. Either way, the first view of a route is shown with its shapes loaded. Applies after a restart."
+                //% "Load shapes (MSTS and glTF) on worker threads. Off: shapes load on the main thread, paced by the object loading budget. Either way, the first view of a route and the view after a camera jump are shown with their shapes loaded. Applies after a restart."
                 QT_TRID_NOOP("settings.core.rendering.threaded.shape.loading.description")).inGroup("rendering").inSubgroup("visibility"),
         "", "", "ShapeLoader", false, "startup");
     ADD(SettingsDefinition::integer("core.rendering.objectLoading.parallelShapes", 4)

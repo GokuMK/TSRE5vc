@@ -8143,8 +8143,8 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
     </message>
     <message id="settings.core.rendering.threaded.shape.loading.description">
         <location filename="../src/settings/SettingsRegistration.cpp" line="670" />
-        <source>Load shapes (MSTS and glTF) on worker threads. Off: shapes load on the main thread, paced by the object loading budget. Either way, the first view of a route is shown with its shapes loaded. Applies after a restart.</source>
-        <translation>Load shapes (MSTS and glTF) on worker threads. Off: shapes load on the main thread, paced by the object loading budget. Either way, the first view of a route is shown with its shapes loaded. Applies after a restart.</translation>
+        <source>Load shapes (MSTS and glTF) on worker threads. Off: shapes load on the main thread, paced by the object loading budget. Either way, the first view of a route and the view after a camera jump are shown with their shapes loaded. Applies after a restart.</source>
+        <translation>Load shapes (MSTS and glTF) on worker threads. Off: shapes load on the main thread, paced by the object loading budget. Either way, the first view of a route and the view after a camera jump are shown with their shapes loaded. Applies after a restart.</translation>
     </message>
     <message id="settings.core.rendering.object.loading.parallel.shapes.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="670" />

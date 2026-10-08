@@ -41,13 +41,14 @@ unsigned progress();
 void waitForAll();
 
 // While one exists, requests have no limits: no tokens, no cap on jobs.
-// The route editor's first view loads this way before it is shown.
-class FirstView {
+// The route editor loads its first view, and the view after a camera jump,
+// this way before showing it.
+class WholeView {
 public:
-    FirstView();
-    ~FirstView();
-    FirstView(const FirstView &) = delete;
-    FirstView &operator=(const FirstView &) = delete;
+    WholeView();
+    ~WholeView();
+    WholeView(const WholeView &) = delete;
+    WholeView &operator=(const WholeView &) = delete;
 };
 
 }
