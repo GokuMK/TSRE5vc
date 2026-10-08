@@ -8,6 +8,7 @@
 #include <tsre/texture/TexLib.h>
 #include <tsre/texture/Texture.h>
 #include <tsre/texture/ImageLib.h>
+#include <tsre/world/TerrainSeason.h>
 #include <tsre/trains/ActLib.h>
 #include <tsre/trains/Service.h>
 #include <tsre/trains/Traffic.h>
@@ -92,6 +93,19 @@ int TsreTests::runContentPathSuite(bool verbose) {
     SFileComplex metadata(shapePath,"Tree.S",a+"/TEXTURES");
     metadata.loadData();
     test.check(metadata.isLoaded() && metadata.getEsdDetailLevel()==7,"real shape loader reads Tree.sd for Tree.S");
+    // ESD_Alternative_Texture flags: Snow 0x1, SnowTrack 0x2, Spring 0x4, Winter 0x10, SpringSnow 0x20.
+    test.check(TerrainSeason::shapeTextureDirectory(0x4,"SpringClear")=="/SPRING"
+            && TerrainSeason::shapeTextureDirectory(0x10,"WinterClear")=="/WINTER"
+            && TerrainSeason::shapeTextureDirectory(0x14,"SummerClear").isEmpty(),
+            "clear seasons select their season's shape textures; summer the main ones");
+    test.check(TerrainSeason::shapeTextureDirectory(0x11,"WinterClear")=="/SNOW"
+            && TerrainSeason::shapeTextureDirectory(0x2,"WinterSnow")=="/SNOW"
+            && TerrainSeason::shapeTextureDirectory(0x1,"SummerSnow")=="/SNOW"
+            && TerrainSeason::shapeTextureDirectory(0x20,"SpringSnow")=="/SPRINGSNOW",
+            "snow and snow-track shapes use SNOW in winter and snow seasons");
+    test.check(TerrainSeason::shapeTextureDirectory(0,"WinterSnow").isEmpty()
+            && TerrainSeason::shapeTextureDirectory(0x4,"SpringRain").isEmpty(),
+            "shapes without the season's flag keep the main textures");
 
     QScopedValueRollback<bool> syncImages(ImageLib::IsThread,false);
     const QString imagePath=a+"/TEXTURES/MixedLeaf.png";

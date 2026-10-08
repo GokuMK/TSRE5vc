@@ -15,6 +15,22 @@ QString TerrainSeason::legacySeason(const QString &season) {
         if (season.compare(name + "Clear", Qt::CaseInsensitive) == 0) return name;
     return season;
 }
+QString TerrainSeason::shapeTextureDirectory(int alternativeFlags, const QString &season) {
+    // ESD_Alternative_Texture bits.
+    enum { Snow = 0x1, SnowTrack = 0x2 };
+    static const QList<QPair<QString, int>> seasons{
+        {"Spring", 0x4}, {"Autumn", 0x8}, {"Winter", 0x10},
+        {"SpringSnow", 0x20}, {"AutumnSnow", 0x40}, {"WinterSnow", 0x80}};
+    const QString s = legacySeason(season);
+    QString directory;
+    for (const auto &entry : seasons)
+        if (s.compare(entry.first, Qt::CaseInsensitive) == 0 && (alternativeFlags & entry.second) != 0)
+            directory = '/' + entry.first.toUpper();
+    if (s.compare("Winter", Qt::CaseInsensitive) == 0 || s.endsWith("Snow", Qt::CaseInsensitive))
+        if ((alternativeFlags & (Snow | SnowTrack)) != 0)
+            directory = "/SNOW";
+    return directory;
+}
 QString TerrainSeason::canonical(const QString &season) {
     const QString s = legacySeason(season);
     if (s.isEmpty() || s.compare("Default",Qt::CaseInsensitive)==0

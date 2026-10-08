@@ -140,11 +140,13 @@ global `std::rand` sequence, whose shared state would make tree placement
 depend on thread timing. The next main-thread costs are reading the tiles'
 world files and the rest of the world gather.
 
-## Open
+## Seasonal shape textures
 
-- `.sd` season directories: settings store seasons as `SpringClear`,
-  `WinterClear` and so on, but both MSTS loaders compare the raw name
-  (`TextureFlags.value(season)`, `season == "Winter"`), so the clear
-  seasons never select seasonal shape textures. `SFileLegacy` also tests
-  the Snow bit for SnowTrack (`flags & X != 0` precedence) and leaves out
-  SummerSnow; `SFileComplex` has neither of those two faults.
+Both MSTS loaders take the `.sd` season directory from
+`TerrainSeason::shapeTextureDirectory`. Before, settings stored seasons as
+`SpringClear`, `WinterClear` and so on while the loaders compared the raw
+name, so the clear seasons never selected seasonal shape textures;
+`SFileLegacy` also tested the Snow bit for SnowTrack (`flags & X != 0`),
+left out SummerSnow, and treated an `.sd` without
+`ESD_Alternative_Texture` as having every flag. EUROPE1 in WinterClear now
+shows the WINTER and SNOW shape textures (bare trees, snowy roofs).

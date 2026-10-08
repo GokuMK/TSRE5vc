@@ -15,6 +15,7 @@
 #include <tsre/Game.h>
 #include <tsre/fileFunctions/SimisTextReader.h>
 #include <tsre/shape/ShapeLoader.h>
+#include <tsre/world/TerrainSeason.h>
 #include <tsre/texture/TexLib.h>
 using SFileDetail::Node;
 namespace {
@@ -642,14 +643,7 @@ void SFileComplex::loadMetadata(bool readFile) {
         box(*b, 0);
     for (auto b : child(root, "esd_complex").children("esd_complex_box"))
         box(*b, 6);
-    QString seasonPath;
-    if ((d->alternative & Game::TextureFlags.value(Game::season)) != 0)
-        seasonPath = '/' + Game::season.toUpper();
-    if (Game::season == "Winter" || Game::season.endsWith("Snow"))
-        if ((d->alternative &
-             (Game::TextureFlags.value("Snow") | Game::TextureFlags.value("SnowTrack"))) != 0)
-            seasonPath = "/SNOW";
-    d->texturePath += seasonPath;
+    d->texturePath += TerrainSeason::shapeTextureDirectory(d->alternative, Game::season);
     if (!readFile)
         releaseTextures();
 }

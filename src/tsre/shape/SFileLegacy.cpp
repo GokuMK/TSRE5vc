@@ -17,6 +17,7 @@
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/texture/TexLib.h>
 #include <tsre/shape/ShapeLoader.h>
+#include <tsre/world/TerrainSeason.h>
 #include <tsre/texture/Texture.h>
 #include <QDebug>
 #include <QtCore>
@@ -594,19 +595,8 @@ void SFileLegacy::loadSd() {
             continue;
         }
     }
-    QString seasonPath;
-    //qDebug() << esdAlternativeTexture << this->TextureFlags[Game::season];
-    //qDebug() << (esdAlternativeTexture & this->TextureFlags[Game::season]);
-    if((esdAlternativeTexture & Game::TextureFlags.value(Game::season)) != 0)
-        seasonPath = "/" + Game::season.toUpper();
-
-    if(Game::season == "Winter" || Game::season == "AutumnSnow" || Game::season == "WinterSnow" || Game::season == "SpringSnow" ){
-        if(esdAlternativeTexture & Game::TextureFlags.value("Snow") != 0)
-            seasonPath = "/SNOW";
-        if(esdAlternativeTexture & Game::TextureFlags.value("SnowTrack") != 0)
-            seasonPath = "/SNOW";
-    }
-    texPath += seasonPath;
+    // An .sd without ESD_Alternative_Texture (-1 here) has no alternatives.
+    texPath += TerrainSeason::shapeTextureDirectory(std::max(0, esdAlternativeTexture), Game::season);
     loadedSd = true;
     delete data;
 }
