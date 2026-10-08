@@ -77,6 +77,7 @@
 #include <tsre/world/RouteClient.h>
 #include <tsre/ClientInfo.h>
 #include <tsre/renderer/RenderStats.h>
+#include <tsre/shape/ShapeLoader.h>
 #include <QMessageBox>
 
 // The active 8-byte paged layout derives local X/Z in StandardFog.
@@ -535,6 +536,33 @@ void RouteEditorGLWidget::surfacePaint(){
     }
 }
 
+// Loads the shapes, forests and transfers of the first view without the
+// loading limits, before it is drawn: the world is gathered and dropped until
+// it asks for nothing more (on the workers when shapes load threaded, so the
+// gathers wait for them).
+void RouteEditorGLWidget::loadFirstView() {
+    firstViewPending = false;
+    RenderQueue &queue = *renderer;
+    ShapeLoader::FirstView unlimited;
+    QElapsedTimer timer;
+    timer.start();
+    const unsigned jobs = ShapeLoader::progress();
+    int pass = 0;
+    while (pass < 8) {
+        ++pass;
+        renderer->resetFrame();
+        Mat4::identity(renderer->transform());
+        Game::ignoreLoadLimits = true; // reset by Route::pushRenderItems
+        route->pushRenderItems(queue, camera->pozT, camera->getPos(), camera->getTarget(),
+                               camera->getRotX(), 3.14f / 3, GLUU::RENDER_DEFAULT);
+        if (!ShapeLoader::busy())
+            break;
+        ShapeLoader::waitForAll();
+    }
+    qInfo() << "First view loaded in" << timer.elapsed() << "ms," << pass << "gathers,"
+            << ShapeLoader::progress() - jobs << "shapes on workers";
+}
+
 void RouteEditorGLWidget::paintScene(){
     Game::currentShapeLib = currentShapeLib;
     if (!canRenderFrame()) return;
@@ -555,6 +583,8 @@ void RouteEditorGLWidget::paintScene(){
     std::copy(camera->getPos(), camera->getPos() + 3, gluu->cameraPosition);
     // Secondary views must not read last frame's water reflection.
     std::fill(gluu->waterReflectionView, gluu->waterReflectionView + 4, 0.0f);
+    if (firstViewPending && !selectionPass)
+        loadFirstView();
     // Drop anything left from an interrupted frame and rebalance the matrix stack.
     renderer->resetFrame();
     renderer->setViewPosition(camera->getPos());

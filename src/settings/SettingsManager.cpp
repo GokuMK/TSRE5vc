@@ -56,6 +56,7 @@ bool stripRuntimeOptions(QJsonObject &document, const SettingsRegistry &registry
 const QStringList RetiredKeys = {
     "core.rendering.pipeline",
     "core.rendering.pipelineHotSwap",
+    "core.rendering.objectLoading.initialTokens",
 };
 
 bool stripRetiredSettings(QJsonObject &document) {

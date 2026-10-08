@@ -41,6 +41,7 @@
 #include <tsre/world/Ref.h>
 #include <tsre/world/Route.h>
 #include <tsre/world/TerrainLib.h>
+#include <tsre/shape/ShapeLoader.h>
 #include <tsre/math3d/GLMatrix.h>
 
 namespace {
@@ -464,6 +465,7 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         settleTimer.start();
         QByteArray lastHash;
         int stableCount = 0;
+        unsigned lastShapeProgress = ShapeLoader::progress();
         int frames = 0;
         bool settled = false;
         while (frames < options.settle.maxFrames
@@ -473,11 +475,18 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
             frames++;
             stableCount = hash == lastHash ? stableCount + 1 : 0;
             lastHash = hash;
-            if (frames >= options.settle.minFrames && stableCount >= options.settle.stableFrames) {
+            // A frame can repeat while shapes still load on the workers.
+            const unsigned shapeProgress = ShapeLoader::progress();
+            if (shapeProgress != lastShapeProgress)
+                stableCount = 0;
+            lastShapeProgress = shapeProgress;
+            if (frames >= options.settle.minFrames && stableCount >= options.settle.stableFrames
+                    && !ShapeLoader::busy()) {
                 settled = true;
                 break;
             }
         }
+        const qint64 settleMs = settleTimer.elapsed();
 
         // Timing frames run without events, so they see one simulation state.
         QImage image;
@@ -539,7 +548,7 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
 
         qInfo().noquote() << CaptureLog << spec.name
                           << (settled ? "settled" : "did not settle") << "after" << frames
-                          << "frames; draws" << stats.drawCalls
+                          << "frames," << settleMs << "ms; draws" << stats.drawCalls
                           << "items created" << stats.renderItemsCreated
                           << "matrix clones" << stats.matrixClones;
     }
@@ -940,6 +949,7 @@ int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, const QStrin
         settleTimer.start();
         QByteArray lastHash;
         int stableCount = 0, frames = 0;
+        unsigned lastShapeProgress = ShapeLoader::progress();
         bool settled = false;
         QImage image;
         while (frames < options.settle.maxFrames
@@ -950,7 +960,13 @@ int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, const QStrin
             frames++;
             stableCount = hash == lastHash ? stableCount + 1 : 0;
             lastHash = hash;
-            if (frames >= options.settle.minFrames && stableCount >= options.settle.stableFrames) {
+            // A frame can repeat while shapes still load on the workers.
+            const unsigned shapeProgress = ShapeLoader::progress();
+            if (shapeProgress != lastShapeProgress)
+                stableCount = 0;
+            lastShapeProgress = shapeProgress;
+            if (frames >= options.settle.minFrames && stableCount >= options.settle.stableFrames
+                    && !ShapeLoader::busy()) {
                 settled = true;
                 break;
             }

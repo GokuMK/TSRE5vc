@@ -16,6 +16,7 @@
 #include <tsre/fileFunctions/ReadFile.h>
 #include <tsre/fileFunctions/ParserX.h>
 #include <tsre/texture/TexLib.h>
+#include <tsre/shape/ShapeLoader.h>
 #include <tsre/texture/Texture.h>
 #include <QDebug>
 #include <QtCore>
@@ -52,16 +53,67 @@ SFileLegacy::SFileLegacy(QString pathid, QString name, QString texp ) {
     this->isinit = 1;
     this->loaded = 0;
     this->texPath = texp;
+    this->textureRoot = texp;
     state.push_back(State());
 }
 
 
 SFileLegacy::~SFileLegacy() {
+    ShapeLoader::cancel(this);
     clearData();
 }
 
 void SFileLegacy::load() {
     if (loadData()) initGL();
+}
+
+ComplexShape *SFileLegacy::detachedCopy() const {
+    return new SFileLegacy(pathid, nazwa, textureRoot);
+}
+
+void SFileLegacy::loadDetached() {
+    load();
+}
+
+void SFileLegacy::adopt(ComplexShape &copy) {
+    auto *loadedCopy = dynamic_cast<SFileLegacy *>(&copy);
+    if (loadedCopy == nullptr || loaded != 0)
+        return;
+    clearData();
+    // Everything loadData(), loadSd() and initGL() fill; the copy takes this
+    // shape's empty data and is deleted.
+    SFileLegacy &o = *loadedCopy;
+    std::swap(animations, o.animations);
+    std::swap(texPath, o.texPath);
+    std::swap(sdName, o.sdName);
+    std::swap(loadedSd, o.loadedSd);
+    std::swap(texloaded, o.texloaded);
+    std::swap(esdDetailLevel, o.esdDetailLevel);
+    std::swap(esdAlternativeTexture, o.esdAlternativeTexture);
+    std::swap(esdBoundingBox, o.esdBoundingBox);
+    std::swap(snapable, o.snapable);
+    std::swap(tpoints, o.tpoints);
+    std::swap(iloscd, o.iloscd);
+    std::swap(distancelevel, o.distancelevel);
+    std::swap(iloscm, o.iloscm);
+    std::swap(macierz, o.macierz);
+    std::swap(ilosci, o.ilosci);
+    std::swap(image, o.image);
+    std::swap(ilosct, o.ilosct);
+    std::swap(texture, o.texture);
+    std::swap(iloscv, o.iloscv);
+    std::swap(vtxstate, o.vtxstate);
+    std::swap(iloscps, o.iloscps);
+    std::swap(primstate, o.primstate);
+    std::swap(ishaders, o.ishaders);
+    std::swap(shader, o.shader);
+    std::swap(size, o.size);
+    std::swap(bound, o.bound);
+    std::swap(glReady, o.glReady);
+    // A missing file leaves the copy at 0; a failed load is 2 here.
+    loaded = o.loaded == 1 ? 1 : 2;
+    o.loaded = 0;
+    requiresUpdate = true;
 }
 
 bool SFileLegacy::loadData() {
@@ -545,13 +597,13 @@ void SFileLegacy::loadSd() {
     QString seasonPath;
     //qDebug() << esdAlternativeTexture << this->TextureFlags[Game::season];
     //qDebug() << (esdAlternativeTexture & this->TextureFlags[Game::season]);
-    if((esdAlternativeTexture & Game::TextureFlags[Game::season]) != 0)
+    if((esdAlternativeTexture & Game::TextureFlags.value(Game::season)) != 0)
         seasonPath = "/" + Game::season.toUpper();
 
     if(Game::season == "Winter" || Game::season == "AutumnSnow" || Game::season == "WinterSnow" || Game::season == "SpringSnow" ){
-        if(esdAlternativeTexture & Game::TextureFlags["Snow"] != 0)
+        if(esdAlternativeTexture & Game::TextureFlags.value("Snow") != 0)
             seasonPath = "/SNOW";
-        if(esdAlternativeTexture & Game::TextureFlags["SnowTrack"] != 0)
+        if(esdAlternativeTexture & Game::TextureFlags.value("SnowTrack") != 0)
             seasonPath = "/SNOW";
     }
     texPath += seasonPath;
@@ -816,6 +868,7 @@ void SFileLegacy::addSnapablePoints(QVector<float> &out){
 }
 
 void SFileLegacy::reload() {
+    ShapeLoader::cancel(this);
     loaded = 0;
     glReady = false;
     if (!distancelevel || iloscd == 0) return;
@@ -990,12 +1043,16 @@ void SFileLegacy::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsign
     if (isinit != 1 || loaded == 2)
         return;
     if (loaded == 0) {
-        if(Game::objectLoadingTokens < 1) return;
-
-        Game::objectLoadingTokens-=2;
-        loaded = 2;
-        load();
-        return;
+        const ShapeLoader::Request request = ShapeLoader::request(this);
+        if (request == ShapeLoader::Request::Wait)
+            return;
+        if (request == ShapeLoader::Request::LoadHere) {
+            loaded = 2;
+            load();
+            return;
+        }
+        if (loaded != 1)
+            return;
     }
 
     if(state[stateId].enableSubObjQueue.size() > 0){

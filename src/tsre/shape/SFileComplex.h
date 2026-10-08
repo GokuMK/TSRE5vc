@@ -55,6 +55,9 @@ class SFileComplex final : public ComplexShape {
     bool setField(const QString &blockPath, int scalarIndex, const QString &value,
                   QString *error = nullptr);
     void load() override;
+    ComplexShape *detachedCopy() const override;
+    void loadDetached() override;
+    void adopt(ComplexShape &copy) override;
     void reload() override;
     unsigned int newState() override;
     void setAnimated(unsigned int, bool) override;

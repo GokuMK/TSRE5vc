@@ -297,6 +297,9 @@ private:
     float mousex, mousey;
     QVector<QPoint> selectionProbePoints;
     bool simulationPaused = false;
+    // The first view is shown with its shapes loaded (loadFirstView()).
+    bool firstViewPending = true;
+    void loadFirstView();
     QVector<quint32> selectionProbeResults;
     GameObj* selectedObj = NULL;
     GameObj* lastSelectedObj = NULL;

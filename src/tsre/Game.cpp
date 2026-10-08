@@ -69,8 +69,7 @@ bool Game::playerMode = false;
 bool Game::useNetworkEng = false;
 bool Game::useQuadTree = true;
 bool Game::useTdbEmptyItems = true;
-int Game::allowObjLag = 1000;
-int Game::objectLoadingTokens = 1000;
+int Game::objectLoadingTokens = 10;
 int Game::maxObjLag = 10;
 bool Game::ignoreLoadLimits = false;
 float Game::objectLod = 3000;
@@ -320,11 +319,8 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
     integer("core.rendering.tileRadius", tileLod);
     floating("core.rendering.objectLodDistance", objectLod);
     integer("core.rendering.objectLoading.targetTokens", maxObjLag);
-    claim("core.rendering.objectLoading.initialTokens", SettingType::Int);
-    if (appliesNow("core.rendering.objectLoading.initialTokens")) {
-        allowObjLag = settings.runtimeInt("core.rendering.objectLoading.initialTokens");
-        objectLoadingTokens = allowObjLag;
-    }
+    claim("core.rendering.threadedShapeLoading", SettingType::Bool);
+    claim("core.rendering.objectLoading.parallelShapes", SettingType::Int);
     claim("core.rendering.terrainMesh", SettingType::Enum);
     if (appliesNow("core.rendering.terrainMesh"))
         terrainMeshMode = ParseTerrainMeshMode(
@@ -663,9 +659,6 @@ void Game::loadLegacySettings() {
         }
         if(val == "maxObjLag"){
             maxObjLag = args[1].trimmed().toInt();
-        }
-        if(val == "allowObjLag"){
-            allowObjLag = args[1].trimmed().toInt();
         }
         if(val == "fpsLimit"){
             fpsLimit = args[1].trimmed().toInt();
@@ -1095,7 +1088,6 @@ void Game::CreateNewSettingsFile(){
     out << "tileLod = 2\n";
     out << "objectLod = 4000\n";
     out << "maxObjLag = 10\n";
-    out << "allowObjLag = 1000\n";
     out << "#cameraFov = 20.0\n";
     out << "leaveTrackShapeAfterDelete = false\n";
     out << "#renderTrItems = true\n";

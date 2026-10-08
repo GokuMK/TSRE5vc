@@ -8138,18 +8138,28 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
         </message>
         <message id="settings.core.rendering.object.loading.target.tokens.description">
             <location filename="../src/settings/SettingsRegistration.cpp" line="579" />
-            <source>Target token level for incremental shape loading. Rendering replenishes two tokens per update when the current token count is below this value.</source>
-            <translation>Docelowy poziom tokenów dla przyrostowego wczytywania modeli 3D. Renderowanie uzupełnia dwa tokeny na aktualizację, gdy bieżąca liczba tokenów jest niższa od tej wartości.</translation>
+            <source>Pace of loading on the main thread: forests, transfers, and shapes when threaded shape loading is off. Each load takes two tokens; rendering adds two per update up to this level.</source>
+            <translation>Tempo wczytywania w wątku głównym: lasy, obiekty typu Transfer oraz modele 3D, gdy wielowątkowe wczytywanie modeli 3D jest wyłączone. Każde wczytanie zużywa dwa tokeny; renderowanie dodaje dwa na aktualizację aż do tego poziomu.</translation>
         </message>
-        <message id="settings.core.rendering.object.loading.initial.tokens.name">
-            <location filename="../src/settings/SettingsRegistration.cpp" line="584" />
-            <source>Initial object loading tokens</source>
-            <translation>Początkowy limit wczytywania obiektów</translation>
+        <message id="settings.core.rendering.threaded.shape.loading.name">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="670" />
+            <source>Threaded shape loading</source>
+            <translation>Wielowątkowe wczytywanie modeli 3D</translation>
         </message>
-        <message id="settings.core.rendering.object.loading.initial.tokens.description">
-            <location filename="../src/settings/SettingsRegistration.cpp" line="586" />
-            <source>Initial value of the separate runtime token counter consumed while shapes load. Changing this setting at runtime resets the counter; normal counter consumption and refilling never modify the saved setting.</source>
-            <translation>Początkowa wartość oddzielnego licznika tokenów środowiska uruchomieniowego zużywanych podczas wczytywania modeli 3D. Zmiana ustawienia podczas działania resetuje licznik; zwykłe zużywanie i uzupełnianie tokenów nie zmienia zapisanej wartości.</translation>
+        <message id="settings.core.rendering.threaded.shape.loading.description">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="670" />
+            <source>Load shapes (MSTS and glTF) on worker threads. Off: shapes load on the main thread, paced by the object loading budget. Either way, the first view of a route is shown with its shapes loaded. Applies after a restart.</source>
+            <translation>Wczytuj modele 3D (MSTS i glTF) w wątkach roboczych. Wyłączone: modele 3D wczytują się w wątku głównym, w tempie budżetu wczytywania obiektów. W obu przypadkach pierwszy widok trasy jest pokazywany z wczytanymi modelami 3D. Zmiana działa po ponownym uruchomieniu.</translation>
+        </message>
+        <message id="settings.core.rendering.object.loading.parallel.shapes.name">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="670" />
+            <source>Shapes loaded at once</source>
+            <translation>Modele 3D wczytywane jednocześnie</translation>
+        </message>
+        <message id="settings.core.rendering.object.loading.parallel.shapes.description">
+            <location filename="../src/settings/SettingsRegistration.cpp" line="670" />
+            <source>Shapes loading at once on worker threads when threaded shape loading is on. Applies after a restart.</source>
+            <translation>Liczba modeli 3D wczytywanych jednocześnie w wątkach roboczych, gdy wielowątkowe wczytywanie modeli 3D jest włączone. Zmiana działa po ponownym uruchomieniu.</translation>
         </message>
         <message id="settings.core.rendering.pipeline.name">
             <location filename="../src/settings/SettingsRegistration.cpp" line="591" />

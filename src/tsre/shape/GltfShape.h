@@ -25,6 +25,7 @@ class ContentHierarchyInfo;
 class RenderItem;
 class ShapeHierarchyInfo;
 class ShapeTextureInfo;
+class Texture;
 
 class GltfShape : public ComplexShape {
 public:
@@ -41,6 +42,9 @@ public:
     bool getBoxPoints(QVector<float> &points) override;
 
     void load() override;
+    ComplexShape *detachedCopy() const override;
+    void loadDetached() override;
+    void adopt(ComplexShape &copy) override;
     void reload() override;
 
     unsigned int newState() override;
@@ -124,6 +128,18 @@ private:
     QVector<RenderItem::Light> punctualLights;
 
     bool requiresUpdate = false;
+
+    // A detached copy loading on a worker (ShapeLoader) registers no
+    // textures: it records them, with ids PendingTextureBase + index in the
+    // materials, and adopt() registers them on the main thread.
+    struct PendingTexture {
+        QString path;
+        Texture *embedded = nullptr; // owned until registered
+    };
+    static constexpr int PendingTextureBase = 1 << 30;
+    bool deferTextures = false;
+    QVector<PendingTexture> pendingTextures;
+    int addTexture(const QString &path, Texture *embedded);
     // Packets do not depend on the instance state, so every state submits
     // the set under key 0 and repeated objects draw instanced.
     QHash<unsigned int, QVector<RenderItem *>> renderItems;

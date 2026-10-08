@@ -32,6 +32,7 @@
 #include <tsre/renderer/Mesh.h>
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/renderer/Renderer.h>
+#include <tsre/shape/ShapeLoader.h>
 #include <tsre/texture/TexLib.h>
 #include <tsre/texture/Texture.h>
 
@@ -913,6 +914,9 @@ GltfShape::GltfShape(QString pathid, QString name, QString texPath) {
 }
 
 GltfShape::~GltfShape() {
+    ShapeLoader::cancel(this);
+    for (PendingTexture &texture : pendingTextures)
+        delete texture.embedded;
     cleanupRenderItems();
     cleanupGpu();
     cleanupNodeMatrices();
@@ -968,7 +972,69 @@ void GltfShape::load() {
     requiresUpdate = true;
 }
 
+ComplexShape *GltfShape::detachedCopy() const {
+    auto *copy = new GltfShape(pathid, name, texPath);
+    copy->deferTextures = true;
+    return copy;
+}
+
+void GltfShape::loadDetached() {
+    loaded = parseAndBuild() ? 1 : 2;
+}
+
+void GltfShape::adopt(ComplexShape &copy) {
+    auto *o = dynamic_cast<GltfShape *>(&copy);
+    if (o == nullptr || loaded != 0)
+        return;
+    if (o->loaded != 1) {
+        loaded = 2;
+        return;
+    }
+    QVector<int> ids;
+    ids.reserve(o->pendingTextures.size());
+    for (PendingTexture &texture : o->pendingTextures) {
+        ids.push_back(texture.embedded != nullptr ? TexLib::addTex(texture.embedded)
+                                                  : TexLib::addTex(texture.path));
+        texture.embedded = nullptr;
+    }
+    auto resolve = [&ids](int &id) {
+        if (id < PendingTextureBase)
+            return false;
+        const int index = id - PendingTextureBase;
+        id = index < ids.size() ? ids[index] : -1;
+        return true;
+    };
+    for (MeshGpu *mesh : o->meshes)
+        for (MeshPrimitiveGpu *prim : mesh->primitives) {
+            if (resolve(prim->material.texId))
+                prim->material.hasTexture = prim->material.texId >= 0;
+            for (int &texture : prim->material.pbr.textures)
+                resolve(texture);
+        }
+    cleanupRenderItems();
+    cleanupGpu();
+    cleanupNodeMatrices();
+    std::swap(meshes, o->meshes);
+    std::swap(drawUnits, o->drawUnits);
+    std::swap(nodeWorldMatrices, o->nodeWorldMatrices);
+    std::swap(nodeNames, o->nodeNames);
+    std::swap(nodeParents, o->nodeParents);
+    std::swap(punctualLights, o->punctualLights);
+    std::swap(size, o->size);
+    std::swap(bound, o->bound);
+    loaded = 1;
+    requiresUpdate = true;
+}
+
+int GltfShape::addTexture(const QString &path, Texture *embedded) {
+    if (!deferTextures)
+        return embedded != nullptr ? TexLib::addTex(embedded) : TexLib::addTex(path);
+    pendingTextures.push_back({path, embedded});
+    return PendingTextureBase + int(pendingTextures.size()) - 1;
+}
+
 void GltfShape::reload() {
+    ShapeLoader::cancel(this);
     invalidateRenderState(true);
     cleanupGpu();
     cleanupNodeMatrices();
@@ -1004,11 +1070,16 @@ void GltfShape::pushRenderItem(RenderQueue &queue, quint32 selectionId, unsigned
     }
 
     if (loaded == 0) {
-        if (Game::objectLoadingTokens < 1) return;
-        Game::objectLoadingTokens -= 2;
-        loaded = 2;
-        load();
-        return;
+        const ShapeLoader::Request request = ShapeLoader::request(this);
+        if (request == ShapeLoader::Request::Wait)
+            return;
+        if (request == ShapeLoader::Request::LoadHere) {
+            loaded = 2;
+            load();
+            return;
+        }
+        if (loaded != 1)
+            return;
     }
 
     const unsigned int key = 0;
@@ -1405,7 +1476,7 @@ bool GltfShape::parseAndBuild() {
             texture->loaded = false;
         }
 
-        return TexLib::addTex(texture);
+        return addTexture(QString(), texture);
     };
 
     auto resolveTextureIndexToTexLibId = [&](int textureIndex) -> int {
@@ -1434,7 +1505,7 @@ bool GltfShape::parseAndBuild() {
             }
 
             const QString resolved = cleanJoinPath(texRoot(), img.uri);
-            textureToTexLibId[textureIndex] = TexLib::addTex(resolved);
+            textureToTexLibId[textureIndex] = addTexture(resolved, nullptr);
             return textureToTexLibId[textureIndex];
         }
 

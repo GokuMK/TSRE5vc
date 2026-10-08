@@ -663,16 +663,23 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
             .withNameId(
                 //% "Object loading budget target"
                 QT_TRID_NOOP("settings.core.rendering.object.loading.target.tokens.name")).withDescriptionId(
-                //% "Target token level for incremental shape loading. Rendering replenishes two tokens per update when the current token count is below this value."
+                //% "Pace of loading on the main thread: forests, transfers, and shapes when threaded shape loading is off. Each load takes two tokens; rendering adds two per update up to this level."
                 QT_TRID_NOOP("settings.core.rendering.object.loading.target.tokens.description")).withRange(0, 10000, 1).inGroup("rendering").inSubgroup("visibility").applies("dynamic").asAdvanced(),
         "maxObjLag", "Game::maxObjLag", "Shape loading scheduler", true, "hot-cache");
-    ADD(SettingsDefinition::integer("core.rendering.objectLoading.initialTokens", 1000)
+    ADD(SettingsDefinition::boolean("core.rendering.threadedShapeLoading", true)
             .withNameId(
-                //% "Initial object loading tokens"
-                QT_TRID_NOOP("settings.core.rendering.object.loading.initial.tokens.name")).withDescriptionId(
-                //% "Initial value of the separate runtime token counter consumed while shapes load. Changing this setting at runtime resets the counter; normal counter consumption and refilling never modify the saved setting."
-                QT_TRID_NOOP("settings.core.rendering.object.loading.initial.tokens.description")).withRange(0, 100000, 2).inGroup("rendering").inSubgroup("visibility").applies("dynamic").asAdvanced(),
-        "allowObjLag", "Game::allowObjLag", "Shape loading scheduler", true, "session-state");
+                //% "Threaded shape loading"
+                QT_TRID_NOOP("settings.core.rendering.threaded.shape.loading.name")).withDescriptionId(
+                //% "Load shapes (MSTS and glTF) on worker threads. Off: shapes load on the main thread, paced by the object loading budget. Either way, the first view of a route is shown with its shapes loaded. Applies after a restart."
+                QT_TRID_NOOP("settings.core.rendering.threaded.shape.loading.description")).inGroup("rendering").inSubgroup("visibility"),
+        "", "", "ShapeLoader", false, "startup");
+    ADD(SettingsDefinition::integer("core.rendering.objectLoading.parallelShapes", 4)
+            .withNameId(
+                //% "Shapes loaded at once"
+                QT_TRID_NOOP("settings.core.rendering.object.loading.parallel.shapes.name")).withDescriptionId(
+                //% "Shapes loading at once on worker threads when threaded shape loading is on. Applies after a restart."
+                QT_TRID_NOOP("settings.core.rendering.object.loading.parallel.shapes.description")).withRange(1, 32, 1).inGroup("rendering").inSubgroup("visibility").asAdvanced(),
+        "", "", "ShapeLoader", false, "startup");
     ADD(SettingsDefinition::string("core.rendering.terrainMesh", "paged", SettingType::Enum)
             .withNameId(
                 //% "Terrain mesh backend"

@@ -75,7 +75,6 @@ public:
     static float objectLod;
     static float distantLod;
     static int tileLod;
-    static int allowObjLag;
     static int objectLoadingTokens;
     static int maxObjLag;
     static bool ignoreLoadLimits;

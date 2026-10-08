@@ -14,6 +14,7 @@
 #include <shapeViewer/ShapeTextureInfo.h>
 #include <tsre/Game.h>
 #include <tsre/fileFunctions/SimisTextReader.h>
+#include <tsre/shape/ShapeLoader.h>
 #include <tsre/texture/TexLib.h>
 using SFileDetail::Node;
 namespace {
@@ -54,6 +55,7 @@ SFileComplex::SFileComplex(QString path, QString name, QString textureRoot) : d(
     d->texturePath = d->textureRoot;
 }
 SFileComplex::~SFileComplex() {
+    ShapeLoader::cancel(this);
     if (d) {
         releaseGL();
         releaseTextures();
@@ -196,7 +198,35 @@ void SFileComplex::load() {
     if (loadData())
         initGL();
 }
+ComplexShape *SFileComplex::detachedCopy() const {
+    auto *copy = new SFileComplex(d->path, d->name, d->textureRoot);
+    copy->setLoadOptions({
+        {QString::fromLatin1(ShapeLoadOption::FirstLodOnly), d->options.firstLodOnly},
+        {QString::fromLatin1(ShapeLoadOption::Compact), d->options.compact}
+    });
+    return copy;
+}
+void SFileComplex::loadDetached() { load(); }
+void SFileComplex::adopt(ComplexShape &copy) {
+    auto *loaded = dynamic_cast<SFileComplex *>(&copy);
+    if (!loaded || !loaded->d || d->loaded || d->attempted)
+        return;
+    // As the Compact rebuild in initGL(): the states stay, the data is the copy's.
+    auto states = std::move(d->states);
+    releaseGL();
+    releaseTextures();
+    std::swap(d, loaded->d);
+    d->states = std::move(states);
+    for (auto &state : d->states) {
+        state.packets.clear();
+        state.matrices.clear();
+        state.dirty = state.namesDirty = true;
+        if (state.lod >= int(d->lods.size()))
+            state.lod = 0;
+    }
+}
 void SFileComplex::reload() {
+    ShapeLoader::cancel(this);
     releaseGL();
     d->loaded = false;
     d->sourceAvailable = false;

@@ -8,6 +8,7 @@
 #include <tsre/Game.h>
 #include <tsre/ogl/GLUU.h>
 #include <tsre/renderer/Renderer.h>
+#include <tsre/shape/ShapeLoader.h>
 #include <tsre/texture/TexLib.h>
 #include <tsre/texture/Texture.h>
 
@@ -151,10 +152,11 @@ bool SFileComplex::prepare(unsigned int id) {
     if (!d->loaded) {
         if (d->attempted)
             return false;
-        if (Game::objectLoadingTokens < 1)
+        const ShapeLoader::Request request = ShapeLoader::request(this);
+        if (request == ShapeLoader::Request::Wait)
             return false;
-        Game::objectLoadingTokens -= 2;
-        load();
+        if (request == ShapeLoader::Request::LoadHere)
+            load();
     }
     if (!d->loaded || d->health == Health::Broken || !initGL() || d->lods.empty())
         return false;

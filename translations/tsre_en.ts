@@ -8133,18 +8133,28 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
     </message>
     <message id="settings.core.rendering.object.loading.target.tokens.description">
         <location filename="../src/settings/SettingsRegistration.cpp" line="579" />
-        <source>Target token level for incremental shape loading. Rendering replenishes two tokens per update when the current token count is below this value.</source>
-        <translation>Target token level for incremental shape loading. Rendering replenishes two tokens per update when the current token count is below this value.</translation>
+        <source>Pace of loading on the main thread: forests, transfers, and shapes when threaded shape loading is off. Each load takes two tokens; rendering adds two per update up to this level.</source>
+        <translation>Pace of loading on the main thread: forests, transfers, and shapes when threaded shape loading is off. Each load takes two tokens; rendering adds two per update up to this level.</translation>
     </message>
-    <message id="settings.core.rendering.object.loading.initial.tokens.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="584" />
-        <source>Initial object loading tokens</source>
-        <translation>Initial object loading tokens</translation>
+    <message id="settings.core.rendering.threaded.shape.loading.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="670" />
+        <source>Threaded shape loading</source>
+        <translation>Threaded shape loading</translation>
     </message>
-    <message id="settings.core.rendering.object.loading.initial.tokens.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="586" />
-        <source>Initial value of the separate runtime token counter consumed while shapes load. Changing this setting at runtime resets the counter; normal counter consumption and refilling never modify the saved setting.</source>
-        <translation>Initial value of the separate runtime token counter consumed while shapes load. Changing this setting at runtime resets the counter; normal counter consumption and refilling never modify the saved setting.</translation>
+    <message id="settings.core.rendering.threaded.shape.loading.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="670" />
+        <source>Load shapes (MSTS and glTF) on worker threads. Off: shapes load on the main thread, paced by the object loading budget. Either way, the first view of a route is shown with its shapes loaded. Applies after a restart.</source>
+        <translation>Load shapes (MSTS and glTF) on worker threads. Off: shapes load on the main thread, paced by the object loading budget. Either way, the first view of a route is shown with its shapes loaded. Applies after a restart.</translation>
+    </message>
+    <message id="settings.core.rendering.object.loading.parallel.shapes.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="670" />
+        <source>Shapes loaded at once</source>
+        <translation>Shapes loaded at once</translation>
+    </message>
+    <message id="settings.core.rendering.object.loading.parallel.shapes.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="670" />
+        <source>Shapes loading at once on worker threads when threaded shape loading is on. Applies after a restart.</source>
+        <translation>Shapes loading at once on worker threads when threaded shape loading is on. Applies after a restart.</translation>
     </message>
     <message id="settings.core.rendering.pipeline.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="591" />

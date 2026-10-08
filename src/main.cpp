@@ -57,6 +57,9 @@ void myMessageOutput(QtMsgType type, const QMessageLogContext &context, const QS
         default: symbol = '?'; break;
     }
     QString output = QString("[%1] %2").arg(symbol).arg(msg);
+    // Texture and shape loading threads log too.
+    static QMutex mutex;
+    QMutexLocker lock(&mutex);
     if(Game::consoleOutput)
         std::cout << output.toStdString() << "\n";
     logFileOut << output << "\n";
