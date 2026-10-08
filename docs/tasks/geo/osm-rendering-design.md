@@ -409,6 +409,28 @@ and the editor then crashed; on the Linux server all was fine.
   overviews, and only stale or missing ones are rebuilt; conversion writes
   only files that are not converted yet.
 
+### Labels (user, 2026-10-09)
+
+Agreed: no glyph atlas yet. The 3D view's `TextObj` paints each label into
+its own texture 16 characters wide (512 x 32 RGBA, 64 KB, clipping long
+names), on the GUI thread, drawn one quad and one texture a label, sized in
+metres: fine for a few 3D markers, not for map names at a fixed screen size.
+Instead (`MapLabelLayer`, `MapLabelAtlas`):
+
+- Whole names painted once by QPainter (fonts, Polish letters, shaping by
+  Qt) into atlas pages, one mesh a page; quads at whole pixels, upright,
+  rebuilt when the view changes (a few hundred names, about 1 ms).
+- Placement by priority with four positions around the dot; overlapping
+  names left out.
+- First user: the marker set (Map > Markers). Country Places now store the
+  GeoNames feature code and population for ranking.
+- Measured on TEST_PROFILES with Polish Country Places (363 places): all of
+  Poland places 152 names, 21 ms the first time (font set-up included), a
+  region 49 names, 5 ms with new names, 1 ms without.
+- Next: OSM places (city, town, village nodes, already in the overview
+  levels) and stations; street names along roads would need a glyph atlas
+  (QTextLayout shaping, QRawFont glyph images) and are left for later.
+
 Still open: the line shader, labels and points, selection of OSM features, a
 dark style for the dark palette, the multipolygon cache, and an option to
 start with the layer on.

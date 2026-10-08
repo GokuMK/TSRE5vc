@@ -7,6 +7,7 @@
 #include <tsre/Game.h>
 #include <tsre/map/ActivityMapLayer.h>
 #include <tsre/map/MapOverlayFade.h>
+#include <tsre/map/MapLabelLayer.h>
 #include <tsre/map/MapPalette.h>
 #include <tsre/map/OsmMapLayer.h>
 #include <tsre/geo/GeoCoordinates.h>
@@ -172,6 +173,38 @@ int TsreTests::runMapViewSuite(bool verbose) {
         check(fadeSquare.size() == 18 && near(highX - lowX, 400.0f) && near(highZ - lowZ, 200.0f)
                       && near(fadeSquare[1], MapOverlayFade::Height),
               "Faded Overlay covers the ground in view");
+    }
+
+    // Labels: placement without overlaps, ranking, the atlas.
+    {
+        using C = MapLabelLayer::Candidate;
+        const auto placed = MapLabelLayer::place({C{100, 100, 60, 16}, C{100, 100, 60, 16}, C{130, 100, 60, 16},
+                                                  C{-50, 100, 60, 16}, C{300, 5, 60, 16}},
+                                                 400, 300, 5.0f, 2.0f);
+        check(placed[0] == QPoint(70, 77) && placed[1].x() < 0 && placed[2].x() >= 0 && placed[2] != QPoint(100, 77)
+                      && placed[3].x() < 0 && placed[4].y() > 5,
+              "labels: the first name above its dot; one on the same dot left out; a neighbour moved aside; "
+              "off screen left out; at the top edge placed below");
+        bool major = false, minor = true;
+        const double capital = placeLabelPriority("PPLC", 1000, &major), seat = placeLabelPriority("PPLA", 5000000);
+        const double big = placeLabelPriority("PPL", 900000, &minor), small = placeLabelPriority("PPL", 20000);
+        check(capital > seat && seat > big && big > small && small > placeLabelPriority("PPLX", 5000000) && major && !minor,
+              "labels: capitals, region seats, then by population; city sections last; capitals and seats major");
+        MapLabelAtlas atlas;
+        const MapLabelAtlas::Entry *a1 = atlas.get("Wrocław", false);
+        const QRect r1 = a1 ? a1->rect : QRect();
+        const MapLabelAtlas::Entry *b1 = atlas.get("Kędzierzyn-Koźle", false);
+        const MapLabelAtlas::Entry *a2 = atlas.get("Wrocław", false);
+        const MapLabelAtlas::Entry *major1 = atlas.get("Wrocław", true);
+        check(a1 && b1 && a2 && major1 && a2->rect == r1 && !b1->rect.intersects(r1) && !major1->rect.intersects(r1)
+                      && b1->rect.width() > r1.width() && major1->rect.height() > r1.height() && atlas.pageCount() == 1
+                      && atlas.measure("Wrocław", false) == r1.size(),
+              "label atlas: a name is painted once and reused; names do not overlap; bold ones are larger");
+        const int generation = atlas.generation();
+        atlas.setStyle(Qt::white, Qt::black, 2.0f);
+        const MapLabelAtlas::Entry *again = atlas.get("Wrocław", false);
+        check(atlas.generation() == generation + 1 && again && again->rect.height() > r1.height(),
+              "label atlas: a new style or pixel ratio starts again, at the new size");
     }
 
     // OSM data: its band of heights, and placing latitude and longitude on the ground.

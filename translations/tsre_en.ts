@@ -2588,6 +2588,10 @@ Consist with this file name already exist. Overwrite?
         <source>&amp;Faded Overlay</source>
         <translation>&amp;Faded Overlay</translation>
     </message>
+    <message id="route.editor.route.editor.window.action.map.markers">
+        <source>&amp;Markers</source>
+        <translation>&amp;Markers</translation>
+    </message>
     <message id="route.editor.route.editor.window.action.map.pointer">
         <source>&amp;Pointer</source>
         <translation>&amp;Pointer</translation>

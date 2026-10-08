@@ -144,7 +144,25 @@ Phase 1 core, as built:
   are real data: double track, and roads with one database node per
   lane.
 
-Next: phase 2 layers (tile grid, scale ruler, labels).
+- **Labels** (Map > Markers, 2026-10-09; `src/tsre/map/MapLabelLayer`): the
+  Navi window's marker set (for example Route > Generate Country Places) as
+  a dot and a name each, at a fixed screen size and upright whatever the
+  heading.
+  - Names are painted once by QPainter into shared atlas pages (1024 px,
+    shelves, up to four pages, started again when full) and drawn as one
+    mesh a page; the halo is the text mask grown by a few pixels (about
+    0.1 ms a new name; stroking the text outline took 0.7 ms).
+  - Placement by priority: each name tried above, right of, below and left
+    of its dot, left out when it would overlap (a grid of taken rectangles).
+    Places rank by GeoNames feature code and population.
+  - Palette colours `label`, `labelHalo`, `marker`.
+  - Captures: `tests/renderer/map-labels.json` (writes Polish Country Places
+    into TEST_PROFILES through the harness's `countryPlaces` option). QRhi
+    matches OpenGL.
+  - Design and the next steps (OSM places and stations, street names with
+    a glyph atlas): [OSM rendering](../geo/osm-rendering-design.md).
+
+Next: phase 2 layers (tile grid, scale ruler).
 
 Phase 0, in three batches, each to be tested once in the editor:
 

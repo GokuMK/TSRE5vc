@@ -64,6 +64,8 @@ class MapSelection;
 class TerrainMapLayer;
 class MapOverlayFade;
 class OsmMapLayer;
+class MapLabelLayer;
+class Coords;
 
 QT_FORWARD_DECLARE_CLASS(QOpenGLShaderProgram)
 
@@ -411,6 +413,10 @@ private:
     std::unique_ptr<TerrainMapLayer> terrainMap;
     std::unique_ptr<MapOverlayFade> mapFade;
     std::unique_ptr<OsmMapLayer> osmMap;
+    // Map > Markers: the Navi window's marker set as labels; rebuilt when the set changes.
+    std::unique_ptr<MapLabelLayer> markerLabels;
+    Coords *markerLabelsSource = nullptr;
+    int markerLabelsCount = -1;
     // Where a press began in map mode: a left click that moves the map no
     // more than this goes to the active tool.
     static constexpr float MapClickPixels = 4.0f;

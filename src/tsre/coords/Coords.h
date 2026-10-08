@@ -40,6 +40,9 @@ public:
         QString style;
         double lat = 0.0;
         double lon = 0.0;
+        // Places: GeoNames feature code and population (labels are ranked by them).
+        QString featureCode;
+        qint64 population = 0;
         int type = 0;
         OglObj* line3d = NULL;
         QVector<int> tileX;

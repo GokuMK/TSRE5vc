@@ -2590,6 +2590,10 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
             <source>&amp;Faded Overlay</source>
             <translation>&amp;Wyblakła nakładka</translation>
         </message>
+        <message id="route.editor.route.editor.window.action.map.markers">
+            <source>&amp;Markers</source>
+            <translation>&amp;Znaczniki</translation>
+        </message>
         <message id="route.editor.route.editor.window.action.map.pointer">
             <source>&amp;Pointer</source>
             <translation>&amp;Wskaźnik</translation>

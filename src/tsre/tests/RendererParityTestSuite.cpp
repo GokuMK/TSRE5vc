@@ -37,6 +37,8 @@
 #include <tsre/trains/EngLib.h>
 #include <tsre/Game.h>
 #include <tsre/geo/GeoCoordinates.h>
+#include <tsre/geo/GeoPresetData.h>
+#include <tsre/coords/CoordsCountryPlaces.h>
 #include <tsre/world/TerrainLib.h>
 #include <tsre/renderer/RenderStats.h>
 #include <tsre/renderer/SelectionId.h>
@@ -85,6 +87,7 @@ struct ViewSpec {
     bool osmTransparentAreas = false;
     // Centred on a latitude and longitude through the route's projection, instead of
     // tile and pos (map views of OSM data).
+    bool markers = true;  // Map > Markers
     bool hasLatLon = false;
     double lat = 0.0, lon = 0.0;
     // Edit the distant terrain (TerrainLib's current tree) for this view.
@@ -126,6 +129,9 @@ struct Options {
     Thresholds thresholds;
     // Map mode layers: an activity and a path to select, by file name.
     QString activity;
+    // Country code: Country Places written into the route (as Route > Generate Country
+    // Places does) and selected as the marker set.
+    QString countryPlaces;
     QString path;
     QVector<ViewSpec> views;
 };
@@ -213,6 +219,7 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
     options.thresholds.maxPickMismatches = thresholds.value("maxPickMismatches").toInt(-1);
 
     options.activity = root.value("activity").toString();
+    options.countryPlaces = root.value("countryPlaces").toString();
     options.path = root.value("path").toString();
 
     const QJsonArray objects = root.value("objects").toArray();
@@ -249,6 +256,7 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         view.fadedOverlay = object.value("fadedOverlay").toBool(false);
         view.osmData = object.value("osmData").toBool(false);
         view.osmTransparentAreas = object.value("osmTransparentAreas").toBool(false);
+        view.markers = object.value("markers").toBool(true);
         const QJsonArray latLon = object.value("latLon").toArray();
         view.hasLatLon = latLon.size() == 2;
         if (view.hasLatLon) {
@@ -475,6 +483,18 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
     }
 
     widget.setDiagnosticActivity(options.activity, options.path);
+    if (!options.countryPlaces.isEmpty() && widget.currentRoute() != nullptr) {
+        GeoPlacePresetIndex places;
+        QString placesError;
+        const QString code = options.countryPlaces.trimmed().toUpper();
+        const QString file = QDir(Game::root).filePath(QStringLiteral("ROUTES/%1/%2")
+                .arg(Game::route, CoordsCountryPlaces::fileNameForCountry(code)));
+        if (!places.loadDefault(&placesError) || !CoordsCountryPlaces::write(file, code, places, &placesError)
+                || !widget.currentRoute()->reloadCountryPlaces(code, &placesError))
+            qWarning() << CaptureLog << "country places" << code << placesError;
+        else
+            widget.currentRoute()->setMkrFile(QStringLiteral("| Country places: %1").arg(code));
+    }
     QJsonArray viewReports;
     for (const ViewSpec &spec : options.views) {
         int tileX = spec.hasTile ? spec.tileX : startTileX;
@@ -511,6 +531,7 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
             widget.setMapLayerVisible(MapLayer::FadedOverlay, spec.fadedOverlay);
             widget.setMapLayerVisible(MapLayer::OsmData, spec.osmData);
             widget.setMapLayerVisible(MapLayer::OsmTransparentAreas, spec.osmTransparentAreas);
+            widget.setMapLayerVisible(MapLayer::Markers, spec.markers);
             if (spec.editDistant)
                 Game::terrainLib->setDistantAsCurrent();
             else

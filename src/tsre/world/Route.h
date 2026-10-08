@@ -122,6 +122,8 @@ public:
     TRitem *getTrackItem(int TID, int UID);
     void deleteTrackItem(TRitem *item);
     QMap<QString, Coords*> getMkrList();
+    // The marker set chosen in the Navi window (drawn by both views), or null.
+    Coords *currentMkr() const { return mkr; }
     void dragWorldObject(WorldObj* obj, int x, int z, float* pos);
     float* getPointerPosition(float *out, int &x, int &z, float *pos);
     void setMkrFile(QString name);

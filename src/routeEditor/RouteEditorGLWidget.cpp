@@ -83,6 +83,8 @@
 #include <tsre/map/MapSelection.h>
 #include <tsre/map/MapOverlayFade.h>
 #include <tsre/map/OsmMapLayer.h>
+#include <tsre/map/MapLabelLayer.h>
+#include <tsre/coords/Coords.h>
 #include <tsre/geo/osm/OsmConversionUi.h>
 #include <tsre/map/TerrainMapLayer.h>
 #include <tsre/map/TrackItemMapLayer.h>
@@ -356,6 +358,8 @@ void RouteEditorGLWidget::cameraInit(){
         terrainMap = std::make_unique<TerrainMapLayer>();
     if (!mapFade)
         mapFade = std::make_unique<MapOverlayFade>();
+    if (!markerLabels)
+        markerLabels = std::make_unique<MapLabelLayer>();
     if (!osmMap) {
         osmMap = std::make_unique<OsmMapLayer>();
         // From the worker thread: draw again once a build is ready.
@@ -2112,6 +2116,32 @@ void RouteEditorGLWidget::paintMap() {
         trackItemMap->pushRenderItems(queue, view, palette, route, Game::trackDB, Game::roadDB);
     activityMap->pushRenderItems(queue, view, palette, route, mapLayers.shows(MapLayer::Activity),
                                  mapLayers.shows(MapLayer::Paths));
+    if (mapLayers.shows(MapLayer::Markers) && route != NULL) {
+        Coords *markers = route->currentMkr();
+        const int count = markers != NULL && markers->loaded ? markers->markerList.size() : 0;
+        if (markers != markerLabelsSource || count != markerLabelsCount) {
+            std::vector<MapLabel> labels;
+            labels.reserve(size_t(count));
+            for (int i = 0; i < count; ++i) {
+                const Coords::Marker &m = markers->markerList[i];
+                if (m.tileX.isEmpty() || m.name.isEmpty())
+                    continue;
+                MapLabel label;
+                // Marker tiles count z as the converter does; the map as the camera.
+                label.tileX = m.tileX[0];
+                label.tileZ = -m.tileZ[0];
+                label.x = float(m.x[0]);
+                label.z = float(m.z[0]);
+                label.text = m.name;
+                label.priority = placeLabelPriority(m.featureCode, m.population, &label.major);
+                labels.push_back(std::move(label));
+            }
+            markerLabels->setLabels(std::move(labels));
+            markerLabelsSource = markers;
+            markerLabelsCount = count;
+        }
+        markerLabels->pushRenderItems(queue, view, palette, Game::PixelRatio);
+    }
     // The pointer: a square of a fixed screen size above everything.
     if (mapPointer == NULL)
         mapPointer = new OglObj();

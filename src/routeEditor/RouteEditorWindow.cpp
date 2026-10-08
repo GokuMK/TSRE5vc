@@ -446,6 +446,8 @@ RouteEditorWindow::RouteEditorWindow() {
         {//% "&Faded Overlay"
          qtTrId("route.editor.route.editor.window.action.map.faded.overlay"),
          MapLayer::FadedOverlay},
+        {//% "&Markers"
+         qtTrId("route.editor.route.editor.window.action.map.markers"), MapLayer::Markers},
         {//% "&Pointer"
          qtTrId("route.editor.route.editor.window.action.map.pointer"), MapLayer::Pointer}};
     for (const auto &entry : mapLayerEntries) {

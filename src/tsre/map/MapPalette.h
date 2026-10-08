@@ -60,6 +60,10 @@ struct MapPalette {
     QColor missingTile = QColor(235, 70, 70);
     // The halo around selected objects.
     QColor selection = QColor(0, 170, 255);
+    // Map labels (markers, places): names with a halo, and their dots.
+    QColor label = QColor(30, 30, 36);
+    QColor labelHalo = QColor(255, 255, 255);
+    QColor marker = QColor(176, 32, 122);
 
     static MapPalette light();
     static MapPalette dark();
