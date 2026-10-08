@@ -474,6 +474,16 @@ Map > Faded Terrain):
   (`showBlob`) gets its map texture over its terrain
   (`Terrain::mapOverlayTexture`), mapped across the tile as the 3D view
   maps it; the layer builds again while that texture still loads.
+- **Auto-created tiles** (F3, "Create new tiles if not exist"): the 3D
+  scene draw creates the camera's tile when it has none, writing terrain
+  and world files to disk at once (`Route::newTile`, with heights from
+  geo data when "Create terrain from Geodata" is on). The map never draws
+  the 3D scene, so it creates nothing; but switching back to 3D places the
+  camera at the map pointer, and the first frame would create a tile
+  there, possibly far off the route. `Route::holdAutoNewTile` now holds
+  creation on the tile the camera arrives on until the camera leaves it.
+  Checked on a copy of MINI four tiles off the route: without the hold the
+  switch wrote a terrain tile and a world file, with it nothing.
 - Not yet: procedural tiles without heights (a third load stage) if
   memory needs it; map overlays drawn translucent when the map window's
   alpha is set (they are opaque on the map).

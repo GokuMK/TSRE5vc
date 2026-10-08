@@ -1751,6 +1751,9 @@ void RouteEditorGLWidget::setViewMode(ViewMode mode) {
         cameraFree->setPos(aktPointerPos[0] - std::sin(heading) * Back, 0.0f,
                            aktPointerPos[2] - std::cos(heading) * Back);
         cameraFree->check_coords();
+        // The camera jumps here from the map: "Create new tiles if not exist"
+        // must not write a tile under it unless the user moves on in 3D.
+        route->holdAutoNewTile(int(cameraFree->pozT[0]), int(cameraFree->pozT[1]));
         const float *position = cameraFree->getPos();
         const float x = position[0], z = position[2];
         Game::terrainLib->load(int(cameraFree->pozT[0]), int(cameraFree->pozT[1]));
