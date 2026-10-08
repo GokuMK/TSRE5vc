@@ -1,7 +1,0 @@
-- some gltf / glb assets with lighting, street lamps, railways lamps etc. anything useful for route buildong.
-- trprofile templates using both 2d and/or 3d mesh specs:
--- tracks, route PROCEDURAL has some examples, modern rail profile in obj, prepare some tracks with this new rail, different ballasts, try 2.5D approach like DB1 does, try 3D, make LODs, different ties, bridges, etc.
--- roads, sidewalks, try to follow Poland's infrastructure specs
--- fences, wooden, brick, try 3d profile poles,
--- other ideas
-- don't put them in TSRE repo / workdirs. Make new dir, categorize in dirs by type / usage. Keep template with it's textures for easy copy / pasete
