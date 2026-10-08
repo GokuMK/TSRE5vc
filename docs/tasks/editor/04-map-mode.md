@@ -486,7 +486,9 @@ Map > Faded Terrain):
   switch wrote a terrain tile and a world file, with it nothing.
 - Not yet: procedural tiles without heights (a third load stage) if
   memory needs it; map overlays drawn translucent when the map window's
-  alpha is set (they are opaque on the map).
+  alpha is set (they are opaque on the map); a brush outline under the
+  pointer; a message when an edit is refused at the current zoom (it is
+  now silently ignored).
 
 Terrain is drawn flat, under every other layer, as textured squares. Which
 squares depends on how much ground the view shows (metres across its
