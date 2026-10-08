@@ -17,11 +17,13 @@
 #include <QElapsedTimer>
 #include <QEventLoop>
 #include <QFile>
+#include <QFileInfo>
 #include <QImage>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QScopedValueRollback>
+#include <QSet>
 #include <QTextStream>
 #include <QTimer>
 #include <QDebug>
@@ -44,6 +46,12 @@
 #include <tsre/world/TerrainLib.h>
 #include <tsre/shape/ShapeLoader.h>
 #include <tsre/math3d/GLMatrix.h>
+#include <tsre/ogl/OglObj.h>
+#include <tsre/procedural/OrtsTrackProfile.h>
+#include <tsre/procedural/OrtsTrackProfileRenderer.h>
+#include <tsre/tdb/TSection.h>
+#include <tsre/texture/TexLib.h>
+#include <tsre/texture/Texture.h>
 
 namespace {
 
@@ -824,8 +832,17 @@ struct ViewerItem {
     QString path;
     QString file;
     QString textures;
-    // Degrees the model is turned from the default view (shapes only).
+    // Degrees the model is turned from the default view, and tilted
+    // (positive: seen from above); shapes and profiles.
     double yaw = 0.0;
+    double pitch = 0.0;
+    // Camera closer than the fitted view by this factor.
+    double zoom = 1.0;
+    // Profiles: the track path, a preset ("straight", "curve", "long") or
+    // sections, each [length in metres, radius in metres] with radius 0 for
+    // a straight; a negative radius curves the other way.
+    QString track = "straight";
+    QVector<QPair<double, double>> sections;
 };
 
 struct ViewerOptions {
@@ -834,8 +851,11 @@ struct ViewerOptions {
     QString outputDir = "build/shape-viewer-parity";
     int diffTolerance = 16;
     SettleOptions settle;
-    // Directory item paths are relative to; empty means the game root.
+    // Directory item paths are relative to: the game root, or a directory
+    // under it when relative.
     QString itemRoot;
+    // Background colour (0..1), or the viewer's own when not set.
+    QVector<float> background;
     QVector<ViewerItem> items;
 };
 
@@ -850,6 +870,12 @@ bool loadViewerOptions(const QString &casesFile, ViewerOptions &options, QString
     options.height = root.value("height").toInt(options.height);
     options.outputDir = root.value("output").toString(options.outputDir);
     options.diffTolerance = root.value("diffTolerance").toInt(options.diffTolerance);
+    for (const QJsonValue &channel : root.value("background").toArray())
+        options.background.push_back(float(channel.toDouble()));
+    if (!options.background.isEmpty() && options.background.size() != 3) {
+        error = "background needs three channels";
+        return false;
+    }
     // A leading $NAME takes an environment variable, for content outside the
     // game root such as the Khronos glTF sample models.
     options.itemRoot = root.value("itemRoot").toString();
@@ -877,6 +903,14 @@ bool loadViewerOptions(const QString &casesFile, ViewerOptions &options, QString
         item.file = object.value("file").toString();
         item.textures = object.value("textures").toString();
         item.yaw = object.value("yaw").toDouble(0.0);
+        // Track is seen from above by default, so ties and ballast show.
+        item.pitch = object.value("pitch").toDouble(item.type == "profile" ? 25.0 : 0.0);
+        item.track = object.value("track").toString(item.track);
+        item.zoom = object.value("zoom").toDouble(1.0);
+        for (const QJsonValue &section : object.value("sections").toArray()) {
+            const QJsonArray pair = section.toArray();
+            item.sections.push_back({pair.at(0).toDouble(), pair.at(1).toDouble()});
+        }
         if (item.name.isEmpty() || item.path.isEmpty()) {
             error = "every item needs a name and a path";
             return false;
@@ -888,6 +922,80 @@ bool loadViewerOptions(const QString &casesFile, ViewerOptions &options, QString
         return false;
     }
     return true;
+}
+
+// The path a profile is built along, as track sections.
+bool profilePath(const ViewerItem &item, QVector<TSection> &sections, QString &error) {
+    QVector<QPair<double, double>> parts = item.sections;
+    if (parts.isEmpty()) {
+        if (item.track == "straight")
+            parts = {{10.0, 0.0}, {10.0, 0.0}};
+        else if (item.track == "curve")
+            parts = {{10.0, 0.0}, {20.0, 100.0}};
+        else if (item.track == "long")
+            parts = {{100.0, 0.0}, {100.0, 500.0}};
+        else {
+            error = QString("unknown track preset %1").arg(item.track);
+            return false;
+        }
+    }
+    for (const auto &part : parts) {
+        if (!(part.first > 0.0)) {
+            error = "section lengths must be positive";
+            return false;
+        }
+        if (part.second == 0.0)
+            sections.append(TSection(sections.size(), 0, float(part.first), 0.0f));
+        else
+            sections.append(TSection(sections.size(), 1, float(part.first / part.second),
+                                     float(std::abs(part.second))));
+    }
+    return true;
+}
+
+// The route a profile file belongs to, for its textures: the parent of a
+// TRACKPROFILES directory, otherwise the file's own directory.
+QString profileRoute(const QString &profileFile) {
+    QDir directory = QFileInfo(profileFile).absoluteDir();
+    if (directory.dirName().compare("TRACKPROFILES", Qt::CaseInsensitive) == 0)
+        directory.cdUp();
+    return directory.absolutePath();
+}
+
+// Builds a profile of a file along the item's path. Reports the file's
+// profiles and every diagnostic; objects stay empty when nothing was built.
+void buildProfile(const ViewerItem &item, const QString &file, const QString &route,
+                  QVector<OglObj*> &objects, QStringList &diagnostics) {
+    QStringList parseDiagnostics;
+    const auto profiles = OrtsTrackProfileParser::parseFileProfiles(file, &parseDiagnostics);
+    for (const QString &line : parseDiagnostics)
+        diagnostics << "parse: " + line;
+    QSharedPointer<OrtsTrackProfile> chosen;
+    QStringList names;
+    for (const auto &profile : profiles) {
+        names << profile->name + (profile->valid ? "" : " (invalid)");
+        if (chosen == nullptr && (item.file.isEmpty() || profile->name == item.file
+                                  || profile->id == item.file))
+            chosen = profile;
+    }
+    qInfo().noquote() << ViewerCaptureLog << item.name << "profiles in file:"
+                      << (names.isEmpty() ? QString("none") : names.join(", "));
+    if (chosen == nullptr) {
+        diagnostics << QString("no profile %1 in %2").arg(item.file, file);
+        return;
+    }
+    for (const QString &line : chosen->diagnostics)
+        diagnostics << "profile: " + line;
+    QVector<TSection> sections;
+    QString error;
+    if (!profilePath(item, sections, error)) {
+        diagnostics << error;
+        return;
+    }
+    QStringList buildDiagnostics;
+    OrtsTrackProfileRenderer::generate(*chosen, sections, objects, route, &buildDiagnostics);
+    for (const QString &line : buildDiagnostics)
+        diagnostics << "build: " + line;
 }
 
 } // namespace
@@ -932,6 +1040,9 @@ int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, const QStrin
     widget.setAttribute(Qt::WA_DontShowOnScreen);
     widget.resize(options.width, options.height);
     widget.setCamera(&shapeCamera);
+    if (!options.background.isEmpty())
+        widget.setBackgroundGlColor(options.background[0], options.background[1],
+                                    options.background[2]);
     widget.show();
     QApplication::processEvents();
     if (!widget.isValid()) {
@@ -941,9 +1052,16 @@ int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, const QStrin
 
     QJsonArray items;
     for (const ViewerItem &item : options.items) {
-        const QDir itemRoot(options.itemRoot.isEmpty() ? Game::root : options.itemRoot);
+        // A relative item root is under the game root.
+        const QDir itemRoot(options.itemRoot.isEmpty() ? Game::root
+                            : QDir(Game::root).absoluteFilePath(options.itemRoot));
         const QString path = itemRoot.absoluteFilePath(item.path);
         bool shown = true;
+        widget.setFrameZoom(float(item.zoom));
+        // Profiles: what the parser and generator reported, and the textures
+        // the generated parts use.
+        QStringList diagnostics;
+        QSet<int> textureIds;
         if (item.type == "shape") {
             widget.setCamera(&shapeCamera);
             widget.setMode("rot");
@@ -952,7 +1070,22 @@ int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, const QStrin
                     ? ShapeViewerGLWidget::textureDirectory(path)
                     : itemRoot.absoluteFilePath(item.textures);
             widget.showShape(path, textures);
-            widget.setModelRotation(float(item.yaw * M_PI / 180.0));
+            widget.setModelRotation(float(item.yaw * M_PI / 180.0),
+                                    float(item.pitch * M_PI / 180.0));
+        } else if (item.type == "profile") {
+            const QString route = item.textures.isEmpty() ? profileRoute(path)
+                                                          : itemRoot.absoluteFilePath(item.textures);
+            QVector<OglObj*> objects;
+            buildProfile(item, path, route, objects, diagnostics);
+            for (OglObj *object : objects)
+                if (object != NULL && object->getTexId() >= 0)
+                    textureIds.insert(object->getTexId());
+            widget.setCamera(&shapeCamera);
+            widget.setMode("rot");
+            widget.showGenerated(objects);
+            widget.setModelRotation(float(item.yaw * M_PI / 180.0),
+                                    float(item.pitch * M_PI / 180.0));
+            shown = !objects.isEmpty();
         } else if (item.type == "eng") {
             widget.setCamera(&shapeCamera);
             widget.setMode("rot");
@@ -969,8 +1102,12 @@ int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, const QStrin
         } else {
             shown = false;
         }
+        for (const QString &line : diagnostics)
+            qWarning().noquote() << ViewerCaptureLog << item.name << line;
         if (!shown) {
             qWarning() << ViewerCaptureLog << item.name << "could not be shown";
+            items.append(QJsonObject{{"name", item.name}, {"shown", false},
+                                     {"diagnostics", QJsonArray::fromStringList(diagnostics)}});
             continue;
         }
 
@@ -1001,7 +1138,23 @@ int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, const QStrin
             }
         }
         image.save(QDir(outputDir).filePath(item.name + ".png"));
-        items.append(QJsonObject{{"name", item.name}, {"settled", settled}, {"frames", frames}});
+        QJsonObject entry{{"name", item.name}, {"settled", settled}, {"frames", frames}};
+        if (item.type == "profile") {
+            // Textures the profile names but that did not load.
+            QStringList missing;
+            for (int id : std::as_const(textureIds)) {
+                auto found = TexLib::mtex.find(id);
+                if (found != TexLib::mtex.end() && found->second != nullptr
+                        && (found->second->missing || found->second->error))
+                    missing << found->second->pathid;
+            }
+            missing.sort();
+            for (const QString &texture : missing)
+                qWarning().noquote() << ViewerCaptureLog << item.name << "texture missing:" << texture;
+            entry["diagnostics"] = QJsonArray::fromStringList(diagnostics);
+            entry["missingTextures"] = QJsonArray::fromStringList(missing);
+        }
+        items.append(entry);
         qInfo().noquote() << ViewerCaptureLog << item.name
                           << (settled ? "settled" : "did not settle") << "after" << frames << "frames";
     }

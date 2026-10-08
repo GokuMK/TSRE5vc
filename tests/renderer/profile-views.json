@@ -1,0 +1,19 @@
+{
+  "notes": "Track profiles (TrProfile .stf/.xml) built along short paths in the Shape Viewer (docs/features/trprofile-capture.md), from the PROCEDURAL route: plain track, DB1 with its 3D ties, a road lane, a brick fence and catenary, straight and curved, whole and close up.",
+  "output": "build/profile-capture",
+  "itemRoot": "ROUTES/PROCEDURAL/TRACKPROFILES",
+  "width": 1000,
+  "height": 600,
+  "background": [0.72, 0.78, 0.84],
+  "settle": {"minFrames": 6, "stableFrames": 3, "maxFrames": 120, "maxSeconds": 60},
+  "items": [
+    {"name": "default-straight", "type": "profile", "path": "DefaultTrack.stf"},
+    {"name": "default-close", "type": "profile", "path": "DefaultTrack.stf", "zoom": 3, "yaw": 30, "pitch": 30},
+    {"name": "db1-curve", "type": "profile", "path": "TrProfile_DB1.stf", "track": "curve"},
+    {"name": "db1-close", "type": "profile", "path": "TrProfile_DB1.stf", "zoom": 3, "yaw": 30, "pitch": 30},
+    {"name": "road-lane", "type": "profile", "path": "RdProfile.stf", "file": "Default Road - Left Lane", "track": "curve"},
+    {"name": "fence", "type": "profile", "path": "TrProfile_fence_brick.stf", "track": "curve", "pitch": 10},
+    {"name": "electric-close", "type": "profile", "path": "Siec1.stf", "zoom": 1.5, "yaw": 40, "pitch": 10},
+    {"name": "electric-long", "type": "profile", "path": "Siec1.stf", "track": "long", "pitch": 10}
+  ]
+}

@@ -41,6 +41,8 @@
 #include <tsre/texture/TexLib.h>
 #include <shapeViewer/ShapeTextureInfo.h>
 #include <tsre/renderer/OpenGL3Renderer.h>
+#include <tsre/ogl/OglObj.h>
+#include <tsre/procedural/OrtsTrackProfileRenderer.h>
 
 ShapeViewerGLWidget::ShapeViewerGLWidget(QWidget *parent, ShapeLib::MstsBackend backend)
 : QWidget(parent),
@@ -57,6 +59,7 @@ ShapeViewerGLWidget::~ShapeViewerGLWidget() {
     // call back into a destroyed object.
     surface->detachClient();
     cleanup();
+    deleteGenerated();
 }
 
 void ShapeViewerGLWidget::update() {
@@ -249,7 +252,8 @@ void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
     
     float aspect = float(this->width()) / float(this->height());
     float* lookAt = camera->getMatrix();
-    const float zNear = renderItem == 4 ? nearPlane : 0.2f;
+    const bool framed = renderItem == 4 || renderItem == 6;
+    const float zNear = framed ? nearPlane : 0.2f;
     Mat4::perspective(gluu->pMatrix, camera->fov*M_PI/180*(1/aspect), aspect, zNear, Game::objectLod);
     std::copy(gluu->pMatrix, gluu->pMatrix + 16, sceneProjection);
     sceneNear = zNear;
@@ -280,10 +284,13 @@ void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
     if(!selectionPass && Game::environmentMapPreview && environmentMap != nullptr
             && environmentMap->complete())
         environmentMap->drawPreview(8, 8, qRound(48 * devicePixelRatioF()));
-    if(renderItem == 4 && complexShape != NULL){
-        if(cameraInit && complexShape->isLoaded()){
+    const float *frameBound = renderItem == 6 ? generatedBound
+            : renderItem == 4 && complexShape != NULL && complexShape->isLoaded()
+            ? complexShape->getBound() : NULL;
+    if(framed && frameBound != NULL){
+        if(cameraInit){
             cameraInit = false;
-            const float* bound = complexShape->getBound();
+            const float* bound = frameBound;
             const float dx = fabs(bound[0]-bound[1]);
             const float dy = fabs(bound[2]-bound[3]);
             const float dz = fabs(bound[4]-bound[5]);
@@ -298,6 +305,7 @@ void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
             float dist = 1.05f * radius / std::sin(0.5f * std::min(fovX, fovY));
             if(!(dist > 0.0f) || !std::isfinite(dist))
                 dist = 1.0f;
+            dist /= frameZoom;
             nearPlane = std::clamp(dist * 0.02f, 0.001f, 0.2f);
             // The model turns about its origin in "rot" mode (Z, then Y), so aim
             // at its turned centre.
@@ -311,6 +319,10 @@ void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
                 const float z = -centre[0] * ys + centre[2] * yc;
                 centre[0] = centre[0] * yc + centre[2] * ys;
                 centre[2] = z;
+                const float tc = std::cos(tilt), ts = std::sin(tilt);
+                const float tx = centre[0] * tc - centre[1] * ts;
+                centre[1] = centre[0] * ts + centre[1] * tc;
+                centre[0] = tx;
             }
             camera->setPos(centre[0] - dist, centre[1], centre[2]);
         }
@@ -356,6 +368,7 @@ void ShapeViewerGLWidget::renderGathered(quint32 selectionId) {
     float *mv = renderer->transform();
     Mat4::identity(mv);
     if(mode == "rot"){
+        Mat4::rotate(mv, mv, tilt, 0,0,1);
         Mat4::rotate(mv, mv, rotY, 0,1,0);
         Mat4::rotate(mv, mv, rotZ, 0,0,1);
     }
@@ -372,6 +385,14 @@ void ShapeViewerGLWidget::renderGathered(quint32 selectionId) {
     }
     if(renderItem == 4 && complexShape != NULL)
         complexShape->pushRenderItem(queue);
+    if(renderItem == 6){
+        // Each part picks its level of detail by its distance to the camera,
+        // as on a route.
+        const float *camera3d = camera->getPos();
+        for(OglObj *object : generated)
+            object->pushRenderItem(queue, selectionId,
+                    OrtsTrackProfileRenderer::generatedPartLod(object, mv, -camera3d[0], -camera3d[2]));
+    }
     renderer->renderFrame();
 }
 
@@ -531,11 +552,13 @@ void ShapeViewerGLWidget::showContextMenu(const QPoint & point) {
 void ShapeViewerGLWidget::resetRot(){
     rotY = M_PI;
     rotZ = 0;
+    tilt = 0;
 }
 
-void ShapeViewerGLWidget::setModelRotation(float yaw){
+void ShapeViewerGLWidget::setModelRotation(float yaw, float pitch){
     rotY = M_PI + yaw;
     rotZ = 0;
+    tilt = pitch;
 }
 
 
@@ -701,6 +724,36 @@ void ShapeViewerGLWidget::showShape(ComplexShape *currentShape){
     complexShape = currentShape;
     cameraInit = true;
     renderItem = 4;
+    con = NULL;
+    eng = NULL;
+}
+
+void ShapeViewerGLWidget::deleteGenerated(){
+    for(OglObj *object : generated)
+        delete object;
+    generated.clear();
+}
+
+void ShapeViewerGLWidget::showGenerated(const QVector<OglObj*> &objects){
+    deleteGenerated();
+    generated = objects;
+    bool any = false;
+    for(OglObj *object : generated){
+        float b[6];
+        if(object == NULL || !object->getSimpleBorder(b))
+            continue;
+        for(int i = 0; i < 6; i += 2){
+            generatedBound[i] = any ? std::max(generatedBound[i], b[i]) : b[i];
+            generatedBound[i + 1] = any ? std::min(generatedBound[i + 1], b[i + 1]) : b[i + 1];
+        }
+        any = true;
+    }
+    if(!any)
+        std::fill(generatedBound, generatedBound + 6, 0.0f);
+    nearPlane = 0.2f;
+    cameraInit = true;
+    renderItem = 6;
+    complexShape = NULL;
     con = NULL;
     eng = NULL;
 }

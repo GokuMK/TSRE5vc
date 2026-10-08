@@ -22,6 +22,7 @@
 #include <tsre/shape/ShapeLib.h>
 
 class ComplexShape;
+class OglObj;
 class Eng;
 class Consist;
 class GLUU;
@@ -55,8 +56,12 @@ public:
     QImage *screenShot = NULL;
     void setMode(QString n);
     void resetRot();
-    // Turns the shown model by yaw radians from the default view.
-    void setModelRotation(float yaw);
+    // Turns the shown model by yaw radians from the default view, and tilts
+    // it by pitch radians (positive: seen from above).
+    void setModelRotation(float yaw, float pitch = 0.0f);
+    // Moves the camera closer than the fitted view by this factor (1: the
+    // whole model in view) when the next model is framed.
+    void setFrameZoom(float zoom) { frameZoom = zoom > 0.0f ? zoom : 1.0f; }
     void getImg();
     void setBackgroundGlColor(float r, float g, float b);
     void fillCurrentShapeHierarchyInfo(ShapeHierarchyInfo *info);
@@ -84,6 +89,9 @@ public slots:
     static QString textureDirectory(const QString &shapePath);
     void showShape(QString path, QString texPath, ComplexShape **currentShape = NULL);
     void showShape(ComplexShape *currentShape = NULL);
+    // Shows generated geometry (a track profile built along a path), framed
+    // like a shape; the widget takes the objects and deletes them.
+    void showGenerated(const QVector<OglObj*> &objects);
     void cleanup();
     void flipConSelected();
     void leftConSelected();
@@ -137,6 +145,11 @@ private:
     bool mouseRPressed = false;
     bool mouseLPressed = false;
     ComplexShape* complexShape = NULL;
+    // Owned objects shown by showGenerated, and their bounds (maxX, minX,
+    // maxY, minY, maxZ, minZ).
+    QVector<OglObj*> generated;
+    float generatedBound[6] = {};
+    void deleteGenerated();
     Eng* eng = NULL;
     Consist* con = NULL;
     Camera* camera = NULL;
@@ -144,12 +157,16 @@ private:
     QString mode = "";
     float rotY = M_PI;
     float rotZ = 0;
+    // Tilt towards the camera about its horizontal axis, after the turns
+    // above (setModelRotation's pitch); the mouse leaves it alone.
+    float tilt = 0;
     bool selection = false;
     bool getImage = false;
     float backgroundGlColor[3];
     bool cameraInit = false;
     // Near clip distance, scaled with the shown shape so small ones are not clipped.
     float nearPlane = 0.2f;
+    float frameZoom = 1.0f;
     // This frame's projection (without the camera) and depth planes, which
     // the renderer's screen-space effects need (setSceneProjection).
     float sceneProjection[16] = {};
