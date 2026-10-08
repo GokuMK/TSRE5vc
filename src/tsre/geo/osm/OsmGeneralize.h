@@ -14,7 +14,8 @@
 // country scale: the areas are drawn into a grid of cells, gaps narrower than a closing
 // distance are closed, and the cells' outlines are traced back into simplified polygons
 // with their holes. Neighbouring parcels and woods become one shape whether or not they
-// share nodes; what is smaller than the minimum area after merging is left out.
+// share nodes; what is smaller than the minimum area after merging is left out. Large
+// areas come out cut into blocks (blockMeters) that meet exactly.
 
 #include <tsre/geo/osm/OsmTypes.h>
 #include <vector>
@@ -27,6 +28,9 @@ struct GeneralizeOptions {
     double minAreaKm2 = 0.25;   // merged shapes smaller than this are left out
     double minHoleKm2 = 0.05;   // and holes smaller than this are filled
     double toleranceMeters = 75;
+    // Areas are cut into pieces along a grid of this size, so none has thousands of
+    // holes; the pieces meet exactly.
+    double blockMeters = 25600;
 };
 
 // A ring is closed (first point == last); outers counter-clockwise, holes clockwise.

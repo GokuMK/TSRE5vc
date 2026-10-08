@@ -62,4 +62,31 @@ void runGeneralizeTests(const std::function<void(bool, const char *)> &check) {
     auto block = generalizeAreas(parcels, o);
     check(block.size() == 1 && std::fabs(km2(block[0].outer) - 1.0) < 0.05, "a block of small parcels becomes one area of their size");
     check(generalizeAreas({}, o).empty(), "no input, no areas");
+
+    // A 60 x 4 km forest with a clearing in every 5 km is cut into pieces of at most a block.
+    std::vector<std::vector<Location>> longForest{square(0, 0, 60000)};
+    longForest[0] = {at(0, 0), at(60000, 0), at(60000, 4000), at(0, 4000), at(0, 0)};
+    for (int k = 0; k < 12; ++k) longForest.push_back(square(k * 5000.0 + 2000, 1500, 600, true));
+    GeneralizeStats cut;
+    auto pieces = generalizeAreas({longForest}, o, &cut);
+    double total = 0, widest = 0;
+    size_t holes = 0;
+    for (const auto &a : pieces) {
+        double piece = km2(a.outer);
+        for (const auto &h : a.holes) piece += km2(h);
+        total += piece;
+        holes += a.holes.size();
+        double x0 = 1e18, x1 = -1e18;
+        for (const Location &l : a.outer) { x0 = std::min(x0, double(l.x)); x1 = std::max(x1, double(l.x)); }
+        widest = std::max(widest, (x1 - x0) / CoordinateScale * 111320.0 * std::cos(53.15 * M_PI / 180));
+    }
+    check(pieces.size() >= 3 && widest <= o.blockMeters + 200 && std::fabs(total - (240 - 12 * 0.36)) < 3 && holes + 2 >= 12,
+          "a 60 km forest comes out in pieces no wider than a block, keeping its area and clearings");
+    // A forest reaching only 100 m into the next block keeps that sliver: size is judged whole.
+    // Block lines run from the grid's corner, 3 cells (closing + 2) before the area: the
+    // first at 25,300 m here, so a forest 25,450 m long has a 150 m x 1 km piece past it.
+    const double length = o.blockMeters - 300 + 150;
+    auto sliver = generalizeAreas({{{at(0, 0), at(length, 0), at(length, 1000), at(0, 1000), at(0, 0)}}}, o);
+    check(sliver.size() >= 2, "the small piece of a large forest beyond a block line is kept");
+
 }

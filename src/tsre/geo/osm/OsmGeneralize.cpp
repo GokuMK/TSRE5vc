@@ -130,7 +130,40 @@ std::vector<GeneralizedArea> generalizeAreas(const std::vector<std::vector<std::
         }
     }
     close(g, r);
+
+    // Merged areas smaller than the minimum go now, judged whole (4-connected cells),
+    // before tracing cuts them into blocks.
+    {
+        std::vector<uint32_t> label(g.cells.size(), 0);
+        std::vector<uint32_t> stack;
+        std::vector<uint64_t> size{0};
+        for (size_t start = 0; start < g.cells.size(); ++start) {
+            if (!g.cells[start] || label[start]) continue;
+            const uint32_t id = uint32_t(size.size());
+            uint64_t count = 0;
+            label[start] = id;
+            stack.push_back(uint32_t(start));
+            while (!stack.empty()) {
+                const size_t c = stack.back();
+                stack.pop_back();
+                ++count;
+                const int x = int(c % size_t(g.w)), y = int(c / size_t(g.w));
+                const size_t next[4] = {x + 1 < g.w ? c + 1 : c, x > 0 ? c - 1 : c, y + 1 < g.h ? c + size_t(g.w) : c, y > 0 ? c - size_t(g.w) : c};
+                for (size_t n : next)
+                    if (g.cells[n] && !label[n]) { label[n] = id; stack.push_back(uint32_t(n)); }
+            }
+            size.push_back(count);
+        }
+        for (size_t c = 0; c < g.cells.size(); ++c)
+            if (g.cells[c] && size[label[c]] * cellKm2 < options.minAreaKm2) g.cells[c] = 0;
+    }
     for (uint8_t c : g.cells) st.filledCells += c;
+
+    // Tracing stays inside blocks of blockMeters: one forest across many blocks becomes one
+    // piece per block, so no polygon gets thousands of holes (slow to triangulate). The
+    // pieces meet exactly along the block lines, whose points simplification keeps.
+    const int block = std::max(16, int(std::lround(options.blockMeters / cell)));
+    auto inBlock = [&](int x, int y, int bx, int by) { return x >= 0 && y >= 0 && x / block == bx && y / block == by && g.at(x, y); };
 
     // Trace the outlines: boundary edges keep filled cells on their left, so outer rings
     // run counter-clockwise and holes clockwise. Diagonal cells are not joined.
@@ -139,11 +172,12 @@ std::vector<GeneralizedArea> generalizeAreas(const std::vector<std::vector<std::
     for (int y = 0; y < g.h; ++y)
         for (int x = 0; x < g.w; ++x) {
             if (!g.at(x, y)) continue;
+            const int bx = x / block, by = y / block;
             for (int d0 = 0; d0 < 4; ++d0) {
                 // The side of cell (x, y) an edge of direction d runs along: east the bottom,
                 // north the right, west the top, south the left; the cell across it is empty.
                 const int ox = d0 == 1 ? 1 : d0 == 3 ? -1 : 0, oy = d0 == 0 ? -1 : d0 == 2 ? 1 : 0;
-                if (g.at(x + ox, y + oy) || (visited[size_t(y) * size_t(g.w) + size_t(x)] & (1 << d0))) continue;
+                if (inBlock(x + ox, y + oy, bx, by) || (visited[size_t(y) * size_t(g.w) + size_t(x)] & (1 << d0))) continue;
                 Ring ring;
                 ring.insideX = x;
                 ring.insideY = y;
@@ -167,9 +201,9 @@ std::vector<GeneralizedArea> generalizeAreas(const std::vector<std::vector<std::
                     static constexpr int AL[4][2] = {{0, 0}, {-1, 0}, {-1, -1}, {0, -1}};
                     static constexpr int AR[4][2] = {{0, -1}, {0, 0}, {-1, 0}, {-1, -1}};
                     const int lx = vx + AL[d][0], ly = vy + AL[d][1], rx = vx + AR[d][0], ry = vy + AR[d][1];
-                    if (!g.at(lx, ly)) {
+                    if (!inBlock(lx, ly, bx, by)) {
                         d = (d + 1) % 4;             // turn left around the same cell
-                    } else if (g.at(rx, ry)) {
+                    } else if (inBlock(rx, ry, bx, by)) {
                         cx = rx; cy = ry; d = (d + 3) % 4;  // turn right onto the cell ahead right
                     } else {
                         cx = lx; cy = ly;            // straight on along the cell ahead left
@@ -208,26 +242,47 @@ std::vector<GeneralizedArea> generalizeAreas(const std::vector<std::vector<std::
         if (best >= 0) holesOf[owner].push_back(h);
     }
 
-    // Back to latitude and longitude, simplified.
+    // Back to latitude and longitude, simplified between the points on block lines, which
+    // stay so neighbouring pieces keep meeting.
+    const double tolerance = std::max(options.toleranceMeters, 0.75 * cell);
     auto toLocations = [&](const Ring &ring) {
+        const size_t n = ring.corners.size();
         std::vector<Location> pts;
-        pts.reserve(ring.corners.size() + 1);
+        pts.reserve(n + 1);
         for (const auto &c : ring.corners) pts.push_back(Location::fromDegrees(lon0 + c.first * dLon, lat0 + c.second * dLat));
-        pts.push_back(pts.front());
+        auto fixed = [&](size_t i) { return ring.corners[i % n].first % block == 0 || ring.corners[i % n].second % block == 0; };
+        size_t first = n;
+        for (size_t i = 0; i < n && first == n; ++i) if (fixed(i)) first = i;
         std::vector<Location> kept;
-        for (uint32_t i : simplifyIndices(pts.data(), uint32_t(pts.size()), std::max(options.toleranceMeters, 0.75 * cell))) kept.push_back(pts[i]);
+        if (first == n) {
+            pts.push_back(pts.front());
+            for (uint32_t i : simplifyIndices(pts.data(), uint32_t(pts.size()), tolerance)) kept.push_back(pts[i]);
+            return kept;
+        }
+        // Chains from one fixed point to the next, all the way round.
+        std::vector<Location> chain;
+        kept.push_back(pts[first]);
+        chain.push_back(pts[first]);
+        for (size_t k = 1; k <= n; ++k) {
+            const size_t i = (first + k) % n;
+            chain.push_back(pts[i]);
+            if (!fixed(i) && k < n) continue;
+            const std::vector<uint32_t> idx = simplifyIndices(chain.data(), uint32_t(chain.size()), tolerance);
+            for (size_t m = 1; m < idx.size(); ++m) kept.push_back(chain[idx[m]]);
+            chain.assign(1, pts[i]);
+        }
         return kept;
     };
     for (uint32_t i = 0; i < outers.size(); ++i) {
-        double km2 = outers[i].area2 * 0.5 * cellKm2;
-        for (uint32_t h : holesOf[i]) km2 += holes[h].area2 * 0.5 * cellKm2;
-        if (km2 < options.minAreaKm2) continue;
         GeneralizedArea a;
         a.outer = toLocations(outers[i]);
         if (a.outer.size() < 4) continue;
+        double km2 = outers[i].area2 * 0.5 * cellKm2;
         for (uint32_t h : holesOf[i]) {
             std::vector<Location> ring = toLocations(holes[h]);
-            if (ring.size() >= 4) a.holes.push_back(std::move(ring));
+            if (ring.size() < 4) continue;
+            km2 += holes[h].area2 * 0.5 * cellKm2;
+            a.holes.push_back(std::move(ring));
         }
         st.areaOutKm2 += km2;
         st.pointsOut += a.outer.size();
