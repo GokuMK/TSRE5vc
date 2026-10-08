@@ -11,9 +11,13 @@
 #ifndef RENDERER_H
 #define RENDERER_H
 
+#include <tsre/renderer/EnvironmentMap.h>
+#include <tsre/renderer/PlanarReflection.h>
 #include <tsre/renderer/RenderQueue.h>
 #include <functional>
 #include <vector>
+
+class RenderSurface;
 
 // A render queue that also draws: the frame owner gathers producers into it,
 // then draws the queued work pass by pass. Producers only see RenderQueue.
@@ -106,10 +110,51 @@ public:
     virtual void beginViewBand(const LayeredView &view, ViewBand band) = 0;
     // Ends a view: culling, limits and mirroring off.
     virtual void endView(const LayeredView &view) = 0;
+    // For a view drawn without bands (Shape Viewer): its projection (without
+    // the camera) and depth planes, which screen-space effects such as
+    // ambient occlusion need to rebuild positions from depth.
+    virtual void setSceneProjection(const float *projection, float zNear, float zFar) {}
     // Draws all bands of a view without consuming the queue (secondary views
     // such as environment map faces and the water reflection). Transmissive
     // surfaces there see the environment instead of a copy of the view.
     void renderLayeredView(const LayeredView &view);
+
+    // Programs the editors draw with: the main lit program (with its
+    // terrain, unlit, PBR and water variants chosen per packet), the integer
+    // selection program and the shadow depth program.
+    enum Program {PROGRAM_MAIN = 0, PROGRAM_SELECTION, PROGRAM_SHADOW};
+    // Whether the programs are built.
+    virtual bool programsReady() const = 0;
+    // Draws from now on use this program.
+    virtual void useProgram(Program program) = 0;
+    virtual void releaseProgram() = 0;
+    // Takes the frame values held in GLUU (projection, fog and shadow
+    // matrices, lights, colours, camera, environment) for the following draws.
+    virtual void applyFrameUniforms() = 0;
+    // Fog distance of the following draws (applyFrameUniforms sets the
+    // object draw distance); 0 draws without fog.
+    virtual void setFogLod(float lod) = 0;
+
+    // Render targets: the view's frame, or one of the three shadow maps.
+    enum Target {TARGET_VIEW = 0, TARGET_SHADOW_NEAR, TARGET_SHADOW_MID, TARGET_SHADOW_FAR};
+    // The surface whose frame TARGET_VIEW is.
+    void setSurface(RenderSurface *surface) { viewSurface = surface; }
+    // Creates the shadow maps the main program samples: near and middle at
+    // nearSize texels, far at farSize.
+    virtual void createShadowMaps(int nearSize, int farSize) = 0;
+    // Draws from now on go to this target.
+    virtual void bindTarget(Target target) = 0;
+    // The integer selection target of width x height pixels: beginSelection
+    // binds it, cleared to 0 and with a viewport covering it; readSelection
+    // reads the id drawn at a pixel (origin bottom-left) after renderFrame;
+    // endSelection binds the view again with its previous viewport.
+    virtual bool beginSelection(int width, int height) = 0;
+    virtual quint32 readSelection(int x, int y) = 0;
+    virtual void endSelection() = 0;
+    // The backend's storage for an environment map and a water reflection
+    // drawn by this renderer; the caller owns it.
+    virtual EnvironmentMap::Storage *createEnvironmentStorage() = 0;
+    virtual PlanarReflection::Storage *createReflectionStorage() = 0;
 
     // Backend state every frame starts from: depth test and writes, back-face
     // culling, alpha blending, all colour channels, no scissor, the default
@@ -124,6 +169,12 @@ public:
     virtual void viewport(int *rectangle) const = 0;
     // Depth (0..1) of the bound target at a pixel, origin bottom-left.
     virtual float readDepth(int x, int y) = 0;
+    // As readDepth, without waiting for the GPU: the depth of the last read
+    // that completed, which may be a frame or two old (the 3D pointer).
+    virtual float readDepthLatest(int x, int y) { return readDepth(x, y); }
+    // GPU time in milliseconds of the last frame the GPU completed;
+    // negative where the renderer does not measure it.
+    virtual float gpuFrameMs() const { return -1.0f; }
     // RGBA bytes of a rectangle of the bound target, rows from the bottom.
     virtual void readColor(int x, int y, int width, int height, unsigned char *rgba) = 0;
     // Bounding spheres (centre x, y, z and radius, in submission space) of
@@ -162,6 +213,7 @@ protected:
     bool viewLimitsEnabled = false;
     // Set while a secondary view draws: no frame copy for transmission.
     bool secondaryView = false;
+    RenderSurface *viewSurface = nullptr;
 };
 
 #endif /* RENDERER_H */

@@ -9,7 +9,22 @@ in vec4 shadow0Pos;
 in float vAlpha;
 in float vTerrainGap;
 in vec2 vTerrainMapCoord;
+#ifdef TSRE_RHI
+in float vClipDistance;
+in vec3 vLightPosition;
+#endif
 out vec4 fragColor;
+#ifdef TSRE_RHI
+// The share of fragColor that ambient and environment light make, for
+// ambient occlusion: the renderer subtracts the occluded part of it.
+layout(location = 1) out vec4 ambientOut;
+// Emitted light in linear colour, the source of bloom: only what glows,
+// never what is merely bright.
+layout(location = 2) out vec4 glowOut;
+// Set by pbrShade.
+vec4 pbrAmbientOut = vec4(0.0);
+vec4 pbrGlowOut = vec4(0.0);
+#endif
 
 uniform float textureEnabled;
 uniform int shadowsEnabled;
@@ -70,6 +85,9 @@ float insideBox(vec2 v, vec2 bottomLeft, vec2 topRight) {
 #include "TerrainMaterial.glsl"
 #endif
 #include "ShadowSampling.glsl"
+#ifdef TSRE_RHI
+#include "LocalLights.glsl"
+#endif
 #ifdef TSRE_PBR
 #include "PbrShading.glsl"
 #endif
@@ -78,8 +96,18 @@ float insideBox(vec2 v, vec2 bottomLeft, vec2 topRight) {
 #endif
 
 void main() {
+#ifdef TSRE_RHI
+    if (vClipDistance < 0.0)
+        discard;
+    ambientOut = vec4(0.0);
+    glowOut = vec4(0.0);
+#endif
 #if defined(TSRE_PBR)
         fragColor = pbrShade();
+#ifdef TSRE_RHI
+        ambientOut = pbrAmbientOut;
+        glowOut = pbrGlowOut;
+#endif
 #elif defined(TSRE_WATER)
         fragColor = textureEnabled != 0.0 ? waterShade() : shapeColor;
 #else
@@ -121,10 +149,25 @@ void main() {
             vec3 color = diffuseColor.xyz;
             color *= clamp(visibility, 0.0, 1.0);
             color += ambientColor.xyz;
+#ifdef TSRE_RHI
+            // Lamps and glowing surfaces add their light in linear terms.
+            vec3 local = localLightsDiffuse(vLightPosition, normal, enableNormals);
+            if (local != vec3(0.0))
+                color = pow(pow(max(color, vec3(0.0)), vec3(2.2)) + local, vec3(1.0 / 2.2));
+            ambientOut = vec4(fragColor.rgb * ambientColor.rgb * colorBrightness * (1.0 - fogFactor),
+                              fragColor.a);
+#endif
             fragColor.xyz *= color*colorBrightness;
 
             fragColor = mix(fragColor, skyColor, fogFactor);
 #endif
         }
+#endif
+#ifdef TSRE_RHI
+    // Floating-point targets (HDR) keep what 8-bit ones clamp: alpha above
+    // 1 or negative colour would turn blending around.
+    fragColor = vec4(max(fragColor.rgb, vec3(0.0)), clamp(fragColor.a, 0.0, 1.0));
+    ambientOut.a = clamp(ambientOut.a, 0.0, 1.0);
+    glowOut = vec4(max(glowOut.rgb, vec3(0.0)), clamp(glowOut.a, 0.0, 1.0));
 #endif
 }

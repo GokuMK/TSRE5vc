@@ -11,7 +11,9 @@
 #ifndef GLWIDGET_H
 #define GLWIDGET_H
 
-#include <QOpenGLWidget>
+#include <QVector3D>
+#include <QWidget>
+#include <tsre/renderer/RenderSurface.h>
 #include <vector>
 #include <QOpenGLFunctions>
 //#include <QOpenGLFunctions_3_2_Core>
@@ -48,8 +50,7 @@ class GuiGlCompass;
 class DynTrackObj;
 class RulerObj;
 class TelepoleObj;
-class SelectionRenderer;
-class OpenGL3Renderer;
+class Renderer;
 class EnvironmentMap;
 class PlanarReflection;
 class RenderQueue;
@@ -63,8 +64,8 @@ class TerrainMapLayer;
 
 QT_FORWARD_DECLARE_CLASS(QOpenGLShaderProgram)
 
-class RouteEditorGLWidget : public QOpenGLWidget, protected QOpenGLFunctions,
-        private ToolContext
+class RouteEditorGLWidget : public QWidget, public RenderSurfaceClient,
+        protected QOpenGLFunctions, private ToolContext
 {
     Q_OBJECT
 
@@ -81,7 +82,9 @@ public:
     
     void getUnsavedInfo(QVector<QString> &items);
 
-    // Renderer parity harness hooks; not used by the editor UI.
+    // The camera as a core.startup.camera value.
+    QString cameraSetting() const;
+    // Renderer parity harness hooks (and the startup camera).
     void setDiagnosticView(int tileX, int tileZ, float x, float y, float z,
                            float rotX, float rotY);
     void diagnosticView(int &tileX, int &tileZ, float *pos,
@@ -99,6 +102,9 @@ public:
     // Renders one selection pass and reads the IDs at device-pixel points
     // without applying a selection.
     QVector<quint32> probeSelectionIds(const QVector<QPoint> &devicePoints);
+    // Renders a frame with the mouse at a device-pixel point and returns
+    // the 3D pointer position read from the depth there.
+    QVector3D probePointer(const QPoint &devicePoint);
     // Stops simulation updates (traffic, animation) so separate processes
     // render the same scene. Content loading continues.
     void setSimulationPaused(bool paused);
@@ -109,6 +115,16 @@ public:
     void setViewMode(ViewMode mode);
     // Shows or hides a layer of the map mode (the Map menu).
     void setMapLayerVisible(MapLayer layer, bool visible);
+
+    // The render surface does the drawing; these forward to it so the view
+    // code reads as before.
+    void update();
+    void makeCurrent();
+    void doneCurrent();
+    QImage grabFramebuffer();
+    bool isValid() const { return surface->isValid(); }
+    QString graphicsInfo() { return surface->graphicsInfo(); }
+    unsigned int defaultFramebufferObject() const;
 
 public slots:
     void cleanup();
@@ -179,8 +195,9 @@ signals:
 
 protected:
     bool eventFilter(QObject *object, QEvent *event);
-    void initializeGL() Q_DECL_OVERRIDE;
-    void paintGL() Q_DECL_OVERRIDE;
+    void surfaceInitialize() override;
+    void surfacePaint() override;
+    void surfaceRelease() override;
     void renderShadowMaps();
     // Renders the scheduled environment map faces from the camera position.
     void renderEnvironmentMap();
@@ -190,9 +207,30 @@ protected:
     // to know whether water was on screen (Renderer::measuredSamples).
     void renderWaterPass(bool measure);
     void computeShadowMatrices();
+    // Time of day (Game::timeOfDayEnabled): puts the sun where it stands over
+    // the camera and lights the scene for it; off, restores the fixed light.
+    void applyTimeOfDay();
+    struct TimeOfDayState {
+        bool saved = false;
+        bool applied = false;
+        // The fixed light, restored when time of day is switched off.
+        float sunDirection[3];
+        float sky[4], fog[4], diffuse[4], ambient[4];
+        // Latitude and longitude of the camera's tile.
+        int tileX = 0, tileZ = 0;
+        bool located = false;
+        double latitude = 50.0, longitude = 0.0;
+        // True bearing (degrees clockwise from north) of the world's -z axis:
+        // the projection's grid north turns away from true north.
+        double gridNorth = 0.0;
+    } timeOfDay;
+    // Direction towards the shadow-casting sun, and whether it casts shadows.
+    float shadowSunDirection[3] = {-1.0f, 1.5f, 1.0f};
+    bool sunCastsShadows = true;
     void handleSelection();
     void applySelection(quint32 selectionId, int cameraTileX, int cameraTileZ);
-    void resizeGL(int width, int height) Q_DECL_OVERRIDE;
+    void surfaceResize(int width, int height) override;
+    void paintEvent(QPaintEvent *event) Q_DECL_OVERRIDE;
     void mousePressEvent(QMouseEvent *event) Q_DECL_OVERRIDE;
     void mouseReleaseEvent(QMouseEvent* event) Q_DECL_OVERRIDE;
     void mouseMoveEvent(QMouseEvent *event) Q_DECL_OVERRIDE;
@@ -302,6 +340,8 @@ private:
     int m_zRot;
     int fps;
     int fpsDisplay = 0;
+    // GPU time of a recent frame where the renderer measures it, else < 0.
+    float gpuMsDisplay = -1.0f;
     double fpsDisplayAccumMs = 0.0;
     int fpsDisplayAccumFrames = 0;
     unsigned long long int fpsDisplayLastUpdate = 0;
@@ -312,7 +352,9 @@ private:
     GLUU* gluu;
     QOpenGLFunctions_3_3_Core* funcs = 0;
     unsigned int fbo[3];
-    SelectionRenderer *selectionRenderer = NULL;
+    // Height of the renderer's selection target while a selection pass
+    // draws, 0 otherwise.
+    int selectionTargetHeight = 0;
     bool m_transparent;
     Camera* camera = NULL;
     CameraFree* cameraFree = NULL;
@@ -321,6 +363,12 @@ private:
     float mousex, mousey;
     QVector<QPoint> selectionProbePoints;
     bool simulationPaused = false;
+    // The first view, and the view after a camera jump, are shown with their
+    // shapes loaded (loadWholeView()). The camera's position in the last
+    // frame, in metres, tells a jump.
+    bool wholeViewPending = true;
+    double lastViewPosition[2] = {0.0, 0.0};
+    void loadWholeView(const char *reason);
     QVector<quint32> selectionProbeResults;
     GameObj* selectedObj = NULL;
     GameObj* lastSelectedObj = NULL;
@@ -330,6 +378,11 @@ private:
     Pointer3d* pointer3d;
     float lastPointerPos[3];
     float aktPointerPos[3];
+    // When the pointer last read the depth (it reads at most every 50 ms).
+    unsigned long long pointerReadTime = 0;
+    // The next pointer read waits for this frame's depth (probePointer);
+    // otherwise it takes the latest completed read.
+    bool pointerReadExact = false;
     bool mouseLPressed = false;
     bool mouseRPressed = false;
     bool mouseClick = false;
@@ -430,12 +483,6 @@ private:
     bool keyShiftEnabled = false;
     bool keyAltEnabled = false;
     // Near, mid and far shadow maps.
-    GLuint FramebufferName0 = 0;
-    GLuint depthTexture0 = 0;
-    GLuint FramebufferName1 = 0;
-    GLuint depthTexture1 = 0;
-    GLuint FramebufferName2 = 0;
-    GLuint depthTexture2 = 0;
     int shadowMapSize = 2048;
     int distantShadowMapSize = 1024;
     Brush* defaultPaintBrush;
@@ -458,8 +505,9 @@ private:
     bool bolckContextMenu = false;
     
     // Owned; draws this widget's frames.
-    OpenGL3Renderer *renderer = NULL;
+    Renderer *renderer = NULL;
     EnvironmentMap *environmentMap = NULL;
+    RenderSurface *surface = NULL;
     PlanarReflection *waterReflection = NULL;
     // Mirror plane of the last reflection (n . p + d = 0).
     float waterReflectionPlane[4] = {0.0f, 1.0f, 0.0f, 0.0f};

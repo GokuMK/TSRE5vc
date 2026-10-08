@@ -11,7 +11,8 @@
 #ifndef GLSHAPEWIDGET_H
 #define	GLSHAPEWIDGET_H
 
-#include <QOpenGLWidget>
+#include <QWidget>
+#include <tsre/renderer/RenderSurface.h>
 #include <QOpenGLFunctions>
 #include <QOpenGLVertexArrayObject>
 #include <QOpenGLBuffer>
@@ -19,7 +20,6 @@
 #include <QBasicTimer>
 #include <math.h>
 #include <tsre/shape/ShapeLib.h>
-#include <tsre/renderer/SelectionRenderer.h>
 
 class ComplexShape;
 class Eng;
@@ -27,7 +27,7 @@ class Consist;
 class GLUU;
 class Camera;
 class EngLib;
-class OpenGL3Renderer;
+class Renderer;
 class EnvironmentMap;
 class QImage;
 class ShapeTextureInfo;
@@ -36,7 +36,8 @@ class ContentHierarchyInfo;
 
 QT_FORWARD_DECLARE_CLASS(QOpenGLShaderProgram)
 
-class ShapeViewerGLWidget : public QOpenGLWidget, protected QOpenGLFunctions {
+class ShapeViewerGLWidget : public QWidget, public RenderSurfaceClient,
+        protected QOpenGLFunctions {
     Q_OBJECT
 public:
     ShapeViewerGLWidget(QWidget *parent = 0,
@@ -61,6 +62,14 @@ public:
     void fillCurrentShapeHierarchyInfo(ShapeHierarchyInfo *info);
     void fillCurrentShapeTextureInfo(QHash<int, ShapeTextureInfo*> &list);
     void fillCurrentContentHierarchyInfo(QVector<ContentHierarchyInfo*> &list);
+
+    // The render surface does the drawing; these forward to it.
+    void update();
+    void makeCurrent();
+    void doneCurrent();
+    QImage grabFramebuffer();
+    bool isValid() const { return surface->isValid(); }
+    QString graphicsInfo() { return surface->graphicsInfo(); }
 public slots:
     void showEng(QString path, QString name);
     void showEng(Eng *e);
@@ -88,9 +97,11 @@ signals:
     void refreshItem();
     
 protected:
-    void initializeGL() Q_DECL_OVERRIDE;
-    void paintGL() Q_DECL_OVERRIDE;
-    void resizeGL(int width, int height) Q_DECL_OVERRIDE;
+    void surfaceInitialize() override;
+    void surfacePaint() override;
+    void surfaceResize(int width, int height) override;
+    void surfaceRelease() override;
+    void paintEvent(QPaintEvent *event) Q_DECL_OVERRIDE;
     void wheelEvent(QWheelEvent *event) Q_DECL_OVERRIDE;
     void mousePressEvent(QMouseEvent *event) Q_DECL_OVERRIDE;
     void mouseReleaseEvent(QMouseEvent* event) Q_DECL_OVERRIDE;
@@ -101,14 +112,14 @@ protected:
     void timerEvent(QTimerEvent *event) Q_DECL_OVERRIDE;
 
 private:
+    RenderSurface *surface = nullptr;
     void renderFrame(bool selectionPass);
     // Draws the current item through this widget's renderer.
     void renderGathered(quint32 selectionId);
     // Owned; draws this widget's frames.
-    OpenGL3Renderer *renderer = nullptr;
+    Renderer *renderer = nullptr;
     // Owned; a procedural warehouse interior for reflections.
     EnvironmentMap *environmentMap = nullptr;
-    SelectionRenderer selectionRenderer;
     QPointF selectionPosition;
     void setupVertexAttribs();
     QBasicTimer timer;
@@ -139,6 +150,11 @@ private:
     bool cameraInit = false;
     // Near clip distance, scaled with the shown shape so small ones are not clipped.
     float nearPlane = 0.2f;
+    // This frame's projection (without the camera) and depth planes, which
+    // the renderer's screen-space effects need (setSceneProjection).
+    float sceneProjection[16] = {};
+    float sceneNear = 0.2f;
+    float sceneFar = 1.0f;
     
     QMap<QString, QAction*> defaultMenuActions;
 };

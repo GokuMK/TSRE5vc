@@ -1,12 +1,16 @@
 #include <tsre/tests/MeshStoreTestSuite.h>
 
 #include <QDebug>
+#include <QElapsedTimer>
 #include <QOffscreenSurface>
 #include <QOpenGLContext>
 #include <QOpenGLExtraFunctions>
 #include <cstring>
+#include <functional>
 
 #include <tsre/renderer/Mesh.h>
+#include <tsre/renderer/rhi/RhiContext.h>
+#include <rhi/qrhi.h>
 
 namespace {
 
@@ -216,4 +220,70 @@ int TsreTests::runMeshStoreSuite(bool verbose) {
     qInfo() << "[tests:mesh-store] cases=" << (passed + failed)
             << "passed=" << passed << "failed=" << failed;
     return failed == 0 ? 0 : 1;
+}
+
+int TsreTests::runMeshUploadRhiBenchmark(bool verbose) {
+    Q_UNUSED(verbose);
+    RhiContext *context = RhiContext::instance();
+    QRhi *rhi = context != nullptr ? context->rhi() : nullptr;
+    if (rhi == nullptr) {
+        qWarning() << "[tests:mesh-upload-rhi-benchmark] no QRhi";
+        return 1;
+    }
+    // Times frames that upload a mesh's changes and submit them.
+    auto frames = [rhi](int count, const std::function<void(int)> &change, MeshHandle mesh) {
+        QElapsedTimer timer;
+        timer.start();
+        for (int frame = 0; frame < count; ++frame) {
+            change(frame);
+            QRhiCommandBuffer *cb = nullptr;
+            if (rhi->beginOffscreenFrame(&cb) != QRhi::FrameOpSuccess)
+                return -1.0;
+            QRhiResourceUpdateBatch *batch = rhi->nextResourceUpdateBatch();
+            Meshes::RhiBuffers buffers;
+            Meshes::prepareRhi(mesh, rhi, batch, buffers);
+            cb->resourceUpdate(batch);
+            rhi->endOffscreenFrame();
+            Meshes::collectGarbageRhi();
+        }
+        return timer.nsecsElapsed() / 1e6 / count;
+    };
+    // A paged terrain page: 256 patches of 17 x 17 vertices of 8 bytes; a
+    // brush rewrites 50 patches a frame.
+    constexpr int PatchBytes = 17 * 17 * 8;
+    constexpr int Patches = 256;
+    MeshData page;
+    page.format = MeshData::TerrainHeightNormal;
+    page.dynamic = true;
+    page.bytes = QByteArray(PatchBytes * Patches, char(0));
+    MeshHandle paged = Meshes::create(std::move(page));
+    const QByteArray patch(PatchBytes, char(1));
+    const double pagedMs = frames(200, [&](int frame) {
+        for (int i = 0; i < 50; ++i)
+            Meshes::updateRange(paged, ((frame * 50 + i) * 7 % Patches) * PatchBytes,
+                                patch.constData(), PatchBytes);
+    }, paged);
+    // A legacy terrain tile: 256 patches of 16 x 16 x 6 vertices of 5
+    // floats, replaced whole on every brush step.
+    MeshHandle tile;
+    auto tileData = [](float value) {
+        MeshData data;
+        data.layout = RenderItem::VT;
+        data.vertices.assign(size_t(256) * 16 * 16 * 6 * 5, value);
+        return data;
+    };
+    Meshes::update(tile, tileData(0.0f));
+    const double legacyMs = frames(50, [&](int frame) {
+        Meshes::update(tile, tileData(float(frame)));
+    }, tile);
+    qInfo().noquote() << "[tests:mesh-upload-rhi-benchmark]" << rhi->backendName()
+                      << "paged page, 50 patches a frame:" << pagedMs << "ms a frame;"
+                      << "legacy tile replaced:" << legacyMs << "ms a frame";
+    const QRhiStats stats = rhi->statistics();
+    qInfo().noquote() << "[tests:mesh-upload-rhi-benchmark] memory used MB"
+                      << stats.usedBytes / 1048576 << "allocations" << stats.allocCount;
+    Meshes::release(paged);
+    Meshes::release(tile);
+    Meshes::collectGarbageRhi();
+    return pagedMs < 0.0 || legacyMs < 0.0 ? 1 : 0;
 }

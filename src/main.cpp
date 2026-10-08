@@ -9,6 +9,7 @@
  */
 
 #include <QApplication>
+#include <tsre/renderer/rhi/RhiContext.h>
 #include <contentCase/ContentCase.h>
 #include <tsre/world/TerrainBakeCommand.h>
 #include <QDebug>
@@ -56,6 +57,9 @@ void myMessageOutput(QtMsgType type, const QMessageLogContext &context, const QS
         default: symbol = '?'; break;
     }
     QString output = QString("[%1] %2").arg(symbol).arg(msg);
+    // Texture and shape loading threads log too.
+    static QMutex mutex;
+    QMutexLocker lock(&mutex);
     if(Game::consoleOutput)
         std::cout << output.toStdString() << "\n";
     logFileOut << output << "\n";
@@ -526,6 +530,8 @@ int main(int argc, char *argv[]){
     //QApplication::setAttribute(Qt::AA_EnableHighDpiScaling, true); // has no effect?
     //QApplication::pr
     QApplication app(argc, argv);
+    // The shared QRhi must go while the windowing system is still up.
+    struct RhiShutdown { ~RhiShutdown() { RhiContext::shutdown(); } } rhiShutdown;
     TranslationManager translationManager;
     QString translationMessage;
     if (!translationManager.install(

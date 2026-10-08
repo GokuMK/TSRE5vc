@@ -39,7 +39,11 @@
 #include <tsre/world/TerrainLib.h>
 #include <tsre/renderer/RenderStats.h>
 #include <tsre/renderer/SelectionId.h>
+#include <tsre/world/Ref.h>
 #include <tsre/world/Route.h>
+#include <tsre/world/TerrainLib.h>
+#include <tsre/shape/ShapeLoader.h>
+#include <tsre/math3d/GLMatrix.h>
 
 namespace {
 
@@ -78,9 +82,22 @@ struct ViewSpec {
     bool fadedTerrain = false;
     // Edit the distant terrain (TerrainLib's current tree) for this view.
     bool editDistant = false;
+    // Height above the terrain, replacing the view's own height.
+    bool hasAboveGround = false;
+    float aboveGround = 0.0f;
+};
+
+// A static object placed for the capture only (not saved): a shape of the
+// route's SHAPES directory, at an offset (x, height above the terrain, z)
+// from the start view's position, turned by yaw degrees.
+struct PlacedObject {
+    QString file;
+    float offset[3] = {0.0f, 0.0f, 0.0f};
+    float yaw = 0.0f;
 };
 
 struct Options {
+    QVector<PlacedObject> objects;
     int width = 960;
     int height = 540;
     QString outputDir = "renderer-parity";
@@ -90,6 +107,8 @@ struct Options {
     int timingFrames = 3;
     int diffTolerance = 16;
     bool hud = false;
+    // The Route Editor's FPS counter, painted over the frame.
+    bool fpsHud = false;
     bool compass = true;
     bool pointer = false;
     // -1 keeps the profile setting.
@@ -161,6 +180,7 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
     options.timingFrames = std::max(1, root.value("timingFrames").toInt(options.timingFrames));
     options.diffTolerance = root.value("diffTolerance").toInt(options.diffTolerance);
     options.hud = root.value("hud").toBool(options.hud);
+    options.fpsHud = root.value("fpsHud").toBool(options.fpsHud);
     options.compass = root.value("compass").toBool(options.compass);
     options.pointer = root.value("pointer").toBool(options.pointer);
     if (root.contains("shadows"))
@@ -187,6 +207,21 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
 
     options.activity = root.value("activity").toString();
     options.path = root.value("path").toString();
+
+    const QJsonArray objects = root.value("objects").toArray();
+    for (const QJsonValue &value : objects) {
+        const QJsonObject object = value.toObject();
+        PlacedObject placed;
+        placed.file = object.value("file").toString();
+        readFloatArray(object.value("offset"), placed.offset, 3);
+        placed.yaw = float(object.value("yaw").toDouble(0.0));
+        if (placed.file.isEmpty()) {
+            error = "placed object without a file";
+            return false;
+        }
+        options.objects.push_back(placed);
+    }
+
     const QJsonArray views = root.value("views").toArray();
     for (int i = 0; i < views.size(); ++i) {
         const QJsonObject object = views[i].toObject();
@@ -206,6 +241,8 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         view.bearing = float(object.value("bearing").toDouble(0.0));
         view.fadedTerrain = object.value("fadedTerrain").toBool(false);
         view.editDistant = object.value("editDistant").toBool(false);
+        view.hasAboveGround = object.contains("aboveGround");
+        view.aboveGround = float(object.value("aboveGround").toDouble(0.0));
         if (view.hasTile != view.hasPos) {
             error = QString("view %1 needs both tile and pos").arg(view.name);
             return false;
@@ -366,7 +403,7 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         return 2;
     }
 
-    QScopedValueRollback<bool> restoreFpsHud(Game::editorFpsHudEnabled, false);
+    QScopedValueRollback<bool> restoreFpsHud(Game::editorFpsHudEnabled, options.fpsHud);
     // Animated shading (water waves) must stand still to settle.
     QScopedValueRollback<bool> restoreAnimation(Game::animationFrozen, true);
     QScopedValueRollback<bool> restoreHud(Game::hudEnabled, options.hud);
@@ -405,6 +442,22 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
     float startPos[3];
     float startRot[2];
     widget.diagnosticView(startTileX, startTileZ, startPos, startRot[0], startRot[1]);
+    for (const PlacedObject &placed : options.objects) {
+        Ref::RefItem item;
+        item.type = "static";
+        item.filename.push_back(placed.file);
+        item.currentFilename = placed.file;
+        int tileX = startTileX, tileZ = startTileZ;
+        float position[3] = {startPos[0] + placed.offset[0], 0.0f, startPos[2] + placed.offset[2]};
+        Game::check_coords(tileX, tileZ, position);
+        position[1] = Game::terrainLib->getHeight(tileX, tileZ, position[0], position[2]) + placed.offset[1];
+        float rotation[4];
+        float up[3] = {0.0f, 1.0f, 0.0f};
+        Quat::setAxisAngle(rotation, up, placed.yaw * float(M_PI) / 180.0f);
+        if (widget.currentRoute() == nullptr
+                || widget.currentRoute()->placeObject(tileX, tileZ, position, rotation, 0.0f, &item) == nullptr)
+            qWarning() << CaptureLog << "could not place" << placed.file;
+    }
 
     widget.setDiagnosticActivity(options.activity, options.path);
     QJsonArray viewReports;
@@ -420,6 +473,12 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
                 pos[i] += spec.offset[i];
         if (spec.hasRot)
             std::copy(spec.rot, spec.rot + 2, rot);
+        if (spec.hasAboveGround) {
+            int groundX = tileX, groundZ = tileZ;
+            float ground[3] = {pos[0], 0.0f, pos[2]};
+            Game::check_coords(groundX, groundZ, ground);
+            pos[1] = Game::terrainLib->getHeight(groundX, groundZ, ground[0], ground[2]) + spec.aboveGround;
+        }
         widget.setDiagnosticView(tileX, tileZ, pos[0], pos[1], pos[2], rot[0], rot[1]);
         if (spec.map) {
             widget.setDiagnosticMapView(tileX, tileZ, pos[0], pos[2], spec.metresPerPixel,
@@ -435,6 +494,7 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         settleTimer.start();
         QByteArray lastHash;
         int stableCount = 0;
+        unsigned lastShapeProgress = ShapeLoader::progress();
         int frames = 0;
         bool settled = false;
         while (frames < options.settle.maxFrames
@@ -444,11 +504,18 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
             frames++;
             stableCount = hash == lastHash ? stableCount + 1 : 0;
             lastHash = hash;
-            if (frames >= options.settle.minFrames && stableCount >= options.settle.stableFrames) {
+            // A frame can repeat while shapes still load on the workers.
+            const unsigned shapeProgress = ShapeLoader::progress();
+            if (shapeProgress != lastShapeProgress)
+                stableCount = 0;
+            lastShapeProgress = shapeProgress;
+            if (frames >= options.settle.minFrames && stableCount >= options.settle.stableFrames
+                    && !ShapeLoader::busy()) {
                 settled = true;
                 break;
             }
         }
+        const qint64 settleMs = settleTimer.elapsed();
 
         // Timing frames run without events, so they see one simulation state.
         QImage image;
@@ -473,6 +540,8 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
                 points.push_back(QPoint((2 * column + 1) * image.width() / (2 * options.pickColumns),
                                         (2 * row + 1) * image.height() / (2 * options.pickRows)));
         const QVector<quint32> picks = widget.probeSelectionIds(points);
+        // The 3D pointer under the centre, from the depth read there.
+        const QVector3D pointer = widget.probePointer(QPoint(image.width() / 2, image.height() / 2));
 
         const QString imageName = spec.name + ".png";
         image.save(QDir(outputDir).filePath(imageName));
@@ -502,12 +571,13 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         view["stableAcrossTimingFrames"] = stable;
         view["image"] = imageName;
         view["picking"] = picking;
+        view["pointer"] = QJsonArray{pointer.x(), pointer.y(), pointer.z()};
         view["stats"] = statsJson;
         viewReports.append(view);
 
         qInfo().noquote() << CaptureLog << spec.name
                           << (settled ? "settled" : "did not settle") << "after" << frames
-                          << "frames; draws" << stats.drawCalls
+                          << "frames," << settleMs << "ms; draws" << stats.drawCalls
                           << "items created" << stats.renderItemsCreated
                           << "matrix clones" << stats.matrixClones;
     }
@@ -517,8 +587,7 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
     report["root"] = Game::root;
     report["label"] = label;
     report["generated"] = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
-    report["glRenderer"] = QString::fromLatin1(reinterpret_cast<const char *>(
-                                                   widget.context()->functions()->glGetString(GL_RENDERER)));
+    report["glRenderer"] = widget.graphicsInfo();
     report["shadowsEnabled"] = Game::shadowsEnabled;
     report["views"] = viewReports;
     QFile jsonFile(QDir(outputDir).filePath("capture.json"));
@@ -909,6 +978,7 @@ int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, const QStrin
         settleTimer.start();
         QByteArray lastHash;
         int stableCount = 0, frames = 0;
+        unsigned lastShapeProgress = ShapeLoader::progress();
         bool settled = false;
         QImage image;
         while (frames < options.settle.maxFrames
@@ -919,7 +989,13 @@ int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, const QStrin
             frames++;
             stableCount = hash == lastHash ? stableCount + 1 : 0;
             lastHash = hash;
-            if (frames >= options.settle.minFrames && stableCount >= options.settle.stableFrames) {
+            // A frame can repeat while shapes still load on the workers.
+            const unsigned shapeProgress = ShapeLoader::progress();
+            if (shapeProgress != lastShapeProgress)
+                stableCount = 0;
+            lastShapeProgress = shapeProgress;
+            if (frames >= options.settle.minFrames && stableCount >= options.settle.stableFrames
+                    && !ShapeLoader::busy()) {
                 settled = true;
                 break;
             }

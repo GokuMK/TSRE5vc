@@ -1,6 +1,9 @@
 # Task 13 - Selection Renderer And 32-bit ID Redesign
 
-Status: Stage 1 and Stage 2 implemented; manual legacy/gather selection parity confirmation pending.
+Status: Stage 1 and Stage 2 implemented. The legacy pipeline was removed
+(2026-10-03), so the legacy/gather parity check below no longer applies;
+picking is now compared between the OpenGL and QRhi renderers by the
+capture harness (`renderer-compare`, tasks 20 and 25).
 
 ## Objective
 

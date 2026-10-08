@@ -94,4 +94,12 @@ active texture unit next to them. That is the framebuffer ownership step.
 
 - [x] Inventory and plan.
 - [x] Renderer calls above, verified pixel-identical.
-- [ ] Render targets, textures and programs (with the second renderer).
+- [x] Render targets and programs (with the QRhi renderer, task 20, on
+  `feature/qrhi`): `bindTarget`, `useProgram`, selection, and the storage
+  of the environment map and the water reflection.
+- [ ] Textures: producers still upload them with OpenGL calls on the
+  OpenGL renderer (`Texture.cpp`, `TerrainProceduralMaterial.cpp`,
+  `uploadTerrainBaseTexture` in `Terrain.cpp`) beside `RhiTextures` calls
+  on QRhi.
+- [ ] Matrices and lights: the widgets fill `GLUU` fields that both
+  renderers read.

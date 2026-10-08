@@ -69,16 +69,12 @@ bool Game::playerMode = false;
 bool Game::useNetworkEng = false;
 bool Game::useQuadTree = true;
 bool Game::useTdbEmptyItems = true;
-int Game::allowObjLag = 1000;
-int Game::objectLoadingTokens = 1000;
+int Game::objectLoadingTokens = 10;
 int Game::maxObjLag = 10;
 bool Game::ignoreLoadLimits = false;
-int Game::startTileX = 0;
-int Game::startTileY = 0;
 float Game::objectLod = 3000;
 float Game::distantLod = 100000;
 int Game::tileLod = 2;
-int Game::start = 0;
 bool Game::ignoreMissingGlobalShapes = false;
 bool Game::deleteTrWatermarks = false;
 bool Game::deleteViewDbSpheres = false;
@@ -125,6 +121,8 @@ bool Game::textureLoaderThreaded = true;
 int Game::shadowMapSize = 2048;
 int Game::shadowLowMapSize = 1024;
 int Game::shadowsEnabled = 1;
+QString Game::renderBackend = "opengl";
+QString Game::rhiApi = "auto";
 bool Game::environmentMapEnabled = false;
 int Game::blendedParts = 1;
 QString Game::mapPalette = "light";
@@ -134,6 +132,16 @@ float Game::environmentMapObjectDistance = 300.0f;
 bool Game::environmentMapPreview = false;
 bool Game::waterShaded = true;
 bool Game::waterReflection = true;
+bool Game::localLightsEnabled = true;
+int Game::ambientOcclusionQuality = 0;
+int Game::toneMapping = 0;
+float Game::exposure = 0.0f;
+float Game::bloomStrength = 0.0f;
+bool Game::timeOfDayEnabled = false;
+float Game::timeOfDayHours = 12.0f;
+QString Game::timeOfDayDate = "2026-06-21";
+float Game::localLightsExposure = 1.0f;
+float Game::localLightsEmissiveGain = 1.0f;
 bool Game::animationFrozen = false;
 float Game::sunLightDirection[] = {-1.0,2.0,1.0};
 int Game::textureQuality = 1;
@@ -281,11 +289,12 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
     claim("core.paths.osmData", SettingType::Directory);
     claim("geo.osm.originalAfterConversion", SettingType::Enum);
     string("core.startup.route", route);
+    // Read by the Route Editor when it places its camera
+    // (RouteEditorGLWidget::cameraInit), not kept here.
     claim("core.startup.useTilePosition", SettingType::Bool);
-    if (appliesNow("core.startup.useTilePosition"))
-        start = settings.runtimeBool("core.startup.useTilePosition") ? 2 : 0;
-    integer("core.startup.tileX", startTileX);
-    integer("core.startup.tileZ", startTileY);
+    claim("core.startup.tileX", SettingType::Int);
+    claim("core.startup.tileZ", SettingType::Int);
+    claim("core.startup.camera", SettingType::String);
     string("core.startup.season", season, SettingType::Enum);
 
     boolean("core.startup.createMissingRoute", createNewRoutes);
@@ -314,11 +323,8 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
     integer("core.rendering.tileRadius", tileLod);
     floating("core.rendering.objectLodDistance", objectLod);
     integer("core.rendering.objectLoading.targetTokens", maxObjLag);
-    claim("core.rendering.objectLoading.initialTokens", SettingType::Int);
-    if (appliesNow("core.rendering.objectLoading.initialTokens")) {
-        allowObjLag = settings.runtimeInt("core.rendering.objectLoading.initialTokens");
-        objectLoadingTokens = allowObjLag;
-    }
+    claim("core.rendering.threadedShapeLoading", SettingType::Bool);
+    claim("core.rendering.objectLoading.parallelShapes", SettingType::Int);
     claim("core.rendering.terrainMesh", SettingType::Enum);
     if (appliesNow("core.rendering.terrainMesh"))
         terrainMeshMode = ParseTerrainMeshMode(
@@ -348,6 +354,8 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
         shadowLowMapSize = settings.runtimeInt("core.rendering.shadow.distantMapSize");
         if (shadowLowMapSize >= 2048) { shadow2Res = 4000.0; shadow2Bias = 0.001; }
     }
+    string("core.rendering.backend", renderBackend, SettingType::Enum);
+    string("core.rendering.rhiApi", rhiApi, SettingType::Enum);
     boolean("core.rendering.environmentMap.enabled", environmentMapEnabled);
     claim("core.rendering.blendedParts", SettingType::Enum);
     if (appliesNow("core.rendering.blendedParts"))
@@ -362,6 +370,20 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
     boolean("core.rendering.environmentMap.preview", environmentMapPreview);
     boolean("core.rendering.water.shaded", waterShaded);
     boolean("core.rendering.water.reflection", waterReflection);
+    boolean("core.rendering.localLights.enabled", localLightsEnabled);
+    claim("core.rendering.ambientOcclusion", SettingType::Enum);
+    if (appliesNow("core.rendering.ambientOcclusion"))
+        ambientOcclusionQuality = settings.runtimeInt("core.rendering.ambientOcclusion");
+    claim("core.rendering.toneMapping", SettingType::Enum);
+    if (appliesNow("core.rendering.toneMapping"))
+        toneMapping = settings.runtimeInt("core.rendering.toneMapping");
+    floating("core.rendering.exposure", exposure);
+    floating("core.rendering.bloom", bloomStrength);
+    boolean("core.rendering.timeOfDay.enabled", timeOfDayEnabled);
+    floating("core.rendering.timeOfDay.time", timeOfDayHours);
+    string("core.rendering.timeOfDay.date", timeOfDayDate, SettingType::String);
+    floating("core.rendering.localLights.exposure", localLightsExposure);
+    floating("core.rendering.localLights.emissiveGain", localLightsEmissiveGain);
     integer("core.rendering.defaultLineWidth", oglDefaultLineWidth);
     floating("core.rendering.fogDensity", fogDensity);
     auto colour = [&](const char *key, float target[4]) {
@@ -585,14 +607,6 @@ void Game::loadLegacySettings() {
         if(val == "routeName")
             route = args[1].trimmed();
 
-        if(val == "startTileX"){
-            Game::start++;
-            startTileX = args[1].trimmed().toInt();
-        }
-        if(val == "startTileY"){
-            Game::start++;
-            startTileY = args[1].trimmed().toInt();
-        }
         if(val == "deleteTrWatermarks"){
             if(args[1].trimmed().toLower() == "true")
                 deleteTrWatermarks = true;
@@ -649,9 +663,6 @@ void Game::loadLegacySettings() {
         }
         if(val == "maxObjLag"){
             maxObjLag = args[1].trimmed().toInt();
-        }
-        if(val == "allowObjLag"){
-            allowObjLag = args[1].trimmed().toInt();
         }
         if(val == "fpsLimit"){
             fpsLimit = args[1].trimmed().toInt();
@@ -1064,7 +1075,6 @@ void Game::CreateNewSettingsFile(){
     out << "tileLod = 2\n";
     out << "objectLod = 4000\n";
     out << "maxObjLag = 10\n";
-    out << "allowObjLag = 1000\n";
     out << "#cameraFov = 20.0\n";
     out << "leaveTrackShapeAfterDelete = false\n";
     out << "#renderTrItems = true\n";

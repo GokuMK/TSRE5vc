@@ -156,7 +156,8 @@ public:
     struct Terrain {
         // Paged terrain meshes: vertices are generated from patch parameters.
         bool paged = false;
-        // Plain storage (MeshData::Buffer) bound as the TerrainPatchBlock.
+        // Plain storage (MeshData::Buffer) of the patch records: the
+        // TerrainPatchBlock in OpenGL, a data texture in QRhi.
         MeshHandle paramsBuffer;
         int verticesPerPatch = 0;
         int patchSide = 0;
@@ -179,6 +180,29 @@ public:
         float materialNoiseScale = 0.0f;
     };
 
+    // A light the packet carries, in its model space (before msMatrix).
+    // Intensity is in engine units: a white matte surface at distance d
+    // facing the light shows intensity / (d^2 + radius^2) times its colour.
+    struct Light {
+        enum Type {POINT = 0, SPOT};
+        float position[3] = {0.0f, 0.0f, 0.0f};
+        // Spot lights: the direction the cone points along.
+        float direction[3] = {0.0f, 0.0f, -1.0f};
+        float color[3] = {1.0f, 1.0f, 1.0f};
+        float intensity = 0.0f;
+        // Where the light fades to nothing; 0 derives it from the intensity.
+        float range = 0.0f;
+        // Size of the emitter, softening surfaces close to it.
+        float radius = 0.0f;
+        // Spot cone half-angles in radians.
+        float innerCone = 0.0f;
+        float outerCone = 0.785398f;
+        unsigned char type = POINT;
+        // Made from an emissive surface (scaled by the emissive gain) rather
+        // than a light source (scaled by the exposure).
+        bool emissive = false;
+    };
+
     // Sphere enclosing the packet in the space of the submission transform
     // (after msMatrix). A negative radius means unknown.
     struct Bounds {
@@ -193,6 +217,8 @@ public:
     Water water;
     Terrain terrain;
     Bounds bounds;
+    // Lights placed with the packet (task 21).
+    QVector<Light> lights;
     // Model-space transform applied before the submission transform; null
     // means identity.
     float *msMatrix = nullptr;

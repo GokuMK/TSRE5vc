@@ -6,6 +6,7 @@
  *  Licensed under GNU General Public License 3.0 or later.
  */
 
+#include <tsre/renderer/RenderContext.h>
 #include <tsre/world/TerrainMeshBackend.h>
 #include <tsre/world/TerrainBrushProfiler.h>
 #include <tsre/world/TerrainNormals.h>
@@ -290,7 +291,7 @@ bool TerrainMeshPaged::ensureInitialized() {
         return true;
     }
     if (!terrain.loaded || terrain.tfile == nullptr || terrain.terrainData == nullptr
-            || QOpenGLContext::currentContext() == nullptr)
+            || !RenderContext::ready())
         return false;
 
     QElapsedTimer timer;
@@ -371,7 +372,7 @@ void TerrainMeshPaged::buildPage(Page &page) {
     MeshData vertexData;
     vertexData.format = MeshData::TerrainHeightNormal;
     vertexData.layout = RenderItem::VNT;
-    vertexData.dynamic = true;
+    vertexData.dynamic = page.edited;
     vertexData.sharedIndices = indexBuffer;
     vertexData.bytes = QByteArray(page.patchCount * patchBytes, 0);
     QVector<TerrainPatchGpuParams> terrainRecords(PatchesPerPage);
@@ -393,7 +394,7 @@ void TerrainMeshPaged::buildPage(Page &page) {
                                 records.size() * int(sizeof(TerrainPatchGpuParams)));
         return data;
     };
-    Meshes::update(page.terrainParams, parameterBlock(terrainRecords, true));
+    Meshes::update(page.terrainParams, parameterBlock(terrainRecords, page.edited));
     Meshes::update(page.mapParams, parameterBlock(mapRecords, false));
 }
 
@@ -478,6 +479,16 @@ void TerrainMeshPaged::updatePatch(int patchId, unsigned int reasons) {
     Page *page = pageForPatch(patchId);
     if (page == nullptr)
         return;
+    if (!page->edited) {
+        // The first change of a page uploads it again whole, as dynamic: the
+        // QRhi renderer keeps a host copy only of pages being edited (as
+        // large as the page; every page with one would double terrain
+        // memory), and range uploads without it allocate a page-sized copy
+        // each.
+        page->edited = true;
+        buildPage(*page);
+        return;
+    }
     const int slot = patchId - page->firstPatch;
     if (reasons & (TerrainDirtyHeight | TerrainDirtyNormals | TerrainDirtyGaps)) {
         QVector<TerrainVertex8Derived> vertices;
@@ -506,7 +517,7 @@ void TerrainMeshPaged::updatePatch(int patchId, unsigned int reasons) {
 }
 
 void TerrainMeshPaged::refreshModified() {
-    if (!initialized || QOpenGLContext::currentContext() == nullptr) {
+    if (!initialized || !RenderContext::ready()) {
         TerrainBrushProfiler::add(TerrainBrushProfiler::Deferred);
         return;
     }

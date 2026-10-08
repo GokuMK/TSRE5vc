@@ -43,27 +43,53 @@
 #include <tsre/renderer/OpenGL3Renderer.h>
 
 ShapeViewerGLWidget::ShapeViewerGLWidget(QWidget *parent, ShapeLib::MstsBackend backend)
-: QOpenGLWidget(parent),
+: QWidget(parent),
 m_xRot(0),
 m_yRot(0),
 m_zRot(0) {
     backgroundGlColor[0] = -2;
     currentShapeLib = new ShapeLib(backend);
+    surface = RenderSurface::create(this, this);
 }
 
 ShapeViewerGLWidget::~ShapeViewerGLWidget() {
+    // The surface is destroyed after this destructor has run; it must not
+    // call back into a destroyed object.
+    surface->detachClient();
+    cleanup();
+}
+
+void ShapeViewerGLWidget::update() {
+    surface->requestUpdate();
+}
+
+void ShapeViewerGLWidget::makeCurrent() {
+    surface->makeCurrent();
+}
+
+void ShapeViewerGLWidget::doneCurrent() {
+    surface->doneCurrent();
+}
+
+QImage ShapeViewerGLWidget::grabFramebuffer() {
+    return surface->grabFramebuffer();
+}
+
+void ShapeViewerGLWidget::paintEvent(QPaintEvent *) {
+    // The surface fills the widget and paints itself.
+}
+
+void ShapeViewerGLWidget::surfaceRelease() {
     cleanup();
 }
 
 void ShapeViewerGLWidget::cleanup() {
     makeCurrent();
-    selectionRenderer.release();
-    delete renderer;
-    renderer = nullptr;
+    // The environment map's storage belongs to the renderer's backend.
     delete environmentMap;
     environmentMap = nullptr;
-    if(context() != nullptr)
-        disconnect(context(), nullptr, this, nullptr);
+    delete renderer;
+    renderer = nullptr;
     doneCurrent();
 }
 
@@ -98,7 +124,7 @@ void ShapeViewerGLWidget::setCamera(Camera* cam){
     camera = cam;
 }
 
-void ShapeViewerGLWidget::initializeGL() {
+void ShapeViewerGLWidget::surfaceInitialize() {
     Game::currentShapeLib = currentShapeLib;
     /*if(currentEngLib == NULL){
          currentEngLib = new EngLib();
@@ -107,9 +133,10 @@ void ShapeViewerGLWidget::initializeGL() {
     //qDebug() << "GLUU::get();";
     gluu = GLUU::get();
     //context()->set
-    connect(context(), &QOpenGLContext::aboutToBeDestroyed, this, &ShapeViewerGLWidget::cleanup);
     //qDebug() << "initializeOpenGLFunctions();";
-    initializeOpenGLFunctions();
+    const bool openGL = surface->backend() == RenderSurface::OpenGL;
+    if(openGL)
+        initializeOpenGLFunctions();
     if(backgroundGlColor[0] == -2){
         backgroundGlColor[0] = 25.0/255;
         backgroundGlColor[1] = 25.0/255;
@@ -120,8 +147,10 @@ void ShapeViewerGLWidget::initializeGL() {
             backgroundGlColor[2] = 1;
         }
     }
-    gluu->initShader();
-    renderer = new OpenGL3Renderer();
+    if(openGL)
+        gluu->initShader();
+    renderer = surface->createRenderer();
+    renderer->setSurface(surface);
     renderer->clear(false, false, backgroundGlColor);
     renderer->resetState();
 
@@ -186,7 +215,7 @@ void ShapeViewerGLWidget::fillCurrentContentHierarchyInfo(QVector<ContentHierarc
     }
 }
 
-void ShapeViewerGLWidget::paintGL() {
+void ShapeViewerGLWidget::surfacePaint() {
     if(selection){
         selection = false;
         if(renderItem == 3 && con != nullptr)
@@ -198,18 +227,17 @@ void ShapeViewerGLWidget::paintGL() {
 
 void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
     Game::currentShapeLib = currentShapeLib;
-    Shader *shader = gluu->shaders.value(selectionPass ? "Selection" : "StandardFog", nullptr);
-    if(shader == nullptr)
+    if(renderer == nullptr || !renderer->programsReady())
         return;
+    const int selectionHeight = qRound(height() * devicePixelRatioF());
     if(selectionPass){
         const qreal pixelRatio = devicePixelRatioF();
-        if(!selectionRenderer.begin(qRound(width() * pixelRatio),
-                                    qRound(height() * pixelRatio)))
+        if(!renderer->beginSelection(qRound(width() * pixelRatio), selectionHeight))
             return;
     } else {
         renderer->clear(true, true, backgroundGlColor);
     }
-    gluu->currentShader = shader;
+    renderer->useProgram(selectionPass ? Renderer::PROGRAM_SELECTION : Renderer::PROGRAM_MAIN);
     // Zero is the background; wagon indices start at one.
     const quint32 selectionId = selectionPass ? 1 : 0;
 
@@ -223,6 +251,9 @@ void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
     float* lookAt = camera->getMatrix();
     const float zNear = renderItem == 4 ? nearPlane : 0.2f;
     Mat4::perspective(gluu->pMatrix, camera->fov*M_PI/180*(1/aspect), aspect, zNear, Game::objectLod);
+    std::copy(gluu->pMatrix, gluu->pMatrix + 16, sceneProjection);
+    sceneNear = zNear;
+    sceneFar = Game::objectLod;
     Mat4::multiply(gluu->pMatrix, gluu->pMatrix, lookAt);
     
     Mat4::perspective(gluu->fMatrix, camera->fov*M_PI/180*(1/aspect), aspect, zNear, Game::objectLod);
@@ -232,13 +263,12 @@ void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
 
     Mat4::identity(gluu->objStrMatrix);
     
-    gluu->currentShader->bind();
-    gluu->setMatrixUniforms();
+    renderer->applyFrameUniforms();
     std::copy(camera->getPos(), camera->getPos() + 3, gluu->cameraPosition);
     gluu->environmentMapLevels = 0;
     if(!selectionPass){
         if(environmentMap == nullptr)
-            environmentMap = new EnvironmentMap();
+            environmentMap = new EnvironmentMap(renderer);
         // A fixed warehouse interior: filled once, at the largest face size.
         if(environmentMap->complete() || environmentMap->fillWarehouse(256)){
             environmentMap->bind();
@@ -288,10 +318,10 @@ void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
 
     if (selectionPass) {
         const qreal pixelRatio = devicePixelRatioF();
-        const quint32 id = selectionRenderer.readPixel(
+        const quint32 id = renderer->readSelection(
             qFloor(selectionPosition.x() * pixelRatio),
-            selectionRenderer.height() - qFloor(selectionPosition.y() * pixelRatio) - 1);
-        selectionRenderer.end();
+            selectionHeight - qFloor(selectionPosition.y() * pixelRatio) - 1);
+        renderer->endSelection();
         if(id > 0 && id <= static_cast<quint32>(con->engItems.size())){
             const int index = static_cast<int>(id - 1);
             con->select(index);
@@ -314,12 +344,13 @@ void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
         
     }
     
-    gluu->currentShader->release();
+    renderer->releaseProgram();
     Game::shadowsEnabled = shadowsState;
 }
 
 void ShapeViewerGLWidget::renderGathered(quint32 selectionId) {
     renderer->resetFrame();
+    renderer->setSceneProjection(sceneProjection, sceneNear, sceneFar);
     renderer->setViewPosition(camera->getPos());
     RenderQueue &queue = *renderer;
     float *mv = renderer->transform();
@@ -349,7 +380,7 @@ void ShapeViewerGLWidget::getImg() {
     return;
 }
 
-void ShapeViewerGLWidget::resizeGL(int w, int h) {
+void ShapeViewerGLWidget::surfaceResize(int w, int h) {
 }
 
 void ShapeViewerGLWidget::keyPressEvent(QKeyEvent * event) {

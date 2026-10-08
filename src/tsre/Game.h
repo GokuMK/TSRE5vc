@@ -75,7 +75,6 @@ public:
     static float objectLod;
     static float distantLod;
     static int tileLod;
-    static int allowObjLag;
     static int objectLoadingTokens;
     static int maxObjLag;
     static bool ignoreLoadLimits;
@@ -91,9 +90,6 @@ public:
     static void check_coords(T&& x, T&& z, float* p);
     template<class T, class K>
     static void check_coords(T&& x, T&& z, K&& px, K&& pz);
-    static int start;
-    static int startTileX;
-    static int startTileY;
     static bool ignoreMissingGlobalShapes;
     static bool deleteTrWatermarks;
     static bool deleteViewDbSpheres;
@@ -148,6 +144,9 @@ public:
     static int shadowMapSize;
     static int shadowLowMapSize;
     static int shadowsEnabled;
+    // Renderer chosen at startup: "opengl" or "qrhi", and the QRhi API.
+    static QString renderBackend;
+    static QString rhiApi;
     // Environment cube map for reflections (see EnvironmentMap).
     static bool environmentMapEnabled;
     // MSTS parts marked as blended: 0 as marked, 1 opaque when their texture
@@ -163,6 +162,24 @@ public:
     static bool waterShaded;
     // Shaded water mirrors the scene around it (PlanarReflection).
     static bool waterReflection;
+    // Light from punctual lights and emissive surfaces (QRhi renderer, task
+    // 21): on or off, the scale of punctual lights and of emissive ones.
+    static bool localLightsEnabled;
+    // Ambient occlusion on the QRhi renderer: 0 off, 1 low, 2 medium, 3 high.
+    static int ambientOcclusionQuality;
+    // QRhi renderer image: tone curve (0 off, 1 soft shoulder, 2 ACES,
+    // 3 AgX), exposure in stops and bloom strength (0 off).
+    static int toneMapping;
+    static float exposure;
+    static float bloomStrength;
+    // Time of day in the Route Editor: the sun stands where it would over
+    // the camera at this local mean solar time (hours) and date
+    // (yyyy-MM-dd); off, the fixed editor light.
+    static bool timeOfDayEnabled;
+    static float timeOfDayHours;
+    static QString timeOfDayDate;
+    static float localLightsExposure;
+    static float localLightsEmissiveGain;
     // Shader animation (water waves) stands still, for repeatable captures.
     static bool animationFrozen;
     static float sunLightDirection[];

@@ -185,7 +185,32 @@ vec4 pbrShade() {
         vec3 diffuse = (1.0 - fresnel) * diffuseAlbedo / PbrPi;
         color += (diffuse + specular) * sun * nDotL;
     }
+#ifdef TSRE_RHI
+    // Lamps and glowing surfaces, shaded as the sun is.
+    vec3 coatLocal = vec3(0.0);
+    ivec2 lightCell = localLightCell(vWorldPosition);
+    for (int i = 0; i < lightCell.y; ++i) {
+        vec3 lightDir, radiance;
+        if (!localLight(lightCell.x + i, vWorldPosition, lightDir, radiance))
+            continue;
+        float lightNDotL = max(dot(n, lightDir), 0.0);
+        if (lightNDotL > 0.0) {
+            vec3 fresnel;
+            vec3 specular = ggxSpecular(n, v, lightDir, roughness, f0, f90, fresnel);
+            color += ((1.0 - fresnel) * diffuseAlbedo / PbrPi + specular) * radiance * lightNDotL;
+        }
+        float lightCoatNDotL = max(dot(coatNormal, lightDir), 0.0);
+        if (coat > 0.0 && lightCoatNDotL > 0.0) {
+            vec3 fresnel;
+            coatLocal += coat * ggxSpecular(coatNormal, v, lightDir, coatRoughness, vec3(0.04), fresnel)
+                    * radiance * lightCoatNDotL;
+        }
+    }
+#endif
     color *= 1.0 - coatFresnel;
+#ifdef TSRE_RHI
+    color += coatLocal;
+#endif
     float coatNDotL = max(dot(coatNormal, l), 0.0);
     if (coat > 0.0 && coatNDotL > 0.0) {
         vec3 fresnel;
@@ -211,6 +236,9 @@ vec4 pbrShade() {
                 + coat * coatReflected * environmentBrdf(vec3(0.04), coatRoughness, coatNDotV);
     }
     color += environment * occlusion;
+#ifdef TSRE_RHI
+    vec3 ambientLight = environment * occlusion * colorBrightness;
+#endif
     color *= colorBrightness;
 
     // Transmission: the light from behind replaces the diffuse part of
@@ -221,11 +249,18 @@ vec4 pbrShade() {
                 * (vec3(1.0) - environmentBrdf(f0, f90, roughness, nDotV))
                 * base.rgb * transmittedLight(n, v, roughness);
 
-    // Emission adds its own colour only; it does not light other surfaces.
+    // Emission adds its own colour; on the QRhi renderer emitters placed on
+    // it also light other surfaces (task 21) and its glow feeds bloom.
     vec3 emissive = pbrEmissive;
     if ((pbrTextures & 8) != 0)
         emissive *= toLinear(texture(pbrEmissiveMap, pbrUv(4)).rgb);
     color += emissive;
 
+#ifdef TSRE_RHI
+    pbrGlowOut = vec4(emissive * (1.0 - fogFactor), alpha);
+    // The display-space share of the environment light, after fog.
+    pbrAmbientOut = vec4((toDisplay(color) - toDisplay(max(color - ambientLight, vec3(0.0))))
+                         * (1.0 - fogFactor), alpha);
+#endif
     return vec4(mix(toDisplay(color), skyColor.rgb, fogFactor), alpha);
 }

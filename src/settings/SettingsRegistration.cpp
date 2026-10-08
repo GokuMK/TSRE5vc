@@ -188,6 +188,16 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
            QT_TRID_NOOP("settings.group.rendering.subgroup.water.name"),
            //% "How route water surfaces are drawn."
            QT_TRID_NOOP("settings.group.rendering.subgroup.water.description"), 47},
+          {"lights",
+           //% "Local lights"
+           QT_TRID_NOOP("settings.group.rendering.subgroup.lights.name"),
+           //% "Light from lamps and glowing surfaces in the scene (QRhi renderer)."
+           QT_TRID_NOOP("settings.group.rendering.subgroup.lights.description"), 48},
+          {"image",
+           //% "Image"
+           QT_TRID_NOOP("settings.group.rendering.subgroup.image.name"),
+           //% "Exposure, tone mapping and glow of the final image (QRhi renderer)."
+           QT_TRID_NOOP("settings.group.rendering.subgroup.image.description"), 49},
           {"environment",
            //% "Environment"
            QT_TRID_NOOP("settings.group.rendering.subgroup.environment.name"),
@@ -476,14 +486,21 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 QT_TRID_NOOP("settings.core.startup.tile.x.name")).withDescriptionId(
                 //% "World tile X coordinate used for the initial Route Editor camera position when both startup tile coordinates are provided."
                 QT_TRID_NOOP("settings.core.startup.tile.x.description")).withRange(-32768, 32767, 1).inGroup("content").inSubgroup("routeStartup"),
-        "startTileX", "Game::startTileX", "Game", false, "startup");
+        "startTileX", "Game::startTileX", "Route Editor startup", false, "startup");
     ADD(SettingsDefinition::integer("core.startup.tileZ", 0)
             .withNameId(
                 //% "Startup tile Z"
                 QT_TRID_NOOP("settings.core.startup.tile.z.name")).withDescriptionId(
                 //% "World tile Z coordinate used for the initial Route Editor camera position; the legacy file calls it startTileY."
                 QT_TRID_NOOP("settings.core.startup.tile.z.description")).withRange(-32768, 32767, 1).inGroup("content").inSubgroup("routeStartup"),
-        "startTileY", "Game::startTileY", "Game", false, "startup");
+        "startTileY", "Game::startTileY", "Route Editor startup", false, "startup");
+    ADD(SettingsDefinition::string("core.startup.camera", "", SettingType::String)
+            .withNameId(
+                //% "Startup camera"
+                QT_TRID_NOOP("settings.core.startup.camera.name")).withDescriptionId(
+                //% "Initial Route Editor camera as tileX,tileZ,x,y,z,yaw,pitch: tile and position as in the navigation window, angles in degrees (yaw and pitch may be left out). Tools > Copy Camera Position copies the current one. Overrides the startup tile and the route's starting position; empty to leave them."
+                QT_TRID_NOOP("settings.core.startup.camera.description")).inGroup("content").inSubgroup("routeStartup"),
+        "", "", "Route Editor startup", false, "startup");
     ADD(SettingsDefinition::string("core.startup.season", "", SettingType::Enum)
             .withNameId(
                 //% "Content season"
@@ -673,16 +690,23 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
             .withNameId(
                 //% "Object loading budget target"
                 QT_TRID_NOOP("settings.core.rendering.object.loading.target.tokens.name")).withDescriptionId(
-                //% "Target token level for incremental shape loading. Rendering replenishes two tokens per update when the current token count is below this value."
+                //% "Pace of loading on the main thread: forests, transfers, and shapes when threaded shape loading is off. Each load takes two tokens; rendering adds two per update up to this level."
                 QT_TRID_NOOP("settings.core.rendering.object.loading.target.tokens.description")).withRange(0, 10000, 1).inGroup("rendering").inSubgroup("visibility").applies("dynamic").asAdvanced(),
         "maxObjLag", "Game::maxObjLag", "Shape loading scheduler", true, "hot-cache");
-    ADD(SettingsDefinition::integer("core.rendering.objectLoading.initialTokens", 1000)
+    ADD(SettingsDefinition::boolean("core.rendering.threadedShapeLoading", true)
             .withNameId(
-                //% "Initial object loading tokens"
-                QT_TRID_NOOP("settings.core.rendering.object.loading.initial.tokens.name")).withDescriptionId(
-                //% "Initial value of the separate runtime token counter consumed while shapes load. Changing this setting at runtime resets the counter; normal counter consumption and refilling never modify the saved setting."
-                QT_TRID_NOOP("settings.core.rendering.object.loading.initial.tokens.description")).withRange(0, 100000, 2).inGroup("rendering").inSubgroup("visibility").applies("dynamic").asAdvanced(),
-        "allowObjLag", "Game::allowObjLag", "Shape loading scheduler", true, "session-state");
+                //% "Threaded shape loading"
+                QT_TRID_NOOP("settings.core.rendering.threaded.shape.loading.name")).withDescriptionId(
+                //% "Load shapes (MSTS and glTF) on worker threads. Off: shapes load on the main thread, paced by the object loading budget. Either way, the first view of a route and the view after a camera jump are shown with their shapes loaded. Applies after a restart."
+                QT_TRID_NOOP("settings.core.rendering.threaded.shape.loading.description")).inGroup("rendering").inSubgroup("visibility"),
+        "", "", "ShapeLoader", false, "startup");
+    ADD(SettingsDefinition::integer("core.rendering.objectLoading.parallelShapes", 4)
+            .withNameId(
+                //% "Shapes loaded at once"
+                QT_TRID_NOOP("settings.core.rendering.object.loading.parallel.shapes.name")).withDescriptionId(
+                //% "Shapes loading at once on worker threads when threaded shape loading is on. Applies after a restart."
+                QT_TRID_NOOP("settings.core.rendering.object.loading.parallel.shapes.description")).withRange(1, 32, 1).inGroup("rendering").inSubgroup("visibility").asAdvanced(),
+        "", "", "ShapeLoader", false, "startup");
     ADD(SettingsDefinition::string("core.rendering.terrainMesh", "paged", SettingType::Enum)
             .withNameId(
                 //% "Terrain mesh backend"
@@ -695,6 +719,32 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "On GPU / Experimental"
                 QT_TRID_NOOP("settings.core.rendering.terrain.mesh.option.paged")}})).inGroup("rendering").inSubgroup("pipeline").applies("routeReload").asAdvanced(),
         "terrainMesh", "Game::terrainMeshMode", "Terrain renderer", true, "route-reload");
+    ADD(SettingsDefinition::string("core.rendering.backend", "opengl", SettingType::Enum)
+            .withNameId(
+                //% "Renderer"
+                QT_TRID_NOOP("settings.core.rendering.backend.name")).withDescriptionId(
+                //% "The OpenGL renderer, or the experimental QRhi renderer (Vulkan, Metal, Direct3D or OpenGL through Qt). Applies after a restart."
+                QT_TRID_NOOP("settings.core.rendering.backend.description"))
+            .withOptions(choices({{"opengl",
+                //% "OpenGL"
+                QT_TRID_NOOP("settings.core.rendering.backend.option.opengl")}, {"qrhi",
+                //% "QRhi / Experimental"
+                QT_TRID_NOOP("settings.core.rendering.backend.option.qrhi")}})).inGroup("rendering").inSubgroup("pipeline").asAdvanced(),
+        "renderBackend", "Game::renderBackend", "RouteEditorGLWidget", false, "renderer-restart");
+    ADD(SettingsDefinition::string("core.rendering.rhiApi", "auto", SettingType::Enum)
+            .withNameId(
+                //% "QRhi graphics API"
+                QT_TRID_NOOP("settings.core.rendering.rhi.api.name")).withDescriptionId(
+                //% "Graphics API of the QRhi renderer. Automatic uses Vulkan; without Vulkan the editor uses the OpenGL renderer. OpenGL runs the QRhi renderer on OpenGL, slower than the OpenGL renderer for now. Applies after a restart."
+                QT_TRID_NOOP("settings.core.rendering.rhi.api.description"))
+            .withOptions(choices({{"auto",
+                //% "Automatic"
+                QT_TRID_NOOP("settings.core.rendering.rhi.api.option.auto")}, {"vulkan",
+                //% "Vulkan"
+                QT_TRID_NOOP("settings.core.rendering.rhi.api.option.vulkan")}, {"opengl",
+                //% "OpenGL"
+                QT_TRID_NOOP("settings.core.rendering.rhi.api.option.opengl")}})).inGroup("rendering").inSubgroup("pipeline").asAdvanced(),
+        "rhiApi", "Game::rhiApi", "RouteEditorGLWidget", false, "renderer-restart");
     ADD(SettingsDefinition::boolean("core.rendering.threadedTextureLoading", true)
             .withNameId(
                 //% "Threaded texture loading"
@@ -866,6 +916,73 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Shaded water mirrors the terrain, objects and sky around it, from an extra half-resolution view drawn when water is in sight. When off, water reflects the environment map or a sky gradient only."
                 QT_TRID_NOOP("settings.core.rendering.water.reflection.description")).inGroup("rendering").inSubgroup("water"),
         "waterReflection", "Game::waterReflection", "RouteEditorGLWidget", true, "hot-cache");
+    ADD(SettingsDefinition::boolean("core.rendering.localLights.enabled", true)
+            .withNameId(
+                //% "Local lights"
+                QT_TRID_NOOP("settings.core.rendering.local.lights.enabled.name")).withDescriptionId(
+                //% "glTF lamps and emissive surfaces light the scene around them. QRhi renderer only."
+                QT_TRID_NOOP("settings.core.rendering.local.lights.enabled.description")).inGroup("rendering").inSubgroup("lights"),
+        "localLightsEnabled", "Game::localLightsEnabled", "RouteEditorGLWidget", true, "hot-cache");
+    ADD(SettingsDefinition::enumeration("core.rendering.ambientOcclusion", 0)
+            .withNameId(
+                //% "Ambient occlusion"
+                QT_TRID_NOOP("settings.core.rendering.ambient.occlusion.name")).withDescriptionId(
+                //% "Darkens ambient light in corners, under objects and where surfaces meet, computed from the view's depth (QRhi renderer). Higher quality costs more time per frame."
+                QT_TRID_NOOP("settings.core.rendering.ambient.occlusion.description"))
+            .withOptions(numericChoices({{0,
+                //% "Off"
+                QT_TRID_NOOP("settings.core.rendering.ambient.occlusion.option.off")}, {1,
+                //% "Low"
+                QT_TRID_NOOP("settings.core.rendering.ambient.occlusion.option.low")}, {2,
+                //% "Medium"
+                QT_TRID_NOOP("settings.core.rendering.ambient.occlusion.option.medium")}, {3,
+                //% "High"
+                QT_TRID_NOOP("settings.core.rendering.ambient.occlusion.option.high")}})).inGroup("rendering").inSubgroup("lights"),
+        "ambientOcclusionQuality", "Game::ambientOcclusionQuality", "RouteEditorGLWidget", true, "hot-cache");
+    ADD(SettingsDefinition::enumeration("core.rendering.toneMapping", 0)
+            .withNameId(
+                //% "Tone mapping"
+                QT_TRID_NOOP("settings.core.rendering.tone.mapping.name")).withDescriptionId(
+                //% "How light brighter than white (lamps, glowing surfaces, sun glints) is fitted to the screen. Off clips it as before; Soft shoulder keeps the usual look and only rolls off highlights; ACES and AgX are filmic curves that also change mid-tones. QRhi renderer."
+                QT_TRID_NOOP("settings.core.rendering.tone.mapping.description"))
+            .withOptions(numericChoices({{0,
+                //% "Off"
+                QT_TRID_NOOP("settings.core.rendering.tone.mapping.option.off")}, {1,
+                //% "Soft shoulder"
+                QT_TRID_NOOP("settings.core.rendering.tone.mapping.option.soft")}, {2,
+                //% "ACES"
+                QT_TRID_NOOP("settings.core.rendering.tone.mapping.option.aces")}, {3,
+                //% "AgX"
+                QT_TRID_NOOP("settings.core.rendering.tone.mapping.option.agx")}})).inGroup("rendering").inSubgroup("image"),
+        "toneMapping", "Game::toneMapping", "RouteEditorGLWidget", true, "hot-cache");
+    ADD(SettingsDefinition::floating("core.rendering.exposure", 0.0)
+            .withNameId(
+                //% "Exposure"
+                QT_TRID_NOOP("settings.core.rendering.exposure.name")).withDescriptionId(
+                //% "Brightens (positive) or darkens (negative) the final image, in stops: +1 doubles the light. QRhi renderer."
+                QT_TRID_NOOP("settings.core.rendering.exposure.description")).withRange(-4, 4, 0.25).withUnit("EV").inGroup("rendering").inSubgroup("image"),
+        "exposure", "Game::exposure", "RouteEditorGLWidget", true, "hot-cache");
+    ADD(SettingsDefinition::floating("core.rendering.bloom", 0.0)
+            .withNameId(
+                //% "Glow (bloom)"
+                QT_TRID_NOOP("settings.core.rendering.bloom.name")).withDescriptionId(
+                //% "Strength of the halo around light-emitting surfaces such as lamps and signal or train lights. Only emitted light glows, never surfaces that are merely bright. 0 turns it off. QRhi renderer."
+                QT_TRID_NOOP("settings.core.rendering.bloom.description")).withRange(0, 4, 0.05).inGroup("rendering").inSubgroup("image"),
+        "bloomStrength", "Game::bloomStrength", "RouteEditorGLWidget", true, "hot-cache");
+    ADD(SettingsDefinition::floating("core.rendering.localLights.exposure", 1.0)
+            .withNameId(
+                //% "Lamp brightness"
+                QT_TRID_NOOP("settings.core.rendering.local.lights.exposure.name")).withDescriptionId(
+                //% "Scale of glTF lamp intensities. At 1 a lamp of 1 candela lights a white surface 1 m away to 1/pi of the sun's light, as in the Khronos sample viewer."
+                QT_TRID_NOOP("settings.core.rendering.local.lights.exposure.description")).withRange(0, 100, 0.1).inGroup("rendering").inSubgroup("lights"),
+        "localLightsExposure", "Game::localLightsExposure", "RouteEditorGLWidget", true, "hot-cache");
+    ADD(SettingsDefinition::floating("core.rendering.localLights.emissiveGain", 1.0)
+            .withNameId(
+                //% "Glow brightness"
+                QT_TRID_NOOP("settings.core.rendering.local.lights.emissive.gain.name")).withDescriptionId(
+                //% "Scale of the light emissive surfaces cast. At 1 a surface lights its surroundings as a lamp of its brightness and size would."
+                QT_TRID_NOOP("settings.core.rendering.local.lights.emissive.gain.description")).withRange(0, 1000, 1).inGroup("rendering").inSubgroup("lights"),
+        "localLightsEmissiveGain", "Game::localLightsEmissiveGain", "RouteEditorGLWidget", true, "hot-cache");
     ADD(SettingsDefinition::integer("core.rendering.defaultLineWidth", 1)
             .withNameId(
                 //% "Default line width"
@@ -894,6 +1011,27 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Base clear colour copied into the scene renderer."
                 QT_TRID_NOOP("settings.core.rendering.sky.color.description")).inGroup("rendering").inSubgroup("environment"),
         "skyColor", "Game::skyColor", "GLUU", false, "renderer-construction");
+    ADD(SettingsDefinition::boolean("core.rendering.timeOfDay.enabled", false)
+            .withNameId(
+                //% "Time of day"
+                QT_TRID_NOOP("settings.core.rendering.time.of.day.enabled.name")).withDescriptionId(
+                //% "Light the Route Editor as the sun would at the camera's latitude and longitude at the time and date below: sun direction, shadows, light and sky colours. When off, the editor uses its fixed light."
+                QT_TRID_NOOP("settings.core.rendering.time.of.day.enabled.description")).inGroup("rendering").inSubgroup("environment"),
+        "timeOfDayEnabled", "Game::timeOfDayEnabled", "RouteEditorGLWidget", true, "hot-cache");
+    ADD(SettingsDefinition::floating("core.rendering.timeOfDay.time", 12.0)
+            .withNameId(
+                //% "Time"
+                QT_TRID_NOOP("settings.core.rendering.time.of.day.time.name")).withDescriptionId(
+                //% "Local mean solar time in hours: 12 is when the sun is highest on average, whatever the route's time zone."
+                QT_TRID_NOOP("settings.core.rendering.time.of.day.time.description")).withRange(0, 24, 0.25).withUnit("h").inGroup("rendering").inSubgroup("environment"),
+        "timeOfDayHours", "Game::timeOfDayHours", "RouteEditorGLWidget", true, "hot-cache");
+    ADD(SettingsDefinition::string("core.rendering.timeOfDay.date", "2026-06-21", SettingType::String)
+            .withNameId(
+                //% "Date"
+                QT_TRID_NOOP("settings.core.rendering.time.of.day.date.name")).withDescriptionId(
+                //% "Date for the sun's path, as yyyy-MM-dd."
+                QT_TRID_NOOP("settings.core.rendering.time.of.day.date.description")).inGroup("rendering").inSubgroup("environment"),
+        "timeOfDayDate", "Game::timeOfDayDate", "RouteEditorGLWidget", true, "hot-cache");
     ADD(SettingsDefinition::boolean("core.rendering.renderTrackItems", false)
             .withNameId(
                 //% "Render TrackDB items"

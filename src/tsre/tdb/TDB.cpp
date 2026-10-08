@@ -38,6 +38,8 @@
 #include <tsre/ErrorMessagesLib.h>
 #include <tsre/ErrorMessage.h>
 #include <tsre/world/Route.h>
+#include <algorithm>
+#include <vector>
 
 std::unordered_map<int, TRitem*>* TDB::StaticTrackItems;
 
@@ -2762,31 +2764,63 @@ int TDB::findNearestPositionsOnTDB(float* posT, float * pos, QVector<TDB::Inters
     return minDistance;
 }
 
-void TDB::fillNearestSquaredDistanceToTDBXZ(float* posT, QVector<Vector4f> &points, float* bbox){
+void TDB::fillNearestSquaredDistanceToTDBXZ(float* posT, QVector<Vector4f> &points, float* bbox, float limit){
     float *lineBuffer;
     int length = 0;
     getLines(lineBuffer, length, posT);
-    
-    float dist = 0;
-    int yyy = 0;
-    for(int i = 0; i < length*12; i+=12){
-        if(bbox != NULL){
-            if((lineBuffer[i] < bbox[0] && lineBuffer[i+6] < bbox[0] ) || (lineBuffer[i] > bbox[1] && lineBuffer[i+6] > bbox[1] )){
-                //yyy++;
-                continue;
-            }
-            if((lineBuffer[i+2] < bbox[2] && lineBuffer[i+8] < bbox[2] ) || (lineBuffer[i+2] > bbox[3] && lineBuffer[i+8] > bbox[3] )){
-                //yyy++;
-                continue;
-            }
-        }
-        for(int j = 0; j < points.size(); j++){
-            dist = Intersections::pointSegmentSquaredDistanceXZ(lineBuffer + i, lineBuffer + i+6, (float*)&points[j]);
-            if(dist < points[j].c)
-                points[j].c = dist;
-        }
+    if (length <= 0 || points.isEmpty())
+        return;
+    auto skipped = [&](int i) {
+        return bbox != NULL
+                && (((lineBuffer[i] < bbox[0] && lineBuffer[i+6] < bbox[0]) || (lineBuffer[i] > bbox[1] && lineBuffer[i+6] > bbox[1]))
+                    || ((lineBuffer[i+2] < bbox[2] && lineBuffer[i+8] < bbox[2]) || (lineBuffer[i+2] > bbox[3] && lineBuffer[i+8] > bbox[3])));
+    };
+    auto measure = [&](int i, int j) {
+        const float dist = Intersections::pointSegmentSquaredDistanceXZ(lineBuffer + i, lineBuffer + i+6, (float*)&points[j]);
+        if (dist < points[j].c)
+            points[j].c = dist;
+    };
+    if (limit <= 0) {
+        for (int i = 0; i < length*12; i+=12)
+            if (!skipped(i))
+                for (int j = 0; j < points.size(); j++)
+                    measure(i, j);
+        return;
     }
-    //qDebug() << yyy << length;
+    // The points in a grid of cells at least limit wide: a line meets only
+    // the points in the cells within limit of it (a forest of tens of
+    // thousands of trees against every line took tens of milliseconds).
+    float low[2] = {points[0].x, points[0].z}, high[2] = {points[0].x, points[0].z};
+    for (const Vector4f &p : points) {
+        low[0] = std::min(low[0], p.x); high[0] = std::max(high[0], p.x);
+        low[1] = std::min(low[1], p.z); high[1] = std::max(high[1], p.z);
+    }
+    const float cell = std::max(limit, std::max(high[0] - low[0], high[1] - low[1]) / 512.0f);
+    const int columns = int((high[0] - low[0]) / cell) + 1, rows = int((high[1] - low[1]) / cell) + 1;
+    auto column = [&](float x) { return std::clamp(int((x - low[0]) / cell), 0, columns - 1); };
+    auto row = [&](float z) { return std::clamp(int((z - low[1]) / cell), 0, rows - 1); };
+    std::vector<int> first(size_t(columns) * rows + 1, 0), order(points.size());
+    for (const Vector4f &p : points)
+        first[size_t(row(p.z)) * columns + column(p.x) + 1]++;
+    for (size_t c = 1; c < first.size(); ++c)
+        first[c] += first[c - 1];
+    std::vector<int> next(first.begin(), first.end() - 1);
+    for (int j = 0; j < points.size(); ++j)
+        order[next[size_t(row(points[j].z)) * columns + column(points[j].x)]++] = j;
+    for (int i = 0; i < length*12; i+=12) {
+        if (skipped(i))
+            continue;
+        const float x0 = std::min(lineBuffer[i], lineBuffer[i+6]) - limit, x1 = std::max(lineBuffer[i], lineBuffer[i+6]) + limit;
+        const float z0 = std::min(lineBuffer[i+2], lineBuffer[i+8]) - limit, z1 = std::max(lineBuffer[i+2], lineBuffer[i+8]) + limit;
+        if (x1 < low[0] || x0 > high[0] || z1 < low[1] || z0 > high[1])
+            continue;
+        for (int r = row(z0); r <= row(z1); ++r)
+            for (int c = column(x0); c <= column(x1); ++c) {
+                const size_t at = size_t(r) * columns + c;
+                for (int k = first[at]; k < first[at + 1]; ++k)
+                    measure(i, order[k]);
+            }
+    }
 }
 
 bool TDB::getSegmentIntersectionPositionOnTDB(float* posT, float* segment, float len, float* pos, float * q, float* tpos){

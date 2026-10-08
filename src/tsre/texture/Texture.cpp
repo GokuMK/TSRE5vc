@@ -26,6 +26,7 @@
 #include <tsre/texture/DxtCodec.h>
 #include <tsre/texture/TextureAlpha.h>
 #include <tsre/texture/AceDocument.h>
+#include <tsre/renderer/rhi/RhiTextures.h>
 #include <algorithm>
 #include <cstring>
 #include <cmath>
@@ -333,7 +334,9 @@ void Texture::takeContentFrom(Texture &other) {
     if (reusable)
         tex = nullptr;
     // Moving an already GPU-resident source still requires the owning context.
-    if (tex && tex[0] && QOpenGLContext::currentContext())
+    if (tex && tex[0] && Game::renderBackend == "qrhi")
+        RhiTextures::release(tex[0]);
+    else if (tex && tex[0] && QOpenGLContext::currentContext())
         glDeleteTextures(1, tex);
     delete[] tex;
     tex = nullptr;
@@ -611,7 +614,173 @@ Texture::~Texture() {
     // Existing callers own/free the legacy raw pointers. New containers are RAII.
 }
 
+// QRhi renderer: the pixels go to an RhiTextures texture, whose handle takes
+// the place of the OpenGL texture name. The texture always has all mipmap
+// levels; gpuMipmaps tells the renderer whether to sample them, as an OpenGL
+// texture uploaded without mipmaps has none.
+// QRhi renderer: DXT data goes to the GPU as it is, as GLTextures uploads it
+// to OpenGL. DXT1 with alpha has no QRhi format and goes as BC3 (twice its
+// size, a quarter of decoded RGBA); a chain of mipmaps that stops before 1x1
+// when mipmaps are wanted is decoded.
+static bool uploadCompressedForRhi(Texture &t, bool mipmaps) {
+    const int format = t.compressedGLFormat;
+    if (t.compressedData.isEmpty() || !dxtBlockBytes(format) ||
+        t.compressedData.size() != DxtCodec::byteSize(t.width, t.height, codecFormat(format)) ||
+        !RhiTextures::supportsBlocks())
+        return false;
+    const DxtCodec::Format codec = codecFormat(format);
+    QVector<QByteArray> levels{t.compressedData};
+    int previousW = t.width, previousH = t.height;
+    for (const TextureMip &mip : std::as_const(t.sourceMipmaps)) {
+        if (mip.width != std::max(1, previousW / 2) || mip.height != std::max(1, previousH / 2))
+            break;
+        QByteArray blocks = mip.data;
+        if (mip.compressedFormat != format) {
+            if (mip.compressedFormat)
+                break;
+            // ACE tiny tails are planar: encode only these tiny levels, as
+            // GLTextures does.
+            QString message;
+            if (!DxtCodec::encode(reinterpret_cast<const unsigned char *>(mip.data.constData()),
+                                  mip.data.size(), mip.width, mip.height, t.bytesPerPixel, codec,
+                                  t.type == GL_RGBA, blocks, message))
+                break;
+        }
+        if (blocks.size() != DxtCodec::byteSize(mip.width, mip.height, codec))
+            break;
+        levels.push_back(blocks);
+        previousW = mip.width;
+        previousH = mip.height;
+    }
+    int fullChain = 1;
+    for (int n = std::max(t.width, t.height); n > 1; n >>= 1)
+        ++fullChain;
+    if (levels.size() < fullChain) {
+        if (mipmaps)
+            return false;
+        levels.resize(1);
+    }
+    int gpuFormat = format;
+    if (format == GL_COMPRESSED_RGBA_S3TC_DXT1_EXT) {
+        for (QByteArray &level : levels)
+            if (!DxtCodec::dxt1ToBc3(level, level))
+                return false;
+        gpuFormat = GL_COMPRESSED_RGBA_S3TC_DXT5_EXT;
+    }
+    const RhiTextures::Blocks blocks = gpuFormat == GL_COMPRESSED_RGB_S3TC_DXT1_EXT
+            ? RhiTextures::Blocks::Bc1
+            : gpuFormat == GL_COMPRESSED_RGBA_S3TC_DXT3_EXT ? RhiTextures::Blocks::Bc2
+                                                            : RhiTextures::Blocks::Bc3;
+    if (t.tex != nullptr)
+        RhiTextures::release(t.tex[0]);
+    const unsigned int handle = RhiTextures::createCompressed(t.width, t.height, blocks, levels);
+    if (handle == 0)
+        return false;
+    if (t.tex == nullptr)
+        t.tex = new unsigned int[1]{};
+    t.tex[0] = handle;
+    RhiTextures::setSampling(handle, mipmaps, false);
+    t.gpuInternalFormat = gpuFormat;
+    t.gpuMipmaps = mipmaps;
+    t.gpuMipLevels = int(levels.size());
+    delete[] t.imageData;
+    t.imageData = nullptr;
+    t.editable = false;
+    t.compressedData.clear();
+    t.compressedGLFormat = 0;
+    t.sourceMipmaps.clear();
+    t.glLoaded = true;
+    return true;
+}
+
+bool Texture::uploadForRhi(bool mipmaps) {
+    if (!loaded || width <= 0 || height <= 0 || (bytesPerPixel != 3 && bytesPerPixel != 4))
+        return false;
+    if (glLoaded) {
+        if (mipmaps && !gpuMipmaps && tex != nullptr) {
+            gpuMipmaps = true;
+            RhiTextures::setSampling(tex[0], true, RhiTextures::clampedToEdge(tex[0]));
+        }
+        return true;
+    }
+    if (uploadCompressedForRhi(*this, mipmaps))
+        return true;
+    if (!decodeToCpu())
+        return false;
+    if (Game::AASamples > 0 && Game::AARemoveBorder && type == GL_RGBA) {
+        for (int y = 0; y < height; ++y) {
+            imageData[(qsizetype(y) * width) * 4 + 3] = 0;
+            imageData[(qsizetype(y) * width + width - 1) * 4 + 3] = 0;
+        }
+        for (int x = 0; x < width; ++x) {
+            imageData[x * 4 + 3] = 0;
+            imageData[(qsizetype(height - 1) * width + x) * 4 + 3] = 0;
+        }
+        sourceMipmaps.clear();
+    }
+    // RGBA levels: the base, then the texture's own mipmaps when they chain.
+    auto toRgba = [this](const unsigned char *pixels, int w, int h) {
+        QByteArray rgba(qsizetype(w) * h * 4, char(255));
+        if (bytesPerPixel == 4) {
+            std::memcpy(rgba.data(), pixels, rgba.size());
+        } else {
+            for (qsizetype i = 0; i < qsizetype(w) * h; ++i)
+                std::memcpy(rgba.data() + i * 4, pixels + i * 3, 3);
+        }
+        return rgba;
+    };
+    QVector<QByteArray> levels;
+    levels.push_back(toRgba(imageData, width, height));
+    if (mipmaps) {
+        int previousW = width, previousH = height;
+        for (const TextureMip &mip : std::as_const(sourceMipmaps)) {
+            if (mip.width != std::max(1, previousW / 2) || mip.height != std::max(1, previousH / 2))
+                break;
+            QByteArray decoded;
+            QString message;
+            const QByteArray *data = &mip.data;
+            if (mip.compressedFormat) {
+                if (!DxtCodec::decode(mip.data, mip.width, mip.height,
+                                      codecFormat(mip.compressedFormat), type == GL_RGBA,
+                                      decoded, message))
+                    break;
+                data = &decoded;
+            }
+            if (data->size() != qsizetype(mip.width) * mip.height * bytesPerPixel)
+                break;
+            levels.push_back(toRgba(reinterpret_cast<const unsigned char *>(data->constData()),
+                                    mip.width, mip.height));
+            previousW = mip.width;
+            previousH = mip.height;
+        }
+    }
+    if (tex != nullptr)
+        RhiTextures::release(tex[0]);
+    const unsigned int handle = RhiTextures::create(width, height, levels);
+    if (handle == 0)
+        return false;
+    if (tex == nullptr)
+        tex = new unsigned int[1]{};
+    tex[0] = handle;
+    RhiTextures::setSampling(handle, mipmaps, false);
+    gpuInternalFormat = GL_RGBA8;
+    gpuMipmaps = mipmaps;
+    gpuMipLevels = 1;
+    for (int n = std::max(width, height); n > 1; n >>= 1)
+        ++gpuMipLevels;
+    delete[] imageData;
+    imageData = nullptr;
+    editable = false;
+    compressedData.clear();
+    compressedGLFormat = 0;
+    sourceMipmaps.clear();
+    glLoaded = true;
+    return true;
+}
+
 bool Texture::GLTextures(bool mipmaps) {
+    if (Game::renderBackend == "qrhi")
+        return uploadForRhi(mipmaps);
     auto *context = QOpenGLContext::currentContext();
     if (!loaded || !context || width <= 0 || height <= 0 ||
         (bytesPerPixel != 3 && bytesPerPixel != 4))

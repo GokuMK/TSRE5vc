@@ -47,13 +47,7 @@ uniform float terrainSampleSpacing;
 uniform int terrainApplyGaps;
 uniform int terrainMapPass;
 
-struct TerrainPatchParams {
-    vec4 uvAndOriginX;
-    vec4 uvAndOriginZ;
-};
-layout(std140) uniform TerrainPatchBlock {
-    TerrainPatchParams terrainPatch[256];
-};
+#include "TerrainPatch.glsl"
 #endif
 
 out vec2 vTextureCoord;
@@ -67,20 +61,36 @@ out vec4 shadow0Pos;
 out float vAlpha;
 out float vTerrainGap;
 out vec2 vTerrainMapCoord;
+#ifdef TSRE_RHI
+// QRhi does not enable clip distances on every backend: the fragment
+// shader discards below the clip plane instead.
+out float vClipDistance;
+// Position in submission space, for the local lights.
+out vec3 vLightPosition;
+#endif
 
 void main() {
+    // QRhi has no packed 2_10_10_10 vertex format: the paged terrain normal
+    // and gap flag arrive as unsigned bytes, round(v * 127) + 128. Round
+    // back to the byte: GPUs may turn 128/255 * 255 into a little over 128,
+    // and a gap flag above zero discards the fragment.
+    vec4 vertexNormal = normal;
+#if defined(TSRE_RHI) && defined(TSRE_TERRAIN)
+    if (terrainPaged != 0)
+        vertexNormal = (round(normal * 255.0) - 128.0) / 127.0;
+#endif
     mat4 modelView = instanceModelView();
     vModelView = modelView;
     vec4 renderVertex = vertex;
     vec2 renderUv = aTextureCoord;
 #ifdef TSRE_TERRAIN
     if (terrainPaged != 0) {
-        int patchSlot = gl_VertexID / terrainVerticesPerPatch;
-        int localVertexId = gl_VertexID - patchSlot * terrainVerticesPerPatch;
+        int patchSlot = terrainVertexId() / terrainVerticesPerPatch;
+        int localVertexId = terrainVertexId() - patchSlot * terrainVerticesPerPatch;
         int localSampleZ = localVertexId / terrainPatchSide;
         int localSampleX = localVertexId - localSampleZ * terrainPatchSide;
         vec2 terrainLocalSample = vec2(float(localSampleX), float(localSampleZ));
-        TerrainPatchParams params = terrainPatch[patchSlot];
+        TerrainPatchParams params = terrainPatchParams(patchSlot);
         renderVertex = vec4(params.uvAndOriginX.w + terrainLocalSample.x * terrainSampleSpacing,
                             vertex.x,
                             params.uvAndOriginZ.w + terrainLocalSample.y * terrainSampleSpacing,
@@ -96,7 +106,7 @@ void main() {
     // Look up the shadow maps from a point moved along the normal, further
     // where the surface turns from the sun, so a small depth bias is enough.
     vec4 shadowVertex = modelView * uMSMatrix * renderVertex;
-    vec3 shadowNormal = mat3(modelView) * mat3(uMSMatrix) * normal.xyz;
+    vec3 shadowNormal = mat3(modelView) * mat3(uMSMatrix) * vertexNormal.xyz;
     float shadowNormalLength = length(shadowNormal);
     shadowNormal = shadowNormalLength > 1e-6
             ? shadowNormal/shadowNormalLength*enableNormals : vec3(0.0);
@@ -107,7 +117,7 @@ void main() {
     shadow0Pos = uShadow0PMatrix * (shadowVertex + vec4(shadowOffset*shadowNormalOffset.x, 0.0));
 #ifdef TSRE_PBR
     vWorldPosition = shadowVertex.xyz;
-    vWorldNormal = mat3(modelView) * mat3(uMSMatrix) * normal.xyz;
+    vWorldNormal = mat3(modelView) * mat3(uMSMatrix) * vertexNormal.xyz;
     vWorldTangent = vec4(mat3(modelView) * mat3(uMSMatrix) * tangent.xyz, tangent.w);
     vTextureCoord1 = aTextureCoord1;
     vColor = vertexColor;
@@ -116,7 +126,12 @@ void main() {
     vWorldPosition = shadowVertex.xyz;
 #endif
     gl_Position = uPMatrix * modelView * uMSMatrix * renderVertex;
+#ifdef TSRE_RHI
+    vClipDistance = dot(shadowVertex, clipPlane);
+    vLightPosition = shadowVertex.xyz;
+#else
     gl_ClipDistance[0] = dot(shadowVertex, clipPlane);
+#endif
     vec4 fogPosition = uFMatrix * modelView * uMSMatrix * renderVertex;
 #ifdef TSRE_TERRAIN
     vTextureCoord = renderUv * (1.0 + terrainTextureRemap.x) + terrainTextureRemap.yz;
@@ -132,11 +147,11 @@ void main() {
     fogFactor = abs(fogFactor);
 
 
-    vNormal = normal.xyz;
+    vNormal = vertexNormal.xyz;
 #ifdef TSRE_TERRAIN
     vAlpha = terrainPaged != 0
             ? (terrainMapPass != 0 ? -0.01 : 0.0) : alpha;
-    vTerrainGap = terrainPaged != 0 && terrainApplyGaps != 0 ? normal.w : 0.0;
+    vTerrainGap = terrainPaged != 0 && terrainApplyGaps != 0 ? vertexNormal.w : 0.0;
 #else
     vAlpha = alpha;
     vTerrainGap = 0.0;

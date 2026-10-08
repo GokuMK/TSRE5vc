@@ -16,6 +16,8 @@
 #include <QDateTime>
 #include <QMetaObject>
 #include <QPainter>
+#include <QRegularExpression>
+#include <cmath>
 #include <math.h>
 #include <tsre/ogl/GLUU.h>
 #include <tsre/fileFunctions/ReadFile.h>
@@ -65,7 +67,9 @@
 #include <tsre/renderer/EnvironmentMap.h>
 #include <tsre/renderer/PlanarReflection.h>
 #include <tsre/renderer/SelectionId.h>
-#include <tsre/renderer/SelectionRenderer.h>
+#include <tsre/geo/GeoCoordinates.h>
+#include <tsre/geo/SunPosition.h>
+#include <tsre/world/Daylight.h>
 #include <QDebug>
 #include <algorithm>
 #include <cmath>
@@ -85,6 +89,7 @@
 #include <tsre/world/RouteClient.h>
 #include <tsre/ClientInfo.h>
 #include <tsre/renderer/RenderStats.h>
+#include <tsre/shape/ShapeLoader.h>
 #include <QMessageBox>
 
 // The active 8-byte paged layout derives local X/Z in StandardFog.
@@ -94,19 +99,46 @@
 #define GL_SAMPLES_PASSED 0x8914
 #endif
 
-static const QString MainRenderShaderName = "StandardFog";
 // Objects farther than this are left out of the water reflection.
 static const float WaterReflectionObjectDistance = 500.0f;
 static constexpr unsigned long long LiveContinuousUpdateIntervalMs = 50;
 
 RouteEditorGLWidget::RouteEditorGLWidget(QWidget *parent)
-: QOpenGLWidget(parent),
+: QWidget(parent),
 m_xRot(0),
 m_yRot(0),
 m_zRot(0),
 tools(std::make_unique<ToolRegistry>()) {
-    
+    surface = RenderSurface::create(this, this);
     this->installEventFilter(this);
+}
+
+void RouteEditorGLWidget::update(){
+    surface->requestUpdate();
+}
+
+void RouteEditorGLWidget::makeCurrent(){
+    surface->makeCurrent();
+}
+
+void RouteEditorGLWidget::doneCurrent(){
+    surface->doneCurrent();
+}
+
+QImage RouteEditorGLWidget::grabFramebuffer(){
+    return surface->grabFramebuffer();
+}
+
+unsigned int RouteEditorGLWidget::defaultFramebufferObject() const{
+    return surface->defaultFramebufferObject();
+}
+
+void RouteEditorGLWidget::paintEvent(QPaintEvent *){
+    // The surface fills the widget and paints itself.
+}
+
+void RouteEditorGLWidget::surfaceRelease(){
+    cleanup();
 }
 
 
@@ -119,11 +151,9 @@ bool RouteEditorGLWidget::eventFilter(QObject *object, QEvent *event){
 }
 
 RouteEditorGLWidget::~RouteEditorGLWidget() {
-    // QOpenGLWidget destroys the context after this destructor has run; its
-    // aboutToBeDestroyed signal must not call cleanup() on a destroyed object.
-    if (context() != NULL)
-        disconnect(context(), &QOpenGLContext::aboutToBeDestroyed,
-                   this, &RouteEditorGLWidget::cleanup);
+    // The surface is destroyed after this destructor has run; it must not
+    // call back into a destroyed object.
+    surface->detachClient();
     cleanup();
 }
 
@@ -137,17 +167,13 @@ QSize RouteEditorGLWidget::sizeHint() const {
 
 void RouteEditorGLWidget::cleanup() {
     makeCurrent();
-    if(selectionRenderer != NULL){
-        selectionRenderer->release();
-        delete selectionRenderer;
-        selectionRenderer = NULL;
-    }
-    delete renderer;
-    renderer = NULL;
+    // The reflections' storage belongs to the renderer's backend.
     delete environmentMap;
     environmentMap = NULL;
     delete waterReflection;
     waterReflection = NULL;
+    delete renderer;
+    renderer = NULL;
     //delete gluu->m_program;
     //gluu->m_program = 0;
     doneCurrent();
@@ -178,6 +204,7 @@ void RouteEditorGLWidget::timerEvent(QTimerEvent * event) {
         fpsDisplayAccumMs = 0.0;
         fpsDisplayAccumFrames = 0;
         fpsDisplayLastUpdate = timeNow;
+        gpuMsDisplay = renderer != nullptr ? renderer->gpuFrameMs() : -1.0f;
     }
 
     if (timeNow % 200 < lastTime % 200) {
@@ -281,6 +308,33 @@ void RouteEditorGLWidget::playInit(){
         }
 }
 
+namespace {
+// core.startup.camera, "tileX,tileZ,x,y,z[,yaw,pitch]" with the tile and
+// position as the navigation window shows them (tile Z and z with the
+// opposite sign to the camera's) and the angles in degrees.
+bool parseStartupCamera(const QString &text, int &tileX, int &tileZ, float *pos, float *rot) {
+    const QStringList parts = text.split(QRegularExpression("[,;\\s]+"), Qt::SkipEmptyParts);
+    if (parts.size() != 5 && parts.size() != 7)
+        return false;
+    double values[7] = {0, 0, 0, 0, 0, 0, 0};
+    for (int i = 0; i < parts.size(); ++i) {
+        bool ok = false;
+        values[i] = parts[i].toDouble(&ok);
+        if (!ok || !std::isfinite(values[i]))
+            return false;
+    }
+    tileX = int(values[0]);
+    tileZ = -int(values[1]);
+    pos[0] = float(values[2]);
+    pos[1] = float(values[3]);
+    pos[2] = -float(values[4]);
+    rot[0] = float(values[5] * M_PI / 180.0);
+    rot[1] = float(values[6] * M_PI / 180.0);
+    Game::check_coords(tileX, tileZ, pos[0], pos[2]);
+    return true;
+}
+}
+
 void RouteEditorGLWidget::cameraInit(){
     float * aaa = new float[2] { 0, 0 };
     cameraFree = new CameraFree(aaa);
@@ -296,34 +350,57 @@ void RouteEditorGLWidget::cameraInit(){
         activityMap = std::make_unique<ActivityMapLayer>();
     if (!terrainMap)
         terrainMap = std::make_unique<TerrainMapLayer>();
-    float spos[3];
-    if (Game::start == 2) {
-        camera->setPozT(Game::startTileX, -Game::startTileY);
+    int tileX = 0, tileZ = 0;
+    float spos[3] = {0.0f, 0.0f, 0.0f};
+    float rot[2] = {0.0f, 0.0f};
+    const QString startCamera = Settings::string("core.startup.camera").trimmed();
+    if (!startCamera.isEmpty()) {
+        if (parseStartupCamera(startCamera, tileX, tileZ, spos, rot)) {
+            setDiagnosticView(tileX, tileZ, spos[0], spos[1], spos[2], rot[0], rot[1]);
+            return;
+        }
+        qWarning() << "core.startup.camera: expected tileX,tileZ,x,y,z[,yaw,pitch], got" << startCamera;
+    }
+    if (Settings::boolean("core.startup.useTilePosition")) {
+        // The centre of the startup tile.
+        tileX = Settings::integer("core.startup.tileX");
+        tileZ = -Settings::integer("core.startup.tileZ");
     } else {
-        camera->setPozT(route->getStartTileX(), -route->getStartTileZ());
+        tileX = route->getStartTileX();
+        tileZ = -route->getStartTileZ();
         spos[0] = route->getStartpX();
         spos[2] = -route->getStartpZ();
     }
-    if (Game::terrainLib->load(route->getStartTileX(), -route->getStartTileZ())) {
-        spos[1] = 20 + Game::terrainLib->getHeight(route->getStartTileX(), -route->getStartTileZ(), route->getStartpX(), -route->getStartpZ());
-    } else {
-        spos[1] = 0;
-    }
-    camera->setPos((float*) &spos);
+    camera->setPozT(tileX, tileZ);
+    if (Game::terrainLib->load(tileX, tileZ))
+        spos[1] = 20 + Game::terrainLib->getHeight(tileX, tileZ, spos[0], spos[2]);
+    camera->setPos(spos);
 }
 
-void RouteEditorGLWidget::initializeGL() {
+QString RouteEditorGLWidget::cameraSetting() const {
+    int tileX = 0, tileZ = 0;
+    float pos[3];
+    float rotX = 0.0f, rotY = 0.0f;
+    diagnosticView(tileX, tileZ, pos, rotX, rotY);
+    return QString("%1,%2,%3,%4,%5,%6,%7").arg(tileX).arg(-tileZ)
+            .arg(pos[0], 0, 'f', 2).arg(pos[1], 0, 'f', 2).arg(-pos[2], 0, 'f', 2)
+            .arg(rotX * 180.0 / M_PI, 0, 'f', 2).arg(rotY * 180.0 / M_PI, 0, 'f', 2);
+}
+
+void RouteEditorGLWidget::surfaceInitialize() {
     
     if(Game::soundEnabled)
         SoundManager::InitAl();
 
     gluu = GLUU::get();
-    connect(context(), &QOpenGLContext::aboutToBeDestroyed, this, &RouteEditorGLWidget::cleanup);
     qDebug() << "# InitializeOpenGLFunctions";
 
-    initializeOpenGLFunctions();
+    const bool openGL = surface->backend() == RenderSurface::OpenGL;
+    if(openGL)
+        initializeOpenGLFunctions();
 
-    renderer = new OpenGL3Renderer();
+    renderer = surface->createRenderer();
+    renderer->setSurface(surface);
     
     //funcs = QOpenGLContext::currentContext()->versionFunctions<QOpenGLFunctions_3_3_Core>();
     //if (!funcs) {
@@ -335,9 +412,10 @@ void RouteEditorGLWidget::initializeGL() {
     renderer->clear(false, false, black);
     //qDebug() << "gluu->initShader();";
     qDebug() << "# InitShaders";
-    gluu->initShader();
+    // The QRhi renderer builds its own programs.
+    if(openGL)
+        gluu->initShader();
     qDebug() << "# InitShaders finished";
-    selectionRenderer = new SelectionRenderer();
     renderer->resetState();
 
     //sFile = new SFile("F:/TrainSim/trains/trainset/pkp_sp47/pkp_sp47-001.s", "F:/TrainSim/trains/trainset/pkp_sp47");
@@ -400,14 +478,8 @@ void RouteEditorGLWidget::initializeGL() {
                 "core.rendering.shadow.primaryMapSize", SettingType::Enum).toInt();
     distantShadowMapSize = Settings::variant(
                 "core.rendering.shadow.distantMapSize", SettingType::Enum).toInt();
-    gluu->makeShadowFramebuffer(FramebufferName0, depthTexture0,
-            shadowMapSize, GL_TEXTURE9);
-    gluu->makeShadowFramebuffer(FramebufferName1, depthTexture1,
-            shadowMapSize, GL_TEXTURE2);
-    gluu->makeShadowFramebuffer(FramebufferName2, depthTexture2,
-            distantShadowMapSize, GL_TEXTURE3);
-    glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
-    glActiveTexture(GL_TEXTURE0);
+    renderer->createShadowMaps(shadowMapSize, distantShadowMapSize);
+    renderer->bindTarget(Renderer::TARGET_VIEW);
         
     
     moveStep = Game::DefaultMoveStep;
@@ -470,7 +542,7 @@ bool RouteEditorGLWidget::canRenderFrame() const{
     return true;
 }
 
-void RouteEditorGLWidget::paintGL(){
+void RouteEditorGLWidget::surfacePaint(){
     Game::currentShapeLib = currentShapeLib;
     if (!canRenderFrame()) return;
     Terrain::beginProceduralFrame();
@@ -497,13 +569,39 @@ void RouteEditorGLWidget::paintGL(){
     }
 }
 
+// Loads the shapes, forests and transfers of the view without the loading
+// limits, before it is drawn: the world is gathered and dropped until it asks
+// for nothing more (on the workers when shapes load threaded, so the gathers
+// wait for them).
+void RouteEditorGLWidget::loadWholeView(const char *reason) {
+    wholeViewPending = false;
+    RenderQueue &queue = *renderer;
+    ShapeLoader::WholeView unlimited;
+    QElapsedTimer timer;
+    timer.start();
+    const unsigned jobs = ShapeLoader::progress();
+    int pass = 0;
+    while (pass < 8) {
+        ++pass;
+        renderer->resetFrame();
+        Mat4::identity(renderer->transform());
+        Game::ignoreLoadLimits = true; // reset by Route::pushRenderItems
+        route->pushRenderItems(queue, camera->pozT, camera->getPos(), camera->getTarget(),
+                               camera->getRotX(), 3.14f / 3, GLUU::RENDER_DEFAULT);
+        if (!ShapeLoader::busy())
+            break;
+        ShapeLoader::waitForAll();
+    }
+    qInfo() << "Whole view (" << reason << ") loaded in" << timer.elapsed() << "ms," << pass << "gathers,"
+            << ShapeLoader::progress() - jobs << "shapes on workers";
+}
+
 void RouteEditorGLWidget::paintScene(){
     Game::currentShapeLib = currentShapeLib;
     if (!canRenderFrame()) return;
     if (renderer == NULL) return;
     const bool selectionPass = selection;
-    const QString shaderName = selectionPass ? "Selection" : MainRenderShaderName;
-    if (gluu->shaders[shaderName] == NULL){
+    if (!renderer->programsReady()){
         if(selectionPass){
             qWarning() << "Selection shader is unavailable";
             selection = false;
@@ -511,17 +609,27 @@ void RouteEditorGLWidget::paintScene(){
         }
         return;
     }
-    if(selectionPass && selectionRenderer == NULL){
-        qWarning() << "Selection renderer is unavailable";
-        selection = false;
-        update();
-        return;
-    }
     RenderStats::ScopedFrame statsFrame(!selectionPass);
+    // The sun and the sky of the chosen time of day (or the fixed light).
+    applyTimeOfDay();
     // View-dependent shading (PBR materials) reads the camera position.
     std::copy(camera->getPos(), camera->getPos() + 3, gluu->cameraPosition);
     // Secondary views must not read last frame's water reflection.
     std::fill(gluu->waterReflectionView, gluu->waterReflectionView + 4, 0.0f);
+    if (!selectionPass) {
+        // A camera moving farther than this in one frame jumped.
+        const double jumpDistance = 500.0;
+        const double position[2] = {camera->pozT[0] * 2048.0 + camera->getPos()[0],
+                                    camera->pozT[1] * 2048.0 + camera->getPos()[2]};
+        const bool jumped = std::hypot(position[0] - lastViewPosition[0],
+                                       position[1] - lastViewPosition[1]) > jumpDistance;
+        lastViewPosition[0] = position[0];
+        lastViewPosition[1] = position[1];
+        if (wholeViewPending)
+            loadWholeView("first view");
+        else if (jumped)
+            loadWholeView("camera jump");
+    }
     // Drop anything left from an interrupted frame and rebalance the matrix stack.
     renderer->resetFrame();
     renderer->setViewPosition(camera->getPos());
@@ -590,7 +698,7 @@ void RouteEditorGLWidget::paintScene(){
     Mat4::identity(renderer->transform());
 
     // Render Shadows
-    if (!selectionPass && Game::shadowsEnabled > 0){
+    if (!selectionPass && Game::shadowsEnabled > 0 && sunCastsShadows){
         RenderStats::beginPhase(RenderStats::PhaseShadow);
         renderShadowMaps();
         RenderStats::endPhase(RenderStats::PhaseShadow);
@@ -611,19 +719,17 @@ void RouteEditorGLWidget::paintScene(){
     if(selectionPass){
         const int selectionWidth = qRound((float)this->width() * Game::PixelRatio);
         const int selectionHeight = qRound((float)this->height() * Game::PixelRatio);
-        if(!selectionRenderer->begin(selectionWidth, selectionHeight)){
+        if(!renderer->beginSelection(selectionWidth, selectionHeight)){
             qWarning() << "Could not start the integer selection pass";
             selection = false;
             update();
             return;
         }
     } else {
-        glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
-        glActiveTexture(GL_TEXTURE0);
+        renderer->bindTarget(Renderer::TARGET_VIEW);
         renderer->clear(true, true);
     }
-    gluu->currentShader = gluu->shaders[shaderName];
-    gluu->currentShader->bind();
+    renderer->useProgram(selectionPass ? Renderer::PROGRAM_SELECTION : Renderer::PROGRAM_MAIN);
 
     const bool blendingWasEnabled = selectionPass ? renderer->setBlending(false) : true;
     // Reflecting materials sample the environment map on its own unit.
@@ -701,8 +807,8 @@ void RouteEditorGLWidget::paintScene(){
         Mat4::identity(gluu->mvMatrix);
         Mat4::ortho(gluu->pMatrix, -1.0, 1.0, 1.0 - 2*(float(this->height()) / this->width()), 1.0, 0.0, 1.0);
         Mat4::identity(gluu->objStrMatrix);
-        gluu->setMatrixUniforms();
-        gluu->currentShader->setUniformValue(gluu->currentShader->lod, 0.0f);
+        renderer->applyFrameUniforms();
+        renderer->setFogLod(0.0f);
 
         renderer->setLayer(RenderQueue::LAYER_UI);
         compass->pushRenderItem(queue, camera->getRotX()+M_PI);
@@ -720,14 +826,14 @@ void RouteEditorGLWidget::paintScene(){
         Mat4::identity(gluu->mvMatrix);
         Mat4::ortho(gluu->pMatrix, -1.0, -1.0+2.0*hudScale, 1.0 - 2*(float(this->height()) / this->width())*hudScale, 1.0, 0.0, 1.0);
         Mat4::identity(gluu->objStrMatrix);
-        gluu->setMatrixUniforms();
-        gluu->currentShader->setUniformValue(gluu->currentShader->lod, 0.0f);
+        renderer->applyFrameUniforms();
+        renderer->setFogLod(0.0f);
         renderer->setLayer(RenderQueue::LAYER_UI);
         camera->pushRenderHud(queue);
         renderer->setLayer(RenderQueue::LAYER_SCENE);
         renderer->renderPasses(Renderer::PASS_UI, Renderer::PASS_UI);
         Game::shadowsEnabled = shadowsState;
-        gluu->currentShader->release();
+        renderer->releaseProgram();
     }
     renderer->renderFrame();
     if (!selectionPass && Game::environmentMapPreview && environmentMap != NULL
@@ -739,9 +845,11 @@ void RouteEditorGLWidget::paintScene(){
     if (selectionPass && blendingWasEnabled)
         renderer->setBlending(true);
     if(selectionPass){
+        selectionTargetHeight = qRound((float)this->height() * Game::PixelRatio);
         handleSelection();
-        selectionRenderer->end();
-        gluu->currentShader->release();
+        selectionTargetHeight = 0;
+        renderer->endSelection();
+        renderer->releaseProgram();
         return;
     }
 
@@ -761,7 +869,11 @@ void RouteEditorGLWidget::drawEditorFpsHud(){
     if(selection)
         return;
 
-    QPainter painter(this);
+    const QRect backgroundRect(12, 12, gpuMsDisplay >= 0.0f ? 190 : 92, 24);
+    QPaintDevice *overlay = surface->overlayPaintDevice(backgroundRect);
+    if(overlay == NULL)
+        return;
+    QPainter painter(overlay);
     painter.setRenderHint(QPainter::TextAntialiasing, true);
     painter.setPen(QColor(72, 30, 112));
 
@@ -770,8 +882,10 @@ void RouteEditorGLWidget::drawEditorFpsHud(){
     font.setPointSize(10);
     painter.setFont(font);
 
-    const QString label = QString("FPS: %1").arg(fpsDisplay);
-    const QRect backgroundRect(12, 12, 92, 24);
+    // GPU time near the frame time means the GPU limits the frame rate.
+    const QString label = gpuMsDisplay >= 0.0f
+            ? QString("FPS: %1  GPU %2 ms").arg(fpsDisplay).arg(gpuMsDisplay, 0, 'f', 1)
+            : QString("FPS: %1").arg(fpsDisplay);
     painter.fillRect(backgroundRect, QColor(0, 0, 0, 150));
     painter.drawText(backgroundRect.adjusted(8, 0, 0, 0), Qt::AlignVCenter | Qt::AlignLeft, label);
     painter.end();
@@ -793,14 +907,90 @@ constexpr float ShadowHalfDepth[3] = {200.0f, 600.0f, 700.0f};
 constexpr float ShadowBlurReference = 80.0f;
 // Half depth range the bias of surfaces without normals was tuned for.
 constexpr float ShadowBiasReferenceHalfDepth = 200.0f;
-// Direction towards the shadow-casting sun.
-constexpr float ShadowLightDirection[3] = {-1.0f, 1.5f, 1.0f};
 // Normal offset and depth bias of the near and middle maps for surfaces with
 // normals, in texels or filter radii, whichever is larger. The fragment
 // shaders also bias each filter tap by the receiver's slope, so the offset
 // only has to cover texel quantization.
 constexpr float ShadowNormalOffsetTexels[2] = {1.0f, 1.0f};
 constexpr float ShadowDepthBiasTexels[2] = {1.0f, 1.0f};
+}
+
+void RouteEditorGLWidget::applyTimeOfDay() {
+    TimeOfDayState &state = timeOfDay;
+    if (!state.saved) {
+        std::copy(Game::sunLightDirection, Game::sunLightDirection + 3, state.sunDirection);
+        std::copy(gluu->skyColor, gluu->skyColor + 4, state.sky);
+        std::copy(gluu->fogColor, gluu->fogColor + 4, state.fog);
+        std::copy(gluu->diffuseColor, gluu->diffuseColor + 4, state.diffuse);
+        std::copy(gluu->ambientColor, gluu->ambientColor + 4, state.ambient);
+        state.saved = true;
+    }
+    if (!Game::timeOfDayEnabled) {
+        if (state.applied) {
+            std::copy(state.sunDirection, state.sunDirection + 3, Game::sunLightDirection);
+            std::copy(state.sky, state.sky + 4, gluu->skyColor);
+            std::copy(state.fog, state.fog + 4, gluu->fogColor);
+            std::copy(state.diffuse, state.diffuse + 4, gluu->diffuseColor);
+            std::copy(state.ambient, state.ambient + 4, gluu->ambientColor);
+            // Lamps at full strength under the fixed daytime light, by design:
+            // time of day off is an editing mode that keeps every lamp's light
+            // visible (tasks 21 and 22). Only time of day scales them down.
+            gluu->localLightAdaptation = 1.0f;
+            const float fixed[3] = {-1.0f, 1.5f, 1.0f};
+            std::copy(fixed, fixed + 3, shadowSunDirection);
+            sunCastsShadows = true;
+            state.applied = false;
+        }
+        return;
+    }
+    state.applied = true;
+    // Where the camera is; within a tile the sun hardly moves.
+    PreciseTileCoordinate *position = camera->getCurrentPos();
+    if (position != NULL && Game::GeoCoordConverter != NULL
+            && (!state.located || position->TileX != state.tileX || position->TileZ != state.tileZ)) {
+        // The place, and a point 100 m along -z for the grid's bearing.
+        auto locate = [](PreciseTileCoordinate *tile, LatitudeLongitudeCoordinate &out) {
+            IghCoordinate internal;
+            return Game::GeoCoordConverter->ConvertToInternal(tile, &internal) != NULL
+                    && Game::GeoCoordConverter->ConvertToLatLon(&internal, &out) != NULL
+                    && std::isfinite(out.Latitude) && std::isfinite(out.Longitude);
+        };
+        PreciseTileCoordinate ahead = *position;
+        ahead.setTWxyz(position->TileX, position->TileZ, position->wX, position->wY, position->wZ - 100.0f);
+        LatitudeLongitudeCoordinate here, north;
+        if (locate(position, here)) {
+            state.latitude = here.Latitude;
+            state.longitude = here.Longitude;
+            if (locate(&ahead, north)) {
+                const double east = (north.Longitude - here.Longitude) * std::cos(here.Latitude * M_PI / 180.0);
+                const double up = north.Latitude - here.Latitude;
+                if (east != 0.0 || up != 0.0)
+                    state.gridNorth = std::atan2(east, up) * 180.0 / M_PI;
+            }
+        }
+        state.tileX = position->TileX;
+        state.tileZ = position->TileZ;
+        state.located = true;
+    }
+    QDate date = QDate::fromString(Game::timeOfDayDate.trimmed(), "yyyy-MM-dd");
+    if (!date.isValid())
+        date = QDate(2026, 6, 21);
+    SunPosition::Result sun = SunPosition::atSolarTime(state.latitude, state.longitude, date,
+                                                       Game::timeOfDayHours);
+    // From true bearings to the world's grid.
+    sun.azimuth -= state.gridNorth;
+    SunPosition::direction(sun, Game::sunLightDirection);
+    // Shadows of a sun near the horizon would stretch across the maps.
+    SunPosition::Result shadowSun = sun;
+    shadowSun.elevation = std::max(sun.elevation, Daylight::MinShadowElevation);
+    SunPosition::direction(shadowSun, shadowSunDirection);
+    const Daylight::Light light = Daylight::forElevation(sun.elevation, state.sky, state.fog);
+    std::copy(light.sky, light.sky + 4, gluu->skyColor);
+    std::copy(light.fog, light.fog + 4, gluu->fogColor);
+    std::copy(light.diffuse, light.diffuse + 4, gluu->diffuseColor);
+    std::copy(light.ambient, light.ambient + 4, gluu->ambientColor);
+    gluu->localLightAdaptation = light.localLights;
+    sunCastsShadows = light.sunUp;
 }
 
 // Light-space matrices of the near, mid and far shadow maps, centred on the
@@ -812,7 +1002,7 @@ void RouteEditorGLWidget::computeShadowMatrices() {
     float* out1 = Vec3::create();
     Vec3::set(out1, 0, 1, 0);
     float *ld = Vec3::create();
-    Vec3::set(ld, ShadowLightDirection[0], ShadowLightDirection[1], ShadowLightDirection[2]);
+    Vec3::set(ld, shadowSunDirection[0], shadowSunDirection[1], shadowSunDirection[2]);
     float *aaa = camera->getPos();
     Vec3::add(ld, ld, aaa);
     float *matrices[3] = {gluu->pShadowMatrix0, gluu->pShadowMatrix, gluu->pShadowMatrix2};
@@ -839,7 +1029,7 @@ void RouteEditorGLWidget::computeShadowMatrices() {
         gluu->shadowDepthBias[map] = ShadowDepthBiasTexels[map] * filter / (2.0f * ShadowHalfDepth[map]);
     }
     gluu->shadowNormalOffset[2] = 0.0f;
-    float lightDirection[3] = {ShadowLightDirection[0], ShadowLightDirection[1], ShadowLightDirection[2]};
+    float lightDirection[3] = {shadowSunDirection[0], shadowSunDirection[1], shadowSunDirection[2]};
     Vec3::normalize(gluu->shadowLightDirection, lightDirection);
     Mat4::lookAt(lookAt, ld, aaa, out1);
     Mat4::multiply(gluu->pShadowMatrix0, gluu->pShadowMatrix0, lookAt);
@@ -854,40 +1044,36 @@ void RouteEditorGLWidget::computeShadowMatrices() {
 // casters up to 250 m, 600 m and 1000 m away.
 void RouteEditorGLWidget::renderShadowMaps() {
     computeShadowMatrices();
-    gluu->currentShader = gluu->shaders["Shadows"];
-    gluu->currentShader->bind();
+    renderer->useProgram(Renderer::PROGRAM_SHADOW);
     Mat4::identity(gluu->mvMatrix);
     Mat4::identity(gluu->objStrMatrix);
 
     // The shadow shader reads uShadowPMatrix; swap in the near map's matrix.
     std::swap(gluu->pShadowMatrix, gluu->pShadowMatrix0);
-    gluu->setMatrixUniforms();
-    glBindFramebuffer(GL_FRAMEBUFFER, FramebufferName0);
-    glActiveTexture(GL_TEXTURE0);
+    renderer->applyFrameUniforms();
+    renderer->bindTarget(Renderer::TARGET_SHADOW_NEAR);
     renderer->clear(true, true);
     renderer->setViewport(0, 0, shadowMapSize, shadowMapSize);
     renderer->renderShadowCasters(250.0f, RenderStats::FrameStats::PassSlots - 3,
                                   gluu->pShadowMatrix);
     std::swap(gluu->pShadowMatrix, gluu->pShadowMatrix0);
 
-    gluu->setMatrixUniforms();
-    glBindFramebuffer(GL_FRAMEBUFFER, FramebufferName1);
-    glActiveTexture(GL_TEXTURE0);
+    renderer->applyFrameUniforms();
+    renderer->bindTarget(Renderer::TARGET_SHADOW_MID);
     renderer->clear(true, true);
     renderer->setViewport(0, 0, shadowMapSize, shadowMapSize);
     renderer->renderShadowCasters(600.0f, RenderStats::FrameStats::PassSlots - 2,
                                   gluu->pShadowMatrix);
 
     std::swap(gluu->pShadowMatrix, gluu->pShadowMatrix2);
-    gluu->setMatrixUniforms();
-    glBindFramebuffer(GL_FRAMEBUFFER, FramebufferName2);
-    glActiveTexture(GL_TEXTURE0);
+    renderer->applyFrameUniforms();
+    renderer->bindTarget(Renderer::TARGET_SHADOW_FAR);
     renderer->clear(true, true);
     renderer->setViewport(0, 0, distantShadowMapSize, distantShadowMapSize);
     renderer->renderShadowCasters(1000.0f, RenderStats::FrameStats::PassSlots - 1,
                                   gluu->pShadowMatrix);
     std::swap(gluu->pShadowMatrix, gluu->pShadowMatrix2);
-    gluu->currentShader->release();
+    renderer->releaseProgram();
 }
 
 // Renders the faces scheduled for this frame from the camera position, from
@@ -896,14 +1082,13 @@ void RouteEditorGLWidget::renderShadowMaps() {
 // and size; every face is rendered once before the round-robin starts.
 void RouteEditorGLWidget::renderEnvironmentMap() {
     if (environmentMap == NULL)
-        environmentMap = new EnvironmentMap();
+        environmentMap = new EnvironmentMap(renderer);
     if (!environmentMap->ensure(Game::environmentMapSize))
         return;
     // The faces must not sample the cube they are drawn into.
-    EnvironmentMap::unbind();
+    environmentMap->unbind();
     gluu->environmentMapLevels = 0;
-    gluu->currentShader = gluu->shaders[MainRenderShaderName];
-    gluu->currentShader->bind();
+    renderer->useProgram(Renderer::PROGRAM_MAIN);
     Mat4::identity(gluu->mvMatrix);
     Mat4::identity(gluu->objStrMatrix);
     const QVector<int> faces = environmentMap->nextFaces(environmentMap->complete()
@@ -925,7 +1110,7 @@ void RouteEditorGLWidget::renderEnvironmentMap() {
         EnvironmentMap::faceView(face, eye, view);
         renderer->renderLayeredView(faceView);
     }
-    environmentMap->endFaces(defaultFramebufferObject());
+    environmentMap->endFaces();
 }
 
 void RouteEditorGLWidget::renderWaterPass(bool measure) {
@@ -962,15 +1147,14 @@ bool RouteEditorGLWidget::renderWaterReflection() {
     if (plane[0] * eye[0] + plane[1] * eye[1] + plane[2] * eye[2] + plane[3] <= 0.0f)
         return false;
     if (waterReflection == NULL)
-        waterReflection = new PlanarReflection();
+        waterReflection = new PlanarReflection(renderer);
     const int width = std::max(1, qRound(this->width() * Game::PixelRatio * 0.5f));
     const int targetHeight = std::max(1, qRound(this->height() * Game::PixelRatio * 0.5f));
     if (!waterReflection->ensure(width, targetHeight))
         return false;
     // The mirrored view must not sample the texture it is drawn into.
-    PlanarReflection::unbind();
-    gluu->currentShader = gluu->shaders[MainRenderShaderName];
-    gluu->currentShader->bind();
+    waterReflection->unbind();
+    renderer->useProgram(Renderer::PROGRAM_MAIN);
     Mat4::identity(gluu->mvMatrix);
     Mat4::identity(gluu->objStrMatrix);
     // The camera looks at the scene mirrored in the plane.
@@ -994,7 +1178,7 @@ bool RouteEditorGLWidget::renderWaterReflection() {
     mirrored.water = false;
     waterReflection->begin(gluu->skyColor);
     renderer->renderLayeredView(mirrored);
-    waterReflection->end(defaultFramebufferObject());
+    waterReflection->end();
     std::copy(plane, plane + 4, waterReflectionPlane);
     return true;
 }
@@ -1002,7 +1186,7 @@ bool RouteEditorGLWidget::renderWaterReflection() {
 void RouteEditorGLWidget::handleSelection() {
     if (!selection)
         return;
-    if(selectionRenderer == NULL || !selectionRenderer->isActive()){
+    if(selectionTargetHeight <= 0){
         qWarning() << "Selection read requested without an active selection target";
         selection = false;
         update();
@@ -1011,16 +1195,16 @@ void RouteEditorGLWidget::handleSelection() {
 
     if(!selectionProbePoints.isEmpty()){
         for(const QPoint &point : selectionProbePoints){
-            const int probeY = selectionRenderer->height() - point.y() - 1;
-            selectionProbeResults.push_back(selectionRenderer->readPixel(point.x(), probeY));
+            const int probeY = selectionTargetHeight - point.y() - 1;
+            selectionProbeResults.push_back(renderer->readSelection(point.x(), probeY));
         }
         selection = false;
         return;
     }
 
     const int x = mousex;
-    const int realy = selectionRenderer->height() - (int)mousey - 1;
-    const quint32 selectionId = selectionRenderer->readPixel(x, realy);
+    const int realy = selectionTargetHeight - (int)mousey - 1;
+    const quint32 selectionId = renderer->readSelection(x, realy);
     const int cameraTileX = static_cast<int>(camera->pozT[0]);
     const int cameraTileZ = static_cast<int>(camera->pozT[1]);
 
@@ -1199,16 +1383,16 @@ void RouteEditorGLWidget::readPointerPosition() {
     int x = mousex;
     int y = mousey;
 
-    static unsigned long long int oldTime = 0;
     unsigned long long int newTime = QDateTime::currentMSecsSinceEpoch();
     static float winZ[4];
     int viewport[4];
 
     renderer->viewport(viewport);
     int realy = viewport[3] - (int) y - 1;
-    if(newTime - oldTime > 50){
-        winZ[0] = renderer->readDepth(x, realy);
-        oldTime = newTime;
+    if(newTime - pointerReadTime > 50){
+        winZ[0] = pointerReadExact ? renderer->readDepth(x, realy)
+                                   : renderer->readDepthLatest(x, realy);
+        pointerReadTime = newTime;
     }
     GLH::glhUnProjectf((float) x, (float) realy, winZ[0], // 
             gluu->mvMatrix,
@@ -1263,7 +1447,7 @@ void RouteEditorGLWidget::pushRenderPointer(RenderQueue &queue) {
     }
 }
 
-void RouteEditorGLWidget::resizeGL(int w, int h) {
+void RouteEditorGLWidget::surfaceResize(int w, int h) {
     //gluu->m_proj.setToIdentity();
     //gluu->m_proj.perspective(45.0f, GLfloat(w) / h, 0.01f, 100.0f);
 }
@@ -1801,8 +1985,14 @@ void RouteEditorGLWidget::updateMapPointer() {
 }
 
 void RouteEditorGLWidget::paintMap() {
-    if (renderer == NULL || gluu->shaders[MainRenderShaderName] == NULL)
+    if (renderer == NULL || !renderer->programsReady()) {
+        if (selection) {
+            qWarning() << "Selection shader is unavailable";
+            selection = false;
+            update();
+        }
         return;
+    }
     const int width = qRound(float(this->width()) * Game::PixelRatio);
     const int height = qRound(float(this->height()) * Game::PixelRatio);
     cameraMap->setViewport(width, height);
@@ -1860,10 +2050,8 @@ void RouteEditorGLWidget::paintMap() {
     renderer->setLayer(RenderQueue::LAYER_SCENE);
     renderer->setShadowCasting(true);
 
-    glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
-    glActiveTexture(GL_TEXTURE0);
-    gluu->currentShader = gluu->shaders[MainRenderShaderName];
-    gluu->currentShader->bind();
+    renderer->bindTarget(Renderer::TARGET_VIEW);
+    renderer->useProgram(Renderer::PROGRAM_MAIN);
     const float background[4] = {float(palette.background.redF()), float(palette.background.greenF()),
                                  float(palette.background.blueF()), 1.0f};
     renderer->clear(true, true, background);
@@ -1893,8 +2081,8 @@ void RouteEditorGLWidget::paintMap() {
         Mat4::identity(gluu->mvMatrix);
         Mat4::ortho(gluu->pMatrix, -1.0, 1.0, 1.0 - 2*(float(this->height()) / this->width()), 1.0, 0.0, 1.0);
         Mat4::identity(gluu->objStrMatrix);
-        gluu->setMatrixUniforms();
-        gluu->currentShader->setUniformValue(gluu->currentShader->lod, 0.0f);
+        renderer->applyFrameUniforms();
+        renderer->setFogLod(0.0f);
         renderer->setLayer(RenderQueue::LAYER_UI);
         compass->pushRenderItem(queue, camera->getRotX()+M_PI);
         compassPointer->pushRenderItem(queue);
@@ -1904,7 +2092,7 @@ void RouteEditorGLWidget::paintMap() {
     renderer->renderFrame();
     gluu->fogDensity = fogDensity;
     Game::shadowsEnabled = shadows;
-    gluu->currentShader->release();
+    renderer->releaseProgram();
     if (this->isActiveWindow()) {
         emit this->posInfo(camera->getCurrentPos());
         emit this->pointerInfo(aktPointerPos);
@@ -1913,8 +2101,7 @@ void RouteEditorGLWidget::paintMap() {
 }
 
 void RouteEditorGLWidget::paintMapSelection(int width, int height) {
-    if (gluu->shaders["Selection"] == NULL || selectionRenderer == NULL
-            || !selectionRenderer->begin(width, height)) {
+    if (!renderer->beginSelection(width, height)) {
         qWarning() << "Could not start the map selection pass";
         selection = false;
         update();
@@ -1937,8 +2124,7 @@ void RouteEditorGLWidget::paintMapSelection(int width, int height) {
     renderer->setLayer(RenderQueue::LAYER_SCENE);
     renderer->setShadowCasting(true);
 
-    gluu->currentShader = gluu->shaders["Selection"];
-    gluu->currentShader->bind();
+    renderer->useProgram(Renderer::PROGRAM_SELECTION);
     const bool blendingWasEnabled = renderer->setBlending(false);
     Mat4::identity(gluu->mvMatrix);
     Mat4::identity(renderer->transform());
@@ -1957,9 +2143,11 @@ void RouteEditorGLWidget::paintMapSelection(int width, int height) {
     renderer->renderFrame();
     if (blendingWasEnabled)
         renderer->setBlending(true);
+    selectionTargetHeight = height;
     handleSelection();
-    selectionRenderer->end();
-    gluu->currentShader->release();
+    selectionTargetHeight = 0;
+    renderer->endSelection();
+    renderer->releaseProgram();
 }
 
 bool RouteEditorGLWidget::pointerOnTrack(int &tileX, int &tileZ, float *position) {
@@ -2236,6 +2424,16 @@ QVector<quint32> RouteEditorGLWidget::probeSelectionIds(
     QVector<quint32> results;
     results.swap(selectionProbeResults);
     return results;
+}
+
+QVector3D RouteEditorGLWidget::probePointer(const QPoint &devicePoint) {
+    mousex = devicePoint.x() / Game::PixelRatio;
+    mousey = devicePoint.y() / Game::PixelRatio;
+    pointerReadTime = 0;
+    pointerReadExact = true;
+    grabFramebuffer();
+    pointerReadExact = false;
+    return QVector3D(aktPointerPos[0], aktPointerPos[1], aktPointerPos[2]);
 }
 
 void RouteEditorGLWidget::objectSelected(GameObj* obj){

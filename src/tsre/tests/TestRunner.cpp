@@ -38,6 +38,7 @@
 #include <set>
 
 #include <tsre/Game.h>
+#include <QScopedValueRollback>
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <tsre/math3d/Flex.h>
 #include <tsre/math3d/GLMatrix.h>
@@ -61,6 +62,10 @@
 #include <tsre/tests/MapViewTestSuite.h>
 #include <tsre/tests/EnvironmentMapTestSuite.h>
 #include <tsre/tests/WaterTestSuite.h>
+#include <tsre/tests/LocalLightsTestSuite.h>
+#include <tsre/tests/TimeOfDayTestSuite.h>
+#include <tsre/tests/DxtCodecTestSuite.h>
+#include <tsre/tests/RhiShaderTestSuite.h>
 #include <tsre/tests/GltfPbrTestSuite.h>
 #include <tsre/tests/ConsistPreviewTestSuite.h>
 #include <tsre/tests/RendererParityTestSuite.h>
@@ -4100,8 +4105,13 @@ QStringList TsreTests::listSuites() {
         "mesh-store",
         "editor-tools",
         "map-view",
+        "mesh-upload-rhi-benchmark",
         "environment-map-gl",
         "water-gl",
+        "rhi-shaders",
+        "local-lights",
+        "time-of-day",
+        "dxt-codec",
         "gltf-pbr-gl",
         "consist-preview-gl",
         "renderer-capture",
@@ -4151,6 +4161,9 @@ int TsreTests::run(const TestRunOptions &opts) {
     const QString suite = suiteNameNormalized(opts.suite);
 
     Game::gui = false;
+    // Suites named -gl test the OpenGL renderer, whichever the profile selects.
+    const QScopedValueRollback<QString> backend(
+            Game::renderBackend, suite.endsWith("-gl") ? QString("opengl") : Game::renderBackend);
 
     if (suite.isEmpty() || suite == "flex-point")
         return runFlexPointSuite(opts.verbose);
@@ -4169,10 +4182,20 @@ int TsreTests::run(const TestRunOptions &opts) {
         return runEditorToolsSuite(opts.verbose);
     if (suite == "map-view")
         return runMapViewSuite(opts.verbose);
+    if (suite == "mesh-upload-rhi-benchmark")
+        return runMeshUploadRhiBenchmark(opts.verbose);
     if (suite == "environment-map-gl")
         return runEnvironmentMapGlSuite(opts.verbose);
     if (suite == "water-gl")
         return runWaterGlSuite(opts.verbose);
+    if (suite == "rhi-shaders")
+        return runRhiShaderSuite(opts.verbose);
+    if (suite == "local-lights")
+        return runLocalLightsSuite(opts.verbose);
+    if (suite == "time-of-day")
+        return runTimeOfDaySuite(opts.verbose);
+    if (suite == "dxt-codec")
+        return runDxtCodecSuite(opts.verbose);
     if (suite == "gltf-pbr-gl")
         return runGltfPbrGlSuite(opts.verbose);
 

@@ -18,6 +18,7 @@
 #include <limits>
 #include <QDebug>
 #include <tsre/Game.h>
+#include <tsre/renderer/rhi/RhiTextures.h>
 #include <QFile>
 #include <QFileInfo>
 #include <QDir>
@@ -735,6 +736,10 @@ static void uploadTerrainBaseTexture(Texture *texture, bool baked) {
     if (texture->glLoaded) return;
     // Bake mipmaps temporarily disabled to isolate tile-entry upload hitches.
     if (!texture->GLTextures(false)) return;
+    if (baked && Game::renderBackend == "qrhi") {
+        RhiTextures::setSampling(texture->tex[0], texture->gpuMipmaps, true);
+        return;
+    }
     if (baked) {
         auto *f=QOpenGLContext::currentContext()->functions();
         f->glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);
@@ -2401,10 +2406,14 @@ void Terrain::pushRenderItem(RenderQueue &queue, float lodx, float lodz, int til
                     const bool bakedFallback=proceduralId<0 && rendersProceduralMaterial()
                             && shaderId==0 && !tfile->bakedMaterialInfo.isEmpty();
                     const int outputId=bakedFallback?proceduralFallbackTexture():proceduralId;
-                    if (outputId >= 0) {
+                    // A texture made with OpenGL calls has no name on the QRhi
+                    // renderer until procedural textures are ported.
+                    if (outputId >= 0 && TexLib::mtex.at(outputId)->tex == nullptr) {
+                        r->disableTextures(1.0f, 0.0f, 1.0f, 1.0f);
+                    } else if (outputId >= 0) {
                         r->enableTextures(TexLib::mtex.at(outputId)->tex[0]);
                         const int detailId = proceduralDetailTexture();
-                        if (detailId >= 0) {
+                        if (detailId >= 0 && TexLib::mtex.at(detailId)->tex != nullptr) {
                             r->material.detailTextureObject = TexLib::mtex.at(detailId)->tex[0];
                             r->material.detailScale = ProceduralDetailScale*(bakedFallback?patches:1);
                         }

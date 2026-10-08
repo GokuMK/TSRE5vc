@@ -280,7 +280,6 @@ void ForestObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float
 }
 
 void ForestObj::pushRenderShape(RenderQueue &queue, quint32 selectionId){
-    QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
     /*if (tex == -2) {
         f->glDisable(GL_TEXTURE_2D);
     } else {
@@ -356,9 +355,9 @@ void ForestObj::pushRenderShape(RenderQueue &queue, quint32 selectionId){
                 qDebug() << bBox[0] << bBox[1] << bBox[2] << bBox[3];
             
                 if(Game::trackDB != NULL)
-                    Game::trackDB->fillNearestSquaredDistanceToTDBXZ(posT, fpoints, bBox);
+                    Game::trackDB->fillNearestSquaredDistanceToTDBXZ(posT, fpoints, bBox, ForestClearDistance);
                 if(Game::roadDB != NULL)
-                    Game::roadDB->fillNearestSquaredDistanceToTDBXZ(posT, fpoints, bBox);
+                    Game::roadDB->fillNearestSquaredDistanceToTDBXZ(posT, fpoints, bBox, ForestClearDistance);
             }
             for(int uu = 0; uu < population; uu++){
                 if(ForestClearDistance > 0){

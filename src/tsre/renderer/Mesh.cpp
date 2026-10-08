@@ -12,7 +12,10 @@
 #include <QMutex>
 #include <QMutexLocker>
 #include <QOpenGLFunctions>
+#include <rhi/qrhi.h>
+#include <cmath>
 #include <cstring>
+#include <algorithm>
 #include <memory>
 
 #ifndef GL_COPY_WRITE_BUFFER
@@ -44,6 +47,14 @@ struct Entry {
     RenderItem::VertexAttr layout = RenderItem::NO_ATTR;
     int bytes = 0;
     quint64 stamp = 0;
+    // QRhi renderer: the buffers, and the bytes of Buffer-format data, kept
+    // because one storage can serve as an index buffer and a data texture.
+    QRhiBuffer *rhiVertex = nullptr;
+    QRhiBuffer *rhiIndex = nullptr;
+    QRhiTexture *rhiData = nullptr;
+    // Uploads of whole data to the QRhi buffers so far.
+    int rhiUploads = 0;
+    QByteArray retained;
 };
 
 struct Store {
@@ -51,8 +62,15 @@ struct Store {
     std::vector<Entry> entries;
     std::vector<quint32> freeSlots;
     std::vector<GLuint> deadBuffers;
+    std::vector<QRhiResource *> deadRhiBuffers;
     quint64 nextStamp = 1;
     quint64 releases = 0;
+    // QRhi uploads since the last trace: new meshes, meshes uploaded again
+    // into their buffers, range updates, and their bytes.
+    int rhiNewUploads = 0;
+    int rhiAgainUploads = 0;
+    int rhiRangeUploads = 0;
+    qint64 rhiUploadBytes = 0;
 };
 
 Store &store() {
@@ -216,6 +234,14 @@ void Meshes::release(MeshHandle &handle) {
             s.deadBuffers.push_back(entry.indexBuffer);
         entry.vertexBuffer = 0;
         entry.indexBuffer = 0;
+        for (QRhiResource *resource : std::initializer_list<QRhiResource *>{
+                 entry.rhiVertex, entry.rhiIndex, entry.rhiData})
+            if (resource != nullptr)
+                s.deadRhiBuffers.push_back(resource);
+        entry.rhiVertex = entry.rhiIndex = nullptr;
+        entry.rhiData = nullptr;
+        entry.rhiUploads = 0;
+        entry.retained.clear();
         entry.sharedIndices = MeshHandle();
         entry.format = MeshData::FloatLayout;
         entry.layout = RenderItem::NO_ATTR;
@@ -306,4 +332,230 @@ void Meshes::setupAttributes(QOpenGLFunctions *f, const Buffers &buffers) {
     default:
         break;
     }
+}
+
+namespace {
+
+// QRhi has no packed 2_10_10_10 vertex format: paged terrain vertices (a
+// float height and a packed normal and gap flag) carry the normal as four
+// unsigned bytes instead, round(v * 127) + 128, in the same 8 bytes; zero
+// stays exactly zero, so the gap flag keeps its sign. Converts the packed
+// words inside a byte range of such data in place.
+void convertTerrainNormals(char *data, int offset, int size) {
+    for (int p = (offset + 3) / 4 * 4; p + 4 <= offset + size; p += 4) {
+        if (p % 8 != 4)
+            continue;
+        quint32 packed;
+        std::memcpy(&packed, data + p - offset, 4);
+        auto signedField = [packed](int shift, int bits) {
+            const int raw = int((packed >> shift) & ((1u << bits) - 1));
+            const int value = raw >= (1 << (bits - 1)) ? raw - (1 << bits) : raw;
+            const float max = float((1 << (bits - 1)) - 1);
+            return std::max(float(value) / max, -1.0f);
+        };
+        const float values[4] = {signedField(0, 10), signedField(10, 10), signedField(20, 10),
+                                 signedField(30, 2)};
+        unsigned char bytes[4];
+        for (int c = 0; c < 4; ++c)
+            bytes[c] = static_cast<unsigned char>(std::lround(values[c] * 127.0f) + 128);
+        std::memcpy(data + p - offset, bytes, 4);
+    }
+}
+
+// Buffer-format data as a texture: RGBA32F texels in one row.
+constexpr int DataTexelBytes = 16;
+
+// Uploads the texels of an entry's data texture covering a byte range of
+// its retained data.
+void uploadDataTexels(const Entry &entry, QRhiResourceUpdateBatch *batch, int offset, int size) {
+    const int width = entry.rhiData->pixelSize().width();
+    const int first = std::max(0, offset / DataTexelBytes);
+    const int end = std::min(width, (offset + size + DataTexelBytes - 1) / DataTexelBytes);
+    if (end <= first)
+        return;
+    QRhiTextureSubresourceUploadDescription description(
+            entry.retained.constData() + first * DataTexelBytes, quint32((end - first) * DataTexelBytes));
+    description.setDestinationTopLeft(QPoint(first, 0));
+    description.setSourceSize(QSize(end - first, 1));
+    batch->uploadTexture(entry.rhiData, QRhiTextureUploadDescription({0, 0, description}));
+}
+
+// A GPU buffer of the size, reusing one that fits exactly. QRhi's Vulkan
+// backend keeps a host copy of a Static buffer, as large as the buffer, for
+// later uploads (one per frame in flight), and frees it after the upload only
+// for Immutable ones, which then allocate a new copy for every later upload
+// (terrain editing: one per patch a brush step, slow on the Steam Deck's
+// driver). Meshes that are edited (dynamic, or uploaded a third time: legacy
+// terrain tiles are built twice while loading, and on every brush step when
+// painted) are Static, the rest Immutable.
+QRhiBuffer *ensureBuffer(Store &s, QRhiBuffer *current, QRhi *rhi, QRhiBuffer::UsageFlags usage,
+                         int size, bool edited) {
+    const QRhiBuffer::Type type = edited ? QRhiBuffer::Static : QRhiBuffer::Immutable;
+    if (current != nullptr && current->size() == quint32(size) && current->type() == type)
+        return current;
+    if (current != nullptr)
+        s.deadRhiBuffers.push_back(current);
+    QRhiBuffer *buffer = rhi->newBuffer(type, usage, quint32(std::max(size, 4)));
+    if (!buffer->create()) {
+        delete buffer;
+        return nullptr;
+    }
+    return buffer;
+}
+
+bool prepareRhiLocked(Store &s, MeshHandle handle, QRhi *rhi, QRhiResourceUpdateBatch *batch,
+                      Meshes::RhiBuffers &buffers, int depth) {
+    if (!live(s, handle) || depth > 1)
+        return false;
+    Entry &entry = s.entries[handle.index];
+    if (entry.pending) {
+        MeshData &data = *entry.pending;
+        int size = 0;
+        const char *vertexBytes = pendingBytes(data, size);
+        const bool edited = data.dynamic || entry.rhiUploads >= 2;
+        ++entry.rhiUploads;
+        if (data.format == MeshData::Buffer) {
+            entry.retained = QByteArray(vertexBytes, size);
+            // Buffers of other uses are made again from the new bytes.
+            for (QRhiResource *resource : std::initializer_list<QRhiResource *>{
+                     entry.rhiVertex, entry.rhiData})
+                if (resource != nullptr)
+                    s.deadRhiBuffers.push_back(resource);
+            entry.rhiVertex = nullptr;
+            entry.rhiData = nullptr;
+            entry.rhiVertex = ensureBuffer(s, nullptr, rhi, QRhiBuffer::IndexBuffer, size, edited);
+        } else {
+            entry.rhiVertex = ensureBuffer(s, entry.rhiVertex, rhi, QRhiBuffer::VertexBuffer, size,
+                                           edited);
+        }
+        ++(entry.bytes > 0 ? s.rhiAgainUploads : s.rhiNewUploads);
+        s.rhiUploadBytes += size + data.indices.size();
+        QByteArray converted;
+        if (data.format == MeshData::TerrainHeightNormal) {
+            converted = QByteArray(vertexBytes, size);
+            convertTerrainNormals(converted.data(), 0, size);
+            vertexBytes = converted.constData();
+        }
+        if (entry.rhiVertex != nullptr && size > 0)
+            batch->uploadStaticBuffer(entry.rhiVertex, 0, quint32(size), vertexBytes);
+        if (!data.indices.isEmpty()) {
+            entry.rhiIndex = ensureBuffer(s, entry.rhiIndex, rhi, QRhiBuffer::IndexBuffer,
+                                          int(data.indices.size()), edited);
+            if (entry.rhiIndex != nullptr)
+                batch->uploadStaticBuffer(entry.rhiIndex, 0, quint32(data.indices.size()),
+                                          data.indices.constData());
+        } else if (entry.rhiIndex != nullptr) {
+            s.deadRhiBuffers.push_back(entry.rhiIndex);
+            entry.rhiIndex = nullptr;
+        }
+        entry.format = data.format;
+        entry.layout = data.layout;
+        entry.sharedIndices = data.sharedIndices;
+        entry.bytes = size;
+        entry.pending.reset();
+    }
+    if (!entry.ranges.empty() && entry.rhiVertex != nullptr) {
+        for (const Range &range : entry.ranges) {
+            QByteArray bytes = range.data;
+            if (entry.format == MeshData::TerrainHeightNormal)
+                convertTerrainNormals(bytes.data(), range.offset, int(bytes.size()));
+            batch->uploadStaticBuffer(entry.rhiVertex, quint32(range.offset),
+                                      quint32(bytes.size()), bytes.constData());
+            ++s.rhiRangeUploads;
+            s.rhiUploadBytes += bytes.size();
+            if (!entry.retained.isEmpty()) {
+                std::memcpy(entry.retained.data() + range.offset, range.data.constData(),
+                            size_t(range.data.size()));
+                if (entry.rhiData != nullptr)
+                    uploadDataTexels(entry, batch, range.offset, int(range.data.size()));
+            }
+        }
+        entry.ranges.clear();
+    }
+    if (entry.rhiVertex == nullptr)
+        return false;
+    buffers.vertexBuffer = entry.rhiVertex;
+    buffers.indexBuffer = entry.rhiIndex;
+    buffers.format = entry.format;
+    buffers.layout = entry.layout;
+    if (entry.sharedIndices.valid()) {
+        const MeshHandle shared = entry.sharedIndices;
+        Meshes::RhiBuffers indices;
+        buffers.indexBuffer = prepareRhiLocked(s, shared, rhi, batch, indices, depth + 1)
+                ? indices.vertexBuffer : nullptr;
+    }
+    return true;
+}
+
+}
+
+bool Meshes::prepareRhi(MeshHandle handle, QRhi *rhi, QRhiResourceUpdateBatch *batch,
+                        RhiBuffers &buffers) {
+    Store &s = store();
+    QMutexLocker lock(&s.mutex);
+    return prepareRhiLocked(s, handle, rhi, batch, buffers, 0);
+}
+
+QRhiTexture *Meshes::dataTextureRhi(MeshHandle handle, QRhi *rhi, QRhiResourceUpdateBatch *batch) {
+    Store &s = store();
+    QMutexLocker lock(&s.mutex);
+    RhiBuffers buffers;
+    if (!prepareRhiLocked(s, handle, rhi, batch, buffers, 0))
+        return nullptr;
+    Entry &entry = s.entries[handle.index];
+    if (entry.format != MeshData::Buffer || entry.retained.size() < DataTexelBytes)
+        return nullptr;
+    if (entry.rhiData == nullptr) {
+        const int texels = int(entry.retained.size() / DataTexelBytes);
+        QRhiTexture *texture = rhi->newTexture(QRhiTexture::RGBA32F, QSize(texels, 1));
+        if (!texture->create()) {
+            delete texture;
+            return nullptr;
+        }
+        entry.rhiData = texture;
+        uploadDataTexels(entry, batch, 0, texels * DataTexelBytes);
+    }
+    return entry.rhiData;
+}
+
+void Meshes::collectGarbageRhi() {
+    Store &s = store();
+    QMutexLocker lock(&s.mutex);
+    for (QRhiResource *resource : s.deadRhiBuffers)
+        resource->deleteLater();
+    s.deadRhiBuffers.clear();
+}
+
+QString Meshes::rhiTraceSummary() {
+    Store &s = store();
+    QMutexLocker lock(&s.mutex);
+    qint64 immutable = 0, other = 0;
+    for (const Entry &entry : s.entries) {
+        for (const QRhiBuffer *buffer : {entry.rhiVertex, entry.rhiIndex})
+            if (buffer != nullptr)
+                (buffer->type() == QRhiBuffer::Immutable ? immutable : other) += buffer->size();
+        if (entry.rhiData != nullptr)
+            immutable += qint64(entry.rhiData->pixelSize().width()) * DataTexelBytes;
+    }
+    const QString summary = QString("immutable MB %1 static MB %2 uploads new %3 again %4 ranges %5 KB %6")
+            .arg(immutable / 1048576).arg(other / 1048576).arg(s.rhiNewUploads)
+            .arg(s.rhiAgainUploads).arg(s.rhiRangeUploads).arg(s.rhiUploadBytes / 1024);
+    s.rhiNewUploads = s.rhiAgainUploads = s.rhiRangeUploads = 0;
+    s.rhiUploadBytes = 0;
+    return summary;
+}
+
+void Meshes::releaseAllRhi() {
+    Store &s = store();
+    QMutexLocker lock(&s.mutex);
+    for (Entry &entry : s.entries) {
+        delete entry.rhiVertex;
+        delete entry.rhiIndex;
+        delete entry.rhiData;
+        entry.rhiVertex = entry.rhiIndex = nullptr;
+        entry.rhiData = nullptr;
+    }
+    for (QRhiResource *resource : s.deadRhiBuffers)
+        delete resource;
+    s.deadRhiBuffers.clear();
 }

@@ -235,6 +235,9 @@ public:
     SFileLegacy& operator=(const SFileLegacy&) = delete;
     virtual ~SFileLegacy();
     void load() override;
+    ComplexShape *detachedCopy() const override;
+    void loadDetached() override;
+    void adopt(ComplexShape &copy) override;
     bool loadData();
     bool initGL();
     bool isGLReady() const;
@@ -261,6 +264,8 @@ public:
     void fillContentHierarchyInfo(QVector<ContentHierarchyInfo*> &list, int parent) override;
 private:
     bool glReady = false;
+    // texPath before loadSd() adds the season's directory.
+    QString textureRoot;
     // Retires a set of cached packets through the renderer.
     void clearRenderItems(quint64 key);
     // Static packets depend only on the distance level and the enabled

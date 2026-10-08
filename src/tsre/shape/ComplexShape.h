@@ -50,6 +50,16 @@ public:
     // support and ignore the rest. False means loading has already started.
     virtual bool setLoadOptions(const ShapeLoadOptions &options);
 
+    // Loading on a worker thread (ShapeLoader). detachedCopy() gives a new,
+    // unloaded shape of the same file and options, or nullptr when the shape
+    // loads only on the main thread. loadDetached() runs on a worker for such
+    // a copy: it does what load() does except registering textures, which
+    // the main thread owns. adopt() runs on the main thread and takes a
+    // loaded copy's data, unless this shape has been loaded meanwhile.
+    virtual ComplexShape *detachedCopy() const { return nullptr; }
+    virtual void loadDetached() {}
+    virtual void adopt(ComplexShape &copy) { (void)copy; }
+
     virtual unsigned int newState() = 0;
     virtual void setAnimated(unsigned int stateId, bool animated) = 0;
     virtual void setEnabledSubObjs(unsigned int stateId, unsigned int enabledSubObjs);

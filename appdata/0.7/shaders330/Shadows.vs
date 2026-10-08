@@ -18,27 +18,30 @@ uniform float terrainSampleSpacing;
 uniform int terrainApplyGaps;
 uniform int terrainMapPass;
 
-struct TerrainPatchParams {
-    vec4 uvAndOriginX;
-    vec4 uvAndOriginZ;
-};
-layout(std140) uniform TerrainPatchBlock {
-    TerrainPatchParams terrainPatch[256];
-};
+#include "TerrainPatch.glsl"
 
 out vec2 vTextureCoord;
 out float vTerrainGap;
 
 void main() {
+    // QRhi has no packed 2_10_10_10 vertex format: the paged terrain normal
+    // and gap flag arrive as unsigned bytes, round(v * 127) + 128. Round
+    // back to the byte: GPUs may turn 128/255 * 255 into a little over 128,
+    // and a gap flag above zero discards the fragment.
+    vec4 vertexNormal = normal;
+#if defined(TSRE_RHI)
+    if (terrainPaged != 0)
+        vertexNormal = (round(normal * 255.0) - 128.0) / 127.0;
+#endif
     vec4 renderVertex = vertex;
     vec2 renderUv = aTextureCoord;
     if (terrainPaged != 0) {
-        int patchSlot = gl_VertexID / terrainVerticesPerPatch;
-        int localVertexId = gl_VertexID - patchSlot * terrainVerticesPerPatch;
+        int patchSlot = terrainVertexId() / terrainVerticesPerPatch;
+        int localVertexId = terrainVertexId() - patchSlot * terrainVerticesPerPatch;
         int localSampleZ = localVertexId / terrainPatchSide;
         int localSampleX = localVertexId - localSampleZ * terrainPatchSide;
         vec2 terrainLocalSample = vec2(float(localSampleX), float(localSampleZ));
-        TerrainPatchParams params = terrainPatch[patchSlot];
+        TerrainPatchParams params = terrainPatchParams(patchSlot);
         renderVertex = vec4(params.uvAndOriginX.w + terrainLocalSample.x * terrainSampleSpacing,
                             vertex.x,
                             params.uvAndOriginZ.w + terrainLocalSample.y * terrainSampleSpacing,
@@ -52,5 +55,5 @@ void main() {
     }
     gl_Position = uShadowPMatrix * instanceModelView() * uMSMatrix * renderVertex;
     vTextureCoord = renderUv;
-    vTerrainGap = terrainPaged != 0 && terrainApplyGaps != 0 ? normal.w : 0.0;
+    vTerrainGap = terrainPaged != 0 && terrainApplyGaps != 0 ? vertexNormal.w : 0.0;
 }

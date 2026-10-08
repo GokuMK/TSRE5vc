@@ -2577,6 +2577,10 @@ Consist with this file name already exist. Overwrite?
         <source>&amp;Unselect All</source>
         <translation>&amp;Unselect All</translation>
     </message>
+    <message id="route.editor.route.editor.window.action.tools.copy.camera">
+        <source>&amp;Copy Camera Position</source>
+        <translation>&amp;Copy Camera Position</translation>
+    </message>
     <message id="route.editor.route.editor.window.action.v.view.world.grid">
         <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="281" />
         <source>&amp;World Grid</source>
@@ -7470,6 +7474,136 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <source>How route water surfaces are drawn.</source>
         <translation>How route water surfaces are drawn.</translation>
     </message>
+    <message id="settings.group.rendering.subgroup.lights.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="193" />
+        <source>Local lights</source>
+        <translation>Local lights</translation>
+    </message>
+    <message id="settings.group.rendering.subgroup.lights.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="195" />
+        <source>Light from lamps and glowing surfaces in the scene (QRhi renderer).</source>
+        <translation>Light from lamps and glowing surfaces in the scene (QRhi renderer).</translation>
+    </message>
+    <message id="settings.core.rendering.local.lights.enabled.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="868" />
+        <source>Local lights</source>
+        <translation>Local lights</translation>
+    </message>
+    <message id="settings.core.rendering.local.lights.enabled.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="870" />
+        <source>glTF lamps and emissive surfaces light the scene around them. QRhi renderer only.</source>
+        <translation>glTF lamps and emissive surfaces light the scene around them. QRhi renderer only.</translation>
+    </message>
+    <message id="settings.core.rendering.local.lights.exposure.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="875" />
+        <source>Lamp brightness</source>
+        <translation>Lamp brightness</translation>
+    </message>
+    <message id="settings.core.rendering.local.lights.exposure.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="877" />
+        <source>Scale of glTF lamp intensities. At 1 a lamp of 1 candela lights a white surface 1 m away to 1/pi of the sun&apos;s light, as in the Khronos sample viewer.</source>
+        <translation>Scale of glTF lamp intensities. At 1 a lamp of 1 candela lights a white surface 1 m away to 1/pi of the sun&apos;s light, as in the Khronos sample viewer.</translation>
+    </message>
+    <message id="settings.core.rendering.local.lights.emissive.gain.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="882" />
+        <source>Glow brightness</source>
+        <translation>Glow brightness</translation>
+    </message>
+    <message id="settings.core.rendering.local.lights.emissive.gain.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="884" />
+        <source>Scale of the light emissive surfaces cast. At 1 a surface lights its surroundings as a lamp of its brightness and size would.</source>
+        <translation>Scale of the light emissive surfaces cast. At 1 a surface lights its surroundings as a lamp of its brightness and size would.</translation>
+    </message>
+    <message id="settings.core.rendering.ambient.occlusion.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="875" />
+        <source>Ambient occlusion</source>
+        <translation>Ambient occlusion</translation>
+    </message>
+    <message id="settings.core.rendering.ambient.occlusion.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="877" />
+        <source>Darkens ambient light in corners, under objects and where surfaces meet, computed from the view&apos;s depth (QRhi renderer). Higher quality costs more time per frame.</source>
+        <translation>Darkens ambient light in corners, under objects and where surfaces meet, computed from the view&apos;s depth (QRhi renderer). Higher quality costs more time per frame.</translation>
+    </message>
+    <message id="settings.core.rendering.ambient.occlusion.option.off">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="880" />
+        <source>Off</source>
+        <translation>Off</translation>
+    </message>
+    <message id="settings.core.rendering.ambient.occlusion.option.low">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="882" />
+        <source>Low</source>
+        <translation>Low</translation>
+    </message>
+    <message id="settings.core.rendering.ambient.occlusion.option.medium">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="884" />
+        <source>Medium</source>
+        <translation>Medium</translation>
+    </message>
+    <message id="settings.core.rendering.ambient.occlusion.option.high">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="886" />
+        <source>High</source>
+        <translation>High</translation>
+    </message>
+    <message id="settings.group.rendering.subgroup.image.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="198" />
+        <source>Image</source>
+        <translation>Image</translation>
+    </message>
+    <message id="settings.group.rendering.subgroup.image.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="200" />
+        <source>Exposure, tone mapping and glow of the final image (QRhi renderer).</source>
+        <translation>Exposure, tone mapping and glow of the final image (QRhi renderer).</translation>
+    </message>
+    <message id="settings.core.rendering.tone.mapping.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="896" />
+        <source>Tone mapping</source>
+        <translation>Tone mapping</translation>
+    </message>
+    <message id="settings.core.rendering.tone.mapping.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="898" />
+        <source>How light brighter than white (lamps, glowing surfaces, sun glints) is fitted to the screen. Off clips it as before; Soft shoulder keeps the usual look and only rolls off highlights; ACES and AgX are filmic curves that also change mid-tones. QRhi renderer.</source>
+        <translation>How light brighter than white (lamps, glowing surfaces, sun glints) is fitted to the screen. Off clips it as before; Soft shoulder keeps the usual look and only rolls off highlights; ACES and AgX are filmic curves that also change mid-tones. QRhi renderer.</translation>
+    </message>
+    <message id="settings.core.rendering.tone.mapping.option.off">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="901" />
+        <source>Off</source>
+        <translation>Off</translation>
+    </message>
+    <message id="settings.core.rendering.tone.mapping.option.soft">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="903" />
+        <source>Soft shoulder</source>
+        <translation>Soft shoulder</translation>
+    </message>
+    <message id="settings.core.rendering.tone.mapping.option.aces">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="905" />
+        <source>ACES</source>
+        <translation>ACES</translation>
+    </message>
+    <message id="settings.core.rendering.tone.mapping.option.agx">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="907" />
+        <source>AgX</source>
+        <translation>AgX</translation>
+    </message>
+    <message id="settings.core.rendering.exposure.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="912" />
+        <source>Exposure</source>
+        <translation>Exposure</translation>
+    </message>
+    <message id="settings.core.rendering.exposure.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="914" />
+        <source>Brightens (positive) or darkens (negative) the final image, in stops: +1 doubles the light. QRhi renderer.</source>
+        <translation>Brightens (positive) or darkens (negative) the final image, in stops: +1 doubles the light. QRhi renderer.</translation>
+    </message>
+    <message id="settings.core.rendering.bloom.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="919" />
+        <source>Glow (bloom)</source>
+        <translation>Glow (bloom)</translation>
+    </message>
+    <message id="settings.core.rendering.bloom.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="921" />
+        <source>Strength of the halo around light-emitting surfaces such as lamps and signal or train lights. Only emitted light glows, never surfaces that are merely bright. 0 turns it off. QRhi renderer.</source>
+        <translation>Strength of the halo around light-emitting surfaces such as lamps and signal or train lights. Only emitted light glows, never surfaces that are merely bright. 0 turns it off. QRhi renderer.</translation>
+    </message>
     <message id="settings.group.rendering.subgroup.environment.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="180" />
         <source>Environment</source>
@@ -7859,6 +7993,14 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <source>World tile Z coordinate used for the initial Route Editor camera position; the legacy file calls it startTileY.</source>
         <translation>World tile Z coordinate used for the initial Route Editor camera position; the legacy file calls it startTileY.</translation>
     </message>
+    <message id="settings.core.startup.camera.name">
+        <source>Startup camera</source>
+        <translation>Startup camera</translation>
+    </message>
+    <message id="settings.core.startup.camera.description">
+        <source>Initial Route Editor camera as tileX,tileZ,x,y,z,yaw,pitch: tile and position as in the navigation window, angles in degrees (yaw and pitch may be left out). Tools &gt; Copy Camera Position copies the current one. Overrides the startup tile and the route&apos;s starting position; empty to leave them.</source>
+        <translation>Initial Route Editor camera as tileX,tileZ,x,y,z,yaw,pitch: tile and position as in the navigation window, angles in degrees (yaw and pitch may be left out). Tools &gt; Copy Camera Position copies the current one. Overrides the startup tile and the route&apos;s starting position; empty to leave them.</translation>
+    </message>
     <message id="settings.core.startup.season.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="399" />
         <source>Content season</source>
@@ -8131,18 +8273,28 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
     </message>
     <message id="settings.core.rendering.object.loading.target.tokens.description">
         <location filename="../src/settings/SettingsRegistration.cpp" line="579" />
-        <source>Target token level for incremental shape loading. Rendering replenishes two tokens per update when the current token count is below this value.</source>
-        <translation>Target token level for incremental shape loading. Rendering replenishes two tokens per update when the current token count is below this value.</translation>
+        <source>Pace of loading on the main thread: forests, transfers, and shapes when threaded shape loading is off. Each load takes two tokens; rendering adds two per update up to this level.</source>
+        <translation>Pace of loading on the main thread: forests, transfers, and shapes when threaded shape loading is off. Each load takes two tokens; rendering adds two per update up to this level.</translation>
     </message>
-    <message id="settings.core.rendering.object.loading.initial.tokens.name">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="584" />
-        <source>Initial object loading tokens</source>
-        <translation>Initial object loading tokens</translation>
+    <message id="settings.core.rendering.threaded.shape.loading.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="670" />
+        <source>Threaded shape loading</source>
+        <translation>Threaded shape loading</translation>
     </message>
-    <message id="settings.core.rendering.object.loading.initial.tokens.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="586" />
-        <source>Initial value of the separate runtime token counter consumed while shapes load. Changing this setting at runtime resets the counter; normal counter consumption and refilling never modify the saved setting.</source>
-        <translation>Initial value of the separate runtime token counter consumed while shapes load. Changing this setting at runtime resets the counter; normal counter consumption and refilling never modify the saved setting.</translation>
+    <message id="settings.core.rendering.threaded.shape.loading.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="670" />
+        <source>Load shapes (MSTS and glTF) on worker threads. Off: shapes load on the main thread, paced by the object loading budget. Either way, the first view of a route and the view after a camera jump are shown with their shapes loaded. Applies after a restart.</source>
+        <translation>Load shapes (MSTS and glTF) on worker threads. Off: shapes load on the main thread, paced by the object loading budget. Either way, the first view of a route and the view after a camera jump are shown with their shapes loaded. Applies after a restart.</translation>
+    </message>
+    <message id="settings.core.rendering.object.loading.parallel.shapes.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="670" />
+        <source>Shapes loaded at once</source>
+        <translation>Shapes loaded at once</translation>
+    </message>
+    <message id="settings.core.rendering.object.loading.parallel.shapes.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="670" />
+        <source>Shapes loading at once on worker threads when threaded shape loading is on. Applies after a restart.</source>
+        <translation>Shapes loading at once on worker threads when threaded shape loading is on. Applies after a restart.</translation>
     </message>
     <message id="settings.core.rendering.pipeline.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="591" />
@@ -8198,6 +8350,51 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <location filename="../src/settings/SettingsRegistration.cpp" line="619" />
         <source>On GPU / Experimental</source>
         <translation>On GPU / Experimental</translation>
+    </message>
+    <message id="settings.core.rendering.backend.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="674" />
+        <source>Renderer</source>
+        <translation>Renderer</translation>
+    </message>
+    <message id="settings.core.rendering.backend.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="676" />
+        <source>The OpenGL renderer, or the experimental QRhi renderer (Vulkan, Metal, Direct3D or OpenGL through Qt). Applies after a restart.</source>
+        <translation>The OpenGL renderer, or the experimental QRhi renderer (Vulkan, Metal, Direct3D or OpenGL through Qt). Applies after a restart.</translation>
+    </message>
+    <message id="settings.core.rendering.backend.option.opengl">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="679" />
+        <source>OpenGL</source>
+        <translation>OpenGL</translation>
+    </message>
+    <message id="settings.core.rendering.backend.option.qrhi">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="681" />
+        <source>QRhi / Experimental</source>
+        <translation>QRhi / Experimental</translation>
+    </message>
+    <message id="settings.core.rendering.rhi.api.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="686" />
+        <source>QRhi graphics API</source>
+        <translation>QRhi graphics API</translation>
+    </message>
+    <message id="settings.core.rendering.rhi.api.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="688" />
+        <source>Graphics API of the QRhi renderer. Automatic uses Vulkan; without Vulkan the editor uses the OpenGL renderer. OpenGL runs the QRhi renderer on OpenGL, slower than the OpenGL renderer for now. Applies after a restart.</source>
+        <translation>Graphics API of the QRhi renderer. Automatic uses Vulkan; without Vulkan the editor uses the OpenGL renderer. OpenGL runs the QRhi renderer on OpenGL, slower than the OpenGL renderer for now. Applies after a restart.</translation>
+    </message>
+    <message id="settings.core.rendering.rhi.api.option.auto">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="691" />
+        <source>Automatic</source>
+        <translation>Automatic</translation>
+    </message>
+    <message id="settings.core.rendering.rhi.api.option.vulkan">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="693" />
+        <source>Vulkan</source>
+        <translation>Vulkan</translation>
+    </message>
+    <message id="settings.core.rendering.rhi.api.option.opengl">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="695" />
+        <source>OpenGL</source>
+        <translation>OpenGL</translation>
     </message>
     <message id="settings.core.rendering.threaded.texture.loading.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="624" />
@@ -8546,6 +8743,36 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <location filename="../src/settings/SettingsRegistration.cpp" line="741" />
         <source>Base clear colour copied into the scene renderer.</source>
         <translation>Base clear colour copied into the scene renderer.</translation>
+    </message>
+    <message id="settings.core.rendering.time.of.day.enabled.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="917" />
+        <source>Time of day</source>
+        <translation>Time of day</translation>
+    </message>
+    <message id="settings.core.rendering.time.of.day.enabled.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="919" />
+        <source>Light the Route Editor as the sun would at the camera&apos;s latitude and longitude at the time and date below: sun direction, shadows, light and sky colours. When off, the editor uses its fixed light.</source>
+        <translation>Light the Route Editor as the sun would at the camera&apos;s latitude and longitude at the time and date below: sun direction, shadows, light and sky colours. When off, the editor uses its fixed light.</translation>
+    </message>
+    <message id="settings.core.rendering.time.of.day.time.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="924" />
+        <source>Time</source>
+        <translation>Time</translation>
+    </message>
+    <message id="settings.core.rendering.time.of.day.time.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="926" />
+        <source>Local mean solar time in hours: 12 is when the sun is highest on average, whatever the route&apos;s time zone.</source>
+        <translation>Local mean solar time in hours: 12 is when the sun is highest on average, whatever the route&apos;s time zone.</translation>
+    </message>
+    <message id="settings.core.rendering.time.of.day.date.name">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="931" />
+        <source>Date</source>
+        <translation>Date</translation>
+    </message>
+    <message id="settings.core.rendering.time.of.day.date.description">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="933" />
+        <source>Date for the sun&apos;s path, as yyyy-MM-dd.</source>
+        <translation>Date for the sun&apos;s path, as yyyy-MM-dd.</translation>
     </message>
     <message id="settings.core.rendering.render.track.items.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="746" />

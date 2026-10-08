@@ -141,7 +141,12 @@ public:
     // without a meaningful height (map mode, stored x and z).
     int findNearestPositionOnTDB(float* posT, float* pos, float* q = NULL, float* tpos = NULL, bool useHeight = true);
     int findNearestPositionsOnTDB(float* posT, float * pos, QVector<TDB::IntersectionPoint> &points, float maxDistance = 10.0);
-    void fillNearestSquaredDistanceToTDBXZ(float* posT, QVector<Vector4f> &points, float* bbox = NULL);
+    // Lowers each point's c to its squared XZ distance from the nearest line
+    // around tile posT; lines outside bbox (minX, maxX, minZ, maxZ) are
+    // skipped. With limit > 0 only distances below limit are exact: a point
+    // farther than limit from every line may keep a larger value.
+    void fillNearestSquaredDistanceToTDBXZ(float* posT, QVector<Vector4f> &points, float* bbox = NULL,
+                                           float limit = 0);
     void deleteTrItem(int trid);
     void deleteTree(int x, int y, int UiD);
     void deleteTree(int d);
