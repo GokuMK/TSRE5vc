@@ -279,7 +279,20 @@ std::vector<QPoint> MapLabelLayer::place(const std::vector<Candidate> &candidate
 
 // ---------------------------------------------------------------- layer
 
-MapLabelLayer::MapLabelLayer() : dots(std::make_unique<OglObj>()), dotHalos(std::make_unique<OglObj>()) {}
+MapLabelLayer::MapLabelLayer() : dotHalos(std::make_unique<OglObj>()) {
+    for (auto &d : dots)
+        d = std::make_unique<OglObj>();
+}
+
+QColor MapLabelLayer::dotColour(const MapPalette &palette, MapLabelKind kind) {
+    switch (kind) {
+    case MapLabelKind::Station:
+    case MapLabelKind::Platform: return palette.platform;
+    case MapLabelKind::Siding: return palette.siding;
+    case MapLabelKind::Event: return palette.event;
+    default: return palette.marker;
+    }
+}
 
 MapLabelLayer::~MapLabelLayer() = default;
 
@@ -300,6 +313,8 @@ void MapLabelLayer::build(const MapView &view, const MapPalette &palette, float 
     const float margin = 200.0f * pixelRatio;
     for (size_t i = 0; i < labels.size(); ++i) {
         const MapLabel &l = labels[i];
+        if (l.maxMetresPerPixel > 0.0f && view.metresPerPixel > l.maxMetresPerPixel)
+            continue;
         float px, py;
         view.screenAt(float(l.tileX - view.tileX) * 2048.0f + l.x, float(l.tileZ - view.tileZ) * 2048.0f + l.z, px, py);
         if (px < -margin || py < -margin || px > view.width + margin || py > view.height + margin)
@@ -313,13 +328,14 @@ void MapLabelLayer::build(const MapView &view, const MapPalette &palette, float 
 
     // Quads at whole pixels, so text stays sharp; screen corners back to the ground.
     std::vector<std::vector<float>> quads;
-    std::vector<float> dotTriangles, haloTriangles;
+    std::vector<float> dotTriangles[int(MapLabelKind::Count)], haloTriangles;
     const float mpp = view.metresPerPixel;
     auto ground = [&](float sx, float sy, float &gx, float &gz) { view.groundAt(sx, sy, gx, gz); };
     placed = 0;
     for (int attempt = 0; attempt < 2; ++attempt) {
         quads.assign(size_t(MapLabelAtlas::MaxPages), {});
-        dotTriangles.clear();
+        for (auto &d : dotTriangles)
+            d.clear();
         haloTriangles.clear();
         placed = 0;
         const int generation = atlas.generation();
@@ -349,7 +365,7 @@ void MapLabelLayer::build(const MapView &view, const MapPalette &palette, float 
             float dx, dz;
             ground(candidates[k].x, candidates[k].y, dx, dz);
             TrackMapLayer::appendOctagon(haloTriangles, dx, DotHaloHeight, dz, (DotPixels + 2.0f) * pixelRatio * mpp);
-            TrackMapLayer::appendOctagon(dotTriangles, dx, DotHeight, dz, DotPixels * pixelRatio * mpp);
+            TrackMapLayer::appendOctagon(dotTriangles[int(l.kind)], dx, DotHeight, dz, DotPixels * pixelRatio * mpp);
             ++placed;
         }
         // The atlas filled up mid-build: start it again with this view's names only.
@@ -364,8 +380,11 @@ void MapLabelLayer::build(const MapView &view, const MapPalette &palette, float 
         object->setMaterialTextureId(atlas.textureId(p));
         object->init(quads[size_t(p)].data(), int(quads[size_t(p)].size()), RenderItem::VT, GL_TRIANGLES);
     }
-    dots->setMaterial(float(palette.marker.redF()), float(palette.marker.greenF()), float(palette.marker.blueF()));
-    dots->init(dotTriangles.data(), int(dotTriangles.size()), RenderItem::V, GL_TRIANGLES);
+    for (int k = 0; k < int(MapLabelKind::Count); ++k) {
+        const QColor c = dotColour(palette, MapLabelKind(k));
+        dots[k]->setMaterial(float(c.redF()), float(c.greenF()), float(c.blueF()));
+        dots[k]->init(dotTriangles[k].data(), int(dotTriangles[k].size()), RenderItem::V, GL_TRIANGLES);
+    }
     dotHalos->setMaterial(float(palette.labelHalo.redF()), float(palette.labelHalo.greenF()), float(palette.labelHalo.blueF()));
     dotHalos->init(haloTriangles.data(), int(haloTriangles.size()), RenderItem::V, GL_TRIANGLES);
     static const bool trace = qEnvironmentVariableIsSet("TSRE_MAP_TRACE");
@@ -389,7 +408,8 @@ void MapLabelLayer::pushRenderItems(RenderQueue &queue, const MapView &view, con
         builtRatio = pixelRatio;
     }
     dotHalos->pushRenderItem(queue);
-    dots->pushRenderItem(queue);
+    for (auto &d : dots)
+        d->pushRenderItem(queue);
     for (auto &object : textObjects)
         object->pushRenderItem(queue);
 }

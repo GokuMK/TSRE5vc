@@ -8,6 +8,10 @@
 #include <tsre/map/ActivityMapLayer.h>
 #include <tsre/map/MapOverlayFade.h>
 #include <tsre/map/MapLabelLayer.h>
+#include <tsre/map/MapLabelSources.h>
+#include <tsre/coords/Coords.h>
+#include <tsre/trains/Activity.h>
+#include <tsre/trains/ActivityEvent.h>
 #include <tsre/map/MapPalette.h>
 #include <tsre/map/OsmMapLayer.h>
 #include <tsre/geo/GeoCoordinates.h>
@@ -205,6 +209,39 @@ int TsreTests::runMapViewSuite(bool verbose) {
         const MapLabelAtlas::Entry *again = atlas.get("Wrocław", false);
         check(atlas.generation() == generation + 1 && again && again->rect.height() > r1.height(),
               "label atlas: a new style or pixel ratio starts again, at the new size");
+
+        // Sources: a location event and a marker into the view's tile convention.
+        Activity activity;
+        ActivityEvent event(1, ActivityEvent::CategoryLocation);
+        event.name = "Pick up";
+        const float location[5] = {-6120, 15094, 100, 200, 25};
+        std::copy(location, location + 5, event.location);
+        activity.event.push_back(event);
+        Coords markers;
+        Coords::Marker marker;
+        marker.name = "Kraków";
+        marker.featureCode = "PPLA";
+        marker.population = 800000;
+        marker.tileX.push_back(5);
+        marker.tileZ.push_back(7);
+        marker.x.push_back(10);
+        marker.y.push_back(0);
+        marker.z.push_back(-20);
+        markers.markerList.push_back(marker);
+        markers.loaded = true;
+        std::vector<MapLabel> sourced;
+        MapLabelSources::appendActivity(sourced, &activity);
+        MapLabelSources::appendMarkers(sourced, &markers);
+        check(sourced.size() == 2 && sourced[0].text == "Pick up" && sourced[0].tileX == -6120 && sourced[0].tileZ == -15094
+                      && near(sourced[0].x, 100) && near(sourced[0].z, -200) && sourced[0].kind == MapLabelKind::Event
+                      && sourced[1].tileZ == -7 && near(sourced[1].z, -20) && sourced[1].major
+                      && sourced[0].priority > sourced[1].priority,
+              "label sources: events and markers in the view's tile convention, events ranked above places");
+        const MapPalette lightPalette = MapPalette::light();
+        check(MapLabelLayer::dotColour(lightPalette, MapLabelKind::Siding) == lightPalette.siding
+                      && MapLabelLayer::dotColour(lightPalette, MapLabelKind::Station) == lightPalette.platform
+                      && MapLabelLayer::dotColour(lightPalette, MapLabelKind::Event) == lightPalette.event,
+              "label dots take the colour of what they name");
     }
 
     // OSM data: its band of heights, and placing latitude and longitude on the ground.

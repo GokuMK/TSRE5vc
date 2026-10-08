@@ -88,6 +88,7 @@ struct ViewSpec {
     // Centred on a latitude and longitude through the route's projection, instead of
     // tile and pos (map views of OSM data).
     bool markers = true;  // Map > Markers
+    bool viewMarkers = false;  // 3D View > Markers
     bool hasLatLon = false;
     double lat = 0.0, lon = 0.0;
     // Edit the distant terrain (TerrainLib's current tree) for this view.
@@ -132,6 +133,8 @@ struct Options {
     // Country code: Country Places written into the route (as Route > Generate Country
     // Places does) and selected as the marker set.
     QString countryPlaces;
+    // A marker set to select by its Navi window name (for example "plan.kml").
+    QString markerSet;
     QString path;
     QVector<ViewSpec> views;
 };
@@ -220,6 +223,7 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
 
     options.activity = root.value("activity").toString();
     options.countryPlaces = root.value("countryPlaces").toString();
+    options.markerSet = root.value("markerSet").toString();
     options.path = root.value("path").toString();
 
     const QJsonArray objects = root.value("objects").toArray();
@@ -257,6 +261,7 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         view.osmData = object.value("osmData").toBool(false);
         view.osmTransparentAreas = object.value("osmTransparentAreas").toBool(false);
         view.markers = object.value("markers").toBool(true);
+        view.viewMarkers = object.value("viewMarkers").toBool(false);
         const QJsonArray latLon = object.value("latLon").toArray();
         view.hasLatLon = latLon.size() == 2;
         if (view.hasLatLon) {
@@ -495,6 +500,11 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         else
             widget.currentRoute()->setMkrFile(QStringLiteral("| Country places: %1").arg(code));
     }
+    if (!options.markerSet.isEmpty() && widget.currentRoute() != nullptr) {
+        if (!widget.currentRoute()->getMkrList().contains(options.markerSet))
+            qWarning() << CaptureLog << "no marker set" << options.markerSet;
+        widget.currentRoute()->setMkrFile(options.markerSet);
+    }
     QJsonArray viewReports;
     for (const ViewSpec &spec : options.views) {
         int tileX = spec.hasTile ? spec.tileX : startTileX;
@@ -524,6 +534,7 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
             Game::check_coords(groundX, groundZ, ground);
             pos[1] = Game::terrainLib->getHeight(groundX, groundZ, ground[0], ground[2]) + spec.aboveGround;
         }
+        Game::viewMarkers = spec.viewMarkers;
         widget.setDiagnosticView(tileX, tileZ, pos[0], pos[1], pos[2], rot[0], rot[1]);
         if (spec.map) {
             widget.setDiagnosticMapView(tileX, tileZ, pos[0], pos[2], spec.metresPerPixel,

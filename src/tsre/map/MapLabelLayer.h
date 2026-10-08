@@ -27,6 +27,9 @@ class RenderQueue;
 class Texture;
 struct MapPalette;
 
+// What a label names: its dot takes the palette colour of the kind.
+enum class MapLabelKind : unsigned char { Marker, Station, Platform, Siding, Event, Count };
+
 // A named point for the map (task editor 04, labels; docs/tasks/geo/osm-rendering-design.md).
 struct MapLabel {
     // Position in the editor's tile convention (the camera's), metres in the tile.
@@ -37,8 +40,11 @@ struct MapLabel {
     QString text;
     // Higher is placed first; equal ones keep their order.
     double priority = 0.0;
-    // Drawn larger and bold (capitals, region seats).
+    // Drawn larger and bold (capitals, region seats, stations).
     bool major = false;
+    MapLabelKind kind = MapLabelKind::Marker;
+    // Shown at this resolution and finer (metres per pixel); 0: at every one.
+    float maxMetresPerPixel = 0.0f;
 };
 
 // Rank of a place name from its GeoNames feature code and population: capitals,
@@ -103,6 +109,8 @@ public:
     ~MapLabelLayer();
     // Replaces the labels (sorted by priority here).
     void setLabels(std::vector<MapLabel> labels);
+    // The palette colour of a kind's dots.
+    static QColor dotColour(const MapPalette &palette, MapLabelKind kind);
     size_t labelCount() const { return labels.size(); }
     void pushRenderItems(RenderQueue &queue, const MapView &view, const MapPalette &palette, float pixelRatio);
     // Labels placed in the last build.
@@ -131,7 +139,7 @@ private:
     QString builtPalette;
     float builtRatio = 0.0f;
     std::vector<std::unique_ptr<OglObj>> textObjects;  // one per atlas page
-    std::unique_ptr<OglObj> dots;
+    std::unique_ptr<OglObj> dots[int(MapLabelKind::Count)];
     std::unique_ptr<OglObj> dotHalos;
 };
 

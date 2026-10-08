@@ -84,6 +84,8 @@
 #include <tsre/map/MapOverlayFade.h>
 #include <tsre/map/OsmMapLayer.h>
 #include <tsre/map/MapLabelLayer.h>
+#include <tsre/map/MapLabelSources.h>
+#include <tsre/trains/Activity.h>
 #include <tsre/coords/Coords.h>
 #include <tsre/geo/osm/OsmConversionUi.h>
 #include <tsre/map/TerrainMapLayer.h>
@@ -358,8 +360,8 @@ void RouteEditorGLWidget::cameraInit(){
         terrainMap = std::make_unique<TerrainMapLayer>();
     if (!mapFade)
         mapFade = std::make_unique<MapOverlayFade>();
-    if (!markerLabels)
-        markerLabels = std::make_unique<MapLabelLayer>();
+    if (!mapLabels)
+        mapLabels = std::make_unique<MapLabelLayer>();
     if (!osmMap) {
         osmMap = std::make_unique<OsmMapLayer>();
         // From the worker thread: draw again once a build is ready.
@@ -1867,6 +1869,7 @@ void RouteEditorGLWidget::mouseReleaseEvent(QMouseEvent* event) {
             terrainMap->invalidate();
             trackItemMap->rebuild();
             activityMap->invalidate();
+            mapLabelsInvalid = true;
             update();
             return;
         }
@@ -1882,6 +1885,7 @@ void RouteEditorGLWidget::mouseReleaseEvent(QMouseEvent* event) {
             // What the tool changed shows on the next draw.
             trackItemMap->rebuild();
             activityMap->invalidate();
+            mapLabelsInvalid = true;
             terrainMap->rebuild();
             update();
         }
@@ -1930,6 +1934,7 @@ void RouteEditorGLWidget::mouseMoveEvent(QMouseEvent *event) {
                 updateMapPointer();
                 tool->drag(*this, ToolMouse{position, m_lastPos});
                 activityMap->invalidate();
+                mapLabelsInvalid = true;
                 update();
             }
         } else if (event->buttons() & (Qt::LeftButton | Qt::RightButton | Qt::MiddleButton)) {
@@ -1992,6 +1997,7 @@ void RouteEditorGLWidget::setViewMode(ViewMode mode) {
         trackItemMap->invalidate();
         terrainMap->invalidate();
         activityMap->invalidate();
+        mapLabelsInvalid = true;
     } else {
         // The 3D camera looks at the map pointer from behind and above, in
         // the map's heading.
@@ -2051,6 +2057,26 @@ bool RouteEditorGLWidget::prepareOsmLayer() {
 
 bool RouteEditorGLWidget::mapLayersBusy() const {
     return osmMap && osmMap->busy();
+}
+
+void RouteEditorGLWidget::updateMapLabels() {
+    Coords *markers = mapLayers.shows(MapLayer::Markers) && route != NULL ? route->currentMkr() : NULL;
+    TDB *track = mapLayers.shows(MapLayer::TrackObjects) ? Game::trackDB : NULL;
+    Activity *activity = mapLayers.shows(MapLayer::Activity) && route != NULL ? route->getCurrentActivity() : NULL;
+    // What is labelled, and how much of it: a change rebuilds the labels.
+    const std::vector<const void *> sources = {
+        markers, reinterpret_cast<const void *>(quintptr(markers != NULL ? markers->markerList.size() : 0)),
+        track, reinterpret_cast<const void *>(quintptr(track != NULL ? track->trackItems.size() : 0)),
+        activity, reinterpret_cast<const void *>(quintptr(activity != NULL ? activity->event.size() : 0))};
+    if (!mapLabelsInvalid && sources == mapLabelSources)
+        return;
+    std::vector<MapLabel> labels;
+    MapLabelSources::appendActivity(labels, activity);
+    MapLabelSources::appendTrackDatabase(labels, track);
+    MapLabelSources::appendMarkers(labels, markers);
+    mapLabels->setLabels(std::move(labels));
+    mapLabelSources = sources;
+    mapLabelsInvalid = false;
 }
 
 void RouteEditorGLWidget::updateMapPointer() {
@@ -2116,32 +2142,8 @@ void RouteEditorGLWidget::paintMap() {
         trackItemMap->pushRenderItems(queue, view, palette, route, Game::trackDB, Game::roadDB);
     activityMap->pushRenderItems(queue, view, palette, route, mapLayers.shows(MapLayer::Activity),
                                  mapLayers.shows(MapLayer::Paths));
-    if (mapLayers.shows(MapLayer::Markers) && route != NULL) {
-        Coords *markers = route->currentMkr();
-        const int count = markers != NULL && markers->loaded ? markers->markerList.size() : 0;
-        if (markers != markerLabelsSource || count != markerLabelsCount) {
-            std::vector<MapLabel> labels;
-            labels.reserve(size_t(count));
-            for (int i = 0; i < count; ++i) {
-                const Coords::Marker &m = markers->markerList[i];
-                if (m.tileX.isEmpty() || m.name.isEmpty())
-                    continue;
-                MapLabel label;
-                // Marker tiles count z as the converter does; the map as the camera.
-                label.tileX = m.tileX[0];
-                label.tileZ = -m.tileZ[0];
-                label.x = float(m.x[0]);
-                label.z = float(m.z[0]);
-                label.text = m.name;
-                label.priority = placeLabelPriority(m.featureCode, m.population, &label.major);
-                labels.push_back(std::move(label));
-            }
-            markerLabels->setLabels(std::move(labels));
-            markerLabelsSource = markers;
-            markerLabelsCount = count;
-        }
-        markerLabels->pushRenderItems(queue, view, palette, Game::PixelRatio);
-    }
+    updateMapLabels();
+    mapLabels->pushRenderItems(queue, view, palette, Game::PixelRatio);
     // The pointer: a square of a fixed screen size above everything.
     if (mapPointer == NULL)
         mapPointer = new OglObj();
@@ -2503,6 +2505,7 @@ void RouteEditorGLWidget::setDiagnosticMapView(int tileX, int tileZ, float x, fl
     trackItemMap->invalidate();
     terrainMap->invalidate();
     activityMap->invalidate();
+    mapLabelsInvalid = true;
 }
 
 void RouteEditorGLWidget::diagnosticView(int &tileX, int &tileZ, float *pos,
@@ -2592,6 +2595,7 @@ void RouteEditorGLWidget::setSelectedObj(GameObj* o) {
         trackItemMap->rebuild();
     if (activityMap)
         activityMap->invalidate();
+    mapLabelsInvalid = true;
     emit showProperties(selectedObj);
     if (o != NULL)
         if (o->typeObj == o->worldobj)

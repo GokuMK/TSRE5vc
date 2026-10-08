@@ -413,10 +413,13 @@ private:
     std::unique_ptr<TerrainMapLayer> terrainMap;
     std::unique_ptr<MapOverlayFade> mapFade;
     std::unique_ptr<OsmMapLayer> osmMap;
-    // Map > Markers: the Navi window's marker set as labels; rebuilt when the set changes.
-    std::unique_ptr<MapLabelLayer> markerLabels;
-    Coords *markerLabelsSource = nullptr;
-    int markerLabelsCount = -1;
+    // Map labels: the marker set (Map > Markers), stations, platforms and sidings (Map >
+    // Track Objects), location events (Map > Activity), placed together. Rebuilt when a
+    // source or its size changes, or when edits invalidate the map's items.
+    std::unique_ptr<MapLabelLayer> mapLabels;
+    std::vector<const void *> mapLabelSources;
+    bool mapLabelsInvalid = true;
+    void updateMapLabels();
     // Where a press began in map mode: a left click that moves the map no
     // more than this goes to the active tool.
     static constexpr float MapClickPixels = 4.0f;

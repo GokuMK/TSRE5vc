@@ -161,6 +161,44 @@ Phase 1 core, as built:
     matches OpenGL.
   - Design and the next steps (OSM places and stations, street names with
     a glyph atlas): [OSM rendering](../geo/osm-rendering-design.md).
+- **Route data labels** (2026-10-09, `src/tsre/map/MapLabelSources`), placed
+  with the markers so no two names overlap:
+  - station names once each, among their platforms, bold (Map > Track
+    Objects);
+  - platform names (when not the station's) from 2 m/px, siding names from
+    4 m/px, between their two ends (`platformTrItemData[1]` is the other
+    end), at the items' positions on their track nodes
+    (`TrackItemMapLayer::itemPlaces`, shared with the track objects);
+  - location event names (Map > Activity);
+  - ranked events, stations (more platforms first), platforms, sidings,
+    then marker sets; dots in the kind's palette colour.
+  - Rebuilt when a source or its size changes and wherever the activity layer
+    is invalidated by edits.
+  - Captures: `tests/renderer/map-route-labels.json` (EUROPE1, winterun).
+    EUROPE1's `SettleCa.mkr` markers lie off its track: they are the real
+    Settle-Carlisle line's, the route only roughly follows it.
+  - Not yet: the "Route: Stations" marker sets (`CoordsRoutePlaces`) copy item
+    positions without negating z, so those markers are probably mirrored
+    within their tile; to check in 3D.
+- **Capture keys** added with the labels: `countryPlaces` (writes and selects
+  Country Places), `markerSet` (selects a marker set by its Navi window name),
+  per view `markers` (Map > Markers) and `viewMarkers` (3D View > Markers).
+- **KML marker files need redoing** (2026-10-09; `CoordsKml`, the 3D marker
+  lines in `Coords::pushRenderItems`). Seen in the code, most not yet
+  confirmed in captures:
+  - colours read as `#aarrggbb` while KML writes `aabbggrr` (red and blue
+    swapped); `StyleMap` not followed; within a `Style` the last `color`
+    wins (icon, line or polygon);
+  - each point allocates two converter results never freed; a point the
+    projection cannot convert would crash; coordinates read as floats;
+  - 3D lines take the terrain height of a segment's first point, computed
+    once (wrong if the terrain was not loaded yet), and ask for 2-pixel
+    lines that QRhi and core OpenGL draw 1 pixel wide;
+  - no `ExtendedData` read (ranking of custom files); the map shows a line's
+    or area's name at its first point and does not draw the line.
+  - A first data example: `tests/renderer/kml/test-project-lines.kml` (a
+    point, a line with a `StyleMap`, an area, a two-part line, near the
+    TEST_PROFILES start). A real development-project file would be better.
 
 Next: phase 2 layers (tile grid, scale ruler).
 
