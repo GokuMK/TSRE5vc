@@ -317,7 +317,7 @@ void QueueRenderer::planGroups(const std::vector<DrawInstance> &instances){
 }
 
 void QueueRenderer::gatherLights(std::vector<LightGrid::Light> &lights, float exposure,
-                                 float emissiveGain) const{
+                                 float emissiveGain, bool emittersOnly) const{
     lights.clear();
     for(const PassQueue &queue : passes){
         for(const std::vector<DrawInstance> *list : {&queue.ordered, &queue.grouped}){
@@ -333,6 +333,8 @@ void QueueRenderer::gatherLights(std::vector<LightGrid::Light> &lights, float ex
                 else
                     std::copy(matrix, matrix + 16, transform);
                 for(const RenderItem::Light &source : packet->lights){
+                    if(emittersOnly && !source.emissive)
+                        continue;
                     LightGrid::Light light;
                     const float *p = source.position;
                     const float *d = source.direction;
@@ -360,7 +362,7 @@ void QueueRenderer::gatherLights(std::vector<LightGrid::Light> &lights, float ex
                     light.spot = source.type == RenderItem::Light::SPOT;
                     light.cosInner = std::cos(source.innerCone);
                     light.cosOuter = std::cos(source.outerCone);
-                    if(light.range > 0.0f)
+                    if(light.range > 0.0f || emittersOnly)
                         lights.push_back(light);
                 }
             }

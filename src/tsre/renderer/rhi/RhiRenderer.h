@@ -270,9 +270,42 @@ private:
         QRhiGraphicsPipeline *up = nullptr;
         QRhiSampler *linear = nullptr;
     } bloom;
+    // Glow of emitters drawn at their projected position (task 24): each
+    // emissive emitter adds its glow to the main view's, spread over the four
+    // pixels around it. A lens about a pixel across is drawn in one frame
+    // and missed in the next; its own glow blinked, and bloom made the blink
+    // a halo. Gathered with the lights, drawn in the view's pass with its
+    // depth.
+    struct GlowSplats {
+        std::vector<LightGrid::Light> emitters;
+        bool gathered = false;
+        bool pending = false;
+        // The main view's scene band: projection, fog and viewport.
+        float projection[16] = {};
+        float fogMatrix[16] = {};
+        float camera[3] = {};
+        float focal = 1.0f;
+        float lod = 1.0f;
+        float fogDensity = 1.0f;
+        QRhiViewport viewport;
+        QRhiBuffer *instances = nullptr;
+        quint32 capacity = 0;
+        quint32 count = 0;
+        QRhiBuffer *uniforms = nullptr;
+        QRhiShaderResourceBindings *bindings = nullptr;
+        QRhiGraphicsPipeline *pipeline = nullptr;
+        QRhiRenderPassDescriptor *pipelinePass = nullptr;
+    } glowSplats;
+    void gatherGlowSplats();
+    void prepareGlowSplats();
+    bool uploadGlowSplats(QRhiResourceUpdateBatch *batch, QRhiRenderPassDescriptor *pass);
+    void drawGlowSplats(QRhiCommandBuffer *cb);
+    void releaseGlowSplats();
 public:
     // The fragment shaders of present and bloom, for tests.
     static QList<QByteArray> imageShaders();
+    // The glow splats' vertex and fragment shaders, for tests.
+    static QList<QByteArray> glowSplatShaders();
 private:
     QRhiBuffer *presentUniforms = nullptr;
     QRhiSampler *presentLinear = nullptr;

@@ -119,6 +119,18 @@ int TsreTests::runRhiShaderSuite(bool verbose) {
             qWarning().noquote() << baker.errorMessage();
         check(shader.isValid(), QString("full-screen pass %1 (occlusion, present, bloom) bakes").arg(i));
     }
+    const QList<QByteArray> splats = RhiRenderer::glowSplatShaders();
+    for (int i = 0; i < splats.size(); ++i) {
+        QShaderBaker baker;
+        baker.setGeneratedShaders({{QShader::SpirvShader, QShaderVersion(100)},
+                                   {QShader::GlslShader, QShaderVersion(330)}});
+        baker.setGeneratedShaderVariants({QShader::StandardShader});
+        baker.setSourceString(splats[i], i == 0 ? QShader::VertexStage : QShader::FragmentStage);
+        const QShader shader = baker.bake();
+        if (!shader.isValid())
+            qWarning().noquote() << baker.errorMessage();
+        check(shader.isValid(), QString("glow splat %1 stage bakes").arg(i == 0 ? "vertex" : "fragment"));
+    }
     qInfo() << "[tests:rhi-shaders] cases=" << (passed + failed)
             << "passed=" << passed << "failed=" << failed;
     return failed == 0 ? 0 : 1;

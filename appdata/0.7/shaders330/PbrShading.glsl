@@ -51,6 +51,12 @@ uniform sampler2D pbrClearcoatRoughnessMap;
 uniform sampler2D pbrClearcoatNormalMap;
 uniform sampler2D pbrSpecularMap;
 uniform sampler2D pbrSpecularColorMap;
+#ifdef TSRE_RHI
+// Mean radius of the emitters standing in for this surface (0: none), and
+// the main view's pixels per unit at distance 1 (glow splats, task 24).
+uniform float pbrGlowRadius;
+uniform float glowFocal;
+#endif
 #include "EnvironmentLighting.glsl"
 
 vec2 pbrUv(int map) {
@@ -257,7 +263,17 @@ vec4 pbrShade() {
     color += emissive;
 
 #ifdef TSRE_RHI
-    pbrGlowOut = vec4(emissive * (1.0 - fogFactor), alpha);
+    // Shrinking below 32 pixels, the surface hands its glow to its emitters'
+    // splats, drawn at their exact position (RhiImage.cpp): its own pixels
+    // come and go as it moves across the pixel grid.
+    float glowShare = 1.0;
+    if (pbrGlowRadius > 0.0) {
+        float scale = length(mat3(vModelView) * mat3(uMSMatrix) * vec3(1.0, 0.0, 0.0));
+        float pixels = pbrGlowRadius * scale * glowFocal
+                / max(distance(cameraPosition, vWorldPosition), 0.001);
+        glowShare = smoothstep(16.0, 32.0, pixels);
+    }
+    pbrGlowOut = vec4(emissive * (1.0 - fogFactor) * glowShare, alpha);
     // The display-space share of the environment light, after fog.
     pbrAmbientOut = vec4((toDisplay(color) - toDisplay(max(color - ambientLight, vec3(0.0))))
                          * (1.0 - fogFactor), alpha);

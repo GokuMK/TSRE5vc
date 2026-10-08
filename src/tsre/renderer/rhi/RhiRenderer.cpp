@@ -243,6 +243,7 @@ void RhiRenderer::releaseResources() {
     presentSampler = nullptr;
     releaseAmbientOcclusion();
     releaseBloom();
+    releaseGlowSplats();
     releaseGlowClear();
     delete presentUniforms;
     delete presentLinear;
@@ -352,6 +353,9 @@ void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
     program->setInt("shadowsEnabled", Game::shadowsEnabled);
     program->setFloat("colorBrightness", gluu->currentBrightness);
     program->setFloat("fogDensity", gluu->fogDensity);
+    // Pixels per unit at distance 1 in the main view: emissive surfaces
+    // fade their glow into the glow splats as they shrink (task 24).
+    program->setFloat("glowFocal", sceneProjection[1] * float(std::max(1, view.size.height())) * 0.5f);
     program->setUint("selectionId", 0);
     program->setFloat("shadow1Res", gluu->shadow1Res);
     program->setFloat("shadow2Res", gluu->shadow2Res);
@@ -421,6 +425,16 @@ void RhiRenderer::writeItemUniforms(RhiProgram *program, RenderItem *item, quint
         program->setVec("pbrBaseColor", p.baseColor[0], p.baseColor[1], p.baseColor[2], p.baseColor[3]);
         program->setVec("pbrMetallicRoughness", p.metallic, p.roughness);
         program->setVec("pbrEmissive", p.emissive[0], p.emissive[1], p.emissive[2]);
+        // The size of the emitters standing in for an emissive surface: its
+        // glow fades into theirs as they shrink below 3 pixels (task 24).
+        float glowRadius = 0.0f;
+        int emitters = 0;
+        for (const RenderItem::Light &light : item->lights)
+            if (light.emissive) {
+                glowRadius += light.radius;
+                ++emitters;
+            }
+        program->setFloat("pbrGlowRadius", emitters > 0 ? glowRadius / emitters : 0.0f);
         program->setFloat("pbrNormalScale", p.normalScale);
         program->setFloat("pbrOcclusionStrength", p.occlusionStrength);
         program->setFloat("pbrAlphaCutoff", p.alphaCutoff);
@@ -1062,6 +1076,7 @@ void RhiRenderer::beginViewBand(const LayeredView &view, ViewBand band) {
     if (!view.projection)
         return;
     prepareLights();
+    gatherGlowSplats();
     float projection[16];
     float viewMatrix[16];
     std::copy(view.view, view.view + 16, viewMatrix);
@@ -1116,6 +1131,8 @@ void RhiRenderer::beginViewBand(const LayeredView &view, ViewBand band) {
 }
 
 void RhiRenderer::endView(const LayeredView &view) {
+    if (view.mirrorPlane == nullptr)
+        prepareGlowSplats();
     setViewLimits(nullptr);
     setCullView(nullptr);
     if (view.mirrorPlane != nullptr) {
@@ -1661,7 +1678,8 @@ void RhiRenderer::flushTarget() {
     TargetState &state = target();
     if (s == nullptr || s->frame().commandBuffer == nullptr)
         return;
-    if (state.draws.empty() && !state.clearColor && !state.clearDepth)
+    const bool splatsPending = glowSplats.pending && currentTarget == TARGET_VIEW;
+    if (state.draws.empty() && !state.clearColor && !state.clearDepth && !splatsPending)
         return;
     if (!targetReady())
         return;
@@ -1690,6 +1708,8 @@ void RhiRenderer::flushTarget() {
             draw.pipeline = pipeline(state.keys[i]);
         draw.instanceBuffer = instances;
     }
+    const bool splats = splatsPending && state.attachments->color3 != nullptr
+            && uploadGlowSplats(frameBatch, state.attachments->pipelinePass());
     // Clears happen at the start of the pass; otherwise the contents stay.
     int clears = (state.clearColor ? 1 : 0) | (state.clearDepth ? 2 : 0);
     if ((clears & 1) && state.attachments->color3 != nullptr) {
@@ -1789,6 +1809,9 @@ void RhiRenderer::flushTarget() {
         else
             cb->draw(draw.count, draw.instances, draw.first, firstInstance);
     }
+    // After the scene, against its depth.
+    if (splats)
+        drawGlowSplats(cb);
     cb->endPass();
     state.draws.clear();
     state.keys.clear();
@@ -1995,6 +2018,7 @@ void RhiRenderer::resetFrame() {
     beginFrameIfNeeded();
     QueueRenderer::resetFrame();
     lightsPrepared = false;
+    glowSplats.gathered = glowSplats.pending = false;
     ambientOcclusionApplied = false;
     sceneProjectionValid = false;
 }
