@@ -962,7 +962,7 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Brightens (positive) or darkens (negative) the final image, in stops: +1 doubles the light. QRhi renderer."
                 QT_TRID_NOOP("settings.core.rendering.exposure.description")).withRange(-4, 4, 0.25).withUnit("EV").inGroup("rendering").inSubgroup("image"),
         "exposure", "Game::exposure", "RouteEditorGLWidget", true, "hot-cache");
-    ADD(SettingsDefinition::floating("core.rendering.bloom", 0.0)
+    ADD(SettingsDefinition::floating("core.rendering.bloom", 4.0)
             .withNameId(
                 //% "Glow (bloom)"
                 QT_TRID_NOOP("settings.core.rendering.bloom.name")).withDescriptionId(

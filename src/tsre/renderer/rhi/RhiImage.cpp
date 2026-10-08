@@ -21,12 +21,79 @@
 #include <QDebug>
 #include <algorithm>
 #include <tsre/Game.h>
+#include <tsre/math3d/GLMatrix.h>
+#include <tsre/ogl/GLUU.h>
 
 namespace {
 
 // Smallest bloom level and the most levels: a wide but bounded halo.
 constexpr int MinBloomSide = 8;
 constexpr int MaxBloomLevels = 6;
+
+// Glow splats: one emitter per instance, spread around its projected
+// position by a tent R pixels wide each way, R its projected radius rounded
+// to whole pixels (1 to 16). A tent of whole pixels sums to the same over the
+// pixel grid wherever it falls, so the glow moves smoothly and never blinks;
+// a lens drawn as pixels does, also a near one: seen nearly edge-on it is a
+// sliver a pixel or two high. The total is the glow of the emitter seen as
+// a sphere of its area and radiance (task 21): pi I (f/d)^2 in pixels,
+// faded by fog. It hands over to the surface's own glow while the emitter's
+// radius grows from 16 to 32 pixels (PbrShading.glsl).
+constexpr int GlowSplatStride = 8 * sizeof(float);
+constexpr int GlowSplatUniformBytes = 160;
+
+const char *GlowSplatVertex = R"(#version 440
+layout(location = 0) in vec4 emitter; // position, radius
+layout(location = 1) in vec4 power;   // colour times intensity
+layout(location = 0) out vec2 offset;
+layout(location = 1) out vec3 glow;
+layout(location = 2) flat out float tentArea;
+layout(std140, binding = 0) uniform Splats {
+    mat4 projection;
+    mat4 fogMatrix;
+    vec4 camera;   // position, focal length in pixels
+    vec4 viewport; // width, height, fog lod, fog density
+};
+
+void main() {
+    vec2 corner = vec2((gl_VertexIndex & 1) != 0 ? 1.0 : -1.0, (gl_VertexIndex & 2) != 0 ? 1.0 : -1.0);
+    vec3 toEmitter = emitter.xyz - camera.xyz;
+    float distance = max(length(toEmitter), 0.001);
+    float pixels = emitter.w * camera.w / distance;
+    float share = 1.0 - smoothstep(16.0, 32.0, pixels);
+    float tent = clamp(floor(pixels + 0.5), 1.0, 16.0);
+    tentArea = tent * tent;
+    vec4 fogPosition = fogMatrix * vec4(emitter.xyz, 1.0);
+    float fog = sqrt(fogPosition.x * fogPosition.x + fogPosition.z * fogPosition.z) / (viewport.z * 1.4);
+    fog = abs(min(clamp(fog, 0.0, viewport.w), viewport.z));
+    glow = power.rgb * (3.14159265 * camera.w * camera.w / (distance * distance)) * share * (1.0 - fog);
+    offset = corner;
+    // Depth at the emitter's front, so its own housing does not hide it.
+    vec3 front = emitter.xyz - toEmitter / distance * min(emitter.w, distance * 0.5);
+    vec4 clip = projection * vec4(front, 1.0);
+    if (share <= 0.0 || clip.w <= 0.0) {
+        gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+        return;
+    }
+    gl_Position = vec4(clip.xy + corner * tent * 2.0 / viewport.xy * clip.w, clip.zw);
+}
+)";
+
+const char *GlowSplatFragment = R"(#version 440
+layout(location = 0) in vec2 offset;
+layout(location = 1) in vec3 glow;
+layout(location = 2) flat in float tentArea;
+layout(location = 0) out vec4 colorOut;
+layout(location = 1) out vec4 ambientOut;
+layout(location = 2) out vec4 glowOut;
+
+void main() {
+    float weight = max(1.0 - abs(offset.x), 0.0) * max(1.0 - abs(offset.y), 0.0);
+    colorOut = vec4(0.0);
+    ambientOut = vec4(0.0);
+    glowOut = vec4(glow * weight / tentArea, 0.0);
+}
+)";
 
 const char *BloomDownFragment = R"(#version 440
 layout(location = 0) in vec2 uv;
@@ -289,4 +356,159 @@ void RhiRenderer::releaseBloom() {
         presentBindings = nullptr;
         presentBloomTexture = nullptr;
     }
+}
+
+QList<QByteArray> RhiRenderer::glowSplatShaders() {
+    return {GlowSplatVertex, GlowSplatFragment};
+}
+
+// Once a frame, with the lights: the emissive emitters of the queue at
+// their own power, without exposure or gain, as the surfaces' own glow has
+// none, but following the lamps' light (task 21) as that glow does: faded
+// by day, none with local lights off.
+void RhiRenderer::gatherGlowSplats() {
+    if (glowSplats.gathered)
+        return;
+    glowSplats.gathered = true;
+    glowSplats.emitters.clear();
+    if (bloomEnabled() && Game::localLightsEnabled)
+        gatherLights(glowSplats.emitters, 0.0f, gluu->localLightAdaptation, true);
+}
+
+// At the end of the main view: its scene band's projection, fog and
+// viewport, for the splats drawn with the view's next pass.
+void RhiRenderer::prepareGlowSplats() {
+    GlowSplats &g = glowSplats;
+    if (secondaryView || currentTarget != TARGET_VIEW || g.emitters.empty() || !bloomEnabled()
+            || view.color3 == nullptr)
+        return;
+    const QMatrix4x4 correction = targetCorrection();
+    Mat4::multiply(g.projection, const_cast<float *>(correction.constData()), gluu->pMatrix);
+    std::copy(gluu->fMatrix, gluu->fMatrix + 16, g.fogMatrix);
+    std::copy(viewPosition, viewPosition + 3, g.camera);
+    const float w = viewportRect[2] > 0 ? float(viewportRect[2]) : float(view.size.width());
+    const float h = viewportRect[3] > 0 ? float(viewportRect[3]) : float(view.size.height());
+    g.viewport = QRhiViewport(float(viewportRect[0]), float(viewportRect[1]), w, h,
+                              depthRange[0], depthRange[1]);
+    g.focal = sceneProjection[1] * h * 0.5f;
+    g.lod = fogLodOverride ? fogLod : Game::objectLod;
+    g.fogDensity = gluu->fogDensity;
+    g.pending = true;
+}
+
+bool RhiRenderer::uploadGlowSplats(QRhiResourceUpdateBatch *batch, QRhiRenderPassDescriptor *pass) {
+    GlowSplats &g = glowSplats;
+    const quint32 count = quint32(g.emitters.size());
+    if (batch == nullptr || pass == nullptr || count == 0)
+        return false;
+    const quint32 bytes = count * GlowSplatStride;
+    if (g.instances == nullptr || g.capacity < bytes) {
+        delete g.instances;
+        g.capacity = std::max<quint32>(4096, bytes + bytes / 2);
+        g.instances = rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::VertexBuffer, g.capacity);
+        if (!g.instances->create()) {
+            delete g.instances;
+            g.instances = nullptr;
+            g.capacity = 0;
+            return false;
+        }
+    }
+    std::vector<float> data(size_t(count) * 8);
+    for (quint32 i = 0; i < count; ++i) {
+        const LightGrid::Light &e = g.emitters[i];
+        float *out = data.data() + i * 8;
+        std::copy(e.position, e.position + 3, out);
+        out[3] = e.radius;
+        std::copy(e.color, e.color + 3, out + 4);
+        out[7] = 0.0f;
+    }
+    batch->updateDynamicBuffer(g.instances, 0, bytes, data.data());
+    if (g.uniforms == nullptr) {
+        g.uniforms = rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, GlowSplatUniformBytes);
+        if (!g.uniforms->create()) {
+            delete g.uniforms;
+            g.uniforms = nullptr;
+            return false;
+        }
+    }
+    float block[GlowSplatUniformBytes / sizeof(float)];
+    std::copy(g.projection, g.projection + 16, block);
+    std::copy(g.fogMatrix, g.fogMatrix + 16, block + 16);
+    std::copy(g.camera, g.camera + 3, block + 32);
+    block[35] = g.focal;
+    block[36] = g.viewport.viewport()[2];
+    block[37] = g.viewport.viewport()[3];
+    block[38] = g.lod;
+    block[39] = g.fogDensity;
+    batch->updateDynamicBuffer(g.uniforms, 0, GlowSplatUniformBytes, block);
+    if (g.bindings == nullptr) {
+        g.bindings = rhi->newShaderResourceBindings();
+        g.bindings->setBindings({QRhiShaderResourceBinding::uniformBuffer(
+                0, QRhiShaderResourceBinding::VertexStage, g.uniforms)});
+        g.bindings->create();
+    }
+    if (g.pipeline == nullptr || g.pipelinePass != pass) {
+        delete g.pipeline;
+        static QShader vertex, fragment;
+        if (!vertex.isValid()) {
+            vertex = bakeInline(GlowSplatVertex, QShader::VertexStage, rhi);
+            fragment = bakeInline(GlowSplatFragment, QShader::FragmentStage, rhi);
+        }
+        g.pipeline = rhi->newGraphicsPipeline();
+        g.pipeline->setShaderStages({{QRhiShaderStage::Vertex, vertex}, {QRhiShaderStage::Fragment, fragment}});
+        QRhiVertexInputLayout layout;
+        layout.setBindings({{GlowSplatStride, QRhiVertexInputBinding::PerInstance}});
+        layout.setAttributes({{0, 0, QRhiVertexInputAttribute::Float4, 0},
+                              {0, 1, QRhiVertexInputAttribute::Float4, 4 * sizeof(float)}});
+        g.pipeline->setVertexInputLayout(layout);
+        g.pipeline->setTopology(QRhiGraphicsPipeline::TriangleStrip);
+        // Behind the scene's surfaces they are hidden; they add to the glow
+        // only, leaving the colour and the ambient share.
+        g.pipeline->setDepthTest(true);
+        g.pipeline->setDepthWrite(false);
+        g.pipeline->setDepthOp(QRhiGraphicsPipeline::LessOrEqual);
+        QRhiGraphicsPipeline::TargetBlend untouched;
+        untouched.colorWrite = {};
+        QRhiGraphicsPipeline::TargetBlend add;
+        add.enable = true;
+        add.srcColor = QRhiGraphicsPipeline::One;
+        add.dstColor = QRhiGraphicsPipeline::One;
+        add.srcAlpha = QRhiGraphicsPipeline::Zero;
+        add.dstAlpha = QRhiGraphicsPipeline::One;
+        add.colorWrite = QRhiGraphicsPipeline::R | QRhiGraphicsPipeline::G | QRhiGraphicsPipeline::B;
+        g.pipeline->setTargetBlends({untouched, untouched, add});
+        g.pipeline->setShaderResourceBindings(g.bindings);
+        g.pipeline->setRenderPassDescriptor(pass);
+        g.pipelinePass = pass;
+        if (!g.pipeline->create()) {
+            qWarning() << "QRhi renderer: glow splat pipeline creation failed";
+            delete g.pipeline;
+            g.pipeline = nullptr;
+            return false;
+        }
+    }
+    g.count = count;
+    return true;
+}
+
+void RhiRenderer::drawGlowSplats(QRhiCommandBuffer *cb) {
+    GlowSplats &g = glowSplats;
+    g.pending = false;
+    if (g.pipeline == nullptr || g.count == 0)
+        return;
+    cb->setGraphicsPipeline(g.pipeline);
+    cb->setViewport(g.viewport);
+    cb->setShaderResources(g.bindings);
+    const QRhiCommandBuffer::VertexInput input(g.instances, 0);
+    cb->setVertexInput(0, 1, &input);
+    cb->draw(4, g.count);
+}
+
+void RhiRenderer::releaseGlowSplats() {
+    GlowSplats &g = glowSplats;
+    delete g.pipeline;
+    delete g.bindings;
+    delete g.uniforms;
+    delete g.instances;
+    g = GlowSplats();
 }

@@ -11,6 +11,8 @@
 #ifndef SHAPELOADER_H
 #define SHAPELOADER_H
 
+#include <QtGlobal>
+
 class ComplexShape;
 
 // Loads shapes on worker threads (core.rendering.threadedShapeLoading). A job
@@ -37,15 +39,17 @@ void cancel(ComplexShape *shape);
 bool busy();
 // Jobs finished so far: a view has settled only once this stops changing.
 unsigned progress();
-// Blocks until no job is running.
-void waitForAll();
+// Blocks until no job is running, or for at most msecs (negative: no
+// limit). True when no job is running.
+bool waitForAll(int msecs = -1);
 
-// While one exists, requests have no limits: no tokens, no cap on jobs.
-// The route editor loads its first view, and the view after a camera jump,
-// this way before showing it.
+// While one exists, requests have no limits: no tokens, no cap on jobs,
+// for at most limitMs (negative: as long as it exists); then the usual
+// limits apply again. The route editor loads its first view, and the view
+// after a camera jump, this way before showing it.
 class WholeView {
 public:
-    WholeView();
+    explicit WholeView(qint64 limitMs = -1);
     ~WholeView();
     WholeView(const WholeView &) = delete;
     WholeView &operator=(const WholeView &) = delete;

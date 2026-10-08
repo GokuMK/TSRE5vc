@@ -111,11 +111,19 @@ conversion.
 ### Meshes and textures
 
 The mesh store keeps uploading lazily; on QRhi it creates `QRhiBuffer`s in
-the single `QRhi`. They are Immutable: QRhi's Vulkan backend keeps a host
-copy as large as the buffer of every Static buffer. Meshes being edited
+the single `QRhi`. Most meshes share chunks: Static buffers of 8 MB, each
+mesh a slice of one (first fit, 256-byte aligned; freed slices wait three
+frames before reuse). On Vulkan every buffer is an allocation, and a camera
+jump made one per mesh, about 0.4 ms each on the Steam Deck: 643 for 285 ms
+in one frame into Warszawa Wschodnia (CMK), 53 ms with chunks. Chunks are
+Static, not Immutable: QRhi's Vulkan backend frees an Immutable buffer's
+staging copy after each upload, so every mesh put into a chunk allocated a
+staging buffer as large as the chunk, and a jump ran out of memory. A
+Static chunk keeps one host copy per frame in flight. Meshes being edited
 (marked dynamic, such as paged terrain pages after their first edit, or
-uploaded a third time, such as painted legacy tiles) are Static, so their
-copy is reused. TexLib textures become renderer-owned handles that both
+uploaded a third time, such as painted legacy tiles), paged terrain,
+Buffer-format data and meshes over a quarter of a chunk keep buffers of
+their own: Immutable, or Static while edited, so that copy is reused. TexLib textures become renderer-owned handles that both
 renderers resolve; the QRhi renderer keeps the CPU pixels until upload.
 
 ## Milestones
@@ -215,6 +223,24 @@ Open:
   per-frame values (matrices, lights, fog) out of the per-draw uniform
   block, which QRhi's OpenGL backend sends member by member on every
   resource change.
+- Resource creation on a camera jump (2026-10-08, Steam Deck, CMK, map
+  mode to Warszawa Wschodnia, 716 new shapes): QRhi Vulkan shows the view
+  2.1 s after the jump, the OpenGL renderer 1.65 s. The jump frame spends
+  about 0.5 s creating textures: 0.5 to 2 ms each in a long session
+  against 0.1 ms in a fresh one (`texture->create()`, so allocation, not
+  the CPU work). Mesh buffers went from 285 ms to 53 ms with shared
+  chunks. Ideas, not done:
+  - Spread texture creation over frames (a budget of about 30 ms a
+    frame): no hitch, textures fill in over a few frames.
+  - Find why creation gets slower over a session (QRhi statistics of
+    allocations, a profile of the jump frame); if it is allocation, small
+    textures in arrays or atlases.
+  - Tried and reverted: gathering every 200 ms during the jump's wait and
+    creating the queued resources meanwhile. Most textures are still being
+    decoded then (texture threads start when a shape is taken over), and
+    the repeated gathers made the jump slower (2.9 s).
+  The QRhi renderer logs frames that spend over 100 ms making resources,
+  and the route editor logs each jump's phases ("Whole view ... shown").
 
 ## Hardware test (2026-10-06)
 

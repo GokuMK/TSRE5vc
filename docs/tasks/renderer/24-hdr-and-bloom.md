@@ -6,7 +6,9 @@ Light brighter than white on the QRhi renderer: lamps (task 21), glowing
 surfaces and glints keep their range instead of clipping, and emitters such
 as signal and train lights glow. The plumbing is done; the look (curve,
 exposure, bloom strength, exposure over the day) waits for tuning by eye.
-Defaults leave the image exactly as before.
+Defaults: no tone curve and exposure 0, as before; bloom strength 4 (user's
+choice, 2026-10-08), which changes the image only where emissive surfaces
+glow.
 
 ## Design
 
@@ -35,6 +37,26 @@ Defaults leave the image exactly as before.
   strength. The glow output is cleared to black in a pass of its own, as a
   pass clears every colour output with one colour (the background would
   glow).
+- Glow splats (`RhiImage.cpp`): a lens a pixel or two across, or a flat lens
+  seen nearly edge-on (a sliver), is drawn in one frame and missed in the
+  next; without anti-aliasing its glow blinked, and bloom made each blink a
+  halo. Glow of emissive surfaces therefore comes from their emitters (task
+  21) until they are large on screen: each emitter adds its glow at its
+  projected position, spread by a tent R pixels wide each way, R its
+  projected radius rounded to whole pixels (1 to 16), whose weights sum to
+  the same wherever it falls. The total is the emitter seen as a sphere of
+  its area and radiance, `pi I (f/d)^2` pixels of glow, faded by fog, at its
+  own power (no exposure, gain or daylight scale, as the surface's glow).
+  While the emitter's radius grows from 16 to 32 pixels the splat hands over
+  to the surface's own glow (`PbrShading.glsl`). The splats are one
+  instanced draw in the main view's pass after the scene, depth-tested,
+  adding to the glow output only; the emitters are gathered once a frame
+  with the lights (`gatherLights`, emitters only, also those too dim to
+  light anything).
+- Glow follows the lamps' light (task 21): the lit shaders and the splats
+  scale it by the daylight scale (3 % in full daylight with time of day on,
+  full with it off, the editing mode) and drop it with local lights turned
+  off. The lenses' emissive colour stays, as a material.
 - Readbacks of a float view (`readColor`) convert to 8-bit; the
   transmission copy takes the view's format.
 
@@ -42,7 +64,7 @@ Defaults leave the image exactly as before.
 
 - `core.rendering.toneMapping`: Off (default), Soft shoulder, ACES, AgX.
 - `core.rendering.exposure`: stops, -4 to 4 (0).
-- `core.rendering.bloom`: strength, 0 (off, default) to 4.
+- `core.rendering.bloom`: strength, 0 (off) to 4 (default since 2026-10-08).
 
 ## Verification
 
@@ -56,10 +78,33 @@ Defaults leave the image exactly as before.
 - EUROPE1 street lamps on 2026-12-21 at 18:00 with Soft shoulder, bloom 1.5
   and AO High: lamp lenses glow as points of light; QRhi on OpenGL matches
   Vulkan (RMSE 2.5); no Vulkan validation messages.
+- Occlusion (2026-10-08, bbb at night behind a building): surfaces without
+  emission write their glow with their colour's alpha, so blended ones (many
+  MSTS shapes) cover the glow behind them; with alpha 0 the lamps behind a
+  building glowed through its wall. Halos of lamps beside an edge still
+  spread over it, as bloom does.
+- Shimmer (2026-10-08, bbb lamp forest, bloom 1.5, Soft shoulder): 13
+  captures stepping the camera 0.1 m, bloom energy change between steps
+  (mean, max). A Karis average in the first downsample changed nothing (the
+  blinking pixels are not brighter than the rest), so it was left out.
+
+  | Region | Before | Point splats (hand-over 1-3 px) | Tent splats |
+  |---|---|---|---|
+  | Whole lamp band | 3.6 %, 9.6 % | 2.3 %, 5.9 % | 1.5 %, 3.1 % |
+  | Distant lamps | 6.1 %, 14.0 % | 2.2 %, 4.1 % | 2.3 %, 4.9 % |
+  | Mid-distance, left | 9.0 %, 25.7 % | 5.9 %, 20.3 % | 3.3 %, 6.6 % |
+  | Mid-distance, right | 5.1 %, 12.2 % | 3.2 %, 9.5 % | 2.5 %, 6.5 % |
+
+  The rest is partly real motion (halos crossing the regions' edges). The
+  splats glow more than the slivers they replace: the band's bloom is about
+  1.6 times what it was. Behind a building they stay hidden. Gathering the
+  emitters costs about as much as gathering the lights (0.23 ms for 924
+  lights).
 
 ## Later
 
-- Tuning by eye: default curve, exposure, bloom strength.
+- Tuning by eye: default curve, exposure, bloom strength, and the glow
+  splats' brightness against the lenses' own glow.
 - Exposure following time of day (replacing the lamps' daylight scale of
   task 21 with a real exposure) and eye adaptation.
 - MSTS light sources as emitters (signal lamps, train lights), so they

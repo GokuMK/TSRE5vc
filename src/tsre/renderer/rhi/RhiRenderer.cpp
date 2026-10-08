@@ -243,6 +243,7 @@ void RhiRenderer::releaseResources() {
     presentSampler = nullptr;
     releaseAmbientOcclusion();
     releaseBloom();
+    releaseGlowSplats();
     releaseGlowClear();
     delete presentUniforms;
     delete presentLinear;
@@ -352,6 +353,12 @@ void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
     program->setInt("shadowsEnabled", Game::shadowsEnabled);
     program->setFloat("colorBrightness", gluu->currentBrightness);
     program->setFloat("fogDensity", gluu->fogDensity);
+    // Pixels per unit at distance 1 in the main view: emissive surfaces
+    // fade their glow into the glow splats as they shrink (task 24).
+    program->setFloat("glowFocal", sceneProjection[1] * float(std::max(1, view.size.height())) * 0.5f);
+    // Glow follows the lamps' light (task 21): it fades by day and goes
+    // with local lights turned off; the lenses' colour stays.
+    program->setFloat("glowScale", Game::localLightsEnabled ? gluu->localLightAdaptation : 0.0f);
     program->setUint("selectionId", 0);
     program->setFloat("shadow1Res", gluu->shadow1Res);
     program->setFloat("shadow2Res", gluu->shadow2Res);
@@ -421,6 +428,16 @@ void RhiRenderer::writeItemUniforms(RhiProgram *program, RenderItem *item, quint
         program->setVec("pbrBaseColor", p.baseColor[0], p.baseColor[1], p.baseColor[2], p.baseColor[3]);
         program->setVec("pbrMetallicRoughness", p.metallic, p.roughness);
         program->setVec("pbrEmissive", p.emissive[0], p.emissive[1], p.emissive[2]);
+        // The size of the emitters standing in for an emissive surface: its
+        // glow fades into theirs as they shrink below 3 pixels (task 24).
+        float glowRadius = 0.0f;
+        int emitters = 0;
+        for (const RenderItem::Light &light : item->lights)
+            if (light.emissive) {
+                glowRadius += light.radius;
+                ++emitters;
+            }
+        program->setFloat("pbrGlowRadius", emitters > 0 ? glowRadius / emitters : 0.0f);
         program->setFloat("pbrNormalScale", p.normalScale);
         program->setFloat("pbrOcclusionStrength", p.occlusionStrength);
         program->setFloat("pbrAlphaCutoff", p.alphaCutoff);
@@ -461,8 +478,13 @@ QRhiTexture *RhiRenderer::packetTexture(const RenderItem *item, bool &mipmapped)
         if (found == TexLib::mtex.end() || found->second == nullptr)
             return nullptr;
         Texture *texture = found->second;
-        if (!texture->glLoaded && texture->loaded)
+        if (!texture->glLoaded && texture->loaded) {
+            QElapsedTimer made;
+            made.start();
             texture->GLTextures();
+            ++creation.textures;
+            creation.textureNs += made.nsecsElapsed();
+        }
         if (!texture->glLoaded || texture->tex == nullptr)
             return nullptr;
         handle = texture->tex[0];
@@ -512,8 +534,13 @@ QRhiTexture *RhiRenderer::libraryTexture(int textureId, bool &mipmapped) {
     if (found == TexLib::mtex.end() || found->second == nullptr)
         return nullptr;
     Texture *texture = found->second;
-    if (!texture->glLoaded && texture->loaded)
+    if (!texture->glLoaded && texture->loaded) {
+        QElapsedTimer made;
+        made.start();
         texture->GLTextures();
+        ++creation.textures;
+        creation.textureNs += made.nsecsElapsed();
+    }
     if (!texture->glLoaded || texture->tex == nullptr)
         return nullptr;
     const unsigned int handle = texture->tex[0];
@@ -1062,6 +1089,7 @@ void RhiRenderer::beginViewBand(const LayeredView &view, ViewBand band) {
     if (!view.projection)
         return;
     prepareLights();
+    gatherGlowSplats();
     float projection[16];
     float viewMatrix[16];
     std::copy(view.view, view.view + 16, viewMatrix);
@@ -1116,6 +1144,8 @@ void RhiRenderer::beginViewBand(const LayeredView &view, ViewBand band) {
 }
 
 void RhiRenderer::endView(const LayeredView &view) {
+    if (view.mirrorPlane == nullptr)
+        prepareGlowSplats();
     setViewLimits(nullptr);
     setCullView(nullptr);
     if (view.mirrorPlane != nullptr) {
@@ -1193,6 +1223,12 @@ QRhiGraphicsPipeline *RhiRenderer::pipeline(const PipelineKey &key) {
     auto found = pipelines.find(key);
     if (found != pipelines.end())
         return found->second;
+    QElapsedTimer made;
+    made.start();
+    struct Count {
+        Creation &c; QElapsedTimer &t;
+        ~Count() { ++c.pipelines; c.pipelineNs += t.nsecsElapsed(); }
+    } count{creation, made};
     const RhiProgram *program = key.program;
     QRhiGraphicsPipeline *ps = rhi->newGraphicsPipeline();
     ps->setShaderStages({{QRhiShaderStage::Vertex, program->source->vertex},
@@ -1267,6 +1303,12 @@ QRhiShaderResourceBindings *RhiRenderer::bindings(const BindingKey &key) {
     auto found = resourceSets.find(key);
     if (found != resourceSets.end())
         return found->second;
+    QElapsedTimer made;
+    made.start();
+    struct Count {
+        Creation &c; QElapsedTimer &t;
+        ~Count() { ++c.bindings; c.bindingNs += t.nsecsElapsed(); }
+    } count{creation, made};
     const RhiProgram *program = key.program;
     QVarLengthArray<QRhiShaderResourceBinding, 24> entries;
     const auto stages = QRhiShaderResourceBinding::VertexStage | QRhiShaderResourceBinding::FragmentStage;
@@ -1309,7 +1351,11 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
     if (frameBatch == nullptr)
         frameBatch = rhi->nextResourceUpdateBatch();
     Meshes::RhiBuffers buffers;
-    if (!Meshes::prepareRhi(item->mesh.handle, rhi, frameBatch, buffers)
+    QElapsedTimer prepared;
+    prepared.start();
+    const bool meshReady = Meshes::prepareRhi(item->mesh.handle, rhi, frameBatch, buffers);
+    creation.meshNs += prepared.nsecsElapsed();
+    if (!meshReady
             || buffers.format == MeshData::Buffer) {
         debugCount("skip-prepare");
         return;
@@ -1509,11 +1555,12 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
     draw.instanceOffset = appendInstances(matrices, count);
     draw.instances = quint32(count);
     draw.vertexBuffer = buffers.vertexBuffer;
+    draw.vertexOffset = buffers.vertexOffset;
     if (item->mesh.indexed) {
         if (buffers.indexBuffer == nullptr)
             return;
         draw.indexBuffer = buffers.indexBuffer;
-        draw.indexOffset = item->mesh.indexOffset;
+        draw.indexOffset = buffers.indexOffset + item->mesh.indexOffset;
         draw.indexFormat = item->mesh.indexType == RenderItem::INDEX_U32
                 ? QRhiCommandBuffer::IndexUInt32 : QRhiCommandBuffer::IndexUInt16;
         draw.baseVertex = item->mesh.baseVertex;
@@ -1661,7 +1708,8 @@ void RhiRenderer::flushTarget() {
     TargetState &state = target();
     if (s == nullptr || s->frame().commandBuffer == nullptr)
         return;
-    if (state.draws.empty() && !state.clearColor && !state.clearDepth)
+    const bool splatsPending = glowSplats.pending && currentTarget == TARGET_VIEW;
+    if (state.draws.empty() && !state.clearColor && !state.clearDepth && !splatsPending)
         return;
     if (!targetReady())
         return;
@@ -1690,6 +1738,8 @@ void RhiRenderer::flushTarget() {
             draw.pipeline = pipeline(state.keys[i]);
         draw.instanceBuffer = instances;
     }
+    const bool splats = splatsPending && state.attachments->color3 != nullptr
+            && uploadGlowSplats(frameBatch, state.attachments->pipelinePass());
     // Clears happen at the start of the pass; otherwise the contents stay.
     int clears = (state.clearColor ? 1 : 0) | (state.clearDepth ? 2 : 0);
     if ((clears & 1) && state.attachments->color3 != nullptr) {
@@ -1722,12 +1772,14 @@ void RhiRenderer::flushTarget() {
     bool viewportBound = false;
     struct VertexState {
         QRhiBuffer *vertex = nullptr;
+        quint32 vertexOffset = 0;
         quint32 instanceOffset = 0;
         QRhiBuffer *index = nullptr;
         quint32 indexOffset = 0;
         QRhiCommandBuffer::IndexFormat format = QRhiCommandBuffer::IndexUInt16;
         bool operator==(const VertexState &o) const {
-            return vertex == o.vertex && instanceOffset == o.instanceOffset && index == o.index
+            return vertex == o.vertex && vertexOffset == o.vertexOffset
+                    && instanceOffset == o.instanceOffset && index == o.index
                     && indexOffset == o.indexOffset && format == o.format;
         }
     } boundVertex;
@@ -1757,6 +1809,7 @@ void RhiRenderer::flushTarget() {
         }
         VertexState vertex;
         vertex.vertex = draw.vertexBuffer;
+        vertex.vertexOffset = draw.vertexOffset;
         quint32 firstInstance = 0;
         if (baseInstance)
             firstInstance = draw.instanceOffset / InstanceStride;
@@ -1774,7 +1827,7 @@ void RhiRenderer::flushTarget() {
         }
         if (!vertexBound || !(vertex == boundVertex)) {
             const QRhiCommandBuffer::VertexInput inputs[2] = {
-                {draw.vertexBuffer, 0}, {draw.instanceBuffer, vertex.instanceOffset}};
+                {draw.vertexBuffer, draw.vertexOffset}, {draw.instanceBuffer, vertex.instanceOffset}};
             if (draw.indexBuffer != nullptr)
                 cb->setVertexInput(0, 2, inputs, vertex.index, vertex.indexOffset, vertex.format);
             else
@@ -1789,6 +1842,9 @@ void RhiRenderer::flushTarget() {
         else
             cb->draw(draw.count, draw.instances, draw.first, firstInstance);
     }
+    // After the scene, against its depth.
+    if (splats)
+        drawGlowSplats(cb);
     cb->endPass();
     state.draws.clear();
     state.keys.clear();
@@ -1991,10 +2047,24 @@ void RhiRenderer::renderFrame() {
     Renderer::renderFrame();
 }
 
+void RhiRenderer::logCreation() {
+    const Creation &c = creation;
+    const qint64 total = c.pipelineNs + c.bindingNs + c.textureNs + c.meshNs;
+    if (total > 100000000)
+        qInfo().noquote() << QString("QRhi frame made resources for %1 ms: %2 pipelines %3 ms, %4 resource sets %5 ms, "
+                                     "%6 textures %7 ms, meshes %8 ms")
+                             .arg(total / 1e6, 0, 'f', 1).arg(c.pipelines).arg(c.pipelineNs / 1e6, 0, 'f', 1)
+                             .arg(c.bindings).arg(c.bindingNs / 1e6, 0, 'f', 1).arg(c.textures)
+                             .arg(c.textureNs / 1e6, 0, 'f', 1).arg(c.meshNs / 1e6, 0, 'f', 1);
+    creation = Creation();
+}
+
 void RhiRenderer::resetFrame() {
     beginFrameIfNeeded();
+    logCreation();
     QueueRenderer::resetFrame();
     lightsPrepared = false;
+    glowSplats.gathered = glowSplats.pending = false;
     ambientOcclusionApplied = false;
     sceneProjectionValid = false;
 }

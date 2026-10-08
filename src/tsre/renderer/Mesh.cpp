@@ -16,6 +16,7 @@
 #include <cmath>
 #include <cstring>
 #include <algorithm>
+#include <map>
 #include <memory>
 
 #ifndef GL_COPY_WRITE_BUFFER
@@ -30,6 +31,39 @@ namespace {
 struct Range {
     int offset = 0;
     QByteArray data;
+};
+
+// QRhi renderer: meshes share large buffers (chunks) instead of having a
+// buffer each. On Vulkan every buffer is an allocation; a camera jump made
+// hundreds of them in one frame, about 0.4 ms each on the Steam Deck. Chunks
+// are Static: QRhi keeps a host copy of each for its uploads (one per frame
+// in flight), a fixed cost per chunk. Immutable ones drop that copy after
+// every upload, so each mesh put into one made a staging buffer as large as
+// the chunk, and a jump of hundreds of meshes ran out of memory. Edited
+// meshes, paged terrain (updated in place while painted), Buffer-format data
+// and meshes larger than a quarter of a chunk keep buffers of their own.
+constexpr quint32 ChunkBytes = 8 * 1024 * 1024;
+constexpr quint32 LargestSlice = ChunkBytes / 4;
+constexpr quint32 SliceAlignment = 256;
+// Frames a released slice waits before reuse: the GPU may still read it.
+constexpr int SliceRetireFrames = 3;
+
+struct Slice {
+    QRhiBuffer *buffer = nullptr; // the chunk; null: not shared
+    quint32 offset = 0;
+    quint32 size = 0;
+};
+
+struct Chunk {
+    QRhiBuffer *buffer = nullptr;
+    // Free ranges: offset to size.
+    std::map<quint32, quint32> free;
+    quint32 used = 0;
+};
+
+struct Pool {
+    QRhiBuffer::UsageFlag usage;
+    std::vector<Chunk> chunks;
 };
 
 struct Entry {
@@ -52,6 +86,9 @@ struct Entry {
     QRhiBuffer *rhiVertex = nullptr;
     QRhiBuffer *rhiIndex = nullptr;
     QRhiTexture *rhiData = nullptr;
+    // Where rhiVertex and rhiIndex are shared chunks, the parts in use.
+    Slice rhiVertexSlice;
+    Slice rhiIndexSlice;
     // Uploads of whole data to the QRhi buffers so far.
     int rhiUploads = 0;
     QByteArray retained;
@@ -63,6 +100,14 @@ struct Store {
     std::vector<quint32> freeSlots;
     std::vector<GLuint> deadBuffers;
     std::vector<QRhiResource *> deadRhiBuffers;
+    Pool rhiVertexPool{QRhiBuffer::VertexBuffer, {}};
+    Pool rhiIndexPool{QRhiBuffer::IndexBuffer, {}};
+    struct DeadSlice {
+        Slice slice;
+        Pool *pool = nullptr;
+        int frames = 0;
+    };
+    std::vector<DeadSlice> deadSlices;
     quint64 nextStamp = 1;
     quint64 releases = 0;
     // QRhi uploads since the last trace: new meshes, meshes uploaded again
@@ -76,6 +121,77 @@ struct Store {
 Store &store() {
     static Store instance;
     return instance;
+}
+
+// A part of a chunk of the pool: the first free range that fits, or a new
+// chunk when none does.
+bool allocateSlice(Pool &pool, QRhi *rhi, quint32 size, Slice &slice) {
+    const quint32 need = std::max<quint32>(SliceAlignment,
+                                           (size + SliceAlignment - 1) / SliceAlignment * SliceAlignment);
+    for (Chunk &chunk : pool.chunks)
+        for (auto range = chunk.free.begin(); range != chunk.free.end(); ++range)
+            if (range->second >= need) {
+                slice = Slice{chunk.buffer, range->first, need};
+                const quint32 rest = range->second - need, after = range->first + need;
+                chunk.free.erase(range);
+                if (rest > 0)
+                    chunk.free[after] = rest;
+                chunk.used += need;
+                return true;
+            }
+    QRhiBuffer *buffer = rhi->newBuffer(QRhiBuffer::Static, pool.usage, ChunkBytes);
+    if (!buffer->create()) {
+        delete buffer;
+        return false;
+    }
+    Chunk chunk;
+    chunk.buffer = buffer;
+    chunk.free[need] = ChunkBytes - need;
+    chunk.used = need;
+    pool.chunks.push_back(std::move(chunk));
+    slice = Slice{buffer, 0, need};
+    return true;
+}
+
+// Returns a slice to its chunk, merged with free neighbours; an empty chunk
+// is released while the pool has another.
+void freeSlice(Pool &pool, const Slice &slice) {
+    for (auto chunk = pool.chunks.begin(); chunk != pool.chunks.end(); ++chunk) {
+        if (chunk->buffer != slice.buffer)
+            continue;
+        quint32 offset = slice.offset, size = slice.size;
+        auto next = chunk->free.lower_bound(offset);
+        if (next != chunk->free.end() && offset + size == next->first) {
+            size += next->second;
+            next = chunk->free.erase(next);
+        }
+        if (next != chunk->free.begin()) {
+            auto previous = std::prev(next);
+            if (previous->first + previous->second == offset) {
+                offset = previous->first;
+                size += previous->second;
+                chunk->free.erase(previous);
+            }
+        }
+        chunk->free[offset] = size;
+        chunk->used -= slice.size;
+        if (chunk->used == 0 && pool.chunks.size() > 1) {
+            chunk->buffer->deleteLater();
+            pool.chunks.erase(chunk);
+        }
+        return;
+    }
+}
+
+// Lets go of a mesh's vertex or index storage: a shared slice after a few
+// frames, a buffer of its own with the other dead resources.
+void dropStorage(Store &s, QRhiBuffer *&buffer, Slice &slice, Pool &pool) {
+    if (slice.buffer != nullptr)
+        s.deadSlices.push_back({slice, &pool, SliceRetireFrames});
+    else if (buffer != nullptr)
+        s.deadRhiBuffers.push_back(buffer);
+    buffer = nullptr;
+    slice = Slice();
 }
 
 bool live(const Store &s, MeshHandle handle) {
@@ -234,11 +350,10 @@ void Meshes::release(MeshHandle &handle) {
             s.deadBuffers.push_back(entry.indexBuffer);
         entry.vertexBuffer = 0;
         entry.indexBuffer = 0;
-        for (QRhiResource *resource : std::initializer_list<QRhiResource *>{
-                 entry.rhiVertex, entry.rhiIndex, entry.rhiData})
-            if (resource != nullptr)
-                s.deadRhiBuffers.push_back(resource);
-        entry.rhiVertex = entry.rhiIndex = nullptr;
+        dropStorage(s, entry.rhiVertex, entry.rhiVertexSlice, s.rhiVertexPool);
+        dropStorage(s, entry.rhiIndex, entry.rhiIndexSlice, s.rhiIndexPool);
+        if (entry.rhiData != nullptr)
+            s.deadRhiBuffers.push_back(entry.rhiData);
         entry.rhiData = nullptr;
         entry.rhiUploads = 0;
         entry.retained.clear();
@@ -414,17 +529,23 @@ bool prepareRhiLocked(Store &s, MeshHandle handle, QRhi *rhi, QRhiResourceUpdate
         const char *vertexBytes = pendingBytes(data, size);
         const bool edited = data.dynamic || entry.rhiUploads >= 2;
         ++entry.rhiUploads;
+        const bool shareable = !edited && data.format != MeshData::Buffer
+                && data.format != MeshData::TerrainHeightNormal;
         if (data.format == MeshData::Buffer) {
             entry.retained = QByteArray(vertexBytes, size);
             // Buffers of other uses are made again from the new bytes.
-            for (QRhiResource *resource : std::initializer_list<QRhiResource *>{
-                     entry.rhiVertex, entry.rhiData})
-                if (resource != nullptr)
-                    s.deadRhiBuffers.push_back(resource);
-            entry.rhiVertex = nullptr;
+            dropStorage(s, entry.rhiVertex, entry.rhiVertexSlice, s.rhiVertexPool);
+            if (entry.rhiData != nullptr)
+                s.deadRhiBuffers.push_back(entry.rhiData);
             entry.rhiData = nullptr;
             entry.rhiVertex = ensureBuffer(s, nullptr, rhi, QRhiBuffer::IndexBuffer, size, edited);
+        } else if (shareable && size > 0 && quint32(size) <= LargestSlice) {
+            dropStorage(s, entry.rhiVertex, entry.rhiVertexSlice, s.rhiVertexPool);
+            if (allocateSlice(s.rhiVertexPool, rhi, quint32(size), entry.rhiVertexSlice))
+                entry.rhiVertex = entry.rhiVertexSlice.buffer;
         } else {
+            if (entry.rhiVertexSlice.buffer != nullptr)
+                dropStorage(s, entry.rhiVertex, entry.rhiVertexSlice, s.rhiVertexPool);
             entry.rhiVertex = ensureBuffer(s, entry.rhiVertex, rhi, QRhiBuffer::VertexBuffer, size,
                                            edited);
         }
@@ -437,17 +558,24 @@ bool prepareRhiLocked(Store &s, MeshHandle handle, QRhi *rhi, QRhiResourceUpdate
             vertexBytes = converted.constData();
         }
         if (entry.rhiVertex != nullptr && size > 0)
-            batch->uploadStaticBuffer(entry.rhiVertex, 0, quint32(size), vertexBytes);
-        if (!data.indices.isEmpty()) {
+            batch->uploadStaticBuffer(entry.rhiVertex, entry.rhiVertexSlice.offset, quint32(size),
+                                      vertexBytes);
+        const quint32 indexBytes = quint32(data.indices.size());
+        if (indexBytes > 0 && shareable && indexBytes <= LargestSlice) {
+            dropStorage(s, entry.rhiIndex, entry.rhiIndexSlice, s.rhiIndexPool);
+            if (allocateSlice(s.rhiIndexPool, rhi, indexBytes, entry.rhiIndexSlice))
+                entry.rhiIndex = entry.rhiIndexSlice.buffer;
+        } else if (indexBytes > 0) {
+            if (entry.rhiIndexSlice.buffer != nullptr)
+                dropStorage(s, entry.rhiIndex, entry.rhiIndexSlice, s.rhiIndexPool);
             entry.rhiIndex = ensureBuffer(s, entry.rhiIndex, rhi, QRhiBuffer::IndexBuffer,
-                                          int(data.indices.size()), edited);
-            if (entry.rhiIndex != nullptr)
-                batch->uploadStaticBuffer(entry.rhiIndex, 0, quint32(data.indices.size()),
-                                          data.indices.constData());
-        } else if (entry.rhiIndex != nullptr) {
-            s.deadRhiBuffers.push_back(entry.rhiIndex);
-            entry.rhiIndex = nullptr;
+                                          int(indexBytes), edited);
+        } else {
+            dropStorage(s, entry.rhiIndex, entry.rhiIndexSlice, s.rhiIndexPool);
         }
+        if (entry.rhiIndex != nullptr && indexBytes > 0)
+            batch->uploadStaticBuffer(entry.rhiIndex, entry.rhiIndexSlice.offset, indexBytes,
+                                      data.indices.constData());
         entry.format = data.format;
         entry.layout = data.layout;
         entry.sharedIndices = data.sharedIndices;
@@ -459,7 +587,7 @@ bool prepareRhiLocked(Store &s, MeshHandle handle, QRhi *rhi, QRhiResourceUpdate
             QByteArray bytes = range.data;
             if (entry.format == MeshData::TerrainHeightNormal)
                 convertTerrainNormals(bytes.data(), range.offset, int(bytes.size()));
-            batch->uploadStaticBuffer(entry.rhiVertex, quint32(range.offset),
+            batch->uploadStaticBuffer(entry.rhiVertex, entry.rhiVertexSlice.offset + quint32(range.offset),
                                       quint32(bytes.size()), bytes.constData());
             ++s.rhiRangeUploads;
             s.rhiUploadBytes += bytes.size();
@@ -476,6 +604,8 @@ bool prepareRhiLocked(Store &s, MeshHandle handle, QRhi *rhi, QRhiResourceUpdate
         return false;
     buffers.vertexBuffer = entry.rhiVertex;
     buffers.indexBuffer = entry.rhiIndex;
+    buffers.vertexOffset = entry.rhiVertexSlice.offset;
+    buffers.indexOffset = entry.rhiIndexSlice.offset;
     buffers.format = entry.format;
     buffers.layout = entry.layout;
     if (entry.sharedIndices.valid()) {
@@ -483,6 +613,7 @@ bool prepareRhiLocked(Store &s, MeshHandle handle, QRhi *rhi, QRhiResourceUpdate
         Meshes::RhiBuffers indices;
         buffers.indexBuffer = prepareRhiLocked(s, shared, rhi, batch, indices, depth + 1)
                 ? indices.vertexBuffer : nullptr;
+        buffers.indexOffset = indices.vertexOffset;
     }
     return true;
 }
@@ -524,16 +655,31 @@ void Meshes::collectGarbageRhi() {
     for (QRhiResource *resource : s.deadRhiBuffers)
         resource->deleteLater();
     s.deadRhiBuffers.clear();
+    // Released slices go back to their chunks once the GPU is past them.
+    for (auto dead = s.deadSlices.begin(); dead != s.deadSlices.end();) {
+        if (--dead->frames > 0) {
+            ++dead;
+            continue;
+        }
+        freeSlice(*dead->pool, dead->slice);
+        dead = s.deadSlices.erase(dead);
+    }
 }
 
 QString Meshes::rhiTraceSummary() {
     Store &s = store();
     QMutexLocker lock(&s.mutex);
     qint64 immutable = 0, other = 0;
+    for (const Pool *pool : {&s.rhiVertexPool, &s.rhiIndexPool})
+        for (const Chunk &chunk : pool->chunks)
+            other += chunk.buffer->size();
     for (const Entry &entry : s.entries) {
-        for (const QRhiBuffer *buffer : {entry.rhiVertex, entry.rhiIndex})
-            if (buffer != nullptr)
-                (buffer->type() == QRhiBuffer::Immutable ? immutable : other) += buffer->size();
+        if (entry.rhiVertex != nullptr && entry.rhiVertexSlice.buffer == nullptr)
+            (entry.rhiVertex->type() == QRhiBuffer::Immutable ? immutable : other)
+                    += entry.rhiVertex->size();
+        if (entry.rhiIndex != nullptr && entry.rhiIndexSlice.buffer == nullptr)
+            (entry.rhiIndex->type() == QRhiBuffer::Immutable ? immutable : other)
+                    += entry.rhiIndex->size();
         if (entry.rhiData != nullptr)
             immutable += qint64(entry.rhiData->pixelSize().width()) * DataTexelBytes;
     }
@@ -549,12 +695,21 @@ void Meshes::releaseAllRhi() {
     Store &s = store();
     QMutexLocker lock(&s.mutex);
     for (Entry &entry : s.entries) {
-        delete entry.rhiVertex;
-        delete entry.rhiIndex;
+        if (entry.rhiVertexSlice.buffer == nullptr)
+            delete entry.rhiVertex;
+        if (entry.rhiIndexSlice.buffer == nullptr)
+            delete entry.rhiIndex;
         delete entry.rhiData;
         entry.rhiVertex = entry.rhiIndex = nullptr;
         entry.rhiData = nullptr;
+        entry.rhiVertexSlice = entry.rhiIndexSlice = Slice();
     }
+    for (Pool *pool : {&s.rhiVertexPool, &s.rhiIndexPool}) {
+        for (Chunk &chunk : pool->chunks)
+            delete chunk.buffer;
+        pool->chunks.clear();
+    }
+    s.deadSlices.clear();
     for (QRhiResource *resource : s.deadRhiBuffers)
         delete resource;
     s.deadRhiBuffers.clear();

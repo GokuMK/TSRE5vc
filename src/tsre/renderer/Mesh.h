@@ -85,6 +85,9 @@ namespace Meshes {
     struct RhiBuffers {
         QRhiBuffer *vertexBuffer = nullptr;
         QRhiBuffer *indexBuffer = nullptr;
+        // Where the mesh's data starts in them, in bytes: meshes share buffers.
+        quint32 vertexOffset = 0;
+        quint32 indexOffset = 0;
         MeshData::Format format = MeshData::FloatLayout;
         RenderItem::VertexAttr layout = RenderItem::NO_ATTR;
     };
