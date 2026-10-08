@@ -115,12 +115,21 @@ void MapGeometry::appendStrip(std::vector<float> &out, const float *xz, size_t c
     }
 }
 
-size_t MapGeometry::appendFill(std::vector<float> &out, const std::vector<MapRing> &rings, float y) {
+// Per thread, owned by the caller: no thread_local objects, whose destructors at thread exit
+// are fragile with MinGW (the Windows build).
+struct MapGeometry::FillScratch {
+    mapbox::detail::Earcut<uint32_t> earcut;
+    std::vector<const std::array<float, 2> *> points;
+};
+
+size_t MapGeometry::appendFill(std::vector<float> &out, const std::vector<MapRing> &rings, float y, FillScratch *scratch) {
     if (rings.empty() || rings.front().size() < 3) return 0;
-    static thread_local mapbox::detail::Earcut<uint32_t> earcut;
+    FillScratch local;
+    FillScratch &sc = scratch ? *scratch : local;
+    auto &earcut = sc.earcut;
     earcut(rings);
     // Indices run over the rings in order.
-    static thread_local std::vector<const std::array<float, 2> *> points;
+    auto &points = sc.points;
     points.clear();
     for (const MapRing &r : rings) for (const auto &q : r) points.push_back(&q);
     const std::vector<uint32_t> &idx = earcut.indices;
@@ -272,7 +281,7 @@ bool MapGeometry::load(const OsmStore &store, const Box &area, double metersPerP
 
     t = Clock::now();
     // Per thread: the points to draw of a way or ring, all or simplified (ends kept).
-    struct Scratch { std::vector<Location> simplified; std::vector<float> xz; std::vector<MapRing> rings; };
+    struct Scratch { std::vector<Location> simplified; std::vector<float> xz; std::vector<MapRing> rings; FillScratch fill; };
     auto simplify = [&](Output &o, Scratch &sc, const Location *in, uint32_t count, uint32_t &kept) -> const Location * {
         o.stats.pointsRead += count;
         kept = count;
@@ -298,7 +307,7 @@ bool MapGeometry::load(const OsmStore &store, const Box &area, double metersPerP
             MapRing &ring = sc.rings.front();
             ring.resize(count - 1);
             std::copy(sc.xz.begin(), sc.xz.end() - 2, &ring.front()[0]);
-            o.stats.triangles += appendFill(o.fillBatch(j.slot, s.fill, chunk).vertices, sc.rings, height(j.slot * OrdersPerSlot + FillOrder));
+            o.stats.triangles += appendFill(o.fillBatch(j.slot, s.fill, chunk).vertices, sc.rings, height(j.slot * OrdersPerSlot + FillOrder), &sc.fill);
             ++o.stats.polygons;
         }
         if (hasStrokes(s)) o.addPolyline(o.group(j.slot, &s, chunk), sc.xz.data(), count, j.closed);
@@ -327,9 +336,10 @@ bool MapGeometry::load(const OsmStore &store, const Box &area, double metersPerP
             if (hasStrokes(s)) o.addPolyline(o.group(j.slot, &s, chunk), &r.front()[0], r.size(), true);
             r.pop_back();
         }
-        o.stats.triangles += appendFill(o.fillBatch(j.slot, s.fill, chunk).vertices, sc.rings, height(j.slot * OrdersPerSlot + FillOrder));
+        o.stats.triangles += appendFill(o.fillBatch(j.slot, s.fill, chunk).vertices, sc.rings, height(j.slot * OrdersPerSlot + FillOrder), &sc.fill);
         ++o.stats.polygons;
     };
+    std::atomic_bool failed{false};
     // Contiguous shares, merged in order: the same result on any number of threads.
     const size_t threads = size_t(options.threads > 0 ? options.threads : std::max(1u, std::thread::hardware_concurrency()));
     auto parallel = [&](size_t count, const std::function<void(Output &, Scratch &, size_t)> &fn) {
@@ -338,8 +348,13 @@ bool MapGeometry::load(const OsmStore &store, const Box &area, double metersPerP
         std::vector<std::thread> pool;
         for (size_t p = 0; p < n; ++p)
             pool.emplace_back([&, p] {
-                Scratch sc;
-                for (size_t i = count * p / n, end = count * (p + 1) / n; i < end && !cancelled(); ++i) fn(parts[p], sc, i);
+                // An exception may not leave a thread: out of memory fails the load instead.
+                try {
+                    Scratch sc;
+                    for (size_t i = count * p / n, end = count * (p + 1) / n; i < end && !cancelled() && !failed; ++i) fn(parts[p], sc, i);
+                } catch (const std::bad_alloc &) {
+                    failed = true;
+                }
             });
         for (std::thread &th : pool) th.join();
         for (Output &part : parts) out_.append(std::move(part));
@@ -348,6 +363,7 @@ bool MapGeometry::load(const OsmStore &store, const Box &area, double metersPerP
     std::vector<Location>().swap(wayPoints);
     parallel(polygonJobs.size(), doPolygon);
     stats_.processSeconds = since(t);
+    if (failed) { error = QStringLiteral("not enough memory for the OSM data of this view"); return false; }
     const size_t ways = stats_.ways, relationCount = stats_.relations;
     const double read = stats_.readSeconds, assemble = stats_.assembleSeconds, process = stats_.processSeconds;
     stats_ = out_.stats;

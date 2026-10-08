@@ -73,7 +73,7 @@ bool askToConvert(QWidget *parent, const std::vector<const DirectoryEntry *> &fi
     int64_t memory = 0, temp = 0, output = 0;
     QStringList lines;
     for (const DirectoryEntry *e : files) {
-        const ConvertEstimate est = estimateConversion(e->size);
+        const ConvertEstimate est = estimateConversion(e->size, 0, writeGroupBytesFor(availableMemoryBytes()));
         memory = std::max(memory, est.memoryBytes);
         temp = std::max(temp, est.tempBytes);
         output += est.outputBytes;
@@ -183,23 +183,57 @@ EnsureResult ensureConverted(QWidget *parent, const QString &path, bool deleteOr
     QStringList errors;
     int converted = 0;
     const size_t steps = files.size() + overviews.size();
+    // Write groups sized to the memory available now (the editor holds its own data too).
+    ConvertOptions options;
+    options.writeGroupBytes = writeGroupBytesFor(availableMemoryBytes());
     std::thread worker([&] {
-        for (size_t i = 0; i < files.size() && !cancel; ++i) {
-            current = int(i);
-            ConvertStats stats;
-            QString e;
-            const bool ok = OsmDirectory::convert(*files[i], deleteOriginal, ConvertOptions(), stats, e,
-                                                  [&](ConvertPhase p, double f) { phase = int(p); permille = int(f * 1000); }, &cancel);
-            if (ok) ++converted;
-            else if (!cancel) errors << e;
-        }
-        for (size_t i = 0; i < overviews.size() && !cancel; ++i) {
-            current = int(files.size() + i);
-            phase = int(ConvertPhase::Overview);
-            permille = 0;
-            std::vector<OverviewStats> stats;
-            QString e;
-            if (!buildOverviews(overviews[i]->path, overviewConfig, stats, e, 0, &cancel) && !cancel) errors << e;
+        // Out of memory or another exception becomes an error message, not an end of the program.
+        try {
+            for (size_t i = 0; i < files.size() && !cancel; ++i) {
+                current = int(i);
+                ConvertStats stats;
+                QString e;
+                const ConvertEstimate est = estimateConversion(files[i]->size, options.threads, options.writeGroupBytes);
+                qInfo().noquote() << QStringLiteral("OSM conversion: %1, %2 MB, estimated memory %3 MB, available %4 MB, write groups %5 MB")
+                        .arg(files[i]->path).arg(files[i]->size >> 20).arg(est.memoryBytes >> 20)
+                        .arg(availableMemoryBytes() >> 20).arg(options.writeGroupBytes >> 20);
+                int logged = -1;
+                const bool ok = OsmDirectory::convert(*files[i], deleteOriginal, options, stats, e,
+                                                      [&](ConvertPhase p, double f) {
+                                                          if (int(p) != logged) {
+                                                              logged = int(p);
+                                                              static const char *const names[] = {"scan", "relations", "nodes", "ways", "write", "overview maps"};
+                                                              qInfo().noquote() << QStringLiteral("OSM conversion: %1, available memory %2 MB")
+                                                                      .arg(QLatin1String(names[std::clamp(logged, 0, 5)])).arg(availableMemoryBytes() >> 20);
+                                                          }
+                                                          phase = int(p); permille = int(f * 1000);
+                                                      }, &cancel);
+                if (ok) {
+                    ++converted;
+                    qInfo().noquote() << QStringLiteral("OSM conversion: done in %1 s").arg(stats.totalSeconds, 0, 'f', 1);
+                } else if (!cancel) {
+                    errors << e;
+                    qWarning().noquote() << "OSM conversion failed:" << e;
+                }
+            }
+            for (size_t i = 0; i < overviews.size() && !cancel; ++i) {
+                current = int(files.size() + i);
+                phase = int(ConvertPhase::Overview);
+                permille = 0;
+                std::vector<OverviewStats> stats;
+                QString e;
+                qInfo().noquote() << "OSM overviews:" << overviews[i]->path;
+                if (!buildOverviews(overviews[i]->path, overviewConfig, stats, e, 0, &cancel) && !cancel) {
+                    errors << e;
+                    qWarning().noquote() << "OSM overviews failed:" << e;
+                }
+            }
+        } catch (const std::bad_alloc &) {
+            errors << QStringLiteral("Not enough memory. A smaller regional extract needs less.");
+            qWarning() << "OSM conversion: out of memory";
+        } catch (const std::exception &ex) {
+            errors << QString::fromLocal8Bit(ex.what());
+            qWarning() << "OSM conversion:" << ex.what();
         }
         done = true;
     });

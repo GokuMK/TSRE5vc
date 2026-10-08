@@ -16,7 +16,7 @@ qt_add_resources(tsre_osm_tests osm_classes PREFIX "/osm"
 # legacy/OSMFeatures.* is the former map class table, kept as the classification parity reference.
 # Offline checks only. Local data, opt-in:
 #   tsre_osm_tests --count <file.osm.pbf> [nodes ways relations tags]
-#   tsre_osm_tests --convert <source.osm.pbf> <output.tsre.osm.pbf> [threads] [zlib level]
+#   tsre_osm_tests --convert <source.osm.pbf> <output.tsre.osm.pbf> [threads] [zlib level] [write group MiB]
 #   tsre_osm_tests --verify <source.osm.pbf> <output.tsre.osm.pbf>
 #   tsre_osm_tests --scan <directory>
 #   tsre_osm_tests --query <minLon> <minLat> <maxLon> <maxLat> <converted files...>
