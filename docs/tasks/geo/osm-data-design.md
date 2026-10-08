@@ -254,3 +254,32 @@ Tests: 140 checks in `tests/osm`. Sixty random area queries match a
 brute-force scan of the fixture exactly, geometry included; filters, dedupe
 and the cache budget are covered. Opt-in local data:
 `--query <minLon> <minLat> <maxLon> <maxLat> <files...>`.
+
+**Step 5 done (2026-10-08).**
+- `OsmMultipolygon` joins the member ways of a relation into closed rings by
+  end node id, in the outer and inner groups; an empty role counts as outer.
+- Each inner ring goes to the smallest outer ring that contains it.
+- Orientation is normalised: outer counter-clockwise, inner clockwise.
+- Broken chains and missing members are dropped and counted; nothing is
+  repaired.
+- `assembleMultipolygons()` fetches the member ways of many relations in one
+  store query.
+- Tests cover split and reversed outers, holes, two polygons, an island in a
+  hole, gaps, orphan inners, roles, touching rings, and a store round trip.
+
+Results on the converted pomorskie file:
+
+| Area | Relations | Assembled | Time |
+|---|---:|---:|---:|
+| Whole voivodeship | 7,758 | 7,619 (98 %): 10,902 polygons, 15,273 holes | 0.31 s |
+| 60 × 60 km | 1,271 | 1,240 | 0.24 s |
+
+- In the Tczew tile every `type=multipolygon` relation assembled.
+- The failures there are `type=boundary` relations that are not areas at this
+  scale:
+  - religious administration made of sub-relations;
+  - NUTS, electoral and maritime boundaries whose ways lie mostly outside the
+    regional extract.
+- **Consumers should request `type=multipolygon`** and only the boundary
+  kinds they draw (e.g. `protected_area`). Huge boundaries also cost time,
+  because their members span the whole file.
