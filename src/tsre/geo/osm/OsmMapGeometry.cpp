@@ -15,6 +15,8 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <functional>
+#include <thread>
 #include <tuple>
 
 namespace Osm {
@@ -132,33 +134,54 @@ size_t MapGeometry::appendFill(std::vector<float> &out, const std::vector<MapRin
     return idx.size() / 3;
 }
 
-MapGeometry::Group &MapGeometry::group(int slot, const Style *style) {
-    auto [it, added] = groupIndex_.try_emplace({slot, style}, groups_.size());
+MapGeometry::Group &MapGeometry::Output::group(int slot, const Style *style) {
+    auto [it, added] = groupIndex.try_emplace({slot, style}, groups.size());
     if (added) {
-        groups_.emplace_back();
-        groups_.back().slot = slot;
-        groups_.back().style = style;
+        groups.emplace_back();
+        groups.back().slot = slot;
+        groups.back().style = style;
     }
-    return groups_[it->second];
+    return groups[it->second];
 }
 
-void MapGeometry::addPolyline(Group &g, const float *xz, size_t count, bool closed) {
+void MapGeometry::Output::addPolyline(Group &g, const float *xz, size_t count, bool closed) {
     g.starts.push_back(uint32_t(g.points.size() / 2));
     g.closed.push_back(closed);
     g.points.insert(g.points.end(), xz, xz + 2 * count);
-    ++stats_.polylines;
-    stats_.points += count;
+    ++stats.polylines;
+    stats.points += count;
 }
 
-MapBatch &MapGeometry::fillBatch(int slot, Rgb color) {
-    auto [it, added] = fillIndex_.try_emplace((uint64_t(slot) << 32) | color, fills_.size());
+MapBatch &MapGeometry::Output::fillBatch(int slot, Rgb color) {
+    auto [it, added] = fillIndex.try_emplace((uint64_t(slot) << 32) | color, fills.size());
     if (added) {
-        fills_.emplace_back();
-        fills_.back().order = slot * OrdersPerSlot + FillOrder;
-        fills_.back().color = color;
-        fills_.back().primitive = MapBatch::Triangles;
+        fills.emplace_back();
+        fills.back().order = slot * OrdersPerSlot + FillOrder;
+        fills.back().color = color;
+        fills.back().primitive = MapBatch::Triangles;
     }
-    return fills_[it->second];
+    return fills[it->second];
+}
+
+void MapGeometry::Output::append(Output &&other) {
+    for (Group &g : other.groups) {
+        Group &to = group(g.slot, g.style);
+        const uint32_t offset = uint32_t(to.points.size() / 2);
+        for (uint32_t start : g.starts) to.starts.push_back(start + offset);
+        to.closed.insert(to.closed.end(), g.closed.begin(), g.closed.end());
+        to.points.insert(to.points.end(), g.points.begin(), g.points.end());
+    }
+    for (MapBatch &b : other.fills) {
+        const int slot = int(b.order / OrdersPerSlot);
+        std::vector<float> &to = fillBatch(slot, b.color).vertices;
+        to.insert(to.end(), b.vertices.begin(), b.vertices.end());
+    }
+    stats.polygons += other.stats.polygons;
+    stats.triangles += other.stats.triangles;
+    stats.polylines += other.stats.polylines;
+    stats.points += other.stats.points;
+    stats.culled += other.stats.culled;
+    stats.pointsRead += other.stats.pointsRead;
 }
 
 bool MapGeometry::sameStyles(double metersPerPixel) const {
@@ -169,10 +192,7 @@ bool MapGeometry::sameStyles(double metersPerPixel) const {
 
 bool MapGeometry::load(const OsmStore &store, const Box &area, double metersPerPixel, const MapProjection &project,
                        const Options &options, QString &error, const std::atomic_bool *cancel) {
-    groups_.clear();
-    groupIndex_.clear();
-    fills_.clear();
-    fillIndex_.clear();
+    out_ = Output();
     stats_ = Stats();
     options_ = options;
     loadedMetersPerPixel_ = metersPerPixel;
@@ -180,24 +200,13 @@ bool MapGeometry::load(const OsmStore &store, const Box &area, double metersPerP
     auto cancelled = [&] { return cancel && cancel->load(std::memory_order_relaxed); };
     const float minExtent = float(MinPixels * metersPerPixel);
     const double tolerance = SimplifyPixels * metersPerPixel;
-    std::vector<Location> simplified;
-    // The points to draw of a way or ring: all, or the simplified ones (end points kept).
-    auto simplify = [&](const Location *in, uint32_t count, uint32_t &out) -> const Location * {
-        stats_.pointsRead += count;
-        out = count;
-        if (tolerance < SimplifyFromMeters || count <= 2) return in;
-        const std::vector<uint32_t> kept = simplifyIndices(in, count, tolerance);
-        simplified.clear();
-        for (uint32_t i : kept) simplified.push_back(in[i]);
-        out = uint32_t(simplified.size());
-        return simplified.data();
-    };
 
+    // Reading is sequential and only classifies and copies; the rest runs on all threads.
+    struct WayJob { const Style *style; int slot; bool closed; size_t first; uint32_t count; };
+    std::vector<WayJob> wayJobs;
+    std::vector<Location> wayPoints;
     std::vector<RelationData> relations;
     std::vector<Classification> relationClasses;
-    std::vector<float> xz;
-    std::vector<MapRing> rings(1);
-    double triangulate = 0;
     const auto start = Clock::now();
     // Relations first (a few blocks): the drawn multipolygons and their member ways, which
     // the ways pass keeps so assembly reads only the members outside the area.
@@ -234,30 +243,13 @@ bool MapGeometry::load(const OsmStore &store, const Box &area, double metersPerP
         if (!s.visibleAt(metersPerPixel)) return;
         const bool closed = f.refCount >= 4 && f.refs[0] == f.refs[f.refCount - 1];
         if (!(s.hasFill && closed) && !hasStrokes(s)) return;
-        ++stats_.ways;
-        uint32_t count = 0;
-        const Location *points = simplify(f.locations, f.refCount, count);
-        const bool area = s.hasFill && closed && count >= 4;
-        xz.resize(2 * size_t(count));
-        project(points, count, xz.data());
-        // Closed ways only: an open way may be one short piece of a long road or river.
-        if (closed && extent(xz.data(), count) < minExtent) { ++stats_.culled; return; }
-        const int slot = slotOf(c);
-        if (area) {
-            MapRing &ring = rings.front();
-            ring.resize(count - 1);
-            std::copy(xz.begin(), xz.end() - 2, &ring.front()[0]);
-            rings.resize(1);
-            const auto t = Clock::now();
-            stats_.triangles += appendFill(fillBatch(slot, s.fill).vertices, rings, height(slot * OrdersPerSlot + FillOrder));
-            triangulate += since(t);
-            ++stats_.polygons;
-        }
-        if (hasStrokes(s)) addPolyline(group(slot, &s), xz.data(), count, closed);
+        wayJobs.push_back({&s, slotOf(c), closed, wayPoints.size(), f.refCount});
+        wayPoints.insert(wayPoints.end(), f.locations, f.locations + f.refCount);
     }, error);
-    stats_.readSeconds = since(start) - triangulate;
+    stats_.readSeconds = since(start);
     if (!ok) return false;
     if (cancelled()) { error = QStringLiteral("cancelled"); return false; }
+    stats_.ways = wayJobs.size();
 
     auto t = Clock::now();
     std::vector<MultipolygonResult> polygons;
@@ -265,37 +257,96 @@ bool MapGeometry::load(const OsmStore &store, const Box &area, double metersPerP
     std::unordered_map<int64_t, WayGeometry>().swap(members);
     stats_.relations = relations.size();
     stats_.assembleSeconds = since(t);
-    for (size_t r = 0; r < polygons.size() && !cancelled(); ++r) {
-        const Style &s = classes_.style(relationClasses[r]);
-        const int slot = slotOf(relationClasses[r]);
-        for (const Polygon &p : polygons[r].polygons) {
-            // Projected with the repeated closing point, which the strokes keep and the fill
-            // drops; false when simplified below a triangle.
-            auto ring = [&](const std::vector<Location> &locations, MapRing &out) {
-                uint32_t count = 0;
-                const Location *points = simplify(locations.data(), uint32_t(locations.size()), count);
-                if (count < 4) return false;
-                out.resize(count);
-                project(points, count, &out.front()[0]);
-                return true;
-            };
-            rings.resize(1);
-            if (!ring(p.outer, rings[0]) || extent(&rings[0].front()[0], rings[0].size()) < minExtent) { ++stats_.culled; continue; }
-            for (const auto &inner : p.inners) {
-                rings.emplace_back();
-                if (!ring(inner, rings.back())) rings.pop_back();
-            }
-            for (MapRing &r : rings) {
-                if (hasStrokes(s)) addPolyline(group(slot, &s), &r.front()[0], r.size(), true);
-                r.pop_back();
-            }
-            const auto tt = Clock::now();
-            stats_.triangles += appendFill(fillBatch(slot, s.fill).vertices, rings, height(slot * OrdersPerSlot + FillOrder));
-            triangulate += since(tt);
-            ++stats_.polygons;
+    struct PolygonJob { const Style *style; int slot; const Polygon *polygon; };
+    std::vector<PolygonJob> polygonJobs;
+    for (size_t r = 0; r < polygons.size(); ++r)
+        for (const Polygon &p : polygons[r].polygons)
+            polygonJobs.push_back({&classes_.style(relationClasses[r]), slotOf(relationClasses[r]), &p});
+
+    t = Clock::now();
+    // Per thread: the points to draw of a way or ring, all or simplified (ends kept).
+    struct Scratch { std::vector<Location> simplified; std::vector<float> xz; std::vector<MapRing> rings; };
+    auto simplify = [&](Output &o, Scratch &sc, const Location *in, uint32_t count, uint32_t &kept) -> const Location * {
+        o.stats.pointsRead += count;
+        kept = count;
+        if (tolerance < SimplifyFromMeters || count <= 2) return in;
+        const std::vector<uint32_t> idx = simplifyIndices(in, count, tolerance);
+        sc.simplified.clear();
+        for (uint32_t i : idx) sc.simplified.push_back(in[i]);
+        kept = uint32_t(sc.simplified.size());
+        return sc.simplified.data();
+    };
+    auto doWay = [&](Output &o, Scratch &sc, size_t i) {
+        const WayJob &j = wayJobs[i];
+        const Style &s = *j.style;
+        uint32_t count = 0;
+        const Location *points = simplify(o, sc, wayPoints.data() + j.first, j.count, count);
+        sc.xz.resize(2 * size_t(count));
+        project(points, count, sc.xz.data());
+        // Closed ways only: an open way may be one short piece of a long road or river.
+        if (j.closed && extent(sc.xz.data(), count) < minExtent) { ++o.stats.culled; return; }
+        if (s.hasFill && j.closed && count >= 4) {
+            sc.rings.resize(1);
+            MapRing &ring = sc.rings.front();
+            ring.resize(count - 1);
+            std::copy(sc.xz.begin(), sc.xz.end() - 2, &ring.front()[0]);
+            o.stats.triangles += appendFill(o.fillBatch(j.slot, s.fill).vertices, sc.rings, height(j.slot * OrdersPerSlot + FillOrder));
+            ++o.stats.polygons;
         }
-    }
-    stats_.triangulateSeconds = triangulate;
+        if (hasStrokes(s)) o.addPolyline(o.group(j.slot, &s), sc.xz.data(), count, j.closed);
+    };
+    auto doPolygon = [&](Output &o, Scratch &sc, size_t i) {
+        const PolygonJob &j = polygonJobs[i];
+        const Style &s = *j.style;
+        // Projected with the repeated closing point, which the strokes keep and the fill
+        // drops; false when simplified below a triangle.
+        auto ring = [&](const std::vector<Location> &locations, MapRing &out) {
+            uint32_t count = 0;
+            const Location *points = simplify(o, sc, locations.data(), uint32_t(locations.size()), count);
+            if (count < 4) return false;
+            out.resize(count);
+            project(points, count, &out.front()[0]);
+            return true;
+        };
+        sc.rings.resize(1);
+        if (!ring(j.polygon->outer, sc.rings[0]) || extent(&sc.rings[0].front()[0], sc.rings[0].size()) < minExtent) { ++o.stats.culled; return; }
+        for (const auto &inner : j.polygon->inners) {
+            sc.rings.emplace_back();
+            if (!ring(inner, sc.rings.back())) sc.rings.pop_back();
+        }
+        for (MapRing &r : sc.rings) {
+            if (hasStrokes(s)) o.addPolyline(o.group(j.slot, &s), &r.front()[0], r.size(), true);
+            r.pop_back();
+        }
+        o.stats.triangles += appendFill(o.fillBatch(j.slot, s.fill).vertices, sc.rings, height(j.slot * OrdersPerSlot + FillOrder));
+        ++o.stats.polygons;
+    };
+    // Contiguous shares, merged in order: the same result on any number of threads.
+    const size_t threads = size_t(options.threads > 0 ? options.threads : std::max(1u, std::thread::hardware_concurrency()));
+    auto parallel = [&](size_t count, const std::function<void(Output &, Scratch &, size_t)> &fn) {
+        const size_t n = std::max<size_t>(1, std::min(threads, count / 64));
+        std::vector<Output> parts(n);
+        std::vector<std::thread> pool;
+        for (size_t p = 0; p < n; ++p)
+            pool.emplace_back([&, p] {
+                Scratch sc;
+                for (size_t i = count * p / n, end = count * (p + 1) / n; i < end && !cancelled(); ++i) fn(parts[p], sc, i);
+            });
+        for (std::thread &th : pool) th.join();
+        for (Output &part : parts) out_.append(std::move(part));
+    };
+    parallel(wayJobs.size(), doWay);
+    std::vector<Location>().swap(wayPoints);
+    parallel(polygonJobs.size(), doPolygon);
+    stats_.processSeconds = since(t);
+    const size_t ways = stats_.ways, relationCount = stats_.relations;
+    const double read = stats_.readSeconds, assemble = stats_.assembleSeconds, process = stats_.processSeconds;
+    stats_ = out_.stats;
+    stats_.ways = ways;
+    stats_.relations = relationCount;
+    stats_.readSeconds = read;
+    stats_.assembleSeconds = assemble;
+    stats_.processSeconds = process;
     if (cancelled()) { error = QStringLiteral("cancelled"); return false; }
     return true;
 }
@@ -326,7 +377,7 @@ void MapGeometry::strokes(double metersPerPixel, std::vector<MapBatch> &out) con
             else appendLines(b->vertices, xz, end - first, y);
         }
     };
-    for (const Group &g : groups_) {
+    for (const Group &g : out_.groups) {
         const Style &s = *g.style;
         const float base = g.slot * OrdersPerSlot;
         if (s.hasOutline) draw(g, base + OutlineOrder, s.outline);

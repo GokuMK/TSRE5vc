@@ -233,7 +233,7 @@ OsmMapLayer::Result OsmMapLayer::Worker::load(const Job &job) {
                           << area.maxY / Osm::CoordinateScale << "m/px" << job.metresPerPixel << "level"
                           << layers->levelForScale(job.metresPerPixel) << "ms" << loadNs / 1e6
                           << "(read" << s.readSeconds * 1e3 << "multipolygons"
-                          << s.assembleSeconds * 1e3 << "triangulate" << s.triangulateSeconds * 1e3
+                          << s.assembleSeconds * 1e3 << "simplify, project, triangulate" << s.processSeconds * 1e3
                           << ") total ms" << timer.nsecsElapsed() / 1e6 << "triangles" << s.triangles
                           << "polylines" << s.polylines << "culled" << s.culled;
     }

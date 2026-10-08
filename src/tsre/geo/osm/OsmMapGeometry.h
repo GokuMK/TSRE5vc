@@ -69,13 +69,16 @@ public:
     struct Options {
         float baseHeight = 0;
         float heightStep = 1;
+        int threads = 0;  // for simplifying, projecting and triangulating; 0: all hardware threads
     };
     struct Stats {
         uint64_t ways = 0, relations = 0, polygons = 0, triangles = 0;
         uint64_t polylines = 0, points = 0;
         uint64_t culled = 0;  // features under MinPixels
         uint64_t pointsRead = 0;  // before simplification
-        double readSeconds = 0, assembleSeconds = 0, triangulateSeconds = 0;
+        // Reading (both passes), multipolygon assembly, and the parallel part: simplifying,
+        // projecting and triangulating.
+        double readSeconds = 0, assembleSeconds = 0, processSeconds = 0;
     };
 
     explicit MapGeometry(const FeatureClasses &classes = FeatureClasses::standard());
@@ -89,9 +92,9 @@ public:
     double loadedMetersPerPixel() const { return loadedMetersPerPixel_; }
 
     // Area fills from load(), one batch per slot and colour.
-    const std::vector<MapBatch> &fills() const { return fills_; }
+    const std::vector<MapBatch> &fills() const { return out_.fills; }
     // Moves the fills out (they are uploaded once; strokes() does not need them).
-    std::vector<MapBatch> takeFills() { fillIndex_.clear(); return std::move(fills_); }
+    std::vector<MapBatch> takeFills() { out_.fillIndex.clear(); return std::move(out_.fills); }
     // Outlines, casings and lines for a scale.
     void strokes(double metersPerPixel, std::vector<MapBatch> &out) const;
     const Stats &stats() const { return stats_; }
@@ -113,18 +116,24 @@ private:
         std::vector<uint32_t> starts;   // first point of each polyline; points.size() / 2 ends the last
         std::vector<uint8_t> closed;    // per polyline
     };
-    Group &group(int slot, const Style *style);
-    void addPolyline(Group &g, const float *xz, size_t count, bool closed);
-    MapBatch &fillBatch(int slot, Rgb color);
+    // What load() builds; each worker thread builds one for its share, merged in order.
+    struct Output {
+        std::vector<Group> groups;
+        std::map<std::pair<int, const Style *>, size_t> groupIndex;
+        std::vector<MapBatch> fills;
+        std::unordered_map<uint64_t, size_t> fillIndex;
+        Stats stats;  // counts
+        Group &group(int slot, const Style *style);
+        void addPolyline(Group &g, const float *xz, size_t count, bool closed);
+        MapBatch &fillBatch(int slot, Rgb color);
+        void append(Output &&other);
+    };
 
     const FeatureClasses &classes_;
     const std::vector<float> scaleRanges_;
     Options options_;
     double loadedMetersPerPixel_ = 0;
-    std::vector<Group> groups_;
-    std::map<std::pair<int, const Style *>, size_t> groupIndex_;
-    std::vector<MapBatch> fills_;
-    std::unordered_map<uint64_t, size_t> fillIndex_;
+    Output out_;
     Stats stats_;
 };
 

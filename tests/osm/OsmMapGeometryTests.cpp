@@ -193,6 +193,38 @@ void runMapGeometryTests(const std::function<void(bool, const char *)> &check) {
     check(coarse && geometry.stats().polygons == 1 && !find(geometry.fills(), buildingFill, MapBatch::Triangles)
               && vertexCount(strokes, MapBatch::Lines) > 0 && geometry.stats().polylines == 4 && geometry.stats().points == 3 + 2 + 2 + 2,
           "at 6 m/px buildings and fences are left out; roads and the forest stay, the zigzag simplified to its ends");
+    {
+        // Enough ways for several threads: the result must not depend on their number.
+        QTemporaryDir many;
+        Fixture mx;
+        for (int i = 0; i < 400; ++i) {
+            mx.way(1000 + i, {{"building", "yes"}}, mx.square((i % 20) * 50.0, (i / 20) * 50.0, 20 + i % 7));
+            mx.way(2000 + i, {{"highway", "residential"}}, mx.line({{(i % 20) * 50.0, (i / 20) * 50.0 + 30}, {(i % 20) * 50.0 + 45, (i / 20) * 50.0 + 33 + i % 5}}));
+        }
+        std::string ma, mb, mc;
+        mx.nodes.build(ma); mx.ways.build(mb);
+        const std::string mbytes = encodeBlobFrame("OSMHeader", encodeHeaderBlock(h), {}, 6) + encodeBlobFrame("OSMData", ma, {}, 6) + encodeBlobFrame("OSMData", mb, {}, 6);
+        QFile mf(many.filePath("many.osm.pbf"));
+        mf.open(QIODevice::WriteOnly);
+        mf.write(mbytes.data(), qint64(mbytes.size()));
+        mf.close();
+        SortedPbfStore manyStore;
+        ConvertStats ms;
+        const bool converted = convertPbf(many.filePath("many.osm.pbf"), many.filePath("many.tsre.osm.pbf"), options, ms, error)
+                               && manyStore.open(QStringList{many.filePath("many.tsre.osm.pbf")}, error);
+        MapGeometry one, four;
+        MapGeometry::Options o1 = heights, o4 = heights;
+        o1.threads = 1;
+        o4.threads = 4;
+        std::vector<MapBatch> s1, s4;
+        const bool loaded = converted && one.load(manyStore, all, 1.0, project, o1, error) && four.load(manyStore, all, 1.0, project, o4, error);
+        one.strokes(1.0, s1);
+        four.strokes(1.0, s4);
+        bool same = loaded && one.fills().size() == four.fills().size() && s1.size() == s4.size() && one.stats().polygons == 400;
+        for (size_t i = 0; same && i < one.fills().size(); ++i) same = one.fills()[i].vertices == four.fills()[i].vertices;
+        for (size_t i = 0; same && i < s1.size(); ++i) same = s1[i].vertices == s4[i].vertices && s1[i].order == s4[i].order;
+        check(same, "geometry built on four threads equals the one-thread result");
+    }
     const bool far = geometry.load(store, all, 20.0, project, heights, error);
     check(far && geometry.stats().polylines == 3, "at 20 m/px residential roads are left out too; a 10 m piece of a main road stays");
 }
@@ -227,7 +259,7 @@ int mapGeometryTiming(const QStringList &args) {
         for (const MapBatch &b : strokes) (b.primitive == MapBatch::Lines ? lines : strip) += b.vertices.size() / 3;
         const MapGeometry::Stats &s = geometry.stats();
         std::cout << (pass ? "warm" : "cold") << ": load " << loadS << " s (read " << s.readSeconds << ", multipolygons " << s.assembleSeconds
-                  << ", triangulate " << s.triangulateSeconds << "), strokes " << strokeS << " s\n"
+                  << ", simplify, project, triangulate " << s.processSeconds << "), strokes " << strokeS << " s\n"
                   << "  " << s.ways << " ways, " << s.relations << " relations, " << s.polygons << " polygons, " << s.triangles << " triangles, "
                   << s.polylines << " polylines (" << s.points << " points); " << s.culled << " culled, points read " << s.pointsRead << "\n"
                   << "  batches " << geometry.fills().size() << " fill + " << strokes.size() << " stroke; vertices: fill " << fillVertices << ", strip "
