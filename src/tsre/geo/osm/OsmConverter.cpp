@@ -439,8 +439,10 @@ ConvertEstimate estimateConversion(int64_t sourceBytes, int threads) {
     // staging buffers and up to 1 GiB of write groups on top.
     if (threads <= 0) threads = int(std::max(1u, std::thread::hardware_concurrency()));
     ConvertEstimate e;
-    e.memoryBytes = sourceBytes * 2 + 256ll * 1024 * 1024 + int64_t(threads) * 64 * 1024 * 1024;
-    e.tempBytes = sourceBytes * 3;
+    // Staging buffers and write groups only fill up for large sources.
+    const int64_t buffers = std::min<int64_t>(sourceBytes / 2, 256ll * 1024 * 1024 + int64_t(threads) * 64 * 1024 * 1024);
+    e.memoryBytes = sourceBytes * 2 + buffers + 32ll * 1024 * 1024;
+    e.tempBytes = sourceBytes * 7 / 2;  // Poland: 6.65 GB from 2.1 GB
     e.outputBytes = sourceBytes + sourceBytes / 6;
     return e;
 }

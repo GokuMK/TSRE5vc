@@ -7679,6 +7679,30 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <source>Geodata root: user-managed elevation products in their catalogue directories; downloaded elevation and imagery data in cache/.</source>
         <translation>Geodata root: user-managed elevation products in their catalogue directories; downloaded elevation and imagery data in cache/.</translation>
     </message>
+    <message id="settings.core.paths.osm.data.name">
+        <source>OpenStreetMap data directory</source>
+        <translation>OpenStreetMap data directory</translation>
+    </message>
+    <message id="settings.core.paths.osm.data.description">
+        <source>Downloaded .osm.pbf extracts, for example from Geofabrik. TSRE converts each file once into a spatially sorted copy (.tsre.osm.pbf) next to it. Subdirectories are not read.</source>
+        <translation>Downloaded .osm.pbf extracts, for example from Geofabrik. TSRE converts each file once into a spatially sorted copy (.tsre.osm.pbf) next to it. Subdirectories are not read.</translation>
+    </message>
+    <message id="settings.geo.osm.original.after.conversion.name">
+        <source>Downloaded OSM file after conversion</source>
+        <translation>Downloaded OSM file after conversion</translation>
+    </message>
+    <message id="settings.geo.osm.original.after.conversion.description">
+        <source>Keep the downloaded .osm.pbf next to its converted copy, or delete it once the conversion has finished. The converted copy has the same content and is used for everything; deleting saves about half of the space.</source>
+        <translation>Keep the downloaded .osm.pbf next to its converted copy, or delete it once the conversion has finished. The converted copy has the same content and is used for everything; deleting saves about half of the space.</translation>
+    </message>
+    <message id="settings.geo.osm.original.after.conversion.option.keep">
+        <source>Keep both files</source>
+        <translation>Keep both files</translation>
+    </message>
+    <message id="settings.geo.osm.original.after.conversion.option.delete">
+        <source>Delete the download</source>
+        <translation>Delete the download</translation>
+    </message>
     <message id="settings.core.startup.route.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="371" />
         <source>Startup route</source>
@@ -9982,6 +10006,70 @@ Now TSRE will download app data.</translation>
         <location filename="../src/tsre/geo/MapWindow.cpp" line="123" />
         <source>Tile: %1 %2</source>
         <translation>Tile: %1 %2</translation>
+    </message>
+    <message id="geo.osm.conversion.title">
+        <source>Convert OpenStreetMap data</source>
+        <translation>Convert OpenStreetMap data</translation>
+    </message>
+    <message id="geo.osm.conversion.question">
+        <source>Downloaded OpenStreetMap files covering this area need a one-time conversion into a spatially sorted copy before TSRE can use them:</source>
+        <translation>Downloaded OpenStreetMap files covering this area need a one-time conversion into a spatially sorted copy before TSRE can use them:</translation>
+    </message>
+    <message id="geo.osm.conversion.resources">
+        <source>This needs about %1 of memory (%2 available) and %3 of free disk space (%4 available) while it runs.</source>
+        <translation>This needs about %1 of memory (%2 available) and %3 of free disk space (%4 available) while it runs.</translation>
+    </message>
+    <message id="geo.osm.conversion.unknown">
+        <source>unknown</source>
+        <translation>unknown</translation>
+    </message>
+    <message id="geo.osm.conversion.low.disk">
+        <source>There is not enough free disk space.</source>
+        <translation>There is not enough free disk space.</translation>
+    </message>
+    <message id="geo.osm.conversion.low.memory">
+        <source>Available memory may not be enough. Regional extracts of the same data (for example per province) need much less.</source>
+        <translation>Available memory may not be enough. Regional extracts of the same data (for example per province) need much less.</translation>
+    </message>
+    <message id="geo.osm.conversion.delete.original">
+        <source>Delete the downloaded file after conversion</source>
+        <translation>Delete the downloaded file after conversion</translation>
+    </message>
+    <message id="geo.osm.conversion.convert">
+        <source>Convert now</source>
+        <translation>Convert now</translation>
+    </message>
+    <message id="geo.osm.conversion.later">
+        <source>Not now</source>
+        <translation>Not now</translation>
+    </message>
+    <message id="geo.osm.conversion.progress">
+        <source>Converting %1 (%2 of %3): %4</source>
+        <translation>Converting %1 (%2 of %3): %4</translation>
+    </message>
+    <message id="geo.osm.conversion.phase.scan">
+        <source>scanning blocks</source>
+        <translation>scanning blocks</translation>
+    </message>
+    <message id="geo.osm.conversion.phase.relations">
+        <source>reading relations</source>
+        <translation>reading relations</translation>
+    </message>
+    <message id="geo.osm.conversion.phase.nodes">
+        <source>reading nodes</source>
+        <translation>reading nodes</translation>
+    </message>
+    <message id="geo.osm.conversion.phase.ways">
+        <source>reading ways</source>
+        <translation>reading ways</translation>
+    </message>
+    <message id="geo.osm.conversion.phase.write">
+        <source>writing the sorted file</source>
+        <translation>writing the sorted file</translation>
+    </message>
+    <message id="geo.osm.conversion.failed">
+        <source>OpenStreetMap conversion failed</source>
+        <translation>OpenStreetMap conversion failed</translation>
     </message>
     <message id="tsre.geo.map.window.text.wait">
         <location filename="../src/tsre/geo/MapWindow.cpp" line="191" />

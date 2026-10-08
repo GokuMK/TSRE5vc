@@ -105,6 +105,8 @@ public:
     PbfFile &operator=(const PbfFile &) = delete;
 
     bool open(const QString &path, QString &error);
+    // Reads only the leading header block: cheap enough for scanning a directory.
+    static bool readHeader(const QString &path, HeaderInfo &header, QString &error);
     void close();  // releases the mapping; required before renaming or deleting on Windows
     bool isOpen() const { return file_.isOpen(); }
 

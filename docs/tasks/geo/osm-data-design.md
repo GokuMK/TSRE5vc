@@ -71,12 +71,14 @@ A converted file is an ordinary PBF with these properties.
   for Poland from cold storage and 7 ms warm.
 
 **Names:**
-- In delete mode, the converter writes `<name>.part` and renames it over the
-  original, so the name stays the same. On Windows the source must be
-  unmapped and closed before the rename.
-- In keep mode, the output is `<name>.tsre.osm.pbf` beside the original.
-- A later Geofabrik download that overwrites a converted file is detected by
-  its header (no `TSRE-Spatial-1`), and conversion is offered again.
+- The converted file is always `<name>.tsre.osm.pbf` beside the download.
+- In delete mode, the download is removed after the converted file is
+  complete. This is safer than renaming over the original: on Windows the
+  original would have to be deleted first, and an interruption in between
+  would lose both files.
+- A later Geofabrik download placed in the directory is matched to its
+  converted copy through the source identity in the header, not by name. A
+  newer download is offered for conversion again.
 
 ## Components
 
@@ -105,7 +107,7 @@ pass, without the node-location table.
 | Key | Type | Default | Meaning |
 |---|---|---|---|
 | `core.paths.osmData` | Directory | empty | Directory of `.osm.pbf` files; top level only. |
-| `core.osm.originalAfterConversion` | Enum `keep` / `delete` | `keep` | What happens to the downloaded file after a successful conversion. |
+| `geo.osm.originalAfterConversion` | Enum `keep` / `delete` | `keep` | What happens to the downloaded file after a successful conversion. |
 
 The default is `keep` because deleting a user's file must be an explicit
 choice. The conversion prompt shows the current choice and lets the user
@@ -202,3 +204,19 @@ Converter:
 - The write phase is mostly compression (57 % of its CPU at level 6). Record
   parsing and block building take most of the rest; they can be tightened
   later.
+
+**Step 3 done (2026-10-08).**
+- `OsmDirectory` scans top-level files by header only: 14 Poland downloads
+  in 7 ms from cold storage. It pairs downloads with their converted copies
+  through the source identity and lists pending conversions per area.
+- New settings `core.paths.osmData` and `geo.osm.originalAfterConversion`,
+  claimed in `Game.cpp`, with EN/PL translations.
+- `Osm::ensureConverted()` asks before the first use of an area. The
+  question shows the files, the needed memory and disk against what is free,
+  and a delete-after-conversion checkbox that saves the setting. Conversion
+  runs on a worker thread behind a cancellable progress dialog. A declined
+  file is not offered again until restart.
+- Tests: `tests/osm` (64 checks) and the application suite
+  `TSRE5vc --test --test-suite osm-data`, which drives the dialog headless
+  (`TSRE_OSM_UI_SNAPSHOTS=<dir>` saves snapshots).
+- The prompt is wired into the tile map in step 7.

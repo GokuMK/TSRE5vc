@@ -283,8 +283,10 @@ void converterTests(const std::function<void(bool, const char *)> &check) {
           "cancelling leaves no output or temporary files");
     // Replacing an existing output keeps the old file until the new one is complete.
     check(convertPbf(sortedPath, out2, options, stats, error) && dataBlocks(out2) == dataBlocks(out1), "an existing output is replaced");
-    const ConvertEstimate est = estimateConversion(1000);
-    check(est.memoryBytes > 2000 && est.tempBytes >= 2800 && est.outputBytes >= 1100, "estimates scale with the source size");
+    const ConvertEstimate est = estimateConversion(1000), poland = estimateConversion(2104735352, 12);
+    check(est.memoryBytes > 2000 && est.memoryBytes < 64ll * 1024 * 1024 && est.tempBytes >= 2800 && est.outputBytes >= 1100
+              && poland.memoryBytes > 4700ll * 1024 * 1024 && poland.tempBytes > 6339ll * 1024 * 1024 && poland.outputBytes > 2281ll * 1024 * 1024,
+          "estimates scale with the source size and cover the measured Poland conversion");
 }
 
 }

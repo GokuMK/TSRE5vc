@@ -378,6 +378,26 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Geodata root: user-managed elevation products in their catalogue directories; downloaded elevation and imagery data in cache/."
                 QT_TRID_NOOP("settings.core.paths.geo.data.description")).inGroup("maps").inSubgroup("geodata"),
         "geoPath", "Game::geoPath", "GeoTools", false, "direct");
+    ADD(SettingsDefinition::string("core.paths.osmData", "", SettingType::Directory)
+            .withNameId(
+                //% "OpenStreetMap data directory"
+                QT_TRID_NOOP("settings.core.paths.osm.data.name")).withDescriptionId(
+                //% "Downloaded .osm.pbf extracts, for example from Geofabrik. TSRE converts each file once into a spatially sorted copy (.tsre.osm.pbf) next to it. Subdirectories are not read."
+                QT_TRID_NOOP("settings.core.paths.osm.data.description")).inGroup("maps").inSubgroup("geodata"),
+        "", "", "OSM data", false, "direct");
+    ADD(SettingsDefinition::string("geo.osm.originalAfterConversion", "keep", SettingType::Enum)
+            .withNameId(
+                //% "Downloaded OSM file after conversion"
+                QT_TRID_NOOP("settings.geo.osm.original.after.conversion.name")).withDescriptionId(
+                //% "Keep the downloaded .osm.pbf next to its converted copy, or delete it once the conversion has finished. The converted copy has the same content and is used for everything; deleting saves about half of the space."
+                QT_TRID_NOOP("settings.geo.osm.original.after.conversion.description"))
+            .withOptions(choices({{"keep",
+                //% "Keep both files"
+                QT_TRID_NOOP("settings.geo.osm.original.after.conversion.option.keep")}, {"delete",
+                //% "Delete the download"
+                QT_TRID_NOOP("settings.geo.osm.original.after.conversion.option.delete")}}))
+            .inGroup("maps").inSubgroup("geodata"),
+        "", "", "OSM data", false, "action-time");
     QString elevationCatalogueError;
     const auto elevationCatalogue = Elevation::datasets(elevationCatalogueError);
     const QString defaultElevationSource = Elevation::defaultFileSourceId(elevationCatalogue);

@@ -387,6 +387,35 @@ bool PbfFile::open(const QString &path, QString &error) {
     return ok;
 }
 
+bool PbfFile::readHeader(const QString &path, HeaderInfo &header, QString &error) {
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly)) return fail(error, QStringLiteral("Cannot open %1: %2").arg(path, f.errorString()));
+    uint8_t prefix[4];
+    if (f.read(reinterpret_cast<char *>(prefix), 4) != 4) return fail(error, QStringLiteral("%1: truncated PBF frame").arg(path));
+    const uint32_t headerSize = uint32_t(prefix[0]) << 24 | uint32_t(prefix[1]) << 16 | uint32_t(prefix[2]) << 8 | prefix[3];
+    if (headerSize == 0 || headerSize > MaxBlobHeaderSize) return fail(error, QStringLiteral("%1: invalid PBF blob header size").arg(path));
+    const QByteArray blobHeader = f.read(headerSize);
+    if (blobHeader.size() != qsizetype(headerSize)) return fail(error, QStringLiteral("%1: truncated PBF blob header").arg(path));
+    Reader r(reinterpret_cast<const uint8_t *>(blobHeader.constData()), size_t(blobHeader.size()));
+    bool isHeader = false;
+    uint64_t dataSize = 0;
+    while (r.next()) {
+        if (r.field() == 1) isHeader = r.bytes().view() == "OSMHeader";
+        else if (r.field() == 3) dataSize = r.varint();
+        else r.skip();
+    }
+    if (!r.ok() || !isHeader || dataSize == 0 || dataSize > MaxBlobSize) return fail(error, QStringLiteral("%1: PBF file does not start with a header block").arg(path));
+    const QByteArray blob = f.read(qint64(dataSize));
+    if (blob.size() != qsizetype(dataSize)) return fail(error, QStringLiteral("%1: truncated PBF header block").arg(path));
+    std::vector<uint8_t> raw;
+    if (!inflateBlob(Span(reinterpret_cast<const uint8_t *>(blob.constData()), size_t(blob.size())), raw, error)
+        || !decodeHeaderBlock(spanOf(raw), header, error)) {
+        error = QStringLiteral("%1: %2").arg(path, error);
+        return false;
+    }
+    return true;
+}
+
 bool PbfFile::readBlob(size_t index, std::vector<uint8_t> &raw, QString &error) const {
     if (!map_ || index >= blobs_.size()) return fail(error, QStringLiteral("PBF blob index out of range"));
     const BlobInfo &b = blobs_[index];
