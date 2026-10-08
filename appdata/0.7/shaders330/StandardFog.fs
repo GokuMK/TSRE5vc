@@ -168,6 +168,12 @@ void main() {
     // 1 or negative colour would turn blending around.
     fragColor = vec4(max(fragColor.rgb, vec3(0.0)), clamp(fragColor.a, 0.0, 1.0));
     ambientOut.a = clamp(ambientOut.a, 0.0, 1.0);
+#ifndef TSRE_PBR
+    // No emission, but a blended surface must still cover the glow behind it
+    // as much as its colour covers what is behind: blending uses each
+    // output's alpha (alpha 0 left lamps glowing through it).
+    glowOut.a = fragColor.a;
+#endif
     glowOut = vec4(max(glowOut.rgb, vec3(0.0)), clamp(glowOut.a, 0.0, 1.0));
 #endif
 }

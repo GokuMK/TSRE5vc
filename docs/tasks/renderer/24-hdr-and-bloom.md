@@ -56,6 +56,11 @@ Defaults leave the image exactly as before.
 - EUROPE1 street lamps on 2026-12-21 at 18:00 with Soft shoulder, bloom 1.5
   and AO High: lamp lenses glow as points of light; QRhi on OpenGL matches
   Vulkan (RMSE 2.5); no Vulkan validation messages.
+- Occlusion (2026-10-08, bbb at night behind a building): surfaces without
+  emission write their glow with their colour's alpha, so blended ones (many
+  MSTS shapes) cover the glow behind them; with alpha 0 the lamps behind a
+  building glowed through its wall. Halos of lamps beside an edge still
+  spread over it, as bloom does.
 
 ## Later
 
