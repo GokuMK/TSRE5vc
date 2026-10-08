@@ -11,6 +11,7 @@
 #include <tsre/geo/osm/OsmOverview.h>
 #include <tsre/geo/osm/OsmDirectory.h>
 #include <tsre/geo/osm/OsmMultipolygon.h>
+#include <tsre/geo/osm/OsmGeneralize.h>
 #include <QCryptographicHash>
 #include <QDebug>
 #include <QDir>
@@ -65,13 +66,16 @@ QString identity(const QString &convertedPath, const OverviewConfig &config, siz
 
 struct OvNode { int64_t id; Location location; Tags tags; };
 struct OvWay { int64_t id; Tags tags; std::vector<int64_t> refs; std::vector<Location> locations; Box box; bool selected; uint32_t sourcePoints; };
-struct OvRelation { RelationData data; double minArea; };
+struct OvRelation { RelationData data; double minArea; int generalize = -1; };
+
+using AreaRings = std::vector<std::vector<Location>>;  // outer, then holes
 
 struct Level {
     std::vector<OvNode> nodes;
     std::vector<OvWay> ways;
     std::vector<OvRelation> candidates;
     std::vector<int64_t> memberWays;  // sorted
+    std::vector<std::vector<AreaRings>> generalize;  // per rule: the areas to merge
 };
 
 bool writeLevel(const QString &path, const QString &source, const Box &bbox, Level &lv, const std::vector<RelationData> &relations,
@@ -163,6 +167,18 @@ bool OverviewConfig::load(const QJsonObject &section, QString &error) {
                 }
             }
             rule.minAreaKm2 = r.value("minAreaKm2").toDouble(0);
+            if (r.contains("generalize")) {
+                const QJsonObject g = r.value("generalize").toObject();
+                rule.generalizeCellMeters = g.value("cellMeters").toDouble(0);
+                rule.generalizeCloseMeters = g.value("closeMeters").toDouble(0);
+                rule.generalizeMinHoleKm2 = g.value("minHoleKm2").toDouble(0.05);
+                rule.generalizeTag = g.value("tag").toString().toStdString();
+                const size_t eq = rule.generalizeTag.find('=');
+                if (rule.generalizeCellMeters <= 0 || eq == std::string::npos || eq == 0 || eq + 1 == rule.generalizeTag.size()) {
+                    error = QStringLiteral("overview generalize needs cellMeters and a key=value tag");
+                    return false;
+                }
+            }
             for (const std::string &p : rule.tags)
                 if (p.find('=') == std::string::npos) { error = QStringLiteral("overview tag must be key=value or key=*: %1").arg(QString::fromStdString(p)); return false; }
             if (rule.tags.empty() || !rule.types) { error = QStringLiteral("overview rule needs tags and types"); return false; }
@@ -295,12 +311,19 @@ bool buildOverviews(const QString &convertedPath, const OverviewConfig &config, 
             if (type != "multipolygon" && type != "boundary") continue;
             for (size_t l = 0; l < L; ++l) {
                 double minArea = -1;
-                for (const OverviewRule &rule : config.levels[l].rules)
-                    if ((rule.types & Relations) && rule.matchesTags(r.tagCount, [&](uint32_t i) { return b.tag(r.tagFirst + i); }))
-                        minArea = minArea < 0 ? rule.minAreaKm2 : std::min(minArea, rule.minAreaKm2);
+                int generalize = -1;
+                const auto &rules = config.levels[l].rules;
+                for (size_t k = 0; k < rules.size(); ++k) {
+                    const OverviewRule &rule = rules[k];
+                    if (!(rule.types & Relations) || !rule.matchesTags(r.tagCount, [&](uint32_t i) { return b.tag(r.tagFirst + i); })) continue;
+                    // A generalizing rule takes the area for merging; its own size does not matter.
+                    if (rule.generalizes()) { generalize = int(k); minArea = 0; break; }
+                    minArea = minArea < 0 ? rule.minAreaKm2 : std::min(minArea, rule.minAreaKm2);
+                }
                 if (minArea < 0) continue;
                 OvRelation rel;
                 rel.minArea = minArea;
+                rel.generalize = generalize;
                 rel.data.id = r.id;
                 rel.data.tags = copyTags(b, r.tagFirst, r.tagCount);
                 for (uint32_t m = 0; m < r.memberCount; ++m) {
@@ -345,8 +368,17 @@ bool buildOverviews(const QString &convertedPath, const OverviewConfig &config, 
             double area = -1;
             for (size_t l = 0; l < L; ++l) {
                 bool selected = false;
-                for (const OverviewRule &rule : config.levels[l].rules) {
+                const auto &rules = config.levels[l].rules;
+                for (size_t k = 0; k < rules.size(); ++k) {
+                    const OverviewRule &rule = rules[k];
                     if (!(rule.types & Ways) || !rule.matchesTags(w.tagCount, [&](uint32_t i) { return b.tag(w.tagFirst + i); })) continue;
+                    if (rule.generalizes()) {
+                        if (closed) {
+                            out[l].generalize.resize(rules.size());
+                            out[l].generalize[k].push_back(AreaRings{std::vector<Location>(loc, loc + w.refCount)});
+                        }
+                        break;
+                    }
                     if (rule.minAreaKm2 > 0) {
                         if (!closed) continue;
                         if (area < 0) area = ringAreaKm2(loc, w.refCount);
@@ -372,7 +404,21 @@ bool buildOverviews(const QString &convertedPath, const OverviewConfig &config, 
         }
     }, parts);
     if (stopped()) { error = failed ? firstError : QStringLiteral("Overview build cancelled"); return false; }
-    for (auto &p : parts) for (size_t l = 0; l < L; ++l) for (auto &w : p[l].ways) levels[l].ways.push_back(std::move(w));
+    for (auto &p : parts)
+        for (size_t l = 0; l < L; ++l) {
+            for (auto &w : p[l].ways) levels[l].ways.push_back(std::move(w));
+            levels[l].generalize.resize(config.levels[l].rules.size());
+            for (size_t k = 0; k < p[l].generalize.size(); ++k)
+                for (auto &a : p[l].generalize[k]) levels[l].generalize[k].push_back(std::move(a));
+        }
+    // Generalized areas get ids of their own, negative and distinct per file and level,
+    // so overlapping files never drop each other's areas as duplicates.
+    int64_t fileTag = 0;
+    {
+        uint32_t h = 2166136261u;  // FNV-1a of the file name: the same on every run
+        for (char c : QFileInfo(convertedPath).fileName().toUtf8()) { h ^= uint8_t(c); h *= 16777619u; }
+        fileTag = int64_t(h & 0xfffff);
+    }
 
     for (size_t l = 0; l < L; ++l) {
         Level &lv = levels[l];
@@ -398,6 +444,14 @@ bool buildOverviews(const QString &convertedPath, const OverviewConfig &config, 
                 for (const auto &in : p.inners) area -= ringAreaKm2(in.data(), in.size());
                 for (const Location &v : p.outer) extent.extend(v);
             }
+            if (c.generalize >= 0) {
+                for (const Polygon &p : mp.polygons) {
+                    AreaRings rings{p.outer};
+                    rings.insert(rings.end(), p.inners.begin(), p.inners.end());
+                    lv.generalize[size_t(c.generalize)].push_back(std::move(rings));
+                }
+                continue;
+            }
             if (!mp.ok() || area < c.minArea) continue;
             c.data.extent = extent;
             for (const auto &m : c.data.members) { auto it = byId.find(m.ref); if (it != byId.end()) needed[it->second] = true; }
@@ -407,6 +461,51 @@ bool buildOverviews(const QString &convertedPath, const OverviewConfig &config, 
         for (size_t i = 0; i < lv.ways.size(); ++i) if (lv.ways[i].selected || needed[i]) ways.push_back(std::move(lv.ways[i]));
         lv.ways = std::move(ways);
         OverviewStats &st = stats[l];
+        int64_t nextId = 0;
+        auto newId = [&] { return -((fileTag << 40) | (int64_t(l) << 36) | ++nextId); };
+        for (size_t k = 0; k < lv.generalize.size(); ++k) {
+            const OverviewRule &rule = config.levels[l].rules[k];
+            if (lv.generalize[k].empty()) continue;
+            if (stopped()) { error = QStringLiteral("Overview build cancelled"); return false; }
+            GeneralizeOptions options;
+            options.cellMeters = rule.generalizeCellMeters;
+            options.closeMeters = rule.generalizeCloseMeters;
+            options.minAreaKm2 = rule.minAreaKm2;
+            options.minHoleKm2 = rule.generalizeMinHoleKm2;
+            options.toleranceMeters = config.levels[l].toleranceMeters;
+            st.generalizedIn += lv.generalize[k].size();
+            const std::vector<GeneralizedArea> areas = generalizeAreas(lv.generalize[k], options);
+            std::vector<AreaRings>().swap(lv.generalize[k]);
+            const size_t eq = rule.generalizeTag.find('=');
+            const std::pair<std::string, std::string> tag(rule.generalizeTag.substr(0, eq), rule.generalizeTag.substr(eq + 1));
+            auto ringWay = [&](const std::vector<Location> &ring, bool tagged) {
+                OvWay w;
+                w.id = newId();
+                if (tagged) w.tags.push_back(tag);
+                w.selected = true;
+                w.sourcePoints = uint32_t(ring.size());
+                w.locations = ring;
+                for (size_t i = 0; i + 1 < ring.size(); ++i) w.refs.push_back(newId());
+                w.refs.push_back(w.refs.front());
+                for (const Location &v : ring) w.box.extend(v);
+                return w;
+            };
+            for (const GeneralizedArea &a : areas) {
+                if (a.holes.empty()) { lv.ways.push_back(ringWay(a.outer, true)); continue; }
+                RelationData rel;
+                rel.id = newId();
+                rel.tags = {{"type", "multipolygon"}, tag};
+                lv.ways.push_back(ringWay(a.outer, false));
+                rel.members.push_back({lv.ways.back().id, ItemType::Way, "outer"});
+                rel.extent = lv.ways.back().box;
+                for (const auto &h : a.holes) {
+                    lv.ways.push_back(ringWay(h, false));
+                    rel.members.push_back({lv.ways.back().id, ItemType::Way, "inner"});
+                }
+                kept.push_back(std::move(rel));
+            }
+            st.generalizedAreas += areas.size();
+        }
         st.nodes = lv.nodes.size(); st.ways = lv.ways.size(); st.relations = kept.size();
         for (const OvWay &w : lv.ways) { st.pointsIn += w.sourcePoints; st.pointsOut += w.refs.size(); }
         const QString path = overviewPathFor(convertedPath, config.levels[l].name);

@@ -310,6 +310,38 @@ Measured in the app on TEST_PROFILES (Transverse Mercator, 50.77 N 16.30 E),
 - Not checked here: the conversion prompt from the menu (the dialog itself is
   covered by the `osm-data` suite), and a real GPU.
 
+### Forests at country scale (user report, 2026-10-08)
+
+"Half of the forests disappear on the country size view", for example around
+Piła. Measured in a 1 x 0.5 degree box around Piła (detail file): 1,737 km2
+of forest in 10,353 closed ways and 52 multipolygons, but 90% of it in
+parcels of 0.05 to 1 km2 (forestry compartments). The national level kept
+areas of 1 km2 or more one by one: 8% of the forest there. Across Poland
+the parcels and small woods under 1 km2 are 35% of 110,346 km2.
+
+- **Merging parcels by shared borders** (same node ids) would bring Piła to
+  89%, but Poland-wide only from 65 to 67%: most small woods share no nodes.
+- **Chosen: generalization** (`OsmGeneralize`): the national rule for
+  `landuse=forest` and `natural=wood` draws them on a 100 m grid, closes
+  gaps of up to about 200 m, traces the outlines with their holes (clearings
+  from 0.05 km2) and simplifies them; merged forests from 0.25 km2 are written
+  as new `landuse=forest` areas with negative ids (per file and level, so
+  overlapping files never drop each other's). Rule key `generalize`
+  (`cellMeters`, `closeMeters`, `minHoleKm2`, `tag`).
+- **Result**: the national level holds 121,122 km2 of forest for Poland (97%
+  of it in areas of 1 km2 or more), about 10% more than the detailed data
+  because of the closed gaps; the file shrank from 20 to 11.6 MB. Building
+  the Poland overviews takes 16.6 s (12.5 s before; load 4), peak memory
+  4.4 GB, under the conversion's own peak.
+- **Drawing**: the large merged forests with many holes triangulate more
+  slowly: a national view takes 0.9 to 1.5 s to build (earcut 0.4 s of it),
+  0.87 s before. Splitting very large polygons before triangulating would
+  help if it matters.
+- Captures `pila-regional`, `pila-national` and `poland` in
+  `tests/renderer/map-osm.json` (views centred by `latLon`).
+- Water stays exact (lakes are single polygons); riverbank pieces under
+  1 km2 are still left out at the national level.
+
 Still open: the line shader, labels and points, selection of OSM features, a
 dark style for the dark palette, the multipolygon cache, and an option to
 start with the layer on.

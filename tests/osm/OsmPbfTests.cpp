@@ -22,6 +22,7 @@ void runClassesTests(const std::function<void(bool, const char *)> &check);
 int compareClasses(const QStringList &files);
 void runOverviewTests(const std::function<void(bool, const char *)> &check);
 int overviewFiles(const QStringList &files);
+void runGeneralizeTests(const std::function<void(bool, const char *)> &check);
 void runMapGeometryTests(const std::function<void(bool, const char *)> &check);
 int mapGeometryTiming(const QStringList &args);
 
@@ -337,6 +338,7 @@ int main(int argc, char **argv) {
     runMultipolygonTests(check);
     runClassesTests(check);
     runOverviewTests(check);
+    runGeneralizeTests(check);
     runMapGeometryTests(check);
     std::cout << checks << " checks, " << failures << " failures\n";
     return failures ? 1 : 0;

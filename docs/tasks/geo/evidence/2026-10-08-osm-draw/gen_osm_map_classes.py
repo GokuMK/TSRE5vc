@@ -116,7 +116,9 @@ for s in styles:
 assert not ranges, ranges
 # Overview levels for large-scale views (see docs/tasks/geo/osm-data-design.md). The detail
 # file serves views finer than the first level; each level keeps only these features.
-area_tags = ["natural=water", "waterway=riverbank", "landuse=reservoir", "landuse=basin", "landuse=forest", "natural=wood"]
+water_tags = ["natural=water", "waterway=riverbank", "landuse=reservoir", "landuse=basin"]
+forest_tags = ["landuse=forest", "natural=wood"]
+area_tags = water_tags + forest_tags
 overview = {"levels": [
     {"name": "regional", "fromMetersPerPixel": 20, "toleranceMeters": 5, "rules": [
         {"tags": ["railway=rail", "railway=light_rail", "railway=narrow_gauge", "railway=subway", "railway=preserved"], "types": ["way"]},
@@ -131,7 +133,12 @@ overview = {"levels": [
         {"tags": ["railway=rail", "railway=narrow_gauge"], "unless": ["service=*"], "types": ["way"]},
         {"tags": ["highway=motorway", "highway=trunk", "highway=primary"], "types": ["way"]},
         {"tags": ["waterway=river", "waterway=canal", "natural=coastline"], "types": ["way"]},
-        {"tags": area_tags, "types": ["way", "relation"], "minAreaKm2": 1.0},
+        {"tags": water_tags, "types": ["way", "relation"], "minAreaKm2": 1.0},
+        # Forests are often mapped as many small parcels (forestry compartments) or small
+        # woods; one by one they would vanish at this scale. They are merged on a 100 m grid,
+        # gaps up to about 200 m closed, and kept from 0.25 km2 (osm-rendering-design.md).
+        {"tags": forest_tags, "types": ["way", "relation"], "minAreaKm2": 0.25,
+         "generalize": {"cellMeters": 100, "closeMeters": 100, "minHoleKm2": 0.05, "tag": "landuse=forest"}},
         {"tags": ["place=city", "place=town"], "types": ["node"]}]}]}
 out = {
     "version": 1,

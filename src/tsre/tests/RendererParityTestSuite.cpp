@@ -36,6 +36,7 @@
 #include <tsre/trains/ConLib.h>
 #include <tsre/trains/EngLib.h>
 #include <tsre/Game.h>
+#include <tsre/geo/GeoCoordinates.h>
 #include <tsre/world/TerrainLib.h>
 #include <tsre/renderer/RenderStats.h>
 #include <tsre/renderer/SelectionId.h>
@@ -82,6 +83,10 @@ struct ViewSpec {
     bool fadedOverlay = false;
     bool osmData = false;
     bool osmTransparentAreas = false;
+    // Centred on a latitude and longitude through the route's projection, instead of
+    // tile and pos (map views of OSM data).
+    bool hasLatLon = false;
+    double lat = 0.0, lon = 0.0;
     // Edit the distant terrain (TerrainLib's current tree) for this view.
     bool editDistant = false;
     // Height above the terrain, replacing the view's own height.
@@ -244,6 +249,12 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         view.fadedOverlay = object.value("fadedOverlay").toBool(false);
         view.osmData = object.value("osmData").toBool(false);
         view.osmTransparentAreas = object.value("osmTransparentAreas").toBool(false);
+        const QJsonArray latLon = object.value("latLon").toArray();
+        view.hasLatLon = latLon.size() == 2;
+        if (view.hasLatLon) {
+            view.lat = latLon[0].toDouble();
+            view.lon = latLon[1].toDouble();
+        }
         view.editDistant = object.value("editDistant").toBool(false);
         view.hasAboveGround = object.contains("aboveGround");
         view.aboveGround = float(object.value("aboveGround").toDouble(0.0));
@@ -470,6 +481,16 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         int tileZ = spec.hasTile ? spec.tileZ : startTileZ;
         float pos[3] = {startPos[0], startPos[1], startPos[2]};
         float rot[2] = {startRot[0], startRot[1]};
+        if (spec.hasLatLon && Game::GeoCoordConverter != nullptr) {
+            IghCoordinate igh;
+            PreciseTileCoordinate tile;
+            Game::GeoCoordConverter->ConvertToInternal(spec.lat, spec.lon, &igh);
+            Game::GeoCoordConverter->ConvertToTile(&igh, &tile);
+            tileX = tile.TileX;
+            tileZ = -tile.TileZ;
+            pos[0] = float(tile.X * 2048.0 - 1024.0);
+            pos[2] = float(tile.Z * 2048.0 - 1024.0);
+        }
         if (spec.hasPos)
             std::copy(spec.pos, spec.pos + 3, pos);
         if (spec.hasOffset)

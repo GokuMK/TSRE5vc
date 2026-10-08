@@ -1,21 +1,102 @@
 {
-  "notes": "OSM data in map mode (docs/tasks/geo/osm-rendering-design.md) on TEST_PROFILES (Transverse Mercator at 52 N, 20 E). Needs local data: --set core.paths.osmData=<directory with converted Poland files>. Scales from the detail file through the regional and national overview levels; transparent areas and the Faded Overlay over terrain.",
+  "notes": "OSM data in map mode (docs/tasks/geo/osm-rendering-design.md) on TEST_PROFILES (Transverse Mercator at 52 N, 20 E). Needs local data: --set core.paths.osmData=<directory with converted Poland files>. Scales from the detail file through the regional and national overview levels; transparent areas and the Faded Overlay over terrain. Piła (forests mapped as compartments) and the whole country at the overview scales, centred by latLon.",
   "output": "build/renderer-map-osm",
   "width": 1280,
   "height": 800,
-  "pickGrid": [1, 1],
+  "pickGrid": [
+    1,
+    1
+  ],
   "timingFrames": 1,
   "diffTolerance": 16,
   "shadows": false,
-  "settle": {"minFrames": 8, "stableFrames": 3, "maxFrames": 400, "maxSeconds": 120},
+  "settle": {
+    "minFrames": 8,
+    "stableFrames": 3,
+    "maxFrames": 400,
+    "maxSeconds": 120
+  },
   "views": [
-    {"name": "close", "mode": "map", "metresPerPixel": 1, "osmData": true},
-    {"name": "town", "mode": "map", "metresPerPixel": 4, "osmData": true},
-    {"name": "detail-wide", "mode": "map", "metresPerPixel": 15, "osmData": true},
-    {"name": "regional", "mode": "map", "metresPerPixel": 40, "osmData": true},
-    {"name": "national", "mode": "map", "metresPerPixel": 300, "osmData": true},
-    {"name": "transparent", "mode": "map", "metresPerPixel": 4, "osmData": true, "osmTransparentAreas": true},
-    {"name": "faded", "mode": "map", "metresPerPixel": 4, "osmData": true, "fadedOverlay": true},
-    {"name": "rotated", "mode": "map", "metresPerPixel": 4, "bearing": 35, "osmData": true}
+    {
+      "name": "close",
+      "mode": "map",
+      "metresPerPixel": 1,
+      "osmData": true
+    },
+    {
+      "name": "town",
+      "mode": "map",
+      "metresPerPixel": 4,
+      "osmData": true
+    },
+    {
+      "name": "detail-wide",
+      "mode": "map",
+      "metresPerPixel": 15,
+      "osmData": true
+    },
+    {
+      "name": "regional",
+      "mode": "map",
+      "metresPerPixel": 40,
+      "osmData": true
+    },
+    {
+      "name": "national",
+      "mode": "map",
+      "metresPerPixel": 300,
+      "osmData": true
+    },
+    {
+      "name": "transparent",
+      "mode": "map",
+      "metresPerPixel": 4,
+      "osmData": true,
+      "osmTransparentAreas": true
+    },
+    {
+      "name": "faded",
+      "mode": "map",
+      "metresPerPixel": 4,
+      "osmData": true,
+      "fadedOverlay": true
+    },
+    {
+      "name": "rotated",
+      "mode": "map",
+      "metresPerPixel": 4,
+      "bearing": 35,
+      "osmData": true
+    },
+    {
+      "name": "pila-regional",
+      "mode": "map",
+      "metresPerPixel": 60,
+      "latLon": [
+        53.15,
+        16.74
+      ],
+      "osmData": true
+    },
+    {
+      "name": "pila-national",
+      "mode": "map",
+      "metresPerPixel": 160,
+      "latLon": [
+        53.15,
+        16.74
+      ],
+      "osmData": true
+    },
+    {
+      "name": "poland",
+      "mode": "map",
+      "metresPerPixel": 450,
+      "latLon": [
+        52.0,
+        19.3
+      ],
+      "osmData": true
+    }
   ]
 }
