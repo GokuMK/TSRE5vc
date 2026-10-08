@@ -21,6 +21,7 @@
 #include <QOpenGLBuffer>
 #include <QMatrix4x4>
 #include <QBasicTimer>
+#include <QElapsedTimer>
 #include <tsre/camera/CameraFree.h>
 #include <tsre/camera/CameraConsist.h>
 #include <tsre/world/objects/WorldObj.h>
@@ -372,11 +373,17 @@ private:
     QVector<QPoint> selectionProbePoints;
     bool simulationPaused = false;
     // The first view, and the view after a camera jump, are shown with their
-    // shapes loaded (loadWholeView()). The camera's position in the last
-    // frame, in metres, tells a jump.
+    // shapes loaded (loadWholeView()); after a jump the wait ends after
+    // limitMs and the rest loads while the view is shown. The camera's
+    // position in the last frame, in metres, tells a jump.
     bool wholeViewPending = true;
     double lastViewPosition[2] = {0.0, 0.0};
-    void loadWholeView(const char *reason);
+    void loadWholeView(const char *reason, qint64 limitMs);
+    // From a whole view's start to the next frame: the time it was shown.
+    QElapsedTimer wholeViewShown;
+    const char *wholeViewReason = nullptr;
+    // Its phases, from its start: loaded, frame gathered, frame drawn.
+    qint64 wholeViewMarks[3] = {0, 0, 0};
     QVector<quint32> selectionProbeResults;
     GameObj* selectedObj = NULL;
     GameObj* lastSelectedObj = NULL;

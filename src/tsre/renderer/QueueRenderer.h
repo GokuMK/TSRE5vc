@@ -109,9 +109,11 @@ protected:
     void planShadowCasters(float range, const float *viewProjection);
     // The lights of every queued instance in submission space, punctual
     // lights scaled by exposure and emissive ones by emissiveGain, with
-    // ranges derived where missing (task 21).
+    // ranges derived where missing (task 21). emittersOnly keeps only the
+    // emissive ones, also those too dim to light anything (their glow,
+    // task 24).
     void gatherLights(std::vector<LightGrid::Light> &lights, float exposure,
-                      float emissiveGain) const;
+                      float emissiveGain, bool emittersOnly = false) const;
 
     std::vector<GroupPlan> groupPlans;
     std::vector<const DrawInstance *> shadowCasters;

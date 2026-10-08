@@ -100,7 +100,10 @@ Thread safety of what loading touches:
   requests then have no limits (`ShapeLoader::WholeView`,
   `Game::ignoreLoadLimits` for forests and transfers), and the gathers wait
   for the workers. Such a view is shown with its shapes loaded, threaded or
-  not.
+  not. After a jump the wait ends after 2 s
+  (`jumpWaitMs`): the view is shown and the shapes still loading appear
+  over the next frames, so a long load does not hold the editor (map mode
+  to 3D). The first view waits until it is complete.
 - The log handler takes a mutex; `loadSd` reads the season flags with
   `QHash::value`.
 - The renderer capture suites settle only when no job runs and none
@@ -146,6 +149,21 @@ a grid of cells as wide as the clearing distance, so each line meets only
 the trees near it: 0.6 ms, the same 2,311 trees cleared; the first view
 went from 77-91 ms to 26-31 ms. The next main-thread costs are reading the tiles'
 world files and the rest of the world gather.
+
+## Future improvements
+
+- Camera jump phases (CMK to Warszawa Wschodnia, QRhi): load about 1 s
+  (world files, terrain, shapes on workers), then the frame that shows
+  the view: gather 355 ms, drawing with uploads 0.7 s (mostly creating
+  textures, see task 20's open items), GPU and present 60 ms. The OpenGL
+  renderer: load 1.0 s, gather 391 ms, drawing 235 ms.
+- The frame's gather after a whole view is dominated by the overlays (track
+  database lines, markers): 349 ms on CMK's first view. Gathering them in
+  the whole-view load as well did not help measurably; making their first
+  build cheaper would.
+- World files (`.w`) and terrain tiles are still read on the main thread
+  inside the whole-view load; moving them to workers would shorten the
+  load before the shape wait.
 
 ## Seasonal shape textures
 

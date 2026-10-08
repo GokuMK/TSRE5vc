@@ -586,27 +586,43 @@ void RouteEditorGLWidget::surfacePaint(){
 // limits, before it is drawn: the world is gathered and dropped until it asks
 // for nothing more (on the workers when shapes load threaded, so the gathers
 // wait for them).
-void RouteEditorGLWidget::loadWholeView(const char *reason) {
+void RouteEditorGLWidget::loadWholeView(const char *reason, qint64 limitMs) {
     wholeViewPending = false;
     RenderQueue &queue = *renderer;
-    ShapeLoader::WholeView unlimited;
+    ShapeLoader::WholeView unlimited(limitMs);
     QElapsedTimer timer;
     timer.start();
+    wholeViewShown.start();
+    wholeViewReason = reason;
+    // Terrain loads within the time too; it culls with the new camera.
+    Mat4::perspective(gluu->pMatrix, Game::cameraFov * M_PI / 180, float(this->width()) / this->height(), 0.2f, Game::objectLod);
+    Mat4::multiply(gluu->pMatrix, gluu->pMatrix, camera->getMatrix());
     const unsigned jobs = ShapeLoader::progress();
     int pass = 0;
     while (pass < 8) {
         ++pass;
         renderer->resetFrame();
         Mat4::identity(renderer->transform());
+        Game::terrainLib->pushRenderItems(queue, camera->pozT, camera->getPos(), camera->getTarget(), 3.14f / 3,
+                                          GLUU::RENDER_DEFAULT);
         Game::ignoreLoadLimits = true; // reset by Route::pushRenderItems
         route->pushRenderItems(queue, camera->pozT, camera->getPos(), camera->getTarget(),
                                camera->getRotX(), 3.14f / 3, GLUU::RENDER_DEFAULT);
         if (!ShapeLoader::busy())
             break;
-        ShapeLoader::waitForAll();
+        if (limitMs < 0) {
+            ShapeLoader::waitForAll();
+        } else {
+            // Out of time, the view is shown and the rest loads while it is.
+            const qint64 left = limitMs - timer.elapsed();
+            if (left <= 0 || !ShapeLoader::waitForAll(int(left)))
+                break;
+        }
     }
+    wholeViewMarks[0] = wholeViewShown.elapsed();
     qInfo() << "Whole view (" << reason << ") loaded in" << timer.elapsed() << "ms," << pass << "gathers,"
-            << ShapeLoader::progress() - jobs << "shapes on workers";
+            << ShapeLoader::progress() - jobs << "shapes on workers"
+            << (ShapeLoader::busy() ? "- out of time, the rest loads in view" : "");
 }
 
 void RouteEditorGLWidget::paintScene(){
@@ -629,6 +645,15 @@ void RouteEditorGLWidget::paintScene(){
     std::copy(camera->getPos(), camera->getPos() + 3, gluu->cameraPosition);
     // Secondary views must not read last frame's water reflection.
     std::fill(gluu->waterReflectionView, gluu->waterReflectionView + 4, 0.0f);
+    if (!selectionPass && wholeViewReason != nullptr) {
+        // The frame of the whole view has been drawn and shown.
+        const qint64 shown = wholeViewShown.elapsed();
+        qInfo() << "Whole view (" << wholeViewReason << ") shown" << shown << "ms after it began: load"
+                << wholeViewMarks[0] << "ms, frame gather" << wholeViewMarks[1] - wholeViewMarks[0]
+                << "ms, drawing (with uploads)" << wholeViewMarks[2] - wholeViewMarks[1]
+                << "ms, GPU and present" << shown - wholeViewMarks[2] << "ms";
+        wholeViewReason = nullptr;
+    }
     if (!selectionPass) {
         // A camera moving farther than this in one frame jumped.
         const double jumpDistance = 500.0;
@@ -638,10 +663,13 @@ void RouteEditorGLWidget::paintScene(){
                                        position[1] - lastViewPosition[1]) > jumpDistance;
         lastViewPosition[0] = position[0];
         lastViewPosition[1] = position[1];
+        // The first view waits for all its shapes; after a jump the wait is
+        // limited, so a long load does not hold the editor.
+        const qint64 jumpWaitMs = 2000;
         if (wholeViewPending)
-            loadWholeView("first view");
+            loadWholeView("first view", -1);
         else if (jumped)
-            loadWholeView("camera jump");
+            loadWholeView("camera jump", jumpWaitMs);
     }
     // Drop anything left from an interrupted frame and rebalance the matrix stack.
     renderer->resetFrame();
@@ -710,6 +738,8 @@ void RouteEditorGLWidget::paintScene(){
     renderer->setLayer(RenderQueue::LAYER_SCENE);
     Mat4::identity(renderer->transform());
 
+    if (wholeViewReason != nullptr)
+        wholeViewMarks[1] = wholeViewShown.elapsed();
     // Render Shadows
     if (!selectionPass && Game::shadowsEnabled > 0 && sunCastsShadows){
         RenderStats::beginPhase(RenderStats::PhaseShadow);
@@ -814,6 +844,8 @@ void RouteEditorGLWidget::paintScene(){
     RenderStats::endPhase(RenderStats::PhaseScene);
 
     renderer->endView(mainView);
+    if (wholeViewReason != nullptr)
+        wholeViewMarks[2] = wholeViewShown.elapsed();
     // render compass
     RenderStats::beginPhase(RenderStats::PhaseUi);
     if (!selectionPass && Game::viewCompass){

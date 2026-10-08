@@ -128,6 +128,8 @@ private:
         QRhiShaderResourceBindings *bindings = nullptr;
         quint32 uniformOffset = 0;
         QRhiBuffer *vertexBuffer = nullptr;
+        // Where the mesh starts in vertexBuffer (meshes share buffers).
+        quint32 vertexOffset = 0;
         QRhiBuffer *instanceBuffer = nullptr;
         quint32 instanceOffset = 0;
         QRhiBuffer *indexBuffer = nullptr;
@@ -270,9 +272,42 @@ private:
         QRhiGraphicsPipeline *up = nullptr;
         QRhiSampler *linear = nullptr;
     } bloom;
+    // Glow of emitters drawn at their projected position (task 24): each
+    // emissive emitter adds its glow to the main view's, spread over the four
+    // pixels around it. A lens about a pixel across is drawn in one frame
+    // and missed in the next; its own glow blinked, and bloom made the blink
+    // a halo. Gathered with the lights, drawn in the view's pass with its
+    // depth.
+    struct GlowSplats {
+        std::vector<LightGrid::Light> emitters;
+        bool gathered = false;
+        bool pending = false;
+        // The main view's scene band: projection, fog and viewport.
+        float projection[16] = {};
+        float fogMatrix[16] = {};
+        float camera[3] = {};
+        float focal = 1.0f;
+        float lod = 1.0f;
+        float fogDensity = 1.0f;
+        QRhiViewport viewport;
+        QRhiBuffer *instances = nullptr;
+        quint32 capacity = 0;
+        quint32 count = 0;
+        QRhiBuffer *uniforms = nullptr;
+        QRhiShaderResourceBindings *bindings = nullptr;
+        QRhiGraphicsPipeline *pipeline = nullptr;
+        QRhiRenderPassDescriptor *pipelinePass = nullptr;
+    } glowSplats;
+    void gatherGlowSplats();
+    void prepareGlowSplats();
+    bool uploadGlowSplats(QRhiResourceUpdateBatch *batch, QRhiRenderPassDescriptor *pass);
+    void drawGlowSplats(QRhiCommandBuffer *cb);
+    void releaseGlowSplats();
 public:
     // The fragment shaders of present and bloom, for tests.
     static QList<QByteArray> imageShaders();
+    // The glow splats' vertex and fragment shaders, for tests.
+    static QList<QByteArray> glowSplatShaders();
 private:
     QRhiBuffer *presentUniforms = nullptr;
     QRhiSampler *presentLinear = nullptr;
@@ -332,6 +367,14 @@ private:
     LightGrid lightGrid;
     std::vector<LightGrid::Light> frameLights;
     bool lightsPrepared = false;
+    // Resources made during a frame (pipelines, resource sets, textures,
+    // mesh buffers) and the time they took; a frame that spent long on them
+    // (the first after a jump) is logged.
+    struct Creation {
+        int pipelines = 0, bindings = 0, textures = 0;
+        qint64 pipelineNs = 0, bindingNs = 0, textureNs = 0, meshNs = 0;
+    } creation;
+    void logCreation();
     quint64 lightsHash = 0;
     QRhiTexture *lightData = nullptr;
     QRhiTexture *lightCells = nullptr;
