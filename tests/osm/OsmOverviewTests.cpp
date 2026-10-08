@@ -137,13 +137,15 @@ void runOverviewTests(const std::function<void(bool, const char *)> &check) {
           "national: no sidings or stations, water of 1 km2 and more, cities; the large forest generalized into a new area, the small one left out");
     check(regional.points.at(7) < 201 && national.points.at(7) < regional.points.at(7) && regional.points.at(1) == 3,
           "the river is simplified, more on the national level");
-    SortedPbfStore nat;
-    std::vector<RelationData> rels;
-    Filter relFilter; relFilter.types = Relations;
-    nat.open(QStringList{nationalPath}, error);
-    nat.forEach(nat.bounds(), relFilter, [&](const Feature &f) { rels.push_back(RelationData::from(f)); }, error);
-    std::vector<MultipolygonResult> mp;
-    check(assembleMultipolygons(nat, rels, mp, error) && mp.size() == 1 && mp[0].ok(), "multipolygons assemble from an overview file");
+    {
+        SortedPbfStore nat;
+        std::vector<RelationData> rels;
+        Filter relFilter; relFilter.types = Relations;
+        nat.open(QStringList{nationalPath}, error);
+        nat.forEach(nat.bounds(), relFilter, [&](const Feature &f) { rels.push_back(RelationData::from(f)); }, error);
+        std::vector<MultipolygonResult> mp;
+        check(assembleMultipolygons(nat, rels, mp, error) && mp.size() == 1 && mp[0].ok(), "multipolygons assemble from an overview file");
+    }
 
     // Staleness and scale selection.
     OverviewConfig changed;
@@ -156,19 +158,32 @@ void runOverviewTests(const std::function<void(bool, const char *)> &check) {
     changed.load(section, error);
     check(changed.hash != standard.hash && !overviewUpToDate(converted, changed, 0), "changed rules make the overview stale");
 
-    OsmLayers layers;
-    check(layers.open(od, standard, error) && layers.hasLevel(0) && layers.hasLevel(1), "layers open the detail file and both overview levels");
-    check(&layers.forScale(1) == &layers.detail() && layers.levelForScale(1) == -1 && layers.levelForScale(20) == 0 && layers.levelForScale(149) == 0
-              && layers.levelForScale(150) == 1 && &layers.forScale(500) != &layers.forScale(30) && &layers.forScale(30) != &layers.detail(),
-          "scale picks detail below 20 m/px, regional to 150 m/px, national beyond");
-    const auto shared = sharedLayers(dir.path(), error), again = sharedLayers(dir.path(), error);
+    {
+        OsmLayers layers;
+        check(layers.open(od, standard, error) && layers.hasLevel(0) && layers.hasLevel(1), "layers open the detail file and both overview levels");
+        check(&layers.forScale(1) == &layers.detail() && layers.levelForScale(1) == -1 && layers.levelForScale(20) == 0 && layers.levelForScale(149) == 0
+                  && layers.levelForScale(150) == 1 && &layers.forScale(500) != &layers.forScale(30) && &layers.forScale(30) != &layers.detail(),
+              "scale picks detail below 20 m/px, regional to 150 m/px, national beyond");
+    }
+    auto shared = sharedLayers(dir.path(), error), again = sharedLayers(dir.path(), error);
     QTemporaryDir empty;
     check(shared && shared == again && shared->hasLevel(1) && !sharedLayers(empty.path(), error),
           "shared layers open once while the files stay the same; none without converted files");
-    QFile::remove(nationalPath);
+#ifdef Q_OS_WIN
+    // Windows does not delete a file that is open, so the old layers go first.
+    // (The editor never meets this: layers leave out stale overviews, and only
+    // stale or missing ones are rebuilt.)
+    shared.reset();
+    again.reset();
+#endif
+    check(QFile::remove(nationalPath), "an overview file can go once nothing has it open");
     const auto reopened = sharedLayers(dir.path(), error);
+#ifdef Q_OS_WIN
+    check(reopened && !reopened->hasLevel(1), "shared layers reopen when an overview goes");
+#else
     check(reopened && reopened != shared && !reopened->hasLevel(1) && shared->hasLevel(1),
           "shared layers reopen when an overview goes; users of the old ones keep them");
+#endif
     OsmLayers partial;
     check(partial.open(od, standard, error) && !partial.hasLevel(1) && &partial.forScale(500) != &partial.detail(),
           "a missing national level falls back to the regional one");
