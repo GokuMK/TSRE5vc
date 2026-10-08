@@ -283,3 +283,37 @@ Results on the converted pomorskie file:
 - **Consumers should request `type=multipolygon`** and only the boundary
   kinds they draw (e.g. `protected_area`). Huge boundaries also cost time,
   because their members span the whole file.
+
+**Step 6 done (2026-10-08).**
+- `src/tsre/geo/osm/osm-map-classes.json` (Qt resource `:/osm/osm-map-classes.json`)
+  holds:
+  - the classification rules;
+  - 636 classes (`key=value` and draw layer);
+  - 66 styles: fill, outline, casings, line, a bridge variant, widths in
+    metres;
+  - the default style and the background colour.
+- It was generated from the legacy `OSMFeatures` table and a branch-by-branch
+  transcription of `MapDataOSM::draw()`
+  (`evidence/2026-10-08-osm-draw/gen_osm_map_classes.py`).
+- Legacy pixel widths become metres at the legacy 2 px per metre (4096 px over
+  a 2048 m tile), so the default tile looks the same, and other resolutions
+  and renderers scale.
+- `FeatureClasses` loads it, classifies a feature with the legacy loader's
+  rules and resolves its style. An exact tag beats `key=*`; the first style
+  listing a class wins.
+
+Parity:
+- The legacy rules, run against the real `OSMFeatures` tables, agree with
+  the new classifier on every legacy class and on mixed tag sets.
+- `--classes` on converted pomorskie: all 2,356,948 ways and tagged nodes
+  classify identically.
+- One intended change: `bridge=no` is no longer a bridge (the legacy loader
+  set the flag for any `bridge*` key). It affects one feature in pomorskie.
+
+Known legacy quirks not carried over:
+- `amenity=*` keys are still skipped by the rules, as before; the
+  school, parking and place-of-worship styles become reachable only if
+  `amenity` is removed from `skipKeyPrefixes`.
+- The colour (157, 256, 108) was clamped to 255.
+- The primary_link branch did not reset its pen width, which made later
+  outlines thick; that is not reproduced.
