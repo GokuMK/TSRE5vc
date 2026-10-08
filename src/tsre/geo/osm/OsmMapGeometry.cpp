@@ -134,12 +134,13 @@ size_t MapGeometry::appendFill(std::vector<float> &out, const std::vector<MapRin
     return idx.size() / 3;
 }
 
-MapGeometry::Group &MapGeometry::Output::group(int slot, const Style *style) {
-    auto [it, added] = groupIndex.try_emplace({slot, style}, groups.size());
+MapGeometry::Group &MapGeometry::Output::group(int slot, const Style *style, int64_t chunk) {
+    auto [it, added] = groupIndex.try_emplace({slot, style, chunk}, groups.size());
     if (added) {
         groups.emplace_back();
         groups.back().slot = slot;
         groups.back().style = style;
+        groups.back().chunk = chunk;
     }
     return groups[it->second];
 }
@@ -152,10 +153,11 @@ void MapGeometry::Output::addPolyline(Group &g, const float *xz, size_t count, b
     stats.points += count;
 }
 
-MapBatch &MapGeometry::Output::fillBatch(int slot, Rgb color) {
-    auto [it, added] = fillIndex.try_emplace((uint64_t(slot) << 32) | color, fills.size());
+MapBatch &MapGeometry::Output::fillBatch(int slot, Rgb color, int64_t chunk) {
+    auto [it, added] = fillIndex.try_emplace({slot, color, chunk}, fills.size());
     if (added) {
         fills.emplace_back();
+        fills.back().chunk = chunk;
         fills.back().order = slot * OrdersPerSlot + FillOrder;
         fills.back().color = color;
         fills.back().primitive = MapBatch::Triangles;
@@ -165,7 +167,7 @@ MapBatch &MapGeometry::Output::fillBatch(int slot, Rgb color) {
 
 void MapGeometry::Output::append(Output &&other) {
     for (Group &g : other.groups) {
-        Group &to = group(g.slot, g.style);
+        Group &to = group(g.slot, g.style, g.chunk);
         const uint32_t offset = uint32_t(to.points.size() / 2);
         for (uint32_t start : g.starts) to.starts.push_back(start + offset);
         to.closed.insert(to.closed.end(), g.closed.begin(), g.closed.end());
@@ -173,7 +175,7 @@ void MapGeometry::Output::append(Output &&other) {
     }
     for (MapBatch &b : other.fills) {
         const int slot = int(b.order / OrdersPerSlot);
-        std::vector<float> &to = fillBatch(slot, b.color).vertices;
+        std::vector<float> &to = fillBatch(slot, b.color, b.chunk).vertices;
         to.insert(to.end(), b.vertices.begin(), b.vertices.end());
     }
     stats.polygons += other.stats.polygons;
@@ -200,6 +202,11 @@ bool MapGeometry::load(const OsmStore &store, const Box &area, double metersPerP
     auto cancelled = [&] { return cancel && cancel->load(std::memory_order_relaxed); };
     const float minExtent = float(MinPixels * metersPerPixel);
     const double tolerance = SimplifyPixels * metersPerPixel;
+    auto chunkOf = [&](const float *xz) -> int64_t {
+        if (options_.chunkMeters <= 0) return 0;
+        const int64_t cx = int64_t(std::floor(xz[0] / options_.chunkMeters)), cz = int64_t(std::floor(xz[1] / options_.chunkMeters));
+        return (cx << 32) ^ (cz & 0xffffffff);
+    };
 
     // Reading is sequential and only classifies and copies; the rest runs on all threads.
     struct WayJob { const Style *style; int slot; bool closed; size_t first; uint32_t count; };
@@ -285,15 +292,16 @@ bool MapGeometry::load(const OsmStore &store, const Box &area, double metersPerP
         project(points, count, sc.xz.data());
         // Closed ways only: an open way may be one short piece of a long road or river.
         if (j.closed && extent(sc.xz.data(), count) < minExtent) { ++o.stats.culled; return; }
+        const int64_t chunk = chunkOf(sc.xz.data());
         if (s.hasFill && j.closed && count >= 4) {
             sc.rings.resize(1);
             MapRing &ring = sc.rings.front();
             ring.resize(count - 1);
             std::copy(sc.xz.begin(), sc.xz.end() - 2, &ring.front()[0]);
-            o.stats.triangles += appendFill(o.fillBatch(j.slot, s.fill).vertices, sc.rings, height(j.slot * OrdersPerSlot + FillOrder));
+            o.stats.triangles += appendFill(o.fillBatch(j.slot, s.fill, chunk).vertices, sc.rings, height(j.slot * OrdersPerSlot + FillOrder));
             ++o.stats.polygons;
         }
-        if (hasStrokes(s)) o.addPolyline(o.group(j.slot, &s), sc.xz.data(), count, j.closed);
+        if (hasStrokes(s)) o.addPolyline(o.group(j.slot, &s, chunk), sc.xz.data(), count, j.closed);
     };
     auto doPolygon = [&](Output &o, Scratch &sc, size_t i) {
         const PolygonJob &j = polygonJobs[i];
@@ -310,15 +318,16 @@ bool MapGeometry::load(const OsmStore &store, const Box &area, double metersPerP
         };
         sc.rings.resize(1);
         if (!ring(j.polygon->outer, sc.rings[0]) || extent(&sc.rings[0].front()[0], sc.rings[0].size()) < minExtent) { ++o.stats.culled; return; }
+        const int64_t chunk = chunkOf(&sc.rings[0].front()[0]);
         for (const auto &inner : j.polygon->inners) {
             sc.rings.emplace_back();
             if (!ring(inner, sc.rings.back())) sc.rings.pop_back();
         }
         for (MapRing &r : sc.rings) {
-            if (hasStrokes(s)) o.addPolyline(o.group(j.slot, &s), &r.front()[0], r.size(), true);
+            if (hasStrokes(s)) o.addPolyline(o.group(j.slot, &s, chunk), &r.front()[0], r.size(), true);
             r.pop_back();
         }
-        o.stats.triangles += appendFill(o.fillBatch(j.slot, s.fill).vertices, sc.rings, height(j.slot * OrdersPerSlot + FillOrder));
+        o.stats.triangles += appendFill(o.fillBatch(j.slot, s.fill, chunk).vertices, sc.rings, height(j.slot * OrdersPerSlot + FillOrder));
         ++o.stats.polygons;
     };
     // Contiguous shares, merged in order: the same result on any number of threads.
@@ -353,13 +362,14 @@ bool MapGeometry::load(const OsmStore &store, const Box &area, double metersPerP
 
 void MapGeometry::strokes(double metersPerPixel, std::vector<MapBatch> &out) const {
     out.clear();
-    std::map<std::tuple<float, Rgb, uint8_t>, size_t> index;
-    auto batch = [&](float order, const Stroke &stroke) -> std::pair<MapBatch *, float> {
+    std::map<std::tuple<float, Rgb, uint8_t, int64_t>, size_t> index;
+    auto batch = [&](float order, const Stroke &stroke, int64_t chunk) -> std::pair<MapBatch *, float> {
         const bool strip = stroke.width > 0 && stroke.width >= StripPixels * metersPerPixel;
         const MapBatch::Primitive primitive = strip ? MapBatch::TriangleStrip : MapBatch::Lines;
-        auto [it, added] = index.try_emplace({order, stroke.color, uint8_t(primitive)}, out.size());
+        auto [it, added] = index.try_emplace({order, stroke.color, uint8_t(primitive), chunk}, out.size());
         if (added) {
             out.emplace_back();
+            out.back().chunk = chunk;
             out.back().order = order;
             out.back().color = stroke.color;
             out.back().primitive = primitive;
@@ -367,7 +377,7 @@ void MapGeometry::strokes(double metersPerPixel, std::vector<MapBatch> &out) con
         return {&out[it->second], strip ? stroke.width : 0.0f};
     };
     auto draw = [&](const Group &g, float order, const Stroke &stroke) {
-        auto [b, width] = batch(order, stroke);
+        auto [b, width] = batch(order, stroke, g.chunk);
         const float y = options_.baseHeight + order * options_.heightStep;
         for (size_t i = 0; i < g.starts.size(); ++i) {
             const size_t first = g.starts[i];

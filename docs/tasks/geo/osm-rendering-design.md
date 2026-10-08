@@ -342,6 +342,47 @@ the parcels and small woods under 1 km2 are 35% of 110,346 km2.
 - Water stays exact (lakes are single polygons); riverbank pieces under
   1 km2 are still left out at the national level.
 
+### Country-scale speed (user, 2026-10-08)
+
+After the forest generalization a country view took 0.9 to 1.5 s to build.
+Measured on TEST_PROFILES (route projection, llvmpipe), in four steps:
+
+| Step | Commit | Piła national (160 m/px) | Poland (450 m/px) |
+|---|---|---:|---:|
+| Before | `be638e3` | 0.94 s | 1.51 s |
+| 1. Generalized areas cut into 25.6 km blocks | `30f4fb5` | | |
+| 2. Multipolygons from the ways already read | `db7b495` | | |
+| 3. Simplify, project, triangulate on all threads | `dfc9779` | 0.31 s | 0.60 s |
+| 4. Coarsest level loaded whole, in 128 km chunks | this step | 0.30 s view, then 0.70 s whole | 0 when panning; 0.58 s after a 2x zoom |
+
+- **Step 1**: the largest merged forest had 68,807 points and 2,662 holes
+  (150 ms of earcut). In blocks, triangulation fell from about 0.3 to 0.08 s
+  and assembly from 0.14-0.25 to 0.02-0.04 s (smaller relation extents).
+  Pieces meet exactly: points on block lines stay through simplification;
+  small areas are judged whole before cutting.
+- **Step 2**: relations are read first; the ways pass keeps their members;
+  only members outside the area are read again, skipping blocks wholly
+  inside it (`Filter::readAlready`). Mostly helps detail views (Warsaw at
+  19 m/px: 0.19 -> 0.12 s).
+- **Step 3**: reading only classifies and copies; contiguous shares go to
+  worker threads and merge in order (same result on any thread count,
+  tested). Also halves regional and detail builds (0.35-0.49 -> 0.16-0.22 s,
+  0.46 -> 0.23 s at 15 m/px).
+- **Step 4**: the coarsest level (national, 12 MB for Poland) loads the
+  view first, then the whole level in the background; panning at that scale
+  never loads again, and a zoom step of 2x reloads it whole at once (the old
+  picture stays). Batches are split by 128 km squares so the renderer culls
+  those off screen: without that the whole level cost 275 ms a frame on
+  llvmpipe (1.24 M primitives); with it 84 to 125 ms, less than the views
+  alone before (98 to 162 ms).
+- **This machine renders in software** (ASPEED, no 3D GPU, llvmpipe over
+  Chrome Remote Desktop), so primitives and filled pixels set the frame
+  time here; on a GPU these frames are trivial.
+- Captures against the forest commit: national views differ in 0.1-0.4% of
+  pixels (block cuts, simplification); the rest are identical.
+- Not done: the detail file's read at 10-20 m/px (1 s at 19 m/px over 55 km
+  of Warsaw), which the regional switch at 20 m/px bounds.
+
 Still open: the line shader, labels and points, selection of OSM features, a
 dark style for the dark palette, the multipolygon cache, and an option to
 start with the layer on.

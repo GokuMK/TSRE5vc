@@ -140,9 +140,10 @@ is off by default.
 - **Roads have their real width** when zoomed in close enough, and are at
   least one pixel wide.
 - **It loads in the background**: the previous picture stays until the new
-  one is ready, typically 0.1–0.5 s, up to about 1 s for a whole region.
-  Panning loads again only when the view leaves the area loaded around it,
-  and small zoom steps only redraw the lines.
+  one is ready, typically 0.05–0.3 s. Panning loads again only when the view
+  leaves the area loaded around it, and small zoom steps only redraw the
+  lines. At country scale the whole national overview is loaded once (after
+  the view itself), so panning there never waits.
 - **Map > Transparent OSM Areas** draws areas half transparent (palette value
   `osmAreaAlpha`), so the terrain shows through; lines stay solid. Switch it
   on when you want to see both.

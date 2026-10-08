@@ -32,7 +32,7 @@ struct MapPalette;
 // the next build is ready. It is kept relative to the tile it was built for and
 // drawn shifted to the view's tile, so panning rebuilds only past the margin. Zoom
 // steps rebuild only the strokes (line widths); a scale range, an overview level or
-// a factor of two in scale reloads.
+// a factor of two in scale reloads. The coarsest overview level loads whole, once.
 class OsmMapLayer {
 public:
     // The band of heights it draws in: above the terrain textures (35), under the
@@ -44,6 +44,8 @@ public:
     // Scale changes past these factors rebuild the strokes, or reload.
     static constexpr double RestrokeScale = 1.25;
     static constexpr double ReloadScale = 2.0;
+    // The coarsest overview level loads whole, in squares of this size (culled off screen).
+    static constexpr float WholeChunkMeters = 128000.0f;
 
     OsmMapLayer();
     ~OsmMapLayer();
@@ -92,6 +94,8 @@ private:
     int requestedLevel = -1;
     double requestedStrokeScale = 0;
     uint64_t requestedLoad = 0;
+    bool requestedWhole = false;
+    bool wholeNext = false;  // the view's load runs; the whole level follows it
 };
 
 #endif

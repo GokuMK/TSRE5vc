@@ -75,6 +75,8 @@ struct OsmMapLayer::Job {
     int tileZ = 0;
     float rect[4] = {0, 0, 0, 0};
     double metresPerPixel = 1;
+    int level = -1;
+    bool whole = false;  // Load: all the level's data, not just rect
     std::shared_ptr<const Osm::MapGeometry> geometry;  // Strokes: what to stroke
 };
 
@@ -86,6 +88,8 @@ struct OsmMapLayer::Result {
     int tileX = 0;
     int tileZ = 0;
     double metresPerPixel = 1;
+    int level = -1;
+    bool whole = false;
     // Load: the geometry loaded; Strokes: the geometry stroked.
     std::shared_ptr<const Osm::MapGeometry> geometry;
     std::vector<Osm::MapBatch> fills;
@@ -197,6 +201,8 @@ OsmMapLayer::Result OsmMapLayer::Worker::load(const Job &job) {
     r.tileX = job.tileX;
     r.tileZ = job.tileZ;
     r.metresPerPixel = job.metresPerPixel;
+    r.level = job.level;
+    r.whole = job.whole;
     QElapsedTimer timer;
     timer.start();
     GeoWorldCoordinateConverter *converter = Game::GeoCoordConverter;
@@ -207,7 +213,8 @@ OsmMapLayer::Result OsmMapLayer::Worker::load(const Job &job) {
     const std::shared_ptr<const Osm::OsmLayers> layers = Osm::sharedLayers(job.directory, r.error);
     if (!layers)
         return r;
-    const Osm::Box area = areaOf(converter, job.tileX, job.tileZ, job.rect);
+    const Osm::OsmStore &store = layers->forScale(job.metresPerPixel);
+    const Osm::Box area = job.whole ? store.bounds() : areaOf(converter, job.tileX, job.tileZ, job.rect);
     const int tileX = job.tileX, tileZ = job.tileZ;
     const Osm::MapProjection project = [converter, tileX, tileZ](const Osm::Location *in, size_t count,
                                                                   float *xz) {
@@ -217,8 +224,11 @@ OsmMapLayer::Result OsmMapLayer::Worker::load(const Job &job) {
     Osm::MapGeometry::Options options;
     options.baseHeight = BaseHeight;
     options.heightStep = HeightStep;
+    // A whole level is much larger than the view: in chunks, so those off screen are not drawn.
+    if (job.whole)
+        options.chunkMeters = WholeChunkMeters;
     const auto geometry = std::make_shared<Osm::MapGeometry>();
-    if (!geometry->load(layers->forScale(job.metresPerPixel), area, job.metresPerPixel, project,
+    if (!geometry->load(store, area, job.metresPerPixel, project,
                         options, r.error, &cancel))
         return r;
     const qint64 loadNs = timer.nsecsElapsed();
@@ -248,6 +258,8 @@ struct OsmMapLayer::Drawn {
     };
     std::shared_ptr<const Osm::MapGeometry> geometry;
     uint64_t loadId = 0;
+    int level = -1;
+    bool whole = false;
     int tileX = 0;
     int tileZ = 0;
     std::vector<Batch> fills;
@@ -353,6 +365,8 @@ void OsmMapLayer::apply(Result &result, const MapPalette &palette, bool transpar
     if (result.kind == Job::Load) {
         drawn->geometry = result.geometry;
         drawn->loadId = result.id;
+        drawn->level = result.level;
+        drawn->whole = result.whole;
         drawn->tileX = result.tileX;
         drawn->tileZ = result.tileZ;
         drawn->fillAlpha = transparentAreas ? palette.osmAreaAlpha : 1.0f;
@@ -374,10 +388,33 @@ void OsmMapLayer::request(const MapView &view, const QString &directory) {
     const bool covered = rect[0] + ox >= requestedRect[0] && rect[1] + ox <= requestedRect[1]
             && rect[2] + oz >= requestedRect[2] && rect[3] + oz <= requestedRect[3];
     const double scale = mpp / std::max(requestedScale, 1e-9);
-    const bool reload = !requested || invalid || directory != requestedDirectory || !covered
-            || level != requestedLevel || scale > ReloadScale || scale < 1.0 / ReloadScale
+    // The coarsest overview level is small (Poland: 12 MB): it loads whole, so views at
+    // that scale never load again when panning; zooming in or out past ReloadScale loads it again for that
+    // scale. The view alone loads first, as it is ready sooner; the whole level follows.
+    const bool whole = level >= 0 && level + 1 == int(Osm::OverviewConfig::standard().levels.size());
+    const bool asked = requestedWhole || wholeNext;
+    const bool reload = !requested || invalid || directory != requestedDirectory
+            || level != requestedLevel || whole != asked
+            || (!whole && !covered) || scale > ReloadScale || scale < 1.0 / ReloadScale
             || !sameStyles(mpp, requestedScale);
     static uint64_t nextId = 0;
+    if (!reload && wholeNext && drawn->loadId == requestedLoad) {
+        // The view is drawn: now the whole level, at the scale the view was loaded at.
+        Job job;
+        job.kind = Job::Load;
+        job.id = ++nextId;
+        job.directory = directory;
+        job.tileX = requestedTile[0];
+        job.tileZ = requestedTile[1];
+        job.metresPerPixel = requestedScale;
+        job.level = requestedLevel;
+        job.whole = true;
+        worker->post(std::move(job));
+        wholeNext = false;
+        requestedWhole = true;
+        requestedLoad = nextId;
+        return;
+    }
     if (reload) {
         Job job;
         job.kind = Job::Load;
@@ -389,8 +426,14 @@ void OsmMapLayer::request(const MapView &view, const QString &directory) {
         const float built[4] = {rect[0] - mx, rect[1] + mx, rect[2] - mz, rect[3] + mz};
         std::copy(built, built + 4, job.rect);
         job.metresPerPixel = mpp;
+        const bool asWhole = whole && drawn->geometry != nullptr && drawn->whole && drawn->level == level;
+        job.level = level;
+        // With the whole level already drawn (a zoom step), it loads whole again at once.
+        job.whole = asWhole;
         worker->post(std::move(job));
         requested = true;
+        requestedWhole = asWhole;
+        wholeNext = whole && !asWhole;
         invalid = false;
         requestedDirectory = directory;
         requestedTile[0] = view.tileX;

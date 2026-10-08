@@ -29,6 +29,7 @@
 #include <atomic>
 #include <functional>
 #include <map>
+#include <tuple>
 #include <unordered_map>
 #include <vector>
 
@@ -46,6 +47,7 @@ struct MapBatch {
     float order = 0;
     Rgb color = 0;
     Primitive primitive = Triangles;
+    int64_t chunk = 0;            // the area it covers, with Options::chunkMeters
     std::vector<float> vertices;  // x, y, z; y = baseHeight + order * heightStep
 };
 
@@ -70,6 +72,9 @@ public:
         float baseHeight = 0;
         float heightStep = 1;
         int threads = 0;  // for simplifying, projecting and triangulating; 0: all hardware threads
+        // > 0: batches are split by squares of this size (by each feature's first point), so
+        // a renderer can leave out those off screen. For loads much larger than the view.
+        float chunkMeters = 0;
     };
     struct Stats {
         uint64_t ways = 0, relations = 0, polygons = 0, triangles = 0;
@@ -112,6 +117,7 @@ private:
     struct Group {
         int slot = 0;
         const Style *style = nullptr;
+        int64_t chunk = 0;
         std::vector<float> points;      // x, z pairs
         std::vector<uint32_t> starts;   // first point of each polyline; points.size() / 2 ends the last
         std::vector<uint8_t> closed;    // per polyline
@@ -119,13 +125,13 @@ private:
     // What load() builds; each worker thread builds one for its share, merged in order.
     struct Output {
         std::vector<Group> groups;
-        std::map<std::pair<int, const Style *>, size_t> groupIndex;
+        std::map<std::tuple<int, const Style *, int64_t>, size_t> groupIndex;
         std::vector<MapBatch> fills;
-        std::unordered_map<uint64_t, size_t> fillIndex;
+        std::map<std::tuple<int, Rgb, int64_t>, size_t> fillIndex;
         Stats stats;  // counts
-        Group &group(int slot, const Style *style);
+        Group &group(int slot, const Style *style, int64_t chunk);
         void addPolyline(Group &g, const float *xz, size_t count, bool closed);
-        MapBatch &fillBatch(int slot, Rgb color);
+        MapBatch &fillBatch(int slot, Rgb color, int64_t chunk);
         void append(Output &&other);
     };
 
