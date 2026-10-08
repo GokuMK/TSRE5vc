@@ -3,7 +3,7 @@
   "description": "OSM feature classes and tile-map styles. Generated from the legacy OSMFeatures table and MapDataOSM::draw(); widths in metres (the legacy pixel widths at 2 px per metre, width 0 = one pixel); maxMetersPerPixel: vector views draw the style only at that resolution and finer. The first style listing a class wins; an exact tag beats key=*.",
   "classification": {"skipKeyPrefixes": ["addr", "name", "oneway", "maxspeed", "surface", "amenity", "barrier", "wood", "sport"], "bridgeKeyPrefix": "bridge", "tunnelKeyPrefix": "tunnel", "buildingKeyPrefix": "building", "buildingClass": "building=yes"},
   "background": "#f1eee8",
-  "default": {"line": {"color": "#323232", "width": 0, "cap": "flat"}},
+  "default": {"line": {"color": "#323232", "width": 0, "cap": "flat"}, "maxMetersPerPixel": 5},
   "classes": [
     {"tag": "aerialway=cable_car", "layer": 0},
     {"tag": "aerialway=chair_lift", "layer": 0},

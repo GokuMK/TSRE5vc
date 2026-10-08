@@ -158,6 +158,17 @@ Classification FeatureClasses::classify(const Feature &f) const {
     return classify(f.tagCount(), [&](uint32_t i) { return f.tag(i); });
 }
 
+std::vector<float> FeatureClasses::scaleRanges() const {
+    std::vector<float> v;
+    auto add = [&](const Style &s) { if (s.maxMetersPerPixel > 0) v.push_back(s.maxMetersPerPixel); };
+    for (const Style &s : styles_) add(s);
+    for (const Style &s : bridgeStyles_) add(s);
+    add(default_);
+    std::sort(v.begin(), v.end());
+    v.erase(std::unique(v.begin(), v.end()), v.end());
+    return v;
+}
+
 const Style &FeatureClasses::style(const Classification &c) const {
     const int s = c.cls < styleOf_.size() ? styleOf_[c.cls] : -1;
     if (s < 0) return default_;

@@ -142,7 +142,7 @@ out = {
         "buildingKeyPrefix": "building", "buildingClass": "building=yes"
     },
     "background": c(241, 238, 232),
-    "default": {"line": {"color": c(50, 50, 50), "width": 0, "cap": "flat"}},
+    "default": {"line": {"color": c(50, 50, 50), "width": 0, "cap": "flat"}, "maxMetersPerPixel": 5},
     "classes": classes,
     "styles": styles,
     "overview": overview,

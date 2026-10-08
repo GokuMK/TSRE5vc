@@ -130,8 +130,10 @@ void runClassesTests(const std::function<void(bool, const char *)> &check) {
     const Style &footway = styleOf({{"highway", "footway"}}), &primary = styleOf({{"highway", "primary"}});
     check(house.maxMetersPerPixel == 2.5f && house.visibleAt(2.5) && !house.visibleAt(2.6) && footway.maxMetersPerPixel == 5
               && residential.maxMetersPerPixel == 10 && residentialBridge.maxMetersPerPixel == 10
-              && primary.maxMetersPerPixel == 0 && primary.visibleAt(500) && fc.defaultStyle().visibleAt(500),
-          "scale ranges: buildings from 2.5 m/px, footways 5, residential roads and their bridges 10, main roads always");
+              && primary.maxMetersPerPixel == 0 && primary.visibleAt(500) && fc.defaultStyle().maxMetersPerPixel == 5,
+          "scale ranges: buildings from 2.5 m/px, footways and unstyled ways 5, residential roads and their bridges 10, main roads always");
+    const std::vector<float> ranges = fc.scaleRanges();
+    check(ranges == std::vector<float>({2.5f, 5.0f, 10.0f}), "the table's scale ranges: 2.5, 5 and 10 m/px");
 
     QTemporaryDir dir;
     auto loadJson = [&](const char *styles, FeatureClasses &out) {

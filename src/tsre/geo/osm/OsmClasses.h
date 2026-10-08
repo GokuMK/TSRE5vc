@@ -65,6 +65,8 @@ public:
     const Style &style(const Classification &c) const;
     const Style &defaultStyle() const { return default_; }
     Rgb background() const { return background_; }
+    // The distinct maxMetersPerPixel of all styles, ascending: the scales where what is drawn changes.
+    std::vector<float> scaleRanges() const;
 
     size_t classCount() const { return names_.size() - 1; }
     uint16_t classOf(const std::string &tag) const;  // "highway=residential", 0 when unknown

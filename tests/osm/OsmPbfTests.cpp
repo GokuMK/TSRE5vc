@@ -22,6 +22,8 @@ void runClassesTests(const std::function<void(bool, const char *)> &check);
 int compareClasses(const QStringList &files);
 void runOverviewTests(const std::function<void(bool, const char *)> &check);
 int overviewFiles(const QStringList &files);
+void runMapGeometryTests(const std::function<void(bool, const char *)> &check);
+int mapGeometryTiming(const QStringList &args);
 
 namespace {
 
@@ -321,6 +323,7 @@ int main(int argc, char **argv) {
     if (args.size() >= 6 && args[0] == "--multipolygons") return assembleArea(args.mid(1));
     if (args.size() >= 2 && args[0] == "--classes") return compareClasses(args.mid(1));
     if (args.size() >= 2 && args[0] == "--overview") return overviewFiles(args.mid(1));
+    if (args.size() >= 7 && args[0] == "--map-geometry") return mapGeometryTiming(args.mid(1));
     int checks = 0, failures = 0;
     const auto check = [&](bool condition, const char *name) {
         ++checks;
@@ -334,6 +337,7 @@ int main(int argc, char **argv) {
     runMultipolygonTests(check);
     runClassesTests(check);
     runOverviewTests(check);
+    runMapGeometryTests(check);
     std::cout << checks << " checks, " << failures << " failures\n";
     return failures ? 1 : 0;
 }

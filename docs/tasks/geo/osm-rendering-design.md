@@ -148,8 +148,12 @@ Renames:
   - Wider ones are quads, with round joins so bends of thick roads have no
     gaps.
   - Casings and outlines are the same, wider or under.
-- **Points**: railway stations and halts as small markers. Place names wait
-  for labels.
+- **Small and fine detail**: features under 2 pixels across are left out,
+  and geometry is simplified to half a pixel before projecting (step 4
+  measurements: every view 6 to 39 MiB of vertices instead of up to
+  159 MiB).
+- **Points** (stations, places) wait for labels: a marker without a name says
+  little.
 - **Batches**: one `OglObj` per slot, style and part (fill, outline, casing,
   line) that has geometry: the class table's colours, about 100 to 300 draws.
 - **A geometry builder separate from OpenGL** (`Osm::MapGeometry` in
