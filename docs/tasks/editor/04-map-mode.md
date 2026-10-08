@@ -619,7 +619,8 @@ longer side, as for track objects):
    data.
 4. **Terrain** (design in "7. Terrain"): distant, detailed and procedural
    levels, terrain texture painting. Then other data: geo and OSM
-   overlays, quadtree editing.
+   overlays, quadtree editing. OSM: [OSM rendering design](../geo/osm-rendering-design.md)
+   (`feature/osm-rendering`).
 
 From phase 2 on, other agents can add layers and tools in parallel once
 the core is in.
