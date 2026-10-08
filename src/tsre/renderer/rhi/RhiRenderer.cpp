@@ -223,9 +223,10 @@ void RhiRenderer::releaseResources() {
     for (auto &entry : resourceSets)
         delete entry.second;
     resourceSets.clear();
-    for (QRhiSampler *sampler : std::as_const(samplers))
+    for (QRhiSampler *&sampler : samplers) {
         delete sampler;
-    samplers.clear();
+        sampler = nullptr;
+    }
     for (auto &program : programs)
         program->layout = nullptr;
     delete overlayPipeline;
@@ -485,9 +486,8 @@ QRhiSampler *RhiRenderer::sampler(bool mipmaps, bool clamp, bool nearest) {
 
 QRhiSampler *RhiRenderer::wrapSampler(bool mipmaps, int addressU, int addressV, bool nearest) {
     const int key = (mipmaps ? 1 : 0) | (nearest ? 2 : 0) | (addressU << 2) | (addressV << 4);
-    QRhiSampler *found = samplers.value(key, nullptr);
-    if (found != nullptr)
-        return found;
+    if (samplers[key] != nullptr)
+        return samplers[key];
     auto mode = [](int address) {
         return address == 1 ? QRhiSampler::ClampToEdge
                             : address == 2 ? QRhiSampler::Mirror : QRhiSampler::Repeat;
@@ -497,7 +497,7 @@ QRhiSampler *RhiRenderer::wrapSampler(bool mipmaps, int addressU, int addressV, 
                                            mipmaps ? QRhiSampler::Linear : QRhiSampler::None,
                                            mode(addressU), mode(addressV));
     created->create();
-    samplers.insert(key, created);
+    samplers[key] = created;
     return created;
 }
 

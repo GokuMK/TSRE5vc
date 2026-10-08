@@ -12,7 +12,9 @@
 #define RHIRENDERER_H
 
 #include <QHash>
+#include <QVarLengthArray>
 #include <QVector>
+#include <array>
 #include <memory>
 #include <unordered_map>
 #include <vector>
@@ -114,8 +116,10 @@ private:
     struct BindingKey {
         const RhiProgram *program = nullptr;
         QRhiBuffer *uniforms = nullptr;
-        std::vector<QRhiTexture *> textures;
-        std::vector<QRhiSampler *> samplers;
+        // Inline: a key is made for every draw, and heap vectors cost two
+        // allocations each (about a sixth of the frame's CPU time).
+        QVarLengthArray<QRhiTexture *, 24> textures;
+        QVarLengthArray<QRhiSampler *, 24> samplers;
         bool operator==(const BindingKey &other) const;
     };
     struct BindingKeyHash { size_t operator()(const BindingKey &key) const; };
@@ -386,7 +390,8 @@ private:
     bool blending = true;
     std::unordered_map<PipelineKey, QRhiGraphicsPipeline *, PipelineKeyHash> pipelines;
     std::unordered_map<BindingKey, QRhiShaderResourceBindings *, BindingKeyHash> resourceSets;
-    QHash<int, QRhiSampler *> samplers;
+    // By wrapSampler's 6-bit key; looked up for every texture of every draw.
+    std::array<QRhiSampler *, 64> samplers{};
     // Stand-ins for textures a program declares but a draw does not use.
     QRhiTexture *dummy2D = nullptr;
     QRhiTexture *dummyArray = nullptr;
