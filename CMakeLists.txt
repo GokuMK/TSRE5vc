@@ -39,6 +39,7 @@ include_directories("./src")
 
 file(GLOB TSRE5vc_SRC CONFIGURE_DEPENDS
     "./src/mzip/miniz/miniz.h"
+    "./src/earcut/earcut.hpp"
     "./src/*.h"
     "./src/*.cpp"
     "./src/settings/*.h"
