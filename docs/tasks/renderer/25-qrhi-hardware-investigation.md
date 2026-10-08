@@ -359,4 +359,41 @@ after the work above and the later fixes on this branch:
 - Diagnostics: the FPS display shows the GPU time of a frame;
   `TSRE_RHI_TRACE=1` logs draws, state changes, pipelines, uniform bytes,
   memory and uploads; `TSRE_RHI_API=null` measures the renderer's own CPU
-  cost.
+  cost; `TSRE_RHI_DUMP=<directory>` writes every program's converted GLSL
+  and backend source (HLSL, SPIR-V, GLSL).
+
+## Lamp scene and Direct3D 11 (2026-10-08)
+
+bbb, `core.startup.camera=-5306,14963,-74.32,3.28,690.88,1.87,-0.93`: 924
+local lights, 6333 draws a frame (3497 of them shadow casters), editor
+timer uncapped (`core.system.fpsLimit=200`), FPS display on.
+
+| Renderer | Frames/s | CPU / GPU ms a frame |
+|---|---|---|
+| OpenGL renderer (no local lights) | 34.9-35.3 | 28.2 / 16.1 |
+| QRhi Vulkan, before | 41.0-44.2 | 22-23 / 20.4-21.1 |
+| QRhi Vulkan, after `29829bf` | 45.8-46.5 | 21.1 / 19.5 |
+| QRhi OpenGL | 24.5-25.3 | 40.1 / 28.0 |
+| QRhi Direct3D 11 (no glTF lamps) | 15.4-19.2 | 51-66 / 28 |
+
+Cost split, QRhi Vulkan: shadows off -6.8 ms CPU and -6.4 ms GPU, local
+lights off -2.2 ms CPU and -6.1 ms GPU. The light grid is rebuilt only
+when lights change (2 times in 817 frames, 3.2 ms each).
+
+Profile (Very Sleepy on a `-O3 -g1` build, main thread, 15 s; see
+`scripts/hardware/README.md`): heap allocations of the per-draw resource
+keys about 16 % (fixed, `29829bf`); `renderShadowMaps` 27 %;
+`renderEnvironmentMap` 15 % (it renders a cube face every frame and
+rebuilds the mipmaps and prefiltered cube, also with a still camera);
+uniform name lookups in `RhiProgram::set` about 4 %; QRhi's Vulkan
+backend about 21 % (Qt has no symbols). Next steps, not done: stop
+refreshing the environment map when camera and light are still; keep
+shadow maps whose casters and light view did not change; look the
+uniform members up by a cached index instead of their names.
+
+Direct3D 11 after its fixes: start view 42.8 frames a second against
+Vulkan's 93.2 (CPU 22.6 against 10.4 ms); see task 20 for its open
+items. A profile build must be started from `build\` (copy the exe
+there): TSRE takes the repository root by removing `/build` from the
+executable's folder, and from `build-prof\` it stays in that folder,
+finds no appdata and downloads an old copy.

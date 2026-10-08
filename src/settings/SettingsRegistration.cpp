@@ -701,7 +701,7 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
             .withNameId(
                 //% "QRhi graphics API"
                 QT_TRID_NOOP("settings.core.rendering.rhi.api.name")).withDescriptionId(
-                //% "Graphics API of the QRhi renderer. Automatic picks Metal on macOS, Direct3D 11 on Windows and Vulkan elsewhere, falling back to OpenGL. Applies after a restart."
+                //% "Graphics API of the QRhi renderer. Automatic picks Metal on macOS and Vulkan elsewhere, then Direct3D 11 on Windows, falling back to OpenGL. Direct3D 11 does not draw glTF (PBR) materials yet. Applies after a restart."
                 QT_TRID_NOOP("settings.core.rendering.rhi.api.description"))
             .withOptions(choices({{"auto",
                 //% "Automatic"

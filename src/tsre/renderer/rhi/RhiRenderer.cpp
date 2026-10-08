@@ -410,6 +410,11 @@ void RhiRenderer::writeItemUniforms(RhiProgram *program, RenderItem *item, quint
         program->setFloat("terrainSampleSpacing", item->terrain.sampleSpacing);
         program->setInt("terrainApplyGaps", item->terrain.applyGaps ? 1 : 0);
         program->setInt("terrainMapPass", item->terrain.mapPass ? 1 : 0);
+        // The patch slot comes from the vertex index, which on Direct3D
+        // leaves out the draw's base vertex (TerrainPatch.glsl).
+        const bool vertexIdWithoutBase = rhi->backend() == QRhi::D3D11
+                || rhi->backend() == QRhi::D3D12;
+        program->setInt("terrainVertexBase", vertexIdWithoutBase ? item->mesh.baseVertex : 0);
     }
     if (program->kind == RhiProgram::PBR && item->pbr.enabled) {
         const RenderItem::Pbr &p = item->pbr;
@@ -763,6 +768,15 @@ quint32 RhiRenderer::readSelection(int x, int y) {
         debugCount("call finish (selection)");
         rhi->finish();
         selectionIds = result.data;
+        if (traceDraws) {
+            int nonZero = 0;
+            for (qsizetype i = 0; i + 4 <= selectionIds.size(); i += 4)
+                nonZero += selectionIds.at(i) || selectionIds.at(i + 1) || selectionIds.at(i + 2)
+                        || selectionIds.at(i + 3);
+            qInfo().noquote() << "rhi-trace selection read bytes" << selectionIds.size() << "of"
+                              << qsizetype(selection.size.width()) * selection.size.height() * 4
+                              << "non-zero ids" << nonZero;
+        }
     }
     if (selectionIds.size() < qsizetype(selection.size.width()) * selection.size.height() * 4)
         return 0;
@@ -1146,18 +1160,30 @@ quint32 RhiRenderer::appendInstances(const float *const *matrices, int count) {
 QRhiBuffer *RhiRenderer::uploadArena(Arena &arena, QRhiBuffer::UsageFlags usage,
                                      QRhiResourceUpdateBatch *batch) {
     const quint32 size = quint32(arena.data.size());
+    // QRhi's Direct3D 11 backend copies all of a Dynamic buffer after each
+    // update, and the arenas are updated once per target, about ten times a
+    // frame: there the instances go to a Static buffer (updated by range)
+    // and the uniforms (Dynamic only) to a buffer sized to the data.
+    const bool copiesWhole = rhi->backend() == QRhi::D3D11;
+    const bool staticBuffer = copiesWhole && !usage.testFlag(QRhiBuffer::UniformBuffer);
     if (arena.buffer == nullptr || arena.buffer->size() < size) {
         // Grows between frames; within a frame the buffer stays.
-        quint32 capacity = std::max(ArenaChunk, size * 2);
+        quint32 capacity = copiesWhole ? std::max(65536u, size + size / 2)
+                                       : std::max(ArenaChunk, size * 2);
         if (arena.buffer != nullptr)
             arena.buffer->deleteLater();
-        arena.buffer = rhi->newBuffer(QRhiBuffer::Dynamic, usage, capacity);
+        arena.buffer = rhi->newBuffer(staticBuffer ? QRhiBuffer::Static : QRhiBuffer::Dynamic, usage,
+                                      capacity);
         arena.buffer->create();
         arena.uploaded = 0;
     }
     if (size > arena.uploaded) {
-        batch->updateDynamicBuffer(arena.buffer, arena.uploaded, size - arena.uploaded,
-                                   arena.data.data() + arena.uploaded);
+        if (staticBuffer)
+            batch->uploadStaticBuffer(arena.buffer, arena.uploaded, size - arena.uploaded,
+                                      arena.data.data() + arena.uploaded);
+        else
+            batch->updateDynamicBuffer(arena.buffer, arena.uploaded, size - arena.uploaded,
+                                       arena.data.data() + arena.uploaded);
         arena.uploaded = size;
     }
     return arena.buffer;
@@ -1228,7 +1254,8 @@ QRhiGraphicsPipeline *RhiRenderer::pipeline(const PipelineKey &key) {
     ps->setShaderResourceBindings(program->layout);
     ps->setRenderPassDescriptor(key.pass);
     if (!ps->create()) {
-        qWarning() << "QRhi renderer: pipeline creation failed";
+        qWarning() << "QRhi renderer: pipeline creation failed, program kind" << program->kind
+                   << "(" << program->samplers.size() << "samplers)";
         delete ps;
         ps = nullptr;
     }

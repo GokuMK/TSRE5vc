@@ -173,7 +173,8 @@ bool RhiRenderer::createEnvironment(int faceSize, int levels) {
                         program.block.data(), program.block.size());
         }
     }
-    e.uniforms = rhi->newBuffer(QRhiBuffer::Static, QRhiBuffer::UniformBuffer, quint32(data.size()));
+    // Dynamic: Direct3D 11 takes uniform buffers of no other type.
+    e.uniforms = rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, quint32(data.size()));
     e.sampler = rhi->newSampler(QRhiSampler::Linear, QRhiSampler::Linear, QRhiSampler::Linear,
                                 QRhiSampler::ClampToEdge, QRhiSampler::ClampToEdge);
     if (!e.uniforms->create() || !e.sampler->create()) {
@@ -181,7 +182,7 @@ bool RhiRenderer::createEnvironment(int faceSize, int levels) {
         return false;
     }
     if (QRhiResourceUpdateBatch *batch = RhiTextures::updates())
-        batch->uploadStaticBuffer(e.uniforms, data.constData());
+        batch->updateDynamicBuffer(e.uniforms, 0, quint32(data.size()), data.constData());
     const auto stages = QRhiShaderResourceBinding::VertexStage | QRhiShaderResourceBinding::FragmentStage;
     e.bindings = rhi->newShaderResourceBindings();
     e.bindings->setBindings({
@@ -308,11 +309,11 @@ void RhiRenderer::drawEnvironmentPreview(int x, int y, int cellSize) {
     }
     if (e.previewUniforms == nullptr) {
         program.setFloat("rhiFlipY", rhi->isYUpInNDC() ? 0.0f : 1.0f);
-        e.previewUniforms = rhi->newBuffer(QRhiBuffer::Static, QRhiBuffer::UniformBuffer,
+        e.previewUniforms = rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer,
                                            quint32(program.block.size()));
         e.previewUniforms->create();
         if (QRhiResourceUpdateBatch *batch = RhiTextures::updates())
-            batch->uploadStaticBuffer(e.previewUniforms, program.block.data());
+            batch->updateDynamicBuffer(e.previewUniforms, 0, quint32(program.block.size()), program.block.data());
     }
     if (e.previewBindings == nullptr) {
         e.previewBindings = rhi->newShaderResourceBindings();

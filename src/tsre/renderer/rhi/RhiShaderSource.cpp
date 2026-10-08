@@ -152,6 +152,9 @@ Program convert(const QByteArray &vertexSource, const QByteArray &fragmentSource
     QMap<QString, Declaration> uniforms;
     QMap<QString, Declaration> varyings;
     QSet<QString> vertexOutputs;
+    // Interpolation qualifiers of the vertex outputs, and the fragment inputs.
+    QHash<QString, QString> outputQualifiers;
+    QSet<QString> fragmentInputs;
     for (int stage = 0; stage < 2; ++stage) {
         int depth = 0;
         for (const QByteArray &rawLine : stages[stage].split('\n')) {
@@ -172,8 +175,12 @@ Program convert(const QByteArray &vertexSource, const QByteArray &fragmentSource
                 if (v.hasMatch()) {
                     const bool varying = (stage == 0 && v.captured(2) == "out")
                             || (stage == 1 && v.captured(2) == "in");
-                    if (stage == 0 && varying)
+                    if (stage == 0 && varying) {
                         vertexOutputs.insert(v.captured(4));
+                        outputQualifiers.insert(v.captured(4), v.captured(1).trimmed());
+                    }
+                    if (stage == 1 && varying)
+                        fragmentInputs.insert(v.captured(4));
                     // Inputs the vertex stage does not write take no location.
                     if (varying && (stage == 0 || vertexOutputs.contains(v.captured(4))))
                         varyings.insert(v.captured(4), {v.captured(3), v.captured(4), v.captured(5)});
@@ -197,11 +204,31 @@ Program convert(const QByteArray &vertexSource, const QByteArray &fragmentSource
     if (uniforms.isEmpty())
         block.clear();
 
+    // Direct3D 11 links the stages by register: the pixel shader's inputs
+    // must be the vertex shader's outputs, in order. A fragment stage that
+    // reads only some of them (Selection.fs) would draw nothing. It declares
+    // the others too and reads each once, so the HLSL keeps them.
+    QByteArray linkDeclarations;
+    QByteArray linkReads;
+    for (const Declaration &varying : varyings) {
+        if (!vertexOutputs.contains(varying.name) || fragmentInputs.contains(varying.name))
+            continue;
+        const QString qualifier = outputQualifiers.value(varying.name);
+        linkDeclarations += QString("layout(location = %1) %2in %3 %4%5;\n")
+                .arg(varyingLocations.value(varying.name))
+                .arg(qualifier.isEmpty() ? QString() : qualifier + " ", varying.type, varying.name,
+                     varying.array).toUtf8();
+        if (varying.array.isEmpty())
+            linkReads += QString("    { %1 tsreLinked = %2; }\n").arg(varying.type, varying.name).toUtf8();
+    }
+
     const QHash<QString, int> &attributes = attributeLocations();
     const QHash<QString, int> &samplers = samplerBindings();
     for (int stage = 0; stage < 2; ++stage) {
         QByteArray out;
         bool headerDone = false;
+        bool inMain = false;
+        bool readsDone = stage == 0 || linkReads.isEmpty();
         int depth = 0;
         for (const QByteArray &rawLine : stages[stage].split('\n')) {
             QString line = QString::fromUtf8(rawLine);
@@ -210,6 +237,8 @@ Program convert(const QByteArray &vertexSource, const QByteArray &fragmentSource
                 for (const QString &define : std::as_const(defines))
                     out += "#define " + define.toUtf8() + " 1\n";
                 out += block;
+                if (stage == 1)
+                    out += linkDeclarations;
                 headerDone = true;
                 continue;
             }
@@ -260,6 +289,13 @@ Program convert(const QByteArray &vertexSource, const QByteArray &fragmentSource
             line.replace("gl_InstanceID", "gl_InstanceIndex");
             out += line.toUtf8();
             out += '\n';
+            if (!readsDone) {
+                inMain = inMain || line.contains(QRegularExpression(R"(\bvoid\s+main\s*\()"));
+                if (inMain && line.contains('{')) {
+                    out += linkReads;
+                    readsDone = true;
+                }
+            }
         }
         if (!headerDone)
             program.error += "no #version line\n";

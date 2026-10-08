@@ -85,8 +85,8 @@ void main() {
     vec2 renderUv = aTextureCoord;
 #ifdef TSRE_TERRAIN
     if (terrainPaged != 0) {
-        int patchSlot = gl_VertexID / terrainVerticesPerPatch;
-        int localVertexId = gl_VertexID - patchSlot * terrainVerticesPerPatch;
+        int patchSlot = terrainVertexId() / terrainVerticesPerPatch;
+        int localVertexId = terrainVertexId() - patchSlot * terrainVerticesPerPatch;
         int localSampleZ = localVertexId / terrainPatchSide;
         int localSampleX = localVertexId - localSampleZ * terrainPatchSide;
         vec2 terrainLocalSample = vec2(float(localSampleX), float(localSampleZ));

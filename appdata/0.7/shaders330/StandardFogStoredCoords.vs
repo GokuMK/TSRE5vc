@@ -53,7 +53,7 @@ void main() {
     vec2 renderUv = aTextureCoord;
 #ifdef TSRE_TERRAIN
     if (terrainPaged != 0) {
-        int patchSlot = gl_VertexID / terrainVerticesPerPatch;
+        int patchSlot = terrainVertexId() / terrainVerticesPerPatch;
         vec2 terrainLocalSample = aTextureCoord;
         TerrainPatchParams params = terrainPatchParams(patchSlot);
         renderVertex = vec4(params.uvAndOriginX.w + terrainLocalSample.x * terrainSampleSpacing,

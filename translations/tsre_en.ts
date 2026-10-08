@@ -8228,8 +8228,8 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
     </message>
     <message id="settings.core.rendering.rhi.api.description">
         <location filename="../src/settings/SettingsRegistration.cpp" line="688" />
-        <source>Graphics API of the QRhi renderer. Automatic picks Metal on macOS, Direct3D 11 on Windows and Vulkan elsewhere, falling back to OpenGL. Applies after a restart.</source>
-        <translation>Graphics API of the QRhi renderer. Automatic picks Metal on macOS, Direct3D 11 on Windows and Vulkan elsewhere, falling back to OpenGL. Applies after a restart.</translation>
+        <source>Graphics API of the QRhi renderer. Automatic picks Metal on macOS and Vulkan elsewhere, then Direct3D 11 on Windows, falling back to OpenGL. Direct3D 11 does not draw glTF (PBR) materials yet. Applies after a restart.</source>
+        <translation>Graphics API of the QRhi renderer. Automatic picks Metal on macOS and Vulkan elsewhere, then Direct3D 11 on Windows, falling back to OpenGL. Direct3D 11 does not draw glTF (PBR) materials yet. Applies after a restart.</translation>
     </message>
     <message id="settings.core.rendering.rhi.api.option.auto">
         <location filename="../src/settings/SettingsRegistration.cpp" line="691" />

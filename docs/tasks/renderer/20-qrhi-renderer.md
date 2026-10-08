@@ -171,13 +171,30 @@ Open:
   of 8). Plan, deferred by the user: transcode to BC3 at upload. Alpha and
   4-colour blocks stay exact; in 3-colour blocks the midpoint colour moves
   by up to a sixth of the endpoint difference.
-- Direct3D and Metal are not created yet (their init parameters are
-  missing; `auto` falls back to Vulkan or OpenGL). Full-screen passes flip
-  y where clip space and the framebuffer disagree about it (those two), by
-  reasoning rather than a test.
+- Direct3D 11 (`core.rendering.rhiApi=d3d11`, 2026-10-08, Steam Deck):
+  bbb `parity-views` against the OpenGL renderer RMSE 1.4 to 3.4, picking
+  144 of 144 (Vulkan RMSE 1.2 to 2.6). Open:
+  - The PBR program (glTF) declares 21 samplers in its fragment stage and
+    D3D11 allows 16, so its pipelines fail and glTF objects are not drawn.
+    Ways down: one light-grid texture instead of three (-2), the detail
+    sampler left out of PBR (-1), the shadow maps as one array (-2), or
+    PBR variants without the clearcoat, specular and transmission maps.
+  - CPU: about twice Vulkan's (bbb start view 22.6 against 10.4 ms a
+    frame). QRhi's D3D11 backend copies all of a Dynamic buffer on the
+    first bind after an update; the uniform arena (Dynamic only on D3D11)
+    is updated once per target. A uniform buffer per target would copy
+    each block once.
+  - Direct3D's vertex index leaves out the draw's base vertex: paged
+    terrain adds it from the `terrainVertexBase` uniform
+    (TerrainPatch.glsl). D3D11 links stages by register: every fragment
+    stage declares all vertex outputs (RhiShaderSource).
+  - `auto` tries Vulkan before Direct3D 11 on Windows for these reasons.
+  Direct3D 12 does not come up with this Qt build (QRhi::create fails).
+  Metal is not created yet (its init parameters are missing). Full-screen
+  passes flip y where clip space and the framebuffer disagree about it, by
+  reasoning rather than a test on Metal.
 - QRhi OpenGL is CPU-bound: about 20 ms a frame against 12 for the OpenGL
-  renderer (task 25, handover). Direct3D 11, QRhi's most used backend on
-  Windows, may serve better as the fallback to Vulkan there.
+  renderer (task 25, handover).
 
 ## Hardware test (2026-10-06)
 

@@ -109,7 +109,10 @@ RhiContext *RhiContext::instance() {
 #if defined(Q_OS_MACOS)
             order = {QRhi::Metal, QRhi::OpenGLES2};
 #elif defined(Q_OS_WIN)
-            order = {QRhi::D3D11, QRhi::Vulkan, QRhi::OpenGLES2};
+            // Direct3D 11 after Vulkan: it allows 16 samplers a shader stage,
+            // fewer than the PBR program uses, and QRhi's D3D11 backend costs
+            // about twice Vulkan's CPU time a frame here (task 25).
+            order = {QRhi::Vulkan, QRhi::D3D11, QRhi::OpenGLES2};
 #else
             order = {QRhi::Vulkan, QRhi::OpenGLES2};
 #endif
@@ -184,8 +187,23 @@ bool RhiContext::create(QRhi::Implementation implementation) {
         rhiInstance.reset(QRhi::create(QRhi::Null, &params, flags));
         break;
     }
+#ifdef Q_OS_WIN
+    case QRhi::D3D11: {
+        // The debug layer needs the Windows SDK's layers installed.
+        QRhiD3D11InitParams params;
+        params.enableDebugLayer = qEnvironmentVariableIsSet("TSRE_RHI_DEBUG");
+        rhiInstance.reset(QRhi::create(QRhi::D3D11, &params, flags));
+        break;
+    }
+    case QRhi::D3D12: {
+        QRhiD3D12InitParams params;
+        params.enableDebugLayer = qEnvironmentVariableIsSet("TSRE_RHI_DEBUG");
+        rhiInstance.reset(QRhi::create(QRhi::D3D12, &params, flags));
+        break;
+    }
+#endif
     default:
-        // Metal and Direct3D need their platforms' init parameters.
+        // Metal needs its platform's init parameters.
         break;
     }
     if (rhiInstance)
@@ -228,6 +246,27 @@ RhiContext::Program RhiContext::bakeSource(const QByteArray &vertex, const QByte
     program.vertex = bakeStage(converted.vertex, QShader::VertexStage, implementation, program.error);
     program.fragment = bakeStage(converted.fragment, QShader::FragmentStage, implementation,
                                  program.error);
+    // TSRE_RHI_DUMP=<directory>: the converted GLSL and the backend's source
+    // of every program, to read what a backend's compiler is given.
+    static const QString dump = qEnvironmentVariable("TSRE_RHI_DUMP");
+    if (!dump.isEmpty() && QDir().mkpath(dump)) {
+        static int serial = 0;
+        const QString base = QDir(dump).filePath(QString("program%1").arg(++serial, 3, 10, QChar('0')));
+        const QList<QShaderBaker::GeneratedShader> generated = targets(implementation);
+        auto write = [](const QString &path, const QByteArray &data) {
+            QFile file(path);
+            if (file.open(QIODevice::WriteOnly))
+                file.write(data);
+        };
+        write(base + ".defines.txt", defines.join('\n').toUtf8());
+        write(base + ".vert.glsl", converted.vertex);
+        write(base + ".frag.glsl", converted.fragment);
+        if (!generated.isEmpty()) {
+            const QShaderKey key(generated.first().first, generated.first().second);
+            write(base + ".vert.out", program.vertex.shader(key).shader());
+            write(base + ".frag.out", program.fragment.shader(key).shader());
+        }
+    }
     return program;
 }
 
