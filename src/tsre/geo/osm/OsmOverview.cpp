@@ -30,6 +30,9 @@ namespace Osm {
 namespace {
 
 const QString OverviewMarker = QStringLiteral("TSRE-Overview-1");
+// Raised when the builder writes different files for the same rules, so existing ones
+// count as stale: 2 cuts generalized areas into blocks.
+constexpr int BuilderVersion = 2;
 constexpr size_t MaxBlockEntities = 8000;
 constexpr size_t MaxBlockPoints = 400000;  // keeps encoded blocks well below the 32 MiB limit
 
@@ -57,7 +60,8 @@ double ringAreaKm2(const Location *p, size_t n) {
 
 QString identity(const QString &convertedPath, const OverviewConfig &config, size_t level) {
     const QFileInfo info(convertedPath);
-    return QStringLiteral("tsre-overview level=%1 rules=%2 size=%3 mtime=%4 name=%5")
+    return QStringLiteral("tsre-overview builder=%1 level=%2 rules=%3 size=%4 mtime=%5 name=%6")
+        .arg(BuilderVersion)
         .arg(QString::fromStdString(config.levels[level].name), config.hash)
         .arg(info.size())
         .arg(info.lastModified().toMSecsSinceEpoch())
