@@ -285,9 +285,19 @@ void converterTests(const std::function<void(bool, const char *)> &check) {
     // Replacing an existing output keeps the old file until the new one is complete.
     check(convertPbf(sortedPath, out2, options, stats, error) && dataBlocks(out2) == dataBlocks(out1), "an existing output is replaced");
     const ConvertEstimate est = estimateConversion(1000), poland = estimateConversion(2104735352, 12);
-    check(est.memoryBytes > 2000 && est.memoryBytes < 64ll * 1024 * 1024 && est.tempBytes >= 2800 && est.outputBytes >= 1100
+    check(est.memoryBytes > 2000 && est.memoryBytes < 128ll * 1024 * 1024 && est.tempBytes >= 2800 && est.outputBytes >= 1100
               && poland.memoryBytes > 4700ll * 1024 * 1024 && poland.tempBytes > 6339ll * 1024 * 1024 && poland.outputBytes > 2281ll * 1024 * 1024,
           "estimates scale with the source size and cover the measured Poland conversion");
+    // Measured peaks of province files (MB): Malopolska 1466 (1 GiB groups) and 980 (256 MiB),
+    // Pomorskie 862 and 708.
+    const int64_t mb = 1024 * 1024;
+    check(estimateConversion(202329961, 12).memoryBytes >= 1466 * mb && estimateConversion(202329961, 12, 256 * mb).memoryBytes >= 980 * mb
+              && estimateConversion(117000000, 12).memoryBytes >= 862 * mb && estimateConversion(117000000, 12, 256 * mb).memoryBytes >= 708 * mb
+              && estimateConversion(202329961, 12).memoryBytes < 1700 * mb,
+          "estimates cover the measured province conversions, by write group size");
+    check(writeGroupBytesFor(0) == 1024 * mb && writeGroupBytesFor(8192 * mb) == 1024 * mb && writeGroupBytesFor(2048 * mb) == 512 * mb
+              && writeGroupBytesFor(100 * mb) == 64 * mb,
+          "write groups: a quarter of the available memory, 64 MiB to 1 GiB");
 }
 
 }
@@ -394,6 +404,7 @@ int convertFile(const QStringList &args) {
     ConvertOptions options;
     if (args.size() > 2) options.threads = args[2].toInt();
     if (args.size() > 3) options.compressionLevel = args[3].toInt();
+    if (args.size() > 4) options.writeGroupBytes = args[4].toLongLong() * 1024 * 1024;
     ConvertStats s;
     QString error;
     const char *names[] = {"scan", "relations", "nodes", "ways", "write"};

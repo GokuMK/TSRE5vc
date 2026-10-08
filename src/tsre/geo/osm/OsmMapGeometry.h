@@ -110,7 +110,9 @@ public:
     static void appendLines(std::vector<float> &out, const float *xz, size_t count, float y);
     // Triangulates rings (the first outer, the rest holes) and appends triangles wound as
     // the map's ribbons, so its face culling keeps them. Returns the number of triangles.
-    static size_t appendFill(std::vector<float> &out, const std::vector<MapRing> &rings, float y);
+    // scratch: reused buffers of the calling thread (none: allocated for the call).
+    struct FillScratch;
+    static size_t appendFill(std::vector<float> &out, const std::vector<MapRing> &rings, float y, FillScratch *scratch = nullptr);
 
 private:
     // Features of one slot and style: their rings and ways as polylines.
