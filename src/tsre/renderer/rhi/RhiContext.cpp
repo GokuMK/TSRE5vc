@@ -96,23 +96,22 @@ RhiContext *RhiContext::instance() {
         std::unique_ptr<RhiContext> context(new RhiContext());
         // TSRE_RHI_API overrides the setting; "null" measures the renderer's
         // own CPU cost without a GPU driver.
-        const QString api = (qEnvironmentVariableIsSet("TSRE_RHI_API")
-                             ? qEnvironmentVariable("TSRE_RHI_API") : Game::rhiApi).toLower();
+        const bool fromEnvironment = qEnvironmentVariableIsSet("TSRE_RHI_API");
+        const QString api = (fromEnvironment ? qEnvironmentVariable("TSRE_RHI_API")
+                                             : Game::rhiApi).toLower();
         QList<QRhi::Implementation> order;
         if (api == "vulkan") order = {QRhi::Vulkan};
         else if (api == "opengl") order = {QRhi::OpenGLES2};
         else if (api == "metal") order = {QRhi::Metal};
-        else if (api == "d3d11") order = {QRhi::D3D11};
-        else if (api == "d3d12") order = {QRhi::D3D12};
+        // Direct3D only for development (TSRE_RHI_API): it does not draw glTF
+        // materials and costs twice Vulkan's CPU time (task 20). A profile
+        // that still names it gets the automatic choice.
+        else if (api == "d3d11" && fromEnvironment) order = {QRhi::D3D11};
+        else if (api == "d3d12" && fromEnvironment) order = {QRhi::D3D12};
         else if (api == "null") order = {QRhi::Null};
         else {
 #if defined(Q_OS_MACOS)
             order = {QRhi::Metal, QRhi::OpenGLES2};
-#elif defined(Q_OS_WIN)
-            // Direct3D 11 after Vulkan: it allows 16 samplers a shader stage,
-            // fewer than the PBR program uses, and QRhi's D3D11 backend costs
-            // about twice Vulkan's CPU time a frame here (task 25).
-            order = {QRhi::Vulkan, QRhi::D3D11, QRhi::OpenGLES2};
 #else
             order = {QRhi::Vulkan, QRhi::OpenGLES2};
 #endif

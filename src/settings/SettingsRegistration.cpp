@@ -701,7 +701,7 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
             .withNameId(
                 //% "QRhi graphics API"
                 QT_TRID_NOOP("settings.core.rendering.rhi.api.name")).withDescriptionId(
-                //% "Graphics API of the QRhi renderer. Automatic picks Metal on macOS and Vulkan elsewhere, then Direct3D 11 on Windows, falling back to OpenGL. Direct3D 11 does not draw glTF (PBR) materials yet. Applies after a restart."
+                //% "Graphics API of the QRhi renderer. Automatic picks Metal on macOS and Vulkan elsewhere, falling back to OpenGL. Applies after a restart."
                 QT_TRID_NOOP("settings.core.rendering.rhi.api.description"))
             .withOptions(choices({{"auto",
                 //% "Automatic"
@@ -711,11 +711,7 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "OpenGL"
                 QT_TRID_NOOP("settings.core.rendering.rhi.api.option.opengl")}, {"metal",
                 //% "Metal"
-                QT_TRID_NOOP("settings.core.rendering.rhi.api.option.metal")}, {"d3d11",
-                //% "Direct3D 11"
-                QT_TRID_NOOP("settings.core.rendering.rhi.api.option.d3d11")}, {"d3d12",
-                //% "Direct3D 12"
-                QT_TRID_NOOP("settings.core.rendering.rhi.api.option.d3d12")}})).inGroup("rendering").inSubgroup("pipeline").asAdvanced(),
+                QT_TRID_NOOP("settings.core.rendering.rhi.api.option.metal")}})).inGroup("rendering").inSubgroup("pipeline").asAdvanced(),
         "rhiApi", "Game::rhiApi", "RouteEditorGLWidget", false, "renderer-restart");
     ADD(SettingsDefinition::boolean("core.rendering.threadedTextureLoading", true)
             .withNameId(

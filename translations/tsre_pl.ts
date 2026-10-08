@@ -8233,8 +8233,8 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
         </message>
         <message id="settings.core.rendering.rhi.api.description">
             <location filename="../src/settings/SettingsRegistration.cpp" line="688" />
-            <source>Graphics API of the QRhi renderer. Automatic picks Metal on macOS and Vulkan elsewhere, then Direct3D 11 on Windows, falling back to OpenGL. Direct3D 11 does not draw glTF (PBR) materials yet. Applies after a restart.</source>
-            <translation>API graficzne renderera QRhi. Automatycznie: Metal na macOS, w pozostałych systemach Vulkan, następnie Direct3D 11 na Windows, a w razie braku OpenGL. Direct3D 11 nie rysuje jeszcze materiałów glTF (PBR). Zmiana działa po ponownym uruchomieniu.</translation>
+            <source>Graphics API of the QRhi renderer. Automatic picks Metal on macOS and Vulkan elsewhere, falling back to OpenGL. Applies after a restart.</source>
+            <translation>API graficzne renderera QRhi. Automatycznie: Metal na macOS, Vulkan w pozostałych systemach, a w razie braku OpenGL. Zmiana działa po ponownym uruchomieniu.</translation>
         </message>
         <message id="settings.core.rendering.rhi.api.option.auto">
             <location filename="../src/settings/SettingsRegistration.cpp" line="691" />
@@ -8255,16 +8255,6 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
             <location filename="../src/settings/SettingsRegistration.cpp" line="697" />
             <source>Metal</source>
             <translation>Metal</translation>
-        </message>
-        <message id="settings.core.rendering.rhi.api.option.d3d11">
-            <location filename="../src/settings/SettingsRegistration.cpp" line="699" />
-            <source>Direct3D 11</source>
-            <translation>Direct3D 11</translation>
-        </message>
-        <message id="settings.core.rendering.rhi.api.option.d3d12">
-            <location filename="../src/settings/SettingsRegistration.cpp" line="701" />
-            <source>Direct3D 12</source>
-            <translation>Direct3D 12</translation>
         </message>
         <message id="settings.core.rendering.threaded.texture.loading.name">
             <location filename="../src/settings/SettingsRegistration.cpp" line="624" />
