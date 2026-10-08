@@ -2,6 +2,7 @@
 #include <tsre/geo/osm/OsmPbf.h>
 #include <tsre/geo/osm/OsmSortedFormat.h>
 #include <tsre/geo/osm/SortedPbfStore.h>
+#include <tsre/geo/osm/OsmThread.h>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -431,7 +432,7 @@ int verifyFile(const QStringList &args) {
     const unsigned threads = std::max(1u, std::thread::hardware_concurrency());
     auto forEach = [&](const PbfFile &f, uint32_t parts, const std::function<void(const PrimitiveBlock &, size_t)> &fn) {
         std::atomic<size_t> next{1};
-        std::vector<std::thread> ts;
+        std::vector<Osm::Thread> ts;
         for (unsigned t = 0; t < threads; ++t)
             ts.emplace_back([&] {
                 PrimitiveBlock b; QString err;

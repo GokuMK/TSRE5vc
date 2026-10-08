@@ -1,4 +1,5 @@
 #include <tsre/geo/osm/OsmPbf.h>
+#include <tsre/geo/osm/OsmThread.h>
 #include <QDir>
 #include <QFile>
 #include <QTemporaryDir>
@@ -282,7 +283,7 @@ int countFile(const QString &path, const QStringList &expect) {
     std::atomic<size_t> next{1};
     std::atomic<uint64_t> nodes{0}, ways{0}, relations{0}, tags{0}, refs{0}, members{0}, locations{0};
     std::atomic<bool> failed{false};
-    std::vector<std::thread> threads;
+    std::vector<Osm::Thread> threads;
     const unsigned n = std::max(1u, std::thread::hardware_concurrency());
     for (unsigned t = 0; t < n; ++t)
         threads.emplace_back([&] {

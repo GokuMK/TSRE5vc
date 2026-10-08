@@ -11,6 +11,7 @@
 #include <tsre/geo/osm/OsmMapGeometry.h>
 #include <tsre/geo/osm/OsmMultipolygon.h>
 #include <tsre/geo/osm/OsmOverview.h>
+#include <tsre/geo/osm/OsmThread.h>
 #include <earcut/earcut.hpp>
 #include <algorithm>
 #include <chrono>
@@ -345,7 +346,7 @@ bool MapGeometry::load(const OsmStore &store, const Box &area, double metersPerP
     auto parallel = [&](size_t count, const std::function<void(Output &, Scratch &, size_t)> &fn) {
         const size_t n = std::max<size_t>(1, std::min(threads, count / 64));
         std::vector<Output> parts(n);
-        std::vector<std::thread> pool;
+        std::vector<Osm::Thread> pool;
         for (size_t p = 0; p < n; ++p)
             pool.emplace_back([&, p] {
                 // An exception may not leave a thread: out of memory fails the load instead.
@@ -356,7 +357,7 @@ bool MapGeometry::load(const OsmStore &store, const Box &area, double metersPerP
                     failed = true;
                 }
             });
-        for (std::thread &th : pool) th.join();
+        for (Osm::Thread &th : pool) th.join();
         for (Output &part : parts) out_.append(std::move(part));
     };
     parallel(wayJobs.size(), doWay);

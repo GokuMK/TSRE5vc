@@ -28,6 +28,7 @@
 #include <tsre/ogl/OglObj.h>
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/renderer/RenderQueue.h>
+#include <tsre/geo/osm/OsmThread.h>
 
 namespace {
 
@@ -150,7 +151,7 @@ private:
     Job pending;
     bool hasResult = false;
     Result result;
-    std::thread thread;
+    Osm::Thread thread;
 };
 
 void OsmMapLayer::Worker::run() {
