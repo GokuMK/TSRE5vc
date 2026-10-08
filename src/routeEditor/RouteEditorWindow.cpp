@@ -438,9 +438,9 @@ RouteEditorWindow::RouteEditorWindow() {
          qtTrId("route.editor.route.editor.window.action.map.activity"), MapLayer::Activity},
         {//% "Terra&in"
          qtTrId("route.editor.route.editor.window.action.map.terrain"), MapLayer::Terrain},
-        {//% "&Faded Terrain"
-         qtTrId("route.editor.route.editor.window.action.map.faded.terrain"),
-         MapLayer::FadedTerrain},
+        {//% "&Faded Overlay"
+         qtTrId("route.editor.route.editor.window.action.map.faded.overlay"),
+         MapLayer::FadedOverlay},
         {//% "&Pointer"
          qtTrId("route.editor.route.editor.window.action.map.pointer"), MapLayer::Pointer}};
     for (const auto &entry : mapLayerEntries) {

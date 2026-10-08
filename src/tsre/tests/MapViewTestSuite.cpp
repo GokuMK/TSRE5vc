@@ -6,6 +6,7 @@
 #include <limits>
 #include <tsre/Game.h>
 #include <tsre/map/ActivityMapLayer.h>
+#include <tsre/map/MapOverlayFade.h>
 #include <tsre/map/MapPalette.h>
 #include <tsre/map/TerrainMapLayer.h>
 #include <tsre/map/MapView.h>
@@ -136,6 +137,39 @@ int TsreTests::runMapViewSuite(bool verbose) {
           "palettes: light and dark built in, custom files over the light one");
     check(MapPalette::named("no-such-palette").background == QColor(Qt::white),
           "an unknown palette falls back to light");
+    MapPalette oldFade, newFade;
+    check(MapPalette::fromJson("{\"terrainFade\": 0.5}", oldFade) && near(oldFade.overlayFade, 0.5f)
+                  && MapPalette::fromJson("{\"terrainFade\": 0.5, \"overlayFade\": 0.2}", newFade)
+                  && near(newFade.overlayFade, 0.2f) && near(MapPalette::light().overlayFade, 0.3f),
+          "palettes: overlayFade, read from the former terrainFade too");
+
+    // Layer order: terrain textures, OSM data (50 to 79), terrain aids, the
+    // Faded Overlay, then the route's own data.
+    check(TerrainMapLayer::OverlayHeight < 50.0f && TerrainMapLayer::MissingHeight > 79.0f
+                  && TerrainMapLayer::QuadHeight > TerrainMapLayer::MissingHeight
+                  && TerrainMapLayer::BorderHeight > TerrainMapLayer::QuadHeight
+                  && TerrainMapLayer::HighlightHeight > TerrainMapLayer::BorderHeight
+                  && MapOverlayFade::Height > TerrainMapLayer::HighlightHeight
+                  && MapOverlayFade::Height < TrackMapLayer::RoadHeight,
+          "layers: terrain, OSM, terrain aids, Faded Overlay, route data");
+    {
+        MapView fadeView;
+        fadeView.width = 200;
+        fadeView.height = 100;
+        fadeView.metresPerPixel = 2.0f;
+        std::vector<float> fadeSquare;
+        MapOverlayFade::appendView(fadeSquare, fadeView, MapOverlayFade::Height);
+        float lowX = 1e9f, highX = -1e9f, lowZ = 1e9f, highZ = -1e9f;
+        for (size_t i = 0; i + 2 < fadeSquare.size(); i += 3) {
+            lowX = std::min(lowX, fadeSquare[i]);
+            highX = std::max(highX, fadeSquare[i]);
+            lowZ = std::min(lowZ, fadeSquare[i + 2]);
+            highZ = std::max(highZ, fadeSquare[i + 2]);
+        }
+        check(fadeSquare.size() == 18 && near(highX - lowX, 400.0f) && near(highZ - lowZ, 200.0f)
+                      && near(fadeSquare[1], MapOverlayFade::Height),
+              "Faded Overlay covers the ground in view");
+    }
 
     // Track objects.
     check(TrackItemMapLayer::kindOfItemType("SignalItem") == TrackItemMapLayer::Signal

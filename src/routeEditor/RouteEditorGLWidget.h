@@ -61,6 +61,7 @@ class TrackItemMapLayer;
 class ActivityMapLayer;
 class MapSelection;
 class TerrainMapLayer;
+class MapOverlayFade;
 
 QT_FORWARD_DECLARE_CLASS(QOpenGLShaderProgram)
 
@@ -394,6 +395,7 @@ private:
     std::unique_ptr<TrackItemMapLayer> trackItemMap;
     std::unique_ptr<ActivityMapLayer> activityMap;
     std::unique_ptr<TerrainMapLayer> terrainMap;
+    std::unique_ptr<MapOverlayFade> mapFade;
     // Where a press began in map mode: a left click that moves the map no
     // more than this goes to the active tool.
     static constexpr float MapClickPixels = 4.0f;

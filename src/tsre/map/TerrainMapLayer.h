@@ -54,24 +54,23 @@ public:
     static constexpr float ProceduralHeight = 25.0f;
     // A tile's map texture shown by the geo tools, over its terrain.
     static constexpr float OverlayHeight = 35.0f;
+    // OSM data lies between the textures and the terrain aids below
+    // (50 to 79), so the quadtree and tile tools stay usable over it.
     // The quadtree of the tiles being edited: every node's quadrants as thin
     // lines, a populated tile whose file is missing tinted.
-    static constexpr float MissingHeight = 36.0f;
-    static constexpr float QuadHeight = 38.0f;
-    static constexpr float BorderHeight = 40.0f;
+    static constexpr float MissingHeight = 81.0f;
+    static constexpr float QuadHeight = 83.0f;
+    static constexpr float BorderHeight = 85.0f;
     static constexpr float QuadPixels = 1.0f;
     static constexpr float MissingAlpha = 0.35f;
-    static constexpr float HighlightHeight = 45.0f;
+    static constexpr float HighlightHeight = 87.0f;
     static constexpr float HighlightPixels = 3.0f;
-    // Faded Terrain: a square of the background colour over the terrain,
-    // under the roads.
-    static constexpr float FadeHeight = 50.0f;
     static constexpr float BorderPixels = 1.0f;
 
     TerrainMapLayer();
     ~TerrainMapLayer();
     void pushRenderItems(RenderQueue &queue, const MapView &view, const MapPalette &palette,
-                         TerrainLib *terrain, bool faded = false);
+                         TerrainLib *terrain);
     // Tiles or textures changed: everything is read again.
     void invalidate();
     // Builds the geometry again on the next draw (an edit changed patches).
@@ -137,7 +136,6 @@ private:
     std::unique_ptr<OglObj> missing;
     std::unique_ptr<OglObj> highlight;
     QHash<QString, bool> tileFiles;
-    std::unique_ptr<OglObj> fade;
 };
 
 #endif

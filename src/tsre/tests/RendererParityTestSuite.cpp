@@ -79,7 +79,7 @@ struct ViewSpec {
     bool map = false;
     float metresPerPixel = 2.0f;
     float bearing = 0.0f;
-    bool fadedTerrain = false;
+    bool fadedOverlay = false;
     // Edit the distant terrain (TerrainLib's current tree) for this view.
     bool editDistant = false;
     // Height above the terrain, replacing the view's own height.
@@ -239,7 +239,7 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         view.map = object.value("mode").toString() == "map";
         view.metresPerPixel = float(object.value("metresPerPixel").toDouble(2.0));
         view.bearing = float(object.value("bearing").toDouble(0.0));
-        view.fadedTerrain = object.value("fadedTerrain").toBool(false);
+        view.fadedOverlay = object.value("fadedOverlay").toBool(false);
         view.editDistant = object.value("editDistant").toBool(false);
         view.hasAboveGround = object.contains("aboveGround");
         view.aboveGround = float(object.value("aboveGround").toDouble(0.0));
@@ -483,7 +483,7 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         if (spec.map) {
             widget.setDiagnosticMapView(tileX, tileZ, pos[0], pos[2], spec.metresPerPixel,
                                         spec.bearing);
-            widget.setMapLayerVisible(MapLayer::FadedTerrain, spec.fadedTerrain);
+            widget.setMapLayerVisible(MapLayer::FadedOverlay, spec.fadedOverlay);
             if (spec.editDistant)
                 Game::terrainLib->setDistantAsCurrent();
             else

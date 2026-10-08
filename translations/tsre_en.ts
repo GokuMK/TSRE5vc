@@ -2560,9 +2560,9 @@ Consist with this file name already exist. Overwrite?
         <source>Terra&amp;in</source>
         <translation>Terra&amp;in</translation>
     </message>
-    <message id="route.editor.route.editor.window.action.map.faded.terrain">
-        <source>&amp;Faded Terrain</source>
-        <translation>&amp;Faded Terrain</translation>
+    <message id="route.editor.route.editor.window.action.map.faded.overlay">
+        <source>&amp;Faded Overlay</source>
+        <translation>&amp;Faded Overlay</translation>
     </message>
     <message id="route.editor.route.editor.window.action.map.pointer">
         <source>&amp;Pointer</source>

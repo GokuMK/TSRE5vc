@@ -2562,9 +2562,9 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
             <source>Terra&amp;in</source>
             <translation>Te&amp;ren</translation>
         </message>
-        <message id="route.editor.route.editor.window.action.map.faded.terrain">
-            <source>&amp;Faded Terrain</source>
-            <translation>&amp;Wyblakły teren</translation>
+        <message id="route.editor.route.editor.window.action.map.faded.overlay">
+            <source>&amp;Faded Overlay</source>
+            <translation>&amp;Wyblakła nakładka</translation>
         </message>
         <message id="route.editor.route.editor.window.action.map.pointer">
             <source>&amp;Pointer</source>

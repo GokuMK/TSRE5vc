@@ -14,12 +14,12 @@
 // What the map mode draws (the Map menu). Separate from the 3D view's
 // toggles, which live in Game.
 enum class MapLayer {
-    Track, Road, Junctions, Ends, TrackObjects, Paths, Activity, Terrain, FadedTerrain, Pointer,
+    Track, Road, Junctions, Ends, TrackObjects, Paths, Activity, Terrain, FadedOverlay, Pointer,
     Count
 };
 
 struct MapLayers {
-    // Faded terrain is off: painting needs the true colours.
+    // Faded Overlay is off: painting needs the true colours.
     bool visible[int(MapLayer::Count)] = {true, true, true, true, true, true, true, true, false,
                                           true};
     bool shows(MapLayer layer) const { return visible[int(layer)]; }

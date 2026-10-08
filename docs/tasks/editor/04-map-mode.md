@@ -428,7 +428,7 @@ incremental:
 ### 7. Terrain (phase 4, designed and built 2026-10-07)
 
 Built as designed (`src/tsre/map/TerrainMapLayer`, Map > Terrain and
-Map > Faded Terrain):
+Map > Faded Overlay, formerly Faded Terrain):
 - `Terrain::descriptorLoaded` marks a tile whose tile file is read;
   `completeLoad()` reads heights and procedural state, and `loaded` keeps
   meaning the complete tile. `TerrainLib::getTerrainDescriptor` and
@@ -444,8 +444,13 @@ Map > Faded Terrain):
   direct GPU resources without the 3D distance check, spans the material
   map across the tile and repeats the materials per patch through the
   texture remap. About nine draws instead of 2300 patch packets.
-- Faded Terrain is a square of the background colour with the palette's
-  `terrainFade` alpha over the terrain, under the roads.
+- Faded Overlay (named Faded Terrain until `feature/osm-rendering`) is a
+  square of the background colour with the palette's `overlayFade` alpha
+  (files may still name it `terrainFade`) under the roads. It lies over the
+  terrain, the OSM data and the terrain aids (tile borders, quadtree lines,
+  missing-tile tint), which moved above the OSM band (heights 50 to 79); see
+  [OSM rendering](../geo/osm-rendering-design.md). It is drawn by `paintMap`
+  (`MapOverlayFade`), so it also fades OSM with terrain hidden.
 - Measured builds: under 3 ms at 16 km on USA2 (16 tiles, 12 textures);
   3D captures identical on EUROPE1, USA2 and PROCEDURAL.
 - **Terrain painting** works on the map (2026-10-08) with the texture
