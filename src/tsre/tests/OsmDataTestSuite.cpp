@@ -5,6 +5,8 @@
 #include <tsre/geo/GeoCoordinates.h>
 #include <tsre/geo/MapDataOSM.h>
 #include <tsre/Game.h>
+#include <routeEditor/AboutWindow.h>
+#include <QLabel>
 #include <QDir>
 #include <QFileInfo>
 #include <QElapsedTimer>
@@ -290,6 +292,14 @@ int runOsmDataSuite(bool verbose) {
         }
     }
     Game::GeoCoordConverter = previous;
+
+    // OSM attribution in the About window.
+    AboutWindow about(nullptr);
+    bool attributed = false;
+    for (QLabel *label : about.findChildren<QLabel *>()) attributed |= label->text().contains("openstreetmap.org/copyright");
+    check(attributed, "the About window credits OpenStreetMap contributors");
+    const QString aboutShots = qEnvironmentVariable("TSRE_OSM_UI_SNAPSHOTS");
+    if (!aboutShots.isEmpty()) about.grab().save(aboutShots + "/about.png");
 
 
     qInfo().noquote() << QStringLiteral("[tests:osm-data] %1 passed, %2 failed").arg(passed).arg(failed);

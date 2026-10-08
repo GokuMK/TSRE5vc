@@ -369,3 +369,12 @@ Tests:
 - Opt-in `TSRE_OSM_TEST_DIR` renders the real tiles above;
   `TSRE_OSM_API_XML_DIR` renders saved API responses;
   `TSRE_OSM_UI_SNAPSHOTS` saves the images.
+
+**Step 8 done (2026-10-08).**
+- User guide `docs/features/osm-data.md`.
+- An OpenStreetMap section in `docs/settings-system.md` and an entry in
+  the geo `README.md`.
+- An ODbL attribution line in the About window (EN/PL); the `osm-data`
+  suite checks it.
+- Final converter on Poland with 4 threads: 47 s (level 1, load average
+  about 3).

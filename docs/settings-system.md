@@ -204,6 +204,14 @@ file products use their catalogue-defined readable directories, while hashed
 `cache/` paths remain disposable service data. See the
 [local-source design](tasks/geo/local-elevation-sources.md) for the implemented contract.
 
+### OpenStreetMap data
+
+`core.paths.osmData` names the directory of downloaded `.osm.pbf` extracts (top level
+only). Each file is converted once into a spatially sorted `<name>.tsre.osm.pbf` next to
+it, after the user confirms; `geo.osm.originalAfterConversion` (`keep` / `delete`) decides
+whether the download stays. See [OpenStreetMap data from local files](features/osm-data.md)
+and the [design](tasks/geo/osm-data-design.md).
+
 ### Elevation service credentials
 
 Elevation catalogue entries can reference a profile secret using:

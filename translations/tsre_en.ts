@@ -1109,6 +1109,10 @@ Consist with this file name already exist. Overwrite?
         <source>Copyright © GokuMK, mail pgadecki@gmail.com </source>
         <translation>Copyright © GokuMK, mail pgadecki@gmail.com </translation>
     </message>
+    <message id="route.editor.about.window.label.osm">
+        <source>Map data from OpenStreetMap © &lt;a href="https://www.openstreetmap.org/copyright"&gt;OpenStreetMap contributors&lt;/a&gt;, available under the ODbL.</source>
+        <translation>Map data from OpenStreetMap © &lt;a href="https://www.openstreetmap.org/copyright"&gt;OpenStreetMap contributors&lt;/a&gt;, available under the ODbL.</translation>
+    </message>
     <message id="route.editor.about.window.button.browse">
         <location filename="../src/routeEditor/AboutWindow.cpp" line="47" />
         <source>Close</source>

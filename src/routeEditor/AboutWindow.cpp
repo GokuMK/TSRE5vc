@@ -16,7 +16,7 @@
 AboutWindow::AboutWindow(QWidget* parent) : QWidget(parent) {
     this->setWindowFlags( Qt::CustomizeWindowHint );
     this->setWindowFlags(Qt::WindowType::Tool);
-    this->setFixedSize(600, 300);
+    this->setFixedSize(600, 320);
     QImage* myImage = new QImage();
     myImage->load(QString("appdata/")+Game::AppDataVersion+"/load.png");
 
@@ -38,6 +38,11 @@ AboutWindow::AboutWindow(QWidget* parent) : QWidget(parent) {
         //% "Copyright © GokuMK, mail pgadecki@gmail.com "
         qtTrId("route.editor.about.window.label.my.label3"));
     myLabel3->setContentsMargins(5,0,0,0);
+    QLabel* myLabel4 = new QLabel(
+        //% "Map data from OpenStreetMap © <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap contributors</a>, available under the ODbL."
+        qtTrId("route.editor.about.window.label.osm"));
+    myLabel4->setOpenExternalLinks(true);
+    myLabel4->setContentsMargins(5,0,0,0);
   
     
     myLabel->setPixmap(QPixmap::fromImage(*myImage));
@@ -52,6 +57,7 @@ AboutWindow::AboutWindow(QWidget* parent) : QWidget(parent) {
     mainLayout->addWidget(myLabel2);
     mainLayout->addWidget(myLabel21); 
     mainLayout->addWidget(myLabel3);
+    mainLayout->addWidget(myLabel4);
     mainLayout->addWidget(browse);
     
     mainLayout->setAlignment(myLabel, Qt::AlignTop);
