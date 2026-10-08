@@ -148,5 +148,7 @@ Both MSTS loaders take the `.sd` season directory from
 name, so the clear seasons never selected seasonal shape textures;
 `SFileLegacy` also tested the Snow bit for SnowTrack (`flags & X != 0`),
 left out SummerSnow, and treated an `.sd` without
-`ESD_Alternative_Texture` as having every flag. EUROPE1 in WinterClear now
-shows the WINTER and SNOW shape textures (bare trees, snowy roofs).
+`ESD_Alternative_Texture` as having every flag. Rain seasons now fall back
+to their season, as terrain does. EUROPE1 in WinterClear shows the WINTER
+and SNOW shape textures (bare trees, snowy roofs). The rule is not yet
+checked against Open Rails: see `09-shape-seasonal-textures.md`.

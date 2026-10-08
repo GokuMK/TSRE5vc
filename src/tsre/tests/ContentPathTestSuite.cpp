@@ -98,13 +98,17 @@ int TsreTests::runContentPathSuite(bool verbose) {
             && TerrainSeason::shapeTextureDirectory(0x10,"WinterClear")=="/WINTER"
             && TerrainSeason::shapeTextureDirectory(0x14,"SummerClear").isEmpty(),
             "clear seasons select their season's shape textures; summer the main ones");
+    test.check(TerrainSeason::shapeTextureDirectory(0x4,"SpringRain")=="/SPRING"
+            && TerrainSeason::shapeTextureDirectory(0x11,"WinterRain")=="/SNOW"
+            && TerrainSeason::shapeTextureDirectory(0x14,"SummerRain").isEmpty(),
+            "rain seasons fall back to their season's shape textures");
     test.check(TerrainSeason::shapeTextureDirectory(0x11,"WinterClear")=="/SNOW"
             && TerrainSeason::shapeTextureDirectory(0x2,"WinterSnow")=="/SNOW"
             && TerrainSeason::shapeTextureDirectory(0x1,"SummerSnow")=="/SNOW"
             && TerrainSeason::shapeTextureDirectory(0x20,"SpringSnow")=="/SPRINGSNOW",
             "snow and snow-track shapes use SNOW in winter and snow seasons");
     test.check(TerrainSeason::shapeTextureDirectory(0,"WinterSnow").isEmpty()
-            && TerrainSeason::shapeTextureDirectory(0x4,"SpringRain").isEmpty(),
+            && TerrainSeason::shapeTextureDirectory(0x8,"SpringRain").isEmpty(),
             "shapes without the season's flag keep the main textures");
 
     QScopedValueRollback<bool> syncImages(ImageLib::IsThread,false);

@@ -21,7 +21,9 @@ QString TerrainSeason::shapeTextureDirectory(int alternativeFlags, const QString
     static const QList<QPair<QString, int>> seasons{
         {"Spring", 0x4}, {"Autumn", 0x8}, {"Winter", 0x10},
         {"SpringSnow", 0x20}, {"AutumnSnow", 0x40}, {"WinterSnow", 0x80}};
-    const QString s = legacySeason(season);
+    QString s = legacySeason(season);
+    if (s.endsWith("Rain", Qt::CaseInsensitive))
+        s.chop(4);
     QString directory;
     for (const auto &entry : seasons)
         if (s.compare(entry.first, Qt::CaseInsensitive) == 0 && (alternativeFlags & entry.second) != 0)
