@@ -1447,7 +1447,21 @@ void RouteEditorGLWidget::mousePressEvent(QMouseEvent *event) {
         // selected activity object drags it with the select tool instead.
         mapPressPos = m_lastPos;
         mapDraggingObject = false;
+        mapEditing = false;
         EditorTool *tool = activeTool();
+        if (event->button() == Qt::LeftButton && tool != nullptr
+                && tool->supports(ViewMode::Map) && tool->editsByDragging()) {
+            mapEditing = true;
+            mousex = float(m_lastPos.x());
+            mousey = float(m_lastPos.y());
+            updateMapPointer();
+            Undo::StateBegin();
+            tool->press(*this, ToolMouse{m_lastPos, m_lastPos});
+            terrainMap->rebuild();
+            update();
+            setFocus();
+            return;
+        }
         if (event->button() == Qt::LeftButton && tool != nullptr && tool->id() == "selectTool"
                 && selectedObj != NULL && selectedObj->typeObj == GameObj::activityobj
                 && appliedSelectionId != 0) {
@@ -1593,9 +1607,12 @@ void RouteEditorGLWidget::mouseReleaseEvent(QMouseEvent* event) {
     camera->MouseUp(event);
     if (currentViewMode == ViewMode::Map) {
         mouseClick = false;
-        if (mapDraggingObject) {
-            mapDraggingObject = false;
-            Undo::StateEnd();
+        if (mapDraggingObject || mapEditing) {
+            if (event->button() == Qt::LeftButton) {
+                mapDraggingObject = false;
+                mapEditing = false;
+                Undo::StateEnd();
+            }
             return;
         }
         const QPointF position = event->position() * Game::PixelRatio;
@@ -1613,6 +1630,7 @@ void RouteEditorGLWidget::mouseReleaseEvent(QMouseEvent* event) {
             // What the tool changed shows on the next draw.
             trackItemMap->rebuild();
             activityMap->invalidate();
+            terrainMap->rebuild();
             update();
         }
         return;
@@ -1648,14 +1666,21 @@ void RouteEditorGLWidget::mouseMoveEvent(QMouseEvent *event) {
     mousey = event->position().y() * Game::PixelRatio;
     if (currentViewMode == ViewMode::Map) {
         const QPointF position = event->position() * Game::PixelRatio;
-        if (mapDraggingObject && (event->buttons() & Qt::LeftButton)) {
+        if (mapEditing && (event->buttons() & Qt::LeftButton)) {
+            if (EditorTool *tool = activeTool()) {
+                updateMapPointer();
+                tool->drag(*this, ToolMouse{position, m_lastPos});
+                terrainMap->rebuild();
+                update();
+            }
+        } else if (mapDraggingObject && (event->buttons() & Qt::LeftButton)) {
             if (EditorTool *tool = activeTool()) {
                 updateMapPointer();
                 tool->drag(*this, ToolMouse{position, m_lastPos});
                 activityMap->invalidate();
                 update();
             }
-        } else if (event->buttons() & (Qt::LeftButton | Qt::RightButton)) {
+        } else if (event->buttons() & (Qt::LeftButton | Qt::RightButton | Qt::MiddleButton)) {
             camera->MouseMove(event);
         }
         m_lastPos = position;
@@ -1914,6 +1939,24 @@ bool RouteEditorGLWidget::pointerOnTrack(int &tileX, int &tileZ, float *position
         return false;
     tileX = int(posT[0]);
     tileZ = int(posT[1]);
+    return true;
+}
+
+bool RouteEditorGLWidget::prepareTerrainEdit(bool procedural) {
+    if (currentViewMode != ViewMode::Map)
+        return true;
+    const MapView &view = cameraMap->view;
+    if (procedural ? !TerrainMapLayer::drawsProcedural(view)
+                   : !TerrainMapLayer::drawsDetailedPatches(view))
+        return false;
+    if (Game::terrainLib == NULL)
+        return false;
+    int x = tileX(), z = tileZ();
+    float px = aktPointerPos[0], pz = aktPointerPos[2];
+    Game::check_coords(x, z, px, pz);
+    for (int i = -1; i <= 1; ++i)
+        for (int j = -1; j <= 1; ++j)
+            Game::terrainLib->getTerrainByXY(x + i, z + j, true);
     return true;
 }
 

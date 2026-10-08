@@ -59,9 +59,7 @@ TerrainMapLayer::TerrainMapLayer()
     : distantBorders(std::make_unique<OglObj>()), borders(std::make_unique<OglObj>()),
       fade(std::make_unique<OglObj>()) {}
 
-TerrainMapLayer::~TerrainMapLayer() {
-    releaseTextures();
-}
+TerrainMapLayer::~TerrainMapLayer() = default;
 
 bool TerrainMapLayer::drawsDetailedPatches(const MapView &view) {
     return std::max(view.width, view.height) * view.metresPerPixel <= DetailedExtentMetres;
@@ -80,39 +78,19 @@ void TerrainMapLayer::appendPatch(std::vector<float> &out, const float *corners,
     }
 }
 
-int TerrainMapLayer::texture(Terrain *tile, const QString &name) {
-    auto found = textures.constFind(name);
-    if (found != textures.constEnd())
-        return found.value();
-    const int id = tile->loadMapTexture(name);
-    textures.insert(name, id);
-    return id;
-}
-
-void TerrainMapLayer::releaseTextures() {
-    for (int id : std::as_const(textures))
-        if (id >= 0)
-            TexLib::delRef(id);
-    textures.clear();
-}
-
 void TerrainMapLayer::invalidate() {
     valid = false;
     distant.clear();
     detailed.clear();
     procedural.clear();
-    releaseTextures();
 }
 
 void TerrainMapLayer::appendTile(Terrain *tile, const MapView &view, float y,
                                  QHash<int, std::vector<float>> &byTexture) {
     float corners[16];
     for (int patch = 0; patch < tile->getGridLayout().patchRecordCount(); ++patch) {
-        const QString name = tile->mapPatchTextureName(patch);
-        if (name.isEmpty() || !tile->mapPatchCorners(patch, view.tileX, view.tileZ, corners))
-            continue;
-        const int id = texture(tile, name);
-        if (id >= 0)
+        const int id = tile->mapPatchTexture(patch);
+        if (id >= 0 && tile->mapPatchCorners(patch, view.tileX, view.tileZ, corners))
             appendPatch(byTexture[id], corners, y);
     }
 }
@@ -236,7 +214,7 @@ void TerrainMapLayer::build(const MapView &view, const MapPalette &palette, Terr
                           << view.metresPerPixel << "distant tiles" << seenDistant.size()
                           << "loaded" << distantTiles << "detailed tiles" << seenDetailed.size()
                           << "loaded" << detailedTiles << "procedural" << procedural.size()
-                          << "textures" << textures.size() << "ms"
+                          << "textures" << distant.size() + detailed.size() << "ms"
                           << timer.nsecsElapsed() / 1e6;
 }
 

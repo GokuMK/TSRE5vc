@@ -100,6 +100,9 @@ TerrainTools::TerrainTools(QString name)
         buttonTools["proceduralLockTool"] = new QPushButton(
             //% "Lock"
             qtTrId("route.editor.terrain.tools.button.lock.2"), this);
+        // They start the static section's tools (ToolButtons follows these).
+        buttonTools["proceduralPickTool"]->setProperty("tool", "pickTerrainTexTool");
+        buttonTools["proceduralLockTool"]->setProperty("tool", "lockTexTool");
         buttonTools["proceduralPickTool"]->setToolTip(
             //% "Pick the source material from terrain. Same picking tool as in the static section."
             qtTrId("route.editor.terrain.tools.tooltip.pick.source.material.from.terrain.same.picking"));

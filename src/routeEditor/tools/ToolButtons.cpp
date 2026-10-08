@@ -53,7 +53,9 @@ void applyMode(const QMap<QString, QPushButton *> &buttons, ViewMode mode) {
         if (button == nullptr)
             continue;
         initialise(button);
-        button->setProperty(ModeAllowed, allowed(it.key(), mode));
+        // A button may start a tool under another name (its "tool" property).
+        const QString tool = button->property("tool").toString();
+        button->setProperty(ModeAllowed, allowed(tool.isEmpty() ? it.key() : tool, mode));
         update(button);
     }
 }

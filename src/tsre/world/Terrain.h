@@ -68,19 +68,18 @@ public:
     // true when the tile is complete.
     bool completeLoad();
     // Map mode (task editor 04), from the tile file only: a patch's texture
-    // name ("" for none or a hidden patch) and its flat square, as the 3D
-    // view places it: four corners of x, z relative to the tile tileX,
+    // (the one the 3D view draws and painting edits, loaded as the 3D view
+    // loads it; -1 for none or a hidden patch) and its flat square, as the
+    // 3D view places it: four corners of x, z relative to the tile tileX,
     // tileZ (the view's tile convention), u and v, in the order of samples
     // (0, 0), (R, 0), (R, R), (0, R).
-    QString mapPatchTextureName(int patch) const;
+    int mapPatchTexture(int patch);
     bool mapPatchCorners(int patch, int tileX, int tileZ, float *corners) const;
     // A packet drawing the whole complete tile with the direct GPU material
     // shading, from one square whose texture coordinates span the tile;
     // false when the tile has none.
     bool configureMapProceduralPacket(RenderItem &item);
-    // A texture of the tile's terrain textures, with the season applied: a
-    // new TexLib reference.
-    int loadMapTexture(const QString &filename) { return loadTerrainTexture(filename); }
+
     Terrain(const Terrain& orig);
     virtual void saveTfileToStream(QDataStream &out);
     virtual void saveRAWfileToStream(QDataStream &out);

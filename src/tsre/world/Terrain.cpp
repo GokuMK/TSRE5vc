@@ -152,14 +152,17 @@ bool Terrain::loadDescriptor(){
     return true;
 }
 
-QString Terrain::mapPatchTextureName(int patch) const {
+int Terrain::mapPatchTexture(int patch) {
     if (!descriptorLoaded || tfile == NULL || !gridLayout.isPatchIndexValid(patch)
             || patch >= int(tfile->patches().size()) || hidden[patch])
-        return QString();
-    const int shader = int(tfile->patches()[patch].shaderIndex);
-    if (!tfile->hasMaterial(shader))
-        return QString();
-    return tfile->textureName(shader);
+        return -1;
+    // As pushRenderItem: -2 marks a patch without a shader.
+    if (texid[patch] == -1) {
+        const int shader = int(tfile->patches()[patch].shaderIndex);
+        texid[patch] = tfile->hasMaterial(shader)
+                ? loadTerrainTexture(tfile->material(shader).textures[0].filename) : -2;
+    }
+    return texid[patch] >= 0 ? texid[patch] : -1;
 }
 
 bool Terrain::mapPatchCorners(int patch, int tileX, int tileZ, float *corners) const {

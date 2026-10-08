@@ -56,6 +56,12 @@ public:
     // for map mode where the pointer has no height: tileX, tileZ and
     // position (x, y, z) are replaced by it. False without track.
     virtual bool pointerOnTrack(int &tileX, int &tileZ, float *position) = 0;
+    // Before a terrain edit. In map mode: false where the map does not show
+    // what the edit changes (static textures need the detailed tiles,
+    // procedural ones the procedural level); otherwise the tiles around the
+    // pointer are completed, as only complete tiles are edited and saved.
+    // In 3D, true.
+    virtual bool prepareTerrainEdit(bool procedural) = 0;
     virtual ObjectEdit objectEdit() const = 0;
     virtual void setObjectEdit(ObjectEdit edit) = 0;
     // Whether the pointer stays on the terrain or also lands on objects.

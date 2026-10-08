@@ -448,9 +448,26 @@ Map > Faded Terrain):
   `terrainFade` alpha over the terrain, under the roads.
 - Measured builds: under 3 ms at 16 km on USA2 (16 tiles, 12 textures);
   3D captures identical on EUROPE1, USA2 and PROCEDURAL.
-- Not yet: terrain painting on the map (tools must complete a tile before
-  editing it, as saving writes heights); procedural tiles without heights
-  (a third load stage) if memory needs it.
+- **Terrain painting** works on the map (2026-10-08) with the texture
+  tools: paint colour and texture, put, pick and lock textures, and the
+  procedural paint, fills and enable/disable. Height, water, gaps and
+  fixed height stay 3D only.
+  - Before an edit, `ToolContext::prepareTerrainEdit` completes the tiles
+    around the pointer (heights included), as only complete tiles are
+    edited and saved; a later save could check terrain state instead.
+  - It also refuses edits the map would not show: static textures need
+    the Detailed level (16 km), procedural ones the Procedural level.
+  - Tools that edit by dragging (`EditorTool::editsByDragging`: painting,
+    put texture) take the left drag; the middle button moves the map.
+    Other tools act on a click, and the left drag pans.
+  - Patch squares use the tile's own textures (`Terrain::mapPatchTexture`
+    fills `texid` as the 3D draw does), so painted and unique textures
+    show at once, and tiles the map completed have the textures painting
+    needs. Procedural painting shows at once through the GPU shading.
+  - The procedural Pick and Lock buttons start the static tools; a
+    button's `tool` property tells `ToolButtons` which tool it starts.
+- Not yet: procedural tiles without heights (a third load stage) if
+  memory needs it.
 
 Terrain is drawn flat, under every other layer, as textured squares. Which
 squares depends on how much ground the view shows (metres across its

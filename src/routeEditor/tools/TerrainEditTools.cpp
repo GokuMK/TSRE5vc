@@ -29,11 +29,16 @@
 
 namespace {
 
+// The texture tools also work in map mode (task editor 04); height, water
+// and gaps make little sense on a flat map and stay 3D only.
+const ViewModes TextureModes = ViewMode::Scene3D | ViewMode::Map;
+
 // A tool whose click runs one command at the pointer.
 class ClickTool : public EditorTool {
 public:
-    ClickTool(const QString &id, std::function<void(ToolContext &)> command)
-        : EditorTool(id), command(std::move(command)) {}
+    ClickTool(const QString &id, std::function<void(ToolContext &)> command,
+              ViewModes modes = ViewMode::Scene3D)
+        : EditorTool(id, modes), command(std::move(command)) {}
 
     bool press(ToolContext &ctx, const ToolMouse &) override {
         command(ctx);
@@ -171,9 +176,12 @@ protected:
 // Shift around the nearest object.
 class PaintTool : public EditorTool {
 public:
-    using EditorTool::EditorTool;
+    explicit PaintTool(const QString &id) : EditorTool(id, TextureModes) {}
+    bool editsByDragging() const override { return true; }
 
     bool press(ToolContext &ctx, const ToolMouse &) override {
+        if (!ctx.prepareTerrainEdit(false))
+            return true;
         if (ctx.controlDown())
             ctx.currentRoute()->setTerrainTextureToTrack(ctx.tileX(), ctx.tileZ(), ctx.pointer(),
                                                          ctx.brush(), 0);
@@ -185,7 +193,7 @@ public:
         return true;
     }
     void drag(ToolContext &ctx, const ToolMouse &mouse) override {
-        if (mouse.moved())
+        if (mouse.moved() && ctx.prepareTerrainEdit(false))
             Game::terrainLib->paintTexture(ctx.brush(), ctx.tileX(), ctx.tileZ(), ctx.pointer());
     }
 
@@ -227,15 +235,19 @@ public:
 class ProceduralPaintTool : public EditorTool {
 public:
     ProceduralPaintTool(const QString &id, int operation, bool paintsWhileDragging)
-        : EditorTool(id), operation(operation), paintsWhileDragging(paintsWhileDragging) {}
+        : EditorTool(id, TextureModes), operation(operation),
+          paintsWhileDragging(paintsWhileDragging) {}
+    bool editsByDragging() const override { return paintsWhileDragging; }
 
     bool press(ToolContext &ctx, const ToolMouse &) override {
+        if (!ctx.prepareTerrainEdit(true))
+            return true;
         Game::terrainLib->paintProceduralTexture(ctx.brush(), ctx.tileX(), ctx.tileZ(), ctx.pointer(),
                                                  operation);
         return true;
     }
     void drag(ToolContext &ctx, const ToolMouse &mouse) override {
-        if (!paintsWhileDragging || !mouse.moved())
+        if (!paintsWhileDragging || !mouse.moved() || !ctx.prepareTerrainEdit(true))
             return;
         Undo::StateBeginIfNotExist();
         Game::terrainLib->paintProceduralTexture(ctx.brush(), ctx.tileX(), ctx.tileZ(), ctx.pointer());
@@ -248,9 +260,11 @@ private:
 
 class PickTextureTool : public EditorTool {
 public:
-    PickTextureTool() : EditorTool("pickTerrainTexTool") {}
+    PickTextureTool() : EditorTool("pickTerrainTexTool", TextureModes) {}
 
     bool press(ToolContext &ctx, const ToolMouse &) override {
+        if (!ctx.prepareTerrainEdit(false))
+            return true;
         const int textureId = Game::terrainLib->getTexture(ctx.tileX(), ctx.tileZ(), ctx.pointer());
         ctx.reportTextureId(textureId);
         int x = ctx.tileX(), z = ctx.tileZ();
@@ -271,9 +285,12 @@ public:
 
 class ProceduralTileTool : public EditorTool {
 public:
-    ProceduralTileTool(const QString &id, bool enable) : EditorTool(id), enable(enable) {}
+    ProceduralTileTool(const QString &id, bool enable)
+        : EditorTool(id, TextureModes), enable(enable) {}
 
     bool press(ToolContext &ctx, const ToolMouse &) override {
+        if (!ctx.prepareTerrainEdit(false))
+            return true;
         int x = ctx.tileX(), z = ctx.tileZ();
         float px = ctx.pointer()[0], pz = ctx.pointer()[2];
         Game::check_coords(x, z, px, pz);
@@ -309,15 +326,18 @@ private:
 // Sets whole patch textures; the brush sets their orientation.
 class PutTextureTool : public EditorTool {
 public:
-    PutTextureTool() : EditorTool("putTerrainTexTool") {}
+    PutTextureTool() : EditorTool("putTerrainTexTool", TextureModes) {}
+    bool editsByDragging() const override { return true; }
 
     bool press(ToolContext &ctx, const ToolMouse &) override {
-        put(ctx);
+        if (ctx.prepareTerrainEdit(false))
+            put(ctx);
         return true;
     }
     void drag(ToolContext &ctx, const ToolMouse &) override {
         // A patch is 32 m wide: one texture a patch the pointer crosses.
-        if (std::fabs(last[0] - ctx.pointer()[0]) > 32 || std::fabs(last[2] - ctx.pointer()[2]) > 32)
+        if ((std::fabs(last[0] - ctx.pointer()[0]) > 32 || std::fabs(last[2] - ctx.pointer()[2]) > 32)
+                && ctx.prepareTerrainEdit(false))
             put(ctx);
     }
 
@@ -379,8 +399,9 @@ std::vector<std::unique_ptr<EditorTool>> create() {
     tools.push_back(std::make_unique<ProceduralTileTool>("proceduralTileEnableTool", true));
     tools.push_back(std::make_unique<ProceduralTileTool>("proceduralTileDisableTool", false));
     tools.push_back(std::make_unique<PutTextureTool>());
-    auto click = [&tools](const char *id, std::function<void(ToolContext &)> command) {
-        tools.push_back(std::make_unique<ClickTool>(id, std::move(command)));
+    auto click = [&tools](const char *id, std::function<void(ToolContext &)> command,
+                          ViewModes modes = ViewMode::Scene3D) {
+        tools.push_back(std::make_unique<ClickTool>(id, std::move(command), modes));
     };
     click("drawTerrTool", [](ToolContext &ctx) {
         Game::terrainLib->toggleDraw(ctx.tileX(), ctx.tileZ(), ctx.pointer());
@@ -392,8 +413,9 @@ std::vector<std::unique_ptr<EditorTool>> create() {
         Game::terrainLib->setFixedTileHeight(ctx.brush(), ctx.tileX(), ctx.tileZ(), ctx.pointer());
     });
     click("lockTexTool", [](ToolContext &ctx) {
-        Game::terrainLib->lockTexture(ctx.brush(), ctx.tileX(), ctx.tileZ(), ctx.pointer());
-    });
+        if (ctx.prepareTerrainEdit(false))
+            Game::terrainLib->lockTexture(ctx.brush(), ctx.tileX(), ctx.tileZ(), ctx.pointer());
+    }, TextureModes);
     click("makeTileTextureTool", [](ToolContext &ctx) {
         Game::terrainLib->makeTextureFromMap(ctx.tileX(), ctx.tileZ(), ctx.pointer());
     });

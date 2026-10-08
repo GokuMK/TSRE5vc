@@ -43,6 +43,7 @@ public:
     void setLastSelected(GameObj *) override {}
     void requestSelectionPass() override { selectionRequested = true; }
     bool pointerOnTrack(int &, int &, float *) override { return false; }
+    bool prepareTerrainEdit(bool) override { return true; }
     ObjectEdit objectEdit() const override { return edit; }
     void setObjectEdit(ObjectEdit chosen) override { edit = chosen; }
     bool sticks = true;
@@ -257,6 +258,27 @@ int TsreTests::runEditorToolsSuite(bool verbose) {
                   && ToolButtons::allowed("pickNewEventLocationTool", ViewMode::Map)
                   && !ToolButtons::allowed("placeTool", ViewMode::Map),
           "activity tools work in map mode; the others stay 3D only");
+    // Terrain: texture tools on the map, height and geometry tools in 3D
+    // only; painting edits by dragging.
+    bool textureTools = true;
+    for (const char *id : {"paintToolColor", "paintToolTexture", "putTerrainTexTool",
+                           "pickTerrainTexTool", "lockTexTool", "proceduralPaintTextureTool",
+                           "proceduralFillPatchTool", "proceduralFillTool",
+                           "proceduralTileEnableTool", "proceduralTileDisableTool"})
+        textureTools = textureTools && registry.allowed(id, ViewMode::Map);
+    bool geometryTools = false;
+    for (const char *id : {"heightTool", "waterTerrTool", "gapsTerrainTool", "fixedTileTool",
+                           "drawTerrTool"})
+        geometryTools = geometryTools || registry.allowed(id, ViewMode::Map);
+    check(textureTools && !geometryTools && registry.find("paintToolTexture")->editsByDragging()
+                  && registry.find("putTerrainTexTool")->editsByDragging()
+                  && !registry.find("proceduralFillTool")->editsByDragging()
+                  && !registry.find("pickTerrainTexTool")->editsByDragging(),
+          "terrain: texture tools work on the map, height tools stay 3D; painting drags");
+    QPushButton aliased;
+    aliased.setProperty("tool", "pickTerrainTexTool");
+    ToolButtons::applyMode({{"proceduralPickTool", &aliased}}, ViewMode::Map);
+    check(aliased.isEnabled(), "panel buttons: a button follows the tool it starts");
     ToolButtons::setRegistry(nullptr);
 
     qInfo().noquote() << "[tests:editor-tools] cases=" << passed + failed << "passed=" << passed

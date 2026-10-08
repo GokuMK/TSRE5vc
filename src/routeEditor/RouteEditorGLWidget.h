@@ -219,6 +219,7 @@ private:
     void setLastSelected(GameObj *object) override { lastSelectedObj = object; }
     void requestSelectionPass() override { selection = true; }
     bool pointerOnTrack(int &tileX, int &tileZ, float *position) override;
+    bool prepareTerrainEdit(bool procedural) override;
     ObjectEdit objectEdit() const override;
     void setObjectEdit(ObjectEdit edit) override;
     bool pointerSticksToTerrain() const override { return stickPointerToTerrain; }
@@ -346,6 +347,9 @@ private:
     // A left press on the map that picked the selected activity object:
     // the drag moves it instead of the map.
     bool mapDraggingObject = false;
+    // A left press with a tool that edits by dragging (painting): the drag
+    // goes to the tool, the middle button moves the map.
+    bool mapEditing = false;
     std::unique_ptr<MapSelection> mapSelection;
     // The ID of the last selection applied, to know a press is on it.
     quint32 appliedSelectionId = 0;

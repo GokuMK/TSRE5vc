@@ -31,7 +31,8 @@ void setRegistry(const ToolRegistry *registry);
 ViewMode modeOf(const QString &value);
 // Whether a tool works in a mode.
 bool allowed(const QString &tool, ViewMode mode);
-// Enables each button whose tool the mode allows.
+// Enables each button whose tool the mode allows: the tool of its key, or
+// of its "tool" property when it starts a tool under another name.
 void applyMode(const QMap<QString, QPushButton *> &buttons, ViewMode mode);
 // A button's own condition (for example a selection it needs), kept
 // together with the mode's: the button is enabled when both allow it.

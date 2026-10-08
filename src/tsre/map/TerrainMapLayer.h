@@ -58,6 +58,8 @@ public:
                          TerrainLib *terrain, bool faded = false);
     // Tiles or textures changed: everything is read again.
     void invalidate();
+    // Builds the geometry again on the next draw (an edit changed patches).
+    void rebuild() { valid = false; }
 
     // Whether a view shows the detailed tiles' patches, and procedural
     // tiles with their GPU material shading.
@@ -85,8 +87,6 @@ private:
     static Procedural proceduralSquare(Terrain *tile, const MapView &view, int tileX, int tileZ);
     static void appendOutline(std::vector<float> &out, const TerrainInfo &info,
                               const MapView &view, float y, float width);
-    int texture(Terrain *tile, const QString &name);
-    void releaseTextures();
 
     bool valid = false;
     int builtTileX = 0;
@@ -102,8 +102,6 @@ private:
     std::unique_ptr<OglObj> distantBorders;
     std::unique_ptr<OglObj> borders;
     std::unique_ptr<OglObj> fade;
-    // TexLib references this layer holds, by texture name.
-    QHash<QString, int> textures;
 };
 
 #endif
