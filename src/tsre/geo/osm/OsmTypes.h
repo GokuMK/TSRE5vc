@@ -60,6 +60,7 @@ struct Box {
         return valid() && b.valid() && minX <= b.maxX && b.minX <= maxX && minY <= b.maxY && b.minY <= maxY;
     }
     bool contains(Location l) const { return l.x >= minX && l.x <= maxX && l.y >= minY && l.y <= maxY; }
+    bool containsBox(const Box &b) const { return valid() && b.valid() && b.minX >= minX && b.maxX <= maxX && b.minY >= minY && b.maxY <= maxY; }
     bool operator==(const Box &o) const { return minX == o.minX && minY == o.minY && maxX == o.maxX && maxY == o.maxY; }
 };
 

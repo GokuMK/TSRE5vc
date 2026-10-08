@@ -198,22 +198,37 @@ bool MapGeometry::load(const OsmStore &store, const Box &area, double metersPerP
     std::vector<float> xz;
     std::vector<MapRing> rings(1);
     double triangulate = 0;
-    Filter filter;
-    filter.types = Ways | Relations;
     const auto start = Clock::now();
-    const bool ok = store.forEach(area, filter, [&](const Feature &f) {
-        if (cancelled()) return;
-        if (f.type == ItemType::Relation) {
+    // Relations first (a few blocks): the drawn multipolygons and their member ways, which
+    // the ways pass keeps so assembly reads only the members outside the area.
+    Filter relationFilter;
+    relationFilter.types = Relations;
+    if (!store.forEach(area, relationFilter, [&](const Feature &f) {
             if (f.value("type") != "multipolygon") return;
             const Classification c = classes_.classify(f);
             const Style &s = classes_.style(c);
             if (!c.cls || !s.hasFill || !s.visibleAt(metersPerPixel)) return;
             relations.push_back(RelationData::from(f));
             relationClasses.push_back(c);
-            return;
+        }, error))
+        return false;
+    std::vector<int64_t> memberIds;
+    for (const RelationData &r : relations)
+        for (const auto &m : r.members) if (m.type == ItemType::Way) memberIds.push_back(m.ref);
+    std::sort(memberIds.begin(), memberIds.end());
+    memberIds.erase(std::unique(memberIds.begin(), memberIds.end()), memberIds.end());
+    std::unordered_map<int64_t, WayGeometry> members;
+    Filter filter;
+    filter.types = Ways;
+    const bool ok = store.forEach(area, filter, [&](const Feature &f) {
+        if (cancelled() || f.refCount < 2) return;
+        if (std::binary_search(memberIds.begin(), memberIds.end(), f.id)) {
+            WayGeometry &g = members[f.id];
+            g.refs.assign(f.refs, f.refs + f.refCount);
+            g.locations.assign(f.locations, f.locations + f.refCount);
         }
         // Untagged ways are relation members; their relation draws them.
-        if (!f.tagCount() || f.refCount < 2) return;
+        if (!f.tagCount()) return;
         const Classification c = classes_.classify(f);
         const Style &s = classes_.style(c);
         if (!s.visibleAt(metersPerPixel)) return;
@@ -246,7 +261,8 @@ bool MapGeometry::load(const OsmStore &store, const Box &area, double metersPerP
 
     auto t = Clock::now();
     std::vector<MultipolygonResult> polygons;
-    if (!relations.empty() && !assembleMultipolygons(store, relations, polygons, error)) return false;
+    if (!relations.empty() && !assembleMultipolygons(store, relations, members, polygons, error, area)) return false;
+    std::unordered_map<int64_t, WayGeometry>().swap(members);
     stats_.relations = relations.size();
     stats_.assembleSeconds = since(t);
     for (size_t r = 0; r < polygons.size() && !cancelled(); ++r) {

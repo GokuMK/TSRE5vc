@@ -130,7 +130,7 @@ bool SortedPbfStore::forEach(const Box &area, const Filter &filter, const Featur
         for (const Block &b : f.blocks) {
             if (!(filter.types & (1u << uint32_t(b.index.kind)))) continue;
             // Blocks without bounds hold relations with no resolvable member: nothing to place.
-            if (!b.index.bounds.valid() || !b.index.bounds.intersects(area)) continue;
+            if (!b.index.bounds.valid() || !b.index.bounds.intersects(area) || filter.readAlready.containsBox(b.index.bounds)) continue;
             wanted.push_back({fi, b.blob, cached(cacheKey(fi, b.blob))});
         }
         filesUsed += wanted.size() > before;
