@@ -28,7 +28,7 @@ class Texture;
 struct MapPalette;
 
 // What a label names: its dot takes the palette colour of the kind.
-enum class MapLabelKind : unsigned char { Marker, Station, Platform, Siding, Event, Count };
+enum class MapLabelKind : unsigned char { Marker, Station, Platform, Siding, Event, Place, OsmStation, Count };
 
 // A named point for the map (task editor 04, labels; docs/tasks/geo/osm-rendering-design.md).
 struct MapLabel {
@@ -119,12 +119,16 @@ public:
     // Placement, public for tests. A candidate: its dot's screen centre and its name's
     // size (pixels), in priority order. Returns the accepted names' top-left corners,
     // or -1 for a left out one.
+    // Candidates with the same non-zero key (the same name) within duplicatePixels of
+    // one already placed are left out: a town named by two sources shows once.
     struct Candidate {
         float x = 0.0f, y = 0.0f;
         int width = 0, height = 0;
+        unsigned int key = 0;
     };
     static std::vector<QPoint> place(const std::vector<Candidate> &candidates, int screenWidth, int screenHeight,
-                                     float dotPixels, float gapPixels);
+                                     float dotPixels, float gapPixels, float duplicatePixels = 0.0f);
+    static constexpr float DuplicatePixels = 120.0f;
 
 private:
     void build(const MapView &view, const MapPalette &palette, float pixelRatio);

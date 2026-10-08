@@ -64,6 +64,9 @@ struct MapPalette {
     QColor label = QColor(30, 30, 36);
     QColor labelHalo = QColor(255, 255, 255);
     QColor marker = QColor(176, 32, 122);
+    // OSM data's named places and railway stations.
+    QColor place = QColor(90, 90, 100);
+    QColor osmStation = QColor(40, 90, 170);
 
     static MapPalette light();
     static MapPalette dark();

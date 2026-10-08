@@ -189,6 +189,10 @@ int TsreTests::runMapViewSuite(bool verbose) {
                       && placed[3].x() < 0 && placed[4].y() > 5,
               "labels: the first name above its dot; one on the same dot left out; a neighbour moved aside; "
               "off screen left out; at the top edge placed below");
+        C kraków{100, 100, 60, 16, 7}, sameName{100, 160, 60, 16, 7}, other{100, 220, 60, 16, 9}, far{350, 100, 40, 16, 7};
+        const auto deduped = MapLabelLayer::place({kraków, sameName, other, far}, 500, 300, 5.0f, 2.0f, 120.0f);
+        check(deduped[0].x() >= 0 && deduped[1].x() < 0 && deduped[2].x() >= 0 && deduped[3].x() >= 0,
+              "labels: the same name within 120 pixels is placed once; other names and distant ones are placed");
         bool major = false, minor = true;
         const double capital = placeLabelPriority("PPLC", 1000, &major), seat = placeLabelPriority("PPLA", 5000000);
         const double big = placeLabelPriority("PPL", 900000, &minor), small = placeLabelPriority("PPL", 20000);

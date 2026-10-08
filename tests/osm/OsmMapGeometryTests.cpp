@@ -135,6 +135,12 @@ void runMapGeometryTests(const std::function<void(bool, const char *)> &check) {
     for (int i = 0; i <= 100; ++i) jitter.push_back({i * 10.0, 3000 + (i % 2) * 1.0});
     fx.way(8, {{"highway", "primary"}}, fx.line(jitter));
     fx.way(9, {{"highway", "primary"}}, fx.line({{1000, 1000}, {1010, 1000}}));  // a short piece of way 3's road
+    const Tag town[] = {{"place", "town"}, {"name", "Tczew"}, {"population", "59000"}};
+    const Tag station[] = {{"railway", "station"}, {"name", "Tczew"}, {"public_transport", "station"}};
+    const Tag nameless[] = {{"place", "village"}};
+    fx.nodes.addNode(fx.next++, at(300, 400), town, 3);
+    fx.nodes.addNode(fx.next++, at(320, 380), station, 3);
+    fx.nodes.addNode(fx.next++, at(900, 900), nameless, 1);
     HeaderInfo h;
     h.requiredFeatures << "OsmSchema-V0.6" << "DenseNodes";
     std::string a, b, c;
@@ -167,6 +173,14 @@ void runMapGeometryTests(const std::function<void(bool, const char *)> &check) {
               && frontFacing(wood->vertices, MapBatch::Triangles, &woodArea) && std::fabs(woodArea - 960000) < 2000,
           "load at 1 m/px: the buildings and the forest with its clearing, projected and filled");
     check(geometry.stats().points > 101 + 3, "at 1 m/px a 1 m zigzag keeps its points (tolerance 0.5 m)");
+    {
+        const auto &labels = geometry.labels();
+        const MapGeometry::PointLabel *t = nullptr, *s = nullptr;
+        for (const auto &l : labels) (l.kind == MapGeometry::PointKind::Town ? t : s) = &l;
+        check(labels.size() == 2 && t && s && t->name == "Tczew" && t->population == 59000 && s->kind == MapGeometry::PointKind::Station
+                  && std::fabs(t->x - 300) < 0.5 && std::fabs(t->z + 400) < 0.5,
+              "named places and stations are collected and projected; unnamed ones left out");
+    }
     std::vector<MapBatch> strokes;
     geometry.strokes(1.0, strokes);
     const Style &residential = classes.style(classes.classify(1, [](uint32_t) { return Tag{"highway", "residential"}; }));

@@ -39,6 +39,8 @@ MapPalette MapPalette::dark() {
     palette.label = QColor(236, 237, 242);
     palette.labelHalo = QColor(20, 22, 26);
     palette.marker = QColor(255, 96, 192);
+    palette.place = QColor(180, 182, 190);
+    palette.osmStation = QColor(110, 160, 240);
     return palette;
 }
 
@@ -83,6 +85,8 @@ bool MapPalette::fromJson(const QByteArray &json, MapPalette &palette, QString *
     read("label", palette.label);
     read("labelHalo", palette.labelHalo);
     read("marker", palette.marker);
+    read("place", palette.place);
+    read("osmStation", palette.osmStation);
     read("terrainBorder", palette.terrainBorder);
     read("quadBorder", palette.quadBorder);
     read("missingTile", palette.missingTile);

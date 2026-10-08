@@ -427,9 +427,29 @@ Instead (`MapLabelLayer`, `MapLabelAtlas`):
 - Measured on TEST_PROFILES with Polish Country Places (363 places): all of
   Poland places 152 names, 21 ms the first time (font set-up included), a
   region 49 names, 5 ms with new names, 1 ms without.
-- Next: OSM places (city, town, village nodes, already in the overview
-  levels) and stations; street names along roads would need a glyph atlas
-  (QTextLayout shaping, QRawFont glyph images) and are left for later.
+- Route data (2026-10-09): station, platform and siding names and location
+  events join the same layer (see the map-mode task).
+- **OSM names** (2026-10-09): nodes tagged `place` (city, town, village,
+  hamlet, suburb or quarter) or `railway` (station, halt) with a `name`, read
+  by `Osm::MapGeometry` with the geometry (a keys filter over the node blocks;
+  converted files keep tagged nodes only) and handed to the label layer by
+  `OsmMapLayer::labels()`.
+  - Ranked among the Country Places: city (bold) as region seats, town,
+    station, village, halt, suburb, hamlet, each by its `population` tag;
+    shown from 200 m/px for towns, 60 stations, 40 villages, 20 halts,
+    15 suburbs, 10 hamlets, cities always. The overview levels hold what each
+    scale needs (national: cities and towns; regional: villages and
+    stations too).
+  - A name already placed within 120 pixels is not placed again, so a town in
+    both the Country Places and OSM shows once. Different spellings (GeoNames
+    "Warsaw", OSM "Warszawa") are not matched.
+  - Palette colours `place` and `osmStation` for the dots.
+  - Captures (`map-labels.json`, osm-* views): Poland's cities at 450 m/px,
+    Kraków's towns and stations at 60 m/px, its districts and every station
+    at 12 m/px. A build with new names took up to 11 ms (257 candidates),
+    1 to 2 ms without.
+- Street names along roads would need a glyph atlas (QTextLayout shaping,
+  QRawFont glyph images) and are left for later.
 
 Still open: the line shader, labels and points, selection of OSM features, a
 dark style for the dark palette, the multipolygon cache, and an option to

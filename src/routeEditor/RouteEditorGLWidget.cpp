@@ -2063,8 +2063,10 @@ void RouteEditorGLWidget::updateMapLabels() {
     Coords *markers = mapLayers.shows(MapLayer::Markers) && route != NULL ? route->currentMkr() : NULL;
     TDB *track = mapLayers.shows(MapLayer::TrackObjects) ? Game::trackDB : NULL;
     Activity *activity = mapLayers.shows(MapLayer::Activity) && route != NULL ? route->getCurrentActivity() : NULL;
+    const OsmMapLayer *osm = mapLayers.shows(MapLayer::OsmData) ? osmMap.get() : NULL;
     // What is labelled, and how much of it: a change rebuilds the labels.
     const std::vector<const void *> sources = {
+        osm, reinterpret_cast<const void *>(quintptr(osm != NULL ? osm->labelsVersion() : 0)),
         markers, reinterpret_cast<const void *>(quintptr(markers != NULL ? markers->markerList.size() : 0)),
         track, reinterpret_cast<const void *>(quintptr(track != NULL ? track->trackItems.size() : 0)),
         activity, reinterpret_cast<const void *>(quintptr(activity != NULL ? activity->event.size() : 0))};
@@ -2074,6 +2076,8 @@ void RouteEditorGLWidget::updateMapLabels() {
     MapLabelSources::appendActivity(labels, activity);
     MapLabelSources::appendTrackDatabase(labels, track);
     MapLabelSources::appendMarkers(labels, markers);
+    if (osm != NULL)
+        labels.insert(labels.end(), osm->labels().begin(), osm->labels().end());
     mapLabels->setLabels(std::move(labels));
     mapLabelSources = sources;
     mapLabelsInvalid = false;

@@ -95,6 +95,7 @@ struct OsmMapLayer::Result {
     std::shared_ptr<const Osm::MapGeometry> geometry;
     std::vector<Osm::MapBatch> fills;
     std::vector<Osm::MapBatch> strokes;
+    std::vector<MapLabel> labels;
 };
 
 // One thread running the newest job; a newer load cancels a running one.
@@ -249,6 +250,29 @@ OsmMapLayer::Result OsmMapLayer::Worker::load(const Job &job) {
             .arg(job.whole ? QStringLiteral(" (whole level)") : QString()).arg(loadNs / 1000000)
             .arg(geometry->stats().triangles).arg(geometry->stats().polylines);
     r.fills = geometry->takeFills();
+    // Labels: ranked among the Country Places (placeLabelPriority) by kind, then
+    // population; each kind from its resolution in.
+    for (const Osm::MapGeometry::PointLabel &p : geometry->labels()) {
+        MapLabel label;
+        label.tileX = job.tileX;
+        label.tileZ = job.tileZ;
+        label.x = p.x;
+        label.z = p.z;
+        label.text = QString::fromUtf8(p.name.data(), qsizetype(p.name.size()));
+        label.kind = MapLabelKind::Place;
+        const double population = double(std::max<int64_t>(p.population, 0));
+        using K = Osm::MapGeometry::PointKind;
+        switch (p.kind) {
+        case K::City: label.priority = 4e10 + population; label.major = true; break;
+        case K::Town: label.priority = 3e10 + population; label.maxMetresPerPixel = 200.0f; break;
+        case K::Station: label.priority = 2.5e10; label.kind = MapLabelKind::OsmStation; label.maxMetresPerPixel = 60.0f; break;
+        case K::Village: label.priority = 2e10 + population; label.maxMetresPerPixel = 40.0f; break;
+        case K::Halt: label.priority = 1.8e10; label.kind = MapLabelKind::OsmStation; label.maxMetresPerPixel = 20.0f; break;
+        case K::Suburb: label.priority = 1.5e10 + population; label.maxMetresPerPixel = 15.0f; break;
+        case K::Hamlet: label.priority = 1e10; label.maxMetresPerPixel = 10.0f; break;
+        }
+        r.labels.push_back(std::move(label));
+    }
     geometry->strokes(job.metresPerPixel, r.strokes);
     r.geometry = geometry;
     r.ok = true;
@@ -281,6 +305,8 @@ struct OsmMapLayer::Drawn {
     std::vector<Batch> fills;
     std::vector<Batch> strokes;
     float fillAlpha = 1.0f;
+    std::vector<MapLabel> labels;
+    uint64_t labelsVersion = 0;
 };
 
 OsmMapLayer::OsmMapLayer() : worker(std::make_unique<Worker>()), drawn(std::make_unique<Drawn>()) {}
@@ -298,6 +324,14 @@ void OsmMapLayer::invalidate() {
 
 bool OsmMapLayer::busy() const {
     return worker->busy();
+}
+
+const std::vector<MapLabel> &OsmMapLayer::labels() const {
+    return drawn->labels;
+}
+
+uint64_t OsmMapLayer::labelsVersion() const {
+    return drawn->labelsVersion;
 }
 
 void OsmMapLayer::toGround(GeoWorldCoordinateConverter *converter, double lat, double lon, int tileX,
@@ -387,6 +421,8 @@ void OsmMapLayer::apply(Result &result, const MapPalette &palette, bool transpar
         drawn->tileZ = result.tileZ;
         drawn->fillAlpha = transparentAreas ? palette.osmAreaAlpha : 1.0f;
         upload(drawn->fills, result.fills, drawn->fillAlpha);
+        drawn->labels = std::move(result.labels);
+        ++drawn->labelsVersion;
     } else if (drawn->geometry != result.geometry) {
         return;  // stroked from geometry since replaced
     }

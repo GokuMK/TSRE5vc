@@ -14,6 +14,7 @@
 #include <QString>
 #include <functional>
 #include <tsre/geo/osm/OsmTypes.h>
+#include "MapLabelLayer.h"
 #include <cstdint>
 #include <memory>
 #include <vector>
@@ -60,6 +61,10 @@ public:
     void invalidate();
     // A build is running or waiting.
     bool busy() const;
+    // Named places and railway stations of the drawn data, for the map's labels; the
+    // version changes with them.
+    const std::vector<MapLabel> &labels() const;
+    uint64_t labelsVersion() const;
 
     // The ground position (metres, relative to a tile in the editor's convention) of a
     // latitude and longitude, and back, through a route's converter.

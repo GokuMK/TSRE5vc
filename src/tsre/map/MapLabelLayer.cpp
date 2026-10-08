@@ -233,8 +233,9 @@ int MapLabelAtlas::textureId(int page) const {
 // ---------------------------------------------------------------- placement
 
 std::vector<QPoint> MapLabelLayer::place(const std::vector<Candidate> &candidates, int screenWidth, int screenHeight,
-                                         float dotPixels, float gapPixels) {
+                                         float dotPixels, float gapPixels, float duplicatePixels) {
     std::vector<QPoint> out(candidates.size(), QPoint(-1, -1));
+    QHash<unsigned int, std::vector<QPointF>> placedNames;
     // Taken rectangles, found through a grid of cells.
     constexpr int Cell = 64;
     const int cols = std::max(1, (screenWidth + Cell - 1) / Cell), rows = std::max(1, (screenHeight + Cell - 1) / Cell);
@@ -260,6 +261,13 @@ std::vector<QPoint> MapLabelLayer::place(const std::vector<Candidate> &candidate
         const QRect dotRect(x - dot, y - dot, 2 * dot + 1, 2 * dot + 1);
         if (!screen.intersects(dotRect) || !isFree(dotRect))
             continue;
+        if (c.key != 0 && duplicatePixels > 0.0f) {
+            bool duplicate = false;
+            for (const QPointF &p : placedNames.value(c.key))
+                duplicate |= std::hypot(p.x() - c.x, p.y() - c.y) < duplicatePixels;
+            if (duplicate)
+                continue;
+        }
         const int w = c.width, h = c.height, reach = dot + gap;
         const QPoint tries[4] = {{x - w / 2, y - reach - h},  // above
                                  {x + reach, y - h / 2},      // right
@@ -271,6 +279,8 @@ std::vector<QPoint> MapLabelLayer::place(const std::vector<Candidate> &candidate
             take(r);
             take(dotRect);
             out[i] = p;
+            if (c.key != 0)
+                placedNames[c.key].push_back(QPointF(c.x, c.y));
             break;
         }
     }
@@ -290,6 +300,8 @@ QColor MapLabelLayer::dotColour(const MapPalette &palette, MapLabelKind kind) {
     case MapLabelKind::Platform: return palette.platform;
     case MapLabelKind::Siding: return palette.siding;
     case MapLabelKind::Event: return palette.event;
+    case MapLabelKind::Place: return palette.place;
+    case MapLabelKind::OsmStation: return palette.osmStation;
     default: return palette.marker;
     }
 }
@@ -320,11 +332,12 @@ void MapLabelLayer::build(const MapView &view, const MapPalette &palette, float 
         if (px < -margin || py < -margin || px > view.width + margin || py > view.height + margin)
             continue;
         const QSize size = atlas.measure(l.text, l.major);
-        candidates.push_back({px, py, size.width(), size.height()});
+        candidates.push_back({px, py, size.width(), size.height(), uint(qHash(l.text)) | 1u});
         source.push_back(i);
     }
     const float dotPixels = DotPixels * pixelRatio, gapPixels = GapPixels * pixelRatio;
-    const std::vector<QPoint> corners = place(candidates, view.width, view.height, dotPixels, gapPixels);
+    const std::vector<QPoint> corners = place(candidates, view.width, view.height, dotPixels, gapPixels,
+                                              DuplicatePixels * pixelRatio);
 
     // Quads at whole pixels, so text stays sharp; screen corners back to the ground.
     std::vector<std::vector<float>> quads;
