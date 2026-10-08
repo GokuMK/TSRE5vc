@@ -18,6 +18,7 @@
 #include <tsre/geo/osm/OsmOverview.h>
 #include <tsre/geo/osm/SortedPbfStore.h>
 #include <tsre/Game.h>
+#include <tsre/geo/osm/OsmThread.h>
 #include <settings/SettingsAccess.h>
 #include <QApplication>
 #include <QDebug>
@@ -373,7 +374,7 @@ bool MapDataOSM::draw(QImage* myImage) {
         painter.scale(scale, scale);
         paint(painter, QRectF(q.x() / scale, q.y() / scale, q.width() / scale, q.height() / scale));
     };
-    std::vector<std::thread> workers;
+    std::vector<Osm::Thread> workers;
     for (int q = 1; q < 4; ++q) workers.emplace_back(paintQuadrant, quadrants[q]);
     paintQuadrant(quadrants[0]);
     for (auto &t : workers) t.join();

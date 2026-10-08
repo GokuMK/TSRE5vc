@@ -28,6 +28,7 @@
 #include <tsre/ogl/OglObj.h>
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/renderer/RenderQueue.h>
+#include <tsre/geo/osm/OsmThread.h>
 
 namespace {
 
@@ -150,7 +151,7 @@ private:
     Job pending;
     bool hasResult = false;
     Result result;
-    std::thread thread;
+    Osm::Thread thread;
 };
 
 void OsmMapLayer::Worker::run() {
@@ -168,15 +169,23 @@ void OsmMapLayer::Worker::run() {
             cancel = false;
         }
         Result r;
-        if (job.kind == Job::Load) {
-            r = load(job);
-        } else {
-            r.kind = Job::Strokes;
+        // An exception may not leave the thread: out of memory becomes an error result.
+        try {
+            if (job.kind == Job::Load) {
+                r = load(job);
+            } else {
+                r.kind = Job::Strokes;
+                r.id = job.id;
+                r.metresPerPixel = job.metresPerPixel;
+                r.geometry = job.geometry;
+                job.geometry->strokes(job.metresPerPixel, r.strokes);
+                r.ok = true;
+            }
+        } catch (const std::bad_alloc &) {
+            r = Result();
+            r.kind = job.kind;
             r.id = job.id;
-            r.metresPerPixel = job.metresPerPixel;
-            r.geometry = job.geometry;
-            job.geometry->strokes(job.metresPerPixel, r.strokes);
-            r.ok = true;
+            r.error = QStringLiteral("not enough memory for the OSM data of this view");
         }
         bool deliver = true;
         {
@@ -213,6 +222,8 @@ OsmMapLayer::Result OsmMapLayer::Worker::load(const Job &job) {
     const std::shared_ptr<const Osm::OsmLayers> layers = Osm::sharedLayers(job.directory, r.error);
     if (!layers)
         return r;
+    qInfo().noquote() << QStringLiteral("OSM map: loading at %1 m/px%2").arg(job.metresPerPixel)
+            .arg(job.whole ? QStringLiteral(" (whole level)") : QString());
     const Osm::OsmStore &store = layers->forScale(job.metresPerPixel);
     const Osm::Box area = job.whole ? store.bounds() : areaOf(converter, job.tileX, job.tileZ, job.rect);
     const int tileX = job.tileX, tileZ = job.tileZ;
@@ -232,6 +243,11 @@ OsmMapLayer::Result OsmMapLayer::Worker::load(const Job &job) {
                         options, r.error, &cancel))
         return r;
     const qint64 loadNs = timer.nsecsElapsed();
+    // Always logged (one line a load): a crash or a slow build leaves its trace in log.txt.
+    qInfo().noquote() << QStringLiteral("OSM map: level %1 at %2 m/px%3 in %4 ms: %5 triangles, %6 lines")
+            .arg(layers->levelForScale(job.metresPerPixel)).arg(job.metresPerPixel)
+            .arg(job.whole ? QStringLiteral(" (whole level)") : QString()).arg(loadNs / 1000000)
+            .arg(geometry->stats().triangles).arg(geometry->stats().polylines);
     r.fills = geometry->takeFills();
     geometry->strokes(job.metresPerPixel, r.strokes);
     r.geometry = geometry;

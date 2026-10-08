@@ -12,6 +12,7 @@
 #include <tsre/geo/osm/OsmDirectory.h>
 #include <tsre/geo/osm/OsmMultipolygon.h>
 #include <tsre/geo/osm/OsmGeneralize.h>
+#include <tsre/geo/osm/OsmThread.h>
 #include <QCryptographicHash>
 #include <QDebug>
 #include <QDir>
@@ -293,14 +294,20 @@ bool buildOverviews(const QString &convertedPath, const OverviewConfig &config, 
                         std::vector<std::vector<Level>> &perWorker) {
         perWorker.assign(size_t(threads), std::vector<Level>(L));
         std::atomic<size_t> next{0};
-        std::vector<std::thread> pool;
+        std::vector<Osm::Thread> pool;
         for (int w = 0; w < threads; ++w)
             pool.emplace_back([&, w] {
-                PrimitiveBlock b;
-                QString e;
-                for (size_t k; !stopped() && (k = next++) < blocks.size();) {
-                    if (!file.readBlock(blocks[k], b, parts, e)) { std::lock_guard<std::mutex> l(mutex); if (!failed.exchange(true)) firstError = e; return; }
-                    fn(b, perWorker[size_t(w)]);
+                // An exception may not leave a thread: out of memory fails the build instead.
+                try {
+                    PrimitiveBlock b;
+                    QString e;
+                    for (size_t k; !stopped() && (k = next++) < blocks.size();) {
+                        if (!file.readBlock(blocks[k], b, parts, e)) { std::lock_guard<std::mutex> l(mutex); if (!failed.exchange(true)) firstError = e; return; }
+                        fn(b, perWorker[size_t(w)]);
+                    }
+                } catch (const std::bad_alloc &) {
+                    std::lock_guard<std::mutex> l(mutex);
+                    if (!failed.exchange(true)) firstError = QStringLiteral("Not enough memory to build the overview maps");
                 }
             });
         for (auto &t : pool) t.join();

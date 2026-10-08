@@ -10,6 +10,7 @@
 
 #include <tsre/geo/osm/SortedPbfStore.h>
 #include <tsre/geo/osm/OsmDirectory.h>
+#include <tsre/geo/osm/OsmThread.h>
 #include <QFileInfo>
 #include <algorithm>
 #include <atomic>
@@ -159,7 +160,7 @@ bool SortedPbfStore::forEach(const Box &area, const Filter &filter, const Featur
                 insert(cacheKey(w.file, w.blob), w.block);
             }
         };
-        std::vector<std::thread> pool;
+        std::vector<Osm::Thread> pool;
         for (size_t t = 1; t < threads; ++t) pool.emplace_back(work);
         work();
         for (auto &t : pool) t.join();

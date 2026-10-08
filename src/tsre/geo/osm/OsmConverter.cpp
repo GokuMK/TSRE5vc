@@ -11,6 +11,7 @@
 #include <tsre/geo/osm/OsmConverter.h>
 #include <tsre/geo/osm/OsmPbf.h>
 #include <tsre/geo/osm/OsmSortedFormat.h>
+#include <tsre/geo/osm/OsmThread.h>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -34,7 +35,6 @@ constexpr size_t MaxBlockEntities = 8000;
 constexpr size_t MaxBlockRecordBytes = 4 * 1024 * 1024;  // keeps encoded blocks far below the 32 MiB limit
 constexpr size_t StagingFlushBytes = 256 * 1024;
 // Buckets are loaded, sorted and encoded together up to this much temporary data.
-constexpr uint64_t WriteGroupBytes = 1024ull * 1024 * 1024;
 constexpr size_t WriteGroupBuckets = 16;
 
 // ---------------------------------------------------------------- shared state
@@ -58,12 +58,19 @@ struct Job {
     // Runs body(i, worker) for i < n on the worker threads; the calling thread reports progress.
     bool parallel(size_t n, ConvertPhase phase, const std::function<bool(size_t, int)> &body, bool report = true) {
         std::atomic<size_t> next{0}, done{0};
-        std::vector<std::thread> workers;
+        std::vector<Osm::Thread> workers;
         const int count = int(std::min<size_t>(size_t(threads), std::max<size_t>(n, 1)));
         for (int w = 0; w < count; ++w)
             workers.emplace_back([&, w] {
-                for (size_t i; !stop() && (i = next++) < n; ++done)
-                    if (!body(i, w)) return;
+                // Out of memory fails the conversion with a message rather than ending the program.
+                try {
+                    for (size_t i; !stop() && (i = next++) < n; ++done)
+                        if (!body(i, w)) return;
+                } catch (const std::bad_alloc &) {
+                    fail(QStringLiteral("Not enough memory to convert this file. A smaller regional extract needs less."));
+                } catch (const std::exception &e) {
+                    fail(QStringLiteral("Conversion failed: %1").arg(QString::fromLocal8Bit(e.what())));
+                }
             });
         while (done.load() < n && !stop()) {
             if (progress && report) progress(phase, n ? double(done.load()) / n : 1.0);
@@ -356,7 +363,7 @@ bool writeBuckets(Buckets &buckets, Job &job, QFile &out, ConvertStats &stats) {
     size_t written = 0;
     for (size_t g0 = 0, g1 = 0; g0 < ids.size() && !job.stop(); g0 = g1) {
         uint64_t groupBytes = 0;
-        for (g1 = g0; g1 < ids.size() && g1 - g0 < WriteGroupBuckets && (g1 == g0 || groupBytes + buckets.bytes(ids[g1]) <= WriteGroupBytes); ++g1)
+        for (g1 = g0; g1 < ids.size() && g1 - g0 < WriteGroupBuckets && (g1 == g0 || groupBytes + buckets.bytes(ids[g1]) <= uint64_t(job.options.writeGroupBytes)); ++g1)
             groupBytes += buckets.bytes(ids[g1]);
         std::vector<QByteArray> data(g1 - g0);
         std::vector<std::vector<Item>> items(g1 - g0);
@@ -392,40 +399,47 @@ bool writeBuckets(Buckets &buckets, Job &job, QFile &out, ConvertStats &stats) {
                 a = e;
             }
         }
-        std::vector<std::string> frames(ranges.size());
+        // Encoded in windows and written in order, so only a window of output is held.
+        const size_t window = size_t(job.threads) * 8;
+        std::vector<std::string> frames;
         std::vector<ParsedRecord> parsed(size_t(job.threads));
         std::vector<BlockBuilder> builders(size_t(job.threads));
-        const bool ok = job.parallel(ranges.size(), ConvertPhase::Write, [&](size_t r, int w) {
-            const Range &range = ranges[r];
-            const auto *base = reinterpret_cast<const uint8_t *>(data[range.bucket].constData());
-            BlockBuilder &b = builders[size_t(w)];
-            ParsedRecord &rec = parsed[size_t(w)];
-            b.clear();
-            Sorted::BlockIndex index;
-            for (size_t j = range.a; j < range.e; ++j) {
-                const Item &it = items[range.bucket][j];
-                if (!parseRecord(base + it.offset, it.size, rec)) { job.fail(QStringLiteral("Corrupt temporary conversion data")); return false; }
-                index.kind = rec.kind;
-                index.bounds.extend(rec.box);
-                if (rec.kind == ItemType::Node) b.addNode(rec.id, rec.location, rec.tags.data(), rec.tags.size());
-                else if (rec.kind == ItemType::Way) b.addWay(rec.id, rec.tags.data(), rec.tags.size(), rec.refs.data(), rec.locations.data(), rec.refs.size());
-                else b.addRelation(rec.id, rec.tags.data(), rec.tags.size(), rec.members.data(), rec.members.size(), rec.box);
+        for (size_t w0 = 0; w0 < ranges.size(); w0 += window) {
+            const size_t w1 = std::min(ranges.size(), w0 + window);
+            frames.assign(w1 - w0, std::string());
+            const bool ok = job.parallel(w1 - w0, ConvertPhase::Write, [&](size_t k, int w) {
+                const size_t r = w0 + k;
+                const Range &range = ranges[r];
+                const auto *base = reinterpret_cast<const uint8_t *>(data[range.bucket].constData());
+                BlockBuilder &b = builders[size_t(w)];
+                ParsedRecord &rec = parsed[size_t(w)];
+                b.clear();
+                Sorted::BlockIndex index;
+                for (size_t j = range.a; j < range.e; ++j) {
+                    const Item &it = items[range.bucket][j];
+                    if (!parseRecord(base + it.offset, it.size, rec)) { job.fail(QStringLiteral("Corrupt temporary conversion data")); return false; }
+                    index.kind = rec.kind;
+                    index.bounds.extend(rec.box);
+                    if (rec.kind == ItemType::Node) b.addNode(rec.id, rec.location, rec.tags.data(), rec.tags.size());
+                    else if (rec.kind == ItemType::Way) b.addWay(rec.id, rec.tags.data(), rec.tags.size(), rec.refs.data(), rec.locations.data(), rec.refs.size());
+                    else b.addRelation(rec.id, rec.tags.data(), rec.tags.size(), rec.members.data(), rec.members.size(), rec.box);
+                }
+                // One unplaced record makes the whole block unbounded.
+                for (size_t j = range.a; j < range.e; ++j)
+                    if (!recordBox(base + items[range.bucket][j].offset).valid()) { index.bounds = Box(); break; }
+                std::string raw;
+                b.build(raw);
+                frames[k] = encodeBlobFrame("OSMData", raw, Sorted::encodeIndex(index), job.options.compressionLevel);
+                if (frames[k].empty()) { job.fail(QStringLiteral("Cannot encode an output block")); return false; }
+                return true;
+            }, false);
+            if (!ok) return false;
+            for (const std::string &frame : frames) {
+                if (out.write(frame.data(), qint64(frame.size())) != qint64(frame.size())) { job.fail(QStringLiteral("Cannot write %1: %2").arg(out.fileName(), out.errorString())); return false; }
+                stats.outputBytes += frame.size();
             }
-            // One unplaced record makes the whole block unbounded.
-            for (size_t j = range.a; j < range.e; ++j)
-                if (!recordBox(base + items[range.bucket][j].offset).valid()) { index.bounds = Box(); break; }
-            std::string raw;
-            b.build(raw);
-            frames[r] = encodeBlobFrame("OSMData", raw, Sorted::encodeIndex(index), job.options.compressionLevel);
-            if (frames[r].empty()) { job.fail(QStringLiteral("Cannot encode an output block")); return false; }
-            return true;
-        }, false);
-        if (!ok) return false;
-        for (const std::string &frame : frames) {
-            if (out.write(frame.data(), qint64(frame.size())) != qint64(frame.size())) { job.fail(QStringLiteral("Cannot write %1: %2").arg(out.fileName(), out.errorString())); return false; }
-            stats.outputBytes += frame.size();
+            stats.outputBlocks += frames.size();
         }
-        stats.outputBlocks += frames.size();
         written += g1 - g0;
         if (job.progress) job.progress(ConvertPhase::Write, double(written) / ids.size());
     }
@@ -434,17 +448,28 @@ bool writeBuckets(Buckets &buckets, Job &job, QFile &out, ConvertStats &stats) {
 
 }
 
-ConvertEstimate estimateConversion(int64_t sourceBytes, int threads) {
-    // Poland (2.1 GB): 3.7 GiB node table, 6.2 GiB temporary data, 2.2 GiB output at level 1;
-    // staging buffers and up to 1 GiB of write groups on top.
-    if (threads <= 0) threads = int(std::max(1u, std::thread::hardware_concurrency()));
+ConvertEstimate estimateConversion(int64_t sourceBytes, int threads, int64_t writeGroupBytes) {
+    // Fitted to measured peaks (resident, 12 threads; fewer threads use 5-10% less):
+    //   Poland 2.1 GB: 4.7 GB, the node table phase (about 2.3 times the source);
+    //   Malopolska 193 MB: 1.47 GB with 1 GiB write groups, 0.98 GB with 256 MiB;
+    //   Pomorskie 112 MB: 0.86 GB and 0.71 GB.
+    // The write phase holds a group of temporary data (about 1.2 times its size with its
+    // index), plus the largest bucket and the mapped source, about 3.4 times the source
+    // for a province.
+    Q_UNUSED(threads);
     ConvertEstimate e;
-    // Staging buffers and write groups only fill up for large sources.
-    const int64_t buffers = std::min<int64_t>(sourceBytes / 2, 256ll * 1024 * 1024 + int64_t(threads) * 64 * 1024 * 1024);
-    e.memoryBytes = sourceBytes * 2 + buffers + 32ll * 1024 * 1024;
     e.tempBytes = sourceBytes * 7 / 2;  // Poland: 6.65 GB from 2.1 GB
     e.outputBytes = sourceBytes + sourceBytes / 6;
+    const int64_t nodePhase = sourceBytes * 47 / 20;
+    const int64_t group = std::min(e.tempBytes, std::max<int64_t>(writeGroupBytes, 0));
+    const int64_t writePhase = group * 6 / 5 + std::min<int64_t>(sourceBytes, 512ll * 1024 * 1024) * 17 / 5;
+    e.memoryBytes = std::max(nodePhase, writePhase) + 64ll * 1024 * 1024;
     return e;
+}
+
+int64_t writeGroupBytesFor(int64_t availableBytes) {
+    if (availableBytes <= 0) return 1024ll * 1024 * 1024;
+    return std::clamp<int64_t>(availableBytes / 4, 64ll * 1024 * 1024, 1024ll * 1024 * 1024);
 }
 
 bool convertPbf(const QString &sourcePath, const QString &outputPath, const ConvertOptions &options,

@@ -30,6 +30,10 @@ struct ConvertOptions {
     // level 6 37 s / 2.28 GB; the first conversion's time matters more than 5 % of disk.
     int compressionLevel = 1;
     QString tempDirectory;      // empty: a directory next to the output
+    // Temporary data loaded at once while writing the sorted output (whole buckets, so one
+    // large bucket may exceed it). Peak memory is the larger of the node table (about twice
+    // the source) and about 1.6 times this; smaller groups save memory, cost a little speed.
+    int64_t writeGroupBytes = 1024ll * 1024 * 1024;
 };
 
 enum class ConvertPhase { Scan, Relations, Nodes, Ways, Write, Overview };  // Overview: OsmDirectory, after converting
@@ -46,7 +50,10 @@ struct ConvertStats {
 
 // Resources a conversion is expected to need, for checks before starting.
 struct ConvertEstimate { int64_t memoryBytes = 0, tempBytes = 0, outputBytes = 0; };
-ConvertEstimate estimateConversion(int64_t sourceBytes, int threads = 0);
+ConvertEstimate estimateConversion(int64_t sourceBytes, int threads = 0, int64_t writeGroupBytes = 1024ll * 1024 * 1024);
+// The write group size for a memory budget (available memory): a quarter of it, from 64 MiB
+// to 1 GiB.
+int64_t writeGroupBytesFor(int64_t availableBytes);
 
 // Called on the converting thread, roughly every 100 ms, with progress 0..1 within the phase.
 using ConvertProgress = std::function<void(ConvertPhase, double)>;
