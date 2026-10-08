@@ -1,0 +1,100 @@
+## load at start: 0.92 2.37 4.98 5/1534 1894602
+## decode only
+0.44s cpu=4.1s n=13112881 w=1727754 r=17271 tags=7803177 wayrefs=16799796 members=508104 maxnode=14256334158 maxway=1565619665 rss=74MB
+0.75s cpu=2.8s n=13112881 w=1727754 r=17271 tags=7803177 wayrefs=16799796 members=508104 maxnode=14256334158 maxway=1565619665 rss=30MB
+6.52s cpu=67.8s n=242829698 w=33661806 r=280493 tags=135986026 wayrefs=316454747 members=5483134 maxnode=14256361711 maxway=1565632550 rss=156MB
+13.08s cpu=49.2s n=242829698 w=33661806 r=280493 tags=135986026 wayrefs=316454747 members=5483134 maxnode=14256361711 maxway=1565632550 rss=80MB
+cold: 6.54s cpu=68.1s n=242829698 w=33661806 r=280493 tags=135986026 wayrefs=316454747 members=5483134 maxnode=14256361711 maxway=1565632550 rss=156MB
+zlib threads=12 blobs=1860 raw=282MB 0.45s (627 MB/s raw)
+zlib threads=1 blobs=1860 raw=282MB 0.93s (304 MB/s raw)
+libdeflate threads=12 blobs=1860 raw=282MB 0.06s (4861 MB/s raw)
+libdeflate threads=1 blobs=1860 raw=282MB 0.39s (729 MB/s raw)
+miniz threads=12 blobs=1860 raw=282MB 0.12s (2362 MB/s raw)
+miniz threads=1 blobs=1860 raw=282MB 0.87s (325 MB/s raw)
+zlib threads=12 blobs=34599 raw=5152MB 7.23s (712 MB/s raw)
+zlib threads=1 blobs=34599 raw=5152MB 16.57s (311 MB/s raw)
+libdeflate threads=12 blobs=34599 raw=5152MB 0.86s (6024 MB/s raw)
+libdeflate threads=1 blobs=34599 raw=5152MB 6.81s (756 MB/s raw)
+miniz threads=12 blobs=34599 raw=5152MB 1.85s (2779 MB/s raw)
+miniz threads=1 blobs=34599 raw=5152MB 15.17s (340 MB/s raw)
+## current path (XML + draw)
+current path: XML 14 MB parse 0.57s, draw 0.157s (4096x4096), nodes 37111 ways 6216, peak RSS 93 MB
+current path: XML 44 MB parse 1.95s, draw 0.311s (4096x4096), nodes 71126 ways 13953, peak RSS 125 MB
+## import stages pomorskie (no mp)
+NOLOC=1 STAGE=0: nodes+ways pass 0.37s
+NOLOC=1 STAGE=1: nodes+ways pass 0.97s
+STAGE=0: nodes+ways pass 1.68s
+STAGE=2: nodes+ways pass 2.41s
+STAGE=9: nodes+ways pass 2.82s
+## parallel import (ways only, no write)
+pimport /home/arch/OSM/Poland/pomorskie-261006.osm.pbf threads=1: node array 0.27s (13112881 nodes, 210 MB), total 2.46s, ways kept 1563541, points 14822673, peak RSS 907 MB
+pimport /home/arch/OSM/Poland/pomorskie-261006.osm.pbf threads=4: node array 0.28s (13112881 nodes, 210 MB), total 0.95s, ways kept 1563541, points 14822673, peak RSS 901 MB
+pimport /home/arch/OSM/Poland/pomorskie-261006.osm.pbf threads=12: node array 0.26s (13112881 nodes, 210 MB), total 0.70s, ways kept 1563541, points 14822673, peak RSS 784 MB
+pimport /home/arch/OSM/poland-261006.osm.pbf threads=4: node array 4.02s (242829698 nodes, 3885 MB), total 17.72s, ways kept 30924833, points 281570128, peak RSS 14928 MB
+pimport /home/arch/OSM/poland-261006.osm.pbf threads=12: node array 4.13s (242829698 nodes, 3885 MB), total 12.78s, ways kept 30924833, points 281570128, peak RSS 11864 MB
+## import pomorskie
+import /home/arch/OSM/Poland/pomorskie-261006.osm.pbf: relations pass 0.29s, nodes+ways pass 3.37s, write 0.07s, total 3.73s | ways kept 1563541 skipped 164213, mp areas 7238, records 1570776, points 16203498, multi-cell 85291, cells 3294 | file 187 MB, peak RSS 570 MB
+import /home/arch/OSM/Poland/pomorskie-261006.osm.pbf: relations pass 0.29s, nodes+ways pass 3.75s, write 0.11s, total 4.15s | ways kept 1563541 skipped 164213, mp areas 7238, records 1570776, points 16203498, multi-cell 85291, cells 3294 | file 296 MB, peak RSS 780 MB
+## route-area import (60x60 km) from regional vs national file
+import /home/arch/OSM/Poland/pomorskie-261006.osm.pbf: relations pass 0.28s, nodes+ways pass 3.35s, write 0.02s, total 3.65s | ways kept 1563541 skipped 164213, mp areas 7238, records 510186, points 4766103, multi-cell 23074, cells 631 | file 57 MB, peak RSS 439 MB
+import /home/arch/OSM/poland-261006.osm.pbf: relations pass 4.45s, nodes+ways pass 62.07s, write 0.02s, total 66.55s | ways kept 30924833 skipped 2736973, mp areas 130807, records 510196, points 4871066, multi-cell 23083, cells 636 | file 58 MB, peak RSS 4387 MB
+## import Poland
+import /home/arch/OSM/poland-261006.osm.pbf: relations pass 4.47s, nodes+ways pass 71.23s, write 1.23s, total 76.94s | ways kept 30924833 skipped 2736973, mp areas 130807, records 31055571, points 309526351, multi-cell 1487924, cells 47148 | file 3610 MB, peak RSS 10709 MB
+## tile queries (4096 px)
+pom cold [18.7807 54.0833 18.8121 54.1017] query: open 0.0000s | first: gather 0.0059s draw 0.129s | warm: gather 0.0018s draw 0.161s | ways 5083 pts 66113 | 4096x4096
+pom cold [18.6283 54.3465 18.6597 54.3649] query: open 0.0000s | first: gather 0.0095s draw 0.274s | warm: gather 0.0039s draw 0.284s | ways 11750 pts 118841 | 4096x4096
+pom cold [17.8843 54.2408 17.9157 54.2592] query: open 0.0000s | first: gather 0.0019s draw 0.037s | warm: gather 0.0009s draw 0.045s | ways 484 pts 29038 | 4096x4096
+pl cold [Warsaw] query: open 0.0000s | first: gather 0.0387s draw 0.434s | warm: gather 0.0118s draw 0.476s | ways 17498 pts 346666 | 4096x4096
+pom [Gdansk] 2048px query: open 0.0000s | first: gather 0.0101s draw 0.191s | warm: gather 0.0040s draw 0.191s | ways 11750 pts 118841 | 2048x2048
+## batch render, route area, 2 km tiles
+batch: 870 tiles 4096x4096, 12 threads: 5.78s total, 0.007s/tile wall, 150.4 tiles/s, 26898159 pts, peak RSS 779 MB
+batch: 870 tiles 4096x4096, 4 threads: 9.77s total, 0.011s/tile wall, 89.1 tiles/s, 26898159 pts, peak RSS 382 MB
+batch: 870 tiles 2048x2048, 12 threads: 2.96s total, 0.003s/tile wall, 293.6 tiles/s, 26898159 pts, peak RSS 473 MB
+pl.bin 3610 MB
+pom.bin 187 MB
+pom_nomp.bin 176 MB
+pom_tags.bin 296 MB
+route_pl.bin 58 MB
+route_pom.bin 57 MB
+## load at end: 4.83 3.78 4.87 2/1528 1895525
+
+## hybrid variants (2026-10-07 later, load avg 2-4 from other sessions: indicative)
+hybrid tile (12 thr): ids 0.0040s, ways 5067 in 137 way blobs 0.130s, 33531 pts in 365 node blobs 0.015s (of 1640), read 45.8 MB z, total 0.149s  [before skip-unwanted-ways]
+hybrid tile (12 thr): ids 0.0079s, ways 11616 in 195 way blobs 0.031s, 59226 pts in 764 node blobs 0.032s (of 1640), read 75.8 MB z, total 0.071s, missing refs 0
+hybrid tile (4 thr): ids 0.0199s, ways 11616 in 195 way blobs 0.061s, 59226 pts in 764 node blobs 0.058s (of 1640), read 75.8 MB z, total 0.139s, missing refs 0
+hybrid tile (1 thr): ids 0.0104s, ways 11616 in 195 way blobs 0.231s, 59226 pts in 764 node blobs 0.219s (of 1640), read 75.8 MB z, total 0.461s, missing refs 0
+hybrid tile rural (12/4/1 thr): 26 way blobs, 59 node blobs, read 9.3 MB z, total 0.035s / 0.048s / 0.150s  [before skip-unwanted-ways]
+blob index /home/arch/OSM/poland-261006.osm.pbf: 1.77s | node blobs 30354 (1273 MB z, avg 42 KB z / 101 KB raw) | way blobs 4208 (808 MB z) | relation blobs 36 (23 MB z) | index 830352 bytes
+hybrid tile Warsaw (12 thr): ids 0.0298s, ways 17000 in 1310 way blobs 0.190s, 105978 pts in 2546 node blobs 0.096s (of 30354), read 378.7 MB z, total 0.316s
+hybrid tile Warsaw (4 thr): ids 0.0295s, ways 17000 in 1310 way blobs 0.351s, 105978 pts in 2546 node blobs 0.195s (of 30354), read 378.7 MB z, total 0.576s
+hybrid route, LRU 0 MB, 12 thr: 870 tiles 11.24s (0.013s/tile avg, worst 0.063s), blob decodes 135261, blob touches/tile: way 41 node 115, peak RSS 313 MB
+hybrid route, LRU 256 MB, 12 thr: 870 tiles 23.09s (0.027s/tile avg, worst 0.713s), blob decodes 39990 (hits 95271), peak RSS 1171 MB
+hybrid route, LRU 1024 MB, 12 thr: 870 tiles 2.64s (0.003s/tile avg, worst 0.039s), blob decodes 1778 (hits 133483), peak RSS 1332 MB
+hybrid route, LRU 0 MB, 4 thr: 870 tiles 22.60s (0.026s/tile avg, worst 0.128s), blob decodes 135261, peak RSS 295 MB
+compact pom.bin: raw 187 MB | delta+varint 106 MB (unique records 84 MB) | +zstd-3 per cell 89 MB | id-only spatial index (delta varint) 2.2 MB
+compact pl.bin: raw 3610 MB | delta+varint 2010 MB (unique records 1625 MB) | +zstd-3 per cell 1677 MB | id-only spatial index (delta varint) 41.8 MB
+lowrite: 1702508 typed ways, read+locations 2.36s, sort+write 1.94s, file 110 MB, peak RSS 850 MB
+lotile Tczew  (12/1 thr): index build 0.21s / 1.21s (213 blobs, index 6816 bytes) | tile: 8 of 213 blobs, 5.24 MB z, decode 0.031s / 0.093s, ways 5898 pts 46537
+lotile Gdansk (12/1 thr): 12 of 213 blobs, 7.63 MB z, decode 0.034s / 0.130s, ways 13293 pts 98614
+lotile rural  (12/1 thr): 9 of 213 blobs, 5.93 MB z, decode 0.031s / 0.100s, ways 476 pts 5344
+
+## full conversion, model B (2026-10-08, temp + output on SATA SSD btrfs zstd:1, load avg 2-7 incl. own threads)
+convert pomorskie (12 thr): classify 0.06s | relations 0.04s (162961 member ways) | nodes 0.10s (13112881 nodes, 629278 tagged) | ways 0.40s (kept 1727670, dropped 84, refs 16798423, missing locs 0) | sort+encode+write 0.98s (24 buckets, largest 169 MB, 317 blocks) | temp 322 MB | total 1.91s | out 128 MB (in 118 MB) | peak anon 352 MB
+verify pomorskie: ways 1727670 refs 16798423 mismatched 0 missing-in-original 0
+count pomorskie converted: n=629278 w=1727670 r=17271 tags=7803177 wayrefs=16798423 members=508104   (original tags=7803177)
+convert Poland (12 thr, cold input): classify 0.86s | relations 0.33s (1713170 member ways) | nodes 1.83s (242829698 nodes, 10802867 tagged; anon 4436 MB) | ways 7.75s (kept 33659033, dropped 2773, refs 316431023, missing locs 0; anon 4657 MB, after free 371 MB) | sort+encode+write 18.14s (85 buckets, largest 350 MB, 5649 blocks) | temp 5852 MB | total 34.23s | out 2332 MB (in 2105 MB) | peak anon 4657 MB
+convert Poland (4 thr, cold input):  classify 1.92s | relations 0.43s | nodes 3.52s (anon 4078 MB) | ways 14.60s | sort+encode+write 33.59s | temp 5852 MB | total 59.38s | out 2331 MB | peak anon 4117 MB
+convert Poland (12 thr, deflate level 1): total 28.74s (sort+encode+write 12.80s) | out 2406 MB
+verify Poland: ways 33659033 refs 316431023 mismatched 0 missing-in-original 0
+count Poland converted: 5.77s n=10802867 w=33659033 r=280493 tags=135986026 wayrefs=316431023 members=5483134   (original tags=135986026)
+block table via mmap walk: cold 6.755s, warm 0.024s (5685 blocks, 182 kB)
+block table via pread + FADV_RANDOM: cold 0.736s, warm 0.007s
+tile Warsaw (12/4/1 thr): 38 of 5685 blocks, 19.6 MB z | decode 0.046s / 0.061s / 0.138s | ways 22453 (pts 222149), tagged nodes 31743
+tile Tczew (4 thr): 12 of 5685 blocks, 9.1 MB z | decode 0.040s | ways 5946 (pts 47019), tagged nodes 3851
+
+## converter on miniz instead of libdeflate (2026-10-08, load avg 1-6 incl. own threads)
+convert_mz pomorskie (12 thr): total 2.55s (sort+encode+write 1.47s) | out 128 MB | peak anon 356 MB ; verify: mismatched 0
+convert_mz Poland (12 thr, level 6): classify 1.90s | relations 0.35s | nodes 2.33s | ways 7.82s | sort+encode+write 25.38s | total 38.11s | out 2340 MB | peak anon 4671 MB
+convert_mz Poland (12 thr, level 1): sort+encode+write 18.36s | total 31.03s | out 2469 MB
+convert_mz Poland (4 thr, level 6): classify 4.04s | relations 0.40s | nodes 4.61s | ways 15.14s | sort+encode+write 44.60s | total 69.06s | out 2340 MB | peak anon 4120 MB
+tile Warsaw on miniz output (12/4/1 thr): 36 of 5685 blocks, 18.6 MB z | decode 0.053s / 0.073s / 0.174s

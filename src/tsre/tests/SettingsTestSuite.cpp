@@ -43,7 +43,7 @@ int TsreTests::runSettingsSuite(bool verbose) {
 
     SettingsManager manager;
     SettingsRegistration::registerAll(manager.registry());
-    check(manager.registry().definitions().size() == 90,
+    check(manager.registry().definitions().size() == 92,
           "catalog-includes-terrain-elevation-and-imagery-sources");
     const auto *elevationSource = manager.registry().definition("geo.elevation.source");
     const auto *elevationFallback = manager.registry().definition("geo.elevation.fallback");
@@ -61,6 +61,15 @@ int TsreTests::runSettingsSuite(bool verbose) {
           && elevationOptions.size() == elevationCatalog.size()
           && elevationOptions.first().value.toString() == defaultElevation,
           "runtime-elevation-options-match-catalogue");
+    const SettingsDefinition *osmData=manager.registry().definition("core.paths.osmData");
+    const SettingsDefinition *osmOriginal=manager.registry().definition("geo.osm.originalAfterConversion");
+    const auto osmOriginalOptions=osmOriginal?osmOriginal->resolvedOptions():QVector<SettingOption>();
+    check(osmData && osmData->type==SettingType::Directory && osmData->defaultValue.toString().isEmpty()
+          && osmData->group=="maps" && osmData->subgroup=="geodata" && osmData->legacyFileKeys.isEmpty()
+          && osmOriginal && osmOriginal->type==SettingType::Enum && osmOriginal->defaultValue.toString()=="keep"
+          && osmOriginalOptions.size()==2 && osmOriginalOptions[0].value.toString()=="keep"
+          && osmOriginalOptions[1].value.toString()=="delete",
+          "osm-data-directory-and-conversion-settings");
     const auto fallbackOptions=elevationFallback?elevationFallback->resolvedOptions():QVector<SettingOption>();
     check(elevationFallback && elevationFallback->type==SettingType::Enum
           && elevationFallback->defaultValue.toString()==defaultFallback
@@ -479,7 +488,7 @@ int TsreTests::runSettingsSuite(bool verbose) {
             }
         }
     }
-    check(QFile::exists(settingsFile) && manager.settingsArray().size() == 90,
+    check(QFile::exists(settingsFile) && manager.settingsArray().size() == 92,
           "generated-profile-has-catalogue");
     check(manager.document().value("createdBy").toObject().value("application").toString()
               == SettingsManager::currentCatalogApplication()

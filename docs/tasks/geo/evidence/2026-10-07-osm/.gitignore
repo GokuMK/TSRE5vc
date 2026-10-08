@@ -1,0 +1,16 @@
+deps/
+api/
+*.inc
+*.bin
+*.png
+count
+inflate
+blobstats
+osmbench
+current.png
+hybrid
+*.osm.pbf
+convert
+verify
+scanp
+convert_mz

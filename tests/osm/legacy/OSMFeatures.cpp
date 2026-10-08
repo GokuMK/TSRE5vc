@@ -8,7 +8,7 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
-#include <tsre/geo/OSMFeatures.h>
+#include "OSMFeatures.h"
 
 std::unordered_map<std::string, int> OSMFeatures::LIST {
     {"AERIALWAY_CABLE_CAR",0},

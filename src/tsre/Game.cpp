@@ -276,6 +276,8 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
     claim("geo.elevation.source", SettingType::Enum);
     claim("geo.elevation.fallback", SettingType::Enum);
     claim("geo.imagery.source", SettingType::Enum);
+    claim("core.paths.osmData", SettingType::Directory);
+    claim("geo.osm.originalAfterConversion", SettingType::Enum);
     string("core.startup.route", route);
     claim("core.startup.useTilePosition", SettingType::Bool);
     if (appliesNow("core.startup.useTilePosition"))

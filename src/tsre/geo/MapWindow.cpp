@@ -17,7 +17,6 @@
 #include <QGraphicsPixmapItem>
 #include <tsre/coords/CoordsMkr.h>
 #include <tsre/geo/GeoCoordinates.h>
-#include <tsre/geo/OSMFeatures.h>
 #include <tsre/geo/MapDataOSM.h>
 #include <tsre/texture/TexLib.h>
 #include <QTime>
@@ -193,18 +192,22 @@ void MapWindow::reload(){
     if(dane->tileZ != -this->tileZ) return;
     QImage* myImage = NULL;
     int res = Settings::integer("core.maps.imageResolution");
+    // 32-bit formats: QPainter's raster engine is fastest on them; TexLib converts for upload.
     if(MapWindow::isAlpha > 0)
-        myImage = new QImage(res, res, QImage::Format_RGBA8888);
+        myImage = new QImage(res, res, QImage::Format_ARGB32_Premultiplied);
     else
-        myImage = new QImage(res, res, QImage::Format_RGB888);
+        myImage = new QImage(res, res, QImage::Format_RGB32);
 
     if(!dane->draw(myImage)){
         delete myImage;
         return;
     }
     //myImage->save(QString::number(dane.tileX)+"_"+QString::number(dane.tileZ)+"_d.png");
-    if(this->invert)
-        myImage->invertPixels(QImage::InvertRgba); 
+    if(this->invert){
+        if(MapWindow::isAlpha > 0)
+            *myImage = myImage->convertToFormat(QImage::Format_RGBA8888);
+        myImage->invertPixels(MapWindow::isAlpha > 0 ? QImage::InvertRgba : QImage::InvertRgb);
+    }
     //myImage->save(QString::number(dane.tileX)+"_"+QString::number(dane.tileZ)+"_i.png");
     
     imageLabel->setPixmap(QPixmap::fromImage(*myImage).scaled(800,800,Qt::KeepAspectRatio,Qt::SmoothTransformation));

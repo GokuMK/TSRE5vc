@@ -1111,6 +1111,10 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
             <source>Copyright © GokuMK, mail pgadecki@gmail.com </source>
             <translation>Copyright © GokuMK, e-mail pgadecki@gmail.com </translation>
         </message>
+        <message id="route.editor.about.window.label.osm">
+            <source>Map data from OpenStreetMap © &lt;a href="https://www.openstreetmap.org/copyright"&gt;OpenStreetMap contributors&lt;/a&gt;, available under the ODbL.</source>
+            <translation>Dane mapowe z OpenStreetMap © &lt;a href="https://www.openstreetmap.org/copyright"&gt;współtwórcy OpenStreetMap&lt;/a&gt;, dostępne na licencji ODbL.</translation>
+        </message>
         <message id="route.editor.about.window.button.browse">
             <location filename="../src/routeEditor/AboutWindow.cpp" line="47" />
             <source>Close</source>
@@ -7684,6 +7688,30 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
         <source>Geodata root: user-managed elevation products in their catalogue directories; downloaded elevation and imagery data in cache/.</source>
         <translation>Katalog geodanych: produkty wysokościowe użytkownika w katalogach określonych w katalogu źródeł; pobrane dane wysokościowe i zobrazowania w cache/.</translation>
     </message>
+        <message id="settings.core.paths.osm.data.name">
+        <source>OpenStreetMap data directory</source>
+        <translation>Katalog danych OpenStreetMap</translation>
+    </message>
+        <message id="settings.core.paths.osm.data.description">
+        <source>Downloaded .osm.pbf extracts, for example from Geofabrik. TSRE converts each file once into a spatially sorted copy (.tsre.osm.pbf) next to it. Subdirectories are not read.</source>
+        <translation>Pobrane wycinki .osm.pbf, na przykład z Geofabrik. TSRE jednorazowo przekształca każdy plik w uporządkowaną przestrzennie kopię (.tsre.osm.pbf) obok niego. Podkatalogi nie są odczytywane.</translation>
+    </message>
+        <message id="settings.geo.osm.original.after.conversion.name">
+        <source>Downloaded OSM file after conversion</source>
+        <translation>Pobrany plik OSM po przekształceniu</translation>
+    </message>
+        <message id="settings.geo.osm.original.after.conversion.description">
+        <source>Keep the downloaded .osm.pbf next to its converted copy, or delete it once the conversion has finished. The converted copy has the same content and is used for everything; deleting saves about half of the space.</source>
+        <translation>Zachowaj pobrany plik .osm.pbf obok jego przekształconej kopii albo usuń go po zakończeniu przekształcania. Kopia ma tę samą treść i jest używana do wszystkiego; usunięcie oszczędza około połowy miejsca.</translation>
+    </message>
+        <message id="settings.geo.osm.original.after.conversion.option.keep">
+        <source>Keep both files</source>
+        <translation>Zachowaj oba pliki</translation>
+    </message>
+        <message id="settings.geo.osm.original.after.conversion.option.delete">
+        <source>Delete the download</source>
+        <translation>Usuń pobrany plik</translation>
+    </message>
         <message id="settings.core.startup.route.name">
             <location filename="../src/settings/SettingsRegistration.cpp" line="371" />
             <source>Startup route</source>
@@ -9987,6 +10015,74 @@ TSRE pobierze teraz dane aplikacji.</translation>
             <location filename="../src/tsre/geo/MapWindow.cpp" line="123" />
             <source>Tile: %1 %2</source>
             <translation>Kafel: %1 %2</translation>
+        </message>
+        <message id="geo.osm.conversion.title">
+            <source>Convert OpenStreetMap data</source>
+            <translation>Przekształcanie danych OpenStreetMap</translation>
+        </message>
+        <message id="geo.osm.conversion.question">
+            <source>Downloaded OpenStreetMap files covering this area need a one-time conversion into a spatially sorted copy before TSRE can use them:</source>
+            <translation>Pobrane pliki OpenStreetMap obejmujące ten obszar wymagają jednorazowego przekształcenia w kopię uporządkowaną przestrzennie, zanim TSRE będzie mógł z nich korzystać:</translation>
+        </message>
+        <message id="geo.osm.conversion.resources">
+            <source>This needs about %1 of memory (%2 available) and %3 of free disk space (%4 available) while it runs.</source>
+            <translation>Wymaga to około %1 pamięci (dostępne: %2) i %3 wolnego miejsca na dysku (dostępne: %4) w trakcie działania.</translation>
+        </message>
+        <message id="geo.osm.conversion.unknown">
+            <source>unknown</source>
+            <translation>nieznane</translation>
+        </message>
+        <message id="geo.osm.conversion.low.disk">
+            <source>There is not enough free disk space.</source>
+            <translation>Brak wystarczającej ilości wolnego miejsca na dysku.</translation>
+        </message>
+        <message id="geo.osm.conversion.low.memory">
+            <source>Available memory may not be enough. Regional extracts of the same data (for example per province) need much less.</source>
+            <translation>Dostępna pamięć może nie wystarczyć. Regionalne wycinki tych samych danych (na przykład dla województw) wymagają znacznie mniej.</translation>
+        </message>
+        <message id="geo.osm.conversion.delete.original">
+            <source>Delete the downloaded file after conversion</source>
+            <translation>Usuń pobrany plik po przekształceniu</translation>
+        </message>
+        <message id="geo.osm.conversion.convert">
+            <source>Convert now</source>
+            <translation>Przekształć teraz</translation>
+        </message>
+        <message id="geo.osm.conversion.later">
+            <source>Not now</source>
+            <translation>Nie teraz</translation>
+        </message>
+        <message id="geo.osm.conversion.progress">
+            <source>Converting %1 (%2 of %3): %4</source>
+            <translation>Przekształcanie %1 (%2 z %3): %4</translation>
+        </message>
+        <message id="geo.osm.conversion.phase.scan">
+            <source>scanning blocks</source>
+            <translation>przeglądanie bloków</translation>
+        </message>
+        <message id="geo.osm.conversion.phase.relations">
+            <source>reading relations</source>
+            <translation>odczyt relacji</translation>
+        </message>
+        <message id="geo.osm.conversion.phase.nodes">
+            <source>reading nodes</source>
+            <translation>odczyt węzłów</translation>
+        </message>
+        <message id="geo.osm.conversion.phase.ways">
+            <source>reading ways</source>
+            <translation>odczyt linii</translation>
+        </message>
+        <message id="geo.osm.conversion.phase.write">
+            <source>writing the sorted file</source>
+            <translation>zapis uporządkowanego pliku</translation>
+        </message>
+        <message id="geo.osm.conversion.phase.overview">
+            <source>building overview maps</source>
+            <translation>tworzenie map przeglądowych</translation>
+        </message>
+        <message id="geo.osm.conversion.failed">
+            <source>OpenStreetMap conversion failed</source>
+            <translation>Przekształcanie danych OpenStreetMap nie powiodło się</translation>
         </message>
         <message id="tsre.geo.map.window.text.wait">
             <location filename="../src/tsre/geo/MapWindow.cpp" line="191" />

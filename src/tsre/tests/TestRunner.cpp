@@ -67,6 +67,7 @@
 #include <tsre/tests/ProceduralProfileBenchmark.h>
 #include <tsre/tests/TokenIdTestSuite.h>
 #include <tsre/tests/SettingsTestSuite.h>
+#include <tsre/tests/OsmDataTestSuite.h>
 #include <tsre/tests/TdbLoadTestSuite.h>
 #include <tsre/tests/TdbRoundTripTestSuite.h>
 #include <tsre/tests/ParserExponentTestSuite.h>
@@ -4114,6 +4115,7 @@ QStringList TsreTests::listSuites() {
         "token-world",
         "token-shape-gl",
         "settings",
+        "osm-data",
         "elevation-ui",
         "new-route",
         "tdb-load",
@@ -4227,6 +4229,9 @@ int TsreTests::run(const TestRunOptions &opts) {
     if (suite == "settings")
         return runSettingsSuite(opts.verbose);
 
+    if (suite == "osm-data")
+        return runOsmDataSuite(opts.verbose);
+
     if (suite == "elevation-ui")
         return runElevationUiSuite(opts.casesFile, opts.verbose);
 
@@ -4286,6 +4291,7 @@ int TsreTests::run(const TestRunOptions &opts) {
         rc = std::max(rc, runTerrainFileSuite(opts.verbose));
         rc = std::max(rc, runTokenWorldSuite(opts.verbose));
         rc = std::max(rc, runSettingsSuite(opts.verbose));
+        rc = std::max(rc, runOsmDataSuite(opts.verbose));
         rc = std::max(rc, runNewRouteSuite(opts.verbose));
         rc = std::max(rc, runTdbLoadSuite(opts.verbose));
         rc = std::max(rc, runTdbEditingSuite());

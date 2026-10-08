@@ -69,6 +69,8 @@ file(GLOB TSRE5vc_SRC CONFIGURE_DEPENDS
     "./src/tsre/procedural/*.cpp"
     "./src/tsre/geo/*.h" 
     "./src/tsre/geo/*.cpp"
+    "./src/tsre/geo/osm/*.h"
+    "./src/tsre/geo/osm/*.cpp"
     "./src/tsre/coords/*.h"
     "./src/tsre/coords/*.cpp"
     "./src/tsre/tests/*.h"
@@ -102,6 +104,8 @@ qt_add_resources(TSRE5vc elevation_catalog PREFIX "/geo"
     BASE "src/tsre/geo" FILES "src/tsre/geo/elevation-datasets.json")
 qt_add_resources(TSRE5vc imagery_catalog PREFIX "/geo"
     BASE "src/tsre/geo" FILES "src/tsre/geo/imagery-datasets.json")
+qt_add_resources(TSRE5vc osm_classes PREFIX "/osm"
+    BASE "src/tsre/geo/osm" FILES "src/tsre/geo/osm/osm-map-classes.json")
 target_include_directories(TSRE5vc PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
@@ -158,4 +162,10 @@ option(TSRE_BUILD_GEO_TESTS "Build elevation raster, cache and sampling checks" 
 if(TSRE_BUILD_GEO_TESTS)
     enable_testing()
     add_subdirectory(tests/geo)
+endif()
+
+option(TSRE_BUILD_OSM_TESTS "Build OSM PBF format and store checks" ON)
+if(TSRE_BUILD_OSM_TESTS)
+    enable_testing()
+    add_subdirectory(tests/osm)
 endif()
