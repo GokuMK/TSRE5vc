@@ -365,6 +365,14 @@ private:
     LightGrid lightGrid;
     std::vector<LightGrid::Light> frameLights;
     bool lightsPrepared = false;
+    // Resources made during a frame (pipelines, resource sets, textures,
+    // mesh buffers) and the time they took; a frame that spent long on them
+    // (the first after a jump) is logged.
+    struct Creation {
+        int pipelines = 0, bindings = 0, textures = 0;
+        qint64 pipelineNs = 0, bindingNs = 0, textureNs = 0, meshNs = 0;
+    } creation;
+    void logCreation();
     quint64 lightsHash = 0;
     QRhiTexture *lightData = nullptr;
     QRhiTexture *lightCells = nullptr;

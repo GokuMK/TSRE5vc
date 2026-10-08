@@ -478,8 +478,13 @@ QRhiTexture *RhiRenderer::packetTexture(const RenderItem *item, bool &mipmapped)
         if (found == TexLib::mtex.end() || found->second == nullptr)
             return nullptr;
         Texture *texture = found->second;
-        if (!texture->glLoaded && texture->loaded)
+        if (!texture->glLoaded && texture->loaded) {
+            QElapsedTimer made;
+            made.start();
             texture->GLTextures();
+            ++creation.textures;
+            creation.textureNs += made.nsecsElapsed();
+        }
         if (!texture->glLoaded || texture->tex == nullptr)
             return nullptr;
         handle = texture->tex[0];
@@ -529,8 +534,13 @@ QRhiTexture *RhiRenderer::libraryTexture(int textureId, bool &mipmapped) {
     if (found == TexLib::mtex.end() || found->second == nullptr)
         return nullptr;
     Texture *texture = found->second;
-    if (!texture->glLoaded && texture->loaded)
+    if (!texture->glLoaded && texture->loaded) {
+        QElapsedTimer made;
+        made.start();
         texture->GLTextures();
+        ++creation.textures;
+        creation.textureNs += made.nsecsElapsed();
+    }
     if (!texture->glLoaded || texture->tex == nullptr)
         return nullptr;
     const unsigned int handle = texture->tex[0];
@@ -1213,6 +1223,12 @@ QRhiGraphicsPipeline *RhiRenderer::pipeline(const PipelineKey &key) {
     auto found = pipelines.find(key);
     if (found != pipelines.end())
         return found->second;
+    QElapsedTimer made;
+    made.start();
+    struct Count {
+        Creation &c; QElapsedTimer &t;
+        ~Count() { ++c.pipelines; c.pipelineNs += t.nsecsElapsed(); }
+    } count{creation, made};
     const RhiProgram *program = key.program;
     QRhiGraphicsPipeline *ps = rhi->newGraphicsPipeline();
     ps->setShaderStages({{QRhiShaderStage::Vertex, program->source->vertex},
@@ -1287,6 +1303,12 @@ QRhiShaderResourceBindings *RhiRenderer::bindings(const BindingKey &key) {
     auto found = resourceSets.find(key);
     if (found != resourceSets.end())
         return found->second;
+    QElapsedTimer made;
+    made.start();
+    struct Count {
+        Creation &c; QElapsedTimer &t;
+        ~Count() { ++c.bindings; c.bindingNs += t.nsecsElapsed(); }
+    } count{creation, made};
     const RhiProgram *program = key.program;
     QVarLengthArray<QRhiShaderResourceBinding, 24> entries;
     const auto stages = QRhiShaderResourceBinding::VertexStage | QRhiShaderResourceBinding::FragmentStage;
@@ -1329,7 +1351,11 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
     if (frameBatch == nullptr)
         frameBatch = rhi->nextResourceUpdateBatch();
     Meshes::RhiBuffers buffers;
-    if (!Meshes::prepareRhi(item->mesh.handle, rhi, frameBatch, buffers)
+    QElapsedTimer prepared;
+    prepared.start();
+    const bool meshReady = Meshes::prepareRhi(item->mesh.handle, rhi, frameBatch, buffers);
+    creation.meshNs += prepared.nsecsElapsed();
+    if (!meshReady
             || buffers.format == MeshData::Buffer) {
         debugCount("skip-prepare");
         return;
@@ -2017,8 +2043,21 @@ void RhiRenderer::renderFrame() {
     Renderer::renderFrame();
 }
 
+void RhiRenderer::logCreation() {
+    const Creation &c = creation;
+    const qint64 total = c.pipelineNs + c.bindingNs + c.textureNs + c.meshNs;
+    if (total > 100000000)
+        qInfo().noquote() << QString("QRhi frame made resources for %1 ms: %2 pipelines %3 ms, %4 resource sets %5 ms, "
+                                     "%6 textures %7 ms, meshes %8 ms")
+                             .arg(total / 1e6, 0, 'f', 1).arg(c.pipelines).arg(c.pipelineNs / 1e6, 0, 'f', 1)
+                             .arg(c.bindings).arg(c.bindingNs / 1e6, 0, 'f', 1).arg(c.textures)
+                             .arg(c.textureNs / 1e6, 0, 'f', 1).arg(c.meshNs / 1e6, 0, 'f', 1);
+    creation = Creation();
+}
+
 void RhiRenderer::resetFrame() {
     beginFrameIfNeeded();
+    logCreation();
     QueueRenderer::resetFrame();
     lightsPrepared = false;
     glowSplats.gathered = glowSplats.pending = false;

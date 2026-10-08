@@ -100,7 +100,10 @@ Thread safety of what loading touches:
   requests then have no limits (`ShapeLoader::WholeView`,
   `Game::ignoreLoadLimits` for forests and transfers), and the gathers wait
   for the workers. Such a view is shown with its shapes loaded, threaded or
-  not.
+  not. After a jump the wait ends after 2 s
+  (`jumpWaitMs`): the view is shown and the shapes still loading appear
+  over the next frames, so a long load does not hold the editor (map mode
+  to 3D). The first view waits until it is complete.
 - The log handler takes a mutex; `loadSd` reads the season flags with
   `QHash::value`.
 - The renderer capture suites settle only when no job runs and none

@@ -13,6 +13,7 @@
 #include <tsre/Game.h>
 #include <settings/SettingsAccess.h>
 #include <QCoreApplication>
+#include <QElapsedTimer>
 #include <QHash>
 #include <QThreadPool>
 #include <QVector>
@@ -40,6 +41,9 @@ struct Loader {
     // Jobs cancelled while running, deleted once done.
     QVector<Job *> dropped;
     int wholeViews = 0;
+    // How long the outermost whole view lifts the limits (negative: no end).
+    qint64 wholeViewLimit = -1;
+    QElapsedTimer wholeViewTimer;
 
     void collectDropped() {
         dropped.erase(std::remove_if(dropped.begin(), dropped.end(), [](Job *job) {
@@ -82,7 +86,8 @@ ShapeLoader::Request ShapeLoader::request(ComplexShape *shape) {
         delete job;
         return Request::Adopted;
     }
-    const bool limited = l.wholeViews == 0;
+    const bool limited = l.wholeViews == 0
+            || (l.wholeViewLimit >= 0 && l.wholeViewTimer.elapsed() >= l.wholeViewLimit);
     if (l.threaded) {
         if (limited && l.running.load() >= l.parallel)
             return Request::Wait;
@@ -132,13 +137,18 @@ unsigned ShapeLoader::progress() {
     return existing != nullptr ? existing->finished.load() : 0;
 }
 
-void ShapeLoader::waitForAll() {
-    if (existing != nullptr && existing->pool != nullptr)
-        existing->pool->waitForDone();
+bool ShapeLoader::waitForAll(int msecs) {
+    if (existing == nullptr || existing->pool == nullptr)
+        return true;
+    return existing->pool->waitForDone(msecs);
 }
 
-ShapeLoader::WholeView::WholeView() {
-    loader().wholeViews++;
+ShapeLoader::WholeView::WholeView(qint64 limitMs) {
+    Loader &l = loader();
+    if (l.wholeViews++ == 0) {
+        l.wholeViewLimit = limitMs;
+        l.wholeViewTimer.start();
+    }
 }
 
 ShapeLoader::WholeView::~WholeView() {
