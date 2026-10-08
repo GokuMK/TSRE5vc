@@ -363,15 +363,16 @@ QList<QByteArray> RhiRenderer::glowSplatShaders() {
 }
 
 // Once a frame, with the lights: the emissive emitters of the queue at
-// their own power, without exposure, gain or daylight, as the surfaces' own
-// glow has none.
+// their own power, without exposure or gain, as the surfaces' own glow has
+// none, but following the lamps' light (task 21) as that glow does: faded
+// by day, none with local lights off.
 void RhiRenderer::gatherGlowSplats() {
     if (glowSplats.gathered)
         return;
     glowSplats.gathered = true;
     glowSplats.emitters.clear();
-    if (bloomEnabled())
-        gatherLights(glowSplats.emitters, 0.0f, 1.0f, true);
+    if (bloomEnabled() && Game::localLightsEnabled)
+        gatherLights(glowSplats.emitters, 0.0f, gluu->localLightAdaptation, true);
 }
 
 // At the end of the main view: its scene band's projection, fog and

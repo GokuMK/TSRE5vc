@@ -53,6 +53,10 @@ glow.
   adding to the glow output only; the emitters are gathered once a frame
   with the lights (`gatherLights`, emitters only, also those too dim to
   light anything).
+- Glow follows the lamps' light (task 21): the lit shaders and the splats
+  scale it by the daylight scale (3 % in full daylight with time of day on,
+  full with it off, the editing mode) and drop it with local lights turned
+  off. The lenses' emissive colour stays, as a material.
 - Readbacks of a float view (`readColor`) convert to 8-bit; the
   transmission copy takes the view's format.
 
