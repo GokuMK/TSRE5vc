@@ -298,6 +298,11 @@ int runOsmDataSuite(bool verbose) {
     bool attributed = false;
     for (QLabel *label : about.findChildren<QLabel *>()) attributed |= label->text().contains("openstreetmap.org/copyright");
     check(attributed, "the About window credits OpenStreetMap contributors");
+    bool earcut = false;
+    for (QLabel *label : about.findChildren<QLabel *>()) earcut |= label->text().contains("earcut.hpp");
+    QFile earcutLicence(":/licences/earcut/LICENSE");
+    check(earcut && earcutLicence.open(QIODevice::ReadOnly) && earcutLicence.readAll().contains("ISC License"),
+          "the About window credits earcut.hpp and ships its ISC licence");
     const QString aboutShots = qEnvironmentVariable("TSRE_OSM_UI_SNAPSHOTS");
     if (!aboutShots.isEmpty()) about.grab().save(aboutShots + "/about.png");
 

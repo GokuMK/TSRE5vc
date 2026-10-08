@@ -1113,6 +1113,10 @@ Consist with this file name already exist. Overwrite?
         <source>Map data from OpenStreetMap © &lt;a href="https://www.openstreetmap.org/copyright"&gt;OpenStreetMap contributors&lt;/a&gt;, available under the ODbL.</source>
         <translation>Map data from OpenStreetMap © &lt;a href="https://www.openstreetmap.org/copyright"&gt;OpenStreetMap contributors&lt;/a&gt;, available under the ODbL.</translation>
     </message>
+    <message id="route.editor.about.window.label.earcut">
+        <source>Polygon triangulation: earcut.hpp © 2015 Mapbox, &lt;a href="earcut"&gt;ISC licence&lt;/a&gt;.</source>
+        <translation>Polygon triangulation: earcut.hpp © 2015 Mapbox, &lt;a href="earcut"&gt;ISC licence&lt;/a&gt;.</translation>
+    </message>
     <message id="route.editor.about.window.button.browse">
         <location filename="../src/routeEditor/AboutWindow.cpp" line="47" />
         <source>Close</source>

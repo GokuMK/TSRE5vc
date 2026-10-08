@@ -1115,6 +1115,10 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
             <source>Map data from OpenStreetMap © &lt;a href="https://www.openstreetmap.org/copyright"&gt;OpenStreetMap contributors&lt;/a&gt;, available under the ODbL.</source>
             <translation>Dane mapowe z OpenStreetMap © &lt;a href="https://www.openstreetmap.org/copyright"&gt;współtwórcy OpenStreetMap&lt;/a&gt;, dostępne na licencji ODbL.</translation>
         </message>
+        <message id="route.editor.about.window.label.earcut">
+            <source>Polygon triangulation: earcut.hpp © 2015 Mapbox, &lt;a href="earcut"&gt;ISC licence&lt;/a&gt;.</source>
+            <translation>Triangulacja wielokątów: earcut.hpp © 2015 Mapbox, &lt;a href="earcut"&gt;licencja ISC&lt;/a&gt;.</translation>
+        </message>
         <message id="route.editor.about.window.button.browse">
             <location filename="../src/routeEditor/AboutWindow.cpp" line="47" />
             <source>Close</source>

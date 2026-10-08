@@ -117,6 +117,9 @@ qt_add_resources(TSRE5vc imagery_catalog PREFIX "/geo"
     BASE "src/tsre/geo" FILES "src/tsre/geo/imagery-datasets.json")
 qt_add_resources(TSRE5vc osm_classes PREFIX "/osm"
     BASE "src/tsre/geo/osm" FILES "src/tsre/geo/osm/osm-map-classes.json")
+# Shown by the About window: the ISC licence asks for its notice in every copy.
+qt_add_resources(TSRE5vc earcut_licence PREFIX "/licences/earcut"
+    BASE "src/earcut" FILES "src/earcut/LICENSE")
 target_include_directories(TSRE5vc PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")

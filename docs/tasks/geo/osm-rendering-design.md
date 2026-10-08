@@ -269,7 +269,7 @@ Requested by the user for a later step, with less memory as the goal:
 | Step | Commit | Notes |
 |---|---|---|
 | 1. Layer order | `f499ac1` | Faded Overlay (`MapOverlayFade`, height 90); terrain aids moved to 81 to 87; USA2 map-terrain captures match main. |
-| 2. earcut | `9c68474` | `src/earcut/earcut.hpp` with its licence and a README. |
+| 2. earcut | `9c68474` | `src/earcut/earcut.hpp` with its licence and a README. The About window credits it and shows the licence (user, 2026-10-08); a release notices file is for later. |
 | 3. Scale ranges | `56d68fa` | `maxMetersPerPixel` in styles; ranges 2.5, 5 and 10 m/px. Unstyled ways (the default style) got 5 m/px with step 4. |
 | 4. Geometry | `8c440ac` | `Osm::MapGeometry`; measurements in the evidence. |
 | 5. Map layer | `5fd7cd1` | `OsmMapLayer`, `Osm::sharedLayers`, menu, prompt, captures. |
