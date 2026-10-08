@@ -150,6 +150,21 @@ the trees near it: 0.6 ms, the same 2,311 trees cleared; the first view
 went from 77-91 ms to 26-31 ms. The next main-thread costs are reading the tiles'
 world files and the rest of the world gather.
 
+## Future improvements
+
+- Camera jump phases (CMK to Warszawa Wschodnia, QRhi): load about 1 s
+  (world files, terrain, shapes on workers), then the frame that shows
+  the view: gather 355 ms, drawing with uploads 0.7 s (mostly creating
+  textures, see task 20's open items), GPU and present 60 ms. The OpenGL
+  renderer: load 1.0 s, gather 391 ms, drawing 235 ms.
+- The frame's gather after a whole view is dominated by the overlays (track
+  database lines, markers): 349 ms on CMK's first view. Gathering them in
+  the whole-view load as well did not help measurably; making their first
+  build cheaper would.
+- World files (`.w`) and terrain tiles are still read on the main thread
+  inside the whole-view load; moving them to workers would shorten the
+  load before the shape wait.
+
 ## Seasonal shape textures
 
 Both MSTS loaders take the `.sd` season directory from

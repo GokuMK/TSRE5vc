@@ -223,6 +223,24 @@ Open:
   per-frame values (matrices, lights, fog) out of the per-draw uniform
   block, which QRhi's OpenGL backend sends member by member on every
   resource change.
+- Resource creation on a camera jump (2026-10-08, Steam Deck, CMK, map
+  mode to Warszawa Wschodnia, 716 new shapes): QRhi Vulkan shows the view
+  2.1 s after the jump, the OpenGL renderer 1.65 s. The jump frame spends
+  about 0.5 s creating textures: 0.5 to 2 ms each in a long session
+  against 0.1 ms in a fresh one (`texture->create()`, so allocation, not
+  the CPU work). Mesh buffers went from 285 ms to 53 ms with shared
+  chunks. Ideas, not done:
+  - Spread texture creation over frames (a budget of about 30 ms a
+    frame): no hitch, textures fill in over a few frames.
+  - Find why creation gets slower over a session (QRhi statistics of
+    allocations, a profile of the jump frame); if it is allocation, small
+    textures in arrays or atlases.
+  - Tried and reverted: gathering every 200 ms during the jump's wait and
+    creating the queued resources meanwhile. Most textures are still being
+    decoded then (texture threads start when a shape is taken over), and
+    the repeated gathers made the jump slower (2.9 s).
+  The QRhi renderer logs frames that spend over 100 ms making resources,
+  and the route editor logs each jump's phases ("Whole view ... shown").
 
 ## Hardware test (2026-10-06)
 
