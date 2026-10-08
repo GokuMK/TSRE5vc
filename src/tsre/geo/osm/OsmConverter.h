@@ -32,7 +32,7 @@ struct ConvertOptions {
     QString tempDirectory;      // empty: a directory next to the output
 };
 
-enum class ConvertPhase { Scan, Relations, Nodes, Ways, Write };
+enum class ConvertPhase { Scan, Relations, Nodes, Ways, Write, Overview };  // Overview: OsmDirectory, after converting
 
 struct ConvertStats {
     uint64_t sourceNodes = 0, taggedNodes = 0;

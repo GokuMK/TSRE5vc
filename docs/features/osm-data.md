@@ -69,10 +69,35 @@ recognises that the download changed, and offers to convert it again.
 |---|---|
 | `<name>.tsre.osm.pbf` | The converted, spatially sorted copy. |
 | `<name>.tsre.osm.pbf.idx` | A small index cache. TSRE recreates it if you delete it. |
+| `<name>.tsre.overview.regional.pbf`, `<name>.tsre.overview.national.pbf` | Overview maps for zoomed-out views (see below). About 5 % and 1 % of the converted file. |
 
 During a conversion, `<name>.tsre.osm.pbf.part` and a
 `<name>.tsre.osm.pbf.tmp/` directory exist next to the file. They are removed
 when the conversion finishes or is cancelled.
+
+### Overview maps for zoomed-out views
+
+A whole province or country holds far more detail than a zoomed-out view can
+show, and reading it all takes seconds. Next to each converted file, TSRE
+therefore keeps two overview maps with simplified geometry. They are built
+right after the conversion (about 1 s for a province, 10–15 s for Poland) and
+rebuilt automatically when needed.
+
+- **Regional**, used from 20 m per pixel:
+  - railways and stations;
+  - main roads down to tertiary;
+  - rivers;
+  - water, forest and built-up areas of 5 ha or more;
+  - towns and villages.
+- **National**, used from 150 m per pixel:
+  - main railways;
+  - motorway, trunk and primary roads;
+  - rivers;
+  - water and forest of 1 km² or more;
+  - cities and towns.
+
+What each level contains, and from which scale it is used, is set in the
+`overview` section of `src/tsre/geo/osm/osm-map-classes.json`.
 
 ### Overlapping files
 

@@ -709,5 +709,9 @@
     {"tags": ["place=island"], "fill": "#f1eee8"},
     {"tags": ["man_made=pier"], "line": {"color": "#f1eee8", "width": 5.0, "cap": "round"}},
     {"tags": ["natural=coastline"], "line": {"color": "#969696", "width": 0, "cap": "flat"}}
-  ]
+  ],
+  "overview": {"levels": [
+    {"name": "regional", "fromMetersPerPixel": 20, "toleranceMeters": 5, "rules": [{"tags": ["railway=rail", "railway=light_rail", "railway=narrow_gauge", "railway=subway", "railway=preserved"], "types": ["way"]}, {"tags": ["railway=station", "railway=halt"], "types": ["node"]}, {"tags": ["highway=motorway", "highway=motorway_link", "highway=trunk", "highway=trunk_link", "highway=primary", "highway=primary_link", "highway=secondary", "highway=secondary_link", "highway=tertiary"], "types": ["way"]}, {"tags": ["waterway=river", "waterway=canal", "natural=coastline"], "types": ["way"]}, {"tags": ["natural=water", "waterway=riverbank", "landuse=reservoir", "landuse=basin", "landuse=forest", "natural=wood", "landuse=residential", "landuse=industrial", "landuse=commercial", "landuse=retail", "landuse=railway", "aeroway=aerodrome"], "types": ["way", "relation"], "minAreaKm2": 0.05}, {"tags": ["place=city", "place=town", "place=village"], "types": ["node"]}]},
+    {"name": "national", "fromMetersPerPixel": 150, "toleranceMeters": 40, "rules": [{"tags": ["railway=rail", "railway=narrow_gauge"], "unless": ["service=*"], "types": ["way"]}, {"tags": ["highway=motorway", "highway=trunk", "highway=primary"], "types": ["way"]}, {"tags": ["waterway=river", "waterway=canal", "natural=coastline"], "types": ["way"]}, {"tags": ["natural=water", "waterway=riverbank", "landuse=reservoir", "landuse=basin", "landuse=forest", "natural=wood"], "types": ["way", "relation"], "minAreaKm2": 1.0}, {"tags": ["place=city", "place=town"], "types": ["node"]}]}
+  ]}
 }

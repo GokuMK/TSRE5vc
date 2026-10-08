@@ -82,10 +82,28 @@ std::vector<const DirectoryEntry *> OsmDirectory::pendingConversions(const Box *
     return v;
 }
 
+std::vector<const DirectoryEntry *> OsmDirectory::pendingOverviews(const OverviewConfig &config, const Box *area) const {
+    std::vector<const DirectoryEntry *> v;
+    for (const DirectoryEntry *e : convertedFiles()) {
+        if (area && e->header.bbox.valid() && !e->header.bbox.intersects(*area)) continue;
+        for (size_t l = 0; l < config.levels.size(); ++l)
+            if (!overviewUpToDate(e->path, config, l)) { v.push_back(e); break; }
+    }
+    return v;
+}
+
 bool OsmDirectory::convert(const DirectoryEntry &download, bool deleteOriginal, const ConvertOptions &options,
                            ConvertStats &stats, QString &error, const ConvertProgress &progress, const std::atomic_bool *cancel) {
     if (download.converted) { error = QStringLiteral("%1 is already converted").arg(download.path); return false; }
-    if (!convertPbf(download.path, convertedPathFor(download.path), options, stats, error, progress, cancel)) return false;
+    const QString converted = convertedPathFor(download.path);
+    if (!convertPbf(download.path, converted, options, stats, error, progress, cancel)) return false;
+    if (progress) progress(ConvertPhase::Overview, 0);
+    std::vector<OverviewStats> overview;
+    if (!buildOverviews(converted, OverviewConfig::standard(), overview, error, options.threads, cancel)) {
+        error = QStringLiteral("Converted, but cannot build the overview maps: %1").arg(error);
+        return false;
+    }
+    if (progress) progress(ConvertPhase::Overview, 1);
     if (deleteOriginal && !QFile::remove(download.path)) {
         error = QStringLiteral("Converted, but cannot delete %1").arg(download.path);
         return false;

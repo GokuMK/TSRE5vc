@@ -98,6 +98,25 @@ known = {cl["tag"] for cl in classes}
 for s in styles:
     for t in s["tags"]:
         assert t.endswith("=*") or t in known, t
+# Overview levels for large-scale views (see docs/tasks/geo/osm-data-design.md). The detail
+# file serves views finer than the first level; each level keeps only these features.
+area_tags = ["natural=water", "waterway=riverbank", "landuse=reservoir", "landuse=basin", "landuse=forest", "natural=wood"]
+overview = {"levels": [
+    {"name": "regional", "fromMetersPerPixel": 20, "toleranceMeters": 5, "rules": [
+        {"tags": ["railway=rail", "railway=light_rail", "railway=narrow_gauge", "railway=subway", "railway=preserved"], "types": ["way"]},
+        {"tags": ["railway=station", "railway=halt"], "types": ["node"]},
+        {"tags": ["highway=motorway", "highway=motorway_link", "highway=trunk", "highway=trunk_link", "highway=primary", "highway=primary_link",
+                  "highway=secondary", "highway=secondary_link", "highway=tertiary"], "types": ["way"]},
+        {"tags": ["waterway=river", "waterway=canal", "natural=coastline"], "types": ["way"]},
+        {"tags": area_tags + ["landuse=residential", "landuse=industrial", "landuse=commercial", "landuse=retail", "landuse=railway", "aeroway=aerodrome"],
+         "types": ["way", "relation"], "minAreaKm2": 0.05},
+        {"tags": ["place=city", "place=town", "place=village"], "types": ["node"]}]},
+    {"name": "national", "fromMetersPerPixel": 150, "toleranceMeters": 40, "rules": [
+        {"tags": ["railway=rail", "railway=narrow_gauge"], "unless": ["service=*"], "types": ["way"]},
+        {"tags": ["highway=motorway", "highway=trunk", "highway=primary"], "types": ["way"]},
+        {"tags": ["waterway=river", "waterway=canal", "natural=coastline"], "types": ["way"]},
+        {"tags": area_tags, "types": ["way", "relation"], "minAreaKm2": 1.0},
+        {"tags": ["place=city", "place=town"], "types": ["node"]}]}]}
 out = {
     "version": 1,
     "description": "OSM feature classes and tile-map styles. Generated from the legacy OSMFeatures table and MapDataOSM::draw(); widths in metres (the legacy pixel widths at 2 px per metre, width 0 = one pixel). The first style listing a class wins; an exact tag beats key=*.",
@@ -110,6 +129,7 @@ out = {
     "default": {"line": {"color": c(50, 50, 50), "width": 0, "cap": "flat"}},
     "classes": classes,
     "styles": styles,
+    "overview": overview,
 }
 def compact(v): return json.dumps(v, ensure_ascii=False, separators=(', ', ': '))
 lines = ['{']
@@ -120,7 +140,10 @@ lines.append(',\n'.join('    ' + compact(cl) for cl in classes))
 lines.append('  ],')
 lines.append('  "styles": [')
 lines.append(',\n'.join('    ' + compact(st) for st in styles))
-lines.append('  ]')
+lines.append('  ],')
+lines.append('  "overview": {"levels": [')
+lines.append(',\n'.join('    ' + compact(lv) for lv in overview["levels"]))
+lines.append('  ]}')
 lines.append('}')
 open(sys.argv[2], 'w').write('\n'.join(lines) + '\n')
 json.load(open(sys.argv[2]))

@@ -10,6 +10,7 @@
 
 #include <tsre/geo/osm/OsmConversionUi.h>
 #include <tsre/geo/osm/OsmDirectory.h>
+#include <tsre/geo/osm/OsmOverview.h>
 #include <settings/SettingsAccess.h>
 #include <QCheckBox>
 #include <QDebug>
@@ -61,6 +62,8 @@ QString phaseText(ConvertPhase phase) {
         case ConvertPhase::Ways: return qtTrId("geo.osm.conversion.phase.ways");
         //% "writing the sorted file"
         case ConvertPhase::Write: return qtTrId("geo.osm.conversion.phase.write");
+        //% "building overview maps"
+        case ConvertPhase::Overview: return qtTrId("geo.osm.conversion.phase.overview");
     }
     return {};
 }
@@ -163,18 +166,23 @@ EnsureResult ensureConverted(QWidget *parent, const QString &path, bool deleteOr
         if (mode == EnsureMode::Ask && declinedFiles().contains(declineKey(*e))) { ++result.declined; continue; }
         files.push_back(e);
     }
-    if (files.empty()) return result;
-    if (mode == EnsureMode::Ask && !askToConvert(parent, files, deleteOriginal)) {
+    // Overviews of converted files are rebuilt without asking: one pass, seconds even for a country.
+    const OverviewConfig &overviewConfig = OverviewConfig::standard();
+    const std::vector<const DirectoryEntry *> overviews = dir.pendingOverviews(overviewConfig, &area);
+    if (files.empty() && overviews.empty()) return result;
+    if (!files.empty() && mode == EnsureMode::Ask && !askToConvert(parent, files, deleteOriginal)) {
         for (const DirectoryEntry *e : files) declinedFiles().insert(declineKey(*e));
         result.declined += int(files.size());
-        return result;
+        files.clear();
+        if (overviews.empty()) return result;
     }
 
-    // Worker thread converts the files one by one; this thread shows progress.
+    // Worker thread converts the files one by one, then refreshes overviews; this thread shows progress.
     std::atomic_bool cancel{false}, done{false};
     std::atomic<int> current{0}, phase{0}, permille{0};
     QStringList errors;
     int converted = 0;
+    const size_t steps = files.size() + overviews.size();
     std::thread worker([&] {
         for (size_t i = 0; i < files.size() && !cancel; ++i) {
             current = int(i);
@@ -185,6 +193,14 @@ EnsureResult ensureConverted(QWidget *parent, const QString &path, bool deleteOr
             if (ok) ++converted;
             else if (!cancel) errors << e;
         }
+        for (size_t i = 0; i < overviews.size() && !cancel; ++i) {
+            current = int(files.size() + i);
+            phase = int(ConvertPhase::Overview);
+            permille = 0;
+            std::vector<OverviewStats> stats;
+            QString e;
+            if (!buildOverviews(overviews[i]->path, overviewConfig, stats, e, 0, &cancel) && !cancel) errors << e;
+        }
         done = true;
     });
     if (mode == EnsureMode::Ask) {
@@ -193,17 +209,17 @@ EnsureResult ensureConverted(QWidget *parent, const QString &path, bool deleteOr
         progress.setWindowTitle(qtTrId("geo.osm.conversion.title"));
         progress.setWindowModality(Qt::WindowModal);
         progress.setMinimumDuration(0);
-        progress.setRange(0, int(files.size()) * 5000);
+        progress.setRange(0, int(steps) * 6000);
         QObject::connect(&progress, &QProgressDialog::canceled, [&] { cancel = true; });
         QEventLoop loop;
         QTimer timer;
         QObject::connect(&timer, &QTimer::timeout, [&] {
             if (done) { loop.quit(); return; }
             const int i = current, p = phase;
+            const QString name = QFileInfo(size_t(i) < files.size() ? files[size_t(i)]->path : overviews[size_t(i) - files.size()]->path).fileName();
             //% "Converting %1 (%2 of %3): %4"
-            progress.setLabelText(qtTrId("geo.osm.conversion.progress")
-                                          .arg(QFileInfo(files[size_t(i)]->path).fileName()).arg(i + 1).arg(files.size()).arg(phaseText(ConvertPhase(p))));
-            progress.setValue(i * 5000 + p * 1000 + permille);
+            progress.setLabelText(qtTrId("geo.osm.conversion.progress").arg(name).arg(i + 1).arg(steps).arg(phaseText(ConvertPhase(p))));
+            progress.setValue(i * 6000 + p * 1000 + permille);
         });
         timer.start(100);
         loop.exec();

@@ -10071,6 +10071,10 @@ Now TSRE will download app data.</translation>
         <source>writing the sorted file</source>
         <translation>writing the sorted file</translation>
     </message>
+    <message id="geo.osm.conversion.phase.overview">
+        <source>building overview maps</source>
+        <translation>building overview maps</translation>
+    </message>
     <message id="geo.osm.conversion.failed">
         <source>OpenStreetMap conversion failed</source>
         <translation>OpenStreetMap conversion failed</translation>

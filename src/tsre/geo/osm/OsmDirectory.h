@@ -15,6 +15,7 @@
 // copies by the source identity recorded in the converted header, not by name.
 
 #include <tsre/geo/osm/OsmConverter.h>
+#include <tsre/geo/osm/OsmOverview.h>
 #include <tsre/geo/osm/OsmPbf.h>
 #include <tsre/geo/osm/OsmSortedFormat.h>
 #include <QString>
@@ -48,11 +49,15 @@ public:
     // intersects it (files without a bbox always match).
     std::vector<const DirectoryEntry *> pendingConversions(const Box *area = nullptr) const;
 
+    // Converted files whose overview levels are missing or out of date. With an area, only files
+    // whose header bbox intersects it.
+    std::vector<const DirectoryEntry *> pendingOverviews(const OverviewConfig &config, const Box *area = nullptr) const;
+
     // <dir>/<base>.tsre.osm.pbf for <dir>/<base>.osm.pbf.
     static QString convertedPathFor(const QString &downloadPath);
 
-    // Converts one download next to itself; with deleteOriginal the download is removed after
-    // the converted file is complete. Call scan() again afterwards.
+    // Converts one download next to itself and builds its overview levels (standard rules); with
+    // deleteOriginal the download is removed after the converted file is complete. Call scan() again afterwards.
     static bool convert(const DirectoryEntry &download, bool deleteOriginal, const ConvertOptions &options,
                         ConvertStats &stats, QString &error, const ConvertProgress &progress = {},
                         const std::atomic_bool *cancel = nullptr);

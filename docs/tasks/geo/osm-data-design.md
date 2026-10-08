@@ -378,3 +378,68 @@ Tests:
   suite checks it.
 - Final converter on Poland with 4 threads: 47 s (level 1, load average
   about 3).
+
+## Overview layers for large-scale views (2026-10-08)
+
+**Problem.** The sorted file is ordered by place, not by theme. "All railways
+of an area" decodes every way block and keeps under 1 % of what it reads:
+
+- Pomorskie: 0.27–0.37 s.
+- Poland: 4.9–6.2 s, and 2.6–4.7 s even when repeated. Decoded Poland is about
+  12 GB, so no block cache holds it.
+
+Railway-only blocks would be 14.9 MB for Poland and decode in 0.03 s.
+
+**Decision.** Each converted file gets overview levels: small sorted PBFs
+`<base>.tsre.overview.<level>.pbf` next to it.
+
+- **Content.** Only the features selected by the level's rules, with
+  Douglas–Peucker simplified geometry; end points stay, so multipolygon
+  rings still join.
+- **Rules** live in the `overview` section of `osm-map-classes.json`:
+  key=value or `key=*` patterns, `unless` patterns, feature types, and a
+  minimum area for closed ways and multipolygons.
+- **Building.** Levels are built in one pass over the converted file, by
+  `OsmDirectory::convert` right after converting, and by `ensureConverted`
+  without asking when they are missing or stale.
+- **Staleness.** Each file records the converted file's size and mtime and a
+  hash of the rules, so editing the rules or reconverting rebuilds them.
+- **Not a download.** Overview files carry `TSRE-Overview-1` and do not end
+  in `.osm.pbf`, so the directory scan ignores them.
+- **`OsmLayers`** opens the detail store plus one store per level and picks
+  by view resolution:
+  - `forScale(metersPerPixel)` returns detail below the first level;
+  - otherwise it returns the finest built level at or below the wanted one;
+  - a level is used only when every converted file has it.
+- **Relation support.** Only multipolygon and boundary relations are
+  supported in overviews.
+
+**Levels.** Configurable; these are the defaults.
+
+Detail (the sorted file) serves views finer than 20 m per pixel. At that
+resolution a 4096 px view covers about 80 km. A 60 km area still queries in
+0.02–0.19 s from the detail file, while buildings and residential streets are
+already only 1–2 px wide.
+
+| Level | From | Tolerance | Content |
+|---|---:|---:|---|
+| `regional` | 20 m/px | 5 m | rail, light rail, narrow gauge, subway and preserved railways; stations and halts; roads motorway to tertiary with links; rivers, canals, coastline; water, forest, residential, industrial, commercial, retail, railway land and aerodromes of 5 ha or more; cities, towns, villages |
+| `national` | 150 m/px (a province on a 2000 px screen) | 40 m | rail and narrow gauge without `service=*`; motorway, trunk, primary; rivers, canals, coastline; water and forest of 1 km² or more; cities and towns |
+
+Measured (Poland built under load average 6–8 from other sessions):
+
+| | pomorskie | Poland |
+|---|---:|---:|
+| Build both levels | 0.77 s | 12.5 s |
+| Regional | 6.8 MB, 56,120 ways, 942 relations; points 1.50 M → 0.81 M | 113 MB, 888,619 ways, 16,417 relations; points 26.7 M → 14.2 M |
+| National | 1.4 MB, 15,595 ways, 333 relations; points 0.57 M → 0.14 M | 20 MB, 238,660 ways, 5,514 relations; points 9.4 M → 1.9 M |
+| All railways: detail / regional / national | 0.27–0.37 s / 0.020 s / 0.012 s | 4.9–6.2 s / 0.20 s / 0.063 s |
+| Whole level, warm: regional / national | 4 ms / 1 ms | 47 ms / 14 ms |
+
+Tests in `tests/osm` (183 checks) cover:
+- rule selection per level (sidings, small areas, hamlets, stations);
+- simplification and multipolygons assembled from an overview file;
+- staleness after rule or file changes;
+- scale selection and the fallback when a level is missing.
+
+Opt-in: `tsre_osm_tests --overview <converted files...>`.

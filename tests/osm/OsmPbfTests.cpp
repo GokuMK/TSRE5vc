@@ -20,6 +20,8 @@ void runMultipolygonTests(const std::function<void(bool, const char *)> &check);
 int assembleArea(const QStringList &args);
 void runClassesTests(const std::function<void(bool, const char *)> &check);
 int compareClasses(const QStringList &files);
+void runOverviewTests(const std::function<void(bool, const char *)> &check);
+int overviewFiles(const QStringList &files);
 
 namespace {
 
@@ -318,6 +320,7 @@ int main(int argc, char **argv) {
     if (args.size() >= 6 && args[0] == "--query") return queryFiles(args.mid(1));
     if (args.size() >= 6 && args[0] == "--multipolygons") return assembleArea(args.mid(1));
     if (args.size() >= 2 && args[0] == "--classes") return compareClasses(args.mid(1));
+    if (args.size() >= 2 && args[0] == "--overview") return overviewFiles(args.mid(1));
     int checks = 0, failures = 0;
     const auto check = [&](bool condition, const char *name) {
         ++checks;
@@ -330,6 +333,7 @@ int main(int argc, char **argv) {
     runDirectoryTests(check);
     runMultipolygonTests(check);
     runClassesTests(check);
+    runOverviewTests(check);
     std::cout << checks << " checks, " << failures << " failures\n";
     return failures ? 1 : 0;
 }

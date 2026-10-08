@@ -10076,6 +10076,10 @@ TSRE pobierze teraz dane aplikacji.</translation>
             <source>writing the sorted file</source>
             <translation>zapis uporządkowanego pliku</translation>
         </message>
+        <message id="geo.osm.conversion.phase.overview">
+            <source>building overview maps</source>
+            <translation>tworzenie map przeglądowych</translation>
+        </message>
         <message id="geo.osm.conversion.failed">
             <source>OpenStreetMap conversion failed</source>
             <translation>Przekształcanie danych OpenStreetMap nie powiodło się</translation>
