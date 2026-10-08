@@ -50,8 +50,11 @@ struct MapPalette {
     QColor event = QColor(255, 0, 0);
     // How much Map > Faded Terrain blends terrain towards the background.
     float terrainFade = 0.3f;
-    // Borders of the terrain tiles being edited.
+    // Borders of the terrain tiles being edited, the thin lines of their
+    // quadtree, and the tint of a populated tile without its file.
     QColor terrainBorder = QColor(185, 186, 194);
+    QColor quadBorder = QColor(214, 216, 224);
+    QColor missingTile = QColor(235, 70, 70);
     // The halo around selected objects.
     QColor selection = QColor(0, 170, 255);
 

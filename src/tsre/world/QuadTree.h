@@ -15,6 +15,7 @@
 #include <QHash>
 #include <QVector>
 #include <QStringList>
+#include <functional>
 
 class FileBuffer;
 class TerrainInfo;
@@ -22,6 +23,13 @@ class QTextStream;
 
 class QuadTree {
 public:
+    // What visit() reports: every node's square (corner and side in world
+    // tiles, tree coordinates), and every populated quadrant as the terrain
+    // tile it names (TerrainInfo name, corner cx, cy and size level).
+    struct Visitor {
+        std::function<void(int x, int y, int size)> node;
+        std::function<void(const TerrainInfo &info)> tile;
+    };
 
     /*struct TreePos {
         int level;
@@ -54,6 +62,10 @@ public:
         QString getMyName(int tileX, int tileY);
         unsigned int getMyNameId(int tileX, int tileY);
         bool fillTerrainInfo(int tileX, int tileY, TerrainInfo* info);
+        // The terrain tile of quadrant px, py: name, corner and size.
+        void quadrantInfo(int px, int py, TerrainInfo *info) const;
+        void visit(int minX, int maxX, int minY, int maxY, const Visitor &visitor,
+                   bool low) const;
         int listNames();
     };
     struct TdFile {
@@ -88,6 +100,10 @@ public:
     void createNew(int tileX, int tileY, SavePolicy policy = SavePolicy::Immediate);
     void addTile(int tileX, int tileY, SavePolicy policy = SavePolicy::Immediate);
     void fillTerrainInfo(int tileX, int tileY, TerrainInfo* info);
+    // The nodes and populated quadrants overlapping world tiles minX..maxX,
+    // minY..maxY (tree coordinates, inclusive), for drawing the tree (map
+    // mode, task editor 04).
+    void visit(int minX, int maxX, int minY, int maxY, const Visitor &visitor) const;
     QString getMyName(int tileX, int tileY);
     unsigned int getMyNameId(int tileX, int tileY);
     void listNames();

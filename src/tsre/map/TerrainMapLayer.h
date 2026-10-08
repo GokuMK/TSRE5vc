@@ -33,6 +33,9 @@ struct MapPalette;
 //   detailed tiles as borders only, loading nothing for them;
 // - editing distant tiles, they are the main layer at every zoom, without
 //   a background or detailed tiles.
+// The quadtree of the tiles being edited shows as thin lines around every
+// node; tiles with their file have the tile border, populated tiles
+// without one a light red tint.
 // - Narrower views show each detailed patch as a square with its texture
 //   and placement from the tile file (procedural tiles: their baked
 //   fallback, which their patches reference). Only tile files are read
@@ -51,7 +54,13 @@ public:
     static constexpr float ProceduralHeight = 25.0f;
     // A tile's map texture shown by the geo tools, over its terrain.
     static constexpr float OverlayHeight = 35.0f;
+    // The quadtree of the tiles being edited: every node's square as a thin
+    // line, a populated tile whose file is missing tinted.
+    static constexpr float MissingHeight = 36.0f;
+    static constexpr float QuadHeight = 38.0f;
     static constexpr float BorderHeight = 40.0f;
+    static constexpr float QuadPixels = 1.0f;
+    static constexpr float MissingAlpha = 0.35f;
     // Faded Terrain: a square of the background colour over the terrain,
     // under the roads.
     static constexpr float FadeHeight = 50.0f;
@@ -96,6 +105,10 @@ private:
                                  float y);
     static void appendOutline(std::vector<float> &out, const TerrainInfo &info,
                               const MapView &view, float y, float width);
+    static void appendFill(std::vector<float> &out, const TerrainInfo &info, const MapView &view,
+                           float y);
+    // Whether a populated tile's file exists (cached by name).
+    bool tileFileExists(const TerrainInfo &info);
 
     bool valid = false;
     int builtTileX = 0;
@@ -113,6 +126,9 @@ private:
     std::vector<Procedural> procedural;
     std::vector<Group> overlays;
     std::unique_ptr<OglObj> borders;
+    std::unique_ptr<OglObj> quadLines;
+    std::unique_ptr<OglObj> missing;
+    QHash<QString, bool> tileFiles;
     std::unique_ptr<OglObj> fade;
 };
 

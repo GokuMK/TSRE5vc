@@ -509,6 +509,11 @@ longer side, as for track objects):
   procedural shading and map overlays, and neither the background nor
   the detailed tiles are drawn; static painting then works at any zoom.
   Edits go through the current tree in both modes.
+- **Quadtree** of the tiles being edited (`QuadTree::visit`): every node's
+  square as a thin line (palette `quadBorder`); a populated tile whose
+  file exists gets the tile border, one whose file is missing a light red
+  tint (`missingTile`, 35%). Tile file checks are cached by name until
+  the layer is invalidated.
 - **Distant level**: the detailed tiles show only their borders, from the
   quadtree, so nothing is loaded for them. A route without distant tiles
   shows only these borders.

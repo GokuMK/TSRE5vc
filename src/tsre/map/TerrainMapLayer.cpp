@@ -26,6 +26,10 @@
 #include <tsre/world/Terrain.h>
 #include <tsre/world/TerrainGridLayout.h>
 #include <tsre/world/TerrainInfo.h>
+#include <tsre/world/QuadTree.h>
+#include <tsre/fileFunctions/ContentPath.h>
+#include <tsre/Game.h>
+#include <QFileInfo>
 #include <tsre/world/TerrainLib.h>
 
 namespace {
@@ -56,7 +60,8 @@ public:
 };
 
 TerrainMapLayer::TerrainMapLayer()
-    : borders(std::make_unique<OglObj>()),
+    : borders(std::make_unique<OglObj>()), quadLines(std::make_unique<OglObj>()),
+      missing(std::make_unique<OglObj>()),
       fade(std::make_unique<OglObj>()) {}
 
 TerrainMapLayer::~TerrainMapLayer() = default;
@@ -84,6 +89,7 @@ void TerrainMapLayer::invalidate() {
     detailed.clear();
     procedural.clear();
     overlays.clear();
+    tileFiles.clear();
 }
 
 void TerrainMapLayer::appendTile(Terrain *tile, const MapView &view, float y,
@@ -116,6 +122,30 @@ void TerrainMapLayer::appendTileSquare(std::vector<float> &out, Terrain *tile,
     const float corners[16] = {x0, z0, 0, 0,  x0 + size, z0, 1, 0,
                                x0 + size, z0 + size, 1, 1,  x0, z0 + size, 0, 1};
     appendPatch(out, corners, y);
+}
+
+void TerrainMapLayer::appendFill(std::vector<float> &out, const TerrainInfo &info,
+                                  const MapView &view, float y) {
+    const float size = std::max(info.level, 1) * 2048.0f;
+    const float x0 = (info.cx - view.tileX) * 2048.0f - 1024.0f;
+    const float z0 = (-info.cy - view.tileZ) * 2048.0f + 1024.0f - size;
+    const float corners[4][2] = {{x0, z0}, {x0 + size, z0}, {x0 + size, z0 + size},
+                                 {x0, z0 + size}};
+    // Wound as the patches are.
+    for (int corner : {0, 3, 2, 0, 2, 1})
+        out.insert(out.end(), {corners[corner][0], y, corners[corner][1]});
+}
+
+bool TerrainMapLayer::tileFileExists(const TerrainInfo &info) {
+    auto found = tileFiles.constFind(info.name);
+    if (found != tileFiles.constEnd())
+        return found.value();
+    static const char *const directories[2] = {"TILES", "LO_TILES"};
+    const QString path = ContentPath::normalize(Game::root + "/ROUTES/" + Game::route + "/"
+            + directories[info.low ? 1 : 0] + "/" + info.name + ".t");
+    const bool exists = QFileInfo::exists(path);
+    tileFiles.insert(info.name, exists);
+    return exists;
 }
 
 void TerrainMapLayer::appendOutline(std::vector<float> &out, const TerrainInfo &info,
@@ -169,11 +199,10 @@ void TerrainMapLayer::build(const MapView &view, const MapPalette &palette, Terr
                     ++distantTiles;
                 }
             }
-            const unsigned int detailedId = terrain->terrainTileId(x, z, distantMode, &info);
+            const unsigned int detailedId = terrain->terrainTileId(x, z, distantMode);
             if (detailedId == 0 || seenDetailed.contains(detailedId))
                 continue;
             seenDetailed.insert(detailedId);
-            appendOutline(outlines, info, view, BorderHeight, borderWidth);
             // Wider views: detailed tiles as borders only, nothing loaded.
             if (!patches)
                 continue;
@@ -198,6 +227,39 @@ void TerrainMapLayer::build(const MapView &view, const MapPalette &palette, Terr
                 }
             }
         }
+
+    // The quadtree of the tiles being edited: thin lines around its nodes,
+    // tile borders, and a tint where a populated tile has no file.
+    std::vector<float> nodeLines, missingTiles;
+    int nodes = 0, missingCount = 0;
+    if (QuadTree *tree = distantMode ? terrain->getQuadTreeDistant()
+                                     : terrain->getQuadTreeDetailed()) {
+        const float quadWidth = QuadPixels * view.metresPerPixel;
+        QuadTree::Visitor visitor;
+        visitor.node = [&](int x, int y, int size) {
+            TerrainInfo node;
+            node.cx = x;
+            node.cy = y;
+            node.level = size;
+            appendOutline(nodeLines, node, view, QuadHeight, quadWidth);
+            ++nodes;
+        };
+        visitor.tile = [&](const TerrainInfo &tile) {
+            if (tileFileExists(tile)) {
+                appendOutline(outlines, tile, view, BorderHeight, borderWidth);
+            } else {
+                appendFill(missingTiles, tile, view, MissingHeight);
+                ++missingCount;
+            }
+        };
+        // Tree coordinates count tiles northwards: z negated.
+        tree->visit(tiles[0], tiles[1], -tiles[3], -tiles[2], visitor);
+    }
+    setColour(*quadLines, palette.quadBorder);
+    quadLines->init(nodeLines.data(), int(nodeLines.size()), RenderItem::V, GL_TRIANGLES);
+    missing->setMaterial(float(palette.missingTile.redF()), float(palette.missingTile.greenF()),
+                         float(palette.missingTile.blueF()), MissingAlpha);
+    missing->init(missingTiles.data(), int(missingTiles.size()), RenderItem::V, GL_TRIANGLES);
 
     auto groups = [](std::vector<Group> &out, QHash<int, std::vector<float>> &byTexture) {
         out.clear();
@@ -231,7 +293,8 @@ void TerrainMapLayer::build(const MapView &view, const MapPalette &palette, Terr
                           << (patches ? "patches" : "borders") << "m/px"
                           << view.metresPerPixel << "distant tiles" << seenDistant.size()
                           << "loaded" << distantTiles << "detailed tiles" << seenDetailed.size()
-                          << "loaded" << detailedTiles << "procedural" << procedural.size()
+                          << "loaded" << detailedTiles << "procedural" << procedural.size() << "quad nodes" << nodes << "missing"
+                          << missingCount
                           << "textures" << distant.size() + detailed.size() << "ms"
                           << timer.nsecsElapsed() / 1e6;
 }
@@ -267,6 +330,8 @@ void TerrainMapLayer::pushRenderItems(RenderQueue &queue, const MapView &view,
     for (Procedural &tile : procedural)
         tile.square->push(queue, terrain->getTerrainByXY(tile.tileX, tile.tileZ, false));
     push(overlays);
+    missing->pushRenderItem(queue);
+    quadLines->pushRenderItem(queue);
     borders->pushRenderItem(queue);
     if (faded && palette.terrainFade > 0.0f) {
         // The ground in view, wound as the patches are.
