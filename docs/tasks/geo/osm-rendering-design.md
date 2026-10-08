@@ -401,11 +401,13 @@ and the editor then crashed; on the Linux server all was fine.
   the map layer, the tile map's quadrants and the OSM tests.
 - `tsre_osm_tests` on the Deck: 20.8 s and 20 crash reports before, 9.6 s and
   none after.
-- Still failing on Windows, before and after: two overview tests delete an
-  overview file that open layers keep mapped, which Windows refuses
-  ("shared layers reopen when an overview goes", "a missing national level
-  falls back to the regional one"). Rebuilding a stale overview while the
-  map layer has it open may fail the same way in the editor.
+- Two overview tests failed on Windows, before and after: they deleted an
+  overview file that open layers still had mapped, which Windows refuses.
+  The tests now close their layers first; on Windows the check that users
+  of old shared layers keep them is left out, as there the file cannot go
+  while they do. The editor never meets this: layers leave out stale
+  overviews, and only stale or missing ones are rebuilt; conversion writes
+  only files that are not converted yet.
 
 Still open: the line shader, labels and points, selection of OSM features, a
 dark style for the dark palette, the multipolygon cache, and an option to
