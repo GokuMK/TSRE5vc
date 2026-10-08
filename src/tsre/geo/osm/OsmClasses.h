@@ -38,6 +38,11 @@ struct Style {
     std::vector<Stroke> casings;   // under the line, in order
     bool hasLine = false;
     Stroke line;
+    // Drawn at this resolution and finer (metres per pixel); 0: at every resolution.
+    // Vector views skip features out of range; the fixed-scale tile map ignores it.
+    float maxMetersPerPixel = 0;
+
+    bool visibleAt(double metersPerPixel) const { return maxMetersPerPixel <= 0 || metersPerPixel <= maxMetersPerPixel; }
 };
 
 struct Classification {
@@ -60,6 +65,8 @@ public:
     const Style &style(const Classification &c) const;
     const Style &defaultStyle() const { return default_; }
     Rgb background() const { return background_; }
+    // The distinct maxMetersPerPixel of all styles, ascending: the scales where what is drawn changes.
+    std::vector<float> scaleRanges() const;
 
     size_t classCount() const { return names_.size() - 1; }
     uint16_t classOf(const std::string &tag) const;  // "highway=residential", 0 when unknown

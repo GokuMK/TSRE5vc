@@ -1,7 +1,9 @@
 #include <tsre/geo/osm/OsmClasses.h>
 #include <tsre/geo/osm/SortedPbfStore.h>
 #include "legacy/OSMFeatures.h"
+#include <QFile>
 #include <QString>
+#include <QTemporaryDir>
 #include <algorithm>
 #include <cctype>
 #include <functional>
@@ -124,6 +126,33 @@ void runClassesTests(const std::function<void(bool, const char *)> &check) {
     const Style &unknown = styleOf({{"unknown", "tag"}}), &unstyled = styleOf({{"tourism", "hotel"}});
     check(&unknown == &fc.defaultStyle() && &unstyled == &fc.defaultStyle() && unknown.line.color == 0xff323232 && fc.background() == 0xfff1eee8,
           "unclassified and unstyled features use the default thin dark line");
+
+    const Style &footway = styleOf({{"highway", "footway"}}), &primary = styleOf({{"highway", "primary"}});
+    check(house.maxMetersPerPixel == 2.5f && house.visibleAt(2.5) && !house.visibleAt(2.6) && footway.maxMetersPerPixel == 5
+              && residential.maxMetersPerPixel == 10 && residentialBridge.maxMetersPerPixel == 10
+              && primary.maxMetersPerPixel == 0 && primary.visibleAt(500) && fc.defaultStyle().maxMetersPerPixel == 5,
+          "scale ranges: buildings from 2.5 m/px, footways and unstyled ways 5, residential roads and their bridges 10, main roads always");
+    const std::vector<float> ranges = fc.scaleRanges();
+    check(ranges == std::vector<float>({2.5f, 5.0f, 10.0f}), "the table's scale ranges: 2.5, 5 and 10 m/px");
+
+    QTemporaryDir dir;
+    auto loadJson = [&](const char *styles, FeatureClasses &out) {
+        const QString path = dir.filePath(QStringLiteral("classes.json"));
+        QFile f(path);
+        if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)) return false;
+        f.write(QByteArray(R"({"version": 1, "classification": {"bridgeKeyPrefix": "bridge"}, "background": "#ffffff", "default": {"line": {"color": "#000000", "width": 0}},
+            "classes": [{"tag": "highway=service", "layer": 0}], "styles": [)") + styles + "]}");
+        f.close();
+        QString e;
+        return out.load(path, e);
+    };
+    FeatureClasses ranged, negative;
+    const std::vector<Tag> serviceBridge{{"highway", "service"}, {"bridge", "yes"}};
+    const bool rangedLoads = loadJson(R"({"tags": ["highway=service"], "line": {"color": "#ffffff", "width": 2}, "maxMetersPerPixel": 4,
+        "bridge": {"line": {"color": "#000000", "width": 2}}})", ranged);
+    check(rangedLoads && ranged.style(ranged.classify(2, [&](uint32_t i) { return serviceBridge[i]; })).maxMetersPerPixel == 4
+              && !loadJson(R"({"tags": ["highway=service"], "line": {"color": "#ffffff", "width": 2}, "maxMetersPerPixel": -1})", negative),
+          "an explicit bridge style inherits the scale range; a negative range is refused");
 }
 
 // Opt-in: --classes <converted files...>  compares legacy and new classification of every way and node.

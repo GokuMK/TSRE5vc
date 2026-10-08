@@ -16,7 +16,7 @@
 AboutWindow::AboutWindow(QWidget* parent) : QWidget(parent) {
     this->setWindowFlags( Qt::CustomizeWindowHint );
     this->setWindowFlags(Qt::WindowType::Tool);
-    this->setFixedSize(600, 320);
+    this->setFixedSize(600, 345);
     QImage* myImage = new QImage();
     myImage->load(QString("appdata/")+Game::AppDataVersion+"/load.png");
 
@@ -43,6 +43,16 @@ AboutWindow::AboutWindow(QWidget* parent) : QWidget(parent) {
         qtTrId("route.editor.about.window.label.osm"));
     myLabel4->setOpenExternalLinks(true);
     myLabel4->setContentsMargins(5,0,0,0);
+    QLabel* myLabel5 = new QLabel(
+        //% "Polygon triangulation: earcut.hpp © 2015 Mapbox, <a href=\"earcut\">ISC licence</a>."
+        qtTrId("route.editor.about.window.label.earcut"));
+    myLabel5->setContentsMargins(5,0,0,0);
+    // The licence text ships with the program (resource from src/earcut/LICENSE).
+    connect(myLabel5, &QLabel::linkActivated, this, [this](const QString &) {
+        QFile licence(":/licences/earcut/LICENSE");
+        licence.open(QIODevice::ReadOnly);
+        QMessageBox::information(this, "earcut.hpp", QString::fromUtf8(licence.readAll()));
+    });
   
     
     myLabel->setPixmap(QPixmap::fromImage(*myImage));
@@ -58,6 +68,7 @@ AboutWindow::AboutWindow(QWidget* parent) : QWidget(parent) {
     mainLayout->addWidget(myLabel21); 
     mainLayout->addWidget(myLabel3);
     mainLayout->addWidget(myLabel4);
+    mainLayout->addWidget(myLabel5);
     mainLayout->addWidget(browse);
     
     mainLayout->setAlignment(myLabel, Qt::AlignTop);

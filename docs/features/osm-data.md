@@ -2,8 +2,9 @@
 
 TSRE can read OpenStreetMap (OSM) data from `.osm.pbf` files on your disk
 instead of downloading it from the OSM servers. Local data covers large areas
-quickly and does not depend on the network. It feeds the terrain tile map
-today and is meant to feed procedural generation later.
+quickly and does not depend on the network. It feeds the Route Editor's map
+mode and the terrain tile map today, and is meant to feed procedural
+generation later.
 
 ## Setting up
 
@@ -80,7 +81,7 @@ when the conversion finishes or is cancelled.
 A whole province or country holds far more detail than a zoomed-out view can
 show, and reading it all takes seconds. Next to each converted file, TSRE
 therefore keeps two overview maps with simplified geometry. They are built
-right after the conversion (about 1 s for a province, 10–15 s for Poland) and
+right after the conversion (about 1 s for a province, 15–17 s for Poland) and
 rebuilt automatically when needed.
 
 - **Regional**, used from 20 m per pixel:
@@ -93,7 +94,12 @@ rebuilt automatically when needed.
   - main railways;
   - motorway, trunk and primary roads;
   - rivers;
-  - water and forest of 1 km² or more;
+  - water of 1 km² or more;
+  - forests generalized as on printed maps: all forest and wood areas are
+    merged on a 100 m grid, with gaps up to about 200 m (forest roads,
+    narrow fields) closed, and kept from 0.25 km². Forests mapped as many
+    small parcels, such as around Piła, stay whole at country scale; the
+    merged forests cover about 10% more than the detailed ones;
   - cities and towns.
 
 What each level contains, and from which scale it is used, is set in the
@@ -114,6 +120,36 @@ the server path does not.
 
 A 2 km tile loads and draws in about 0.1–0.25 s, against several seconds when
 downloaded.
+
+## Map mode
+
+In the Route Editor's map mode (backquote), **Map > OSM Data** draws the OSM
+data over the terrain and under the route's own track, roads and objects. It
+is off by default.
+
+- **Switching it on** needs the OSM data directory and a route with a
+  geographic reference; TSRE says which is missing. Downloads covering the
+  view that are not converted yet are offered for conversion then (never
+  while you pan).
+- **What is shown follows the zoom.** Close in, everything the class table
+  styles; buildings appear from 2.5 m per pixel, footways, service roads and
+  small areas from 5 m, residential streets from 10 m. Zoomed further out,
+  the overview maps take over (regional from 20 m per pixel, national from
+  150 m). Features smaller than 2 pixels across are left out, and shapes are
+  simplified to half a pixel.
+- **Roads have their real width** when zoomed in close enough, and are at
+  least one pixel wide.
+- **It loads in the background**: the previous picture stays until the new
+  one is ready, typically 0.05–0.3 s. Panning loads again only when the view
+  leaves the area loaded around it, and small zoom steps only redraw the
+  lines. At country scale the whole national overview is loaded once (after
+  the view itself), so panning there never waits.
+- **Map > Transparent OSM Areas** draws areas half transparent (palette value
+  `osmAreaAlpha`), so the terrain shows through; lines stay solid. Switch it
+  on when you want to see both.
+- **Map > Faded Overlay** fades terrain and OSM data together towards the
+  background, so the track stands out. Palettes set the amount with
+  `overlayFade` (`terrainFade` in older palette files still works).
 
 ## Licence and attribution
 

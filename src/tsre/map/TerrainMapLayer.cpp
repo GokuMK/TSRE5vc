@@ -61,8 +61,7 @@ public:
 
 TerrainMapLayer::TerrainMapLayer()
     : borders(std::make_unique<OglObj>()), quadLines(std::make_unique<OglObj>()),
-      missing(std::make_unique<OglObj>()), highlight(std::make_unique<OglObj>()),
-      fade(std::make_unique<OglObj>()) {}
+      missing(std::make_unique<OglObj>()), highlight(std::make_unique<OglObj>()) {}
 
 TerrainMapLayer::~TerrainMapLayer() = default;
 
@@ -319,8 +318,7 @@ void TerrainMapLayer::build(const MapView &view, const MapPalette &palette, Terr
 }
 
 void TerrainMapLayer::pushRenderItems(RenderQueue &queue, const MapView &view,
-                                      const MapPalette &palette, TerrainLib *terrain,
-                                      bool faded) {
+                                      const MapPalette &palette, TerrainLib *terrain) {
     if (terrain == nullptr)
         return;
     const float scale = view.metresPerPixel / std::max(builtMetresPerPixel, 1e-6f);
@@ -352,20 +350,4 @@ void TerrainMapLayer::pushRenderItems(RenderQueue &queue, const MapView &view,
     missing->pushRenderItem(queue);
     quadLines->pushRenderItem(queue);
     borders->pushRenderItem(queue);
-    if (faded && palette.terrainFade > 0.0f) {
-        // The ground in view, wound as the patches are.
-        const float screen[4][2] = {{0, 0}, {float(view.width), 0},
-                                    {float(view.width), float(view.height)},
-                                    {0, float(view.height)}};
-        float ground[4][2];
-        for (int i = 0; i < 4; ++i)
-            view.groundAt(screen[i][0], screen[i][1], ground[i][0], ground[i][1]);
-        std::vector<float> square;
-        for (int corner : {0, 3, 2, 0, 2, 1})
-            square.insert(square.end(), {ground[corner][0], FadeHeight, ground[corner][1]});
-        fade->setMaterial(float(palette.background.redF()), float(palette.background.greenF()),
-                          float(palette.background.blueF()), palette.terrainFade);
-        fade->init(square.data(), int(square.size()), RenderItem::V, GL_TRIANGLES);
-        fade->pushRenderItem(queue);
-    }
 }

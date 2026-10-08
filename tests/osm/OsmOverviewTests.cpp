@@ -130,8 +130,11 @@ void runOverviewTests(const std::function<void(bool, const char *)> &check) {
     check(regional.ways == std::set<int64_t>({1, 2, 3, 6, 7, 8}) && regional.relations == std::set<int64_t>({100})
               && regional.nodes == std::set<int64_t>({cityId, stationId}),
           "regional: all railways, main roads, rivers, areas of 5 ha and more with their members, towns and stations");
-    check(national.ways == std::set<int64_t>({1, 3, 6, 7, 8}) && national.relations == std::set<int64_t>({100}) && national.nodes == std::set<int64_t>({cityId}),
-          "national: no sidings or stations, areas of 1 km2 and more, cities");
+    std::set<int64_t> nationalOsm, nationalNew;
+    for (int64_t id : national.ways) (id > 0 ? nationalOsm : nationalNew).insert(id);
+    check(nationalOsm == std::set<int64_t>({1, 3, 7, 8}) && national.relations == std::set<int64_t>({100}) && national.nodes == std::set<int64_t>({cityId})
+              && nationalNew.size() == 1 && national.points.at(*nationalNew.begin()) <= 6,
+          "national: no sidings or stations, water of 1 km2 and more, cities; the large forest generalized into a new area, the small one left out");
     check(regional.points.at(7) < 201 && national.points.at(7) < regional.points.at(7) && regional.points.at(1) == 3,
           "the river is simplified, more on the national level");
     SortedPbfStore nat;
@@ -158,7 +161,14 @@ void runOverviewTests(const std::function<void(bool, const char *)> &check) {
     check(&layers.forScale(1) == &layers.detail() && layers.levelForScale(1) == -1 && layers.levelForScale(20) == 0 && layers.levelForScale(149) == 0
               && layers.levelForScale(150) == 1 && &layers.forScale(500) != &layers.forScale(30) && &layers.forScale(30) != &layers.detail(),
           "scale picks detail below 20 m/px, regional to 150 m/px, national beyond");
+    const auto shared = sharedLayers(dir.path(), error), again = sharedLayers(dir.path(), error);
+    QTemporaryDir empty;
+    check(shared && shared == again && shared->hasLevel(1) && !sharedLayers(empty.path(), error),
+          "shared layers open once while the files stay the same; none without converted files");
     QFile::remove(nationalPath);
+    const auto reopened = sharedLayers(dir.path(), error);
+    check(reopened && reopened != shared && !reopened->hasLevel(1) && shared->hasLevel(1),
+          "shared layers reopen when an overview goes; users of the old ones keep them");
     OsmLayers partial;
     check(partial.open(od, standard, error) && !partial.hasLevel(1) && &partial.forScale(500) != &partial.detail(),
           "a missing national level falls back to the regional one");

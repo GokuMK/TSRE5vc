@@ -10,7 +10,8 @@ are not a current specification.
 OpenStreetMap vector data (local `.osm.pbf` files, tile map, procedural input) is a separate track:
 read the [design and implementation status](osm-data-design.md), then the
 [performance study](osm-data-pbf-performance.md) behind it. User guide:
-[features/osm-data.md](../../features/osm-data.md).
+[features/osm-data.md](../../features/osm-data.md). Drawing OSM in the Route Editor's map mode:
+[OSM rendering design](osm-rendering-design.md).
 
 1. [Current status](elevation-current-status.md): newest sections first. Later
    sections retain older review snapshots and their original counts/results.

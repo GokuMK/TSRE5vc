@@ -1115,6 +1115,10 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
             <source>Map data from OpenStreetMap © &lt;a href="https://www.openstreetmap.org/copyright"&gt;OpenStreetMap contributors&lt;/a&gt;, available under the ODbL.</source>
             <translation>Dane mapowe z OpenStreetMap © &lt;a href="https://www.openstreetmap.org/copyright"&gt;współtwórcy OpenStreetMap&lt;/a&gt;, dostępne na licencji ODbL.</translation>
         </message>
+        <message id="route.editor.about.window.label.earcut">
+            <source>Polygon triangulation: earcut.hpp © 2015 Mapbox, &lt;a href="earcut"&gt;ISC licence&lt;/a&gt;.</source>
+            <translation>Triangulacja wielokątów: earcut.hpp © 2015 Mapbox, &lt;a href="earcut"&gt;licencja ISC&lt;/a&gt;.</translation>
+        </message>
         <message id="route.editor.about.window.button.browse">
             <location filename="../src/routeEditor/AboutWindow.cpp" line="47" />
             <source>Close</source>
@@ -2197,6 +2201,18 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
             <source>&amp;Undo</source>
             <translation>&amp;Cofnij</translation>
         </message>
+        <message id="route.editor.route.editor.glwidget.osm.title">
+            <source>OSM Data</source>
+            <translation>Dane OSM</translation>
+        </message>
+        <message id="route.editor.route.editor.glwidget.osm.no.directory">
+            <source>Set the OpenStreetMap data directory first, in Settings &gt; Maps and geodata &gt; Geodata. It holds the .osm.pbf files downloaded for your area, for example from Geofabrik.</source>
+            <translation>Najpierw ustaw katalog danych OpenStreetMap w Ustawienia &gt; Mapy i geodane &gt; Geodane. Znajdują się w nim pliki .osm.pbf pobrane dla twojego obszaru, na przykład z Geofabrik.</translation>
+        </message>
+        <message id="route.editor.route.editor.glwidget.osm.no.reference">
+            <source>This route has no geographic reference, so OSM data cannot be placed on it.</source>
+            <translation>Ta trasa nie ma odniesienia geograficznego, więc nie można na niej umieścić danych OSM.</translation>
+        </message>
         <message id="route.editor.route.editor.glwidget.action.copy">
             <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3089" />
             <source>&amp;Copy</source>
@@ -2562,9 +2578,17 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
             <source>Terra&amp;in</source>
             <translation>Te&amp;ren</translation>
         </message>
-        <message id="route.editor.route.editor.window.action.map.faded.terrain">
-            <source>&amp;Faded Terrain</source>
-            <translation>&amp;Wyblakły teren</translation>
+        <message id="route.editor.route.editor.window.action.map.osm.data">
+            <source>&amp;OSM Data</source>
+            <translation>Dane &amp;OSM</translation>
+        </message>
+        <message id="route.editor.route.editor.window.action.map.osm.transparent">
+            <source>Transparent OSM &amp;Areas</source>
+            <translation>Przezroczyste &amp;obszary OSM</translation>
+        </message>
+        <message id="route.editor.route.editor.window.action.map.faded.overlay">
+            <source>&amp;Faded Overlay</source>
+            <translation>&amp;Wyblakła nakładka</translation>
         </message>
         <message id="route.editor.route.editor.window.action.map.pointer">
             <source>&amp;Pointer</source>

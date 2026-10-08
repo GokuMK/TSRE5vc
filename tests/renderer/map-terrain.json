@@ -46,7 +46,7 @@
       "name": "faded",
       "mode": "map",
       "metresPerPixel": 2,
-      "fadedTerrain": true
+      "fadedOverlay": true
     },
     {
       "name": "route-distant-edit",

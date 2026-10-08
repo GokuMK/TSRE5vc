@@ -64,6 +64,8 @@ struct Filter {
     std::vector<std::string> keys;
     // Only these ids (sorted ascending, any type); empty means no id restriction.
     std::vector<int64_t> ids;
+    // Blocks lying wholly inside this box are skipped: the caller read that area already.
+    Box readAlready;
 
     bool matchesTags(const Feature &f) const {
         if (keys.empty()) return true;

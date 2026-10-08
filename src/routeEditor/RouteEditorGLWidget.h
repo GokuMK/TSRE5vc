@@ -62,6 +62,8 @@ class TrackItemMapLayer;
 class ActivityMapLayer;
 class MapSelection;
 class TerrainMapLayer;
+class MapOverlayFade;
+class OsmMapLayer;
 
 QT_FORWARD_DECLARE_CLASS(QOpenGLShaderProgram)
 
@@ -116,6 +118,12 @@ public:
     void setViewMode(ViewMode mode);
     // Shows or hides a layer of the map mode (the Map menu).
     void setMapLayerVisible(MapLayer layer, bool visible);
+    // Before Map > OSM Data is switched on: checks the OSM directory and the route's
+    // geographic reference (telling the user what is missing) and offers to convert the
+    // downloads covering the view. False when the layer cannot be shown.
+    bool prepareOsmLayer();
+    // A map layer is still building on a worker thread (captures wait for it).
+    bool mapLayersBusy() const;
 
     // The render surface does the drawing; these forward to it so the view
     // code reads as before.
@@ -401,6 +409,8 @@ private:
     std::unique_ptr<TrackItemMapLayer> trackItemMap;
     std::unique_ptr<ActivityMapLayer> activityMap;
     std::unique_ptr<TerrainMapLayer> terrainMap;
+    std::unique_ptr<MapOverlayFade> mapFade;
+    std::unique_ptr<OsmMapLayer> osmMap;
     // Where a press began in map mode: a left click that moves the map no
     // more than this goes to the active tool.
     static constexpr float MapClickPixels = 4.0f;

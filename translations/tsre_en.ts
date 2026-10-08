@@ -1113,6 +1113,10 @@ Consist with this file name already exist. Overwrite?
         <source>Map data from OpenStreetMap © &lt;a href="https://www.openstreetmap.org/copyright"&gt;OpenStreetMap contributors&lt;/a&gt;, available under the ODbL.</source>
         <translation>Map data from OpenStreetMap © &lt;a href="https://www.openstreetmap.org/copyright"&gt;OpenStreetMap contributors&lt;/a&gt;, available under the ODbL.</translation>
     </message>
+    <message id="route.editor.about.window.label.earcut">
+        <source>Polygon triangulation: earcut.hpp © 2015 Mapbox, &lt;a href="earcut"&gt;ISC licence&lt;/a&gt;.</source>
+        <translation>Polygon triangulation: earcut.hpp © 2015 Mapbox, &lt;a href="earcut"&gt;ISC licence&lt;/a&gt;.</translation>
+    </message>
     <message id="route.editor.about.window.button.browse">
         <location filename="../src/routeEditor/AboutWindow.cpp" line="47" />
         <source>Close</source>
@@ -2195,6 +2199,18 @@ Consist with this file name already exist. Overwrite?
         <source>&amp;Undo</source>
         <translation>&amp;Undo</translation>
     </message>
+    <message id="route.editor.route.editor.glwidget.osm.title">
+        <source>OSM Data</source>
+        <translation>OSM Data</translation>
+    </message>
+    <message id="route.editor.route.editor.glwidget.osm.no.directory">
+        <source>Set the OpenStreetMap data directory first, in Settings &gt; Maps and geodata &gt; Geodata. It holds the .osm.pbf files downloaded for your area, for example from Geofabrik.</source>
+        <translation>Set the OpenStreetMap data directory first, in Settings &gt; Maps and geodata &gt; Geodata. It holds the .osm.pbf files downloaded for your area, for example from Geofabrik.</translation>
+    </message>
+    <message id="route.editor.route.editor.glwidget.osm.no.reference">
+        <source>This route has no geographic reference, so OSM data cannot be placed on it.</source>
+        <translation>This route has no geographic reference, so OSM data cannot be placed on it.</translation>
+    </message>
     <message id="route.editor.route.editor.glwidget.action.copy">
         <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="3089" />
         <source>&amp;Copy</source>
@@ -2560,9 +2576,17 @@ Consist with this file name already exist. Overwrite?
         <source>Terra&amp;in</source>
         <translation>Terra&amp;in</translation>
     </message>
-    <message id="route.editor.route.editor.window.action.map.faded.terrain">
-        <source>&amp;Faded Terrain</source>
-        <translation>&amp;Faded Terrain</translation>
+    <message id="route.editor.route.editor.window.action.map.osm.data">
+        <source>&amp;OSM Data</source>
+        <translation>&amp;OSM Data</translation>
+    </message>
+    <message id="route.editor.route.editor.window.action.map.osm.transparent">
+        <source>Transparent OSM &amp;Areas</source>
+        <translation>Transparent OSM &amp;Areas</translation>
+    </message>
+    <message id="route.editor.route.editor.window.action.map.faded.overlay">
+        <source>&amp;Faded Overlay</source>
+        <translation>&amp;Faded Overlay</translation>
     </message>
     <message id="route.editor.route.editor.window.action.map.pointer">
         <source>&amp;Pointer</source>

@@ -129,13 +129,22 @@ MultipolygonResult assembleMultipolygon(const RelationData &relation, const std:
 
 bool assembleMultipolygons(const OsmStore &store, const std::vector<RelationData> &relations,
                            std::vector<MultipolygonResult> &results, QString &error) {
+    return assembleMultipolygons(store, relations, {}, results, error);
+}
+
+bool assembleMultipolygons(const OsmStore &store, const std::vector<RelationData> &relations,
+                           const std::unordered_map<int64_t, WayGeometry> &known,
+                           std::vector<MultipolygonResult> &results, QString &error, const Box &readAlready) {
     results.clear();
     Filter filter;
     filter.types = Ways;
+    filter.readAlready = readAlready;
     Box area;
     for (const RelationData &r : relations) {
-        area.extend(r.extent);
-        for (const auto &m : r.members) if (m.type == ItemType::Way) filter.ids.push_back(m.ref);
+        bool missing = false;
+        for (const auto &m : r.members)
+            if (m.type == ItemType::Way && !known.count(m.ref)) { filter.ids.push_back(m.ref); missing = true; }
+        if (missing) area.extend(r.extent);
     }
     std::sort(filter.ids.begin(), filter.ids.end());
     filter.ids.erase(std::unique(filter.ids.begin(), filter.ids.end()), filter.ids.end());
@@ -148,7 +157,12 @@ bool assembleMultipolygons(const OsmStore &store, const std::vector<RelationData
             }, error))
             return false;
     }
-    auto lookup = [&](int64_t id) -> const WayGeometry * { auto it = ways.find(id); return it == ways.end() ? nullptr : &it->second; };
+    auto lookup = [&](int64_t id) -> const WayGeometry * {
+        auto it = known.find(id);
+        if (it != known.end()) return &it->second;
+        auto read = ways.find(id);
+        return read == ways.end() ? nullptr : &read->second;
+    };
     for (const RelationData &r : relations) results.push_back(assembleMultipolygon(r, lookup));
     return true;
 }

@@ -32,6 +32,14 @@ struct OverviewRule {
     std::vector<std::string> unless;  // any one of these rejects it
     uint32_t types = AllTypes;        // FeatureTypes
     double minAreaKm2 = 0;            // > 0: only closed ways and multipolygons this large
+    // Generalization (OsmGeneralize): the selected areas are merged on a grid of this many
+    // metres and written as new areas tagged generalizeTag; minAreaKm2 then applies to
+    // the merged areas. 0: areas are copied one by one.
+    double generalizeCellMeters = 0;
+    double generalizeCloseMeters = 0;
+    double generalizeMinHoleKm2 = 0.05;
+    std::string generalizeTag;        // "key=value"
+    bool generalizes() const { return generalizeCellMeters > 0; }
 
     template <class TagAt> bool matchesTags(uint32_t count, TagAt tagAt) const;
 };
@@ -60,6 +68,7 @@ struct OverviewStats {
     uint64_t nodes = 0, ways = 0, relations = 0;
     uint64_t pointsIn = 0, pointsOut = 0;  // way points before and after simplification
     uint64_t bytes = 0;
+    uint64_t generalizedIn = 0, generalizedAreas = 0;  // areas merged, and the areas they became
 };
 
 // Builds every level of the converted file (atomic .part output).
@@ -85,6 +94,12 @@ private:
     SortedPbfStore detail_;
     std::vector<std::unique_ptr<SortedPbfStore>> levels_;
 };
+
+// The layers of an OSM directory (standard overview rules), opened once for the process and
+// shared by their users (the map mode's OSM layer, the tile map), so they share one block
+// cache. Reopened when the directory or its converted and overview files change; null
+// when it has no converted files. Thread-safe.
+std::shared_ptr<const OsmLayers> sharedLayers(const QString &directory, QString &error);
 
 template <class TagAt> bool OverviewRule::matchesTags(uint32_t count, TagAt tagAt) const {
     auto hit = [&](const std::vector<std::string> &patterns) {

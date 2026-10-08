@@ -4,8 +4,8 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     enable_testing()
     find_package(Qt6 REQUIRED COMPONENTS Core)
 endif()
-set(TSRE_OSM_SOURCES ../../src/tsre/geo/osm/OsmPbf.cpp ../../src/tsre/geo/osm/OsmConverter.cpp ../../src/tsre/geo/osm/OsmDirectory.cpp ../../src/tsre/geo/osm/SortedPbfStore.cpp ../../src/tsre/geo/osm/OsmMultipolygon.cpp ../../src/tsre/geo/osm/OsmClasses.cpp ../../src/tsre/geo/osm/OsmOverview.cpp)
-add_executable(tsre_osm_tests OsmPbfTests.cpp OsmConverterTests.cpp OsmDirectoryTests.cpp OsmMultipolygonTests.cpp OsmClassesTests.cpp OsmOverviewTests.cpp legacy/OSMFeatures.cpp ${TSRE_OSM_SOURCES})
+set(TSRE_OSM_SOURCES ../../src/tsre/geo/osm/OsmPbf.cpp ../../src/tsre/geo/osm/OsmConverter.cpp ../../src/tsre/geo/osm/OsmDirectory.cpp ../../src/tsre/geo/osm/SortedPbfStore.cpp ../../src/tsre/geo/osm/OsmMultipolygon.cpp ../../src/tsre/geo/osm/OsmClasses.cpp ../../src/tsre/geo/osm/OsmOverview.cpp ../../src/tsre/geo/osm/OsmMapGeometry.cpp ../../src/tsre/geo/osm/OsmGeneralize.cpp)
+add_executable(tsre_osm_tests OsmPbfTests.cpp OsmConverterTests.cpp OsmDirectoryTests.cpp OsmMultipolygonTests.cpp OsmClassesTests.cpp OsmOverviewTests.cpp OsmMapGeometryTests.cpp OsmGeneralizeTests.cpp legacy/OSMFeatures.cpp ${TSRE_OSM_SOURCES})
 target_compile_features(tsre_osm_tests PRIVATE cxx_std_17)
 target_include_directories(tsre_osm_tests PRIVATE ../../src)
 target_link_libraries(tsre_osm_tests PRIVATE Qt6::Core)
@@ -23,4 +23,5 @@ qt_add_resources(tsre_osm_tests osm_classes PREFIX "/osm"
 #   tsre_osm_tests --multipolygons <minLon> <minLat> <maxLon> <maxLat> <converted files...>
 #   tsre_osm_tests --classes <converted files...>
 #   tsre_osm_tests --overview <converted files...>
+#   tsre_osm_tests --map-geometry <minLon> <minLat> <maxLon> <maxLat> <metresPerPixel> <converted files...>
 add_test(NAME osm COMMAND tsre_osm_tests)

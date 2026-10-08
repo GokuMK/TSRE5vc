@@ -17,6 +17,7 @@
 #include <tsre/geo/osm/OsmStore.h>
 #include <functional>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace Osm {
@@ -58,6 +59,12 @@ MultipolygonResult assembleMultipolygon(const RelationData &relation, const std:
 // Fetches the member ways of all relations from the store in one query and assembles each.
 bool assembleMultipolygons(const OsmStore &store, const std::vector<RelationData> &relations,
                            std::vector<MultipolygonResult> &results, QString &error);
+// The same with member ways already at hand: only the missing ones are read from the
+// store, over the extents of the relations that need them, skipping the blocks wholly
+// inside readAlready (the area the known ways came from, when valid).
+bool assembleMultipolygons(const OsmStore &store, const std::vector<RelationData> &relations,
+                           const std::unordered_map<int64_t, WayGeometry> &known,
+                           std::vector<MultipolygonResult> &results, QString &error, const Box &readAlready = Box());
 
 // Signed area (shoelace) in coordinate units squared; positive when counter-clockwise.
 double signedArea(const std::vector<Location> &ring);

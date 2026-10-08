@@ -15,6 +15,7 @@
 #include <tsre/geo/osm/OsmConversionUi.h>
 #include <tsre/geo/osm/OsmDirectory.h>
 #include <tsre/geo/osm/OsmMultipolygon.h>
+#include <tsre/geo/osm/OsmOverview.h>
 #include <tsre/geo/osm/SortedPbfStore.h>
 #include <tsre/Game.h>
 #include <settings/SettingsAccess.h>
@@ -144,29 +145,17 @@ bool MapDataOSM::loadLocal() {
     Osm::OsmDirectory directory;
     QString error;
     if (!directory.scan(dir, error)) return false;
-    // One store over every converted file keeps its block cache across tiles.
-    QStringList files;
-    QString signature;
     bool covered = false;
-    for (const Osm::DirectoryEntry *e : directory.convertedFiles()) {
-        files << e->path;
-        signature += e->path + QLatin1Char('|') + QString::number(e->size) + QLatin1Char('|')
-                     + QString::number(QFileInfo(e->path).lastModified().toMSecsSinceEpoch()) + QLatin1Char(';');
+    for (const Osm::DirectoryEntry *e : directory.convertedFiles())
         covered |= !e->header.bbox.valid() || e->header.bbox.intersects(area);
-    }
     if (!covered) return false;
-    static std::unique_ptr<Osm::SortedPbfStore> store;
-    static QString storeSignature;
-    if (!store || signature != storeSignature) {
-        store = std::make_unique<Osm::SortedPbfStore>();
-        if (!store->open(files, error)) {
-            qWarning().noquote() << "OSM data:" << error;
-            store.reset();
-            return false;
-        }
-        storeSignature = signature;
+    // Shared with the map mode's OSM layer: one block cache across tiles and views.
+    const std::shared_ptr<const Osm::OsmLayers> layers = Osm::sharedLayers(dir, error);
+    if (!layers) {
+        qWarning().noquote() << "OSM data:" << error;
+        return false;
     }
-    loadFrom(*store);
+    loadFrom(layers->detail());
     return true;
 }
 
