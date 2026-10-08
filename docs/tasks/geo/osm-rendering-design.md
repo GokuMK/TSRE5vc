@@ -353,7 +353,7 @@ Measured on TEST_PROFILES (route projection, llvmpipe), in four steps:
 | 1. Generalized areas cut into 25.6 km blocks | `30f4fb5` | | |
 | 2. Multipolygons from the ways already read | `db7b495` | | |
 | 3. Simplify, project, triangulate on all threads | `dfc9779` | 0.31 s | 0.60 s |
-| 4. Coarsest level loaded whole, in 128 km chunks | this step | 0.30 s view, then 0.70 s whole | 0 when panning; 0.58 s after a 2x zoom |
+| 4. Coarsest level loaded whole, in 128 km chunks | `68d07da` | 0.30 s view, then 0.70 s whole | 0 when panning; 0.58 s after a 2x zoom |
 
 - **Step 1**: the largest merged forest had 68,807 points and 2,662 holes
   (150 ms of earcut). In blocks, triangulation fell from about 0.3 to 0.08 s
