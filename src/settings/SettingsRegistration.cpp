@@ -701,7 +701,7 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
             .withNameId(
                 //% "QRhi graphics API"
                 QT_TRID_NOOP("settings.core.rendering.rhi.api.name")).withDescriptionId(
-                //% "Graphics API of the QRhi renderer. Automatic picks Metal on macOS and Vulkan elsewhere, falling back to OpenGL. Applies after a restart."
+                //% "Graphics API of the QRhi renderer. Automatic uses Vulkan; without Vulkan the editor uses the OpenGL renderer. OpenGL runs the QRhi renderer on OpenGL, slower than the OpenGL renderer for now. Applies after a restart."
                 QT_TRID_NOOP("settings.core.rendering.rhi.api.description"))
             .withOptions(choices({{"auto",
                 //% "Automatic"
@@ -709,9 +709,7 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Vulkan"
                 QT_TRID_NOOP("settings.core.rendering.rhi.api.option.vulkan")}, {"opengl",
                 //% "OpenGL"
-                QT_TRID_NOOP("settings.core.rendering.rhi.api.option.opengl")}, {"metal",
-                //% "Metal"
-                QT_TRID_NOOP("settings.core.rendering.rhi.api.option.metal")}})).inGroup("rendering").inSubgroup("pipeline").asAdvanced(),
+                QT_TRID_NOOP("settings.core.rendering.rhi.api.option.opengl")}})).inGroup("rendering").inSubgroup("pipeline").asAdvanced(),
         "rhiApi", "Game::rhiApi", "RouteEditorGLWidget", false, "renderer-restart");
     ADD(SettingsDefinition::boolean("core.rendering.threadedTextureLoading", true)
             .withNameId(

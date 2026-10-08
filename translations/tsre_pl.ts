@@ -8233,8 +8233,8 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
         </message>
         <message id="settings.core.rendering.rhi.api.description">
             <location filename="../src/settings/SettingsRegistration.cpp" line="688" />
-            <source>Graphics API of the QRhi renderer. Automatic picks Metal on macOS and Vulkan elsewhere, falling back to OpenGL. Applies after a restart.</source>
-            <translation>API graficzne renderera QRhi. Automatycznie: Metal na macOS, Vulkan w pozostałych systemach, a w razie braku OpenGL. Zmiana działa po ponownym uruchomieniu.</translation>
+            <source>Graphics API of the QRhi renderer. Automatic uses Vulkan; without Vulkan the editor uses the OpenGL renderer. OpenGL runs the QRhi renderer on OpenGL, slower than the OpenGL renderer for now. Applies after a restart.</source>
+            <translation>API graficzne renderera QRhi. Automatycznie: Vulkan; bez Vulkana edytor używa renderera OpenGL. OpenGL uruchamia renderer QRhi na OpenGL, na razie wolniej niż renderer OpenGL. Zmiana działa po ponownym uruchomieniu.</translation>
         </message>
         <message id="settings.core.rendering.rhi.api.option.auto">
             <location filename="../src/settings/SettingsRegistration.cpp" line="691" />
@@ -8250,11 +8250,6 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
             <location filename="../src/settings/SettingsRegistration.cpp" line="695" />
             <source>OpenGL</source>
             <translation>OpenGL</translation>
-        </message>
-        <message id="settings.core.rendering.rhi.api.option.metal">
-            <location filename="../src/settings/SettingsRegistration.cpp" line="697" />
-            <source>Metal</source>
-            <translation>Metal</translation>
         </message>
         <message id="settings.core.rendering.threaded.texture.loading.name">
             <location filename="../src/settings/SettingsRegistration.cpp" line="624" />

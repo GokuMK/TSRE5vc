@@ -349,9 +349,9 @@ after the work above and the later fixes on this branch:
     frame's matrices and lights in every draw);
   - frame values in a texture or a separate block bound once;
   - sorting draws by resource set to make more of them share one.
-  On Windows, Direct3D 11 is QRhi's most used backend and was never
-  created here (`RhiContext::create` lacks its init parameters); it may
-  serve better than QRhi OpenGL as the fallback to Vulkan.
+  Deferred (2026-10-08): `auto` takes Vulkan only, and without Vulkan the
+  editor falls back to the OpenGL renderer. Direct3D 11 was tried as the
+  fallback instead and is slower still (see "Lamp scene and Direct3D 11").
 - QRhi Vulkan records the whole frame and submits at its end, so the GPU
   starts after the CPU (latency, not frame time). Splitting the frame
   into submissions would let them overlap; QRhi offers only one command

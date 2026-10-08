@@ -192,11 +192,17 @@ Open:
     stage declares all vertex outputs (RhiShaderSource).
   Direct3D 12 (`TSRE_RHI_API=d3d12`) does not come up with this Qt build
   (QRhi::create fails).
-  Metal is not created yet (its init parameters are missing). Full-screen
-  passes flip y where clip space and the framebuffer disagree about it, by
-  reasoning rather than a test on Metal.
+  Metal is not created (its init parameters are missing) and no longer
+  offered by the setting (2026-10-08).
 - QRhi OpenGL is CPU-bound: about 20 ms a frame against 12 for the OpenGL
-  renderer (task 25, handover).
+  renderer (task 25, handover). Until it is faster, `auto` takes Vulkan
+  only, and without Vulkan the editor falls back to the OpenGL renderer
+  (`RenderSurface`); `core.rendering.rhiApi=opengl` still selects it
+  (user's decision, 2026-10-08). Its optimisation is a later task: first
+  count the OpenGL calls per frame (RenderDoc statistics), then take the
+  per-frame values (matrices, lights, fog) out of the per-draw uniform
+  block, which QRhi's OpenGL backend sends member by member on every
+  resource change.
 
 ## Hardware test (2026-10-06)
 

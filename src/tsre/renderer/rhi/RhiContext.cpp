@@ -102,20 +102,16 @@ RhiContext *RhiContext::instance() {
         QList<QRhi::Implementation> order;
         if (api == "vulkan") order = {QRhi::Vulkan};
         else if (api == "opengl") order = {QRhi::OpenGLES2};
-        else if (api == "metal") order = {QRhi::Metal};
         // Direct3D only for development (TSRE_RHI_API): it does not draw glTF
         // materials and costs twice Vulkan's CPU time (task 20). A profile
         // that still names it gets the automatic choice.
         else if (api == "d3d11" && fromEnvironment) order = {QRhi::D3D11};
         else if (api == "d3d12" && fromEnvironment) order = {QRhi::D3D12};
         else if (api == "null") order = {QRhi::Null};
-        else {
-#if defined(Q_OS_MACOS)
-            order = {QRhi::Metal, QRhi::OpenGLES2};
-#else
-            order = {QRhi::Vulkan, QRhi::OpenGLES2};
-#endif
-        }
+        // Automatic: Vulkan only. Without it the editor falls back to the
+        // OpenGL renderer (RenderSurface), faster for now than QRhi's OpenGL
+        // backend, which stays selectable as "opengl".
+        else order = {QRhi::Vulkan};
         for (QRhi::Implementation implementation : order) {
             if (context->create(implementation)) {
                 holder() = std::move(context);
@@ -202,7 +198,7 @@ bool RhiContext::create(QRhi::Implementation implementation) {
     }
 #endif
     default:
-        // Metal needs its platform's init parameters.
+        // Metal is not created (its init parameters are missing).
         break;
     }
     if (rhiInstance)
