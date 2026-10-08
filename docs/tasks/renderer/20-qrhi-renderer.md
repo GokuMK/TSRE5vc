@@ -142,8 +142,26 @@ On the Steam Deck (Windows, AMD driver), route bbb, `parity-views` against
 the OpenGL renderer: QRhi Vulkan RMSE 0.83 to 1.55 and QRhi OpenGL 0.83 to
 1.48 (at most 0.33 % of pixels), picking 144 of 144. QRhi Vulkan runs at
 the editor timer's limit (about 66 frames a second) as the OpenGL
-renderer; QRhi OpenGL is CPU-bound at about 46. A hardware sweep of the
-other routes and capture sets is still to do.
+renderer; QRhi OpenGL is CPU-bound at about 46.
+
+Hardware sweep (2026-10-08, `scripts/hardware/Run-ParitySweep.ps1`, QRhi
+Vulkan against the OpenGL renderer, paged terrain, `parity-views` and
+`parity-views-shadows`): every view settled.
+
+| Route | RMSE | Pixels off | Pick mismatches |
+|---|---|---|---|
+| EUROPE1 | 1.80-3.08 | 0.33-1.93 % | 0 |
+| JAPAN1 | 0.90-2.40 | 0.06-0.48 % | 2 in each aerial view |
+| USA1 | 2.15-4.36 | 0.54-2.03 % | 0 |
+| BNSF_Scenic | 1.57-3.91 | 0.15-1.67 % | 1 in each aerial view |
+| CMK (views turned 180 degrees) | 0.78-6.39 | 0.04-2.52 % | 1 in each aerial view |
+
+Most differences are thin lines and alpha-tested foliage. CMK aerial
+(RMSE 6.4): stretches of flat road lying on the terrain are cut by it on
+QRhi and whole on the OpenGL renderer. Both use a polygon offset of -2,
+-2 for decals; the view's depth is D32F (OpenGL: the default 24-bit
+buffer) within the scene band [0, 0.98]. Open: compare QRhi OpenGL, try a
+24-bit or reversed-Z depth, check whether these roads are decals.
 
 Parity sweep, QRhi on Vulkan (lavapipe, 2026-10-06) against the OpenGL
 renderer of the same build, every view of

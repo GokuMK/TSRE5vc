@@ -36,7 +36,8 @@ $code = Invoke-Suite 'renderer-capture' @("--test-label=$Label")
 Write-Host "capture $Label exit=$code log=$TsreOutput\renderer-capture-$Label.log"
 if ($Baseline) {
     $code = Invoke-Suite 'renderer-compare' @("--test-baseline=$Baseline", "--test-label=$Label")
-    $output = (Get-Content (Join-Path $TsreRepo $Cases) -Raw | ConvertFrom-Json).output
+    $casesFile = if ([IO.Path]::IsPathRooted($Cases)) { $Cases } else { Join-Path $TsreRepo $Cases }
+    $output = (Get-Content $casesFile -Raw | ConvertFrom-Json).output
     $report = Join-Path $TsreRepo "$output\$Route\report.md"
     Write-Host "compare $Baseline / $Label exit=$code report=$report"
     if (Test-Path $report) { Get-Content $report | Select-String '^\|' | ForEach-Object Line }
