@@ -11,6 +11,7 @@
 #include <QtWidgets>
 #include "RouteEditorGLWidget.h"
 #include <routeEditor/RouteEditorWindow.h>
+#include "tools/ToolButtons.h"
 #include <tsre/Game.h>
 #include <tsre/world/TerrainBakeCommand.h>
 #include <tsre/texture/AceLib.h>
@@ -116,6 +117,7 @@ RouteEditorWindow::RouteEditorWindow() {
     activityTools = new ActivityTools("ActivityTools");
     //naviBox = new NaviBox();
     glWidget = new RouteEditorGLWidget(this);
+    ToolButtons::setRegistry(glWidget->toolRegistry());
     shapeViewWindow = new ShapeViewWindow(this);
     aboutWindow = new AboutWindow(this);
     naviWindow = new NaviWindow(this);
@@ -323,8 +325,8 @@ RouteEditorWindow::RouteEditorWindow() {
     editMenu->addAction(selectAction);
     // View
     viewMenu = menuBar()->addMenu(
-        //% "&View"
-        qtTrId("route.editor.route.editor.window.menu.view.menu"));
+        //% "&3D View"
+        qtTrId("route.editor.route.editor.window.menu.view.3d"));
     //toolsAction = GuiFunct::newMenuCheckAction(tr("&Tools"), this); 
     //viewMenu->addAction(toolsAction);
     //QObject::connect(toolsAction, SIGNAL(triggered(bool)), this, SLOT(hideShowToolWidget(bool)));
@@ -333,6 +335,20 @@ RouteEditorWindow::RouteEditorWindow() {
         qtTrId("route.editor.route.editor.window.action.view.unselect.all"), this);
     viewMenu->addAction(viewUnselectAll);
     QObject::connect(viewUnselectAll, SIGNAL(triggered()), this, SLOT(viewUnselectAll()));
+    // Map mode (task editor 04). Backquote toggles it in the view; the menu
+    // shows the key without taking it, so typing a backquote elsewhere works.
+    QAction *viewMapMode = GuiFunct::newMenuCheckAction(
+        //% "&Map Mode"
+        qtTrId("route.editor.route.editor.window.action.map.mode") + "\t`", this, false);
+    QObject::connect(viewMapMode, &QAction::triggered, this, [this] { glWidget->toggleViewMode(); });
+    QObject::connect(glWidget, QOverload<QString, QString>::of(&RouteEditorGLWidget::sendMsg), this,
+                     [viewMapMode](const QString &name, const QString &value) {
+        if (name != "viewMode")
+            return;
+        // The tool panels get the message too and disable the buttons of
+        // tools the mode does not support (tools/ToolButtons).
+        viewMapMode->setChecked(value == "map");
+    });
     viewMenu->addSeparator();
     vViewWorldGrid = GuiFunct::newMenuCheckAction(
         //% "&World Grid"
@@ -400,10 +416,47 @@ RouteEditorWindow::RouteEditorWindow() {
         qtTrId("route.editor.route.editor.window.action.v.view.compass"), this, false);
     viewMenu->addAction(vViewCompass);
     QObject::connect(vViewCompass, SIGNAL(triggered(bool)), this, SLOT(viewCompass(bool)));
+    // Map: what the map mode draws, apart from the 3D view's toggles.
+    QMenu *mapMenu = menuBar()->addMenu(
+        //% "&Map"
+        qtTrId("route.editor.route.editor.window.menu.map"));
+    const struct { QString text; MapLayer layer; } mapLayerEntries[] = {
+        {//% "&Track Lines"
+         qtTrId("route.editor.route.editor.window.action.map.track.lines"), MapLayer::Track},
+        {//% "&Road Lines"
+         qtTrId("route.editor.route.editor.window.action.map.road.lines"), MapLayer::Road},
+        {//% "&Junctions"
+         qtTrId("route.editor.route.editor.window.action.map.junctions"), MapLayer::Junctions},
+        {//% "Track &Ends"
+         qtTrId("route.editor.route.editor.window.action.map.ends"), MapLayer::Ends},
+        {//% "Track &Objects"
+         qtTrId("route.editor.route.editor.window.action.map.track.objects"),
+         MapLayer::TrackObjects},
+        {//% "Pat&hs"
+         qtTrId("route.editor.route.editor.window.action.map.paths"), MapLayer::Paths},
+        {//% "&Activity"
+         qtTrId("route.editor.route.editor.window.action.map.activity"), MapLayer::Activity},
+        {//% "Terra&in"
+         qtTrId("route.editor.route.editor.window.action.map.terrain"), MapLayer::Terrain},
+        {//% "&Faded Terrain"
+         qtTrId("route.editor.route.editor.window.action.map.faded.terrain"),
+         MapLayer::FadedTerrain},
+        {//% "&Pointer"
+         qtTrId("route.editor.route.editor.window.action.map.pointer"), MapLayer::Pointer}};
+    for (const auto &entry : mapLayerEntries) {
+        QAction *action = GuiFunct::newMenuCheckAction(entry.text, this,
+                                                       MapLayers().shows(entry.layer));
+        const MapLayer layer = entry.layer;
+        QObject::connect(action, &QAction::triggered, this,
+                         [this, layer](bool visible) { glWidget->setMapLayerVisible(layer, visible); });
+        mapMenu->addAction(action);
+    }
     // Tools
     toolsMenu = menuBar()->addMenu(
         //% "&Tools"
         qtTrId("route.editor.route.editor.window.menu.tools.menu"));
+    toolsMenu->addAction(viewMapMode);
+    toolsMenu->addSeparator();
     propertiesAction = GuiFunct::newMenuCheckAction(
         //% "&Properties"
         qtTrId("route.editor.route.editor.window.action.properties.action"), this);

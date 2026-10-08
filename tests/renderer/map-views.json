@@ -1,0 +1,18 @@
+{
+  "notes": "Map mode (docs/tasks/editor/04-map-mode.md) at the route start: overview, station scale, curves in detail, a rotated view, then back in 3D. metresPerPixel sets the scale, bearing the compass direction at the top of the screen (degrees).",
+  "output": "build/renderer-map",
+  "width": 1280,
+  "height": 800,
+  "pickGrid": [1, 1],
+  "timingFrames": 1,
+  "diffTolerance": 16,
+  "shadows": false,
+  "settle": {"minFrames": 6, "stableFrames": 2, "maxFrames": 60, "maxSeconds": 120},
+  "views": [
+    {"name": "overview", "mode": "map", "metresPerPixel": 20},
+    {"name": "station", "mode": "map", "metresPerPixel": 2},
+    {"name": "detail", "mode": "map", "metresPerPixel": 0.4},
+    {"name": "rotated", "mode": "map", "metresPerPixel": 2, "bearing": 45},
+    {"name": "back3d"}
+  ]
+}

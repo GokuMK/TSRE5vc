@@ -1325,6 +1325,25 @@ bool Terrain::prepareProceduralGpuPatch(int patch,QVector<int> &materials) {
             || !procedural->detailedPatch(patch,gridLayout,procedural->detailCameraX,
                                           procedural->detailCameraZ,procedural->detailViewValid))
         return false;
+    return prepareProceduralGpuResources(materials);
+}
+
+bool Terrain::configureMapProceduralPacket(RenderItem &item) {
+    QVector<int> materials;
+    if (!loaded || !TerrainMaterialMap::DirectGpuRendering || !rendersProceduralMaterial()
+            || !procedural || !QOpenGLContext::currentContext()
+            || !prepareProceduralGpuResources(materials))
+        return false;
+    configureProceduralGpuPacket(item,0);
+    // One square for the whole tile: its texture coordinates span the tile
+    // for the material map; the materials repeat once a patch, as in 3D.
+    item.terrain.materialMapRemap=QVector3D(1.0f,0.0f,0.0f);
+    item.terrain.textureRemap=QVector3D(float(gridLayout.patchesPerSide-1),0.0f,0.0f);
+    return true;
+}
+
+bool Terrain::prepareProceduralGpuResources(QVector<int> &materials) {
+    materials.clear();
     auto *context=QOpenGLContext::currentContext();
     auto *f=context->functions();
     // A renderer/context restart invalidates the numeric GL name even when the

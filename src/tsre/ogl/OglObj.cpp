@@ -47,6 +47,11 @@ void OglObj::setMaterial(float r, float g, float b) {
     }
 }
 
+void OglObj::setMaterial(float r, float g, float b, float a) {
+    setMaterial(r, g, b);
+    color->c = a;
+}
+
 void OglObj::setMaterial(QString* path) {
     materialType = TEXTURE;
     res = path;

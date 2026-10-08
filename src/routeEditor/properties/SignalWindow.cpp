@@ -9,6 +9,7 @@
  */
 
 #include "SignalWindow.h"
+#include <routeEditor/tools/ToolButtons.h>
 #include <QDebug>
 #include <tsre/world/objects/SignalObj.h>
 #include <tsre/Game.h>
@@ -107,7 +108,7 @@ void SignalWindow::bLinkEnabled(int i) {
     currentSubObjLinkInfo = i;
     if(currentSubObjLinkInfo < 0 || sobj == nullptr){
         currentSubObjLinkInfo = -1;
-        setLinkButton->setDisabled(true);
+        ToolButtons::setAvailable(setLinkButton, false);
         setLinkButton->setText(
             //% "Set Link"
             qtTrId("route.editor.properties.signal.window.text.set.link"));
@@ -117,7 +118,7 @@ void SignalWindow::bLinkEnabled(int i) {
         return;
     }
     this->sobj->subObjSelected = i;
-    setLinkButton->setDisabled(false);
+    ToolButtons::setAvailable(setLinkButton, true);
         //% "Set Link [%1]"
         setLinkButton->setText(qtTrId("route.signal.link.set.button").arg(i));
     int ids[3];
@@ -145,6 +146,10 @@ void SignalWindow::bLinkEnabled(int i) {
         showObj(sobj);
     }*/
 
+}
+
+void SignalWindow::setViewMode(ViewMode mode){
+    ToolButtons::applyMode({{"signalLinkTool", setLinkButton}}, mode);
 }
 
 void SignalWindow::setLink(){

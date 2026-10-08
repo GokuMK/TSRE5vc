@@ -10,6 +10,7 @@
 
 #include <tsre/fileFunctions/ContentPath.h>
 #include "TerrainTools.h"
+#include "tools/ToolButtons.h"
 #include "TerrainMaterialDialog.h"
 #include <tsre/world/TerrainMaterialLibrary.h>
 #include <tsre/world/TerrainMaterialMap.h>
@@ -99,6 +100,9 @@ TerrainTools::TerrainTools(QString name)
         buttonTools["proceduralLockTool"] = new QPushButton(
             //% "Lock"
             qtTrId("route.editor.terrain.tools.button.lock.2"), this);
+        // They start the static section's tools (ToolButtons follows these).
+        buttonTools["proceduralPickTool"]->setProperty("tool", "pickTerrainTexTool");
+        buttonTools["proceduralLockTool"]->setProperty("tool", "lockTexTool");
         buttonTools["proceduralPickTool"]->setToolTip(
             //% "Pick the source material from terrain. Same picking tool as in the static section."
             qtTrId("route.editor.terrain.tools.tooltip.pick.source.material.from.terrain.same.picking"));
@@ -916,6 +920,10 @@ void TerrainTools::texPreviewEnabled(int val){
 }
 
 void TerrainTools::msg(QString text, QString val){
+    if(text == "viewMode"){
+        ToolButtons::applyMode(buttonTools, ToolButtons::modeOf(val));
+        return;
+    }
     if(text == "toolEnabled"){
         QMapIterator<QString, QPushButton*> i(buttonTools);
         while (i.hasNext()) {

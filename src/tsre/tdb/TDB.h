@@ -16,6 +16,7 @@
 
 #include <QString>
 #include <unordered_map>
+#include <vector>
 #include <QVector>
 #include <tsre/ogl/OglObj.h>
 #include <tsre/ogl/TextObj.h>
@@ -116,6 +117,10 @@ public:
     void getVectorSectionPoints(int x, int y, int uid, QVector<float> &ptr);
     void getVectorSectionPoints(int x, int y, int nId, int sId, QVector<float> &ptr);
     void getVectorSectionLine(float * &buffer, int &len, int x, int y, int uid, bool useOffset = false);
+    // The track of a node between two distances along it, as line segments
+    // (pairs of x, y, z points) relative to tile x, y in the editor's tile
+    // convention.
+    void getTrackSegments(std::vector<float> &segments, int nodeId, float from, float to, int x, int y);
     void moveItemsFrom2to1(int id2, int id1);
     int appendToJunction(int junctionId, int eId, int idx);
     int newTrack(int x, int z, float* p, float* q, int* ends, int r, int sect, int uid);
@@ -132,7 +137,9 @@ public:
     bool getDrawPositionOnTrNode(float* out, int id, float metry, float *sElev = NULL);
     int findTrItemNodeId(int id);
     int findTrItemNodeIds(int id, QVector<int> &ids);
-    int findNearestPositionOnTDB(float* posT, float* pos, float* q = NULL, float* tpos = NULL);
+    // useHeight false measures across the ground only: for positions
+    // without a meaningful height (map mode, stored x and z).
+    int findNearestPositionOnTDB(float* posT, float* pos, float* q = NULL, float* tpos = NULL, bool useHeight = true);
     int findNearestPositionsOnTDB(float* posT, float * pos, QVector<TDB::IntersectionPoint> &points, float maxDistance = 10.0);
     void fillNearestSquaredDistanceToTDBXZ(float* posT, QVector<Vector4f> &points, float* bbox = NULL);
     void deleteTrItem(int trid);

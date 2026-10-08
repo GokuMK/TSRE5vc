@@ -15,6 +15,7 @@
 #include <QHash>
 #include <QVector>
 #include <QStringList>
+#include <functional>
 
 class FileBuffer;
 class TerrainInfo;
@@ -22,6 +23,23 @@ class QTextStream;
 
 class QuadTree {
 public:
+    // What visit() reports: every node's square (corner and side in world
+    // tiles, tree coordinates), and every populated quadrant as the terrain
+    // tile it names (TerrainInfo name, corner cx, cy and size level).
+    struct Visitor {
+        std::function<void(int x, int y, int size)> node;
+        std::function<void(const TerrainInfo &info)> tile;
+    };
+    // A quadrant of the tree (map mode's quadtree tool): the square of
+    // `level` world tiles at x, y (tree coordinates, aligned to level), the
+    // name of its terrain tile, and whether it is populated.
+    struct Quad {
+        int x = 0;
+        int y = 0;
+        int level = 0;
+        bool populated = false;
+        QString name;
+    };
 
     /*struct TreePos {
         int level;
@@ -54,6 +72,14 @@ public:
         QString getMyName(int tileX, int tileY);
         unsigned int getMyNameId(int tileX, int tileY);
         bool fillTerrainInfo(int tileX, int tileY, TerrainInfo* info);
+        // The terrain tile of quadrant px, py: name, corner and size.
+        void quadrantInfo(int px, int py, TerrainInfo *info) const;
+        void visit(int minX, int maxX, int minY, int maxY, const Visitor &visitor,
+                   bool low) const;
+        // The quadrant of `level` at x, y below this node, creating the nodes
+        // on the way when create is set: the node owning it and its index.
+        QuadTile *quadrantOwner(int qx, int qy, int qLevel, bool create, int &px, int &py);
+        void quadAt(int tileX, int tileY, Quad &quad) const;
         int listNames();
     };
     struct TdFile {
@@ -88,6 +114,20 @@ public:
     void createNew(int tileX, int tileY, SavePolicy policy = SavePolicy::Immediate);
     void addTile(int tileX, int tileY, SavePolicy policy = SavePolicy::Immediate);
     void fillTerrainInfo(int tileX, int tileY, TerrainInfo* info);
+    // The nodes and populated quadrants overlapping world tiles minX..maxX,
+    // minY..maxY (tree coordinates, inclusive), for drawing the tree (map
+    // mode, task editor 04).
+    void visit(int minX, int maxX, int minY, int maxY, const Visitor &visitor) const;
+    // The smallest quadrant containing a world tile: nodes are followed
+    // where a quadrant is split. Outside every TD block, the block's
+    // quadrant of 256 tiles, not populated.
+    Quad quadAt(int tileX, int tileY) const;
+    // Splits a quadrant into four: the node dividing it is created (level of
+    // 2 or more). False for an invalid quadrant or one already split.
+    bool splitQuad(int x, int y, int level, SavePolicy policy = SavePolicy::Immediate);
+    // Sets whether a quadrant is populated, without touching tile files.
+    bool setPopulated(int x, int y, int level, bool populated,
+                      SavePolicy policy = SavePolicy::Immediate);
     QString getMyName(int tileX, int tileY);
     unsigned int getMyNameId(int tileX, int tileY);
     void listNames();

@@ -1,0 +1,17 @@
+{
+  "notes": "The 3D view with EUROPE1's winterun activity and path selected: loose consists in the yard and the speed zone. Checks the activity parts the map mode asks for positions draw in 3D as before.",
+  "output": "build/renderer-activity",
+  "activity": "winterun.act",
+  "path": "winterun",
+  "width": 960,
+  "height": 540,
+  "pickGrid": [1, 1],
+  "timingFrames": 1,
+  "diffTolerance": 16,
+  "shadows": false,
+  "settle": {"minFrames": 12, "stableFrames": 3, "maxFrames": 120, "maxSeconds": 180},
+  "views": [
+    {"name": "yard", "tile": [-6121, -15094], "pos": [-830, 90, 260], "rot": [3.1416, -0.5]},
+    {"name": "speedzone", "tile": [-6119, -15093], "pos": [177, 120, 1100], "rot": [3.1416, -0.5]}
+  ]
+}

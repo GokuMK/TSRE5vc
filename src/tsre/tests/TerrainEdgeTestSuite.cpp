@@ -457,6 +457,40 @@ int TsreTests::runTerrainEdgeSuite(bool verbose) {
             real.fillRaw(a, 20, 0);
             check(a->adjacentEdges[3].sections.size() == 1,
                   "production-available-neighbour-fills-border");
+            // Map mode reads the tile file only; asking to load completes
+            // the same tile.
+            qt->addTile(22, 0);
+            Terrain::SaveEmpty(qt->getMyName(22, 0), 256, 8, 16);
+            Terrain *partial = real.getTerrainDescriptor(22, 0);
+            float corners[16] = {};
+            const bool descriptorOnly = partial && partial->descriptorLoaded && !partial->loaded
+                    && partial->terrainData == nullptr
+                    && real.getTerrainByXY(22, 0, false) == partial
+                    && partial->mapPatchCorners(0, 22, 0, corners);
+            check(descriptorOnly && corners[0] == -1024.0f && corners[1] == -1024.0f
+                  && corners[4] == -1024.0f + 128.0f && corners[9] == -1024.0f + 128.0f,
+                  "production-descriptor-only-tile-and-patch-corners");
+            // The tree's visitor reports the tile as lookups name it.
+            int visitedNodes = 0;
+            QString visitedName;
+            int visitedX = -1, visitedY = -1, visitedLevel = 0;
+            QuadTree::Visitor visitor;
+            visitor.node = [&](int, int, int) { ++visitedNodes; };
+            visitor.tile = [&](const TerrainInfo &info) {
+                if (info.name == qt->getMyName(22, 0)) {
+                    visitedName = info.name;
+                    visitedX = info.cx;
+                    visitedY = info.cy;
+                    visitedLevel = info.level;
+                }
+            };
+            qt->visit(22, 22, 0, 0, visitor);
+            check(visitedNodes > 0 && !visitedName.isEmpty() && visitedX == 22 && visitedY == 0
+                  && visitedLevel == 1,
+                  "production-quadtree-visit-reports-tile-as-named");
+            Terrain *complete = real.getTerrainByXY(22, 0, true);
+            check(complete == partial && complete->loaded && complete->terrainData != nullptr,
+                  "production-descriptor-tile-completes-on-load");
             Terrain *bCurrent = real.getTerrainByXY(21, 0, false);
             bCurrent->setFixedHeight(73);
             bCurrent->save();

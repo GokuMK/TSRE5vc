@@ -15,6 +15,8 @@
 
 class SignalObj;
 
+#include <routeEditor/tools/EditorTool.h>
+
 class SignalWindow : public QWidget { //QDialog {
     Q_OBJECT
 
@@ -23,6 +25,9 @@ public:
     virtual ~SignalWindow();
     void showObj(SignalObj* obj);
     void updateObj(SignalObj* obj);
+    // Set Link starts the signal link tool: off in modes it does not
+    // support.
+    void setViewMode(ViewMode mode);
     
 public slots:
     void exitNow();

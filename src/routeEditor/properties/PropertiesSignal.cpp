@@ -10,6 +10,7 @@
 #include <QScreen>
 #include "PropertiesSignal.h"
 #include "SignalWindow.h"
+#include <routeEditor/tools/ToolButtons.h>
 #include <tsre/world/objects/SignalObj.h>
 #include <tsre/Game.h>
 #include <tsre/tdb/TDB.h>
@@ -256,9 +257,12 @@ PropertiesSignal::~PropertiesSignal() {
 }
 
 void PropertiesSignal::msg(QString name, QString val){
+    PropertiesAbstract::msg(name, val);
     if(name == "enableTool"){
         emit enableTool(val);
     }
+    if(name == "viewMode")
+        signalWindow->setViewMode(ToolButtons::modeOf(val));
 }
 
 void PropertiesSignal::showObj(GameObj* obj){

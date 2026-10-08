@@ -1061,6 +1061,9 @@ void Route::pushRenderItems(RenderQueue &queue, float * playerT, float* playerW,
         maxtile = 1;
     }
     
+    // The hold ends when the camera leaves the tile it arrived on.
+    if (autoNewTileHeld && ((int)playerT[0] != heldTileX || (int)playerT[1] != heldTileZ))
+        autoNewTileHeld = false;
     Tile *tTile;
     for (int i = mintile; i <= maxtile; i++) {
         for (int j = maxtile; j >= mintile; j--) {
@@ -1068,7 +1071,7 @@ void Route::pushRenderItems(RenderQueue &queue, float * playerT, float* playerW,
             if(tTile == NULL)
                 continue;
             
-            if(Game::autoNewTiles)
+            if(Game::autoNewTiles && !autoNewTileHeld)
                 if (i == 0 && j == 0)
                     if (tTile->loaded == -2) {
                         Route::newTile((int)playerT[0] + i, (int)playerT[1] + j);
@@ -1607,7 +1610,7 @@ void Route::deleteTrackItem(TRitem * item){
     return;
 }
 
-void Route::actPickNewEventLocation(int x, int z, float* p){
+void Route::actPickNewEventLocation(int x, int z, float* p, bool useHeight){
     if(currentActivity == NULL)
         return;
     float tp[3];
@@ -1618,13 +1621,13 @@ void Route::actPickNewEventLocation(int x, int z, float* p){
     Game::check_coords(x, z, tp);
     posT[0] = x;
     posT[1] = z;            
-    int ok = this->trackDB->findNearestPositionOnTDB(posT, tp, NULL, tpos);
+    int ok = this->trackDB->findNearestPositionOnTDB(posT, tp, NULL, tpos, useHeight);
     if(ok >= 0){
         currentActivity->pickNewEventLocation(tpos);
     }
 }
 
-void Route::actNewLooseConsist(int x, int z, float* p){
+void Route::actNewLooseConsist(int x, int z, float* p, bool useHeight){
     if(currentActivity == NULL)
         return;
     float tp[3];
@@ -1635,7 +1638,7 @@ void Route::actNewLooseConsist(int x, int z, float* p){
     Game::check_coords(x, z, tp);
     posT[0] = x;
     posT[1] = z;            
-    int ok = this->trackDB->findNearestPositionOnTDB(posT, tp, NULL, tpos);
+    int ok = this->trackDB->findNearestPositionOnTDB(posT, tp, NULL, tpos, useHeight);
     if(ok >= 0){
         currentActivity->newLooseConsist(tpos);
     }
@@ -1656,7 +1659,7 @@ void Route::actNewFailedSignal(int x, int z, float* p){
     
 }
 
-void Route::actNewNewSpeedZone(int x, int z, float* p){
+void Route::actNewNewSpeedZone(int x, int z, float* p, bool useHeight){
     if(currentActivity == NULL)
         return;
     float tp[3];
@@ -1667,7 +1670,7 @@ void Route::actNewNewSpeedZone(int x, int z, float* p){
     Game::check_coords(x, z, tp);
     posT[0] = x;
     posT[1] = z;            
-    int ok = this->trackDB->findNearestPositionOnTDB(posT, tp, NULL, tpos);
+    int ok = this->trackDB->findNearestPositionOnTDB(posT, tp, NULL, tpos, useHeight);
     if(ok >= 0){
         currentActivity->newSpeedZone(tpos);
     }
@@ -2455,6 +2458,12 @@ int Route::newTile(int x, int z, bool forced) {
     }
     
     return 2;
+}
+
+void Route::holdAutoNewTile(int x, int z) {
+    autoNewTileHeld = true;
+    heldTileX = x;
+    heldTileZ = z;
 }
 
 void Route::showTrkEditr(Trk * val){

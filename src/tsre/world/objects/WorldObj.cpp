@@ -373,6 +373,10 @@ void WorldObj::addTrackItemIdOffset(unsigned int trackOffset, unsigned int roadO
     
 }
 
+void WorldObj::getMapLine(std::vector<float> &segments, int tileX, int tileZ){
+
+}
+
 bool WorldObj::hasLinePoints(){
     return false;
 }

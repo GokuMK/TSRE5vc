@@ -11,6 +11,7 @@
 #include <tsre/trains/ActivityObject.h>
 #include <tsre/trains/Consist.h>
 #include <tsre/Game.h>
+#include <tsre/map/MapFeatures.h>
 #include <tsre/renderer/Renderer.h>
 #include <tsre/renderer/SelectionId.h>
 #include <tsre/ogl/GLUU.h>
@@ -283,29 +284,29 @@ void ActivityObject::pushRenderItems(RenderQueue &queue, float* playerT, int ren
     }
 }
 
-void ActivityObject::SpeedZone::pushRenderItems(RenderQueue &queue, float* playerT, quint32 selectionId, bool selected) {
+bool ActivityObject::SpeedZone::initPositions() {
     if (init < 0)
-        return;
+        return false;
     float posT[2], pos[3];
     if (drawPositionB == NULL) {
         TDB* tdb = Game::trackDB;
         Vec2::set(posT, start[0], -start[1]);
         float h = Game::terrainLib->getHeight(start[0], -start[1], start[2], start[3]);
         Vec3::set(pos, start[2], h, -start[3]);
-        int ok = Game::trackDB->findNearestPositionOnTDB(posT, pos, NULL, trid);
+        int ok = Game::trackDB->findNearestPositionOnTDB(posT, pos, NULL, trid, false);
         if (ok < 0) {
             init = -1;
-            return;
+            return false;
         }
         if (trid[0] < 1) {
             init = -1;
-            return;
+            return false;
         }
         drawPositionB = new float[7];
         bool ok1 = tdb->getDrawPositionOnTrNode(drawPositionB, trid[0], trid[1]);
         if (!ok1) {
             init = -1;
-            return;
+            return false;
         }
         drawPositionB[0] += 2048 * (drawPositionB[5] - start[0]);
         drawPositionB[2] -= 2048 * (-drawPositionB[6] - -start[1]);
@@ -316,24 +317,62 @@ void ActivityObject::SpeedZone::pushRenderItems(RenderQueue &queue, float* playe
         float h = Game::terrainLib->getHeight(end[0], -end[1], end[2], end[3]);
         Vec3::set(pos, end[2], h, -end[3]);
 
-        int ok = Game::trackDB->findNearestPositionOnTDB(posT, pos, NULL, trid + 3);
+        int ok = Game::trackDB->findNearestPositionOnTDB(posT, pos, NULL, trid + 3, false);
         if (ok < 0) {
             init = -1;
-            return;
+            return false;
         }
         if (trid[3] < 1) {
             init = -1;
-            return;
+            return false;
         }
         drawPositionE = new float[7];
         bool ok1 = tdb->getDrawPositionOnTrNode(drawPositionE, trid[3], trid[4]);
         if (!ok1) {
             init = -1;
-            return;
+            return false;
         }
         drawPositionE[0] += 2048 * (drawPositionE[5] - start[0]);
         drawPositionE[2] -= 2048 * (-drawPositionE[6] - -start[1]);
     }
+    return true;
+}
+
+void ActivityObject::getMapFeatures(MapFeatures &features, int tileX, int tileZ) {
+    if (objectTypeId == ActivityObject::WAGONLIST && con != NULL) {
+        if (!con->isOnTrack)
+            con->initOnTrack(tile, direction);
+        con->getMapFeatures(features, tileX, tileZ);
+    }
+    if (objectTypeId == ActivityObject::RESTRICTEDSPEEDZONE && speedZoneData != NULL)
+        speedZoneData->getMapFeatures(features, tileX, tileZ);
+    if (objectTypeId == ActivityObject::FAILEDSIGNAL && failedSignalData != NULL)
+        failedSignalData->getMapFeatures(features, tileX, tileZ);
+}
+
+void ActivityObject::SpeedZone::getMapFeatures(MapFeatures &features, int tileX, int tileZ) {
+    if (!initPositions())
+        return;
+    // The ends are relative to the start tile.
+    float ends[2][3];
+    float *drawPosition[2] = {drawPositionB, drawPositionE};
+    for (int i = 0; i < 2; i++) {
+        ends[i][0] = drawPosition[i][0] + 2048 * (start[0] - tileX);
+        ends[i][1] = drawPosition[i][1];
+        ends[i][2] = -drawPosition[i][2] + 2048 * (-start[1] - tileZ);
+        features.points.insert(features.points.end(), ends[i], ends[i] + 3);
+    }
+    if (trid[0] == trid[3]) {
+        Game::trackDB->getTrackSegments(features.lines, int(trid[0]), trid[1], trid[4], tileX, tileZ);
+    } else {
+        features.lines.insert(features.lines.end(), ends[0], ends[0] + 3);
+        features.lines.insert(features.lines.end(), ends[1], ends[1] + 3);
+    }
+}
+
+void ActivityObject::SpeedZone::pushRenderItems(RenderQueue &queue, float* playerT, quint32 selectionId, bool selected) {
+    if (!initPositions())
+        return;
 
     if (pointer3d == NULL) pointer3d = new TrackItemObj();
     if (pointer3dSelected == NULL) pointer3dSelected = new TrackItemObj();
@@ -470,33 +509,47 @@ bool ActivityObject::FailedSignalData::getWorldPosition(float *posTW){
     return true;
 }
 
-void ActivityObject::FailedSignalData::pushRenderItems(RenderQueue &queue, float* playerT, quint32 selectionId, bool selected) {
+bool ActivityObject::FailedSignalData::initPosition() {
     if (init < 0)
-        return;
+        return false;
     if (init == 0) {
         TDB* tdb = Game::trackDB;
         if (drawPosition == NULL) {
             int id = tdb->findTrItemNodeId(failedSignal);
             if (id < 0) {
-                return;
+                return false;
             }
 
             drawPosition = new float[7];
             bool ok = tdb->getDrawPositionOnTrNode(drawPosition, id, tdb->trackItems[failedSignal]->getTrackPosition());
             if (!ok) {
                 init = -1;
-                return;
-            }
-            if (pointer3d == NULL) {
-                pointer3d = new TrackItemObj(1);
-                pointer3d->setMaterial(0.8, 0.2, 0.8);
-            }
-            if (pointer3dSelected == NULL) {
-                pointer3dSelected = new TrackItemObj(1);
-                pointer3dSelected->setMaterial(0.9, 0.5, 0.9);
+                return false;
             }
         }
         init = 1;
+    }
+    return true;
+}
+
+void ActivityObject::FailedSignalData::getMapFeatures(MapFeatures &features, int tileX, int tileZ) {
+    if (!initPosition())
+        return;
+    features.points.push_back(drawPosition[0] + 2048 * (drawPosition[5] - tileX));
+    features.points.push_back(drawPosition[1]);
+    features.points.push_back(-drawPosition[2] + 2048 * (-drawPosition[6] - tileZ));
+}
+
+void ActivityObject::FailedSignalData::pushRenderItems(RenderQueue &queue, float* playerT, quint32 selectionId, bool selected) {
+    if (!initPosition())
+        return;
+    if (pointer3d == NULL) {
+        pointer3d = new TrackItemObj(1);
+        pointer3d->setMaterial(0.8, 0.2, 0.8);
+    }
+    if (pointer3dSelected == NULL) {
+        pointer3dSelected = new TrackItemObj(1);
+        pointer3dSelected->setMaterial(0.9, 0.5, 0.9);
     }
 
     queue.pushTransform();

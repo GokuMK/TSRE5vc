@@ -75,6 +75,47 @@ int TsreTests::runQuadTreeRecoverySuite(bool verbose, const QString &corpus) {
     for (int level = 1; level <= 256; level *= 2)
         zeroIds.insert(zeroNames.getMyNameId(-16384, 16384-level));
     check(zeroIds.size() == 9 && !zeroIds.contains(0), "nested zero-name cache identities remain distinct");
+
+    // Quad editing (map mode's quadtree tool): the quad under a tile, split
+    // down, populated and cleared; names decode to the quad they name.
+    {
+        QuadTree qt;
+        auto decodes = [](const QuadTree::Quad &q) {
+            int dx = 0, dy = 0, dl = 0;
+            return QuadTree::decodeTileName(q.name, dx, dy, dl) && dx == q.x && dy == q.y
+                    && dl == q.level;
+        };
+        QuadTree::Quad quad = qt.quadAt(-5, 7);
+        check(quad.level == 256 && !quad.populated && decodes(quad),
+              "quad: an empty tree gives the TD block's quadrant");
+        bool splits = true;
+        for (int level = 256; level > 1; level /= 2) {
+            splits = splits && qt.splitQuad(quad.x, quad.y, quad.level, QuadTree::SavePolicy::Deferred);
+            quad = qt.quadAt(-5, 7);
+            splits = splits && quad.level == level / 2 && decodes(quad) && quad.x <= -5
+                    && -5 < quad.x + quad.level && quad.y <= 7 && 7 < quad.y + quad.level;
+        }
+        check(splits && quad.level == 1 && !qt.splitQuad(quad.x, quad.y, 1),
+              "quad: splitting halves the quad under the tile down to one tile");
+        check(!qt.splitQuad(-256, 0, 256, QuadTree::SavePolicy::Deferred),
+              "quad: a quad already split is not split again");
+        check(qt.setPopulated(quad.x, quad.y, 1, true, QuadTree::SavePolicy::Deferred)
+                  && qt.quadAt(-5, 7).populated && qt.getMyName(-5, 7) == quad.name,
+              "quad: populating names the tile as lookups do");
+        check(qt.setPopulated(quad.x, quad.y, 1, false, QuadTree::SavePolicy::Deferred)
+                  && !qt.quadAt(-5, 7).populated && qt.getMyNameId(-5, 7) == 0
+                  && !qt.setPopulated(quad.x, quad.y, 1, false, QuadTree::SavePolicy::Deferred),
+              "quad: clearing leaves no tile; clearing twice fails");
+        const QuadTree::Quad larger = qt.quadAt(-5, 9);
+        // Off the split path: an unsplit quad of several tiles around it.
+        check(larger.level > 1 && larger.x <= -5 && -5 < larger.x + larger.level
+                  && larger.y <= 9 && 9 < larger.y + larger.level
+                  && qt.setPopulated(larger.x, larger.y, larger.level, true,
+                                                   QuadTree::SavePolicy::Deferred)
+                  && qt.getMyName(-5, 9) == larger.name && decodes(qt.quadAt(-5, 9)),
+              "quad: a larger quad populates and decodes to its size");
+        check(qt.isModified(), "quad: edits mark the tree modified");
+    }
     check(!fixture.insertTile(1, 1, 2) && !fixture.insertTile(0, 0, 3) &&
           !fixture.insertTile(32768, 0, 1), "reject unsupported insertion");
     fixture.insertTile(0, 0, 1);

@@ -1595,6 +1595,66 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
             <source>Make Tile Texture from Map</source>
             <translation>Utwórz teksturę kafla z mapy</translation>
         </message>
+        <message id="route.editor.quad.tree.tool.label.quad">
+            <source>Quad %1 km, %2: %3</source>
+            <translation>Kwadrat %1 km, %2: %3</translation>
+        </message>
+        <message id="route.editor.quad.tree.tool.label.populated.present">
+            <source>populated, tile present</source>
+            <translation>zajęty, kafel istnieje</translation>
+        </message>
+        <message id="route.editor.quad.tree.tool.label.populated.missing">
+            <source>populated, tile missing</source>
+            <translation>zajęty, brak kafla</translation>
+        </message>
+        <message id="route.editor.quad.tree.tool.label.empty">
+            <source>not populated</source>
+            <translation>niezajęty</translation>
+        </message>
+        <message id="route.editor.quad.tree.tool.action.split">
+            <source>Split Quad</source>
+            <translation>Podziel kwadrat</translation>
+        </message>
+        <message id="route.editor.quad.tree.tool.action.toggle.populated">
+            <source>Toggle Populated</source>
+            <translation>Przełącz zajętość</translation>
+        </message>
+        <message id="route.editor.quad.tree.tool.action.create.tile">
+            <source>Create Tile</source>
+            <translation>Utwórz kafel</translation>
+        </message>
+        <message id="route.editor.quad.tree.tool.dialog.create.title">
+            <source>Create Tile</source>
+            <translation>Utwórz kafel</translation>
+        </message>
+        <message id="route.editor.quad.tree.tool.dialog.create.override">
+            <source>The tile %1 exists. Replace it with an empty tile?</source>
+            <translation>Kafel %1 istnieje. Zastąpić go pustym kaflem?</translation>
+        </message>
+        <message id="route.editor.quad.tree.tool.action.delete.tile">
+            <source>Delete Tile</source>
+            <translation>Usuń kafel</translation>
+        </message>
+        <message id="route.editor.quad.tree.tool.dialog.delete.title">
+            <source>Delete Tile</source>
+            <translation>Usuń kafel</translation>
+        </message>
+        <message id="route.editor.quad.tree.tool.dialog.delete.question">
+            <source>Delete the tile %1 and its files? This cannot be undone.</source>
+            <translation>Usunąć kafel %1 i jego pliki? Tej operacji nie można cofnąć.</translation>
+        </message>
+        <message id="route.editor.geo.tools.button.edit.quad.tree">
+            <source>Edit Quad Tree</source>
+            <translation>Edytuj drzewo quadtree</translation>
+        </message>
+        <message id="route.editor.geo.tools.tooltip.edit.quad.tree">
+            <source>Right click a quad of the terrain tree being edited for its actions: split, populate, create or delete its tile.</source>
+            <translation>Kliknij prawym przyciskiem kwadrat edytowanego drzewa terenu, aby wybrać akcję: podziel, zaznacz jako zajęty, utwórz lub usuń jego kafel.</translation>
+        </message>
+        <message id="route.editor.geo.tools.label.quad.tree">
+            <source>Quad Tree:</source>
+            <translation>Drzewo quadtree:</translation>
+        </message>
         <message id="route.editor.geo.tools.button.remove.map.tile.texture">
             <location filename="../src/routeEditor/GeoTools.cpp" line="43" />
             <source>Remove Map Tile Texture</source>
@@ -2461,6 +2521,58 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
             <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="269" />
             <source>&amp;View</source>
             <translation>&amp;Widok</translation>
+        </message>
+        <message id="route.editor.route.editor.window.menu.view.3d">
+            <source>&amp;3D View</source>
+            <translation>Widok &amp;3D</translation>
+        </message>
+        <message id="route.editor.route.editor.window.menu.map">
+            <source>&amp;Map</source>
+            <translation>&amp;Mapa</translation>
+        </message>
+        <message id="route.editor.route.editor.window.action.map.track.lines">
+            <source>&amp;Track Lines</source>
+            <translation>Linie &amp;torów</translation>
+        </message>
+        <message id="route.editor.route.editor.window.action.map.road.lines">
+            <source>&amp;Road Lines</source>
+            <translation>Linie &amp;dróg</translation>
+        </message>
+        <message id="route.editor.route.editor.window.action.map.junctions">
+            <source>&amp;Junctions</source>
+            <translation>&amp;Rozjazdy</translation>
+        </message>
+        <message id="route.editor.route.editor.window.action.map.ends">
+            <source>Track &amp;Ends</source>
+            <translation>&amp;Końce torów</translation>
+        </message>
+        <message id="route.editor.route.editor.window.action.map.track.objects">
+            <source>Track &amp;Objects</source>
+            <translation>&amp;Obiekty torowe</translation>
+        </message>
+        <message id="route.editor.route.editor.window.action.map.paths">
+            <source>Pat&amp;hs</source>
+            <translation>&amp;Drogi przejazdu</translation>
+        </message>
+        <message id="route.editor.route.editor.window.action.map.activity">
+            <source>&amp;Activity</source>
+            <translation>&amp;Scenariusz</translation>
+        </message>
+        <message id="route.editor.route.editor.window.action.map.terrain">
+            <source>Terra&amp;in</source>
+            <translation>Te&amp;ren</translation>
+        </message>
+        <message id="route.editor.route.editor.window.action.map.faded.terrain">
+            <source>&amp;Faded Terrain</source>
+            <translation>&amp;Wyblakły teren</translation>
+        </message>
+        <message id="route.editor.route.editor.window.action.map.pointer">
+            <source>&amp;Pointer</source>
+            <translation>&amp;Wskaźnik</translation>
+        </message>
+        <message id="route.editor.route.editor.window.action.map.mode">
+            <source>&amp;Map Mode</source>
+            <translation>&amp;Tryb mapy</translation>
         </message>
         <message id="route.editor.route.editor.window.action.view.unselect.all">
             <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="275" />
@@ -8291,6 +8403,14 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</source>
         <message id="settings.core.rendering.blended.parts.option.2">
             <source>Also alpha-tested when the texture alpha is on/off</source>
             <translation>Także test alfa, gdy alfa tekstury jest zero-jedynkowa</translation>
+        </message>
+        <message id="settings.core.interface.route.editor.map.palette.name">
+            <source>Map mode colours</source>
+            <translation>Kolory trybu mapy</translation>
+        </message>
+        <message id="settings.core.interface.route.editor.map.palette.description">
+            <source>Colour palette of the Route Editor&apos;s map mode: light, dark, or the name of a palette file (name.json) in the map-palettes folder of the configuration directory.</source>
+            <translation>Paleta kolorów trybu mapy Edytora Tras: light (jasna), dark (ciemna) lub nazwa pliku palety (nazwa.json) w folderze map-palettes katalogu konfiguracji.</translation>
         </message>
         <message id="settings.core.rendering.environment.map.enabled.name">
             <location filename="../src/settings/SettingsRegistration.cpp" line="763" />

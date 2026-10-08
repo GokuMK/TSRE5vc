@@ -27,8 +27,12 @@ class Activity;
 class SimpleHud;
 class ContentHierarchyInfo;
 
+struct MapFeatures;
+
 class Consist : public GameObj {
 public:
+    // The vehicles' footprints for the map mode.
+    void getMapFeatures(MapFeatures &features, int tileX, int tileZ);
     static std::unordered_map<int, TextObj*> txtNumbers;
     static int lastTxtNumbersColor;
     static TextObj * txtEngineE;

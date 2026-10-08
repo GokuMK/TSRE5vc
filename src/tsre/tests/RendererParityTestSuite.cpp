@@ -36,6 +36,7 @@
 #include <tsre/trains/ConLib.h>
 #include <tsre/trains/EngLib.h>
 #include <tsre/Game.h>
+#include <tsre/world/TerrainLib.h>
 #include <tsre/renderer/RenderStats.h>
 #include <tsre/renderer/SelectionId.h>
 #include <tsre/world/Route.h>
@@ -70,6 +71,13 @@ struct ViewSpec {
     float offset[3] = {0, 0, 0};
     bool hasRot = false;
     float rot[2] = {0, 0};
+    // Map mode (task editor 04): centred on the view's ground position.
+    bool map = false;
+    float metresPerPixel = 2.0f;
+    float bearing = 0.0f;
+    bool fadedTerrain = false;
+    // Edit the distant terrain (TerrainLib's current tree) for this view.
+    bool editDistant = false;
 };
 
 struct Options {
@@ -90,6 +98,9 @@ struct Options {
     bool pivotPoints = false;
     bool snapable = false;
     Thresholds thresholds;
+    // Map mode layers: an activity and a path to select, by file name.
+    QString activity;
+    QString path;
     QVector<ViewSpec> views;
 };
 
@@ -174,6 +185,8 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
     options.thresholds.maxDiffPixelRatio = thresholds.value("maxDiffPixelRatio").toDouble(-1.0);
     options.thresholds.maxPickMismatches = thresholds.value("maxPickMismatches").toInt(-1);
 
+    options.activity = root.value("activity").toString();
+    options.path = root.value("path").toString();
     const QJsonArray views = root.value("views").toArray();
     for (int i = 0; i < views.size(); ++i) {
         const QJsonObject object = views[i].toObject();
@@ -188,6 +201,11 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         view.hasPos = readFloatArray(object.value("pos"), view.pos, 3);
         view.hasOffset = readFloatArray(object.value("offset"), view.offset, 3);
         view.hasRot = readFloatArray(object.value("rot"), view.rot, 2);
+        view.map = object.value("mode").toString() == "map";
+        view.metresPerPixel = float(object.value("metresPerPixel").toDouble(2.0));
+        view.bearing = float(object.value("bearing").toDouble(0.0));
+        view.fadedTerrain = object.value("fadedTerrain").toBool(false);
+        view.editDistant = object.value("editDistant").toBool(false);
         if (view.hasTile != view.hasPos) {
             error = QString("view %1 needs both tile and pos").arg(view.name);
             return false;
@@ -388,6 +406,7 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
     float startRot[2];
     widget.diagnosticView(startTileX, startTileZ, startPos, startRot[0], startRot[1]);
 
+    widget.setDiagnosticActivity(options.activity, options.path);
     QJsonArray viewReports;
     for (const ViewSpec &spec : options.views) {
         int tileX = spec.hasTile ? spec.tileX : startTileX;
@@ -402,6 +421,15 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         if (spec.hasRot)
             std::copy(spec.rot, spec.rot + 2, rot);
         widget.setDiagnosticView(tileX, tileZ, pos[0], pos[1], pos[2], rot[0], rot[1]);
+        if (spec.map) {
+            widget.setDiagnosticMapView(tileX, tileZ, pos[0], pos[2], spec.metresPerPixel,
+                                        spec.bearing);
+            widget.setMapLayerVisible(MapLayer::FadedTerrain, spec.fadedTerrain);
+            if (spec.editDistant)
+                Game::terrainLib->setDistantAsCurrent();
+            else
+                Game::terrainLib->setDetailedAsCurrent();
+        }
 
         QElapsedTimer settleTimer;
         settleTimer.start();

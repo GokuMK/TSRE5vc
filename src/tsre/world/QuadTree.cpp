@@ -233,13 +233,6 @@ bool QuadTree::QuadTile::fillTerrainInfo(int tileX, int tileY, TerrainInfo* info
     if (tileX >= x + level) px = 1;
     if (tileY >= y + level) py = 1;
 
-    int pow = 0;
-    for(pow = 0; pow < 32; pow++){
-        if((level >> pow)&1 == 1)
-            break;
-    }
-    pow = (pow+1) / 2;
-    
     // First check if smaller tile is populated.
     bool tval = false;
     if (tile[px][py] != NULL)
@@ -248,20 +241,58 @@ bool QuadTree::QuadTile::fillTerrainInfo(int tileX, int tileY, TerrainInfo* info
         return true;
     
     if(populated[px][py] == true){
-        QString val = QString::number(nameId << 2*prefix | !py << (1 + 2*prefix) | !(py^px) << (0 + 2*prefix), 16);
-        int len = 8 - pow - val.length();
-        for (int i = 0; i < len; i++)
-            val = "0" + val;
-        info->name = PrefixString[prefix]+val;        
-        info->cx = x + level*px;//  level/2;
-        info->cy = y + level*py;// + level/2;
-        info->level = level;
-        //qDebug() << "info" << tileX << tileY << info->cx << info->cy << info->level << pow;
+        quadrantInfo(px, py, info);
         return true;
     }// else if (tile[px][py] != NULL) {
     //        tile[px][py]->fillTerrainInfo(tileX, tileY, info);
     //}
     return false;
+}
+
+void QuadTree::QuadTile::quadrantInfo(int px, int py, TerrainInfo *info) const {
+    int pow = 0;
+    for(pow = 0; pow < 32; pow++){
+        if((level >> pow)&1 == 1)
+            break;
+    }
+    pow = (pow+1) / 2;
+    QString val = QString::number(nameId << 2*prefix | !py << (1 + 2*prefix) | !(py^px) << (0 + 2*prefix), 16);
+    int len = 8 - pow - val.length();
+    for (int i = 0; i < len; i++)
+        val = "0" + val;
+    info->name = PrefixString[prefix]+val;
+    info->cx = x + level*px;
+    info->cy = y + level*py;
+    info->level = level;
+}
+
+void QuadTree::QuadTile::visit(int minX, int maxX, int minY, int maxY, const Visitor &visitor,
+                               bool low) const {
+    const int size = 2 * level;
+    if (x > maxX || x + size - 1 < minX || y > maxY || y + size - 1 < minY)
+        return;
+    if (visitor.node)
+        visitor.node(x, y, size);
+    for (int px = 0; px < 2; ++px)
+        for (int py = 0; py < 2; ++py) {
+            const int qx = x + px * level, qy = y + py * level;
+            if (qx > maxX || qx + level - 1 < minX || qy > maxY || qy + level - 1 < minY)
+                continue;
+            if (populated[px][py] && visitor.tile) {
+                TerrainInfo info;
+                quadrantInfo(px, py, &info);
+                info.low = low;
+                visitor.tile(info);
+            }
+            if (tile[px][py] != NULL)
+                tile[px][py]->visit(minX, maxX, minY, maxY, visitor, low);
+        }
+}
+
+void QuadTree::visit(int minX, int maxX, int minY, int maxY, const Visitor &visitor) const {
+    for (auto it = td.constBegin(); it != td.constEnd(); ++it)
+        if (it.value() != NULL && it.value()->qt != NULL)
+            it.value()->qt->visit(minX, maxX, minY, maxY, visitor, low);
 }
 
 void QuadTree::QuadTile::addTile(int tileX, int tileY, int dLevel) {

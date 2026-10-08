@@ -9,6 +9,7 @@
  */
 
 #include "GeoTools.h"
+#include "tools/ToolButtons.h"
 #include <tsre/texture/TexLib.h>
 #include <tsre/texture/Brush.h>
 #include <tsre/texture/Texture.h>
@@ -44,6 +45,12 @@ GeoTools::GeoTools(QString name)
     buttonTools["removeTileTextureTool"] = new QPushButton(
         //% "Remove Map Tile Texture"
         qtTrId("route.editor.geo.tools.button.remove.map.tile.texture"), this);
+    buttonTools["quadTreeTool"] = new QPushButton(
+        //% "Edit Quad Tree"
+        qtTrId("route.editor.geo.tools.button.edit.quad.tree"), this);
+    buttonTools["quadTreeTool"]->setToolTip(
+        //% "Right click a quad of the terrain tree being edited for its actions: split, populate, create or delete its tile."
+        qtTrId("route.editor.geo.tools.tooltip.edit.quad.tree"));
     QMapIterator<QString, QPushButton*> i(buttonTools);
     while (i.hasNext()) {
         i.next();
@@ -74,6 +81,14 @@ GeoTools::GeoTools(QString name)
     label0->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
     vbox->addWidget(label0);
     vbox->addWidget(buttonTools["heightTileLoadTool"]);
+
+    label0 = new QLabel(
+        //% "Quad Tree:"
+        qtTrId("route.editor.geo.tools.label.quad.tree"));
+    label0->setContentsMargins(3,0,0,0);
+    label0->setStyleSheet(QString("QLabel { color : ")+Game::StyleMainLabel+"; }");
+    vbox->addWidget(label0);
+    vbox->addWidget(buttonTools["quadTreeTool"]);
     
     label0 = new QLabel(
         //% "Auto tile generation:"
@@ -190,6 +205,10 @@ GeoTools::GeoTools(QString name)
     QObject::connect(buttonTools["removeTileTextureTool"], SIGNAL(toggled(bool)),
                       this, SLOT(removeTileTextureToolEnabled(bool)));
     
+    QObject::connect(buttonTools["quadTreeTool"], &QPushButton::toggled, this, [this](bool val) {
+        emit enableTool(val ? "quadTreeTool" : "");
+    });
+
     QObject::connect(chAutoCreateTile, SIGNAL(stateChanged(int)),
                       this, SLOT(chAutoCreateTileEnabled(int)));
     
@@ -335,6 +354,10 @@ GeoTools::~GeoTools() {
 }
 
 void GeoTools::msg(QString text, QString val){
+    if(text == "viewMode"){
+        ToolButtons::applyMode(buttonTools, ToolButtons::modeOf(val));
+        return;
+    }
     if(text == "toolEnabled"){
         QMapIterator<QString, QPushButton*> i(buttonTools);
         while (i.hasNext()) {

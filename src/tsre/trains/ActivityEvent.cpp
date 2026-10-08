@@ -13,6 +13,7 @@
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <tsre/fileFunctions/ReadFile.h>
 #include <tsre/Game.h>
+#include <tsre/map/MapFeatures.h>
 #include <tsre/renderer/Renderer.h>
 #include <QDebug>
 #include <tsre/ogl/GLUU.h>
@@ -386,6 +387,15 @@ void ActivityEvent::pushRenderItem(RenderQueue &queue, float *playerT, float pla
         txtMarkerObj->pushRenderItem(queue, playerRot);
         queue.popTransform();
     }
+}
+
+void ActivityEvent::getMapFeatures(MapFeatures &features, int tileX, int tileZ) {
+    if (category != CategoryLocation || location == NULL)
+        return;
+    const float x = location[2] + 2048 * (location[0] - tileX);
+    const float z = -location[3] + 2048 * (-location[1] - tileZ);
+    features.points.insert(features.points.end(), {x, 0.0f, z});
+    features.areas.insert(features.areas.end(), {x, z, location[4]});
 }
 
 void ActivityEvent::load(FileBuffer* data) {

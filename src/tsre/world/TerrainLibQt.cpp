@@ -33,6 +33,9 @@
 #include <tsre/renderer/SelectionId.h>
 #include <tsre/texture/TexLib.h>
 #include <QFile>
+#include <QFileInfo>
+#include <tsre/fileFunctions/ContentPath.h>
+#include <tsre/world/TFile.h>
 #include <QRect>
 #include <QScopedValueRollback>
 #include <QScopeGuard>
@@ -83,8 +86,15 @@ Terrain* TerrainLibQt::getTerrainByXY(int x, int y, bool load) {
     if (terrainNameId == 0)
         return NULL;
     if ((*currentQt)[terrainNameId] != NULL) {
-        if((*currentQt)[terrainNameId]->t != NULL)
-            return (*currentQt)[terrainNameId]->t;
+        Terrain *existing = (*currentQt)[terrainNameId]->t;
+        if (existing != NULL) {
+            // A tile map mode read only partly is completed when asked to
+            // load.
+            if (load && !existing->loaded && existing->descriptorLoaded
+                    && existing->completeLoad())
+                terrainAvailabilityChanged(existing);
+            return existing;
+        }
     }
     if (load) {
         (*currentQt)[terrainNameId] = new TerrainInfo();
@@ -97,6 +107,117 @@ Terrain* TerrainLibQt::getTerrainByXY(int x, int y, bool load) {
     }
 
     return NULL;
+}
+
+// A tile of a tree with its tile file read, loading only that.
+static Terrain *descriptorTile(QuadTree *tree, QHash<unsigned int, TerrainInfo*> &tiles,
+                               int x, int y) {
+    if (tree == NULL)
+        return NULL;
+    const unsigned int terrainNameId = tree->getMyNameId(x, -y);
+    if (terrainNameId == 0)
+        return NULL;
+    TerrainInfo *&info = tiles[terrainNameId];
+    if (info != NULL && info->t != NULL)
+        return info->t;
+    if (info == NULL) {
+        info = new TerrainInfo();
+        tree->fillTerrainInfo(x, -y, info);
+    }
+    info->t = new Terrain(info, false);
+    return info->t;
+}
+
+Terrain* TerrainLibQt::getTerrainDescriptor(int x, int y) {
+    return descriptorTile(quadTree, terrainQt, x, y);
+}
+
+Terrain* TerrainLibQt::getDistantDescriptor(int x, int y) {
+    return descriptorTile(quadTreeLo, terrainQtLo, x, y);
+}
+
+unsigned int TerrainLibQt::terrainTileId(int x, int y, bool distant, TerrainInfo *info) {
+    QuadTree *tree = distant ? quadTreeLo : quadTree;
+    if (tree == NULL)
+        return 0;
+    const unsigned int id = tree->getMyNameId(x, -y);
+    if (id != 0 && info != NULL)
+        tree->fillTerrainInfo(x, -y, info);
+    return id;
+}
+
+// The tile directory of the current tree.
+static QString quadTileDirectory(const QuadTree *tree) {
+    return ContentPath::normalize(Game::root + "/ROUTES/" + Game::route + "/"
+                                  + (tree != NULL && const_cast<QuadTree*>(tree)->isLow()
+                                         ? "LO_TILES" : "TILES") + "/");
+}
+
+bool TerrainLibQt::quadTileExists(const QuadTree::Quad &quad) {
+    return currentQuadTree != NULL && !quad.name.isEmpty()
+            && QFileInfo::exists(quadTileDirectory(currentQuadTree) + quad.name + ".t");
+}
+
+bool TerrainLibQt::createQuadTile(const QuadTree::Quad &quad, bool overwrite, QString &error) {
+    if (!Game::writeEnabled) { error = "Route writing is disabled"; return false; }
+    if (currentQuadTree == NULL || quad.name.isEmpty()) { error = "No quad"; return false; }
+    const TerrainGridLayout layout = TerrainGridLayout::profile(Game::defaultTerrainHeightProfile,
+                                                                Game::defaultTerrainPatchCount);
+    if (layout.sampleCount == 0) { error = "Invalid default terrain profile"; return false; }
+    if (!quad.populated
+            && !currentQuadTree->setPopulated(quad.x, quad.y, quad.level, true)) {
+        error = "The quad cannot be populated"; return false;
+    }
+    if (!Terrain::SaveEmpty(quad.name, layout.sampleCount, layout.sampleSpacing * quad.level,
+                            layout.patchesPerSide, currentQuadTree->isLow(), overwrite)) {
+        error = "Unable to write the terrain tile " + quad.name; return false;
+    }
+    // Load it again: the tile under the quad's corner (editor z is negated).
+    reload(quad.x, -quad.y);
+    return true;
+}
+
+bool TerrainLibQt::deleteQuadTile(const QuadTree::Quad &quad, QString &error) {
+    if (!Game::writeEnabled) { error = "Route writing is disabled"; return false; }
+    if (currentQuadTree == NULL || quad.name.isEmpty()) { error = "No quad"; return false; }
+    const QString directory = quadTileDirectory(currentQuadTree);
+    // The tile file and the files it names, nothing matched by prefix: a
+    // smaller tile's name may begin with this one's.
+    QStringList files = {quad.name + ".t"};
+    TFile tile;
+    if (tile.readT(directory + quad.name + ".t")) {
+        for (const auto &sample : {tile.samples.y, tile.samples.f, tile.samples.e,
+                                   tile.samples.n, tile.samples.c, tile.samples.d})
+            if (sample.has_value() && !sample->isEmpty())
+                files << *sample;
+        if (!tile.sampleMaterialBuffer.isEmpty() && !tile.sampleMaterialBuffer.startsWith(":"))
+            files << tile.sampleMaterialBuffer << tile.sampleMaterialBuffer + ".bk";
+        for (const auto &set : tile.patchSets)
+            if (set.flagsBuffer.has_value() && !set.flagsBuffer->isEmpty())
+                files << *set.flagsBuffer;
+    }
+    for (const QString &file : files) {
+        // Names from the tile file stay in its directory.
+        if (QFileInfo(file).fileName() != file)
+            continue;
+        const QString path = ContentPath::normalize(directory + file);
+        if (QFileInfo::exists(path) && !QFile::remove(path)) {
+            error = "Unable to remove " + path; return false;
+        }
+    }
+    // Drop the tile: neighbours learn it is gone, as on a reload.
+    for (auto it = currentQt->begin(); it != currentQt->end(); ++it) {
+        TerrainInfo *info = it.value();
+        if (info == NULL || info->name != quad.name)
+            continue;
+        if (info->t != NULL)
+            terrainAvailabilityChanged(info->t);
+        currentQt->erase(it);
+        break;
+    }
+    if (quad.populated)
+        currentQuadTree->setPopulated(quad.x, quad.y, quad.level, false);
+    return true;
 }
 
 QuadTree* TerrainLibQt::getQuadTreeDetailed(){
@@ -1419,6 +1540,9 @@ void TerrainLibQt::pushRenderItemsLo(RenderQueue &queue, float * playerT, float*
             continue;
         terrainQtLo[terrainNameId]->rendered = true;
         tTile = terrainQtLo[terrainNameId]->t;
+        // Map mode may have read only the tile file.
+        if (!tTile->loaded && tTile->descriptorLoaded)
+            tTile->completeLoad();
         if (!tTile->loaded)
             continue;
 
@@ -1499,6 +1623,9 @@ void TerrainLibQt::pushRenderItemsWaterLo(RenderQueue &queue, float* playerT, fl
             continue;
         terrainQtLo[terrainNameId]->rendered = true;
         tTile = terrainQtLo[terrainNameId]->t;
+        // Map mode may have read only the tile file.
+        if (!tTile->loaded && tTile->descriptorLoaded)
+            tTile->completeLoad();
         if (!tTile->loaded)
             continue;
 

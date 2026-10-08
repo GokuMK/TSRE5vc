@@ -84,6 +84,32 @@ Terrain *TerrainLib::getTerrainByXY(int x, int y, bool load){
     return NULL;
 }
 
+Terrain *TerrainLib::getTerrainDescriptor(int x, int y){
+    return getTerrainByXY(x, y, true);
+}
+
+bool TerrainLib::quadTileExists(const QuadTree::Quad &quad){
+    return false;
+}
+
+bool TerrainLib::createQuadTile(const QuadTree::Quad &quad, bool overwrite, QString &error){
+    error = "Not supported";
+    return false;
+}
+
+bool TerrainLib::deleteQuadTile(const QuadTree::Quad &quad, QString &error){
+    error = "Not supported";
+    return false;
+}
+
+Terrain *TerrainLib::getDistantDescriptor(int x, int y){
+    return NULL;
+}
+
+unsigned int TerrainLib::terrainTileId(int x, int y, bool distant, TerrainInfo *info){
+    return 0;
+}
+
 void TerrainLib::loadQuadTree(){
 
 }

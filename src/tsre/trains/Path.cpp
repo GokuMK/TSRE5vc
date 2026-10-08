@@ -16,6 +16,7 @@
 #include <QFile>
 #include <QDir>
 #include <tsre/Game.h>
+#include <tsre/map/MapFeatures.h>
 #include <tsre/renderer/Renderer.h>
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <tsre/fileFunctions/ReadFile.h>
@@ -220,6 +221,7 @@ void Path::init3dShapes(bool initShapes){
     if(isinit2 && initShapes)
         return;
     lines.clear();
+    trackRanges.clear();
     int fail = 0;
     TDB* tdb = Game::trackDB;
     float posT[2];
@@ -368,6 +370,7 @@ void Path::init3dShapes(bool initShapes){
             distance1 = temp;
         }
         distanceDownPath += distance2 - distance1;
+        trackRanges.push_back({currentNodeId, distance1, distance2});
         
         QMapIterator<float, Path::PathObject*> it(pathObjectsMap);
         pathObjects.clear();
@@ -451,6 +454,19 @@ void Path::pushRenderItems(RenderQueue &queue, float *playerT, quint32 selection
         Mat4::translate(queue.transform(), queue.transform(), 2048 * (linesX[i] - playerT[0]), 2.2, 2048 * (linesZ[i] - playerT[1]));
         lines[i]->pushRenderItem(queue);
         queue.popTransform();
+    }
+}
+
+void Path::getMapFeatures(MapFeatures &features, int tileX, int tileZ) {
+    if (Game::trackDB == NULL)
+        return;
+    init3dShapes(false);
+    for (const TrackRange &range : trackRanges)
+        Game::trackDB->getTrackSegments(features.lines, range.node, range.from, range.to, tileX, tileZ);
+    for (const PathNode &n : node) {
+        features.points.push_back((n.tilex - tileX) * 2048 + n.pos[0]);
+        features.points.push_back(n.pos[1]);
+        features.points.push_back((n.tilez - tileZ) * 2048 + n.pos[2]);
     }
 }
 

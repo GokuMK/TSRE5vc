@@ -95,6 +95,10 @@ public:
     void preloadWFiles(bool gui = false);
     void preloadWFilesInit();
     int newTile(int x, int z, bool forced = false);
+    // Map mode (task editor 04): the tile the 3D camera arrives on from the
+    // map is not created by Game::autoNewTiles until the camera has left
+    // it; switching modes must not write tiles to disk.
+    void holdAutoNewTile(int x, int z);
     void ensureWorldTile(int x, int z);
     void reloadTile(int x, int z);
     void deleteObj(WorldObj* obj);
@@ -140,10 +144,11 @@ public:
     void addToTDB(WorldObj* obj);
     void newPositionTDB(WorldObj* obj);
     void linkSignal(int x, int z, float* p, WorldObj* obj);
-    void actPickNewEventLocation(int x, int z, float* p);
-    void actNewLooseConsist(int x, int z, float* p);
+    void actPickNewEventLocation(int x, int z, float* p, bool useHeight = true);
+    // useHeight false: the pointer has no height (map mode).
+    void actNewLooseConsist(int x, int z, float* p, bool useHeight = true);
     void actNewFailedSignal(int x, int z, float* p);
-    void actNewNewSpeedZone(int x, int z, float* p);
+    void actNewNewSpeedZone(int x, int z, float* p, bool useHeight = true);
     void transalteObj(int x, int z, float px, float py, float pz, int uid);
     void setTDB(TDB* tdb, bool road);
     void updateSim(float *playerT, float deltaTime);
@@ -174,6 +179,9 @@ protected:
     Coords * mkr = NULL;
     GroupObj *autoPlacementLastPlaced = NULL;
     Activity* currentActivity = NULL;
+    bool autoNewTileHeld = false;
+    int heldTileX = 0;
+    int heldTileZ = 0;
     int loadingProgress = 0;
 };
 

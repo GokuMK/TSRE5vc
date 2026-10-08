@@ -9,6 +9,7 @@
  */
 
 #include "ActivityEventProperties.h"
+#include <routeEditor/tools/ToolButtons.h>
 #include <tsre/Game.h>
 #include <tsre/trains/ActivityEvent.h>
 #include <tsre/geo/GeoCoordinates.h>
@@ -928,6 +929,10 @@ void ActivityEventProperties::bPickNewEventWagonToolSelected(){
 }
 
 void ActivityEventProperties::msg(QString text, QString val){
+    if(text == "viewMode"){
+        ToolButtons::applyMode(buttonTools, ToolButtons::modeOf(val));
+        return;
+    }
     if(text == "toolEnabled"){
         QMapIterator<QString, QPushButton*> i(buttonTools);
         while (i.hasNext()) {

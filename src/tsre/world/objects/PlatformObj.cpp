@@ -272,6 +272,25 @@ void PlatformObj::getTrackItemIds(QVector<int> &ids, int tdbId){
     }
 }
 
+void PlatformObj::getMapLine(std::vector<float> &segments, int tileX, int tileZ){
+    // The track between the two items, which lie on one node.
+    if(!this->loaded || this->trItemIdCount < 4)
+        return;
+    TDB* tdb = this->trItemId[0] == 1 ? Game::roadDB : Game::trackDB;
+    if(tdb == NULL)
+        return;
+    auto begin = tdb->trackItems.find(this->trItemId[1]);
+    auto end = tdb->trackItems.find(this->trItemId[3]);
+    if(begin == tdb->trackItems.end() || end == tdb->trackItems.end()
+            || begin->second == NULL || end->second == NULL)
+        return;
+    int id = tdb->findTrItemNodeId(this->trItemId[1]);
+    if(id < 1 || id != tdb->findTrItemNodeId(this->trItemId[3]))
+        return;
+    tdb->getTrackSegments(segments, id, begin->second->getTrackPosition(),
+                          end->second->getTrackPosition(), tileX, tileZ);
+}
+
 int PlatformObj::getTrackBegItemId(){
     if(this->trItemIdCount < 2)
         return -1;

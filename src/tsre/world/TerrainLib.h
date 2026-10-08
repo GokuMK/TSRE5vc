@@ -17,6 +17,7 @@
 #include <tsre/world/TerrainGridLayout.h>
 #include <tsre/world/TerrainAdjacentEdge.h>
 #include <tsre/world/TerrainLod.h>
+#include <tsre/world/QuadTree.h>
 
 
 class RenderQueue;
@@ -35,6 +36,20 @@ public:
     virtual ~TerrainLib();
     virtual void setDetailedAsCurrent();
     virtual void setDistantAsCurrent();
+    // Whether the distant tiles are the ones being edited (current).
+    virtual bool distantIsCurrent() const { return false; }
+    // The quadtree being edited (map mode's quadtree tool), or null.
+    virtual QuadTree *currentTree() { return nullptr; }
+    // Whether a quad of the current tree has its tile file.
+    virtual bool quadTileExists(const QuadTree::Quad &quad);
+    // Writes an empty terrain tile for a quad of the current tree, sized to
+    // the quad (the default profile's samples, their spacing times the
+    // quad's size), populating the quad; overwrite replaces an existing
+    // tile. The tile is loaded again.
+    virtual bool createQuadTile(const QuadTree::Quad &quad, bool overwrite, QString &error);
+    // Removes a quad's tile: its tile file and the files it references, and
+    // its populated state. The tile is dropped from the library.
+    virtual bool deleteQuadTile(const QuadTree::Quad &quad, QString &error);
     virtual void loadQuadTreeDetailed(FileBuffer *data);
     virtual void loadQuadTreeDistant(FileBuffer *data);
     virtual QuadTree* getQuadTreeDetailed();
@@ -42,6 +57,17 @@ public:
     virtual void saveQtLoToStream(QTextStream &out);
     virtual void saveQtToStream(QTextStream &out);
     virtual Terrain* getTerrainByXY(int x, int y, bool load = false);
+    // A tile with at least its tile file read (Terrain::descriptorLoaded),
+    // without reading heights: what map mode draws. A complete tile is
+    // returned as it is; getTerrainByXY(x, y, true) completes the others.
+    virtual Terrain* getTerrainDescriptor(int x, int y);
+    // The same for the distant terrain tile covering a world tile.
+    virtual Terrain* getDistantDescriptor(int x, int y);
+    // The detailed (or distant) terrain tile covering a world tile, without
+    // loading it: 0 for none, the same for every world tile it covers. info,
+    // when given, gets its corner and size (level, in world tiles).
+    virtual unsigned int terrainTileId(int x, int y, bool distant = false,
+                                       TerrainInfo *info = nullptr);
     virtual void fillRaw(Terrain *cTerr, int mojex, int mojez);
     const TerrainAdjacentEdge &resolveAdjacentEdge(Terrain &terrain,
                         TerrainEdgeSide side, TerrainEdgeDiscovery mode);

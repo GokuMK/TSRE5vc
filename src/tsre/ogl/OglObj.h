@@ -33,6 +33,8 @@ public:
     virtual void pushRenderItem(RenderQueue &queue, quint32 selectionId, float lod = 0);
     void deleteVBO();
     void setMaterial(float r, float g, float b);
+    // A colour drawn with transparency below an alpha of 1.
+    void setMaterial(float r, float g, float b, float a);
     void setMaterial(QString* path);
     void setMaterialTextureId(int id);
     void resetTexture();
@@ -71,10 +73,13 @@ private:
     QVector<RenderItem*> packets;
     quint64 packetFrame = 0;
     int packetsUsed = 0;
-    RenderItem *framePacket(bool textured, unsigned int texAddr,
-                            const float *color, bool decal, const unsigned int *layers);
     unsigned int layerTexture(int layer);
     void retirePackets();
+protected:
+    // A packet of this frame for the material: one already used this frame
+    // when it matches, or a free one. Subclasses configure and submit it.
+    RenderItem *framePacket(bool textured, unsigned int texAddr,
+                            const float *color, bool decal, const unsigned int *layers);
 };
 
 #endif	/* OGLOBJ_H */

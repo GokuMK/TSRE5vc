@@ -1,0 +1,64 @@
+{
+  "notes": "Map mode terrain (docs/tasks/editor/04-map-mode.md, 7. Terrain) on USA2, which has distant tiles: the whole route (distant terrain, detailed tiles as borders), 16 km (patches appear), the station area and a close view; then editing the distant terrain at the route and station scales.",
+  "output": "build/renderer-map",
+  "width": 1280,
+  "height": 800,
+  "pickGrid": [
+    1,
+    1
+  ],
+  "timingFrames": 1,
+  "diffTolerance": 16,
+  "shadows": false,
+  "settle": {
+    "minFrames": 8,
+    "stableFrames": 3,
+    "maxFrames": 120,
+    "maxSeconds": 120
+  },
+  "views": [
+    {
+      "name": "route",
+      "mode": "map",
+      "metresPerPixel": 60
+    },
+    {
+      "name": "wide",
+      "mode": "map",
+      "metresPerPixel": 13
+    },
+    {
+      "name": "detailed",
+      "mode": "map",
+      "metresPerPixel": 12
+    },
+    {
+      "name": "station",
+      "mode": "map",
+      "metresPerPixel": 2
+    },
+    {
+      "name": "close",
+      "mode": "map",
+      "metresPerPixel": 0.4
+    },
+    {
+      "name": "faded",
+      "mode": "map",
+      "metresPerPixel": 2,
+      "fadedTerrain": true
+    },
+    {
+      "name": "route-distant-edit",
+      "mode": "map",
+      "metresPerPixel": 60,
+      "editDistant": true
+    },
+    {
+      "name": "station-distant-edit",
+      "mode": "map",
+      "metresPerPixel": 2,
+      "editDistant": true
+    }
+  ]
+}

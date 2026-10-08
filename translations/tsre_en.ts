@@ -1593,6 +1593,66 @@ Consist with this file name already exist. Overwrite?
         <source>Make Tile Texture from Map</source>
         <translation>Make Tile Texture from Map</translation>
     </message>
+    <message id="route.editor.quad.tree.tool.label.quad">
+        <source>Quad %1 km, %2: %3</source>
+        <translation>Quad %1 km, %2: %3</translation>
+    </message>
+    <message id="route.editor.quad.tree.tool.label.populated.present">
+        <source>populated, tile present</source>
+        <translation>populated, tile present</translation>
+    </message>
+    <message id="route.editor.quad.tree.tool.label.populated.missing">
+        <source>populated, tile missing</source>
+        <translation>populated, tile missing</translation>
+    </message>
+    <message id="route.editor.quad.tree.tool.label.empty">
+        <source>not populated</source>
+        <translation>not populated</translation>
+    </message>
+    <message id="route.editor.quad.tree.tool.action.split">
+        <source>Split Quad</source>
+        <translation>Split Quad</translation>
+    </message>
+    <message id="route.editor.quad.tree.tool.action.toggle.populated">
+        <source>Toggle Populated</source>
+        <translation>Toggle Populated</translation>
+    </message>
+    <message id="route.editor.quad.tree.tool.action.create.tile">
+        <source>Create Tile</source>
+        <translation>Create Tile</translation>
+    </message>
+    <message id="route.editor.quad.tree.tool.dialog.create.title">
+        <source>Create Tile</source>
+        <translation>Create Tile</translation>
+    </message>
+    <message id="route.editor.quad.tree.tool.dialog.create.override">
+        <source>The tile %1 exists. Replace it with an empty tile?</source>
+        <translation>The tile %1 exists. Replace it with an empty tile?</translation>
+    </message>
+    <message id="route.editor.quad.tree.tool.action.delete.tile">
+        <source>Delete Tile</source>
+        <translation>Delete Tile</translation>
+    </message>
+    <message id="route.editor.quad.tree.tool.dialog.delete.title">
+        <source>Delete Tile</source>
+        <translation>Delete Tile</translation>
+    </message>
+    <message id="route.editor.quad.tree.tool.dialog.delete.question">
+        <source>Delete the tile %1 and its files? This cannot be undone.</source>
+        <translation>Delete the tile %1 and its files? This cannot be undone.</translation>
+    </message>
+    <message id="route.editor.geo.tools.button.edit.quad.tree">
+        <source>Edit Quad Tree</source>
+        <translation>Edit Quad Tree</translation>
+    </message>
+    <message id="route.editor.geo.tools.tooltip.edit.quad.tree">
+        <source>Right click a quad of the terrain tree being edited for its actions: split, populate, create or delete its tile.</source>
+        <translation>Right click a quad of the terrain tree being edited for its actions: split, populate, create or delete its tile.</translation>
+    </message>
+    <message id="route.editor.geo.tools.label.quad.tree">
+        <source>Quad Tree:</source>
+        <translation>Quad Tree:</translation>
+    </message>
     <message id="route.editor.geo.tools.button.remove.map.tile.texture">
         <location filename="../src/routeEditor/GeoTools.cpp" line="43" />
         <source>Remove Map Tile Texture</source>
@@ -2459,6 +2519,58 @@ Consist with this file name already exist. Overwrite?
         <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="269" />
         <source>&amp;View</source>
         <translation>&amp;View</translation>
+    </message>
+    <message id="route.editor.route.editor.window.menu.view.3d">
+        <source>&amp;3D View</source>
+        <translation>&amp;3D View</translation>
+    </message>
+    <message id="route.editor.route.editor.window.menu.map">
+        <source>&amp;Map</source>
+        <translation>&amp;Map</translation>
+    </message>
+    <message id="route.editor.route.editor.window.action.map.track.lines">
+        <source>&amp;Track Lines</source>
+        <translation>&amp;Track Lines</translation>
+    </message>
+    <message id="route.editor.route.editor.window.action.map.road.lines">
+        <source>&amp;Road Lines</source>
+        <translation>&amp;Road Lines</translation>
+    </message>
+    <message id="route.editor.route.editor.window.action.map.junctions">
+        <source>&amp;Junctions</source>
+        <translation>&amp;Junctions</translation>
+    </message>
+    <message id="route.editor.route.editor.window.action.map.ends">
+        <source>Track &amp;Ends</source>
+        <translation>Track &amp;Ends</translation>
+    </message>
+    <message id="route.editor.route.editor.window.action.map.track.objects">
+        <source>Track &amp;Objects</source>
+        <translation>Track &amp;Objects</translation>
+    </message>
+    <message id="route.editor.route.editor.window.action.map.paths">
+        <source>Pat&amp;hs</source>
+        <translation>Pat&amp;hs</translation>
+    </message>
+    <message id="route.editor.route.editor.window.action.map.activity">
+        <source>&amp;Activity</source>
+        <translation>&amp;Activity</translation>
+    </message>
+    <message id="route.editor.route.editor.window.action.map.terrain">
+        <source>Terra&amp;in</source>
+        <translation>Terra&amp;in</translation>
+    </message>
+    <message id="route.editor.route.editor.window.action.map.faded.terrain">
+        <source>&amp;Faded Terrain</source>
+        <translation>&amp;Faded Terrain</translation>
+    </message>
+    <message id="route.editor.route.editor.window.action.map.pointer">
+        <source>&amp;Pointer</source>
+        <translation>&amp;Pointer</translation>
+    </message>
+    <message id="route.editor.route.editor.window.action.map.mode">
+        <source>&amp;Map Mode</source>
+        <translation>&amp;Map Mode</translation>
     </message>
     <message id="route.editor.route.editor.window.action.view.unselect.all">
         <location filename="../src/routeEditor/RouteEditorWindow.cpp" line="275" />
@@ -8286,6 +8398,14 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
     <message id="settings.core.rendering.blended.parts.option.2">
         <source>Also alpha-tested when the texture alpha is on/off</source>
         <translation>Also alpha-tested when the texture alpha is on/off</translation>
+    </message>
+    <message id="settings.core.interface.route.editor.map.palette.name">
+        <source>Map mode colours</source>
+        <translation>Map mode colours</translation>
+    </message>
+    <message id="settings.core.interface.route.editor.map.palette.description">
+        <source>Colour palette of the Route Editor&apos;s map mode: light, dark, or the name of a palette file (name.json) in the map-palettes folder of the configuration directory.</source>
+        <translation>Colour palette of the Route Editor&apos;s map mode: light, dark, or the name of a palette file (name.json) in the map-palettes folder of the configuration directory.</translation>
     </message>
     <message id="settings.core.rendering.environment.map.enabled.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="763" />

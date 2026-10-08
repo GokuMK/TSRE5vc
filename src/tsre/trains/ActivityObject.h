@@ -26,6 +26,8 @@ class Activity;
 class QMenu;
 class OglObj;
 
+struct MapFeatures;
+
 class ActivityObject : public GameObj {
     Q_OBJECT
 public:
@@ -66,6 +68,9 @@ public:
     void pushContextMenuActions(QMenu *menu);
     QString getParentName();
     void pushRenderItems(RenderQueue &queue, float *playerT, int renderMode, int index);
+    // For the map mode: a loose consist's vehicles, a speed zone's track
+    // and ends, or a failed signal's place.
+    void getMapFeatures(MapFeatures &features, int tileX, int tileZ);
     
 public slots:
     void menuToggleDirection();
@@ -85,6 +90,8 @@ private:
         int init = 0;
         int failedSignal = -1;
         bool getWorldPosition(float *posTW);
+        bool initPosition();
+        void getMapFeatures(MapFeatures &features, int tileX, int tileZ);
         void pushRenderItems(RenderQueue &queue, float * playerT, quint32 selectionId, bool selected = false);
     };
     
@@ -101,6 +108,8 @@ private:
         int init = 0;
         float trid[6];
         bool getWorldPosition(float *posTW);
+        bool initPositions();
+        void getMapFeatures(MapFeatures &features, int tileX, int tileZ);
         void pushRenderItems(RenderQueue &queue, float * playerT, quint32 selectionId, bool selected = false);
         void makelineShape();
     };
