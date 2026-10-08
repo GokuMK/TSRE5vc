@@ -98,6 +98,22 @@ known = {cl["tag"] for cl in classes}
 for s in styles:
     for t in s["tags"]:
         assert t.endswith("=*") or t in known, t
+# Scale ranges for vector views (docs/tasks/geo/osm-rendering-design.md): styles drawn only at
+# this many metres per pixel and finer, keyed by their first tag. Buildings and small areas
+# would be sub-pixel clutter and most of a city view's vertices; minor ways drop out next.
+ranges = {
+    "building=*": 2.5, "shop=*": 2.5, "aeroway=terminal": 2.5, "amenity=place_of_worship": 2.5,
+    "amenity=public_building": 2.5, "historic=castle": 2.5,
+    "leisure=pitch": 5, "leisure=track": 5, "leisure=playground": 5, "amenity=parking": 5,
+    "landuse=garages": 5, "highway=passing_place": 5, "landuse=greenhouse_horticulture": 5,
+    "landuse=plant_nursery": 5, "amenity=school": 5, "man_made=pier": 5,
+    "highway=service": 5, "highway=path": 5, "highway=pedestrian": 5, "highway=footway": 5,
+    "highway=bridleway": 5, "highway=steps": 5, "highway=cycleway": 5, "highway=track": 5,
+    "highway=residential": 10, "highway=unclassified": 10, "railway=tram": 10,
+}
+for s in styles:
+    if s["tags"][0] in ranges: s["maxMetersPerPixel"] = ranges.pop(s["tags"][0])
+assert not ranges, ranges
 # Overview levels for large-scale views (see docs/tasks/geo/osm-data-design.md). The detail
 # file serves views finer than the first level; each level keeps only these features.
 area_tags = ["natural=water", "waterway=riverbank", "landuse=reservoir", "landuse=basin", "landuse=forest", "natural=wood"]
@@ -119,7 +135,7 @@ overview = {"levels": [
         {"tags": ["place=city", "place=town"], "types": ["node"]}]}]}
 out = {
     "version": 1,
-    "description": "OSM feature classes and tile-map styles. Generated from the legacy OSMFeatures table and MapDataOSM::draw(); widths in metres (the legacy pixel widths at 2 px per metre, width 0 = one pixel). The first style listing a class wins; an exact tag beats key=*.",
+    "description": "OSM feature classes and tile-map styles. Generated from the legacy OSMFeatures table and MapDataOSM::draw(); widths in metres (the legacy pixel widths at 2 px per metre, width 0 = one pixel); maxMetersPerPixel: vector views draw the style only at that resolution and finer. The first style listing a class wins; an exact tag beats key=*.",
     "classification": {
         "skipKeyPrefixes": ["addr", "name", "oneway", "maxspeed", "surface", "amenity", "barrier", "wood", "sport"],
         "bridgeKeyPrefix": "bridge", "tunnelKeyPrefix": "tunnel",

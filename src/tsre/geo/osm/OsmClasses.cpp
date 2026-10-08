@@ -53,6 +53,8 @@ bool parseStyle(const QJsonObject &o, Style &s, QString &error) {
         s.casings.push_back(c);
     }
     if (o.contains("line")) { s.hasLine = parseStroke(o.value("line").toObject(), s.line); if (!s.hasLine) { error = "bad line"; return false; } }
+    s.maxMetersPerPixel = float(o.value("maxMetersPerPixel").toDouble(0));
+    if (s.maxMetersPerPixel < 0) { error = "bad maxMetersPerPixel"; return false; }
     return true;
 }
 
@@ -111,6 +113,7 @@ bool FeatureClasses::load(const QString &path, QString &error) {
         if (!parseStyle(o, s, error)) { error = QStringLiteral("%1: style %2: %3").arg(path).arg(styles_.size()).arg(error); return false; }
         if (o.contains("bridge")) {
             if (!parseStyle(o.value("bridge").toObject(), b, error)) { error = QStringLiteral("%1: bridge style: %2").arg(path, error); return false; }
+            if (!o.value("bridge").toObject().contains("maxMetersPerPixel")) b.maxMetersPerPixel = s.maxMetersPerPixel;
         } else {
             b = s;
             Rgb bridgeColor = 0;
