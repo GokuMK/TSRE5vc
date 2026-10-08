@@ -137,7 +137,14 @@ read state the main thread edits. A transfer re-samples the terrain every
 frame to follow brush edits (`TransferMesh::update`); a forest reads
 terrain heights, the track and road databases (clearing distance) and the
 global `std::rand` sequence, whose shared state would make tree placement
-depend on thread timing. The next main-thread costs are reading the tiles'
+depend on thread timing. On a dense forest the cost is the clearing test
+(`ORTSUserPreferenceForestClearDistance` in the `.trk`): FOREST_TEST, one
+forest of 22,500 trees with roads and tracks, took 52-65 ms to measure every
+tree against every line nearby, and again on every brush stroke over its
+tiles (`Tile::updateTerrainObjects` rebuilds forests). The trees now sit in
+a grid of cells as wide as the clearing distance, so each line meets only
+the trees near it: 0.6 ms, the same 2,311 trees cleared; the first view
+went from 77-91 ms to 26-31 ms. The next main-thread costs are reading the tiles'
 world files and the rest of the world gather.
 
 ## Seasonal shape textures
