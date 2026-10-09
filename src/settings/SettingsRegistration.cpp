@@ -362,9 +362,9 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
             .withNameId(
                 //% "Frame-rate limit"
                 QT_TRID_NOOP("settings.core.system.fps.limit.name")).withDescriptionId(
-                //% "The most frames per second the Route Editor draws, for example 30 or 60. 0: the default, about 67. Applies after a restart."
+                //% "The most frames per second the Route Editor draws, for example 30 or 60. 0: the default, about 67."
                 QT_TRID_NOOP("settings.core.system.fps.limit.description")).withRange(0, 1000, 1).withUnit("fps").inGroup("rendering").inSubgroup("performance"),
-        "fpsLimit", "Game::fpsLimit", "RouteEditorGLWidget", false, "startup");
+        "fpsLimit", "Game::fpsLimit", "RouteEditorGLWidget", true, "hot-cache");
     ADD(SettingsDefinition::boolean("core.system.soundEnabled", false)
             .withNameId(
                 //% "Enable route sounds"

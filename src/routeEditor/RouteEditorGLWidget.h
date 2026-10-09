@@ -260,6 +260,7 @@ protected:
     bool environmentChanged = false;
     float reportedEnvironment[4] = {-1000.0f, -1000.0f, -1000.0f, -1000.0f};
     void reportEnvironment(float sunElevation, float sunAzimuth, float moonElevation, float moonFraction);
+    static int renderTimerStep();
     void handleSelection();
     void applySelection(quint32 selectionId, int cameraTileX, int cameraTileZ);
     void surfaceResize(int width, int height) override;

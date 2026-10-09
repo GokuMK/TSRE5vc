@@ -129,11 +129,22 @@ tools(std::make_unique<ToolRegistry>()) {
     // task editor 05); the next frame takes them.
     connect(&SettingsManager::instance(), &SettingsManager::runtimeSettingsChanged, this,
             [this](const QStringList &keys) {
-        for (const QString &key : keys)
+        for (const QString &key : keys) {
             if (key == "core.rendering.skyColor" || key == "core.rendering.fogColor"
                     || key == "core.rendering.fogDensity")
                 environmentChanged = true;
+            // The frame-rate limit applies at once.
+            if (key == "core.system.fpsLimit" && timer.isActive())
+                timer.start(renderTimerStep(), this);
+        }
     });
+}
+
+// Milliseconds between frames for core.system.fpsLimit (frames per second;
+// 0 is the built-in 15 ms).
+int RouteEditorGLWidget::renderTimerStep() {
+    const int fpsLimit = Settings::integer("core.system.fpsLimit");
+    return fpsLimit > 0 ? std::max(1, 1000 / fpsLimit) : 15;
 }
 
 void RouteEditorGLWidget::update(){
@@ -481,11 +492,7 @@ void RouteEditorGLWidget::surfaceInitialize() {
     fpsDisplayLastUpdate = lastTime;
     fpsDisplayAccumMs = 0.0;
     fpsDisplayAccumFrames = 0;
-    int timerStep = 15;
-    const int fpsLimit = Settings::integer("core.system.fpsLimit");
-    if (fpsLimit > 0)
-        timerStep = 1000 / fpsLimit;
-    timer.start(timerStep, this);
+    timer.start(renderTimerStep(), this);
     setFocus();
     setMouseTracking(true);
     pointer3d = new Pointer3d();
