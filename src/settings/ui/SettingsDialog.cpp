@@ -1106,17 +1106,26 @@ void SettingsDialog::updateStoredDefinitions() {
         return;
     }
     int updated = 0;
-    if (!m_manager->updateRegisteredDefinitions(&updated, &error)) {
+    QStringList adopted;
+    if (!m_manager->updateRegisteredDefinitions(&updated, &error, &adopted)) {
         showError(
             //% "Cannot update setting definitions"
             qtTrId("settings.dialog.message.cannot.update.setting.definitions.2"), error);
         return;
     }
     rebuild();
-    m_statusLabel->setText(
-        //% "Updated %1 stored definition(s) | unsaved changes"
-        qtTrId("settings.dialog.text.m.status.label.2")
-                           .arg(updated));
+    if (adopted.isEmpty()) {
+        m_statusLabel->setText(
+            //% "Updated %1 stored definition(s) | unsaved changes"
+            qtTrId("settings.dialog.text.m.status.label.2")
+                               .arg(updated));
+    } else {
+        m_statusLabel->setText(
+            //% "Updated %1 stored definition(s); %2 setting(s) left at their default take the new one | unsaved changes"
+            qtTrId("settings.dialog.text.status.adopted.defaults")
+                               .arg(updated).arg(adopted.size()));
+        m_statusLabel->setToolTip(adopted.join("\n"));
+    }
 }
 
 void SettingsDialog::hideCatalogMessage() {

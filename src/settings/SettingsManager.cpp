@@ -392,7 +392,8 @@ int SettingsManager::catalogDifferenceCount() const {
     return differences;
 }
 
-bool SettingsManager::updateRegisteredDefinitions(int *updatedCount, QString *error) {
+bool SettingsManager::updateRegisteredDefinitions(int *updatedCount, QString *error,
+                                                  QStringList *adoptedDefaults) {
     Q_UNUSED(error);
     int updated = m_seededCatalogDifferences;
 
@@ -464,11 +465,22 @@ bool SettingsManager::updateRegisteredDefinitions(int *updatedCount, QString *er
             continue;
         if (!fieldsDiffer(stored, expected, settingDefinitionFields()))
             continue;
+        // A value left at the default the profile recorded was never chosen:
+        // it follows the new default. Without a recorded default it stays.
+        const bool followsDefault = stored.contains("default") && stored.contains("value")
+                && expected.contains("default")
+                && stored.value("value") == stored.value("default")
+                && stored.value("default") != expected.value("default");
         for (const QString &field : settingDefinitionFields()) {
             if (expected.contains(field))
                 stored.insert(field, expected.value(field));
             else
                 stored.remove(field);
+        }
+        if (followsDefault) {
+            stored["value"] = expected.value("default");
+            if (adoptedDefaults)
+                adoptedDefaults->append(definition.key);
         }
         settings.replace(it.value(), stored);
         ++updated;

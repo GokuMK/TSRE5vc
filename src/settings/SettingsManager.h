@@ -46,8 +46,12 @@ public:
     int catalogDifferenceCount() const;
     QString catalogApplication() const;
     QString catalogVersion() const;
+    // Refreshes the stored definitions from the catalogue. A value still
+    // equal to the default its definition recorded takes the catalogue's new
+    // default (keys in adoptedDefaults); other values stay.
     bool updateRegisteredDefinitions(int *updatedCount = nullptr,
-                                     QString *error = nullptr);
+                                     QString *error = nullptr,
+                                     QStringList *adoptedDefaults = nullptr);
     static QString currentCatalogApplication();
     static QString currentCatalogVersion();
 

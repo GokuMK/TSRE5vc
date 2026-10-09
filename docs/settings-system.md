@@ -142,7 +142,11 @@ When registered definitions collide but differ, it shows **Stored setting
 definitions differ from this TSRE build**, with **Update** and **Hide** actions.
 Update refreshes only metadata owned by registered definitions and records the
 current `catalog`; setting values, unknown fields, unknown groups, and unknown
-fork/custom settings are preserved. The result remains an unsaved editor change
+fork/custom settings are preserved. One exception (0.7.8): a value still equal
+to the `default` its stored definition recorded was never chosen, so when the
+build changes that default the value takes the new one; the status line counts
+them and its tooltip lists the keys. A definition without a recorded `default`
+keeps its value. The result remains an unsaved editor change
 until **Save Profile** is used and does not alter runtime values. Hide suppresses
 the message for that profile only for the lifetime of the current editor dialog.
 Extra settings which are not registered by the running build do not trigger the

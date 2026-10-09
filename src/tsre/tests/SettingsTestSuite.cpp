@@ -727,6 +727,29 @@ int TsreTests::runSettingsSuite(bool verbose) {
           && preserved.catalogApplication() == SettingsManager::currentCatalogApplication()
           && preserved.catalogVersion() == SettingsManager::currentCatalogVersion(),
           "catalogue-update-refreshes-known-metadata-and-preserves-values-and-fork-settings");
+    // An older profile: bloom left at the default it recorded (2), exposure
+    // chosen (0.5) away from its recorded default (1). Only bloom follows the
+    // catalogue's default.
+    const QString bloomKey = "core.rendering.bloom", exposureKey = "core.rendering.exposure";
+    QJsonObject oldBloom = preserved.settingObject(bloomKey);
+    oldBloom["default"] = 2.0;
+    oldBloom["value"] = 2.0;
+    QJsonObject oldExposure = preserved.settingObject(exposureKey);
+    oldExposure["default"] = 1.0;
+    oldExposure["value"] = 0.5;
+    QJsonObject noRecordedDefault = preserved.settingObject(threadedKey);
+    noRecordedDefault.remove("default");
+    const QVariant threadedBefore = noRecordedDefault.value("value").toVariant();
+    QStringList adopted;
+    check(preserved.replaceSettingObject(bloomKey, oldBloom, &error)
+          && preserved.replaceSettingObject(exposureKey, oldExposure, &error)
+          && preserved.replaceSettingObject(threadedKey, noRecordedDefault, &error)
+          && preserved.updateRegisteredDefinitions(nullptr, &error, &adopted)
+          && adopted == QStringList{bloomKey}
+          && preserved.value(bloomKey) == preserved.registry().definition(bloomKey)->defaultValue
+          && qFuzzyCompare(preserved.value(exposureKey).toDouble(), 0.5)
+          && preserved.value(threadedKey) == threadedBefore,
+          "catalogue-update-moves-values-left-at-their-recorded-default-to-the-new-default");
 
     QJsonObject invalidDocument = preserved.document();
     QJsonArray invalidSettings = invalidDocument.value("settings").toArray();

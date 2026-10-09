@@ -8796,20 +8796,10 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <source>Renderer</source>
         <translation>Renderer</translation>
     </message>
-    <message id="settings.core.rendering.backend.description">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="727"/>
-        <source>The OpenGL renderer, or the experimental QRhi renderer (Vulkan, Metal, Direct3D or OpenGL through Qt). Applies after a restart.</source>
-        <translation>The OpenGL renderer, or the experimental QRhi renderer (Vulkan, Metal, Direct3D or OpenGL through Qt). Applies after a restart.</translation>
-    </message>
     <message id="settings.core.rendering.backend.option.opengl">
         <location filename="../src/settings/SettingsRegistration.cpp" line="730"/>
         <source>OpenGL</source>
         <translation>OpenGL</translation>
-    </message>
-    <message id="settings.core.rendering.backend.option.qrhi">
-        <location filename="../src/settings/SettingsRegistration.cpp" line="732"/>
-        <source>QRhi / Experimental</source>
-        <translation>QRhi / Experimental</translation>
     </message>
     <message id="settings.core.rendering.rhi.api.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="737"/>
@@ -9050,6 +9040,16 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <location filename="../src/settings/SettingsRegistration.cpp" line="599"/>
         <source>Colour palette of the Route Editor&apos;s map mode: light, dark, or the name of a palette file (name.json) in the map-palettes folder of the configuration directory.</source>
         <translation>Colour palette of the Route Editor&apos;s map mode: light, dark, or the name of a palette file (name.json) in the map-palettes folder of the configuration directory.</translation>
+    </message>
+    <message id="settings.core.rendering.backend.description.qrhi.default">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="727"/>
+        <source>The QRhi renderer (Vulkan, with glow, local lights and tone mapping), or the OpenGL renderer. Where Vulkan is not available the QRhi renderer falls back to the OpenGL renderer. Applies after a restart.</source>
+        <translation>The QRhi renderer (Vulkan, with glow, local lights and tone mapping), or the OpenGL renderer. Where Vulkan is not available the QRhi renderer falls back to the OpenGL renderer. Applies after a restart.</translation>
+    </message>
+    <message id="settings.core.rendering.backend.option.qrhi.vulkan">
+        <location filename="../src/settings/SettingsRegistration.cpp" line="732"/>
+        <source>QRhi (Vulkan)</source>
+        <translation>QRhi (Vulkan)</translation>
     </message>
     <message id="settings.core.rendering.environment.map.enabled.name">
         <location filename="../src/settings/SettingsRegistration.cpp" line="859"/>
@@ -10120,267 +10120,272 @@ Profile used at application startup: %1</translation>
         <translation>Cannot update setting definitions</translation>
     </message>
     <message id="settings.dialog.message.cannot.update.setting.definitions.2">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1112"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1113"/>
         <source>Cannot update setting definitions</source>
         <translation>Cannot update setting definitions</translation>
     </message>
     <message id="settings.dialog.text.m.status.label.2">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1118"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1120"/>
         <source>Updated %1 stored definition(s) | unsaved changes</source>
         <translation>Updated %1 stored definition(s) | unsaved changes</translation>
     </message>
+    <message id="settings.dialog.text.status.adopted.defaults">
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1125"/>
+        <source>Updated %1 stored definition(s); %2 setting(s) left at their default take the new one | unsaved changes</source>
+        <translation>Updated %1 stored definition(s); %2 setting(s) left at their default take the new one | unsaved changes</translation>
+    </message>
     <message id="settings.dialog.message.cannot.apply.settings">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1133"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1142"/>
         <source>Cannot apply settings</source>
         <translation>Cannot apply settings</translation>
     </message>
     <message id="settings.dialog.message.answer">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1138"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1147"/>
         <source>Profile changed externally</source>
         <translation>Profile changed externally</translation>
     </message>
     <message id="settings.dialog.text.settings.file.changed.on.disk.overwrite.it">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1140"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1149"/>
         <source>The settings file changed on disk. Overwrite it with the editor values?</source>
         <translation>The settings file changed on disk. Overwrite it with the editor values?</translation>
     </message>
     <message id="settings.dialog.message.cannot.save.profile">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1145"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1154"/>
         <source>Cannot save profile</source>
         <translation>Cannot save profile</translation>
     </message>
     <message id="settings.dialog.message.cannot.apply.profile">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1155"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1164"/>
         <source>Cannot apply profile</source>
         <translation>Cannot apply profile</translation>
     </message>
     <message id="settings.dialog.text.only.profile.used.start.this.tsre.session.2">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1157"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1166"/>
         <source>Only the profile used to start this TSRE session can be applied.</source>
         <translation>Only the profile used to start this TSRE session can be applied.</translation>
     </message>
     <message id="settings.dialog.message.cannot.apply.settings.2">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1164"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1173"/>
         <source>Cannot apply settings</source>
         <translation>Cannot apply settings</translation>
     </message>
     <message id="settings.dialog.message.cannot.apply.settings.3">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1172"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1181"/>
         <source>Cannot apply settings</source>
         <translation>Cannot apply settings</translation>
     </message>
     <message id="settings.dialog.text.result">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1188"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1197"/>
         <source>%1 runtime setting(s) applied</source>
         <translation>%1 runtime setting(s) applied</translation>
     </message>
     <message id="settings.dialog.text.result.2">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1191"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1200"/>
         <source>route reload required</source>
         <translation>route reload required</translation>
     </message>
     <message id="settings.dialog.text.result.3">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1194"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1203"/>
         <source>renderer restart required</source>
         <translation>renderer restart required</translation>
     </message>
     <message id="settings.dialog.text.result.4">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1197"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1206"/>
         <source>application restart required</source>
         <translation>application restart required</translation>
     </message>
     <message id="settings.dialog.text.result.5">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1200"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1209"/>
         <source> | </source>
         <translation> | </translation>
     </message>
     <message id="settings.dialog.message.cannot.reload.profile">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1208"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1217"/>
         <source>Cannot reload profile</source>
         <translation>Cannot reload profile</translation>
     </message>
     <message id="settings.dialog.text.file">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1216"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1225"/>
         <source>Load settings profile</source>
         <translation>Load settings profile</translation>
     </message>
     <message id="settings.dialog.text.json.settings.json.all.files">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1219"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1228"/>
         <source>JSON settings (*.json);;All files (*)</source>
         <translation>JSON settings (*.json);;All files (*)</translation>
     </message>
     <message id="settings.dialog.message.cannot.load.profile">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1224"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1233"/>
         <source>Cannot load profile</source>
         <translation>Cannot load profile</translation>
     </message>
     <message id="settings.dialog.text.file.2">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1232"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1241"/>
         <source>Save settings profile as</source>
         <translation>Save settings profile as</translation>
     </message>
     <message id="settings.dialog.text.json.settings.json">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1235"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1244"/>
         <source>JSON settings (*.json)</source>
         <translation>JSON settings (*.json)</translation>
     </message>
     <message id="settings.dialog.message.cannot.save.profile.2">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1241"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1250"/>
         <source>Cannot save profile</source>
         <translation>Cannot save profile</translation>
     </message>
     <message id="settings.dialog.message.cannot.duplicate.profile">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1250"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1259"/>
         <source>Cannot duplicate profile</source>
         <translation>Cannot duplicate profile</translation>
     </message>
     <message id="settings.dialog.text.only.managed.profile.under.portable.profiles.directory">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1252"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1261"/>
         <source>Only a managed profile under the portable profiles directory can be duplicated.</source>
         <translation>Only a managed profile under the portable profiles directory can be duplicated.</translation>
     </message>
     <message id="settings.dialog.message.save.before.duplicating">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1258"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1267"/>
         <source>Save before duplicating?</source>
         <translation>Save before duplicating?</translation>
     </message>
     <message id="settings.dialog.text.current.profile.has.unsaved.changes.save.them">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1260"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1269"/>
         <source>The current profile has unsaved changes. Save them before creating the duplicate?</source>
         <translation>The current profile has unsaved changes. Save them before creating the duplicate?</translation>
     </message>
     <message id="settings.dialog.message.cannot.save.profile.3">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1267"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1276"/>
         <source>Cannot save profile</source>
         <translation>Cannot save profile</translation>
     </message>
     <message id="settings.dialog.text.duplicate.profile">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1276"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1285"/>
         <source>Duplicate profile</source>
         <translation>Duplicate profile</translation>
     </message>
     <message id="settings.dialog.text.new.profile.name">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1278"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1287"/>
         <source>New profile name:</source>
         <translation>New profile name:</translation>
     </message>
     <message id="settings.dialog.message.cannot.duplicate.profile.2">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1288"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1297"/>
         <source>Cannot duplicate profile</source>
         <translation>Cannot duplicate profile</translation>
     </message>
     <message id="settings.dialog.message.profile.was.duplicated.but.cannot.be.opened">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1294"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1303"/>
         <source>Profile was duplicated but cannot be opened</source>
         <translation>Profile was duplicated but cannot be opened</translation>
     </message>
     <message id="settings.dialog.message.cannot.switch.profile">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1318"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1327"/>
         <source>Cannot switch profile</source>
         <translation>Cannot switch profile</translation>
     </message>
     <message id="settings.dialog.text.copy">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1344"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1353"/>
         <source>Copy JSON</source>
         <translation>Copy JSON</translation>
     </message>
     <message id="settings.dialog.text.paste">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1347"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1356"/>
         <source>Paste JSON</source>
         <translation>Paste JSON</translation>
     </message>
     <message id="settings.dialog.text.apply.changes">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1350"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1359"/>
         <source>Replace Editor JSON</source>
         <translation>Replace Editor JSON</translation>
     </message>
     <message id="settings.dialog.message.invalid.json">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1367"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1376"/>
         <source>Invalid JSON</source>
         <translation>Invalid JSON</translation>
     </message>
     <message id="settings.dialog.text.setting.object.value">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1377"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1386"/>
         <source>Setting object: %1</source>
         <translation>Setting object: %1</translation>
     </message>
     <message id="settings.dialog.message.cannot.copy.setting">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1389"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1398"/>
         <source>Cannot copy setting</source>
         <translation>Cannot copy setting</translation>
     </message>
     <message id="settings.dialog.message.unknown.setting.key.value">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1391"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1400"/>
         <source>Unknown setting key: %1</source>
         <translation>Unknown setting key: %1</translation>
     </message>
     <message id="settings.dialog.text.m.status.label.3">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1407"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1416"/>
         <source>Copied key and value: %1</source>
         <translation>Copied key and value: %1</translation>
     </message>
     <message id="settings.dialog.message.cannot.paste.key.value">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1417"/>
-        <source>Cannot paste key and value</source>
-        <translation>Cannot paste key and value</translation>
-    </message>
-    <message id="settings.dialog.message.cannot.paste.key.value.2">
         <location filename="../src/settings/ui/SettingsDialog.cpp" line="1426"/>
         <source>Cannot paste key and value</source>
         <translation>Cannot paste key and value</translation>
     </message>
+    <message id="settings.dialog.message.cannot.paste.key.value.2">
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1435"/>
+        <source>Cannot paste key and value</source>
+        <translation>Cannot paste key and value</translation>
+    </message>
     <message id="settings.dialog.text.this.profile.does.not.contain.setting.value">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1428"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1437"/>
         <source>This profile does not contain setting: %1</source>
         <translation>This profile does not contain setting: %1</translation>
     </message>
     <message id="settings.dialog.message.cannot.paste.key.value.3">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1436"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1445"/>
         <source>Cannot paste key and value</source>
         <translation>Cannot paste key and value</translation>
     </message>
     <message id="settings.dialog.text.clipboard.value.is.incompatible.with.setting.value">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1438"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1447"/>
         <source>Clipboard value is incompatible with setting: %1</source>
         <translation>Clipboard value is incompatible with setting: %1</translation>
     </message>
     <message id="settings.dialog.message.cannot.paste.key.value.4">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1447"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1456"/>
         <source>Cannot paste key and value</source>
         <translation>Cannot paste key and value</translation>
     </message>
     <message id="settings.dialog.text.m.status.label.4">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1453"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1462"/>
         <source>Pasted value for: %1</source>
         <translation>Pasted value for: %1</translation>
     </message>
     <message id="settings.dialog.text.add.custom.setting">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1463"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1472"/>
         <source>Add custom setting</source>
         <translation>Add custom setting</translation>
     </message>
     <message id="settings.dialog.text.raw.settings.json">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1473"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1482"/>
         <source>Raw settings JSON</source>
         <translation>Raw settings JSON</translation>
     </message>
     <message id="settings.dialog.message.discard.changes">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1484"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1493"/>
         <source>Discard changes?</source>
         <translation>Discard changes?</translation>
     </message>
     <message id="settings.dialog.text.this.profile.has.unsaved.changes.discard.them">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1486"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1495"/>
         <source>This profile has unsaved changes. Discard them?</source>
         <translation>This profile has unsaved changes. Discard them?</translation>
     </message>
     <message id="settings.dialog.message.cannot.discard.changes">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1507"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1516"/>
         <source>Cannot discard changes</source>
         <translation>Cannot discard changes</translation>
     </message>
     <message id="settings.dialog.message.unknown.error">
-        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1518"/>
+        <location filename="../src/settings/ui/SettingsDialog.cpp" line="1527"/>
         <source>Unknown error</source>
         <translation>Unknown error</translation>
     </message>

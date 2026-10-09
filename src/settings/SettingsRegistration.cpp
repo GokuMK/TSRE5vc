@@ -719,17 +719,17 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "On GPU / Experimental"
                 QT_TRID_NOOP("settings.core.rendering.terrain.mesh.option.paged")}})).inGroup("rendering").inSubgroup("pipeline").applies("routeReload").asAdvanced(),
         "terrainMesh", "Game::terrainMeshMode", "Terrain renderer", true, "route-reload");
-    ADD(SettingsDefinition::string("core.rendering.backend", "opengl", SettingType::Enum)
+    ADD(SettingsDefinition::string("core.rendering.backend", "qrhi", SettingType::Enum)
             .withNameId(
                 //% "Renderer"
                 QT_TRID_NOOP("settings.core.rendering.backend.name")).withDescriptionId(
-                //% "The OpenGL renderer, or the experimental QRhi renderer (Vulkan, Metal, Direct3D or OpenGL through Qt). Applies after a restart."
-                QT_TRID_NOOP("settings.core.rendering.backend.description"))
+                //% "The QRhi renderer (Vulkan, with glow, local lights and tone mapping), or the OpenGL renderer. Where Vulkan is not available the QRhi renderer falls back to the OpenGL renderer. Applies after a restart."
+                QT_TRID_NOOP("settings.core.rendering.backend.description.qrhi.default"))
             .withOptions(choices({{"opengl",
                 //% "OpenGL"
                 QT_TRID_NOOP("settings.core.rendering.backend.option.opengl")}, {"qrhi",
-                //% "QRhi / Experimental"
-                QT_TRID_NOOP("settings.core.rendering.backend.option.qrhi")}})).inGroup("rendering").inSubgroup("pipeline").asAdvanced(),
+                //% "QRhi (Vulkan)"
+                QT_TRID_NOOP("settings.core.rendering.backend.option.qrhi.vulkan")}})).inGroup("rendering").inSubgroup("pipeline").asAdvanced(),
         "renderBackend", "Game::renderBackend", "RouteEditorGLWidget", false, "renderer-restart");
     ADD(SettingsDefinition::string("core.rendering.rhiApi", "auto", SettingType::Enum)
             .withNameId(
@@ -853,7 +853,7 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Also alpha-tested when the texture alpha is on/off"
                 QT_TRID_NOOP("settings.core.rendering.blended.parts.option.2")}})).inGroup("rendering").inSubgroup("pipeline"),
         "blendedParts", "Game::blendedParts", "RenderItem::drawSurface", true, "hot-cache");
-    ADD(SettingsDefinition::boolean("core.rendering.environmentMap.enabled", false)
+    ADD(SettingsDefinition::boolean("core.rendering.environmentMap.enabled", true)
             .withNameId(
                 //% "Render environment map"
                 QT_TRID_NOOP("settings.core.rendering.environment.map.enabled.name")).withDescriptionId(
@@ -983,7 +983,7 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Brightens (positive) or darkens (negative) the final image, in stops: +1 doubles the light. QRhi renderer."
                 QT_TRID_NOOP("settings.core.rendering.exposure.description")).withRange(-4, 4, 0.25).withUnit("EV").inGroup("rendering").inSubgroup("image"),
         "exposure", "Game::exposure", "RouteEditorGLWidget", true, "hot-cache");
-    ADD(SettingsDefinition::floating("core.rendering.bloom", 4.0)
+    ADD(SettingsDefinition::floating("core.rendering.bloom", 3.0)
             .withNameId(
                 //% "Glow (bloom)"
                 QT_TRID_NOOP("settings.core.rendering.bloom.name")).withDescriptionId(
@@ -1032,7 +1032,7 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Base clear colour copied into the scene renderer."
                 QT_TRID_NOOP("settings.core.rendering.sky.color.description")).inGroup("rendering").inSubgroup("environment"),
         "skyColor", "Game::skyColor", "GLUU", true, "hot-cache");
-    ADD(SettingsDefinition::boolean("core.rendering.timeOfDay.enabled", false)
+    ADD(SettingsDefinition::boolean("core.rendering.timeOfDay.enabled", true)
             .withNameId(
                 //% "Time of day"
                 QT_TRID_NOOP("settings.core.rendering.time.of.day.enabled.name")).withDescriptionId(
