@@ -59,17 +59,17 @@ public:
         const QuadTree::Quad quad = tree->quadAt(x, -z);
         const bool exists = Game::terrainLib->quadTileExists(quad);
         QWidget *view = ctx.view();
+        // One statement per text: lupdate takes a //% text only right before its call.
+        //% "populated, tile present"
+        const QString tilePresent = qtTrId("route.editor.quad.tree.tool.label.populated.present");
+        //% "populated, tile missing"
+        const QString tileMissing = qtTrId("route.editor.quad.tree.tool.label.populated.missing");
+        //% "not populated"
+        const QString notPopulated = qtTrId("route.editor.quad.tree.tool.label.empty");
         menu.addSection(
             //% "Quad %1 km, %2: %3"
             qtTrId("route.editor.quad.tree.tool.label.quad").arg(quad.level * 2).arg(quad.name)
-                .arg(quad.populated
-                     ? (exists
-                        //% "populated, tile present"
-                        ? qtTrId("route.editor.quad.tree.tool.label.populated.present")
-                        //% "populated, tile missing"
-                        : qtTrId("route.editor.quad.tree.tool.label.populated.missing"))
-                     //% "not populated"
-                     : qtTrId("route.editor.quad.tree.tool.label.empty")));
+                .arg(quad.populated ? (exists ? tilePresent : tileMissing) : notPopulated));
         const bool writable = Game::writeEnabled;
         QAction *split = menu.addAction(
             //% "Split Quad"

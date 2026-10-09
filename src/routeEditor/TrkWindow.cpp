@@ -202,12 +202,12 @@ TrkWindow::TrkWindow(Mode mode) : QDialog(), mode(mode) {
         //% "Apply"
         qtTrId("route.editor.trk.window.button.apply"));
     QObject::connect(bok, SIGNAL(released()), this, SLOT(bokEnabled()));
-    QPushButton *bcancel = new QPushButton(
-        mode == Mode::NewRouteTemplate
-            //% "Skip"
-            ? qtTrId("route.editor.trk.window.button.skip")
-            //% "Discard"
-            : qtTrId("route.editor.trk.window.button.discard"));
+    // One statement per text: lupdate takes a //% text only right before its call.
+    //% "Skip"
+    const QString skip = qtTrId("route.editor.trk.window.button.skip");
+    //% "Discard"
+    const QString discard = qtTrId("route.editor.trk.window.button.discard");
+    QPushButton *bcancel = new QPushButton(mode == Mode::NewRouteTemplate ? skip : discard);
     QObject::connect(bcancel, SIGNAL(released()), this, SLOT(bcancelEnabled()));
     ibuttons->addWidget(bok);
     ibuttons->addWidget(bcancel);
