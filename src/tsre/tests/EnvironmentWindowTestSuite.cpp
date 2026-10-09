@@ -18,7 +18,7 @@ QByteArray contents(const QString &path) {
 }
 }
 
-int TsreTests::runEnvironmentWindowSuite(bool verbose) {
+int TsreTests::runEnvironmentWindowSuite(const QString &imagePath, bool verbose) {
     TokenTest::Suite test{"[tests:environment-window]", verbose};
     SettingsManager &settings = SettingsManager::instance();
     const QString fog = "core.rendering.fogDensity", bloom = "core.rendering.bloom";
@@ -37,6 +37,10 @@ int TsreTests::runEnvironmentWindowSuite(bool verbose) {
     const double newFog = profileFog > 0.5 ? 0.2 : 0.8;
 
     EnvironmentWindow window(nullptr);
+    if (!imagePath.isEmpty()) {
+        window.adjustSize();
+        test.check(window.grab().save(imagePath), "window image saved to " + imagePath);
+    }
     auto *fogSpin = window.findChild<QDoubleSpinBox *>(fog);
     auto *bloomSpin = window.findChild<QDoubleSpinBox *>(bloom);
     auto *fogReset = window.findChild<QToolButton *>("reset:" + fog);

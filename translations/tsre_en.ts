@@ -2694,113 +2694,103 @@ Consist with this file name already exist. Overwrite?
         <translation>&amp;Environment Window</translation>
     </message>
     <message id="route.editor.environment.window.title">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="74"/>
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="270"/>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="73"/>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="271"/>
         <source>Environment</source>
         <translation>Environment</translation>
     </message>
     <message id="route.editor.environment.window.group.time">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="110"/>
-        <source>Time</source>
-        <translation>Time</translation>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="127"/>
+        <source>Time:</source>
+        <translation>Time:</translation>
     </message>
     <message id="route.editor.environment.window.time.of.day">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="114"/>
-        <source>Time of day</source>
-        <translation>Time of day</translation>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="131"/>
+        <source>Time of day:</source>
+        <translation>Time of day:</translation>
     </message>
     <message id="route.editor.environment.window.time">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="127"/>
-        <source>Solar time</source>
-        <translation>Solar time</translation>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="145"/>
+        <source>Solar time:</source>
+        <translation>Solar time:</translation>
     </message>
     <message id="route.editor.environment.window.today">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="141"/>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="160"/>
         <source>Today</source>
         <translation>Today</translation>
     </message>
     <message id="route.editor.environment.window.date">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="144"/>
-        <source>Date</source>
-        <translation>Date</translation>
-    </message>
-    <message id="route.editor.environment.window.group.sky">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="159"/>
-        <source>Sky and fog</source>
-        <translation>Sky and fog</translation>
-    </message>
-    <message id="route.editor.environment.window.sky.colour">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="163"/>
-        <source>Sky colour</source>
-        <translation>Sky colour</translation>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="164"/>
+        <source>Date:</source>
+        <translation>Date:</translation>
     </message>
     <message id="route.editor.environment.window.fog.colour">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="170"/>
-        <source>Fog colour</source>
-        <translation>Fog colour</translation>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="206"/>
+        <source>Fog colour:</source>
+        <translation>Fog colour:</translation>
     </message>
     <message id="route.editor.environment.window.fog.density">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="182"/>
-        <source>Fog density</source>
-        <translation>Fog density</translation>
-    </message>
-    <message id="route.editor.environment.window.group.lights">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="194"/>
-        <source>Lights</source>
-        <translation>Lights</translation>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="216"/>
+        <source>Fog density:</source>
+        <translation>Fog density:</translation>
     </message>
     <message id="route.editor.environment.window.local.lights">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="198"/>
-        <source>Local lights</source>
-        <translation>Local lights</translation>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="231"/>
+        <source>Local lights:</source>
+        <translation>Local lights:</translation>
     </message>
     <message id="route.editor.environment.window.bloom">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="207"/>
-        <source>Bloom</source>
-        <translation>Bloom</translation>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="239"/>
+        <source>Bloom:</source>
+        <translation>Bloom:</translation>
     </message>
     <message id="route.editor.environment.window.exposure">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="217"/>
-        <source>Exposure</source>
-        <translation>Exposure</translation>
-    </message>
-    <message id="route.editor.environment.window.group.sun.moon">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="226"/>
-        <source>Sun and moon</source>
-        <translation>Sun and moon</translation>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="248"/>
+        <source>Exposure:</source>
+        <translation>Exposure:</translation>
     </message>
     <message id="route.editor.environment.window.sun">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="230"/>
-        <source>Sun</source>
-        <translation>Sun</translation>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="174"/>
+        <source>Sun:</source>
+        <translation>Sun:</translation>
     </message>
     <message id="route.editor.environment.window.moon">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="237"/>
-        <source>Moon</source>
-        <translation>Moon</translation>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="181"/>
+        <source>Moon:</source>
+        <translation>Moon:</translation>
     </message>
     <message id="route.editor.environment.window.sun.size">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="247"/>
-        <source>Size</source>
-        <translation>Size</translation>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="190"/>
+        <source>Size:</source>
+        <translation>Size:</translation>
+    </message>
+    <message id="route.editor.environment.window.group.environment">
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="202"/>
+        <source>Environment:</source>
+        <translation>Environment:</translation>
+    </message>
+    <message id="route.editor.environment.window.group.rendering">
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="227"/>
+        <source>Rendering:</source>
+        <translation>Rendering:</translation>
     </message>
     <message id="route.editor.environment.window.reset.all">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="254"/>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="255"/>
         <source>Reset all</source>
         <translation>Reset all</translation>
     </message>
     <message id="route.editor.environment.window.reset.all.tooltip">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="257"/>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="258"/>
         <source>Go back to the profile&apos;s values.</source>
         <translation>Go back to the profile&apos;s values.</translation>
     </message>
     <message id="route.editor.environment.window.save">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="261"/>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="262"/>
         <source>Save to profile</source>
         <translation>Save to profile</translation>
     </message>
     <message id="route.editor.environment.window.save.tooltip">
-        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="264"/>
+        <location filename="../src/routeEditor/EnvironmentWindow.cpp" line="265"/>
         <source>Keep the current values in the profile&apos;s settings.</source>
         <translation>Keep the current values in the profile&apos;s settings.</translation>
     </message>

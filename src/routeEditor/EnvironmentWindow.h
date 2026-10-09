@@ -24,8 +24,8 @@ class QSlider;
 class QTimeEdit;
 class QToolButton;
 
-// The environment of the running editor (task editor 05): time of day, sky,
-// fog, lights, sun and moon. Every control sets a session value of its
+// The environment of the running editor (task editor 05): time of day with
+// the sun and moon, fog, and lights. Every control sets a session value of its
 // setting, which applies at once and leaves the profile alone; Reset goes
 // back to the profile's value, Save to profile keeps the current values.
 class EnvironmentWindow : public QWidget {
@@ -60,7 +60,6 @@ private:
     QSlider *timeSlider = nullptr;
     QTimeEdit *timeEdit = nullptr;
     QDateEdit *dateEdit = nullptr;
-    QPushButton *skyButton = nullptr;
     QPushButton *fogButton = nullptr;
     QSlider *fogSlider = nullptr;
     QDoubleSpinBox *fogSpin = nullptr;

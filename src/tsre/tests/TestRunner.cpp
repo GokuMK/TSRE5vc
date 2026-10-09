@@ -4228,7 +4228,7 @@ int TsreTests::run(const TestRunOptions &opts) {
         return runSigCfgSuite(opts.casesFile, opts.verbose);
 
     if (suite == "environment-window")
-        return runEnvironmentWindowSuite(opts.verbose);
+        return runEnvironmentWindowSuite(opts.casesFile, opts.verbose);
 
     if (suite == "shape-complex" || suite == "shape-complex-gl")
         return runSFileComplexSuite(opts.verbose, suite == "shape-complex-gl");

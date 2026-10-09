@@ -187,9 +187,12 @@ At night the moon lights the scene a little, by where it is and how full:
 Steps 1 to 3 (user: "go with 1, 2 and 3"):
 
 - **Window**: `EnvironmentWindow` (Tools > Environment Window), floating,
-  hidden at start. Rows for time of day, solar time (slider and field),
-  date ("Today"), sky colour, fog colour, fog density, local lights, bloom,
-  exposure, sun, moon, sun and moon size, and a read-out of the sun's and
+  hidden at start, laid out as the tool panels (F1, F2; user, 2026-10-09):
+  headings in the accent colour, compact rows. Time: time of day, solar
+  time (field and slider), date ("Today"), sun, moon, their size.
+  Environment: fog colour, fog density. Rendering: local lights, bloom,
+  exposure. Sky colour was left out (user: not that useful; the setting
+  still applies live). Under the time rows, a read-out of the sun's and
   moon's elevation, the sun's bearing and the moon's lit share (from
   `RouteEditorGLWidget::environmentInfo`). Each control sets a session
   value; changed rows are bold and have a reset button; Reset all; Save to

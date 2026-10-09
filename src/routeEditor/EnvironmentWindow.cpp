@@ -14,7 +14,7 @@
 #include <QDateEdit>
 #include <QDoubleSpinBox>
 #include <QGridLayout>
-#include <QGroupBox>
+#include <tsre/gui/GuiFunct.h>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMessageBox>
@@ -31,7 +31,6 @@ namespace {
 const char *const TimeEnabled = "core.rendering.timeOfDay.enabled";
 const char *const Time = "core.rendering.timeOfDay.time";
 const char *const Date = "core.rendering.timeOfDay.date";
-const char *const SkyColor = "core.rendering.skyColor";
 const char *const FogColor = "core.rendering.fogColor";
 const char *const FogDensity = "core.rendering.fogDensity";
 const char *const LocalLights = "core.rendering.localLights.enabled";
@@ -61,8 +60,8 @@ QTime timeOfHours(double hours) {
 
 QStringList EnvironmentWindow::keys() {
     QStringList list;
-    for (const char *key : {TimeEnabled, Time, Date, SkyColor, FogColor, FogDensity, LocalLights, Bloom,
-                            Exposure, Sun, Moon, SunSize})
+    for (const char *key : {TimeEnabled, Time, Date, Sun, Moon, SunSize, FogColor, FogDensity, LocalLights,
+                            Bloom, Exposure})
         list << QString::fromLatin1(key);
     return list;
 }
@@ -73,58 +72,77 @@ EnvironmentWindow::EnvironmentWindow(QWidget *parent) : QWidget(parent) {
         //% "Environment"
         qtTrId("route.editor.environment.window.title"));
 
-    auto group = [&](const QString &title, QGridLayout *&grid) {
-        auto *box = new QGroupBox(title, this);
-        grid = new QGridLayout(box);
+    // Laid out as the tool panels (F1, F2): headings in the accent colour and
+    // compact rows of a label, the value and a reset button.
+    constexpr int LabelWidth = 80;
+    auto *layout = new QVBoxLayout(this);
+    layout->setSpacing(2);
+    layout->setContentsMargins(1, 1, 1, 1);
+    QGridLayout *grid = nullptr;
+    auto section = [&](const QString &title) {
+        layout->addWidget(GuiFunct::newTQLabel(title));
+        grid = new QGridLayout;
+        grid->setSpacing(2);
+        grid->setContentsMargins(3, 0, 1, 0);
         grid->setColumnStretch(1, 1);
-        return box;
+        layout->addLayout(grid);
     };
     // The editor of each setting is named after its key (tests find them).
-    auto row = [&](QGridLayout *grid, const char *key, const QString &text, QWidget *editor) {
+    auto row = [&](const char *key, const QString &text, QWidget *editor) {
         const int r = grid->rowCount();
         if (editor->objectName().isEmpty())
             editor->setObjectName(QString::fromLatin1(key));
         Control &control = controls[QString::fromLatin1(key)];
-        control.label = new QLabel(text, this);
+        control.label = GuiFunct::newQLabel(text, LabelWidth);
         control.reset = resetButtonFor(QString::fromLatin1(key));
         grid->addWidget(control.label, r, 0);
         grid->addWidget(editor, r, 1);
         grid->addWidget(control.reset, r, 2);
         return &control;
     };
-    auto layoutOf = [&](std::initializer_list<QWidget *> widgets) {
+    auto line = [&](std::initializer_list<QWidget *> widgets) {
         auto *holder = new QWidget(this);
         // Not an editor: its widgets carry the names.
         holder->setObjectName("line");
-        auto *line = new QHBoxLayout(holder);
-        line->setContentsMargins(0, 0, 0, 0);
+        auto *box = new QHBoxLayout(holder);
+        box->setSpacing(2);
+        box->setContentsMargins(0, 0, 0, 0);
         for (QWidget *w : widgets)
-            line->addWidget(w);
+            box->addWidget(w);
+        if (widgets.size() == 1)
+            box->addStretch(1);
         return holder;
     };
+    auto spin = [&](double low, double high, double step, int width) {
+        auto *s = new QDoubleSpinBox(this);
+        s->setRange(low, high);
+        s->setSingleStep(step);
+        s->setFixedWidth(width);
+        return s;
+    };
 
-    // Time of day.
-    QGridLayout *timeGrid;
-    QGroupBox *timeBox = group(
-        //% "Time"
-        qtTrId("route.editor.environment.window.group.time"), timeGrid);
+    // Time, with the sun and moon it places.
+    section(
+        //% "Time:"
+        qtTrId("route.editor.environment.window.group.time"));
     timeEnabled = new QCheckBox(this);
-    row(timeGrid, TimeEnabled,
-        //% "Time of day"
+    row(TimeEnabled,
+        //% "Time of day:"
         qtTrId("route.editor.environment.window.time.of.day"), timeEnabled)->load = [this] {
         quietly(timeEnabled, &QCheckBox::setChecked, settings().runtimeBool(TimeEnabled));
     };
     connect(timeEnabled, &QCheckBox::toggled, this, [this](bool on) { set(TimeEnabled, on); });
+    timeEdit = new QTimeEdit(this);
+    timeEdit->setObjectName(QString::fromLatin1(Time));
+    timeEdit->setDisplayFormat("HH:mm");
+    timeEdit->setFixedWidth(55);
     timeSlider = new QSlider(Qt::Horizontal, this);
     timeSlider->setRange(0, 24 * 60 - 1);
     timeSlider->setSingleStep(5);
     timeSlider->setPageStep(60);
-    timeEdit = new QTimeEdit(this);
-    timeEdit->setObjectName(QString::fromLatin1(Time));
-    timeEdit->setDisplayFormat("HH:mm");
-    row(timeGrid, Time,
-        //% "Solar time"
-        qtTrId("route.editor.environment.window.time"), layoutOf({timeSlider, timeEdit}))->load = [this] {
+    row(Time,
+        //% "Solar time:"
+        qtTrId("route.editor.environment.window.time"), line({timeEdit, timeSlider}))->load = [this] {
         const QTime time = timeOfHours(settings().runtimeFloat(Time));
         quietly(timeSlider, &QSlider::setValue, time.hour() * 60 + time.minute());
         quietly(timeEdit, &QTimeEdit::setTime, time);
@@ -136,50 +154,66 @@ EnvironmentWindow::EnvironmentWindow(QWidget *parent) : QWidget(parent) {
     dateEdit->setObjectName(QString::fromLatin1(Date));
     dateEdit->setDisplayFormat("yyyy-MM-dd");
     dateEdit->setCalendarPopup(true);
-    auto *today = new QPushButton(
+    dateEdit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    auto *today = new QToolButton(this);
+    today->setText(
         //% "Today"
-        qtTrId("route.editor.environment.window.today"), this);
-    row(timeGrid, Date,
-        //% "Date"
-        qtTrId("route.editor.environment.window.date"), layoutOf({dateEdit, today}))->load = [this] {
+        qtTrId("route.editor.environment.window.today"));
+    row(Date,
+        //% "Date:"
+        qtTrId("route.editor.environment.window.date"), line({dateEdit, today}))->load = [this] {
         const QDate date = QDate::fromString(settings().runtimeString(Date).trimmed(), "yyyy-MM-dd");
         quietly(dateEdit, &QDateEdit::setDate, date.isValid() ? date : QDate(2026, 6, 21));
     };
     connect(dateEdit, &QDateEdit::dateChanged, this,
             [this](QDate date) { set(Date, date.toString("yyyy-MM-dd")); });
-    connect(today, &QPushButton::clicked, this, [this] { dateEdit->setDate(QDate::currentDate()); });
+    connect(today, &QToolButton::clicked, this, [this] { dateEdit->setDate(QDate::currentDate()); });
+    sun = new QCheckBox(this);
+    row(Sun,
+        //% "Sun:"
+        qtTrId("route.editor.environment.window.sun"), sun)->load = [this] {
+        quietly(sun, &QCheckBox::setChecked, settings().runtimeBool(Sun));
+    };
+    connect(sun, &QCheckBox::toggled, this, [this](bool on) { set(Sun, on); });
+    moon = new QCheckBox(this);
+    row(Moon,
+        //% "Moon:"
+        qtTrId("route.editor.environment.window.moon"), moon)->load = [this] {
+        quietly(moon, &QCheckBox::setChecked, settings().runtimeBool(Moon));
+    };
+    connect(moon, &QCheckBox::toggled, this, [this](bool on) { set(Moon, on); });
+    sunSize = spin(0.2, 10.0, 0.1, 70);
+    sunSize->setObjectName(QString::fromLatin1(SunSize));
+    sunSize->setSuffix(QStringLiteral("°"));
+    row(SunSize,
+        //% "Size:"
+        qtTrId("route.editor.environment.window.sun.size"), line({sunSize}))->load = [this] {
+        quietly(sunSize, &QDoubleSpinBox::setValue, settings().runtimeFloat(SunSize));
+    };
+    connect(sunSize, &QDoubleSpinBox::valueChanged, this, [this](double value) { set(SunSize, value); });
     readout = new QLabel(this);
     readout->setWordWrap(true);
-    timeGrid->addWidget(readout, timeGrid->rowCount(), 0, 1, 3);
+    readout->setContentsMargins(0, 2, 0, 2);
+    grid->addWidget(readout, grid->rowCount(), 0, 1, 3);
 
-    // Sky and fog.
-    QGridLayout *skyGrid;
-    QGroupBox *skyBox = group(
-        //% "Sky and fog"
-        qtTrId("route.editor.environment.window.group.sky"), skyGrid);
-    skyButton = new QPushButton(this);
-    row(skyGrid, SkyColor,
-        //% "Sky colour"
-        qtTrId("route.editor.environment.window.sky.colour"), skyButton)->load = [this] {
-        showColour(skyButton, settings().runtimeString(SkyColor));
-    };
-    connect(skyButton, &QPushButton::clicked, this, [this] { chooseColour(SkyColor, skyButton); });
+    // Environment.
+    section(
+        //% "Environment:"
+        qtTrId("route.editor.environment.window.group.environment"));
     fogButton = new QPushButton(this);
-    row(skyGrid, FogColor,
-        //% "Fog colour"
+    row(FogColor,
+        //% "Fog colour:"
         qtTrId("route.editor.environment.window.fog.colour"), fogButton)->load = [this] {
         showColour(fogButton, settings().runtimeString(FogColor));
     };
     connect(fogButton, &QPushButton::clicked, this, [this] { chooseColour(FogColor, fogButton); });
+    fogSpin = spin(0.0, 1.0, 0.01, 55);
+    fogSpin->setObjectName(QString::fromLatin1(FogDensity));
     fogSlider = new QSlider(Qt::Horizontal, this);
     fogSlider->setRange(0, 100);
-    fogSpin = new QDoubleSpinBox(this);
-    fogSpin->setObjectName(QString::fromLatin1(FogDensity));
-    fogSpin->setRange(0.0, 1.0);
-    fogSpin->setSingleStep(0.01);
-    row(skyGrid, FogDensity,
-        //% "Fog density"
-        qtTrId("route.editor.environment.window.fog.density"), layoutOf({fogSlider, fogSpin}))->load = [this] {
+    row(FogDensity,
+        //% "Fog density:"
+        qtTrId("route.editor.environment.window.fog.density"), line({fogSpin, fogSlider}))->load = [this] {
         const double density = settings().runtimeFloat(FogDensity);
         quietly(fogSlider, &QSlider::setValue, int(std::lround(density * 100.0)));
         quietly(fogSpin, &QDoubleSpinBox::setValue, density);
@@ -187,67 +221,34 @@ EnvironmentWindow::EnvironmentWindow(QWidget *parent) : QWidget(parent) {
     connect(fogSlider, &QSlider::valueChanged, this, [this](int value) { set(FogDensity, value / 100.0); });
     connect(fogSpin, &QDoubleSpinBox::valueChanged, this, [this](double value) { set(FogDensity, value); });
 
-    // Lights.
-    QGridLayout *lightGrid;
-    QGroupBox *lightBox = group(
-        //% "Lights"
-        qtTrId("route.editor.environment.window.group.lights"), lightGrid);
+    // Rendering.
+    section(
+        //% "Rendering:"
+        qtTrId("route.editor.environment.window.group.rendering"));
     localLights = new QCheckBox(this);
-    row(lightGrid, LocalLights,
-        //% "Local lights"
+    row(LocalLights,
+        //% "Local lights:"
         qtTrId("route.editor.environment.window.local.lights"), localLights)->load = [this] {
         quietly(localLights, &QCheckBox::setChecked, settings().runtimeBool(LocalLights));
     };
     connect(localLights, &QCheckBox::toggled, this, [this](bool on) { set(LocalLights, on); });
-    bloom = new QDoubleSpinBox(this);
-    bloom->setRange(0.0, 4.0);
-    bloom->setSingleStep(0.25);
-    row(lightGrid, Bloom,
-        //% "Bloom"
-        qtTrId("route.editor.environment.window.bloom"), bloom)->load = [this] {
+    bloom = spin(0.0, 4.0, 0.25, 70);
+    bloom->setObjectName(QString::fromLatin1(Bloom));
+    row(Bloom,
+        //% "Bloom:"
+        qtTrId("route.editor.environment.window.bloom"), line({bloom}))->load = [this] {
         quietly(bloom, &QDoubleSpinBox::setValue, settings().runtimeFloat(Bloom));
     };
     connect(bloom, &QDoubleSpinBox::valueChanged, this, [this](double value) { set(Bloom, value); });
-    exposure = new QDoubleSpinBox(this);
-    exposure->setRange(-4.0, 4.0);
-    exposure->setSingleStep(0.25);
+    exposure = spin(-4.0, 4.0, 0.25, 70);
+    exposure->setObjectName(QString::fromLatin1(Exposure));
     exposure->setSuffix(" EV");
-    row(lightGrid, Exposure,
-        //% "Exposure"
-        qtTrId("route.editor.environment.window.exposure"), exposure)->load = [this] {
+    row(Exposure,
+        //% "Exposure:"
+        qtTrId("route.editor.environment.window.exposure"), line({exposure}))->load = [this] {
         quietly(exposure, &QDoubleSpinBox::setValue, settings().runtimeFloat(Exposure));
     };
     connect(exposure, &QDoubleSpinBox::valueChanged, this, [this](double value) { set(Exposure, value); });
-
-    // Sun and moon.
-    QGridLayout *skyBodyGrid;
-    QGroupBox *skyBodyBox = group(
-        //% "Sun and moon"
-        qtTrId("route.editor.environment.window.group.sun.moon"), skyBodyGrid);
-    sun = new QCheckBox(this);
-    row(skyBodyGrid, Sun,
-        //% "Sun"
-        qtTrId("route.editor.environment.window.sun"), sun)->load = [this] {
-        quietly(sun, &QCheckBox::setChecked, settings().runtimeBool(Sun));
-    };
-    connect(sun, &QCheckBox::toggled, this, [this](bool on) { set(Sun, on); });
-    moon = new QCheckBox(this);
-    row(skyBodyGrid, Moon,
-        //% "Moon"
-        qtTrId("route.editor.environment.window.moon"), moon)->load = [this] {
-        quietly(moon, &QCheckBox::setChecked, settings().runtimeBool(Moon));
-    };
-    connect(moon, &QCheckBox::toggled, this, [this](bool on) { set(Moon, on); });
-    sunSize = new QDoubleSpinBox(this);
-    sunSize->setRange(0.2, 10.0);
-    sunSize->setSingleStep(0.1);
-    sunSize->setSuffix(QStringLiteral("°"));
-    row(skyBodyGrid, SunSize,
-        //% "Size"
-        qtTrId("route.editor.environment.window.sun.size"), sunSize)->load = [this] {
-        quietly(sunSize, &QDoubleSpinBox::setValue, settings().runtimeFloat(SunSize));
-    };
-    connect(sunSize, &QDoubleSpinBox::valueChanged, this, [this](double value) { set(SunSize, value); });
 
     resetButton = new QPushButton(
         //% "Reset all"
@@ -269,14 +270,11 @@ EnvironmentWindow::EnvironmentWindow(QWidget *parent) : QWidget(parent) {
                 //% "Environment"
                 qtTrId("route.editor.environment.window.title"), error);
     });
-
-    auto *layout = new QVBoxLayout(this);
-    for (QWidget *box : {static_cast<QWidget *>(timeBox), static_cast<QWidget *>(skyBox),
-                         static_cast<QWidget *>(lightBox), static_cast<QWidget *>(skyBodyBox)})
-        layout->addWidget(box);
-    layout->addWidget(layoutOf({resetButton, saveButton}));
+    QWidget *buttons = line({resetButton, saveButton});
+    buttons->setContentsMargins(3, 4, 1, 0);
+    layout->addWidget(buttons);
     layout->addStretch(1);
-    setMinimumWidth(360);
+    setFixedWidth(260);
 
     connect(&settings(), &SettingsManager::runtimeSettingsChanged, this, &EnvironmentWindow::refresh);
     refresh(keys());
@@ -287,6 +285,8 @@ QToolButton *EnvironmentWindow::resetButtonFor(const QString &key) {
     auto *button = new QToolButton(this);
     button->setObjectName("reset:" + key);
     button->setText(QStringLiteral("↺"));
+    button->setAutoRaise(true);
+    button->setFixedSize(20, 20);
     button->setToolTip(
         //% "Back to the profile's value"
         qtTrId("route.editor.environment.window.reset.one"));
@@ -387,6 +387,7 @@ void EnvironmentWindow::environmentInfo(float sunElevation, float sunAzimuth, fl
             qtTrId("route.editor.environment.window.readout.moon"))
                 .arg(moonElevation, 0, 'f', 1).arg(moonFraction * 100.0f, 0, 'f', 0);
     readout->setText(lines.join('\n'));
+    readout->setVisible(!lines.isEmpty());
 }
 
 void EnvironmentWindow::hideEvent(QHideEvent *e) {
