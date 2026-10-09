@@ -28,7 +28,7 @@
 #include <tsre/renderer/Mesh.h>
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/renderer/RenderStats.h>
-#include <tsre/renderer/WaterNormalMap.h>
+#include <tsre/renderer/WaterWaves.h>
 #include <tsre/texture/TexLib.h>
 #include <tsre/texture/Texture.h>
 
@@ -255,6 +255,8 @@ void RhiRenderer::releaseResources() {
     releaseReflection();
     delete sceneCopy;
     sceneCopy = nullptr;
+    delete waterWaveArray;
+    waterWaveArray = nullptr;
     releaseDepthProbe();
     releaseLights();
     releaseAttachments(view);
@@ -371,6 +373,10 @@ void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
                     gluu->cameraPosition[2]);
     program->setFloat("environmentMapLevels", float(gluu->environmentMapLevels));
     program->setFloat("waterTime", GLUU::animationSeconds());
+    const WaterWaves::Wind wind = WaterWaves::settingsWind();
+    const float windDirection = float(wind.direction * M_PI / 180.0);
+    program->setVec("waterWind", std::sin(windDirection), -std::cos(windDirection),
+                    float(wind.speed), 0.0f);
     program->setVec("waterReflectionView", gluu->waterReflectionView[0], gluu->waterReflectionView[1],
                     gluu->waterReflectionView[2], gluu->waterReflectionView[3]);
     program->setVec("waterReflectionPlane", gluu->waterReflectionPlane[0], gluu->waterReflectionPlane[1],
@@ -504,15 +510,36 @@ QRhiTexture *RhiRenderer::packetTexture(const RenderItem *item, bool &mipmapped)
 }
 
 QRhiTexture *RhiRenderer::waterWaves() {
-    if (waterWaveHandle == 0) {
-        const QByteArray texels(reinterpret_cast<const char *>(
-                                    WaterNormalMap::generate(WaterNormalMap::Size).data()),
-                                WaterNormalMap::Size * WaterNormalMap::Size * 4);
-        waterWaveHandle = RhiTextures::create(WaterNormalMap::Size, WaterNormalMap::Size, {texels});
-        RhiTextures::setSampling(waterWaveHandle, true, false);
+    const int n = WaterWaves::Size;
+    if (waterWaveArray == nullptr) {
+        waterWaveArray = rhi->newTextureArray(QRhiTexture::RGBA16F, WaterWaves::Cascades,
+                                              QSize(n, n), 1, QRhiTexture::MipMapped);
+        if (!waterWaveArray->create()) {
+            delete waterWaveArray;
+            waterWaveArray = nullptr;
+            return dummyArray;
+        }
+        waterWaveSerial = 0;
     }
-    QRhiTexture *texture = RhiTextures::texture(waterWaveHandle);
-    return texture != nullptr ? texture : dummy2D;
+    if (WaterWaves::shared().update(GLUU::animationSeconds(), WaterWaves::settingsWind(),
+                                    Game::animationFrozen, waterWaveSerial, waterWaveTexels)) {
+        QVector<QRhiTextureUploadEntry> entries;
+        for (int level = 0; level < WaterWaves::Levels; ++level) {
+            const int side = n >> level;
+            const quint32 bytes = quint32(side) * side * 4 * sizeof(qfloat16);
+            for (int c = 0; c < WaterWaves::Cascades; ++c) {
+                const qfloat16 *texels = waterWaveTexels.data() + WaterWaves::levelOffset(level)
+                        + size_t(c) * side * side * 4;
+                QRhiTextureSubresourceUploadDescription description(texels, bytes);
+                description.setSourceSize(QSize(side, side));
+                entries.append(QRhiTextureUploadEntry(c, level, description));
+            }
+        }
+        QRhiTextureUploadDescription upload;
+        upload.setEntries(entries.cbegin(), entries.cend());
+        RhiTextures::updates()->uploadTexture(waterWaveArray, upload);
+    }
+    return waterWaveArray;
 }
 
 QRhiSampler *RhiRenderer::sampler(bool mipmaps, bool clamp, bool nearest) {
@@ -1483,7 +1510,13 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
             continue;
         }
         switch (slot.type) {
-        case 1: texture = dummyArray; break;
+        case 1:
+            texture = dummyArray;
+            if (program->kind == RhiProgram::WATER && slot.binding == 15) {
+                texture = waterWaves();
+                slotSampler = sampler(true, false);
+            }
+            break;
         case 2:
             texture = dummyCube;
             if (slot.binding == EnvironmentMap::TextureUnit && environment.sampled != nullptr) {
@@ -1547,8 +1580,6 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
                        && slot.binding == PlanarReflection::TextureUnit && reflectionSampled != nullptr) {
                 texture = reflectionSampled;
                 slotSampler = sampler(true, true);
-            } else if (program->kind == RhiProgram::WATER && slot.binding == 15) {
-                texture = waterWaves();
             }
             break;
         }

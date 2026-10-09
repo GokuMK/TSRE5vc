@@ -370,6 +370,9 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
     boolean("core.rendering.environmentMap.preview", environmentMapPreview);
     boolean("core.rendering.water.shaded", waterShaded);
     boolean("core.rendering.water.reflection", waterReflection);
+    // Read by WaterWaves each frame (task renderer 18).
+    claim("core.rendering.water.windSpeed", SettingType::Float);
+    claim("core.rendering.water.windDirection", SettingType::Float);
     boolean("core.rendering.localLights.enabled", localLightsEnabled);
     claim("core.rendering.ambientOcclusion", SettingType::Enum);
     if (appliesNow("core.rendering.ambientOcclusion"))

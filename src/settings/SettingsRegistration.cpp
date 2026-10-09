@@ -916,6 +916,20 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Shaded water mirrors the terrain, objects and sky around it, from an extra half-resolution view drawn when water is in sight. When off, water reflects the environment map or a sky gradient only."
                 QT_TRID_NOOP("settings.core.rendering.water.reflection.description")).inGroup("rendering").inSubgroup("water"),
         "waterReflection", "Game::waterReflection", "RouteEditorGLWidget", true, "hot-cache");
+    ADD(SettingsDefinition::floating("core.rendering.water.windSpeed", 3.0)
+            .withNameId(
+                //% "Wind speed"
+                QT_TRID_NOOP("settings.core.rendering.water.wind.speed.name")).withDescriptionId(
+                //% "Wind over shaded water, which makes its waves: 0 leaves only small ripples, 3 is a light breeze, 10 a strong wind."
+                QT_TRID_NOOP("settings.core.rendering.water.wind.speed.description")).withRange(0, 20, 0.5).withUnit("m/s").inGroup("rendering").inSubgroup("water"),
+        "", "", "WaterWaves", false, "hot-cache");
+    ADD(SettingsDefinition::floating("core.rendering.water.windDirection", 45.0)
+            .withNameId(
+                //% "Wind direction"
+                QT_TRID_NOOP("settings.core.rendering.water.wind.direction.name")).withDescriptionId(
+                //% "The way the wind blows, in degrees from north towards east: 0 to the north, 90 to the east. Waves run mostly with the wind."
+                QT_TRID_NOOP("settings.core.rendering.water.wind.direction.description")).withRange(0, 360, 5).withUnit("°").inGroup("rendering").inSubgroup("water"),
+        "", "", "WaterWaves", false, "hot-cache");
     ADD(SettingsDefinition::boolean("core.rendering.localLights.enabled", true)
             .withNameId(
                 //% "Local lights"

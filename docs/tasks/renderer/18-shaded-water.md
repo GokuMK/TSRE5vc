@@ -33,13 +33,28 @@ textures (`Environment::lowerWaterLayers`), and draw with the
   ambient light like the legacy layers. The textures already include the sky
   they usually reflect, so 60% of the colour is kept as the water itself and
   the reflection is added for the actual view.
-- Waves: `WaterNormalMap` generates a tileable 256 x 256 map of wave slopes
-  once per context: 64 waves in random directions with whole cycles across
-  the map. It stores the slopes and their squares, so the mipmaps keep the
-  slope variance. The shader samples it at two scales (16 m and 5.12 m per
-  repeat, both dividing the 2048 m tile, so waves continue across tiles),
-  drifting in different directions. Waves too small for a pixel turn into
-  roughness (the variance from the mipmaps).
+- Waves (2026-10-09, replacing a static wave map; see "Next: Realistic
+  Water"): `WaterWaves`, FFT waves after Tessendorf.
+  - A Phillips spectrum from the wind (`core.rendering.water.windSpeed`,
+    `.windDirection`): waves mostly with the wind, fewer across it, damped
+    against it and below 1 cm. Each wave turns at its own frequency
+    (deep water, omega = sqrt(g k)), so the surface changes all the time.
+  - Three cascades of 128 x 128, 2048/7, 2048/53 and 2048/389 m per repeat
+    (each divides the tile; together they repeat once per tile), holding
+    the wavelengths above 8 m, 8 to 1 m, and below 1 m.
+  - Scaled to the mean square slope of the wind (Cox and Munk:
+    0.003 + 0.00512 U).
+  - One complex FFT per cascade gives both slopes; the texels hold the
+    slopes and their squares, with every mipmap level averaged on the CPU
+    (not every QRhi backend makes mipmaps of arrays), so the shader takes
+    the variance of the waves too small for a pixel as roughness.
+  - Computed in a worker thread a frame ahead and uploaded as an RGBA16F
+    array (about 0.5 MB a frame with the levels); frozen animation and the
+    first frame compute in place. If a frame is late the previous waves
+    stay, so a slow CPU updates them less often.
+  - Gusts: two sizes of value noise (9 and 23 cells per tile) drifting with
+    the wind scale the short waves 0.3 to 1.7 times and the long ones 0.8
+    to 1.2 times.
 - Reflection: Fresnel (F0 0.02) between the colour and the surroundings:
   - the mirrored scene (below) where the water lies in its plane;
   - otherwise the environment cube (task 17) when it is on;
@@ -109,7 +124,7 @@ drawing about as many draw calls as the main view.
 | 4, 5 | bottom and middle layers (terrain material units elsewhere) |
 | 6 | planar reflection |
 | 10 | environment cube |
-| 15 | wave map |
+| 15 | wave cascades (array) |
 
 ## Settings
 
@@ -119,6 +134,8 @@ Under Rendering > Water, applied while running:
 | --- | --- | --- |
 | `core.rendering.water.shaded` | on | One shaded surface; off draws the ENV layers as before |
 | `core.rendering.water.reflection` | on | Mirror the scene in water in view |
+| `core.rendering.water.windSpeed` | 3 m/s | Wind making the waves (0-20) |
+| `core.rendering.water.windDirection` | 45° | The way the wind blows, from north towards east |
 
 ## Not Done
 
@@ -137,13 +154,18 @@ Under Rendering > Water, applied while running:
   and the Shape Viewer are pixel-identical, and scene sample totals are
   unchanged. With `core.rendering.water.shaded` off, BNSF is
   pixel-identical to the baseline.
-- `water-gl` suite: wave map statistics (level on average, full range,
-  squared slopes, no seam), level and tilted mirror matrices, the plane fit
+- `water-gl` suite: waves (level on average, the mean square slope of the
+  wind, every cascade with waves, squared slopes, no seam, running with
+  the wind, the same for the same wind and time, short waves changing
+  faster than long ones, steeper in stronger wind, mipmap levels keeping
+  the slope, the worker delivering), level and tilted mirror matrices, the plane fit
   (a sloping river, one row of patches, no patches, a far reach of another
   slope), the water program and its
   variants, frozen animation, and a mirrored render in which an object above
   the plane shows below the horizon and geometry under the plane is clipped.
-- `settings` suite: the two settings and their translations.
+- `settings` suite: the settings and their translations.
+- Captures: `tests/renderer/water-lake.json`, CMK (a lake by a bridge),
+  low and wide views on both renderers.
 
 ## Next: Realistic Water (Crysis Target)
 
@@ -265,4 +287,10 @@ and QRhi.
 
 ### Progress
 
-- 2026-10-09: review and plan (this section). Nothing implemented yet.
+- 2026-10-09: review and plan (this section).
+- 2026-10-09: step 1 done: FFT waves in three cascades, gusts, wind
+  settings (see "Waves" under Design). On CMK the grid of repeats is gone;
+  OpenGL and QRhi match. Still to judge on screen: the wind default and
+  the gust strength.
+- User, 2026-10-09: shore foam would also hide the sky that the reflection
+  shows along banks (behind the terrain at the water line is sky).

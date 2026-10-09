@@ -5,6 +5,7 @@
 #include <QOpenGLContext>
 #include <QOpenGLExtraFunctions>
 #include <QScopedValueRollback>
+#include <QThread>
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -17,7 +18,7 @@
 #include <tsre/ogl/OglObj.h>
 #include <tsre/renderer/OpenGL3Renderer.h>
 #include <tsre/renderer/PlanarReflection.h>
-#include <tsre/renderer/WaterNormalMap.h>
+#include <tsre/renderer/WaterWaves.h>
 
 namespace {
 
@@ -61,35 +62,95 @@ int TsreTests::runWaterGlSuite(bool verbose) {
         }
     };
 
-    // Wave map: level on average, full range, squares of the slopes, and
-    // no seam where it repeats.
-    const int size = WaterNormalMap::Size;
-    const std::vector<unsigned char> map = WaterNormalMap::generate(size);
-    double mean[2] = {0, 0};
-    int lowest = 255, highest = 0, squaresOff = 0;
-    double inside = 0, across = 0;
-    for (int z = 0; z < size; ++z)
-        for (int x = 0; x < size; ++x) {
-            const unsigned char *t = &map[(size_t(z) * size + x) * 4];
-            for (int c = 0; c < 2; ++c) {
-                mean[c] += t[c];
-                lowest = std::min<int>(lowest, t[c]);
-                highest = std::max<int>(highest, t[c]);
-                const double slope = t[c] / 255.0 * 2.0 - 1.0;
-                squaresOff += std::abs(slope * slope * 255.0 - t[2 + c]) > 3.0;
+    // Waves: the slopes of each cascade level on average, scaled to the
+    // wind's mean square slope, with squareSum beside them, seamless where
+    // they repeat, running with the wind, and turning with time, short
+    // waves faster than long ones.
+    const int size = WaterWaves::Size;
+    const size_t layer = size_t(size) * size * 4;
+    WaterWaves::Wind breeze;
+    breeze.speed = 3.0;
+    breeze.direction = 90.0;
+    WaterWaves::Field field(breeze);
+    std::vector<float> waves, later;
+    field.compute(5.0, waves);
+    check(waves.size() == layer * WaterWaves::Cascades, "the waves have RGBA texels per cascade");
+    double meanSlope = 0.0, squareSum = 0.0, alongX = 0.0, alongZ = 0.0;
+    int squaresOff = 0;
+    double inside = 0.0, across = 0.0;
+    for (int c = 0; c < WaterWaves::Cascades; ++c)
+        for (int z = 0; z < size; ++z)
+            for (int x = 0; x < size; ++x) {
+                const float *t = &waves[layer * c + (size_t(z) * size + x) * 4];
+                meanSlope += t[0] + t[1];
+                squareSum += t[2] + t[3];
+                alongX += t[2];
+                alongZ += t[3];
+                squaresOff += std::abs(t[0] * t[0] - t[2]) > 1e-6f || std::abs(t[1] * t[1] - t[3]) > 1e-6f;
+                if (c == 2) {
+                    const float *next = &waves[layer * c + (size_t(z) * size + (x + 1) % size) * 4];
+                    (x == size - 1 ? across : inside) += std::abs(t[0] - next[0]);
+                }
             }
-            const unsigned char *next = &map[(size_t(z) * size + (x + 1) % size) * 4];
-            (x == size - 1 ? across : inside) += std::abs(int(t[0]) - int(next[0]));
-        }
-    mean[0] /= double(size) * size;
-    mean[1] /= double(size) * size;
-    check(map.size() == size_t(size) * size * 4, "the wave map has RGBA texels");
-    check(std::abs(mean[0] - 127.5) < 4.0 && std::abs(mean[1] - 127.5) < 4.0,
-          "the waves are level on average");
-    check(lowest <= 1 || highest >= 254, "the largest slope uses the full range");
+    const double texels = double(size) * size;
+    const double target = WaterWaves::meanSquareSlope(breeze.speed);
+    check(std::abs(meanSlope / texels) < 1e-3, "the waves are level on average");
+    check(std::abs(squareSum / texels - target) < 0.25 * target,
+          "the slopes match the wind's mean square slope");
+    check(std::abs(field.cascadeSlopeVariance[0] + field.cascadeSlopeVariance[1]
+                   + field.cascadeSlopeVariance[2] - target) < 1e-9
+          && field.cascadeSlopeVariance[0] > 0.0 && field.cascadeSlopeVariance[2] > 0.0,
+          "every cascade has waves, together as much as the wind makes");
     check(squaresOff == 0, "blue and alpha hold the squared slopes");
     check(across / size < 1.5 * inside / (double(size) * (size - 1)),
-          "the wave map repeats without a seam");
+          "the waves repeat without a seam");
+    check(alongX > 1.3 * alongZ, "the waves run mostly with the wind");
+    WaterWaves::Field again(breeze);
+    std::vector<float> same;
+    again.compute(5.0, same);
+    check(same == waves, "the same wind and time give the same waves");
+    field.compute(5.2, later);
+    auto correlation = [&](int c) {
+        double ab = 0.0, aa = 0.0, bb = 0.0;
+        for (size_t i = layer * c; i < layer * (c + 1); i += 4) {
+            ab += double(waves[i]) * later[i];
+            aa += double(waves[i]) * waves[i];
+            bb += double(later[i]) * later[i];
+        }
+        return ab / std::sqrt(aa * bb);
+    };
+    check(correlation(0) > correlation(1) && correlation(1) > correlation(2)
+          && correlation(2) < 0.5,
+          "short waves change faster than long ones");
+    WaterWaves::Wind calm;
+    calm.speed = 0.0;
+    WaterWaves::Field still(calm);
+    WaterWaves::Wind gale;
+    gale.speed = 15.0;
+    WaterWaves::Field rough(gale);
+    check(still.cascadeSlopeVariance[2] < rough.cascadeSlopeVariance[2],
+          "stronger wind, steeper waves");
+    std::vector<qfloat16> uploaded;
+    quint64 serial = 0;
+    check(WaterWaves::shared().update(0.0, breeze, true, serial, uploaded)
+          && uploaded.size() == WaterWaves::levelOffset(WaterWaves::Levels)
+          && !WaterWaves::shared().update(0.0, breeze, true, serial, uploaded),
+          "frozen waves are made once, with every mipmap level");
+    const qfloat16 *top = uploaded.data() + WaterWaves::levelOffset(WaterWaves::Levels - 1);
+    double topMean = 0.0;
+    for (int c = 0; c < WaterWaves::Cascades; ++c)
+        topMean += float(top[c * 4 + 2]) + float(top[c * 4 + 3]);
+    check(std::abs(topMean - target) < 0.25 * target,
+          "the last mipmap level keeps the mean square slope");
+    // Running: the worker delivers the waves of later frames.
+    const quint64 first = serial;
+    bool delivered = false;
+    for (int frame = 1; frame < 200 && !delivered; ++frame) {
+        WaterWaves::shared().update(frame / 60.0, breeze, false, serial, uploaded);
+        delivered = serial >= first + 2;
+        QThread::msleep(5);
+    }
+    check(delivered, "the worker computes the waves of the coming frames");
 
     float mirror[16];
     const float level[4] = {0.0f, 1.0f, 0.0f, -3.0f};
@@ -166,13 +227,14 @@ int TsreTests::runWaterGlSuite(bool verbose) {
           && gluu->waterVariant(gluu->shaders["Selection"]) == gluu->shaders["Selection"],
           "the main and fast programs draw water with it; selection does not");
     check(GLUU::animationSeconds() == 0.0f, "frozen animation stands at zero");
-    WaterNormalMap waves;
+    check(water->waterWind >= 0, "the water program has the wind");
+    WaterWaveTexture waveTexture;
     GLint bound = 0;
-    check(waves.bind(f, 15), "the wave map is created");
+    check(waveTexture.bind(f, 15, 0.0, breeze, true), "the wave cascades are created");
     f->glActiveTexture(GL_TEXTURE15);
-    f->glGetIntegerv(GL_TEXTURE_BINDING_2D, &bound);
+    f->glGetIntegerv(GL_TEXTURE_BINDING_2D_ARRAY, &bound);
     f->glActiveTexture(GL_TEXTURE0);
-    check(bound != 0, "the wave map is bound on unit 15");
+    check(bound != 0 && f->glGetError() == GL_NO_ERROR, "the wave cascades are bound on unit 15");
 
     // A red square above the plane y = -1 and a green one below it, nearer.
     // Mirrored, red shows under the horizon; green would show above it but

@@ -571,7 +571,7 @@ void OpenGL3Renderer::applyWrapSamplers(const RenderItem *item){
 }
 
 // Lower water layers on units 4 and 5 (terrain-only elsewhere) and the
-// wave map on unit 15.
+// wave cascades on unit 15.
 void OpenGL3Renderer::applyWaterState(GLUU *gluu, const RenderItem *item){
     Shader *s = gluu->currentShader;
     if(!item->water.enabled || s->waterLayers < 0)
@@ -586,7 +586,8 @@ void OpenGL3Renderer::applyWaterState(GLUU *gluu, const RenderItem *item){
     }
     f->glActiveTexture(GL_TEXTURE0);
     s->setUniformValue(s->waterLayers, present);
-    waterNormals.bind(f, 15);
+    waterWaves.bind(f, 15, GLUU::animationSeconds(), WaterWaves::settingsWind(),
+                    Game::animationFrozen);
 }
 
 void OpenGL3Renderer::releaseWrapSamplers(){

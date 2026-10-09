@@ -1,5 +1,5 @@
-// Water surface for the TSRE_WATER variant: moving waves from a wave map,
-// Fresnel reflection of the environment cube (a sky gradient without one)
+// Water surface for the TSRE_WATER variant: wind waves from the wave
+// cascades, Fresnel reflection of the environment cube (a sky gradient without one)
 // and sun glints over the route's water colour. The colour is the route's
 // water layers stacked, without their animation: the base texture is the
 // top layer, over the middle and bottom layers. Included by StandardFog.fs
@@ -12,8 +12,11 @@ uniform float waterTime;
 uniform int waterLayers;
 uniform sampler2D waterBottomMap;
 uniform sampler2D waterMiddleMap;
-// Tileable slopes (rg, 0.5 flat) and their squares (ba); see WaterNormalMap.
-uniform sampler2D waterNormalMap;
+// Wave cascades (WaterWaves), one layer each: the slopes along x and z (rg)
+// and their squares (ba), so the mipmaps keep the slope variance.
+uniform sampler2DArray waterWaveMap;
+// Wind: the direction it blows (x, z, as drawn) and its speed in m/s (z).
+uniform vec4 waterWind;
 // The scene mirrored in the water plane (PlanarReflection), read at the
 // screen position: inverse viewport size and mipmap levels in w (0: none),
 // and the plane (n . p + d = 0), tilted along sloping rivers.
@@ -23,15 +26,17 @@ uniform vec4 waterReflectionPlane;
 
 #include "EnvironmentLighting.glsl"
 
-// Two scales of the wave map, in metres per repeat (dividing the 2048 m
-// tile, so the waves continue across tiles), drift in metres per second and
-// slope strength. The second is sampled transposed to break up repeats.
-const float WaterLargePeriod = 16.0;
-const vec2 WaterLargeDrift = vec2(0.31, 0.18);
-const float WaterLargeSlope = 0.22;
-const float WaterSmallPeriod = 5.12;
-const vec2 WaterSmallDrift = vec2(-0.17, 0.26);
-const float WaterSmallSlope = 0.14;
+// Metres per repeat of each cascade, as WaterWaves::Periods: 2048 / 7, / 53
+// and / 389, so they continue across tiles and line up once per tile.
+const vec3 WaterWavePeriods = vec3(292.571429, 38.641509, 5.264781);
+// Gusts: wave strength varies over two sizes of patches (cells per 2048 m
+// tile, so they too continue across tiles), drifting with the wind at this
+// share of its speed. Short waves follow the gusts most; the longest waves
+// are older and change less.
+const vec2 WaterGustCells = vec2(9.0, 23.0);
+const float WaterGustDrift = 0.4;
+const vec2 WaterGustShortWaves = vec2(0.3, 1.7);
+const vec2 WaterGustLongWaves = vec2(0.8, 1.2);
 // Part of the layer colour that is the water itself, not reflection.
 const float WaterBodyShare = 0.6;
 // Screen offset of the mirrored scene per unit of slope, and mipmap levels
@@ -39,17 +44,44 @@ const float WaterBodyShare = 0.6;
 const float WaterReflectionDistortion = 0.08;
 const float WaterReflectionBlur = 4.0;
 
-// Mean slope over the pixel and its variance, from one scale of the map.
-vec2 waterWaves(vec2 uv, bool transposed, float strength, inout float variance) {
-    vec4 t = texture(waterNormalMap, uv);
-    vec2 slope = t.rg * 2.0 - 1.0;
-    vec2 square = t.ba;
-    if (transposed) {
-        slope = slope.yx;
-        square = square.yx;
-    }
-    variance += strength * strength * dot(max(square - slope * slope, vec2(0.0)), vec2(1.0));
-    return slope * strength;
+// Mean slope over the pixel and its variance, from one cascade, scaled by
+// the gusts.
+vec2 waterCascade(vec2 p, int cascade, float strength, inout float variance) {
+    vec4 t = texture(waterWaveMap, vec3(p / WaterWavePeriods[cascade], float(cascade)));
+    variance += strength * strength * dot(max(t.ba - t.rg * t.rg, vec2(0.0)), vec2(1.0));
+    return t.rg * strength;
+}
+
+float waterHash(vec2 cell) {
+    return fract(sin(dot(cell, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+// Smooth value noise in 0-1 with the given cells per 2048 m, repeating
+// with the tile.
+float waterNoise(vec2 p, float cells) {
+    vec2 q = p * (cells / 2048.0);
+    vec2 i = floor(q);
+    vec2 f = q - i;
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    float a = waterHash(mod(i, cells));
+    float b = waterHash(mod(i + vec2(1.0, 0.0), cells));
+    float c = waterHash(mod(i + vec2(0.0, 1.0), cells));
+    float d = waterHash(mod(i + vec2(1.0, 1.0), cells));
+    return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
+// The wave slope over the pixel and the variance of the waves too small
+// for it: the three cascades, stronger and weaker in gust patches.
+vec2 waterWaves(vec2 p, out float variance) {
+    vec2 drift = mod(waterWind.xy * (waterWind.z * WaterGustDrift * waterTime), 2048.0);
+    float gust = 0.6 * waterNoise(p - drift, WaterGustCells.x)
+            + 0.4 * waterNoise(p - drift, WaterGustCells.y);
+    float shortWaves = mix(WaterGustShortWaves.x, WaterGustShortWaves.y, gust);
+    float longWaves = mix(WaterGustLongWaves.x, WaterGustLongWaves.y, gust);
+    variance = 0.0;
+    return waterCascade(p, 0, longWaves, variance)
+            + waterCascade(p, 1, shortWaves, variance)
+            + waterCascade(p, 2, shortWaves, variance);
 }
 
 // The surroundings reflected along r: the mirrored scene where the water
@@ -95,12 +127,8 @@ vec4 waterShade() {
     float shadow = clamp(shadowedVisibility(clamp(l.y, 0.0, 1.0)), 0.0, 1.0);
     body *= (diffuseColor.rgb * shadow + ambientColor.rgb) * colorBrightness;
 
-    vec2 p = vWorldPosition.xz;
-    float variance = 0.0;
-    vec2 slope = waterWaves((p + WaterLargeDrift * waterTime) / WaterLargePeriod, false,
-                            WaterLargeSlope, variance)
-            + waterWaves((p + WaterSmallDrift * waterTime).yx / WaterSmallPeriod, true,
-                         WaterSmallSlope, variance);
+    float variance;
+    vec2 slope = waterWaves(vWorldPosition.xz, variance);
     vec3 n = normalize(vec3(-slope.x, 1.0, -slope.y));
     vec3 v = normalize(cameraPosition - vWorldPosition);
     float nDotV = clamp(dot(n, v), 1e-4, 1.0);

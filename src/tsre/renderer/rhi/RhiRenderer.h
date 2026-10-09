@@ -17,6 +17,7 @@
 #include <array>
 #include <memory>
 #include <unordered_map>
+#include <qfloat16.h>
 #include <vector>
 #include <QMatrix4x4>
 #include <rhi/qrhi.h>
@@ -406,9 +407,12 @@ private:
     // when there is no view to read.
     bool recordDepthProbe(int x, int y);
     void releaseDepthProbe();
-    // The wave map of the water program (WaterNormalMap), made once.
+    // The wave cascades of the water program (WaterWaves), an RGBA16F
+    // array updated once a frame.
     QRhiTexture *waterWaves();
-    unsigned int waterWaveHandle = 0;
+    QRhiTexture *waterWaveArray = nullptr;
+    quint64 waterWaveSerial = 0;
+    std::vector<qfloat16> waterWaveTexels;
     QRhiTexture *packetTexture(const RenderItem *item, bool &mipmapped);
     quint32 appendUniforms(const RhiProgram *program);
     quint32 appendInstances(const float *const *matrices, int count);

@@ -14,7 +14,7 @@
 
 #include <tsre/renderer/QueueRenderer.h>
 #include <tsre/renderer/SelectionRenderer.h>
-#include <tsre/renderer/WaterNormalMap.h>
+#include <tsre/renderer/WaterWaves.h>
 #include <unordered_map>
 #include <vector>
 
@@ -97,7 +97,7 @@ private:
     void bindWrapSampler(int unit, quint32 wrap);
     void releaseWrapSamplers();
     void applyWaterState(GLUU *gluu, const RenderItem *item);
-    WaterNormalMap waterNormals;
+    WaterWaveTexture waterWaves;
     // Copies the frame drawn so far for the transmission pass; returns its
     // mipmap levels, 0 when transmissive surfaces see the environment.
     float copyFrameForTransmission(GLUU *gluu, Shader *base);
