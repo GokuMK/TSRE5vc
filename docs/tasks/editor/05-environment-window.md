@@ -188,7 +188,8 @@ Steps 1 to 3 (user: "go with 1, 2 and 3"):
 
 - **Window**: `EnvironmentWindow` (Tools > Environment Window), floating,
   hidden at start, laid out as the tool panels (F1, F2; user, 2026-10-09):
-  headings in the accent colour, compact rows. Time: time of day, solar
+  headings in the accent colour, compact rows; every number has a field of
+  one width and a slider over its range. Time: time of day, solar
   time (field and slider), date ("Today"), sun, moon, their size.
   Environment: fog colour, fog density. Rendering: local lights, bloom,
   exposure. Sky colour was left out (user: not that useful; the setting
@@ -213,7 +214,10 @@ Steps 1 to 3 (user: "go with 1, 2 and 3"):
   flag by a glow choice), the moon's following the lamps' scale. OpenGL:
   plain discs.
 - **Settings**: `core.rendering.sky.sun` (on), `.moon` (on), `.sunSize`
-  (0.8 degrees, both discs; to be fixed from captures the user approves).
+  (both discs, 0.2 to 5 degrees). Default 1.2 (user, 2026-10-09): 0.8 looks
+  right with the default bloom, but too small with bloom lowered or off;
+  1.2 sits between, a little large with bloom and a little small without,
+  fine in both.
 - **Shared**: `DiscMesh` (the signal lights' disc, now shared with the sky).
 - **Tests**: `environment-window` (session values, Reset, Save to profile
   on a temporary copy of the profile, live fog density); `time-of-day` with

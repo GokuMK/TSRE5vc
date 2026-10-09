@@ -75,6 +75,8 @@ EnvironmentWindow::EnvironmentWindow(QWidget *parent) : QWidget(parent) {
     // Laid out as the tool panels (F1, F2): headings in the accent colour and
     // compact rows of a label, the value and a reset button.
     constexpr int LabelWidth = 80;
+    // Fields of numbers share one width, so their sliders line up.
+    constexpr int ValueWidth = 70;
     auto *layout = new QVBoxLayout(this);
     layout->setSpacing(2);
     layout->setContentsMargins(1, 1, 1, 1);
@@ -109,16 +111,30 @@ EnvironmentWindow::EnvironmentWindow(QWidget *parent) : QWidget(parent) {
         box->setContentsMargins(0, 0, 0, 0);
         for (QWidget *w : widgets)
             box->addWidget(w);
-        if (widgets.size() == 1)
-            box->addStretch(1);
         return holder;
     };
-    auto spin = [&](double low, double high, double step, int width) {
-        auto *s = new QDoubleSpinBox(this);
-        s->setRange(low, high);
-        s->setSingleStep(step);
-        s->setFixedWidth(width);
-        return s;
+    // A number: its field and a slider over the same range, in steps.
+    auto number = [&](const char *key, const QString &text, double low, double high, double step,
+                      int decimals, const QString &suffix) {
+        const QString name = QString::fromLatin1(key);
+        auto *field = new QDoubleSpinBox(this);
+        field->setObjectName(name);
+        field->setRange(low, high);
+        field->setSingleStep(step);
+        field->setDecimals(decimals);
+        field->setSuffix(suffix);
+        field->setFixedWidth(ValueWidth);
+        auto *slider = new QSlider(Qt::Horizontal, this);
+        slider->setRange(0, int(std::lround((high - low) / step)));
+        row(key, text, line({field, slider}))->load = [name, field, slider, low, step] {
+            const double value = settings().runtimeFloat(name);
+            quietly(field, &QDoubleSpinBox::setValue, value);
+            quietly(slider, &QSlider::setValue, int(std::lround((value - low) / step)));
+        };
+        connect(field, &QDoubleSpinBox::valueChanged, this, [this, name](double value) { set(name, value); });
+        connect(slider, &QSlider::valueChanged, this,
+                [this, name, low, step](int index) { set(name, low + index * step); });
+        return field;
     };
 
     // Time, with the sun and moon it places.
@@ -135,7 +151,7 @@ EnvironmentWindow::EnvironmentWindow(QWidget *parent) : QWidget(parent) {
     timeEdit = new QTimeEdit(this);
     timeEdit->setObjectName(QString::fromLatin1(Time));
     timeEdit->setDisplayFormat("HH:mm");
-    timeEdit->setFixedWidth(55);
+    timeEdit->setFixedWidth(ValueWidth);
     timeSlider = new QSlider(Qt::Horizontal, this);
     timeSlider->setRange(0, 24 * 60 - 1);
     timeSlider->setSingleStep(5);
@@ -182,15 +198,9 @@ EnvironmentWindow::EnvironmentWindow(QWidget *parent) : QWidget(parent) {
         quietly(moon, &QCheckBox::setChecked, settings().runtimeBool(Moon));
     };
     connect(moon, &QCheckBox::toggled, this, [this](bool on) { set(Moon, on); });
-    sunSize = spin(0.2, 10.0, 0.1, 70);
-    sunSize->setObjectName(QString::fromLatin1(SunSize));
-    sunSize->setSuffix(QStringLiteral("°"));
-    row(SunSize,
+    sunSize = number(SunSize,
         //% "Size:"
-        qtTrId("route.editor.environment.window.sun.size"), line({sunSize}))->load = [this] {
-        quietly(sunSize, &QDoubleSpinBox::setValue, settings().runtimeFloat(SunSize));
-    };
-    connect(sunSize, &QDoubleSpinBox::valueChanged, this, [this](double value) { set(SunSize, value); });
+        qtTrId("route.editor.environment.window.sun.size"), 0.2, 5.0, 0.1, 1, QStringLiteral("°"));
     readout = new QLabel(this);
     readout->setWordWrap(true);
     readout->setContentsMargins(0, 2, 0, 2);
@@ -207,19 +217,9 @@ EnvironmentWindow::EnvironmentWindow(QWidget *parent) : QWidget(parent) {
         showColour(fogButton, settings().runtimeString(FogColor));
     };
     connect(fogButton, &QPushButton::clicked, this, [this] { chooseColour(FogColor, fogButton); });
-    fogSpin = spin(0.0, 1.0, 0.01, 55);
-    fogSpin->setObjectName(QString::fromLatin1(FogDensity));
-    fogSlider = new QSlider(Qt::Horizontal, this);
-    fogSlider->setRange(0, 100);
-    row(FogDensity,
+    fogDensity = number(FogDensity,
         //% "Fog density:"
-        qtTrId("route.editor.environment.window.fog.density"), line({fogSpin, fogSlider}))->load = [this] {
-        const double density = settings().runtimeFloat(FogDensity);
-        quietly(fogSlider, &QSlider::setValue, int(std::lround(density * 100.0)));
-        quietly(fogSpin, &QDoubleSpinBox::setValue, density);
-    };
-    connect(fogSlider, &QSlider::valueChanged, this, [this](int value) { set(FogDensity, value / 100.0); });
-    connect(fogSpin, &QDoubleSpinBox::valueChanged, this, [this](double value) { set(FogDensity, value); });
+        qtTrId("route.editor.environment.window.fog.density"), 0.0, 1.0, 0.01, 2, QString());
 
     // Rendering.
     section(
@@ -232,23 +232,12 @@ EnvironmentWindow::EnvironmentWindow(QWidget *parent) : QWidget(parent) {
         quietly(localLights, &QCheckBox::setChecked, settings().runtimeBool(LocalLights));
     };
     connect(localLights, &QCheckBox::toggled, this, [this](bool on) { set(LocalLights, on); });
-    bloom = spin(0.0, 4.0, 0.25, 70);
-    bloom->setObjectName(QString::fromLatin1(Bloom));
-    row(Bloom,
+    bloom = number(Bloom,
         //% "Bloom:"
-        qtTrId("route.editor.environment.window.bloom"), line({bloom}))->load = [this] {
-        quietly(bloom, &QDoubleSpinBox::setValue, settings().runtimeFloat(Bloom));
-    };
-    connect(bloom, &QDoubleSpinBox::valueChanged, this, [this](double value) { set(Bloom, value); });
-    exposure = spin(-4.0, 4.0, 0.25, 70);
-    exposure->setObjectName(QString::fromLatin1(Exposure));
-    exposure->setSuffix(" EV");
-    row(Exposure,
+        qtTrId("route.editor.environment.window.bloom"), 0.0, 4.0, 0.05, 2, QString());
+    exposure = number(Exposure,
         //% "Exposure:"
-        qtTrId("route.editor.environment.window.exposure"), line({exposure}))->load = [this] {
-        quietly(exposure, &QDoubleSpinBox::setValue, settings().runtimeFloat(Exposure));
-    };
-    connect(exposure, &QDoubleSpinBox::valueChanged, this, [this](double value) { set(Exposure, value); });
+        qtTrId("route.editor.environment.window.exposure"), -4.0, 4.0, 0.25, 2, QStringLiteral(" EV"));
 
     resetButton = new QPushButton(
         //% "Reset all"

@@ -61,8 +61,7 @@ private:
     QTimeEdit *timeEdit = nullptr;
     QDateEdit *dateEdit = nullptr;
     QPushButton *fogButton = nullptr;
-    QSlider *fogSlider = nullptr;
-    QDoubleSpinBox *fogSpin = nullptr;
+    QDoubleSpinBox *fogDensity = nullptr;
     QCheckBox *localLights = nullptr;
     QDoubleSpinBox *bloom = nullptr;
     QDoubleSpinBox *exposure = nullptr;

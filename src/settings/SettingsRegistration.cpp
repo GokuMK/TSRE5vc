@@ -1046,12 +1046,12 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Draw the moon on the sky, at its place and phase for the time and date of time of day. Only with time of day on."
                 QT_TRID_NOOP("settings.core.rendering.sky.moon.description")).inGroup("rendering").inSubgroup("environment"),
         "", "", "SkySatellites", false, "hot-cache");
-    ADD(SettingsDefinition::floating("core.rendering.sky.sunSize", 0.8)
+    ADD(SettingsDefinition::floating("core.rendering.sky.sunSize", 1.2)
             .withNameId(
                 //% "Sun and moon size"
                 QT_TRID_NOOP("settings.core.rendering.sky.sun.size.name")).withDescriptionId(
                 //% "Width of the sun and moon discs in degrees. Both are about 0.53 degrees in the real sky; the bloom makes the sun look larger."
-                QT_TRID_NOOP("settings.core.rendering.sky.sun.size.description")).withRange(0.2, 10, 0.1).withUnit("°").inGroup("rendering").inSubgroup("environment"),
+                QT_TRID_NOOP("settings.core.rendering.sky.sun.size.description")).withRange(0.2, 5, 0.1).withUnit("°").inGroup("rendering").inSubgroup("environment"),
         "", "", "SkySatellites", false, "hot-cache");
     ADD(SettingsDefinition::boolean("core.rendering.renderTrackItems", false)
             .withNameId(
