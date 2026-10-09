@@ -47,15 +47,17 @@ route's ENV files.
 
 ### 1. The window
 
-- `EnvironmentWindow` in `src/routeEditor`, a tool window as `NaviWindow`:
-  shown and hidden from the View menu and a shortcut, remembers its place.
+- `EnvironmentWindow` in `src/routeEditor`, a floating tool window as
+  `NaviWindow` (user, 2026-10-09): shown and hidden from the View menu and
+  a shortcut, remembers its place.
 - Each control writes a **session value** of its setting
   (`setSessionValue`); the window listens to `runtimeSettingsChanged`, so it
   shows changes made elsewhere (settings window, profile reload).
 - A control whose value differs from the profile is marked; per control and
   for the whole window, **Reset** clears the session values (back to the
   profile). **Save to profile** writes the current values into the profile
-  (`setValue`, `save`) for those who want them kept.
+  (`setValue`, `save`) for those who want them kept (user: if it fits
+  nicely; it does, the settings manager does both).
 - Nothing about the environment is stored in the route.
 
 ### 2. Contents of the first version
@@ -87,9 +89,11 @@ Sky colour, fog colour and fog density become live (`hot-cache`):
   (the sun of time of day; with time of day off, the fixed editor sun),
   drawn after the skydome and before distant terrain, so terrain and
   objects hide it and fog does not.
-- Size: the real sun is 0.53 degrees across, small on screen; a few
-  degrees, as MSTS and Open Rails draw it, reads better. A setting with a
-  default of about 2 degrees.
+- Size: the real sun is 0.53 degrees across; MSTS and Open Rails draw it at
+  a few degrees. With the bloom, the real size plus its halo may already
+  look like theirs (user, 2026-10-09): start a little above the real size,
+  keep it a setting (`core.rendering.sky.sunSize`, degrees), and fix the
+  default from captures the user approves.
 - Colour from `Daylight`: white high up, orange near the horizon; hidden
   below the horizon.
 - QRhi: emissive and bright enough for the bloom to give it a halo (the
@@ -110,11 +114,30 @@ the same date, place and sidereal time as `SunPosition`, about 80 lines.
   side faces the sun as in the real sky; the dark side close to the sky
   colour.
 - Shown by night and by day when above the horizon; brighter at night.
-  No moonlight on the scene in this task.
 - Setting `core.rendering.sky.moon` (on); a test suite checks positions and
   phases against published values (full and new moons of 2026).
+- In the first version (user, 2026-10-09).
 
-### 6. Later steps (future work)
+### 6. Moonlight (bonus, user, 2026-10-09)
+
+At night the moon lights the scene a little, by where it is and how full:
+
+- When the sun is below the horizon and the moon above it, the scene's
+  directional light comes from the moon: `Daylight` takes the moon's
+  elevation and lit fraction and gives a cool, weak diffuse light, scaled
+  by the lit fraction and fading in over the moon's first degrees above
+  the horizon. Full moon high up: a few percent of the day's diffuse light
+  (to be tuned by eye; real moonlight is far weaker than the eye's
+  adaptation makes it look).
+- The light's direction (`Game::sunLightDirection`, the direction shaders
+  light with) then points from the moon; the sun disc keeps its own sun
+  direction. Shadow maps follow the moon too, with the same lowest
+  elevation as for the sun; they could be left off at night if they cost
+  too much for so faint a light.
+- At twilight the sun's light fades out before the moon's fades in, so
+  there is no jump in direction while both are visible.
+
+### 7. Later steps (future work)
 
 - **Weather**: rain and snow (particles around the camera), wind (vegetation
   and smoke later), cloud layers on the sky, overcast light and fog.
@@ -124,17 +147,17 @@ the same date, place and sidereal time as `SunPosition`, about 80 lines.
 - **Season**: switching the season in the window needs seasonal textures
   reloaded (shapes, terrain); a separate step.
 - Stars at night; clock time with the route's time zone; time running
-  (time-lapse) with a speed control; moonlight.
+  (time-lapse) with a speed control (user: later).
 
-## Decisions for the user
+## Decisions (user, 2026-10-09)
 
-1. **Window**: a floating tool window like the navigation window
-   (suggested), or docked in the main window?
-2. **Save to profile**: wanted, or session only with Reset?
-3. **Sun size**: about 2 degrees across (suggested), the real 0.53, or a
-   setting only?
-4. **Moon**: in the first version (suggested, small), or later?
-5. **Time running** (time-lapse) in the first version, or later?
+| Topic | Decision |
+|---|---|
+| Window | Floating, like the navigation window. |
+| Save to profile | Yes, if it fits nicely. |
+| Sun size | A little bigger than real; real size plus bloom may equal the others' 2 degrees. Needs visual approval. |
+| Moon | In the first version; moonlight at night by its position as a bonus. |
+| Time running | Later. |
 
 ## Steps
 
@@ -142,7 +165,8 @@ the same date, place and sidereal time as `SunPosition`, about 80 lines.
    fog colours and fog density made live; Reset and Save to profile.
 2. Sun disc on both renderers.
 3. Moon position, phase and disc; suite against published values.
-4. Later: weather, ENV files, season, stars, clock time.
+4. Moonlight at night.
+5. Later: weather, ENV files, season, stars, clock time.
 
 ## Verification
 
@@ -151,5 +175,6 @@ the same date, place and sidereal time as `SunPosition`, about 80 lines.
   value back; Save to profile writes it.
 - `time-of-day` suite extended: the moon's position and phase.
 - Captures at sunrise, noon, sunset and night on both renderers, with the
-  sun and moon in view; the settings window's values unchanged after using
+  sun and moon in view (the sun's size approved by the user), and a full
+  and a new moon night for moonlight; the settings window's values unchanged after using
   the environment window.
