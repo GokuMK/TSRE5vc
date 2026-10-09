@@ -644,8 +644,20 @@ Map > Faded Overlay, formerly Faded Terrain):
 - **Map mode**: the overlay squares of `TerrainMapLayer` blended at the
   opacity over the terrain textures under them (layer order from heights,
   as before).
-- Check: `tests/renderer/map-overlay.json`'s `half-map` and `half-3d`
-  views (50 %); suite `map-view` checks the surface rule.
+- **OpenGL framebuffer alpha**: the OpenGL renderer blended alpha with the
+  colour's factors, so blended and alpha-textured surfaces (the overlay,
+  and terrain textures with alpha below 1) left the framebuffer's alpha
+  under 1; captures and the widget's composition showed them washed out
+  (the 50 % overlay looked lighter than both 0 and 100 %). Alpha now
+  accumulates as coverage (`glBlendFuncSeparate(..., GL_ONE,
+  GL_ONE_MINUS_SRC_ALPHA)`), so the frame stays opaque; QRhi composes into
+  an opaque target already.
+- Checked (2026-10-09, Steam Deck, TEST_PROFILES with the Poland file):
+  opacity 0, 0.5 and 1 in 3D and on the map, QRhi and OpenGL; at 50 % each
+  pixel is the mean of 0 and 100 % on both renderers, which agree within
+  one level. `half-map` moved to 2 m/px: at 6 m/px a 1280-pixel capture at
+  display scale 2.5 spans over 16 km, where the map draws tiles as borders
+  only and shows no overlay. Suite `map-view` checks the surface rule.
 - **Auto-created tiles** (F3, "Create new tiles if not exist"): the 3D
   scene draw creates the camera's tile when it has none, writing terrain
   and world files to disk at once (`Route::newTile`, with heights from

@@ -41,7 +41,7 @@
     {
       "name": "half-map",
       "mode": "map",
-      "metresPerPixel": 6,
+      "metresPerPixel": 2,
       "overlayOpacity": 0.5
     },
     {

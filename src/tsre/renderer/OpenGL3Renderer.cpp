@@ -1148,7 +1148,11 @@ void OpenGL3Renderer::resetState(){
     functions->glEnable(GL_CULL_FACE);
     functions->glCullFace(GL_BACK);
     functions->glEnable(GL_BLEND);
-    functions->glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    // Alpha accumulates as coverage, so the frame stays opaque: with the
+    // colour's factors for alpha too, blended and alpha-textured surfaces
+    // left the framebuffer's alpha below 1 (captures and widget composition
+    // showed them washed out). QRhi composes into an opaque target.
+    functions->glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
     functions->glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
     functions->glDisable(GL_SCISSOR_TEST);
     functions->glLineWidth(Game::oglDefaultLineWidth);
