@@ -150,7 +150,7 @@ int TsreTests::runMapViewSuite(bool verbose) {
     MapPalette oldFade, newFade;
     check(MapPalette::fromJson("{\"terrainFade\": 0.5}", oldFade) && near(oldFade.overlayFade, 0.5f)
                   && MapPalette::fromJson("{\"terrainFade\": 0.5, \"overlayFade\": 0.2}", newFade)
-                  && near(newFade.overlayFade, 0.2f) && near(MapPalette::light().overlayFade, 0.3f),
+                  && near(newFade.overlayFade, 0.2f) && near(MapPalette::light().overlayFade, 0.55f) && near(MapPalette::dark().overlayFade, 0.55f),
           "palettes: overlayFade, read from the former terrainFade too");
 
     // Layer order: terrain textures, OSM data (50 to 79), terrain aids, the

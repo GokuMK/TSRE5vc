@@ -550,6 +550,8 @@ Map > Faded Overlay, formerly Faded Terrain):
   missing-tile tint), which moved above the OSM band (heights 50 to 79); see
   [OSM rendering](../geo/osm-rendering-design.md). It is drawn by `paintMap`
   (`MapOverlayFade`), so it also fades OSM with terrain hidden.
+  Default `overlayFade` 0.55 in both palettes (2026-10-09, was 0.3: the
+  user found the difference too small; 0.7 washed the base out).
 - Measured builds: under 3 ms at 16 km on USA2 (16 tiles, 12 textures);
   3D captures identical on EUROPE1, USA2 and PROCEDURAL.
 - **Terrain painting** works on the map (2026-10-08) with the texture
@@ -731,7 +733,7 @@ longer side, as for track objects):
 - **Lighting**: neutral and fixed, not the time of day, so terrain does
   not darken at night in the editor.
 - **Faded terrain**: a Map menu toggle blends terrain towards the
-  background (the amount a palette value, `terrainFade`, default 30%),
+  background (the amount a palette value, `overlayFade`, default 55%),
   so lines and markers stay readable when working on track. Off by
   default, as painting needs the true colours; terrain can also be
   hidden altogether with its own toggle.
