@@ -24,6 +24,10 @@
 #include <QToolButton>
 #include <QVBoxLayout>
 #include <QDebug>
+#include <QApplication>
+#include <QIcon>
+#include <QPainter>
+#include <QPixmap>
 #include <algorithm>
 #include <cmath>
 
@@ -50,6 +54,33 @@ void quietly(Widget *widget, void (Class::*setter)(Argument), const Value &value
     const bool blocked = widget->blockSignals(true);
     (widget->*setter)(value);
     widget->blockSignals(blocked);
+}
+
+// The reset arrow (an open circle turning anticlockwise, as U+21BA), drawn:
+// the usual UI fonts lack that glyph, and Windows looking for it in other
+// fonts made the window's first show take up to seconds.
+QIcon resetIcon(const QColor &colour) {
+    const qreal ratio = qApp->devicePixelRatio();
+    QPixmap pixmap(QSize(14, 14) * ratio);
+    pixmap.setDevicePixelRatio(ratio);
+    pixmap.fill(Qt::transparent);
+    QPainter painter(&pixmap);
+    painter.setRenderHint(QPainter::Antialiasing);
+    QPen pen(colour, 1.4);
+    pen.setCapStyle(Qt::RoundCap);
+    painter.setPen(pen);
+    // Open at the upper left; the arrow at the top points into the gap.
+    const QPointF centre(7.0, 7.5);
+    const double radius = 4.5, end = 80.0, span = 300.0;
+    painter.drawArc(QRectF(centre.x() - radius, centre.y() - radius, 2 * radius, 2 * radius),
+                    int((end - span) * 16), int(span * 16));
+    const double a = end * M_PI / 180.0;
+    const QPointF at(centre.x() + radius * std::cos(a), centre.y() - radius * std::sin(a));
+    const QPointF along(-std::sin(a), -std::cos(a)), across(along.y(), -along.x());
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(colour);
+    painter.drawPolygon(QPolygonF({at + along * 2.6, at + across * 2.3, at - across * 2.3}));
+    return QIcon(pixmap);
 }
 
 QTime timeOfHours(double hours) {
@@ -273,7 +304,8 @@ EnvironmentWindow::EnvironmentWindow(QWidget *parent) : QWidget(parent) {
 QToolButton *EnvironmentWindow::resetButtonFor(const QString &key) {
     auto *button = new QToolButton(this);
     button->setObjectName("reset:" + key);
-    button->setText(QStringLiteral("↺"));
+    static const QIcon arrow = resetIcon(palette().color(QPalette::ButtonText));
+    button->setIcon(arrow);
     button->setAutoRaise(true);
     button->setFixedSize(20, 20);
     button->setToolTip(
