@@ -10,9 +10,10 @@ Phase 1 core, as built:
   - A new "Map" menu holds the map's own layer toggles: track lines, road
     lines, junctions, track ends, track objects, paths, activity,
     pointer. They are kept in the map code (`MapLayers`), not `Game`.
-  - "Map Mode" sits in the Tools menu until the menus are restructured.
+  - "Map Mode" sits in the Window menu (the old Tools menu, renamed when
+    tool actions moved to a new Tools menu).
 - **Switching:**
-  - Backquote or Tools > Map Mode switches modes; switching moves to the
+  - Backquote or Window > Map Mode switches modes; switching moves to the
     pointer's place in the other mode.
   - Tools the mode does not support are put aside and restored on
     return.

@@ -70,7 +70,7 @@ even when stale. No automatic bake generation occurs when a tile enters view.
 Existing different-sized bakes are displayed without resizing and regenerated
 at the configured size on the next save.
 
-For all saved tiles, open **Settings → Bake procedural terrain textures…**,
+For all saved tiles, open **Tools → Bake procedural terrain textures…**,
 immediately below Terrain Editing. Save/discard pending route edits first.
 The modal window blocks editing while its isolated worker process runs.
 Resident tiles reload bake metadata afterwards. Do not edit the same route in

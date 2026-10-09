@@ -6,7 +6,7 @@ the existing implementation, not the proposed
 
 ## Using the window
 
-Open **Tools > Errors and Messages** in the route editor. The tool window lists
+Open **Window > Errors and Messages** in the route editor. The tool window lists
 messages collected during loading, validation and certain editor operations.
 Opening it refreshes the display; it does **not** start a complete route scan.
 Closing/hiding it does not clear the collected messages.
@@ -14,7 +14,7 @@ Closing/hiding it does not clear the collected messages.
 Code can also open the window at a particular message: its row is selected,
 scrolled into view, and its details (including Fix, if available) are displayed.
 Selection survives list refreshes when new messages arrive. Keyboard selection
-also updates the details. Programmatic opening keeps the Tools menu checkmark
+also updates the details. Programmatic opening keeps the Window menu checkmark
 in sync; this is a non-modal tool window, not a confirmation dialog.
 
 Newest messages appear first. Columns are ID, Time, Type, Source and Message.

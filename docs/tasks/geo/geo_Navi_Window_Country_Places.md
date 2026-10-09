@@ -14,7 +14,7 @@ Route dialog tasks.
 - Use marker indices as selection identity so duplicate display names remain
   distinct.
 - Generate route-local place sources by country during interactive route
-  creation and through **Route -> Generate country places...**.
+  creation and through **Tools -> Generate country places...**.
 - Permit multiple generated countries. Regenerating one country atomically
   replaces only that country's file.
 

@@ -126,6 +126,7 @@ private:
     QMenu *editMenu;
     QMenu *viewMenu;
     QMenu *helpMenu;
+    QMenu *windowMenu;
     QMenu *toolsMenu;
     QMenu *settingsMenu;
     

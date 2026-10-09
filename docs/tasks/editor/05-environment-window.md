@@ -186,7 +186,7 @@ At night the moon lights the scene a little, by where it is and how full:
 
 Steps 1 to 3 (user: "go with 1, 2 and 3"):
 
-- **Window**: `EnvironmentWindow` (Tools > Environment Window), floating,
+- **Window**: `EnvironmentWindow` (Window > Environment Window), floating,
   hidden at start, laid out as the tool panels (F1, F2; user, 2026-10-09):
   headings in the accent colour, compact rows; every number has a field of
   one width and a slider over its range. Time: time of day, solar
