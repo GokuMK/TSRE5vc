@@ -142,6 +142,10 @@ void OglObj::setLineWidth(int val){
     lineWidth = val;
 }
 
+void OglObj::setOpacity(float value){
+    opacity = value;
+}
+
 void OglObj::pushRenderItem(RenderQueue &queue) {
     pushRenderItem(queue, 0);
 }
@@ -222,7 +226,8 @@ RenderItem *OglObj::framePacket(bool textured, unsigned int texAddr,
                               packet->water.layers)
                 && packet->mesh.count == static_cast<unsigned int>(length)
                 && packet->mesh.primitive == RenderItem::primitiveFromGl(shapeType)
-                && m.lineWidth == lineWidth;
+                && m.lineWidth == lineWidth
+                && m.opacity == opacity;
     };
     for(int i = 0; i < packetsUsed; ++i){
         if(matches(packets[i]))
@@ -240,6 +245,7 @@ RenderItem *OglObj::framePacket(bool textured, unsigned int texAddr,
                                 materialColor[2], materialColor[3]);
     std::copy(materialColor, materialColor + 4, packet->material.color);
     packet->material.lineWidth = lineWidth;
+    packet->material.opacity = opacity;
     packet->water.enabled = water;
     std::copy(layers, layers + RenderItem::Water::LAYER_COUNT, packet->water.layers);
     packet->mesh.handle = mesh;

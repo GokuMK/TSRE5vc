@@ -241,6 +241,7 @@ void GLUU::initShader() {
         currentShader->shaderShadowsEnabled = currentShader->uniformLocation("shadowsEnabled");
         currentShader->shaderBrightness = currentShader->uniformLocation("colorBrightness");
         currentShader->shaderFogDensity = currentShader->uniformLocation("fogDensity");
+        currentShader->shaderTransparency = currentShader->uniformLocation("materialTransparency");
         currentShader->shadow1Res = currentShader->uniformLocation("shadow1Res");
         currentShader->shadow2Res = currentShader->uniformLocation("shadow2Res");
         currentShader->shadow2Bias = currentShader->uniformLocation("shadow2Bias");

@@ -153,6 +153,9 @@ void applyItemState(GLUU *gluu, QOpenGLFunctions *f, RenderItem *item,
         gluu->disableNormals();
 
     gluu->setBrightness(item->material.brightness);
+    // Set for every item: a shader switch would leave a cached value stale.
+    gluu->currentShader->setUniformValue(gluu->currentShader->shaderTransparency,
+                                         1.0f - item->material.opacity);
 
     gluu->setSelectionId(selectionId);
     if (detail.remap != item->terrain.textureRemap) {

@@ -10,6 +10,8 @@ out vec4 fragColor;
 
 uniform float textureEnabled;
 uniform vec4 shapeColor;
+// 1 - RenderItem::Material::opacity; 0 (opaque) where nothing sets it.
+uniform float materialTransparency;
 uniform vec4 skyColor;
 uniform vec4 diffuseColor;
 uniform vec4 ambientColor;
@@ -35,6 +37,7 @@ void main() {
 
     if (textureEnabled == 0.0) {
         fragColor = shapeColor;
+        fragColor.a *= 1.0 - materialTransparency;
         return;
     }
 
@@ -50,6 +53,7 @@ void main() {
     fragColor.a = max(fragColor.a, vAlpha);
     if (fragColor.a < -vAlpha)
         discard;
+    fragColor.a *= 1.0 - materialTransparency;
 
 #ifdef TSRE_UNLIT
     // Overlays: no sun lighting, shadows or fog.

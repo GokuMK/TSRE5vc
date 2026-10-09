@@ -2517,18 +2517,16 @@ void Terrain::pushRenderItem(RenderQueue &queue, float lodx, float lodz, int til
     }
     
     if(showBlob && selectionId == 0){
-        // TODO(renderer): blend the overlay at TerrainOverlays::opacity() (its
-        // alpha times the opacity, in the terrain map pass); it draws opaque yet.
-        const bool translucent = TerrainOverlays::opacity() < 1.0f;
+        // Below full opacity the overlay is blended over the terrain drawn
+        // above. Paged terrain draws it on the terrain's own patches as a decal
+        // (depth tested with an offset, no depth writes, as transfers), so
+        // whatever stands on the ground hides it. Legacy terrain (deprecated)
+        // keeps its overlay lifted 0.35 m.
+        const float opacity = TerrainOverlays::opacity();
+        const bool translucent = opacity < 1.0f;
         if (backend->isPaged()) {
             const int mapTexture = ensureMapTexture();
             if (mapTexture >= 0) {
-                if(translucent){
-                    queue.pushTransform();
-                    Mat4::translate(queue.transform(),
-                                    queue.transform(),
-                                    0, 0.35, 0);
-                }
                 for (int patchId = 0; patchId < gridLayout.patchRecordCount(); ++patchId) {
                     if (!isPatchVisible(patchId, patchVisibility))
                         continue;
@@ -2542,14 +2540,16 @@ void Terrain::pushRenderItem(RenderQueue &queue, float lodx, float lodz, int til
                     backend->configureRenderItem(*r, patchId, true, false,
                                                  lodState.sourceStep,
                                                  lodState.edgeMask);
+                    r->material.decal = translucent;
+                    r->material.opacity = opacity;
                     queue.submit(r, 0, RenderQueue::SUBMIT_ORDERED);
                 }
-                if(translucent)
-                    queue.popTransform();
             }
         } else if(!translucent){
+            terrainBlob.setOpacity(1.0f);
             terrainBlob.pushRenderItem(queue);
         }else{
+            terrainBlob.setOpacity(opacity);
             queue.pushTransform();
             Mat4::translate(queue.transform(), queue.transform(), 0, 0.35, 0);
             terrainBlob.pushRenderItem(queue);

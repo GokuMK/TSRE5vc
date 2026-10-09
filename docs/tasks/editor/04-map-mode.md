@@ -613,30 +613,39 @@ Map > Faded Overlay, formerly Faded Terrain):
   - F3 Opacity (0 to 100 %, for the session) is
     `TerrainOverlays::opacity()`. At 100 % the overlay replaces the
     terrain's textures (the terrain draw is skipped, as before); below,
-    the terrain is drawn and the overlay 0.35 m over it (the former
-    translucent path).
+    the terrain is drawn and the overlay blended over it (see below).
   - Capture key `overlay` (terrainOverlayTool actions at the view's
     centre) and `overlayOpacity`; `tests/renderer/map-overlay.json`
     (TEST_PROFILES, local OSM data; QRhi matches OpenGL).
 
-### Terrain tile overlay opacity (to do, renderer)
+### Terrain tile overlay opacity (done, 2026-10-09)
 
-Everything up to drawing is in place; the renderer does not apply the
-opacity yet (left for the renderer work on `main`, to avoid conflicts).
-Below 100 % the overlay is drawn where a translucent one would be, but
-opaque. To do:
-
-- a per-item opacity for textured draws, multiplied into the texture's
-  alpha, on OpenGL and QRhi (today `RenderItem::Material::color` applies to
-  untextured items only, and the vertex alpha is an alpha floor or test);
-- 3D: the overlay packets of `Terrain::pushRenderItem` (paged terrain,
-  `terrainMapPass`, and the legacy `terrainBlob`) drawn blended at
-  `TerrainOverlays::opacity()`; marked `TODO(renderer)` there;
-- map mode: the overlay squares of `TerrainMapLayer` (its `overlays`
-  groups, at `OverlayHeight` over the terrain textures) the same; marked
-  `TODO(renderer)` there;
-- then check `tests/renderer/map-overlay.json`'s `half-map` and `half-3d`
-  views, which run at 50 %.
+- **Per-item opacity**: `RenderItem::Material::opacity` (1 by default).
+  Below 1 the shaders multiply the final alpha by it (`StandardFog`,
+  `StandardFast`; the uniform is `materialTransparency`, 1 - opacity, so
+  draws that never set it stay opaque) on OpenGL and QRhi, and
+  `drawSurface()` makes the packet blended (terrain packets keep their
+  terrain pass). `OglObj::setOpacity` for its packets. Blending is on in
+  both renderers outside picking, so nothing else changes. Chosen over
+  writing alpha into the overlay images (user, 2026-10-09): the slider
+  needs no re-encoding or upload, overlays stay RGB, and Make from Overlay
+  stays opaque.
+- **3D, paged terrain**: the overlay packets (`terrainMapPass`, the
+  terrain's own patches and LOD) are drawn at the opacity as decals
+  (`Material::decal`: depth tested with a polygon offset, no depth writes,
+  as transfers), right after the tile's terrain in the terrain pass. The
+  former 0.35 m lift is gone: whatever stands on the ground (rails,
+  platforms, transfers) hides the overlay instead of being tinted by it,
+  and nothing floats at grazing angles or on slopes.
+- **3D, legacy terrain** (deprecated, user: to be removed once paged
+  terrain has wider use; no work-arounds for it): `terrainBlob` blended at
+  the opacity, still lifted 0.35 m (its triangles split cells differently
+  when terrain LOD is on).
+- **Map mode**: the overlay squares of `TerrainMapLayer` blended at the
+  opacity over the terrain textures under them (layer order from heights,
+  as before).
+- Check: `tests/renderer/map-overlay.json`'s `half-map` and `half-3d`
+  views (50 %); suite `map-view` checks the surface rule.
 - **Auto-created tiles** (F3, "Create new tiles if not exist"): the 3D
   scene draw creates the camera's tile when it has none, writing terrain
   and world files to disk at once (`Route::newTile`, with heights from

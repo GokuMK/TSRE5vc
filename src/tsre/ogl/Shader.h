@@ -48,6 +48,7 @@ public:
     unsigned int shaderShadowsEnabled;
     unsigned int shaderBrightness;
     unsigned int shaderFogDensity;
+    unsigned int shaderTransparency;
     unsigned int shadow1Res;
     unsigned int shadow2Res;
     unsigned int shadow2Bias;

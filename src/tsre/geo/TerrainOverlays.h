@@ -47,11 +47,8 @@ bool osmBusy();
 
 // How opaque overlays are drawn, 0 to 1 (F3 Opacity; for the session). 1: the
 // overlay replaces the terrain's own textures; below: the terrain is drawn and the
-// overlay over it.
-// TODO(renderer): the overlay's alpha is not multiplied by this yet. Terrain draws
-// the overlay above the terrain below 1 (as translucent overlays were drawn), but
-// the shaders draw it opaque; see docs/tasks/editor/04-map-mode.md, "Terrain tile
-// overlay opacity".
+// overlay blended over it at this opacity (RenderItem::Material::opacity; in 3D a
+// decal on paged terrain).
 float opacity();
 void setOpacity(float value);
 

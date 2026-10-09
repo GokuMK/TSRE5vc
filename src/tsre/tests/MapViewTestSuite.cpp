@@ -19,6 +19,7 @@
 #include <tsre/geo/GeoCoordinates.h>
 #include <memory>
 #include <tsre/map/TerrainMapLayer.h>
+#include <tsre/renderer/RenderItem.h>
 #include <tsre/map/MapView.h>
 #include <tsre/map/TrackItemMapLayer.h>
 #include <tsre/map/TrackMapLayer.h>
@@ -446,6 +447,19 @@ int TsreTests::runMapViewSuite(bool verbose) {
           "scale bar: round lengths");
     check(MapScaleBar::text(2000.0).contains(QLatin1String("2 km")) && MapScaleBar::text(500.0).contains(QLatin1String("500 m")),
           "scale bar: metres below a kilometre, kilometres from it");
+
+    // Terrain tile overlays below full opacity (F3 Opacity): blended, the
+    // terrain's own overlay packets keep their terrain pass.
+    {
+        RenderItem item;
+        item.material.surface = RenderItem::SURFACE_OPAQUE;
+        const bool opaque = item.drawSurface() == RenderItem::SURFACE_OPAQUE;
+        item.material.opacity = 0.5f;
+        const bool blended = item.drawSurface() == RenderItem::SURFACE_BLENDED;
+        item.material.surface = RenderItem::SURFACE_TERRAIN;
+        check(opaque && blended && item.drawSurface() == RenderItem::SURFACE_TERRAIN,
+              "an opacity below 1 draws a surface blended, terrain packets stay terrain");
+    }
 
     qInfo().noquote() << "[tests:map-view] cases=" << passed + failed << "passed=" << passed
                       << "failed=" << failed;

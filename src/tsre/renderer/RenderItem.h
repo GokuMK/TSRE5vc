@@ -83,6 +83,9 @@ public:
         bool wireframe = false;
         // Drawn without back-face culling.
         bool doubleSided = false;
+        // Below 1 the surface is drawn blended, its alpha times this (terrain
+        // tile overlays, task editor 04).
+        float opacity = 1.0f;
     };
 
     // Metallic-roughness material (glTF), drawn by the PBR program variant.

@@ -401,6 +401,7 @@ void RhiRenderer::setFogLod(float lod) {
 void RhiRenderer::writeItemUniforms(RhiProgram *program, RenderItem *item, quint32 selectionId) {
     program->setFloat("enableNormals", item->material.lit ? 1.0f : 0.0f);
     program->setFloat("colorBrightness", item->material.brightness);
+    program->setFloat("materialTransparency", 1.0f - item->material.opacity);
     program->setUint("selectionId", selectionId);
     const QVector3D remap = item->terrain.textureRemap;
     program->setVec("terrainTextureRemap", remap.x(), remap.y(), remap.z());
