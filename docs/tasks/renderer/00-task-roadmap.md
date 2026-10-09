@@ -20,7 +20,7 @@ This folder contains ordered tasks for migrating the TSRE renderer from legacy i
 - [x] `12-parity-automation-and-performance-gate.md` (harness compares a capture with a baseline capture)
 - [x] `16-renderer-owned-meshes.md` (every producer draws renderer-owned meshes; textures and framebuffers are a later step)
 - [x] `17-environment-map.md` (cube map around the camera for reflections; measured on hardware; glTF PBR and water read it, MSTS shapes pending)
-- [ ] `18-shaded-water.md` (one shaded water surface with waves and planar reflection; ENV wave fields pending)
+- [ ] `18-shaded-water.md` (one shaded water surface with waves and planar reflection; next: realistic water, Crysis target: FFT waves, refraction and soft shores, foam, river flow)
 - [ ] `19-backend-boundary.md` (OpenGL calls left outside the renderer; state, views, measurement, readback, targets, programs, selection and reflection storage moved behind `Renderer`; texture uploads and the `GLUU` matrices and lights remain)
 - [ ] `20-qrhi-renderer.md` (QRhi renderer on `feature/qrhi`: parity with the OpenGL renderer reached on lavapipe and on the Steam Deck; open: hardware sweep of all capture sets, water visibility without queries, QRhi OpenGL CPU cost (automatic API is Vulkan only until then), Direct3D 11 for development only)
 - [ ] `21-local-lights.md` (glTF punctual lights and emissive surfaces light the scene on the QRhi renderer through a world-space light grid)

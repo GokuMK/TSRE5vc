@@ -144,3 +144,125 @@ Under Rendering > Water, applied while running:
   variants, frozen animation, and a mirrored render in which an object above
   the plane shows below the horizon and geometry under the plane is clipped.
 - `settings` suite: the two settings and their translations.
+
+## Next: Realistic Water (Crysis Target)
+
+User, 2026-10-09: the shading is nice overall, but the wave texture is poor
+and its repetition clearly visible. Make the waves procedural and dynamic;
+the first CryEngine (Crysis, 2007), also used for architecture and GIS
+views, is the target. Ideas and progress for the next water work are kept
+here.
+
+### Review Of The Current Waves
+
+- **One small static map, repeated.** `WaterNormalMap` is 256 x 256 texels
+  of 64 waves with 3 to 48 cycles across the map. At 16 m per repeat the
+  waves are 0.33 to 5.3 m long, and nothing is larger, so at a distance
+  every 16 m looks the same and the repeats line up into a grid.
+- **The two scales repeat together.** 16 m and 5.12 m are 25:8, so their sum
+  repeats exactly every 128 m (8 large, 25 small repeats). Transposing the
+  second scale hides it only up close.
+- **The waves slide instead of moving.** Each scale is one picture moved at
+  one drift velocity, so it reads as a scrolling texture. Real waves
+  disperse: each wavelength travels at its own speed (deep water
+  omega = sqrt(g k), long waves faster), so the pattern changes all the time
+  and never repeats in time.
+- **No large-scale variation.** Real water is uneven over tens to hundreds
+  of metres: gusts roughen patches, calm strips stay smooth. Its absence is
+  what makes any tiling stand out at a distance.
+- **The colour textures repeat too.** The body colour is the route's layer
+  textures at their patch coordinates, static. That is right for the colour
+  of MSTS water, but with plain shading on top their repeats show as well.
+- **Kept**: the slope variance from the mipmaps turned into roughness
+  (waves too small for a pixel blur the reflection), the Fresnel mix,
+  planar reflection, GGX sun glints. These stay and take the new waves.
+- **Positions**: `vWorldPosition` is relative to the camera's tile, so
+  every wave period must divide 2048 m, or the waves jump when the camera
+  crosses a tile. Periods 2048/n with n prime to one another (for example
+  2048/7, 2048/47, 2048/331 m) keep that and repeat together only every
+  2048 m, out of sight.
+
+### What Crysis Did
+
+CryEngine 2 (2007) water, as Crytek described it in its 2007 talks
+(recalled, not re-checked; Tessendorf's "Simulating Ocean Water" for the
+waves):
+
+- Ocean waves from an FFT (Tessendorf) on the CPU, a small grid (64 x 64)
+  each frame, displacing a screen-space grid; normal maps for the detail.
+- Lakes and rivers ("water volumes"): several normal map scales, flowing
+  along the volume.
+- Refraction of what is under the water, with depth fog: colour absorbed
+  with depth, shallow water clear.
+- Soft shores: the water fades where it meets the ground (depth
+  difference), with foam along the shore.
+- Reflection (a planar pass, cheaper than the main view), sun glints,
+  caustics on the bed, light shafts under water.
+
+Far Cry (2004) already had reflection, refraction and soft shores; these
+are what make water look like water more than any one texture.
+
+### Plan
+
+Each step keeps the current water as the fallback, and works on OpenGL
+and QRhi.
+
+1. **Waves (the user's complaint)**:
+   - An FFT wave field (Tessendorf, Phillips or JONSWAP spectrum from a wind
+     speed and direction): slopes, height and, later, the Jacobian for
+     foam, each frame from the spectrum, so every wavelength moves at its
+     own speed.
+   - Three cascades with periods 2048/n (n prime to one another, see
+     above), each covering its own band of wavelengths, from about 300 m
+     (big lakes, sea) down to about 0.3 m.
+   - A large-scale variation map (tileable noise, 100 to 500 m) scaling
+     wave strength and roughness, for gust patches and calm strips.
+   - The slope variance kept in the textures and their mipmaps (as now), so
+     the far water turns rough instead of aliasing.
+   - Wind speed and direction from the ENV's `world_water_wave_height` and
+     `_speed` when set, a default otherwise; later from weather, and as
+     Environment window sliders.
+   - Recommended first: the FFT on the CPU in a worker thread (Crysis did
+     the same), 64 or 128 per cascade, the results uploaded as textures.
+     Both renderers only bind textures, so nothing backend-specific is
+     needed, and the FFT can be unit-tested. Cost to measure on the Deck:
+     about 1 to 2 ms per frame of worker time and about 0.4 MB of upload at
+     128. A GPU version (fragment passes, or compute on QRhi) later only if
+     the CPU cost matters; the shading does not change.
+   - Alternative, no per-frame work: the spectrum's frequencies rounded so
+     the animation loops (for example every 32 s), baked into a texture
+     array once (tens of MB).
+2. **Depth: refraction, absorption and soft shores**:
+   - The scene's depth and colour before the water pass, read by the water
+     shader (QRhi has a depth texture for AO; OpenGL needs a copy).
+   - Water depth along the view: colour absorbed per channel
+     (Beer-Lambert; red first), so shallow water shows the bed, deep water
+     its own colour.
+   - Refraction: the bed seen through the waves (screen offset by slope),
+     not taking objects in front of the water.
+   - Soft shores: opacity fades over the first few centimetres of depth,
+     removing the hard line where terrain meets water.
+   - The route's layer textures then tint the deep colour, with a setting
+     for the legacy look. MSTS terrain under water is often untextured or
+     shallow, so routes need checking.
+3. **Foam and light in the waves**:
+   - Shore foam from the depth of step 2; whitecaps where the FFT Jacobian
+     folds (strong wind only); a foam texture, also broken up by the
+     variation map.
+   - Light through wave crests facing away from the sun (the green glow of
+     Crysis water), from the wave height and the view and sun angles.
+4. **River flow**: MSTS has no flow data, but its water levels slope down
+   the river (the planar reflection already fits the tilt). Flow along the
+   slope, drawn with two-phase flow sampling (the waves move with the flow
+   without stretching); still water when level.
+5. **Later**:
+   - Displaced wave geometry (a projected or tessellated grid), for the sea
+     and big lakes; rivers do not need it.
+   - Screen-space reflection for water off the fitted plane (a lake above a
+     river).
+   - Moon glints at night (with the moonlight of the environment work).
+   - Caustics on the bed, the view under water.
+
+### Progress
+
+- 2026-10-09: review and plan (this section). Nothing implemented yet.
