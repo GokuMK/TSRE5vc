@@ -1,0 +1,71 @@
+{
+  "notes": "Imagery in map mode (docs/tasks/geo/imagery-map-layer.md) on TEST_PROFILES (Transverse Mercator at 52 N, 20 E): the imagery catalogue's world source (ESA WorldCover) from the close scale to the whole country, with OSM data and the Faded Overlay on top. Downloads tiles on first use: --set core.paths.geoData=<directory> keeps them; the OSM views need --set core.paths.osmData=<converted Poland files>.",
+  "output": "build/renderer-map-imagery",
+  "width": 1280,
+  "height": 800,
+  "pickGrid": [
+    1,
+    1
+  ],
+  "timingFrames": 1,
+  "diffTolerance": 16,
+  "shadows": false,
+  "settle": {
+    "minFrames": 8,
+    "stableFrames": 3,
+    "maxFrames": 600,
+    "maxSeconds": 180
+  },
+  "views": [
+    {
+      "name": "close",
+      "mode": "map",
+      "metresPerPixel": 1,
+      "imagery": true
+    },
+    {
+      "name": "town",
+      "mode": "map",
+      "metresPerPixel": 10,
+      "imagery": true
+    },
+    {
+      "name": "regional",
+      "mode": "map",
+      "metresPerPixel": 60,
+      "imagery": true
+    },
+    {
+      "name": "national",
+      "mode": "map",
+      "metresPerPixel": 450,
+      "latLon": [
+        52.0,
+        19.3
+      ],
+      "imagery": true
+    },
+    {
+      "name": "rotated",
+      "mode": "map",
+      "metresPerPixel": 10,
+      "bearing": 35,
+      "imagery": true
+    },
+    {
+      "name": "osm",
+      "mode": "map",
+      "metresPerPixel": 10,
+      "imagery": true,
+      "osmData": true,
+      "osmTransparentAreas": true
+    },
+    {
+      "name": "faded",
+      "mode": "map",
+      "metresPerPixel": 10,
+      "imagery": true,
+      "fadedOverlay": true
+    }
+  ]
+}

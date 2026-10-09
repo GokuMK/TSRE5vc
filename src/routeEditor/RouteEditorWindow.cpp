@@ -438,6 +438,8 @@ RouteEditorWindow::RouteEditorWindow() {
          qtTrId("route.editor.route.editor.window.action.map.activity"), MapLayer::Activity},
         {//% "Terra&in"
          qtTrId("route.editor.route.editor.window.action.map.terrain"), MapLayer::Terrain},
+        {//% "Ima&gery"
+         qtTrId("route.editor.route.editor.window.action.map.imagery"), MapLayer::Imagery},
         {//% "&OSM Data"
          qtTrId("route.editor.route.editor.window.action.map.osm.data"), MapLayer::OsmData},
         {//% "Transparent OSM &Areas"
@@ -455,7 +457,8 @@ RouteEditorWindow::RouteEditorWindow() {
                                                        MapLayers().shows(entry.layer));
         const MapLayer layer = entry.layer;
         QObject::connect(action, &QAction::triggered, this, [this, layer, action](bool visible) {
-            if (visible && layer == MapLayer::OsmData && !glWidget->prepareOsmLayer()) {
+            if (visible && ((layer == MapLayer::OsmData && !glWidget->prepareOsmLayer())
+                            || (layer == MapLayer::Imagery && !glWidget->prepareImageryLayer()))) {
                 action->setChecked(false);
                 return;
             }

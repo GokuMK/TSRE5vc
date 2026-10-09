@@ -64,6 +64,8 @@ class MapSelection;
 class TerrainMapLayer;
 class MapOverlayFade;
 class OsmMapLayer;
+class ImageryMapLayer;
+class QLabel;
 class MapLabelLayer;
 class Coords;
 
@@ -124,6 +126,9 @@ public:
     // geographic reference (telling the user what is missing) and offers to convert the
     // downloads covering the view. False when the layer cannot be shown.
     bool prepareOsmLayer();
+    // Before Map > Imagery is switched on: checks the route's geographic reference and
+    // the imagery catalogue's world source. False when the layer cannot be shown.
+    bool prepareImageryLayer();
     // A map layer is still building on a worker thread (captures wait for it).
     bool mapLayersBusy() const;
 
@@ -413,6 +418,11 @@ private:
     std::unique_ptr<TerrainMapLayer> terrainMap;
     std::unique_ptr<MapOverlayFade> mapFade;
     std::unique_ptr<OsmMapLayer> osmMap;
+    // Map > Imagery: the imagery catalogue's world tile source, with its attribution
+    // in the bottom right corner while shown.
+    std::unique_ptr<ImageryMapLayer> imageryMap;
+    QLabel *imageryAttribution = NULL;
+    void showImageryAttribution(bool show);
     // Map labels: the marker set (Map > Markers), stations, platforms and sidings (Map >
     // Track Objects), location events (Map > Activity), placed together. Rebuilt when a
     // source or its size changes, or when edits invalidate the map's items.

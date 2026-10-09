@@ -85,6 +85,7 @@ struct ViewSpec {
     bool fadedOverlay = false;
     bool osmData = false;
     bool osmTransparentAreas = false;
+    bool imagery = false;
     // Centred on a latitude and longitude through the route's projection, instead of
     // tile and pos (map views of OSM data).
     bool markers = false;  // Map > Markers
@@ -260,6 +261,7 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         view.fadedOverlay = object.value("fadedOverlay").toBool(false);
         view.osmData = object.value("osmData").toBool(false);
         view.osmTransparentAreas = object.value("osmTransparentAreas").toBool(false);
+        view.imagery = object.value("imagery").toBool(false);
         view.markers = object.value("markers").toBool(false);
         view.viewMarkers = object.value("viewMarkers").toBool(false);
         const QJsonArray latLon = object.value("latLon").toArray();
@@ -542,6 +544,7 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
             widget.setMapLayerVisible(MapLayer::FadedOverlay, spec.fadedOverlay);
             widget.setMapLayerVisible(MapLayer::OsmData, spec.osmData);
             widget.setMapLayerVisible(MapLayer::OsmTransparentAreas, spec.osmTransparentAreas);
+            widget.setMapLayerVisible(MapLayer::Imagery, spec.imagery);
             widget.setMapLayerVisible(MapLayer::Markers, spec.markers);
             if (spec.editDistant)
                 Game::terrainLib->setDistantAsCurrent();

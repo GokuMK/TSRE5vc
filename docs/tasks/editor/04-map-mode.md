@@ -203,6 +203,14 @@ Phase 1 core, as built:
     point, a line with a `StyleMap`, an area, a two-part line, near the
     TEST_PROFILES start). A real development-project file would be better.
 
+- **Imagery** (2026-10-09, Map > Imagery, off by default): the imagery
+  catalogue's world source (ESA WorldCover) as streamed Web Mercator tiles at
+  height 40, between the terrain and the OSM data, with its attribution in the
+  bottom right corner. Shares Load Imagery's cache and requests
+  (`Imagery::fetchTiles`). Capture key `imagery`,
+  `tests/renderer/map-imagery.json`. Design, measurements and open items:
+  [Imagery in map mode](../geo/imagery-map-layer.md).
+
 Next: phase 2 layers (tile grid, scale ruler). OSM and label follow-ups:
 [OSM rendering, open items](../geo/osm-rendering-design.md).
 

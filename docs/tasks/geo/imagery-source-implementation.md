@@ -49,6 +49,12 @@ Milestone one was implemented on 2026-09-24:
 - the focused geo suite covers catalogue merging, KVP requests, Web Mercator
   addressing, zoom choice, cache paths and offline cached composition.
 
+On 2026-10-09 the WMTS and static-map tile loop became the public
+`Imagery::fetchTiles`, shared with the map mode's imagery layer
+([imagery-map-layer.md](imagery-map-layer.md)). Requests now run in a sliding
+window instead of waves of four; the composed images and cache files are
+unchanged, and fresh requests got faster (measurements in that document).
+
 The optional overlay PNG save and final terrain texture generation remain
 separate. Load Map now contains only its OSM workflow; catalogue-based raster
 imagery belongs to Load Imagery.

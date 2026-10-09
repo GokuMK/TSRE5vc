@@ -83,6 +83,8 @@
 #include <tsre/map/MapSelection.h>
 #include <tsre/map/MapOverlayFade.h>
 #include <tsre/map/OsmMapLayer.h>
+#include <tsre/map/ImageryMapLayer.h>
+#include <QLabel>
 #include <tsre/map/MapLabelLayer.h>
 #include <tsre/map/MapLabelSources.h>
 #include <tsre/trains/Activity.h>
@@ -362,6 +364,13 @@ void RouteEditorGLWidget::cameraInit(){
         mapFade = std::make_unique<MapOverlayFade>();
     if (!mapLabels)
         mapLabels = std::make_unique<MapLabelLayer>();
+    if (!imageryMap) {
+        imageryMap = std::make_unique<ImageryMapLayer>();
+        // From the fetch thread: draw again once tiles arrive.
+        imageryMap->setReadyCallback([this] {
+            QMetaObject::invokeMethod(this, [this] { update(); }, Qt::QueuedConnection);
+        });
+    }
     if (!osmMap) {
         osmMap = std::make_unique<OsmMapLayer>();
         // From the worker thread: draw again once a build is ready.
@@ -568,6 +577,7 @@ void RouteEditorGLWidget::surfacePaint(){
     renderer->resetState();
 
     const bool selectionPass = selection;
+    showImageryAttribution(currentViewMode == ViewMode::Map && mapLayers.shows(MapLayer::Imagery));
     if (currentViewMode == ViewMode::Map) {
         paintMap();
         // As in 3D, a selection pass is followed by a visible frame.
@@ -2055,8 +2065,49 @@ bool RouteEditorGLWidget::prepareOsmLayer() {
     return true;
 }
 
+bool RouteEditorGLWidget::prepareImageryLayer() {
+    QString error;
+    if (imageryMap && imageryMap->prepare(error))
+        return true;
+    QMessageBox::information(this,
+        //% "Imagery"
+        qtTrId("route.editor.route.editor.glwidget.imagery.title"),
+        Game::GeoCoordConverter == NULL
+            //% "This route has no geographic reference, so imagery cannot be placed on it."
+            ? qtTrId("route.editor.route.editor.glwidget.imagery.no.reference")
+            //% "No imagery source can be shown: %1"
+            : qtTrId("route.editor.route.editor.glwidget.imagery.no.source").arg(error));
+    return false;
+}
+
+void RouteEditorGLWidget::showImageryAttribution(bool show) {
+    if (!show) {
+        if (imageryAttribution != NULL)
+            imageryAttribution->hide();
+        return;
+    }
+    if (imageryAttribution == NULL) {
+        imageryAttribution = new QLabel(this);
+        imageryAttribution->setAttribute(Qt::WA_TransparentForMouseEvents);
+        imageryAttribution->setStyleSheet(
+            QStringLiteral("QLabel { background: rgba(255, 255, 255, 180); color: black; padding: 1px 4px; }"));
+    }
+    const QString text = imageryMap ? imageryMap->attribution() : QString();
+    if (imageryAttribution->text() != text) {
+        imageryAttribution->setText(text);
+        imageryAttribution->adjustSize();
+    }
+    const QPoint corner(width() - imageryAttribution->width(), height() - imageryAttribution->height());
+    if (imageryAttribution->pos() != corner)
+        imageryAttribution->move(corner);
+    if (!imageryAttribution->isVisible() && !text.isEmpty()) {
+        imageryAttribution->show();
+        imageryAttribution->raise();
+    }
+}
+
 bool RouteEditorGLWidget::mapLayersBusy() const {
-    return osmMap && osmMap->busy();
+    return (osmMap && osmMap->busy()) || (imageryMap && mapLayers.shows(MapLayer::Imagery) && imageryMap->busy());
 }
 
 void RouteEditorGLWidget::updateMapLabels() {
@@ -2124,6 +2175,10 @@ void RouteEditorGLWidget::paintMap() {
     const MapView &view = cameraMap->view;
     if (mapLayers.shows(MapLayer::Terrain))
         terrainMap->pushRenderItems(queue, view, palette, Game::terrainLib);
+    if (mapLayers.shows(MapLayer::Imagery))
+        imageryMap->pushRenderItems(queue, view);
+    else
+        imageryMap->pause();
     if (mapLayers.shows(MapLayer::OsmData))
         osmMap->pushRenderItems(queue, view, palette,
                                 Settings::string("core.paths.osmData", SettingType::Directory),
