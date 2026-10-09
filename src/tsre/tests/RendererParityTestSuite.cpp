@@ -105,6 +105,9 @@ struct ViewSpec {
     // Height above the terrain, replacing the view's own height.
     bool hasAboveGround = false;
     float aboveGround = 0.0f;
+    // Editor size for this view and the following ones, as when a tool
+    // panel is hidden or shown (0: unchanged).
+    int windowWidth = 0, windowHeight = 0;
 };
 
 // A static object placed for the capture only (not saved): a shape of the
@@ -287,6 +290,10 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         }
         view.editDistant = object.value("editDistant").toBool(false);
         view.hasAboveGround = object.contains("aboveGround");
+        if (object.value("windowSize").isArray() && object.value("windowSize").toArray().size() == 2) {
+            view.windowWidth = object.value("windowSize").toArray()[0].toInt(0);
+            view.windowHeight = object.value("windowSize").toArray()[1].toInt(0);
+        }
         view.aboveGround = float(object.value("aboveGround").toDouble(0.0));
         if (view.hasTile != view.hasPos) {
             error = QString("view %1 needs both tile and pos").arg(view.name);
@@ -524,6 +531,10 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
     }
     QJsonArray viewReports;
     for (const ViewSpec &spec : options.views) {
+        if (spec.windowWidth > 0 && spec.windowHeight > 0) {
+            widget.resize(spec.windowWidth, spec.windowHeight);
+            QCoreApplication::processEvents();
+        }
         int tileX = spec.hasTile ? spec.tileX : startTileX;
         int tileZ = spec.hasTile ? spec.tileZ : startTileZ;
         float pos[3] = {startPos[0], startPos[1], startPos[2]};

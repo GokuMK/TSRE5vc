@@ -1,0 +1,12 @@
+{
+  "notes": "Map mode before and after the editor is resized (windowSize, as when a tool panel is hidden or shown): the 2048 m terrain tiles must stay square, 256 px at 8 m/px, on both renderers.",
+  "output": "build/renderer-map-resize",
+  "width": 1280, "height": 720, "pickGrid": [1, 1], "timingFrames": 1, "diffTolerance": 16,
+  "shadows": false,
+  "settle": { "minFrames": 8, "stableFrames": 3, "maxFrames": 300, "maxSeconds": 120 },
+  "views": [
+    { "name": "before", "mode": "map", "metresPerPixel": 8 },
+    { "name": "wider", "mode": "map", "metresPerPixel": 8, "windowSize": [1600, 720] },
+    { "name": "narrower", "mode": "map", "metresPerPixel": 8, "windowSize": [1000, 720] }
+  ]
+}
