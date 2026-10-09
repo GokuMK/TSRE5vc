@@ -300,11 +300,10 @@ public:
         if (terrain && terrain->loaded && enable && !terrain->usesProceduralMaterial()
                 && terrain->hasSavedProceduralMap()) {
             const auto answer = QMessageBox::question(ctx.view(),
-                QCoreApplication::translate("RouteEditorGLWidget", "Restore procedural map"),
-                QCoreApplication::translate("RouteEditorGLWidget",
-                    "An existing procedural material map was found for this tile. Restore it?\n\n"
-                    "Painted regions will be preserved, but random materials may be assigned if the original material mapping is missing.\n\n"
-                    "Choose No to fill the whole tile with the selected material instead."),
+                //% "Restore procedural map"
+                qtTrId("route.editor.route.editor.glwidget.restore.procedural.map.title"),
+                //% "An existing procedural material map was found for this tile. Restore it?\n\nPainted regions will be preserved, but random materials may be assigned if the original material mapping is missing.\n\nChoose No to fill the whole tile with the selected material instead."
+                qtTrId("route.editor.route.editor.glwidget.restore.procedural.map.question"),
                 QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel, QMessageBox::Yes);
             restore = answer == QMessageBox::Yes;
             cancelled = answer == QMessageBox::Cancel;

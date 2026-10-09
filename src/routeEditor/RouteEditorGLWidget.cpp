@@ -2072,11 +2072,11 @@ bool RouteEditorGLWidget::prepareImageryLayer() {
     QMessageBox::information(this,
         //% "Imagery"
         qtTrId("route.editor.route.editor.glwidget.imagery.title"),
-        Game::GeoCoordConverter == NULL
+        Game::GeoCoordConverter == NULL ?
             //% "This route has no geographic reference, so imagery cannot be placed on it."
-            ? qtTrId("route.editor.route.editor.glwidget.imagery.no.reference")
+            qtTrId("route.editor.route.editor.glwidget.imagery.no.reference") :
             //% "No imagery source can be shown: %1"
-            : qtTrId("route.editor.route.editor.glwidget.imagery.no.source").arg(error));
+            qtTrId("route.editor.route.editor.glwidget.imagery.no.source").arg(error));
     return false;
 }
 

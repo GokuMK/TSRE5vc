@@ -203,11 +203,11 @@ TrkWindow::TrkWindow(Mode mode) : QDialog(), mode(mode) {
         qtTrId("route.editor.trk.window.button.apply"));
     QObject::connect(bok, SIGNAL(released()), this, SLOT(bokEnabled()));
     QPushButton *bcancel = new QPushButton(
-        mode == Mode::NewRouteTemplate
+        mode == Mode::NewRouteTemplate ?
             //% "Skip"
-            ? qtTrId("route.editor.trk.window.button.skip")
+            qtTrId("route.editor.trk.window.button.skip") :
             //% "Discard"
-            : qtTrId("route.editor.trk.window.button.discard"));
+            qtTrId("route.editor.trk.window.button.discard"));
     QObject::connect(bcancel, SIGNAL(released()), this, SLOT(bcancelEnabled()));
     ibuttons->addWidget(bok);
     ibuttons->addWidget(bcancel);

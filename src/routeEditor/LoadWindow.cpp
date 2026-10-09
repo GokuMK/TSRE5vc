@@ -248,8 +248,10 @@ void LoadWindow::setNewRoute(){
         if (!RouteCreator::templateResourcesAvailable(&templateError)) {
             QMessageBox::critical(
                 this,
-                tr("Cannot create route"),
-                tr("The route template is unavailable. %1").arg(templateError));
+                //% "Cannot create route"
+                qtTrId("route.editor.load.window.cannot.create.route"),
+                //% "The route template is unavailable. %1"
+                qtTrId("route.editor.load.window.the.route.template.is.unavailable").arg(templateError));
             return;
         }
     }
@@ -278,8 +280,10 @@ void LoadWindow::setNewRoute(){
         if (!SettingsManager::instance().setSessionValue(
                     "core.route.saving.enabled", true, &settingsError)) {
             QMessageBox::critical(
-                this, tr("Cannot create route"),
-                tr("Route writing could not be enabled. %1").arg(settingsError));
+                //% "Cannot create route"
+                this, qtTrId("route.editor.load.window.cannot.create.route"),
+                //% "Route writing could not be enabled. %1"
+                qtTrId("route.editor.load.window.route.writing.could.not.be.enabled").arg(settingsError));
             return;
         }
         Game::writeEnabled = true;
@@ -296,7 +300,8 @@ void LoadWindow::setNewRoute(){
                                   &creationError, creationOptions,
                                   &creationWarnings)) {
             QMessageBox::critical(
-                this, tr("Cannot create route"), creationError);
+                //% "Cannot create route"
+                this, qtTrId("route.editor.load.window.cannot.create.route"), creationError);
             return;
         }
         if (!creationWarnings.isEmpty()) {
@@ -310,8 +315,10 @@ void LoadWindow::setNewRoute(){
         }
         if (!Game::checkRoute(Game::route)) {
             QMessageBox::critical(
-                this, tr("Cannot create route"),
-                tr("The route was created but its TRK file could not be found."));
+                //% "Cannot create route"
+                this, qtTrId("route.editor.load.window.cannot.create.route"),
+                //% "The route was created but its TRK file could not be found."
+                qtTrId("route.editor.load.window.the.route.was.created.but.its.trk"));
             return;
         }
         qDebug() << "Created route" << Game::route;

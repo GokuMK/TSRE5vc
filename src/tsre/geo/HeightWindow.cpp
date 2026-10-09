@@ -99,9 +99,11 @@ QString sourceInformation(const Elevation::Dataset &dataset,const QString &root)
             .arg(qtTrId("geo.elevation.info.license").toHtmlEscaped(),escaped(dataset.license));
     }
     if(dataset.fileGrid=="directory") {
-        //% "User-managed files"
         html+=QStringLiteral("<b>%1:</b> %2<br>")
-            .arg(qtTrId("geo.elevation.info.mode").toHtmlEscaped(),
+            .arg(
+                 //% "Mode"
+                 qtTrId("geo.elevation.info.mode").toHtmlEscaped(),
+                 //% "User-managed files"
                  qtTrId("geo.elevation.info.manual").toHtmlEscaped());
         //% "Local directory"
         html+=QStringLiteral("<b>%1:</b> %2<br>")
@@ -465,11 +467,11 @@ void HeightWindow::CheckForMissingGeodataFiles(QMap<int,QPair<int,int>*> &tiles)
             if (Elevation::findHgtFile(root,*fileSource,lat,lon).isEmpty()) missing.insert(Elevation::hgtFileName(lat,lon));
     }
     QStringList names = missing.values(); names.sort();
-    QString message = selected == fileSource->id
+    QString message = selected == fileSource->id ?
         //% "Elevation file-source check"
-        ? qtTrId("geo.elevation.hgt.check")
+        qtTrId("geo.elevation.hgt.check") :
         //% "Fallback file-source check. Elevation data is prepared when terrain is loaded."
-        : qtTrId("geo.elevation.hgt.fallback.check");
+        qtTrId("geo.elevation.hgt.fallback.check");
     //% "\nAll checked elevation files are present."
     message += names.isEmpty() ? qtTrId("geo.elevation.hgt.present") : //% "\nMissing local elevation files (downloaded automatically when supported):\n%1"
         qtTrId("geo.elevation.hgt.missing").arg(names.join('\n'));

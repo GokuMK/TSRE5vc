@@ -48,31 +48,48 @@ bool chooseShapeSave(QWidget *parent, const QString &sourcePath,
                      SFileComplex::Format sourceFormat, bool sourceCompressed,
                      ShapeSaveSelection &selection) {
     QDialog dialog(parent);
-    dialog.setWindowTitle(QObject::tr("Save Shape As"));
+    //% "Save Shape As"
+    dialog.setWindowTitle(qtTrId("shape.viewer.save.save.shape.as"));
     auto *layout = new QVBoxLayout(&dialog);
     auto *form = new QFormLayout;
     auto *pathLayout = new QHBoxLayout;
     auto *path = new QLineEdit(QDir::toNativeSeparators(sourcePath), &dialog);
-    auto *browse = new QPushButton(QObject::tr("Browse…"), &dialog);
+    //% "Browse…"
+    auto *browse = new QPushButton(qtTrId("shape.viewer.save.browse"), &dialog);
     pathLayout->addWidget(path, 1);
     pathLayout->addWidget(browse);
-    form->addRow(QObject::tr("Output file:"), pathLayout);
+    //% "Output file:"
+    form->addRow(qtTrId("shape.viewer.save.output.file.label"), pathLayout);
 
     auto *format = new QComboBox(&dialog);
-    format->addItem(QObject::tr("Preserve (%1)")
-                        .arg(sourceFormat == SFileComplex::Format::Binary
-                                 ? QObject::tr("Binary") : QObject::tr("Unicode")), -1);
-    format->addItem(QObject::tr("Unicode text"), 0);
-    format->addItem(QObject::tr("Binary"), 1);
-    form->addRow(QObject::tr("Format:"), format);
+    //% "Preserve (%1)"
+    format->addItem(qtTrId("shape.viewer.save.preserve")
+                        .arg(sourceFormat == SFileComplex::Format::Binary ?
+                                 //% "Binary"
+                                 qtTrId("shape.viewer.save.binary") :
+                                 //% "Unicode"
+                                 qtTrId("shape.viewer.save.unicode")), -1);
+    //% "Unicode text"
+    format->addItem(qtTrId("shape.viewer.save.unicode.text"), 0);
+    //% "Binary"
+    format->addItem(qtTrId("shape.viewer.save.binary"), 1);
+    //% "Format:"
+    form->addRow(qtTrId("shape.viewer.save.format.label"), format);
 
     auto *compression = new QComboBox(&dialog);
-    compression->addItem(QObject::tr("Preserve (%1)")
-                             .arg(sourceCompressed ? QObject::tr("Compressed")
-                                                   : QObject::tr("Uncompressed")), -1);
-    compression->addItem(QObject::tr("Uncompressed"), 0);
-    compression->addItem(QObject::tr("Compressed"), 1);
-    form->addRow(QObject::tr("Compression:"), compression);
+    //% "Preserve (%1)"
+    compression->addItem(qtTrId("shape.viewer.save.preserve")
+                             .arg(sourceCompressed ?
+                                  //% "Compressed"
+                                  qtTrId("shape.viewer.save.compressed") :
+                                  //% "Uncompressed"
+                                  qtTrId("shape.viewer.save.uncompressed")), -1);
+    //% "Uncompressed"
+    compression->addItem(qtTrId("shape.viewer.save.uncompressed"), 0);
+    //% "Compressed"
+    compression->addItem(qtTrId("shape.viewer.save.compressed"), 1);
+    //% "Compression:"
+    form->addRow(qtTrId("shape.viewer.save.compression.label"), compression);
     layout->addLayout(form);
 
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel,
@@ -81,8 +98,10 @@ bool chooseShapeSave(QWidget *parent, const QString &sourcePath,
     QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
     QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     QObject::connect(browse, &QPushButton::clicked, &dialog, [&dialog, path] {
-        QFileDialog picker(&dialog, QObject::tr("Save Shape As"), path->text(),
-                           QObject::tr("MSTS shapes (*.s)"));
+        //% "Save Shape As"
+        QFileDialog picker(&dialog, qtTrId("shape.viewer.save.save.shape.as"), path->text(),
+                           //% "MSTS shapes"
+                           qtTrId("shape.viewer.save.msts.shapes") + QStringLiteral(" (*.s)"));
         picker.setAcceptMode(QFileDialog::AcceptSave);
         picker.setDefaultSuffix("s");
         picker.setFileMode(QFileDialog::AnyFile);
@@ -97,20 +116,26 @@ bool chooseShapeSave(QWidget *parent, const QString &sourcePath,
 
     selection.path = QDir::fromNativeSeparators(path->text().trimmed());
     if (selection.path.isEmpty()) {
-        QMessageBox::warning(parent, QObject::tr("Save Shape"),
-                             QObject::tr("Choose an output filename."));
+        //% "Save Shape"
+        QMessageBox::warning(parent, qtTrId("shape.viewer.save.save.shape"),
+                             //% "Choose an output filename."
+                             qtTrId("shape.viewer.save.choose.an.output.filename"));
         return false;
     }
     if (QFileInfo(selection.path).suffix().isEmpty())
         selection.path += ".s";
     if (QFileInfo(selection.path).suffix().compare("s", Qt::CaseInsensitive) != 0) {
-        QMessageBox::warning(parent, QObject::tr("Save Shape"),
-                             QObject::tr("MSTS shape files must use the .s extension."));
+        //% "Save Shape"
+        QMessageBox::warning(parent, qtTrId("shape.viewer.save.save.shape"),
+                             //% "MSTS shape files must use the .s extension."
+                             qtTrId("shape.viewer.save.msts.shape.files.must.use.the.s"));
         return false;
     }
     if (QFileInfo::exists(selection.path) &&
-        QMessageBox::question(parent, QObject::tr("Replace Shape"),
-                              QObject::tr("%1 already exists. Replace it?")
+        //% "Replace Shape"
+        QMessageBox::question(parent, qtTrId("shape.viewer.save.replace.shape"),
+                              //% "%1 already exists. Replace it?"
+                              qtTrId("shape.viewer.save.already.exists.replace.it")
                                   .arg(QDir::toNativeSeparators(selection.path)),
                               QMessageBox::Yes | QMessageBox::No, QMessageBox::No) !=
             QMessageBox::Yes)
@@ -187,12 +212,14 @@ ShapeViewerWindow::ShapeViewerWindow() : QMainWindow() {
         qtTrId("shape.viewer.shape.viewer.window.action.f.new"), this);
     fileMenu->addAction(fNew);
     QObject::connect(fNew, SIGNAL(triggered(bool)), this, SLOT(openFileEnabled()));
-    fSave = new QAction(tr("&Save"), this);
+    //% "&Save"
+    fSave = new QAction(qtTrId("shape.viewer.shape.viewer.window.action.f.save"), this);
     fSave->setShortcut(QKeySequence::Save);
     fSave->setEnabled(false);
     fileMenu->addAction(fSave);
     QObject::connect(fSave, SIGNAL(triggered(bool)), this, SLOT(saveFileEnabled()));
-    fSaveAs = new QAction(tr("Save &As…"), this);
+    //% "Save &As…"
+    fSaveAs = new QAction(qtTrId("shape.viewer.shape.viewer.window.action.f.save.as"), this);
     fSaveAs->setShortcut(QKeySequence::SaveAs);
     fSaveAs->setEnabled(false);
     fileMenu->addAction(fSaveAs);
@@ -371,24 +398,30 @@ void ShapeViewerWindow::saveFileEnabled() {
     if (!shape)
         return;
     if (!shape->isLoaded() && !shape->loadData()) {
-        QMessageBox::critical(this, tr("Save Shape"),
-                              tr("The shape could not be loaded completely:\n%1")
+        //% "Save Shape"
+        QMessageBox::critical(this, qtTrId("shape.viewer.save.save.shape"),
+                              //% "The shape could not be loaded completely:\n%1"
+                              qtTrId("shape.viewer.save.the.shape.could.not.be.loaded.completely")
                                   .arg(shape->diagnostics().join("\n")));
         return;
     }
     SFileComplex::Format format;
     bool compressed = false;
     if (!shape->storageFormat(format, compressed)) {
-        QMessageBox::critical(this, tr("Save Shape"),
-                              tr("Saving requires a complete shape document."));
+        //% "Save Shape"
+        QMessageBox::critical(this, qtTrId("shape.viewer.save.save.shape"),
+                              //% "Saving requires a complete shape document."
+                              qtTrId("shape.viewer.save.saving.requires.a.complete.shape.document"));
         return;
     }
     QString error;
     if (!shape->save(shape->getPathId(), format, compressed, &error)) {
-        QMessageBox::critical(this, tr("Save Shape"), error);
+        //% "Save Shape"
+        QMessageBox::critical(this, qtTrId("shape.viewer.save.save.shape"), error);
         return;
     }
-    statusBar()->showMessage(tr("Saved %1").arg(QDir::toNativeSeparators(shape->getPathId())),
+    //% "Saved %1"
+    statusBar()->showMessage(qtTrId("shape.viewer.save.saved").arg(QDir::toNativeSeparators(shape->getPathId())),
                              5000);
 }
 
@@ -397,16 +430,20 @@ void ShapeViewerWindow::saveFileAsEnabled() {
     if (!shape)
         return;
     if (!shape->isLoaded() && !shape->loadData()) {
-        QMessageBox::critical(this, tr("Save Shape As"),
-                              tr("The shape could not be loaded completely:\n%1")
+        //% "Save Shape As"
+        QMessageBox::critical(this, qtTrId("shape.viewer.save.save.shape.as"),
+                              //% "The shape could not be loaded completely:\n%1"
+                              qtTrId("shape.viewer.save.the.shape.could.not.be.loaded.completely")
                                   .arg(shape->diagnostics().join("\n")));
         return;
     }
     SFileComplex::Format sourceFormat;
     bool sourceCompressed = false;
     if (!shape->storageFormat(sourceFormat, sourceCompressed)) {
-        QMessageBox::critical(this, tr("Save Shape As"),
-                              tr("Saving requires a complete shape document."));
+        //% "Save Shape As"
+        QMessageBox::critical(this, qtTrId("shape.viewer.save.save.shape.as"),
+                              //% "Saving requires a complete shape document."
+                              qtTrId("shape.viewer.save.saving.requires.a.complete.shape.document"));
         return;
     }
     ShapeSaveSelection selection;
@@ -420,7 +457,8 @@ void ShapeViewerWindow::saveFileAsEnabled() {
                                 ? sourceCompressed : selection.compression == 1;
     QString error;
     if (!shape->save(selection.path, format, compressed, &error)) {
-        QMessageBox::critical(this, tr("Save Shape As"), error);
+        //% "Save Shape As"
+        QMessageBox::critical(this, qtTrId("shape.viewer.save.save.shape.as"), error);
         return;
     }
 
@@ -429,7 +467,8 @@ void ShapeViewerWindow::saveFileAsEnabled() {
     loadFile(selection.path);
     if (auto *saved = dynamic_cast<SFileComplex *>(currentShape))
         saved->reload();
-    statusBar()->showMessage(tr("Saved %1").arg(QDir::toNativeSeparators(selection.path)),
+    //% "Saved %1"
+    statusBar()->showMessage(qtTrId("shape.viewer.save.saved").arg(QDir::toNativeSeparators(selection.path)),
                              5000);
 }
 

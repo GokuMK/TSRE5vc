@@ -70,6 +70,22 @@ new QLabel(qtTrId("activity.list.title"));
 Changing the English wording does not require changing a still-correct semantic
 ID. Do not introduce new GUI-facing `tr()` calls or raw display strings.
 
+Put each `//%` line directly above its own `qtTrId()`. One comment above a
+statement with two calls gives the text to the first call only, and `lupdate`
+can lose a comment placed before a conditional's `?`. In a conditional, end the
+line with `?` or `:` instead:
+
+```cpp
+const QString text = newRoute ?
+    //% "Skip"
+    qtTrId("route.editor.trk.window.button.skip") :
+    //% "Discard"
+    qtTrId("route.editor.trk.window.button.discard");
+```
+
+`QObject::tr()` and `QCoreApplication::translate()` are not used: their
+messages land in named contexts without IDs, which the validator rejects.
+
 Use one complete message and Qt placeholders instead of concatenating translated
 fragments:
 
