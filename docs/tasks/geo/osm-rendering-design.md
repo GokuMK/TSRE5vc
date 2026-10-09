@@ -473,9 +473,9 @@ In rough order of what the user asked about:
 4. Done 2026-10-09: the "Route: Stations" / "Route: Sidings" marker sets
    (`CoordsRoutePlaces`) mirrored their markers within the tile (database z
    not negated) since the repository's first commit; fixed (a 3D capture over
-   Carlisle shows the pole on the platform; its 3D name label did not show,
-   the old `TextObj` path, not looked into). The map leaves these sets out: it
-   labels the same names from the database.
+   Carlisle shows the pole on the platform; its name, 30 m above the pole,
+   was out of that steep view's frame, and renders on the user's system).
+   The map leaves these sets out: it labels the same names from the database.
 5. **Selecting OSM features** on the map, the start of procedural tools that
    use OSM data (for example track along an OSM railway). Through the
    existing selection pass (IDs drawn as colours), user's question
@@ -483,11 +483,20 @@ In rough order of what the user asked about:
    - IDs are 32 bits, 5 for the kind and 27 of payload; OSM way IDs are
      larger, so a new kind (`OsmFeature`) carries an index into a table of
      the features drawn for that pass, which maps back to type and ID.
-   - Drawing every feature in the view with its own ID would be one draw
-     each (the OSM batches mix features), so the pass draws only the
-     features near the pointer: a small query (the layer's projected
-     polylines and fills, or the store) builds per-feature shapes into
-     `MapSelection`, lines widened by its margin as markers are now.
+   - Drawing every feature in the view with its own per-draw ID would be one
+     draw each (the OSM batches mix features). Two ways:
+     - **Per-vertex ID** (user's suggestion, preferred): each vertex carries
+       its feature's index as an attribute, and a selection variant of the
+       shader writes it instead of the per-draw ID; the batches stay as they
+       are and the whole view is pickable in the same few draws. A float
+       attribute is exact up to 2^24 (enough for a per-view index); an
+       integer one also works on both backends. Costs a quarter more vertex
+       memory (12 to 16 bytes), or a selection mesh built on the first
+       pick; needs a vertex layout and shader variant on OpenGL and QRhi,
+       the same kind of work as the line shader (7), so best done with it.
+     - **Near the pointer** (no renderer work, a first tool can use it): a
+       small query builds per-feature shapes into `MapSelection`, lines
+       widened by its margin as markers are now.
    - The result goes to the select tool as other picks do; a later tool
      (follow this railway) reads the feature's geometry from the store.
 6. **Street names along roads**: a glyph atlas (QTextLayout shaping, QRawFont
